@@ -342,6 +342,18 @@ tokens:
       doc-title: "clamp(2.4rem, 4vw, 3.4rem)"
       doc-lead: "1.125rem"
       doc-lead--line-height: "1.65"
+      doc-prose: "1rem"
+      doc-prose--line-height: "var(--leading-doc-body)"
+      doc-prose-compact: "0.95rem"
+      doc-prose-compact--line-height: "1.75"
+      doc-subheading: "1.25rem"
+      doc-subheading--line-height: "1.25"
+      api-body: "0.9375rem"
+      api-body--line-height: "1.65"
+      api-heading: "1.625rem"
+      api-heading--line-height: "1.15"
+      api-subheading: "1.125rem"
+      api-code: "0.8125rem"
       protocol-title: "clamp(2.4rem, 5vw, 3.8rem)"
       page-title: "clamp(2.4rem, 4.4vw, 4rem)"
       article-title: "clamp(2.4rem, 4.4vw, 3.6rem)"
@@ -351,8 +363,8 @@ tokens:
       feature-title: "clamp(2rem, 3.4vw, 2.8rem)"
       subsection-title: "clamp(1.9rem, 3.4vw, 2.6rem)"
       doc-heading: "clamp(1.6rem, 2.6vw, 2.15rem)"
-      text-group-label: "0.625rem"
-      text-group-label--line-height: "0.75rem"
+      group-label: "0.625rem"
+      group-label--line-height: "0.75rem"
       release-title: "clamp(1.6rem, 3vw, 2.1rem)"
       empty-title: "clamp(1.55rem, 3vw, 2rem)"
       quote: "clamp(1.5rem, 2.4vw, 1.95rem)"
@@ -364,7 +376,7 @@ tokens:
       bento-md: "1.9rem"
       bento-sm: "1.8rem"
       bento-xs: "1.65rem"
-      leading-doc-body: "1.8"
+      doc-body: "1.8"
     layout:
       layout-width: "1200px"
       doc-layout-width: "96rem"
@@ -379,6 +391,61 @@ tokens:
       doc-sidebar-first-group-gap: "0.375rem"
       doc-toc-gutter: "1rem"
       doc-index-label-width: "11.875rem"
+      doc-hairline: "1px"
+      doc-sidebar-section-label-offset: "1.625rem"
+      doc-sidebar-section-label-tracking: "0.09em"
+      doc-sidebar-section-label-color: "color-mix( in srgb, var(--color-accent) 65%, var(--color-muted) )"
+      doc-sidebar-group-gap: "0.4375rem"
+      doc-sidebar-group-label-tracking: "0.08em"
+      doc-sidebar-group-label-color: "color-mix(in srgb, var(--color-subtle) 72%, transparent)"
+      doc-masthead-context-gap: "1rem"
+      doc-masthead-context-height: "1.75rem"
+      doc-masthead-crumb-gap: "0.5rem"
+      doc-masthead-crumb-tracking: "0.08em"
+      doc-masthead-crumb-rule-width: "0.875rem"
+      doc-masthead-action-gap: "0.375rem"
+      doc-masthead-title-offset: "1.125rem"
+      doc-masthead-title-leading: "1.02"
+      doc-masthead-title-tracking: "-0.02em"
+      doc-masthead-lead-offset: "1rem"
+      doc-masthead-lead-width: "64ch"
+      doc-masthead-meta-gap: "1.25rem"
+      doc-masthead-meta-offset: "1.5rem"
+      doc-masthead-meta-rule-gap: "0.875rem"
+      doc-inline-gap: "0.4375rem"
+      doc-meta-icon-opacity: "0.7"
+      doc-action-padding-inline: "0.625rem"
+      doc-action-success-border: "color-mix(in srgb, var(--color-success) 35%, transparent)"
+      doc-action-success-background: "color-mix(in srgb, var(--color-success) 10%, transparent)"
+      doc-section-offset: "4rem"
+      doc-section-rule-gap: "1rem"
+      doc-section-leading: "1.1"
+      doc-subsection-offset: "2.25rem"
+      doc-prose-width: "72ch"
+      doc-list-indent: "1.3rem"
+      doc-code-padding-inline: "0.38rem"
+      doc-code-padding-block: "0.12rem"
+      doc-link-underline-offset: "0.24em"
+      doc-section-offset-compact: "3.25rem"
+      api-content-width: "90rem"
+      api-operation-separation: "3rem"
+      api-column-gap: "2rem"
+      api-column-gap-medium: "2.5rem"
+      api-column-gap-wide: "3.5rem"
+      api-sticky-row-fallback: "2rem"
+      api-sticky-offset: "1rem"
+      api-example-width: "22rem"
+      api-example-width-wide: "26rem"
+      api-content-gap: "1.25rem"
+      api-heading-content-gap: "0.875rem"
+      api-subheading-offset: "2.5rem"
+      api-schema-min-width: "18rem"
+      diagram-node-stroke-width: "1.4px"
+      bento-overlay-runtime: "linear-gradient( 180deg, color-mix(in srgb, var(--color-rail) 68%, transparent) 0%, color-mix(in srgb, var(--color-rail) 18%, transparent) 42%, transparent 68% )"
+      bento-overlay-network: "linear-gradient( 180deg, color-mix(in srgb, var(--color-rail) 94%, transparent) 0%, color-mix(in srgb, var(--color-rail) 78%, transparent) 21%, transparent 48% )"
+      bento-overlay-bridges: "linear-gradient( 180deg, color-mix(in srgb, var(--color-rail) 84%, transparent) 0%, color-mix(in srgb, var(--color-rail) 40%, transparent) 30%, transparent 64% )"
+      bento-overlay-memory: "linear-gradient( 180deg, color-mix(in srgb, var(--color-rail) 92%, transparent) 0%, color-mix(in srgb, var(--color-rail) 72%, transparent) 27%, transparent 58% )"
+      bento-overlay-extensibility: "linear-gradient( 180deg, color-mix(in srgb, var(--color-rail) 92%, transparent) 0%, color-mix(in srgb, var(--color-rail) 66%, transparent) 26%, transparent 58% )"
 ---
 
 # Design System: Compozy
@@ -980,19 +1047,23 @@ chrome (sidebar, TOC, actions, `h3`+) stay on Inter. Docs mono labels bind
 
 <!-- BEGIN:tokens:site-clamps -->
 
-| Token                        | Value                          | Token                             | Value                           | Token                               | Value                           |
-| ---------------------------- | ------------------------------ | --------------------------------- | ------------------------------- | ----------------------------------- | ------------------------------- |
-| `--text-site-lead`           | `1.1875rem`                    | `--text-site-lead--line-height`   | `1.5`                           | `--text-site-hero`                  | `clamp(2.8rem, 6.5vw, 5.4rem)`  |
-| `--text-site-error-title`    | `clamp(2.6rem, 6vw, 4.8rem)`   | `--text-site-hero-section`        | `clamp(2.6rem, 5.5vw, 4.2rem)`  | `--text-site-blog-title`            | `clamp(2.6rem, 5.4vw, 4.6rem)`  |
-| `--text-site-doc-title`      | `clamp(2.4rem, 4vw, 3.4rem)`   | `--text-site-doc-lead`            | `1.125rem`                      | `--text-site-doc-lead--line-height` | `1.65`                          |
-| `--text-site-protocol-title` | `clamp(2.4rem, 5vw, 3.8rem)`   | `--text-site-page-title`          | `clamp(2.4rem, 4.4vw, 4rem)`    | `--text-site-article-title`         | `clamp(2.4rem, 4.4vw, 3.6rem)`  |
-| `--text-site-section-title`  | `clamp(2.2rem, 4.6vw, 3.6rem)` | `--text-site-category-title`      | `clamp(2.2rem, 4vw, 3.4rem)`    | `--text-site-cta-title`             | `clamp(2rem, 4.5vw, 3.2rem)`    |
-| `--text-site-feature-title`  | `clamp(2rem, 3.4vw, 2.8rem)`   | `--text-site-subsection-title`    | `clamp(1.9rem, 3.4vw, 2.6rem)`  | `--text-site-doc-heading`           | `clamp(1.6rem, 2.6vw, 2.15rem)` |
-| `--text-group-label`         | `0.625rem`                     | `--text-group-label--line-height` | `0.75rem`                       | `--text-site-release-title`         | `clamp(1.6rem, 3vw, 2.1rem)`    |
-| `--text-site-empty-title`    | `clamp(1.55rem, 3vw, 2rem)`    | `--text-site-quote`               | `clamp(1.5rem, 2.4vw, 1.95rem)` | `--text-site-card-title`            | `clamp(1.45rem, 3vw, 1.9rem)`   |
-| `--text-site-subheading`     | `clamp(1.3rem, 2.2vw, 1.7rem)` | `--text-site-bento-2xl`           | `2.5rem`                        | `--text-site-bento-xl`              | `2.35rem`                       |
-| `--text-site-bento-lg`       | `2rem`                         | `--text-site-bento-md`            | `1.9rem`                        | `--text-site-bento-sm`              | `1.8rem`                        |
-| `--text-site-bento-xs`       | `1.65rem`                      | `--leading-doc-body`              | `1.8`                           |                                     |                                 |
+| Token                                        | Value                          | Token                                | Value                           | Token                                     | Value                           |
+| -------------------------------------------- | ------------------------------ | ------------------------------------ | ------------------------------- | ----------------------------------------- | ------------------------------- |
+| `--text-site-lead`                           | `1.1875rem`                    | `--text-site-lead--line-height`      | `1.5`                           | `--text-site-hero`                        | `clamp(2.8rem, 6.5vw, 5.4rem)`  |
+| `--text-site-error-title`                    | `clamp(2.6rem, 6vw, 4.8rem)`   | `--text-site-hero-section`           | `clamp(2.6rem, 5.5vw, 4.2rem)`  | `--text-site-blog-title`                  | `clamp(2.6rem, 5.4vw, 4.6rem)`  |
+| `--text-site-doc-title`                      | `clamp(2.4rem, 4vw, 3.4rem)`   | `--text-site-doc-lead`               | `1.125rem`                      | `--text-site-doc-lead--line-height`       | `1.65`                          |
+| `--text-site-doc-prose`                      | `1rem`                         | `--text-site-doc-prose--line-height` | `var(--leading-doc-body)`       | `--text-site-doc-prose-compact`           | `0.95rem`                       |
+| `--text-site-doc-prose-compact--line-height` | `1.75`                         | `--text-site-doc-subheading`         | `1.25rem`                       | `--text-site-doc-subheading--line-height` | `1.25`                          |
+| `--text-site-api-body`                       | `0.9375rem`                    | `--text-site-api-body--line-height`  | `1.65`                          | `--text-site-api-heading`                 | `1.625rem`                      |
+| `--text-site-api-heading--line-height`       | `1.15`                         | `--text-site-api-subheading`         | `1.125rem`                      | `--text-site-api-code`                    | `0.8125rem`                     |
+| `--text-site-protocol-title`                 | `clamp(2.4rem, 5vw, 3.8rem)`   | `--text-site-page-title`             | `clamp(2.4rem, 4.4vw, 4rem)`    | `--text-site-article-title`               | `clamp(2.4rem, 4.4vw, 3.6rem)`  |
+| `--text-site-section-title`                  | `clamp(2.2rem, 4.6vw, 3.6rem)` | `--text-site-category-title`         | `clamp(2.2rem, 4vw, 3.4rem)`    | `--text-site-cta-title`                   | `clamp(2rem, 4.5vw, 3.2rem)`    |
+| `--text-site-feature-title`                  | `clamp(2rem, 3.4vw, 2.8rem)`   | `--text-site-subsection-title`       | `clamp(1.9rem, 3.4vw, 2.6rem)`  | `--text-site-doc-heading`                 | `clamp(1.6rem, 2.6vw, 2.15rem)` |
+| `--text-group-label`                         | `0.625rem`                     | `--text-group-label--line-height`    | `0.75rem`                       | `--text-site-release-title`               | `clamp(1.6rem, 3vw, 2.1rem)`    |
+| `--text-site-empty-title`                    | `clamp(1.55rem, 3vw, 2rem)`    | `--text-site-quote`                  | `clamp(1.5rem, 2.4vw, 1.95rem)` | `--text-site-card-title`                  | `clamp(1.45rem, 3vw, 1.9rem)`   |
+| `--text-site-subheading`                     | `clamp(1.3rem, 2.2vw, 1.7rem)` | `--text-site-bento-2xl`              | `2.5rem`                        | `--text-site-bento-xl`                    | `2.35rem`                       |
+| `--text-site-bento-lg`                       | `2rem`                         | `--text-site-bento-md`               | `1.9rem`                        | `--text-site-bento-sm`                    | `1.8rem`                        |
+| `--text-site-bento-xs`                       | `1.65rem`                      | `--leading-doc-body`                 | `1.8`                           |                                           |                                 |
 
 <!-- END:tokens:site-clamps -->
 
@@ -1000,15 +1071,31 @@ chrome (sidebar, TOC, actions, `h3`+) stay on Inter. Docs mono labels bind
 
 <!-- BEGIN:tokens:site-layout -->
 
-| Token                                     | Value       | Token                                | Value      |
-| ----------------------------------------- | ----------- | ------------------------------------ | ---------- |
-| `--site-layout-width`                     | `1200px`    | `--site-doc-layout-width`            | `96rem`    |
-| `--site-doc-sidebar-width`                | `16rem`     | `--site-doc-toc-width`               | `14rem`    |
-| `--site-doc-sidebar-marker-offset`        | `0.75rem`   | `--site-doc-sidebar-marker-inset`    | `0.375rem` |
-| `--site-doc-sidebar-nested-marker-offset` | `0.6875rem` | `--site-doc-sidebar-tree-indent`     | `0.875rem` |
-| `--site-doc-sidebar-tree-gutter`          | `0.625rem`  | `--site-doc-sidebar-tree-line-inset` | `0.25rem`  |
-| `--site-doc-sidebar-first-group-gap`      | `0.375rem`  | `--site-doc-toc-gutter`              | `1rem`     |
-| `--site-doc-index-label-width`            | `11.875rem` |                                      |            |
+| Token                                       | Value                                                                                                                                                               | Token                                    | Value                                                                                                                                                               | Token                                     | Value                                                                                                                                                               |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--site-layout-width`                       | `1200px`                                                                                                                                                            | `--site-doc-layout-width`                | `96rem`                                                                                                                                                             | `--site-doc-sidebar-width`                | `16rem`                                                                                                                                                             |
+| `--site-doc-toc-width`                      | `14rem`                                                                                                                                                             | `--site-doc-sidebar-marker-offset`       | `0.75rem`                                                                                                                                                           | `--site-doc-sidebar-marker-inset`         | `0.375rem`                                                                                                                                                          |
+| `--site-doc-sidebar-nested-marker-offset`   | `0.6875rem`                                                                                                                                                         | `--site-doc-sidebar-tree-indent`         | `0.875rem`                                                                                                                                                          | `--site-doc-sidebar-tree-gutter`          | `0.625rem`                                                                                                                                                          |
+| `--site-doc-sidebar-tree-line-inset`        | `0.25rem`                                                                                                                                                           | `--site-doc-sidebar-first-group-gap`     | `0.375rem`                                                                                                                                                          | `--site-doc-toc-gutter`                   | `1rem`                                                                                                                                                              |
+| `--site-doc-index-label-width`              | `11.875rem`                                                                                                                                                         | `--site-doc-hairline`                    | `1px`                                                                                                                                                               | `--site-doc-sidebar-section-label-offset` | `1.625rem`                                                                                                                                                          |
+| `--site-doc-sidebar-section-label-tracking` | `0.09em`                                                                                                                                                            | `--site-doc-sidebar-section-label-color` | `color-mix( in srgb, var(--color-accent) 65%, var(--color-muted) )`                                                                                                 | `--site-doc-sidebar-group-gap`            | `0.4375rem`                                                                                                                                                         |
+| `--site-doc-sidebar-group-label-tracking`   | `0.08em`                                                                                                                                                            | `--site-doc-sidebar-group-label-color`   | `color-mix(in srgb, var(--color-subtle) 72%, transparent)`                                                                                                          | `--site-doc-masthead-context-gap`         | `1rem`                                                                                                                                                              |
+| `--site-doc-masthead-context-height`        | `1.75rem`                                                                                                                                                           | `--site-doc-masthead-crumb-gap`          | `0.5rem`                                                                                                                                                            | `--site-doc-masthead-crumb-tracking`      | `0.08em`                                                                                                                                                            |
+| `--site-doc-masthead-crumb-rule-width`      | `0.875rem`                                                                                                                                                          | `--site-doc-masthead-action-gap`         | `0.375rem`                                                                                                                                                          | `--site-doc-masthead-title-offset`        | `1.125rem`                                                                                                                                                          |
+| `--site-doc-masthead-title-leading`         | `1.02`                                                                                                                                                              | `--site-doc-masthead-title-tracking`     | `-0.02em`                                                                                                                                                           | `--site-doc-masthead-lead-offset`         | `1rem`                                                                                                                                                              |
+| `--site-doc-masthead-lead-width`            | `64ch`                                                                                                                                                              | `--site-doc-masthead-meta-gap`           | `1.25rem`                                                                                                                                                           | `--site-doc-masthead-meta-offset`         | `1.5rem`                                                                                                                                                            |
+| `--site-doc-masthead-meta-rule-gap`         | `0.875rem`                                                                                                                                                          | `--site-doc-inline-gap`                  | `0.4375rem`                                                                                                                                                         | `--site-doc-meta-icon-opacity`            | `0.7`                                                                                                                                                               |
+| `--site-doc-action-padding-inline`          | `0.625rem`                                                                                                                                                          | `--site-doc-action-success-border`       | `color-mix(in srgb, var(--color-success) 35%, transparent)`                                                                                                         | `--site-doc-action-success-background`    | `color-mix(in srgb, var(--color-success) 10%, transparent)`                                                                                                         |
+| `--site-doc-section-offset`                 | `4rem`                                                                                                                                                              | `--site-doc-section-rule-gap`            | `1rem`                                                                                                                                                              | `--site-doc-section-leading`              | `1.1`                                                                                                                                                               |
+| `--site-doc-subsection-offset`              | `2.25rem`                                                                                                                                                           | `--site-doc-prose-width`                 | `72ch`                                                                                                                                                              | `--site-doc-list-indent`                  | `1.3rem`                                                                                                                                                            |
+| `--site-doc-code-padding-inline`            | `0.38rem`                                                                                                                                                           | `--site-doc-code-padding-block`          | `0.12rem`                                                                                                                                                           | `--site-doc-link-underline-offset`        | `0.24em`                                                                                                                                                            |
+| `--site-doc-section-offset-compact`         | `3.25rem`                                                                                                                                                           | `--site-api-content-width`               | `90rem`                                                                                                                                                             | `--site-api-operation-separation`         | `3rem`                                                                                                                                                              |
+| `--site-api-column-gap`                     | `2rem`                                                                                                                                                              | `--site-api-column-gap-medium`           | `2.5rem`                                                                                                                                                            | `--site-api-column-gap-wide`              | `3.5rem`                                                                                                                                                            |
+| `--site-api-sticky-row-fallback`            | `2rem`                                                                                                                                                              | `--site-api-sticky-offset`               | `1rem`                                                                                                                                                              | `--site-api-example-width`                | `22rem`                                                                                                                                                             |
+| `--site-api-example-width-wide`             | `26rem`                                                                                                                                                             | `--site-api-content-gap`                 | `1.25rem`                                                                                                                                                           | `--site-api-heading-content-gap`          | `0.875rem`                                                                                                                                                          |
+| `--site-api-subheading-offset`              | `2.5rem`                                                                                                                                                            | `--site-api-schema-min-width`            | `18rem`                                                                                                                                                             | `--site-diagram-node-stroke-width`        | `1.4px`                                                                                                                                                             |
+| `--site-bento-overlay-runtime`              | `linear-gradient( 180deg, color-mix(in srgb, var(--color-rail) 68%, transparent) 0%, color-mix(in srgb, var(--color-rail) 18%, transparent) 42%, transparent 68% )` | `--site-bento-overlay-network`           | `linear-gradient( 180deg, color-mix(in srgb, var(--color-rail) 94%, transparent) 0%, color-mix(in srgb, var(--color-rail) 78%, transparent) 21%, transparent 48% )` | `--site-bento-overlay-bridges`            | `linear-gradient( 180deg, color-mix(in srgb, var(--color-rail) 84%, transparent) 0%, color-mix(in srgb, var(--color-rail) 40%, transparent) 30%, transparent 64% )` |
+| `--site-bento-overlay-memory`               | `linear-gradient( 180deg, color-mix(in srgb, var(--color-rail) 92%, transparent) 0%, color-mix(in srgb, var(--color-rail) 72%, transparent) 27%, transparent 58% )` | `--site-bento-overlay-extensibility`     | `linear-gradient( 180deg, color-mix(in srgb, var(--color-rail) 92%, transparent) 0%, color-mix(in srgb, var(--color-rail) 66%, transparent) 26%, transparent 58% )` |                                           |                                                                                                                                                                     |
 
 <!-- END:tokens:site-layout -->
 

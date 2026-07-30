@@ -1,27 +1,28 @@
 /* Fumadocs OpenAPI workbench overrides. Render hooks live in components/docs/openapi-page.tsx. */
 #main-content:has(.site-api-page) > * {
   width: 100%;
-  max-width: min(100%, 90rem);
+  max-width: min(100%, var(--site-api-content-width));
   margin-inline: auto;
 }
 
 .site-api-page {
   --color-fd-primary: var(--color-fg);
   --color-fd-primary-foreground: var(--color-canvas);
-  font-size: 0.9375rem;
-  line-height: 1.65;
+
+  font-size: var(--text-site-api-body);
+  line-height: var(--text-site-api-body--line-height);
 }
 
 .site-api-operation + .site-api-operation {
-  margin-top: 3rem;
-  padding-top: 3rem;
-  border-top: 1px solid var(--color-line);
+  margin-top: var(--site-api-operation-separation);
+  padding-top: var(--site-api-operation-separation);
+  border-top: var(--site-doc-hairline) solid var(--color-line);
 }
 
 .site-api-operation-cols {
   display: flex;
   flex-direction: column;
-  gap: 2rem;
+  gap: var(--site-api-column-gap);
 }
 
 .site-api-operation-main {
@@ -37,51 +38,53 @@
   .site-api-operation-cols {
     flex-direction: row;
     align-items: flex-start;
-    gap: 2.5rem;
+    gap: var(--site-api-column-gap-medium);
   }
 
   .site-api-operation-example {
     position: sticky;
-    top: calc(var(--fd-docs-row-1, 2rem) + 1rem);
-    width: 22rem;
+    top: calc(
+      var(--fd-docs-row-1, var(--site-api-sticky-row-fallback)) + var(--site-api-sticky-offset)
+    );
+    width: var(--site-api-example-width);
     flex-shrink: 0;
   }
 }
 
 @container (min-width: 72rem) {
   .site-api-operation-cols {
-    gap: 3.5rem;
+    gap: var(--site-api-column-gap-wide);
   }
 
   .site-api-operation-example {
-    width: 26rem;
+    width: var(--site-api-example-width-wide);
   }
 }
 
 .site-api-operation-main > * + * {
-  margin-top: 1.25rem;
+  margin-top: var(--site-api-content-gap);
 }
 
 .site-api-operation-main > :is(h2, h3) + *,
 .site-api-operation-main > div:has(h2, h3) + * {
-  margin-top: 0.875rem;
+  margin-top: var(--site-api-heading-content-gap);
 }
 
 .site-doc-body .site-api-page h2 {
   border-top: 0;
   padding-top: 0;
-  font-size: 1.625rem;
-  line-height: 1.15;
+  font-size: var(--text-site-api-heading);
+  line-height: var(--text-site-api-heading--line-height);
   text-wrap: balance;
 }
 
 .site-doc-body .site-api-page h3 {
-  margin-top: 2.5rem;
-  font-size: 1.125rem;
+  margin-top: var(--site-api-subheading-offset);
+  font-size: var(--text-site-api-subheading);
 }
 
 .site-doc-body .site-api-page :is(p, li, td, th, blockquote, h1, h2, h3, h4, h5, h6) code {
-  font-size: 0.8125rem;
+  font-size: var(--text-site-api-code);
 }
 
 .site-doc-body .site-api-page :is(ul, ol) {
@@ -90,7 +93,7 @@
 
 .site-api-page div.w-full.bg-fd-secondary.rounded-lg {
   width: fit-content;
-  min-width: 18rem;
+  min-width: var(--site-api-schema-min-width);
   max-width: 100%;
 }
 

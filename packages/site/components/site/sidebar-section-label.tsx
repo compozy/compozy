@@ -6,8 +6,8 @@ import { useFolderDepth } from "fumadocs-ui/components/sidebar/base";
 
 function SectionLabel({ item }: { item: Separator }) {
   return (
-    <p className="docs-sb-label mt-[26px] mb-1.5 px-2 first:mt-1">
-      <Eyebrow className="font-mono text-badge font-medium tracking-[0.09em] text-[color-mix(in_srgb,var(--color-accent)_65%,var(--color-muted))]">
+    <p className="docs-sb-label mt-site-doc-sidebar-section-label-offset mb-1.5 px-2 first:mt-1">
+      <Eyebrow className="font-mono text-badge font-medium tracking-site-doc-sidebar-section-label text-site-doc-sidebar-section-label">
         {item.icon}
         {item.name}
       </Eyebrow>
@@ -17,8 +17,8 @@ function SectionLabel({ item }: { item: Separator }) {
 
 function GroupLabel({ item }: { item: Separator }) {
   return (
-    <p className="docs-sb-group mt-3 mb-0.5 flex items-center gap-[7px] px-2 first:mt-1.5">
-      <Eyebrow className="font-mono text-group-label font-medium tracking-[0.08em] text-[color-mix(in_srgb,var(--color-subtle)_72%,transparent)]">
+    <p className="docs-sb-group mt-3 mb-0.5 flex items-center gap-site-doc-sidebar-group-gap px-2 first:mt-1.5">
+      <Eyebrow className="font-mono text-group-label font-medium tracking-site-doc-sidebar-group-label text-site-doc-sidebar-group-label">
         {item.icon}
         {item.name}
       </Eyebrow>

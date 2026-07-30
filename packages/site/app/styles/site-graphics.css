@@ -18,7 +18,7 @@
 .compozy-mermaid .node path {
   fill: var(--compozy-mermaid-node-bg) !important;
   stroke: var(--compozy-mermaid-node-border) !important;
-  stroke-width: 1.4px !important;
+  stroke-width: var(--site-diagram-node-stroke-width) !important;
 }
 
 .compozy-mermaid .cluster rect {
@@ -50,7 +50,7 @@
   color: var(--compozy-mermaid-node-text) !important;
   fill: var(--compozy-mermaid-node-text) !important;
   font-family: var(--font-mono) !important;
-  letter-spacing: 0 !important;
+  letter-spacing: var(--tracking-mono-id) !important;
   overflow-wrap: anywhere !important;
   white-space: normal !important;
 }
@@ -85,46 +85,21 @@
 }
 
 .site-bento-overlay-runtime {
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--color-rail) 68%, transparent) 0%,
-    color-mix(in srgb, var(--color-rail) 18%, transparent) 42%,
-    transparent 68%
-  );
+  background: var(--site-bento-overlay-runtime);
 }
 
 .site-bento-overlay-network {
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--color-rail) 94%, transparent) 0%,
-    color-mix(in srgb, var(--color-rail) 78%, transparent) 21%,
-    transparent 48%
-  );
+  background: var(--site-bento-overlay-network);
 }
 
 .site-bento-overlay-bridges {
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--color-rail) 84%, transparent) 0%,
-    color-mix(in srgb, var(--color-rail) 40%, transparent) 30%,
-    transparent 64%
-  );
+  background: var(--site-bento-overlay-bridges);
 }
 
 .site-bento-overlay-memory {
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--color-rail) 92%, transparent) 0%,
-    color-mix(in srgb, var(--color-rail) 72%, transparent) 27%,
-    transparent 58%
-  );
+  background: var(--site-bento-overlay-memory);
 }
 
 .site-bento-overlay-extensibility {
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--color-rail) 92%, transparent) 0%,
-    color-mix(in srgb, var(--color-rail) 66%, transparent) 26%,
-    transparent 58%
-  );
+  background: var(--site-bento-overlay-extensibility);
 }
