@@ -9,7 +9,7 @@ entry_points: bundled skills/compozy/SKILL.md; GET /api/skills; compozy skill li
 qa_status: pass
 bug_ids:
 fix_status:
-retest_status: pass
+retest_status:
 fix_commits:
 evidence: /Users/pedronauck/dev/qa-labs/compozy-compozy-migration-beta-20260727-135201-116083-lab/qa-artifacts/qa/gate-test-integration-rerun.log; /Users/pedronauck/dev/qa-labs/compozy-compozy-migration-beta-20260727-135201-116083-lab/qa-artifacts/qa/gate-test-e2e-web-final-2.log
 last_report: docs/qa/reports/2026-07-27-devtool-oss-launch.md

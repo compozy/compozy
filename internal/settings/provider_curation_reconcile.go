@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -38,7 +39,7 @@ func (s *service) reconcileProviderCuratedWrite(
 		settings.Models = cloneProviderModelsConfig(rawProvider.Models)
 		return settings, nil
 	}
-	_, err = cfg.ResolveProvider(providerID)
+	resolvedProvider, err := cfg.ResolveProvider(providerID)
 	if err != nil {
 		if modelCuration != nil {
 			return ProviderSettings{}, providerModelNotFoundError(providerID, modelCuration.ModelID)
@@ -53,11 +54,16 @@ func (s *service) reconcileProviderCuratedWrite(
 		}
 	}
 	if settings.Models.Curated != nil {
-		currentIDs, currentErr := s.currentCuratedProviderModelIDs(ctx, providerID)
+		currentModels, currentErr := s.currentProviderModels(ctx, providerID)
 		if currentErr != nil {
 			return ProviderSettings{}, currentErr
 		}
-		reconciled = reconcileProviderCuratedRows(raw, currentIDs, settings.Models.Curated)
+		reconciled = reconcileProviderCuratedRows(
+			raw,
+			resolvedProvider.Models.Curated,
+			currentModels,
+			settings.Models.Curated,
+		)
 	}
 	if modelCuration != nil {
 		reconciled, err = s.applyProviderModelCurationIntent(ctx, providerID, reconciled, *modelCuration)
@@ -99,30 +105,29 @@ func (s *service) applyProviderModelCurationIntent(
 	return rows, nil
 }
 
-func (s *service) currentCuratedProviderModelIDs(
+func (s *service) currentProviderModels(
 	ctx context.Context,
 	providerID string,
-) ([]string, error) {
-	if err := s.requireProviderModelCatalog(); err != nil {
-		return nil, err
+) ([]modelcatalog.Model, error) {
+	if s.modelCatalog == nil {
+		return nil, validationError(
+			errors.New("settings: model catalog is required to reconcile curated provider models"),
+		)
 	}
 	models, err := s.modelCatalog.ListModels(ctx, modelcatalog.ListOptions{
 		ProviderID: providerID,
-		View:       modelcatalog.CatalogViewCurated,
+		View:       modelcatalog.CatalogViewAll,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("settings: list provider models before write: %w", err)
 	}
-	ids := make([]string, 0, len(models))
-	for _, model := range models {
-		ids = append(ids, model.ModelID)
-	}
-	return ids, nil
+	return models, nil
 }
 
 func reconcileProviderCuratedRows(
 	raw []compozyconfig.ProviderModelConfig,
-	currentIDs []string,
+	configured []compozyconfig.ProviderModelConfig,
+	currentModels []modelcatalog.Model,
 	desired []compozyconfig.ProviderModelConfig,
 ) []compozyconfig.ProviderModelConfig {
 	rows := cloneProviderModelConfigs(raw)
@@ -130,6 +135,25 @@ func reconcileProviderCuratedRows(
 	for index := range rows {
 		if id := strings.TrimSpace(rows[index].ID); id != "" {
 			rowIndex[id] = index
+		}
+	}
+	projectedModels := providerModelConfigsFromCatalog(currentModels, configured)
+	currentByID := make(map[string]compozyconfig.ProviderModelConfig, len(projectedModels))
+	currentIDs := make([]string, 0, len(currentModels))
+	for _, model := range projectedModels {
+		id := strings.TrimSpace(model.ID)
+		if id == "" {
+			continue
+		}
+		currentByID[id] = model
+	}
+	for _, model := range currentModels {
+		id := strings.TrimSpace(model.ModelID)
+		if id == "" {
+			continue
+		}
+		if model.Curated {
+			currentIDs = append(currentIDs, id)
 		}
 	}
 	currentIDs = uniqueProviderModelIDs(currentIDs)
@@ -140,6 +164,29 @@ func reconcileProviderCuratedRows(
 	}
 	desiredIDs := uniqueProviderModelIDs(desiredValues)
 	desiredSet := providerModelIDSet(desiredIDs)
+	for _, desiredModel := range desired {
+		id := strings.TrimSpace(desiredModel.ID)
+		if id == "" {
+			continue
+		}
+		index, configured := rowIndex[id]
+		rawModel := compozyconfig.ProviderModelConfig{ID: id}
+		if configured {
+			rawModel = rows[index]
+		}
+		currentModel := currentByID[id]
+		currentModel.ID = id
+		merged := mergeProviderModelConfigDeltas(rawModel, currentModel, desiredModel)
+		if configured {
+			rows[index] = merged
+			continue
+		}
+		if reflect.DeepEqual(merged, rawModel) {
+			continue
+		}
+		rows = append(rows, merged)
+		rowIndex[id] = len(rows) - 1
+	}
 	if providerModelIDSetsEqual(current, desiredSet) {
 		return rows
 	}
@@ -158,6 +205,80 @@ func reconcileProviderCuratedRows(
 		}
 	}
 	return rows
+}
+
+func mergeProviderModelConfigDeltas(
+	raw compozyconfig.ProviderModelConfig,
+	current compozyconfig.ProviderModelConfig,
+	desired compozyconfig.ProviderModelConfig,
+) compozyconfig.ProviderModelConfig {
+	next := cloneProviderModelConfigs([]compozyconfig.ProviderModelConfig{raw})[0]
+	next.ID = strings.TrimSpace(desired.ID)
+	mergeProviderModelValueDelta(&next.DisplayName, current.DisplayName, desired.DisplayName)
+	mergeProviderModelPointerDelta(&next.ContextWindow, current.ContextWindow, desired.ContextWindow)
+	mergeProviderModelPointerDelta(&next.MaxInputTokens, current.MaxInputTokens, desired.MaxInputTokens)
+	mergeProviderModelPointerDelta(&next.MaxOutputTokens, current.MaxOutputTokens, desired.MaxOutputTokens)
+	mergeProviderModelPointerDelta(&next.SupportsTools, current.SupportsTools, desired.SupportsTools)
+	mergeProviderModelPointerDelta(&next.SupportsReasoning, current.SupportsReasoning, desired.SupportsReasoning)
+	if !reflect.DeepEqual(desired.ReasoningEfforts, current.ReasoningEfforts) {
+		next.ReasoningEfforts = cloneStringSlicePreserveNil(desired.ReasoningEfforts)
+	}
+	mergeProviderModelValueDelta(
+		&next.DefaultReasoningEffort,
+		current.DefaultReasoningEffort,
+		desired.DefaultReasoningEffort,
+	)
+	mergeProviderModelPointerDelta(
+		&next.CostInputPerMillion,
+		current.CostInputPerMillion,
+		desired.CostInputPerMillion,
+	)
+	mergeProviderModelPointerDelta(
+		&next.CostOutputPerMillion,
+		current.CostOutputPerMillion,
+		desired.CostOutputPerMillion,
+	)
+	mergeProviderModelPointerDelta(
+		&next.CostCacheReadPerMillion,
+		current.CostCacheReadPerMillion,
+		desired.CostCacheReadPerMillion,
+	)
+	mergeProviderModelPointerDelta(
+		&next.CostCacheWritePerMillion,
+		current.CostCacheWritePerMillion,
+		desired.CostCacheWritePerMillion,
+	)
+	mergeProviderModelPointerDelta(
+		&next.CostReasoningPerMillion,
+		current.CostReasoningPerMillion,
+		desired.CostReasoningPerMillion,
+	)
+	mergeProviderModelPointerDelta(&next.Deprecated, current.Deprecated, desired.Deprecated)
+	mergeProviderModelPointerDelta(&next.Hidden, current.Hidden, desired.Hidden)
+	mergeProviderModelPointerDelta(&next.Featured, current.Featured, desired.Featured)
+	mergeProviderModelValueDelta(&next.ReleaseDate, current.ReleaseDate, desired.ReleaseDate)
+	return next
+}
+
+func mergeProviderModelValueDelta[T comparable](target *T, current T, desired T) {
+	if desired != current {
+		*target = desired
+	}
+}
+
+func mergeProviderModelPointerDelta[T comparable](target **T, current *T, desired *T) {
+	if current == nil && desired == nil {
+		return
+	}
+	if current != nil && desired != nil && *current == *desired {
+		return
+	}
+	if desired == nil {
+		*target = nil
+		return
+	}
+	value := *desired
+	*target = &value
 }
 
 func providerModelsWriteClearsConfig(models compozyconfig.ProviderModelsConfig) bool {

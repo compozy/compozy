@@ -434,6 +434,9 @@ func TestMarketplaceLifecycleReportsCommittedBatchUpdatesBeforeLaterFailure(t *t
 		if !errors.As(err, &batchErr) {
 			t.Fatalf("UpdateMarketplaceManaged() error = %T %v, want *MarketplaceUpdateBatchError", err, err)
 		}
+		if !errors.Is(err, ErrManifestInvalid) {
+			t.Fatalf("UpdateMarketplaceManaged() error = %v, want ErrManifestInvalid identity failure", err)
+		}
 		if len(updates) != 1 || updates[0].Name != "a-good" || updates[0].Status != MarketplaceUpdateStatusUpdated {
 			t.Fatalf("UpdateMarketplaceManaged() updates = %#v, want committed a-good update", updates)
 		}

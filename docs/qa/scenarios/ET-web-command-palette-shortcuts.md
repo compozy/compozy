@@ -3,7 +3,7 @@ id: ET-web-command-palette-shortcuts
 area: ET
 title: Open desktop apps, sessions, and actions from the keyboard
 persona: Bruno
-journey:
+journey: J-operate-desktop-shell
 expected: ⌘/Ctrl+K opens one global palette over any desktop or composer and filters real apps, sessions, workspaces, and actions; Enter performs the selected action; ⌘/Ctrl+J remains scoped to the session runtime picker; ⌘/Ctrl+N, ⇧⌘/Ctrl+S, ⌘/Ctrl+W, ⌘/Ctrl+M, and Escape perform the documented shell actions with one-layer overlay unwinding.
 entry_points: web desktop keyboard; command palette; session composer; menubar Help; Keyboard shortcuts dialog
 qa_status: untested

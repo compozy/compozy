@@ -25,7 +25,6 @@ func marketplaceCatalogFence(kind marketplacepkg.Kind, state marketplacepkg.Kind
 		string(kind),
 		strconv.Itoa(state.ManifestVersion),
 		state.GeneratedAt.UTC().Format(time.RFC3339Nano),
-		state.FetchedAt.UTC().Format(time.RFC3339Nano),
 		strconv.Itoa(state.EntryCount),
 	})
 }

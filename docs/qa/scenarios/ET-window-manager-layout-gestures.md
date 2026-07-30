@@ -3,12 +3,12 @@ id: ET-window-manager-layout-gestures
 area: ET
 title: Arrange and resize windows through structural pointer gestures
 persona: Bruno
-journey:
+journey: J-administer-window-manager
 expected: Edge and corner intent uses configured bands and hysteresis; repeated side snap cycles one-half, two-thirds, and one-third; occupied drops structurally reflow; center drops stack; every landed window is separated from its neighbour by exactly the configured gap between tiles — edge-snapped windows included — and the drop preview shows that same landing box; shared seams resize every descendant on both sides; drag-away follows policy; impossible minima adapt to a stack; a focus desktop is released the moment its zoomed window leaves, so no owner-less focus desktop lingers in the pager to reject later window opens; Zoom and unzoom restore exact group/node identity, order, weights, placement, and active stack member when the source is unchanged while preserving later source edits through deterministic fallback; and Escape, pointercancel, lost capture, outside release, or ambiguous stale revision commits nothing.
 entry_points: web desktop windows; shared seams; zoom control; command palette; keyboard shortcuts
 qa_status: untested
-bug_ids:
-fix_status:
+bug_ids: BUG-20260724-arrange-preset-overlap-reject; BUG-20260724-placement-cycles-unpruned; BUG-20260724-single-gesture-slot-multi-pointer; BUG-20260724-stale-return-anchor-on-desktop-transfer
+fix_status: pending
 retest_status:
 fix_commits:
 evidence:

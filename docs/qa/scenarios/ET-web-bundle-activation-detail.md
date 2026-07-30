@@ -9,12 +9,14 @@ entry_points: /marketplace/bundles/activations/$id; /marketplace/bundles?tab=ins
 qa_status: untested
 bug_ids:
 fix_status:
-retest_status: pending after PageHead/topbar-actions chrome move
+retest_status:
 fix_commits:
 evidence: /Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/marketplace-management-lifecycle.json; /Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/web/marketplace-bundle-lifecycle-final.png
 last_report: docs/qa/reports/2026-07-15-marketplace.md
 overlaps: ET-027; ET-028
 ---
+
+Planning note: verification after the PageHead/topbar-actions chrome move remains pending; no bug fix is associated with this scenario.
 
 Added by marketplace Task 07. Compare current and drifted activation states with the bundle-activation-detail OpenDesign contract.
 

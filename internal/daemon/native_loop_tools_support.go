@@ -154,6 +154,21 @@ func nativeLoopToolError(id toolspkg.ToolID, err error) error {
 	if err == nil {
 		return nil
 	}
+	if conflict, ok := errors.AsType[*core.LoopVersionConflictError](err); ok {
+		return nativeLoopVersionConflictToolError(id, err, conflict.CurrentVersion)
+	}
+	if errors.Is(err, looppkg.ErrDefinitionReadOnly) {
+		return toolspkg.NewToolError(
+			toolspkg.ErrorCodeDenied,
+			id,
+			err.Error(),
+			fmt.Errorf("%w: %w", toolspkg.ErrToolDenied, err),
+			toolspkg.ReasonLoopSourceImmutable,
+		)
+	}
+	if reasonErr := nativeLoopReasonToolError(id, err); reasonErr != nil {
+		return reasonErr
+	}
 	code := toolspkg.ErrorCodeBackendFailed
 	cause := toolspkg.ErrToolBackendFailed
 	reason := toolspkg.ReasonBackendUnhealthy
@@ -204,6 +219,54 @@ func nativeLoopToolError(id toolspkg.ToolID, err error) error {
 		})
 	}
 	return toolErr
+}
+
+func nativeLoopReasonToolError(id toolspkg.ToolID, err error) error {
+	reasonErr, ok := errors.AsType[*looppkg.ReasonError](err)
+	if !ok {
+		return nil
+	}
+	var reason toolspkg.ReasonCode
+	switch reasonErr.Code {
+	case looppkg.ReasonCodeInvalidStatusTransition:
+		reason = toolspkg.ReasonLoopInvalidStatusTransition
+	case looppkg.ReasonCodeTerminalRun:
+		reason = toolspkg.ReasonLoopTerminalRun
+	default:
+		return nil
+	}
+	return toolspkg.NewToolError(
+		toolspkg.ErrorCodeInvalidInput,
+		id,
+		err.Error(),
+		fmt.Errorf("%w: %w", toolspkg.ErrToolInvalidInput, err),
+		reason,
+	)
+}
+
+func nativeLoopVersionConflictToolError(id toolspkg.ToolID, err error, currentVersion int) error {
+	structured, marshalErr := json.Marshal(map[string]map[string]int{
+		"version_conflict": {"current_version": currentVersion},
+	})
+	if marshalErr != nil {
+		return toolspkg.NewToolError(
+			toolspkg.ErrorCodeBackendFailed,
+			id,
+			"marshal Loop version conflict payload",
+			fmt.Errorf("%w: %w", toolspkg.ErrToolBackendFailed, marshalErr),
+			toolspkg.ReasonBackendUnhealthy,
+		)
+	}
+	return toolspkg.NewToolError(
+		toolspkg.ErrorCodeConflict,
+		id,
+		err.Error(),
+		fmt.Errorf("%w: %w", toolspkg.ErrToolConflict, err),
+		toolspkg.ReasonLoopVersionConflict,
+	).WithPartialResult(toolspkg.ToolResult{
+		Structured: structured,
+		Preview:    "loop definition version conflict",
+	})
 }
 
 type nativeLoopWorkspaceInput struct {

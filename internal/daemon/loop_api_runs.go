@@ -74,7 +74,7 @@ func (s *daemonLoopAPIService) GetLoopAnnotations(
 	workspaceID string,
 	name string,
 ) (contract.LoopAnnotationsResponse, error) {
-	ws, err := normalizeLoopWorkspaceID(workspaceID)
+	ws, _, err := s.findLoopRecord(workspaceID, name)
 	if err != nil {
 		return contract.LoopAnnotationsResponse{}, err
 	}
@@ -91,7 +91,7 @@ func (s *daemonLoopAPIService) PutLoopAnnotations(
 	name string,
 	req contract.PutLoopAnnotationsRequest,
 ) (contract.LoopAnnotationsResponse, error) {
-	ws, err := normalizeLoopWorkspaceID(workspaceID)
+	ws, _, err := s.findLoopRecord(workspaceID, name)
 	if err != nil {
 		return contract.LoopAnnotationsResponse{}, err
 	}

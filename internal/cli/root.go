@@ -293,7 +293,7 @@ func marshalDaemonAPIExecutionError(args []string, payload contract.ErrorPayload
 		}{Type: automationErrorKey, Error: payload})
 		return append(encoded, '\n'), err == nil
 	case OutputToon:
-		return []byte(renderToonObject("error", []string{"message"}, []string{payload.Error})), true
+		return []byte(renderToonObject("error", []string{clientMessageKey}, []string{payload.Error})), true
 	default:
 		return nil, false
 	}

@@ -29,6 +29,18 @@ function sameConfig(left: SkillsConfig | null, right: SkillsConfig | null): bool
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
+function mergeSavedSkillsBaseline(
+  current: SkillsConfig | null,
+  saved: SkillsConfig,
+  kind: SaveKind
+): SkillsConfig {
+  if (current === null) return saved;
+  if (kind === "disabled") {
+    return { ...current, disabled_skills: saved.disabled_skills };
+  }
+  return { ...saved, disabled_skills: current.disabled_skills };
+}
+
 function createSkillsDraftFlow(input: SkillsDraftInput): SkillsDraftFlow {
   const previous = input.previous;
   if (!previous || previous.key !== input.key) {
@@ -74,6 +86,7 @@ export const settingsSkillsDraftLogic = createStoreLogic({
     saveRequested: (
       context,
       event: {
+        baseline: SkillsConfig;
         execute: () => Promise<unknown>;
         kind: SaveKind;
         label: string;
@@ -85,7 +98,12 @@ export const settingsSkillsDraftLogic = createStoreLogic({
       enqueue.effect(async ({ trigger }) => {
         try {
           await event.execute();
-          trigger.saveSucceeded({ attempt, kind: event.kind, label: event.label });
+          trigger.saveSucceeded({
+            attempt,
+            baseline: event.baseline,
+            kind: event.kind,
+            label: event.label,
+          });
         } catch {
           trigger.saveFailed({ attempt, kind: event.kind });
         }
@@ -96,10 +114,14 @@ export const settingsSkillsDraftLogic = createStoreLogic({
         pending: { ...context.pending, [event.kind]: attempt },
       };
     },
-    saveSucceeded: (context, event: { attempt: number; kind: SaveKind; label: string }) =>
+    saveSucceeded: (
+      context,
+      event: { attempt: number; baseline: SkillsConfig; kind: SaveKind; label: string }
+    ) =>
       context.pending[event.kind] === event.attempt
         ? {
             ...context,
+            baseline: mergeSavedSkillsBaseline(context.baseline, event.baseline, event.kind),
             labels: { ...context.labels, [event.kind]: event.label },
             pending: { ...context.pending, [event.kind]: null },
           }

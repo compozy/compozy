@@ -13,15 +13,18 @@ function SessionRuntimeExtensions({
   sessionId,
   workspaceId,
   eventSourceFactory,
+  liveTailEnabled,
   children,
 }: {
   sessionId: string;
   workspaceId: string;
   eventSourceFactory?: SessionStreamEventSourceFactory;
+  liveTailEnabled: boolean;
   children: ReactNode;
 }) {
   const transcript = useMergedSessionRuntimeTranscript({
     eventSourceFactory,
+    liveTailEnabled,
     sessionId,
     workspaceId,
   });
@@ -58,6 +61,7 @@ export interface SessionChatRuntimeProviderProps {
   sessionId: string;
   workspaceId: string;
   eventSourceFactory?: SessionStreamEventSourceFactory;
+  liveTailEnabled?: boolean;
   children: ReactNode;
 }
 
@@ -65,6 +69,7 @@ export function SessionChatRuntimeProvider({
   sessionId,
   workspaceId,
   eventSourceFactory,
+  liveTailEnabled = true,
   children,
 }: SessionChatRuntimeProviderProps) {
   const resolvedWorkspaceId = requireWorkspaceId(workspaceId);
@@ -80,6 +85,7 @@ export function SessionChatRuntimeProvider({
         sessionId={sessionId}
         workspaceId={resolvedWorkspaceId}
         eventSourceFactory={eventSourceFactory}
+        liveTailEnabled={liveTailEnabled}
       >
         {children}
       </SessionRuntimeExtensions>

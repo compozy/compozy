@@ -15,6 +15,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	eventspkg "github.com/compozy/compozy/internal/events"
@@ -328,6 +329,46 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 		}
 		if runtime.reloadCount < 5 {
 			t.Fatalf("reload count = %d, want lifecycle mutations to reload runtime", runtime.reloadCount)
+		}
+	})
+
+	t.Run("Should preserve committed all-update results in a typed partial failure", func(t *testing.T) {
+		t.Parallel()
+
+		completed := []contract.ManagedExtensionUpdatePayload{{
+			Name:           "a-good",
+			Slug:           "acme/a-good",
+			Registry:       "github",
+			CurrentVersion: "1.0.0",
+			LatestVersion:  "2.0.0",
+			Status:         extensionpkg.MarketplaceUpdateStatusUpdated,
+			Warnings: []contract.DiagnosticItem{{
+				Code: "extension_update_cleanup_failed",
+			}},
+		}}
+		batchErr := &extensionpkg.MarketplaceUpdateBatchError{
+			FailedName: "z-bad",
+			Cause:      extensionpkg.ErrManifestInvalid,
+		}
+
+		err := nativeExtensionUpdateToolError(toolspkg.ToolIDExtensionsUpdate, completed, batchErr)
+		var toolErr *toolspkg.ToolError
+		if !errors.As(err, &toolErr) || toolErr.Code != toolspkg.ErrorCodeInvalidInput {
+			t.Fatalf("nativeExtensionUpdateToolError() error = %#v, want invalid-input ToolError", err)
+		}
+		if toolErr.PartialResult == nil {
+			t.Fatalf("nativeExtensionUpdateToolError() = %#v, want partial result", toolErr)
+		}
+		structured := string(toolErr.PartialResult.Structured)
+		for _, want := range []string{
+			`"failed_target":"z-bad"`,
+			`"completed_count":1`,
+			`"name":"a-good"`,
+			`"code":"extension_update_cleanup_failed"`,
+		} {
+			if !strings.Contains(structured, want) {
+				t.Fatalf("partial result = %s, want %s", structured, want)
+			}
 		}
 	})
 

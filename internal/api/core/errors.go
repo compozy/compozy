@@ -279,6 +279,12 @@ func StatusForSkillError(err error) int {
 		return http.StatusBadRequest
 	case errors.Is(err, ErrSkillUnprocessable):
 		return http.StatusUnprocessableEntity
+	case errors.Is(err, workspacepkg.ErrWorkspaceNotFound):
+		return http.StatusNotFound
+	case errors.Is(err, workspacepkg.ErrWorkspaceRootMissing):
+		return http.StatusGone
+	case errors.Is(err, workspacepkg.ErrWorkspaceResolverUnavailable):
+		return http.StatusServiceUnavailable
 	default:
 		return http.StatusInternalServerError
 	}

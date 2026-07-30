@@ -25,7 +25,7 @@ command/native report surfaces. The CLI adds one verb (`edit`) that has no nativ
 | `compozy__loop_resume`    | mutating                        | `compozy loop resume`    | Resume a paused or pause-requested run.                                      |
 | `compozy__loop_approve`   | mutating · **capability-gated** | `compozy loop approve`   | Apply one human-gate decision.                                               |
 | `compozy__loop_stop`      | destructive                     | `compozy loop stop`      | Stop one active run.                                                         |
-| `compozy__loop_delete`    | destructive                     | `compozy loop delete`    | Delete a writable workspace definition.                                      |
+| `compozy__loop_delete`    | destructive                     | `compozy loop delete`    | Delete a writable definition plus its config and editor annotations.         |
 | `compozy__goal_get`       | read · session-scoped           | `/goal status`           | Read the caller session's visible Goal, including terminal-until-clear.      |
 | `compozy__goal_report`    | mutating · prompt-scoped        | —                        | Record one current-prompt `complete` or evidenced `blocked` boundary intent. |
 | `compozy__loop_turns`     | read                            | `compozy loop turns`     | Read a Run's total-order Goal turn audit with cursor and node/item filters.  |
@@ -59,13 +59,19 @@ Follow **inspect → validate → dry-run → publish (with `expected_version`) 
    plan without creating a run or spending budget.
 4. **publish** — `compozy__loop_create` with `expected_version` set to the version from step one (or
    HTTP `PATCH /loops/:name`). This is compare-and-swap: a stale version is rejected `409` with the
-   current version. Use PATCH/create-with-version for **all** programmatic editing — the filesystem
-   write path is last-write-wins and unsafe for concurrent agents.
+   current version. Native: `tool_conflict`/`loop_version_conflict` with
+   `partial_result.structured.version_conflict.current_version`; re-inspect before retrying. Use PATCH/create-with-version
+   for **all** programmatic editing — the filesystem write path is last-write-wins and unsafe for
+   concurrent agents.
 5. **run** — `compozy__loop_run`. Only now does the Loop spend tokens.
 
 New Loops start as a fork (`compozy__loop_create` with `fork_from_name`); there is no blank-canvas
 authoring. Read-only sources — including the default `dev-cycle` Loops — must be forked before you
-adapt them.
+adapt them; native mutation is `tool_denied`/`loop_source_immutable`.
+
+Deleting a workspace-authored Loop also removes its stored config override and editor annotations.
+Run records and executed-definition snapshots remain available as history. Config and annotation
+reads or writes for a missing definition return not found and never create detached sidecars.
 
 ## Goal Nodes And Session Commands
 
@@ -148,6 +154,9 @@ healthy waiting ticks remain `watching`.
 **Live (5):** `queued` (deferred start under `concurrency: queue`), `running`, `watching` (dormant
 watch tick), `needs-approval` (parked on a human gate — a live pause, not terminal), `paused`
 (operator paused at a boundary). `ready` and `awaiting_child` are node-level, never run states.
+
+Native control rejections are `tool_invalid_input`: `invalid_status_transition` for an unsupported
+live state, or `terminal_loop_run` after termination. `schema_invalid` is reserved for malformed input.
 
 ## The Approve Capability Gate
 

@@ -179,7 +179,7 @@ export interface WindowManagerController extends OsDesktopRuntime {
   redoLayout(): void;
   balanceFocusedLayout(): void;
   clearConflict(): void;
-  refreshSnapshot(): void;
+  refreshSnapshot(): Promise<boolean>;
 }
 
 export const OS_COMPACT_BREAKPOINT = 960;

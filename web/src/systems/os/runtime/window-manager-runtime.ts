@@ -284,7 +284,13 @@ export class WindowManagerRuntime extends WindowManagerRuntimeCore implements Os
     };
   }
 
-  openOrFocus = (target: OsOpenTarget): WindowManagerOpenOutcome => {
+  openOrFocus = (target: OsOpenTarget): WindowManagerOpenOutcome =>
+    this.openOrFocusAttempt(target, true);
+
+  private openOrFocusAttempt(
+    target: OsOpenTarget,
+    recoverTopologyConflict: boolean
+  ): WindowManagerOpenOutcome {
     const id = osWindowId(target.app, target.instanceKey);
     const existing = this.view.windows[id];
     if (existing) {
@@ -299,7 +305,7 @@ export class WindowManagerRuntime extends WindowManagerRuntimeCore implements Os
       } else {
         outcome = this.focusWindow(id);
       }
-      return { windowId: id, ...outcome };
+      return this.recoverOpenOrFocus(target, id, outcome, recoverTopologyConflict);
     }
 
     const desktopId = this.view.activeDesktopId;
@@ -308,8 +314,31 @@ export class WindowManagerRuntime extends WindowManagerRuntimeCore implements Os
     }
     const outcome = this.dispatch(openWindowCommand(target, id, desktopId));
     this.publish();
-    return { windowId: id, ...outcome };
-  };
+    return this.recoverOpenOrFocus(target, id, outcome, recoverTopologyConflict);
+  }
+
+  private recoverOpenOrFocus(
+    target: OsOpenTarget,
+    id: string,
+    outcome: WindowManagerCommandOutcome,
+    enabled: boolean
+  ): WindowManagerOpenOutcome {
+    const startedFromIdle = windowManagerStore.getSnapshot().context.commandState.status === "idle";
+    if (!enabled || !outcome.accepted || !startedFromIdle) return { windowId: id, ...outcome };
+    return {
+      windowId: id,
+      accepted: true,
+      completion: outcome.completion.then(async applied => {
+        if (applied) return true;
+        if (windowManagerStore.getSnapshot().context.commandState.status !== "conflict")
+          return false;
+        if (!(await this.refreshSnapshot())) return false;
+        this.clearConflict();
+        const retry = this.openOrFocusAttempt(target, false);
+        return retry.accepted && (await retry.completion);
+      }),
+    };
+  }
 
   closeWindow = (id: string): Promise<boolean> => {
     return this.dispatch({

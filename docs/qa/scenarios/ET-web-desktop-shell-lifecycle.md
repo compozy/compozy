@@ -3,7 +3,7 @@ id: ET-web-desktop-shell-lifecycle
 area: ET
 title: Operate the desktop shell across workspaces and connection states
 persona: Bruno
-journey:
+journey: J-operate-desktop-shell
 expected: A fresh workspace renders one persistent desktop with menubar, dock, wallpaper, and command hint; workspace switching isolates complete window topologies; stream loss exposes an honest disconnected state, blocks unsafe mutations, and reconnect replaces the query cache from a new snapshot fence without regressing revision.
 entry_points: web desktop root; workspace trigger; window-manager WebSocket stream
 qa_status: untested

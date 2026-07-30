@@ -3,16 +3,16 @@ id: MS-web-agent-create-simple-advanced
 area: MS
 title: Create agent replaces the four-step wizard with one Simple/Advanced surface
 persona: Dora
-journey:
+journey: J-31
 expected: Opening Create agent shows one surface, never a stepper — no "Step N of 4", no Back/Continue. Simple carries the definition (agent name, instructions) and, side by side, the runtime selector with live catalog state and the category path — the two decisions a person makes while naming the agent. Advanced adds the permission policy cards, launch overrides (runtime command), and the tool/skill allowlists, without hiding any Simple field. Explanatory prose sits behind `(?)` help tips; catalog state ("Project runtime defaults will be used.", catalog errors) stays visible because it reports what the daemon will do. An invalid category path such as `operations//incident` now fails Simple and shows its error in place, without switching tiers; submitting with an invalid advanced-only field (a blank tool entry) still reveals Advanced instead of leaving a disabled primary with no visible cause. Submit errors render as a danger Alert at the top of the body. Leaving Advanced preserves every authored value. There is no MCP servers control anywhere in the dialog, and the created request never carries `mcp_servers`. The category path is sent as `category_path` segments split on `/`. Scope sits in the toolbar as a borderless picker level with the scope pills, and reports the workspace the definition lands in; global scope omits `workspace`.
 entry_points: web desktop shell → New agent (menubar, command palette, agent catalog, agent detail duplicate)
-qa_status: untested
+qa_status: pass
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence: .compozy/tasks/modals-redesign/evidence/visual/task_03/VC-01; .compozy/tasks/modals-redesign/evidence/visual/task_03/VC-02; .compozy/tasks/modals-redesign/evidence/visual/task_03/VC-03; .compozy/tasks/modals-redesign/evidence/visual/task_03/VC-11
-last_report:
+evidence: .compozy/tasks/modals-redesign/evidence/visual/task_03/VC-01; .compozy/tasks/modals-redesign/evidence/visual/task_03/VC-02; .compozy/tasks/modals-redesign/evidence/visual/task_03/VC-03; .compozy/tasks/modals-redesign/evidence/visual/task_03/VC-11; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-021949-664736-lab/qa-artifacts/qa/evidence/040-agent-create-authored-files
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: MS-web-entity-modal-shell
 ---
 
@@ -25,3 +25,8 @@ The MCP-servers control the artboard drew is cut permanently (T1/D5): `CreateAge
 The permission policy renders four cards, not the artboard's three, because `permissions` is optional on the create payload — "omit the field and follow the runtime" is a real, selectable outcome.
 
 src: web/src/systems/agent/components/agent-create-dialog.tsx; web/src/systems/agent/components/agent-create-definition-section.tsx; web/src/systems/agent/components/agent-create-runtime-section.tsx; web/src/systems/agent/components/agent-create-permissions-section.tsx; web/src/systems/agent/components/agent-create-runtime-details-section.tsx; web/src/systems/agent/components/agent-create-tools-section.tsx; web/src/systems/agent/lib/agent-create-draft.ts
+
+QA 2026-07-29: The real desktop entry point rendered one Simple/Advanced surface with no wizard.
+Invalid Simple and Advanced fields surfaced in their owning tier without losing authored values; no
+MCP server control or request field existed. The created `operations/incident` definition matched
+fresh HTTP/UDS detail reads and was removed through the public delete route with no residue.

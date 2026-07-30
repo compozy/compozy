@@ -117,8 +117,12 @@ func (d *Daemon) bootCheckpointSummaryRuntime(
 	if state == nil || state.localMemoryProvider == nil || state.memoryProviderRegistry == nil {
 		return nil
 	}
+	checkpointSessions, ok := sessions.(checkpointSummarySessionManager)
+	if !ok {
+		return errors.New("daemon: session manager does not implement checkpoint summary lifecycle")
+	}
 	summarizer := newDaemonCheckpointSummarizer(
-		sessions,
+		checkpointSessions,
 		roleResolverForState(state),
 	)
 	service := memory.NewCheckpointSummaryService(

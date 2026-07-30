@@ -3,7 +3,7 @@ id: MS-web-settings-providers-redesign
 area: MS
 title: Providers page toolbar, status copy, and Rows/Cards views
 persona: Dora
-journey:
+journey: J-22
 expected: The Providers settings page renders ready/needs-setup/not-installed meta counts, a toolbar (provider search, Status filter chip, Rows|Cards toggle), and provider cards/rows with the pcard anatomy — glyph, name + Default badge, mono launch command, signal status line ("Ready · N models" / "Sign in to finish setup" / "Binary not found"), and the auth summary foot ("Uses your local login" / "Key stored in Vault" / "No sign-in needed") with Edit or Set up action. New provider lives in the window head.
 entry_points: web settings window Providers section
 qa_status: untested

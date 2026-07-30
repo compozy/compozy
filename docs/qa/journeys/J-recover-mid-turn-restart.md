@@ -24,7 +24,7 @@ flowchart TD
 
 ```yaml
 journey:
-id: J-recover-mid-turn-restart
+  id: J-recover-mid-turn-restart
   name: "Recover visibly after a mid-turn daemon restart"
   value_statement: "I am never left wondering whether a half-answer is still running; Compozy makes the interruption visible and accepts new work only after recovery."
   personas: [Omar, Maya]

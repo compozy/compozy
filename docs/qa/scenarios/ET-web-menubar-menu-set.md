@@ -3,7 +3,7 @@ id: ET-web-menubar-menu-set
 area: ET
 title: Operate every desktop surface from the static menubar
 persona: Bruno
-journey:
+journey: J-operate-desktop-shell
 expected: The menubar is one `role="menubar"` holding the Compozy mark, the workspace chip, and the static Session · Go · Window · Help set; ←/→ traverse it, Home/End jump to the ends, ↓ enters a menu, → opens a submenu, Esc closes, and hovering a sibling switches the open menu; Compozy opens About/Settings/Appearance/Layouts, Session creates a session or agent and opens the catalog, Go mirrors the dock groups plus the palette and Workspaces, Window carries the full window/layout/desktop command set with real chords, and Help reaches the shortcut reference, docs, protocol, changelog, issues, and support; every item is disabled — never hidden — when its runtime predicate fails, and no chord glyph renders unless the registry actually binds it.
 entry_points: web desktop menubar; keyboard traversal from the menubar; <960px compact viewport
 qa_status: untested

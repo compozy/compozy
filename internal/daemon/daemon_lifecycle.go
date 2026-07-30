@@ -9,6 +9,7 @@ import (
 	"os/signal"
 
 	"syscall"
+	"time"
 )
 
 // Run boots the daemon, blocks until signal or context cancellation, then performs graceful shutdown.
@@ -19,39 +20,40 @@ func (d *Daemon) Run(ctx context.Context) error {
 
 	sigCh, stopSignals := d.signalSource()
 	defer stopSignals()
-	runCtx, cancelRun := context.WithCancel(ctx)
+	runCtx, cancelRun := context.WithCancel(context.WithoutCancel(ctx))
 	defer cancelRun()
-	receivedSignal := make(chan os.Signal, 1)
-	signalDone := make(chan struct{})
+	bootErr := make(chan error, 1)
 	go func() {
-		defer close(signalDone)
-		select {
-		case <-runCtx.Done():
-			return
-		case sig, ok := <-sigCh:
-			if ok && sig != nil {
-				select {
-				case receivedSignal <- sig:
-				default:
-				}
-				cancelRun()
-			}
-		}
+		bootErr <- d.boot(runCtx)
 	}()
 
-	if err := d.boot(runCtx); err != nil {
+	select {
+	case err := <-bootErr:
+		if err != nil {
+			return err
+		}
+	case <-ctx.Done():
 		cancelRun()
-		<-signalDone
-		return err
+		if err := <-bootErr; err != nil {
+			return err
+		}
+		return d.shutdownAfterRunTrigger(ctx)
+	case sig, ok := <-sigCh:
+		cancelRun()
+		if err := <-bootErr; err != nil {
+			return err
+		}
+		if ok && sig != nil {
+			d.runtimeLogger().Info("daemon: received shutdown signal", "signal", sig.String())
+		}
+		return d.shutdownAfterRunTrigger(ctx)
 	}
 	if d.dreamRuntime != nil {
 		d.dreamRuntime.Start(runCtx)
 	}
 	if d.memoryExtractor != nil {
 		if err := d.memoryExtractor.Start(runCtx); err != nil {
-			cancelRun()
-			<-signalDone
-			shutdownCtx, cancel := context.WithTimeout(context.Background(), defaultShutdownTimeout)
+			shutdownCtx, cancel := d.daemonShutdownContext(ctx)
 			defer cancel()
 			shutdownErr := d.Shutdown(shutdownCtx)
 			return errors.Join(
@@ -61,9 +63,7 @@ func (d *Daemon) Run(ctx context.Context) error {
 		}
 	}
 	if err := d.startObserverRetention(runCtx); err != nil {
-		cancelRun()
-		<-signalDone
-		shutdownCtx, cancel := daemonShutdownContext(ctx)
+		shutdownCtx, cancel := d.daemonShutdownContext(ctx)
 		defer cancel()
 		shutdownErr := d.Shutdown(shutdownCtx)
 		return errors.Join(
@@ -74,15 +74,17 @@ func (d *Daemon) Run(ctx context.Context) error {
 
 	select {
 	case <-ctx.Done():
-	case sig := <-receivedSignal:
-		d.runtimeLogger().Info("daemon: received shutdown signal", "signal", sig.String())
+	case sig, ok := <-sigCh:
+		if ok && sig != nil {
+			d.runtimeLogger().Info("daemon: received shutdown signal", "signal", sig.String())
+		}
 	}
-	cancelRun()
-	<-signalDone
+	return d.shutdownAfterRunTrigger(ctx)
+}
 
-	shutdownCtx, cancel := daemonShutdownContext(ctx)
+func (d *Daemon) shutdownAfterRunTrigger(ctx context.Context) error {
+	shutdownCtx, cancel := d.daemonShutdownContext(ctx)
 	defer cancel()
-
 	return d.Shutdown(shutdownCtx)
 }
 
@@ -95,11 +97,26 @@ func (d *Daemon) Shutdown(ctx context.Context) error {
 	return errors.Join(drainErr, d.shutdownDetached(ctx, d.detachShutdownTargets()))
 }
 
-func daemonShutdownContext(parent context.Context) (context.Context, context.CancelFunc) {
+func (d *Daemon) daemonShutdownContext(parent context.Context) (context.Context, context.CancelFunc) {
 	if parent == nil {
 		parent = context.TODO()
 	}
-	return context.WithTimeout(context.WithoutCancel(parent), defaultShutdownTimeout)
+	return context.WithTimeout(context.WithoutCancel(parent), d.gracefulShutdownTimeout())
+}
+
+func (d *Daemon) gracefulShutdownTimeout() time.Duration {
+	timeout := defaultShutdownTimeout
+	if d == nil {
+		return timeout
+	}
+	d.mu.Lock()
+	memoryEnabled := d.config.Memory.Enabled
+	checkpointDeadline := d.config.Memory.Extractor.Deadline
+	d.mu.Unlock()
+	if memoryEnabled && checkpointDeadline > 0 {
+		timeout += checkpointDeadline + checkpointSummaryStopTimeout
+	}
+	return timeout
 }
 
 func (d *Daemon) shutdownDetached(ctx context.Context, targets shutdownTargets) error {

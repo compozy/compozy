@@ -12,6 +12,7 @@ import (
 const (
 	clientErrorKey   = "error"
 	clientMessageKey = "message"
+	clientResultKey  = "result"
 	cliOutcomeKey    = "outcome"
 )
 

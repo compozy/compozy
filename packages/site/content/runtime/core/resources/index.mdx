@@ -15,7 +15,9 @@ can be managed through the same control plane.
 <OperatorNote label="Control-plane boundary">
   Resources are an operator and extension surface. They are not the same as session events, memory
   files, or protocol messages. A resource says "this runtime object should exist"; reconcile turns
-  that desired state into subsystem-specific state.
+  that desired state into subsystem-specific state. The default daemon exposes this operator surface
+  through UDS and the UDS-backed CLI. An embedding may also register the HTTP routes when it
+  supplies explicit resource-operator authentication.
 </OperatorNote>
 
 ## Mental model
@@ -65,17 +67,20 @@ The daemon registers typed codecs for these resource families at boot:
 ## Write flow
 
 ```http
-PUT /api/resources/bundle.activation/release-docs
+PUT /api/resources/automation.job/nightly-resource-audit
 Content-Type: application/json
 
 {
   "scope": { "kind": "global" },
   "expected_version": 0,
   "spec": {
-    "extension_name": "github",
-    "bundle_name": "release-readiness",
-    "profile_name": "default",
-    "confirm_network_requirement": true
+    "id": "nightly-resource-audit",
+    "name": "Nightly resource audit",
+    "target_kind": "agent",
+    "agent_name": "general",
+    "prompt": "Inspect desired-state resource health.",
+    "schedule": { "mode": "every", "interval": "24h" },
+    "enabled": false
   }
 }
 ```
@@ -91,13 +96,17 @@ What happens:
 Use `expected_version = 0` when creating a new record. Use the returned `version` on update or
 delete so stale operators and agents do not overwrite each other silently.
 
+`bundle.activation` is service-owned. You can read it through the resource surface, but direct
+`PUT` and `DELETE` requests return `403`. Use `POST /api/bundles/activations`, the matching update
+and delete routes, or `compozy bundle` so bundle requirements and projected resources stay coherent.
+
 ## Read and filter
 
 ```http
 GET /api/resources
-GET /api/resources/bundle.activation
-GET /api/resources/bundle.activation/release-docs
-GET /api/resources/bundle.activation?scope_kind=workspace&scope_id=ws_project
+GET /api/resources/automation.job
+GET /api/resources/automation.job/nightly-resource-audit
+GET /api/resources/automation.job?scope_kind=workspace&scope_id=ws_project
 ```
 
 Filters can narrow by `kind`, `scope_kind`, `scope_id`, `owner_kind`, `owner_id`, `source_kind`,
@@ -106,7 +115,7 @@ Filters can narrow by `kind`, `scope_kind`, `scope_id`, `owner_kind`, `owner_id`
 ## Delete
 
 ```http
-DELETE /api/resources/bundle.activation/release-docs
+DELETE /api/resources/automation.job/nightly-resource-audit
 Content-Type: application/json
 
 { "expected_version": 3 }
@@ -117,14 +126,15 @@ or update the activation instead of deleting the projected child record by hand.
 
 ## Failure guide
 
-| Symptom                                  | Likely cause                                                          | First check                                             |
-| ---------------------------------------- | --------------------------------------------------------------------- | ------------------------------------------------------- |
-| `400` on write                           | The request body is malformed JSON or cannot be decoded.              | Response body and submitted payload.                    |
-| `422` on write                           | Invalid kind, scope binding, missing codec, or codec spec validation. | Response body and kind-specific docs.                   |
-| `409` on update/delete                   | `expected_version` is stale.                                          | `GET /api/resources/:kind/:id` for the current version. |
-| Record exists but runtime did not change | Reconcile failed or is degraded.                                      | Observe resource/reconcile health and daemon logs.      |
-| Projected record reappears               | A bundle activation or extension owns it.                             | `owner` and `source` fields on the resource record.     |
-| Workspace write fails                    | `scope.id` does not name a valid workspace.                           | `compozy workspace list -o json`.                       |
+| Symptom                                  | Likely cause                                                      | First check                                             |
+| ---------------------------------------- | ----------------------------------------------------------------- | ------------------------------------------------------- |
+| `400` on write                           | The request body is malformed JSON or cannot be decoded.          | Response body and submitted payload.                    |
+| `403` on write/delete                    | The resource kind has a dedicated lifecycle service.              | Use the kind-specific API or CLI.                       |
+| `422` on write                           | Invalid kind, scope binding, or registered-codec spec validation. | Response body and kind-specific docs.                   |
+| `409` on update/delete                   | `expected_version` is stale.                                      | `GET /api/resources/:kind/:id` for the current version. |
+| Record exists but runtime did not change | Reconcile failed or is degraded.                                  | Observe resource/reconcile health and daemon logs.      |
+| Projected record reappears               | A bundle activation or extension owns it.                         | `owner` and `source` fields on the resource record.     |
+| Workspace write fails                    | `scope.id` does not name a valid workspace.                       | `compozy workspace list -o json`.                       |
 
 ## Next
 

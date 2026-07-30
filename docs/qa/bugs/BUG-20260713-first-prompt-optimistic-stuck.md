@@ -1,11 +1,11 @@
 # BUG-20260713-first-prompt-optimistic-stuck: First prompt can remain optimistic without reaching the session
 
-- **Status:** verified
+- **Status:** open
 - **Impact (user-side):** Blocks-Completion
 - **Severity:** Critical · **Priority:** P0
 - **Persona Affected:** Bruno
 - **Journey Step:** J-17, create a live session and send its first prompt
-- **Scenarios:** RT-new-session-fast-feedback, GL-004
+- **Scenarios:** RT-new-session-fast-feedback; GL-004; RT-013
 - **Found:** 2026-07-13 · **Report:** docs/qa/reports/2026-07-13-automation-features.md
 - **Origin:** Post-fix live Cursor/Grok Goal acceptance
 
@@ -51,3 +51,24 @@ Immediately after a fresh Cursor/Grok 4.5 session becomes usable, the first prom
 - After replacing only the three per-workspace catalog streams with `/api/sessions/catalog-stream`, fresh Cursor/Grok 4.5 session `sess-2a768148b6106dc3` held exactly four active streams: Vite console, workspace logs, one global catalog, and its transcript.
 - Its first `/goal` click at `1783993289004` started exactly one prompt POST four milliseconds later, completed with HTTP 202 at `1783993289030`, and produced approved Goal Run `looprun-a6a4368bf1fc8c49` with durable `status=complete` and Run `status=done`.
 - Evidence: `/Users/pedronauck/dev/qa-labs/compozy-automation-features-post-onboarding-fix-20260713-20260713-203513-816377-lab/qa-artifacts/qa/network/catalog-global-goal-acceptance.json` and `qa/screenshots/catalog-global-goal-approved.png` in the same lab.
+
+## Regressed (2026-07-29)
+
+The same browser-level completion failure returned in CH-016 through a different mutation. Two literal
+tabs opened the same idle session and rendered it in the foreground, but the first tab's public
+`POST .../sessions/:sid/stop` remained queued inside Chrome and never reached the daemon. Browser
+request `1092.1925` had no response, while the daemon log had no matching POST and continued to report
+the session as `active`.
+
+Each document retained its Window Manager WebSocket, global session-catalog SSE, and focused-session
+transcript SSE; the Vite candidate additionally retained its HMR and console transports. The Web has
+no document-visibility authority, so moving one tab to the background released none of its product
+connections. Closing only the owned second tab at `2026-07-29T16:50:00.109Z` closed its transcript
+stream; the already-pending stop immediately reached the daemon, returned 204 at
+`2026-07-29T16:50:01.255Z`, and produced the durable `session_stopped` plus transcript marker events.
+
+The previous one-global-catalog-stream correction remains valid but incomplete for multiple browser
+documents. A structural document-transport ownership design is required before another implementation
+change under the two-touch rule. Evidence:
+`qa/evidence/046-session-lifecycle-browser/rt013-fixed-tabs-a.png`,
+`qa/evidence/046-session-lifecycle-browser/rt013-fixed-tabs-b.png`, and the primary lab daemon log.

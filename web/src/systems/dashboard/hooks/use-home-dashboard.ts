@@ -40,6 +40,10 @@ export interface HomeDashboardModel {
   setSystemOpen: (open: boolean) => void;
 }
 
+interface UseHomeDashboardOptions {
+  liveEnabled?: boolean;
+}
+
 function surfaceStatus(isLoading: boolean, isError: boolean, hasData: boolean): HomeSurfaceStatus {
   if (hasData) {
     return "ready";
@@ -53,7 +57,9 @@ function surfaceStatus(isLoading: boolean, isError: boolean, hasData: boolean): 
 // Stable argument for disabled queries while workspace scope is undetermined.
 const UNSETTLED_HOME_SCOPE: HomeScope = { workspaceParam: "", taskScope: { scope: "global" } };
 
-export function useHomeDashboard(): HomeDashboardModel {
+export function useHomeDashboard({
+  liveEnabled = true,
+}: UseHomeDashboardOptions = {}): HomeDashboardModel {
   const { connectionStatus } = useDaemonHealth();
   const { activeWorkspace } = useActiveWorkspace();
   // Await daemon-owned home metadata before selecting global or workspace scope.
@@ -79,7 +85,7 @@ export function useHomeDashboard(): HomeDashboardModel {
     homeActivityOptions({ workspace_id: scope.workspaceParam || undefined }, scopeSettled)
   );
 
-  useHomeLive({ workspaceId: scope.workspaceParam, enabled: scopeSettled });
+  useHomeLive({ workspaceId: scope.workspaceParam, enabled: scopeSettled && liveEnabled });
 
   const workingNow = useHomeWorkingNow(scope, scopeSettled);
   const overview = overviewQuery.data;

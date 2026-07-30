@@ -349,11 +349,11 @@ func loadMarketplaceUpdatedExtensionManifest(installPath string, installedName s
 		return nil, fmt.Errorf("extension: load updated extension manifest for %q: %w", installedName, err)
 	}
 	if manifest.Name != installedName {
-		return nil, fmt.Errorf(
-			"extension: extension update identity mismatch: installed %q, registry returned %q",
-			installedName,
-			manifest.Name,
-		)
+		return nil, &ManifestValidationError{
+			Field:   manifestNameKey,
+			Value:   manifest.Name,
+			Message: fmt.Sprintf("extension update identity mismatch: installed %q", installedName),
+		}
 	}
 	return manifest, nil
 }

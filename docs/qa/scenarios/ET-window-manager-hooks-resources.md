@@ -3,7 +3,7 @@ id: ET-window-manager-hooks-resources
 area: ET
 title: Extend layouts without exposing pointer or execution authority
 persona: Ada
-journey:
+journey: J-administer-window-manager
 expected: Extension and bundle `window_layout` resources are schema-validated, scope-filtered, immutable to consumers, and applicable only through the semantic service; async hooks fire after committed layout apply, desktop create/delete, and window move with workspace/revision/change metadata; preview, rejection, pointer motion, focus, and desktop switching emit no extension hook.
 entry_points: extension resources; bundles; compozy__resources_list; compozy__layout_arrange; hook catalog and runs
 qa_status: untested

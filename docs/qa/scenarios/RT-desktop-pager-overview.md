@@ -3,12 +3,12 @@ id: RT-desktop-pager-overview
 area: RT
 title: Navigate persistent desktops through the minimal pager
 persona: Théo
-journey:
+journey: J-administer-window-manager
 expected: A lower-left horizontal carousel-dot pager shares the Dock centerline and shows one ordered dot per persistent desktop without colliding with the Dock; current and focus desktops are distinguishable without decorative color semantics; click, keyboard, and swipe switch only the active client; 1, 2, and 7 desktops remain direct and 8+ use an accessible overflow treatment; the on-demand overview creates, renames, reorders, transfers, and deletes desktops with honest pending, conflict, empty, and disconnected states.
 entry_points: web desktop pager; Desktops Overview; keyboard and touch navigation
 qa_status: untested
-bug_ids:
-fix_status:
+bug_ids: BUG-20260724-stale-return-anchor-on-desktop-transfer
+fix_status: pending
 retest_status:
 fix_commits:
 evidence:

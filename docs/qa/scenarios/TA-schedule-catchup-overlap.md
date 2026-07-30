@@ -13,7 +13,7 @@ retest_status:
 fix_commits:
 evidence:
 last_report:
-overlaps: TA-055, TA-063
+overlaps: TA-055; TA-063
 ---
 
 story: As an autonomy operator, I configure a recurring job to recover once after downtime and can explain every suppressed fire from durable history.

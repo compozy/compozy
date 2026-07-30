@@ -43,7 +43,7 @@ flowchart TD
 
 ```yaml
 journey:
-id: J-connect-bridge-provider
+  id: J-connect-bridge-provider
   name: "Connect a bridge provider and receive the first response"
   value_statement: "I can follow the setup path that actually belongs to my provider and prove the bridge with a visible response."
   personas: [Tessa, Ada]

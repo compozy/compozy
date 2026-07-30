@@ -67,7 +67,7 @@ func newBundleCatalogCommand(deps commandDeps) *cobra.Command {
 func newBundlePreviewCommand(deps commandDeps) *cobra.Command {
 	flags := bundleActivationFlags{scope: bundleGlobalKey}
 	cmd := &cobra.Command{
-		Use:   "preview",
+		Use:   windowManagerPreviewKey,
 		Short: "Preview a bundle activation without writing resources",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, err := clientFromDeps(deps)

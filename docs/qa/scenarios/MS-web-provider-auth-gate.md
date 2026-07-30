@@ -3,7 +3,7 @@ id: MS-web-provider-auth-gate
 area: MS
 title: Provider editor offers credential controls only under bound-secret ownership
 persona: Dora
-journey:
+journey: J-22
 expected: Creating or editing a provider shows "Who owns authentication?" as three cards — Native CLI, Bound secret, None. Under Native CLI the surface carries only the provider-owned login and status commands plus the last reported native-CLI status; no credential slot, key field, or secret ref is rendered anywhere. Choosing Bound secret reveals one credential slot (slot name, target env, secret ref, required toggle); leaving Bound secret removes every slot and its pending value, and the saved request carries no credential_slots. A write input appears only for a vault: ref — an env: ref shows that the value resolves outside Compozy instead of offering a box to type one. On edit a stored credential shows presence and its reference only, with an explicit Rotate; the plaintext is never read back and cancelling a rotation leaves the binding untouched. RuntimeSelector never appears on this surface.
 entry_points: web Settings window → Providers → New provider / provider card → Configure
 qa_status: untested

@@ -173,6 +173,7 @@ func logTailDiagnosticItem(status contract.LogTailStatusPayload) contract.Diagno
 			"Runtime log-tail support is available.",
 			contract.SeverityOK,
 			contract.FreshnessLive,
+			diagnostics.WithEvidence(map[string]any{statusKey: status.Status}),
 		)
 	}
 	return diagnostics.NewItem(

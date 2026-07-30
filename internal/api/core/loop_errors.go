@@ -66,7 +66,8 @@ func StatusForLoopError(err error) int {
 		errors.Is(err, looppkg.ErrRunNotFound),
 		errors.Is(err, looppkg.ErrConfigNotFound):
 		return http.StatusNotFound
-	case errors.Is(err, taskpkg.ErrPermissionDenied):
+	case errors.Is(err, looppkg.ErrDefinitionReadOnly),
+		errors.Is(err, taskpkg.ErrPermissionDenied):
 		return http.StatusForbidden
 	case errors.Is(err, looppkg.ErrValidation),
 		errors.Is(err, looppkg.ErrCatalogQueryInvalid),

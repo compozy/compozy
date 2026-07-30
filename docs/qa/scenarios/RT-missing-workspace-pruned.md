@@ -10,7 +10,7 @@ qa_status: pass
 bug_ids: BUG-20260713-missing-workspace-persists
 fix_status: fixed
 retest_status: pass
-fix_commits:
+fix_commits: 8eeb8a38
 evidence: /Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-prune-after-folder-removal.dom.txt; /Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-prune-ghost-persists-after-fallback-refresh.dom.txt; /Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/rt-missing-workspace-pruned-first-ui.dom.txt
 last_report: docs/qa/reports/2026-07-14-consumer-saas-growth.md
 overlaps: RT-008;RT-009

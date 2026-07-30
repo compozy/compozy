@@ -291,6 +291,9 @@ func exchangeManualMCPAuth(
 	}
 	status, err := client.ExchangeSettingsMCPAuth(ctx, target, request)
 	if err != nil {
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) || errors.Is(err, context.DeadlineExceeded) {
+			return SettingsMCPAuthStatusRecord{}, mcpAuthorizationTimeoutError(context.DeadlineExceeded)
+		}
 		return SettingsMCPAuthStatusRecord{}, err
 	}
 	if !confirmedMCPAuthStatus(status) {

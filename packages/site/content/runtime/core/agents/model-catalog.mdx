@@ -90,7 +90,7 @@ projection; it is not merely a check for a matching TOML array entry.
 | GET    | `/api/model-catalog/sources/status`                         | HTTP, UDS  | Source status across providers.                                        |
 | GET    | `/api/model-catalog/providers/{provider_id}/models/status`  | HTTP, UDS  | Source status for one provider.                                        |
 
-List and status endpoints accept these query parameters:
+List endpoints accept these query parameters:
 
 - `provider_id`: filter by Compozy provider id (only on the cross-provider list).
 - `source_id`: filter by catalog source id (`config`, `models_dev`, `provider_live:<id>`, `extension:<slug>`).
@@ -156,6 +156,21 @@ The native list response shape is:
       "reasoning_source": "catalog"
     }
   ]
+}
+```
+
+Each cost bucket is independent. A model with five explicitly configured rates returns all five
+fields; omitted fields remain unpriced:
+
+```json
+{
+  "cost": {
+    "input_per_million": 1.1,
+    "output_per_million": 2.2,
+    "cache_read_per_million": 0.11,
+    "cache_write_per_million": 0.22,
+    "reasoning_per_million": 3.3
+  }
 }
 ```
 

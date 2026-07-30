@@ -74815,6 +74815,8 @@ export interface operations {
                   | "id_empty_segment"
                   | "id_invalid_format"
                   | "id_too_long"
+                  | "loop_source_immutable"
+                  | "loop_version_conflict"
                   | "mcp_auth_expired"
                   | "mcp_auth_invalid"
                   | "mcp_auth_refresh_failed"
@@ -74872,6 +74874,8 @@ export interface operations {
                   | "id_empty_segment"
                   | "id_invalid_format"
                   | "id_too_long"
+                  | "loop_source_immutable"
+                  | "loop_version_conflict"
                   | "mcp_auth_expired"
                   | "mcp_auth_invalid"
                   | "mcp_auth_refresh_failed"
@@ -75037,6 +75041,8 @@ export interface operations {
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
+                    | "loop_source_immutable"
+                    | "loop_version_conflict"
                     | "mcp_auth_expired"
                     | "mcp_auth_invalid"
                     | "mcp_auth_refresh_failed"
@@ -75089,6 +75095,8 @@ export interface operations {
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
+                | "loop_source_immutable"
+                | "loop_version_conflict"
                 | "mcp_auth_expired"
                 | "mcp_auth_invalid"
                 | "mcp_auth_refresh_failed"
@@ -75204,6 +75212,8 @@ export interface operations {
                   | "id_empty_segment"
                   | "id_invalid_format"
                   | "id_too_long"
+                  | "loop_source_immutable"
+                  | "loop_version_conflict"
                   | "mcp_auth_expired"
                   | "mcp_auth_invalid"
                   | "mcp_auth_refresh_failed"
@@ -75261,6 +75271,8 @@ export interface operations {
                   | "id_empty_segment"
                   | "id_invalid_format"
                   | "id_too_long"
+                  | "loop_source_immutable"
+                  | "loop_version_conflict"
                   | "mcp_auth_expired"
                   | "mcp_auth_invalid"
                   | "mcp_auth_refresh_failed"
@@ -75426,6 +75438,8 @@ export interface operations {
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
+                    | "loop_source_immutable"
+                    | "loop_version_conflict"
                     | "mcp_auth_expired"
                     | "mcp_auth_invalid"
                     | "mcp_auth_refresh_failed"
@@ -75478,6 +75492,8 @@ export interface operations {
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
+                | "loop_source_immutable"
+                | "loop_version_conflict"
                 | "mcp_auth_expired"
                 | "mcp_auth_invalid"
                 | "mcp_auth_refresh_failed"
@@ -75591,6 +75607,8 @@ export interface operations {
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
+                    | "loop_source_immutable"
+                    | "loop_version_conflict"
                     | "mcp_auth_expired"
                     | "mcp_auth_invalid"
                     | "mcp_auth_refresh_failed"
@@ -75643,6 +75661,8 @@ export interface operations {
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
+                | "loop_source_immutable"
+                | "loop_version_conflict"
                 | "mcp_auth_expired"
                 | "mcp_auth_invalid"
                 | "mcp_auth_refresh_failed"
@@ -75759,6 +75779,8 @@ export interface operations {
                   | "id_empty_segment"
                   | "id_invalid_format"
                   | "id_too_long"
+                  | "loop_source_immutable"
+                  | "loop_version_conflict"
                   | "mcp_auth_expired"
                   | "mcp_auth_invalid"
                   | "mcp_auth_refresh_failed"
@@ -75816,6 +75838,8 @@ export interface operations {
                   | "id_empty_segment"
                   | "id_invalid_format"
                   | "id_too_long"
+                  | "loop_source_immutable"
+                  | "loop_version_conflict"
                   | "mcp_auth_expired"
                   | "mcp_auth_invalid"
                   | "mcp_auth_refresh_failed"
@@ -75981,6 +76005,8 @@ export interface operations {
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
+                    | "loop_source_immutable"
+                    | "loop_version_conflict"
                     | "mcp_auth_expired"
                     | "mcp_auth_invalid"
                     | "mcp_auth_refresh_failed"
@@ -76033,6 +76059,8 @@ export interface operations {
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
+                | "loop_source_immutable"
+                | "loop_version_conflict"
                 | "mcp_auth_expired"
                 | "mcp_auth_invalid"
                 | "mcp_auth_refresh_failed"
@@ -76146,6 +76174,8 @@ export interface operations {
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
+                    | "loop_source_immutable"
+                    | "loop_version_conflict"
                     | "mcp_auth_expired"
                     | "mcp_auth_invalid"
                     | "mcp_auth_refresh_failed"
@@ -76198,6 +76228,8 @@ export interface operations {
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
+                | "loop_source_immutable"
+                | "loop_version_conflict"
                 | "mcp_auth_expired"
                 | "mcp_auth_invalid"
                 | "mcp_auth_refresh_failed"
@@ -76311,6 +76343,8 @@ export interface operations {
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
+                    | "loop_source_immutable"
+                    | "loop_version_conflict"
                     | "mcp_auth_expired"
                     | "mcp_auth_invalid"
                     | "mcp_auth_refresh_failed"
@@ -76363,6 +76397,8 @@ export interface operations {
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
+                | "loop_source_immutable"
+                | "loop_version_conflict"
                 | "mcp_auth_expired"
                 | "mcp_auth_invalid"
                 | "mcp_auth_refresh_failed"
@@ -76543,6 +76579,8 @@ export interface operations {
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
+                    | "loop_source_immutable"
+                    | "loop_version_conflict"
                     | "mcp_auth_expired"
                     | "mcp_auth_invalid"
                     | "mcp_auth_refresh_failed"
@@ -76595,6 +76633,8 @@ export interface operations {
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
+                | "loop_source_immutable"
+                | "loop_version_conflict"
                 | "mcp_auth_expired"
                 | "mcp_auth_invalid"
                 | "mcp_auth_refresh_failed"
@@ -76708,6 +76748,8 @@ export interface operations {
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
+                    | "loop_source_immutable"
+                    | "loop_version_conflict"
                     | "mcp_auth_expired"
                     | "mcp_auth_invalid"
                     | "mcp_auth_refresh_failed"
@@ -76760,6 +76802,8 @@ export interface operations {
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
+                | "loop_source_immutable"
+                | "loop_version_conflict"
                 | "mcp_auth_expired"
                 | "mcp_auth_invalid"
                 | "mcp_auth_refresh_failed"
@@ -76873,6 +76917,8 @@ export interface operations {
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
+                    | "loop_source_immutable"
+                    | "loop_version_conflict"
                     | "mcp_auth_expired"
                     | "mcp_auth_invalid"
                     | "mcp_auth_refresh_failed"
@@ -76925,6 +76971,8 @@ export interface operations {
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
+                | "loop_source_immutable"
+                | "loop_version_conflict"
                 | "mcp_auth_expired"
                 | "mcp_auth_invalid"
                 | "mcp_auth_refresh_failed"
@@ -77038,6 +77086,8 @@ export interface operations {
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
+                    | "loop_source_immutable"
+                    | "loop_version_conflict"
                     | "mcp_auth_expired"
                     | "mcp_auth_invalid"
                     | "mcp_auth_refresh_failed"
@@ -77090,6 +77140,8 @@ export interface operations {
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
+                | "loop_source_immutable"
+                | "loop_version_conflict"
                 | "mcp_auth_expired"
                 | "mcp_auth_invalid"
                 | "mcp_auth_refresh_failed"
@@ -77241,6 +77293,8 @@ export interface operations {
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
+                | "loop_source_immutable"
+                | "loop_version_conflict"
                 | "mcp_auth_expired"
                 | "mcp_auth_invalid"
                 | "mcp_auth_refresh_failed"
@@ -77336,6 +77390,8 @@ export interface operations {
                   | "id_empty_segment"
                   | "id_invalid_format"
                   | "id_too_long"
+                  | "loop_source_immutable"
+                  | "loop_version_conflict"
                   | "mcp_auth_expired"
                   | "mcp_auth_invalid"
                   | "mcp_auth_refresh_failed"
@@ -77453,6 +77509,8 @@ export interface operations {
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
+                    | "loop_source_immutable"
+                    | "loop_version_conflict"
                     | "mcp_auth_expired"
                     | "mcp_auth_invalid"
                     | "mcp_auth_refresh_failed"
@@ -77505,6 +77563,8 @@ export interface operations {
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
+                | "loop_source_immutable"
+                | "loop_version_conflict"
                 | "mcp_auth_expired"
                 | "mcp_auth_invalid"
                 | "mcp_auth_refresh_failed"
@@ -77618,6 +77678,8 @@ export interface operations {
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
+                    | "loop_source_immutable"
+                    | "loop_version_conflict"
                     | "mcp_auth_expired"
                     | "mcp_auth_invalid"
                     | "mcp_auth_refresh_failed"
@@ -77670,6 +77732,8 @@ export interface operations {
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
+                | "loop_source_immutable"
+                | "loop_version_conflict"
                 | "mcp_auth_expired"
                 | "mcp_auth_invalid"
                 | "mcp_auth_refresh_failed"
@@ -77783,6 +77847,8 @@ export interface operations {
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
+                    | "loop_source_immutable"
+                    | "loop_version_conflict"
                     | "mcp_auth_expired"
                     | "mcp_auth_invalid"
                     | "mcp_auth_refresh_failed"
@@ -77835,6 +77901,8 @@ export interface operations {
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
+                | "loop_source_immutable"
+                | "loop_version_conflict"
                 | "mcp_auth_expired"
                 | "mcp_auth_invalid"
                 | "mcp_auth_refresh_failed"
@@ -77948,6 +78016,8 @@ export interface operations {
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
+                    | "loop_source_immutable"
+                    | "loop_version_conflict"
                     | "mcp_auth_expired"
                     | "mcp_auth_invalid"
                     | "mcp_auth_refresh_failed"
@@ -78000,6 +78070,8 @@ export interface operations {
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
+                | "loop_source_immutable"
+                | "loop_version_conflict"
                 | "mcp_auth_expired"
                 | "mcp_auth_invalid"
                 | "mcp_auth_refresh_failed"
@@ -78113,6 +78185,8 @@ export interface operations {
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
+                    | "loop_source_immutable"
+                    | "loop_version_conflict"
                     | "mcp_auth_expired"
                     | "mcp_auth_invalid"
                     | "mcp_auth_refresh_failed"
@@ -78165,6 +78239,8 @@ export interface operations {
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
+                | "loop_source_immutable"
+                | "loop_version_conflict"
                 | "mcp_auth_expired"
                 | "mcp_auth_invalid"
                 | "mcp_auth_refresh_failed"
@@ -78278,6 +78354,8 @@ export interface operations {
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
+                    | "loop_source_immutable"
+                    | "loop_version_conflict"
                     | "mcp_auth_expired"
                     | "mcp_auth_invalid"
                     | "mcp_auth_refresh_failed"
@@ -78330,6 +78408,8 @@ export interface operations {
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
+                | "loop_source_immutable"
+                | "loop_version_conflict"
                 | "mcp_auth_expired"
                 | "mcp_auth_invalid"
                 | "mcp_auth_refresh_failed"
@@ -78443,6 +78523,8 @@ export interface operations {
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
+                    | "loop_source_immutable"
+                    | "loop_version_conflict"
                     | "mcp_auth_expired"
                     | "mcp_auth_invalid"
                     | "mcp_auth_refresh_failed"
@@ -78495,6 +78577,8 @@ export interface operations {
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
+                | "loop_source_immutable"
+                | "loop_version_conflict"
                 | "mcp_auth_expired"
                 | "mcp_auth_invalid"
                 | "mcp_auth_refresh_failed"
@@ -78608,6 +78692,8 @@ export interface operations {
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
+                    | "loop_source_immutable"
+                    | "loop_version_conflict"
                     | "mcp_auth_expired"
                     | "mcp_auth_invalid"
                     | "mcp_auth_refresh_failed"
@@ -78660,6 +78746,8 @@ export interface operations {
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
+                | "loop_source_immutable"
+                | "loop_version_conflict"
                 | "mcp_auth_expired"
                 | "mcp_auth_invalid"
                 | "mcp_auth_refresh_failed"
@@ -78798,6 +78886,8 @@ export interface operations {
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
+                    | "loop_source_immutable"
+                    | "loop_version_conflict"
                     | "mcp_auth_expired"
                     | "mcp_auth_invalid"
                     | "mcp_auth_refresh_failed"
@@ -78850,6 +78940,8 @@ export interface operations {
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
+                | "loop_source_immutable"
+                | "loop_version_conflict"
                 | "mcp_auth_expired"
                 | "mcp_auth_invalid"
                 | "mcp_auth_refresh_failed"
@@ -78934,6 +79026,8 @@ export interface operations {
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
+                | "loop_source_immutable"
+                | "loop_version_conflict"
                 | "mcp_auth_expired"
                 | "mcp_auth_invalid"
                 | "mcp_auth_refresh_failed"
@@ -79049,6 +79143,8 @@ export interface operations {
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
+                    | "loop_source_immutable"
+                    | "loop_version_conflict"
                     | "mcp_auth_expired"
                     | "mcp_auth_invalid"
                     | "mcp_auth_refresh_failed"
@@ -79101,6 +79197,8 @@ export interface operations {
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
+                | "loop_source_immutable"
+                | "loop_version_conflict"
                 | "mcp_auth_expired"
                 | "mcp_auth_invalid"
                 | "mcp_auth_refresh_failed"
@@ -79213,6 +79311,8 @@ export interface operations {
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
+                | "loop_source_immutable"
+                | "loop_version_conflict"
                 | "mcp_auth_expired"
                 | "mcp_auth_invalid"
                 | "mcp_auth_refresh_failed"
@@ -79328,6 +79428,8 @@ export interface operations {
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
+                    | "loop_source_immutable"
+                    | "loop_version_conflict"
                     | "mcp_auth_expired"
                     | "mcp_auth_invalid"
                     | "mcp_auth_refresh_failed"
@@ -79380,6 +79482,8 @@ export interface operations {
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
+                | "loop_source_immutable"
+                | "loop_version_conflict"
                 | "mcp_auth_expired"
                 | "mcp_auth_invalid"
                 | "mcp_auth_refresh_failed"
@@ -79493,6 +79597,8 @@ export interface operations {
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
+                    | "loop_source_immutable"
+                    | "loop_version_conflict"
                     | "mcp_auth_expired"
                     | "mcp_auth_invalid"
                     | "mcp_auth_refresh_failed"
@@ -79545,6 +79651,8 @@ export interface operations {
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
+                | "loop_source_immutable"
+                | "loop_version_conflict"
                 | "mcp_auth_expired"
                 | "mcp_auth_invalid"
                 | "mcp_auth_refresh_failed"
@@ -79658,6 +79766,8 @@ export interface operations {
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
+                    | "loop_source_immutable"
+                    | "loop_version_conflict"
                     | "mcp_auth_expired"
                     | "mcp_auth_invalid"
                     | "mcp_auth_refresh_failed"
@@ -79710,6 +79820,8 @@ export interface operations {
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
+                | "loop_source_immutable"
+                | "loop_version_conflict"
                 | "mcp_auth_expired"
                 | "mcp_auth_invalid"
                 | "mcp_auth_refresh_failed"
@@ -87583,6 +87695,31 @@ export interface operations {
           };
         };
       };
+      /** @description Loop definition not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
       /** @description Internal server error */
       500: {
         headers: {
@@ -87704,6 +87841,31 @@ export interface operations {
           };
         };
       };
+      /** @description Loop definition not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
       /** @description Internal server error */
       500: {
         headers: {
@@ -87777,7 +87939,7 @@ export interface operations {
         };
         content: {
           "application/json": {
-            config?: {
+            config: {
               /** @enum {string|null} */
               budget_on_exceeded?: "halt" | "escalate" | null;
               budget_tokens?: number | null;
@@ -87893,7 +88055,7 @@ export interface operations {
           };
         };
       };
-      /** @description Loop config not found */
+      /** @description Loop definition not found */
       404: {
         headers: {
           [name: string]: unknown;
@@ -88035,7 +88197,7 @@ export interface operations {
         };
         content: {
           "application/json": {
-            config?: {
+            config: {
               /** @enum {string|null} */
               budget_on_exceeded?: "halt" | "escalate" | null;
               budget_tokens?: number | null;
@@ -88128,6 +88290,31 @@ export interface operations {
       };
       /** @description Invalid Loop request */
       400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Loop definition not found */
+      404: {
         headers: {
           [name: string]: unknown;
         };
@@ -95856,6 +96043,31 @@ export interface operations {
           };
         };
       };
+      /** @description Invalid attach lease request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
       /** @description Session not found */
       404: {
         headers: {
@@ -95908,6 +96120,31 @@ export interface operations {
       };
       /** @description Internal server error */
       500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Service unavailable - dependent service missing */
+      503: {
         headers: {
           [name: string]: unknown;
         };
@@ -101014,6 +101251,8 @@ export interface operations {
                   | "id_empty_segment"
                   | "id_invalid_format"
                   | "id_too_long"
+                  | "loop_source_immutable"
+                  | "loop_version_conflict"
                   | "mcp_auth_expired"
                   | "mcp_auth_invalid"
                   | "mcp_auth_refresh_failed"
@@ -101071,6 +101310,8 @@ export interface operations {
                   | "id_empty_segment"
                   | "id_invalid_format"
                   | "id_too_long"
+                  | "loop_source_immutable"
+                  | "loop_version_conflict"
                   | "mcp_auth_expired"
                   | "mcp_auth_invalid"
                   | "mcp_auth_refresh_failed"
@@ -101236,6 +101477,8 @@ export interface operations {
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
+                    | "loop_source_immutable"
+                    | "loop_version_conflict"
                     | "mcp_auth_expired"
                     | "mcp_auth_invalid"
                     | "mcp_auth_refresh_failed"
@@ -101288,6 +101531,8 @@ export interface operations {
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
+                | "loop_source_immutable"
+                | "loop_version_conflict"
                 | "mcp_auth_expired"
                 | "mcp_auth_invalid"
                 | "mcp_auth_refresh_failed"
@@ -101408,6 +101653,8 @@ export interface operations {
                   | "id_empty_segment"
                   | "id_invalid_format"
                   | "id_too_long"
+                  | "loop_source_immutable"
+                  | "loop_version_conflict"
                   | "mcp_auth_expired"
                   | "mcp_auth_invalid"
                   | "mcp_auth_refresh_failed"
@@ -101465,6 +101712,8 @@ export interface operations {
                   | "id_empty_segment"
                   | "id_invalid_format"
                   | "id_too_long"
+                  | "loop_source_immutable"
+                  | "loop_version_conflict"
                   | "mcp_auth_expired"
                   | "mcp_auth_invalid"
                   | "mcp_auth_refresh_failed"
@@ -101630,6 +101879,8 @@ export interface operations {
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
+                    | "loop_source_immutable"
+                    | "loop_version_conflict"
                     | "mcp_auth_expired"
                     | "mcp_auth_invalid"
                     | "mcp_auth_refresh_failed"
@@ -101682,6 +101933,8 @@ export interface operations {
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
+                | "loop_source_immutable"
+                | "loop_version_conflict"
                 | "mcp_auth_expired"
                 | "mcp_auth_invalid"
                 | "mcp_auth_refresh_failed"
@@ -101795,6 +102048,8 @@ export interface operations {
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
+                    | "loop_source_immutable"
+                    | "loop_version_conflict"
                     | "mcp_auth_expired"
                     | "mcp_auth_invalid"
                     | "mcp_auth_refresh_failed"
@@ -101847,6 +102102,8 @@ export interface operations {
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
+                | "loop_source_immutable"
+                | "loop_version_conflict"
                 | "mcp_auth_expired"
                 | "mcp_auth_invalid"
                 | "mcp_auth_refresh_failed"
@@ -102294,6 +102551,8 @@ export interface operations {
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
+                    | "loop_source_immutable"
+                    | "loop_version_conflict"
                     | "mcp_auth_expired"
                     | "mcp_auth_invalid"
                     | "mcp_auth_refresh_failed"
@@ -102346,6 +102605,8 @@ export interface operations {
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
+                | "loop_source_immutable"
+                | "loop_version_conflict"
                 | "mcp_auth_expired"
                 | "mcp_auth_invalid"
                 | "mcp_auth_refresh_failed"
@@ -102459,6 +102720,8 @@ export interface operations {
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
+                    | "loop_source_immutable"
+                    | "loop_version_conflict"
                     | "mcp_auth_expired"
                     | "mcp_auth_invalid"
                     | "mcp_auth_refresh_failed"
@@ -102511,6 +102774,8 @@ export interface operations {
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
+                | "loop_source_immutable"
+                | "loop_version_conflict"
                 | "mcp_auth_expired"
                 | "mcp_auth_invalid"
                 | "mcp_auth_refresh_failed"
@@ -102624,6 +102889,8 @@ export interface operations {
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
+                    | "loop_source_immutable"
+                    | "loop_version_conflict"
                     | "mcp_auth_expired"
                     | "mcp_auth_invalid"
                     | "mcp_auth_refresh_failed"
@@ -102676,6 +102943,8 @@ export interface operations {
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
+                | "loop_source_immutable"
+                | "loop_version_conflict"
                 | "mcp_auth_expired"
                 | "mcp_auth_invalid"
                 | "mcp_auth_refresh_failed"

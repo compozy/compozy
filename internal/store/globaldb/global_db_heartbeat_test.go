@@ -183,6 +183,188 @@ func TestGlobalDBHeartbeatSnapshotAndRevisionStore(t *testing.T) {
 		}
 	})
 
+	t.Run("Should use the latest rollback revision as the current wake policy", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB, err := OpenGlobalDB(ctx, filepath.Join(t.TempDir(), GlobalDatabaseName))
+		if err != nil {
+			t.Fatalf("OpenGlobalDB() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := globalDB.Close(testutil.Context(t)); err != nil {
+				t.Fatalf("Close() error = %v", err)
+			}
+		})
+		workspaceID := registerWorkspaceForGlobalTests(t, globalDB, "heartbeat-rollback", t.TempDir())
+		createdAt := time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC)
+
+		first := heartbeatSnapshotForTest("hb-first", workspaceID, "coder", "sha256:first")
+		first.CreatedAt = createdAt
+		first, err = globalDB.UpsertHeartbeatSnapshot(ctx, first)
+		if err != nil {
+			t.Fatalf("UpsertHeartbeatSnapshot(first) error = %v", err)
+		}
+		firstRevision := heartbeatRevisionForTest(
+			"hrev-first",
+			workspaceID,
+			"coder",
+			heartbeat.RevisionOperationWrite,
+			"",
+			first.Digest,
+		)
+		firstRevision.NewSnapshotID = first.ID
+		firstRevision.CreatedAt = createdAt
+		if _, err := globalDB.AppendHeartbeatRevision(ctx, firstRevision); err != nil {
+			t.Fatalf("AppendHeartbeatRevision(first) error = %v", err)
+		}
+
+		second := heartbeatSnapshotForTest("hb-second", workspaceID, "coder", "sha256:second")
+		second.CreatedAt = createdAt.Add(time.Minute)
+		second, err = globalDB.UpsertHeartbeatSnapshot(ctx, second)
+		if err != nil {
+			t.Fatalf("UpsertHeartbeatSnapshot(second) error = %v", err)
+		}
+		secondRevision := heartbeatRevisionForTest(
+			"hrev-second",
+			workspaceID,
+			"coder",
+			heartbeat.RevisionOperationWrite,
+			first.Digest,
+			second.Digest,
+		)
+		secondRevision.NewSnapshotID = second.ID
+		secondRevision.CreatedAt = createdAt.Add(time.Minute)
+		if _, err := globalDB.AppendHeartbeatRevision(ctx, secondRevision); err != nil {
+			t.Fatalf("AppendHeartbeatRevision(second) error = %v", err)
+		}
+
+		rollback := heartbeatRevisionForTest(
+			"hrev-rollback",
+			workspaceID,
+			"coder",
+			heartbeat.RevisionOperationRollback,
+			second.Digest,
+			first.Digest,
+		)
+		rollback.NewSnapshotID = first.ID
+		rollback.CreatedAt = createdAt.Add(2 * time.Minute)
+		if _, err := globalDB.AppendHeartbeatRevision(ctx, rollback); err != nil {
+			t.Fatalf("AppendHeartbeatRevision(rollback) error = %v", err)
+		}
+
+		latest, err := globalDB.GetLatestValidHeartbeatSnapshot(ctx, workspaceID, "coder")
+		if err != nil {
+			t.Fatalf("GetLatestValidHeartbeatSnapshot() error = %v", err)
+		}
+		if latest.ID != first.ID {
+			t.Fatalf("latest snapshot id = %q, want rollback target %q", latest.ID, first.ID)
+		}
+	})
+
+	t.Run("Should reject a current revision without a snapshot", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		workspaceID := registerWorkspaceForGlobalTests(t, globalDB, "heartbeat-empty-current", t.TempDir())
+		revision := heartbeatRevisionForTest(
+			"hrev-empty-current",
+			workspaceID,
+			"coder",
+			heartbeat.RevisionOperationWrite,
+			"",
+			"sha256:empty-current",
+		)
+		if _, err := globalDB.AppendHeartbeatRevision(ctx, revision); err != nil {
+			t.Fatalf("AppendHeartbeatRevision() error = %v", err)
+		}
+
+		_, err := globalDB.GetLatestValidHeartbeatSnapshot(ctx, workspaceID, "coder")
+		if !errors.Is(err, heartbeat.ErrSnapshotNotFound) {
+			t.Fatalf("GetLatestValidHeartbeatSnapshot() error = %v, want ErrSnapshotNotFound", err)
+		}
+	})
+
+	t.Run("Should reject a current revision that references a missing snapshot", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		workspaceID := registerWorkspaceForGlobalTests(t, globalDB, "heartbeat-missing-current", t.TempDir())
+		snapshot := heartbeatSnapshotForTest(
+			"hb-missing-current",
+			workspaceID,
+			"coder",
+			"sha256:missing-current",
+		)
+		saved, err := globalDB.UpsertHeartbeatSnapshot(ctx, snapshot)
+		if err != nil {
+			t.Fatalf("UpsertHeartbeatSnapshot() error = %v", err)
+		}
+		revision := heartbeatRevisionForTest(
+			"hrev-missing-current",
+			workspaceID,
+			"coder",
+			heartbeat.RevisionOperationWrite,
+			"",
+			saved.Digest,
+		)
+		revision.NewSnapshotID = saved.ID
+		if _, err := globalDB.AppendHeartbeatRevision(ctx, revision); err != nil {
+			t.Fatalf("AppendHeartbeatRevision() error = %v", err)
+		}
+		corruptHeartbeatRevisionSnapshotIDForTest(t, globalDB, revision.ID, "hb-does-not-exist")
+
+		_, err = globalDB.GetLatestValidHeartbeatSnapshot(ctx, workspaceID, "coder")
+		if !errors.Is(err, heartbeat.ErrInvalidRevision) {
+			t.Fatalf("GetLatestValidHeartbeatSnapshot() error = %v, want ErrInvalidRevision", err)
+		}
+	})
+
+	t.Run("Should reject an invalid snapshot selected by the current revision", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		workspaceID := registerWorkspaceForGlobalTests(t, globalDB, "heartbeat-invalid-current", t.TempDir())
+		snapshot := heartbeatSnapshotForTest(
+			"hb-invalid-current",
+			workspaceID,
+			"coder",
+			"sha256:invalid-current",
+		)
+		saved, err := globalDB.UpsertHeartbeatSnapshot(ctx, snapshot)
+		if err != nil {
+			t.Fatalf("UpsertHeartbeatSnapshot() error = %v", err)
+		}
+		revision := heartbeatRevisionForTest(
+			"hrev-invalid-current",
+			workspaceID,
+			"coder",
+			heartbeat.RevisionOperationWrite,
+			"",
+			saved.Digest,
+		)
+		revision.NewSnapshotID = saved.ID
+		if _, err := globalDB.AppendHeartbeatRevision(ctx, revision); err != nil {
+			t.Fatalf("AppendHeartbeatRevision() error = %v", err)
+		}
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			`UPDATE agent_heartbeat_snapshots SET resolved_json = ? WHERE id = ?`,
+			`{"schema_version":1,"valid":false}`,
+			saved.ID,
+		); err != nil {
+			t.Fatalf("invalidate heartbeat snapshot resolved_json error = %v", err)
+		}
+
+		_, err = globalDB.GetLatestValidHeartbeatSnapshot(ctx, workspaceID, "coder")
+		if !errors.Is(err, heartbeat.ErrInvalidSnapshot) {
+			t.Fatalf("GetLatestValidHeartbeatSnapshot() error = %v, want ErrInvalidSnapshot", err)
+		}
+	})
+
 	t.Run("Should reuse one snapshot for concurrent duplicate digest upserts", func(t *testing.T) {
 		t.Parallel()
 
@@ -879,6 +1061,39 @@ func heartbeatSnapshotForTest(id string, workspaceID string, agentName string, d
 		),
 		DiagnosticsJSON: json.RawMessage(`[]`),
 		CreatedAt:       time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC),
+	}
+}
+
+func corruptHeartbeatRevisionSnapshotIDForTest(
+	t *testing.T,
+	globalDB *GlobalDB,
+	revisionID string,
+	snapshotID string,
+) {
+	t.Helper()
+	ctx := testutil.Context(t)
+	conn, err := globalDB.db.Conn(ctx)
+	if err != nil {
+		t.Fatalf("open heartbeat corruption connection error = %v", err)
+	}
+	defer func() {
+		if err := conn.Close(); err != nil {
+			t.Fatalf("close heartbeat corruption connection error = %v", err)
+		}
+	}()
+	if _, err := conn.ExecContext(ctx, `PRAGMA foreign_keys = OFF`); err != nil {
+		t.Fatalf("disable heartbeat corruption foreign keys error = %v", err)
+	}
+	if _, err := conn.ExecContext(
+		ctx,
+		`UPDATE agent_heartbeat_revisions SET new_snapshot_id = ? WHERE id = ?`,
+		snapshotID,
+		revisionID,
+	); err != nil {
+		t.Fatalf("corrupt heartbeat revision snapshot id error = %v", err)
+	}
+	if _, err := conn.ExecContext(ctx, `PRAGMA foreign_keys = ON`); err != nil {
+		t.Fatalf("restore heartbeat corruption foreign keys error = %v", err)
 	}
 }
 

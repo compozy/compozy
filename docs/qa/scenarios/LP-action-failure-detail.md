@@ -7,12 +7,13 @@ journey: J-01
 expected: A failed action node preserves and renders the actionable backend cause, and a terminal stalled run tells the operator what to correct before retrying.
 entry_points: web Loop run detail; GET /api/workspaces/:workspace_id/loop-runs/:run_id
 qa_status: untested
-bug_ids: BUG-20260713-loop-failure-hidden
+bug_ids: BUG-20260713-loop-failure-hidden; BUG-20260713-loop-watch-poll-error-stuck
 fix_status: fixed
 retest_status: pass
-fix_commits:
+fix_commits: 8eeb8a38
 evidence: /Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-001-software-delivery-stalled-missing-taskset.png; /Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-001-loop-failure-detail-fixed.dom.txt
 last_report: docs/qa/reports/2026-07-13-automation-features.md
+overlaps:
 ---
 
 story: As a first-time Loop operator, I can distinguish a correctable input or workspace prerequisite from a broken Loop, extension, or provider.

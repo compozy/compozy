@@ -652,4 +652,92 @@ func TestGlobalDBLoopAPIAnnotationsShouldRemainWorkspaceScoped(t *testing.T) {
 			t.Fatalf("beta annotation after alpha replace = %#v", beta[0])
 		}
 	})
+
+	t.Run("Should delete definition sidecars without touching another workspace", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openLoopTestGlobalDB(t, "ws-a", "ws-b")
+		ctx := testutil.Context(t)
+		for _, workspaceID := range []looppkg.WorkspaceID{"ws-a", "ws-b"} {
+			if err := globalDB.UpsertLoopConfig(ctx, workspaceID, "delivery", looppkg.LoopConfig{
+				IterationCap: new(7),
+			}); err != nil {
+				t.Fatalf("UpsertLoopConfig(%s) error = %v", workspaceID, err)
+			}
+			if err := globalDB.ReplaceLoopUIAnnotations(ctx, workspaceID, "delivery", []looppkg.UIAnnotation{{
+				NodeID: "draft",
+				X:      10,
+				Y:      20,
+			}}); err != nil {
+				t.Fatalf("ReplaceLoopUIAnnotations(%s) error = %v", workspaceID, err)
+			}
+		}
+
+		if _, err := globalDB.DeleteLoopDefinitionState(ctx, "ws-a", "delivery"); err != nil {
+			t.Fatalf("DeleteLoopDefinitionState(ws-a) error = %v", err)
+		}
+		if _, err := globalDB.GetLoopConfig(ctx, "ws-a", "delivery"); !errors.Is(err, looppkg.ErrConfigNotFound) {
+			t.Fatalf("GetLoopConfig(ws-a after delete) error = %v, want ErrConfigNotFound", err)
+		}
+		alpha, err := globalDB.ListLoopUIAnnotations(ctx, "ws-a", "delivery")
+		if err != nil {
+			t.Fatalf("ListLoopUIAnnotations(ws-a after delete) error = %v", err)
+		}
+		if len(alpha) != 0 {
+			t.Fatalf("ws-a annotations after delete = %#v, want empty", alpha)
+		}
+		if _, err := globalDB.GetLoopConfig(ctx, "ws-b", "delivery"); err != nil {
+			t.Fatalf("GetLoopConfig(ws-b after ws-a delete) error = %v", err)
+		}
+		beta, err := globalDB.ListLoopUIAnnotations(ctx, "ws-b", "delivery")
+		if err != nil {
+			t.Fatalf("ListLoopUIAnnotations(ws-b after ws-a delete) error = %v", err)
+		}
+		if len(beta) != 1 || beta[0].NodeID != "draft" {
+			t.Fatalf("ws-b annotations after ws-a delete = %#v, want preserved draft", beta)
+		}
+	})
+
+	t.Run("Should roll back both sidecars when either delete fails", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openLoopTestGlobalDB(t, "ws-a")
+		ctx := testutil.Context(t)
+		if err := globalDB.UpsertLoopConfig(ctx, "ws-a", "delivery", looppkg.LoopConfig{
+			IterationCap: new(7),
+		}); err != nil {
+			t.Fatalf("UpsertLoopConfig() error = %v", err)
+		}
+		if err := globalDB.ReplaceLoopUIAnnotations(ctx, "ws-a", "delivery", []looppkg.UIAnnotation{{
+			NodeID: "draft",
+			X:      10,
+			Y:      20,
+		}}); err != nil {
+			t.Fatalf("ReplaceLoopUIAnnotations() error = %v", err)
+		}
+		if _, err := globalDB.db.ExecContext(ctx, `
+			CREATE TRIGGER fail_loop_config_delete
+			BEFORE DELETE ON loop_config
+			BEGIN
+				SELECT RAISE(ABORT, 'injected loop config delete failure');
+			END;
+		`); err != nil {
+			t.Fatalf("create delete failure trigger: %v", err)
+		}
+
+		_, err := globalDB.DeleteLoopDefinitionState(ctx, "ws-a", "delivery")
+		if err == nil || !strings.Contains(err.Error(), "injected loop config delete failure") {
+			t.Fatalf("DeleteLoopDefinitionState() error = %v, want injected failure", err)
+		}
+		if _, err := globalDB.GetLoopConfig(ctx, "ws-a", "delivery"); err != nil {
+			t.Fatalf("GetLoopConfig(after rollback) error = %v", err)
+		}
+		annotations, err := globalDB.ListLoopUIAnnotations(ctx, "ws-a", "delivery")
+		if err != nil {
+			t.Fatalf("ListLoopUIAnnotations(after rollback) error = %v", err)
+		}
+		if len(annotations) != 1 || annotations[0].NodeID != "draft" {
+			t.Fatalf("annotations after rollback = %#v, want preserved draft", annotations)
+		}
+	})
 }

@@ -13,6 +13,7 @@ interface UseMergedSessionRuntimeTranscriptOptions {
   sessionId: string;
   workspaceId: string;
   eventSourceFactory?: SessionStreamEventSourceFactory;
+  liveTailEnabled: boolean;
 }
 
 interface RuntimeTailState {
@@ -26,10 +27,16 @@ export function useMergedSessionRuntimeTranscript({
   sessionId,
   workspaceId,
   eventSourceFactory,
+  liveTailEnabled,
 }: UseMergedSessionRuntimeTranscriptOptions) {
   const runtimeMessages = useAuiState(state => state.thread.messages);
   const runtimeIsRunning = useAuiState(state => state.thread.isRunning);
-  const transcript = useSessionLiveTail({ sessionId, workspaceId, eventSourceFactory });
+  const transcript = useSessionLiveTail({
+    enabled: liveTailEnabled,
+    eventSourceFactory,
+    sessionId,
+    workspaceId,
+  });
   const conversationResetPending =
     useIsMutating({
       exact: true,

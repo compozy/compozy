@@ -3,7 +3,7 @@
 Run this checklist after every research round, before authoring `summary.md`. Every item must pass; failing items trigger a re-dispatch of the offending slice.
 
 ## 1. Installation
-- [ ] `~/.compozy/agents/explorer/AGENT.md` exists and matches `assets/AGENT.md` (or a workspace override at `<repo>/.compozy/agents/explorer/AGENT.md` is present and takes precedence).
+- [ ] The active global explorer definition (`$COMPOZY_HOME/agents/explorer/AGENT.md`, otherwise `~/.compozy/agents/explorer/AGENT.md`) matches `assets/AGENT.md` (or a workspace override is present and takes precedence).
 - [ ] Re-install via `scripts/install-explorer.sh` if the global definition has drifted from the bundled asset.
 - [ ] `compozy` binary is reachable on `PATH`.
 

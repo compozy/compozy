@@ -34,7 +34,7 @@ flowchart TD
 
 ```yaml
 journey:
-id: J-watch-agent-work-channel
+  id: J-watch-agent-work-channel
   name: "Watch the agent work without channel noise"
   value_statement: "I can tell that the agent is working and what finished without being flooded or leaving the conversation that started the work."
   personas: [Maya, Omar]

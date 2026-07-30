@@ -160,6 +160,15 @@ TaskExecutionProfile selectors, automation resources, or subsystem policy into `
 
 ### Usage cost truth
 
+Provider model metadata is global config. Use Provider Settings HTTP/UDS or `config.toml` for the
+five pricing fields and `models.reasoning.apply`; use atomic model curation for flags and default
+effort. `acp_option` applies an advertised ACP effort, while `none` exposes no selectable strategy.
+Inspect the redacted effective state with `compozy config show` after a live apply or restart.
+`compozy__provider_models_status` is read-only. `compozy__provider_models_refresh` accepts optional
+provider/source filters, `force`, and `request_id`; it retains successful sources on partial failure
+and redacts credential material from errors. CLI fallbacks are `compozy provider models status` and
+`compozy provider models refresh`.
+
 The session usage endpoint
 `GET /api/workspaces/{workspace_id}/sessions/{session_id}/usage` returns token totals plus
 `cost_status` and `cost_source`. Interpret money by status: `actual` is agent-reported;

@@ -9,12 +9,14 @@ entry_points: web desktop dock; command palette; settings cog; Catalog and Syste
 qa_status: untested
 bug_ids:
 fix_status:
-retest_status: pending Marketplace nested-route active indicator
+retest_status:
 fix_commits:
 evidence: /Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/marketplace-under-minute.json
 last_report: docs/qa/reports/2026-07-15-marketplace.md
 overlaps: ET-web-marketplace-landing-browse; ET-web-extensions-manage
 ---
+
+Planning note: Marketplace nested-route active-indicator verification remains pending; no bug fix is associated with this scenario.
 
 Added by marketplace Task 07. Verify the exact D13 ordering without count badges.
 

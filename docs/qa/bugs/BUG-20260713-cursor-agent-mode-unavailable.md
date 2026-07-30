@@ -5,7 +5,7 @@
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Bruno
 - **Journey Step:** J-17 create and use a session, step 3
-- **Scenarios:** RT-cursor-agent-mode
+- **Scenarios:** RT-cursor-agent-mode; TA-task-role-session-activation
 - **Found:** 2026-07-13 · **Report:** docs/qa/reports/2026-07-13-automation-features.md
 - **Origin:** n/a
 

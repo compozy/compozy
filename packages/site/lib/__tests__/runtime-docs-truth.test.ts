@@ -165,18 +165,29 @@ describe("runtime docs truth", () => {
     expect(resourceDoc).not.toContain("`mcp.server`");
   });
 
-  it("documents resource validation failures with the status used by the API error mapper", () => {
+  it("documents resource mutation failures with the statuses used by the API error mapper", () => {
     const errorSource = readRepoFile("internal/api/core/errors.go");
     const resourceDoc = readRepoFile("packages/site/content/runtime/core/resources/index.mdx");
+    const resourceStatusMapper = errorSource.match(
+      /func StatusForResourceError\(err error\) int \{[\s\S]*?\n\}\n\n\/\//
+    )?.[0];
 
-    expect(errorSource).toContain("StatusForResourceError");
-    expect(errorSource).toContain("http.StatusUnprocessableEntity");
+    expect(resourceStatusMapper).toMatch(
+      /errors\.Is\(err, resources\.ErrDirectMutationNotAllowed\):\s*return http\.StatusForbidden/
+    );
+    expect(resourceStatusMapper).toMatch(
+      /errors\.Is\(err, resources\.ErrValidation\),[\s\S]*?return http\.StatusUnprocessableEntity/
+    );
     expect(resourceDoc).toContain("| `400` on write");
     expect(resourceDoc).toContain("malformed JSON");
+    expect(resourceDoc).toContain("| `403` on write/delete");
+    expect(resourceDoc).toContain("dedicated lifecycle service");
     expect(resourceDoc).toContain("| `422` on write");
     expect(resourceDoc).toContain(
-      "Invalid kind, scope binding, missing codec, or codec spec validation"
+      "Invalid kind, scope binding, or registered-codec spec validation"
     );
+    expect(resourceDoc).not.toContain("missing codec");
+    expect(resourceDoc).not.toMatch(/(?:PUT|DELETE) \/api\/resources\/bundle\.activation/);
     expect(resourceDoc).not.toMatch(/\| `400` on write\s+\|\s+Invalid kind/);
   });
 

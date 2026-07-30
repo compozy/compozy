@@ -1409,6 +1409,40 @@ func TestServiceConfigMethodsShouldReadWriteRawOverrides(t *testing.T) {
 			t.Fatalf("Configure(invalid JSON) error = %v, want ErrValidation", err)
 		}
 	})
+
+	t.Run("Should reject config for a missing definition without persisting it", func(t *testing.T) {
+		t.Parallel()
+
+		store := newFakeLoopStore()
+		svc, err := loop.NewService(
+			store,
+			loop.DefinitionResolverFunc(func(
+				context.Context,
+				loop.WorkspaceID,
+				string,
+			) (*loop.ResolvedDefinition, error) {
+				return nil, nil
+			}),
+			testGoalRunPolicyResolver(0.8),
+		)
+		if err != nil {
+			t.Fatalf("NewService() error = %v", err)
+		}
+
+		err = svc.Configure(context.Background(), "ws-1", "missing-loop", loop.LoopConfig{
+			IterationCap: new(3),
+		})
+		if !errors.Is(err, loop.ErrDefinitionNotFound) {
+			t.Fatalf("Configure(missing definition) error = %v, want ErrDefinitionNotFound", err)
+		}
+		if _, err := store.GetLoopConfig(
+			context.Background(),
+			"ws-1",
+			"missing-loop",
+		); !errors.Is(err, loop.ErrConfigNotFound) {
+			t.Fatalf("GetLoopConfig(after rejected configure) error = %v, want ErrConfigNotFound", err)
+		}
+	})
 }
 
 func TestServiceGetAndDefaultsShouldExposeRunState(t *testing.T) {
@@ -2427,6 +2461,49 @@ func (s *fakeLoopStore) ReactivateGoalRun(
 		Run:          task.Run{ID: "goal-successor"},
 		ControlEpoch: req.State.ControlEpoch + 1,
 		GrantID:      int64(len(s.goalReactivations)),
+	}, nil
+}
+
+func (s *fakeLoopStore) ReactivateLoopCoordinator(
+	_ context.Context,
+	req *loop.CoordinatorReactivationRequest,
+) (loop.CoordinatorReactivationResult, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if req == nil {
+		return loop.CoordinatorReactivationResult{}, loop.ErrValidation
+	}
+	run, ok := s.runs[req.Run.ID]
+	if !ok || run.WorkspaceID != req.Run.WorkspaceID {
+		return loop.CoordinatorReactivationResult{}, loop.ErrRunNotFound
+	}
+	if run.Status != req.Run.Status || run.ActiveGateID != req.Run.ActiveGateID {
+		return loop.CoordinatorReactivationResult{}, loop.ErrTransitionConflict
+	}
+	for _, record := range req.Decisions {
+		key := gateDecisionKey(record.WorkspaceID, record.RunID, record.Generation, record.GateID)
+		if s.decisions[key] == nil {
+			s.decisions[key] = map[string]gate.HumanDecision{}
+		}
+		s.decisions[key][record.CriterionID] = gate.HumanDecision{
+			Decision: gate.HumanDecisionKind(record.Decision),
+			Actor:    record.Actor,
+			Note:     record.Note,
+		}
+	}
+	run.Status = loop.StatusRunning
+	run.PauseRequested = false
+	run.ActiveGateID = ""
+	run.ActiveHumanCriteria = []byte(`[]`)
+	s.runs[run.ID] = run
+	s.transitions = append(s.transitions, fakeTransition{
+		runID: run.ID,
+		from:  req.Run.Status,
+		to:    loop.StatusRunning,
+		cause: req.Cause,
+	})
+	return loop.CoordinatorReactivationResult{
+		Run: task.Run{ID: "coordinator-successor", LoopRunID: string(run.ID)},
 	}, nil
 }
 

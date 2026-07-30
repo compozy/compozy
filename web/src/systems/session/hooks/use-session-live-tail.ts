@@ -60,6 +60,7 @@ type SessionStreamEventSourceFactory = (url: string) => SessionStreamEventSource
 interface UseSessionLiveTailOptions {
   workspaceId: string;
   sessionId: string;
+  enabled?: boolean;
   eventSourceFactory?: SessionStreamEventSourceFactory;
 }
 
@@ -133,6 +134,7 @@ async function refreshTranscriptTail(
 export function useSessionLiveTail({
   workspaceId,
   sessionId,
+  enabled = true,
   eventSourceFactory,
 }: UseSessionLiveTailOptions) {
   const queryClient = useQueryClient();
@@ -141,7 +143,7 @@ export function useSessionLiveTail({
   const sourceFactory = eventSourceFactory ?? defaultEventSourceFactory;
   const hasCustomFactory = Boolean(eventSourceFactory);
   const sessionState = useQuery(sessionDetailOptions(workspaceId, sessionId)).data?.state;
-  const streamShouldOpen = sessionState == null || isLiveSessionState(sessionState);
+  const streamShouldOpen = enabled && (sessionState == null || isLiveSessionState(sessionState));
   const transcriptQuery = useInfiniteQuery(sessionTranscriptOptions(workspaceId, sessionId));
   const transcriptMessages = flattenTranscriptMessages(transcriptQuery.data);
   const transcriptStatus: SessionTranscriptThreadStatus = transcriptQuery.isPending

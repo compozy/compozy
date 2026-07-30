@@ -211,7 +211,7 @@ func (n *daemonNativeTools) extensionUpdate(
 		AllowUnverified: input.AllowUnverified,
 	}, actor)
 	if err != nil {
-		return toolspkg.ToolResult{}, nativeExtensionToolError(req.ToolID, err)
+		return toolspkg.ToolResult{}, nativeExtensionUpdateToolError(req.ToolID, items, err)
 	}
 	return structuredResult(map[string]any{"updates": items}, fmt.Sprintf("%d extension updates", len(items)))
 }
@@ -426,63 +426,4 @@ func (i extensionInstallInput) validateMarketplace() error {
 		return errors.New("marketplace extension install cannot include local path or checksum")
 	}
 	return nil
-}
-
-func nativeExtensionToolError(id toolspkg.ToolID, err error) error {
-	switch {
-	case err == nil:
-		return nil
-	case errors.Is(err, extensionpkg.ErrExtensionNotFound):
-		return toolspkg.NewToolError(
-			toolspkg.ErrorCodeNotFound,
-			id,
-			err.Error(),
-			fmt.Errorf("%w: %w", toolspkg.ErrToolNotFound, err),
-			toolspkg.ReasonExtensionNotInstalled,
-		)
-	case errors.Is(err, extensionpkg.ErrExtensionExists),
-		errors.Is(err, extensionpkg.ErrExtensionChecksumMismatch),
-		errors.Is(err, extensionpkg.ErrExtensionArchiveDigestMismatch):
-		return nativeExtensionValidationError(id, err)
-	case errors.Is(err, extensionpkg.ErrExtensionHasActiveBundles):
-		return toolspkg.NewToolError(
-			toolspkg.ErrorCodeConflict,
-			id,
-			err.Error(),
-			fmt.Errorf("%w: %w", toolspkg.ErrToolConflict, err),
-			toolspkg.ReasonExtensionValidationFailed,
-		)
-	case isExtensionSourceError(err):
-		return nativeExtensionSourceError(id, err)
-	default:
-		return err
-	}
-}
-
-func nativeExtensionValidationError(id toolspkg.ToolID, err error) error {
-	return toolspkg.NewToolError(
-		toolspkg.ErrorCodeInvalidInput,
-		id,
-		"extension validation failed",
-		fmt.Errorf("%w: %w", toolspkg.ErrToolInvalidInput, err),
-		toolspkg.ReasonExtensionValidationFailed,
-	)
-}
-
-func nativeExtensionSourceError(id toolspkg.ToolID, err error) error {
-	return toolspkg.NewToolError(
-		toolspkg.ErrorCodeDenied,
-		id,
-		"extension source is not allowed",
-		fmt.Errorf("%w: %w", toolspkg.ErrToolDenied, err),
-		toolspkg.ReasonExtensionSourceForbidden,
-	)
-}
-
-func isExtensionSourceError(err error) bool {
-	return errors.Is(err, extensionpkg.ErrMarketplaceSourceUnavailable) ||
-		errors.Is(err, extensionpkg.ErrExtensionChecksumUnverified) ||
-		errors.Is(err, extensionpkg.ErrExtensionUnverifiedPolicyBlocked) ||
-		errors.Is(err, errExtensionMarketplaceNotConfigured) ||
-		errors.Is(err, errExtensionRegistryUnsupported)
 }

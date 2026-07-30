@@ -21,6 +21,7 @@ Match the task to the row. Read the listed files in full before producing output
 | ---------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
 | Start, inspect, prompt, stop, resume, or debug Compozy sessions and daemon state                                             | references/runtime-operations.md                                          |
 | Inspect or configure daemon-owned background roles, role diagnostics, builtin identities, or role fallback routing           | references/runtime-operations.md + references/agent-definitions.md        |
+| Inspect, refresh, curate, or configure provider models, reasoning strategy, and pricing                                      | references/runtime-operations.md + references/native-tools.md             |
 | Expose one Compozy workspace to an external MCP client with `compozy mcp serve`                                              | references/runtime-operations.md                                          |
 | Inspect, mutate, or watch virtual desktops, managed windows, or workspace layouts through native tools, CLI, HTTP, or UDS    | references/window-management.md + references/native-tools.md              |
 | Create, update, inspect, or troubleshoot messaging bridges and bridge-delivered tool progress                                | references/runtime-operations.md                                          |

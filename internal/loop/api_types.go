@@ -61,3 +61,20 @@ type AnnotationStore interface {
 	ListLoopUIAnnotations(ctx context.Context, ws WorkspaceID, loopName string) ([]UIAnnotation, error)
 	ReplaceLoopUIAnnotations(ctx context.Context, ws WorkspaceID, loopName string, annotations []UIAnnotation) error
 }
+
+// DefinitionState contains mutable sidecars owned by one file-backed Loop definition.
+type DefinitionState struct {
+	Config      *LoopConfig
+	Annotations []UIAnnotation
+}
+
+// DefinitionStateStore owns atomic removal and restoration of definition sidecars.
+type DefinitionStateStore interface {
+	DeleteLoopDefinitionState(ctx context.Context, ws WorkspaceID, loopName string) (DefinitionState, error)
+	RestoreLoopDefinitionState(
+		ctx context.Context,
+		ws WorkspaceID,
+		loopName string,
+		state DefinitionState,
+	) error
+}

@@ -321,6 +321,26 @@ func TestLoopHandlersExposeCatalogRunConfigAnnotationsAndEvents(t *testing.T) {
 			t.Fatalf("POST /run legacy body = %s, want unknown_field with removed field name", body)
 		}
 	})
+
+	t.Run("Should serialize an absent stored config as explicit null", func(t *testing.T) {
+		t.Parallel()
+
+		service := happyLoopService(t)
+		service.getLoopConfigFn = func(
+			context.Context,
+			string,
+			string,
+		) (contract.LoopConfigResponse, error) {
+			return contract.LoopConfigResponse{EffectiveConfig: contract.LoopEffectiveConfig{}}, nil
+		}
+		_, engine := newLoopHandlerFixture(t, "httpapi", service)
+
+		response := performRequest(t, engine, http.MethodGet, "/workspaces/ws-1/loops/alpha/config", nil)
+		assertLoopStatus(t, response.Code, http.StatusOK, response.Body.String())
+		if body := response.Body.String(); !strings.Contains(body, `"config":null`) {
+			t.Fatalf("GET /config body = %s, want explicit config:null", body)
+		}
+	})
 }
 
 func TestLoopInputDefaultsHandlersExposeScopedLifecycleOverHTTPAndUDS(t *testing.T) {
@@ -790,6 +810,22 @@ func TestLoopHandlersExposeValidationAndConflictBodies(t *testing.T) {
 		var payload contract.ErrorPayload
 		testutil.DecodeJSONResponse(t, resp, &payload)
 		assertLoopErrorPayloadContains(t, payload, looppkg.ErrDefinitionNotFound.Error())
+	})
+
+	t.Run("Should return a forbidden error payload for read-only Loop deletion", func(t *testing.T) {
+		t.Parallel()
+
+		service := happyLoopService(t)
+		service.deleteLoopFn = func(context.Context, string, string) error {
+			return looppkg.ErrDefinitionReadOnly
+		}
+		_, engine := newLoopHandlerFixture(t, "httpapi", service)
+
+		resp := performRequest(t, engine, http.MethodDelete, "/workspaces/ws-1/loops/alpha", nil)
+		assertLoopStatus(t, resp.Code, http.StatusForbidden, resp.Body.String())
+		var payload contract.ErrorPayload
+		testutil.DecodeJSONResponse(t, resp, &payload)
+		assertLoopErrorPayloadContains(t, payload, looppkg.ErrDefinitionReadOnly.Error())
 	})
 
 	t.Run("Should return a conflict error payload for duplicate Loop creates", func(t *testing.T) {

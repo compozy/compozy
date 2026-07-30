@@ -920,6 +920,38 @@ func TestListSkills(t *testing.T) {
 			t.Errorf("skills[0].Name = %q, want %q", resp.Skills[0].Name, "test-skill")
 		}
 	})
+
+	t.Run("Should preserve workspace not found status", func(t *testing.T) {
+		t.Parallel()
+
+		registry := &stubSkillsRegistry{ForWorkspaceFn: globalSkillProjection(t)}
+		workspaces := testutil.StubWorkspaceService{
+			ResolveFn: func(_ context.Context, _ string) (workspacepkg.ResolvedWorkspace, error) {
+				return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
+			},
+		}
+		engine := newSkillsHandlerFixture(t, registry, workspaces)
+		rec := testutil.PerformRequest(
+			t,
+			engine,
+			http.MethodGet,
+			"/api/skills?workspace=does-not-exist",
+			nil,
+		)
+
+		if rec.Code != http.StatusNotFound {
+			t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusNotFound, rec.Body.String())
+		}
+		var payload contract.ErrorPayload
+		testutil.DecodeJSONResponse(t, rec, &payload)
+		if payload.Error != workspacepkg.ErrWorkspaceNotFound.Error() {
+			t.Fatalf(
+				"error = %q, want %q",
+				payload.Error,
+				workspacepkg.ErrWorkspaceNotFound.Error(),
+			)
+		}
+	})
 }
 
 func TestGetSkill(t *testing.T) {

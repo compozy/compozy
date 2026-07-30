@@ -136,12 +136,24 @@ func (g *HeartbeatRepo) FindHeartbeatSnapshotByDigest(
 	return snapshot, err == nil, err
 }
 
-// GetLatestValidHeartbeatSnapshot returns the newest persisted valid Heartbeat policy for an agent.
+// GetLatestValidHeartbeatSnapshot returns the current persisted valid Heartbeat policy for an agent.
 func (g *HeartbeatRepo) GetLatestValidHeartbeatSnapshot(
 	ctx context.Context,
 	workspaceID string,
 	agentName string,
 ) (heartbeat.Snapshot, error) {
+	revisions, err := g.ListHeartbeatRevisions(ctx, heartbeat.RevisionListQuery{
+		WorkspaceID: workspaceID,
+		AgentName:   agentName,
+		Limit:       1,
+	})
+	if err != nil {
+		return heartbeat.Snapshot{}, err
+	}
+	if len(revisions) > 0 {
+		return g.currentSnapshotForRevision(ctx, revisions[0])
+	}
+
 	snapshots, err := g.ListHeartbeatSnapshots(ctx, heartbeat.SnapshotListQuery{
 		WorkspaceID: workspaceID,
 		AgentName:   agentName,
@@ -164,6 +176,53 @@ func (g *HeartbeatRepo) GetLatestValidHeartbeatSnapshot(
 		strings.TrimSpace(agentName),
 		heartbeat.ErrSnapshotNotFound,
 	)
+}
+
+func (g *HeartbeatRepo) currentSnapshotForRevision(
+	ctx context.Context,
+	revision heartbeat.Revision,
+) (heartbeat.Snapshot, error) {
+	currentSnapshotID := strings.TrimSpace(revision.NewSnapshotID)
+	if currentSnapshotID == "" {
+		return heartbeat.Snapshot{}, fmt.Errorf(
+			"store: current heartbeat revision %q has no snapshot: %w",
+			revision.ID,
+			heartbeat.ErrSnapshotNotFound,
+		)
+	}
+	current, err := g.GetHeartbeatSnapshot(ctx, currentSnapshotID)
+	if errors.Is(err, heartbeat.ErrSnapshotNotFound) {
+		return heartbeat.Snapshot{}, fmt.Errorf(
+			"store: current heartbeat revision %q references missing snapshot %q: %w",
+			revision.ID,
+			currentSnapshotID,
+			heartbeat.ErrInvalidRevision,
+		)
+	}
+	if err != nil {
+		return heartbeat.Snapshot{}, fmt.Errorf(
+			"store: get current heartbeat snapshot for revision %q: %w",
+			revision.ID,
+			err,
+		)
+	}
+	envelope, err := current.ResolvedEnvelope()
+	if err != nil {
+		return heartbeat.Snapshot{}, fmt.Errorf(
+			"store: resolve current heartbeat snapshot for revision %q: %w",
+			revision.ID,
+			err,
+		)
+	}
+	if !envelope.Valid {
+		return heartbeat.Snapshot{}, fmt.Errorf(
+			"store: current heartbeat snapshot %q for revision %q: %w",
+			current.ID,
+			revision.ID,
+			heartbeat.ErrInvalidSnapshot,
+		)
+	}
+	return current, nil
 }
 
 // ListHeartbeatSnapshots lists persisted Heartbeat snapshots in newest-first order.

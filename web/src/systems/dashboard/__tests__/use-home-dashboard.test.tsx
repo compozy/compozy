@@ -10,6 +10,11 @@ import { makeHomeOverview } from "../mocks/fixtures";
 const getHomeOverview = vi.fn();
 const getHomeActivity = vi.fn();
 const fetchStatus = vi.fn();
+const useHomeLive = vi.fn();
+
+vi.mock("../hooks/use-home-live", () => ({
+  useHomeLive: (options: unknown) => useHomeLive(options),
+}));
 
 vi.mock("../adapters/overview-api", async importOriginal => {
   const actual = await importOriginal<typeof import("../adapters/overview-api")>();
@@ -74,6 +79,7 @@ describe("useHomeDashboard", () => {
     homePrefsStore.trigger.systemPanelClosed();
     getHomeOverview.mockReset();
     getHomeActivity.mockReset();
+    useHomeLive.mockReset();
     getHomeActivity.mockResolvedValue([]);
     fetchStatus.mockReset();
     // Full status payload (useHomeSystem reads health/automation/memory) with the
@@ -107,6 +113,20 @@ describe("useHomeDashboard", () => {
       expect.anything()
     );
   });
+
+  it.each([false, true])(
+    "Should pass liveEnabled=%s to the Home subscription after scope settles",
+    async liveEnabled => {
+      getHomeOverview.mockResolvedValue(makeHomeOverview());
+
+      const { result } = renderHook(() => useHomeDashboard({ liveEnabled }), {
+        wrapper: wrapper(),
+      });
+      await waitFor(() => expect(result.current.overviewStatus).toBe("ready"));
+
+      expect(useHomeLive).toHaveBeenLastCalledWith({ workspaceId: "", enabled: liveEnabled });
+    }
+  );
 
   it("Should scope the overview to a project workspace", async () => {
     activeWorkspaceState.activeWorkspace = {

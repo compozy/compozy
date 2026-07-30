@@ -3,7 +3,7 @@ id: ET-web-session-thread-full-bleed
 area: ET
 title: Session transcript and composer span the full window width
 persona: Bruno
-journey:
+journey: J-12
 expected: In an open Session window, the message transcript rail and the composer textbox share only horizontal inset padding (px-4/px-8) and span the full window content width; neither surface is capped by a centered max-width reading column; resizing the window wider keeps both surfaces edge-to-edge with the window body (minus inset).
 entry_points: web desktop Session window; ThreadContentRail; session composer
 qa_status: untested

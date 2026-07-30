@@ -179,7 +179,7 @@ func getLoopConfigOperation() OperationSpec {
 		[]ResponseSpec{
 			ok(contract.LoopConfigResponse{}),
 			badRequest(),
-			notFound("Loop config not found"),
+			notFound(specLoopDefinition404),
 			loopUnavailable(),
 			internalError(),
 		},
@@ -197,6 +197,7 @@ func putLoopConfigOperation() OperationSpec {
 		[]ResponseSpec{
 			ok(contract.LoopConfigResponse{}),
 			badRequest(),
+			notFound(specLoopDefinition404),
 			loopUnavailable(),
 			internalError(),
 		},
@@ -211,7 +212,13 @@ func getLoopAnnotationsOperation() OperationSpec {
 		"Get Loop editor annotations",
 		nil,
 		[]ParameterSpec{workspaceIDParam(), loopNameParam()},
-		[]ResponseSpec{ok(contract.LoopAnnotationsResponse{}), badRequest(), loopUnavailable(), internalError()},
+		[]ResponseSpec{
+			ok(contract.LoopAnnotationsResponse{}),
+			badRequest(),
+			notFound(specLoopDefinition404),
+			loopUnavailable(),
+			internalError(),
+		},
 	)
 }
 
@@ -223,7 +230,13 @@ func putLoopAnnotationsOperation() OperationSpec {
 		"Replace Loop editor annotations",
 		contract.PutLoopAnnotationsRequest{},
 		[]ParameterSpec{workspaceIDParam(), loopNameParam()},
-		[]ResponseSpec{ok(contract.LoopAnnotationsResponse{}), badRequest(), loopUnavailable(), internalError()},
+		[]ResponseSpec{
+			ok(contract.LoopAnnotationsResponse{}),
+			badRequest(),
+			notFound(specLoopDefinition404),
+			loopUnavailable(),
+			internalError(),
+		},
 	)
 }
 

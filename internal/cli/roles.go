@@ -162,7 +162,7 @@ func roleBundle(role RoleRecord) outputBundle {
 			), nil
 		},
 		toon: func() (string, error) {
-			return renderHumanBlocks(renderToonObject("role", []string{
+			roleHeader := renderToonObject("role", []string{
 				"role",
 				cliEnabledKey,
 				"resolution_mode",
@@ -180,14 +180,20 @@ func roleBundle(role RoleRecord) outputBundle {
 				roleStatusValue(role.Model),
 				roleStatusValue(role.ReasoningEffort),
 				roleStatusValue(role.Timeout),
-			}),
+			})
+			return renderHumanBlocks(
+				roleHeader,
 				renderToonArray(
 					"fallback_chain",
 					[]string{cliProviderKey, agentKernelModelKey, "reasoning_effort"},
 					roleFallbackRows(role),
 				),
 				renderToonArray("provenance", []string{cliFieldKey, "source"}, roleProvenanceRows(role)),
-				renderToonArray("diagnostics", []string{"code", "message", agentAgentKey}, roleDiagnosticRows(role)),
+				renderToonArray(
+					"diagnostics",
+					[]string{"code", clientMessageKey, agentAgentKey},
+					roleDiagnosticRows(role),
+				),
 			), nil
 		},
 	}

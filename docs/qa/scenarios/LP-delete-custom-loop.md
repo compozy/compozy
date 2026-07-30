@@ -7,10 +7,10 @@ journey: J-06
 expected: The custom Loop's destructive-action modal requires intentional confirmation and, after refresh, removes that fork from catalog/detail reads without changing the built-in source Loop.
 entry_points: web loop detail overflow menu; web delete Loop modal
 qa_status: untested
-bug_ids: BUG-20260713-custom-loop-delete-missing
+bug_ids: BUG-20260713-custom-loop-delete-missing; BUG-20260713-loop-fork-internal-error
 fix_status: fixed
 retest_status: pass
-fix_commits:
+fix_commits: 8eeb8a38
 evidence: /Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-loop-delete-restores-readonly-catalog.dom.txt; /Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-loop-delete-restores-readonly-detail.dom.txt; /Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-loop-goalless-delete-restored-bundled.dom.txt
 last_report: docs/qa/reports/2026-07-13-automation-features.md
 overlaps:

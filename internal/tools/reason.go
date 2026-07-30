@@ -90,6 +90,14 @@ const (
 	ReasonGoalReportConflict ReasonCode = "goal_report_conflict"
 	// ReasonGoalEvidenceTooLarge reports inline Goal evidence above the public byte limit.
 	ReasonGoalEvidenceTooLarge ReasonCode = "goal_evidence_too_large"
+	// ReasonLoopVersionConflict reports a stale Loop definition compare-and-swap.
+	ReasonLoopVersionConflict ReasonCode = "loop_version_conflict"
+	// ReasonLoopSourceImmutable reports a mutation attempt against a read-only Loop source.
+	ReasonLoopSourceImmutable ReasonCode = "loop_source_immutable"
+	// ReasonLoopInvalidStatusTransition reports a Loop control requested from an unsupported run status.
+	ReasonLoopInvalidStatusTransition ReasonCode = "invalid_status_transition"
+	// ReasonLoopTerminalRun reports a Loop control requested after the run reached a terminal status.
+	ReasonLoopTerminalRun ReasonCode = "terminal_loop_run"
 	// ReasonScopeMismatch reports caller-supplied scope conflicting with trusted scope.
 	ReasonScopeMismatch ReasonCode = "scope_mismatch"
 	// ReasonWorkspaceAccessDenied reports a workspace-axis policy denial.
@@ -204,6 +212,10 @@ var validReasonCodes = map[ReasonCode]struct{}{
 	ReasonGoalNotActive:                  {},
 	ReasonGoalReportConflict:             {},
 	ReasonGoalEvidenceTooLarge:           {},
+	ReasonLoopVersionConflict:            {},
+	ReasonLoopSourceImmutable:            {},
+	ReasonLoopInvalidStatusTransition:    {},
+	ReasonLoopTerminalRun:                {},
 	ReasonMemorySubagentWriteDenied:      {},
 	ReasonWorkspaceAccessDenied:          {},
 	ReasonHookDenied:                     {},

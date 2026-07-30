@@ -36,7 +36,7 @@ flowchart TD
 
 ```yaml
 journey:
-id: J-deliver-long-formatted-reply
+  id: J-deliver-long-formatted-reply
   name: "Deliver a long formatted reply without loss"
   value_statement: "I receive the complete agent answer in order, readable in my platform's dialect, without invalid Unicode or silent truncation."
   personas: [Omar, Maya]

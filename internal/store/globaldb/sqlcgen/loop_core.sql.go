@@ -11,6 +11,21 @@ import (
 	"time"
 )
 
+const deleteLoopConfig = `-- name: DeleteLoopConfig :exec
+DELETE FROM loop_config
+WHERE workspace_id = ?1 AND loop_name = ?2
+`
+
+type DeleteLoopConfigParams struct {
+	WorkspaceID string `json:"workspace_id"`
+	LoopName    string `json:"loop_name"`
+}
+
+func (q *Queries) DeleteLoopConfig(ctx context.Context, arg DeleteLoopConfigParams) error {
+	_, err := q.db.ExecContext(ctx, deleteLoopConfig, arg.WorkspaceID, arg.LoopName)
+	return err
+}
+
 const deleteLoopUIAnnotations = `-- name: DeleteLoopUIAnnotations :exec
 DELETE FROM loop_ui_annotations WHERE workspace_id = ?1 AND loop_name = ?2
 `

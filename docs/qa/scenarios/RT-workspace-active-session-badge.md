@@ -10,7 +10,7 @@ qa_status: untested
 bug_ids: BUG-20260713-background-session-indicator-title;BUG-20260713-cross-workspace-session-return-hangs
 fix_status: fixed
 retest_status: pass
-fix_commits:
+fix_commits: 8eeb8a38
 evidence: /Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/rt-compozy84-two-workspace-badge-title.dom.txt;/Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/rt-compozy84-cross-workspace-return-hang.dom.txt;/Users/pedronauck/dev/qa-labs/compozy-automation-features-final-replay-20260713-20260713-194432-535561-lab/qa-artifacts/qa/screenshots/rt-compozy84-onboarding-session-counted-as-user.dom.txt;/Users/pedronauck/dev/qa-labs/compozy-automation-features-post-onboarding-fix-20260713-20260713-203513-816377-lab/qa-artifacts/qa/screenshots/rt-compozy84-onboarding-system-badge-one-fixed.dom.txt;/Users/pedronauck/dev/qa-labs/compozy-automation-features-post-onboarding-fix-20260713-20260713-203513-816377-lab/qa-artifacts/qa/screenshots/rt-compozy84-cross-workspace-return-fixed.dom.txt
 last_report: docs/qa/reports/2026-07-13-automation-features.md
 overlaps: RT-041;RT-045

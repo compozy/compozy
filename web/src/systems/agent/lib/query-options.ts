@@ -12,6 +12,8 @@ import { agentKeys } from "./query-keys";
 import { agentCatalogRequest, normalizeAgentCatalogFilter } from "./agent-catalog-query";
 import type { AgentCatalogStableFilter } from "../types";
 
+const HEARTBEAT_STATUS_FRESHNESS_MS = 5_000;
+
 export function agentCatalogOptions(workspace: string, filters: AgentCatalogStableFilter = {}) {
   const normalizedFilters = normalizeAgentCatalogFilter(filters);
   return infiniteQueryOptions({
@@ -84,7 +86,8 @@ export function agentHeartbeatStatusOptions(
   return queryOptions({
     queryKey: agentKeys.heartbeatStatus(name, options),
     queryFn: ({ signal }) => fetchAgentHeartbeatStatus(name, options, signal),
-    staleTime: 5_000,
+    staleTime: HEARTBEAT_STATUS_FRESHNESS_MS,
+    refetchInterval: options.sessionId ? HEARTBEAT_STATUS_FRESHNESS_MS : false,
     enabled: !!name,
   });
 }

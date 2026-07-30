@@ -37,6 +37,7 @@ type service struct {
 	defaultsResolver      DefaultsResolver
 	inputDefaultsResolver InputDefaultsResolver
 	goalRunActivator      GoalRunActivator
+	coordinatorActivator  CoordinatorRunActivator
 	goalLeaseRevoker      GoalPromptLeaseRevoker
 	participationResolver participation.Resolver
 	runtimeCatalog        WorkspaceRuntimeCatalog
@@ -144,7 +145,7 @@ func (s *service) Configure(
 	name string,
 	cfg LoopConfig,
 ) error {
-	loopName, err := normalizeLoopName(name)
+	_, loopName, err := s.resolveDefinition(ctx, ws, name)
 	if err != nil {
 		return err
 	}

@@ -7,14 +7,16 @@ journey: J-extension-policy-admin
 expected: An entry removed from the curated feed disappears from search, browse, and detail on web, CLI, and API after refresh (and within TTL without one), while the already-installed capability remains fully manageable.
 entry_points: compozy marketplace refresh -o json; POST /api/marketplace/refresh; /marketplace; compozy config set marketplace.catalog.base_url (isolated feed)
 qa_status: untested
-bug_ids: BUG-20260715-marketplace-config-set-live; BUG-20260715-config-set-late-metadata
+bug_ids: BUG-20260715-marketplace-config-set-live; BUG-20260715-config-set-late-metadata; BUG-20260715-marketplace-stale-report
 fix_status: fixed
-retest_status: pending fail-closed OAuth catalog schema validation
-fix_commits:
+retest_status: pending
+fix_commits: 8eeb8a38
 evidence: /Users/pedronauck/dev/qa-labs/compozy-marketplace-northstar-20260715-20260715-114240-757254-lab/qa-artifacts/qa/notes/marketplace-config-set-live.json; /Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/marketplace-kill-switch.json
 last_report: docs/qa/reports/2026-07-15-marketplace.md
 overlaps: ET-cli-marketplace-refresh; MS-marketplace-catalog-live-config
 ---
+
+Historical QA note: fail-closed OAuth catalog schema validation remains pending.
 
 Added by marketplace Task 10 (QA planning). Covers Safety Invariant 3 / ADR-008: replace-on-refresh
 prune is the curation kill-switch. Use an isolated local feed: install an entry, remove it from the

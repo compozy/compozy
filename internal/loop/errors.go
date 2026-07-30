@@ -10,6 +10,8 @@ import (
 var (
 	// ErrValidation reports invalid loop-domain input.
 	ErrValidation = errors.New("loop: validation failed")
+	// ErrDefinitionReadOnly reports an attempted mutation of a non-workspace definition.
+	ErrDefinitionReadOnly = errors.New("loop: definition is read-only")
 	// ErrRunNotFound reports a missing loop_run aggregate.
 	ErrRunNotFound = errors.New("loop: run not found")
 	// ErrConfigNotFound reports the absence of a per-loop loop_config row.

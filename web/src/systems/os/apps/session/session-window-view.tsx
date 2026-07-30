@@ -11,6 +11,7 @@ export function SessionWindowView({
   id,
   workspaceId,
   session,
+  liveTailEnabled,
   isLoading,
   error,
   onDeleteSuccess,
@@ -19,6 +20,7 @@ export function SessionWindowView({
   id: string;
   workspaceId: string;
   session: SessionPayload | undefined;
+  liveTailEnabled: boolean;
   isLoading: boolean;
   error: Error | null;
   onDeleteSuccess: () => void;
@@ -41,7 +43,12 @@ export function SessionWindowView({
 
   const resolvedAgentName = session.agent_name || name;
   return (
-    <SessionChatRuntimeProvider key={id} sessionId={id} workspaceId={sessionWorkspaceId}>
+    <SessionChatRuntimeProvider
+      key={id}
+      sessionId={id}
+      workspaceId={sessionWorkspaceId}
+      liveTailEnabled={liveTailEnabled}
+    >
       <SessionWindowContent
         agentName={resolvedAgentName}
         sessionId={id}

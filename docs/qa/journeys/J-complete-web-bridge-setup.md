@@ -29,7 +29,7 @@ flowchart TD
 
 ```yaml
 journey:
-id: J-complete-web-bridge-setup
+  id: J-complete-web-bridge-setup
   name: "Complete bridge setup in the Web"
   value_statement: "I can finish provider setup from one truthful Web orchestration path without losing the created bridge or mistaking a dry run for a real send."
   personas: [Tessa]

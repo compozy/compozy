@@ -81,7 +81,7 @@ func (m *Manager) launchAcceptedSessionStart(accepted *acceptedSessionStart) err
 	}
 
 	accepted.persistFailure = accepted.async || !spec.discardStartFailure
-	startOpts, err := m.prepareSessionLaunch(ctx, spec, session, &runtime)
+	startOpts, err := m.prepareSessionLaunch(ctx, spec, session, &runtime, accepted.run)
 	if err != nil {
 		return fmt.Errorf("session: prepare %s launch for %q: %w", spec.startAction, spec.sessionID, err)
 	}

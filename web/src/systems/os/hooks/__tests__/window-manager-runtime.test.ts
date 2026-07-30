@@ -5,7 +5,11 @@
 import { QueryClient, QueryObserver } from "@tanstack/react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { executeWindowManagerCommand } from "../../adapters/window-manager-api";
+import {
+  executeWindowManagerCommand,
+  fetchWindowManagerSnapshot,
+  WindowManagerApiError,
+} from "../../adapters/window-manager-api";
 import type { OsWindowRoute } from "../../lib/os-types";
 import { createTileSnapTarget } from "../../lib/snap-targets";
 import { windowManagerKeys } from "../../lib/window-manager-query";
@@ -19,7 +23,11 @@ import { WindowManagerRuntime } from "../../runtime/window-manager-runtime";
 
 vi.mock("../../adapters/window-manager-api", async importOriginal => {
   const actual = await importOriginal<typeof import("../../adapters/window-manager-api")>();
-  return { ...actual, executeWindowManagerCommand: vi.fn() };
+  return {
+    ...actual,
+    executeWindowManagerCommand: vi.fn(),
+    fetchWindowManagerSnapshot: vi.fn(),
+  };
 });
 
 /** Settles one microtask so the runtime's command serializer starts the queued runCommand. */
@@ -642,6 +650,257 @@ describe("WindowManagerRuntime", () => {
     expect(executeWindowManagerCommand).toHaveBeenCalledWith("workspace:test", "client:web", 7, {
       commandId: "window.focus",
       payload: { window_id: "app:tasks", direction: "" },
+    });
+    runtime.stop();
+  });
+
+  it("Should recover a semantic open after a concurrent client advances topology", async () => {
+    const queryClient = new QueryClient();
+    const marketplace = {
+      id: "app:marketplace",
+      app: "marketplace",
+      instanceKey: null,
+      route: { pathname: "/marketplace/skills", search: {} },
+      placement: "floating" as const,
+      desktopId: "desktop:one",
+      floatingRect: { x: 0.1, y: 0.1, w: 0.5, h: 0.5 },
+      minimized: false,
+      returnAnchor: null,
+    };
+    const session = {
+      ...marketplace,
+      id: "session:sess-concurrent",
+      app: "session",
+      instanceKey: "sess-concurrent",
+      route: { pathname: "/agents/general/sessions/sess-concurrent", search: {} },
+    };
+    const initial = {
+      ...SNAPSHOT,
+      desktops: SNAPSHOT.desktops.map(desktop =>
+        desktop.id === "desktop:one" ? { ...desktop, floating: [marketplace.id] } : desktop
+      ),
+      windows: { [marketplace.id]: marketplace },
+    };
+    const refreshed = {
+      ...initial,
+      revision: 8,
+      desktops: initial.desktops.map(desktop =>
+        desktop.id === "desktop:one"
+          ? { ...desktop, floating: [marketplace.id, session.id] }
+          : desktop
+      ),
+      windows: { [marketplace.id]: marketplace, [session.id]: session },
+    };
+    const focusedClient = {
+      workspaceId: "workspace:test",
+      clientId: "client:web",
+      presentationRevision: 2,
+      activeDesktopId: "desktop:one",
+      focusedWindowId: session.id,
+      focusOrder: [session.id, marketplace.id],
+      connectedAt: "2026-07-22T00:00:00Z",
+    };
+    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test"), initial);
+    queryClient.setQueryData(windowManagerKeys.config(), CONFIG);
+    vi.mocked(executeWindowManagerCommand)
+      .mockRejectedValueOnce(
+        new WindowManagerApiError("Window layout changed.", 409, {
+          error: "Window layout changed.",
+          code: "revision_conflict",
+          workspaceId: "workspace:test",
+          currentRevision: refreshed.revision,
+          conflicts: [],
+          diagnostics: [
+            { code: "revision_conflict", path: null, message: "Window layout changed." },
+          ],
+        })
+      )
+      .mockResolvedValueOnce({
+        snapshot: refreshed,
+        applied: true,
+        changes: {
+          desktopIds: [],
+          windowIds: [],
+          groupIds: [],
+          nodeIds: [],
+          clientIds: [focusedClient.clientId],
+        },
+        diagnostics: [],
+        client: focusedClient,
+        rebasedFrom: null,
+      });
+    vi.mocked(fetchWindowManagerSnapshot).mockResolvedValue(refreshed);
+    const runtime = new WindowManagerRuntime(queryClient);
+    runtime.bind({ workspaceId: "workspace:test", clientId: "client:web" });
+    runtime.setClient({
+      ...focusedClient,
+      presentationRevision: 1,
+      focusedWindowId: marketplace.id,
+    });
+
+    const outcome = runtime.openOrFocus({
+      app: "session",
+      instanceKey: "sess-concurrent",
+      route: session.route,
+    });
+
+    expect(outcome.accepted).toBe(true);
+    await expect(outcome.completion).resolves.toBe(true);
+    expect(fetchWindowManagerSnapshot).toHaveBeenCalledOnce();
+    expect(executeWindowManagerCommand).toHaveBeenNthCalledWith(
+      1,
+      "workspace:test",
+      "client:web",
+      7,
+      expect.objectContaining({ commandId: "window.open" })
+    );
+    expect(executeWindowManagerCommand).toHaveBeenNthCalledWith(
+      2,
+      "workspace:test",
+      "client:web",
+      8,
+      {
+        commandId: "window.focus",
+        payload: { window_id: session.id, direction: "" },
+      }
+    );
+    expect(runtime.getState().focusedId).toBe(session.id);
+    runtime.stop();
+  });
+
+  it("Should stop after one retry when concurrent topology changes twice", async () => {
+    const queryClient = new QueryClient();
+    const refreshed = { ...SNAPSHOT, revision: 8 };
+    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test"), SNAPSHOT);
+    queryClient.setQueryData(windowManagerKeys.config(), CONFIG);
+    vi.mocked(executeWindowManagerCommand)
+      .mockRejectedValueOnce(
+        new WindowManagerApiError("Window layout changed.", 409, {
+          error: "Window layout changed.",
+          code: "revision_conflict",
+          workspaceId: "workspace:test",
+          currentRevision: 8,
+          conflicts: [],
+          diagnostics: [
+            { code: "revision_conflict", path: null, message: "Window layout changed." },
+          ],
+        })
+      )
+      .mockRejectedValueOnce(
+        new WindowManagerApiError("Window layout changed again.", 409, {
+          error: "Window layout changed again.",
+          code: "revision_conflict",
+          workspaceId: "workspace:test",
+          currentRevision: 9,
+          conflicts: [],
+          diagnostics: [
+            { code: "revision_conflict", path: null, message: "Window layout changed again." },
+          ],
+        })
+      );
+    vi.mocked(fetchWindowManagerSnapshot).mockResolvedValue(refreshed);
+    const runtime = new WindowManagerRuntime(queryClient);
+    runtime.bind({ workspaceId: "workspace:test", clientId: "client:web" });
+    runtime.setClient({
+      workspaceId: "workspace:test",
+      clientId: "client:web",
+      presentationRevision: 1,
+      activeDesktopId: "desktop:one",
+      focusedWindowId: null,
+      focusOrder: [],
+      connectedAt: "2026-07-22T00:00:00Z",
+    });
+
+    const outcome = runtime.openOrFocus({
+      app: "tasks",
+      route: { pathname: "/tasks", search: {} },
+    });
+
+    await expect(outcome.completion).resolves.toBe(false);
+    expect(fetchWindowManagerSnapshot).toHaveBeenCalledOnce();
+    expect(executeWindowManagerCommand).toHaveBeenCalledTimes(2);
+    runtime.stop();
+  });
+
+  it("Should abort and ignore snapshot refreshes after binding lifecycle changes", async () => {
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(windowManagerKeys.config(), CONFIG);
+    const requests: Array<{
+      resolve: (snapshot: WindowManagerSnapshot) => void;
+      signal: AbortSignal | undefined;
+    }> = [];
+    vi.mocked(fetchWindowManagerSnapshot).mockImplementation(
+      (_workspaceId, signal) =>
+        new Promise(resolve => {
+          requests.push({ resolve, signal });
+        })
+    );
+    const runtime = new WindowManagerRuntime(queryClient);
+    runtime.bind({ workspaceId: "workspace:first", clientId: "client:first" });
+
+    const reboundRefresh = runtime.refreshSnapshot();
+    expect(requests).toHaveLength(1);
+    runtime.bind({ workspaceId: "workspace:second", clientId: "client:second" });
+    expect(requests[0]?.signal?.aborted).toBe(true);
+    requests[0]?.resolve({ ...SNAPSHOT, workspaceId: "workspace:first", revision: 20 });
+    await expect(reboundRefresh).resolves.toBe(false);
+    expect(queryClient.getQueryData(windowManagerKeys.snapshot("workspace:first"))).toBeUndefined();
+
+    const unboundRefresh = runtime.refreshSnapshot();
+    expect(requests).toHaveLength(2);
+    runtime.unbind();
+    expect(requests[1]?.signal?.aborted).toBe(true);
+    requests[1]?.resolve({ ...SNAPSHOT, workspaceId: "workspace:second", revision: 21 });
+    await expect(unboundRefresh).resolves.toBe(false);
+    expect(
+      queryClient.getQueryData(windowManagerKeys.snapshot("workspace:second"))
+    ).toBeUndefined();
+    runtime.stop();
+  });
+
+  it("Should preserve an unrelated conflict when semantic open admission is blocked", async () => {
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test"), SNAPSHOT);
+    queryClient.setQueryData(windowManagerKeys.config(), CONFIG);
+    const runtime = new WindowManagerRuntime(queryClient);
+    runtime.bind({ workspaceId: "workspace:test", clientId: "client:web" });
+    runtime.setClient({
+      workspaceId: "workspace:test",
+      clientId: "client:web",
+      presentationRevision: 1,
+      activeDesktopId: "desktop:one",
+      focusedWindowId: null,
+      focusOrder: [],
+      connectedAt: "2026-07-22T00:00:00Z",
+    });
+    expect(
+      beginWindowManagerCommand(windowManagerStore, {
+        id: "layout:stale",
+        kind: "layout.arrange",
+        expectedRevision: 6,
+      })
+    ).toBe(true);
+    windowManagerStore.trigger.conflictRecorded({
+      conflict: { commandId: "layout:stale", expectedRevision: 6, currentRevision: 7 },
+      diagnostic: {
+        code: "revision_conflict",
+        message: "Desktop layout changed remotely.",
+        severity: "error",
+        field: null,
+      },
+      binding: { workspaceId: "workspace:test", clientId: "client:web" },
+    });
+
+    const outcome = runtime.openOrFocus({
+      app: "tasks",
+      route: { pathname: "/tasks", search: {} },
+    });
+
+    await expect(outcome.completion).resolves.toBe(false);
+    expect(fetchWindowManagerSnapshot).not.toHaveBeenCalled();
+    expect(windowManagerStore.getSnapshot().context.commandState).toMatchObject({
+      status: "conflict",
+      conflict: { commandId: "layout:stale" },
     });
     runtime.stop();
   });

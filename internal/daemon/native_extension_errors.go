@@ -1,0 +1,120 @@
+package daemon
+
+import (
+	"errors"
+	"fmt"
+	"os"
+
+	"github.com/compozy/compozy/internal/api/contract"
+	core "github.com/compozy/compozy/internal/api/core"
+	extensionpkg "github.com/compozy/compozy/internal/extension"
+	toolspkg "github.com/compozy/compozy/internal/tools"
+)
+
+type nativeExtensionUpdatePartialPayload struct {
+	Updates        []contract.ManagedExtensionUpdatePayload `json:"updates"`
+	FailedTarget   string                                   `json:"failed_target"`
+	CompletedCount int                                      `json:"completed_count"`
+}
+
+func nativeExtensionUpdateToolError(
+	id toolspkg.ToolID,
+	items []contract.ManagedExtensionUpdatePayload,
+	err error,
+) error {
+	var batchErr *extensionpkg.MarketplaceUpdateBatchError
+	if !errors.As(err, &batchErr) {
+		return nativeExtensionToolError(id, err)
+	}
+
+	mappedErr := nativeExtensionToolError(id, err)
+	var toolErr *toolspkg.ToolError
+	if !errors.As(mappedErr, &toolErr) {
+		mappedErr = nativeHTTPStatusToolError(id, err, core.ExtensionStatusCode(err))
+		if !errors.As(mappedErr, &toolErr) {
+			return mappedErr
+		}
+	}
+	partial, marshalErr := structuredResult(nativeExtensionUpdatePartialPayload{
+		Updates:        append([]contract.ManagedExtensionUpdatePayload(nil), items...),
+		FailedTarget:   batchErr.FailedName,
+		CompletedCount: len(items),
+	}, fmt.Sprintf("%d extension updates completed before %s failed", len(items), batchErr.FailedName))
+	if marshalErr != nil {
+		return toolspkg.NewToolError(
+			toolspkg.ErrorCodeBackendFailed,
+			id,
+			"extension update partial result could not be encoded",
+			fmt.Errorf("%w: %w", toolspkg.ErrToolBackendFailed, errors.Join(err, marshalErr)),
+			toolspkg.ReasonBackendUnhealthy,
+		)
+	}
+	return toolErr.WithPartialResult(partial)
+}
+
+func nativeExtensionToolError(id toolspkg.ToolID, err error) error {
+	switch {
+	case err == nil:
+		return nil
+	case errors.Is(err, extensionpkg.ErrExtensionNotFound):
+		return toolspkg.NewToolError(
+			toolspkg.ErrorCodeNotFound,
+			id,
+			err.Error(),
+			fmt.Errorf("%w: %w", toolspkg.ErrToolNotFound, err),
+			toolspkg.ReasonExtensionNotInstalled,
+		)
+	case isExtensionValidationError(err):
+		return nativeExtensionValidationError(id, err)
+	case errors.Is(err, extensionpkg.ErrExtensionHasActiveBundles):
+		return toolspkg.NewToolError(
+			toolspkg.ErrorCodeConflict,
+			id,
+			err.Error(),
+			fmt.Errorf("%w: %w", toolspkg.ErrToolConflict, err),
+			toolspkg.ReasonExtensionValidationFailed,
+		)
+	case isExtensionSourceError(err):
+		return nativeExtensionSourceError(id, err)
+	default:
+		return err
+	}
+}
+
+func nativeExtensionValidationError(id toolspkg.ToolID, err error) error {
+	return toolspkg.NewToolError(
+		toolspkg.ErrorCodeInvalidInput,
+		id,
+		"extension validation failed",
+		fmt.Errorf("%w: %w", toolspkg.ErrToolInvalidInput, err),
+		toolspkg.ReasonExtensionValidationFailed,
+	)
+}
+
+func nativeExtensionSourceError(id toolspkg.ToolID, err error) error {
+	return toolspkg.NewToolError(
+		toolspkg.ErrorCodeDenied,
+		id,
+		"extension source is not allowed",
+		fmt.Errorf("%w: %w", toolspkg.ErrToolDenied, err),
+		toolspkg.ReasonExtensionSourceForbidden,
+	)
+}
+
+func isExtensionValidationError(err error) bool {
+	return errors.Is(err, extensionpkg.ErrExtensionExists) ||
+		errors.Is(err, extensionpkg.ErrExtensionChecksumMismatch) ||
+		errors.Is(err, extensionpkg.ErrExtensionArchiveDigestMismatch) ||
+		errors.Is(err, extensionpkg.ErrManifestInvalid) ||
+		errors.Is(err, extensionpkg.ErrManifestIncompatible) ||
+		errors.Is(err, extensionpkg.ErrManifestNotFound) ||
+		errors.Is(err, os.ErrNotExist)
+}
+
+func isExtensionSourceError(err error) bool {
+	return errors.Is(err, extensionpkg.ErrMarketplaceSourceUnavailable) ||
+		errors.Is(err, extensionpkg.ErrExtensionChecksumUnverified) ||
+		errors.Is(err, extensionpkg.ErrExtensionUnverifiedPolicyBlocked) ||
+		errors.Is(err, errExtensionMarketplaceNotConfigured) ||
+		errors.Is(err, errExtensionRegistryUnsupported)
+}

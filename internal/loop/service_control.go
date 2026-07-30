@@ -116,10 +116,7 @@ func (s *service) Resume(
 		if handled, err := s.reactivateGoalControl(ctx, run, GateDecisionApprove, actor); handled || err != nil {
 			return err
 		}
-		if err := s.Transition(ctx, runID, StatusRunning, TransitionCauseOperatorResume); err != nil {
-			return err
-		}
-		return s.store.SetLoopRunPauseRequested(ctx, ws, runID, false, actor)
+		return s.reactivateCoordinatorControl(ctx, run, TransitionCauseOperatorResume, actor, nil)
 	default:
 		return reasonError(
 			ReasonCodeInvalidStatusTransition,
@@ -175,10 +172,11 @@ func (s *service) Approve(
 		if gateID == BudgetGateID && decision == GateDecisionRequestChanges {
 			return fmt.Errorf("%w: budget gate only accepts approve or reject", ErrValidation)
 		}
-		if err := s.recordGateDecision(ctx, run, gateID, decision, actor); err != nil {
+		decisions, err := gateDecisionRecords(run, gateID, decision, actor, s.now().UTC())
+		if err != nil {
 			return err
 		}
-		return s.Transition(ctx, runID, StatusRunning, TransitionCauseApproval)
+		return s.reactivateCoordinatorControl(ctx, run, TransitionCauseApproval, actor, decisions)
 	case GateDecisionReject:
 		if err := s.recordGateDecision(ctx, run, gateID, decision, actor); err != nil {
 			return err
@@ -187,6 +185,29 @@ func (s *service) Approve(
 	default:
 		return fmt.Errorf("%w: gate decision is invalid: %q", ErrValidation, decision)
 	}
+}
+
+func (s *service) reactivateCoordinatorControl(
+	ctx context.Context,
+	run Run,
+	cause TransitionCause,
+	actor task.ActorContext,
+	decisions []GateDecisionRecord,
+) error {
+	controls, ok := s.store.(CoordinatorControlStore)
+	if !ok {
+		return fmt.Errorf("%w: Loop coordinator control store is unavailable", ErrActionDependencyMissing)
+	}
+	result, err := controls.ReactivateLoopCoordinator(ctx, &CoordinatorReactivationRequest{
+		Run: run, Cause: cause, Actor: actor, Decisions: decisions, ReactivatedAt: s.now().UTC(),
+	})
+	if err != nil {
+		return err
+	}
+	if s.coordinatorActivator != nil {
+		s.coordinatorActivator.ActivateCoordinatorRun(context.WithoutCancel(ctx), result.Run)
+	}
+	return nil
 }
 
 func (s *service) reactivateGoalControl(

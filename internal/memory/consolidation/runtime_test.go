@@ -309,6 +309,65 @@ func TestRuntimeReadsLiveEnabledState(t *testing.T) {
 func TestRuntimeRunCheckStopsOnErrors(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should handle a nil context without masking the service failure", func(t *testing.T) {
+		t.Parallel()
+
+		service := &fakeDreamService{shouldRun: true, runErr: context.Canceled}
+		var logs strings.Builder
+		logger := slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelWarn}))
+		runtime := NewRuntime(
+			staticEnabled(true),
+			service,
+			func(context.Context, string, string, string, time.Time) error { return nil },
+			time.Minute,
+			logger,
+			nil,
+		)
+		var nilContext context.Context
+
+		runtime.runCheck(
+			nilContext,
+			logger,
+			service,
+			func(context.Context, string, string, string, time.Time) error { return nil },
+			"manual",
+			"ws-1",
+		)
+		if !strings.Contains(logs.String(), "dream consolidation failed") {
+			t.Fatalf("warning logs = %q, want service failure", logs.String())
+		}
+	})
+
+	t.Run("Should treat runtime context cancellation as a clean stop", func(t *testing.T) {
+		t.Parallel()
+
+		service := &fakeDreamService{shouldRun: true, runErr: context.Canceled}
+		var logs strings.Builder
+		logger := slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelWarn}))
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		runtime := NewRuntime(
+			staticEnabled(true),
+			service,
+			func(context.Context, string, string, string, time.Time) error { return nil },
+			time.Minute,
+			logger,
+			nil,
+		)
+
+		runtime.runCheck(
+			ctx,
+			logger,
+			service,
+			func(context.Context, string, string, string, time.Time) error { return nil },
+			"shutdown",
+			"ws-1",
+		)
+		if got := logs.String(); got != "" {
+			t.Fatalf("warning logs = %q, want none", got)
+		}
+	})
+
 	t.Run("Should lock unavailable is swallowed", func(t *testing.T) {
 		service := &fakeDreamService{shouldRun: true, runErr: memory.ErrLockUnavailable}
 		runtime := NewRuntime(

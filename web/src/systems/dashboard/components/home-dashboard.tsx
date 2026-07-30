@@ -38,8 +38,12 @@ function HomeDashboardSkeleton() {
  * needs-you → KPI strip → working-now | network → pulse → outcomes | usage →
  * agents | activity → system.
  */
-export function HomeDashboard({ className, ...props }: ComponentProps<"div">) {
-  const model = useHomeDashboard();
+export interface HomeDashboardProps extends ComponentProps<"div"> {
+  liveEnabled?: boolean;
+}
+
+export function HomeDashboard({ className, liveEnabled = true, ...props }: HomeDashboardProps) {
+  const model = useHomeDashboard({ liveEnabled });
   const { workingNow, network, agents, system } = model;
 
   const overview = model.overview;

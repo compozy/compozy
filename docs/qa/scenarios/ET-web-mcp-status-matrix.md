@@ -9,12 +9,14 @@ entry_points: web `/marketplace/mcps?tab=installed`; `GET /api/settings/mcp-serv
 qa_status: untested
 bug_ids:
 fix_status:
-retest_status: pending workspace-guard action gating
+retest_status:
 fix_commits:
 evidence: web/src/systems/settings/lib/mcp-status-view-model.ts; web/src/systems/settings/components/mcp-servers-table.tsx; .compozy/tasks/marketplace/evidence/visual/task-08/matrix-desktop; /Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/mcp-oauth-name-segment.json; /Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/web/mcp-oauth-confirmed.png
 last_report: docs/qa/reports/2026-07-15-marketplace.md
 overlaps: MS-029
 ---
+
+Planning note: workspace-guard action-gating verification remains pending; no bug fix is associated with this scenario.
 
 story: As a builder I read every configured MCP server's real configuration, authorization, runtime, and probe status at a glance without a plausible green masking a broken server.
 

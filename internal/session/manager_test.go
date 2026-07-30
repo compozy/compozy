@@ -383,6 +383,84 @@ func TestManagerWorkAdmission(t *testing.T) {
 			t.Fatalf("Stop() error = %v", stopErr)
 		}
 	})
+
+	t.Run("Should finish an admitted dream continuation while public work is draining", func(t *testing.T) {
+		t.Parallel()
+
+		gate := &admission.Gate{}
+		gate.Drain()
+		h := newHarness(t, WithWorkAdmissionChecker(gate))
+		if _, err := h.manager.CreateLifecycleContinuation(testutil.Context(t), CreateOpts{
+			AgentName: "coder",
+			Workspace: h.workspaceID,
+			Type:      SessionTypeUser,
+		}); err == nil || !strings.Contains(err.Error(), string(SessionTypeDream)) {
+			t.Fatalf("CreateLifecycleContinuation(user) error = %v, want dream-only validation", err)
+		}
+
+		continuation, err := h.manager.CreateLifecycleContinuation(testutil.Context(t), CreateOpts{
+			AgentName: "coder",
+			Workspace: h.workspaceID,
+			Type:      SessionTypeDream,
+		})
+		if err != nil {
+			t.Fatalf("CreateLifecycleContinuation(dream) error = %v", err)
+		}
+		if _, err := h.manager.Prompt(
+			testutil.Context(t),
+			continuation.ID,
+			"public turn",
+		); !errors.Is(err, admission.ErrDraining) {
+			t.Fatalf("Prompt(public) error = %v, want ErrDraining", err)
+		}
+
+		source := make(chan acp.AgentEvent, 1)
+		source <- acp.AgentEvent{
+			Type:             acp.EventTypeDone,
+			TurnID:           "turn-continuation",
+			Timestamp:        time.Now().UTC(),
+			StopReason:       string(acp.PromptStopReasonEndTurn),
+			PromptStopReason: acp.PromptStopReasonEndTurn,
+		}
+		close(source)
+		var continuationRequest acp.PromptRequest
+		h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			continuationRequest = req
+			return source, nil
+		}
+		events, err := h.manager.PromptLifecycleContinuation(
+			testutil.Context(t),
+			continuation.ID,
+			"finish accepted checkpoint",
+		)
+		if err != nil {
+			t.Fatalf("PromptLifecycleContinuation() error = %v", err)
+		}
+		var terminal acp.AgentEvent
+		for event := range events {
+			terminal = event
+		}
+		if terminal.Type != acp.EventTypeDone {
+			t.Fatalf("continuation terminal event = %q, want %q", terminal.Type, acp.EventTypeDone)
+		}
+		if continuationRequest.Meta.TurnSource != acp.PromptTurnSourceSynthetic {
+			t.Fatalf(
+				"continuation turn source = %q, want %q",
+				continuationRequest.Meta.TurnSource,
+				acp.PromptTurnSourceSynthetic,
+			)
+		}
+		if continuationRequest.Meta.Synthetic == nil ||
+			continuationRequest.Meta.Synthetic.Reason != promptReasonLifecycleContinuation {
+			t.Fatalf(
+				"continuation synthetic metadata = %#v, want lifecycle continuation reason",
+				continuationRequest.Meta.Synthetic,
+			)
+		}
+		if err := h.manager.Stop(testutil.Context(t), continuation.ID); err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+	})
 }
 
 func TestCreateAppliesRuntimeModelOverride(t *testing.T) {

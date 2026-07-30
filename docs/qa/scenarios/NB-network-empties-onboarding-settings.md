@@ -10,7 +10,7 @@ qa_status: untested
 bug_ids: BUG-20260715-network-ready-empty-unoriented
 fix_status: fixed
 retest_status: pass
-fix_commits:
+fix_commits: 8eeb8a38
 evidence: docs/qa/evidence/2026-07-14-network-changes/ch-network-local-default.md
 last_report: docs/qa/reports/2026-07-14-network-changes.md
 overlaps: NB-network-live-config-lifecycle

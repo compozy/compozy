@@ -3,22 +3,16 @@ import { Home, Plus, ServerOff } from "lucide-react";
 import { Button, ConnectionIndicator, Empty, useTopbarSlot } from "@compozy/ui";
 
 import { HomeDashboard } from "@/systems/dashboard";
-import {
-  useSessionCreateActions,
-  useSessionCreateHasActiveWorkspace,
-  useSessionCreateIsCreating,
-} from "@/systems/session";
-import { useDaemonHealth } from "@/systems/status";
+
+import { useDashboardWindowModel } from "./hooks/use-dashboard-window-model";
 
 /**
  * Thin shell for the home window: identity, the Live pill, and the one primary
  * action live in the window head; the body is the 7-zone home dashboard.
  */
-export function DashboardWindow(_props: { windowId: string }) {
-  const { connectionStatus } = useDaemonHealth();
-  const { openForAgent } = useSessionCreateActions();
-  const hasActiveWorkspace = useSessionCreateHasActiveWorkspace();
-  const isCreating = useSessionCreateIsCreating();
+export function DashboardWindow({ windowId }: { windowId: string }) {
+  const { connectionStatus, hasActiveWorkspace, isCreating, liveEnabled, openForAgent } =
+    useDashboardWindowModel(windowId);
 
   useTopbarSlot({
     glyph: <Home />,
@@ -50,5 +44,5 @@ export function DashboardWindow(_props: { windowId: string }) {
     );
   }
 
-  return <HomeDashboard />;
+  return <HomeDashboard liveEnabled={liveEnabled} />;
 }

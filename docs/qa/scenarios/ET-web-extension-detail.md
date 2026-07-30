@@ -9,12 +9,14 @@ entry_points: /marketplace/extension/$entryId?installed_name=$name; Marketplace 
 qa_status: untested
 bug_ids:
 fix_status:
-retest_status: pending exact catalog-entry projection and cross-owner cache reconciliation
+retest_status:
 fix_commits:
 evidence: /Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/marketplace-management-lifecycle.json; /Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/web/marketplace-extension-lifecycle-final.png
 last_report: docs/qa/reports/2026-07-15-marketplace.md
 overlaps: ET-015; ET-022; ET-023
 ---
+
+Planning note: exact catalog-entry projection and cross-owner cache reconciliation remain pending; no bug fix is associated with this scenario.
 
 Added by marketplace Task 07. Compare healthy and degraded states with the extension-detail OpenDesign contract.
 

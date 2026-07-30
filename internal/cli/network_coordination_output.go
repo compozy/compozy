@@ -194,7 +194,7 @@ func networkUsageToon(payload NetworkUsageRecord) string {
 				cliInputTokensKey,
 				cliOutputTokensKey,
 				"reserved_at",
-				"settled_at", "reason",
+				"settled_at", memoryReasonKey,
 			},
 			networkUsageDetailToonRows(payload),
 		))

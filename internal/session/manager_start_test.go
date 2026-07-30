@@ -13,6 +13,7 @@ import (
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/sessiondb"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/transcript"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -497,6 +498,8 @@ func testCreateAcceptedPersistsFailure(t *testing.T) {
 func TestStopJoinsAcceptedStartupAndPreventsLateActivation(t *testing.T) {
 	t.Parallel()
 	t.Run("Should join accepted startup and prevent late activation", testStopJoinsAcceptedStartup)
+	t.Run("Should wait for the accepted recorder before canceling startup", testAcceptedStartupRecorderReady)
+	t.Run("Should preserve creation identity when stop overlaps its commit", testAcceptedStartupIdentityCommit)
 }
 
 func testStopJoinsAcceptedStartup(t *testing.T) {
@@ -536,6 +539,179 @@ func testStopJoinsAcceptedStartup(t *testing.T) {
 	}
 	if got := len(h.driver.startCalls); got != 0 {
 		t.Fatalf("driver start calls = %d, want 0 after startup cancellation", got)
+	}
+}
+
+func testAcceptedStartupRecorderReady(t *testing.T) {
+	t.Helper()
+	t.Parallel()
+
+	recorderOpenEntered := make(chan struct{})
+	releaseRecorderOpen := make(chan struct{})
+	var recorderOpenOnce sync.Once
+	var releaseOnce sync.Once
+	t.Cleanup(func() { releaseOnce.Do(func() { close(releaseRecorderOpen) }) })
+
+	h := newHarness(t)
+	h.manager = newManagerWithHarness(t, h, WithStore(func(
+		ctx context.Context,
+		sessionID string,
+		path string,
+	) (EventRecorder, error) {
+		recorderOpenOnce.Do(func() { close(recorderOpenEntered) })
+		select {
+		case <-releaseRecorderOpen:
+			return sessiondb.OpenSessionDB(ctx, sessionID, path)
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}))
+
+	accepted, err := h.manager.CreateAccepted(testutil.Context(t), CreateAcceptedOpts{
+		Session: CreateOpts{AgentName: "coder", Workspace: h.workspaceID},
+	})
+	if err != nil {
+		t.Fatalf("CreateAccepted() error = %v", err)
+	}
+	<-recorderOpenEntered
+	active, ok := h.manager.Get(accepted.ID)
+	if !ok {
+		t.Fatalf("Get(%q) did not find accepted session", accepted.ID)
+	}
+	stopDone := make(chan error, 1)
+	go func() {
+		stopDone <- h.manager.Stop(testutil.Context(t), accepted.ID)
+	}()
+
+	select {
+	case stopErr := <-stopDone:
+		releaseOnce.Do(func() { close(releaseRecorderOpen) })
+		t.Fatalf("Stop(starting) completed before recorder readiness with error = %v", stopErr)
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	releaseOnce.Do(func() { close(releaseRecorderOpen) })
+	if err := <-stopDone; err != nil {
+		t.Fatalf("Stop(accepted) error = %v", err)
+	}
+	meta := readMeta(t, active.MetaPath())
+	if meta.State != string(StateStopped) {
+		t.Fatalf("stopped meta state = %q, want %q", meta.State, StateStopped)
+	}
+	if meta.StopReason == nil || *meta.StopReason != store.StopUserCanceled {
+		t.Fatalf("stopped meta reason = %v, want %q", meta.StopReason, store.StopUserCanceled)
+	}
+	if got := countEventType(readStoredEvents(t, active), EventTypeSessionStopped); got != 1 {
+		t.Fatalf("session_stopped events = %d, want 1", got)
+	}
+}
+
+type blockingSessionCreationCatalog struct {
+	store.SessionCatalog
+	store.SessionCreationStore
+	registerEntered chan struct{}
+	releaseRegister chan struct{}
+	stateUpdated    chan struct{}
+	registerOnce    sync.Once
+	stateUpdateOnce sync.Once
+}
+
+func (c *blockingSessionCreationCatalog) RegisterSessionWithCreationIdentity(
+	ctx context.Context,
+	info store.SessionInfo,
+	identity store.SessionCreationIdentity,
+) (store.SessionCreationRegistration, error) {
+	c.registerOnce.Do(func() { close(c.registerEntered) })
+	select {
+	case <-c.releaseRegister:
+		return c.SessionCreationStore.RegisterSessionWithCreationIdentity(ctx, info, identity)
+	case <-ctx.Done():
+		return store.SessionCreationRegistration{}, ctx.Err()
+	}
+}
+
+func (c *blockingSessionCreationCatalog) UpdateSessionState(
+	ctx context.Context,
+	update store.SessionStateUpdate,
+) error {
+	err := c.SessionCatalog.UpdateSessionState(ctx, update)
+	c.stateUpdateOnce.Do(func() { close(c.stateUpdated) })
+	return err
+}
+
+func testAcceptedStartupIdentityCommit(t *testing.T) {
+	t.Helper()
+	t.Parallel()
+
+	catalog := openManagerInputQueueStore(t)
+	registerEntered := make(chan struct{})
+	releaseRegister := make(chan struct{})
+	var releaseOnce sync.Once
+	t.Cleanup(func() { releaseOnce.Do(func() { close(releaseRegister) }) })
+	blockingCatalog := &blockingSessionCreationCatalog{
+		SessionCatalog:       catalog,
+		SessionCreationStore: catalog,
+		registerEntered:      registerEntered,
+		releaseRegister:      releaseRegister,
+		stateUpdated:         make(chan struct{}),
+	}
+	h := newHarness(t, WithSessionCatalog(blockingCatalog))
+	registerManagerInputQueueWorkspace(t, catalog, h)
+
+	accepted, err := h.manager.CreateAccepted(testutil.Context(t), CreateAcceptedOpts{
+		Session: CreateOpts{AgentName: "coder", Workspace: h.workspaceID},
+	})
+	if err != nil {
+		t.Fatalf("CreateAccepted() error = %v", err)
+	}
+	<-registerEntered
+	active, ok := h.manager.Get(accepted.ID)
+	if !ok {
+		t.Fatalf("Get(%q) did not find accepted session", accepted.ID)
+	}
+	stopDone := make(chan error, 1)
+	go func() {
+		stopDone <- h.manager.Stop(testutil.Context(t), accepted.ID)
+	}()
+
+	select {
+	case <-blockingCatalog.stateUpdated:
+		t.Fatal("Stop(starting) persisted terminal state while creation identity commit was pending")
+	case <-time.After(50 * time.Millisecond):
+	}
+	listed, err := catalog.ListSessions(testutil.Context(t), store.SessionListQuery{ID: accepted.ID})
+	if err != nil {
+		t.Fatalf("ListSessions(pending identity) error = %v", err)
+	}
+	if len(listed) != 1 || listed[0].State != string(StateStarting) {
+		t.Fatalf("catalog state during identity commit = %#v, want one starting session", listed)
+	}
+
+	releaseOnce.Do(func() { close(releaseRegister) })
+	if err := <-stopDone; err != nil {
+		t.Fatalf("Stop(accepted) error = %v", err)
+	}
+	meta := readMeta(t, active.MetaPath())
+	metaIdentity := creationIdentityFromMeta(meta)
+	if metaIdentity == nil {
+		t.Fatal("stopped meta creation identity = nil")
+	}
+	storedIdentity, err := catalog.GetSessionCreationIdentity(testutil.Context(t), accepted.ID)
+	if err != nil {
+		t.Fatalf("GetSessionCreationIdentity() error = %v", err)
+	}
+	if storedIdentity != *metaIdentity {
+		t.Fatalf("stored creation identity = %#v, want %#v", storedIdentity, *metaIdentity)
+	}
+	listed, err = catalog.ListSessions(testutil.Context(t), store.SessionListQuery{ID: accepted.ID})
+	if err != nil {
+		t.Fatalf("ListSessions(stopped) error = %v", err)
+	}
+	if len(listed) != 1 || listed[0].State != string(StateStopped) {
+		t.Fatalf("catalog state after stop = %#v, want one stopped session", listed)
+	}
+	if got := countEventType(readStoredEvents(t, active), EventTypeSessionStopped); got != 1 {
+		t.Fatalf("session_stopped events = %d, want 1", got)
 	}
 }
 

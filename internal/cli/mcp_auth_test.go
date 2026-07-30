@@ -232,8 +232,9 @@ func TestMCPAuthorizeManualHonorsTimeout(t *testing.T) {
 			"one-time-code\n",
 			"mcp", "authorize", "linear", "--manual", "--timeout", "20ms",
 		)
-		if err == nil || !errors.Is(err, context.DeadlineExceeded) {
-			t.Fatalf("mcp authorize error = %v, want context deadline exceeded", err)
+		if err == nil || !errors.Is(err, context.DeadlineExceeded) ||
+			!strings.Contains(err.Error(), "authorization timed out") {
+			t.Fatalf("mcp authorize error = %v, want stable authorization timeout", err)
 		}
 	})
 }

@@ -63,7 +63,9 @@ version.
 
 Node layout positions persist separately in a UI-annotation store keyed
 `(workspace_id, loop_name, node_id)` (`GET`/`PUT /loops/:name/annotations`), so layout is never
-mixed into the canonical definition.
+mixed into the canonical definition. These endpoints require a live definition. Deleting a
+workspace-authored Loop removes its config override and editor annotations while preserving run
+history.
 
 <OperatorNote label="Not node kinds">
   `channel-post` and `call-tool` are not node kinds. Posting to a channel is an

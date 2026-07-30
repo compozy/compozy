@@ -198,7 +198,11 @@ func agentHeartbeatWakeBundle(record AgentHeartbeatWakeDecisionRecord) outputBun
 		},
 		toon: func() (string, error) {
 			return renderToonObject("agent_heartbeat_wake", []string{
-				authoredContextEventKey, "result", memoryReasonKey, "policy_digest", authoredContextConfigDigestKey,
+				authoredContextEventKey,
+				clientResultKey,
+				memoryReasonKey,
+				"policy_digest",
+				authoredContextConfigDigestKey,
 			}, []string{
 				record.WakeEventID,
 				string(record.Result),

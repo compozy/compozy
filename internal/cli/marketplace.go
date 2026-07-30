@@ -192,7 +192,7 @@ func marketplaceGroupedBundle(response MarketplaceSearchRecord) outputBundle {
 }
 
 func marketplaceListingsBundle(jsonValue any, items []MarketplaceListingRecord) outputBundle {
-	return listBundle(
+	bundle := listBundle(
 		jsonValue,
 		items,
 		"Marketplace Results",
@@ -234,6 +234,10 @@ func marketplaceListingsBundle(jsonValue any, items []MarketplaceListingRecord) 
 			}
 		},
 	)
+	bundle.json = func(cmd *cobra.Command) error {
+		return writeJSONWithoutWorkspaceResolution(cmd, jsonValue)
+	}
+	return bundle
 }
 
 type marketplaceKindPageRecord struct {
@@ -316,6 +320,9 @@ func marketplaceEntryBundle(response MarketplaceEntryRecord) outputBundle {
 	entry := response.Entry
 	return outputBundle{
 		jsonValue: response,
+		json: func(cmd *cobra.Command) error {
+			return writeJSONWithoutWorkspaceResolution(cmd, response)
+		},
 		jsonl: func(cmd *cobra.Command) error {
 			return writeJSONLine(cmd, response)
 		},

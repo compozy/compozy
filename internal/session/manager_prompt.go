@@ -16,10 +16,11 @@ import (
 type promptSubmissionPath string
 
 const (
-	promptSubmissionPathUserFacing promptSubmissionPath = "user_facing"
-	promptSubmissionPathSynthetic  promptSubmissionPath = "synthetic"
-	jsonReasonFieldReason                               = "reason"
-	maxMCPAuthReasonJSONDepth                           = 16
+	promptSubmissionPathUserFacing    promptSubmissionPath = "user_facing"
+	promptSubmissionPathSynthetic     promptSubmissionPath = "synthetic"
+	promptReasonLifecycleContinuation                      = "dream_lifecycle_continuation"
+	jsonReasonFieldReason                                  = "reason"
+	maxMCPAuthReasonJSONDepth                              = 16
 )
 
 type promptPumpLoopState struct {
@@ -101,6 +102,32 @@ func (m *Manager) PromptWithOpts(ctx context.Context, id string, opts PromptOpts
 		return nil, err
 	}
 
+	return m.submitPromptRequest(ctx, req)
+}
+
+// PromptLifecycleContinuation submits the turn for a daemon-owned Dream
+// session whose lifecycle work was accepted before public admission drained.
+func (m *Manager) PromptLifecycleContinuation(
+	ctx context.Context,
+	id string,
+	msg string,
+) (<-chan acp.AgentEvent, error) {
+	req, err := m.parseSyntheticPromptRequest(ctx, id, SyntheticPromptOpts{
+		Message: msg,
+		Metadata: acp.PromptSyntheticMeta{
+			Reason: promptReasonLifecycleContinuation,
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+	continuation, ok := m.Get(req.target)
+	if !ok || normalizeSessionType(continuation.Type) != SessionTypeDream {
+		return nil, fmt.Errorf(
+			"session: lifecycle continuation requires an active dream session %q",
+			req.target,
+		)
+	}
 	return m.submitPromptRequest(ctx, req)
 }
 

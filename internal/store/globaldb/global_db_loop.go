@@ -305,45 +305,8 @@ func (g *LoopRepo) UpsertLoopConfig(
 	if err != nil {
 		return err
 	}
-	patch := loopConfigPatchFlagsForStore(cfg, normalized)
 	err = g.withImmediateTransaction(ctx, "upsert loop config", func(exec globalSQLExecutor) error {
-		queries := sqlcgen.New(exec)
-		runtimeDefaultsJSON, marshalErr := nullableLoopConfigJSON(normalized.RuntimeDefaults)
-		if marshalErr != nil {
-			return marshalErr
-		}
-		var runtimeRulesValue any
-		if normalized.RuntimeRules != nil {
-			runtimeRulesValue = normalized.RuntimeRules
-		}
-		runtimeRulesJSON, marshalErr := nullableLoopConfigJSON(runtimeRulesValue)
-		if marshalErr != nil {
-			return marshalErr
-		}
-		insert := sqlcgen.InsertLoopConfigIfMissingParams{
-			WorkspaceID:      workspaceID,
-			LoopName:         trimmedLoopName,
-			HumanGateEnabled: int64(boolPtrToInt(normalized.HumanGateEnabled)),
-			ReattemptStrategy: nullStringPtr(
-				normalized.ReattemptStrategy,
-			),
-			EnabledChecksJson: enabledChecksForStore(normalized.EnabledChecks),
-			IterationCap:      nullIntPtr(normalized.IterationCap),
-			BudgetTokens:      nullIntPtr(normalized.BudgetTokens),
-			BudgetWallSec: nullIntPtr(
-				normalized.BudgetWallSec,
-			),
-			BudgetOnExceeded:    nullStringPtr(normalized.BudgetOnExceeded),
-			NoProgressWindow:    nullIntPtr(normalized.NoProgressWindow),
-			FanOutWidth:         nullIntPtr(normalized.FanOutWidth),
-			GateMaxRevisions:    nullIntPtr(normalized.GateMaxRevisions),
-			RuntimeDefaultsJson: runtimeDefaultsJSON,
-			RuntimeRulesJson:    runtimeRulesJSON,
-		}
-		if insertErr := queries.InsertLoopConfigIfMissing(ctx, insert); insertErr != nil {
-			return insertErr
-		}
-		return queries.PatchLoopConfig(ctx, loopConfigPatchParams(insert, patch))
+		return upsertLoopConfigWithExecutor(ctx, exec, workspaceID, trimmedLoopName, cfg, normalized)
 	})
 	if err != nil {
 		return fmt.Errorf("store: upsert loop config %q/%q: %w", workspaceID, trimmedLoopName, err)

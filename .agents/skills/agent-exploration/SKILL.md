@@ -17,7 +17,7 @@ metadata:
 
 Generic parallel-research workflow. Use when a question requires deep reads across multiple distinct areas and the operator needs written artifacts (not chat output). The skill dispatches `explorer` agents in parallel through `compozy exec`; each invocation writes one analysis file. The parent then synthesizes a final summary.
 
-The skill is self-contained and harness-agnostic. The explorer is a Compozy agent — a single definition (`assets/AGENT.md`) installed once at `~/.compozy/agents/explorer/AGENT.md`, discoverable by `compozy exec --agent explorer` from any harness (Claude Code, Codex CLI, Cursor, Droid, OpenCode, Pi, Gemini, Copilot, …). The parent runtime is selected per invocation via `--ide`, `--model`, and `--reasoning`. Parallel dispatch uses whatever async/background tool calls your harness exposes — the skill does not prescribe a specific tool.
+The skill is self-contained and harness-agnostic. The explorer is a Compozy agent — a single definition (`assets/AGENT.md`) installed once under the active Compozy home (`$COMPOZY_HOME`, otherwise `~/.compozy`), discoverable by `compozy exec --agent explorer` from any harness (Claude Code, Codex CLI, Cursor, Droid, OpenCode, Pi, Gemini, Copilot, …). The parent runtime is selected per invocation via `--ide`, `--model`, and `--reasoning`. Parallel dispatch uses whatever async/background tool calls your harness exposes — the skill does not prescribe a specific tool.
 
 ## Required Reading Router
 
@@ -35,7 +35,7 @@ Match your step to the row. Read the listed files **in full before** producing o
 - `references/dispatch-rules.md` — the scoped-write contract: what the dispatched agent may write, may read, may run; tool allow/forbid lists; parent responsibilities; parallelism cap; failure handling. **Must be embedded verbatim in every slice prompt.**
 - `references/checklist.md` — seven-section output validation checklist (installation, inputs, scout, dispatch, files, schema, summary). Run before authoring `summary.md`.
 - `assets/analysis-template.md` — the canonical seven-section schema every dispatched agent fills (Overview, Mechanisms/Patterns, Relevant Sources, Transferable Patterns, Risks/Mismatches, Open Questions, Evidence) plus a Scope header.
-- `assets/AGENT.md` — the Compozy explorer agent definition (frontmatter: `title`, `description`, `ide`, `model`, `reasoning_effort`, `access_mode`; body: the scoped-write contract and workflow). Installed by `scripts/install-explorer.sh` to `~/.compozy/agents/explorer/AGENT.md`.
+- `assets/AGENT.md` — the Compozy explorer agent definition (strict `AGENT.md` frontmatter plus the scoped-write contract and workflow). Installed by `scripts/install-explorer.sh` under the active Compozy home.
 - `scripts/install-explorer.sh` — bootstrap helper. Writes the bundled `assets/AGENT.md` to the Compozy global registry. Refuses to overwrite.
 - `scripts/dispatch-slices.sh` — parallel dispatch runner. Takes `--ide`/`--model`/`--reasoning` plus 1-8 prompt files, backgrounds one `compozy exec` per file, waits via `wait $pid`, captures per-slice stdout/stderr/exit, and reports a summary. Zero external dependencies (native bash + the `compozy` binary).
 
@@ -88,11 +88,11 @@ Grok profile notes:
 
 1. Confirm the `compozy` binary is on `PATH` (e.g. `command -v compozy`). If missing, abort with a one-line message instructing the operator to install Compozy from `/Users/pedronauck/dev/compozy/looper`. Do not fall back to harness-native subagents.
 2. Check for the explorer agent in the Compozy registry:
-   - Global (preferred): `~/.compozy/agents/explorer/AGENT.md`.
+   - Global (preferred): `$COMPOZY_HOME/agents/explorer/AGENT.md` when set, otherwise `~/.compozy/agents/explorer/AGENT.md`.
    - Workspace override (optional, takes precedence): `<repo>/.compozy/agents/explorer/AGENT.md`.
    At least one must be present.
-3. If both are absent, ask the operator a single question: "The `explorer` Compozy agent is not installed at `~/.compozy/agents/explorer/AGENT.md`. Install it now? [yes/no]". Do not proceed silently.
-4. On "yes", run the bundled bootstrap helper: `<agent-exploration-dir>/scripts/install-explorer.sh`. The helper installs to `~/.compozy/agents/explorer/AGENT.md` and refuses to overwrite an existing file.
+3. If both are absent, ask the operator a single question: "The `explorer` Compozy agent is not installed in the active global registry. Install it now? [yes/no]". Do not proceed silently.
+4. On "yes", run the bundled bootstrap helper: `<agent-exploration-dir>/scripts/install-explorer.sh`. The helper honors `$COMPOZY_HOME`, falls back to `~/.compozy`, and refuses to overwrite an existing file.
 5. On "no", abort the dispatch with a one-line message — the agent definition is never inlined into a slice prompt.
 6. After installation, re-check that the file exists before continuing.
 7. (Optional sanity check) Run `compozy agents inspect explorer` and confirm the entry is discoverable. Any error here blocks dispatch.

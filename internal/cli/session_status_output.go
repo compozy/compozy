@@ -138,7 +138,7 @@ func sessionResumeEmptyBundle() outputBundle {
 			return "No resumable sessions; start a new one with 'compozy session new'.", nil
 		},
 		toon: func() (string, error) {
-			return renderToonObject("resume", []string{"resumed", "reason"}, []string{"", payload.Reason}), nil
+			return renderToonObject("resume", []string{"resumed", memoryReasonKey}, []string{"", payload.Reason}), nil
 		},
 	}
 }

@@ -94,6 +94,59 @@ func TestDaemonE2ELoopRunEventsShouldStreamRichFramesAndResume(t *testing.T) {
 			t.Fatalf("foreign workspace stream events = %#v, want none", foreign)
 		}
 	})
+
+	t.Run("Should resume a paused Loop into its next generation after restart", func(t *testing.T) {
+		t.Parallel()
+		acpmock.RequireDriver(t)
+
+		homePaths := e2etest.NewHomePaths(t)
+		fixturePath := writeLoopControlRestartFixture(t)
+		harnessOptions := e2etest.RuntimeHarnessOptions{
+			HomePaths: homePaths,
+			Workspace: e2etest.WorkspaceSeedOptions{Root: homePaths.HomeDir},
+			MockAgents: []e2etest.MockAgentSpec{{
+				FixturePath:  fixturePath,
+				FixtureAgent: "loop_control_restart",
+				AgentName:    "loop-control-restart-agent",
+			}},
+		}
+		harness := e2etest.StartRuntimeHarness(t, &harnessOptions)
+		ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+		defer cancel()
+
+		definition := loopEventsDefinition()
+		definition.Meta.Name = "loop-control-restart"
+		definition.Meta.Description = "Runtime E2E probe for durable Loop resume."
+		definition.Contract.StopWhen = "generation > 1"
+		definition.Contract.IterationCap = 3
+		definition.Graph.Nodes[0].Params["agent"] = "loop-control-restart-agent"
+		definition.Graph.Nodes[0].Params["prompt"] = "loop control restart probe"
+		createLoopViaHTTP(t, ctx, harness, definition)
+		run := runLoopViaHTTP(t, ctx, harness, definition.Meta.Name)
+		mutateLoopRunViaHTTP(t, ctx, harness, run.ID, "pause")
+		waitForLoopRunStatus(t, ctx, harness, run.ID, compozycontract.LoopRunStatusPaused)
+
+		stopCtx, stopCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		if err := harness.Stop(stopCtx); err != nil {
+			stopCancel()
+			t.Fatalf("Stop runtime harness error = %v", err)
+		}
+		stopCancel()
+
+		restarted := e2etest.StartRuntimeHarness(t, &harnessOptions)
+		mutateLoopRunViaHTTP(t, ctx, restarted, run.ID, "resume")
+		waitForLoopRunStatus(t, ctx, restarted, run.ID, compozycontract.LoopRunStatusDone)
+
+		var detail compozycontract.LoopRunResponse
+		path := "/api/workspaces/" + url.PathEscape(restarted.WorkspaceID) +
+			"/loop-runs/" + url.PathEscape(run.ID)
+		if err := restarted.HTTPJSON(ctx, http.MethodGet, path, nil, &detail); err != nil {
+			t.Fatalf("HTTP get resumed loop error = %v", err)
+		}
+		if detail.Run.Generation != 2 {
+			t.Fatalf("resumed loop generation = %d, want 2", detail.Run.Generation)
+		}
+	})
 }
 
 func TestDaemonE2ELoopWatchEventsShouldWakeAndRecover(t *testing.T) {
@@ -245,6 +298,49 @@ func loopEventsDefinition() compozycontract.LoopDefinitionDocument {
 			{Kind: "uds"},
 		},
 	}
+}
+
+func writeLoopControlRestartFixture(t testing.TB) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "loop-control-restart-fixture.json")
+	fixture := map[string]any{
+		"version": 2,
+		"agents": []map[string]any{{
+			"name":        "loop_control_restart",
+			"provider":    "acpmock",
+			"permissions": "approve-all",
+			"prompt":      "You are a deterministic Loop control restart worker.",
+			"turns": []map[string]any{{
+				"name": "loop-control-restart",
+				"match": map[string]any{
+					"turn_source": "user",
+					"user_text":   "loop control restart probe",
+				},
+				"steps": []map[string]any{
+					{
+						"kind": "driver_control",
+						"driver_control": map[string]any{
+							"action":   "delay",
+							"delay_ms": 750,
+						},
+					},
+					{
+						"kind": "assistant",
+						"text": "```json\n{\"summary\":\"control generation complete\",\"message\":\"continue\"}\n```",
+					},
+				},
+			}},
+		}},
+	}
+	data, err := json.MarshalIndent(fixture, "", "  ")
+	if err != nil {
+		t.Fatalf("marshal Loop control restart fixture error = %v", err)
+	}
+	data = append(data, '\n')
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		t.Fatalf("write Loop control restart fixture error = %v", err)
+	}
+	return path
 }
 
 const watchEventsE2ELoopName = "watch-events-e2e"
@@ -465,6 +561,27 @@ func runLoopViaHTTPWithInputs(
 		t.Fatalf("HTTP run loop response = %#v, want run", response)
 	}
 	return *response.Run
+}
+
+func mutateLoopRunViaHTTP(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	runID string,
+	action string,
+) {
+	t.Helper()
+	var response struct {
+		OK bool `json:"ok"`
+	}
+	path := "/api/workspaces/" + url.PathEscape(harness.WorkspaceID) +
+		"/loop-runs/" + url.PathEscape(runID) + "/" + url.PathEscape(action)
+	if err := harness.HTTPJSON(ctx, http.MethodPost, path, nil, &response); err != nil {
+		t.Fatalf("HTTP %s loop error = %v", action, err)
+	}
+	if !response.OK {
+		t.Fatalf("HTTP %s loop response = %#v, want ok", action, response)
+	}
 }
 
 func createTaskViaUDS(

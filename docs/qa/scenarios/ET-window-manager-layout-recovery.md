@@ -3,7 +3,7 @@ id: ET-window-manager-layout-recovery
 area: ET
 title: Validate, apply, undo, and recover declarative layouts
 persona: Ada
-journey:
+journey: J-administer-window-manager
 expected: Export returns a history-free workspace document and preserves daemon-owned `return_anchor.source_group` state for every tiled return anchor; validate and preview report stable diagnostics without writing; apply replaces the complete topology once at the expected revision; undo and redo round-trip it; global and workspace `window_layout` resources resolve with workspace precedence; malformed, executable-like, mixed resource-inline, foreign-workspace, stale, and unsupported-version documents preserve the last known-good state.
 entry_points: compozy layout export|validate|apply|undo|redo|arrange; compozy__layout_*; compozy__resources_list; Settings layout editor
 qa_status: untested

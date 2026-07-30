@@ -62,7 +62,7 @@ func ensureWritableLoopSource(spec looppkg.ResourceSpec) error {
 	if spec.Source.Normalize() != looppkg.SourceWorkspace {
 		return fmt.Errorf(
 			"%w: loop definition %q is read-only; fork it into the workspace first",
-			looppkg.ErrValidation,
+			looppkg.ErrDefinitionReadOnly,
 			spec.Name,
 		)
 	}

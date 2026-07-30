@@ -9,7 +9,7 @@ entry_points: Local site render (canonical origin declaration: https://compozy.c
 qa_status: untested
 bug_ids:
 fix_status:
-retest_status: pending
+retest_status:
 fix_commits:
 evidence: /Users/pedronauck/dev/qa-labs/compozy-compozy-migration-beta-20260727-135201-116083-lab/qa-artifacts/qa/browser/compozy-site-landing.png; /Users/pedronauck/dev/qa-labs/compozy-compozy-migration-beta-20260727-135201-116083-lab/qa-artifacts/qa/site-home.html; /Users/pedronauck/dev/qa-labs/compozy-compozy-migration-beta-20260727-135201-116083-lab/qa-artifacts/qa/beta-candidate/beta-origin-contract.txt
 last_report: docs/qa/reports/2026-07-27-devtool-oss-launch.md

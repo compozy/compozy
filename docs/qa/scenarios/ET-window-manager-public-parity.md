@@ -3,7 +3,7 @@ id: ET-window-manager-public-parity
 area: ET
 title: Manage one window topology through every public surface
 persona: Ada
-journey:
+journey: J-administer-window-manager
 expected: Native tools, CLI, HTTP, and UDS expose the same semantic desktop, window, navigation, client, preview, layout, and revision contracts; the WebSocket snapshot fence orders later topology events and an optional client fence orders only that ClientView's presentation frames; restart preserves topology and routes; workspace deletion purges them; and no request can observe or mutate another workspace.
 entry_points: compozy desktop; compozy window; compozy layout; compozy__window_manager; /api/workspaces/{workspace_id}/window-manager
 qa_status: untested

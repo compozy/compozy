@@ -6,9 +6,9 @@ import { SessionNotFoundError, sessionDetailOptions } from "@/systems/session";
 import { useActiveWorkspace } from "@/systems/workspace";
 
 import type { OsShellHandle } from "../../contexts/os-shell-context";
-import { useDesktop } from "../../hooks/use-desktop";
 import { useOsShell } from "../../hooks/use-os-shell";
 import { matchSessionInstance } from "../../lib/app-registry";
+import { useSessionWindowDesktopState } from "./hooks/use-session-window-desktop-state";
 import { SessionWindowNotice, SessionWindowView } from "./session-window-view";
 
 const SESSION_AGENT_PATTERN = /^\/agents\/([^/]+)\/sessions\//;
@@ -38,7 +38,7 @@ function returnToAgent(
 export function SessionWindow({ windowId }: { windowId: string }) {
   const { coordinator } = useOsShell();
   const { activeWorkspaceId } = useActiveWorkspace();
-  const pathname = useDesktop(state => state.windows[windowId]?.route.pathname ?? "");
+  const { liveTailEnabled, pathname } = useSessionWindowDesktopState(windowId);
   const sessionId = matchSessionInstance(pathname);
   const agentMatch = SESSION_AGENT_PATTERN.exec(pathname);
   const agentName = agentMatch ? decodeURIComponent(agentMatch[1]) : null;
@@ -82,6 +82,7 @@ export function SessionWindow({ windowId }: { windowId: string }) {
         id={sessionId}
         workspaceId={activeWorkspaceId}
         session={sessionQuery.data}
+        liveTailEnabled={liveTailEnabled}
         isLoading={sessionQuery.isLoading}
         error={sessionQuery.error}
         onDeleteSuccess={() => returnToAgent(coordinator, windowId, agentName)}

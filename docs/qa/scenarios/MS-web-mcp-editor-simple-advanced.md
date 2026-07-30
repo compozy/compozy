@@ -3,7 +3,7 @@ id: MS-web-mcp-editor-simple-advanced
 area: MS
 title: MCP server editor splits connection from process environment and locks route identity
 persona: Dora
-journey:
+journey: J-mcp-authorize-repair
 expected: Opening Add MCP server shows Simple only — a two-card choice between Local process and Remote endpoint, the server name, and either the command or the endpoint URL. A remote endpoint exposes its wire transport (HTTP or SSE) inside the remote branch rather than as a third top-level card. Advanced adds the process environment (args, env, secret bindings) for a local server, or the OAuth block for a remote one — never both. Switching transport replaces the launch configuration: the abandoned branch's command, args, env, and secret_env are omitted from the request entirely. On edit, the server name and scope render as readable locked identity because they are the tool prefix agents already see. Untouched secret bindings emit their preservation flags and are never disclosed; a Vault-bound secret shows only its reference. The scope the definition writes to stays visible in both modes.
 entry_points: web desktop shell → Marketplace → MCPs → Installed → Add server / Edit
 qa_status: untested

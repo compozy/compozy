@@ -139,6 +139,33 @@ func TestBundleHandlersRejectUnknownFields(t *testing.T) {
 	}
 }
 
+func TestBundleHandlersRejectUnavailableService(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should return service unavailable when the bundle service is not configured", func(t *testing.T) {
+		t.Parallel()
+
+		handlers := NewBaseHandlers(&BaseHandlerConfig{TransportName: "core-test"})
+		recorder := httptest.NewRecorder()
+		ctx, _ := gin.CreateTestContext(recorder)
+		ctx.Request = httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/bundles/catalog", nil)
+
+		handlers.ListBundleCatalog(ctx)
+
+		if recorder.Code != http.StatusServiceUnavailable {
+			t.Fatalf(
+				"status = %d, body = %s, want %d",
+				recorder.Code,
+				recorder.Body.String(),
+				http.StatusServiceUnavailable,
+			)
+		}
+		if !strings.Contains(recorder.Body.String(), "bundle service is not configured") {
+			t.Fatalf("body = %s, want unavailable diagnostic", recorder.Body.String())
+		}
+	})
+}
+
 func TestBundleCatalogPayloadsAndDeclaredChannels(t *testing.T) {
 	t.Parallel()
 

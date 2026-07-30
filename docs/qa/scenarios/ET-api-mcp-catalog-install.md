@@ -9,12 +9,14 @@ entry_points: POST /api/settings/mcp-servers/install over HTTP; POST /api/settin
 qa_status: untested
 bug_ids: BUG-20260715-mcp-install-null-values
 fix_status: fixed
-retest_status: pending required-nullable values presence contract and config-apply response
-fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-marketplace-northstar-20260715-20260715-114240-757254-lab/qa-artifacts/qa/notes/mcp-guided-oauth-workspace-isolation.json
-last_report: docs/qa/reports/2026-07-15-marketplace.md
+retest_status: pass
+fix_commits: 8eeb8a38
+evidence: /Users/pedronauck/dev/qa-labs/compozy-marketplace-northstar-20260715-20260715-114240-757254-lab/qa-artifacts/qa/notes/mcp-guided-oauth-workspace-isolation.json; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-021949-664736-lab/qa-artifacts/qa/evidence/023-mcp-catalog-install
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: ET-api-marketplace-namespace; ET-cli-mcp-install; MS-029
 ---
+
+Historical QA note: required-nullable values presence and config-apply response coverage remains pending.
 
 Task 10 planning note: the MS-011 overlap was a mis-link (memory health); the settings-CRUD neighbor is MS-029.
 
@@ -34,3 +36,9 @@ QA impact 2026-07-17: plain env reads now expose `env_keys`; exact-target PUT pr
 `preserve_env`. Force partial secret restoration and definition-restoration failure separately and
 assert the committed definition plus warning. Force install-event persistence failure and assert the
 full committed response plus `mcp_install_event_persist_failed` over HTTP and UDS.
+
+QA result 2026-07-29: explicit-null, omitted-values, locked-field, required-field, Vault-ref,
+provenance, apply-truth, redaction, replacement, and cleanup branches passed over real HTTP, UDS,
+and CLI surfaces. The historical null-values fix passed its fresh retest. Fault-injected config,
+rollback, restoration, and event-persistence branches remain Pending because no public deterministic
+fault owner exists in the current QA envelope.

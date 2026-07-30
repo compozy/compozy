@@ -88,6 +88,9 @@ func newObserveOverviewCommand(deps commandDeps) *cobra.Command {
 func observeOverviewBundle(overview *contract.ObserveOverviewPayload) outputBundle {
 	return outputBundle{
 		jsonValue: overview,
+		json: func(cmd *cobra.Command) error {
+			return writeJSONWithoutWorkspaceResolution(cmd, overview)
+		},
 		jsonl: func(cmd *cobra.Command) error {
 			if err := writeJSONLine(cmd, map[string]any{
 				observeSectionKey: observeSectionMeta,
