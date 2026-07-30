@@ -46,8 +46,12 @@ func bindAutomationTriggerCreateFlags(
 	cmd.Flags().
 		StringVar(&input.WorkspaceRef, "workspace", "", "Override workspace binding (ID, name, or path)")
 	bindAutomationCreateTargetFlags(cmd, &input.automationCreateTargetInput, true)
-	cmd.Flags().
-		StringArrayVar(&input.FilterFlags, "filter", nil, "Exact-match filter(s): key=value or comma-separated key=value pairs")
+	cmd.Flags().StringArrayVar(
+		&input.FilterFlags,
+		"filter",
+		nil,
+		"Exact-match filter(s): key=value or comma-separated key=value pairs",
+	)
 	cmd.Flags().
 		StringVar(&input.RetryRaw, automationRetryKey, "", `Retry policy: "none", "backoff", or "backoff:<max_retries>:<base_delay>"`)
 	cmd.Flags().BoolVar(&input.Enabled, automationEnabledKey, false, "Create the trigger enabled or disabled")

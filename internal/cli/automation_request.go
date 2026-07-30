@@ -81,7 +81,7 @@ func buildAutomationTriggerUpdateRequest(
 		request.Name = new(strings.TrimSpace(input.Name))
 	}
 	if cmd.Flags().Changed(automationPromptKey) {
-		request.Prompt = new(strings.TrimSpace(input.automationCreateTargetInput.Prompt))
+		request.Prompt = new(strings.TrimSpace(input.Prompt))
 	}
 	if cmd.Flags().Changed(automationEventKey) {
 		request.Event = new(strings.TrimSpace(input.EventRaw))

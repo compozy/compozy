@@ -26,6 +26,7 @@ const (
 	loopListKey       = "list"
 	loopInspectKey    = "inspect"
 	loopCreateKey     = "create"
+	loopConfigureKey  = "configure"
 	loopRunKey        = "run"
 	loopStatusKey     = "status"
 	loopRunsKey       = "runs"
@@ -292,7 +293,7 @@ func newLoopConfigureCommand(deps commandDeps) *cobra.Command {
 	var workspaceRef, name, filePath string
 	var setFlags []string
 	cmd := &cobra.Command{
-		Use:   "configure",
+		Use:   loopConfigureKey,
 		Short: "Write per-loop runtime config overrides",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {

@@ -4,7 +4,7 @@ import "github.com/spf13/cobra"
 
 func newAutomationCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "automation",
+		Use:   automationRootKey,
 		Short: "Manage automation jobs, triggers, suggestions, and runs",
 	}
 

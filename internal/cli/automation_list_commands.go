@@ -18,7 +18,7 @@ func newAutomationJobsCommand(deps commandDeps) *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:   "jobs",
+		Use:   automationJobsKey,
 		Short: "Manage automation jobs",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
