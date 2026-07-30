@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-24
 expected: Task run detail and `compozy task run show` agree on actual, exact five-bucket estimated, included, or unknown aggregate cost provenance; a missing active-bucket rate, included/unknown states, or incompatible child-session provenance fails closed without an amount.
 entry_points: web task-run detail; `compozy task run show <run-id> -o json`; HTTP and UDS task-run detail
-qa_status: untested
+qa_status: blocked-verify
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-ta-replay-20260730-062156-531636-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps:
 ---
 

@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-12
 expected: In an open Session window, the message transcript rail and the composer textbox share only horizontal inset padding (px-4/px-8) and span the full window content width; neither surface is capped by a centered max-width reading column; resizing the window wider keeps both surfaces edge-to-edge with the window body (minus inset).
 entry_points: web desktop Session window; ThreadContentRail; session composer
-qa_status: untested
+qa_status: blocked-verify
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-et-current-source-20260730-061655-910372-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: ET-web-dock-default-window-size; RT-session-lifecycle-affordances
 ---
 

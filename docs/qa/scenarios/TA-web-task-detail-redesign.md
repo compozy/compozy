@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-complete-task-tree
 expected: Task detail renders Overview/Runs/Activity tabs with the 44px drill-in head (back, Tasks / <task> trail, status pill, one primary action from the §6 command machine — recover > publish > approve > resume > open run > retry > start — plus overflow verbs), an outcome/now strip matching the task state, subtasks with stacked progress, the 320px properties rail (priority + auto-enqueue editable; owner read-only), and the Inspect drawer (Diagnostics/Stream/Bridges/Raw). Nullable metrics render "—"; no set-status or delete-run control exists anywhere.
 entry_points: web /tasks/:id (Overview, Runs, Activity tabs); Inspect drawer; Edit setup sheet
-qa_status: untested
+qa_status: blocked-verify
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-ta-replay-20260730-062156-531636-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: TA-018; TA-019; TA-task-create-async-activation
 ---
 

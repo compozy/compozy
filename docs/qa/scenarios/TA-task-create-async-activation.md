@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-complete-task-tree
 expected: Creating a ready Task assigned to an agent pool commits and opens its Task detail immediately; sandbox and ACP provisioning continue under daemon ownership while the same run transitions waiting to running to terminal exactly once.
 entry_points: Web Create task Advanced mode; POST Task; POST Task run; Task detail live state
-qa_status: untested
+qa_status: blocked-verify
 bug_ids: BUG-20260714-task-create-waits-for-worker-session
 fix_status: fixed
 retest_status: pass
 fix_commits: 8eeb8a38
-evidence: docs/qa/reports/2026-07-13-automation-features.md
-last_report: docs/qa/reports/2026-07-13-automation-features.md
+evidence: docs/qa/reports/2026-07-13-automation-features.md;/Users/pedronauck/dev/qa-labs/compozy-qa-ta-replay-20260730-062156-531636-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: TA-task-role-session-activation;TA-016
 ---
 

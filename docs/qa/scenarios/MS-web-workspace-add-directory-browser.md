@@ -6,13 +6,13 @@ persona: Dora
 journey: J-operate-workspace-context
 expected: Add workspace opens as a two-pane extra-wide dialog. The left pane keeps the one-click global-default workspace card, then a filesystem browser (home/up toolbar, mono current path, "Use this folder", hover-reveal row picks) that chooses the root; there is no plain path input anywhere. Picking a root only updates the draft — it must not register a workspace — and it autofills the display name from the folder name until the operator types their own. The right pane carries optional session defaults: default agent, sandbox profile, and additional directories as removable chips. Exactly one `POST /api/workspaces` is issued when the footer primary is pressed, carrying `root_dir` plus any of `name`, `add_dirs`, `default_agent`, and `sandbox_ref` that are set. A failed registration reports inline and keeps every entered value. Below 980px the two panes collapse to one column with session defaults stacked underneath. The browser's reading, empty, and permission-error states are all visible. The first-run onboarding page renders the same panes and the same single-create submit.
 entry_points: web desktop shell → Add workspace; web workspaces overview → New workspace; web first-run onboarding
-qa_status: untested
+qa_status: blocked-verify
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence: .compozy/tasks/modals-redesign/evidence/visual/task_02/VC-03
-last_report:
+evidence: .compozy/tasks/modals-redesign/evidence/visual/task_02/VC-03;/Users/pedronauck/dev/qa-labs/compozy-ms-wave2-current-20260730-061842-796290-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: MS-web-entity-modal-shell
 ---
 

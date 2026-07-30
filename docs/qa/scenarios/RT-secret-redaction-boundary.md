@@ -6,13 +6,13 @@ persona: Dora
 journey: J-keep-secrets-contained
 expected: With redaction heuristics enabled at daemon boot, a planted provider-shaped secret appears only as the canonical redaction marker in runtime logs, SSE, session history, the global event ledger, and the session events database. Correlation IDs and hashes remain intact. Disabling the heuristic and restarting leaves exact claim-token, secret-reference, and registered-secret protections active.
 entry_points: General Settings; compozy config get/set; compozy__config_get/set; daemon logs; session SSE/history; global and session event stores
-qa_status: untested
+qa_status: blocked-verify
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-rt-current-source-20260730-20260730-061631-252740-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: MS-013; NB-bridge-tool-progress; LP-050
 ---
 

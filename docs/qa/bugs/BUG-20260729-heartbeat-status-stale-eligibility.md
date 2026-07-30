@@ -1,6 +1,6 @@
 # BUG-20260729-heartbeat-status-stale-eligibility: Wake eligibility stayed stale in the mounted agent view
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Blocks-Completion
 - **Severity:** High · **Priority:** P0
 - **Persona Affected:** Bruno
@@ -38,7 +38,7 @@ Wake only after reload.
   mounted-session reconciliation after its initial fetch.
 - **Correction:** selected-session Heartbeat status now refetches every five seconds while mounted;
   policy-only reads remain event/refetch driven.
-- **Fix commit:** pending completion gate
+- **Fix commit:** `351f3535`
 - **Regression test:** `Should refresh selected-session eligibility while heartbeat operations stay mounted`
   in `web/src/systems/agent/hooks/__tests__/use-agent-heartbeat.test.tsx`.
 
@@ -48,4 +48,4 @@ Wake only after reload.
   correction.
 - The live repaired SPA enabled Wake from the same mounted page after the session became eligible.
 - `make lint` and `make build` pass.
-- **Retested:** rebuilt web candidate green; governed fix commit pending
+- **Retested:** 2026-07-29, rebuilt Web eligibility replay green; fix shipped in `351f3535`

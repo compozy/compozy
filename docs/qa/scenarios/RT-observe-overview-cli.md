@@ -6,11 +6,11 @@ persona: Ada
 journey: J-operate-daemon-schema
 expected: `compozy observe overview -o json` prints the raw `overview` payload (schema_version observe-overview/v1) identical to `GET /api/observe/overview` over HTTP and UDS; `-o jsonl` emits one line per section (attention, today, outcomes, usage, pulse, network, system, freshness); human output renders Needs you / Today / Outcomes / Usage / Pulse / System sections; `--workspace` scopes aggregates and `--usage-window` accepts only 7|30|90 (422 otherwise); attention `actions` list only daemon-accepted verbs.
 entry_points: `compozy observe overview`; `GET /api/observe/overview` (HTTP+UDS)
-qa_status: fail
+qa_status: pass
 bug_ids: BUG-20260729-overview-json-parity
-fix_status: pending
-retest_status:
-fix_commits:
+fix_status: fixed
+retest_status: pass
+fix_commits: 351f3535
 evidence: /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-021949-664736-lab/qa-artifacts/qa/evidence/003-structured-read-contracts
 last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps:

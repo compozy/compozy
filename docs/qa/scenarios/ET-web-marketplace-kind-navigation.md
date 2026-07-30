@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-marketplace-acquisition
 expected: Entering Marketplace through the sidebar or `/marketplace` lands on Skills, RouteNav switches among all four kind routes, and the breadcrumb is exactly Home, linked Marketplace, and the active kind with no retained Marketplace crumb after leaving the catalog.
 entry_points: Marketplace sidebar item; /marketplace; /marketplace/skills
-qa_status: untested
+qa_status: blocked-verify
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-et-current-source-20260730-061655-910372-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: ET-web-marketplace-landing-browse; ET-web-route-chrome-topbar
 ---
 

@@ -6,13 +6,13 @@ persona: Ada
 journey: J-operate-bounded-task-capacity
 expected: A full workspace returns typed capacity deferral while preserving queued work, other workspaces plus global and Network wake work remain claimable, and the deferred run claims when capacity opens.
 entry_points: `compozy config set task.orchestration.max_active_runs_per_workspace`; `compozy task next --wait -o json`; `POST /api/agent/tasks/claim-next`; `compozy__task_run_claim_next`
-qa_status: untested
+qa_status: blocked-verify
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-ta-replay-20260730-062156-531636-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: TA-049; TA-044; TA-024
 ---
 

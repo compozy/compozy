@@ -6,13 +6,13 @@ persona: Ada
 journey: J-run-bounded-live-collaboration
 expected: An explicitly Live execution durably accepts eligible direct messages and mentions, coalesces one causal burst, prompts the target once with untrusted Network context, settles actual usage or a truthful canceled/deadline outcome, recovers queued wakes after restart, and accumulates without prompting at depth or total-budget ceilings.
 entry_points: HTTP/UDS/CLI/native execution start; Network thread and direct send; network usage and conversation reads; daemon restart
-qa_status: untested
+qa_status: blocked-verify
 bug_ids: BUG-20260715-network-usage-workspace-name-empty;BUG-20260715-network-wake-restart-target-stopped;BUG-20260715-taskless-network-wake-run-unreadable
 fix_status: fixed
 retest_status: pass
-fix_commits: pending local diff
-evidence: docs/qa/evidence/2026-07-14-network-changes/ch-live-bounds-agent-path.md;/Users/pedronauck/dev/qa-labs/compozy-network-live-bounds-20260715-061317-610983-lab/qa-artifacts/qa/teardown.json
-last_report: docs/qa/reports/2026-07-14-network-changes.md
+fix_commits: 8eeb8a38
+evidence: docs/qa/evidence/2026-07-14-network-changes/ch-live-bounds-agent-path.md;/Users/pedronauck/dev/qa-labs/compozy-network-live-bounds-20260715-061317-610983-lab/qa-artifacts/qa/teardown.json;/Users/pedronauck/dev/qa-labs/compozy-qa-misc-network-goal-release-site-20260730-060405-932516-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: NB-execution-participation-defaults;NB-020;RT-073
 ---
 

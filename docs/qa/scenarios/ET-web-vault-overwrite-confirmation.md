@@ -6,13 +6,13 @@ persona: Dora
 journey: J-keep-secrets-contained
 expected: Add vault secret splits into a reference section (ref, kind) and a value section carrying a write-only secret field that is never prefilled from any read path. Typing a reference that already exists — compared after trimming, the same normalization the daemon applies — raises a warning notice stating that saving rotates the stored value and that the current value stays unreadable, plus an explicit "Confirm replacement" switch. Store secret stays disabled until that switch is on. Pointing the reference at a different value retracts the confirmation, so an affirmation for one secret cannot carry over to another. A brand-new reference shows no notice and saves directly. A failed write keeps the reference, kind, and typed value. Replacing an existing secret continues to happen in the vault inspect sheet; this dialog stays create-only.
 entry_points: web vault window → New secret
-qa_status: untested
+qa_status: pass
 bug_ids:
 fix_status:
-retest_status:
+retest_status: pass
 fix_commits:
-evidence: .compozy/tasks/modals-redesign/evidence/visual/task_02/VC-08
-last_report:
+evidence: .compozy/tasks/modals-redesign/evidence/visual/task_02/VC-08;/Users/pedronauck/dev/qa-labs/compozy-qa-et-current-source-20260730-061655-910372-lab/qa-artifacts/qa;/Users/pedronauck/dev/qa-labs/compozy-replay-config-agent-vault-20260730-061728-520459-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: MS-web-entity-modal-shell; ET-web-vault-opendesign-listing
 ---
 

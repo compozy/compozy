@@ -6,13 +6,13 @@ persona: Ada
 journey: J-operate-compozy-from-mcp-client
 expected: A trusted MCP client lists sessions and creates a task through a workspace-bound stdio relay, the effects match the native HTTP API, workspace B data stays unreachable, and loopback HTTP rejects missing or incorrect bearer tokens.
 entry_points: compozy mcp serve; compozy mcp serve --workspace; MCP stdio client; MCP streamable HTTP client; native HTTP API
-qa_status: untested
+qa_status: blocked-verify
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-et-current-source-20260730-061655-910372-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps:
 ---
 

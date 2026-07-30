@@ -6,13 +6,13 @@ persona: Omar
 journey: J-connect-bridge-provider
 expected: "A first-party outbound bridge call receiving HTTP 529 classifies the failure as `overloaded`, waits once through the distinct bounded overload profile, and succeeds on the next provider response. HTTP 500 is `server_error`, a connection reset remains `transient`, and a positive `Retry-After` is preserved exactly. A committed mutation is never replayed, delegated ACP agents are unaffected, and no provider-local retry loop exists."
 entry_points: compozy bridge send-test; HTTP and UDS bridge send-test; fake-provider outbound transport
-qa_status: untested
+qa_status: blocked-verify
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-misc-network-goal-release-site-20260730-060405-932516-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: NB-indeterminate-bridge-delivery; NB-long-bridge-replies; NB-bridge-provider-setup
 ---
 

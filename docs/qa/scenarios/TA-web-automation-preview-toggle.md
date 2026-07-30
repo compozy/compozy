@@ -6,13 +6,13 @@ persona: Dora
 journey: J-24
 expected: The job and trigger editors open on the form alone — there is no permanent right-hand preview rail, and the host is the 880px `lg` dialog rather than the 1180px `xl`. A ghost "Show live preview" button sits on the leading edge of the footer beside Cancel and the single primary; pressing it swaps the whole body for the preview (summary, next runs, run digest, rendered prompt, sample event, webhook endpoint, request payload) and relabels itself "Back to form". The button carries `aria-pressed` reflecting the current view. Cancel and the primary stay reachable in both views. Critically, a target that blocks saving must state why in the *form* view — `preview.targetIssue` renders as a warning Alert pinned to the top of the body, so a disabled primary is never a dead end with its only explanation hidden behind the toggle. The draft survives the swap in both directions, including cron/interval/at values, filter conditions, and reliability settings; the Reliability & limits disclosure keeps its open state across the round trip because that state is held above the swapped subtree. Schedule readouts stay inline in CronBuilder/ScheduleEvery/ScheduleAt, so the tightest editing feedback loop does not require opening the preview at all. Scope now sits in the toolbar band under the header, matching every other modal that has it, rather than as the first in-body section; the webhook-is-always-global rule moves into the body as a neutral Alert because it is runtime truth and cannot live in a one-line bar. The agent target is the shared searchable `AgentCommandSelect` reading the workspace catalog — the native `<select>` and free-text fallback are gone (`MODAL-STANDARD.md` § Component grammar forbids them), so a job or trigger can only name an agent the runtime actually has.
 entry_points: web automation job editor (create + edit); web automation trigger editor (create + edit)
-qa_status: untested
+qa_status: blocked-verify
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-ta-replay-20260730-062156-531636-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: MS-web-entity-modal-shell; LP-017; LP-047; TA-052; TA-054; TA-055
 ---
 

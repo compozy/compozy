@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-administer-window-manager
 expected: A group edge dragged past a neighbour marks both groups on the canvas immediately, the inspector says the daemon refuses overlapping groups, Review returns `topology.group_overlap` with its path, Apply stays disabled, and no preview is requested for the refused document.
 entry_points: Settings › Layouts; layout canvas group edge
-qa_status: untested
+qa_status: blocked-verify
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-et-current-source-20260730-061655-910372-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: MS-configure-window-manager
 ---
 

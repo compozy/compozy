@@ -6,13 +6,13 @@ persona: Théo
 journey: J-11
 expected: When ACP session loading is unsupported or the saved provider session is missing, Compozy starts a fresh provider session, prepends the workspace checkpoint followed by only that Compozy session's pruned persisted transcript to the first accepted prompt, preserves the authored message, and exposes one durable `Context rebuilt from log.` marker. A successful ACP load performs no replay and adds no recovery marker.
 entry_points: daemon session reactivation; session transcript; session events
-qa_status: untested
+qa_status: blocked-verify
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-rt-current-source-20260730-20260730-061631-252740-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: RT-015; RT-session-message-reload
 ---
 

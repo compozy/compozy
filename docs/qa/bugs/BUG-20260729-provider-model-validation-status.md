@@ -1,6 +1,6 @@
 # BUG-20260729-provider-model-validation-status: Invalid model pricing returned HTTP 500
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Trust-Damage
 - **Severity:** Medium · **Priority:** P1
 - **Persona Affected:** Ada
@@ -36,7 +36,7 @@ unchanged.
   unclassified server failure.
 - **Correction:** Provider mutation validation now wraps the validation failure with the canonical
   Settings validation sentinel before transport mapping.
-- **Fix commit:** pending completion gate
+- **Fix commit:** `351f3535`
 - **Regression test:** `Should reject negative provider model pricing without mutating config` in
   `internal/settings/config_apply_service_test.go`.
 
@@ -45,4 +45,4 @@ unchanged.
 - The rebuilt daemon returned HTTP 400 with the exact finite/non-negative field diagnostic.
 - The before and after `config.toml` SHA-256 values were byte-identical.
 - The full `internal/settings` race suite passes with 215 tests.
-- **Retested:** rebuilt candidate green; governed fix commit pending
+- **Retested:** 2026-07-29, rebuilt invalid-pricing replay green; fix shipped in `351f3535`

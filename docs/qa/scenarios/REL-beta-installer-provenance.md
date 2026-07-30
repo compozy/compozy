@@ -6,13 +6,13 @@ persona: Dora
 journey: J-evaluate-compozy-beta
 expected: `https://compozy.com/install.sh` targets `v0.3.0-beta.2`, downloads the `compozy` archive and checksum bundle from `compozy/compozy`, verifies the release workflow certificate identity and archive checksum, installs `compozy`, and never resolves or falls back to a legacy PEM/SIG contract.
 entry_points: https://compozy.com/install.sh; GitHub release v0.3.0-beta.2; checksums.txt; checksums.txt.sigstore.json
-qa_status: untested
+qa_status: blocked-verify
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-gl-rel-wave1-20260730-045845-838751-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: REL-beta-install-paths
 ---
 

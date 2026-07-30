@@ -1,6 +1,6 @@
 # BUG-20260729-marketplace-file-cursor-fence: Identical file-catalog refresh invalidated pagination
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Blocks-Completion
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Ada
@@ -36,7 +36,7 @@ as catalog identity even when catalog content and revision were unchanged.
 - **Correction:** The fence now uses the catalog's authored `GeneratedAt` revision and content
   projection, while freshness remains diagnostic metadata. A genuinely newer revision still rejects
   an old cursor.
-- **Fix commit:** pending completion gate
+- **Fix commit:** `351f3535`
 - **Regression test:** The existing single-kind page-continuation subtest in
   `internal/api/core/marketplace_test.go` now covers unchanged refetch and changed revision.
 
@@ -45,4 +45,4 @@ as catalog identity even when catalog content and revision were unchanged.
 - Focused and complete `internal/api/core` race suites pass.
 - Rebuilt CLI, HTTP, and UDS return the same three unique entries across two pages.
 - Query, kind, scope, workspace, and authored-revision mismatches reject the cursor deterministically.
-- **Retested:** rebuilt candidate green; governed fix commit pending
+- **Retested:** 2026-07-29, rebuilt pagination replay green; fix shipped in `351f3535`

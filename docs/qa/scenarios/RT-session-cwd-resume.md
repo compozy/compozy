@@ -6,13 +6,13 @@ persona: Théo
 journey: J-11
 expected: A session created with a valid working directory below its workspace launches in the corresponding sandbox runtime directory, persists that choice, and resumes in the same directory without escaping the workspace boundary.
 entry_points: session create CWD; daemon session reactivation; provider process launch
-qa_status: untested
+qa_status: blocked-verify
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-rt-current-source-20260730-20260730-061631-252740-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: RT-session-context-rebuild
 ---
 

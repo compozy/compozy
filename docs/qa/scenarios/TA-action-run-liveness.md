@@ -6,13 +6,13 @@ persona: Ada
 journey: J-bound-runaway-work
 expected: An action without a node timeout inherits the configured deadline, active tools and fresh activity avoid false idle failures, a wedged action is canceled with node_timeout or no_progress with its lease freed and the loop advancing, and a timeout consumes the shared O1 attempt budget instead of reclaiming forever.
 entry_points: `compozy config set task.orchestration.action_run_timeout`; `compozy task inspect <run-id> -o json`; task-run listing over CLI/HTTP/UDS
-qa_status: untested
+qa_status: blocked-verify
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-ta-replay-20260730-062156-531636-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: TA-019; TA-022; TA-023; TA-workspace-run-capacity; TA-lease-recovery-attempt-budget
 ---
 

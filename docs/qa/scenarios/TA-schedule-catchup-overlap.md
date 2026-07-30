@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-24
 expected: Restart downtime under run_once_on_catchup dispatches one latest missed fire; skip_missed beyond grace and an overlapping active run persist canceled history rows with misfire_grace_exceeded or self_overlap, and the next cycle remains eligible.
 entry_points: Web automation job form and run history; automation CLI/HTTP/UDS/native tools; daemon restart
-qa_status: untested
+qa_status: blocked-verify
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-ta-replay-20260730-062156-531636-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: TA-055; TA-063
 ---
 

@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-administer-window-manager
 expected: Loading a saved layout while the editor is clean replaces the draft straight away; loading one while the draft has unapplied edits asks before discarding them and leaves the draft untouched on cancel; deleting a saved layout asks first and, once confirmed, clears every field of the removed record rather than leaving its scope, screen shape and overflow behind; a card's thumbnail is the stored layout's own geometry.
 entry_points: Settings › Layouts › Saved layouts
-qa_status: untested
+qa_status: blocked-verify
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-et-current-source-20260730-061655-910372-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: MS-configure-window-manager
 ---
 

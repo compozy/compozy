@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-administer-window-manager
 expected: Settings › Layouts exposes every supported `[window_manager]` value through direct manipulation — a desktop canvas, a 1:1 gap box, a snap-zone map, a repeat-width track, and a chord recorder — with no number field bound to a geometry value; out-of-range gaps, snap thresholds, history limit, duplicate repeat widths, and duplicate shortcut chords each name the exact value at fault and block the save while preserving the active known-good configuration; one floating save bar covers the global config and the workspace layout reviews inside its own card; a valid save hot-applies to the next command without restarting; workspace layout overrides remain isolated.
 entry_points: Settings › Layouts; global config.toml; compozy config get|set|apply; compozy layout-profile list|get|put|delete
-qa_status: untested
+qa_status: blocked-verify
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-ms-wave2-current-20260730-061842-796290-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: ET-window-manager-layout-recovery; ET-window-manager-layout-gestures
 ---
 

@@ -6,13 +6,13 @@ persona: Théo
 journey: J-11
 expected: At configured context pressure, Compozy summarizes only complete prior turns into the workspace checkpoint before archiving their event rows from degraded replay. History retains the archived rows, repeated coverage is idempotent, failed summary or archive work preserves replayable events, and a successful provider load remains unchanged.
 entry_points: daemon session prompts; compozy session events; compozy session history; degraded session reactivation; config CLI/native tools
-qa_status: untested
+qa_status: blocked-verify
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-rt-current-source-20260730-20260730-061631-252740-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: RT-session-context-rebuild; MS-workspace-checkpoint-continuity
 ---
 

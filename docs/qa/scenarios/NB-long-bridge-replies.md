@@ -6,13 +6,13 @@ persona: Omar
 journey: J-deliver-long-formatted-reply
 expected: A terminal reply above the platform cap is delivered as ordered numbered messages whose wire bodies stay within Slack 40,000 UTF-16 code units, Telegram 4,096 UTF-16 code units, Discord 2,000 Unicode code points, Teams 28,000 Unicode code points, Google Chat 32,000 UTF-8 bytes, or WhatsApp 4,096 Unicode code points; edit-capable cumulative previews stay in one mutable message until terminal continuations materialize; after an exhausted typed provider retry, same-process redelivery resumes at the first unsent chunk without duplicating the acknowledged prefix; platform markup stays readable; and the delivery acknowledgement points to the final remote message.
 entry_points: Public bridge delivery through Slack; Telegram; Discord; Teams; Google Chat; WhatsApp adapters
-qa_status: untested
+qa_status: blocked-verify
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence: /home/pedronauck/dev/qa-labs/compozy-hermes-bridge-task-10-20260713-022226-583543-lab/qa-artifacts/qa/notes/bridge-charter-results.json
-last_report: docs/qa/reports/2026-07-12-hermes-bridge.md
+evidence: /home/pedronauck/dev/qa-labs/compozy-hermes-bridge-task-10-20260713-022226-583543-lab/qa-artifacts/qa/notes/bridge-charter-results.json;/Users/pedronauck/dev/qa-labs/compozy-qa-misc-network-goal-release-site-20260730-060405-932516-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: NB-039; NB-bridge-tool-progress
 ---
 

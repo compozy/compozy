@@ -6,13 +6,13 @@ persona: Ada
 journey: J-operate-bounded-task-capacity
 expected: A repeated task creator wake_event_id delivers once after cache eviction or daemon restart even with a large unrelated event history; the authoritative lookup is task-scoped and never suppresses a different task or wake identity.
 entry_points: task creator session; task event ledger over CLI/HTTP/UDS; daemon restart
-qa_status: untested
+qa_status: blocked-verify
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-ta-replay-20260730-062156-531636-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: TA-016; TA-parent-rollup-completion; LP-task-rollup-wakes-loop
 ---
 

@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-complete-task-tree
 expected: The parent completion event wakes the enabled matching Loop and creates exactly one follow-up task; a disabled Loop and unrelated workspace task tree do not match.
 entry_points: web Loop editor; web task detail; web Loop run detail
-qa_status: untested
+qa_status: blocked-verify
 bug_ids: BUG-20260713-parent-task-rollup-missing; BUG-20260713-task-role-session-never-starts
 fix_status: fixed
 retest_status: pass
 fix_commits: 8eeb8a38
-evidence: /Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/compozy71-all-children-completed-parent-stuck.dom.txt
-last_report: docs/qa/reports/2026-07-14-consumer-saas-growth.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/compozy71-all-children-completed-parent-stuck.dom.txt;/Users/pedronauck/dev/qa-labs/compozy-lp-public-interface-20260730-060347-933555-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: LP-042
 ---
 

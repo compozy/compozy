@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-marketplace-acquisition
 expected: Catalog, settings, home, and entity-detail routes in the main pane share the same horizontal inset (`px-9` + `max-w-content-max` via `PageContent` / `ListingPage` / `PageShell`). Left edges of PageHead titles align when navigating Agents → Home → Settings → a detail route. Session chat and network channel panes keep pane-local padding and are exempt.
 entry_points: ListingPage catalogs; PageShell settings/home/sandbox/mcp; entity detail shells
-qa_status: untested
+qa_status: blocked-verify
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-et-current-source-20260730-061655-910372-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: ET-web-route-chrome-topbar; ET-web-jobs-triggers-catalog
 ---
 

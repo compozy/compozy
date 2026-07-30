@@ -6,13 +6,13 @@ persona: Omar
 journey: J-recover-mid-turn-restart
 expected: After a daemon restart, every durable active bridge delivery is reconciled within its exact scope and workspace before new prompt or delivery registration side effects; a row with no unmatched send intent receives one visible standard terminal error post without replaying persisted text, while a row whose sent sequence is ahead of its acknowledged sequence is terminalized locally as indeterminate without another provider call; recovery never advances `last_success_at`; a terminal metric-persistence error for one removed or conflicting instance is exposed through redacted health without stopping later healthy-instance metric writes; and the Web detail renders only daemon-owned backlog, failure, drop, authentication-failure, last-success, and active-route values.
 entry_points: Daemon restart during public bridge response delivery; bridge channel; delivery health metrics
-qa_status: untested
+qa_status: blocked-verify
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence: /home/pedronauck/dev/qa-labs/compozy-hermes-bridge-task-10-20260713-022226-583543-lab/qa-artifacts/qa/notes/bridge-charter-results.json
-last_report: docs/qa/reports/2026-07-12-hermes-bridge.md
+evidence: /home/pedronauck/dev/qa-labs/compozy-hermes-bridge-task-10-20260713-022226-583543-lab/qa-artifacts/qa/notes/bridge-charter-results.json;/Users/pedronauck/dev/qa-labs/compozy-qa-misc-network-goal-release-site-20260730-060405-932516-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: NB-bridge-tool-progress; NB-long-bridge-replies; NB-provider-progress-rendering
 ---
 

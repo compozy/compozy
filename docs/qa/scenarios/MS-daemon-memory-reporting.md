@@ -6,13 +6,13 @@ persona: Dora
 journey: J-drain-daemon-safely
 expected: With daemon.memory_report_interval above zero, Compozy emits baseline, periodic, and joined-shutdown process-memory snapshots and exposes the same latest runtime.memory evidence through HTTP, UDS, and compozy doctor -o json. Setting the interval to 0s requires a daemon restart, starts no periodic worker, and produces an explicit disabled diagnostic.
 entry_points: Web General Settings; config.toml; compozy config; HTTP/UDS GET /api/doctor; compozy doctor -o json; daemon logs
-qa_status: untested
+qa_status: pass
 bug_ids:
 fix_status:
-retest_status:
+retest_status: pass
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-ms-wave2-current-20260730-061842-796290-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: RT-002
 ---
 

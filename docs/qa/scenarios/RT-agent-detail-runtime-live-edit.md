@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-31
 expected: The agent detail Overview Runtime card and settings runtime selectors render workspace-scoped effective provider·model·reasoning with inherited provenance while authored fields stay blank; an explicit selection submits a version-aware agent override, “Use project defaults” clears every authored runtime axis, and conflicts keep server truth recoverable.
 entry_points: web /agents/$name?tab=overview; PUT /api/agents/:name
-qa_status: untested
+qa_status: blocked-verify
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-rt-current-source-20260730-20260730-061631-252740-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: RT-076;RT-078
 ---
 

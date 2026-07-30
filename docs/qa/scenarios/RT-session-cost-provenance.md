@@ -6,13 +6,13 @@ persona: Rafa
 journey: J-14
 expected: The session Usage surface and structured usage response agree on actual provider cost, exact five-bucket model-catalog estimates, native-subscription inclusion, or unknown cost; every nonzero bucket requires its own rate, included and unknown never display a fabricated amount, and every state identifies its source.
 entry_points: web session inspector Usage tab; `compozy session usage <session-id> -o json`; `GET /api/workspaces/:workspace_id/sessions/:session_id/usage`
-qa_status: untested
+qa_status: blocked-verify
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-rt-current-source-20260730-20260730-061631-252740-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps:
 ---
 

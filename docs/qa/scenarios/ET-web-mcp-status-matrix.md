@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-mcp-authorize-repair
 expected: The `/marketplace/mcps?tab=installed` cards and detail management render daemon-owned auth, runtime, and probe states with truthful success/warning/danger/neutral tones. Failed, unavailable, denied, absent, and unknown runtime states are never labeled running. `probe=skipped` is never treated as a failure. Authorize/Reauthorize is offered only to OAuth http/sse remotes not authenticated (or auth_refresh_failed); stdio and non-OAuth remotes never get it.
 entry_points: web `/marketplace/mcps?tab=installed`; `GET /api/settings/mcp-servers`
-qa_status: untested
+qa_status: blocked-verify
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence: web/src/systems/settings/lib/mcp-status-view-model.ts; web/src/systems/settings/components/mcp-servers-table.tsx; .compozy/tasks/marketplace/evidence/visual/task-08/matrix-desktop; /Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/mcp-oauth-name-segment.json; /Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/web/mcp-oauth-confirmed.png
-last_report: docs/qa/reports/2026-07-15-marketplace.md
+evidence: web/src/systems/settings/lib/mcp-status-view-model.ts; web/src/systems/settings/components/mcp-servers-table.tsx; .compozy/tasks/marketplace/evidence/visual/task-08/matrix-desktop; /Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/mcp-oauth-name-segment.json; /Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/web/mcp-oauth-confirmed.png;/Users/pedronauck/dev/qa-labs/compozy-qa-et-current-source-20260730-061655-910372-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: MS-029
 ---
 

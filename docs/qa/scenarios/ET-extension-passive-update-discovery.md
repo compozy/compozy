@@ -6,13 +6,13 @@ persona: Ada
 journey: J-extension-distribution
 expected: Installed extensions advertise a newer remote version in list and search human output and structured fields without an update-check flag, while a degraded discovery source never blocks local inventory.
 entry_points: compozy extension list; compozy extension search; GET /api/extensions; GET /api/extensions/search
-qa_status: untested
+qa_status: blocked-verify
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-ext-improvs-final-20260729-230047-267985-lab/qa-artifacts/qa/extension-charters.json
-last_report: docs/qa/reports/2026-07-29-ext-improvs.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-ext-improvs-final-20260729-230047-267985-lab/qa-artifacts/qa/extension-charters.json;/Users/pedronauck/dev/qa-labs/compozy-qa-et-current-source-20260730-061655-910372-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: ET-015; ET-016; ET-019
 ---
 

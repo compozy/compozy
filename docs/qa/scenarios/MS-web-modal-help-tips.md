@@ -6,13 +6,13 @@ persona: Dora
 journey: J-administer-runtime-settings
 expected: Inside an entity editor modal, an explanatory sentence no longer occupies a permanent line under its label. A `(?)` trigger sits beside the label (and beside a section title where the section itself needs explaining), and the prose appears on hover, on keyboard focus, and on click. The click path matters — on a touch device there is no hover, so tapping the trigger is the only way in, and tapping elsewhere or pressing Escape dismisses it. Escape closes the tip before it closes the dialog. The trigger is a real button with an accessible name of the form "About <label>", reaches 24x24 CSS px on desktop and 44x44 at 760px and below, and shows a 2px focus ring on keyboard focus. It is a sibling of the `<label>`, never a child, so the field's accessible name stays exactly the label text. Text the runtime owns never moves into a tip and stays on screen — "Project runtime defaults will be used.", catalog load/stale/error lines, validation errors, write-only boundary warnings, and any sentence stating what will happen on save.
 entry_points: web agent create; web vault create; web sandbox profile create/edit; web automation job/trigger editor; web task editor modal; web provider detail
-qa_status: untested
+qa_status: blocked-verify
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-ms-wave2-current-20260730-061842-796290-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: MS-web-entity-modal-shell; MS-web-agent-create-simple-advanced; MS-provider-detail-modal
 ---
 

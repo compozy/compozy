@@ -6,13 +6,13 @@ persona: Maya
 journey: J-edit-reply-context
 expected: A supported Slack or Telegram message edit reaches the routed agent as a distinct edit with the affected message identity and replacement or deletion operation; Slack, Telegram, and Google Chat replies include bounded already-observed parent text and author when available, while a cache miss remains empty without a provider fetch or workspace, instance, or conversation bleed.
 entry_points: Public Slack, Telegram, and Google Chat inbound bridge webhooks; routed session prompt
-qa_status: untested
+qa_status: blocked-verify
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence: /home/pedronauck/dev/qa-labs/compozy-hermes-bridge-task-10-20260713-022226-583543-lab/qa-artifacts/qa/notes/bridge-charter-results.json; /home/pedronauck/dev/qa-labs/compozy-hermes-bridge-task-10-20260713-022226-583543-lab/qa-artifacts/qa/test-cases/bridge-qa-fixture.json; /home/pedronauck/dev/qa-labs/compozy-hermes-bridge-task-10-20260713-022226-583543-lab/qa-artifacts/qa/logs/bridge-fake-api.jsonl
-last_report: docs/qa/reports/2026-07-12-hermes-bridge.md
+evidence: /home/pedronauck/dev/qa-labs/compozy-hermes-bridge-task-10-20260713-022226-583543-lab/qa-artifacts/qa/notes/bridge-charter-results.json; /home/pedronauck/dev/qa-labs/compozy-hermes-bridge-task-10-20260713-022226-583543-lab/qa-artifacts/qa/test-cases/bridge-qa-fixture.json; /home/pedronauck/dev/qa-labs/compozy-hermes-bridge-task-10-20260713-022226-583543-lab/qa-artifacts/qa/logs/bridge-fake-api.jsonl;/Users/pedronauck/dev/qa-labs/compozy-qa-misc-network-goal-release-site-20260730-060405-932516-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: NB-024; NB-bridge-tool-progress
 ---
 

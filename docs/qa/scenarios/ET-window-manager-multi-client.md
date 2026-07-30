@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-administer-window-manager
 expected: Two registered clients in one workspace observe the same persistent desktops, groups, windows, revisions, routes, and durable events while independently switching desktops and focusing or zooming windows; a remote presentation command reaches exactly the selected client's fenced stream without advancing topology revision/history/hooks or leaking that ClientView to its peer; missing, foreign, and disconnected client IDs reject.
 entry_points: two Web browser contexts; compozy desktop clients; compozy desktop switch; compozy window focus; compozy window zoom
-qa_status: untested
+qa_status: blocked-verify
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-et-current-source-20260730-061655-910372-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: ET-window-manager-public-parity; ET-web-desktop-shell-lifecycle; RT-desktop-pager-overview
 ---
 

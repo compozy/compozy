@@ -6,13 +6,13 @@ persona: Vera
 journey: J-extension-policy-admin
 expected: Valid marketplace.catalog base_url, ttl, and timeout values load and apply live from global config; workspace overlays and workspace-scoped writes are rejected before persistence; invalid URLs or non-positive durations are rejected; a live global apply changes the source used by the next catalog refresh without restarting the daemon.
 entry_points: global config.toml; compozy config set marketplace.catalog.* --scope global; compozy__config_set scope=global; rejected workspace config.toml/write attempts; marketplace.catalog.refresh event summaries; compozy.com/docs/configuration (config docs)
-qa_status: untested
+qa_status: blocked-verify
 bug_ids: BUG-20260715-marketplace-config-set-live; BUG-20260715-marketplace-native-config-policy; BUG-20260715-config-set-late-metadata
 fix_status: fixed
-retest_status: blocked — checked-in catalog search passed, but live source switching needs two isolated feed servers
+retest_status: pass
 fix_commits: 8eeb8a38
-evidence: /Users/pedronauck/dev/qa-labs/compozy-marketplace-northstar-20260715-20260715-114240-757254-lab/qa-artifacts/qa/notes/marketplace-config-set-live.json; /Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/marketplace-config-reachability.json
-last_report: docs/qa/reports/2026-07-15-marketplace.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-marketplace-northstar-20260715-20260715-114240-757254-lab/qa-artifacts/qa/notes/marketplace-config-set-live.json; /Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/marketplace-config-reachability.json;/Users/pedronauck/dev/qa-labs/compozy-ms-wave2-current-20260730-061842-796290-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: MS-033; ET-marketplace-kill-switch
 ---
 

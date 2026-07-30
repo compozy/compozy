@@ -6,13 +6,13 @@ persona: Ada
 journey: J-operate-daemon-schema
 expected: From a fresh isolated home, make dev completes daemon startup before exposing the Vite UI, so the first status, workspace, task, and stream requests reach the current daemon without connection-refused failures.
 entry_points: make dev; http://localhost:<web-port>; GET /api/status
-qa_status: untested
+qa_status: blocked-verify
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-rt-current-source-20260730-20260730-061631-252740-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: RT-001;RT-inspect-schema-streams
 ---
 

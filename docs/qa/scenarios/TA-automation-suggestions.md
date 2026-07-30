@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-24
 expected: A fresh workspace lists 3–5 workspace-owned pending Job proposals up to the positive configured cap; Create job accepts exactly one proposal through normal Job validation and the lifecycle-command guard, persists a schedulable dynamic Job, and removes the proposal; Dismiss durably latches another proposal across reload; no suggestion crosses workspace boundaries.
 entry_points: Web `/jobs`; `*/workspaces/{workspace_id}/automation/suggestions*`; CLI `automation suggestions`; native `compozy__automation_suggestions_*`; config `automation.suggestions.pending_cap`
-qa_status: untested
+qa_status: blocked-verify
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence: `internal/automation/suggestion_catalog.go`; `internal/automation/manager_suggestion.go`; `internal/store/globaldb/global_db_automation_suggestions.go`; `web/src/systems/automation`
-last_report:
+evidence: `internal/automation/suggestion_catalog.go`; `internal/automation/manager_suggestion.go`; `internal/store/globaldb/global_db_automation_suggestions.go`; `web/src/systems/automation`;/Users/pedronauck/dev/qa-labs/compozy-qa-ta-replay-20260730-062156-531636-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: TA-052
 ---
 

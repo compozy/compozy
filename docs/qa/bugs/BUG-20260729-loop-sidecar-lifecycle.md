@@ -1,6 +1,6 @@
 # BUG-20260729-loop-sidecar-lifecycle: Deleted Loops could restore stale config and editor positions
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Trust-Damage
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Ada
@@ -56,7 +56,7 @@ name restored the stale sidecars.
   removal, and restores both resources through a bounded detached rollback when publication fails.
   The response contract now requires a nullable `config`, and the 404 response set is co-shipped in
   OpenAPI and generated TypeScript.
-- **Fix commit:**
+- **Fix commit:** `351f3535`
 - **Regression test:** `internal/loop/service_test.go`,
   `internal/daemon/loop_api_runs_test.go`, `internal/daemon/loop_resources_test.go`,
   `internal/store/globaldb/global_db_loop_api_test.go`, `internal/api/core/loops_test.go`, and
@@ -75,4 +75,4 @@ name restored the stale sidecars.
   `internal/daemon`, and `internal/store/globaldb`; the site Turbo lane passed 51 files and 248 tests.
 - Replay evidence:
   `/Users/pedronauck/dev/qa-labs/compozy-loop-config-annotations-retest-20260729-20260729-183928-434217-lab/qa-artifacts/qa/evidence/049-loop-config-annotations-retest`.
-- Status remains open until the correction has its one logical governed commit.
+- The original HTTP/UDS replay remained green and the correction shipped in `351f3535`.

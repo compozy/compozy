@@ -1,6 +1,6 @@
 # BUG-20260729-marketplace-json-parity: Marketplace CLI JSON diverged from the daemon contract
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Trust-Damage
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Ada
@@ -36,7 +36,7 @@ so an agent could not treat the three structured planes as the same contract.
   unexpected top-level field.
 - **Correction:** Marketplace search and detail route JSON output through the shared
   contract-preserving writer; their canonical CLI suite now inspects raw top-level fields.
-- **Fix commit:** pending completion gate
+- **Fix commit:** `351f3535`
 - **Regression test:** Marketplace search and detail JSON parity cases in
   `internal/cli/marketplace_test.go`.
 
@@ -44,4 +44,4 @@ so an agent could not treat the three structured planes as the same contract.
 
 - Focused Marketplace CLI race tests and the complete `internal/cli` race suite pass.
 - The rebuilt CLI matches HTTP and UDS exactly for search, pagination, and detail.
-- **Retested:** rebuilt candidate green; governed fix commit pending
+- **Retested:** 2026-07-29, rebuilt CLI/HTTP/UDS parity replay green; fix shipped in `351f3535`

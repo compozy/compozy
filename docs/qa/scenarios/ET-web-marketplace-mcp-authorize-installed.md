@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-mcp-authorize-repair
 expected: An installed OAuth MCP server that needs login exposes Authorize in the MCP Installed scope and detail, reuses the scoped daemon authorization flow, and reports success only after authenticated status and token presence are both confirmed.
 entry_points: /marketplace/mcps?tab=installed; /marketplace/mcp/<entry-id>
-qa_status: untested
+qa_status: blocked-verify
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-et-current-source-20260730-061655-910372-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: ET-web-mcp-authorize; ET-web-mcp-authorize-manual; ET-web-mcp-status-matrix
 ---
 

@@ -6,13 +6,13 @@ persona: Ada
 journey: J-administer-window-manager
 expected: Native tools, CLI, HTTP, and UDS expose the same semantic desktop, window, navigation, client, preview, layout, and revision contracts; the WebSocket snapshot fence orders later topology events and an optional client fence orders only that ClientView's presentation frames; restart preserves topology and routes; workspace deletion purges them; and no request can observe or mutate another workspace.
 entry_points: compozy desktop; compozy window; compozy layout; compozy__window_manager; /api/workspaces/{workspace_id}/window-manager
-qa_status: untested
+qa_status: blocked-verify
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-et-current-source-20260730-061655-910372-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: ET-window-manager-multi-client; ET-window-manager-layout-recovery; ET-web-desktop-shell-lifecycle
 ---
 

@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-complete-task-tree
 expected: Completing the final child transitions the parent task to completed exactly once, while completing an earlier child leaves the parent non-terminal; the rollup is visible after refresh through Web and structured surfaces.
 entry_points: web /tasks; task detail modal; CLI compozy task list
-qa_status: untested
+qa_status: blocked-verify
 bug_ids: BUG-20260713-parent-task-rollup-missing; BUG-20260713-needs-attention-recovery-hidden; BUG-20260713-task-owner-cannot-clear; BUG-20260713-task-role-dispatch-repeats; BUG-20260713-task-role-session-never-starts
 fix_status: fixed
 retest_status: pass
 fix_commits: 8eeb8a38
-evidence: /Users/pedronauck/dev/qa-labs/compozy-consumer-saas-growth-20260714-194637-422214-lab/qa-artifacts/qa/task-rollup/; /Users/pedronauck/dev/qa-labs/compozy-consumer-saas-growth-20260714-194637-422214-lab/qa-artifacts/qa/screenshots/task-parent-rollup-completed.png
-last_report: docs/qa/reports/2026-07-14-consumer-saas-growth.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-consumer-saas-growth-20260714-194637-422214-lab/qa-artifacts/qa/task-rollup/; /Users/pedronauck/dev/qa-labs/compozy-consumer-saas-growth-20260714-194637-422214-lab/qa-artifacts/qa/screenshots/task-parent-rollup-completed.png;/Users/pedronauck/dev/qa-labs/compozy-qa-ta-replay-20260730-062156-531636-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: LP-042;TA-012
 ---
 

@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-24
 expected: Creating a dynamic automation job with a command-shaped Compozy daemon restart, stop, or kill instruction fails with the stable blocked class and persists no job; prose in non-command fields remains valid.
 entry_points: automation CLI; HTTP/UDS POST /api/automation/jobs; compozy__automation_jobs_create
-qa_status: untested
+qa_status: pass
 bug_ids:
 fix_status:
-retest_status:
+retest_status: pass
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-ta-replay-20260730-062156-531636-lab/qa-artifacts/qa;/Users/pedronauck/dev/qa-labs/compozy-qa-ta-b-current-source-20260730-061710-562313-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: TA-055; TA-schedule-catchup-overlap
 ---
 
