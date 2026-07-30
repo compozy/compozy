@@ -27,10 +27,9 @@ Every task becomes one full agent run: a fresh context that re-reads the spec co
 
 ## Workflow
 
-1. Load type registry.
-   - Read `.compozy/config.toml`.
-   - If it contains `[tasks].types`, use that list as the allowed `type` values.
-   - Otherwise use the built-in defaults: `frontend`, `backend`, `docs`, `test`, `infra`, `refactor`, `chore`, `bugfix`.
+1. Choose the task taxonomy.
+   - Prefer the standard work-type slugs: `frontend`, `backend`, `docs`, `test`, `infra`, `refactor`, `chore`, `bugfix`, `qa-report`, and `qa-execution`.
+   - When the specification needs a distinct category, define one concise lowercase hyphenated slug in the proposed breakdown and use it consistently. Task `type` is free-form; ordered `loops.defaults.delivery.runtime_rules[].match.type` entries own type-based runtime routing.
 
 2. Load context.
    - Read `_prd.md`, `_techspec.md`, `_user_stories.md`, and `_tests.md` from `.compozy/tasks/<name>/`.

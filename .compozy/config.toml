@@ -1,43 +1,43 @@
-[defaults]
-ide = 'codex'
+[loops.defaults.delivery.runtime_defaults.worker]
+provider = 'codex'
 model = 'gpt-5.6-sol'
-reasoning_effort = 'max'
+reasoning = 'max'
 
-# Allowed task frontmatter types. Extends the built-in defaults with the QA pair
-# phase types required by cy-tasks-tail-qa-pair (used by marketplace + os-shell suites).
-[tasks]
-types = [
-  'frontend',
-  'backend',
-  'docs',
-  'test',
-  'infra',
-  'refactor',
-  'chore',
-  'bugfix',
-  'qa-report',
-  'qa-execution',
-]
+[loops.defaults.delivery.runtime_defaults.judge]
+provider = 'codex'
+model = 'gpt-5.6-sol'
+reasoning = 'max'
 
-# Per-type model routing for `compozy tasks run` (ExecutionModePRDTasks).
-# The task's frontmatter `type:` selects the rule; unmatched types fall back to [defaults].
-# Note: ignored by `compozy exec` (type selector is cleared in non-PRD modes).
-[tasks.run]
+[loops.defaults.watch.runtime_defaults.worker]
+provider = 'codex'
+model = 'gpt-5.6-sol'
+reasoning = 'max'
 
-[[tasks.run.task_runtime_rules]]
+[loops.defaults.watch.runtime_defaults.judge]
+provider = 'codex'
+model = 'gpt-5.6-sol'
+reasoning = 'max'
+
+[[loops.defaults.delivery.runtime_rules]]
+[loops.defaults.delivery.runtime_rules.match]
 type = 'frontend'
-ide = 'claude'
+[loops.defaults.delivery.runtime_rules.runtime]
+provider = 'claude'
 model = 'opus'
-reasoning_effort = 'max'
+reasoning = 'max'
 
-[[tasks.run.task_runtime_rules]]
+[[loops.defaults.delivery.runtime_rules]]
+[loops.defaults.delivery.runtime_rules.match]
 type = 'docs'
-ide = 'claude'
+[loops.defaults.delivery.runtime_rules.runtime]
+provider = 'claude'
 model = 'opus'
-reasoning_effort = 'xhigh'
+reasoning = 'xhigh'
 
-[[tasks.run.task_runtime_rules]]
+[[loops.defaults.delivery.runtime_rules]]
+[loops.defaults.delivery.runtime_rules.match]
 type = 'backend'
-ide = 'codex'
+[loops.defaults.delivery.runtime_rules.runtime]
+provider = 'codex'
 model = 'gpt-5.6-sol'
-reasoning_effort = 'max'
+reasoning = 'max'
