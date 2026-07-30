@@ -17,9 +17,7 @@ function docLine(title: string, url: string, description?: string): string {
 }
 
 function groupOrder(): string[] {
-  return [DOCS_ROOT_GROUP, ...new Set(DOCS_GROUP_BY_FOLDER.values())].filter(
-    (group, index, all) => all.indexOf(group) === index
-  );
+  return Array.from(new Set([DOCS_ROOT_GROUP, ...DOCS_GROUP_BY_FOLDER.values()]));
 }
 
 export function GET() {

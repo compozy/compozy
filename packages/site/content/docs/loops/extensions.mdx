@@ -26,11 +26,12 @@ filesystem. Loop definitions resolve through marketplace, user, additional, and 
 (workspace wins). A shipped Loop appears in the [catalog](/docs/loops/catalog) next to the
 default `dev-cycle` Loops.
 
-## Actions are tools
+## Actions and tools
 
-A Loop [action](/docs/loops/dsl-reference#action-nodes) `kind` is a **tool ID**. The action
-registry is a thin adapter over the runtime tool registry — there is no second registry and no
-second orchestrator — so every native, extension, and MCP tool is already a Loop action.
+An extension-provided Loop [action](/docs/loops/dsl-reference#action-nodes) `kind` is a **tool ID**.
+The four reserved kinds — `run-agent`, `run-loop`, `transform`, and `goal` — use first-party
+executors. Every other action kind resolves through the runtime tool registry, so native, extension,
+and MCP tools are already Loop actions without a second registry or orchestrator.
 
 To add a Loop action, publish a tool with the `tool.provider` capability. Tag it `loop.action` or
 `loop.gate` in a toolset if you want it grouped for authors. Because actions run through the one
@@ -73,12 +74,12 @@ the coordinator polls.
 
 ### Watch runtime behavior
 
-Once a watch Loop starts, its lifecycle differs from a delivery Loop:
+Once a Loop with a `watch-source` starts, its lifecycle differs from a delivery Loop:
 
 - **`watching`** — between ticks the run is dormant in the `watching` state, re-woken by the next
   poll. It is not consuming a generation while it waits.
-- **Unbounded cap** — watch Loops default `iteration_cap: 0`, rendered `∞`. A `0` cap never
-  produces `exhausted`, because there is no fixed count of "done."
+- **Unbounded cap** — a definition containing `watch-source` defaults `iteration_cap: 0`, rendered
+  `∞`. A `0` cap never produces `exhausted`, because there is no fixed count of "done."
 - **`no-op` on clean ticks** — a tick that finds nothing to do ends the generation `no-op`, never a
   fake `done`. A clean watch tick is honest idleness.
 - **Stall on silence** — if a watched source goes silent past its window, the run ends `stalled`

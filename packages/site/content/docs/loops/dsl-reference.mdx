@@ -116,13 +116,13 @@ Four action kinds are reserved; every other action `kind` is a literal **tool ID
 (`compozy__*`, `ext__*`, or `mcp__*`) resolved through the runtime tool registry — so every native,
 extension, and MCP tool is a Loop action for free.
 
-| Kind        | Params                                                                                                                             |
-| ----------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `run-agent` | `agent` (required), `prompt` (required), `output_schema?`, `cwd?`, `runtime?`, `allowed_tools?`, `max_turns?`                      |
-| `run-loop`  | `loop` (name), `inputs`, `mode: await` (default, parks in `awaiting_child`) or `detach` (returns `{loop_run_id}`)                  |
-| `transform` | `map` — each entry is `{from: <ns path>}`, `{value: <literal>}`, or `{template: "{{ }}"}`                                          |
-| `goal`      | `agent`, `objective`, `judge`, `max_turns`, `on_exhausted?`, `output_schema`; see the [Goal node reference](/docs/loops/goal-node) |
-| any tool ID | `params` = the tool's own input schema, template-interpolated; optional `harvest`                                                  |
+| Kind        | Params                                                                                                                                         |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `run-agent` | `agent` (required), `prompt` (required), `output_schema?`, `cwd?`, `runtime?`, `allowed_tools?`, `max_turns?`                                  |
+| `run-loop`  | `loop` (name), `inputs?`, `mode: await` (default, parks in `awaiting_child`) or `detach` (returns `{loop_run_id}`)                             |
+| `transform` | `map` — each entry is `{from: <ns path>}`, `{value: <literal>}`, or `{template: "{{ }}"}`                                                      |
+| `goal`      | `agent`, `objective`, `judge`, `max_turns`, `on_exhausted?`, `output_schema`, `runtime?`; see the [Goal node reference](/docs/loops/goal-node) |
+| any tool ID | `params` = the tool's own input schema, template-interpolated; optional `harvest`                                                              |
 
 A `run-agent` node with an `output_schema` publishes typed output, so the next node can reference
 `nodes.<id>.output.<field>` — the type-safe chaining pattern.
@@ -196,9 +196,11 @@ graph:
 ```
 
 The matched batch lands at `nodes.<id>.output` for downstream nodes (fan out over it to process each
-event). A Loop with a `watch-events` node is a **watch Loop**: it defaults to `iteration_cap: 0`, holds
-`watching` between wakes, and — unlike `watch-source` — **never stalls on silence**. A quiet
-subscription is healthy dormancy, not a failure; the Loop parks indefinitely until an event matches.
+event). A Loop with a `watch-events` node holds `watching` between wakes and — unlike
+`watch-source` — **never stalls on silence**. Its default configuration is still the delivery
+profile, including `iteration_cap: 50`; set `contract.iteration_cap: 0` explicitly when it must run
+without an iteration limit. A quiet subscription is healthy dormancy, not a failure; the Loop parks
+until an event matches.
 
 **Supported kinds.** `events[].kind` validates against the full hook catalog at publish; a
 kind outside the supported set fails lint (`watch_events_kind_unsupported`). Only **post-state

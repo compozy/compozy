@@ -32,11 +32,12 @@ func enrichDocument(
 	current input,
 	inputs []input,
 	targets map[string]string,
+	outputProfile OutputProfile,
 ) string {
 	body = strings.TrimSpace(body)
 
 	var sections []string
-	if section := renderOutputFormatsSection(body); section != "" {
+	if section := renderOutputFormatsSection(body, outputProfile); section != "" {
 		sections = append(sections, section)
 	}
 	if section := renderSubcommandsSection(current, inputs, targets); section != "" {
@@ -86,7 +87,7 @@ func extractDescription(raw string) string {
 	return ""
 }
 
-func renderOutputFormatsSection(body string) string {
+func renderOutputFormatsSection(body string, outputProfile OutputProfile) string {
 	if !strings.Contains(body, "--output string") {
 		return ""
 	}
@@ -96,19 +97,82 @@ func renderOutputFormatsSection(body string) string {
 
 	var b strings.Builder
 	b.WriteString("## Output Formats\n\n")
-	b.WriteString("Every Compozy command supports `-o, --output`:\n\n")
-	b.WriteString("- `human` for interactive terminal use\n")
-	b.WriteString("- `json` for scripts and other machine-readable consumers\n")
-	b.WriteString("- `jsonl` for wait or streaming commands that emit one JSON record per line\n")
-	b.WriteString("- `toon` for compact agent-readable summaries\n")
+	b.WriteString(renderOutputFormatProfile(outputProfile))
 
-	if usage := extractUsageLine(body); usage != "" {
+	if outputProfile == OutputProfileResult || outputProfile == OutputProfileHumanJSONL {
+		usage := extractUsageLine(body)
+		if usage == "" {
+			return b.String()
+		}
 		b.WriteString("\nExample:\n\n```bash\n")
-		b.WriteString(outputExampleCommand(usage))
+		if outputProfile == OutputProfileHumanJSONL {
+			b.WriteString(outputExampleCommandWithFormat(usage, "jsonl"))
+		} else {
+			b.WriteString(outputExampleCommand(usage))
+		}
 		b.WriteString("\n```")
 	}
 
 	return b.String()
+}
+
+func renderOutputFormatProfile(outputProfile OutputProfile) string {
+	switch outputProfile {
+	case OutputProfileHelp:
+		return "This command displays human-readable help and its subcommand list. " +
+			"The inherited `-o, --output` and `--json` flags do not serialize help output.\n\n" +
+			"| Format | Output |\n" +
+			"| --- | --- |\n" +
+			"| `human` | Help and subcommand list |\n" +
+			"| `json` | Not emitted for help |\n" +
+			"| `jsonl` | Not emitted for help |\n" +
+			"| `toon` | Not emitted for help |"
+	case OutputProfileNoOutput:
+		return "This command has no command-result renderer. The inherited `-o, --output` and " +
+			"`--json` flags do not add JSON, JSONL, or TOON output.\n\n" +
+			"| Format | Output |\n" +
+			"| --- | --- |\n" +
+			"| `human` | No command result |\n" +
+			"| `json` | Not emitted |\n" +
+			"| `jsonl` | Not emitted |\n" +
+			"| `toon` | Not emitted |"
+	case OutputProfileProtocol:
+		return "This command reserves standard output for its MCP transport. The inherited `-o, --output` " +
+			"and `--json` flags do not change that protocol stream.\n\n" +
+			"| Format | Output |\n" +
+			"| --- | --- |\n" +
+			"| `human` | MCP transport stream |\n" +
+			"| `json` | Not a command-result renderer |\n" +
+			"| `jsonl` | Not a command-result renderer |\n" +
+			"| `toon` | Not a command-result renderer |"
+	case OutputProfileRaw:
+		return "This command writes its shell-completion script directly to standard output. The inherited " +
+			"`-o, --output` and `--json` flags do not convert that script to a command result.\n\n" +
+			"| Format | Output |\n" +
+			"| --- | --- |\n" +
+			"| `human` | Shell-completion script |\n" +
+			"| `json` | Not a command-result renderer |\n" +
+			"| `jsonl` | Not a command-result renderer |\n" +
+			"| `toon` | Not a command-result renderer |"
+	case OutputProfileHumanJSONL:
+		return "This streaming command supports interactive human output or newline-delimited JSON. " +
+			"It rejects the inherited `json` and `toon` output modes.\n\n" +
+			"| Format | Stream output |\n" +
+			"| --- | --- |\n" +
+			"| `human` | Interactive event stream |\n" +
+			"| `json` | Not supported |\n" +
+			"| `jsonl` | One JSON event per line |\n" +
+			"| `toon` | Not supported |"
+	default:
+		return "The root `-o, --output` flag accepts these values. A renderer is supported only when " +
+			"this command writes that result; `jsonl` is for commands that emit one JSON record per line.\n\n" +
+			"| Format | Command result |\n" +
+			"| --- | --- |\n" +
+			"| `human` | Interactive terminal rendering |\n" +
+			"| `json` | Machine-readable JSON rendering |\n" +
+			"| `jsonl` | One JSON record per line when supported |\n" +
+			"| `toon` | Compact agent-readable rendering |"
+	}
 }
 
 func extractUsageLine(body string) string {
@@ -131,13 +195,17 @@ func extractUsageLine(body string) string {
 }
 
 func outputExampleCommand(usage string) string {
+	return outputExampleCommandWithFormat(usage, "json")
+}
+
+func outputExampleCommandWithFormat(usage, format string) string {
 	usage = strings.ReplaceAll(usage, "[flags]", "")
 	usage = strings.Join(strings.Fields(usage), " ")
 	usage = strings.TrimSpace(usage)
 	if usage == "" {
 		return ""
 	}
-	return usage + " -o json"
+	return usage + " -o " + format
 }
 
 // stripBoilerplate removes Cobra auto-generated artifacts:

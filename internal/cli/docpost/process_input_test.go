@@ -21,7 +21,7 @@ func TestProcessInputValidation(t *testing.T) {
 			t.Fatalf("write ambiguous source file: %v", err)
 		}
 
-		err := Process(context.Background(), srcDir, dstDir)
+		err := Process(context.Background(), srcDir, dstDir, Options{})
 		if err == nil || !strings.Contains(err.Error(), "must be 'compozy.md' or start with 'compozy_'") {
 			t.Fatalf("Process() error = %v, want ambiguous source filename rejection", err)
 		}
@@ -60,7 +60,7 @@ func TestProcessInputValidation(t *testing.T) {
 			}
 		}
 
-		err := Process(context.Background(), srcDir, dstDir)
+		err := Process(context.Background(), srcDir, dstDir, Options{})
 		if err == nil || !strings.Contains(err.Error(), "must be 'compozy.md' or start with 'compozy_'") {
 			t.Fatalf("Process() error = %v, want ambiguous source filename rejection", err)
 		}

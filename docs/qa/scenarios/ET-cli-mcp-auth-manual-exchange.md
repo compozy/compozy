@@ -4,8 +4,8 @@ area: ET
 title: Complete MCP authorization through manual exchange
 persona: Iris
 journey: J-mcp-authorize-repair
-expected: `compozy mcp authorize <name> --manual` accepts either an authorization code or full redirect URL through stdin, completes the daemon-owned single-use session, and never echoes the code, redirect URL, verifier, or token material.
-entry_points: compozy mcp authorize <name> --manual; compozy mcp auth login <name> --manual
+expected: `compozy mcp auth login <name> --manual` accepts either an authorization code or full redirect URL through stdin, completes the daemon-owned single-use session, and never echoes the code, redirect URL, verifier, or token material.
+entry_points: compozy mcp auth login <name> --manual
 qa_status: fail
 bug_ids: BUG-20260715-mcp-oauth-name-segment; BUG-20260715-mcp-manual-tty-echo; BUG-20260729-mcp-manual-exchange-timeout
 fix_status: pending

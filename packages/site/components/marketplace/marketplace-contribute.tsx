@@ -18,7 +18,8 @@ export function MarketplaceContribute() {
           The catalog is a set of JSON feeds in the Compozy repository. Package your artifact with{" "}
           <code>compozy-catalog package</code>, validate it with{" "}
           <code>compozy-catalog validate</code>, and open a pull request against{" "}
-          <code>catalog/</code> — the site and the daemon pick the entry up from the same feed.
+          <code>catalog/</code> — a future site build renders that snapshot, while a daemon picks it
+          up after its configured catalog source refreshes.
         </p>
       </div>
       <a

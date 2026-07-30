@@ -93,12 +93,12 @@ memory because the ULID travels with the directory. See
 
 Every curated memory file declares one of four types:
 
-| Type        | Use it for                                                                         | Example                                                                   |
-| ----------- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| `user`      | Stable user preferences, working style, or recurring personal context.             | "Prefer concise PR summaries with risk and test notes."                   |
-| `feedback`  | Repeated corrections, review guidance, and quality signals that apply across work. | "Do not weaken tests to match broken behavior."                           |
-| `project`   | Decisions, constraints, active architecture, and local project facts.              | "This repo keeps docs site pages under `packages/site/content/runtime/`." |
-| `reference` | External references, runbooks, links, or system facts worth re-reading on demand.  | "Production logs live in the hosted provider console, not local files."   |
+| Type        | Use it for                                                                         | Example                                                                 |
+| ----------- | ---------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `user`      | Stable user preferences, working style, or recurring personal context.             | "Prefer concise PR summaries with risk and test notes."                 |
+| `feedback`  | Repeated corrections, review guidance, and quality signals that apply across work. | "Do not weaken tests to match broken behavior."                         |
+| `project`   | Decisions, constraints, active architecture, and local project facts.              | "This repo keeps docs site pages under `packages/site/content/docs/`."  |
+| `reference` | External references, runbooks, links, or system facts worth re-reading on demand.  | "Production logs live in the hosted provider console, not local files." |
 
 The taxonomy is closed. Unsupported types are rejected at the controller boundary.
 
@@ -330,7 +330,7 @@ Memory is reachable from CLI, HTTP, UDS, and native tools with parity. The Slice
 | Scope inspector    | `compozy memory scope-show`                                        | `GET /api/memory/scope-show`                                              | `compozy__memory_scope_show`                                    |
 | Daily logs         | `compozy memory daily ls`                                          | `GET /api/memory/daily`                                                   | `compozy__memory_daily_list`                                    |
 | Extractor status   | `compozy memory extractor status`                                  | `GET /api/memory/extractor/status`                                        | `compozy__memory_extractor_status`                              |
-| Extractor failures | `compozy memory extractor list-pending`                            | `GET /api/memory/extractor/failures`                                      | `compozy__memory_extractor_failures`                            |
+| Extractor failures | `compozy memory extractor list-failures`                           | `GET /api/memory/extractor/failures`                                      | `compozy__memory_extractor_failures`                            |
 | Extractor replay   | `compozy memory extractor replay --session <id>`                   | `POST /api/memory/extractor/retry`                                        | `compozy__memory_extractor_retry`                               |
 | Extractor drain    | `compozy memory extractor drain`                                   | `POST /api/memory/extractor/drain`                                        | `compozy__memory_extractor_drain`                               |
 | Provider list      | `compozy memory provider list`                                     | `GET /api/memory/providers`, `GET /api/memory/providers/{provider_name}`  | `compozy__memory_provider_list`, `compozy__memory_provider_get` |
@@ -360,7 +360,7 @@ the snapshot. Useful index entries are short and point to one file:
 
 ```markdown
 - [Review Style](user_review-style.md) — User wants concise review findings with file references first.
-- [Runtime Docs Location](project_runtime-docs.md) — Runtime docs live under `packages/site/content/runtime/`.
+- [Docs Location](project_docs-location.md) — Site docs live under `packages/site/content/docs/`.
 ```
 
 | Behavior            | Current implementation                                                                                                              |
@@ -418,9 +418,9 @@ Write a workspace decision in the current workspace:
 compozy memory write \
   --scope workspace \
   --type project \
-  --name "Runtime Docs Location" \
-  --description "Runtime docs live in the Fumadocs runtime collection" \
-  --content 'Runtime docs are authored under `packages/site/content/runtime/` and build to `/runtime/*`.'
+  --name "Docs Location" \
+  --description "Site docs live in the Fumadocs docs collection" \
+  --content 'Site docs are authored under `packages/site/content/docs/` and build to `/docs/*`.'
 ```
 
 Write to a specific agent tier:

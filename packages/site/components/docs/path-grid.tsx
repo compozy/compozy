@@ -31,7 +31,7 @@ export function PathCard({ label, title, description, children }: PathCardProps)
   return (
     <section className="flex flex-col rounded-xl border border-line bg-canvas-soft px-5 pt-[18px] pb-4 transition-colors hover:border-line-strong">
       <Eyebrow className="text-subtle">{label}</Eyebrow>
-      <p className="mt-2 text-compact-h1 font-semibold tracking-tight text-fg">{title}</p>
+      <h3 className="mt-2 text-compact-h1 font-semibold tracking-tight text-fg">{title}</h3>
       <p className="mt-1.5 text-sm leading-6 text-muted">{description}</p>
       <div className="mt-3.5 flex flex-col border-t border-line pt-2.5">{children}</div>
     </section>

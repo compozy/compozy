@@ -60,6 +60,7 @@ use the same resolved values that the Run started with.
 | `params.max_turns`     | yes      | Positive integer               | Initial turn limit. An approved turn extension adds this pinned amount; it does not reset the counter.     |
 | `params.on_exhausted`  | no       | `halt` or `escalate`           | `halt` ends the Run `exhausted`; `escalate` parks the Run in `needs-approval`. Default: `halt`.            |
 | `params.output_schema` | yes      | JSON Schema                    | Its `status` property must include `blocked`, so the action can represent a truthful blocked result.       |
+| `params.runtime`       | no       | provider, model, reasoning     | Per-node runtime override for the Goal worker; omitted fields resolve from the normal runtime selection.   |
 | `session.mode`         | no       | `continuous`                   | Reuses one durable binding across turns. Default when `session` is absent.                                 |
 | `session.isolated`     | no       | `true`                         | Selects an isolated session instead of continuous mode. The two session strategies are mutually exclusive. |
 | `session.handle`       | no       | Display label                  | Continuous binding identity is hashed with node and fan-out item identity; the label is display metadata.  |

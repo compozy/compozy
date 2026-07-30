@@ -31,7 +31,7 @@ export const MARKETPLACE_KIND_META: readonly MarketplaceKindMeta[] = [
     noun: "MCP server",
     title: "MCP servers",
     description:
-      "Model Context Protocol servers the runtime installs, scopes, and supervises for your agents. Required secrets are prompted at install — values are never stored in the catalog or shown here.",
+      "Model Context Protocol servers the runtime installs, scopes, and supervises for your agents. The catalog identifies required fields; use --set or a Vault ref to supply them. Values are never stored in the catalog or shown here.",
     icon: Plug,
   },
   {
@@ -50,6 +50,10 @@ export function kindMeta(kind: MarketplaceKind): MarketplaceKindMeta {
     throw new Error(`unknown marketplace kind: ${kind}`);
   }
   return meta;
+}
+
+export function extensionTierLabel(tier: "official" | "community" | "unverified"): string {
+  return `${tier.slice(0, 1).toUpperCase()}${tier.slice(1)}`;
 }
 
 export function formatFeedDate(value: string | undefined): string | null {

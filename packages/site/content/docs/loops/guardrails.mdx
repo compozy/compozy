@@ -17,13 +17,13 @@ category; a node's _class_ is never colored.
 
 ### Live states
 
-| State            | Meaning                                                                                                      |
-| ---------------- | ------------------------------------------------------------------------------------------------------------ |
-| `queued`         | A same-Loop start deferred by `concurrency: queue`. Promoted FIFO when a sibling run terminates.             |
-| `running`        | The coordinator owns an active generation. The initial state at start.                                       |
-| `watching`       | A dormant [watch-source](/docs/loops/extensions#watch-sources) run awaiting its next poll tick.              |
-| `needs-approval` | A dormant run parked on a human gate (or a `budget.on_exceeded: escalate`). Resumed by an approval decision. |
-| `paused`         | An operator paused the run at a generation boundary.                                                         |
+| State            | Meaning                                                                                                                     |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `queued`         | A same-Loop start deferred by `concurrency: queue`. Promoted FIFO when a sibling run terminates.                            |
+| `running`        | The coordinator owns an active generation. The initial state at start.                                                      |
+| `watching`       | A dormant run awaiting a [watch-source](/docs/loops/extensions#watch-sources) poll tick or a matching `watch-events` event. |
+| `needs-approval` | A dormant run parked on a human gate (or a `budget.on_exceeded: escalate`). Resumed by an approval decision.                |
+| `paused`         | An operator paused the run at a generation boundary.                                                                        |
 
 `needs-approval` and `paused` are **live pauses**, never terminal — the run is still alive and will
 resume. `paused` is operator-initiated; `needs-approval` is system-initiated by a human gate.
@@ -78,17 +78,18 @@ Every stop limit has a **per-Loop default** (the definition, seeded by
 ceiling**. Overrides may tighten a value but never loosen it past the ceiling — every layer is
 clamped.
 
-| Limit              | Contract key                          | Delivery default | Watch default      | Daemon ceiling             |
-| ------------------ | ------------------------------------- | ---------------- | ------------------ | -------------------------- |
-| Iteration cap      | `contract.iteration_cap`              | 50               | 0 (unbounded, `∞`) | none — `0` means unbounded |
-| Token budget       | `contract.budget.tokens`              | 0 (off)          | 0 (off)            | none                       |
-| Wall-clock budget  | `contract.budget.wall_clock_sec`      | 0 (off)          | 0 (off)            | none                       |
-| No-progress window | `contract.no_progress.window`         | 3                | 2                  | 30                         |
-| Fan-out width      | node `max_parallel` / `fan_out_width` | 4                | 2                  | 64                         |
-| Gate max revisions | gate `max_revisions`                  | 10               | —                  | 64                         |
+| Limit              | Contract key                          | Delivery default | `watch-source` default | Daemon ceiling             |
+| ------------------ | ------------------------------------- | ---------------- | ---------------------- | -------------------------- |
+| Iteration cap      | `contract.iteration_cap`              | 50               | 0 (unbounded, `∞`)     | none — `0` means unbounded |
+| Token budget       | `contract.budget.tokens`              | 0 (off)          | 0 (off)                | none                       |
+| Wall-clock budget  | `contract.budget.wall_clock_sec`      | 0 (off)          | 0 (off)                | none                       |
+| No-progress window | `contract.no_progress.window`         | 3                | 2                      | 30                         |
+| Fan-out width      | node `max_parallel` / `fan_out_width` | 4                | 2                      | 64                         |
+| Gate max revisions | gate `max_revisions`                  | 10               | —                      | 64                         |
 
-Watch Loops default `iteration_cap: 0` and render the cap as `∞`; a `0` budget means unlimited
-(progress-first). Budgets are opt-in — set a nonzero value to cap spend.
+A definition containing `watch-source` defaults `iteration_cap: 0` and renders the cap as `∞`.
+`watch-events` retains the delivery default of `50` unless its contract explicitly sets `0`; a `0`
+budget means unlimited (progress-first). Budgets are opt-in — set a nonzero value to cap spend.
 
 When a set budget is exceeded, `budget.on_exceeded` chooses the response:
 

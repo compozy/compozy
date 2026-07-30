@@ -15,7 +15,7 @@ import { createPageMetadata } from "@/lib/site-config";
 export const metadata: Metadata = createPageMetadata({
   title: "Marketplace",
   description:
-    "Skills, extensions, MCP servers, and bridge providers for CompozyOS — every entry rendered from the same catalog feeds your daemon reads.",
+    "Skills, extensions, MCP servers, and bridge providers for CompozyOS — rendered from this build's checked-in catalog snapshot.",
   path: "/marketplace",
 });
 

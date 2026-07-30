@@ -12,18 +12,18 @@ import {
 import { getMDXComponents } from "@/mdx-components";
 import { openapi } from "@/lib/openapi";
 import { resolveDocMastheadMeta } from "@/lib/doc-masthead-meta";
-import { absoluteUrl, createPageMetadata, docsSourceUrl } from "@/lib/site-config";
+import { absoluteUrl, canonicalPath, createPageMetadata, docsSourceUrl } from "@/lib/site-config";
 
 interface PageProps {
   params: Promise<{ slug?: string[] }>;
 }
 
-function buildActionUrls(slug: string[], relativePath: string | undefined) {
+function buildActionUrls(pageUrl: string, slug: string[], relativePath: string | undefined) {
   const slugSegment = slug.length ? `${slug.join("/")}/` : "";
   const markdownUrl = `/llms.mdx/docs/${slugSegment}`;
-  const pageUrl = absoluteUrl(`/docs/${slugSegment}`);
+  const canonicalPageUrl = absoluteUrl(canonicalPath(pageUrl));
   const githubUrl = docsSourceUrl(relativePath ?? "");
-  return { markdownUrl, pageUrl, githubUrl };
+  return { markdownUrl, pageUrl: canonicalPageUrl, githubUrl };
 }
 
 function humanize(segment: string): string {
@@ -57,7 +57,7 @@ export default async function Page(props: PageProps) {
   if (!page) notFound();
 
   const MDX = page.data.body;
-  const actions = buildActionUrls(slug, page.path);
+  const actions = buildActionUrls(page.url, slug, page.path);
   const breadcrumbs = buildBreadcrumbs(slug, page.data.title);
   const masthead = resolveDocMastheadMeta(slug, docsSource.pageTree, page.url, page.data.title);
   const ogImagePath = `/og/docs/${slug.length ? `${slug.join("/")}/` : ""}image.png`;
@@ -67,6 +67,7 @@ export default async function Page(props: PageProps) {
     <DocsPage
       id="main-content"
       toc={page.data.toc}
+      tableOfContent={{ enabled: slug.length > 0 }}
       breadcrumb={{ enabled: false }}
       tableOfContentPopover={{ enabled: false }}
       slots={{ container: DocsMainContainer }}

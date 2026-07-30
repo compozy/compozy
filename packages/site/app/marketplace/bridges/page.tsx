@@ -13,10 +13,14 @@ import { createPageMetadata } from "@/lib/site-config";
  */
 export const metadata: Metadata = createPageMetadata({
   title: "Bridges — Marketplace",
-  description:
-    "Chat and tracker platforms your agents can live in: the eight in-tree Compozy bridge providers, their secret slots, and their setup guides.",
+  description: `Chat and tracker platforms your agents can live in: the ${bridgeProviders.length} in-tree Compozy bridge providers, their secret slots, and their setup guides.`,
   path: "/marketplace/bridges",
 });
+
+const firstBridgeProvider = bridgeProviders[0];
+if (!firstBridgeProvider) {
+  throw new Error("Marketplace bridges require at least one in-tree provider manifest");
+}
 
 export default function MarketplaceBridgesPage() {
   return (
@@ -68,7 +72,7 @@ export default function MarketplaceBridgesPage() {
           </p>
           <div className="mt-5 overflow-x-auto rounded-lg border border-line bg-canvas p-4">
             <pre className="m-0 font-mono text-small-body leading-relaxed text-fg">
-              {`PROVIDER=${bridgeProviders[0]?.platform ?? "slack"}
+              {`PROVIDER=${firstBridgeProvider.platform}
 mkdir -p "./extensions/bridges/$PROVIDER/bin"
 go build -o "./extensions/bridges/$PROVIDER/bin/$PROVIDER" "./extensions/bridges/$PROVIDER"
 compozy extension install "./extensions/bridges/$PROVIDER" --allow-unverified --yes -o json

@@ -194,9 +194,6 @@ func newTaskProfileCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   taskProfileKey,
 		Short: "Manage task execution profiles",
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			return cmd.Help()
-		},
 	}
 	cmd.AddCommand(newTaskProfileInspectCommand(deps))
 	cmd.AddCommand(newTaskProfileUpdateCommand(deps))

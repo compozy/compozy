@@ -59,15 +59,11 @@ compozy completion bash
 
 ## Output Formats
 
-Every Compozy command supports `-o, --output`:
+This command writes its shell-completion script directly to standard output. The inherited `-o, --output` and `--json` flags do not convert that script to a command result.
 
-- `human` for interactive terminal use
-- `json` for scripts and other machine-readable consumers
-- `jsonl` for wait or streaming commands that emit one JSON record per line
-- `toon` for compact agent-readable summaries
-
-Example:
-
-```bash
-compozy completion bash > /etc/bash_completion.d/compozy -o json
-```
+| Format  | Output                        |
+| ------- | ----------------------------- |
+| `human` | Shell-completion script       |
+| `json`  | Not a command-result renderer |
+| `jsonl` | Not a command-result renderer |
+| `toon`  | Not a command-result renderer |

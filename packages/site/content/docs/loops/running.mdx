@@ -31,7 +31,9 @@ Loop defaults" to "overrides set" when you touch one.
 <OperatorNote label="What the run form does not offer">
   There is no cost cap — cost is [display-only](/docs/loops/guardrails#cost-is-a-meter-not-a-cap).
   Re-attempt strategy is a [configure](/docs/loops/configure)-time choice, not a per-run one. The
-  canonical defaults are `iteration_cap: 50` and budgets off (`0`); a watch Loop's cap is `∞`.
+  canonical delivery defaults are `iteration_cap: 50` and budgets off (`0`). Only a definition that
+  contains `watch-source` defaults to `iteration_cap: 0` (`∞`); set `contract.iteration_cap: 0`
+  explicitly when a `watch-events` Loop must be unbounded.
 </OperatorNote>
 
 ## The live run page

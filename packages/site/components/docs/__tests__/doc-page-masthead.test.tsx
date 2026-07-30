@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { DocPageMasthead } from "../doc-page-masthead";
 
@@ -6,19 +6,21 @@ describe("DocPageMasthead", () => {
   it("renders context-row crumbs above the title without Focus filler", () => {
     render(
       <DocPageMasthead
-        product="CompozyOS Runtime"
+        product="CompozyOS"
         audience="people running agent work"
-        crumbs={[{ name: "Core Concepts", href: "/runtime/core" }, { name: "Sessions" }]}
-        title="Session Lifecycle"
-        description="Durable runtime unit."
+        crumbs={[{ name: "Sessions", href: "/docs/sessions" }, { name: "Session lifecycle" }]}
+        title="Session lifecycle"
+        description="A durable session."
         sectionPageCount={4}
       />
     );
 
-    expect(screen.getByText("CompozyOS Runtime")).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Core Concepts" })).toBeTruthy();
-    expect(screen.getByText("Sessions")).toBeTruthy();
-    expect(screen.getByRole("heading", { level: 1, name: "Session Lifecycle" })).toBeTruthy();
+    expect(screen.getByText("CompozyOS")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Sessions" }).getAttribute("href")).toBe(
+      "/docs/sessions"
+    );
+    expect(within(screen.getByLabelText("Breadcrumb")).getByText("Session lifecycle")).toBeTruthy();
+    expect(screen.getByRole("heading", { level: 1, name: "Session lifecycle" })).toBeTruthy();
     expect(screen.getByText("people running agent work")).toBeTruthy();
     expect(screen.getByText("4 pages")).toBeTruthy();
     expect(screen.queryByText(/guidance shaped for scanability/i)).toBeNull();
@@ -48,7 +50,7 @@ describe("DocPageMasthead", () => {
         audience="protocol implementers"
         crumbs={[{ name: "Overview" }]}
         title="Protocol"
-        markdownUrl="/llms.mdx/protocol/"
+        markdownUrl="/llms.mdx/docs/network/protocol/"
         pageUrl="https://compozy.com/docs/network/protocol/"
         githubUrl="https://github.com/compozy/compozy"
       />

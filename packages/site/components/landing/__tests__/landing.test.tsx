@@ -415,6 +415,14 @@ describe("AutonomyKernelSection", () => {
       expect(screen.getByText(heading)).toBeDefined();
     }
   });
+
+  it("links the autonomy guide CTA to the autonomy documentation", () => {
+    render(<AutonomyKernelSection />);
+
+    expect(
+      screen.getByRole("link", { name: "Read the autonomy kernel guide" }).getAttribute("href")
+    ).toBe("/docs/autonomy");
+  });
 });
 
 describe("FinalCta", () => {

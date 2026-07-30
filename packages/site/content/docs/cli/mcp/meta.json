@@ -1,4 +1,4 @@
 {
     "title": "Mcp",
-    "pages": ["index", "authorize", "install", "serve", "auth"]
+    "pages": ["index", "install", "serve", "auth"]
 }

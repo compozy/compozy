@@ -29,15 +29,17 @@ compozy layout watch [flags]
 
 ## Output Formats
 
-Every Compozy command supports `-o, --output`:
+This streaming command supports interactive human output or newline-delimited JSON. It rejects the inherited `json` and `toon` output modes.
 
-- `human` for interactive terminal use
-- `json` for scripts and other machine-readable consumers
-- `jsonl` for wait or streaming commands that emit one JSON record per line
-- `toon` for compact agent-readable summaries
+| Format  | Stream output            |
+| ------- | ------------------------ |
+| `human` | Interactive event stream |
+| `json`  | Not supported            |
+| `jsonl` | One JSON event per line  |
+| `toon`  | Not supported            |
 
 Example:
 
 ```bash
-compozy layout watch -o json
+compozy layout watch -o jsonl
 ```

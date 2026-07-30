@@ -3,13 +3,18 @@ import { ArrowRight, Terminal } from "lucide-react";
 import Link from "next/link";
 import { bridgeProviders } from "@/lib/marketplace-bridges";
 import { bundledSkills, devCycleExtension } from "@/lib/marketplace-bundled";
-import { extensionEntries, mcpEntries, skillEntries } from "@/lib/marketplace-catalog";
+import {
+  MARKETPLACE_FEED_FILENAMES,
+  MARKETPLACE_SEARCH_COMMAND,
+  extensionEntries,
+  mcpEntries,
+  skillEntries,
+} from "@/lib/marketplace-catalog";
 import { MarketplaceFeedPipeline } from "./marketplace-feed-pipeline";
 import { MarketplaceInstallCommand } from "./marketplace-install-command";
 
 /**
- * Every number here is counted from the repository at build time. The catalog is small and the strip
- * says so — an honest three beats a rounded-up twelve, and nothing in it is a popularity metric,
+ * Every number here is counted from the repository at build time. Nothing is a popularity metric,
  * because no such field exists in the feeds (`internal/marketplace/entry_*.go`).
  */
 function heroStats() {
@@ -27,7 +32,7 @@ function heroStats() {
     },
     { value: bridgeProviders.length, label: "Bridge providers" },
     { value: bundledResources, label: "Bundled resources" },
-    { value: 3, label: "JSON feeds" },
+    { value: MARKETPLACE_FEED_FILENAMES.length, label: "JSON feeds" },
   ];
 }
 
@@ -42,17 +47,18 @@ export function MarketplaceHero() {
         <div className="grid items-center gap-12 lg:grid-cols-[minmax(0,1fr)_420px] lg:gap-18">
           <div>
             <Eyebrow className="text-accent">Marketplace</Eyebrow>
-            <h1 className="mt-3.5 font-display text-site-doc-title leading-[1.05] font-normal tracking-[-0.02em] text-fg">
+            <h1 className="mt-3.5 font-display text-site-doc-title leading-tight font-normal tracking-tight text-fg">
               Install what your agents <em>need</em>
             </h1>
             <p className="mt-4 max-w-[64ch] text-site-lead text-muted">
-              Skills, MCP servers, extensions, and bridge providers — every entry on this page
-              renders from the same catalog feeds your daemon reads.
+              Skills, MCP servers, extensions, and bridge providers from this build&apos;s
+              checked-in catalog snapshot. Search your daemon before installing: its active catalog
+              can differ.
             </p>
 
             <div className="mt-7 flex flex-wrap items-center gap-4.5">
               <MarketplaceInstallCommand
-                command="compozy marketplace"
+                command={MARKETPLACE_SEARCH_COMMAND}
                 className="min-w-0 flex-1 basis-85"
               />
               <Link
@@ -70,11 +76,11 @@ export function MarketplaceHero() {
                   key={stat.label}
                   className="min-w-0 flex-1 basis-32 ps-5.5 not-first:border-s not-first:border-line first:ps-0"
                 >
-                  <dt className="font-mono text-kpi-compact font-medium tracking-[-0.02em] text-fg-strong">
+                  <dt className="font-mono text-kpi-compact font-medium tracking-tight text-fg-strong">
                     {stat.value}
                   </dt>
-                  <dd className="mt-0.5 font-mono text-group-label font-medium tracking-[0.08em] text-subtle uppercase">
-                    {stat.label}
+                  <dd className="mt-0.5 text-subtle">
+                    <Eyebrow>{stat.label}</Eyebrow>
                   </dd>
                 </div>
               ))}

@@ -1,18 +1,18 @@
 ---
 id: ET-site-marketplace-catalog
 area: ET
-title: Public /marketplace renders the real catalog feeds with install-command CTAs
+title: Public /marketplace renders the checked-in catalog snapshot with daemon-search CTAs
 persona: Dora
 journey: J-evaluate-compozy-beta
-expected: /marketplace shows one section per kind (Skills, Extensions, MCP servers — no bundles) with every entry from catalog/*.json, a Contribute card pointing at the catalog PR flow, and a line about compozy skill search / compozy extension search third-party registries. /marketplace/[kind] lists that kind; /marketplace/[kind]/[entryId] shows metadata plus a copyable install command (compozy skill install <slug> / compozy extension install <slug> / compozy mcp install <entry>) and kind-specific blocks: extension tier + digest + repository; MCP transport, env table with secrets flagged but never valued, and default scope. No ratings, downloads, featured flags, or other invented fields appear anywhere.
+expected: /marketplace identifies itself as a checked-in catalog snapshot, shows one section per kind (Skills, Extensions, MCP servers — no bundles) with every entry from catalog/*.json, and offers a Contribute card pointing at the catalog PR flow. /marketplace/[kind] lists that kind; /marketplace/[kind]/[entryId] shows metadata plus a copyable `compozy marketplace search <entry-id> --kind <kind>` command so the daemon resolves the entry against its configured active source before installation. Kind-specific blocks show extension tier + digest + repository, or MCP transport, env fields with secrets flagged but never valued, and default scope. No ratings, downloads, featured flags, or other invented fields appear anywhere.
 entry_points: compozy.com /marketplace; /marketplace/skills; /marketplace/extensions; /marketplace/mcp/context7; /marketplace/bridges; /marketplace/bundled/dev-cycle
 qa_status: pass
 bug_ids:
 fix_status:
-retest_status:
+retest_status: pass
 fix_commits:
-evidence: 2026-07-29 walk on a local `next build` + `next start :4598`. All routes returned 200: /docs/, /docs/examples/ and its five wave-one pages, /marketplace/, /marketplace/{skills,mcp,extensions}/, /marketplace/bridges/, /marketplace/bundled/dev-cycle/, /marketplace/mcp/context7/, and the bridge setup guides. Visual-contract bundles VC-01..VC-05 under .compozy/tasks/site-docs-ia/evidence/visual/gap-closure/ validate PASS with 0 blocking divergences. VC-01/02/03 cover the hero with its feed-pipeline figure and counted stat strip, the kind list shell with tab strip and filter, and the extension detail with crumbs, meta strip, install CTA, and icon-headed Provenance. Rendered-HTML assertions confirm no Bundles kind and no invented trust field on any marketplace route.
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-site-improvs-deep-review-20260730-024918-833208-lab/qa-artifacts/qa/visual-contract/deep-review-remediation/vc04-marketplace-root; /Users/pedronauck/dev/qa-labs/compozy-site-improvs-deep-review-20260730-024918-833208-lab/qa-artifacts/qa/visual-contract/deep-review-remediation/vc05-marketplace-list; /Users/pedronauck/dev/qa-labs/compozy-site-improvs-deep-review-20260730-024918-833208-lab/qa-artifacts/qa/visual-contract/deep-review-remediation/vc06-marketplace-detail
+last_report: docs/qa/reports/2026-07-29-site-improvs-deep-review.md
 overlaps: ET-site-docs-single-tree-ia
 ---
 
@@ -21,6 +21,10 @@ Phase B): `/marketplace` is a build-time render of `catalog/skills.json`, `catal
 and `catalog/mcp.json` — the same feeds `internal/config/marketplace.go` points the daemon at.
 Browse-only by design (the site has no daemon); the CTA is the CLI command. Re-walk when the
 catalog population workstream (spec §9) lands new entries or when the feed schema changes.
+
+QA impact 2026-07-29 deep-review remediation: reset after the static snapshot was labeled explicitly,
+entry actions changed from unverified install commands to active-daemon search commands, feed validation
+was aligned with the daemon contract, and Marketplace typography/layout changed.
 
 QA impact 2026-07-29: `/marketplace` was rebuilt to the OpenDesign reference
 (`docs/design/opendesign/site/site-marketplace*.html`). New surfaces: a two-column hero with a

@@ -23,12 +23,14 @@ Dismiss or reset the coordination invitation
 
 ## Output Formats
 
-Every Compozy command supports `-o, --output`:
+This command displays human-readable help and its subcommand list. The inherited `-o, --output` and `--json` flags do not serialize help output.
 
-- `human` for interactive terminal use
-- `json` for scripts and other machine-readable consumers
-- `jsonl` for wait or streaming commands that emit one JSON record per line
-- `toon` for compact agent-readable summaries
+| Format  | Output                   |
+| ------- | ------------------------ |
+| `human` | Help and subcommand list |
+| `json`  | Not emitted for help     |
+| `jsonl` | Not emitted for help     |
+| `toon`  | Not emitted for help     |
 
 ## Subcommands
 

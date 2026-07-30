@@ -4,13 +4,12 @@ description: Per-tag HTTP and SSE reference for the Compozy daemon, generated fr
 ---
 
 The Compozy daemon ships a single HTTP surface under `/api`. This reference is built from
-`openapi/compozy.json` at every site build, so each request and response schema below matches the
-binary you are running.
+`openapi/compozy.json` at every site build and matches the daemon you build from this checkout. A
+separately deployed daemon can expose a different contract revision.
 
 <OperatorNote label="How this reference stays truthful">
-  Every endpoint page is generated from `openapi/compozy.json`, which is rewritten by `make codegen`
-  from the Go HTTP contract. Drift is enforced by `make codegen-check` in CI, so what you read here
-  matches the daemon you build from this checkout.
+  Every endpoint page is generated from `openapi/compozy.json`, which `make codegen` rewrites from
+  the Go HTTP contract. `make codegen-check` detects generated-contract drift in CI.
 </OperatorNote>
 
 The CLI and the HTTP API operate the same daemon state. Use the
@@ -21,7 +20,7 @@ you need request bodies, response schemas, status codes, or SSE event shapes.
 
 ### Automating session work
 
-1. [Sessions](/docs/api/sessions) — `POST /api/sessions`, `POST /api/workspaces/:workspace_id/sessions/:session_id/prompt`, `GET /api/workspaces/:workspace_id/sessions/:session_id/events`, `GET /api/workspaces/:workspace_id/sessions/:session_id/stream`, `POST /api/workspaces/:workspace_id/sessions/:session_id/attach`, `GET /api/workspaces/:workspace_id/sessions/:session_id/recap`.
+1. [Sessions](/docs/api/sessions) — create, prompt, attach, inspect, and stream session work; the generated page owns the exact methods, paths, and schemas.
 2. [Agents](/docs/api/agents) — list and inspect resolved agent definitions.
 3. [Memory](/docs/api/memory) — show, write, search, and run dream checks for persistent context.
 

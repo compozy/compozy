@@ -9,7 +9,7 @@
 #   fingerprint  print the current tree fingerprint
 #
 # Records live in .cache/gate/<lane>.json keyed by a content fingerprint
-# (HEAD tree + index tree + hashes of modified/untracked files): commits and
+# (HEAD tree + index tree + hashes of modified/deleted/untracked files): commits and
 # rebases that keep content identical keep records valid; any edit goes stale.
 # Target bash 3.2 (stock macOS) — no associative arrays, no mapfile.
 
@@ -45,7 +45,7 @@ tree_fingerprint() {
   {
     git rev-parse 'HEAD^{tree}' 2>/dev/null || printf 'no-head\n'
     git write-tree 2>/dev/null || printf 'no-index\n'
-    git ls-files -m -o --exclude-standard -z | sort -zu | while IFS= read -r -d '' path; do
+    git ls-files -m -d -o --exclude-standard -z | sort -zu | while IFS= read -r -d '' path; do
       case "$path" in
         "$GATE_DIR"/*) continue ;;
       esac
@@ -108,7 +108,7 @@ is_full_trigger() {
 # Docs, agent instructions, and CI definitions exercise no verify lane.
 is_no_lane() {
   case "$1" in
-    docs/* | .claude/* | .codex/* | .agents/* | .compozy/* | .github/* | .deep-review/*) return 0 ;;
+    docs/* | packages/site/content/* | .claude/* | .codex/* | .agents/* | .compozy/* | .github/* | .deep-review/*) return 0 ;;
     *.md | *.mdc | LICENSE* | .gitignore | .gitattributes | .editorconfig) return 0 ;;
     *) return 1 ;;
   esac
@@ -211,21 +211,25 @@ go_test_p() {
     printf '%s\n' "$COMPOZY_GO_TEST_P"
     return
   fi
-  local cpu p
+  local cpu parallel total_budget p
   cpu="$(sysctl -n hw.ncpu 2>/dev/null || nproc 2>/dev/null || echo 8)"
-  p=$((cpu / 8))
+  parallel="$(go_test_parallel)"
+  total_budget=$((cpu / 2))
+  p=$((total_budget / parallel))
   if [ "$p" -lt 1 ]; then
     p=1
   fi
   printf '%d\n' "$p"
 }
 
+go_test_parallel() { printf '4\n'; }
+
 run_go_lanes() {
   local scope_args
   scope_args="$(printf '%s' "$GO_SCOPES" | sort -u | tr '\n' ' ')"
   run_lane go-lint make go-lint
   # shellcheck disable=SC2086
-  run_lane go-test env CGO_ENABLED=1 go test -race -p "$(go_test_p)" $scope_args
+  run_lane go-test env CGO_ENABLED=1 go test -race -p "$(go_test_p)" -parallel "$(go_test_parallel)" $scope_args
 }
 
 run_js_lanes() {
@@ -295,7 +299,7 @@ cmd_plan() {
     return 0
   fi
   if [ -n "$GO_SCOPES" ]; then
-    log "would run: make go-lint && CGO_ENABLED=1 go test -race -p $(go_test_p) $(printf '%s' "$GO_SCOPES" | sort -u | tr '\n' ' ')"
+    log "would run: make go-lint && CGO_ENABLED=1 go test -race -p $(go_test_p) -parallel $(go_test_parallel) $(printf '%s' "$GO_SCOPES" | sort -u | tr '\n' ' ')"
   fi
   if [ -n "$JS_FILTERS" ]; then
     local filter

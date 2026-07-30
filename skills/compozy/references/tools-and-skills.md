@@ -103,8 +103,8 @@ input-free). `mcp_install_event_persist_failed` warns that install committed but
 event did not. Cleanup touches only superseded owned refs. Complete secret restoration rolls back;
 partial secret/definition restoration retains the commit and returns a residual-state warning.
 
-When `next_step=authorize`, run `compozy mcp authorize <name>`; `compozy mcp auth login <name>` reaches the
-same daemon-owned PKCE flow. Use `--manual` to paste a code or full redirect URL, especially for a
+When `next_step=authorize`, run `compozy mcp auth login <name>` to start the daemon-owned PKCE flow.
+Use `--manual` to paste a code or full redirect URL, especially for a
 remote operator or non-loopback HTTP bind. Workspace targets always carry both
 `--scope workspace --workspace <id>`. Treat authorization as complete only when redacted status is
 `authenticated` with `token_present=true`. `--timeout` bounds the whole attempt, including manual

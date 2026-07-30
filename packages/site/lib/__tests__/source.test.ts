@@ -122,9 +122,10 @@ describe("docs category overview", () => {
     const network = findFolder(tree.children, "network");
     if (!network) throw new Error("expected network folder");
 
-    expect(network.index).toBeUndefined();
+    expect(network.index?.url).toBe("/docs/network");
     expect(childNames(network)).toEqual(["Overview", "Protocol Model", "Public Threads"]);
     const overview = network.children[0];
+    expect(overview).toBe(network.index);
     expect(overview.type === "page" ? overview.url : "").toBe("/docs/network");
   });
 
@@ -142,13 +143,14 @@ describe("docs category overview", () => {
     const loops = findFolder(tree.children, "loops");
     if (!loops) throw new Error("expected loops folder");
 
-    expect(loops.index).toBeUndefined();
+    expect(loops.index?.url).toBe("/docs/loops");
     expect(childNames(loops)).toEqual([
       "Overview",
       "Catalog and detail",
       "Author",
       "Authoring loop",
     ]);
+    expect(loops.children[0]).toBe(loops.index);
   });
 
   it("Should leave a category without a landing page untouched", () => {

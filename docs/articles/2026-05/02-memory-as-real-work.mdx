@@ -305,7 +305,7 @@ to move an entry between scopes or tiers. `recall` to fetch and trace the
 deterministic recall path. `dream` to inspect or trigger consolidation
 manually. `scope-show` to resolve which scope and tier a query lands in.
 The HTTP surface mirrors the verb set at `/api/memory/*` —
-`packages/site/content/runtime/api-reference/memory.mdx` is generated from
+`packages/site/content/docs/api/memory.mdx` is generated from
 the OpenAPI schema and stays in sync with the implementation.
 
 Agent-manageable is the load-bearing property. Every memory operation an
@@ -365,7 +365,7 @@ The session after that one starts with it too. The agent that ended yesterday
 knowing things keeps knowing them tomorrow. The notebook stays on the desk.
 
 The full reference for every verb, every scope, and every gate config lives
-in the Compozy runtime docs at `compozy.com/runtime/memory`. The Markdown is on
+in the Compozy docs at `compozy.com/docs/memory/`. The Markdown is on
 disk. The cascade is in `internal/memory/dream.go`. Inspect it, edit it,
 break it, and tell the runtime where the model of an agent at a desk still
 falls short.

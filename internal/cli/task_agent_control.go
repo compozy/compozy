@@ -246,9 +246,6 @@ func newTaskChildCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "child",
 		Short: "Manage child tasks",
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			return cmd.Help()
-		},
 	}
 	cmd.AddCommand(newTaskChildCreateCommand(deps))
 	return cmd

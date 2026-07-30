@@ -7,11 +7,12 @@ import type { ContentStorage, PageTreeTransformer } from "fumadocs-core/source";
  * Fumadocs decides that per folder: when `meta.json` lists `"index"` the landing page becomes a
  * normal child row, otherwise it is attached as `folder.index` and the category header turns into a
  * link. Leaving the choice to each `meta.json` produced a sidebar where some categories navigated on
- * click and others only expanded, and the generated `cli-reference` tree could never follow an
- * authored convention at all.
+ * click and others only expanded, and the generated CLI tree could never follow an authored
+ * convention at all.
  *
- * This transformer removes the choice: every category keeps a plain expand/collapse header and
- * exposes its landing page as the first child, labeled `Overview`.
+ * This transformer removes the choice: every category exposes its landing page as the first child,
+ * labeled `Overview`. The canonical `folder.index` reference remains available to breadcrumbs; the
+ * sidebar recognizes the duplicated child and keeps the category header as an expand/collapse trigger.
  *
  * Opting out stays possible through the Fumadocs-native `"!index"` entry, which removes the landing
  * page from the tree entirely — there is nothing left to hoist.
@@ -41,8 +42,8 @@ export function hoistOverviewPage(folder: Folder, folderPath: string): Folder {
   const overview = folder.index ?? findIndexChild(folder.children, folderPath);
   if (!overview) return folder;
   overview.name = OVERVIEW_LABEL;
+  folder.index = overview;
   folder.children = [overview, ...folder.children.filter(child => child !== overview)];
-  delete folder.index;
   return folder;
 }
 

@@ -370,6 +370,15 @@ tokens:
       doc-layout-width: "96rem"
       doc-sidebar-width: "16rem"
       doc-toc-width: "14rem"
+      doc-sidebar-marker-offset: "0.75rem"
+      doc-sidebar-marker-inset: "0.375rem"
+      doc-sidebar-nested-marker-offset: "0.6875rem"
+      doc-sidebar-tree-indent: "0.875rem"
+      doc-sidebar-tree-gutter: "0.625rem"
+      doc-sidebar-tree-line-inset: "0.25rem"
+      doc-sidebar-first-group-gap: "0.375rem"
+      doc-toc-gutter: "1rem"
+      doc-index-label-width: "11.875rem"
 ---
 
 # Design System: Compozy
@@ -991,12 +1000,15 @@ chrome (sidebar, TOC, actions, `h3`+) stay on Inter. Docs mono labels bind
 
 <!-- BEGIN:tokens:site-layout -->
 
-| Token                      | Value    |
-| -------------------------- | -------- |
-| `--site-layout-width`      | `1200px` |
-| `--site-doc-layout-width`  | `96rem`  |
-| `--site-doc-sidebar-width` | `16rem`  |
-| `--site-doc-toc-width`     | `14rem`  |
+| Token                                     | Value       | Token                                | Value      |
+| ----------------------------------------- | ----------- | ------------------------------------ | ---------- |
+| `--site-layout-width`                     | `1200px`    | `--site-doc-layout-width`            | `96rem`    |
+| `--site-doc-sidebar-width`                | `16rem`     | `--site-doc-toc-width`               | `14rem`    |
+| `--site-doc-sidebar-marker-offset`        | `0.75rem`   | `--site-doc-sidebar-marker-inset`    | `0.375rem` |
+| `--site-doc-sidebar-nested-marker-offset` | `0.6875rem` | `--site-doc-sidebar-tree-indent`     | `0.875rem` |
+| `--site-doc-sidebar-tree-gutter`          | `0.625rem`  | `--site-doc-sidebar-tree-line-inset` | `0.25rem`  |
+| `--site-doc-sidebar-first-group-gap`      | `0.375rem`  | `--site-doc-toc-gutter`              | `1rem`     |
+| `--site-doc-index-label-width`            | `11.875rem` |                                      |            |
 
 <!-- END:tokens:site-layout -->
 

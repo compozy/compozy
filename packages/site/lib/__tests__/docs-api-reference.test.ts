@@ -2,6 +2,7 @@ import { readFileSync, existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { compozyGo } from "@/components/docs/openapi-page";
 import { API_TAG_ICONS, DOCS_ICONS } from "../docs-icons";
 import { API_SECTIONS } from "../docs-navigation";
 
@@ -72,5 +73,30 @@ describe("api reference", () => {
       .filter(([, icon]) => !(icon in DOCS_ICONS))
       .map(([tag, icon]) => `${tag} -> ${icon}`);
     expect(dangling).toEqual([]);
+  });
+
+  it("Should generate a current Go request sample that handles request failures", () => {
+    const sample = compozyGo.generate(
+      {
+        body: { workspace_id: "workspace_demo" },
+        bodyMediaType: "application/json",
+        cookie: {},
+        header: { Authorization: { value: "Bearer demo-token" } },
+        method: "post",
+        path: {},
+        query: {},
+        url: "https://compozy.com/api/v1/sessions",
+      },
+      { custom: undefined, mediaAdapters: {} }
+    );
+
+    expect(sample).toContain('"io"');
+    expect(sample).toContain("http.NewRequest");
+    expect(sample).toContain("Timeout: 30 * time.Second");
+    expect(sample).toContain("defer func()");
+    expect(sample).toContain("io.ReadAll(res.Body)");
+    expect(sample).toContain('req.Header.Set("Authorization", "Bearer demo-token")');
+    expect(sample).not.toContain("ioutil");
+    expect(sample).not.toContain("_ :=");
   });
 });

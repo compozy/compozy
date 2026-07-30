@@ -4,7 +4,7 @@ import { CatalogCard, Pill } from "@compozy/ui";
 import { ArrowRight, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import {
-  installCommand,
+  marketplaceSearchCommand,
   type ExtensionEntry,
   type MarketplaceEntry,
   type MarketplaceKind,
@@ -12,14 +12,10 @@ import {
   type SkillEntry,
 } from "@/lib/marketplace-catalog";
 import { MarketplaceInstallCommand } from "./marketplace-install-command";
-import { formatFeedDate, kindMeta } from "./marketplace-kind-meta";
+import { extensionTierLabel, formatFeedDate, kindMeta } from "./marketplace-kind-meta";
 
 function shortDigest(digest: string): string {
   return `sha256 · ${digest.slice(0, 8)}…`;
-}
-
-function tierLabel(tier: ExtensionEntry["tier"]): string {
-  return tier.charAt(0).toUpperCase() + tier.slice(1);
 }
 
 function MetaSeparator() {
@@ -32,7 +28,11 @@ function SkillMeta({ entry }: { entry: SkillEntry }) {
     <>
       {entry.author ? <span>By {entry.author}</span> : null}
       {entry.author && updated ? <MetaSeparator /> : null}
-      {updated ? <span>Updated {updated}</span> : null}
+      {updated ? (
+        <span>
+          {entry.updated_at ? "Updated" : "Published"} {updated}
+        </span>
+      ) : null}
       {entry.tags?.map(tag => (
         <Pill key={tag} size="sm" className="font-mono">
           {tag}
@@ -48,7 +48,7 @@ function ExtensionMeta({ entry }: { entry: ExtensionEntry }) {
     <>
       <Pill size="sm">
         <ShieldCheck aria-hidden className="size-3" />
-        {tierLabel(entry.tier)}
+        {extensionTierLabel(entry.tier)}
       </Pill>
       {entry.author ? <span>By {entry.author}</span> : null}
       {published ? (
@@ -146,7 +146,7 @@ export function MarketplaceEntryCard({
       </CatalogCard.Meta>
       <CatalogCard.Actions className="mt-1 flex flex-wrap items-center gap-3">
         <MarketplaceInstallCommand
-          command={installCommand(kind, entry)}
+          command={marketplaceSearchCommand(kind, entry)}
           className="min-w-0 flex-1 basis-64"
         />
         <Link

@@ -20,9 +20,6 @@ func newBridgeSecretBindingsCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "secret-bindings",
 		Short: "Manage bridge secret bindings",
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			return cmd.Help()
-		},
 	}
 	cmd.AddCommand(newBridgeSecretBindingsListCommand(deps))
 	cmd.AddCommand(newBridgeSecretBindingsPutCommand(deps))

@@ -34,7 +34,7 @@ journey:
       origin: direct
     - url: "pr-release plan --ref <candidate> --version 0.3.0-beta.1 --channel beta"
       origin: direct
-    - url: "MIGRATION_GUIDE.md; packages/site/content/runtime/migration/**; make migration-guide-check"
+    - url: "MIGRATION_GUIDE.md; packages/site/content/docs/migration/**; make migration-guide-check"
       origin: direct
     - url: "README and locally built packages/site install/release surfaces"
       origin: in-app-nav

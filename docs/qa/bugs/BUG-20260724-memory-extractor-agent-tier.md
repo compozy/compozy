@@ -19,7 +19,7 @@ The default Memory extractor produced a durable global candidate with `agent_tie
 
 1. Run a normal provider-backed session while the default memory extractor is enabled.
 2. Let the extractor return a global or workspace JSONL candidate with a non-empty `agent_tier`.
-3. Drain the extractor and inspect `compozy memory extractor list-pending -o json`.
+3. Drain the extractor and inspect `compozy memory extractor list-failures -o json`.
 
 **Expected:** The extractor boundary returns a contract-valid candidate; `agent_tier` is empty outside `scope = "agent"`.
 **Actual:** The controller rejects the candidate with `memory controller: candidate frontmatter: agent tier requires agent scope` and records a DLQ item.

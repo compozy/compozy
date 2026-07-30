@@ -258,21 +258,45 @@ start:
 The Loop lifecycle is validate, publish, then run. `task_name` is the one required input —
 `reviewer`, `fixer`, and `auto_commit` all ship with defaults.
 
+The bundled `dev-cycle` extension provides the `reviewer` and `review_fixer` definitions used by those
+defaults. They provide prompts, not provider configuration. Before a run, configure a default provider
+or a provider on each effective agent definition, then verify both names resolve for the target workspace:
+
+```bash
+compozy agent info reviewer --workspace /Users/you/src/checkout-api
+compozy agent info review_fixer --workspace /Users/you/src/checkout-api
+```
+
+To use custom agents, create their definitions and configured providers first, then add
+`--input reviewer=<agent-name>` and `--input fixer=<agent-name>` to each run command. See
+[Agent definitions](/docs/agents/definitions) for the resolution cascade.
+
 ```bash
 # check the definition against compozy.loop/v1
-compozy loop validate loop.yaml
+compozy loop validate \
+  --workspace /Users/you/src/checkout-api \
+  --file loop.yaml
 
 # publish it to your runtime
-compozy loop create loop.yaml
+compozy loop create \
+  --workspace /Users/you/src/checkout-api \
+  --file loop.yaml
 
 # rehearse a round without side effects, then run it
-compozy loop run review-and-fix --dry-run
-compozy loop run review-and-fix
+compozy loop run \
+  --workspace /Users/you/src/checkout-api \
+  --name review-and-fix \
+  --input task_name=<task-name> \
+  --dry-run
+compozy loop run \
+  --workspace /Users/you/src/checkout-api \
+  --name review-and-fix \
+  --input task_name=<task-name>
 ```
 
 Because the definition ships inside the bundled `dev-cycle` extension, the Loop is already
-published in your runtime — `compozy loop run review-and-fix` works without the validate and create
-steps above. Run those two when you copy the file out and adapt it.
+published in your runtime. Run it with `--name review-and-fix --input task_name=<task-name>` without
+the validate and create steps above. Run those two when you copy the file out and adapt it.
 
 The definition also declares its start surfaces: manual, CLI, HTTP, UDS, native tool, trigger, and
 signed webhook. An agent can start this Loop through the same contracts you just used.

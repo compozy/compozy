@@ -6,7 +6,7 @@ An operator works normally and trusts the daemon-owned memory pipeline to turn t
 flowchart TD
     A[Entry: normal working session] --> B[Complete real turns]
     B --> C[Side effect: hidden extractor work harvests memories]
-    C --> D[Read extractor status and pending queue]
+    C --> D[Read extractor status and failure queue]
     D --> E{Dream gates satisfied or manual trigger?}
     E -->|trigger accepted| F[Hidden dream session runs builtin dreaming-curator]
     E -->|gates skip or role disabled| S[Truthful skipped response naming the reason]
@@ -30,14 +30,14 @@ journey:
   entry_points:
     - url: "any working session (web session thread or compozy session prompt)"
       origin: direct
-    - url: "compozy memory dream trigger|status|show|retry; compozy memory extractor status|list-pending"
+    - url: "compozy memory dream trigger|status|show|retry; compozy memory extractor status|list-failures"
       origin: direct
     - url: "POST /api/memory/dreams/trigger; GET /api/memory/dreams*; GET /api/memory/health"
       origin: direct
   actions:
     - step: 1
       verb: "Do real session work and let the extractor harvest it"
-      expected_observable: "Extractor status/pending surfaces show harvested turns without any visible extractor session in public catalogs."
+      expected_observable: "Extractor status/failure surfaces show harvested turns without any visible extractor session in public catalogs."
     - step: 2
       verb: "Trigger dream consolidation (or hit the gates naturally)"
       expected_observable: "Trigger reports running truthfully, or skipped with the exact gate/disabled reason; nothing pretends to run."

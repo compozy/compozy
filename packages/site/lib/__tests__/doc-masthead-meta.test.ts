@@ -7,6 +7,7 @@ import {
   resolveProductLabel,
   sectionPageCount,
 } from "../doc-masthead-meta";
+import { hoistOverviewPage } from "../docs-overview-tree";
 
 const loopsTree: Root = {
   name: "Docs",
@@ -66,6 +67,25 @@ describe("doc-masthead-meta", () => {
     expect(meta.sectionPageCount).toBe(3);
     expect(meta.crumbs.at(-1)).toEqual({ name: "Loops" });
     expect(buildMastheadCrumbs(loopsTree, "/docs/loops/catalog", "Catalog")).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: "Loops", href: "/docs/loops" }),
+        { name: "Catalog" },
+      ])
+    );
+  });
+
+  it("keeps the category URL available after hoisting its overview page", () => {
+    const tree = structuredClone(loopsTree);
+    const folder = tree.children[0];
+    if (!folder || folder.type !== "folder") {
+      throw new Error("loops fixture must contain a folder");
+    }
+
+    hoistOverviewPage(folder, "loops");
+
+    expect(folder.index?.url).toBe("/docs/loops");
+    expect(folder.children[0]).toBe(folder.index);
+    expect(buildMastheadCrumbs(tree, "/docs/loops/catalog", "Catalog")).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ name: "Loops", href: "/docs/loops" }),
         { name: "Catalog" },

@@ -23,6 +23,8 @@ export default function sitemap(): MetadataRoute.Sitemap {
   const categoryPaths = BLOG_CATEGORIES.map(category => `/blog/categories/${category}`);
   const marketplacePaths = [
     "/marketplace",
+    "/marketplace/bridges",
+    "/marketplace/bundled/dev-cycle",
     ...MARKETPLACE_KINDS.flatMap(kind => [
       `/marketplace/${kind}`,
       ...entriesForKind(kind).map(entry => `/marketplace/${kind}/${entry.entry_id}`),

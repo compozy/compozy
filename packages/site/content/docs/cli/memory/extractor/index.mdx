@@ -22,19 +22,21 @@ Operate Memory v2 extractor runtime
 
 ## Output Formats
 
-Every Compozy command supports `-o, --output`:
+This command displays human-readable help and its subcommand list. The inherited `-o, --output` and `--json` flags do not serialize help output.
 
-- `human` for interactive terminal use
-- `json` for scripts and other machine-readable consumers
-- `jsonl` for wait or streaming commands that emit one JSON record per line
-- `toon` for compact agent-readable summaries
+| Format  | Output                   |
+| ------- | ------------------------ |
+| `human` | Help and subcommand list |
+| `json`  | Not emitted for help     |
+| `jsonl` | Not emitted for help     |
+| `toon`  | Not emitted for help     |
 
 ## Subcommands
 
-| Command                                                                          | Description                                  |
-| -------------------------------------------------------------------------------- | -------------------------------------------- |
-| [compozy memory extractor disable](/docs/cli/memory/extractor/disable)           | Reserved Memory v2 command                   |
-| [compozy memory extractor drain](/docs/cli/memory/extractor/drain)               | Drain Memory v2 extractor work               |
-| [compozy memory extractor list-pending](/docs/cli/memory/extractor/list-pending) | List Memory v2 extractor pending/DLQ records |
-| [compozy memory extractor replay](/docs/cli/memory/extractor/replay)             | Replay Memory v2 extractor work              |
-| [compozy memory extractor status](/docs/cli/memory/extractor/status)             | Show Memory v2 extractor runtime status      |
+| Command                                                                            | Description                              |
+| ---------------------------------------------------------------------------------- | ---------------------------------------- |
+| [compozy memory extractor disable](/docs/cli/memory/extractor/disable)             | Reserved Memory v2 command               |
+| [compozy memory extractor drain](/docs/cli/memory/extractor/drain)                 | Drain Memory v2 extractor work           |
+| [compozy memory extractor list-failures](/docs/cli/memory/extractor/list-failures) | List Memory v2 extractor failure records |
+| [compozy memory extractor replay](/docs/cli/memory/extractor/replay)               | Replay Memory v2 extractor work          |
+| [compozy memory extractor status](/docs/cli/memory/extractor/status)               | Show Memory v2 extractor runtime status  |

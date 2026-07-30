@@ -18,7 +18,7 @@ Use it when an external system already knows something happened and you want Com
 
 ## The artifact
 
-Two halves: the trigger that owns the endpoint, and the signed request that reaches it.
+The config-backed form defines the trigger that owns the endpoint.
 
 ```toml title="config.toml"
 [[automation.triggers]]
@@ -35,6 +35,53 @@ retry = { strategy = "backoff", max_retries = 2, base_delay = "5s" }
 fire_limit = { max = 6, window = "1h" }
 ```
 
+## Run it
+
+Before creating the trigger, make sure `deployer` is an effective agent definition for this workspace
+and its provider is configured for the daemon. A trigger stores the agent name, then the dispatcher
+resolves it when a delivery creates a session:
+
+```bash
+compozy agent info deployer --workspace /Users/you/src/checkout-api
+```
+
+For a custom automation agent, create a workspace-local or global definition with a configured provider
+before enabling the trigger. See [Agent definitions](/docs/agents/definitions) for the resolution cascade.
+
+Pass the secret as a write-only value when creating a dynamic trigger. The CLI stores it in the
+Compozy-managed automation vault; it never returns the value. The create response contains the generated
+trigger, workspace, endpoint-slug, and webhook IDs. This example uses `jq` to build the delivery URL from
+those machine-readable fields:
+
+```bash
+export COMPOZY_DEPLOY_WEBHOOK_SECRET="$(openssl rand -hex 32)"
+
+trigger="$(
+  compozy automation triggers create \
+  --name deploy-webhook \
+  --scope workspace \
+  --workspace /Users/you/src/checkout-api \
+  --event webhook \
+  --endpoint-slug deploy \
+  --webhook-secret-value "$COMPOZY_DEPLOY_WEBHOOK_SECRET" \
+  --agent deployer \
+  --prompt 'Validate deployment {{ index .Data "sha" }} on {{ index .Data "branch" }}.' \
+  --filter data.action=deploy,data.branch=main \
+  --retry backoff:2:5s \
+  -o json
+)"
+trigger_id="$(printf '%s' "$trigger" | jq -er '.id')"
+workspace_id="$(printf '%s' "$trigger" | jq -er '.workspace_id')"
+endpoint_slug="$(printf '%s' "$trigger" | jq -er '.endpoint_slug')"
+webhook_id="$(printf '%s' "$trigger" | jq -er '.webhook_id')"
+webhook_url="http://localhost:2123/api/webhooks/workspaces/${workspace_id}/${endpoint_slug}--${webhook_id}"
+
+# inspect the created trigger or save webhook_url in CI secret storage
+compozy automation triggers get "$trigger_id" -o json
+```
+
+Post a signed delivery after the setup block creates `webhook_url`:
+
 ```bash title="post a signed delivery"
 body='{"action":"deploy","branch":"main","repository":"checkout-api","sha":"abc123"}'
 timestamp="$(date -u +%s)"
@@ -42,37 +89,12 @@ signature="sha256=$(printf '%s.%s' "$timestamp" "$body" \
   | openssl dgst -sha256 -hmac "$COMPOZY_DEPLOY_WEBHOOK_SECRET" -hex \
   | awk '{print $2}')"
 
-curl -sS -X POST "http://localhost:2123/api/webhooks/workspaces/ws_123/deploy--wbh_abc123" \
+curl -sS -X POST "$webhook_url" \
   -H "Content-Type: application/json" \
   -H "X-Compozy-Webhook-Timestamp: $timestamp" \
   -H "X-Compozy-Webhook-Signature: $signature" \
   -H "X-Compozy-Webhook-Delivery-ID: deploy-$timestamp" \
   --data "$body"
-```
-
-## Run it
-
-Store the secret, then create the trigger and read back the path CI should post to — the full
-endpoint segment is `<endpoint_slug>--<webhook_id>`, and the webhook id is assigned on creation:
-
-```bash
-# Compozy-managed secret storage; or export the env var named by webhook_secret_ref
-compozy vault put automation/deploy-webhook
-
-compozy automation triggers create \
-  --name deploy-webhook \
-  --scope workspace \
-  --workspace /Users/you/src/checkout-api \
-  --event webhook \
-  --endpoint-slug deploy \
-  --webhook-secret "$COMPOZY_DEPLOY_WEBHOOK_SECRET" \
-  --agent deployer \
-  --prompt 'Validate deployment {{ index .Data "sha" }} on {{ index .Data "branch" }}.' \
-  --filter data.action=deploy,data.branch=main \
-  --retry backoff:2:5s
-
-# the response carries the webhook id — read it back any time
-compozy automation triggers get <trigger-id>
 ```
 
 ## How it works

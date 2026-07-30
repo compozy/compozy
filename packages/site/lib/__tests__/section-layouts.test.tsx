@@ -3,12 +3,15 @@ import { describe, expect, it, vi } from "vitest";
 import BlogLayout from "@/app/blog/layout";
 import ChangelogLayout from "@/app/changelog/layout";
 import DocsRouteLayout from "@/app/docs/layout";
+import { CompactFolder, CompactItem } from "@/components/site/sidebar-compact-tree";
+import { DocsSidebarSectionLabel } from "@/components/site/sidebar-section-label";
 import { baseOptions } from "../layout.shared";
 import type { ReactNode } from "react";
 
 type LayoutProps = {
   children: ReactNode;
   nav?: unknown;
+  sidebar?: unknown;
   slots?: Record<string, unknown>;
   tabMode?: string;
   tabs?: unknown;
@@ -63,6 +66,13 @@ describe("section layouts", () => {
     expect(call?.tabs).toBeUndefined();
     expect(call?.tabMode).toBeUndefined();
     expect(call?.nav).toMatchObject({ ...baseOptions.nav, mode: "auto" });
+    expect(call?.sidebar).toMatchObject({
+      components: {
+        Folder: CompactFolder,
+        Item: CompactItem,
+        Separator: DocsSidebarSectionLabel,
+      },
+    });
     expect(call?.slots?.header).toBeTypeOf("function");
   });
 

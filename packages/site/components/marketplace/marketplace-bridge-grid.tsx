@@ -1,4 +1,6 @@
-import { Pill, PillDot } from "@compozy/ui";
+"use client";
+
+import { CatalogCard, Pill, PillDot } from "@compozy/ui";
 import { ArrowRight, Plug } from "lucide-react";
 import Link from "next/link";
 import { BRIDGE_LOGOS } from "@/lib/marketplace-bridge-logos";
@@ -10,17 +12,6 @@ import type { BridgeProvider } from "@/lib/marketplace-bridges";
  * neutral glyph rather than an invented one. The Alpha pill is the claim — providers build from
  * source today — and the only action is the setup guide, because there is no packaged install.
  */
-function BridgeMark({ platform }: { platform: string }) {
-  return (
-    <span
-      aria-hidden
-      className="inline-flex size-9 shrink-0 items-center justify-center rounded-icon-well border border-line bg-elevated"
-    >
-      {BRIDGE_LOGOS[platform] ?? <Plug className="size-4 text-muted" />}
-    </span>
-  );
-}
-
 function secretSlotSummary(slots: BridgeProvider["secretSlots"]): string {
   const noun = slots.total === 1 ? "secret slot" : "secret slots";
   if (slots.required === slots.total) {
@@ -31,36 +22,37 @@ function secretSlotSummary(slots: BridgeProvider["secretSlots"]): string {
 
 export function MarketplaceBridgeCard({ provider }: { provider: BridgeProvider }) {
   return (
-    <article
-      id={provider.platform}
-      className="flex scroll-mt-24 flex-col gap-3 rounded-xl border border-line bg-canvas-soft p-4 transition-colors hover:border-line-strong"
-    >
+    <CatalogCard id={provider.platform} actionable className="scroll-mt-24 border border-line">
       <div className="flex min-w-0 items-center gap-2.5">
-        <BridgeMark platform={provider.platform} />
+        <CatalogCard.Logo tone="neutral" size="lg" className="border border-line bg-elevated">
+          {BRIDGE_LOGOS[provider.platform] ?? <Plug className="size-4 text-muted" />}
+        </CatalogCard.Logo>
         <div className="min-w-0">
-          <p className="truncate text-card-title font-semibold tracking-tight text-fg">
+          <CatalogCard.Title className="text-card-title font-semibold tracking-tight text-fg">
             {provider.displayName}
-          </p>
+          </CatalogCard.Title>
           <span className="font-mono text-badge text-subtle">
             {provider.platform} · v{provider.version}
           </span>
         </div>
       </div>
-      <div className="flex flex-wrap items-center gap-2 text-small-body text-muted">
+      <CatalogCard.Meta className="flex flex-wrap items-center gap-2 text-small-body text-muted">
         <Pill tone="warning" size="sm">
           <PillDot />
           Alpha
         </Pill>
         <span>{secretSlotSummary(provider.secretSlots)}</span>
-      </div>
-      <Link
-        href={provider.setupUrl}
-        className="inline-flex items-center gap-1.5 border-t border-line pt-3 text-small-body font-medium text-muted transition-colors hover:text-accent"
-      >
-        Setup guide
-        <ArrowRight aria-hidden className="size-3" />
-      </Link>
-    </article>
+      </CatalogCard.Meta>
+      <CatalogCard.Actions>
+        <Link
+          href={provider.setupUrl}
+          className="inline-flex items-center gap-1.5 text-small-body font-medium text-muted transition-colors duration-base ease-out hover:text-accent"
+        >
+          Setup guide
+          <ArrowRight aria-hidden className="size-3" />
+        </Link>
+      </CatalogCard.Actions>
+    </CatalogCard>
   );
 }
 

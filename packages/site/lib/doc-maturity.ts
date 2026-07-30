@@ -18,7 +18,3 @@ const MATURITY_LABELS: Record<MaturityLevel, string> = {
 export function maturityLabel(level: MaturityLevel): string {
   return MATURITY_LABELS[level];
 }
-
-export function isMaturityLevel(value: unknown): value is MaturityLevel {
-  return typeof value === "string" && (MATURITY_LEVELS as readonly string[]).includes(value);
-}

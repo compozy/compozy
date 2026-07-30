@@ -108,11 +108,11 @@ export const DOCS_ICONS: Record<string, LucideIcon> = {
 };
 
 /**
- * OpenAPI tag slug → DOCS_ICONS name, written into generated api-reference
+ * OpenAPI tag slug → DOCS_ICONS name, written into generated API reference
  * frontmatter. Tags sharing a concept with a CompozyOS sidebar section reuse
  * that section's glyph (marketplace=Store, loops=Repeat, tools=Plug, …) so the
- * same idea reads the same across tabs. Every tag used by openapi/compozy.json
- * must have an entry — enforced by runtime-api-reference.test.ts.
+ * same idea reads the same across the unified docs tree. Every tag used by
+ * openapi/compozy.json must have an entry — enforced by docs-api-reference.test.ts.
  */
 export const API_TAG_ICONS: Record<string, string> = {
   agent: "MessageSquare",

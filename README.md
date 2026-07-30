@@ -86,7 +86,7 @@ cd compozy
 go build -o ./bin/compozy .
 ```
 
-The [installation guide](https://compozy.com/runtime/core/getting-started/installation) covers
+The [installation guide](https://compozy.com/docs/getting-started/installation) covers
 installer flags, Linux packages, source builds, verification, and managed updates.
 
 ## 🔄 How It Works
@@ -127,7 +127,7 @@ compozy config show -o json
 ```
 
 Configuration, credentials, and provider-home policies have different owners. Follow the
-[configuration guide](https://compozy.com/runtime/core/configuration/config-toml) instead of copying
+[configuration guide](https://compozy.com/docs/configuration/config-toml) instead of copying
 v0.2 state into a v0.3 home.
 
 ## Reusable Agents
@@ -158,7 +158,7 @@ compozy tool invoke ext__hello__search --workspace . --input '{"query":"compozy"
 
 Authoring is code-first: you declare the tool once in code and `compozy extension build` generates
 the manifest. Walkthrough:
-[Build your first extension](https://compozy.com/runtime/guides/build-your-first-extension).
+[Build your first extension](https://compozy.com/docs/guides/build-your-first-extension).
 
 ### SDK support
 
@@ -176,10 +176,10 @@ compozy extension logs <name> --follow
 
 ### Learn more
 
-- [Build your first extension](https://compozy.com/runtime/guides/build-your-first-extension)
-- [Extensions](https://compozy.com/runtime/core/extensions)
-- [Publish an extension](https://compozy.com/runtime/core/extensions/publish)
-- [Capabilities and bundles](https://compozy.com/runtime)
+- [Build your first extension](https://compozy.com/docs/guides/build-your-first-extension)
+- [Extensions](https://compozy.com/docs/extensions)
+- [Publish an extension](https://compozy.com/docs/extensions/publish)
+- [Capabilities and bundles](https://compozy.com/docs)
 - [Official Compozy skill](skills/compozy/)
 - [Migration guide](MIGRATION_GUIDE.md)
 
@@ -195,7 +195,7 @@ compozy daemon start
 compozy session new --agent general --name first-run
 ```
 
-The [Quick Start](https://compozy.com/runtime/core/getting-started/quick-start) continues through the
+The [Quick Start](https://compozy.com/docs/getting-started/quick-start) continues through the
 first prompt, live attachment, inspection, and cleanup.
 
 ## 🧩 Skills
@@ -219,12 +219,12 @@ artifacts; they are not imported as hidden runtime state.
 
 Compozy runs ACP-compatible agent CLIs and adapters. The active provider catalog and each agent's
 runtime settings are runtime truth; inspect them before selecting a model or reasoning mode. See the
-[provider guide](https://compozy.com/runtime/core/agents/providers) for authentication and
+[provider guide](https://compozy.com/docs/agents/providers) for authentication and
 provider-home policies.
 
 ## 📖 CLI Reference
 
-The generated [CLI reference](https://compozy.com/runtime/cli-reference) is authoritative for verbs,
+The generated [CLI reference](https://compozy.com/docs/cli-reference) is authoritative for verbs,
 flags, structured output, and exit behavior. Start with:
 
 ```bash
@@ -235,11 +235,11 @@ compozy doctor -o json
 
 ## Documentation
 
-- [Runtime overview](https://compozy.com/runtime)
-- [Installation](https://compozy.com/runtime/core/getting-started/installation)
-- [Quick Start](https://compozy.com/runtime/core/getting-started/quick-start)
+- [Runtime overview](https://compozy.com/docs)
+- [Installation](https://compozy.com/docs/getting-started/installation)
+- [Quick Start](https://compozy.com/docs/getting-started/quick-start)
 - [Migrate from v0.2.15](MIGRATION_GUIDE.md)
-- [CLI reference](https://compozy.com/runtime/cli-reference)
+- [CLI reference](https://compozy.com/docs/cli-reference)
 - [Compozy Network protocol](https://compozy.com/protocol)
 - [GitHub releases](https://github.com/compozy/compozy/releases)
 

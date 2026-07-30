@@ -30,15 +30,11 @@ compozy mcp serve [flags]
 
 ## Output Formats
 
-Every Compozy command supports `-o, --output`:
+This command reserves standard output for its MCP transport. The inherited `-o, --output` and `--json` flags do not change that protocol stream.
 
-- `human` for interactive terminal use
-- `json` for scripts and other machine-readable consumers
-- `jsonl` for wait or streaming commands that emit one JSON record per line
-- `toon` for compact agent-readable summaries
-
-Example:
-
-```bash
-compozy mcp serve -o json
-```
+| Format  | Output                        |
+| ------- | ----------------------------- |
+| `human` | MCP transport stream          |
+| `json`  | Not a command-result renderer |
+| `jsonl` | Not a command-result renderer |
+| `toon`  | Not a command-result renderer |

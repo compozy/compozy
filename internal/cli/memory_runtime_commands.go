@@ -196,7 +196,7 @@ func newMemoryExtractorCommand(deps commandDeps) *cobra.Command {
 		Short: "Operate Memory v2 extractor runtime",
 	}
 	cmd.AddCommand(newMemoryExtractorStatusCommand(deps))
-	cmd.AddCommand(newMemoryExtractorListPendingCommand(deps))
+	cmd.AddCommand(newMemoryExtractorListFailuresCommand(deps))
 	cmd.AddCommand(newMemoryExtractorReplayCommand(deps))
 	cmd.AddCommand(newMemoryExtractorDrainCommand(deps))
 	cmd.AddCommand(newMemoryExtractorDisableCommand())
@@ -226,10 +226,10 @@ func newMemoryExtractorStatusCommand(deps commandDeps) *cobra.Command {
 	return cmd
 }
 
-func newMemoryExtractorListPendingCommand(deps commandDeps) *cobra.Command {
+func newMemoryExtractorListFailuresCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
-		Use:   "list-pending",
-		Short: "List Memory v2 extractor pending/DLQ records",
+		Use:   "list-failures",
+		Short: "List Memory v2 extractor failure records",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, err := clientFromDeps(deps)
@@ -240,7 +240,7 @@ func newMemoryExtractorListPendingCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return writeCommandOutput(cmd, memoryObjectBundle("Memory Extractor Pending", response))
+			return writeCommandOutput(cmd, memoryObjectBundle("Memory Extractor Failures", response))
 		},
 	}
 }

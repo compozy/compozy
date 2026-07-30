@@ -14,8 +14,9 @@ from; it does not prove that the item is safe for every environment.
   install and authorization.
 </OperatorNote>
 
-The curated catalog is also browsable without a daemon at [compozy.com/marketplace](/marketplace) —
-the same feeds this page describes, rendered read-only with copyable install commands.
+The curated catalog is also browsable without a daemon at [compozy.com/marketplace](/marketplace).
+That static site renders its build-time, checked-in snapshot. Before installing from it, run
+`compozy marketplace search` against your daemon: its configured active catalog can differ.
 
 ## Browse And Inspect
 
@@ -27,7 +28,7 @@ shadow resolution. An installed extension detail keeps its runtime state, health
 capabilities, actions, environment requirements, diagnostics, provenance, and provided bundles
 together with its management controls.
 
-The CLI returns the same daemon-owned projection:
+The CLI returns the daemon-owned active projection:
 
 ```bash
 # Browse every kind. An empty query returns real catalog slices.
@@ -47,7 +48,7 @@ compozy marketplace info mcp linear --installed-name custom-linear -o json
 ```
 
 Use the returned `entry_id` with `compozy marketplace info`. Install commands use the kind-specific
-identifier shown by the detail payload, such as an extension or skill `install_slug`.
+identifier shown by the active detail payload, such as an extension or skill `install_slug`.
 `--installed-name` disambiguates installed MCP, extension, and skill identities; bundle detail
 rejects that flag because bundle activation identity is managed through its activation route.
 The identifiers in the examples below are illustrative; substitute values returned by your active
@@ -187,9 +188,10 @@ compozy mcp install github \
   -o json
 ```
 
-`--set` accepts only the field name; the value is never a process argument. The web guided
-installer offers the same typed-value or existing-Vault-ref choice. Settings responses return
-configured field names and OAuth client-secret presence, never refs or secret values.
+`--set` accepts only the field name; the value is never a process argument. It opens a hidden prompt
+only when you explicitly pass that flag; otherwise the daemon rejects any required value you omit.
+The web guided installer offers the same typed-value or existing-Vault-ref choice. Settings responses
+return configured field names and OAuth client-secret presence, never refs or secret values.
 For direct HTTP or UDS calls, `values` is a required nullable property: send `null` when the entry
 needs no operator inputs. Omission is rejected before the settings lifecycle runs.
 
@@ -205,7 +207,7 @@ claim runtime readiness.
 Start the daemon-owned PKCE flow after an OAuth catalog install:
 
 ```bash
-compozy mcp authorize linear --scope global
+compozy mcp auth login linear --scope global
 ```
 
 Compozy returns a live, copyable authorization URL and may open it in a browser. For a remote operator,
@@ -213,13 +215,13 @@ or when the daemon HTTP bind is not loopback, use manual completion and paste th
 or full redirect URL:
 
 ```bash
-compozy mcp authorize linear --scope global --manual
+compozy mcp auth login linear --scope global --manual
 ```
 
 Workspace authorization again requires both selectors:
 
 ```bash
-compozy mcp authorize linear --scope workspace --workspace <workspace-id> --manual
+compozy mcp auth login linear --scope workspace --workspace <workspace-id> --manual
 compozy mcp auth status linear --scope workspace --workspace <workspace-id> -o json
 ```
 

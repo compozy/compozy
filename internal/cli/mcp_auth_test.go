@@ -17,7 +17,29 @@ import (
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 )
 
-func TestMCPAuthorizeUsesDaemonOwnedManualExchange(t *testing.T) {
+func TestMCPAuthCommandTreeHardCutsAuthorizeAlias(t *testing.T) {
+	t.Parallel()
+
+	root := newRootCommand(commandDeps{})
+	login, remaining, err := root.Find([]string{"mcp", "auth", "login"})
+	if err != nil {
+		t.Fatalf("Find(mcp auth login) error = %v", err)
+	}
+	if len(remaining) != 0 {
+		t.Fatalf("Find(mcp auth login) remaining = %v, want none", remaining)
+	}
+	if got := strings.TrimSpace(login.CommandPath()); got != "compozy mcp auth login" {
+		t.Fatalf("mcp auth login path = %q, want canonical login path", got)
+	}
+
+	legacy, legacyRemaining, legacyErr := root.Find([]string{"mcp", "authorize"})
+	if legacyErr == nil && len(legacyRemaining) == 0 &&
+		strings.TrimSpace(legacy.CommandPath()) == "compozy mcp authorize" {
+		t.Fatal("mcp authorize should not resolve after the hard cut")
+	}
+}
+
+func TestMCPAuthLoginUsesDaemonOwnedManualExchange(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Should exchange a pasted code without exposing it", func(t *testing.T) {
@@ -63,10 +85,10 @@ func TestMCPAuthorizeUsesDaemonOwnedManualExchange(t *testing.T) {
 			t,
 			newWorkspaceTestDeps(t, client),
 			"one-time-code\n",
-			"mcp", "authorize", "linear", "--manual", "-o", "json",
+			"mcp", "auth", "login", "linear", "--manual", "-o", "json",
 		)
 		if err != nil {
-			t.Fatalf("execute mcp authorize --manual error = %v", err)
+			t.Fatalf("execute mcp auth login --manual error = %v", err)
 		}
 		if !strings.Contains(stderr, "https://auth.example/authorize?state=public-state") {
 			t.Fatalf("stderr = %q, want live authorization URL", stderr)
@@ -157,15 +179,15 @@ func TestMCPAuthorizeUsesDaemonOwnedManualExchange(t *testing.T) {
 		_, _, err = executeRootCommand(
 			t,
 			newWorkspaceTestDeps(t, client),
-			"mcp", "authorize", "filesystem",
+			"mcp", "auth", "login", "filesystem",
 		)
 		if err == nil || !strings.Contains(err.Error(), "does not configure OAuth") {
-			t.Fatalf("mcp authorize error = %v, want OAuth configuration error", err)
+			t.Fatalf("mcp auth login error = %v, want OAuth configuration error", err)
 		}
 	})
 }
 
-func TestMCPAuthorizeManualHonorsTimeout(t *testing.T) {
+func TestMCPAuthLoginManualHonorsTimeout(t *testing.T) {
 	t.Parallel()
 
 	newClient := func(exchange func(context.Context) error) *stubClient {
@@ -208,10 +230,10 @@ func TestMCPAuthorizeManualHonorsTimeout(t *testing.T) {
 		client := newClient(nil)
 		cmd := newRootCommand(newWorkspaceTestDeps(t, client))
 		cmd.SetIn(input)
-		cmd.SetArgs([]string{"mcp", "authorize", "linear", "--manual", "--timeout", "20ms"})
+		cmd.SetArgs([]string{"mcp", "auth", "login", "linear", "--manual", "--timeout", "20ms"})
 		err := cmd.ExecuteContext(t.Context())
 		if err == nil || !strings.Contains(err.Error(), "authorization timed out") {
-			t.Fatalf("mcp authorize error = %v, want authorization timeout", err)
+			t.Fatalf("mcp auth login error = %v, want authorization timeout", err)
 		}
 	})
 
@@ -230,11 +252,11 @@ func TestMCPAuthorizeManualHonorsTimeout(t *testing.T) {
 			t,
 			newWorkspaceTestDeps(t, client),
 			"one-time-code\n",
-			"mcp", "authorize", "linear", "--manual", "--timeout", "20ms",
+			"mcp", "auth", "login", "linear", "--manual", "--timeout", "20ms",
 		)
 		if err == nil || !errors.Is(err, context.DeadlineExceeded) ||
 			!strings.Contains(err.Error(), "authorization timed out") {
-			t.Fatalf("mcp authorize error = %v, want stable authorization timeout", err)
+			t.Fatalf("mcp auth login error = %v, want stable authorization timeout", err)
 		}
 	})
 }
@@ -339,7 +361,7 @@ func TestReadManualMCPAuthInput(t *testing.T) {
 	})
 }
 
-func TestMCPAuthorizeWaitsForAChangedConfirmedCredential(t *testing.T) {
+func TestMCPAuthLoginWaitsForAChangedConfirmedCredential(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Should wait for a changed confirmed credential", func(t *testing.T) {
@@ -378,10 +400,10 @@ func TestMCPAuthorizeWaitsForAChangedConfirmedCredential(t *testing.T) {
 		stdout, _, err := executeRootCommand(
 			t,
 			newWorkspaceTestDeps(t, client),
-			"mcp", "authorize", "linear", "--timeout", "2s", "-o", "json",
+			"mcp", "auth", "login", "linear", "--timeout", "2s", "-o", "json",
 		)
 		if err != nil {
-			t.Fatalf("execute mcp authorize error = %v", err)
+			t.Fatalf("execute mcp auth login error = %v", err)
 		}
 		if listCalls.Load() < 3 {
 			t.Fatalf("ListSettingsMCPServers calls = %d, want baseline plus changed poll", listCalls.Load())

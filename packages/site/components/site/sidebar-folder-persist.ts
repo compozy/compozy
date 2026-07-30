@@ -1,19 +1,7 @@
 const STORAGE_PREFIX = "compozy.docs.sidebar.folder:";
 
-type Listener = () => void;
-
-const listeners = new Map<string, Set<Listener>>();
-
 function storageKey(folderKey: string): string {
   return STORAGE_PREFIX + folderKey;
-}
-
-function emit(folderKey: string): void {
-  const set = listeners.get(folderKey);
-  if (!set) return;
-  for (const listener of set) {
-    listener();
-  }
 }
 
 export function folderPersistKey(folder: {
@@ -43,36 +31,7 @@ export function writeFolderOpen(key: string, open: boolean): void {
   if (typeof window === "undefined") return;
   try {
     window.localStorage.setItem(storageKey(key), open ? "1" : "0");
-    emit(key);
   } catch {
     // Quota / private mode — persistence is best-effort.
   }
-}
-
-export function subscribeFolderOpen(key: string, onStoreChange: Listener): () => void {
-  let set = listeners.get(key);
-  if (!set) {
-    set = new Set();
-    listeners.set(key, set);
-  }
-  set.add(onStoreChange);
-
-  const onStorage = (event: StorageEvent) => {
-    if (event.key === storageKey(key)) onStoreChange();
-  };
-  if (typeof window !== "undefined") {
-    window.addEventListener("storage", onStorage);
-  }
-
-  return () => {
-    set.delete(onStoreChange);
-    if (set.size === 0) listeners.delete(key);
-    if (typeof window !== "undefined") {
-      window.removeEventListener("storage", onStorage);
-    }
-  };
-}
-
-export function getFolderOpenSnapshot(key: string, fallback: boolean): boolean {
-  return readFolderOpen(key) ?? fallback;
 }

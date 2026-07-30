@@ -27,6 +27,33 @@ const (
 // they resolve the same regardless of which nested page they live on.
 const linkBasePath = "/docs/cli"
 
+// OutputProfile describes the output behavior of one Cobra command. Cobra
+// propagates root flags to every command, including help-only groups, so the
+// generated markdown alone cannot distinguish inherited flag acceptance from
+// a command's renderer.
+type OutputProfile string
+
+const (
+	// OutputProfileResult identifies a command that renders a command result.
+	OutputProfileResult OutputProfile = "result"
+	// OutputProfileHelp identifies a command that only renders Cobra help.
+	OutputProfileHelp OutputProfile = "help"
+	// OutputProfileNoOutput identifies a command with no result renderer.
+	OutputProfileNoOutput OutputProfile = "none"
+	// OutputProfileProtocol identifies a command whose standard output is a protocol stream.
+	OutputProfileProtocol OutputProfile = "protocol"
+	// OutputProfileRaw identifies a command that writes a command-specific text stream.
+	OutputProfileRaw OutputProfile = "raw"
+	// OutputProfileHumanJSONL identifies a stream that supports human and JSONL output only.
+	OutputProfileHumanJSONL OutputProfile = "human-jsonl"
+)
+
+// Options supplies command-tree facts that Cobra's Markdown generator does
+// not retain in the generated files.
+type Options struct {
+	OutputProfiles map[string]OutputProfile
+}
+
 var (
 	autoGenLine  = regexp.MustCompile(`(?m)^###### Auto generated.*$\n?`)
 	seeAlsoRe    = regexp.MustCompile(`(?ms)^### SEE ALSO\n.*`)
@@ -44,7 +71,7 @@ var (
 // never touched by Process. Subdirectory meta.json files are regenerated on
 // each run.
 // Stale files from prior runs are removed before writing.
-func Process(ctx context.Context, srcDir, dstDir string) error {
+func Process(ctx context.Context, srcDir, dstDir string, opts Options) error {
 	if err := ensureContext(ctx, "start doc post-processing"); err != nil {
 		return err
 	}
@@ -72,7 +99,7 @@ func Process(ctx context.Context, srcDir, dstDir string) error {
 		}
 		body := TransformMarkdown(in.raw, in.commandName())
 		body = remapLinks(body, targets)
-		body = enrichDocument(body, in, inputs, targets)
+		body = enrichDocument(body, in, inputs, targets, outputProfileFor(in, opts))
 
 		outRel := in.outputPath(hasChildren)
 		dst := filepath.Join(dstDir, filepath.FromSlash(outRel))
@@ -85,6 +112,16 @@ func Process(ctx context.Context, srcDir, dstDir string) error {
 	}
 
 	return writeSubdirMetas(ctx, dstDir)
+}
+
+func outputProfileFor(in input, opts Options) OutputProfile {
+	if opts.OutputProfiles == nil {
+		return OutputProfileResult
+	}
+	if profile, ok := opts.OutputProfiles[in.commandName()]; ok {
+		return profile
+	}
+	return OutputProfileResult
 }
 
 func prepareOutputDir(dstDir string) error {

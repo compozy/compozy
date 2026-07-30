@@ -4,16 +4,16 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 const siteRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
-const runtimeRoot = resolve(siteRoot, "content/docs");
+const docsRoot = resolve(siteRoot, "content/docs");
 
-const providersDoc = resolve(runtimeRoot, "agents/providers.mdx");
-const modelCatalogDoc = resolve(runtimeRoot, "agents/model-catalog.mdx");
-const configTomlDoc = resolve(runtimeRoot, "configuration/config-toml.mdx");
-const developExtensionsDoc = resolve(runtimeRoot, "extensions/develop.mdx");
-const cliProviderModelsIndex = resolve(runtimeRoot, "cli/provider/models/index.mdx");
-const cliProviderModelsList = resolve(runtimeRoot, "cli/provider/models/list.mdx");
-const cliProviderModelsRefresh = resolve(runtimeRoot, "cli/provider/models/refresh.mdx");
-const cliProviderModelsStatus = resolve(runtimeRoot, "cli/provider/models/status.mdx");
+const providersDoc = resolve(docsRoot, "agents/providers.mdx");
+const modelCatalogDoc = resolve(docsRoot, "agents/model-catalog.mdx");
+const configTomlDoc = resolve(docsRoot, "configuration/config-toml.mdx");
+const developExtensionsDoc = resolve(docsRoot, "extensions/develop.mdx");
+const cliProviderModelsIndex = resolve(docsRoot, "cli/provider/models/index.mdx");
+const cliProviderModelsList = resolve(docsRoot, "cli/provider/models/list.mdx");
+const cliProviderModelsRefresh = resolve(docsRoot, "cli/provider/models/refresh.mdx");
+const cliProviderModelsStatus = resolve(docsRoot, "cli/provider/models/status.mdx");
 
 function read(path: string): string {
   return readFileSync(path, "utf8");

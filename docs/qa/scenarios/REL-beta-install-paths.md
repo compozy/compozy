@@ -6,13 +6,13 @@ persona: Dora
 journey: J-evaluate-compozy-beta
 expected: The hosted installer, `npm install -g @compozy/cli@beta`, and `go install github.com/compozy/compozy@v0.3.0-beta.2` each install the same v0.3 beta binary; the hosted installer opens bootstrap when it has an interactive terminal, npm and Go require `compozy install`, and the README and site offer no Homebrew path before v0.3.0 stable.
 entry_points: README Installation; compozy.com install section; compozy.com/docs/getting-started/installation; npm registry; Go module proxy
-qa_status: untested
+qa_status: blocked-verify
 bug_ids:
 fix_status:
-retest_status:
+retest_status: blocked — local channel copy and Homebrew removal were verified, but live installer/npm/Go parity is deferred to post-publication acceptance
 fix_commits:
 evidence:
-last_report:
+last_report: docs/qa/reports/2026-07-29-site-improvs-deep-review.md
 overlaps: REL-beta-installer-provenance; REL-beta-self-update
 ---
 

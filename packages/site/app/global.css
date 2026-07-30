@@ -8,6 +8,9 @@
  */
 @import "fumadocs-openapi/css/preset.css";
 @import "@compozy/ui/tokens.css";
+@import "./styles/docs.css";
+@import "./styles/docs-api.css";
+@import "./styles/site-graphics.css";
 
 /*
  * Tailwind v4 JIT scans source files relative to this stylesheet and ignores
@@ -83,6 +86,15 @@
   --site-doc-layout-width: 96rem;
   --site-doc-sidebar-width: 16rem;
   --site-doc-toc-width: 14rem;
+  --site-doc-sidebar-marker-offset: 0.75rem;
+  --site-doc-sidebar-marker-inset: 0.375rem;
+  --site-doc-sidebar-nested-marker-offset: 0.6875rem;
+  --site-doc-sidebar-tree-indent: 0.875rem;
+  --site-doc-sidebar-tree-gutter: 0.625rem;
+  --site-doc-sidebar-tree-line-inset: 0.25rem;
+  --site-doc-sidebar-first-group-gap: 0.375rem;
+  --site-doc-toc-gutter: 1rem;
+  --site-doc-index-label-width: 11.875rem;
 }
 
 /*
@@ -148,7 +160,7 @@ a {
 }
 
 #nd-sidebar {
-  width: var(--site-doc-sidebar-width);
+  width: var(--fd-sidebar-width);
   border-inline-end: 1px solid var(--color-line);
   border-color: var(--color-line);
   background: color-mix(in srgb, var(--color-canvas-soft) 55%, var(--color-canvas)) !important;
@@ -162,16 +174,16 @@ a {
 #nd-sidebar .docs-sb-item[data-active="true"]::before {
   content: "";
   position: absolute;
-  inset-inline-start: -12px;
-  top: 6px;
-  bottom: 6px;
+  inset-inline-start: calc(-1 * var(--site-doc-sidebar-marker-offset));
+  top: var(--site-doc-sidebar-marker-inset);
+  bottom: var(--site-doc-sidebar-marker-inset);
   width: 2px;
   border-radius: 1px;
   background: var(--color-accent);
 }
 
 #nd-sidebar .docs-sb-kids .docs-sb-item[data-active="true"]::before {
-  inset-inline-start: -11px;
+  inset-inline-start: calc(-1 * var(--site-doc-sidebar-nested-marker-offset));
 }
 
 #nd-sidebar .docs-sb-folder[data-state="open"] > .docs-sb-folder-head:not([data-active="true"]) {
@@ -183,37 +195,31 @@ a {
 }
 
 #nd-sidebar .docs-sb-folder-head svg[data-icon] {
-  transition: transform 0.18s var(--ease-out, cubic-bezier(0.16, 1, 0.3, 1));
+  transition: transform var(--duration-base) var(--ease-out);
 }
 
 #nd-sidebar .docs-sb-kids {
   position: relative;
-  margin-inline-start: 14px;
-  padding-inline-start: 10px;
+  margin-inline-start: var(--site-doc-sidebar-tree-indent);
+  padding-inline-start: var(--site-doc-sidebar-tree-gutter);
 }
 
 #nd-sidebar .docs-sb-kids::before {
   content: "";
   position: absolute;
   inset-inline-start: 0;
-  top: 4px;
-  bottom: 4px;
+  top: var(--site-doc-sidebar-tree-line-inset);
+  bottom: var(--site-doc-sidebar-tree-line-inset);
   width: 1px;
   background: var(--color-line-strong);
 }
 
 #nd-sidebar .docs-sb-kids > .docs-sb-group:first-child {
-  margin-top: 6px;
+  margin-top: var(--site-doc-sidebar-first-group-gap);
 }
 
 #nd-sidebar [data-sidebar-body] {
   background: transparent;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  #nd-sidebar .docs-sb-folder-head svg[data-icon] {
-    transition: none;
-  }
 }
 
 #nd-page {
@@ -226,405 +232,18 @@ a {
 
 #nd-notebook-layout {
   --fd-layout-width: 100vw !important;
-  --fd-sidebar-width: var(--site-doc-sidebar-width);
 }
 
 #nd-toc {
   width: var(--site-doc-toc-width);
   border-inline-start: 1px solid var(--color-line);
-  padding-inline-start: 1rem;
+  padding-inline-start: var(--site-doc-toc-gutter);
 }
 
 #nd-toc [aria-current="true"],
 #nd-toc [data-active="true"],
 #nd-toc a:hover {
   color: var(--color-accent);
-}
-
-/* OpenDesign §05 — page masthead (crumbs use badge mono via CSS, not Eyebrow) */
-.site-doc-masthead {
-  margin-bottom: 0;
-}
-
-.site-doc-masthead__context {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  min-height: 1.75rem;
-  flex-wrap: wrap;
-}
-
-.site-doc-masthead__crumbs {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  min-width: 0;
-  font-family: var(--font-mono);
-  font-size: var(--text-badge);
-  line-height: var(--text-badge--line-height);
-  font-weight: 500;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.site-doc-masthead__product {
-  color: var(--color-accent);
-}
-
-.site-doc-masthead__crumb-sep {
-  width: 0.875rem;
-  height: 1px;
-  flex-shrink: 0;
-  background: var(--color-line-strong);
-}
-
-.site-doc-masthead__crumbs a {
-  color: var(--color-muted);
-  text-decoration: none;
-  transition: color 0.15s var(--ease-out, cubic-bezier(0.16, 1, 0.3, 1));
-}
-
-.site-doc-masthead__crumbs a:hover {
-  color: var(--color-fg);
-}
-
-/* Docs mastheads render the product word as plain text; the marketplace links it home. */
-.site-doc-masthead__crumbs a.site-doc-masthead__product {
-  color: var(--color-accent);
-}
-
-.site-doc-masthead__crumbs a.site-doc-masthead__product:hover {
-  color: var(--color-accent-hover);
-}
-
-.site-doc-masthead__leaf {
-  color: var(--color-fg);
-}
-
-.site-doc-masthead__actions {
-  display: flex;
-  align-items: center;
-  gap: 0.375rem;
-  margin-inline-start: auto;
-}
-
-.site-doc-masthead__title {
-  margin-top: 1.125rem;
-  font-family: var(--font-display);
-  font-weight: 400;
-  font-size: var(--text-site-doc-title);
-  line-height: 1.02;
-  letter-spacing: -0.02em;
-  color: var(--color-fg);
-  overflow-wrap: break-word;
-}
-
-.site-doc-masthead__lead {
-  margin-top: 1rem;
-  max-width: 64ch;
-  font-size: var(--text-site-doc-lead);
-  line-height: var(--text-site-doc-lead--line-height);
-  color: var(--color-muted);
-}
-
-.site-doc-masthead__meta {
-  display: flex;
-  align-items: center;
-  gap: 1.25rem;
-  flex-wrap: wrap;
-  margin-top: 1.5rem;
-  padding-top: 0.875rem;
-  border-top: 1px solid var(--color-line);
-  font-size: var(--text-small-body);
-  line-height: var(--text-small-body--line-height);
-  color: var(--color-subtle);
-}
-
-.site-doc-masthead__meta-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4375rem;
-}
-
-.site-doc-masthead__meta-icon {
-  width: 0.8125rem;
-  height: 0.8125rem;
-  opacity: 0.7;
-}
-
-.site-doc-masthead__meta-item strong {
-  color: var(--color-muted);
-  font-weight: 500;
-}
-
-.site-doc-page-action {
-  height: var(--height-search);
-  gap: 0.4375rem;
-  padding-inline: 0.625rem;
-  border-radius: var(--radius-md);
-  background: var(--color-canvas-soft);
-  font-size: 0.75rem;
-  font-weight: 500;
-  color: var(--color-muted);
-}
-
-.site-doc-page-action:hover:not(:disabled) {
-  color: var(--color-fg);
-  background: var(--color-elevated);
-  border-color: var(--color-line-strong);
-}
-
-.site-doc-page-action[data-copy-state="copied"] {
-  color: var(--color-success);
-  border-color: color-mix(in srgb, var(--color-success) 35%, transparent);
-  background: color-mix(in srgb, var(--color-success) 10%, transparent);
-}
-
-.site-doc-page-action[data-copy-state="failed"] {
-  color: var(--color-danger);
-}
-
-.site-doc-page-action--icon {
-  width: var(--height-search);
-  padding-inline: 0;
-  justify-content: center;
-}
-
-.site-doc-page-action svg:not([class*="size-"]) {
-  width: 0.8125rem;
-  height: 0.8125rem;
-}
-
-.site-doc-body {
-  color: var(--color-muted);
-  font-size: 1rem;
-  line-height: 1.8;
-}
-
-.site-doc-body > :first-child {
-  margin-top: 0;
-}
-
-.site-doc-body h2 {
-  margin-top: 4rem;
-  padding-top: 1rem;
-  border-top: 1px solid var(--color-line);
-  font-family: var(--font-display);
-  font-weight: 400;
-  font-size: var(--text-site-doc-heading);
-  line-height: 1.1;
-  letter-spacing: -0.02em;
-  color: var(--color-fg);
-}
-
-.site-doc-body h3 {
-  margin-top: 2.25rem;
-  font-size: 1.25rem;
-  font-weight: 600;
-  line-height: 1.25;
-  letter-spacing: -0.02em;
-  color: var(--color-fg);
-}
-
-.site-doc-body :is(h1, h2, h3, h4, h5, h6) a.peer {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-.site-doc-body p,
-.site-doc-body ul,
-.site-doc-body ol,
-.site-doc-body blockquote {
-  max-width: 72ch;
-}
-
-.site-doc-body ul,
-.site-doc-body ol {
-  padding-inline-start: 1.3rem;
-}
-
-.site-doc-body li::marker {
-  color: var(--color-accent);
-}
-
-.site-doc-body strong {
-  color: var(--color-fg);
-  font-weight: 600;
-}
-
-.site-doc-body :is(p, li, td, th, blockquote, h1, h2, h3, h4, h5, h6) code {
-  border: 1px solid var(--color-line);
-  border-radius: 0.55rem;
-  background: var(--color-elevated);
-  padding-inline: 0.38rem;
-  padding-block: 0.12rem;
-  font-size: var(--text-inline-code);
-  color: var(--color-fg);
-}
-
-.site-doc-body hr {
-  border-color: var(--color-line);
-}
-
-.site-doc-body table {
-  border-color: var(--color-line);
-}
-
-.site-doc-body :is(p, li, td, th, blockquote) a {
-  color: var(--color-fg);
-  text-decoration: underline;
-  text-decoration-color: var(--color-line-strong);
-  text-underline-offset: 0.24em;
-}
-
-.site-doc-body :is(p, li, td, th, blockquote) a:hover {
-  color: var(--color-accent);
-}
-
-.site-doc-body :is(h1, h2, h3, h4, h5, h6) a {
-  color: inherit;
-  text-decoration: none;
-}
-
-/*
- * API reference (fumadocs-openapi). `.site-api-page`, `.site-api-operation`,
- * and the operation column wrappers come from the render overrides in
- * components/docs/openapi-page.tsx.
- */
-
-/* API pages are a workbench, not a reading column: instead of the 56.25rem
-   prose cap from DocsMainContainer, the article scales with the available
-   main-column width up to 90rem and centers once the cap binds. */
-#main-content:has(.site-api-page) > * {
-  width: 100%;
-  max-width: min(100%, 90rem);
-  margin-inline: auto;
-}
-
-.site-api-page {
-  /* Schema property names ship as text-fd-primary; every field name in accent
-     is accent overuse — keep names in fg, reserve accent for navigation. */
-  --color-fd-primary: var(--color-fg);
-  --color-fd-primary-foreground: var(--color-canvas);
-  font-size: 0.9375rem;
-  line-height: 1.65;
-}
-
-.site-api-operation + .site-api-operation {
-  margin-top: 3rem;
-  padding-top: 3rem;
-  border-top: 1px solid var(--color-line);
-}
-
-.site-api-operation-cols {
-  display: flex;
-  flex-direction: column;
-  gap: 2rem;
-}
-
-.site-api-operation-main {
-  min-width: 0;
-  flex: 1;
-}
-
-.site-api-operation-example {
-  min-width: 0;
-}
-
-@container (min-width: 56rem) {
-  .site-api-operation-cols {
-    flex-direction: row;
-    align-items: flex-start;
-    gap: 2.5rem;
-  }
-
-  .site-api-operation-example {
-    position: sticky;
-    top: calc(var(--fd-docs-row-1, 2rem) + 1rem);
-    width: 22rem;
-    flex-shrink: 0;
-  }
-}
-
-/* Wide containers hand the extra room to code samples as well. */
-@container (min-width: 72rem) {
-  .site-api-operation-cols {
-    gap: 3.5rem;
-  }
-
-  .site-api-operation-example {
-    width: 26rem;
-  }
-}
-
-/* Vertical rhythm for the main column: fumadocs stacks slots with no gaps and
-   relies on prose margins that not-prose blocks opt out of. */
-.site-api-operation-main > * + * {
-  margin-top: 1.25rem;
-}
-
-.site-api-operation-main > :is(h2, h3) + *,
-.site-api-operation-main > div:has(h2, h3) + * {
-  margin-top: 0.875rem;
-}
-
-/* The operation divider owns separation between operations — drop the prose
-   h2 hairline so the title doesn't double-rule against it, and keep titles a
-   step below the page masthead. */
-.site-doc-body .site-api-page h2 {
-  border-top: 0;
-  padding-top: 0;
-  font-size: 1.625rem;
-  line-height: 1.15;
-  text-wrap: balance;
-}
-
-.site-doc-body .site-api-page h3 {
-  margin-top: 2.5rem;
-  font-size: 1.125rem;
-}
-
-/* Component-owned code chips (media types, routes) size themselves; the prose
-   0.9em inline-code scale is for reading columns and inflates them. */
-.site-doc-body .site-api-page :is(p, li, td, th, blockquote, h1, h2, h3, h4, h5, h6) code {
-  font-size: 0.8125rem;
-}
-
-/* Enum/value lists inside schema fields span the field, not the 72ch prose
-   measure; paragraphs keep the site reading measure. */
-.site-doc-body .site-api-page :is(ul, ol) {
-  max-width: none;
-}
-
-/* Enum/example panels ship w-full; hug their content instead of spanning the
-   column for three short values. */
-.site-api-page div.w-full.bg-fd-secondary.rounded-lg {
-  width: fit-content;
-  min-width: 18rem;
-  max-width: 100%;
-}
-
-.site-doc-body .site-api-page li::marker {
-  color: var(--color-subtle);
-}
-
-/* Method labels and required markers ship with raw Tailwind palette classes
-   (no override hook); remap them to the signal tokens. */
-.site-api-page :is(.text-green-600, .dark\:text-green-400) {
-  color: var(--color-success);
-}
-
-.site-api-page :is(.text-blue-600, .dark\:text-blue-400) {
-  color: var(--color-info);
-}
-
-.site-api-page
-  :is(.text-yellow-600, .dark\:text-yellow-400, .text-orange-600, .dark\:text-orange-400) {
-  color: var(--color-warning);
-}
-
-.site-api-page :is(.text-red-600, .dark\:text-red-400, .text-red-400) {
-  color: var(--color-danger);
 }
 
 a p.text-fd-muted-foreground.truncate {
@@ -640,136 +259,6 @@ button span.truncate[class*="transition-"] {
   white-space: normal;
 }
 
-.compozy-mermaid {
-  --compozy-mermaid-bg: var(--color-canvas-soft);
-  --compozy-mermaid-node-bg: var(--color-elevated);
-  --compozy-mermaid-node-border: var(--color-accent);
-  --compozy-mermaid-node-text: var(--color-fg);
-  --compozy-mermaid-muted: var(--color-muted);
-}
-
-.compozy-mermaid .compozy-mermaid-svg {
-  color: var(--color-fg);
-}
-
-.compozy-mermaid .node rect,
-.compozy-mermaid .node circle,
-.compozy-mermaid .node ellipse,
-.compozy-mermaid .node polygon,
-.compozy-mermaid .node path {
-  fill: var(--compozy-mermaid-node-bg) !important;
-  stroke: var(--compozy-mermaid-node-border) !important;
-  stroke-width: 1.4px !important;
-}
-
-.compozy-mermaid .cluster rect {
-  fill: var(--color-canvas-soft) !important;
-  stroke: var(--color-line) !important;
-}
-
-.compozy-mermaid .edgePath path,
-.compozy-mermaid .flowchart-link,
-.compozy-mermaid .messageLine0,
-.compozy-mermaid .messageLine1,
-.compozy-mermaid .transition {
-  stroke: var(--color-subtle) !important;
-}
-
-.compozy-mermaid marker path,
-.compozy-mermaid marker polygon {
-  fill: var(--color-subtle) !important;
-  stroke: var(--color-subtle) !important;
-}
-
-.compozy-mermaid text,
-.compozy-mermaid .label,
-.compozy-mermaid .nodeLabel,
-.compozy-mermaid .edgeLabel,
-.compozy-mermaid .messageText,
-.compozy-mermaid .actor,
-.compozy-mermaid .stateLabel {
-  color: var(--compozy-mermaid-node-text) !important;
-  fill: var(--compozy-mermaid-node-text) !important;
-  font-family: var(--font-mono) !important;
-  letter-spacing: 0 !important;
-  overflow-wrap: anywhere !important;
-  white-space: normal !important;
-}
-
-.compozy-mermaid foreignObject,
-.compozy-mermaid foreignObject > * {
-  overflow: visible !important;
-  white-space: normal !important;
-}
-
-.compozy-mermaid .edgeLabel,
-.compozy-mermaid .loopText,
-.compozy-mermaid .noteText {
-  color: var(--compozy-mermaid-muted) !important;
-  fill: var(--compozy-mermaid-muted) !important;
-}
-
-.compozy-mermaid .actor {
-  fill: var(--color-elevated) !important;
-  stroke: var(--color-line) !important;
-}
-
-.compozy-mermaid .note,
-.compozy-mermaid .labelBox {
-  fill: var(--color-canvas-soft) !important;
-  stroke: var(--color-line) !important;
-}
-
-.site-home h1,
-.site-home h2 {
-  font-family: var(--font-display), var(--font-sans);
-}
-
-.site-bento-overlay-runtime {
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--color-rail) 68%, transparent) 0%,
-    color-mix(in srgb, var(--color-rail) 18%, transparent) 42%,
-    transparent 68%
-  );
-}
-
-.site-bento-overlay-network {
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--color-rail) 94%, transparent) 0%,
-    color-mix(in srgb, var(--color-rail) 78%, transparent) 21%,
-    transparent 48%
-  );
-}
-
-.site-bento-overlay-bridges {
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--color-rail) 84%, transparent) 0%,
-    color-mix(in srgb, var(--color-rail) 40%, transparent) 30%,
-    transparent 64%
-  );
-}
-
-.site-bento-overlay-memory {
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--color-rail) 92%, transparent) 0%,
-    color-mix(in srgb, var(--color-rail) 72%, transparent) 27%,
-    transparent 58%
-  );
-}
-
-.site-bento-overlay-extensibility {
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--color-rail) 92%, transparent) 0%,
-    color-mix(in srgb, var(--color-rail) 66%, transparent) 26%,
-    transparent 58%
-  );
-}
-
 @media (max-width: 1024px) {
   #nd-toc {
     width: 100%;
@@ -778,14 +267,9 @@ button span.truncate[class*="transition-"] {
   }
 }
 
-@media (max-width: 768px) {
-  .site-doc-body {
-    font-size: 0.95rem;
-    line-height: 1.75;
-  }
-
-  .site-doc-body h2 {
-    margin-top: 3.25rem;
+@media (min-width: 768px) {
+  #nd-notebook-layout {
+    --fd-sidebar-width: var(--site-doc-sidebar-width);
   }
 }
 

@@ -934,7 +934,7 @@ func TestNetworkConversationCommandsAndFormatting(t *testing.T) {
 		}
 	})
 
-	t.Run("Should show work status as TOON", func(t *testing.T) {
+	t.Run("Should show work lookup as TOON", func(t *testing.T) {
 		t.Parallel()
 
 		deps := newWorkspaceTestDeps(t, &stubClient{
@@ -952,23 +952,46 @@ func TestNetworkConversationCommandsAndFormatting(t *testing.T) {
 			"--workspace",
 			"ws-alpha",
 			"work",
-			"status",
+			"lookup",
 			"--work",
 			"work_1",
 			"-o",
 			"toon",
 		)
 		if err != nil {
-			t.Fatalf("network work status error = %v", err)
+			t.Fatalf("network work lookup error = %v", err)
 		}
 		if !strings.Contains(out, "network_work{") || !strings.Contains(out, "work_1") {
-			t.Fatalf("network work status toon = %q, want work object", out)
+			t.Fatalf("network work lookup toon = %q, want work object", out)
+		}
+	})
+
+	t.Run("Should hard-cut the indistinguishable status alias", func(t *testing.T) {
+		t.Parallel()
+
+		root := newRootCommand(commandDeps{})
+		cmd, remaining, err := root.Find([]string{"network", "work", "status"})
+		if err == nil && len(remaining) == 0 &&
+			strings.TrimSpace(cmd.CommandPath()) == "compozy network work status" {
+			t.Fatal("network work status should not resolve after the hard cut")
 		}
 	})
 }
 
 func TestNetworkSendParsersRejectInvalidFlags(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should accept a valid JSON value before kind-specific validation", func(t *testing.T) {
+		t.Parallel()
+
+		body, err := parseNetworkBodyJSONValue(`true`)
+		if err != nil {
+			t.Fatalf("parseNetworkBodyJSONValue(true) error = %v", err)
+		}
+		if got := string(body); got != `true` {
+			t.Fatalf("parseNetworkBodyJSONValue(true) = %q, want true", got)
+		}
+	})
 
 	tests := []struct {
 		name    string
@@ -1147,5 +1170,25 @@ func TestNetworkSendParsersRejectInvalidFlags(t *testing.T) {
 				t.Fatalf("executeRootCommand(%v) error = %v, want substring %q", tc.args, err, tc.wantErr)
 			}
 		})
+	}
+}
+
+func TestNetworkSendHelpDescribesAcceptedJSONValues(t *testing.T) {
+	t.Parallel()
+
+	root := newRootCommand(commandDeps{})
+	cmd, remaining, err := root.Find([]string{"network", "send"})
+	if err != nil {
+		t.Fatalf("Find(network send) error = %v", err)
+	}
+	if len(remaining) != 0 {
+		t.Fatalf("Find(network send) remaining = %v, want none", remaining)
+	}
+	flag := cmd.Flags().Lookup("body")
+	if flag == nil {
+		t.Fatal("network send should expose --body")
+	}
+	if got, want := flag.Usage, "Kind-specific JSON value; say requires a non-empty text field"; got != want {
+		t.Fatalf("network send --body help = %q, want %q", got, want)
 	}
 }

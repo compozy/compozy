@@ -9,10 +9,10 @@ entry_points: compozy.com /marketplace; /marketplace/bridges; /marketplace/bundl
 qa_status: pass
 bug_ids:
 fix_status:
-retest_status:
+retest_status: pass
 fix_commits:
-evidence: 2026-07-29 walk on a local `next build` + `next start :4598`. All routes returned 200: /docs/, /docs/examples/ and its five wave-one pages, /marketplace/, /marketplace/{skills,mcp,extensions}/, /marketplace/bridges/, /marketplace/bundled/dev-cycle/, /marketplace/mcp/context7/, and the bridge setup guides. Visual-contract bundles VC-01..VC-05 under .compozy/tasks/site-docs-ia/evidence/visual/gap-closure/ validate PASS with 0 blocking divergences. Rendered-HTML assertions: /marketplace and /marketplace/bridges carry no `compozy extension install` command, the Alpha claim is present, and /marketplace/bundled/dev-cycle shows the real inventory (2 loops, 9 skills, 3 agents, 3 tools incl. import_tasks) with `compozy extension status dev-cycle` as the only action. All eight providers render their @compozy/ui platform mark in landing-page order; every Setup guide link resolved 200.
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-site-improvs-deep-review-20260730-024918-833208-lab/qa-artifacts/qa/visual-contract/deep-review-remediation/raw/implementation/marketplace-bridges.png
+last_report: docs/qa/reports/2026-07-29-site-improvs-deep-review.md
 overlaps: ET-site-marketplace-catalog; ET-dev-cycle-skill-bundle; ET-compozy-official-skill-discovery
 ---
 
@@ -31,3 +31,6 @@ entry today, and rendering them as one would have been a false claim:
 The walk owns the truthfulness edge: confirm no install command appears on either surface, that the
 counts match the repository, and that the Setup guide links resolve. Feed-kind containment and count
 parity are additionally gated by `lib/__tests__/marketplace-catalog.test.ts`.
+
+QA impact 2026-07-29 deep-review remediation: reset after bridge tiles were recomposed from shared UI
+primitives and Marketplace layout/token usage changed.

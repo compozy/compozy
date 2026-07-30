@@ -43,9 +43,6 @@ func newSchedulerCommand(deps commandDeps) *cobra.Command {
 
   # Pause and wait up to 30 seconds for active claims to finish
   compozy scheduler drain --timeout 30s`,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			return cmd.Help()
-		},
 	}
 	cmd.AddCommand(newSchedulerStatusCommand(deps))
 	cmd.AddCommand(newSchedulerPauseCommand(deps))

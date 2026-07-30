@@ -20,6 +20,13 @@ type productionSourceSizeViolation struct {
 	lines int
 }
 
+var productionSourceExtensions = map[string]struct{}{
+	".c": {}, ".cc": {}, ".cjs": {}, ".cpp": {}, ".css": {}, ".go": {},
+	".h": {}, ".hpp": {}, ".java": {}, ".js": {}, ".jsx": {}, ".kt": {},
+	".mjs": {}, ".py": {}, ".rb": {}, ".rs": {}, ".scss": {}, ".sh": {},
+	".swift": {}, ".ts": {}, ".tsx": {},
+}
+
 var productionSourceRoots = []string{
 	"cmd/",
 	"extensions/",
@@ -46,7 +53,7 @@ var excludedProductionSourceSegments = map[string]struct{}{
 	"tests":      {},
 }
 
-// SourceSize verifies that handwritten production Go sources stay within the hard line limit.
+// SourceSize verifies that handwritten production sources stay within the hard line limit.
 func SourceSize() error {
 	violations, err := inspectProductionSourceLineLimit(".")
 	if err != nil {
@@ -54,16 +61,16 @@ func SourceSize() error {
 	}
 	for _, violation := range violations {
 		fmt.Printf(
-			"VIOLATION: production Go source exceeds %d lines: %s (%d lines)\n",
+			"VIOLATION: production source exceeds %d lines: %s (%d lines)\n",
 			maxProductionSourceLines,
 			violation.path,
 			violation.lines,
 		)
 	}
 	if len(violations) > 0 {
-		return fmt.Errorf("found %d production Go source size violations", len(violations))
+		return fmt.Errorf("found %d production source size violations", len(violations))
 	}
-	fmt.Printf("OK: production Go sources respect the %d-line limit\n", maxProductionSourceLines)
+	fmt.Printf("OK: production sources respect the %d-line limit\n", maxProductionSourceLines)
 	return nil
 }
 
@@ -140,16 +147,16 @@ func inspectTrackedProductionSources(
 	return violations, nil
 }
 
-// The size gate scopes to Go only: declarative/markup surfaces (CSS, TSX, MDX)
-// carry legitimately long files and are owned by their own lint stacks.
 func isProductionSourcePath(path string) bool {
 	if path != "main.go" && !hasProductionSourceRoot(path) {
 		return false
 	}
-	name := filepath.Base(path)
-	if !strings.HasSuffix(strings.ToLower(name), ".go") {
+	if strings.HasPrefix(path, "packages/slides/") ||
+		path == "packages/ui/src/tokens.css" ||
+		path == "web/src/routeTree.gen.ts" {
 		return false
 	}
+	name := filepath.Base(path)
 	if isTestSourceName(name) || isGeneratedSourceName(name) {
 		return false
 	}
@@ -158,7 +165,8 @@ func isProductionSourcePath(path string) bool {
 			return false
 		}
 	}
-	return true
+	_, supported := productionSourceExtensions[strings.ToLower(filepath.Ext(name))]
+	return supported
 }
 
 func hasProductionSourceRoot(path string) bool {
@@ -171,7 +179,11 @@ func hasProductionSourceRoot(path string) bool {
 }
 
 func isTestSourceName(name string) bool {
-	return strings.HasSuffix(strings.ToLower(name), "_test.go")
+	lower := strings.ToLower(name)
+	return strings.HasSuffix(lower, "_test.go") ||
+		strings.HasPrefix(lower, "test_") ||
+		strings.Contains(lower, ".test.") ||
+		strings.Contains(lower, ".spec.")
 }
 
 func isGeneratedSourceName(name string) bool {

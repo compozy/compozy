@@ -22,18 +22,19 @@ Manage MCP integrations
 
 ## Output Formats
 
-Every Compozy command supports `-o, --output`:
+This command displays human-readable help and its subcommand list. The inherited `-o, --output` and `--json` flags do not serialize help output.
 
-- `human` for interactive terminal use
-- `json` for scripts and other machine-readable consumers
-- `jsonl` for wait or streaming commands that emit one JSON record per line
-- `toon` for compact agent-readable summaries
+| Format  | Output                   |
+| ------- | ------------------------ |
+| `human` | Help and subcommand list |
+| `json`  | Not emitted for help     |
+| `jsonl` | Not emitted for help     |
+| `toon`  | Not emitted for help     |
 
 ## Subcommands
 
-| Command                                          | Description                                         |
-| ------------------------------------------------ | --------------------------------------------------- |
-| [compozy mcp auth](/docs/cli/mcp/auth)           | Authenticate remote MCP servers through the daemon  |
-| [compozy mcp authorize](/docs/cli/mcp/authorize) | Authorize a remote MCP server through the daemon    |
-| [compozy mcp install](/docs/cli/mcp/install)     | Install a curated MCP server                        |
-| [compozy mcp serve](/docs/cli/mcp/serve)         | Serve the workspace-bound Compozy Host API over MCP |
+| Command                                      | Description                                         |
+| -------------------------------------------- | --------------------------------------------------- |
+| [compozy mcp auth](/docs/cli/mcp/auth)       | Authenticate remote MCP servers through the daemon  |
+| [compozy mcp install](/docs/cli/mcp/install) | Install a curated MCP server                        |
+| [compozy mcp serve](/docs/cli/mcp/serve)     | Serve the workspace-bound Compozy Host API over MCP |

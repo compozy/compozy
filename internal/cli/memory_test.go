@@ -47,7 +47,7 @@ func TestMemoryCommandTreeHardCutsLegacyVerbs(t *testing.T) {
 		{"memory", "daily", "restore"},
 		{"memory", "daily", "purge"},
 		{"memory", "extractor", "status"},
-		{"memory", "extractor", "list-pending"},
+		{"memory", "extractor", "list-failures"},
 		{"memory", "extractor", "replay"},
 		{"memory", "extractor", "drain"},
 		{"memory", "extractor", "disable"},
@@ -70,7 +70,11 @@ func TestMemoryCommandTreeHardCutsLegacyVerbs(t *testing.T) {
 		}
 	}
 
-	for _, legacy := range [][]string{{"memory", "read"}, {"memory", "consolidate"}} {
+	for _, legacy := range [][]string{
+		{"memory", "read"},
+		{"memory", "consolidate"},
+		{"memory", "extractor", "list-pending"},
+	} {
 		cmd, remaining, err := root.Find(legacy)
 		if err == nil && len(remaining) == 0 &&
 			strings.TrimSpace(cmd.CommandPath()) == "compozy "+strings.Join(legacy, " ") {

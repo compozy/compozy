@@ -1,10 +1,17 @@
+import { render } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
+
+const mockedPageRender = vi.hoisted(() => ({
+  mastheads: [] as Array<{ pageUrl?: string }>,
+}));
 
 const mockedDocs = vi.hoisted(() => {
   function createDocs(
     pages: Array<{
       slugs: string[];
       url: string;
+      path: string;
       title: string;
       description: string;
     }>
@@ -13,7 +20,16 @@ const mockedDocs = vi.hoisted(() => {
       generateParams: () => pages.map(page => ({ slug: page.slugs })),
       getPage: (slug: string[]) => {
         const page = pages.find(candidate => candidate.slugs.join("/") === slug.join("/"));
-        return page ? { ...page, data: page } : null;
+        return page
+          ? {
+              ...page,
+              data: {
+                ...page,
+                body: () => null,
+                toc: [],
+              },
+            }
+          : null;
       },
     };
   }
@@ -22,24 +38,28 @@ const mockedDocs = vi.hoisted(() => {
     {
       slugs: [],
       url: "/docs",
+      path: "index.mdx",
       title: "Overview",
       description: "Understand CompozyOS and choose the right docs path.",
     },
     {
       slugs: ["how-to-use-these-docs"],
       url: "/docs/how-to-use-these-docs",
+      path: "how-to-use-these-docs.mdx",
       title: "How to Use These Docs",
       description: "Choose the right CompozyOS docs path for your goal.",
     },
     {
       slugs: ["network", "protocol"],
-      url: "/docs/network/protocol",
+      url: "/docs/network/protocol-model",
+      path: "network/protocol-model.mdx",
       title: "Compozy Network Protocol",
       description: "Understand the public compozy-network/v0 protocol surface.",
     },
     {
       slugs: ["network", "protocol", "implementation-status"],
       url: "/docs/network/protocol/implementation-status",
+      path: "network/protocol/implementation-status.mdx",
       title: "Implementation Status",
       description: "Understand the current compozy-network/v0 reference implementation.",
     },
@@ -55,7 +75,42 @@ vi.mock("@/lib/source", () => ({
   docsSource: mockedDocs.docsSource,
 }));
 
+vi.mock("fumadocs-ui/page", () => ({
+  DocsBody: ({ children }: { children?: ReactNode }) => children,
+  DocsPage: ({ children }: { children?: ReactNode }) => children,
+}));
+
+vi.mock("@/components/docs/doc-page-masthead", () => ({
+  DocPageMasthead: (props: { pageUrl?: string }) => {
+    mockedPageRender.mastheads.push(props);
+    return null;
+  },
+}));
+
+vi.mock("@/components/seo/structured-data", () => ({
+  BreadcrumbListJsonLd: () => null,
+  TechArticleJsonLd: () => null,
+}));
+
+vi.mock("@/mdx-components", () => ({
+  getMDXComponents: () => ({}),
+}));
+
+vi.mock("@/lib/doc-masthead-meta", () => ({
+  resolveDocMastheadMeta: () => ({
+    audience: "operators",
+    crumbs: [],
+    product: "CompozyOS",
+    sectionPageCount: 1,
+  }),
+}));
+
+vi.mock("@/lib/openapi", () => ({
+  openapi: { preloadOpenAPIPage: vi.fn() },
+}));
+
 import {
+  default as DocsRoutePage,
   generateMetadata as generateDocsMetadata,
   generateStaticParams as generateDocsStaticParams,
 } from "@/app/docs/[[...slug]]/page";
@@ -91,6 +146,16 @@ describe("docs route metadata", () => {
   it("does not publish metadata for unknown docs routes", async () => {
     await expect(generateDocsMetadata(pageProps(["missing-docs-page"]))).rejects.toThrow(
       "NEXT_HTTP_ERROR_FALLBACK;404"
+    );
+  });
+
+  it("uses the docs source's resolved URL for page actions", async () => {
+    mockedPageRender.mastheads.length = 0;
+
+    render(await DocsRoutePage(pageProps(["network", "protocol"])));
+
+    expect(mockedPageRender.mastheads.at(-1)?.pageUrl).toBe(
+      "https://compozy.com/docs/network/protocol-model/"
     );
   });
 });

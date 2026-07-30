@@ -46,10 +46,24 @@ Schedules are evaluated in the automation timezone, which defaults to `UTC` — 
 
 ## Run it
 
+Before loading this definition or creating the dynamic job, make sure `operator` is an effective
+agent definition for this workspace. The scheduler stores the agent name, but the dispatcher resolves
+the agent and its provider when it starts the session. Configure the provider and its credentials first,
+then inspect the resolved definition:
+
+```bash
+compozy agent info operator --workspace /Users/you/src/checkout-api
+```
+
+For a custom automation agent, create a workspace-local or global definition before this step and make
+sure its effective runtime has a configured provider. See [Agent definitions](/docs/agents/definitions)
+for the resolution cascade.
+
 Create the same job dynamically, without editing config:
 
 ```bash
-compozy automation jobs create \
+job="$(
+  compozy automation jobs create \
   --name morning-briefing \
   --scope workspace \
   --workspace /Users/you/src/checkout-api \
@@ -57,16 +71,20 @@ compozy automation jobs create \
   --catch-up-policy run_once_on_catchup \
   --misfire-grace-seconds 120 \
   --agent operator \
-  --prompt "Write this morning's briefing for the checkout-api workspace."
+  --prompt "Write this morning's briefing for the checkout-api workspace." \
+  -o json
+)"
+job_id="$(printf '%s' "$job" | jq -er '.id')"
 ```
 
 Then confirm it registered, fire it once by hand instead of waiting for tomorrow, and read the run
-history:
+history. This uses `jq` to read the generated ID from the create response; a job name is not accepted
+by the trigger or run-history commands.
 
 ```bash
-compozy automation jobs -o json
-compozy automation jobs trigger morning-briefing
-compozy automation runs -o json
+compozy automation jobs get "$job_id" -o json
+compozy automation jobs trigger "$job_id"
+compozy automation runs --job-id "$job_id" -o json
 ```
 
 ## How it works

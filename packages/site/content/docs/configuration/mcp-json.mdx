@@ -166,14 +166,14 @@ OAuth sessions and PKCE verifiers live in the daemon, so CLI, HTTP, and UDS clie
 same flow. Start authorization with a copyable URL:
 
 ```bash
-compozy mcp authorize linear
+compozy mcp auth login linear
 ```
 
 For a remote operator or a daemon with a non-loopback HTTP bind, use manual completion and paste
 either the returned code or the full redirect URL:
 
 ```bash
-compozy mcp authorize linear --manual
+compozy mcp auth login linear --manual
 ```
 
 `--timeout` bounds the whole authorization attempt, including manual input and exchange. The active
@@ -182,7 +182,7 @@ daemon PKCE session expiry can shorten that deadline; it never extends it.
 Target a workspace sidecar explicitly with both selectors:
 
 ```bash
-compozy mcp authorize linear --scope workspace --workspace <workspace-id>
+compozy mcp auth login linear --scope workspace --workspace <workspace-id>
 compozy mcp auth status linear --scope workspace --workspace <workspace-id> -o json
 ```
 
@@ -290,10 +290,10 @@ The daemon preserves an existing token when begin, exchange, refresh, or operato
 
 ```bash
 # Automatic loopback completion.
-compozy mcp authorize linear --scope global
+compozy mcp auth login linear --scope global
 
 # Paste a code or full redirect URL when operating away from the daemon host.
-compozy mcp authorize linear --scope global --manual
+compozy mcp auth login linear --scope global --manual
 
 # Remove the scoped credential when that is the intended repair.
 compozy mcp auth logout linear --scope global -o json

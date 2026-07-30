@@ -1,191 +1,183 @@
-import { render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { FrameworkProvider } from "fumadocs-core/framework";
+import type { Folder, Root } from "fumadocs-core/page-tree";
+import { SidebarProvider } from "fumadocs-ui/components/sidebar/base";
+import { TreeContextProvider } from "fumadocs-ui/contexts/tree";
 import type { ReactNode } from "react";
-import { CompactFolder, CompactItem } from "../sidebar-compact-tree";
+import { act } from "react";
+import { hydrateRoot } from "react-dom/client";
+import { renderToString } from "react-dom/server";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { CompactFolder } from "../sidebar-compact-tree";
 
 const mocks = vi.hoisted(() => ({
-  depth: 0,
-  folderOpen: true,
+  pathname: "/docs/loops/catalog",
 }));
 
 vi.mock("next/navigation", () => ({
-  usePathname: () => "/docs/loops/catalog",
+  usePathname: () => mocks.pathname,
 }));
 
-vi.mock("fumadocs-ui/contexts/tree", () => ({
-  useTreePath: () => [],
-}));
+function createFolder(folderKey = "loops", page = "catalog"): Folder {
+  const folderUrl = `/docs/${folderKey}`;
+  const index: NonNullable<Folder["index"]> = {
+    type: "page",
+    name: `${folderKey} overview`,
+    url: folderUrl,
+  };
 
-vi.mock("fumadocs-ui/components/sidebar/base", () => ({
-  useFolderDepth: () => mocks.depth,
-  useFolder: () => ({
-    open: mocks.folderOpen,
-    setOpen: vi.fn(),
-    depth: mocks.depth + 1,
-    collapsible: true,
-  }),
-  SidebarItem: ({
-    children,
-    icon,
-    className,
-    active,
-  }: {
-    children: ReactNode;
-    icon?: ReactNode;
-    className?: string;
-    active?: boolean;
-  }) => (
-    <a className={className} data-active={active} data-testid="sidebar-item">
-      {icon}
-      {children}
-    </a>
-  ),
-  SidebarFolder: ({
-    children,
-    className,
-    active,
-  }: {
-    children: ReactNode;
-    className?: string;
-    active?: boolean;
-  }) => (
-    <div
-      className={className}
-      data-active={active ? "true" : undefined}
-      data-state="open"
-      data-testid="sidebar-folder"
+  return {
+    type: "folder",
+    $id: folderKey,
+    name: folderKey,
+    index,
+    children: [
+      index,
+      {
+        type: "page",
+        name: page,
+        url: `${folderUrl}/${page}`,
+      },
+    ],
+  };
+}
+
+function SidebarHarness({ folder, children }: { folder: Folder; children: ReactNode }) {
+  const tree: Root = {
+    $id: `docs-${folder.$id ?? "root"}`,
+    name: "Docs",
+    children: [folder],
+  };
+
+  return (
+    <FrameworkProvider
+      useParams={() => ({})}
+      usePathname={() => mocks.pathname}
+      useRouter={() => ({ push: () => undefined, refresh: () => undefined })}
     >
-      {children}
-    </div>
-  ),
-  SidebarFolderLink: ({
-    children,
-    className,
-    active,
-  }: {
-    children: ReactNode;
-    className?: string;
-    active?: boolean;
-  }) => (
-    <a className={className} data-active={active} data-testid="folder-link">
-      {children}
-    </a>
-  ),
-  SidebarFolderTrigger: ({ children, className }: { children: ReactNode; className?: string }) => (
-    <button className={className} data-testid="folder-trigger" type="button">
-      {children}
-    </button>
-  ),
-  SidebarFolderContent: ({ children, className }: { children: ReactNode; className?: string }) => (
-    <div className={className} data-testid="folder-content">
-      {children}
-    </div>
-  ),
-}));
+      <TreeContextProvider tree={tree}>
+        <SidebarProvider>
+          <CompactFolder item={folder}>{children}</CompactFolder>
+        </SidebarProvider>
+      </TreeContextProvider>
+    </FrameworkProvider>
+  );
+}
 
-vi.mock("../sidebar-folder-persist-effect", () => ({
-  FolderOpenPersistWriter: () => null,
-}));
+function renderFolder(folder: Folder, children: ReactNode) {
+  return render(<SidebarHarness folder={folder}>{children}</SidebarHarness>);
+}
+
+function folderState(name: string): string | null | undefined {
+  const control = screen.queryByRole("button", { name }) ?? screen.getByRole("link", { name });
+  return control.closest(".docs-sb-folder")?.getAttribute("data-state");
+}
 
 describe("sidebar compact tree", () => {
   beforeEach(() => {
-    mocks.depth = 0;
-    mocks.folderOpen = true;
+    mocks.pathname = "/docs/loops/catalog";
+    window.localStorage.clear();
+    vi.stubGlobal(
+      "matchMedia",
+      (query: string): MediaQueryList => ({
+        addEventListener: () => undefined,
+        addListener: () => undefined,
+        dispatchEvent: () => false,
+        matches: false,
+        media: query,
+        onchange: null,
+        removeEventListener: () => undefined,
+        removeListener: () => undefined,
+      })
+    );
   });
 
-  it("Should render top-level item icons and omit nested icons", () => {
-    mocks.depth = 0;
-    const { rerender } = render(
-      <CompactItem
-        item={{
-          type: "page",
-          name: "Loops",
-          url: "/docs/loops",
-          icon: <span data-testid="page-icon" />,
-        }}
-      />
-    );
-    expect(screen.getByTestId("page-icon")).toBeTruthy();
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
 
-    mocks.depth = 1;
+  it("Should let a persisted closed preference survive active-route hydration", async () => {
+    const folder = createFolder();
+    const container = document.createElement("div");
+    container.innerHTML = renderToString(
+      <SidebarHarness folder={folder}>
+        <span data-testid="folder-content">Catalog</span>
+      </SidebarHarness>
+    );
+    document.body.append(container);
+    window.localStorage.setItem("compozy.docs.sidebar.folder:loops", "0");
+
+    const root = hydrateRoot(
+      container,
+      <SidebarHarness folder={folder}>
+        <span data-testid="folder-content">Catalog</span>
+      </SidebarHarness>
+    );
+
+    await waitFor(() => {
+      expect(window.localStorage.getItem("compozy.docs.sidebar.folder:loops")).toBe("0");
+      expect(container.querySelector(".docs-sb-folder")?.getAttribute("data-state")).toBe("closed");
+    });
+
+    await act(async () => root.unmount());
+    container.remove();
+  });
+
+  it("Should keep a non-active folder closed when its persisted preference is closed", () => {
+    const folder = createFolder();
+    mocks.pathname = "/docs/agents/providers";
+    window.localStorage.setItem("compozy.docs.sidebar.folder:loops", "0");
+
+    renderFolder(folder, <span data-testid="folder-content">Catalog</span>);
+
+    expect(screen.queryByTestId("folder-content")).toBeNull();
+  });
+
+  it("Should keep a hoisted overview on a collapsible category header", () => {
+    const folder = createFolder();
+
+    renderFolder(folder, <span>Catalog</span>);
+
+    expect(screen.getByRole("button", { name: "loops" })).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "loops" })).toBeNull();
+  });
+
+  it("Should restore a user-closed active folder after remount", async () => {
+    const folder = createFolder();
+    const first = renderFolder(folder, <span data-testid="folder-content">Catalog</span>);
+
+    const trigger = screen.getByRole("button", { name: "loops" });
+    expect(folderState("loops")).toBe("open");
+    fireEvent.click(trigger);
+
+    await waitFor(() => {
+      expect(window.localStorage.getItem("compozy.docs.sidebar.folder:loops")).toBe("0");
+    });
+    first.unmount();
+
+    renderFolder(folder, <span data-testid="folder-content">Catalog</span>);
+    expect(screen.queryByTestId("folder-content")).toBeNull();
+    expect(folderState("loops")).toBe("closed");
+  });
+
+  it("Should persist the current open state after a folder identity change", async () => {
+    const loops = createFolder();
+    const { rerender } = renderFolder(loops, <span>Catalog</span>);
+
+    await waitFor(() => {
+      expect(window.localStorage.getItem("compozy.docs.sidebar.folder:loops")).toBe("1");
+    });
+
+    mocks.pathname = "/docs/agents/providers";
+    const agents = createFolder("agents", "providers");
     rerender(
-      <CompactItem
-        item={{
-          type: "page",
-          name: "Catalog",
-          url: "/docs/loops/catalog",
-          icon: <span data-testid="nested-icon" />,
-        }}
-      />
+      <SidebarHarness folder={agents}>
+        <span>Providers</span>
+      </SidebarHarness>
     );
-    expect(screen.queryByTestId("nested-icon")).toBeNull();
-    expect(screen.getByTestId("sidebar-item").className).toContain("docs-sb-item--nested");
-  });
 
-  it("Should wrap folder children in a guide-line kids container", () => {
-    render(
-      <CompactFolder
-        item={{
-          type: "folder",
-          $id: "loops",
-          name: "Loops",
-          icon: <span data-testid="folder-icon" />,
-          index: {
-            type: "page",
-            name: "Loops",
-            url: "/docs/loops",
-          },
-          children: [],
-        }}
-      >
-        <span>child</span>
-      </CompactFolder>
-    );
-    expect(screen.getByTestId("folder-icon")).toBeTruthy();
-    expect(screen.getByTestId("folder-content").className).toContain("docs-sb-kids-clip");
-    expect(screen.getByText("child").parentElement?.className).toContain("docs-sb-kids");
-  });
-
-  it("Should truncate long item labels and expose the full name via title", () => {
-    const longName = "Participation, Channels, and Peers";
-    render(
-      <CompactItem
-        item={{
-          type: "page",
-          name: longName,
-          url: "/docs/network/channels-and-peers",
-        }}
-      />
-    );
-    const label = screen.getByText(longName);
-    expect(label.tagName).toBe("SPAN");
-    expect(label.className).toContain("truncate");
-    expect(label.getAttribute("title")).toBe(longName);
-    expect(screen.getByTestId("sidebar-item").className).toContain("overflow-hidden");
-  });
-
-  it("Should truncate long folder header labels and expose the full name via title", () => {
-    const longName = "Delivery, Admission, and Usage";
-    render(
-      <CompactFolder
-        item={{
-          type: "folder",
-          $id: "network/delivery",
-          name: longName,
-          index: {
-            type: "page",
-            name: longName,
-            url: "/docs/network/delivery-and-safety",
-          },
-          children: [],
-        }}
-      >
-        <span>child</span>
-      </CompactFolder>
-    );
-    const label = screen.getByText(longName);
-    expect(label.tagName).toBe("SPAN");
-    expect(label.className).toContain("truncate");
-    expect(label.getAttribute("title")).toBe(longName);
+    await waitFor(() => {
+      expect(window.localStorage.getItem("compozy.docs.sidebar.folder:agents")).toBe("1");
+    });
   });
 });

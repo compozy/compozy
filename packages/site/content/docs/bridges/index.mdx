@@ -196,19 +196,19 @@ Bridge instances are persisted runtime records. They are created through the bri
 }
 ```
 
-| Field               | Required       | Notes                                                                                                                                       |
-| ------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| `scope`             | yes            | `workspace` or `global`. Use `workspace` for inbound sessions.                                                                              |
-| `workspace_id`      | workspace only | Required when `scope` is `workspace`; forbidden for `global`.                                                                               |
-| `platform`          | yes            | Platform identifier such as `slack`, `discord`, or `telegram`.                                                                              |
-| `extension_name`    | yes            | Installed extension that owns the provider, usually the same as the platform.                                                               |
-| `display_name`      | yes            | Operator-facing name shown by CLI/API output.                                                                                               |
-| `enabled`           | yes            | Disabled instances do not accept routing work. Create disabled, bind secrets, then enable.                                                  |
-| `status`            | yes            | `disabled`, `starting`, `ready`, `degraded`, `auth_required`, or `error`.                                                                   |
-| `dm_policy`         | no             | Direct messages only: `open`, `allowlist`, or `pairing`; empty normalizes to permissive `open`. See [access control](/docs/bridges/access). |
-| `routing_policy`    | yes            | Chooses which platform identity dimensions join the canonical route key.                                                                    |
-| `provider_config`   | no             | Provider-owned JSON object. The transport accepts any JSON object or `null`; each adapter validates the keys it uses.                       |
-| `delivery_defaults` | no             | JSON object with route defaults plus an optional typed `progress` block. `thread_id` requires `peer_id` or `group_id`.                      |
+| Field               | Required       | Notes                                                                                                                                              |
+| ------------------- | -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `scope`             | yes            | `workspace` or `global`. Use `workspace` for inbound sessions.                                                                                     |
+| `workspace_id`      | workspace only | Required when `scope` is `workspace`; forbidden for `global`.                                                                                      |
+| `platform`          | yes            | Platform identifier such as `slack`, `discord`, or `telegram`.                                                                                     |
+| `extension_name`    | yes            | Installed extension that owns the provider, usually the same as the platform.                                                                      |
+| `display_name`      | yes            | Operator-facing name shown by CLI/API output.                                                                                                      |
+| `enabled`           | yes            | Disabled instances do not accept routing work. Create disabled, bind secrets, then enable.                                                         |
+| `status`            | response only  | Daemon-derived lifecycle state: `disabled`, `starting`, `ready`, `degraded`, `auth_required`, or `error`. Omit it from create and update requests. |
+| `dm_policy`         | no             | Direct messages only: `open`, `allowlist`, or `pairing`; empty normalizes to permissive `open`. See [access control](/docs/bridges/access).        |
+| `routing_policy`    | yes            | Chooses which platform identity dimensions join the canonical route key.                                                                           |
+| `provider_config`   | no             | Provider-owned JSON object. The transport accepts any JSON object or `null`; each adapter validates the keys it uses.                              |
+| `delivery_defaults` | no             | JSON object with route defaults plus an optional typed `progress` block. `thread_id` requires `peer_id` or `group_id`.                             |
 
 Package-managed instances can be created by extension bundles. Those records report
 `source: "package"` and reject direct spec mutation through the generic update API.

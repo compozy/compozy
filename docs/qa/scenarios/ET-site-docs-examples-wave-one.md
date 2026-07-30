@@ -9,10 +9,10 @@ entry_points: compozy.com /docs/examples; /docs/examples/review-and-fix-loop; /d
 qa_status: pass
 bug_ids:
 fix_status:
-retest_status:
+retest_status: pass
 fix_commits:
-evidence: 2026-07-29 walk on a local `next build` + `next start :4598`. All routes returned 200: /docs/, /docs/examples/ and its five wave-one pages, /marketplace/, /marketplace/{skills,mcp,extensions}/, /marketplace/bridges/, /marketplace/bundled/dev-cycle/, /marketplace/mcp/context7/, and the bridge setup guides. Visual-contract bundles VC-01..VC-05 under .compozy/tasks/site-docs-ia/evidence/visual/gap-closure/ validate PASS with 0 blocking divergences. VC-05 matches the reference example anatomy (What you build / The artifact / Run it / How it works / Next steps) with the Shipped maturity chip; the fenced YAML path and byte parity with extensions/dev-cycle/loops/*/loop.yaml are additionally gated by lib/__tests__/runtime-docs-truth.test.ts.
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-site-improvs-deep-review-20260730-024918-833208-lab/qa-artifacts/qa/visual-contract/deep-review-remediation/vc03-example-page; /Users/pedronauck/dev/qa-labs/compozy-site-improvs-deep-review-20260730-024918-833208-lab/qa-artifacts/qa/visual-contract/deep-review-remediation/vc08-example-page-mobile
+last_report: docs/qa/reports/2026-07-29-site-improvs-deep-review.md
 overlaps: ET-site-docs-single-tree-ia; ET-site-docs-sidebar-opendesign; ET-dev-cycle-skill-bundle
 ---
 
@@ -28,3 +28,6 @@ consistent across the five pages, the maturity chip renders, the copy affordance
 and each documented command exists in the generated CLI reference.
 
 Wave 2 (spec §8.3) is out of scope for this scenario; add its own when those artifacts land.
+
+QA impact 2026-07-29 deep-review remediation: reset after runnable commands were corrected to use
+required flags, generated IDs, real trigger output fields, and explicit agent/provider prerequisites.

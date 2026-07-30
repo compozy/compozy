@@ -1,4 +1,4 @@
 {
     "title": "Extractor",
-    "pages": ["index", "disable", "drain", "list-pending", "replay", "status"]
+    "pages": ["index", "disable", "drain", "list-failures", "replay", "status"]
 }

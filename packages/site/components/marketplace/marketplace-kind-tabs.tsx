@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { bridgeProviders } from "@/lib/marketplace-bridges";
-import { entriesForKind } from "@/lib/marketplace-catalog";
+import { entriesForKind, type MarketplaceKind } from "@/lib/marketplace-catalog";
 import { MARKETPLACE_KIND_META } from "./marketplace-kind-meta";
 
 /**
@@ -11,11 +11,11 @@ import { MARKETPLACE_KIND_META } from "./marketplace-kind-meta";
  * reading identically — the strip is the same strip, and `aria-current` marks the active one.
  */
 
-export type MarketplaceTabKey = "skills" | "extensions" | "mcp" | "bridges";
+export type MarketplaceTabKey = MarketplaceKind | "bridges";
 
 function tabs(): Array<{ key: MarketplaceTabKey; label: string; href: string; count: number }> {
   const kindTabs = MARKETPLACE_KIND_META.map(meta => ({
-    key: meta.kind as MarketplaceTabKey,
+    key: meta.kind,
     label: meta.title,
     href: `/marketplace/${meta.kind}`,
     count: entriesForKind(meta.kind).length,

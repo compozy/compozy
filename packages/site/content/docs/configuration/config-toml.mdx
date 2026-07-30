@@ -1139,17 +1139,16 @@ Configure one of `metadata_url`, `issuer_url`, or both `authorization_url` and `
 authenticate with:
 
 ```bash
-compozy mcp authorize remote-docs
-compozy mcp authorize remote-docs --manual
 compozy mcp auth login remote-docs
+compozy mcp auth login remote-docs --manual
 compozy mcp auth status remote-docs
 compozy mcp auth logout remote-docs
 
-compozy mcp authorize remote-docs --scope workspace --workspace <workspace-id>
+compozy mcp auth login remote-docs --scope workspace --workspace <workspace-id>
 ```
 
-`authorize` and `auth login` use the same daemon-owned PKCE session. Both print the live
-authorization URL. `--manual` accepts either the returned code or the full redirect URL, which is
+`auth login` starts the daemon-owned PKCE session and prints the live authorization URL. `--manual`
+accepts either the returned code or the full redirect URL, which is
 the supported path for remote operators and non-loopback HTTP binds. A command succeeds only after
 status confirms both `authenticated` and `token_present`.
 
