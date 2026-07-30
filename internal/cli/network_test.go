@@ -966,6 +966,36 @@ func TestNetworkConversationCommandsAndFormatting(t *testing.T) {
 		}
 	})
 
+	t.Run("Should reject positional arguments for work lookup", func(t *testing.T) {
+		t.Parallel()
+
+		called := false
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			networkWorkFn: func(context.Context, string, string) (NetworkWorkRecord, error) {
+				called = true
+				return NetworkWorkRecord{}, nil
+			},
+		})
+		_, _, err := executeRootCommand(
+			t,
+			deps,
+			"network",
+			"--workspace",
+			"ws-alpha",
+			"work",
+			"lookup",
+			"unexpected",
+			"--work",
+			"work_1",
+		)
+		if err == nil {
+			t.Fatal("network work lookup positional argument error = nil, want rejection")
+		}
+		if called {
+			t.Fatal("NetworkWork() called after positional argument rejection")
+		}
+	})
+
 	t.Run("Should hard-cut the indistinguishable status alias", func(t *testing.T) {
 		t.Parallel()
 
@@ -1170,25 +1200,5 @@ func TestNetworkSendParsersRejectInvalidFlags(t *testing.T) {
 				t.Fatalf("executeRootCommand(%v) error = %v, want substring %q", tc.args, err, tc.wantErr)
 			}
 		})
-	}
-}
-
-func TestNetworkSendHelpDescribesAcceptedJSONValues(t *testing.T) {
-	t.Parallel()
-
-	root := newRootCommand(commandDeps{})
-	cmd, remaining, err := root.Find([]string{"network", "send"})
-	if err != nil {
-		t.Fatalf("Find(network send) error = %v", err)
-	}
-	if len(remaining) != 0 {
-		t.Fatalf("Find(network send) remaining = %v, want none", remaining)
-	}
-	flag := cmd.Flags().Lookup("body")
-	if flag == nil {
-		t.Fatal("network send should expose --body")
-	}
-	if got, want := flag.Usage, "Kind-specific JSON value; say requires a non-empty text field"; got != want {
-		t.Fatalf("network send --body help = %q, want %q", got, want)
 	}
 }

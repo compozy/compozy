@@ -42,6 +42,7 @@ func TestDiagnosticItemContract(t *testing.T) {
 			decoded.Severity != item.Severity ||
 			decoded.Category != item.Category ||
 			decoded.SuggestedCommand != item.SuggestedCommand ||
+			decoded.DocURL != item.DocURL ||
 			decoded.DataFreshness != item.DataFreshness {
 			t.Fatalf("DiagnosticItem round trip = %#v, want %#v", decoded, item)
 		}

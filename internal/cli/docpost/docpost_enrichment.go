@@ -121,58 +121,67 @@ func renderOutputFormatProfile(outputProfile OutputProfile) string {
 	case OutputProfileHelp:
 		return "This command displays human-readable help and its subcommand list. " +
 			"The inherited `-o, --output` and `--json` flags do not serialize help output.\n\n" +
-			"| Format | Output |\n" +
-			"| --- | --- |\n" +
-			"| `human` | Help and subcommand list |\n" +
-			"| `json` | Not emitted for help |\n" +
-			"| `jsonl` | Not emitted for help |\n" +
-			"| `toon` | Not emitted for help |"
+			renderOutputFormatTable(
+				"Output",
+				"Help and subcommand list",
+				"Not emitted for help",
+				"Not emitted for help",
+				"Not emitted for help",
+			)
 	case OutputProfileNoOutput:
 		return "This command has no command-result renderer. The inherited `-o, --output` and " +
 			"`--json` flags do not add JSON, JSONL, or TOON output.\n\n" +
-			"| Format | Output |\n" +
-			"| --- | --- |\n" +
-			"| `human` | No command result |\n" +
-			"| `json` | Not emitted |\n" +
-			"| `jsonl` | Not emitted |\n" +
-			"| `toon` | Not emitted |"
+			renderOutputFormatTable("Output", "No command result", "Not emitted", "Not emitted", "Not emitted")
 	case OutputProfileProtocol:
 		return "This command reserves standard output for its MCP transport. The inherited `-o, --output` " +
 			"and `--json` flags do not change that protocol stream.\n\n" +
-			"| Format | Output |\n" +
-			"| --- | --- |\n" +
-			"| `human` | MCP transport stream |\n" +
-			"| `json` | Not a command-result renderer |\n" +
-			"| `jsonl` | Not a command-result renderer |\n" +
-			"| `toon` | Not a command-result renderer |"
+			renderOutputFormatTable(
+				"Output",
+				"MCP transport stream",
+				"Not a command-result renderer",
+				"Not a command-result renderer",
+				"Not a command-result renderer",
+			)
 	case OutputProfileRaw:
 		return "This command writes its shell-completion script directly to standard output. The inherited " +
 			"`-o, --output` and `--json` flags do not convert that script to a command result.\n\n" +
-			"| Format | Output |\n" +
-			"| --- | --- |\n" +
-			"| `human` | Shell-completion script |\n" +
-			"| `json` | Not a command-result renderer |\n" +
-			"| `jsonl` | Not a command-result renderer |\n" +
-			"| `toon` | Not a command-result renderer |"
+			renderOutputFormatTable(
+				"Output",
+				"Shell-completion script",
+				"Not a command-result renderer",
+				"Not a command-result renderer",
+				"Not a command-result renderer",
+			)
 	case OutputProfileHumanJSONL:
 		return "This streaming command supports interactive human output or newline-delimited JSON. " +
 			"It rejects the inherited `json` and `toon` output modes.\n\n" +
-			"| Format | Stream output |\n" +
-			"| --- | --- |\n" +
-			"| `human` | Interactive event stream |\n" +
-			"| `json` | Not supported |\n" +
-			"| `jsonl` | One JSON event per line |\n" +
-			"| `toon` | Not supported |"
+			renderOutputFormatTable(
+				"Stream output",
+				"Interactive event stream",
+				"Not supported",
+				"One JSON event per line",
+				"Not supported",
+			)
 	default:
 		return "The root `-o, --output` flag accepts these values. A renderer is supported only when " +
 			"this command writes that result; `jsonl` is for commands that emit one JSON record per line.\n\n" +
-			"| Format | Command result |\n" +
-			"| --- | --- |\n" +
-			"| `human` | Interactive terminal rendering |\n" +
-			"| `json` | Machine-readable JSON rendering |\n" +
-			"| `jsonl` | One JSON record per line when supported |\n" +
-			"| `toon` | Compact agent-readable rendering |"
+			renderOutputFormatTable(
+				"Command result",
+				"Interactive terminal rendering",
+				"Machine-readable JSON rendering",
+				"One JSON record per line when supported",
+				"Compact agent-readable rendering",
+			)
 	}
+}
+
+func renderOutputFormatTable(header, human, jsonOutput, jsonl, toon string) string {
+	return "| Format | " + header + " |\n" +
+		"| --- | --- |\n" +
+		"| `human` | " + human + " |\n" +
+		"| `json` | " + jsonOutput + " |\n" +
+		"| `jsonl` | " + jsonl + " |\n" +
+		"| `toon` | " + toon + " |"
 }
 
 func extractUsageLine(body string) string {

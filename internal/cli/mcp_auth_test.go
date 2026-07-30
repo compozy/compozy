@@ -20,23 +20,27 @@ import (
 func TestMCPAuthCommandTreeHardCutsAuthorizeAlias(t *testing.T) {
 	t.Parallel()
 
-	root := newRootCommand(commandDeps{})
-	login, remaining, err := root.Find([]string{"mcp", "auth", "login"})
-	if err != nil {
-		t.Fatalf("Find(mcp auth login) error = %v", err)
-	}
-	if len(remaining) != 0 {
-		t.Fatalf("Find(mcp auth login) remaining = %v, want none", remaining)
-	}
-	if got := strings.TrimSpace(login.CommandPath()); got != "compozy mcp auth login" {
-		t.Fatalf("mcp auth login path = %q, want canonical login path", got)
-	}
+	t.Run("Should resolve canonical login and reject the removed authorize alias", func(t *testing.T) {
+		t.Parallel()
 
-	legacy, legacyRemaining, legacyErr := root.Find([]string{"mcp", "authorize"})
-	if legacyErr == nil && len(legacyRemaining) == 0 &&
-		strings.TrimSpace(legacy.CommandPath()) == "compozy mcp authorize" {
-		t.Fatal("mcp authorize should not resolve after the hard cut")
-	}
+		root := newRootCommand(commandDeps{})
+		login, remaining, err := root.Find([]string{"mcp", "auth", "login"})
+		if err != nil {
+			t.Fatalf("Find(mcp auth login) error = %v", err)
+		}
+		if len(remaining) != 0 {
+			t.Fatalf("Find(mcp auth login) remaining = %v, want none", remaining)
+		}
+		if got := strings.TrimSpace(login.CommandPath()); got != "compozy mcp auth login" {
+			t.Fatalf("mcp auth login path = %q, want canonical login path", got)
+		}
+
+		legacy, legacyRemaining, legacyErr := root.Find([]string{"mcp", "authorize"})
+		if legacyErr == nil && len(legacyRemaining) == 0 &&
+			strings.TrimSpace(legacy.CommandPath()) == "compozy mcp authorize" {
+			t.Fatal("mcp authorize should not resolve after the hard cut")
+		}
+	})
 }
 
 func TestMCPAuthLoginUsesDaemonOwnedManualExchange(t *testing.T) {

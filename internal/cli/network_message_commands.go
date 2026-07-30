@@ -20,6 +20,7 @@ func newNetworkWorkLookupCommand(deps commandDeps, workspaceRef *string) *cobra.
 	cmd := &cobra.Command{
 		Use:   "lookup",
 		Short: "Show one network work item",
+		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {

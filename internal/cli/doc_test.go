@@ -79,9 +79,13 @@ func TestDocOutputProfilesReflectCommandBehavior(t *testing.T) {
 		"compozy open":      {want: docpost.OutputProfileNoOutput},
 	}
 	for commandPath, tt := range tests {
-		if got := profiles[commandPath]; got != tt.want {
-			t.Errorf("docOutputProfiles()[%q] = %q, want %q", commandPath, got, tt.want)
-		}
+		t.Run("Should map "+commandPath+" to its output profile", func(t *testing.T) {
+			t.Parallel()
+
+			if got := profiles[commandPath]; got != tt.want {
+				t.Errorf("docOutputProfiles()[%q] = %q, want %q", commandPath, got, tt.want)
+			}
+		})
 	}
 }
 
