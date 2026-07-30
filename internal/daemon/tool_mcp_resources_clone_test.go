@@ -12,23 +12,19 @@ func TestCloneDaemonMCPServer(t *testing.T) {
 
 		original := compozyconfig.MCPServer{
 			Name:      "github",
-			Transport: compozyconfig.MCPServerTransportSSE,
+			Transport: compozyconfig.MCPServerTransportHTTP,
 			Command:   "ignored",
 			Args:      []string{"--stdio"},
 			Env: map[string]string{
 				"TOKEN_ENV": "GITHUB_TOKEN",
 			},
-			URL: "https://mcp.example.test/sse",
+			URL: "https://mcp.example.test/mcp",
 			Auth: compozyconfig.MCPAuthConfig{
-				Type:             compozyconfig.MCPAuthTypeOAuth2PKCE,
-				IssuerURL:        "https://issuer.example.test",
-				MetadataURL:      "https://issuer.example.test/.well-known/oauth-authorization-server",
-				AuthorizationURL: "https://issuer.example.test/authorize",
-				TokenURL:         "https://issuer.example.test/token",
-				RevocationURL:    "https://issuer.example.test/revoke",
-				ClientID:         "compozy-client",
-				ClientSecretRef:  "env:GITHUB_MCP_CLIENT_SECRET",
-				Scopes:           []string{"tools.read", "issues.write"},
+				Registration:    compozyconfig.MCPAuthRegistrationPreRegistered,
+				IssuerURL:       "https://issuer.example.test",
+				ClientID:        "compozy-client",
+				ClientSecretRef: "vault:mcp/global/github/client-secret",
+				Scopes:          []string{"tools.read", "issues.write"},
 			},
 		}
 
@@ -37,16 +33,16 @@ func TestCloneDaemonMCPServer(t *testing.T) {
 		original.Env["TOKEN_ENV"] = "mutated"
 		original.Auth.Scopes[0] = "mutated"
 
-		if got, want := cloned.Transport, compozyconfig.MCPServerTransportSSE; got != want {
+		if got, want := cloned.Transport, compozyconfig.MCPServerTransportHTTP; got != want {
 			t.Fatalf("cloned.Transport = %q, want %q", got, want)
 		}
-		if got, want := cloned.URL, "https://mcp.example.test/sse"; got != want {
+		if got, want := cloned.URL, "https://mcp.example.test/mcp"; got != want {
 			t.Fatalf("cloned.URL = %q, want %q", got, want)
 		}
-		if got, want := cloned.Auth.Type, compozyconfig.MCPAuthTypeOAuth2PKCE; got != want {
-			t.Fatalf("cloned.Auth.Type = %q, want %q", got, want)
+		if got, want := cloned.Auth.Registration, compozyconfig.MCPAuthRegistrationPreRegistered; got != want {
+			t.Fatalf("cloned.Auth.Registration = %q, want %q", got, want)
 		}
-		if got, want := cloned.Auth.ClientSecretRef, "env:GITHUB_MCP_CLIENT_SECRET"; got != want {
+		if got, want := cloned.Auth.ClientSecretRef, "vault:mcp/global/github/client-secret"; got != want {
 			t.Fatalf("cloned.Auth.ClientSecretRef = %q, want %q", got, want)
 		}
 		if got, want := cloned.Args[0], "--stdio"; got != want {

@@ -36,8 +36,8 @@ import type {
   SettingsHookRequest,
   SettingsCreateNotificationPresetRequest,
   SettingsNotificationPresetEntry,
+  SettingsMCPAuthBeginRequest,
   SettingsMCPAuthExchangeRequest,
-  SettingsMCPAuthBeginMode,
   SettingsMCPAuthFilter,
   SettingsMCPServerDeleteFilter,
   SettingsMCPServerPutFilter,
@@ -355,7 +355,7 @@ interface MCPAuthParams {
 }
 
 interface MCPAuthBeginParams extends MCPAuthParams {
-  mode: SettingsMCPAuthBeginMode;
+  body: SettingsMCPAuthBeginRequest;
 }
 
 interface MCPAuthExchangeParams extends MCPAuthParams {
@@ -365,8 +365,8 @@ interface MCPAuthExchangeParams extends MCPAuthParams {
 export function useBeginMCPAuth() {
   // react-doctor-disable-next-line react-doctor/query-mutation-missing-invalidation -- Begin creates only an ephemeral PKCE session; no cached server state changes.
   return useMutation({
-    mutationFn: ({ name, filter, mode }: MCPAuthBeginParams) =>
-      beginSettingsMCPAuth(name, filter, { mode }),
+    mutationFn: ({ name, filter, body }: MCPAuthBeginParams) =>
+      beginSettingsMCPAuth(name, filter, body),
   });
 }
 

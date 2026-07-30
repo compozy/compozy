@@ -68,3 +68,62 @@ ORDER BY server_name ASC;
 DELETE FROM mcp_auth_tokens
 WHERE scope = 'workspace'
   AND workspace_id = sqlc.arg(workspace_id);
+
+-- name: UpsertMCPOAuthRegistration :exec
+INSERT INTO mcp_oauth_registrations (
+  scope, workspace_id, server_name, definition_fingerprint, resource_url, issuer, client_id,
+  client_secret_ref, registration_access_token_ref, registration_client_uri, client_id_issued_at,
+  client_secret_expires_at, redirect_uri, scopes_json, updated_at
+) VALUES (
+  sqlc.arg(scope), sqlc.arg(workspace_id), sqlc.arg(server_name),
+  sqlc.arg(definition_fingerprint), sqlc.arg(resource_url), sqlc.arg(issuer), sqlc.arg(client_id),
+  sqlc.arg(client_secret_ref), sqlc.arg(registration_access_token_ref), sqlc.arg(registration_client_uri), sqlc.narg(client_id_issued_at),
+  sqlc.narg(client_secret_expires_at), sqlc.arg(redirect_uri), sqlc.arg(scopes_json), sqlc.arg(updated_at)
+)
+ON CONFLICT(scope, workspace_id, server_name) DO UPDATE SET
+  definition_fingerprint = excluded.definition_fingerprint,
+  resource_url = excluded.resource_url,
+  issuer = excluded.issuer,
+  client_id = excluded.client_id,
+  client_secret_ref = excluded.client_secret_ref,
+  registration_access_token_ref = excluded.registration_access_token_ref,
+  registration_client_uri = excluded.registration_client_uri,
+  client_id_issued_at = excluded.client_id_issued_at,
+  client_secret_expires_at = excluded.client_secret_expires_at,
+  redirect_uri = excluded.redirect_uri,
+  scopes_json = excluded.scopes_json,
+  updated_at = excluded.updated_at;
+
+-- name: GetMCPOAuthRegistration :one
+SELECT scope, workspace_id, server_name, definition_fingerprint, resource_url, issuer, client_id,
+       client_secret_ref, registration_access_token_ref, registration_client_uri, client_id_issued_at,
+       client_secret_expires_at, redirect_uri, scopes_json, updated_at
+FROM mcp_oauth_registrations
+WHERE scope = sqlc.arg(scope)
+  AND workspace_id = sqlc.arg(workspace_id)
+  AND server_name = sqlc.arg(server_name);
+
+-- name: GetMCPOAuthRegistrationRefs :one
+SELECT client_secret_ref, registration_access_token_ref
+FROM mcp_oauth_registrations
+WHERE scope = sqlc.arg(scope)
+  AND workspace_id = sqlc.arg(workspace_id)
+  AND server_name = sqlc.arg(server_name);
+
+-- name: DeleteMCPOAuthRegistration :execrows
+DELETE FROM mcp_oauth_registrations
+WHERE scope = sqlc.arg(scope)
+  AND workspace_id = sqlc.arg(workspace_id)
+  AND server_name = sqlc.arg(server_name);
+
+-- name: ListMCPOAuthRegistrationRefsByWorkspace :many
+SELECT client_secret_ref, registration_access_token_ref
+FROM mcp_oauth_registrations
+WHERE scope = 'workspace'
+  AND workspace_id = sqlc.arg(workspace_id)
+ORDER BY server_name ASC;
+
+-- name: DeleteMCPOAuthRegistrationsByWorkspace :execrows
+DELETE FROM mcp_oauth_registrations
+WHERE scope = 'workspace'
+  AND workspace_id = sqlc.arg(workspace_id);

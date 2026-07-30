@@ -101,13 +101,13 @@ export function probeTone(probe: string): PillTone {
 }
 
 /**
- * A server is OAuth-capable when it is a remote (http/sse) transport carrying an
- * `oauth2_pkce` auth block. stdio and non-OAuth/header-auth remotes are never
- * OAuth-capable and never receive a browser authorize action.
+ * A server is OAuth-capable when it is a remote HTTP transport carrying the
+ * daemon-discovered OAuth policy. stdio and remote servers with no auth policy
+ * never receive a browser authorize action.
  */
 export function isOAuthCapable(server: SettingsMCPServerEntry): boolean {
-  const remote = server.transport === "http" || server.transport === "sse";
-  return remote && server.auth?.type === "oauth2_pkce";
+  const remote = server.transport === "http";
+  return remote && server.auth !== null && server.auth !== undefined;
 }
 
 /**
@@ -176,10 +176,12 @@ function runtimeCell(server: SettingsMCPServerEntry): MCPStatusCell {
   if (!runtime) {
     return { label: "Unknown", tone: "neutral", code: "no runtime status reported" };
   }
+  const daemonDetail = runtime.diagnostic?.trim() || runtime.reason?.trim() || runtime.state;
+  const protocol = runtime.protocol_version?.trim();
   return {
     label: runtime.state === "dead" ? "Unavailable" : formatStatusLabel(runtime.state),
     tone: runtimeTone(runtime.state),
-    code: runtime.diagnostic?.trim() || runtime.reason?.trim() || runtime.state,
+    code: [protocol ? `protocol ${protocol}` : null, daemonDetail].filter(Boolean).join(" · "),
   };
 }
 

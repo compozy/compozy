@@ -6,12 +6,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SkillPayload } from "@/systems/skill";
 import { renderWithTopbar } from "@/test/render-with-topbar";
 import { MarketplaceApiError } from "../../adapters/marketplace-api-error";
-import type { MarketplaceListing, MCPInstallResponse } from "../../types";
+import type { MarketplaceEntryResponse, MarketplaceListing, MCPInstallResponse } from "../../types";
 import { marketplaceDetails, marketplaceKindFixture, marketplaceListings } from "../../mocks";
 import { MarketplaceCard } from "../marketplace-card";
 import { MarketplaceDetailMeta } from "../marketplace-detail-meta";
 import { MarketplaceEntryAction, MarketplaceEntryStatus } from "../marketplace-entry-actions";
 import { MarketplaceGrid, MarketplaceGridSkeleton } from "../marketplace-grid";
+import { MarketplaceInstalledCard } from "../marketplace-installed-card";
 import { MarketplaceKindPage } from "../marketplace-kind-page";
 import { MCPInstallDialog } from "../mcp-install-dialog";
 import { buildMCPInstallRequest } from "../mcp-install-model";
@@ -462,11 +463,11 @@ describe("MarketplaceKindPage", () => {
     mocks.mcpServers = [
       {
         name: "linear",
-        transport: "sse",
+        transport: "http",
         catalog_entry: "linear",
         scope: "workspace",
         workspace_id: "ws-a",
-        auth: { type: "oauth2_pkce", client_id: "x", client_secret_configured: false },
+        auth: { registration: "auto" },
         auth_status: {
           server_name: "linear",
           scope: "global",
@@ -491,7 +492,7 @@ describe("MarketplaceKindPage", () => {
     renderKindPage("mcp", { tab: "installed" });
     const card = screen.getByTestId("marketplace-installed-card-linear");
     expect(card).toBeInTheDocument();
-    expect(within(card).getByText("sse")).toBeInTheDocument();
+    expect(within(card).getByText("http")).toBeInTheDocument();
     expect(within(card).getByText("global")).toBeInTheDocument();
     expect(within(card).getByText("authorize")).toBeInTheDocument();
     expect(within(card).getByRole("link", { name: "View linear details" })).toHaveAttribute(
@@ -1280,15 +1281,73 @@ describe("MCP guided install", () => {
 
     const confirm = screen.getByTestId("mcp-install-confirm");
     expect(confirm).toBeDisabled();
-    await user.type(screen.getByLabelText(/^GITHUB_TOKEN\*?$/), "github-secret");
+    await user.type(screen.getByLabelText(/^github_personal_access_token\*?$/), "github-secret");
     await user.click(confirm);
 
     await waitFor(() => expect(onInstall).toHaveBeenCalledOnce());
     expect(onInstall).toHaveBeenCalledWith(
       expect.objectContaining({
         scope: "workspace",
-        values: { env: { GITHUB_TOKEN: { value: "github-secret" } } },
+        values: { inputs: { github_personal_access_token: { value: "github-secret" } } },
         workspace_id: "ws-story",
+      })
+    );
+  });
+
+  it("Should serialize typed identifier and boolean catalog inputs by stable input ID", async () => {
+    const user = userEvent.setup();
+    const onInstall = vi.fn().mockResolvedValue({} as MCPInstallResponse);
+    const data: MarketplaceEntryResponse = {
+      entry: {
+        ...marketplaceDetails["mcp:github"]!.entry,
+        entry_id: "supabase",
+        name: "Supabase",
+      },
+      mcp: {
+        default_scope: "workspace",
+        inputs: [
+          {
+            binding: { name: "SUPABASE_PROJECT_REF", type: "env" },
+            id: "project_ref",
+            prompt: "Supabase project reference",
+            required: true,
+            type: "identifier",
+          },
+          {
+            binding: { name: "READ_ONLY", type: "env" },
+            default: true,
+            id: "read_only",
+            prompt: "Keep database access read-only",
+            required: true,
+            type: "boolean",
+          },
+        ],
+        launch: { package: "@supabase/mcp-server-supabase", type: "npm", version: "0.6.1" },
+      },
+    };
+    render(
+      <MCPInstallDialog
+        data={data}
+        onInstall={onInstall}
+        onOpenChange={vi.fn()}
+        open
+        workspaceId="ws-story"
+      />
+    );
+
+    expect(screen.getByRole("switch", { name: "read_only" })).toBeChecked();
+    await user.type(screen.getByLabelText(/^project_ref\*?$/), "project-abc");
+    await user.click(screen.getByTestId("mcp-install-confirm"));
+
+    await waitFor(() => expect(onInstall).toHaveBeenCalledOnce());
+    expect(onInstall).toHaveBeenCalledWith(
+      expect.objectContaining({
+        values: {
+          inputs: {
+            project_ref: { value: "project-abc" },
+            read_only: { value: "true" },
+          },
+        },
       })
     );
   });
@@ -1302,7 +1361,7 @@ describe("MCP guided install", () => {
         kind: "mcp_env",
         namespace: "mcp",
         present: true,
-        ref: "vault:mcp/ws/ws-story/github/env/GITHUB_TOKEN",
+        ref: "vault:mcp/ws/ws-story/github/inputs/github_personal_access_token",
         updated_at: "2026-07-18T12:00:00Z",
       },
     ];
@@ -1318,7 +1377,9 @@ describe("MCP guided install", () => {
 
     await user.click(screen.getByRole("button", { name: "Use Vault" }));
     await user.click(
-      screen.getByRole("radio", { name: /vault:mcp\/ws\/ws-story\/github\/env\/GITHUB_TOKEN/ })
+      screen.getByRole("radio", {
+        name: /vault:mcp\/ws\/ws-story\/github\/inputs\/github_personal_access_token/,
+      })
     );
     await user.click(screen.getByTestId("mcp-install-confirm"));
 
@@ -1326,8 +1387,10 @@ describe("MCP guided install", () => {
     expect(onInstall).toHaveBeenCalledWith(
       expect.objectContaining({
         values: {
-          env: {
-            GITHUB_TOKEN: { vault_ref: "vault:mcp/ws/ws-story/github/env/GITHUB_TOKEN" },
+          inputs: {
+            github_personal_access_token: {
+              vault_ref: "vault:mcp/ws/ws-story/github/inputs/github_personal_access_token",
+            },
           },
         },
       })
@@ -1350,13 +1413,16 @@ describe("MCP guided install", () => {
 
     await user.click(screen.getByRole("button", { name: "Use Vault" }));
     await user.click(screen.getByRole("button", { name: "Create Vault secret" }));
-    await user.type(screen.getByLabelText("New Vault value for GITHUB_TOKEN"), "created-secret");
-    await user.click(screen.getByTestId("mcp-create-secret-GITHUB_TOKEN"));
+    await user.type(
+      screen.getByLabelText("New Vault value for github_personal_access_token"),
+      "created-secret"
+    );
+    await user.click(screen.getByTestId("mcp-create-secret-github_personal_access_token"));
 
     await waitFor(() => expect(mocks.createSecret).toHaveBeenCalledOnce());
     expect(mocks.createSecret).toHaveBeenCalledWith({
       kind: "mcp_env",
-      ref: "vault:mcp/ws/ws-story/github/env/GITHUB_TOKEN",
+      ref: "vault:mcp/ws/ws-story/github/inputs/github_personal_access_token",
       secret_value: "created-secret",
     });
 
@@ -1365,8 +1431,10 @@ describe("MCP guided install", () => {
     expect(onInstall).toHaveBeenCalledWith(
       expect.objectContaining({
         values: {
-          env: {
-            GITHUB_TOKEN: { vault_ref: "vault:mcp/ws/ws-story/github/env/GITHUB_TOKEN" },
+          inputs: {
+            github_personal_access_token: {
+              vault_ref: "vault:mcp/ws/ws-story/github/inputs/github_personal_access_token",
+            },
           },
         },
       })
@@ -1387,7 +1455,7 @@ describe("MCP guided install", () => {
       />
     );
 
-    const input = screen.getByLabelText(/^GITHUB_TOKEN\*?$/);
+    const input = screen.getByLabelText(/^github_personal_access_token\*?$/);
     await user.type(input, "keep-this-value");
     await user.click(screen.getByTestId("mcp-install-confirm"));
 
@@ -1412,7 +1480,7 @@ describe("MCP guided install", () => {
       />
     );
 
-    expect(screen.getByText("Authorization · OAuth 2 PKCE")).toBeInTheDocument();
+    expect(screen.getByText("Authorization · OAuth")).toBeInTheDocument();
     expect(screen.queryByText("Required configuration")).not.toBeInTheDocument();
     await user.click(screen.getByTestId("mcp-install-confirm"));
 
@@ -1420,7 +1488,7 @@ describe("MCP guided install", () => {
     expect(onInstall).toHaveBeenCalledWith(
       expect.objectContaining({ entry_id: "linear", values: null })
     );
-    expect(buildMCPInstallRequest(remote, "global", null, {}, true).values).toBeNull();
+    expect(buildMCPInstallRequest(remote, "global", null, {}).values).toBeNull();
   });
 });
 
@@ -1533,6 +1601,39 @@ describe("Marketplace cards and actions", () => {
   it("Should render marketplace card linking to API-kind detail", () => {
     render(<MarketplaceCard entry={marketplaceListings.skill[1]!} onAction={vi.fn()} />);
     expect(screen.getByTestId("marketplace-card-docs-sync")).toBeInTheDocument();
+  });
+
+  it("Should render curated, installed, and update versions with exactly one prefix", () => {
+    const entry = {
+      ...marketplaceListings.skill[2]!,
+      installed: true,
+      installed_version: "v1.7.0",
+      update_available: true,
+      version: "V1.8.0",
+    };
+    const handlers = {
+      onAction: vi.fn(),
+      onAuthorize: vi.fn(),
+      onDeactivate: vi.fn(),
+      onEditMCP: vi.fn(),
+      onRemove: vi.fn(),
+      onToggleEnabled: vi.fn(),
+      onUpdateBundle: vi.fn(),
+    };
+    const view = render(<MarketplaceCard entry={entry} onAction={handlers.onAction} />);
+
+    expect(screen.getByTestId(`marketplace-card-${entry.entry_id}`)).toHaveTextContent("v1.8.0");
+
+    view.rerender(<MarketplaceDetailMeta entry={entry} />);
+    expect(screen.getByTestId("marketplace-detail-meta")).toHaveTextContent("v1.8.0");
+
+    view.rerender(<MarketplaceEntryStatus entry={entry} />);
+    expect(screen.getByText("v1.8.0 available")).toBeInTheDocument();
+
+    view.rerender(<MarketplaceInstalledCard item={{ entry }} {...handlers} />);
+    expect(screen.getByTestId(`marketplace-installed-card-${entry.entry_id}`)).toHaveTextContent(
+      "v1.8.0 available"
+    );
   });
 
   it("Should render marketplace grid of cards", () => {

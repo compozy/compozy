@@ -60,15 +60,11 @@ func parsePutSettingsMCPServerRequest(c *gin.Context) (settingspkg.CollectionIte
 	}
 	if body.Server.Auth != nil {
 		server.Auth = compozyconfig.MCPAuthConfig{
-			Type:             compozyconfig.MCPAuthType(strings.TrimSpace(body.Server.Auth.Type)),
-			IssuerURL:        strings.TrimSpace(body.Server.Auth.IssuerURL),
-			MetadataURL:      strings.TrimSpace(body.Server.Auth.MetadataURL),
-			AuthorizationURL: strings.TrimSpace(body.Server.Auth.AuthorizationURL),
-			TokenURL:         strings.TrimSpace(body.Server.Auth.TokenURL),
-			RevocationURL:    strings.TrimSpace(body.Server.Auth.RevocationURL),
-			ClientID:         strings.TrimSpace(body.Server.Auth.ClientID),
-			ClientSecretRef:  strings.TrimSpace(body.Server.Auth.ClientSecretRef),
-			Scopes:           cloneStrings(body.Server.Auth.Scopes),
+			Registration:    compozyconfig.MCPAuthRegistration(strings.TrimSpace(body.Server.Auth.Registration)),
+			IssuerURL:       strings.TrimSpace(body.Server.Auth.IssuerURL),
+			ClientID:        strings.TrimSpace(body.Server.Auth.ClientID),
+			ClientSecretRef: strings.TrimSpace(body.Server.Auth.ClientSecretRef),
+			Scopes:          cloneStrings(body.Server.Auth.Scopes),
 		}
 	}
 	if err := server.Validate("server"); err != nil {

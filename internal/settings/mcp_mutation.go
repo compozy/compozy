@@ -49,20 +49,8 @@ func (s *service) putMCPServer(
 	if err != nil {
 		return MutationResult{}, err
 	}
-	previousSource, previousFound := mcpSourceForTarget(name, target.Kind(), sources)
-	rollbackDefinition := func() error {
-		if previousFound {
-			return s.writeMCPServer(root, name, target, previousSource.Server)
-		}
-		return s.deleteMCPServerDefinition(root, name, target)
-	}
-
-	mutationOutcome, err := s.withMCPAuthDefinitionMutation(
-		scope,
-		workspaceID,
-		name,
-		func() error { return s.writeMCPServer(root, name, target, normalized) },
-		rollbackDefinition,
+	mutationOutcome, err := s.commitMCPServerDefinition(
+		ctx, scope, workspaceID, root, name, target, sources, normalized,
 	)
 	if err != nil {
 		var rollbackErr error
@@ -90,6 +78,33 @@ func (s *service) putMCPServer(
 	item := committedMCPServerItem(normalized, scope, workspaceID, target.Kind(), sources)
 	result.MCPServer = &item
 	return result, nil
+}
+
+func (s *service) commitMCPServerDefinition(
+	ctx context.Context,
+	scope ScopeKind,
+	workspaceID string,
+	root string,
+	name string,
+	target compozyconfig.WriteTarget,
+	sources map[string][]mcpSourceEntry,
+	server compozyconfig.MCPServer,
+) (mcpDefinitionMutationOutcome, error) {
+	previousSource, previousFound := mcpSourceForTarget(name, target.Kind(), sources)
+	rollback := func() error {
+		if previousFound {
+			return s.writeMCPServer(root, name, target, previousSource.Server)
+		}
+		return s.deleteMCPServerDefinition(root, name, target)
+	}
+	return s.withMCPAuthDefinitionMutation(
+		ctx,
+		scope,
+		workspaceID,
+		name,
+		func() error { return s.writeMCPServer(root, name, target, server) },
+		rollback,
+	)
 }
 
 func (s *service) normalizeAndValidateMCPServerWrite(
@@ -250,6 +265,7 @@ func (s *service) deleteMCPServer(
 		return s.writeMCPServer(root, name, target, deletedSource.Server)
 	}
 	_, err = s.withMCPAuthDefinitionMutation(
+		ctx,
 		scope,
 		workspaceID,
 		name,
@@ -359,6 +375,7 @@ const (
 )
 
 func (s *service) withMCPAuthDefinitionMutation(
+	ctx context.Context,
 	scope ScopeKind,
 	workspaceID string,
 	name string,
@@ -393,18 +410,18 @@ func (s *service) withMCPAuthDefinitionMutation(
 	if mutationErr != nil {
 		return mcpDefinitionMutationUnchanged, mutationErr
 	}
-	invalidateErr := s.mcpAuth.MCPAuthInvalidate(target)
-	if invalidateErr != nil {
-		invalidateErr = fmt.Errorf("settings: invalidate pending MCP auth after definition mutation: %w", invalidateErr)
+	deleteStateErr := s.mcpAuth.MCPAuthDeleteState(ctx, target)
+	if deleteStateErr != nil {
+		deleteStateErr = fmt.Errorf("settings: delete MCP auth state after definition mutation: %w", deleteStateErr)
 	}
-	if invalidateErr == nil {
+	if deleteStateErr == nil {
 		return mcpDefinitionMutationCommitted, nil
 	}
 
 	rollbackErr := rollback()
 	if rollbackErr != nil {
 		rollbackErr = fmt.Errorf("settings: roll back MCP definition mutation: %w", rollbackErr)
-		return mcpDefinitionMutationCommitted, errors.Join(invalidateErr, rollbackErr)
+		return mcpDefinitionMutationCommitted, errors.Join(deleteStateErr, rollbackErr)
 	}
 	rollbackInvalidateErr := s.mcpAuth.MCPAuthInvalidate(target)
 	if rollbackInvalidateErr != nil {
@@ -413,7 +430,7 @@ func (s *service) withMCPAuthDefinitionMutation(
 			rollbackInvalidateErr,
 		)
 	}
-	return mcpDefinitionMutationRestored, errors.Join(invalidateErr, rollbackInvalidateErr)
+	return mcpDefinitionMutationRestored, errors.Join(deleteStateErr, rollbackInvalidateErr)
 }
 
 func (s *service) invalidateMCPAuthAfterDefinitionRestore(

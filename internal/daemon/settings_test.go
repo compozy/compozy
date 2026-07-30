@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"path/filepath"
 	"testing"
 	"time"
@@ -18,10 +20,10 @@ import (
 	settingspkg "github.com/compozy/compozy/internal/settings"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
+	"github.com/compozy/compozy/internal/testutil/mcpfixture"
 	compozyupdate "github.com/compozy/compozy/internal/update"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
-	mcpsdk "github.com/mark3labs/mcp-go/mcp"
-	mcpsrv "github.com/mark3labs/mcp-go/server"
+	mcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 func TestSettingsRuntimeSurfaceMemoryHealthStatus(t *testing.T) {
@@ -131,10 +133,10 @@ func TestSettingsRuntimeSurfaceMCPAuthStatusSurvivesStoreReopen(t *testing.T) {
 		server := compozyconfig.MCPServer{
 			Name: "remote-docs", Transport: compozyconfig.MCPServerTransportHTTP, URL: "https://mcp.example.com",
 			Auth: compozyconfig.MCPAuthConfig{
-				Type: compozyconfig.MCPAuthTypeOAuth2PKCE, ClientID: "compozy-cli",
-				AuthorizationURL: "https://issuer.example.com/oauth/authorize",
-				TokenURL:         "https://issuer.example.com/oauth/token",
-				Scopes:           []string{"mcp.read", "mcp.write"},
+				Registration: compozyconfig.MCPAuthRegistrationPreRegistered,
+				IssuerURL:    "https://issuer.example.com",
+				ClientID:     "compozy-cli",
+				Scopes:       []string{"mcp.read", "mcp.write"},
 			},
 		}
 		cfg, err := mcpauth.ServerConfigFromMCP(ctx, target, server, nil)
@@ -209,11 +211,10 @@ func TestSettingsRuntimeSurfaceMCPAuthStatusResolvesClientSecretRef(t *testing.T
 			Transport: compozyconfig.MCPServerTransportHTTP,
 			URL:       "https://mcp.example.com",
 			Auth: compozyconfig.MCPAuthConfig{
-				Type:             compozyconfig.MCPAuthTypeOAuth2PKCE,
-				ClientID:         "compozy-cli",
-				ClientSecretRef:  "vault:mcp/global/remote-docs/oauth/client-secret",
-				AuthorizationURL: "https://issuer.example.com/oauth/authorize",
-				TokenURL:         "https://issuer.example.com/oauth/token",
+				Registration:    compozyconfig.MCPAuthRegistrationPreRegistered,
+				IssuerURL:       "https://issuer.example.com",
+				ClientID:        "compozy-cli",
+				ClientSecretRef: "vault:mcp/global/remote-docs/oauth/client-secret",
 			},
 		})
 		if err != nil {
@@ -229,38 +230,24 @@ func TestSettingsRuntimeSurfaceMCPAuthStatusResolvesClientSecretRef(t *testing.T
 }
 
 func TestSettingsRuntimeSurfaceMCPServerRuntimeStatus(t *testing.T) {
-	t.Run("Should default MCP runtime probe timeout to five seconds", func(t *testing.T) {
-		t.Parallel()
-
-		surface := &settingsRuntimeSurface{}
-		if got, want := surface.mcpProbeTimeout(), 5*time.Second; got != want {
-			t.Fatalf("mcpProbeTimeout() = %s, want %s", got, want)
-		}
-	})
-
-	t.Run("Should use the configured observability probe timeout for MCP runtime probes", func(t *testing.T) {
-		t.Parallel()
-
-		surface := &settingsRuntimeSurface{
-			config: compozyconfig.Config{
-				Observability: compozyconfig.ObservabilityConfig{
-					AgentProbeTimeout: 9 * time.Second,
-				},
-			},
-		}
-		if got, want := surface.mcpProbeTimeout(), 9*time.Second; got != want {
-			t.Fatalf("mcpProbeTimeout() = %s, want %s", got, want)
-		}
-	})
-
-	t.Run("Should probe a reachable MCP server through the real executor", func(t *testing.T) {
+	t.Run("Should probe a reachable MCP server independent of observability agent probe timeout", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := context.Background()
-		server := mcpsrv.NewTestStreamableHTTPServer(newSettingsMCPTestServer())
+		server := httptest.NewServer(mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server {
+			return newSettingsMCPTestServer()
+		}, &mcp.StreamableHTTPOptions{
+			Stateless:                  true,
+			JSONResponse:               true,
+			DisableLocalhostProtection: true,
+		}))
 		t.Cleanup(server.Close)
 
-		surface := &settingsRuntimeSurface{}
+		surface := &settingsRuntimeSurface{config: compozyconfig.Config{
+			Observability: compozyconfig.ObservabilityConfig{
+				AgentProbeTimeout: time.Nanosecond,
+			},
+		}}
 		status, err := surface.MCPServerRuntimeStatus(ctx, globalMCPTestTarget("docs"), compozyconfig.MCPServer{
 			Name:      "docs",
 			Transport: compozyconfig.MCPServerTransportHTTP,
@@ -278,6 +265,9 @@ func TestSettingsRuntimeSurfaceMCPServerRuntimeStatus(t *testing.T) {
 		if !status.Initialized || status.ToolCount != 1 {
 			t.Fatalf("MCPServerRuntimeStatus() = %#v, want initialized with one tool", status)
 		}
+		if got, want := status.ProtocolVersion, mcpfixture.ModernProtocolVersion; got != want {
+			t.Fatalf("MCPServerRuntimeStatus().ProtocolVersion = %q, want %q", got, want)
+		}
 	})
 
 	t.Run("Should skip probing when remote MCP auth needs login", func(t *testing.T) {
@@ -292,10 +282,9 @@ func TestSettingsRuntimeSurfaceMCPServerRuntimeStatus(t *testing.T) {
 				Transport: compozyconfig.MCPServerTransportHTTP,
 				URL:       "https://mcp.linear.example/mcp",
 				Auth: compozyconfig.MCPAuthConfig{
-					Type:             compozyconfig.MCPAuthTypeOAuth2PKCE,
-					AuthorizationURL: "https://auth.linear.example/authorize",
-					TokenURL:         "https://auth.linear.example/token",
-					ClientID:         "compozy-desktop",
+					Registration: compozyconfig.MCPAuthRegistrationPreRegistered,
+					IssuerURL:    "https://auth.linear.example",
+					ClientID:     "compozy-desktop",
 				},
 			},
 		)
@@ -403,22 +392,19 @@ func globalMCPTestTarget(serverName string) mcpauth.Target {
 	return mcpauth.Target{Scope: mcpauth.ScopeGlobal, ServerName: serverName}
 }
 
-func newSettingsMCPTestServer() *mcpsrv.MCPServer {
-	server := mcpsrv.NewMCPServer("settings-test", "1.0.0", mcpsrv.WithToolCapabilities(true))
-	server.AddTool(
-		mcpsdk.NewTool(
-			"lookup",
-			mcpsdk.WithDescription("Lookup documentation"),
-			mcpsdk.WithString("query"),
-			mcpsdk.WithRawOutputSchema(json.RawMessage(
-				"{\"type\":\"object\",\"properties\":{\"answer\":{\"type\":\"string\"}}}",
-			)),
-			mcpsdk.WithReadOnlyHintAnnotation(true),
-		),
-		func(context.Context, mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
-			return mcpsdk.NewToolResultText("ok"), nil
-		},
-	)
+func newSettingsMCPTestServer() *mcp.Server {
+	server := mcp.NewServer(&mcp.Implementation{Name: "settings-test", Version: "1.0.0"}, &mcp.ServerOptions{
+		Capabilities: &mcp.ServerCapabilities{Tools: &mcp.ToolCapabilities{}},
+	})
+	server.AddTool(&mcp.Tool{
+		Name:         "lookup",
+		Description:  "Lookup documentation",
+		InputSchema:  json.RawMessage(`{"type":"object","properties":{"query":{"type":"string"}},"required":["query"],"additionalProperties":false}`),
+		OutputSchema: json.RawMessage(`{"type":"object","properties":{"answer":{"type":"string"}}}`),
+		Annotations:  &mcp.ToolAnnotations{ReadOnlyHint: true},
+	}, func(context.Context, *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: "ok"}}}, nil
+	})
 	return server
 }
 

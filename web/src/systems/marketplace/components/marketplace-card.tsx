@@ -5,7 +5,11 @@ import { CatalogCard } from "@compozy/ui";
 
 import type { MarketplaceKind, MarketplaceListing } from "../types";
 import { MarketplaceEntryAction, MarketplaceEntryStatus } from "./marketplace-entry-actions";
-import { formatMarketplaceCount, marketplaceKindIcon } from "./marketplace-ui";
+import {
+  formatMarketplaceCount,
+  formatMarketplaceVersion,
+  marketplaceKindIcon,
+} from "./marketplace-ui";
 
 interface MarketplaceCardProps {
   entry: MarketplaceListing;
@@ -23,6 +27,7 @@ function MarketplaceCard({
   onFlashEnd,
 }: MarketplaceCardProps) {
   const kind = entry.kind as MarketplaceKind;
+  const version = formatMarketplaceVersion(entry.version);
   return (
     <CatalogCard
       actionable={!pending}
@@ -54,8 +59,8 @@ function MarketplaceCard({
             <CatalogCard.Title>{entry.name}</CatalogCard.Title>
             <CatalogCard.Meta>
               {entry.author ? <span>{entry.author}</span> : null}
-              {entry.version ? (
-                <span className="normal-case font-mono tracking-normal">{`v${entry.version}`}</span>
+              {version ? (
+                <span className="normal-case font-mono tracking-normal">{version}</span>
               ) : null}
               {entry.downloads !== undefined && entry.downloads !== null ? (
                 <span className="normal-case tabular-nums">

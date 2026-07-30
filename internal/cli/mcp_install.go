@@ -10,13 +10,12 @@ import (
 )
 
 type mcpInstallFlags struct {
-	name                      string
-	scope                     string
-	workspaceID               string
-	valueKeys                 []string
-	vaultRefs                 []string
-	oauthClientSecretValue    bool
-	oauthClientSecretVaultRef string
+	name        string
+	scope       string
+	workspaceID string
+	setValues   []string
+	secretIDs   []string
+	vaultRefs   []string
 }
 
 func newMCPInstallCommand(deps commandDeps) *cobra.Command {
@@ -62,22 +61,12 @@ func newMCPInstallCommand(deps commandDeps) *cobra.Command {
 				cmd.ErrOrStderr(),
 				deps.inputIsTerminal,
 			)
-			env, err := mcpInstallEnvInputs(flags.valueKeys, flags.vaultRefs, secretReader.Read)
-			if err != nil {
-				return err
-			}
-			oauthClientSecret, err := mcpInstallOAuthClientSecretInput(
-				flags.oauthClientSecretValue,
-				cmd.Flags().Changed(mcpOAuthVaultRefInputFlag),
-				flags.oauthClientSecretVaultRef,
-				secretReader.Read,
-			)
+			inputs, err := mcpInstallInputs(flags.setValues, flags.secretIDs, flags.vaultRefs, secretReader.Read)
 			if err != nil {
 				return err
 			}
 			request.Values = &contract.SettingsMCPCatalogInstallValuesPayload{
-				Env:               env,
-				OAuthClientSecret: oauthClientSecret,
+				Inputs: inputs,
 			}
 			response, err := client.InstallSettingsMCPServer(cmd.Context(), request)
 			if err != nil {
@@ -95,28 +84,17 @@ func bindMCPInstallFlags(cmd *cobra.Command, flags *mcpInstallFlags) {
 	cmd.Flags().StringVar(
 		&flags.scope,
 		mcpScopeKey,
-		string(contract.SettingsWorkspaceScopeGlobal),
-		"Install scope: global or workspace",
+		"",
+		"Install scope override: global or workspace (defaults to the catalog entry)",
 	)
 	cmd.Flags().
 		StringVar(&flags.workspaceID, "workspace", "", "Override workspace (ID, name, or path)")
 	cmd.Flags().StringArrayVar(
-		&flags.valueKeys,
+		&flags.setValues,
 		mcpValueInputFlag,
 		nil,
-		"Read one feed field value from stdin or a hidden terminal prompt (repeatable)",
+		"Set one catalog input as ID=VALUE (repeatable)",
 	)
+	cmd.Flags().StringArrayVar(&flags.secretIDs, "secret", nil, "Read one secret catalog input from stdin or a hidden terminal prompt (repeatable)")
 	cmd.Flags().StringArrayVar(&flags.vaultRefs, "vault-ref", nil, "Bind a feed field as KEY=vault:mcp/...")
-	cmd.Flags().BoolVar(
-		&flags.oauthClientSecretValue,
-		mcpOAuthValueInputFlag,
-		false,
-		"Read the write-only OAuth client secret from stdin or a hidden terminal prompt",
-	)
-	cmd.Flags().StringVar(
-		&flags.oauthClientSecretVaultRef,
-		mcpOAuthVaultRefInputFlag,
-		"",
-		"Bind the OAuth client secret to an existing vault:mcp/... ref",
-	)
 }

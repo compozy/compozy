@@ -11,7 +11,7 @@ import (
 	extensioncontract "github.com/compozy/compozy/internal/extension/contract"
 	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
 	jsonschema "github.com/google/jsonschema-go/jsonschema"
-	mcpgo "github.com/mark3labs/mcp-go/mcp"
+	mcpgo "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 const hostAPIToolPrefix = "compozy_host__"
@@ -82,11 +82,11 @@ func projectedHostAPITools() ([]mcpgo.Tool, error) {
 		if err != nil {
 			return nil, fmt.Errorf("mcp: build input schema for %q: %w", method, err)
 		}
-		tools = append(tools, mcpgo.NewToolWithRawSchema(
-			hostAPIToolName(method),
-			"Invoke the Compozy Host API method "+string(method)+" in the workspace bound to this MCP server.",
-			rawSchema,
-		))
+		tools = append(tools, mcpgo.Tool{
+			Name:        hostAPIToolName(method),
+			Description: "Invoke the Compozy Host API method " + string(method) + " in the workspace bound to this MCP server.",
+			InputSchema: rawSchema,
+		})
 	}
 	return tools, nil
 }

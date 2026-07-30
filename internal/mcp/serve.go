@@ -6,20 +6,20 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"strings"
 	"time"
 
 	"github.com/compozy/compozy/internal/version"
 	"github.com/google/uuid"
-	mcpgo "github.com/mark3labs/mcp-go/mcp"
-	"github.com/mark3labs/mcp-go/server"
+	mcpgo "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 const (
 	hostAPIServerName          = "compozy-host-api"
 	jsonNullLiteral            = "null"
 	hostAPISessionCloseTimeout = 5 * time.Second
+	hostedToolListCacheTTLMs   = 60_000
 )
 
 // HostAPIInvoker dispatches a workspace-bound Host API call through the running daemon.
@@ -59,7 +59,7 @@ func ServeStdio(
 	workspace string,
 	stdin io.Reader,
 	stdout io.Writer,
-	stderr io.Writer,
+	_ io.Writer,
 ) (err error) {
 	serveSessionID := uuid.NewString()
 	mcpServer, err := newHostAPIMCPServer(invoker, serveSessionID, workspace)
@@ -69,19 +69,27 @@ func ServeStdio(
 	defer func() {
 		err = errors.Join(err, closeHostAPISession(invoker, serveSessionID))
 	}()
-	stdio := server.NewStdioServer(mcpServer)
-	stdio.SetErrorLogger(log.New(stderr, "", log.LstdFlags))
-	if err := stdio.Listen(ctx, stdin, stdout); err != nil && !errors.Is(err, context.Canceled) {
+	transport := protocolRestrictedTransport{Transport: &mcpgo.IOTransport{Reader: io.NopCloser(stdin), Writer: nopWriteCloser{Writer: stdout}}}
+	if err := mcpServer.Run(ctx, transport); !isExpectedStdioServerTermination(err) {
 		return fmt.Errorf("mcp: serve stdio: %w", err)
 	}
 	return nil
+}
+
+func isExpectedStdioServerTermination(err error) bool {
+	if err == nil || errors.Is(err, context.Canceled) || errors.Is(err, io.EOF) || errors.Is(err, mcpgo.ErrConnectionClosed) {
+		return true
+	}
+	// The SDK's JSON-RPC transport currently formats a normal stdin EOF as
+	// "server is closing: EOF" without retaining EOF in its error chain.
+	return strings.HasPrefix(err.Error(), "server is closing:") && strings.HasSuffix(err.Error(), ": EOF")
 }
 
 func newHostAPIMCPServer(
 	invoker HostAPIInvoker,
 	serveSessionID string,
 	workspace string,
-) (*server.MCPServer, error) {
+) (*mcpgo.Server, error) {
 	if invoker == nil {
 		return nil, errors.New("mcp: host api invoker is required")
 	}
@@ -101,19 +109,36 @@ func newHostAPIMCPServer(
 	if err != nil {
 		return nil, err
 	}
-	mcpServer := server.NewMCPServer(
-		hostAPIServerName,
-		version.Current().Version,
-		server.WithToolCapabilities(false),
-	)
+	mcpServer := mcpgo.NewServer(&mcpgo.Implementation{Name: hostAPIServerName, Version: version.Current().Version}, &mcpgo.ServerOptions{
+		Logger:       slog.Default(),
+		Capabilities: &mcpgo.ServerCapabilities{Tools: &mcpgo.ToolCapabilities{}},
+	})
+	mcpServer.AddReceivingMiddleware(privateToolListCacheMiddleware())
+	mcpServer.AddReceivingMiddleware(protocolVersionMiddleware())
 	for _, tool := range tools {
 		method, ok := hostAPIMethodFromToolName(tool.Name)
 		if !ok {
 			return nil, fmt.Errorf("mcp: projected tool %q is not reversible", tool.Name)
 		}
-		mcpServer.AddTool(tool, hostAPIToolHandler(invoker, serveSessionID, workspace, string(method)))
+		mcpServer.AddTool(&tool, hostAPIToolHandler(invoker, serveSessionID, workspace, string(method)))
 	}
 	return mcpServer, nil
+}
+
+func privateToolListCacheMiddleware() mcpgo.Middleware {
+	return func(next mcpgo.MethodHandler) mcpgo.MethodHandler {
+		return func(ctx context.Context, method string, request mcpgo.Request) (mcpgo.Result, error) {
+			result, err := next(ctx, method, request)
+			if err != nil || method != "tools/list" {
+				return result, err
+			}
+			if tools, ok := result.(*mcpgo.ListToolsResult); ok {
+				tools.CacheScope = "private"
+				tools.TTLMs = hostedToolListCacheTTLMs
+			}
+			return result, nil
+		}
+	}
 }
 
 func hostAPIToolHandler(
@@ -121,11 +146,11 @@ func hostAPIToolHandler(
 	serveSessionID string,
 	workspace string,
 	method string,
-) server.ToolHandlerFunc {
-	return func(ctx context.Context, request mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
-		params, err := json.Marshal(request.GetRawArguments())
-		if err != nil {
-			return nil, fmt.Errorf("mcp: encode %q arguments: %w", method, err)
+) mcpgo.ToolHandler {
+	return func(ctx context.Context, request *mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
+		params := append(json.RawMessage(nil), request.Params.Arguments...)
+		if len(params) == 0 {
+			params = json.RawMessage("{}")
 		}
 		if string(params) == jsonNullLiteral {
 			params = json.RawMessage("{}")
@@ -139,9 +164,16 @@ func hostAPIToolHandler(
 		if err := json.Unmarshal(result, &structured); err != nil {
 			return nil, fmt.Errorf("mcp: decode %q result: %w", method, err)
 		}
-		return mcpgo.NewToolResultJSON(structured)
+		return &mcpgo.CallToolResult{
+			Content:           []mcpgo.Content{&mcpgo.TextContent{Text: string(result)}},
+			StructuredContent: structured,
+		}, nil
 	}
 }
+
+type nopWriteCloser struct{ io.Writer }
+
+func (nopWriteCloser) Close() error { return nil }
 
 func closeHostAPISession(invoker HostAPIInvoker, serveSessionID string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), hostAPISessionCloseTimeout)

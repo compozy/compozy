@@ -108,9 +108,8 @@ transport = "http"
 url = "https://original.example/mcp"
 
 [mcp_servers.auth]
-type = "oauth2_pkce"
-authorization_url = "https://issuer.example/authorize"
-token_url = "https://issuer.example/token"
+registration = "pre_registered"
+issuer_url = "https://issuer.example"
 client_id = "client-id"
 `)
 	runtime := &recordingMCPAuthRuntime{}
@@ -125,8 +124,9 @@ client_id = "client-id"
 			Transport: compozyconfig.MCPServerTransportHTTP,
 			URL:       "https://replacement.example/mcp",
 			Auth: compozyconfig.MCPAuthConfig{
-				Type: compozyconfig.MCPAuthTypeOAuth2PKCE, AuthorizationURL: "https://issuer.example/authorize",
-				TokenURL: "https://issuer.example/token", ClientID: "client-id",
+				Registration: compozyconfig.MCPAuthRegistrationPreRegistered,
+				IssuerURL:    "https://issuer.example",
+				ClientID:     "client-id",
 			},
 		},
 	}); err != nil {

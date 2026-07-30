@@ -14,17 +14,16 @@ type SettingsMCPSecretInputPayload struct {
 	VaultRef string `json:"vault_ref,omitempty"`
 }
 
-// SettingsMCPCatalogInstallValuesPayload contains operator-supplied feed fields.
+// SettingsMCPCatalogInstallValuesPayload contains operator-supplied catalog inputs.
 type SettingsMCPCatalogInstallValuesPayload struct {
-	Env               map[string]SettingsMCPSecretInputPayload `json:"env,omitempty"`
-	OAuthClientSecret *SettingsMCPSecretInputPayload           `json:"oauth_client_secret,omitempty"`
+	Inputs map[string]SettingsMCPSecretInputPayload `json:"inputs,omitempty"`
 }
 
 // InstallSettingsMCPServerRequest installs one feed-locked MCP entry.
 type InstallSettingsMCPServerRequest struct {
 	EntryID     string                                  `json:"entry_id"`
 	Name        string                                  `json:"name,omitempty"`
-	Scope       SettingsWorkspaceScopeKind              `json:"scope"`
+	Scope       SettingsWorkspaceScopeKind              `json:"scope,omitempty"`
 	WorkspaceID string                                  `json:"workspace_id,omitempty"`
 	Values      *SettingsMCPCatalogInstallValuesPayload `json:"values"`
 }

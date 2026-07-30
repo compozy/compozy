@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -237,22 +238,32 @@ func marketplaceMCPDetail(details marketplacepkg.EntryDetails) *contract.Marketp
 		return nil
 	}
 	result := &contract.MarketplaceMCPDetailPayload{
-		Transport: details.MCP.Transport, Command: details.MCP.Command,
-		Args: append([]string(nil), details.MCP.Args...), URL: details.MCP.URL,
+		Launch: contract.MarketplaceMCPLaunchPayload{
+			Type: details.MCP.Launch.Type, Package: details.MCP.Launch.Package,
+			Version: details.MCP.Launch.Version, Image: details.MCP.Launch.Image,
+			Digest: details.MCP.Launch.Digest, URL: details.MCP.Launch.URL,
+			Args: append([]string(nil), details.MCP.Launch.Args...),
+		},
 		DefaultScope: details.MCP.DefaultScope,
-		Env:          make([]contract.MarketplaceMCPEnvFieldPayload, 0, len(details.MCP.Env)),
+		Inputs:       make([]contract.MarketplaceMCPInputPayload, 0, len(details.MCP.Inputs)),
 	}
-	for _, field := range details.MCP.Env {
-		result.Env = append(result.Env, contract.MarketplaceMCPEnvFieldPayload{
-			Name: field.Name, Prompt: field.Prompt, Required: field.Required,
-			Secret: field.Secret, Default: field.Default,
+	for _, input := range details.MCP.Inputs {
+		var defaultValue any
+		if len(input.Default) > 0 {
+			if err := json.Unmarshal(input.Default, &defaultValue); err != nil {
+				return nil
+			}
+		}
+		result.Inputs = append(result.Inputs, contract.MarketplaceMCPInputPayload{
+			ID: input.ID, Prompt: input.Prompt, Type: input.Type, Required: input.Required,
+			Binding: contract.MarketplaceMCPInputBindingPayload{Type: input.Binding.Type, Name: input.Binding.Name},
+			Default: defaultValue,
 		})
 	}
-	if details.MCP.OAuth != nil {
-		result.OAuth = &contract.MarketplaceMCPOAuthPayload{
-			IssuerURL: details.MCP.OAuth.IssuerURL, AuthorizationURL: details.MCP.OAuth.AuthorizationURL,
-			TokenURL: details.MCP.OAuth.TokenURL, ClientID: details.MCP.OAuth.ClientID,
-			Scopes: append([]string(nil), details.MCP.OAuth.Scopes...),
+	if details.MCP.Auth != nil {
+		result.Auth = &contract.MarketplaceMCPOAuthPayload{
+			Method: details.MCP.Auth.Method, Registration: details.MCP.Auth.Registration,
+			Scopes: append([]string(nil), details.MCP.Auth.Scopes...),
 		}
 	}
 	return result

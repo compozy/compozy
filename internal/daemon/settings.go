@@ -82,14 +82,6 @@ func newSettingsRuntimeSurface(d *Daemon, state *bootState) (*settingsRuntimeSur
 	if store, ok := state.registry.(mcpauth.TokenStore); ok {
 		mcpAuthStore = store
 	}
-	mcpAuthManager, err := newSettingsMCPAuthManager(mcpAuthStore, &daemonMCPAuthNotifier{
-		writer: state.registry,
-		logger: state.logger,
-		now:    now,
-	}, state.mcpAuthGeneration)
-	if err != nil {
-		return nil, err
-	}
 	var secretResolver mcpauth.SecretRefResolver
 	var secretRefs interface {
 		ResolveRef(context.Context, string) (string, error)
@@ -104,6 +96,25 @@ func newSettingsRuntimeSurface(d *Daemon, state *bootState) (*settingsRuntimeSur
 			diagnostics.RegisterDynamicSecret(value)
 			return value, nil
 		}
+	}
+	var mcpAuthRegistrations mcpauth.RegistrationStore
+	if registrations, ok := state.registry.(mcpauth.RegistrationStore); ok {
+		mcpAuthRegistrations = registrations
+	}
+	mcpAuthManager, err := newSettingsMCPAuthManagerWithConfig(
+		mcpAuthStore,
+		&daemonMCPAuthNotifier{
+			writer: state.registry,
+			logger: state.logger,
+			now:    now,
+		},
+		mcpAuthRegistrations,
+		secretResolver,
+		state.cfg.MCP.OAuth,
+		state.mcpAuthGeneration,
+	)
+	if err != nil {
+		return nil, err
 	}
 	lookupSecret := os.Getenv
 	if d != nil && d.getenv != nil {

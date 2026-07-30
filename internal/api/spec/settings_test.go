@@ -210,7 +210,7 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 		exchange := operationFor(t, doc, "/api/settings/mcp-servers/{name}/auth/exchange", "POST")
 		assertOperationTransports(t, exchange, TransportHTTP, TransportUDS)
 		exchangeRequest := jsonRequestSchema(t, exchange)
-		assertMCPAuthExchangeExactlyOneOf(t, exchangeRequest)
+		assertMCPAuthExchangeRedirectURLRequest(t, exchangeRequest)
 		exchangeStatus := jsonResponseSchema(t, exchange, 200)
 		assertRequired(
 			t,
@@ -621,17 +621,18 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 
 		installMCP := operationFor(t, doc, "/api/settings/mcp-servers/install", "POST")
 		installMCPSchema := jsonRequestSchema(t, installMCP)
-		assertRequired(t, installMCPSchema, "entry_id", "scope", "values")
-		assertNotRequired(t, installMCPSchema, "name", "workspace_id")
+		assertRequired(t, installMCPSchema, "entry_id", "values")
+		assertNotRequired(t, installMCPSchema, "name", "scope", "workspace_id")
 		assertEnumValues(t, propertySchema(t, installMCPSchema, "scope"), "global", "workspace")
 		installValuesSchema := propertySchema(t, installMCPSchema, "values")
-		installEnvSchema := propertySchema(t, installValuesSchema, "env")
-		if installEnvSchema.AdditionalProperties.Schema == nil ||
-			installEnvSchema.AdditionalProperties.Schema.Value == nil {
-			t.Fatal("install values.env additionalProperties schema = nil")
+		installInputsSchema := propertySchema(t, installValuesSchema, "inputs")
+		if installInputsSchema.AdditionalProperties.Schema == nil ||
+			installInputsSchema.AdditionalProperties.Schema.Value == nil {
+			t.Fatal("install values.inputs additionalProperties schema = nil")
 		}
-		assertMCPSecretInputExactlyOneOf(t, installEnvSchema.AdditionalProperties.Schema.Value)
-		assertMCPSecretInputExactlyOneOf(t, propertySchema(t, installValuesSchema, "oauth_client_secret"))
+		assertMCPSecretInputExactlyOneOf(t, installInputsSchema.AdditionalProperties.Schema.Value)
+		assertPropertyAbsent(t, installValuesSchema, "env")
+		assertPropertyAbsent(t, installValuesSchema, "oauth_client_secret")
 		installMCPResponseSchema := jsonResponseSchema(t, installMCP, 200)
 		assertRequired(t, installMCPResponseSchema, "mcp_server", "apply", "next_step")
 		installApplySchema := propertySchema(t, installMCPResponseSchema, "apply")
@@ -760,38 +761,27 @@ func assertMCPSecretInputExactlyOneOf(t *testing.T, schema *openapi3.Schema) {
 	}
 }
 
-func assertMCPAuthExchangeExactlyOneOf(t *testing.T, schema *openapi3.Schema) {
+func assertMCPAuthExchangeRedirectURLRequest(t *testing.T, schema *openapi3.Schema) {
 	t.Helper()
 
-	if len(schema.OneOf) != 2 {
-		t.Fatalf("MCP auth exchange oneOf = %#v, want two variants", schema.OneOf)
+	if len(schema.OneOf) != 0 {
+		t.Fatalf("MCP auth exchange oneOf = %#v, want none", schema.OneOf)
 	}
-	wantProperties := map[string]bool{"code": false, "redirect_url": false}
-	for _, variantRef := range schema.OneOf {
-		if variantRef == nil || variantRef.Value == nil {
-			t.Fatalf("MCP auth exchange variant = %#v, want concrete schema", variantRef)
-		}
-		variant := variantRef.Value
-		if len(variant.Required) != 1 || len(variant.Properties) != 1 {
-			t.Fatalf("MCP auth exchange variant = %#v, want one required property", variant)
-		}
-		property := variant.Required[0]
-		propertyRef, ok := variant.Properties[property]
-		if !ok || propertyRef == nil || propertyRef.Value == nil {
-			t.Fatalf("MCP auth exchange %q property is missing", property)
-		}
-		if propertyRef.Value.MinLength == 0 || !propertyRef.Value.WriteOnly {
-			t.Fatalf("MCP auth exchange %q property = %#v, want non-empty write-only string", property, propertyRef)
-		}
-		if variant.AdditionalProperties.Has == nil || *variant.AdditionalProperties.Has {
-			t.Fatalf("MCP auth exchange %q variant allows additional properties", property)
-		}
-		wantProperties[property] = true
+	if len(schema.Required) != 1 || schema.Required[0] != "redirect_url" {
+		t.Fatalf("MCP auth exchange required = %v, want [redirect_url]", schema.Required)
 	}
-	for property, found := range wantProperties {
-		if !found {
-			t.Fatalf("MCP auth exchange oneOf missing %q variant", property)
-		}
+	if len(schema.Properties) != 1 {
+		t.Fatalf("MCP auth exchange properties = %#v, want only redirect_url", schema.Properties)
+	}
+	redirectURL, ok := schema.Properties["redirect_url"]
+	if !ok || redirectURL == nil || redirectURL.Value == nil {
+		t.Fatalf("MCP auth exchange redirect_url property is missing")
+	}
+	if redirectURL.Value.MinLength == 0 || !redirectURL.Value.WriteOnly {
+		t.Fatalf("MCP auth exchange redirect_url = %#v, want non-empty write-only string", redirectURL)
+	}
+	if schema.AdditionalProperties.Has == nil || *schema.AdditionalProperties.Has {
+		t.Fatalf("MCP auth exchange allows additional properties")
 	}
 }
 

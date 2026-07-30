@@ -8,7 +8,7 @@ import {
   bindingValuePresent,
   buildMCPInstallRequest,
   createInitialMCPBindings,
-  type MCPEnvField,
+  type MCPInputField,
   type MCPFieldBinding,
 } from "./mcp-install-model";
 import { mcpInstallDialogLogic } from "./mcp-install-dialog-store";
@@ -27,9 +27,9 @@ export function useMCPInstallDialog({
   workspaceId,
 }: UseMCPInstallDialogOptions) {
   const { entry, mcp } = data;
-  const fields = mcp?.env ?? [];
-  const remote = Boolean(mcp?.url) || mcp?.transport !== "stdio";
-  const defaultScope = mcp?.default_scope === "global" || !workspaceId ? "global" : "workspace";
+  const fields = mcp?.inputs ?? [];
+  const remote = mcp?.launch?.type === "remote";
+  const defaultScope = mcp?.default_scope === "global" ? "global" : "workspace";
   const vaultQuery = useVaultSecrets({ namespace: "mcp" });
   const putVault = usePutVaultSecret();
   const store = useStore(mcpInstallDialogLogic, {
@@ -44,30 +44,28 @@ export function useMCPInstallDialog({
     return () => installed.unsubscribe();
   }, [store]);
 
-  const requiredComplete =
-    remote ||
-    fields.every(field => {
-      const binding = state.bindings[field.name];
-      return !field.required || (binding ? bindingValuePresent(binding) : false);
-    });
-  const canonicalRef = (field: MCPEnvField) => {
+  const requiredComplete = fields.every(field => {
+    const binding = state.bindings[field.id];
+    return !field.required || (binding ? bindingValuePresent(binding) : false);
+  });
+  const canonicalRef = (field: MCPInputField) => {
     const server = entry.install_slug?.trim() || entry.entry_id;
     return state.scope === "workspace" && workspaceId
-      ? `vault:mcp/ws/${workspaceId}/${server}/env/${field.name}`
-      : `vault:mcp/global/${server}/env/${field.name}`;
+      ? `vault:mcp/ws/${workspaceId}/${server}/inputs/${field.id}`
+      : `vault:mcp/global/${server}/inputs/${field.id}`;
   };
 
   return {
     bindings: state.bindings,
     canonicalRef,
-    createSecret: (field: MCPEnvField) => {
-      const binding = state.bindings[field.name];
+    createSecret: (field: MCPInputField) => {
+      const binding = state.bindings[field.id];
       if (!binding) return;
       store.trigger.secretCreationRequested({
         createSecret: async (ref, value) => {
           await putVault.mutateAsync({ kind: "mcp_env", ref, secret_value: value });
         },
-        name: field.name,
+        name: field.id,
         ref: canonicalRef(field),
         value: binding.createValue,
       });
@@ -76,7 +74,7 @@ export function useMCPInstallDialog({
     install: () =>
       store.trigger.installationRequested({
         install: (bindings, scope) =>
-          onInstall(buildMCPInstallRequest(data, scope, workspaceId, bindings, remote)).then(
+          onInstall(buildMCPInstallRequest(data, scope, workspaceId, bindings)).then(
             () => undefined
           ),
       }),
@@ -84,7 +82,7 @@ export function useMCPInstallDialog({
     installing: state.phase === "installing",
     putVault,
     remote,
-    requiredComplete,
+    requiredComplete: requiredComplete && (state.scope === "global" || Boolean(workspaceId)),
     scope: state.scope,
     setScope: (scope: "global" | "workspace") => store.trigger.scopeSelected({ scope }),
     updateBinding: (name: string, binding: MCPFieldBinding) =>

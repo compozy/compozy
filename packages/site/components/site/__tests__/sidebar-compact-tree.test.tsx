@@ -1,8 +1,8 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { FrameworkProvider } from "fumadocs-core/framework";
 import type { Folder, Root } from "fumadocs-core/page-tree";
 import { SidebarProvider } from "fumadocs-ui/components/sidebar/base";
 import { TreeContextProvider } from "fumadocs-ui/contexts/tree";
+import { RootProvider } from "fumadocs-ui/provider/next";
 import type { ReactNode } from "react";
 import { act } from "react";
 import { hydrateRoot } from "react-dom/client";
@@ -15,6 +15,12 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("next/navigation", () => ({
+  useParams: () => ({}),
+  usePathname: () => mocks.pathname,
+  useRouter: () => ({ push: () => undefined, refresh: () => undefined }),
+}));
+
+vi.mock("next/navigation.js", () => ({
   useParams: () => ({}),
   usePathname: () => mocks.pathname,
   useRouter: () => ({ push: () => undefined, refresh: () => undefined }),
@@ -52,17 +58,13 @@ function SidebarHarness({ folder, children }: { folder: Folder; children: ReactN
   };
 
   return (
-    <FrameworkProvider
-      useParams={() => ({})}
-      usePathname={() => mocks.pathname}
-      useRouter={() => ({ push: () => undefined, refresh: () => undefined })}
-    >
+    <RootProvider search={{ enabled: false }} theme={{ enabled: false }}>
       <TreeContextProvider tree={tree}>
         <SidebarProvider>
           <CompactFolder item={folder}>{children}</CompactFolder>
         </SidebarProvider>
       </TreeContextProvider>
-    </FrameworkProvider>
+    </RootProvider>
   );
 }
 

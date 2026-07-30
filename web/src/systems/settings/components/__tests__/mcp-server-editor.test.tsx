@@ -67,7 +67,7 @@ describe("MCPServerEditor", () => {
     expect(screen.getByTestId("settings-mcp-servers-editor-command-input")).toBeInTheDocument();
   });
 
-  it("Should offer remote authentication only for a remote transport", async () => {
+  it("Should explain daemon-owned authorization only for a remote transport", async () => {
     const user = userEvent.setup();
     render(<EditorHarness />);
 
@@ -77,6 +77,9 @@ describe("MCPServerEditor", () => {
     await user.click(screen.getByTestId("settings-mcp-servers-editor-transport-remote"));
 
     expect(screen.getByTestId("settings-mcp-editor-oauth")).toBeInTheDocument();
+    expect(screen.getByTestId("settings-mcp-editor-oauth-automatic")).toHaveTextContent(
+      "Compozy discovers OAuth requirements"
+    );
     expect(screen.queryByTestId("settings-mcp-editor-stdio")).toBeNull();
   });
 
@@ -105,18 +108,13 @@ describe("MCPServerEditor", () => {
     expect(request.server).not.toHaveProperty("args");
   });
 
-  it("Should let a remote server pick its wire transport without leaving the remote branch", async () => {
-    const user = userEvent.setup();
+  it("Should keep remote HTTP transport fixed without an unsupported wire picker", () => {
     render(
       <EditorHarness draft={{ ...emptyDraft("http"), name: "linear", url: "https://x/mcp" }} />
     );
 
-    await user.selectOptions(
-      screen.getByTestId("settings-mcp-servers-editor-remote-transport"),
-      "sse"
-    );
-
-    expect(readDraft().transport).toBe("sse");
+    expect(screen.queryByTestId("settings-mcp-servers-editor-remote-transport")).toBeNull();
+    expect(readDraft().transport).toBe("http");
     const url = screen.getByTestId("settings-mcp-servers-editor-url-input");
     expect(url).toHaveValue("https://x/mcp");
   });

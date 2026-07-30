@@ -9,6 +9,7 @@ type configOverlay struct {
 	Limits        limitsOverlay              `toml:"limits"`
 	Session       sessionOverlay             `toml:"session"`
 	Permissions   permissionsOverlay         `toml:"permissions"`
+	MCP           mcpOverlay                 `toml:"mcp"`
 	MCPServers    []mcpServerOverlay         `toml:"mcp_servers"`
 	Providers     map[string]providerOverlay `toml:"providers"`
 	ModelCatalog  modelCatalogOverlay        `toml:"model_catalog"`
@@ -40,6 +41,7 @@ func (o *configOverlay) Apply(dst *Config) error {
 	o.Limits.Apply(&dst.Limits)
 	o.Session.Apply(&dst.Session)
 	o.Permissions.Apply(&dst.Permissions)
+	o.MCP.Apply(&dst.MCP)
 	if len(o.MCPServers) > 0 {
 		dst.MCPServers = applyMCPServerOverlays(dst.MCPServers, o.MCPServers)
 	}

@@ -13,12 +13,8 @@ func agentMCPAuthPayload(value compozyconfig.MCPAuthConfig) *contract.SettingsMC
 		return nil
 	}
 	return &contract.SettingsMCPAuthConfigViewPayload{
-		Type:                   strings.TrimSpace(string(value.Type)),
+		Registration:           strings.TrimSpace(string(value.Registration)),
 		IssuerURL:              strings.TrimSpace(value.IssuerURL),
-		MetadataURL:            strings.TrimSpace(value.MetadataURL),
-		AuthorizationURL:       strings.TrimSpace(value.AuthorizationURL),
-		TokenURL:               strings.TrimSpace(value.TokenURL),
-		RevocationURL:          strings.TrimSpace(value.RevocationURL),
 		ClientID:               strings.TrimSpace(value.ClientID),
 		ClientSecretConfigured: strings.TrimSpace(value.ClientSecretRef) != "",
 		Scopes:                 cloneStrings(value.Scopes),
@@ -59,13 +55,14 @@ func settingsMCPServerRuntimeStatusPayload(
 		return nil
 	}
 	return &contract.SettingsMCPServerRuntimeStatusPayload{
-		Configured:  value.Configured,
-		Initialized: value.Initialized,
-		State:       strings.TrimSpace(string(value.State)),
-		Probe:       strings.TrimSpace(string(value.Probe)),
-		ToolCount:   value.ToolCount,
-		Reason:      strings.TrimSpace(value.Reason),
-		Diagnostic:  strings.TrimSpace(value.Diagnostic),
+		Configured:      value.Configured,
+		Initialized:     value.Initialized,
+		State:           strings.TrimSpace(string(value.State)),
+		Probe:           strings.TrimSpace(string(value.Probe)),
+		ToolCount:       value.ToolCount,
+		ProtocolVersion: strings.TrimSpace(value.ProtocolVersion),
+		Reason:          strings.TrimSpace(value.Reason),
+		Diagnostic:      strings.TrimSpace(value.Diagnostic),
 	}
 }
 
@@ -77,12 +74,8 @@ func settingsMCPAuthConfigPayload(
 		return nil
 	}
 	return &contract.SettingsMCPAuthConfigViewPayload{
-		Type:                   strings.TrimSpace(string(value.Type)),
+		Registration:           strings.TrimSpace(string(value.Registration)),
 		IssuerURL:              strings.TrimSpace(value.IssuerURL),
-		MetadataURL:            strings.TrimSpace(value.MetadataURL),
-		AuthorizationURL:       strings.TrimSpace(value.AuthorizationURL),
-		TokenURL:               strings.TrimSpace(value.TokenURL),
-		RevocationURL:          strings.TrimSpace(value.RevocationURL),
 		ClientID:               strings.TrimSpace(value.ClientID),
 		ClientSecretConfigured: clientSecretConfigured,
 		Scopes:                 cloneStrings(value.Scopes),

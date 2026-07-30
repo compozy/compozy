@@ -42,7 +42,7 @@ export const MCPVaultSelector: Story = {
                 kind: "mcp_env",
                 namespace: "mcp",
                 present: true,
-                ref: "vault:mcp/ws/ws_story_fintech/github/env/GITHUB_TOKEN",
+                ref: "vault:mcp/ws/ws_story_fintech/github/inputs/github_personal_access_token",
                 updated_at: "2026-07-14T11:00:00Z",
               },
             ],
@@ -58,7 +58,7 @@ export const MCPVaultSelector: Story = {
     const dialog = within(document.body);
     await userEvent.click(await dialog.findByRole("button", { name: "Use Vault" }));
     const vaultRadio = await dialog.findByRole("radio", {
-      name: /vault:mcp\/ws\/ws_story_fintech\/github\/env\/GITHUB_TOKEN/,
+      name: /vault:mcp\/ws\/ws_story_fintech\/github\/inputs\/github_personal_access_token/,
     });
     await userEvent.click(vaultRadio);
     await expect(vaultRadio).toHaveAttribute("aria-checked", "true");
@@ -90,7 +90,7 @@ export const MCPRemote: Story = {
     const canvas = within(canvasElement);
     await userEvent.click(await canvas.findByRole("button", { name: "Install linear" }));
     const dialog = within(document.body);
-    await expect(dialog.findByText("Authorization · OAuth 2 PKCE")).resolves.toBeDefined();
+    await expect(dialog.findByText("Authorization · OAuth")).resolves.toBeDefined();
     await expect(dialog.queryByText("Required configuration")).toBeNull();
   },
 };

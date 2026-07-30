@@ -96,15 +96,11 @@ type SettingsMCPServerPayload struct {
 }
 
 type SettingsMCPAuthConfigPayload struct {
-	Type             string   `json:"type,omitempty"`
-	IssuerURL        string   `json:"issuer_url,omitempty"`
-	MetadataURL      string   `json:"metadata_url,omitempty"`
-	AuthorizationURL string   `json:"authorization_url,omitempty"`
-	TokenURL         string   `json:"token_url,omitempty"`
-	RevocationURL    string   `json:"revocation_url,omitempty"`
-	ClientID         string   `json:"client_id,omitempty"`
-	ClientSecretRef  string   `json:"client_secret_ref,omitempty"`
-	Scopes           []string `json:"scopes,omitempty"`
+	Registration    string   `json:"registration,omitempty"`
+	IssuerURL       string   `json:"issuer_url,omitempty"`
+	ClientID        string   `json:"client_id,omitempty"`
+	ClientSecretRef string   `json:"client_secret_ref,omitempty"`
+	Scopes          []string `json:"scopes,omitempty"`
 }
 
 type SettingsMCPSecretValuesPayload struct {
@@ -120,44 +116,39 @@ type SettingsMCPSecretPreservationPayload struct {
 
 // SettingsMCPAuthConfigViewPayload is the public, binding-free OAuth configuration projection.
 type SettingsMCPAuthConfigViewPayload struct {
-	Type                   string   `json:"type,omitempty"`
+	Registration           string   `json:"registration,omitempty"`
 	IssuerURL              string   `json:"issuer_url,omitempty"`
-	MetadataURL            string   `json:"metadata_url,omitempty"`
-	AuthorizationURL       string   `json:"authorization_url,omitempty"`
-	TokenURL               string   `json:"token_url,omitempty"`
-	RevocationURL          string   `json:"revocation_url,omitempty"`
 	ClientID               string   `json:"client_id,omitempty"`
 	ClientSecretConfigured bool     `json:"client_secret_configured"`
 	Scopes                 []string `json:"scopes,omitempty"`
 }
 
 type SettingsMCPAuthStatusPayload struct {
-	ServerName       string     `json:"server_name"`
-	Scope            string     `json:"scope"`
-	WorkspaceID      string     `json:"workspace_id,omitempty"`
-	Status           string     `json:"status"`
-	RemoteURL        string     `json:"remote_url,omitempty"`
-	AuthType         string     `json:"auth_type,omitempty"`
-	ClientID         string     `json:"client_id,omitempty"`
-	Issuer           string     `json:"issuer,omitempty"`
-	Scopes           []string   `json:"scopes,omitempty"`
-	ExpiresAt        *time.Time `json:"expires_at,omitempty"`
-	UpdatedAt        *time.Time `json:"updated_at,omitempty"`
-	Refreshable      bool       `json:"refreshable"`
-	TokenPresent     bool       `json:"token_present"`
-	RevocationURL    string     `json:"revocation_url,omitempty"`
-	Diagnostic       string     `json:"diagnostic,omitempty"`
-	AuthorizationURL string     `json:"authorization_url,omitempty"`
+	ServerName   string     `json:"server_name"`
+	Scope        string     `json:"scope"`
+	WorkspaceID  string     `json:"workspace_id,omitempty"`
+	Status       string     `json:"status"`
+	RemoteURL    string     `json:"remote_url,omitempty"`
+	AuthType     string     `json:"auth_type,omitempty"`
+	ClientID     string     `json:"client_id,omitempty"`
+	Issuer       string     `json:"issuer,omitempty"`
+	Scopes       []string   `json:"scopes,omitempty"`
+	ExpiresAt    *time.Time `json:"expires_at,omitempty"`
+	UpdatedAt    *time.Time `json:"updated_at,omitempty"`
+	Refreshable  bool       `json:"refreshable"`
+	TokenPresent bool       `json:"token_present"`
+	Diagnostic   string     `json:"diagnostic,omitempty"`
 }
 
 type SettingsMCPServerRuntimeStatusPayload struct {
-	Configured  bool   `json:"configured"`
-	Initialized bool   `json:"initialized"`
-	State       string `json:"state"`
-	Probe       string `json:"probe"`
-	ToolCount   int    `json:"tool_count"`
-	Reason      string `json:"reason,omitempty"`
-	Diagnostic  string `json:"diagnostic,omitempty"`
+	Configured      bool   `json:"configured"`
+	Initialized     bool   `json:"initialized"`
+	State           string `json:"state"`
+	Probe           string `json:"probe"`
+	ToolCount       int    `json:"tool_count"`
+	ProtocolVersion string `json:"protocol_version,omitempty"`
+	Reason          string `json:"reason,omitempty"`
+	Diagnostic      string `json:"diagnostic,omitempty"`
 }
 
 type SettingsMCPServerItemPayload struct {

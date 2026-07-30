@@ -226,6 +226,7 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"GET /api/settings/hooks",
 		"GET /api/settings/hooks-extensions",
 		"GET /api/settings/mcp-servers",
+		"GET /api/settings/mcp-servers/:name/auth/status",
 		"POST /api/settings/mcp-servers/install",
 		"POST /api/settings/mcp-servers/:name/auth/begin",
 		"POST /api/settings/mcp-servers/:name/auth/exchange",
@@ -1496,7 +1497,7 @@ func TestSettingsAndExtensionMutationsReachHandlersOnLoopbackHost(t *testing.T) 
 				Scope:       contract.SettingsWorkspaceScopeWorkspace,
 				WorkspaceID: "ws-1",
 				Values: &contract.SettingsMCPCatalogInstallValuesPayload{
-					Env: map[string]contract.SettingsMCPSecretInputPayload{
+					Inputs: map[string]contract.SettingsMCPSecretInputPayload{
 						"TOKEN": {VaultRef: "vault:mcp/shared/token"},
 					},
 				},
@@ -1509,8 +1510,8 @@ func TestSettingsAndExtensionMutationsReachHandlersOnLoopbackHost(t *testing.T) 
 					settingsService.LastMCPCatalogInstall.WorkspaceID != "ws-1" {
 					t.Fatalf("LastMCPCatalogInstall = %#v", settingsService.LastMCPCatalogInstall)
 				}
-				if got, want := settingsService.LastMCPCatalogInstall.Values.Env["TOKEN"].VaultRef, "vault:mcp/shared/token"; got != want {
-					t.Fatalf("LastMCPCatalogInstall.Values.Env[TOKEN].VaultRef = %q, want %q", got, want)
+				if got, want := settingsService.LastMCPCatalogInstall.Values.Inputs["TOKEN"].VaultRef, "vault:mcp/shared/token"; got != want {
+					t.Fatalf("LastMCPCatalogInstall.Values.Inputs[TOKEN].VaultRef = %q, want %q", got, want)
 				}
 			},
 			assertBody: func(t *testing.T, recorder *httptest.ResponseRecorder) {

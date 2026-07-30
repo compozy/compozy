@@ -1,25 +1,230 @@
 {
-    "manifest_version": 1,
-    "generated_at": "2026-07-17T00:40:00Z",
+    "manifest_version": 2,
+    "generated_at": "2026-07-30T16:00:00Z",
     "entries": [
         {
             "entry_id": "context7",
             "name": "Context7",
-            "description": "Fetch current, version-specific library documentation and code examples",
+            "description": "Fetch current, version-specific library documentation and code examples.",
             "version": "3.2.3",
-            "published_at": "2026-07-06T12:32:14Z",
-            "transport": "stdio",
-            "command": "npx",
-            "args": ["-y", "@upstash/context7-mcp@3.2.3"],
-            "env": [
+            "launch": {
+                "type": "npm",
+                "package": "@upstash/context7-mcp",
+                "version": "3.2.3"
+            },
+            "inputs": [
                 {
-                    "name": "CONTEXT7_API_KEY",
+                    "id": "context7_api_key",
                     "prompt": "Context7 API key (optional)",
+                    "type": "secret",
                     "required": false,
-                    "secret": true
+                    "binding": { "type": "env", "name": "CONTEXT7_API_KEY" }
                 }
             ],
             "default_scope": "global"
+        },
+        {
+            "entry_id": "github",
+            "name": "GitHub",
+            "description": "Inspect GitHub repositories, issues, pull requests, and releases with GitHub's official MCP server.",
+            "version": "v1.8.0",
+            "launch": {
+                "type": "docker",
+                "image": "ghcr.io/github/github-mcp-server",
+                "digest": "sha256:d5a18c04b92714c309eb46a2305087e91a4dbd80420f6e462656699f95093520",
+                "args": ["--read-only"]
+            },
+            "inputs": [
+                {
+                    "id": "github_personal_access_token",
+                    "prompt": "GitHub personal access token",
+                    "type": "secret",
+                    "required": true,
+                    "binding": { "type": "env", "name": "GITHUB_PERSONAL_ACCESS_TOKEN" }
+                }
+            ],
+            "default_scope": "workspace"
+        },
+        {
+            "entry_id": "linear",
+            "name": "Linear",
+            "description": "Work with Linear issues, projects, and team knowledge through its hosted MCP server.",
+            "launch": { "type": "remote", "url": "https://mcp.linear.app/mcp" },
+            "auth": { "method": "oauth", "registration": "auto" },
+            "default_scope": "workspace"
+        },
+        {
+            "entry_id": "notion",
+            "name": "Notion",
+            "description": "Search and manage Notion workspace content through Notion's hosted MCP server.",
+            "launch": { "type": "remote", "url": "https://mcp.notion.com/mcp" },
+            "auth": { "method": "oauth", "registration": "auto" },
+            "default_scope": "workspace"
+        },
+        {
+            "entry_id": "sentry",
+            "name": "Sentry",
+            "description": "Investigate Sentry issues, events, projects, and releases through its hosted MCP server.",
+            "launch": { "type": "remote", "url": "https://mcp.sentry.dev/mcp" },
+            "auth": { "method": "oauth", "registration": "auto" },
+            "default_scope": "workspace"
+        },
+        {
+            "entry_id": "postgres",
+            "name": "PostgreSQL (Yaw Labs)",
+            "description": "Query PostgreSQL with Yaw Labs' maintained MCP server; it is read-only by default.",
+            "version": "0.7.0",
+            "launch": {
+                "type": "npm",
+                "package": "@yawlabs/postgres-mcp",
+                "version": "0.7.0"
+            },
+            "inputs": [
+                {
+                    "id": "database_url",
+                    "prompt": "PostgreSQL connection URL",
+                    "type": "secret",
+                    "required": true,
+                    "binding": { "type": "env", "name": "DATABASE_URL" }
+                }
+            ],
+            "default_scope": "workspace"
+        },
+        {
+            "entry_id": "supabase",
+            "name": "Supabase",
+            "description": "Work with a selected Supabase project through Supabase's hosted MCP server in read-only mode.",
+            "launch": { "type": "remote", "url": "https://mcp.supabase.com/mcp?read_only=true" },
+            "auth": { "method": "oauth", "registration": "auto" },
+            "inputs": [
+                {
+                    "id": "project_ref",
+                    "prompt": "Supabase project reference",
+                    "type": "identifier",
+                    "required": true,
+                    "binding": { "type": "url_query", "name": "project_ref" }
+                }
+            ],
+            "default_scope": "workspace"
+        },
+        {
+            "entry_id": "brave-search",
+            "name": "Brave Search",
+            "description": "Search the web through Brave's official MCP server.",
+            "version": "2.1.0",
+            "launch": {
+                "type": "npm",
+                "package": "@brave/brave-search-mcp-server",
+                "version": "2.1.0"
+            },
+            "inputs": [
+                {
+                    "id": "brave_api_key",
+                    "prompt": "Brave Search API key",
+                    "type": "secret",
+                    "required": true,
+                    "binding": { "type": "env", "name": "BRAVE_API_KEY" }
+                }
+            ],
+            "default_scope": "workspace"
+        },
+        {
+            "entry_id": "playwright",
+            "name": "Playwright",
+            "description": "Automate browser workflows with Microsoft's Playwright MCP server in headless mode.",
+            "version": "0.0.78",
+            "launch": {
+                "type": "npm",
+                "package": "@playwright/mcp",
+                "version": "0.0.78",
+                "args": ["--headless"]
+            },
+            "default_scope": "workspace"
+        },
+        {
+            "entry_id": "stripe",
+            "name": "Stripe",
+            "description": "Inspect Stripe customers, payments, invoices, and subscriptions through Stripe's hosted MCP server.",
+            "launch": { "type": "remote", "url": "https://mcp.stripe.com" },
+            "auth": { "method": "oauth", "registration": "auto" },
+            "default_scope": "workspace"
+        },
+        {
+            "entry_id": "posthog",
+            "name": "PostHog",
+            "description": "Analyze product data, feature flags, and observability signals through PostHog's hosted MCP server.",
+            "launch": { "type": "remote", "url": "https://mcp.posthog.com/mcp" },
+            "auth": { "method": "oauth", "registration": "auto" },
+            "default_scope": "workspace"
+        },
+        {
+            "entry_id": "airtable",
+            "name": "Airtable",
+            "description": "Search and manage Airtable bases through Airtable's hosted MCP server.",
+            "launch": { "type": "remote", "url": "https://mcp.airtable.com/mcp" },
+            "auth": { "method": "oauth", "registration": "auto" },
+            "default_scope": "workspace"
+        },
+        {
+            "entry_id": "gitlab",
+            "name": "GitLab",
+            "description": "Work with GitLab projects, issues, merge requests, and pipelines through GitLab's hosted MCP server.",
+            "launch": { "type": "remote", "url": "https://gitlab.com/api/v4/mcp" },
+            "auth": { "method": "oauth", "registration": "auto" },
+            "default_scope": "workspace"
+        },
+        {
+            "entry_id": "atlassian",
+            "name": "Atlassian",
+            "description": "Work with Atlassian products through Atlassian's hosted MCP server.",
+            "launch": { "type": "remote", "url": "https://mcp.atlassian.com/v1/mcp/authv2" },
+            "auth": { "method": "oauth", "registration": "auto" },
+            "default_scope": "workspace"
+        },
+        {
+            "entry_id": "grafana",
+            "name": "Grafana",
+            "description": "Inspect Grafana dashboards, metrics, logs, traces, and alerts with write tools disabled.",
+            "version": "1.0.0",
+            "launch": {
+                "type": "uvx",
+                "package": "mcp-grafana",
+                "version": "1.0.0",
+                "args": ["--disable-write"]
+            },
+            "inputs": [
+                {
+                    "id": "grafana_url",
+                    "prompt": "Grafana URL",
+                    "type": "string",
+                    "required": true,
+                    "binding": { "type": "env", "name": "GRAFANA_URL" }
+                },
+                {
+                    "id": "grafana_service_account_token",
+                    "prompt": "Grafana service account token",
+                    "type": "secret",
+                    "required": true,
+                    "binding": { "type": "env", "name": "GRAFANA_SERVICE_ACCOUNT_TOKEN" }
+                }
+            ],
+            "default_scope": "workspace"
+        },
+        {
+            "entry_id": "calcom",
+            "name": "Cal.com",
+            "description": "Manage Cal.com scheduling through Cal.com's hosted MCP server.",
+            "launch": { "type": "remote", "url": "https://mcp.cal.com/mcp" },
+            "auth": { "method": "oauth", "registration": "auto" },
+            "default_scope": "workspace"
+        },
+        {
+            "entry_id": "cloudflare",
+            "name": "Cloudflare Code Mode",
+            "description": "Use Cloudflare's Code Mode MCP server to progressively discover and call Cloudflare APIs.",
+            "launch": { "type": "remote", "url": "https://mcp.cloudflare.com/mcp" },
+            "auth": { "method": "oauth", "registration": "auto" },
+            "default_scope": "workspace"
         }
     ]
 }

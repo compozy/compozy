@@ -6,18 +6,12 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	settingspkg "github.com/compozy/compozy/internal/settings"
 	"github.com/gin-gonic/gin"
-)
-
-const (
-	mcpOAuthCallbackPath      = "/api/mcp/oauth/callback"
-	defaultManualCallbackPort = 2123
 )
 
 var errInvalidMCPAuthBeginMode = errors.New("settings: MCP OAuth begin mode must be automatic or manual")
@@ -27,31 +21,49 @@ func settingsMCPAuthStatusPayload(value *settingspkg.MCPAuthStatus) *contract.Se
 		return nil
 	}
 	return &contract.SettingsMCPAuthStatusPayload{
-		ServerName:       strings.TrimSpace(value.ServerName),
-		Scope:            strings.TrimSpace(string(value.Scope)),
-		WorkspaceID:      strings.TrimSpace(value.WorkspaceID),
-		Status:           strings.TrimSpace(string(value.Status)),
-		RemoteURL:        strings.TrimSpace(value.RemoteURL),
-		AuthType:         strings.TrimSpace(value.AuthType),
-		ClientID:         strings.TrimSpace(value.ClientID),
-		Issuer:           strings.TrimSpace(value.Issuer),
-		Scopes:           cloneStrings(value.Scopes),
-		ExpiresAt:        cloneTimePtr(value.ExpiresAt),
-		UpdatedAt:        cloneTimePtr(value.UpdatedAt),
-		Refreshable:      value.Refreshable,
-		TokenPresent:     value.TokenPresent,
-		RevocationURL:    strings.TrimSpace(value.RevocationURL),
-		Diagnostic:       strings.TrimSpace(value.Diagnostic),
-		AuthorizationURL: strings.TrimSpace(value.AuthorizationURL),
+		ServerName:   strings.TrimSpace(value.ServerName),
+		Scope:        strings.TrimSpace(string(value.Scope)),
+		WorkspaceID:  strings.TrimSpace(value.WorkspaceID),
+		Status:       strings.TrimSpace(string(value.Status)),
+		RemoteURL:    strings.TrimSpace(value.RemoteURL),
+		AuthType:     strings.TrimSpace(value.AuthType),
+		ClientID:     strings.TrimSpace(value.ClientID),
+		Issuer:       strings.TrimSpace(value.Issuer),
+		Scopes:       cloneStrings(value.Scopes),
+		ExpiresAt:    cloneTimePtr(value.ExpiresAt),
+		UpdatedAt:    cloneTimePtr(value.UpdatedAt),
+		Refreshable:  value.Refreshable,
+		TokenPresent: value.TokenPresent,
+		Diagnostic:   strings.TrimSpace(value.Diagnostic),
 	}
 }
 
 // MCPSettingsAuth exposes daemon-owned MCP OAuth operations to API transports.
 type MCPSettingsAuth interface {
+	GetMCPAuthStatus(context.Context, settingspkg.MCPAuthTargetRequest) (mcpauth.Status, error)
 	BeginMCPAuth(context.Context, settingspkg.MCPAuthBeginRequest) (mcpauth.BeginResult, error)
 	ExchangeMCPAuth(context.Context, settingspkg.MCPAuthExchangeRequest) (mcpauth.Status, error)
 	CompleteMCPAuthCallback(context.Context, string) (mcpauth.Status, error)
 	LogoutMCPAuth(context.Context, settingspkg.MCPAuthTargetRequest) (mcpauth.Status, error)
+}
+
+// GetSettingsMCPAuthStatus returns redacted OAuth state without probing the MCP runtime.
+func (h *BaseHandlers) GetSettingsMCPAuthStatus(c *gin.Context) {
+	if h.Settings == nil {
+		h.respondError(c, http.StatusServiceUnavailable, errSettingsServiceUnavailable)
+		return
+	}
+	target, err := parseSettingsMCPAuthTarget(c)
+	if err != nil {
+		h.respondError(c, StatusForSettingsError(err), err)
+		return
+	}
+	status, err := h.Settings.GetMCPAuthStatus(c.Request.Context(), target)
+	if err != nil {
+		h.respondError(c, StatusForSettingsError(err), err)
+		return
+	}
+	c.JSON(http.StatusOK, settingsMCPAuthStatusPayload(&status))
 }
 
 // BeginSettingsMCPAuth creates one daemon-owned PKCE session.
@@ -72,6 +84,12 @@ func (h *BaseHandlers) BeginSettingsMCPAuth(c *gin.Context) {
 		))
 		return
 	}
+	if len(body.ApprovedScopes) > 0 && !body.ApproveScopeEscalation {
+		h.respondError(c, http.StatusBadRequest, NewSettingsValidationError(
+			errors.New("MCP auth approved_scopes require approve_scope_escalation = true"),
+		))
+		return
+	}
 	callbackURL, err := h.mcpOAuthCallbackURLForMode(body.Mode)
 	if err != nil {
 		if errors.Is(err, errInvalidMCPAuthBeginMode) {
@@ -82,8 +100,10 @@ func (h *BaseHandlers) BeginSettingsMCPAuth(c *gin.Context) {
 		return
 	}
 	result, err := h.Settings.BeginMCPAuth(c.Request.Context(), settingspkg.MCPAuthBeginRequest{
-		MCPAuthTargetRequest: target,
-		CallbackURL:          callbackURL,
+		MCPAuthTargetRequest:   target,
+		CallbackURL:            callbackURL,
+		ApprovedScopes:         cloneStrings(body.ApprovedScopes),
+		ApproveScopeEscalation: body.ApproveScopeEscalation,
 	})
 	if err != nil {
 		h.respondError(c, StatusForSettingsError(err), err)
@@ -103,14 +123,7 @@ func (h *BaseHandlers) mcpOAuthCallbackURLForMode(mode contract.SettingsMCPAuthB
 	case contract.SettingsMCPAuthBeginModeAutomatic:
 		return h.mcpOAuthCallbackURL()
 	case contract.SettingsMCPAuthBeginModeManual:
-		port := h.HTTPPortValue()
-		if port <= 0 {
-			port = h.Config.HTTP.Port
-		}
-		if port <= 0 {
-			port = defaultManualCallbackPort
-		}
-		return "http://" + net.JoinHostPort("127.0.0.1", strconv.Itoa(port)) + mcpOAuthCallbackPath, nil
+		return strings.TrimSpace(h.Config.MCP.OAuth.RedirectURI), nil
 	default:
 		return "", errInvalidMCPAuthBeginMode
 	}
@@ -134,9 +147,14 @@ func (h *BaseHandlers) ExchangeSettingsMCPAuth(c *gin.Context) {
 		))
 		return
 	}
+	if strings.TrimSpace(body.RedirectURL) == "" {
+		h.respondError(c, http.StatusBadRequest, NewSettingsValidationError(
+			errors.New("MCP auth redirect_url is required"),
+		))
+		return
+	}
 	status, err := h.Settings.ExchangeMCPAuth(c.Request.Context(), settingspkg.MCPAuthExchangeRequest{
 		MCPAuthTargetRequest: target,
-		Code:                 body.Code,
 		RedirectURL:          body.RedirectURL,
 	})
 	if err != nil {
@@ -206,37 +224,17 @@ func parseSettingsMCPAuthTarget(c *gin.Context) (settingspkg.MCPAuthTargetReques
 }
 
 func (h *BaseHandlers) mcpOAuthCallbackURL() (string, error) {
-	port := h.HTTPPortValue()
-	if port <= 0 {
-		port = h.Config.HTTP.Port
+	callbackURL := strings.TrimSpace(h.Config.MCP.OAuth.RedirectURI)
+	parsed, err := url.Parse(callbackURL)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return "", errors.New("settings: MCP OAuth redirect_uri is required")
 	}
-	if port <= 0 {
-		return "", errors.New("settings: daemon HTTP port is unavailable for MCP OAuth callback")
-	}
-	host := canonicalMCPCallbackHost(h.Config.HTTP.Host)
-	if !isLoopbackMCPCallbackHost(host) {
+	if !isLoopbackMCPCallbackHost(parsed.Hostname()) {
 		return "", errors.New(
-			"settings: automatic MCP OAuth callback requires an effective loopback HTTP listener; use manual exchange",
+			"settings: automatic MCP OAuth callback requires a loopback redirect_uri; use manual exchange",
 		)
 	}
-	return "http://" + net.JoinHostPort(host, strconv.Itoa(port)) + mcpOAuthCallbackPath, nil
-}
-
-func canonicalMCPCallbackHost(value string) string {
-	host := strings.TrimSpace(value)
-	if host == "" {
-		return "localhost"
-	}
-	if strings.Contains(host, "://") {
-		parsed, err := url.Parse(host)
-		if err != nil {
-			return ""
-		}
-		host = parsed.Hostname()
-	} else if parsedHost, _, err := net.SplitHostPort(host); err == nil {
-		host = parsedHost
-	}
-	return strings.Trim(strings.TrimSpace(host), "[]")
+	return callbackURL, nil
 }
 
 func isLoopbackMCPCallbackHost(host string) bool {

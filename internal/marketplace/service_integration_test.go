@@ -104,7 +104,7 @@ func TestCatalogServiceHTTPProjectionIntegration(t *testing.T) {
 			assertProjectedSkillIDs(t, ctx, store, "stable")
 
 			feed.setBody(
-				`{"manifest_version":1,"generated_at":"2026-07-13T12:00:00Z","entries":[{"entry_id":"broken"}]}`,
+				`{"manifest_version": 2,"generated_at":"2026-07-13T12:00:00Z","entries":[{"entry_id":"broken"}]}`,
 			)
 			if _, err := service.Refresh(
 				ctx,
@@ -173,7 +173,7 @@ func validSkillFeed(fields ...string) string {
 		entries = append(entries, `{"entry_id":"`+entryID+`","name":"`+name+`",`+
 			`"description":"Integration fixture","version":"1.0.0","install_slug":"compozy/`+entryID+`"}`)
 	}
-	return `{"manifest_version":1,"generated_at":"2026-07-13T12:00:00Z","entries":[` +
+	return `{"manifest_version": 2,"generated_at":"2026-07-13T12:00:00Z","entries":[` +
 		strings.Join(entries, ",") + `]}`
 }
 

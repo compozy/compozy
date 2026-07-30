@@ -20,14 +20,34 @@ type MCPAuthTargetRequest struct {
 // MCPAuthBeginRequest starts one daemon-owned OAuth session.
 type MCPAuthBeginRequest struct {
 	MCPAuthTargetRequest
-	CallbackURL string
+	CallbackURL            string
+	ApprovedScopes         []string
+	ApproveScopeEscalation bool
 }
 
 // MCPAuthExchangeRequest completes one daemon-owned OAuth session.
 type MCPAuthExchangeRequest struct {
 	MCPAuthTargetRequest
-	Code        string
 	RedirectURL string
+}
+
+// GetMCPAuthStatus returns redacted auth state for one exact configured MCP server.
+func (s *service) GetMCPAuthStatus(
+	ctx context.Context,
+	req MCPAuthTargetRequest,
+) (mcpauth.Status, error) {
+	if s.mcpAuth == nil {
+		return mcpauth.Status{}, unavailableError(errors.New("settings: MCP auth runtime is unavailable"))
+	}
+	target, server, err := s.resolveMCPAuthTarget(ctx, req)
+	if err != nil {
+		return mcpauth.Status{}, err
+	}
+	status, err := s.mcpAuth.MCPAuthStatus(ctx, target, server)
+	if err != nil {
+		return mcpauth.Status{}, fmt.Errorf("settings: load MCP auth status for %q: %w", target.ServerName, err)
+	}
+	return status, nil
 }
 
 // BeginMCPAuth starts a PKCE flow for one exact scoped MCP definition.
@@ -42,7 +62,18 @@ func (s *service) BeginMCPAuth(
 	if err != nil {
 		return mcpauth.BeginResult{}, err
 	}
-	result, err := s.mcpAuth.MCPAuthBegin(ctx, target, server, strings.TrimSpace(req.CallbackURL))
+	if len(req.ApprovedScopes) > 0 && !req.ApproveScopeEscalation {
+		return mcpauth.BeginResult{}, validationError(
+			errors.New("settings: MCP auth approved_scopes require approve_scope_escalation = true"),
+		)
+	}
+	callbackURL := strings.TrimSpace(req.CallbackURL)
+	var result mcpauth.BeginResult
+	if req.ApproveScopeEscalation {
+		result, err = s.mcpAuth.MCPAuthBeginStepUp(ctx, target, server, callbackURL, req.ApprovedScopes, true)
+	} else {
+		result, err = s.mcpAuth.MCPAuthBegin(ctx, target, server, callbackURL)
+	}
 	if err != nil {
 		return mcpauth.BeginResult{}, fmt.Errorf("settings: begin MCP auth for %q: %w", target.ServerName, err)
 	}
@@ -62,7 +93,7 @@ func (s *service) ExchangeMCPAuth(
 		return mcpauth.Status{}, err
 	}
 	status, err := s.mcpAuth.MCPAuthExchange(ctx, target, server, mcpauth.ExchangeInput{
-		Code: req.Code, RedirectURL: req.RedirectURL,
+		RedirectURL: req.RedirectURL,
 	})
 	if err != nil {
 		return mcpauth.Status{}, classifyMCPAuthExchangeError(

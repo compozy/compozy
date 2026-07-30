@@ -4,6 +4,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/spf13/cobra"
 )
 
 const (
@@ -14,6 +16,9 @@ const (
 func mcpAuthStatusBundle(status SettingsMCPAuthStatusRecord) outputBundle {
 	return outputBundle{
 		jsonValue: status,
+		json: func(cmd *cobra.Command) error {
+			return writeJSONWithoutWorkspaceResolution(cmd, status)
+		},
 		human: func() (string, error) {
 			return renderHumanSection("MCP Auth", mcpAuthStatusRows(status)), nil
 		},
@@ -25,7 +30,10 @@ func mcpAuthStatusBundle(status SettingsMCPAuthStatusRecord) outputBundle {
 }
 
 func mcpAuthStatusListBundle(statuses []SettingsMCPAuthStatusRecord) outputBundle {
-	return listBundle(
+	if statuses == nil {
+		statuses = []SettingsMCPAuthStatusRecord{}
+	}
+	bundle := listBundle(
 		statuses,
 		statuses,
 		"MCP Auth",
@@ -53,6 +61,10 @@ func mcpAuthStatusListBundle(statuses []SettingsMCPAuthStatusRecord) outputBundl
 			}
 		},
 	)
+	bundle.json = func(cmd *cobra.Command) error {
+		return writeJSONWithoutWorkspaceResolution(cmd, statuses)
+	}
+	return bundle
 }
 
 func mcpAuthStatusRows(status SettingsMCPAuthStatusRecord) []keyValue {

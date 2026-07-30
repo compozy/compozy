@@ -341,9 +341,8 @@ describe("useMarketplaceActionController", () => {
         scope: "workspace",
         workspace_id: "ws-a",
         auth: {
-          type: "oauth2_pkce",
-          client_id: "linear-client",
           client_secret_configured: false,
+          registration: "auto",
         },
         auth_status: {
           refreshable: true,

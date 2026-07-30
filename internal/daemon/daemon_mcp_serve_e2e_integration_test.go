@@ -6,14 +6,15 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"os"
+	"os/exec"
 	"testing"
 	"time"
 
 	compozycontract "github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
-	mcpclient "github.com/mark3labs/mcp-go/client"
-	sdkmcp "github.com/mark3labs/mcp-go/mcp"
+	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 func TestDaemonE2EMCPServeProjectsWorkspaceBoundHostAPI(t *testing.T) {
@@ -97,45 +98,38 @@ func startMCPServeClient(
 	ctx context.Context,
 	harness *e2etest.RuntimeHarness,
 	workspace string,
-) *mcpclient.Client {
+) *sdkmcp.ClientSession {
 	t.Helper()
-	client, err := mcpclient.NewStdioMCPClientWithOptions(
-		harness.BinaryPath,
-		[]string{
-			"COMPOZY_HOME=" + harness.HomePaths.HomeDir,
-			"HOME=" + harness.HomePaths.HomeDir,
-		},
-		[]string{"mcp", "serve", "--workspace", workspace},
+	command := exec.CommandContext(ctx, harness.BinaryPath, "mcp", "serve", "--workspace", workspace)
+	command.Env = append(os.Environ(),
+		"COMPOZY_HOME="+harness.HomePaths.HomeDir,
+		"HOME="+harness.HomePaths.HomeDir,
 	)
+	client := sdkmcp.NewClient(
+		&sdkmcp.Implementation{Name: "compozy-e2e", Version: "1.0.0"},
+		&sdkmcp.ClientOptions{Capabilities: &sdkmcp.ClientCapabilities{}},
+	)
+	session, err := client.Connect(ctx, &sdkmcp.CommandTransport{Command: command}, nil)
 	if err != nil {
-		t.Fatalf("NewStdioMCPClientWithOptions() error = %v", err)
+		t.Fatalf("Connect(mcp serve) error = %v", err)
 	}
 	t.Cleanup(func() {
-		if err := client.Close(); err != nil {
+		if err := session.Close(); err != nil {
 			t.Errorf("MCP client.Close() error = %v", err)
 		}
 	})
-
-	var initialize sdkmcp.InitializeRequest
-	initialize.Params.ProtocolVersion = sdkmcp.LATEST_PROTOCOL_VERSION
-	initialize.Params.ClientInfo = sdkmcp.Implementation{Name: "compozy-e2e", Version: "1.0.0"}
-	if _, err := client.Initialize(ctx, initialize); err != nil {
-		t.Fatalf("MCP client.Initialize() error = %v", err)
-	}
-	return client
+	return session
 }
 
 func callMCPServeToolJSON[T any](
 	t *testing.T,
 	ctx context.Context,
-	client *mcpclient.Client,
+	client *sdkmcp.ClientSession,
 	toolName string,
 	arguments map[string]any,
 ) T {
 	t.Helper()
-	var request sdkmcp.CallToolRequest
-	request.Params.Name = toolName
-	request.Params.Arguments = arguments
+	request := &sdkmcp.CallToolParams{Name: toolName, Arguments: arguments}
 	result, err := client.CallTool(ctx, request)
 	if err != nil {
 		t.Fatalf("CallTool(%q) error = %v", toolName, err)

@@ -4,10 +4,7 @@ import "github.com/getkin/kin-openapi/openapi3"
 
 const settingsMCPSecretValueKey = "value"
 
-const (
-	settingsMCPAuthCodeKey        = "code"
-	settingsMCPAuthRedirectURLKey = "redirect_url"
-)
+const settingsMCPAuthRedirectURLKey = "redirect_url"
 
 func customizeSettingsMCPSecretInputSchema(schema *openapi3.Schema) {
 	value := openapi3.NewStringSchema().WithMinLength(1)
@@ -33,24 +30,11 @@ func customizeSettingsMCPSecretInputSchema(schema *openapi3.Schema) {
 }
 
 func customizeSettingsMCPAuthExchangeRequestSchema(schema *openapi3.Schema) {
-	code := openapi3.NewStringSchema().WithMinLength(1)
-	code.WriteOnly = true
-	codeVariant := openapi3.NewObjectSchema().
-		WithProperty(settingsMCPAuthCodeKey, code).
-		WithRequired([]string{settingsMCPAuthCodeKey}).
-		WithoutAdditionalProperties()
-
 	redirectURL := openapi3.NewStringSchema().WithMinLength(1)
 	redirectURL.WriteOnly = true
-	redirectURLVariant := openapi3.NewObjectSchema().
+
+	*schema = *openapi3.NewObjectSchema().
 		WithProperty(settingsMCPAuthRedirectURLKey, redirectURL).
 		WithRequired([]string{settingsMCPAuthRedirectURLKey}).
 		WithoutAdditionalProperties()
-
-	*schema = openapi3.Schema{
-		OneOf: []*openapi3.SchemaRef{
-			{Value: codeVariant},
-			{Value: redirectURLVariant},
-		},
-	}
 }

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { marketplaceListings } from "../../mocks";
 import {
   formatMarketplaceCount,
+  formatMarketplaceVersion,
   isMarketplaceKind,
   isMarketplaceViewSort,
   sortMarketplaceEntries,
@@ -35,5 +36,14 @@ describe("marketplace UI helpers", () => {
   it("Should keep compact count formatting deterministic", () => {
     expect(formatMarketplaceCount(840)).toBe("840");
     expect(formatMarketplaceCount(3400)).toBe("3.4K");
+  });
+
+  it.each([
+    ["1.8.0", "v1.8.0"],
+    ["v1.8.0", "v1.8.0"],
+    ["V1.8.0", "v1.8.0"],
+    ["Vv1.8.0", "v1.8.0"],
+  ])("Should render marketplace version %s with exactly one prefix", (version, expected) => {
+    expect(formatMarketplaceVersion(version)).toBe(expected);
   });
 });

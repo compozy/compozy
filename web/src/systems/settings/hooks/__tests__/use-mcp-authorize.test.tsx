@@ -71,6 +71,42 @@ describe("useMCPAuthorize", () => {
     expect(beginSettingsMCPAuth).toHaveBeenCalledWith("linear", filter, { mode: "automatic" });
   });
 
+  it("requires explicit confirmation before beginning a scope escalation", async () => {
+    vi.mocked(beginSettingsMCPAuth).mockResolvedValue(beginResponse);
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useMCPAuthorize(), { wrapper });
+
+    let started = true;
+    act(() => {
+      started = result.current.beginScopeEscalation(
+        filter,
+        "linear",
+        prior,
+        ["read", "write"],
+        false
+      );
+    });
+    expect(started).toBe(false);
+    expect(beginSettingsMCPAuth).not.toHaveBeenCalled();
+
+    act(() => {
+      started = result.current.beginScopeEscalation(
+        filter,
+        "linear",
+        prior,
+        ["read", " write "],
+        true
+      );
+    });
+    expect(started).toBe(true);
+    await waitFor(() => expect(result.current.phase).toBe("waiting"));
+    expect(beginSettingsMCPAuth).toHaveBeenCalledWith("linear", filter, {
+      approve_scope_escalation: true,
+      approved_scopes: ["read", "write"],
+      mode: "automatic",
+    });
+  });
+
   it("marks the flow failed when begin errors, preserving the prior status", async () => {
     vi.mocked(beginSettingsMCPAuth).mockRejectedValue(new Error("provider unreachable"));
     const { wrapper } = createWrapper();
@@ -122,7 +158,7 @@ describe("useMCPAuthorize", () => {
     expect(result.current.begin?.state).toBe("compozy_mcp_retry");
   });
 
-  it("completes manual exchange with a bare code only on a confirmed credential", async () => {
+  it("completes manual exchange with a full redirect URL only on a confirmed credential", async () => {
     vi.mocked(beginSettingsMCPAuth).mockResolvedValue(beginResponse);
     vi.mocked(exchangeSettingsMCPAuth).mockResolvedValue(authenticatedStatus());
     const { wrapper } = createWrapper();
@@ -132,10 +168,16 @@ describe("useMCPAuthorize", () => {
     await waitFor(() => expect(result.current.phase).toBe("waiting"));
     act(() => result.current.enterManual());
     await waitFor(() => expect(result.current.phase).toBe("manual"));
-    act(() => result.current.submitManual("code-123"));
+    act(() =>
+      result.current.submitManual(
+        "http://127.0.0.1:2123/api/mcp/oauth/callback?code=code-123&state=x"
+      )
+    );
 
     await waitFor(() => expect(result.current.phase).toBe("confirmed"));
-    expect(exchangeSettingsMCPAuth).toHaveBeenCalledWith("linear", filter, { code: "code-123" });
+    expect(exchangeSettingsMCPAuth).toHaveBeenCalledWith("linear", filter, {
+      redirect_url: "http://127.0.0.1:2123/api/mcp/oauth/callback?code=code-123&state=x",
+    });
     expect(beginSettingsMCPAuth).toHaveBeenLastCalledWith("linear", filter, { mode: "manual" });
   });
 
@@ -154,7 +196,11 @@ describe("useMCPAuthorize", () => {
     await waitFor(() => expect(result.current.phase).toBe("waiting"));
     act(() => result.current.enterManual());
     await waitFor(() => expect(result.current.phase).toBe("manual"));
-    act(() => result.current.submitManual("code-123"));
+    act(() =>
+      result.current.submitManual(
+        "http://127.0.0.1:2123/api/mcp/oauth/callback?code=delayed&state=x"
+      )
+    );
     await waitFor(() => expect(result.current.phase).toBe("exchanging"));
 
     unmount();
@@ -195,7 +241,11 @@ describe("useMCPAuthorize", () => {
     await waitFor(() => expect(result.current.phase).toBe("waiting"));
     act(() => result.current.enterManual());
     await waitFor(() => expect(result.current.phase).toBe("manual"));
-    act(() => result.current.submitManual("code-123"));
+    act(() =>
+      result.current.submitManual(
+        "http://127.0.0.1:2123/api/mcp/oauth/callback?code=rejected&state=x"
+      )
+    );
 
     await waitFor(() => expect(result.current.phase).toBe("failed"));
     expect(result.current.error).toBe("The provider did not return a confirmed credential.");

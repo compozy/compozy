@@ -77,6 +77,16 @@ func TestMCPSecretOwnerPrefixIsCollisionSafeAcrossScopes(t *testing.T) {
 		if got, want := globalPrefix, "vault:mcp/global/linear/"; got != want {
 			t.Fatalf("global prefix = %q, want %q", got, want)
 		}
+		globalDCRRefs, err := MCPDCRSecretRefsForTarget(MCPGlobalScope, "", "linear")
+		if err != nil {
+			t.Fatalf("MCPDCRSecretRefsForTarget(global) error = %v", err)
+		}
+		if got, want := globalDCRRefs.ClientSecretRef, globalPrefix+"oauth/dcr-client-secret"; got != want {
+			t.Fatalf("global DCR client secret ref = %q, want %q", got, want)
+		}
+		if got, want := globalDCRRefs.RegistrationAccessTokenRef, globalPrefix+"oauth/registration-access-token"; got != want {
+			t.Fatalf("global DCR registration token ref = %q, want %q", got, want)
+		}
 		segment, err := MCPWorkspaceSegment(workspaceID)
 		if err != nil {
 			t.Fatalf("MCPWorkspaceSegment() error = %v", err)

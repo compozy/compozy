@@ -9,14 +9,11 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
-	compozyconfig "github.com/compozy/compozy/internal/config"
 	"golang.org/x/term"
 )
 
 const (
-	mcpValueInputFlag         = "set"
-	mcpOAuthValueInputFlag    = "oauth-client-secret"
-	mcpOAuthVaultRefInputFlag = "oauth-client-secret-vault-ref"
+	mcpValueInputFlag = "set"
 )
 
 type mcpInstallSecretReader struct {
@@ -83,49 +80,36 @@ func validateMCPInstallSecretValue(label string, value string) (string, error) {
 	return value, nil
 }
 
-func mcpInstallOAuthClientSecretInput(
-	valueSet bool,
-	vaultRefSet bool,
-	vaultRef string,
-	readSecret func(string) (string, error),
-) (*contract.SettingsMCPSecretInputPayload, error) {
-	if valueSet && vaultRefSet {
-		return nil, errors.New("cli: OAuth client secret is assigned more than once")
-	}
-	if valueSet {
-		value, err := readSecret("OAuth client secret")
-		if err != nil {
-			return nil, err
-		}
-		return &contract.SettingsMCPSecretInputPayload{Value: value}, nil
-	}
-	if vaultRefSet {
-		trimmedRef := strings.TrimSpace(vaultRef)
-		if trimmedRef == "" {
-			return nil, errors.New("cli: --oauth-client-secret-vault-ref requires a non-blank value")
-		}
-		return &contract.SettingsMCPSecretInputPayload{VaultRef: trimmedRef}, nil
-	}
-	return nil, nil
-}
-
-func mcpInstallEnvInputs(
-	valueKeys []string,
+func mcpInstallInputs(
+	setValues []string,
+	secretIDs []string,
 	vaultRefs []string,
 	readSecret func(string) (string, error),
 ) (map[string]contract.SettingsMCPSecretInputPayload, error) {
-	inputs := make(map[string]contract.SettingsMCPSecretInputPayload, len(valueKeys)+len(vaultRefs))
-	pendingValues := make([]string, 0, len(valueKeys))
-	for _, rawKey := range valueKeys {
-		key, err := parseMCPInstallValueKey(rawKey)
+	inputs := make(map[string]contract.SettingsMCPSecretInputPayload, len(setValues)+len(secretIDs)+len(vaultRefs))
+	for _, assignment := range setValues {
+		key, value, err := parseMCPInstallAssignment("--set", assignment)
 		if err != nil {
 			return nil, err
 		}
 		if _, exists := inputs[key]; exists {
 			return nil, fmt.Errorf("cli: MCP install field %q is assigned more than once", key)
 		}
-		inputs[key] = contract.SettingsMCPSecretInputPayload{}
-		pendingValues = append(pendingValues, key)
+		inputs[key] = contract.SettingsMCPSecretInputPayload{Value: value}
+	}
+	for _, rawID := range secretIDs {
+		key, err := parseMCPInstallInputID("--secret", rawID)
+		if err != nil {
+			return nil, err
+		}
+		if _, exists := inputs[key]; exists {
+			return nil, fmt.Errorf("cli: MCP install field %q is assigned more than once", key)
+		}
+		value, err := readSecret(key)
+		if err != nil {
+			return nil, err
+		}
+		inputs[key] = contract.SettingsMCPSecretInputPayload{Value: value}
 	}
 	for _, assignment := range vaultRefs {
 		key, ref, err := parseMCPInstallAssignment("--vault-ref", assignment)
@@ -137,28 +121,18 @@ func mcpInstallEnvInputs(
 		}
 		inputs[key] = contract.SettingsMCPSecretInputPayload{VaultRef: strings.TrimSpace(ref)}
 	}
-	for _, key := range pendingValues {
-		value, err := readSecret(key)
-		if err != nil {
-			return nil, err
-		}
-		inputs[key] = contract.SettingsMCPSecretInputPayload{Value: value}
-	}
 	if len(inputs) == 0 {
 		return nil, nil
 	}
 	return inputs, nil
 }
 
-func parseMCPInstallValueKey(rawKey string) (string, error) {
-	key := strings.TrimSpace(rawKey)
-	if key == "" || strings.Contains(key, "=") {
-		return "", errors.New("cli: --set requires a field name without a value")
+func parseMCPInstallInputID(flag string, rawID string) (string, error) {
+	id := strings.TrimSpace(rawID)
+	if id == "" || strings.Contains(id, "=") {
+		return "", fmt.Errorf("cli: %s requires an input ID", flag)
 	}
-	if err := compozyconfig.ValidateMCPStdioEnvName("--set", key, true); err != nil {
-		return "", fmt.Errorf("cli: invalid MCP install field: %w", err)
-	}
-	return key, nil
+	return id, nil
 }
 
 func parseMCPInstallAssignment(flag string, assignment string) (string, string, error) {
@@ -167,14 +141,20 @@ func parseMCPInstallAssignment(flag string, assignment string) (string, string, 
 	if !ok || key == "" || strings.TrimSpace(value) == "" {
 		return "", "", fmt.Errorf("cli: %s requires KEY=VALUE", flag)
 	}
-	if err := compozyconfig.ValidateMCPStdioEnvName(flag, key, true); err != nil {
-		return "", "", fmt.Errorf("cli: invalid MCP install field: %w", err)
+	id, err := parseMCPInstallInputID(flag, key)
+	if err != nil {
+		return "", "", err
 	}
-	return key, value, nil
+	return id, strings.TrimSpace(value), nil
 }
 
 func validateMCPInstallScope(scope contract.SettingsWorkspaceScopeKind, workspaceID string) error {
 	switch scope {
+	case "":
+		if strings.TrimSpace(workspaceID) != "" {
+			return errors.New("cli: --workspace requires --scope workspace")
+		}
+		return nil
 	case contract.SettingsWorkspaceScopeGlobal:
 		if strings.TrimSpace(workspaceID) != "" {
 			return errors.New("cli: --workspace requires --scope workspace")

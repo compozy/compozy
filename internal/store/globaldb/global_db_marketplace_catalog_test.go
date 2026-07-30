@@ -1,12 +1,14 @@
 package globaldb
 
 import (
+	"database/sql"
 	"encoding/json"
 	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/compozy/compozy/internal/marketplace"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 )
 
@@ -50,6 +52,65 @@ func TestMarketplaceCatalogReopenAfterRestart(t *testing.T) {
 			}
 		})
 		assertMarketplaceMigrationProjection(t, openMarketplaceMigrationStore(t, second))
+	})
+}
+
+func TestMarketplaceCatalogManifestV2Migration(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should discard every cached v1 catalog projection before the v2 reader opens", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		path := filepath.Join(t.TempDir(), store.GlobalDatabaseName)
+		legacy, err := sql.Open(sqliteDriverName, path)
+		if err != nil {
+			t.Fatalf("sql.Open(legacy) error = %v", err)
+		}
+		previousStream := globalMigrationPrefixBefore(t, "00030_marketplace_catalog_manifest_v2.sql")
+		if err := applyGlobalMigrationPrefix(t, legacy, previousStream); err != nil {
+			closeErr := legacy.Close()
+			t.Fatalf("Apply(global through v29) error = %v; close error = %v", err, closeErr)
+		}
+		if _, err := legacy.ExecContext(
+			ctx,
+			`INSERT INTO marketplace_catalog_state (kind, manifest_version, generated_at, fetched_at, stale, last_error)
+			 VALUES ('mcp', 1, NULL, '2026-07-30T17:00:00Z', 0, '')`,
+		); err != nil {
+			closeErr := legacy.Close()
+			t.Fatalf("seed v1 catalog state error = %v; close error = %v", err, closeErr)
+		}
+		if _, err := legacy.ExecContext(
+			ctx,
+			`INSERT INTO marketplace_catalog_entries (
+				kind, entry_id, name, description, version, payload_json, fetched_at
+			) VALUES ('mcp', 'legacy-mcp', 'Legacy MCP', 'must be removed', '1.0.0', '{}', '2026-07-30T17:00:00Z')`,
+		); err != nil {
+			closeErr := legacy.Close()
+			t.Fatalf("seed v1 catalog entry error = %v; close error = %v", err, closeErr)
+		}
+		if err := legacy.Close(); err != nil {
+			t.Fatalf("Close(legacy) error = %v", err)
+		}
+
+		upgraded, err := OpenGlobalDB(ctx, path)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB(v2 migration) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := upgraded.Close(ctx); err != nil {
+				t.Errorf("Close(upgraded) error = %v", err)
+			}
+		})
+		for _, table := range []string{"marketplace_catalog_entries", "marketplace_catalog_state"} {
+			var count int
+			if err := upgraded.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM "+table).Scan(&count); err != nil {
+				t.Fatalf("count %s after v2 migration error = %v", table, err)
+			}
+			if count != 0 {
+				t.Fatalf("%s count after v2 migration = %d, want 0", table, count)
+			}
+		}
 	})
 }
 

@@ -128,23 +128,11 @@ func mergeMCPServerInto(merged *MCPServer, override MCPServer) {
 
 func mergeMCPAuthConfig(base MCPAuthConfig, override MCPAuthConfig) MCPAuthConfig {
 	merged := cloneMCPAuthConfig(base)
-	if override.Type != "" {
-		merged.Type = override.Type
+	if override.Registration != "" {
+		merged.Registration = override.Registration
 	}
 	if strings.TrimSpace(override.IssuerURL) != "" {
 		merged.IssuerURL = override.IssuerURL
-	}
-	if strings.TrimSpace(override.MetadataURL) != "" {
-		merged.MetadataURL = override.MetadataURL
-	}
-	if strings.TrimSpace(override.AuthorizationURL) != "" {
-		merged.AuthorizationURL = override.AuthorizationURL
-	}
-	if strings.TrimSpace(override.TokenURL) != "" {
-		merged.TokenURL = override.TokenURL
-	}
-	if strings.TrimSpace(override.RevocationURL) != "" {
-		merged.RevocationURL = override.RevocationURL
 	}
 	if strings.TrimSpace(override.ClientID) != "" {
 		merged.ClientID = override.ClientID

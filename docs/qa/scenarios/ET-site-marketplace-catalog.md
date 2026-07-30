@@ -11,8 +11,8 @@ bug_ids:
 fix_status:
 retest_status: pass
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-site-improvs-deep-review-20260730-024918-833208-lab/qa-artifacts/qa/visual-contract/deep-review-remediation/vc04-marketplace-root; /Users/pedronauck/dev/qa-labs/compozy-site-improvs-deep-review-20260730-024918-833208-lab/qa-artifacts/qa/visual-contract/deep-review-remediation/vc05-marketplace-list; /Users/pedronauck/dev/qa-labs/compozy-site-improvs-deep-review-20260730-024918-833208-lab/qa-artifacts/qa/visual-contract/deep-review-remediation/vc06-marketplace-detail
-last_report: docs/qa/reports/2026-07-29-site-improvs-deep-review.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-mcp-2026-catalog-v2-20260730-172217-425770-lab/qa-artifacts/qa/evidence/site-marketplace-mcp.png; /Users/pedronauck/dev/qa-labs/compozy-mcp-2026-catalog-v2-20260730-172217-425770-lab/qa-artifacts/qa/evidence/site-marketplace-github.png
+last_report: docs/qa/reports/2026-07-30-mcp-2026-catalog-v2.md
 overlaps: ET-site-docs-single-tree-ia
 ---
 

@@ -2,6 +2,7 @@ package marketplace
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -35,7 +36,7 @@ func TestDecodeDocumentValidation(t *testing.T) {
 				if err != nil {
 					t.Fatalf("DecodeDocument(%q) error = %v", tt.kind, err)
 				}
-				if got, want := document.ManifestVersion, 1; got != want {
+				if got, want := document.ManifestVersion, ManifestVersion; got != want {
 					t.Fatalf("DecodeDocument(%q).ManifestVersion = %d, want %d", tt.kind, got, want)
 				}
 				if got, want := len(document.Entries), 1; got != want {
@@ -48,7 +49,7 @@ func TestDecodeDocumentValidation(t *testing.T) {
 		}
 	})
 
-	t.Run("Should reject documents outside the v1 schema", func(t *testing.T) {
+	t.Run("Should reject documents outside the v2 schema", func(t *testing.T) {
 		t.Parallel()
 
 		tests := []struct {
@@ -72,150 +73,13 @@ func TestDecodeDocumentValidation(t *testing.T) {
 			{
 				name:    "missing entries array",
 				kind:    KindMCP,
-				raw:     `{"manifest_version":1,"generated_at":"2026-07-13T00:00:00Z"}`,
+				raw:     `{"manifest_version":2,"generated_at":"2026-07-13T00:00:00Z"}`,
 				wantErr: "entries is required",
-			},
-			{
-				name: "stdio and remote transport fields together",
-				kind: KindMCP,
-				raw: `{"manifest_version":1,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
-					`"entry_id":"mixed","name":"Mixed","description":"Invalid mixed transport",` +
-					`"transport":"stdio","command":"server","url":"https://example.test/mcp"}]}`,
-				wantErr: "must not set url",
-			},
-			{
-				name: "oauth without client id",
-				kind: KindMCP,
-				raw: `{"manifest_version":1,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
-					`"entry_id":"remote","name":"Remote","description":"Remote MCP",` +
-					`"transport":"http","url":"https://example.test/mcp","oauth":{"issuer_url":"https://example.test"}}]}`,
-				wantErr: "oauth.client_id is required",
-			},
-			{
-				name: "oauth without a metadata source or direct endpoint pair",
-				kind: KindMCP,
-				raw: `{"manifest_version":1,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
-					`"entry_id":"remote","name":"Remote","description":"Remote MCP",` +
-					`"transport":"http","url":"https://example.test/mcp","oauth":{"client_id":"client"}}]}`,
-				wantErr: "requires issuer_url or both authorization_url and token_url",
-			},
-			{
-				name: "oauth with an incomplete direct endpoint pair",
-				kind: KindMCP,
-				raw: `{"manifest_version":1,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
-					`"entry_id":"remote","name":"Remote","description":"Remote MCP",` +
-					`"transport":"http","url":"https://example.test/mcp","oauth":{` +
-					`"client_id":"client","authorization_url":"https://auth.example/authorize"}}]}`,
-				wantErr: "requires issuer_url or both authorization_url and token_url",
-			},
-			{
-				name: "oauth with a relative issuer URL",
-				kind: KindMCP,
-				raw: `{"manifest_version":1,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
-					`"entry_id":"remote","name":"Remote","description":"Remote MCP",` +
-					`"transport":"http","url":"https://example.test/mcp","oauth":{` +
-					`"client_id":"client","issuer_url":"/oauth"}}]}`,
-				wantErr: "oauth.issuer_url must be an absolute HTTP(S) URL",
-			},
-			{
-				name: "oauth with a non-HTTP token URL",
-				kind: KindMCP,
-				raw: `{"manifest_version":1,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
-					`"entry_id":"remote","name":"Remote","description":"Remote MCP",` +
-					`"transport":"http","url":"https://example.test/mcp","oauth":{` +
-					`"client_id":"client","authorization_url":"https://auth.example/authorize",` +
-					`"token_url":"file:///tmp/token"}}]}`,
-				wantErr: "oauth.token_url must be an absolute HTTP(S) URL",
-			},
-			{
-				name: "secret env field with plaintext default",
-				kind: KindMCP,
-				raw: `{"manifest_version":1,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
-					`"entry_id":"secret-default","name":"Secret default","description":"Unsafe secret",` +
-					`"transport":"stdio","command":"server","env":[{` +
-					`"name":"API_TOKEN","required":true,"secret":true,"default":"plaintext"}]}]}`,
-				wantErr: "must not set default for secret fields",
-			},
-			{
-				name: "forbidden stdio environment key",
-				kind: KindMCP,
-				raw: `{"manifest_version":1,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
-					`"entry_id":"node-options","name":"Node options","description":"Unsafe injection",` +
-					`"transport":"stdio","command":"server","env":[{` +
-					`"name":"NODE_OPTIONS","required":false,"secret":false}]}]}`,
-				wantErr: "is forbidden for stdio MCP servers",
-			},
-			{
-				name: "secret-like plain stdio environment key",
-				kind: KindMCP,
-				raw: `{"manifest_version":1,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
-					`"entry_id":"plain-token","name":"Plain token","description":"Unsafe plaintext",` +
-					`"transport":"stdio","command":"server","env":[{` +
-					`"name":"API_TOKEN","required":true,"secret":false}]}]}`,
-				wantErr: "must move secret-like values to secret_env",
-			},
-			{
-				name: "non-loopback plaintext OAuth endpoint",
-				kind: KindMCP,
-				raw: `{"manifest_version":1,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
-					`"entry_id":"remote-http","name":"Remote HTTP","description":"Insecure OAuth",` +
-					`"transport":"http","url":"https://example.test/mcp","oauth":{` +
-					`"client_id":"client","authorization_url":"http://auth.example/authorize",` +
-					`"token_url":"https://auth.example/token"}}]}`,
-				wantErr: "must use https unless host is loopback",
-			},
-			{
-				name: "missing common identity fields deterministically",
-				kind: KindMCP,
-				raw: `{"manifest_version":1,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
-					`"transport":"stdio","command":"server"}]}`,
-				wantErr: "entry entry_id is required",
-			},
-			{
-				name: "entry id containing a path separator",
-				kind: KindMCP,
-				raw: `{"manifest_version":1,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
-					`"entry_id":"nested/server","name":"Nested","description":"Unsafe route identity",` +
-					`"transport":"stdio","command":"server"}]}`,
-				wantErr: "one URL-safe path segment",
-			},
-			{
-				name: "reserved current-directory entry id",
-				kind: KindMCP,
-				raw: `{"manifest_version":1,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
-					`"entry_id":".","name":"Current","description":"Ambiguous route identity",` +
-					`"transport":"stdio","command":"server"}]}`,
-				wantErr: "one URL-safe path segment",
-			},
-			{
-				name: "reserved parent-directory entry id",
-				kind: KindMCP,
-				raw: `{"manifest_version":1,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
-					`"entry_id":"..","name":"Parent","description":"Ambiguous route identity",` +
-					`"transport":"stdio","command":"server"}]}`,
-				wantErr: "one URL-safe path segment",
-			},
-			{
-				name: "MCP URL containing credentials",
-				kind: KindMCP,
-				raw: `{"manifest_version":1,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
-					`"entry_id":"remote","name":"Remote","description":"Credential-bearing URL",` +
-					`"transport":"http","url":"https://user:password@example.test/mcp"}]}`,
-				wantErr: "without credentials",
-			},
-			{
-				name: "OAuth URL containing credentials",
-				kind: KindMCP,
-				raw: `{"manifest_version":1,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
-					`"entry_id":"remote","name":"Remote","description":"Credential-bearing OAuth URL",` +
-					`"transport":"http","url":"https://example.test/mcp","oauth":{` +
-					`"client_id":"client","issuer_url":"https://user:password@auth.example.test"}}]}`,
-				wantErr: "without credentials",
 			},
 			{
 				name: "extension without digest",
 				kind: KindExtension,
-				raw: `{"manifest_version":1,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
+				raw: `{"manifest_version":2,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
 					`"entry_id":"extension","name":"Extension","description":"Missing digest",` +
 					`"version":"1.0.0","install_slug":"compozy/extension",` +
 					`"artifact_url":"https://downloads.example.test/extension-v1.0.0.tar.gz"}]}`,
@@ -224,7 +88,7 @@ func TestDecodeDocumentValidation(t *testing.T) {
 			{
 				name: "extension without registry tier",
 				kind: KindExtension,
-				raw: `{"manifest_version":1,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
+				raw: `{"manifest_version":2,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
 					`"entry_id":"extension","name":"Extension","description":"Missing tier",` +
 					`"version":"1.0.0","install_slug":"compozy/extension",` +
 					`"artifact_url":"https://downloads.example.test/extension-v1.0.0.tar.gz",` +
@@ -234,7 +98,7 @@ func TestDecodeDocumentValidation(t *testing.T) {
 			{
 				name: "extension without a curated artifact URL",
 				kind: KindExtension,
-				raw: `{"manifest_version":1,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
+				raw: `{"manifest_version":2,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
 					`"entry_id":"extension","name":"Extension","description":"Missing artifact",` +
 					`"version":"1.0.0","install_slug":"compozy/extension",` +
 					`"digest_sha256":"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",` +
@@ -244,7 +108,7 @@ func TestDecodeDocumentValidation(t *testing.T) {
 			{
 				name: "extension with a non HTTPS artifact URL",
 				kind: KindExtension,
-				raw: `{"manifest_version":1,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
+				raw: `{"manifest_version":2,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
 					`"entry_id":"extension","name":"Extension","description":"Insecure artifact",` +
 					`"version":"1.0.0","install_slug":"compozy/extension",` +
 					`"artifact_url":"http://downloads.example.test/extension-v1.0.0.tar.gz",` +
@@ -255,7 +119,7 @@ func TestDecodeDocumentValidation(t *testing.T) {
 			{
 				name: "extension with unknown registry tier",
 				kind: KindExtension,
-				raw: `{"manifest_version":1,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
+				raw: `{"manifest_version":2,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
 					`"entry_id":"extension","name":"Extension","description":"Unknown tier",` +
 					`"version":"1.0.0","install_slug":"compozy/extension",` +
 					`"artifact_url":"https://downloads.example.test/extension-v1.0.0.tar.gz",` +
@@ -266,7 +130,7 @@ func TestDecodeDocumentValidation(t *testing.T) {
 			{
 				name: "skill with invented trust field",
 				kind: KindSkill,
-				raw: `{"manifest_version":1,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
+				raw: `{"manifest_version":2,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
 					`"entry_id":"skill","name":"Skill","description":"Invalid trust",` +
 					`"install_slug":"compozy/skill","verified":true}]}`,
 				wantErr: "unknown field",
@@ -274,7 +138,7 @@ func TestDecodeDocumentValidation(t *testing.T) {
 			{
 				name: "skill using the synthetic remote ID namespace",
 				kind: KindSkill,
-				raw: `{"manifest_version":1,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
+				raw: `{"manifest_version":2,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
 					`"entry_id":"skill_QGFjbWUvc2tpbGw","name":"Colliding skill",` +
 					`"description":"Cannot shadow a synthetic ID","install_slug":"@acme/skill"}]}`,
 				wantErr: "reserved prefix",
@@ -282,7 +146,7 @@ func TestDecodeDocumentValidation(t *testing.T) {
 			{
 				name: "duplicate skill install slugs",
 				kind: KindSkill,
-				raw: `{"manifest_version":1,"generated_at":"2026-07-13T00:00:00Z","entries":[` +
+				raw: `{"manifest_version":2,"generated_at":"2026-07-13T00:00:00Z","entries":[` +
 					`{"entry_id":"first","name":"First","description":"First skill","install_slug":"@acme/shared"},` +
 					`{"entry_id":"second","name":"Second","description":"Second skill","install_slug":"@acme/shared"}]}`,
 				wantErr: `install_slug "@acme/shared" is duplicated`,
@@ -308,7 +172,7 @@ func TestDecodeDocumentValidation(t *testing.T) {
 
 		_, err := DecodeDocument(
 			KindMCP,
-			[]byte(`{"manifest_version":2,"generated_at":"2026-07-13T00:00:00Z","entries":[]}`),
+			[]byte(`{"manifest_version":3,"generated_at":"2026-07-13T00:00:00Z","entries":[]}`),
 		)
 		if err == nil {
 			t.Fatal("DecodeDocument() error = nil, want unsupported manifest error")
@@ -319,6 +183,269 @@ func TestDecodeDocumentValidation(t *testing.T) {
 		}
 		if !strings.Contains(err.Error(), "client too old") {
 			t.Fatalf("DecodeDocument() error = %v, want client-too-old diagnostic", err)
+		}
+	})
+}
+
+func TestDecodeMCPV2LaunchAndInputValidation(t *testing.T) {
+	t.Parallel()
+
+	validEntry := func(launch string, inputs string) string {
+		return `{"manifest_version":2,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
+			`"entry_id":"server","name":"Server","description":"Validated launch",` +
+			launch + `,"inputs":` + inputs + `,"default_scope":"workspace"}]}`
+	}
+
+	t.Run("Should accept every typed launch distribution", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name string
+			raw  string
+		}{
+			{
+				name: "Should accept npm launch arguments as literal argv",
+				raw: validEntry(
+					`"launch":{"type":"npm","package":"@acme/server","version":"1.2.3","args":["--read-only","path with spaces"]}`,
+					`[]`,
+				),
+			},
+			{
+				name: "Should accept uvx launch",
+				raw: validEntry(
+					`"launch":{"type":"uvx","package":"mcp-server","version":"1.2.3"}`,
+					`[]`,
+				),
+			},
+			{
+				name: "Should accept digest pinned docker launch",
+				raw: validEntry(
+					`"launch":{"type":"docker","image":"ghcr.io/acme/server","digest":"sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"}`,
+					`[]`,
+				),
+			},
+			{
+				name: "Should accept remote launch with non-secret query input",
+				raw: validEntry(
+					`"launch":{"type":"remote","url":"https://mcp.example.test"}`,
+					`[{"id":"project_ref","prompt":"Project reference","type":"identifier","required":true,"binding":{"type":"url_query","name":"project_ref"}}]`,
+				),
+			},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				document, err := DecodeDocument(KindMCP, []byte(tt.raw))
+				if err != nil {
+					t.Fatalf("DecodeDocument() error = %v", err)
+				}
+				if tt.name == "Should accept npm launch arguments as literal argv" {
+					details, projectErr := ProjectEntry(document.Entries[0])
+					if projectErr != nil {
+						t.Fatalf("ProjectEntry() error = %v", projectErr)
+					}
+					if got, want := strings.Join(details.MCP.Launch.Args, "|"),
+						"--read-only|path with spaces"; got != want {
+						t.Fatalf("ProjectEntry() launch args = %q, want %q", got, want)
+					}
+				}
+			})
+		}
+	})
+
+	t.Run("Should accept a public remote IP literal", func(t *testing.T) {
+		t.Parallel()
+
+		for _, rawURL := range []string{"https://8.8.8.8/mcp", "https://[2001:4860:4860::8888]/mcp"} {
+			t.Run("Should accept "+rawURL, func(t *testing.T) {
+				t.Parallel()
+
+				_, err := DecodeDocument(KindMCP, []byte(validEntry(
+					`"launch":{"type":"remote","url":"`+rawURL+`"}`,
+					`[]`,
+				)))
+				if err != nil {
+					t.Fatalf("DecodeDocument(%q) error = %v", rawURL, err)
+				}
+			})
+		}
+	})
+
+	t.Run("Should reject unsafe or legacy MCP v2 declarations", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name    string
+			raw     string
+			wantErr string
+		}{
+			{
+				name:    "Should reject a v1 manifest",
+				raw:     `{"manifest_version":1,"generated_at":"2026-07-13T00:00:00Z","entries":[]}`,
+				wantErr: "client too old",
+			},
+			{
+				name: "Should reject legacy MCP launch fields",
+				raw: `{"manifest_version":2,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
+					`"entry_id":"legacy","name":"Legacy","description":"Unsupported contract",` +
+					`"transport":"stdio","command":"server","default_scope":"workspace"}]}`,
+				wantErr: "unknown field",
+			},
+			{
+				name: "Should reject an insecure remote URL",
+				raw: validEntry(
+					`"launch":{"type":"remote","url":"http://mcp.example.test"}`,
+					`[]`,
+				),
+				wantErr: "absolute HTTPS URL",
+			},
+			{
+				name: "Should reject an explicit localhost remote URL",
+				raw: validEntry(
+					`"launch":{"type":"remote","url":"https://mcp.localhost/mcp"}`,
+					`[]`,
+				),
+				wantErr: "public host",
+			},
+			{
+				name: "Should reject an obviously local remote hostname",
+				raw: validEntry(
+					`"launch":{"type":"remote","url":"https://mcp.internal/mcp"}`,
+					`[]`,
+				),
+				wantErr: "public host",
+			},
+			{
+				name: "Should reject a single-label remote hostname",
+				raw: validEntry(
+					`"launch":{"type":"remote","url":"https://mcp/mcp"}`,
+					`[]`,
+				),
+				wantErr: "public host",
+			},
+			{
+				name: "Should reject a loopback remote IP literal",
+				raw: validEntry(
+					`"launch":{"type":"remote","url":"https://127.0.0.1/mcp"}`,
+					`[]`,
+				),
+				wantErr: "public HTTPS destination",
+			},
+			{
+				name: "Should reject an unspecified remote IP literal",
+				raw: validEntry(
+					`"launch":{"type":"remote","url":"https://0.0.0.0/mcp"}`,
+					`[]`,
+				),
+				wantErr: "public HTTPS destination",
+			},
+			{
+				name: "Should reject a private remote IP literal",
+				raw: validEntry(
+					`"launch":{"type":"remote","url":"https://10.0.0.8/mcp"}`,
+					`[]`,
+				),
+				wantErr: "public HTTPS destination",
+			},
+			{
+				name: "Should reject a link-local remote IP literal",
+				raw: validEntry(
+					`"launch":{"type":"remote","url":"https://169.254.169.254/mcp"}`,
+					`[]`,
+				),
+				wantErr: "public HTTPS destination",
+			},
+			{
+				name: "Should reject a multicast remote IP literal",
+				raw: validEntry(
+					`"launch":{"type":"remote","url":"https://224.0.0.1/mcp"}`,
+					`[]`,
+				),
+				wantErr: "public HTTPS destination",
+			},
+			{
+				name: "Should reject a documentation remote IP literal",
+				raw: validEntry(
+					`"launch":{"type":"remote","url":"https://192.0.2.1/mcp"}`,
+					`[]`,
+				),
+				wantErr: "public HTTPS destination",
+			},
+			{
+				name: "Should reject a special-use remote IP literal",
+				raw: validEntry(
+					`"launch":{"type":"remote","url":"https://100.64.0.1/mcp"}`,
+					`[]`,
+				),
+				wantErr: "public HTTPS destination",
+			},
+			{
+				name: "Should reject duplicated input destinations",
+				raw: validEntry(
+					`"launch":{"type":"npm","package":"acme-server","version":"1.2.3"}`,
+					`[{"id":"first","prompt":"First","type":"string","required":false,"binding":{"type":"env","name":"SERVER_MODE"}},{"id":"second","prompt":"Second","type":"string","required":false,"binding":{"type":"env","name":"SERVER_MODE"}}]`,
+				),
+				wantErr: "binding env/\"SERVER_MODE\" is duplicated",
+			},
+			{
+				name: "Should reject option injection in package names",
+				raw: validEntry(
+					`"launch":{"type":"npm","package":"-y","version":"1.2.3"}`,
+					`[]`,
+				),
+				wantErr: "exact package name",
+			},
+			{
+				name: "Should reject tagged docker images",
+				raw: validEntry(
+					`"launch":{"type":"docker","image":"ghcr.io/acme/server:latest","digest":"sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"}`,
+					`[]`,
+				),
+				wantErr: "exact untagged image name",
+			},
+			{
+				name: "Should reject secret URL query inputs",
+				raw: validEntry(
+					`"launch":{"type":"remote","url":"https://mcp.example.test"}`,
+					`[{"id":"token","prompt":"Access token","type":"secret","required":true,"binding":{"type":"url_query","name":"token"}}]`,
+				),
+				wantErr: "must not bind a secret",
+			},
+			{
+				name: "Should reject query bindings that override launch configuration",
+				raw: validEntry(
+					`"launch":{"type":"remote","url":"https://mcp.example.test?read_only=true"}`,
+					`[{"id":"read_only","prompt":"Read only","type":"boolean","required":false,"binding":{"type":"url_query","name":"read_only"}}]`,
+				),
+				wantErr: "conflicts with launch URL",
+			},
+			{
+				name: "Should reject a missing default scope",
+				raw: `{"manifest_version":2,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
+					`"entry_id":"server","name":"Server","description":"Validated launch",` +
+					`"launch":{"type":"npm","package":"acme-server","version":"1.2.3"}}]}`,
+				wantErr: "default_scope must be workspace or global",
+			},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				_, err := DecodeDocument(KindMCP, []byte(tt.raw))
+				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+					t.Fatalf("DecodeDocument() error = %v, want %q", err, tt.wantErr)
+				}
+			})
+		}
+	})
+
+	t.Run("Should reject a malformed typed default", func(t *testing.T) {
+		t.Parallel()
+
+		input := mcpInput{Type: mcpInputTypeBoolean, Default: json.RawMessage(`true false`)}
+		if err := input.validateDefault("input"); err == nil || !strings.Contains(err.Error(), "trailing JSON") {
+			t.Fatalf("validateDefault() error = %v, want trailing JSON validation", err)
 		}
 	})
 }
@@ -630,11 +757,11 @@ func TestDecodeRemoteMCPAndTimestamps(t *testing.T) {
 	t.Run("Should parse published and updated timestamps for a remote MCP entry", func(t *testing.T) {
 		t.Parallel()
 
-		raw := `{"manifest_version":1,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
+		raw := `{"manifest_version":2,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
 			`"entry_id":"remote","name":"Remote","description":"OAuth remote",` +
 			`"published_at":"2026-07-01T00:00:00Z","updated_at":"2026-07-12T00:00:00Z",` +
-			`"transport":"http","url":"https://mcp.example.test/v1",` +
-			`"oauth":{"issuer_url":"https://auth.example.test","client_id":"compozy-desktop","scopes":["mcp.read"]},` +
+			`"launch":{"type":"remote","url":"https://mcp.example.test/v1"},` +
+			`"auth":{"method":"oauth","registration":"auto","scopes":["mcp.read"]},` +
 			`"default_scope":"workspace"}]}`
 		document, err := DecodeDocument(KindMCP, []byte(raw))
 		if err != nil {
@@ -661,16 +788,17 @@ func TestDecodeRemoteMCPAndTimestamps(t *testing.T) {
 }
 
 func validMCPDocumentJSON() string {
-	return `{"manifest_version":1,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
+	return `{"manifest_version":2,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
 		`"entry_id":"filesystem","name":"Filesystem","description":"Read and write approved local files",` +
-		`"version":"1.0.0","transport":"stdio","command":"npx",` +
-		`"args":["-y","@modelcontextprotocol/server-filesystem"],` +
-		`"env":[{"name":"ROOT_PATH","prompt":"Allowed root","required":true,"secret":false}]` +
+		`"version":"1.0.0","launch":{"type":"npm","package":"@modelcontextprotocol/server-filesystem",` +
+		`"version":"1.0.0"},"inputs":[{"id":"root_path","prompt":"Allowed root",` +
+		`"type":"string","required":true,"binding":{"type":"env","name":"ROOT_PATH"}}],` +
+		`"default_scope":"workspace"` +
 		`}]}`
 }
 
 func validExtensionDocumentJSON() string {
-	return `{"manifest_version":1,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
+	return `{"manifest_version":2,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
 		`"entry_id":"bridge-github","name":"GitHub bridge","description":"Connect GitHub events to Compozy",` +
 		`"version":"1.0.0","install_slug":"compozy/bridge-github",` +
 		`"artifact_url":"https://downloads.example.test/bridge-github-v1.0.0.tar.gz",` +
@@ -679,7 +807,7 @@ func validExtensionDocumentJSON() string {
 }
 
 func validSkillDocumentJSON() string {
-	return `{"manifest_version":1,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
+	return `{"manifest_version":2,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
 		`"entry_id":"compozy","name":"Compozy","display_name":"Compozy operator",` +
 		`"description":"Operate Compozy through its structured surfaces","version":"1.0.0",` +
 		`"install_slug":"compozy/compozy","author":"Compozy","tags":["compozy","operations"]` +

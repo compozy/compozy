@@ -776,6 +776,24 @@ type McpAuthToken struct {
 	UpdatedAt             string         `json:"updated_at"`
 }
 
+type McpOauthRegistration struct {
+	Scope                      string         `json:"scope"`
+	WorkspaceID                string         `json:"workspace_id"`
+	ServerName                 string         `json:"server_name"`
+	DefinitionFingerprint      string         `json:"definition_fingerprint"`
+	ResourceUrl                string         `json:"resource_url"`
+	Issuer                     string         `json:"issuer"`
+	ClientID                   string         `json:"client_id"`
+	ClientSecretRef            string         `json:"client_secret_ref"`
+	RegistrationAccessTokenRef string         `json:"registration_access_token_ref"`
+	RegistrationClientUri      string         `json:"registration_client_uri"`
+	ClientIDIssuedAt           sql.NullString `json:"client_id_issued_at"`
+	ClientSecretExpiresAt      sql.NullString `json:"client_secret_expires_at"`
+	RedirectUri                string         `json:"redirect_uri"`
+	ScopesJson                 string         `json:"scopes_json"`
+	UpdatedAt                  string         `json:"updated_at"`
+}
+
 type ModelCatalogReasoningEffort struct {
 	SourceID   string `json:"source_id"`
 	ProviderID string `json:"provider_id"`

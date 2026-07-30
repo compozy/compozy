@@ -81,6 +81,7 @@ type Config struct {
 	Limits        LimitsConfig              `toml:"limits"`
 	Session       SessionConfig             `toml:"session"`
 	Permissions   PermissionsConfig         `toml:"permissions"`
+	MCP           MCPConfig                 `toml:"mcp"`
 	MCPServers    []MCPServer               `toml:"mcp_servers,omitempty"`
 	Providers     map[string]ProviderConfig `toml:"providers"`
 	ModelCatalog  ModelCatalogConfig        `toml:"model_catalog"`

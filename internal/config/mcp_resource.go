@@ -92,12 +92,8 @@ func normalizeMCPServerResourceSpec(spec MCPServer) MCPServer {
 }
 
 func normalizeMCPAuthConfig(auth MCPAuthConfig) MCPAuthConfig {
-	auth.Type = MCPAuthType(strings.TrimSpace(string(auth.Type)))
+	auth.Registration = MCPAuthRegistration(strings.TrimSpace(string(auth.Registration)))
 	auth.IssuerURL = strings.TrimSpace(auth.IssuerURL)
-	auth.MetadataURL = strings.TrimSpace(auth.MetadataURL)
-	auth.AuthorizationURL = strings.TrimSpace(auth.AuthorizationURL)
-	auth.TokenURL = strings.TrimSpace(auth.TokenURL)
-	auth.RevocationURL = strings.TrimSpace(auth.RevocationURL)
 	auth.ClientID = strings.TrimSpace(auth.ClientID)
 	auth.ClientSecretRef = strings.TrimSpace(auth.ClientSecretRef)
 	for idx, scope := range auth.Scopes {

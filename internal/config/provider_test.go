@@ -1280,28 +1280,27 @@ func TestMergeMCPServersSameNameOverlaysFields(t *testing.T) {
 	}
 }
 
-func TestMCPServerValidateSupportsRemoteOAuthPKCE(t *testing.T) {
+func TestMCPServerValidateSupportsRemotePreRegisteredOAuth(t *testing.T) {
 	t.Parallel()
 
 	server := MCPServer{
 		Name:      "linear",
-		Transport: MCPServerTransportSSE,
-		URL:       "https://mcp.example/sse",
+		Transport: MCPServerTransportHTTP,
+		URL:       "https://mcp.example/mcp",
 		Auth: MCPAuthConfig{
-			Type:             MCPAuthTypeOAuth2PKCE,
-			AuthorizationURL: "https://auth.example/authorize",
-			TokenURL:         "https://auth.example/token",
-			ClientID:         "client-1",
-			Scopes:           []string{"read", "write"},
+			Registration: MCPAuthRegistrationPreRegistered,
+			IssuerURL:    "https://auth.example",
+			ClientID:     "client-1",
+			Scopes:       []string{"read", "write"},
 		},
 	}
 	if err := server.Validate("mcp_servers[0]"); err != nil {
 		t.Fatalf("Validate(remote OAuth) error = %v", err)
 	}
 
-	server.Auth.TokenURL = ""
+	server.Auth.ClientID = ""
 	if err := server.Validate("mcp_servers[0]"); err == nil {
-		t.Fatal("Validate(missing token metadata) error = nil, want validation failure")
+		t.Fatal("Validate(missing pre-registered client ID) error = nil, want validation failure")
 	}
 }
 

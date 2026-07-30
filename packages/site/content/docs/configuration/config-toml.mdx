@@ -50,6 +50,7 @@ Unknown TOML keys are errors. Sandbox profiles are implemented under `[sandboxes
 | `[tools.hosted_mcp]`                 | Hosted MCP session bind nonce lifecycle.                                             | 30 seconds                                                                                            |
 | `[tools.clarify]`                    | Timeout for one live agent clarification question.                                   | 5 minutes                                                                                             |
 | `[tools.policy]`                     | External tool source defaults, approval timeout, and trusted sources.                | external tools disabled, 120 second approval timeout, no trusted sources                              |
+| `[mcp.oauth]`                        | Global MCP OAuth client metadata and callback identity.                              | Compozy public CIMD; loopback callback on port `2123`                                                 |
 | `[[mcp_servers]]`                    | Top-level MCP servers passed to agents.                                              | empty list                                                                                            |
 | `[providers.<name>]`                 | Built-in provider override or custom provider definition.                            | empty map plus built-ins                                                                              |
 | `[model_catalog.sources.models_dev]` | `models.dev` enrichment source (cross-provider).                                     | enabled, `https://models.dev/api.json`, 24 h TTL, 10 s timeout                                        |
@@ -326,14 +327,11 @@ env = { LOG_LEVEL = "info" }
 
 [[mcp_servers]]
 name = "remote-docs"
-transport = "sse"
-url = "https://mcp.example.com/sse"
+transport = "http"
+url = "https://mcp.example.com/mcp"
 
 [mcp_servers.auth]
-type = "oauth2_pkce"
-issuer_url = "https://auth.example.com"
-client_id = "compozy-desktop"
-client_secret_ref = "env:REMOTE_DOCS_MCP_CLIENT_SECRET"
+registration = "auto"
 scopes = ["mcp.read", "mcp.write"]
 
 [providers.claude]
@@ -1101,17 +1099,31 @@ with `lifecycle="restart-required"`; it does not change a question already waiti
 `trusted_sources` does not store credentials. Remote MCP OAuth tokens remain in the MCP auth store,
 and hosted MCP bind nonces are transient session launch state.
 
+## `[mcp.oauth]`
+
+These global values identify Compozy to authorization servers that support a client metadata document.
+They are restart-required because an in-flight authorization is bound to its callback identity.
+
+| Field                 | Type       | Default                                           | Description                                                             |
+| --------------------- | ---------- | ------------------------------------------------- | ----------------------------------------------------------------------- |
+| `client_metadata_url` | string URL | `https://compozy.com/.well-known/mcp-client.json` | Public client metadata document used for CIMD.                          |
+| `redirect_uri`        | string URL | `http://127.0.0.1:2123/api/mcp/oauth/callback`    | Optional override for the callback URI used by new authorization flows. |
+
+The published Compozy document lists the default callback only. If you change the daemon port or
+use a self-hosted callback, publish a matching metadata document and configure both fields together.
+When the active callback is not listed, Compozy skips CIMD and may use the provider's one DCR fallback.
+
 ## `[[mcp_servers]]`
 
 Top-level MCP servers are merged with provider, agent, and skill MCP servers during session startup.
-They can point at local stdio processes or remote HTTP/SSE MCP endpoints.
+They can point at local stdio processes or remote Streamable HTTP MCP endpoints.
 
 | Field        | Type         | Default             | Valid values                       | Description                                                                                                                 |
 | ------------ | ------------ | ------------------- | ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
 | `name`       | string       | required            | Non-empty after trimming.          | Stable server key used for merge and replacement.                                                                           |
-| `transport`  | string       | inferred            | `stdio`, `http`, `sse`.            | Transport kind. Command servers default to `stdio`; URL servers default to `http`.                                          |
+| `transport`  | string       | inferred            | `stdio`, `http`.                   | Transport kind. Command servers default to `stdio`; URL servers default to `http`.                                          |
 | `command`    | string       | required for stdio  | Non-empty command.                 | Executable command for a local stdio MCP server. Invalid for remote transports.                                             |
-| `url`        | string URL   | required for remote | Absolute URL.                      | Remote MCP endpoint for `http` or `sse` transports. Invalid for `stdio`.                                                    |
+| `url`        | string URL   | required for remote | Absolute URL.                      | Remote MCP endpoint for `http`. Invalid for `stdio`.                                                                        |
 | `auth`       | object       | empty               | OAuth 2.1 PKCE settings.           | Remote auth metadata and client settings. Invalid for `stdio`.                                                              |
 | `args`       | string array | empty               | Strings.                           | Process arguments passed to the command.                                                                                    |
 | `env`        | string map   | empty               | String keys and values.            | Literal environment values passed to the MCP server. Compozy does not perform shell expansion.                              |
@@ -1123,20 +1135,17 @@ Vault and is exposed through API, settings, CLI, logs, and the agent-callable `c
 operator flows available through CLI, HTTP, and UDS. The browser callback is HTTP-only and enabled
 only when the daemon binds to a loopback host.
 
-| `auth` field        | Type         | Required    | Description                                                                                                       |
-| ------------------- | ------------ | ----------- | ----------------------------------------------------------------------------------------------------------------- |
-| `type`              | string       | yes         | Must be `oauth2_pkce`.                                                                                            |
-| `client_id`         | string       | yes         | OAuth client ID.                                                                                                  |
-| `client_secret_ref` | string       | no          | `env:NAME` or scope-qualified `vault:mcp/**/oauth/client-secret` ref containing the client secret, when required. |
-| `issuer_url`        | string URL   | conditional | Issuer for OAuth metadata discovery.                                                                              |
-| `metadata_url`      | string URL   | conditional | Explicit OAuth authorization-server metadata URL.                                                                 |
-| `authorization_url` | string URL   | conditional | Direct authorization endpoint. Pair with `token_url`.                                                             |
-| `token_url`         | string URL   | conditional | Direct token endpoint. Pair with `authorization_url`.                                                             |
-| `revocation_url`    | string URL   | no          | Optional endpoint used by `compozy mcp auth logout`.                                                              |
-| `scopes`            | string array | no          | Requested OAuth scopes.                                                                                           |
+| `auth` field        | Type         | Required    | Description                                                                  |
+| ------------------- | ------------ | ----------- | ---------------------------------------------------------------------------- |
+| `registration`      | string       | no          | `auto` (default) or `pre_registered`.                                        |
+| `issuer_url`        | string URL   | conditional | Required for `pre_registered`; must match discovery.                         |
+| `client_id`         | string       | conditional | Required for `pre_registered`.                                               |
+| `client_secret_ref` | string       | no          | Scope-qualified `vault:mcp/**/oauth/client-secret` ref for `pre_registered`. |
+| `scopes`            | string array | no          | Unique requested OAuth scopes.                                               |
 
-Configure one of `metadata_url`, `issuer_url`, or both `authorization_url` and `token_url`, then
-authenticate with:
+With `registration = "auto"`, Compozy resolves protected-resource metadata, then CIMD, then makes
+one Dynamic Client Registration fallback attempt. A pre-registered server must include `issuer_url`
+and `client_id`. Authenticate with:
 
 ```bash
 compozy mcp auth login remote-docs
@@ -1148,8 +1157,8 @@ compozy mcp auth login remote-docs --scope workspace --workspace <workspace-id>
 ```
 
 `auth login` starts the daemon-owned PKCE session and prints the live authorization URL. `--manual`
-accepts either the returned code or the full redirect URL, which is
-the supported path for remote operators and non-loopback HTTP binds. A command succeeds only after
+accepts the full redirect URL, which is the supported path for remote operators and non-loopback HTTP
+binds. A command succeeds only after
 status confirms both `authenticated` and `token_present`.
 
 Agents can read the same redacted status from inside a session through `compozy__mcp_status` or

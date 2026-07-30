@@ -26,6 +26,12 @@ func settingsMCPAuthOperations() []OperationSpec {
 	}
 	return []OperationSpec{
 		{
+			Method: httpMethodGet, Path: basePath + "status", OperationID: "getSettingsMCPAuthStatus",
+			Summary: "Get redacted daemon-mediated OAuth state for one MCP server", Tags: []string{specSettingsKey},
+			Transports: []Transport{TransportHTTP, TransportUDS}, Parameters: targetParameters,
+			Responses: responses(contract.SettingsMCPAuthStatusPayload{}),
+		},
+		{
 			Method: httpMethodPost, Path: basePath + "begin", OperationID: "beginSettingsMCPAuth",
 			Summary: "Begin daemon-mediated OAuth for one MCP server", Tags: []string{specSettingsKey},
 			Transports: []Transport{TransportHTTP, TransportUDS}, Parameters: targetParameters,

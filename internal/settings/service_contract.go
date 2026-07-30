@@ -20,6 +20,7 @@ type Service interface {
 		req ProviderModelCurationRequest,
 	) (ProviderModelCurationResult, error)
 	InstallMCPCatalog(ctx context.Context, req MCPCatalogInstallRequest) (MCPCatalogInstallResult, error)
+	GetMCPAuthStatus(ctx context.Context, req MCPAuthTargetRequest) (mcpauth.Status, error)
 	BeginMCPAuth(ctx context.Context, req MCPAuthBeginRequest) (mcpauth.BeginResult, error)
 	ExchangeMCPAuth(ctx context.Context, req MCPAuthExchangeRequest) (mcpauth.Status, error)
 	CompleteMCPAuthCallback(ctx context.Context, callbackURL string) (mcpauth.Status, error)

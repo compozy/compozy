@@ -5,10 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
+	"github.com/compozy/compozy/internal/mcp/securehttp"
 )
 
 func newSettingsMCPAuthManager(
@@ -16,10 +16,34 @@ func newSettingsMCPAuthManager(
 	notifier mcpauth.LifecycleNotifier,
 	generation ...*mcpauth.MutationGeneration,
 ) (*mcpauth.Manager, error) {
+	return newSettingsMCPAuthManagerWithConfig(
+		store,
+		notifier,
+		nil,
+		nil,
+		compozyconfig.MCPOAuthConfig{},
+		generation...,
+	)
+}
+
+func newSettingsMCPAuthManagerWithConfig(
+	store mcpauth.TokenStore,
+	notifier mcpauth.LifecycleNotifier,
+	registrations mcpauth.RegistrationStore,
+	secretResolver mcpauth.SecretRefResolver,
+	oauthConfig compozyconfig.MCPOAuthConfig,
+	generation ...*mcpauth.MutationGeneration,
+) (*mcpauth.Manager, error) {
 	if store == nil {
 		return nil, nil
 	}
-	serviceOptions := []mcpauth.ServiceOption{}
+	serviceOptions := []mcpauth.ServiceOption{
+		mcpauth.WithClientMetadataURL(oauthConfig.ClientMetadataURL),
+		mcpauth.WithDefaultRedirectURL(oauthConfig.RedirectURI),
+		mcpauth.WithRegistrationStore(registrations),
+		mcpauth.WithSecretRefResolver(secretResolver),
+		mcpauth.WithSecureHTTPClient(securehttp.NewClient()),
+	}
 	if len(generation) > 0 && generation[0] != nil {
 		serviceOptions = append(serviceOptions, mcpauth.WithMutationGeneration(generation[0]))
 	}
@@ -69,6 +93,24 @@ func (s *settingsRuntimeSurface) MCPAuthBegin(
 	return s.mcpAuthManager.Begin(ctx, cfg, callbackURL)
 }
 
+func (s *settingsRuntimeSurface) MCPAuthBeginStepUp(
+	ctx context.Context,
+	target mcpauth.Target,
+	server compozyconfig.MCPServer,
+	callbackURL string,
+	approvedScopes []string,
+	approved bool,
+) (mcpauth.BeginResult, error) {
+	if s.mcpAuthManager == nil {
+		return mcpauth.BeginResult{}, errors.New("daemon: MCP auth manager is unavailable")
+	}
+	cfg, err := s.mcpAuthServerConfig(ctx, target, server)
+	if err != nil {
+		return mcpauth.BeginResult{}, err
+	}
+	return s.mcpAuthManager.BeginStepUp(ctx, cfg, callbackURL, approvedScopes, approved)
+}
+
 func (s *settingsRuntimeSurface) MCPAuthExchange(
 	ctx context.Context,
 	target mcpauth.Target,
@@ -115,6 +157,16 @@ func (s *settingsRuntimeSurface) MCPAuthInvalidate(target mcpauth.Target) error 
 	return nil
 }
 
+func (s *settingsRuntimeSurface) MCPAuthDeleteState(ctx context.Context, target mcpauth.Target) error {
+	if s.mcpAuthManager == nil {
+		return errors.New("daemon: MCP auth manager is unavailable")
+	}
+	if err := s.mcpAuthManager.DeleteState(ctx, target); err != nil {
+		return fmt.Errorf("daemon: delete MCP auth state: %w", err)
+	}
+	return nil
+}
+
 func (s *settingsRuntimeSurface) MCPAuthLogout(
 	ctx context.Context,
 	target mcpauth.Target,
@@ -154,11 +206,4 @@ func unavailableMCPAuthStatus(cfg mcpauth.ServerConfig) mcpauth.Status {
 		Scopes:      append([]string(nil), cfg.Scopes...),
 		Diagnostic:  "token store unavailable",
 	}
-}
-
-func (s *settingsRuntimeSurface) mcpProbeTimeout() time.Duration {
-	if s != nil && s.config.Observability.AgentProbeTimeout > 0 {
-		return s.config.Observability.AgentProbeTimeout
-	}
-	return defaultSettingsMCPProbeTimeout
 }

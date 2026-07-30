@@ -5,6 +5,7 @@ import {
   type MCPAuthorizeBegin,
   type MCPAuthorizeExchange,
   type MCPAuthorizePriorStatus,
+  type MCPAuthorizeScopeApproval,
   type MCPAuthorizeState,
 } from "../stores/mcp-authorize-store";
 import type { SettingsMCPAuthFilter } from "../types";
@@ -35,8 +36,26 @@ export function useMCPAuthorize(options: MCPAuthorizeOptions = {}) {
   const onConfirmed = (server: string) => options.onConfirmed?.(server);
 
   const state = useSelector(store, snapshot => snapshot.context);
-  const beginExecution: MCPAuthorizeBegin = input =>
-    beginMutation.mutateAsync({ name: input.server, filter: input.filter, mode: input.mode });
+  const beginExecution: MCPAuthorizeBegin = input => {
+    const scopeApproval = input.scopeApproval;
+    const scopes =
+      scopeApproval?.approvedScopes.flatMap(scope => {
+        const trimmed = scope.trim();
+        return trimmed ? [trimmed] : [];
+      }) ?? [];
+    const explicitScopeApproval =
+      scopeApproval?.approveScopeEscalation === true && scopes.length > 0;
+    return beginMutation.mutateAsync({
+      name: input.server,
+      filter: input.filter,
+      body: {
+        mode: input.mode,
+        ...(explicitScopeApproval
+          ? { approve_scope_escalation: true, approved_scopes: scopes }
+          : {}),
+      },
+    });
+  };
   const exchangeExecution: MCPAuthorizeExchange = input =>
     exchangeMutation.mutateAsync({ name: input.server, filter: input.filter, body: input.body });
 
@@ -55,6 +74,35 @@ export function useMCPAuthorize(options: MCPAuthorizeOptions = {}) {
     });
   };
 
+  const beginScopeEscalation = (
+    filter: SettingsMCPAuthFilter,
+    server: string,
+    prior: MCPAuthorizePriorStatus,
+    approvedScopes: string[],
+    confirmed: boolean
+  ) => {
+    if (!confirmed) return false;
+    const scopes = approvedScopes.flatMap(scope => {
+      const trimmed = scope.trim();
+      return trimmed ? [trimmed] : [];
+    });
+    if (scopes.length === 0) return false;
+    const scopeApproval: MCPAuthorizeScopeApproval = {
+      approveScopeEscalation: true,
+      approvedScopes: scopes,
+    };
+    store.trigger.authorizeRequested({
+      begin: beginExecution,
+      dismissOnConfirmation: options.dismissOnConfirmation ?? false,
+      server,
+      prior,
+      filter,
+      mode: "automatic",
+      scopeApproval,
+    });
+    return true;
+  };
+
   const activeState = state.phase === "idle" ? null : state;
   const beginResponse = "begin" in state ? state.begin : null;
   const error = state.phase === "failed" ? state.error : null;
@@ -67,6 +115,7 @@ export function useMCPAuthorize(options: MCPAuthorizeOptions = {}) {
     prior: activeState?.prior ?? null,
     mode: activeState?.mode ?? null,
     beginAuthorize,
+    beginScopeEscalation,
     retryBegin: () => store.trigger.beginRetried({ begin: beginExecution }),
     enterManual: () => store.trigger.manualAuthorizationRequested({ begin: beginExecution }),
     submitManual: (value: string) => {
@@ -74,7 +123,7 @@ export function useMCPAuthorize(options: MCPAuthorizeOptions = {}) {
         store.trigger.manualCompletionRetried({ exchange: exchangeExecution, onConfirmed, value });
         return;
       }
-      store.trigger.manualCodeSubmitted({ exchange: exchangeExecution, onConfirmed, value });
+      store.trigger.manualRedirectSubmitted({ exchange: exchangeExecution, onConfirmed, value });
     },
     acknowledgeStatus: (status: string, tokenPresent: boolean) =>
       store.trigger.statusObserved({ onConfirmed, status, tokenPresent }),

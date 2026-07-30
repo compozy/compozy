@@ -20,10 +20,11 @@ import {
   RadioCard,
   SecretField,
   Spinner,
+  Switch,
 } from "@compozy/ui";
 
 import type { MarketplaceEntryResponse, MCPInstallRequest, MCPInstallResponse } from "../types";
-import { bindingValuePresent, type MCPEnvField, type MCPFieldBinding } from "./mcp-install-model";
+import { bindingValuePresent, type MCPFieldBinding, type MCPInputField } from "./mcp-install-model";
 import { marketplaceErrorMessage } from "./marketplace-ui";
 import { useMCPInstallDialog } from "./use-mcp-install-dialog";
 
@@ -62,7 +63,6 @@ function MCPInstallDialog({
 
   if (!mcp) return null;
 
-  const command = [mcp.command, ...(mcp.args ?? [])].filter(Boolean).join(" ");
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
       <DialogContent
@@ -77,12 +77,11 @@ function MCPInstallDialog({
               <Plug aria-hidden="true" className="size-4" />
             </span>
             <div className="flex flex-col gap-1.5">
-              <p className="eyebrow text-muted">MCP · {mcp.transport} · curated</p>
+              <p className="eyebrow text-muted">MCP · curated</p>
               <DialogTitle>Install {entry.name}</DialogTitle>
               <DialogDescription id="mcp-install-description">
-                {remote
-                  ? "CompozyOS writes the configuration, then opens authorization when required."
-                  : "Choose a scope and provide the configuration required by this server."}
+                Choose a scope and provide the configuration required by this server. Compozy opens
+                authorization after install when the catalog requires it.
               </DialogDescription>
             </div>
           </div>
@@ -90,37 +89,32 @@ function MCPInstallDialog({
 
         <div className="flex max-h-[min(76vh,42rem)] flex-col gap-4 overflow-y-auto px-5 py-4">
           <MetadataList>
-            <MetadataList.Row label={remote ? "URL" : "Command"}>
+            <MetadataList.Row label="Launch">
               <code className="break-all font-mono text-form-input text-fg">
-                {remote ? mcp.url : command}
+                {formatLaunch(mcp.launch)}
               </code>
             </MetadataList.Row>
-            <MetadataList.Row label="Transport">{mcp.transport}</MetadataList.Row>
+            <MetadataList.Row label="Connection">
+              {remote ? "Hosted HTTP" : "Local process"}
+            </MetadataList.Row>
           </MetadataList>
 
-          {remote && mcp.oauth ? (
+          {mcp.auth ? (
             <div className="rounded-md border border-info bg-info-tint px-3 py-3">
               <div className="flex items-center gap-2 text-small-body font-medium text-info">
                 <LockKeyhole aria-hidden="true" className="size-3.5" />
-                Authorization · OAuth 2 PKCE
+                Authorization · OAuth
               </div>
               <MetadataList className="mt-2">
-                {mcp.oauth.issuer_url ? (
-                  <MetadataList.Row label="Issuer">{mcp.oauth.issuer_url}</MetadataList.Row>
-                ) : null}
-                {mcp.oauth.scopes?.length ? (
-                  <MetadataList.Row label="Scopes">{mcp.oauth.scopes.join(", ")}</MetadataList.Row>
+                <MetadataList.Row label="Registration">Automatic</MetadataList.Row>
+                {mcp.auth.scopes?.length ? (
+                  <MetadataList.Row label="Scopes">{mcp.auth.scopes.join(", ")}</MetadataList.Row>
                 ) : null}
               </MetadataList>
             </div>
           ) : null}
-          {remote ? (
-            <p className="text-form-hint text-muted">
-              No secret is stored for remote servers. You authorize in the browser after install.
-            </p>
-          ) : null}
 
-          <FormSection description="Choose where this server is available." title="Scope">
+          <FormSection description="The catalog chooses this server's default." title="Scope">
             <div
               aria-label="MCP install scope"
               className="grid grid-cols-1 gap-2 sm:grid-cols-2"
@@ -142,13 +136,18 @@ function MCPInstallDialog({
                 title="Global"
               />
             </div>
+            {scope === "workspace" && !workspaceId ? (
+              <p className="text-form-hint text-warning" role="alert">
+                Select a workspace before installing this workspace-scoped server.
+              </p>
+            ) : null}
           </FormSection>
 
-          {!remote && fields.length > 0 ? (
+          {fields.length > 0 ? (
             <FormSection title="Required configuration">
               <FieldGroup>
                 {fields.map(field => {
-                  const binding = bindings[field.name];
+                  const binding = bindings[field.id];
                   if (!binding) return null;
                   return (
                     <MCPInstallField
@@ -156,8 +155,8 @@ function MCPInstallDialog({
                       canonicalRef={canonicalRef(field)}
                       createPending={putVault.isPending}
                       field={field}
-                      key={field.name}
-                      onChange={next => updateBinding(field.name, next)}
+                      key={field.id}
+                      onChange={next => updateBinding(field.id, next)}
                       onCreate={() => void createSecret(field)}
                       vaultError={
                         vaultQuery.error
@@ -215,7 +214,7 @@ interface MCPInstallFieldProps {
   binding: MCPFieldBinding;
   canonicalRef: string;
   createPending: boolean;
-  field: MCPEnvField;
+  field: MCPInputField;
   vaultError?: string | null;
   vaultLoading: boolean;
   vaultSecrets: ReadonlyArray<{ present: boolean; ref: string }>;
@@ -223,10 +222,6 @@ interface MCPInstallFieldProps {
   onCreate: () => void;
 }
 
-/**
- * Binds one marketplace env field to a control: secrets go through the shared
- * write-only `SecretField`, plain configuration values through a text input.
- */
 function MCPInstallField({
   binding,
   canonicalRef,
@@ -238,27 +233,49 @@ function MCPInstallField({
   onChange,
   onCreate,
 }: MCPInstallFieldProps) {
-  const id = `mcp-field-${field.name}`;
+  const id = `mcp-input-${field.id}`;
   const invalid = field.required && !bindingValuePresent(binding);
   const showError = binding.touched && invalid;
-  const description =
-    field.prompt || (field.required ? "Required by this server." : "Optional configuration.");
   const badges = field.required ? (
     <Pill mono size="xs" tone="warning">
       required
     </Pill>
   ) : null;
 
-  if (!field.secret) {
+  if (field.type === "boolean") {
+    return (
+      <Field>
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex flex-col gap-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <FieldLabel htmlFor={id}>{field.id}</FieldLabel>
+              {badges}
+            </div>
+            <FieldDescription id={`${id}-description`}>{field.prompt}</FieldDescription>
+          </div>
+          <Switch
+            aria-describedby={`${id}-description`}
+            checked={binding.typedValue === "true"}
+            id={id}
+            onCheckedChange={next =>
+              onChange({ ...binding, touched: true, typedValue: String(next) })
+            }
+          />
+        </div>
+      </Field>
+    );
+  }
+
+  if (field.type !== "secret") {
     return (
       <Field data-invalid={showError ? "true" : undefined}>
         <div className="flex flex-wrap items-center gap-2">
           <FieldLabel className="font-mono" htmlFor={id}>
-            {field.name}
+            {field.id}
           </FieldLabel>
           {badges}
         </div>
-        <FieldDescription id={`${id}-description`}>{description}</FieldDescription>
+        <FieldDescription id={`${id}-description`}>{field.prompt}</FieldDescription>
         <Input
           aria-describedby={showError ? `${id}-description ${id}-error` : `${id}-description`}
           aria-invalid={showError ? true : undefined}
@@ -266,7 +283,7 @@ function MCPInstallField({
           id={id}
           onBlur={() => onChange({ ...binding, touched: true })}
           onChange={event => onChange({ ...binding, typedValue: event.target.value })}
-          placeholder={field.default}
+          placeholder={typeof field.default === "string" ? field.default : undefined}
           required={field.required}
           type="text"
           value={binding.typedValue}
@@ -295,7 +312,7 @@ function MCPInstallField({
             onChange({ ...binding, createError: undefined, createValue: next }),
           open: binding.createOpen,
           openLabel: "Create Vault secret",
-          valueLabel: `New Vault value for ${field.name}`,
+          valueLabel: `New Vault value for ${field.id}`,
           pending: createPending,
           ref: canonicalRef,
           value: binding.createValue,
@@ -308,11 +325,11 @@ function MCPInstallField({
         selectedRef: binding.vaultRef,
         sources: vaultSecrets,
       }}
-      createTestId={`mcp-create-secret-${field.name}`}
-      description={description}
+      createTestId={`mcp-create-secret-${field.id}`}
+      description={field.prompt}
       error={showError ? "Choose a present Vault ref or enter a value." : undefined}
       id={id}
-      label={field.name}
+      label={field.id}
       labelClassName="font-mono"
       mode={binding.mode === "vault" ? "source" : "value"}
       onBlur={() => onChange({ ...binding, touched: true })}
@@ -321,10 +338,19 @@ function MCPInstallField({
       placeholder="Stored write-only during install"
       required={field.required}
       sourceModeLabel="Use Vault"
-      sourcesTestId={`mcp-vault-selector-${field.name}`}
+      sourcesTestId={`mcp-vault-selector-${field.id}`}
       value={binding.typedValue}
     />
   );
+}
+
+function formatLaunch(launch: NonNullable<NonNullable<MarketplaceEntryResponse["mcp"]>["launch"]>) {
+  if (launch.type === "remote") return launch.url;
+  if (launch.type === "docker")
+    return [launch.image, launch.digest, ...(launch.args ?? [])].join(" ");
+  return [launch.type, launch.package, launch.version, ...(launch.args ?? [])]
+    .filter(Boolean)
+    .join(" ");
 }
 
 export { MCPInstallDialog };

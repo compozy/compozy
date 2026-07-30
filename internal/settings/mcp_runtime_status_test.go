@@ -2,8 +2,11 @@ package settings
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
+	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -29,19 +32,19 @@ func TestMCPServerItemsIncludeRuntimeStatusAndRemainIsolated(t *testing.T) {
 			"url = \"https://mcp.linear.example/mcp\"",
 			"",
 			"[mcp_servers.auth]",
-			"type = \"oauth2_pkce\"",
-			"authorization_url = \"https://auth.linear.example/authorize\"",
-			"token_url = \"https://auth.linear.example/token\"",
+			"registration = \"pre_registered\"",
+			"issuer_url = \"https://auth.linear.example\"",
 			"client_id = \"compozy-desktop\"",
 		}, "\n"))
 		runtime := &fakeMCPRuntimeProvider{
 			statuses: map[string]MCPServerRuntimeStatus{
 				"ready-docs": {
-					Configured:  true,
-					Initialized: true,
-					State:       MCPServerRuntimeStateReady,
-					Probe:       MCPServerProbeSucceeded,
-					ToolCount:   2,
+					Configured:      true,
+					Initialized:     true,
+					State:           MCPServerRuntimeStateReady,
+					Probe:           MCPServerProbeSucceeded,
+					ToolCount:       2,
+					ProtocolVersion: "2025-06-18",
 				},
 				"linear": {
 					Configured: true,
@@ -67,6 +70,9 @@ func TestMCPServerItemsIncludeRuntimeStatusAndRemainIsolated(t *testing.T) {
 		}
 		if !ready.RuntimeStatus.Initialized || ready.RuntimeStatus.ToolCount != 2 {
 			t.Fatalf("ready-docs RuntimeStatus = %#v, want initialized with 2 tools", ready.RuntimeStatus)
+		}
+		if got, want := ready.RuntimeStatus.ProtocolVersion, "2025-06-18"; got != want {
+			t.Fatalf("ready-docs RuntimeStatus.ProtocolVersion = %q, want %q", got, want)
 		}
 
 		linear := findMCPItem(t, envelope.MCPServers, "linear")
@@ -188,6 +194,129 @@ command = "docs-mcp"
 	})
 }
 
+func TestMCPServerCollectionBoundsRuntimeProbes(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should probe no more than four configured MCP servers concurrently", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, strings.Join([]string{
+			"[[mcp_servers]]", "name = \"alpha\"", "command = \"alpha-mcp\"", "",
+			"[[mcp_servers]]", "name = \"bravo\"", "command = \"bravo-mcp\"", "",
+			"[[mcp_servers]]", "name = \"charlie\"", "command = \"charlie-mcp\"", "",
+			"[[mcp_servers]]", "name = \"delta\"", "command = \"delta-mcp\"", "",
+			"[[mcp_servers]]", "name = \"echo\"", "command = \"echo-mcp\"",
+		}, "\n"))
+		runtime := newBlockingMCPRuntimeProvider()
+		service := testService(t, homePaths, Dependencies{MCPRuntime: runtime})
+		type listResult struct {
+			envelope CollectionEnvelope
+			err      error
+		}
+		results := make(chan listResult, 1)
+		go func() {
+			envelope, err := service.ListCollection(
+				context.Background(),
+				CollectionRequest{Collection: CollectionMCPServers},
+			)
+			results <- listResult{envelope: envelope, err: err}
+		}()
+
+		for range maxConcurrentMCPRuntimeProbes {
+			select {
+			case <-runtime.entered:
+			case <-time.After(time.Second):
+				t.Fatal("timed out waiting for bounded MCP runtime probes")
+			}
+		}
+		if got := runtime.maxInFlight(); got != maxConcurrentMCPRuntimeProbes {
+			t.Fatalf("max concurrent MCP runtime probes = %d, want %d", got, maxConcurrentMCPRuntimeProbes)
+		}
+		select {
+		case name := <-runtime.entered:
+			t.Fatalf("MCP runtime probe %q exceeded the concurrency bound", name)
+		default:
+		}
+		close(runtime.release)
+
+		select {
+		case result := <-results:
+			if result.err != nil {
+				t.Fatalf("ListCollection(mcp) error = %v", result.err)
+			}
+			if got, want := mcpItemNames(
+				result.envelope.MCPServers,
+			), []string{
+				"alpha",
+				"bravo",
+				"charlie",
+				"delta",
+				"echo",
+			}; !slices.Equal(
+				got,
+				want,
+			) {
+				t.Fatalf("MCP item order = %#v, want %#v", got, want)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("timed out waiting for MCP runtime probe collection")
+		}
+	})
+
+	t.Run("Should return no partial collection after a structural probe error", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, strings.Join([]string{
+			"[[mcp_servers]]", "name = \"alpha\"", "command = \"alpha-mcp\"", "",
+			"[[mcp_servers]]", "name = \"bravo\"", "command = \"bravo-mcp\"", "",
+			"[[mcp_servers]]", "name = \"charlie\"", "command = \"charlie-mcp\"", "",
+			"[[mcp_servers]]", "name = \"broken\"", "command = \"broken-mcp\"", "",
+			"[[mcp_servers]]", "name = \"delta\"", "command = \"delta-mcp\"",
+		}, "\n"))
+		runtime := newBlockingMCPRuntimeProvider()
+		runtime.failName = "broken"
+		service := testService(t, homePaths, Dependencies{MCPRuntime: runtime})
+		type listResult struct {
+			envelope CollectionEnvelope
+			err      error
+		}
+		results := make(chan listResult, 1)
+		go func() {
+			envelope, err := service.ListCollection(
+				context.Background(),
+				CollectionRequest{Collection: CollectionMCPServers},
+			)
+			results <- listResult{envelope: envelope, err: err}
+		}()
+
+		for range maxConcurrentMCPRuntimeProbes {
+			select {
+			case <-runtime.entered:
+			case <-time.After(time.Second):
+				t.Fatal("timed out waiting for structural MCP runtime probes")
+			}
+		}
+		close(runtime.release)
+
+		select {
+		case result := <-results:
+			if !errors.Is(result.err, errBlockingMCPRuntime) {
+				t.Fatalf("ListCollection(mcp) error = %v, want structural probe error", result.err)
+			}
+			if result.envelope.Collection != "" || len(result.envelope.MCPServers) != 0 {
+				t.Fatalf("ListCollection(mcp) result = %#v, want no partial collection", result.envelope)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("timed out waiting for structural MCP runtime probe cleanup")
+		}
+		if got, want := runtime.finishedCount(), runtime.startedCount(); got != want {
+			t.Fatalf("completed MCP runtime probes = %d, want %d after cancellation join", got, want)
+		}
+	})
+}
+
 func TestMCPAuthOperationsResolveExactWorkspaceSidecarTarget(t *testing.T) {
 	t.Parallel()
 	t.Run("Should resolve the exact workspace sidecar target for every auth operation", func(t *testing.T) {
@@ -203,9 +332,8 @@ func TestMCPAuthOperationsResolveExactWorkspaceSidecarTarget(t *testing.T) {
 			"url = \"https://global.linear.example/mcp\"",
 			"",
 			"[mcp_servers.auth]",
-			"type = \"oauth2_pkce\"",
-			"authorization_url = \"https://global.linear.example/authorize\"",
-			"token_url = \"https://global.linear.example/token\"",
+			"registration = \"pre_registered\"",
+			"issuer_url = \"https://global.linear.example\"",
 			"client_id = \"global-client\"",
 		}, "\n"))
 		writeFile(t, filepath.Join(workspaceRoot, compozyconfig.DirName, compozyconfig.MCPJSONName), `{
@@ -214,9 +342,8 @@ func TestMCPAuthOperationsResolveExactWorkspaceSidecarTarget(t *testing.T) {
 	  "transport": "http",
       "url": "https://workspace.linear.example/mcp",
       "auth": {
-        "type": "oauth2_pkce",
-        "authorization_url": "https://workspace.linear.example/authorize",
-        "token_url": "https://workspace.linear.example/token",
+        "registration": "pre_registered",
+        "issuer_url": "https://workspace.linear.example",
         "client_id": "workspace-client"
       }
     }
@@ -235,6 +362,21 @@ func TestMCPAuthOperationsResolveExactWorkspaceSidecarTarget(t *testing.T) {
 		})
 		workspaceTarget := MCPAuthTargetRequest{
 			Scope: ScopeWorkspace, WorkspaceID: "workspace-a", Name: "linear",
+		}
+		authStatus, err := service.GetMCPAuthStatus(ctx, workspaceTarget)
+		if err != nil {
+			t.Fatalf("GetMCPAuthStatus(workspace sidecar) error = %v", err)
+		}
+		if authStatus.Scope != mcpauth.ScopeWorkspace || authStatus.WorkspaceID != "workspace-a" ||
+			authStatus.ServerName != "linear" || authStatus.Status != mcpauth.StatusAuthenticated {
+			t.Fatalf("GetMCPAuthStatus(workspace sidecar) = %#v", authStatus)
+		}
+		if runtime.statusTarget != (mcpauth.Target{
+			Scope: mcpauth.ScopeWorkspace, WorkspaceID: "workspace-a", ServerName: "linear",
+		}) ||
+			runtime.statusServer.URL != "https://workspace.linear.example/mcp" ||
+			runtime.statusServer.Auth.ClientID != "workspace-client" {
+			t.Fatalf("workspace status resolution = target:%#v server:%#v", runtime.statusTarget, runtime.statusServer)
 		}
 		begin, err := service.BeginMCPAuth(ctx, MCPAuthBeginRequest{
 			MCPAuthTargetRequest: workspaceTarget,
@@ -263,8 +405,7 @@ func TestMCPAuthOperationsResolveExactWorkspaceSidecarTarget(t *testing.T) {
 		if status.WorkspaceID != "workspace-a" || !status.TokenPresent {
 			t.Fatalf("ExchangeMCPAuth(workspace) status = %#v", status)
 		}
-		if runtime.exchangeInput.Code != "" ||
-			runtime.exchangeInput.RedirectURL != "https://callback.example/?code=opaque&state=public" {
+		if runtime.exchangeInput.RedirectURL != "https://callback.example/?code=opaque&state=public" {
 			t.Fatalf("exchange input = %#v", runtime.exchangeInput)
 		}
 		if runtime.exchangeTarget != runtime.beginTarget ||
@@ -306,6 +447,8 @@ func TestMCPAuthOperationsResolveExactWorkspaceSidecarTarget(t *testing.T) {
 }
 
 type recordingMCPAuthRuntime struct {
+	statusTarget   mcpauth.Target
+	statusServer   compozyconfig.MCPServer
 	beginTarget    mcpauth.Target
 	beginServer    compozyconfig.MCPServer
 	exchangeTarget mcpauth.Target
@@ -321,11 +464,13 @@ type recordingMCPAuthRuntime struct {
 }
 
 func (r *recordingMCPAuthRuntime) MCPAuthStatus(
-	context.Context,
-	mcpauth.Target,
-	compozyconfig.MCPServer,
+	_ context.Context,
+	target mcpauth.Target,
+	server compozyconfig.MCPServer,
 ) (mcpauth.Status, error) {
-	return mcpauth.Status{}, nil
+	r.statusTarget = target
+	r.statusServer = server
+	return confirmedMCPAuthRuntimeStatus(target), nil
 }
 
 func (r *recordingMCPAuthRuntime) MCPAuthBegin(
@@ -343,6 +488,20 @@ func (r *recordingMCPAuthRuntime) MCPAuthBegin(
 		CallbackURL:      callbackURL,
 		ManualSupported:  true,
 	}, nil
+}
+
+func (r *recordingMCPAuthRuntime) MCPAuthBeginStepUp(
+	ctx context.Context,
+	target mcpauth.Target,
+	server compozyconfig.MCPServer,
+	callbackURL string,
+	_ []string,
+	approved bool,
+) (mcpauth.BeginResult, error) {
+	if !approved {
+		return mcpauth.BeginResult{}, errors.New("scope escalation requires approval")
+	}
+	return r.MCPAuthBegin(ctx, target, server, callbackURL)
 }
 
 func (r *recordingMCPAuthRuntime) MCPAuthExchange(
@@ -383,6 +542,14 @@ func (r *recordingMCPAuthRuntime) MCPAuthInvalidate(target mcpauth.Target) error
 	return nil
 }
 
+func (r *recordingMCPAuthRuntime) MCPAuthDeleteState(_ context.Context, target mcpauth.Target) error {
+	r.invalidated = append(r.invalidated, target)
+	if err := r.invalidateErrs[len(r.invalidated)]; err != nil {
+		return err
+	}
+	return nil
+}
+
 func (r *recordingMCPAuthRuntime) MCPAuthLogout(
 	_ context.Context,
 	target mcpauth.Target,
@@ -409,6 +576,91 @@ func confirmedMCPAuthRuntimeStatus(target mcpauth.Target) mcpauth.Status {
 type fakeMCPRuntimeProvider struct {
 	statuses map[string]MCPServerRuntimeStatus
 	targets  map[string]mcpauth.Target
+}
+
+var errBlockingMCPRuntime = errors.New("blocking MCP runtime failure")
+
+type blockingMCPRuntimeProvider struct {
+	entered  chan string
+	release  chan struct{}
+	failName string
+
+	mu       sync.Mutex
+	inFlight int
+	max      int
+	started  int
+	finished int
+}
+
+func newBlockingMCPRuntimeProvider() *blockingMCPRuntimeProvider {
+	return &blockingMCPRuntimeProvider{
+		entered: make(chan string, maxConcurrentMCPRuntimeProbes+1),
+		release: make(chan struct{}),
+	}
+}
+
+func (f *blockingMCPRuntimeProvider) MCPServerRuntimeStatus(
+	ctx context.Context,
+	_ mcpauth.Target,
+	server compozyconfig.MCPServer,
+) (MCPServerRuntimeStatus, error) {
+	f.mu.Lock()
+	f.inFlight++
+	f.started++
+	if f.inFlight > f.max {
+		f.max = f.inFlight
+	}
+	f.mu.Unlock()
+	defer func() {
+		f.mu.Lock()
+		f.inFlight--
+		f.finished++
+		f.mu.Unlock()
+	}()
+
+	name := strings.TrimSpace(server.Name)
+	select {
+	case f.entered <- name:
+	case <-ctx.Done():
+		return MCPServerRuntimeStatus{}, ctx.Err()
+	}
+	select {
+	case <-f.release:
+		if name == f.failName {
+			return MCPServerRuntimeStatus{}, errBlockingMCPRuntime
+		}
+		return MCPServerRuntimeStatus{
+			Configured: true, Initialized: true, State: MCPServerRuntimeStateReady, Probe: MCPServerProbeSucceeded,
+		}, nil
+	case <-ctx.Done():
+		return MCPServerRuntimeStatus{}, ctx.Err()
+	}
+}
+
+func (f *blockingMCPRuntimeProvider) maxInFlight() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.max
+}
+
+func (f *blockingMCPRuntimeProvider) finishedCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.finished
+}
+
+func (f *blockingMCPRuntimeProvider) startedCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.started
+}
+
+func mcpItemNames(items []MCPServerItem) []string {
+	names := make([]string, 0, len(items))
+	for _, item := range items {
+		names = append(names, item.Name)
+	}
+	return names
 }
 
 func (f *fakeMCPRuntimeProvider) MCPServerRuntimeStatus(

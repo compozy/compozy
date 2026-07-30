@@ -36,7 +36,7 @@ export async function startMarketplaceCatalogServer(
     response.setHeader("content-type", "application/json");
     response.end(
       JSON.stringify({
-        manifest_version: 1,
+        manifest_version: 2,
         generated_at: seed.generatedAt ?? DEFAULT_GENERATED_AT,
         entries,
       })

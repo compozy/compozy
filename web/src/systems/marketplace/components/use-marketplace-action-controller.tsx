@@ -35,7 +35,11 @@ import type {
 } from "../types";
 import { marketplaceRouteKindFor } from "../types";
 import { MarketplaceActionDialogs } from "./marketplace-action-dialogs";
-import { marketplaceEntrySlug, marketplaceErrorMessage } from "./marketplace-ui";
+import {
+  formatMarketplaceVersion,
+  marketplaceEntrySlug,
+  marketplaceErrorMessage,
+} from "./marketplace-ui";
 import {
   marketplaceActionControllerLogic,
   type MarketplaceActionControllerPhase,
@@ -216,7 +220,10 @@ function useMarketplaceActionController(
             result.skills?.[0]?.latest_version ??
             result.skills?.[0]?.current_version ??
             entry.version;
-          toast.success(version ? `${entry.name} updated to v${version}` : `${entry.name} updated`);
+          const displayVersion = formatMarketplaceVersion(version);
+          toast.success(
+            displayVersion ? `${entry.name} updated to ${displayVersion}` : `${entry.name} updated`
+          );
         } else {
           await installSkill.mutateAsync({
             slug: marketplaceEntrySlug(entry),
@@ -233,8 +240,9 @@ function useMarketplaceActionController(
             body: { allow_unverified: false, version: entry.version },
             name: installedName(entry),
           });
+          const displayVersion = formatMarketplaceVersion(entry.version);
           toast.success(
-            entry.version ? `${entry.name} updated to v${entry.version}` : `${entry.name} updated`
+            displayVersion ? `${entry.name} updated to ${displayVersion}` : `${entry.name} updated`
           );
           return;
         }

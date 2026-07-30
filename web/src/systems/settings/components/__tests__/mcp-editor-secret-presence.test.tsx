@@ -2,7 +2,6 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { emptyDraft } from "../../lib/mcp-editor-model";
-import { MCPEditorOAuthSection } from "../mcp-editor-oauth-section";
 import { MCPEditorProcessSection } from "../mcp-editor-stdio-section";
 import { MCPSecretBindingControl } from "../mcp-secret-binding";
 
@@ -34,56 +33,6 @@ describe("MCP editor configured secret presence", () => {
     expect(screen.getByText("Configured")).toBeInTheDocument();
     expect(screen.queryByText(SELECTABLE_VAULT_REF)).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Existing Vault ref")).not.toBeInTheDocument();
-  });
-
-  it("Should disclose only an explicitly selected Vault inventory ref", () => {
-    let selected = emptyDraft("http").oauth.clientSecret;
-    const { rerender } = render(
-      <MCPEditorOAuthSection
-        oauth={{
-          ...emptyDraft("http").oauth,
-          enabled: true,
-          clientSecret: { mode: "preserve", existing: true, typedValue: "", vaultRef: "" },
-        }}
-        vaultInventory={{ status: "ready", refs: [SELECTABLE_VAULT_REF] }}
-        errors={{}}
-        onChange={oauth => {
-          selected = oauth.clientSecret;
-        }}
-      />
-    );
-
-    expect(screen.getByText("Configured")).toBeInTheDocument();
-    expect(screen.queryByText(SELECTABLE_VAULT_REF)).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("radio", { name: /Use Vault/i }));
-    rerender(
-      <MCPEditorOAuthSection
-        oauth={{ ...emptyDraft("http").oauth, enabled: true, clientSecret: selected }}
-        vaultInventory={{ status: "ready", refs: [SELECTABLE_VAULT_REF] }}
-        errors={{}}
-        onChange={() => undefined}
-      />
-    );
-
-    expect(screen.getByLabelText("Existing Vault ref")).toHaveValue(SELECTABLE_VAULT_REF);
-  });
-
-  it("Should surface an empty configured OAuth secret replacement", () => {
-    render(
-      <MCPEditorOAuthSection
-        oauth={{
-          ...emptyDraft("http").oauth,
-          enabled: true,
-          clientSecret: { mode: "typed", existing: true, typedValue: "", vaultRef: "" },
-        }}
-        vaultInventory={{ status: "ready", refs: [] }}
-        errors={{ clientSecret: "Enter a replacement value or select a Vault reference" }}
-        onChange={() => undefined}
-      />
-    );
-
-    expect(screen.getByText("Enter a replacement value or select a Vault reference")).toBeVisible();
   });
 });
 

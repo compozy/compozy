@@ -1730,6 +1730,15 @@ func TestGlobalDBDeleteWorkspaceWithoutSessions(t *testing.T) {
 				t.Fatalf("SaveMCPAuthToken(%#v) error = %v", target, err)
 			}
 		}
+		registrations := make([]mcpauth.ClientRegistration, 0, len(targets))
+		for _, target := range targets {
+			registration := mcpOAuthRegistrationRecord(t, target, issuedAt)
+			saved, err := globalDB.SaveMCPAuthRegistration(ctx, registration, mcpOAuthRegistrationSecrets())
+			if err != nil {
+				t.Fatalf("SaveMCPAuthRegistration(%#v) error = %v", target, err)
+			}
+			registrations = append(registrations, saved)
+		}
 		var accessRef, refreshRef string
 		if err := globalDB.db.QueryRowContext(
 			ctx,
@@ -1751,9 +1760,23 @@ func TestGlobalDBDeleteWorkspaceWithoutSessions(t *testing.T) {
 		for _, ref := range []string{accessRef, refreshRef} {
 			assertVaultRefPresence(ctx, t, globalDB.db, ref, false)
 		}
+		if _, err := globalDB.GetMCPAuthRegistration(ctx, targets[0]); !errors.Is(err, mcpauth.ErrRegistrationNotFound) {
+			t.Fatalf("GetMCPAuthRegistration(deleted workspace) error = %v, want ErrRegistrationNotFound", err)
+		}
+		for _, ref := range []string{
+			registrations[0].ClientSecretRef,
+			registrations[0].RegistrationAccessTokenRef,
+		} {
+			assertVaultRefPresence(ctx, t, globalDB.db, ref, false)
+		}
 		for _, target := range targets[1:] {
 			if _, err := globalDB.GetMCPAuthToken(ctx, target); err != nil {
 				t.Fatalf("GetMCPAuthToken(preserved %#v) error = %v", target, err)
+			}
+		}
+		for _, target := range targets[1:] {
+			if _, err := globalDB.GetMCPAuthRegistration(ctx, target); err != nil {
+				t.Fatalf("GetMCPAuthRegistration(preserved %#v) error = %v", target, err)
 			}
 		}
 

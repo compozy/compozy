@@ -59,11 +59,12 @@ const (
 
 // MCPServerRuntimeStatus is one daemon-backed MCP server probe result.
 type MCPServerRuntimeStatus struct {
-	Configured  bool
-	Initialized bool
-	State       MCPServerRuntimeState
-	Probe       MCPServerProbeState
-	ToolCount   int
-	Reason      string
-	Diagnostic  string
+	Configured      bool
+	Initialized     bool
+	State           MCPServerRuntimeState
+	Probe           MCPServerProbeState
+	ToolCount       int
+	ProtocolVersion string
+	Reason          string
+	Diagnostic      string
 }

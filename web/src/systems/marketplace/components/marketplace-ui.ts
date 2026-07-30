@@ -61,6 +61,13 @@ export function formatMarketplaceCount(value: number): string {
   return (value >= 1_000 ? COMPACT_COUNT_FORMATTER : STANDARD_COUNT_FORMATTER).format(value);
 }
 
+/** Public marketplace versions can arrive as exact release tags with a v/V prefix. */
+export function formatMarketplaceVersion(version: string | null | undefined): string | null {
+  const trimmed = version?.trim();
+  if (!trimmed) return null;
+  return `v${trimmed.replace(/^[vV]+/, "")}`;
+}
+
 export function sortMarketplaceEntries(
   entries: readonly MarketplaceListing[],
   sort: MarketplaceViewSort

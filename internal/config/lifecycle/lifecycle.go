@@ -83,6 +83,7 @@ var Matrix = []Rule{
 	{Pattern: pathRoles, Lifecycle: Live, DiffClass: DiffClassLive},
 	{Pattern: pathRoles + ".*", Lifecycle: Live, DiffClass: DiffClassLive},
 	{Pattern: "providers.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
+	{Pattern: "mcp.oauth.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
 	{Pattern: "mcp-servers.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
 	{Pattern: "sandboxes.*", Lifecycle: SessionRebind, DiffClass: DiffClassSessionRebind},
 	{Pattern: "hooks.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},

@@ -1197,9 +1197,8 @@ func TestMarketplaceDetailAndRefreshValidateStableIdentityAndKind(t *testing.T) 
 		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
 			t.Fatalf("json.Unmarshal() error = %v", err)
 		}
-		if payload.Entry.Name != "mcp-entry" || payload.Entry.Source != "installed" ||
-			payload.MCP == nil || payload.MCP.URL != "https://custom.example.test/mcp" {
-			t.Fatalf("installed detail = %#v, want exact custom MCP rather than curated collision", payload)
+		if payload.Entry.Name != "mcp-entry" || payload.Entry.Source != "installed" || payload.MCP != nil {
+			t.Fatalf("installed detail = %#v, want installed identity without fabricated catalog fields", payload)
 		}
 	})
 

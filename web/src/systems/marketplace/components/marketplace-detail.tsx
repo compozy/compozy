@@ -17,7 +17,7 @@ import { MarketplaceDetailExtensionManage } from "./marketplace-detail-extension
 import { MarketplaceDetailMeta } from "./marketplace-detail-meta";
 import { MarketplaceDetailMCPManage } from "./marketplace-detail-mcp-manage";
 import { MarketplaceDetailSkillManage } from "./marketplace-detail-skill-manage";
-import { formatMarketplaceCount } from "./marketplace-ui";
+import { formatMarketplaceCount, formatMarketplaceVersion } from "./marketplace-ui";
 
 interface MarketplaceDetailProps {
   data: MarketplaceEntryResponse;
@@ -127,40 +127,38 @@ function MarketplaceBundleDetails({
 }
 
 function MarketplaceMCPDetails({ mcp }: { mcp: NonNullable<MarketplaceEntryResponse["mcp"]> }) {
-  const command = [mcp.command, ...(mcp.args ?? [])].filter(Boolean).join(" ");
+  const remote = mcp.launch.type === "remote";
   return (
     <>
       <section className="flex flex-col gap-2.5">
         <Eyebrow className="text-muted">Configuration</Eyebrow>
         <div className="flex flex-col gap-4 rounded-lg bg-canvas-soft p-5">
           <div className="min-w-0 overflow-x-auto rounded-md bg-canvas px-3 py-2 font-mono text-form-input text-fg">
-            {mcp.url || command || mcp.transport}
+            {formatMCPCatalogLaunch(mcp.launch)}
           </div>
           <MetadataList>
-            <MetadataList.Row label="Transport">{mcp.transport}</MetadataList.Row>
-            {mcp.default_scope ? (
-              <MetadataList.Row label="Default scope">{mcp.default_scope}</MetadataList.Row>
-            ) : null}
+            <MetadataList.Row label="Connection">
+              {remote ? "Hosted HTTP" : "Local process"}
+            </MetadataList.Row>
+            <MetadataList.Row label="Default scope">{mcp.default_scope}</MetadataList.Row>
           </MetadataList>
-          {mcp.env?.length ? (
+          {mcp.inputs?.length ? (
             <div className="flex flex-col gap-2">
               <p className="text-small-body font-medium text-fg-strong">Required configuration</p>
-              {mcp.env.map(field => (
+              {mcp.inputs.map(field => (
                 <div
                   className="flex items-start justify-between gap-4 border-t border-line pt-2"
-                  key={field.name}
+                  key={field.id}
                 >
-                  <code className="font-mono text-form-input text-fg">{field.name}</code>
-                  <span className="text-right text-form-hint text-muted">
-                    {field.prompt || (field.required ? "Required" : "Optional")}
-                  </span>
+                  <code className="font-mono text-form-input text-fg">{field.id}</code>
+                  <span className="text-right text-form-hint text-muted">{field.prompt}</span>
                 </div>
               ))}
             </div>
           ) : null}
         </div>
       </section>
-      {mcp.oauth ? (
+      {mcp.auth ? (
         <section className="flex flex-col gap-2.5">
           <Eyebrow className="text-muted">Authorization</Eyebrow>
           <MetadataList className="rounded-lg bg-canvas-soft px-4 py-3">
@@ -168,24 +166,15 @@ function MarketplaceMCPDetails({ mcp }: { mcp: NonNullable<MarketplaceEntryRespo
               className="grid-cols-1 items-start sm:grid-cols-[7.5rem_minmax(0,1fr)] sm:items-center"
               label="Type"
             >
-              OAuth 2 PKCE
+              OAuth · automatic registration
             </MetadataList.Row>
-            {mcp.oauth.issuer_url ? (
-              <MetadataList.Row
-                className="grid-cols-1 items-start sm:grid-cols-[7.5rem_minmax(0,1fr)] sm:items-center"
-                label="Issuer"
-                valueProps={{ className: "break-all" }}
-              >
-                {mcp.oauth.issuer_url}
-              </MetadataList.Row>
-            ) : null}
-            {mcp.oauth.scopes?.length ? (
+            {mcp.auth.scopes?.length ? (
               <MetadataList.Row
                 className="grid-cols-1 items-start sm:grid-cols-[7.5rem_minmax(0,1fr)] sm:items-center"
                 label="Scopes"
                 valueProps={{ className: "break-words" }}
               >
-                {mcp.oauth.scopes.join(", ")}
+                {mcp.auth.scopes.join(", ")}
               </MetadataList.Row>
             ) : null}
           </MetadataList>
@@ -193,6 +182,17 @@ function MarketplaceMCPDetails({ mcp }: { mcp: NonNullable<MarketplaceEntryRespo
       ) : null}
     </>
   );
+}
+
+function formatMCPCatalogLaunch(
+  launch: NonNullable<NonNullable<MarketplaceEntryResponse["mcp"]>["launch"]>
+) {
+  if (launch.type === "remote") return launch.url;
+  if (launch.type === "docker")
+    return [launch.image, launch.digest, ...(launch.args ?? [])].join(" ");
+  return [launch.type, launch.package, launch.version, ...(launch.args ?? [])]
+    .filter(Boolean)
+    .join(" ");
 }
 
 type TrustWarnings = NonNullable<
@@ -240,6 +240,7 @@ function MarketplaceWarningList({ warnings }: { warnings: TrustWarnings }) {
 }
 
 function MarketplaceInstalledRail({ entry }: { entry: MarketplaceEntryResponse["entry"] }) {
+  const version = formatMarketplaceVersion(entry.installed_version);
   return (
     <section className="flex flex-col gap-2.5">
       <Eyebrow className="text-muted">Installed</Eyebrow>
@@ -249,9 +250,7 @@ function MarketplaceInstalledRail({ entry }: { entry: MarketplaceEntryResponse["
             installed
           </Pill>
         </MarketplaceKvRow>
-        {entry.installed_version ? (
-          <MarketplaceKvRow term="Version">{`v${entry.installed_version}`}</MarketplaceKvRow>
-        ) : null}
+        {version ? <MarketplaceKvRow term="Version">{version}</MarketplaceKvRow> : null}
       </MarketplaceKvRail>
     </section>
   );
@@ -287,13 +286,12 @@ function MarketplaceDetailManage({
 
 function MarketplaceDetailsRail({ data }: { data: MarketplaceEntryResponse }) {
   const { entry } = data;
+  const version = formatMarketplaceVersion(entry.version);
   return (
     <section className="flex flex-col gap-2.5">
       <Eyebrow className="text-muted">Details</Eyebrow>
       <MarketplaceKvRail>
-        {entry.version ? (
-          <MarketplaceKvRow term="Version">{`v${entry.version}`}</MarketplaceKvRow>
-        ) : null}
+        {version ? <MarketplaceKvRow term="Version">{version}</MarketplaceKvRow> : null}
         {entry.author ? <MarketplaceKvRow term="Author">{entry.author}</MarketplaceKvRow> : null}
         <MarketplaceKvRow term="Source">{entry.source}</MarketplaceKvRow>
         <MarketplaceKvRow term="Entry ID">{entry.entry_id}</MarketplaceKvRow>

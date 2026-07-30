@@ -6,12 +6,13 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"net"
 	"strings"
+	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	toolspkg "github.com/compozy/compozy/internal/tools"
-	mcptransport "github.com/mark3labs/mcp-go/client/transport"
-	mcpsdk "github.com/mark3labs/mcp-go/mcp"
+	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 const executorMCPKey = "mcp"
@@ -23,15 +24,24 @@ func (e *CallExecutor) ListTools(
 	ctx context.Context,
 	source toolspkg.SourceRef,
 ) ([]toolspkg.MCPToolDescriptor, error) {
+	descriptors, _, err := e.ListToolsWithProtocol(ctx, source)
+	return descriptors, err
+}
+
+// ListToolsWithProtocol discovers tools and returns the protocol version negotiated with the server.
+func (e *CallExecutor) ListToolsWithProtocol(
+	ctx context.Context,
+	source toolspkg.SourceRef,
+) ([]toolspkg.MCPToolDescriptor, string, error) {
 	if e == nil {
-		return nil, toolspkg.NewValidationError(
+		return nil, "", toolspkg.NewValidationError(
 			"executor",
 			toolspkg.ReasonDependencyMissing,
 			"mcp executor is required",
 		)
 	}
 	if ctx == nil {
-		return nil, toolspkg.NewToolError(
+		return nil, "", toolspkg.NewToolError(
 			toolspkg.ErrorCodeCanceled,
 			"",
 			"mcp call context is required",
@@ -43,32 +53,41 @@ func (e *CallExecutor) ListTools(
 	defer cancel()
 	resolved, err := e.resolveServer(ctx, source)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	if err := e.ensureAuthorized(ctx, resolved); err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	client, err := e.openClient(ctx, resolved)
 	if err != nil {
-		return nil, normalizeMCPDiscoveryError(err)
+		return nil, "", normalizeMCPErrorWithContext(ctx, "", err, true)
 	}
 	defer closeMCPClient(client)
-	if err := initializeClient(ctx, client); err != nil {
-		return nil, normalizeMCPDiscoveryError(err)
-	}
-	result, err := client.ListTools(ctx, mcpsdk.ListToolsRequest{})
+	protocolVersion := negotiatedProtocolVersion(client.session)
+	cacheKey, err := e.toolCacheKey(ctx, resolved, protocolVersion)
 	if err != nil {
-		return nil, normalizeMCPDiscoveryError(err)
+		return nil, "", err
 	}
-	descriptors := make([]toolspkg.MCPToolDescriptor, 0, len(result.Tools))
-	for i := range result.Tools {
-		descriptor, err := e.descriptorFromTool(source, resolved.Server, result.Tools[i])
+	if descriptors, ok := e.cachedTools(cacheKey, time.Now()); ok {
+		return descriptors, protocolVersion, nil
+	}
+	tools, ttlMs, err := listMCPTools(ctx, client.session)
+	if err != nil {
+		return nil, "", normalizeMCPErrorWithContext(ctx, "", err, true)
+	}
+	descriptors := make([]toolspkg.MCPToolDescriptor, 0, len(tools))
+	for i := range tools {
+		if tools[i] == nil {
+			return nil, "", toolspkg.NewValidationError("tools", toolspkg.ReasonSchemaInvalid, "mcp server returned an empty tool descriptor")
+		}
+		descriptor, err := e.descriptorFromTool(source, resolved.Server, *tools[i])
 		if err != nil {
-			return nil, fmt.Errorf("mcp: normalize tool %q: %w", result.Tools[i].Name, err)
+			return nil, "", fmt.Errorf("mcp: normalize tool %q: %w", tools[i].Name, err)
 		}
 		descriptors = append(descriptors, descriptor)
 	}
-	return descriptors, nil
+	e.cacheTools(cacheKey, descriptors, ttlMs, time.Now())
+	return descriptors, protocolVersion, nil
 }
 
 // CallTool invokes one configured MCP tool.
@@ -104,26 +123,83 @@ func (e *CallExecutor) CallTool(
 	}
 	client, err := e.openClient(ctx, resolved)
 	if err != nil {
-		return toolspkg.ToolResult{}, err
+		return toolspkg.ToolResult{}, normalizeMCPErrorWithContext(ctx, req.ToolID, err, false)
 	}
 	defer closeMCPClient(client)
-	if err := initializeClient(ctx, client); err != nil {
-		return toolspkg.ToolResult{}, normalizeMCPError(req.ToolID, err)
-	}
 	arguments, err := decodeArguments(req.Input)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	result, err := client.CallTool(ctx, mcpsdk.CallToolRequest{
-		Params: mcpsdk.CallToolParams{
-			Name:      strings.TrimSpace(req.RawToolName),
-			Arguments: arguments,
-		},
+	result, err := client.session.CallTool(ctx, &mcpsdk.CallToolParams{
+		Name:      strings.TrimSpace(req.RawToolName),
+		Arguments: arguments,
 	})
 	if err != nil {
-		return toolspkg.ToolResult{}, normalizeMCPError(req.ToolID, err)
+		return toolspkg.ToolResult{}, normalizeMCPErrorWithContext(ctx, req.ToolID, err, false)
+	}
+	if result.NeedsInput() {
+		return toolspkg.ToolResult{}, toolspkg.NewToolError(
+			toolspkg.ErrorCodeUnavailable,
+			req.ToolID,
+			"mcp server requires an unsupported client capability",
+			&UnsupportedCapabilityError{Capability: "input_requests"},
+			toolspkg.ReasonMCPUnreachable,
+		)
 	}
 	return toolResultFromMCP(result)
+}
+
+func normalizeMCPErrorWithContext(ctx context.Context, id toolspkg.ToolID, err error, discovery bool) error {
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		err = ctxErr
+	} else if deadline, hasDeadline := ctx.Deadline(); hasDeadline && !time.Now().Before(deadline) {
+		err = context.DeadlineExceeded
+	} else {
+		var networkError net.Error
+		if errors.As(err, &networkError) && networkError.Timeout() {
+			err = context.DeadlineExceeded
+		}
+	}
+	var scopeErr *InsufficientScopeError
+	if errors.As(err, &scopeErr) {
+		return toolspkg.NewToolError(
+			toolspkg.ErrorCodeUnavailable,
+			id,
+			scopeErr.Error(),
+			scopeErr,
+			toolspkg.ReasonMCPAuthRequired,
+		)
+	}
+	if discovery {
+		return normalizeMCPDiscoveryError(err)
+	}
+	return normalizeMCPError(id, err)
+}
+
+func listMCPTools(ctx context.Context, client *mcpsdk.ClientSession) ([]*mcpsdk.Tool, int, error) {
+	tools := make([]*mcpsdk.Tool, 0)
+	cursor := ""
+	seen := map[string]struct{}{}
+	ttlMs := 0
+	for {
+		result, err := client.ListTools(ctx, &mcpsdk.ListToolsParams{Cursor: cursor})
+		if err != nil {
+			return nil, 0, err
+		}
+		tools = append(tools, result.Tools...)
+		if ttl := result.GetTTLMs(); ttl > 0 && (ttlMs == 0 || ttl < ttlMs) {
+			ttlMs = ttl
+		}
+		next := strings.TrimSpace(result.NextCursor)
+		if next == "" {
+			return tools, ttlMs, nil
+		}
+		if _, duplicate := seen[next]; duplicate {
+			return nil, 0, errors.New("mcp: tools/list returned a repeated cursor")
+		}
+		seen[next] = struct{}{}
+		cursor = next
+	}
 }
 
 // Status returns token-redacted auth diagnostics for registry availability.
@@ -233,20 +309,20 @@ func toolResultFromMCP(result *mcpsdk.CallToolResult) (toolspkg.ToolResult, erro
 
 func toolContentFromMCP(content mcpsdk.Content) (toolspkg.ToolContent, error) {
 	switch typed := content.(type) {
-	case mcpsdk.TextContent:
-		return toolspkg.ToolContent{Type: typed.Type, Text: typed.Text}, nil
-	case mcpsdk.ImageContent:
+	case *mcpsdk.TextContent:
+		return toolspkg.ToolContent{Type: hostedProxyTextKey, Text: typed.Text}, nil
+	case *mcpsdk.ImageContent:
 		data, err := json.Marshal(typed.Data)
 		if err != nil {
 			return toolspkg.ToolContent{}, fmt.Errorf("mcp: encode image content: %w", err)
 		}
-		return toolspkg.ToolContent{Type: typed.Type, Data: data, MIMEType: typed.MIMEType}, nil
-	case mcpsdk.AudioContent:
+		return toolspkg.ToolContent{Type: hostedProxyImageKey, Data: data, MIMEType: typed.MIMEType}, nil
+	case *mcpsdk.AudioContent:
 		data, err := json.Marshal(typed.Data)
 		if err != nil {
 			return toolspkg.ToolContent{}, fmt.Errorf("mcp: encode audio content: %w", err)
 		}
-		return toolspkg.ToolContent{Type: typed.Type, Data: data, MIMEType: typed.MIMEType}, nil
+		return toolspkg.ToolContent{Type: hostedProxyAudioKey, Data: data, MIMEType: typed.MIMEType}, nil
 	default:
 		data, err := json.Marshal(content)
 		if err != nil {
@@ -310,8 +386,6 @@ func normalizeMCPError(id toolspkg.ToolID, err error) error {
 			toolspkg.ErrToolTimedOut,
 			toolspkg.ReasonCallTimedOut,
 		)
-	case errors.Is(err, mcptransport.ErrAuthorizationRequired):
-		return unavailableAuthError(toolspkg.ReasonMCPAuthRequired)
 	default:
 		return fmt.Errorf("mcp: call upstream server: %w", err)
 	}

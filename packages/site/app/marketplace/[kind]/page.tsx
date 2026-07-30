@@ -44,8 +44,8 @@ export default async function MarketplaceKindPage(props: PageProps) {
           </h1>
           <p className="mt-3.5 max-w-[64ch] text-site-lead text-muted">
             Every {meta.noun.toLowerCase()} in this build&apos;s checked-in catalog snapshot. Run{" "}
-            <code>compozy marketplace search</code> before installing because your daemon&apos;s
-            active catalog can differ.
+            <code>compozy marketplace search</code>
+            {" before installing because your daemon's active catalog can differ."}
           </p>
         </div>
       </header>

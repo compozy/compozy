@@ -208,7 +208,7 @@ export const marketplaceListings: Record<MarketplaceKind, MarketplaceListing[]> 
       kind: "mcp",
       name: "linear",
       source: "curated",
-      transport: "sse",
+      transport: "http",
       update_available: false,
       version: "1.0.0",
     },
@@ -300,32 +300,38 @@ const bundleDetail: MarketplaceEntryResponse = {
 const mcpStdioDetail: MarketplaceEntryResponse = {
   entry: marketplaceListings.mcp[0]!,
   mcp: {
-    args: ["-y", "@modelcontextprotocol/server-github"],
-    command: "npx",
     default_scope: "workspace",
-    env: [
+    inputs: [
       {
-        name: "GITHUB_TOKEN",
+        binding: { name: "GITHUB_PERSONAL_ACCESS_TOKEN", type: "env" },
+        id: "github_personal_access_token",
         prompt: "GitHub personal access token",
         required: true,
-        secret: true,
+        type: "secret",
       },
     ],
-    transport: "stdio",
+    launch: {
+      args: ["--read-only"],
+      digest: "sha256:d5a18c04b92714c309eb46a2305087e91a4dbd80420f6e462656699f95093520",
+      image: "ghcr.io/github/github-mcp-server",
+      type: "docker",
+    },
   },
 };
 
 const mcpRemoteDetail: MarketplaceEntryResponse = {
   entry: marketplaceListings.mcp[1]!,
   mcp: {
-    default_scope: "workspace",
-    oauth: {
-      client_id: "compozy-marketplace",
-      issuer_url: "https://linear.app",
-      scopes: ["read", "issues:create"],
+    auth: {
+      method: "oauth",
+      registration: "auto",
     },
-    transport: "sse",
-    url: "https://mcp.linear.app/sse",
+    default_scope: "workspace",
+    inputs: [],
+    launch: {
+      type: "remote",
+      url: "https://mcp.linear.app/mcp",
+    },
   },
 };
 

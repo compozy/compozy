@@ -26,10 +26,9 @@ type MCPSecretInput struct {
 	VaultRef string
 }
 
-// MCPCatalogInstallValues contains operator-supplied feed fields.
+// MCPCatalogInstallValues contains operator-supplied catalog input bindings.
 type MCPCatalogInstallValues struct {
-	Env               map[string]MCPSecretInput
-	OAuthClientSecret *MCPSecretInput
+	Inputs map[string]MCPSecretInput
 }
 
 // MCPCatalogInstallRequest identifies one feed entry and its target settings scope.
@@ -90,7 +89,7 @@ func (s *service) InstallMCPCatalog(
 	}
 	item := cloneMCPServerItem(*applyResult.MCPServer)
 	nextStep := MCPCatalogInstallNextStepNone
-	if detail.OAuth != nil {
+	if detail.Auth != nil {
 		nextStep = MCPCatalogInstallNextStepAuthorize
 	}
 	result := MCPCatalogInstallResult{Item: item, Apply: applyResult, NextStep: nextStep}
@@ -107,25 +106,6 @@ func (s *service) prepareMCPCatalogInstall(
 	if strings.TrimSpace(req.EntryID) == "" {
 		return MCPCatalogInstallRequest{}, nil, nil, validationError(
 			errors.New("settings: MCP catalog entry_id is required"),
-		)
-	}
-	if req.Scope == "" {
-		return MCPCatalogInstallRequest{}, nil, nil, validationError(
-			errors.New("settings: MCP catalog install scope is required"),
-		)
-	}
-	scope, workspaceID, err := s.normalizeReadScope(req.Scope, req.WorkspaceID)
-	if err != nil {
-		return MCPCatalogInstallRequest{}, nil, nil, err
-	}
-	if scope == ScopeWorkspace && workspaceID == "" {
-		return MCPCatalogInstallRequest{}, nil, nil, validationError(
-			errors.New("settings: MCP catalog workspace scope requires workspace_id"),
-		)
-	}
-	if scope == ScopeAgent {
-		return MCPCatalogInstallRequest{}, nil, nil, validationError(
-			errors.New("settings: MCP catalog install does not support agent scope"),
 		)
 	}
 	if s.mcpCatalog == nil {
@@ -163,6 +143,24 @@ func (s *service) prepareMCPCatalogInstall(
 			fmt.Errorf("settings: catalog entry %q does not project an MCP server", entryID),
 		)
 	}
+	scope := req.Scope
+	if scope == "" {
+		scope = ScopeKind(strings.TrimSpace(projected.MCP.DefaultScope))
+	}
+	scope, workspaceID, err := s.normalizeReadScope(scope, req.WorkspaceID)
+	if err != nil {
+		return MCPCatalogInstallRequest{}, nil, nil, err
+	}
+	if scope == ScopeWorkspace && workspaceID == "" {
+		return MCPCatalogInstallRequest{}, nil, nil, validationError(
+			errors.New("settings: MCP catalog workspace scope requires workspace_id"),
+		)
+	}
+	if scope == ScopeAgent {
+		return MCPCatalogInstallRequest{}, nil, nil, validationError(
+			errors.New("settings: MCP catalog install does not support agent scope"),
+		)
+	}
 	normalized := req
 	normalized.EntryID = entryID
 	normalized.Scope = scope
@@ -185,168 +183,18 @@ func (s *service) mcpServerFromCatalog(
 	entry *marketplace.Entry,
 	detail *marketplace.MCPEntryDetails,
 ) (compozyconfig.MCPServer, MCPSecretValues, error) {
-	server := compozyconfig.MCPServer{
-		Name:           req.Name,
-		Transport:      compozyconfig.MCPServerTransport(strings.TrimSpace(detail.Transport)),
-		Command:        strings.TrimSpace(detail.Command),
-		Args:           append([]string(nil), detail.Args...),
-		URL:            strings.TrimSpace(detail.URL),
-		CatalogEntry:   strings.TrimSpace(entry.EntryID),
-		CatalogVersion: strings.TrimSpace(entry.Version),
-	}
-	if detail.OAuth != nil {
-		server.Auth = compozyconfig.MCPAuthConfig{
-			Type:             compozyconfig.MCPAuthTypeOAuth2PKCE,
-			IssuerURL:        strings.TrimSpace(detail.OAuth.IssuerURL),
-			AuthorizationURL: strings.TrimSpace(detail.OAuth.AuthorizationURL),
-			TokenURL:         strings.TrimSpace(detail.OAuth.TokenURL),
-			ClientID:         strings.TrimSpace(detail.OAuth.ClientID),
-			Scopes:           append([]string(nil), detail.OAuth.Scopes...),
-		}
-	}
-
-	secrets := MCPSecretValues{}
-	inputs, err := normalizeMCPEnvInputs(req.Values.Env)
+	server, err := mcpServerFromCatalogLaunch(req.Name, entry, detail)
 	if err != nil {
 		return compozyconfig.MCPServer{}, MCPSecretValues{}, err
 	}
-	declared := make(map[string]struct{}, len(detail.Env))
-	for _, field := range detail.Env {
-		name := strings.TrimSpace(field.Name)
-		declared[name] = struct{}{}
-		input, supplied := inputs[name]
-		if field.Secret {
-			if err := s.applyCatalogSecretEnv(ctx, &server, &secrets, field, input, supplied); err != nil {
-				return compozyconfig.MCPServer{}, MCPSecretValues{}, err
-			}
-			continue
-		}
-		if err := applyCatalogPlainEnv(&server, field, input, supplied); err != nil {
-			return compozyconfig.MCPServer{}, MCPSecretValues{}, err
-		}
+	secrets, err := s.applyCatalogInputs(ctx, &server, detail, req, req.Values.Inputs)
+	if err != nil {
+		return compozyconfig.MCPServer{}, MCPSecretValues{}, err
 	}
-	for name := range inputs {
-		if _, ok := declared[name]; !ok {
-			return compozyconfig.MCPServer{}, MCPSecretValues{}, validationError(
-				fmt.Errorf("settings: values.env.%s is not declared by catalog entry %q", name, req.EntryID),
-			)
-		}
-	}
-	if err := s.applyCatalogOAuthSecret(ctx, &server, &secrets, req.Values.OAuthClientSecret); err != nil {
+	if err := finalizeMCPCatalogLaunch(&server, detail); err != nil {
 		return compozyconfig.MCPServer{}, MCPSecretValues{}, err
 	}
 	return server, secrets, nil
-}
-
-func normalizeMCPEnvInputs(values map[string]MCPSecretInput) (map[string]MCPSecretInput, error) {
-	normalized := make(map[string]MCPSecretInput, len(values))
-	for rawName, input := range values {
-		name := strings.TrimSpace(rawName)
-		if !vault.EnvNamePattern.MatchString(name) {
-			return nil, validationError(fmt.Errorf("settings: values.env key %q is invalid", name))
-		}
-		if _, exists := normalized[name]; exists {
-			return nil, validationError(fmt.Errorf("settings: values.env key %q is duplicated", name))
-		}
-		normalized[name] = input
-	}
-	return normalized, nil
-}
-
-func applyCatalogPlainEnv(
-	server *compozyconfig.MCPServer,
-	field marketplace.MCPEnvFieldDetails,
-	input MCPSecretInput,
-	supplied bool,
-) error {
-	name := strings.TrimSpace(field.Name)
-	value := field.Default
-	if supplied {
-		mode, err := validateMCPSecretInput("values.env."+name, input)
-		if err != nil {
-			return err
-		}
-		if mode != mcpSecretInputValue {
-			return validationError(fmt.Errorf("settings: values.env.%s must use value for a non-secret field", name))
-		}
-		value = input.Value
-	}
-	if field.Required && strings.TrimSpace(value) == "" {
-		return validationError(fmt.Errorf("settings: values.env.%s is required by the catalog entry", name))
-	}
-	if !supplied && strings.TrimSpace(value) == "" {
-		return nil
-	}
-	if server.Env == nil {
-		server.Env = make(map[string]string)
-	}
-	server.Env[name] = value
-	return nil
-}
-
-func (s *service) applyCatalogSecretEnv(
-	ctx context.Context,
-	server *compozyconfig.MCPServer,
-	secrets *MCPSecretValues,
-	field marketplace.MCPEnvFieldDetails,
-	input MCPSecretInput,
-	supplied bool,
-) error {
-	name := strings.TrimSpace(field.Name)
-	if !supplied {
-		if field.Required {
-			return validationError(fmt.Errorf("settings: values.env.%s is required by the catalog entry", name))
-		}
-		return nil
-	}
-	mode, err := validateMCPSecretInput("values.env."+name, input)
-	if err != nil {
-		return err
-	}
-	if mode == mcpSecretInputVaultRef {
-		ref, err := s.validateExistingMCPRef(ctx, "values.env."+name, input.VaultRef)
-		if err != nil {
-			return err
-		}
-		setMCPSecretEnvRef(server, name, ref)
-		return nil
-	}
-	if secrets.SecretEnv == nil {
-		secrets.SecretEnv = make(map[string]string)
-	}
-	secrets.SecretEnv[name] = input.Value
-	return nil
-}
-
-func (s *service) applyCatalogOAuthSecret(
-	ctx context.Context,
-	server *compozyconfig.MCPServer,
-	secrets *MCPSecretValues,
-	input *MCPSecretInput,
-) error {
-	if input == nil {
-		return nil
-	}
-	if server.Auth.IsZero() {
-		return validationError(errors.New(
-			"settings: values.oauth_client_secret is only valid for a catalog entry with OAuth",
-		))
-	}
-	mode, err := validateMCPSecretInput("values.oauth_client_secret", *input)
-	if err != nil {
-		return err
-	}
-	if mode == mcpSecretInputVaultRef {
-		ref, err := s.validateExistingMCPRef(ctx, "values.oauth_client_secret", input.VaultRef)
-		if err != nil {
-			return err
-		}
-		server.Auth.ClientSecretRef = ref
-		return nil
-	}
-	value := input.Value
-	secrets.OAuthClientSecret = &value
-	return nil
 }
 
 type mcpSecretInputMode uint8
@@ -368,7 +216,20 @@ func validateMCPSecretInput(path string, input MCPSecretInput) (mcpSecretInputMo
 	if hasVaultRef {
 		return mcpSecretInputVaultRef, nil
 	}
+	if err := validateMCPCatalogInputValue(input.Value); err != nil {
+		return 0, validationError(fmt.Errorf("settings: %s: %w", path, err))
+	}
 	return mcpSecretInputValue, nil
+}
+
+func (s *service) validateCatalogInputVaultRef(
+	ctx context.Context,
+	path string,
+	_ MCPCatalogInstallRequest,
+	_ string,
+	rawRef string,
+) (string, error) {
+	return s.validateExistingMCPRef(ctx, path, rawRef)
 }
 
 func (s *service) validateExistingMCPRef(

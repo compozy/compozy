@@ -11,6 +11,8 @@ import skillsFeed from "../../../catalog/skills.json";
 const ENTRY_ID_PATTERN = /^[A-Za-z0-9._~-]+$/;
 const ENV_NAME_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const SHA256_PATTERN = /^[a-f0-9]{64}$/i;
+const DOCKER_DIGEST_PATTERN = /^sha256:[a-f0-9]{64}$/i;
+const SEMVER_PATTERN = /^v?\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 const RFC3339_PATTERN =
   /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(Z|[+-]\d{2}:\d{2})$/;
 const MAX_CATALOG_ENTRIES_PER_KIND = 50_000;
@@ -67,24 +69,6 @@ function parseAbsoluteURL(value: string): URL | null {
   }
 }
 
-function isLoopbackHost(hostname: string): boolean {
-  const normalized = hostname.replace(/^\[|\]$/g, "").toLowerCase();
-  if (normalized === "localhost") return true;
-
-  const ipv4 = normalized.split(".");
-  if (ipv4.length === 4 && ipv4.every(part => /^\d{1,3}$/.test(part) && Number(part) <= 255)) {
-    return Number(ipv4[0]) === 127;
-  }
-
-  if (normalized === "::1" || normalized === "0:0:0:0:0:0:0:1") return true;
-  for (const prefix of ["::ffff:", "0:0:0:0:0:ffff:"]) {
-    if (normalized.startsWith(prefix)) {
-      return isLoopbackHost(normalized.slice(prefix.length));
-    }
-  }
-  return false;
-}
-
 function isMCPEnvironmentName(value: string, secret: boolean): boolean {
   const normalized = value.toUpperCase();
   if (!ENV_NAME_PATTERN.test(value)) return false;
@@ -101,16 +85,6 @@ function isMCPEnvironmentName(value: string, secret: boolean): boolean {
   return !/(SECRET|TOKEN|PASSWORD|PASSWD|API_KEY|APIKEY|PRIVATE_KEY|PRIVATEKEY|AUTHORIZATION|BEARER|CREDENTIAL)/.test(
     normalized
   );
-}
-
-function isAbsoluteHTTPURL(value: string): boolean {
-  return parseAbsoluteURL(value) !== null;
-}
-
-function isOAuthURL(value: string): boolean {
-  const parsed = parseAbsoluteURL(value);
-  if (!parsed) return false;
-  return parsed.protocol === "https:" || isLoopbackHost(parsed.hostname);
 }
 
 const rfc3339 = trimmedString.refine(isRFC3339, { message: "must be an RFC3339 timestamp" });
@@ -162,57 +136,116 @@ export const extensionEntrySchema = z
     }
   });
 
-const mcpOAuthSchema = z
+const mcpLaunchSchema = z.discriminatedUnion("type", [
+  z.strictObject({
+    type: z.literal("npm"),
+    package: nonBlankString,
+    version: nonBlankString.refine(value => SEMVER_PATTERN.test(value), {
+      message: "must be an exact semantic version",
+    }),
+    args: z.array(nonBlankString).optional(),
+  }),
+  z.strictObject({
+    type: z.literal("uvx"),
+    package: nonBlankString,
+    version: nonBlankString.refine(value => SEMVER_PATTERN.test(value), {
+      message: "must be an exact semantic version",
+    }),
+    args: z.array(nonBlankString).optional(),
+  }),
+  z.strictObject({
+    type: z.literal("docker"),
+    image: nonBlankString,
+    digest: nonBlankString.refine(value => DOCKER_DIGEST_PATTERN.test(value), {
+      message: "must be a verified sha256 digest",
+    }),
+    args: z.array(nonBlankString).optional(),
+  }),
+  z.strictObject({
+    type: z.literal("remote"),
+    url: nonBlankString.refine(value => parseAbsoluteURL(value)?.protocol === "https:", {
+      message: "must be an absolute HTTPS URL",
+    }),
+  }),
+]);
+
+const mcpAuthSchema = z
   .strictObject({
-    issuer_url: trimmedString.optional(),
-    authorization_url: trimmedString.optional(),
-    token_url: trimmedString.optional(),
-    client_id: nonBlankString,
-    scopes: z.array(z.string()).optional(),
+    method: z.literal("oauth"),
+    registration: z.literal("auto"),
+    scopes: z.array(nonBlankString).optional(),
   })
-  .superRefine((oauth, ctx) => {
-    if (!oauth.issuer_url && (!oauth.authorization_url || !oauth.token_url)) {
-      ctx.addIssue({
-        code: "custom",
-        message: "oauth requires issuer_url or both authorization_url and token_url",
-      });
-    }
-    for (const [key, value] of Object.entries({
-      issuer_url: oauth.issuer_url,
-      authorization_url: oauth.authorization_url,
-      token_url: oauth.token_url,
-    })) {
-      if (value && !isOAuthURL(value)) {
+  .superRefine((auth, ctx) => {
+    const seen = new Set<string>();
+    for (const [index, scope] of (auth.scopes ?? []).entries()) {
+      if (seen.has(scope)) {
         ctx.addIssue({
           code: "custom",
-          message: `${key} must use HTTPS unless host is loopback`,
-          path: [key],
+          message: "scopes must be unique",
+          path: ["scopes", index],
         });
       }
+      seen.add(scope);
     }
   });
 
-const mcpEnvFieldSchema = z
+const mcpInputSchema = z
   .strictObject({
-    name: nonBlankString,
-    prompt: trimmedString.optional(),
+    id: entryID,
+    prompt: nonBlankString,
+    type: z.enum(["string", "identifier", "boolean", "secret"]),
     required: z.boolean(),
-    secret: z.boolean(),
-    default: z.string().optional(),
+    binding: z.strictObject({
+      type: z.enum(["env", "url_query"]),
+      name: nonBlankString,
+    }),
+    default: z.union([z.string(), z.boolean()]).optional(),
   })
-  .superRefine((field, ctx) => {
-    if (!isMCPEnvironmentName(field.name, field.secret)) {
+  .superRefine((input, ctx) => {
+    if (input.type === "secret" && input.default !== undefined) {
       ctx.addIssue({
         code: "custom",
-        message: "name must be a permitted environment variable",
-        path: ["name"],
+        message: "secret inputs must not set default",
+        path: ["default"],
       });
     }
-    if (field.secret && field.default && field.default.trim() !== "") {
+    if (
+      input.type === "boolean" &&
+      input.default !== undefined &&
+      typeof input.default !== "boolean"
+    ) {
       ctx.addIssue({
         code: "custom",
-        message: "secret fields must not set default",
+        message: "boolean defaults must be boolean",
         path: ["default"],
+      });
+    }
+    if (
+      (input.type === "string" || input.type === "identifier") &&
+      input.default !== undefined &&
+      (typeof input.default !== "string" || (input.type === "identifier" && input.default === ""))
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        message: "string defaults must be non-empty identifiers",
+        path: ["default"],
+      });
+    }
+    if (
+      input.binding.type === "env" &&
+      !isMCPEnvironmentName(input.binding.name, input.type === "secret")
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        message: "env binding must be permitted",
+        path: ["binding", "name"],
+      });
+    }
+    if (input.binding.type === "url_query" && !ENTRY_ID_PATTERN.test(input.binding.name)) {
+      ctx.addIssue({
+        code: "custom",
+        message: "url_query binding must be URL-safe",
+        path: ["binding", "name"],
       });
     }
   });
@@ -220,81 +253,50 @@ const mcpEnvFieldSchema = z
 export const mcpEntrySchema = z
   .strictObject({
     ...entryCommon,
-    transport: trimmedString.pipe(z.enum(["stdio", "http", "sse"])),
-    command: trimmedString.optional(),
-    args: z.array(z.string()).optional(),
-    url: trimmedString.optional(),
-    oauth: mcpOAuthSchema.optional(),
-    env: z.array(mcpEnvFieldSchema).optional(),
-    default_scope: trimmedString.optional(),
+    launch: mcpLaunchSchema,
+    auth: mcpAuthSchema.optional(),
+    inputs: z.array(mcpInputSchema).optional(),
+    default_scope: z.enum(["workspace", "global"]),
   })
   .superRefine((entry, ctx) => {
-    if (entry.transport === "stdio") {
-      if (!entry.command) {
-        ctx.addIssue({
-          code: "custom",
-          message: "command is required for stdio",
-          path: ["command"],
-        });
-      }
-      if (entry.url)
-        ctx.addIssue({ code: "custom", message: "url is not allowed for stdio", path: ["url"] });
-      if (entry.oauth)
-        ctx.addIssue({
-          code: "custom",
-          message: "oauth is not allowed for stdio",
-          path: ["oauth"],
-        });
-    } else {
-      if (!entry.url) {
-        ctx.addIssue({
-          code: "custom",
-          message: `url is required for ${entry.transport}`,
-          path: ["url"],
-        });
-      } else if (!isAbsoluteHTTPURL(entry.url)) {
-        ctx.addIssue({
-          code: "custom",
-          message: "url must be an absolute HTTP(S) URL",
-          path: ["url"],
-        });
-      }
-      if (entry.command || (entry.args?.length ?? 0) > 0) {
-        ctx.addIssue({
-          code: "custom",
-          message: `command/args are not allowed for ${entry.transport}`,
-          path: ["command"],
-        });
-      }
-      if ((entry.env?.length ?? 0) > 0) {
-        ctx.addIssue({
-          code: "custom",
-          message: `env is not allowed for ${entry.transport}`,
-          path: ["env"],
-        });
-      }
-    }
-    const seen = new Set<string>();
-    for (const [index, field] of (entry.env ?? []).entries()) {
-      if (seen.has(field.name)) {
-        ctx.addIssue({
-          code: "custom",
-          message: "env names must be unique",
-          path: ["env", index, "name"],
-        });
-      }
-      seen.add(field.name);
-    }
-    if (
-      entry.default_scope &&
-      entry.default_scope !== "workspace" &&
-      entry.default_scope !== "global"
-    ) {
+    if (entry.auth && entry.launch.type !== "remote") {
       ctx.addIssue({
         code: "custom",
-        message: "default_scope must be workspace or global",
-        path: ["default_scope"],
+        message: "auth is only allowed for remote launch",
+        path: ["auth"],
       });
+    }
+    const seen = new Set<string>();
+    for (const [index, input] of (entry.inputs ?? []).entries()) {
+      if (seen.has(input.id)) {
+        ctx.addIssue({
+          code: "custom",
+          message: "input ids must be unique",
+          path: ["inputs", index, "id"],
+        });
+      }
+      seen.add(input.id);
+      if (input.binding.type === "env" && entry.launch.type === "remote") {
+        ctx.addIssue({
+          code: "custom",
+          message: "env inputs are only allowed for stdio launch",
+          path: ["inputs", index, "binding"],
+        });
+      }
+      if (input.binding.type === "url_query" && entry.launch.type !== "remote") {
+        ctx.addIssue({
+          code: "custom",
+          message: "url_query inputs are only allowed for remote launch",
+          path: ["inputs", index, "binding"],
+        });
+      }
+      if (input.binding.type === "url_query" && input.type === "secret") {
+        ctx.addIssue({
+          code: "custom",
+          message: "secret inputs cannot bind url_query",
+          path: ["inputs", index, "binding"],
+        });
+      }
     }
   });
 
@@ -320,7 +322,7 @@ type FeedEntry = { entry_id: string; install_slug?: string };
 function catalogFeedSchema<Entry extends z.ZodType>(kind: MarketplaceKind, entry: Entry) {
   return z
     .strictObject({
-      manifest_version: z.literal(1),
+      manifest_version: z.literal(2),
       generated_at: rfc3339,
       entries: z.array(entry).min(1).max(MAX_CATALOG_ENTRIES_PER_KIND),
     })

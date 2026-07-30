@@ -10,6 +10,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/compozy/compozy/internal/mcp/securehttp"
 )
 
 const (
@@ -23,11 +25,16 @@ type ServiceOption func(*Service)
 
 // Service executes OAuth 2.1 authorization-code flows for remote MCP servers.
 type Service struct {
-	store      TokenStore
-	client     *http.Client
-	random     io.Reader
-	now        func() time.Time
-	generation *MutationGeneration
+	store              TokenStore
+	registrations      RegistrationStore
+	client             *http.Client
+	catalogClient      *http.Client
+	random             io.Reader
+	now                func() time.Time
+	generation         *MutationGeneration
+	secretResolver     SecretRefResolver
+	clientMetadataURL  string
+	defaultRedirectURL string
 }
 
 // NewService constructs an MCP auth service.
@@ -36,9 +43,11 @@ func NewService(store TokenStore, opts ...ServiceOption) (*Service, error) {
 		return nil, errors.New("mcp auth: token store is required")
 	}
 	service := &Service{
-		store:      store,
-		client:     &http.Client{Timeout: defaultMetadataClientTimeout},
-		generation: NewMutationGeneration(),
+		store:             store,
+		client:            securehttp.NewClient().HTTPClient(),
+		catalogClient:     securehttp.NewClient().HTTPClient(),
+		generation:        NewMutationGeneration(),
+		clientMetadataURL: defaultClientMetadataURL,
 		now: func() time.Time {
 			return time.Now().UTC()
 		},
@@ -49,7 +58,10 @@ func NewService(store TokenStore, opts ...ServiceOption) (*Service, error) {
 		}
 	}
 	if service.client == nil {
-		service.client = &http.Client{Timeout: defaultMetadataClientTimeout}
+		service.client = securehttp.NewClient().HTTPClient()
+	}
+	if service.catalogClient == nil {
+		service.catalogClient = securehttp.NewClient().HTTPClient()
 	}
 	if service.now == nil {
 		service.now = func() time.Time { return time.Now().UTC() }
@@ -60,25 +72,11 @@ func NewService(store TokenStore, opts ...ServiceOption) (*Service, error) {
 	return service, nil
 }
 
-// WithHTTPClient overrides the HTTP client used for metadata and token calls.
-func WithHTTPClient(client *http.Client) ServiceOption {
-	return func(service *Service) {
-		service.client = client
+func (s *Service) clientFor(cfg ServerConfig) *http.Client {
+	if strings.TrimSpace(cfg.CatalogEntry) != "" {
+		return s.catalogClient
 	}
-}
-
-// WithRandom overrides the entropy source for tests.
-func WithRandom(random io.Reader) ServiceOption {
-	return func(service *Service) {
-		service.random = random
-	}
-}
-
-// WithNow overrides the clock for tests.
-func WithNow(now func() time.Time) ServiceOption {
-	return func(service *Service) {
-		service.now = now
-	}
+	return s.client
 }
 
 // LoginState holds the short-lived in-memory authorization flow state.
@@ -90,6 +88,7 @@ type LoginState struct {
 	AuthorizationURL string
 	Metadata         Metadata
 	Config           ServerConfig
+	ResourceURL      string
 }
 
 // BeginLogin discovers metadata, generates PKCE state, and returns the URL the
@@ -106,38 +105,10 @@ func (s *Service) BeginLogin(
 		return LoginState{}, err
 	}
 
-	metadata, err := discoverMetadata(ctx, s.client, cfg)
-	if err != nil {
-		return LoginState{}, err
+	if cfg.registrationStrategy() == RegistrationAuto {
+		return s.beginHostedOAuth(ctx, cfg, redirectURL)
 	}
-	if !supportsS256(metadata.CodeChallengeMethodsSupported) {
-		return LoginState{}, errors.New("mcp auth: OAuth server must support S256 PKCE")
-	}
-	pkce, err := newPKCEPair(s.random)
-	if err != nil {
-		return LoginState{}, err
-	}
-	if err := validateVerifier(pkce.Verifier); err != nil {
-		return LoginState{}, err
-	}
-	state, err := newState(s.random)
-	if err != nil {
-		return LoginState{}, err
-	}
-
-	authURL, err := authorizationURL(metadata.AuthorizationEndpoint, cfg, redirectURL, state, pkce)
-	if err != nil {
-		return LoginState{}, err
-	}
-	return LoginState{
-		Target:           cfg.Target.Normalize(),
-		RedirectURL:      strings.TrimSpace(redirectURL),
-		State:            state,
-		Verifier:         pkce.Verifier,
-		AuthorizationURL: authURL,
-		Metadata:         metadata,
-		Config:           cfg,
-	}, nil
+	return s.beginPreRegisteredOAuth(ctx, cfg, redirectURL)
 }
 
 func authorizationURL(
@@ -166,6 +137,10 @@ func authorizationURL(
 }
 
 func authorizationCodeFromCallback(callbackURL string, wantState string) (string, error) {
+	return authorizationCodeFromCallbackMetadata(callbackURL, wantState, Metadata{})
+}
+
+func authorizationCodeFromCallbackMetadata(callbackURL string, wantState string, metadata Metadata) (string, error) {
 	parsed, err := url.Parse(strings.TrimSpace(callbackURL))
 	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
 		return "", errors.New("mcp auth: callback URL is invalid")
@@ -173,6 +148,14 @@ func authorizationCodeFromCallback(callbackURL string, wantState string) (string
 	values := parsed.Query()
 	if gotState := values.Get("state"); gotState == "" || gotState != wantState {
 		return "", errors.New("mcp auth: OAuth callback state mismatch")
+	}
+	issuer := strings.TrimSpace(values.Get("iss"))
+	if metadata.IssuerParameterSupported {
+		if issuer == "" || !issuersEqual(issuer, metadata.Issuer) {
+			return "", errors.New("mcp auth: OAuth callback issuer mismatch")
+		}
+	} else if issuer != "" {
+		return "", errors.New("mcp auth: OAuth callback unexpectedly included issuer")
 	}
 	if oauthErr := strings.TrimSpace(values.Get("error")); oauthErr != "" {
 		return "", errors.New("mcp auth: OAuth callback reported an error")
@@ -222,6 +205,9 @@ func (s *Service) exchangeCode(ctx context.Context, state LoginState, code strin
 	values.Set("redirect_uri", strings.TrimSpace(state.RedirectURL))
 	values.Set("client_id", strings.TrimSpace(state.Config.ClientID))
 	values.Set("code_verifier", state.Verifier)
+	if strings.TrimSpace(state.ResourceURL) != "" {
+		values.Set("resource", state.ResourceURL)
+	}
 	if strings.TrimSpace(state.Config.ClientSecret) != "" {
 		values.Set("client_secret", state.Config.ClientSecret)
 	}
@@ -243,6 +229,9 @@ func (s *Service) refreshToken(
 	values.Set("grant_type", serviceRefreshTokenKey)
 	values.Set(serviceRefreshTokenKey, current.RefreshToken)
 	values.Set("client_id", strings.TrimSpace(cfg.ClientID))
+	if resourceURL := strings.TrimSpace(cfg.ResourceURL); resourceURL != "" {
+		values.Set("resource", resourceURL)
+	}
 	if strings.TrimSpace(cfg.ClientSecret) != "" {
 		values.Set("client_secret", cfg.ClientSecret)
 	}
@@ -417,17 +406,15 @@ func statusFromTokenWithDiagnostic(
 ) Status {
 	cfg.Target = cfg.Target.Normalize()
 	status := Status{
-		ServerName:       cfg.Target.ServerName,
-		Scope:            cfg.Target.Scope,
-		WorkspaceID:      cfg.Target.WorkspaceID,
-		Status:           StatusNeedsLogin,
-		RemoteURL:        strings.TrimSpace(cfg.RemoteURL),
-		AuthType:         strings.TrimSpace(cfg.Type),
-		ClientID:         strings.TrimSpace(cfg.ClientID),
-		Scopes:           trimStrings(cfg.Scopes),
-		RevocationURL:    strings.TrimSpace(cfg.RevocationURL),
-		AuthorizationURL: strings.TrimSpace(cfg.AuthorizationURL),
-		Diagnostic:       strings.TrimSpace(diagnostic),
+		ServerName:  cfg.Target.ServerName,
+		Scope:       cfg.Target.Scope,
+		WorkspaceID: cfg.Target.WorkspaceID,
+		Status:      StatusNeedsLogin,
+		RemoteURL:   strings.TrimSpace(cfg.RemoteURL),
+		AuthType:    strings.TrimSpace(cfg.Type),
+		ClientID:    strings.TrimSpace(cfg.ClientID),
+		Scopes:      trimStrings(cfg.Scopes),
+		Diagnostic:  strings.TrimSpace(diagnostic),
 	}
 	if strings.TrimSpace(cfg.Type) == "" {
 		status.Status = StatusUnconfigured

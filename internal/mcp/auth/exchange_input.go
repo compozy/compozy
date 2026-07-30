@@ -7,33 +7,44 @@ import (
 )
 
 func validateExchangeInput(input ExchangeInput) (string, error) {
-	code := strings.TrimSpace(input.Code)
 	redirectURL := strings.TrimSpace(input.RedirectURL)
-	if (code == "") == (redirectURL == "") {
-		return "", fmt.Errorf("%w: exactly one of code or redirect_url is required", ErrInvalidExchange)
+	if redirectURL == "" {
+		return "", fmt.Errorf("%w: redirect_url is required", ErrInvalidExchange)
 	}
-	if redirectURL != "" {
-		parsed, err := url.Parse(redirectURL)
-		if err != nil || parsed.Scheme == "" || parsed.Host == "" {
-			return "", fmt.Errorf("%w: redirect_url must be an absolute URL", ErrInvalidExchange)
-		}
+	parsed, err := url.Parse(redirectURL)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return "", fmt.Errorf("%w: redirect_url must be an absolute URL", ErrInvalidExchange)
 	}
 	return redirectURL, nil
 }
 
-func callbackURLForCode(state LoginState, code string) (string, error) {
-	if code == "" {
-		return "", fmt.Errorf("%w: authorization code is required", ErrInvalidExchange)
+func validateCallbackRedirect(expectedURL string, callbackURL string) error {
+	expected, err := url.Parse(strings.TrimSpace(expectedURL))
+	if err != nil || expected.Scheme == "" || expected.Host == "" {
+		return fmt.Errorf("%w: stored redirect_url is invalid", ErrInvalidExchange)
 	}
-	parsed, err := url.Parse(state.RedirectURL)
-	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
-		return "", fmt.Errorf("%w: stored callback URL is invalid", ErrInvalidExchange)
+	callback, err := url.Parse(strings.TrimSpace(callbackURL))
+	if err != nil || callback.Scheme == "" || callback.Host == "" {
+		return fmt.Errorf("%w: callback URL is invalid", ErrInvalidExchange)
 	}
-	values := parsed.Query()
-	values.Set("code", code)
-	values.Set("state", state.State)
-	parsed.RawQuery = values.Encode()
-	return parsed.String(), nil
+	if !strings.EqualFold(expected.Scheme, callback.Scheme) ||
+		!strings.EqualFold(expected.Host, callback.Host) ||
+		expected.EscapedPath() != callback.EscapedPath() ||
+		expected.User.String() != callback.User.String() {
+		return fmt.Errorf("%w: callback URL does not match the pending redirect_url", ErrInvalidExchange)
+	}
+	for key, expectedValues := range expected.Query() {
+		callbackValues, found := callback.Query()[key]
+		if !found || len(callbackValues) != len(expectedValues) {
+			return fmt.Errorf("%w: callback URL does not preserve redirect_url query", ErrInvalidExchange)
+		}
+		for index, value := range expectedValues {
+			if callbackValues[index] != value {
+				return fmt.Errorf("%w: callback URL does not preserve redirect_url query", ErrInvalidExchange)
+			}
+		}
+	}
+	return nil
 }
 
 func stateFromCallback(callbackURL string) (string, error) {

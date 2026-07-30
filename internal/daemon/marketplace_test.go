@@ -27,7 +27,7 @@ func TestBootMarketplaceLifecycle(t *testing.T) {
 
 		catalogDir := t.TempDir()
 		skillPath := filepath.Join(catalogDir, "skills.json")
-		skillDocument := `{"manifest_version":1,"generated_at":"2026-07-13T12:00:00Z","entries":[{` +
+		skillDocument := `{"manifest_version":2,"generated_at":"2026-07-13T12:00:00Z","entries":[{` +
 			`"entry_id":"checkout","name":"checkout","description":"Local checkout fixture",` +
 			`"install_slug":"compozy/checkout"}]}`
 		if err := os.WriteFile(skillPath, []byte(skillDocument), 0o600); err != nil {
@@ -58,7 +58,7 @@ func TestBootMarketplaceLifecycle(t *testing.T) {
 		}
 		assertMarketplaceRuntimeEntry(t, runtime, "checkout")
 
-		skillDocument = `{"manifest_version":1,"generated_at":"2026-07-13T12:01:00Z","entries":[{` +
+		skillDocument = `{"manifest_version":2,"generated_at":"2026-07-13T12:01:00Z","entries":[{` +
 			`"entry_id":"edited-checkout","name":"edited-checkout","description":"Edited fixture",` +
 			`"install_slug":"compozy/edited-checkout"}]}`
 		if err := os.WriteFile(skillPath, []byte(skillDocument), 0o600); err != nil {
@@ -174,7 +174,7 @@ func TestBootMarketplaceLifecycle(t *testing.T) {
 		oldServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 			if request.URL.Path != "/skills.json" {
 				if _, err := writer.Write([]byte(
-					`{"manifest_version":1,"generated_at":"2026-07-13T12:00:00Z","entries":[]}`,
+					`{"manifest_version":2,"generated_at":"2026-07-13T12:00:00Z","entries":[]}`,
 				)); err != nil {
 					t.Errorf("write empty feed: %v", err)
 				}
@@ -241,9 +241,9 @@ func newMarketplaceFeedServer(t *testing.T, skillID string) *httptest.Server {
 	t.Helper()
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		writer.Header().Set("Content-Type", "application/json")
-		body := `{"manifest_version":1,"generated_at":"2026-07-13T12:00:00Z","entries":[]}`
+		body := `{"manifest_version":2,"generated_at":"2026-07-13T12:00:00Z","entries":[]}`
 		if request.URL.Path == "/skills.json" {
-			body = `{"manifest_version":1,"generated_at":"2026-07-13T12:00:00Z","entries":[{` +
+			body = `{"manifest_version":2,"generated_at":"2026-07-13T12:00:00Z","entries":[{` +
 				`"entry_id":"` + skillID + `","name":"` + skillID + `","description":"Daemon fixture",` +
 				`"install_slug":"compozy/` + skillID + `"}]}`
 		}

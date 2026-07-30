@@ -127,10 +127,6 @@ func (h *BaseHandlers) installedMCPMarketplaceEntry(
 				Installed: true, InstalledName: name, InstalledVersion: version,
 				ManagePath: "/marketplace/mcps?tab=installed",
 			},
-			MCP: &contract.MarketplaceMCPDetailPayload{
-				Transport: string(item.Transport), Command: item.Command,
-				Args: append([]string(nil), item.Args...), URL: item.URL,
-			},
 		}, nil
 	}
 	return contract.MarketplaceEntryResponse{}, marketplaceInstalledEntryNotFound(

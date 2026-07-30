@@ -177,14 +177,7 @@ export function MCPServerEditor({
             />
           ) : null}
 
-          {tier === "advanced" && isRemote ? (
-            <MCPEditorOAuthSection
-              errors={errors}
-              oauth={draft.oauth}
-              onChange={oauth => onChange(current => ({ ...current, oauth }))}
-              vaultInventory={vaultInventory}
-            />
-          ) : null}
+          {tier === "advanced" && isRemote ? <MCPEditorOAuthSection /> : null}
 
           {saveError ? (
             <Alert data-testid="settings-mcp-servers-editor-error" variant="danger">

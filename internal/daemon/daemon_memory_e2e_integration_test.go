@@ -24,7 +24,7 @@ import (
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
 	toolspkg "github.com/compozy/compozy/internal/tools"
-	sdkmcp "github.com/mark3labs/mcp-go/mcp"
+	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 	_ "modernc.org/sqlite"
 )
 
@@ -403,15 +403,7 @@ func TestDaemonE2EAgentMemoryBatchIsRecalledByNextSession(t *testing.T) {
 		}
 	}()
 
-	var init sdkmcp.InitializeRequest
-	init.Params.ProtocolVersion = sdkmcp.LATEST_PROTOCOL_VERSION
-	init.Params.ClientInfo = sdkmcp.Implementation{Name: "compozy-memory-batch-e2e", Version: "1.0.0"}
-	if _, err := client.Initialize(ctx, init); err != nil {
-		t.Fatalf("Initialize(memory batch hosted MCP client) error = %v", err)
-	}
-	var call sdkmcp.CallToolRequest
-	call.Params.Name = toolspkg.ToolIDMemoryPropose.String()
-	call.Params.Arguments = map[string]any{
+	call := &sdkmcp.CallToolParams{Name: toolspkg.ToolIDMemoryPropose.String(), Arguments: map[string]any{
 		"scope":       "workspace",
 		"workspace":   harness.WorkspaceID,
 		"filename":    "project_atomic_batch.md",
@@ -429,13 +421,13 @@ func TestDaemonE2EAgentMemoryBatchIsRecalledByNextSession(t *testing.T) {
 				"content":  "codename is cobalt-blue",
 			},
 		},
-	}
+	}}
 	result, err := client.CallTool(ctx, call)
 	if err != nil {
-		t.Fatalf("CallTool(%s) error = %v", call.Params.Name, err)
+		t.Fatalf("CallTool(%s) error = %v", call.Name, err)
 	}
 	if result == nil || result.IsError {
-		t.Fatalf("CallTool(%s) result = %#v, want successful batch", call.Params.Name, result)
+		t.Fatalf("CallTool(%s) result = %#v, want successful batch", call.Name, result)
 	}
 	structured, err := json.Marshal(result.StructuredContent)
 	if err != nil {

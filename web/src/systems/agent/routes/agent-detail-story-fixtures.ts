@@ -100,8 +100,8 @@ Produce concrete next steps: files to touch, the hold id, and the exact \`compoz
     },
     {
       name: "linear",
-      transport: "sse",
-      url: "https://mcp.linear.app/sse",
+      transport: "http",
+      url: "https://mcp.linear.app/mcp",
       env: { LINEAR_API_KEY: "redacted" },
     },
   ],

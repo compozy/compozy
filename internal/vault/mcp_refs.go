@@ -19,6 +19,24 @@ const (
 	mcpEncodedSegmentPrefix = "encoded-"
 )
 
+// MCPDCRSecretRefs identifies the Vault locations for one MCP OAuth client registration.
+type MCPDCRSecretRefs struct {
+	ClientSecretRef            string
+	RegistrationAccessTokenRef string
+}
+
+// MCPDCRSecretRefsForTarget returns the canonical Vault refs for one MCP OAuth registration.
+func MCPDCRSecretRefsForTarget(scope string, workspaceID string, serverName string) (MCPDCRSecretRefs, error) {
+	prefix, err := MCPSecretOwnerPrefix(scope, workspaceID, serverName)
+	if err != nil {
+		return MCPDCRSecretRefs{}, err
+	}
+	return MCPDCRSecretRefs{
+		ClientSecretRef:            prefix + "oauth/dcr-client-secret",
+		RegistrationAccessTokenRef: prefix + "oauth/registration-access-token",
+	}, nil
+}
+
 // MCPSecretOwnerPrefix returns the canonical scope-qualified Vault prefix for
 // one MCP server. The returned value always ends with a slash.
 func MCPSecretOwnerPrefix(scope string, workspaceID string, serverName string) (string, error) {

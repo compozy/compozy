@@ -45,6 +45,41 @@ func (q *Queries) DeleteMCPAuthTokensByWorkspace(ctx context.Context, workspaceI
 	return result.RowsAffected()
 }
 
+const deleteMCPOAuthRegistration = `-- name: DeleteMCPOAuthRegistration :execrows
+DELETE FROM mcp_oauth_registrations
+WHERE scope = ?1
+  AND workspace_id = ?2
+  AND server_name = ?3
+`
+
+type DeleteMCPOAuthRegistrationParams struct {
+	Scope       string `json:"scope"`
+	WorkspaceID string `json:"workspace_id"`
+	ServerName  string `json:"server_name"`
+}
+
+func (q *Queries) DeleteMCPOAuthRegistration(ctx context.Context, arg DeleteMCPOAuthRegistrationParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteMCPOAuthRegistration, arg.Scope, arg.WorkspaceID, arg.ServerName)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const deleteMCPOAuthRegistrationsByWorkspace = `-- name: DeleteMCPOAuthRegistrationsByWorkspace :execrows
+DELETE FROM mcp_oauth_registrations
+WHERE scope = 'workspace'
+  AND workspace_id = ?1
+`
+
+func (q *Queries) DeleteMCPOAuthRegistrationsByWorkspace(ctx context.Context, workspaceID string) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteMCPOAuthRegistrationsByWorkspace, workspaceID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const deleteVaultSecret = `-- name: DeleteVaultSecret :execrows
 DELETE FROM vault_secrets WHERE ref = ?1
 `
@@ -117,6 +152,71 @@ func (q *Queries) GetMCPAuthTokenRefs(ctx context.Context, arg GetMCPAuthTokenRe
 	row := q.db.QueryRowContext(ctx, getMCPAuthTokenRefs, arg.Scope, arg.WorkspaceID, arg.ServerName)
 	var i GetMCPAuthTokenRefsRow
 	err := row.Scan(&i.AccessTokenRef, &i.RefreshTokenRef)
+	return i, err
+}
+
+const getMCPOAuthRegistration = `-- name: GetMCPOAuthRegistration :one
+SELECT scope, workspace_id, server_name, definition_fingerprint, resource_url, issuer, client_id,
+       client_secret_ref, registration_access_token_ref, registration_client_uri, client_id_issued_at,
+       client_secret_expires_at, redirect_uri, scopes_json, updated_at
+FROM mcp_oauth_registrations
+WHERE scope = ?1
+  AND workspace_id = ?2
+  AND server_name = ?3
+`
+
+type GetMCPOAuthRegistrationParams struct {
+	Scope       string `json:"scope"`
+	WorkspaceID string `json:"workspace_id"`
+	ServerName  string `json:"server_name"`
+}
+
+func (q *Queries) GetMCPOAuthRegistration(ctx context.Context, arg GetMCPOAuthRegistrationParams) (McpOauthRegistration, error) {
+	row := q.db.QueryRowContext(ctx, getMCPOAuthRegistration, arg.Scope, arg.WorkspaceID, arg.ServerName)
+	var i McpOauthRegistration
+	err := row.Scan(
+		&i.Scope,
+		&i.WorkspaceID,
+		&i.ServerName,
+		&i.DefinitionFingerprint,
+		&i.ResourceUrl,
+		&i.Issuer,
+		&i.ClientID,
+		&i.ClientSecretRef,
+		&i.RegistrationAccessTokenRef,
+		&i.RegistrationClientUri,
+		&i.ClientIDIssuedAt,
+		&i.ClientSecretExpiresAt,
+		&i.RedirectUri,
+		&i.ScopesJson,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getMCPOAuthRegistrationRefs = `-- name: GetMCPOAuthRegistrationRefs :one
+SELECT client_secret_ref, registration_access_token_ref
+FROM mcp_oauth_registrations
+WHERE scope = ?1
+  AND workspace_id = ?2
+  AND server_name = ?3
+`
+
+type GetMCPOAuthRegistrationRefsParams struct {
+	Scope       string `json:"scope"`
+	WorkspaceID string `json:"workspace_id"`
+	ServerName  string `json:"server_name"`
+}
+
+type GetMCPOAuthRegistrationRefsRow struct {
+	ClientSecretRef            string `json:"client_secret_ref"`
+	RegistrationAccessTokenRef string `json:"registration_access_token_ref"`
+}
+
+func (q *Queries) GetMCPOAuthRegistrationRefs(ctx context.Context, arg GetMCPOAuthRegistrationRefsParams) (GetMCPOAuthRegistrationRefsRow, error) {
+	row := q.db.QueryRowContext(ctx, getMCPOAuthRegistrationRefs, arg.Scope, arg.WorkspaceID, arg.ServerName)
+	var i GetMCPOAuthRegistrationRefsRow
+	err := row.Scan(&i.ClientSecretRef, &i.RegistrationAccessTokenRef)
 	return i, err
 }
 
@@ -218,6 +318,42 @@ func (q *Queries) ListMCPAuthTokens(ctx context.Context) ([]McpAuthToken, error)
 	return items, nil
 }
 
+const listMCPOAuthRegistrationRefsByWorkspace = `-- name: ListMCPOAuthRegistrationRefsByWorkspace :many
+SELECT client_secret_ref, registration_access_token_ref
+FROM mcp_oauth_registrations
+WHERE scope = 'workspace'
+  AND workspace_id = ?1
+ORDER BY server_name ASC
+`
+
+type ListMCPOAuthRegistrationRefsByWorkspaceRow struct {
+	ClientSecretRef            string `json:"client_secret_ref"`
+	RegistrationAccessTokenRef string `json:"registration_access_token_ref"`
+}
+
+func (q *Queries) ListMCPOAuthRegistrationRefsByWorkspace(ctx context.Context, workspaceID string) ([]ListMCPOAuthRegistrationRefsByWorkspaceRow, error) {
+	rows, err := q.db.QueryContext(ctx, listMCPOAuthRegistrationRefsByWorkspace, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListMCPOAuthRegistrationRefsByWorkspaceRow{}
+	for rows.Next() {
+		var i ListMCPOAuthRegistrationRefsByWorkspaceRow
+		if err := rows.Scan(&i.ClientSecretRef, &i.RegistrationAccessTokenRef); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const upsertMCPAuthToken = `-- name: UpsertMCPAuthToken :exec
 INSERT INTO mcp_auth_tokens (
   scope, workspace_id, server_name, definition_fingerprint, issuer, client_id, scopes_json,
@@ -267,6 +403,71 @@ func (q *Queries) UpsertMCPAuthToken(ctx context.Context, arg UpsertMCPAuthToken
 		arg.TokenType,
 		arg.ExpiresAt,
 		arg.ObtainedAt,
+		arg.UpdatedAt,
+	)
+	return err
+}
+
+const upsertMCPOAuthRegistration = `-- name: UpsertMCPOAuthRegistration :exec
+INSERT INTO mcp_oauth_registrations (
+  scope, workspace_id, server_name, definition_fingerprint, resource_url, issuer, client_id,
+  client_secret_ref, registration_access_token_ref, registration_client_uri, client_id_issued_at,
+  client_secret_expires_at, redirect_uri, scopes_json, updated_at
+) VALUES (
+  ?1, ?2, ?3,
+  ?4, ?5, ?6, ?7,
+  ?8, ?9, ?10, ?11,
+  ?12, ?13, ?14, ?15
+)
+ON CONFLICT(scope, workspace_id, server_name) DO UPDATE SET
+  definition_fingerprint = excluded.definition_fingerprint,
+  resource_url = excluded.resource_url,
+  issuer = excluded.issuer,
+  client_id = excluded.client_id,
+  client_secret_ref = excluded.client_secret_ref,
+  registration_access_token_ref = excluded.registration_access_token_ref,
+  registration_client_uri = excluded.registration_client_uri,
+  client_id_issued_at = excluded.client_id_issued_at,
+  client_secret_expires_at = excluded.client_secret_expires_at,
+  redirect_uri = excluded.redirect_uri,
+  scopes_json = excluded.scopes_json,
+  updated_at = excluded.updated_at
+`
+
+type UpsertMCPOAuthRegistrationParams struct {
+	Scope                      string         `json:"scope"`
+	WorkspaceID                string         `json:"workspace_id"`
+	ServerName                 string         `json:"server_name"`
+	DefinitionFingerprint      string         `json:"definition_fingerprint"`
+	ResourceUrl                string         `json:"resource_url"`
+	Issuer                     string         `json:"issuer"`
+	ClientID                   string         `json:"client_id"`
+	ClientSecretRef            string         `json:"client_secret_ref"`
+	RegistrationAccessTokenRef string         `json:"registration_access_token_ref"`
+	RegistrationClientUri      string         `json:"registration_client_uri"`
+	ClientIDIssuedAt           sql.NullString `json:"client_id_issued_at"`
+	ClientSecretExpiresAt      sql.NullString `json:"client_secret_expires_at"`
+	RedirectUri                string         `json:"redirect_uri"`
+	ScopesJson                 string         `json:"scopes_json"`
+	UpdatedAt                  string         `json:"updated_at"`
+}
+
+func (q *Queries) UpsertMCPOAuthRegistration(ctx context.Context, arg UpsertMCPOAuthRegistrationParams) error {
+	_, err := q.db.ExecContext(ctx, upsertMCPOAuthRegistration,
+		arg.Scope,
+		arg.WorkspaceID,
+		arg.ServerName,
+		arg.DefinitionFingerprint,
+		arg.ResourceUrl,
+		arg.Issuer,
+		arg.ClientID,
+		arg.ClientSecretRef,
+		arg.RegistrationAccessTokenRef,
+		arg.RegistrationClientUri,
+		arg.ClientIDIssuedAt,
+		arg.ClientSecretExpiresAt,
+		arg.RedirectUri,
+		arg.ScopesJson,
 		arg.UpdatedAt,
 	)
 	return err

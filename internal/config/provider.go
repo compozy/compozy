@@ -167,31 +167,25 @@ const (
 	MCPServerTransportStdio MCPServerTransport = "stdio"
 	// MCPServerTransportHTTP talks to a remote streamable HTTP MCP endpoint.
 	MCPServerTransportHTTP MCPServerTransport = "http"
-	// MCPServerTransportSSE talks to a remote SSE MCP endpoint.
-	MCPServerTransportSSE MCPServerTransport = "sse"
 )
 
-// MCPAuthType identifies the remote MCP authentication mechanism.
-type MCPAuthType string
+// MCPAuthRegistration identifies the OAuth client registration strategy.
+type MCPAuthRegistration string
 
 const (
-	// MCPAuthTypeOAuth2PKCE uses OAuth 2.1 authorization code with PKCE.
-	MCPAuthTypeOAuth2PKCE MCPAuthType = "oauth2_pkce"
+	// MCPAuthRegistrationAuto resolves CIMD before one dynamic-registration attempt.
+	MCPAuthRegistrationAuto MCPAuthRegistration = "auto"
+	// MCPAuthRegistrationPreRegistered uses issuer and client values declared by the operator.
+	MCPAuthRegistrationPreRegistered MCPAuthRegistration = "pre_registered"
 )
 
-// MCPAuthConfig describes remote MCP OAuth configuration. It stores endpoint
-// metadata and secret refs only; token material is persisted through the
-// vault-backed auth token store.
+// MCPAuthConfig describes discovered OAuth for a remote MCP server.
 type MCPAuthConfig struct {
-	Type             MCPAuthType `json:"type,omitempty"              yaml:"type,omitempty"              toml:"type,omitempty"`
-	IssuerURL        string      `json:"issuer_url,omitempty"        yaml:"issuer_url,omitempty"        toml:"issuer_url,omitempty"`
-	MetadataURL      string      `json:"metadata_url,omitempty"      yaml:"metadata_url,omitempty"      toml:"metadata_url,omitempty"`
-	AuthorizationURL string      `json:"authorization_url,omitempty" yaml:"authorization_url,omitempty" toml:"authorization_url,omitempty"`
-	TokenURL         string      `json:"token_url,omitempty"         yaml:"token_url,omitempty"         toml:"token_url,omitempty"`
-	RevocationURL    string      `json:"revocation_url,omitempty"    yaml:"revocation_url,omitempty"    toml:"revocation_url,omitempty"`
-	ClientID         string      `json:"client_id,omitempty"         yaml:"client_id,omitempty"         toml:"client_id,omitempty"`
-	ClientSecretRef  string      `json:"client_secret_ref,omitempty" yaml:"client_secret_ref,omitempty" toml:"client_secret_ref,omitempty"`
-	Scopes           []string    `json:"scopes,omitempty"            yaml:"scopes,omitempty"            toml:"scopes,omitempty"`
+	Registration    MCPAuthRegistration `json:"registration,omitempty"      yaml:"registration,omitempty"      toml:"registration,omitempty"`
+	IssuerURL       string              `json:"issuer_url,omitempty"        yaml:"issuer_url,omitempty"        toml:"issuer_url,omitempty"`
+	ClientID        string              `json:"client_id,omitempty"         yaml:"client_id,omitempty"         toml:"client_id,omitempty"`
+	ClientSecretRef string              `json:"client_secret_ref,omitempty" yaml:"client_secret_ref,omitempty" toml:"client_secret_ref,omitempty"`
+	Scopes          []string            `json:"scopes,omitempty"            yaml:"scopes,omitempty"            toml:"scopes,omitempty"`
 }
 
 // ResolvedAgent is the effective runtime configuration for a parsed agent definition.

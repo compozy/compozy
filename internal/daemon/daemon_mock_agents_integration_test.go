@@ -32,8 +32,7 @@ import (
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/compozy/compozy/internal/workspaceaccess"
-	mcpclient "github.com/mark3labs/mcp-go/client"
-	sdkmcp "github.com/mark3labs/mcp-go/mcp"
+	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 func TestDaemonE2EFixtureBackedMockAgentLaunchesThroughNormalAgentDefinition(t *testing.T) {
@@ -777,14 +776,7 @@ func TestDaemonE2EHostedMCPProjectsAndCallsNonBootstrapNativeTool(t *testing.T) 
 			}
 		}()
 
-		var init sdkmcp.InitializeRequest
-		init.Params.ProtocolVersion = sdkmcp.LATEST_PROTOCOL_VERSION
-		init.Params.ClientInfo = sdkmcp.Implementation{Name: "compozy-hosted-e2e", Version: "1.0.0"}
-		if _, err := client.Initialize(ctx, init); err != nil {
-			t.Fatalf("Initialize(hosted MCP client) error = %v", err)
-		}
-
-		list, err := client.ListTools(ctx, sdkmcp.ListToolsRequest{})
+		list, err := client.ListTools(ctx, nil)
 		if err != nil {
 			t.Fatalf("ListTools(hosted MCP) error = %v", err)
 		}
@@ -794,13 +786,11 @@ func TestDaemonE2EHostedMCPProjectsAndCallsNonBootstrapNativeTool(t *testing.T) 
 		}
 
 		channelName := "hostednative-created"
-		var call sdkmcp.CallToolRequest
-		call.Params.Name = networkToolID
-		call.Params.Arguments = map[string]any{
+		call := &sdkmcp.CallToolParams{Name: networkToolID, Arguments: map[string]any{
 			"workspace": harness.WorkspaceID,
 			"channel":   channelName,
 			"purpose":   "Runtime E2E hosted native tool access",
-		}
+		}}
 		result, err := client.CallTool(ctx, call)
 		if err != nil {
 			t.Fatalf("CallTool(%s) error = %v", networkToolID, err)
@@ -865,13 +855,7 @@ func TestDaemonE2EHostedMCPProjectsAndCallsNonBootstrapNativeTool(t *testing.T) 
 			}
 		}()
 
-		var init sdkmcp.InitializeRequest
-		init.Params.ProtocolVersion = sdkmcp.LATEST_PROTOCOL_VERSION
-		init.Params.ClientInfo = sdkmcp.Implementation{Name: "compozy-provider-models-e2e", Version: "1.0.0"}
-		if _, err := client.Initialize(ctx, init); err != nil {
-			t.Fatalf("Initialize(hosted provider-models MCP client) error = %v", err)
-		}
-		tools, err := client.ListTools(ctx, sdkmcp.ListToolsRequest{})
+		tools, err := client.ListTools(ctx, nil)
 		if err != nil {
 			t.Fatalf("ListTools(hosted provider-models MCP) error = %v", err)
 		}
@@ -1074,7 +1058,7 @@ func TestDaemonE2EWorkspaceAccessModeAndConsentMatrix(t *testing.T) {
 	})
 
 	t.Run("Should consume allow-once consent only for one call", func(t *testing.T) {
-		var onceClient *mcpclient.Client
+		var onceClient *sdkmcp.ClientSession
 		onceSession, onceClient = newWorkspaceAccessHostedSession(
 			t,
 			ctx,
@@ -1119,7 +1103,7 @@ func TestDaemonE2EWorkspaceAccessModeAndConsentMatrix(t *testing.T) {
 	})
 
 	t.Run("Should reuse allow-session consent within one live session", func(t *testing.T) {
-		var sessionClient *mcpclient.Client
+		var sessionClient *sdkmcp.ClientSession
 		sessionConsent, sessionClient = newWorkspaceAccessHostedSession(
 			t,
 			ctx,
@@ -1189,7 +1173,7 @@ func TestDaemonE2EWorkspaceAccessModeAndConsentMatrix(t *testing.T) {
 	})
 
 	t.Run("Should allow approve-all without prompting", func(t *testing.T) {
-		var approveAllClient *mcpclient.Client
+		var approveAllClient *sdkmcp.ClientSession
 		approveAllSession, approveAllClient = newWorkspaceAccessHostedSession(
 			t,
 			ctx,
@@ -1289,13 +1273,6 @@ func TestDaemonE2ETaskWakeCreatorDeliversSyntheticTurnAndSuppressesIneligibleWak
 			t.Logf("Close(hosted MCP client) after failed test error = %v", closeErr)
 		}
 	}()
-
-	var init sdkmcp.InitializeRequest
-	init.Params.ProtocolVersion = sdkmcp.LATEST_PROTOCOL_VERSION
-	init.Params.ClientInfo = sdkmcp.Implementation{Name: "compozy-task-wake-e2e", Version: "1.0.0"}
-	if _, err := client.Initialize(ctx, init); err != nil {
-		t.Fatalf("Initialize(hosted MCP client) error = %v", err)
-	}
 
 	terminalTaskID := createHostedTaskForWakeE2E(
 		t,
@@ -1424,7 +1401,7 @@ func newWorkspaceAccessHostedSession(
 	harness *e2etest.RuntimeHarness,
 	agentName string,
 	name string,
-) (compozycontract.SessionPayload, *mcpclient.Client) {
+) (compozycontract.SessionPayload, *sdkmcp.ClientSession) {
 	t.Helper()
 
 	created, err := harness.CreateSession(ctx, compozycontract.CreateSessionRequest{
@@ -1451,15 +1428,6 @@ func newWorkspaceAccessHostedSession(
 		t,
 		requireHostedMCPStdioServer(t, diagnostics, hostedMCPServerLatest),
 	)
-	var init sdkmcp.InitializeRequest
-	init.Params.ProtocolVersion = sdkmcp.LATEST_PROTOCOL_VERSION
-	init.Params.ClientInfo = sdkmcp.Implementation{Name: "compozy-workspace-access-e2e", Version: "1.0.0"}
-	if _, err := client.Initialize(ctx, init); err != nil {
-		if closeErr := client.Close(); closeErr != nil {
-			t.Fatalf("Initialize(hosted MCP client) error = %v; Close() error = %v", err, closeErr)
-		}
-		t.Fatalf("Initialize(hosted MCP client) error = %v", err)
-	}
 	t.Cleanup(func() {
 		if err := client.Close(); err != nil {
 			t.Errorf("Close(hosted workspace-access MCP client) error = %v", err)
@@ -1471,7 +1439,7 @@ func newWorkspaceAccessHostedSession(
 func callWorkspaceAccessTool(
 	t testing.TB,
 	ctx context.Context,
-	client *mcpclient.Client,
+	client *sdkmcp.ClientSession,
 	toolCallID string,
 	targetWorkspaceID string,
 ) *sdkmcp.CallToolResult {
@@ -1489,17 +1457,18 @@ func callWorkspaceAccessTool(
 func callHostedTool(
 	t testing.TB,
 	ctx context.Context,
-	client *mcpclient.Client,
+	client *sdkmcp.ClientSession,
 	toolID toolspkg.ToolID,
 	toolCallID string,
 	arguments map[string]any,
 ) *sdkmcp.CallToolResult {
 	t.Helper()
 
-	var call sdkmcp.CallToolRequest
-	call.Params.Name = toolID.String()
-	call.Params.Arguments = arguments
-	call.Params.Meta = &sdkmcp.Meta{AdditionalFields: map[string]any{"toolCallId": toolCallID}}
+	call := &sdkmcp.CallToolParams{
+		Meta:      sdkmcp.Meta{"toolCallId": toolCallID},
+		Name:      toolID.String(),
+		Arguments: arguments,
+	}
 	result, err := client.CallTool(ctx, call)
 	if err != nil {
 		t.Fatalf("CallTool(%s) error = %v", toolID, err)
@@ -1512,7 +1481,7 @@ func callWorkspaceAccessToolWithDecision(
 	ctx context.Context,
 	harness *e2etest.RuntimeHarness,
 	sessionID string,
-	client *mcpclient.Client,
+	client *sdkmcp.ClientSession,
 	toolCallID string,
 	targetWorkspaceID string,
 	decision string,
@@ -1525,10 +1494,11 @@ func callWorkspaceAccessToolWithDecision(
 	}
 	outcomeCh := make(chan callOutcome, 1)
 	go func() {
-		var call sdkmcp.CallToolRequest
-		call.Params.Name = toolspkg.ToolIDWorkspaceInfo.String()
-		call.Params.Arguments = map[string]any{"workspace": strings.TrimSpace(targetWorkspaceID)}
-		call.Params.Meta = &sdkmcp.Meta{AdditionalFields: map[string]any{"toolCallId": toolCallID}}
+		call := &sdkmcp.CallToolParams{
+			Meta:      sdkmcp.Meta{"toolCallId": toolCallID},
+			Name:      toolspkg.ToolIDWorkspaceInfo.String(),
+			Arguments: map[string]any{"workspace": strings.TrimSpace(targetWorkspaceID)},
+		}
 		result, err := client.CallTool(ctx, call)
 		outcomeCh <- callOutcome{result: result, err: err}
 	}()
@@ -1590,9 +1560,9 @@ func assertWorkspaceAccessDeniedResult(t testing.TB, result *sdkmcp.CallToolResu
 	if len(result.Content) != 1 {
 		t.Fatalf("workspace access result content = %#v, want one error text item", result.Content)
 	}
-	content, ok := result.Content[0].(sdkmcp.TextContent)
+	content, ok := result.Content[0].(*sdkmcp.TextContent)
 	if !ok {
-		t.Fatalf("workspace access result content[0] = %T, want sdkmcp.TextContent", result.Content[0])
+		t.Fatalf("workspace access result content[0] = %T, want *sdkmcp.TextContent", result.Content[0])
 	}
 	if !strings.Contains(content.Text, string(toolspkg.ReasonWorkspaceAccessDenied)) ||
 		!strings.Contains(content.Text, "tool invocation denied") {
@@ -1902,21 +1872,23 @@ func requireHostedMCPStdioServer(
 func startHostedMCPClient(
 	t testing.TB,
 	stdio acpsdk.McpServerStdio,
-) *mcpclient.Client {
+) *sdkmcp.ClientSession {
 	t.Helper()
 
 	if strings.TrimSpace(stdio.Command) == "" {
 		t.Fatalf("hosted MCP stdio server = %#v, want command", stdio)
 	}
-	client, err := mcpclient.NewStdioMCPClientWithOptions(
-		stdio.Command,
-		hostedMCPStdioEnv(stdio),
-		append([]string(nil), stdio.Args...),
+	command := exec.Command(stdio.Command, stdio.Args...)
+	command.Env = append(os.Environ(), hostedMCPStdioEnv(stdio)...)
+	client := sdkmcp.NewClient(
+		&sdkmcp.Implementation{Name: "compozy-hosted-e2e", Version: "1.0.0"},
+		&sdkmcp.ClientOptions{Capabilities: &sdkmcp.ClientCapabilities{}},
 	)
+	session, err := client.Connect(context.Background(), &sdkmcp.CommandTransport{Command: command}, nil)
 	if err != nil {
-		t.Fatalf("NewStdioMCPClientWithOptions(%q) error = %v", stdio.Command, err)
+		t.Fatalf("Connect(hosted MCP %q) error = %v", stdio.Command, err)
 	}
-	return client
+	return session
 }
 
 func hostedMCPStdioEnv(stdio acpsdk.McpServerStdio) []string {
@@ -1931,7 +1903,7 @@ func hostedMCPStdioEnv(stdio acpsdk.McpServerStdio) []string {
 	return env
 }
 
-func sdkToolListContains(tools []sdkmcp.Tool, name string) bool {
+func sdkToolListContains(tools []*sdkmcp.Tool, name string) bool {
 	for _, tool := range tools {
 		if tool.Name == name {
 			return true
@@ -1940,7 +1912,7 @@ func sdkToolListContains(tools []sdkmcp.Tool, name string) bool {
 	return false
 }
 
-func sdkToolNames(tools []sdkmcp.Tool) []string {
+func sdkToolNames(tools []*sdkmcp.Tool) []string {
 	names := make([]string, 0, len(tools))
 	for _, tool := range tools {
 		names = append(names, tool.Name)
@@ -1951,16 +1923,14 @@ func sdkToolNames(tools []sdkmcp.Tool) []string {
 func callHostedMCPToolJSON(
 	t testing.TB,
 	ctx context.Context,
-	client *mcpclient.Client,
+	client *sdkmcp.ClientSession,
 	toolID string,
 	arguments map[string]any,
 	destination any,
 ) {
 	t.Helper()
 
-	var call sdkmcp.CallToolRequest
-	call.Params.Name = toolID
-	call.Params.Arguments = arguments
+	call := &sdkmcp.CallToolParams{Name: toolID, Arguments: arguments}
 	result, err := client.CallTool(ctx, call)
 	if err != nil {
 		t.Fatalf("CallTool(%s) error = %v", toolID, err)
@@ -2036,25 +2006,23 @@ func assertCanonicalHiddenSolPayload(t testing.TB, model compozycontract.Provide
 func createHostedTaskForWakeE2E(
 	t testing.TB,
 	ctx context.Context,
-	client *mcpclient.Client,
+	client *sdkmcp.ClientSession,
 	taskID string,
 	title string,
 ) string {
 	t.Helper()
 
-	var call sdkmcp.CallToolRequest
-	call.Params.Name = toolspkg.ToolIDTaskCreate.String()
-	call.Params.Arguments = map[string]any{
+	call := &sdkmcp.CallToolParams{Name: toolspkg.ToolIDTaskCreate.String(), Arguments: map[string]any{
 		"id":    strings.TrimSpace(taskID),
 		"scope": string(taskpkg.ScopeWorkspace),
 		"title": strings.TrimSpace(title),
-	}
+	}}
 	result, err := client.CallTool(ctx, call)
 	if err != nil {
-		t.Fatalf("CallTool(%s) error = %v", call.Params.Name, err)
+		t.Fatalf("CallTool(%s) error = %v", call.Name, err)
 	}
 	if result == nil || result.IsError {
-		t.Fatalf("CallTool(%s) result = %#v, want successful result", call.Params.Name, result)
+		t.Fatalf("CallTool(%s) result = %#v, want successful result", call.Name, result)
 	}
 	structured, err := json.Marshal(result.StructuredContent)
 	if err != nil {

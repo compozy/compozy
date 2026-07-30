@@ -7,6 +7,7 @@ import (
 	"time"
 
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
+	"github.com/compozy/compozy/internal/mcp/securehttp"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
@@ -15,6 +16,7 @@ const defaultCallTimeout = 30 * time.Second
 type authService interface {
 	Status(ctx context.Context, cfg mcpauth.ServerConfig) (mcpauth.Status, error)
 	Refresh(ctx context.Context, cfg mcpauth.ServerConfig) (mcpauth.Status, error)
+	AuthorizationToken(ctx context.Context, cfg mcpauth.ServerConfig) (mcpauth.TokenRecord, error)
 }
 
 type secretRefResolver interface {
@@ -31,6 +33,7 @@ type CallExecutor struct {
 	httpClient     *http.Client
 	authGeneration *mcpauth.MutationGeneration
 	timeout        time.Duration
+	toolCache      mcpToolListCache
 }
 
 var _ toolspkg.MCPCallExecutor = (*CallExecutor)(nil)
@@ -102,11 +105,10 @@ func NewMCPCallExecutor(
 		)
 	}
 	executor := &CallExecutor{
-		servers: servers,
-		httpClient: &http.Client{
-			Timeout: defaultCallTimeout,
-		},
-		timeout: defaultCallTimeout,
+		servers:    servers,
+		httpClient: securehttp.NewClient(securehttp.WithAllowLoopback(true), securehttp.WithTimeout(defaultCallTimeout)).HTTPClient(),
+		timeout:    defaultCallTimeout,
+		toolCache:  mcpToolListCache{entries: make(map[string]mcpToolListCacheEntry)},
 	}
 	for _, opt := range opts {
 		if opt != nil {
@@ -120,7 +122,7 @@ func NewMCPCallExecutor(
 		executor.timeout = defaultCallTimeout
 	}
 	if executor.httpClient == nil {
-		executor.httpClient = &http.Client{Timeout: executor.timeout}
+		executor.httpClient = securehttp.NewClient(securehttp.WithAllowLoopback(true), securehttp.WithTimeout(executor.timeout)).HTTPClient()
 	}
 	if executor.httpClient.Timeout <= 0 {
 		cloned := *executor.httpClient
@@ -128,10 +130,16 @@ func NewMCPCallExecutor(
 		executor.httpClient = &cloned
 	}
 	if executor.auth == nil && executor.tokenStore != nil {
-		service, err := mcpauth.NewService(
-			executor.tokenStore,
+		options := []mcpauth.ServiceOption{
 			mcpauth.WithHTTPClient(executor.httpClient),
 			mcpauth.WithMutationGeneration(executor.authGeneration),
+		}
+		if registrations, ok := executor.tokenStore.(mcpauth.RegistrationStore); ok {
+			options = append(options, mcpauth.WithRegistrationStore(registrations))
+		}
+		service, err := mcpauth.NewService(
+			executor.tokenStore,
+			options...,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("mcp: create auth service: %w", err)

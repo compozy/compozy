@@ -81,7 +81,7 @@ function makeEntry(overrides: EntryOverrides = {}): SettingsMCPServerEntry {
 }
 
 function oauthConfig(): AuthConfig {
-  return { type: "oauth2_pkce", client_id: "compozy-test" } as AuthConfig;
+  return { registration: "auto" } as AuthConfig;
 }
 
 describe("mcp status tone mapping", () => {
@@ -190,7 +190,7 @@ describe("authorize gating", () => {
 
   it("does not offer authorize to a healthy authenticated remote", () => {
     const healthy = makeEntry({
-      transport: "sse",
+      transport: "http",
       auth: oauthConfig(),
       authStatus: { status: "authenticated", token_present: true },
       runtimeStatus: { state: "ready", probe: "succeeded", tool_count: 8 },
@@ -317,7 +317,7 @@ describe("composeMCPRowStatus", () => {
   it("renders a healthy authenticated server with a real tool count", () => {
     const status = composeMCPRowStatus(
       makeEntry({
-        transport: "sse",
+        transport: "http",
         auth: oauthConfig(),
         authStatus: { status: "authenticated", token_present: true },
         runtimeStatus: { state: "ready", probe: "succeeded", tool_count: 18 },
@@ -327,6 +327,24 @@ describe("composeMCPRowStatus", () => {
     expect(status.runtime.tone).toBe("success");
     expect(status.probe).toEqual({ label: "Succeeded", tone: "success", code: "18 tools" });
     expect(status.repairable).toBe(false);
+  });
+
+  it("keeps the daemon-negotiated protocol version beside the runtime result", () => {
+    const status = composeMCPRowStatus(
+      makeEntry({
+        transport: "http",
+        auth: oauthConfig(),
+        authStatus: { status: "authenticated", token_present: true },
+        runtimeStatus: {
+          state: "ready",
+          probe: "succeeded",
+          protocol_version: "2026-07-28",
+          tool_count: 8,
+        },
+      })
+    );
+
+    expect(status.runtime.code).toBe("protocol 2026-07-28 · ready");
   });
 
   it("renders a dead workspace runtime as unavailable with its redacted diagnostic", () => {

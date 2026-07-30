@@ -92,9 +92,11 @@ gate, not a marketplace row.
 
 Install MCP catalog entries with
 `compozy mcp install <entry> --scope global|workspace [--workspace <id>] -o json` or
-`POST /api/settings/mcp-servers/install`; no mutating native install tool exists. `--set KEY` reads
-one field from stdin/hidden prompt; `--vault-ref KEY=vault:mcp/...` binds a present ref. Confidential
-OAuth accepts exactly one of `--oauth-client-secret` or `--oauth-client-secret-vault-ref`.
+`POST /api/settings/mcp-servers/install`; no mutating native install tool exists. Catalog inputs are
+typed and entry-owned. Use `--set id=value` for a non-secret value, `--secret id` for a secret
+entered through stdin or a hidden prompt, or `--vault-ref id=vault:mcp/...` to bind a present ref.
+The catalog does not accept arbitrary environment variables, command overrides, headers, or OAuth
+client-secret flags.
 
 Reads expose configured field names/OAuth-secret presence, never refs. JSON returns provenance,
 full config `apply` truth, and `next_step=authorize` only for OAuth. Failed apply means desired config
@@ -104,30 +106,33 @@ event did not. Cleanup touches only superseded owned refs. Complete secret resto
 partial secret/definition restoration retains the commit and returns a residual-state warning.
 
 When `next_step=authorize`, run `compozy mcp auth login <name>` to start the daemon-owned PKCE flow.
-Use `--manual` to paste a code or full redirect URL, especially for a
-remote operator or non-loopback HTTP bind. Workspace targets always carry both
+Use `--manual` to paste the complete redirect URL, especially for a remote operator or non-loopback
+HTTP bind. Workspace targets always carry both
 `--scope workspace --workspace <id>`. Treat authorization as complete only when redacted status is
 `authenticated` with `token_present=true`. `--timeout` bounds the whole attempt, including manual
 input and exchange, and the active PKCE session expiry may shorten it.
 
-Catalog OAuth templates are born-valid: they require `client_id` plus either an absolute HTTP(S)
-`issuer_url` or the complete absolute `authorization_url`/`token_url` pair. Treat validation failure
-as a feed-authoring error; the last valid stale projection remains authoritative.
+Catalog remote OAuth entries declare `method: oauth` and `registration: auto`. The daemon resolves
+protected-resource metadata, then the client metadata document, then makes one Dynamic Client
+Registration fallback attempt. Treat validation failure as a feed-authoring error; the last valid
+stale projection remains authoritative.
 
 Authorization is bound to the exact scoped server definition. Replacing or deleting that definition
 invalidates pending completion, and a stored token is never sent when the transport, remote URL, or
 OAuth settings no longer match. A mismatched or pre-fingerprint token remains stored until explicit
 logout but status reports that login is required; begin a new authorization for the current definition.
 
-HTTP/UDS auth routes `/auth/begin`, `/auth/exchange`, and `/auth/logout` use explicit `scope` and
-optional `workspace_id`; begin requires `mode: "automatic" | "manual"`, with manual creating a fresh
-paste session. The HTTP-only callback auto-completes only on loopback, follows the effective listener
+HTTP/UDS auth routes include `GET /api/settings/mcp-servers/{name}/auth/status`; it reads only the
+target's redacted auth state and does not start a runtime probe. `/auth/begin`, `/auth/exchange`, and
+`/auth/logout` use explicit `scope` and optional `workspace_id`; begin requires
+`mode: "automatic" | "manual"`, with manual creating a fresh paste session. The HTTP-only callback
+auto-completes only on loopback, follows the effective listener
 (including IPv6), and returns documented `503` HTML when unavailable. Keep exchange codes/redirects
 out of status and events.
 
 Inspect MCP management truth with `compozy__mcp_status`, `compozy__mcp_auth_status`, or
 `GET /api/settings/mcp-servers`. Configuration, authorization, runtime, and probe are independent
-signals; `configured` alone never means ready. Edit stdio or remote HTTP/SSE definitions through
+signals; `configured` alone never means ready. Edit stdio or remote HTTP definitions through
 `PUT /api/settings/mcp-servers/{name}` with explicit scope. A generic edit clears provenance; OAuth
 repair requires `authenticated` plus `token_present=true`. Reads project `env_keys` and
 `secret_env_keys`, never values/refs. Preserve exact-target fields with `preserve_env` or

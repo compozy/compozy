@@ -146,7 +146,11 @@ describe("marketplace acquisition transport", () => {
     const body = {
       entry_id: "github-mcp",
       scope: "workspace" as const,
-      values: { env: { GITHUB_TOKEN: { vault_ref: "vault:mcp/github/token" } } },
+      values: {
+        inputs: {
+          github_personal_access_token: { vault_ref: "vault:mcp/github/token" },
+        },
+      },
       workspace_id: "ws-a",
     };
     mockJsonResponse({

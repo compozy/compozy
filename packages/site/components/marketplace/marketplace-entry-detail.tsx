@@ -138,13 +138,19 @@ function ExtensionDetail({ entry }: { entry: ExtensionEntry }) {
   );
 }
 
-function transportHint(transport: MCPEntry["transport"]): string {
-  if (transport === "stdio") return "Runs locally as a child process the daemon supervises.";
-  return "Remote server the daemon connects to over HTTP.";
+function launchHint(type: MCPEntry["launch"]["type"]): string {
+  if (type === "remote") return "Hosted server the daemon connects to over Streamable HTTP.";
+  return "Pinned local distribution the daemon launches as a supervised child process.";
 }
 
 function MCPDetail({ entry }: { entry: MCPEntry }) {
-  const command = [entry.command, ...(entry.args ?? [])].filter(Boolean).join(" ");
+  const launch = entry.launch;
+  const launchValue =
+    launch.type === "remote"
+      ? launch.url
+      : launch.type === "docker"
+        ? `${launch.image}@${launch.digest}${launch.args?.length ? ` ${launch.args.join(" ")}` : ""}`
+        : `${launch.package}@${launch.version}${launch.args?.length ? ` ${launch.args.join(" ")}` : ""}`;
   return (
     <>
       <section aria-labelledby="runtime-config" className="mt-10">
@@ -153,56 +159,44 @@ function MCPDetail({ entry }: { entry: MCPEntry }) {
         </SectionHead>
         <MetadataList className="mt-4">
           <MetadataListRow>
-            <MetadataListTerm>Transport</MetadataListTerm>
+            <MetadataListTerm>Launch</MetadataListTerm>
             <MetadataListValue className="flex flex-wrap items-center gap-2">
               <Pill size="sm" className="font-mono">
-                {entry.transport}
+                {launch.type}
               </Pill>
-              <span className="text-subtle">{transportHint(entry.transport)}</span>
+              <span className="text-subtle">{launchHint(launch.type)}</span>
             </MetadataListValue>
           </MetadataListRow>
-          {command ? (
-            <MetadataListRow>
-              <MetadataListTerm>Command</MetadataListTerm>
-              <MetadataListValue className="break-all font-mono">{command}</MetadataListValue>
-            </MetadataListRow>
-          ) : null}
-          {entry.url ? (
-            <MetadataListRow>
-              <MetadataListTerm>URL</MetadataListTerm>
-              <MetadataListValue className="break-all font-mono">{entry.url}</MetadataListValue>
-            </MetadataListRow>
-          ) : null}
-          {entry.default_scope ? (
-            <MetadataListRow>
-              <MetadataListTerm>Default scope</MetadataListTerm>
-              <MetadataListValue>
-                {entry.default_scope === "global" ? "Global" : "Workspace"}
-                <span className="ms-2 text-subtle">
-                  {entry.default_scope === "global"
-                    ? "Available to every workspace after install."
-                    : "Installed into the workspace you run the command from."}
-                  {" The feed sets the default; the runtime owns the scope at install."}
-                </span>
-              </MetadataListValue>
-            </MetadataListRow>
-          ) : null}
+          <MetadataListRow>
+            <MetadataListTerm>{launch.type === "remote" ? "URL" : "Distribution"}</MetadataListTerm>
+            <MetadataListValue className="break-all font-mono">{launchValue}</MetadataListValue>
+          </MetadataListRow>
+          <MetadataListRow>
+            <MetadataListTerm>Default scope</MetadataListTerm>
+            <MetadataListValue>
+              {entry.default_scope === "global" ? "Global" : "Workspace"}{" "}
+              <span className="ms-2 text-subtle">
+                {entry.default_scope === "global"
+                  ? "Available to every workspace after install."
+                  : "Installed into the workspace you run the command from."}
+                {" The feed sets the default; the runtime owns the scope at install."}
+              </span>
+            </MetadataListValue>
+          </MetadataListRow>
         </MetadataList>
       </section>
 
-      {entry.env?.length ? (
-        <section aria-labelledby="env-vars" className="mt-10">
-          <SectionHead id="env-vars" icon={Settings2}>
-            Environment
+      {entry.inputs?.length ? (
+        <section aria-labelledby="inputs" className="mt-10">
+          <SectionHead id="inputs" icon={Settings2}>
+            Inputs
           </SectionHead>
           <div className="mt-4 overflow-x-auto rounded-lg border border-line">
             <table className="w-full text-start text-small-body">
               <thead>
                 <tr className="border-b border-line text-start">
-                  <th className="px-4 py-2.5 text-start font-medium text-muted">Variable</th>
-                  <th className="px-4 py-2.5 text-start font-medium text-muted">
-                    Provide with --set or a Vault ref
-                  </th>
+                  <th className="px-4 py-2.5 text-start font-medium text-muted">Input</th>
+                  <th className="px-4 py-2.5 text-start font-medium text-muted">Value</th>
                   <th className="px-4 py-2.5 text-start font-medium text-muted">Required</th>
                   <th className="px-4 py-2.5 text-start font-medium text-muted">
                     <span className="sr-only">Sensitivity</span>
@@ -210,15 +204,15 @@ function MCPDetail({ entry }: { entry: MCPEntry }) {
                 </tr>
               </thead>
               <tbody>
-                {entry.env.map(field => (
-                  <tr key={field.name} className="border-b border-line-soft last:border-b-0">
-                    <td className="px-4 py-2.5 font-mono text-fg">{field.name}</td>
-                    <td className="px-4 py-2.5 text-muted">{field.prompt ?? "—"}</td>
+                {entry.inputs.map(input => (
+                  <tr key={input.id} className="border-b border-line-soft last:border-b-0">
+                    <td className="px-4 py-2.5 font-mono text-fg">{input.id}</td>
+                    <td className="px-4 py-2.5 text-muted">{input.prompt}</td>
                     <td className="px-4 py-2.5 text-muted">
-                      {field.required ? "Required" : "Optional"}
+                      {input.required ? "Required" : "Optional"}
                     </td>
                     <td className="px-4 py-2.5">
-                      {field.secret ? (
+                      {input.type === "secret" ? (
                         <Pill size="sm">
                           <Lock aria-hidden className="size-3" />
                           Secret
@@ -231,54 +225,30 @@ function MCPDetail({ entry }: { entry: MCPEntry }) {
             </table>
           </div>
           <p className="mt-3 text-small-body leading-relaxed text-subtle">
-            Supply a secret with <code>--set KEY</code> or a Vault ref. The CLI opens a hidden
-            prompt only for an explicit <code>--set KEY</code> input; secret values are never stored
-            in the catalog or rendered on this page.
+            Supply a secret with <code>--secret id</code> or a Vault ref. Use{" "}
+            <code>--set id=value</code>
+            {
+              " for non-secret inputs; secret values are never stored in the catalog or rendered on this page."
+            }
           </p>
         </section>
       ) : null}
 
-      {entry.oauth ? (
+      {entry.auth ? (
         <section aria-labelledby="oauth" className="mt-10">
           <SectionHead id="oauth" icon={Lock}>
             OAuth
           </SectionHead>
           <MetadataList className="mt-4">
             <MetadataListRow>
-              <MetadataListTerm>Client ID</MetadataListTerm>
-              <MetadataListValue className="break-all font-mono">
-                {entry.oauth.client_id}
-              </MetadataListValue>
+              <MetadataListTerm>Registration</MetadataListTerm>
+              <MetadataListValue className="font-mono">{entry.auth.registration}</MetadataListValue>
             </MetadataListRow>
-            {entry.oauth.issuer_url ? (
-              <MetadataListRow>
-                <MetadataListTerm>Issuer</MetadataListTerm>
-                <MetadataListValue className="break-all font-mono">
-                  {entry.oauth.issuer_url}
-                </MetadataListValue>
-              </MetadataListRow>
-            ) : null}
-            {entry.oauth.authorization_url ? (
-              <MetadataListRow>
-                <MetadataListTerm>Authorization URL</MetadataListTerm>
-                <MetadataListValue className="break-all font-mono">
-                  {entry.oauth.authorization_url}
-                </MetadataListValue>
-              </MetadataListRow>
-            ) : null}
-            {entry.oauth.token_url ? (
-              <MetadataListRow>
-                <MetadataListTerm>Token URL</MetadataListTerm>
-                <MetadataListValue className="break-all font-mono">
-                  {entry.oauth.token_url}
-                </MetadataListValue>
-              </MetadataListRow>
-            ) : null}
-            {entry.oauth.scopes?.length ? (
+            {entry.auth.scopes?.length ? (
               <MetadataListRow>
                 <MetadataListTerm>Scopes</MetadataListTerm>
                 <MetadataListValue className="flex flex-wrap gap-1.5">
-                  {entry.oauth.scopes.map(scope => (
+                  {entry.auth.scopes.map(scope => (
                     <Pill key={scope} size="sm" className="font-mono">
                       {scope}
                     </Pill>
@@ -328,7 +298,9 @@ export function MarketplaceEntryDetail({
 
       <div className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-2 text-small-body text-muted">
         {entry.version ? (
-          <code className="font-mono text-badge text-subtle">v{entry.version}</code>
+          <code className="font-mono text-badge text-subtle">
+            {entry.version.startsWith("v") ? entry.version : `v${entry.version}`}
+          </code>
         ) : null}
         {extension ? (
           <Pill size="sm">
@@ -338,7 +310,7 @@ export function MarketplaceEntryDetail({
         ) : null}
         {mcp ? (
           <Pill size="sm" mono>
-            {mcp.transport}
+            {mcp.launch.type}
           </Pill>
         ) : null}
         {author ? (

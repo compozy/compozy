@@ -632,9 +632,8 @@ describe("Marketplace installed-detail management", () => {
     const user = userEvent.setup();
     const server: SettingsMCPServerEntry = {
       auth: {
-        client_id: "oauth-client",
         client_secret_configured: false,
-        type: "oauth2_pkce",
+        registration: "auto",
       },
       auth_status: {
         refreshable: true,

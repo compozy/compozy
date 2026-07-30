@@ -41,12 +41,13 @@ export {
   buildMCPInstallRequest,
   createInitialMCPBindings,
 } from "./mcp-install-model";
-export type { MCPEnvField, MCPFieldBinding } from "./mcp-install-model";
+export type { MCPFieldBinding } from "./mcp-install-model";
 export {
   MARKETPLACE_KIND_LABEL,
   MARKETPLACE_KIND_ORDER,
   MARKETPLACE_KIND_SINGULAR,
   formatMarketplaceCount,
+  formatMarketplaceVersion,
   isMarketplaceKind,
   isMarketplaceViewSort,
   marketplaceEntrySlug,

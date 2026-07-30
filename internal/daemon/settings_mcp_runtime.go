@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/deadentity"
@@ -17,8 +16,6 @@ import (
 	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
-
-const defaultSettingsMCPProbeTimeout = 5 * time.Second
 
 func (s *settingsRuntimeSurface) MCPServerRuntimeStatus(
 	ctx context.Context,
@@ -64,7 +61,7 @@ func (s *settingsRuntimeSurface) MCPServerRuntimeStatus(
 		return s.recordMCPProbeFailure(ctx, key, tracked, deadentity.FailurePermanent, status)
 	}
 
-	tools, err := executor.ListTools(ctx, toolspkg.SourceRef{
+	tools, protocolVersion, err := executor.ListToolsWithProtocol(ctx, toolspkg.SourceRef{
 		Kind:          toolspkg.SourceMCP,
 		Owner:         strings.TrimSpace(server.Name),
 		RawServerName: strings.TrimSpace(server.Name),
@@ -87,11 +84,12 @@ func (s *settingsRuntimeSurface) MCPServerRuntimeStatus(
 		}
 	}
 	return settingspkg.MCPServerRuntimeStatus{
-		Configured:  true,
-		Initialized: true,
-		State:       settingspkg.MCPServerRuntimeStateReady,
-		Probe:       settingspkg.MCPServerProbeSucceeded,
-		ToolCount:   len(tools),
+		Configured:      true,
+		Initialized:     true,
+		State:           settingspkg.MCPServerRuntimeStateReady,
+		Probe:           settingspkg.MCPServerProbeSucceeded,
+		ToolCount:       len(tools),
+		ProtocolVersion: strings.TrimSpace(protocolVersion),
 	}, nil
 }
 
@@ -110,7 +108,6 @@ func (s *settingsRuntimeSurface) newMCPProbeExecutor(
 		mcppkg.WithAuthMutationGeneration(s.mcpAuthGeneration),
 		mcppkg.WithSecretLookup(s.lookupSecret),
 		mcppkg.WithSecretResolver(s.secretRefs),
-		mcppkg.WithTimeout(s.mcpProbeTimeout()),
 	)
 }
 

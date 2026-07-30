@@ -297,14 +297,13 @@ func TestPutMCPSidecarServerPreservesRemoteAuthFields(t *testing.T) {
 
 		cfg, err := PutMCPSidecarServer(homePaths, "", target, MCPServer{
 			Name:      "linear",
-			Transport: MCPServerTransportSSE,
-			URL:       "https://mcp.linear.app/sse",
+			Transport: MCPServerTransportHTTP,
+			URL:       "https://mcp.linear.app/mcp",
 			Auth: MCPAuthConfig{
-				Type:             MCPAuthTypeOAuth2PKCE,
-				AuthorizationURL: "https://linear.app/oauth/authorize",
-				TokenURL:         "https://api.linear.app/oauth/token",
-				ClientID:         "compozy-client",
-				ClientSecretRef:  "vault:mcp/linear/oauth/client-secret",
+				Registration:    MCPAuthRegistrationPreRegistered,
+				IssuerURL:       "https://linear.app",
+				ClientID:        "compozy-client",
+				ClientSecretRef: "vault:mcp/linear/oauth/client-secret",
 			},
 		})
 		if err != nil {
@@ -314,7 +313,7 @@ func TestPutMCPSidecarServerPreservesRemoteAuthFields(t *testing.T) {
 			t.Fatalf("len(Config.MCPServers) = %d, want %d", got, want)
 		}
 		server := cfg.MCPServers[0]
-		if got, want := server.Transport, MCPServerTransportSSE; got != want {
+		if got, want := server.Transport, MCPServerTransportHTTP; got != want {
 			t.Fatalf("Config.MCPServers[0].Transport = %q, want %q", got, want)
 		}
 		if got, want := server.Auth.ClientSecretRef, "vault:mcp/linear/oauth/client-secret"; got != want {
@@ -334,10 +333,10 @@ func TestPutMCPSidecarServerPreservesRemoteAuthFields(t *testing.T) {
 			t.Fatalf("json.Unmarshal(mcpServers) error = %v", err)
 		}
 		linear := servers["linear"]
-		if got, want := linear.Transport, MCPServerTransportSSE; got != want {
+		if got, want := linear.Transport, MCPServerTransportHTTP; got != want {
 			t.Fatalf("servers[linear].Transport = %q, want %q", got, want)
 		}
-		if got, want := linear.URL, "https://mcp.linear.app/sse"; got != want {
+		if got, want := linear.URL, "https://mcp.linear.app/mcp"; got != want {
 			t.Fatalf("servers[linear].URL = %q, want %q", got, want)
 		}
 		if got, want := linear.Auth.ClientSecretRef, "vault:mcp/linear/oauth/client-secret"; got != want {

@@ -49,7 +49,9 @@ test.describe("Marketplace acquisition", () => {
   const toggleExtensionName = "browser-toggle-extension";
   const typedEnvName = "BROWSER_TYPED_TOKEN";
   const vaultEnvName = "BROWSER_VAULT_TOKEN";
-  const vaultRef = "vault:mcp/browser-marketplace/browser-vault-token";
+  const typedInputID = "browser_typed_token";
+  const vaultInputID = "browser_vault_token";
+  const vaultRef = `vault:mcp/global/${mcpEntryID}/inputs/${vaultInputID}`;
   const typedSecretValue = "browser-mcp-typed-secret-42";
   const vaultSecretValue = "browser-mcp-vault-secret-42";
 
@@ -73,27 +75,38 @@ test.describe("Marketplace acquisition", () => {
           ],
           mcp: [
             {
-              args: ["--stdio"],
-              command: "browser-guided-mcp",
               default_scope: "global",
               description: "A curated stdio MCP server with typed and Vault-backed inputs.",
               entry_id: mcpEntryID,
-              env: [
+              inputs: [
                 {
-                  name: typedEnvName,
+                  binding: {
+                    name: typedEnvName,
+                    type: "env",
+                  },
+                  id: typedInputID,
                   prompt: "Typed browser token",
                   required: true,
-                  secret: true,
+                  type: "secret",
                 },
                 {
-                  name: vaultEnvName,
+                  binding: {
+                    name: vaultEnvName,
+                    type: "env",
+                  },
+                  id: vaultInputID,
                   prompt: "Vault-backed browser token",
                   required: true,
-                  secret: true,
+                  type: "secret",
                 },
               ],
+              launch: {
+                args: ["--stdio"],
+                package: "browser-guided-mcp",
+                type: "npm",
+                version: "1.0.0",
+              },
               name: mcpEntryID,
-              transport: "stdio",
               version: "1.0.0",
             },
           ],
@@ -226,17 +239,17 @@ test.describe("Marketplace acquisition", () => {
     await marketplace.action(mcpEntryID).click();
     await expect(marketplace.mcpInstallDialog).toBeVisible();
     await expect(marketplace.mcpInstallConfirm).toBeDisabled();
-    const typedField = appPage.getByLabel(typedEnvName, { exact: true });
+    const typedField = appPage.getByLabel(typedInputID, { exact: true });
     await expect(typedField).toHaveJSProperty("required", true);
     await typedField.fill(typedSecretValue);
     await appPage
-      .getByRole("group", { name: `${vaultEnvName} binding method` })
+      .getByRole("group", { name: `${vaultInputID} binding method` })
       .getByRole("button", { name: "Use Vault" })
       .click();
-    await expect(marketplace.mcpVaultSelector(vaultEnvName)).toBeVisible();
+    await expect(marketplace.mcpVaultSelector(vaultInputID)).toBeVisible();
     await marketplace
-      .mcpVaultSelector(vaultEnvName)
-      .getByRole("radio", { name: /browser-vault-token/ })
+      .mcpVaultSelector(vaultInputID)
+      .getByRole("radio", { name: /browser_vault_token/ })
       .click();
     await expect(marketplace.mcpInstallConfirm).toBeEnabled();
     await marketplace.mcpInstallConfirm.click();
@@ -1329,9 +1342,9 @@ test.describe("MCP marketplace authorization", () => {
               transport: "http",
               url: `${authServer.baseURL}/mcp`,
               auth: {
-                type: "oauth2_pkce",
                 client_id: "compozy-e2e-public",
                 issuer_url: authServer.baseURL,
+                registration: "pre_registered",
                 scopes: ["read", "write"],
               },
             },
@@ -1418,9 +1431,9 @@ test.describe("MCP marketplace authorization", () => {
               transport: "http",
               url: `${authServer.baseURL}/mcp`,
               auth: {
-                type: "oauth2_pkce",
                 client_id: "compozy-e2e-public",
                 issuer_url: authServer.baseURL,
+                registration: "pre_registered",
                 scopes: ["read", "write"],
               },
             },

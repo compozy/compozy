@@ -21,6 +21,7 @@ import { toast } from "sonner";
 import type { UseMCPAuthorizeReturn } from "../hooks/use-mcp-authorize";
 
 import { authTone, formatStatusLabel } from "../lib/mcp-status-view-model";
+import { isAbsoluteMCPRedirectURL } from "../stores/mcp-authorize-store";
 import type { SettingsMCPServerEntry } from "../types";
 
 export interface MCPAuthorizeDialogProps {
@@ -75,7 +76,7 @@ function AuthorizeContent({ authorize, scope, server }: MCPAuthorizeDialogProps)
       <DialogHeader variant="ruled">
         <Eyebrow className="flex items-center gap-2 text-muted">
           <Plug className="size-3.5" />
-          {name} · {scope} · oauth2_pkce
+          {name} · {scope} · OAuth
         </Eyebrow>
         <DialogTitle>Authorize {name}</DialogTitle>
         <DialogDescription>
@@ -151,7 +152,7 @@ function AuthorizeContent({ authorize, scope, server }: MCPAuthorizeDialogProps)
               className="mb-1.5 flex items-center gap-2 text-form-label font-medium text-fg"
               htmlFor="mcp-authorize-manual-value"
             >
-              Code or full redirect URL
+              Full redirect URL
               <Eyebrow className="ml-auto text-muted">required</Eyebrow>
             </label>
             <Textarea
@@ -159,13 +160,13 @@ function AuthorizeContent({ authorize, scope, server }: MCPAuthorizeDialogProps)
               className="font-mono"
               value={manualValue}
               onChange={event => setManualValue(event.target.value)}
-              placeholder="Paste the authorization code or the full redirected URL"
+              placeholder="Paste the complete URL returned after provider authorization"
               aria-describedby="mcp-authorize-manual-help"
               data-testid="settings-page-mcp-authorize-manual-input"
             />
             <p className="mt-1.5 text-caption text-muted" id="mcp-authorize-manual-help">
-              Use this when the browser cannot reach the daemon host. CompozyOS sends exactly one
-              value to auth/exchange.
+              Use this when the browser cannot reach the daemon host. Paste the complete redirected
+              URL, including its query parameters. Authorization codes alone are not accepted.
             </p>
           </div>
         ) : null}
@@ -223,7 +224,7 @@ function AuthorizePrimaryAction({
       <Button
         type="button"
         size="sm"
-        disabled={manualValue.trim() === "" || exchanging}
+        disabled={!isAbsoluteMCPRedirectURL(manualValue) || exchanging}
         onClick={() => authorize.submitManual(manualValue)}
         data-testid="settings-page-mcp-authorize-exchange"
       >
@@ -266,7 +267,7 @@ function AuthorizePrimaryAction({
       onClick={() => void authorize.enterManual()}
       data-testid="settings-page-mcp-authorize-manual-trigger"
     >
-      Enter code or redirect
+      Enter redirect URL
     </Button>
   );
 }

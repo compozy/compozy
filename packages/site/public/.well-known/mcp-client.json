@@ -1,0 +1,9 @@
+{
+    "client_id": "https://compozy.com/.well-known/mcp-client.json",
+    "client_name": "Compozy",
+    "application_type": "native",
+    "redirect_uris": ["http://127.0.0.1:2123/api/mcp/oauth/callback"],
+    "grant_types": ["authorization_code", "refresh_token"],
+    "response_types": ["code"],
+    "token_endpoint_auth_method": "none"
+}

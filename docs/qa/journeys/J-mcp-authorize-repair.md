@@ -9,9 +9,10 @@ flowchart TD
   A3[Entry: sidebar Catalog > MCP] --> B
   B -->|needs_login OAuth remote| C[Begin: daemon PKCE session; live authorization_url always visible and copyable]
   B -->|stdio or non-OAuth server| B2[No authorize affordance offered — truthful absence]
-  C --> D{Completion path}
+  C --> R[Resolve registration: pre-registration, then CIMD, then one DCR fallback]
+  R --> D{Completion path}
   D -->|browser on daemon host| E[Open browser; daemon-hosted callback completes]
-  D -->|remote operator| F[Copy URL to any browser; paste code OR full redirect URL into manual exchange]
+  D -->|remote operator| F[Copy URL to any browser; paste the full redirect URL into manual exchange]
   D -->|non-loopback HTTP bind| F2[Auto-callback refused by daemon; manual exchange is the only path]
   F2 --> F
   E --> G{Refetched scoped status}
@@ -22,7 +23,7 @@ flowchart TD
   C2 --> C
   C -.->|close dialog / walk away| X1[Abandon: server keeps truthful needs_login state; no phantom ready]
   E -.->|cancel at provider| X2[Abandon: exchange never fires; existing token untouched]
-  H --> J[Repair lane: edit server in transport-aware editor - stdio/http/sse, mirrored validation, refs as MonoId]
+  H --> J[Repair lane: edit server in transport-aware editor - stdio/Streamable HTTP, mirrored validation, refs as MonoId]
   J --> K[Side effect: two workspaces with the same server name hold distinct tokens and distinct canonical env secrets]
   H --> L[True end: fresh scoped list shows authenticated + token_present + runtime status from a real probe; no surface claims ready without the credential]
 ```
@@ -50,8 +51,8 @@ journey:
       verb: Begin authorization
       expected_observable: A live PKCE authorization URL is rendered copyable immediately; browser open is optional; stdio/non-OAuth servers never offer the action
     - step: 3
-      verb: Complete via browser callback or manual code/redirect-URL paste
-      expected_observable: Exactly one of code or redirect_url is accepted; the daemon completes a single-use session; nothing echoes the code, verifier, or token
+      verb: Complete via browser callback or manual full-redirect-URL paste
+      expected_observable: Manual exchange accepts only a full redirect URL; the daemon validates state and issuer, burns the single-use session on every attempt, and never echoes OAuth material
     - step: 4
       verb: Confirm
       expected_observable: Success is declared only on refetched authenticated && token_present; failure or cancel visibly preserves the prior status and token
@@ -61,7 +62,7 @@ journey:
   goal:
     observable: The target server reads authenticated with a present token and truthful runtime status on every plane that renders it
     side_effects: [scoped-token-persisted, pkce-session-consumed, auth-events-emitted-redacted]
-  true_end_state: A fresh scoped settings read (web, CLI, API agree) reports authenticated && token_present with runtime status from a real probe; a deliberately failed or abandoned attempt leaves the previous credential and status intact
+  true_end_state: A fresh scoped settings read (web, CLI, API agree) reports authenticated && token_present with the negotiated protocol version and runtime status from a real probe; a deliberately failed or abandoned attempt leaves the previous credential and status intact
   exit:
     natural: /mcp management page with the repaired server row confirmed
   abandonment:
@@ -79,5 +80,5 @@ journey:
 
 ## Coverage notes (Task 10 planning)
 
-- Taxonomy sweep: journeys (authorize + repair lanes), functional (state machine, XOR exchange inputs, scoped identity), experiential (status legibility without color-only signaling; copyable-URL affordance), edge/error/empty (expiry, supersession, cancel, non-loopback refusal, unknown status values), cross-cutting (workspace isolation of BOTH credential channels — OAuth tokens and canonical secret_env refs; redaction across logs/SSE/payloads).
+- Taxonomy sweep: journeys (authorize + repair lanes), functional (pre-registration → CIMD → one DCR fallback, redirect-only manual exchange, scoped identity), experiential (status legibility without color-only signaling; copyable-URL affordance), edge/error/empty (expiry, supersession, cancel, mix-up, non-loopback refusal, unknown status values), cross-cutting (workspace isolation of OAuth tokens, registrations, and canonical secret refs; redaction across logs/events/payloads).
 - Deliberate skip: locale variation (en-US only this cycle — no localized surfaces shipped in the program).

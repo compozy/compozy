@@ -146,14 +146,13 @@ func TestAgentResourceCodecCanonicalizesTypedRecordSpec(t *testing.T) {
 		}
 		remoteServer := MCPServer{
 			Name:      " linear ",
-			Transport: " sse ",
-			URL:       " https://mcp.example/sse ",
+			Transport: " http ",
+			URL:       " https://mcp.example/mcp ",
 			Auth: MCPAuthConfig{
-				Type:             " oauth2_pkce ",
-				AuthorizationURL: " https://auth.example/authorize ",
-				TokenURL:         " https://auth.example/token ",
-				ClientID:         " client-id ",
-				Scopes:           []string{" read ", " write "},
+				Registration: " pre_registered ",
+				IssuerURL:    " https://auth.example ",
+				ClientID:     " client-id ",
+				Scopes:       []string{" read ", " write "},
 			},
 		}
 		raw, err := codec.Encode(AgentDef{

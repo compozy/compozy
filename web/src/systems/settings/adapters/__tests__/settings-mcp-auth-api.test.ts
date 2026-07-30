@@ -39,31 +39,19 @@ describe("MCP auth adapter", () => {
     });
   });
 
-  it("exchanges MCP auth with a pasted code", async () => {
-    mockJsonResponse({ server_name: "linear", scope: "workspace", status: "authenticated" });
-
-    await exchangeSettingsMCPAuth("linear", { scope: "workspace" }, { code: "abc123" });
-
-    await expectFetchRequest({
-      body: { code: "abc123" },
-      method: "POST",
-      path: "/api/settings/mcp-servers/linear/auth/exchange?scope=workspace",
-    });
-  });
-
-  it("exchanges MCP auth with a full redirect URL", async () => {
+  it("exchanges MCP auth with a complete redirected URL", async () => {
     mockJsonResponse({ server_name: "linear", scope: "workspace", status: "authenticated" });
 
     await exchangeSettingsMCPAuth(
       "linear",
-      { scope: "global" },
-      { redirect_url: "http://127.0.0.1:2123/api/mcp/oauth/callback?code=abc&state=x" }
+      { scope: "workspace" },
+      { redirect_url: "http://127.0.0.1:2123/api/mcp/oauth/callback?code=abc123&state=x" }
     );
 
     await expectFetchRequest({
-      body: { redirect_url: "http://127.0.0.1:2123/api/mcp/oauth/callback?code=abc&state=x" },
+      body: { redirect_url: "http://127.0.0.1:2123/api/mcp/oauth/callback?code=abc123&state=x" },
       method: "POST",
-      path: "/api/settings/mcp-servers/linear/auth/exchange?scope=global",
+      path: "/api/settings/mcp-servers/linear/auth/exchange?scope=workspace",
     });
   });
 

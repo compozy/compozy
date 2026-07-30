@@ -90,6 +90,14 @@ type MCPAuthRuntimeProvider interface {
 		server compozyconfig.MCPServer,
 		callbackURL string,
 	) (mcpauth.BeginResult, error)
+	MCPAuthBeginStepUp(
+		ctx context.Context,
+		target mcpauth.Target,
+		server compozyconfig.MCPServer,
+		callbackURL string,
+		approvedScopes []string,
+		approved bool,
+	) (mcpauth.BeginResult, error)
 	MCPAuthExchange(
 		ctx context.Context,
 		target mcpauth.Target,
@@ -104,6 +112,7 @@ type MCPAuthRuntimeProvider interface {
 		callbackURL string,
 	) (mcpauth.Status, error)
 	MCPAuthInvalidate(target mcpauth.Target) error
+	MCPAuthDeleteState(ctx context.Context, target mcpauth.Target) error
 	MCPAuthLogout(
 		ctx context.Context,
 		target mcpauth.Target,

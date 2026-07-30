@@ -49,48 +49,66 @@ func (a MCPAuthConfig) Validate(path string) error {
 	if a.IsZero() {
 		return nil
 	}
-	if a.Type != MCPAuthTypeOAuth2PKCE {
-		return fmt.Errorf("%s.type must be %q", path, MCPAuthTypeOAuth2PKCE)
+	registration := a.Registration
+	if registration == "" {
+		registration = MCPAuthRegistrationAuto
 	}
-	if strings.TrimSpace(a.ClientID) == "" {
-		return fmt.Errorf("%s.client_id is required", path)
-	}
-	if strings.TrimSpace(a.MetadataURL) == "" &&
-		strings.TrimSpace(a.IssuerURL) == "" &&
-		(strings.TrimSpace(a.AuthorizationURL) == "" || strings.TrimSpace(a.TokenURL) == "") {
-		return fmt.Errorf(
-			"%s requires metadata_url, issuer_url, or both authorization_url and token_url",
-			path,
-		)
-	}
-	if strings.TrimSpace(a.ClientSecretRef) != "" {
-		if err := vault.ValidateRefNamespace(a.ClientSecretRef, "mcp"); err != nil {
-			return fmt.Errorf("%s.client_secret_ref is invalid: %w", path, err)
+	switch registration {
+	case MCPAuthRegistrationAuto:
+		if strings.TrimSpace(a.IssuerURL) != "" || strings.TrimSpace(a.ClientID) != "" ||
+			strings.TrimSpace(a.ClientSecretRef) != "" {
+			return fmt.Errorf("%s issuer_url, client_id, and client_secret_ref require registration = %q", path, MCPAuthRegistrationPreRegistered)
 		}
-	}
-	for _, endpoint := range []struct {
-		name  string
-		value string
-	}{
-		{name: "metadata_url", value: a.MetadataURL},
-		{name: "issuer_url", value: a.IssuerURL},
-		{name: "authorization_url", value: a.AuthorizationURL},
-		{name: "token_url", value: a.TokenURL},
-		{name: "revocation_url", value: a.RevocationURL},
-	} {
-		if strings.TrimSpace(endpoint.value) == "" {
-			continue
+	case MCPAuthRegistrationPreRegistered:
+		if strings.TrimSpace(a.IssuerURL) == "" {
+			return fmt.Errorf("%s.issuer_url is required for registration = %q", path, MCPAuthRegistrationPreRegistered)
 		}
-		if err := ValidateMCPOAuthURL(path+"."+endpoint.name, endpoint.value); err != nil {
+		if strings.TrimSpace(a.ClientID) == "" {
+			return fmt.Errorf("%s.client_id is required for registration = %q", path, MCPAuthRegistrationPreRegistered)
+		}
+		if err := ValidateMCPOAuthURL(path+".issuer_url", a.IssuerURL); err != nil {
+			return err
+		}
+		if strings.TrimSpace(a.ClientSecretRef) != "" {
+			if err := vault.ValidateRefNamespace(a.ClientSecretRef, "mcp"); err != nil {
+				return fmt.Errorf("%s.client_secret_ref is invalid: %w", path, err)
+			}
+		}
+	default:
+		return fmt.Errorf("%s.registration must be one of %q or %q", path, MCPAuthRegistrationAuto, MCPAuthRegistrationPreRegistered)
+	}
+	seenScopes := make(map[string]struct{}, len(a.Scopes))
+	for idx, scope := range a.Scopes {
+		trimmed := strings.TrimSpace(scope)
+		if trimmed == "" {
+			return fmt.Errorf("%s.scopes[%d] is required", path, idx)
+		}
+		if _, exists := seenScopes[trimmed]; exists {
+			return fmt.Errorf("%s.scopes[%d] duplicates %q", path, idx, trimmed)
+		}
+		seenScopes[trimmed] = struct{}{}
+	}
+	return nil
+}
+
+// Validate ensures global MCP OAuth client configuration is safe to use.
+func (c MCPOAuthConfig) Validate(path string) error {
+	if value := strings.TrimSpace(c.ClientMetadataURL); value != "" {
+		if err := ValidateMCPOAuthURL(path+".client_metadata_url", value); err != nil {
 			return err
 		}
 	}
-	for idx, scope := range a.Scopes {
-		if strings.TrimSpace(scope) == "" {
-			return fmt.Errorf("%s.scopes[%d] is required", path, idx)
+	if value := strings.TrimSpace(c.RedirectURI); value != "" {
+		if err := ValidateMCPOAuthURL(path+".redirect_uri", value); err != nil {
+			return err
 		}
 	}
 	return nil
+}
+
+// Validate ensures global MCP configuration is safe to use.
+func (c MCPConfig) Validate() error {
+	return c.OAuth.Validate("mcp.oauth")
 }
 
 func validateStdioMCPEnv(

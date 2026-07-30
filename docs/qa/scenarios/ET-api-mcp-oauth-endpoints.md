@@ -4,7 +4,7 @@ area: ET
 title: Manage scoped MCP OAuth through daemon API routes
 persona: Ada
 journey: J-mcp-authorize-repair
-expected: HTTP and UDS begin/exchange/logout return equivalent redacted contracts for an explicit global or workspace target; begin requires `mode=automatic|manual`, and manual creates a fresh paste-based PKCE session; HTTP mutations require loopback privilege; the HTTP-only callback completes on loopback while refusing non-loopback binds; replacing or deleting a server invalidates pending target/callback completion, preserves any prior token record, and never sends its bearer to the replacement endpoint. A successful exchange supersedes every older refresh generation.
+expected: HTTP and UDS begin/exchange/logout return equivalent redacted contracts for an explicit global or workspace target; begin requires `mode=automatic|manual`, resolves pre-registration then CIMD then one DCR fallback, and manual accepts only a full redirect URL for a fresh PKCE session. The lifecycle binds target/resource/issuer/redirect/scopes/fingerprint, validates state and RFC 9207 issuer, burns every exchange attempt, and preserves any prior token on failure. HTTP mutations require loopback privilege; the HTTP-only callback completes on loopback while refusing non-loopback binds; replacing or deleting a server invalidates pending target/callback completion and never sends its bearer to the replacement endpoint.
 entry_points: POST /api/settings/mcp-servers/{name}/auth/begin; POST /api/settings/mcp-servers/{name}/auth/exchange; POST /api/settings/mcp-servers/{name}/auth/logout; GET /api/mcp/oauth/callback
 qa_status: blocked-verify
 bug_ids: BUG-20260715-mcp-oauth-name-segment
@@ -12,7 +12,7 @@ fix_status: fixed
 retest_status: pass
 fix_commits: 8eeb8a38
 evidence: /Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/mcp-non-loopback-callback.json; /Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/marketplace-agent-parity-final.json; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-021949-664736-lab/qa-artifacts/qa/evidence/024-mcp-oauth-endpoints; /Users/pedronauck/dev/qa-labs/compozy-mcp-oauth-nonloopback-20260729-20260729-094415-836845-lab/qa-artifacts/qa/evidence/001-mcp-oauth-nonloopback; /Users/pedronauck/dev/qa-labs/compozy-mcp-oauth-replacement-20260729-20260729-095438-704553-lab/qa-artifacts/qa/evidence/001-mcp-replacement;/Users/pedronauck/dev/qa-labs/compozy-qa-et-current-source-20260730-061655-910372-lab/qa-artifacts/qa
-last_report: docs/qa/reports/2026-07-28-untested-full.md
+last_report: docs/qa/reports/2026-07-30-mcp-2026-catalog-v2.md
 overlaps: ET-047; ET-cli-mcp-auth-manual-exchange; ET-cli-mcp-authorize
 ---
 

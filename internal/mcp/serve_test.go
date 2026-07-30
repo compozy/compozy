@@ -14,8 +14,7 @@ import (
 	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
 	"github.com/compozy/compozy/internal/resources"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
-	mcpclient "github.com/mark3labs/mcp-go/client"
-	sdkmcp "github.com/mark3labs/mcp-go/mcp"
+	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 func TestHostAPIProjectionDecisions(t *testing.T) {
@@ -67,8 +66,12 @@ func TestHostAPIProjectionDecisions(t *testing.T) {
 			t.Fatalf("len(projectedHostAPITools()) = %d, want %d", got, want)
 		}
 		for _, tool := range tools {
-			if len(tool.RawInputSchema) == 0 || !json.Valid(tool.RawInputSchema) {
-				t.Fatalf("tool %q schema = %s, want valid JSON", tool.Name, tool.RawInputSchema)
+			schema, err := json.Marshal(tool.InputSchema)
+			if err != nil {
+				t.Fatalf("json.Marshal(tool %q input schema) error = %v", tool.Name, err)
+			}
+			if len(schema) == 0 || !json.Valid(schema) {
+				t.Fatalf("tool %q schema = %s, want valid JSON", tool.Name, schema)
 			}
 		}
 	})
@@ -459,26 +462,28 @@ func TestHostAPIMCPServerRoundTrip(t *testing.T) {
 		if err != nil {
 			t.Fatalf("newHostAPIMCPServer() error = %v", err)
 		}
-		client, err := mcpclient.NewInProcessClient(mcpServer)
+		serverTransport, clientTransport := sdkmcp.NewInMemoryTransports()
+		serverSession, err := mcpServer.Connect(t.Context(), serverTransport, nil)
 		if err != nil {
-			t.Fatalf("NewInProcessClient() error = %v", err)
+			t.Fatalf("mcpServer.Connect() error = %v", err)
 		}
 		t.Cleanup(func() {
-			if err := client.Close(); err != nil {
-				t.Errorf("client.Close() error = %v", err)
+			if closeErr := serverSession.Close(); closeErr != nil {
+				t.Errorf("serverSession.Close() error = %v", closeErr)
 			}
 		})
-		if err := client.Start(t.Context()); err != nil {
-			t.Fatalf("client.Start() error = %v", err)
+		client := sdkmcp.NewClient(&sdkmcp.Implementation{Name: "test-client", Version: "1.0.0"}, &sdkmcp.ClientOptions{Capabilities: &sdkmcp.ClientCapabilities{}})
+		clientSession, err := client.Connect(t.Context(), clientTransport, nil)
+		if err != nil {
+			t.Fatalf("client.Connect() error = %v", err)
 		}
-		var initialize sdkmcp.InitializeRequest
-		initialize.Params.ProtocolVersion = sdkmcp.LATEST_PROTOCOL_VERSION
-		initialize.Params.ClientInfo = sdkmcp.Implementation{Name: "test-client", Version: "1.0.0"}
-		if _, err := client.Initialize(t.Context(), initialize); err != nil {
-			t.Fatalf("client.Initialize() error = %v", err)
-		}
+		t.Cleanup(func() {
+			if closeErr := clientSession.Close(); closeErr != nil {
+				t.Errorf("clientSession.Close() error = %v", closeErr)
+			}
+		})
 
-		listed, err := client.ListTools(t.Context(), sdkmcp.ListToolsRequest{})
+		listed, err := clientSession.ListTools(t.Context(), nil)
 		if err != nil {
 			t.Fatalf("client.ListTools() error = %v", err)
 		}
@@ -490,10 +495,8 @@ func TestHostAPIMCPServerRoundTrip(t *testing.T) {
 			t.Fatalf("tool names = %v, want MCP Host API namespace only", names)
 		}
 
-		var call sdkmcp.CallToolRequest
-		call.Params.Name = "compozy_host__sessions__list"
-		call.Params.Arguments = map[string]any{}
-		result, err := client.CallTool(t.Context(), call)
+		call := &sdkmcp.CallToolParams{Name: "compozy_host__sessions__list", Arguments: map[string]any{}}
+		result, err := clientSession.CallTool(t.Context(), call)
 		if err != nil {
 			t.Fatalf("client.CallTool() error = %v", err)
 		}
@@ -506,9 +509,9 @@ func TestHostAPIMCPServerRoundTrip(t *testing.T) {
 			t.Fatalf("InvokeHostAPI call = %#v, want bound workspace and sessions/list", observed)
 		}
 
-		call.Params.Name = "compozy_host__tasks__create"
-		call.Params.Arguments = map[string]any{"title": "Ship"}
-		if _, err := client.CallTool(t.Context(), call); err != nil {
+		call.Name = "compozy_host__tasks__create"
+		call.Arguments = map[string]any{"title": "Ship"}
+		if _, err := clientSession.CallTool(t.Context(), call); err != nil {
 			t.Fatalf("client.CallTool(tasks/create without bound fields) error = %v", err)
 		}
 		observed = invoker.lastCall(t)

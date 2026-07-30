@@ -35,6 +35,12 @@ func reloadChangedPaths(current *compozyconfig.Config, desired *compozyconfig.Co
 	changed = append(changed, diffExtensionsSettings(current.Extensions, desired.Extensions)...)
 	changed = append(changed, diffMarketplaceCatalog(current.Marketplace.Catalog, desired.Marketplace.Catalog)...)
 	changed = append(changed, diffProviderSettings(current.Providers, desired.Providers)...)
+	if current.MCP.OAuth.ClientMetadataURL != desired.MCP.OAuth.ClientMetadataURL {
+		changed = append(changed, "mcp.oauth.client_metadata_url")
+	}
+	if current.MCP.OAuth.RedirectURI != desired.MCP.OAuth.RedirectURI {
+		changed = append(changed, "mcp.oauth.redirect_uri")
+	}
 	if !reflect.DeepEqual(current.MCPServers, desired.MCPServers) {
 		changed = append(changed, "mcp-servers.*")
 	}

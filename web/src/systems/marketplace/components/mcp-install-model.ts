@@ -1,6 +1,8 @@
 import type { MarketplaceEntryResponse, MCPInstallRequest } from "../types";
 
-export type MCPEnvField = NonNullable<NonNullable<MarketplaceEntryResponse["mcp"]>["env"]>[number];
+export type MCPInputField = NonNullable<
+  NonNullable<MarketplaceEntryResponse["mcp"]>["inputs"]
+>[number];
 
 export interface MCPFieldBinding {
   mode: "typed" | "vault";
@@ -12,15 +14,20 @@ export interface MCPFieldBinding {
   createError?: string;
 }
 
+function inputDefault(field: MCPInputField): string {
+  if (typeof field.default === "boolean") return String(field.default);
+  return typeof field.default === "string" ? field.default : "";
+}
+
 export function createInitialMCPBindings(
-  fields: readonly MCPEnvField[]
+  fields: readonly MCPInputField[]
 ): Record<string, MCPFieldBinding> {
   return Object.fromEntries(
     fields.map(field => [
-      field.name,
+      field.id,
       {
         mode: "typed",
-        typedValue: field.secret ? "" : (field.default ?? ""),
+        typedValue: field.type === "secret" ? "" : inputDefault(field),
         vaultRef: "",
         touched: false,
         createOpen: false,
@@ -40,30 +47,26 @@ export function buildMCPInstallRequest(
   data: MarketplaceEntryResponse,
   scope: "global" | "workspace",
   workspaceId: string | null | undefined,
-  bindings: Record<string, MCPFieldBinding>,
-  remote: boolean
+  bindings: Record<string, MCPFieldBinding>
 ): MCPInstallRequest {
-  const env = remote
-    ? undefined
-    : Object.fromEntries(
-        (data.mcp?.env ?? []).flatMap(field => {
-          const binding = bindings[field.name];
-          if (!binding || !bindingValuePresent(binding)) return [];
-          return [
-            [
-              field.name,
-              binding.mode === "vault"
-                ? { vault_ref: binding.vaultRef }
-                : { value: binding.typedValue },
-            ],
-          ];
-        })
-      );
+  const inputs = Object.fromEntries(
+    (data.mcp?.inputs ?? []).flatMap(field => {
+      const binding = bindings[field.id];
+      if (!binding || !bindingValuePresent(binding)) return [];
+      return [
+        [
+          field.id,
+          binding.mode === "vault"
+            ? { vault_ref: binding.vaultRef }
+            : { value: binding.typedValue },
+        ],
+      ];
+    })
+  );
   return {
     entry_id: data.entry.entry_id,
-    name: data.entry.name,
     scope,
-    values: remote || !env || Object.keys(env).length === 0 ? null : { env },
+    values: Object.keys(inputs).length === 0 ? null : { inputs },
     workspace_id: scope === "workspace" ? (workspaceId ?? undefined) : undefined,
   };
 }

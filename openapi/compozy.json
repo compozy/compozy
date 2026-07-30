@@ -30344,9 +30344,6 @@
                                 "auth": {
                                   "nullable": true,
                                   "properties": {
-                                    "authorization_url": {
-                                      "type": "string"
-                                    },
                                     "client_id": {
                                       "type": "string"
                                     },
@@ -30356,10 +30353,7 @@
                                     "issuer_url": {
                                       "type": "string"
                                     },
-                                    "metadata_url": {
-                                      "type": "string"
-                                    },
-                                    "revocation_url": {
+                                    "registration": {
                                       "type": "string"
                                     },
                                     "scopes": {
@@ -30367,12 +30361,6 @@
                                         "type": "string"
                                       },
                                       "type": "array"
-                                    },
-                                    "token_url": {
-                                      "type": "string"
-                                    },
-                                    "type": {
-                                      "type": "string"
                                     }
                                   },
                                   "required": [
@@ -30783,9 +30771,6 @@
                               "auth": {
                                 "nullable": true,
                                 "properties": {
-                                  "authorization_url": {
-                                    "type": "string"
-                                  },
                                   "client_id": {
                                     "type": "string"
                                   },
@@ -30795,10 +30780,7 @@
                                   "issuer_url": {
                                     "type": "string"
                                   },
-                                  "metadata_url": {
-                                    "type": "string"
-                                  },
-                                  "revocation_url": {
+                                  "registration": {
                                     "type": "string"
                                   },
                                   "scopes": {
@@ -30806,12 +30788,6 @@
                                       "type": "string"
                                     },
                                     "type": "array"
-                                  },
-                                  "token_url": {
-                                    "type": "string"
-                                  },
-                                  "type": {
-                                    "type": "string"
                                   }
                                 },
                                 "required": [
@@ -31566,9 +31542,6 @@
                                     "auth": {
                                       "nullable": true,
                                       "properties": {
-                                        "authorization_url": {
-                                          "type": "string"
-                                        },
                                         "client_id": {
                                           "type": "string"
                                         },
@@ -31578,10 +31551,7 @@
                                         "issuer_url": {
                                           "type": "string"
                                         },
-                                        "metadata_url": {
-                                          "type": "string"
-                                        },
-                                        "revocation_url": {
+                                        "registration": {
                                           "type": "string"
                                         },
                                         "scopes": {
@@ -31589,12 +31559,6 @@
                                             "type": "string"
                                           },
                                           "type": "array"
-                                        },
-                                        "token_url": {
-                                          "type": "string"
-                                        },
-                                        "type": {
-                                          "type": "string"
                                         }
                                       },
                                       "required": [
@@ -32586,9 +32550,6 @@
                               "auth": {
                                 "nullable": true,
                                 "properties": {
-                                  "authorization_url": {
-                                    "type": "string"
-                                  },
                                   "client_id": {
                                     "type": "string"
                                   },
@@ -32598,10 +32559,7 @@
                                   "issuer_url": {
                                     "type": "string"
                                   },
-                                  "metadata_url": {
-                                    "type": "string"
-                                  },
-                                  "revocation_url": {
+                                  "registration": {
                                     "type": "string"
                                   },
                                   "scopes": {
@@ -32609,12 +32567,6 @@
                                       "type": "string"
                                     },
                                     "type": "array"
-                                  },
-                                  "token_url": {
-                                    "type": "string"
-                                  },
-                                  "type": {
-                                    "type": "string"
                                   }
                                 },
                                 "required": [
@@ -33094,9 +33046,6 @@
                               "auth": {
                                 "nullable": true,
                                 "properties": {
-                                  "authorization_url": {
-                                    "type": "string"
-                                  },
                                   "client_id": {
                                     "type": "string"
                                   },
@@ -33106,10 +33055,7 @@
                                   "issuer_url": {
                                     "type": "string"
                                   },
-                                  "metadata_url": {
-                                    "type": "string"
-                                  },
-                                  "revocation_url": {
+                                  "registration": {
                                     "type": "string"
                                   },
                                   "scopes": {
@@ -33117,12 +33063,6 @@
                                       "type": "string"
                                     },
                                     "type": "array"
-                                  },
-                                  "token_url": {
-                                    "type": "string"
-                                  },
-                                  "type": {
-                                    "type": "string"
                                   }
                                 },
                                 "required": [
@@ -33924,9 +33864,6 @@
                               "auth": {
                                 "nullable": true,
                                 "properties": {
-                                  "authorization_url": {
-                                    "type": "string"
-                                  },
                                   "client_id": {
                                     "type": "string"
                                   },
@@ -33936,10 +33873,7 @@
                                   "issuer_url": {
                                     "type": "string"
                                   },
-                                  "metadata_url": {
-                                    "type": "string"
-                                  },
-                                  "revocation_url": {
+                                  "registration": {
                                     "type": "string"
                                   },
                                   "scopes": {
@@ -33947,12 +33881,6 @@
                                       "type": "string"
                                     },
                                     "type": "array"
-                                  },
-                                  "token_url": {
-                                    "type": "string"
-                                  },
-                                  "type": {
-                                    "type": "string"
                                   }
                                 },
                                 "required": [
@@ -84027,25 +83955,51 @@
                     "mcp": {
                       "nullable": true,
                       "properties": {
-                        "args": {
-                          "items": {
-                            "type": "string"
+                        "auth": {
+                          "nullable": true,
+                          "properties": {
+                            "method": {
+                              "type": "string"
+                            },
+                            "registration": {
+                              "type": "string"
+                            },
+                            "scopes": {
+                              "items": {
+                                "type": "string"
+                              },
+                              "type": "array"
+                            }
                           },
-                          "type": "array"
-                        },
-                        "command": {
-                          "type": "string"
+                          "required": [
+                            "method",
+                            "registration"
+                          ],
+                          "type": "object"
                         },
                         "default_scope": {
                           "type": "string"
                         },
-                        "env": {
+                        "inputs": {
                           "items": {
                             "properties": {
-                              "default": {
-                                "type": "string"
+                              "binding": {
+                                "properties": {
+                                  "name": {
+                                    "type": "string"
+                                  },
+                                  "type": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "name",
+                                  "type"
+                                ],
+                                "type": "object"
                               },
-                              "name": {
+                              "default": {},
+                              "id": {
                                 "type": "string"
                               },
                               "prompt": {
@@ -84054,55 +84008,57 @@
                               "required": {
                                 "type": "boolean"
                               },
-                              "secret": {
-                                "type": "boolean"
+                              "type": {
+                                "type": "string"
                               }
                             },
                             "required": [
-                              "name",
+                              "binding",
+                              "id",
+                              "prompt",
                               "required",
-                              "secret"
+                              "type"
                             ],
                             "type": "object"
                           },
                           "type": "array"
                         },
-                        "oauth": {
-                          "nullable": true,
+                        "launch": {
                           "properties": {
-                            "authorization_url": {
-                              "type": "string"
-                            },
-                            "client_id": {
-                              "type": "string"
-                            },
-                            "issuer_url": {
-                              "type": "string"
-                            },
-                            "scopes": {
+                            "args": {
                               "items": {
                                 "type": "string"
                               },
                               "type": "array"
                             },
-                            "token_url": {
+                            "digest": {
+                              "type": "string"
+                            },
+                            "image": {
+                              "type": "string"
+                            },
+                            "package": {
+                              "type": "string"
+                            },
+                            "type": {
+                              "type": "string"
+                            },
+                            "url": {
+                              "type": "string"
+                            },
+                            "version": {
                               "type": "string"
                             }
                           },
                           "required": [
-                            "client_id"
+                            "type"
                           ],
                           "type": "object"
-                        },
-                        "transport": {
-                          "type": "string"
-                        },
-                        "url": {
-                          "type": "string"
                         }
                       },
                       "required": [
-                        "transport"
+                        "default_scope",
+                        "launch"
                       ],
                       "type": "object"
                     },
@@ -125080,9 +125036,6 @@
                           "auth": {
                             "nullable": true,
                             "properties": {
-                              "authorization_url": {
-                                "type": "string"
-                              },
                               "client_id": {
                                 "type": "string"
                               },
@@ -125092,10 +125045,7 @@
                               "issuer_url": {
                                 "type": "string"
                               },
-                              "metadata_url": {
-                                "type": "string"
-                              },
-                              "revocation_url": {
+                              "registration": {
                                 "type": "string"
                               },
                               "scopes": {
@@ -125103,12 +125053,6 @@
                                   "type": "string"
                                 },
                                 "type": "array"
-                              },
-                              "token_url": {
-                                "type": "string"
-                              },
-                              "type": {
-                                "type": "string"
                               }
                             },
                             "required": [
@@ -125120,9 +125064,6 @@
                             "nullable": true,
                             "properties": {
                               "auth_type": {
-                                "type": "string"
-                              },
-                              "authorization_url": {
                                 "type": "string"
                               },
                               "client_id": {
@@ -125143,9 +125084,6 @@
                                 "type": "boolean"
                               },
                               "remote_url": {
-                                "type": "string"
-                              },
-                              "revocation_url": {
                                 "type": "string"
                               },
                               "scope": {
@@ -125215,6 +125153,9 @@
                                 "type": "boolean"
                               },
                               "probe": {
+                                "type": "string"
+                              },
+                              "protocol_version": {
                                 "type": "string"
                               },
                               "reason": {
@@ -125616,7 +125557,7 @@
                   "values": {
                     "nullable": true,
                     "properties": {
-                      "env": {
+                      "inputs": {
                         "additionalProperties": {
                           "oneOf": [
                             {
@@ -125650,38 +125591,6 @@
                           ]
                         },
                         "type": "object"
-                      },
-                      "oauth_client_secret": {
-                        "oneOf": [
-                          {
-                            "additionalProperties": false,
-                            "properties": {
-                              "value": {
-                                "minLength": 1,
-                                "type": "string",
-                                "writeOnly": true
-                              }
-                            },
-                            "required": [
-                              "value"
-                            ],
-                            "type": "object"
-                          },
-                          {
-                            "additionalProperties": false,
-                            "properties": {
-                              "vault_ref": {
-                                "minLength": 1,
-                                "pattern": "^vault:mcp/.+$",
-                                "type": "string"
-                              }
-                            },
-                            "required": [
-                              "vault_ref"
-                            ],
-                            "type": "object"
-                          }
-                        ]
                       }
                     },
                     "type": "object"
@@ -125692,7 +125601,6 @@
                 },
                 "required": [
                   "entry_id",
-                  "scope",
                   "values"
                 ],
                 "type": "object"
@@ -125885,9 +125793,6 @@
                         "auth": {
                           "nullable": true,
                           "properties": {
-                            "authorization_url": {
-                              "type": "string"
-                            },
                             "client_id": {
                               "type": "string"
                             },
@@ -125897,10 +125802,7 @@
                             "issuer_url": {
                               "type": "string"
                             },
-                            "metadata_url": {
-                              "type": "string"
-                            },
-                            "revocation_url": {
+                            "registration": {
                               "type": "string"
                             },
                             "scopes": {
@@ -125908,12 +125810,6 @@
                                 "type": "string"
                               },
                               "type": "array"
-                            },
-                            "token_url": {
-                              "type": "string"
-                            },
-                            "type": {
-                              "type": "string"
                             }
                           },
                           "required": [
@@ -125925,9 +125821,6 @@
                           "nullable": true,
                           "properties": {
                             "auth_type": {
-                              "type": "string"
-                            },
-                            "authorization_url": {
                               "type": "string"
                             },
                             "client_id": {
@@ -125948,9 +125841,6 @@
                               "type": "boolean"
                             },
                             "remote_url": {
-                              "type": "string"
-                            },
-                            "revocation_url": {
                               "type": "string"
                             },
                             "scope": {
@@ -126020,6 +125910,9 @@
                               "type": "boolean"
                             },
                             "probe": {
+                              "type": "string"
+                            },
+                            "protocol_version": {
                               "type": "string"
                             },
                             "reason": {
@@ -127345,9 +127238,6 @@
                       "auth": {
                         "nullable": true,
                         "properties": {
-                          "authorization_url": {
-                            "type": "string"
-                          },
                           "client_id": {
                             "type": "string"
                           },
@@ -127357,10 +127247,7 @@
                           "issuer_url": {
                             "type": "string"
                           },
-                          "metadata_url": {
-                            "type": "string"
-                          },
-                          "revocation_url": {
+                          "registration": {
                             "type": "string"
                           },
                           "scopes": {
@@ -127368,12 +127255,6 @@
                               "type": "string"
                             },
                             "type": "array"
-                          },
-                          "token_url": {
-                            "type": "string"
-                          },
-                          "type": {
-                            "type": "string"
                           }
                         },
                         "type": "object"
@@ -127964,6 +127845,15 @@
             "application/json": {
               "schema": {
                 "properties": {
+                  "approve_scope_escalation": {
+                    "type": "boolean"
+                  },
+                  "approved_scopes": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
                   "mode": {
                     "enum": [
                       "automatic",
@@ -128388,36 +128278,18 @@
           "content": {
             "application/json": {
               "schema": {
-                "oneOf": [
-                  {
-                    "additionalProperties": false,
-                    "properties": {
-                      "code": {
-                        "minLength": 1,
-                        "type": "string",
-                        "writeOnly": true
-                      }
-                    },
-                    "required": [
-                      "code"
-                    ],
-                    "type": "object"
-                  },
-                  {
-                    "additionalProperties": false,
-                    "properties": {
-                      "redirect_url": {
-                        "minLength": 1,
-                        "type": "string",
-                        "writeOnly": true
-                      }
-                    },
-                    "required": [
-                      "redirect_url"
-                    ],
-                    "type": "object"
+                "additionalProperties": false,
+                "properties": {
+                  "redirect_url": {
+                    "minLength": 1,
+                    "type": "string",
+                    "writeOnly": true
                   }
-                ]
+                },
+                "required": [
+                  "redirect_url"
+                ],
+                "type": "object"
               }
             }
           },
@@ -128431,9 +128303,6 @@
                 "schema": {
                   "properties": {
                     "auth_type": {
-                      "type": "string"
-                    },
-                    "authorization_url": {
                       "type": "string"
                     },
                     "client_id": {
@@ -128454,9 +128323,6 @@
                       "type": "boolean"
                     },
                     "remote_url": {
-                      "type": "string"
-                    },
-                    "revocation_url": {
                       "type": "string"
                     },
                     "scope": {
@@ -128874,9 +128740,6 @@
                     "auth_type": {
                       "type": "string"
                     },
-                    "authorization_url": {
-                      "type": "string"
-                    },
                     "client_id": {
                       "type": "string"
                     },
@@ -128895,9 +128758,6 @@
                       "type": "boolean"
                     },
                     "remote_url": {
-                      "type": "string"
-                    },
-                    "revocation_url": {
                       "type": "string"
                     },
                     "scope": {
@@ -129262,6 +129122,441 @@
           }
         },
         "summary": "Log out one scoped MCP server",
+        "tags": [
+          "settings"
+        ],
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/settings/mcp-servers/{name}/auth/status": {
+      "get": {
+        "operationId": "getSettingsMCPAuthStatus",
+        "parameters": [
+          {
+            "description": "Configured MCP server name",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Exact MCP settings scope",
+            "in": "query",
+            "name": "scope",
+            "required": true,
+            "schema": {
+              "enum": [
+                "global",
+                "workspace"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required when scope is workspace",
+            "in": "query",
+            "name": "workspace_id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "auth_type": {
+                      "type": "string"
+                    },
+                    "client_id": {
+                      "type": "string"
+                    },
+                    "diagnostic": {
+                      "type": "string"
+                    },
+                    "expires_at": {
+                      "format": "date-time",
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "issuer": {
+                      "type": "string"
+                    },
+                    "refreshable": {
+                      "type": "boolean"
+                    },
+                    "remote_url": {
+                      "type": "string"
+                    },
+                    "scope": {
+                      "type": "string"
+                    },
+                    "scopes": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "server_name": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "token_present": {
+                      "type": "boolean"
+                    },
+                    "updated_at": {
+                      "format": "date-time",
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "workspace_id": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "refreshable",
+                    "scope",
+                    "server_name",
+                    "status",
+                    "token_present"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Invalid MCP OAuth request or session"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "MCP server or workspace not found"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "MCP OAuth runtime is unavailable"
+          }
+        },
+        "summary": "Get redacted daemon-mediated OAuth state for one MCP server",
         "tags": [
           "settings"
         ],
@@ -205418,9 +205713,6 @@
                                 "auth": {
                                   "nullable": true,
                                   "properties": {
-                                    "authorization_url": {
-                                      "type": "string"
-                                    },
                                     "client_id": {
                                       "type": "string"
                                     },
@@ -205430,10 +205722,7 @@
                                     "issuer_url": {
                                       "type": "string"
                                     },
-                                    "metadata_url": {
-                                      "type": "string"
-                                    },
-                                    "revocation_url": {
+                                    "registration": {
                                       "type": "string"
                                     },
                                     "scopes": {
@@ -205441,12 +205730,6 @@
                                         "type": "string"
                                       },
                                       "type": "array"
-                                    },
-                                    "token_url": {
-                                      "type": "string"
-                                    },
-                                    "type": {
-                                      "type": "string"
                                     }
                                   },
                                   "required": [

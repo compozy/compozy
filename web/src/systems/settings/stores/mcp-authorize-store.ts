@@ -13,6 +13,12 @@ export interface MCPAuthorizePriorStatus {
   tokenPresent: boolean;
 }
 
+/** Scope elevation may only be sent after an explicit operator confirmation. */
+export interface MCPAuthorizeScopeApproval {
+  approvedScopes: string[];
+  approveScopeEscalation: boolean;
+}
+
 interface MCPAuthorizeIdleState {
   phase: "idle";
   attemptId: number;
@@ -25,6 +31,7 @@ interface MCPAuthorizeAttempt {
   filter: SettingsMCPAuthFilter;
   prior: MCPAuthorizePriorStatus;
   mode: SettingsMCPAuthBeginMode;
+  scopeApproval?: MCPAuthorizeScopeApproval;
 }
 
 interface MCPAuthorizeBeginningState extends MCPAuthorizeAttempt {
@@ -78,6 +85,7 @@ export type MCPAuthorizeBegin = (input: {
   filter: SettingsMCPAuthFilter;
   mode: SettingsMCPAuthBeginMode;
   server: string;
+  scopeApproval?: MCPAuthorizeScopeApproval;
 }) => Promise<SettingsMCPAuthBeginResponse>;
 
 export type MCPAuthorizeExchange = (input: {
@@ -94,9 +102,10 @@ type MCPAuthorizeEventPayloadMap = {
     filter: SettingsMCPAuthFilter;
     prior: MCPAuthorizePriorStatus;
     mode: SettingsMCPAuthBeginMode;
+    scopeApproval?: MCPAuthorizeScopeApproval;
   };
   manualAuthorizationRequested: { begin: MCPAuthorizeBegin };
-  manualCodeSubmitted: {
+  manualRedirectSubmitted: {
     exchange: MCPAuthorizeExchange;
     onConfirmed: (server: string) => void;
     value: string;
@@ -129,8 +138,17 @@ export function createMCPAuthorizeLogic() {
     on: {
       authorizeRequested: (context, event, enqueue) => {
         if (context.phase !== "idle") return;
+        if (event.scopeApproval && !hasExplicitScopeApproval(event.scopeApproval)) return;
         const attemptId = context.attemptId + 1;
-        enqueueBegin(event.begin, enqueue, attemptId, event.server, event.filter, event.mode);
+        enqueueBegin(
+          event.begin,
+          enqueue,
+          attemptId,
+          event.server,
+          event.filter,
+          event.mode,
+          event.scopeApproval
+        );
         return {
           phase: "beginning",
           attemptId,
@@ -139,12 +157,21 @@ export function createMCPAuthorizeLogic() {
           filter: event.filter,
           prior: event.prior,
           mode: event.mode,
+          scopeApproval: event.scopeApproval,
         };
       },
       manualAuthorizationRequested: (context, event, enqueue) => {
         if (context.phase === "idle" || context.phase === "beginning") return;
         const attemptId = context.attemptId + 1;
-        enqueueBegin(event.begin, enqueue, attemptId, context.server, context.filter, "manual");
+        enqueueBegin(
+          event.begin,
+          enqueue,
+          attemptId,
+          context.server,
+          context.filter,
+          "manual",
+          context.scopeApproval
+        );
         return {
           phase: "beginning",
           attemptId,
@@ -153,10 +180,11 @@ export function createMCPAuthorizeLogic() {
           filter: context.filter,
           prior: context.prior,
           mode: "manual",
+          scopeApproval: context.scopeApproval,
         };
       },
-      manualCodeSubmitted: (context, event, enqueue) => {
-        if (context.phase !== "manual" || event.value.trim() === "") return;
+      manualRedirectSubmitted: (context, event, enqueue) => {
+        if (context.phase !== "manual" || !isAbsoluteMCPRedirectURL(event.value)) return;
         enqueueExchange(event.exchange, enqueue, context, event.value, event.onConfirmed);
         return { ...context, phase: "exchanging" };
       },
@@ -164,7 +192,7 @@ export function createMCPAuthorizeLogic() {
         if (
           context.phase !== "failed" ||
           context.stage !== "completion" ||
-          event.value.trim() === ""
+          !isAbsoluteMCPRedirectURL(event.value)
         ) {
           return;
         }
@@ -214,7 +242,15 @@ export function createMCPAuthorizeLogic() {
       beginRetried: (context, event, enqueue) => {
         if (context.phase !== "failed") return;
         const attemptId = context.attemptId + 1;
-        enqueueBegin(event.begin, enqueue, attemptId, context.server, context.filter, context.mode);
+        enqueueBegin(
+          event.begin,
+          enqueue,
+          attemptId,
+          context.server,
+          context.filter,
+          context.mode,
+          context.scopeApproval
+        );
         return {
           phase: "beginning",
           attemptId,
@@ -223,6 +259,7 @@ export function createMCPAuthorizeLogic() {
           filter: context.filter,
           prior: context.prior,
           mode: context.mode,
+          scopeApproval: context.scopeApproval,
         };
       },
     },
@@ -253,13 +290,19 @@ function enqueueBegin(
   attemptId: number,
   server: string,
   filter: SettingsMCPAuthFilter,
-  mode: SettingsMCPAuthBeginMode
+  mode: SettingsMCPAuthBeginMode,
+  scopeApproval?: MCPAuthorizeScopeApproval
 ): void {
   enqueue.effect(async ({ trigger }) => {
     try {
       trigger.beginSucceeded({
         attemptId,
-        begin: await begin({ server, filter, mode }),
+        begin: await begin({
+          server,
+          filter,
+          mode,
+          ...(scopeApproval ? { scopeApproval } : {}),
+        }),
       });
     } catch (error) {
       trigger.beginFailed({
@@ -301,10 +344,25 @@ function isConfirmed(status: string, tokenPresent: boolean): boolean {
   return status === "authenticated" && tokenPresent;
 }
 
-/** A full redirect URL is pasted back; a bare code otherwise. */
+/** A manual exchange is a full HTTP(S) redirect URL, never a bare authorization code. */
+export function isAbsoluteMCPRedirectURL(value: string): boolean {
+  try {
+    const url = new URL(value.trim());
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function hasExplicitScopeApproval(approval: MCPAuthorizeScopeApproval): boolean {
+  return (
+    approval.approveScopeEscalation && approval.approvedScopes.some(scope => scope.trim() !== "")
+  );
+}
+
+/** The daemon validates state, issuer, and remaining callback constraints. */
 function toExchangeBody(value: string): SettingsMCPAuthExchangeRequest {
-  const trimmed = value.trim();
-  return /^https?:\/\//i.test(trimmed) ? { redirect_url: trimmed } : { code: trimmed };
+  return { redirect_url: value.trim() };
 }
 
 function errorMessage(error: unknown, fallback: string): string {

@@ -351,7 +351,7 @@ describe("mcp auth mutations", () => {
       await result.current.mutateAsync({
         name: "linear",
         filter: { scope: "workspace", workspace_id: "ws_alpha" },
-        body: { code: "abc123" },
+        body: { redirect_url: "http://127.0.0.1:2123/api/mcp/oauth/callback?code=abc123&state=x" },
       });
     });
 
@@ -363,7 +363,7 @@ describe("mcp auth mutations", () => {
     expect(exchangeSettingsMCPAuth).toHaveBeenCalledWith(
       "linear",
       { scope: "workspace", workspace_id: "ws_alpha" },
-      { code: "abc123" }
+      { redirect_url: "http://127.0.0.1:2123/api/mcp/oauth/callback?code=abc123&state=x" }
     );
   });
 

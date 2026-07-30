@@ -1,11 +1,11 @@
 package mcp
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"io"
+	"reflect"
 	"slices"
 	"strings"
 	"sync"
@@ -14,10 +14,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/tools"
-	mcpclient "github.com/mark3labs/mcp-go/client"
-	mcptransport "github.com/mark3labs/mcp-go/client/transport"
-	sdkmcp "github.com/mark3labs/mcp-go/mcp"
-	"github.com/mark3labs/mcp-go/server"
+	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 func TestApplyHostedToolsUsesDescriptorRawSchemas(t *testing.T) {
@@ -31,19 +28,27 @@ func TestApplyHostedToolsUsesDescriptorRawSchemas(t *testing.T) {
 	view.Descriptor.InputSchema = inputSchema
 	view.Descriptor.OutputSchema = outputSchema
 
-	mcpServer := server.NewMCPServer(HostedServerName, "test", server.WithToolCapabilities(true))
+	mcpServer := newHostedProxyTestServer()
 	applyHostedTools(mcpServer, &hostedProxyClientStub{}, "bind-1", []tools.ToolView{view})
 
-	registered := mcpServer.ListTools()
+	registered := listHostedProxyTools(t, mcpServer)
 	tool, ok := registered["compozy__hosted_echo"]
 	if !ok {
 		t.Fatalf("registered tools = %#v, want compozy__hosted_echo", registered)
 	}
-	if string(tool.Tool.RawInputSchema) != string(inputSchema) {
-		t.Fatalf("RawInputSchema = %s, want exact descriptor schema %s", tool.Tool.RawInputSchema, inputSchema)
+	gotInput, err := json.Marshal(tool.InputSchema)
+	if err != nil {
+		t.Fatalf("json.Marshal(InputSchema) error = %v", err)
 	}
-	if string(tool.Tool.RawOutputSchema) != string(outputSchema) {
-		t.Fatalf("RawOutputSchema = %s, want exact descriptor schema %s", tool.Tool.RawOutputSchema, outputSchema)
+	if !equalJSON(t, gotInput, inputSchema) {
+		t.Fatalf("InputSchema = %s, want schema-equivalent %s", gotInput, inputSchema)
+	}
+	gotOutput, err := json.Marshal(tool.OutputSchema)
+	if err != nil {
+		t.Fatalf("json.Marshal(OutputSchema) error = %v", err)
+	}
+	if !equalJSON(t, gotOutput, outputSchema) {
+		t.Fatalf("OutputSchema = %s, want schema-equivalent %s", gotOutput, outputSchema)
 	}
 }
 
@@ -55,20 +60,20 @@ func TestApplyHostedToolsAddsAnthropicMetadata(t *testing.T) {
 
 		echo := hostedToolView("compozy__hosted_echo")
 		echo.Descriptor.SearchHints = []string{"echo messages"}
-		mcpServer := server.NewMCPServer(HostedServerName, "test", server.WithToolCapabilities(true))
+		mcpServer := newHostedProxyTestServer()
 		applyHostedTools(mcpServer, &hostedProxyClientStub{}, "bind-1", []tools.ToolView{echo})
 
-		registered := mcpServer.ListTools()
+		registered := listHostedProxyTools(t, mcpServer)
 		echoTool, ok := registered["compozy__hosted_echo"]
 		if !ok {
 			t.Fatalf("registered tools = %#v, want compozy__hosted_echo", registered)
 		}
-		echoHint := requireHostedToolMetaString(t, echoTool.Tool.Meta, "anthropic/searchHint")
+		echoHint := requireHostedToolMetaString(t, echoTool.Meta, "anthropic/searchHint")
 		if !strings.Contains(echoHint, "compozy__hosted_echo") || !strings.Contains(echoHint, "echo messages") {
 			t.Fatalf("echo search hint = %q, want canonical ID and descriptor hint", echoHint)
 		}
-		if _, ok := echoTool.Tool.Meta.AdditionalFields["anthropic/alwaysLoad"]; ok {
-			t.Fatalf("echo metadata = %#v, want no alwaysLoad hint", echoTool.Tool.Meta.AdditionalFields)
+		if _, ok := echoTool.Meta["anthropic/alwaysLoad"]; ok {
+			t.Fatalf("echo metadata = %#v, want no alwaysLoad hint", echoTool.Meta)
 		}
 	})
 
@@ -77,26 +82,26 @@ func TestApplyHostedToolsAddsAnthropicMetadata(t *testing.T) {
 
 		search := hostedToolView(tools.ToolIDToolSearch)
 		search.Descriptor.SearchHints = []string{"find Compozy native tools"}
-		mcpServer := server.NewMCPServer(HostedServerName, "test", server.WithToolCapabilities(true))
+		mcpServer := newHostedProxyTestServer()
 		applyHostedTools(mcpServer, &hostedProxyClientStub{}, "bind-1", []tools.ToolView{search})
 
-		registered := mcpServer.ListTools()
+		registered := listHostedProxyTools(t, mcpServer)
 		searchTool, ok := registered[tools.ToolIDToolSearch.String()]
 		if !ok {
 			t.Fatalf("registered tools = %#v, want %s", registered, tools.ToolIDToolSearch)
 		}
-		searchHint := requireHostedToolMetaString(t, searchTool.Tool.Meta, "anthropic/searchHint")
+		searchHint := requireHostedToolMetaString(t, searchTool.Meta, "anthropic/searchHint")
 		if !strings.Contains(searchHint, tools.ToolIDToolSearch.String()) ||
 			!strings.Contains(searchHint, "find Compozy native tools") {
 			t.Fatalf("tool_search hint = %q, want canonical ID and descriptor hint", searchHint)
 		}
-		if got := searchTool.Tool.Meta.AdditionalFields["anthropic/alwaysLoad"]; got != true {
+		if got := searchTool.Meta["anthropic/alwaysLoad"]; got != true {
 			t.Fatalf("tool_search alwaysLoad = %#v, want true", got)
 		}
 	})
 }
 
-func TestRunHostedProxyListsCallsAndStreamsProjectionChanges(t *testing.T) {
+func TestRunHostedProxyUsesPrivateTTLCacheForProjectionChanges(t *testing.T) {
 	t.Parallel()
 
 	initial := hostedToolView("compozy__hosted_echo")
@@ -128,22 +133,18 @@ func TestRunHostedProxyListsCallsAndStreamsProjectionChanges(t *testing.T) {
 		})
 	}()
 
-	var transportLog bytes.Buffer
-	transport := mcptransport.NewIO(clientReader, clientWriter, io.NopCloser(&transportLog))
-	if err := transport.Start(ctx); err != nil {
-		t.Fatalf("transport.Start() error = %v", err)
+	mcpClient := sdkmcp.NewClient(&sdkmcp.Implementation{Name: "hosted-proxy-test", Version: "1.0.0"}, &sdkmcp.ClientOptions{Capabilities: &sdkmcp.ClientCapabilities{}})
+	session, err := mcpClient.Connect(ctx, &sdkmcp.IOTransport{Reader: io.NopCloser(clientReader), Writer: nopWriteCloser{Writer: clientWriter}}, nil)
+	if err != nil {
+		t.Fatalf("Connect() error = %v", err)
 	}
-	mcpClient := mcpclient.NewClient(transport)
-	defer func() { _ = mcpClient.Close() }()
+	t.Cleanup(func() {
+		if closeErr := session.Close(); closeErr != nil {
+			t.Errorf("session.Close() error = %v", closeErr)
+		}
+	})
 
-	var init sdkmcp.InitializeRequest
-	init.Params.ProtocolVersion = sdkmcp.LATEST_PROTOCOL_VERSION
-	init.Params.ClientInfo = sdkmcp.Implementation{Name: "hosted-proxy-test", Version: "1.0.0"}
-	if _, err := mcpClient.Initialize(ctx, init); err != nil {
-		t.Fatalf("Initialize() error = %v; transport log: %s", err, transportLog.String())
-	}
-
-	list, err := mcpClient.ListTools(ctx, sdkmcp.ListToolsRequest{})
+	list, err := session.ListTools(ctx, nil)
 	if err != nil {
 		t.Fatalf("ListTools(initial) error = %v", err)
 	}
@@ -151,13 +152,7 @@ func TestRunHostedProxyListsCallsAndStreamsProjectionChanges(t *testing.T) {
 		t.Fatalf("initial tools = %#v, want %#v", got, want)
 	}
 
-	var call sdkmcp.CallToolRequest
-	call.Params.Name = "compozy__hosted_echo"
-	call.Params.Arguments = map[string]any{"message": "hello"}
-	call.Params.Meta = &sdkmcp.Meta{
-		AdditionalFields: map[string]any{"toolCallId": "call-1", "approvalToken": "ignored"},
-	}
-	result, err := mcpClient.CallTool(ctx, call)
+	result, err := session.CallTool(ctx, &sdkmcp.CallToolParams{Name: "compozy__hosted_echo", Arguments: map[string]any{"message": "hello"}, Meta: sdkmcp.Meta{"toolCallId": "call-1", "approvalToken": "ignored"}})
 	if err != nil {
 		t.Fatalf("CallTool() error = %v", err)
 	}
@@ -175,16 +170,24 @@ func TestRunHostedProxyListsCallsAndStreamsProjectionChanges(t *testing.T) {
 		Digest: "updated",
 	})
 
-	list, err = mcpClient.ListTools(ctx, sdkmcp.ListToolsRequest{})
+	list, err = session.ListTools(ctx, nil)
 	if err != nil {
-		t.Fatalf("ListTools(updated) error = %v", err)
+		t.Fatalf("ListTools(cached) error = %v", err)
 	}
-	if got, want := sdkToolNames(list.Tools), []string{"compozy__hosted_other"}; !slices.Equal(got, want) {
-		t.Fatalf("updated tools = %#v, want %#v", got, want)
+	if got, want := sdkToolNames(list.Tools), []string{"compozy__hosted_echo"}; !slices.Equal(got, want) {
+		t.Fatalf("cached tools = %#v, want %#v until private TTL expires", got, want)
+	}
+	if got, want := list.CacheScope, "private"; got != want {
+		t.Fatalf("tools/list cache scope = %q, want %q", got, want)
+	}
+	if list.TTLMs <= 0 {
+		t.Fatalf("tools/list TTL = %d, want positive", list.TTLMs)
 	}
 
 	cancel()
-	_ = mcpClient.Close()
+	if err := session.Close(); err != nil {
+		t.Fatalf("session.Close() error = %v", err)
+	}
 	select {
 	case <-errCh:
 	case <-time.After(2 * time.Second):
@@ -256,15 +259,15 @@ func TestHostedProxyHelpers(t *testing.T) {
 	t.Run("Should read optional tool call metadata only from supported key", func(t *testing.T) {
 		t.Parallel()
 
-		if got := hostedToolCallID(sdkmcp.CallToolRequest{}); got != "" {
+		if got := hostedToolCallID(&sdkmcp.CallToolRequest{}); got != "" {
 			t.Fatalf("hostedToolCallID(no meta) = %q, want empty", got)
 		}
-		req := sdkmcp.CallToolRequest{}
-		req.Params.Meta = &sdkmcp.Meta{AdditionalFields: map[string]any{"toolCallId": " call-1 "}}
+		req := &sdkmcp.CallToolRequest{Params: &sdkmcp.CallToolParamsRaw{}}
+		req.Params.Meta = sdkmcp.Meta{"toolCallId": " call-1 "}
 		if got, want := hostedToolCallID(req), "call-1"; got != want {
 			t.Fatalf("hostedToolCallID() = %q, want %q", got, want)
 		}
-		req.Params.Meta = &sdkmcp.Meta{AdditionalFields: map[string]any{"toolCallId": 42}}
+		req.Params.Meta = sdkmcp.Meta{"toolCallId": 42}
 		if got := hostedToolCallID(req); got != "" {
 			t.Fatalf("hostedToolCallID(non-string) = %q, want empty", got)
 		}
@@ -349,7 +352,59 @@ func (e hostedToolResponseError) Response() contract.ToolErrorResponse {
 	return e.response
 }
 
-func sdkToolNames(tools []sdkmcp.Tool) []string {
+func newHostedProxyTestServer() *sdkmcp.Server {
+	return sdkmcp.NewServer(&sdkmcp.Implementation{Name: HostedServerName, Version: "test"}, &sdkmcp.ServerOptions{
+		Capabilities: &sdkmcp.ServerCapabilities{Tools: &sdkmcp.ToolCapabilities{}},
+	})
+}
+
+func equalJSON(t *testing.T, left, right []byte) bool {
+	t.Helper()
+	var leftValue any
+	if err := json.Unmarshal(left, &leftValue); err != nil {
+		t.Fatalf("json.Unmarshal(left) error = %v", err)
+	}
+	var rightValue any
+	if err := json.Unmarshal(right, &rightValue); err != nil {
+		t.Fatalf("json.Unmarshal(right) error = %v", err)
+	}
+	return reflect.DeepEqual(leftValue, rightValue)
+}
+
+func listHostedProxyTools(t *testing.T, server *sdkmcp.Server) map[string]*sdkmcp.Tool {
+	t.Helper()
+	serverTransport, clientTransport := sdkmcp.NewInMemoryTransports()
+	serverSession, err := server.Connect(t.Context(), serverTransport, nil)
+	if err != nil {
+		t.Fatalf("server.Connect() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if closeErr := serverSession.Close(); closeErr != nil {
+			t.Errorf("serverSession.Close() error = %v", closeErr)
+		}
+	})
+	client := sdkmcp.NewClient(&sdkmcp.Implementation{Name: "hosted-proxy-test", Version: "test"}, &sdkmcp.ClientOptions{Capabilities: &sdkmcp.ClientCapabilities{}})
+	clientSession, err := client.Connect(t.Context(), clientTransport, nil)
+	if err != nil {
+		t.Fatalf("client.Connect() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if closeErr := clientSession.Close(); closeErr != nil {
+			t.Errorf("clientSession.Close() error = %v", closeErr)
+		}
+	})
+	listed, err := clientSession.ListTools(t.Context(), nil)
+	if err != nil {
+		t.Fatalf("clientSession.ListTools() error = %v", err)
+	}
+	result := make(map[string]*sdkmcp.Tool, len(listed.Tools))
+	for _, tool := range listed.Tools {
+		result[tool.Name] = tool
+	}
+	return result
+}
+
+func sdkToolNames(tools []*sdkmcp.Tool) []string {
 	names := make([]string, 0, len(tools))
 	for _, tool := range tools {
 		names = append(names, tool.Name)
@@ -358,15 +413,15 @@ func sdkToolNames(tools []sdkmcp.Tool) []string {
 	return names
 }
 
-func requireHostedToolMetaString(t *testing.T, meta *sdkmcp.Meta, field string) string {
+func requireHostedToolMetaString(t *testing.T, meta sdkmcp.Meta, field string) string {
 	t.Helper()
 
 	if meta == nil {
 		t.Fatalf("tool meta = nil, want %s", field)
 	}
-	got, ok := meta.AdditionalFields[field].(string)
+	got, ok := meta[field].(string)
 	if !ok || strings.TrimSpace(got) == "" {
-		t.Fatalf("tool meta %s = %#v, want non-empty string", field, meta.AdditionalFields[field])
+		t.Fatalf("tool meta %s = %#v, want non-empty string", field, meta[field])
 	}
 	return got
 }

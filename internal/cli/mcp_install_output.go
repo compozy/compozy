@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/spf13/cobra"
 )
 
 type mcpInstallOutputRecord struct {
@@ -49,6 +50,9 @@ func mcpInstallBundle(response *InstallSettingsMCPServerRecord) outputBundle {
 	record := newMCPInstallOutputRecord(response)
 	return outputBundle{
 		jsonValue: response,
+		json: func(cmd *cobra.Command) error {
+			return writeJSONWithoutWorkspaceResolution(cmd, response)
+		},
 		human: func() (string, error) {
 			return renderHumanSection("MCP Install", []keyValue{
 				{Label: automationNameValue, Value: record.MCPServer.Name},

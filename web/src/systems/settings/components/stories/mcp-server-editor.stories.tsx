@@ -37,7 +37,7 @@ const meta: Meta<typeof MCPServerEditor> = {
     docs: {
       description: {
         component:
-          "MCP server editor. Simple carries the connection (local process or remote endpoint); Advanced carries the process environment for stdio or the OAuth block for a remote endpoint. Secrets are write-only and untouched bindings are preserved on save.",
+          "MCP server editor. Simple carries the connection (local process or remote endpoint); Advanced carries the process environment for stdio or explains daemon-owned OAuth discovery for a remote endpoint. Secrets are write-only and untouched bindings are preserved on save.",
       },
     },
   },
@@ -83,7 +83,7 @@ export const CreateSimpleLocal: Story = {
   render: () => harness(),
 };
 
-/** Simple tier for a remote endpoint, with its wire transport exposed. */
+/** Simple tier for a remote HTTP endpoint. */
 export const CreateSimpleRemote: Story = {
   args: {},
   render: () => harness({ draft: remoteDraft }),
@@ -95,7 +95,7 @@ export const AdvancedLocal: Story = {
   render: () => harness({ tier: "advanced" }),
 };
 
-/** Advanced on a remote server: the OAuth block replaces the process block. */
+/** Advanced on a remote server: daemon-owned OAuth discovery replaces the process block. */
 export const EditAdvancedRemote: Story = {
   args: {},
   render: () => harness({ draft: remoteDraft, mode: "edit", tier: "advanced" }),

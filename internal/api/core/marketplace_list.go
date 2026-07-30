@@ -383,7 +383,10 @@ func marketplaceTransport(details marketplacepkg.EntryDetails) string {
 	if details.MCP == nil {
 		return ""
 	}
-	return details.MCP.Transport
+	if details.MCP.Launch.Type == "remote" {
+		return "http"
+	}
+	return "stdio"
 }
 
 func remoteSkillMarketplaceListing(

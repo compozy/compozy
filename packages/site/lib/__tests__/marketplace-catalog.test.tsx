@@ -176,18 +176,18 @@ describe("marketplace catalog", () => {
         entry_id: "x",
         name: "X",
         description: "d",
-        transport: "stdio",
-        // command missing for stdio
+        default_scope: "workspace",
+        // launch missing
       })
-    ).toThrow(/command/);
+    ).toThrow(/launch/);
 
     expect(() =>
       mcpEntrySchema.parse({
         entry_id: "x",
         name: "X",
         description: "d",
-        transport: "http",
-        url: "https://example.com/mcp",
+        launch: { type: "remote", url: "https://example.com/mcp" },
+        default_scope: "workspace",
         unknown_field: true,
       })
     ).toThrow(/unrecognized|unknown_field/);
@@ -206,7 +206,7 @@ describe("marketplace catalog", () => {
   it("requires the generated timestamp required by the daemon catalog decoder", () => {
     expect(() =>
       parseMarketplaceCatalog("skills", {
-        manifest_version: 1,
+        manifest_version: 2,
         entries: [
           {
             entry_id: "writer",
@@ -222,7 +222,7 @@ describe("marketplace catalog", () => {
   it("rejects a skill identifier reserved for registry-only entries", () => {
     expect(() =>
       parseMarketplaceCatalog("skills", {
-        manifest_version: 1,
+        manifest_version: 2,
         generated_at: "2026-07-17T00:40:00Z",
         entries: [
           {
@@ -239,7 +239,7 @@ describe("marketplace catalog", () => {
   it("rejects duplicate identifiers before publishing a catalog feed", () => {
     expect(() =>
       parseMarketplaceCatalog("skills", {
-        manifest_version: 1,
+        manifest_version: 2,
         generated_at: "2026-07-17T00:40:00Z",
         entries: [
           {
@@ -262,7 +262,7 @@ describe("marketplace catalog", () => {
   it("rejects duplicate install slugs before publishing a catalog feed", () => {
     expect(() =>
       parseMarketplaceCatalog("skills", {
-        manifest_version: 1,
+        manifest_version: 2,
         generated_at: "2026-07-17T00:40:00Z",
         entries: [
           {
@@ -282,24 +282,26 @@ describe("marketplace catalog", () => {
     ).toThrow(/install_slug is duplicated/);
   });
 
-  it("rejects secret MCP defaults that the daemon would never persist", () => {
+  it("rejects secret MCP input defaults that the daemon would never persist", () => {
     expect(() =>
       parseMarketplaceCatalog("mcp", {
-        manifest_version: 1,
+        manifest_version: 2,
         generated_at: "2026-07-17T00:40:00Z",
         entries: [
           {
             entry_id: "private-mcp",
             name: "Private MCP",
             description: "Uses a secret",
-            transport: "stdio",
-            command: "private-mcp",
-            env: [
+            launch: { type: "npm", package: "private-mcp", version: "1.0.0" },
+            default_scope: "workspace",
+            inputs: [
               {
-                name: "PRIVATE_TOKEN",
+                id: "private_token",
+                prompt: "Private token",
+                type: "secret",
                 required: true,
-                secret: true,
                 default: "must-not-publish",
+                binding: { type: "env", name: "PRIVATE_TOKEN" },
               },
             ],
           },
@@ -308,23 +310,23 @@ describe("marketplace catalog", () => {
     ).toThrow(/must not set default/);
   });
 
-  it("rejects remote MCP OAuth metadata without a complete endpoint configuration", () => {
+  it("rejects OAuth on a local MCP launch", () => {
     expect(() =>
       parseMarketplaceCatalog("mcp", {
-        manifest_version: 1,
+        manifest_version: 2,
         generated_at: "2026-07-17T00:40:00Z",
         entries: [
           {
             entry_id: "remote-mcp",
             name: "Remote MCP",
             description: "Uses OAuth",
-            transport: "http",
-            url: "https://example.com/mcp",
-            oauth: { client_id: "client-id" },
+            launch: { type: "npm", package: "local-mcp", version: "1.0.0" },
+            default_scope: "workspace",
+            auth: { method: "oauth", registration: "auto" },
           },
         ],
       })
-    ).toThrow(/requires issuer_url/);
+    ).toThrow(/only allowed for remote/);
   });
 });
 
@@ -598,12 +600,14 @@ describe("marketplace rendering boundary", () => {
   });
 
   it("does not claim that MCP secret input is automatic", () => {
-    const entry = mcpEntries.find(candidate => candidate.env?.some(field => field.secret));
+    const entry = mcpEntries.find(candidate =>
+      candidate.inputs?.some(input => input.type === "secret")
+    );
     if (!entry) throw new Error("the checked-in MCP feed requires a secret-bearing entry");
 
     render(<MarketplaceEntryDetail kind="mcp" entry={entry} />);
 
-    expect(screen.getByText(/hidden prompt only for an explicit/)).toBeDefined();
+    expect(screen.getByText(/Supply a secret with/)).toBeDefined();
     expect(screen.getByText(marketplaceSearchCommand("mcp", entry))).toBeDefined();
   });
 });

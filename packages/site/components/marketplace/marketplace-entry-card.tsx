@@ -63,31 +63,27 @@ function ExtensionMeta({ entry }: { entry: ExtensionEntry }) {
   );
 }
 
-function envSummary(entry: MCPEntry): string | null {
-  const count = entry.env?.length ?? 0;
+function inputSummary(entry: MCPEntry): string | null {
+  const count = entry.inputs?.length ?? 0;
   if (count === 0) return null;
-  const optional = entry.env?.every(field => !field.required);
-  const plural = count === 1 ? "env var" : "env vars";
+  const optional = entry.inputs?.every(input => !input.required);
+  const plural = count === 1 ? "input" : "inputs";
   return `${count} ${optional ? "optional " : ""}${plural}`;
 }
 
 function MCPMeta({ entry }: { entry: MCPEntry }) {
   const published = formatFeedDate(entry.published_at);
-  const env = envSummary(entry);
+  const inputs = inputSummary(entry);
   return (
     <>
       <Pill size="sm" className="font-mono">
-        {entry.transport}
+        {entry.launch.type}
       </Pill>
-      {env ? <span>{env}</span> : null}
-      {entry.default_scope ? (
-        <>
-          <MetaSeparator />
-          <span>
-            Installs {entry.default_scope === "global" ? "globally" : "per workspace"} by default
-          </span>
-        </>
-      ) : null}
+      {inputs ? <span>{inputs}</span> : null}
+      <MetaSeparator />
+      <span>
+        Installs {entry.default_scope === "global" ? "globally" : "per workspace"} by default
+      </span>
       {published ? (
         <>
           <MetaSeparator />
@@ -135,7 +131,9 @@ export function MarketplaceEntryCard({
               {entry.name}
             </Link>
             {entry.version ? (
-              <span className="shrink-0 font-mono text-badge text-subtle">v{entry.version}</span>
+              <span className="shrink-0 font-mono text-badge text-subtle">
+                {entry.version.startsWith("v") ? entry.version : `v${entry.version}`}
+              </span>
             ) : null}
           </CatalogCard.Title>
           <CatalogCard.Description className="mt-1">{entry.description}</CatalogCard.Description>
