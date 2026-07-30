@@ -91,19 +91,21 @@ type windowManagerWindowListInput struct {
 }
 
 type windowManagerWindowOpenPayload struct {
-	WindowID        string                        `json:"window_id,omitempty"`
-	App             string                        `json:"app,omitempty"`
-	InstanceKey     string                        `json:"instance_key,omitempty"`
-	DesktopID       string                        `json:"desktop_id,omitempty"`
-	Route           *windowmanager.RouteIntent    `json:"route,omitempty"`
-	FloatingRect    *windowmanager.NormalizedRect `json:"floating_rect,omitempty"`
-	InsertTiled     bool                          `json:"insert_tiled,omitempty"`
-	RestoreWindowID string                        `json:"restore_window_id,omitempty"`
+	WindowID            string                        `json:"window_id,omitempty"`
+	App                 string                        `json:"app,omitempty"`
+	InstanceKey         string                        `json:"instance_key,omitempty"`
+	DesktopID           string                        `json:"desktop_id,omitempty"`
+	Route               *windowmanager.RouteIntent    `json:"route,omitempty"`
+	FloatingRect        *windowmanager.NormalizedRect `json:"floating_rect,omitempty"`
+	InsertTiled         bool                          `json:"insert_tiled,omitempty"`
+	StackTargetWindowID string                        `json:"stack_target_window_id,omitempty"`
+	RestoreWindowID     string                        `json:"restore_window_id,omitempty"`
 }
 
 type windowManagerWindowNavigatePayload struct {
-	WindowID string                    `json:"window_id"`
-	Route    windowmanager.RouteIntent `json:"route"`
+	WindowID string                     `json:"window_id"`
+	Route    *windowmanager.RouteIntent `json:"route,omitempty"`
+	Mode     string                     `json:"mode,omitempty"`
 }
 
 type windowManagerWindowNavigateInput struct {
@@ -119,11 +121,59 @@ type windowManagerWindowOpenInput struct {
 type windowManagerWindowClosePayload struct {
 	WindowID string `json:"window_id"`
 	Minimize bool   `json:"minimize,omitempty"`
+	Scope    string `json:"scope,omitempty"`
 }
 
 type windowManagerWindowCloseInput struct {
 	windowManagerMutationInput
 	windowManagerWindowClosePayload
+}
+
+type windowManagerWindowGroupPayload struct {
+	TargetWindowID string   `json:"target_window_id"`
+	WindowIDs      []string `json:"window_ids"`
+	InsertIndex    *int     `json:"insert_index,omitempty"`
+}
+
+type windowManagerWindowGroupInput struct {
+	windowManagerMutationInput
+	windowManagerWindowGroupPayload
+}
+
+type windowManagerWindowReorderPayload struct {
+	WindowID string `json:"window_id"`
+	Index    int    `json:"index"`
+}
+
+type windowManagerWindowReorderInput struct {
+	windowManagerMutationInput
+	windowManagerWindowReorderPayload
+}
+
+type windowManagerWindowActivatePayload struct {
+	WindowID string `json:"window_id"`
+}
+
+type windowManagerWindowActivateInput struct {
+	windowManagerMutationInput
+	windowManagerWindowActivatePayload
+}
+
+type windowManagerWindowPinPayload struct {
+	WindowID string `json:"window_id"`
+	Pinned   bool   `json:"pinned"`
+}
+
+type windowManagerWindowPinInput struct {
+	windowManagerMutationInput
+	windowManagerWindowPinPayload
+}
+
+type windowManagerWindowReopenPayload struct{}
+
+type windowManagerWindowReopenInput struct {
+	windowManagerMutationInput
+	windowManagerWindowReopenPayload
 }
 
 type windowManagerWindowFocusPayload struct {

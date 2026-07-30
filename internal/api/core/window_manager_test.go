@@ -187,6 +187,372 @@ func TestWindowManagerHandlers(t *testing.T) {
 		}
 	})
 
+	t.Run("Should execute the strict v3 tab command contract", func(t *testing.T) {
+		t.Parallel()
+		fixture := newWindowManagerHandlerFixture(t)
+
+		for index, windowID := range []string{"window-a", "window-b"} {
+			response := performWindowManagerTestRequest(
+				t,
+				fixture.router,
+				http.MethodPost,
+				windowManagerTestPath("workspace-a")+"/commands",
+				windowManagerTestCommandBody(
+					"workspace-a",
+					uint64(index),
+					"window.open",
+					fmt.Sprintf(
+						`{"window":{"id":%q,"app":"tasks","route":{"pathname":%q,"search":{}},`+
+							`"desktop_id":"desktop-default","floating_rect":{"x":0.1,"y":0.1,"width":0.5,"height":0.5},`+
+							`"insert_tiled":false}}`,
+						windowID,
+						"/tasks/"+windowID,
+					),
+				),
+			)
+			requireWindowManagerStatus(t, response, http.StatusOK)
+		}
+
+		commands := []struct {
+			id      string
+			payload string
+		}{
+			{id: "window.stack.group", payload: `{"target_window_id":"window-a","window_ids":["window-b"]}`},
+			{id: "window.stack.set_active", payload: `{"window_id":"window-a"}`},
+			{id: "window.stack.reorder", payload: `{"window_id":"window-b","index":0}`},
+			{id: "window.pin", payload: `{"window_id":"window-a","pinned":true}`},
+			{id: "window.navigate", payload: `{"window_id":"window-b","mode":"push","route":{"pathname":"/tasks/detail","search":{"id":"123"}}}`},
+			{id: "window.navigate", payload: `{"window_id":"window-b","mode":"replace","route":{"pathname":"/tasks/replaced","search":{}}}`},
+			{id: "window.close", payload: `{"window_id":"window-b","minimize":false,"scope":"tab"}`},
+			{id: "window.reopen", payload: `{}`},
+		}
+		revision := uint64(2)
+		for _, command := range commands {
+			response := performWindowManagerTestRequest(
+				t,
+				fixture.router,
+				http.MethodPost,
+				windowManagerTestPath("workspace-a")+"/commands",
+				windowManagerTestCommandBody("workspace-a", revision, command.id, command.payload),
+			)
+			requireWindowManagerStatus(t, response, http.StatusOK)
+			var result contract.WindowManagerResult
+			decodeWindowManagerTestBody(t, response, &result)
+			if !result.Applied || result.Snapshot.Version != windowmanager.SnapshotVersion {
+				t.Fatalf("%s result = %+v", command.id, result)
+			}
+			if command.id == "window.stack.group" && len(result.Snapshot.Desktops[0].FloatingStacks) != 1 {
+				t.Fatalf("group result = %+v, want one floating stack", result.Snapshot.Desktops[0])
+			}
+			revision = uint64(result.Snapshot.Revision)
+		}
+
+		var snapshot contract.WindowManagerSnapshot
+		response := performWindowManagerTestRequest(
+			t,
+			fixture.router,
+			http.MethodGet,
+			windowManagerTestPath("workspace-a"),
+			"",
+		)
+		requireWindowManagerStatus(t, response, http.StatusOK)
+		decodeWindowManagerTestBody(t, response, &snapshot)
+		if snapshot.ClosedEntryCount != 0 || len(snapshot.Windows) != 2 {
+			t.Fatalf("final v3 snapshot = %+v", snapshot)
+		}
+	})
+
+	t.Run("Should reject unknown fields and incompatible v3 tab command modes", func(t *testing.T) {
+		t.Parallel()
+		fixture := newWindowManagerHandlerFixture(t)
+
+		strictCases := []struct {
+			id      string
+			payload string
+		}{
+			{id: "window.stack.group", payload: `{"target_window_id":"window-a","window_ids":["window-b"],"surprise":true}`},
+			{id: "window.stack.reorder", payload: `{"window_id":"window-a","index":0,"surprise":true}`},
+			{id: "window.stack.set_active", payload: `{"window_id":"window-a","surprise":true}`},
+			{id: "window.pin", payload: `{"window_id":"window-a","pinned":true,"surprise":true}`},
+			{id: "window.reopen", payload: `{"surprise":true}`},
+		}
+		for _, testCase := range strictCases {
+			t.Run("Should reject unknown fields for "+testCase.id, func(t *testing.T) {
+				t.Parallel()
+				response := performWindowManagerTestRequest(
+					t,
+					fixture.router,
+					http.MethodPost,
+					windowManagerTestPath("workspace-a")+"/commands",
+					windowManagerTestCommandBody("workspace-a", 0, testCase.id, testCase.payload),
+				)
+				requireWindowManagerError(
+					t,
+					response,
+					http.StatusUnprocessableEntity,
+					contract.WindowManagerErrorInvalidCommand,
+				)
+			})
+		}
+		opened := performWindowManagerTestRequest(
+			t,
+			fixture.router,
+			http.MethodPost,
+			windowManagerTestPath("workspace-a")+"/commands",
+			windowManagerTestCommandBody(
+				"workspace-a",
+				0,
+				"window.open",
+				`{"window":{"id":"window-a","app":"tasks","route":{"pathname":"/tasks","search":{}},`+
+					`"desktop_id":"desktop-default","floating_rect":{"x":0.1,"y":0.1,"width":0.5,"height":0.5},`+
+					`"insert_tiled":false}}`,
+			),
+		)
+		requireWindowManagerStatus(t, opened, http.StatusOK)
+
+		for name, command := range map[string]struct {
+			id      string
+			payload string
+		}{
+			"pop with route": {
+				id: "window.navigate",
+				payload: `{"window_id":"window-a","mode":"pop",` +
+					`"route":{"pathname":"/not-allowed","search":{}}}`,
+			},
+			"minimize with group scope": {
+				id: "window.close", payload: `{"window_id":"window-a","minimize":true,"scope":"group"}`,
+			},
+		} {
+			t.Run("Should reject "+name, func(t *testing.T) {
+				t.Parallel()
+				response := performWindowManagerTestRequest(
+					t,
+					fixture.router,
+					http.MethodPost,
+					windowManagerTestPath("workspace-a")+"/commands",
+					windowManagerTestCommandBody("workspace-a", 1, command.id, command.payload),
+				)
+				requireWindowManagerError(
+					t,
+					response,
+					http.StatusUnprocessableEntity,
+					contract.WindowManagerErrorInvalidCommand,
+				)
+			})
+		}
+
+		unsafeRevision := uint64(contract.WindowManagerMaxSafeRevision) + 1
+		unsafe := performWindowManagerTestRequest(
+			t,
+			fixture.router,
+			http.MethodPost,
+			windowManagerTestPath("workspace-a")+"/commands",
+			windowManagerTestCommandBody(
+				"workspace-a",
+				unsafeRevision,
+				"window.stack.group",
+				`{"target_window_id":"window-a","window_ids":["window-b"]}`,
+			),
+		)
+		requireWindowManagerError(
+			t,
+			unsafe,
+			http.StatusUnprocessableEntity,
+			contract.WindowManagerErrorInvalidCommand,
+		)
+	})
+
+	t.Run("Should map tab topology failures to exact public codes", func(t *testing.T) {
+		t.Parallel()
+
+		for _, commandID := range []string{"window.stack.set_active", "window.stack.reorder"} {
+			fixture := newWindowManagerHandlerFixture(t)
+			opened := performWindowManagerTestRequest(
+				t,
+				fixture.router,
+				http.MethodPost,
+				windowManagerTestPath("workspace-a")+"/commands",
+				windowManagerTestCommandBody(
+					"workspace-a",
+					0,
+					"window.open",
+					`{"window":{"id":"window-a","app":"tasks","route":{"pathname":"/tasks","search":{}},`+
+						`"desktop_id":"desktop-default","floating_rect":{"x":0.1,"y":0.1,"width":0.5,"height":0.5},`+
+						`"insert_tiled":false}}`,
+				),
+			)
+			requireWindowManagerStatus(t, opened, http.StatusOK)
+
+			payload := `{"window_id":"window-a"}`
+			if commandID == "window.stack.reorder" {
+				payload = `{"window_id":"window-a","index":0}`
+			}
+			notStacked := performWindowManagerTestRequest(
+				t,
+				fixture.router,
+				http.MethodPost,
+				windowManagerTestPath("workspace-a")+"/commands",
+				windowManagerTestCommandBody("workspace-a", 1, commandID, payload),
+			)
+			requireWindowManagerError(
+				t,
+				notStacked,
+				http.StatusUnprocessableEntity,
+				contract.WindowManagerErrorNotStacked,
+			)
+
+			missingPayload := strings.Replace(payload, "window-a", "window-missing", 1)
+			missing := performWindowManagerTestRequest(
+				t,
+				fixture.router,
+				http.MethodPost,
+				windowManagerTestPath("workspace-a")+"/commands",
+				windowManagerTestCommandBody("workspace-a", 1, commandID, missingPayload),
+			)
+			requireWindowManagerError(
+				t,
+				missing,
+				http.StatusNotFound,
+				contract.WindowManagerErrorWindowNotFound,
+			)
+		}
+
+		fixture := newWindowManagerHandlerFixture(t)
+		opened := performWindowManagerTestRequest(
+			t,
+			fixture.router,
+			http.MethodPost,
+			windowManagerTestPath("workspace-a")+"/commands",
+			windowManagerTestCommandBody(
+				"workspace-a",
+				0,
+				"window.open",
+				`{"window":{"id":"window-a","app":"tasks","route":{"pathname":"/tasks","search":{}},`+
+					`"desktop_id":"desktop-default","floating_rect":{"x":0.1,"y":0.1,"width":0.5,"height":0.5},`+
+					`"insert_tiled":false}}`,
+			),
+		)
+		requireWindowManagerStatus(t, opened, http.StatusOK)
+		pinned := performWindowManagerTestRequest(
+			t,
+			fixture.router,
+			http.MethodPost,
+			windowManagerTestPath("workspace-a")+"/commands",
+			windowManagerTestCommandBody(
+				"workspace-a", 1, "window.pin", `{"window_id":"window-a","pinned":true}`,
+			),
+		)
+		requireWindowManagerStatus(t, pinned, http.StatusOK)
+		closed := performWindowManagerTestRequest(
+			t,
+			fixture.router,
+			http.MethodPost,
+			windowManagerTestPath("workspace-a")+"/commands",
+			windowManagerTestCommandBody(
+				"workspace-a", 2, "window.close", `{"window_id":"window-a","minimize":false}`,
+			),
+		)
+		requireWindowManagerError(
+			t,
+			closed,
+			http.StatusUnprocessableEntity,
+			contract.WindowManagerErrorWindowPinned,
+		)
+	})
+
+	t.Run("Should serialize concurrent tab mutations through revision CAS and allow retry", func(t *testing.T) {
+		t.Parallel()
+		fixture := newWindowManagerHandlerFixture(t)
+		for index, windowID := range []string{"window-a", "window-b", "window-c"} {
+			opened := performWindowManagerTestRequest(
+				t,
+				fixture.router,
+				http.MethodPost,
+				windowManagerTestPath("workspace-a")+"/commands",
+				windowManagerTestCommandBody(
+					"workspace-a",
+					uint64(index),
+					"window.open",
+					fmt.Sprintf(
+						`{"window":{"id":%q,"app":"tasks","route":{"pathname":%q,"search":{}},`+
+							`"desktop_id":"desktop-default","floating_rect":{"x":0.1,"y":0.1,"width":0.5,"height":0.5},`+
+							`"insert_tiled":false}}`,
+						windowID,
+						"/tasks/"+windowID,
+					),
+				),
+			)
+			requireWindowManagerStatus(t, opened, http.StatusOK)
+		}
+
+		groupBody := windowManagerTestCommandBody(
+			"workspace-a",
+			3,
+			"window.stack.group",
+			`{"target_window_id":"window-a","window_ids":["window-b"]}`,
+		)
+		closeBody := windowManagerTestCommandBody(
+			"workspace-a",
+			3,
+			"window.close",
+			`{"window_id":"window-c","minimize":false}`,
+		)
+		type raceResult struct {
+			body     string
+			response *httptest.ResponseRecorder
+		}
+		results := make(chan raceResult, 2)
+		for _, body := range []string{groupBody, closeBody} {
+			go func() {
+				results <- raceResult{
+					body: body,
+					response: performWindowManagerTestRequest(
+						t,
+						fixture.router,
+						http.MethodPost,
+						windowManagerTestPath("workspace-a")+"/commands",
+						body,
+					),
+				}
+			}()
+		}
+		statuses := map[int]int{}
+		var stale raceResult
+		for range 2 {
+			result := <-results
+			statuses[result.response.Code]++
+			if result.response.Code == http.StatusConflict {
+				stale = result
+				payload := requireWindowManagerError(
+					t,
+					result.response,
+					http.StatusConflict,
+					contract.WindowManagerErrorRevisionConflict,
+				)
+				if payload.CurrentRevision == nil || *payload.CurrentRevision != 4 {
+					t.Fatalf("race current_revision = %v, want 4", payload.CurrentRevision)
+				}
+			}
+		}
+		if statuses[http.StatusOK] != 1 || statuses[http.StatusConflict] != 1 {
+			t.Fatalf("race statuses = %+v, want one 200 and one 409", statuses)
+		}
+		retryBody := strings.Replace(stale.body, `"expected_revision":3`, `"expected_revision":4`, 1)
+		retried := performWindowManagerTestRequest(
+			t,
+			fixture.router,
+			http.MethodPost,
+			windowManagerTestPath("workspace-a")+"/commands",
+			retryBody,
+		)
+		requireWindowManagerStatus(t, retried, http.StatusOK)
+		var retriedResult contract.WindowManagerResult
+		decodeWindowManagerTestBody(t, retried, &retriedResult)
+		if !retriedResult.Applied || retriedResult.Snapshot.Revision != 5 {
+			t.Fatalf("retried result = %+v", retriedResult)
+		}
+	})
+
 	t.Run("Should require registered presentation clients and preserve workspace isolation", func(t *testing.T) {
 		t.Parallel()
 		fixture := newWindowManagerHandlerFixture(t)
@@ -528,6 +894,17 @@ func createDesktopCommandBody(workspaceID string, revision uint64, desktopID str
 		workspaceID,
 		revision,
 		desktopID,
+	)
+}
+
+func windowManagerTestCommandBody(workspaceID string, revision uint64, commandID string, payload string) string {
+	return fmt.Sprintf(
+		`{"workspace_id":%q,"command_id":%q,"expected_revision":%d,`+
+			`"actor":{"kind":"test","id":"actor"},"origin":"core-test","payload":%s}`,
+		workspaceID,
+		commandID,
+		revision,
+		payload,
 	)
 }
 

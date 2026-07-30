@@ -16,6 +16,55 @@ import (
 )
 
 func TestCommandTransaction(t *testing.T) {
+	t.Run("Should keep repeated previews deterministic without consuming durable IDs", func(t *testing.T) {
+		t.Parallel()
+		var generated atomic.Int64
+		environment := newTestEnvironmentWithOptions(
+			t,
+			DefaultConfig(),
+			[]WorkspaceID{"workspace-a"},
+			WithIDGenerator(func(kind string) (string, error) {
+				return fmt.Sprintf("%s-durable-%d", kind, generated.Add(1)), nil
+			}),
+		)
+		openTestWindow(t, environment.manager, "workspace-a", nil, "window-a", "desktop-default")
+		openTestWindow(t, environment.manager, "workspace-a", nil, "window-b", "desktop-default")
+		snapshot, err := environment.manager.Snapshot(t.Context(), "workspace-a")
+		if err != nil {
+			t.Fatalf("Snapshot() error = %v", err)
+		}
+		request := CommandRequest{
+			WorkspaceID:      "workspace-a",
+			ExpectedRevision: snapshot.Revision,
+			Payload: GroupWindowsCommand{
+				TargetWindowID: "window-a",
+				WindowIDs:      []WindowID{"window-b"},
+			},
+		}
+
+		first, err := environment.manager.Preview(t.Context(), request)
+		if err != nil {
+			t.Fatalf("Preview(first) error = %v", err)
+		}
+		second, err := environment.manager.Preview(t.Context(), request)
+		if err != nil {
+			t.Fatalf("Preview(second) error = %v", err)
+		}
+		if !reflect.DeepEqual(first, second) {
+			t.Fatalf("repeated previews differ:\nfirst=%+v\nsecond=%+v", first, second)
+		}
+		if calls := generated.Load(); calls != 0 {
+			t.Fatalf("durable ID generator calls after previews = %d, want 0", calls)
+		}
+
+		if _, err := environment.manager.Execute(t.Context(), request); err != nil {
+			t.Fatalf("Execute(group) error = %v", err)
+		}
+		if calls := generated.Load(); calls != 1 {
+			t.Fatalf("durable ID generator calls after commit = %d, want 1", calls)
+		}
+	})
+
 	t.Run(
 		"Should commit one revision and history entry while preview, no-op, and rejection write nothing",
 		func(t *testing.T) {
@@ -143,7 +192,7 @@ func TestCommandTransaction(t *testing.T) {
 
 	t.Run("Should observe only selected durable commits with isolated event values", func(t *testing.T) {
 		t.Parallel()
-		observed := make([]Event, 0, 5)
+		observed := make([]Event, 0, 12)
 		environment := newTestEnvironmentWithOptions(
 			t,
 			DefaultConfig(),
@@ -234,9 +283,40 @@ func TestCommandTransaction(t *testing.T) {
 			&clientID,
 			FocusWindowCommand{WindowID: &windowID},
 		)
-		if len(observed) != 1 {
-			t.Fatalf("non-observable commands produced %d observations, want 1", len(observed))
+		if len(observed) != 2 {
+			t.Fatalf("presentation commands changed observation count to %d, want 2", len(observed))
 		}
+
+		openTestWindow(t, environment.manager, "workspace-a", &clientID, "w2", "desktop-default")
+		executeTestCommand(
+			t,
+			environment.manager,
+			"workspace-a",
+			&clientID,
+			GroupWindowsCommand{TargetWindowID: "w1", WindowIDs: []WindowID{"w2"}},
+		)
+		executeTestCommand(
+			t,
+			environment.manager,
+			"workspace-a",
+			&clientID,
+			SetStackActiveCommand{WindowID: "w1"},
+		)
+		executeTestCommand(
+			t,
+			environment.manager,
+			"workspace-a",
+			&clientID,
+			CloseWindowCommand{WindowID: "w2"},
+		)
+		executeTestCommand(t, environment.manager, "workspace-a", &clientID, ReopenCommand{})
+		executeTestCommand(
+			t,
+			environment.manager,
+			"workspace-a",
+			&clientID,
+			ToggleFloatingCommand{WindowID: "w2"},
+		)
 
 		executeTestCommand(
 			t,
@@ -285,6 +365,13 @@ func TestCommandTransaction(t *testing.T) {
 
 		wantCommands := []CommandID{
 			CommandDesktopCreate,
+			CommandWindowOpen,
+			CommandWindowOpen,
+			CommandWindowStackGroup,
+			CommandWindowStackSetActive,
+			CommandWindowClose,
+			CommandWindowReopen,
+			CommandWindowToggleFloating,
 			CommandWindowMove,
 			CommandLayoutArrange,
 			CommandLayoutReplace,

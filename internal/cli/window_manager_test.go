@@ -394,11 +394,11 @@ func TestWindowManagerMutationCommands(t *testing.T) {
 		{
 			name:            "Should open a window",
 			commandID:       contract.WindowManagerCommandWindowOpen,
-			expectedPayload: `{"window":{"id":"win-3","app":"tasks","route":{"pathname":"/tasks","search":{"status":"open"}},"desktop_id":"d1","floating_rect":{"x":0.1,"y":0.2,"width":0.5,"height":0.6},"insert_tiled":false}}`,
+			expectedPayload: `{"window":{"id":"win-3","app":"tasks","route":{"pathname":"/tasks","search":{"status":"open"}},"desktop_id":"d1","floating_rect":{"x":0.1,"y":0.2,"width":0.5,"height":0.6},"insert_tiled":false,"stack_target_window_id":"win-1"}}`,
 			args: []string{
 				"window", "open", "--workspace", "w1", "--revision", "7", "--id", "win-3", "--app", "tasks",
 				"--desktop", "d1", "--rect", "0.1,0.2,0.5,0.6", "--pathname", "/tasks",
-				"--search-json", `{"status":"open"}`,
+				"--search-json", `{"status":"open"}`, "--stack-target", "win-1",
 			},
 			expectedRoute: &windowmanager.RouteIntent{
 				Pathname: "/tasks",
@@ -406,18 +406,62 @@ func TestWindowManagerMutationCommands(t *testing.T) {
 			},
 		},
 		{
+			name:            "Should group windows at an insertion index",
+			commandID:       contract.WindowManagerCommandWindowStackGroup,
+			expectedPayload: `{"target_window_id":"win-1","window_ids":["win-2","win-3"],"insert_index":1}`,
+			args: []string{
+				"window", "group", "--workspace", "w1", "--revision", "7", "--target", "win-1",
+				"--windows", "win-2,win-3", "--insert-index", "1",
+			},
+		},
+		{
+			name:            "Should activate a stacked window for an optional client",
+			commandID:       contract.WindowManagerCommandWindowStackSetActive,
+			expectedPayload: `{"window_id":"win-2"}`,
+			expectedClient:  "browser-a",
+			args: []string{
+				"window", "activate", "win-2", "--workspace", "w1", "--revision", "7", "--client", "browser-a",
+			},
+		},
+		{
+			name:            "Should pin a window",
+			commandID:       contract.WindowManagerCommandWindowPin,
+			expectedPayload: `{"window_id":"win-1","pinned":true}`,
+			args:            []string{"window", "pin", "win-1", "--workspace", "w1", "--revision", "7"},
+		},
+		{
+			name:            "Should unpin a window",
+			commandID:       contract.WindowManagerCommandWindowPin,
+			expectedPayload: `{"window_id":"win-1","pinned":false}`,
+			args:            []string{"window", "unpin", "win-1", "--workspace", "w1", "--revision", "7"},
+		},
+		{
+			name:            "Should reopen the newest closed entry",
+			commandID:       contract.WindowManagerCommandWindowReopen,
+			expectedPayload: `{}`,
+			args:            []string{"window", "reopen", "--workspace", "w1", "--revision", "7"},
+		},
+		{
 			name:            "Should navigate a window and optionally focus its client",
 			commandID:       contract.WindowManagerCommandWindowNavigate,
-			expectedPayload: `{"window_id":"win-1","route":{"pathname":"/tasks/detail","search":{"task_id":"task-123"}}}`,
+			expectedPayload: `{"window_id":"win-1","route":{"pathname":"/tasks/detail","search":{"task_id":"task-123"}},"mode":"push"}`,
 			expectedClient:  "browser-a",
 			args: []string{
 				"window", "navigate", "--workspace", "w1", "--revision", "7", "--client", "browser-a",
 				"--id", "win-1", "--pathname", "/tasks/detail",
-				"--search-json", `{"task_id":"task-123"}`,
+				"--search-json", `{"task_id":"task-123"}`, "--mode", "push",
 			},
 			expectedRoute: &windowmanager.RouteIntent{
 				Pathname: "/tasks/detail",
 				Search:   windowmanager.RouteSearch{"task_id": json.RawMessage(`"task-123"`)},
+			},
+		},
+		{
+			name:            "Should pop a window route without route flags",
+			commandID:       contract.WindowManagerCommandWindowNavigate,
+			expectedPayload: `{"window_id":"win-1","mode":"pop"}`,
+			args: []string{
+				"window", "navigate", "--workspace", "w1", "--revision", "7", "--id", "win-1", "--mode", "pop",
 			},
 		},
 		{
@@ -434,6 +478,14 @@ func TestWindowManagerMutationCommands(t *testing.T) {
 				"--id",
 				"win-1",
 				"--minimize",
+			},
+		},
+		{
+			name:            "Should close a window group",
+			commandID:       contract.WindowManagerCommandWindowClose,
+			expectedPayload: `{"window_id":"win-1","minimize":false,"scope":"group"}`,
+			args: []string{
+				"window", "close", "--workspace", "w1", "--revision", "7", "--id", "win-1", "--scope", "group",
 			},
 		},
 		{
@@ -623,7 +675,24 @@ func TestWindowManagerReadAndClientCommands(t *testing.T) {
 			if workspace != "w1" {
 				t.Fatalf("workspace = %q, want w1", workspace)
 			}
-			return windowManagerTestSnapshot(7), nil
+			snapshot := windowManagerTestSnapshot(7)
+			activeID := windowmanager.WindowID("win-2")
+			snapshot.Desktops[0].Floating = []windowmanager.WindowID{}
+			snapshot.Desktops[0].FloatingStacks = []contract.WindowManagerFloatingStack{{
+				ID: "stack-1", WindowIDs: []windowmanager.WindowID{"win-1", "win-2"}, ActiveID: &activeID,
+			}}
+			snapshot.Desktops[1].Floating = []windowmanager.WindowID{}
+			first := snapshot.Windows["win-1"]
+			first.DesktopID = "d1"
+			first.Placement = windowmanager.WindowPlacementStacked
+			first.Pinned = true
+			first.NavStack = []windowmanager.RouteIntent{{Pathname: "/tasks/root", Search: windowmanager.RouteSearch{}}}
+			snapshot.Windows["win-1"] = first
+			second := snapshot.Windows["win-2"]
+			second.DesktopID = "d1"
+			second.Placement = windowmanager.WindowPlacementStacked
+			snapshot.Windows["win-2"] = second
+			return snapshot, nil
 		}
 		deps := newTestDeps(t, client)
 
@@ -641,10 +710,46 @@ func TestWindowManagerReadAndClientCommands(t *testing.T) {
 		if err != nil {
 			t.Fatalf("window list error = %v", err)
 		}
-		var windows []contract.WindowManagerWindow
+		var windows []windowManagerWindowListItem
 		decodeWindowManagerCommandJSON(t, windowOutput, &windows)
-		if len(windows) != 2 || windows[0].ID != "win-1" || windows[1].ID != "win-2" {
+		if len(windows) != 2 || windows[0].WindowManagerWindow.ID != "win-1" ||
+			windows[1].WindowManagerWindow.ID != "win-2" {
 			t.Fatalf("windows = %#v, want stable ID order", windows)
+		}
+		if windows[0].StackID == nil || *windows[0].StackID != "stack-1" ||
+			windows[0].MemberOrder == nil || *windows[0].MemberOrder != 0 || windows[0].Active ||
+			!windows[0].Pinned || windows[0].NavDepth != 1 ||
+			windows[1].StackID == nil || *windows[1].StackID != "stack-1" ||
+			windows[1].MemberOrder == nil || *windows[1].MemberOrder != 1 || !windows[1].Active {
+			t.Fatalf("window tab projection = %#v", windows)
+		}
+	})
+
+	t.Run("Should print a reopen no-op without hiding applied false", func(t *testing.T) {
+		t.Parallel()
+		client := newWindowManagerCommandStub()
+		client.executeFn = func(
+			_ context.Context,
+			workspace string,
+			request contract.WindowManagerCommandRequest,
+		) (contract.WindowManagerResult, error) {
+			if workspace != "w1" || request.CommandID != contract.WindowManagerCommandWindowReopen {
+				t.Fatalf("reopen request = %#v for workspace %q", request, workspace)
+			}
+			return contract.WindowManagerResult{Snapshot: windowManagerTestSnapshot(7), Applied: false}, nil
+		}
+		output, _, err := executeRootCommand(
+			t,
+			newTestDeps(t, client),
+			"window", "reopen", "--workspace", "w1", "--revision", "7", "-o", "json",
+		)
+		if err != nil {
+			t.Fatalf("window reopen error = %v", err)
+		}
+		var result contract.WindowManagerResult
+		decodeWindowManagerCommandJSON(t, output, &result)
+		if result.Applied || result.Snapshot.Revision != 7 {
+			t.Fatalf("reopen result = %#v, want applied=false at revision 7", result)
 		}
 	})
 
@@ -1046,6 +1151,39 @@ func TestWindowManagerWatchAndErrors(t *testing.T) {
 			t.Fatalf("error payload = %#v, want conflict at revision 9", payload)
 		}
 	})
+
+	t.Run("Should preserve deterministic tab error codes and fail the command", func(t *testing.T) {
+		t.Parallel()
+		client := newWindowManagerCommandStub()
+		client.executeFn = func(
+			context.Context,
+			string,
+			contract.WindowManagerCommandRequest,
+		) (contract.WindowManagerResult, error) {
+			return contract.WindowManagerResult{}, &windowManagerAPIError{
+				statusCode: http.StatusUnprocessableEntity,
+				payload: contract.WindowManagerErrorPayload{
+					Error:       string(contract.WindowManagerErrorNotStacked),
+					Code:        contract.WindowManagerErrorNotStacked,
+					WorkspaceID: "w1",
+				},
+			}
+		}
+		exitCode, _, stderr := executeRootCommandWithExit(
+			t,
+			newTestDeps(t, client),
+			"window", "activate", "win-1", "--workspace", "w1", "--revision", "7", "-o", "json",
+		)
+		if exitCode == 0 {
+			t.Fatalf("exit code = 0; stderr=%s", stderr)
+		}
+		var payload contract.WindowManagerErrorPayload
+		decodeWindowManagerCommandJSON(t, stderr, &payload)
+		if payload.Code != contract.WindowManagerErrorNotStacked ||
+			payload.Error != string(contract.WindowManagerErrorNotStacked) {
+			t.Fatalf("error payload = %#v", payload)
+		}
+	})
 }
 
 func TestWindowManagerCommandsRejectInvalidInputBeforeTransport(t *testing.T) {
@@ -1160,6 +1298,41 @@ func TestWindowManagerCommandsRejectInvalidInputBeforeTransport(t *testing.T) {
 			wantJSONCause: true,
 		},
 		{
+			name: "Should reject route flags while popping navigation",
+			args: []string{
+				"window", "navigate", "--workspace", "w1", "--revision", "1", "--id", "win-1",
+				"--mode", "pop", "--pathname", "/tasks", "--search-json", `{}`,
+			},
+			wantKind: windowManagerCLIValidationConflicting, wantField: "mode",
+			wantError: "--mode pop cannot be combined with route flags",
+		},
+		{
+			name: "Should reject an unsupported navigation mode",
+			args: []string{
+				"window", "navigate", "--workspace", "w1", "--revision", "1", "--id", "win-1", "--mode", "teleport",
+			},
+			wantKind: windowManagerCLIValidationInvalidValue, wantField: "mode",
+			wantError: "unsupported --mode",
+		},
+		{
+			name: "Should reject minimize with a group close scope",
+			args: []string{
+				"window", "close", "--workspace", "w1", "--revision", "1", "--id", "win-1",
+				"--minimize", "--scope", "group",
+			},
+			wantKind: windowManagerCLIValidationConflicting, wantField: "scope",
+			wantError: "--minimize cannot be combined with a non-tab --scope",
+		},
+		{
+			name: "Should reject malformed window group lists",
+			args: []string{
+				"window", "group", "--workspace", "w1", "--revision", "1", "--target", "win-1",
+				"--windows", "win-2,,win-3",
+			},
+			wantKind: windowManagerCLIValidationInvalidValue, wantField: "windows",
+			wantError: "non-empty comma-separated IDs",
+		},
+		{
 			name: "Should reject unknown preview commands",
 			args: []string{
 				"layout",
@@ -1206,6 +1379,16 @@ func TestWindowManagerCommandsRejectInvalidInputBeforeTransport(t *testing.T) {
 			name: "Should reject an explicit false tiled flag during restore",
 			args: []string{
 				"window", "open", "--workspace", "w1", "--revision", "1", "--restore", "win-1", "--tiled=false",
+			},
+			wantKind:  windowManagerCLIValidationConflicting,
+			wantField: "restore",
+			wantError: "--restore cannot be combined with new-window flags",
+		},
+		{
+			name: "Should reject a stack target during restore",
+			args: []string{
+				"window", "open", "--workspace", "w1", "--revision", "1", "--restore", "win-1",
+				"--stack-target", "win-2",
 			},
 			wantKind:  windowManagerCLIValidationConflicting,
 			wantField: "restore",

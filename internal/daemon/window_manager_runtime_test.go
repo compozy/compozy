@@ -28,6 +28,9 @@ func TestWindowManagerHookBridge(t *testing.T) {
 			{command: windowmanager.CommandDesktopCreate, hook: hookspkg.HookWindowManagerDesktopCreated},
 			{command: windowmanager.CommandDesktopDelete, hook: hookspkg.HookWindowManagerDesktopDeleted},
 			{command: windowmanager.CommandWindowMove, hook: hookspkg.HookWindowManagerWindowMoved},
+			{command: windowmanager.CommandWindowOpen, hook: hookspkg.HookWindowManagerWindowOpened},
+			{command: windowmanager.CommandWindowClose, hook: hookspkg.HookWindowManagerWindowClosed},
+			{command: windowmanager.CommandWindowStackSetActive, hook: hookspkg.HookWindowManagerStackActivated},
 		}
 		seen := make(chan hookspkg.WindowManagerPayload, len(events))
 		declarations := make([]hookspkg.HookDecl, 0, len(events))
@@ -116,6 +119,84 @@ func TestWindowManagerHookBridge(t *testing.T) {
 		case payload := <-seen:
 			t.Fatalf("presentation command produced hook payload %#v", payload)
 		case <-time.After(20 * time.Millisecond):
+		}
+	})
+
+	t.Run("Should map tab outcomes once and preserve complete affected ids", func(t *testing.T) {
+		t.Parallel()
+
+		cases := []struct {
+			name  string
+			event windowmanager.Event
+			want  []hookspkg.HookEvent
+		}{
+			{
+				name:  "open",
+				event: windowmanager.Event{CommandID: windowmanager.CommandWindowOpen},
+				want:  []hookspkg.HookEvent{hookspkg.HookWindowManagerWindowOpened},
+			},
+			{
+				name:  "reopen",
+				event: windowmanager.Event{CommandID: windowmanager.CommandWindowReopen},
+				want:  []hookspkg.HookEvent{hookspkg.HookWindowManagerWindowOpened},
+			},
+			{
+				name: "frame close",
+				event: windowmanager.Event{
+					CommandID: windowmanager.CommandWindowClose,
+					Changes: windowmanager.ChangeSet{
+						WindowIDs:      []windowmanager.WindowID{"window-a", "window-b"},
+						StackUngrouped: []windowmanager.NodeID{"stack-a"},
+					},
+				},
+				want: []hookspkg.HookEvent{
+					hookspkg.HookWindowManagerWindowClosed,
+					hookspkg.HookWindowManagerStackUngrouped,
+				},
+			},
+			{
+				name: "merge all",
+				event: windowmanager.Event{
+					CommandID: windowmanager.CommandWindowStackGroup,
+					Changes: windowmanager.ChangeSet{
+						StackGrouped:   []windowmanager.NodeID{"stack-target"},
+						StackUngrouped: []windowmanager.NodeID{"stack-source"},
+					},
+				},
+				want: []hookspkg.HookEvent{
+					hookspkg.HookWindowManagerStackGrouped,
+					hookspkg.HookWindowManagerStackUngrouped,
+				},
+			},
+			{
+				name:  "durable activation",
+				event: windowmanager.Event{CommandID: windowmanager.CommandWindowStackSetActive},
+				want:  []hookspkg.HookEvent{hookspkg.HookWindowManagerStackActivated},
+			},
+			{
+				name:  "presentation focus",
+				event: windowmanager.Event{CommandID: windowmanager.CommandWindowFocus},
+				want:  nil,
+			},
+		}
+		for _, testCase := range cases {
+			t.Run("Should map "+testCase.name, func(t *testing.T) {
+				t.Parallel()
+				dispatches := windowManagerHookPayloads(testCase.event)
+				if len(dispatches) != len(testCase.want) {
+					t.Fatalf("dispatch count = %d, want %d: %+v", len(dispatches), len(testCase.want), dispatches)
+				}
+				for index, want := range testCase.want {
+					if dispatches[index].event != want || dispatches[index].payload.Event != want {
+						t.Fatalf("dispatch[%d] = %+v, want event %q", index, dispatches[index], want)
+					}
+				}
+				if testCase.name == "frame close" {
+					if got := dispatches[0].payload.Changes.WindowIDs; len(got) != 2 || got[0] != "window-a" || got[1] != "window-b" {
+						t.Fatalf("closed window ids = %+v", got)
+					}
+				}
+			})
 		}
 	})
 

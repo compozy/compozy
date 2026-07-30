@@ -34,13 +34,14 @@ type WindowManagerDeleteDesktopPayload struct {
 }
 
 type WindowManagerWindowSpecPayload struct {
-	ID           windowmanager.WindowID       `json:"id"`
-	App          string                       `json:"app"`
-	InstanceKey  *string                      `json:"instance_key,omitempty"`
-	Route        windowmanager.RouteIntent    `json:"route"`
-	DesktopID    windowmanager.DesktopID      `json:"desktop_id"`
-	FloatingRect windowmanager.NormalizedRect `json:"floating_rect"`
-	InsertTiled  bool                         `json:"insert_tiled"`
+	ID                  windowmanager.WindowID       `json:"id,omitempty"`
+	App                 string                       `json:"app"`
+	InstanceKey         *string                      `json:"instance_key,omitempty"`
+	Route               windowmanager.RouteIntent    `json:"route"`
+	DesktopID           windowmanager.DesktopID      `json:"desktop_id"`
+	FloatingRect        windowmanager.NormalizedRect `json:"floating_rect"`
+	InsertTiled         bool                         `json:"insert_tiled"`
+	StackTargetWindowID *windowmanager.WindowID      `json:"stack_target_window_id,omitempty"`
 }
 
 type WindowManagerOpenWindowPayload struct {
@@ -49,14 +50,38 @@ type WindowManagerOpenWindowPayload struct {
 }
 
 type WindowManagerNavigateWindowPayload struct {
-	WindowID windowmanager.WindowID    `json:"window_id"`
-	Route    windowmanager.RouteIntent `json:"route"`
+	WindowID windowmanager.WindowID     `json:"window_id"`
+	Route    windowmanager.RouteIntent  `json:"route,omitzero"`
+	Mode     windowmanager.NavigateMode `json:"mode,omitempty"`
 }
 
 type WindowManagerCloseWindowPayload struct {
-	WindowID windowmanager.WindowID `json:"window_id"`
-	Minimize bool                   `json:"minimize"`
+	WindowID windowmanager.WindowID   `json:"window_id"`
+	Minimize bool                     `json:"minimize"`
+	Scope    windowmanager.CloseScope `json:"scope,omitempty"`
 }
+
+type WindowManagerGroupWindowsPayload struct {
+	TargetWindowID windowmanager.WindowID   `json:"target_window_id"`
+	WindowIDs      []windowmanager.WindowID `json:"window_ids"`
+	InsertIndex    *int                     `json:"insert_index,omitempty"`
+}
+
+type WindowManagerReorderStackPayload struct {
+	WindowID windowmanager.WindowID `json:"window_id"`
+	Index    int                    `json:"index"`
+}
+
+type WindowManagerSetStackActivePayload struct {
+	WindowID windowmanager.WindowID `json:"window_id"`
+}
+
+type WindowManagerPinWindowPayload struct {
+	WindowID windowmanager.WindowID `json:"window_id"`
+	Pinned   bool                   `json:"pinned"`
+}
+
+type WindowManagerReopenWindowPayload struct{}
 
 type WindowManagerFocusWindowPayload struct {
 	WindowID  *windowmanager.WindowID      `json:"window_id,omitempty"`
@@ -168,6 +193,7 @@ func decodeOpenWindowPayload(raw json.RawMessage) (windowmanager.Command, error)
 		ID: payload.Window.ID, App: payload.Window.App, InstanceKey: payload.Window.InstanceKey,
 		Route: payload.Window.Route, DesktopID: payload.Window.DesktopID,
 		FloatingRect: payload.Window.FloatingRect, InsertTiled: payload.Window.InsertTiled,
+		StackTargetWindowID: payload.Window.StackTargetWindowID,
 	}
 	return windowmanager.OpenWindowCommand{Window: spec, RestoreWindowID: payload.RestoreWindowID}, nil
 }
@@ -177,7 +203,12 @@ func decodeNavigateWindowPayload(raw json.RawMessage) (windowmanager.Command, er
 	if err := decodeStrictContractJSON(raw, &payload); err != nil {
 		return nil, err
 	}
-	return windowmanager.NavigateWindowCommand{WindowID: payload.WindowID, Route: payload.Route}, nil
+	if payload.Mode == "replace" {
+		payload.Mode = windowmanager.NavigateReplace
+	}
+	return windowmanager.NavigateWindowCommand{
+		WindowID: payload.WindowID, Route: payload.Route, Mode: payload.Mode,
+	}, nil
 }
 
 func decodeCloseWindowPayload(raw json.RawMessage) (windowmanager.Command, error) {
@@ -185,7 +216,54 @@ func decodeCloseWindowPayload(raw json.RawMessage) (windowmanager.Command, error
 	if err := decodeStrictContractJSON(raw, &payload); err != nil {
 		return nil, err
 	}
-	return windowmanager.CloseWindowCommand{WindowID: payload.WindowID, Minimize: payload.Minimize}, nil
+	if payload.Scope == "tab" {
+		payload.Scope = windowmanager.CloseScopeTab
+	}
+	return windowmanager.CloseWindowCommand{
+		WindowID: payload.WindowID, Minimize: payload.Minimize, Scope: payload.Scope,
+	}, nil
+}
+
+func decodeGroupWindowsPayload(raw json.RawMessage) (windowmanager.Command, error) {
+	var payload WindowManagerGroupWindowsPayload
+	if err := decodeStrictContractJSON(raw, &payload); err != nil {
+		return nil, err
+	}
+	return windowmanager.GroupWindowsCommand{
+		TargetWindowID: payload.TargetWindowID, WindowIDs: payload.WindowIDs, InsertIndex: payload.InsertIndex,
+	}, nil
+}
+
+func decodeReorderStackPayload(raw json.RawMessage) (windowmanager.Command, error) {
+	var payload WindowManagerReorderStackPayload
+	if err := decodeStrictContractJSON(raw, &payload); err != nil {
+		return nil, err
+	}
+	return windowmanager.ReorderStackCommand{WindowID: payload.WindowID, Index: payload.Index}, nil
+}
+
+func decodeSetStackActivePayload(raw json.RawMessage) (windowmanager.Command, error) {
+	var payload WindowManagerSetStackActivePayload
+	if err := decodeStrictContractJSON(raw, &payload); err != nil {
+		return nil, err
+	}
+	return windowmanager.SetStackActiveCommand{WindowID: payload.WindowID}, nil
+}
+
+func decodePinWindowPayload(raw json.RawMessage) (windowmanager.Command, error) {
+	var payload WindowManagerPinWindowPayload
+	if err := decodeStrictContractJSON(raw, &payload); err != nil {
+		return nil, err
+	}
+	return windowmanager.PinWindowCommand{WindowID: payload.WindowID, Pinned: payload.Pinned}, nil
+}
+
+func decodeReopenWindowPayload(raw json.RawMessage) (windowmanager.Command, error) {
+	var payload WindowManagerReopenWindowPayload
+	if err := decodeStrictContractJSON(raw, &payload); err != nil {
+		return nil, err
+	}
+	return windowmanager.ReopenCommand{}, nil
 }
 
 func decodeFocusWindowPayload(raw json.RawMessage) (windowmanager.Command, error) {

@@ -2,6 +2,7 @@ package spec
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/getkin/kin-openapi/openapi3"
@@ -80,6 +81,9 @@ func customizeWindowManagerRouteIntent(schemas openapi3.Schemas) {
 	if payload == nil || payload.Value == nil {
 		return
 	}
+	payload.Value.Required = slices.DeleteFunc(payload.Value.Required, func(field string) bool {
+		return field == "route"
+	})
 	route := payload.Value.Properties["route"]
 	if route == nil || route.Value == nil {
 		return

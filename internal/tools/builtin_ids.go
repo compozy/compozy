@@ -382,6 +382,16 @@ const (
 	ToolIDWindowNavigate ToolID = "compozy__window_navigate"
 	// ToolIDWindowClose closes or minimizes a managed window.
 	ToolIDWindowClose ToolID = "compozy__window_close"
+	// ToolIDWindowGroup groups windows into one ordered stack.
+	ToolIDWindowGroup ToolID = "compozy__window_group"
+	// ToolIDWindowReorder reorders one member within its stack.
+	ToolIDWindowReorder ToolID = "compozy__window_reorder"
+	// ToolIDWindowActivate durably activates one stacked window.
+	ToolIDWindowActivate ToolID = "compozy__window_activate"
+	// ToolIDWindowPin changes one window's pinned state.
+	ToolIDWindowPin ToolID = "compozy__window_pin"
+	// ToolIDWindowReopen restores the newest closed entry.
+	ToolIDWindowReopen ToolID = "compozy__window_reopen"
 	// ToolIDWindowFocus focuses a managed window for one explicit client.
 	ToolIDWindowFocus ToolID = "compozy__window_focus"
 	// ToolIDWindowMove moves a managed window.

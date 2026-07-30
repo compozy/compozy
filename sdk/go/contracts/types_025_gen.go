@@ -170,11 +170,13 @@ type WindowManagerActor struct {
 }
 
 type WindowManagerChanges struct {
-	DesktopIDs []string `json:"desktop_ids,omitempty"`
-	WindowIDs  []string `json:"window_ids,omitempty"`
-	GroupIDs   []string `json:"group_ids,omitempty"`
-	NodeIDs    []string `json:"node_ids,omitempty"`
-	ClientIDs  []string `json:"client_ids,omitempty"`
+	DesktopIDs     []string `json:"desktop_ids,omitempty"`
+	WindowIDs      []string `json:"window_ids,omitempty"`
+	GroupIDs       []string `json:"group_ids,omitempty"`
+	NodeIDs        []string `json:"node_ids,omitempty"`
+	ClientIDs      []string `json:"client_ids,omitempty"`
+	StackGrouped   []string `json:"stack_grouped,omitempty"`
+	StackUngrouped []string `json:"stack_ungrouped,omitempty"`
 }
 
 type WindowManagerDesktopCreatedPayload struct {
@@ -212,7 +214,18 @@ type WindowManagerLayoutAppliedPayload struct {
 
 type WindowManagerObservationPatch struct{}
 
-type WindowManagerWindowMovedPayload struct {
+type WindowManagerStackActivatedPayload struct {
+	Event       HookEvent            `json:"event"`
+	Timestamp   time.Time            `json:"timestamp"`
+	WorkspaceID string               `json:"workspace_id"`
+	Revision    uint64               `json:"revision"`
+	CommandID   string               `json:"command_id"`
+	Changes     WindowManagerChanges `json:"changes"`
+	Actor       WindowManagerActor   `json:"actor"`
+	Origin      string               `json:"origin,omitempty"`
+}
+
+type WindowManagerStackGroupedPayload struct {
 	Event       HookEvent            `json:"event"`
 	Timestamp   time.Time            `json:"timestamp"`
 	WorkspaceID string               `json:"workspace_id"`

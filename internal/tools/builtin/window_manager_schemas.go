@@ -139,6 +139,7 @@ const windowManagerWindowOpenInputSchema = `{
 		"route":` + windowManagerRouteSchema + `,
 		"floating_rect":` + windowManagerRectSchema + `,
 		"insert_tiled":{"type":"boolean"},
+		"stack_target_window_id":{"type":"string","minLength":1},
 		"restore_window_id":{"type":"string","minLength":1},
 		"rebase":` + windowManagerRebaseSchema + `,
 		` + windowManagerOriginSchema + `
@@ -155,10 +156,14 @@ const windowManagerWindowNavigateInputSchema = `{
 		` + windowManagerClientSchema + `,
 		"window_id":{"type":"string","minLength":1},
 		"route":` + windowManagerRouteSchema + `,
+		"mode":{"type":"string","enum":["replace","push","pop"]},
 		"rebase":` + windowManagerRebaseSchema + `,
 		` + windowManagerOriginSchema + `
 	},
-	"required":["expected_revision","window_id","route"],
+	"required":["expected_revision","window_id"],
+	"if":{"properties":{"mode":{"const":"pop"}},"required":["mode"]},
+	"then":{"not":{"required":["route"]}},
+	"else":{"required":["route"]},
 	"additionalProperties":false
 }`
 
@@ -169,10 +174,13 @@ const windowManagerWindowCloseInputSchema = `{
 		` + windowManagerRevisionSchema + `,
 		"window_id":{"type":"string","minLength":1},
 		"minimize":{"type":"boolean"},
+		"scope":{"type":"string","enum":["tab","group","others","right"]},
 		"rebase":` + windowManagerRebaseSchema + `,
 		` + windowManagerOriginSchema + `
 	},
 	"required":["expected_revision","window_id"],
+	"if":{"properties":{"minimize":{"const":true}},"required":["minimize"]},
+	"then":{"not":{"required":["scope"]}},
 	"additionalProperties":false
 }`
 
@@ -272,7 +280,8 @@ const windowManagerLayoutPreviewInputSchema = `{
 		"command_id":{"type":"string","enum":[
 			"desktop.create","desktop.update","desktop.reorder","desktop.switch","desktop.delete",
 			"window.open","window.navigate","window.close","window.focus","window.move","window.swap","window.toggle_floating",
-			"window.zoom","layout.arrange","layout.resize","layout.balance","layout.undo","layout.redo"
+			"window.zoom","window.stack.group","window.stack.reorder","window.stack.set_active","window.pin","window.reopen",
+			"layout.arrange","layout.resize","layout.balance","layout.undo","layout.redo"
 		]},
 		"payload":{"type":"object"},
 		"rebase":` + windowManagerRebaseSchema + `,
@@ -348,7 +357,7 @@ const windowManagerLayoutHistoryInputSchema = `{
 const windowManagerLayoutDocumentSchema = `{
 	"type":"object",
 	"properties":{
-		"version":{"type":"integer","const":2},
+		"version":{"type":"integer","const":3},
 		"workspace_id":{"type":"string","minLength":1},
 		"desktops":{"type":"array","minItems":1,"items":{"type":"object"}},
 		"windows":{"type":"object"},
@@ -388,7 +397,9 @@ const windowManagerChangesSchema = `{
 		"window_ids":{"type":"array","items":{"type":"string"}},
 		"group_ids":{"type":"array","items":{"type":"string"}},
 		"node_ids":{"type":"array","items":{"type":"string"}},
-		"client_ids":{"type":"array","items":{"type":"string"}}
+		"client_ids":{"type":"array","items":{"type":"string"}},
+		"stack_grouped":{"type":"array","items":{"type":"string"}},
+		"stack_ungrouped":{"type":"array","items":{"type":"string"}}
 	},
 	"additionalProperties":false
 }`

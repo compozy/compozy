@@ -17,14 +17,11 @@ func WindowManagerSnapshotFromDomain(snapshot windowmanager.Snapshot) (WindowMan
 	if err != nil {
 		return WindowManagerSnapshot{}, err
 	}
-	history, err := windowManagerHistoryFromDomain(snapshot.History)
-	if err != nil {
-		return WindowManagerSnapshot{}, err
-	}
 	return WindowManagerSnapshot{
 		Version: snapshot.Version, WorkspaceID: snapshot.WorkspaceID, Revision: revision,
-		Desktops: windowManagerDesktopsFromDomain(snapshot.Desktops), Windows: windows, History: history,
-		Overrides: cloneWindowManagerWorkspaceConfig(snapshot.Overrides), UpdatedAt: snapshot.UpdatedAt,
+		Desktops: windowManagerDesktopsFromDomain(snapshot.Desktops), Windows: windows,
+		ClosedEntryCount: len(snapshot.ClosedEntries),
+		Overrides:        cloneWindowManagerWorkspaceConfig(snapshot.Overrides), UpdatedAt: snapshot.UpdatedAt,
 	}, nil
 }
 
@@ -62,8 +59,17 @@ func WindowManagerClientFromDomain(client windowmanager.ClientView) (WindowManag
 		PresentationRevision: revision,
 		FocusedWindowID:      cloneWindowManagerPointer(client.FocusedWindowID),
 		FocusOrder:           append([]windowmanager.WindowID{}, client.FocusOrder...),
+		StackActive:          windowManagerStackActiveFromDomain(client.StackActive),
 		ConnectedAt:          client.ConnectedAt,
 	}, nil
+}
+
+func windowManagerStackActiveFromDomain(values map[windowmanager.NodeID]windowmanager.WindowID) map[string]string {
+	result := make(map[string]string, len(values))
+	for stackID, windowID := range values {
+		result[string(stackID)] = string(windowID)
+	}
+	return result
 }
 
 // WindowManagerResultFromDomain converts a semantic command result.
@@ -110,49 +116,6 @@ func WindowManagerPreviewFromDomain(preview windowmanager.Preview) (WindowManage
 	}, nil
 }
 
-func windowManagerHistoryFromDomain(history windowmanager.History) (WindowManagerHistory, error) {
-	undo, err := windowManagerHistoryEntriesFromDomain(history.Undo)
-	if err != nil {
-		return WindowManagerHistory{}, err
-	}
-	redo, err := windowManagerHistoryEntriesFromDomain(history.Redo)
-	if err != nil {
-		return WindowManagerHistory{}, err
-	}
-	return WindowManagerHistory{Undo: undo, Redo: redo}, nil
-}
-
-func windowManagerHistoryEntriesFromDomain(entries []windowmanager.HistoryEntry) ([]WindowManagerHistoryEntry, error) {
-	result := make([]WindowManagerHistoryEntry, 0, len(entries))
-	for _, entry := range entries {
-		beforeWindows, err := windowManagerWindowsFromDomain(entry.Before.Windows)
-		if err != nil {
-			return nil, err
-		}
-		afterWindows, err := windowManagerWindowsFromDomain(entry.After.Windows)
-		if err != nil {
-			return nil, err
-		}
-		result = append(result, WindowManagerHistoryEntry{
-			CommandID: WindowManagerCommandID(entry.CommandID),
-			Before: WindowManagerState{
-				Desktops:  windowManagerDesktopsFromDomain(entry.Before.Desktops),
-				Windows:   beforeWindows,
-				Overrides: cloneWindowManagerWorkspaceConfig(entry.Before.Overrides),
-			},
-			After: WindowManagerState{
-				Desktops:  windowManagerDesktopsFromDomain(entry.After.Desktops),
-				Windows:   afterWindows,
-				Overrides: cloneWindowManagerWorkspaceConfig(entry.After.Overrides),
-			},
-			Actor:     WindowManagerActor{Kind: entry.Actor.Kind, ID: entry.Actor.ID},
-			Origin:    entry.Origin,
-			CreatedAt: entry.CreatedAt,
-		})
-	}
-	return result, nil
-}
-
 func windowManagerWindowsFromDomain(
 	windows map[windowmanager.WindowID]windowmanager.Window,
 ) (map[string]WindowManagerWindow, error) {
@@ -161,7 +124,8 @@ func windowManagerWindowsFromDomain(
 		converted := WindowManagerWindow{
 			ID: window.ID, App: window.App,
 			InstanceKey: cloneWindowManagerPointer(window.InstanceKey),
-			Route:       cloneWindowManagerRoute(window.Route), Placement: window.Placement,
+			Route:       cloneWindowManagerRoute(window.Route), NavStack: cloneWindowManagerRoutes(window.NavStack),
+			Pinned: window.Pinned, Placement: window.Placement,
 			DesktopID: window.DesktopID, FloatingRect: window.FloatingRect, Minimized: window.Minimized,
 		}
 		if window.ReturnAnchor != nil {
@@ -193,7 +157,8 @@ func windowManagerWindowsToDomain(
 		converted := windowmanager.Window{
 			ID: window.ID, App: window.App,
 			InstanceKey: cloneWindowManagerPointer(window.InstanceKey),
-			Route:       cloneWindowManagerRoute(window.Route), Placement: window.Placement,
+			Route:       cloneWindowManagerRoute(window.Route), NavStack: cloneWindowManagerRoutes(window.NavStack),
+			Pinned: window.Pinned, Placement: window.Placement,
 			DesktopID: window.DesktopID, FloatingRect: window.FloatingRect, Minimized: window.Minimized,
 		}
 		if window.ReturnAnchor != nil {
@@ -225,6 +190,8 @@ func cloneWindowManagerWorkspaceConfig(config windowmanager.WorkspaceConfig) win
 	cloned.GroupMoveModifier = cloneWindowManagerPointer(config.GroupMoveModifier)
 	cloned.SwapModifier = cloneWindowManagerPointer(config.SwapModifier)
 	cloned.HistoryLimit = cloneWindowManagerPointer(config.HistoryLimit)
+	cloned.NavStackLimit = cloneWindowManagerPointer(config.NavStackLimit)
+	cloned.ClosedEntryLimit = cloneWindowManagerPointer(config.ClosedEntryLimit)
 	cloned.DesktopTransition = cloneWindowManagerPointer(config.DesktopTransition)
 	cloned.Gaps = cloneWindowManagerPointer(config.Gaps)
 	cloned.Bindings = cloneWindowManagerPointer(config.Bindings)
@@ -234,6 +201,14 @@ func cloneWindowManagerWorkspaceConfig(config windowmanager.WorkspaceConfig) win
 		cloned.Snap.RepeatRatios = append([]float64(nil), config.Snap.RepeatRatios...)
 	}
 	return cloned
+}
+
+func cloneWindowManagerRoutes(routes []windowmanager.RouteIntent) []windowmanager.RouteIntent {
+	result := make([]windowmanager.RouteIntent, len(routes))
+	for index, route := range routes {
+		result[index] = cloneWindowManagerRoute(route)
+	}
+	return result
 }
 
 func cloneWindowManagerRoute(route windowmanager.RouteIntent) windowmanager.RouteIntent {

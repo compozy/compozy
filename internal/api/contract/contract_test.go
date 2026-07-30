@@ -182,6 +182,124 @@ func TestWindowManagerReturnAnchorContract(t *testing.T) {
 	})
 }
 
+func TestWindowManagerV3WireContract(t *testing.T) {
+	t.Run("Should expose tab topology and omit internal history from snapshots", func(t *testing.T) {
+		t.Parallel()
+
+		activeID := windowmanager.WindowID("window:a")
+		snapshot, err := contract.WindowManagerSnapshotFromDomain(windowmanager.Snapshot{
+			Version:     windowmanager.SnapshotVersion,
+			WorkspaceID: "workspace:test",
+			Desktops: []windowmanager.Desktop{{
+				ID: "desktop:main", Name: "Main", Purpose: windowmanager.DesktopPurposeStandard,
+				Groups: []windowmanager.LayoutGroup{}, Floating: []windowmanager.WindowID{},
+				FloatingStacks: []windowmanager.FloatingStack{{
+					ID: "stack:main", WindowIDs: []windowmanager.WindowID{"window:a", "window:b"},
+					ActiveID: &activeID,
+					Rect:     windowmanager.NormalizedRect{X: 0.1, Y: 0.2, Width: 0.7, Height: 0.6},
+				}},
+			}},
+			Windows: map[windowmanager.WindowID]windowmanager.Window{
+				"window:a": {
+					ID: "window:a", App: "tasks", DesktopID: "desktop:main",
+					Route: windowmanager.RouteIntent{Pathname: "/tasks/current", Search: windowmanager.RouteSearch{}},
+					NavStack: []windowmanager.RouteIntent{{
+						Pathname: "/tasks", Search: windowmanager.RouteSearch{},
+					}},
+					Pinned: true, Placement: windowmanager.WindowPlacementStacked,
+				},
+				"window:b": {
+					ID: "window:b", App: "tasks", DesktopID: "desktop:main",
+					Route:    windowmanager.RouteIntent{Pathname: "/tasks/second", Search: windowmanager.RouteSearch{}},
+					NavStack: []windowmanager.RouteIntent{}, Placement: windowmanager.WindowPlacementStacked,
+				},
+			},
+			ClosedEntries: []windowmanager.ClosedEntry{{Windows: []windowmanager.Window{{ID: "window:closed"}}}},
+			History:       windowmanager.History{Undo: []windowmanager.HistoryEntry{{CommandID: windowmanager.CommandWindowOpen}}},
+		})
+		if err != nil {
+			t.Fatalf("WindowManagerSnapshotFromDomain() error = %v", err)
+		}
+		data, err := json.Marshal(snapshot)
+		if err != nil {
+			t.Fatalf("json.Marshal() error = %v", err)
+		}
+		var wire map[string]json.RawMessage
+		if err := json.Unmarshal(data, &wire); err != nil {
+			t.Fatalf("json.Unmarshal() error = %v", err)
+		}
+		if _, ok := wire["history"]; ok {
+			t.Fatalf("snapshot JSON includes internal history: %s", data)
+		}
+		if string(wire["closed_entry_count"]) != "1" {
+			t.Fatalf("closed_entry_count JSON = %s, want 1", wire["closed_entry_count"])
+		}
+		if len(snapshot.Desktops) != 1 || len(snapshot.Desktops[0].FloatingStacks) != 1 {
+			t.Fatalf("snapshot floating stacks = %+v, want one", snapshot.Desktops)
+		}
+		window := snapshot.Windows["window:a"]
+		if !window.Pinned || len(window.NavStack) != 1 || window.NavStack[0].Pathname != "/tasks" {
+			t.Fatalf("window tab fields = %+v", window)
+		}
+	})
+
+	t.Run("Should preserve required empty tab fields", func(t *testing.T) {
+		t.Parallel()
+
+		snapshot, err := contract.WindowManagerSnapshotFromDomain(windowmanager.Snapshot{
+			Version: windowmanager.SnapshotVersion, WorkspaceID: "workspace:empty",
+			Desktops: []windowmanager.Desktop{{
+				ID: "desktop:main", Groups: nil, Floating: nil, FloatingStacks: nil,
+			}},
+			Windows: map[windowmanager.WindowID]windowmanager.Window{},
+		})
+		if err != nil {
+			t.Fatalf("WindowManagerSnapshotFromDomain() error = %v", err)
+		}
+		data, err := json.Marshal(snapshot)
+		if err != nil {
+			t.Fatalf("json.Marshal() error = %v", err)
+		}
+		var wire struct {
+			ClosedEntryCount json.RawMessage `json:"closed_entry_count"`
+			Desktops         []struct {
+				FloatingStacks json.RawMessage `json:"floating_stacks"`
+			} `json:"desktops"`
+		}
+		if err := json.Unmarshal(data, &wire); err != nil {
+			t.Fatalf("json.Unmarshal() error = %v", err)
+		}
+		if len(wire.Desktops) != 1 || string(wire.Desktops[0].FloatingStacks) != "[]" {
+			t.Fatalf("floating_stacks JSON = %s, want []", wire.Desktops[0].FloatingStacks)
+		}
+		if string(wire.ClosedEntryCount) != "0" {
+			t.Fatalf("closed_entry_count JSON = %s, want 0", wire.ClosedEntryCount)
+		}
+	})
+
+	t.Run("Should carry only the converted client's active stack map", func(t *testing.T) {
+		t.Parallel()
+
+		domainStackActive := map[windowmanager.NodeID]windowmanager.WindowID{
+			"stack:main": "window:b",
+		}
+		client, err := contract.WindowManagerClientFromDomain(windowmanager.ClientView{
+			WorkspaceID: "workspace:test", ClientID: "client:a",
+			StackActive: domainStackActive,
+		})
+		if err != nil {
+			t.Fatalf("WindowManagerClientFromDomain() error = %v", err)
+		}
+		if !reflect.DeepEqual(client.StackActive, map[string]string{"stack:main": "window:b"}) {
+			t.Fatalf("stack_active = %+v", client.StackActive)
+		}
+		client.StackActive["stack:main"] = "window:a"
+		if got := domainStackActive["stack:main"]; got != "window:b" {
+			t.Fatalf("domain stack_active unexpectedly changed: %q", got)
+		}
+	})
+}
+
 func TestLoopDefinitionDocumentPreservesWatchEvents(t *testing.T) {
 	t.Run("Should preserve watch-events subscriptions across the public DTO boundary", func(t *testing.T) {
 		t.Parallel()

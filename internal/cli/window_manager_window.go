@@ -18,6 +18,7 @@ type windowOpenFlagValues struct {
 	instanceKey string
 	desktopID   string
 	restoreID   string
+	stackTarget string
 	rectRaw     string
 	pathname    string
 	searchJSON  string
@@ -30,6 +31,11 @@ func newWindowCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newWindowOpenCommand(deps))
 	cmd.AddCommand(newWindowNavigateCommand(deps))
 	cmd.AddCommand(newWindowCloseCommand(deps))
+	cmd.AddCommand(newWindowGroupCommand(deps))
+	cmd.AddCommand(newWindowActivateCommand(deps))
+	cmd.AddCommand(newWindowPinCommand(deps, true))
+	cmd.AddCommand(newWindowPinCommand(deps, false))
+	cmd.AddCommand(newWindowReopenCommand(deps))
 	cmd.AddCommand(newWindowFocusCommand(deps))
 	cmd.AddCommand(newWindowMoveCommand(deps))
 	cmd.AddCommand(newWindowSwapCommand(deps))
@@ -118,7 +124,8 @@ func validateWindowRestoreFlags(cmd *cobra.Command) error {
 		cmd.Flags().Changed(windowManagerRectFlag) ||
 		cmd.Flags().Changed(windowManagerPathnameFlag) ||
 		cmd.Flags().Changed(windowManagerSearchJSONFlag) ||
-		cmd.Flags().Changed("tiled")
+		cmd.Flags().Changed("tiled") ||
+		cmd.Flags().Changed("stack-target")
 	if newWindowFlagsChanged {
 		return newWindowManagerCLIValidationError(
 			windowManagerCLIValidationConflicting,
@@ -145,6 +152,10 @@ func windowOpenSpec(
 	if err != nil {
 		return contract.WindowManagerWindowSpecPayload{}, err
 	}
+	stackTarget, err := optionalWindowManagerID[windowmanager.WindowID](cmd, "stack-target", values.stackTarget)
+	if err != nil {
+		return contract.WindowManagerWindowSpecPayload{}, err
+	}
 	rect, err := optionalWindowManagerRect(cmd, values.rectRaw)
 	if err != nil {
 		return contract.WindowManagerWindowSpecPayload{}, err
@@ -158,13 +169,14 @@ func windowOpenSpec(
 		return contract.WindowManagerWindowSpecPayload{}, err
 	}
 	return contract.WindowManagerWindowSpecPayload{
-		ID:           windowmanager.WindowID(strings.TrimSpace(values.windowID)),
-		App:          app,
-		InstanceKey:  instance,
-		Route:        route,
-		DesktopID:    windowmanager.DesktopID(strings.TrimSpace(values.desktopID)),
-		FloatingRect: floatingRect,
-		InsertTiled:  values.insertTiled,
+		ID:                  windowmanager.WindowID(strings.TrimSpace(values.windowID)),
+		App:                 app,
+		InstanceKey:         instance,
+		Route:               route,
+		DesktopID:           windowmanager.DesktopID(strings.TrimSpace(values.desktopID)),
+		FloatingRect:        floatingRect,
+		InsertTiled:         values.insertTiled,
+		StackTargetWindowID: stackTarget,
 	}, nil
 }
 
@@ -191,6 +203,7 @@ func (values *windowOpenFlagValues) addFlags(cmd *cobra.Command) {
 		"Floating rect as x,y,width,height in normalized coordinates",
 	)
 	cmd.Flags().BoolVar(&values.insertTiled, "tiled", false, "Insert beside client focus when possible")
+	cmd.Flags().StringVar(&values.stackTarget, "stack-target", "", "Add the new window to this window's stack")
 	addWindowManagerRouteFlags(cmd, &values.pathname, &values.searchJSON)
 }
 
@@ -198,6 +211,7 @@ func newWindowCloseCommand(deps commandDeps) *cobra.Command {
 	var flags windowManagerMutationFlags
 	var windowID string
 	var minimize bool
+	var scope string
 	cmd := &cobra.Command{
 		Use: "close", Short: "Close or minimize a window and reflow its group", Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -205,12 +219,23 @@ func newWindowCloseCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			closeScope, err := parseWindowManagerCloseScope(scope)
+			if err != nil {
+				return err
+			}
+			if minimize && closeScope != windowmanager.CloseScopeTab {
+				return newWindowManagerCLIValidationError(
+					windowManagerCLIValidationConflicting,
+					"scope",
+					errors.New("cli: --minimize cannot be combined with a non-tab --scope"),
+				)
+			}
 			request, err := flags.request(
 				cmd,
 				deps,
 				contract.WindowManagerCommandWindowClose,
 				contract.WindowManagerCloseWindowPayload{
-					WindowID: windowmanager.WindowID(windowID), Minimize: minimize,
+					WindowID: windowmanager.WindowID(windowID), Minimize: minimize, Scope: closeScope,
 				},
 			)
 			if err != nil {
@@ -226,7 +251,27 @@ func newWindowCloseCommand(deps commandDeps) *cobra.Command {
 	flags.add(cmd)
 	cmd.Flags().StringVar(&windowID, "id", "", "Window ID")
 	cmd.Flags().BoolVar(&minimize, "minimize", false, "Keep the window available for restore")
+	cmd.Flags().StringVar(&scope, "scope", "tab", "Close scope: tab, group, others, or right")
 	return cmd
+}
+
+func parseWindowManagerCloseScope(raw string) (windowmanager.CloseScope, error) {
+	switch normalized := strings.TrimSpace(raw); normalized {
+	case "", "tab":
+		return windowmanager.CloseScopeTab, nil
+	case string(windowmanager.CloseScopeGroup):
+		return windowmanager.CloseScopeGroup, nil
+	case string(windowmanager.CloseScopeOthers):
+		return windowmanager.CloseScopeOthers, nil
+	case string(windowmanager.CloseScopeRight):
+		return windowmanager.CloseScopeRight, nil
+	default:
+		return "", newWindowManagerCLIValidationError(
+			windowManagerCLIValidationInvalidValue,
+			"scope",
+			fmt.Errorf("cli: unsupported --scope %q", raw),
+		)
+	}
 }
 
 func newWindowFocusCommand(deps commandDeps) *cobra.Command {

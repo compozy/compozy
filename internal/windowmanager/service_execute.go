@@ -69,7 +69,13 @@ func isObservableCommand(commandID CommandID) bool {
 	switch commandID {
 	case CommandDesktopCreate,
 		CommandDesktopDelete,
+		CommandWindowOpen,
+		CommandWindowClose,
 		CommandWindowMove,
+		CommandWindowToggleFloating,
+		CommandWindowStackGroup,
+		CommandWindowStackSetActive,
+		CommandWindowReopen,
 		CommandLayoutArrange,
 		CommandLayoutReplace:
 		return true

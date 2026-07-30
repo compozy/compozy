@@ -1,14 +1,14 @@
 ---
-title: "compozy window close"
-description: "Close or minimize a window and reflow its group"
+title: "compozy window pin"
+description: "Pin one managed window"
 ---
 
-## compozy window close
+## compozy window pin
 
-Close or minimize a window and reflow its group
+Pin one managed window
 
 ```
-compozy window close [flags]
+compozy window pin <window-id> [flags]
 ```
 
 ### Options
@@ -16,12 +16,9 @@ compozy window close [flags]
 ```
       --actor-id string    Optional actor identifier
       --client string      Connected presentation client ID
-  -h, --help               help for close
-      --id string          Window ID
-      --minimize           Keep the window available for restore
+  -h, --help               help for pin
       --origin string      Command origin label (default "cli")
       --revision uint      Expected workspace revision
-      --scope string       Close scope: tab, group, others, or right (default "tab")
       --workspace string   Override workspace (ID, name, or path)
 ```
 
@@ -46,5 +43,5 @@ The root `-o, --output` flag accepts these values. A renderer is supported only 
 Example:
 
 ```bash
-compozy window close -o json
+compozy window pin <window-id> -o json
 ```

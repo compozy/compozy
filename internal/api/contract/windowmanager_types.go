@@ -41,6 +41,8 @@ const (
 	WindowManagerErrorInvalidTopology   WindowManagerErrorCode = "window_manager_invalid_topology"
 	WindowManagerErrorDesktopNotFound   WindowManagerErrorCode = "window_manager_desktop_not_found"
 	WindowManagerErrorWindowNotFound    WindowManagerErrorCode = "window_manager_window_not_found"
+	WindowManagerErrorNotStacked        WindowManagerErrorCode = "window_manager_not_stacked"
+	WindowManagerErrorWindowPinned      WindowManagerErrorCode = "window_manager_window_pinned"
 	WindowManagerErrorClientNotFound    WindowManagerErrorCode = "window_manager_client_not_found"
 	WindowManagerErrorDestination       WindowManagerErrorCode = "window_manager_destination_required"
 	WindowManagerErrorFinalDesktop      WindowManagerErrorCode = "window_manager_final_desktop"
@@ -59,6 +61,8 @@ func WindowManagerErrorCodeValues() []string {
 		string(WindowManagerErrorInvalidTopology),
 		string(WindowManagerErrorDesktopNotFound),
 		string(WindowManagerErrorWindowNotFound),
+		string(WindowManagerErrorNotStacked),
+		string(WindowManagerErrorWindowPinned),
 		string(WindowManagerErrorClientNotFound),
 		string(WindowManagerErrorDestination),
 		string(WindowManagerErrorFinalDesktop),
@@ -103,6 +107,8 @@ type WindowManagerWindow struct {
 	App          string                        `json:"app"`
 	InstanceKey  *string                       `json:"instance_key,omitempty"`
 	Route        windowmanager.RouteIntent     `json:"route"`
+	NavStack     []windowmanager.RouteIntent   `json:"nav_stack"`
+	Pinned       bool                          `json:"pinned"`
 	Placement    windowmanager.WindowPlacement `json:"placement"`
 	DesktopID    windowmanager.DesktopID       `json:"desktop_id"`
 	FloatingRect windowmanager.NormalizedRect  `json:"floating_rect"`
@@ -110,39 +116,16 @@ type WindowManagerWindow struct {
 	ReturnAnchor *WindowManagerReturnAnchor    `json:"return_anchor,omitempty"`
 }
 
-// WindowManagerState is the revision-independent content restored by history.
-type WindowManagerState struct {
-	Desktops  []WindowManagerDesktop         `json:"desktops"`
-	Windows   map[string]WindowManagerWindow `json:"windows"`
-	Overrides windowmanager.WorkspaceConfig  `json:"overrides"`
-}
-
-// WindowManagerHistoryEntry is one exact semantic operation boundary.
-type WindowManagerHistoryEntry struct {
-	CommandID WindowManagerCommandID `json:"command_id"`
-	Before    WindowManagerState     `json:"before"`
-	After     WindowManagerState     `json:"after"`
-	Actor     WindowManagerActor     `json:"actor"`
-	Origin    string                 `json:"origin,omitempty"`
-	CreatedAt time.Time              `json:"created_at"`
-}
-
-// WindowManagerHistory contains bounded undo and redo stacks.
-type WindowManagerHistory struct {
-	Undo []WindowManagerHistoryEntry `json:"undo"`
-	Redo []WindowManagerHistoryEntry `json:"redo"`
-}
-
 // WindowManagerSnapshot is the complete durable workspace aggregate.
 type WindowManagerSnapshot struct {
-	Version     uint32                         `json:"version"`
-	WorkspaceID windowmanager.WorkspaceID      `json:"workspace_id"`
-	Revision    WindowManagerRevision          `json:"revision"`
-	Desktops    []WindowManagerDesktop         `json:"desktops"`
-	Windows     map[string]WindowManagerWindow `json:"windows"`
-	History     WindowManagerHistory           `json:"history"`
-	Overrides   windowmanager.WorkspaceConfig  `json:"overrides"`
-	UpdatedAt   time.Time                      `json:"updated_at"`
+	Version          uint32                         `json:"version"`
+	WorkspaceID      windowmanager.WorkspaceID      `json:"workspace_id"`
+	Revision         WindowManagerRevision          `json:"revision"`
+	Desktops         []WindowManagerDesktop         `json:"desktops"`
+	Windows          map[string]WindowManagerWindow `json:"windows"`
+	ClosedEntryCount int                            `json:"closed_entry_count"`
+	Overrides        windowmanager.WorkspaceConfig  `json:"overrides"`
+	UpdatedAt        time.Time                      `json:"updated_at"`
 }
 
 // WindowManagerLayoutDocument is the stable declarative layout wire contract.
@@ -162,6 +145,7 @@ type WindowManagerClientView struct {
 	ActiveDesktopID      windowmanager.DesktopID   `json:"active_desktop_id"`
 	FocusedWindowID      *windowmanager.WindowID   `json:"focused_window_id,omitempty"`
 	FocusOrder           []windowmanager.WindowID  `json:"focus_order"`
+	StackActive          map[string]string         `json:"stack_active"`
 	ConnectedAt          time.Time                 `json:"connected_at"`
 }
 

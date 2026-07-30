@@ -15,6 +15,11 @@ func TestDispatchWindowManagerHooksUseAsyncDurablePayloads(t *testing.T) {
 		HookWindowManagerDesktopCreated,
 		HookWindowManagerDesktopDeleted,
 		HookWindowManagerWindowMoved,
+		HookWindowManagerWindowOpened,
+		HookWindowManagerWindowClosed,
+		HookWindowManagerStackGrouped,
+		HookWindowManagerStackUngrouped,
+		HookWindowManagerStackActivated,
 	}
 	seen := make(chan WindowManagerPayload, len(events))
 	decls := make([]HookDecl, 0, len(events))
@@ -87,11 +92,13 @@ func windowManagerDispatchTestPayload(event HookEvent) WindowManagerPayload {
 		Revision:    42,
 		CommandID:   "layout.arrange",
 		Changes: WindowManagerChanges{
-			DesktopIDs: []string{"desktop-a"},
-			WindowIDs:  []string{"window-a"},
-			GroupIDs:   []string{"group-a"},
-			NodeIDs:    []string{"node-a"},
-			ClientIDs:  []string{"client-a"},
+			DesktopIDs:     []string{"desktop-a"},
+			WindowIDs:      []string{"window-a"},
+			GroupIDs:       []string{"group-a"},
+			NodeIDs:        []string{"node-a"},
+			ClientIDs:      []string{"client-a"},
+			StackGrouped:   []string{"stack-grouped"},
+			StackUngrouped: []string{"stack-ungrouped"},
 		},
 		Actor:  WindowManagerActor{Kind: "agent", ID: "agent-a"},
 		Origin: "native:compozy__window_manager_layout_arrange",
@@ -116,6 +123,21 @@ func dispatchWindowManagerTestPayload(
 		return err
 	case HookWindowManagerWindowMoved:
 		_, err := hooks.DispatchWindowManagerWindowMoved(ctx, payload)
+		return err
+	case HookWindowManagerWindowOpened:
+		_, err := hooks.DispatchWindowManagerWindowOpened(ctx, payload)
+		return err
+	case HookWindowManagerWindowClosed:
+		_, err := hooks.DispatchWindowManagerWindowClosed(ctx, payload)
+		return err
+	case HookWindowManagerStackGrouped:
+		_, err := hooks.DispatchWindowManagerStackGrouped(ctx, payload)
+		return err
+	case HookWindowManagerStackUngrouped:
+		_, err := hooks.DispatchWindowManagerStackUngrouped(ctx, payload)
+		return err
+	case HookWindowManagerStackActivated:
+		_, err := hooks.DispatchWindowManagerStackActivated(ctx, payload)
 		return err
 	default:
 		return fmt.Errorf("unexpected window-manager event %q", event)

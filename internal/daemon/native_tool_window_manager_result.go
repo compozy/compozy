@@ -195,7 +195,9 @@ func windowManagerToolError(id toolspkg.ToolID, err error) error {
 		code, cause, reason = toolspkg.ErrorCodeConflict, toolspkg.ErrToolConflict, toolspkg.ReasonConflictedID
 	case errors.Is(err, windowmanager.ErrInvalidCommand),
 		errors.Is(err, windowmanager.ErrInvalidTopology),
-		errors.Is(err, windowmanager.ErrDestinationRequired):
+		errors.Is(err, windowmanager.ErrDestinationRequired),
+		errors.Is(err, windowmanager.ErrNotStacked),
+		errors.Is(err, windowmanager.ErrWindowPinned):
 		code, cause, reason = toolspkg.ErrorCodeInvalidInput, toolspkg.ErrToolInvalidInput, toolspkg.ReasonSchemaInvalid
 	case errors.Is(err, windowmanager.ErrClosed):
 		code, cause, reason = toolspkg.ErrorCodeUnavailable, toolspkg.ErrToolUnavailable, toolspkg.ReasonDependencyMissing

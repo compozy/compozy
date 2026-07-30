@@ -218,8 +218,12 @@ func (m *Manager) Preview(ctx context.Context, request CommandRequest) (Preview,
 		focused = clonePointer(client.FocusedWindowID)
 		activeDesktop = new(client.ActiveDesktopID)
 	}
+	previewGenerate, err := newPreviewIDGenerator(snapshot, commandID, payload)
+	if err != nil {
+		return Preview{}, err
+	}
 	reduced, err := (&reducer{
-		generate: m.generate, config: config, focusedWindow: focused, activeDesktop: activeDesktop, now: m.now,
+		generate: previewGenerate, config: config, focusedWindow: focused, activeDesktop: activeDesktop, now: m.now,
 	}).reduce(
 		&working,
 		payload,

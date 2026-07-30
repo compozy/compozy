@@ -213,7 +213,7 @@ func TestUDSTransportWindowManagerMatchesHTTP(t *testing.T) {
 			if err != nil {
 				t.Fatalf("TransportClients() error = %v", err)
 			}
-			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 			defer cancel()
 
 			basePath := "/api/workspaces/" + url.PathEscape(runtimeHarness.WorkspaceID) + "/window-manager"
@@ -297,6 +297,294 @@ func TestUDSTransportWindowManagerMatchesHTTP(t *testing.T) {
 					udsMutation,
 					httpMutation.Snapshot.Revision+1,
 				)
+			}
+
+			openRequest := func(
+				revision compozycontract.WindowManagerRevision,
+				windowID string,
+			) compozycontract.WindowManagerCommandRequest {
+				return windowManagerTransportCommandRequest(
+					runtimeHarness.WorkspaceID,
+					revision,
+					compozycontract.WindowManagerCommandWindowOpen,
+					json.RawMessage(fmt.Sprintf(
+						`{"window":{"id":%q,"app":"tasks","route":{"pathname":%q,"search":{}},`+
+							`"desktop_id":"desktop-default","floating_rect":{"x":0.1,"y":0.1,`+
+							`"width":0.5,"height":0.5},"insert_tiled":false}}`,
+						windowID,
+						"/tasks/"+windowID,
+					)),
+				)
+			}
+			var firstOpen compozycontract.WindowManagerResult
+			if err := runtimeHarness.HTTPJSON(
+				ctx,
+				http.MethodPost,
+				basePath+"/commands",
+				openRequest(udsMutation.Snapshot.Revision, "window-a"),
+				&firstOpen,
+			); err != nil {
+				t.Fatalf("HTTP window.open error = %v", err)
+			}
+			var secondOpen compozycontract.WindowManagerResult
+			if err := runtimeHarness.UDSJSON(
+				ctx,
+				http.MethodPost,
+				basePath+"/commands",
+				openRequest(firstOpen.Snapshot.Revision, "window-b"),
+				&secondOpen,
+			); err != nil {
+				t.Fatalf("UDS window.open error = %v", err)
+			}
+			groupRequest := windowManagerTransportCommandRequest(
+				runtimeHarness.WorkspaceID,
+				secondOpen.Snapshot.Revision,
+				compozycontract.WindowManagerCommandWindowStackGroup,
+				json.RawMessage(`{"target_window_id":"window-a","window_ids":["window-b"]}`),
+			)
+			var httpGroupPreview compozycontract.WindowManagerPreview
+			if err := runtimeHarness.HTTPJSON(
+				ctx,
+				http.MethodPost,
+				basePath+"/preview",
+				groupRequest,
+				&httpGroupPreview,
+			); err != nil {
+				t.Fatalf("HTTP window.stack.group preview error = %v", err)
+			}
+			var udsGroupPreview compozycontract.WindowManagerPreview
+			if err := runtimeHarness.UDSJSON(
+				ctx,
+				http.MethodPost,
+				basePath+"/preview",
+				groupRequest,
+				&udsGroupPreview,
+			); err != nil {
+				t.Fatalf("UDS window.stack.group preview error = %v", err)
+			}
+			if !reflect.DeepEqual(httpGroupPreview, udsGroupPreview) {
+				t.Fatalf("window.stack.group preview parity mismatch: HTTP=%#v UDS=%#v", httpGroupPreview, udsGroupPreview)
+			}
+			var grouped compozycontract.WindowManagerResult
+			if err := runtimeHarness.HTTPJSON(
+				ctx,
+				http.MethodPost,
+				basePath+"/commands",
+				groupRequest,
+				&grouped,
+			); err != nil {
+				t.Fatalf("HTTP window.stack.group error = %v", err)
+			}
+			if !grouped.Applied || grouped.Snapshot.Version != windowmanager.SnapshotVersion ||
+				len(grouped.Snapshot.Desktops[0].FloatingStacks) != 1 {
+				t.Fatalf("window.stack.group result = %#v", grouped)
+			}
+
+			var thirdOpen compozycontract.WindowManagerResult
+			if err := runtimeHarness.HTTPJSON(
+				ctx,
+				http.MethodPost,
+				basePath+"/commands",
+				openRequest(grouped.Snapshot.Revision, "window-c"),
+				&thirdOpen,
+			); err != nil {
+				t.Fatalf("HTTP third window.open error = %v", err)
+			}
+
+			var cliWindows []struct {
+				ID          windowmanager.WindowID `json:"id"`
+				StackID     *windowmanager.NodeID  `json:"stack_id,omitempty"`
+				MemberOrder *int                   `json:"member_order,omitempty"`
+				Active      bool                   `json:"active"`
+				Pinned      bool                   `json:"pinned"`
+				NavDepth    int                    `json:"nav_depth"`
+			}
+			if err := runtimeHarness.CLI.RunJSON(
+				ctx,
+				&cliWindows,
+				"window", "list", "--workspace", runtimeHarness.WorkspaceID, "-o", "json",
+			); err != nil {
+				t.Fatalf("CLI window list error = %v", err)
+			}
+			if len(cliWindows) != 3 {
+				t.Fatalf("CLI window list length = %d, want 3: %#v", len(cliWindows), cliWindows)
+			}
+			listedByID := make(map[windowmanager.WindowID]struct {
+				stackID     *windowmanager.NodeID
+				memberOrder *int
+			}, len(cliWindows))
+			for _, item := range cliWindows {
+				listedByID[item.ID] = struct {
+					stackID     *windowmanager.NodeID
+					memberOrder *int
+				}{stackID: item.StackID, memberOrder: item.MemberOrder}
+			}
+			if listedByID["window-a"].stackID == nil || listedByID["window-a"].memberOrder == nil ||
+				listedByID["window-b"].stackID == nil || listedByID["window-b"].memberOrder == nil ||
+				listedByID["window-c"].stackID != nil {
+				t.Fatalf("CLI window list topology = %#v, want grouped a/b and standalone c", cliWindows)
+			}
+
+			assertCLIHTTPParity := func(label string, cliSnapshot compozycontract.WindowManagerSnapshot) {
+				t.Helper()
+				var current compozycontract.WindowManagerSnapshot
+				if err := runtimeHarness.HTTPJSON(ctx, http.MethodGet, basePath, nil, &current); err != nil {
+					t.Fatalf("HTTP snapshot after %s error = %v", label, err)
+				}
+				cliJSON, err := json.Marshal(cliSnapshot)
+				if err != nil {
+					t.Fatalf("json.Marshal(CLI snapshot after %s) error = %v", label, err)
+				}
+				httpJSON, err := json.Marshal(current)
+				if err != nil {
+					t.Fatalf("json.Marshal(HTTP snapshot after %s) error = %v", label, err)
+				}
+				if !bytes.Equal(cliJSON, httpJSON) {
+					t.Fatalf("CLI/HTTP snapshot parity after %s mismatch: CLI=%s HTTP=%s", label, cliJSON, httpJSON)
+				}
+			}
+
+			var cliGrouped compozycontract.WindowManagerResult
+			if err := runtimeHarness.CLI.RunJSON(
+				ctx,
+				&cliGrouped,
+				"window", "group", "--target", "window-a", "--windows", "window-c",
+				"--workspace", runtimeHarness.WorkspaceID,
+				"--revision", fmt.Sprint(thirdOpen.Snapshot.Revision),
+				"-o", "json",
+			); err != nil {
+				t.Fatalf("CLI window group error = %v", err)
+			}
+			assertCLIHTTPParity("group", cliGrouped.Snapshot)
+
+			cliStack := cliGrouped.Snapshot.Desktops[0].FloatingStacks[0]
+			activateID := cliStack.WindowIDs[0]
+			if cliStack.ActiveID != nil && activateID == *cliStack.ActiveID {
+				activateID = cliStack.WindowIDs[1]
+			}
+			var cliActivated compozycontract.WindowManagerResult
+			if err := runtimeHarness.CLI.RunJSON(
+				ctx,
+				&cliActivated,
+				"window", "activate", string(activateID),
+				"--workspace", runtimeHarness.WorkspaceID,
+				"--revision", fmt.Sprint(cliGrouped.Snapshot.Revision),
+				"-o", "json",
+			); err != nil {
+				t.Fatalf("CLI window activate error = %v", err)
+			}
+			assertCLIHTTPParity("activate", cliActivated.Snapshot)
+
+			var cliPinned compozycontract.WindowManagerResult
+			if err := runtimeHarness.CLI.RunJSON(
+				ctx,
+				&cliPinned,
+				"window", "pin", string(activateID),
+				"--workspace", runtimeHarness.WorkspaceID,
+				"--revision", fmt.Sprint(cliActivated.Snapshot.Revision),
+				"-o", "json",
+			); err != nil {
+				t.Fatalf("CLI window pin error = %v", err)
+			}
+			assertCLIHTTPParity("pin", cliPinned.Snapshot)
+
+			closeID := windowmanager.WindowID("window-c")
+			if closeID == activateID {
+				closeID = "window-b"
+			}
+			var cliClosed compozycontract.WindowManagerResult
+			if err := runtimeHarness.CLI.RunJSON(
+				ctx,
+				&cliClosed,
+				"window", "close", "--id", string(closeID),
+				"--workspace", runtimeHarness.WorkspaceID,
+				"--revision", fmt.Sprint(cliPinned.Snapshot.Revision),
+				"-o", "json",
+			); err != nil {
+				t.Fatalf("CLI window close error = %v", err)
+			}
+			var cliReopened compozycontract.WindowManagerResult
+			if err := runtimeHarness.CLI.RunJSON(
+				ctx,
+				&cliReopened,
+				"window", "reopen",
+				"--workspace", runtimeHarness.WorkspaceID,
+				"--revision", fmt.Sprint(cliClosed.Snapshot.Revision),
+				"-o", "json",
+			); err != nil {
+				t.Fatalf("CLI window reopen error = %v", err)
+			}
+			assertCLIHTTPParity("reopen", cliReopened.Snapshot)
+
+			_, staleStderr, staleErr := runtimeHarness.CLI.Run(
+				ctx,
+				"window", "activate", string(activateID),
+				"--workspace", runtimeHarness.WorkspaceID,
+				"--revision", fmt.Sprint(cliGrouped.Snapshot.Revision),
+				"-o", "json",
+			)
+			if staleErr == nil ||
+				!strings.Contains(staleStderr, string(compozycontract.WindowManagerErrorRevisionConflict)) {
+				t.Fatalf("stale CLI activation error = %v, stderr=%q", staleErr, staleStderr)
+			}
+
+			_, malformedStderr, malformedErr := runtimeHarness.CLI.Run(
+				ctx,
+				"window", "group", "--target", "window-a", "--windows", "window-b,,window-c",
+				"--workspace", runtimeHarness.WorkspaceID,
+				"--revision", fmt.Sprint(cliReopened.Snapshot.Revision),
+				"-o", "json",
+			)
+			if malformedErr == nil || !strings.Contains(malformedStderr, "--windows must contain non-empty") {
+				t.Fatalf("malformed CLI group error = %v, stderr=%q", malformedErr, malformedStderr)
+			}
+
+			var exported compozycontract.WindowManagerLayoutDocument
+			if err := runtimeHarness.CLI.RunJSON(
+				ctx,
+				&exported,
+				"layout", "export", "--workspace", runtimeHarness.WorkspaceID, "-o", "json",
+			); err != nil {
+				t.Fatalf("CLI layout export error = %v", err)
+			}
+			exportedJSON, err := json.Marshal(exported)
+			if err != nil {
+				t.Fatalf("json.Marshal(exported layout) error = %v", err)
+			}
+			layoutPath := filepath.Join(t.TempDir(), "window-layout.json")
+			if err := os.WriteFile(layoutPath, exportedJSON, 0o600); err != nil {
+				t.Fatalf("os.WriteFile(%q) error = %v", layoutPath, err)
+			}
+
+			var cliClosedAgain compozycontract.WindowManagerResult
+			if err := runtimeHarness.CLI.RunJSON(
+				ctx,
+				&cliClosedAgain,
+				"window", "close", "--id", string(closeID),
+				"--workspace", runtimeHarness.WorkspaceID,
+				"--revision", fmt.Sprint(cliReopened.Snapshot.Revision),
+				"-o", "json",
+			); err != nil {
+				t.Fatalf("CLI second window close error = %v", err)
+			}
+			var cliApplied compozycontract.WindowManagerResult
+			if err := runtimeHarness.CLI.RunJSON(
+				ctx,
+				&cliApplied,
+				"layout", "apply", "--file", layoutPath,
+				"--workspace", runtimeHarness.WorkspaceID,
+				"--revision", fmt.Sprint(cliClosedAgain.Snapshot.Revision),
+				"-o", "json",
+			); err != nil {
+				t.Fatalf("CLI layout apply error = %v", err)
+			}
+			assertCLIHTTPParity("layout apply", cliApplied.Snapshot)
+			var appliedLayout compozycontract.WindowManagerLayoutDocument
+			if err := runtimeHarness.HTTPJSON(ctx, http.MethodGet, basePath+"/layout", nil, &appliedLayout); err != nil {
+				t.Fatalf("HTTP layout export after CLI apply error = %v", err)
+			}
+			if !reflect.DeepEqual(exported, appliedLayout) {
+				t.Fatalf("layout round-trip mismatch: exported=%#v applied=%#v", exported, appliedLayout)
 			}
 
 			registration := compozycontract.WindowManagerClientRegistration{
@@ -415,17 +703,31 @@ func windowManagerTransportCreateDesktopRequest(
 	revision compozycontract.WindowManagerRevision,
 	desktopID string,
 ) compozycontract.WindowManagerCommandRequest {
-	return compozycontract.WindowManagerCommandRequest{
-		WorkspaceID:      windowmanager.WorkspaceID(workspaceID),
-		CommandID:        compozycontract.WindowManagerCommandDesktopCreate,
-		ExpectedRevision: &revision,
-		Actor:            compozycontract.WindowManagerActor{Kind: "test", ID: "transport-parity"},
-		Origin:           "transport-parity",
-		Payload: json.RawMessage(fmt.Sprintf(
+	return windowManagerTransportCommandRequest(
+		workspaceID,
+		revision,
+		compozycontract.WindowManagerCommandDesktopCreate,
+		json.RawMessage(fmt.Sprintf(
 			`{"desktop_id":%q,"name":%q,"purpose":"standard"}`,
 			desktopID,
 			desktopID,
 		)),
+	)
+}
+
+func windowManagerTransportCommandRequest(
+	workspaceID string,
+	revision compozycontract.WindowManagerRevision,
+	commandID compozycontract.WindowManagerCommandID,
+	payload json.RawMessage,
+) compozycontract.WindowManagerCommandRequest {
+	return compozycontract.WindowManagerCommandRequest{
+		WorkspaceID:      windowmanager.WorkspaceID(workspaceID),
+		CommandID:        commandID,
+		ExpectedRevision: &revision,
+		Actor:            compozycontract.WindowManagerActor{Kind: "test", ID: "transport-parity"},
+		Origin:           "transport-parity",
+		Payload:          payload,
 	}
 }
 
