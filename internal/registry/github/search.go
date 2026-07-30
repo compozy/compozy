@@ -25,14 +25,12 @@ type repositorySearchResponse struct {
 }
 
 type repositorySearchItem struct {
-	FullName      string   `json:"full_name"`
-	Name          string   `json:"name"`
-	Description   string   `json:"description"`
-	Stargazers    int      `json:"stargazers_count"`
-	HTMLURL       string   `json:"html_url"`
-	Topics        []string `json:"topics"`
-	DefaultBranch string   `json:"default_branch"`
-	Owner         struct {
+	FullName    string   `json:"full_name"`
+	Name        string   `json:"name"`
+	Description string   `json:"description"`
+	Stargazers  int      `json:"stargazers_count"`
+	Topics      []string `json:"topics"`
+	Owner       struct {
 		Login string `json:"login"`
 	} `json:"owner"`
 }
@@ -82,7 +80,6 @@ func (c *Client) searchRepositories(
 			Name:        strings.TrimSpace(item.Name),
 			Description: strings.TrimSpace(item.Description),
 			Author:      strings.TrimSpace(item.Owner.Login),
-			Version:     strings.TrimSpace(item.DefaultBranch),
 			Downloads:   item.Stargazers,
 			Source:      c.Name(),
 			Type:        registry.PackageTypeExtension,

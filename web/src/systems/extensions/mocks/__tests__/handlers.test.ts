@@ -101,6 +101,23 @@ describe("extensions MSW handlers", () => {
     ).json()) as { logs: Array<{ sequence: number }> };
     expect(globalLogs.logs).toEqual([]);
 
+    const unlink = await fetch(`${API}/api/extensions/ops-dev-extension?workspace=ws_northstar`, {
+      method: "DELETE",
+    });
+    expect(unlink.status).toBe(200);
+
+    const afterUnlink = (await (
+      await fetch(`${API}/api/extensions?workspace=ws_northstar`)
+    ).json()) as { extensions: Array<{ name: string }> };
+    expect(afterUnlink.extensions.some(extension => extension.name === "ops-dev-extension")).toBe(
+      false
+    );
+
+    const logsAfterUnlink = (await (
+      await fetch(`${API}/api/extensions/ops-dev-extension/logs?workspace=ws_northstar`)
+    ).json()) as { logs: Array<{ sequence: number }> };
+    expect(logsAfterUnlink.logs).toEqual([]);
+
     const blocked = await fetch(`${API}/api/extensions`, {
       body: JSON.stringify({ ref: "acme/hello", source: "github" }),
       headers: { "Content-Type": "application/json" },

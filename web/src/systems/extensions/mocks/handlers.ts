@@ -20,12 +20,24 @@ function cloneBundleActivations(): BundleActivation[] {
   return structuredClone(bundleActivationFixtures);
 }
 
+function cloneDevExtensions(): Record<string, ExtensionEntry[]> {
+  return { [DEV_EXTENSION_WORKSPACE_ID]: [structuredClone(devExtensionFixture)] };
+}
+
+function cloneExtensionLogs() {
+  return structuredClone(extensionLogFixtures);
+}
+
 let extensionsState = cloneExtensions();
 let bundleActivationsState = cloneBundleActivations();
+let devExtensionsState = cloneDevExtensions();
+let extensionLogsState = cloneExtensionLogs();
 
 export function resetExtensionMockState(): void {
   extensionsState = cloneExtensions();
   bundleActivationsState = cloneBundleActivations();
+  devExtensionsState = cloneDevExtensions();
+  extensionLogsState = cloneExtensionLogs();
 }
 
 function extensionByName(name: string) {
@@ -39,8 +51,7 @@ function activationById(id: string) {
 /** Mirrors the daemon: `?workspace=` resolves that workspace's instances, absent the global rows. */
 function extensionsForWorkspace(workspace: string): ExtensionEntry[] {
   if (workspace === "") return extensionsState;
-  const overlays =
-    workspace === DEV_EXTENSION_WORKSPACE_ID ? [structuredClone(devExtensionFixture)] : [];
+  const overlays = devExtensionsState[workspace] ?? [];
   return [...overlays, ...extensionsState];
 }
 
@@ -89,7 +100,7 @@ export const handlers: HttpHandler[] = [
     const search = new URL(request.url).searchParams;
     const after = Number(search.get("after") ?? "0");
     const workspace = search.get("workspace")?.trim() ?? "";
-    const logs = (extensionLogFixtures[workspace]?.[name] ?? []).filter(
+    const logs = (extensionLogsState[workspace]?.[name] ?? []).filter(
       entry => entry.sequence > after
     );
     return HttpResponse.json({ logs });
@@ -138,8 +149,31 @@ export const handlers: HttpHandler[] = [
         })
       : HttpResponse.json({ error: `Extension not found: ${name}` }, { status: 404 });
   }),
-  compozyApiMock.delete("/api/extensions/{name}", ({ params }) => {
+  compozyApiMock.delete("/api/extensions/{name}", ({ params, request }) => {
     const name = String(params.name);
+    const workspace = new URL(request.url).searchParams.get("workspace")?.trim() ?? "";
+    if (workspace !== "") {
+      const overlays = devExtensionsState[workspace] ?? [];
+      const extension = overlays.find(item => item.name === name);
+      if (!extension) {
+        return HttpResponse.json({ error: `Extension not found: ${name}` }, { status: 404 });
+      }
+      devExtensionsState = {
+        ...devExtensionsState,
+        [workspace]: overlays.filter(item => item.name !== name),
+      };
+      extensionLogsState = {
+        ...extensionLogsState,
+        [workspace]: { ...extensionLogsState[workspace], [name]: [] },
+      };
+      return HttpResponse.json({
+        extension: {
+          name,
+          path: extension.origin_path ?? `/var/lib/compozy/extensions/${name}`,
+          status: "removed",
+        },
+      });
+    }
     if (!extensionByName(name)) {
       return HttpResponse.json({ error: `Extension not found: ${name}` }, { status: 404 });
     }

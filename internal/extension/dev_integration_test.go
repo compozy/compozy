@@ -240,6 +240,10 @@ func TestManagerDevelopmentLifecycle(t *testing.T) {
 }
 
 func TestManagerDevelopmentReloadConcurrency(t *testing.T) {
+	t.Run("Should serialize reloads per instance without blocking other workspaces", testManagerDevelopmentReloadConcurrency)
+}
+
+func testManagerDevelopmentReloadConcurrency(t *testing.T) {
 	t.Parallel()
 
 	env := newRegistryTestEnv(t)
@@ -312,6 +316,10 @@ func TestManagerDevelopmentReloadConcurrency(t *testing.T) {
 }
 
 func TestManagerDevelopmentCoordinatorBarrier(t *testing.T) {
+	t.Run("Should activate only generations published beyond the coordinator barrier", testManagerDevelopmentCoordinatorBarrier)
+}
+
+func testManagerDevelopmentCoordinatorBarrier(t *testing.T) {
 	t.Parallel()
 
 	env := newRegistryTestEnv(t)

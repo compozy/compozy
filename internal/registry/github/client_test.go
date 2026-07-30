@@ -60,7 +60,7 @@ func TestClientSearchFindsExtensionTopicRepositories(t *testing.T) {
 		}
 		want := registry.Listing{
 			Slug: "acme/bridge", Name: "bridge", Description: "Bridge extension", Author: "acme",
-			Version: "main", Downloads: 42, Source: "github", Type: registry.PackageTypeExtension,
+			Downloads: 42, Source: "github", Type: registry.PackageTypeExtension,
 		}
 		if items[0] != want {
 			t.Fatalf("Search() item = %#v, want %#v", items[0], want)
@@ -116,6 +116,10 @@ func TestClientSearchFindsExtensionTopicRepositories(t *testing.T) {
 }
 
 func TestClientCapabilities(t *testing.T) {
+	t.Run("Should report repository search support", testClientCapabilities)
+}
+
+func testClientCapabilities(t *testing.T) {
 	t.Parallel()
 
 	if caps := NewClient("").Capabilities(); caps != (registry.SourceCaps{Search: true}) {
@@ -124,6 +128,10 @@ func TestClientCapabilities(t *testing.T) {
 }
 
 func TestClientUploadRelease(t *testing.T) {
+	t.Run("Should publish an archive and digest sidecar", testClientUploadRelease)
+}
+
+func testClientUploadRelease(t *testing.T) {
 	t.Parallel()
 
 	token := "publish-token-sentinel"
@@ -278,6 +286,10 @@ func TestClientDownloadSingleTarballAsset(t *testing.T) {
 }
 
 func TestClientDownloadUsesReleaseDigestSidecar(t *testing.T) {
+	t.Run("Should bind the release digest sidecar to the download", testClientDownloadUsesReleaseDigestSidecar)
+}
+
+func testClientDownloadUsesReleaseDigestSidecar(t *testing.T) {
 	t.Parallel()
 
 	archive := mustTarGz(t, map[string]string{"demo/extension.toml": "name = \"demo\"\nversion = \"1.2.3\"\n"})
