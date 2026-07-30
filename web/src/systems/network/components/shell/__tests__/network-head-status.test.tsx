@@ -2,12 +2,12 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import type { OpenWorkEntry } from "../../../hooks/use-work";
+import { networkStatusFixture } from "../../../mocks/fixtures";
 import type { NetworkStatus } from "../../../types";
 import { NetworkHeadStatus } from "../network-head-status";
 
 const activeStatus: NetworkStatus = {
-  enabled: true,
-  status: "active",
+  ...networkStatusFixture,
   local_peers: 3,
 };
 

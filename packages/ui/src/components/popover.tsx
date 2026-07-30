@@ -58,6 +58,25 @@ type PopoverContentProps = PopoverPrimitive.Popup.Props &
     "align" | "alignOffset" | "side" | "sideOffset" | "anchor"
   >;
 
+function AnimatedPopoverPopup({
+  children,
+  inert,
+  "aria-hidden": ariaHidden,
+  ...props
+}: PopoverPrimitive.Popup.Props) {
+  const { open } = usePopoverMotion();
+
+  return (
+    <PopoverPrimitive.Popup
+      aria-hidden={open ? ariaHidden : true}
+      inert={open ? inert : true}
+      {...props}
+    >
+      {children}
+    </PopoverPrimitive.Popup>
+  );
+}
+
 function PopoverContent({
   className,
   align = "center",
@@ -86,7 +105,7 @@ function PopoverContent({
             anchor={anchor}
             className="isolate z-50"
           >
-            <PopoverPrimitive.Popup
+            <AnimatedPopoverPopup
               data-slot="popover-content"
               render={
                 <m.div
@@ -103,7 +122,7 @@ function PopoverContent({
               {...props}
             >
               {children}
-            </PopoverPrimitive.Popup>
+            </AnimatedPopoverPopup>
           </PopoverPrimitive.Positioner>
         </PopoverPrimitive.Portal>
       ) : null}
