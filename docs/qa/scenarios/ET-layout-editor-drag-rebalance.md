@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-administer-window-manager
 expected: Dragging a divider on the Settings canvas moves it under the pointer at reference scale, snaps to a half, third or quarter with a live readout, and keeps the split's weights summing to 1 at every frame; arrow keys move the same divider without a pointer; the daemon accepts the result and never returns `topology.split_weight_sum`.
 entry_points: Settings › Layouts; layout canvas divider
-qa_status: untested
+qa_status: blocked-verify
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-et-current-source-20260730-061655-910372-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: MS-configure-window-manager; ET-window-manager-layout-gestures
 ---
 

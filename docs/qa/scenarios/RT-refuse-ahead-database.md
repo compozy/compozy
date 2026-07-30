@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-operate-daemon-schema
 expected: Startup stops before normal work, while remaining local CLI opens return exactly one parseable JSON error document with diagnostic.code schema_ahead, the surface, canonical path, and newer-binary-or-complete-family remediation; MCP auth reaches the daemon instead of opening the database locally.
 entry_points: compozy daemon start --foreground; compozy extension list -o json; compozy provider auth status <bound-secret-provider> -o json
-qa_status: untested
+qa_status: blocked-verify
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-rt-current-source-20260730-20260730-061631-252740-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: RT-refuse-legacy-database
 ---
 

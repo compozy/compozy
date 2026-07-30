@@ -129,10 +129,10 @@ type NetworkDirectsParams struct {
 
 type NetworkKindMetricPayload struct {
 	Kind      string `json:"kind"`
-	Sent      int64  `json:"sent,omitempty"`
-	Received  int64  `json:"received,omitempty"`
-	Rejected  int64  `json:"rejected,omitempty"`
-	Delivered int64  `json:"delivered,omitempty"`
+	Sent      int64  `json:"sent"`
+	Received  int64  `json:"received"`
+	Rejected  int64  `json:"rejected"`
+	Delivered int64  `json:"delivered"`
 }
 
 type NetworkMatcher struct {

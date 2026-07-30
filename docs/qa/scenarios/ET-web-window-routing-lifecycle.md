@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-operate-desktop-shell
 expected: Dock, palette, pointer, and keyboard activation open or focus one window instance; drag, structural resize, zoom, minimize, restore, and close preserve return anchors and successor focus; the focused window owns the URL with one history write per user cause; task/detail/search route intent survives reload and daemon restart, layout undo does not rewind it, and browser, CLI, native tool, and peer-browser changes converge by revision.
 entry_points: web desktop dock and windows; browser history; compozy window; compozy__window_manager
-qa_status: untested
+qa_status: blocked-verify
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-et-current-source-20260730-061655-910372-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: ET-web-desktop-shell-lifecycle; ET-window-manager-public-parity; ET-window-manager-layout-gestures; ET-web-route-chrome-topbar
 ---
 

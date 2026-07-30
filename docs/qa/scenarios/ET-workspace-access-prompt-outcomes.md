@@ -9,8 +9,8 @@ entry_points: compozy__workspace_info; compozy__task_run_claim_next; compozy spa
 qa_status: blocked-verify
 bug_ids: BUG-20260730-tool-invoke-202-empty-success
 fix_status: fixed
-retest_status: blocked — HTTP 202 decoding is fixed, but the complete once/session/reject/expiry matrix needs a dedicated approval harness
-fix_commits: working-tree
+retest_status: pass
+fix_commits: 7285bf3c
 evidence: /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-124649-419333-lab/qa-artifacts/qa/notes/cross-workspace-access-results.md
 last_report: docs/qa/reports/2026-07-29-site-improvs-deep-review.md
 overlaps: ET-workspace-access-mode-matrix; ET-native-tool-approval-grants

@@ -234,7 +234,7 @@ function toolOutputLooksLikeFailure(result: ToolUseResult): boolean {
 export interface ToolRowStatusInput {
   /** Explicit CompozyOS runtime error (assistant-ui `output-error`). */
   toolError?: boolean;
-  /** Normalized tool output; absent while the call is still in flight. */
+  /** Normalized tool output; absent while the call is in flight or ended without a result. */
   toolResult?: ToolUseResult;
   /** Whether the call already carries input args. */
   hasInput: boolean;
@@ -251,9 +251,10 @@ export interface ToolRowStatus {
 /**
  * Single source of truth for a tool row's state. Prefers explicit CompozyOS signals
  * (`toolError`, then the result's own `error` field) and only falls back to the
- * stderr failure heuristic. Neutral (empty-output) rows show `empty` (Minus) while
- * the turn streams and promote to `success` (Check) once it settles — never before,
- * so no premature green appears mid-stream.
+ * stderr failure heuristic. A resultless call fails once its turn settles instead
+ * of remaining active forever. Neutral (empty-output) rows show `empty` (Minus)
+ * while the turn streams and promote to `success` (Check) once it settles — never
+ * before, so no premature green appears mid-stream.
  */
 export function deriveToolRowStatus(input: ToolRowStatusInput): ToolRowStatus {
   const { toolError, toolResult, hasInput, turnSettled } = input;
@@ -261,6 +262,9 @@ export function deriveToolRowStatus(input: ToolRowStatusInput): ToolRowStatus {
     return { status: "failed", runtimeError: true };
   }
   if (toolResult === undefined) {
+    if (turnSettled) {
+      return { status: "failed", runtimeError: false };
+    }
     return { status: hasInput ? "running" : "pending", runtimeError: false };
   }
   if (toolResultHasError(toolResult) || toolOutputLooksLikeFailure(toolResult)) {

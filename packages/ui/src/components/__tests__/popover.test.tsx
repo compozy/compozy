@@ -11,19 +11,22 @@ import {
   PopoverTrigger,
 } from "../popover";
 import { Button } from "../button";
+import { UIProvider } from "../custom/ui-provider";
 
 function PopoverExample({ defaultOpen = false }: { defaultOpen?: boolean }) {
   return (
-    <Popover defaultOpen={defaultOpen}>
-      <PopoverTrigger render={<Button>Open popover</Button>} />
-      <PopoverContent side="bottom" align="start">
-        <PopoverHeader>
-          <PopoverTitle>Filters</PopoverTitle>
-          <PopoverDescription>Apply quick filters to the list.</PopoverDescription>
-        </PopoverHeader>
-        <input aria-label="query" defaultValue="" />
-      </PopoverContent>
-    </Popover>
+    <UIProvider reducedMotion="never">
+      <Popover defaultOpen={defaultOpen}>
+        <PopoverTrigger render={<Button>Open popover</Button>} />
+        <PopoverContent side="bottom" align="start">
+          <PopoverHeader>
+            <PopoverTitle>Filters</PopoverTitle>
+            <PopoverDescription>Apply quick filters to the list.</PopoverDescription>
+          </PopoverHeader>
+          <input aria-label="query" defaultValue="" />
+        </PopoverContent>
+      </Popover>
+    </UIProvider>
   );
 }
 
@@ -46,6 +49,11 @@ describe("Popover", () => {
     render(<PopoverExample defaultOpen />);
     await waitFor(() => expect(screen.getByText("Filters")).toBeInTheDocument());
     await user.keyboard("{Escape}");
+
+    const exitingPopup = document.querySelector('[data-slot="popover-content"]');
+    expect(exitingPopup).toHaveAttribute("aria-hidden", "true");
+    expect(exitingPopup).toHaveAttribute("inert");
+
     await waitFor(() => expect(screen.queryByText("Filters")).not.toBeInTheDocument(), {
       timeout: 1500,
     });

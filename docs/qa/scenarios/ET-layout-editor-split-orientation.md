@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-administer-window-manager
 expected: Choosing Rows in the inspector stacks the windows top to bottom and choosing Columns places them side by side, matching the diagram on each button and the arrangement the live shell renders for the same document; the inspector never shows an axis name.
 entry_points: Settings › Layouts; selection inspector › Arrange as
-qa_status: untested
+qa_status: blocked-verify
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-et-current-source-20260730-061655-910372-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: MS-configure-window-manager; ET-layout-editor-split-weights
 ---
 

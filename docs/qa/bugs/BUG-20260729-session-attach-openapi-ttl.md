@@ -1,6 +1,6 @@
 # BUG-20260729-session-attach-openapi-ttl: API clients were not told that long attach leases fail
 
-- **Status:** open
+- **Status:** fixed
 - **Impact (user-side):** Trust-Damage
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Théo
@@ -45,7 +45,7 @@ narrower response set than the daemon actually returned and could not validate t
   the handler rejects the raw integer before duration conversion; the declarative operation includes
   its 400 error; generated artifacts are refreshed; and the resume reference documents the same
   boundary.
-- **Fix commit:**
+- **Fix commit:** `351f3535`
 - **Regression test:** `ShouldDescribeSessionAttachAndRecapContracts` in
   `internal/api/spec/spec_test.go`; `Should reject attach leases above the public maximum before the
   Manager CAS` in `internal/api/core/handlers_test.go`.
@@ -59,4 +59,4 @@ narrower response set than the daemon actually returned and could not validate t
   and largest-integer TTL values; rejected requests never reach the Manager CAS.
 - `make codegen-check` passes with the generated OpenAPI and TypeScript artifacts synchronized.
 - The focused Web typecheck and Go lint for `internal/api/core` plus `internal/api/spec` pass.
-- Governed fix commit and original-persona verification remain pending.
+- The correction shipped in `351f3535`; original-persona verification remains pending, so this bug is fixed rather than verified.

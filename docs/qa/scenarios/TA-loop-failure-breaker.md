@@ -6,13 +6,13 @@ persona: Ada
 journey: J-bound-runaway-work
 expected: A two-node Loop with one repeatedly failing node and one healthy sibling stalls with circuit_breaker at the per-node limit regardless of terminal order; an unbounded failing watch also stalls, while a healthy watch remains watching.
 entry_points: `compozy loop runs show <run-id> -o json`; `compozy__loop_status`; Loop run events over HTTP/SSE
-qa_status: untested
+qa_status: blocked-verify
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-ta-replay-20260730-062156-531636-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: LP-029; LP-031; LP-038; TA-action-run-liveness
 ---
 

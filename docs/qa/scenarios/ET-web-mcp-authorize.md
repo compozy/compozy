@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-mcp-authorize-repair
 expected: Authorize on a needs_login OAuth remote begins an explicit `mode=automatic` daemon PKCE session and always renders the live `auth/begin` authorization_url copyable (browser open optional). The waiting dialog polls the scoped list and confirms ONLY on `authenticated && token_present`. A tools/list-style success alone never flips the UI. Automatic begin failure offers retry and a manual-callback fallback; cancel/failure preserves the prior public status and token.
 entry_points: web `/mcp` Authorize action; `POST /api/settings/mcp-servers/{name}/auth/begin`; daemon callback `GET /api/mcp/oauth/callback`
-qa_status: untested
+qa_status: blocked-verify
 bug_ids: BUG-20260715-mcp-oauth-name-segment
 fix_status: fixed
-retest_status: pending
+retest_status: pass
 fix_commits: 8eeb8a38
-evidence: web/src/hooks/routes/use-mcp-authorize.ts; web/src/systems/settings/components/mcp-authorize-dialog.tsx; web/e2e/__tests__/mcp.spec.ts; .compozy/tasks/marketplace/evidence/visual/task-08/authorize-waiting-desktop; /Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/mcp-oauth-name-segment.json; /Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/web/mcp-oauth-confirmed.png
-last_report: docs/qa/reports/2026-07-15-marketplace.md
+evidence: web/src/hooks/routes/use-mcp-authorize.ts; web/src/systems/settings/components/mcp-authorize-dialog.tsx; web/e2e/__tests__/mcp.spec.ts; .compozy/tasks/marketplace/evidence/visual/task-08/authorize-waiting-desktop; /Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/mcp-oauth-name-segment.json; /Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/web/mcp-oauth-confirmed.png;/Users/pedronauck/dev/qa-labs/compozy-qa-et-current-source-20260730-061655-910372-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: ET-api-mcp-oauth-endpoints; ET-cli-mcp-authorize; ET-web-mcp-authorize-manual
 ---
 

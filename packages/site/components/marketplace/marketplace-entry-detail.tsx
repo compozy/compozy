@@ -17,7 +17,12 @@ import {
 } from "@/lib/marketplace-catalog";
 import { MarketplaceCrumbs } from "./marketplace-crumbs";
 import { MarketplaceInstallCommand } from "./marketplace-install-command";
-import { extensionTierLabel, formatFeedDate, kindMeta } from "./marketplace-kind-meta";
+import {
+  extensionTierLabel,
+  formatFeedDate,
+  kindMeta,
+  type LucideIcon,
+} from "./marketplace-kind-meta";
 
 const TIER_HINTS: Record<ExtensionEntry["tier"], string> = {
   official: "First-party, shipped from the Compozy repository.",
@@ -31,7 +36,7 @@ function SectionHead({
   children,
 }: {
   id: string;
-  icon: typeof ShieldCheck;
+  icon: LucideIcon;
   children: string;
 }) {
   return (

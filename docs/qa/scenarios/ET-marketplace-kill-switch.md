@@ -6,13 +6,13 @@ persona: Vera
 journey: J-extension-policy-admin
 expected: An entry removed from the curated feed disappears from search, browse, and detail on web, CLI, and API after refresh (and within TTL without one), while the already-installed capability remains fully manageable.
 entry_points: compozy marketplace refresh -o json; POST /api/marketplace/refresh; /marketplace; compozy config set marketplace.catalog.base_url (isolated feed)
-qa_status: untested
+qa_status: blocked-verify
 bug_ids: BUG-20260715-marketplace-config-set-live; BUG-20260715-config-set-late-metadata; BUG-20260715-marketplace-stale-report
 fix_status: fixed
-retest_status: pending
+retest_status: pass
 fix_commits: 8eeb8a38
-evidence: /Users/pedronauck/dev/qa-labs/compozy-marketplace-northstar-20260715-20260715-114240-757254-lab/qa-artifacts/qa/notes/marketplace-config-set-live.json; /Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/marketplace-kill-switch.json
-last_report: docs/qa/reports/2026-07-15-marketplace.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-marketplace-northstar-20260715-20260715-114240-757254-lab/qa-artifacts/qa/notes/marketplace-config-set-live.json; /Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/marketplace-kill-switch.json;/Users/pedronauck/dev/qa-labs/compozy-qa-et-current-source-20260730-061655-910372-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: ET-cli-marketplace-refresh; MS-marketplace-catalog-live-config
 ---
 

@@ -38,7 +38,7 @@ Individual task files own task metadata only. They do not own graph topology.
 
 - `status`: Task lifecycle state.
 - `title`: Human-readable task title. It must match the first H1 in the task body.
-- `type`: Allowed work type slug. Use `[tasks].types` from `.compozy/config.toml` when configured; otherwise use the built-in defaults `frontend`, `backend`, `docs`, `test`, `infra`, `refactor`, `chore`, `bugfix`.
+- `type`: Work-type slug. Prefer `frontend`, `backend`, `docs`, `test`, `infra`, `refactor`, `chore`, `bugfix`, `qa-report`, or `qa-execution`; use an approved lowercase hyphenated project slug when the specification needs a distinct category. Type-based runtime routing lives in ordered `loops.defaults.delivery.runtime_rules[].match.type` entries.
 - `complexity`: Risk rating. Must be one of: `low`, `medium`, `high`, `critical`. Complexity rates implementation risk (regression surface, concurrency, cross-task coordination), not size — a large but well-specified task can be `low`, and a high rating is never a reason to split the task.
 
 Do not include `dependencies` in individual task frontmatter for `compozy.tasks/v2` suites. Dependencies belong only in `_tasks.md` under `graph.edges`.

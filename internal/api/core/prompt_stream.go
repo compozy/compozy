@@ -124,6 +124,7 @@ type PromptStreamEncoder struct {
 	textStarted       bool
 	reasoningStarted  bool
 	toolStarted       map[string]struct{}
+	toolCompleted     map[string]struct{}
 	toolInputsReady   map[string]struct{}
 	toolInputPending  map[string]struct{}
 	toolNames         map[string]string
@@ -145,6 +146,7 @@ func NewPromptStreamEncoder(now func() time.Time) *PromptStreamEncoder {
 	return &PromptStreamEncoder{
 		now:              clock,
 		toolStarted:      make(map[string]struct{}),
+		toolCompleted:    make(map[string]struct{}),
 		toolInputsReady:  make(map[string]struct{}),
 		toolInputPending: make(map[string]struct{}),
 		toolNames:        make(map[string]string),
@@ -211,6 +213,9 @@ func (e *PromptStreamEncoder) ensureInitialized() {
 	}
 	if e.toolStarted == nil {
 		e.toolStarted = make(map[string]struct{})
+	}
+	if e.toolCompleted == nil {
+		e.toolCompleted = make(map[string]struct{})
 	}
 	if e.toolInputsReady == nil {
 		e.toolInputsReady = make(map[string]struct{})

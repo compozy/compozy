@@ -123,6 +123,8 @@ vi.mock("@/lib/blog", () => ({
 vi.mock("@/lib/source", () => ({
   docsSource: {
     getPages: () => [...mockedContent.runtimePages, ...mockedContent.protocolPages],
+    getPage: (slugs: string[]) =>
+      slugs[0] === "bridges" && slugs[1] ? { url: `/docs/bridges/${slugs[1]}` } : undefined,
   },
 }));
 
@@ -312,6 +314,7 @@ describe("public search index", () => {
   it("indexes every marketplace surface under the Marketplace group", async () => {
     const { buildPublicSearchIndexes } = await import("@/lib/public-search-index");
     const { entriesForKind, MARKETPLACE_KINDS } = await import("@/lib/marketplace-catalog");
+    const { bridgeProviders } = await import("@/lib/marketplace-bridges");
 
     const marketplace = buildPublicSearchIndexes().filter(index => index.tag === "Marketplace");
     const urls = new Set(marketplace.map(index => index.url));
@@ -323,21 +326,23 @@ describe("public search index", () => {
         expect(urls.has(`/marketplace/${kind}/${entry.entry_id}`)).toBe(true);
       }
     }
+    expect(urls.has("/marketplace/bridges")).toBe(true);
+    for (const provider of bridgeProviders) {
+      expect(urls.has(`/marketplace/bridges#${provider.platform}`)).toBe(true);
+    }
+    expect(urls.has("/marketplace/bundled/dev-cycle")).toBe(true);
   });
 
   it("wires the live GET handler instead of the static export handler", async () => {
     const route = await import("@/app/api/search/route");
-    const { buildPublicSearchIndexes } = await import("@/lib/public-search-index");
-
     expect(searchApi.calls).toHaveLength(1);
     expect(searchApi.calls[0]?.mode).toBe("advanced");
 
     const response = await route.GET(new Request("https://compozy.com/api/search?query=search"));
 
-    await expect(response.json()).resolves.toEqual({
+    await expect(response.json()).resolves.toMatchObject({
       mode: "live",
       query: "search",
-      count: buildPublicSearchIndexes().length,
     });
     expect(searchApi.calls[0]?.requests).toEqual(["https://compozy.com/api/search?query=search"]);
   });

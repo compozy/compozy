@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-administer-network-live
 expected: Disabling Network rejects new Live participation, cancels and truthfully settles active wakes, preserves conversation and usage data read-only, and leaves Local work unaffected; re-enabling advances availability without replaying or duplicating old wake sources.
 entry_points: web /settings/network; PATCH /api/settings/network over HTTP/UDS; compozy config set network.enabled; compozy config reload; compozy network status -o json
-qa_status: untested
+qa_status: blocked-verify
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence: docs/qa/evidence/2026-07-14-network-changes/ch-network-admin-lifecycle.md
-last_report: docs/qa/reports/2026-07-14-network-changes.md
+evidence: docs/qa/evidence/2026-07-14-network-changes/ch-network-admin-lifecycle.md;/Users/pedronauck/dev/qa-labs/compozy-qa-misc-network-goal-release-site-20260730-060405-932516-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: NB-001;NB-002;NB-run-bounded-live-collaboration
 ---
 

@@ -6,13 +6,13 @@ persona: Tessa
 journey: J-complete-web-bridge-setup
 expected: A browser-first operator can create a disabled Slack bridge, copy its daemon-generated manifest, follow daemon-derived setup state and inline verification remediation, register Telegram webhooks, and distinguish dry-run target checks from real test sends. At 320px, the create dialog and detail panel reflow their step navigation, provider cards, actions, secret inputs, complete secret references, and provider/config metadata without horizontal scrolling or clipping.
 entry_points: Web bridges create dialog; Web bridge detail panel
-qa_status: untested
+qa_status: blocked-verify
 bug_ids: BUG-20260712-bridge-e2e-retired-route
 fix_status: fixed
-retest_status: pending
+retest_status: pass
 fix_commits: 8eeb8a38
-evidence: /home/pedronauck/dev/qa-labs/compozy-hermes-bridge-task-10-20260713-022226-583543-lab/qa-artifacts/qa/notes/bridge-charter-results.json; /home/pedronauck/dev/qa-labs/compozy-hermes-bridge-task-10-20260713-022226-583543-lab/qa-artifacts/qa/screenshots/ch055-create-handoff.png; /home/pedronauck/dev/qa-labs/compozy-hermes-bridge-task-10-20260713-022226-583543-lab/qa-artifacts/qa/screenshots/ch055-failed-remediation.png; /home/pedronauck/dev/qa-labs/compozy-hermes-bridge-task-10-20260713-022226-583543-lab/qa-artifacts/qa/screenshots/ch055-send-result.png
-last_report: docs/qa/reports/2026-07-12-hermes-bridge.md
+evidence: /home/pedronauck/dev/qa-labs/compozy-hermes-bridge-task-10-20260713-022226-583543-lab/qa-artifacts/qa/notes/bridge-charter-results.json; /home/pedronauck/dev/qa-labs/compozy-hermes-bridge-task-10-20260713-022226-583543-lab/qa-artifacts/qa/screenshots/ch055-create-handoff.png; /home/pedronauck/dev/qa-labs/compozy-hermes-bridge-task-10-20260713-022226-583543-lab/qa-artifacts/qa/screenshots/ch055-failed-remediation.png; /home/pedronauck/dev/qa-labs/compozy-hermes-bridge-task-10-20260713-022226-583543-lab/qa-artifacts/qa/screenshots/ch055-send-result.png;/Users/pedronauck/dev/qa-labs/compozy-qa-misc-network-goal-release-site-20260730-060405-932516-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: NB-bridge-provider-setup; NB-026; NB-027; NB-036; NB-037; NB-038; NB-039
 ---
 

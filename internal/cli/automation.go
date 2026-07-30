@@ -40,7 +40,9 @@ const (
 	automationEventKey       = "event"
 	automationGetIDValue     = "get <id>"
 	automationHistoryIDValue = "history <id>"
+	automationJobsKey        = "jobs"
 	automationPathKey        = "path"
+	automationRootKey        = "automation"
 	automationPromptKey      = "prompt"
 	automationRetryKey       = "retry"
 	automationScheduleKey    = "schedule"
@@ -56,12 +58,11 @@ const (
 )
 
 type automationTriggerCommandInput struct {
+	automationCreateTargetInput
 	Name               string
 	ScopeRaw           string
 	EventRaw           string
 	WorkspaceRef       string
-	AgentName          string
-	Prompt             string
 	RetryRaw           string
 	FilterFlags        []string
 	Enabled            bool
@@ -102,18 +103,15 @@ func newAutomationJobsCreateCommand(deps commandDeps) *cobra.Command {
 			"Schedule spec: <cron-expr>, every:<duration>, or at:<timestamp>",
 		)
 	bindAutomationScheduleReliabilityFlags(cmd, &input.CatchUpPolicyRaw, &input.MisfireGraceSeconds)
-	cmd.Flags().StringVar(&input.AgentName, "agent", "", "Agent definition name")
 	cmd.Flags().
 		StringVar(&input.WorkspaceRef, "workspace", "", "Override workspace binding (ID, name, or path)")
-	cmd.Flags().StringVar(&input.Prompt, automationPromptKey, "", "Prompt body to dispatch")
+	bindAutomationCreateTargetFlags(cmd, &input.automationCreateTargetInput, false)
 	cmd.Flags().
 		StringVar(&input.RetryRaw, automationRetryKey, "", `Retry policy: "none", "backoff", or "backoff:<max_retries>:<base_delay>"`)
 	cmd.Flags().BoolVar(&input.Enabled, automationEnabledKey, false, "Create the job enabled or disabled")
 	mustMarkFlagRequired(cmd, automationNameKey)
 	mustMarkFlagRequired(cmd, automationScopeKey)
 	mustMarkFlagRequired(cmd, automationScheduleKey)
-	mustMarkFlagRequired(cmd, "agent")
-	mustMarkFlagRequired(cmd, automationPromptKey)
 	return cmd
 }
 

@@ -1,6 +1,6 @@
 # BUG-20260729-doctor-log-tail-evidence: Available log-tail diagnostic omitted evidence
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Trust-Damage
 - **Severity:** Medium · **Priority:** P1
 - **Persona Affected:** Dora
@@ -37,7 +37,7 @@ log-tail item without structured evidence.
   the unavailable branch already attached the same authoritative status field.
 - **Correction:** Both branches now attach `status` evidence from `LogTailStatusPayload` through the
   canonical redacting diagnostic constructor.
-- **Fix commit:** pending completion gate
+- **Fix commit:** `351f3535`
 - **Regression owner:** `internal/api/core/handlers_test.go`,
   `TestDoctorLogTailDiagnosticIncludesCapabilityEvidence/Should expose the available log-tail capability status as evidence`.
 

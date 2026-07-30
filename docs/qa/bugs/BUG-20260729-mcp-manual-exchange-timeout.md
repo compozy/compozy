@@ -1,6 +1,6 @@
 # BUG-20260729-mcp-manual-exchange-timeout: Manual MCP exchange exposed transport timeout details
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Trust-Damage
 - **Severity:** Medium · **Priority:** P1
 - **Persona Affected:** Iris
@@ -40,7 +40,7 @@ timeout exposed the UDS path and a raw HTTP client `context deadline exceeded` d
 - **Correction:** The CLI boundary now maps only deadline-exceeded exchange failures through the
   same `mcpAuthorizationTimeoutError` used by pending manual input. Non-timeout exchange errors keep
   their original classification.
-- **Fix commit:** pending completion gate
+- **Fix commit:** `351f3535`
 - **Regression owner:** `internal/cli/mcp_auth_test.go`,
   `TestMCPAuthorizeManualHonorsTimeout/Should carry the authorization deadline through manual exchange`.
 

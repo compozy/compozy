@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-24
 expected: Tasks List/Kanban/Dashboard/Inbox modes are RouteNav links driven by `?mode=` (not local-only pills); the active mode has `aria-current="page"`; refreshing preserves the mode; switching modes updates the URL without losing workspace scope.
 entry_points: web `/tasks`; `/tasks?mode=kanban|dashboard|inbox`
-qa_status: untested
+qa_status: blocked-verify
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-et-current-source-20260730-061655-910372-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: ET-web-route-chrome-topbar
 ---
 

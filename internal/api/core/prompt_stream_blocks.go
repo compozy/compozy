@@ -101,6 +101,9 @@ func (e *PromptStreamEncoder) finish(writer FlushWriter, event acp.AgentEvent) e
 	if err := e.closeOpenBlocks(writer); err != nil {
 		return err
 	}
+	if err := e.emitUnresolvedToolResults(writer, event); err != nil {
+		return err
+	}
 	e.finished = true
 
 	finishPayload := promptFinishPayload{Type: "finish"}

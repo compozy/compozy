@@ -201,7 +201,7 @@ function emitFrontmatter() {
     yamlMap(
       "typography-clamps",
       mapNamed(siteTheme, /^text-site-|^text-group-label|^leading-doc-body$/, name =>
-        name.replace(/^text-site-/, "")
+        name.replace(/^(?:text-site-|text-|leading-)/, "")
       ),
       4
     ),

@@ -145,6 +145,9 @@ func (m *Manager) InterruptPrompt(ctx context.Context, id string) (SendPromptRes
 	if err != nil {
 		return SendPromptResult{}, err
 	}
+	if !session.IsPrompting() {
+		return SendPromptResult{}, fmt.Errorf("%w: %s", ErrPromptNotInProgress, session.ID)
+	}
 	previousTurnID := session.CurrentTurnID()
 	interruptedMessage := ""
 	if session.CurrentTurnSource() == TurnSourceUser {

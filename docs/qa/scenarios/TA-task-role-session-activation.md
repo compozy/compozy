@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-complete-task-tree
 expected: A spawned task-role session receives one initial turn after ACP readiness, claims and attaches its assigned queued run through the lease contract, and surfaces a prompt/start failure promptly instead of idling until TTL.
 entry_points: scheduler starvation recovery; Web agent Sessions; Web task run detail
-qa_status: untested
+qa_status: blocked-verify
 bug_ids: BUG-20260713-task-role-session-never-starts;BUG-20260713-task-role-dispatch-repeats;BUG-20260713-cursor-agent-mode-unavailable;BUG-20260729-provider-worker-native-claim-guidance
 fix_status: fixed
 retest_status: pass
 fix_commits: 8eeb8a38
-evidence: /Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-task-role-session-never-starts.dom.txt; /var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/compozyqa-108e1613c829/runtime/sessions/ws_06366aad69887872/sess-fbc0f0f9edf012ea/ledger.jsonl; /Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-task-role-synthetic-turn-fixed-agent-mode-blocked.dom.txt; /Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-task-role-repeated-synthetic-turns.dom.txt; /Users/pedronauck/dev/qa-labs/compozy-automation-features-post-onboarding-fix-20260713-20260713-203513-816377-lab/qa-artifacts/qa/screenshots/compozy71-faithful-child-b-one-run.dom.txt
-last_report: docs/qa/reports/2026-07-13-automation-features.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-task-role-session-never-starts.dom.txt; /var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/compozyqa-108e1613c829/runtime/sessions/ws_06366aad69887872/sess-fbc0f0f9edf012ea/ledger.jsonl; /Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-task-role-synthetic-turn-fixed-agent-mode-blocked.dom.txt; /Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-task-role-repeated-synthetic-turns.dom.txt; /Users/pedronauck/dev/qa-labs/compozy-automation-features-post-onboarding-fix-20260713-20260713-203513-816377-lab/qa-artifacts/qa/screenshots/compozy71-faithful-child-b-one-run.dom.txt;/Users/pedronauck/dev/qa-labs/compozy-qa-ta-replay-20260730-062156-531636-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: TA-024;TA-025;TA-026;TA-parent-rollup-completion
 ---
 

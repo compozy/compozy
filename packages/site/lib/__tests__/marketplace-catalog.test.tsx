@@ -1,5 +1,14 @@
-import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { render, screen } from "@testing-library/react";
 import { parse as parseToml } from "smol-toml";
@@ -12,6 +21,15 @@ vi.mock("next/link", () => ({
   ),
 }));
 
+vi.mock("@/lib/source", () => ({
+  docsSource: {
+    getPage: ([section, slug]: string[]) =>
+      section === "bridges" && slug?.startsWith("setup-")
+        ? { url: `/docs/${section}/${slug}` }
+        : undefined,
+  },
+}));
+
 import { MarketplaceEntryDetail } from "@/components/marketplace/marketplace-entry-detail";
 import { MarketplaceEntryCard } from "@/components/marketplace/marketplace-entry-card";
 import { MarketplaceHero } from "@/components/marketplace/marketplace-hero";
@@ -22,8 +40,12 @@ import MarketplaceKindPage, {
   generateStaticParams as generateMarketplaceKindParams,
 } from "@/app/marketplace/[kind]/page";
 import { BRIDGE_LOGOS } from "../marketplace-bridge-logos";
-import { bridgeProviders, findBridgeProvider } from "../marketplace-bridges";
-import { bundledSkills, devCycleExtension } from "../marketplace-bundled";
+import { bridgeProviders, findBridgeProvider, readBridgeProviders } from "../marketplace-bridges";
+import {
+  bundledSkills,
+  devCycleExtension,
+  parseBundledSkillFrontmatter,
+} from "../marketplace-bundled";
 import {
   entriesForKind,
   extensionEntries,
@@ -121,7 +143,7 @@ describe("marketplace catalog", () => {
         description: "d",
         // install_slug missing
       })
-    ).toThrow();
+    ).toThrow(/install_slug/);
 
     expect(() =>
       extensionEntrySchema.parse({
@@ -168,7 +190,7 @@ describe("marketplace catalog", () => {
         url: "https://example.com/mcp",
         unknown_field: true,
       })
-    ).toThrow();
+    ).toThrow(/unrecognized|unknown_field/);
   });
 
   it("omits unsupported trust fields from parsed catalog entries", () => {
@@ -352,6 +374,31 @@ function manifestDirectories(root: string, directories: string[]): string[] {
     .sort();
 }
 
+function writeBridgeManifest(root: string, directory: string, platform: string): void {
+  const manifestRoot = resolve(root, directory);
+  mkdirSync(manifestRoot, { recursive: true });
+  writeFileSync(
+    resolve(manifestRoot, "extension.toml"),
+    `[extension]
+name = "${directory}"
+version = "0.1.0"
+description = "${directory} bridge"
+
+[capabilities]
+provides = ["bridge.adapter"]
+
+[bridge]
+platform = "${platform}"
+display_name = "${directory}"
+
+[[bridge.secret_slots]]
+name = "token"
+description = "Bridge token"
+required = true
+`
+  );
+}
+
 describe("marketplace bridge providers", () => {
   it("derives one provider per in-tree bridge manifest", () => {
     const manifests = bridgeManifests();
@@ -375,6 +422,29 @@ describe("marketplace bridge providers", () => {
       expect(provider.secretSlots.required).toBeGreaterThan(0);
       expect(provider.secretSlots.required).toBeLessThanOrEqual(provider.secretSlots.total);
       expect(provider.setupUrl).toBe(`/docs/bridges/setup-${provider.platform}`);
+    }
+  });
+
+  it("rejects a provider whose setup guide is missing from the docs source", () => {
+    expect(() => readBridgeProviders({ resolveSetupPage: () => undefined })).toThrow(
+      /setup guide is missing/
+    );
+  });
+
+  it("rejects duplicate bridge platforms before publishing providers", () => {
+    const root = mkdtempSync(join(tmpdir(), "compozy-bridge-providers-"));
+    try {
+      writeBridgeManifest(root, "first", "duplicate");
+      writeBridgeManifest(root, "second", "duplicate");
+
+      expect(() =>
+        readBridgeProviders({
+          root,
+          resolveSetupPage: ([, slug]) => ({ url: `/docs/bridges/${slug}` }),
+        })
+      ).toThrow(/duplicate bridge platform/);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
     }
   });
 
@@ -415,10 +485,14 @@ describe("marketplace bundled resources", () => {
         tools: Record<string, unknown>;
       };
     };
-    const loopNames = manifestDirectories(devCycleRoot, manifest.resources.loops);
-    const loops = loopNames.map(loopName => {
+    const loopDirectories = manifest.resources.loops.flatMap(parent =>
+      readdirSync(resolve(devCycleRoot, parent), { withFileTypes: true })
+        .filter(entry => entry.isDirectory())
+        .map(entry => ({ parent, name: entry.name }))
+    );
+    const loops = loopDirectories.map(({ parent, name }) => {
       const loop = parseYaml(
-        readFileSync(resolve(devCycleRoot, "loops", loopName, "loop.yaml"), "utf8")
+        readFileSync(resolve(devCycleRoot, parent, name, "loop.yaml"), "utf8")
       ) as {
         meta: {
           name: string;
@@ -462,9 +536,12 @@ describe("marketplace bundled resources", () => {
       .filter(entry => entry.isDirectory())
       .map(entry => {
         const source = readFileSync(resolve(skillRoot, entry.name, "SKILL.md"), "utf8");
+        const match = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(source);
+        if (!match?.[1]) throw new Error(`skills/${entry.name}/SKILL.md has no frontmatter`);
+        const metadata = parseYaml(match[1]) as { name?: string; description?: string };
         return {
-          name: source.match(/^name:\s*(.+)$/m)?.[1]?.trim(),
-          description: source.match(/^description:\s*(.+)$/m)?.[1]?.trim(),
+          name: metadata.name,
+          description: metadata.description,
         };
       })
       .sort((left, right) => left.name?.localeCompare(right.name ?? "") ?? 0);
@@ -472,6 +549,23 @@ describe("marketplace bundled resources", () => {
     expect(
       bundledSkills.map(skill => ({ name: skill.name, description: skill.description }))
     ).toEqual(expected);
+  });
+
+  it("reads skill identity only from YAML frontmatter", () => {
+    expect(
+      parseBundledSkillFrontmatter(`---
+name: canonical-skill
+description: >-
+  Folded YAML description
+---
+
+name: body-content
+description: body content must not override metadata
+`)
+    ).toEqual({
+      name: "canonical-skill",
+      description: "Folded YAML description",
+    });
   });
 });
 
@@ -485,14 +579,15 @@ describe("marketplace rendering boundary", () => {
       updated_at: undefined,
     };
 
-    const rendered = render(<MarketplaceEntryCard kind="skills" entry={entry} />);
-    expect(screen.getByText(/^Published /)).toBeDefined();
-    expect(rendered.container.textContent).not.toMatch(/\b(rating|downloads|featured)\b/i);
+    const card = render(<MarketplaceEntryCard kind="skills" entry={entry} />);
+    expect(card.getByText(/^Published /)).toBeDefined();
+    expect(card.container.textContent).not.toMatch(/\b(rating|downloads|featured)\b/i);
+    card.unmount();
 
-    rendered.rerender(<MarketplaceEntryDetail kind="skills" entry={entry} />);
-    expect(screen.getByText("Published")).toBeDefined();
-    expect(screen.getByText("Jul 17, 2026")).toBeDefined();
-    expect(rendered.container.textContent).not.toMatch(/\b(rating|downloads|featured)\b/i);
+    const detail = render(<MarketplaceEntryDetail kind="skills" entry={entry} />);
+    expect(detail.getByText("Published")).toBeDefined();
+    expect(detail.getByText("Jul 17, 2026")).toBeDefined();
+    expect(detail.container.textContent).not.toMatch(/\b(rating|downloads|featured)\b/i);
   });
 
   it("directs a static listing to search the daemon's active catalog", () => {

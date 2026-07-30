@@ -4,6 +4,7 @@ package main
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"fmt"
 	"io/fs"
 	"os"
@@ -85,7 +86,11 @@ func goLint() error {
 }
 
 func runGolangCILint() error {
-	cacheDir, err := golangCILintCacheDir(os.Getenv("GOLANGCI_LINT_CACHE"))
+	projectRoot, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("resolve golangci-lint project root: %w", err)
+	}
+	cacheDir, err := golangCILintCacheDir(os.Getenv("GOLANGCI_LINT_CACHE"), projectRoot)
 	if err != nil {
 		return err
 	}
@@ -111,7 +116,7 @@ func runGolangCILint() error {
 	return sh.RunWithV(env, "go", goRunArgs...)
 }
 
-func golangCILintCacheDir(explicit string) (string, error) {
+func golangCILintCacheDir(explicit, projectRoot string) (string, error) {
 	if cacheDir := strings.TrimSpace(explicit); cacheDir != "" {
 		return cacheDir, nil
 	}
@@ -119,11 +124,13 @@ func golangCILintCacheDir(explicit string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("resolve user cache directory: %w", err)
 	}
+	rootDigest := sha256.Sum256([]byte(filepath.Clean(projectRoot)))
 	return filepath.Join(
 		userCacheDir,
 		"compozy-dev",
 		"golangci-lint",
 		strings.TrimPrefix(golangciLintVersion, "v"),
+		fmt.Sprintf("%x", rootDigest[:8]),
 	), nil
 }
 

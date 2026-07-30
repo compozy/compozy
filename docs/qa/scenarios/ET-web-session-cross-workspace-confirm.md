@@ -6,13 +6,13 @@ persona: Nia
 journey: J-open-foreign-session
 expected: A foreign-workspace session deep link shows a confirmation naming the owning workspace, and confirming activates that workspace and opens the session on both the canonical and short permalink routes; the confirmation state lives in the route so the link is replayable.
 entry_points: /agents/:agent/sessions/:session; /session/:session; ?workspaceSwitch=confirm; ?workspaceSwitch=declined; GET /api/sessions/:session_id/owner
-qa_status: untested
+qa_status: blocked-verify
 bug_ids:
 fix_status:
 retest_status: pass
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-124649-419333-lab/qa-artifacts/qa/notes/cross-workspace-access-results.md; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-124649-419333-lab/qa-artifacts/qa/screenshots/cross-workspace-deeplink-confirm.png; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-124649-419333-lab/qa-artifacts/qa/screenshots/cross-workspace-deeplink-switched.png; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-124649-419333-lab/qa-artifacts/qa/screenshots/cross-workspace-shortlink-confirm.png
-last_report: docs/qa/reports/2026-07-29-cross-workspace-access.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-124649-419333-lab/qa-artifacts/qa/notes/cross-workspace-access-results.md; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-124649-419333-lab/qa-artifacts/qa/screenshots/cross-workspace-deeplink-confirm.png; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-124649-419333-lab/qa-artifacts/qa/screenshots/cross-workspace-deeplink-switched.png; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-124649-419333-lab/qa-artifacts/qa/screenshots/cross-workspace-shortlink-confirm.png;/Users/pedronauck/dev/qa-labs/compozy-qa-et-current-source-20260730-061655-910372-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: ET-web-session-deep-link-isolation; MS-workspace-resolution-chain
 ---
 

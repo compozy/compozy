@@ -305,6 +305,12 @@ export type MCPEntry = z.infer<typeof mcpEntrySchema>;
 export type MarketplaceKind = "skills" | "extensions" | "mcp";
 export type MarketplaceEntry = SkillEntry | ExtensionEntry | MCPEntry;
 
+interface MarketplaceEntryByKind {
+  skills: SkillEntry;
+  extensions: ExtensionEntry;
+  mcp: MCPEntry;
+}
+
 export const MARKETPLACE_KINDS: readonly MarketplaceKind[] = ["skills", "extensions", "mcp"];
 export const MARKETPLACE_FEED_FILENAMES = ["skills.json", "extensions.json", "mcp.json"] as const;
 export const MARKETPLACE_SEARCH_COMMAND = "compozy marketplace search";
@@ -397,14 +403,18 @@ export function marketplaceSearchCommand(kind: MarketplaceKind, entry: Marketpla
   return `${MARKETPLACE_SEARCH_COMMAND} ${entry.entry_id} --kind ${cliKind}`;
 }
 
+const installCommandByKind: {
+  [Kind in MarketplaceKind]: (entry: MarketplaceEntryByKind[Kind]) => string;
+} = {
+  skills: entry => `compozy skill install ${entry.install_slug}`,
+  extensions: entry => `compozy extension install ${entry.install_slug}`,
+  mcp: entry => `compozy mcp install ${entry.entry_id}`,
+};
+
 /** The CLI owns installation; this exact command is valid only after the daemon finds the entry. */
-export function installCommand(kind: MarketplaceKind, entry: MarketplaceEntry): string {
-  switch (kind) {
-    case "skills":
-      return `compozy skill install ${(entry as SkillEntry).install_slug}`;
-    case "extensions":
-      return `compozy extension install ${(entry as ExtensionEntry).install_slug}`;
-    case "mcp":
-      return `compozy mcp install ${entry.entry_id}`;
-  }
+export function installCommand<Kind extends MarketplaceKind>(
+  kind: Kind,
+  entry: MarketplaceEntryByKind[Kind]
+): string {
+  return installCommandByKind[kind](entry);
 }

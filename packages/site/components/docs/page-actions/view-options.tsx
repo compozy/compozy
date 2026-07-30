@@ -22,7 +22,7 @@ export function ViewOptions({ markdownUrl, githubUrl }: ViewOptionsProps) {
         render={
           <Button
             aria-label="Page options"
-            className="site-doc-page-action site-doc-page-action--icon h-search w-[length:var(--height-search)]!"
+            className="site-doc-page-action site-doc-page-action--icon h-search w-(length:--height-search)!"
             size="icon-sm"
             variant="outline"
           >

@@ -6,13 +6,13 @@ persona: Ada
 journey: J-11
 expected: An agent can submit ordered add, replace, and remove operations for one workspace memory document through compozy__memory_propose. Compozy rejects missing or ambiguous old_text without changing bytes, validates only the final configured body size, records one decision for a successful batch, keeps repeated prompt assembly byte-stable until a committed memory mutation, and recalls the committed fact in the next session.
 entry_points: hosted MCP compozy__memory_propose; workspace Memory v2 files; memory decision history; next-session prompt recall
-qa_status: untested
+qa_status: blocked-verify
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-ms-wave2-current-20260730-061842-796290-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: MS-workspace-checkpoint-continuity
 ---
 

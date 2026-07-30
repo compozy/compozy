@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-marketplace-acquisition
 expected: Every open desktop window owns one 44px unified head (traffic lights · quiet glyph + title or window-local drill-in trail · peer RouteNav tabs immediately after identity when the route has siblings · status + ≤2 actions) with an optional 38px context strip for listing tools only (search/filter/sort/scope — never peer route tabs); route identity renders once (no body PageHead / accent tile / workspace-prefixed breadcrumb); document/session windows self-title with a state mark; focusing a window makes its head and URL authoritative without creating a second shell-level title.
 entry_points: web desktop windows; any windowed catalog or detail route
-qa_status: untested
+qa_status: blocked-verify
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-et-current-source-20260730-061655-910372-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: ET-web-catalog-navigation; ET-web-tasks-mode-url; ET-web-jobs-triggers-catalog
 ---
 

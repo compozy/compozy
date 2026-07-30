@@ -154,6 +154,16 @@ describe("Session SessionToolCallRow — wraps <SessionToolCallRow> from @compoz
     expect(queryToolName()).toHaveTextContent("Reading...");
   });
 
+  it("Should fail a resultless tool once the owning turn settles", () => {
+    render(<SessionToolCallRow message={makeToolMessage()} turnSettled />);
+
+    expect(queryRoot()).toHaveAttribute("data-status", "failed");
+    expect(queryStatusIndicator()).toHaveAttribute("aria-label", "Error");
+    expect(queryToolName()).toHaveTextContent("Read file");
+    expect(queryToolName()).not.toHaveTextContent("Reading...");
+    expect(queryPreview()).toHaveTextContent("Tool call failed");
+  });
+
   it("Should map meaningful output to the success row state (grey check)", () => {
     render(<SessionToolCallRow message={makeToolMessage({ toolResult: { content: "file" } })} />);
     expect(queryRoot()?.getAttribute("data-status")).toBe("success");

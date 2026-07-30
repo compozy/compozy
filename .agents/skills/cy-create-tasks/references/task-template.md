@@ -6,7 +6,7 @@ Use this structure for every individual task file. The file must start with YAML
 ---
 status: pending
 title: [Task title]
-type: [one of frontend, backend, docs, test, infra, refactor, chore, bugfix, or a project-specific [tasks].types override]
+type: [a standard work-type slug or an approved project-specific lowercase hyphenated slug]
 complexity: [low, medium, high, critical]
 ---
 

@@ -6,13 +6,13 @@ persona: Dora
 journey: J-offer-runnable-capabilities
 expected: Five confirmed permanent failures mark only the affected workspace MCP server dead; settings, status, doctor, Web, native status, and same-lifetime retained tool descriptors expose a redacted reason; ordinary attempts are suppressed; one due probe succeeds and clears the mark without a daemon restart.
 entry_points: Web /mcp; GET /api/settings/mcp-servers; GET /api/status; compozy status; compozy doctor --only mcp; compozy__mcp_status; compozy__tool_info; MCP tool discovery
-qa_status: untested
+qa_status: blocked-verify
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-rt-current-source-20260730-20260730-061631-252740-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: ET-046
 ---
 

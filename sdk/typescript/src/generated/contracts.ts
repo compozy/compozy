@@ -3209,31 +3209,31 @@ export interface DeclaredNetworkChannelPayload {
 
 export interface NetworkKindMetricPayload {
   kind: string;
-  sent?: number;
-  received?: number;
-  rejected?: number;
-  delivered?: number;
+  sent: number;
+  received: number;
+  rejected: number;
+  delivered: number;
 }
 
 export interface NetworkStatusPayload {
   enabled: boolean;
   status: string;
-  local_peers?: number;
-  channels?: number;
-  messages_sent?: number;
-  messages_received?: number;
-  messages_rejected?: number;
-  messages_delivered?: number;
-  workflow_tagged_events?: number;
-  handoff_tagged_events?: number;
-  open_threads?: number;
-  open_direct_rooms?: number;
-  open_work_items?: number;
-  conversation_messages?: number;
-  work_transitions?: number;
-  direct_resolves?: number;
-  declared_channels?: DeclaredNetworkChannelPayload[];
-  kind_metrics?: NetworkKindMetricPayload[];
+  local_peers: number;
+  channels: number;
+  messages_sent: number;
+  messages_received: number;
+  messages_rejected: number;
+  messages_delivered: number;
+  workflow_tagged_events: number;
+  handoff_tagged_events: number;
+  open_threads: number;
+  open_direct_rooms: number;
+  open_work_items: number;
+  conversation_messages: number;
+  work_transitions: number;
+  direct_resolves: number;
+  declared_channels: DeclaredNetworkChannelPayload[];
+  kind_metrics: NetworkKindMetricPayload[];
 }
 
 export interface NetworkThreadMessagesParams {

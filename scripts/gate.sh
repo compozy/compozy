@@ -33,31 +33,20 @@ die() {
   exit 2
 }
 
-hash_stdin() {
-  if command -v shasum >/dev/null 2>&1; then
-    shasum -a 256 | cut -d' ' -f1
-  else
-    sha256sum | cut -d' ' -f1
-  fi
-}
+tree_fingerprint() (
+  local temp_index
+  temp_index="$(mktemp "${TMPDIR:-/tmp}/compozy-gate-index.XXXXXX")"
+  trap 'rm -f "$temp_index"' EXIT
+  rm -f "$temp_index"
 
-tree_fingerprint() {
-  {
-    git rev-parse 'HEAD^{tree}' 2>/dev/null || printf 'no-head\n'
-    git write-tree 2>/dev/null || printf 'no-index\n'
-    git ls-files -m -d -o --exclude-standard -z | sort -zu | while IFS= read -r -d '' path; do
-      case "$path" in
-        "$GATE_DIR"/*) continue ;;
-      esac
-      if [ -f "$path" ]; then
-        printf '%s=' "$path"
-        hash_stdin <"$path"
-      else
-        printf '%s=absent\n' "$path"
-      fi
-    done
-  } | hash_stdin
-}
+  if git rev-parse --verify --quiet HEAD >/dev/null 2>&1; then
+    GIT_INDEX_FILE="$temp_index" git read-tree HEAD
+  else
+    GIT_INDEX_FILE="$temp_index" git read-tree --empty
+  fi
+  GIT_INDEX_FILE="$temp_index" git add -A -- .
+  GIT_INDEX_FILE="$temp_index" git write-tree
+)
 
 resolve_base() {
   if [ -n "${GATE_BASE:-}" ]; then
@@ -76,18 +65,23 @@ resolve_base() {
 }
 
 changed_files() {
-  local base merge_base
+  local base merge_base status=0
   base="$(resolve_base)"
+  merge_base=""
+  if [ -n "$base" ]; then
+    merge_base="$(git merge-base HEAD "$base" 2>/dev/null || true)"
+  fi
+  if [ -z "$merge_base" ]; then
+    status=1
+  fi
   {
-    if [ -n "$base" ]; then
-      merge_base="$(git merge-base HEAD "$base" 2>/dev/null || true)"
-      if [ -n "$merge_base" ]; then
-        git diff --name-only "$merge_base" HEAD
-      fi
+    if [ -n "$merge_base" ]; then
+      git diff --name-only "$merge_base" HEAD
     fi
     git diff --name-only HEAD
     git ls-files -o --exclude-standard
   } | sort -u | sed '/^$/d'
+  return "$status"
 }
 
 # Paths whose change invalidates cross-cutting assumptions (codegen, deps,
@@ -143,7 +137,9 @@ classify() {
 
 classify_all() {
   local files f
-  files="$(changed_files)"
+  if ! files="$(changed_files)"; then
+    FULL_REASONS="${FULL_REASONS}no usable merge base ($(resolve_base))"$'\n'
+  fi
   if [ -z "$files" ]; then
     return 0
   fi
@@ -181,7 +177,8 @@ write_record() {
 run_lane() {
   local id="$1"
   shift
-  local cmd_display="$*" rec logfile started duration rc
+  local cmd_display="$*" rec logfile started duration rc command_rc tee_rc
+  local -a pipeline_status
   rec="$(record_path "$id")"
   if record_current "$rec"; then
     log "SKIP $id — evidence current (finished $(record_field "$rec" finished_at), log $(record_field "$rec" log))"
@@ -193,8 +190,15 @@ run_lane() {
   started=$(date +%s)
   set +e
   "$@" 2>&1 | tee "$logfile"
-  rc=${PIPESTATUS[0]}
+  pipeline_status=("${PIPESTATUS[@]}")
+  command_rc=${pipeline_status[0]}
+  tee_rc=${pipeline_status[1]}
   set -e
+  if [ "$command_rc" -ne 0 ]; then
+    rc="$command_rc"
+  else
+    rc="$tee_rc"
+  fi
   duration=$(($(date +%s) - started))
   if [ "$rc" -eq 0 ]; then
     write_record "$id" pass "$cmd_display" "$logfile" "$duration"
@@ -259,7 +263,7 @@ print_classification() {
 
 cmd_auto() {
   classify_all
-  if [ "$CHANGED_COUNT" -eq 0 ]; then
+  if [ "$CHANGED_COUNT" -eq 0 ] && [ -z "$FULL_REASONS" ]; then
     log "clean tree vs base — nothing to gate"
     return 0
   fi
@@ -289,7 +293,7 @@ cmd_full() {
 cmd_plan() {
   classify_all
   log "fingerprint: $CURRENT_FINGERPRINT"
-  if [ "$CHANGED_COUNT" -eq 0 ]; then
+  if [ "$CHANGED_COUNT" -eq 0 ] && [ -z "$FULL_REASONS" ]; then
     log "clean tree vs base — nothing to gate"
     return 0
   fi

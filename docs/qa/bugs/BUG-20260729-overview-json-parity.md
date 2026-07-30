@@ -1,6 +1,6 @@
 # BUG-20260729-overview-json-parity: Agents receive different overview JSON from CLI and API
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Trust-Damage
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Ada
@@ -39,12 +39,11 @@ field.
 - **Root cause:** The generic CLI output writer injected workspace-resolution metadata into every
   JSON object after the observe command had already selected the public overview payload. The
   canonical test decoded into a struct, so Go silently ignored the unexpected key.
-- **Fix commit:** pending completion gate
+- **Fix commit:** `351f3535`
 - **Regression test:** `internal/cli/observe_test.go` — failed before the production change and
   passes after it; the real CLI/HTTP/UDS replay also matches after timestamp normalization.
 
 ## Verification
 
-- **Retested:** pending fix commit
-- **Result:** The staged candidate replay passes, but registry verification remains pending until
-  the governed fix commit exists.
+- **Retested:** 2026-07-29, rebuilt CLI/API parity replay; fix shipped in `351f3535`
+- **Result:** The CLI and API returned the same contract payload after `351f3535`.

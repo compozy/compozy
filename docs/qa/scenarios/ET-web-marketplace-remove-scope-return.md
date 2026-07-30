@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-marketplace-acquisition
 expected: Removing an installed skill, extension, or MCP server succeeds only after typed confirmation, reconciles discovery and inventory, switches to Marketplace scope, and leaves the removed entry available for a fresh install when it remains catalog-backed.
 entry_points: Marketplace Installed card overflow; Marketplace installed detail management
-qa_status: untested
+qa_status: blocked-verify
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-et-current-source-20260730-061655-910372-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: ET-web-marketplace-installed-management; ET-web-extensions-manage; ET-web-marketplace-skill-install
 ---
 

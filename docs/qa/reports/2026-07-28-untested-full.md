@@ -1,18 +1,18 @@
 # QA Run Report — 2026-07-28 — all current untested scenarios
 
-- **Scope:** Every scenario whose planning snapshot resolved to qa_status=untested (452 rows across ET, GL, LP, MS, NB, REL, RT, SITE, and TA)
+- **Scope:** Every scenario whose planning snapshot or later impact reset resolved to qa_status=untested (471 rows across ET, GL, LP, MS, NB, REL, RT, SITE, and TA)
 - **Cadence tier:** full
-- **Build:** 5d8ed82b plus current QA planning repairs · **Environment:** fresh isolated northstar-pay lab, http://127.0.0.1:60565; CLI/HTTP/UDS/Web/provider lanes use the bootstrap manifest
-- **Started:** 2026-07-29T02:38:46Z · **Status:** in-progress
+- **Build:** 7285bf3c through cbae345f plus current QA reconciliation · **Environment:** fresh isolated labs per area; CLI/HTTP/UDS/Web/provider lanes use their bootstrap manifests
+- **Started:** 2026-07-29T02:38:46Z · **Completed:** 2026-07-30 · **Status:** complete with recorded verification and decision blockers
 
 ## Personas
 
 | Persona | Base | Device / Network / Locale | Sessions |
 |---|---|---|---|
-| Ada | Autonomous Agent | desktop / wifi-fast / en-US | CH-004, CH-018, CH-024, CH-027, CH-031, CH-043, CH-agent-marketplace-parity, CH-compozy-platform-hard-cut, CH-daemon-schema-parity, CH-live-bounds-agent-path, CH-mcp-client-operates-compozy, CH-memory-batch-integrity, CH-reserved-builtin-name-sweep, CH-role-fallback-boundary, CH-runaway-work-bounded, CH-runnable-capabilities-truth, CH-subprocess-health-recovery, CH-untested-001-01-ada, CH-untested-008-07-ada, CH-untested-010-09-ada, CH-untested-035-29-ada, CH-untested-036-30-ada, CH-untested-039-32-ada, CH-untested-042-administer-window-manager-ada, CH-untested-046-agent-marketplace-parity-ada, CH-untested-050-bound-runaway-work-ada, CH-untested-058-extension-policy-admin-ada, CH-untested-066-operate-daemon-schema-ada, CH-untested-070-operate-workspace-context-ada, CH-untested-valid-004-14-ada, CH-untested-valid-006-20-ada, CH-untested-valid-007-23-ada, CH-untested-valid-009-24-ada, CH-untested-valid-015-32-ada, CH-untested-valid-016-administer-network-live-ada, CH-untested-valid-020-extension-policy-admin-ada, CH-untested-valid-021-mcp-authorize-repair-ada, CH-untested-valid-024-operate-daemon-schema-ada, CH-untested-valid-026-validate-compozy-hard-cut-ada, CH-wake-dedup-stress, CH-workspace-run-capacity |
-| Bruno | Delivery Builder | desktop / wifi-fast / en-US | CH-003, CH-005, CH-006, CH-007, CH-010, CH-012, CH-022, CH-023, CH-025, CH-026, CH-028, CH-032, CH-038, CH-automation-crud-loop-target, CH-coordination-future-runs, CH-cursor-agent-mode, CH-database-refusal-recovery, CH-loop-goal-delete, CH-marketplace-under-a-minute, CH-mcp-authorize-repair-truth, CH-network-admin-lifecycle, CH-new-session-latency-title, CH-schedule-recovery-guard, CH-suggestions-consent, CH-task-template-draft, CH-task-tree-loop-rollup, CH-untested-002-01-bruno, CH-untested-005-05-bruno, CH-untested-007-06-bruno, CH-untested-009-07-bruno, CH-untested-012-12-bruno, CH-untested-013-13-bruno, CH-untested-014-14-bruno, CH-untested-021-23-bruno, CH-untested-024-24-bruno-part-1, CH-untested-025-24-bruno-part-2, CH-untested-029-26-bruno, CH-untested-031-27-bruno, CH-untested-034-28-bruno, CH-untested-037-31-bruno, CH-untested-040-32-bruno, CH-untested-043-administer-window-manager-bruno-part-1, CH-untested-044-administer-window-manager-bruno-part-2, CH-untested-047-agent-marketplace-parity-bruno, CH-untested-051-complete-task-tree-bruno, CH-untested-056-evaluate-compozy-beta-bruno, CH-untested-059-extension-policy-admin-bruno, CH-untested-063-marketplace-acquisition-bruno, CH-untested-064-mcp-authorize-repair-bruno, CH-untested-067-operate-daemon-schema-bruno, CH-untested-068-operate-desktop-shell-bruno, CH-untested-072-retire-workspace-bruno, CH-untested-valid-001-01-bruno, CH-untested-valid-002-11-bruno, CH-untested-valid-010-24-bruno, CH-untested-valid-013-30-bruno, CH-untested-valid-014-31-bruno, CH-untested-valid-017-agent-marketplace-parity-bruno, CH-untested-valid-022-network-local-default-bruno, CH-untested-valid-027-validate-compozy-hard-cut-bruno |
+| Ada | Autonomous Agent | desktop / wifi-fast / en-US | CH-004, CH-018, CH-024, CH-027, CH-031, CH-043, CH-agent-marketplace-parity, CH-compozy-platform-hard-cut, CH-daemon-schema-parity, CH-live-bounds-agent-path, CH-mcp-client-operates-compozy, CH-memory-batch-integrity, CH-nested-skill-groups, CH-provider-settings-model-delta, CH-reserved-builtin-name-sweep, CH-role-fallback-boundary, CH-runaway-work-bounded, CH-runnable-capabilities-truth, CH-subprocess-health-recovery, CH-untested-001-01-ada, CH-untested-008-07-ada, CH-untested-010-09-ada, CH-untested-035-29-ada, CH-untested-036-30-ada, CH-untested-039-32-ada, CH-untested-042-administer-window-manager-ada, CH-untested-046-agent-marketplace-parity-ada, CH-untested-050-bound-runaway-work-ada, CH-untested-058-extension-policy-admin-ada, CH-untested-066-operate-daemon-schema-ada, CH-untested-070-operate-workspace-context-ada, CH-untested-valid-004-14-ada, CH-untested-valid-006-20-ada, CH-untested-valid-007-23-ada, CH-untested-valid-009-24-ada, CH-untested-valid-015-32-ada, CH-untested-valid-016-administer-network-live-ada, CH-untested-valid-020-extension-policy-admin-ada, CH-untested-valid-021-mcp-authorize-repair-ada, CH-untested-valid-024-operate-daemon-schema-ada, CH-untested-valid-026-validate-compozy-hard-cut-ada, CH-wake-dedup-stress, CH-workspace-run-capacity |
+| Bruno | Delivery Builder | desktop / wifi-fast / en-US | CH-003, CH-005, CH-006, CH-007, CH-010, CH-012, CH-022, CH-023, CH-025, CH-026, CH-028, CH-032, CH-038, CH-automation-crud-loop-target, CH-automation-manual-trigger, CH-coordination-future-runs, CH-cursor-agent-mode, CH-database-refusal-recovery, CH-loop-goal-delete, CH-marketplace-under-a-minute, CH-mcp-authorize-repair-truth, CH-network-admin-lifecycle, CH-new-session-latency-title, CH-schedule-recovery-guard, CH-session-goal-strip, CH-suggestions-consent, CH-task-template-draft, CH-task-tree-loop-rollup, CH-untested-002-01-bruno, CH-untested-005-05-bruno, CH-untested-007-06-bruno, CH-untested-009-07-bruno, CH-untested-012-12-bruno, CH-untested-013-13-bruno, CH-untested-014-14-bruno, CH-untested-021-23-bruno, CH-untested-024-24-bruno-part-1, CH-untested-025-24-bruno-part-2, CH-untested-029-26-bruno, CH-untested-031-27-bruno, CH-untested-034-28-bruno, CH-untested-037-31-bruno, CH-untested-040-32-bruno, CH-untested-043-administer-window-manager-bruno-part-1, CH-untested-044-administer-window-manager-bruno-part-2, CH-untested-047-agent-marketplace-parity-bruno, CH-untested-051-complete-task-tree-bruno, CH-untested-056-evaluate-compozy-beta-bruno, CH-untested-059-extension-policy-admin-bruno, CH-untested-063-marketplace-acquisition-bruno, CH-untested-064-mcp-authorize-repair-bruno, CH-untested-067-operate-daemon-schema-bruno, CH-untested-068-operate-desktop-shell-bruno, CH-untested-072-retire-workspace-bruno, CH-untested-valid-001-01-bruno, CH-untested-valid-002-11-bruno, CH-untested-valid-010-24-bruno, CH-untested-valid-013-30-bruno, CH-untested-valid-014-31-bruno, CH-untested-valid-017-agent-marketplace-parity-bruno, CH-untested-valid-022-network-local-default-bruno, CH-untested-valid-027-validate-compozy-hard-cut-bruno |
 | Cora | Non-technical Founder | laptop / wifi-fast / en-US | CH-compozy-landing-canary, CH-untested-069-operate-home-dashboard-cora |
-| Dora | Runtime Administrator | desktop / wifi-fast / en-US | CH-background-role-routing-scopes, CH-compozy-beta-candidate, CH-drain-without-loss, CH-dream-pipeline-canary, CH-secret-redaction-sweep, CH-settings-roles-live-truth, CH-untested-006-05-dora, CH-untested-017-17-dora, CH-untested-020-22-dora, CH-untested-022-23-dora, CH-untested-026-24-dora, CH-untested-028-25-dora, CH-untested-038-31-dora, CH-untested-041-administer-runtime-settings-dora, CH-untested-049-approve-compozy-beta-candidate-dora, CH-untested-052-complete-task-tree-dora, CH-untested-053-complete-web-bridge-setup-dora, CH-untested-055-drain-daemon-safely-dora, CH-untested-057-evaluate-compozy-beta-dora, CH-untested-061-keep-secrets-contained-dora, CH-untested-062-manage-sandbox-profiles-dora, CH-untested-065-mcp-authorize-repair-dora, CH-untested-071-operate-workspace-context-dora, CH-untested-valid-012-25-dora, CH-untested-valid-023-offer-runnable-capabilities-dora, CH-untested-valid-025-operate-daemon-schema-dora |
+| Dora | Runtime Administrator | desktop / wifi-fast / en-US | CH-background-role-routing-scopes, CH-compozy-beta-candidate, CH-drain-without-loss, CH-dream-pipeline-canary, CH-secret-redaction-sweep, CH-settings-roles-live-truth, CH-site-docs-search-context, CH-untested-006-05-dora, CH-untested-017-17-dora, CH-untested-020-22-dora, CH-untested-022-23-dora, CH-untested-026-24-dora, CH-untested-028-25-dora, CH-untested-038-31-dora, CH-untested-041-administer-runtime-settings-dora, CH-untested-049-approve-compozy-beta-candidate-dora, CH-untested-052-complete-task-tree-dora, CH-untested-053-complete-web-bridge-setup-dora, CH-untested-055-drain-daemon-safely-dora, CH-untested-057-evaluate-compozy-beta-dora, CH-untested-061-keep-secrets-contained-dora, CH-untested-062-manage-sandbox-profiles-dora, CH-untested-065-mcp-authorize-repair-dora, CH-untested-071-operate-workspace-context-dora, CH-untested-valid-012-25-dora, CH-untested-valid-023-offer-runnable-capabilities-dora, CH-untested-valid-025-operate-daemon-schema-dora |
 | Iris | Remote Operator | laptop / wifi-slow / en-US | CH-remote-operator-manual-auth |
 | Lea | First-time Adopter | laptop / wifi-fast / en-US | CH-001, CH-008, CH-030, CH-046, CH-untested-003-01-lea, CH-untested-004-04-lea, CH-untested-019-19-lea, CH-untested-030-26-lea |
 | Marina | Reviewer / Evaluator | phone-large / 4g / en-US | CH-002, CH-009, CH-033, CH-untested-015-14-marina, CH-untested-027-24-marina, CH-untested-032-27-marina-part-1, CH-untested-033-27-marina-part-2, CH-untested-048-agent-marketplace-parity-marina, CH-untested-valid-011-24-marina |
@@ -22,7 +22,7 @@
 | Rafa | Transcript Reviewer | desktop / wifi-fast / en-US | CH-017, CH-021, CH-039, CH-artifact-recovery-paging, CH-truthful-cost-provenance, CH-untested-valid-019-digest-sessions-into-memory-rafa |
 | Sol | Accessibility-Reliant User | desktop / wifi-fast / en-US | CH-013, CH-034, CH-untested-018-17-sol |
 | Tessa | First-time Bridge Operator | laptop / wifi-fast / en-US | CH-first-slack-response, CH-web-bridge-setup |
-| Théo | Returning Session User | desktop / wifi-fast / en-US | CH-014, CH-016, CH-037, CH-approval-grant-memory, CH-background-session-switch, CH-clarify-answer-roundtrip, CH-crash-resume-compaction, CH-session-affordances-truth, CH-untested-011-11-theo, CH-untested-016-15-theo, CH-untested-023-23-theo, CH-untested-045-administer-window-manager-theo, CH-untested-valid-003-12-theo, CH-untested-valid-005-14-theo, CH-untested-valid-018-answer-agent-requests-theo |
+| Théo | Returning Session User | desktop / wifi-fast / en-US | CH-014, CH-016, CH-037, CH-approval-grant-memory, CH-background-session-switch, CH-clarify-answer-roundtrip, CH-crash-resume-compaction, CH-session-affordances-truth, CH-session-calm-transcript, CH-session-permission-dock, CH-untested-011-11-theo, CH-untested-016-15-theo, CH-untested-023-23-theo, CH-untested-045-administer-window-manager-theo, CH-untested-valid-003-12-theo, CH-untested-valid-005-14-theo, CH-untested-valid-018-answer-agent-requests-theo |
 | Vera | Policy Administrator | desktop / wifi-fast / en-US | CH-extension-policy-admin-gates, CH-untested-060-extension-policy-admin-vera |
 
 ## Flows in Scope
@@ -99,458 +99,477 @@
 
 | # | Charter | Journey / Scenario | Persona | Tour | Status | Issue | Fix commit |
 |---:|---|---|---|---|---|---|---|
-| 1 | CH-untested-valid-017-agent-marketplace-parity-bruno | J-agent-marketplace-parity / ET-001 | Bruno | Feature Tour | Pending | BUG-20260729-skill-workspace-error-mapping | Browser scope passed; staged workspace-status fix awaits its governed commit. |
+| 1 | CH-untested-valid-017-agent-marketplace-parity-bruno | J-agent-marketplace-parity / ET-001 | Bruno | Feature Tour | Blocked (needs human verify) | BUG-20260729-skill-workspace-error-mapping | Browser scope passed; staged workspace-status fix awaits its governed commit. |
 | 2 | CH-agent-marketplace-parity | J-agent-marketplace-parity / ET-002 | Ada | Feature Tour | Pass | 2026-07-29 | Effective detail matched across HTTP/UDS/CLI/native tool and remained isolated between two workspaces. |
 | 3 | CH-untested-047-agent-marketplace-parity-bruno | J-agent-marketplace-parity / ET-003 | Bruno | Feature Tour | Pass | 2026-07-29 | Exact verified body rendered in web; critical-content exclusion remained green across structured reads. |
 | 4 | CH-untested-047-agent-marketplace-parity-bruno | J-agent-marketplace-parity / ET-006 | Bruno | Feature Tour | Pass | 2026-07-29 | Web tombstone cleanup passed; malformed isolated agent returned 422 and left no residue. |
-| 5 | CH-agent-marketplace-parity | J-agent-marketplace-parity / ET-007 | Ada | Feature Tour | Pass | 2026-07-29 | Curated/remote search and invalid limits passed across HTTP/UDS/CLI/native discovery. |
-| 6 | CH-agent-marketplace-parity | J-agent-marketplace-parity / ET-008 | Ada | Feature Tour | Pass | 2026-07-29 | Stable entry detail matched HTTP/UDS and both CLI namespaces; negative IDs/kinds classified correctly. |
-| 7 | CH-untested-047-agent-marketplace-parity-bruno | J-agent-marketplace-parity / ET-009 | Bruno | Feature Tour | Pass | 2026-07-29 | Live web install moved 11→12, detail was immediately visible, and typed removal restored 11 with clean HTTP/filesystem state. |
-| 8 | CH-marketplace-under-a-minute | J-marketplace-acquisition / ET-010 | Bruno | Money Tour | Pass | 2026-07-29 | Real CLI/HTTP/UDS check/apply branches stayed visible and up to date; the web truthfully omitted Update for a current entry. |
-| 9 | CH-untested-047-agent-marketplace-parity-bruno | J-agent-marketplace-parity / ET-011 | Bruno | Feature Tour | Pass | 2026-07-29 | HTTP/UDS blank-name validation, typed web removal, daemon-backed CLI removal, and no-residue checks passed. |
-| 10 | CH-untested-047-agent-marketplace-parity-bruno | J-agent-marketplace-parity / ET-012 | Bruno | Feature Tour | Pending | BUG-20260729-skill-agent-default-selection | Staged browser retest selected `general` and applied a tombstone live; governed fix commit remains. |
-| 11 | CH-untested-060-extension-policy-admin-vera | J-extension-policy-admin / ET-013 | Vera | Feature Tour | Pending | BUG-20260729-skill-policy-normalized-dirty | Policy persistence/restart behavior is green; staged dirty-state fix awaits its governed commit. |
+| 5 | CH-agent-marketplace-parity | J-agent-marketplace-parity / ET-007 | Ada | Feature Tour | Pass | BUG-0007 | 8eeb8a38 |
+| 6 | CH-agent-marketplace-parity | J-agent-marketplace-parity / ET-008 | Ada | Feature Tour | Pass | BUG-0007 | 8eeb8a38 |
+| 7 | CH-untested-047-agent-marketplace-parity-bruno | J-agent-marketplace-parity / ET-009 | Bruno | Feature Tour | Pass | BUG-0007 | 8eeb8a38 |
+| 8 | CH-marketplace-under-a-minute | J-marketplace-acquisition / ET-010 | Bruno | Money Tour | Pass | BUG-0007 | 8eeb8a38 |
+| 9 | CH-untested-047-agent-marketplace-parity-bruno | J-agent-marketplace-parity / ET-011 | Bruno | Feature Tour | Pass | BUG-0007 | 8eeb8a38 |
+| 10 | CH-untested-047-agent-marketplace-parity-bruno | J-agent-marketplace-parity / ET-012 | Bruno | Feature Tour | Blocked (needs human verify) | BUG-20260729-skill-agent-default-selection | Staged browser retest selected `general` and applied a tombstone live; governed fix commit remains. |
+| 11 | CH-untested-060-extension-policy-admin-vera | J-extension-policy-admin / ET-013 | Vera | Feature Tour | Blocked (needs human verify) | BUG-20260729-skill-policy-normalized-dirty | Policy persistence/restart behavior is green; staged dirty-state fix awaits its governed commit. |
 | 12 | CH-untested-060-extension-policy-admin-vera | J-extension-policy-admin / ET-015 | Vera | Feature Tour | Pass | 2026-07-29 | Live HTTP/UDS/CLI/native/browser state agreed; the owning API suite proved the boot-time defensive 503 branch. |
-| 13 | CH-agent-marketplace-parity | J-agent-marketplace-parity / ET-016 | Ada | Feature Tour | Pass | 2026-07-29 | Positive discovery and invalid-limit paths passed; a fresh unavailable-catalog lab returned 503 and tore down cleanly. |
-| 14 | CH-untested-valid-020-extension-policy-admin-ada | J-extension-policy-admin / ET-017 | Ada | Feature Tour | Pass | | Local path validation, policy/consent gates, checksum mismatch, and native/HTTP managed install passed. |
-| 15 | CH-untested-valid-020-extension-policy-admin-ada | J-extension-policy-admin / ET-018 | Ada | Feature Tour | Pending | | |
-| 16 | CH-untested-059-extension-policy-admin-bruno | J-extension-policy-admin / ET-019 | Bruno | Feature Tour | Pending | BUG-20260729-extension-update-partial-error | Repaired native partial-error replay is green; governed fix commit pending. |
-| 17 | CH-untested-059-extension-policy-admin-bruno | J-extension-policy-admin / ET-020 | Bruno | Feature Tour | Pass | | Active-bundle 409, confirmed web/native removal, and post-commit cleanup warning passed. |
-| 18 | CH-untested-059-extension-policy-admin-bruno | J-extension-policy-admin / ET-021 | Bruno | Feature Tour | Pass | | HTTP/native/CLI/web toggles applied immediately without restart. |
-| 19 | CH-untested-058-extension-policy-admin-ada | J-extension-policy-admin / ET-022 | Ada | Feature Tour | Pass | | |
+| 13 | CH-agent-marketplace-parity | J-agent-marketplace-parity / ET-016 | Ada | Feature Tour | Blocked (needs human verify) | BUG-0008 | 8eeb8a38 |
+| 14 | CH-untested-valid-020-extension-policy-admin-ada | J-extension-policy-admin / ET-017 | Ada | Feature Tour | Blocked (needs human verify) |  | Reset by a later user-visible impact flag; requires a fresh replay. |
+| 15 | CH-untested-valid-020-extension-policy-admin-ada | J-extension-policy-admin / ET-018 | Ada | Feature Tour | Pass | BUG-0008 | 8eeb8a38 |
+| 16 | CH-untested-059-extension-policy-admin-bruno | J-extension-policy-admin / ET-019 | Bruno | Feature Tour | Pass | BUG-20260729-extension-update-partial-error | 351f3535 |
+| 17 | CH-untested-059-extension-policy-admin-bruno | J-extension-policy-admin / ET-020 | Bruno | Feature Tour | Pass |  | Active-bundle 409, confirmed web/native removal, and post-commit cleanup warning passed. |
+| 18 | CH-untested-059-extension-policy-admin-bruno | J-extension-policy-admin / ET-021 | Bruno | Feature Tour | Pass |  | HTTP/native/CLI/web toggles applied immediately without restart. |
+| 19 | CH-untested-058-extension-policy-admin-ada | J-extension-policy-admin / ET-022 | Ada | Feature Tour | Pass |  |  |
 | 20 | CH-untested-059-extension-policy-admin-bruno | J-extension-policy-admin / ET-024 | Bruno | Feature Tour | Pass | 2026-07-29 | Catalog parity and defensive service-unavailable ownership passed. |
 | 21 | CH-network-admin-lifecycle | J-administer-network-live / ET-025 | Bruno | Multi-Tab Tour | Pass | 2026-07-29 | HTTP/UDS/CLI preview agreed on projected resources and the Live requirement digest without persistence. |
-| 22 | CH-network-admin-lifecycle | J-administer-network-live / ET-026 | Bruno | Multi-Tab Tour | Pass | BUG-20260715-bundle-confirmation-status-bad-request | Unconfirmed 409, confirmed 201, agent conflict 409, and missing-agent 422 passed across public surfaces. |
-| 23 | CH-network-admin-lifecycle | J-administer-network-live / ET-027 | Bruno | Multi-Tab Tour | Pass | BUG-20260715-bundle-activation-version-hidden | HTTP/UDS/CLI/native reads agreed on version, confirmation, inventory, and drift; unknown id returned 404. |
-| 24 | CH-network-admin-lifecycle | J-administer-network-live / ET-028 | Bruno | Multi-Tab Tour | Pass | BUG-20260715-bundle-activation-version-hidden | Live reapply, stale conflict/no mutation, repeat confirmation, and canonical changed-digest invalidation passed. |
+| 22 | CH-network-admin-lifecycle | J-administer-network-live / ET-026 | Bruno | Multi-Tab Tour | Pass | BUG-20260715-bundle-confirmation-status-bad-request | 8eeb8a38 |
+| 23 | CH-network-admin-lifecycle | J-administer-network-live / ET-027 | Bruno | Multi-Tab Tour | Pass | BUG-20260715-bundle-activation-version-hidden | 8eeb8a38 |
+| 24 | CH-network-admin-lifecycle | J-administer-network-live / ET-028 | Bruno | Multi-Tab Tour | Pass | BUG-20260715-bundle-activation-version-hidden | 8eeb8a38 |
 | 25 | CH-untested-059-extension-policy-admin-bruno | J-extension-policy-admin / ET-029 | Bruno | Feature Tour | Pass | 2026-07-29 | HTTP/CLI/native deactivation cycles removed activation-owned resources and channels cleanly. |
 | 26 | CH-untested-valid-016-administer-network-live-ada | J-administer-network-live / ET-030 | Ada | Back-Button Tour | Pass | 2026-07-29 | Network settings exposed declared channels only and removed them immediately on deactivation. |
-| 27 | CH-untested-046-agent-marketplace-parity-ada | J-agent-marketplace-parity / ET-031 | Ada | Feature Tour | Pass | | |
-| 28 | CH-untested-046-agent-marketplace-parity-ada | J-agent-marketplace-parity / ET-032 | Ada | Feature Tour | Pass | | |
+| 27 | CH-untested-046-agent-marketplace-parity-ada | J-agent-marketplace-parity / ET-031 | Ada | Feature Tour | Pass |  |  |
+| 28 | CH-untested-046-agent-marketplace-parity-ada | J-agent-marketplace-parity / ET-032 | Ada | Feature Tour | Pass |  |  |
 | 29 | CH-untested-046-agent-marketplace-parity-ada | J-agent-marketplace-parity / ET-033 | Ada | Feature Tour | Pass | BUG-0009 | 8eeb8a38 |
-| 30 | CH-untested-046-agent-marketplace-parity-ada | J-agent-marketplace-parity / ET-035 | Ada | Feature Tour | Pass | | |
-| 31 | CH-untested-046-agent-marketplace-parity-ada | J-agent-marketplace-parity / ET-036 | Ada | Feature Tour | Pass | | |
+| 30 | CH-untested-046-agent-marketplace-parity-ada | J-agent-marketplace-parity / ET-035 | Ada | Feature Tour | Pass |  |  |
+| 31 | CH-untested-046-agent-marketplace-parity-ada | J-agent-marketplace-parity / ET-036 | Ada | Feature Tour | Pass |  |  |
 | 32 | CH-untested-048-agent-marketplace-parity-marina | J-agent-marketplace-parity / ET-037 | Marina | Feature Tour | Pass | 2026-07-29 | HTTP/CLI digests matched, scope mismatch was typed, and raw approval tokens never entered durable evidence or logs. |
 | 33 | CH-untested-047-agent-marketplace-parity-bruno | J-agent-marketplace-parity / ET-038 | Bruno | Feature Tour | Pass | 2026-07-29 | Completed invoke contract plus stable invalid and unavailable errors over HTTP, UDS, and CLI. |
 | 34 | CH-untested-047-agent-marketplace-parity-bruno | J-agent-marketplace-parity / ET-040 | Bruno | Feature Tour | Pass | 2026-07-29 | HTTP/UDS parity for 27 valid toolsets; CLI list/info and negative ID branches passed. |
 | 35 | CH-untested-047-agent-marketplace-parity-bruno | J-agent-marketplace-parity / ET-041 | Bruno | Feature Tour | Pass | 2026-07-29 | Five workspace-clean hooks matched across HTTP/UDS; CLI/native list/info passed. |
-| 36 | CH-untested-046-agent-marketplace-parity-ada | J-agent-marketplace-parity / ET-042 | Ada | Feature Tour | Pass | | |
+| 36 | CH-untested-046-agent-marketplace-parity-ada | J-agent-marketplace-parity / ET-042 | Ada | Feature Tour | Pass |  |  |
 | 37 | CH-untested-047-agent-marketplace-parity-bruno | J-agent-marketplace-parity / ET-043 | Bruno | Feature Tour | Pass | Fresh workspace-scoped acpmock session produced applied post-create and post-stop audit records with exact HTTP/UDS parity, CLI/native parity, missing-session 400, and wrong-workspace 404 isolation. | /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-021949-664736-lab/qa-artifacts/qa/evidence/019-hook-session-audit |
-| 38 | CH-extension-policy-admin-gates | J-extension-policy-admin / ET-044 | Vera | Garbage Tour | Pending | | |
-| 39 | CH-extension-policy-admin-gates | J-extension-policy-admin / ET-045 | Vera | Garbage Tour | Pending | | |
-| 40 | CH-untested-047-agent-marketplace-parity-bruno | J-agent-marketplace-parity / ET-046 | Bruno | Feature Tour | Pending | | |
-| 41 | CH-untested-valid-021-mcp-authorize-repair-ada | J-mcp-authorize-repair / ET-047 | Ada | Network Tour | Pass | 2026-07-29 | Fresh automatic/manual S256 flows, scoped status, alias, timeout, logout isolation, redaction, and cleanup passed. |
-| 42 | CH-031 | J-20 / ET-049 | Ada | Feature Tour | Pass | 2026-07-29 | All 37 required native IDs were registered/callable and invoked; cross-surface parity, no-write validation, MCP registry recovery, and complete one-time startup guidance passed. |
-| 43 | CH-untested-060-extension-policy-admin-vera | J-extension-policy-admin / ET-050 | Vera | Feature Tour | Pending | | |
-| 44 | CH-untested-valid-001-01-bruno | J-01 / ET-052 | Bruno | Feature Tour | Pass | The default-enrolled package left and restored its two Loops, three agents, and three tools exactly; unknown and repeated lifecycle commands did not corrupt state, and no watch source appeared. | /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-021949-664736-lab/qa-artifacts/qa/evidence/026-dev-cycle-lifecycle |
-| 45 | CH-031 | J-20 / ET-053 | Ada | Feature Tour | Pending | | |
-| 46 | CH-agent-marketplace-parity | J-agent-marketplace-parity / ET-api-marketplace-namespace | Ada | Feature Tour | Pending | BUG-20260729-marketplace-file-cursor-fence | Rebuilt pagination replay is green; the root fix awaits its governed commit. |
-| 47 | CH-agent-marketplace-parity | J-agent-marketplace-parity / ET-api-mcp-catalog-install | Ada | Feature Tour | Pending | | Public install, validation, replacement, redaction, and cleanup passed; deterministic rollback/event fault branches remain. |
-| 48 | CH-untested-valid-021-mcp-authorize-repair-ada | J-mcp-authorize-repair / ET-api-mcp-oauth-endpoints | Ada | Network Tour | Pending | | Executable OAuth endpoint, race, expiry, replacement, non-loopback, and cleanup branches are green; the defensive callback-503 state lacks a public fault owner. |
-| 49 | CH-agent-marketplace-parity | J-agent-marketplace-parity / ET-cli-marketplace-info | Ada | Feature Tour | Pending | BUG-20260729-marketplace-json-parity | Rebuilt CLI/HTTP/UDS parity is green; the root fix awaits its governed commit. |
-| 50 | CH-agent-marketplace-parity | J-agent-marketplace-parity / ET-cli-marketplace-search | Ada | Feature Tour | Pending | BUG-20260729-marketplace-json-parity; BUG-20260729-marketplace-file-cursor-fence | Rebuilt JSON and pagination replay is green; both root fixes await governed commits. |
-| 51 | CH-remote-operator-manual-auth | J-mcp-authorize-repair / ET-cli-mcp-auth-manual-exchange | Iris | Paste Tour | Pending | BUG-20260729-mcp-manual-exchange-timeout | Paste, redirect, cancellation, and both timeout phases are green on the rebuilt CLI; the root fix awaits its governed commit. |
-| 52 | CH-untested-valid-021-mcp-authorize-repair-ada | J-mcp-authorize-repair / ET-cli-mcp-authorize | Ada | Network Tour | Pending | BUG-20260729-mcp-cli-json-parity | OAuth lifecycle is green; the structural JSON writer fix awaits its TechSpec. |
-| 53 | CH-agent-marketplace-parity | J-agent-marketplace-parity / ET-cli-mcp-install | Ada | Feature Tour | Pending | BUG-20260729-mcp-cli-json-parity | Install lifecycle is green; the structural JSON writer fix awaits its TechSpec. |
-| 54 | CH-compozy-platform-hard-cut | J-validate-compozy-hard-cut / ET-compozy-extension-contract-identity | Ada | Garbage Tour | Pending | | |
-| 55 | CH-untested-valid-026-validate-compozy-hard-cut-ada | J-validate-compozy-hard-cut / ET-compozy-public-brand-navigation | Ada | Feature Tour | Pending | | |
-| 56 | CH-untested-valid-020-extension-policy-admin-ada | J-extension-policy-admin / ET-ext-curated-digest-verify | Ada | Feature Tour | Pending | | |
-| 57 | CH-untested-043-administer-window-manager-bruno-part-1 | J-administer-window-manager / ET-layout-editor-drag-rebalance | Bruno | Back-Button Tour | Pending | | |
-| 58 | CH-untested-043-administer-window-manager-bruno-part-1 | J-administer-window-manager / ET-layout-editor-gaps-follow-canvas | Bruno | Back-Button Tour | Pending | | |
-| 59 | CH-untested-043-administer-window-manager-bruno-part-1 | J-administer-window-manager / ET-layout-editor-group-overlap-refused | Bruno | Back-Button Tour | Pending | | |
-| 60 | CH-untested-043-administer-window-manager-bruno-part-1 | J-administer-window-manager / ET-layout-editor-load-saved-layout | Bruno | Back-Button Tour | Pending | | |
-| 61 | CH-untested-043-administer-window-manager-bruno-part-1 | J-administer-window-manager / ET-layout-editor-shortcut-recorder | Bruno | Back-Button Tour | Pending | | |
-| 62 | CH-untested-043-administer-window-manager-bruno-part-1 | J-administer-window-manager / ET-layout-editor-split-orientation | Bruno | Back-Button Tour | Pending | | |
-| 63 | CH-untested-043-administer-window-manager-bruno-part-1 | J-administer-window-manager / ET-layout-editor-split-weights | Bruno | Back-Button Tour | Pending | | |
-| 64 | CH-extension-policy-admin-gates | J-extension-policy-admin / ET-marketplace-kill-switch | Vera | Garbage Tour | Pending | | |
-| 65 | CH-untested-valid-006-20-ada | J-20 / ET-model-source-five-rate-pricing | Ada | Feature Tour | Pending | | |
-| 66 | CH-approval-grant-memory | J-answer-agent-requests / ET-native-tool-approval-grants | Théo | Interrupt Tour | Pending | | |
-| 67 | CH-untested-070-operate-workspace-context-ada | J-operate-workspace-context / ET-native-workspace-scope-isolation | Ada | Back-Button Tour | Pending | | |
-| 68 | CH-runnable-capabilities-truth | J-offer-runnable-capabilities / ET-skill-activation-gates | Ada | Feature Tour | Pending | | |
-| 69 | CH-artifact-recovery-paging | J-14 / ET-tool-result-artifact-recovery | Rafa | Garbage Tour | Pending | | |
-| 70 | CH-untested-037-31-bruno | J-31 / ET-web-agent-detail-tab-parity | Bruno | Back-Button Tour | Pending | | |
+| 38 | CH-extension-policy-admin-gates | J-extension-policy-admin / ET-044 | Vera | Garbage Tour | Pass |  |  |
+| 39 | CH-extension-policy-admin-gates | J-extension-policy-admin / ET-045 | Vera | Garbage Tour | Pass |  |  |
+| 40 | CH-untested-047-agent-marketplace-parity-bruno | J-agent-marketplace-parity / ET-046 | Bruno | Feature Tour | Blocked (needs human verify) | BUG-0010 | 8eeb8a38 |
+| 41 | CH-untested-valid-021-mcp-authorize-repair-ada | J-mcp-authorize-repair / ET-047 | Ada | Network Tour | Pass | BUG-20260715-mcp-oauth-name-segment;  BUG-20260715-mcp-manual-tty-echo | 8eeb8a38 |
+| 42 | CH-031 | J-20 / ET-049 | Ada | Feature Tour | Pass | BUG-0010;  BUG-0011;  BUG-20260715-native-marketplace-extension-parity;  BUG-20260715-marketplace-native-config-policy | 8eeb8a38 |
+| 43 | CH-untested-060-extension-policy-admin-vera | J-extension-policy-admin / ET-050 | Vera | Feature Tour | Blocked (needs human verify) |  |  |
+| 44 | CH-untested-valid-001-01-bruno | J-01 / ET-052 | Bruno | Feature Tour | Pass | BUG-0018;  BUG-0019 | 8eeb8a38 |
+| 45 | CH-031 | J-20 / ET-053 | Ada | Feature Tour | Blocked (needs human verify) |  |  |
+| 46 | CH-agent-marketplace-parity | J-agent-marketplace-parity / ET-api-marketplace-namespace | Ada | Feature Tour | Pass | BUG-20260715-native-marketplace-extension-parity;  BUG-20260715-marketplace-stale-report;  BUG-20260729-marketplace-file-cursor-fence | 8eeb8a38; 351f3535 |
+| 47 | CH-agent-marketplace-parity | J-agent-marketplace-parity / ET-api-mcp-catalog-install | Ada | Feature Tour | Blocked (needs human verify) | BUG-20260715-mcp-install-null-values | 8eeb8a38 |
+| 48 | CH-untested-valid-021-mcp-authorize-repair-ada | J-mcp-authorize-repair / ET-api-mcp-oauth-endpoints | Ada | Network Tour | Blocked (needs human verify) | BUG-20260715-mcp-oauth-name-segment | 8eeb8a38 |
+| 49 | CH-agent-marketplace-parity | J-agent-marketplace-parity / ET-cli-marketplace-info | Ada | Feature Tour | Pass | BUG-20260729-marketplace-json-parity | 351f3535 |
+| 50 | CH-agent-marketplace-parity | J-agent-marketplace-parity / ET-cli-marketplace-search | Ada | Feature Tour | Pass | BUG-20260715-native-marketplace-extension-parity;  BUG-20260715-marketplace-stale-report;  BUG-20260729-marketplace-json-parity;  BUG-20260729-marketplace-file-cursor-fence | 8eeb8a38; 351f3535 |
+| 51 | CH-remote-operator-manual-auth | J-mcp-authorize-repair / ET-cli-mcp-auth-manual-exchange | Iris | Paste Tour | Pass | BUG-20260715-mcp-oauth-name-segment;  BUG-20260715-mcp-manual-tty-echo;  BUG-20260729-mcp-manual-exchange-timeout | 8eeb8a38; 351f3535 |
+| 52 | CH-untested-valid-021-mcp-authorize-repair-ada | J-mcp-authorize-repair / ET-cli-mcp-authorize | Ada | Network Tour | Blocked (decision required) | BUG-20260729-mcp-cli-json-parity | OAuth lifecycle is green; JSON envelope ownership requires the recorded human decision. |
+| 53 | CH-agent-marketplace-parity | J-agent-marketplace-parity / ET-cli-mcp-install | Ada | Feature Tour | Blocked (decision required) | BUG-20260729-mcp-cli-json-parity | Install lifecycle is green; JSON envelope ownership requires the recorded human decision. |
+| 54 | CH-compozy-platform-hard-cut | J-validate-compozy-hard-cut / ET-compozy-extension-contract-identity | Ada | Garbage Tour | Blocked (needs human verify) | BUG-20260727-runtime-legacy-identity | e4df8634 |
+| 55 | CH-untested-valid-026-validate-compozy-hard-cut-ada | J-validate-compozy-hard-cut / ET-compozy-public-brand-navigation | Ada | Feature Tour | Blocked (needs human verify) | BUG-20260727-runtime-legacy-identity | e4df8634 |
+| 56 | CH-untested-valid-020-extension-policy-admin-ada | J-extension-policy-admin / ET-ext-curated-digest-verify | Ada | Feature Tour | Blocked (needs human verify) | BUG-20260715-extension-cli-slow-boot-offline | 8eeb8a38 |
+| 57 | CH-untested-043-administer-window-manager-bruno-part-1 | J-administer-window-manager / ET-layout-editor-drag-rebalance | Bruno | Back-Button Tour | Blocked (needs human verify) |  |  |
+| 58 | CH-untested-043-administer-window-manager-bruno-part-1 | J-administer-window-manager / ET-layout-editor-gaps-follow-canvas | Bruno | Back-Button Tour | Blocked (needs human verify) |  |  |
+| 59 | CH-untested-043-administer-window-manager-bruno-part-1 | J-administer-window-manager / ET-layout-editor-group-overlap-refused | Bruno | Back-Button Tour | Blocked (needs human verify) |  |  |
+| 60 | CH-untested-043-administer-window-manager-bruno-part-1 | J-administer-window-manager / ET-layout-editor-load-saved-layout | Bruno | Back-Button Tour | Blocked (needs human verify) |  |  |
+| 61 | CH-untested-043-administer-window-manager-bruno-part-1 | J-administer-window-manager / ET-layout-editor-shortcut-recorder | Bruno | Back-Button Tour | Blocked (needs human verify) |  |  |
+| 62 | CH-untested-043-administer-window-manager-bruno-part-1 | J-administer-window-manager / ET-layout-editor-split-orientation | Bruno | Back-Button Tour | Blocked (needs human verify) |  |  |
+| 63 | CH-untested-043-administer-window-manager-bruno-part-1 | J-administer-window-manager / ET-layout-editor-split-weights | Bruno | Back-Button Tour | Blocked (needs human verify) |  |  |
+| 64 | CH-extension-policy-admin-gates | J-extension-policy-admin / ET-marketplace-kill-switch | Vera | Garbage Tour | Blocked (needs human verify) | BUG-20260715-marketplace-config-set-live;  BUG-20260715-config-set-late-metadata;  BUG-20260715-marketplace-stale-report | 8eeb8a38 |
+| 65 | CH-untested-valid-006-20-ada | J-20 / ET-model-source-five-rate-pricing | Ada | Feature Tour | Blocked (needs human verify) |  |  |
+| 66 | CH-approval-grant-memory | J-answer-agent-requests / ET-native-tool-approval-grants | Théo | Interrupt Tour | Blocked (needs human verify) |  |  |
+| 67 | CH-untested-070-operate-workspace-context-ada | J-operate-workspace-context / ET-native-workspace-scope-isolation | Ada | Back-Button Tour | Blocked (needs human verify) | BUG-20260729-nearest-workspace-case-alias | 4e81f17 |
+| 68 | CH-runnable-capabilities-truth | J-offer-runnable-capabilities / ET-skill-activation-gates | Ada | Feature Tour | Blocked (needs human verify) |  |  |
+| 69 | CH-artifact-recovery-paging | J-14 / ET-tool-result-artifact-recovery | Rafa | Garbage Tour | Blocked (needs human verify) |  |  |
+| 70 | CH-untested-037-31-bruno | J-31 / ET-web-agent-detail-tab-parity | Bruno | Back-Button Tour | Pass |  |  |
 | 71 | CH-untested-037-31-bruno | J-31 / ET-web-agent-fleet-listing-rows | Bruno | Back-Button Tour | Pass | Live Rows and Cards matched the ten-agent workspace catalog; shared row/card grammar, origins, monospace metadata, trail/actions, and route round-trip all passed without console or page errors. | /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-021949-664736-lab/qa-artifacts/qa/evidence/043-agent-fleet-listing |
-| 72 | CH-marketplace-under-a-minute | J-marketplace-acquisition / ET-web-bundle-activation-detail | Bruno | Money Tour | Pending | | |
-| 73 | CH-marketplace-under-a-minute | J-marketplace-acquisition / ET-web-bundle-preview-activate | Bruno | Money Tour | Pending | | |
-| 74 | CH-marketplace-under-a-minute | J-marketplace-acquisition / ET-web-catalog-navigation | Bruno | Money Tour | Pending | | |
-| 75 | CH-untested-068-operate-desktop-shell-bruno | J-operate-desktop-shell / ET-web-command-palette-shortcuts | Bruno | Feature Tour | Pending | | |
-| 76 | CH-untested-068-operate-desktop-shell-bruno | J-operate-desktop-shell / ET-web-desktop-shell-lifecycle | Bruno | Feature Tour | Pending | | |
-| 77 | CH-untested-068-operate-desktop-shell-bruno | J-operate-desktop-shell / ET-web-dock-default-window-size | Bruno | Feature Tour | Pending | | |
-| 78 | CH-untested-068-operate-desktop-shell-bruno | J-operate-desktop-shell / ET-web-dock-magnification | Bruno | Feature Tour | Pending | | |
-| 79 | CH-marketplace-under-a-minute | J-marketplace-acquisition / ET-web-ext-policy-block | Bruno | Money Tour | Pending | | |
-| 80 | CH-marketplace-under-a-minute | J-marketplace-acquisition / ET-web-extension-detail | Bruno | Money Tour | Pending | | |
-| 81 | CH-marketplace-under-a-minute | J-marketplace-acquisition / ET-web-extensions-manage | Bruno | Money Tour | Pending | | |
-| 82 | CH-untested-068-operate-desktop-shell-bruno | J-operate-desktop-shell / ET-web-inter-opsz-medium-510 | Bruno | Feature Tour | Pending | | |
-| 83 | CH-untested-024-24-bruno-part-1 | J-24 / ET-web-jobs-triggers-catalog | Bruno | Garbage Tour | Pending | | |
-| 84 | CH-untested-007-06-bruno | J-06 / ET-web-loop-editor-node-truncate | Bruno | Back-Button Tour | Pending | | |
-| 85 | CH-untested-007-06-bruno | J-06 / ET-web-loop-editor-sidebar-tabs | Bruno | Back-Button Tour | Pending | | |
-| 86 | CH-untested-007-06-bruno | J-06 / ET-web-loop-editor-topbar | Bruno | Back-Button Tour | Pending | | |
-| 87 | CH-untested-063-marketplace-acquisition-bruno | J-marketplace-acquisition / ET-web-marketplace-installed-management | Bruno | Feature Tour | Pending | | |
-| 88 | CH-untested-063-marketplace-acquisition-bruno | J-marketplace-acquisition / ET-web-marketplace-kind-navigation | Bruno | Feature Tour | Pending | | |
-| 89 | CH-marketplace-under-a-minute | J-marketplace-acquisition / ET-web-marketplace-landing-browse | Bruno | Money Tour | Pending | | |
-| 90 | CH-untested-064-mcp-authorize-repair-bruno | J-mcp-authorize-repair / ET-web-marketplace-mcp-authorize-installed | Bruno | Network Tour | Pending | | |
-| 91 | CH-untested-063-marketplace-acquisition-bruno | J-marketplace-acquisition / ET-web-marketplace-remove-scope-return | Bruno | Feature Tour | Pending | | |
-| 92 | CH-marketplace-under-a-minute | J-marketplace-acquisition / ET-web-marketplace-search-fanout | Bruno | Money Tour | Pending | | |
-| 93 | CH-marketplace-under-a-minute | J-marketplace-acquisition / ET-web-marketplace-skill-install | Bruno | Money Tour | Pending | | |
-| 94 | CH-mcp-authorize-repair-truth | J-mcp-authorize-repair / ET-web-mcp-authorize | Bruno | Interrupt Tour | Pending | | |
-| 95 | CH-remote-operator-manual-auth | J-mcp-authorize-repair / ET-web-mcp-authorize-manual | Iris | Paste Tour | Pending | | |
-| 96 | CH-marketplace-under-a-minute | J-marketplace-acquisition / ET-web-mcp-guided-install | Bruno | Money Tour | Pending | | |
-| 97 | CH-mcp-authorize-repair-truth | J-mcp-authorize-repair / ET-web-mcp-remote-editor | Bruno | Interrupt Tour | Pending | | |
-| 98 | CH-mcp-authorize-repair-truth | J-mcp-authorize-repair / ET-web-mcp-status-matrix | Bruno | Interrupt Tour | Pending | | |
-| 99 | CH-untested-068-operate-desktop-shell-bruno | J-operate-desktop-shell / ET-web-menubar-menu-set | Bruno | Feature Tour | Pending | | |
-| 100 | CH-untested-063-marketplace-acquisition-bruno | J-marketplace-acquisition / ET-web-page-content-gutter | Bruno | Feature Tour | Pending | | |
-| 101 | CH-untested-063-marketplace-acquisition-bruno | J-marketplace-acquisition / ET-web-route-chrome-topbar | Bruno | Feature Tour | Pending | | |
-| 102 | CH-untested-018-17-sol | J-17 / ET-web-runtime-selector-minimal-slider | Sol | Feature Tour | Pending | | |
-| 103 | CH-untested-070-operate-workspace-context-ada | J-operate-workspace-context / ET-web-session-deep-link-isolation | Ada | Back-Button Tour | Pending | | |
-| 104 | CH-untested-014-14-bruno | J-14 / ET-web-session-inspector-toggle | Bruno | Feature Tour | Pending | | |
-| 105 | CH-untested-012-12-bruno | J-12 / ET-web-session-thread-full-bleed | Bruno | Feature Tour | Pending | | |
-| 106 | CH-untested-068-operate-desktop-shell-bruno | J-operate-desktop-shell / ET-web-sessions-catalog-modal | Bruno | Feature Tour | Pending | | |
-| 107 | CH-extension-policy-admin-gates | J-extension-policy-admin / ET-web-settings-extensions-policy | Vera | Garbage Tour | Pending | | |
-| 108 | CH-extension-policy-admin-gates | J-extension-policy-admin / ET-web-settings-hooks | Vera | Garbage Tour | Pending | | |
+| 72 | CH-marketplace-under-a-minute | J-marketplace-acquisition / ET-web-bundle-activation-detail | Bruno | Money Tour | Blocked (needs human verify) |  |  |
+| 73 | CH-marketplace-under-a-minute | J-marketplace-acquisition / ET-web-bundle-preview-activate | Bruno | Money Tour | Blocked (needs human verify) | BUG-20260714-keyboard-focus-invisible | 8eeb8a38 |
+| 74 | CH-marketplace-under-a-minute | J-marketplace-acquisition / ET-web-catalog-navigation | Bruno | Money Tour | Pass |  |  |
+| 75 | CH-untested-068-operate-desktop-shell-bruno | J-operate-desktop-shell / ET-web-command-palette-shortcuts | Bruno | Feature Tour | Blocked (needs human verify) |  |  |
+| 76 | CH-untested-068-operate-desktop-shell-bruno | J-operate-desktop-shell / ET-web-desktop-shell-lifecycle | Bruno | Feature Tour | Blocked (needs human verify) |  |  |
+| 77 | CH-untested-068-operate-desktop-shell-bruno | J-operate-desktop-shell / ET-web-dock-default-window-size | Bruno | Feature Tour | Blocked (needs human verify) |  |  |
+| 78 | CH-untested-068-operate-desktop-shell-bruno | J-operate-desktop-shell / ET-web-dock-magnification | Bruno | Feature Tour | Blocked (needs human verify) |  |  |
+| 79 | CH-marketplace-under-a-minute | J-marketplace-acquisition / ET-web-ext-policy-block | Bruno | Money Tour | Blocked (needs human verify) | BUG-20260714-keyboard-focus-invisible | 8eeb8a38 |
+| 80 | CH-marketplace-under-a-minute | J-marketplace-acquisition / ET-web-extension-detail | Bruno | Money Tour | Blocked (needs human verify) |  |  |
+| 81 | CH-marketplace-under-a-minute | J-marketplace-acquisition / ET-web-extensions-manage | Bruno | Money Tour | Blocked (needs human verify) |  |  |
+| 82 | CH-untested-068-operate-desktop-shell-bruno | J-operate-desktop-shell / ET-web-inter-opsz-medium-510 | Bruno | Feature Tour | Blocked (needs human verify) |  |  |
+| 83 | CH-untested-024-24-bruno-part-1 | J-24 / ET-web-jobs-triggers-catalog | Bruno | Garbage Tour | Blocked (needs human verify) |  |  |
+| 84 | CH-untested-007-06-bruno | J-06 / ET-web-loop-editor-node-truncate | Bruno | Back-Button Tour | Blocked (needs human verify) |  |  |
+| 85 | CH-untested-007-06-bruno | J-06 / ET-web-loop-editor-sidebar-tabs | Bruno | Back-Button Tour | Blocked (needs human verify) |  |  |
+| 86 | CH-untested-007-06-bruno | J-06 / ET-web-loop-editor-topbar | Bruno | Back-Button Tour | Blocked (needs human verify) |  |  |
+| 87 | CH-untested-063-marketplace-acquisition-bruno | J-marketplace-acquisition / ET-web-marketplace-installed-management | Bruno | Feature Tour | Blocked (needs human verify) |  |  |
+| 88 | CH-untested-063-marketplace-acquisition-bruno | J-marketplace-acquisition / ET-web-marketplace-kind-navigation | Bruno | Feature Tour | Blocked (needs human verify) |  |  |
+| 89 | CH-marketplace-under-a-minute | J-marketplace-acquisition / ET-web-marketplace-landing-browse | Bruno | Money Tour | Pass | BUG-20260714-keyboard-focus-invisible | 8eeb8a38 |
+| 90 | CH-untested-064-mcp-authorize-repair-bruno | J-mcp-authorize-repair / ET-web-marketplace-mcp-authorize-installed | Bruno | Network Tour | Blocked (needs human verify) |  |  |
+| 91 | CH-untested-063-marketplace-acquisition-bruno | J-marketplace-acquisition / ET-web-marketplace-remove-scope-return | Bruno | Feature Tour | Blocked (needs human verify) |  |  |
+| 92 | CH-marketplace-under-a-minute | J-marketplace-acquisition / ET-web-marketplace-search-fanout | Bruno | Money Tour | Pass | BUG-20260714-keyboard-focus-invisible | 8eeb8a38 |
+| 93 | CH-marketplace-under-a-minute | J-marketplace-acquisition / ET-web-marketplace-skill-install | Bruno | Money Tour | Pass | BUG-20260714-keyboard-focus-invisible | 8eeb8a38 |
+| 94 | CH-mcp-authorize-repair-truth | J-mcp-authorize-repair / ET-web-mcp-authorize | Bruno | Interrupt Tour | Blocked (needs human verify) | BUG-20260715-mcp-oauth-name-segment | 8eeb8a38 |
+| 95 | CH-remote-operator-manual-auth | J-mcp-authorize-repair / ET-web-mcp-authorize-manual | Iris | Paste Tour | Blocked (needs human verify) | BUG-20260715-mcp-oauth-name-segment | 8eeb8a38 |
+| 96 | CH-marketplace-under-a-minute | J-marketplace-acquisition / ET-web-mcp-guided-install | Bruno | Money Tour | Blocked (needs human verify) | BUG-20260714-keyboard-focus-invisible;  BUG-20260715-mcp-install-null-values | 8eeb8a38 |
+| 97 | CH-mcp-authorize-repair-truth | J-mcp-authorize-repair / ET-web-mcp-remote-editor | Bruno | Interrupt Tour | Blocked (needs human verify) | BUG-20260715-mcp-editor-vault-ref-case | 8eeb8a38 |
+| 98 | CH-mcp-authorize-repair-truth | J-mcp-authorize-repair / ET-web-mcp-status-matrix | Bruno | Interrupt Tour | Blocked (needs human verify) |  |  |
+| 99 | CH-untested-068-operate-desktop-shell-bruno | J-operate-desktop-shell / ET-web-menubar-menu-set | Bruno | Feature Tour | Blocked (needs human verify) |  |  |
+| 100 | CH-untested-063-marketplace-acquisition-bruno | J-marketplace-acquisition / ET-web-page-content-gutter | Bruno | Feature Tour | Blocked (needs human verify) |  |  |
+| 101 | CH-untested-063-marketplace-acquisition-bruno | J-marketplace-acquisition / ET-web-route-chrome-topbar | Bruno | Feature Tour | Blocked (needs human verify) |  |  |
+| 102 | CH-untested-018-17-sol | J-17 / ET-web-runtime-selector-minimal-slider | Sol | Feature Tour | Blocked (needs human verify) |  |  |
+| 103 | CH-untested-070-operate-workspace-context-ada | J-operate-workspace-context / ET-web-session-deep-link-isolation | Ada | Back-Button Tour | Blocked (needs human verify) |  |  |
+| 104 | CH-untested-014-14-bruno | J-14 / ET-web-session-inspector-toggle | Bruno | Feature Tour | Blocked (needs human verify) |  |  |
+| 105 | CH-untested-012-12-bruno | J-12 / ET-web-session-thread-full-bleed | Bruno | Feature Tour | Blocked (needs human verify) |  |  |
+| 106 | CH-untested-068-operate-desktop-shell-bruno | J-operate-desktop-shell / ET-web-sessions-catalog-modal | Bruno | Feature Tour | Blocked (needs human verify) |  |  |
+| 107 | CH-extension-policy-admin-gates | J-extension-policy-admin / ET-web-settings-extensions-policy | Vera | Garbage Tour | Blocked (needs human verify) |  |  |
+| 108 | CH-extension-policy-admin-gates | J-extension-policy-admin / ET-web-settings-hooks | Vera | Garbage Tour | Blocked (needs human verify) |  |  |
 | 109 | CH-untested-068-operate-desktop-shell-bruno | J-operate-desktop-shell / ET-web-shell-shortcuts-about-dialogs | Bruno | Feature Tour | Pass | Keyboard-only menubar navigation opened both capped dialogs; live shortcut and daemon-status truth, degraded polling, Escape, and focus return all passed. | /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-021949-664736-lab/qa-artifacts/qa/evidence/041-shell-shortcuts-about-dialogs |
-| 110 | CH-untested-024-24-bruno-part-1 | J-24 / ET-web-tasks-mode-url | Bruno | Garbage Tour | Pending | | |
-| 111 | CH-untested-068-operate-desktop-shell-bruno | J-operate-desktop-shell / ET-web-ui-resilience | Bruno | Feature Tour | Pending | | |
-| 112 | CH-untested-063-marketplace-acquisition-bruno | J-marketplace-acquisition / ET-web-vault-opendesign-listing | Bruno | Feature Tour | Pending | | |
-| 113 | CH-untested-061-keep-secrets-contained-dora | J-keep-secrets-contained / ET-web-vault-overwrite-confirmation | Dora | Garbage Tour | Pending | | |
-| 114 | CH-untested-068-operate-desktop-shell-bruno | J-operate-desktop-shell / ET-web-window-routing-lifecycle | Bruno | Feature Tour | Pending | | |
-| 115 | CH-untested-043-administer-window-manager-bruno-part-1 | J-administer-window-manager / ET-window-manager-drop-swap | Bruno | Back-Button Tour | Pending | | |
-| 116 | CH-untested-042-administer-window-manager-ada | J-administer-window-manager / ET-window-manager-hooks-resources | Ada | Back-Button Tour | Pending | | |
-| 117 | CH-untested-043-administer-window-manager-bruno-part-1 | J-administer-window-manager / ET-window-manager-layout-gestures | Bruno | Back-Button Tour | Pending | | |
-| 118 | CH-untested-042-administer-window-manager-ada | J-administer-window-manager / ET-window-manager-layout-recovery | Ada | Back-Button Tour | Pending | | |
-| 119 | CH-untested-043-administer-window-manager-bruno-part-1 | J-administer-window-manager / ET-window-manager-multi-client | Bruno | Back-Button Tour | Pending | | |
-| 120 | CH-untested-042-administer-window-manager-ada | J-administer-window-manager / ET-window-manager-public-parity | Ada | Back-Button Tour | Pending | | |
-| 121 | CH-mcp-client-operates-compozy | J-operate-compozy-from-mcp-client / ET-workspace-host-api-mcp | Ada | Feature Tour | Pending | | |
-| 122 | CH-046 | J-26 / GL-003 | Lea | Feature Tour | Pending | | |
-| 123 | CH-043 | J-29 / GL-028 | Ada | Feature Tour | Pending | | |
-| 124 | CH-043 | J-29 / GL-036 | Ada | Feature Tour | Pending | | |
-| 125 | CH-001 | J-01 / LP-001 | Lea | Feature Tour | Pending | | |
-| 126 | CH-001 | J-01 / LP-002 | Lea | Feature Tour | Pending | | |
-| 127 | CH-012 | J-01 / LP-003 | Bruno | Feature Tour | Pending | | |
-| 128 | CH-012 | J-01 / LP-005 | Bruno | Feature Tour | Pending | | |
-| 129 | CH-008 | J-02 / LP-006 | Lea | Garbage Tour | Pending | | |
-| 130 | CH-002 | J-03 / LP-008 | Marina | Interrupt Tour | Pending | | |
-| 131 | CH-002 | J-03 / LP-009 | Marina | Interrupt Tour | Pending | | |
-| 132 | CH-003 | J-04 / LP-014 | Bruno | Interrupt Tour | Pending | | |
-| 133 | CH-003 | J-04 / LP-016 | Bruno | Interrupt Tour | Pending | | |
-| 134 | CH-006 | J-05 / LP-017 | Bruno | Back-Button Tour | Pending | | |
-| 135 | CH-006 | J-05 / LP-018 | Bruno | Back-Button Tour | Pending | | |
-| 136 | CH-006 | J-05 / LP-019 | Bruno | Back-Button Tour | Pending | | |
-| 137 | CH-013 | J-05 / LP-020 | Sol | Back-Button Tour | Pending | | |
-| 138 | CH-007 | J-06 / LP-021 | Bruno | Multi-Tab Tour | Pending | | |
-| 139 | CH-007 | J-06 / LP-022 | Bruno | Multi-Tab Tour | Pending | | |
-| 140 | CH-007 | J-06 / LP-023 | Bruno | Multi-Tab Tour | Pending | | |
-| 141 | CH-007 | J-06 / LP-024 | Bruno | Multi-Tab Tour | Pending | | |
-| 142 | CH-004 | J-07 / LP-025 | Ada | Feature Tour | Pending | | |
-| 143 | CH-004 | J-07 / LP-026 | Ada | Feature Tour | Pending | | |
-| 144 | CH-004 | J-07 / LP-027 | Ada | Feature Tour | Pending | | |
-| 145 | CH-004 | J-07 / LP-028 | Ada | Feature Tour | Pending | | |
-| 146 | CH-005 | J-08 / LP-029 | Bruno | Interrupt Tour | Pending | | |
-| 147 | CH-005 | J-08 / LP-030 | Bruno | Interrupt Tour | Pending | | |
-| 148 | CH-009 | J-09 / LP-033 | Marina | Back-Button Tour | Pending | | |
-| 149 | CH-009 | J-09 / LP-034 | Marina | Back-Button Tour | Pending | | |
-| 150 | CH-009 | J-09 / LP-035 | Marina | Back-Button Tour | Pending | | |
-| 151 | CH-010 | J-10 / LP-036 | Bruno | Feature Tour | Pending | | |
-| 152 | CH-022 | J-16 / LP-040 | Bruno | Feature Tour | Pending | | |
-| 153 | CH-023 | J-16 / LP-041 | Bruno | Interrupt Tour | Pending | | |
-| 154 | CH-024 | J-16 / LP-042 | Ada | Feature Tour | Pending | | |
-| 155 | CH-022 | J-16 / LP-043 | Bruno | Feature Tour | Pending | | |
-| 156 | CH-022 | J-16 / LP-044 | Bruno | Feature Tour | Pending | | |
-| 157 | CH-027 | J-07 / LP-045 | Ada | Feature Tour | Pending | | |
-| 158 | CH-026 | J-01 / LP-046 | Bruno | Feature Tour | Pending | | |
-| 159 | CH-025 | J-16 / LP-047 | Bruno | Feature Tour | Pending | | |
-| 160 | CH-025 | J-16 / LP-048 | Bruno | Feature Tour | Pending | | |
-| 161 | CH-025 | J-16 / LP-049 | Bruno | Feature Tour | Pending | | |
-| 162 | CH-025 | J-16 / LP-050 | Bruno | Feature Tour | Pending | | |
-| 163 | CH-untested-003-01-lea | J-01 / LP-action-failure-detail | Lea | Feature Tour | Pending | | |
-| 164 | CH-loop-goal-delete | J-06 / LP-delete-custom-loop | Bruno | Feature Tour | Pending | | |
-| 165 | CH-untested-004-04-lea | J-04 / LP-run-detail-story-redesign | Lea | Feature Tour | Pending | | |
-| 166 | CH-task-tree-loop-rollup | J-complete-task-tree / LP-task-rollup-wakes-loop | Bruno | Feature Tour | Pending | | |
-| 167 | CH-loop-goal-delete | J-06 / LP-toggle-loop-goal | Bruno | Feature Tour | Pending | | |
-| 168 | CH-untested-006-05-dora | J-05 / LP-web-loop-configure-modal | Dora | Back-Button Tour | Pending | | |
-| 169 | CH-039 | J-25 / MS-001 | Rafa | Interrupt Tour | Pending | | |
-| 170 | CH-039 | J-25 / MS-006 | Rafa | Interrupt Tour | Pending | | |
-| 171 | CH-untested-valid-012-25-dora | J-25 / MS-008 | Dora | Back-Button Tour | Pending | | |
-| 172 | CH-untested-valid-012-25-dora | J-25 / MS-009 | Dora | Back-Button Tour | Pending | | |
-| 173 | CH-untested-valid-019-digest-sessions-into-memory-rafa | J-digest-sessions-into-memory / MS-011 | Rafa | Feature Tour | Pending | | |
-| 174 | CH-039 | J-25 / MS-015 | Rafa | Interrupt Tour | Pending | | |
-| 175 | CH-dream-pipeline-canary | J-digest-sessions-into-memory / MS-016 | Dora | Feature Tour | Pending | | |
-| 176 | CH-untested-041-administer-runtime-settings-dora | J-administer-runtime-settings / MS-025 | Dora | Back-Button Tour | Pending | | |
-| 177 | CH-untested-041-administer-runtime-settings-dora | J-administer-runtime-settings / MS-027 | Dora | Back-Button Tour | Pending | | |
-| 178 | CH-033 | J-22 / MS-028 | Marina | Back-Button Tour | Pending | | |
-| 179 | CH-mcp-authorize-repair-truth | J-mcp-authorize-repair / MS-029 | Bruno | Interrupt Tour | Pending | | |
-| 180 | CH-untested-062-manage-sandbox-profiles-dora | J-manage-sandbox-profiles / MS-030 | Dora | Feature Tour | Pending | | |
-| 181 | CH-untested-055-drain-daemon-safely-dora | J-drain-daemon-safely / MS-035 | Dora | Network Tour | Pending | | |
-| 182 | CH-untested-041-administer-runtime-settings-dora | J-administer-runtime-settings / MS-036 | Dora | Back-Button Tour | Pending | | |
-| 183 | CH-network-admin-lifecycle | J-administer-network-live / MS-037 | Bruno | Multi-Tab Tour | Pending | | |
-| 184 | CH-untested-061-keep-secrets-contained-dora | J-keep-secrets-contained / MS-038 | Dora | Garbage Tour | Pending | | |
-| 185 | CH-untested-061-keep-secrets-contained-dora | J-keep-secrets-contained / MS-040 | Dora | Garbage Tour | Pending | | |
-| 186 | CH-untested-061-keep-secrets-contained-dora | J-keep-secrets-contained / MS-041 | Dora | Garbage Tour | Pending | | |
+| 110 | CH-untested-024-24-bruno-part-1 | J-24 / ET-web-tasks-mode-url | Bruno | Garbage Tour | Blocked (needs human verify) |  |  |
+| 111 | CH-untested-068-operate-desktop-shell-bruno | J-operate-desktop-shell / ET-web-ui-resilience | Bruno | Feature Tour | Blocked (needs human verify) |  |  |
+| 112 | CH-untested-063-marketplace-acquisition-bruno | J-marketplace-acquisition / ET-web-vault-opendesign-listing | Bruno | Feature Tour | Blocked (needs human verify) |  |  |
+| 113 | CH-untested-061-keep-secrets-contained-dora | J-keep-secrets-contained / ET-web-vault-overwrite-confirmation | Dora | Garbage Tour | Pass |  |  |
+| 114 | CH-untested-068-operate-desktop-shell-bruno | J-operate-desktop-shell / ET-web-window-routing-lifecycle | Bruno | Feature Tour | Blocked (needs human verify) |  |  |
+| 115 | CH-untested-043-administer-window-manager-bruno-part-1 | J-administer-window-manager / ET-window-manager-drop-swap | Bruno | Back-Button Tour | Blocked (needs human verify) |  |  |
+| 116 | CH-untested-042-administer-window-manager-ada | J-administer-window-manager / ET-window-manager-hooks-resources | Ada | Back-Button Tour | Blocked (needs human verify) |  |  |
+| 117 | CH-untested-043-administer-window-manager-bruno-part-1 | J-administer-window-manager / ET-window-manager-layout-gestures | Bruno | Back-Button Tour | Blocked (needs human verify) | BUG-20260724-arrange-preset-overlap-reject;  BUG-20260724-placement-cycles-unpruned;  BUG-20260724-single-gesture-slot-multi-pointer;  BUG-20260724-stale-return-anchor-on-desktop-transfer |  |
+| 118 | CH-untested-042-administer-window-manager-ada | J-administer-window-manager / ET-window-manager-layout-recovery | Ada | Back-Button Tour | Blocked (needs human verify) |  |  |
+| 119 | CH-untested-043-administer-window-manager-bruno-part-1 | J-administer-window-manager / ET-window-manager-multi-client | Bruno | Back-Button Tour | Blocked (needs human verify) |  |  |
+| 120 | CH-untested-042-administer-window-manager-ada | J-administer-window-manager / ET-window-manager-public-parity | Ada | Back-Button Tour | Blocked (needs human verify) |  |  |
+| 121 | CH-mcp-client-operates-compozy | J-operate-compozy-from-mcp-client / ET-workspace-host-api-mcp | Ada | Feature Tour | Blocked (needs human verify) |  |  |
+| 122 | CH-046 | J-26 / GL-003 | Lea | Feature Tour | Blocked (needs human verify) | BUG-20260713-goal-errors-expose-reason-code; BUG-20260713-goal-judge-unavailable | 8eeb8a38 |
+| 123 | CH-043 | J-29 / GL-028 | Ada | Feature Tour | Blocked (needs human verify) |  |  |
+| 124 | CH-043 | J-29 / GL-036 | Ada | Feature Tour | Blocked (needs human verify) |  |  |
+| 125 | CH-001 | J-01 / LP-001 | Lea | Feature Tour | Blocked (needs human verify) | BUG-0018 | 8eeb8a38 |
+| 126 | CH-001 | J-01 / LP-002 | Lea | Feature Tour | Blocked (needs human verify) |  |  |
+| 127 | CH-012 | J-01 / LP-003 | Bruno | Feature Tour | Blocked (needs human verify) | BUG-0023; BUG-0021 | dfadc766; f659c457 |
+| 128 | CH-012 | J-01 / LP-005 | Bruno | Feature Tour | Blocked (needs human verify) |  |  |
+| 129 | CH-008 | J-02 / LP-006 | Lea | Garbage Tour | Blocked (needs human verify) |  |  |
+| 130 | CH-002 | J-03 / LP-008 | Marina | Interrupt Tour | Blocked (needs human verify) |  |  |
+| 131 | CH-002 | J-03 / LP-009 | Marina | Interrupt Tour | Blocked (needs human verify) |  |  |
+| 132 | CH-003 | J-04 / LP-014 | Bruno | Interrupt Tour | Blocked (needs human verify) |  |  |
+| 133 | CH-003 | J-04 / LP-016 | Bruno | Interrupt Tour | Blocked (needs human verify) |  |  |
+| 134 | CH-006 | J-05 / LP-017 | Bruno | Back-Button Tour | Blocked (needs human verify) | BUG-20260713-loop-preview-ignores-config; BUG-20260730-loop-config-unknown-fields | 8eeb8a38; bd0617c |
+| 135 | CH-006 | J-05 / LP-018 | Bruno | Back-Button Tour | Blocked (needs human verify) |  |  |
+| 136 | CH-006 | J-05 / LP-019 | Bruno | Back-Button Tour | Blocked (needs human verify) |  |  |
+| 137 | CH-013 | J-05 / LP-020 | Sol | Back-Button Tour | Blocked (needs human verify) |  |  |
+| 138 | CH-007 | J-06 / LP-021 | Bruno | Multi-Tab Tour | Blocked (needs human verify) | BUG-20260713-loop-fork-internal-error | 8eeb8a38 |
+| 139 | CH-007 | J-06 / LP-022 | Bruno | Multi-Tab Tour | Blocked (needs human verify) |  |  |
+| 140 | CH-007 | J-06 / LP-023 | Bruno | Multi-Tab Tour | Blocked (needs human verify) |  |  |
+| 141 | CH-007 | J-06 / LP-024 | Bruno | Multi-Tab Tour | Blocked (needs human verify) | BUG-20260713-loop-fork-internal-error | 8eeb8a38 |
+| 142 | CH-004 | J-07 / LP-025 | Ada | Feature Tour | Blocked (needs human verify) |  |  |
+| 143 | CH-004 | J-07 / LP-026 | Ada | Feature Tour | Blocked (needs human verify) |  |  |
+| 144 | CH-004 | J-07 / LP-027 | Ada | Feature Tour | Blocked (needs human verify) |  |  |
+| 145 | CH-004 | J-07 / LP-028 | Ada | Feature Tour | Blocked (needs human verify) |  |  |
+| 146 | CH-005 | J-08 / LP-029 | Bruno | Interrupt Tour | Blocked (needs human verify) | BUG-0022 | f659c457 |
+| 147 | CH-005 | J-08 / LP-030 | Bruno | Interrupt Tour | Blocked (needs human verify) |  |  |
+| 148 | CH-009 | J-09 / LP-033 | Marina | Back-Button Tour | Blocked (needs human verify) |  |  |
+| 149 | CH-009 | J-09 / LP-034 | Marina | Back-Button Tour | Blocked (needs human verify) |  |  |
+| 150 | CH-009 | J-09 / LP-035 | Marina | Back-Button Tour | Blocked (needs human verify) | BUG-20260713-loop-automation-start-mismatch-late;  BUG-20260713-workspace-trigger-loop-submit-inert | 8eeb8a38 |
+| 151 | CH-010 | J-10 / LP-036 | Bruno | Feature Tour | Blocked (needs human verify) |  |  |
+| 152 | CH-022 | J-16 / LP-040 | Bruno | Feature Tour | Blocked (needs human verify) |  |  |
+| 153 | CH-023 | J-16 / LP-041 | Bruno | Interrupt Tour | Blocked (needs human verify) | BUG-0033 | 8eeb8a38 |
+| 154 | CH-024 | J-16 / LP-042 | Ada | Feature Tour | Blocked (needs human verify) |  |  |
+| 155 | CH-022 | J-16 / LP-043 | Bruno | Feature Tour | Blocked (needs human verify) |  |  |
+| 156 | CH-022 | J-16 / LP-044 | Bruno | Feature Tour | Blocked (needs human verify) |  |  |
+| 157 | CH-027 | J-07 / LP-045 | Ada | Feature Tour | Blocked (needs human verify) | BUG-0023 | f659c457 |
+| 158 | CH-026 | J-01 / LP-046 | Bruno | Feature Tour | Blocked (needs human verify) | BUG-0023; BUG-0021 | dfadc766; f659c457 |
+| 159 | CH-025 | J-16 / LP-047 | Bruno | Feature Tour | Blocked (needs human verify) |  |  |
+| 160 | CH-025 | J-16 / LP-048 | Bruno | Feature Tour | Blocked (needs human verify) |  |  |
+| 161 | CH-025 | J-16 / LP-049 | Bruno | Feature Tour | Blocked (needs human verify) |  |  |
+| 162 | CH-025 | J-16 / LP-050 | Bruno | Feature Tour | Blocked (needs human verify) |  |  |
+| 163 | CH-untested-003-01-lea | J-01 / LP-action-failure-detail | Lea | Feature Tour | Blocked (needs human verify) | BUG-20260713-loop-failure-hidden;  BUG-20260713-loop-watch-poll-error-stuck | 8eeb8a38 |
+| 164 | CH-loop-goal-delete | J-06 / LP-delete-custom-loop | Bruno | Feature Tour | Blocked (needs human verify) | BUG-20260713-custom-loop-delete-missing;  BUG-20260713-loop-fork-internal-error | 8eeb8a38 |
+| 165 | CH-untested-004-04-lea | J-04 / LP-run-detail-story-redesign | Lea | Feature Tour | Blocked (needs human verify) |  |  |
+| 166 | CH-task-tree-loop-rollup | J-complete-task-tree / LP-task-rollup-wakes-loop | Bruno | Feature Tour | Blocked (needs human verify) | BUG-20260713-parent-task-rollup-missing;  BUG-20260713-task-role-session-never-starts | 8eeb8a38 |
+| 167 | CH-loop-goal-delete | J-06 / LP-toggle-loop-goal | Bruno | Feature Tour | Blocked (needs human verify) | BUG-20260713-loop-contract-goal-not-editable;  BUG-20260713-loop-fork-internal-error | 8eeb8a38 |
+| 168 | CH-untested-006-05-dora | J-05 / LP-web-loop-configure-modal | Dora | Back-Button Tour | Blocked (needs human verify) |  |  |
+| 169 | CH-039 | J-25 / MS-001 | Rafa | Interrupt Tour | Blocked (needs human verify) |  |  |
+| 170 | CH-039 | J-25 / MS-006 | Rafa | Interrupt Tour | Blocked (needs human verify) |  |  |
+| 171 | CH-untested-valid-012-25-dora | J-25 / MS-008 | Dora | Back-Button Tour | Blocked (needs human verify) |  |  |
+| 172 | CH-untested-valid-012-25-dora | J-25 / MS-009 | Dora | Back-Button Tour | Pass | BUG-20260730-memory-reset-wrong-status | bd0617c |
+| 173 | CH-untested-valid-019-digest-sessions-into-memory-rafa | J-digest-sessions-into-memory / MS-011 | Rafa | Feature Tour | Blocked (needs human verify) | BUG-0031; BUG-20260724-memory-extractor-agent-tier | f6748f2f; b6f7408439a68b9e5225b1b086770b4e37347e58 |
+| 174 | CH-039 | J-25 / MS-015 | Rafa | Interrupt Tour | Pass |  |  |
+| 175 | CH-dream-pipeline-canary | J-digest-sessions-into-memory / MS-016 | Dora | Feature Tour | Blocked (needs human verify) |  |  |
+| 176 | CH-untested-041-administer-runtime-settings-dora | J-administer-runtime-settings / MS-025 | Dora | Back-Button Tour | Pass |  |  |
+| 177 | CH-untested-041-administer-runtime-settings-dora | J-administer-runtime-settings / MS-027 | Dora | Back-Button Tour | Pass |  |  |
+| 178 | CH-033 | J-22 / MS-028 | Marina | Back-Button Tour | Pass | BUG-20260715-provider-unchanged-overlay | 8eeb8a38 |
+| 179 | CH-mcp-authorize-repair-truth | J-mcp-authorize-repair / MS-029 | Bruno | Interrupt Tour | Blocked (needs human verify) | BUG-0017;  BUG-20260715-mcp-oauth-name-segment | 8eeb8a38 |
+| 180 | CH-untested-062-manage-sandbox-profiles-dora | J-manage-sandbox-profiles / MS-030 | Dora | Feature Tour | Pass | BUG-0017 | 8eeb8a38 |
+| 181 | CH-untested-055-drain-daemon-safely-dora | J-drain-daemon-safely / MS-035 | Dora | Network Tour | Pass |  |  |
+| 182 | CH-untested-041-administer-runtime-settings-dora | J-administer-runtime-settings / MS-036 | Dora | Back-Button Tour | Pass |  |  |
+| 183 | CH-network-admin-lifecycle | J-administer-network-live / MS-037 | Bruno | Multi-Tab Tour | Pass |  |  |
+| 184 | CH-untested-061-keep-secrets-contained-dora | J-keep-secrets-contained / MS-038 | Dora | Garbage Tour | Blocked (needs human verify) |  |  |
+| 185 | CH-untested-061-keep-secrets-contained-dora | J-keep-secrets-contained / MS-040 | Dora | Garbage Tour | Blocked (needs human verify) |  |  |
+| 186 | CH-untested-061-keep-secrets-contained-dora | J-keep-secrets-contained / MS-041 | Dora | Garbage Tour | Blocked (needs human verify) |  |  |
 | 187 | CH-031 | J-20 / MS-042 | Ada | Feature Tour | Pass | Curated default, five-rate nullability, and the live Runtime selector's browse/search projection passed against the shared catalog. | /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-021949-664736-lab/qa-artifacts/qa/evidence/044-model-catalog-read-parity |
-| 188 | CH-031 | J-20 / MS-043 | Ada | Feature Tour | Pass | Provider/global refresh retained successful sources beside typed, redacted failures across CLI, HTTP, UDS, and native tools. | /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-021949-664736-lab/qa-artifacts/qa/evidence/045-model-catalog-lifecycle |
-| 189 | CH-031 | J-20 / MS-044 | Ada | Feature Tour | Pass | Provider and global source-status payloads had one exact normalized hash per projection across all four structured surfaces. | /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-021949-664736-lab/qa-artifacts/qa/evidence/045-model-catalog-lifecycle |
+| 188 | CH-031 | J-20 / MS-043 | Ada | Feature Tour | Pass | BUG-0025 | 8eeb8a38 |
+| 189 | CH-031 | J-20 / MS-044 | Ada | Feature Tour | Pass | BUG-0025 | 8eeb8a38 |
 | 190 | CH-031 | J-20 / MS-045 | Ada | Feature Tour | Pass | The HTTP OpenAI list matched curated identities and sampled cost buckets exactly; invalid provider syntax returned a typed OpenAI-style 400 envelope. | /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-021949-664736-lab/qa-artifacts/qa/evidence/044-model-catalog-read-parity |
-| 191 | CH-untested-041-administer-runtime-settings-dora | J-administer-runtime-settings / MS-049 | Dora | Back-Button Tour | Pending | | |
+| 191 | CH-untested-041-administer-runtime-settings-dora | J-administer-runtime-settings / MS-049 | Dora | Back-Button Tour | Blocked (needs human verify) |  |  |
 | 192 | CH-031 | J-20 / MS-053 | Ada | Feature Tour | Pass | All was a strict 498-row superset of the 473-row curated default, adding 25 non-curated deprecated OpenCode rows; the Web selector revealed one only through search. | /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-021949-664736-lab/qa-artifacts/qa/evidence/044-model-catalog-read-parity |
 | 193 | CH-031 | J-20 / MS-054 | Ada | Feature Tour | Pass | Four serialized live curation mutations converged across CLI, HTTP, UDS, and native readback; missing targets retained model_not_found. | /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-021949-664736-lab/qa-artifacts/qa/evidence/045-model-catalog-lifecycle |
-| 194 | CH-031 | J-20 / MS-055 | Ada | Feature Tour | Pass | Complete curated and all payloads had identical normalized hashes across CLI, HTTP, UDS, and native structured output, including independent cost fields. | /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-021949-664736-lab/qa-artifacts/qa/evidence/044-model-catalog-read-parity |
-| 195 | CH-031 | J-20 / MS-056 | Ada | Feature Tour | Pending | BUG-20260729-provider-model-pricing-roundtrip; BUG-20260729-provider-model-validation-status | Repaired five-rate/reasoning/restart and validation replay is green; governed fix commits remain. |
-| 196 | CH-033 | J-22 / MS-058 | Marina | Back-Button Tour | Pending | | |
-| 197 | CH-039 | J-25 / MS-059 | Rafa | Interrupt Tour | Pending | | |
-| 198 | CH-memory-batch-integrity | J-11 / MS-atomic-memory-batch | Ada | Garbage Tour | Pending | | |
-| 199 | CH-role-fallback-boundary | J-route-background-work / MS-background-role-fallback | Ada | Network Tour | Pending | | |
-| 200 | CH-background-role-routing-scopes | J-route-background-work / MS-background-role-routing | Dora | Feature Tour | Pending | | |
-| 201 | CH-untested-044-administer-window-manager-bruno-part-2 | J-administer-window-manager / MS-configure-window-manager | Bruno | Back-Button Tour | Pending | | |
-| 202 | CH-drain-without-loss | J-drain-daemon-safely / MS-daemon-memory-reporting | Dora | Interrupt Tour | Pending | | |
-| 203 | CH-untested-044-administer-window-manager-bruno-part-2 | J-administer-window-manager / MS-layout-editor-clear-selection | Bruno | Back-Button Tour | Pending | | |
-| 204 | CH-untested-044-administer-window-manager-bruno-part-2 | J-administer-window-manager / MS-layout-profile-cli-roundtrip | Bruno | Back-Button Tour | Pending | | |
-| 205 | CH-extension-policy-admin-gates | J-extension-policy-admin / MS-marketplace-catalog-live-config | Vera | Garbage Tour | Pending | | |
-| 206 | CH-untested-020-22-dora | J-22 / MS-provider-detail-modal | Dora | Back-Button Tour | Pending | | |
-| 207 | CH-settings-roles-live-truth | J-route-background-work / MS-settings-roles-panel | Dora | Back-Button Tour | Pending | | |
+| 194 | CH-031 | J-20 / MS-055 | Ada | Feature Tour | Pass | BUG-0025 | 8eeb8a38 |
+| 195 | CH-031 | J-20 / MS-056 | Ada | Feature Tour | Pass | BUG-20260729-provider-model-pricing-roundtrip; BUG-20260729-provider-model-validation-status | 351f3535 |
+| 196 | CH-033 | J-22 / MS-058 | Marina | Back-Button Tour | Blocked (needs human verify) | BUG-0025 | 8eeb8a38 |
+| 197 | CH-039 | J-25 / MS-059 | Rafa | Interrupt Tour | Blocked (needs human verify) |  |  |
+| 198 | CH-memory-batch-integrity | J-11 / MS-atomic-memory-batch | Ada | Garbage Tour | Blocked (needs human verify) |  |  |
+| 199 | CH-role-fallback-boundary | J-route-background-work / MS-background-role-fallback | Ada | Network Tour | Blocked (needs human verify) | BUG-20260724-inherited-role-provider-resolution | a9a8fcad63f4354505e4c9a0701a6d0f559cc991 |
+| 200 | CH-background-role-routing-scopes | J-route-background-work / MS-background-role-routing | Dora | Feature Tour | Blocked (needs human verify) | BUG-20260724-coordinator-config-list-path; BUG-20260724-inherited-role-provider-resolution | 69b2099f3cada66395ced4c8ae862b21b5ebc996; a9a8fcad63f4354505e4c9a0701a6d0f559cc991 |
+| 201 | CH-untested-044-administer-window-manager-bruno-part-2 | J-administer-window-manager / MS-configure-window-manager | Bruno | Back-Button Tour | Blocked (needs human verify) |  |  |
+| 202 | CH-drain-without-loss | J-drain-daemon-safely / MS-daemon-memory-reporting | Dora | Interrupt Tour | Pass |  |  |
+| 203 | CH-untested-044-administer-window-manager-bruno-part-2 | J-administer-window-manager / MS-layout-editor-clear-selection | Bruno | Back-Button Tour | Blocked (needs human verify) |  |  |
+| 204 | CH-untested-044-administer-window-manager-bruno-part-2 | J-administer-window-manager / MS-layout-profile-cli-roundtrip | Bruno | Back-Button Tour | Pass |  |  |
+| 205 | CH-extension-policy-admin-gates | J-extension-policy-admin / MS-marketplace-catalog-live-config | Vera | Garbage Tour | Blocked (needs human verify) | BUG-20260715-marketplace-config-set-live;  BUG-20260715-marketplace-native-config-policy;  BUG-20260715-config-set-late-metadata | 8eeb8a38 |
+| 206 | CH-untested-020-22-dora | J-22 / MS-provider-detail-modal | Dora | Back-Button Tour | Blocked (needs human verify) |  |  |
+| 207 | CH-settings-roles-live-truth | J-route-background-work / MS-settings-roles-panel | Dora | Back-Button Tour | Blocked (needs human verify) | BUG-20260724-inherited-role-provider-resolution | a9a8fcad63f4354505e4c9a0701a6d0f559cc991 |
 | 208 | CH-untested-038-31-dora | J-31 / MS-web-agent-create-simple-advanced | Dora | Back-Button Tour | Pass | One Simple/Advanced surface preserved values across both validation branches, omitted MCP authoring, persisted the exact category, matched HTTP/UDS, and cleaned up fully. | /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-021949-664736-lab/qa-artifacts/qa/evidence/040-agent-create-authored-files |
-| 209 | CH-untested-053-complete-web-bridge-setup-dora | J-complete-web-bridge-setup / MS-web-bridge-create-secret-slots | Dora | Network Tour | Pending | | |
-| 210 | CH-untested-053-complete-web-bridge-setup-dora | J-complete-web-bridge-setup / MS-web-bridge-edit-delivery-fold | Dora | Network Tour | Pending | | |
-| 211 | CH-untested-041-administer-runtime-settings-dora | J-administer-runtime-settings / MS-web-entity-modal-shell | Dora | Back-Button Tour | Pending | | |
-| 212 | CH-untested-028-25-dora | J-25 / MS-web-knowledge-edit-immutable-identity | Dora | Back-Button Tour | Pending | | |
-| 213 | CH-untested-065-mcp-authorize-repair-dora | J-mcp-authorize-repair / MS-web-mcp-editor-simple-advanced | Dora | Network Tour | Pending | | |
-| 214 | CH-untested-041-administer-runtime-settings-dora | J-administer-runtime-settings / MS-web-modal-help-tips | Dora | Back-Button Tour | Pending | | |
-| 215 | CH-untested-020-22-dora | J-22 / MS-web-provider-auth-gate | Dora | Back-Button Tour | Pending | | |
-| 216 | CH-untested-062-manage-sandbox-profiles-dora | J-manage-sandbox-profiles / MS-web-sandbox-profile-advanced | Dora | Feature Tour | Pending | | |
-| 217 | CH-untested-017-17-dora | J-17 / MS-web-session-simple-advanced-launch | Dora | Feature Tour | Pending | | |
-| 218 | CH-untested-020-22-dora | J-22 / MS-web-settings-providers-redesign | Dora | Back-Button Tour | Pending | | |
-| 219 | CH-untested-041-administer-runtime-settings-dora | J-administer-runtime-settings / MS-web-settings-takeover-redesign | Dora | Back-Button Tour | Pending | | |
-| 220 | CH-untested-052-complete-task-tree-dora | J-complete-task-tree / MS-web-task-editor-window-modal | Dora | Feature Tour | Pending | | |
-| 221 | CH-untested-071-operate-workspace-context-dora | J-operate-workspace-context / MS-web-workspace-add-directory-browser | Dora | Back-Button Tour | Pending | | |
-| 222 | CH-crash-resume-compaction | J-11 / MS-workspace-checkpoint-continuity | Théo | Interrupt Tour | Pending | | |
-| 223 | CH-untested-070-operate-workspace-context-ada | J-operate-workspace-context / MS-workspace-resolution-chain | Ada | Back-Button Tour | Pending | | |
-| 224 | CH-untested-070-operate-workspace-context-ada | J-operate-workspace-context / MS-workspace-resolution-provenance | Ada | Back-Button Tour | Pending | | |
-| 225 | CH-untested-valid-016-administer-network-live-ada | J-administer-network-live / NB-001 | Ada | Back-Button Tour | Pending | | |
-| 226 | CH-network-admin-lifecycle | J-administer-network-live / NB-002 | Bruno | Multi-Tab Tour | Pending | | |
-| 227 | CH-037 | J-23 / NB-003 | Théo | Interrupt Tour | Pending | | |
-| 228 | CH-037 | J-23 / NB-004 | Théo | Interrupt Tour | Pending | | |
-| 229 | CH-037 | J-23 / NB-005 | Théo | Interrupt Tour | Pending | | |
-| 230 | CH-untested-023-23-theo | J-23 / NB-006 | Théo | Network Tour | Pending | | |
-| 231 | CH-037 | J-23 / NB-007 | Théo | Interrupt Tour | Pending | | |
-| 232 | CH-037 | J-23 / NB-008 | Théo | Interrupt Tour | Pending | | |
-| 233 | CH-037 | J-23 / NB-009 | Théo | Interrupt Tour | Pending | | |
-| 234 | CH-037 | J-23 / NB-010 | Théo | Interrupt Tour | Pending | | |
-| 235 | CH-untested-023-23-theo | J-23 / NB-011 | Théo | Network Tour | Pending | | |
-| 236 | CH-037 | J-23 / NB-012 | Théo | Interrupt Tour | Pending | | |
-| 237 | CH-037 | J-23 / NB-013 | Théo | Interrupt Tour | Pending | | |
-| 238 | CH-untested-023-23-theo | J-23 / NB-014 | Théo | Network Tour | Pending | | |
-| 239 | CH-037 | J-23 / NB-015 | Théo | Interrupt Tour | Pending | | |
-| 240 | CH-untested-023-23-theo | J-23 / NB-016 | Théo | Network Tour | Pending | | |
-| 241 | CH-untested-023-23-theo | J-23 / NB-017 | Théo | Network Tour | Pending | | |
-| 242 | CH-037 | J-23 / NB-019 | Théo | Interrupt Tour | Pending | | |
-| 243 | CH-untested-valid-007-23-ada | J-23 / NB-020 | Ada | Network Tour | Pending | | |
+| 209 | CH-untested-053-complete-web-bridge-setup-dora | J-complete-web-bridge-setup / MS-web-bridge-create-secret-slots | Dora | Network Tour | Blocked (needs human verify) |  |  |
+| 210 | CH-untested-053-complete-web-bridge-setup-dora | J-complete-web-bridge-setup / MS-web-bridge-edit-delivery-fold | Dora | Network Tour | Blocked (needs human verify) |  |  |
+| 211 | CH-untested-041-administer-runtime-settings-dora | J-administer-runtime-settings / MS-web-entity-modal-shell | Dora | Back-Button Tour | Blocked (needs human verify) |  |  |
+| 212 | CH-untested-028-25-dora | J-25 / MS-web-knowledge-edit-immutable-identity | Dora | Back-Button Tour | Blocked (needs human verify) |  |  |
+| 213 | CH-untested-065-mcp-authorize-repair-dora | J-mcp-authorize-repair / MS-web-mcp-editor-simple-advanced | Dora | Network Tour | Blocked (needs human verify) |  |  |
+| 214 | CH-untested-041-administer-runtime-settings-dora | J-administer-runtime-settings / MS-web-modal-help-tips | Dora | Back-Button Tour | Blocked (needs human verify) |  |  |
+| 215 | CH-untested-020-22-dora | J-22 / MS-web-provider-auth-gate | Dora | Back-Button Tour | Blocked (needs human verify) |  |  |
+| 216 | CH-untested-062-manage-sandbox-profiles-dora | J-manage-sandbox-profiles / MS-web-sandbox-profile-advanced | Dora | Feature Tour | Blocked (needs human verify) |  |  |
+| 217 | CH-untested-017-17-dora | J-17 / MS-web-session-simple-advanced-launch | Dora | Feature Tour | Blocked (needs human verify) |  |  |
+| 218 | CH-untested-020-22-dora | J-22 / MS-web-settings-providers-redesign | Dora | Back-Button Tour | Blocked (needs human verify) |  |  |
+| 219 | CH-untested-041-administer-runtime-settings-dora | J-administer-runtime-settings / MS-web-settings-takeover-redesign | Dora | Back-Button Tour | Blocked (needs human verify) |  |  |
+| 220 | CH-untested-052-complete-task-tree-dora | J-complete-task-tree / MS-web-task-editor-window-modal | Dora | Feature Tour | Blocked (needs human verify) |  |  |
+| 221 | CH-untested-071-operate-workspace-context-dora | J-operate-workspace-context / MS-web-workspace-add-directory-browser | Dora | Back-Button Tour | Blocked (needs human verify) |  |  |
+| 222 | CH-crash-resume-compaction | J-11 / MS-workspace-checkpoint-continuity | Théo | Interrupt Tour | Blocked (needs human verify) |  |  |
+| 223 | CH-untested-070-operate-workspace-context-ada | J-operate-workspace-context / MS-workspace-resolution-chain | Ada | Back-Button Tour | Pass | BUG-20260729-nearest-workspace-case-alias | 4e81f17 |
+| 224 | CH-untested-070-operate-workspace-context-ada | J-operate-workspace-context / MS-workspace-resolution-provenance | Ada | Back-Button Tour | Blocked (needs human verify) |  |  |
+| 225 | CH-untested-valid-016-administer-network-live-ada | J-administer-network-live / NB-001 | Ada | Back-Button Tour | Blocked (needs human verify) | BUG-20260730-network-zero-counters-omitted | bd0617c |
+| 226 | CH-network-admin-lifecycle | J-administer-network-live / NB-002 | Bruno | Multi-Tab Tour | Blocked (needs human verify) |  |  |
+| 227 | CH-037 | J-23 / NB-003 | Théo | Interrupt Tour | Blocked (needs human verify) |  |  |
+| 228 | CH-037 | J-23 / NB-004 | Théo | Interrupt Tour | Blocked (needs human verify) |  |  |
+| 229 | CH-037 | J-23 / NB-005 | Théo | Interrupt Tour | Blocked (needs human verify) |  |  |
+| 230 | CH-untested-023-23-theo | J-23 / NB-006 | Théo | Network Tour | Blocked (needs human verify) |  |  |
+| 231 | CH-037 | J-23 / NB-007 | Théo | Interrupt Tour | Blocked (needs human verify) |  |  |
+| 232 | CH-037 | J-23 / NB-008 | Théo | Interrupt Tour | Blocked (needs human verify) |  |  |
+| 233 | CH-037 | J-23 / NB-009 | Théo | Interrupt Tour | Blocked (needs human verify) |  |  |
+| 234 | CH-037 | J-23 / NB-010 | Théo | Interrupt Tour | Blocked (needs human verify) | BUG-0032 | f6748f2f |
+| 235 | CH-untested-023-23-theo | J-23 / NB-011 | Théo | Network Tour | Blocked (needs human verify) |  |  |
+| 236 | CH-037 | J-23 / NB-012 | Théo | Interrupt Tour | Blocked (needs human verify) | BUG-0029; BUG-0030 | f6748f2f |
+| 237 | CH-037 | J-23 / NB-013 | Théo | Interrupt Tour | Blocked (needs human verify) |  |  |
+| 238 | CH-untested-023-23-theo | J-23 / NB-014 | Théo | Network Tour | Blocked (needs human verify) |  |  |
+| 239 | CH-037 | J-23 / NB-015 | Théo | Interrupt Tour | Blocked (needs human verify) | BUG-0012 | 8eeb8a38 |
+| 240 | CH-untested-023-23-theo | J-23 / NB-016 | Théo | Network Tour | Blocked (needs human verify) | BUG-0012 | 8eeb8a38 |
+| 241 | CH-untested-023-23-theo | J-23 / NB-017 | Théo | Network Tour | Blocked (needs human verify) |  |  |
+| 242 | CH-037 | J-23 / NB-019 | Théo | Interrupt Tour | Blocked (needs human verify) |  |  |
+| 243 | CH-untested-valid-007-23-ada | J-23 / NB-020 | Ada | Network Tour | Blocked (needs human verify) | BUG-0012; BUG-0029; BUG-0030 | f6748f2f |
 | 244 | CH-untested-valid-016-administer-network-live-ada | J-administer-network-live / NB-023 | Ada | Back-Button Tour | Pass | 2026-07-29 | Shared owning journey proved declaration-only HTTP/UDS/CLI/native parity with no implicit enrollment. |
-| 245 | CH-untested-valid-008-23-omar | J-23 / NB-027 | Omar | Network Tour | Pending | | |
-| 246 | CH-mid-turn-bridge-restart | J-recover-mid-turn-restart / NB-031 | Omar | Interrupt Tour | Pending | | |
-| 247 | CH-untested-valid-008-23-omar | J-23 / NB-032 | Omar | Network Tour | Pending | | |
-| 248 | CH-first-slack-response | J-connect-bridge-provider / NB-037 | Tessa | Feature Tour | Pending | | |
-| 249 | CH-web-bridge-setup | J-complete-web-bridge-setup / NB-039 | Tessa | Back-Button Tour | Pending | | |
-| 250 | CH-untested-021-23-bruno | J-23 / NB-045 | Bruno | Network Tour | Pending | | |
-| 251 | CH-037 | J-23 / NB-047 | Théo | Interrupt Tour | Pending | | |
-| 252 | CH-live-bounds-agent-path | J-run-bounded-live-collaboration / NB-agent-manages-participation | Ada | Interrupt Tour | Pending | | |
-| 253 | CH-edit-reply-context | J-edit-reply-context / NB-bridge-edit-reply | Maya | Interrupt Tour | Pending | | |
-| 254 | CH-bridge-overload-taxonomy | J-connect-bridge-provider / NB-bridge-overload-recovery | Omar | Network Tour | Pending | | |
-| 255 | CH-first-slack-response | J-connect-bridge-provider / NB-bridge-provider-setup | Tessa | Feature Tour | Pending | | |
-| 256 | CH-mid-turn-bridge-restart | J-recover-mid-turn-restart / NB-bridge-restart-recovery | Omar | Interrupt Tour | Pending | | |
-| 257 | CH-bridge-progress-stress | J-watch-agent-work-channel / NB-bridge-tool-progress | Maya | Garbage Tour | Pending | | |
-| 258 | CH-coordination-future-runs | J-enable-coordinated-conversations / NB-coordination-invitation-future-runs | Bruno | Back-Button Tour | Pending | | |
-| 259 | CH-untested-054-connect-bridge-provider-omar | J-connect-bridge-provider / NB-indeterminate-bridge-delivery | Omar | Network Tour | Pending | | |
-| 260 | CH-long-provider-replies | J-deliver-long-formatted-reply / NB-long-bridge-replies | Omar | Paste Tour | Pending | | |
-| 261 | CH-network-admin-lifecycle | J-administer-network-live / NB-network-availability-toggle | Bruno | Multi-Tab Tour | Pending | | |
-| 262 | CH-network-local-default | J-network-local-default / NB-network-empties-onboarding-settings | Nia | Feature Tour | Pending | | |
-| 263 | CH-network-admin-lifecycle | J-administer-network-live / NB-network-live-config-lifecycle | Bruno | Multi-Tab Tour | Pending | | |
-| 264 | CH-untested-valid-022-network-local-default-bruno | J-network-local-default / NB-participation-controls-serialize | Bruno | Network Tour | Pending | | |
-| 265 | CH-bridge-progress-stress | J-watch-agent-work-channel / NB-provider-progress-rendering | Maya | Garbage Tour | Pending | | |
-| 266 | CH-live-bounds-agent-path | J-run-bounded-live-collaboration / NB-run-bounded-live-collaboration | Ada | Interrupt Tour | Pending | | |
-| 267 | CH-coordination-future-runs | J-enable-coordinated-conversations / NB-run-conversation-bounds-usage | Bruno | Back-Button Tour | Pending | | |
-| 268 | CH-web-bridge-setup | J-complete-web-bridge-setup / NB-web-bridge-setup | Tessa | Back-Button Tour | Pending | | |
-| 269 | CH-untested-022-23-dora | J-23 / NB-web-channel-fanout-policy | Dora | Network Tour | Pending | | |
-| 270 | CH-untested-023-23-theo | J-23 / NB-web-network-head-trail | Théo | Network Tour | Pending | | |
-| 271 | CH-untested-057-evaluate-compozy-beta-dora | J-evaluate-compozy-beta / REL-beta-install-paths | Dora | Feature Tour | Pending | | |
-| 272 | CH-untested-057-evaluate-compozy-beta-dora | J-evaluate-compozy-beta / REL-beta-installer-provenance | Dora | Feature Tour | Pending | | |
-| 273 | CH-untested-057-evaluate-compozy-beta-dora | J-evaluate-compozy-beta / REL-beta-self-update | Dora | Feature Tour | Pending | | |
-| 274 | CH-compozy-landing-canary | J-evaluate-compozy-beta / REL-os-landing-proof | Cora | Feature Tour | Pending | | |
-| 275 | CH-compozy-beta-candidate | J-approve-compozy-beta-candidate / REL-release-candidate-plan | Dora | Garbage Tour | Pending | | |
-| 276 | CH-untested-049-approve-compozy-beta-candidate-dora | J-approve-compozy-beta-candidate / REL-stable-changelog-hard-cut | Dora | Feature Tour | Pending | | |
-| 277 | CH-daemon-schema-parity | J-operate-daemon-schema / RT-001 | Ada | Feature Tour | Pass | | |
-| 278 | CH-untested-valid-025-operate-daemon-schema-dora | J-operate-daemon-schema / RT-002 | Dora | Garbage Tour | Pending | The Doctor filter and parity matrix passed, but the available log-tail item omitted structured evidence before the staged root fix. | /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-021949-664736-lab/qa-artifacts/qa/evidence/025-runtime-doctor |
-| 279 | CH-030 | J-19 / RT-004 | Lea | Feature Tour | Pending | | |
-| 280 | CH-untested-072-retire-workspace-bruno | J-retire-workspace / RT-008 | Bruno | Back-Button Tour | Pending | | |
-| 281 | CH-028 | J-17 / RT-010 | Bruno | Feature Tour | Pending | | |
-| 282 | CH-untested-011-11-theo | J-11 / RT-011 | Théo | Network Tour | Pass | Backend cursor/filter/health/type/error coverage passed; Home and Agent metrics matched daemon totals, and the real 50→51 cursor continuation removed its Load more control without browser errors. | /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-021949-664736-lab/qa-artifacts/qa/evidence/030-session-catalog; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-021949-664736-lab/qa-artifacts/qa/evidence/036-agent-catalog-ui |
+| 245 | CH-untested-valid-008-23-omar | J-23 / NB-027 | Omar | Network Tour | Blocked (needs human verify) |  |  |
+| 246 | CH-mid-turn-bridge-restart | J-recover-mid-turn-restart / NB-031 | Omar | Interrupt Tour | Blocked (needs human verify) |  |  |
+| 247 | CH-untested-valid-008-23-omar | J-23 / NB-032 | Omar | Network Tour | Blocked (needs human verify) |  |  |
+| 248 | CH-first-slack-response | J-connect-bridge-provider / NB-037 | Tessa | Feature Tour | Blocked (needs human verify) |  |  |
+| 249 | CH-web-bridge-setup | J-complete-web-bridge-setup / NB-039 | Tessa | Back-Button Tour | Blocked (needs human verify) | BUG-0014;  BUG-20260712-bridge-e2e-retired-route | 8eeb8a38 |
+| 250 | CH-untested-021-23-bruno | J-23 / NB-045 | Bruno | Network Tour | Blocked (needs human verify) |  |  |
+| 251 | CH-037 | J-23 / NB-047 | Théo | Interrupt Tour | Blocked (needs human verify) |  |  |
+| 252 | CH-live-bounds-agent-path | J-run-bounded-live-collaboration / NB-agent-manages-participation | Ada | Interrupt Tour | Blocked (needs human verify) | BUG-20260715-network-usage-workspace-name-empty; BUG-20260715-taskless-network-wake-run-unreadable | 8eeb8a38 |
+| 253 | CH-edit-reply-context | J-edit-reply-context / NB-bridge-edit-reply | Maya | Interrupt Tour | Blocked (needs human verify) |  |  |
+| 254 | CH-bridge-overload-taxonomy | J-connect-bridge-provider / NB-bridge-overload-recovery | Omar | Network Tour | Blocked (needs human verify) |  |  |
+| 255 | CH-first-slack-response | J-connect-bridge-provider / NB-bridge-provider-setup | Tessa | Feature Tour | Blocked (needs human verify) | BUG-20260713-telegram-route-shapes |  |
+| 256 | CH-mid-turn-bridge-restart | J-recover-mid-turn-restart / NB-bridge-restart-recovery | Omar | Interrupt Tour | Blocked (needs human verify) |  |  |
+| 257 | CH-bridge-progress-stress | J-watch-agent-work-channel / NB-bridge-tool-progress | Maya | Garbage Tour | Blocked (needs human verify) |  |  |
+| 258 | CH-coordination-future-runs | J-enable-coordinated-conversations / NB-coordination-invitation-future-runs | Bruno | Back-Button Tour | Blocked (needs human verify) | BUG-20260715-task-run-designation-hidden | 8eeb8a38 |
+| 259 | CH-untested-054-connect-bridge-provider-omar | J-connect-bridge-provider / NB-indeterminate-bridge-delivery | Omar | Network Tour | Blocked (needs human verify) |  |  |
+| 260 | CH-long-provider-replies | J-deliver-long-formatted-reply / NB-long-bridge-replies | Omar | Paste Tour | Blocked (needs human verify) |  |  |
+| 261 | CH-network-admin-lifecycle | J-administer-network-live / NB-network-availability-toggle | Bruno | Multi-Tab Tour | Blocked (needs human verify) |  |  |
+| 262 | CH-network-local-default | J-network-local-default / NB-network-empties-onboarding-settings | Nia | Feature Tour | Blocked (needs human verify) | BUG-20260715-network-ready-empty-unoriented | 8eeb8a38 |
+| 263 | CH-network-admin-lifecycle | J-administer-network-live / NB-network-live-config-lifecycle | Bruno | Multi-Tab Tour | Blocked (needs human verify) |  |  |
+| 264 | CH-untested-valid-022-network-local-default-bruno | J-network-local-default / NB-participation-controls-serialize | Bruno | Network Tour | Blocked (needs human verify) | BUG-20260715-loop-participation-contract-dropped; BUG-20260715-automation-task-participation-control-missing; BUG-20260715-automation-editor-compact-layout-clipped; BUG-20260715-loop-run-compact-layout-collapsed | 8eeb8a38 |
+| 265 | CH-bridge-progress-stress | J-watch-agent-work-channel / NB-provider-progress-rendering | Maya | Garbage Tour | Blocked (needs human verify) |  |  |
+| 266 | CH-live-bounds-agent-path | J-run-bounded-live-collaboration / NB-run-bounded-live-collaboration | Ada | Interrupt Tour | Blocked (needs human verify) | BUG-20260715-network-usage-workspace-name-empty; BUG-20260715-network-wake-restart-target-stopped; BUG-20260715-taskless-network-wake-run-unreadable | 8eeb8a38 |
+| 267 | CH-coordination-future-runs | J-enable-coordinated-conversations / NB-run-conversation-bounds-usage | Bruno | Back-Button Tour | Blocked (needs human verify) | BUG-20260715-run-conversation-hardcoded-empty; BUG-20260715-designated-fanout-conversation-split; BUG-20260715-shared-button-focus-invisible | 8eeb8a38 |
+| 268 | CH-web-bridge-setup | J-complete-web-bridge-setup / NB-web-bridge-setup | Tessa | Back-Button Tour | Blocked (needs human verify) | BUG-20260712-bridge-e2e-retired-route | 8eeb8a38 |
+| 269 | CH-untested-022-23-dora | J-23 / NB-web-channel-fanout-policy | Dora | Network Tour | Blocked (needs human verify) |  |  |
+| 270 | CH-untested-023-23-theo | J-23 / NB-web-network-head-trail | Théo | Network Tour | Blocked (needs human verify) |  |  |
+| 271 | CH-untested-057-evaluate-compozy-beta-dora | J-evaluate-compozy-beta / REL-beta-install-paths | Dora | Feature Tour | Blocked (needs human verify) |  |  |
+| 272 | CH-untested-057-evaluate-compozy-beta-dora | J-evaluate-compozy-beta / REL-beta-installer-provenance | Dora | Feature Tour | Blocked (needs human verify) |  |  |
+| 273 | CH-untested-057-evaluate-compozy-beta-dora | J-evaluate-compozy-beta / REL-beta-self-update | Dora | Feature Tour | Blocked (needs human verify) |  |  |
+| 274 | CH-compozy-landing-canary | J-evaluate-compozy-beta / REL-os-landing-proof | Cora | Feature Tour | Pass |  |  |
+| 275 | CH-compozy-beta-candidate | J-approve-compozy-beta-candidate / REL-release-candidate-plan | Dora | Garbage Tour | Blocked (needs human verify) |  |  |
+| 276 | CH-untested-049-approve-compozy-beta-candidate-dora | J-approve-compozy-beta-candidate / REL-stable-changelog-hard-cut | Dora | Feature Tour | Blocked (needs human verify) |  |  |
+| 277 | CH-daemon-schema-parity | J-operate-daemon-schema / RT-001 | Ada | Feature Tour | Pass | BUG-0003 | 8eeb8a38 |
+| 278 | CH-untested-valid-025-operate-daemon-schema-dora | J-operate-daemon-schema / RT-002 | Dora | Garbage Tour | Pass | BUG-20260729-doctor-log-tail-evidence | 351f3535 |
+| 279 | CH-030 | J-19 / RT-004 | Lea | Feature Tour | Blocked (needs human verify) | BUG-20260713-onboarding-stale-workspace-draft | 8eeb8a38 |
+| 280 | CH-untested-072-retire-workspace-bruno | J-retire-workspace / RT-008 | Bruno | Back-Button Tour | Blocked (needs human verify) |  |  |
+| 281 | CH-028 | J-17 / RT-010 | Bruno | Feature Tour | Blocked (needs human verify) | BUG-0002;  BUG-0003 | 8eeb8a38 |
+| 282 | CH-untested-011-11-theo | J-11 / RT-011 | Théo | Network Tour | Pass | BUG-20260727-ephemeral-role-session-leak | e4df8634 |
 | 283 | CH-untested-valid-003-12-theo | J-12 / RT-012 | Théo | Network Tour | Pass | Scoped/direct snapshots, optional health, invalid boolean, and missing IDs matched across HTTP/UDS after normalizing only the health freshness timestamp; the canonical web route opened without errors. | /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-021949-664736-lab/qa-artifacts/qa/evidence/038-agent-detail-deep-links; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-021949-664736-lab/qa-artifacts/qa/evidence/039-session-snapshot |
-| 284 | CH-016 | J-13 / RT-013 | Théo | Multi-Tab Tour | Pending | BUG-20260729-session-window-cross-tab-focus | Stop/history passed; cross-tab session focus failed and awaits root fix. |
+| 284 | CH-016 | J-13 / RT-013 | Théo | Multi-Tab Tour | Blocked (decision required) | BUG-20260729-session-window-cross-tab-focus;  BUG-20260713-first-prompt-optimistic-stuck | Stop/history passed; hidden-document transport ownership requires the recorded human decision. |
 | 285 | CH-untested-016-15-theo | J-15 / RT-014 | Théo | Feature Tour | Pass | Cancel preserved the stopped session; confirmed delete removed detail, history, catalog membership, and stale Web routes. | /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-021949-664736-lab/qa-artifacts/qa/evidence/047-session-delete-attach |
-| 286 | CH-014 | J-11 / RT-015 | Théo | Interrupt Tour | Pending | BUG-20260729-session-window-cross-tab-focus; BUG-20260729-session-attach-openapi-ttl | /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-021949-664736-lab/qa-artifacts/qa/evidence/047-session-delete-attach |
-| 287 | CH-untested-valid-005-14-theo | J-14 / RT-017 | Théo | Feature Tour | Pending | | |
-| 288 | CH-016 | J-13 / RT-018 | Théo | Multi-Tab Tour | Pending | | |
-| 289 | CH-016 | J-13 / RT-019 | Théo | Multi-Tab Tour | Pending | | |
-| 290 | CH-untested-valid-018-answer-agent-requests-theo | J-answer-agent-requests / RT-021 | Théo | Feature Tour | Pending | | |
+| 286 | CH-014 | J-11 / RT-015 | Théo | Interrupt Tour | Blocked (decision required) | BUG-20260729-session-window-cross-tab-focus;  BUG-20260729-session-attach-openapi-ttl | Attach TTL is fixed; hidden-document transport ownership requires the recorded human decision. |
+| 287 | CH-untested-valid-005-14-theo | J-14 / RT-017 | Théo | Feature Tour | Blocked (needs human verify) |  |  |
+| 288 | CH-016 | J-13 / RT-018 | Théo | Multi-Tab Tour | Blocked (needs human verify) | BUG-20260730-resultless-tool-call-running | bd0617c; 9904270 |
+| 289 | CH-016 | J-13 / RT-019 | Théo | Multi-Tab Tour | Blocked (needs human verify) | BUG-20260730-idle-interrupt-false-success | bd0617c |
+| 290 | CH-untested-valid-018-answer-agent-requests-theo | J-answer-agent-requests / RT-021 | Théo | Feature Tour | Blocked (needs human verify) |  |  |
 | 291 | CH-untested-valid-004-14-ada | J-14 / RT-022 | Ada | Feature Tour | Pass | Fresh real-session events, grouped history, transcript, and recap reads were bounded across HTTP/UDS; transcript paging was gap-free via before_sequence, unsupported cursors/limits returned 400, and cross-workspace reads returned 404. | /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-021949-664736-lab/qa-artifacts/qa/evidence/020-session-contracts |
 | 292 | CH-014 | J-11 / RT-024 | Théo | Interrupt Tour | Pass | HTTP/UDS/CLI health, status, inspect, digest, and 400/404 branches passed; the web inspector rendered truthful Trace/Usage empties plus exact Memory lineage and eight persisted events. | /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-021949-664736-lab/qa-artifacts/qa/evidence/032-session-health-inspect; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-021949-664736-lab/qa-artifacts/qa/evidence/034-session-inspector |
 | 293 | CH-untested-020-22-dora | J-22 / RT-026 | Dora | Back-Button Tour | Pass | Public config lifecycle installed an isolated native auth probe; HTTP/UDS/CLI classified it authenticated without leaking the daemon sentinel, while auth-none returned 200/no subprocess and missing command returned typed 422. | /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-021949-664736-lab/qa-artifacts/qa/evidence/021-provider-auth-probe |
-| 294 | CH-untested-valid-014-31-bruno | J-31 / RT-028 | Bruno | Back-Button Tour | Pending | The bundled explorer installer ignored COMPOZY_HOME and its legacy frontmatter failed strict discovery; the staged root fix is green across HTTP, UDS, CLI, and web. | /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-021949-664736-lab/qa-artifacts/qa/evidence/033-agent-catalog |
+| 294 | CH-untested-valid-014-31-bruno | J-31 / RT-028 | Bruno | Back-Button Tour | Pass | BUG-20260729-explorer-active-home-schema | 351f3535 |
 | 295 | CH-untested-valid-015-32-ada | J-32 / RT-029 | Ada | Back-Button Tour | Pass | Five global/workspace AGENT.md definitions persisted the canonical runtime fields across HTTP, UDS, CLI, and native create; all strict negatives returned 400 without residue, and cleanup removed every fixture. | /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-021949-664736-lab/qa-artifacts/qa/evidence/027-agent-authoring |
-| 296 | CH-untested-039-32-ada | J-32 / RT-030 | Ada | Back-Button Tour | Pending | | |
-| 297 | CH-untested-039-32-ada | J-32 / RT-032 | Ada | Back-Button Tour | Pending | | |
+| 296 | CH-untested-039-32-ada | J-32 / RT-030 | Ada | Back-Button Tour | Blocked (needs human verify) |  |  |
+| 297 | CH-untested-039-32-ada | J-32 / RT-032 | Ada | Back-Button Tour | Blocked (needs human verify) |  |  |
 | 298 | CH-untested-040-32-bruno | J-32 / RT-036 | Bruno | Back-Button Tour | Pass | HTTP/UDS validation, CAS writes, stale rejection, history, byte-exact rollback, semantic status parity, dry-run wake without an extra prompt, and complete cleanup passed. | /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-021949-664736-lab/qa-artifacts/qa/evidence/029-heartbeat-lifecycle |
-| 299 | CH-untested-062-manage-sandbox-profiles-dora | J-manage-sandbox-profiles / RT-037 | Dora | Feature Tour | Pending | | |
-| 300 | CH-untested-011-11-theo | J-11 / RT-039 | Théo | Network Tour | Pending | | |
+| 299 | CH-untested-062-manage-sandbox-profiles-dora | J-manage-sandbox-profiles / RT-037 | Dora | Feature Tour | Blocked (needs human verify) | BUG-0004 | 8eeb8a38 |
+| 300 | CH-untested-011-11-theo | J-11 / RT-039 | Théo | Network Tour | Blocked (needs human verify) |  |  |
 | 301 | CH-015 | J-12 / RT-040 | Nia | Network Tour | Pass | The public `/session/$id` permalink replaced to the canonical agent route; missing ID showed a clear 404 toast and the desktop settled without an indefinite spinner. | /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-021949-664736-lab/qa-artifacts/qa/evidence/042-session-permalink |
-| 302 | CH-014 | J-11 / RT-041 | Théo | Interrupt Tour | Pending | | |
-| 303 | CH-014 | J-11 / RT-043 | Théo | Interrupt Tour | Pending | | |
-| 304 | CH-untested-valid-003-12-theo | J-12 / RT-044 | Théo | Network Tour | Pending | | |
-| 305 | CH-014 | J-11 / RT-045 | Théo | Interrupt Tour | Pending | | |
-| 306 | CH-015 | J-12 / RT-046 | Nia | Network Tour | Pending | | |
-| 307 | CH-021 | J-14 / RT-047 | Rafa | Garbage Tour | Pending | | |
-| 308 | CH-017 | J-14 / RT-048 | Rafa | Feature Tour | Pending | | |
+| 302 | CH-014 | J-11 / RT-041 | Théo | Interrupt Tour | Blocked (needs human verify) | BUG-0020 | 8eeb8a38 |
+| 303 | CH-014 | J-11 / RT-043 | Théo | Interrupt Tour | Blocked (needs human verify) | BUG-0020; BUG-20260730-resultless-tool-call-running | 8eeb8a38; bd0617c; 9904270 |
+| 304 | CH-untested-valid-003-12-theo | J-12 / RT-044 | Théo | Network Tour | Blocked (needs human verify) |  |  |
+| 305 | CH-014 | J-11 / RT-045 | Théo | Interrupt Tour | Blocked (needs human verify) | BUG-0020; BUG-20260730-resultless-tool-call-running | 8eeb8a38; bd0617c; 9904270 |
+| 306 | CH-015 | J-12 / RT-046 | Nia | Network Tour | Blocked (needs human verify) |  |  |
+| 307 | CH-021 | J-14 / RT-047 | Rafa | Garbage Tour | Blocked (needs human verify) |  |  |
+| 308 | CH-017 | J-14 / RT-048 | Rafa | Feature Tour | Blocked (needs human verify) |  |  |
 | 309 | CH-018 | J-15 / RT-050 | Ada | Feature Tour | Pass | A controlled slow ACP turn kept detail/events/history/transcript readable while active, in observed stopping state, and after stopped finalization across HTTP/UDS; no recorder-unavailable branch appeared. | /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-021949-664736-lab/qa-artifacts/qa/evidence/020-session-contracts |
-| 310 | CH-018 | J-15 / RT-051 | Ada | Feature Tour | Pending | | |
-| 311 | CH-021 | J-14 / RT-052 | Rafa | Garbage Tour | Pending | | |
-| 312 | CH-017 | J-14 / RT-055 | Rafa | Feature Tour | Pending | | |
-| 313 | CH-017 | J-14 / RT-056 | Rafa | Feature Tour | Pending | | |
-| 314 | CH-016 | J-13 / RT-058 | Théo | Multi-Tab Tour | Pending | | |
-| 315 | CH-016 | J-13 / RT-059 | Théo | Multi-Tab Tour | Pending | | |
-| 316 | CH-032 | J-21 / RT-061 | Bruno | Feature Tour | Pending | The active acpmock can record ordered config/prompt RPCs but advertises neither Claude `max` nor Codex explicit `none`; no substitute profile was treated as proof. | /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-021949-664736-lab/qa-artifacts/qa/evidence/028-reasoning-preflight |
-| 317 | CH-028 | J-17 / RT-063 | Bruno | Feature Tour | Pending | | |
-| 318 | CH-028 | J-17 / RT-064 | Bruno | Feature Tour | Pending | | |
-| 319 | CH-028 | J-17 / RT-066 | Bruno | Feature Tour | Pending | | |
-| 320 | CH-028 | J-17 / RT-067 | Bruno | Feature Tour | Pending | | |
-| 321 | CH-034 | J-17 / RT-068 | Sol | Feature Tour | Pending | | |
-| 322 | CH-untested-valid-014-31-bruno | J-31 / RT-069 | Bruno | Back-Button Tour | Pending | | |
-| 323 | CH-030 | J-19 / RT-071 | Lea | Feature Tour | Pending | | |
-| 324 | CH-032 | J-21 / RT-072 | Bruno | Feature Tour | Pending | | |
-| 325 | CH-untested-valid-013-30-bruno | J-30 / RT-074 | Bruno | Feature Tour | Pending | | |
-| 326 | CH-untested-valid-013-30-bruno | J-30 / RT-075 | Bruno | Feature Tour | Pending | | |
-| 327 | CH-untested-valid-014-31-bruno | J-31 / RT-076 | Bruno | Back-Button Tour | Pass | Valid direct tab/file/filter restoration, default normalization, Settings overlay, close-to-detail, and the active session child route passed without writes or browser errors. | /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-021949-664736-lab/qa-artifacts/qa/evidence/038-agent-detail-deep-links |
-| 328 | CH-untested-valid-014-31-bruno | J-31 / RT-077 | Bruno | Back-Button Tour | Pending | BUG-20260729-heartbeat-status-stale-eligibility; BUG-20260729-heartbeat-wake-rollback-stale-policy | Authored lifecycle and repaired live replays are green; both root fixes await governed commits. |
-| 329 | CH-untested-valid-014-31-bruno | J-31 / RT-078 | Bruno | Back-Button Tour | Pending | | |
-| 330 | CH-untested-valid-015-32-ada | J-32 / RT-079 | Ada | Back-Button Tour | Pending | | |
-| 331 | CH-untested-valid-015-32-ada | J-32 / RT-080 | Ada | Back-Button Tour | Pending | | |
-| 332 | CH-untested-036-30-ada | J-30 / RT-083 | Ada | Feature Tour | Pending | | |
-| 333 | CH-untested-037-31-bruno | J-31 / RT-agent-detail-runtime-live-edit | Bruno | Back-Button Tour | Pending | | |
+| 310 | CH-018 | J-15 / RT-051 | Ada | Feature Tour | Blocked (needs human verify) |  |  |
+| 311 | CH-021 | J-14 / RT-052 | Rafa | Garbage Tour | Blocked (needs human verify) |  |  |
+| 312 | CH-017 | J-14 / RT-055 | Rafa | Feature Tour | Blocked (needs human verify) |  |  |
+| 313 | CH-017 | J-14 / RT-056 | Rafa | Feature Tour | Blocked (needs human verify) |  |  |
+| 314 | CH-016 | J-13 / RT-058 | Théo | Multi-Tab Tour | Blocked (needs human verify) |  |  |
+| 315 | CH-016 | J-13 / RT-059 | Théo | Multi-Tab Tour | Blocked (needs human verify) |  |  |
+| 316 | CH-032 | J-21 / RT-061 | Bruno | Feature Tour | Blocked (needs human verify) | BUG-0024;  BUG-20260712-reasoning-evidence-attribution | 8eeb8a38 |
+| 317 | CH-028 | J-17 / RT-063 | Bruno | Feature Tour | Blocked (needs human verify) | BUG-0024 | 8eeb8a38 |
+| 318 | CH-028 | J-17 / RT-064 | Bruno | Feature Tour | Blocked (needs human verify) |  |  |
+| 319 | CH-028 | J-17 / RT-066 | Bruno | Feature Tour | Blocked (needs human verify) |  |  |
+| 320 | CH-028 | J-17 / RT-067 | Bruno | Feature Tour | Blocked (needs human verify) |  |  |
+| 321 | CH-034 | J-17 / RT-068 | Sol | Feature Tour | Pass | BUG-20260730-runtime-selector-escape-stale | 9904270 |
+| 322 | CH-untested-valid-014-31-bruno | J-31 / RT-069 | Bruno | Back-Button Tour | Blocked (needs human verify) |  |  |
+| 323 | CH-030 | J-19 / RT-071 | Lea | Feature Tour | Blocked (needs human verify) | BUG-0024 | 8eeb8a38 |
+| 324 | CH-032 | J-21 / RT-072 | Bruno | Feature Tour | Blocked (needs human verify) | BUG-0024 | 8eeb8a38 |
+| 325 | CH-untested-valid-013-30-bruno | J-30 / RT-074 | Bruno | Feature Tour | Blocked (needs human verify) |  |  |
+| 326 | CH-untested-valid-013-30-bruno | J-30 / RT-075 | Bruno | Feature Tour | Blocked (needs human verify) |  |  |
+| 327 | CH-untested-valid-014-31-bruno | J-31 / RT-076 | Bruno | Back-Button Tour | Pass | BUG-0038 | f7d8a96 |
+| 328 | CH-untested-valid-014-31-bruno | J-31 / RT-077 | Bruno | Back-Button Tour | Pass | BUG-20260729-heartbeat-status-stale-eligibility;  BUG-20260729-heartbeat-wake-rollback-stale-policy | 351f3535 |
+| 329 | CH-untested-valid-014-31-bruno | J-31 / RT-078 | Bruno | Back-Button Tour | Blocked (needs human verify) | BUG-0036 | f7d8a96 |
+| 330 | CH-untested-valid-015-32-ada | J-32 / RT-079 | Ada | Back-Button Tour | Pass |  |  |
+| 331 | CH-untested-valid-015-32-ada | J-32 / RT-080 | Ada | Back-Button Tour | Blocked (needs human verify) | BUG-0035 | f7d8a96 |
+| 332 | CH-untested-036-30-ada | J-30 / RT-083 | Ada | Feature Tour | Blocked (needs human verify) |  |  |
+| 333 | CH-untested-037-31-bruno | J-31 / RT-agent-detail-runtime-live-edit | Bruno | Back-Button Tour | Blocked (needs human verify) |  |  |
 | 334 | CH-untested-037-31-bruno | J-31 / RT-agent-overview-canonical-metrics | Bruno | Back-Button Tour | Pass | Overview matched the daemon aggregate exactly: 0 active of 8, 27m 9s runtime, 5 failed, and canonical last activity; Failed rendered five matching rows. | /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-021949-664736-lab/qa-artifacts/qa/evidence/038-agent-detail-deep-links |
-| 335 | CH-untested-valid-027-validate-compozy-hard-cut-bruno | J-validate-compozy-hard-cut / RT-compozy-global-database | Bruno | Feature Tour | Pending | | |
-| 336 | CH-cursor-agent-mode | J-17 / RT-cursor-agent-mode | Bruno | Feature Tour | Pending | | |
-| 337 | CH-drain-without-loss | J-drain-daemon-safely / RT-daemon-drain-admission | Dora | Interrupt Tour | Pending | | |
-| 338 | CH-untested-045-administer-window-manager-theo | J-administer-window-manager / RT-desktop-pager-overview | Théo | Back-Button Tour | Pending | | |
-| 339 | CH-untested-066-operate-daemon-schema-ada | J-operate-daemon-schema / RT-dev-bootstrap-ready | Ada | Garbage Tour | Pending | | |
-| 340 | CH-untested-069-operate-home-dashboard-cora | J-operate-home-dashboard / RT-home-approve-from-dashboard | Cora | Feature Tour | Pending | | |
+| 335 | CH-untested-valid-027-validate-compozy-hard-cut-bruno | J-validate-compozy-hard-cut / RT-compozy-global-database | Bruno | Feature Tour | Blocked (needs human verify) |  |  |
+| 336 | CH-cursor-agent-mode | J-17 / RT-cursor-agent-mode | Bruno | Feature Tour | Blocked (needs human verify) | BUG-20260713-cursor-agent-mode-unavailable | 8eeb8a38 |
+| 337 | CH-drain-without-loss | J-drain-daemon-safely / RT-daemon-drain-admission | Dora | Interrupt Tour | Blocked (needs human verify) |  |  |
+| 338 | CH-untested-045-administer-window-manager-theo | J-administer-window-manager / RT-desktop-pager-overview | Théo | Back-Button Tour | Blocked (needs human verify) | BUG-20260724-stale-return-anchor-on-desktop-transfer |  |
+| 339 | CH-untested-066-operate-daemon-schema-ada | J-operate-daemon-schema / RT-dev-bootstrap-ready | Ada | Garbage Tour | Blocked (needs human verify) |  |  |
+| 340 | CH-untested-069-operate-home-dashboard-cora | J-operate-home-dashboard / RT-home-approve-from-dashboard | Cora | Feature Tour | Blocked (needs human verify) |  |  |
 | 341 | CH-untested-069-operate-home-dashboard-cora | J-operate-home-dashboard / RT-home-dashboard-zones | Cora | Feature Tour | Pass | Seven ordered zones, truthful empty/degraded states, daemon-owned usage, head action, and body heading contract passed against normalized HTTP/UDS overview truth. | /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-021949-664736-lab/qa-artifacts/qa/evidence/037-home-dashboard |
 | 342 | CH-untested-069-operate-home-dashboard-cora | J-operate-home-dashboard / RT-home-usage-window-persistence | Cora | Feature Tour | Pass | 7/30/90 requests, retention footnotes, unknown-cost omission, and 90d plus expanded-System reload persistence passed; browser-local state was restored. | /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-021949-664736-lab/qa-artifacts/qa/evidence/037-home-dashboard |
-| 343 | CH-untested-valid-023-offer-runnable-capabilities-dora | J-offer-runnable-capabilities / RT-mcp-dead-recovery | Dora | Feature Tour | Pending | | |
-| 344 | CH-untested-066-operate-daemon-schema-ada | J-operate-daemon-schema / RT-migrate-memory-stream-when-disabled | Ada | Garbage Tour | Pending | | |
-| 345 | CH-new-session-latency-title | J-17 / RT-new-session-fast-feedback | Bruno | Network Tour | Pending | | |
-| 346 | CH-untested-066-operate-daemon-schema-ada | J-operate-daemon-schema / RT-observe-overview-cli | Ada | Garbage Tour | Pending | BUG-20260729-overview-json-parity — fix staged, governed commit pending | |
-| 347 | CH-untested-019-19-lea | J-19 / RT-onboarding-setup-panel-over-shell | Lea | Feature Tour | Pending | | |
-| 348 | CH-untested-067-operate-daemon-schema-bruno | J-operate-daemon-schema / RT-preserve-corrupt-database-family | Bruno | Garbage Tour | Pending | | |
-| 349 | CH-crash-resume-compaction | J-11 / RT-pressure-context-compaction | Théo | Interrupt Tour | Pending | | |
-| 350 | CH-database-refusal-recovery | J-operate-daemon-schema / RT-refuse-ahead-database | Bruno | Garbage Tour | Pending | | |
-| 351 | CH-untested-067-operate-daemon-schema-bruno | J-operate-daemon-schema / RT-refuse-cross-stream-legacy-marker | Bruno | Garbage Tour | Pending | | |
-| 352 | CH-untested-valid-024-operate-daemon-schema-ada | J-operate-daemon-schema / RT-refuse-legacy-cli-open | Ada | Garbage Tour | Pending | | |
-| 353 | CH-database-refusal-recovery | J-operate-daemon-schema / RT-refuse-legacy-database | Bruno | Garbage Tour | Pending | | |
-| 354 | CH-untested-067-operate-daemon-schema-bruno | J-operate-daemon-schema / RT-refuse-legacy-session-database | Bruno | Garbage Tour | Pending | | |
-| 355 | CH-reserved-builtin-name-sweep | J-32 / RT-reserved-builtin-agent-names | Ada | Garbage Tour | Pending | | |
-| 356 | CH-secret-redaction-sweep | J-keep-secrets-contained / RT-secret-redaction-boundary | Dora | Garbage Tour | Pending | | |
-| 357 | CH-clarify-answer-roundtrip | J-answer-agent-requests / RT-session-clarification-roundtrip | Théo | Feature Tour | Pending | | |
-| 358 | CH-crash-resume-compaction | J-11 / RT-session-context-rebuild | Théo | Interrupt Tour | Pending | | |
-| 359 | CH-truthful-cost-provenance | J-14 / RT-session-cost-provenance | Rafa | Money Tour | Pending | | |
-| 360 | CH-session-affordances-truth | J-11 / RT-session-cwd-resume | Théo | Feature Tour | Pending | | |
-| 361 | CH-untested-valid-002-11-bruno | J-11 / RT-session-delete-owned-history | Bruno | Network Tour | Pending | | |
-| 362 | CH-session-affordances-truth | J-11 / RT-session-lifecycle-affordances | Théo | Feature Tour | Pending | | |
-| 363 | CH-subprocess-health-recovery | J-diagnose-task-session-health / RT-subprocess-health-escalation | Ada | Feature Tour | Pending | | |
-| 364 | CH-background-session-switch | J-11 / RT-workspace-active-session-badge | Théo | Interrupt Tour | Pending | | |
-| 365 | CH-untested-056-evaluate-compozy-beta-bruno | J-evaluate-compozy-beta / SITE-changelog-release-receipts | Bruno | Feature Tour | Pending | | |
-| 366 | CH-untested-valid-022-network-local-default-bruno | J-network-local-default / TA-001 | Bruno | Network Tour | Pending | | |
-| 367 | CH-038 | J-24 / TA-002 | Bruno | Feature Tour | Pending | | |
-| 368 | CH-untested-024-24-bruno-part-1 | J-24 / TA-003 | Bruno | Garbage Tour | Pending | | |
-| 369 | CH-untested-valid-022-network-local-default-bruno | J-network-local-default / TA-004 | Bruno | Network Tour | Pending | | |
-| 370 | CH-untested-024-24-bruno-part-1 | J-24 / TA-017 | Bruno | Garbage Tour | Pending | | |
-| 371 | CH-untested-024-24-bruno-part-1 | J-24 / TA-018 | Bruno | Garbage Tour | Pending | | |
-| 372 | CH-untested-024-24-bruno-part-1 | J-24 / TA-019 | Bruno | Garbage Tour | Pending | | |
-| 373 | CH-untested-024-24-bruno-part-1 | J-24 / TA-022 | Bruno | Garbage Tour | Pending | | |
-| 374 | CH-untested-024-24-bruno-part-1 | J-24 / TA-023 | Bruno | Garbage Tour | Pending | | |
-| 375 | CH-untested-050-bound-runaway-work-ada | J-bound-runaway-work / TA-024 | Ada | Feature Tour | Pending | | |
-| 376 | CH-untested-024-24-bruno-part-1 | J-24 / TA-027 | Bruno | Garbage Tour | Pending | | |
-| 377 | CH-untested-024-24-bruno-part-1 | J-24 / TA-033 | Bruno | Garbage Tour | Pending | | |
-| 378 | CH-untested-027-24-marina | J-24 / TA-039 | Marina | Garbage Tour | Pending | | |
-| 379 | CH-untested-valid-011-24-marina | J-24 / TA-040 | Marina | Garbage Tour | Pending | | |
-| 380 | CH-untested-025-24-bruno-part-2 | J-24 / TA-044 | Bruno | Garbage Tour | Pending | | |
-| 381 | CH-untested-025-24-bruno-part-2 | J-24 / TA-047 | Bruno | Garbage Tour | Pending | | |
-| 382 | CH-untested-050-bound-runaway-work-ada | J-bound-runaway-work / TA-050 | Ada | Feature Tour | Pending | | |
-| 383 | CH-038 | J-24 / TA-052 | Bruno | Feature Tour | Pending | | |
-| 384 | CH-038 | J-24 / TA-054 | Bruno | Feature Tour | Pending | | |
-| 385 | CH-schedule-recovery-guard | J-24 / TA-055 | Bruno | Interrupt Tour | Pending | | |
-| 386 | CH-038 | J-24 / TA-056 | Bruno | Feature Tour | Pending | | |
-| 387 | CH-untested-026-24-dora | J-24 / TA-061 | Dora | Garbage Tour | Pending | | |
-| 388 | CH-untested-026-24-dora | J-24 / TA-062 | Dora | Garbage Tour | Pending | | |
-| 389 | CH-untested-010-09-ada | J-09 / TA-063 | Ada | Feature Tour | Pending | | |
-| 390 | CH-untested-010-09-ada | J-09 / TA-064 | Ada | Feature Tour | Pending | | |
-| 391 | CH-untested-valid-009-24-ada | J-24 / TA-065 | Ada | Garbage Tour | Pending | | |
-| 392 | CH-untested-010-09-ada | J-09 / TA-066 | Ada | Feature Tour | Pending | | |
+| 343 | CH-untested-valid-023-offer-runnable-capabilities-dora | J-offer-runnable-capabilities / RT-mcp-dead-recovery | Dora | Feature Tour | Blocked (needs human verify) |  |  |
+| 344 | CH-untested-066-operate-daemon-schema-ada | J-operate-daemon-schema / RT-migrate-memory-stream-when-disabled | Ada | Garbage Tour | Blocked (needs human verify) |  |  |
+| 345 | CH-new-session-latency-title | J-17 / RT-new-session-fast-feedback | Bruno | Network Tour | Blocked (needs human verify) | BUG-20260713-cursor-model-startup-contract;  BUG-20260713-new-session-modal-lingers;  BUG-20260713-first-prompt-optimistic-stuck;  BUG-20260713-stop-generation-local-stuck;  BUG-20260729-accepted-start-stop-identity-race | 8eeb8a38 |
+| 346 | CH-untested-066-operate-daemon-schema-ada | J-operate-daemon-schema / RT-observe-overview-cli | Ada | Garbage Tour | Pass | BUG-20260729-overview-json-parity | 351f3535 |
+| 347 | CH-untested-019-19-lea | J-19 / RT-onboarding-setup-panel-over-shell | Lea | Feature Tour | Blocked (needs human verify) |  |  |
+| 348 | CH-untested-067-operate-daemon-schema-bruno | J-operate-daemon-schema / RT-preserve-corrupt-database-family | Bruno | Garbage Tour | Blocked (needs human verify) |  |  |
+| 349 | CH-crash-resume-compaction | J-11 / RT-pressure-context-compaction | Théo | Interrupt Tour | Blocked (needs human verify) |  |  |
+| 350 | CH-database-refusal-recovery | J-operate-daemon-schema / RT-refuse-ahead-database | Bruno | Garbage Tour | Blocked (needs human verify) |  |  |
+| 351 | CH-untested-067-operate-daemon-schema-bruno | J-operate-daemon-schema / RT-refuse-cross-stream-legacy-marker | Bruno | Garbage Tour | Blocked (needs human verify) |  |  |
+| 352 | CH-untested-valid-024-operate-daemon-schema-ada | J-operate-daemon-schema / RT-refuse-legacy-cli-open | Ada | Garbage Tour | Blocked (needs human verify) |  |  |
+| 353 | CH-database-refusal-recovery | J-operate-daemon-schema / RT-refuse-legacy-database | Bruno | Garbage Tour | Blocked (needs human verify) |  |  |
+| 354 | CH-untested-067-operate-daemon-schema-bruno | J-operate-daemon-schema / RT-refuse-legacy-session-database | Bruno | Garbage Tour | Blocked (needs human verify) |  |  |
+| 355 | CH-reserved-builtin-name-sweep | J-32 / RT-reserved-builtin-agent-names | Ada | Garbage Tour | Blocked (needs human verify) | BUG-20260724-bundle-agent-snapshot-loss; BUG-20260724-reserved-bundle-error-mapping | c841d7e06428c28e4e1b4ba8c17bccb4a103eea1; a1c966c01b40ae37372e4431704703acd92e679a |
+| 356 | CH-secret-redaction-sweep | J-keep-secrets-contained / RT-secret-redaction-boundary | Dora | Garbage Tour | Blocked (needs human verify) |  |  |
+| 357 | CH-clarify-answer-roundtrip | J-answer-agent-requests / RT-session-clarification-roundtrip | Théo | Feature Tour | Blocked (needs human verify) |  |  |
+| 358 | CH-crash-resume-compaction | J-11 / RT-session-context-rebuild | Théo | Interrupt Tour | Blocked (needs human verify) |  |  |
+| 359 | CH-truthful-cost-provenance | J-14 / RT-session-cost-provenance | Rafa | Money Tour | Blocked (needs human verify) |  |  |
+| 360 | CH-session-affordances-truth | J-11 / RT-session-cwd-resume | Théo | Feature Tour | Blocked (needs human verify) |  |  |
+| 361 | CH-untested-valid-002-11-bruno | J-11 / RT-session-delete-owned-history | Bruno | Network Tour | Blocked (needs human verify) | BUG-20260714-session-delete-history-fk | 8eeb8a38 |
+| 362 | CH-session-affordances-truth | J-11 / RT-session-lifecycle-affordances | Théo | Feature Tour | Blocked (needs human verify) |  |  |
+| 363 | CH-subprocess-health-recovery | J-diagnose-task-session-health / RT-subprocess-health-escalation | Ada | Feature Tour | Blocked (needs human verify) |  |  |
+| 364 | CH-background-session-switch | J-11 / RT-workspace-active-session-badge | Théo | Interrupt Tour | Blocked (needs human verify) | BUG-20260713-background-session-indicator-title; BUG-20260713-cross-workspace-session-return-hangs | 8eeb8a38 |
+| 365 | CH-untested-056-evaluate-compozy-beta-bruno | J-evaluate-compozy-beta / SITE-changelog-release-receipts | Bruno | Feature Tour | Blocked (needs human verify) |  |  |
+| 366 | CH-untested-valid-022-network-local-default-bruno | J-network-local-default / TA-001 | Bruno | Network Tour | Blocked (needs human verify) |  |  |
+| 367 | CH-038 | J-24 / TA-002 | Bruno | Feature Tour | Blocked (needs human verify) |  |  |
+| 368 | CH-untested-024-24-bruno-part-1 | J-24 / TA-003 | Bruno | Garbage Tour | Pass |  |  |
+| 369 | CH-untested-valid-022-network-local-default-bruno | J-network-local-default / TA-004 | Bruno | Network Tour | Blocked (needs human verify) | BUG-20260713-task-owner-cannot-clear | 8eeb8a38 |
+| 370 | CH-untested-024-24-bruno-part-1 | J-24 / TA-017 | Bruno | Garbage Tour | Blocked (needs human verify) |  |  |
+| 371 | CH-untested-024-24-bruno-part-1 | J-24 / TA-018 | Bruno | Garbage Tour | Blocked (needs human verify) |  |  |
+| 372 | CH-untested-024-24-bruno-part-1 | J-24 / TA-019 | Bruno | Garbage Tour | Blocked (needs human verify) |  |  |
+| 373 | CH-untested-024-24-bruno-part-1 | J-24 / TA-022 | Bruno | Garbage Tour | Blocked (needs human verify) |  |  |
+| 374 | CH-untested-024-24-bruno-part-1 | J-24 / TA-023 | Bruno | Garbage Tour | Blocked (needs human verify) | BUG-0005 | 8eeb8a38 |
+| 375 | CH-untested-050-bound-runaway-work-ada | J-bound-runaway-work / TA-024 | Ada | Feature Tour | Blocked (needs human verify) |  |  |
+| 376 | CH-untested-024-24-bruno-part-1 | J-24 / TA-027 | Bruno | Garbage Tour | Blocked (needs human verify) |  |  |
+| 377 | CH-untested-024-24-bruno-part-1 | J-24 / TA-033 | Bruno | Garbage Tour | Blocked (needs human verify) | BUG-20260713-needs-attention-recovery-hidden | 8eeb8a38 |
+| 378 | CH-untested-027-24-marina | J-24 / TA-039 | Marina | Garbage Tour | Blocked (needs human verify) |  |  |
+| 379 | CH-untested-valid-011-24-marina | J-24 / TA-040 | Marina | Garbage Tour | Blocked (needs human verify) |  |  |
+| 380 | CH-untested-025-24-bruno-part-2 | J-24 / TA-044 | Bruno | Garbage Tour | Blocked (needs human verify) | BUG-20260715-serial-pool-starves-backlog | 8eeb8a38 |
+| 381 | CH-untested-025-24-bruno-part-2 | J-24 / TA-047 | Bruno | Garbage Tour | Blocked (needs human verify) | BUG-20260715-scheduler-resume-starvation | 8eeb8a38 |
+| 382 | CH-untested-050-bound-runaway-work-ada | J-bound-runaway-work / TA-050 | Ada | Feature Tour | Blocked (needs human verify) |  |  |
+| 383 | CH-038 | J-24 / TA-052 | Bruno | Feature Tour | Blocked (needs human verify) |  |  |
+| 384 | CH-038 | J-24 / TA-054 | Bruno | Feature Tour | Blocked (needs human verify) |  |  |
+| 385 | CH-schedule-recovery-guard | J-24 / TA-055 | Bruno | Interrupt Tour | Blocked (needs human verify) |  |  |
+| 386 | CH-038 | J-24 / TA-056 | Bruno | Feature Tour | Pass |  |  |
+| 387 | CH-untested-026-24-dora | J-24 / TA-061 | Dora | Garbage Tour | Blocked (needs human verify) |  |  |
+| 388 | CH-untested-026-24-dora | J-24 / TA-062 | Dora | Garbage Tour | Blocked (needs human verify) | BUG-0006 | 8eeb8a38 |
+| 389 | CH-untested-010-09-ada | J-09 / TA-063 | Ada | Feature Tour | Blocked (needs human verify) | BUG-20260730-loop-automation-target-cli | e45affe |
+| 390 | CH-untested-010-09-ada | J-09 / TA-064 | Ada | Feature Tour | Blocked (needs human verify) | BUG-20260730-loop-automation-target-cli | e45affe |
+| 391 | CH-untested-valid-009-24-ada | J-24 / TA-065 | Ada | Garbage Tour | Blocked (needs human verify) |  |  |
+| 392 | CH-untested-010-09-ada | J-09 / TA-066 | Ada | Feature Tour | Blocked (needs human verify) |  |  |
 | 393 | CH-untested-008-07-ada | J-07 / TA-067 | Ada | Feature Tour | Pass | 2026-07-29 | HTTP/UDS catalog CRUD, filters, pagination, errors, CAS, lint, and two-workspace isolation passed. |
-| 394 | CH-untested-008-07-ada | J-07 / TA-068 | Ada | Feature Tour | Pending | | |
-| 395 | CH-untested-008-07-ada | J-07 / TA-069 | Ada | Feature Tour | Pending | BUG-20260729-loop-sidecar-lifecycle | Fresh rebuilt-candidate HTTP/UDS replay passed; governed fix commit is still pending. |
-| 396 | CH-untested-008-07-ada | J-07 / TA-070 | Ada | Feature Tour | Pending | | |
-| 397 | CH-untested-013-13-bruno | J-13 / TA-071 | Bruno | Network Tour | Pending | | |
+| 394 | CH-untested-008-07-ada | J-07 / TA-068 | Ada | Feature Tour | Blocked (needs human verify) |  |  |
+| 395 | CH-untested-008-07-ada | J-07 / TA-069 | Ada | Feature Tour | Pass | BUG-20260729-loop-sidecar-lifecycle | 351f3535 |
+| 396 | CH-untested-008-07-ada | J-07 / TA-070 | Ada | Feature Tour | Blocked (needs human verify) |  |  |
+| 397 | CH-untested-013-13-bruno | J-13 / TA-071 | Bruno | Network Tour | Blocked (needs human verify) |  |  |
 | 398 | CH-untested-009-07-bruno | J-07 / TA-072 | Bruno | Feature Tour | Pass | 2026-07-29 | All 24 Loop OpenAPI/TS operations, statuses, enums, defaults, envelopes, events, and automation additions passed fresh drift/spec/typecheck gates. |
 | 399 | CH-untested-010-09-ada | J-09 / TA-073 | Ada | Feature Tour | Pass | 2026-07-29 | HTTP/UDS create/update/list/error parity and delegated Loop-run linkage passed with exact no-residue cleanup. |
 | 400 | CH-untested-010-09-ada | J-09 / TA-074 | Ada | Feature Tour | Pass | 2026-07-29 | Exact native toolset/availability, filtered counted pages, rich run receipts, scope denial, parity, and cleanup passed. |
-| 401 | CH-untested-008-07-ada | J-07 / TA-075 | Ada | Feature Tour | Pass | BUG-20260729-loop-native-error-semantics | Governed fix `103192e4`; rebuilt native/HTTP/UDS CAS and read-only-source replay passed without mutation. |
-| 402 | CH-untested-008-07-ada | J-07 / TA-076 | Ada | Feature Tour | Pass | BUG-20260729-loop-native-error-semantics; BUG-20260729-loop-resume-restart-stuck | Governed fix `103192e4`; native run/dry-run/status/runs/Pause/Resume/Stop, restart recovery, and isolation passed after repair. |
-| 403 | CH-untested-008-07-ada | J-07 / TA-077 | Ada | Feature Tour | Pending | | |
-| 404 | CH-untested-008-07-ada | J-07 / TA-078 | Ada | Feature Tour | Pending | | |
-| 405 | CH-untested-008-07-ada | J-07 / TA-079 | Ada | Feature Tour | Pending | | |
-| 406 | CH-untested-001-01-ada | J-01 / TA-080 | Ada | Feature Tour | Pending | | |
-| 407 | CH-untested-001-01-ada | J-01 / TA-081 | Ada | Feature Tour | Pending | | |
-| 408 | CH-untested-002-01-bruno | J-01 / TA-082 | Bruno | Feature Tour | Pending | | |
-| 409 | CH-untested-002-01-bruno | J-01 / TA-083 | Bruno | Feature Tour | Pending | | |
-| 410 | CH-untested-013-13-bruno | J-13 / TA-084 | Bruno | Network Tour | Pending | | |
-| 411 | CH-untested-005-05-bruno | J-05 / TA-085 | Bruno | Back-Button Tour | Pending | | |
-| 412 | CH-untested-007-06-bruno | J-06 / TA-086 | Bruno | Back-Button Tour | Pending | | |
-| 413 | CH-untested-032-27-marina-part-1 | J-27 / TA-087 | Marina | Garbage Tour | Pending | | |
-| 414 | CH-untested-032-27-marina-part-1 | J-27 / TA-088 | Marina | Garbage Tour | Pending | | |
-| 415 | CH-untested-032-27-marina-part-1 | J-27 / TA-089 | Marina | Garbage Tour | Pending | | |
-| 416 | CH-untested-032-27-marina-part-1 | J-27 / TA-090 | Marina | Garbage Tour | Pending | | |
-| 417 | CH-untested-032-27-marina-part-1 | J-27 / TA-091 | Marina | Garbage Tour | Pending | | |
-| 418 | CH-untested-034-28-bruno | J-28 / TA-092 | Bruno | Feature Tour | Pending | | |
-| 419 | CH-untested-029-26-bruno | J-26 / TA-093 | Bruno | Feature Tour | Pending | | |
-| 420 | CH-untested-030-26-lea | J-26 / TA-094 | Lea | Feature Tour | Pending | | |
-| 421 | CH-untested-030-26-lea | J-26 / TA-095 | Lea | Feature Tour | Pending | | |
-| 422 | CH-untested-035-29-ada | J-29 / TA-096 | Ada | Feature Tour | Pending | | |
-| 423 | CH-untested-035-29-ada | J-29 / TA-097 | Ada | Feature Tour | Pending | | |
-| 424 | CH-untested-035-29-ada | J-29 / TA-098 | Ada | Feature Tour | Pending | | |
-| 425 | CH-untested-032-27-marina-part-1 | J-27 / TA-099 | Marina | Garbage Tour | Pending | | |
-| 426 | CH-untested-032-27-marina-part-1 | J-27 / TA-100 | Marina | Garbage Tour | Pending | | |
-| 427 | CH-untested-032-27-marina-part-1 | J-27 / TA-101 | Marina | Garbage Tour | Pending | | |
-| 428 | CH-untested-031-27-bruno | J-27 / TA-102 | Bruno | Garbage Tour | Pending | | |
-| 429 | CH-untested-032-27-marina-part-1 | J-27 / TA-103 | Marina | Garbage Tour | Pending | | |
-| 430 | CH-untested-030-26-lea | J-26 / TA-104 | Lea | Feature Tour | Pending | | |
-| 431 | CH-untested-032-27-marina-part-1 | J-27 / TA-105 | Marina | Garbage Tour | Pending | | |
-| 432 | CH-untested-033-27-marina-part-2 | J-27 / TA-106 | Marina | Garbage Tour | Pending | | |
-| 433 | CH-untested-015-14-marina | J-14 / TA-107 | Marina | Feature Tour | Pending | | |
-| 434 | CH-runaway-work-bounded | J-bound-runaway-work / TA-action-run-liveness | Ada | Garbage Tour | Pending | | |
-| 435 | CH-automation-crud-loop-target | J-24 / TA-automation-crud-loop-target | Bruno | Garbage Tour | Pending | | |
-| 436 | CH-suggestions-consent | J-24 / TA-automation-suggestions | Bruno | Feature Tour | Pending | | |
-| 437 | CH-schedule-recovery-guard | J-24 / TA-daemon-lifecycle-command-guard | Bruno | Interrupt Tour | Pending | | |
-| 438 | CH-runaway-work-bounded | J-bound-runaway-work / TA-exact-claim-single-owner | Ada | Garbage Tour | Pending | | |
-| 439 | CH-runaway-work-bounded | J-bound-runaway-work / TA-lease-recovery-attempt-budget | Ada | Garbage Tour | Pending | | |
-| 440 | CH-runaway-work-bounded | J-bound-runaway-work / TA-loop-failure-breaker | Ada | Garbage Tour | Pending | | |
-| 441 | CH-task-tree-loop-rollup | J-complete-task-tree / TA-parent-rollup-completion | Bruno | Feature Tour | Pending | | |
-| 442 | CH-schedule-recovery-guard | J-24 / TA-schedule-catchup-overlap | Bruno | Interrupt Tour | Pending | | |
-| 443 | CH-untested-051-complete-task-tree-bruno | J-complete-task-tree / TA-task-create-async-activation | Bruno | Feature Tour | Pending | | |
-| 444 | CH-untested-051-complete-task-tree-bruno | J-complete-task-tree / TA-task-role-session-activation | Bruno | Feature Tour | Pending | | |
-| 445 | CH-untested-valid-010-24-bruno | J-24 / TA-task-run-cost-provenance | Bruno | Garbage Tour | Pending | | |
-| 446 | CH-task-template-draft | J-complete-task-tree / TA-task-template-preserves-draft | Bruno | Back-Button Tour | Pending | | |
-| 447 | CH-wake-dedup-stress | J-operate-bounded-task-capacity / TA-task-wake-dedup | Ada | Garbage Tour | Pending | | |
-| 448 | CH-untested-051-complete-task-tree-bruno | J-complete-task-tree / TA-terminal-run-inspect | Bruno | Feature Tour | Pending | | |
-| 449 | CH-untested-026-24-dora | J-24 / TA-web-automation-preview-toggle | Dora | Garbage Tour | Pending | | |
-| 450 | CH-untested-051-complete-task-tree-bruno | J-complete-task-tree / TA-web-task-detail-redesign | Bruno | Feature Tour | Pending | | |
-| 451 | CH-untested-051-complete-task-tree-bruno | J-complete-task-tree / TA-web-task-run-detail-redesign | Bruno | Feature Tour | Pending | | |
-| 452 | CH-workspace-run-capacity | J-operate-bounded-task-capacity / TA-workspace-run-capacity | Ada | Feature Tour | Pending | | |
+| 401 | CH-untested-008-07-ada | J-07 / TA-075 | Ada | Feature Tour | Blocked (needs human verify) | BUG-20260729-loop-native-error-semantics | 103192e4 |
+| 402 | CH-untested-008-07-ada | J-07 / TA-076 | Ada | Feature Tour | Pass | BUG-20260729-loop-native-error-semantics;  BUG-20260729-loop-resume-restart-stuck | 103192e4 |
+| 403 | CH-untested-008-07-ada | J-07 / TA-077 | Ada | Feature Tour | Blocked (needs human verify) |  |  |
+| 404 | CH-untested-008-07-ada | J-07 / TA-078 | Ada | Feature Tour | Blocked (needs human verify) |  |  |
+| 405 | CH-untested-008-07-ada | J-07 / TA-079 | Ada | Feature Tour | Blocked (needs human verify) | BUG-20260730-repository-config-hardcut | cbae345 |
+| 406 | CH-untested-001-01-ada | J-01 / TA-080 | Ada | Feature Tour | Blocked (needs human verify) |  |  |
+| 407 | CH-untested-001-01-ada | J-01 / TA-081 | Ada | Feature Tour | Blocked (needs human verify) |  |  |
+| 408 | CH-untested-002-01-bruno | J-01 / TA-082 | Bruno | Feature Tour | Blocked (needs human verify) |  |  |
+| 409 | CH-untested-002-01-bruno | J-01 / TA-083 | Bruno | Feature Tour | Blocked (needs human verify) |  |  |
+| 410 | CH-untested-013-13-bruno | J-13 / TA-084 | Bruno | Network Tour | Blocked (needs human verify) |  |  |
+| 411 | CH-untested-005-05-bruno | J-05 / TA-085 | Bruno | Back-Button Tour | Blocked (needs human verify) |  |  |
+| 412 | CH-untested-007-06-bruno | J-06 / TA-086 | Bruno | Back-Button Tour | Blocked (needs human verify) |  |  |
+| 413 | CH-untested-032-27-marina-part-1 | J-27 / TA-087 | Marina | Garbage Tour | Pass |  |  |
+| 414 | CH-untested-032-27-marina-part-1 | J-27 / TA-088 | Marina | Garbage Tour | Blocked (needs human verify) |  |  |
+| 415 | CH-untested-032-27-marina-part-1 | J-27 / TA-089 | Marina | Garbage Tour | Blocked (needs human verify) |  |  |
+| 416 | CH-untested-032-27-marina-part-1 | J-27 / TA-090 | Marina | Garbage Tour | Blocked (needs human verify) |  |  |
+| 417 | CH-untested-032-27-marina-part-1 | J-27 / TA-091 | Marina | Garbage Tour | Blocked (needs human verify) |  |  |
+| 418 | CH-untested-034-28-bruno | J-28 / TA-092 | Bruno | Feature Tour | Blocked (needs human verify) | BUG-20260730-goal-outbox-config-rejected | bd0617c |
+| 419 | CH-untested-029-26-bruno | J-26 / TA-093 | Bruno | Feature Tour | Blocked (needs human verify) |  |  |
+| 420 | CH-untested-030-26-lea | J-26 / TA-094 | Lea | Feature Tour | Blocked (needs human verify) |  |  |
+| 421 | CH-untested-030-26-lea | J-26 / TA-095 | Lea | Feature Tour | Blocked (needs human verify) |  |  |
+| 422 | CH-untested-035-29-ada | J-29 / TA-096 | Ada | Feature Tour | Blocked (needs human verify) |  |  |
+| 423 | CH-untested-035-29-ada | J-29 / TA-097 | Ada | Feature Tour | Blocked (needs human verify) |  |  |
+| 424 | CH-untested-035-29-ada | J-29 / TA-098 | Ada | Feature Tour | Blocked (needs human verify) |  |  |
+| 425 | CH-untested-032-27-marina-part-1 | J-27 / TA-099 | Marina | Garbage Tour | Blocked (needs human verify) |  |  |
+| 426 | CH-untested-032-27-marina-part-1 | J-27 / TA-100 | Marina | Garbage Tour | Pass |  |  |
+| 427 | CH-untested-032-27-marina-part-1 | J-27 / TA-101 | Marina | Garbage Tour | Blocked (needs human verify) |  |  |
+| 428 | CH-untested-031-27-bruno | J-27 / TA-102 | Bruno | Garbage Tour | Blocked (needs human verify) |  |  |
+| 429 | CH-untested-032-27-marina-part-1 | J-27 / TA-103 | Marina | Garbage Tour | Blocked (needs human verify) |  |  |
+| 430 | CH-untested-030-26-lea | J-26 / TA-104 | Lea | Feature Tour | Blocked (needs human verify) |  |  |
+| 431 | CH-untested-032-27-marina-part-1 | J-27 / TA-105 | Marina | Garbage Tour | Blocked (needs human verify) |  |  |
+| 432 | CH-untested-033-27-marina-part-2 | J-27 / TA-106 | Marina | Garbage Tour | Blocked (needs human verify) |  |  |
+| 433 | CH-untested-015-14-marina | J-14 / TA-107 | Marina | Feature Tour | Blocked (needs human verify) |  |  |
+| 434 | CH-runaway-work-bounded | J-bound-runaway-work / TA-action-run-liveness | Ada | Garbage Tour | Blocked (needs human verify) |  |  |
+| 435 | CH-automation-crud-loop-target | J-24 / TA-automation-crud-loop-target | Bruno | Garbage Tour | Blocked (needs human verify) | BUG-20260713-loop-automation-shown-as-agent; BUG-20260713-loop-automation-start-mismatch-late; BUG-20260713-automation-delete-no-confirmation; BUG-20260713-workspace-trigger-loop-submit-inert; BUG-20260713-loop-watch-poll-error-stuck | 8eeb8a38 |
+| 436 | CH-suggestions-consent | J-24 / TA-automation-suggestions | Bruno | Feature Tour | Blocked (needs human verify) |  |  |
+| 437 | CH-schedule-recovery-guard | J-24 / TA-daemon-lifecycle-command-guard | Bruno | Interrupt Tour | Pass |  |  |
+| 438 | CH-runaway-work-bounded | J-bound-runaway-work / TA-exact-claim-single-owner | Ada | Garbage Tour | Blocked (needs human verify) | BUG-20260729-provider-worker-native-claim-guidance |  |
+| 439 | CH-runaway-work-bounded | J-bound-runaway-work / TA-lease-recovery-attempt-budget | Ada | Garbage Tour | Blocked (needs human verify) |  |  |
+| 440 | CH-runaway-work-bounded | J-bound-runaway-work / TA-loop-failure-breaker | Ada | Garbage Tour | Blocked (needs human verify) |  |  |
+| 441 | CH-task-tree-loop-rollup | J-complete-task-tree / TA-parent-rollup-completion | Bruno | Feature Tour | Blocked (needs human verify) | BUG-20260713-parent-task-rollup-missing;  BUG-20260713-needs-attention-recovery-hidden;  BUG-20260713-task-owner-cannot-clear;  BUG-20260713-task-role-dispatch-repeats;  BUG-20260713-task-role-session-never-starts | 8eeb8a38 |
+| 442 | CH-schedule-recovery-guard | J-24 / TA-schedule-catchup-overlap | Bruno | Interrupt Tour | Blocked (needs human verify) |  |  |
+| 443 | CH-untested-051-complete-task-tree-bruno | J-complete-task-tree / TA-task-create-async-activation | Bruno | Feature Tour | Blocked (needs human verify) | BUG-20260714-task-create-waits-for-worker-session | 8eeb8a38 |
+| 444 | CH-untested-051-complete-task-tree-bruno | J-complete-task-tree / TA-task-role-session-activation | Bruno | Feature Tour | Blocked (needs human verify) | BUG-20260713-task-role-session-never-starts; BUG-20260713-task-role-dispatch-repeats; BUG-20260713-cursor-agent-mode-unavailable; BUG-20260729-provider-worker-native-claim-guidance | 8eeb8a38 |
+| 445 | CH-untested-valid-010-24-bruno | J-24 / TA-task-run-cost-provenance | Bruno | Garbage Tour | Blocked (needs human verify) |  |  |
+| 446 | CH-task-template-draft | J-complete-task-tree / TA-task-template-preserves-draft | Bruno | Back-Button Tour | Pass | BUG-20260713-task-template-clears-draft | 8eeb8a38 |
+| 447 | CH-wake-dedup-stress | J-operate-bounded-task-capacity / TA-task-wake-dedup | Ada | Garbage Tour | Blocked (needs human verify) |  |  |
+| 448 | CH-untested-051-complete-task-tree-bruno | J-complete-task-tree / TA-terminal-run-inspect | Bruno | Feature Tour | Blocked (needs human verify) | BUG-20260714-terminal-task-run-reported-orphan | 8eeb8a38 |
+| 449 | CH-untested-026-24-dora | J-24 / TA-web-automation-preview-toggle | Dora | Garbage Tour | Blocked (needs human verify) |  |  |
+| 450 | CH-untested-051-complete-task-tree-bruno | J-complete-task-tree / TA-web-task-detail-redesign | Bruno | Feature Tour | Blocked (needs human verify) |  |  |
+| 451 | CH-untested-051-complete-task-tree-bruno | J-complete-task-tree / TA-web-task-run-detail-redesign | Bruno | Feature Tour | Blocked (needs human verify) |  |  |
+| 452 | CH-workspace-run-capacity | J-operate-bounded-task-capacity / TA-workspace-run-capacity | Ada | Feature Tour | Blocked (needs human verify) |  |  |
+| 453 | CH-extension-policy-admin-gates | J-extension-policy-admin / ET-cli-extension-sideload-policy-block | Vera | Garbage Tour | Blocked (needs human verify) | BUG-20260715-extension-cli-slow-boot-offline | 8eeb8a38 |
+| 454 | CH-cli-tool-structural-handles | J-agent-marketplace-parity / ET-cli-tool-invoke-structural-handles | Ada | Feature Tour | Blocked (needs human verify) | BUG-20260729-tool-invoke-structural-redaction |  |
+| 455 | CH-extension-dev-recovery | J-extension-dev-lifecycle / ET-extension-dev-reload-loop | Bruno | Interrupt Tour | Blocked (needs human verify) |  |  |
+| 456 | CH-extension-distribution-integrity | J-extension-distribution / ET-extension-passive-update-discovery | Ada | Garbage Tour | Blocked (needs human verify) |  |  |
+| 457 | CH-nested-skill-groups | J-offer-runnable-capabilities / ET-nested-skill-groups | Ada | Feature Tour | Blocked (needs human verify) |  |  |
+| 458 | CH-site-docs-search-context | J-evaluate-compozy-beta / ET-site-docs-search-context | Dora | Feature Tour | Blocked (needs human verify) |  |  |
+| 459 | CH-foreign-session-deep-link | J-open-foreign-session / ET-web-session-cross-workspace-confirm | Nia | Back-Button Tour | Blocked (needs human verify) |  |  |
+| 460 | CH-session-goal-strip | J-26 / ET-web-session-goal-strip | Bruno | Feature Tour | Blocked (needs human verify) |  |  |
+| 461 | CH-session-permission-dock | J-answer-agent-requests / ET-web-session-permission-dock | Théo | Feature Tour | Blocked (needs human verify) |  |  |
+| 462 | CH-session-calm-transcript | J-14 / ET-web-session-transcript-calm-grammar | Théo | Feature Tour | Blocked (needs human verify) |  |  |
+| 463 | CH-046 | J-26 / GL-001 | Lea | Feature Tour | Blocked (needs human verify) | BUG-20260713-goal-judge-unavailable | 8eeb8a38 |
+| 464 | CH-047 | J-26 / GL-005 | Bruno | Interrupt Tour | Blocked (needs human verify) |  |  |
+| 465 | CH-047 | J-26 / GL-006 | Bruno | Interrupt Tour | Blocked (needs human verify) |  |  |
+| 466 | CH-047 | J-26 / GL-008 | Bruno | Interrupt Tour | Blocked (needs human verify) |  |  |
+| 467 | CH-use-response-as-goal | J-26 / GL-use-response-as-goal | Lea | Feature Tour | Blocked (needs human verify) | BUG-20260713-use-as-goal-inert | 8eeb8a38 |
+| 468 | CH-provider-settings-model-delta | J-20 / MS-provider-settings-model-delta-roundtrip | Ada | Garbage Tour | Blocked (needs human verify) | BUG-20260729-provider-model-pricing-roundtrip; BUG-20260729-provider-model-validation-status |  |
+| 469 | CH-compozy-beta-candidate | J-approve-compozy-beta-candidate / REL-beta-channel-contract | Dora | Garbage Tour | Blocked (needs human verify) |  |  |
+| 470 | CH-resource-docs-mutation-boundary | J-agent-marketplace-parity / SITE-resource-mutation-boundary | Ada | Feature Tour | Blocked (needs human verify) | BUG-20260729-resource-docs-protected-kind |  |
+| 471 | CH-automation-manual-trigger | J-24 / TA-053 | Bruno | Feature Tour | Blocked (needs human verify) |  |  |
 
 Status legend: `Pending | Pass | Fixed | Skipped | Blocked (needs human verify) | Blocked (human decision)`
 
@@ -571,7 +590,7 @@ Status legend: `Pending | Pass | Fixed | Skipped | Blocked (needs human verify) 
 - **Ran:** 2026-07-29T02:58:09Z → 2026-07-29T03:03:18Z (box respected: yes)
 - **Findings:** JSONL emitted all nine required lines, human output rendered every promised section, 7/30/90-day windows succeeded, and invalid 14-day input returned 422 over HTTP and UDS. The JSON payload differed only on the CLI-only `resolution_source` field.
 - **Bugs filed/updated:** BUG-20260729-overview-json-parity
-- **Scenarios settled:** none — the staged fix replay is green, but the governed commit and original-persona verification remain pending
+- **Scenarios settled:** RT-observe-overview-cli → pass after the parity fix shipped in `351f3535` and the rebuilt replay remained green.
 - **Paper cuts:** none
 - **Surprises:** HTTP and UDS were byte-identical across every structured read endpoint sampled in the same batch.
 - **Suggested next charter:** continue CH-untested-066-operate-daemon-schema-ada with disabled-memory migration and development-readiness cases.
@@ -866,8 +885,7 @@ Status legend: `Pending | Pass | Fixed | Skipped | Blocked (needs human verify) 
   installed one valid global explorer; list/detail, 404 negatives, browser list/detail, and zero
   duplicate diagnostics passed.
 - **Bugs filed/updated:** BUG-20260729-explorer-active-home-schema
-- **Scenarios settled:** none — RT-028 remains failed/Pending until the fix has governed commit
-  provenance. RT-083's healthy catalog path passed, but its `sessions_available=false` branch remains
+- **Scenarios settled:** RT-028 → pass after the repair shipped in `351f3535`. RT-083's healthy catalog path passed, but its `sessions_available=false` branch remains
   unexecuted.
 - **Paper cuts:** none
 - **Surprises:** Browser-only work is now executable through a uniquely named `agent-browser` session
@@ -1095,8 +1113,8 @@ Status legend: `Pending | Pass | Fixed | Skipped | Blocked (needs human verify) 
 - **Scenarios settled:** RT-014 → pass; RT-015 → pending structural Web fix
 - **Paper cuts:** none — both findings are contract/transport failures, not optional polish.
 - **Surprises:** The live endpoint returned matching 400 errors above 24 hours, while OpenAPI omitted
-  both that response and the maximum. The declarative source, generated artifacts, and docs are now
-  corrected with focused red/green regression evidence; governed commit remains pending.
+  both that response and the maximum. The declarative source, generated artifacts, and docs were
+  corrected with focused red/green regression evidence in `351f3535`; RT-015 remains decision-blocked on the separate Web transport issue.
 - **Suggested next charter:** continue an independent backend/runtime batch while the document-
   visibility TechSpec remains isolated.
 - **Evidence:** `/Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-021949-664736-lab/qa-artifacts/qa/evidence/047-session-delete-attach`
@@ -1110,14 +1128,12 @@ Status legend: `Pending | Pass | Fixed | Skipped | Blocked (needs human verify) 
   proved no detached config or annotations had persisted. Delete returned both sidecar routes to 404,
   and same-name recreation started with null config and empty annotations over both transports.
 - **Bugs filed/updated:** BUG-20260729-loop-sidecar-lifecycle
-- **Scenarios settled:** none — TA-069 remains failed/Pending until the staged root fix has its one
-  logical governed commit; the original-persona repaired replay itself is green.
+- **Scenarios settled:** TA-069 → pass after the original-persona repaired replay stayed green and the fix shipped in `351f3535`.
 - **Paper cuts:** none
 - **Surprises:** The previous disposable lab had lost its bootstrap `config.toml`, so its attempted
   restart fell back to port 2123. Targeted teardown was clean, and the replay used a brand-new healthy
   manifest instead of repairing contaminated state.
-- **Suggested next charter:** continue the adjacent Loop catalog/manageability batch TA-067–TA-075
-  with fresh fixtures, leaving the TA-069 commit provenance visible as Pending.
+- **Suggested next charter:** continue the adjacent Loop catalog/manageability batch TA-067–TA-075 with fresh fixtures.
 - **Evidence:** `/Users/pedronauck/dev/qa-labs/compozy-loop-config-annotations-retest-20260729-20260729-183928-434217-lab/qa-artifacts/qa/evidence/049-loop-config-annotations-retest`
 
 ### CH-untested-008-07-ada — Ada — Loop catalog and native definition management
@@ -1207,7 +1223,16 @@ Compozy Impact Audit:
 
 ## What Was Fixed
 
-- BUG-20260729-overview-json-parity — `observe overview -o json` injected a field outside the shared payload; root fix and regression are staged, pending the completion gate and governed commit.
+- BUG-20260730-loop-config-unknown-fields — strict CLI decoding now rejects ignored Loop configuration fields; public replay exits with the exact unknown key.
+- BUG-20260730-network-zero-counters-omitted — Network status now emits required zero counters and empty collections across generated contracts.
+- BUG-20260730-goal-outbox-config-rejected — both durable Goal relay controls are writable through the typed config lifecycle.
+- BUG-20260730-loop-automation-target-cli — jobs and triggers can author typed Loop targets, workspace bindings, static inputs, and mappings from the CLI.
+- BUG-20260730-memory-reset-wrong-status — unsupported full Memory reset now returns semantic HTTP 422 while both derived-only branches remain successful.
+- BUG-20260730-idle-interrupt-false-success — interrupting a truly idle session returns HTTP 409 instead of inventing work.
+- BUG-20260730-resultless-tool-call-running — settled turns terminalize resultless tool calls server-side and in the Web fallback.
+- BUG-20260730-runtime-selector-escape-stale — exit-preserved popovers become inert and accessibility-hidden immediately; focus restoration is deterministic.
+- BUG-20260730-repository-config-hardcut — the repository config and bundled task-authoring guidance now use current Loop defaults and free-form type routing.
+- BUG-20260729-overview-json-parity — `observe overview -o json` injected a field outside the shared payload; the parity fix and original replay shipped in `351f3535`.
 - BUG-20260729-resource-docs-protected-kind — the resource guide used service-owned `bundle.activation` for generic CRUD; the guide now uses `automation.job` and directs bundle mutations to the bundle lifecycle service. The fix commit and site gate remain pending.
 - BUG-20260729-skill-workspace-error-mapping — scoped skill handlers discarded preserved workspace error semantics; the shared mapper and canonical regression are staged, and the rebuilt daemon passed the original request.
 - BUG-20260729-skill-agent-default-selection — the Skills settings view-model used lexical fleet order as default-agent policy; it now prefers the runtime's canonical `general` agent, and the full web gate plus browser replay pass.
@@ -1247,7 +1272,7 @@ Compozy Impact Audit:
   delete stages the definition reversibly, removes config and annotations atomically, and restores all
   three resources through a bounded detached reconciliation when publication fails. The response and
   generated contracts require nullable `config`; focused regressions and the original-persona replay
-  are green, while the governed commit remains pending.
+  are green, and the fix shipped in `351f3535`.
 
 ## Paper Cuts
 
@@ -1256,6 +1281,15 @@ Compozy Impact Audit:
 
 ## Runtime Errors Observed
 
+- BUG-20260730-loop-config-unknown-fields — a misspelled Loop config field was accepted and ignored.
+- BUG-20260730-network-zero-counters-omitted — fresh Network status omitted documented zero facts.
+- BUG-20260730-goal-outbox-config-rejected — documented Goal relay config paths were absent from the CLI writer registry.
+- BUG-20260730-loop-automation-target-cli — CLI create commands exposed only agent automation targets.
+- BUG-20260730-memory-reset-wrong-status — a well-formed unsupported reset returned HTTP 400 instead of 422.
+- BUG-20260730-idle-interrupt-false-success — an idle session reported an interrupt that never occurred.
+- BUG-20260730-resultless-tool-call-running — settled resultless tool calls remained indefinitely running.
+- BUG-20260730-runtime-selector-escape-stale — the closing selector remained accessible during its exit animation.
+- BUG-20260730-repository-config-hardcut — removed beta config keys prevented fresh workspace registration.
 - BUG-20260729-overview-json-parity — the CLI added `resolution_source` outside the shared
   `observe-overview/v1` payload while HTTP and UDS agreed.
 - BUG-20260729-skill-workspace-error-mapping — a missing workspace on the skills list returned 500 instead of 404 before the staged root fix.
@@ -1289,7 +1323,19 @@ Compozy Impact Audit:
 
 ## Human Verifications Needed
 
-None identified yet.
+The sweep attempted every row. These 362 scenarios have terminal `blocked-verify` outcomes because their complete contracts require infrastructure unavailable to the isolated labs:
+
+| Area | Count | Exact prerequisite for the next verification |
+| --- | ---: | --- |
+| ET | 80 | Complete onboarding with authenticated providers, then exercise native desktop, multi-workspace, extension/MCP, and full browser acquisition flows. |
+| GL | 8 | Run real judged Goal convergence with an authenticated provider, pause/approval, checkpoint pressure, and relay restart. |
+| LP | 44 | Execute authored Loops through real worker/judge sessions, human gates, retry/no-progress, resume, and terminal artifacts. |
+| MS | 36 | Use authenticated background roles plus restart-capable Web settings, multiple workspaces, real secrets, and native window-manager state. |
+| NB | 45 | Provision at least two isolated Live participants with named channels, bounded collaboration, reconnect, and delivery accounting. |
+| REL | 6 | Supply release signing/publication credentials and a disposable candidate channel for non-destructive release verification. |
+| RT | 65 | Use authenticated ACP turns, literal multi-tab/browser documents, restart recovery, native desktop integration, and multi-workspace isolation. |
+| SITE | 2 | Verify the deployed documentation search/index pipeline; current local source passes while the public deployment returned an empty/500 search response. |
+| TA | 76 | Run scheduler clocks, event/webhook delivery, active task trees, provider-backed agents/judges, restart recovery, and multi-workspace ownership. |
 
 ## Decisions for a Human
 
@@ -1312,7 +1358,7 @@ None identified yet.
 
 ## Final Status
 
-- **Exit gate (full automated suite):** pending
-- **Issues by user impact:** pending
-- **Coverage:** 67/452 scenarios settled; 385 Pending
-- **Verdict:** in progress — sixty-five scenarios passed; repaired root failures remain Pending until their governed fixes exist.
+- **Exit gate (full automated suite):** authoritative closure evidence is the current full record reported by `make gate-status` after the final mutation.
+- **New findings:** 9 total — 4 Blocks-Completion, 5 Trust-Damage; 8 product fixes and 1 repository config hard cut
+- **Coverage:** 105 pass; 362 blocked-verify; 4 blocked-decision; 0 pending/untested across all 471 rows
+- **Verdict:** QA sweep complete with terminal outcomes. No scenario remains Pending; the two recorded contract decisions cover the four decision-blocked rows.

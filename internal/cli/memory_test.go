@@ -18,7 +18,6 @@ import (
 func TestMemoryCommandTreeHardCutsLegacyVerbs(t *testing.T) {
 	t.Parallel()
 
-	root := newRootCommand(commandDeps{})
 	expectedLeaves := [][]string{
 		{"memory", "list"},
 		{"memory", "show"},
@@ -58,16 +57,21 @@ func TestMemoryCommandTreeHardCutsLegacyVerbs(t *testing.T) {
 		{"memory", "adhoc", "show"},
 	}
 	for _, args := range expectedLeaves {
-		cmd, remaining, err := root.Find(args)
-		if err != nil {
-			t.Fatalf("Find(%v) error = %v", args, err)
-		}
-		if len(remaining) != 0 {
-			t.Fatalf("Find(%v) remaining = %v, want none", args, remaining)
-		}
-		if got := strings.TrimSpace(cmd.CommandPath()); got != "compozy "+strings.Join(args, " ") {
-			t.Fatalf("CommandPath(%v) = %q", args, got)
-		}
+		t.Run("Should resolve canonical command "+strings.Join(args, " "), func(t *testing.T) {
+			t.Parallel()
+
+			root := newRootCommand(commandDeps{})
+			cmd, remaining, err := root.Find(args)
+			if err != nil {
+				t.Fatalf("Find(%v) error = %v", args, err)
+			}
+			if len(remaining) != 0 {
+				t.Fatalf("Find(%v) remaining = %v, want none", args, remaining)
+			}
+			if got := strings.TrimSpace(cmd.CommandPath()); got != "compozy "+strings.Join(args, " ") {
+				t.Fatalf("CommandPath(%v) = %q", args, got)
+			}
+		})
 	}
 
 	for _, legacy := range [][]string{
@@ -75,11 +79,16 @@ func TestMemoryCommandTreeHardCutsLegacyVerbs(t *testing.T) {
 		{"memory", "consolidate"},
 		{"memory", "extractor", "list-pending"},
 	} {
-		cmd, remaining, err := root.Find(legacy)
-		if err == nil && len(remaining) == 0 &&
-			strings.TrimSpace(cmd.CommandPath()) == "compozy "+strings.Join(legacy, " ") {
-			t.Fatalf("legacy command %v resolved to a leaf", legacy)
-		}
+		t.Run("Should reject removed command "+strings.Join(legacy, " "), func(t *testing.T) {
+			t.Parallel()
+
+			root := newRootCommand(commandDeps{})
+			cmd, remaining, err := root.Find(legacy)
+			if err == nil && len(remaining) == 0 &&
+				strings.TrimSpace(cmd.CommandPath()) == "compozy "+strings.Join(legacy, " ") {
+				t.Fatalf("legacy command %v resolved to a leaf", legacy)
+			}
+		})
 	}
 }
 

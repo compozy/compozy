@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -128,8 +129,16 @@ func readLoopConfigFile(path string) (looppkg.LoopConfig, error) {
 		return looppkg.LoopConfig{}, fmt.Errorf("cli: read loop config file: %w", err)
 	}
 	var cfg looppkg.LoopConfig
-	if err := yaml.Unmarshal(body, &cfg); err != nil {
+	// Web/Docs Impact: YAML is CLI-local; Web uses typed HTTP JSON and site docs cover the unchanged public fields.
+	decoder := yaml.NewDecoder(bytes.NewReader(body))
+	decoder.KnownFields(true)
+	if err := decoder.Decode(&cfg); err != nil {
 		return looppkg.LoopConfig{}, fmt.Errorf("cli: parse loop config file: %w", err)
+	}
+	if err := decoder.Decode(&struct{}{}); err == nil {
+		return looppkg.LoopConfig{}, errors.New("cli: parse loop config file: expected one document")
+	} else if !errors.Is(err, io.EOF) {
+		return looppkg.LoopConfig{}, fmt.Errorf("cli: parse loop config file: expected one document: %w", err)
 	}
 	return cfg, nil
 }
@@ -190,7 +199,9 @@ func parseLoopConfigSetFlags(flags []string) (*looppkg.LoopConfig, error) {
 		return nil, fmt.Errorf("cli: marshal loop config flags: %w", err)
 	}
 	var cfg looppkg.LoopConfig
-	if err := json.Unmarshal(body, &cfg); err != nil {
+	decoder := json.NewDecoder(bytes.NewReader(body))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&cfg); err != nil {
 		return nil, fmt.Errorf("cli: parse loop config flags: %w", err)
 	}
 	return &cfg, nil

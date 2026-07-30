@@ -4,6 +4,8 @@ import { describe, expect, it, vi } from "vitest";
 
 const mockedPageRender = vi.hoisted(() => ({
   mastheads: [] as Array<{ pageUrl?: string }>,
+  breadcrumbs: [] as Array<{ items: Array<{ name: string; path: string }> }>,
+  articles: [] as Array<{ imageUrl: string }>,
 }));
 
 const mockedDocs = vi.hoisted(() => {
@@ -88,8 +90,14 @@ vi.mock("@/components/docs/doc-page-masthead", () => ({
 }));
 
 vi.mock("@/components/seo/structured-data", () => ({
-  BreadcrumbListJsonLd: () => null,
-  TechArticleJsonLd: () => null,
+  BreadcrumbListJsonLd: (props: { items: Array<{ name: string; path: string }> }) => {
+    mockedPageRender.breadcrumbs.push(props);
+    return null;
+  },
+  TechArticleJsonLd: (props: { imageUrl: string }) => {
+    mockedPageRender.articles.push(props);
+    return null;
+  },
 }));
 
 vi.mock("@/mdx-components", () => ({
@@ -149,13 +157,24 @@ describe("docs route metadata", () => {
     );
   });
 
-  it("uses the docs source's resolved URL for page actions", async () => {
+  it("uses the docs source's resolved URL for page actions and structured metadata", async () => {
     mockedPageRender.mastheads.length = 0;
+    mockedPageRender.breadcrumbs.length = 0;
+    mockedPageRender.articles.length = 0;
 
     render(await DocsRoutePage(pageProps(["network", "protocol"])));
 
     expect(mockedPageRender.mastheads.at(-1)?.pageUrl).toBe(
       "https://compozy.com/docs/network/protocol-model/"
+    );
+    expect(mockedPageRender.breadcrumbs.at(-1)?.items).toEqual([
+      { name: "Home", path: "/" },
+      { name: "Docs", path: "/docs/" },
+      { name: "Network", path: "/docs/network/" },
+      { name: "Compozy Network Protocol", path: "/docs/network/protocol-model/" },
+    ]);
+    expect(mockedPageRender.articles.at(-1)?.imageUrl).toBe(
+      "/og/docs/network/protocol-model/image.png"
     );
   });
 });

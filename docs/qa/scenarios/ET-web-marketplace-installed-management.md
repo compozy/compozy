@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-marketplace-acquisition
 expected: Each kind's Installed scope exposes only daemon-backed controls: skill content, shadows, enable and update; extension enable, environment, diagnostics and provenance; arbitrary MCP creation and exact-scope configuration, status and authorization; bundle scope, profile, update and deactivation.
 entry_points: /marketplace/skills?tab=installed; /marketplace/mcps?tab=installed; /marketplace/extensions?tab=installed; /marketplace/bundles?tab=installed
-qa_status: untested
+qa_status: blocked-verify
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-et-current-source-20260730-061655-910372-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: ET-web-extensions-manage; ET-web-extension-detail; ET-web-mcp-status-matrix
 ---
 

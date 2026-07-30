@@ -3,20 +3,7 @@ package cli
 import "github.com/spf13/cobra"
 
 func newAutomationTriggersCreateCommand(deps commandDeps) *cobra.Command {
-	var (
-		name               string
-		scopeRaw           string
-		eventRaw           string
-		workspaceRef       string
-		agentName          string
-		prompt             string
-		retryRaw           string
-		filterFlags        []string
-		enabled            bool
-		webhookID          string
-		endpointSlug       string
-		webhookSecretValue string
-	)
+	input := automationTriggerCommandInput{}
 
 	cmd := &cobra.Command{
 		Use:   automationCreateKey,
@@ -32,20 +19,7 @@ func newAutomationTriggersCreateCommand(deps commandDeps) *cobra.Command {
 				cmd,
 				deps,
 				client,
-				automationTriggerCommandInput{
-					Name:               name,
-					ScopeRaw:           scopeRaw,
-					EventRaw:           eventRaw,
-					WorkspaceRef:       workspaceRef,
-					AgentName:          agentName,
-					Prompt:             prompt,
-					RetryRaw:           retryRaw,
-					FilterFlags:        filterFlags,
-					Enabled:            enabled,
-					WebhookID:          webhookID,
-					EndpointSlug:       endpointSlug,
-					WebhookSecretValue: webhookSecretValue,
-				},
+				input,
 			)
 			if err != nil {
 				return err
@@ -58,59 +32,35 @@ func newAutomationTriggersCreateCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, automationTriggerBundle(created))
 		},
 	}
-	bindAutomationTriggerCreateFlags(
-		cmd,
-		&name,
-		&scopeRaw,
-		&eventRaw,
-		&workspaceRef,
-		&agentName,
-		&prompt,
-		&retryRaw,
-		&filterFlags,
-		&enabled,
-		&webhookID,
-		&endpointSlug,
-		&webhookSecretValue,
-	)
+	bindAutomationTriggerCreateFlags(cmd, &input)
 	return cmd
 }
 
 func bindAutomationTriggerCreateFlags(
 	cmd *cobra.Command,
-	name *string,
-	scopeRaw *string,
-	eventRaw *string,
-	workspaceRef *string,
-	agentName *string,
-	prompt *string,
-	retryRaw *string,
-	filterFlags *[]string,
-	enabled *bool,
-	webhookID *string,
-	endpointSlug *string,
-	webhookSecretValue *string,
+	input *automationTriggerCommandInput,
 ) {
-	cmd.Flags().StringVar(name, automationNameKey, "", "Trigger name")
-	cmd.Flags().StringVar(scopeRaw, automationScopeKey, "", "Trigger scope: global or workspace")
-	cmd.Flags().StringVar(eventRaw, automationEventKey, "", "Trigger event name")
+	cmd.Flags().StringVar(&input.Name, automationNameKey, "", "Trigger name")
+	cmd.Flags().StringVar(&input.ScopeRaw, automationScopeKey, "", "Trigger scope: global or workspace")
+	cmd.Flags().StringVar(&input.EventRaw, automationEventKey, "", "Trigger event name")
 	cmd.Flags().
-		StringVar(workspaceRef, "workspace", "", "Override workspace binding (ID, name, or path)")
-	cmd.Flags().StringVar(agentName, "agent", "", "Agent definition name")
-	cmd.Flags().StringVar(prompt, automationPromptKey, "", "Prompt template body")
+		StringVar(&input.WorkspaceRef, "workspace", "", "Override workspace binding (ID, name, or path)")
+	bindAutomationCreateTargetFlags(cmd, &input.automationCreateTargetInput, true)
+	cmd.Flags().StringArrayVar(
+		&input.FilterFlags,
+		"filter",
+		nil,
+		"Exact-match filter(s): key=value or comma-separated key=value pairs",
+	)
 	cmd.Flags().
-		StringArrayVar(filterFlags, "filter", nil, "Exact-match filter(s): key=value or comma-separated key=value pairs")
-	cmd.Flags().
-		StringVar(retryRaw, automationRetryKey, "", `Retry policy: "none", "backoff", or "backoff:<max_retries>:<base_delay>"`)
-	cmd.Flags().BoolVar(enabled, automationEnabledKey, false, "Create the trigger enabled or disabled")
-	cmd.Flags().StringVar(webhookID, "webhook-id", "", "Stable webhook identifier override for webhook events")
-	cmd.Flags().StringVar(endpointSlug, "endpoint-slug", "", "Public endpoint slug for webhook events")
-	cmd.Flags().StringVar(webhookSecretValue, "webhook-secret-value", "", "Write-only webhook secret value")
+		StringVar(&input.RetryRaw, automationRetryKey, "", `Retry policy: "none", "backoff", or "backoff:<max_retries>:<base_delay>"`)
+	cmd.Flags().BoolVar(&input.Enabled, automationEnabledKey, false, "Create the trigger enabled or disabled")
+	cmd.Flags().StringVar(&input.WebhookID, "webhook-id", "", "Stable webhook identifier override for webhook events")
+	cmd.Flags().StringVar(&input.EndpointSlug, "endpoint-slug", "", "Public endpoint slug for webhook events")
+	cmd.Flags().StringVar(&input.WebhookSecretValue, "webhook-secret-value", "", "Write-only webhook secret value")
 	mustMarkFlagRequired(cmd, automationNameKey)
 	mustMarkFlagRequired(cmd, automationScopeKey)
 	mustMarkFlagRequired(cmd, automationEventKey)
-	mustMarkFlagRequired(cmd, "agent")
-	mustMarkFlagRequired(cmd, automationPromptKey)
 }
 
 func newAutomationTriggersGetCommand(deps commandDeps) *cobra.Command {
@@ -160,15 +110,15 @@ func newAutomationTriggersUpdateCommand(deps commandDeps) *cobra.Command {
 				cmd,
 				client,
 				automationTriggerCommandInput{
-					Name:               name,
-					EventRaw:           eventRaw,
-					Prompt:             prompt,
-					RetryRaw:           retryRaw,
-					FilterFlags:        filterFlags,
-					Enabled:            enabled,
-					WebhookID:          webhookID,
-					EndpointSlug:       endpointSlug,
-					WebhookSecretValue: webhookSecretValue,
+					automationCreateTargetInput: automationCreateTargetInput{Prompt: prompt},
+					Name:                        name,
+					EventRaw:                    eventRaw,
+					RetryRaw:                    retryRaw,
+					FilterFlags:                 filterFlags,
+					Enabled:                     enabled,
+					WebhookID:                   webhookID,
+					EndpointSlug:                endpointSlug,
+					WebhookSecretValue:          webhookSecretValue,
 				},
 			)
 			if err != nil {

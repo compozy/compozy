@@ -262,11 +262,24 @@ function directMessage(
 }
 
 export const networkStatusFixture: NetworkStatus = {
-  enabled: true,
-  status: "active",
   channels: 10,
+  conversation_messages: 0,
+  declared_channels: [],
+  direct_resolves: 0,
+  enabled: true,
+  handoff_tagged_events: 0,
+  kind_metrics: [],
   local_peers: 6,
+  messages_delivered: 0,
+  messages_received: 0,
+  messages_rejected: 0,
   messages_sent: 418,
+  open_direct_rooms: 0,
+  open_threads: 0,
+  open_work_items: 0,
+  status: "active",
+  work_transitions: 0,
+  workflow_tagged_events: 0,
 };
 
 export const networkChannelsFixture: NetworkChannelsResponse = {

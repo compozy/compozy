@@ -3,6 +3,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parse as parseToml } from "smol-toml";
 import { z } from "zod";
+import { docsSource } from "./source";
 
 /**
  * Bridge providers are not catalog entries and cannot be today: each `extension.toml` points its
@@ -82,9 +83,17 @@ function displayRank(platform: string): number {
   return index === -1 ? BRIDGE_DISPLAY_ORDER.length : index;
 }
 
-function readBridgeProviders(): BridgeProvider[] {
+interface BridgeProviderSource {
+  root?: string;
+  resolveSetupPage?: (slugs: string[]) => { url: string } | undefined;
+}
+
+export function readBridgeProviders({
+  root = bridgesRoot,
+  resolveSetupPage = slugs => docsSource.getPage(slugs),
+}: BridgeProviderSource = {}): BridgeProvider[] {
   const directories: string[] = [];
-  for (const entry of readdirSync(bridgesRoot, { withFileTypes: true })) {
+  for (const entry of readdirSync(root, { withFileTypes: true })) {
     if (entry.isDirectory()) {
       directories.push(entry.name);
     }
@@ -92,8 +101,9 @@ function readBridgeProviders(): BridgeProvider[] {
   directories.sort();
 
   const providers: BridgeProvider[] = [];
+  const platforms = new Set<string>();
   for (const directory of directories) {
-    const manifestPath = resolve(bridgesRoot, directory, "extension.toml");
+    const manifestPath = resolve(root, directory, "extension.toml");
     let raw: string;
     try {
       raw = readFileSync(manifestPath, "utf8");
@@ -102,9 +112,18 @@ function readBridgeProviders(): BridgeProvider[] {
       continue;
     }
     const manifest = bridgeManifestSchema.parse(parseToml(raw));
+    const platform = manifest.bridge.platform;
+    if (platforms.has(platform)) {
+      throw new Error(`duplicate bridge platform: ${platform}`);
+    }
+    const setupPage = resolveSetupPage(["bridges", `setup-${platform}`]);
+    if (!setupPage) {
+      throw new Error(`bridge ${platform} setup guide is missing from the docs source`);
+    }
+    platforms.add(platform);
     const slots = manifest.bridge.secret_slots;
     providers.push({
-      platform: manifest.bridge.platform,
+      platform,
       displayName: manifest.bridge.display_name,
       version: manifest.extension.version,
       description: manifest.extension.description,
@@ -112,7 +131,7 @@ function readBridgeProviders(): BridgeProvider[] {
         required: slots.filter(slot => slot.required).length,
         total: slots.length,
       },
-      setupUrl: `/docs/bridges/setup-${manifest.bridge.platform}`,
+      setupUrl: setupPage.url,
     });
   }
   providers.sort((left, right) => {

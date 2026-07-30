@@ -60,6 +60,11 @@ const loopMetaSchema = z.object({
   }),
 });
 
+const skillFrontmatterSchema = z.object({
+  name: z.string().min(1),
+  description: z.string().min(1),
+});
+
 export interface BundledTool {
   name: string;
   title: string;
@@ -99,20 +104,27 @@ export interface BundledSkill {
   repositoryUrl: string;
 }
 
-function listDirectories(root: string, subdirectories: string[]): string[] {
-  const names: string[] = [];
-  for (const subdirectory of subdirectories) {
-    for (const entry of readdirSync(resolve(root, subdirectory), { withFileTypes: true })) {
+interface ManifestDirectory {
+  parent: string;
+  name: string;
+}
+
+function listDirectories(root: string, parents: string[]): ManifestDirectory[] {
+  const directories: ManifestDirectory[] = [];
+  for (const parent of parents) {
+    for (const entry of readdirSync(resolve(root, parent), { withFileTypes: true })) {
       if (entry.isDirectory()) {
-        names.push(entry.name);
+        directories.push({ parent, name: entry.name });
       }
     }
   }
-  return names.sort();
+  return directories.sort(
+    (left, right) => left.parent.localeCompare(right.parent) || left.name.localeCompare(right.name)
+  );
 }
 
-function readLoop(loopName: string): BundledLoop {
-  const raw = readFileSync(resolve(devCycleRoot, "loops", loopName, "loop.yaml"), "utf8");
+function readLoop(parent: string, loopName: string): BundledLoop {
+  const raw = readFileSync(resolve(devCycleRoot, parent, loopName, "loop.yaml"), "utf8");
   const { meta } = loopMetaSchema.parse(parseYaml(raw));
   return {
     name: meta.name,
@@ -126,7 +138,7 @@ function readDevCycle(): BundledExtension {
   const manifest = devCycleManifestSchema.parse(
     JSON.parse(readFileSync(resolve(devCycleRoot, "extension.json"), "utf8"))
   );
-  const loopNames = listDirectories(devCycleRoot, manifest.resources.loops);
+  const loopDirectories = listDirectories(devCycleRoot, manifest.resources.loops);
   return {
     name: manifest.extension.name,
     displayName: "Dev Cycle",
@@ -134,9 +146,9 @@ function readDevCycle(): BundledExtension {
     description: manifest.extension.description,
     minCompozyVersion: manifest.extension.min_compozy_version,
     provides: manifest.capabilities.provides,
-    loops: loopNames.map(readLoop),
-    skills: listDirectories(devCycleRoot, manifest.resources.skills),
-    agents: listDirectories(devCycleRoot, manifest.resources.agents),
+    loops: loopDirectories.map(({ parent, name }) => readLoop(parent, name)),
+    skills: listDirectories(devCycleRoot, manifest.resources.skills).map(({ name }) => name),
+    agents: listDirectories(devCycleRoot, manifest.resources.agents).map(({ name }) => name),
     tools: Object.entries(manifest.resources.tools)
       .map(([name, tool]) => ({
         name,
@@ -153,17 +165,23 @@ function readDevCycle(): BundledExtension {
   };
 }
 
+export function parseBundledSkillFrontmatter(
+  raw: string
+): Pick<BundledSkill, "name" | "description"> {
+  const match = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(raw);
+  if (!match?.[1]) {
+    throw new Error("SKILL.md must begin with YAML frontmatter");
+  }
+  return skillFrontmatterSchema.parse(parseYaml(match[1]));
+}
+
 /** `skills/embed.go` compiles every directory here into the binary. */
 function readBundledSkills(): BundledSkill[] {
   const skills: BundledSkill[] = [];
   for (const entry of readdirSync(bundledSkillsRoot, { withFileTypes: true })) {
     if (!entry.isDirectory()) continue;
     const raw = readFileSync(resolve(bundledSkillsRoot, entry.name, "SKILL.md"), "utf8");
-    const name = raw.match(/^name:\s*(.+)$/m)?.[1]?.trim();
-    const description = raw.match(/^description:\s*(.+)$/m)?.[1]?.trim();
-    if (!name || !description) {
-      throw new Error(`skills/${entry.name}/SKILL.md must declare name and description`);
-    }
+    const { name, description } = parseBundledSkillFrontmatter(raw);
     skills.push({
       name,
       description,

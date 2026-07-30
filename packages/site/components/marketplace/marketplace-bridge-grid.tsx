@@ -1,5 +1,3 @@
-"use client";
-
 import { CatalogCard, Pill, PillDot } from "@compozy/ui";
 import { ArrowRight, Plug } from "lucide-react";
 import Link from "next/link";

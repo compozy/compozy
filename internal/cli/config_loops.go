@@ -6,6 +6,8 @@ func loopAndGoalConfigSetPathKinds() map[string]configSetValueKind {
 	return map[string]configSetValueKind{
 		"goals.max_turns":                               configSetInt,
 		"goals.context_nudge_ratio":                     configSetFloat,
+		"goals.outbox_batch_size":                       configSetInt,
+		"goals.outbox_poll_interval":                    configSetDuration,
 		"loops.defaults.delivery.iteration_cap":         configSetInt,
 		"loops.defaults.delivery.no_progress.window":    configSetInt,
 		"loops.defaults.delivery.gates.max_revisions":   configSetInt,

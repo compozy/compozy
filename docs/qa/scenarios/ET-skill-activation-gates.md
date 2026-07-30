@@ -6,13 +6,13 @@ persona: Ada
 journey: J-offer-runnable-capabilities
 expected: A skill with satisfied metadata.compozy.when gates appears in startup and current-turn catalogs; one with an unmet platform, environment, tool, or authored-capability gate remains manageable with structured inactive reasons but is absent from both catalogs; restoring a required callable tool makes the next catalog projection offer it without restarting CompozyOS.
 entry_points: SKILL.md metadata.compozy.when; agent startup and current-turn prompt catalogs; GET /api/skills; compozy skill list|inspect|view; compozy__skill_list|view; Web /skills
-qa_status: untested
+qa_status: blocked-verify
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-et-current-source-20260730-061655-910372-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: ET-001; ET-002; ET-003
 ---
 

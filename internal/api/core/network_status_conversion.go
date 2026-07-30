@@ -43,6 +43,7 @@ func NetworkStatusPayloadFromStatus(status *network.Status) *contract.NetworkSta
 		ConversationMessages: status.ConversationMessages,
 		WorkTransitions:      status.WorkTransitions,
 		DirectResolves:       status.DirectResolves,
+		DeclaredChannels:     []contract.DeclaredNetworkChannelPayload{},
 		KindMetrics:          kindMetrics,
 	}
 }

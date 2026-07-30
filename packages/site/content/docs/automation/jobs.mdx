@@ -96,9 +96,22 @@ curl -sS -X POST http://localhost:2123/api/automation/jobs \
 ```
 
 Agents can send the same payload through `compozy__automation_jobs_create`; HTTP and UDS expose the
-same request contract. The `compozy automation jobs create|update` flags currently author Agent
-targets. The CLI can still list, inspect, enable, disable, trigger, and delete Loop-target jobs
-created through a native tool or transport API.
+same request contract. The CLI creates either target kind: use `--agent` with `--prompt`, or use
+`--loop` with repeatable `--loop-input` values. A global job also requires `--loop-workspace` so the
+daemon can resolve the workspace that owns the Loop.
+
+```bash
+compozy automation jobs create \
+  --name weekday-release-readiness \
+  --scope global \
+  --schedule "0 9 * * 1-5" \
+  --loop release-readiness \
+  --loop-workspace /path/to/workspace \
+  --loop-input channel=stable
+```
+
+The update command changes common job fields but does not replace the target union. Use the native
+tool, HTTP, or UDS when an existing job must switch between Agent and Loop targets.
 
 ## Daemon lifecycle protection
 

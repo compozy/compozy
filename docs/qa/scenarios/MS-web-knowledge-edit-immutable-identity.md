@@ -6,13 +6,13 @@ persona: Dora
 journey: J-25
 expected: Editing a knowledge entry shows its name, type, and filename as a readable locked summary — not as disabled inputs — with a hint naming retrieval stability as the reason they cannot change. Only description and content are editable, and the save enables on a change to either one (a description-only edit is savable). The request sent to `PATCH /api/memory/{filename}` carries `content`, `description`, and the scope keys, and never `name` or `type`. Knowledge create keeps its four-card type picker with the runtime memory types, and both dialogs render on the compact modal host with the shared ruled header, a single close control, and one primary action.
 entry_points: web knowledge window → entry detail → Edit; web knowledge window → Create entry
-qa_status: untested
+qa_status: blocked-verify
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence: .compozy/tasks/modals-redesign/evidence/visual/task_02/VC-04; .compozy/tasks/modals-redesign/evidence/visual/task_02/VC-05
-last_report:
+evidence: .compozy/tasks/modals-redesign/evidence/visual/task_02/VC-04; .compozy/tasks/modals-redesign/evidence/visual/task_02/VC-05;/Users/pedronauck/dev/qa-labs/compozy-ms-wave2-current-20260730-061842-796290-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: MS-web-entity-modal-shell
 ---
 

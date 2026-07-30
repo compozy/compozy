@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-17
 expected: Clicking New session opens a first-message composer; Send gives visible feedback within 100 ms, atomically queues the prompt, navigates to one durable `starting` session within 250 ms, and surfaces a durable startup failure without duplicate creation; the queued prompt remains available for explicit resume and is never posted a second time by the web client.
 entry_points: web agent detail New session; web Agents Start session
-qa_status: untested
+qa_status: blocked-verify
 bug_ids: BUG-20260713-cursor-model-startup-contract; BUG-20260713-new-session-modal-lingers; BUG-20260713-first-prompt-optimistic-stuck; BUG-20260713-stop-generation-local-stuck; BUG-20260729-accepted-start-stop-identity-race
 fix_status: fixed
-retest_status: pending
+retest_status: pass
 fix_commits: 8eeb8a38
-evidence: /Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/new-session-modal-timing.json
-last_report: docs/qa/reports/2026-07-13-automation-features.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/new-session-modal-timing.json;/Users/pedronauck/dev/qa-labs/compozy-qa-rt-current-source-20260730-20260730-061631-252740-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: RT-010
 ---
 

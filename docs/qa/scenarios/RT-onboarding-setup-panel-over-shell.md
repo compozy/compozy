@@ -6,13 +6,13 @@ persona: Lea
 journey: J-19
 expected: With onboarding incomplete the desktop chrome renders behind a blocking setup panel — wallpaper, a menu bar whose workspace slot reads "No workspace" with no sync-status pill, and a dimmed dormant dock — while the panel owns focus; Esc and outside-press do not dismiss it, ⌘K and ⌘N do nothing, nothing behind the scrim is clickable or tabbable, the runtime popover still opens above the panel, and finishing setup wakes the same desktop (menu bar names the first workspace) without a full reload.
 entry_points: web `/_app/` first-run against a fresh `COMPOZY_HOME`; `desktop-gate.tsx`, `desktop-shell.tsx`, `onboarding-setup-panel.tsx`
-qa_status: untested
+qa_status: blocked-verify
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-rt-current-source-20260730-20260730-061631-252740-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: RT-004
 ---
 

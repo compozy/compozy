@@ -1,6 +1,6 @@
 # BUG-20260729-heartbeat-wake-rollback-stale-policy: Wake ignored the policy restored by rollback
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Blocks-Completion
 - **Severity:** High · **Priority:** P0
 - **Persona Affected:** Bruno
@@ -40,7 +40,7 @@ while runtime execution followed stale guidance.
   activation order and selected the newer-created v2 row.
 - **Correction:** managed authoring revisions are now the current-policy activation ledger. Wake follows
   the newest revision's `NewSnapshotID`; direct snapshot ordering remains only when no revision exists.
-- **Fix commit:** pending completion gate
+- **Fix commit:** `351f3535`
 - **Regression test:** `Should use the latest rollback revision as the current wake policy` in
   `internal/store/globaldb/global_db_heartbeat_test.go`.
 
@@ -53,4 +53,4 @@ while runtime execution followed stale guidance.
 - The full GlobalDB lane's unrelated bridge-migration case exceeded its 50-second deadline only under
   suite saturation; that exact migration case passed in isolation in 13.9 seconds.
 - `make lint` and `make build` pass.
-- **Retested:** rebuilt daemon candidate green; governed fix commit pending
+- **Retested:** 2026-07-29, rebuilt daemon candidate green; fix shipped in `351f3535`

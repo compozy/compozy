@@ -6,13 +6,13 @@ persona: Théo
 journey: J-answer-agent-requests
 expected: A live session shows one truthful clarification card, accepts an offered choice or free text through Web, CLI, HTTP, or UDS, resumes the waiting tool with the same structured answer, and keeps resolved, timed-out, or canceled evidence after reload without exposing another workspace.
 entry_points: Web session timeline; compozy__clarify; compozy session clarify pending/answer; GET/POST /api/workspaces/:workspace_id/sessions/:session_id/clarifications
-qa_status: untested
+qa_status: blocked-verify
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-rt-current-source-20260730-20260730-061631-252740-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: RT-021
 ---
 

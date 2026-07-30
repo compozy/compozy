@@ -6,13 +6,13 @@ persona: Théo
 journey: J-11
 expected: An unnamed user session receives one durable generated title after its first persisted assistant response; explicit names remain unchanged. A dedicated interrupt followed by steer submits the canceled prompt plus the correction once under the new generation, while a plain interrupt replacement excludes canceled text. A failed edit with no later successful edit for the same path adds one verifier marker to the durable timeline; a later successful edit suppresses it.
 entry_points: Web session list and timeline; session prompt/interrupt/steer HTTP and UDS routes; config CLI/native tools; session metadata and event history
-qa_status: untested
+qa_status: blocked-verify
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-rt-current-source-20260730-20260730-061631-252740-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: RT-session-context-rebuild; RT-pressure-context-compaction
 ---
 

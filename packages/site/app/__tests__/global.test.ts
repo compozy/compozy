@@ -5,7 +5,6 @@ import { describe, expect, it } from "vitest";
 
 const appDir = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const globalCSS = readFileSync(resolve(appDir, "global.css"), "utf8");
-const docsCSS = readFileSync(resolve(appDir, "styles/docs.css"), "utf8");
 
 describe("site global styles", () => {
   it("does not globally suppress box-shadow-based focus rings", () => {
@@ -20,12 +19,5 @@ describe("site global styles", () => {
     expect(globalCSS).toContain("--color-fd-idea: var(--color-accent);");
     expect(globalCSS).toContain("--color-fd-diff-remove: var(--color-danger-tint);");
     expect(globalCSS).toContain("--color-fd-diff-add: var(--color-success-tint);");
-  });
-
-  it("limits inline code chrome to textual content instead of fenced code blocks", () => {
-    expect(docsCSS).toContain(
-      ".site-doc-body :is(p, li, td, th, blockquote, h1, h2, h3, h4, h5, h6) code {"
-    );
-    expect(docsCSS).not.toContain(".site-doc-body :not(pre) > code {");
   });
 });

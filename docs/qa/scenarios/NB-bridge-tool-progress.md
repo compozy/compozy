@@ -6,13 +6,13 @@ persona: Maya
 journey: J-watch-agent-work-channel
 expected: With progress enabled, a tool-heavy bridged turn shows an ordered and canonically redacted started-to-completed-or-failed lifecycle in the public channel; terminal-command previews expose command names without arguments, native-tool result fields use canonical redaction, queue pressure coalesces intermediate updates without losing terminal state, and the corresponding session transcript and ACP history contain no progress chrome.
 entry_points: Bridge channel turn; public bridge delivery path; web session transcript; ACP history
-qa_status: untested
+qa_status: blocked-verify
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence: /home/pedronauck/dev/qa-labs/compozy-hermes-bridge-task-10-20260713-022226-583543-lab/qa-artifacts/qa/notes/bridge-charter-results.json; /home/pedronauck/dev/qa-labs/compozy-hermes-bridge-task-10-20260713-022226-583543-lab/qa-artifacts/qa/logs/bridge-fake-api.jsonl
-last_report: docs/qa/reports/2026-07-12-hermes-bridge.md
+evidence: /home/pedronauck/dev/qa-labs/compozy-hermes-bridge-task-10-20260713-022226-583543-lab/qa-artifacts/qa/notes/bridge-charter-results.json; /home/pedronauck/dev/qa-labs/compozy-hermes-bridge-task-10-20260713-022226-583543-lab/qa-artifacts/qa/logs/bridge-fake-api.jsonl;/Users/pedronauck/dev/qa-labs/compozy-qa-misc-network-goal-release-site-20260730-060405-932516-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps:
 ---
 

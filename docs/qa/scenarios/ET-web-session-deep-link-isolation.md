@@ -6,13 +6,13 @@ persona: Théo
 journey: J-open-foreign-session
 expected: A deep link to a foreign-workspace session never changes the active workspace and never renders foreign session data before the operator confirms; cancelling keeps the active workspace, its arrangement, and the existing not-found state, and a session that exists nowhere stays not found with no confirmation offered.
 entry_points: /agents/:agent/sessions/:session; /session/:session; ?workspaceSwitch=declined; GET /api/sessions/:session_id/owner
-qa_status: untested
+qa_status: blocked-verify
 bug_ids:
 fix_status:
 retest_status: pass
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-124649-419333-lab/qa-artifacts/qa/notes/cross-workspace-access-results.md; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-124649-419333-lab/qa-artifacts/qa/screenshots/cross-workspace-deeplink-confirm.png; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-124649-419333-lab/qa-artifacts/qa/screenshots/cross-workspace-deeplink-cancelled.png
-last_report: docs/qa/reports/2026-07-29-cross-workspace-access.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-124649-419333-lab/qa-artifacts/qa/notes/cross-workspace-access-results.md; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-124649-419333-lab/qa-artifacts/qa/screenshots/cross-workspace-deeplink-confirm.png; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-124649-419333-lab/qa-artifacts/qa/screenshots/cross-workspace-deeplink-cancelled.png;/Users/pedronauck/dev/qa-labs/compozy-qa-et-current-source-20260730-061655-910372-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: ET-web-session-cross-workspace-confirm; ET-native-workspace-scope-isolation; MS-workspace-resolution-chain
 ---
 

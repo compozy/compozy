@@ -6,13 +6,13 @@ persona: Lea
 journey: J-04
 expected: The run detail answers Progress / Happening now / What happened / What happens next in plain language — goal + group bar from the latest generation, a live now-card linking the running node's task run, a newest-first story timeline with verbatim mono micro-labels, Usage (Time/Tokens/Cost estimate/Rounds with ∞ for unbounded caps) and About rails — while every operator fact (stop_when, verification, policies, watch spec, criteria, raw events, digest) stays reachable in the Inspect drawer; no template refs, CEL, fan-out/batch vocabulary, or status legend anywhere on the main surface, and controls render exactly per the §7 status matrix for all 11 statuses.
 entry_points: web /loop-runs/:id; GET /loop-runs/:id; SSE /loop-runs/:id/events; topbar ⋯ Inspect
-qa_status: untested
+qa_status: blocked-verify
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-lp-public-interface-20260730-060347-933555-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: LP-009;LP-014;LP-016;LP-044;LP-action-failure-detail
 ---
 

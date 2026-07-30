@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-mcp-authorize-repair
 expected: The editor switches field sets by transport. stdio keeps command, ordered args, non-secret env, and hybrid secret_env bindings; remote (http/sse) keeps url + optional OAuth (client_id + metadata triad + scopes + client-secret binding) and omits command/args/env/secret_env. Switching transport clears hidden fields so the new form remains completable. Existing plain env and secret bindings render as presence-only configured state; unchanged exact-target fields use `preserve_env` or `preserve_secrets`, while renames and scope changes require explicit replacement values. Vault inventory renders distinct loading, error/retry, ready-empty, and ready-with-refs states. Scope lives in `validateSearch`; an initial valid `workspace_id` is adopted once, then sidebar selection owns the workspace and updates the URL.
 entry_points: web `/marketplace/mcps?tab=installed` Add MCP server/Edit configuration; `PUT /api/settings/mcp-servers/{name}`
-qa_status: untested
+qa_status: blocked-verify
 bug_ids: BUG-20260715-mcp-editor-vault-ref-case
 fix_status: fixed
-retest_status: pending
+retest_status: pass
 fix_commits: 8eeb8a38
-evidence: web/src/systems/settings/lib/mcp-editor-model.ts; web/src/systems/settings/components/mcp-server-editor.tsx; .compozy/tasks/marketplace/evidence/visual/task-08/editor-http-desktop; /Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/mcp-editor-vault-ref-case.json; /Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/web/mcp-editor-vault-ref-case-green.png
-last_report: docs/qa/reports/2026-07-15-marketplace.md
+evidence: web/src/systems/settings/lib/mcp-editor-model.ts; web/src/systems/settings/components/mcp-server-editor.tsx; .compozy/tasks/marketplace/evidence/visual/task-08/editor-http-desktop; /Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/mcp-editor-vault-ref-case.json; /Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/web/mcp-editor-vault-ref-case-green.png;/Users/pedronauck/dev/qa-labs/compozy-qa-et-current-source-20260730-061655-910372-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: MS-029
 ---
 

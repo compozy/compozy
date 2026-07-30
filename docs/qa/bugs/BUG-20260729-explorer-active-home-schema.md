@@ -1,6 +1,6 @@
 # BUG-20260729-explorer-active-home-schema: Explorer bundle was invalid outside the default home
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Blocks-Completion
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Bruno
@@ -41,7 +41,7 @@ detail succeeds.
 - **Correction:** The asset now uses the strict Compozy agent schema. The helper installs beneath
   `${COMPOZY_HOME:-$HOME/.compozy}`, and the skill instructions plus routed references describe the
   same active-home behavior.
-- **Fix commit:** pending completion gate
+- **Fix commit:** `351f3535`
 - **Regression owner:** `docs/qa/scenarios/RT-028.md`; this real public-surface scenario owns the
   development-skill integration. A cross-layer `internal/config` asset test was previously rejected
   because the runtime does not bundle or install this opt-in skill.

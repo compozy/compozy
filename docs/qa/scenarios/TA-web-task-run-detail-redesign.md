@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-complete-task-tree
 expected: Run detail renders the Tasks / <task> / Attempt N head (Retry primary only while attempts remain; Open session otherwise; overflow holds release/cancel/recover/force-fail with required reason), a tinted outcome band with failure reason + event chip, Result, Reviews as round cards keyed by review_id, a live Run activity feed scoped to the attempt, and the session rail (Session/Timing/Lineage + compozy task run show hint). Metrics the runtime did not report render "—".
 entry_points: web /tasks/:id/runs/:runId; run Inspect drawer
-qa_status: untested
+qa_status: blocked-verify
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-ta-replay-20260730-062156-531636-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: TA-019; TA-terminal-run-inspect; NB-run-conversation-bounds-usage
 ---
 

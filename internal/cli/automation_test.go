@@ -74,6 +74,186 @@ func TestAutomationJobsCreateParsesWorkspaceScopeAndRetry(t *testing.T) {
 	}
 }
 
+func TestAutomationCreateSupportsLoopTargets(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should create a workspace job with static Loop inputs and Network participation", func(t *testing.T) {
+		t.Parallel()
+
+		var request AutomationJobCreateRequest
+		deps := newTestDeps(t, &stubClient{
+			getWorkspaceFn: func(_ context.Context, ref string) (WorkspaceDetailRecord, error) {
+				if ref != "alpha" {
+					t.Fatalf("GetWorkspace ref = %q, want alpha", ref)
+				}
+				return WorkspaceDetailRecord{Workspace: WorkspaceRecord{ID: "ws-alpha"}}, nil
+			},
+			createAutomationJobFn: func(_ context.Context, got AutomationJobCreateRequest) (JobRecord, error) {
+				request = got
+				return sampleAutomationJobRecord(), nil
+			},
+		})
+
+		_, _, err := executeRootCommand(
+			t,
+			deps,
+			"automation", "jobs", "create",
+			"--name", "release-readiness",
+			"--scope", "workspace",
+			"--workspace", "alpha",
+			"--schedule", "every:30m",
+			"--loop", "release-readiness",
+			"--loop-input", "channel=stable",
+			"--loop-input", "retries=3",
+			"--network", "live",
+			"--network-channel-strategy", "named",
+			"--network-channel", "automation",
+		)
+		if err != nil {
+			t.Fatalf("automation jobs create Loop target error = %v", err)
+		}
+		if request.TargetKind != automationpkg.TargetKindLoop || request.AgentName != "" || request.Prompt != "" {
+			t.Fatalf("job target union = %#v, want Loop-only target", request)
+		}
+		if request.LoopTarget == nil || request.LoopTarget.WorkspaceID != "ws-alpha" ||
+			request.LoopTarget.LoopName != "release-readiness" ||
+			request.LoopTarget.Inputs["channel"] != "stable" {
+			t.Fatalf("job Loop target = %#v, want ws-alpha/release-readiness with static inputs", request.LoopTarget)
+		}
+		if retries, ok := request.LoopTarget.Inputs["retries"].(json.Number); !ok || retries.String() != "3" {
+			t.Fatalf("job Loop retries = %#v, want json.Number(3)", request.LoopTarget.Inputs["retries"])
+		}
+		participation := request.LoopTarget.NetworkParticipation
+		if participation == nil || participation.Mode == nil || *participation.Mode != "live" ||
+			participation.ChannelID == nil || *participation.ChannelID != "automation" {
+			t.Fatalf("job Loop Network participation = %#v, want Live automation channel", participation)
+		}
+	})
+
+	t.Run("Should create a global trigger with static and mapped Loop inputs", func(t *testing.T) {
+		t.Parallel()
+
+		var request AutomationTriggerCreateRequest
+		deps := newTestDeps(t, &stubClient{
+			getWorkspaceFn: func(_ context.Context, ref string) (WorkspaceDetailRecord, error) {
+				if ref != "alpha" {
+					t.Fatalf("GetWorkspace ref = %q, want alpha", ref)
+				}
+				return WorkspaceDetailRecord{Workspace: WorkspaceRecord{ID: "ws-alpha"}}, nil
+			},
+			createAutomationTriggerFn: func(
+				_ context.Context,
+				got AutomationTriggerCreateRequest,
+			) (TriggerRecord, error) {
+				request = got
+				return sampleAutomationTriggerRecord(), nil
+			},
+		})
+
+		_, _, err := executeRootCommand(
+			t,
+			deps,
+			"automation", "triggers", "create",
+			"--name", "deployment-review",
+			"--scope", "global",
+			"--event", "webhook",
+			"--loop", "deployment-review",
+			"--loop-workspace", "alpha",
+			"--loop-input", "environment=production",
+			"--loop-input-mapping", "title={{ .trigger.payload.title }}",
+		)
+		if err != nil {
+			t.Fatalf("automation triggers create Loop target error = %v", err)
+		}
+		if request.TargetKind != automationpkg.TargetKindLoop || request.WorkspaceID != "" ||
+			request.AgentName != "" || request.Prompt != "" {
+			t.Fatalf("trigger target union = %#v, want global Loop-only target", request)
+		}
+		if request.LoopTarget == nil || request.LoopTarget.WorkspaceID != "ws-alpha" ||
+			request.LoopTarget.LoopName != "deployment-review" ||
+			request.LoopTarget.Inputs["environment"] != "production" ||
+			request.LoopTarget.InputMapping["title"] != "{{ .trigger.payload.title }}" {
+			t.Fatalf("trigger Loop target = %#v, want static and mapped inputs", request.LoopTarget)
+		}
+	})
+
+	invalidJobs := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{
+			name: "Should reject ambiguous Agent and Loop targets",
+			args: []string{"--agent", "coder", "--prompt", "review", "--loop", "release"},
+			want: "--agent and --loop cannot be combined",
+		},
+		{
+			name: "Should require a prompt for an Agent target",
+			args: []string{"--agent", "coder"},
+			want: "--prompt is required with --agent",
+		},
+		{
+			name: "Should reject Agent prompt fields on a Loop target",
+			args: []string{"--loop", "release", "--loop-workspace", "alpha", "--prompt", "review"},
+			want: "--agent and --prompt must be empty with --loop",
+		},
+		{
+			name: "Should require a Loop name for Loop-only options",
+			args: []string{"--loop-input", "channel=stable"},
+			want: "--loop is required when Loop target flags are set",
+		},
+		{
+			name: "Should require a Loop name for Network participation flags",
+			args: []string{"--network", "live"},
+			want: "--loop is required when Loop target flags are set",
+		},
+		{
+			name: "Should reject Network participation flags on an Agent target",
+			args: []string{
+				"--agent", "coder", "--prompt", "review", "--network", "live",
+				"--network-channel-strategy", "named", "--network-channel", "automation",
+			},
+			want: "Loop target flags cannot be used with --agent",
+		},
+		{
+			name: "Should require a Loop workspace for global automation",
+			args: []string{"--loop", "release"},
+			want: "--loop-workspace is required for a global Loop target",
+		},
+	}
+	for _, tt := range invalidJobs {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			createCalls := 0
+			deps := newTestDeps(t, &stubClient{
+				getWorkspaceFn: func(_ context.Context, _ string) (WorkspaceDetailRecord, error) {
+					return WorkspaceDetailRecord{Workspace: WorkspaceRecord{ID: "ws-alpha"}}, nil
+				},
+				createAutomationJobFn: func(
+					_ context.Context,
+					_ AutomationJobCreateRequest,
+				) (JobRecord, error) {
+					createCalls++
+					return sampleAutomationJobRecord(), nil
+				},
+			})
+			args := []string{
+				"automation", "jobs", "create",
+				"--name", "invalid-target",
+				"--scope", "global",
+				"--schedule", "every:30m",
+			}
+			args = append(args, tt.args...)
+			_, _, err := executeRootCommand(t, deps, args...)
+			assertErrorContains(t, err, tt.want)
+			if createCalls != 0 {
+				t.Fatalf("CreateAutomationJob calls = %d, want 0", createCalls)
+			}
+		})
+	}
+}
+
 func TestAutomationSuggestionsResolveWorkspaceAndPreserveStructuredOutput(t *testing.T) {
 	t.Parallel()
 

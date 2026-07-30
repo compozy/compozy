@@ -6,13 +6,13 @@ persona: Théo
 journey: J-11
 expected: Eligible session stops asynchronously update one workspace-scoped `project_checkpoint_summary.md` through the active memory provider and decision WAL. The next session receives the full checkpoint; failed updates preserve the prior bytes; decision revert restores the previous summary; another workspace never receives the artifact.
 entry_points: daemon session stop/start; workspace memory files; memory decisions CLI/HTTP/UDS/native tools
-qa_status: untested
+qa_status: blocked-verify
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-ms-wave2-current-20260730-061842-796290-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: RT-session-context-rebuild; MS-022
 ---
 

@@ -6,21 +6,21 @@
 .site-doc-masthead__context {
   display: flex;
   align-items: center;
-  gap: 1rem;
-  min-height: 1.75rem;
+  gap: var(--site-doc-masthead-context-gap);
+  min-height: var(--site-doc-masthead-context-height);
   flex-wrap: wrap;
 }
 
 .site-doc-masthead__crumbs {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--site-doc-masthead-crumb-gap);
   min-width: 0;
   font-family: var(--font-mono);
   font-size: var(--text-badge);
   line-height: var(--text-badge--line-height);
   font-weight: 500;
-  letter-spacing: 0.08em;
+  letter-spacing: var(--site-doc-masthead-crumb-tracking);
   text-transform: uppercase;
 }
 
@@ -29,8 +29,8 @@
 }
 
 .site-doc-masthead__crumb-sep {
-  width: 0.875rem;
-  height: 1px;
+  width: var(--site-doc-masthead-crumb-rule-width);
+  height: var(--site-doc-hairline);
   flex-shrink: 0;
   background: var(--color-line-strong);
 }
@@ -52,24 +52,24 @@
 .site-doc-masthead__actions {
   display: flex;
   align-items: center;
-  gap: 0.375rem;
+  gap: var(--site-doc-masthead-action-gap);
   margin-inline-start: auto;
 }
 
 .site-doc-masthead__title {
-  margin-top: 1.125rem;
+  margin-top: var(--site-doc-masthead-title-offset);
   font-family: var(--font-display);
   font-weight: 400;
   font-size: var(--text-site-doc-title);
-  line-height: 1.02;
-  letter-spacing: -0.02em;
+  line-height: var(--site-doc-masthead-title-leading);
+  letter-spacing: var(--site-doc-masthead-title-tracking);
   color: var(--color-fg);
   overflow-wrap: break-word;
 }
 
 .site-doc-masthead__lead {
-  margin-top: 1rem;
-  max-width: 64ch;
+  margin-top: var(--site-doc-masthead-lead-offset);
+  max-width: var(--site-doc-masthead-lead-width);
   font-size: var(--text-site-doc-lead);
   line-height: var(--text-site-doc-lead--line-height);
   color: var(--color-muted);
@@ -78,11 +78,11 @@
 .site-doc-masthead__meta {
   display: flex;
   align-items: center;
-  gap: 1.25rem;
+  gap: var(--site-doc-masthead-meta-gap);
   flex-wrap: wrap;
-  margin-top: 1.5rem;
-  padding-top: 0.875rem;
-  border-top: 1px solid var(--color-line);
+  margin-top: var(--site-doc-masthead-meta-offset);
+  padding-top: var(--site-doc-masthead-meta-rule-gap);
+  border-top: var(--site-doc-hairline) solid var(--color-line);
   font-size: var(--text-small-body);
   line-height: var(--text-small-body--line-height);
   color: var(--color-subtle);
@@ -91,13 +91,13 @@
 .site-doc-masthead__meta-item {
   display: inline-flex;
   align-items: center;
-  gap: 0.4375rem;
+  gap: var(--site-doc-inline-gap);
 }
 
 .site-doc-masthead__meta-icon {
   width: var(--text-card-title);
   height: var(--text-card-title);
-  opacity: 0.7;
+  opacity: var(--site-doc-meta-icon-opacity);
 }
 
 .site-doc-masthead__meta-item strong {
@@ -107,8 +107,8 @@
 
 .site-doc-page-action {
   height: var(--height-search);
-  gap: 0.4375rem;
-  padding-inline: 0.625rem;
+  gap: var(--site-doc-inline-gap);
+  padding-inline: var(--site-doc-action-padding-inline);
   border-radius: var(--radius-md);
   background: var(--color-canvas-soft);
   font-size: var(--text-form-label);
@@ -124,8 +124,8 @@
 
 .site-doc-page-action[data-copy-state="copied"] {
   color: var(--color-success);
-  border-color: color-mix(in srgb, var(--color-success) 35%, transparent);
-  background: color-mix(in srgb, var(--color-success) 10%, transparent);
+  border-color: var(--site-doc-action-success-border);
+  background: var(--site-doc-action-success-background);
 }
 
 .site-doc-page-action[data-copy-state="failed"] {
@@ -145,8 +145,8 @@
 
 .site-doc-body {
   color: var(--color-muted);
-  font-size: 1rem;
-  line-height: var(--leading-doc-body);
+  font-size: var(--text-site-doc-prose);
+  line-height: var(--text-site-doc-prose--line-height);
 }
 
 .site-doc-body > :first-child {
@@ -154,22 +154,22 @@
 }
 
 .site-doc-body h2 {
-  margin-top: 4rem;
-  padding-top: 1rem;
-  border-top: 1px solid var(--color-line);
+  margin-top: var(--site-doc-section-offset);
+  padding-top: var(--site-doc-section-rule-gap);
+  border-top: var(--site-doc-hairline) solid var(--color-line);
   font-family: var(--font-display);
   font-weight: 400;
   font-size: var(--text-site-doc-heading);
-  line-height: 1.1;
+  line-height: var(--site-doc-section-leading);
   letter-spacing: var(--tracking-tight);
   color: var(--color-fg);
 }
 
 .site-doc-body h3 {
-  margin-top: 2.25rem;
-  font-size: 1.25rem;
+  margin-top: var(--site-doc-subsection-offset);
+  font-size: var(--text-site-doc-subheading);
   font-weight: 600;
-  line-height: 1.25;
+  line-height: var(--text-site-doc-subheading--line-height);
   letter-spacing: var(--tracking-tight);
   color: var(--color-fg);
 }
@@ -183,12 +183,12 @@
 .site-doc-body ul,
 .site-doc-body ol,
 .site-doc-body blockquote {
-  max-width: 72ch;
+  max-width: var(--site-doc-prose-width);
 }
 
 .site-doc-body ul,
 .site-doc-body ol {
-  padding-inline-start: 1.3rem;
+  padding-inline-start: var(--site-doc-list-indent);
 }
 
 .site-doc-body li::marker {
@@ -201,11 +201,11 @@
 }
 
 .site-doc-body :is(p, li, td, th, blockquote, h1, h2, h3, h4, h5, h6) code {
-  border: 1px solid var(--color-line);
+  border: var(--site-doc-hairline) solid var(--color-line);
   border-radius: var(--radius-md);
   background: var(--color-elevated);
-  padding-inline: 0.38rem;
-  padding-block: 0.12rem;
+  padding-inline: var(--site-doc-code-padding-inline);
+  padding-block: var(--site-doc-code-padding-block);
   font-size: var(--text-inline-code);
   color: var(--color-fg);
 }
@@ -219,7 +219,7 @@
   color: var(--color-fg);
   text-decoration: underline;
   text-decoration-color: var(--color-line-strong);
-  text-underline-offset: 0.24em;
+  text-underline-offset: var(--site-doc-link-underline-offset);
 }
 
 .site-doc-body :is(p, li, td, th, blockquote) a:hover {
@@ -233,11 +233,11 @@
 
 @media (max-width: 768px) {
   .site-doc-body {
-    font-size: 0.95rem;
-    line-height: 1.75;
+    font-size: var(--text-site-doc-prose-compact);
+    line-height: var(--text-site-doc-prose-compact--line-height);
   }
 
   .site-doc-body h2 {
-    margin-top: 3.25rem;
+    margin-top: var(--site-doc-section-offset-compact);
   }
 }

@@ -6,13 +6,13 @@ persona: Dora
 journey: J-route-background-work
 expected: Settings → Roles renders the six roles in product order with truthful builtin, inherit, off, provenance, fallback, and diagnostic states; a valid edit applies Live, survives reload, and never exposes virtual builtins in the Agents fleet.
 entry_points: Web /settings/roles; GET/PATCH /api/settings/roles; GET /api/roles
-qa_status: untested
+qa_status: blocked-verify
 bug_ids: BUG-20260724-inherited-role-provider-resolution
 fix_status: fixed
-retest_status: pending
+retest_status: pass
 fix_commits: a9a8fcad63f4354505e4c9a0701a6d0f559cc991
-evidence: /Users/pedronauck/dev/qa-labs/compozy-agent-roles-devtool-oss-launch-20260724-094737-758561-lab/qa-artifacts/qa/screenshots/settings-roles-loaded.png; /Users/pedronauck/dev/qa-labs/compozy-agent-roles-devtool-oss-launch-20260724-094737-758561-lab/qa-artifacts/qa/screenshots/settings-roles-ghost-diagnostic.png; /Users/pedronauck/dev/qa-labs/compozy-agent-roles-devtool-oss-launch-20260724-094737-758561-lab/qa-artifacts/qa/screenshots/settings-roles-compact.png; /Users/pedronauck/dev/qa-labs/compozy-agent-roles-devtool-oss-launch-20260724-094737-758561-lab/qa-artifacts/qa/ui-settings-roles-after-save.json; /Users/pedronauck/dev/qa-labs/compozy-agent-roles-devtool-oss-launch-20260724-094737-758561-lab/qa-artifacts/qa/inherit-provider-fix-parent-after-title.json
-last_report: docs/qa/reports/2026-07-24-agent-roles.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-agent-roles-devtool-oss-launch-20260724-094737-758561-lab/qa-artifacts/qa/screenshots/settings-roles-loaded.png; /Users/pedronauck/dev/qa-labs/compozy-agent-roles-devtool-oss-launch-20260724-094737-758561-lab/qa-artifacts/qa/screenshots/settings-roles-ghost-diagnostic.png; /Users/pedronauck/dev/qa-labs/compozy-agent-roles-devtool-oss-launch-20260724-094737-758561-lab/qa-artifacts/qa/screenshots/settings-roles-compact.png; /Users/pedronauck/dev/qa-labs/compozy-agent-roles-devtool-oss-launch-20260724-094737-758561-lab/qa-artifacts/qa/ui-settings-roles-after-save.json; /Users/pedronauck/dev/qa-labs/compozy-agent-roles-devtool-oss-launch-20260724-094737-758561-lab/qa-artifacts/qa/inherit-provider-fix-parent-after-title.json;/Users/pedronauck/dev/qa-labs/compozy-ms-wave2-current-20260730-061842-796290-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: MS-background-role-routing;MS-inspect-background-role-routing;MS-026;RT-reserved-builtin-agent-names
 ---
 

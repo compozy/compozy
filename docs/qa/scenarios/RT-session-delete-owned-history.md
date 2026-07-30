@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-11
 expected: Confirming deletion of a stopped session removes its catalog row, transcript/history, permission log, token statistics, and other session-owned rows atomically while preserving every other session.
 entry_points: Web session Delete session modal; HTTP session DELETE; global session catalog
-qa_status: untested
+qa_status: blocked-verify
 bug_ids: BUG-20260714-session-delete-history-fk
 fix_status: fixed
 retest_status: pass
 fix_commits: 8eeb8a38
-evidence: /Users/pedronauck/dev/qa-labs/compozy-consumer-saas-growth-20260714-194637-422214-lab/qa-artifacts/qa/session-delete/; /Users/pedronauck/dev/qa-labs/compozy-consumer-saas-growth-20260714-194637-422214-lab/qa-artifacts/qa/screenshots/session-delete-fresh-web.png
-last_report: docs/qa/reports/2026-07-14-consumer-saas-growth.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-consumer-saas-growth-20260714-194637-422214-lab/qa-artifacts/qa/session-delete/; /Users/pedronauck/dev/qa-labs/compozy-consumer-saas-growth-20260714-194637-422214-lab/qa-artifacts/qa/screenshots/session-delete-fresh-web.png;/Users/pedronauck/dev/qa-labs/compozy-qa-rt-current-source-20260730-20260730-061631-252740-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: RT-034;RT-035;TA-task-create-async-activation
 ---
 

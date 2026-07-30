@@ -6,13 +6,13 @@ persona: Théo
 journey: J-answer-agent-requests
 expected: Allow-always and reject-always decisions survive daemon restart only for the exact workspace, agent, tool, and input digest; explicit agent-wide and tool-wide decisions set through Web, CLI, HTTP, UDS, and native tools survive restart without an input digest; every surface lists the same rows; revocation removes each decision everywhere and wider allows never exceed the configured tool-policy ceiling.
 entry_points: Native-tool permission prompt; Web Settings / General; compozy tool approvals set/list/revoke; PUT/GET/DELETE /api/tool-approval-grants; compozy__tool_approvals_set/list/revoke
-qa_status: untested
+qa_status: blocked-verify
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-et-current-source-20260730-061655-910372-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: ET-037;ET-038
 ---
 

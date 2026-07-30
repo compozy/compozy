@@ -1,6 +1,6 @@
 # BUG-20260729-provider-model-pricing-roundtrip: Provider Settings discarded model pricing changes
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Data-Loss
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Ada
@@ -40,7 +40,7 @@ effective values or remained absent from raw config.
 - **Correction:** Reconciliation now projects the effective pre-write catalog state, compares every
   configurable model field, and persists only explicit deltas. Unchanged catalog labels, limits,
   and release metadata are not materialized into operator config.
-- **Fix commit:** pending completion gate
+- **Fix commit:** `351f3535`
 - **Regression test:** `Should persist explicit five-rate changes without materializing unchanged
   catalog metadata` in `internal/settings/config_apply_service_test.go`.
 
@@ -49,4 +49,4 @@ effective values or remained absent from raw config.
 - The repaired daemon persisted `1.1`, `2.2`, `0.11`, `0.22`, and `3.3` for the five buckets.
 - Settings, `config show`, HTTP/UDS catalog readback, and a daemon restart retained the exact values.
 - The full `internal/settings` race suite passes with 215 tests.
-- **Retested:** rebuilt candidate green; governed fix commit pending
+- **Retested:** 2026-07-29, rebuilt five-rate round-trip replay green; fix shipped in `351f3535`

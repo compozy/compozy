@@ -1,6 +1,9 @@
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { createMDX } from "fumadocs-mdx/next";
 
 const withMDX = createMDX();
+const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
 /** @type {import('next').NextConfig} */
 const config = {
@@ -9,6 +12,9 @@ const config = {
   reactCompiler: true,
   reactStrictMode: true,
   trailingSlash: true,
+  turbopack: {
+    root: repoRoot,
+  },
   images: {
     formats: ["image/avif", "image/webp"],
     qualities: [75, 90],

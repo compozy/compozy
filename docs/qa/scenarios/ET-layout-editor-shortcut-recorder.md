@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-administer-window-manager
 expected: Clicking a chord records the next real key combination; a bare key or a modifier-only press is refused with a spoken reason; recording an action's shipped default clears the override instead of storing a copy; only overrides are persisted; two overrides on one chord block the save and say so, while an override landing on another action's shipped chord is stored and explained as shadowing; Escape cancels recording; reset returns one action or all of them to the shipped keymap.
 entry_points: Settings › Layouts › Shortcuts
-qa_status: untested
+qa_status: blocked-verify
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-et-current-source-20260730-061655-910372-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: MS-configure-window-manager
 ---
 

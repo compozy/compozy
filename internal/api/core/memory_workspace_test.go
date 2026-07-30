@@ -1177,6 +1177,27 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 			t.Fatalf("daily payload = %#v, want at least one operation log", dailyPayload)
 		}
 
+		rejectedResetResp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPost,
+			"/memory/reset",
+			[]byte(`{"scope":"global","derived_only":false,"confirm":true}`),
+		)
+		if rejectedResetResp.Code != http.StatusUnprocessableEntity {
+			t.Fatalf(
+				"curated reset status = %d, want %d; body=%s",
+				rejectedResetResp.Code,
+				http.StatusUnprocessableEntity,
+				rejectedResetResp.Body.String(),
+			)
+		}
+		var rejectedResetPayload contract.MemoryErrorPayload
+		testutil.DecodeJSONResponse(t, rejectedResetResp, &rejectedResetPayload)
+		if rejectedResetPayload.Code != "memory.rejected" {
+			t.Fatalf("curated reset error = %#v, want memory.rejected", rejectedResetPayload)
+		}
+
 		resetResp := performRequest(
 			t,
 			fixture.Engine,

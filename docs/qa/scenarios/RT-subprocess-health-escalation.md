@@ -6,13 +6,13 @@ persona: Ada
 journey: J-diagnose-task-session-health
 expected: Active failed ACP health verdicts produce the same bounded evidence through HTTP, UDS, compozy status, and runtime.subprocess_health doctor output; the configured threshold moves the exact linked nonterminal run to needs_attention once, an unexpected process exit escalates immediately, terminal runs remain terminal, and threshold 0 preserves diagnostics without task mutation.
 entry_points: daemon.subprocess_health_escalation_threshold; GET /api/status; GET /api/doctor; compozy status; compozy doctor --only runtime.subprocess_health; compozy task run recover
-qa_status: untested
+qa_status: blocked-verify
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-rt-current-source-20260730-20260730-061631-252740-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: TA-033; RT-002
 ---
 

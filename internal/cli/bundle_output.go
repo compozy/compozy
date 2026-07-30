@@ -29,7 +29,7 @@ func bundleCatalogBundle(items []BundleCatalogRecord) outputBundle {
 			"profiles",
 			"layouts",
 			"agents",
-			"jobs",
+			automationJobsKey,
 			"triggers",
 			"bridges",
 		},

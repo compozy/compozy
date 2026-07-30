@@ -6,13 +6,13 @@ persona: Rafa
 journey: J-14
 expected: An oversized post-hook redacted tool result keeps a truthful preview, opens as exact ordered bytes in Web, native tool, CLI, HTTP, and UDS, remains isolated to its workspace, survives daemon restart until deterministic retention removes it, and preserves a bounded partial result if persistence fails.
 entry_points: Web session tool-result card; compozy__tool_artifact_read; compozy tool artifact read; GET /api/workspaces/:workspace_id/tool-artifacts/:artifact_id
-qa_status: untested
+qa_status: blocked-verify
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-et-current-source-20260730-061655-910372-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps:
 ---
 

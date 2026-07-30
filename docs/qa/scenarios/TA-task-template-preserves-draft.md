@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-complete-task-tree
 expected: Switching a Create task template or editor mode preserves title and description while updating only preset-owned contract fields, unless the operator explicitly confirms a reset.
 entry_points: web Create task modal
-qa_status: untested
+qa_status: pass
 bug_ids: BUG-20260713-task-template-clears-draft
 fix_status: fixed
 retest_status: pass
 fix_commits: 8eeb8a38
-evidence: /Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-task-template-draft-fixed.dom.txt
-last_report: docs/qa/reports/2026-07-13-automation-features.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-task-template-draft-fixed.dom.txt;/Users/pedronauck/dev/qa-labs/compozy-qa-ta-replay-20260730-062156-531636-lab/qa-artifacts/qa;/Users/pedronauck/dev/qa-labs/compozy-qa-ta-b-current-source-20260730-061710-562313-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: TA-parent-rollup-completion
 ---
 

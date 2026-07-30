@@ -6,13 +6,13 @@ persona: Dora
 journey: J-drain-daemon-safely
 expected: Draining the daemon through CLI, HTTP, or UDS returns the same stable draining state, projects informational status and doctor evidence, refuses new session, prompt, enqueue, and claim work with HTTP 503, lets admitted prompts and claimed runs finish, and restores admission after undrain or restart.
 entry_points: compozy drain; compozy undrain; POST /api/drain; POST /api/undrain; compozy status; compozy doctor; session and task admission surfaces
-qa_status: untested
+qa_status: blocked-verify
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-rt-current-source-20260730-20260730-061631-252740-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: MS-daemon-memory-reporting; TA-daemon-lifecycle-command-guard
 ---
 

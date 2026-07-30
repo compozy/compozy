@@ -6,13 +6,13 @@ persona: Dora
 journey: J-complete-web-bridge-setup
 expected: Opening Edit bridge shows platform, extension, and scope as readable locked identity — never as disabled inputs — because the update contract omits them. Simple carries the display name and DM policy. Advanced adds credential rotation (presence plus the stored vault reference, never a value), routing, delivery defaults, the provider-config JSON, and the delivery test. Save stays inert until something actually changes: reformatting the provider-config JSON without changing the object does not enable it, while a typed rotation does. Saving commits the PATCH and any typed rotation through the same single primary. The delivery test is reachable only from Advanced — the standalone check/send dialogs are gone. From the bridge detail, one "Test delivery" button opens the editor already in Advanced. The dry run resolves a target with no provider side effect; the real send needs a message and an enabled bridge, and says so when the bridge is disabled. An indeterminate provider result is reported as such rather than as success.
 entry_points: web desktop shell → Bridges → bridge detail → Edit bridge, or bridge detail → Test delivery
-qa_status: untested
+qa_status: blocked-verify
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence: .compozy/tasks/modals-redesign/evidence/visual/task_03/VC-06
-last_report:
+evidence: .compozy/tasks/modals-redesign/evidence/visual/task_03/VC-06;/Users/pedronauck/dev/qa-labs/compozy-ms-wave2-current-20260730-061842-796290-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: MS-web-entity-modal-shell; NB-bridge-edit-reply; NB-indeterminate-bridge-delivery; NB-web-bridge-setup
 ---
 

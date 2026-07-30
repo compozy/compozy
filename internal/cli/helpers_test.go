@@ -3691,6 +3691,17 @@ func executeRootCommand(t *testing.T, deps commandDeps, args ...string) (string,
 	return stdout.String(), stderr.String(), err
 }
 
+func assertErrorContains(t *testing.T, err error, want string) {
+	t.Helper()
+
+	if err == nil {
+		t.Fatalf("error = nil, want error containing %q", want)
+	}
+	if !strings.Contains(err.Error(), want) {
+		t.Fatalf("error = %v, want error containing %q", err, want)
+	}
+}
+
 func executeRootCommandWithExit(
 	t *testing.T,
 	deps commandDeps,

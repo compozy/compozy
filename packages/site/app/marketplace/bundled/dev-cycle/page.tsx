@@ -12,11 +12,13 @@ import Link from "next/link";
 import { MarketplaceCrumbs } from "@/components/marketplace/marketplace-crumbs";
 import { MarketplaceInstallCommand } from "@/components/marketplace/marketplace-install-command";
 import { devCycleExtension } from "@/lib/marketplace-bundled";
+import { bundledDevCycleDescription } from "@/lib/marketplace-copy";
+import { docsSource } from "@/lib/source";
 import { createPageMetadata } from "@/lib/site-config";
 
 export const metadata: Metadata = createPageMetadata({
   title: `${devCycleExtension.displayName} — Marketplace`,
-  description: `${devCycleExtension.description} Bundled with the Compozy runtime and enrolled at first boot.`,
+  description: bundledDevCycleDescription(devCycleExtension.description),
   path: "/marketplace/bundled/dev-cycle",
 });
 
@@ -59,6 +61,9 @@ function Chip({ icon: Icon, children }: { icon: typeof FileCode; children: strin
 
 export default function BundledDevCyclePage() {
   const { loops, skills, agents, tools } = devCycleExtension;
+  const walkthroughs = new Map(
+    loops.map(loop => [loop.name, docsSource.getPage(["examples", `${loop.name}-loop`])?.url])
+  );
 
   return (
     <main id="main-content" className="mx-auto w-full max-w-3xl px-4 pt-12 pb-20">
@@ -109,31 +114,38 @@ export default function BundledDevCyclePage() {
 
         <InventoryLabel>{`${loops.length} loops · compozy.loop/v1`}</InventoryLabel>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
-          {loops.map(loop => (
-            <article key={loop.name} className="rounded-xl border border-line bg-canvas-soft p-4">
-              <p className="flex flex-wrap items-center gap-2 font-mono text-card-title font-medium text-fg">
-                <Repeat aria-hidden className="size-3.5 shrink-0 text-muted" />
-                {loop.name}
-                {loop.category ? (
-                  <Pill size="sm" mono>
-                    {loop.category}
-                  </Pill>
-                ) : null}
-              </p>
-              <p className="mt-2 text-small-body leading-relaxed text-muted">{loop.description}</p>
-              {loop.useWhen ? (
-                <p className="mt-2.5 text-small-body leading-relaxed text-subtle">
-                  <strong className="font-medium text-muted">Use when</strong> {loop.useWhen}
+          {loops.map(loop => {
+            const walkthroughUrl = walkthroughs.get(loop.name);
+            return (
+              <article key={loop.name} className="rounded-xl border border-line bg-canvas-soft p-4">
+                <p className="flex flex-wrap items-center gap-2 font-mono text-card-title font-medium text-fg">
+                  <Repeat aria-hidden className="size-3.5 shrink-0 text-muted" />
+                  {loop.name}
+                  {loop.category ? (
+                    <Pill size="sm" mono>
+                      {loop.category}
+                    </Pill>
+                  ) : null}
                 </p>
-              ) : null}
-              <Link
-                href={`/docs/examples/${loop.name}-loop`}
-                className="mt-3.5 inline-flex text-small-body font-medium text-muted transition-colors hover:text-accent"
-              >
-                Read the walkthrough
-              </Link>
-            </article>
-          ))}
+                <p className="mt-2 text-small-body leading-relaxed text-muted">
+                  {loop.description}
+                </p>
+                {loop.useWhen ? (
+                  <p className="mt-2.5 text-small-body leading-relaxed text-subtle">
+                    <strong className="font-medium text-muted">Use when</strong> {loop.useWhen}
+                  </p>
+                ) : null}
+                {walkthroughUrl ? (
+                  <Link
+                    href={walkthroughUrl}
+                    className="mt-3.5 inline-flex text-small-body font-medium text-muted transition-colors hover:text-accent"
+                  >
+                    Read the walkthrough
+                  </Link>
+                ) : null}
+              </article>
+            );
+          })}
         </div>
 
         <InventoryLabel>{`${skills.length} skills`}</InventoryLabel>

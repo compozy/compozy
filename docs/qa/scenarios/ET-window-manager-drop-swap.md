@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-administer-window-manager
 expected: Holding the configured `swap_modifier` (default Shift) while dragging over any tiled window shows a whole-window "Swap windows" preview instead of split/insert/stack; releasing commits one `window.swap` that exchanges the two windows' structural places (tiled↔tiled, floating↔tiled, cross-desktop, and stack membership all exchange cleanly); releasing the modifier mid-drag restores structural drop previews on the next pointer move; `swap_modifier = "none"` disables the gesture; the same swap remains reachable via `compozy window swap` and `compozy__window_manager`.
 entry_points: web desktop window drag; Settings window management swap modifier; compozy window swap; compozy__window_manager
-qa_status: untested
+qa_status: blocked-verify
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-et-current-source-20260730-061655-910372-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: ET-window-manager-layout-gestures; MS-configure-window-manager; ET-window-manager-public-parity
 ---
 

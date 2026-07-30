@@ -6,13 +6,13 @@ persona: Ada
 journey: J-offer-runnable-capabilities
 expected: An empty organizational group is ignored; nested `SKILL.md` leaves appear in the effective workspace catalog and management surfaces, a live nested add/edit/remove refreshes without daemon restart, and two workspaces expose only their own grouped skills. `compozy skill create <name> --group <relative/path>` scaffolds the nested leaf without changing its frontmatter identity or normal shadow precedence.
 entry_points: `.compozy/skills/**/SKILL.md`; `compozy skill create --group`; `compozy skill list|view|where`; `GET /api/skills`; `compozy__skill_list|view`; workspace skill watcher
-qa_status: untested
+qa_status: blocked-verify
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-et-current-source-20260730-061655-910372-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: ET-001; ET-003; ET-004; ET-skill-activation-gates
 ---
 

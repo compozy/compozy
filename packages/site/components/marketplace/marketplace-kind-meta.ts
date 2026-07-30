@@ -1,6 +1,8 @@
 import { FileCode, Plug, Puzzle, type LucideIcon } from "lucide-react";
 import type { MarketplaceKind } from "@/lib/marketplace-catalog";
 
+export type { LucideIcon } from "lucide-react";
+
 export type MarketplaceKindMeta = {
   kind: MarketplaceKind;
   /** Singular noun for breadcrumbs and detail copy. */
