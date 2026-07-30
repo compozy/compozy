@@ -93,6 +93,23 @@ demo-seed:
 help:
 	@$(MAGE_RUN) -l
 
+# Evidence-cached gates
+#
+# `gate` classifies the branch diff and runs only affected lanes; sensitive
+# paths (schema, contracts, config, deps, build tooling) escalate to the full
+# verify. `gate-full` is the completion/PR gate. Both record evidence in
+# .cache/gate/ keyed by tree-content fingerprint — a gate whose record matches
+# the current fingerprint is a no-op. `gate-status` prints records for citing.
+.PHONY: gate gate-full gate-status
+gate:
+	@bash scripts/gate.sh auto
+
+gate-full:
+	@bash scripts/gate.sh full
+
+gate-status:
+	@bash scripts/gate.sh status
+
 # Documentation Site
 .PHONY: site-dev site-build cli-docs cli-docs-check migration-guide-check
 

@@ -64,4 +64,4 @@ deployments. Bridge config cannot redirect bound credentials.
   PAT/App authentication probe.
 - Generic outbound media and provider-visible tool progress are not implemented.
 
-See `packages/site/content/runtime/core/bridges/setup-github.mdx` for the full operator journey.
+See `packages/site/content/docs/bridges/setup-github.mdx` for the full operator journey.

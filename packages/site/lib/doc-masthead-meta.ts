@@ -45,11 +45,23 @@ export function sectionPageCount(tree: Root, pageUrl: string): number | null {
   return count > 0 ? count : null;
 }
 
+/**
+ * The docs root titles itself `CompozyOS documentation`, which would repeat the product word
+ * already standing to its left (`CompozyOS › CompozyOS documentation`). The trail names the
+ * destination instead.
+ */
+const DOCS_ROOT_CRUMB = "Docs";
+
 export function buildMastheadCrumbs(
   tree: Root,
   pageUrl: string,
-  pageTitle: string
+  pageTitle: string,
+  isRoot = false
 ): DocMastheadCrumb[] {
+  if (isRoot) {
+    return [{ name: DOCS_ROOT_CRUMB }];
+  }
+
   const items = getBreadcrumbItems(pageUrl, tree, { includePage: true });
   const crumbs: DocMastheadCrumb[] = items.map(item => ({
     name: nodeName(item.name) || pageTitle,
@@ -78,7 +90,7 @@ export function resolveDocMastheadMeta(
   return {
     product: resolveProductLabel(slug),
     audience: resolveAudience(slug),
-    crumbs: buildMastheadCrumbs(tree, pageUrl, pageTitle),
+    crumbs: buildMastheadCrumbs(tree, pageUrl, pageTitle, slug.length === 0),
     sectionPageCount: sectionPageCount(tree, pageUrl),
   };
 }

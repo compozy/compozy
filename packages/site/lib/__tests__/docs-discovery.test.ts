@@ -61,6 +61,7 @@ describe("docs discovery", () => {
       "migration",
       "---Guides & examples---",
       "guides",
+      "examples",
       "use-cases",
       "---Core concepts---",
       "sessions",
@@ -101,8 +102,9 @@ describe("docs discovery", () => {
     expect(apiMeta.root).toBeUndefined();
   });
 
-  it("keeps newly added guide and use-case sections discoverable", () => {
+  it("keeps the guide, example, and use-case sections discoverable", () => {
     const guidesMeta = readDocsJSON<{ pages: string[] }>("guides/meta.json");
+    const examplesMeta = readDocsJSON<{ pages: string[] }>("examples/meta.json");
     const useCasesMeta = readDocsJSON<{ pages: string[] }>("use-cases/meta.json");
 
     expect(guidesMeta.pages).toEqual([
@@ -111,6 +113,14 @@ describe("docs discovery", () => {
       "choose-an-operator-surface",
       "debug-a-failed-session",
       "coordinate-agents-over-network",
+    ]);
+    expect(examplesMeta.pages).toEqual([
+      "index",
+      "review-and-fix-loop",
+      "software-delivery-loop",
+      "morning-briefing-job",
+      "webhook-to-agent-run",
+      "react-to-session-end",
     ]);
     expect(useCasesMeta.pages).toEqual([
       "index",
@@ -122,6 +132,9 @@ describe("docs discovery", () => {
 
     for (const page of guidesMeta.pages) {
       expect(docsPageExists("guides", `${page}.mdx`)).toBe(true);
+    }
+    for (const page of examplesMeta.pages) {
+      expect(docsPageExists("examples", `${page}.mdx`)).toBe(true);
     }
     for (const page of useCasesMeta.pages) {
       expect(docsPageExists("use-cases", `${page}.mdx`)).toBe(true);

@@ -19,7 +19,7 @@ Claiming work is complete without verification is dishonesty, not efficiency.
 NO COMPLETION CLAIMS WITHOUT FRESH VERIFICATION EVIDENCE
 ```
 
-If the verification command has not been run in the current message, the result cannot be claimed.
+If the verification command has not been run in the current message, the result cannot be claimed. One equivalence: a project-provided evidence record that is current for the exact tree being claimed counts as a fresh run (see "Evidence Records").
 
 ## The Gate Function
 
@@ -46,9 +46,20 @@ Match the verification scope to the claim scope:
 
 A narrow verification does not support a broad claim. Running `make test` alone does not justify "task complete." Running the linter alone does not justify "ready to commit." The verification scope must be equal to or broader than the claim scope.
 
+**Intermediate tasks in a multi-task loop are narrow claims by design.** When an orchestrating workflow (task loop, batch driver) owns the workstream, the per-task claim is "task implemented; affected lanes green; full gate deferred to workstream close" — run the scoped gate and state exactly that. The broad "workstream complete" claim still takes the full pipeline (or a current full-gate evidence record) at close.
+
 **If in doubt, run the full pipeline.** Over-verification wastes minutes. Under-verification wastes hours.
 
 **Passing pipeline != meeting requirements.** A green build proves the code compiles, lints, and passes existing tests. It does not prove the implementation matches the requirements. For "task complete" or "requirements met" claims, also verify the deliverables against the original specification — line by line, not by assumption. In a spec/PRD workflow, "the original specification" means the canonical artifacts in the spec directory (example documents, input tables, parity maps, QA seeds) — never just the task file's paraphrase of them (see "Spec Contract Parity").
+
+## Evidence Records (fingerprint-keyed gates)
+
+Some projects cache gate results as machine-checkable records keyed by a content fingerprint of the working tree (e.g. a `make gate-status` that prints per-gate result, fingerprint, and log path). For those projects:
+
+- A **passing record whose fingerprint matches the current tree is fresh evidence.** Cite it (gate id, fingerprint, log path) instead of re-running; re-running a current gate proves nothing new and saturates the machine.
+- A **missing or stale record means the gate runs now.** Any edit changes the fingerprint; commits alone do not — records key on content, not on HEAD.
+- **Scope still binds.** A scoped-lane record never supports a broad claim; "task complete" takes a current full-gate record or a full run now.
+- On a **`fail` record**, open its recorded log and follow "When Verification Fails" — never re-litigate it from memory.
 
 ## Common Failures
 
@@ -119,7 +130,7 @@ Commits and PRs are permanent artifacts. They require the highest verification s
 **Before `git commit`:**
 
 1. If the `deslop` skill exists, run the deslop pass (see "Deslop Gate" above).
-2. Run the full verification pipeline (e.g., `make verify`). Not a subset. The full pipeline.
+2. Run the project's full gate (e.g., `make gate-full` / `make verify`) — or cite a passing full-gate evidence record current for this tree. Not a subset. The full pipeline.
 3. Confirm zero errors, zero warnings, zero test failures in the output.
 4. If both `qa-report` and `qa-execution` skills exist and the project keeps living QA scenario files (e.g. `docs/qa/scenarios/*.md`), apply the QA impact gate — flag and walk (see "QA Tracker Impact" below).
 5. Produce a Verification Report (see template below) with verdict PASS.
@@ -131,7 +142,7 @@ Commits and PRs are permanent artifacts. They require the highest verification s
 2. Verify the diff matches the intended changes (`git diff` review).
 3. Confirm no unrelated files are staged.
 
-If the full pipeline has not passed in this session after the last code change, the commit or PR must not proceed.
+If the full pipeline has not passed after the last code change — by fresh run or current evidence record — the commit or PR must not proceed.
 
 ## QA Tracker Impact (living QA docs)
 
@@ -185,7 +196,7 @@ VERIFICATION REPORT
 -------------------
 Claim: [What is being claimed — e.g., "tests pass", "build succeeds", "task complete"]
 Command: [Exact command run — e.g., `make verify`]
-Executed: [Timestamp or "just now, after all changes"]
+Executed: [Timestamp, "just now, after all changes", or "cached — evidence record fingerprint <hash>"]
 Exit code: [0 or non-zero]
 Output summary: [Key lines from output — pass count, error count, build result]
 Warnings: [Any warnings, or "none"]

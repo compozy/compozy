@@ -77,6 +77,6 @@ Notes:
 - `COMPOZY_BRIDGE_DISCORD_API_BASE_URL` is an operator-owned process override for local development and integration tests. Bridge config cannot change the credential-bearing API destination.
 - Direct-message enforcement uses the bridge instance `dm_policy` plus the provider-config allowlist or paired-user fields.
 
-See the [Discord operator setup guide](../../../packages/site/content/runtime/core/bridges/setup-discord.mdx)
+See the [Discord operator setup guide](../../../packages/site/content/docs/bridges/setup-discord.mdx)
 for application setup, route selection, endpoint verification, real inbound proof, delivery testing,
 and troubleshooting.

@@ -1,6 +1,6 @@
 {
     "title": "Autonomy",
-    "icon": "Activity",
+    "icon": "ShieldCheck",
     "pages": [
         "index",
         "coordinator",

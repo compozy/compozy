@@ -205,18 +205,11 @@ func TestProductionSourceLineLimit(t *testing.T) {
 			want bool
 		}{
 			{name: "Should include Go runtime source", path: "internal/store/sqlite.go", want: true},
-			{name: "Should include Web source", path: "web/src/systems/session/view.tsx", want: true},
-			{name: "Should include Storybook source", path: "web/src/system.stories.tsx", want: true},
+			{name: "Should include Go tooling source", path: "scripts/demo-seed/main.go", want: true},
 			{name: "Should exclude Go tests", path: "internal/store/sqlite_test.go", want: false},
-			{name: "Should exclude Web tests", path: "web/src/__tests__/view.test.tsx", want: false},
-			{
-				name: "Should exclude generated contracts",
-				path: "sdk/typescript/src/generated/contracts.ts",
-				want: false,
-			},
+			{name: "Should exclude generated Go", path: "internal/api/api.gen.go", want: false},
 			{name: "Should exclude sqlc output", path: "internal/store/sqlcgen/query.sql.go", want: false},
-			{name: "Should exclude fixtures", path: "web/src/system/fixtures/data.ts", want: false},
-			{name: "Should exclude reference slides", path: "packages/slides/slides/demo/index.tsx", want: false},
+			{name: "Should exclude non-Go web source", path: "web/src/systems/session/view.tsx", want: false},
 			{name: "Should exclude declarative tokens", path: "packages/ui/src/tokens.css", want: false},
 			{name: "Should exclude workflow governance", path: ".agents/skills/tool/scripts/check.py", want: false},
 		}

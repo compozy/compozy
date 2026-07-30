@@ -1,6 +1,7 @@
 ---
-title: Overview
+title: CompozyOS documentation
 description: What CompozyOS is, how sessions, memory, permissions, automation, and Compozy Network fit together, and where to start for your job.
+icon: BookOpen
 ---
 
 CompozyOS is an agent operating system for real work. It runs the agent CLIs you already use —
@@ -16,36 +17,77 @@ and people or agents can operate the same state through structured surfaces.
 The docs serve four jobs. Start with yours — every path stays inside the same system, so the deeper
 pages are always one link away.
 
-<RouteList>
-  <RouteRow
-    href="/docs/getting-started/installation"
+<PathGrid>
+  <PathCard
     label="People running agent work"
     title="Start and steer agent work"
-    description="Install the runtime, run the quick start, meet your first agent, and watch work finish in the web UI. Sessions stay durable and inspectable — nothing lives in a throwaway terminal tab."
-    meta="Start here"
-  />
-  <RouteRow
-    href="/docs/extensions/develop"
+    description="Install the runtime, start your first session, and watch work finish. Sessions stay durable and inspectable — nothing lives in a throwaway terminal tab."
+  >
+    <PathLink href="/docs/getting-started/installation" icon="Rocket" cta>
+      Install the runtime
+    </PathLink>
+    <PathLink href="/docs/getting-started/quick-start" icon="Play">
+      Quick start
+    </PathLink>
+    <PathLink href="/docs/getting-started/first-agent" icon="Bot">
+      Your first agent
+    </PathLink>
+    <PathLink href="/docs/getting-started/web-ui" icon="AppWindow">
+      The web UI
+    </PathLink>
+  </PathCard>
+  <PathCard
     label="Agent & runtime developers"
     title="Build on the runtime"
     description="Extensions, hooks, skills, tools, and SDKs plug into daemon-owned registries and public contracts. Anything the UI can do, an agent can do through CLI, HTTP, or UDS."
-    meta="Extensibility"
-  />
-  <RouteRow
-    href="/docs/network/protocol"
+  >
+    <PathLink href="/docs/extensions/develop" icon="Puzzle" cta>
+      Build an extension
+    </PathLink>
+    <PathLink href="/docs/skills/skill-md" icon="FileCode">
+      Author a skill
+    </PathLink>
+    <PathLink href="/docs/tools/toolsets" icon="Plug">
+      Tools and toolsets
+    </PathLink>
+    <PathLink href="/docs/cli" icon="Terminal">
+      CLI reference
+    </PathLink>
+  </PathCard>
+  <PathCard
     label="Protocol implementers"
     title="Implement compozy-network/v0"
     description="The wire format for agent-to-agent coordination: envelopes, message kinds, delivery, and receipts — implementable without adopting Compozy internals."
-    meta="Protocol spec"
-  />
-  <RouteRow
-    href="/docs/use-cases"
+  >
+    <PathLink href="/docs/network/protocol" icon="Network" cta>
+      Read the compozy-network/v0 spec
+    </PathLink>
+    <PathLink href="/docs/network/protocol/envelope" icon="Mail">
+      Envelope
+    </PathLink>
+    <PathLink href="/docs/network/protocol/message-kinds" icon="List">
+      Message kinds
+    </PathLink>
+    <PathLink href="/docs/network/protocol/conformance" icon="BadgeCheck">
+      Conformance
+    </PathLink>
+  </PathCard>
+  <PathCard
     label="Evaluators"
     title="See what ships today"
-    description="Real use cases grounded in shipped mechanisms, plus a browsable catalog of skills, extensions, and MCP servers rendered from the same feeds the daemon reads."
-    meta="Use cases"
-  />
-</RouteList>
+    description="Real use cases and runnable examples, each grounded in a shipped mechanism and labeled with honest maturity. No roadmap dressed as product."
+  >
+    <PathLink href="/docs/use-cases" icon="Workflow" cta>
+      Read the use cases
+    </PathLink>
+    <PathLink href="/docs/examples" icon="FlaskConical">
+      Run an example
+    </PathLink>
+    <PathLink href="/marketplace" icon="Store">
+      Browse the marketplace
+    </PathLink>
+  </PathCard>
+</PathGrid>
 
 ## One system, not a stack of tools
 
@@ -66,16 +108,42 @@ One sidebar, eight groups, ordered by journey: start, do, understand, automate, 
 operate, look up. Task-oriented content sits above concepts; the generated references collapse to
 two rows until you need them.
 
-| Group             | What lives there                                                                                                                                                                                       |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Start here        | [Getting started](/docs/getting-started) and [migration](/docs/migration) — install, run the quick start, meet your first agent.                                                                       |
-| Guides & examples | Task-first material: [guides](/docs/guides) for a job to be done and [use cases](/docs/use-cases) that show whole journeys.                                                                            |
-| Core concepts     | The state model behind the work: [sessions](/docs/sessions), [agents](/docs/agents), [autonomy](/docs/autonomy), [memory](/docs/memory), [workspaces](/docs/workspaces), and [sandbox](/docs/sandbox). |
-| Automation        | Work that runs without you: [jobs, triggers, and webhooks](/docs/automation), goal-seeking [Loops](/docs/loops), and chat [bridges](/docs/bridges).                                                    |
-| Compozy Network   | [Using the network from Compozy](/docs/network), with the [compozy-network/v0 protocol spec](/docs/network/protocol) nested one level deeper for implementers.                                         |
-| Extensibility     | How the system grows: the [marketplace](/docs/marketplace), [skills](/docs/skills), [tools](/docs/tools), [resources](/docs/resources), [extensions](/docs/extensions), and [hooks](/docs/hooks).      |
-| Operations        | Running the daemon well: [operations](/docs/operations) and every [configuration](/docs/configuration) surface, from `config.toml` to file locations.                                                  |
-| Reference         | Generated from the runtime, never paraphrased: the [CLI reference](/docs/cli) and the [API reference](/docs/api).                                                                                      |
+<GroupIndex>
+  <GroupRow name="Start here">
+    [Getting started](/docs/getting-started) and [migration](/docs/migration) — install, run the
+    quick start, meet your first agent.
+  </GroupRow>
+  <GroupRow name="Guides & examples">
+    Task-first material: [guides](/docs/guides) for a job to be done, [examples](/docs/examples) you
+    can run as shipped, and [use cases](/docs/use-cases) that show whole journeys.
+  </GroupRow>
+  <GroupRow name="Core concepts">
+    The state model behind the work: [sessions](/docs/sessions), [agents](/docs/agents),
+    [autonomy](/docs/autonomy), [memory](/docs/memory), [workspaces](/docs/workspaces), and
+    [sandbox](/docs/sandbox).
+  </GroupRow>
+  <GroupRow name="Automation">
+    Work that runs without you: [jobs, triggers, and webhooks](/docs/automation), goal-seeking
+    [Loops](/docs/loops), and chat [bridges](/docs/bridges).
+  </GroupRow>
+  <GroupRow name="Compozy Network">
+    [Using the network from Compozy](/docs/network), with the [compozy-network/v0 protocol
+    spec](/docs/network/protocol) nested one level deeper for implementers.
+  </GroupRow>
+  <GroupRow name="Extensibility">
+    How the system grows: the [marketplace](/docs/marketplace), [skills](/docs/skills),
+    [tools](/docs/tools), [resources](/docs/resources), [extensions](/docs/extensions), and
+    [hooks](/docs/hooks).
+  </GroupRow>
+  <GroupRow name="Operations">
+    Running the daemon well: [operations](/docs/operations) and every
+    [configuration](/docs/configuration) surface, from `config.toml` to file locations.
+  </GroupRow>
+  <GroupRow name="Reference">
+    Generated from the runtime, never paraphrased: the [CLI reference](/docs/cli) and the [API
+    reference](/docs/api).
+  </GroupRow>
+</GroupIndex>
 
 ## The problem Compozy solves
 

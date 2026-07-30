@@ -235,7 +235,7 @@ describe("BridgesSection", () => {
   it("marks every provider in-tree and states the source-checkout caveat", () => {
     render(<BridgesSection />);
     // All eight providers exist under extensions/bridges/; none is embedded in the released
-    // binary. content/runtime/core/bridges/index.mdx is the source of record for both facts.
+    // binary. content/docs/bridges/index.mdx is the source of record for both facts.
     expect(screen.getAllByText("in-tree").length).toBe(8);
     expect(screen.queryByText("alpha")).toBeNull();
     expect(screen.queryByText("planned")).toBeNull();

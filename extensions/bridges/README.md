@@ -6,8 +6,8 @@ install them automatically.
 
 ## Start here
 
-- Operator setup: `packages/site/content/runtime/core/bridges/setup.mdx`
-- In-tree provider author walkthrough: `packages/site/content/runtime/core/bridges/adding-a-bridge.mdx`
+- Operator setup: `packages/site/content/docs/bridges/setup.mdx`
+- In-tree provider author walkthrough: `packages/site/content/docs/bridges/adding-a-bridge.mdx`
 - In-repo review checklist: `internal/bridges/ADDING_A_BRIDGE.md`
 - CI-safe protocol example: `internal/extension/testdata/telegram-reference`
 

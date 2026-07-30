@@ -1,4 +1,4 @@
-import type { Folder, Item, Node } from "fumadocs-core/page-tree";
+import type { Folder, Item, Node, Root } from "fumadocs-core/page-tree";
 import type { ContentStorage, PageTreeTransformer } from "fumadocs-core/source";
 
 /**
@@ -47,6 +47,22 @@ export function hoistOverviewPage(folder: Folder, folderPath: string): Folder {
 }
 
 /**
+ * The tree root is not a folder, so the folder hook never reaches it: its landing page is a plain
+ * top-level item whose name comes straight from frontmatter. The sidebar row and the page heading
+ * want different words there — the row is one entry among eight groups and reads `Overview`, while
+ * the page itself is the whole-system landing and titles itself accordingly — so the row is renamed
+ * here and the frontmatter `title` stays free to be the heading. Ordering is left alone: the root
+ * `meta.json` already lists `index` first.
+ */
+export function renameRootOverview(root: Root): Root {
+  const overview = findIndexChild(root.children, "");
+  if (overview) {
+    overview.name = OVERVIEW_LABEL;
+  }
+  return root;
+}
+
+/**
  * Built per call site rather than exported as a constant: `PageTreeTransformer<S>` is contravariant
  * in its storage type, so a constant pinned to one storage cannot be shared by loaders that each
  * infer a collection-specific storage from their source.
@@ -55,6 +71,9 @@ export function overviewPageTransformer<S extends ContentStorage>(): PageTreeTra
   return {
     folder(node, folderPath) {
       return hoistOverviewPage(node, folderPath);
+    },
+    root(node) {
+      return renameRootOverview(node);
     },
   };
 }

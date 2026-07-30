@@ -1,0 +1,133 @@
+---
+title: Morning briefing job
+description: A cron job that wakes an agent every weekday morning, has it read the state of your workspace, and leaves a written briefing waiting for you.
+maturity: shipped
+---
+
+## What you build
+
+A scheduled job that runs before you sit down. Every weekday at 08:30 the daemon dispatches an agent
+into your workspace, the agent reads what changed and what is still open, and it writes a briefing
+you read instead of reconstructing.
+
+Nothing about it is interactive. The scheduler fires on its own clock, the run is recorded in
+`automation_runs` whether or not anyone is watching, and a failed run retries on a backoff you set.
+
+Use it when you want the state of a project summarized on a fixed rhythm rather than on demand.
+
+## The artifact
+
+Config-backed jobs live in `config.toml`. This is the whole definition.
+
+```toml title="config.toml"
+[[automation.jobs]]
+scope = "workspace"
+workspace = "/Users/you/src/checkout-api"
+name = "morning-briefing"
+agent = "operator"
+prompt = """
+Write this morning's briefing for the checkout-api workspace.
+
+Cover, in this order:
+1. What changed in the working tree and on the current branch since yesterday.
+2. Any session that stopped with an error, and the stop reason.
+3. Open tasks under .compozy/tasks that are still pending.
+4. Anything that needs a decision from a person today.
+
+Keep it under 300 words. Lead with what needs attention, not with what is fine.
+"""
+schedule = { mode = "cron", expr = "30 8 * * 1-5" }
+retry = { strategy = "backoff", max_retries = 2, base_delay = "5m" }
+fire_limit = { max = 4, window = "24h" }
+```
+
+Schedules are evaluated in the automation timezone, which defaults to `UTC` — set it explicitly if
+`08:30` should mean your local morning.
+
+## Run it
+
+Create the same job dynamically, without editing config:
+
+```bash
+compozy automation jobs create \
+  --name morning-briefing \
+  --scope workspace \
+  --workspace /Users/you/src/checkout-api \
+  --schedule "30 8 * * 1-5" \
+  --catch-up-policy run_once_on_catchup \
+  --misfire-grace-seconds 120 \
+  --agent operator \
+  --prompt "Write this morning's briefing for the checkout-api workspace."
+```
+
+Then confirm it registered, fire it once by hand instead of waiting for tomorrow, and read the run
+history:
+
+```bash
+compozy automation jobs -o json
+compozy automation jobs trigger morning-briefing
+compozy automation runs -o json
+```
+
+## How it works
+
+<Workflow>
+  <WorkflowStep title="The scheduler owns the clock">
+    Compozy keeps durable scheduler state, so a job does not silently skip because the daemon
+    restarted. `catch-up-policy run_once_on_catchup` runs a single make-up execution after downtime
+    instead of replaying every missed fire, and the misfire grace window bounds how late a fire may
+    still count.
+  </WorkflowStep>
+  <WorkflowStep title="The dispatcher applies the limits">
+    Every fire passes the fire-limit and concurrency checks before a run is created. `fire_limit`
+    caps this job at 4 runs per day no matter what triggers it; the global automation concurrency
+    limit defaults to 5 active jobs across the daemon.
+  </WorkflowStep>
+  <WorkflowStep title="The run is a real session">
+    An agent target starts an agent session with the prompt. It is durable and inspectable like any
+    other session — you can open it later and read exactly what the agent saw and did.
+  </WorkflowStep>
+  <WorkflowStep title="Failure is retried, then recorded">
+    With `strategy = "backoff"` a failed run is redispatched up to `max_retries` times starting at
+    `base_delay`. When retries are exhausted the run lands in history as `failed` rather than
+    disappearing.
+  </WorkflowStep>
+  <WorkflowStep title="Point it at a Loop instead">
+    Set `target_kind = "loop"` and a `loop_target` to run a published Loop on the schedule instead
+    of a bare prompt. Scheduled jobs pass static `loop_target.inputs` only — a clock fire has no
+    activation envelope, so `input_mapping` is rejected.
+  </WorkflowStep>
+</Workflow>
+
+## Next steps
+
+<GuideGrid>
+  <GuideCard
+    href="/docs/automation/jobs"
+    label="Concept"
+    title="Jobs and scheduling"
+    description="Every job field, the cron/every/at schedule modes, catch-up policy, retries, and the run history model."
+    meta="Automation"
+  />
+  <GuideCard
+    href="/docs/examples/react-to-session-end"
+    label="Example"
+    title="React to session end"
+    description="The event-driven counterpart: run work when something happens instead of when the clock says so."
+    meta="session.stopped"
+  />
+  <GuideCard
+    href="/docs/examples/software-delivery-loop"
+    label="Example"
+    title="Software-delivery loop"
+    description="A Loop worth scheduling: deliver every authored task for a slug behind acceptance and verification gates."
+    meta="compozy.loop/v1"
+  />
+  <GuideCard
+    href="/docs/cli/automation/jobs"
+    label="Reference"
+    title="compozy automation jobs"
+    description="Generated reference for every flag on the jobs command, including filters, cursors, and output shapes."
+    meta="CLI"
+  />
+</GuideGrid>

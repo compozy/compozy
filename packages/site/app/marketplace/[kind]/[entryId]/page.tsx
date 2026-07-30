@@ -5,10 +5,11 @@ import {
   MetadataListValue,
   Pill,
 } from "@compozy/ui";
-import { ChevronRight, Lock, ShieldCheck } from "lucide-react";
+import { Clock, Lock, Plug, Settings2, ShieldCheck, Tag } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { MarketplaceCrumbs } from "@/components/marketplace/marketplace-crumbs";
 import { MarketplaceInstallCommand } from "@/components/marketplace/marketplace-install-command";
 import { formatFeedDate, kindMeta } from "@/components/marketplace/marketplace-kind-meta";
 import {
@@ -56,35 +57,44 @@ const TIER_HINTS: Record<ExtensionEntry["tier"], string> = {
   unverified: "Not reviewed by Compozy; verify the artifact yourself.",
 };
 
+/** Icon-headed sections, matching the reference detail anatomy. */
+function SectionHead({
+  id,
+  icon: Icon,
+  children,
+}: {
+  id: string;
+  icon: typeof ShieldCheck;
+  children: string;
+}) {
+  return (
+    <h2
+      id={id}
+      className="flex items-center gap-2 text-lg font-semibold tracking-[-0.01em] text-fg"
+    >
+      <Icon aria-hidden className="size-4 text-muted" />
+      {children}
+    </h2>
+  );
+}
+
+/** Author and the newest date already read in the header strip; this list carries the rest. */
 function SkillDetail({ entry }: { entry: SkillEntry }) {
   const published = formatFeedDate(entry.published_at);
-  const updated = formatFeedDate(entry.updated_at);
   return (
     <section aria-labelledby="skill-details" className="mt-10">
-      <h2 id="skill-details" className="text-lg font-semibold tracking-[-0.01em] text-fg">
+      <SectionHead id="skill-details" icon={Tag}>
         Details
-      </h2>
+      </SectionHead>
       <MetadataList className="mt-4">
         <MetadataListRow>
           <MetadataListTerm>Install slug</MetadataListTerm>
           <MetadataListValue className="font-mono">{entry.install_slug}</MetadataListValue>
         </MetadataListRow>
-        {entry.author ? (
-          <MetadataListRow>
-            <MetadataListTerm>Author</MetadataListTerm>
-            <MetadataListValue>{entry.author}</MetadataListValue>
-          </MetadataListRow>
-        ) : null}
-        {published ? (
+        {published && entry.updated_at ? (
           <MetadataListRow>
             <MetadataListTerm>Published</MetadataListTerm>
             <MetadataListValue>{published}</MetadataListValue>
-          </MetadataListRow>
-        ) : null}
-        {updated ? (
-          <MetadataListRow>
-            <MetadataListTerm>Updated</MetadataListTerm>
-            <MetadataListValue>{updated}</MetadataListValue>
           </MetadataListRow>
         ) : null}
         {entry.tags?.length ? (
@@ -104,17 +114,13 @@ function SkillDetail({ entry }: { entry: SkillEntry }) {
   );
 }
 
+/** The tier pill and author read in the header strip; this list explains and evidences them. */
 function ExtensionDetail({ entry }: { entry: ExtensionEntry }) {
-  const published = formatFeedDate(entry.published_at);
   return (
     <section aria-labelledby="provenance" className="mt-10">
-      <h2
-        id="provenance"
-        className="flex items-center gap-2 text-lg font-semibold tracking-[-0.01em] text-fg"
-      >
-        <ShieldCheck aria-hidden className="size-4 text-muted" />
+      <SectionHead id="provenance" icon={ShieldCheck}>
         Provenance
-      </h2>
+      </SectionHead>
       <MetadataList className="mt-4">
         <MetadataListRow>
           <MetadataListTerm>Tier</MetadataListTerm>
@@ -126,12 +132,6 @@ function ExtensionDetail({ entry }: { entry: ExtensionEntry }) {
             <span className="text-subtle">{TIER_HINTS[entry.tier]}</span>
           </MetadataListValue>
         </MetadataListRow>
-        {entry.author ? (
-          <MetadataListRow>
-            <MetadataListTerm>Author</MetadataListTerm>
-            <MetadataListValue>{entry.author}</MetadataListValue>
-          </MetadataListRow>
-        ) : null}
         {entry.repository ? (
           <MetadataListRow>
             <MetadataListTerm>Repository</MetadataListTerm>
@@ -159,12 +159,6 @@ function ExtensionDetail({ entry }: { entry: ExtensionEntry }) {
             sha256:{entry.digest_sha256}
           </MetadataListValue>
         </MetadataListRow>
-        {published ? (
-          <MetadataListRow>
-            <MetadataListTerm>Published</MetadataListTerm>
-            <MetadataListValue>{published}</MetadataListValue>
-          </MetadataListRow>
-        ) : null}
       </MetadataList>
       <p className="mt-4 text-small-body leading-relaxed text-subtle">
         The runtime verifies this digest against the downloaded artifact before installing — trust
@@ -184,9 +178,9 @@ function MCPDetail({ entry }: { entry: MCPEntry }) {
   return (
     <>
       <section aria-labelledby="runtime-config" className="mt-10">
-        <h2 id="runtime-config" className="text-lg font-semibold tracking-[-0.01em] text-fg">
+        <SectionHead id="runtime-config" icon={Plug}>
           Runtime configuration
-        </h2>
+        </SectionHead>
         <MetadataList className="mt-4">
           <MetadataListRow>
             <MetadataListTerm>Transport</MetadataListTerm>
@@ -228,9 +222,9 @@ function MCPDetail({ entry }: { entry: MCPEntry }) {
 
       {entry.env?.length ? (
         <section aria-labelledby="env-vars" className="mt-10">
-          <h2 id="env-vars" className="text-lg font-semibold tracking-[-0.01em] text-fg">
+          <SectionHead id="env-vars" icon={Settings2}>
             Environment
-          </h2>
+          </SectionHead>
           <div className="mt-4 overflow-x-auto rounded-lg border border-line">
             <table className="w-full text-start text-small-body">
               <thead>
@@ -275,9 +269,9 @@ function MCPDetail({ entry }: { entry: MCPEntry }) {
 
       {entry.oauth ? (
         <section aria-labelledby="oauth" className="mt-10">
-          <h2 id="oauth" className="text-lg font-semibold tracking-[-0.01em] text-fg">
+          <SectionHead id="oauth" icon={Lock}>
             OAuth
-          </h2>
+          </SectionHead>
           <MetadataList className="mt-4">
             <MetadataListRow>
               <MetadataListTerm>Client ID</MetadataListTerm>
@@ -336,39 +330,63 @@ export default async function MarketplaceEntryPage(props: PageProps) {
 
   const meta = kindMeta(kind);
   const Icon = meta.icon;
+  const extension = kind === "extensions" ? (entry as ExtensionEntry) : undefined;
+  const mcp = kind === "mcp" ? (entry as MCPEntry) : undefined;
+  const author = "author" in entry ? entry.author : undefined;
 
   return (
     <main id="main-content" className="mx-auto w-full max-w-3xl px-4 pt-12 pb-20">
-      <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-small-body text-muted">
-        <Link href="/marketplace" className="transition-colors hover:text-accent">
-          Marketplace
-        </Link>
-        <ChevronRight aria-hidden className="size-3 text-subtle" />
-        <Link href={`/marketplace/${kind}`} className="transition-colors hover:text-accent">
-          {meta.title}
-        </Link>
-        <ChevronRight aria-hidden className="size-3 text-subtle" />
-        <span aria-current="page" className="text-fg">
-          {entry.name}
-        </span>
-      </nav>
+      <MarketplaceCrumbs
+        trail={[{ name: meta.title, href: `/marketplace/${kind}` }]}
+        leaf={entry.name}
+      />
 
-      <header className="mt-8 flex items-start gap-4">
-        <span className="mt-1 inline-flex size-10 shrink-0 items-center justify-center rounded-lg bg-canvas-soft text-muted">
+      <header className="mt-6 flex items-start gap-4">
+        <span className="mt-1 inline-flex size-11.5 shrink-0 items-center justify-center rounded-xl border border-line-strong bg-elevated text-fg">
           <Icon aria-hidden className="size-5" />
         </span>
         <div className="min-w-0">
-          <h1 className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-3xl font-semibold tracking-[-0.02em] text-fg">
+          <h1 className="text-detail-h1 font-semibold tracking-detail-h1 text-fg-strong">
             {entry.name}
-            {entry.version ? (
-              <span className="font-mono text-base font-normal text-subtle">v{entry.version}</span>
-            ) : null}
           </h1>
-          <p className="mt-3 text-base leading-relaxed text-muted">{entry.description}</p>
+          <p className="mt-2.5 text-site-doc-lead text-muted">{entry.description}</p>
         </div>
       </header>
 
-      <MarketplaceInstallCommand command={installCommand(kind, entry)} className="mt-8" />
+      <div className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-2 text-small-body text-muted">
+        {entry.version ? (
+          <code className="font-mono text-badge text-subtle">v{entry.version}</code>
+        ) : null}
+        {extension ? (
+          <Pill size="sm">
+            <ShieldCheck aria-hidden className="size-3" />
+            {tierLabel(extension.tier)}
+          </Pill>
+        ) : null}
+        {mcp ? (
+          <Pill size="sm" mono>
+            {mcp.transport}
+          </Pill>
+        ) : null}
+        {author ? (
+          <span>
+            By <strong className="font-medium text-fg">{author}</strong>
+          </span>
+        ) : null}
+        {formatFeedDate(entry.updated_at ?? entry.published_at) ? (
+          <span className="inline-flex items-center gap-1.5">
+            <Clock aria-hidden className="size-3.5 text-subtle" />
+            {entry.updated_at ? "Updated" : "Published"}{" "}
+            {formatFeedDate(entry.updated_at ?? entry.published_at)}
+          </span>
+        ) : null}
+      </div>
+
+      {/* The one accent action on the screen: the site has no daemon, so the command is the CTA. */}
+      <MarketplaceInstallCommand
+        command={installCommand(kind, entry)}
+        className="mt-7 border-accent/35 bg-canvas-soft"
+      />
 
       {kind === "skills" ? <SkillDetail entry={entry as SkillEntry} /> : null}
       {kind === "extensions" ? <ExtensionDetail entry={entry as ExtensionEntry} /> : null}

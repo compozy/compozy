@@ -51,6 +51,16 @@
         },
         "@compozy/site#build": {
             "dependsOn": ["generate:content", "^build"],
+            "inputs": [
+                "$TURBO_DEFAULT$",
+                "$TURBO_ROOT$/catalog/*.json",
+                "$TURBO_ROOT$/extensions/bridges/*/extension.toml",
+                "$TURBO_ROOT$/extensions/dev-cycle/extension.json",
+                "$TURBO_ROOT$/extensions/dev-cycle/loops/*/loop.yaml",
+                "$TURBO_ROOT$/extensions/dev-cycle/agents/*",
+                "$TURBO_ROOT$/extensions/dev-cycle/skills/*",
+                "$TURBO_ROOT$/skills/*/SKILL.md"
+            ],
             "outputs": ["out/**", ".next/**", "!.next/cache/**"]
         },
         "@compozy/site#typecheck": {
@@ -73,7 +83,14 @@
                 "$TURBO_ROOT$/internal/config/mcp_resource.go",
                 "$TURBO_ROOT$/internal/config/provider.go",
                 "$TURBO_ROOT$/internal/tools/builtin_ids.go",
-                "$TURBO_ROOT$/openapi/compozy.json"
+                "$TURBO_ROOT$/openapi/compozy.json",
+                "$TURBO_ROOT$/catalog/*.json",
+                "$TURBO_ROOT$/extensions/bridges/*/extension.toml",
+                "$TURBO_ROOT$/extensions/dev-cycle/extension.json",
+                "$TURBO_ROOT$/extensions/dev-cycle/loops/*/loop.yaml",
+                "$TURBO_ROOT$/extensions/dev-cycle/agents/*",
+                "$TURBO_ROOT$/extensions/dev-cycle/skills/*",
+                "$TURBO_ROOT$/skills/*/SKILL.md"
             ],
             "outputs": []
         },

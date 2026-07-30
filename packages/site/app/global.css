@@ -288,6 +288,15 @@ a {
   color: var(--color-fg);
 }
 
+/* Docs mastheads render the product word as plain text; the marketplace links it home. */
+.site-doc-masthead__crumbs a.site-doc-masthead__product {
+  color: var(--color-accent);
+}
+
+.site-doc-masthead__crumbs a.site-doc-masthead__product:hover {
+  color: var(--color-accent-hover);
+}
+
 .site-doc-masthead__leaf {
   color: var(--color-fg);
 }

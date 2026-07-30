@@ -80,6 +80,6 @@ Tool progress is off by default. Enable accumulated progress for a bridge instan
 
 The provider posts one markdown activity in the triggering conversation and updates that activity as progress arrives. It sends a Teams `typing` activity before active work. The bridge does not send an explicit typing-clear activity or outbound progress reactions because those operations are not exposed by its Bot Framework API surface.
 
-See the [Microsoft Teams operator setup guide](../../../packages/site/content/runtime/core/bridges/setup-teams.mdx)
+See the [Microsoft Teams operator setup guide](../../../packages/site/content/docs/bridges/setup-teams.mdx)
 for bot/app provisioning, package upload, endpoint verification, route selection, delivery testing,
 and troubleshooting.

@@ -39,7 +39,9 @@
         "remark-mdx": "^3.1.1",
         "remotion": "^4.0.499",
         "shiki": "^4.3.1",
+        "smol-toml": "^1.7.1",
         "velite": "^0.4.0",
+        "yaml": "^2.9.0",
         "zod": "^4.4.3"
     },
     "devDependencies": {

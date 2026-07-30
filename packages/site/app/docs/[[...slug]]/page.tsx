@@ -85,6 +85,7 @@ export default async function Page(props: PageProps) {
         crumbs={masthead.crumbs}
         title={page.data.title}
         description={page.data.description}
+        maturity={page.data.maturity}
         sectionPageCount={masthead.sectionPageCount}
         markdownUrl={actions.markdownUrl}
         pageUrl={actions.pageUrl}

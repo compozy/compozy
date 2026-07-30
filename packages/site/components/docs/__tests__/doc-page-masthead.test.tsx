@@ -49,7 +49,7 @@ describe("DocPageMasthead", () => {
         crumbs={[{ name: "Overview" }]}
         title="Protocol"
         markdownUrl="/llms.mdx/protocol/"
-        pageUrl="https://compozy.com/protocol/"
+        pageUrl="https://compozy.com/docs/network/protocol/"
         githubUrl="https://github.com/compozy/compozy"
       />
     );

@@ -81,6 +81,6 @@ Notes:
 - Direct-message enforcement uses the bridge instance `dm_policy` plus the provider-config allowlist or paired-user fields.
 - WhatsApp Cloud API does not support bridge-level delete semantics and the provider reports those requests as permanent unsupported operations.
 
-See the [WhatsApp operator setup guide](../../../packages/site/content/runtime/core/bridges/setup-whatsapp.mdx)
+See the [WhatsApp operator setup guide](../../../packages/site/content/docs/bridges/setup-whatsapp.mdx)
 for Meta app setup, challenge/signature verification, route access, real delivery testing, and
 troubleshooting.

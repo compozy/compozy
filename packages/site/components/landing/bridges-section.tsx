@@ -21,7 +21,7 @@ type Bridge = {
   logo: ReactNode;
 };
 
-// Source of record: content/runtime/core/bridges/index.mdx and extensions/bridges/. All eight
+// Source of record: content/docs/bridges/index.mdx and extensions/bridges/. All eight
 // providers exist in-tree; none is embedded in the released binary, which is what the caveat
 // under the grid states. Keep this list and that sentence aligned with the docs page.
 const BRIDGES: Bridge[] = [

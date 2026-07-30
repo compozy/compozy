@@ -1,9 +1,9 @@
-import { Eyebrow } from "@compozy/ui";
-import { ArrowLeft } from "lucide-react";
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { MarketplaceEntryCard } from "@/components/marketplace/marketplace-entry-card";
+import { MarketplaceContribute } from "@/components/marketplace/marketplace-contribute";
+import { MarketplaceCrumbs } from "@/components/marketplace/marketplace-crumbs";
+import { MarketplaceKindBrowser } from "@/components/marketplace/marketplace-kind-browser";
+import { MarketplaceKindTabs } from "@/components/marketplace/marketplace-kind-tabs";
 import { kindMeta } from "@/components/marketplace/marketplace-kind-meta";
 import { entriesForKind, isMarketplaceKind, MARKETPLACE_KINDS } from "@/lib/marketplace-catalog";
 import { createPageMetadata } from "@/lib/site-config";
@@ -35,28 +35,31 @@ export default async function MarketplaceKindPage(props: PageProps) {
   const entries = entriesForKind(kind);
 
   return (
-    <main id="main-content" className="mx-auto w-full max-w-site-layout-width px-4 pt-12 pb-20">
-      <Link
-        href="/marketplace"
-        className="inline-flex items-center gap-1.5 text-small-body font-medium text-muted transition-colors hover:text-accent"
-      >
-        <ArrowLeft aria-hidden className="size-3.5" />
-        Marketplace
-      </Link>
-
-      <header className="mt-6 max-w-[62ch]">
-        <Eyebrow className="text-muted">Kind</Eyebrow>
-        <h1 className="mt-3 flex items-baseline gap-3 text-3xl font-semibold tracking-[-0.02em] text-fg">
-          {meta.title}
-          <span className="font-mono text-base font-normal text-subtle">{entries.length}</span>
-        </h1>
-        <p className="mt-4 text-base leading-relaxed text-muted">{meta.description}</p>
+    <main id="main-content" className="w-full pb-20">
+      <header className="border-b border-line bg-canvas-soft">
+        <div className="mx-auto w-full max-w-site-layout-width px-4 pt-10 pb-9">
+          <MarketplaceCrumbs leaf={meta.title} />
+          <h1 className="mt-4 font-display text-site-doc-heading leading-tight font-normal tracking-[-0.02em] text-fg">
+            All <em>{meta.title.toLowerCase()}</em>
+          </h1>
+          <p className="mt-3.5 max-w-[64ch] text-site-lead text-muted">
+            Every {meta.noun.toLowerCase()} in the first-party feeds, exactly as the daemon reads
+            them. What you see here is what <code>compozy marketplace</code> sees.
+          </p>
+        </div>
       </header>
 
-      <div className="mt-10 grid gap-4 lg:grid-cols-2">
-        {entries.map(entry => (
-          <MarketplaceEntryCard key={entry.entry_id} kind={kind} entry={entry} />
-        ))}
+      <div className="mx-auto w-full max-w-site-layout-width px-4 pt-11">
+        <MarketplaceKindBrowser
+          kind={kind}
+          entries={entries}
+          description={meta.description}
+          noun={meta.title.toLowerCase()}
+          tabs={<MarketplaceKindTabs active={kind} />}
+        />
+        <div className="mt-14">
+          <MarketplaceContribute />
+        </div>
       </div>
     </main>
   );

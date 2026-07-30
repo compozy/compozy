@@ -11,7 +11,7 @@ bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence: 2026-07-29 walk on local `next build` + `next start :4123` — curl probes returned 301 with resolving 200 targets for /runtime/, /runtime/core/sessions/, /runtime/core/network/protocol/ (→ /docs/network/protocol-model/), /runtime/cli-reference/session/, /runtime/api-reference/, /protocol/, /protocol/envelope/, /runtime/guides/debug-a-failed-session/, /runtime/how-to-use-these-docs/, /runtime/migration/; screenshots /tmp/site-shots/{docs-landing,docs-loops,docs-protocol-spec}.png show the five-link nav, eight sidebar groups, no tab bar, and the nested protocol spec folder with Wire format/Delivery/Trust/Build groups.
+evidence: 2026-07-29 walk on a local `next build` + `next start :4598`. All routes returned 200: /docs/, /docs/examples/ and its five wave-one pages, /marketplace/, /marketplace/{skills,mcp,extensions}/, /marketplace/bridges/, /marketplace/bundled/dev-cycle/, /marketplace/mcp/context7/, and the bridge setup guides. Visual-contract bundles VC-01..VC-05 under .compozy/tasks/site-docs-ia/evidence/visual/gap-closure/ validate PASS with 0 blocking divergences. Landing capture VC-04 shows the rebuilt path grid and group index, the sidebar Overview row with its BookOpen icon, and Examples between Guides and Use cases; the eight groups and the redirect map are unchanged from the prior passing walk.
 last_report:
 overlaps: ET-site-docs-sidebar-opendesign; ET-site-docs-first-session; ET-site-docs-search-context
 ---
@@ -22,3 +22,11 @@ was replaced by declarative root `meta.json` groups with a build-time completene
 the docs-header sub-tab bar was deleted (D3), and `next.config.mjs` carries the sanctioned 301
 bridge (D7, scheduled delete one stable release cycle after Phase A ships). Future cycles
 re-walk after sidebar or redirect changes.
+
+QA impact 2026-07-29: the `/docs` landing was rebuilt to the OpenDesign reference
+(`docs/design/opendesign/site/site-docs-landing.html`) — a four-card audience path grid with iconed
+links, a group index replacing the markdown table, and the page heading now reading
+`CompozyOS documentation` while the sidebar row stays `Overview` and carries a BookOpen icon. The
+`Guides & examples` group gained an `Examples` folder between Guides and Use cases. Re-walk the eight
+groups, the landing's own links, and the redirect set; reset to `untested` because the landing and the
+root sidebar row both changed.

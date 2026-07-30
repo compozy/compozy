@@ -1,5 +1,5 @@
 {
     "title": "Operations",
-    "icon": "Activity",
+    "icon": "Wrench",
     "pages": ["daemon", "mcp-serve", "database", "support-bundles", "troubleshooting", "production"]
 }

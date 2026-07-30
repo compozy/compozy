@@ -1,25 +1,35 @@
 import {
   Activity,
+  AppWindow,
+  ArrowRightLeft,
   Award,
+  BadgeCheck,
   Bell,
   Book,
+  BookOpen,
   Bot,
   Boxes,
   Brain,
+  Clock,
   Compass,
   Database,
   FileCode,
   FileText,
+  FlaskConical,
   Folder,
   FolderTree,
   Gauge,
   Key,
   Layers,
   LifeBuoy,
+  List,
+  Mail,
   MessageSquare,
   Network,
   Package,
+  Play,
   Plug,
+  Puzzle,
   Repeat,
   Rocket,
   Route,
@@ -34,37 +44,51 @@ import {
   Users,
   Waypoints,
   Workflow,
+  Wrench,
   Zap,
   type LucideIcon,
 } from "lucide-react";
 
 /**
- * Canonical icon registry for the docs sidebar. `icon:` frontmatter and
- * meta.json `icon` values resolve against this map — a name missing here
- * renders no icon, so every icon referenced by content must be registered.
+ * Canonical icon registry for every docs surface — the sidebar plus the MDX
+ * blocks that take an icon by name (`PathLink`). `icon:` frontmatter, meta.json
+ * `icon` values, and MDX `icon` props all resolve against this one map: a name
+ * missing here renders no icon, so every icon referenced by content must be
+ * registered. Keeping a single registry is what stops the sidebar and the page
+ * body from drifting onto different glyphs for the same idea.
  */
 export const DOCS_ICONS: Record<string, LucideIcon> = {
   Activity,
+  AppWindow,
+  ArrowRightLeft,
   Award,
+  BadgeCheck,
   Bell,
   Book,
+  BookOpen,
   Bot,
   Boxes,
   Brain,
+  Clock,
   Compass,
   Database,
   FileCode,
   FileText,
+  FlaskConical,
   Folder,
   FolderTree,
   Gauge,
   Key,
   Layers,
   LifeBuoy,
+  List,
+  Mail,
   MessageSquare,
   Network,
   Package,
+  Play,
   Plug,
+  Puzzle,
   Repeat,
   Rocket,
   Route,
@@ -79,6 +103,7 @@ export const DOCS_ICONS: Record<string, LucideIcon> = {
   Users,
   Waypoints,
   Workflow,
+  Wrench,
   Zap,
 };
 
@@ -97,7 +122,7 @@ export const API_TAG_ICONS: Record<string, string> = {
   bundles: "Package",
   daemon: "Activity",
   diagnostics: "Gauge",
-  extensions: "Plug",
+  extensions: "Puzzle",
   filesystem: "Folder",
   hooks: "Waypoints",
   logs: "ScrollText",

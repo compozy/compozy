@@ -10,7 +10,7 @@ No production users. Never sacrifice quality for backward compatibility; never w
 
 ## Critical Rules
 
-- **`make verify` MUST pass before completing any task** (full monorepo gate — see Build Commands). Zero warnings, zero errors. Exception: docs-only changes that don't affect test/lint/typecheck.
+- **`make gate-full` MUST pass before closing a workstream** — final completion, commit batch, PR, handoff (see Build Commands). Intermediate tasks inside a loop/batch close on `make gate` (affected lanes only). Zero warnings, zero errors. Exception: docs-only changes that don't affect test/lint/typecheck.
 - **`make lint` and `make bun-lint` are zero-tolerance** — any warning is a blocking failure.
 - **Check dependent package APIs** before writing integration code or tests.
 - **Never hand-edit `go.mod`** — use `go get`. **Never hand-add JS deps** — use `bun add`.
@@ -35,7 +35,6 @@ No production users. Never sacrifice quality for backward compatibility; never w
 - **Isolated Web QA exports `COMPOZY_WEB_API_PROXY_TARGET`** — derive it from the bootstrap manifest/env; never hardcode `:2123`.
 - **Never parallelize config writes against one isolated QA home** — `compozy config set` and peers run sequentially per provider/runtime home.
 - **Skill helpers use explicit repo-root paths** (`.agents/skills/<skill>/scripts/`), never ambiguous `scripts/...`.
-- **Two-touch rule.** After two patches to the same package/behavior in one workstream, the third change MUST be a structural redesign in a new TechSpec, not a third patch.
 - **Conversation in Brazilian Portuguese; artifacts in English** (TechSpecs, ADRs, code, commits, docs).
 
 ## Compozy Cross-Surface Impact Audit
@@ -119,18 +118,18 @@ Web-specific dispatch: `web/CLAUDE.md`. Site-specific: `packages/site/CLAUDE.md`
 
 ## Build Commands
 
-`make verify` is the only gate that exercises the entire monorepo — `codegen-check → installer-check → Bun lint → Bun typecheck → Bun test → web build → Go fmt → Go lint → Go test → Go build → boundaries`.
+`make verify` is the only gate that exercises the entire monorepo — `codegen-check → installer-check → Bun lint → Bun typecheck → Bun test → web build → Go fmt → Go lint → Go test → Go build → boundaries`. Run gates through the evidence-cached wrapper, never by hand:
 
-**Run the full `make verify` once, as the completion/PR gate — not per micro-task, not twice per commit.** A full run fans one `-race` test binary per package across every core and takes minutes; running it on every small change needlessly saturates the machine. During iteration, gate only the lane you touched; reserve `make verify` for when the task is done. This scopes the dev loop _before_ the final gate — `cy-final-verify` still requires the full pipeline (no subset) at completion.
+- **Iteration** → `make gate`: classifies the diff vs merge-base and runs only affected lanes (Go → `go-lint` + scoped `go test -race`; web/ui/site → `turbo --filter`; docs/instructions-only → no-op). Schema/SQL, contracts/openapi, `internal/config`, tokens, dependency/build/tooling files, and unclassified paths escalate to full automatically.
+- **Workstream close (final completion/commit batch/PR)** → `make gate-full`: the full `make verify`, exactly once, after the last mutation. Intermediate tasks in a multi-task loop close on `make gate`; the full gate runs once at the loop's end.
+- Gates record `{fingerprint, result, log}` in `.cache/gate/`, keyed by tree content — commits keep records valid, any edit goes stale. A gate whose record is current no-ops; cite `make gate-status` as completion evidence instead of re-running (`cy-final-verify` accepts a current full-gate record as fresh evidence).
 
 **`make verify` and the E2E lanes self-serialize across worktrees (L-030).** These gates are machine-sized by design; two at once collapse the machine and both stall. They share a machine-wide lock (`~/Library/Caches/compozy-dev/verify.lock`): a second concurrent run queues with explicit "waiting for pid N (worktree X)" messages instead of silently thrashing. Never kill a queued run assuming it hung — read its output. `COMPOZY_VERIFY_LOCK=off` bypasses (CI-style single-checkout machines only). Scoped lanes stay lock-free but bounded: unit `go test` budgets combined package/subtest concurrency against half the effective Go CPU capacity (`COMPOZY_GO_TEST_P` overrides the package cap), and Vitest pools cap at 50%.
-
-- **Go change** → `make lint` + `go test -race ./internal/<pkg>/...` (scoped path, never `./...`).
-- **Web / `packages/ui` / site change** → `bunx turbo run lint typecheck test --filter=./web` (or `./packages/ui`, `./packages/site`).
 
 **Frontend validation MUST run through Turborepo from the repo root.** Never use `cd web && bun run test`, `bun run --cwd web test`, `cd packages/site && bun run …`, or package-local equivalents as evidence — they bypass Turbo's cache/task graph.
 
 ```bash
+make gate / gate-full / gate-status        # diff-scoped lanes / full verify / evidence records (fingerprint-cached)
 make bun-lint / bun-typecheck / bun-test   # repo-root Bun gates (oxfmt+oxlint / turbo typecheck / turbo test)
 make lint                                  # strict Go + monorepo Bun lint (zero issues)
 make test / test-integration               # Go unit (-race) / +integration tag
@@ -145,7 +144,7 @@ Web-local dev/build/format (`make web-dev`, `make web-build`, `make web-fmt`) ar
 
 - Format `<type>: <description>`; prefixes `feat|fix|refactor|docs|test|build`. Never `chore`/`style`/`ci`. Use `build:` for tooling/CI. PR-merged commits append `(#NN)`.
 - **One commit per remediation batch.** Each `cy-fix-reviews` round produces exactly one local commit.
-- Run `make verify` **once** before a commit batch. Don't re-run after committing — the pre-commit hook only runs `lint-staged` (husky's `core.hooksPath` bypasses skeeper's managed hooks; sidecar sync is manual via `skeeper sync`), so a passing pre-commit verify stays valid. Re-run only if the hook modified tracked source.
+- Run `make gate-full` **once** at workstream close, before the final commit batch/PR — intermediate checkpoint commits in a task loop ride on `make gate`. The evidence record survives commits (fingerprint is content-keyed; the pre-commit hook only runs `lint-staged` — husky's `core.hooksPath` bypasses skeeper's managed hooks; sidecar sync is manual via `skeeper sync`). Re-run only if the hook modified tracked source — the record goes stale.
 - If a pre-commit hook fails, do **not** `git commit --amend` — fix the issue and create a new commit.
 
 ## Code Search Hierarchy

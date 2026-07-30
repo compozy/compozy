@@ -1,8 +1,10 @@
+import { Pill, PillDot } from "@compozy/ui";
 import { BookOpen, User } from "lucide-react";
 import Link from "next/link";
 
 import { LLMCopyButton, OpenWithAI, ViewOptions } from "@/components/docs/page-actions";
 import type { DocMastheadCrumb } from "@/lib/doc-masthead-meta";
+import { maturityLabel, type MaturityLevel } from "@/lib/doc-maturity";
 
 interface DocPageMastheadProps {
   product: string;
@@ -10,10 +12,16 @@ interface DocPageMastheadProps {
   crumbs: DocMastheadCrumb[];
   title: string;
   description?: string;
+  maturity?: MaturityLevel;
   sectionPageCount?: number | null;
   markdownUrl?: string;
   pageUrl?: string;
   githubUrl?: string;
+}
+
+/** Only alpha is a caution; shipped and beta read as plain facts about the runtime. */
+function maturityTone(level: MaturityLevel) {
+  return level === "alpha" ? "warning" : "neutral";
 }
 
 function CrumbSep() {
@@ -26,13 +34,15 @@ export function DocPageMasthead({
   crumbs,
   title,
   description,
+  maturity,
   sectionPageCount,
   markdownUrl,
   pageUrl,
   githubUrl,
 }: DocPageMastheadProps) {
   const showActions = Boolean(markdownUrl && pageUrl && githubUrl);
-  const showMeta = Boolean(audience) || (sectionPageCount != null && sectionPageCount > 0);
+  const showMeta =
+    Boolean(audience) || Boolean(maturity) || (sectionPageCount != null && sectionPageCount > 0);
 
   return (
     <header className="site-doc-masthead not-prose">
@@ -68,6 +78,12 @@ export function DocPageMasthead({
 
       {showMeta ? (
         <div className="site-doc-masthead__meta">
+          {maturity ? (
+            <Pill tone={maturityTone(maturity)} size="md">
+              <PillDot />
+              {maturityLabel(maturity)}
+            </Pill>
+          ) : null}
           {audience ? (
             <span className="site-doc-masthead__meta-item">
               <User aria-hidden className="site-doc-masthead__meta-icon" />

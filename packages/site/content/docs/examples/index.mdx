@@ -1,0 +1,71 @@
+---
+title: Examples
+description: Runnable Compozy artifacts — Loops, jobs, webhooks, and triggers you can copy as shipped, run against a current release, and adapt.
+---
+
+Every example on this page is a complete artifact plus a walkthrough of what it does. Guides explain
+how to approach a job; examples hand you the definition and the commands to run it.
+
+<OperatorNote label="What makes something an example">
+  Each page carries the whole artifact — no fragments, no pseudo-config — and a maturity label. The
+  two Loop examples ship inside the runtime as `extensions/dev-cycle`, so the definition you copy is
+  the one Compozy runs.
+</OperatorNote>
+
+## Loops
+
+<GuideGrid>
+  <GuideCard
+    href="/docs/examples/review-and-fix-loop"
+    label="Ships with the runtime"
+    title="Review-and-fix loop"
+    description="Review a named task with an agent, write inspectable findings, and remediate them until a round comes back clean."
+    meta="compozy.loop/v1"
+  />
+  <GuideCard
+    href="/docs/examples/software-delivery-loop"
+    label="Ships with the runtime"
+    title="Software-delivery loop"
+    description="Take every authored task under one slug from pending to verified implementation, in dependency order, with an acceptance gate."
+    meta="compozy.loop/v1"
+  />
+</GuideGrid>
+
+## Automation
+
+<GuideGrid>
+  <GuideCard
+    href="/docs/examples/morning-briefing-job"
+    label="Scheduled"
+    title="Morning briefing job"
+    description="A cron job that wakes an agent every weekday morning and leaves a written briefing waiting for you."
+    meta="[[automation.jobs]]"
+  />
+  <GuideCard
+    href="/docs/examples/webhook-to-agent-run"
+    label="Inbound"
+    title="Webhook to agent run"
+    description="Turn a signed HTTP request from CI into an agent run, with the HMAC signature calculated end to end."
+    meta="Signed webhook"
+  />
+  <GuideCard
+    href="/docs/examples/react-to-session-end"
+    label="Event-driven"
+    title="React to session end"
+    description="Watch for sessions that stop with an error and summarize each one without anybody asking."
+    meta="session.stopped"
+  />
+</GuideGrid>
+
+## How to read an example
+
+Every page follows the same five sections:
+
+- **What you build** — the outcome, in plain words, and when to reach for it.
+- **The artifact** — the complete definition, copyable as one block.
+- **Run it** — the exact commands, in the order the runtime expects them.
+- **How it works** — each node or field, and which part the daemon enforces for you.
+- **Next steps** — the adjacent artifact, the concept page, and the reference.
+
+Need the concepts behind these artifacts first? Start with [Loops](/docs/loops) for goal-seeking
+work and [Automation](/docs/automation) for jobs, triggers, and webhooks.

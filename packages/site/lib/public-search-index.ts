@@ -2,6 +2,8 @@ import type { AdvancedIndex } from "fumadocs-core/search/server";
 import { allPosts, allReleases, type Post, type Release } from "@/lib/blog";
 import { MARKETPLACE_KIND_META } from "@/components/marketplace/marketplace-kind-meta";
 import { docsGroupForUrl } from "@/lib/docs-navigation";
+import { bridgeProviders } from "@/lib/marketplace-bridges";
+import { devCycleExtension } from "@/lib/marketplace-bundled";
 import { entriesForKind, installCommand } from "@/lib/marketplace-catalog";
 import { docsSource } from "@/lib/source";
 
@@ -225,7 +227,57 @@ function buildMarketplaceIndexes(): AdvancedIndex[] {
     ];
   });
 
-  return [overview, ...kinds];
+  const bridges: AdvancedIndex[] = [
+    {
+      id: "/marketplace/bridges",
+      url: "/marketplace/bridges",
+      title: "Bridges — Marketplace",
+      description:
+        "Chat and tracker platforms your agents can live in: the in-tree Compozy bridge providers, their secret slots, and their setup guides.",
+      breadcrumbs: ["Marketplace"],
+      tag: "Marketplace",
+      structuredData: { headings: [], contents: [] },
+    },
+    ...bridgeProviders.map<AdvancedIndex>(provider => ({
+      id: `/marketplace/bridges#${provider.platform}`,
+      url: `/marketplace/bridges#${provider.platform}`,
+      title: `${provider.displayName} bridge`,
+      description: provider.description,
+      breadcrumbs: ["Marketplace", "Bridges"],
+      tag: "Marketplace",
+      structuredData: {
+        headings: [],
+        contents: [{ heading: undefined, content: joinContent(provider.description, "Alpha") }],
+      },
+    })),
+  ];
+
+  const bundled: AdvancedIndex[] = [
+    {
+      id: "/marketplace/bundled/dev-cycle",
+      url: "/marketplace/bundled/dev-cycle",
+      title: `${devCycleExtension.displayName} — Marketplace`,
+      description: devCycleExtension.description,
+      breadcrumbs: ["Marketplace"],
+      tag: "Marketplace",
+      structuredData: {
+        headings: [],
+        contents: [
+          {
+            heading: undefined,
+            content: joinContent(
+              devCycleExtension.description,
+              devCycleExtension.statusCommand,
+              devCycleExtension.loops.map(loop => loop.name).join(", "),
+              devCycleExtension.skills.join(", ")
+            ),
+          },
+        ],
+      },
+    },
+  ];
+
+  return [overview, ...kinds, ...bridges, ...bundled];
 }
 
 export function buildPublicSearchIndexes(): AdvancedIndex[] {

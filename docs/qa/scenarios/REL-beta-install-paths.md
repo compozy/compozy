@@ -5,7 +5,7 @@ title: Install CompozyOS through a documented beta channel
 persona: Dora
 journey: J-evaluate-compozy-beta
 expected: The hosted installer, `npm install -g @compozy/cli@beta`, and `go install github.com/compozy/compozy@v0.3.0-beta.2` each install the same v0.3 beta binary; the hosted installer opens bootstrap when it has an interactive terminal, npm and Go require `compozy install`, and the README and site offer no Homebrew path before v0.3.0 stable.
-entry_points: README Installation; compozy.com install section; compozy.com/runtime/core/getting-started/installation; npm registry; Go module proxy
+entry_points: README Installation; compozy.com install section; compozy.com/docs/getting-started/installation; npm registry; Go module proxy
 qa_status: untested
 bug_ids:
 fix_status:
