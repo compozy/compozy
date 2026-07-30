@@ -33,31 +33,20 @@ die() {
   exit 2
 }
 
-hash_stdin() {
-  if command -v shasum >/dev/null 2>&1; then
-    shasum -a 256 | cut -d' ' -f1
-  else
-    sha256sum | cut -d' ' -f1
-  fi
-}
+tree_fingerprint() (
+  local temp_index
+  temp_index="$(mktemp "${TMPDIR:-/tmp}/compozy-gate-index.XXXXXX")"
+  trap 'rm -f "$temp_index"' EXIT
+  rm -f "$temp_index"
 
-tree_fingerprint() {
-  {
-    git rev-parse 'HEAD^{tree}' 2>/dev/null || printf 'no-head\n'
-    git write-tree 2>/dev/null || printf 'no-index\n'
-    git ls-files -m -d -o --exclude-standard -z | sort -zu | while IFS= read -r -d '' path; do
-      case "$path" in
-        "$GATE_DIR"/*) continue ;;
-      esac
-      if [ -f "$path" ]; then
-        printf '%s=' "$path"
-        hash_stdin <"$path"
-      else
-        printf '%s=absent\n' "$path"
-      fi
-    done
-  } | hash_stdin
-}
+  if git rev-parse --verify --quiet HEAD >/dev/null 2>&1; then
+    GIT_INDEX_FILE="$temp_index" git read-tree HEAD
+  else
+    GIT_INDEX_FILE="$temp_index" git read-tree --empty
+  fi
+  GIT_INDEX_FILE="$temp_index" git add -A -- .
+  GIT_INDEX_FILE="$temp_index" git write-tree
+)
 
 resolve_base() {
   if [ -n "${GATE_BASE:-}" ]; then

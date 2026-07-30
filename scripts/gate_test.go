@@ -77,6 +77,41 @@ exit 0
 			t.Fatalf("expected make verify escalation, got %q", got)
 		}
 	})
+
+	t.Run("Should preserve the fingerprint after committing identical content", func(t *testing.T) {
+		t.Parallel()
+
+		repo := newGateTestRepo(t)
+		if err := os.WriteFile(filepath.Join(repo, "seed.txt"), []byte("updated\n"), 0o644); err != nil {
+			t.Fatalf("update repository seed: %v", err)
+		}
+
+		before, err := runGate(t, repo, nil, "fingerprint")
+		if err != nil {
+			t.Fatalf("fingerprint before commit: %v\n%s", err, before)
+		}
+		runCommand(t, repo, "git", "add", "seed.txt")
+		runCommand(
+			t,
+			repo,
+			"git",
+			"-c",
+			"user.name=Gate Test",
+			"-c",
+			"user.email=gate-test@example.com",
+			"commit",
+			"--quiet",
+			"-m",
+			"update seed",
+		)
+		after, err := runGate(t, repo, nil, "fingerprint")
+		if err != nil {
+			t.Fatalf("fingerprint after commit: %v\n%s", err, after)
+		}
+		if before != after {
+			t.Fatalf("fingerprint changed after content-identical commit: before %q, after %q", before, after)
+		}
+	})
 }
 
 func newGateTestRepo(t *testing.T) string {
