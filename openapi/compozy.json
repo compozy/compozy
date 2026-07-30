@@ -2518,6 +2518,18 @@
                     },
                     "type": "array"
                   },
+                  "stack_grouped": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "stack_ungrouped": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
                   "window_ids": {
                     "items": {
                       "type": "string"
@@ -2781,6 +2793,10 @@
                 ],
                 "type": "object"
               },
+              "closed_entry_limit": {
+                "nullable": true,
+                "type": "integer"
+              },
               "desktop_transition": {
                 "nullable": true,
                 "type": "string"
@@ -2839,6 +2855,10 @@
                 "type": "string"
               },
               "history_limit": {
+                "nullable": true,
+                "type": "integer"
+              },
+              "nav_stack_limit": {
                 "nullable": true,
                 "type": "integer"
               },
@@ -3470,6 +3490,10 @@
                     ],
                     "type": "object"
                   },
+                  "closed_entry_limit": {
+                    "nullable": true,
+                    "type": "integer"
+                  },
                   "desktop_transition": {
                     "nullable": true,
                     "type": "string"
@@ -3528,6 +3552,10 @@
                     "type": "string"
                   },
                   "history_limit": {
+                    "nullable": true,
+                    "type": "integer"
+                  },
+                  "nav_stack_limit": {
                     "nullable": true,
                     "type": "integer"
                   },
@@ -4012,6 +4040,10 @@
                     ],
                     "type": "object"
                   },
+                  "closed_entry_limit": {
+                    "nullable": true,
+                    "type": "integer"
+                  },
                   "desktop_transition": {
                     "nullable": true,
                     "type": "string"
@@ -4070,6 +4102,10 @@
                     "type": "string"
                   },
                   "history_limit": {
+                    "nullable": true,
+                    "type": "integer"
+                  },
+                  "nav_stack_limit": {
                     "nullable": true,
                     "type": "integer"
                   },
@@ -4629,6 +4665,18 @@
                 },
                 "type": "array"
               },
+              "stack_grouped": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "stack_ungrouped": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
               "window_ids": {
                 "items": {
                   "type": "string"
@@ -5021,6 +5069,10 @@
                                   ],
                                   "type": "object"
                                 },
+                                "closed_entry_limit": {
+                                  "nullable": true,
+                                  "type": "integer"
+                                },
                                 "desktop_transition": {
                                   "nullable": true,
                                   "type": "string"
@@ -5079,6 +5131,10 @@
                                   "type": "string"
                                 },
                                 "history_limit": {
+                                  "nullable": true,
+                                  "type": "integer"
+                                },
+                                "nav_stack_limit": {
                                   "nullable": true,
                                   "type": "integer"
                                 },
@@ -5529,6 +5585,10 @@
                                   ],
                                   "type": "object"
                                 },
+                                "closed_entry_limit": {
+                                  "nullable": true,
+                                  "type": "integer"
+                                },
                                 "desktop_transition": {
                                   "nullable": true,
                                   "type": "string"
@@ -5587,6 +5647,10 @@
                                   "type": "string"
                                 },
                                 "history_limit": {
+                                  "nullable": true,
+                                  "type": "integer"
+                                },
+                                "nav_stack_limit": {
                                   "nullable": true,
                                   "type": "integer"
                                 },
@@ -6094,6 +6158,10 @@
                                   ],
                                   "type": "object"
                                 },
+                                "closed_entry_limit": {
+                                  "nullable": true,
+                                  "type": "integer"
+                                },
                                 "desktop_transition": {
                                   "nullable": true,
                                   "type": "string"
@@ -6152,6 +6220,10 @@
                                   "type": "string"
                                 },
                                 "history_limit": {
+                                  "nullable": true,
+                                  "type": "integer"
+                                },
+                                "nav_stack_limit": {
                                   "nullable": true,
                                   "type": "integer"
                                 },
@@ -6602,6 +6674,10 @@
                                   ],
                                   "type": "object"
                                 },
+                                "closed_entry_limit": {
+                                  "nullable": true,
+                                  "type": "integer"
+                                },
                                 "desktop_transition": {
                                   "nullable": true,
                                   "type": "string"
@@ -6660,6 +6736,10 @@
                                   "type": "string"
                                 },
                                 "history_limit": {
+                                  "nullable": true,
+                                  "type": "integer"
+                                },
+                                "nav_stack_limit": {
                                   "nullable": true,
                                   "type": "integer"
                                 },
@@ -7017,6 +7097,10 @@
                     ],
                     "type": "object"
                   },
+                  "closed_entry_limit": {
+                    "nullable": true,
+                    "type": "integer"
+                  },
                   "desktop_transition": {
                     "nullable": true,
                     "type": "string"
@@ -7075,6 +7159,10 @@
                     "type": "string"
                   },
                   "history_limit": {
+                    "nullable": true,
+                    "type": "integer"
+                  },
+                  "nav_stack_limit": {
                     "nullable": true,
                     "type": "integer"
                   },
@@ -7577,6 +7665,10 @@
                     ],
                     "type": "object"
                   },
+                  "closed_entry_limit": {
+                    "nullable": true,
+                    "type": "integer"
+                  },
                   "desktop_transition": {
                     "nullable": true,
                     "type": "string"
@@ -7635,6 +7727,10 @@
                     "type": "string"
                   },
                   "history_limit": {
+                    "nullable": true,
+                    "type": "integer"
+                  },
+                  "nav_stack_limit": {
                     "nullable": true,
                     "type": "integer"
                   },
@@ -7988,6 +8084,18 @@
                 "type": "array"
               },
               "node_ids": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "stack_grouped": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "stack_ungrouped": {
                 "items": {
                   "type": "string"
                 },
@@ -8390,6 +8498,10 @@
                                   ],
                                   "type": "object"
                                 },
+                                "closed_entry_limit": {
+                                  "nullable": true,
+                                  "type": "integer"
+                                },
                                 "desktop_transition": {
                                   "nullable": true,
                                   "type": "string"
@@ -8448,6 +8560,10 @@
                                   "type": "string"
                                 },
                                 "history_limit": {
+                                  "nullable": true,
+                                  "type": "integer"
+                                },
+                                "nav_stack_limit": {
                                   "nullable": true,
                                   "type": "integer"
                                 },
@@ -8898,6 +9014,10 @@
                                   ],
                                   "type": "object"
                                 },
+                                "closed_entry_limit": {
+                                  "nullable": true,
+                                  "type": "integer"
+                                },
                                 "desktop_transition": {
                                   "nullable": true,
                                   "type": "string"
@@ -8956,6 +9076,10 @@
                                   "type": "string"
                                 },
                                 "history_limit": {
+                                  "nullable": true,
+                                  "type": "integer"
+                                },
+                                "nav_stack_limit": {
                                   "nullable": true,
                                   "type": "integer"
                                 },
@@ -9463,6 +9587,10 @@
                                   ],
                                   "type": "object"
                                 },
+                                "closed_entry_limit": {
+                                  "nullable": true,
+                                  "type": "integer"
+                                },
                                 "desktop_transition": {
                                   "nullable": true,
                                   "type": "string"
@@ -9521,6 +9649,10 @@
                                   "type": "string"
                                 },
                                 "history_limit": {
+                                  "nullable": true,
+                                  "type": "integer"
+                                },
+                                "nav_stack_limit": {
                                   "nullable": true,
                                   "type": "integer"
                                 },
@@ -9971,6 +10103,10 @@
                                   ],
                                   "type": "object"
                                 },
+                                "closed_entry_limit": {
+                                  "nullable": true,
+                                  "type": "integer"
+                                },
                                 "desktop_transition": {
                                   "nullable": true,
                                   "type": "string"
@@ -10029,6 +10165,10 @@
                                   "type": "string"
                                 },
                                 "history_limit": {
+                                  "nullable": true,
+                                  "type": "integer"
+                                },
+                                "nav_stack_limit": {
                                   "nullable": true,
                                   "type": "integer"
                                 },
@@ -10386,6 +10526,10 @@
                     ],
                     "type": "object"
                   },
+                  "closed_entry_limit": {
+                    "nullable": true,
+                    "type": "integer"
+                  },
                   "desktop_transition": {
                     "nullable": true,
                     "type": "string"
@@ -10444,6 +10588,10 @@
                     "type": "string"
                   },
                   "history_limit": {
+                    "nullable": true,
+                    "type": "integer"
+                  },
+                  "nav_stack_limit": {
                     "nullable": true,
                     "type": "integer"
                   },
@@ -11084,6 +11232,10 @@
                               ],
                               "type": "object"
                             },
+                            "closed_entry_limit": {
+                              "nullable": true,
+                              "type": "integer"
+                            },
                             "desktop_transition": {
                               "nullable": true,
                               "type": "string"
@@ -11142,6 +11294,10 @@
                               "type": "string"
                             },
                             "history_limit": {
+                              "nullable": true,
+                              "type": "integer"
+                            },
+                            "nav_stack_limit": {
                               "nullable": true,
                               "type": "integer"
                             },
@@ -11592,6 +11748,10 @@
                               ],
                               "type": "object"
                             },
+                            "closed_entry_limit": {
+                              "nullable": true,
+                              "type": "integer"
+                            },
                             "desktop_transition": {
                               "nullable": true,
                               "type": "string"
@@ -11650,6 +11810,10 @@
                               "type": "string"
                             },
                             "history_limit": {
+                              "nullable": true,
+                              "type": "integer"
+                            },
+                            "nav_stack_limit": {
                               "nullable": true,
                               "type": "integer"
                             },
@@ -12157,6 +12321,10 @@
                               ],
                               "type": "object"
                             },
+                            "closed_entry_limit": {
+                              "nullable": true,
+                              "type": "integer"
+                            },
                             "desktop_transition": {
                               "nullable": true,
                               "type": "string"
@@ -12215,6 +12383,10 @@
                               "type": "string"
                             },
                             "history_limit": {
+                              "nullable": true,
+                              "type": "integer"
+                            },
+                            "nav_stack_limit": {
                               "nullable": true,
                               "type": "integer"
                             },
@@ -12665,6 +12837,10 @@
                               ],
                               "type": "object"
                             },
+                            "closed_entry_limit": {
+                              "nullable": true,
+                              "type": "integer"
+                            },
                             "desktop_transition": {
                               "nullable": true,
                               "type": "string"
@@ -12723,6 +12899,10 @@
                               "type": "string"
                             },
                             "history_limit": {
+                              "nullable": true,
+                              "type": "integer"
+                            },
+                            "nav_stack_limit": {
                               "nullable": true,
                               "type": "integer"
                             },
@@ -13080,6 +13260,10 @@
                 ],
                 "type": "object"
               },
+              "closed_entry_limit": {
+                "nullable": true,
+                "type": "integer"
+              },
               "desktop_transition": {
                 "nullable": true,
                 "type": "string"
@@ -13138,6 +13322,10 @@
                 "type": "string"
               },
               "history_limit": {
+                "nullable": true,
+                "type": "integer"
+              },
+              "nav_stack_limit": {
                 "nullable": true,
                 "type": "integer"
               },
@@ -13819,6 +14007,10 @@
                                   ],
                                   "type": "object"
                                 },
+                                "closed_entry_limit": {
+                                  "nullable": true,
+                                  "type": "integer"
+                                },
                                 "desktop_transition": {
                                   "nullable": true,
                                   "type": "string"
@@ -13877,6 +14069,10 @@
                                   "type": "string"
                                 },
                                 "history_limit": {
+                                  "nullable": true,
+                                  "type": "integer"
+                                },
+                                "nav_stack_limit": {
                                   "nullable": true,
                                   "type": "integer"
                                 },
@@ -14327,6 +14523,10 @@
                                   ],
                                   "type": "object"
                                 },
+                                "closed_entry_limit": {
+                                  "nullable": true,
+                                  "type": "integer"
+                                },
                                 "desktop_transition": {
                                   "nullable": true,
                                   "type": "string"
@@ -14385,6 +14585,10 @@
                                   "type": "string"
                                 },
                                 "history_limit": {
+                                  "nullable": true,
+                                  "type": "integer"
+                                },
+                                "nav_stack_limit": {
                                   "nullable": true,
                                   "type": "integer"
                                 },
@@ -14892,6 +15096,10 @@
                                   ],
                                   "type": "object"
                                 },
+                                "closed_entry_limit": {
+                                  "nullable": true,
+                                  "type": "integer"
+                                },
                                 "desktop_transition": {
                                   "nullable": true,
                                   "type": "string"
@@ -14950,6 +15158,10 @@
                                   "type": "string"
                                 },
                                 "history_limit": {
+                                  "nullable": true,
+                                  "type": "integer"
+                                },
+                                "nav_stack_limit": {
                                   "nullable": true,
                                   "type": "integer"
                                 },
@@ -15400,6 +15612,10 @@
                                   ],
                                   "type": "object"
                                 },
+                                "closed_entry_limit": {
+                                  "nullable": true,
+                                  "type": "integer"
+                                },
                                 "desktop_transition": {
                                   "nullable": true,
                                   "type": "string"
@@ -15458,6 +15674,10 @@
                                   "type": "string"
                                 },
                                 "history_limit": {
+                                  "nullable": true,
+                                  "type": "integer"
+                                },
+                                "nav_stack_limit": {
                                   "nullable": true,
                                   "type": "integer"
                                 },
@@ -15815,6 +16035,10 @@
                     ],
                     "type": "object"
                   },
+                  "closed_entry_limit": {
+                    "nullable": true,
+                    "type": "integer"
+                  },
                   "desktop_transition": {
                     "nullable": true,
                     "type": "string"
@@ -15873,6 +16097,10 @@
                     "type": "string"
                   },
                   "history_limit": {
+                    "nullable": true,
+                    "type": "integer"
+                  },
+                  "nav_stack_limit": {
                     "nullable": true,
                     "type": "integer"
                   },
@@ -139942,6 +140170,9 @@
                           ],
                           "type": "object"
                         },
+                        "closed_entry_limit": {
+                          "type": "integer"
+                        },
                         "desktop_transition": {
                           "enum": [
                             "slide",
@@ -140011,6 +140242,9 @@
                         "history_limit": {
                           "type": "integer"
                         },
+                        "nav_stack_limit": {
+                          "type": "integer"
+                        },
                         "new_window_policy": {
                           "enum": [
                             "floating",
@@ -140075,6 +140309,7 @@
                       },
                       "required": [
                         "bindings",
+                        "closed_entry_limit",
                         "desktop_transition",
                         "drag_away_policy",
                         "focus_follows_pointer",
@@ -140083,6 +140318,7 @@
                         "gaps",
                         "group_move_modifier",
                         "history_limit",
+                        "nav_stack_limit",
                         "new_window_policy",
                         "raise_on_focus",
                         "shortcuts",
@@ -140236,6 +140472,9 @@
                         ],
                         "type": "object"
                       },
+                      "closed_entry_limit": {
+                        "type": "integer"
+                      },
                       "desktop_transition": {
                         "enum": [
                           "slide",
@@ -140305,6 +140544,9 @@
                       "history_limit": {
                         "type": "integer"
                       },
+                      "nav_stack_limit": {
+                        "type": "integer"
+                      },
                       "new_window_policy": {
                         "enum": [
                           "floating",
@@ -140369,6 +140611,7 @@
                     },
                     "required": [
                       "bindings",
+                      "closed_entry_limit",
                       "desktop_transition",
                       "drag_away_policy",
                       "focus_follows_pointer",
@@ -140377,6 +140620,7 @@
                       "gaps",
                       "group_move_modifier",
                       "history_limit",
+                      "nav_stack_limit",
                       "new_window_policy",
                       "raise_on_focus",
                       "shortcuts",
@@ -261679,6 +261923,10 @@
                                         ],
                                         "type": "object"
                                       },
+                                      "closed_entry_limit": {
+                                        "nullable": true,
+                                        "type": "integer"
+                                      },
                                       "desktop_transition": {
                                         "nullable": true,
                                         "type": "string"
@@ -261737,6 +261985,10 @@
                                         "type": "string"
                                       },
                                       "history_limit": {
+                                        "nullable": true,
+                                        "type": "integer"
+                                      },
+                                      "nav_stack_limit": {
                                         "nullable": true,
                                         "type": "integer"
                                       },
@@ -262187,6 +262439,10 @@
                                         ],
                                         "type": "object"
                                       },
+                                      "closed_entry_limit": {
+                                        "nullable": true,
+                                        "type": "integer"
+                                      },
                                       "desktop_transition": {
                                         "nullable": true,
                                         "type": "string"
@@ -262245,6 +262501,10 @@
                                         "type": "string"
                                       },
                                       "history_limit": {
+                                        "nullable": true,
+                                        "type": "integer"
+                                      },
+                                      "nav_stack_limit": {
                                         "nullable": true,
                                         "type": "integer"
                                       },
@@ -262752,6 +263012,10 @@
                                         ],
                                         "type": "object"
                                       },
+                                      "closed_entry_limit": {
+                                        "nullable": true,
+                                        "type": "integer"
+                                      },
                                       "desktop_transition": {
                                         "nullable": true,
                                         "type": "string"
@@ -262810,6 +263074,10 @@
                                         "type": "string"
                                       },
                                       "history_limit": {
+                                        "nullable": true,
+                                        "type": "integer"
+                                      },
+                                      "nav_stack_limit": {
                                         "nullable": true,
                                         "type": "integer"
                                       },
@@ -263260,6 +263528,10 @@
                                         ],
                                         "type": "object"
                                       },
+                                      "closed_entry_limit": {
+                                        "nullable": true,
+                                        "type": "integer"
+                                      },
                                       "desktop_transition": {
                                         "nullable": true,
                                         "type": "string"
@@ -263318,6 +263590,10 @@
                                         "type": "string"
                                       },
                                       "history_limit": {
+                                        "nullable": true,
+                                        "type": "integer"
+                                      },
+                                      "nav_stack_limit": {
                                         "nullable": true,
                                         "type": "integer"
                                       },
@@ -263675,6 +263951,10 @@
                           ],
                           "type": "object"
                         },
+                        "closed_entry_limit": {
+                          "nullable": true,
+                          "type": "integer"
+                        },
                         "desktop_transition": {
                           "nullable": true,
                           "type": "string"
@@ -263733,6 +264013,10 @@
                           "type": "string"
                         },
                         "history_limit": {
+                          "nullable": true,
+                          "type": "integer"
+                        },
+                        "nav_stack_limit": {
                           "nullable": true,
                           "type": "integer"
                         },
@@ -265474,6 +265758,18 @@
                           },
                           "type": "array"
                         },
+                        "stack_grouped": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        },
+                        "stack_ungrouped": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        },
                         "window_ids": {
                           "items": {
                             "type": "string"
@@ -265871,6 +266167,10 @@
                                             ],
                                             "type": "object"
                                           },
+                                          "closed_entry_limit": {
+                                            "nullable": true,
+                                            "type": "integer"
+                                          },
                                           "desktop_transition": {
                                             "nullable": true,
                                             "type": "string"
@@ -265929,6 +266229,10 @@
                                             "type": "string"
                                           },
                                           "history_limit": {
+                                            "nullable": true,
+                                            "type": "integer"
+                                          },
+                                          "nav_stack_limit": {
                                             "nullable": true,
                                             "type": "integer"
                                           },
@@ -266379,6 +266683,10 @@
                                             ],
                                             "type": "object"
                                           },
+                                          "closed_entry_limit": {
+                                            "nullable": true,
+                                            "type": "integer"
+                                          },
                                           "desktop_transition": {
                                             "nullable": true,
                                             "type": "string"
@@ -266437,6 +266745,10 @@
                                             "type": "string"
                                           },
                                           "history_limit": {
+                                            "nullable": true,
+                                            "type": "integer"
+                                          },
+                                          "nav_stack_limit": {
                                             "nullable": true,
                                             "type": "integer"
                                           },
@@ -266944,6 +267256,10 @@
                                             ],
                                             "type": "object"
                                           },
+                                          "closed_entry_limit": {
+                                            "nullable": true,
+                                            "type": "integer"
+                                          },
                                           "desktop_transition": {
                                             "nullable": true,
                                             "type": "string"
@@ -267002,6 +267318,10 @@
                                             "type": "string"
                                           },
                                           "history_limit": {
+                                            "nullable": true,
+                                            "type": "integer"
+                                          },
+                                          "nav_stack_limit": {
                                             "nullable": true,
                                             "type": "integer"
                                           },
@@ -267452,6 +267772,10 @@
                                             ],
                                             "type": "object"
                                           },
+                                          "closed_entry_limit": {
+                                            "nullable": true,
+                                            "type": "integer"
+                                          },
                                           "desktop_transition": {
                                             "nullable": true,
                                             "type": "string"
@@ -267510,6 +267834,10 @@
                                             "type": "string"
                                           },
                                           "history_limit": {
+                                            "nullable": true,
+                                            "type": "integer"
+                                          },
+                                          "nav_stack_limit": {
                                             "nullable": true,
                                             "type": "integer"
                                           },
@@ -267867,6 +268195,10 @@
                               ],
                               "type": "object"
                             },
+                            "closed_entry_limit": {
+                              "nullable": true,
+                              "type": "integer"
+                            },
                             "desktop_transition": {
                               "nullable": true,
                               "type": "string"
@@ -267925,6 +268257,10 @@
                               "type": "string"
                             },
                             "history_limit": {
+                              "nullable": true,
+                              "type": "integer"
+                            },
+                            "nav_stack_limit": {
                               "nullable": true,
                               "type": "integer"
                             },
@@ -268786,6 +269122,10 @@
                           ],
                           "type": "object"
                         },
+                        "closed_entry_limit": {
+                          "nullable": true,
+                          "type": "integer"
+                        },
                         "desktop_transition": {
                           "nullable": true,
                           "type": "string"
@@ -268844,6 +269184,10 @@
                           "type": "string"
                         },
                         "history_limit": {
+                          "nullable": true,
+                          "type": "integer"
+                        },
+                        "nav_stack_limit": {
                           "nullable": true,
                           "type": "integer"
                         },
@@ -269525,6 +269869,10 @@
                             ],
                             "type": "object"
                           },
+                          "closed_entry_limit": {
+                            "nullable": true,
+                            "type": "integer"
+                          },
                           "desktop_transition": {
                             "nullable": true,
                             "type": "string"
@@ -269583,6 +269931,10 @@
                             "type": "string"
                           },
                           "history_limit": {
+                            "nullable": true,
+                            "type": "integer"
+                          },
+                          "nav_stack_limit": {
                             "nullable": true,
                             "type": "integer"
                           },
@@ -269938,6 +270290,18 @@
                           "type": "array"
                         },
                         "node_ids": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        },
+                        "stack_grouped": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        },
+                        "stack_ungrouped": {
                           "items": {
                             "type": "string"
                           },
@@ -270340,6 +270704,10 @@
                                             ],
                                             "type": "object"
                                           },
+                                          "closed_entry_limit": {
+                                            "nullable": true,
+                                            "type": "integer"
+                                          },
                                           "desktop_transition": {
                                             "nullable": true,
                                             "type": "string"
@@ -270398,6 +270766,10 @@
                                             "type": "string"
                                           },
                                           "history_limit": {
+                                            "nullable": true,
+                                            "type": "integer"
+                                          },
+                                          "nav_stack_limit": {
                                             "nullable": true,
                                             "type": "integer"
                                           },
@@ -270848,6 +271220,10 @@
                                             ],
                                             "type": "object"
                                           },
+                                          "closed_entry_limit": {
+                                            "nullable": true,
+                                            "type": "integer"
+                                          },
                                           "desktop_transition": {
                                             "nullable": true,
                                             "type": "string"
@@ -270906,6 +271282,10 @@
                                             "type": "string"
                                           },
                                           "history_limit": {
+                                            "nullable": true,
+                                            "type": "integer"
+                                          },
+                                          "nav_stack_limit": {
                                             "nullable": true,
                                             "type": "integer"
                                           },
@@ -271413,6 +271793,10 @@
                                             ],
                                             "type": "object"
                                           },
+                                          "closed_entry_limit": {
+                                            "nullable": true,
+                                            "type": "integer"
+                                          },
                                           "desktop_transition": {
                                             "nullable": true,
                                             "type": "string"
@@ -271471,6 +271855,10 @@
                                             "type": "string"
                                           },
                                           "history_limit": {
+                                            "nullable": true,
+                                            "type": "integer"
+                                          },
+                                          "nav_stack_limit": {
                                             "nullable": true,
                                             "type": "integer"
                                           },
@@ -271921,6 +272309,10 @@
                                             ],
                                             "type": "object"
                                           },
+                                          "closed_entry_limit": {
+                                            "nullable": true,
+                                            "type": "integer"
+                                          },
                                           "desktop_transition": {
                                             "nullable": true,
                                             "type": "string"
@@ -271979,6 +272371,10 @@
                                             "type": "string"
                                           },
                                           "history_limit": {
+                                            "nullable": true,
+                                            "type": "integer"
+                                          },
+                                          "nav_stack_limit": {
                                             "nullable": true,
                                             "type": "integer"
                                           },
@@ -272336,6 +272732,10 @@
                               ],
                               "type": "object"
                             },
+                            "closed_entry_limit": {
+                              "nullable": true,
+                              "type": "integer"
+                            },
                             "desktop_transition": {
                               "nullable": true,
                               "type": "string"
@@ -272394,6 +272794,10 @@
                               "type": "string"
                             },
                             "history_limit": {
+                              "nullable": true,
+                              "type": "integer"
+                            },
+                            "nav_stack_limit": {
                               "nullable": true,
                               "type": "integer"
                             },
@@ -275494,6 +275898,10 @@
                             ],
                             "type": "object"
                           },
+                          "closed_entry_limit": {
+                            "nullable": true,
+                            "type": "integer"
+                          },
                           "desktop_transition": {
                             "nullable": true,
                             "type": "string"
@@ -275552,6 +275960,10 @@
                             "type": "string"
                           },
                           "history_limit": {
+                            "nullable": true,
+                            "type": "integer"
+                          },
+                          "nav_stack_limit": {
                             "nullable": true,
                             "type": "integer"
                           },
@@ -276416,6 +276828,18 @@
                           },
                           "type": "array"
                         },
+                        "stack_grouped": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        },
+                        "stack_ungrouped": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        },
                         "window_ids": {
                           "items": {
                             "type": "string"
@@ -276808,6 +277232,10 @@
                                             ],
                                             "type": "object"
                                           },
+                                          "closed_entry_limit": {
+                                            "nullable": true,
+                                            "type": "integer"
+                                          },
                                           "desktop_transition": {
                                             "nullable": true,
                                             "type": "string"
@@ -276866,6 +277294,10 @@
                                             "type": "string"
                                           },
                                           "history_limit": {
+                                            "nullable": true,
+                                            "type": "integer"
+                                          },
+                                          "nav_stack_limit": {
                                             "nullable": true,
                                             "type": "integer"
                                           },
@@ -277316,6 +277748,10 @@
                                             ],
                                             "type": "object"
                                           },
+                                          "closed_entry_limit": {
+                                            "nullable": true,
+                                            "type": "integer"
+                                          },
                                           "desktop_transition": {
                                             "nullable": true,
                                             "type": "string"
@@ -277374,6 +277810,10 @@
                                             "type": "string"
                                           },
                                           "history_limit": {
+                                            "nullable": true,
+                                            "type": "integer"
+                                          },
+                                          "nav_stack_limit": {
                                             "nullable": true,
                                             "type": "integer"
                                           },
@@ -277881,6 +278321,10 @@
                                             ],
                                             "type": "object"
                                           },
+                                          "closed_entry_limit": {
+                                            "nullable": true,
+                                            "type": "integer"
+                                          },
                                           "desktop_transition": {
                                             "nullable": true,
                                             "type": "string"
@@ -277939,6 +278383,10 @@
                                             "type": "string"
                                           },
                                           "history_limit": {
+                                            "nullable": true,
+                                            "type": "integer"
+                                          },
+                                          "nav_stack_limit": {
                                             "nullable": true,
                                             "type": "integer"
                                           },
@@ -278389,6 +278837,10 @@
                                             ],
                                             "type": "object"
                                           },
+                                          "closed_entry_limit": {
+                                            "nullable": true,
+                                            "type": "integer"
+                                          },
                                           "desktop_transition": {
                                             "nullable": true,
                                             "type": "string"
@@ -278447,6 +278899,10 @@
                                             "type": "string"
                                           },
                                           "history_limit": {
+                                            "nullable": true,
+                                            "type": "integer"
+                                          },
+                                          "nav_stack_limit": {
                                             "nullable": true,
                                             "type": "integer"
                                           },
@@ -278804,6 +279260,10 @@
                               ],
                               "type": "object"
                             },
+                            "closed_entry_limit": {
+                              "nullable": true,
+                              "type": "integer"
+                            },
                             "desktop_transition": {
                               "nullable": true,
                               "type": "string"
@@ -278862,6 +279322,10 @@
                               "type": "string"
                             },
                             "history_limit": {
+                              "nullable": true,
+                              "type": "integer"
+                            },
+                            "nav_stack_limit": {
                               "nullable": true,
                               "type": "integer"
                             },
@@ -279951,6 +280415,10 @@
                                                 ],
                                                 "type": "object"
                                               },
+                                              "closed_entry_limit": {
+                                                "nullable": true,
+                                                "type": "integer"
+                                              },
                                               "desktop_transition": {
                                                 "nullable": true,
                                                 "type": "string"
@@ -280009,6 +280477,10 @@
                                                 "type": "string"
                                               },
                                               "history_limit": {
+                                                "nullable": true,
+                                                "type": "integer"
+                                              },
+                                              "nav_stack_limit": {
                                                 "nullable": true,
                                                 "type": "integer"
                                               },
@@ -280459,6 +280931,10 @@
                                                 ],
                                                 "type": "object"
                                               },
+                                              "closed_entry_limit": {
+                                                "nullable": true,
+                                                "type": "integer"
+                                              },
                                               "desktop_transition": {
                                                 "nullable": true,
                                                 "type": "string"
@@ -280517,6 +280993,10 @@
                                                 "type": "string"
                                               },
                                               "history_limit": {
+                                                "nullable": true,
+                                                "type": "integer"
+                                              },
+                                              "nav_stack_limit": {
                                                 "nullable": true,
                                                 "type": "integer"
                                               },
@@ -281024,6 +281504,10 @@
                                                 ],
                                                 "type": "object"
                                               },
+                                              "closed_entry_limit": {
+                                                "nullable": true,
+                                                "type": "integer"
+                                              },
                                               "desktop_transition": {
                                                 "nullable": true,
                                                 "type": "string"
@@ -281082,6 +281566,10 @@
                                                 "type": "string"
                                               },
                                               "history_limit": {
+                                                "nullable": true,
+                                                "type": "integer"
+                                              },
+                                              "nav_stack_limit": {
                                                 "nullable": true,
                                                 "type": "integer"
                                               },
@@ -281532,6 +282020,10 @@
                                                 ],
                                                 "type": "object"
                                               },
+                                              "closed_entry_limit": {
+                                                "nullable": true,
+                                                "type": "integer"
+                                              },
                                               "desktop_transition": {
                                                 "nullable": true,
                                                 "type": "string"
@@ -281590,6 +282082,10 @@
                                                 "type": "string"
                                               },
                                               "history_limit": {
+                                                "nullable": true,
+                                                "type": "integer"
+                                              },
+                                              "nav_stack_limit": {
                                                 "nullable": true,
                                                 "type": "integer"
                                               },
@@ -281947,6 +282443,10 @@
                                   ],
                                   "type": "object"
                                 },
+                                "closed_entry_limit": {
+                                  "nullable": true,
+                                  "type": "integer"
+                                },
                                 "desktop_transition": {
                                   "nullable": true,
                                   "type": "string"
@@ -282005,6 +282505,10 @@
                                   "type": "string"
                                 },
                                 "history_limit": {
+                                  "nullable": true,
+                                  "type": "integer"
+                                },
+                                "nav_stack_limit": {
                                   "nullable": true,
                                   "type": "integer"
                                 },
@@ -282370,6 +282874,18 @@
                                   "type": "array"
                                 },
                                 "node_ids": {
+                                  "items": {
+                                    "type": "string"
+                                  },
+                                  "type": "array"
+                                },
+                                "stack_grouped": {
+                                  "items": {
+                                    "type": "string"
+                                  },
+                                  "type": "array"
+                                },
+                                "stack_ungrouped": {
                                   "items": {
                                     "type": "string"
                                   },

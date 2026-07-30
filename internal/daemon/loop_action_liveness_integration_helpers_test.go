@@ -483,7 +483,12 @@ func executeFailureBreakerGeneration(
 		executeErr := runtime.executeQueuedRun(ctx, taskRecord, run, loopActionRuntimeReasonEnqueued)
 		if metadata.NodeID == "failing" {
 			if !errors.Is(executeErr, errLoopFailureBreakerIntegration) {
-				t.Fatalf("executeQueuedRun(failing generation %d) error = %v, want %v", generation, executeErr, errLoopFailureBreakerIntegration)
+				t.Fatalf(
+					"executeQueuedRun(failing generation %d) error = %v, want %v",
+					generation,
+					executeErr,
+					errLoopFailureBreakerIntegration,
+				)
 			}
 			continue
 		}

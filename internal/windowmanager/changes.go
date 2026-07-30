@@ -8,4 +8,6 @@ func sortChangeSet(changes *ChangeSet) {
 	slices.Sort(changes.GroupIDs)
 	slices.Sort(changes.NodeIDs)
 	slices.Sort(changes.ClientIDs)
+	slices.Sort(changes.StackGrouped)
+	slices.Sort(changes.StackUngrouped)
 }

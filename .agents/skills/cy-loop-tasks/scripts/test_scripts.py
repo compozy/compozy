@@ -367,6 +367,26 @@ class CyLoopTasksScriptTests(unittest.TestCase):
             state = state_io.load(slug_dir / "state.yaml")
             self.assertEqual(state["goal_signature"], goal)
 
+    def test_update_state_normalizes_legacy_stacked_to_false(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tasks_root = Path(tmp) / "tasks"
+            slug = "legacy-stacked"
+            self.write_state(tasks_root, slug)  # helper predates the flag
+
+            updated = self.run_script(
+                "update-state.py",
+                slug,
+                "--tasks-root",
+                str(tasks_root),
+                "--phase",
+                "B",
+                "--action",
+                "advance",
+            )
+            self.assertEqual(updated.returncode, 0, updated.stderr)
+            state = state_io.load(tasks_root / slug / "state.yaml")
+            self.assertIs(state["stacked"], False)
+
     def test_init_state_defaults_frontend_agent_to_null(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tasks_root = Path(tmp) / "tasks"
@@ -387,6 +407,56 @@ class CyLoopTasksScriptTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             state = state_io.load(slug_dir / "state.yaml")
             self.assertIsNone(state["frontend_agent"])
+            self.assertFalse(state["stacked"])
+
+    def test_init_state_records_stacked_flag_in_tasks_mode(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tasks_root = Path(tmp) / "tasks"
+            slug = "stacked-tasks"
+            slug_dir = tasks_root / slug
+            slug_dir.mkdir(parents=True)
+            (slug_dir / "_techspec.md").write_text("# spec\n", encoding="utf-8")
+            (slug_dir / "_tasks.md").write_text("# tasks\n", encoding="utf-8")
+            (slug_dir / "task_01.md").write_text(
+                "---\nstatus: pending\ntitle: first\n---\n", encoding="utf-8"
+            )
+
+            result = self.run_script(
+                "init-state.py",
+                slug,
+                "--tasks-root",
+                str(tasks_root),
+                "--goal",
+                "test goal",
+                "--stacked",
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("stacked=true", result.stdout)
+            state = state_io.load(slug_dir / "state.yaml")
+            self.assertTrue(state["stacked"])
+
+    def test_init_state_rejects_stacked_in_free_mode(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tasks_root = Path(tmp) / "tasks"
+            slug = "stacked-free"
+            slug_dir = tasks_root / slug
+            slug_dir.mkdir(parents=True)
+            (slug_dir / "_techspec.md").write_text("# spec\n", encoding="utf-8")
+
+            result = self.run_script(
+                "init-state.py",
+                slug,
+                "--tasks-root",
+                str(tasks_root),
+                "--goal",
+                "test goal",
+                "--stacked",
+            )
+
+            self.assertEqual(result.returncode, 4)
+            self.assertIn("--stacked requires tasks mode", result.stderr)
+            self.assertFalse((slug_dir / "state.yaml").exists())
 
     # ---- detect-phase.py -------------------------------------------------
 
@@ -626,17 +696,27 @@ class CyLoopTasksScriptTests(unittest.TestCase):
         first = _git(root, "commit", "-q", "-m", "anchor", env=env)
         self.assertEqual(first.returncode, 0, first.stderr)
 
-    def _setup_checkpoint_repo(self, root: Path, slug: str) -> Path:
+    def _setup_checkpoint_repo(self, root: Path, slug: str, **state_overrides: object) -> Path:
         self._init_git_repo(root)
         tasks_root = root / ".compozy" / "tasks"
-        self.write_state(tasks_root, slug, mode="tasks", iteration=4)
+        self.write_state(tasks_root, slug, mode="tasks", iteration=4, **state_overrides)
         # Track the state.yaml so subsequent checkpoint runs see a clean tree
         env = _git_env()
         _git(root, "add", "-A", env=env)
         _git(root, "commit", "-q", "-m", "state", env=env)
         return tasks_root
 
-    def _run_checkpoint(self, root: Path, tasks_root: Path, slug: str, *flags: str) -> subprocess.CompletedProcess[str]:
+    def _run_checkpoint(
+        self,
+        root: Path,
+        tasks_root: Path,
+        slug: str,
+        *flags: str,
+        extra_env: dict[str, str] | None = None,
+    ) -> subprocess.CompletedProcess[str]:
+        env = _git_env()
+        if extra_env:
+            env.update(extra_env)
         return subprocess.run(
             [
                 sys.executable,
@@ -647,11 +727,48 @@ class CyLoopTasksScriptTests(unittest.TestCase):
                 str(tasks_root.relative_to(root)),
             ],
             cwd=root,
-            env=_git_env(),
+            env=env,
             check=False,
             text=True,
             capture_output=True,
         )
+
+    def _gh_stub(self, tmp: Path) -> tuple[Path, dict[str, str]]:
+        """Fake ``gh`` binary logging calls and mimicking stack init/add/view."""
+        stub_dir = tmp / "gh-stub"
+        stub_dir.mkdir(parents=True, exist_ok=True)
+        stub = stub_dir / "gh"
+        stub.write_text(
+            "#!/bin/sh\n"
+            'echo "$*" >> "$GH_STUB_LOG"\n'
+            'case "$1 $2" in\n'
+            '  "stack view")\n'
+            '    [ -f "$GH_STUB_STATE/in-stack" ] || exit 1\n'
+            "    ;;\n"
+            '  "stack init")\n'
+            '    git switch -q -c "$3" || exit 1\n'
+            '    touch "$GH_STUB_STATE/in-stack"\n'
+            "    ;;\n"
+            '  "stack add")\n'
+            '    git switch -q -c "$3" || exit 1\n'
+            "    ;;\n"
+            '  "stack submit")\n'
+            "    ;;\n"
+            "esac\n"
+            "exit 0\n",
+            encoding="utf-8",
+        )
+        stub.chmod(0o755)
+        env = {
+            "CY_LOOP_GH": str(stub),
+            "GH_STUB_LOG": str(stub_dir / "calls.log"),
+            "GH_STUB_STATE": str(stub_dir),
+        }
+        return stub_dir, env
+
+    def _stub_calls(self, stub_dir: Path) -> str:
+        log = stub_dir / "calls.log"
+        return log.read_text(encoding="utf-8") if log.exists() else ""
 
     def test_commit_checkpoint_skips_when_no_changes(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -818,6 +935,157 @@ class CyLoopTasksScriptTests(unittest.TestCase):
             )
             self.assertEqual(result.returncode, 2)
             self.assertIn("state.yaml", result.stderr)
+
+    # ---- commit-checkpoint.py stacked mode -------------------------------
+
+    def test_commit_checkpoint_stacked_inits_layer_commits_and_submits(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "repo"
+            root.mkdir()
+            slug = "stacked-first"
+            tasks_root = self._setup_checkpoint_repo(root, slug, stacked=True)
+            stub_dir, gh_env = self._gh_stub(Path(tmp))
+            (tasks_root / slug / "task_07.md").write_text(
+                "---\nstatus: pending\ntitle: implement backend tests\n---\n",
+                encoding="utf-8",
+            )
+            (root / "feature.txt").write_text("change", encoding="utf-8")
+            env = _git_env()
+            _git(root, "add", "-A", env=env)
+            _git(root, "commit", "-q", "-m", "task file", env=env)
+            (root / "delta.txt").write_text("work", encoding="utf-8")
+
+            result = self._run_checkpoint(
+                root, tasks_root, slug, "--task", "task_07", extra_env=gh_env
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            lines = result.stdout.strip().splitlines()
+            self.assertEqual(len(lines[0]), 40)
+            self.assertEqual(lines[1], f"stack: submitted ({slug}/task-07)")
+
+            branch = _git(root, "rev-parse", "--abbrev-ref", "HEAD", env=env)
+            self.assertEqual(branch.stdout.strip(), f"{slug}/task-07")
+
+            calls = self._stub_calls(stub_dir)
+            self.assertIn(f"stack init {slug}/task-07 --base main", calls)
+            self.assertIn("stack submit --auto", calls)
+            self.assertNotIn("stack add", calls)
+
+            log = _git(root, "log", "-1", "--pretty=%B", env=env)
+            self.assertIn("feat: implement backend tests #07", log.stdout)
+
+    def test_commit_checkpoint_stacked_adds_layer_when_stack_active(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "repo"
+            root.mkdir()
+            slug = "stacked-next"
+            tasks_root = self._setup_checkpoint_repo(root, slug, stacked=True)
+            stub_dir, gh_env = self._gh_stub(Path(tmp))
+            (stub_dir / "in-stack").touch()
+            (tasks_root / slug / "task_02.md").write_text(
+                "---\nstatus: pending\ntitle: second layer\n---\n",
+                encoding="utf-8",
+            )
+            env = _git_env()
+            _git(root, "add", "-A", env=env)
+            _git(root, "commit", "-q", "-m", "task file", env=env)
+            (root / "delta.txt").write_text("work", encoding="utf-8")
+
+            result = self._run_checkpoint(
+                root, tasks_root, slug, "--task", "task_02", extra_env=gh_env
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+
+            calls = self._stub_calls(stub_dir)
+            self.assertIn(f"stack add {slug}/task-02", calls)
+            self.assertNotIn("stack init", calls)
+            self.assertIn("stack submit --auto", calls)
+
+            branch = _git(root, "rev-parse", "--abbrev-ref", "HEAD", env=env)
+            self.assertEqual(branch.stdout.strip(), f"{slug}/task-02")
+
+    def test_commit_checkpoint_stacked_clean_tree_still_resubmits(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "repo"
+            root.mkdir()
+            slug = "stacked-clean"
+            tasks_root = self._setup_checkpoint_repo(root, slug, stacked=True)
+            stub_dir, gh_env = self._gh_stub(Path(tmp))
+            (stub_dir / "in-stack").touch()
+
+            result = self._run_checkpoint(
+                root, tasks_root, slug, "--task", "task_01", extra_env=gh_env
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            lines = result.stdout.strip().splitlines()
+            self.assertEqual(lines[0], "SKIP: no changes")
+            self.assertTrue(lines[1].startswith("stack: submitted"))
+            self.assertIn("stack submit --auto", self._stub_calls(stub_dir))
+
+    def test_commit_checkpoint_stacked_rejects_slice(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "repo"
+            root.mkdir()
+            slug = "stacked-slice"
+            tasks_root = self._setup_checkpoint_repo(root, slug, stacked=True)
+            _, gh_env = self._gh_stub(Path(tmp))
+            (root / "delta.txt").write_text("work", encoding="utf-8")
+
+            result = self._run_checkpoint(
+                root, tasks_root, slug, "--slice", "some slice", extra_env=gh_env
+            )
+            self.assertEqual(result.returncode, 2)
+            self.assertIn("incompatible with stacked mode", result.stderr)
+
+    def test_commit_checkpoint_stacked_guards_resume_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "repo"
+            root.mkdir()
+            slug = "stacked-drift"
+            tasks_root = self._setup_checkpoint_repo(root, slug, stacked=True)
+            stub_dir, gh_env = self._gh_stub(Path(tmp))
+            (tasks_root / slug / "task_02.md").write_text(
+                "---\nstatus: pending\ntitle: second layer\n---\n",
+                encoding="utf-8",
+            )
+            env = _git_env()
+            _git(root, "add", "-A", env=env)
+            _git(root, "commit", "-q", "-m", "task file", env=env)
+            # A prior layer branch exists but the stub reports no active stack.
+            _git(root, "branch", f"{slug}/task-01", env=env)
+            (root / "delta.txt").write_text("work", encoding="utf-8")
+
+            result = self._run_checkpoint(
+                root, tasks_root, slug, "--task", "task_02", extra_env=gh_env
+            )
+            self.assertEqual(result.returncode, 2)
+            self.assertIn("resume the stack first", result.stderr)
+            self.assertNotIn("stack init", self._stub_calls(stub_dir))
+
+    def test_commit_checkpoint_stacked_review_round_requires_stack(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "repo"
+            root.mkdir()
+            slug = "stacked-review"
+            tasks_root = self._setup_checkpoint_repo(root, slug, stacked=True)
+            stub_dir, gh_env = self._gh_stub(Path(tmp))
+            (root / "remediation.txt").write_text("fix", encoding="utf-8")
+
+            outside = self._run_checkpoint(
+                root, tasks_root, slug, "--review-round", "1", extra_env=gh_env
+            )
+            self.assertEqual(outside.returncode, 2)
+            self.assertIn("belong to a stack", outside.stderr)
+
+            (stub_dir / "in-stack").touch()
+            inside = self._run_checkpoint(
+                root, tasks_root, slug, "--review-round", "1", extra_env=gh_env
+            )
+            self.assertEqual(inside.returncode, 0, inside.stderr)
+            lines = inside.stdout.strip().splitlines()
+            self.assertEqual(len(lines[0]), 40)
+            self.assertTrue(lines[1].startswith("stack: submitted"))
+            self.assertIn("stack submit --auto", self._stub_calls(stub_dir))
 
 
 if __name__ == "__main__":

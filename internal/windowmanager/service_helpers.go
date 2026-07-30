@@ -28,8 +28,8 @@ func (m *Manager) resolveWorkspace(ctx context.Context, workspaceID WorkspaceID)
 
 func (m *Manager) lockFor(workspaceID WorkspaceID) (*sync.Mutex, error) {
 	m.mu.Lock()
-	defer m.mu.Unlock()
 	if m.closed {
+		m.mu.Unlock()
 		return nil, ErrClosed
 	}
 	lock := m.workspaceLocks[workspaceID]
@@ -37,6 +37,8 @@ func (m *Manager) lockFor(workspaceID WorkspaceID) (*sync.Mutex, error) {
 		lock = &sync.Mutex{}
 		m.workspaceLocks[workspaceID] = lock
 	}
+	m.mu.Unlock()
+	m.coalescer.bindWorkspace(workspaceID, lock)
 	return lock, nil
 }
 
@@ -53,10 +55,11 @@ func (m *Manager) Close() error {
 		hubs = append(hubs, hub)
 	}
 	m.mu.Unlock()
+	coalescerErr := m.coalescer.close()
 	for _, hub := range hubs {
 		hub.closeAll(nil)
 	}
-	return nil
+	return coalescerErr
 }
 
 func validateCommandRequest(request CommandRequest) (CommandID, error) {

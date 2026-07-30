@@ -53,6 +53,13 @@
         "vite": "^8.2.0",
         "vitest": "^4.1.10"
     },
+    "overrides": {
+        "@assistant-ui/core": "0.3.0",
+        "@assistant-ui/react": "0.15.0",
+        "@assistant-ui/react-ai-sdk": "1.4.1",
+        "@assistant-ui/store": "0.3.0",
+        "lucide-react": "^1.28.0"
+    },
     "lint-staged": {
         "*.go": "sh -c 'make fmt'",
         "*.{css,html,json,jsonc,yaml,yml,md}": [

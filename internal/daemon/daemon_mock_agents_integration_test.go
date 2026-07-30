@@ -1723,7 +1723,12 @@ func assertWorkspaceAccessAgentCLIParity(
 	)
 	var exitErr *exec.ExitError
 	if !errors.As(err, &exitErr) || exitErr.ExitCode() != agentidentity.ExitUnauthorized {
-		t.Fatalf("approve-reads CLI error = %v, want exit %d; stderr=%s", err, agentidentity.ExitUnauthorized, deniedStderr)
+		t.Fatalf(
+			"approve-reads CLI error = %v, want exit %d; stderr=%s",
+			err,
+			agentidentity.ExitUnauthorized,
+			deniedStderr,
+		)
 	}
 	if !strings.Contains(deniedStderr, workspaceaccess.DenialHint) {
 		t.Fatalf("approve-reads CLI stderr = %q, want denial hint", deniedStderr)

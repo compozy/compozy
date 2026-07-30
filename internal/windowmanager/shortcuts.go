@@ -6,7 +6,11 @@ import (
 	"strings"
 )
 
-const shortcutWindowMinimizeAction = "window.minimize"
+const (
+	shortcutWindowMinimizeAction  = "window.minimize"
+	shortcutWindowTabNewAction    = "window.tab.new"
+	shortcutWindowTabReopenAction = "window.tab.reopen"
+)
 
 var shortcutModifierOrder = []string{
 	dragModifierMeta,
@@ -102,6 +106,9 @@ func isShortcutModifier(token string) bool {
 }
 
 func validShortcutAction(action string) bool {
+	if strings.HasPrefix(action, "window.tab.jump.") {
+		return len(action) == len("window.tab.jump.1") && action[len(action)-1] >= '1' && action[len(action)-1] <= '8'
+	}
 	switch action {
 	case string(CommandWindowClose),
 		shortcutWindowMinimizeAction,
@@ -127,6 +134,12 @@ func validShortcutAction(action string) bool {
 		string(CommandLayoutBalance),
 		string(CommandLayoutUndo),
 		string(CommandLayoutRedo):
+		return true
+	case shortcutWindowTabNewAction,
+		"window.tab.next",
+		"window.tab.previous",
+		"window.tab.last",
+		shortcutWindowTabReopenAction:
 		return true
 	default:
 		return false

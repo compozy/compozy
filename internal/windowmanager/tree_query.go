@@ -1,15 +1,16 @@
 package windowmanager
 
 type windowPlacement struct {
-	desktopIndex  int
-	groupIndex    int
-	floatingIndex int
-	nodeID        NodeID
-	parentSplitID *NodeID
-	childIndex    *int
-	weight        *float64
-	placement     WindowPlacement
-	neighbors     []WindowID
+	desktopIndex       int
+	groupIndex         int
+	floatingIndex      int
+	floatingStackIndex int
+	nodeID             NodeID
+	parentSplitID      *NodeID
+	childIndex         *int
+	weight             *float64
+	placement          WindowPlacement
+	neighbors          []WindowID
 }
 
 func desktopIndexByID(snapshot *Snapshot, desktopID DesktopID) (int, bool) {
@@ -31,13 +32,30 @@ func findWindowPlacement(snapshot *Snapshot, windowID WindowID) (windowPlacement
 		return windowPlacement{}, false
 	}
 	desktop := &snapshot.Desktops[desktopIndex]
+	for index := range desktop.FloatingStacks {
+		stack := &desktop.FloatingStacks[index]
+		if containsWindowID(stack.WindowIDs, windowID) {
+			neighbors := make([]WindowID, 0, len(stack.WindowIDs)-1)
+			for _, memberID := range stack.WindowIDs {
+				if memberID != windowID {
+					neighbors = append(neighbors, memberID)
+				}
+			}
+			return windowPlacement{
+				desktopIndex: desktopIndex, groupIndex: -1, floatingIndex: -1,
+				floatingStackIndex: index, nodeID: stack.ID,
+				placement: WindowPlacementStacked, neighbors: neighbors,
+			}, true
+		}
+	}
 	for index, candidate := range desktop.Floating {
 		if candidate == windowID {
 			return windowPlacement{
-				desktopIndex:  desktopIndex,
-				groupIndex:    -1,
-				floatingIndex: index,
-				placement:     WindowPlacementFloating,
+				desktopIndex:       desktopIndex,
+				groupIndex:         -1,
+				floatingIndex:      index,
+				floatingStackIndex: -1,
+				placement:          WindowPlacementFloating,
 			}, true
 		}
 	}
@@ -46,6 +64,7 @@ func findWindowPlacement(snapshot *Snapshot, windowID WindowID) (windowPlacement
 			placement.desktopIndex = desktopIndex
 			placement.groupIndex = groupIndex
 			placement.floatingIndex = -1
+			placement.floatingStackIndex = -1
 			return placement, true
 		}
 	}

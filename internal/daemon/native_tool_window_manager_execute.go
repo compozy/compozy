@@ -55,7 +55,7 @@ func (n *daemonNativeTools) executeWindowManagerCommand(
 	if err != nil {
 		return toolspkg.ToolResult{}, windowManagerToolError(req.ToolID, err)
 	}
-	payload := newWindowManagerCommandResult(command.CommandID(), result)
+	payload := newWindowManagerCommandResult(command.CommandID(), &result)
 	return structuredResult(payload, fmt.Sprintf("%s at revision %d", command.CommandID(), payload.Revision))
 }
 

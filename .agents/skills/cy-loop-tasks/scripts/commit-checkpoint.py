@@ -16,7 +16,9 @@ Usage:
 
 Behavior:
     1. Verify state.yaml exists under <tasks-root>/<slug>/.
-    2. ``git status --porcelain``: empty tree -> print ``SKIP: no changes`` and exit 0.
+    2. ``git status --porcelain``: empty tree -> print ``SKIP: no changes`` and
+       exit 0 (stacked mode with an active stack still re-submits first; see
+       Stacked mode below).
     3. Build commit header:
          --task task_NN -> ``feat: <title from task_NN.md frontmatter> #<NN>``
          --slice "<txt>" -> ``feat: <txt>`` (whitespace collapsed)
@@ -32,15 +34,34 @@ Behavior:
        --no-verify, or --no-gpg-sign. Hook failures surface as exit 1.
     6. On success, print new commit SHA (``git rev-parse HEAD``) and exit 0.
 
+Stacked mode (``state.yaml`` has ``stacked: true``; set at bootstrap via
+``init-state.py --stacked``, tasks mode only):
+    - --task task_NN: before committing, ensure the layer branch
+      ``<slug>/task-NN`` is the checked-out stack top — first layer via
+      ``gh stack init <layer> --base <current branch>``, later layers via
+      ``gh stack add <layer>``. The commit lands on the layer branch.
+    - --review-round N: commit rides the current stack branch (no new layer);
+      the current branch must already belong to a stack.
+    - After every successful commit — and on a clean tree while inside a
+      stack — run ``gh stack submit --auto`` so every layer's PR is created
+      or refreshed. The SHA (or ``SKIP: no changes``) stays the first stdout
+      line; a ``stack: submitted`` line follows.
+    - Not in a stack but ``refs/heads/<slug>/task-*`` branches exist -> exit 2
+      (resume drift: run ``gh stack checkout`` + ``gh stack top`` first).
+    - --slice is incompatible with stacked mode -> exit 2.
+    - The gh binary honors the ``CY_LOOP_GH`` env override (tests use a stub).
+
 Exits:
     0 success (commit created OR ``SKIP: no changes``)
-    1 git command failure (commit, hook, rev-parse, ...)
-    2 argument or state error (missing slug dir, state.yaml, flag misuse)
+    1 git or gh command failure (commit, hook, rev-parse, stack submit, ...)
+    2 argument or state error (missing slug dir, state.yaml, flag misuse,
+      stacked-mode drift)
 """
 
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import subprocess
 import sys
@@ -124,6 +145,106 @@ def _tree_is_clean() -> bool:
     return status.stdout.strip() == ""
 
 
+def _run_gh(args: list[str]) -> subprocess.CompletedProcess[str]:
+    gh_bin = os.environ.get("CY_LOOP_GH", "gh")
+    return subprocess.run(
+        [gh_bin, *args],
+        check=False,
+        text=True,
+        capture_output=True,
+    )
+
+
+def _current_branch() -> str:
+    head = _run_git(["rev-parse", "--abbrev-ref", "HEAD"])
+    if head.returncode != 0:
+        print(
+            f"commit-checkpoint: git rev-parse HEAD failed: {head.stderr.strip()}",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+    branch = head.stdout.strip()
+    if branch == "HEAD":
+        print(
+            "commit-checkpoint: detached HEAD is incompatible with stacked "
+            "mode; check out a branch first",
+            file=sys.stderr,
+        )
+        raise SystemExit(2)
+    return branch
+
+
+def _in_stack() -> bool:
+    return _run_gh(["stack", "view"]).returncode == 0
+
+
+def _layer_branches(slug: str) -> list[str]:
+    refs = _run_git(
+        [
+            "for-each-ref",
+            "--format=%(refname:short)",
+            f"refs/heads/{slug}/task-*",
+        ]
+    )
+    if refs.returncode != 0:
+        print(
+            f"commit-checkpoint: git for-each-ref failed: {refs.stderr.strip()}",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+    return [line for line in refs.stdout.splitlines() if line.strip()]
+
+
+def _ensure_task_layer(slug: str, stem: str) -> str:
+    """Make ``<slug>/task-NN`` the checked-out stack layer; return its name."""
+    nn = _TASK_STEM.match(stem).group(1)  # stem validated by _build_task_header
+    layer = f"{slug}/task-{nn}"
+    if _current_branch() == layer:
+        return layer
+    if _in_stack():
+        add = _run_gh(["stack", "add", layer])
+        if add.returncode != 0:
+            print(
+                f"commit-checkpoint: gh stack add {layer} failed: "
+                f"{add.stderr.strip() or add.stdout.strip()}",
+                file=sys.stderr,
+            )
+            raise SystemExit(1)
+        return layer
+    if _layer_branches(slug):
+        print(
+            f"commit-checkpoint: layer branches for {slug!r} exist but the "
+            "current branch is not part of a stack; resume the stack first "
+            "(`gh stack checkout`, then `gh stack top`) and retry",
+            file=sys.stderr,
+        )
+        raise SystemExit(2)
+    base = _current_branch()
+    init = _run_gh(["stack", "init", layer, "--base", base])
+    if init.returncode != 0:
+        print(
+            f"commit-checkpoint: gh stack init {layer} --base {base} failed: "
+            f"{init.stderr.strip() or init.stdout.strip()}",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+    return layer
+
+
+def _submit_stack() -> None:
+    submit = _run_gh(["stack", "submit", "--auto"])
+    if submit.returncode != 0:
+        print(
+            "commit-checkpoint: gh stack submit --auto failed: "
+            f"{submit.stderr.strip() or submit.stdout.strip()} "
+            "(any local commit is preserved; rerunning the checkpoint "
+            "re-submits)",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+    print(f"stack: submitted ({_current_branch()})")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("slug")
@@ -180,10 +301,6 @@ def main() -> int:
         )
         return 2
 
-    if _tree_is_clean():
-        print("SKIP: no changes")
-        return 0
-
     try:
         state = load(state_path)
     except Exception as exc:  # noqa: BLE001
@@ -193,6 +310,22 @@ def main() -> int:
         )
         return 1
 
+    stacked = bool(state.get("stacked"))
+    if stacked and args.slice_text is not None:
+        print(
+            "commit-checkpoint: --slice is incompatible with stacked mode "
+            "(stack layers map to the authored task graph)",
+            file=sys.stderr,
+        )
+        return 2
+
+    if _tree_is_clean():
+        print("SKIP: no changes")
+        if stacked and _in_stack():
+            # Heal a prior commit-ok/submit-failed run: re-submit is idempotent.
+            _submit_stack()
+        return 0
+
     iteration = int(state.get("iteration", 0))
     mode = state.get("mode") or "?"
 
@@ -200,12 +333,22 @@ def main() -> int:
         task_md = slug_dir / f"{args.task}.md"
         header = _build_task_header(task_md, args.task)
         phase_label = f"phase B mode={mode}"
+        if stacked:
+            _ensure_task_layer(args.slug, args.task)
     elif args.slice_text is not None:
         header = _build_slice_header(args.slice_text)
         phase_label = f"phase B mode={mode}"
     else:
         header = _build_review_header(args.review_round)
         phase_label = f"phase D review round {args.review_round}"
+        if stacked and not _in_stack():
+            print(
+                "commit-checkpoint: stacked review-round checkpoint requires "
+                "the current branch to belong to a stack; resume it first "
+                "(`gh stack checkout`, then `gh stack top`)",
+                file=sys.stderr,
+            )
+            return 2
 
     body_parts = [
         f"Checkpoint via cy-loop-tasks (iteration {iteration}, {phase_label})."
@@ -237,6 +380,8 @@ def main() -> int:
         )
         return 1
     print(sha.stdout.strip())
+    if stacked:
+        _submit_stack()
     return 0
 
 

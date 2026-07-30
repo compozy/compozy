@@ -257,6 +257,9 @@ def main() -> int:
         print(f"update-state: failed to parse {state_path}: {exc}", file=sys.stderr)
         return 1
 
+    # Legacy states predate the stacked flag; normalize to the schema's bool.
+    state["stacked"] = bool(state.get("stacked"))
+
     record_iteration = _has_observation(args)
     try:
         _apply(state, args, slug_dir)

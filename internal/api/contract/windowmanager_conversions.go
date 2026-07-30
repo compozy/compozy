@@ -67,7 +67,7 @@ func WindowManagerClientFromDomain(client windowmanager.ClientView) (WindowManag
 }
 
 // WindowManagerResultFromDomain converts a semantic command result.
-func WindowManagerResultFromDomain(result windowmanager.Result) (WindowManagerResult, error) {
+func WindowManagerResultFromDomain(result *windowmanager.Result) (WindowManagerResult, error) {
 	snapshot, err := WindowManagerSnapshotFromDomain(result.Snapshot)
 	if err != nil {
 		return WindowManagerResult{}, err

@@ -110,7 +110,12 @@ func TestUDSTransportSessionOwnerProjectionMatchesHTTP(t *testing.T) {
 		}
 		if owner.SessionID != sessionPayload.ID || owner.WorkspaceID != sessionPayload.WorkspaceID ||
 			strings.TrimSpace(owner.WorkspaceName) == "" {
-			t.Fatalf("owner = %#v, want session %q workspace %q and non-empty name", owner, sessionPayload.ID, sessionPayload.WorkspaceID)
+			t.Fatalf(
+				"owner = %#v, want session %q workspace %q and non-empty name",
+				owner,
+				sessionPayload.ID,
+				sessionPayload.WorkspaceID,
+			)
 		}
 	})
 }

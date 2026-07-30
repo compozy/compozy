@@ -24,32 +24,7 @@ func NormalizeSnapshot(snapshot Snapshot) Snapshot {
 	}
 	seen := make(map[WindowID]struct{}, len(normalized.Windows))
 	for desktopIndex := range normalized.Desktops {
-		desktop := &normalized.Desktops[desktopIndex]
-		groups := make([]LayoutGroup, 0, len(desktop.Groups))
-		for _, group := range desktop.Groups {
-			root, present := normalizeNode(group.Root, desktop.ID, normalized.Windows, seen)
-			if !present {
-				continue
-			}
-			group.Root = root
-			groups = append(groups, group)
-		}
-		desktop.Groups = groups
-		floating := make([]WindowID, 0, len(desktop.Floating))
-		for _, windowID := range desktop.Floating {
-			window, exists := normalized.Windows[windowID]
-			if !exists || window.DesktopID != desktop.ID {
-				continue
-			}
-			if _, duplicate := seen[windowID]; duplicate {
-				continue
-			}
-			seen[windowID] = struct{}{}
-			window.Placement = WindowPlacementFloating
-			normalized.Windows[windowID] = window
-			floating = append(floating, windowID)
-		}
-		desktop.Floating = floating
+		normalizeDesktop(&normalized.Desktops[desktopIndex], normalized.Windows, seen)
 	}
 	windowIDs := make([]WindowID, 0, len(normalized.Windows))
 	for windowID := range normalized.Windows {
@@ -73,6 +48,86 @@ func NormalizeSnapshot(snapshot Snapshot) Snapshot {
 	return normalized
 }
 
+func normalizeDesktop(desktop *Desktop, windows map[WindowID]Window, seen map[WindowID]struct{}) {
+	groups := make([]LayoutGroup, 0, len(desktop.Groups))
+	for _, group := range desktop.Groups {
+		root, present := normalizeNode(group.Root, desktop.ID, windows, seen)
+		if !present {
+			continue
+		}
+		group.Root = root
+		groups = append(groups, group)
+	}
+	desktop.Groups = groups
+	dissolved := normalizeFloatingStacks(desktop, windows, seen)
+	normalizeFloatingWindows(desktop, dissolved, windows, seen)
+}
+
+func normalizeFloatingStacks(
+	desktop *Desktop,
+	windows map[WindowID]Window,
+	seen map[WindowID]struct{},
+) []WindowID {
+	floatingStacks := make([]FloatingStack, 0, len(desktop.FloatingStacks))
+	dissolved := make([]WindowID, 0)
+	for _, stack := range desktop.FloatingStacks {
+		windowIDs := make([]WindowID, 0, len(stack.WindowIDs))
+		for _, windowID := range stack.WindowIDs {
+			if claimNodeWindow(windowID, desktop.ID, WindowPlacementStacked, windows, seen) {
+				window := windows[windowID]
+				window.Minimized = false
+				windows[windowID] = window
+				windowIDs = append(windowIDs, windowID)
+			}
+		}
+		windowIDs = collatePinned(windowIDs, windows)
+		switch len(windowIDs) {
+		case 0:
+			continue
+		case 1:
+			windowID := windowIDs[0]
+			window := windows[windowID]
+			window.Placement = WindowPlacementFloating
+			window.FloatingRect = clampRect(stack.Rect)
+			windows[windowID] = window
+			dissolved = append(dissolved, windowID)
+			continue
+		}
+		stack.WindowIDs = windowIDs
+		if stack.ActiveID == nil || !containsWindowID(windowIDs, *stack.ActiveID) {
+			activeID := windowIDs[0]
+			stack.ActiveID = &activeID
+		}
+		floatingStacks = append(floatingStacks, stack)
+	}
+	desktop.FloatingStacks = floatingStacks
+	return dissolved
+}
+
+func normalizeFloatingWindows(
+	desktop *Desktop,
+	dissolved []WindowID,
+	windows map[WindowID]Window,
+	seen map[WindowID]struct{},
+) {
+	source := desktop.Floating
+	floating := append(make([]WindowID, 0, len(dissolved)+len(source)), dissolved...)
+	for _, windowID := range source {
+		window, exists := windows[windowID]
+		if !exists || window.DesktopID != desktop.ID {
+			continue
+		}
+		if _, duplicate := seen[windowID]; duplicate {
+			continue
+		}
+		seen[windowID] = struct{}{}
+		window.Placement = WindowPlacementFloating
+		windows[windowID] = window
+		floating = append(floating, windowID)
+	}
+	desktop.Floating = floating
+}
+
 func normalizeNode(
 	node LayoutNode,
 	desktopID DesktopID,
@@ -92,6 +147,7 @@ func normalizeNode(
 				windowIDs = append(windowIDs, windowID)
 			}
 		}
+		windowIDs = collatePinned(windowIDs, windows)
 		if len(windowIDs) == 0 {
 			return LayoutNode{}, false
 		}

@@ -7,9 +7,12 @@ package windowmanager
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"reflect"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -98,6 +101,919 @@ func TestWindowLifecycleReflow(t *testing.T) {
 			t.Fatalf("minimizeWindow() error = %v, want ErrInvalidTopology", err)
 		}
 	})
+}
+
+func TestWindowTabGroupingV3(t *testing.T) {
+	t.Run("Should group floating windows and activate the newly added member [UT-010]", func(t *testing.T) {
+		t.Parallel()
+		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		openTestWindow(t, environment.manager, "workspace-a", nil, "w1", "desktop-default")
+		openTestWindow(t, environment.manager, "workspace-a", nil, "w2", "desktop-default")
+		result := executeTestCommand(t, environment.manager, "workspace-a", nil, GroupWindowsCommand{
+			TargetWindowID: "w1", WindowIDs: []WindowID{"w2"},
+		})
+		stack := result.Snapshot.Desktops[0].FloatingStacks[0]
+		if !slices.Equal(stack.WindowIDs, []WindowID{"w1", "w2"}) || valueOrZero(stack.ActiveID) != "w2" {
+			t.Fatalf("floating stack = %+v", stack)
+		}
+		requireValidSnapshot(t, result.Snapshot)
+	})
+
+	t.Run("Should reject empty duplicate self and missing group members atomically [UT-011]", func(t *testing.T) {
+		t.Parallel()
+		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		openTestWindow(t, environment.manager, "workspace-a", nil, "w1", "desktop-default")
+		openTestWindow(t, environment.manager, "workspace-a", nil, "w2", "desktop-default")
+		cases := []GroupWindowsCommand{
+			{TargetWindowID: "w1"},
+			{TargetWindowID: "w1", WindowIDs: []WindowID{"w1"}},
+			{TargetWindowID: "w1", WindowIDs: []WindowID{"w2", "w2"}},
+			{TargetWindowID: "missing", WindowIDs: []WindowID{"w2"}},
+			{TargetWindowID: "w1", WindowIDs: []WindowID{"missing"}},
+		}
+		before, err := environment.manager.Snapshot(t.Context(), "workspace-a")
+		if err != nil {
+			t.Fatalf("Snapshot() error = %v", err)
+		}
+		for _, command := range cases {
+			_, err := environment.manager.Execute(t.Context(), CommandRequest{
+				WorkspaceID: "workspace-a", ExpectedRevision: before.Revision, Payload: command,
+			})
+			if err == nil {
+				t.Fatalf("Execute(%+v) error = nil", command)
+			}
+		}
+		after, err := environment.manager.Snapshot(t.Context(), "workspace-a")
+		if err != nil {
+			t.Fatalf("Snapshot(after errors) error = %v", err)
+		}
+		if after.Revision != before.Revision {
+			t.Fatalf("revision after rejected groups = %d, want %d", after.Revision, before.Revision)
+		}
+	})
+
+	t.Run("Should grow a tiled leaf stack and restore a minimized member [UT-012]", func(t *testing.T) {
+		t.Parallel()
+		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		openTestWindow(t, environment.manager, "workspace-a", nil, "w1", "desktop-default")
+		openTestWindow(t, environment.manager, "workspace-a", nil, "w2", "desktop-default")
+		executeTestCommand(t, environment.manager, "workspace-a", nil, ToggleFloatingCommand{WindowID: "w1"})
+		executeTestCommand(
+			t,
+			environment.manager,
+			"workspace-a",
+			nil,
+			CloseWindowCommand{WindowID: "w2", Minimize: true},
+		)
+		result := executeTestCommand(t, environment.manager, "workspace-a", nil, GroupWindowsCommand{
+			TargetWindowID: "w1", WindowIDs: []WindowID{"w2"},
+		})
+		root := result.Snapshot.Desktops[0].Groups[0].Root
+		if root.Kind != NodeKindStack || !slices.Equal(root.WindowIDs, []WindowID{"w1", "w2"}) ||
+			result.Snapshot.Windows["w2"].Minimized {
+			t.Fatalf("grouped root = %+v, w2 = %+v", root, result.Snapshot.Windows["w2"])
+		}
+	})
+
+	t.Run(
+		"Should fold all requested source-stack members into the target in payload order [UT-013]",
+		func(t *testing.T) {
+			t.Parallel()
+			environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+			for _, windowID := range []WindowID{"w1", "w2", "w3"} {
+				openTestWindow(t, environment.manager, "workspace-a", nil, windowID, "desktop-default")
+			}
+			source := executeTestCommand(
+				t,
+				environment.manager,
+				"workspace-a",
+				nil,
+				GroupWindowsCommand{TargetWindowID: "w2", WindowIDs: []WindowID{"w3"}},
+			)
+			sourceLocation, found := findStackByWindow(&source.Snapshot, "w2")
+			if !found {
+				t.Fatal("source stack not found")
+			}
+			result := executeTestCommand(
+				t,
+				environment.manager,
+				"workspace-a",
+				nil,
+				GroupWindowsCommand{TargetWindowID: "w1", WindowIDs: []WindowID{"w2", "w3"}},
+			)
+			members := stackMembersForWindow(t, result.Snapshot, "w1")
+			if !slices.Equal(members, []WindowID{"w1", "w2", "w3"}) {
+				t.Fatalf("grouped members = %v", members)
+			}
+			if !slices.Contains(result.Changes.StackUngrouped, sourceLocation.id()) {
+				t.Fatalf("group changes = %+v, want source stack %q ungrouped", result.Changes, sourceLocation.id())
+			}
+		},
+	)
+
+	t.Run("Should migrate grouped members to the targets desktop [UT-014]", func(t *testing.T) {
+		t.Parallel()
+		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		executeTestCommand(
+			t,
+			environment.manager,
+			"workspace-a",
+			nil,
+			CreateDesktopCommand{DesktopID: "d2", Name: "Two"},
+		)
+		openTestWindow(t, environment.manager, "workspace-a", nil, "target", "desktop-default")
+		openTestWindow(t, environment.manager, "workspace-a", nil, "member", "d2")
+		result := executeTestCommand(
+			t,
+			environment.manager,
+			"workspace-a",
+			nil,
+			GroupWindowsCommand{TargetWindowID: "target", WindowIDs: []WindowID{"member"}},
+		)
+		if result.Snapshot.Windows["member"].DesktopID != "desktop-default" ||
+			len(result.Snapshot.Desktops[1].Floating) != 0 {
+			t.Fatalf("cross-desktop result = %+v", result.Snapshot)
+		}
+	})
+
+	t.Run("Should reorder DropCenter within one stack without duplicate membership [UT-015]", func(t *testing.T) {
+		t.Parallel()
+		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		created := createFloatingStack(t, environment.manager, []WindowID{"w1", "w2"})
+		before, found := findStackByWindow(&created.Snapshot, "w1")
+		if !found {
+			t.Fatal("stack before DropCenter not found")
+		}
+		result := executeTestCommand(t, environment.manager, "workspace-a", nil, MoveWindowCommand{
+			WindowID:             "w1",
+			DestinationDesktopID: "desktop-default",
+			TargetWindowID:       new(WindowID("w2")),
+			Placement:            DropCenter,
+		})
+		members := stackMembersForWindow(t, result.Snapshot, "w1")
+		if !slices.Equal(members, []WindowID{"w2", "w1"}) {
+			t.Fatalf("DropCenter members = %v", members)
+		}
+		after, found := findStackByWindow(&result.Snapshot, "w1")
+		if !found {
+			t.Fatal("stack after DropCenter not found")
+		}
+		if after.id() != before.id() {
+			t.Fatalf("DropCenter stack ID = %q, want %q", after.id(), before.id())
+		}
+		requireValidSnapshot(t, result.Snapshot)
+	})
+
+	t.Run("Should merge pinned and unpinned regions with stable relative order [UT-016]", func(t *testing.T) {
+		t.Parallel()
+		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		for _, windowID := range []WindowID{"p1", "u1", "u2", "p2"} {
+			openTestWindow(t, environment.manager, "workspace-a", nil, windowID, "desktop-default")
+		}
+		executeTestCommand(t, environment.manager, "workspace-a", nil, PinWindowCommand{WindowID: "p1", Pinned: true})
+		executeTestCommand(t, environment.manager, "workspace-a", nil, PinWindowCommand{WindowID: "p2", Pinned: true})
+		executeTestCommand(
+			t,
+			environment.manager,
+			"workspace-a",
+			nil,
+			GroupWindowsCommand{TargetWindowID: "p1", WindowIDs: []WindowID{"u1"}},
+		)
+		result := executeTestCommand(
+			t,
+			environment.manager,
+			"workspace-a",
+			nil,
+			GroupWindowsCommand{TargetWindowID: "p1", WindowIDs: []WindowID{"u2", "p2"}},
+		)
+		members := stackMembersForWindow(t, result.Snapshot, "p1")
+		if !slices.Equal(members, []WindowID{"p1", "p2", "u1", "u2"}) {
+			t.Fatalf("merged members = %v", members)
+		}
+	})
+
+	t.Run("Should place an unpinned member at the start of the unpinned region [UT-017]", func(t *testing.T) {
+		t.Parallel()
+		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		createFloatingStack(t, environment.manager, []WindowID{"w1", "w2", "w3"})
+		executeTestCommand(t, environment.manager, "workspace-a", nil, PinWindowCommand{WindowID: "w2", Pinned: true})
+		result := executeTestCommand(
+			t,
+			environment.manager,
+			"workspace-a",
+			nil,
+			PinWindowCommand{WindowID: "w2", Pinned: false},
+		)
+		if members := stackMembersForWindow(
+			t,
+			result.Snapshot,
+			"w2",
+		); !slices.Equal(
+			members,
+			[]WindowID{"w2", "w1", "w3"},
+		) {
+			t.Fatalf("members after unpin = %v", members)
+		}
+	})
+
+	t.Run("Should ungroup a pinned member without clearing the pin [UT-018]", func(t *testing.T) {
+		t.Parallel()
+		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		createFloatingStack(t, environment.manager, []WindowID{"w1", "w2"})
+		executeTestCommand(t, environment.manager, "workspace-a", nil, PinWindowCommand{WindowID: "w1", Pinned: true})
+		result := executeTestCommand(t, environment.manager, "workspace-a", nil, ToggleFloatingCommand{WindowID: "w1"})
+		if !result.Snapshot.Windows["w1"].Pinned || result.Snapshot.Windows["w1"].Placement != WindowPlacementFloating {
+			t.Fatalf("ungrouped pinned window = %+v", result.Snapshot.Windows["w1"])
+		}
+	})
+
+	t.Run("Should clamp reorder within the pin region and reject non-stacked windows [UT-019]", func(t *testing.T) {
+		t.Parallel()
+		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		createFloatingStack(t, environment.manager, []WindowID{"p1", "p2", "u1", "u2"})
+		for _, windowID := range []WindowID{"p1", "p2"} {
+			executeTestCommand(
+				t,
+				environment.manager,
+				"workspace-a",
+				nil,
+				PinWindowCommand{WindowID: windowID, Pinned: true},
+			)
+		}
+		result := executeTestCommand(
+			t,
+			environment.manager,
+			"workspace-a",
+			nil,
+			ReorderStackCommand{WindowID: "u2", Index: 0},
+		)
+		if members := stackMembersForWindow(
+			t,
+			result.Snapshot,
+			"u2",
+		); !slices.Equal(
+			members,
+			[]WindowID{"p1", "p2", "u2", "u1"},
+		) {
+			t.Fatalf("clamped members = %v", members)
+		}
+		openTestWindow(t, environment.manager, "workspace-a", nil, "solo", "desktop-default")
+		snapshot, err := environment.manager.Snapshot(t.Context(), "workspace-a")
+		if err != nil {
+			t.Fatalf("Snapshot() error = %v", err)
+		}
+		_, err = environment.manager.Execute(
+			t.Context(),
+			CommandRequest{
+				WorkspaceID:      "workspace-a",
+				ExpectedRevision: snapshot.Revision,
+				Payload:          ReorderStackCommand{WindowID: "solo", Index: 0},
+			},
+		)
+		if !errors.Is(err, ErrNotStacked) {
+			t.Fatalf("ReorderStack(solo) error = %v, want ErrNotStacked", err)
+		}
+	})
+
+	t.Run("Should splice and clamp group InsertIndex within legal pin regions [UT-179]", func(t *testing.T) {
+		t.Parallel()
+		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		createFloatingStack(t, environment.manager, []WindowID{"p1", "u1"})
+		executeTestCommand(t, environment.manager, "workspace-a", nil, PinWindowCommand{WindowID: "p1", Pinned: true})
+		for _, windowID := range []WindowID{"p2", "u2", "u3"} {
+			openTestWindow(t, environment.manager, "workspace-a", nil, windowID, "desktop-default")
+		}
+		executeTestCommand(t, environment.manager, "workspace-a", nil, PinWindowCommand{WindowID: "p2", Pinned: true})
+		zero := 0
+		result := executeTestCommand(
+			t,
+			environment.manager,
+			"workspace-a",
+			nil,
+			GroupWindowsCommand{TargetWindowID: "p1", WindowIDs: []WindowID{"u2", "p2"}, InsertIndex: &zero},
+		)
+		if members := stackMembersForWindow(
+			t,
+			result.Snapshot,
+			"p1",
+		); !slices.Equal(
+			members,
+			[]WindowID{"p2", "p1", "u2", "u1"},
+		) {
+			t.Fatalf("indexed members = %v", members)
+		}
+		result = executeTestCommand(
+			t,
+			environment.manager,
+			"workspace-a",
+			nil,
+			GroupWindowsCommand{TargetWindowID: "p1", WindowIDs: []WindowID{"u3"}},
+		)
+		if members := stackMembersForWindow(
+			t,
+			result.Snapshot,
+			"p1",
+		); !slices.Equal(
+			members,
+			[]WindowID{"p2", "p1", "u2", "u1", "u3"},
+		) {
+			t.Fatalf("nil-index members = %v", members)
+		}
+	})
+}
+
+func createFloatingStack(t *testing.T, manager *Manager, windowIDs []WindowID) Result {
+	t.Helper()
+	for _, windowID := range windowIDs {
+		openTestWindow(t, manager, "workspace-a", nil, windowID, "desktop-default")
+	}
+	return executeTestCommand(t, manager, "workspace-a", nil, GroupWindowsCommand{
+		TargetWindowID: windowIDs[0], WindowIDs: append([]WindowID(nil), windowIDs[1:]...),
+	})
+}
+
+func stackMembersForWindow(t *testing.T, snapshot Snapshot, windowID WindowID) []WindowID {
+	t.Helper()
+	location, found := findStackByWindow(&snapshot, windowID)
+	if !found {
+		t.Fatalf("window %q is not stacked in %+v", windowID, snapshot)
+	}
+	return append([]WindowID(nil), location.members()...)
+}
+
+func TestWindowTabCloseAndReopenV3(t *testing.T) {
+	t.Run("Should close one tab into a complete entry and activate the right neighbor [UT-020]", func(t *testing.T) {
+		t.Parallel()
+		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		createFloatingStack(t, environment.manager, []WindowID{"w1", "w2", "w3"})
+		executeTestCommand(t, environment.manager, "workspace-a", nil, SetStackActiveCommand{WindowID: "w2"})
+		result := executeTestCommand(t, environment.manager, "workspace-a", nil, CloseWindowCommand{WindowID: "w2"})
+		if len(result.Snapshot.ClosedEntries) != 1 {
+			t.Fatalf("closed entries = %+v", result.Snapshot.ClosedEntries)
+		}
+		entry := result.Snapshot.ClosedEntries[0]
+		if !slices.Equal(closedEntryWindowIDs(entry), []WindowID{"w2"}) || entry.StackID == nil ||
+			valueOrZero(entry.ActiveID) != "w2" {
+			t.Fatalf("closed entry = %+v", entry)
+		}
+		location, found := findStackByWindow(&result.Snapshot, "w1")
+		if !found || valueOrZero(location.activeID()) != "w3" {
+			t.Fatalf("surviving stack = %+v, found = %v", location, found)
+		}
+	})
+
+	t.Run("Should close a whole frame as one ordered entry [UT-021]", func(t *testing.T) {
+		t.Parallel()
+		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		stacked := createFloatingStack(t, environment.manager, []WindowID{"w1", "w2", "w3"})
+		stack := stacked.Snapshot.Desktops[0].FloatingStacks[0]
+		executeTestCommand(t, environment.manager, "workspace-a", nil, SetStackActiveCommand{WindowID: "w2"})
+		result := executeTestCommand(
+			t,
+			environment.manager,
+			"workspace-a",
+			nil,
+			CloseWindowCommand{WindowID: "w1", Scope: CloseScopeGroup},
+		)
+		entry := result.Snapshot.ClosedEntries[0]
+		if !slices.Equal(closedEntryWindowIDs(entry), []WindowID{"w1", "w2", "w3"}) ||
+			valueOrZero(entry.ActiveID) != "w2" || valueOrZero(entry.StackID) != stack.ID || entry.Rect != stack.Rect {
+			t.Fatalf("group closed entry = %+v", entry)
+		}
+		if len(result.Snapshot.Windows) != 0 || result.Snapshot.Revision != stacked.Snapshot.Revision+2 {
+			t.Fatalf("group close result = %+v", result)
+		}
+	})
+
+	t.Run("Should leave a valid empty desktop after closing the last window [UT-022]", func(t *testing.T) {
+		t.Parallel()
+		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		openTestWindow(t, environment.manager, "workspace-a", nil, "solo", "desktop-default")
+		result := executeTestCommand(t, environment.manager, "workspace-a", nil, CloseWindowCommand{WindowID: "solo"})
+		if len(result.Snapshot.Windows) != 0 || len(result.Snapshot.Desktops[0].Floating) != 0 {
+			t.Fatalf("empty desktop result = %+v", result.Snapshot)
+		}
+		requireValidSnapshot(t, result.Snapshot)
+	})
+
+	t.Run(
+		"Should protect a pinned tab but allow scoped frame close and reject scoped minimize [UT-023]",
+		func(t *testing.T) {
+			t.Parallel()
+			environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+			createFloatingStack(t, environment.manager, []WindowID{"pinned", "other"})
+			executeTestCommand(
+				t,
+				environment.manager,
+				"workspace-a",
+				nil,
+				PinWindowCommand{WindowID: "pinned", Pinned: true},
+			)
+			snapshot, err := environment.manager.Snapshot(t.Context(), "workspace-a")
+			if err != nil {
+				t.Fatalf("Snapshot() error = %v", err)
+			}
+			for _, command := range []CloseWindowCommand{
+				{WindowID: "pinned"},
+				{WindowID: "pinned", Minimize: true, Scope: CloseScopeGroup},
+			} {
+				_, executeErr := environment.manager.Execute(
+					t.Context(),
+					CommandRequest{WorkspaceID: "workspace-a", ExpectedRevision: snapshot.Revision, Payload: command},
+				)
+				if executeErr == nil {
+					t.Fatalf("Execute(%+v) error = nil", command)
+				}
+			}
+			result := executeTestCommand(
+				t,
+				environment.manager,
+				"workspace-a",
+				nil,
+				CloseWindowCommand{WindowID: "pinned", Scope: CloseScopeGroup},
+			)
+			if len(result.Snapshot.Windows) != 0 || len(result.Snapshot.ClosedEntries) != 1 {
+				t.Fatalf("pinned group close = %+v", result.Snapshot)
+			}
+		},
+	)
+
+	t.Run("Should open directly into floating and tiled target stacks [UT-024]", func(t *testing.T) {
+		for _, tiled := range []bool{false, true} {
+			t.Run(fmt.Sprintf("Should join a tiled target equal %v", tiled), func(t *testing.T) {
+				t.Parallel()
+				environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+				openTestWindow(t, environment.manager, "workspace-a", nil, "target", "desktop-default")
+				if tiled {
+					executeTestCommand(
+						t,
+						environment.manager,
+						"workspace-a",
+						nil,
+						ToggleFloatingCommand{WindowID: "target"},
+					)
+				}
+				targetID := WindowID("target")
+				result := executeTestCommand(
+					t,
+					environment.manager,
+					"workspace-a",
+					nil,
+					OpenWindowCommand{Window: WindowSpec{
+						ID:                  "new",
+						App:                 "New",
+						Route:               testRoute("/new"),
+						FloatingRect:        fullRect(),
+						StackTargetWindowID: &targetID,
+					}},
+				)
+				if members := stackMembersForWindow(
+					t,
+					result.Snapshot,
+					"new",
+				); !slices.Equal(
+					members,
+					[]WindowID{"target", "new"},
+				) {
+					t.Fatalf("open-as-tab members = %v", members)
+				}
+			})
+		}
+	})
+
+	t.Run("Should reopen into a living stack with route nav and pin state preserved [UT-025]", func(t *testing.T) {
+		t.Parallel()
+		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		createFloatingStack(t, environment.manager, []WindowID{"w1", "w2", "w3"})
+		executeTestCommand(
+			t,
+			environment.manager,
+			"workspace-a",
+			nil,
+			NavigateWindowCommand{WindowID: "w3", Route: testRoute("/next"), Mode: NavigatePush},
+		)
+		executeTestCommand(t, environment.manager, "workspace-a", nil, SetStackActiveCommand{WindowID: "w3"})
+		closed := executeTestCommand(t, environment.manager, "workspace-a", nil, CloseWindowCommand{WindowID: "w3"})
+		want := closed.Snapshot.ClosedEntries[0].Windows[0]
+		reopened := executeTestCommand(t, environment.manager, "workspace-a", nil, ReopenCommand{})
+		got := reopened.Snapshot.Windows["w3"]
+		if got.Pinned != want.Pinned || !routeIntentsEqual(got.Route, want.Route) ||
+			len(got.NavStack) != len(want.NavStack) {
+			t.Fatalf("reopened window = %+v, want state = %+v", got, want)
+		}
+		location, found := findStackByWindow(&reopened.Snapshot, "w3")
+		if !found || valueOrZero(location.activeID()) != "w3" || len(reopened.Snapshot.ClosedEntries) != 0 {
+			t.Fatalf("reopened stack = %+v found=%v", location, found)
+		}
+	})
+
+	t.Run("Should rebuild a dead frame or degrade a singleton to floating [UT-026]", func(t *testing.T) {
+		t.Run("Should rebuild a multi-window frame", func(t *testing.T) {
+			t.Parallel()
+			environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+			createFloatingStack(t, environment.manager, []WindowID{"w1", "w2"})
+			executeTestCommand(
+				t,
+				environment.manager,
+				"workspace-a",
+				nil,
+				CloseWindowCommand{WindowID: "w1", Scope: CloseScopeGroup},
+			)
+			result := executeTestCommand(t, environment.manager, "workspace-a", nil, ReopenCommand{})
+			if len(result.Snapshot.Desktops[0].FloatingStacks) != 1 ||
+				!slices.Equal(stackMembersForWindow(t, result.Snapshot, "w1"), []WindowID{"w1", "w2"}) {
+				t.Fatalf("rebuilt frame = %+v", result.Snapshot.Desktops[0])
+			}
+		})
+		t.Run("Should reopen one window as floating", func(t *testing.T) {
+			t.Parallel()
+			environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+			openTestWindow(t, environment.manager, "workspace-a", nil, "solo", "desktop-default")
+			executeTestCommand(t, environment.manager, "workspace-a", nil, CloseWindowCommand{WindowID: "solo"})
+			result := executeTestCommand(t, environment.manager, "workspace-a", nil, ReopenCommand{})
+			if result.Snapshot.Windows["solo"].Placement != WindowPlacementFloating ||
+				!slices.Contains(result.Snapshot.Desktops[0].Floating, WindowID("solo")) {
+				t.Fatalf("reopened singleton = %+v", result.Snapshot)
+			}
+		})
+		t.Run("Should fall back to the requesting client's active desktop", func(t *testing.T) {
+			t.Parallel()
+			environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+			executeTestCommand(
+				t,
+				environment.manager,
+				"workspace-a",
+				nil,
+				CreateDesktopCommand{DesktopID: "d2", Name: "Two"},
+			)
+			executeTestCommand(
+				t,
+				environment.manager,
+				"workspace-a",
+				nil,
+				CreateDesktopCommand{DesktopID: "d3", Name: "Three"},
+			)
+			openTestWindow(t, environment.manager, "workspace-a", nil, "solo", "d2")
+			executeTestCommand(t, environment.manager, "workspace-a", nil, CloseWindowCommand{WindowID: "solo"})
+			executeTestCommand(
+				t,
+				environment.manager,
+				"workspace-a",
+				nil,
+				DeleteDesktopCommand{DesktopID: "d2", DestinationID: new(DesktopID("d3"))},
+			)
+			clientID := ClientID("client-a")
+			if _, err := environment.manager.RegisterClient(t.Context(), ClientRegistration{
+				WorkspaceID: "workspace-a", ClientID: clientID, ActiveDesktopID: "d3",
+			}); err != nil {
+				t.Fatalf("RegisterClient() error = %v", err)
+			}
+			result := executeTestCommand(t, environment.manager, "workspace-a", &clientID, ReopenCommand{})
+			if result.Snapshot.Windows["solo"].DesktopID != "d3" {
+				t.Fatalf("reopened desktop = %q, want d3", result.Snapshot.Windows["solo"].DesktopID)
+			}
+		})
+	})
+
+	t.Run("Should treat reopen with empty history as a no-op without revision [UT-027]", func(t *testing.T) {
+		t.Parallel()
+		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		before, err := environment.manager.Snapshot(t.Context(), "workspace-a")
+		if err != nil {
+			t.Fatalf("Snapshot() error = %v", err)
+		}
+		result := executeTestCommand(t, environment.manager, "workspace-a", nil, ReopenCommand{})
+		if result.Applied || result.Snapshot.Revision != before.Revision {
+			t.Fatalf("empty reopen result = %+v", result)
+		}
+	})
+
+	t.Run("Should reopen a fully pinned frame with every pin intact [UT-028]", func(t *testing.T) {
+		t.Parallel()
+		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		createFloatingStack(t, environment.manager, []WindowID{"p1", "p2"})
+		for _, windowID := range []WindowID{"p1", "p2"} {
+			executeTestCommand(
+				t,
+				environment.manager,
+				"workspace-a",
+				nil,
+				PinWindowCommand{WindowID: windowID, Pinned: true},
+			)
+		}
+		executeTestCommand(
+			t,
+			environment.manager,
+			"workspace-a",
+			nil,
+			CloseWindowCommand{WindowID: "p1", Scope: CloseScopeGroup},
+		)
+		result := executeTestCommand(t, environment.manager, "workspace-a", nil, ReopenCommand{})
+		if !result.Snapshot.Windows["p1"].Pinned || !result.Snapshot.Windows["p2"].Pinned {
+			t.Fatalf("reopened pins = %+v", result.Snapshot.Windows)
+		}
+	})
+
+	t.Run("Should consume closed entries newest-first then become a no-op [UT-029]", func(t *testing.T) {
+		t.Parallel()
+		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		for _, windowID := range []WindowID{"w1", "w2"} {
+			openTestWindow(t, environment.manager, "workspace-a", nil, windowID, "desktop-default")
+			executeTestCommand(t, environment.manager, "workspace-a", nil, CloseWindowCommand{WindowID: windowID})
+		}
+		first := executeTestCommand(t, environment.manager, "workspace-a", nil, ReopenCommand{})
+		if _, exists := first.Snapshot.Windows["w2"]; !exists {
+			t.Fatalf("first reopen windows = %+v", first.Snapshot.Windows)
+		}
+		second := executeTestCommand(t, environment.manager, "workspace-a", nil, ReopenCommand{})
+		if _, exists := second.Snapshot.Windows["w1"]; !exists {
+			t.Fatalf("second reopen windows = %+v", second.Snapshot.Windows)
+		}
+		third := executeTestCommand(t, environment.manager, "workspace-a", nil, ReopenCommand{})
+		if third.Applied {
+			t.Fatalf("third reopen = %+v", third)
+		}
+	})
+
+	t.Run("Should close others and right as one unpinned batch [UT-172]", func(t *testing.T) {
+		for _, scope := range []CloseScope{CloseScopeOthers, CloseScopeRight} {
+			t.Run("Should apply scope "+string(scope), func(t *testing.T) {
+				t.Parallel()
+				environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+				created := createFloatingStack(t, environment.manager, []WindowID{"p", "w1", "w2", "w3"})
+				executeTestCommand(
+					t,
+					environment.manager,
+					"workspace-a",
+					nil,
+					PinWindowCommand{WindowID: "p", Pinned: true},
+				)
+				before, err := environment.manager.Snapshot(t.Context(), "workspace-a")
+				if err != nil {
+					t.Fatalf("Snapshot() error = %v", err)
+				}
+				result := executeTestCommand(
+					t,
+					environment.manager,
+					"workspace-a",
+					nil,
+					CloseWindowCommand{WindowID: "w1", Scope: scope},
+				)
+				if result.Snapshot.Revision != before.Revision+1 || len(result.Snapshot.ClosedEntries) != 1 ||
+					!slices.Equal(closedEntryWindowIDs(result.Snapshot.ClosedEntries[0]), []WindowID{"w2", "w3"}) {
+					t.Fatalf("scoped close result = %+v, created revision = %d", result, created.Snapshot.Revision)
+				}
+				if _, pinnedLives := result.Snapshot.Windows["p"]; !pinnedLives {
+					t.Fatal("pinned peer was closed")
+				}
+			})
+		}
+	})
+
+	t.Run("Should reserve closed IDs through generation and release them on eviction [UT-173]", func(t *testing.T) {
+		t.Parallel()
+		windowID, err := randomID("window")
+		if err != nil {
+			t.Fatalf("randomID(window) error = %v", err)
+		}
+		if !strings.HasPrefix(windowID, "w-") || len(windowID) != 28 {
+			t.Fatalf("randomID(window) = %q, want w-<26-char-random>", windowID)
+		}
+		if _, err := hex.DecodeString(strings.TrimPrefix(windowID, "w-")); err != nil {
+			t.Fatalf("randomID(window) random suffix is not hexadecimal: %v", err)
+		}
+		config := DefaultConfig()
+		config.ClosedEntryLimit = 1
+		var generated atomic.Int64
+		environment := newTestEnvironmentWithOptions(
+			t,
+			config,
+			[]WorkspaceID{"workspace-a"},
+			WithIDGenerator(func(kind string) (string, error) {
+				if kind == "window" {
+					if generated.Add(1) == 1 {
+						return "w1", nil
+					}
+					return "w-new", nil
+				}
+				return kind + "-generated", nil
+			}),
+		)
+		openTestWindow(t, environment.manager, "workspace-a", nil, "w1", "desktop-default")
+		executeTestCommand(t, environment.manager, "workspace-a", nil, CloseWindowCommand{WindowID: "w1"})
+		snapshot, err := environment.manager.Snapshot(t.Context(), "workspace-a")
+		if err != nil {
+			t.Fatalf("Snapshot() error = %v", err)
+		}
+		_, err = environment.manager.Execute(
+			t.Context(),
+			CommandRequest{
+				WorkspaceID:      "workspace-a",
+				ExpectedRevision: snapshot.Revision,
+				Payload: OpenWindowCommand{
+					Window: WindowSpec{
+						ID:           "w1",
+						App:          "Reserved",
+						Route:        testRoute("/reserved"),
+						FloatingRect: fullRect(),
+					},
+				},
+			},
+		)
+		if err == nil {
+			t.Fatal("OpenWindow(reserved caller ID) error = nil")
+		}
+		generatedResult := executeTestCommand(
+			t,
+			environment.manager,
+			"workspace-a",
+			nil,
+			OpenWindowCommand{
+				Window: WindowSpec{App: "Generated", Route: testRoute("/generated"), FloatingRect: fullRect()},
+			},
+		)
+		if _, exists := generatedResult.Snapshot.Windows["w-new"]; !exists {
+			t.Fatalf("generated windows = %+v", generatedResult.Snapshot.Windows)
+		}
+		executeTestCommand(t, environment.manager, "workspace-a", nil, CloseWindowCommand{WindowID: "w-new"})
+		result := executeTestCommand(
+			t,
+			environment.manager,
+			"workspace-a",
+			nil,
+			OpenWindowCommand{
+				Window: WindowSpec{ID: "w1", App: "Released", Route: testRoute("/released"), FloatingRect: fullRect()},
+			},
+		)
+		if _, exists := result.Snapshot.Windows["w1"]; !exists {
+			t.Fatalf("released ID windows = %+v", result.Snapshot.Windows)
+		}
+	})
+}
+
+func TestWindowTabNavigationV3(t *testing.T) {
+	t.Run(
+		"Should cap navigation at the effective limit while retaining newest ancestors [UT-008][UT-031]",
+		func(t *testing.T) {
+			t.Parallel()
+			config := DefaultConfig()
+			config.NavStackLimit = 2
+			environment := newTestEnvironment(t, config, "workspace-a")
+			openTestWindow(t, environment.manager, "workspace-a", nil, "w1", "desktop-default")
+			for _, path := range []string{"/one", "/two", "/three"} {
+				executeTestCommand(
+					t,
+					environment.manager,
+					"workspace-a",
+					nil,
+					NavigateWindowCommand{WindowID: "w1", Route: testRoute(path), Mode: NavigatePush},
+				)
+			}
+			window := mustSnapshot(t, environment.manager, "workspace-a").Windows["w1"]
+			if len(window.NavStack) != 2 || window.NavStack[0].Pathname != "/one" ||
+				window.NavStack[1].Pathname != "/two" {
+				t.Fatalf("capped navigation = %+v", window)
+			}
+		},
+	)
+
+	t.Run("Should apply a lowered closed-entry limit only on the next close [UT-009]", func(t *testing.T) {
+		t.Parallel()
+		config := DefaultConfig()
+		config.ClosedEntryLimit = 2
+		environment := newTestEnvironment(t, config, "workspace-a")
+		for _, windowID := range []WindowID{"w1", "w2"} {
+			openTestWindow(t, environment.manager, "workspace-a", nil, windowID, "desktop-default")
+			executeTestCommand(t, environment.manager, "workspace-a", nil, CloseWindowCommand{WindowID: windowID})
+		}
+		if got := len(mustSnapshot(t, environment.manager, "workspace-a").ClosedEntries); got != 2 {
+			t.Fatalf("closed entries before lowering = %d", got)
+		}
+		config.ClosedEntryLimit = 1
+		if err := environment.manager.UpdateDefaults(config); err != nil {
+			t.Fatalf("UpdateDefaults() error = %v", err)
+		}
+		if got := len(mustSnapshot(t, environment.manager, "workspace-a").ClosedEntries); got != 2 {
+			t.Fatalf("closed entries changed retroactively = %d", got)
+		}
+		openTestWindow(t, environment.manager, "workspace-a", nil, "w3", "desktop-default")
+		executeTestCommand(t, environment.manager, "workspace-a", nil, CloseWindowCommand{WindowID: "w3"})
+		if got := len(mustSnapshot(t, environment.manager, "workspace-a").ClosedEntries); got != 1 {
+			t.Fatalf("closed entries after next close = %d", got)
+		}
+	})
+
+	t.Run("Should push the prior route and pop it back [UT-030]", func(t *testing.T) {
+		t.Parallel()
+		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		openTestWindow(t, environment.manager, "workspace-a", nil, "w1", "desktop-default")
+		pushed := executeTestCommand(
+			t,
+			environment.manager,
+			"workspace-a",
+			nil,
+			NavigateWindowCommand{WindowID: "w1", Route: testRoute("/child"), Mode: NavigatePush},
+		)
+		if pushed.Snapshot.Windows["w1"].Route.Pathname != "/child" ||
+			len(pushed.Snapshot.Windows["w1"].NavStack) != 1 {
+			t.Fatalf("pushed window = %+v", pushed.Snapshot.Windows["w1"])
+		}
+		popped := executeTestCommand(
+			t,
+			environment.manager,
+			"workspace-a",
+			nil,
+			NavigateWindowCommand{WindowID: "w1", Mode: NavigatePop},
+		)
+		if popped.Snapshot.Windows["w1"].Route.Pathname != "/test" || len(popped.Snapshot.Windows["w1"].NavStack) != 0 {
+			t.Fatalf("popped window = %+v", popped.Snapshot.Windows["w1"])
+		}
+	})
+
+	t.Run("Should treat pop at the root as a successful no-op [UT-032]", func(t *testing.T) {
+		t.Parallel()
+		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		openTestWindow(t, environment.manager, "workspace-a", nil, "w1", "desktop-default")
+		before := mustSnapshot(t, environment.manager, "workspace-a")
+		result := executeTestCommand(
+			t,
+			environment.manager,
+			"workspace-a",
+			nil,
+			NavigateWindowCommand{WindowID: "w1", Mode: NavigatePop},
+		)
+		if result.Applied || result.Snapshot.Revision != before.Revision {
+			t.Fatalf("root pop = %+v", result)
+		}
+	})
+
+	t.Run("Should preserve navigation while dragging a tab out and collapsing two to one [UT-033]", func(t *testing.T) {
+		t.Parallel()
+		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		for _, windowID := range []WindowID{"w1", "w2"} {
+			openTestWindow(t, environment.manager, "workspace-a", nil, windowID, "desktop-default")
+		}
+		executeTestCommand(
+			t,
+			environment.manager,
+			"workspace-a",
+			nil,
+			ArrangeLayoutCommand{
+				DesktopID:   "desktop-default",
+				WindowIDs:   []WindowID{"w1", "w2"},
+				Arrangement: ArrangementStack,
+				Frame:       fullRect(),
+				GroupID:     "group",
+			},
+		)
+		executeTestCommand(
+			t,
+			environment.manager,
+			"workspace-a",
+			nil,
+			NavigateWindowCommand{WindowID: "w1", Route: testRoute("/child"), Mode: NavigatePush},
+		)
+		result := executeTestCommand(t, environment.manager, "workspace-a", nil, ToggleFloatingCommand{WindowID: "w1"})
+		root := result.Snapshot.Desktops[0].Groups[0].Root
+		if root.Kind != NodeKindLeaf || valueOrZero(root.WindowID) != "w2" ||
+			len(result.Snapshot.Windows["w1"].NavStack) != 1 {
+			t.Fatalf("drag-out result = %+v", result.Snapshot)
+		}
+	})
+
+	t.Run("Should keep arrange stack producing one three-member node stack [UT-035]", func(t *testing.T) {
+		t.Parallel()
+		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		for _, windowID := range []WindowID{"w1", "w2", "w3"} {
+			openTestWindow(t, environment.manager, "workspace-a", nil, windowID, "desktop-default")
+		}
+		result := executeTestCommand(
+			t,
+			environment.manager,
+			"workspace-a",
+			nil,
+			ArrangeLayoutCommand{
+				DesktopID:   "desktop-default",
+				WindowIDs:   []WindowID{"w1", "w2", "w3"},
+				Arrangement: ArrangementStack,
+				Frame:       fullRect(),
+				GroupID:     "group",
+			},
+		)
+		root := result.Snapshot.Desktops[0].Groups[0].Root
+		if root.Kind != NodeKindStack || !slices.Equal(root.WindowIDs, []WindowID{"w1", "w2", "w3"}) {
+			t.Fatalf("arranged stack = %+v", root)
+		}
+	})
+}
+
+func mustSnapshot(t *testing.T, manager *Manager, workspaceID WorkspaceID) Snapshot {
+	t.Helper()
+	snapshot, err := manager.Snapshot(t.Context(), workspaceID)
+	if err != nil {
+		t.Fatalf("Snapshot() error = %v", err)
+	}
+	return snapshot
 }
 
 func TestWindowNavigation(t *testing.T) {
@@ -845,6 +1761,8 @@ func TestFocusAndZoom(t *testing.T) {
 				},
 			)
 			sourceGroup := arranged.Snapshot.Desktops[0].Groups[0]
+			activeAfterFocus := WindowID("settings")
+			sourceGroup.Root.ActiveID = &activeAfterFocus
 			clientID := ClientID("client-a")
 			registerTestClient(t, environment.manager, "workspace-a", clientID)
 			executeTestCommand(

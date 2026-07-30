@@ -8,14 +8,15 @@ an existing state.yaml. Read schema in ``references/state-schema.md``.
 
 Usage:
     init-state.py <slug> --goal "<text>" [--mode tasks|free]
-                  [--frontend claude|cursor] [--tasks-root <path>]
+                  [--frontend claude|cursor] [--stacked]
+                  [--tasks-root <path>]
 
 Exits:
     0 success
     1 generic error (stderr)
     2 state.yaml already exists
     3 _techspec.md missing
-    4 mode override conflicts with filesystem
+    4 mode override conflicts with filesystem, or --stacked outside tasks mode
 """
 
 from __future__ import annotations
@@ -44,6 +45,11 @@ def main() -> int:
         choices=["claude", "cursor"],
         default=None,
         help="frontend worker agent; non-null activates the herdr frontend lane",
+    )
+    ap.add_argument(
+        "--stacked",
+        action="store_true",
+        help="opt into stacked-PR checkpoints (gh stack); tasks mode only",
     )
     ap.add_argument(
         "--tasks-root",
@@ -81,6 +87,13 @@ def main() -> int:
             file=sys.stderr,
         )
         return 4
+    if args.stacked and chosen != "tasks":
+        print(
+            "init-state: --stacked requires tasks mode (stack layers map to "
+            "the authored task graph); author _tasks.md + task_*.md first",
+            file=sys.stderr,
+        )
+        return 4
 
     completed: list[str] = []
     pending: list[str] = []
@@ -101,6 +114,7 @@ def main() -> int:
         "iteration": 0,
         "goal_signature": args.goal,
         "frontend_agent": args.frontend,
+        "stacked": args.stacked,
         "tasks": {
             "total": total,
             "completed": completed,
@@ -119,7 +133,8 @@ def main() -> int:
     dump(state, state_path)
     print(
         f"init-state: wrote {state_path} (mode={chosen}, total_tasks={total}, "
-        f"frontend_agent={args.frontend or 'null'})"
+        f"frontend_agent={args.frontend or 'null'}, "
+        f"stacked={'true' if args.stacked else 'false'})"
     )
     return 0
 

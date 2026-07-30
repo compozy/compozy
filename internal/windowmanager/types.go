@@ -6,7 +6,12 @@ import (
 	"time"
 )
 
-const SnapshotVersion uint32 = 2
+const SnapshotVersion uint32 = 3
+
+const (
+	absoluteNavStackLimit    = 200
+	absoluteClosedEntryLimit = 100
+)
 
 type WorkspaceID string
 type DesktopID string
@@ -65,25 +70,36 @@ type NormalizedRect struct {
 
 // Snapshot is the complete durable workspace aggregate.
 type Snapshot struct {
-	Version     uint32              `json:"version"`
-	WorkspaceID WorkspaceID         `json:"workspace_id"`
-	Revision    Revision            `json:"revision"`
-	Desktops    []Desktop           `json:"desktops"`
-	Windows     map[WindowID]Window `json:"windows"`
-	History     History             `json:"history"`
-	Overrides   WorkspaceConfig     `json:"overrides"`
-	UpdatedAt   time.Time           `json:"updated_at"`
+	Version       uint32              `json:"version"`
+	WorkspaceID   WorkspaceID         `json:"workspace_id"`
+	Revision      Revision            `json:"revision"`
+	Desktops      []Desktop           `json:"desktops"`
+	Windows       map[WindowID]Window `json:"windows"`
+	ClosedEntries []ClosedEntry       `json:"closed_entries,omitempty"`
+	History       History             `json:"history"`
+	Overrides     WorkspaceConfig     `json:"overrides"`
+	UpdatedAt     time.Time           `json:"updated_at"`
 }
 
 // Desktop owns tiled groups and floating order.
 type Desktop struct {
-	ID         DesktopID      `json:"id"`
-	Name       string         `json:"name"`
-	Order      int            `json:"order"`
-	Purpose    DesktopPurpose `json:"purpose"`
-	FocusOwner *WindowID      `json:"focus_owner,omitempty"`
-	Groups     []LayoutGroup  `json:"groups"`
-	Floating   []WindowID     `json:"floating"`
+	ID             DesktopID       `json:"id"`
+	Name           string          `json:"name"`
+	Order          int             `json:"order"`
+	Purpose        DesktopPurpose  `json:"purpose"`
+	FocusOwner     *WindowID       `json:"focus_owner,omitempty"`
+	Groups         []LayoutGroup   `json:"groups"`
+	Floating       []WindowID      `json:"floating"`
+	FloatingStacks []FloatingStack `json:"floating_stacks"`
+}
+
+// FloatingStack is one floating frame containing an ordered tab deck.
+type FloatingStack struct {
+	ID        NodeID         `json:"id"`
+	WindowIDs []WindowID     `json:"window_ids"`
+	ActiveID  *WindowID      `json:"active_id,omitempty"`
+	Rect      NormalizedRect `json:"rect"`
+	Minimized bool           `json:"minimized,omitempty"`
 }
 
 // LayoutGroup is one independent tiled island.
@@ -111,11 +127,23 @@ type Window struct {
 	App          string          `json:"app"`
 	InstanceKey  *string         `json:"instance_key,omitempty"`
 	Route        RouteIntent     `json:"route"`
+	NavStack     []RouteIntent   `json:"nav_stack"`
+	Pinned       bool            `json:"pinned,omitempty"`
 	Placement    WindowPlacement `json:"placement"`
 	DesktopID    DesktopID       `json:"desktop_id"`
 	FloatingRect NormalizedRect  `json:"floating_rect"`
 	Minimized    bool            `json:"minimized"`
 	ReturnAnchor *ReturnAnchor   `json:"return_anchor,omitempty"`
+}
+
+// ClosedEntry is one reopenable close operation, newest last in Snapshot.ClosedEntries.
+type ClosedEntry struct {
+	Windows   []Window       `json:"windows"`
+	ActiveID  *WindowID      `json:"active_id,omitempty"`
+	StackID   *NodeID        `json:"stack_id,omitempty"`
+	DesktopID DesktopID      `json:"desktop_id"`
+	Rect      NormalizedRect `json:"rect"`
+	ClosedAt  time.Time      `json:"closed_at"`
 }
 
 // ReturnAnchor describes a window's prior structural slot.
@@ -132,13 +160,14 @@ type ReturnAnchor struct {
 
 // ClientView is transient presentation state for one connected client.
 type ClientView struct {
-	WorkspaceID          WorkspaceID `json:"workspace_id"`
-	ClientID             ClientID    `json:"client_id"`
-	PresentationRevision uint64      `json:"presentation_revision"`
-	ActiveDesktopID      DesktopID   `json:"active_desktop_id"`
-	FocusedWindowID      *WindowID   `json:"focused_window_id,omitempty"`
-	FocusOrder           []WindowID  `json:"focus_order"`
-	ConnectedAt          time.Time   `json:"connected_at"`
+	WorkspaceID          WorkspaceID         `json:"workspace_id"`
+	ClientID             ClientID            `json:"client_id"`
+	PresentationRevision uint64              `json:"presentation_revision"`
+	ActiveDesktopID      DesktopID           `json:"active_desktop_id"`
+	FocusedWindowID      *WindowID           `json:"focused_window_id,omitempty"`
+	FocusOrder           []WindowID          `json:"focus_order"`
+	StackActive          map[NodeID]WindowID `json:"stack_active,omitempty"`
+	ConnectedAt          time.Time           `json:"connected_at"`
 }
 
 // ClientRegistration requests a live client view.

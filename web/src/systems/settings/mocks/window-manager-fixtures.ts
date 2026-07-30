@@ -52,6 +52,8 @@ export const settingsWindowManagerSectionFixture: SettingsWindowManagerSection =
     group_move_modifier: "alt",
     swap_modifier: "shift",
     history_limit: 100,
+    nav_stack_limit: 50,
+    closed_entry_limit: 20,
     desktop_transition: "slide",
     gaps: { inner: 8, top: 8, right: 10, bottom: 8, left: 10 },
     snap: {

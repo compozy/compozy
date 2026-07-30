@@ -134,7 +134,11 @@ func TestWorkspaceAccessIntegration(t *testing.T) {
 			t.Fatalf("Authorize(append failure) error = %v", err)
 		}
 		if !decision.Allowed || failingStore.writes != 1 {
-			t.Fatalf("append failure result = decision:%#v writes:%d, want allowed and one write", decision, failingStore.writes)
+			t.Fatalf(
+				"append failure result = decision:%#v writes:%d, want allowed and one write",
+				decision,
+				failingStore.writes,
+			)
 		}
 		if !bytes.Contains(logs.Bytes(), []byte("workspace access audit emission failed")) {
 			t.Fatalf("logs = %q, want audit failure warning", logs.String())
@@ -292,9 +296,11 @@ func newWorkspaceAccessIntegrationSession(
 		session.WithStore(func(ctx context.Context, sessionID string, path string) (session.EventRecorder, error) {
 			return sessiondb.OpenSessionDB(ctx, sessionID, path)
 		}),
-		session.WithQueryStore(func(ctx context.Context, sessionID string, path string) (session.EventReadCloser, error) {
-			return sessiondb.OpenSessionDBReadOnly(ctx, sessionID, path)
-		}),
+		session.WithQueryStore(
+			func(ctx context.Context, sessionID string, path string) (session.EventReadCloser, error) {
+				return sessiondb.OpenSessionDBReadOnly(ctx, sessionID, path)
+			},
+		),
 		session.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
 		session.WithLifecycleContext(ctx),
 	}

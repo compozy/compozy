@@ -194,6 +194,6 @@ func (n *daemonNativeTools) layoutApply(
 	if err != nil {
 		return toolspkg.ToolResult{}, windowManagerToolError(req.ToolID, err)
 	}
-	payload := newWindowManagerCommandResult(windowmanager.CommandLayoutReplace, result)
+	payload := newWindowManagerCommandResult(windowmanager.CommandLayoutReplace, &result)
 	return structuredResult(payload, fmt.Sprintf("applied layout at revision %d", payload.Revision))
 }

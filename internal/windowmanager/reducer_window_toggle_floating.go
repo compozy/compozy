@@ -31,6 +31,13 @@ func (r *reducer) toggleFloating(snapshot *Snapshot, command ToggleFloatingComma
 		window.ReturnAnchor = nil
 		snapshot.Windows[command.WindowID] = window
 	} else {
+		floatingRect := window.FloatingRect
+		if location, stacked := findStackByWindow(snapshot, command.WindowID); stacked {
+			floatingRect = cascadeRect(location.rect(snapshot))
+			if len(location.members()) == 2 {
+				r.changes.stackUngrouped(location.id())
+			}
+		}
 		anchor := captureReturnAnchor(snapshot, command.WindowID)
 		removeWindow(snapshot, command.WindowID)
 		window.Placement = WindowPlacementFloating
@@ -39,7 +46,7 @@ func (r *reducer) toggleFloating(snapshot *Snapshot, command ToggleFloatingComma
 		if command.FloatingRect != nil {
 			window.FloatingRect = clampRect(*command.FloatingRect)
 		} else {
-			window.FloatingRect = clampRect(window.FloatingRect)
+			window.FloatingRect = clampRect(floatingRect)
 		}
 		snapshot.Windows[command.WindowID] = window
 		desktopIndex, _ := desktopIndexByID(snapshot, window.DesktopID)
@@ -48,6 +55,12 @@ func (r *reducer) toggleFloating(snapshot *Snapshot, command ToggleFloatingComma
 	r.changes.window(command.WindowID)
 	r.changes.desktop(window.DesktopID)
 	return true, nil
+}
+
+func cascadeRect(rect NormalizedRect) NormalizedRect {
+	rect.X += 0.02
+	rect.Y += 0.02
+	return clampRect(rect)
 }
 
 func (r *reducer) tileWindowFallback(snapshot *Snapshot, windowID WindowID) error {

@@ -74,7 +74,7 @@ type windowManagerPreviewResult struct {
 
 func newWindowManagerCommandResult(
 	commandID windowmanager.CommandID,
-	result windowmanager.Result,
+	result *windowmanager.Result,
 ) windowManagerCommandResult {
 	return windowManagerCommandResult{
 		WorkspaceID: result.Snapshot.WorkspaceID,

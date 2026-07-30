@@ -20,6 +20,7 @@ No other writer is permitted. Hand-editing voids resume guarantees.
 | `iteration` | int ≥ 0 | Monotonic counter. `update-state.py` increments it once per call. |
 | `goal_signature` | string | Verbatim text from the user's `[[CODEX_LOOP goal="..."]]` header (or manual invocation reason). Read-only after bootstrap. |
 | `frontend_agent` | `claude` \| `cursor` \| null | Frontend worker selected via `init-state.py --frontend`. Non-null activates the herdr frontend lane for the whole loop. Read-only after bootstrap. |
+| `stacked` | bool | Stacked-PR checkpoints, opt-in via `init-state.py --stacked` (tasks mode only; default `false`). True makes `commit-checkpoint.py` publish each Phase B task as a `gh stack` layer (`references/stacked-prs.md`). Read-only after bootstrap. |
 | `tasks.total` | int | Total entries in `_tasks.md`. Populated only in `mode=tasks`. |
 | `tasks.completed` | list[string] | Stems (e.g., `task_01`) of completed entries, in completion order. |
 | `tasks.current` | string \| null | Stem of the task being worked on right now. Null between iterations. |
@@ -44,7 +45,8 @@ No other writer is permitted. Hand-editing voids resume guarantees.
    --reconcile-tasks` is used to rebuild `tasks.*` from task-file
    frontmatter after `_tasks.md` is authored later in the workflow. Do not
    hand-edit `mode`.
-3. `frontend_agent` is written once at bootstrap and never mutated.
+3. `frontend_agent` and `stacked` are written once at bootstrap and never
+   mutated.
 4. `progress.checklist[]` items move only forward
    (`pending → in_progress → completed`). Reverting requires a new entry.
 5. `review.rounds` only increments; `review.ship` only flips false → true

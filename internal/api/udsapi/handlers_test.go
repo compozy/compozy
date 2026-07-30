@@ -1091,6 +1091,8 @@ func validUDSWindowManagerSettingsPayload() contract.SettingsWindowManagerConfig
 		GroupMoveModifier:   contract.SettingsWindowDragModifierControl,
 		SwapModifier:        contract.SettingsWindowDragModifierMeta,
 		HistoryLimit:        77,
+		NavStackLimit:       66,
+		ClosedEntryLimit:    18,
 		DesktopTransition:   contract.SettingsWindowDesktopTransitionCrossfade,
 		Gaps: contract.SettingsWindowManagerGapsPayload{
 			Inner: 12, Top: 18, Right: 14, Bottom: 16, Left: 20,

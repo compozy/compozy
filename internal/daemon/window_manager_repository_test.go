@@ -3,6 +3,7 @@ package daemon
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"reflect"
 	"strings"
 	"sync"
@@ -25,12 +26,13 @@ func TestWindowManagerRepository(t *testing.T) {
 		}
 	})
 
-	t.Run("Should persist one typed snapshot exactly across store reopen", func(t *testing.T) {
+	t.Run("Should persist one full v3 snapshot exactly across store reopen [IT-001]", func(t *testing.T) {
 		t.Parallel()
 		fixture := newDaemonWindowManagerFixture(t)
 		ctx := testutil.Context(t)
 		workspaceID := windowmanager.WorkspaceID(fixture.workspace.ID)
 		want := daemonWindowManagerSnapshot(workspaceID, 1, "Primary")
+		decorateDaemonV3Snapshot(&want)
 		if err := fixture.repository.Commit(ctx, daemonWindowManagerCommit(want, 0)); err != nil {
 			t.Fatalf("Commit() error = %v", err)
 		}
@@ -107,7 +109,7 @@ func TestWindowManagerRepository(t *testing.T) {
 		}
 	})
 
-	t.Run("Should reject legacy unknown and malformed topology documents", func(t *testing.T) {
+	t.Run("Should discard legacy unknown and malformed snapshot documents", func(t *testing.T) {
 		t.Parallel()
 		cases := []struct {
 			name  string
@@ -132,7 +134,7 @@ func TestWindowManagerRepository(t *testing.T) {
 			},
 		}
 		for _, testCase := range cases {
-			t.Run("Should reject "+testCase.name, func(t *testing.T) {
+			t.Run("Should discard "+testCase.name, func(t *testing.T) {
 				t.Parallel()
 				fixture := newDaemonWindowManagerFixture(t)
 				ctx := testutil.Context(t)
@@ -154,12 +156,140 @@ func TestWindowManagerRepository(t *testing.T) {
 				if _, err := fixture.repository.Load(
 					ctx,
 					windowmanager.WorkspaceID(workspaceID),
-				); !errors.Is(err, windowmanager.ErrInvalidTopology) {
-					t.Fatalf("Load() error = %v, want ErrInvalidTopology", err)
+				); !errors.Is(err, windowmanager.ErrSnapshotNotFound) {
+					t.Fatalf("Load() error = %v, want ErrSnapshotNotFound", err)
+				}
+				if _, err := fixture.engine.Get(
+					ctx,
+					workspaceID,
+					windowManagerStateDomain,
+					windowManagerSnapshotKey,
+				); !errors.Is(err, clientstate.ErrNotFound) {
+					t.Fatalf("Get(after discard) error = %v, want ErrNotFound", err)
 				}
 			})
 		}
 	})
+
+	t.Run(
+		"Should reinitialize after a discard and commit the next command at revision one [UT-062]",
+		func(t *testing.T) {
+			t.Parallel()
+			fixture := newDaemonWindowManagerFixture(t)
+			ctx := testutil.Context(t)
+			workspaceID := clientstate.WorkspaceID(fixture.workspace.ID)
+			legacy := []byte(strings.ReplaceAll(
+				`{"version":2,"workspace_id":"WORKSPACE_ID","revision":7,"desktops":[],"windows":{},"history":{"undo":[],"redo":[]},"overrides":{},"updated_at":"2026-07-22T12:00:00Z"}`,
+				"WORKSPACE_ID",
+				fixture.workspace.ID,
+			))
+			if _, err := fixture.engine.Apply(
+				ctx,
+				workspaceID,
+				windowManagerStateDomain,
+				[]clientstate.Op{{Kind: clientstate.OpPut, Key: windowManagerSnapshotKey, Value: legacy}},
+				clientstate.ApplyOptions{},
+			); err != nil {
+				t.Fatalf("Apply(v2 snapshot) error = %v", err)
+			}
+			result, err := fixture.manager.Execute(ctx, windowmanager.CommandRequest{
+				WorkspaceID: windowmanager.WorkspaceID(workspaceID), ExpectedRevision: 0,
+				Payload: windowmanager.CreateDesktopCommand{DesktopID: "d2", Name: "Two"},
+			})
+			if err != nil || result.Snapshot.Revision != 1 || result.Snapshot.Version != 3 {
+				t.Fatalf("Execute(after discard) = %+v, error = %v", result, err)
+			}
+		},
+	)
+
+	t.Run(
+		"Should discard only decode and version classes while preserving forensic blobs [IT-002]",
+		func(t *testing.T) {
+			t.Parallel()
+			cases := []struct {
+				name        string
+				value       func(workspaceID string) []byte
+				wantError   error
+				wantDeleted bool
+			}{
+				{
+					name: "workspace mismatch is preserved",
+					value: func(string) []byte {
+						snapshot := daemonWindowManagerSnapshot("another-workspace", 1, "Mismatch")
+						encoded, err := json.Marshal(snapshot)
+						if err != nil {
+							t.Fatalf("json.Marshal(mismatch) error = %v", err)
+						}
+						return encoded
+					},
+					wantError: windowmanager.ErrInvalidTopology,
+				},
+				{
+					name: "invalid v3 topology is preserved",
+					value: func(workspaceID string) []byte {
+						snapshot := daemonWindowManagerSnapshot(windowmanager.WorkspaceID(workspaceID), 1, "Invalid")
+						snapshot.Desktops = nil
+						encoded, err := json.Marshal(snapshot)
+						if err != nil {
+							t.Fatalf("json.Marshal(invalid v3) error = %v", err)
+						}
+						return encoded
+					},
+					wantError: windowmanager.ErrInvalidTopology,
+				},
+				{
+					name: "unsupported version is deleted",
+					value: func(workspaceID string) []byte {
+						return fmt.Appendf(nil, `{"version":2,"workspace_id":%q}`, workspaceID)
+					},
+					wantError:   windowmanager.ErrSnapshotNotFound,
+					wantDeleted: true,
+				},
+				{
+					name: "unknown field is deleted",
+					value: func(workspaceID string) []byte {
+						return fmt.Appendf(nil, `{"version":3,"workspace_id":%q,"unknown":true}`, workspaceID)
+					},
+					wantError:   windowmanager.ErrSnapshotNotFound,
+					wantDeleted: true,
+				},
+			}
+			for _, testCase := range cases {
+				t.Run(testCase.name, func(t *testing.T) {
+					fixture := newDaemonWindowManagerFixture(t)
+					ctx := testutil.Context(t)
+					workspaceID := clientstate.WorkspaceID(fixture.workspace.ID)
+					value := testCase.value(fixture.workspace.ID)
+					if _, err := fixture.engine.Apply(
+						ctx,
+						workspaceID,
+						windowManagerStateDomain,
+						[]clientstate.Op{{Kind: clientstate.OpPut, Key: windowManagerSnapshotKey, Value: value}},
+						clientstate.ApplyOptions{},
+					); err != nil {
+						t.Fatalf("Apply(raw snapshot) error = %v", err)
+					}
+					_, loadErr := fixture.repository.Load(ctx, windowmanager.WorkspaceID(workspaceID))
+					if !errors.Is(loadErr, testCase.wantError) {
+						t.Fatalf("Load() error = %v, want %v", loadErr, testCase.wantError)
+					}
+					entry, getErr := fixture.engine.Get(
+						ctx,
+						workspaceID,
+						windowManagerStateDomain,
+						windowManagerSnapshotKey,
+					)
+					if testCase.wantDeleted {
+						if !errors.Is(getErr, clientstate.ErrNotFound) {
+							t.Fatalf("Get(after discard) error = %v", getErr)
+						}
+					} else if getErr != nil || !reflect.DeepEqual(entry.Value, value) {
+						t.Fatalf("preserved entry = %+v, error = %v, want bytes %s", entry, getErr, value)
+					}
+				})
+			}
+		},
+	)
 
 	t.Run("Should allow exactly one concurrent compare-and-swap writer", func(t *testing.T) {
 		t.Parallel()
@@ -198,4 +328,52 @@ func TestWindowManagerRepository(t *testing.T) {
 			t.Fatalf("concurrent results = successes %d conflicts %d, want 1/1", successes, conflicts)
 		}
 	})
+}
+
+func decorateDaemonV3Snapshot(snapshot *windowmanager.Snapshot) {
+	w1, w2, w3 := windowmanager.WindowID("w1"), windowmanager.WindowID("w2"), windowmanager.WindowID("w3")
+	active := w2
+	route := func(path string) windowmanager.RouteIntent {
+		return windowmanager.RouteIntent{Pathname: path, Search: windowmanager.RouteSearch{}}
+	}
+	snapshot.Windows = map[windowmanager.WindowID]windowmanager.Window{
+		w1: {
+			ID:           w1,
+			App:          "One",
+			Route:        route("/one"),
+			NavStack:     []windowmanager.RouteIntent{route("/root")},
+			Pinned:       true,
+			Placement:    windowmanager.WindowPlacementStacked,
+			DesktopID:    "desktop-default",
+			FloatingRect: windowmanager.NormalizedRect{Width: 1, Height: 1},
+		},
+		w2: {
+			ID:           w2,
+			App:          "Two",
+			Route:        route("/two"),
+			Placement:    windowmanager.WindowPlacementStacked,
+			DesktopID:    "desktop-default",
+			FloatingRect: windowmanager.NormalizedRect{Width: 1, Height: 1},
+		},
+	}
+	snapshot.Desktops[0].FloatingStacks = []windowmanager.FloatingStack{{
+		ID: "stack", WindowIDs: []windowmanager.WindowID{w1, w2}, ActiveID: &active,
+		Rect: windowmanager.NormalizedRect{X: 0.1, Y: 0.1, Width: 0.7, Height: 0.7},
+	}}
+	snapshot.ClosedEntries = []windowmanager.ClosedEntry{
+		{
+			Windows: []windowmanager.Window{
+				{
+					ID:           w3,
+					App:          "Three",
+					Route:        route("/three"),
+					DesktopID:    "desktop-default",
+					Placement:    windowmanager.WindowPlacementFloating,
+					FloatingRect: windowmanager.NormalizedRect{Width: 1, Height: 1},
+				},
+			},
+			DesktopID: "desktop-default",
+			Rect:      windowmanager.NormalizedRect{Width: 1, Height: 1},
+		},
+	}
 }

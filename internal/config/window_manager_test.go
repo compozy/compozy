@@ -29,8 +29,8 @@ func TestWindowManagerConfig(t *testing.T) {
 		}
 		if got.NewWindowPolicy != WindowNewPolicyFloating ||
 			got.SmallViewportPolicy != WindowSmallViewportStack ||
-			got.HistoryLimit != 50 {
-			t.Fatalf("WindowManager = %#v, want floating/stack/history 50", got)
+			got.HistoryLimit != 50 || got.NavStackLimit != 50 || got.ClosedEntryLimit != 20 {
+			t.Fatalf("WindowManager = %#v, want floating/stack/history/nav/closed defaults", got)
 		}
 		wantRatios := []float64{0.5, 0.666667, 0.333333}
 		if !slices.Equal(got.Snap.RepeatRatios, wantRatios) {
@@ -49,6 +49,8 @@ func TestWindowManagerConfig(t *testing.T) {
 [window_manager]
 new_window_policy = "beside_focus"
 history_limit = 80
+nav_stack_limit = 120
+closed_entry_limit = 40
 
 [window_manager.gaps]
 inner = 12
@@ -59,6 +61,8 @@ repeat_ratios = [0.5, 0.75, 0.25]
 		writeFile(t, filepath.Join(workspaceRoot, DirName, ConfigName), `
 [window_manager]
 history_limit = 25
+nav_stack_limit = 75
+closed_entry_limit = 15
 desktop_transition = "crossfade"
 
 [window_manager.gaps]
@@ -75,6 +79,7 @@ top_center = "none"
 		windowManager := got.WindowManager
 		if windowManager.NewWindowPolicy != WindowNewPolicyBesideFocus ||
 			windowManager.HistoryLimit != 25 ||
+			windowManager.NavStackLimit != 75 || windowManager.ClosedEntryLimit != 15 ||
 			windowManager.DesktopTransition != WindowDesktopTransitionCrossfade {
 			t.Fatalf("WindowManager = %#v, want merged behavior", windowManager)
 		}
@@ -92,12 +97,16 @@ top_center = "none"
 		base := DefaultWindowManagerConfig()
 		base.NewWindowPolicy = WindowNewPolicyBesideFocus
 		base.HistoryLimit = 80
+		base.NavStackLimit = 90
+		base.ClosedEntryLimit = 30
 		base.Snap.RepeatRatios = []float64{0.5, 0.75, 0.25}
 		base.Shortcuts = map[string]string{"window.focus.left": "alt+KeyH"}
 		path := filepath.Join(t.TempDir(), ConfigName)
 		writeFile(t, path, `
 [window_manager]
 history_limit = 25
+nav_stack_limit = 70
+closed_entry_limit = 10
 
 [window_manager.gaps]
 right = 14
@@ -110,7 +119,8 @@ right = 14
 		if err != nil {
 			t.Fatalf("ApplyWindowManagerOverlayFile() error = %v", err)
 		}
-		if got.NewWindowPolicy != WindowNewPolicyBesideFocus || got.HistoryLimit != 25 {
+		if got.NewWindowPolicy != WindowNewPolicyBesideFocus || got.HistoryLimit != 25 ||
+			got.NavStackLimit != 70 || got.ClosedEntryLimit != 10 {
 			t.Fatalf("window manager overlay = %#v, want active policy and workspace history", got)
 		}
 		if got.Gaps.Right != 14 || got.Gaps.Left != base.Gaps.Left {
@@ -135,6 +145,28 @@ right = 14
 		_, err := ApplyWindowManagerOverlayFile(path, DefaultWindowManagerConfig())
 		assertWindowManagerValidationPath(t, err, "window_manager.history_limit")
 	})
+
+	t.Run(
+		"Should validate navigation and closed-entry ranges with exact paths [UT-140][UT-141][UT-142]",
+		func(t *testing.T) {
+			t.Parallel()
+			cases := []struct {
+				path    string
+				content string
+			}{
+				{path: windowManagerNavStackLimitPath, content: "[window_manager]\nnav_stack_limit = 0\n"},
+				{path: windowManagerNavStackLimitPath, content: "[window_manager]\nnav_stack_limit = 201\n"},
+				{path: windowManagerClosedEntryLimitPath, content: "[window_manager]\nclosed_entry_limit = 0\n"},
+				{path: windowManagerClosedEntryLimitPath, content: "[window_manager]\nclosed_entry_limit = 101\n"},
+			}
+			for _, testCase := range cases {
+				path := filepath.Join(t.TempDir(), ConfigName)
+				writeFile(t, path, testCase.content)
+				_, err := ApplyWindowManagerOverlayFile(path, DefaultWindowManagerConfig())
+				assertWindowManagerValidationPath(t, err, testCase.path)
+			}
+		},
+	)
 
 	t.Run("Should reject a duplicate shortcut chord", func(t *testing.T) {
 		t.Parallel()

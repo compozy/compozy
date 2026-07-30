@@ -6362,6 +6362,8 @@ export interface components {
           desktop_ids?: string[];
           group_ids?: string[];
           node_ids?: string[];
+          stack_grouped?: string[];
+          stack_ungrouped?: string[];
           window_ids?: string[];
         };
         /** @enum {string} */
@@ -6441,6 +6443,7 @@ export interface components {
           bottom_center: string;
           top_center: string;
         } | null;
+        closed_entry_limit?: number | null;
         desktop_transition?: string | null;
         drag_away_policy?: string | null;
         focus_follows_pointer?: boolean | null;
@@ -6460,6 +6463,7 @@ export interface components {
         } | null;
         group_move_modifier?: string | null;
         history_limit?: number | null;
+        nav_stack_limit?: number | null;
         new_window_policy?: string | null;
         raise_on_focus?: boolean | null;
         shortcuts?: {
@@ -6625,6 +6629,7 @@ export interface components {
             bottom_center: string;
             top_center: string;
           } | null;
+          closed_entry_limit?: number | null;
           desktop_transition?: string | null;
           drag_away_policy?: string | null;
           focus_follows_pointer?: boolean | null;
@@ -6644,6 +6649,7 @@ export interface components {
           } | null;
           group_move_modifier?: string | null;
           history_limit?: number | null;
+          nav_stack_limit?: number | null;
           new_window_policy?: string | null;
           raise_on_focus?: boolean | null;
           shortcuts?: {
@@ -6771,6 +6777,7 @@ export interface components {
             bottom_center: string;
             top_center: string;
           } | null;
+          closed_entry_limit?: number | null;
           desktop_transition?: string | null;
           drag_away_policy?: string | null;
           focus_follows_pointer?: boolean | null;
@@ -6790,6 +6797,7 @@ export interface components {
           } | null;
           group_move_modifier?: string | null;
           history_limit?: number | null;
+          nav_stack_limit?: number | null;
           new_window_policy?: string | null;
           raise_on_focus?: boolean | null;
           shortcuts?: {
@@ -6943,6 +6951,8 @@ export interface components {
         desktop_ids?: string[];
         group_ids?: string[];
         node_ids?: string[];
+        stack_grouped?: string[];
+        stack_ungrouped?: string[];
         window_ids?: string[];
       };
       client?: {
@@ -7041,6 +7051,7 @@ export interface components {
                   bottom_center: string;
                   top_center: string;
                 } | null;
+                closed_entry_limit?: number | null;
                 desktop_transition?: string | null;
                 drag_away_policy?: string | null;
                 focus_follows_pointer?: boolean | null;
@@ -7060,6 +7071,7 @@ export interface components {
                 } | null;
                 group_move_modifier?: string | null;
                 history_limit?: number | null;
+                nav_stack_limit?: number | null;
                 new_window_policy?: string | null;
                 raise_on_focus?: boolean | null;
                 shortcuts?: {
@@ -7180,6 +7192,7 @@ export interface components {
                   bottom_center: string;
                   top_center: string;
                 } | null;
+                closed_entry_limit?: number | null;
                 desktop_transition?: string | null;
                 drag_away_policy?: string | null;
                 focus_follows_pointer?: boolean | null;
@@ -7199,6 +7212,7 @@ export interface components {
                 } | null;
                 group_move_modifier?: string | null;
                 history_limit?: number | null;
+                nav_stack_limit?: number | null;
                 new_window_policy?: string | null;
                 raise_on_focus?: boolean | null;
                 shortcuts?: {
@@ -7349,6 +7363,7 @@ export interface components {
                   bottom_center: string;
                   top_center: string;
                 } | null;
+                closed_entry_limit?: number | null;
                 desktop_transition?: string | null;
                 drag_away_policy?: string | null;
                 focus_follows_pointer?: boolean | null;
@@ -7368,6 +7383,7 @@ export interface components {
                 } | null;
                 group_move_modifier?: string | null;
                 history_limit?: number | null;
+                nav_stack_limit?: number | null;
                 new_window_policy?: string | null;
                 raise_on_focus?: boolean | null;
                 shortcuts?: {
@@ -7488,6 +7504,7 @@ export interface components {
                   bottom_center: string;
                   top_center: string;
                 } | null;
+                closed_entry_limit?: number | null;
                 desktop_transition?: string | null;
                 drag_away_policy?: string | null;
                 focus_follows_pointer?: boolean | null;
@@ -7507,6 +7524,7 @@ export interface components {
                 } | null;
                 group_move_modifier?: string | null;
                 history_limit?: number | null;
+                nav_stack_limit?: number | null;
                 new_window_policy?: string | null;
                 raise_on_focus?: boolean | null;
                 shortcuts?: {
@@ -7618,6 +7636,7 @@ export interface components {
             bottom_center: string;
             top_center: string;
           } | null;
+          closed_entry_limit?: number | null;
           desktop_transition?: string | null;
           drag_away_policy?: string | null;
           focus_follows_pointer?: boolean | null;
@@ -7637,6 +7656,7 @@ export interface components {
           } | null;
           group_move_modifier?: string | null;
           history_limit?: number | null;
+          nav_stack_limit?: number | null;
           new_window_policy?: string | null;
           raise_on_focus?: boolean | null;
           shortcuts?: {
@@ -7769,6 +7789,7 @@ export interface components {
             bottom_center: string;
             top_center: string;
           } | null;
+          closed_entry_limit?: number | null;
           desktop_transition?: string | null;
           drag_away_policy?: string | null;
           focus_follows_pointer?: boolean | null;
@@ -7788,6 +7809,7 @@ export interface components {
           } | null;
           group_move_modifier?: string | null;
           history_limit?: number | null;
+          nav_stack_limit?: number | null;
           new_window_policy?: string | null;
           raise_on_focus?: boolean | null;
           shortcuts?: {
@@ -7884,6 +7906,8 @@ export interface components {
         desktop_ids?: string[];
         group_ids?: string[];
         node_ids?: string[];
+        stack_grouped?: string[];
+        stack_ungrouped?: string[];
         window_ids?: string[];
       };
       client?: {
@@ -7983,6 +8007,7 @@ export interface components {
                   bottom_center: string;
                   top_center: string;
                 } | null;
+                closed_entry_limit?: number | null;
                 desktop_transition?: string | null;
                 drag_away_policy?: string | null;
                 focus_follows_pointer?: boolean | null;
@@ -8002,6 +8027,7 @@ export interface components {
                 } | null;
                 group_move_modifier?: string | null;
                 history_limit?: number | null;
+                nav_stack_limit?: number | null;
                 new_window_policy?: string | null;
                 raise_on_focus?: boolean | null;
                 shortcuts?: {
@@ -8122,6 +8148,7 @@ export interface components {
                   bottom_center: string;
                   top_center: string;
                 } | null;
+                closed_entry_limit?: number | null;
                 desktop_transition?: string | null;
                 drag_away_policy?: string | null;
                 focus_follows_pointer?: boolean | null;
@@ -8141,6 +8168,7 @@ export interface components {
                 } | null;
                 group_move_modifier?: string | null;
                 history_limit?: number | null;
+                nav_stack_limit?: number | null;
                 new_window_policy?: string | null;
                 raise_on_focus?: boolean | null;
                 shortcuts?: {
@@ -8291,6 +8319,7 @@ export interface components {
                   bottom_center: string;
                   top_center: string;
                 } | null;
+                closed_entry_limit?: number | null;
                 desktop_transition?: string | null;
                 drag_away_policy?: string | null;
                 focus_follows_pointer?: boolean | null;
@@ -8310,6 +8339,7 @@ export interface components {
                 } | null;
                 group_move_modifier?: string | null;
                 history_limit?: number | null;
+                nav_stack_limit?: number | null;
                 new_window_policy?: string | null;
                 raise_on_focus?: boolean | null;
                 shortcuts?: {
@@ -8430,6 +8460,7 @@ export interface components {
                   bottom_center: string;
                   top_center: string;
                 } | null;
+                closed_entry_limit?: number | null;
                 desktop_transition?: string | null;
                 drag_away_policy?: string | null;
                 focus_follows_pointer?: boolean | null;
@@ -8449,6 +8480,7 @@ export interface components {
                 } | null;
                 group_move_modifier?: string | null;
                 history_limit?: number | null;
+                nav_stack_limit?: number | null;
                 new_window_policy?: string | null;
                 raise_on_focus?: boolean | null;
                 shortcuts?: {
@@ -8560,6 +8592,7 @@ export interface components {
             bottom_center: string;
             top_center: string;
           } | null;
+          closed_entry_limit?: number | null;
           desktop_transition?: string | null;
           drag_away_policy?: string | null;
           focus_follows_pointer?: boolean | null;
@@ -8579,6 +8612,7 @@ export interface components {
           } | null;
           group_move_modifier?: string | null;
           history_limit?: number | null;
+          nav_stack_limit?: number | null;
           new_window_policy?: string | null;
           raise_on_focus?: boolean | null;
           shortcuts?: {
@@ -8746,6 +8780,7 @@ export interface components {
                 bottom_center: string;
                 top_center: string;
               } | null;
+              closed_entry_limit?: number | null;
               desktop_transition?: string | null;
               drag_away_policy?: string | null;
               focus_follows_pointer?: boolean | null;
@@ -8765,6 +8800,7 @@ export interface components {
               } | null;
               group_move_modifier?: string | null;
               history_limit?: number | null;
+              nav_stack_limit?: number | null;
               new_window_policy?: string | null;
               raise_on_focus?: boolean | null;
               shortcuts?: {
@@ -8885,6 +8921,7 @@ export interface components {
                 bottom_center: string;
                 top_center: string;
               } | null;
+              closed_entry_limit?: number | null;
               desktop_transition?: string | null;
               drag_away_policy?: string | null;
               focus_follows_pointer?: boolean | null;
@@ -8904,6 +8941,7 @@ export interface components {
               } | null;
               group_move_modifier?: string | null;
               history_limit?: number | null;
+              nav_stack_limit?: number | null;
               new_window_policy?: string | null;
               raise_on_focus?: boolean | null;
               shortcuts?: {
@@ -9054,6 +9092,7 @@ export interface components {
                 bottom_center: string;
                 top_center: string;
               } | null;
+              closed_entry_limit?: number | null;
               desktop_transition?: string | null;
               drag_away_policy?: string | null;
               focus_follows_pointer?: boolean | null;
@@ -9073,6 +9112,7 @@ export interface components {
               } | null;
               group_move_modifier?: string | null;
               history_limit?: number | null;
+              nav_stack_limit?: number | null;
               new_window_policy?: string | null;
               raise_on_focus?: boolean | null;
               shortcuts?: {
@@ -9193,6 +9233,7 @@ export interface components {
                 bottom_center: string;
                 top_center: string;
               } | null;
+              closed_entry_limit?: number | null;
               desktop_transition?: string | null;
               drag_away_policy?: string | null;
               focus_follows_pointer?: boolean | null;
@@ -9212,6 +9253,7 @@ export interface components {
               } | null;
               group_move_modifier?: string | null;
               history_limit?: number | null;
+              nav_stack_limit?: number | null;
               new_window_policy?: string | null;
               raise_on_focus?: boolean | null;
               shortcuts?: {
@@ -9323,6 +9365,7 @@ export interface components {
           bottom_center: string;
           top_center: string;
         } | null;
+        closed_entry_limit?: number | null;
         desktop_transition?: string | null;
         drag_away_policy?: string | null;
         focus_follows_pointer?: boolean | null;
@@ -9342,6 +9385,7 @@ export interface components {
         } | null;
         group_move_modifier?: string | null;
         history_limit?: number | null;
+        nav_stack_limit?: number | null;
         new_window_policy?: string | null;
         raise_on_focus?: boolean | null;
         shortcuts?: {
@@ -9520,6 +9564,7 @@ export interface components {
                   bottom_center: string;
                   top_center: string;
                 } | null;
+                closed_entry_limit?: number | null;
                 desktop_transition?: string | null;
                 drag_away_policy?: string | null;
                 focus_follows_pointer?: boolean | null;
@@ -9539,6 +9584,7 @@ export interface components {
                 } | null;
                 group_move_modifier?: string | null;
                 history_limit?: number | null;
+                nav_stack_limit?: number | null;
                 new_window_policy?: string | null;
                 raise_on_focus?: boolean | null;
                 shortcuts?: {
@@ -9659,6 +9705,7 @@ export interface components {
                   bottom_center: string;
                   top_center: string;
                 } | null;
+                closed_entry_limit?: number | null;
                 desktop_transition?: string | null;
                 drag_away_policy?: string | null;
                 focus_follows_pointer?: boolean | null;
@@ -9678,6 +9725,7 @@ export interface components {
                 } | null;
                 group_move_modifier?: string | null;
                 history_limit?: number | null;
+                nav_stack_limit?: number | null;
                 new_window_policy?: string | null;
                 raise_on_focus?: boolean | null;
                 shortcuts?: {
@@ -9828,6 +9876,7 @@ export interface components {
                   bottom_center: string;
                   top_center: string;
                 } | null;
+                closed_entry_limit?: number | null;
                 desktop_transition?: string | null;
                 drag_away_policy?: string | null;
                 focus_follows_pointer?: boolean | null;
@@ -9847,6 +9896,7 @@ export interface components {
                 } | null;
                 group_move_modifier?: string | null;
                 history_limit?: number | null;
+                nav_stack_limit?: number | null;
                 new_window_policy?: string | null;
                 raise_on_focus?: boolean | null;
                 shortcuts?: {
@@ -9967,6 +10017,7 @@ export interface components {
                   bottom_center: string;
                   top_center: string;
                 } | null;
+                closed_entry_limit?: number | null;
                 desktop_transition?: string | null;
                 drag_away_policy?: string | null;
                 focus_follows_pointer?: boolean | null;
@@ -9986,6 +10037,7 @@ export interface components {
                 } | null;
                 group_move_modifier?: string | null;
                 history_limit?: number | null;
+                nav_stack_limit?: number | null;
                 new_window_policy?: string | null;
                 raise_on_focus?: boolean | null;
                 shortcuts?: {
@@ -10097,6 +10149,7 @@ export interface components {
             bottom_center: string;
             top_center: string;
           } | null;
+          closed_entry_limit?: number | null;
           desktop_transition?: string | null;
           drag_away_policy?: string | null;
           focus_follows_pointer?: boolean | null;
@@ -10116,6 +10169,7 @@ export interface components {
           } | null;
           group_move_modifier?: string | null;
           history_limit?: number | null;
+          nav_stack_limit?: number | null;
           new_window_policy?: string | null;
           raise_on_focus?: boolean | null;
           shortcuts?: {
@@ -55860,6 +55914,7 @@ export interface operations {
                 /** @enum {string} */
                 top_center: "none" | "reserved" | "zoom";
               };
+              closed_entry_limit: number;
               /** @enum {string} */
               desktop_transition: "slide" | "crossfade" | "instant";
               /** @enum {string} */
@@ -55878,6 +55933,7 @@ export interface operations {
               /** @enum {string} */
               group_move_modifier: "alt" | "control" | "meta" | "shift" | "none";
               history_limit: number;
+              nav_stack_limit: number;
               /** @enum {string} */
               new_window_policy: "floating" | "beside_focus";
               raise_on_focus: boolean;
@@ -55956,6 +56012,7 @@ export interface operations {
               /** @enum {string} */
               top_center: "none" | "reserved" | "zoom";
             };
+            closed_entry_limit: number;
             /** @enum {string} */
             desktop_transition: "slide" | "crossfade" | "instant";
             /** @enum {string} */
@@ -55974,6 +56031,7 @@ export interface operations {
             /** @enum {string} */
             group_move_modifier: "alt" | "control" | "meta" | "shift" | "none";
             history_limit: number;
+            nav_stack_limit: number;
             /** @enum {string} */
             new_window_policy: "floating" | "beside_focus";
             raise_on_focus: boolean;
@@ -104120,6 +104178,7 @@ export interface operations {
                       bottom_center: string;
                       top_center: string;
                     } | null;
+                    closed_entry_limit?: number | null;
                     desktop_transition?: string | null;
                     drag_away_policy?: string | null;
                     focus_follows_pointer?: boolean | null;
@@ -104139,6 +104198,7 @@ export interface operations {
                     } | null;
                     group_move_modifier?: string | null;
                     history_limit?: number | null;
+                    nav_stack_limit?: number | null;
                     new_window_policy?: string | null;
                     raise_on_focus?: boolean | null;
                     shortcuts?: {
@@ -104259,6 +104319,7 @@ export interface operations {
                       bottom_center: string;
                       top_center: string;
                     } | null;
+                    closed_entry_limit?: number | null;
                     desktop_transition?: string | null;
                     drag_away_policy?: string | null;
                     focus_follows_pointer?: boolean | null;
@@ -104278,6 +104339,7 @@ export interface operations {
                     } | null;
                     group_move_modifier?: string | null;
                     history_limit?: number | null;
+                    nav_stack_limit?: number | null;
                     new_window_policy?: string | null;
                     raise_on_focus?: boolean | null;
                     shortcuts?: {
@@ -104428,6 +104490,7 @@ export interface operations {
                       bottom_center: string;
                       top_center: string;
                     } | null;
+                    closed_entry_limit?: number | null;
                     desktop_transition?: string | null;
                     drag_away_policy?: string | null;
                     focus_follows_pointer?: boolean | null;
@@ -104447,6 +104510,7 @@ export interface operations {
                     } | null;
                     group_move_modifier?: string | null;
                     history_limit?: number | null;
+                    nav_stack_limit?: number | null;
                     new_window_policy?: string | null;
                     raise_on_focus?: boolean | null;
                     shortcuts?: {
@@ -104567,6 +104631,7 @@ export interface operations {
                       bottom_center: string;
                       top_center: string;
                     } | null;
+                    closed_entry_limit?: number | null;
                     desktop_transition?: string | null;
                     drag_away_policy?: string | null;
                     focus_follows_pointer?: boolean | null;
@@ -104586,6 +104651,7 @@ export interface operations {
                     } | null;
                     group_move_modifier?: string | null;
                     history_limit?: number | null;
+                    nav_stack_limit?: number | null;
                     new_window_policy?: string | null;
                     raise_on_focus?: boolean | null;
                     shortcuts?: {
@@ -104697,6 +104763,7 @@ export interface operations {
                 bottom_center: string;
                 top_center: string;
               } | null;
+              closed_entry_limit?: number | null;
               desktop_transition?: string | null;
               drag_away_policy?: string | null;
               focus_follows_pointer?: boolean | null;
@@ -104716,6 +104783,7 @@ export interface operations {
               } | null;
               group_move_modifier?: string | null;
               history_limit?: number | null;
+              nav_stack_limit?: number | null;
               new_window_policy?: string | null;
               raise_on_focus?: boolean | null;
               shortcuts?: {
@@ -105428,6 +105496,8 @@ export interface operations {
               desktop_ids?: string[];
               group_ids?: string[];
               node_ids?: string[];
+              stack_grouped?: string[];
+              stack_ungrouped?: string[];
               window_ids?: string[];
             };
             client?: {
@@ -105527,6 +105597,7 @@ export interface operations {
                         bottom_center: string;
                         top_center: string;
                       } | null;
+                      closed_entry_limit?: number | null;
                       desktop_transition?: string | null;
                       drag_away_policy?: string | null;
                       focus_follows_pointer?: boolean | null;
@@ -105546,6 +105617,7 @@ export interface operations {
                       } | null;
                       group_move_modifier?: string | null;
                       history_limit?: number | null;
+                      nav_stack_limit?: number | null;
                       new_window_policy?: string | null;
                       raise_on_focus?: boolean | null;
                       shortcuts?: {
@@ -105666,6 +105738,7 @@ export interface operations {
                         bottom_center: string;
                         top_center: string;
                       } | null;
+                      closed_entry_limit?: number | null;
                       desktop_transition?: string | null;
                       drag_away_policy?: string | null;
                       focus_follows_pointer?: boolean | null;
@@ -105685,6 +105758,7 @@ export interface operations {
                       } | null;
                       group_move_modifier?: string | null;
                       history_limit?: number | null;
+                      nav_stack_limit?: number | null;
                       new_window_policy?: string | null;
                       raise_on_focus?: boolean | null;
                       shortcuts?: {
@@ -105835,6 +105909,7 @@ export interface operations {
                         bottom_center: string;
                         top_center: string;
                       } | null;
+                      closed_entry_limit?: number | null;
                       desktop_transition?: string | null;
                       drag_away_policy?: string | null;
                       focus_follows_pointer?: boolean | null;
@@ -105854,6 +105929,7 @@ export interface operations {
                       } | null;
                       group_move_modifier?: string | null;
                       history_limit?: number | null;
+                      nav_stack_limit?: number | null;
                       new_window_policy?: string | null;
                       raise_on_focus?: boolean | null;
                       shortcuts?: {
@@ -105974,6 +106050,7 @@ export interface operations {
                         bottom_center: string;
                         top_center: string;
                       } | null;
+                      closed_entry_limit?: number | null;
                       desktop_transition?: string | null;
                       drag_away_policy?: string | null;
                       focus_follows_pointer?: boolean | null;
@@ -105993,6 +106070,7 @@ export interface operations {
                       } | null;
                       group_move_modifier?: string | null;
                       history_limit?: number | null;
+                      nav_stack_limit?: number | null;
                       new_window_policy?: string | null;
                       raise_on_focus?: boolean | null;
                       shortcuts?: {
@@ -106104,6 +106182,7 @@ export interface operations {
                   bottom_center: string;
                   top_center: string;
                 } | null;
+                closed_entry_limit?: number | null;
                 desktop_transition?: string | null;
                 drag_away_policy?: string | null;
                 focus_follows_pointer?: boolean | null;
@@ -106123,6 +106202,7 @@ export interface operations {
                 } | null;
                 group_move_modifier?: string | null;
                 history_limit?: number | null;
+                nav_stack_limit?: number | null;
                 new_window_policy?: string | null;
                 raise_on_focus?: boolean | null;
                 shortcuts?: {
@@ -106423,6 +106503,7 @@ export interface operations {
                 bottom_center: string;
                 top_center: string;
               } | null;
+              closed_entry_limit?: number | null;
               desktop_transition?: string | null;
               drag_away_policy?: string | null;
               focus_follows_pointer?: boolean | null;
@@ -106442,6 +106523,7 @@ export interface operations {
               } | null;
               group_move_modifier?: string | null;
               history_limit?: number | null;
+              nav_stack_limit?: number | null;
               new_window_policy?: string | null;
               raise_on_focus?: boolean | null;
               shortcuts?: {
@@ -106663,6 +106745,7 @@ export interface operations {
                 bottom_center: string;
                 top_center: string;
               } | null;
+              closed_entry_limit?: number | null;
               desktop_transition?: string | null;
               drag_away_policy?: string | null;
               focus_follows_pointer?: boolean | null;
@@ -106682,6 +106765,7 @@ export interface operations {
               } | null;
               group_move_modifier?: string | null;
               history_limit?: number | null;
+              nav_stack_limit?: number | null;
               new_window_policy?: string | null;
               raise_on_focus?: boolean | null;
               shortcuts?: {
@@ -106784,6 +106868,8 @@ export interface operations {
               desktop_ids?: string[];
               group_ids?: string[];
               node_ids?: string[];
+              stack_grouped?: string[];
+              stack_ungrouped?: string[];
               window_ids?: string[];
             };
             client?: {
@@ -106883,6 +106969,7 @@ export interface operations {
                         bottom_center: string;
                         top_center: string;
                       } | null;
+                      closed_entry_limit?: number | null;
                       desktop_transition?: string | null;
                       drag_away_policy?: string | null;
                       focus_follows_pointer?: boolean | null;
@@ -106902,6 +106989,7 @@ export interface operations {
                       } | null;
                       group_move_modifier?: string | null;
                       history_limit?: number | null;
+                      nav_stack_limit?: number | null;
                       new_window_policy?: string | null;
                       raise_on_focus?: boolean | null;
                       shortcuts?: {
@@ -107022,6 +107110,7 @@ export interface operations {
                         bottom_center: string;
                         top_center: string;
                       } | null;
+                      closed_entry_limit?: number | null;
                       desktop_transition?: string | null;
                       drag_away_policy?: string | null;
                       focus_follows_pointer?: boolean | null;
@@ -107041,6 +107130,7 @@ export interface operations {
                       } | null;
                       group_move_modifier?: string | null;
                       history_limit?: number | null;
+                      nav_stack_limit?: number | null;
                       new_window_policy?: string | null;
                       raise_on_focus?: boolean | null;
                       shortcuts?: {
@@ -107191,6 +107281,7 @@ export interface operations {
                         bottom_center: string;
                         top_center: string;
                       } | null;
+                      closed_entry_limit?: number | null;
                       desktop_transition?: string | null;
                       drag_away_policy?: string | null;
                       focus_follows_pointer?: boolean | null;
@@ -107210,6 +107301,7 @@ export interface operations {
                       } | null;
                       group_move_modifier?: string | null;
                       history_limit?: number | null;
+                      nav_stack_limit?: number | null;
                       new_window_policy?: string | null;
                       raise_on_focus?: boolean | null;
                       shortcuts?: {
@@ -107330,6 +107422,7 @@ export interface operations {
                         bottom_center: string;
                         top_center: string;
                       } | null;
+                      closed_entry_limit?: number | null;
                       desktop_transition?: string | null;
                       drag_away_policy?: string | null;
                       focus_follows_pointer?: boolean | null;
@@ -107349,6 +107442,7 @@ export interface operations {
                       } | null;
                       group_move_modifier?: string | null;
                       history_limit?: number | null;
+                      nav_stack_limit?: number | null;
                       new_window_policy?: string | null;
                       raise_on_focus?: boolean | null;
                       shortcuts?: {
@@ -107460,6 +107554,7 @@ export interface operations {
                   bottom_center: string;
                   top_center: string;
                 } | null;
+                closed_entry_limit?: number | null;
                 desktop_transition?: string | null;
                 drag_away_policy?: string | null;
                 focus_follows_pointer?: boolean | null;
@@ -107479,6 +107574,7 @@ export interface operations {
                 } | null;
                 group_move_modifier?: string | null;
                 history_limit?: number | null;
+                nav_stack_limit?: number | null;
                 new_window_policy?: string | null;
                 raise_on_focus?: boolean | null;
                 shortcuts?: {
@@ -108638,6 +108734,7 @@ export interface operations {
                 bottom_center: string;
                 top_center: string;
               } | null;
+              closed_entry_limit?: number | null;
               desktop_transition?: string | null;
               drag_away_policy?: string | null;
               focus_follows_pointer?: boolean | null;
@@ -108657,6 +108754,7 @@ export interface operations {
               } | null;
               group_move_modifier?: string | null;
               history_limit?: number | null;
+              nav_stack_limit?: number | null;
               new_window_policy?: string | null;
               raise_on_focus?: boolean | null;
               shortcuts?: {
@@ -108983,6 +109081,8 @@ export interface operations {
               desktop_ids?: string[];
               group_ids?: string[];
               node_ids?: string[];
+              stack_grouped?: string[];
+              stack_ungrouped?: string[];
               window_ids?: string[];
             };
             client?: {
@@ -109081,6 +109181,7 @@ export interface operations {
                         bottom_center: string;
                         top_center: string;
                       } | null;
+                      closed_entry_limit?: number | null;
                       desktop_transition?: string | null;
                       drag_away_policy?: string | null;
                       focus_follows_pointer?: boolean | null;
@@ -109100,6 +109201,7 @@ export interface operations {
                       } | null;
                       group_move_modifier?: string | null;
                       history_limit?: number | null;
+                      nav_stack_limit?: number | null;
                       new_window_policy?: string | null;
                       raise_on_focus?: boolean | null;
                       shortcuts?: {
@@ -109220,6 +109322,7 @@ export interface operations {
                         bottom_center: string;
                         top_center: string;
                       } | null;
+                      closed_entry_limit?: number | null;
                       desktop_transition?: string | null;
                       drag_away_policy?: string | null;
                       focus_follows_pointer?: boolean | null;
@@ -109239,6 +109342,7 @@ export interface operations {
                       } | null;
                       group_move_modifier?: string | null;
                       history_limit?: number | null;
+                      nav_stack_limit?: number | null;
                       new_window_policy?: string | null;
                       raise_on_focus?: boolean | null;
                       shortcuts?: {
@@ -109389,6 +109493,7 @@ export interface operations {
                         bottom_center: string;
                         top_center: string;
                       } | null;
+                      closed_entry_limit?: number | null;
                       desktop_transition?: string | null;
                       drag_away_policy?: string | null;
                       focus_follows_pointer?: boolean | null;
@@ -109408,6 +109513,7 @@ export interface operations {
                       } | null;
                       group_move_modifier?: string | null;
                       history_limit?: number | null;
+                      nav_stack_limit?: number | null;
                       new_window_policy?: string | null;
                       raise_on_focus?: boolean | null;
                       shortcuts?: {
@@ -109528,6 +109634,7 @@ export interface operations {
                         bottom_center: string;
                         top_center: string;
                       } | null;
+                      closed_entry_limit?: number | null;
                       desktop_transition?: string | null;
                       drag_away_policy?: string | null;
                       focus_follows_pointer?: boolean | null;
@@ -109547,6 +109654,7 @@ export interface operations {
                       } | null;
                       group_move_modifier?: string | null;
                       history_limit?: number | null;
+                      nav_stack_limit?: number | null;
                       new_window_policy?: string | null;
                       raise_on_focus?: boolean | null;
                       shortcuts?: {
@@ -109658,6 +109766,7 @@ export interface operations {
                   bottom_center: string;
                   top_center: string;
                 } | null;
+                closed_entry_limit?: number | null;
                 desktop_transition?: string | null;
                 drag_away_policy?: string | null;
                 focus_follows_pointer?: boolean | null;
@@ -109677,6 +109786,7 @@ export interface operations {
                 } | null;
                 group_move_modifier?: string | null;
                 history_limit?: number | null;
+                nav_stack_limit?: number | null;
                 new_window_policy?: string | null;
                 raise_on_focus?: boolean | null;
                 shortcuts?: {
@@ -110036,6 +110146,7 @@ export interface operations {
                             bottom_center: string;
                             top_center: string;
                           } | null;
+                          closed_entry_limit?: number | null;
                           desktop_transition?: string | null;
                           drag_away_policy?: string | null;
                           focus_follows_pointer?: boolean | null;
@@ -110055,6 +110166,7 @@ export interface operations {
                           } | null;
                           group_move_modifier?: string | null;
                           history_limit?: number | null;
+                          nav_stack_limit?: number | null;
                           new_window_policy?: string | null;
                           raise_on_focus?: boolean | null;
                           shortcuts?: {
@@ -110175,6 +110287,7 @@ export interface operations {
                             bottom_center: string;
                             top_center: string;
                           } | null;
+                          closed_entry_limit?: number | null;
                           desktop_transition?: string | null;
                           drag_away_policy?: string | null;
                           focus_follows_pointer?: boolean | null;
@@ -110194,6 +110307,7 @@ export interface operations {
                           } | null;
                           group_move_modifier?: string | null;
                           history_limit?: number | null;
+                          nav_stack_limit?: number | null;
                           new_window_policy?: string | null;
                           raise_on_focus?: boolean | null;
                           shortcuts?: {
@@ -110344,6 +110458,7 @@ export interface operations {
                             bottom_center: string;
                             top_center: string;
                           } | null;
+                          closed_entry_limit?: number | null;
                           desktop_transition?: string | null;
                           drag_away_policy?: string | null;
                           focus_follows_pointer?: boolean | null;
@@ -110363,6 +110478,7 @@ export interface operations {
                           } | null;
                           group_move_modifier?: string | null;
                           history_limit?: number | null;
+                          nav_stack_limit?: number | null;
                           new_window_policy?: string | null;
                           raise_on_focus?: boolean | null;
                           shortcuts?: {
@@ -110483,6 +110599,7 @@ export interface operations {
                             bottom_center: string;
                             top_center: string;
                           } | null;
+                          closed_entry_limit?: number | null;
                           desktop_transition?: string | null;
                           drag_away_policy?: string | null;
                           focus_follows_pointer?: boolean | null;
@@ -110502,6 +110619,7 @@ export interface operations {
                           } | null;
                           group_move_modifier?: string | null;
                           history_limit?: number | null;
+                          nav_stack_limit?: number | null;
                           new_window_policy?: string | null;
                           raise_on_focus?: boolean | null;
                           shortcuts?: {
@@ -110613,6 +110731,7 @@ export interface operations {
                       bottom_center: string;
                       top_center: string;
                     } | null;
+                    closed_entry_limit?: number | null;
                     desktop_transition?: string | null;
                     drag_away_policy?: string | null;
                     focus_follows_pointer?: boolean | null;
@@ -110632,6 +110751,7 @@ export interface operations {
                     } | null;
                     group_move_modifier?: string | null;
                     history_limit?: number | null;
+                    nav_stack_limit?: number | null;
                     new_window_policy?: string | null;
                     raise_on_focus?: boolean | null;
                     shortcuts?: {
@@ -110732,6 +110852,8 @@ export interface operations {
                     desktop_ids?: string[];
                     group_ids?: string[];
                     node_ids?: string[];
+                    stack_grouped?: string[];
+                    stack_ungrouped?: string[];
                     window_ids?: string[];
                   };
                   /** @enum {string} */

@@ -28,6 +28,7 @@ type Manager struct {
 	workspaceLocks map[WorkspaceID]*sync.Mutex
 	clients        map[WorkspaceID]map[ClientID]ClientView
 	hubs           map[WorkspaceID]*subscriptionHub
+	coalescer      *activeCoalescer
 }
 
 // UpdateDefaults atomically replaces validated runtime defaults for future commands.
@@ -80,7 +81,7 @@ func NewService(
 	if err != nil {
 		return nil, err
 	}
-	return &Manager{
+	manager := &Manager{
 		repository:         repository,
 		workspaces:         workspaces,
 		layouts:            layouts,
@@ -93,7 +94,9 @@ func NewService(
 		workspaceLocks:     make(map[WorkspaceID]*sync.Mutex),
 		clients:            make(map[WorkspaceID]map[ClientID]ClientView),
 		hubs:               make(map[WorkspaceID]*subscriptionHub),
-	}, nil
+	}
+	manager.coalescer = newActiveCoalescer(resolved.lifecycleContext, manager)
+	return manager, nil
 }
 
 // Snapshot returns a validated workspace aggregate.
@@ -125,9 +128,20 @@ func (m *Manager) Execute(ctx context.Context, request CommandRequest) (Result, 
 	}
 	lock.Lock()
 	result, executeErr := func() (Result, error) {
+		hadPending := commandID != CommandDesktopSwitch && commandID != CommandWindowFocus &&
+			m.coalescer.hasPending(request.WorkspaceID)
+		if hadPending {
+			if flushErr := m.flushStackActiveLocked(ctx, request.WorkspaceID); flushErr != nil {
+				return Result{}, fmt.Errorf("flush stack activation before %q: %w", commandID, flushErr)
+			}
+		}
 		snapshot, loadErr := m.loadSnapshot(ctx, request.WorkspaceID)
 		if loadErr != nil {
 			return Result{}, loadErr
+		}
+		if hadPending && request.ExpectedRevision < Revision(^uint64(0)) &&
+			snapshot.Revision == request.ExpectedRevision+1 {
+			request.ExpectedRevision = snapshot.Revision
 		}
 		rebasedFrom, revisionErr := resolveExpectedRevision(&snapshot, request)
 		if revisionErr != nil {
@@ -199,10 +213,14 @@ func (m *Manager) Preview(ctx context.Context, request CommandRequest) (Preview,
 	}
 	working := cloneSnapshot(snapshot)
 	var focused *WindowID
+	var activeDesktop *DesktopID
 	if client != nil {
 		focused = clonePointer(client.FocusedWindowID)
+		activeDesktop = new(client.ActiveDesktopID)
 	}
-	reduced, err := (&reducer{generate: m.generate, config: config, focusedWindow: focused}).reduce(
+	reduced, err := (&reducer{
+		generate: m.generate, config: config, focusedWindow: focused, activeDesktop: activeDesktop, now: m.now,
+	}).reduce(
 		&working,
 		payload,
 	)

@@ -13,6 +13,8 @@ type windowManagerOverlay struct {
 	GroupMoveModifier   *string                     `toml:"group_move_modifier"`
 	SwapModifier        *string                     `toml:"swap_modifier"`
 	HistoryLimit        *int                        `toml:"history_limit"`
+	NavStackLimit       *int                        `toml:"nav_stack_limit"`
+	ClosedEntryLimit    *int                        `toml:"closed_entry_limit"`
 	DesktopTransition   *string                     `toml:"desktop_transition"`
 	Gaps                windowManagerGapsOverlay    `toml:"gaps"`
 	Snap                windowManagerSnapOverlay    `toml:"snap"`
@@ -51,6 +53,8 @@ func (o windowManagerOverlay) Apply(dst *WindowManagerConfig) {
 	applyStringPointer(o.GroupMoveModifier, &dst.GroupMoveModifier)
 	applyStringPointer(o.SwapModifier, &dst.SwapModifier)
 	applyIntPointer(o.HistoryLimit, &dst.HistoryLimit)
+	applyIntPointer(o.NavStackLimit, &dst.NavStackLimit)
+	applyIntPointer(o.ClosedEntryLimit, &dst.ClosedEntryLimit)
 	applyStringPointer(o.DesktopTransition, &dst.DesktopTransition)
 	o.Gaps.Apply(&dst.Gaps)
 	o.Snap.Apply(&dst.Snap)

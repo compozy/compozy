@@ -10,6 +10,9 @@ import (
 )
 
 const (
+	windowManagerNavStackLimitPath    = "window_manager.nav_stack_limit"
+	windowManagerClosedEntryLimitPath = "window_manager.closed_entry_limit"
+
 	WindowNewPolicyFloating    = "floating"
 	WindowNewPolicyBesideFocus = "beside_focus"
 
@@ -60,6 +63,8 @@ type WindowManagerConfig struct {
 	GroupMoveModifier   string                     `toml:"group_move_modifier"`
 	SwapModifier        string                     `toml:"swap_modifier"`
 	HistoryLimit        int                        `toml:"history_limit"`
+	NavStackLimit       int                        `toml:"nav_stack_limit"`
+	ClosedEntryLimit    int                        `toml:"closed_entry_limit"`
 	DesktopTransition   string                     `toml:"desktop_transition"`
 	Gaps                WindowManagerGapsConfig    `toml:"gaps"`
 	Snap                WindowManagerSnapConfig    `toml:"snap"`
@@ -104,6 +109,8 @@ func DefaultWindowManagerConfig() WindowManagerConfig {
 		GroupMoveModifier:   WindowDragModifierAlt,
 		SwapModifier:        WindowDragModifierShift,
 		HistoryLimit:        50,
+		NavStackLimit:       50,
+		ClosedEntryLimit:    20,
 		DesktopTransition:   WindowDesktopTransitionSlide,
 		Gaps: WindowManagerGapsConfig{
 			Inner: 8, Top: 8, Right: 10, Bottom: 8, Left: 10,
@@ -180,6 +187,12 @@ func (c WindowManagerConfig) Validate() error {
 		return ValidationError{
 			Path: "window_manager.history_limit", Message: "must be between 1 and 500",
 		}
+	}
+	if c.NavStackLimit < 1 || c.NavStackLimit > 200 {
+		return ValidationError{Path: windowManagerNavStackLimitPath, Message: "must be between 1 and 200"}
+	}
+	if c.ClosedEntryLimit < 1 || c.ClosedEntryLimit > 100 {
+		return ValidationError{Path: windowManagerClosedEntryLimitPath, Message: "must be between 1 and 100"}
 	}
 	if err := c.Gaps.Validate(); err != nil {
 		return err

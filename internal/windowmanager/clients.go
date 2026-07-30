@@ -53,6 +53,7 @@ func (m *Manager) RegisterClient(ctx context.Context, registration ClientRegistr
 			PresentationRevision: 1,
 			ConnectedAt:          m.now().UTC(),
 			FocusOrder:           []WindowID{},
+			StackActive:          map[NodeID]WindowID{},
 		}
 	} else {
 		before = cloneClientView(view)
@@ -95,6 +96,9 @@ func (m *Manager) UnregisterClient(ctx context.Context, workspaceID WorkspaceID,
 	}
 	lock.Lock()
 	defer lock.Unlock()
+	if err := m.flushStackActiveLocked(ctx, workspaceID); err != nil {
+		return fmt.Errorf("flush stack activation before unregister client %q: %w", clientID, err)
+	}
 	m.mu.Lock()
 	workspaceClients := m.clients[workspaceID]
 	if _, exists := workspaceClients[clientID]; !exists {
@@ -217,6 +221,15 @@ func (m *Manager) applyPresentation(
 			}
 			view.FocusedWindowID = &focused
 			view.FocusOrder = prependFocus(view.FocusOrder, focused)
+			if location, stacked := findStackByWindow(&snapshot, focused); stacked {
+				if view.StackActive == nil {
+					view.StackActive = make(map[NodeID]WindowID)
+				}
+				view.StackActive[location.id()] = focused
+				if persist {
+					m.noteStackActive(request.WorkspaceID, location.id(), focused)
+				}
+			}
 			view = repairClientView(view, snapshot)
 		}
 	default:

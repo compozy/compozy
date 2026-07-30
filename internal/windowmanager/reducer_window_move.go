@@ -28,6 +28,12 @@ func (r *reducer) moveWindow(snapshot *Snapshot, command MoveWindowCommand) (boo
 			return false, fmt.Errorf("target window belongs to another desktop: %w", ErrInvalidCommand)
 		}
 	}
+	if command.Placement == DropCenter && command.TargetWindowID != nil {
+		return r.groupWindows(snapshot, GroupWindowsCommand{
+			TargetWindowID: *command.TargetWindowID,
+			WindowIDs:      []WindowID{command.WindowID},
+		})
+	}
 	anchor := captureReturnAnchor(snapshot, command.WindowID)
 	if !removeWindow(snapshot, command.WindowID) {
 		return false, fmt.Errorf("window %q has no placement: %w", command.WindowID, ErrInvalidTopology)

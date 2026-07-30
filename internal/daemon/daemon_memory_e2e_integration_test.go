@@ -142,7 +142,12 @@ func TestDaemonE2EMemoryCatalogCLIHTTPParityAndNoncanonicalPathIsolation(t *test
 	if err := os.WriteFile(
 		noncanonicalPath,
 		[]byte(
-			memoryDocument("Noncanonical Decoy", "Noncanonical paths stay ignored", memcontract.TypeProject, "path decoy"),
+			memoryDocument(
+				"Noncanonical Decoy",
+				"Noncanonical paths stay ignored",
+				memcontract.TypeProject,
+				"path decoy",
+			),
 		),
 		0o644,
 	); err != nil {

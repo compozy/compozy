@@ -1147,8 +1147,14 @@ func TestReloadChangedPaths(t *testing.T) {
 		current := &compozyconfig.Config{WindowManager: compozyconfig.DefaultWindowManagerConfig()}
 		desired := *current
 		desired.WindowManager.HistoryLimit++
+		desired.WindowManager.NavStackLimit++
+		desired.WindowManager.ClosedEntryLimit++
 
-		want := []string{"window_manager.history_limit"}
+		want := []string{
+			"window_manager.history_limit",
+			"window_manager.nav_stack_limit",
+			"window_manager.closed_entry_limit",
+		}
 		if got := reloadChangedPaths(current, &desired); !slices.Equal(got, want) {
 			t.Fatalf("reloadChangedPaths() = %#v, want %#v", got, want)
 		}

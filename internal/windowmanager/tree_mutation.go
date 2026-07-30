@@ -10,6 +10,44 @@ func removeWindow(snapshot *Snapshot, windowID WindowID) bool {
 		return false
 	}
 	desktop := &snapshot.Desktops[placement.desktopIndex]
+	if placement.floatingStackIndex >= 0 {
+		stack := desktop.FloatingStacks[placement.floatingStackIndex]
+		removedIndex := -1
+		for index, memberID := range stack.WindowIDs {
+			if memberID == windowID {
+				removedIndex = index
+				stack.WindowIDs = append(stack.WindowIDs[:index], stack.WindowIDs[index+1:]...)
+				break
+			}
+		}
+		if removedIndex < 0 {
+			return false
+		}
+		if stack.ActiveID == nil || *stack.ActiveID == windowID {
+			stack.ActiveID = nextActiveAfterRemoval(stack.WindowIDs, removedIndex)
+		}
+		switch len(stack.WindowIDs) {
+		case 1:
+			survivorID := stack.WindowIDs[0]
+			survivor := snapshot.Windows[survivorID]
+			survivor.Placement = WindowPlacementFloating
+			survivor.FloatingRect = stack.Rect
+			snapshot.Windows[survivorID] = survivor
+			desktop.Floating = append(desktop.Floating, survivorID)
+			desktop.FloatingStacks = append(
+				desktop.FloatingStacks[:placement.floatingStackIndex],
+				desktop.FloatingStacks[placement.floatingStackIndex+1:]...,
+			)
+		case 0:
+			desktop.FloatingStacks = append(
+				desktop.FloatingStacks[:placement.floatingStackIndex],
+				desktop.FloatingStacks[placement.floatingStackIndex+1:]...,
+			)
+		default:
+			desktop.FloatingStacks[placement.floatingStackIndex] = stack
+		}
+		return true
+	}
 	if placement.floatingIndex >= 0 {
 		desktop.Floating = append(
 			desktop.Floating[:placement.floatingIndex],
@@ -45,8 +83,11 @@ func removeWindowFromNode(node LayoutNode, windowID WindowID) (LayoutNode, bool)
 				return LayoutNode{}, true
 			}
 			if node.ActiveID == nil || *node.ActiveID == windowID {
-				active := node.WindowIDs[0]
-				node.ActiveID = &active
+				node.ActiveID = nextActiveAfterRemoval(node.WindowIDs, index)
+			}
+			if len(node.WindowIDs) == 1 {
+				survivor := node.WindowIDs[0]
+				return LayoutNode{ID: node.ID, Kind: NodeKindLeaf, WindowID: &survivor}, true
 			}
 			return node, true
 		}
