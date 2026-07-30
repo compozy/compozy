@@ -7,11 +7,10 @@ import (
 )
 
 type automationJobCreateInput struct {
+	automationCreateTargetInput
 	Name                string
 	ScopeRaw            string
-	AgentName           string
 	WorkspaceRef        string
-	Prompt              string
 	ScheduleRaw         string
 	CatchUpPolicyRaw    string
 	MisfireGraceSeconds int
@@ -56,14 +55,28 @@ func runAutomationJobsCreate(
 	if err != nil {
 		return err
 	}
+	target, err := buildAutomationCreateTarget(
+		cmd,
+		deps,
+		client,
+		scope,
+		workspaceID,
+		input.automationCreateTargetInput,
+		false,
+	)
+	if err != nil {
+		return err
+	}
 
 	request := AutomationJobCreateRequest{
 		Scope:       scope,
 		Name:        strings.TrimSpace(input.Name),
-		AgentName:   strings.TrimSpace(input.AgentName),
+		TargetKind:  target.Kind,
+		AgentName:   target.AgentName,
 		WorkspaceID: workspaceID,
-		Prompt:      strings.TrimSpace(input.Prompt),
+		Prompt:      target.Prompt,
 		Schedule:    schedule,
+		LoopTarget:  target.LoopTarget,
 	}
 	if cmd.Flags().Changed(automationEnabledKey) {
 		request.Enabled = new(input.Enabled)

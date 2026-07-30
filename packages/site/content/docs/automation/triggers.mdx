@@ -82,9 +82,22 @@ Loop inputs from the activation envelope with the Loop start-binding template gr
 ```
 
 Agents can submit this shape through `compozy__automation_triggers_create`; HTTP and UDS expose the
-same request contract. The `compozy automation triggers create|update` flags currently author Agent
-targets. The CLI can still list, inspect, enable, disable, and delete Loop-target triggers created
-through a native tool or transport API.
+same request contract. The CLI creates Loop targets with `--loop`, repeatable `--loop-input` values,
+and repeatable `--loop-input-mapping` templates. A global trigger also requires `--loop-workspace`.
+
+```bash
+compozy automation triggers create \
+  --name review-deployment \
+  --scope global \
+  --event webhook \
+  --loop deployment-review \
+  --loop-workspace /path/to/workspace \
+  --loop-input environment=production \
+  --loop-input-mapping 'title={{ .trigger.payload.title }}'
+```
+
+The update command changes common trigger fields but does not replace the target union. Use the
+native tool, HTTP, or UDS when an existing trigger must switch between Agent and Loop targets.
 
 ## Event types
 

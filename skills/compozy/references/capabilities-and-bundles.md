@@ -280,6 +280,8 @@ Loop observability is durable runtime state, not a transient UI stream. `loop_ru
 
 Automation schedule catch-up policy is part of the public schedule contract. Recurring schedules accept `skip_missed`, `coalesce`, `replay`, and `run_once_on_catchup`; one-time `at` schedules reject catch-up fields. Omit the policy for the target-aware default: Loop targets with a `watch-source` use `coalesce`, while other scheduled targets use `skip_missed`. `misfire_grace_seconds=0` uses the daemon jitter grace. Durable canceled runs identify `misfire_grace_exceeded` and `self_overlap` under `metadata.reason`. Catch-up starts carry structured automation-run metadata so agents can distinguish normal starts from recovered starts and reason about `concurrency: forbid|queue` outcomes.
 
+CLI automation creation supports the Agent-or-Loop target union. Use `automation jobs create --loop` with repeatable `--loop-input` values for scheduled Loop starts; triggers also accept repeatable `--loop-input-mapping` templates. Global definitions require `--loop-workspace`. CLI updates change common fields without replacing the target; use native tools or HTTP/UDS for target replacement.
+
 `[session.compaction]` controls pressure-triggered checkpoint coverage and replay archiving. Defaults
 are `enabled = true`, `pressure_threshold = 0.85`, `max_attempts_per_turn = 1`, and
 `failure_cooldown = "10m"`; threshold zero disables admission. All paths are available through

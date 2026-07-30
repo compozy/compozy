@@ -35,15 +35,29 @@ func buildAutomationTriggerCreateRequest(
 	if err != nil {
 		return AutomationTriggerCreateRequest{}, err
 	}
+	target, err := buildAutomationCreateTarget(
+		cmd,
+		deps,
+		client,
+		scope,
+		workspaceID,
+		input.automationCreateTargetInput,
+		true,
+	)
+	if err != nil {
+		return AutomationTriggerCreateRequest{}, err
+	}
 
 	request := AutomationTriggerCreateRequest{
 		Scope:              scope,
 		Name:               strings.TrimSpace(input.Name),
-		AgentName:          strings.TrimSpace(input.AgentName),
+		TargetKind:         target.Kind,
+		AgentName:          target.AgentName,
 		WorkspaceID:        workspaceID,
-		Prompt:             strings.TrimSpace(input.Prompt),
+		Prompt:             target.Prompt,
 		Event:              strings.TrimSpace(input.EventRaw),
 		Filter:             filter,
+		LoopTarget:         target.LoopTarget,
 		WebhookID:          strings.TrimSpace(input.WebhookID),
 		EndpointSlug:       strings.TrimSpace(input.EndpointSlug),
 		WebhookSecretValue: input.WebhookSecretValue,
@@ -67,7 +81,7 @@ func buildAutomationTriggerUpdateRequest(
 		request.Name = new(strings.TrimSpace(input.Name))
 	}
 	if cmd.Flags().Changed(automationPromptKey) {
-		request.Prompt = new(strings.TrimSpace(input.Prompt))
+		request.Prompt = new(strings.TrimSpace(input.automationCreateTargetInput.Prompt))
 	}
 	if cmd.Flags().Changed(automationEventKey) {
 		request.Event = new(strings.TrimSpace(input.EventRaw))
