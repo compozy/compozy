@@ -39,7 +39,7 @@ The remaining gap is structural. `RoutingPolicy` is one conjunction of required 
 - Focused regression: `internal/cli/bridge_setup_test.go::TestBridgeSetupTelegramRoutingShapes`.
 - Remaining core owner: `internal/bridges/dimensions.go::validateRoutingDimensions` requires every enabled dimension on every route.
 - Routing-key owner: `internal/bridges/routing.go::BuildRoutingKey` includes only the dimensions selected by the single stored policy.
-- Public truth: `packages/site/content/runtime/core/bridges/setup-telegram.mdx` states that one instance selects one shape.
+- Public truth: `packages/site/content/docs/bridges/setup-telegram.mdx` states that one instance selects one shape.
 - Historical QA artifacts remain attached as evidence of the original fixed-policy behavior.
 
 ## Fix

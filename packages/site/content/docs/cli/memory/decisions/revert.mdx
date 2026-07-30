@@ -1,0 +1,44 @@
+---
+title: "compozy memory decisions revert"
+description: "Revert one Memory v2 controller decision"
+---
+
+## compozy memory decisions revert
+
+Revert one Memory v2 controller decision
+
+```
+compozy memory decisions revert <id> [flags]
+```
+
+### Options
+
+```
+      --dry-run         Return the revert decision without applying it
+  -h, --help            help for revert
+      --reason string   Operator-visible revert reason
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy memory decisions revert <id> -o json
+```

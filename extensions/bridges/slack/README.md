@@ -64,6 +64,6 @@ Slack instances default to `tool_progress: new` with accumulated updates, typing
 
 Progress uses `chat.postMessage`, `chat.update`, `assistant.threads.setStatus`, and `reactions.add`. Reactions apply to the progress bubble. Rate-limited edits honor Slack's `Retry-After` response before retrying. Set `delivery_defaults.progress.tool_progress` to `off` to acknowledge progress without Slack API calls. `chat.delete` is available for explicit delivery deletes; automatic progress cleanup is not enabled.
 
-See the [Slack operator setup guide](../../../packages/site/content/runtime/core/bridges/setup-slack.mdx)
+See the [Slack operator setup guide](../../../packages/site/content/docs/bridges/setup-slack.mdx)
 for app creation, manifest handoff, verification, real inbound proof, delivery testing, and
 troubleshooting.

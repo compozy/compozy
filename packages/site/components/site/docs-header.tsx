@@ -3,16 +3,9 @@
 import { buttonVariants, cn } from "@compozy/ui";
 import { useNotebookLayout } from "fumadocs-ui/layouts/notebook";
 import { useSidebar } from "fumadocs-ui/layouts/notebook/slots/sidebar";
-import {
-  isLayoutTabActive,
-  LinkItem,
-  type LayoutTab,
-  type LinkItemType,
-} from "fumadocs-ui/layouts/shared";
+import { LinkItem, type LinkItemType } from "fumadocs-ui/layouts/shared";
 import { Sidebar as SidebarIcon } from "lucide-react";
 import type { ComponentProps } from "react";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
 import { HeaderSearchInput } from "@/components/site/header-search-input";
 
 type WithUrl = Extract<LinkItemType, { url: string }>;
@@ -22,14 +15,13 @@ export function DocsHeader(props: ComponentProps<"header">) {
     slots,
     navItems,
     isNavTransparent,
-    props: { tabMode, nav, tabs, sidebar },
+    props: { nav, sidebar },
   } = useNotebookLayout();
 
   const sidebarSlots = slots.sidebar;
   const { open } = useSidebar();
   const navMode = nav?.mode ?? "auto";
   const sidebarCollapsible = sidebar.collapsible ?? true;
-  const showLayoutTabs = tabMode === "navbar" && tabs.length > 0;
 
   const mainItems = navItems.filter(item => item.type !== "icon");
   const iconItems = navItems.filter(item => item.type === "icon");
@@ -41,7 +33,6 @@ export function DocsHeader(props: ComponentProps<"header">) {
       {...props}
       className={cn(
         "sticky [grid-area:header] flex flex-col top-(--fd-docs-row-1) z-10 backdrop-blur-sm transition-colors data-[transparent=false]:bg-fd-background/80 layout:[--fd-header-height:--spacing(14)]",
-        showLayoutTabs && "lg:layout:[--fd-header-height:--spacing(24)]",
         props.className
       )}
     >
@@ -140,42 +131,7 @@ export function DocsHeader(props: ComponentProps<"header">) {
           </div>
         </div>
       </div>
-
-      {showLayoutTabs && <DocsHeaderTabs tabs={tabs} />}
     </header>
-  );
-}
-
-function DocsHeaderTabs({ tabs }: { tabs: LayoutTab[] }) {
-  const pathname = usePathname();
-  const selectedIdx = tabs.findLastIndex(option => isLayoutTabActive(option, pathname));
-
-  return (
-    <div
-      data-header-tabs=""
-      className="flex flex-row items-end gap-6 overflow-x-auto border-b px-6 h-10 max-lg:hidden"
-    >
-      {tabs.map((option, i) => {
-        const { title, url, unlisted, props } = option;
-        const { className, ...rest } = props ?? {};
-        const isSelected = selectedIdx === i;
-        return (
-          <Link
-            key={url}
-            href={url}
-            className={cn(
-              "inline-flex border-b-2 border-transparent transition-colors items-center pb-1.5 font-medium gap-2 text-fd-muted-foreground text-sm text-nowrap hover:text-fd-accent-foreground",
-              unlisted && !isSelected && "hidden",
-              isSelected && "border-fd-primary text-fd-primary",
-              className
-            )}
-            {...rest}
-          >
-            {title}
-          </Link>
-        );
-      })}
-    </div>
   );
 }
 

@@ -1,0 +1,53 @@
+---
+title: "compozy daemon start"
+description: "Start the Compozy daemon"
+---
+
+## compozy daemon start
+
+Start the Compozy daemon
+
+```
+compozy daemon start [flags]
+```
+
+### Examples
+
+```
+  # Start Compozy in the background and wait for readiness
+  compozy daemon start
+
+  # Keep logs attached to the current terminal
+  compozy daemon start --foreground
+```
+
+### Options
+
+```
+      --foreground   Run the daemon in the foreground
+  -h, --help         help for start
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy daemon start -o json
+```

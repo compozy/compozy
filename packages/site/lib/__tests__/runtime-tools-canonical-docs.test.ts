@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 const siteRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
-const runtimeRoot = resolve(siteRoot, "content/runtime");
+const runtimeRoot = resolve(siteRoot, "content/docs");
 
 function readDoc(...parts: string[]): string {
   return readFileSync(resolve(runtimeRoot, ...parts), "utf8");
@@ -24,8 +24,8 @@ function expectExcludesAll(content: string, values: string[]): void {
 
 describe("tool-first canonical surface docs", () => {
   it("documents default discovery toolsets and the tool/operator split in agent docs", () => {
-    const agentMd = readDoc("core/configuration/agent-md.mdx");
-    const definitions = readDoc("core/agents/definitions.mdx");
+    const agentMd = readDoc("configuration/agent-md.mdx");
+    const definitions = readDoc("agents/definitions.mdx");
 
     expectIncludesAll(agentMd, [
       "`compozy__bootstrap`",
@@ -47,8 +47,8 @@ describe("tool-first canonical surface docs", () => {
   });
 
   it("documents operational native toolsets for task, model catalog, and Memory administration", () => {
-    const toolsets = readDoc("core/tools/toolsets.mdx");
-    const tools = readDoc("core/tools/index.mdx");
+    const toolsets = readDoc("tools/toolsets.mdx");
+    const tools = readDoc("tools/index.mdx");
 
     expectIncludesAll(toolsets, [
       "compozy__tasks",
@@ -70,8 +70,8 @@ describe("tool-first canonical surface docs", () => {
   });
 
   it("documents tool-callable autonomy without raw claim tokens", () => {
-    const leases = readDoc("core/autonomy/task-runs-and-leases.mdx");
-    const autonomyIndex = readDoc("core/autonomy/index.mdx");
+    const leases = readDoc("autonomy/task-runs-and-leases.mdx");
+    const autonomyIndex = readDoc("autonomy/index.mdx");
 
     expectIncludesAll(leases, [
       "compozy__task_run_claim_next",
@@ -94,10 +94,10 @@ describe("tool-first canonical surface docs", () => {
   });
 
   it("documents tool-callable hooks, automation, and extension lifecycle", () => {
-    const hooksIndex = readDoc("core/hooks/index.mdx");
-    const hooksDecl = readDoc("core/hooks/declaration.mdx");
-    const automationIndex = readDoc("core/automation/index.mdx");
-    const extensionsInstall = readDoc("core/extensions/install.mdx");
+    const hooksIndex = readDoc("hooks/index.mdx");
+    const hooksDecl = readDoc("hooks/declaration.mdx");
+    const automationIndex = readDoc("automation/index.mdx");
+    const extensionsInstall = readDoc("extensions/install.mdx");
 
     expectIncludesAll(hooksIndex, [
       "`compozy__hooks`",
@@ -137,7 +137,7 @@ describe("tool-first canonical surface docs", () => {
   });
 
   it("documents MCP auth as status-only on the tool surface", () => {
-    const configToml = readDoc("core/configuration/config-toml.mdx");
+    const configToml = readDoc("configuration/config-toml.mdx");
 
     expectIncludesAll(configToml, [
       "`compozy__mcp_status`",
@@ -150,7 +150,7 @@ describe("tool-first canonical surface docs", () => {
   });
 
   it("documents restart-required lifecycle truth for config-backed hook and extension mutations", () => {
-    const configToml = readDoc("core/configuration/config-toml.mdx");
+    const configToml = readDoc("configuration/config-toml.mdx");
 
     expectIncludesAll(configToml, [
       "`hooks.*` and `extensions.*`",
@@ -161,8 +161,8 @@ describe("tool-first canonical surface docs", () => {
   });
 
   it("documents the canonical tool surface in skills guidance", () => {
-    const skillsIndex = readDoc("core/skills/index.mdx");
-    const bundled = readDoc("core/skills/bundled.mdx");
+    const skillsIndex = readDoc("skills/index.mdx");
+    const bundled = readDoc("skills/bundled.mdx");
 
     expectIncludesAll(skillsIndex, [
       "`compozy__skill_view`",
@@ -179,14 +179,14 @@ describe("tool-first canonical surface docs", () => {
 
   it("ships generated CLI references for the tool and toolsets command groups", () => {
     const required = [
-      "cli-reference/tool/index.mdx",
-      "cli-reference/tool/list.mdx",
-      "cli-reference/tool/search.mdx",
-      "cli-reference/tool/info.mdx",
-      "cli-reference/tool/invoke.mdx",
-      "cli-reference/toolsets/index.mdx",
-      "cli-reference/toolsets/list.mdx",
-      "cli-reference/toolsets/info.mdx",
+      "cli/tool/index.mdx",
+      "cli/tool/list.mdx",
+      "cli/tool/search.mdx",
+      "cli/tool/info.mdx",
+      "cli/tool/invoke.mdx",
+      "cli/toolsets/index.mdx",
+      "cli/toolsets/list.mdx",
+      "cli/toolsets/info.mdx",
     ];
     for (const page of required) {
       expect(existsSync(resolve(runtimeRoot, page))).toBe(true);
@@ -195,11 +195,11 @@ describe("tool-first canonical surface docs", () => {
 
   it("does not advertise raw claim_token CLI flags in autonomy CLI pages", () => {
     const cliPages = [
-      "cli-reference/task/heartbeat.mdx",
-      "cli-reference/task/complete.mdx",
-      "cli-reference/task/fail.mdx",
-      "cli-reference/task/release.mdx",
-      "cli-reference/task/next.mdx",
+      "cli/task/heartbeat.mdx",
+      "cli/task/complete.mdx",
+      "cli/task/fail.mdx",
+      "cli/task/release.mdx",
+      "cli/task/next.mdx",
     ];
     for (const page of cliPages) {
       const content = readDoc(page);

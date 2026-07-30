@@ -1,0 +1,41 @@
+---
+title: "compozy vault"
+description: "Manage encrypted daemon vault metadata and write-only secrets"
+---
+
+## compozy vault
+
+Manage encrypted daemon vault metadata and write-only secrets
+
+### Options
+
+```
+  -h, --help   help for vault
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+This command displays human-readable help and its subcommand list. The inherited `-o, --output` and `--json` flags do not serialize help output.
+
+| Format  | Output                   |
+| ------- | ------------------------ |
+| `human` | Help and subcommand list |
+| `json`  | Not emitted for help     |
+| `jsonl` | Not emitted for help     |
+| `toon`  | Not emitted for help     |
+
+## Subcommands
+
+| Command                                        | Description                                  |
+| ---------------------------------------------- | -------------------------------------------- |
+| [compozy vault delete](/docs/cli/vault/delete) | Delete one vault secret                      |
+| [compozy vault get](/docs/cli/vault/get)       | Show redacted metadata for one vault secret  |
+| [compozy vault list](/docs/cli/vault/list)     | List redacted vault secret metadata          |
+| [compozy vault put](/docs/cli/vault/put)       | Store one write-only vault secret from stdin |

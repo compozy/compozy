@@ -1,0 +1,54 @@
+---
+title: "compozy session resume"
+description: "Attach to a resumable session"
+---
+
+## compozy session resume
+
+Attach to a resumable session
+
+```
+compozy session resume [id] [flags]
+```
+
+### Examples
+
+```
+  # Attach to a resumable session by ID
+  compozy session resume sess_1234
+
+  # Attach to the latest eligible session in a workspace
+  compozy session resume --latest --workspace checkout-api
+```
+
+### Options
+
+```
+  -h, --help               help for resume
+      --latest             Attach to the latest eligible session
+      --workspace string   Override --latest workspace filter (ID, name, or path)
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy session resume [id] -o json
+```

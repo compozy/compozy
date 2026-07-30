@@ -55,8 +55,8 @@ filesystem truth.
 Any command, gate, worker, or artifact failure first enters the self-healing
 procedure in `references/recovery-loop.md`. Keep the current phase action open
 and leave final iteration state untouched while repairing. A stale generated
-artifact, failing validation, repeated repair, or third corrective touch is
-not intrinsically a blocker.
+artifact, failing validation, or repeated repair is not intrinsically a
+blocker.
 
 Only after all three external-blocker criteria in that reference pass:
 

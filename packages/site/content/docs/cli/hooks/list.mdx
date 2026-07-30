@@ -1,0 +1,47 @@
+---
+title: "compozy hooks list"
+description: "List resolved hooks in pipeline order"
+---
+
+## compozy hooks list
+
+List resolved hooks in pipeline order
+
+```
+compozy hooks list [flags]
+```
+
+### Options
+
+```
+      --agent string       Filter by agent name
+      --event string       Filter by hook event
+  -h, --help               help for list
+      --mode string        Filter by hook mode
+      --source string      Filter by hook source
+      --workspace string   Override workspace filter (ID, name, or path)
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy hooks list -o json
+```

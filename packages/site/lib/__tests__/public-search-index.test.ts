@@ -55,7 +55,7 @@ const mockedContent = vi.hoisted(() => ({
   ],
   protocolPages: [
     {
-      url: "/protocol/implementation-status",
+      url: "/docs/network/protocol/implementation-status",
       data: {
         title: "Implementation Status",
         description: "Understand the current compozy-network/v0 reference implementation.",
@@ -63,7 +63,7 @@ const mockedContent = vi.hoisted(() => ({
       },
     },
     {
-      url: "/protocol/guide/testing",
+      url: "/docs/network/protocol/guide/testing",
       data: {
         title: "Protocol Testing",
         description: "Test a protocol implementation against the v0 contract.",
@@ -73,7 +73,7 @@ const mockedContent = vi.hoisted(() => ({
   ],
   runtimePages: [
     {
-      url: "/runtime/api-reference/sessions",
+      url: "/docs/api/sessions",
       data: {
         title: "Sessions",
         description: "Compozy Sessions HTTP endpoints.",
@@ -81,7 +81,7 @@ const mockedContent = vi.hoisted(() => ({
       },
     },
     {
-      url: "/runtime/core/sessions",
+      url: "/docs/sessions",
       data: {
         title: "Sessions",
         description: "The durable runtime unit Compozy creates, attaches, audits, and governs.",
@@ -89,7 +89,7 @@ const mockedContent = vi.hoisted(() => ({
       },
     },
     {
-      url: "/runtime/cli-reference/session/resume",
+      url: "/docs/cli/session/resume",
       data: {
         title: "compozy session resume",
         description: "Attach to a resumable session.",
@@ -97,7 +97,7 @@ const mockedContent = vi.hoisted(() => ({
       },
     },
     {
-      url: "/runtime/use-cases/prepare-a-project-workspace",
+      url: "/docs/use-cases/prepare-a-project-workspace",
       data: {
         title: "Prepare a Project Workspace",
         description: "Register a project workspace and run a first smoke-test session.",
@@ -105,7 +105,7 @@ const mockedContent = vi.hoisted(() => ({
       },
     },
     {
-      url: "/runtime/how-to-use-these-docs",
+      url: "/docs/how-to-use-these-docs",
       data: {
         title: "How to Use These Docs",
         description: "Choose the right Compozy documentation path for your goal.",
@@ -121,11 +121,8 @@ vi.mock("@/lib/blog", () => ({
 }));
 
 vi.mock("@/lib/source", () => ({
-  protocolDocs: {
-    getPages: () => mockedContent.protocolPages,
-  },
-  runtimeDocs: {
-    getPages: () => mockedContent.runtimePages,
+  docsSource: {
+    getPages: () => [...mockedContent.runtimePages, ...mockedContent.protocolPages],
   },
 }));
 
@@ -157,7 +154,7 @@ describe("public search index", () => {
   it("indexes runtime docs, protocol docs, blog posts, and changelog entries with stable route metadata", async () => {
     const { buildPublicSearchIndexes } = await import("@/lib/public-search-index");
 
-    expect(buildPublicSearchIndexes()).toEqual([
+    expect(buildPublicSearchIndexes().filter(index => index.tag !== "Marketplace")).toEqual([
       {
         id: "/blog/introducing-site-search",
         title: "Introducing Site Search",
@@ -225,67 +222,67 @@ describe("public search index", () => {
         url: "/changelog#v0.1.0-alpha.1",
       },
       {
+        title: "Sessions",
+        description: "Compozy Sessions HTTP endpoints.",
+        structuredData: { headings: [{ content: "List sessions" }] },
+        id: "/docs/api/sessions",
+        url: "/docs/api/sessions",
+        breadcrumbs: ["Reference", "API reference"],
+        tag: "Reference",
+      },
+      {
+        title: "compozy session resume",
+        description: "Attach to a resumable session.",
+        structuredData: { headings: [{ content: "Options" }] },
+        id: "/docs/cli/session/resume",
+        url: "/docs/cli/session/resume",
+        breadcrumbs: ["Reference", "CLI reference", "Session"],
+        tag: "Reference",
+      },
+      {
+        title: "How to Use These Docs",
+        description: "Choose the right Compozy documentation path for your goal.",
+        structuredData: { headings: [{ content: "Choose a path" }] },
+        id: "/docs/how-to-use-these-docs",
+        url: "/docs/how-to-use-these-docs",
+        breadcrumbs: ["Docs"],
+        tag: "Docs",
+      },
+      {
         title: "Protocol Testing",
         description: "Test a protocol implementation against the v0 contract.",
         structuredData: { headings: [{ content: "Test matrix" }] },
-        id: "/protocol/guide/testing",
-        url: "/protocol/guide/testing",
-        breadcrumbs: ["Compozy Network", "Implementation guide"],
+        id: "/docs/network/protocol/guide/testing",
+        url: "/docs/network/protocol/guide/testing",
+        breadcrumbs: ["Compozy Network", "Network", "Protocol spec", "Implementation guide"],
         tag: "Compozy Network",
       },
       {
         title: "Implementation Status",
         description: "Understand the current compozy-network/v0 reference implementation.",
         structuredData: { headings: [{ content: "Current runtime" }] },
-        id: "/protocol/implementation-status",
-        url: "/protocol/implementation-status",
-        breadcrumbs: ["Compozy Network"],
+        id: "/docs/network/protocol/implementation-status",
+        url: "/docs/network/protocol/implementation-status",
+        breadcrumbs: ["Compozy Network", "Network", "Protocol spec"],
         tag: "Compozy Network",
-      },
-      {
-        title: "Sessions",
-        description: "Compozy Sessions HTTP endpoints.",
-        structuredData: { headings: [{ content: "List sessions" }] },
-        id: "/runtime/api-reference/sessions",
-        url: "/runtime/api-reference/sessions",
-        breadcrumbs: ["CompozyOS", "API reference"],
-        tag: "Runtime",
-      },
-      {
-        title: "compozy session resume",
-        description: "Attach to a resumable session.",
-        structuredData: { headings: [{ content: "Options" }] },
-        id: "/runtime/cli-reference/session/resume",
-        url: "/runtime/cli-reference/session/resume",
-        breadcrumbs: ["CompozyOS", "CLI reference", "Session"],
-        tag: "Runtime",
       },
       {
         title: "Sessions",
         description: "The durable runtime unit Compozy creates, attaches, audits, and governs.",
         structuredData: { headings: [{ content: "Browse the session catalog" }] },
-        id: "/runtime/core/sessions",
-        url: "/runtime/core/sessions",
-        breadcrumbs: ["CompozyOS", "Core concepts"],
-        tag: "Runtime",
-      },
-      {
-        title: "How to Use These Docs",
-        description: "Choose the right Compozy documentation path for your goal.",
-        structuredData: { headings: [{ content: "Choose a path" }] },
-        id: "/runtime/how-to-use-these-docs",
-        url: "/runtime/how-to-use-these-docs",
-        breadcrumbs: ["CompozyOS"],
-        tag: "Runtime",
+        id: "/docs/sessions",
+        url: "/docs/sessions",
+        breadcrumbs: ["Core concepts"],
+        tag: "Core concepts",
       },
       {
         title: "Prepare a Project Workspace",
         description: "Register a project workspace and run a first smoke-test session.",
         structuredData: { headings: [{ content: "Setup" }] },
-        id: "/runtime/use-cases/prepare-a-project-workspace",
-        url: "/runtime/use-cases/prepare-a-project-workspace",
-        breadcrumbs: ["CompozyOS", "Use cases"],
-        tag: "Runtime",
+        id: "/docs/use-cases/prepare-a-project-workspace",
+        url: "/docs/use-cases/prepare-a-project-workspace",
+        breadcrumbs: ["Guides & examples", "Use cases"],
+        tag: "Guides & examples",
       },
     ]);
   });
@@ -302,18 +299,35 @@ describe("public search index", () => {
 
     expect(sessions).toEqual([
       {
-        breadcrumbs: ["CompozyOS", "API reference"],
-        url: "/runtime/api-reference/sessions",
+        breadcrumbs: ["Reference", "API reference"],
+        url: "/docs/api/sessions",
       },
       {
-        breadcrumbs: ["CompozyOS", "Core concepts"],
-        url: "/runtime/core/sessions",
+        breadcrumbs: ["Core concepts"],
+        url: "/docs/sessions",
       },
     ]);
   });
 
+  it("indexes every marketplace surface under the Marketplace group", async () => {
+    const { buildPublicSearchIndexes } = await import("@/lib/public-search-index");
+    const { entriesForKind, MARKETPLACE_KINDS } = await import("@/lib/marketplace-catalog");
+
+    const marketplace = buildPublicSearchIndexes().filter(index => index.tag === "Marketplace");
+    const urls = new Set(marketplace.map(index => index.url));
+
+    expect(urls.has("/marketplace")).toBe(true);
+    for (const kind of MARKETPLACE_KINDS) {
+      expect(urls.has(`/marketplace/${kind}`)).toBe(true);
+      for (const entry of entriesForKind(kind)) {
+        expect(urls.has(`/marketplace/${kind}/${entry.entry_id}`)).toBe(true);
+      }
+    }
+  });
+
   it("wires the live GET handler instead of the static export handler", async () => {
     const route = await import("@/app/api/search/route");
+    const { buildPublicSearchIndexes } = await import("@/lib/public-search-index");
 
     expect(searchApi.calls).toHaveLength(1);
     expect(searchApi.calls[0]?.mode).toBe("advanced");
@@ -323,7 +337,7 @@ describe("public search index", () => {
     await expect(response.json()).resolves.toEqual({
       mode: "live",
       query: "search",
-      count: 9,
+      count: buildPublicSearchIndexes().length,
     });
     expect(searchApi.calls[0]?.requests).toEqual(["https://compozy.com/api/search?query=search"]);
   });

@@ -1,0 +1,44 @@
+---
+title: "compozy desktop"
+description: "Manage virtual desktops in a workspace"
+---
+
+## compozy desktop
+
+Manage virtual desktops in a workspace
+
+### Options
+
+```
+  -h, --help   help for desktop
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+This command displays human-readable help and its subcommand list. The inherited `-o, --output` and `--json` flags do not serialize help output.
+
+| Format  | Output                   |
+| ------- | ------------------------ |
+| `human` | Help and subcommand list |
+| `json`  | Not emitted for help     |
+| `jsonl` | Not emitted for help     |
+| `toon`  | Not emitted for help     |
+
+## Subcommands
+
+| Command                                              | Description                                                        |
+| ---------------------------------------------------- | ------------------------------------------------------------------ |
+| [compozy desktop clients](/docs/cli/desktop/clients) | Manage connected window-manager clients                            |
+| [compozy desktop create](/docs/cli/desktop/create)   | Create a persistent virtual desktop                                |
+| [compozy desktop delete](/docs/cli/desktop/delete)   | Delete a desktop with an explicit transfer destination when needed |
+| [compozy desktop list](/docs/cli/desktop/list)       | List persistent virtual desktops                                   |
+| [compozy desktop reorder](/docs/cli/desktop/reorder) | Move a desktop to an ordered position                              |
+| [compozy desktop switch](/docs/cli/desktop/switch)   | Switch one connected client to a desktop                           |
+| [compozy desktop update](/docs/cli/desktop/update)   | Rename a virtual desktop                                           |

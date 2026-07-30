@@ -236,14 +236,50 @@ compozy status [flags]
 ` + "```" + `
 `
 
-	result := renderOutputFormatsSection(body)
+	t.Run("Should distinguish accepted values from result renderers", func(t *testing.T) {
+		t.Parallel()
 
-	if !strings.Contains(result, "## Output Formats") {
-		t.Fatal("expected output formats section heading")
-	}
-	if !strings.Contains(result, "compozy status -o json") {
-		t.Fatal("expected JSON usage example")
-	}
+		result := renderOutputFormatsSection(body, OutputProfileResult)
+		if !strings.Contains(result, "## Output Formats") {
+			t.Fatal("expected output formats section heading")
+		}
+		if !strings.Contains(result, "flag accepts these values") {
+			t.Fatal("expected accepted-versus-supported output explanation")
+		}
+		if !strings.Contains(result, "compozy status -o json") {
+			t.Fatal("expected JSON usage example for a result command")
+		}
+		if strings.Contains(result, "Every Compozy command supports") {
+			t.Fatal("output section must not claim universal renderer support")
+		}
+	})
+
+	t.Run("Should keep help-only groups human-readable", func(t *testing.T) {
+		t.Parallel()
+
+		result := renderOutputFormatsSection(body, OutputProfileHelp)
+		if !strings.Contains(result, "Not emitted for help") {
+			t.Fatal("expected help-only output matrix")
+		}
+		if strings.Contains(result, "-o json") {
+			t.Fatal("help-only output must not advertise a JSON example")
+		}
+	})
+
+	t.Run("Should document human and JSONL streams precisely", func(t *testing.T) {
+		t.Parallel()
+
+		result := renderOutputFormatsSection(body, OutputProfileHumanJSONL)
+		if !strings.Contains(result, "`jsonl` | One JSON event per line") {
+			t.Fatal("expected JSONL stream contract")
+		}
+		if !strings.Contains(result, "compozy status -o jsonl") {
+			t.Fatal("expected JSONL usage example")
+		}
+		if strings.Contains(result, "compozy status -o json\n") {
+			t.Fatal("stream output must not advertise unsupported JSON output")
+		}
+	})
 }
 
 func TestRenderSubcommandsSection(t *testing.T) {
@@ -274,18 +310,18 @@ func TestRenderSubcommandsSection(t *testing.T) {
 		}
 
 		targets := map[string]string{
-			"compozy_task":        "/runtime/cli-reference/task",
-			"compozy_task_create": "/runtime/cli-reference/task/create",
-			"compozy_task_list":   "/runtime/cli-reference/task/list",
+			"compozy_task":        "/docs/cli/task",
+			"compozy_task_create": "/docs/cli/task/create",
+			"compozy_task_list":   "/docs/cli/task/list",
 		}
 
 		result := renderSubcommandsSection(inputs[0], inputs, targets)
 		want := `## Subcommands
 
-| Command                                                   | Description   |
-| --------------------------------------------------------- | ------------- |
-| [compozy task create](/runtime/cli-reference/task/create) | Create a task |
-| [compozy task list](/runtime/cli-reference/task/list)     | List tasks    |`
+| Command                                      | Description   |
+| -------------------------------------------- | ------------- |
+| [compozy task create](/docs/cli/task/create) | Create a task |
+| [compozy task list](/docs/cli/task/list)     | List tasks    |`
 		if result != want {
 			t.Fatalf("renderSubcommandsSection() = %q, want %q", result, want)
 		}
@@ -476,10 +512,10 @@ func TestBuildTargetMap(t *testing.T) {
 	targets := buildTargetMap(inputs)
 
 	want := map[string]string{
-		"compozy":                        "/runtime/cli-reference/compozy",
-		"compozy_agent":                  "/runtime/cli-reference/agent",
-		"compozy_agent_list":             "/runtime/cli-reference/agent/list",
-		"compozy_automation_jobs_create": "/runtime/cli-reference/automation/jobs/create",
+		"compozy":                        "/docs/cli/compozy",
+		"compozy_agent":                  "/docs/cli/agent",
+		"compozy_agent_list":             "/docs/cli/agent/list",
+		"compozy_automation_jobs_create": "/docs/cli/automation/jobs/create",
 	}
 
 	for k, v := range want {
@@ -493,9 +529,9 @@ func TestRemapLinks(t *testing.T) {
 	t.Parallel()
 
 	targets := map[string]string{
-		"compozy":            "/runtime/cli-reference/compozy",
-		"compozy_agent":      "/runtime/cli-reference/agent",
-		"compozy_agent_list": "/runtime/cli-reference/agent/list",
+		"compozy":            "/docs/cli/compozy",
+		"compozy_agent":      "/docs/cli/agent",
+		"compozy_agent_list": "/docs/cli/agent/list",
 	}
 
 	tests := []struct {
@@ -506,12 +542,12 @@ func TestRemapLinks(t *testing.T) {
 		{
 			name: "remaps stripped cross link",
 			raw:  "* [compozy agent list](compozy_agent_list) - list agents",
-			want: "* [compozy agent list](/runtime/cli-reference/agent/list) - list agents",
+			want: "* [compozy agent list](/docs/cli/agent/list) - list agents",
 		},
 		{
 			name: "remaps root",
 			raw:  "See [compozy](compozy) for the root command.",
-			want: "See [compozy](/runtime/cli-reference/compozy) for the root command.",
+			want: "See [compozy](/docs/cli/compozy) for the root command.",
 		},
 		{
 			name: "leaves unknown targets alone",
@@ -736,7 +772,7 @@ Print the version.
 		}
 	}
 
-	if err := Process(context.Background(), srcDir, dstDir); err != nil {
+	if err := Process(context.Background(), srcDir, dstDir, Options{}); err != nil {
 		t.Fatalf("Process() error: %v", err)
 	}
 
@@ -796,7 +832,7 @@ Print the version.
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(createMDX), "(/runtime/cli-reference/automation/jobs)") {
+	if !strings.Contains(string(createMDX), "(/docs/cli/automation/jobs)") {
 		t.Errorf("automation/jobs/create.mdx should contain absolute cross-link, got:\n%s", createMDX)
 	}
 	if strings.Contains(string(createMDX), "(compozy_automation_jobs)") {
@@ -865,7 +901,7 @@ func TestProcess_CreatesOutputDir(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := Process(context.Background(), srcDir, dstDir); err != nil {
+	if err := Process(context.Background(), srcDir, dstDir, Options{}); err != nil {
 		t.Fatalf("Process() should create output dir: %v", err)
 	}
 
@@ -899,7 +935,7 @@ func TestProcessRejectsNonManagedOutputDir(t *testing.T) {
 		t.Fatalf("write sentinel: %v", err)
 	}
 
-	err := Process(context.Background(), srcDir, dstDir)
+	err := Process(context.Background(), srcDir, dstDir, Options{})
 	if err == nil || !strings.Contains(err.Error(), "refusing to clean non-empty unmanaged output dir") {
 		t.Fatalf("Process() error = %v, want unmanaged output-dir refusal", err)
 	}
@@ -923,10 +959,10 @@ func TestProcessAllowsRerunIntoGeneratedOutputDir(t *testing.T) {
 		t.Fatalf("write source file: %v", err)
 	}
 
-	if err := Process(context.Background(), srcDir, dstDir); err != nil {
+	if err := Process(context.Background(), srcDir, dstDir, Options{}); err != nil {
 		t.Fatalf("initial Process() error = %v", err)
 	}
-	if err := Process(context.Background(), srcDir, dstDir); err != nil {
+	if err := Process(context.Background(), srcDir, dstDir, Options{}); err != nil {
 		t.Fatalf("rerun Process() error = %v", err)
 	}
 }
@@ -968,7 +1004,7 @@ func TestProcessAllowsManagedRootFilesAndDirs(t *testing.T) {
 		t.Fatalf("mkdir generated subdir: %v", err)
 	}
 
-	if err := Process(context.Background(), srcDir, dstDir); err != nil {
+	if err := Process(context.Background(), srcDir, dstDir, Options{}); err != nil {
 		t.Fatalf("Process() should allow managed root files and dirs: %v", err)
 	}
 
@@ -1005,7 +1041,7 @@ func TestProcess_StopsWhenContextCanceled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	err := Process(ctx, srcDir, dstDir)
+	err := Process(ctx, srcDir, dstDir, Options{})
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("Process() error = %v, want context.Canceled", err)
 	}

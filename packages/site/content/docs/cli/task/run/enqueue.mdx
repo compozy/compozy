@@ -1,0 +1,48 @@
+---
+title: "compozy task run enqueue"
+description: "Enqueue a task run"
+---
+
+## compozy task run enqueue
+
+Enqueue a task run
+
+```
+compozy task run enqueue <task-id> [flags]
+```
+
+### Options
+
+```
+  -h, --help                              help for enqueue
+      --idempotency-key string            Optional idempotency key
+      --metadata string                   Optional run metadata JSON
+      --network string                    Network participation mode: local or live
+      --network-bounds string             JSON object for live participation bounds (one object, not flag explosion)
+      --network-channel string            Named channel id when strategy is named
+      --network-channel-strategy string   Live channel strategy: named, run, or loop_run
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy task run enqueue <task-id> -o json
+```

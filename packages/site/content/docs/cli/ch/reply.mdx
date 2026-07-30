@@ -1,0 +1,68 @@
+---
+title: "compozy ch reply"
+description: "Reply to a received coordination message"
+---
+
+## compozy ch reply
+
+Reply to a received coordination message
+
+```
+compozy ch reply [flags]
+```
+
+### Examples
+
+```
+  # Reply to one received coordination message
+  compozy ch reply --to-message msg-123 --body '{"answer":"ready for review"}'
+
+  # Add explicit correlation metadata when replying from outside an inherited delivery
+  compozy ch reply \
+    --to-message msg-123 \
+    --task-id task-123 \
+    --run-id run-123 \
+    --channel-id coord-run-123 \
+    --correlation-id run-123 \
+    --body '{"answer":"ready for review"}'
+```
+
+### Options
+
+```
+      --body string              Raw JSON body for the reply message
+      --channel-id string        Channel id; defaults to channel
+      --correlation-id string    Correlation id; defaults to run id
+  -h, --help                     help for reply
+      --idempotency-key string   Optional idempotency key/message id
+      --kind string              Coordination message kind (default "reply")
+      --metadata-ext string      Optional JSON object for coordination metadata ext
+      --run-id string            Run id for coordination metadata
+      --task-id string           Task id for coordination metadata
+      --to-message string        Message id to reply to
+      --workflow-id string       Workflow id for coordination metadata
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy ch reply -o json
+```

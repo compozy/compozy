@@ -1,0 +1,22 @@
+{
+    "title": "Protocol spec (compozy-network/v0)",
+    "pages": [
+        "overview",
+        "implementation-status",
+        "---Wire Format---",
+        "envelope",
+        "message-kinds",
+        "interactions",
+        "peer-discovery",
+        "capability-discovery",
+        "---Delivery---",
+        "delivery",
+        "---Optional Trust Profile (v1, not implemented in CompozyOS)---",
+        "ed25519-jcs",
+        "verification",
+        "---Build---",
+        "examples",
+        "conformance",
+        "guide"
+    ]
+}

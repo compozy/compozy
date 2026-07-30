@@ -23,9 +23,6 @@ func newBridgeManifestCommand(deps commandDeps) *cobra.Command {
 		Use:   "manifest",
 		Short: "Generate provider setup artifacts",
 		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			return cmd.Help()
-		},
 	}
 	cmd.AddCommand(newBridgeSlackManifestCommand(deps))
 	return cmd

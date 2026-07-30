@@ -1,0 +1,86 @@
+---
+title: Catalog and detail
+description: Browse the Loops installed in a workspace, read a Loop's contract and body, and launch a run.
+---
+
+{/* Design reference: docs/design/opendesign/loops-catalog.html (§4.1) and loop-detail.html (§4.2) — LOOPS-DESIGN-SPEC. Daemon truth wins on divergence (ADR-017 §9). */}
+
+The **catalog** is the home of the Loops feature and the arrive-and-use entry point. It lists the
+Loops available in the current workspace — read-only extension resources plus workspace forks — and
+lets you launch a run without opening a graph.
+
+## The catalog
+
+The catalog is a daemon-owned projection of the effective definitions for the selected workspace,
+grouped into **Read-only** and **Workspace**. Filtering, ordering, totals, and the page cut happen in
+the runtime before the Web, CLI, or native-tool surface receives a row. It is a list, not a card
+wall. Each row shows:
+
+- the Loop's name, kind tag, and source (`compozy.loop/v1` or a slug);
+- a one-line goal;
+- shape metadata — node count, input count, and the iteration cap (or `human gate`);
+- a category and the last-run outcome;
+- a 30-day success rate;
+- an inline **Run** button.
+
+Search by Loop name or goal, filter by kind, category, or latest-run status, and continue through
+the stable counted pages. The response includes exact facets and a `page` object with the total,
+applied limit, continuation cursor, and `has_more` state.
+
+The catalog does not show a start-binding badge. A badge derived from one bounded jobs/triggers
+sample could claim that a Loop has no binding when the matching definition is on a later page.
+Open Loop detail for the authoritative, independently paged binding lists.
+
+Two first-party Loops ship through the default-enrolled `dev-cycle` extension:
+
+- **`software-delivery`** — Engineering · delivery. Executes already-authored tasks in dependency
+  order, reviews them, remediates failures, and verifies against the project's checks.
+- **`review-and-fix`** — Engineering. Runs the configured reviewer against a named task, writes
+  each finding under `.compozy/tasks/<task>/reviews-NNN/`, and dispatches the fixer over complete
+  artifact batches. A clean review generation ends the run.
+
+The **Workspace** group stays empty until you fork a Loop. A workspace with only the two
+`dev-cycle` Loops is the honest empty state — the catalog never invents extra Loops to look fuller;
+it shows the real runs of the Loops you have. Disabling `dev-cycle` removes those two Loops, their
+default agents, and their artifact tools together.
+
+<OperatorNote label="Derived metrics">
+  Success rate and run counts are a derived read model computed over real runs — they are aggregates
+  of history, not invented figures.
+</OperatorNote>
+
+## Loop detail
+
+Opening a row shows everything about one Loop — its contract, its body, and its history.
+
+- **Contract** — the goal, definition-of-done, the verification rows (each labeled by method:
+  `command`, `agent-judge`, or `human`), and the six terminal-outcome chips.
+- **Body** — a read-only DAG of the Loop's nodes. Gate nodes tint their verdict text; a fan-out
+  shows its branch cluster. This is a view, not an editor.
+- **Recent runs** — the latest executions, linking to each [run page](/docs/loops/running).
+- **Declared inputs** — name, required marker, type badge, description, and default.
+- **Start bindings** — the declared `start[]` kinds as read-only chips, plus one row per attached
+  automation (schedule, webhook, or trigger) with its enabled state and a kind-specific detail line.
+  Jobs and triggers continue independently, so loading another jobs page never resets triggers (or
+  vice versa). **Add trigger** and **Add schedule** open the existing
+  [automation](/docs/automation) sheets pre-targeted at this Loop.
+- **Limits & budget** — every stop limit as `default / ceiling`, so the hard daemon
+  [ceiling](/docs/loops/guardrails#limits-budgets-and-ceilings) is always visible.
+- **Versions** and a 30-day stat grid.
+
+From here you can **Configure**, **Fork & edit**, or **Run** the Loop. Read-only resources are not
+published in place — adapting one means forking it first.
+
+## Manage it without the UI
+
+The catalog and detail views are one surface over the daemon. The same reads are available to
+agents and scripts:
+
+| Action       | CLI                    | HTTP                                                   | Native tool             |
+| ------------ | ---------------------- | ------------------------------------------------------ | ----------------------- |
+| List Loops   | `compozy loop list`    | `GET /api/workspaces/{workspace_id}/loops`             | `compozy__loop_list`    |
+| Read a Loop  | `compozy loop inspect` | `GET /api/workspaces/{workspace_id}/loops/{name}`      | `compozy__loop_inspect` |
+| Launch a run | `compozy loop run`     | `POST /api/workspaces/{workspace_id}/loops/{name}/run` | `compozy__loop_run`     |
+
+See the full [`compozy loop`](/docs/cli/loop) CLI and the
+[Loops API](/docs/api/loops).

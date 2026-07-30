@@ -85,9 +85,6 @@ func newTaskDependencyCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "dependency",
 		Short: "Manage task dependencies",
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			return cmd.Help()
-		},
 	}
 	cmd.AddCommand(newTaskDependencyAddCommand(deps))
 	cmd.AddCommand(newTaskDependencyRemoveCommand(deps))
@@ -159,9 +156,6 @@ func newTaskRunCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "run",
 		Short: "Manage task runs",
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			return cmd.Help()
-		},
 	}
 	cmd.AddCommand(newTaskRunListCommand(deps))
 	cmd.AddCommand(newTaskRunShowCommand(deps))

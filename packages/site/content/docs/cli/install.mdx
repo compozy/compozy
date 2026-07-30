@@ -1,0 +1,54 @@
+---
+title: "compozy install"
+description: "Bootstrap Compozy and create the default general agent"
+---
+
+## compozy install
+
+Bootstrap Compozy and create the default general agent
+
+```
+compozy install [flags]
+```
+
+### Examples
+
+```
+  # Create ~/.compozy/config.toml and ~/.compozy/agents/general/AGENT.md
+  compozy install
+
+  # Bootstrap non-interactively for automation
+  compozy install --provider codex --model gpt-5.6-sol -o json
+```
+
+### Options
+
+```
+  -h, --help              help for install
+      --model string      Default model to configure without opening the wizard
+      --provider string   Default provider to configure without opening the wizard
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy install -o json
+```

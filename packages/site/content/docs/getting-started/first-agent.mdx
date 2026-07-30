@@ -1,0 +1,106 @@
+---
+title: Your first custom agent
+description: Create one minimal AGENT.md definition, store it in the correct runtime path, and verify that Compozy resolves it for the current workspace.
+---
+
+In [Quick Start](/docs/getting-started/quick-start), you used the built-in `general` agent.
+In this tutorial, you will create a second agent with its own system prompt and permission mode,
+store it in the correct runtime path, and launch a session with it.
+
+**Before you begin:** Run these steps from the repository root where you want the agent to be
+visible. The current Compozy runtime uses `<workspace>/.compozy/agents/<name>/AGENT.md` for workspace-local
+agents.
+
+## 1. Create the workspace-local agent directory
+
+```bash
+mkdir -p .compozy/agents/code-reviewer
+```
+
+## 2. Write the AGENT.md file
+
+Create `.compozy/agents/code-reviewer/AGENT.md` with this minimal example:
+
+```yaml
+---
+name: code-reviewer
+provider: claude
+permissions: approve-reads
+---
+You are a focused code reviewer.
+
+- Read the relevant files before answering.
+- Put bugs, regressions, and missing tests first.
+- Cite files and symbols when you can.
+- Keep the final response concise and actionable.
+```
+
+This tutorial intentionally keeps the file small. The important pieces are:
+
+| Field         | Why it matters in this tutorial                                                                                    |
+| ------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `name`        | The identifier Compozy uses for discovery and selection.                                                           |
+| `provider`    | Tells Compozy which provider configuration to resolve for this agent.                                              |
+| `permissions` | This is the enforced session boundary today. `approve-reads` auto-allows read operations and prompts for the rest. |
+| Markdown body | Becomes the agent's startup prompt.                                                                                |
+
+For the full implemented schema, use [AGENT.md](/docs/configuration/agent-md).
+
+## 3. Verify that Compozy can see the agent
+
+```bash
+compozy agent list
+```
+
+Inspect the resolved definition:
+
+```bash
+compozy agent info code-reviewer
+```
+
+This is the right moment to catch path mistakes. If the agent does not appear here, Compozy will not be
+able to start a session with it.
+
+## 4. Start a session with the custom agent
+
+```bash
+compozy session new --cwd "$PWD" --agent code-reviewer
+```
+
+Then send it a focused task:
+
+```bash
+compozy session prompt sess_1234 "Review the changes in this repository and tell me the highest-risk issue first."
+```
+
+Because the agent uses `approve-reads`, read operations can proceed automatically, while write or
+terminal operations still require approval.
+
+## 5. Understand the enforcement boundaries
+
+This minimal definition sets only a provider and permission mode, but the other runtime fields are
+not descriptive metadata:
+
+- `permissions` sets the runtime approval policy.
+- `model` is selected through the provider's live ACP options before the first prompt. An
+  unadvertised model fails startup instead of silently falling back.
+- `tools` and `toolsets` narrow the callable tool registry for the agent. `deny_tools` narrows it
+  further and wins when an allow and deny overlap.
+
+Read the complete [AGENT.md contract](/docs/configuration/agent-md) before adding those
+fields. A stricter definition changes runtime authority and startup behavior, not only discovery
+labels.
+
+## 6. Add more later
+
+When you are ready to go beyond the minimal example:
+
+- use [Agent Providers](/docs/agents/providers) for provider resolution behavior
+- use [Agent Spawning](/docs/agents/spawning) for the startup path
+- use [AGENT.md](/docs/configuration/agent-md) for the full field contract
+- use [mcp.json](/docs/configuration/mcp-json) when you want MCP sidecars
+
+## Next step
+
+Open the [Web UI](/docs/getting-started/web-ui) and inspect the same runtime state in the
+browser.

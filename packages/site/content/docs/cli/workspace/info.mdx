@@ -1,0 +1,56 @@
+---
+title: "compozy workspace info"
+description: "Show one workspace with resolved details"
+---
+
+## compozy workspace info
+
+Show one workspace with resolved details
+
+```
+compozy workspace info [name-or-id] [flags]
+```
+
+### Examples
+
+```
+  # Show workspace paths, agents, and skills by name
+  compozy workspace info checkout-api
+
+  # Resolve the current directory as a workspace
+  compozy workspace info
+
+  # Emit resolved workspace details as JSON
+  compozy workspace info ws_1234 -o json
+```
+
+### Options
+
+```
+  -h, --help               help for info
+      --workspace string   Override workspace context (ID, name, or path) when no positional ref is supplied
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy workspace info [name-or-id] -o json
+```

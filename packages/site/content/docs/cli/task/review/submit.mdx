@@ -1,0 +1,52 @@
+---
+title: "compozy task review submit"
+description: "Submit one task-run review verdict"
+---
+
+## compozy task review submit
+
+Submit one task-run review verdict
+
+```
+compozy task review submit <review-id> [flags]
+```
+
+### Options
+
+```
+      --as-agent                     Submit review using the current Compozy-managed agent session identity
+      --confidence float             Verdict confidence from 0 to 1
+      --delivery-id string           Idempotent delivery ID
+  -h, --help                         help for submit
+      --missing-work stringArray     Missing work item (repeatable)
+      --missing-work-json string     Missing work JSON array
+      --next-round-guidance string   Guidance for continuation rounds
+      --outcome string               Verdict outcome
+      --reason string                Verdict reason
+      --review-text string           Full review text
+      --run string                   Task run ID
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy task review submit <review-id> -o json
+```

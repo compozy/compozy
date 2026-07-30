@@ -50,6 +50,6 @@ Bind `credentials_json` to Google service-account credentials. `project_number` 
 
 `COMPOZY_BRIDGE_GCHAT_LISTEN_ADDR`, `COMPOZY_BRIDGE_GCHAT_DIRECT_CERTS_URL`, and `COMPOZY_BRIDGE_GCHAT_PUBSUB_CERTS_URL` provide process-level listener and certificate overrides. `COMPOZY_BRIDGE_GCHAT_API_BASE_URL` and `COMPOZY_BRIDGE_GCHAT_TOKEN_URL` are operator-owned process overrides for credential-bearing destinations. Bridge config and `credentials_json.token_uri` cannot change those destinations.
 
-See the [Google Chat operator setup guide](../../../packages/site/content/runtime/core/bridges/setup-gchat.mdx)
+See the [Google Chat operator setup guide](../../../packages/site/content/docs/bridges/setup-gchat.mdx)
 for Cloud app setup, direct/Pub/Sub verification, route selection, real delivery testing, and
 troubleshooting.

@@ -43,9 +43,6 @@ func newLoopCommand(deps commandDeps) *cobra.Command {
 		Use:   loopLoopKey,
 		Short: "Manage Loop definitions and runs",
 		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			return cmd.Help()
-		},
 	}
 
 	cmd.AddCommand(newLoopListCommand(deps))

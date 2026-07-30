@@ -45,9 +45,6 @@ func newResourceCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   resourceResourceKey,
 		Short: "Manage desired-state resources",
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			return cmd.Help()
-		},
 	}
 	cmd.AddCommand(newResourceListCommand(deps))
 	cmd.AddCommand(newResourceGetCommand(deps))

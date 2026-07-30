@@ -1,0 +1,54 @@
+---
+title: "compozy task list"
+description: "List tasks"
+---
+
+## compozy task list
+
+List tasks
+
+```
+compozy task list [flags]
+```
+
+### Options
+
+```
+      --cursor string                  Continue from an opaque catalog cursor
+  -h, --help                           help for list
+      --limit int                      Maximum tasks to return (1-200)
+      --owner-kind string              Filter by owner kind
+      --owner-ref string               Filter by owner reference
+      --parent string                  Filter by parent task ID
+      --participation-channel string   Filter by resolved participation channel
+      --priority string                Filter by task priority
+      --query string                   Search task title or identifier
+      --scope string                   Filter by scope: global or workspace
+      --sort string                    Sort by recent or priority (default "recent")
+      --status string                  Filter by task status
+      --workspace string               Override workspace filter (ID, name, or path)
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy task list -o json
+```

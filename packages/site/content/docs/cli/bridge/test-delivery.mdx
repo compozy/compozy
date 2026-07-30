@@ -1,0 +1,47 @@
+---
+title: "compozy bridge test-delivery"
+description: "Resolve a typed outbound delivery target for one bridge instance"
+---
+
+## compozy bridge test-delivery
+
+Resolve a typed outbound delivery target for one bridge instance
+
+```
+compozy bridge test-delivery <id> [flags]
+```
+
+### Options
+
+```
+      --group-id string    Override target group ID
+  -h, --help               help for test-delivery
+      --message string     Optional dry-run message label
+      --mode string        Delivery mode: direct-send or reply
+      --peer-id string     Override target peer ID
+      --thread-id string   Override target thread ID
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy bridge test-delivery <id> -o json
+```

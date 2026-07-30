@@ -1,0 +1,48 @@
+---
+title: "compozy memory reset"
+description: "Reset derived Memory v2 state through the daemon"
+---
+
+## compozy memory reset
+
+Reset derived Memory v2 state through the daemon
+
+```
+compozy memory reset [flags]
+```
+
+### Options
+
+```
+      --agent string        Agent name for agent-scoped memory
+      --agent-tier string   Agent memory tier: workspace or global
+      --dry-run             Show reset work without applying it
+  -h, --help                help for reset
+      --include-daily       Include daily memory artifacts
+      --scope string        Memory scope: global, workspace, or agent
+      --workspace string    Override workspace binding (ID, name, or path)
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy memory reset -o json
+```

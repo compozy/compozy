@@ -1,0 +1,62 @@
+---
+title: "compozy session prompt"
+description: "Send a prompt to a session"
+---
+
+## compozy session prompt
+
+Send a prompt to a session
+
+```
+compozy session prompt <id> <message> [flags]
+```
+
+### Examples
+
+```
+  # Send a follow-up prompt to an active session
+  compozy session prompt sess_1234 "Summarize the current changes."
+
+  # Queue input while the session is busy
+  compozy session prompt sess_1234 "Run the next check." --queue
+
+  # Steer the current turn after the next tool result
+  compozy session prompt sess_1234 "Prefer the smaller patch." --steer
+
+  # Cancel queued input by entry id
+  compozy session prompt sess_1234 --cancel queue_entry_1234
+```
+
+### Options
+
+```
+      --cancel string   Cancel a queued prompt entry by id
+  -h, --help            help for prompt
+      --interrupt       Interrupt the active turn before sending this prompt
+      --queue           Queue the prompt if the session is busy
+      --steer           Stage steering guidance for the active turn
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy session prompt <id> <message> -o json
+```

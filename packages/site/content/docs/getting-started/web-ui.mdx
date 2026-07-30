@@ -1,0 +1,108 @@
+---
+title: Web UI
+description: Open the Compozy web UI, inspect the session you already created, and compare the browser view with the same daemon state you saw in the CLI.
+---
+
+The web UI is another surface on the same daemon you already used in Quick Start. The goal of this
+page is not to start a second run; it is to inspect the exact same runtime state in a browser.
+
+**Before you begin:** Complete [Quick Start](/docs/getting-started/quick-start) through the
+history step, but leave its cleanup step until the end of this tutorial. You need an active session
+to send the comparison prompt below. If you already stopped it, create a new session instead of
+trying to attach to the terminal record.
+
+## 1. Open the runtime in your browser
+
+By default, Compozy serves the UI from the same HTTP address used by the daemon API:
+
+```text
+http://localhost:2123
+```
+
+If you changed `[http].host` or `[http].port` in `~/.compozy/config.toml`, use that address instead.
+
+## 2. Find the session you created in Quick Start
+
+Open the session you already created from the CLI. The browser should show the same durable session
+state, not a second copy of the work.
+
+The browser reads the same daemon-owned session catalog and persisted transcript as the CLI. This
+tutorial relies only on those session read surfaces; it does not assume that every CLI management
+operation has a matching browser control.
+
+## 3. Compare browser state with CLI state
+
+Keep these commands handy while the UI is open:
+
+```bash
+compozy session list
+compozy session status sess_1234
+compozy session events sess_1234 --follow
+```
+
+Use them to confirm that the CLI and browser are reflecting the same runtime facts:
+
+- session identity
+- session state
+- persisted transcript entries
+- live activity while the prompt is running
+
+## 4. Watch live events
+
+Send one more prompt from the CLI:
+
+```bash
+compozy session prompt sess_1234 "Tell me the last thing you learned about this repository."
+```
+
+Then watch the session in the browser update from the same persisted event stream. This is the
+fastest way to understand how Compozy keeps CLI, API, and UI surfaces aligned.
+
+## 5. Choose the browser for visual inspection
+
+Use the web UI when you want to scan the session catalog and transcript visually. Use the CLI,
+HTTP/SSE, UDS, or native tools for an operation whose exact contract is not exposed by the current
+browser surface.
+
+The daemon remains the authority in either case. Closing the browser or its event stream detaches
+that viewer; it does not cancel an accepted prompt.
+
+## 6. Clean up the session
+
+Return to the Quick Start cleanup:
+
+```bash
+compozy session stop sess_1234
+compozy session history sess_1234
+```
+
+The stopped session remains visible as history, but it is no longer attachable.
+
+## Change the HTTP address if needed
+
+Changing the listener restarts the daemon, so do this before creating a live session or after
+cleanup.
+
+```toml
+[http]
+host = "localhost"
+port = 8080
+```
+
+Restart the daemon after changing the address:
+
+```bash
+compozy daemon stop
+compozy daemon start
+```
+
+> **Note:** Binding to a non-local host exposes the browser and API surfaces to a wider network.
+> Do that only when you understand the trust boundary of the machine running Compozy.
+
+## Next steps
+
+- [Sessions](/docs/sessions/lifecycle) explains the lifecycle the UI is visualizing.
+- [Event Streaming](/docs/sessions/events) explains the persisted and live streams behind
+  the browser view.
+- [CLI Reference](/docs/cli) gives you the exact commands behind the same control
+  surface.

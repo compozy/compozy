@@ -1,0 +1,44 @@
+---
+title: "compozy extension exec"
+description: "Invoke an extension command through daemon tool policy"
+---
+
+## compozy extension exec
+
+Invoke an extension command through daemon tool policy
+
+```
+compozy extension exec <extension> --cmd <path> [flags]
+```
+
+### Options
+
+```
+      --cmd string     Extension command path
+  -h, --help           help for exec
+      --input string   Inline JSON input instead of projected flags
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy extension exec <extension> --cmd <path> -o json
+```

@@ -17,7 +17,6 @@ Applies to PRD + TechSpec + Tasks alike. See `docs/_memory/standing_directives.m
 - **Cite competitor refs.** Every spec that draws on `.resources/<repo>` lists the file paths so the implementer reads them too. → codex_sessions §Engineering Principle 4.
 - **BR-PT in conversation, EN in artifacts.** → SD-003.
 - **Subagents default to read-only.** Use them to research and return findings; the parent agent authors files. A subagent may write/edit only when the parent's prompt explicitly delegates that action. Skills with hard read-only contracts (`cy-spec-peer-review`, `deep-review`) override this default. → user-memory `feedback_subagents_readonly.md`.
-- **Two-touch rule.** Third change to the same area opens a new TechSpec, not a third patch. → user-memory `feedback_two_touch_rule.md`.
 - **Multi-LLM pipeline.** Codex (`gpt-5.4` with `reasoning_effort=xhigh`) authors; Claude Opus pressure-tests; `gpt-5.4-mini` with `reasoning_effort=high` explores breadth when explicitly delegated. → SD-004.
 
 ---
@@ -149,7 +148,7 @@ Each task file is the unit of execution. The autonomy task files are the canonic
 - **Files / Surfaces**: enumerated list of files/packages touched.
 - **Implementation Steps**: numbered, deterministic.
 - **Tests**: enumerated assertions covering happy path + failure paths + concurrency stress where relevant. → `eng-test-conventions` skill, `lessons/L-002`, `eng-cleanup-failure-paths` skill.
-- **Web/Docs Impact**: paths affected under `web/` and `packages/site`, OR explicit `none — backend-only` line. → `cy-web-docs-impact` skill. Includes the **QA impact** line: `docs/qa/state.csv` scenario ids to reset to `untested` when user-visible behavior changes (flag, don't retest), OR `none — no user-visible behavior change`.
+- **Web/Docs Impact**: paths affected under `web/` and `packages/site`, OR explicit `none — backend-only` line. → `cy-web-docs-impact` skill. Includes the **QA impact** line: `docs/qa/scenarios/` ids to reset to `untested` and walk to a recorded verdict at completion when user-visible behavior changes (flag, then verify), OR `none — no user-visible behavior change`.
 - **Extensibility / Agent Manageability / Config Lifecycle**: affected extension hooks/manifests/skills/tools/resources/bundles/registries/bridge SDKs, CLI/HTTP/UDS agent operation paths, and `config.toml` keys/docs/tests, OR explicit `none — checked surfaces: ...` line.
 - **References**: `.resources/<competitor>/path` paths cited from the TechSpec.
 - **Completion Notes** (filled at execution time): commands run, coverage %, "not changed" disclaimers for `web/`/`packages/site`.

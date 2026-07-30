@@ -1,0 +1,47 @@
+---
+title: "compozy network channels update"
+description: "Update runtime channel routing metadata"
+---
+
+## compozy network channels update
+
+Update runtime channel routing metadata
+
+```
+compozy network channels update [channel] [flags]
+```
+
+### Options
+
+```
+      --channel string               Channel name when not passed as an argument
+      --coordinator-peer-id string   Coordinator peer id; pass empty to clear
+      --fanout-policy string         Channel routing metadata: capability_match, coordinator, or all_members; never enrolls or wakes executions
+  -h, --help                         help for update
+      --purpose string               Human-readable channel purpose
+```
+
+### Options inherited from parent commands
+
+```
+      --json               Emit JSON output
+  -o, --output string      Output format: human, json, jsonl, or toon (default "human")
+      --workspace string   Override workspace binding (ID, name, or path)
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy network channels update [channel] -o json
+```

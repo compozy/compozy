@@ -1,0 +1,47 @@
+---
+title: "compozy layout redo"
+description: "Redo the latest undone layout operation"
+---
+
+## compozy layout redo
+
+Redo the latest undone layout operation
+
+```
+compozy layout redo [flags]
+```
+
+### Options
+
+```
+      --actor-id string    Optional actor identifier
+      --client string      Connected presentation client ID
+  -h, --help               help for redo
+      --origin string      Command origin label (default "cli")
+      --revision uint      Expected workspace revision
+      --workspace string   Override workspace (ID, name, or path)
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy layout redo -o json
+```

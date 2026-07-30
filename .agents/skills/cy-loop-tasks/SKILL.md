@@ -136,9 +136,11 @@ sections.
    The worker owns implementation, memory updates, scoped validation, and
    `cy-final-verify` evidence. It never commits. Skip step 5.
 5. **Local lane** — activate `cy-execute-task` on the picked file with
-   auto-commit disabled. Run the task's scoped validation, then
-   `cy-final-verify`. Skip any per-task peer-review step the task
-   file requests — that review is Phase D (see Critical Rules).
+   auto-commit disabled. Run the task's scoped validation (the project's
+   scoped gate — `make gate` in Compozy), then `cy-final-verify` with the
+   narrow per-task claim; the full gate belongs to Phase E. Skip any
+   per-task peer-review step the task file requests — that review is
+   Phase D (see Critical Rules).
 6. Confirm memory is updated (written locally, or verified from the worker)
    and that `cy-final-verify` evidence is PASS before any state flip. For the
    frontend lane, verify the worker's evidence instead of re-running verify.
@@ -167,7 +169,8 @@ all reflect the same completed task.
    worker owns implementation, memory updates, scoped validation, and
    `cy-final-verify` evidence; it never commits. Skip step 6.
 6. **Local lane** — implement the slice, record decisions and learnings in
-   the current memory file, run scoped validation, then `cy-final-verify`.
+   the current memory file, run the scoped gate, then `cy-final-verify` with
+   the narrow per-slice claim (the full gate belongs to Phase E).
 7. Confirm memory is updated and `cy-final-verify` evidence is PASS. For the
    frontend lane, verify the worker's evidence instead of re-running verify.
 8. Acceptance self-check: when every techspec criterion has a completed
@@ -229,8 +232,9 @@ Phase B task or slice is complete and both QA flags are true.
    deep-review's incremental state; never pass `--full` mid-loop.
 2. The loop is the deciding authority over the round: remediate **every
    confirmed finding and every nitpick** from the round's review.md in this
-   same iteration, then re-run the project verification gate. The round's
-   verdict is the SHIP/FIX_BEFORE_SHIP/REWORK value in review.md/state.json.
+   same iteration, then re-run the project's scoped gate (the full gate is
+   Phase E's). The round's verdict is the SHIP/FIX_BEFORE_SHIP/REWORK value
+   in review.md/state.json.
 3. Update `memory/peer-review.md` (a `## Round <N>` section per round), then
    run `python3 .agents/skills/cy-loop-tasks/scripts/update-state.py <slug> --phase D --review-round-done <SHIP|FIX_BEFORE_SHIP|REWORK> --action "peer-review round <N> (<verdict>)" --outcome completed --memory-written "memory/peer-review.md,memory/MEMORY.md" --verify-pass`.
    The call uses `--verify-pass`: a failed post-remediation gate stays inside
@@ -244,9 +248,10 @@ finding and nitpick from it is remediated (or the verdict was SHIP), and
 
 ### Phase E — done
 
-1. Run a final `cy-final-verify` and confirm `state.verify.last_status=PASS`.
+1. Run the workstream's one full gate (`make gate-full` in Compozy) and a
+   final `cy-final-verify`, then confirm `state.verify.last_status=PASS`.
    A regression enters the repair loop and Phase E remains open until the
-   fresh gate passes; skip the done-signature while repairing.
+   fresh full gate passes; skip the done-signature while repairing.
 2. Walk the Phase E section of `references/checklist.md`; every box must
    pass.
 3. Print the iteration summary block from
@@ -304,8 +309,9 @@ The canonical `[[CODEX_LOOP ...]]` header, the manual invocation text, and
   `references/herdr-delegation.md`.
 - `qa_report` is always produced by the Fable 5 worker; `qa_execution` always
   runs locally.
-- Every Phase B task or slice runs scoped validation then `cy-final-verify`
-  before its checkpoint commit. A FAIL opens the repair loop; only the final
+- Every Phase B task or slice runs the scoped gate then `cy-final-verify`
+  (narrow per-task claim) before its checkpoint commit — the full gate runs
+  exactly once, at Phase E. A FAIL opens the repair loop; only the final
   PASS closes the phase action.
 - Peer review (`deep-review`) runs only in Phase D. Per-task peer-review
   instructions inside task files or specs are superseded by this loop's phase
@@ -321,10 +327,6 @@ The canonical `[[CODEX_LOOP ...]]` header, the manual invocation text, and
   `review.ship=true`, and `verify.last_status=PASS`.
 - Do not regenerate the loop's input graph with `cy-create-tasks`,
   `cy-create-techspec`, `cy-tasks-tail-qa-pair`, or `cy-web-docs-impact`.
-  The only exception is a repository-mandated two-touch corrective TechSpec:
-  activate its required spec skills, let the loop decide choices already
-  bounded by the current goal/contract, persist the corrective design, and
-  continue without replacing the original task graph.
 
 ## Error Handling
 
@@ -358,10 +360,6 @@ The canonical `[[CODEX_LOOP ...]]` header, the manual invocation text, and
 - **Invalid peer-review round** (missing or malformed review artifacts, or no
   verdict) — the round does not count; follow `deep-review` error handling
   and re-run it.
-- **Two-touch rule** — on the third corrective touch, replace patching with
-  the structural redesign required by the repository, validate it, and
-  continue. It becomes a blocker only when that redesign needs an external
-  product decision or authority unavailable to the loop.
 - **External blocker proven** — record the evidence and exhausted alternatives
   in memory, call `update-state.py` with `--verify-fail --blocker <text> --outcome blocked`,
   print the summary, and stop without the done-signature.

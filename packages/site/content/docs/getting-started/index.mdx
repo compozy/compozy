@@ -1,0 +1,55 @@
+---
+title: Getting Started
+description: Install Compozy, run a real session end to end, add your own agent definition, and see the same runtime state from the browser.
+---
+
+Getting started is four ordered steps. Each one leaves behind state the next one uses, so work
+through them in order the first time: install the binary, start the daemon and drive one real
+session, add a custom agent definition, then open the same session in the web UI.
+
+<OperatorNote>
+  Every step operates on the same local daemon and the same SQLite-backed history. Nothing here is a
+  sandbox or a simulation — the session you create in Quick Start is the one you inspect in the Web
+  UI page.
+</OperatorNote>
+
+## In this section
+
+<RouteList>
+  <RouteRow
+    href="/docs/getting-started/installation"
+    label="Install"
+    title="Install the Compozy binary"
+    description="Use this page to install Compozy, verify the binary, and bootstrap the local runtime before you start the daemon."
+    meta="Step 1"
+  />
+  <RouteRow
+    href="/docs/getting-started/quick-start"
+    label="Run"
+    title="Start the daemon and drive a session"
+    description="Use this page to start the daemon, create a real session, attach while it is active, inspect its durable history, and stop it during cleanup."
+    meta="Step 2"
+  />
+  <RouteRow
+    href="/docs/getting-started/first-agent"
+    label="Author"
+    title="Your first custom agent"
+    description="Use this page to create one minimal AGENT.md definition, store it in the correct runtime path, and verify that Compozy resolves it for the current workspace."
+    meta="Step 3"
+  />
+  <RouteRow
+    href="/docs/getting-started/web-ui"
+    label="Observe"
+    title="The same runtime from the browser"
+    description="Use this page to open the web UI, inspect the session you already created, and compare the browser view with the same daemon state you saw in the CLI."
+    meta="Step 4"
+  />
+</RouteList>
+
+## Where to go next
+
+Once the daemon is running and you have created a session, the rest of the documentation is
+organized by runtime concept rather than by sequence. [Sessions](/docs/sessions) covers the
+durable unit you just created, [Agents](/docs/agents) covers definition resolution and
+provider supervision, and [Configuration](/docs/configuration) covers which file or
+environment variable to change when you need to alter the behavior you saw here.

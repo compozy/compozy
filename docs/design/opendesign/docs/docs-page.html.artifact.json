@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "docs/docs-page.html",
+  "entry": "docs/docs-page.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-07-29T15:29:11.501Z",
+  "updatedAt": "2026-07-29T15:29:11.501Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

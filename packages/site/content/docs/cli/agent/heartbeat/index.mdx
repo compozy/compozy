@@ -1,0 +1,45 @@
+---
+title: "compozy agent heartbeat"
+description: "Inspect and manage agent HEARTBEAT.md files"
+---
+
+## compozy agent heartbeat
+
+Inspect and manage agent HEARTBEAT.md files
+
+### Options
+
+```
+  -h, --help   help for heartbeat
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+This command displays human-readable help and its subcommand list. The inherited `-o, --output` and `--json` flags do not serialize help output.
+
+| Format  | Output                   |
+| ------- | ------------------------ |
+| `human` | Help and subcommand list |
+| `json`  | Not emitted for help     |
+| `jsonl` | Not emitted for help     |
+| `toon`  | Not emitted for help     |
+
+## Subcommands
+
+| Command                                                                | Description                                                    |
+| ---------------------------------------------------------------------- | -------------------------------------------------------------- |
+| [compozy agent heartbeat delete](/docs/cli/agent/heartbeat/delete)     | Delete HEARTBEAT.md through managed authoring                  |
+| [compozy agent heartbeat history](/docs/cli/agent/heartbeat/history)   | List managed Heartbeat authoring revisions                     |
+| [compozy agent heartbeat inspect](/docs/cli/agent/heartbeat/inspect)   | Inspect one agent's resolved Heartbeat policy                  |
+| [compozy agent heartbeat rollback](/docs/cli/agent/heartbeat/rollback) | Rollback HEARTBEAT.md to a managed revision or snapshot digest |
+| [compozy agent heartbeat status](/docs/cli/agent/heartbeat/status)     | Read Heartbeat policy status and wake eligibility              |
+| [compozy agent heartbeat validate](/docs/cli/agent/heartbeat/validate) | Validate a proposed Heartbeat policy body                      |
+| [compozy agent heartbeat wake](/docs/cli/agent/heartbeat/wake)         | Request one manual advisory Heartbeat wake                     |
+| [compozy agent heartbeat write](/docs/cli/agent/heartbeat/write)       | Create or replace HEARTBEAT.md through managed authoring       |

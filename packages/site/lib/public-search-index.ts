@@ -1,6 +1,11 @@
 import type { AdvancedIndex } from "fumadocs-core/search/server";
 import { allPosts, allReleases, type Post, type Release } from "@/lib/blog";
-import { protocolDocs, runtimeDocs } from "@/lib/source";
+import { MARKETPLACE_KIND_META } from "@/components/marketplace/marketplace-kind-meta";
+import { docsGroupForUrl } from "@/lib/docs-navigation";
+import { bridgeProviders } from "@/lib/marketplace-bridges";
+import { devCycleExtension } from "@/lib/marketplace-bundled";
+import { entriesForKind, installCommand } from "@/lib/marketplace-catalog";
+import { docsSource } from "@/lib/source";
 
 type SearchPage = {
   url: string;
@@ -23,11 +28,9 @@ type TocHeading = {
 };
 
 const DOC_PATH_LABELS: Readonly<Record<string, string>> = {
-  runtime: "CompozyOS",
-  protocol: "Compozy Network",
-  core: "Core concepts",
-  "cli-reference": "CLI reference",
-  "api-reference": "API reference",
+  cli: "CLI reference",
+  api: "API reference",
+  protocol: "Protocol spec",
   guide: "Implementation guide",
   mcp: "MCP",
   openai: "OpenAI",
@@ -63,7 +66,10 @@ function buildDocBreadcrumbs(url: string): string[] {
   const segments = pathname.split("/").filter(Boolean);
   const ancestorCount = Math.max(1, segments.length - 1);
 
-  return segments.slice(0, ancestorCount).map(formatDocPathSegment);
+  // The leading `docs` segment renders as the page's D14 sidebar group so results mirror the IA.
+  return segments
+    .slice(0, ancestorCount)
+    .map(segment => (segment === "docs" ? docsGroupForUrl(url) : formatDocPathSegment(segment)));
 }
 
 function slugFromHash(hashURL: string, fallback: string): string {
@@ -92,7 +98,8 @@ function flattenToc(entries: TocEntry[]): TocHeading[] {
   return flat;
 }
 
-function buildDocIndexes(pages: SearchPage[], tag: string): AdvancedIndex[] {
+function buildDocIndexes(pages: SearchPage[]): AdvancedIndex[] {
+  // Tag = the D14 sidebar group of the page, so search results mirror the sidebar IA.
   return sortedByURL(pages).map(page => ({
     title: page.data.title,
     description: page.data.description,
@@ -100,7 +107,7 @@ function buildDocIndexes(pages: SearchPage[], tag: string): AdvancedIndex[] {
     id: page.url,
     url: page.url,
     breadcrumbs: buildDocBreadcrumbs(page.url),
-    tag,
+    tag: docsGroupForUrl(page.url),
   }));
 }
 
@@ -175,10 +182,108 @@ function buildReleaseIndexes(releases: Release[]): AdvancedIndex[] {
   }));
 }
 
+function buildMarketplaceIndexes(): AdvancedIndex[] {
+  const overview: AdvancedIndex = {
+    id: "/marketplace",
+    url: "/marketplace",
+    title: "Marketplace",
+    description:
+      "Skills, extensions, and MCP servers rendered from the same catalog feeds the daemon reads.",
+    breadcrumbs: ["Marketplace"],
+    tag: "Marketplace",
+    structuredData: { headings: [], contents: [] },
+  };
+
+  const kinds = MARKETPLACE_KIND_META.flatMap<AdvancedIndex>(meta => {
+    const kindUrl = `/marketplace/${meta.kind}`;
+    const entries = entriesForKind(meta.kind);
+    return [
+      {
+        id: kindUrl,
+        url: kindUrl,
+        title: `${meta.title} — Marketplace`,
+        description: meta.description,
+        breadcrumbs: ["Marketplace"],
+        tag: "Marketplace",
+        structuredData: { headings: [], contents: [] },
+      },
+      ...entries.map<AdvancedIndex>(entry => ({
+        id: `${kindUrl}/${entry.entry_id}`,
+        url: `${kindUrl}/${entry.entry_id}`,
+        title: entry.name,
+        description: entry.description,
+        breadcrumbs: ["Marketplace", meta.title],
+        tag: "Marketplace",
+        structuredData: {
+          headings: [],
+          contents: [
+            {
+              heading: undefined,
+              content: joinContent(entry.description, installCommand(meta.kind, entry)),
+            },
+          ],
+        },
+      })),
+    ];
+  });
+
+  const bridges: AdvancedIndex[] = [
+    {
+      id: "/marketplace/bridges",
+      url: "/marketplace/bridges",
+      title: "Bridges — Marketplace",
+      description:
+        "Chat and tracker platforms your agents can live in: the in-tree Compozy bridge providers, their secret slots, and their setup guides.",
+      breadcrumbs: ["Marketplace"],
+      tag: "Marketplace",
+      structuredData: { headings: [], contents: [] },
+    },
+    ...bridgeProviders.map<AdvancedIndex>(provider => ({
+      id: `/marketplace/bridges#${provider.platform}`,
+      url: `/marketplace/bridges#${provider.platform}`,
+      title: `${provider.displayName} bridge`,
+      description: provider.description,
+      breadcrumbs: ["Marketplace", "Bridges"],
+      tag: "Marketplace",
+      structuredData: {
+        headings: [],
+        contents: [{ heading: undefined, content: joinContent(provider.description, "Alpha") }],
+      },
+    })),
+  ];
+
+  const bundled: AdvancedIndex[] = [
+    {
+      id: "/marketplace/bundled/dev-cycle",
+      url: "/marketplace/bundled/dev-cycle",
+      title: `${devCycleExtension.displayName} — Marketplace`,
+      description: devCycleExtension.description,
+      breadcrumbs: ["Marketplace"],
+      tag: "Marketplace",
+      structuredData: {
+        headings: [],
+        contents: [
+          {
+            heading: undefined,
+            content: joinContent(
+              devCycleExtension.description,
+              devCycleExtension.statusCommand,
+              devCycleExtension.loops.map(loop => loop.name).join(", "),
+              devCycleExtension.skills.join(", ")
+            ),
+          },
+        ],
+      },
+    },
+  ];
+
+  return [overview, ...kinds, ...bridges, ...bundled];
+}
+
 export function buildPublicSearchIndexes(): AdvancedIndex[] {
   return [
-    ...buildDocIndexes(runtimeDocs.getPages(), "Runtime"),
-    ...buildDocIndexes(protocolDocs.getPages(), "Compozy Network"),
+    ...buildDocIndexes(docsSource.getPages()),
+    ...buildMarketplaceIndexes(),
     ...buildPostIndexes(allPosts()),
     ...buildReleaseIndexes(allReleases()),
   ].toSorted(byURL);

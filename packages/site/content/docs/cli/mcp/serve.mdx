@@ -1,0 +1,40 @@
+---
+title: "compozy mcp serve"
+description: "Serve the workspace-bound Compozy Host API over MCP"
+---
+
+## compozy mcp serve
+
+Serve the workspace-bound Compozy Host API over MCP
+
+```
+compozy mcp serve [flags]
+```
+
+### Options
+
+```
+  -h, --help               help for serve
+      --listen string      Loopback host:port for HTTP transport
+      --token-env string   Environment variable containing the HTTP bearer token (default "COMPOZY_MCP_SERVE_TOKEN")
+      --transport string   MCP transport: stdio or http (default "stdio")
+      --workspace string   Override workspace binding (ID, name, or path)
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+This command reserves standard output for its MCP transport. The inherited `-o, --output` and `--json` flags do not change that protocol stream.
+
+| Format  | Output                        |
+| ------- | ----------------------------- |
+| `human` | MCP transport stream          |
+| `json`  | Not a command-result renderer |
+| `jsonl` | Not a command-result renderer |
+| `toon`  | Not a command-result renderer |

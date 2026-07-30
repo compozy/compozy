@@ -1,0 +1,41 @@
+---
+title: "compozy provider models"
+description: "Inspect and refresh the provider model catalog"
+---
+
+## compozy provider models
+
+Inspect and refresh the provider model catalog
+
+### Options
+
+```
+  -h, --help   help for models
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+This command displays human-readable help and its subcommand list. The inherited `-o, --output` and `--json` flags do not serialize help output.
+
+| Format  | Output                   |
+| ------- | ------------------------ |
+| `human` | Help and subcommand list |
+| `json`  | Not emitted for help     |
+| `jsonl` | Not emitted for help     |
+| `toon`  | Not emitted for help     |
+
+## Subcommands
+
+| Command                                                              | Description                               |
+| -------------------------------------------------------------------- | ----------------------------------------- |
+| [compozy provider models list](/docs/cli/provider/models/list)       | List provider model catalog entries       |
+| [compozy provider models refresh](/docs/cli/provider/models/refresh) | Refresh provider model catalog sources    |
+| [compozy provider models set](/docs/cli/provider/models/set)         | Curate one provider model                 |
+| [compozy provider models status](/docs/cli/provider/models/status)   | Show provider model catalog source status |

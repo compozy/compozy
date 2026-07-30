@@ -1,0 +1,116 @@
+---
+title: Bundled Skill
+description: The Compozy skill compiled into the runtime, its reference files, and how contextual loading works.
+---
+
+The bundled `compozy` skill ships inside the Compozy binary. It is the lowest-precedence source in the skills
+hierarchy and are available whenever `skills.enabled` is true.
+
+Compozy currently ships one bundled skill: `compozy`. The skill lives at `skills/compozy/SKILL.md` with resource
+files under `skills/compozy/references/`. This layout is a normal skill directory, so the same content
+can be installed outside Compozy by coding agents that want Compozy operating guidance without importing the
+runtime.
+
+## Catalog
+
+| Skill     | Description                                                         | Use when                                                                                                                                                    |
+| --------- | ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `compozy` | Operate and extend Compozy, the local-first agent operating system. | You are working with Compozy sessions, agents, tools, skills, memory, network channels, tasks, capabilities, bundles, QA, docs, or repository contribution. |
+
+The current runtime does not ship aliases for previous alpha `compozy-*` bundled skill names. A caller
+that needs Compozy guidance should load `compozy` and then read the reference file selected by its router.
+
+## Reference files
+
+The `compozy` skill body is a router. It keeps startup prompts small and sends agents to focused
+reference files:
+
+| Reference                                | Covers                                                                                                          |
+| ---------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `references/runtime-operations.md`       | Daemon state, session lifecycle, session CLI, and runtime troubleshooting.                                      |
+| `references/agent-definitions.md`        | `AGENT.md`, provider defaults, permission modes, agent MCP sidecars, and setup workflow.                        |
+| `references/tools-and-skills.md`         | Tool-first operating model, skill search/view, skill resources, and skill authoring rules.                      |
+| `references/native-tools.md`             | Daemon-native toolsets, stable `compozy__*` IDs, descriptor discipline, and CLI fallback rules.                 |
+| `references/network.md`                  | Compozy Network channels, peers, inboxes, threads, direct rooms, work items, receipts, traces, and send safety. |
+| `references/memory.md`                   | Memory scopes, read/write/search flows, hygiene, and consolidation boundaries.                                  |
+| `references/tasks-and-orchestration.md`  | Coordinator, worker, and reviewer loops, task authority, session-bound tools, and review verdict rules.         |
+| `references/capabilities-and-bundles.md` | Capabilities, extension resources, bundle presets, hooks, manageability, and config lifecycle.                  |
+| `references/contributing-to-compozy.md`  | Repository contribution rules, Go/runtime expectations, greenfield cuts, and tests.                             |
+| `references/qa-and-verification.md`      | Test placement, verification gates, QA bootstrap, and completion evidence.                                      |
+| `references/docs-design-and-copy.md`     | Site docs, product copy, generated docs, design/copy authorities, and vocabulary.                               |
+
+## How bundled loading works
+
+Bundled loading follows the same registry path as other skills:
+
+1. The binary exposes an embedded filesystem from the root `skills` package.
+2. The daemon registry scans that filesystem during boot.
+3. `skills/compozy/SKILL.md` is parsed with the same loader used for local skills.
+4. Verification runs on the Markdown body.
+5. The skill enters the global registry as source `bundled`.
+
+Bundled content is immutable for the running process. It refreshes only when the binary changes.
+User, marketplace, extension, additional-root, workspace, and agent-local skills can still override
+the bundled `compozy` name by precedence. That is an override, not an alias.
+
+## Prompt behavior
+
+The normal prompt catalog lists the bundled skill by name and description:
+
+```xml
+<available-skills>
+  <skill name="compozy">Operate and extend Compozy, the local-first agent operating system...</skill>
+</available-skills>
+```
+
+Agents resolve canonical `compozy__skill_view` through the active harness, then load the full router with
+the returned tool reference and `{ "name": "compozy" }`. Operators can read the same body with:
+
+```bash
+compozy skill view compozy
+```
+
+Agents and operators read a focused resource file instead of the whole manual when the router names
+one:
+
+```json
+{ "name": "compozy", "file": "references/network.md" }
+```
+
+```bash
+compozy skill view compozy --file references/network.md
+```
+
+The daemon also injects selected `compozy` reference files when a session context requires them:
+
+| Context                      | Injected reference                                                |
+| ---------------------------- | ----------------------------------------------------------------- |
+| Tool prompt section          | `references/tools-and-skills.md` and `references/native-tools.md` |
+| Network channel session      | `references/network.md`                                           |
+| Task reviewer routing prompt | `references/tasks-and-orchestration.md`                           |
+
+These injections are contextual prompt help. Runtime authority still lives in the daemon services,
+not in the skill text.
+
+## Native tools and authority
+
+The bundled `compozy` skill teaches agents how to find and use Compozy-native tools, but it does not grant
+tool access. Tool visibility and invocation are enforced by the tool registry, session scope,
+toolsets, approval policy, and the owning runtime service. `compozy__*` names are canonical ToolIDs, not
+guaranteed harness invocation names. Agents should resolve canonical `compozy__tool_search`, inspect
+candidates through canonical `compozy__tool_info`, and then call the dedicated tool reference returned
+by the active harness when it is available in the active scope.
+
+The review submit path is the clearest example. The reviewer-facing prompt tells the session to load
+`compozy` and read `references/tasks-and-orchestration.md`, but the `submit_run_review` model-facing
+tool is available only when `task.Service.LookupReviewForSession(session_id)` finds an active bound
+review. When available, the tool persists the verdict through `task.Service.RecordRunReview`. The
+skill is instructional; the binding is the authority.
+
+## Related pages
+
+- [SKILL.md Format](/docs/skills/skill-md) documents skill frontmatter, body conventions,
+  sidecars, and resources.
+- [Skills Overview](/docs/skills) documents the full source hierarchy and prompt catalog.
+- [Tools](/docs/tools) documents native tool discovery and policy.
+- [Review Gate](/docs/autonomy/review-gate) documents reviewer-bound verdict authority.

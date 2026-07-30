@@ -202,7 +202,7 @@ func newChannelSendCommand(deps commandDeps) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			channel := strings.TrimSpace(args[0])
 			flags.kindExplicit = cmd.Flags().Changed(agentKernelKindKey)
-			body, err := parseNetworkJSONValue("--body", bodyRaw)
+			body, err := parseNetworkBodyJSONValue(bodyRaw)
 			if err != nil {
 				return err
 			}
@@ -270,7 +270,7 @@ func newChannelReplyCommand(deps commandDeps) *cobra.Command {
 				contract.CoordinationMessageKind(strings.TrimSpace(flags.kind)) != contract.CoordinationMessageReply {
 				return errors.New("cli: --kind must be reply for `compozy ch reply`")
 			}
-			body, err := parseNetworkJSONValue("--body", bodyRaw)
+			body, err := parseNetworkBodyJSONValue(bodyRaw)
 			if err != nil {
 				return err
 			}

@@ -1,0 +1,141 @@
+---
+title: Session Health
+description: Metadata-only session presence, attachability, wake eligibility, and boundaries with HEARTBEAT.md policy, task leases, and network greet presence.
+---
+
+Session health is a metadata-only runtime primitive Compozy maintains for every active session. It
+answers four questions without ever calling the model:
+
+1. What state is this session in?
+2. Is it healthy or degraded?
+3. Can the runtime deliver a prompt to it right now?
+4. Is the session eligible for synthetic wake from `HEARTBEAT.md` policy?
+
+<OperatorNote>
+  Session health is not authored content and not the same thing as `HEARTBEAT.md` wake policy or
+  task-run lease heartbeat. It is a daemon-owned metadata table consumed by wake decisions, the
+  `compozy session health|status|inspect` commands, and `GET
+  /api/workspaces/:workspace_id/sessions/:session_id/health|status|inspect`.
+</OperatorNote>
+
+## What health describes
+
+Health is stored alongside the session and maintained by the daemon. The wake service reads it,
+the CLI/HTTP/UDS surfaces expose it, and `HEARTBEAT.md` consumes it but never implements it.
+
+| Field                  | Meaning                                                                               |
+| ---------------------- | ------------------------------------------------------------------------------------- |
+| `state`                | `idle`, `prompting`, `stopped`, `detached`.                                           |
+| `health`               | `healthy`, `degraded`, `stale`, `dead`, `unknown`.                                    |
+| `active_prompt`        | A user/ACP prompt is currently in flight.                                             |
+| `attachable`           | Runtime can deliver a prompt to this session right now.                               |
+| `eligible_for_wake`    | The wake service may target the session.                                              |
+| `ineligibility_reason` | Closed enum reason from the wake-state set; never free text.                          |
+| `last_activity_at`     | Last real activity update from active prompts (ACP events or supervision heartbeats). |
+| `last_presence_at`     | Last metadata-only presence touch.                                                    |
+| `last_error`           | Redacted last error if any.                                                           |
+| `updated_at`           | Last health write.                                                                    |
+
+Health updates never inject prompts, never renew task leases, never call the model, and never
+change task ownership. Editing or deleting `HEARTBEAT.md` does not change health.
+
+## Where health comes from
+
+| Trigger                                                       | What changes                                                                |
+| ------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| Session start, resume, stop                                   | `state` and `attachable`.                                                   |
+| Active prompt activity (ACP events or supervision heartbeats) | `active_prompt`, `last_activity_at`, `health` recovers toward `healthy`.    |
+| Idle presence touch                                           | `last_presence_at`.                                                         |
+| Idle age past `[agents.heartbeat].session_health_stale_after` | `health` transitions toward `stale`; `eligible_for_wake` may flip to false. |
+| Daemon restart                                                | Health is recomputed before any wake consumer runs.                         |
+
+`[session.supervision]` continues to own active-prompt activity timers, runtime progress events,
+warnings, and the inactivity timeout. It does not write to `session_health`.
+
+## Reading health
+
+CLI, HTTP, and UDS share the same DTOs. `--json`/`-o json` returns deterministic structured
+output suitable for agents.
+
+```bash
+compozy session health sess_123 --json
+compozy session status sess_123 --json
+compozy session inspect sess_123 --json
+```
+
+```bash
+curl -s http://localhost:2123/api/workspaces/ws_alpha/sessions/sess_123/health
+curl -s http://localhost:2123/api/workspaces/ws_alpha/sessions/sess_123/status
+curl -s http://localhost:2123/api/workspaces/ws_alpha/sessions/sess_123/inspect
+```
+
+To list sessions with health summary attached:
+
+```bash
+curl -s "http://localhost:2123/api/sessions?include_health=true"
+```
+
+`compozy session inspect` adds Heartbeat policy correlation (snapshot id, digest, wake state, last
+audit) and any redacted last-error context for diagnostics.
+
+## Wake eligibility
+
+`eligible_for_wake` is computed by the daemon from health, attachability, supervision state, and
+config. The wake service rejects ineligible sessions before doing any work and returns a closed
+deterministic reason:
+
+| Reason                       | When Compozy returns it                                                                       |
+| ---------------------------- | --------------------------------------------------------------------------------------------- |
+| `session_not_found`          | The target session id was not resolved.                                                       |
+| `session_unhealthy`          | Health is `degraded`, `stale`, `dead`, or `unknown` such that wake is unsafe.                 |
+| `session_not_attachable`     | Runtime cannot deliver a prompt right now (stopping, stopped, detached, or supervision down). |
+| `session_prompt_active`      | An active prompt is already in flight.                                                        |
+| `session_prompt_active_race` | A prompt started concurrently inside the wake gate; the wake is skipped to avoid stomping.    |
+| `cooldown_active`            | The session is inside `wake_cooldown` from a prior wake.                                      |
+| `quiet_window`               | The current instant fell inside an authored quiet window.                                     |
+| `heartbeat_disabled`         | `[agents.heartbeat].enabled=false` or the file disables policy locally.                       |
+| `heartbeat_invalid`          | The latest snapshot is invalid; wake is paused until the file is fixed.                       |
+| `heartbeat_no_policy`        | No valid snapshot exists for the agent.                                                       |
+| `heartbeat_rate_limited`     | The daemon hit `max_wakes_per_cycle` for this scheduler cycle.                                |
+| `wake_coalesced`             | A previous wake attempt is still in progress; this one was coalesced.                         |
+| `synthetic_prompt_failed`    | Synthetic prompt enqueue failed.                                                              |
+
+These reasons appear in `compozy agent heartbeat status`, `compozy agent heartbeat wake`, and the
+`/api/agents/{name}/heartbeat/status|wake` responses.
+
+## Boundaries
+
+- Session health is **not** task-run lease heartbeat. `task_runs` + `ClaimNextRun` +
+  `HeartbeatRunLease` remain the only authority for run ownership.
+- Session health is **not** `[session.supervision]`. Supervision drives the durable activity
+  timers and runtime progress events; health is consumed metadata.
+- Session health is **not** `HEARTBEAT.md`. The authored file expresses wake/reentry preferences
+  within config bounds. Health is always present; `HEARTBEAT.md` is optional.
+- Session health is **not** Compozy Network membership. Network membership is daemon-local and belongs
+  to the [protocol model](/docs/network/protocol-model). Membership never makes a session
+  wake-eligible by itself.
+- Session health is **not** an event bus. `session.health.update.after` fires on transitions only
+  and is rate-limited by `[agents.heartbeat].session_health_hook_min_interval`.
+
+## Repair and troubleshooting
+
+If a session looks unhealthy unexpectedly:
+
+1. Inspect with `compozy session inspect <session-id> -o json`.
+2. Check supervision state in `compozy session status` — long-running prompts can show idle timers.
+3. Verify `[agents.heartbeat].session_health_stale_after` is not too aggressive for your idle
+   pattern.
+4. If the daemon was restarted, allow recovery to recompute health before retrying a wake.
+5. Use [`compozy session repair`](/docs/cli/session/repair) for stale `active`/
+   `stopping`/`starting` metadata after an unclean exit. Repair never alters wake state.
+
+## Related pages
+
+- [Session Lifecycle](/docs/sessions/lifecycle) for state transitions and stop reasons.
+- [Agent Heartbeat](/docs/agents/heartbeat) for authored wake policy and CLI/API
+  surfaces.
+- [`config.toml` → `[agents.heartbeat]`](/docs/configuration/config-toml) for cadence,
+  rate limits, retention, and stale thresholds.
+- [`compozy session health`](/docs/cli/session/health),
+  [`compozy session status`](/docs/cli/session/status), and
+  [`compozy session inspect`](/docs/cli/session/inspect) generated CLI references.

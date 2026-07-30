@@ -5,7 +5,7 @@ title: Search the marketplace through structured CLI output
 persona: Ada
 journey: J-agent-marketplace-parity
 expected: `compozy marketplace search` returns fixed-order grouped JSON for all kinds, supports `--kind` browse and `jsonl`, and preserves truthful installed and update fields from the daemon.
-entry_points: compozy marketplace search [query] -o json; compozy marketplace search [query] --kind <kind> -o json; compozy marketplace search [query] -o jsonl; compozy.com/runtime/core/marketplace (guide)
+entry_points: compozy marketplace search [query] -o json; compozy marketplace search [query] --kind <kind> -o json; compozy marketplace search [query] -o jsonl; compozy.com/docs/marketplace (guide)
 qa_status: fail
 bug_ids: BUG-20260715-native-marketplace-extension-parity; BUG-20260715-marketplace-stale-report; BUG-20260729-marketplace-json-parity; BUG-20260729-marketplace-file-cursor-fence
 fix_status: pending

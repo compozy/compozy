@@ -1,0 +1,49 @@
+---
+title: "compozy layout-profile get"
+description: "Get one saved layout"
+---
+
+## compozy layout-profile get
+
+Get one saved layout
+
+### Synopsis
+
+Get one saved layout.
+
+There is no per-profile read route, so this filters the visible list; the list is complete and unpaginated, so the result is the same record the daemon would return.
+
+```
+compozy layout-profile get <profile-id> [flags]
+```
+
+### Options
+
+```
+  -h, --help               help for get
+      --workspace string   Override workspace (ID, name, or path)
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy layout-profile get <profile-id> -o json
+```

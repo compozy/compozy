@@ -1,0 +1,45 @@
+---
+title: "compozy network directs show"
+description: "Show one direct room"
+---
+
+## compozy network directs show
+
+Show one direct room
+
+```
+compozy network directs show [flags]
+```
+
+### Options
+
+```
+      --channel string   Target channel
+      --direct string    Direct room id
+  -h, --help             help for show
+```
+
+### Options inherited from parent commands
+
+```
+      --json               Emit JSON output
+  -o, --output string      Output format: human, json, jsonl, or toon (default "human")
+      --workspace string   Override workspace binding (ID, name, or path)
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy network directs show -o json
+```

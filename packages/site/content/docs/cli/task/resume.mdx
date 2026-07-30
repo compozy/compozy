@@ -1,0 +1,50 @@
+---
+title: "compozy task resume"
+description: "Resume new runs for one paused task"
+---
+
+## compozy task resume
+
+Resume new runs for one paused task
+
+```
+compozy task resume <task-id> [flags]
+```
+
+### Examples
+
+```
+  # Re-enable scheduler claims for a task
+  compozy task resume task-123
+```
+
+### Options
+
+```
+  -h, --help              help for resume
+      --metadata string   Optional task-resume metadata JSON
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy task resume <task-id> -o json
+```

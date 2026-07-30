@@ -1,0 +1,50 @@
+---
+title: "compozy resource list"
+description: "List desired-state resources"
+---
+
+## compozy resource list
+
+List desired-state resources
+
+```
+compozy resource list [flags]
+```
+
+### Options
+
+```
+  -h, --help                 help for list
+      --kind string          Filter by resource kind
+      --last int             Maximum number of resources to return
+      --owner-id string      Filter by owner id
+      --owner-kind string    Filter by owner kind
+      --scope-kind string    Filter by scope kind
+      --source-id string     Filter by source id
+      --source-kind string   Filter by source kind
+      --workspace string     Override workspace filter (ID, name, or path)
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy resource list -o json
+```

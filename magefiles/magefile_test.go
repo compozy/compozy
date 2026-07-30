@@ -206,14 +206,11 @@ func TestProductionSourceLineLimit(t *testing.T) {
 		}{
 			{name: "Should include Go runtime source", path: "internal/store/sqlite.go", want: true},
 			{name: "Should include Web source", path: "web/src/systems/session/view.tsx", want: true},
+			{name: "Should include site stylesheet source", path: "packages/site/app/global.css", want: true},
 			{name: "Should include Storybook source", path: "web/src/system.stories.tsx", want: true},
 			{name: "Should exclude Go tests", path: "internal/store/sqlite_test.go", want: false},
 			{name: "Should exclude Web tests", path: "web/src/__tests__/view.test.tsx", want: false},
-			{
-				name: "Should exclude generated contracts",
-				path: "sdk/typescript/src/generated/contracts.ts",
-				want: false,
-			},
+			{name: "Should exclude generated contracts", path: "sdk/typescript/src/generated/contracts.ts", want: false},
 			{name: "Should exclude sqlc output", path: "internal/store/sqlcgen/query.sql.go", want: false},
 			{name: "Should exclude fixtures", path: "web/src/system/fixtures/data.ts", want: false},
 			{name: "Should exclude reference slides", path: "packages/slides/slides/demo/index.tsx", want: false},
@@ -237,6 +234,7 @@ func TestProductionSourceLineLimit(t *testing.T) {
 		root := t.TempDir()
 		oversized := strings.Repeat("package fixture\n", maxProductionSourceLines+1)
 		writeTestFile(t, root, "internal/runtime/oversized.go", oversized)
+		writeTestFile(t, root, "packages/site/app/oversized.css", strings.Repeat(".fixture {}\n", maxProductionSourceLines+1))
 		writeTestFile(
 			t,
 			root,
@@ -256,12 +254,16 @@ func TestProductionSourceLineLimit(t *testing.T) {
 			"internal/runtime/within_limit.go",
 			"internal/runtime/generated.go",
 			"internal/runtime/oversized_test.go",
+			"packages/site/app/oversized.css",
 		})
 		if err != nil {
 			t.Fatalf("inspectTrackedProductionSources() error = %v", err)
 		}
 		want := []productionSourceSizeViolation{{
 			path:  "internal/runtime/oversized.go",
+			lines: maxProductionSourceLines + 1,
+		}, {
+			path:  "packages/site/app/oversized.css",
 			lines: maxProductionSourceLines + 1,
 		}}
 		if !slices.Equal(violations, want) {

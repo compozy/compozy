@@ -228,7 +228,7 @@ func (c *unixSocketClient) InvokeTool(
 	ctx context.Context,
 	id string,
 	request ToolInvokeRequest,
-) (ToolInvokeResponseRecord, error) {
+) (responseRecord ToolInvokeResponseRecord, err error) {
 	request.SessionID = strings.TrimSpace(request.SessionID)
 	request.WorkspaceID = strings.TrimSpace(request.WorkspaceID)
 	request.AgentName = strings.TrimSpace(request.AgentName)
@@ -236,12 +236,19 @@ func (c *unixSocketClient) InvokeTool(
 	request.TurnID = strings.TrimSpace(request.TurnID)
 	request.CorrelationID = strings.TrimSpace(request.CorrelationID)
 	request.SensitiveInputFields = trimNonEmptyStrings(request.SensitiveInputFields)
-	var response ToolInvokeResponseRecord
 	path := "/api/tools/" + url.PathEscape(strings.TrimSpace(id)) + "/invoke"
-	if err := c.doJSON(ctx, http.MethodPost, path, nil, request, &response); err != nil {
+	response, err := c.doRequest(ctx, http.MethodPost, path, nil, request)
+	if err != nil {
 		return ToolInvokeResponseRecord{}, err
 	}
-	return sanitizeToolInvokeResponse(response), nil
+	defer mergeResponseBodyCloseError(&err, response, http.MethodPost, path)
+	if response.StatusCode == http.StatusAccepted {
+		return ToolInvokeResponseRecord{}, readAPIError(response)
+	}
+	if err := c.decodeJSONResponse(ctx, http.MethodPost, path, response, &responseRecord); err != nil {
+		return ToolInvokeResponseRecord{}, err
+	}
+	return sanitizeToolInvokeResponse(responseRecord), nil
 }
 
 func (c *unixSocketClient) ReadToolArtifact(

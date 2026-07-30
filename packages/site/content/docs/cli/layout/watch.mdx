@@ -1,0 +1,45 @@
+---
+title: "compozy layout watch"
+description: "Watch topology events and optional client presentation frames"
+---
+
+## compozy layout watch
+
+Watch topology events and optional client presentation frames
+
+```
+compozy layout watch [flags]
+```
+
+### Options
+
+```
+      --after-revision uint   Resume strictly after this revision
+      --client string         Registered client ID for presentation frames
+  -h, --help                  help for watch
+      --workspace string      Override workspace (ID, name, or path)
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+This streaming command supports interactive human output or newline-delimited JSON. It rejects the inherited `json` and `toon` output modes.
+
+| Format  | Stream output            |
+| ------- | ------------------------ |
+| `human` | Interactive event stream |
+| `json`  | Not supported            |
+| `jsonl` | One JSON event per line  |
+| `toon`  | Not supported            |
+
+Example:
+
+```bash
+compozy layout watch -o jsonl
+```

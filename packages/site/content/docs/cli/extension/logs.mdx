@@ -1,0 +1,46 @@
+---
+title: "compozy extension logs"
+description: "Read redacted logs for one extension instance"
+---
+
+## compozy extension logs
+
+Read redacted logs for one extension instance
+
+```
+compozy extension logs <name> [flags]
+```
+
+### Options
+
+```
+      --after int          Read entries after this sequence
+      --follow             Stream new log entries
+      --global             Read the published global instance
+  -h, --help               help for logs
+      --workspace string   Override workspace context
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy extension logs <name> -o json
+```

@@ -1,0 +1,51 @@
+---
+title: "compozy automation suggestions"
+description: "Review consent-first automation suggestions"
+---
+
+## compozy automation suggestions
+
+Review consent-first automation suggestions
+
+```
+compozy automation suggestions [flags]
+```
+
+### Options
+
+```
+  -h, --help               help for suggestions
+      --status string      Filter by status: pending, accepted, or dismissed (default "pending")
+      --workspace string   Override workspace (ID, name, or path)
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy automation suggestions -o json
+```
+
+## Subcommands
+
+| Command                                                                            | Description                            |
+| ---------------------------------------------------------------------------------- | -------------------------------------- |
+| [compozy automation suggestions accept](/docs/cli/automation/suggestions/accept)   | Accept a suggestion and create its Job |
+| [compozy automation suggestions dismiss](/docs/cli/automation/suggestions/dismiss) | Dismiss an automation suggestion       |

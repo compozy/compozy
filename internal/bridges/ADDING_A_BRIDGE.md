@@ -2,7 +2,7 @@
 
 This is the repository review checklist for a provider under
 `extensions/bridges/<provider>`. Follow the public
-[Build an In-Tree Bridge Provider](../../packages/site/content/runtime/core/bridges/adding-a-bridge.mdx)
+[Build an In-Tree Bridge Provider](../../packages/site/content/docs/bridges/adding-a-bridge.mdx)
 guide for the executable reference, architecture, implementation sequence, and operator lifecycle.
 Do not duplicate that walkthrough here.
 
@@ -15,17 +15,17 @@ groundwork that follow-up program consumes.
 
 ## Canonical owners
 
-| Concern                                   | Owner to reuse                                                    |
-| ----------------------------------------- | ----------------------------------------------------------------- |
-| Wire types shared with provider binaries  | `internal/bridges/contract`                                       |
-| Runtime/session/lifecycle helpers         | `internal/bridgesdk`                                              |
-| CI-safe protocol implementation           | `internal/extension/testdata/telegram-reference`                  |
-| Modern lifecycle and HTTP composition     | `extensions/bridges/slack`                                        |
-| Remote webhook control runtime            | `extensions/bridges/telegram`                                     |
-| Service/control subprocess boundary       | `internal/extension` and `internal/subprocess`                    |
-| Daemon routing, delivery, and checkpoints | `internal/bridges`                                                |
-| Public operator guide                     | `packages/site/content/runtime/core/bridges/setup-<provider>.mdx` |
-| Agent-operable runtime guidance           | `skills/compozy/references/runtime-operations.md`                 |
+| Concern                                   | Owner to reuse                                            |
+| ----------------------------------------- | --------------------------------------------------------- |
+| Wire types shared with provider binaries  | `internal/bridges/contract`                               |
+| Runtime/session/lifecycle helpers         | `internal/bridgesdk`                                      |
+| CI-safe protocol implementation           | `internal/extension/testdata/telegram-reference`          |
+| Modern lifecycle and HTTP composition     | `extensions/bridges/slack`                                |
+| Remote webhook control runtime            | `extensions/bridges/telegram`                             |
+| Service/control subprocess boundary       | `internal/extension` and `internal/subprocess`            |
+| Daemon routing, delivery, and checkpoints | `internal/bridges`                                        |
+| Public operator guide                     | `packages/site/content/docs/bridges/setup-<provider>.mdx` |
+| Agent-operable runtime guidance           | `skills/compozy/references/runtime-operations.md`         |
 
 There is no hand-maintained provider registry. The extension catalog and conformance tests discover
 valid manifests that provide `bridge.adapter`.
@@ -120,7 +120,7 @@ validated `COMPOZY_BRIDGE_*` environment seam for trusted sovereign or fake-serv
 - A setup guide independently covers provider acquisition, credentials, disabled creation,
   public-to-local callback mapping, access policy, verification and enablement, a real inbound route,
   `send-test`, limits, and credential rotation.
-- Link the canonical [Bridge operations](../../packages/site/content/runtime/core/bridges/operations.mdx)
+- Link the canonical [Bridge operations](../../packages/site/content/docs/bridges/operations.mdx)
   procedures for shared recovery, rollback, and retirement. Add only provider-specific remote-state
   deltas and checkpoints to the setup guide.
 

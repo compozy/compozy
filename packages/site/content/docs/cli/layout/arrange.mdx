@@ -1,0 +1,53 @@
+---
+title: "compozy layout arrange"
+description: "Arrange explicit windows or apply a declarative layout resource"
+---
+
+## compozy layout arrange
+
+Arrange explicit windows or apply a declarative layout resource
+
+```
+compozy layout arrange [flags]
+```
+
+### Options
+
+```
+      --actor-id string      Optional actor identifier
+      --arrangement string   Arrangement: horizontal, vertical, grid, or stack
+      --client string        Connected presentation client ID
+      --desktop string       Desktop ID
+      --frame string         Group frame as x,y,width,height; defaults to the full desktop
+      --group string         Stable group ID; generated when omitted
+  -h, --help                 help for arrange
+      --origin string        Command origin label (default "cli")
+      --resource string      Declarative layout resource ID
+      --revision uint        Expected workspace revision
+      --window stringArray   Participant window ID; repeat for each window
+      --workspace string     Override workspace (ID, name, or path)
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy layout arrange -o json
+```

@@ -1,0 +1,12 @@
+{
+    "title": "Examples",
+    "icon": "FlaskConical",
+    "pages": [
+        "index",
+        "review-and-fix-loop",
+        "software-delivery-loop",
+        "morning-briefing-job",
+        "webhook-to-agent-run",
+        "react-to-session-end"
+    ]
+}

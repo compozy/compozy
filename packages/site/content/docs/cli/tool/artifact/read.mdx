@@ -1,0 +1,55 @@
+---
+title: "compozy tool artifact read"
+description: "Read one workspace-scoped artifact page"
+---
+
+## compozy tool artifact read
+
+Read one workspace-scoped artifact page
+
+```
+compozy tool artifact read <artifact_uri> [flags]
+```
+
+### Examples
+
+```
+  # Emit one page as structured JSON
+  compozy tool artifact read compozy://tool-artifacts/art_<sha256> --workspace ws-1 -o json
+
+  # Decode page bytes directly to stdout
+  compozy tool artifact read compozy://tool-artifacts/art_<sha256> --workspace ws-1 --offset 65536
+```
+
+### Options
+
+```
+  -h, --help               help for read
+      --limit int          Page size in bytes (default and maximum 65536)
+      --offset int         Zero-based byte offset
+      --workspace string   Override workspace (ID, name, or path)
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy tool artifact read <artifact_uri> -o json
+```

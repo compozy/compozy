@@ -1,0 +1,52 @@
+---
+title: "compozy layout-profile put"
+description: "Create or replace one saved layout"
+---
+
+## compozy layout-profile put
+
+Create or replace one saved layout
+
+### Synopsis
+
+Create or replace one saved layout.
+
+--expected-version 0 creates; a non-zero value replaces that exact version and fails if the record moved underneath you.
+
+```
+compozy layout-profile put <profile-id> [flags]
+```
+
+### Options
+
+```
+      --expected-version int   Version this write replaces; 0 creates
+      --file string            Layout profile spec file or - for stdin
+  -h, --help                   help for put
+      --scope string           Visibility scope: workspace or global (default "workspace")
+      --workspace string       Override workspace (ID, name, or path)
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy layout-profile put <profile-id> -o json
+```

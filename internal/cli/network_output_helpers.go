@@ -160,13 +160,13 @@ func networkKindMetricRows(metrics []NetworkKindMetricRecord) [][]string {
 	return rows
 }
 
-func parseNetworkJSONValue(flagName string, raw string) (json.RawMessage, error) {
+func parseNetworkBodyJSONValue(raw string) (json.RawMessage, error) {
 	payload, err := parseRequiredJSONRawMessage(raw)
 	if errors.Is(err, errEmptyJSONFlag) {
-		return nil, fmt.Errorf("cli: %s is required", flagName)
+		return nil, errors.New("cli: --body is required")
 	}
 	if err != nil {
-		return nil, fmt.Errorf("cli: %s must be valid JSON: %w", flagName, err)
+		return nil, fmt.Errorf("cli: --body must be valid JSON: %w", err)
 	}
 	return payload, nil
 }

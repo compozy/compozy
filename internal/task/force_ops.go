@@ -11,7 +11,7 @@ import (
 	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
 )
 
-const forceOpsDocURL = "/runtime/core/autonomy/task-runs-and-leases#force-operations"
+const forceOpsDocURL = "/docs/autonomy/task-runs-and-leases#force-operations"
 
 type inputQueueGenerationStore interface {
 	AdvanceSessionInputGeneration(ctx context.Context, sessionID string, now time.Time) (int64, error)

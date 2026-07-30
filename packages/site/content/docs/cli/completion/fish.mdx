@@ -1,0 +1,57 @@
+---
+title: "compozy completion fish"
+description: "Generate the autocompletion script for fish"
+---
+
+## compozy completion fish
+
+Generate the autocompletion script for fish
+
+### Synopsis
+
+Generate the autocompletion script for the fish shell.
+
+To load completions in your current shell session:
+
+```
+compozy completion fish | source
+
+```
+
+To load completions for every new session, execute once:
+
+```
+compozy completion fish > ~/.config/fish/completions/compozy.fish
+
+```
+
+You will need to start a new shell for this setup to take effect.
+
+```
+compozy completion fish [flags]
+```
+
+### Options
+
+```
+  -h, --help              help for fish
+      --no-descriptions   disable completion descriptions
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+This command writes its shell-completion script directly to standard output. The inherited `-o, --output` and `--json` flags do not convert that script to a command result.
+
+| Format  | Output                        |
+| ------- | ----------------------------- |
+| `human` | Shell-completion script       |
+| `json`  | Not a command-result renderer |
+| `jsonl` | Not a command-result renderer |
+| `toon`  | Not a command-result renderer |

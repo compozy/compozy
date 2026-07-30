@@ -4,8 +4,8 @@ area: ET
 title: Authorize a remote MCP server through the daemon
 persona: Ada
 journey: J-mcp-authorize-repair
-expected: `compozy mcp authorize <name>` prints a live copyable URL, waits for a credential change, and exits successfully only when redacted status is `authenticated` with `token_present=true`; scope and workspace selectors target one exact server definition.
-entry_points: compozy mcp authorize <name>; compozy mcp authorize <name> --scope workspace --workspace <id>; compozy mcp auth login <name>
+expected: `compozy mcp auth login <name>` prints a live copyable URL, waits for a credential change, and exits successfully only when redacted status is `authenticated` with `token_present=true`; scope and workspace selectors target one exact server definition.
+entry_points: compozy mcp auth login <name>; compozy mcp auth login <name> --scope workspace --workspace <id>
 qa_status: fail
 bug_ids: BUG-20260729-mcp-cli-json-parity
 fix_status: pending

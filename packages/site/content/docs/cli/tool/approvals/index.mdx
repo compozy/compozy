@@ -1,0 +1,40 @@
+---
+title: "compozy tool approvals"
+description: "Manage remembered native-tool approval decisions"
+---
+
+## compozy tool approvals
+
+Manage remembered native-tool approval decisions
+
+### Options
+
+```
+  -h, --help   help for approvals
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+This command displays human-readable help and its subcommand list. The inherited `-o, --output` and `--json` flags do not serialize help output.
+
+| Format  | Output                   |
+| ------- | ------------------------ |
+| `human` | Help and subcommand list |
+| `json`  | Not emitted for help     |
+| `jsonl` | Not emitted for help     |
+| `toon`  | Not emitted for help     |
+
+## Subcommands
+
+| Command                                                          | Description                                               |
+| ---------------------------------------------------------------- | --------------------------------------------------------- |
+| [compozy tool approvals list](/docs/cli/tool/approvals/list)     | List remembered native-tool approval decisions            |
+| [compozy tool approvals revoke](/docs/cli/tool/approvals/revoke) | Revoke one remembered native-tool approval decision       |
+| [compozy tool approvals set](/docs/cli/tool/approvals/set)       | Set an explicit agent-wide or tool-wide approval decision |

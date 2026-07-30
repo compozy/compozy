@@ -14,7 +14,6 @@ func newMCPCommand(deps commandDeps) *cobra.Command {
 		Short: "Manage MCP integrations",
 	}
 	cmd.AddCommand(newMCPInstallCommand(deps))
-	cmd.AddCommand(newMCPAuthorizeCommand(deps))
 	cmd.AddCommand(newMCPAuthCommand(deps))
 	cmd.AddCommand(newMCPServeCommand(deps))
 	return cmd

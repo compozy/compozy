@@ -8,7 +8,9 @@ import {
   Workflow,
   WorkflowStep,
 } from "@/components/docs/mdx-blocks";
+import { GroupIndex, GroupRow } from "@/components/docs/group-index";
 import { Mermaid } from "@/components/docs/mermaid";
+import { PathCard, PathGrid, PathLink } from "@/components/docs/path-grid";
 import {
   OpenAPIPage as OpenAPIPageClient,
   type OpenAPIPageProps_Preloaded,
@@ -35,9 +37,14 @@ export function getMDXComponents(openapiPreload?: OpenAPIPagePreload) {
     OpenAPIPage,
     APIPage: OpenAPIPage,
     Mermaid,
+    GroupIndex,
+    GroupRow,
     GuideCard,
     GuideGrid,
     OperatorNote,
+    PathCard,
+    PathGrid,
+    PathLink,
     RouteList,
     RouteRow,
     Workflow,

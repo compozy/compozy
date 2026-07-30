@@ -123,8 +123,9 @@ function normalizeDocumentedRoute(raw: string): string {
 
 function extractDocumentedAPIRoutes(content: string): string[] {
   const routes = new Set<string>();
+  // `(?<!\/docs)` keeps the generated reference URLs (`/docs/api/...`) out of the daemon-route scan.
   for (const match of content.matchAll(
-    /(?:https?:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?)?(\/api\/[A-Za-z0-9_:$<>{}./?-]+)/g
+    /(?:https?:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?)?(?<!\/docs)(\/api\/[A-Za-z0-9_:$<>{}./?-]+)/g
   )) {
     const normalized = normalizeDocumentedRoute(match[1] ?? "");
     if (

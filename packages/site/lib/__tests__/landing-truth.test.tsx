@@ -7,7 +7,7 @@ import { BUILTIN_PROVIDER_INTEGRATIONS } from "@/components/landing/provider-dat
 const siteRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const repoRoot = resolve(siteRoot, "../..");
 const landingRoot = resolve(siteRoot, "components/landing");
-const runtimeRoot = resolve(siteRoot, "content/runtime");
+const runtimeRoot = resolve(siteRoot, "content/docs");
 const providerSourceRoot = resolve(repoRoot, "internal/config");
 const serverLandingMetricModules = ["hero.tsx", "comparison.tsx"].map(file =>
   resolve(landingRoot, file)
@@ -15,13 +15,13 @@ const serverLandingMetricModules = ["hero.tsx", "comparison.tsx"].map(file =>
 const clientSupportedAgentsImportPattern = /(?:from\s+|import\()\s*["'][^"']*supported-agents["']/;
 
 const deepCitationTargets = new Map([
-  ["hooks catalog", "/runtime/core/hooks"],
-  ["skills guide", "/runtime/core/skills"],
-  ["automation", "/runtime/core/automation"],
-  ["sandbox profiles", "/runtime/core/sandbox/profiles"],
-  ["sessions lifecycle", "/runtime/core/sessions/lifecycle"],
-  ["daemon surfaces", "/runtime/core/operations/daemon"],
-  ["permissions", "/runtime/core/sessions/permissions"],
+  ["hooks catalog", "/docs/hooks"],
+  ["skills guide", "/docs/skills"],
+  ["automation", "/docs/automation"],
+  ["sandbox profiles", "/docs/sandbox/profiles"],
+  ["sessions lifecycle", "/docs/sessions/lifecycle"],
+  ["daemon surfaces", "/docs/operations/daemon"],
+  ["permissions", "/docs/sessions/permissions"],
 ]);
 
 function listFiles(dir: string, suffix: string): string[] {
@@ -103,7 +103,7 @@ function builtinProviderNames(): Map<string, string> {
 }
 
 function runtimeRouteExists(route: string): boolean {
-  const relativeRoute = route.replace(/^\/runtime\/?/, "");
+  const relativeRoute = route.replace(/^\/docs\/?/, "");
   if (!relativeRoute) return true;
   return (
     statSync(resolve(runtimeRoot, `${relativeRoute}.mdx`), { throwIfNoEntry: false })?.isFile() ===

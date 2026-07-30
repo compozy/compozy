@@ -15,13 +15,13 @@ export default function NotFound() {
         </p>
         <div className="mt-8 flex flex-col gap-3 sm:flex-row">
           <Link
-            href="/runtime/"
+            href="/docs/"
             className="inline-flex h-10 items-center justify-center rounded-lg bg-accent px-5 text-sm font-medium text-accent-ink transition-colors hover:bg-accent-hover active:translate-y-px"
           >
             Runtime docs
           </Link>
           <Link
-            href="/protocol/"
+            href="/docs/network/protocol/"
             className="inline-flex h-10 items-center justify-center rounded-lg border border-line px-5 text-sm font-medium text-fg transition-colors hover:border-accent hover:text-accent active:translate-y-px"
           >
             Network protocol

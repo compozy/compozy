@@ -1,0 +1,141 @@
+---
+title: Sandbox Profiles
+description: Configure sandbox profiles, defaults, workspace selection, and safe-spawn grants.
+---
+
+Sandbox profiles live in `config.toml` under `[sandboxes.<name>]`. The profile name is the stable
+identifier used by workspaces, child-session grants, API payloads, and the web Sandbox page.
+
+Good profiles answer four questions before a session starts:
+
+| Question                    | Profile fields                                       |
+| --------------------------- | ---------------------------------------------------- |
+| Where does the agent run?   | `backend`, provider-specific section, `runtime_root` |
+| How do files move?          | `sync_mode`, `include`, `exclude`                    |
+| What survives after stop?   | `persistence`                                        |
+| What can the runtime reach? | `env`, `secret_env`, `network`                       |
+
+## Minimal local profile
+
+```toml
+[defaults]
+sandbox = "local"
+
+[sandboxes.local]
+backend = "local"
+sync_mode = "none"
+persistence = "reuse"
+runtime_root = "~"
+```
+
+The local backend runs through the host process. It is still a sandbox profile so session metadata,
+workspace resolution, hooks, and extension Host APIs all use one vocabulary.
+
+Use a local profile when you want Compozy's session metadata and hooks, but the host workspace already
+has the right dependencies and isolation boundary.
+
+## Daytona profile
+
+```toml
+[sandboxes.daytona-dev]
+backend = "daytona"
+sync_mode = "session-bidirectional"
+persistence = "reuse"
+runtime_root = "/home/daytona/workspace"
+
+[sandboxes.daytona-dev.env]
+NODE_ENV = "development"
+
+[sandboxes.daytona-dev.network]
+allow_public_ingress = false
+allow_outbound = true
+allow_list = ["api.example.test"]
+deny_list = ["metadata.google.internal"]
+
+[sandboxes.daytona-dev.daytona]
+api_url = "https://app.daytona.io/api"
+target = "team-default"
+snapshot = "snap-agent-base"
+image = "ubuntu:24.04"
+class = "cpu-2"
+auto_stop = "30m"
+auto_archive = "24h"
+```
+
+When both `snapshot` and `image` are set, Compozy resolves startup from `snapshot` and preserves `image`
+as profile metadata.
+
+## Resolution order
+
+<Mermaid
+  chart={`flowchart LR
+    CLI[Session CLI flag or spawn grant] --> Workspace[Workspace sandbox]
+    Workspace --> Defaults[defaults.sandbox]
+    Defaults --> Local[local backend fallback]
+    Workspace --> Profile[sandboxes.<name>]
+    Defaults --> Profile
+    Profile --> Backend[Provider backend]
+    Backend --> Session[Session sandbox metadata]`}
+  caption="Sandbox resolution starts from explicit session or spawn input, then falls back through workspace and default profile settings."
+/>
+
+Compozy resolves the workspace sandbox first, then `[defaults].sandbox`, then the local backend fallback.
+The selected profile is copied into the session metadata so later status, events, hooks, and Host API
+calls describe the environment that actually launched the agent.
+
+## Attach a workspace
+
+```bash
+compozy workspace add /Users/you/project --name project --sandbox daytona-dev
+compozy workspace edit project --sandbox local
+```
+
+If no workspace sandbox is set, Compozy uses `[defaults].sandbox`. If that is empty, the local backend is
+used.
+
+## Safe spawn grants
+
+Child sessions do not inherit every sandbox profile automatically. Grant the profiles a child may use:
+
+```bash
+compozy spawn \
+  --agent coder \
+  --ttl-seconds 1800 \
+  --sandbox-profile daytona-dev \
+  --prompt-overlay "Reproduce the failing build"
+```
+
+The permission policy is serialized as `sandbox_profiles`, and narrowing rules prevent a child from
+expanding beyond the parent's allowed profiles. The prompt overlay narrows the child session's
+instructions; follow-up work still happens through the session surfaces.
+
+## API shape
+
+Sandbox profile management is config-backed:
+
+```http
+GET /api/settings/sandboxes
+PUT /api/settings/sandboxes/daytona-dev
+DELETE /api/settings/sandboxes/daytona-dev
+```
+
+List responses use a `sandboxes` array. Detail responses use a `sandbox` object.
+
+## Profile design checks
+
+| Check                          | Why it matters                                                               |
+| ------------------------------ | ---------------------------------------------------------------------------- |
+| Prefer stable profile names    | Workspaces, child-session permissions, and API payloads reference the name.  |
+| Keep `runtime_root` explicit   | It prevents sync and launch behavior from depending on provider defaults.    |
+| Use `secret_env` for secrets   | Secrets resolve at launch and do not need to be copied into prompts.         |
+| Start with narrow sync rules   | Broad sync can copy build output, caches, and credentials into the runtime.  |
+| Choose persistence on purpose  | `reuse` is faster; `transient` is cleaner; `archive` is for later forensics. |
+| Treat network policy as intent | The provider backend still has to enforce the requested network boundary.    |
+
+## Related pages
+
+- [Sandbox Overview](/docs/sandbox) explains where profiles fit into session launch.
+- [Daytona](/docs/sandbox/daytona) documents the implemented remote sandbox provider.
+- [Safe Spawn](/docs/autonomy/safe-spawn) explains child-session narrowing with sandbox
+  grants.
+- [config.toml](/docs/configuration/config-toml) is the full configuration reference.

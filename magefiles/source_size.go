@@ -151,13 +151,11 @@ func isProductionSourcePath(path string) bool {
 	if path != "main.go" && !hasProductionSourceRoot(path) {
 		return false
 	}
-	if strings.HasPrefix(path, "packages/slides/") || path == "packages/ui/src/tokens.css" {
+	if strings.HasPrefix(path, "packages/slides/") ||
+		path == "packages/ui/src/tokens.css" ||
+		path == "web/src/routeTree.gen.ts" {
 		return false
 	}
-	if path == "web/src/routeTree.gen.ts" {
-		return false
-	}
-
 	name := filepath.Base(path)
 	if isTestSourceName(name) || isGeneratedSourceName(name) {
 		return false

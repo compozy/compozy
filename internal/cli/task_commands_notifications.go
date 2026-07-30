@@ -15,9 +15,6 @@ func newTaskNotificationCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "notification",
 		Short: "Manage task terminal notifications",
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			return cmd.Help()
-		},
 	}
 	cmd.AddCommand(newTaskNotificationSubscribeCommand(deps))
 	cmd.AddCommand(newTaskNotificationListCommand(deps))

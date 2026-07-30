@@ -58,10 +58,10 @@ function listManualDocs(dir: string): ManualDoc[] {
     const fullPath = resolve(dir, entry);
     const relPath = relative(contentRoot, fullPath);
     if (
-      relPath === "runtime/cli-reference" ||
-      relPath.startsWith("runtime/cli-reference/") ||
-      relPath === "runtime/api-reference" ||
-      relPath.startsWith("runtime/api-reference/")
+      relPath === "docs/cli" ||
+      relPath.startsWith("docs/cli/") ||
+      relPath === "docs/api" ||
+      relPath.startsWith("docs/api/")
     ) {
       continue;
     }
@@ -104,8 +104,8 @@ function manualContent(): string {
 }
 
 function activeRuntimeContent(): string {
-  return listAllDocs(resolve(contentRoot, "runtime"))
-    .filter(doc => !doc.path.startsWith("runtime/migration/"))
+  return listAllDocs(resolve(contentRoot, "docs"))
+    .filter(doc => !doc.path.startsWith("docs/migration/"))
     .map(doc => `\n--- ${doc.path} ---\n${doc.content}`)
     .join("\n");
 }
@@ -155,7 +155,7 @@ function findMarkdownTable(content: string, requiredHeaders: string[]): string[]
 describe("runtime docs truth", () => {
   it("uses the canonical MCP server resource kind from the runtime codec", () => {
     const mcpResourceSource = readRepoFile("internal/config/mcp_resource.go");
-    const resourceDoc = readRepoFile("packages/site/content/runtime/core/resources/index.mdx");
+    const resourceDoc = readRepoFile("packages/site/content/docs/resources/index.mdx");
     const kindMatch = mcpResourceSource.match(
       /MCPServerResourceKind\s+resources\.ResourceKind\s*=\s*"([^"]+)"/
     );
@@ -167,10 +167,10 @@ describe("runtime docs truth", () => {
 
   it("documents resource mutation failures with the statuses used by the API error mapper", () => {
     const errorSource = readRepoFile("internal/api/core/errors.go");
-    const resourceDoc = readRepoFile("packages/site/content/runtime/core/resources/index.mdx");
     const resourceStatusMapper = errorSource.match(
       /func StatusForResourceError\(err error\) int \{[\s\S]*?\n\}\n\n\/\//
     )?.[0];
+    const resourceDoc = readRepoFile("packages/site/content/docs/resources/index.mdx");
 
     expect(resourceStatusMapper).toMatch(
       /errors\.Is\(err, resources\.ErrDirectMutationNotAllowed\):\s*return http\.StatusForbidden/
@@ -202,7 +202,7 @@ describe("runtime docs truth", () => {
 
   it("declares the API reference as built from the canonical OpenAPI spec on every site build", () => {
     const content = manualContent();
-    const apiReference = readRepoFile("packages/site/content/runtime/api-reference/index.mdx");
+    const apiReference = readRepoFile("packages/site/content/docs/api/index.mdx");
 
     expect(apiReference).toMatch(/built from\s+`openapi\/compozy\.json`/);
     expect(apiReference).toContain("make codegen-check");
@@ -230,17 +230,17 @@ describe("runtime docs truth", () => {
     const builtinToolIDs = extractGoStringConstants(toolSource, "ToolID");
     const docs = [
       {
-        path: "packages/site/content/runtime/core/memory/system.mdx",
+        path: "packages/site/content/docs/memory/system.mdx",
         headers: ["Capability", "Native tool"],
         nativeCell: 3,
       },
       {
-        path: "packages/site/content/runtime/core/autonomy/notification-cursors.mdx",
+        path: "packages/site/content/docs/autonomy/notification-cursors.mdx",
         headers: ["Native tool", "Purpose"],
         nativeCell: 0,
       },
       {
-        path: "packages/site/content/runtime/core/agents/model-catalog.mdx",
+        path: "packages/site/content/docs/agents/model-catalog.mdx",
         headers: ["Native tool", "Purpose"],
         nativeCell: 0,
       },
@@ -266,10 +266,10 @@ describe("runtime docs truth", () => {
 
   it("teaches the Slice 1 Memory v2 surfaces and not their replaced predecessors", () => {
     const memoryDocs = [
-      "packages/site/content/runtime/core/memory/index.mdx",
-      "packages/site/content/runtime/core/memory/system.mdx",
-      "packages/site/content/runtime/core/memory/scopes.mdx",
-      "packages/site/content/runtime/core/memory/dream.mdx",
+      "packages/site/content/docs/memory/index.mdx",
+      "packages/site/content/docs/memory/system.mdx",
+      "packages/site/content/docs/memory/scopes.mdx",
+      "packages/site/content/docs/memory/dream.mdx",
     ]
       .map(path => readRepoFile(path))
       .join("\n");
@@ -307,9 +307,7 @@ describe("runtime docs truth", () => {
   });
 
   it("documents the Memory policy and background-role keys that the runtime validates", () => {
-    const configDoc = readRepoFile(
-      "packages/site/content/runtime/core/configuration/config-toml.mdx"
-    );
+    const configDoc = readRepoFile("packages/site/content/docs/configuration/config-toml.mdx");
     const configSource = readRepoGoPackage("internal/config");
 
     expect(configSource).toContain("MemoryWorkspaceConfig");
@@ -350,7 +348,7 @@ describe("runtime docs truth", () => {
 
   it("keeps file locations aligned with workspace_id-partitioned forensic ledgers", () => {
     const fileLocations = readRepoFile(
-      "packages/site/content/runtime/core/configuration/file-locations.mdx"
+      "packages/site/content/docs/configuration/file-locations.mdx"
     );
 
     expect(fileLocations).toContain(
@@ -365,43 +363,35 @@ describe("runtime docs truth", () => {
   });
 
   it("keeps the generated memory CLI reference aligned with the Slice 1 verbs", () => {
-    const memoryIndex = readRepoFile(
-      "packages/site/content/runtime/cli-reference/memory/index.mdx"
-    );
-    const memoryShow = readRepoFile("packages/site/content/runtime/cli-reference/memory/show.mdx");
-    const dreamIndex = readRepoFile(
-      "packages/site/content/runtime/cli-reference/memory/dream/index.mdx"
-    );
-    const dreamTrigger = readRepoFile(
-      "packages/site/content/runtime/cli-reference/memory/dream/trigger.mdx"
-    );
+    const memoryIndex = readRepoFile("packages/site/content/docs/cli/memory/index.mdx");
+    const memoryShow = readRepoFile("packages/site/content/docs/cli/memory/show.mdx");
+    const dreamIndex = readRepoFile("packages/site/content/docs/cli/memory/dream/index.mdx");
+    const dreamTrigger = readRepoFile("packages/site/content/docs/cli/memory/dream/trigger.mdx");
 
-    expect(memoryIndex).toContain("[compozy memory show](/runtime/cli-reference/memory/show)");
-    expect(memoryIndex).toContain("[compozy memory dream](/runtime/cli-reference/memory/dream)");
+    expect(memoryIndex).toContain("[compozy memory show](/docs/cli/memory/show)");
+    expect(memoryIndex).toContain("[compozy memory dream](/docs/cli/memory/dream)");
     expect(memoryIndex).not.toContain("[compozy memory read](");
     expect(memoryIndex).not.toContain("[compozy memory consolidate](");
 
     expect(memoryShow).toMatch(/^## compozy memory show$/m);
     expect(memoryShow).toContain("Show one Memory v2 entry");
 
-    expect(dreamIndex).toContain(
-      "[compozy memory dream trigger](/runtime/cli-reference/memory/dream/trigger)"
-    );
+    expect(dreamIndex).toContain("[compozy memory dream trigger](/docs/cli/memory/dream/trigger)");
     expect(dreamIndex).not.toContain("consolidate");
     expect(dreamTrigger).toMatch(/^## compozy memory dream trigger$/m);
     expect(dreamTrigger).toContain("Trigger Memory v2 dreaming");
 
-    const memoryRoot = resolve(siteRoot, "content/runtime/cli-reference/memory");
+    const memoryRoot = resolve(siteRoot, "content/docs/cli/memory");
     for (const removed of ["read.mdx", "consolidate.mdx", "consolidate"]) {
       expect(readdirSync(memoryRoot)).not.toContain(removed);
     }
-    const dreamRoot = resolve(siteRoot, "content/runtime/cli-reference/memory/dream");
+    const dreamRoot = resolve(siteRoot, "content/docs/cli/memory/dream");
     expect(readdirSync(dreamRoot)).toContain("trigger.mdx");
     expect(readdirSync(dreamRoot)).not.toContain("consolidate.mdx");
   });
 
   it("keeps the generated memory API reference aligned with the Slice 1 routes", () => {
-    const apiMemory = readRepoFile("packages/site/content/runtime/api-reference/memory.mdx");
+    const apiMemory = readRepoFile("packages/site/content/docs/api/memory.mdx");
 
     expect(apiMemory).toContain('{"path":"/api/memory/search","method":"post"}');
     expect(apiMemory).toContain('{"path":"/api/memory/dreams/trigger","method":"post"}');
@@ -419,7 +409,7 @@ describe("runtime docs truth", () => {
   });
 
   it("keeps the API reference orientation page pointed at Slice 1 memory verbs", () => {
-    const apiIndex = readRepoFile("packages/site/content/runtime/api-reference/index.mdx");
+    const apiIndex = readRepoFile("packages/site/content/docs/api/index.mdx");
 
     expect(apiIndex).toMatch(
       /show, write, search, and (run )?(?:trigger|dream).*for persistent context/i
@@ -480,6 +470,29 @@ describe("runtime docs truth", () => {
       "compozy__memory_delete",
     ]) {
       expect(ids.has(removed)).toBe(false);
+    }
+  });
+
+  it("ships the exact loop.yaml files inside the Loop example pages", () => {
+    // Examples promise "copy it as-is — it runs against a current release", so the fenced artifact
+    // is a claim about the repository, not an illustration. Drift here is a broken example.
+    const loopExamples = [
+      { page: "docs/examples/review-and-fix-loop.mdx", loop: "review-and-fix" },
+      { page: "docs/examples/software-delivery-loop.mdx", loop: "software-delivery" },
+    ];
+
+    for (const { page, loop } of loopExamples) {
+      const relativePath = `extensions/dev-cycle/loops/${loop}/loop.yaml`;
+      const shipped = readRepoFile(relativePath);
+      const pageContent = readFileSync(resolve(contentRoot, page), "utf8");
+      const fence = pageContent.match(
+        new RegExp(
+          `\`\`\`yaml title="${relativePath.replaceAll("/", "\\/").replaceAll(".", "\\.")}"\\n([\\s\\S]*?)\\n\`\`\``
+        )
+      );
+
+      expect(fence, `${page} must fence ${relativePath}`).not.toBeNull();
+      expect(`${fence?.[1] ?? ""}\n`).toBe(shipped);
     }
   });
 

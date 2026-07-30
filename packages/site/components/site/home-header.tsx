@@ -10,14 +10,7 @@ import type { ComponentProps } from "react";
 
 import { GitHubStarButton } from "@/components/site/github-star-button";
 import { HeaderSearchInput } from "@/components/site/header-search-input";
-
-const primaryLinks = [
-  { href: "/", label: "Home" },
-  { href: "/runtime", label: "Runtime" },
-  { href: "/protocol", label: "Compozy Network" },
-  { href: "/blog", label: "Blog" },
-  { href: "/changelog", label: "Changelog" },
-];
+import { SITE_NAV_LINKS } from "@/lib/site-nav";
 
 function isActive(pathname: string, href: string) {
   if (href === "/") {
@@ -73,7 +66,7 @@ export function HomeHeader(props: ComponentProps<"header">) {
         </Link>
 
         <nav className="hidden items-center gap-1 md:flex">
-          {primaryLinks.map(link => (
+          {SITE_NAV_LINKS.map(link => (
             <HeaderLink key={link.href} href={link.href} label={link.label} pathname={pathname} />
           ))}
         </nav>
@@ -124,7 +117,7 @@ export function HomeHeader(props: ComponentProps<"header">) {
 
       <div className="border-t border-line md:hidden">
         <nav className="mx-auto flex w-full max-w-site-layout-width items-center gap-1 overflow-x-auto px-4 py-2">
-          {primaryLinks.map(link => (
+          {SITE_NAV_LINKS.map(link => (
             <HeaderLink key={link.href} href={link.href} label={link.label} pathname={pathname} />
           ))}
         </nav>

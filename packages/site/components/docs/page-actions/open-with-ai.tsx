@@ -5,9 +5,10 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@compozy/ui";
-import { ExternalLink, Sparkles } from "lucide-react";
+import { ChevronDown, ExternalLink, Sparkles } from "lucide-react";
 
 export interface OpenWithAIProps {
   pageUrl: string;
@@ -25,13 +26,15 @@ export function OpenWithAI({ pageUrl }: OpenWithAIProps) {
     <DropdownMenu>
       <DropdownMenuTrigger
         render={
-          <Button size="sm" variant="outline">
+          <Button className="site-doc-page-action h-search" size="sm" variant="outline">
             <Sparkles aria-hidden />
             Open with AI
+            <ChevronDown aria-hidden className="size-3!" />
           </Button>
         }
       />
       <DropdownMenuContent align="end" sideOffset={6}>
+        <DropdownMenuLabel>Ask about this page</DropdownMenuLabel>
         {targets.map(target => (
           <DropdownMenuItem
             key={target.id}

@@ -1,0 +1,44 @@
+---
+title: "compozy layout-profile delete"
+description: "Delete one saved layout"
+---
+
+## compozy layout-profile delete
+
+Delete one saved layout
+
+```
+compozy layout-profile delete <profile-id> [flags]
+```
+
+### Options
+
+```
+      --expected-version int   Version this delete removes
+  -h, --help                   help for delete
+      --workspace string       Override workspace (ID, name, or path)
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy layout-profile delete <profile-id> -o json
+```

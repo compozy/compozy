@@ -3,7 +3,7 @@ set -euo pipefail
 
 repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 root_guide="$repo_root/MIGRATION_GUIDE.md"
-site_guide="$repo_root/packages/site/content/runtime/migration/index.mdx"
+site_guide="$repo_root/packages/site/content/docs/migration/index.mdx"
 scratch="$(mktemp -d "${TMPDIR:-/tmp}/compozy-migration-guide.XXXXXX")"
 trap 'rm -rf -- "$scratch"' EXIT
 
@@ -70,7 +70,7 @@ done
 
 if ! diff -u \
   --label MIGRATION_GUIDE.md \
-  --label packages/site/content/runtime/migration/index.mdx \
+  --label packages/site/content/docs/migration/index.mdx \
   "$scratch/root.md" \
   "$scratch/site.md"; then
   echo "migration-guide-check: normalized guide content differs" >&2

@@ -65,6 +65,6 @@ describe("ChangelogTocRail", () => {
       name: "Install instructions →",
     });
 
-    expect(link.getAttribute("href")).toBe("/runtime/core/getting-started/installation");
+    expect(link.getAttribute("href")).toBe("/docs/getting-started/installation");
   });
 });

@@ -63,7 +63,7 @@ const mocks = vi.hoisted(() => {
 });
 
 vi.mock("next/navigation", () => ({
-  usePathname: () => "/runtime/cli-reference/compozy/",
+  usePathname: () => "/docs/cli/compozy/",
 }));
 
 vi.mock("next/link", () => ({
@@ -83,7 +83,6 @@ vi.mock("fumadocs-ui/layouts/notebook/slots/sidebar", () => ({
 }));
 
 vi.mock("fumadocs-ui/layouts/shared", () => ({
-  isLayoutTabActive: (tab: TabItem, pathname: string) => pathname.startsWith(tab.url),
   LinkItem: ({ children, item, ...props }: { children?: ReactNode; item: NavItem }) => (
     <a href={item.url} {...props}>
       {children ?? item.label}
@@ -129,8 +128,8 @@ describe("DocsHeader", () => {
     mocks.state = {
       isNavTransparent: true,
       navItems: [
-        { text: "Runtime", type: "main", url: "/runtime/" },
-        { text: "Compozy Network", type: "main", url: "/protocol/" },
+        { text: "Runtime", type: "main", url: "/docs/" },
+        { text: "Compozy Network", type: "main", url: "/docs/network/protocol/" },
         { label: "GitHub", type: "icon", url: "https://github.com/compozy", icon: "GH" },
         { type: "menu", text: "Ignored menu" },
       ],
@@ -139,9 +138,9 @@ describe("DocsHeader", () => {
         sidebar: { collapsible: true },
         tabMode: "navbar",
         tabs: [
-          { title: "Runtime", url: "/runtime/" },
-          { title: "CLI Reference", url: "/runtime/cli-reference/" },
-          { title: "Draft", url: "/runtime/draft/", unlisted: true },
+          { title: "Runtime", url: "/docs/" },
+          { title: "CLI Reference", url: "/docs/cli/" },
+          { title: "Draft", url: "/docs/draft/", unlisted: true },
         ],
       },
       slots: {
@@ -166,10 +165,10 @@ describe("DocsHeader", () => {
     expect(
       screen
         .getAllByRole("link", { name: "Runtime" })
-        .some(link => link.getAttribute("href") === "/runtime/")
+        .some(link => link.getAttribute("href") === "/docs/")
     ).toBe(true);
     expect(screen.getByRole("link", { name: "Compozy Network" }).getAttribute("href")).toBe(
-      "/protocol/"
+      "/docs/network/protocol/"
     );
     expect(screen.queryByText("Ignored menu")).toBeNull();
     expect(screen.getByRole("link", { name: "GitHub" }).getAttribute("href")).toBe(
@@ -180,37 +179,12 @@ describe("DocsHeader", () => {
     expect(screen.getByRole("link", { name: "Compozy docs home" }).getAttribute("href")).toBe("/");
   });
 
-  it("marks the active layout tab and hides inactive unlisted tabs", () => {
-    render(<DocsHeader />);
-
-    const runtimeTab = screen
-      .getAllByRole("link", { name: "Runtime" })
-      .find(link => link.getAttribute("class")?.includes("border-b-2"));
-
-    expect(runtimeTab?.getAttribute("class")).not.toContain("text-fd-primary");
-    expect(screen.getByRole("link", { name: "CLI Reference" }).getAttribute("class")).toContain(
-      "text-fd-primary"
-    );
-    expect(
-      screen.getByRole("link", { name: "Draft", hidden: true }).getAttribute("class")
-    ).toContain("hidden");
-  });
-
-  it("omits layout tabs when the notebook layout is not in navbar mode", () => {
-    const state = mocks.state;
-    if (!state) throw new Error("missing docs header mock state");
-
-    mocks.state = {
-      ...state,
-      props: {
-        ...state.props,
-        tabMode: "sidebar",
-      },
-    };
-
+  it("never renders a sub-tab bar, even when the layout still provides tabs (D3)", () => {
     render(<DocsHeader />);
 
     expect(screen.queryByRole("link", { name: "CLI Reference" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Draft", hidden: true })).toBeNull();
+    expect(document.querySelector("[data-header-tabs]")).toBeNull();
   });
 
   it("keeps fallback nav keys unique when custom items lack identifiers", () => {

@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 const siteRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
-const runtimeRoot = resolve(siteRoot, "content/runtime");
+const runtimeRoot = resolve(siteRoot, "content/docs");
 
 function readDoc(...parts: string[]): string {
   return readFileSync(resolve(runtimeRoot, ...parts), "utf8");
@@ -28,7 +28,7 @@ function expectExcludesAll(content: string, values: string[]): void {
 
 describe("authored context runtime docs", () => {
   it("documents SOUL.md authoring boundary, lifecycle, and managed surfaces", () => {
-    const soul = readDoc("core/agents/soul.mdx");
+    const soul = readDoc("agents/soul.mdx");
 
     expectIncludesAll(soul, [
       "`SOUL.md`",
@@ -52,7 +52,7 @@ describe("authored context runtime docs", () => {
   });
 
   it("documents HEARTBEAT.md as advisory wake policy with no queue or task ownership", () => {
-    const heartbeat = readDoc("core/agents/heartbeat.mdx");
+    const heartbeat = readDoc("agents/heartbeat.mdx");
 
     expectIncludesAll(heartbeat, [
       "`HEARTBEAT.md`",
@@ -81,16 +81,16 @@ describe("authored context runtime docs", () => {
   });
 
   it("registers SOUL.md and HEARTBEAT.md pages in agents navigation", () => {
-    const meta = readJSON<{ pages: string[] }>("core/agents/meta.json");
+    const meta = readJSON<{ pages: string[] }>("agents/meta.json");
     expect(meta.pages).toContain("soul");
     expect(meta.pages).toContain("heartbeat");
-    expect(existsSync(resolve(runtimeRoot, "core/agents/soul.mdx"))).toBe(true);
-    expect(existsSync(resolve(runtimeRoot, "core/agents/heartbeat.mdx"))).toBe(true);
+    expect(existsSync(resolve(runtimeRoot, "agents/soul.mdx"))).toBe(true);
+    expect(existsSync(resolve(runtimeRoot, "agents/heartbeat.mdx"))).toBe(true);
   });
 
   it("documents session health as metadata-only with deterministic wake reasons", () => {
-    const health = readDoc("core/sessions/health.mdx");
-    const sessionsMeta = readJSON<{ pages: string[] }>("core/sessions/meta.json");
+    const health = readDoc("sessions/health.mdx");
+    const sessionsMeta = readJSON<{ pages: string[] }>("sessions/meta.json");
 
     expect(sessionsMeta.pages).toContain("health");
     expectIncludesAll(health, [
@@ -116,7 +116,7 @@ describe("authored context runtime docs", () => {
   });
 
   it("documents [agents.soul] and [agents.heartbeat] config sections with defaults", () => {
-    const config = readDoc("core/configuration/config-toml.mdx");
+    const config = readDoc("configuration/config-toml.mdx");
 
     expectIncludesAll(config, [
       "`[agents.soul]`",
@@ -136,7 +136,7 @@ describe("authored context runtime docs", () => {
   });
 
   it("documents authored-context Host API grants, hooks, and native tools in extensions", () => {
-    const develop = readDoc("core/extensions/develop.mdx");
+    const develop = readDoc("extensions/develop.mdx");
 
     expectIncludesAll(develop, [
       "agents/soul/get",
@@ -169,7 +169,7 @@ describe("authored context runtime docs", () => {
   });
 
   it("documents Compozy Network greet as independent from authored context", () => {
-    const protocol = readDoc("core/network/protocol.mdx");
+    const protocol = readDoc("network/protocol-model.mdx");
 
     expectIncludesAll(protocol, [
       "Network participation is independent from authored context",
@@ -182,27 +182,27 @@ describe("authored context runtime docs", () => {
 
   it("ships generated CLI references for soul, heartbeat, and session health/status/inspect", () => {
     const required = [
-      "cli-reference/agent/soul/index.mdx",
-      "cli-reference/agent/soul/inspect.mdx",
-      "cli-reference/agent/soul/validate.mdx",
-      "cli-reference/agent/soul/write.mdx",
-      "cli-reference/agent/soul/delete.mdx",
-      "cli-reference/agent/soul/history.mdx",
-      "cli-reference/agent/soul/rollback.mdx",
-      "cli-reference/agent/heartbeat/index.mdx",
-      "cli-reference/agent/heartbeat/inspect.mdx",
-      "cli-reference/agent/heartbeat/validate.mdx",
-      "cli-reference/agent/heartbeat/write.mdx",
-      "cli-reference/agent/heartbeat/delete.mdx",
-      "cli-reference/agent/heartbeat/history.mdx",
-      "cli-reference/agent/heartbeat/rollback.mdx",
-      "cli-reference/agent/heartbeat/status.mdx",
-      "cli-reference/agent/heartbeat/wake.mdx",
-      "cli-reference/session/soul/index.mdx",
-      "cli-reference/session/soul/refresh.mdx",
-      "cli-reference/session/health.mdx",
-      "cli-reference/session/status.mdx",
-      "cli-reference/session/inspect.mdx",
+      "cli/agent/soul/index.mdx",
+      "cli/agent/soul/inspect.mdx",
+      "cli/agent/soul/validate.mdx",
+      "cli/agent/soul/write.mdx",
+      "cli/agent/soul/delete.mdx",
+      "cli/agent/soul/history.mdx",
+      "cli/agent/soul/rollback.mdx",
+      "cli/agent/heartbeat/index.mdx",
+      "cli/agent/heartbeat/inspect.mdx",
+      "cli/agent/heartbeat/validate.mdx",
+      "cli/agent/heartbeat/write.mdx",
+      "cli/agent/heartbeat/delete.mdx",
+      "cli/agent/heartbeat/history.mdx",
+      "cli/agent/heartbeat/rollback.mdx",
+      "cli/agent/heartbeat/status.mdx",
+      "cli/agent/heartbeat/wake.mdx",
+      "cli/session/soul/index.mdx",
+      "cli/session/soul/refresh.mdx",
+      "cli/session/health.mdx",
+      "cli/session/status.mdx",
+      "cli/session/inspect.mdx",
     ];
     for (const page of required) {
       expect(existsSync(resolve(runtimeRoot, page))).toBe(true);
@@ -210,10 +210,10 @@ describe("authored context runtime docs", () => {
   });
 
   it("does not advertise an compozy session heartbeat command in CLI references", () => {
-    expect(existsSync(resolve(runtimeRoot, "cli-reference/session/heartbeat"))).toBe(false);
-    expect(existsSync(resolve(runtimeRoot, "cli-reference/session/heartbeat.mdx"))).toBe(false);
+    expect(existsSync(resolve(runtimeRoot, "cli/session/heartbeat"))).toBe(false);
+    expect(existsSync(resolve(runtimeRoot, "cli/session/heartbeat.mdx"))).toBe(false);
 
-    const sessionIndex = readDoc("cli-reference/session/index.mdx");
+    const sessionIndex = readDoc("cli/session/index.mdx");
     expect(sessionIndex).not.toContain("compozy session heartbeat");
   });
 });

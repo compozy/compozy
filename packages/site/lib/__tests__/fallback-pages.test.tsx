@@ -28,11 +28,9 @@ describe("fallback pages", () => {
       screen.getByRole("heading", { name: "This route is not in the runtime." })
     ).toBeDefined();
     expect(screen.getByText(/not part of the published Compozy site/)).toBeDefined();
-    expect(screen.getByRole("link", { name: "Runtime docs" }).getAttribute("href")).toBe(
-      "/runtime/"
-    );
+    expect(screen.getByRole("link", { name: "Runtime docs" }).getAttribute("href")).toBe("/docs/");
     expect(screen.getByRole("link", { name: "Network protocol" }).getAttribute("href")).toBe(
-      "/protocol/"
+      "/docs/network/protocol/"
     );
   });
 

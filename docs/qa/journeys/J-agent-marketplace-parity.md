@@ -16,7 +16,7 @@ flowchart TD
   D --> E[compozy mcp install <entry> --scope --set/--vault-ref -o json]
   E -->|missing required value / unresolvable ref| E2[Deterministic rejection; fresh reads prove nothing was written — born-valid layer 1]
   E --> F[Structured result: item + next_step; scope-qualified refs only; no plaintext anywhere]
-  F -->|next_step authorize| G[compozy mcp authorize — J-mcp-authorize-repair via CLI lane]
+  F -->|next_step authorize| G[compozy mcp auth login — J-mcp-authorize-repair via CLI lane]
   B --> G2[compozy bundle preview → activate → update]
   G2 --> G3[CLI, HTTP, and UDS agree; preview writes nothing; update clears real spec_drift]
   B --> H[compozy marketplace refresh -o json: per-kind outcomes; --kind bundle rejected]
@@ -48,7 +48,7 @@ journey:
       origin: direct
     - url: compozy__marketplace_search (native tool)
       origin: direct
-    - url: compozy.com/runtime/core/marketplace
+    - url: compozy.com/docs/marketplace/
       origin: external-share
   actions:
     - step: 1

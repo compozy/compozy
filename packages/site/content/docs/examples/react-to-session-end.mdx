@@ -1,0 +1,119 @@
+---
+title: React to session end
+description: Watch for sessions that stop with an error and have an agent summarize each one — an event-driven trigger with no clock and no inbound request.
+maturity: shipped
+---
+
+## What you build
+
+A standing watcher over your own runtime. When a session stops with an error, a summarizing agent
+picks it up, reads what happened, and writes it down — so the failure is explained by the time
+anyone looks.
+
+Nothing external is involved. The session lifecycle observer publishes `session.stopped`, the
+trigger matches it, and a run starts. This is the third way work begins in Compozy, alongside a
+clock (jobs) and an inbound request (webhooks).
+
+Use it when you want a reaction attached to something the runtime already knows, rather than a poll.
+
+## The artifact
+
+```toml title="config.toml"
+[[automation.triggers]]
+scope = "workspace"
+workspace = "/Users/you/src/checkout-api"
+name = "summarize-failed-sessions"
+event = "session.stopped"
+agent = "summarizer"
+prompt = "Summarize session {{ index .Data \"session_id\" }}. Stop reason: {{ index .Data \"stop_reason\" }}."
+filter = { "data.stop_reason" = "error" }
+retry = { strategy = "backoff", max_retries = 2, base_delay = "5s" }
+fire_limit = { max = 4, window = "1h" }
+```
+
+The filter is what keeps this quiet. Without it every session that stops — including every clean
+one — would start a summarizing run.
+
+## Run it
+
+```bash
+compozy automation triggers create \
+  --name summarize-failed-sessions \
+  --scope workspace \
+  --workspace /Users/you/src/checkout-api \
+  --event session.stopped \
+  --agent summarizer \
+  --prompt 'Summarize session {{ index .Data "session_id" }}. Stop reason: {{ index .Data "stop_reason" }}.' \
+  --filter data.stop_reason=error \
+  --retry backoff:2:5s
+```
+
+Then prove it end to end by making a session fail, and read what the trigger produced:
+
+```bash
+compozy automation triggers -o json
+compozy automation runs -o json
+```
+
+## How it works
+
+<Workflow>
+  <WorkflowStep title="The observer publishes the activation">
+    The session lifecycle observer emits `session.stopped` with the session's own data. Alongside
+    it the runtime publishes `session.created` and `memory.consolidated`; hook completions arrive
+    as `hook.<hook_name>.completed`, and extensions publish their own `ext.*` families.
+  </WorkflowStep>
+  <WorkflowStep title="Five things must line up before it fires">
+    The trigger is enabled, its event equals the activation event, its scope matches, a workspace
+    trigger matches the same workspace id, and every filter entry matches exactly. Any mismatch and
+    nothing happens — no partial run, no log noise.
+  </WorkflowStep>
+  <WorkflowStep title="Filters read the envelope, not the transcript">
+    `kind`, `scope`, `workspace_id`, `source`, and `data.<path>` are the available filter paths, and
+    values are compared as exact strings. `data.stop_reason = "error"` is what separates a failure
+    from an ordinary stop.
+  </WorkflowStep>
+  <WorkflowStep title="The prompt is a Go template over that envelope">
+    `.Kind`, `.Scope`, `.WorkspaceID`, `.Source`, and `.Data` are in scope. Use `index` for dynamic
+    keys, as the prompt above does for `session_id` and `stop_reason`. An invalid template fails
+    validation when the trigger is created or the config is loaded — never silently at fire time.
+  </WorkflowStep>
+  <WorkflowStep title="Fire limits stop a feedback loop">
+    A summarizing run is itself a session, and it will stop too. `fire_limit` caps this trigger at
+    4 runs per hour, and the `data.stop_reason = "error"` filter means a clean summarizing session
+    never re-activates the trigger that started it.
+  </WorkflowStep>
+</Workflow>
+
+## Next steps
+
+<GuideGrid>
+  <GuideCard
+    href="/docs/automation/triggers"
+    label="Concept"
+    title="Triggers and filters"
+    description="Every event family, the full filter path list, prompt templating, and how activations are matched."
+    meta="Automation"
+  />
+  <GuideCard
+    href="/docs/sessions/events"
+    label="Concept"
+    title="Session events"
+    description="What the lifecycle observer publishes, and the durable event history behind every session."
+    meta="Sessions"
+  />
+  <GuideCard
+    href="/docs/examples/webhook-to-agent-run"
+    label="Example"
+    title="Webhook to agent run"
+    description="The same trigger machinery activated by a signed inbound request from an external system."
+    meta="Signed webhook"
+  />
+  <GuideCard
+    href="/docs/hooks/event-catalog"
+    label="Reference"
+    title="Hook event catalog"
+    description="The named hook events whose completions can activate a trigger as hook.<name>.completed."
+    meta="Hooks"
+  />
+</GuideGrid>

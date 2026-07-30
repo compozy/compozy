@@ -1,0 +1,62 @@
+---
+title: "compozy memory write"
+description: "Create a Memory v2 entry through the controller"
+---
+
+## compozy memory write
+
+Create a Memory v2 entry through the controller
+
+```
+compozy memory write --type <type> --name <name> --content <@file|text> [flags]
+```
+
+### Examples
+
+```
+  # Write workspace-scoped project memory from a file
+  compozy memory write --scope workspace --type project --name "Runtime docs" --content @runtime.md
+
+  # Write agent-global feedback
+  compozy memory write --scope agent --agent reviewer --agent-tier global \
+    --type feedback --name "Review tone" --content @feedback.md
+```
+
+### Options
+
+```
+      --agent string         Agent name for agent-scoped memory
+      --agent-tier string    Agent memory tier: workspace or global
+      --content string       Memory content; use @file to read from disk or - for stdin
+      --description string   One-line durable memory description
+      --dry-run              Ask the controller for a decision without applying it
+  -h, --help                 help for write
+      --name string          Memory display name
+      --scope string         Memory scope: global, workspace, or agent
+      --type string          Memory type: user, feedback, project, or reference
+      --workspace string     Override workspace binding (ID, name, or path)
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy memory write --type <type> --name <name> --content <@file|text> -o json
+```

@@ -21,7 +21,7 @@ type Bridge = {
   logo: ReactNode;
 };
 
-// Source of record: content/runtime/core/bridges/index.mdx and extensions/bridges/. All eight
+// Source of record: content/docs/bridges/index.mdx and extensions/bridges/. All eight
 // providers exist in-tree; none is embedded in the released binary, which is what the caveat
 // under the grid states. Keep this list and that sentence aligned with the docs page.
 const BRIDGES: Bridge[] = [
@@ -105,14 +105,14 @@ export function BridgesSection() {
 
       <div className="mt-5 flex flex-col gap-3 sm:flex-row">
         <Link
-          href="/runtime/core/bridges/setup"
+          href="/docs/bridges/setup"
           className="inline-flex items-center gap-2 rounded-lg border border-accent px-4 py-2 text-small-body font-medium text-accent transition-colors hover:bg-accent-tint"
         >
           Set up a bridge
           <ArrowRight aria-hidden="true" className="size-4" />
         </Link>
         <Link
-          href="/runtime/core/bridges/adding-a-bridge"
+          href="/docs/bridges/adding-a-bridge"
           className="inline-flex items-center gap-2 rounded-lg border border-line px-4 py-2 text-small-body font-medium text-fg transition-colors hover:border-accent/35 hover:text-accent"
         >
           Build a bridge adapter

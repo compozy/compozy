@@ -1,0 +1,40 @@
+---
+title: "compozy memory provider"
+description: "Operate Memory v2 providers"
+---
+
+## compozy memory provider
+
+Operate Memory v2 providers
+
+### Options
+
+```
+  -h, --help   help for provider
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+This command displays human-readable help and its subcommand list. The inherited `-o, --output` and `--json` flags do not serialize help output.
+
+| Format  | Output                   |
+| ------- | ------------------------ |
+| `human` | Help and subcommand list |
+| `json`  | Not emitted for help     |
+| `jsonl` | Not emitted for help     |
+| `toon`  | Not emitted for help     |
+
+## Subcommands
+
+| Command                                                              | Description                              |
+| -------------------------------------------------------------------- | ---------------------------------------- |
+| [compozy memory provider disable](/docs/cli/memory/provider/disable) | Disable one Memory v2 provider           |
+| [compozy memory provider enable](/docs/cli/memory/provider/enable)   | Enable and select one Memory v2 provider |
+| [compozy memory provider list](/docs/cli/memory/provider/list)       | List registered Memory v2 providers      |

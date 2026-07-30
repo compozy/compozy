@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>/docs sidebar — compozy.com restructure · Compozy</title>
+<link rel="stylesheet" href="site.css" />
+<script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+
+<!-- D1 top nav: Home · Docs · Marketplace · Blog · Changelog -->
+<div id="cz-topnav"></div>
+
+<div class="dsh-body" data-od-id="docs-shell">
+
+  <!-- §5.2 — one tree, 8 journey-ordered groups (D14). Every row maps to a
+       real folder/page; folder open state persists in localStorage. -->
+  <nav class="dsh-sidebar" id="cz-sidebar" aria-label="Docs" data-od-id="docs-sidebar"></nav>
+
+  <main class="dsh-article" data-od-id="docs-article">
+    <div class="dsh-article__inner">
+
+      <div class="mh-context" data-od-id="masthead-context">
+        <nav class="mh-crumbs" aria-label="Breadcrumb">
+          <span class="mh-crumbs__product">CompozyOS</span>
+          <span class="mh-crumbs__sep"></span>
+          <a href="#">Automation</a>
+          <span class="mh-crumbs__sep"></span>
+          <span class="mh-crumbs__leaf">Loops</span>
+        </nav>
+        <div class="mh-actions">
+          <button class="act-btn" type="button" data-copy="curl https://compozy.com/llms.mdx/docs/loops">
+            <svg class="ic" viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy as Markdown</button>
+          <button class="act-btn" type="button" aria-haspopup="menu" aria-expanded="false">
+            <svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2"/></svg>Open with AI
+            <svg class="ic ic--xs" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></button>
+          <button class="act-btn act-btn--icon" type="button" aria-label="More actions">
+            <svg class="ic" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/></svg></button>
+        </div>
+      </div>
+
+      <h1 class="mh-title" data-od-id="masthead-title">Loops</h1>
+      <p class="mh-lead">Named, goal-seeking, self-correcting units of work the daemon owns, runs unattended, and always stops cleanly with a named outcome.</p>
+
+      <div class="mh-meta" data-od-id="masthead-meta">
+        <span class="mh-meta__item"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"/></svg>For <strong>people running durable agent work</strong></span>
+        <span class="mh-meta__item"><svg class="ic" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V2H6.5A2.5 2.5 0 0 0 4 4.5v15Z"/></svg><strong>14 pages</strong> in this section</span>
+        <span class="mh-meta__item"><svg class="ic" viewBox="0 0 24 24"><path d="m8 6-6 6 6 6M16 6l6 6-6 6"/></svg><code>compozy.loop/v1</code></span>
+      </div>
+
+      <div class="doc-body">
+        <h2 id="contract">The contract: goal, verify, stop</h2>
+        <p>A Loop is not a script and not a chat session. What makes it a Loop is a <strong>contract</strong> — a goal, a definition of done, a stop condition, and an iteration cap the daemon enforces. The runtime keeps every round durable and inspectable, so a Loop that ran overnight reads the same way in the morning: which nodes ran, what each produced, and why it stopped.</p>
+
+        <h2 id="two-nouns">Two nouns, nothing else</h2>
+        <p>The workspace surfaces exactly two things under one <strong>Loops</strong> umbrella: the <a href="#">catalog</a> of definitions and the executions observed on the run page. Inline code reads as a chip: <code>action</code>, <code>control</code>, <code>source</code>.</p>
+        <div class="doc-pre">
+          <div class="doc-pre__head"><svg class="ic ic--xs" viewBox="0 0 24 24"><path d="m8 6-6 6 6 6M16 6l6 6-6 6"/></svg>shell<button class="act-btn" type="button" data-copy="curl https://compozy.com/llms.mdx/docs/loops"><svg class="ic ic--xs" viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy</button></div>
+          <pre><span class="tok-c"># fetch this page as markdown (the same URL "Copy as Markdown" uses)</span>
+curl https://compozy.com/llms.mdx/docs/loops</pre>
+        </div>
+
+        <h2 id="in-this-section">In this section</h2>
+        <div class="doc-cardlist">
+          <a class="doc-card" href="#"><span class="doc-card__title"><svg class="ic" viewBox="0 0 24 24"><path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg>Running and observing</span><span class="doc-card__desc">Start a Loop, follow its rounds, and read the outcome the daemon records.</span></a>
+          <a class="doc-card" href="site-example-page.html"><span class="doc-card__title"><svg class="ic" viewBox="0 0 24 24"><path d="M10 2v7.5L4.5 20a1 1 0 0 0 .9 1.5h13.2a1 1 0 0 0 .9-1.5L14 9.5V2"/><path d="M8.5 2h7"/></svg>Review-and-fix loop</span><span class="doc-card__desc">A runnable example: review a task with an agent and remediate every finding.</span></a>
+        </div>
+      </div>
+
+      <div class="doc-pager" data-od-id="docs-pager">
+        <a href="#"><span class="doc-pager__dir">Previous</span><span class="doc-pager__title">Automation</span></a>
+        <a href="#" data-dir="next"><span class="doc-pager__dir">Next</span><span class="doc-pager__title">Catalog</span></a>
+      </div>
+
+    </div>
+  </main>
+
+  <aside class="dsh-toc" aria-label="On this page" data-od-id="docs-toc">
+    <p class="toc-label">On this page</p>
+    <nav class="toc-list">
+      <a href="#contract" data-active="true">The contract: goal, verify, stop</a>
+      <a href="#two-nouns">Two nouns, nothing else</a>
+      <a href="#in-this-section">In this section</a>
+    </nav>
+  </aside>
+
+</div>
+
+<script src="site.js"></script>
+<script>
+  czBoot({
+    nav: "docs",
+    wide: true,
+    sidebar: {
+      active: "loops",
+      open: ["loops", "network"]
+    }
+  });
+</script>
+</body>
+</html>

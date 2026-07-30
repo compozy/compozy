@@ -20,7 +20,12 @@ export function ViewOptions({ markdownUrl, githubUrl }: ViewOptionsProps) {
     <DropdownMenu>
       <DropdownMenuTrigger
         render={
-          <Button aria-label="Page options" size="icon-sm" variant="outline">
+          <Button
+            aria-label="Page options"
+            className="site-doc-page-action site-doc-page-action--icon h-search w-[length:var(--height-search)]!"
+            size="icon-sm"
+            variant="outline"
+          >
             <MoreHorizontal aria-hidden />
           </Button>
         }

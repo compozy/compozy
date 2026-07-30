@@ -1,0 +1,166 @@
+---
+title: Webhook to agent run
+description: Turn a signed HTTP request from CI into an agent run — the trigger, the HMAC signature calculated end to end, and the filters that decide when it fires.
+maturity: shipped
+---
+
+## What you build
+
+An endpoint your CI can post to that starts an agent run. A deploy finishes, CI posts a small JSON
+body, and an agent picks the work up with the commit and branch already in its prompt.
+
+The endpoint is not open. Every delivery carries an HMAC-SHA256 signature over the timestamp and
+raw body, must arrive inside a 5-minute freshness window, and must bring a delivery id that cannot
+be replayed while that window is open. Requests that fail any of those are rejected before an agent
+is ever started.
+
+Use it when an external system already knows something happened and you want Compozy to act on it.
+
+## The artifact
+
+The config-backed form defines the trigger that owns the endpoint.
+
+```toml title="config.toml"
+[[automation.triggers]]
+scope = "workspace"
+workspace = "/Users/you/src/checkout-api"
+name = "deploy-webhook"
+event = "webhook"
+endpoint_slug = "deploy"
+webhook_secret_ref = "env:COMPOZY_DEPLOY_WEBHOOK_SECRET"
+agent = "deployer"
+prompt = "Validate deployment {{ index .Data \"sha\" }} on {{ index .Data \"branch\" }}."
+filter = { "data.action" = "deploy", "data.branch" = "main" }
+retry = { strategy = "backoff", max_retries = 2, base_delay = "5s" }
+fire_limit = { max = 6, window = "1h" }
+```
+
+## Run it
+
+Before creating the trigger, make sure `deployer` is an effective agent definition for this workspace
+and its provider is configured for the daemon. A trigger stores the agent name, then the dispatcher
+resolves it when a delivery creates a session:
+
+```bash
+compozy agent info deployer --workspace /Users/you/src/checkout-api
+```
+
+For a custom automation agent, create a workspace-local or global definition with a configured provider
+before enabling the trigger. See [Agent definitions](/docs/agents/definitions) for the resolution cascade.
+
+Pass the secret as a write-only value when creating a dynamic trigger. The CLI stores it in the
+Compozy-managed automation vault; it never returns the value. The create response contains the generated
+trigger, workspace, endpoint-slug, and webhook IDs. This example uses `jq` to build the delivery URL from
+those machine-readable fields:
+
+```bash
+export COMPOZY_DEPLOY_WEBHOOK_SECRET="$(openssl rand -hex 32)"
+
+trigger="$(
+  compozy automation triggers create \
+  --name deploy-webhook \
+  --scope workspace \
+  --workspace /Users/you/src/checkout-api \
+  --event webhook \
+  --endpoint-slug deploy \
+  --webhook-secret-value "$COMPOZY_DEPLOY_WEBHOOK_SECRET" \
+  --agent deployer \
+  --prompt 'Validate deployment {{ index .Data "sha" }} on {{ index .Data "branch" }}.' \
+  --filter data.action=deploy,data.branch=main \
+  --retry backoff:2:5s \
+  -o json
+)"
+trigger_id="$(printf '%s' "$trigger" | jq -er '.id')"
+workspace_id="$(printf '%s' "$trigger" | jq -er '.workspace_id')"
+endpoint_slug="$(printf '%s' "$trigger" | jq -er '.endpoint_slug')"
+webhook_id="$(printf '%s' "$trigger" | jq -er '.webhook_id')"
+webhook_url="http://localhost:2123/api/webhooks/workspaces/${workspace_id}/${endpoint_slug}--${webhook_id}"
+
+# inspect the created trigger or save webhook_url in CI secret storage
+compozy automation triggers get "$trigger_id" -o json
+```
+
+Post a signed delivery after the setup block creates `webhook_url`:
+
+```bash title="post a signed delivery"
+body='{"action":"deploy","branch":"main","repository":"checkout-api","sha":"abc123"}'
+timestamp="$(date -u +%s)"
+signature="sha256=$(printf '%s.%s' "$timestamp" "$body" \
+  | openssl dgst -sha256 -hmac "$COMPOZY_DEPLOY_WEBHOOK_SECRET" -hex \
+  | awk '{print $2}')"
+
+curl -sS -X POST "$webhook_url" \
+  -H "Content-Type: application/json" \
+  -H "X-Compozy-Webhook-Timestamp: $timestamp" \
+  -H "X-Compozy-Webhook-Signature: $signature" \
+  -H "X-Compozy-Webhook-Delivery-ID: deploy-$timestamp" \
+  --data "$body"
+```
+
+## How it works
+
+<Workflow>
+  <WorkflowStep title="The signature message is timestamp, dot, raw body">
+    `<unix_timestamp>.<raw_request_body>`, HMAC-SHA256 with the trigger's secret, hex-encoded, sent
+    as `sha256=…`. Sign the raw bytes you actually send — re-serializing the JSON after signing
+    changes the digest and the delivery is rejected.
+  </WorkflowStep>
+  <WorkflowStep title="Freshness and replay are separate checks">
+    The timestamp must fall inside a 5-minute window in either direction, and
+    `X-Compozy-Webhook-Delivery-ID` must not have been seen while that window is open. A retrying
+    CI job that reuses its delivery id is deduplicated rather than run twice.
+  </WorkflowStep>
+  <WorkflowStep title="The body becomes `.Data`">
+    A JSON object's fields are exposed under `.Data` for both filters and prompt templates, plus
+    metadata keys `endpoint`, `endpoint_slug`, `webhook_id`, and `timestamp`. A body that is not a
+    JSON object arrives as `.Data.payload`. Bodies are capped at 1 MiB.
+  </WorkflowStep>
+  <WorkflowStep title="Filters decide before an agent starts">
+    Every filter entry must match exactly. Here the delivery only dispatches when
+    `data.action` is `deploy` and `data.branch` is `main` — a staging deploy hits the same endpoint
+    and is dropped without spending a session.
+  </WorkflowStep>
+  <WorkflowStep title="The secret is write-only">
+    Compozy resolves `webhook_secret_ref` only when validating a signature. Read endpoints never
+    return the secret, and neither does this page — `env:NAME` keeps it with the operator,
+    `vault:automation/...` keeps it encrypted in Compozy-managed storage.
+  </WorkflowStep>
+  <WorkflowStep title="Target a Loop instead of a prompt">
+    Swap `agent` and `prompt` for a `loop_target` to start a published Loop. Unlike scheduled jobs,
+    a trigger has an activation envelope, so `input_mapping` can route `data.<path>` values into
+    the Loop's inputs.
+  </WorkflowStep>
+</Workflow>
+
+## Next steps
+
+<GuideGrid>
+  <GuideCard
+    href="/docs/automation/webhooks"
+    label="Concept"
+    title="Signed webhooks"
+    description="Routes, headers, error codes, payload limits, and how to monitor deliveries after they land."
+    meta="Automation"
+  />
+  <GuideCard
+    href="/docs/automation/triggers"
+    label="Concept"
+    title="Triggers and filters"
+    description="Every trigger event family, the filter paths, and the activation envelope prompt templates render against."
+    meta="Automation"
+  />
+  <GuideCard
+    href="/docs/examples/react-to-session-end"
+    label="Example"
+    title="React to session end"
+    description="The same trigger machinery driven by an internal lifecycle observer instead of an inbound request."
+    meta="session.stopped"
+  />
+  <GuideCard
+    href="/docs/configuration/vault"
+    label="Concept"
+    title="Vault"
+    description="Compozy-managed encrypted secret storage behind vault: refs, and how values are written but never read back."
+    meta="Configuration"
+  />
+</GuideGrid>

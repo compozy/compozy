@@ -1,0 +1,81 @@
+---
+title: CLI Reference
+description: Generated command reference and cross-cutting behavior for the Compozy CLI.
+---
+
+The `compozy` CLI is the operator and agent control surface for the local Compozy daemon. Its
+command pages are generated from the same Cobra tree that powers the executable.
+
+<OperatorNote>
+  Run `make cli-docs` after changing a command, flag, example, or help string. `make cli-docs-check`
+  and the repository codegen gate reject drift.
+</OperatorNote>
+
+## Generated Command Reference
+
+[Open the complete generated command tree](/docs/cli/compozy) to browse every current
+top-level command and its subcommands. Each page includes live synopsis, examples, local options,
+inherited options, and links to related commands.
+
+This overview documents only behavior shared across command groups so it does not duplicate the
+generated tree.
+
+## Global Options
+
+Every user-facing command inherits these root options:
+
+| Option                | Default | Behavior                                                                                |
+| --------------------- | ------- | --------------------------------------------------------------------------------------- |
+| `-o, --output <mode>` | `human` | Select `human`, `json`, `jsonl`, or `toon` output.                                      |
+| `--json`              | off     | Emit JSON as a shorthand for `--output json`.                                           |
+| `-h, --help`          | n/a     | Print help for the current command. Cobra adds this option to each user-facing command. |
+
+Use `json` for one machine-readable result, `jsonl` for commands that stream one JSON record per
+line, and `toon` for compact agent-readable output. The generated page for each command states
+which modes are meaningful for that command.
+
+```bash
+compozy status --output json
+compozy session wait sess_123 --output jsonl
+compozy task list --output toon
+```
+
+## Workspace Inference and Overrides
+
+Workspace-aware commands accept a workspace ID, registered name, or path. When a command requires
+workspace context, the shared resolver selects the first available source in this order:
+
+1. A positional workspace reference, when that command defines one.
+2. The command-level `--workspace <id|name|path>` override.
+3. `COMPOZY_WORKSPACE`.
+4. The workspace bound to the current managed session identity.
+5. The registered workspace discovered from the current working directory.
+
+`--workspace` is not a global flag; it appears only on commands that support an explicit workspace
+override. An explicit but empty override is an error, and an explicit reference that cannot be
+resolved does not fall through to another source.
+
+```bash
+# Infer the registered workspace from the current directory.
+compozy session new --agent general
+
+# Override inference with a registered name.
+compozy agent list --workspace checkout-api --output json
+
+# Set workspace context for commands in one shell invocation.
+COMPOZY_WORKSPACE="$PWD" compozy task list --output json
+```
+
+Inside a managed agent session, the session identity fences workspace access. A positional
+reference, `--workspace`, or `COMPOZY_WORKSPACE` that resolves to another workspace is rejected
+instead of bypassing that boundary.
+
+If current-directory inference cannot find a registered workspace, register the project and retry:
+
+```bash
+compozy workspace add "$PWD" --name checkout-api
+compozy session new --agent general
+```
+
+Commands that intentionally operate globally may omit workspace context or expose only an optional
+workspace filter. Follow the generated command page for the exact inputs and fallback behavior.

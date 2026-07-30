@@ -1,0 +1,40 @@
+---
+title: "compozy task profile"
+description: "Manage task execution profiles"
+---
+
+## compozy task profile
+
+Manage task execution profiles
+
+### Options
+
+```
+  -h, --help   help for profile
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+This command displays human-readable help and its subcommand list. The inherited `-o, --output` and `--json` flags do not serialize help output.
+
+| Format  | Output                   |
+| ------- | ------------------------ |
+| `human` | Help and subcommand list |
+| `json`  | Not emitted for help     |
+| `jsonl` | Not emitted for help     |
+| `toon`  | Not emitted for help     |
+
+## Subcommands
+
+| Command                                                        | Description                        |
+| -------------------------------------------------------------- | ---------------------------------- |
+| [compozy task profile delete](/docs/cli/task/profile/delete)   | Delete one task execution profile  |
+| [compozy task profile inspect](/docs/cli/task/profile/inspect) | Show one task execution profile    |
+| [compozy task profile update](/docs/cli/task/profile/update)   | Replace one task execution profile |

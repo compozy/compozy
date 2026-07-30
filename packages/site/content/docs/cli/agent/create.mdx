@@ -1,0 +1,71 @@
+---
+title: "compozy agent create"
+description: "Create a global or workspace-local agent definition"
+---
+
+## compozy agent create
+
+Create a global or workspace-local agent definition
+
+### Synopsis
+
+Create a global or workspace-local agent definition through a running Compozy daemon.
+
+```
+compozy agent create <name> [flags]
+```
+
+### Examples
+
+```
+  compozy agent create pricing_strategist \
+    --workspace ~/dev/ad8 \
+    --provider claude \
+    --model claude-sonnet-5 \
+    --reasoning-effort max \
+    --prompt "You own pricing strategy." \
+    -o json
+```
+
+### Options
+
+```
+      --category stringArray        Agent category path segment (repeatable)
+      --command string              Optional provider command override
+      --deny-tool stringArray       Denied tool pattern (repeatable)
+      --disable-skill stringArray   Disabled skill name (repeatable)
+  -h, --help                        help for create
+      --model string                Optional provider model
+      --permissions string          Optional permission mode
+      --prompt string               Agent system prompt body
+      --prompt-file string          Read the agent system prompt body from a file
+      --provider string             Provider name for sessions using this agent
+      --reasoning-effort string     Optional default reasoning effort
+      --tool stringArray            Allowed tool pattern (repeatable)
+      --toolset stringArray         Allowed toolset reference (repeatable)
+      --workspace string            Override workspace binding (ID, name, or path)
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy agent create <name> -o json
+```

@@ -1,0 +1,41 @@
+---
+title: "compozy memory dream"
+description: "Operate Memory v2 dreaming runs"
+---
+
+## compozy memory dream
+
+Operate Memory v2 dreaming runs
+
+### Options
+
+```
+  -h, --help   help for dream
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+This command displays human-readable help and its subcommand list. The inherited `-o, --output` and `--json` flags do not serialize help output.
+
+| Format  | Output                   |
+| ------- | ------------------------ |
+| `human` | Help and subcommand list |
+| `json`  | Not emitted for help     |
+| `jsonl` | Not emitted for help     |
+| `toon`  | Not emitted for help     |
+
+## Subcommands
+
+| Command                                                        | Description                             |
+| -------------------------------------------------------------- | --------------------------------------- |
+| [compozy memory dream retry](/docs/cli/memory/dream/retry)     | Retry one failed Memory v2 dreaming run |
+| [compozy memory dream show](/docs/cli/memory/dream/show)       | Show one Memory v2 dreaming run         |
+| [compozy memory dream status](/docs/cli/memory/dream/status)   | Show Memory v2 dreaming runtime status  |
+| [compozy memory dream trigger](/docs/cli/memory/dream/trigger) | Trigger Memory v2 dreaming              |

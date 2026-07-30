@@ -1,0 +1,51 @@
+---
+title: "compozy agent heartbeat delete"
+description: "Delete HEARTBEAT.md through managed authoring"
+---
+
+## compozy agent heartbeat delete
+
+Delete HEARTBEAT.md through managed authoring
+
+```
+compozy agent heartbeat delete <agent> [flags]
+```
+
+### Examples
+
+```
+  compozy agent heartbeat delete coder --expected-digest sha256:old --json
+```
+
+### Options
+
+```
+      --expected-digest string   Expected current Heartbeat digest for CAS
+  -h, --help                     help for delete
+      --if-match string          Alias for --expected-digest
+      --workspace string         Override workspace context (ID, name, or path)
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy agent heartbeat delete <agent> -o json
+```

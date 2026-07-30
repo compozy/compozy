@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>/marketplace/all — compozy.com restructure · Compozy</title>
+<link rel="stylesheet" href="site.css" />
+<script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+
+<div id="cz-topnav"></div>
+
+<main data-od-id="marketplace-list">
+
+  <header class="mk-head" data-od-id="list-head">
+    <div class="mk-wrap">
+      <div class="mh-context">
+        <nav class="mh-crumbs" aria-label="Breadcrumb">
+          <a class="mh-crumbs__product" href="site-marketplace.html">Marketplace</a>
+          <span class="mh-crumbs__sep"></span>
+          <span class="mh-crumbs__leaf">All entries</span>
+        </nav>
+      </div>
+      <h1 class="mk-title">All catalog <em>entries</em></h1>
+      <p class="mk-lead">Every entry in the first-party feeds — skills, MCP servers, extensions, bridge providers, and bundles — exactly as the daemon reads them. What you see here is what <code style="font-family:var(--font-mono);font-size:0.85em">compozy marketplace</code> sees.</p>
+    </div>
+  </header>
+
+  <div class="mk-wrap mk-body">
+
+  <div class="mkl-toolbar" data-od-id="kind-tabs">
+    <div class="mkl-tabs" role="tablist" aria-label="Catalog kind">
+      <button class="mkl-tab" role="tab" id="tab-skills" aria-controls="pane-skills" aria-selected="true" data-kind="skills" type="button">Skills<span class="mkl-tab__count">1</span></button>
+      <button class="mkl-tab" role="tab" id="tab-mcps" aria-controls="pane-mcps" aria-selected="false" tabindex="-1" data-kind="mcps" type="button">MCP servers<span class="mkl-tab__count">1</span></button>
+      <button class="mkl-tab" role="tab" id="tab-extensions" aria-controls="pane-extensions" aria-selected="false" tabindex="-1" data-kind="extensions" type="button">Extensions<span class="mkl-tab__count">2</span></button>
+      <button class="mkl-tab" role="tab" id="tab-bridges" aria-controls="pane-bridges" aria-selected="false" tabindex="-1" data-kind="bridges" type="button">Bridges<span class="mkl-tab__count">8</span></button>
+      <button class="mkl-tab" role="tab" id="tab-bundles" aria-controls="pane-bundles" aria-selected="false" tabindex="-1" data-kind="bundles" type="button">Bundles<span class="mkl-tab__count">0</span></button>
+    </div>
+    <div class="mkl-filter">
+      <i data-lucide="search" class="ic"></i>
+      <input type="search" id="mkl-query" placeholder="Filter entries…" aria-label="Filter entries" />
+    </div>
+  </div>
+
+  <!-- ============ Skills ============ -->
+  <section class="mkl-pane" id="pane-skills" role="tabpanel" aria-labelledby="tab-skills" data-od-id="pane-skills">
+    <p class="mkl-pane__desc">Procedural instructions an agent loads to do a job the same way every time. A skill installs into your runtime with <code>compozy skill install</code> and is available to every session that needs it.</p>
+    <div class="mk-entries">
+      <article class="mk-card" data-od-id="list-entry-documentation-writer">
+        <div class="mk-card__top">
+          <span class="mk-card__well"><i data-lucide="file-code" class="ic"></i></span>
+          <div class="mk-card__id">
+            <div class="mk-card__name"><a href="#">Documentation Writer</a><span class="mk-card__ver">v1.0.0</span></div>
+            <p class="mk-card__desc">Create and improve READMEs, API references, user guides, and code documentation.</p>
+          </div>
+        </div>
+        <div class="mk-card__meta">
+          <span>By engsathiago</span><span class="dot"></span>
+          <span>Updated May 11, 2026</span><span class="dot"></span>
+          <span class="pill" data-mono>documentation</span>
+          <span class="pill" data-mono>writing</span>
+        </div>
+        <div class="mk-card__foot">
+          <div class="cmd"><span class="cmd__prompt">$</span><span class="cmd__text">compozy skill install documentation-writer</span>
+            <button class="act-btn" type="button" data-copy="compozy skill install documentation-writer"><svg class="ic ic--xs" viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy</button></div>
+          <a class="mk-card__detail" href="#">View details<i data-lucide="arrow-right" class="ic"></i></a>
+        </div>
+      </article>
+      <p class="mk-note"><i data-lucide="info" class="ic"></i><span>Nine more skills — <code>cy-create-prd</code>, <code>cy-execute-task</code>, <code>cy-final-verify</code> and friends — ship inside the <a href="site-marketplace-detail.html">Dev Cycle extension</a>, installed with it rather than as separate feed entries.</span></p>
+    </div>
+    <p class="mkl-none" hidden>No skills match <code class="mkl-none__q"></code>.</p>
+  </section>
+
+  <!-- ============ MCP servers ============ -->
+  <section class="mkl-pane" id="pane-mcps" role="tabpanel" aria-labelledby="tab-mcps" data-od-id="pane-mcps" hidden>
+    <p class="mkl-pane__desc">Model Context Protocol servers the runtime installs, scopes, and supervises for your agents. Required secrets are prompted at install — values are never stored in the catalog or shown here.</p>
+    <div class="mk-entries">
+      <article class="mk-card" data-od-id="list-entry-context7">
+        <div class="mk-card__top">
+          <span class="mk-card__well"><i data-lucide="plug" class="ic"></i></span>
+          <div class="mk-card__id">
+            <div class="mk-card__name"><a href="site-marketplace-detail.html#mcp-variant">Context7</a><span class="mk-card__ver">v3.2.3</span></div>
+            <p class="mk-card__desc">Fetch current, version-specific library documentation and code examples.</p>
+          </div>
+        </div>
+        <div class="mk-card__meta">
+          <span class="pill" data-mono>stdio</span>
+          <span>1 optional env var</span><span class="dot"></span>
+          <span>Installs globally by default</span><span class="dot"></span>
+          <span>Published Jul 6, 2026</span>
+        </div>
+        <div class="mk-card__foot">
+          <div class="cmd"><span class="cmd__prompt">$</span><span class="cmd__text">compozy mcp install context7</span>
+            <button class="act-btn" type="button" data-copy="compozy mcp install context7"><svg class="ic ic--xs" viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy</button></div>
+          <a class="mk-card__detail" href="site-marketplace-detail.html#mcp-variant">View details<i data-lucide="arrow-right" class="ic"></i></a>
+        </div>
+      </article>
+    </div>
+    <p class="mkl-none" hidden>No MCP servers match <code class="mkl-none__q"></code>.</p>
+  </section>
+
+  <!-- ============ Extensions ============ -->
+  <section class="mkl-pane" id="pane-extensions" role="tabpanel" aria-labelledby="tab-extensions" data-od-id="pane-extensions" hidden>
+    <p class="mkl-pane__desc">Packages that add resources, capabilities, and Host API actions to the runtime. Every artifact ships with a SHA-256 digest and a provenance tier — trust maps to real fields, nothing else.</p>
+    <div class="mk-entries">
+      <article class="mk-card" data-od-id="list-entry-dev-cycle">
+        <div class="mk-card__top">
+          <span class="mk-card__well"><i data-lucide="repeat" class="ic"></i></span>
+          <div class="mk-card__id">
+            <div class="mk-card__name"><a href="site-marketplace-detail.html">Dev Cycle</a><span class="mk-card__ver">v0.3.1</span><span class="pill"><i data-lucide="shield-check" class="ic"></i>Official</span></div>
+            <p class="mk-card__desc">First-party developer Loops for task delivery and review remediation.</p>
+          </div>
+        </div>
+        <p class="mk-card__contents">2 loops · 9 skills · 3 agents · 1 tool</p>
+        <div class="mk-card__meta">
+          <span>By Compozy</span><span class="dot"></span>
+          <span>Requires Compozy ≥ 0.0.9</span>
+        </div>
+        <div class="mk-card__foot">
+          <div class="cmd"><span class="cmd__prompt">$</span><span class="cmd__text">compozy extension install compozy/dev-cycle</span>
+            <button class="act-btn" type="button" data-copy="compozy extension install compozy/dev-cycle"><svg class="ic ic--xs" viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy</button></div>
+          <a class="mk-card__detail" href="site-marketplace-detail.html">View details<i data-lucide="arrow-right" class="ic"></i></a>
+        </div>
+      </article>
+      <article class="mk-card" data-od-id="list-entry-repository-orientation">
+        <div class="mk-card__top">
+          <span class="mk-card__well"><i data-lucide="puzzle" class="ic"></i></span>
+          <div class="mk-card__id">
+            <div class="mk-card__name"><a href="#">Repository Orientation</a><span class="mk-card__ver">v1.0.0</span></div>
+            <p class="mk-card__desc">Map an unfamiliar repository before changing it, with explicit ownership, invariants, and verification paths.</p>
+          </div>
+        </div>
+        <div class="mk-card__meta">
+          <span class="pill"><i data-lucide="shield-check" class="ic"></i>Official</span>
+          <span>By Compozy</span><span class="dot"></span>
+          <span>Published Jul 17, 2026</span><span class="dot"></span>
+          <code>sha256 · 291157ec…</code>
+        </div>
+        <div class="mk-card__foot">
+          <div class="cmd"><span class="cmd__prompt">$</span><span class="cmd__text">compozy extension install compozy/repository-orientation</span>
+            <button class="act-btn" type="button" data-copy="compozy extension install compozy/repository-orientation"><svg class="ic ic--xs" viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy</button></div>
+          <a class="mk-card__detail" href="#">View details<i data-lucide="arrow-right" class="ic"></i></a>
+        </div>
+      </article>
+    </div>
+    <p class="mkl-none" hidden>No extensions match <code class="mkl-none__q"></code>.</p>
+  </section>
+
+  <!-- ============ Bridges (D13 — 8 providers, alpha) ============ -->
+  <section class="mkl-pane" id="pane-bridges" role="tabpanel" aria-labelledby="tab-bridges" data-od-id="pane-bridges" hidden>
+    <p class="mkl-pane__desc">Chat and tracker platforms your agents can live in. Bridges are extensions that provide <code>bridge.adapter</code>, grouped by platform. <span class="maturity" data-level="alpha">Alpha</span> — providers build from source today; packaged installs land with the catalog feeds.</p>
+    <div class="mk-bridge-grid">
+      <article class="mk-bridge" data-od-id="list-bridge-slack">
+        <div class="mk-bridge__top"><span class="mk-tile">Sl</span><div><p class="mk-bridge__name">Slack</p><span class="mk-bridge__platform">slack · v0.1.0</span></div></div>
+        <div class="mk-bridge__meta"><span class="maturity" data-level="alpha">Alpha</span><span>2 secret slots</span></div>
+        <div class="mk-bridge__foot"><a href="#">Setup guide<i data-lucide="arrow-right" class="ic"></i></a></div>
+      </article>
+      <article class="mk-bridge" data-od-id="list-bridge-discord">
+        <div class="mk-bridge__top"><span class="mk-tile">Di</span><div><p class="mk-bridge__name">Discord</p><span class="mk-bridge__platform">discord · v0.1.0</span></div></div>
+        <div class="mk-bridge__meta"><span class="maturity" data-level="alpha">Alpha</span><span>2 secret slots</span></div>
+        <div class="mk-bridge__foot"><a href="#">Setup guide<i data-lucide="arrow-right" class="ic"></i></a></div>
+      </article>
+      <article class="mk-bridge" data-od-id="list-bridge-telegram">
+        <div class="mk-bridge__top"><span class="mk-tile">Tg</span><div><p class="mk-bridge__name">Telegram</p><span class="mk-bridge__platform">telegram · v0.1.0</span></div></div>
+        <div class="mk-bridge__meta"><span class="maturity" data-level="alpha">Alpha</span><span>2 secret slots</span></div>
+        <div class="mk-bridge__foot"><a href="#">Setup guide<i data-lucide="arrow-right" class="ic"></i></a></div>
+      </article>
+      <article class="mk-bridge" data-od-id="list-bridge-whatsapp">
+        <div class="mk-bridge__top"><span class="mk-tile">Wa</span><div><p class="mk-bridge__name">WhatsApp</p><span class="mk-bridge__platform">whatsapp · v0.1.0</span></div></div>
+        <div class="mk-bridge__meta"><span class="maturity" data-level="alpha">Alpha</span><span>3 secret slots</span></div>
+        <div class="mk-bridge__foot"><a href="#">Setup guide<i data-lucide="arrow-right" class="ic"></i></a></div>
+      </article>
+      <article class="mk-bridge" data-od-id="list-bridge-teams">
+        <div class="mk-bridge__top"><span class="mk-tile">Tm</span><div><p class="mk-bridge__name">Microsoft Teams</p><span class="mk-bridge__platform">teams · v0.1.0</span></div></div>
+        <div class="mk-bridge__meta"><span class="maturity" data-level="alpha">Alpha</span><span>3 secret slots</span></div>
+        <div class="mk-bridge__foot"><a href="#">Setup guide<i data-lucide="arrow-right" class="ic"></i></a></div>
+      </article>
+      <article class="mk-bridge" data-od-id="list-bridge-gchat">
+        <div class="mk-bridge__top"><span class="mk-tile">Gc</span><div><p class="mk-bridge__name">Google Chat</p><span class="mk-bridge__platform">gchat · v0.1.0</span></div></div>
+        <div class="mk-bridge__meta"><span class="maturity" data-level="alpha">Alpha</span><span>2 secret slots</span></div>
+        <div class="mk-bridge__foot"><a href="#">Setup guide<i data-lucide="arrow-right" class="ic"></i></a></div>
+      </article>
+      <article class="mk-bridge" data-od-id="list-bridge-github">
+        <div class="mk-bridge__top"><span class="mk-tile">Gh</span><div><p class="mk-bridge__name">GitHub</p><span class="mk-bridge__platform">github · v0.1.0</span></div></div>
+        <div class="mk-bridge__meta"><span class="maturity" data-level="alpha">Alpha</span><span>4 secret slots</span></div>
+        <div class="mk-bridge__foot"><a href="#">Setup guide<i data-lucide="arrow-right" class="ic"></i></a></div>
+      </article>
+      <article class="mk-bridge" data-od-id="list-bridge-linear">
+        <div class="mk-bridge__top"><span class="mk-tile">Ln</span><div><p class="mk-bridge__name">Linear</p><span class="mk-bridge__platform">linear · v0.1.0</span></div></div>
+        <div class="mk-bridge__meta"><span class="maturity" data-level="alpha">Alpha</span><span>4 secret slots</span></div>
+        <div class="mk-bridge__foot"><a href="#">Setup guide<i data-lucide="arrow-right" class="ic"></i></a></div>
+      </article>
+    </div>
+    <p class="mkl-none" hidden>No bridges match <code class="mkl-none__q"></code>.</p>
+  </section>
+
+  <!-- ============ Bundles (feed ships no entries today) ============ -->
+  <section class="mkl-pane" id="pane-bundles" role="tabpanel" aria-labelledby="tab-bundles" data-od-id="pane-bundles" hidden>
+    <p class="mkl-pane__desc">An outcome packaged for a persona — agents, authored context, jobs, triggers, Compozy Network channels, and bridge presets, configured around extensions you already have installed. Activation is preview-first: <code>compozy bundle preview</code> shows the full projection before anything is written.</p>
+    <div class="mk-empty" data-od-id="bundles-empty">
+      <p class="mk-empty__title">No bundles published yet</p>
+      <p class="mk-empty__desc">Extensions can already declare bundle profiles, but the catalog feeds ship no bundle entries today — this list renders the same <code>catalog/bundles.json</code> feed the daemon reads, and it is empty. When the first bundle lands in the feed, it appears here and in the runtime Marketplace at the same time.</p>
+    </div>
+  </section>
+
+  <!-- ============ Contribute (PR flow, §7.2) ============ -->
+  <section class="mk-contribute" data-od-id="contribute">
+    <div>
+      <h2 class="mk-contribute__title">Add an entry to the catalog</h2>
+      <p class="mk-contribute__desc">The catalog is a set of JSON feeds in the Compozy repository. Package your artifact with <code>compozy-catalog package</code>, validate it with <code>compozy-catalog validate</code>, and open a pull request against <code>catalog/</code> — the site and the daemon pick the entry up from the same feed.</p>
+    </div>
+    <a class="act-btn" href="https://github.com/compozy/compozy/tree/main/catalog"><i data-lucide="git-pull-request" class="ic"></i>Read the contribution guide</a>
+  </section>
+
+  </div>
+
+</main>
+
+<div id="cz-footer"></div>
+
+<script src="site.js"></script>
+<script>
+  czBoot({ nav: "marketplace" });
+
+  /* kind tabs — hash deep-linked (#skills | #mcps | #extensions | #bridges | #bundles) */
+  (function () {
+    var tabs = Array.prototype.slice.call(document.querySelectorAll(".mkl-tab"));
+    var query = document.getElementById("mkl-query");
+
+    function select(kind, focus) {
+      tabs.forEach(function (t) {
+        var on = t.dataset.kind === kind;
+        t.setAttribute("aria-selected", on ? "true" : "false");
+        t.tabIndex = on ? 0 : -1;
+        var pane = document.getElementById("pane-" + t.dataset.kind);
+        if (pane) pane.hidden = !on;
+        if (on && focus) t.focus();
+      });
+      if (history.replaceState) history.replaceState(null, "", "#" + kind);
+      applyFilter();
+    }
+
+    function applyFilter() {
+      var q = (query.value || "").trim().toLowerCase();
+      var pane = document.querySelector(".mkl-pane:not([hidden])");
+      if (!pane) return;
+      var cards = pane.querySelectorAll(".mk-card, .mk-bridge");
+      var visible = 0;
+      Array.prototype.forEach.call(cards, function (c) {
+        var hit = !q || c.textContent.toLowerCase().indexOf(q) !== -1;
+        c.style.display = hit ? "" : "none";
+        if (hit) visible++;
+      });
+      var none = pane.querySelector(".mkl-none");
+      if (none) {
+        none.hidden = !(q && cards.length && !visible);
+        var slot = none.querySelector(".mkl-none__q");
+        if (slot) slot.textContent = "“" + query.value.trim() + "”";
+      }
+    }
+
+    tabs.forEach(function (t, i) {
+      t.addEventListener("click", function () { select(t.dataset.kind); });
+      t.addEventListener("keydown", function (e) {
+        if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+        e.preventDefault();
+        var next = tabs[(i + (e.key === "ArrowRight" ? 1 : tabs.length - 1)) % tabs.length];
+        select(next.dataset.kind, true);
+      });
+    });
+    query.addEventListener("input", applyFilter);
+
+    var hash = (location.hash || "").replace("#", "");
+    var valid = tabs.some(function (t) { return t.dataset.kind === hash; });
+    select(valid ? hash : "skills");
+  })();
+</script>
+</body>
+</html>

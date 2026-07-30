@@ -11,15 +11,14 @@ func newNetworkWorkCommand(deps commandDeps, workspaceRef *string) *cobra.Comman
 		Use:   "work",
 		Short: "Inspect lifecycle-bearing network work",
 	}
-	cmd.AddCommand(newNetworkWorkLookupCommand(deps, workspaceRef, "lookup"))
-	cmd.AddCommand(newNetworkWorkLookupCommand(deps, workspaceRef, networkStatusKey))
+	cmd.AddCommand(newNetworkWorkLookupCommand(deps, workspaceRef))
 	return cmd
 }
 
-func newNetworkWorkLookupCommand(deps commandDeps, workspaceRef *string, use string) *cobra.Command {
+func newNetworkWorkLookupCommand(deps commandDeps, workspaceRef *string) *cobra.Command {
 	var workID string
 	cmd := &cobra.Command{
-		Use:   use,
+		Use:   "lookup",
 		Short: "Show one network work item",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, err := clientFromDeps(deps)
@@ -73,7 +72,7 @@ func newNetworkSendCommand(deps commandDeps, workspaceRef *string) *cobra.Comman
 		Example: `  compozy network send --workspace ws_example --session sess_example --channel launch-war-room \
     --surface thread --thread thread_launch_brief --kind say --body '{"text":"Launch status"}'`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			body, err := parseNetworkJSONValue("--body", flags.bodyRaw)
+			body, err := parseNetworkBodyJSONValue(flags.bodyRaw)
 			if err != nil {
 				return err
 			}
@@ -163,7 +162,7 @@ func registerNetworkSendFlags(cmd *cobra.Command, flags *networkSendFlags) {
 		"Directed target peer id; required for capability and say with --work",
 	)
 	cmd.Flags().StringArrayVar(&flags.mentions, "mention", nil, "Mention target peer id (repeatable)")
-	cmd.Flags().StringVar(&flags.bodyRaw, "body", "", "Kind-specific JSON object; say requires a non-empty text field")
+	cmd.Flags().StringVar(&flags.bodyRaw, "body", "", "Kind-specific JSON value; say requires a non-empty text field")
 	cmd.Flags().StringVar(
 		&flags.workID,
 		"work",

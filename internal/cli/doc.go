@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/compozy/compozy/internal/cli/docpost"
 	"github.com/spf13/cobra"
@@ -14,7 +15,7 @@ const (
 	docDocKey = "doc"
 )
 
-const defaultCLIDocsDir = "packages/site/content/runtime/cli-reference"
+const defaultCLIDocsDir = "packages/site/content/docs/cli"
 
 func newDocCommand() *cobra.Command {
 	var outputDir string
@@ -42,7 +43,9 @@ func newDocCommand() *cobra.Command {
 				return fmt.Errorf("doc: resolve output path: %w", err)
 			}
 
-			if err := docpost.Process(cmd.Context(), tmpDir, absOutput); err != nil {
+			if err := docpost.Process(cmd.Context(), tmpDir, absOutput, docpost.Options{
+				OutputProfiles: docOutputProfiles(root),
+			}); err != nil {
 				return fmt.Errorf("doc: post-process: %w", err)
 			}
 
@@ -55,4 +58,42 @@ func newDocCommand() *cobra.Command {
 		"Output directory for generated CLI reference MDX files")
 
 	return cmd
+}
+
+func docOutputProfiles(root *cobra.Command) map[string]docpost.OutputProfile {
+	profiles := make(map[string]docpost.OutputProfile)
+	if root == nil {
+		return profiles
+	}
+	root.InitDefaultCompletionCmd()
+
+	var visit func(*cobra.Command)
+	visit = func(command *cobra.Command) {
+		if command == nil {
+			return
+		}
+
+		profile := docpost.OutputProfileResult
+		if command == root || (command.Run == nil && command.RunE == nil) {
+			profile = docpost.OutputProfileHelp
+		}
+		switch command.CommandPath() {
+		case "compozy open":
+			profile = docpost.OutputProfileNoOutput
+		case "compozy mcp serve":
+			profile = docpost.OutputProfileProtocol
+		case "compozy layout watch":
+			profile = docpost.OutputProfileHumanJSONL
+		}
+		if strings.HasPrefix(command.CommandPath(), "compozy completion ") {
+			profile = docpost.OutputProfileRaw
+		}
+		profiles[command.CommandPath()] = profile
+
+		for _, child := range command.Commands() {
+			visit(child)
+		}
+	}
+	visit(root)
+	return profiles
 }

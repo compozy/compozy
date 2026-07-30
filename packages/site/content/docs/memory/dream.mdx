@@ -1,0 +1,200 @@
+---
+title: Dream
+description: How Compozy gates dreaming runs, scores recall signals, promotes durable memory through the controller, and persists dreaming artifacts under `_system/`.
+---
+
+Dreaming is Compozy's background promotion loop. A dream session reviews recall-validated signal,
+proposes durable curated memory through the **same controller** every other write uses, and writes
+forensic artifacts under `_system/dreaming/`.
+
+The goal is not to compress every transcript. The goal is to graduate facts the system already
+believed were useful — facts referenced repeatedly during recall — into durable memory:
+
+- promote signal that has been recalled often enough to matter
+- merge near-duplicates through controller updates
+- keep `MEMORY.md` indexes tight after promotions
+- record forensic artifacts and DLQ entries for failed runs
+
+## Operator Term
+
+In Slice 1 the operator-facing verb is **dream trigger**. The previous "consolidation" surface is
+gone. Use `compozy memory dream trigger` and `POST /api/memory/dreams/trigger`. There is no
+`compozy memory consolidate`, no `POST /api/memory/consolidate` route, and no `--consolidate` flag.
+
+## What Triggers A Dream
+
+Dreaming is enabled by default when memory is enabled.
+
+| Trigger path      | Behavior                                                                                                 |
+| ----------------- | -------------------------------------------------------------------------------------------------------- |
+| Background ticker | The daemon evaluates gates on `memory.dream.check_interval` (default 30m).                               |
+| Session stop hook | When a non-dream session stops in a known workspace, Compozy queues a dream check for that workspace_id. |
+| Manual command    | `compozy memory dream trigger` evaluates gates for the resolved workspace.                               |
+| HTTP / UDS API    | `POST /api/memory/dreams/trigger` accepts an optional workspace selector.                                |
+
+A trigger always re-evaluates gates. If the gates do not pass, the response is successful and
+reports the gate that blocked the run.
+
+## Gate Cascade
+
+Gates run in this order (cheaper first, observable each step):
+
+| Gate     | Default                                                                            | Behavior                                                                                             |
+| -------- | ---------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| Time     | `min_hours = 24`                                                                   | Last successful run must be at least `min_hours` ago.                                                |
+| Sessions | `min_sessions = 3`                                                                 | At least `min_sessions` completed sessions since the last successful run.                            |
+| Lock     | one active runner                                                                  | Acquires the per-workspace dreaming lock; existing runners block re-entry.                           |
+| Signal   | `gates.min_unpromoted = 5`, `gates.min_recall_count = 2`, `gates.min_score = 0.75` | Inside the lock, Compozy counts unpromoted candidates with sufficient recall hits and minimum score. |
+
+`Time` and `Sessions` are evaluated outside the lock. `Signal` is evaluated **after** the lock is
+acquired so anti-thrash stamps update even when no candidates qualify.
+
+Recall signals are live: every non-trivial recall query updates `memory_recall_signals` rows
+(`recall_score`, freshness barrier, promotion columns) without affecting the recall response. The
+score is a weighted combination of:
+
+- frequency (how often the entry surfaces)
+- relevance (BM25 unicode + trigram score)
+- recency (with `scoring.recency_half_life_days = 14` half-life)
+- freshness (penalty for stale, never-promoted entries)
+
+Weights live under `[memory.dream.scoring.weights]` and default to
+`{ frequency = 0.30, relevance = 0.35, recency = 0.20, freshness = 0.15 }`.
+
+## What A Dream Run Does
+
+<Mermaid
+  chart={`sequenceDiagram
+participant Trigger
+participant Runtime
+participant Lock
+participant Curator as Dreaming-Curator Session
+participant Controller
+participant Files
+
+Trigger->>Runtime: ShouldRun (Time, Sessions)
+Runtime->>Lock: TryAcquire
+Lock-->>Runtime: locked
+Runtime->>Runtime: Score recall signals (Signal gate)
+Runtime->>Curator: Spawn dreaming session (read-only memory)
+Curator->>Curator: Review \_system/dreaming + \_inbox/ artifacts
+Curator->>Controller: ProposeWrite (origin = dreaming)
+Controller->>Files: Apply add/update/delete decisions
+Controller->>Curator: Decisions persisted
+Curator->>Files: Write \_system/dreaming/<date>-<run>.md artifact
+Runtime->>Lock: Release (anti-thrash stamp)`}
+caption="Dream output is not injected directly into curated memory. Promotions are real controller decisions; the synthesis report is forensic-only under `\_system/dreaming/`."
+/>
+
+The dream agent runs as an ordinary Compozy session of type `dream`. It is special in two ways:
+
+- Compozy starts it with `approve-all` permissions for the dreaming workspace context.
+- Compozy layers the dream role overlay and the versioned output-contract frame selected by
+  `memory.dream.prompt_version` on top of the selected agent's prompt.
+
+Dream-session routing lives under `[roles.dream]`. An empty `agent` selects the virtual builtin
+**`dreaming-curator`** identity; a non-empty value routes the session to that authored agent. The
+builtin contributes Compozy's embedded curator prompt. A routed catalog agent contributes its own
+`AGENT.md` body instead; Compozy still applies the role overlay and contract frame. The builtin name is
+reserved from authoring and does not appear in public agent catalogs.
+
+## What Lands Where
+
+| Output                                   | Location                                                                                            |
+| ---------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| Curated promotions                       | `<scope>/memory/<filename>` via the controller; observable as `memory.write.committed` rows.        |
+| Synthesis artifact                       | `<scope>/memory/_system/dreaming/<YYYYMMDD>-<run-slug>.md`.                                         |
+| Promoted decision rows                   | `memory_decisions` with `origin = dreaming`.                                                        |
+| `memory.dream.run.started` / `.promoted` | `memory_events` per run.                                                                            |
+| Failed run                               | `memory.dream.run.failed` event plus `<scope>/memory/_system/dream/failures/<run-id>.md` DLQ entry. |
+
+`_system/dreaming/` and `_system/dream/failures/` are structurally excluded from prompt injection
+and from default recall. Operators browse them with `compozy memory dream show <date>` and
+`compozy memory dream retry <run-id>`.
+
+## Configuration
+
+```toml
+[roles.dream]
+enabled = true
+# Empty selects the builtin dreaming-curator. Set a name to route to an authored curator.
+agent = ""
+# Optional provider, model, reasoning_effort, and fallback_chain routing overrides also live here.
+
+[memory.dream]
+min_hours = 24
+min_sessions = 3
+debounce = "10m"
+prompt_version = "v1"
+check_interval = "30m"
+
+[memory.dream.gates]
+min_unpromoted = 5
+min_recall_count = 2
+min_score = 0.75
+
+[memory.dream.scoring]
+recency_half_life_days = 14
+
+[memory.dream.scoring.weights]
+frequency = 0.30
+relevance = 0.35
+recency = 0.20
+freshness = 0.15
+```
+
+| Field            | Meaning                                                          |
+| ---------------- | ---------------------------------------------------------------- |
+| `min_hours`      | Minimum hours between successful runs (Time gate).               |
+| `min_sessions`   | Minimum completed sessions since the last run (Sessions gate).   |
+| `debounce`       | Debounce window for triggers from the session stop hook.         |
+| `prompt_version` | Pinned prompt template version for the dreaming session.         |
+| `check_interval` | Background ticker interval.                                      |
+| `gates.*`        | Signal-gate thresholds.                                          |
+| `scoring.*`      | Score weights and the recency half-life used by the signal gate. |
+
+Set `roles.dream.enabled = false` to keep memory writes and recall active while disabling
+background and manual dream runs. Routing changes are Live for later dream invocations; accepted
+sessions keep their bound route.
+
+## Manual Trigger
+
+```bash
+compozy memory dream trigger
+```
+
+```bash
+curl -X POST http://localhost:2123/api/memory/dreams/trigger \
+  -H "Content-Type: application/json" \
+  -d '{"workspace_id":"01HXJ9YR4QABCDEFGHJK0123456"}'
+```
+
+Possible outcomes:
+
+| Outcome                              | Meaning                                                                               |
+| ------------------------------------ | ------------------------------------------------------------------------------------- |
+| `triggered: true`                    | A dream session ran. Promotions land via controller decisions.                        |
+| `triggered: false`, `gate: time`     | Last successful run is still within `min_hours`.                                      |
+| `triggered: false`, `gate: sessions` | Not enough completed sessions since the last run.                                     |
+| `triggered: false`, `gate: lock`     | Another dream run for this workspace holds the lock.                                  |
+| `triggered: false`, `gate: signal`   | Inside the lock, no candidate cleared the signal threshold.                           |
+| `triggered: false`, `disabled`       | Dreaming is disabled by config or composition.                                        |
+| `error response`                     | Workspace resolution, controller, lock acquisition, or dreaming session start failed. |
+
+## What Dream Does Not Do
+
+- It does **not** bypass the controller. Every promotion is a real `memory_decisions` row.
+- It does **not** inject `_system/dreaming/<date>-*.md` artifacts directly into prompts; promoted
+  facts must land as curated entries to reach a future snapshot.
+- It does **not** replace the extractor. Mid-session candidate extraction is the
+  `session.message_persisted` hook and the bounded extractor queue. Dreaming consumes the resulting
+  signal and the `_inbox/` material.
+- It does **not** touch session ledgers. Forensic ledgers are immutable after materialization (see
+  [Sessions](/docs/sessions)).
+
+## Related Pages
+
+- [Memory System](/docs/memory/system) explains the controller, the WAL, and recall.
+- [Memory Scopes](/docs/memory/scopes) explains scope/tier resolution and shadowing.
+- [Hooks](/docs/hooks) documents `session.message_persisted` and the extractor entry point.
+- [Memory Dream Trigger CLI](/docs/cli/memory/dream/trigger) shows the generated command reference.

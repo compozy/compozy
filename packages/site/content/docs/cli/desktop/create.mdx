@@ -1,0 +1,52 @@
+---
+title: "compozy desktop create"
+description: "Create a persistent virtual desktop"
+---
+
+## compozy desktop create
+
+Create a persistent virtual desktop
+
+```
+compozy desktop create [flags]
+```
+
+### Options
+
+```
+      --actor-id string      Optional actor identifier
+      --after string         Insert after this desktop ID
+      --client string        Connected presentation client ID
+      --focus-owner string   Window that owns a focus desktop
+  -h, --help                 help for create
+      --id string            Stable desktop ID; generated when omitted
+      --name string          Desktop name
+      --origin string        Command origin label (default "cli")
+      --purpose string       Desktop purpose: standard or focus (default "standard")
+      --revision uint        Expected workspace revision
+      --workspace string     Override workspace (ID, name, or path)
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy desktop create -o json
+```

@@ -1,0 +1,55 @@
+---
+title: "compozy scheduler"
+description: "Inspect and control task scheduler dispatch"
+---
+
+## compozy scheduler
+
+Inspect and control task scheduler dispatch
+
+### Examples
+
+```
+  # Show scheduler pause and backlog pressure
+  compozy scheduler status
+
+  # Pause all new scheduler dispatch while active claims continue
+  compozy scheduler pause --reason "incident response"
+
+  # Pause and wait up to 30 seconds for active claims to finish
+  compozy scheduler drain --timeout 30s
+```
+
+### Options
+
+```
+  -h, --help   help for scheduler
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+This command displays human-readable help and its subcommand list. The inherited `-o, --output` and `--json` flags do not serialize help output.
+
+| Format  | Output                   |
+| ------- | ------------------------ |
+| `human` | Help and subcommand list |
+| `json`  | Not emitted for help     |
+| `jsonl` | Not emitted for help     |
+| `toon`  | Not emitted for help     |
+
+## Subcommands
+
+| Command                                                  | Description                                              |
+| -------------------------------------------------------- | -------------------------------------------------------- |
+| [compozy scheduler backlog](/docs/cli/scheduler/backlog) | List queued runs visible to scheduler dispatch           |
+| [compozy scheduler drain](/docs/cli/scheduler/drain)     | Pause dispatch and wait for active task claims to finish |
+| [compozy scheduler pause](/docs/cli/scheduler/pause)     | Pause new scheduler dispatch                             |
+| [compozy scheduler resume](/docs/cli/scheduler/resume)   | Resume scheduler dispatch                                |
+| [compozy scheduler status](/docs/cli/scheduler/status)   | Show scheduler pause and queue pressure                  |

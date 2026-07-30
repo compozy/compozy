@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	cliDocsOutputDir = "packages/site/content/runtime/cli-reference"
+	cliDocsOutputDir = "packages/site/content/docs/cli"
 	cliDocsCheckPath = "scripts/check-cli-docs.sh"
 )
 

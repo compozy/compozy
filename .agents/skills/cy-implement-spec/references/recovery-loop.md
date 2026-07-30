@@ -44,7 +44,6 @@ artifacts exist, and the phase's completion gate is PASS.
 | Worker launch, evidence, or artifact failure | Repair/relaunch the worker lane and verify its output; keep the phase action open. |
 | Checkpoint hook or commit failure | Fix the hook/root cause, rerun verification when source changed, and retry the normal checkpoint without bypass flags. |
 | A criterion turns out to be unprovable as written (ambiguous, split across surfaces, contradicted by the spec) | Resolve against the spec documents: record the interpretation in memory, `--add-criterion` the corrected exit condition(s), and prove those. The original stays pending only if genuinely superseded — note the supersession in `MEMORY.md`. |
-| A third corrective touch in one area | Perform the repository-required structural redesign. When policy requires a new corrective TechSpec, activate its required authoring skills and let the loop decide choices bounded by the current goal/contract; validate it and continue. |
 
 ## External-blocker test
 

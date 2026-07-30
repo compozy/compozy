@@ -38,7 +38,7 @@ export function ChangelogTocRail({ releases, activeVersion }: ChangelogTocRailPr
           One binary, one daemon. Pull the latest from Go and restart the process.
         </p>
         <Link
-          href="/runtime/core/getting-started/installation"
+          href="/docs/getting-started/installation"
           className="mt-4 inline-flex items-center gap-1.5 text-xs font-medium text-accent"
         >
           Install instructions →

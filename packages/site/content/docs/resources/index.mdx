@@ -1,0 +1,143 @@
+---
+title: Desired-State Resources
+description: How Compozy stores extensible runtime resources, validates mutations, and reconciles projected runtime state.
+---
+
+Resources are Compozy's desired-state layer for runtime objects that must be extensible and
+agent-manageable. Instead of letting every subsystem invent its own private storage shape, Compozy writes
+canonical resource records, validates their specs through registered codecs, and reconciles them into
+runtime state.
+
+Use this page when you need to understand why a tool, MCP server, agent definition, package-owned
+agent sidecar, skill, automation job, trigger, window layout, bridge instance, or bundle activation
+can be managed through the same control plane.
+
+<OperatorNote label="Control-plane boundary">
+  Resources are an operator and extension surface. They are not the same as session events, memory
+  files, or protocol messages. A resource says "this runtime object should exist"; reconcile turns
+  that desired state into subsystem-specific state. The default daemon exposes this operator surface
+  through UDS and the UDS-backed CLI. An embedding may also register the HTTP routes when it
+  supplies explicit resource-operator authentication.
+</OperatorNote>
+
+## Mental model
+
+<Mermaid
+  chart={`flowchart TD
+    Writer[Operator, daemon, or extension] --> API[HTTP or UDS resource API]
+    API --> Validate[Codec validation and canonical JSON]
+    Validate --> Store[(resource_records)]
+    Store --> Reconcile[Per-kind reconcile driver]
+    Reconcile --> Projectors[Typed projectors]
+    Projectors --> Runtime[Tools, agents, skills, automation, layouts, bridges, bundles]
+    Runtime --> Observe[Status, health, events, and API reads]`}
+  caption="Desired-state resources pass through validation, storage, and reconcile before they affect runtime subsystems."
+/>
+
+| Term    | Meaning                                                                  |
+| ------- | ------------------------------------------------------------------------ |
+| Kind    | Resource family, such as `tool`, `agent`, `automation.job`, or `bundle`. |
+| ID      | Stable resource identity inside the kind.                                |
+| Scope   | `global` or `workspace`; workspace scope requires a workspace id.        |
+| Owner   | Who owns the record, such as daemon control or a bundle activation.      |
+| Source  | Where the record came from, such as an extension, daemon, or session.    |
+| Version | Optimistic mutation version used to prevent blind overwrites.            |
+| Spec    | Canonical JSON payload for the resource kind.                            |
+
+## Registered resource kinds
+
+The daemon registers typed codecs for these resource families at boot:
+
+| Kind                 | Projects into                                                                           |
+| -------------------- | --------------------------------------------------------------------------------------- |
+| `hook.binding`       | Hook registry bindings.                                                                 |
+| `tool`               | Tool Registry entries.                                                                  |
+| `mcp_server`         | MCP server declarations.                                                                |
+| `agent`              | Agent catalog definitions.                                                              |
+| `agent.soul`         | Package-owned `SOUL.md` defaults for resource-backed agents.                            |
+| `agent.heartbeat`    | Package-owned `HEARTBEAT.md` defaults for resource-backed agents.                       |
+| `skill`              | Skill catalog entries.                                                                  |
+| `automation.job`     | Scheduled or claimable automation jobs.                                                 |
+| `automation.trigger` | Automation trigger definitions.                                                         |
+| `window_layout`      | Strict declarative desktop and tiled-group layout templates.                            |
+| `bridge.instance`    | Bridge runtime instances.                                                               |
+| `bundle`             | Extension-provided bundle catalog entries.                                              |
+| `bundle.activation`  | Active bundle profiles that project agents, sidecars, automation, layouts, and bridges. |
+
+## Write flow
+
+```http
+PUT /api/resources/automation.job/nightly-resource-audit
+Content-Type: application/json
+
+{
+  "scope": { "kind": "global" },
+  "expected_version": 0,
+  "spec": {
+    "id": "nightly-resource-audit",
+    "name": "Nightly resource audit",
+    "target_kind": "agent",
+    "agent_name": "general",
+    "prompt": "Inspect desired-state resource health.",
+    "schedule": { "mode": "every", "interval": "24h" },
+    "enabled": false
+  }
+}
+```
+
+What happens:
+
+1. Compozy validates the path kind and id.
+2. Compozy validates the scope binding.
+3. If a codec is registered for that kind, Compozy canonicalizes the `spec`.
+4. The record is written with an owner, source, version, and timestamps.
+5. Reconcile is triggered for that kind.
+
+Use `expected_version = 0` when creating a new record. Use the returned `version` on update or
+delete so stale operators and agents do not overwrite each other silently.
+
+`bundle.activation` is service-owned. You can read it through the resource surface, but direct
+`PUT` and `DELETE` requests return `403`. Use `POST /api/bundles/activations`, the matching update
+and delete routes, or `compozy bundle` so bundle requirements and projected resources stay coherent.
+
+## Read and filter
+
+```http
+GET /api/resources
+GET /api/resources/automation.job
+GET /api/resources/automation.job/nightly-resource-audit
+GET /api/resources/automation.job?scope_kind=workspace&scope_id=ws_project
+```
+
+Filters can narrow by `kind`, `scope_kind`, `scope_id`, `owner_kind`, `owner_id`, `source_kind`,
+`source_id`, and `limit`.
+
+## Delete
+
+```http
+DELETE /api/resources/automation.job/nightly-resource-audit
+Content-Type: application/json
+
+{ "expected_version": 3 }
+```
+
+Deletes also trigger reconcile for the kind. If the resource was owned by a bundle activation, remove
+or update the activation instead of deleting the projected child record by hand.
+
+## Failure guide
+
+| Symptom                                  | Likely cause                                                      | First check                                             |
+| ---------------------------------------- | ----------------------------------------------------------------- | ------------------------------------------------------- |
+| `400` on write                           | The request body is malformed JSON or cannot be decoded.          | Response body and submitted payload.                    |
+| `403` on write/delete                    | The resource kind has a dedicated lifecycle service.              | Use the kind-specific API or CLI.                       |
+| `422` on write                           | Invalid kind, scope binding, or registered-codec spec validation. | Response body and kind-specific docs.                   |
+| `409` on update/delete                   | `expected_version` is stale.                                      | `GET /api/resources/:kind/:id` for the current version. |
+| Record exists but runtime did not change | Reconcile failed or is degraded.                                  | Observe resource/reconcile health and daemon logs.      |
+| Projected record reappears               | A bundle activation or extension owns it.                         | `owner` and `source` fields on the resource record.     |
+| Workspace write fails                    | `scope.id` does not name a valid workspace.                       | `compozy workspace list -o json`.                       |
+
+## Next
+
+- [Bundles](/docs/resources/bundles) explains the bundle activation layer built on top of resources.
+- [Extensions](/docs/extensions) explains how installed packages publish resource records.
+- [API Reference](/docs/api) lists the current resource and bundle route families.

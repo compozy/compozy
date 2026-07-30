@@ -1,0 +1,48 @@
+---
+title: "compozy loop runs"
+description: "List workspace Loop runs"
+---
+
+## compozy loop runs
+
+List workspace Loop runs
+
+```
+compozy loop runs [flags]
+```
+
+### Options
+
+```
+  -h, --help                    help for runs
+      --limit int               Maximum runs to return
+      --loop string             Filter by Loop name
+      --origin string           Filter by run origin: catalog or session
+      --origin-session string   Filter by origin session ID
+      --status string           Filter by Loop run status
+      --workspace string        Override workspace (ID, name, or path)
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy loop runs -o json
+```

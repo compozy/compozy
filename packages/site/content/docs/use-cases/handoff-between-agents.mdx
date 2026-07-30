@@ -1,0 +1,145 @@
+---
+title: Handoff between agents
+description: Use a Compozy Network thread to request work, return evidence, and close the network work lifecycle.
+---
+
+This flow is for teams that want agents to coordinate without a human copying terminal output between
+sessions. The network thread carries the request and response. A final trace closes the
+lifecycle-bearing `work_id`; it does not claim that the work became a Compozy task or that every
+message receives a protocol receipt.
+
+## Setup
+
+Check the local network runtime before sending work:
+
+```bash
+compozy network status -o json
+compozy network --workspace project channels -o json
+compozy network --workspace project peers release -o json
+```
+
+Start the local session that will send the request:
+
+```bash
+compozy session new --workspace project --agent coordinator --name release-coordinator \
+  --network live --network-channel-strategy named --network-channel release -o json
+```
+
+Start or identify the receiving session in the same channel. The examples below use `sess_receiver`
+as the returned session id.
+
+```bash
+compozy session new --workspace project --agent reviewer --name release-reviewer \
+  --network live --network-channel-strategy named --network-channel release -o json
+compozy network --workspace project peers release -o json
+```
+
+Copy the exact coordinator and reviewer peer IDs from the peers response. The commands below use
+`release-coordinator.sess_coord` and `release-reviewer.sess_receiver` as placeholders.
+
+## Flow
+
+<Workflow>
+  <WorkflowStep title="Choose the channel">
+    Use a channel that matches the work boundary, such as `release`, `frontend`, or `runtime`.
+  </WorkflowStep>
+  <WorkflowStep title="Open a public thread">
+    Send `kind:"say"` with `surface:"thread"` and a stable `thread_id` so the conversation has a
+    durable home. Add a `work_id` if the request is lifecycle-bearing.
+  </WorkflowStep>
+  <WorkflowStep title="Read the receiver inbox">
+    The target session uses `compozy network inbox` to inspect queued inbound messages.
+  </WorkflowStep>
+  <WorkflowStep title="Close with evidence">
+    The receiver replies inside the same thread with a `say.text` summary, then sends
+    `trace(completed)` for the same `work_id`.
+  </WorkflowStep>
+</Workflow>
+
+```bash
+compozy network --workspace project send \
+  --session sess_coord \
+  --channel release \
+  --surface thread \
+  --thread thread_release_doc_drift_20260502 \
+  --kind say \
+  --to release-reviewer.sess_receiver \
+  --work work_release_doc_drift_20260502 \
+  --body '{"text":"Check the release docs for drift. Return the commands you ran, changed file paths, and remaining risk.","intent":"request"}' \
+  -o json
+
+compozy network --workspace project inbox --session sess_receiver -o json
+
+compozy network --workspace project send \
+  --session sess_receiver \
+  --channel release \
+  --surface thread \
+  --thread thread_release_doc_drift_20260502 \
+  --kind say \
+  --to release-coordinator.sess_coord \
+  --work work_release_doc_drift_20260502 \
+  --body '{"text":"Review complete. Commands: make docs-check. Changed: packages/site/content/docs. Remaining risk: none found.","intent":"result"}' \
+  -o json
+
+compozy network --workspace project send \
+  --session sess_receiver \
+  --channel release \
+  --surface thread \
+  --thread thread_release_doc_drift_20260502 \
+  --kind trace \
+  --work work_release_doc_drift_20260502 \
+  --body '{"state":"completed","message":"Evidence posted in the thread."}' \
+  -o json
+
+compozy network --workspace project threads messages \
+  --channel release \
+  --thread thread_release_doc_drift_20260502 \
+  --work work_release_doc_drift_20260502 \
+  -o json
+
+compozy network --workspace project work status \
+  --work work_release_doc_drift_20260502 \
+  -o json
+```
+
+## Message shape
+
+The `say` body requires a non-empty `text` field. Keep the work request small enough to read in the
+thread:
+
+```json
+{
+  "text": "Check the release docs for drift. Scope: packages/site/content/docs. Return commands, changed file paths, and remaining risk.",
+  "intent": "request"
+}
+```
+
+The envelope carries routing and correlation. The body carries the human-readable request or result.
+
+## Evidence to keep
+
+| Evidence           | Command                                                                                                                     | Why it matters                                              |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| Network runtime    | `compozy network status -o json`                                                                                            | Shows whether the daemon-owned network is enabled.          |
+| Channel membership | `compozy network --workspace project peers release -o json`                                                                 | Shows the peers visible for the channel.                    |
+| Thread messages    | `compozy network --workspace project threads messages --channel release --thread thread_release_doc_drift_20260502 -o json` | Shows the persisted request, result, and trace.             |
+| Receiver queue     | `compozy network --workspace project inbox --session sess_receiver -o json`                                                 | Shows the request reached the target session queue.         |
+| Work lifecycle     | `compozy network --workspace project work status --work work_release_doc_drift_20260502 -o json`                            | Shows the network-side work state and conversation binding. |
+| Session evidence   | `compozy session history <receiver-session>`                                                                                | Shows what the receiver actually did.                       |
+
+## Failure path
+
+| Symptom                        | First check                                                                     | Next page                                                                     |
+| ------------------------------ | ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| No peers are visible           | `compozy network --workspace <workspace> peers <name> -o json`                  | [Channels and Peers](/docs/network/channels-and-peers)                        |
+| Thread is missing or empty     | `compozy network --workspace <workspace> threads list --channel <name> -o json` | [Public Threads](/docs/network/threads)                                       |
+| Message is not in the inbox    | `compozy network status -o json`                                                | [Delivery and Safety](/docs/network/delivery-and-safety)                      |
+| Work stays at `submitted`      | `compozy network --workspace <workspace> work status --work <work_id> -o json`  | [Network Work](/docs/network/work)                                            |
+| Receiver cannot act on request | `compozy session status <session-id> -o json`                                   | [Session Lifecycle](/docs/sessions/lifecycle)                                 |
+| No close-out evidence appears  | `compozy session events <session-id> --last 50`                                 | [Coordinate Agents over Network](/docs/guides/coordinate-agents-over-network) |
+
+## When to use tasks instead
+
+Use network messages for collaboration and handoff. Use [tasks](/docs/autonomy/task-runs-and-leases)
+when the work needs queue state, claim leases, retries, or durable completion records inside one Compozy
+runtime.

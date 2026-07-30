@@ -14,9 +14,6 @@ func newTaskReviewCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   taskReviewKey,
 		Short: "Manage task-run reviews",
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			return cmd.Help()
-		},
 	}
 	cmd.AddCommand(newTaskReviewRequestCommand(deps))
 	cmd.AddCommand(newTaskReviewListCommand(deps))

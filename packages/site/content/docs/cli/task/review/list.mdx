@@ -1,0 +1,47 @@
+---
+title: "compozy task review list"
+description: "List task-run reviews"
+---
+
+## compozy task review list
+
+List task-run reviews
+
+```
+compozy task review list [flags]
+```
+
+### Options
+
+```
+  -h, --help                      help for list
+      --last int                  Show only the most recent N reviews
+      --reviewer-session string   Filter by reviewer session ID
+      --run string                Filter by task run ID
+      --status string             Filter by review status
+      --task string               Filter by task ID
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy task review list -o json
+```

@@ -1,0 +1,96 @@
+---
+title: Conformance Levels
+description: Reference for Compozy Network v0 Core roles, the optional v1 trust profile, required behavior, test coverage, and self-certification.
+icon: Award
+---
+
+Conformance describes protocol behavior, not an implementation's carrier or the CompozyOS runtime's
+Local/Live policy.
+
+<OperatorNote label="Implementation status">
+  This repository tests the CompozyOS reference implementation's v0 behavior. It does not ship a
+  standalone third-party conformance runner, v1 signer/verifier, or published trust vectors.
+</OperatorNote>
+
+## Roles and levels
+
+| Claim           | Meaning                                                                                 |
+| --------------- | --------------------------------------------------------------------------------------- |
+| `Core Sender`   | Emits valid envelopes for the kinds it claims.                                          |
+| `Core Receiver` | Validates and receives core messages.                                                   |
+| `Core Peer`     | Satisfies both Core Sender and Core Receiver.                                           |
+| `Trust Peer`    | Core Peer plus the complete optional Ed25519 + JCS v1 verification and signing profile. |
+
+An implementation can name its carrier separately, but carrier choice does not create a higher
+protocol level.
+
+## Core requirements
+
+A Core implementation MUST enforce required fields, workspace/channel scope, kind-specific body
+rules, conversation-surface pairing, `work_id` container binding, expiration, terminal-state rules,
+and the rule to ignore unknown `ext` keys. It MUST reject legacy `kind:"direct"` and
+`interaction_id` shapes.
+
+The current CompozyOS decoder ignores arbitrary unknown top-level properties after explicitly
+rejecting `interaction_id`. Its package tests therefore do not establish blanket strict-field
+rejection as reference-implementation behavior.
+
+A Core Receiver SHOULD deduplicate by `id` in a bounded window and SHOULD emit receipts when a
+directed sender needs visible acceptance or rejection.
+
+## Optional v1 trust requirements
+
+A Trust Peer additionally claims the optional RFC 004 v1 trust profile and MUST:
+
+- use `compozy-network.trust.ed25519-jcs/v1`
+- apply the profile's `nickname@fingerprint` sender grammar to signed envelopes
+- bind `from`, `proof.key_id`, and `proof.pubkey`
+- canonicalize with RFC 8785 JCS while omitting only `proof.sig`
+- verify the Ed25519 signature over the canonical bytes
+- reject proof-stripped verified handles
+- distinguish `verified`, `unverified`, and `rejected`
+- apply authorization policy only after cryptographic verification
+
+See [Ed25519 + JCS](/docs/network/protocol/ed25519-jcs/) and [Signature Verification](/docs/network/protocol/verification/).
+
+## Coverage checklist
+
+This table describes evidence an implementer needs to produce. It is not the name or inventory of a
+published Compozy conformance suite.
+
+| Area                | Required coverage                                                                               |
+| ------------------- | ----------------------------------------------------------------------------------------------- |
+| Envelope            | Valid/invalid fields, timestamps, IDs, surfaces, containers, and legacy rejection.              |
+| Message kinds       | All claimed kinds and their required body fields.                                               |
+| Lifecycle           | Open, receipt, trace, terminal state, actor, and container binding.                             |
+| Delivery            | Duplicate, expired, unsupported, retry, and reason-code behavior.                               |
+| Extensions          | Unknown `ext` keys and processing only after core validation.                                   |
+| Trust, when claimed | Versioned proof vectors, tamper cases, key mismatch, fingerprint mismatch, and proof stripping. |
+| Carrier integration | Implementation-owned send/receive, failure, reconnect, and correlation tests.                   |
+
+Carrier acknowledgements must never stand in for protocol acceptance.
+
+## Self-certification
+
+Publish the claimed role, protocol/profile identifiers, exact test commands or report references,
+covered groups, carrier integration evidence, optional behavior, and known deviations. Do not claim
+Trust when signing or verification is absent or delegated to deployment policy.
+
+The following is an illustrative self-certification shape, not a record produced by a Compozy
+runner:
+
+```json
+{
+  "implementation": "example-runtime",
+  "version": "0.5.0",
+  "claim": "Core Peer",
+  "protocol": "compozy-network/v0",
+  "coverage": ["envelope", "message-kinds", "lifecycle", "delivery"],
+  "evidence": ["<implementation-owned test command or report>"],
+  "carrier": "implementation-defined",
+  "deviations": []
+}
+```
+
+Test runners should distinguish malformed envelopes, unsupported profiles, verification failures,
+expiration, duplication, carrier failures, and application-level rejection receipts.

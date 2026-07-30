@@ -1,0 +1,45 @@
+---
+title: "compozy session approve"
+description: "Approve or reject a pending session permission request"
+---
+
+## compozy session approve
+
+Approve or reject a pending session permission request
+
+```
+compozy session approve <id> [flags]
+```
+
+### Options
+
+```
+      --decision string     Decision: allow-once, allow-always, reject-once, or reject-always
+  -h, --help                help for approve
+      --request-id string   Pending permission request id
+      --turn-id string      Pending permission turn id
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy session approve <id> -o json
+```

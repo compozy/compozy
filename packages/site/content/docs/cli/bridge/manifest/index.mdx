@@ -1,0 +1,38 @@
+---
+title: "compozy bridge manifest"
+description: "Generate provider setup artifacts"
+---
+
+## compozy bridge manifest
+
+Generate provider setup artifacts
+
+### Options
+
+```
+  -h, --help   help for manifest
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+This command displays human-readable help and its subcommand list. The inherited `-o, --output` and `--json` flags do not serialize help output.
+
+| Format  | Output                   |
+| ------- | ------------------------ |
+| `human` | Help and subcommand list |
+| `json`  | Not emitted for help     |
+| `jsonl` | Not emitted for help     |
+| `toon`  | Not emitted for help     |
+
+## Subcommands
+
+| Command                                                          | Description                                           |
+| ---------------------------------------------------------------- | ----------------------------------------------------- |
+| [compozy bridge manifest slack](/docs/cli/bridge/manifest/slack) | Generate a Slack app manifest for one bridge instance |

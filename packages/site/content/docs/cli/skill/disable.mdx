@@ -1,0 +1,44 @@
+---
+title: "compozy skill disable"
+description: "Disable a daemon-managed skill"
+---
+
+## compozy skill disable
+
+Disable a daemon-managed skill
+
+```
+compozy skill disable <name> [flags]
+```
+
+### Options
+
+```
+      --for-agent string   Resolve the effective skill set for one logical agent
+  -h, --help               help for disable
+      --workspace string   Override the workspace context (ID, name, or path)
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy skill disable <name> -o json
+```

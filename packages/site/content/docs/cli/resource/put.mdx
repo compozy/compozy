@@ -1,0 +1,47 @@
+---
+title: "compozy resource put"
+description: "Create or update one desired-state resource"
+---
+
+## compozy resource put
+
+Create or update one desired-state resource
+
+```
+compozy resource put <kind> <id> [flags]
+```
+
+### Options
+
+```
+      --expected-version int   Optimistic version for updates
+  -h, --help                   help for put
+      --scope string           Scope kind: global or workspace (default "global")
+      --spec string            Inline JSON resource spec
+      --spec-file string       Path to JSON resource spec file, or '-' for stdin
+      --workspace string       Override workspace binding (ID, name, or path)
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy resource put <kind> <id> -o json
+```

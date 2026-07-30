@@ -16,7 +16,7 @@ charter:
   time_box_minutes: 30
   guidance:
     must_try:
-      - "On pristine default [roles] config, do real session work, confirm extractor evidence (`compozy memory extractor status` / `list-pending`), then `compozy memory dream trigger` — a truthful running (or skipped+reason) response, never a fake run."
+      - "On pristine default [roles] config, do real session work, confirm extractor evidence (`compozy memory extractor status` / `list-failures`), then `compozy memory dream trigger` — a truthful running (or skipped+reason) response, never a fake run."
       - "The dream session runs the builtin dreaming-curator hidden: absent from session list, fleet, and agent catalogs while `compozy memory dream status|show <date-or-run-id>` reports it truthfully to a terminal outcome (retry available on failure)."
       - "Pipeline health: `GET /api/memory/health` (and `compozy memory health`) returns ok with real counts after the run; a fresh memory list/recall returns the consolidated knowledge."
       - "Disabled branch: set `roles.dream.enabled false`, trigger → skipped naming the reason; re-enable → next trigger runs — both without daemon restart (live roles apply on the pipeline path)."
@@ -26,7 +26,7 @@ charter:
       - "Memory-v2 dream promotion — out of the feature's scope by spec."
   coverage:
     surfaces:
-      - "session work → extractor status/list-pending → POST /api/memory/dreams/trigger + compozy memory dream trigger|status|show|retry"
+      - "session work → extractor status/list-failures → POST /api/memory/dreams/trigger + compozy memory dream trigger|status|show|retry"
       - "GET /api/memory/dreams*; GET /api/memory/health + compozy memory health; fresh memory list/recall"
       - "hidden-session visibility across session list, fleet, and agent catalogs"
       - "live roles.dream.enabled toggle on the real pipeline"

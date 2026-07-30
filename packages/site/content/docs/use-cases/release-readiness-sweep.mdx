@@ -1,0 +1,119 @@
+---
+title: Release Readiness Sweep
+description: Use Compozy tasks and sessions to run release checks with durable ownership and completion evidence.
+---
+
+A release sweep is a set of checks that should not disappear into chat: docs, build health,
+integration status, migration notes, and operator risk. Compozy models that work as tasks, task runs,
+and attached sessions.
+
+The model is simple:
+
+| Runtime object | Meaning in this use case                                                         | Typical owner                           |
+| -------------- | -------------------------------------------------------------------------------- | --------------------------------------- |
+| Task           | The release concern, such as "Verify release documentation".                     | Operator creates and reviews it.        |
+| Task run       | One attempt to perform that task, with queue, claim, and close state.            | Operator or agent claims and closes it. |
+| Session        | The durable agent process that reads files, runs commands, and reports evidence. | Agent produces the work evidence.       |
+
+## Setup
+
+Start with a registered workspace:
+
+```bash
+compozy workspace add /Users/you/project --name project
+```
+
+Create one task per release concern. Keep the title concrete enough that an agent can claim it
+without extra context.
+
+```bash
+compozy task create \
+  --scope workspace \
+  --workspace project \
+  --title "Verify release documentation" \
+  --description "Check docs, CLI examples, and known release claims for drift." \
+  -o json
+```
+
+## Flow
+
+<Mermaid
+  chart={`flowchart TD
+    Task[Operator creates release task] --> Enqueue[Operator enqueues run]
+    Enqueue --> Session[Operator starts Compozy session]
+    Session --> Claim[Agent session claims exact run]
+    Claim --> Work[Agent runs checks and collects evidence]
+    Work --> Decision{Ready?}
+    Decision -->|yes| Complete[Claiming agent completes run]
+    Decision -->|no| Fail[Claiming agent fails run]
+    Complete --> Audit[Task run history]
+    Fail --> Audit`}
+  caption="A release readiness sweep moves from task creation through an exact session-bound claim, agent evidence, and an auditable completion decision."
+/>
+
+The operator creates the work and starts the intended agent session. That session claims the exact
+queued run, renews its lease while working, and closes it; the operator reviews the durable evidence.
+
+```bash
+compozy task run enqueue task_123 -o json
+compozy session new --workspace project --agent reviewer --name release-docs -o json
+export COMPOZY_SESSION_ID=sess_1234
+export COMPOZY_AGENT=reviewer
+compozy task next --run-id run_123 -o json
+compozy session prompt sess_1234 "Verify release documentation. Report mismatches, missing examples, and commands used."
+```
+
+When the evidence is clear, close the run:
+
+```bash
+compozy task complete run_123 \
+  --result '{"status":"ready","evidence":["compozy session history sess_1234"]}' \
+  -o json
+```
+
+If the check finds a blocker, fail the run instead:
+
+```bash
+compozy task fail run_123 \
+  --error "CLI examples do not match generated reference" \
+  --metadata '{"session":"sess_1234"}' \
+  -o json
+```
+
+## Evidence to keep
+
+| Evidence         | Command                                                      | Why it matters                                             |
+| ---------------- | ------------------------------------------------------------ | ---------------------------------------------------------- |
+| Task definition  | `compozy task get task_123 -o json`                          | Shows scope, workspace, owner, channel, and metadata.      |
+| Run state        | `compozy task run list task_123 -o json`                     | Shows whether work is queued, claimed, running, or closed. |
+| Claiming session | `compozy task run list task_123 --session sess_1234 -o json` | Connects the session-bound lease to the task run.          |
+| Session history  | `compozy session history sess_1234`                          | Preserves the reasoning and commands behind the result.    |
+
+## Useful release sweep tasks
+
+| Task title                        | What the agent should prove                                                            |
+| --------------------------------- | -------------------------------------------------------------------------------------- |
+| Verify CLI examples               | Every command in edited docs exists in generated CLI reference.                        |
+| Check OpenAPI route claims        | Docs distinguish generated schema coverage from implemented routes.                    |
+| Review provider and agent support | Public copy lists only implemented provider IDs and agent adapters.                    |
+| Exercise first-run docs           | A new operator can install, start the daemon, create a workspace, and start a session. |
+| Collect unresolved release risks  | Any gap has a task id, owner, and visible next action.                                 |
+
+## Failure path
+
+| Symptom                         | First check                                                  | Likely fix                                      |
+| ------------------------------- | ------------------------------------------------------------ | ----------------------------------------------- |
+| No one can claim the run        | `compozy task run list task_123 -o json`                     | Confirm the run was enqueued and is not closed. |
+| Session is doing unrelated work | `compozy task run list task_123 --session sess_1234 -o json` | Claim the exact run from the intended session.  |
+| Result JSON is too vague        | `compozy session history sess_1234`                          | Re-prompt for concrete evidence before closing. |
+| Release concern keeps recurring | Task history and run metadata                                | Split the concern into smaller tasks.           |
+
+## Related pages
+
+- [Task Runs and Leases](/docs/autonomy/task-runs-and-leases) explains claim, heartbeat, and
+  close semantics.
+- [Debug a Failed Session](/docs/guides/debug-a-failed-session) helps when the attached release
+  session stalls.
+- [Task CLI Reference](/docs/cli/task) lists exact task and task-run flags.
+- [How to Use These Docs](/docs/how-to-use-these-docs) gives release reviewers a reading path
+  across guides, use cases, and references.

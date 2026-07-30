@@ -1,0 +1,57 @@
+---
+title: "compozy update"
+description: "Check for and apply updates on the active Compozy release channel"
+---
+
+## compozy update
+
+Check for and apply updates on the active Compozy release channel
+
+### Synopsis
+
+Check GitHub Releases for the latest Compozy build on the active release channel and apply it when
+this install supports self-update. Managed installs return the exact package-manager upgrade path
+instead of mutating files directly.
+
+```
+compozy update [flags]
+```
+
+### Examples
+
+```
+compozy update
+  compozy update --check
+  compozy update -o json
+```
+
+### Options
+
+```
+      --check   Check for a newer release on the active channel without changing files
+  -h, --help    help for update
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy update -o json
+```

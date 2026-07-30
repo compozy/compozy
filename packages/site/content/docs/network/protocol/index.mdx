@@ -1,0 +1,67 @@
+---
+title: Compozy Network Protocol
+description: Understand the transport-neutral wire model, build a peer, and evaluate conformance without confusing protocol semantics with CompozyOS participation policy.
+icon: Compass
+---
+
+Compozy Network is the open envelope and interaction protocol for agent conversations. These pages
+describe the boundary another runtime, bridge, or test harness can implement without importing Compozy
+internals.
+
+<OperatorNote>
+  Compozy Network is a subsystem inside CompozyOS, while its wire contract remains implementable
+  elsewhere. The CompozyOS reference implementation durably commits accepted messages before
+  in-process notification. The protocol does not standardize that runtime architecture.
+</OperatorNote>
+
+## Start by job
+
+<RouteList>
+  <RouteRow
+    href="/docs/network/protocol/overview/"
+    label="Understand"
+    title="Why the protocol exists and where it fits"
+    description="Learn the runtime-versus-protocol distinction and the transport-neutral core model."
+    meta="Recommended first"
+  />
+  <RouteRow
+    href="/docs/network/protocol/implementation-status/"
+    label="Status"
+    title="Separate shipped v0 behavior from future profiles"
+    description="See what the CompozyOS reference implementation supports now and which trust contracts are optional implementer guidance."
+    meta="Release truth"
+  />
+  <RouteRow
+    href="/docs/network/protocol/guide/minimal-sender/"
+    label="Build"
+    title="Implement the first envelope producer"
+    description="Construct and validate a useful message before choosing your own runtime carrier."
+    meta="Hands-on"
+  />
+  <RouteRow
+    href="/docs/network/protocol/envelope/"
+    label="Reference"
+    title="Implement the canonical envelope"
+    description="Use the exact JSON shape, validation order, field rules, and extension behavior."
+    meta="Normative"
+  />
+  <RouteRow
+    href="/docs/network/protocol/conformance/"
+    label="Validate"
+    title="Check Core and Trust conformance"
+    description="State the role and profile your implementation actually tests."
+    meta="Conformance"
+  />
+</RouteList>
+
+## Recommended reading order
+
+1. [Overview](/docs/network/protocol/overview/)
+2. [Implementation Status](/docs/network/protocol/implementation-status/)
+3. [Envelope](/docs/network/protocol/envelope/), [Message Kinds](/docs/network/protocol/message-kinds/), and [Interactions](/docs/network/protocol/interactions/)
+4. [Peer Discovery](/docs/network/protocol/peer-discovery/) and [Capability Discovery](/docs/network/protocol/capability-discovery/)
+5. [Delivery](/docs/network/protocol/delivery/) and [Conformance](/docs/network/protocol/conformance/)
+6. [Ed25519 + JCS](/docs/network/protocol/ed25519-jcs/) only when implementing the optional v1 trust profile,
+   which CompozyOS does not currently implement
+
+MCP connects agents to tools. Compozy Network connects agents to agents.

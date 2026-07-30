@@ -1,0 +1,50 @@
+---
+title: "compozy skill install"
+description: "Install a marketplace skill"
+---
+
+## compozy skill install
+
+Install a marketplace skill
+
+```
+compozy skill install <slug> [flags]
+```
+
+### Examples
+
+```
+  # Install the latest marketplace version of a skill
+  compozy skill install @acme/code-review
+```
+
+### Options
+
+```
+  -h, --help             help for install
+      --version string   Marketplace version to install
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy skill install <slug> -o json
+```

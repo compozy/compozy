@@ -1,64 +1,63 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { DocPageMasthead } from "../doc-page-masthead";
 
 describe("DocPageMasthead", () => {
-  it("uses the nested core section label for runtime concept pages", () => {
+  it("renders context-row crumbs above the title without Focus filler", () => {
     render(
       <DocPageMasthead
-        kind="runtime"
-        slug={["core", "sessions", "lifecycle"]}
-        title="Session Lifecycle"
-        description="Durable runtime unit."
+        product="CompozyOS"
+        audience="people running agent work"
+        crumbs={[{ name: "Sessions", href: "/docs/sessions" }, { name: "Session lifecycle" }]}
+        title="Session lifecycle"
+        description="A durable session."
+        sectionPageCount={4}
       />
     );
 
-    expect(screen.getByText("CompozyOS Runtime")).toBeTruthy();
-    expect(screen.getByText("Sessions")).toBeTruthy();
-    expect(
-      screen.getByText(
-        "Sessions guidance shaped for scanability, day-two clarity, and operator context."
-      )
-    ).toBeTruthy();
-  });
-
-  it("uses the cli subgroup label for runtime reference pages", () => {
-    render(
-      <DocPageMasthead
-        kind="runtime"
-        slug={["cli-reference", "agent", "info"]}
-        title="compozy agent info"
-        description="Inspect one agent."
-      />
+    expect(screen.getByText("CompozyOS")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Sessions" }).getAttribute("href")).toBe(
+      "/docs/sessions"
     );
-
-    expect(screen.getByText("Agent")).toBeTruthy();
+    expect(within(screen.getByLabelText("Breadcrumb")).getByText("Session lifecycle")).toBeTruthy();
+    expect(screen.getByRole("heading", { level: 1, name: "Session lifecycle" })).toBeTruthy();
+    expect(screen.getByText("people running agent work")).toBeTruthy();
+    expect(screen.getByText("4 pages")).toBeTruthy();
+    expect(screen.queryByText(/guidance shaped for scanability/i)).toBeNull();
+    expect(screen.queryByText("Focus")).toBeNull();
   });
 
-  it("uses the root runtime overview label on the runtime landing page", () => {
+  it("omits the page-count meta item when count is unavailable", () => {
     render(
       <DocPageMasthead
-        kind="runtime"
-        slug={[]}
+        product="CompozyOS Runtime"
+        audience="people running agent work"
+        crumbs={[{ name: "Runtime Overview" }]}
         title="Runtime Documentation"
         description="CompozyOS Runtime overview."
+        sectionPageCount={null}
       />
     );
 
     expect(screen.getByText("Runtime Overview")).toBeTruthy();
+    expect(screen.queryByText(/in this section/i)).toBeNull();
   });
 
-  it("skips empty slug parts when building labels", () => {
+  it("renders page actions when action urls are provided", () => {
     render(
       <DocPageMasthead
-        kind="runtime"
-        slug={["cli-reference", "agent--info"]}
-        title="compozy agent info"
-        description="Inspect one agent."
+        product="Compozy Network"
+        audience="protocol implementers"
+        crumbs={[{ name: "Overview" }]}
+        title="Protocol"
+        markdownUrl="/llms.mdx/docs/network/protocol/"
+        pageUrl="https://compozy.com/docs/network/protocol/"
+        githubUrl="https://github.com/compozy/compozy"
       />
     );
 
-    expect(screen.getByText("Agent Info")).toBeTruthy();
-    expect(screen.queryByText(/undefined/i)).toBeNull();
+    expect(screen.getByRole("button", { name: "Copy as Markdown" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Open with AI/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Page options" })).toBeTruthy();
   });
 });

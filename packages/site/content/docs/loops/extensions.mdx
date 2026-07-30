@@ -1,0 +1,100 @@
+---
+title: Extending Loops
+description: How extensions add Loop definitions, actions, gate checks, and watch sources — reusing Compozy's existing surfaces, with one new bridge capability.
+---
+
+Loops extend through Compozy's existing [extension](/docs/extensions) surfaces. Almost
+everything is wiring you already have — the tool registry, the resource projection, the hook
+catalog — and the only new protocol surface is a single bridge capability for watch sources.
+
+## Ship definitions as `resources.loops`
+
+An extension publishes Loop definitions the same way it publishes agents or skills: a directory
+list under `resources.loops` in its manifest.
+
+```json
+{
+  "resources": {
+    "loops": ["loops"]
+  }
+}
+```
+
+The daemon projects each definition as a `loop` resource carrying **matchable metadata only** —
+name, scope, catalog, and start bindings — while the full `compozy.loop/v1` YAML stays on the
+filesystem. Loop definitions resolve through marketplace, user, additional, and workspace layers
+(workspace wins). A shipped Loop appears in the [catalog](/docs/loops/catalog) next to the
+default `dev-cycle` Loops.
+
+## Actions and tools
+
+An extension-provided Loop [action](/docs/loops/dsl-reference#action-nodes) `kind` is a **tool ID**.
+The four reserved kinds — `run-agent`, `run-loop`, `transform`, and `goal` — use first-party
+executors. Every other action kind resolves through the runtime tool registry, so native, extension,
+and MCP tools are already Loop actions without a second registry or orchestrator.
+
+To add a Loop action, publish a tool with the `tool.provider` capability. Tag it `loop.action` or
+`loop.gate` in a toolset if you want it grouped for authors. Because actions run through the one
+`RuntimeRegistry.Call` path, they inherit policy, approval, redaction, and observability for free.
+
+## Gate `extension` checks
+
+A `gate` [criterion](/docs/loops/dsl-reference#the-gate-contract) of `type: extension`
+calls an extension tool and interprets its structured output (or exit code) as a verdict. It rides
+the same `tools/call` path as any other tool — no new bridge method.
+
+```yaml
+- id: policy_check
+  type: extension
+  tool: ext__acme_policy_scan
+  inputs: { target: "{{ .inputs.slug }}" }
+```
+
+The other three check kinds — `command`, `agent-judge`, `human` — are native.
+
+## Watch sources
+
+A `watch-source` node waits for an external signal and ticks the Loop when the signal is ready. It
+is the one place Loops needed a new bridge surface: the capability
+`loop.watch_source` plus the daemon→extension service method `watch/poll`.
+
+An extension declares a watch source with the SDK:
+
+```ts
+extension.watchSource("acme.pull_request", {/* options */}, async (spec, expectedStateDigest) => {
+  // return { ready, state_digest, payload, settled_at }
+});
+```
+
+`extension.watchSource()` auto-declares the `loop.watch_source` capability and registers the
+`watch/poll` handler. The daemon calls it synchronously — `{ spec, expected_state_digest }` in,
+`{ ready, state_digest, payload, settled_at }` out — driven by the coordinator's own task run
+(claim → poll → yield → re-claim), never a parked goroutine. There is no push path in this version;
+the coordinator polls.
+
+### Watch runtime behavior
+
+Once a Loop with a `watch-source` starts, its lifecycle differs from a delivery Loop:
+
+- **`watching`** — between ticks the run is dormant in the `watching` state, re-woken by the next
+  poll. It is not consuming a generation while it waits.
+- **Unbounded cap** — a definition containing `watch-source` defaults `iteration_cap: 0`, rendered
+  `∞`. A `0` cap never produces `exhausted`, because there is no fixed count of "done."
+- **`no-op` on clean ticks** — a tick that finds nothing to do ends the generation `no-op`, never a
+  fake `done`. A clean watch tick is honest idleness.
+- **Stall on silence** — if a watched source goes silent past its window, the run ends `stalled`
+  (reason `watch_source_silence`), not `done`. Silence is measured against `last_progress_at` plus
+  the source's window.
+
+The bundled `dev-cycle` Loops do not publish a watch-source kind. Its `review-and-fix` Loop starts
+an agent-authored review directly and uses ordinary actions, branching, fan-out, and collection.
+Extensions can still publish their own watch-source kinds for external signals that need polling.
+
+## What stays put
+
+- **Hooks** — extensions observe or gate Loops through the existing
+  [`loop.*` hook family](/docs/loops/hooks); no new hook wiring.
+- **Agent tools** — the `compozy__loop_*` toolset is native and standard; extensions do not add loop
+  management tools.
+- **The network wire** — Loops are a runtime feature. Extensions do not carry Loop execution over
+  Compozy Network.

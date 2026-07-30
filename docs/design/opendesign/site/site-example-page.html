@@ -1,0 +1,361 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Examples — Review-and-fix loop · compozy.com restructure · Compozy</title>
+<link rel="stylesheet" href="site.css" />
+<script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+
+<div id="cz-topnav"></div>
+
+<div class="dsh-body" data-od-id="example-shell">
+
+  <nav class="dsh-sidebar" id="cz-sidebar" aria-label="Docs" data-od-id="docs-sidebar"></nav>
+
+  <main class="dsh-article" data-od-id="example-article">
+    <div class="dsh-article__inner">
+
+      <div class="mh-context">
+        <nav class="mh-crumbs" aria-label="Breadcrumb">
+          <span class="mh-crumbs__product">CompozyOS</span>
+          <span class="mh-crumbs__sep"></span>
+          <a href="#">Guides &amp; examples</a>
+          <span class="mh-crumbs__sep"></span>
+          <a href="#">Examples</a>
+          <span class="mh-crumbs__sep"></span>
+          <span class="mh-crumbs__leaf">Review-and-fix loop</span>
+        </nav>
+        <div class="mh-actions">
+          <button class="act-btn" type="button" data-copy="curl https://compozy.com/llms.mdx/docs/examples/review-and-fix-loop">
+            <svg class="ic" viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy as Markdown</button>
+          <button class="act-btn" type="button" aria-haspopup="menu" aria-expanded="false">
+            <svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2"/></svg>Open with AI
+            <svg class="ic ic--xs" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></button>
+        </div>
+      </div>
+
+      <h1 class="mh-title" data-od-id="example-title">Review-and-fix loop</h1>
+      <p class="mh-lead">Review a named task with an agent, write inspectable findings, and remediate them until a round comes back clean.</p>
+
+      <div class="mh-meta" data-od-id="example-meta">
+        <span class="maturity">Shipped</span>
+        <span class="mh-meta__item"><svg class="ic" viewBox="0 0 24 24"><path d="m8 6-6 6 6 6M16 6l6 6-6 6"/></svg><code>compozy.loop/v1</code></span>
+        <span class="mh-meta__item"><svg class="ic" viewBox="0 0 24 24"><path d="M4 20h16M6.9 15.5 12 4l5.1 11.5"/></svg>Category <strong>Engineering</strong></span>
+        <span class="mh-meta__item"><svg class="ic" viewBox="0 0 24 24"><path d="M9 18c-4.51 2-5-2-7-2M15 22v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 19 4.77 5.07 5.07 0 0 0 18.91 1S17.73.65 15 2.48a13.38 13.38 0 0 0-7 0C5.27.65 4.09 1 4.09 1A5.07 5.07 0 0 0 4 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 8 18.13V22"/></svg><code>extensions/dev-cycle</code></span>
+      </div>
+
+      <div class="doc-body">
+
+        <h2 id="what-you-build">What you build</h2>
+        <p>A standing review gate for any task in your workspace. One agent reviews the work and returns structured findings; a second agent triages each finding against local evidence, fixes the valid ones at the root cause, and documents the invalid ones. The loop repeats until a review round returns <strong>zero issues</strong> — and the daemon enforces the exit: an iteration cap of 3, a no-progress check over the last 2 rounds, and a named terminal state either way.</p>
+        <p>Use it when you want the work on a task reviewed by an agent and every finding remediated until a round comes back clean.</p>
+
+        <h2 id="the-artifact">The artifact</h2>
+        <p>This is the complete definition, exactly as it ships in the Compozy repository. Copy it as-is — it runs against a current release.</p>
+        <div class="doc-pre doc-pre--scroll" data-od-id="artifact-yaml">
+          <div class="doc-pre__head"><svg class="ic ic--xs" viewBox="0 0 24 24"><path d="m8 6-6 6 6 6M16 6l6 6-6 6"/></svg>extensions/dev-cycle/loops/review-and-fix/loop.yaml<button class="act-btn" type="button" data-copy-target="#loop-yaml"><svg class="ic ic--xs" viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy</button></div>
+          <pre id="loop-yaml">apiVersion: compozy.loop/v1
+kind: Loop
+meta:
+  name: review-and-fix
+  description: Review a named task with an agent, write inspectable findings, and remediate them until a round comes back clean.
+  catalog:
+    use_when: "You want the work on a task reviewed by an agent and every finding remediated until a round comes back clean."
+    keywords: [reviews, agents, artifacts, remediate]
+    category: Engineering
+
+concurrency: forbid
+
+inputs:
+  task_name:
+    type: string
+    required: true
+  reviewer:
+    type: agent
+    default: reviewer
+  fixer:
+    type: agent
+    default: review_fixer
+  auto_commit:
+    type: boolean
+    default: false
+
+contract:
+  goal: "Review the work for task {{ .inputs.task_name }} and remediate every valid finding."
+  definition_of_done: >
+    A new agent review round for the task returns no issues after all earlier findings were triaged,
+    remediated, verified, and finalized.
+  stop_when: "nodes.review.status == 'succeeded' &amp;&amp; size(nodes.review.output.issues) == 0"
+  iteration_cap: 3
+  no_progress:
+    window: 2
+    hash_fields: [nodes.review.output.issues]
+  budget:
+    tokens: 0
+    wall_clock_sec: 0
+    on_exceeded: escalate
+  terminal_states: [done, no-op, blocked, failed, exhausted, stalled]
+
+graph:
+  nodes:
+    - id: review
+      class: action
+      kind: run-agent
+      params:
+        agent: "{{ .inputs.reviewer }}"
+        prompt: |
+          Review the current workspace changes for task {{ .inputs.task_name }}.
+          This is review generation {{ .generation }} for that task.
+
+          Read the task artifacts and repository instructions before judging the implementation.
+          Report only concrete defects, regressions, unsafe shortcuts, contract drift, and missing
+          verification. Do not create, rename, timestamp, or edit review artifact files.
+
+          Return `issues` as source-agnostic structured records. Every issue must include a specific
+          title, an evidence-backed body, and a severity. Include `file` and `line` when the finding
+          belongs to a specific location; omit them for general findings. Return an empty array only
+          when the round is clean.
+        output_schema:
+          type: object
+          additionalProperties: false
+          required: [issues]
+          properties:
+            issues:
+              type: array
+              items:
+                type: object
+                additionalProperties: false
+                required: [title, body, severity]
+                properties:
+                  title:
+                    type: string
+                    minLength: 1
+                  body:
+                    type: string
+                    minLength: 1
+                  severity:
+                    type: string
+                    minLength: 1
+                  file:
+                    type: string
+                  line:
+                    type: integer
+                    minimum: 1
+                  author:
+                    type: string
+      session:
+        isolated: true
+      timeout: 45m
+      retry:
+        max_attempts: 2
+
+    - id: has_issues
+      class: control
+      kind: branch
+      condition: "size(nodes.review.output.issues) > 0"
+
+    - id: write_artifacts
+      class: action
+      kind: ext__dev_cycle__write_review_artifacts
+      params:
+        task_name: "{{ .inputs.task_name }}"
+        issues: "{{ .nodes.review.output.issues }}"
+      produces:
+        task_name: string
+        round: integer
+        round_dir: string
+        files: array
+        batches: array
+        issues: array
+        count: integer
+
+    - id: fix_batches
+      class: control
+      kind: fan-out
+      collection: "{{ .nodes.write_artifacts.output.batches }}"
+      batch_size: 1
+      max_parallel: 1
+      max_fan_out: 64
+
+    - id: fix_batch
+      class: action
+      kind: run-agent
+      params:
+        agent: "{{ .inputs.fixer }}"
+        prompt: |
+          Remediate this complete batch of review artifact files now. This prompt is the operator's
+          authorization to make scoped code changes; begin immediately without asking for confirmation.
+
+          Required skills:
+          - systematic-debugging: establish the root cause before changing production code.
+          - no-workarounds: implement complete fixes instead of symptom patches.
+          - cy-fix-reviews: follow the review-artifact remediation workflow.
+          - cy-final-verify: run the repository's real verification before completion or commit.
+
+          Scope:
+          - Code file: {{ .item.file }}
+          - Issue files:
+          {{ range .item.issue_files -}}
+            - {{ . }}
+          {{ end }}
+          - Read every listed issue file completely before editing code.
+          - Treat the listed issue-file paths as the complete batch. Never create, rename, timestamp,
+            or resolve an artifact; edit only its existing triage content and change frontmatter from
+            `pending` to `valid` or `invalid`.
+          - Preserve unrelated worktree changes. The batch is all-or-nothing: every issue file must
+            receive one structured result.
+
+          Remediation:
+          1. Triage each finding against local evidence.
+          2. For a valid finding, implement the root-cause fix and focused regression coverage, or name
+             the existing canonical suite that owns the invariant.
+          3. For an invalid finding, document the disproving evidence and use `resolution: documented`.
+          4. Run the repository's required verification for every touched surface.
+          {{ if .inputs.auto_commit -}}
+          5. Create exactly one local commit for this batch after verification. Do not push.
+          {{ else -}}
+          5. Leave the verified changes uncommitted for manual review. Do not push.
+          {{ end }}
+
+          Return `results` with exactly one entry per issue file. A valid issue uses
+          `resolution: fixed`; an invalid issue uses `resolution: documented`.
+        output_schema:
+          type: object
+          additionalProperties: false
+          required: [results]
+          properties:
+            results:
+              type: array
+              items:
+                type: object
+                additionalProperties: false
+                required: [path, triage, resolution, summary]
+                properties:
+                  path:
+                    type: string
+                  triage:
+                    enum: [valid, invalid]
+                  resolution:
+                    enum: [fixed, documented]
+                  summary:
+                    type: string
+      session:
+        isolated: true
+      timeout: 45m
+      retry:
+        max_attempts: 2
+
+    - id: collect_fixes
+      class: control
+      kind: collect
+
+    - id: finalize_round
+      class: action
+      kind: ext__dev_cycle__finalize_review_round
+      params:
+        task_name: "{{ .nodes.write_artifacts.output.task_name }}"
+        round: "{{ .nodes.write_artifacts.output.round }}"
+      produces:
+        task_name: string
+        round: integer
+        resolved: integer
+        invalid: integer
+        pending: integer
+
+  edges:
+    - from: review
+      to: has_issues
+    - from: has_issues
+      to: write_artifacts
+    - from: write_artifacts
+      to: fix_batches
+    - from: fix_batches
+      to: fix_batch
+    - from: fix_batch
+      to: collect_fixes
+    - from: collect_fixes
+      to: finalize_round
+
+start:
+  - kind: manual
+  - kind: cli
+  - kind: http
+  - kind: uds
+  - kind: native_tool
+  - kind: trigger
+  - kind: webhook</pre>
+        </div>
+
+        <h2 id="run-it">Run it</h2>
+        <p>The loop lifecycle is validate, publish, then run. <code>task_name</code> is the one required input — <code>reviewer</code>, <code>fixer</code>, and <code>auto_commit</code> ship with defaults.</p>
+        <div class="doc-pre">
+          <div class="doc-pre__head"><svg class="ic ic--xs" viewBox="0 0 24 24"><path d="m8 6-6 6 6 6M16 6l6 6-6 6"/></svg>shell<button class="act-btn" type="button" data-copy-target="#run-commands"><svg class="ic ic--xs" viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy</button></div>
+          <pre id="run-commands"><span class="tok-c"># check the definition against compozy.loop/v1</span>
+compozy loop validate loop.yaml
+
+<span class="tok-c"># publish it to your runtime</span>
+compozy loop create loop.yaml
+
+<span class="tok-c"># rehearse a round without side effects, then run it</span>
+compozy loop run review-and-fix --dry-run
+compozy loop run review-and-fix</pre>
+        </div>
+        <p>The definition also declares its start surfaces: manual, CLI, HTTP, UDS, native tool, trigger, and signed webhook — an agent can start this loop through the same contracts you just used.</p>
+
+        <h2 id="how-it-works">How it works</h2>
+        <div class="doc-steps" data-od-id="how-it-works">
+          <div class="doc-step"><span class="doc-step__num">1</span><div class="doc-step__body"><p class="doc-step__title">Review the task <code>review</code></p>The reviewer agent reads the workspace changes in an isolated session and returns <code>issues</code> as structured records — title, evidence-backed body, severity — validated against the node's output schema.</div></div>
+          <div class="doc-step"><span class="doc-step__num">2</span><div class="doc-step__body"><p class="doc-step__title">Branch on findings <code>has_issues</code></p>A clean round means the contract's <code>stop_when</code> is met and the loop ends with outcome <code>done</code>. Otherwise the round continues.</div></div>
+          <div class="doc-step"><span class="doc-step__num">3</span><div class="doc-step__body"><p class="doc-step__title">Write inspectable artifacts <code>write_artifacts</code></p>An extension action turns the findings into review artifact files on disk, batched per code file — the durable record both agents and people can read.</div></div>
+          <div class="doc-step"><span class="doc-step__num">4</span><div class="doc-step__body"><p class="doc-step__title">Fix each batch <code>fix_batches → fix_batch</code></p>A fan-out runs the fixer agent once per batch, sequentially. Valid findings get root-cause fixes and regression coverage; invalid ones get documented disproving evidence.</div></div>
+          <div class="doc-step"><span class="doc-step__num">5</span><div class="doc-step__body"><p class="doc-step__title">Close the round <code>collect_fixes → finalize_round</code></p>Batch results are collected and the round is finalized with resolved, invalid, and pending counts. The next generation starts at step 1 — until a round comes back clean.</div></div>
+          <div class="doc-step"><span class="doc-step__num">6</span><div class="doc-step__body"><p class="doc-step__title">The daemon enforces the exit</p><code>iteration_cap: 3</code>, a no-progress window of 2 rounds hashed over the issue list, and <code>concurrency: forbid</code>. Every run ends in a named terminal state: <code>done</code>, <code>no-op</code>, <code>blocked</code>, <code>failed</code>, <code>exhausted</code>, or <code>stalled</code>.</div></div>
+        </div>
+
+        <h2 id="next-steps">Next steps</h2>
+        <div class="doc-cardlist" data-od-id="next-steps">
+          <a class="doc-card" href="#"><span class="doc-card__title"><svg class="ic" viewBox="0 0 24 24"><path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg>Software-delivery loop</span><span class="doc-card__desc">The larger sibling artifact: take a task from spec to verified implementation.</span></a>
+          <a class="doc-card" href="#"><span class="doc-card__title"><svg class="ic" viewBox="0 0 24 24"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>Authoring loops</span><span class="doc-card__desc">The compozy.loop/v1 contract in full: goals, nodes, guardrails, outcomes.</span></a>
+          <a class="doc-card" href="#"><span class="doc-card__title"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>Schedule it as a job</span><span class="doc-card__desc">Run this loop on a cron schedule with [[automation.jobs]] — review every night, read results in the morning.</span></a>
+          <a class="doc-card" href="#"><span class="doc-card__title"><svg class="ic" viewBox="0 0 24 24"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>Telegram bridge session<span class="maturity" data-level="alpha">Alpha</span></span><span class="doc-card__desc">Steer agents from chat. Bridges build from source today — the label is the claim.</span></a>
+        </div>
+
+      </div>
+
+      <div class="doc-pager">
+        <a href="#"><span class="doc-pager__dir">Previous</span><span class="doc-pager__title">Examples</span></a>
+        <a href="#" data-dir="next"><span class="doc-pager__dir">Next</span><span class="doc-pager__title">Software-delivery loop</span></a>
+      </div>
+
+    </div>
+  </main>
+
+  <aside class="dsh-toc" aria-label="On this page">
+    <p class="toc-label">On this page</p>
+    <nav class="toc-list">
+      <a href="#what-you-build" data-active="true">What you build</a>
+      <a href="#the-artifact">The artifact</a>
+      <a href="#run-it">Run it</a>
+      <a href="#how-it-works">How it works</a>
+      <a href="#next-steps">Next steps</a>
+    </nav>
+  </aside>
+
+</div>
+
+<script src="site.js"></script>
+<script>
+  czBoot({
+    nav: "docs",
+    wide: true,
+    sidebar: {
+      active: "examples/review-and-fix-loop",
+      open: ["examples"]
+    }
+  });
+</script>
+</body>
+</html>

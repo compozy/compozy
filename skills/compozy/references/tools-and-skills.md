@@ -63,7 +63,7 @@ workspace's registry projection.
 `friendly_verb` is one line and at most 80 runes. `preview` accepts only `auto`, `none`, `command`,
 `path`, `delegate`, `query`, or `arg:<field>`; an argument strategy must select a non-sensitive
 scalar field. The daemon selects and redacts the preview. See [Tool progress in
-bridges](https://compozy.com/runtime/core/bridges/progress) for the rendering and validation
+bridges](https://compozy.com/docs/bridges/progress) for the rendering and validation
 contract.
 
 ## Marketplace Discovery
@@ -103,8 +103,8 @@ input-free). `mcp_install_event_persist_failed` warns that install committed but
 event did not. Cleanup touches only superseded owned refs. Complete secret restoration rolls back;
 partial secret/definition restoration retains the commit and returns a residual-state warning.
 
-When `next_step=authorize`, run `compozy mcp authorize <name>`; `compozy mcp auth login <name>` reaches the
-same daemon-owned PKCE flow. Use `--manual` to paste a code or full redirect URL, especially for a
+When `next_step=authorize`, run `compozy mcp auth login <name>` to start the daemon-owned PKCE flow.
+Use `--manual` to paste a code or full redirect URL, especially for a
 remote operator or non-loopback HTTP bind. Workspace targets always carry both
 `--scope workspace --workspace <id>`. Treat authorization as complete only when redacted status is
 `authenticated` with `token_present=true`. `--timeout` bounds the whole attempt, including manual

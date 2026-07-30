@@ -1,0 +1,40 @@
+---
+title: "compozy network invitation"
+description: "Dismiss or reset the coordination invitation"
+---
+
+## compozy network invitation
+
+Dismiss or reset the coordination invitation
+
+### Options
+
+```
+  -h, --help   help for invitation
+```
+
+### Options inherited from parent commands
+
+```
+      --json               Emit JSON output
+  -o, --output string      Output format: human, json, jsonl, or toon (default "human")
+      --workspace string   Override workspace binding (ID, name, or path)
+```
+
+## Output Formats
+
+This command displays human-readable help and its subcommand list. The inherited `-o, --output` and `--json` flags do not serialize help output.
+
+| Format  | Output                   |
+| ------- | ------------------------ |
+| `human` | Help and subcommand list |
+| `json`  | Not emitted for help     |
+| `jsonl` | Not emitted for help     |
+| `toon`  | Not emitted for help     |
+
+## Subcommands
+
+| Command                                                                    | Description                                     |
+| -------------------------------------------------------------------------- | ----------------------------------------------- |
+| [compozy network invitation dismiss](/docs/cli/network/invitation/dismiss) | Dismiss the coordination invitation for a scope |
+| [compozy network invitation reset](/docs/cli/network/invitation/reset)     | Reset the coordination invitation for a scope   |

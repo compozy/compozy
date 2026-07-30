@@ -1,0 +1,271 @@
+---
+title: Extension Manifest
+description: The single source of truth for extension.toml — generated for subprocess extensions, handwritten for resource-only packages.
+---
+
+`extension.toml` is the daemon's contract for one extension: identity, compatibility floor, provide
+surfaces, permissions, bundled resources, and how to launch the subprocess.
+
+For a subprocess extension you do not write it. `compozy extension build` runs your built binary in
+describe mode and generates the manifest into an immutable generation directory. Editing a generated
+manifest by hand means editing a file the next build overwrites — change the code instead.
+
+You write `extension.toml` by hand only for **resource-only** extensions: packages that ship skills,
+agents, hooks, bundles, or MCP servers and run no code of their own.
+
+Compozy reads `extension.toml` first and `extension.json` second. Both formats carry the same schema.
+
+## Generated example
+
+This is the complete manifest `compozy extension build` produced for the
+[quickstart](/docs/guides/build-your-first-extension) extension:
+
+```toml
+[capabilities]
+  provides = ["tool.provider"]
+
+[extension]
+  description = "Search extension-owned data"
+  min_compozy_version = "0.3.0-beta.1"
+  name = "hello"
+  version = "0.1.0"
+
+[permissions]
+  requires = ["memory/recall", "memory/store", "sessions/list"]
+
+[resources]
+  [resources.tools]
+    [resources.tools.search]
+      concurrency_safe = true
+      description = "Search extension-owned data"
+      destructive = false
+      handler = "search"
+      id = "ext__hello__search"
+      input_schema = "{\"additionalProperties\":false,\"properties\":{\"query\":{\"type\":\"string\"}},\"required\":[\"query\"],\"type\":\"object\"}"
+      open_world = false
+      read_only = true
+      risk = "read"
+      visibility = "model"
+      [resources.tools.search.backend]
+        handler = "search"
+        kind = "extension_host"
+
+[subprocess]
+  command = "./bin"
+```
+
+Generation is deterministic: identical source produces byte-identical output, with sorted keys and
+stable ordering. That is what makes `dist/gen-<hash>` a content-addressed identity.
+
+## `[extension]`
+
+Core metadata. Compozy also accepts these keys at the document root; do not set the same field in
+both places with different values.
+
+| Field                 | Required | Notes                                                                                                                                 |
+| --------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`                | yes      | Registry identity. Must match the installed registry row on daemon start.                                                             |
+| `version`             | yes      | Semantic version.                                                                                                                     |
+| `description`         | no       | Shown in extension metadata and catalog surfaces.                                                                                     |
+| `min_compozy_version` | yes      | Semantic version compared against the running daemon. Stamped by `build` from the SDK — never hand-written for subprocess extensions. |
+| `requires_env`        | no       | Environment variable **names** the extension needs. Diagnostics report names, never values; unset names surface as `missing_env`.     |
+
+A manifest whose `min_compozy_version` is above the running daemon is rejected at install and at
+load. Because `build` stamps the value from the SDK you compiled against, an extension cannot claim
+compatibility its SDK does not have.
+
+## `[capabilities]`
+
+```toml
+[capabilities]
+  provides = ["tool.provider"]
+```
+
+`provides` is a closed set. Registering a tool through the SDK adds `tool.provider` automatically, so
+most authors never write this block.
+
+| Provide             | Compozy calls the extension with                 | Public |
+| ------------------- | ------------------------------------------------ | ------ |
+| `tool.provider`     | `provide_tools`, `tools/call`                    | yes    |
+| `memory.backend`    | `memory/store`, `memory/recall`, `memory/forget` | yes    |
+| `model.source`      | `models/list`                                    | yes    |
+| `loop.watch_source` | `watch/poll`                                     | yes    |
+| `bridge.adapter`    | `bridges/deliver`, `bridges/targets/snapshot`    | no     |
+
+`bridge.adapter` is not yet a third-party surface. An installed manifest declaring it is rejected
+deterministically; see [Develop Extensions](/docs/extensions/develop#bridge-adapters) for the
+current position.
+
+An unknown value fails manifest load with the valid set in the error. There is no shape-only
+validation and no silent no-op.
+
+## `[permissions]`
+
+```toml
+[permissions]
+  requires = ["memory/recall", "sessions/list"]
+```
+
+The Host API methods the extension calls, validated against the closed 87-method set. Consent areas
+are derived from it. Full catalog and source ceilings:
+[Extension Permissions](/docs/extensions/permissions).
+
+## `[subprocess]`
+
+```toml
+[subprocess]
+  command = "./bin"
+  args = ["serve"]
+  health_check_interval = "30s"
+  shutdown_timeout = "10s"
+
+[subprocess.env]
+  LOG_LEVEL = "info"
+
+[subprocess.secret_env]
+  API_TOKEN = "env:MY_TOKEN"
+```
+
+`command` is resolved relative to the extension root. `env` values may use `{{env:NAME}}` to read the
+daemon process environment and `{{config_dir}}` for the extension root. `secret_env` binds resolved
+secrets; their values are masked in logs, events, and every transport.
+
+A manifest requires a subprocess when it declares `subprocess.command`, `capabilities.provides`, or
+tools.
+
+## `[resources]`
+
+Static assets the daemon loads while the extension is enabled. Paths resolve inside the extension
+root and may not escape it.
+
+| Field                      | Loaded as                                                               |
+| -------------------------- | ----------------------------------------------------------------------- |
+| `resources.skills`         | Markdown skill files parsed like normal `SKILL.md` files.               |
+| `resources.agents`         | Agent definition directories containing `AGENT.md`.                     |
+| `resources.loops`          | Loop definitions.                                                       |
+| `resources.bundles`        | Bundle specs packaging agents, channels, automation, layouts, bridges.  |
+| `resources.hooks`          | Hook declarations, stamped with source `extension`.                     |
+| `resources.tools`          | Extension-host tools. Generated from SDK registrations.                 |
+| `resources.command_groups` | Presentation-only command groups. Generated from `commandGroup(...)`.   |
+| `resources.mcp_servers`    | Named MCP server declarations.                                          |
+| `resources.publish`        | Requested resource families and scope ceiling for `resources/snapshot`. |
+
+### `[resources.tools.<handler>]`
+
+Generated from each SDK tool registration. Fields the daemon reads:
+
+| Field                                                                                        | Meaning                                                                                                    |
+| -------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `id`                                                                                         | Canonical tool ID, `ext__<extension>__<tool>`.                                                             |
+| `handler`, `backend.handler`                                                                 | Handler name dispatched over `tools/call`.                                                                 |
+| `backend.kind`                                                                               | Always `extension_host` for SDK-registered tools.                                                          |
+| `input_schema`, `output_schema`                                                              | Canonical JSON Schema strings. The digest of `input_schema` must match what the running extension reports. |
+| `risk`, `read_only`, `destructive`, `open_world`, `requires_interaction`, `concurrency_safe` | Policy metadata the tool runtime enforces.                                                                 |
+| `visibility`                                                                                 | `model` for agent-callable tools.                                                                          |
+| `command`                                                                                    | Optional operator-verb presentation block. See [Extension Commands](/docs/extensions/commands).            |
+
+Because both the schema and the handler come from one code declaration, the schema-digest drift that
+a hand-maintained manifest allowed cannot occur.
+
+### `[[resources.hooks]]`
+
+Hooks declared through the SDK's supported hook events are generated with a subprocess executor
+pointed at the same binary. A resource-only extension writes them by hand:
+
+```toml
+[[resources.hooks]]
+name = "review-session-ready"
+event = "session.post_create"
+mode = "async"
+command = "/usr/bin/env"
+args = ["bash", "{{config_dir}}/hooks/session-ready.sh"]
+```
+
+Extension hooks carry source `extension` and default priority `300`. See
+[Hook Declaration Format](/docs/hooks/declaration).
+
+### `[resources.publish]`
+
+```toml
+[resources.publish]
+families = ["window_layouts"]
+max_scope = "workspace"
+```
+
+Declares the resource families the extension may publish through `resources/snapshot` and the widest
+scope it requests. The effective grant is the narrowest of this request, the source tier, the
+operator policy in `[extensions.resources]`, and the session scope.
+
+## `[bridge]`
+
+Provider metadata for `bridge.adapter` extensions. In-tree only today.
+
+```toml
+[bridge]
+platform = "slack"
+display_name = "Slack"
+```
+
+## `[network_participation]`
+
+Declares that bundle-owned work needs Compozy Network participation.
+
+```toml
+[network_participation]
+required = true
+mode = "live"
+channel_scopes = ["builders", "release"]
+```
+
+| Field            | Required | Notes                                                                                      |
+| ---------------- | -------- | ------------------------------------------------------------------------------------------ |
+| `required`       | yes      | `false` cannot carry a mode or channel scopes.                                             |
+| `mode`           | yes      | Must be `"live"` when the requirement is enabled.                                          |
+| `channel_scopes` | no       | Trimmed, deduplicated, sorted, and digested into the bundle activation requirement digest. |
+
+Compozy hashes the normalized block into the bundle activation's Network requirement digest.
+Activation requires explicit operator confirmation of that exact version; a changed digest clears the
+prior confirmation and blocks projection until the operator confirms again. Declared channels remain
+inventory — confirmation enrolls no execution into Live.
+
+## Resource-only manifests
+
+No code, no subprocess, no permissions:
+
+```toml
+[extension]
+name = "review-pack"
+version = "0.1.0"
+description = "Review skills, hooks, and MCP helpers"
+min_compozy_version = "0.3.0-beta.1"
+
+[resources]
+skills = ["skills"]
+agents = ["agents"]
+bundles = ["bundles"]
+
+[resources.mcp_servers.git]
+command = "uvx"
+args = ["mcp-server-git"]
+env = { REPO_ROOT = "{{env:REPO_ROOT}}" }
+```
+
+These become active as soon as Compozy loads and registers their resources. Install them from a local
+directory or publish them like any other extension.
+
+## Validate before you ship
+
+```bash
+compozy extension validate ./dist/gen-<hash> -o json
+```
+
+`validate` never executes extension code. It reports positioned issues (`path`, `line`, `column`,
+`field`, `message`, `severity`) plus the derived consent areas, so an author sees the operator's view
+before an operator does.
+
+## Related
+
+- [Develop Extensions](/docs/extensions/develop)
+- [Extension Permissions](/docs/extensions/permissions)
+- [Extension Commands](/docs/extensions/commands)
+- [Publish an Extension](/docs/extensions/publish)

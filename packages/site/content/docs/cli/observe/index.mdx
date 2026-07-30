@@ -1,0 +1,38 @@
+---
+title: "compozy observe"
+description: "Inspect runtime observability read models"
+---
+
+## compozy observe
+
+Inspect runtime observability read models
+
+### Options
+
+```
+  -h, --help   help for observe
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+This command displays human-readable help and its subcommand list. The inherited `-o, --output` and `--json` flags do not serialize help output.
+
+| Format  | Output                   |
+| ------- | ------------------------ |
+| `human` | Help and subcommand list |
+| `json`  | Not emitted for help     |
+| `jsonl` | Not emitted for help     |
+| `toon`  | Not emitted for help     |
+
+## Subcommands
+
+| Command                                                | Description                                                            |
+| ------------------------------------------------------ | ---------------------------------------------------------------------- |
+| [compozy observe overview](/docs/cli/observe/overview) | Show the home overview: what agents did, what needs you, what it costs |

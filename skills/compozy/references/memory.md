@@ -136,7 +136,7 @@ covered rows and uses the checkpoint for continuity.
 Inspect asynchronous extractor pressure before retrying or tuning Memory runs:
 
     compozy memory extractor status -o json
-    compozy memory extractor list-pending -o json
+    compozy memory extractor list-failures -o json
 
 `skipped_turns` counts transcript turns that had no non-whitespace content and were suppressed before provider work. `active_provider_sessions` shows extractor child sessions currently consuming provider work. `backpressured_sessions` increments when `memory.extractor.queue.capacity` is saturated and a session waits instead of spawning another child. `coalesced_turns`, `dropped_turns`, `failure_count`, and pending failures explain queue pressure and failed extractor handoff without exposing raw transcript text.
 

@@ -306,11 +306,7 @@ live in `references/goal-header-template.md`.
   `qa.report_done=true`, `qa.execution_done=true`, `review.ship=true`, and
   `verify.last_status=PASS`.
 - Spec regeneration is out of scope: do not rewrite `_techspec.md` or
-  `_prd.md` with authoring skills. The only exception is a
-  repository-mandated two-touch corrective TechSpec: activate its required
-  spec skills, let the loop decide choices already bounded by the current
-  goal/contract, persist the corrective design, register any new exit
-  conditions via `--add-criterion`, and continue.
+  `_prd.md` with authoring skills.
 
 ## Error Handling
 
@@ -349,10 +345,6 @@ live in `references/goal-header-template.md`.
 - **Invalid peer-review round** (missing or malformed review artifacts, or no
   verdict) — the round does not count; follow `deep-review` error handling
   and re-run it.
-- **Two-touch rule** — on the third corrective touch, replace patching with
-  the structural redesign required by the repository, validate it, and
-  continue. It becomes a blocker only when that redesign needs an external
-  product decision or authority unavailable to the loop.
 - **External blocker proven** — record the evidence and exhausted alternatives
   in memory, call `update-state.py` with `--verify-fail --blocker <text> --outcome blocked`,
   print the summary, and stop without the done-signature.

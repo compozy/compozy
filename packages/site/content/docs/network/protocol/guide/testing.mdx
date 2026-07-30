@@ -1,0 +1,70 @@
+---
+title: Testing Your Implementation
+description: Test Compozy Network v0 envelopes, lifecycle, your implementation-owned carrier, and the optional v1 trust profile only when you claim it.
+icon: Activity
+---
+
+Keep core protocol tests independent from your carrier. A receiver should reject malformed content
+before opening runtime work or applying extension behavior.
+
+## Fixture layers
+
+| Layer               | What to prove                                                                     |
+| ------------------- | --------------------------------------------------------------------------------- |
+| Envelope            | Required fields, ID grammar, timestamps, channel, and unknown-extension handling. |
+| Conversation        | Surface/container pairing and rejection of legacy `kind:"direct"`.                |
+| Message kinds       | Body rules for every claimed kind.                                                |
+| Lifecycle           | `work_id`, receipts, traces, terminal state, and container binding.               |
+| Delivery            | Duplicate IDs, expiration, retry identity, and reason codes.                      |
+| Trust, when claimed | Golden Ed25519 + JCS proof and tamper/proof-stripping failures.                   |
+| Carrier integration | Send/receive, reconnect, failure, and preservation of envelope correlation.       |
+
+## Minimal fixture example
+
+```go
+func TestCoreSenderFixture(t *testing.T) {
+	raw := []byte(`{
+		"protocol":"compozy-network/v0",
+		"id":"msg_fixture_01",
+		"workspace_id":"ws_alpha",
+		"kind":"say",
+		"channel":"builders",
+		"surface":"thread",
+		"thread_id":"thread_fixture_01",
+		"from":"sender.demo",
+		"to":null,
+		"ts":1775606300,
+		"body":{"text":"fixture hello"},
+		"proof":null
+	}`)
+
+	var env Envelope
+	if err := json.Unmarshal(raw, &env); err != nil {
+		t.Fatalf("decode envelope: %v", err)
+	}
+	if env.Protocol != "compozy-network/v0" {
+		t.Fatalf("protocol = %q", env.Protocol)
+	}
+	if env.Surface != "thread" || env.ThreadID == "" {
+		t.Fatal("thread say requires surface=thread and thread_id")
+	}
+}
+```
+
+Add a carrier integration test only after fixtures pass. A carrier acknowledgement proves carrier
+handling; it does not prove protocol acceptance, trust, or completed work.
+
+## CompozyOS reference evidence
+
+Inside the Compozy repository, scoped package tests exercise the reference implementation:
+
+```bash
+go test -race ./internal/network/...
+```
+
+Those tests are not a standalone third-party conformance runner. Publish your implementation
+version, claimed role, test-corpus revision, carrier test commands, covered groups, and known gaps.
+
+When claiming Trust, create and publish your own versioned vectors using the
+[Ed25519 + JCS requirements](/docs/network/protocol/ed25519-jcs/#producing-conformance-vectors). CompozyOS does not
+currently ship trust vectors or a trust runner. A Core claim does not require the optional profile.

@@ -4,19 +4,19 @@ import { absoluteUrl, canonicalPath, createPageMetadata, siteConfig } from "../s
 describe("site config metadata helpers", () => {
   it("builds absolute URLs and canonical paths consistently", () => {
     expect(siteConfig.url).toBe("https://compozy.com");
-    expect(absoluteUrl("/runtime")).toBe("https://compozy.com/runtime");
-    expect(absoluteUrl("/runtime/")).toBe("https://compozy.com/runtime/");
+    expect(absoluteUrl("/docs")).toBe("https://compozy.com/docs");
+    expect(absoluteUrl("/docs/")).toBe("https://compozy.com/docs/");
     expect(canonicalPath()).toBe("/");
     expect(canonicalPath("")).toBe("/");
     expect(canonicalPath("/")).toBe("/");
-    expect(canonicalPath("/runtime")).toBe("/runtime/");
-    expect(canonicalPath("/runtime/")).toBe("/runtime/");
+    expect(canonicalPath("/docs")).toBe("/docs/");
+    expect(canonicalPath("/docs/")).toBe("/docs/");
   });
 
   it("creates canonical OpenGraph and Twitter metadata with dynamic OG images", () => {
     const metadata = createPageMetadata({
       title: "Runtime Overview",
-      path: "/runtime",
+      path: "/docs",
     });
 
     expect(metadata).toEqual({
@@ -24,16 +24,16 @@ describe("site config metadata helpers", () => {
       description: siteConfig.description,
       keywords: undefined,
       alternates: {
-        canonical: "/runtime/",
+        canonical: "/docs/",
       },
       openGraph: {
         title: "Runtime Overview",
         description: siteConfig.description,
-        url: "https://compozy.com/runtime/",
+        url: "https://compozy.com/docs/",
         siteName: "Compozy",
         images: [
           {
-            url: "/og/runtime/image.png",
+            url: "/og/docs/image.png",
             width: 1200,
             height: 630,
             alt: "Runtime Overview | Compozy",
@@ -44,7 +44,7 @@ describe("site config metadata helpers", () => {
         card: "summary_large_image",
         title: "Runtime Overview",
         description: siteConfig.description,
-        images: ["/og/runtime/image.png"],
+        images: ["/og/docs/image.png"],
       },
     });
   });

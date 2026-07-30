@@ -1,0 +1,50 @@
+---
+title: "compozy task promote"
+description: "Promote one network thread message into a task"
+---
+
+## compozy task promote
+
+Promote one network thread message into a task
+
+```
+compozy task promote [flags]
+```
+
+### Options
+
+```
+      --channel string          Source network channel
+      --description string      Optional task description
+  -h, --help                    help for promote
+      --metadata string         Optional JSON metadata for the promoted task
+      --origin-message string   Origin message id to promote
+      --priority string         Optional task priority
+      --thread string           Source public thread id
+      --title string            Optional task title
+      --workspace string        Override workspace (ID, name, or path)
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy task promote -o json
+```

@@ -1,0 +1,42 @@
+---
+title: "compozy task dependency remove"
+description: "Remove a dependency edge from a task"
+---
+
+## compozy task dependency remove
+
+Remove a dependency edge from a task
+
+```
+compozy task dependency remove <task-id> <depends-on-id> [flags]
+```
+
+### Options
+
+```
+  -h, --help   help for remove
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy task dependency remove <task-id> <depends-on-id> -o json
+```

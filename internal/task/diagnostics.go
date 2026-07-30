@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	inspectDiagnosticsDocURL             = "/runtime/core/autonomy/task-runs-and-leases#task-inspect-diagnostics"
+	inspectDiagnosticsDocURL             = "/docs/autonomy/task-runs-and-leases#task-inspect-diagnostics"
 	inspectExpectedHeartbeatInterval     = time.Minute
 	inspectQueuedStrandedAfter           = 5 * time.Minute
 	inspectSessionFailedState            = "failed"

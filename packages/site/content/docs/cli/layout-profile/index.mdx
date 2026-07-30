@@ -1,0 +1,41 @@
+---
+title: "compozy layout-profile"
+description: "List, read, save, and delete saved layouts"
+---
+
+## compozy layout-profile
+
+List, read, save, and delete saved layouts
+
+### Options
+
+```
+  -h, --help   help for layout-profile
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+This command displays human-readable help and its subcommand list. The inherited `-o, --output` and `--json` flags do not serialize help output.
+
+| Format  | Output                   |
+| ------- | ------------------------ |
+| `human` | Help and subcommand list |
+| `json`  | Not emitted for help     |
+| `jsonl` | Not emitted for help     |
+| `toon`  | Not emitted for help     |
+
+## Subcommands
+
+| Command                                                          | Description                                                      |
+| ---------------------------------------------------------------- | ---------------------------------------------------------------- |
+| [compozy layout-profile delete](/docs/cli/layout-profile/delete) | Delete one saved layout                                          |
+| [compozy layout-profile get](/docs/cli/layout-profile/get)       | Get one saved layout                                             |
+| [compozy layout-profile list](/docs/cli/layout-profile/list)     | List saved layouts visible to a workspace, global scope included |
+| [compozy layout-profile put](/docs/cli/layout-profile/put)       | Create or replace one saved layout                               |

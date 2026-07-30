@@ -21,13 +21,17 @@ export function FinalCta() {
 
         <div className="flex flex-col items-start gap-3">
           <CtaButton
-            href="/runtime/core/getting-started/installation"
+            href="/docs/getting-started/installation"
             variant="primary"
             className="w-full justify-center sm:w-auto"
           >
             Install the beta
           </CtaButton>
-          <CtaButton href="/protocol" variant="ghost" className="w-full justify-center sm:w-auto">
+          <CtaButton
+            href="/docs/network/protocol"
+            variant="ghost"
+            className="w-full justify-center sm:w-auto"
+          >
             Read compozy-network/v0 spec
           </CtaButton>
           <a

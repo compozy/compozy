@@ -1,6 +1,7 @@
 import { allPosts, allReleases } from "@/lib/blog";
+import { DOCS_GROUP_BY_FOLDER, DOCS_ROOT_GROUP, docsGroupForUrl } from "@/lib/docs-navigation";
 import { absoluteUrl } from "@/lib/site-config";
-import { protocolDocs, runtimeDocs } from "@/lib/source";
+import { docsSource } from "@/lib/source";
 
 export const dynamic = "force-static";
 export const revalidate = false;
@@ -15,18 +16,23 @@ function docLine(title: string, url: string, description?: string): string {
   return `- [${title}](${absoluteUrl(url)})${desc}`;
 }
 
+function groupOrder(): string[] {
+  return Array.from(new Set([DOCS_ROOT_GROUP, ...DOCS_GROUP_BY_FOLDER.values()]));
+}
+
 export function GET() {
-  const runtimePages = runtimeDocs.getPages();
-  const protocolPages = protocolDocs.getPages();
+  const pages = docsSource.getPages();
   const posts = allPosts();
   const currentRelease = allReleases()[0];
 
-  const runtimeLines = runtimePages.map(page =>
-    docLine(page.data.title, page.url, page.data.description)
-  );
-  const protocolLines = protocolPages.map(page =>
-    docLine(page.data.title, page.url, page.data.description)
-  );
+  const linesByGroup = new Map<string, string[]>();
+  for (const page of pages) {
+    const group = docsGroupForUrl(page.url);
+    const lines = linesByGroup.get(group) ?? [];
+    lines.push(docLine(page.data.title, page.url, page.data.description));
+    linesByGroup.set(group, lines);
+  }
+
   const blogLines = posts.map(post => docLine(post.title, post.permalink, post.description));
   const releaseLines = [
     ...(currentRelease
@@ -40,7 +46,7 @@ export function GET() {
       : []),
     docLine(
       "Migrate from Compozy v0.2.15 to CompozyOS v0.3",
-      "/runtime/migration",
+      "/docs/migration",
       "Hard-cut command, configuration, storage, and extension migration guidance."
     ),
   ];
@@ -51,8 +57,7 @@ export function GET() {
     "> CompozyOS runs agent work, state, memory, permissions, coordination, and extensibility in one local-first runtime.",
     "",
     section("Current release and migration", releaseLines),
-    section("Runtime", runtimeLines),
-    section("Compozy Network", protocolLines),
+    ...groupOrder().map(group => section(group, linesByGroup.get(group) ?? [])),
     section("Blog", blogLines),
   ]
     .filter(Boolean)

@@ -43,7 +43,6 @@ artifacts exist, and the phase's completion gate is PASS.
 | QA finds an in-scope completion or data-loss bug | Fix the product, rerun the affected journey and `qa-execution`, then close Phase C only when ready. |
 | Worker launch, evidence, or artifact failure | Repair/relaunch the worker lane and verify its output; keep the phase action open. |
 | Checkpoint hook or commit failure | Fix the hook/root cause, rerun verification when source changed, and retry the normal checkpoint without bypass flags. |
-| A third corrective touch in one area | Perform the repository-required structural redesign. When policy requires a new corrective TechSpec, activate its required authoring skills and let the loop decide choices bounded by the current goal/contract; validate it and continue. |
 
 ## External-blocker test
 

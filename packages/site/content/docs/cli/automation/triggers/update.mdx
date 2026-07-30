@@ -1,0 +1,51 @@
+---
+title: "compozy automation triggers update"
+description: "Update an automation trigger"
+---
+
+## compozy automation triggers update
+
+Update an automation trigger
+
+```
+compozy automation triggers update <id> [flags]
+```
+
+### Options
+
+```
+      --enabled                       Update the enabled state
+      --endpoint-slug string          Update the webhook endpoint slug
+      --event string                  Update the trigger event
+      --filter stringArray            Replace filters with key=value entries
+  -h, --help                          help for update
+      --name string                   Update the trigger name
+      --prompt string                 Update the prompt template body
+      --retry string                  Update retry policy: "none", "backoff", or "backoff:<max_retries>:<base_delay>"
+      --webhook-id string             Update the stable webhook identifier
+      --webhook-secret-value string   Write-only webhook secret value
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy automation triggers update <id> -o json
+```

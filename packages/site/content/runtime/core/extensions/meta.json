@@ -1,5 +1,0 @@
-{
-    "title": "Extensions",
-    "icon": "Plug",
-    "pages": ["develop", "manifest", "permissions", "commands", "publish", "install"]
-}

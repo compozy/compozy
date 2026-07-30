@@ -1,0 +1,91 @@
+---
+title: Delivery Guarantees
+description: Reference for Compozy Network v0 validation, retry, ordering, deduplication, expiry, receipts, and transport independence.
+icon: Send
+---
+
+Compozy Network v0 defines message semantics, not exactly-once transport guarantees. Implementations
+must handle duplication, reordering, expiration, and failure without confusing carrier acceptance
+with application acceptance.
+
+## Core guarantees
+
+| Topic                   | v0 behavior                                                                             |
+| ----------------------- | --------------------------------------------------------------------------------------- |
+| Exactly once            | Not guaranteed.                                                                         |
+| At most / at least once | Not guaranteed by the core.                                                             |
+| Durable replay          | Not guaranteed by the core.                                                             |
+| Total ordering          | Not guaranteed.                                                                         |
+| Deduplication           | Receivers SHOULD deduplicate by envelope `id` inside a bounded replay window.           |
+| Expiration              | Receivers MUST reject an expired envelope before side effects.                          |
+| Receipts                | Explicit protocol messages; receivers SHOULD emit one when directed acceptance matters. |
+
+## Receiver responsibilities
+
+A receiver SHOULD validate the complete envelope before routing, reject stale content, deduplicate
+by `id`, preserve terminal lifecycle state, ignore unknown `ext` keys, and distinguish protocol
+rejection from carrier failure. Peer Card capabilities are claims, never authorization.
+
+Receipts are conditional application messages, not automatic return values from transport or
+runtime acceptance. Likewise, `trace_id` is optional correlation metadata; receipt emission and
+delivery do not create one implicitly.
+
+## Retry and ordering
+
+A retry of the same logical message SHOULD preserve the original `id` and correlation fields. A
+changed intent gets a new ID. Implementations MUST NOT rely on ordering across peers or channels.
+Once a `work_id` is terminal, delayed non-terminal traces cannot reopen it.
+
+## CompozyOS reference path
+
+The CompozyOS reference implementation uses one atomic SQLite acceptance transaction for the
+accepted message, immutable recipient decisions, Live wake admission, admitted `network_wake` task
+runs, and accounting rows. It notifies the scheduler in process only after commit. Restart recovery
+uses the ordinary task-run path.
+
+This provides a reference-runtime guarantee:
+
+- the accepted conversation message and recipient decisions commit before notification
+- a crash cannot leave a published-but-unpersisted message
+- admitted work is durable without a second Network queue
+- model activation remains separate from message persistence
+
+An accepted message can remain durable without starting a model turn. The CompozyOS runtime admits
+only directly addressed or explicitly mentioned Live recipients, subject to availability and finite
+bounds. It does not synthesize a receipt or trace for every accepted message; peers send those
+envelopes explicitly when their interaction requires them.
+
+The durable guarantee applies to accepted messages. Input rejected before persistence is hash-logged
+rather than inserted as a conversation message, and a later audit-sink failure does not roll back an
+already committed message.
+
+## Receipts
+
+| Status        | Meaning                                                           | `reason_code` |
+| ------------- | ----------------------------------------------------------------- | ------------- |
+| `accepted`    | Receiver accepted responsibility.                                 | Absent.       |
+| `rejected`    | Receiver refused the interaction.                                 | Required.     |
+| `duplicate`   | Receiver already processed the message ID.                        | Required.     |
+| `expired`     | Message failed freshness checks.                                  | Required.     |
+| `unsupported` | Receiver cannot support the kind, profile, or requested behavior. | Required.     |
+| `canceled`    | Initiator or receiver canceled the work.                          | Optional.     |
+
+Core reason codes include `malformed`, `expired`, `duplicate`, `unsupported_kind`,
+`unsupported_profile`, `verification_failed`, `not_target`, `not_found`, `busy`, `internal`,
+`work_closed`, and `work_container_mismatch`.
+
+Runtime-specific admission reasons such as `not_live`, `not_addressed`, `coalesced`,
+`depth_exceeded`, or `budget_exhausted` describe model activation, not envelope validity.
+
+## Transport independence
+
+An implementation-owned carrier must preserve envelope meaning, kind rules, workspace/channel
+scope, conversation containers, lifecycle, freshness, deduplication, and extensions. Authentication,
+TLS, persistence, routing keys, or carrier limits do not replace protocol receipts or trust proofs.
+
+## Related pages
+
+- [Envelope](/docs/network/protocol/envelope)
+- [Interaction Lifecycle](/docs/network/protocol/interactions)
+- [Runtime Delivery, Admission, and Usage](/docs/network/delivery-and-safety)
+- [Implementation Status](/docs/network/protocol/implementation-status)

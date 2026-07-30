@@ -1,0 +1,58 @@
+---
+title: "compozy doctor"
+description: "Run runtime diagnostics"
+---
+
+## compozy doctor
+
+Run runtime diagnostics
+
+```
+compozy doctor [flags]
+```
+
+### Examples
+
+```
+  # Run diagnostics
+  compozy doctor
+
+  # Return diagnostic items for agents
+  compozy doctor -o json
+
+  # Run only provider and MCP diagnostics
+  compozy doctor --only provider --only mcp
+```
+
+### Options
+
+```
+      --exclude strings   Exclude the named probe ids or categories
+  -h, --help              help for doctor
+      --only strings      Run only the named probe ids or categories
+      --quiet             Omit OK diagnostics
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy doctor -o json
+```

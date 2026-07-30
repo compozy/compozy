@@ -1,0 +1,51 @@
+---
+title: "compozy completion powershell"
+description: "Generate the autocompletion script for powershell"
+---
+
+## compozy completion powershell
+
+Generate the autocompletion script for powershell
+
+### Synopsis
+
+Generate the autocompletion script for powershell.
+
+To load completions in your current shell session:
+
+```
+compozy completion powershell | Out-String | Invoke-Expression
+
+```
+
+To load completions for every new session, add the output of the above command
+to your powershell profile.
+
+```
+compozy completion powershell [flags]
+```
+
+### Options
+
+```
+  -h, --help              help for powershell
+      --no-descriptions   disable completion descriptions
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+This command writes its shell-completion script directly to standard output. The inherited `-o, --output` and `--json` flags do not convert that script to a command result.
+
+| Format  | Output                        |
+| ------- | ----------------------------- |
+| `human` | Shell-completion script       |
+| `json`  | Not a command-result renderer |
+| `jsonl` | Not a command-result renderer |
+| `toon`  | Not a command-result renderer |

@@ -1,0 +1,41 @@
+---
+title: "compozy automation"
+description: "Manage automation jobs, triggers, suggestions, and runs"
+---
+
+## compozy automation
+
+Manage automation jobs, triggers, suggestions, and runs
+
+### Options
+
+```
+  -h, --help   help for automation
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+This command displays human-readable help and its subcommand list. The inherited `-o, --output` and `--json` flags do not serialize help output.
+
+| Format  | Output                   |
+| ------- | ------------------------ |
+| `human` | Help and subcommand list |
+| `json`  | Not emitted for help     |
+| `jsonl` | Not emitted for help     |
+| `toon`  | Not emitted for help     |
+
+## Subcommands
+
+| Command                                                            | Description                                 |
+| ------------------------------------------------------------------ | ------------------------------------------- |
+| [compozy automation jobs](/docs/cli/automation/jobs)               | Manage automation jobs                      |
+| [compozy automation runs](/docs/cli/automation/runs)               | Inspect automation run history              |
+| [compozy automation suggestions](/docs/cli/automation/suggestions) | Review consent-first automation suggestions |
+| [compozy automation triggers](/docs/cli/automation/triggers)       | Manage automation triggers                  |

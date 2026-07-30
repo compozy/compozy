@@ -1,0 +1,50 @@
+---
+title: "compozy window navigate"
+description: "Persist a window's internal application route"
+---
+
+## compozy window navigate
+
+Persist a window's internal application route
+
+```
+compozy window navigate [flags]
+```
+
+### Options
+
+```
+      --actor-id string      Optional actor identifier
+      --client string        Connected presentation client ID
+  -h, --help                 help for navigate
+      --id string            Window ID
+      --origin string        Command origin label (default "cli")
+      --pathname string      Absolute application pathname
+      --revision uint        Expected workspace revision
+      --search-json string   Route search state as a JSON object
+      --workspace string     Override workspace (ID, name, or path)
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy window navigate -o json
+```

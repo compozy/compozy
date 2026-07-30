@@ -87,15 +87,15 @@ describe("HomeHeader", () => {
     expect(screen.getByText("Beta")).toBeDefined();
   });
 
-  it("renders the public navigation links in desktop and mobile headers", () => {
-    mocks.pathname = "/protocol/delivery";
+  it("renders the five public navigation links in desktop and mobile headers (D1)", () => {
+    mocks.pathname = "/docs/network/protocol/delivery";
 
     render(<HomeHeader />);
 
     const expectedLinks = [
       { href: "/", label: "Home" },
-      { href: "/runtime", label: "Runtime" },
-      { href: "/protocol", label: "Compozy Network" },
+      { href: "/docs", label: "Docs" },
+      { href: "/marketplace", label: "Marketplace" },
       { href: "/blog", label: "Blog" },
       { href: "/changelog", label: "Changelog" },
     ];
@@ -109,7 +109,7 @@ describe("HomeHeader", () => {
       }
     }
 
-    for (const link of screen.getAllByRole("link", { name: "Compozy Network" })) {
+    for (const link of screen.getAllByRole("link", { name: "Docs" })) {
       expect(link.getAttribute("class")).toContain("text-fg");
       expect(link.getAttribute("class")).toContain("bg-elevated");
       expect(link.getAttribute("aria-current")).toBe("location");

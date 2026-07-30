@@ -1,0 +1,47 @@
+---
+title: "compozy extension update"
+description: "Check for or install extension updates"
+---
+
+## compozy extension update
+
+Check for or install extension updates
+
+```
+compozy extension update [name] [flags]
+```
+
+### Options
+
+```
+      --all                Update every installed marketplace extension
+      --allow-unverified   Allow update when the extension checksum is not registry-verified
+      --check              Only check for updates without installing them
+  -h, --help               help for update
+      --version string     Update to a specific registry version
+      --yes                Skip confirmation when using --allow-unverified
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy extension update [name] -o json
+```

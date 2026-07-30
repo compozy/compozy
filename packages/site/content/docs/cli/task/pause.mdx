@@ -1,0 +1,51 @@
+---
+title: "compozy task pause"
+description: "Pause new runs for one task"
+---
+
+## compozy task pause
+
+Pause new runs for one task
+
+```
+compozy task pause <task-id> [flags]
+```
+
+### Examples
+
+```
+  # Pause a noisy task while current claims finish
+  compozy task pause task-123 --reason "provider incident"
+```
+
+### Options
+
+```
+  -h, --help              help for pause
+      --metadata string   Optional task-pause metadata JSON
+      --reason string     Task-pause reason
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy task pause <task-id> -o json
+```

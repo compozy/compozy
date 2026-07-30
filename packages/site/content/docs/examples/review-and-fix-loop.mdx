@@ -1,0 +1,368 @@
+---
+title: Review-and-fix loop
+description: Review a named task with an agent, write inspectable findings, and remediate every one of them until a review round comes back clean.
+maturity: shipped
+---
+
+## What you build
+
+A standing review gate for any task in your workspace. One agent reviews the work and returns
+structured findings; a second agent triages each finding against local evidence, fixes the valid
+ones at the root cause, and documents the invalid ones. The loop repeats until a review round
+returns **zero issues** — and the daemon enforces the exit: an iteration cap of 3, a no-progress
+check over the last 2 rounds, and a named terminal state either way.
+
+Use it when you want the work on a task reviewed by an agent and every finding remediated until a
+round comes back clean.
+
+## The artifact
+
+This is the complete definition, exactly as it ships in the Compozy repository at
+`extensions/dev-cycle/loops/review-and-fix/loop.yaml`. It runs against a current release.
+
+```yaml title="extensions/dev-cycle/loops/review-and-fix/loop.yaml"
+apiVersion: compozy.loop/v1
+kind: Loop
+meta:
+  name: review-and-fix
+  description: Review a named task with an agent, write inspectable findings, and remediate them until a round comes back clean.
+  catalog:
+    use_when: "You want the work on a task reviewed by an agent and every finding remediated until a round comes back clean."
+    keywords: [reviews, agents, artifacts, remediate]
+    category: Engineering
+
+concurrency: forbid
+
+inputs:
+  task_name:
+    type: string
+    required: true
+  reviewer:
+    type: agent
+    default: reviewer
+  fixer:
+    type: agent
+    default: review_fixer
+  auto_commit:
+    type: boolean
+    default: false
+
+contract:
+  goal: "Review the work for task {{ .inputs.task_name }} and remediate every valid finding."
+  definition_of_done: >
+    A new agent review round for the task returns no issues after all earlier findings were triaged,
+    remediated, verified, and finalized.
+  stop_when: "nodes.review.status == 'succeeded' && size(nodes.review.output.issues) == 0"
+  iteration_cap: 3
+  no_progress:
+    window: 2
+    hash_fields: [nodes.review.output.issues]
+  budget:
+    tokens: 0
+    wall_clock_sec: 0
+    on_exceeded: escalate
+  terminal_states: [done, no-op, blocked, failed, exhausted, stalled]
+
+graph:
+  nodes:
+    - id: review
+      class: action
+      kind: run-agent
+      params:
+        agent: "{{ .inputs.reviewer }}"
+        prompt: |
+          Review the current workspace changes for task {{ .inputs.task_name }}.
+          This is review generation {{ .generation }} for that task.
+
+          Read the task artifacts and repository instructions before judging the implementation.
+          Report only concrete defects, regressions, unsafe shortcuts, contract drift, and missing
+          verification. Do not create, rename, timestamp, or edit review artifact files.
+
+          Return `issues` as source-agnostic structured records. Every issue must include a specific
+          title, an evidence-backed body, and a severity. Include `file` and `line` when the finding
+          belongs to a specific location; omit them for general findings. Return an empty array only
+          when the round is clean.
+        output_schema:
+          type: object
+          additionalProperties: false
+          required: [issues]
+          properties:
+            issues:
+              type: array
+              items:
+                type: object
+                additionalProperties: false
+                required: [title, body, severity]
+                properties:
+                  title:
+                    type: string
+                    minLength: 1
+                  body:
+                    type: string
+                    minLength: 1
+                  severity:
+                    type: string
+                    minLength: 1
+                  file:
+                    type: string
+                  line:
+                    type: integer
+                    minimum: 1
+                  author:
+                    type: string
+      session:
+        isolated: true
+      timeout: 45m
+      retry:
+        max_attempts: 2
+
+    - id: has_issues
+      class: control
+      kind: branch
+      condition: "size(nodes.review.output.issues) > 0"
+
+    - id: write_artifacts
+      class: action
+      kind: ext__dev_cycle__write_review_artifacts
+      params:
+        task_name: "{{ .inputs.task_name }}"
+        issues: "{{ .nodes.review.output.issues }}"
+      produces:
+        task_name: string
+        round: integer
+        round_dir: string
+        files: array
+        batches: array
+        issues: array
+        count: integer
+
+    - id: fix_batches
+      class: control
+      kind: fan-out
+      collection: "{{ .nodes.write_artifacts.output.batches }}"
+      batch_size: 1
+      max_parallel: 1
+      max_fan_out: 64
+
+    - id: fix_batch
+      class: action
+      kind: run-agent
+      params:
+        agent: "{{ .inputs.fixer }}"
+        prompt: |
+          Remediate this complete batch of review artifact files now. This prompt is the operator's
+          authorization to make scoped code changes; begin immediately without asking for confirmation.
+
+          Required skills:
+          - systematic-debugging: establish the root cause before changing production code.
+          - no-workarounds: implement complete fixes instead of symptom patches.
+          - cy-fix-reviews: follow the review-artifact remediation workflow.
+          - cy-final-verify: run the repository's real verification before completion or commit.
+
+          Scope:
+          - Code file: {{ .item.file }}
+          - Issue files:
+          {{ range .item.issue_files -}}
+            - {{ . }}
+          {{ end }}
+          - Read every listed issue file completely before editing code.
+          - Treat the listed issue-file paths as the complete batch. Never create, rename, timestamp,
+            or resolve an artifact; edit only its existing triage content and change frontmatter from
+            `pending` to `valid` or `invalid`.
+          - Preserve unrelated worktree changes. The batch is all-or-nothing: every issue file must
+            receive one structured result.
+
+          Remediation:
+          1. Triage each finding against local evidence.
+          2. For a valid finding, implement the root-cause fix and focused regression coverage, or name
+             the existing canonical suite that owns the invariant.
+          3. For an invalid finding, document the disproving evidence and use `resolution: documented`.
+          4. Run the repository's required verification for every touched surface.
+          {{ if .inputs.auto_commit -}}
+          5. Create exactly one local commit for this batch after verification. Do not push.
+          {{ else -}}
+          5. Leave the verified changes uncommitted for manual review. Do not push.
+          {{ end }}
+
+          Return `results` with exactly one entry per issue file. A valid issue uses
+          `resolution: fixed`; an invalid issue uses `resolution: documented`.
+        output_schema:
+          type: object
+          additionalProperties: false
+          required: [results]
+          properties:
+            results:
+              type: array
+              items:
+                type: object
+                additionalProperties: false
+                required: [path, triage, resolution, summary]
+                properties:
+                  path:
+                    type: string
+                  triage:
+                    enum: [valid, invalid]
+                  resolution:
+                    enum: [fixed, documented]
+                  summary:
+                    type: string
+      session:
+        isolated: true
+      timeout: 45m
+      retry:
+        max_attempts: 2
+
+    - id: collect_fixes
+      class: control
+      kind: collect
+
+    - id: finalize_round
+      class: action
+      kind: ext__dev_cycle__finalize_review_round
+      params:
+        task_name: "{{ .nodes.write_artifacts.output.task_name }}"
+        round: "{{ .nodes.write_artifacts.output.round }}"
+      produces:
+        task_name: string
+        round: integer
+        resolved: integer
+        invalid: integer
+        pending: integer
+
+  edges:
+    - from: review
+      to: has_issues
+    - from: has_issues
+      to: write_artifacts
+    - from: write_artifacts
+      to: fix_batches
+    - from: fix_batches
+      to: fix_batch
+    - from: fix_batch
+      to: collect_fixes
+    - from: collect_fixes
+      to: finalize_round
+
+start:
+  - kind: manual
+  - kind: cli
+  - kind: http
+  - kind: uds
+  - kind: native_tool
+  - kind: trigger
+  - kind: webhook
+```
+
+## Run it
+
+The Loop lifecycle is validate, publish, then run. `task_name` is the one required input —
+`reviewer`, `fixer`, and `auto_commit` all ship with defaults.
+
+The bundled `dev-cycle` extension provides the `reviewer` and `review_fixer` definitions used by those
+defaults. They provide prompts, not provider configuration. Before a run, configure a default provider
+or a provider on each effective agent definition, then verify both names resolve for the target workspace:
+
+```bash
+compozy agent info reviewer --workspace /Users/you/src/checkout-api
+compozy agent info review_fixer --workspace /Users/you/src/checkout-api
+```
+
+To use custom agents, create their definitions and configured providers first, then add
+`--input reviewer=<agent-name>` and `--input fixer=<agent-name>` to each run command. See
+[Agent definitions](/docs/agents/definitions) for the resolution cascade.
+
+```bash
+# check the definition against compozy.loop/v1
+compozy loop validate \
+  --workspace /Users/you/src/checkout-api \
+  --file loop.yaml
+
+# publish it to your runtime
+compozy loop create \
+  --workspace /Users/you/src/checkout-api \
+  --file loop.yaml
+
+# rehearse a round without side effects, then run it
+compozy loop run \
+  --workspace /Users/you/src/checkout-api \
+  --name review-and-fix \
+  --input task_name=<task-name> \
+  --dry-run
+compozy loop run \
+  --workspace /Users/you/src/checkout-api \
+  --name review-and-fix \
+  --input task_name=<task-name>
+```
+
+Because the definition ships inside the bundled `dev-cycle` extension, the Loop is already
+published in your runtime. Run it with `--name review-and-fix --input task_name=<task-name>` without
+the validate and create steps above. Run those two when you copy the file out and adapt it.
+
+The definition also declares its start surfaces: manual, CLI, HTTP, UDS, native tool, trigger, and
+signed webhook. An agent can start this Loop through the same contracts you just used.
+
+## How it works
+
+<Workflow>
+  <WorkflowStep title="Review the task — `review`">
+    The reviewer agent reads the workspace changes in an isolated session and returns `issues` as
+    structured records — title, evidence-backed body, severity — validated against the node's output
+    schema. Findings that belong to a location carry `file` and `line`.
+  </WorkflowStep>
+  <WorkflowStep title="Branch on findings — `has_issues`">
+    A clean round means the contract's `stop_when` is satisfied and the Loop ends with outcome
+    `done`. Otherwise the round continues into remediation.
+  </WorkflowStep>
+  <WorkflowStep title="Write inspectable artifacts — `write_artifacts`">
+    An extension action turns the findings into review artifact files on disk, batched per code
+    file. That is the durable record both agents and people read — not a transcript you have to
+    scroll.
+  </WorkflowStep>
+  <WorkflowStep title="Fix each batch — `fix_batches` to `fix_batch`">
+    A fan-out runs the fixer agent once per batch, sequentially. Valid findings get root-cause fixes
+    and regression coverage; invalid ones get documented disproving evidence. The batch is
+    all-or-nothing: every issue file receives exactly one structured result.
+  </WorkflowStep>
+  <WorkflowStep title="Close the round — `collect_fixes` to `finalize_round`">
+    Batch results are collected and the round is finalized with resolved, invalid, and pending
+    counts. The next generation starts again at step 1 — until a round comes back clean.
+  </WorkflowStep>
+  <WorkflowStep title="The daemon enforces the exit">
+    `iteration_cap: 3`, a no-progress window of 2 rounds hashed over the issue list, and
+    `concurrency: forbid`. Every run ends in a named terminal state: `done`, `no-op`, `blocked`,
+    `failed`, `exhausted`, or `stalled`.
+  </WorkflowStep>
+</Workflow>
+
+## Next steps
+
+<GuideGrid>
+  <GuideCard
+    href="/docs/examples/software-delivery-loop"
+    label="Example"
+    title="Software-delivery loop"
+    description="The larger sibling artifact: take every authored task for one slug from pending to verified implementation."
+    meta="compozy.loop/v1"
+  />
+  <GuideCard
+    href="/docs/loops/authoring"
+    label="Concept"
+    title="Authoring Loops"
+    description="The compozy.loop/v1 contract in full: goals, nodes, guardrails, and the outcomes the daemon records."
+    meta="Loops"
+  />
+  <GuideCard
+    href="/docs/examples/morning-briefing-job"
+    label="Example"
+    title="Schedule it as a job"
+    description="Run a Loop on a cron schedule with [[automation.jobs]] — review overnight, read the result in the morning."
+    meta="Automation"
+  />
+  <GuideCard
+    href="/marketplace/bundled/dev-cycle"
+    label="Marketplace"
+    title="The dev-cycle extension"
+    description="Everything this Loop depends on — the reviewer and fixer agents, the review-artifact tools, and its sibling Loop."
+    meta="Bundled"
+  />
+</GuideGrid>

@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -1112,6 +1113,42 @@ func TestUnixSocketClientToolMethods(t *testing.T) {
 		}
 		if !strings.Contains(encoded, "completion_tokens") {
 			t.Fatalf("InvokeTool() response = %s, want benign token metrics preserved", encoded)
+		}
+	})
+
+	t.Run("Should decode approval-required invoke response as an error", func(t *testing.T) {
+		t.Parallel()
+
+		approvalClient := &unixSocketClient{
+			socketPath: "/tmp/compozy.sock",
+			httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+				if req.Method != http.MethodPost || req.URL.Path != "/api/tools/compozy__workspace_info/invoke" {
+					t.Fatalf("unexpected request = %s %s", req.Method, req.URL.Path)
+				}
+				return newHTTPResponse(
+					http.StatusAccepted,
+					`{"error":{"code":"tool_approval_required","message":"tool approval required","tool_id":"compozy__workspace_info","reason_codes":["approval_token_missing","approval_required"],"layer":"approval"}}`,
+				), nil
+			})},
+		}
+
+		_, err := approvalClient.InvokeTool(
+			t.Context(),
+			toolspkg.ToolIDWorkspaceInfo.String(),
+			ToolInvokeRequest{SessionID: "sess-deny", Input: json.RawMessage(`{"workspace":"qa-secondary"}`)},
+		)
+		if err == nil {
+			t.Fatal("InvokeTool() error = nil, want approval-required error")
+		}
+		apiErr, ok := errors.AsType[*toolAPIError](err)
+		if !ok {
+			t.Fatalf("InvokeTool() error = %T, want *toolAPIError", err)
+		}
+		response := apiErr.Response()
+		if response.Error.Code != toolspkg.ErrorCodeApprovalRequired ||
+			response.Error.ToolID != toolspkg.ToolIDWorkspaceInfo ||
+			!slices.Contains(response.Error.ReasonCodes, toolspkg.ReasonApprovalTokenMissing) {
+			t.Fatalf("InvokeTool() error response = %#v, want preserved approval payload", response)
 		}
 	})
 

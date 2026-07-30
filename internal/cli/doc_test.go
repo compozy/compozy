@@ -7,6 +7,8 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/compozy/compozy/internal/cli/docpost"
 )
 
 func TestNewDocCommand_Hidden(t *testing.T) {
@@ -53,6 +55,33 @@ func TestNewDocCommand_RejectsUnexpectedArgs(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), `unknown command "unexpected" for "doc"`) {
 		t.Fatalf("unexpected error for extra args: %v", err)
+	}
+}
+
+func TestDocOutputProfilesReflectCommandBehavior(t *testing.T) {
+	t.Parallel()
+
+	profiles := docOutputProfiles(newRootCommand(commandDeps{}))
+	tests := map[string]struct {
+		want docpost.OutputProfile
+	}{
+		"compozy agent":      {want: docpost.OutputProfileHelp},
+		"compozy agent list": {want: docpost.OutputProfileResult},
+		"compozy task":       {want: docpost.OutputProfileHelp},
+		"compozy task review": {
+			want: docpost.OutputProfileHelp,
+		},
+		"compozy layout watch": {want: docpost.OutputProfileHumanJSONL},
+		"compozy completion bash": {
+			want: docpost.OutputProfileRaw,
+		},
+		"compozy mcp serve": {want: docpost.OutputProfileProtocol},
+		"compozy open":      {want: docpost.OutputProfileNoOutput},
+	}
+	for commandPath, tt := range tests {
+		if got := profiles[commandPath]; got != tt.want {
+			t.Errorf("docOutputProfiles()[%q] = %q, want %q", commandPath, got, tt.want)
+		}
 	}
 }
 
@@ -112,6 +141,84 @@ func TestNewDocCommand_GeneratesDocs(t *testing.T) {
 	}
 	if !strings.Contains(content, `title: "compozy"`) {
 		t.Error("compozy.mdx frontmatter should have title 'compozy'")
+	}
+	if !strings.Contains(content, `description: "Compozy — agent operating system"`) {
+		t.Error("compozy.mdx should preserve product capitalization from Cobra")
+	}
+
+	agentIndex, err := os.ReadFile(filepath.Join(outputDir, "agent", "index.mdx"))
+	if err != nil {
+		t.Fatalf("agent/index.mdx should exist: %v", err)
+	}
+	if !strings.Contains(string(agentIndex), "Not emitted for help") {
+		t.Error("help-only agent group should not claim structured output")
+	}
+	if strings.Contains(string(agentIndex), "compozy agent -o json") {
+		t.Error("help-only agent group should not advertise a JSON example")
+	}
+
+	taskIndex, err := os.ReadFile(filepath.Join(outputDir, "task", "index.mdx"))
+	if err != nil {
+		t.Fatalf("task/index.mdx should exist: %v", err)
+	}
+	if !strings.Contains(string(taskIndex), "Not emitted for help") {
+		t.Error("RunE-free task group should be documented as help-only")
+	}
+	if strings.Contains(string(taskIndex), "compozy task -o json") {
+		t.Error("help-only task group should not advertise a JSON example")
+	}
+
+	layoutWatch, err := os.ReadFile(filepath.Join(outputDir, "layout", "watch.mdx"))
+	if err != nil {
+		t.Fatalf("layout/watch.mdx should exist: %v", err)
+	}
+	if !strings.Contains(string(layoutWatch), "supports interactive human output") {
+		t.Error("layout watch docs should describe the stream-specific output contract")
+	}
+	if !strings.Contains(string(layoutWatch), "compozy layout watch -o jsonl") {
+		t.Error("layout watch docs should demonstrate its supported machine format")
+	}
+	if strings.Contains(string(layoutWatch), "compozy layout watch -o json\n") {
+		t.Error("layout watch docs should not demonstrate unsupported JSON output")
+	}
+
+	completionBash, err := os.ReadFile(filepath.Join(outputDir, "completion", "bash.mdx"))
+	if err != nil {
+		t.Fatalf("completion/bash.mdx should exist: %v", err)
+	}
+	if !strings.Contains(string(completionBash), "Shell-completion script") {
+		t.Error("completion docs should preserve their raw standard-output contract")
+	}
+	if strings.Contains(string(completionBash), "-o json") {
+		t.Error("completion docs should not advertise a JSON result example")
+	}
+
+	agentUpdate, err := os.ReadFile(filepath.Join(outputDir, "agent", "update.mdx"))
+	if err != nil {
+		t.Fatalf("agent/update.mdx should exist: %v", err)
+	}
+	if !strings.Contains(string(agentUpdate), "Update an agent definition for future sessions") {
+		t.Error("agent update docs should describe future-session mutability")
+	}
+
+	generated := findMDX(t, outputDir)
+	for _, expected := range []string{
+		"mcp/auth/login.mdx",
+		"memory/extractor/list-failures.mdx",
+		"network/work/lookup.mdx",
+	} {
+		if !generated[expected] {
+			t.Errorf("expected generated CLI doc %q", expected)
+		}
+	}
+	for _, removed := range []string{
+		"mcp/authorize.mdx",
+		"memory/extractor/list-pending.mdx",
+		"network/work/status.mdx",
+	} {
+		if generated[removed] {
+			t.Errorf("removed CLI command doc %q must not be generated", removed)
+		}
 	}
 
 	// Per-subdirectory meta.json is auto-generated; walk and ensure at least

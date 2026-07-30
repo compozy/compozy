@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "site-docs-sidebar.html",
+  "entry": "site-docs-sidebar.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-07-29T19:38:23.904Z",
+  "updatedAt": "2026-07-29T19:38:23.904Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

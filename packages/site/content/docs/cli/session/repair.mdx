@@ -1,0 +1,54 @@
+---
+title: "compozy session repair"
+description: "Inspect and repair an interrupted session transcript"
+---
+
+## compozy session repair
+
+Inspect and repair an interrupted session transcript
+
+```
+compozy session repair <id> [flags]
+```
+
+### Examples
+
+```
+  # Report the repair actions without writing new events
+  compozy session repair sess_1234 --dry-run
+
+  # Force repair for a stopped session whose stop reason is not crash or error
+  compozy session repair sess_1234 --force
+```
+
+### Options
+
+```
+      --dry-run   Report planned repairs without persisting events
+      --force     Allow repair for stopped non-crash sessions
+  -h, --help      help for repair
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy session repair <id> -o json
+```

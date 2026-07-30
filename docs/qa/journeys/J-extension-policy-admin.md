@@ -49,7 +49,7 @@ journey:
       origin: direct
     - url: generated extension.toml; compozy extension build|validate; compozy hooks list; compozy extension commands
       origin: direct
-    - url: https://compozy.com/runtime/core/configuration/config-toml and https://compozy.com/runtime/core/extensions/manifest
+    - url: https://compozy.com/docs/configuration/config-toml and https://compozy.com/docs/extensions/manifest
       origin: external-share
   actions:
     - step: 1

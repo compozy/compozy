@@ -1,0 +1,58 @@
+---
+title: "compozy me"
+description: "Inspect the current Compozy-managed agent session"
+---
+
+## compozy me
+
+Inspect the current Compozy-managed agent session
+
+```
+compozy me [flags]
+```
+
+### Examples
+
+```
+  # Show the current managed session identity
+  compozy me
+
+  # Print machine-readable caller state
+  compozy me -o json
+```
+
+### Options
+
+```
+  -h, --help   help for me
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy me -o json
+```
+
+## Subcommands
+
+| Command                                    | Description                                                         |
+| ------------------------------------------ | ------------------------------------------------------------------- |
+| [compozy me context](/docs/cli/me/context) | Inspect the bounded situation context for the current agent session |

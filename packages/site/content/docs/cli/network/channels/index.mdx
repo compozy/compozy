@@ -1,0 +1,50 @@
+---
+title: "compozy network channels"
+description: "List active runtime channels"
+---
+
+## compozy network channels
+
+List active runtime channels
+
+```
+compozy network channels [flags]
+```
+
+### Options
+
+```
+  -h, --help   help for channels
+```
+
+### Options inherited from parent commands
+
+```
+      --json               Emit JSON output
+  -o, --output string      Output format: human, json, jsonl, or toon (default "human")
+      --workspace string   Override workspace binding (ID, name, or path)
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy network channels -o json
+```
+
+## Subcommands
+
+| Command                                                              | Description                                                       |
+| -------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| [compozy network channels create](/docs/cli/network/channels/create) | Create a runtime channel and start one session per selected agent |
+| [compozy network channels update](/docs/cli/network/channels/update) | Update runtime channel routing metadata                           |

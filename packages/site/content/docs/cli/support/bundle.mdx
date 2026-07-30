@@ -1,0 +1,54 @@
+---
+title: "compozy support bundle"
+description: "Create and download a redacted support bundle"
+---
+
+## compozy support bundle
+
+Create and download a redacted support bundle
+
+```
+compozy support bundle [flags]
+```
+
+### Examples
+
+```
+  # Create a bundle and write it under $COMPOZY_HOME/support-bundles
+  compozy support bundle --yes
+
+  # Write the daemon-built bundle to a specific path
+  compozy support bundle --yes --output /tmp/compozy-support-bundle.tar.gz
+```
+
+### Options
+
+```
+  -h, --help            help for bundle
+      --no-status       Omit status.json, doctor.json, providers.json, and runtime status snapshots
+      --output string   Path or directory for the downloaded bundle
+      --yes             Confirm support bundle creation without an interactive prompt
+```
+
+### Options inherited from parent commands
+
+```
+      --json   Emit JSON output
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy support bundle -o json
+```

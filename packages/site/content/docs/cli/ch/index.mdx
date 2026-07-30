@@ -1,0 +1,51 @@
+---
+title: "compozy ch"
+description: "Use agent-facing coordination channels"
+---
+
+## compozy ch
+
+Use agent-facing coordination channels
+
+### Examples
+
+```
+  # List channels visible to this session
+  compozy ch list
+
+  # Wait for task-run coordination messages
+  compozy ch recv coord-run-123 --wait -o jsonl
+```
+
+### Options
+
+```
+  -h, --help   help for ch
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+This command displays human-readable help and its subcommand list. The inherited `-o, --output` and `--json` flags do not serialize help output.
+
+| Format  | Output                   |
+| ------- | ------------------------ |
+| `human` | Help and subcommand list |
+| `json`  | Not emitted for help     |
+| `jsonl` | Not emitted for help     |
+| `toon`  | Not emitted for help     |
+
+## Subcommands
+
+| Command                                | Description                                                     |
+| -------------------------------------- | --------------------------------------------------------------- |
+| [compozy ch list](/docs/cli/ch/list)   | List coordination channels visible to the current agent session |
+| [compozy ch recv](/docs/cli/ch/recv)   | Receive queued coordination messages for a channel              |
+| [compozy ch reply](/docs/cli/ch/reply) | Reply to a received coordination message                        |
+| [compozy ch send](/docs/cli/ch/send)   | Send one task-run coordination message                          |

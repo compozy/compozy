@@ -1,0 +1,41 @@
+---
+title: "compozy task review"
+description: "Manage task-run reviews"
+---
+
+## compozy task review
+
+Manage task-run reviews
+
+### Options
+
+```
+  -h, --help   help for review
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+This command displays human-readable help and its subcommand list. The inherited `-o, --output` and `--json` flags do not serialize help output.
+
+| Format  | Output                   |
+| ------- | ------------------------ |
+| `human` | Help and subcommand list |
+| `json`  | Not emitted for help     |
+| `jsonl` | Not emitted for help     |
+| `toon`  | Not emitted for help     |
+
+## Subcommands
+
+| Command                                                      | Description                        |
+| ------------------------------------------------------------ | ---------------------------------- |
+| [compozy task review list](/docs/cli/task/review/list)       | List task-run reviews              |
+| [compozy task review request](/docs/cli/task/review/request) | Request review for a task run      |
+| [compozy task review show](/docs/cli/task/review/show)       | Show one task-run review           |
+| [compozy task review submit](/docs/cli/task/review/submit)   | Submit one task-run review verdict |

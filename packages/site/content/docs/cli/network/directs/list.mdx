@@ -1,0 +1,50 @@
+---
+title: "compozy network directs list"
+description: "List direct rooms in a channel"
+---
+
+## compozy network directs list
+
+List direct rooms in a channel
+
+```
+compozy network directs list [flags]
+```
+
+### Options
+
+```
+      --after string     Stable id cursor after which to continue
+      --channel string   Target channel
+      --has-work         Filter by whether open work exists
+  -h, --help             help for list
+      --limit int        Maximum number of direct rooms to return
+      --query string     Filter by title, peer, or preview text
+      --session string   Participant session id filter
+      --sort string      Order by recent_activity, created, or alphabetical
+```
+
+### Options inherited from parent commands
+
+```
+      --json               Emit JSON output
+  -o, --output string      Output format: human, json, jsonl, or toon (default "human")
+      --workspace string   Override workspace binding (ID, name, or path)
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy network directs list -o json
+```

@@ -1,0 +1,41 @@
+---
+title: "compozy network coordination"
+description: "Inspect or change workspace network coordination"
+---
+
+## compozy network coordination
+
+Inspect or change workspace network coordination
+
+### Options
+
+```
+  -h, --help   help for coordination
+```
+
+### Options inherited from parent commands
+
+```
+      --json               Emit JSON output
+  -o, --output string      Output format: human, json, jsonl, or toon (default "human")
+      --workspace string   Override workspace binding (ID, name, or path)
+```
+
+## Output Formats
+
+This command displays human-readable help and its subcommand list. The inherited `-o, --output` and `--json` flags do not serialize help output.
+
+| Format  | Output                   |
+| ------- | ------------------------ |
+| `human` | Help and subcommand list |
+| `json`  | Not emitted for help     |
+| `jsonl` | Not emitted for help     |
+| `toon`  | Not emitted for help     |
+
+## Subcommands
+
+| Command                                                                        | Description                                              |
+| ------------------------------------------------------------------------------ | -------------------------------------------------------- |
+| [compozy network coordination disable](/docs/cli/network/coordination/disable) | Disable workspace coordination conversations             |
+| [compozy network coordination enable](/docs/cli/network/coordination/enable)   | Enable workspace coordination conversations              |
+| [compozy network coordination status](/docs/cli/network/coordination/status)   | Show workspace network coordination and invitation state |

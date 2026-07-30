@@ -1,0 +1,52 @@
+---
+title: "compozy agent heartbeat status"
+description: "Read Heartbeat policy status and wake eligibility"
+---
+
+## compozy agent heartbeat status
+
+Read Heartbeat policy status and wake eligibility
+
+```
+compozy agent heartbeat status <agent> [flags]
+```
+
+### Examples
+
+```
+  compozy agent heartbeat status coder --session sess_123 --workspace checkout-api --json
+```
+
+### Options
+
+```
+  -h, --help                     help for status
+      --include-session-health   Include session health when a session id is supplied
+      --include-wake-events      Include recent wake audit rows
+      --session string           Session id for wake state and health
+      --workspace string         Override workspace context (ID, name, or path)
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy agent heartbeat status <agent> -o json
+```

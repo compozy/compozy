@@ -339,7 +339,9 @@ tokens:
       error-title: "clamp(2.6rem, 6vw, 4.8rem)"
       hero-section: "clamp(2.6rem, 5.5vw, 4.2rem)"
       blog-title: "clamp(2.6rem, 5.4vw, 4.6rem)"
-      doc-title: "clamp(2.55rem, 4.7vw, 4rem)"
+      doc-title: "clamp(2.4rem, 4vw, 3.4rem)"
+      doc-lead: "1.125rem"
+      doc-lead--line-height: "1.65"
       protocol-title: "clamp(2.4rem, 5vw, 3.8rem)"
       page-title: "clamp(2.4rem, 4.4vw, 4rem)"
       article-title: "clamp(2.4rem, 4.4vw, 3.6rem)"
@@ -348,7 +350,9 @@ tokens:
       cta-title: "clamp(2rem, 4.5vw, 3.2rem)"
       feature-title: "clamp(2rem, 3.4vw, 2.8rem)"
       subsection-title: "clamp(1.9rem, 3.4vw, 2.6rem)"
-      doc-heading: "clamp(1.7rem, 3vw, 2.45rem)"
+      doc-heading: "clamp(1.6rem, 2.6vw, 2.15rem)"
+      text-group-label: "0.625rem"
+      text-group-label--line-height: "0.75rem"
       release-title: "clamp(1.6rem, 3vw, 2.1rem)"
       empty-title: "clamp(1.55rem, 3vw, 2rem)"
       quote: "clamp(1.5rem, 2.4vw, 1.95rem)"
@@ -366,6 +370,15 @@ tokens:
       doc-layout-width: "96rem"
       doc-sidebar-width: "16rem"
       doc-toc-width: "14rem"
+      doc-sidebar-marker-offset: "0.75rem"
+      doc-sidebar-marker-inset: "0.375rem"
+      doc-sidebar-nested-marker-offset: "0.6875rem"
+      doc-sidebar-tree-indent: "0.875rem"
+      doc-sidebar-tree-gutter: "0.625rem"
+      doc-sidebar-tree-line-inset: "0.25rem"
+      doc-sidebar-first-group-gap: "0.375rem"
+      doc-toc-gutter: "1rem"
+      doc-index-label-width: "11.875rem"
 ---
 
 # Design System: Compozy
@@ -592,9 +605,10 @@ new tone map at each feature boundary.
 
 Inter Variable (opsz + wght) is the runtime typeface. JetBrains Mono is reserved
 for ids, code, channel metadata, and fixed-width operational values. The site
-may bind `--font-display` to Playfair Display inside `.site-home` only; runtime
-and shared UI code treat `--font-display` as a reserved alias, not a type-ramp
-utility.
+binds `--font-display` to Playfair Display for landing (`.site-home`) and docs
+display roles (`.site-doc-masthead__title`, `.site-doc-body h2`) only — never
+below ~26px. Runtime and shared UI code treat `--font-display` as a reserved
+alias, not a type-ramp utility.
 
 The body baseline is set once in `tokens.css`: compact Inter, readable line
 height, optical sizing (`font-optical-sizing: auto`), and a small negative
@@ -607,7 +621,10 @@ The eyebrow contract is intentionally narrow after L-022: one `<Eyebrow>`
 primitive, one `.eyebrow` utility, one Inter uppercase style. Eyebrow is for
 structural labels such as table heads, metadata terms, section labels, and
 breadcrumbs. Metrics, KPI labels, ids, code, and pills are not eyebrows just
-because they are small.
+because they are small. Docs-shell labels are the exception: they keep the
+`<Eyebrow>` wrapper but speak JetBrains Mono via `--text-badge` (section /
+crumbs) or `--text-group-label` (in-folder groups) — not marketing
+`--text-eyebrow`.
 
 ### Type ladder
 
@@ -953,26 +970,29 @@ is listed.
 shadow vocabulary. It extends the system with site-only font binding,
 responsive type clamps, layout widths, doc body classes, and bento overlays.
 
-The site can use Playfair Display only inside `.site-home`. Runtime UI,
-shared UI primitives, blog bodies, changelog bodies, and docs content stay on
-Inter unless a documented site class says otherwise.
+Playfair Display is allowed on the site for landing (`.site-home`) and docs
+display roles (`.site-doc-masthead__title`, `.site-doc-body h2`) only. Runtime
+UI, shared UI primitives, blog bodies, changelog bodies, and all other docs
+chrome (sidebar, TOC, actions, `h3`+) stay on Inter. Docs mono labels bind
+`--text-badge` / `--text-group-label`, not `--text-eyebrow`.
 
 ### Site typography clamps
 
 <!-- BEGIN:tokens:site-clamps -->
 
-| Token                       | Value                           | Token                           | Value                          | Token                          | Value                          |
-| --------------------------- | ------------------------------- | ------------------------------- | ------------------------------ | ------------------------------ | ------------------------------ |
-| `--text-site-lead`          | `1.1875rem`                     | `--text-site-lead--line-height` | `1.5`                          | `--text-site-hero`             | `clamp(2.8rem, 6.5vw, 5.4rem)` |
-| `--text-site-error-title`   | `clamp(2.6rem, 6vw, 4.8rem)`    | `--text-site-hero-section`      | `clamp(2.6rem, 5.5vw, 4.2rem)` | `--text-site-blog-title`       | `clamp(2.6rem, 5.4vw, 4.6rem)` |
-| `--text-site-doc-title`     | `clamp(2.55rem, 4.7vw, 4rem)`   | `--text-site-protocol-title`    | `clamp(2.4rem, 5vw, 3.8rem)`   | `--text-site-page-title`       | `clamp(2.4rem, 4.4vw, 4rem)`   |
-| `--text-site-article-title` | `clamp(2.4rem, 4.4vw, 3.6rem)`  | `--text-site-section-title`     | `clamp(2.2rem, 4.6vw, 3.6rem)` | `--text-site-category-title`   | `clamp(2.2rem, 4vw, 3.4rem)`   |
-| `--text-site-cta-title`     | `clamp(2rem, 4.5vw, 3.2rem)`    | `--text-site-feature-title`     | `clamp(2rem, 3.4vw, 2.8rem)`   | `--text-site-subsection-title` | `clamp(1.9rem, 3.4vw, 2.6rem)` |
-| `--text-site-doc-heading`   | `clamp(1.7rem, 3vw, 2.45rem)`   | `--text-site-release-title`     | `clamp(1.6rem, 3vw, 2.1rem)`   | `--text-site-empty-title`      | `clamp(1.55rem, 3vw, 2rem)`    |
-| `--text-site-quote`         | `clamp(1.5rem, 2.4vw, 1.95rem)` | `--text-site-card-title`        | `clamp(1.45rem, 3vw, 1.9rem)`  | `--text-site-subheading`       | `clamp(1.3rem, 2.2vw, 1.7rem)` |
-| `--text-site-bento-2xl`     | `2.5rem`                        | `--text-site-bento-xl`          | `2.35rem`                      | `--text-site-bento-lg`         | `2rem`                         |
-| `--text-site-bento-md`      | `1.9rem`                        | `--text-site-bento-sm`          | `1.8rem`                       | `--text-site-bento-xs`         | `1.65rem`                      |
-| `--leading-doc-body`        | `1.8`                           |                                 |                                |                                |                                |
+| Token                        | Value                          | Token                             | Value                           | Token                               | Value                           |
+| ---------------------------- | ------------------------------ | --------------------------------- | ------------------------------- | ----------------------------------- | ------------------------------- |
+| `--text-site-lead`           | `1.1875rem`                    | `--text-site-lead--line-height`   | `1.5`                           | `--text-site-hero`                  | `clamp(2.8rem, 6.5vw, 5.4rem)`  |
+| `--text-site-error-title`    | `clamp(2.6rem, 6vw, 4.8rem)`   | `--text-site-hero-section`        | `clamp(2.6rem, 5.5vw, 4.2rem)`  | `--text-site-blog-title`            | `clamp(2.6rem, 5.4vw, 4.6rem)`  |
+| `--text-site-doc-title`      | `clamp(2.4rem, 4vw, 3.4rem)`   | `--text-site-doc-lead`            | `1.125rem`                      | `--text-site-doc-lead--line-height` | `1.65`                          |
+| `--text-site-protocol-title` | `clamp(2.4rem, 5vw, 3.8rem)`   | `--text-site-page-title`          | `clamp(2.4rem, 4.4vw, 4rem)`    | `--text-site-article-title`         | `clamp(2.4rem, 4.4vw, 3.6rem)`  |
+| `--text-site-section-title`  | `clamp(2.2rem, 4.6vw, 3.6rem)` | `--text-site-category-title`      | `clamp(2.2rem, 4vw, 3.4rem)`    | `--text-site-cta-title`             | `clamp(2rem, 4.5vw, 3.2rem)`    |
+| `--text-site-feature-title`  | `clamp(2rem, 3.4vw, 2.8rem)`   | `--text-site-subsection-title`    | `clamp(1.9rem, 3.4vw, 2.6rem)`  | `--text-site-doc-heading`           | `clamp(1.6rem, 2.6vw, 2.15rem)` |
+| `--text-group-label`         | `0.625rem`                     | `--text-group-label--line-height` | `0.75rem`                       | `--text-site-release-title`         | `clamp(1.6rem, 3vw, 2.1rem)`    |
+| `--text-site-empty-title`    | `clamp(1.55rem, 3vw, 2rem)`    | `--text-site-quote`               | `clamp(1.5rem, 2.4vw, 1.95rem)` | `--text-site-card-title`            | `clamp(1.45rem, 3vw, 1.9rem)`   |
+| `--text-site-subheading`     | `clamp(1.3rem, 2.2vw, 1.7rem)` | `--text-site-bento-2xl`           | `2.5rem`                        | `--text-site-bento-xl`              | `2.35rem`                       |
+| `--text-site-bento-lg`       | `2rem`                         | `--text-site-bento-md`            | `1.9rem`                        | `--text-site-bento-sm`              | `1.8rem`                        |
+| `--text-site-bento-xs`       | `1.65rem`                      | `--leading-doc-body`              | `1.8`                           |                                     |                                 |
 
 <!-- END:tokens:site-clamps -->
 
@@ -980,18 +1000,22 @@ Inter unless a documented site class says otherwise.
 
 <!-- BEGIN:tokens:site-layout -->
 
-| Token                      | Value    |
-| -------------------------- | -------- |
-| `--site-layout-width`      | `1200px` |
-| `--site-doc-layout-width`  | `96rem`  |
-| `--site-doc-sidebar-width` | `16rem`  |
-| `--site-doc-toc-width`     | `14rem`  |
+| Token                                     | Value       | Token                                | Value      |
+| ----------------------------------------- | ----------- | ------------------------------------ | ---------- |
+| `--site-layout-width`                     | `1200px`    | `--site-doc-layout-width`            | `96rem`    |
+| `--site-doc-sidebar-width`                | `16rem`     | `--site-doc-toc-width`               | `14rem`    |
+| `--site-doc-sidebar-marker-offset`        | `0.75rem`   | `--site-doc-sidebar-marker-inset`    | `0.375rem` |
+| `--site-doc-sidebar-nested-marker-offset` | `0.6875rem` | `--site-doc-sidebar-tree-indent`     | `0.875rem` |
+| `--site-doc-sidebar-tree-gutter`          | `0.625rem`  | `--site-doc-sidebar-tree-line-inset` | `0.25rem`  |
+| `--site-doc-sidebar-first-group-gap`      | `0.375rem`  | `--site-doc-toc-gutter`              | `1rem`     |
+| `--site-doc-index-label-width`            | `11.875rem` |                                      |            |
 
 <!-- END:tokens:site-layout -->
 
 Site classes are intentionally narrow:
 
-- `.site-home` gates landing-only display typography.
+- `.site-home` gates landing display typography.
+- `.site-doc-masthead__title` and `.site-doc-body h2` are the docs Playfair roles.
 - `.site-doc-body` owns docs prose rhythm and MDX article width.
 - `.site-bento-overlay-*` fades illustration assets into the warm-dark ramp.
 - `.compozy-mermaid` owns Mermaid diagram theming for docs.

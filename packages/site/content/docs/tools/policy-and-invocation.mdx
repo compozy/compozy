@@ -1,0 +1,172 @@
+---
+title: Policy and Invocation
+description: How Compozy validates tool input, applies daemon policy, handles approvals, redacts sensitive fields, and records invocation evidence.
+---
+
+Tool invocation is a runtime operation, not a direct function call from an agent. Compozy validates the
+input, applies policy, dispatches the tool, redacts sensitive fields, and returns a structured
+result.
+
+<OperatorNote label="Security boundary">
+  Treat tool input as agent-controlled. Tool schemas and policy checks are part of the runtime
+  boundary that keeps agent-managed work inspectable and bounded.
+</OperatorNote>
+
+## Invocation lifecycle
+
+<Mermaid
+  chart={`flowchart TD
+    Caller[Operator, script, or managed agent]
+    Descriptor[Inspect descriptor and schema]
+    Input[Submit JSON input]
+    Validate[Validate schema and scope]
+    Policy[Apply daemon policy and approvals]
+    Dispatch[Dispatch canonical tool handler]
+    Redact[Redact sensitive input fields in events]
+    Result[Return structured result and diagnostics]
+    Audit[Persist invocation evidence]
+
+    Caller --> Descriptor
+    Descriptor --> Input
+    Input --> Validate
+    Validate --> Policy
+    Policy --> Dispatch
+    Dispatch --> Redact
+    Redact --> Result
+    Redact --> Audit`}
+
+caption="Tool invocation flows through validation, policy, dispatch, redaction, and audit instead of bypassing the daemon."
+/>
+
+## CLI invocation
+
+Invoke with inline JSON:
+
+```bash
+compozy tool invoke compozy__tool_info --input '{"tool_id":"compozy__skill_view"}' -o json
+```
+
+Invoke with a file:
+
+```bash
+compozy tool invoke compozy__tool_info --input-file ./input.json -o json
+```
+
+Invoke with stdin:
+
+```bash
+echo '{"tool_id":"compozy__skill_view"}' | compozy tool invoke compozy__tool_info -o json
+```
+
+What happened: the CLI sent JSON input to the daemon, the daemon validated and dispatched the tool,
+and the response came back as structured output.
+
+## Scoped diagnostics
+
+Some tools depend on workspace, session, or agent context. Pass scope when you need diagnostics for
+the same view a managed session would receive:
+
+```bash
+compozy tool info compozy__skill_view --workspace ws-1 --session sess-1 --agent reviewer -o json
+```
+
+Use scoped diagnostics when:
+
+- a tool is visible globally but unavailable inside a session
+- a workspace-specific resource should appear but does not
+- an agent-specific toolset is narrower than the operator view
+- a policy decision depends on the active session context
+
+## Approval-gated tools
+
+Some tools may require approval before execution. When a tool requires approval, the descriptor and
+diagnostics should tell the caller what is missing. The invocation path accepts a single-use
+approval token:
+
+```bash
+compozy tool invoke <tool-id> \
+  --approval-token "$APPROVAL_TOKEN" \
+  --input '{"target":"example"}' \
+  -o json
+```
+
+Do not persist approval tokens in memory, docs, logs, bridge messages, or task descriptions. Treat
+them as short-lived credentials.
+
+### Remembered native-tool decisions
+
+When a managed session answers a native-tool approval prompt with `allow-always` or
+`reject-always`, Compozy remembers the decision in the workspace database. The remembered key is exact:
+workspace, agent, tool ID, and the SHA-256 digest of the authored input must all match. A different
+agent or input prompts again.
+
+Operators and managed agents can also set an explicit wider decision. Agent scope matches one
+agent and tool across every input; tool scope matches the tool across every agent and input in the
+workspace. This management path never accepts an input digest, so it cannot fabricate an exact
+prompt-origin decision.
+
+Compozy checks a supplied single-use approval token first. Without one, it checks the remembered
+decision before opening another prompt. A remembered allow continues to dispatch; a remembered
+reject blocks the invocation. These decisions survive daemon restarts and remain workspace-scoped.
+They do not broaden sandbox, ACP, or workspace policy.
+
+Set, list, or revoke remembered decisions from any management surface:
+
+```bash
+compozy tool approvals set compozy__workspace_list \
+  --workspace <workspace> \
+  --decision allow \
+  --scope agent \
+  --agent claude-code \
+  -o json
+compozy tool approvals set compozy__workspace_list \
+  --workspace <workspace> \
+  --decision reject \
+  --scope tool \
+  -o json
+compozy tool approvals list --workspace <workspace> -o json
+compozy tool approvals revoke <grant-id> --workspace <workspace> -o json
+```
+
+The matching HTTP and UDS routes are `PUT /api/tool-approval-grants`,
+`GET /api/tool-approval-grants`, and `DELETE /api/tool-approval-grants/:grant_id`, all with
+`workspace_id`. The PUT body is `{tool_id, decision, scope, agent_name?}`; `agent_name` is required
+for agent scope and forbidden for tool scope. Managed agents can use `compozy__tool_approvals_set`,
+`compozy__tool_approvals_list`, and `compozy__tool_approvals_revoke`. Web Settings → General exposes the
+same wider set, workspace list, and revoke actions.
+
+An explicit wider allow only skips the prompt when the workspace tool policy already permits the
+invocation. It does not change the configured tool mode or broaden sandbox, ACP, capability, or
+workspace boundaries.
+
+## Sensitive input fields
+
+If input contains sensitive values, mark the field path so invocation evidence can redact it:
+
+```bash
+compozy tool invoke <tool-id> \
+  --input '{"secret_ref":"vault://provider/token"}' \
+  --sensitive-input-field secret_ref \
+  -o json
+```
+
+What happened: Compozy still received the input needed by the handler, but the specified field is
+treated as sensitive in diagnostic and event surfaces.
+
+## Common failures
+
+| Symptom                            | Likely cause                                                         | First check                                          |
+| ---------------------------------- | -------------------------------------------------------------------- | ---------------------------------------------------- |
+| Tool is not found                  | Wrong ID or tool not registered in the current runtime.              | `compozy tool search <query> -o json`                |
+| Tool is visible but unavailable    | Missing workspace/session/agent scope or prerequisite configuration. | `compozy tool info <tool-id> --session <id> -o json` |
+| Invocation rejects input           | JSON does not match the tool schema.                                 | `compozy tool info <tool-id> -o json`                |
+| Invocation needs approval          | Policy requires an approval token.                                   | Descriptor diagnostics                               |
+| Result omits expected secret value | Secrets are write-only or redacted by design.                        | Vault and policy docs                                |
+
+## Related pages
+
+- [Tool Registry](/docs/tools)
+- [Toolsets](/docs/tools/toolsets)
+- [Vault](/docs/configuration/vault)
+- [Task Runs and Leases](/docs/autonomy/task-runs-and-leases)
+- [Tool CLI Reference](/docs/cli/tool)

@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 
 const siteRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const contentRoot = resolve(siteRoot, "content");
-const cliReferenceRoot = resolve(contentRoot, "runtime/cli-reference");
+const cliReferenceRoot = resolve(contentRoot, "docs/cli");
 
 type ManualDoc = {
   path: string;
@@ -22,7 +22,7 @@ function listManualDocs(dir: string): ManualDoc[] {
   for (const entry of readdirSync(dir)) {
     const fullPath = resolve(dir, entry);
     const relPath = relative(contentRoot, fullPath);
-    if (relPath === "runtime/cli-reference" || relPath.startsWith("runtime/cli-reference/")) {
+    if (relPath === "docs/cli" || relPath.startsWith("docs/cli/")) {
       continue;
     }
 
@@ -43,7 +43,7 @@ function listManualDocs(dir: string): ManualDoc[] {
 
 function extractBashBlocks(doc: ManualDoc): string[] {
   const blocks: string[] = [];
-  const matcher = /```(?:bash|sh|shell)\n([\s\S]*?)```/g;
+  const matcher = /```(?:bash|sh|shell)(?:\s+[^\n]*)?\n([\s\S]*?)```/g;
   for (const match of doc.content.matchAll(matcher)) {
     blocks.push(match[1] ?? "");
   }
@@ -68,6 +68,18 @@ function commandBlocks(command: string): Array<{ path: string; block: string }> 
       .filter(block => block.includes(command))
       .map(block => ({ path: doc.path, block }))
   );
+}
+
+function manualDoc(path: string): ManualDoc {
+  const doc = listManualDocs(contentRoot).find(candidate => candidate.path === path);
+  if (!doc) {
+    throw new Error(`manual documentation page not found: ${path}`);
+  }
+  return doc;
+}
+
+function normalizedShellBlocks(doc: ManualDoc): string {
+  return extractBashBlocks(doc).join("\n").replaceAll("\\\n", " ");
 }
 
 function listCLIReferenceDocs(dir: string): string[] {
@@ -217,11 +229,7 @@ describe("manual site CLI examples", () => {
     // Scan only fenced code blocks (executable / structural examples). Narrative may still mention
     // a legacy term in a "we removed this" tombstone sentence , that is fine. Code blocks must
     // contain only current vocabulary so copy-paste evidence stays truthful.
-    const networkScopedPaths: RegExp[] = [
-      /^runtime\/core\/network\//,
-      /^runtime\/use-cases\//,
-      /^protocol\//,
-    ];
+    const networkScopedPaths: RegExp[] = [/^docs\/network\//, /^docs\/use-cases\//];
 
     const removedCodePatterns: RegExp[] = [
       /\binteraction_id\b/,
@@ -270,6 +278,46 @@ describe("manual site CLI examples", () => {
       .map(({ path }) => path);
 
     expect(violations).toEqual([]);
+  });
+
+  it("uses generated job IDs for the morning briefing trigger and history", () => {
+    const shell = normalizedShellBlocks(manualDoc("docs/examples/morning-briefing-job.mdx"));
+
+    expect(shell).toContain("job_id=\"$(printf '%s' \"$job\" | jq -er '.id')\"");
+    expect(shell).toContain('compozy automation jobs trigger "$job_id"');
+    expect(shell).toContain('compozy automation runs --job-id "$job_id" -o json');
+    expect(shell).not.toContain("compozy automation jobs trigger morning-briefing");
+  });
+
+  it("uses the flag-only Loop command contract in the review-and-fix example", () => {
+    const shell = normalizedShellBlocks(manualDoc("docs/examples/review-and-fix-loop.mdx"));
+
+    expect(shell).toMatch(
+      /compozy loop validate\s+--workspace\s+\/Users\/you\/src\/checkout-api\s+--file loop\.yaml/
+    );
+    expect(shell).toMatch(
+      /compozy loop create\s+--workspace\s+\/Users\/you\/src\/checkout-api\s+--file loop\.yaml/
+    );
+    expect(shell).toMatch(
+      /compozy loop run\s+--workspace\s+\/Users\/you\/src\/checkout-api\s+--name review-and-fix\s+--input task_name=<task-name>\s+--dry-run/
+    );
+    expect(shell).toMatch(
+      /compozy loop run\s+--workspace\s+\/Users\/you\/src\/checkout-api\s+--name review-and-fix\s+--input task_name=<task-name>/
+    );
+    expect(shell).not.toMatch(/compozy loop (?:validate|create) loop\.yaml/);
+    expect(shell).not.toMatch(/compozy loop run review-and-fix/);
+  });
+
+  it("uses the write-only webhook secret and generated delivery route fields", () => {
+    const shell = normalizedShellBlocks(manualDoc("docs/examples/webhook-to-agent-run.mdx"));
+
+    expect(shell).toContain('--webhook-secret-value "$COMPOZY_DEPLOY_WEBHOOK_SECRET"');
+    expect(shell).toContain("webhook_id=\"$(printf '%s' \"$trigger\" | jq -er '.webhook_id')\"");
+    expect(shell).toContain(
+      'webhook_url="http://localhost:2123/api/webhooks/workspaces/${workspace_id}/${endpoint_slug}--${webhook_id}"'
+    );
+    expect(shell).toContain('curl -sS -X POST "$webhook_url"');
+    expect(shell).not.toContain('--webhook-secret "$COMPOZY_DEPLOY_WEBHOOK_SECRET"');
   });
 
   it("keeps manual spawn examples explicit about bounded child session TTL", () => {

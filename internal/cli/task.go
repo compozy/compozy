@@ -220,9 +220,6 @@ func newTaskCommand(deps commandDeps) *cobra.Command {
 
   # Let the current agent session claim work
   compozy task next --wait`,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			return cmd.Help()
-		},
 	}
 
 	cmd.AddCommand(newTaskListCommand(deps))

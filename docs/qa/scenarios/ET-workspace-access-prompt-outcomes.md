@@ -5,14 +5,14 @@ title: Resolve a cross-workspace prompt and expire its session answer
 persona: Bruno
 journey: J-cross-workspace-access
 expected: An approve-reads session hitting the native-tool boundary raises one pending permission offering allow_once, allow_session, reject_once, and reject_session; once answers apply to that call only, session answers apply to every seam for the rest of the session, and stopping the session clears the answer so the next crossing prompts again.
-entry_points: compozy__workspace_info; compozy__task_run_claim_next; compozy spawn --workspace; compozy session approve <session-id> --request-id <request-id> --decision <allow-once|allow-always|reject-once|reject-always>; POST /api/workspaces/:workspace_id/sessions/:session_id/approve; compozy logs --type workspace.access_granted; GET /api/logs; compozy__logs; compozy__observe_search; /runtime/core/sessions/permissions#the-prompt-in-approve-reads
-qa_status: untested
-bug_ids:
-fix_status:
-retest_status: pass
-fix_commits:
+entry_points: compozy__workspace_info; compozy__task_run_claim_next; compozy spawn --workspace; compozy session approve <session-id> --request-id <request-id> --decision <allow-once|allow-always|reject-once|reject-always>; POST /api/workspaces/:workspace_id/sessions/:session_id/approve; compozy logs --type workspace.access_granted; GET /api/logs; compozy__logs; compozy__observe_search; /docs/sessions/permissions#the-prompt-in-approve-reads
+qa_status: blocked-verify
+bug_ids: BUG-20260730-tool-invoke-202-empty-success
+fix_status: fixed
+retest_status: blocked — HTTP 202 decoding is fixed, but the complete once/session/reject/expiry matrix needs a dedicated approval harness
+fix_commits: working-tree
 evidence: /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-124649-419333-lab/qa-artifacts/qa/notes/cross-workspace-access-results.md
-last_report: docs/qa/reports/2026-07-29-cross-workspace-access.md
+last_report: docs/qa/reports/2026-07-29-site-improvs-deep-review.md
 overlaps: ET-workspace-access-mode-matrix; ET-native-tool-approval-grants
 ---
 

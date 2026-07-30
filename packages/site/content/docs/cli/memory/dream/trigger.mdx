@@ -1,0 +1,47 @@
+---
+title: "compozy memory dream trigger"
+description: "Trigger Memory v2 dreaming"
+---
+
+## compozy memory dream trigger
+
+Trigger Memory v2 dreaming
+
+```
+compozy memory dream trigger [flags]
+```
+
+### Options
+
+```
+      --agent string        Agent name for agent-scoped memory
+      --agent-tier string   Agent memory tier: workspace or global
+      --force               Trigger even if normal gates would skip the run
+  -h, --help                help for trigger
+      --scope string        Memory scope: global, workspace, or agent
+      --workspace string    Override workspace binding (ID, name, or path)
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy memory dream trigger -o json
+```

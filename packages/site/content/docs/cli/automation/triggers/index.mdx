@@ -1,0 +1,61 @@
+---
+title: "compozy automation triggers"
+description: "Manage automation triggers"
+---
+
+## compozy automation triggers
+
+Manage automation triggers
+
+```
+compozy automation triggers [flags]
+```
+
+### Options
+
+```
+      --cursor string      Continue after this automation trigger cursor
+      --enabled            Filter by enabled state; use --enabled=false for disabled triggers
+      --event string       Filter by activation event
+  -h, --help               help for triggers
+      --limit int          Maximum triggers per page (default 50)
+      --loop string        Filter by loop target name
+      --query string       Search triggers by definition or filter fields
+      --scope string       Filter by scope: global or workspace
+      --source string      Filter by definition source: config, package, or dynamic
+      --workspace string   Override workspace filter (ID, name, or path)
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy automation triggers -o json
+```
+
+## Subcommands
+
+| Command                                                                      | Description                                 |
+| ---------------------------------------------------------------------------- | ------------------------------------------- |
+| [compozy automation triggers create](/docs/cli/automation/triggers/create)   | Create an automation trigger                |
+| [compozy automation triggers delete](/docs/cli/automation/triggers/delete)   | Delete an automation trigger                |
+| [compozy automation triggers get](/docs/cli/automation/triggers/get)         | Show one automation trigger                 |
+| [compozy automation triggers history](/docs/cli/automation/triggers/history) | Show run history for one automation trigger |
+| [compozy automation triggers update](/docs/cli/automation/triggers/update)   | Update an automation trigger                |

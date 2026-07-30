@@ -1,0 +1,47 @@
+---
+title: "compozy bridge send-test"
+description: "Send one real message through a bridge provider"
+---
+
+## compozy bridge send-test
+
+Send one real message through a bridge provider
+
+```
+compozy bridge send-test <id> [flags]
+```
+
+### Options
+
+```
+      --group-id string    Override target group ID
+  -h, --help               help for send-test
+      --message string     Message to send through the provider
+      --mode string        Delivery mode: direct-send or reply
+      --peer-id string     Override target peer ID
+      --thread-id string   Override target thread ID
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy bridge send-test <id> -o json
+```

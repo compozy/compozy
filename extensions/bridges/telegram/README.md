@@ -65,6 +65,6 @@ Telegram instances default to `tool_progress: new` with accumulated updates, typ
 
 Progress uses `sendMessage`, `editMessageText`, `sendChatAction`, and `setMessageReaction`. Reactions apply to the progress bubble. Sending the answer clears Telegram's typing indicator; Telegram has no explicit clear-typing method. Rate-limited edits honor the Bot API `retry_after` value before retrying. Set `delivery_defaults.progress.tool_progress` to `off` to acknowledge progress without Telegram API calls.
 
-See the [Telegram operator setup guide](../../../packages/site/content/runtime/core/bridges/setup-telegram.mdx)
+See the [Telegram operator setup guide](../../../packages/site/content/docs/bridges/setup-telegram.mdx)
 for BotFather setup, webhook registration, route selection, verification, delivery testing, and
 troubleshooting.

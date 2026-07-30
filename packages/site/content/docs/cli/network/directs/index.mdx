@@ -1,0 +1,42 @@
+---
+title: "compozy network directs"
+description: "Inspect restricted direct rooms"
+---
+
+## compozy network directs
+
+Inspect restricted direct rooms
+
+### Options
+
+```
+  -h, --help   help for directs
+```
+
+### Options inherited from parent commands
+
+```
+      --json               Emit JSON output
+  -o, --output string      Output format: human, json, jsonl, or toon (default "human")
+      --workspace string   Override workspace binding (ID, name, or path)
+```
+
+## Output Formats
+
+This command displays human-readable help and its subcommand list. The inherited `-o, --output` and `--json` flags do not serialize help output.
+
+| Format  | Output                   |
+| ------- | ------------------------ |
+| `human` | Help and subcommand list |
+| `json`  | Not emitted for help     |
+| `jsonl` | Not emitted for help     |
+| `toon`  | Not emitted for help     |
+
+## Subcommands
+
+| Command                                                                | Description                                                  |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------ |
+| [compozy network directs list](/docs/cli/network/directs/list)         | List direct rooms in a channel                               |
+| [compozy network directs messages](/docs/cli/network/directs/messages) | List messages in one direct room                             |
+| [compozy network directs resolve](/docs/cli/network/directs/resolve)   | Create or return the deterministic direct room for two peers |
+| [compozy network directs show](/docs/cli/network/directs/show)         | Show one direct room                                         |

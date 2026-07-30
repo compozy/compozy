@@ -4,16 +4,16 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 const siteRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
-const runtimeRoot = resolve(siteRoot, "content/runtime");
+const docsRoot = resolve(siteRoot, "content/docs");
 
-const providersDoc = resolve(runtimeRoot, "core/agents/providers.mdx");
-const modelCatalogDoc = resolve(runtimeRoot, "core/agents/model-catalog.mdx");
-const configTomlDoc = resolve(runtimeRoot, "core/configuration/config-toml.mdx");
-const developExtensionsDoc = resolve(runtimeRoot, "core/extensions/develop.mdx");
-const cliProviderModelsIndex = resolve(runtimeRoot, "cli-reference/provider/models/index.mdx");
-const cliProviderModelsList = resolve(runtimeRoot, "cli-reference/provider/models/list.mdx");
-const cliProviderModelsRefresh = resolve(runtimeRoot, "cli-reference/provider/models/refresh.mdx");
-const cliProviderModelsStatus = resolve(runtimeRoot, "cli-reference/provider/models/status.mdx");
+const providersDoc = resolve(docsRoot, "agents/providers.mdx");
+const modelCatalogDoc = resolve(docsRoot, "agents/model-catalog.mdx");
+const configTomlDoc = resolve(docsRoot, "configuration/config-toml.mdx");
+const developExtensionsDoc = resolve(docsRoot, "extensions/develop.mdx");
+const cliProviderModelsIndex = resolve(docsRoot, "cli/provider/models/index.mdx");
+const cliProviderModelsList = resolve(docsRoot, "cli/provider/models/list.mdx");
+const cliProviderModelsRefresh = resolve(docsRoot, "cli/provider/models/refresh.mdx");
+const cliProviderModelsStatus = resolve(docsRoot, "cli/provider/models/status.mdx");
 
 function read(path: string): string {
   return readFileSync(path, "utf8");
@@ -120,9 +120,9 @@ describe("provider model catalog docs", () => {
   it("includes the regenerated provider models CLI reference", () => {
     const indexSource = read(cliProviderModelsIndex);
     expect(indexSource).toContain("compozy provider models");
-    expect(indexSource).toContain("/runtime/cli-reference/provider/models/list");
-    expect(indexSource).toContain("/runtime/cli-reference/provider/models/refresh");
-    expect(indexSource).toContain("/runtime/cli-reference/provider/models/status");
+    expect(indexSource).toContain("/docs/cli/provider/models/list");
+    expect(indexSource).toContain("/docs/cli/provider/models/refresh");
+    expect(indexSource).toContain("/docs/cli/provider/models/status");
 
     expect(read(cliProviderModelsList)).toContain("compozy provider models list");
     expect(read(cliProviderModelsRefresh)).toContain("compozy provider models refresh");

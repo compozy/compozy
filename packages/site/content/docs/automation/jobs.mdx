@@ -1,0 +1,417 @@
+---
+title: Jobs and Scheduling
+description: Define scheduled Compozy automation jobs with cron, interval, and one-time schedules, then monitor runs and retries.
+---
+
+Jobs start unattended work without an interactive operator. A job answers three questions:
+
+- which Agent or Loop should run
+- what input the target should receive
+- when Compozy should dispatch the run
+
+Jobs can live in TOML config, in package-provided definitions, or in the dynamic store created
+through the CLI or API. Config and package jobs are managed definitions: Compozy keeps them in sync
+from their source, and only their enabled state can be overlaid at runtime. Dynamic jobs can be
+created, updated, and deleted through the automation API.
+
+<OperatorNote>
+  Compozy evaluates job schedules in the automation timezone. The default timezone is `UTC`, and the
+  default global automation concurrency limit is `5` active jobs.
+</OperatorNote>
+
+## Browse the job catalog
+
+`compozy automation jobs -o json` returns one counted catalog page. The daemon applies `scope`,
+`workspace`, definition `source` (`config`, `package`, or `dynamic`), enabled state, Loop target,
+and text query filters before it cuts the page. The response keeps the rows under `jobs` and reports
+the exact `total`, applied `limit`, `has_more`, and `next_cursor` values under `page`.
+
+Use `--limit` to bound each read and pass `--cursor` to continue. A cursor is tied to the filter set
+that created it; restart from the first page when any filter changes. See the generated
+[`compozy automation jobs`](/docs/cli/automation/jobs) reference for every flag.
+
+## Execution flow
+
+<Mermaid
+  chart={`flowchart TD
+  Config["Config, package, or dynamic job"] --> Scheduler["Scheduler"]
+  Scheduler --> Cursor["Durable scheduler state"]
+  Cursor --> Dispatch["Automation dispatcher"]
+  Manual["Manual trigger command"] --> Dispatch
+  Dispatch --> FireLimit["Fire-limit and concurrency checks"]
+  FireLimit --> Run["automation_runs row"]
+  Run --> Agent["Agent session or delegated task"]
+  Agent --> Status["completed, failed, canceled, or delegated"]
+  Status --> Retry{"retry.strategy == backoff and run failed?"}
+  Retry -- yes --> Dispatch
+  Retry -- no --> History["Run history"]`}
+  caption="Scheduled jobs, manual job triggers, run history, and retry attempts share the same dispatcher path."
+/>
+
+## Job fields
+
+| Field                        | Required                     | Meaning                                                                                                                |
+| ---------------------------- | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `name`                       | Yes                          | Human-readable job name.                                                                                               |
+| `scope`                      | Yes                          | `global` or `workspace`.                                                                                               |
+| `workspace` / `workspace_id` | Workspace jobs only          | TOML uses `workspace`; API payloads and stored jobs use `workspace_id`. Global jobs must leave it empty.               |
+| `target_kind`                | No                           | `agent` or `loop`. Omitted targets default to `agent` unless a `loop_target` is present.                               |
+| `agent` / `agent_name`       | Agent targets without `task` | TOML uses `agent`; API payloads use `agent_name`. Must be empty for Loop targets.                                      |
+| `prompt`                     | Agent targets without `task` | Prompt submitted to the agent when the job fires. Must be empty for Loop targets.                                      |
+| `task`                       | No                           | Materializes Task-backed work for an Agent target. Must be empty for Loop targets.                                     |
+| `loop_target`                | Loop targets                 | Selects `workspace_id`, `loop_name`, and static `inputs`. Scheduled jobs reject `input_mapping`.                       |
+| `schedule`                   | Yes                          | One of `cron`, `every`, or `at`; recurring schedules may set catch-up policy and misfire grace.                        |
+| `enabled`                    | No                           | Defaults to `true` for parsed config definitions. Disabled jobs stay stored but are not registered with the scheduler. |
+| `retry`                      | No                           | Defaults to `{ strategy = "none" }`.                                                                                   |
+| `fire_limit`                 | No                           | Defaults to `max = 12`, `window = "1h"` unless the automation default is changed.                                      |
+
+## Target an Agent or a Loop
+
+Set `target_kind` to `agent` for the existing session or Task-backed path. Set it to `loop` to
+start a published Loop directly. Loop targets must omit `agent_name`, `prompt`, and `task`.
+
+`loop_target.workspace_id` always identifies the workspace that owns the Loop. For a
+workspace-scoped job, it must equal the job's `workspace_id`. A global job still names the target
+workspace explicitly. The selected Loop must support automation starts.
+
+Scheduled jobs supply deterministic static values through `loop_target.inputs`. They cannot use
+`input_mapping` because a clock fire has no activation envelope to map.
+
+```bash
+curl -sS -X POST http://localhost:2123/api/automation/jobs \
+  -H "Content-Type: application/json" \
+  --data '{
+    "name": "weekday-release-readiness",
+    "scope": "workspace",
+    "workspace_id": "ws_123",
+    "target_kind": "loop",
+    "schedule": { "mode": "cron", "expr": "0 9 * * 1-5" },
+    "loop_target": {
+      "workspace_id": "ws_123",
+      "loop_name": "release-readiness",
+      "inputs": { "channel": "stable" }
+    },
+    "enabled": true
+  }'
+```
+
+Agents can send the same payload through `compozy__automation_jobs_create`; HTTP and UDS expose the
+same request contract. The `compozy automation jobs create|update` flags currently author Agent
+targets. The CLI can still list, inspect, enable, disable, trigger, and delete Loop-target jobs
+created through a native tool or transport API.
+
+## Daemon lifecycle protection
+
+Dynamic job creation and updates reject command-shaped instructions that would restart, stop, or
+kill the Compozy daemon. The guard covers Agent prompts and Task descriptions before Compozy writes the
+job, including update payloads and resource-applied definitions. It classifies direct
+`compozy daemon restart|stop` commands, process signals targeting `compozy`, and `systemctl`, `launchctl`,
+or `service` lifecycle commands targeting Compozy.
+
+The rejection names one stable class: `compozy_daemon`, `process_signal`, or `service_manager`. The
+same error reaches CLI, HTTP/UDS, and `compozy__automation_jobs_create|update`. There is no bypass.
+Remove the daemon lifecycle command and retry the write. Human-readable fields remain ordinary
+prose, so a job name such as `Review compozy daemon restart behavior` is valid.
+
+## Schedule modes
+
+Each schedule mode accepts exactly the fields it needs. Supplying fields from another mode is a
+validation error.
+
+| Mode    | Required field | Format                                                                   | Use it for                                                    |
+| ------- | -------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------- |
+| `cron`  | `expr`         | Standard five-field cron: minute, hour, day of month, month, day of week | Calendar-based runs such as weekday review or nightly cleanup |
+| `every` | `interval`     | Positive Go duration such as `15m`, `1h`, or `2h30m`                     | Fixed interval work such as polling or periodic health checks |
+| `at`    | `time`         | RFC3339 timestamp such as `2026-04-17T15:00:00Z`                         | One-time future execution                                     |
+
+Cron expressions use five fields. Compozy does not accept a seconds field.
+
+```text
+# minute hour day-of-month month day-of-week
+0 9 * * 1-5
+```
+
+The scheduler skips a one-time `at` job if its timestamp is already in the past when the job is
+registered. After an `at` job fires, Compozy unregisters it from the scheduler.
+
+## Durable scheduler state
+
+Compozy stores one durable scheduler cursor per scheduled job. The cursor records the next scheduled
+fire time, the last scheduled fire time, the last fire ID, the catch-up policy, and misfire
+counters. When a scheduled fire is due, Compozy advances this cursor and creates the run reservation
+before dispatching work to the agent. If the daemon stops after the cursor advances, restart resumes
+from the next cursor and does not dispatch the already claimed fire again.
+
+Catch-up policy controls what Compozy does when the durable cursor points to one or more fire times
+that passed while the daemon was down.
+
+| Policy                | Behavior on boot                                                                                                            |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `skip_missed`         | Dispatches the latest missed fire within grace; beyond grace, records a canceled skip and advances to the next future fire. |
+| `coalesce`            | Dispatches one catch-up fire for the most recent missed instant, then continues from that point.                            |
+| `replay`              | Dispatches each missed instant in chronological order until the cursor catches up.                                          |
+| `run_once_on_catchup` | Dispatches the most recent missed instant exactly once, then advances to the next future fire.                              |
+
+Omit `catch_up_policy` to use the target-aware default. Non-Loop scheduled jobs default to
+`skip_missed`. Loop-target jobs are classified by their Loop
+definition: Loops with a `watch-source` node default to `coalesce` so a restart processes one
+fresh observation instead of replaying every missed poll; other Loop-target jobs default to
+`skip_missed`.
+
+`misfire_grace_seconds` applies to `skip_missed`. A positive value sets the maximum lateness that
+still dispatches one missed fire. Zero or omission uses the daemon's one-second scheduler-jitter
+grace. The field is valid only for recurring `cron` and `every` schedules.
+
+When `compozy automation jobs update --schedule` changes one recurring schedule to another, Compozy
+preserves its current `catch_up_policy` and `misfire_grace_seconds` unless the matching flags are
+also supplied. An explicit reliability flag wins over the preserved value. Switching to a one-time
+`at` schedule removes recurring-only reliability fields.
+
+If the same job still has an automation run in `scheduled` or `running` when the next fire is due,
+Compozy records the new occurrence as `canceled` with metadata reason `self_overlap`, advances the
+cursor, and evaluates the following cycle normally. A `skip_missed` fire beyond grace uses reason
+`misfire_grace_exceeded`. Both reasons remain visible in run history. Loop-target jobs become
+`delegated` after a Loop starts; the Loop's own concurrency policy governs later overlap.
+
+When a catch-up Loop start is accepted, the created `loop_run.start_metadata` includes the
+automation run id, scheduled instant, catch-up flag, catch-up policy, and original due instant. If a
+catch-up start hits Loop concurrency `forbid`, Compozy records the rejected automation run with
+structured catch-up failure metadata and still advances the scheduler cursor so the same fire does
+not replay indefinitely.
+
+Inspect scheduler state through:
+
+- `compozy automation jobs get <job-id>` for the job-local `next_run`, `last_scheduled_at`,
+  `last_fire_id`, `catch_up_policy`, and `misfire_count`
+- `compozy status -o json` at `.automation.scheduled_jobs`
+- the HTTP job payload, where `job.scheduler` mirrors the durable scheduler cursor
+
+### Cron
+
+```toml
+[[automation.jobs]]
+scope = "workspace"
+workspace = "/Users/you/src/checkout-api"
+name = "weekday-review"
+agent = "reviewer"
+prompt = "Review the current worktree and write a risk report."
+schedule = { mode = "cron", expr = "0 9 * * 1-5" }
+```
+
+Create the same dynamic job with the CLI:
+
+```bash
+compozy automation jobs create \
+  --name weekday-review \
+  --scope workspace \
+  --workspace /Users/you/src/checkout-api \
+  --schedule "0 9 * * 1-5" \
+  --catch-up-policy run_once_on_catchup \
+  --misfire-grace-seconds 120 \
+  --agent reviewer \
+  --prompt "Review the current worktree and write a risk report."
+```
+
+### Every
+
+```toml
+[[automation.jobs]]
+scope = "workspace"
+workspace = "/Users/you/src/checkout-api"
+name = "half-hour-health-check"
+agent = "operator"
+prompt = "Check repository health signals and report anything that needs attention."
+schedule = { mode = "every", interval = "30m" }
+```
+
+CLI schedules use the `every:` prefix for interval jobs:
+
+```bash
+compozy automation jobs create \
+  --name half-hour-health-check \
+  --scope workspace \
+  --workspace /Users/you/src/checkout-api \
+  --schedule every:30m \
+  --agent operator \
+  --prompt "Check repository health signals and report anything that needs attention."
+```
+
+### At
+
+```toml
+[[automation.jobs]]
+scope = "workspace"
+workspace = "/Users/you/src/checkout-api"
+name = "release-readiness-check"
+agent = "release"
+prompt = "Run the release readiness checklist and summarize blockers."
+schedule = { mode = "at", time = "2026-04-17T15:00:00Z" }
+```
+
+CLI schedules use the `at:` prefix. The CLI accepts RFC3339 and also normalizes local
+`YYYY-MM-DDTHH:MM` or `YYYY-MM-DDTHH:MM:SS` input to UTC.
+
+```bash
+compozy automation jobs create \
+  --name release-readiness-check \
+  --scope workspace \
+  --workspace /Users/you/src/checkout-api \
+  --schedule at:2026-04-17T15:00:00Z \
+  --agent release \
+  --prompt "Run the release readiness checklist and summarize blockers."
+```
+
+## Retry policy
+
+Retries only happen after a persisted run reaches `failed`. Compozy does not retry validation errors,
+concurrency rejections, fire-limit rejections, canceled runs, or delegated task runs.
+
+| Field         | `none`                   | `backoff`                     |
+| ------------- | ------------------------ | ----------------------------- |
+| `strategy`    | `none`                   | `backoff`                     |
+| `max_retries` | Must be `0` or omitted   | Required positive integer     |
+| `base_delay`  | Must be empty or omitted | Required positive Go duration |
+
+`backoff` uses exponential delay: `base_delay`, then twice the base, then four times the base, and
+so on until `max_retries` is reached. The built-in helper default for a backoff policy is
+`max_retries = 3` and `base_delay = "2s"`, but config is explicit when you write the fields.
+
+```toml
+retry = { strategy = "backoff", max_retries = 3, base_delay = "2s" }
+```
+
+With the CLI:
+
+```bash
+compozy automation jobs create \
+  --name daily-code-review \
+  --scope workspace \
+  --workspace /Users/you/src/checkout-api \
+  --schedule "0 9 * * 1-5" \
+  --agent reviewer \
+  --prompt "Review the changed files and write a concise risk report." \
+  --retry backoff:3:2s
+```
+
+Use `--retry none` to disable retries explicitly.
+
+## Fire limits
+
+Fire limits cap how often a job can dispatch within a rolling window. They protect the daemon from
+accidental schedule floods and retry loops.
+
+```toml
+fire_limit = { max = 1, window = "24h" }
+```
+
+Both fields are required when a fire limit is provided:
+
+| Field    | Format                                             |
+| -------- | -------------------------------------------------- |
+| `max`    | Positive integer                                   |
+| `window` | Positive Go duration such as `1h`, `12h`, or `24h` |
+
+The default fire limit is `12` fires per `1h`. You can change the default for all automation
+definitions:
+
+```toml
+[automation]
+default_fire_limit = { max = 6, window = "1h" }
+```
+
+## Worked example: daily code review
+
+This workspace job asks the `reviewer` agent to inspect the repository every weekday at 09:00 UTC,
+allows one run per day, and retries failed runs with exponential backoff.
+
+```toml
+[automation]
+enabled = true
+timezone = "UTC"
+max_concurrent_jobs = 5
+default_fire_limit = { max = 12, window = "1h" }
+
+[[automation.jobs]]
+scope = "workspace"
+workspace = "/Users/you/src/checkout-api"
+name = "daily-code-review"
+agent = "reviewer"
+prompt = "Review the changed files and write a concise risk report."
+schedule = { mode = "cron", expr = "0 9 * * 1-5" }
+retry = { strategy = "backoff", max_retries = 3, base_delay = "2s" }
+fire_limit = { max = 1, window = "24h" }
+```
+
+Run it on demand without waiting for the next scheduled fire:
+
+```bash
+compozy automation jobs trigger <job-id>
+```
+
+## Monitoring runs
+
+Every accepted dispatch writes an `automation_runs` row. Runs are listed newest first.
+Scheduled runs include a stable `fire_id` and `scheduled_at` timestamp so operators can connect run
+history back to the scheduler cursor. Delivery failures are recorded as `delivery_error` and
+`delivery_error_at`; they do not roll back or rewrite scheduler cursor state.
+
+| Status      | Meaning                                                            |
+| ----------- | ------------------------------------------------------------------ |
+| `scheduled` | Compozy accepted the dispatch and created a run record.            |
+| `running`   | A session is actively processing the prompt.                       |
+| `delegated` | The job materialized a task run instead of a direct agent session. |
+| `completed` | The agent session completed successfully.                          |
+| `failed`    | The run failed. A backoff retry may create another attempt.        |
+| `canceled`  | A pre-fire hook canceled the run or shutdown canceled the work.    |
+
+List recent runs:
+
+```bash
+compozy automation runs --job-id <job-id> --last 20
+```
+
+Read one run:
+
+```bash
+compozy automation runs get <run-id>
+```
+
+Read job-specific history:
+
+```bash
+compozy automation jobs history <job-id> --last 20
+```
+
+The HTTP API exposes the same history:
+
+```bash
+curl -sS "http://localhost:2123/api/automation/jobs/<job-id>/runs?limit=20"
+```
+
+Job responses include scheduler metadata such as `next_run` when a job is currently registered.
+
+## Related pages
+
+<RouteList>
+  <RouteRow
+    href="/docs/automation/triggers"
+    label="Automation"
+    title="Triggers"
+    description="Run agents when Compozy receives runtime events."
+    meta="Event-driven"
+  />
+  <RouteRow
+    href="/docs/automation/webhooks"
+    label="Automation"
+    title="Webhooks"
+    description="Accept signed HTTP calls from external systems."
+    meta="External ingress"
+  />
+  <RouteRow
+    href="/docs/cli/automation/jobs/create"
+    label="CLI"
+    title="automation jobs create"
+    description="Create a dynamic scheduled job from the command line."
+    meta="Reference"
+  />
+</RouteList>

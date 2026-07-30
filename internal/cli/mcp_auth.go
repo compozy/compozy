@@ -45,14 +45,6 @@ func newMCPAuthCommand(deps commandDeps) *cobra.Command {
 	return cmd
 }
 
-func newMCPAuthorizeCommand(deps commandDeps) *cobra.Command {
-	return newMCPAuthorizationCommand(
-		deps,
-		"authorize <server>",
-		"Authorize a remote MCP server through the daemon",
-	)
-}
-
 func newMCPAuthLoginCommand(deps commandDeps) *cobra.Command {
 	return newMCPAuthorizationCommand(
 		deps,

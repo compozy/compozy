@@ -1,0 +1,43 @@
+---
+title: "compozy hooks info"
+description: "Show detailed information for one or more hooks by name"
+---
+
+## compozy hooks info
+
+Show detailed information for one or more hooks by name
+
+```
+compozy hooks info <name> [flags]
+```
+
+### Options
+
+```
+  -h, --help               help for info
+      --workspace string   Override workspace context (ID, name, or path)
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy hooks info <name> -o json
+```

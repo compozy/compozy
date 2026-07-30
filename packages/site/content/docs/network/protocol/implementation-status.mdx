@@ -1,0 +1,40 @@
+---
+title: Implementation Status
+description: What the CompozyOS reference implementation supports today for compozy-network/v0, including the unimplemented optional Ed25519 and JCS trust profile.
+icon: Activity
+---
+
+The current CompozyOS reference implementation supports `compozy-network/v0` conversations for
+explicitly Live executions in one daemon. It stores accepted messages in SQLite before notifying
+admitted recipients in process.
+
+<OperatorNote label="Trust boundary">
+  The CompozyOS runtime preserves `proof` as opaque JSON and does not sign or verify Ed25519
+  messages. The RFC 004 Ed25519 + JCS v1 profile is optional implementer guidance, not a current
+  CompozyOS guarantee.
+</OperatorNote>
+
+## Status at a glance
+
+| Area               | Current CompozyOS reference implementation                                                                    |
+| ------------------ | ------------------------------------------------------------------------------------------------------------- |
+| Protocol           | `compozy-network/v0` envelope and six message kinds.                                                          |
+| Participation      | Local default; explicit bounded Live snapshot per execution.                                                  |
+| Conversation       | Public threads, restricted direct rooms, `work_id`, capability transfer, and explicit receipt/trace messages. |
+| Correlation        | `trace_id` is optional and is not synthesized by delivery.                                                    |
+| Runtime delivery   | Accepted messages commit atomically before admitted `network_wake` tasks and in-process notification.         |
+| Wake admission     | Direct or mention `say` only, plus availability, coalescing, depth, and finite bounds.                        |
+| Usage              | Aggregate actual usage when reported; otherwise `usage_unavailable`.                                          |
+| External transport | Not shipped in this release.                                                                                  |
+| Trust profile v1   | Not implemented; `proof` is opaque and no Ed25519/JCS signing or verification runs.                           |
+| Conformance runner | Package tests exist; standalone third-party runner does not.                                                  |
+
+## Use the right docs
+
+- Operate Compozy: [Network Overview](/docs/network) and [Coordinate Agents](/docs/guides/coordinate-agents-over-network).
+- Implement v0: [Envelope](/docs/network/protocol/envelope), [Message Kinds](/docs/network/protocol/message-kinds), [Interactions](/docs/network/protocol/interactions), and [Delivery](/docs/network/protocol/delivery).
+- Evaluate the optional, unimplemented v1 trust profile: [Ed25519 + JCS](/docs/network/protocol/ed25519-jcs) and [Signature Verification](/docs/network/protocol/verification).
+- State compatibility: [Conformance](/docs/network/protocol/conformance).
+
+Local/Live mode, wake bounds, and workspace coordination are reference-runtime execution policy.
+They are intentionally absent from the protocol envelope.

@@ -1,0 +1,57 @@
+---
+title: "compozy memory show"
+description: "Show one Memory v2 entry"
+---
+
+## compozy memory show
+
+Show one Memory v2 entry
+
+```
+compozy memory show <filename> [flags]
+```
+
+### Examples
+
+```
+  # Show a workspace memory entry
+  compozy memory show runtime-notes.md --scope workspace
+
+  # Show an agent-global memory entry as JSON
+  compozy memory show prefs.md --scope agent --agent reviewer --agent-tier global -o json
+```
+
+### Options
+
+```
+      --agent string        Agent name for agent-scoped memory
+      --agent-tier string   Agent memory tier: workspace or global
+  -h, --help                help for show
+      --include-system      Allow showing _system memory entries
+      --scope string        Memory scope: global, workspace, or agent
+      --workspace string    Override workspace binding (ID, name, or path)
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy memory show <filename> -o json
+```

@@ -62,4 +62,4 @@ integration tests or sovereign deployments. Bridge config cannot redirect bound 
   GraphQL viewer check.
 - Generic outbound media and provider-visible tool progress are not implemented.
 
-See `packages/site/content/runtime/core/bridges/setup-linear.mdx` for the full operator journey.
+See `packages/site/content/docs/bridges/setup-linear.mdx` for the full operator journey.

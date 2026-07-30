@@ -22,7 +22,7 @@ func TestDiagnosticItemContract(t *testing.T) {
 			Title:            "Provider CLI missing",
 			Message:          "Install the provider CLI.",
 			SuggestedCommand: "brew install provider",
-			DocURL:           "https://compozy.com/runtime/provider-auth",
+			DocURL:           "https://compozy.com/docs/agents/providers",
 			DataFreshness:    contract.FreshnessLive,
 			Evidence: map[string]any{
 				"provider": "claude",

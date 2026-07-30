@@ -1,6 +1,6 @@
+import { baseOptions } from "@/lib/layout.shared";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { baseOptions } from "@/lib/layout.shared";
 
 const remotionPlayerMocks = vi.hoisted(() => ({
   player: vi.fn(),
@@ -40,20 +40,20 @@ vi.mock("@remotion/player", () => ({
   },
 }));
 
-import { Hero } from "../hero";
-import { FeaturesSection } from "../features-section";
+import { Pill } from "@compozy/ui";
+import { AutonomyKernelSection } from "../autonomy-kernel-section";
 import { BentoSection } from "../bento-section";
+import { BridgesSection } from "../bridges-section";
+import { Comparison } from "../comparison";
+import { ExtensibilitySection } from "../extensibility-section";
+import { FeaturesSection } from "../features-section";
+import { FinalCta } from "../final-cta";
+import { Hero } from "../hero";
+import { InstallSection } from "../install-section";
+import { MemoryDreamSection } from "../memory-dream-section";
+import { NetworkSection } from "../network-section";
 import { BUILTIN_PROVIDER_COUNT, BUILTIN_PROVIDER_INTEGRATIONS } from "../provider-data";
 import { SupportedAgents } from "../supported-agents";
-import { BridgesSection } from "../bridges-section";
-import { ExtensibilitySection } from "../extensibility-section";
-import { NetworkSection } from "../network-section";
-import { MemoryDreamSection } from "../memory-dream-section";
-import { AutonomyKernelSection } from "../autonomy-kernel-section";
-import { InstallSection } from "../install-section";
-import { Comparison } from "../comparison";
-import { FinalCta } from "../final-cta";
-import { Pill } from "@compozy/ui";
 
 import { KIND_MEANING, type NetworkKind } from "../primitives/network-kinds";
 
@@ -84,11 +84,9 @@ describe("Hero", () => {
       )
     ).toBeDefined();
     const install = screen.getByText("Install the beta");
-    expect(install.closest("a")?.getAttribute("href")).toBe(
-      "/runtime/core/getting-started/installation"
-    );
+    expect(install.closest("a")?.getAttribute("href")).toBe("/docs/getting-started/installation");
     const overview = screen.getByText("See how CompozyOS works");
-    expect(overview.closest("a")?.getAttribute("href")).toBe("/runtime");
+    expect(overview.closest("a")?.getAttribute("href")).toBe("/docs");
   });
 
   it("renders four proof-of-life signal tiles", () => {
@@ -156,14 +154,14 @@ describe("BentoSection", () => {
     expect(screen.getAllByRole("article")).toHaveLength(5);
     expect(screen.queryByText("The runtime surface in five parts.")).toBeNull();
 
-    for (const label of ["Runtime", "Network", "Bridges", "Memory", "Extensibility"]) {
+    for (const label of ["OS Shell", "Network", "Bridges", "Memory", "Extensibility"]) {
       expect(screen.getByText(label)).toBeDefined();
     }
     expect(screen.queryByText("Trace")).toBeNull();
     expect(screen.queryByText("Tool Registry")).toBeNull();
 
     for (const title of [
-      "Your agents. Under control.",
+      "True OS. Every window managed.",
       "Built-in network. Delegate. Deliver. Done.",
       "From anywhere. Into a session.",
       "Memory that compounds.",
@@ -173,11 +171,11 @@ describe("BentoSection", () => {
     }
   });
 
-  it("uses the five exported bento illustration assets including extensibility-v2", () => {
+  it("uses the five active bento illustration assets including extensibility-v2", () => {
     render(<BentoSection />);
 
     const expectedSources = [
-      "/images/bento-illustrations/autonomy-v2.png",
+      "/images/bento-illustrations/os-v2.png",
       "/images/bento-illustrations/network-v2.png",
       "/images/bento-illustrations/bridges-v2.png",
       "/images/bento-illustrations/memory-v2.png",
@@ -237,7 +235,7 @@ describe("BridgesSection", () => {
   it("marks every provider in-tree and states the source-checkout caveat", () => {
     render(<BridgesSection />);
     // All eight providers exist under extensions/bridges/; none is embedded in the released
-    // binary. content/runtime/core/bridges/index.mdx is the source of record for both facts.
+    // binary. content/docs/bridges/index.mdx is the source of record for both facts.
     expect(screen.getAllByText("in-tree").length).toBe(8);
     expect(screen.queryByText("alpha")).toBeNull();
     expect(screen.queryByText("planned")).toBeNull();
@@ -250,10 +248,10 @@ describe("BridgesSection", () => {
     render(<BridgesSection />);
 
     expect(screen.getByRole("link", { name: "Set up a bridge" }).getAttribute("href")).toBe(
-      "/runtime/core/bridges/setup"
+      "/docs/bridges/setup"
     );
     expect(screen.getByRole("link", { name: "Build a bridge adapter" }).getAttribute("href")).toBe(
-      "/runtime/core/bridges/adding-a-bridge"
+      "/docs/bridges/adding-a-bridge"
     );
   });
 });
@@ -267,7 +265,7 @@ describe("ExtensibilitySection", () => {
       expect(screen.getByText(label)).toBeDefined();
     }
     expect(screen.getByRole("link", { name: "Read extensions docs" }).getAttribute("href")).toBe(
-      "/runtime/core/extensions"
+      "/docs/extensions"
     );
   });
 
@@ -417,17 +415,23 @@ describe("AutonomyKernelSection", () => {
       expect(screen.getByText(heading)).toBeDefined();
     }
   });
+
+  it("links the autonomy guide CTA to the autonomy documentation", () => {
+    render(<AutonomyKernelSection />);
+
+    expect(
+      screen.getByRole("link", { name: "Read the autonomy kernel guide" }).getAttribute("href")
+    ).toBe("/docs/autonomy");
+  });
 });
 
 describe("FinalCta", () => {
   it("links the final actions to installation, protocol, and the repository", () => {
     render(<FinalCta />);
     const install = screen.getByText("Install the beta");
-    expect(install.closest("a")?.getAttribute("href")).toBe(
-      "/runtime/core/getting-started/installation"
-    );
+    expect(install.closest("a")?.getAttribute("href")).toBe("/docs/getting-started/installation");
     const spec = screen.getByText("Read compozy-network/v0 spec");
-    expect(spec.closest("a")?.getAttribute("href")).toBe("/protocol");
+    expect(spec.closest("a")?.getAttribute("href")).toBe("/docs/network/protocol");
     const star = screen.getByText("Star on GitHub");
     expect(star.closest("a")?.getAttribute("href")).toBe(baseOptions.githubUrl);
   });
