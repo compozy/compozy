@@ -6,17 +6,21 @@ persona: Lea
 journey: J-extension-newcomer-first-success
 expected: A newcomer on a release-stamped binary who types only the commands printed in the published quickstart ends with an installed, invocable extension, having spent at most four actions and ten concepts, with no trust prompt and no undocumented step.
 entry_points: https://compozy.com/runtime/guides/build-your-first-extension; `compozy extension init <name> --template tool-provider-go`; `compozy extension dev <dir>`; `compozy tool invoke ext__<name>__search --workspace . --input '{...}'`
-qa_status: untested
-bug_ids:
-fix_status:
+qa_status: blocked-verify
+bug_ids: BUG-20260729-public-extension-sdks-unpublished
+fix_status: pending
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-ext-improvs-final-20260729-230047-267985-lab/qa-artifacts/qa/newcomer/quickstart.json
+last_report: docs/qa/reports/2026-07-29-ext-improvs.md
 overlaps: ET-extension-code-first-authoring; ET-extension-dev-reload-loop
 ---
 
-Added by ext-improvs Task 09 (Phase G docs). Planning flag only; no QA session ran.
+Task 11 retyped the published Go path from a clean directory outside the repository using the
+release-stamped binary. `extension init` succeeded, but `extension dev` could not resolve the
+generated `github.com/compozy/compozy/sdk/go v0.3.0-beta.1` dependency because the nested module
+tag is unpublished. The TypeScript SDK coordinate is also absent from npm. The path remains
+blocked until both public SDK artifacts exist; no repository-local dependency override was used.
 
 Scorecard: walk the published page and count. The page claims four actions (`daemon start`, `init`,
 `dev`, `tool invoke`) and nine concepts (extension, template, tool, input schema, handler,

@@ -6,13 +6,13 @@ persona: Ada
 journey: J-extension-distribution
 expected: Policy-blocked install and daemon-unavailable failures print human remediation and a `try:` command identical to the diagnostic carried by JSON output.
 entry_points: compozy extension install; compozy status; -o json
-qa_status: untested
+qa_status: pass
 bug_ids:
 fix_status:
-retest_status:
+retest_status: pass
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-ext-improvs-final-20260729-230047-267985-lab/qa-artifacts/qa/extension-charters.json
+last_report: docs/qa/reports/2026-07-29-ext-improvs.md
 overlaps: ET-cli-extension-sideload-policy-block; ET-022
 ---
 

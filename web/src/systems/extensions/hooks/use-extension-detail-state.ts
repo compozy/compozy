@@ -25,14 +25,15 @@ export function useExtensionDetailState(
   const update = useUpdateExtension();
   const navigate = useNavigate();
   const [activeDialog, setActiveDialog] = useState<ExtensionDetailDialog>(null);
+  const extension = detail.data?.extension ?? null;
+  const instanceWorkspaceId = extension?.workspace_id ?? null;
   const logs = useExtensionLogs({
-    enabled: detail.data !== null,
+    enabled: extension !== null,
     eventSourceFactory: options.logEventSourceFactory,
     name,
-    workspaceId: detail.workspaceId,
+    workspaceId: instanceWorkspaceId,
   });
 
-  const extension = detail.data?.extension ?? null;
   const updateVariables = (allowUnverified: boolean) => {
     if (!extension) return null;
     return {
@@ -73,6 +74,6 @@ export function useExtensionDetailState(
     submitUpdate: () => runUpdate(true),
     toggle,
     update,
-    workspaceId: detail.workspaceId,
+    workspaceId: instanceWorkspaceId,
   };
 }

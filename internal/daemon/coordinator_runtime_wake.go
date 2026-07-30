@@ -84,10 +84,11 @@ func coordinatorWakeMessage(decision coordinator.Decision) string {
 	return fmt.Sprintf(
 		"A task run is queued for this coordinator.\n\n"+
 			"Task: %s\nRun: %s\n\n"+
-			"Claim the run through the Compozy task claim path by running `compozy task next -o json` once without long-polling, then route from durable receipts. "+
+			"%s Then route from durable receipts. "+
 			"If the receipts require human input, park the run with the Compozy task block path.",
 		taskID,
 		runID,
+		taskClaimNativeInstruction(runID, nil),
 	)
 }
 

@@ -99,7 +99,11 @@ func TestCoordinatorRuntimeBootstrapsManagedCoordinatorSession(t *testing.T) {
 	if got := call.Lineage.PermissionPolicy.NetworkChannels; len(got) != 0 {
 		t.Fatalf("Lineage.PermissionPolicy.NetworkChannels = %#v, want empty", got)
 	}
-	for _, required := range []string{"compozy me context", "compozy task next", "compozy spawn"} {
+	for _, required := range []string{
+		toolspkg.ToolIDSessionDescribe.String(),
+		toolspkg.ToolIDTaskRunClaimNext.String(),
+		"compozy spawn",
+	} {
 		if !contains(call.PromptOverlay, required) {
 			t.Fatalf("PromptOverlay missing %q:\n%s", required, call.PromptOverlay)
 		}
@@ -122,8 +126,12 @@ func TestCoordinatorRuntimeBootstrapsManagedCoordinatorSession(t *testing.T) {
 		prompt.opts.Metadata.CoordinatorSessionID != info.ID {
 		t.Fatalf("PromptSynthetic metadata = %#v, want task/run/coordinator ids", prompt.opts.Metadata)
 	}
-	if !contains(prompt.opts.Message, "Claim the run through the Compozy task claim path") {
-		t.Fatalf("PromptSynthetic message = %q, want claim instruction", prompt.opts.Message)
+	if !contains(prompt.opts.Message, "compozy__task_run_claim_next") ||
+		!contains(prompt.opts.Message, "`run_id` set to \"run-1\"") {
+		t.Fatalf("PromptSynthetic message = %q, want native claim instruction", prompt.opts.Message)
+	}
+	if contains(prompt.opts.Message, "compozy task next") {
+		t.Fatalf("PromptSynthetic message = %q, want no CLI claim instruction", prompt.opts.Message)
 	}
 	if hooks.preSpawnCount() != 1 || hooks.spawnedCount() != 1 {
 		t.Fatalf("hook counts pre_spawn/spawned = %d/%d, want 1/1", hooks.preSpawnCount(), hooks.spawnedCount())
@@ -239,10 +247,18 @@ func TestCoordinatorRuntimeBindsLiveParticipationToCoordinatorLifecycle(t *testi
 		if !slices.Contains(call.Lineage.PermissionPolicy.Tools, toolspkg.ToolIDNetworkSend.String()) {
 			t.Fatalf("Lineage.PermissionPolicy.Tools = %#v, want Network send", call.Lineage.PermissionPolicy.Tools)
 		}
-		for _, required := range []string{"participation_channel: " + liveSpec.ChannelID, "compozy ch"} {
+		for _, required := range []string{
+			"participation_channel: " + liveSpec.ChannelID,
+			toolspkg.ToolIDNetworkChannels.String(),
+			toolspkg.ToolIDNetworkInbox.String(),
+			toolspkg.ToolIDNetworkSend.String(),
+		} {
 			if !contains(call.PromptOverlay, required) {
 				t.Fatalf("PromptOverlay missing %q:\n%s", required, call.PromptOverlay)
 			}
+		}
+		if contains(call.PromptOverlay, "compozy ch") {
+			t.Fatalf("PromptOverlay contains CLI network guidance:\n%s", call.PromptOverlay)
 		}
 
 		preSpawn := hooks.preSpawnPayload(0)
@@ -331,7 +347,7 @@ func TestCoordinatorRuntimeBootstrapsWithTaskContextOverlay(t *testing.T) {
 	}
 	call := sessions.createCall(0)
 	if !contains(call.PromptOverlay, "coordinator task context bundle") ||
-		!contains(call.PromptOverlay, "compozy task next") {
+		!contains(call.PromptOverlay, toolspkg.ToolIDTaskRunClaimNext.String()) {
 		t.Fatalf("PromptOverlay = %q, want task context plus coordinator instructions", call.PromptOverlay)
 	}
 	if len(overlay.calls) != 1 ||

@@ -6,13 +6,13 @@ persona: Ada
 journey: J-extension-distribution
 expected: `compozy extension publish` uploads one deterministic archive and its matching SHA-256 sidecar to the selected GitHub release, after which a second isolated Compozy home can install, invoke, update to a behavior-changing release, and remove the extension without any Compozy catalog submission.
 entry_points: `compozy extension publish`; `compozy extension install github:owner/repo`; `compozy extension update`; `compozy extension remove`; `compozy__extensions_publish`
-qa_status: untested
+qa_status: pass
 bug_ids:
 fix_status:
-retest_status:
+retest_status: pass
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-ext-improvs-final-20260729-230047-267985-lab/qa-artifacts/qa/extension-charters.json
+last_report: docs/qa/reports/2026-07-29-ext-improvs.md
 overlaps: ET-extension-code-first-authoring; ET-extension-published-source-installs; ET-019; ET-020
 ---
 

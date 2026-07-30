@@ -310,9 +310,13 @@ func TestPromptOverlayUsesParticipationSpecificPublicAPIs(t *testing.T) {
 			NetworkParticipation: participation.LocalSpec(),
 		})
 		for _, required := range []string{
-			"compozy me context",
-			"compozy task create",
-			"compozy task next|heartbeat|complete|fail|release",
+			toolspkg.ToolIDSessionDescribe.String(),
+			toolspkg.ToolIDTaskCreate.String(),
+			toolspkg.ToolIDTaskRunClaimNext.String(),
+			toolspkg.ToolIDTaskRunHeartbeat.String(),
+			toolspkg.ToolIDTaskRunComplete.String(),
+			toolspkg.ToolIDTaskRunFail.String(),
+			toolspkg.ToolIDTaskRunRelease.String(),
 			"compozy spawn",
 			"The current coordinator run is the active execution boundary",
 			"Never spawn another coordinator",
@@ -321,7 +325,13 @@ func TestPromptOverlayUsesParticipationSpecificPublicAPIs(t *testing.T) {
 				t.Fatalf("PromptOverlay missing %q:\n%s", required, overlay)
 			}
 		}
-		for _, forbidden := range []string{"compozy ch", "participation_channel", "coordination_channel_id", "Channel communication"} {
+		for _, forbidden := range []string{
+			"compozy task",
+			"compozy ch",
+			"participation_channel",
+			"coordination_channel_id",
+			"Channel communication",
+		} {
 			if strings.Contains(overlay, forbidden) {
 				t.Fatalf("PromptOverlay contains local-only forbidden guidance %q:\n%s", forbidden, overlay)
 			}
@@ -339,7 +349,13 @@ func TestPromptOverlayUsesParticipationSpecificPublicAPIs(t *testing.T) {
 				ChannelID: "ch-run-1", Source: participation.SourceExplicitRequest,
 			},
 		})
-		for _, required := range []string{"compozy ch list|recv|send|reply", "participation_channel: ch-run-1", "Channel communication"} {
+		for _, required := range []string{
+			toolspkg.ToolIDNetworkChannels.String(),
+			toolspkg.ToolIDNetworkInbox.String(),
+			toolspkg.ToolIDNetworkSend.String(),
+			"participation_channel: ch-run-1",
+			"Channel communication",
+		} {
 			if !strings.Contains(overlay, required) {
 				t.Fatalf("PromptOverlay missing %q:\n%s", required, overlay)
 			}

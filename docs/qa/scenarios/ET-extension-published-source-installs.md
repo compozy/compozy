@@ -6,13 +6,13 @@ persona: Ada
 journey: J-extension-distribution
 expected: A GitHub release shorthand or git URL installs the requested immutable extension in one command with at most one unverified-source consent; matching GitHub sidecars record digest integrity without elevating trust, mismatches leave no installed state, and git-unavailable failures identify the missing binary deterministically.
 entry_points: `compozy extension install github:owner/repo[@ref]`; `compozy extension install git:<url>[@ref]`; `POST /api/extensions`; `compozy__extensions_install`
-qa_status: untested
+qa_status: pass
 bug_ids:
 fix_status:
-retest_status:
+retest_status: pass
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-ext-improvs-final-20260729-230047-267985-lab/qa-artifacts/qa/extension-charters.json
+last_report: docs/qa/reports/2026-07-29-ext-improvs.md
 overlaps: ET-017; ET-018; ET-023
 ---
 

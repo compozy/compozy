@@ -7,7 +7,7 @@ journey: J-complete-task-tree
 expected: A spawned task-role session receives one initial turn after ACP readiness, claims and attaches its assigned queued run through the lease contract, and surfaces a prompt/start failure promptly instead of idling until TTL.
 entry_points: scheduler starvation recovery; Web agent Sessions; Web task run detail
 qa_status: untested
-bug_ids: BUG-20260713-task-role-session-never-starts;BUG-20260713-task-role-dispatch-repeats;BUG-20260713-cursor-agent-mode-unavailable
+bug_ids: BUG-20260713-task-role-session-never-starts;BUG-20260713-task-role-dispatch-repeats;BUG-20260713-cursor-agent-mode-unavailable;BUG-20260729-provider-worker-native-claim-guidance
 fix_status: fixed
 retest_status: pass
 fix_commits: 8eeb8a38

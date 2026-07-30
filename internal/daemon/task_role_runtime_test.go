@@ -22,31 +22,6 @@ import (
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
-func TestShellQuoteSimpleAlwaysSingleQuotes(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name  string
-		value string
-		want  string
-	}{
-		{name: "Should quote empty input", value: "", want: "''"},
-		{name: "Should quote simple input", value: "frontend", want: "'frontend'"},
-		{name: "Should quote metacharacters", value: "frontend; rm -rf /", want: "'frontend; rm -rf /'"},
-		{name: "Should quote single-quote input", value: "owner's-tool", want: "'owner'\\''s-tool'"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			if got := shellQuoteSimple(tt.value); got != tt.want {
-				t.Fatalf("shellQuoteSimple(%q) = %q, want %q", tt.value, got, tt.want)
-			}
-		})
-	}
-}
-
 func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 	t.Parallel()
 
@@ -88,10 +63,18 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 		if got := call.Model; got != "" {
 			t.Fatalf("CreateOpts.Model = %q, want provider-native default model resolution", got)
 		}
-		for _, required := range []string{"compozy task next --run-id 'run-frontend' --wait -o json", run.ID, "design-review"} {
+		for _, required := range []string{
+			"compozy__task_run_claim_next",
+			"`run_id` set to \"run-frontend\"",
+			run.ID,
+			"design-review",
+		} {
 			if !strings.Contains(call.PromptOverlay, required) {
 				t.Fatalf("PromptOverlay missing %q:\n%s", required, call.PromptOverlay)
 			}
+		}
+		if strings.Contains(call.PromptOverlay, "compozy task next") {
+			t.Fatalf("PromptOverlay directs a session-bound claim through the CLI:\n%s", call.PromptOverlay)
 		}
 		if got, want := sessions.promptCount(), 1; got != want {
 			t.Fatalf("synthetic prompt count = %d, want %d", got, want)
@@ -412,9 +395,14 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 		if !strings.Contains(call.PromptOverlay, "Runtime evidence mode is enabled") {
 			t.Fatalf("PromptOverlay missing runtime evidence guidance:\n%s", call.PromptOverlay)
 		}
-		claimCommand := "compozy task next --run-id 'run-profile-worker' --wait -o json --capability 'frontend'"
-		if !strings.Contains(call.PromptOverlay, claimCommand) {
-			t.Fatalf("PromptOverlay missing required capability claim:\n%s", call.PromptOverlay)
+		for _, required := range []string{
+			"compozy__task_run_claim_next",
+			"`run_id` set to \"run-profile-worker\"",
+			"`required_capabilities` set to [\"frontend\"]",
+		} {
+			if !strings.Contains(call.PromptOverlay, required) {
+				t.Fatalf("PromptOverlay missing %q:\n%s", required, call.PromptOverlay)
+			}
 		}
 	})
 

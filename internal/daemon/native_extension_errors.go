@@ -66,13 +66,23 @@ func nativeExtensionToolError(id toolspkg.ToolID, err error) error {
 		)
 	case isExtensionValidationError(err):
 		return nativeExtensionValidationError(id, err)
-	case errors.Is(err, extensionpkg.ErrExtensionHasActiveBundles):
+	case errors.Is(err, extensionpkg.ErrExtensionHasActiveBundles),
+		errors.Is(err, extensionpkg.ErrExtensionDevOriginMissing),
+		errors.Is(err, extensionpkg.ErrExtensionNotDevLinked):
 		return toolspkg.NewToolError(
 			toolspkg.ErrorCodeConflict,
 			id,
 			err.Error(),
 			fmt.Errorf("%w: %w", toolspkg.ErrToolConflict, err),
 			toolspkg.ReasonExtensionValidationFailed,
+		)
+	case errors.Is(err, extensionpkg.ErrExtensionWorkspaceDenied):
+		return toolspkg.NewToolError(
+			toolspkg.ErrorCodeDenied,
+			id,
+			err.Error(),
+			fmt.Errorf("%w: %w", toolspkg.ErrToolDenied, err),
+			toolspkg.ReasonExtensionSourceForbidden,
 		)
 	case isExtensionSourceError(err):
 		return nativeExtensionSourceError(id, err)
@@ -105,6 +115,7 @@ func isExtensionValidationError(err error) bool {
 	return errors.Is(err, extensionpkg.ErrExtensionExists) ||
 		errors.Is(err, extensionpkg.ErrExtensionChecksumMismatch) ||
 		errors.Is(err, extensionpkg.ErrExtensionArchiveDigestMismatch) ||
+		errors.Is(err, extensionpkg.ErrExtensionGenerationInvalid) ||
 		errors.Is(err, extensionpkg.ErrManifestInvalid) ||
 		errors.Is(err, extensionpkg.ErrManifestIncompatible) ||
 		errors.Is(err, extensionpkg.ErrManifestNotFound) ||

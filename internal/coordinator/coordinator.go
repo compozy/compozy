@@ -250,11 +250,17 @@ func PromptOverlay(input PromptInput) string {
 		writePromptLine(&b, "participation_channel", input.NetworkParticipation.ChannelID)
 	}
 	b.WriteString("\nUse public Compozy agent APIs only:\n")
-	b.WriteString("- `compozy me context` for the Situation Surface.\n")
-	b.WriteString("- `compozy task create` to persist follow-up task intent.\n")
-	b.WriteString("- `compozy task next|heartbeat|complete|fail|release` for task ownership and terminal status.\n")
+	b.WriteString("- `" + toolspkg.ToolIDSessionDescribe.String() + "` for the Situation Surface.\n")
+	b.WriteString("- `" + toolspkg.ToolIDTaskCreate.String() + "` to persist follow-up task intent.\n")
+	b.WriteString("- `" + toolspkg.ToolIDTaskRunClaimNext.String() + "`, `" +
+		toolspkg.ToolIDTaskRunHeartbeat.String() + "`, `" +
+		toolspkg.ToolIDTaskRunComplete.String() + "`, `" +
+		toolspkg.ToolIDTaskRunFail.String() + "`, and `" +
+		toolspkg.ToolIDTaskRunRelease.String() + "` for task ownership and terminal status.\n")
 	if input.NetworkParticipation.Mode == participation.ModeLive {
-		b.WriteString("- `compozy ch list|recv|send|reply` for operational worker communication.\n")
+		b.WriteString("- `" + toolspkg.ToolIDNetworkChannels.String() + "`, `" +
+			toolspkg.ToolIDNetworkInbox.String() + "`, and `" +
+			toolspkg.ToolIDNetworkSend.String() + "` for operational worker communication.\n")
 	}
 	b.WriteString("- `compozy spawn` for bounded worker delegation.\n")
 	b.WriteString("\nCreating a task only records follow-up intent. The current coordinator run is the active ")

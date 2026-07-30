@@ -15,6 +15,11 @@ const mocks = vi.hoisted(() => ({
   bundles: { data: [] },
   detail: { data: null as InstalledExtensionView | null, workspaceId: null as string | null },
   logs: { entries: [] },
+  logsOptions: null as {
+    enabled?: boolean;
+    name: string;
+    workspaceId?: string | null;
+  } | null,
   navigate: vi.fn(),
   toggle: { mutate: vi.fn() },
   update: { mutate: vi.fn(), mutateAsync: vi.fn() },
@@ -29,7 +34,12 @@ vi.mock("../use-extensions", () => ({
   useBundleActivations: () => mocks.bundles,
   useExtensionDetail: () => mocks.detail,
 }));
-vi.mock("../use-extension-logs", () => ({ useExtensionLogs: () => mocks.logs }));
+vi.mock("../use-extension-logs", () => ({
+  useExtensionLogs: (options: { enabled?: boolean; name: string; workspaceId?: string | null }) => {
+    mocks.logsOptions = options;
+    return mocks.logs;
+  },
+}));
 
 import { useExtensionDetailState } from "../use-extension-detail-state";
 
@@ -45,7 +55,32 @@ describe("useExtensionDetailState", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.detail.data = null;
+    mocks.detail.workspaceId = null;
+    mocks.logsOptions = null;
     mocks.update.mutateAsync.mockResolvedValue(undefined);
+  });
+
+  it("Should scope logs to the resolved extension instance instead of the active workspace", () => {
+    mocks.detail.workspaceId = "ws_active";
+    mocks.detail.data = installedView({ dev: false, workspace_id: undefined });
+
+    renderHook(() => useExtensionDetailState("otel-bridge"));
+
+    expect(mocks.logsOptions).toMatchObject({
+      enabled: true,
+      name: "otel-bridge",
+      workspaceId: null,
+    });
+
+    mocks.detail.data = installedView({ dev: true, workspace_id: "ws_dev" });
+
+    renderHook(() => useExtensionDetailState("otel-bridge"));
+
+    expect(mocks.logsOptions).toMatchObject({
+      enabled: true,
+      name: "otel-bridge",
+      workspaceId: "ws_dev",
+    });
   });
 
   it("Should replace provenance with removal before a dialog is dismissed", () => {

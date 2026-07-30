@@ -1,5 +1,7 @@
 package cli
 
+import "strings"
+
 const (
 	extensionsTrustAllowUnverifiedPath = "extensions.trust.allow_unverified"
 	extensionsGitHubEnabledPath        = "extensions.sources.github.enabled"
@@ -33,6 +35,9 @@ func removedExtensionConfigSetReplacement(path string) (string, bool) {
 	case "extensions.marketplace.registry":
 		return extensionsGitHubEnabledPath, true
 	default:
+		if path == "extensions.marketplace" || strings.HasPrefix(path, "extensions.marketplace.") {
+			return "extensions.trust or extensions.sources", true
+		}
 		return "", false
 	}
 }

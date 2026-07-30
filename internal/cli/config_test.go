@@ -1379,6 +1379,7 @@ func TestConfigRenderingAndMutationHelpers(t *testing.T) {
 			{path: "extensions.marketplace.allow_unverified", replacement: "extensions.trust.allow_unverified"},
 			{path: "extensions.marketplace.base_url", replacement: "extensions.sources.github.base_url"},
 			{path: "extensions.marketplace.registry", replacement: "extensions.sources.github.enabled"},
+			{path: "extensions.marketplace.enabled", replacement: "extensions.trust or extensions.sources"},
 		}
 		for _, tt := range tests {
 			_, _, _, err := configMutationPath(tt.path)

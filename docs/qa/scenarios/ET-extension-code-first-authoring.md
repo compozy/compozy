@@ -6,13 +6,13 @@ persona: Ada
 journey: J-extension-dev-lifecycle
 expected: Running `compozy extension init hello -t tool-provider-go`, then `compozy extension build` and `compozy extension validate`, produces one immutable `dist/gen-<hash>` bundle whose generated manifest matches the SDK registrations and validates with no issues.
 entry_points: `compozy extension init`; `compozy extension build`; `compozy extension validate`
-qa_status: untested
+qa_status: pass
 bug_ids:
 fix_status:
-retest_status:
+retest_status: pass
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-ext-improvs-final-20260729-230047-267985-lab/qa-artifacts/qa/extension-charters.json
+last_report: docs/qa/reports/2026-07-29-ext-improvs.md
 overlaps: ET-compozy-extension-contract-identity
 ---
 

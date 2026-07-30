@@ -6,13 +6,13 @@ persona: Ada
 journey: J-extension-policy-admin
 expected: Code-first registrations generate a byte-stable manifest v2 whose closed `capabilities.provides` and `permissions.requires`, extension hook source, command groups, tool command metadata, trusted_workspace, and invocation_id survive every owning projection; unknown values and malformed command metadata fail build and load before mutation.
 entry_points: `compozy extension build`; `compozy extension validate`; generated `extension.toml` `capabilities.provides`/`permissions.requires`/`resources.hooks`/`resources.command_groups`/`resources.tools.command`; `compozy hooks list`; `compozy extension commands`; `GET /api/extensions/commands` (HTTP+UDS); `compozy__extensions_build|validate`; Go `extensiontest`; TypeScript `@compozy/extension-sdk/testing`; https://compozy.com/runtime/core/extensions/manifest; https://compozy.com/runtime/core/extensions/permissions; https://compozy.com/runtime/core/extensions/commands
-qa_status: untested
+qa_status: pass
 bug_ids:
 fix_status:
-retest_status:
+retest_status: pass
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-ext-improvs-final-20260729-230047-267985-lab/qa-artifacts/qa/extension-charters.json
+last_report: docs/qa/reports/2026-07-29-ext-improvs.md
 overlaps: ET-extension-code-first-authoring; ET-discover-extension-command-tree; ET-044
 ---
 
