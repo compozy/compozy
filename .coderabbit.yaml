@@ -12,6 +12,7 @@ reviews:
   path_filters:
     - "!docs/design/**/*"
     - "!**/*.md"
+    - "!**/*.mdx"
     - "!**/*.yaml"
     - "!**/*.yml"
     - "!**/*.json"
@@ -23,6 +24,8 @@ reviews:
     - "!.cursor/**"
     - "!.git/**"
     - "!.claude/**"
+    - "!.codex/**"
+    - "!.compozy/**"
     - "!.vscode/**"
     - "!.agents/**"
     - "!.taskmaster/**"

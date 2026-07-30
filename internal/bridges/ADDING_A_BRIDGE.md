@@ -15,17 +15,17 @@ groundwork that follow-up program consumes.
 
 ## Canonical owners
 
-| Concern                                   | Owner to reuse                                                    |
-| ----------------------------------------- | ----------------------------------------------------------------- |
-| Wire types shared with provider binaries  | `internal/bridges/contract`                                       |
-| Runtime/session/lifecycle helpers         | `internal/bridgesdk`                                              |
-| CI-safe protocol implementation           | `internal/extension/testdata/telegram-reference`                  |
-| Modern lifecycle and HTTP composition     | `extensions/bridges/slack`                                        |
-| Remote webhook control runtime            | `extensions/bridges/telegram`                                     |
-| Service/control subprocess boundary       | `internal/extension` and `internal/subprocess`                    |
-| Daemon routing, delivery, and checkpoints | `internal/bridges`                                                |
+| Concern                                   | Owner to reuse                                            |
+| ----------------------------------------- | --------------------------------------------------------- |
+| Wire types shared with provider binaries  | `internal/bridges/contract`                               |
+| Runtime/session/lifecycle helpers         | `internal/bridgesdk`                                      |
+| CI-safe protocol implementation           | `internal/extension/testdata/telegram-reference`          |
+| Modern lifecycle and HTTP composition     | `extensions/bridges/slack`                                |
+| Remote webhook control runtime            | `extensions/bridges/telegram`                             |
+| Service/control subprocess boundary       | `internal/extension` and `internal/subprocess`            |
+| Daemon routing, delivery, and checkpoints | `internal/bridges`                                        |
 | Public operator guide                     | `packages/site/content/docs/bridges/setup-<provider>.mdx` |
-| Agent-operable runtime guidance           | `skills/compozy/references/runtime-operations.md`                 |
+| Agent-operable runtime guidance           | `skills/compozy/references/runtime-operations.md`         |
 
 There is no hand-maintained provider registry. The extension catalog and conformance tests discover
 valid manifests that provide `bridge.adapter`.

@@ -12,9 +12,9 @@ Compozy stores installed extensions in the global registry and copies managed in
 
 <OperatorNote>
   Installing **your own** code is not an install. Use [`compozy extension
-  dev`](/docs/extensions/develop#dev-reload-logs): it links your source directory to the
-  current workspace with no trust policy and no consent prompt. This page is about code that came
-  from somewhere else.
+  dev`](/docs/extensions/develop#dev-reload-logs): it links your source directory to the current
+  workspace with no trust policy and no consent prompt. This page is about code that came from
+  somewhere else.
 </OperatorNote>
 
 ## Install sources
@@ -272,7 +272,7 @@ extensions are inspectable through `compozy__resources_list`, `compozy__resource
 | `extension_git_unavailable`                 | No `git` binary on the daemon host.                                               | Install `git` or install from another source.                               |
 | Extension is `enabled` but not `active`     | Daemon offline, disabled, or activation failed.                                   | `compozy extension status <name>` and `compozy extension logs <name>`.      |
 | Disable or remove returns a conflict        | Active bundle activations depend on the extension.                                | Deactivate those bundle activations first.                                  |
-| `bridge.adapter` install rejected           | External bridge authoring is a planned follow-up.                                 | See [Develop Extensions](/docs/extensions/develop#bridge-adapters). |
+| `bridge.adapter` install rejected           | External bridge authoring is a planned follow-up.                                 | See [Develop Extensions](/docs/extensions/develop#bridge-adapters).         |
 | Daemon-required error on a marketplace verb | Search, install, update, remove, enable, status, and provenance are daemon-owned. | Start the daemon and retry.                                                 |
 
 Related references:

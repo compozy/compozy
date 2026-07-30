@@ -162,7 +162,7 @@ Generated from each SDK tool registration. Fields the daemon reads:
 | `input_schema`, `output_schema`                                                              | Canonical JSON Schema strings. The digest of `input_schema` must match what the running extension reports. |
 | `risk`, `read_only`, `destructive`, `open_world`, `requires_interaction`, `concurrency_safe` | Policy metadata the tool runtime enforces.                                                                 |
 | `visibility`                                                                                 | `model` for agent-callable tools.                                                                          |
-| `command`                                                                                    | Optional operator-verb presentation block. See [Extension Commands](/docs/extensions/commands).    |
+| `command`                                                                                    | Optional operator-verb presentation block. See [Extension Commands](/docs/extensions/commands).            |
 
 Because both the schema and the handler come from one code declaration, the schema-digest drift that
 a hand-maintained manifest allowed cannot occur.
