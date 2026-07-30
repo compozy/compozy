@@ -9,6 +9,7 @@ import (
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
+	diagnosticspkg "github.com/compozy/compozy/internal/diagnostics"
 	registrypkg "github.com/compozy/compozy/internal/registry"
 )
 
@@ -74,16 +75,17 @@ func marketplaceUpdateFailureDiagnostic(name string, cause error) *diagnosticcon
 	if errors.Is(cause, context.Canceled) || errors.Is(cause, context.DeadlineExceeded) {
 		message = fmt.Sprintf("Extension %q update was interrupted.", strings.TrimSpace(name))
 	}
-	return &diagnosticcontract.DiagnosticItem{
-		ID:               "extension-update-failed:" + strings.TrimSpace(name),
-		Code:             diagnosticcontract.CodeExtensionUpdateFailed,
-		Severity:         diagnosticcontract.SeverityError,
-		Category:         diagnosticcontract.CategoryExtension,
-		Title:            "Extension update failed",
-		Message:          message,
-		SuggestedCommand: "compozy extension status " + strings.TrimSpace(name),
-		DataFreshness:    diagnosticcontract.FreshnessLive,
-	}
+	item := diagnosticspkg.NewItem(
+		"extension-update-failed:"+strings.TrimSpace(name),
+		diagnosticcontract.CodeExtensionUpdateFailed,
+		diagnosticcontract.CategoryExtension,
+		"Extension update failed",
+		message,
+		diagnosticcontract.SeverityError,
+		diagnosticcontract.FreshnessLive,
+		diagnosticspkg.WithSuggestedCommand("compozy extension status "+strings.TrimSpace(name)),
+	)
+	return &item
 }
 
 func updateMarketplaceExtension(

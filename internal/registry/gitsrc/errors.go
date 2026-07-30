@@ -3,9 +3,6 @@ package gitsrc
 import (
 	"errors"
 	"fmt"
-
-	contract "github.com/compozy/compozy/internal/diagnosticcontract"
-	"github.com/compozy/compozy/internal/diagnostics"
 )
 
 // ErrGitUnavailable reports that the required git executable cannot be found.
@@ -24,19 +21,6 @@ func (e *gitUnavailableError) Unwrap() []error {
 		return []error{ErrGitUnavailable}
 	}
 	return []error{ErrGitUnavailable, e.cause}
-}
-
-func (e *gitUnavailableError) DiagnosticItem() contract.DiagnosticItem {
-	return diagnostics.NewItem(
-		"extension.git_unavailable",
-		"extension_git_unavailable",
-		contract.CategoryExtension,
-		"Git is unavailable",
-		"Install Git and ensure the git executable is available on PATH.",
-		contract.SeverityError,
-		contract.FreshnessLive,
-		diagnostics.WithSuggestedCommand("git --version"),
-	)
 }
 
 func newGitUnavailableError(err error) error {

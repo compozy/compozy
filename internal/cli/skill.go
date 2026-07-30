@@ -12,7 +12,7 @@ import (
 const (
 	defaultSkillName            = "new-skill"
 	skillMarkdownFileName       = "SKILL.md"
-	reservedSkillDirectoryName  = "node_modules"
+	nodeModulesDirectoryName    = "node_modules"
 	defaultMarketplaceRegistry  = "clawhub"
 	defaultMarketplaceSearchLim = 20
 )

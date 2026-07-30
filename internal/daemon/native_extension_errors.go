@@ -8,6 +8,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
+	registrygit "github.com/compozy/compozy/internal/registry/gitsrc"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
@@ -84,6 +85,8 @@ func nativeExtensionToolError(id toolspkg.ToolID, err error) error {
 			fmt.Errorf("%w: %w", toolspkg.ErrToolDenied, err),
 			toolspkg.ReasonExtensionSourceForbidden,
 		)
+	case errors.Is(err, registrygit.ErrGitUnavailable):
+		return nativeHTTPStatusToolError(id, err, core.ExtensionStatusCode(err))
 	case isExtensionSourceError(err):
 		return nativeExtensionSourceError(id, err)
 	default:

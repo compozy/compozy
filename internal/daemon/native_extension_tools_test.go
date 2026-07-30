@@ -12,6 +12,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -23,6 +24,7 @@ import (
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	marketplacepkg "github.com/compozy/compozy/internal/marketplace"
 	registrypkg "github.com/compozy/compozy/internal/registry"
+	registrygit "github.com/compozy/compozy/internal/registry/gitsrc"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	toolspkg "github.com/compozy/compozy/internal/tools"
@@ -129,6 +131,24 @@ func (s *nativeExtensionSource) Close() error {
 }
 
 func TestDaemonNativeExtensionTools(t *testing.T) {
+	t.Run("Should report a missing Git dependency as tool unavailable", func(t *testing.T) {
+		t.Parallel()
+
+		err := nativeExtensionToolError(
+			toolspkg.ToolIDExtensionsInstall,
+			fmt.Errorf("install extension: %w", registrygit.ErrGitUnavailable),
+		)
+		var toolErr *toolspkg.ToolError
+		if !errors.As(err, &toolErr) ||
+			toolErr.Code != toolspkg.ErrorCodeUnavailable ||
+			!slices.Contains(toolErr.ReasonCodes, toolspkg.ReasonDependencyMissing) {
+			t.Fatalf("nativeExtensionToolError() = %#v, want unavailable dependency ToolError", err)
+		}
+		if !errors.Is(err, registrygit.ErrGitUnavailable) {
+			t.Fatalf("nativeExtensionToolError() = %v, want ErrGitUnavailable ancestry", err)
+		}
+	})
+
 	t.Run("Should install local extension sources through managed install", func(t *testing.T) {
 		t.Parallel()
 

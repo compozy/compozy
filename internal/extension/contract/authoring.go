@@ -12,6 +12,11 @@ const (
 	IssueSeverityWarning = apicontract.IssueSeverityWarning
 )
 
+// IssueSeverityValues returns the closed validation-severity set.
+func IssueSeverityValues() []string {
+	return apicontract.IssueSeverityValues()
+}
+
 // ValidationIssue is one positioned bundle validation diagnostic.
 type ValidationIssue = apicontract.ValidationIssue
 

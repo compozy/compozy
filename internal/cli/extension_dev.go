@@ -255,7 +255,7 @@ func snapshotExtensionSource(ctx context.Context, root string) (map[string]files
 		}
 		if entry.IsDir() && path != root {
 			switch entry.Name() {
-			case ".git", "dist", "node_modules":
+			case ".git", "dist", nodeModulesDirectoryName:
 				return filepath.SkipDir
 			}
 		}

@@ -955,7 +955,7 @@ func TestListExtensionsErrorResponses(t *testing.T) {
 	})
 }
 
-func TestInstallExtensionReturnsPolicyDiagnosticOverHTTP(t *testing.T) {
+func TestInstallExtensionReturnsDiagnosticsOverHTTP(t *testing.T) {
 	t.Parallel()
 	t.Run("Should return the side-load policy diagnostic over HTTP", func(t *testing.T) {
 		t.Parallel()
@@ -1003,6 +1003,53 @@ func TestInstallExtensionReturnsPolicyDiagnosticOverHTTP(t *testing.T) {
 			if !strings.Contains(response.Body.String(), want) {
 				t.Fatalf("body = %q, want %q", response.Body.String(), want)
 			}
+		}
+	})
+
+	t.Run("Should return the Git dependency diagnostic over HTTP", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := testutil.NewTestHomePaths(t)
+		cfg := testConfigWithDisabledNetwork(homePaths)
+		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
+			TransportName: "http",
+			Extensions: extensionServiceStub{installFn: func(
+				context.Context,
+				contract.InstallExtensionRequest,
+				taskpkg.ActorContext,
+			) (contract.ExtensionPayload, error) {
+				return contract.ExtensionPayload{}, fmt.Errorf("install extension: %w", registrygit.ErrGitUnavailable)
+			}},
+			HomePaths: homePaths,
+			Config:    cfg,
+			Logger:    testutil.DiscardLogger(),
+		})
+		engine := gin.New()
+		engine.POST("/extensions", handlers.InstallExtension)
+
+		response := performRequest(
+			t,
+			engine,
+			http.MethodPost,
+			"/extensions",
+			[]byte(`{"source":"git","ref":"https://github.com/acme/example.git"}`),
+		)
+		if response.Code != http.StatusServiceUnavailable {
+			t.Fatalf(
+				"status = %d, want %d; body=%s",
+				response.Code,
+				http.StatusServiceUnavailable,
+				response.Body.String(),
+			)
+		}
+		var payload contract.ErrorPayload
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("json.Unmarshal(response) error = %v", err)
+		}
+		if payload.Diagnostic == nil ||
+			payload.Diagnostic.Code != diagnosticcontract.CodeExtensionGitUnavailable ||
+			payload.Diagnostic.SuggestedCommand != "git --version" {
+			t.Fatalf("diagnostic = %#v, want registered Git recovery diagnostic", payload.Diagnostic)
 		}
 	})
 }

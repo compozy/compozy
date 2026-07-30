@@ -27,8 +27,8 @@ func normalizeSkillName(name string) (string, error) {
 		return "", errors.New("skill name must not include path separators")
 	case strings.HasPrefix(trimmed, "."):
 		return "", errors.New("skill name must not be hidden")
-	case trimmed == reservedSkillDirectoryName:
-		return "", fmt.Errorf("skill name must not use reserved directory %s", reservedSkillDirectoryName)
+	case trimmed == nodeModulesDirectoryName:
+		return "", fmt.Errorf("skill name must not use reserved directory %s", nodeModulesDirectoryName)
 	case !validSkillNamePattern.MatchString(trimmed):
 		return "", errors.New("skill name must contain only letters, numbers, dots, underscores, and hyphens")
 	default:

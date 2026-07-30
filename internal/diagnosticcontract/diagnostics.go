@@ -82,6 +82,7 @@ const (
 	CodeDiskWriteFailed               = "disk_write_failed"
 	CodeExtensionBlockedByBundle      = "extension_blocked_by_bundle"
 	CodeExtensionChecksumUnverified   = "extension_checksum_unverified"
+	CodeExtensionGitUnavailable       = "extension_git_unavailable"
 	CodeExtensionInstallFailed        = "extension_install_failed"
 	CodeExtensionRemoveCleanupFailed  = "extension_remove_cleanup_failed"
 	CodeExtensionUpdateFailed         = "extension_update_failed"
@@ -210,6 +211,7 @@ var diagnosticCodeSpecs = []DiagnosticCodeSpec{
 	{Code: CodeExtensionBlockedByBundle, Category: CategoryExtension},
 	{Code: CodeExtensionArchiveDigestMismatch, Category: CategoryExtension},
 	{Code: CodeExtensionChecksumUnverified, Category: CategoryExtension},
+	{Code: CodeExtensionGitUnavailable, Category: CategoryExtension},
 	{Code: CodeExtensionRegistryTierUnverified, Category: CategoryExtension},
 	{Code: CodeExtensionUnverifiedPolicyBlocked, Category: CategoryExtension},
 	{Code: CodeExtensionInstallFailed, Category: CategoryExtension},
