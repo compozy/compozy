@@ -29,6 +29,18 @@ function sameConfig(left: SkillsConfig | null, right: SkillsConfig | null): bool
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
+function mergeSavedSkillsBaseline(
+  current: SkillsConfig | null,
+  saved: SkillsConfig,
+  kind: SaveKind
+): SkillsConfig {
+  if (current === null) return saved;
+  if (kind === "disabled") {
+    return { ...current, disabled_skills: saved.disabled_skills };
+  }
+  return { ...saved, disabled_skills: current.disabled_skills };
+}
+
 function createSkillsDraftFlow(input: SkillsDraftInput): SkillsDraftFlow {
   const previous = input.previous;
   if (!previous || previous.key !== input.key) {
@@ -109,7 +121,7 @@ export const settingsSkillsDraftLogic = createStoreLogic({
       context.pending[event.kind] === event.attempt
         ? {
             ...context,
-            baseline: event.baseline,
+            baseline: mergeSavedSkillsBaseline(context.baseline, event.baseline, event.kind),
             labels: { ...context.labels, [event.kind]: event.label },
             pending: { ...context.pending, [event.kind]: null },
           }

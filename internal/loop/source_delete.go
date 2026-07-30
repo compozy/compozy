@@ -3,6 +3,7 @@ package loop
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -62,7 +63,11 @@ func (d *StagedWritableDefinitionDeletion) Restore() error {
 		return fmt.Errorf("loop: restore staged definition %q: %w", d.originalDir, err)
 	}
 	if err := os.Remove(d.stagingRoot); err != nil {
-		return fmt.Errorf("loop: remove empty definition deletion stage %q: %w", d.stagingRoot, err)
+		slog.Warn(
+			"loop: remove empty definition deletion stage after restore",
+			"staging_root", d.stagingRoot,
+			"error", err,
+		)
 	}
 	return nil
 }

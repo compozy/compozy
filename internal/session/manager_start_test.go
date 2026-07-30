@@ -548,6 +548,7 @@ func testAcceptedStartupRecorderReady(t *testing.T) {
 
 	recorderOpenEntered := make(chan struct{})
 	releaseRecorderOpen := make(chan struct{})
+	var recorderOpenOnce sync.Once
 	var releaseOnce sync.Once
 	t.Cleanup(func() { releaseOnce.Do(func() { close(releaseRecorderOpen) }) })
 
@@ -557,7 +558,7 @@ func testAcceptedStartupRecorderReady(t *testing.T) {
 		sessionID string,
 		path string,
 	) (EventRecorder, error) {
-		close(recorderOpenEntered)
+		recorderOpenOnce.Do(func() { close(recorderOpenEntered) })
 		select {
 		case <-releaseRecorderOpen:
 			return sessiondb.OpenSessionDB(ctx, sessionID, path)

@@ -53,7 +53,7 @@ func (d *Daemon) Run(ctx context.Context) error {
 	}
 	if d.memoryExtractor != nil {
 		if err := d.memoryExtractor.Start(runCtx); err != nil {
-			shutdownCtx, cancel := context.WithTimeout(context.Background(), defaultShutdownTimeout)
+			shutdownCtx, cancel := d.daemonShutdownContext(ctx)
 			defer cancel()
 			shutdownErr := d.Shutdown(shutdownCtx)
 			return errors.Join(

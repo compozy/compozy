@@ -1230,8 +1230,8 @@ func TestToolRenderingAndValidationHelpers(t *testing.T) {
 			t.Fatalf("redactToolRawJSON(array) leaked secret: %s", got)
 		}
 		invalid := json.RawMessage(`{"token":"super-secret"} trailing`)
-		if got := string(redactToolRawJSON(invalid)); got != string(invalid) {
-			t.Fatalf("redactToolRawJSON(invalid) = %q, want original invalid payload", got)
+		if got := redactToolRawJSON(invalid); string(got) != `"[REDACTED]"` || !json.Valid(got) {
+			t.Fatalf("redactToolRawJSON(invalid) = %q, want valid fully redacted JSON", got)
 		}
 	})
 }

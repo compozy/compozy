@@ -768,6 +768,96 @@ describe("WindowManagerRuntime", () => {
     runtime.stop();
   });
 
+  it("Should stop after one retry when concurrent topology changes twice", async () => {
+    const queryClient = new QueryClient();
+    const refreshed = { ...SNAPSHOT, revision: 8 };
+    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test"), SNAPSHOT);
+    queryClient.setQueryData(windowManagerKeys.config(), CONFIG);
+    vi.mocked(executeWindowManagerCommand)
+      .mockRejectedValueOnce(
+        new WindowManagerApiError("Window layout changed.", 409, {
+          error: "Window layout changed.",
+          code: "revision_conflict",
+          workspaceId: "workspace:test",
+          currentRevision: 8,
+          conflicts: [],
+          diagnostics: [
+            { code: "revision_conflict", path: null, message: "Window layout changed." },
+          ],
+        })
+      )
+      .mockRejectedValueOnce(
+        new WindowManagerApiError("Window layout changed again.", 409, {
+          error: "Window layout changed again.",
+          code: "revision_conflict",
+          workspaceId: "workspace:test",
+          currentRevision: 9,
+          conflicts: [],
+          diagnostics: [
+            { code: "revision_conflict", path: null, message: "Window layout changed again." },
+          ],
+        })
+      );
+    vi.mocked(fetchWindowManagerSnapshot).mockResolvedValue(refreshed);
+    const runtime = new WindowManagerRuntime(queryClient);
+    runtime.bind({ workspaceId: "workspace:test", clientId: "client:web" });
+    runtime.setClient({
+      workspaceId: "workspace:test",
+      clientId: "client:web",
+      presentationRevision: 1,
+      activeDesktopId: "desktop:one",
+      focusedWindowId: null,
+      focusOrder: [],
+      connectedAt: "2026-07-22T00:00:00Z",
+    });
+
+    const outcome = runtime.openOrFocus({
+      app: "tasks",
+      route: { pathname: "/tasks", search: {} },
+    });
+
+    await expect(outcome.completion).resolves.toBe(false);
+    expect(fetchWindowManagerSnapshot).toHaveBeenCalledOnce();
+    expect(executeWindowManagerCommand).toHaveBeenCalledTimes(2);
+    runtime.stop();
+  });
+
+  it("Should abort and ignore snapshot refreshes after binding lifecycle changes", async () => {
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(windowManagerKeys.config(), CONFIG);
+    const requests: Array<{
+      resolve: (snapshot: WindowManagerSnapshot) => void;
+      signal: AbortSignal | undefined;
+    }> = [];
+    vi.mocked(fetchWindowManagerSnapshot).mockImplementation(
+      (_workspaceId, signal) =>
+        new Promise(resolve => {
+          requests.push({ resolve, signal });
+        })
+    );
+    const runtime = new WindowManagerRuntime(queryClient);
+    runtime.bind({ workspaceId: "workspace:first", clientId: "client:first" });
+
+    const reboundRefresh = runtime.refreshSnapshot();
+    expect(requests).toHaveLength(1);
+    runtime.bind({ workspaceId: "workspace:second", clientId: "client:second" });
+    expect(requests[0]?.signal?.aborted).toBe(true);
+    requests[0]?.resolve({ ...SNAPSHOT, workspaceId: "workspace:first", revision: 20 });
+    await expect(reboundRefresh).resolves.toBe(false);
+    expect(queryClient.getQueryData(windowManagerKeys.snapshot("workspace:first"))).toBeUndefined();
+
+    const unboundRefresh = runtime.refreshSnapshot();
+    expect(requests).toHaveLength(2);
+    runtime.unbind();
+    expect(requests[1]?.signal?.aborted).toBe(true);
+    requests[1]?.resolve({ ...SNAPSHOT, workspaceId: "workspace:second", revision: 21 });
+    await expect(unboundRefresh).resolves.toBe(false);
+    expect(
+      queryClient.getQueryData(windowManagerKeys.snapshot("workspace:second"))
+    ).toBeUndefined();
+    runtime.stop();
+  });
+
   it("Should preserve an unrelated conflict when semantic open admission is blocked", async () => {
     const queryClient = new QueryClient();
     queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test"), SNAPSHOT);

@@ -60,7 +60,7 @@ Follow **inspect → validate → dry-run → publish (with `expected_version`) 
 4. **publish** — `compozy__loop_create` with `expected_version` set to the version from step one (or
    HTTP `PATCH /loops/:name`). This is compare-and-swap: a stale version is rejected `409` with the
    current version. Native: `tool_conflict`/`loop_version_conflict` with
-   `partial_result.structured.current_version`; re-inspect before retrying. Use PATCH/create-with-version
+   `partial_result.structured.version_conflict.current_version`; re-inspect before retrying. Use PATCH/create-with-version
    for **all** programmatic editing — the filesystem write path is last-write-wins and unsafe for
    concurrent agents.
 5. **run** — `compozy__loop_run`. Only now does the Loop spend tokens.

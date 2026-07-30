@@ -58,6 +58,47 @@ func TestLoopRunEventKindValidShouldMatchPublicContract(t *testing.T) {
 	}
 }
 
+func TestValidateLoopCoordinatorReactivation(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject approval with more than one gate decision", func(t *testing.T) {
+		t.Parallel()
+
+		actor, err := taskpkg.DeriveHumanActorContext(
+			"operator",
+			taskpkg.OriginKindCLI,
+			"loop approve",
+		)
+		if err != nil {
+			t.Fatalf("DeriveHumanActorContext() error = %v", err)
+		}
+		run := looppkg.Run{
+			ID:           "looprun-approval",
+			WorkspaceID:  "ws-1",
+			Status:       looppkg.StatusNeedsApproval,
+			ActiveGateID: "human",
+		}
+		decision := looppkg.GateDecisionRecord{
+			RunID:       run.ID,
+			WorkspaceID: run.WorkspaceID,
+		}
+
+		err = validateLoopCoordinatorReactivation(&looppkg.CoordinatorReactivationRequest{
+			Run:           run,
+			Cause:         looppkg.TransitionCauseApproval,
+			Actor:         actor,
+			Decisions:     []looppkg.GateDecisionRecord{decision, decision},
+			ReactivatedAt: time.Date(2026, 7, 29, 12, 0, 0, 0, time.UTC),
+		})
+		if !errors.Is(err, looppkg.ErrValidation) {
+			t.Fatalf("validateLoopCoordinatorReactivation() error = %v, want ErrValidation", err)
+		}
+		if !strings.Contains(err.Error(), "one decision") {
+			t.Fatalf("validateLoopCoordinatorReactivation() error = %v, want decision count detail", err)
+		}
+	})
+}
+
 func TestGlobalDBLoopConfigShouldPersistOverrides(t *testing.T) {
 	t.Parallel()
 

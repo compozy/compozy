@@ -342,7 +342,7 @@ func redactToolRawJSON(raw json.RawMessage) json.RawMessage {
 	if !json.Valid(raw) {
 		redacted := redactToolDiagnostic(string(raw))
 		if !json.Valid([]byte(redacted)) {
-			return raw
+			return json.RawMessage(`"[REDACTED]"`)
 		}
 		return json.RawMessage(redacted)
 	}

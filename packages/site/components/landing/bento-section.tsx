@@ -54,14 +54,14 @@ function RuntimeCard() {
           <Database className="size-4" />
           <span>Runtime</span>
         </div>
-        <h3
+        <h2
           aria-label="Your agents. Under control."
           className="font-display text-site-bento-lg font-normal leading-tight text-fg sm:text-site-bento-xl xl:text-site-bento-2xl"
         >
           Your agents.
           <br />
           <span className="text-accent">Under control.</span>
-        </h3>
+        </h2>
         <span className="mt-5 block h-px w-8 bg-accent" aria-hidden="true" />
       </div>
     </article>
@@ -93,14 +93,14 @@ function NetworkCard() {
           <Network className="size-4" />
           <span>Network</span>
         </div>
-        <h3
+        <h2
           aria-label="Built-in network. Delegate. Deliver. Done."
           className="font-display text-site-bento-md font-normal leading-tight text-fg sm:text-4xl xl:text-site-bento-2xl"
         >
           Built-in network.
           <br />
           <span className="text-accent">Delegate. Deliver.</span> Done.
-        </h3>
+        </h2>
       </div>
     </article>
   );
@@ -130,14 +130,14 @@ function BridgesCard() {
           <Plug className="size-4" />
           <span>Bridges</span>
         </div>
-        <h3
+        <h2
           aria-label="From anywhere. Into a session."
           className="font-display text-site-bento-xs font-normal leading-tight text-fg sm:text-site-bento-md xl:text-site-bento-lg"
         >
           From anywhere.
           <br />
           <span className="text-accent">Into a session.</span>
-        </h3>
+        </h2>
       </div>
     </article>
   );
@@ -167,14 +167,14 @@ function MemoryCard() {
           <FileCode2 className="size-4" />
           <span>Memory</span>
         </div>
-        <h3
+        <h2
           aria-label="Memory that compounds."
           className="font-display text-site-bento-sm font-normal leading-tight text-fg sm:text-site-bento-lg xl:text-4xl"
         >
           Memory that
           <br />
           <span className="text-accent">compounds.</span>
-        </h3>
+        </h2>
       </div>
     </article>
   );
@@ -204,14 +204,14 @@ function ExtensibilityCard() {
           <Layers className="size-4" />
           <span>Extensibility</span>
         </div>
-        <h3
+        <h2
           aria-label="Every layer. Pluggable."
           className="font-display text-site-bento-sm font-normal leading-tight text-fg sm:text-site-bento-lg xl:text-4xl"
         >
           Every layer.
           <br />
           <span className="text-accent">Pluggable.</span>
-        </h3>
+        </h2>
       </div>
     </article>
   );

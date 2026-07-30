@@ -50,14 +50,16 @@ func (g *LoopRepo) ReactivateLoopCoordinator(
 		}
 		current.Status = looppkg.StatusRunning
 		current.PauseRequested = false
+		const reactivationRunID = ""
+		const reactivationIdempotencyKey = ""
 		coordinator, added, err := g.reserveLoopCoordinatorRunWithExecutor(
 			ctx,
 			exec,
 			current,
 			req.Actor.Origin,
 			req.ReactivatedAt,
-			"",
-			"",
+			reactivationRunID,
+			reactivationIdempotencyKey,
 		)
 		if err != nil {
 			return err
@@ -93,7 +95,7 @@ func validateLoopCoordinatorReactivation(req *looppkg.CoordinatorReactivationReq
 			return fmt.Errorf("%w: operator resume requires a paused Run without gate decisions", looppkg.ErrValidation)
 		}
 	case looppkg.TransitionCauseApproval:
-		if req.Run.Status != looppkg.StatusNeedsApproval || len(req.Decisions) == 0 {
+		if req.Run.Status != looppkg.StatusNeedsApproval || len(req.Decisions) != 1 {
 			return fmt.Errorf("%w: approval requires a gated Run and one decision", looppkg.ErrValidation)
 		}
 	default:

@@ -382,6 +382,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				attachError := jsonResponseSchema(t, attachSession, 400)
 				assertRequired(t, attachError, "error")
 				assertResponseStatus(t, attachSession, 409)
+				assertResponseStatus(t, attachSession, 503)
 
 				recapSession := operationFor(
 					t,

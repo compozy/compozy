@@ -1,11 +1,7 @@
 import type { QueryCacheNotifyEvent, QueryClient } from "@tanstack/react-query";
 import { shallowEqual } from "@xstate/store";
 
-import {
-  executeWindowManagerCommand,
-  fetchWindowManagerSnapshot,
-  WindowManagerApiError,
-} from "../adapters/window-manager-api";
+import { executeWindowManagerCommand, WindowManagerApiError } from "../adapters/window-manager-api";
 import type { OsDesktopRuntimeStore, OsWallpaper } from "../lib/os-types";
 import type { WindowManagerCommandOutcome } from "../lib/os-types";
 import { effectiveWindowManagerConfig } from "../lib/window-manager-config";
@@ -26,6 +22,7 @@ import type {
 import { DEFAULT_WINDOW_MANAGER_WORK_AREA } from "../lib/window-manager-view";
 import { windowManagerStore, type DesktopTransitionIntent } from "../stores/window-manager-store";
 import { beginWindowManagerCommand } from "../stores/window-manager-store-commands";
+import { WindowManagerSnapshotRefresher } from "./window-manager-snapshot-refresher";
 
 export interface WindowManagerRuntimeBinding {
   workspaceId: string;
@@ -78,6 +75,7 @@ export abstract class WindowManagerRuntimeCore {
   private unsubscribePresentation: (() => void) | null = null;
   private runtimeProjection: WindowManagerProjectionAtom | null = null;
   private initialView: OsDesktopRuntimeStore | null = null;
+  private readonly snapshotRefresher = new WindowManagerSnapshotRefresher();
   protected readonly queryClient: QueryClient;
   protected binding: WindowManagerRuntimeBinding | null = null;
   protected client: WindowManagerClientView | null = null;
@@ -188,6 +186,7 @@ export abstract class WindowManagerRuntimeCore {
     ) {
       return;
     }
+    this.snapshotRefresher.reset();
     this.binding = { ...binding };
     this.client = null;
     this.loadError = null;
@@ -196,6 +195,7 @@ export abstract class WindowManagerRuntimeCore {
   }
 
   unbind(): void {
+    this.snapshotRefresher.reset();
     this.binding = null;
     this.client = null;
     this.loadError = null;
@@ -271,24 +271,24 @@ export abstract class WindowManagerRuntimeCore {
     windowManagerStore.trigger.conflictCleared();
   }
 
-  refreshSnapshot(): Promise<boolean> {
+  async refreshSnapshot(): Promise<boolean> {
     const binding = this.binding;
-    if (binding === null) return Promise.resolve(false);
-    return fetchWindowManagerSnapshot(binding.workspaceId)
-      .then(snapshot => {
-        this.queryClient.setQueryData<WindowManagerSnapshot>(
-          windowManagerKeys.snapshot(binding.workspaceId),
-          current => reconcileWindowManagerSnapshot(current, snapshot)
-        );
-        this.setLoadError(null);
-        return true;
-      })
-      .catch(error => {
-        this.setLoadError(
-          error instanceof Error ? error : new Error("Unable to reload the window layout.")
-        );
-        return false;
-      });
+    if (binding === null) return false;
+    const result = await this.snapshotRefresher.refresh(
+      binding.workspaceId,
+      () => this.binding === binding
+    );
+    if (result.status === "stale") return false;
+    if (result.status === "failed") {
+      this.setLoadError(result.error);
+      return false;
+    }
+    this.queryClient.setQueryData<WindowManagerSnapshot>(
+      windowManagerKeys.snapshot(binding.workspaceId),
+      current => reconcileWindowManagerSnapshot(current, result.snapshot)
+    );
+    this.setLoadError(null);
+    return true;
   }
 
   protected publish(): void {

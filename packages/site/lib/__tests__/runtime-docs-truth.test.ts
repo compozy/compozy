@@ -168,11 +168,16 @@ describe("runtime docs truth", () => {
   it("documents resource mutation failures with the statuses used by the API error mapper", () => {
     const errorSource = readRepoFile("internal/api/core/errors.go");
     const resourceDoc = readRepoFile("packages/site/content/runtime/core/resources/index.mdx");
+    const resourceStatusMapper = errorSource.match(
+      /func StatusForResourceError\(err error\) int \{[\s\S]*?\n\}\n\n\/\//
+    )?.[0];
 
-    expect(errorSource).toContain("StatusForResourceError");
-    expect(errorSource).toContain("resources.ErrDirectMutationNotAllowed");
-    expect(errorSource).toContain("http.StatusForbidden");
-    expect(errorSource).toContain("http.StatusUnprocessableEntity");
+    expect(resourceStatusMapper).toMatch(
+      /errors\.Is\(err, resources\.ErrDirectMutationNotAllowed\):\s*return http\.StatusForbidden/
+    );
+    expect(resourceStatusMapper).toMatch(
+      /errors\.Is\(err, resources\.ErrValidation\),[\s\S]*?return http\.StatusUnprocessableEntity/
+    );
     expect(resourceDoc).toContain("| `400` on write");
     expect(resourceDoc).toContain("malformed JSON");
     expect(resourceDoc).toContain("| `403` on write/delete");

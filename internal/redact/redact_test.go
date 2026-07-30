@@ -286,6 +286,7 @@ func TestEngineRedactJSONPreservesStructuredEnvelope(t *testing.T) {
 	secret := "Q7mV2pL9xR4nK8sT6wY3cF5hJ1dB0zAq"
 	wantEnvelope := map[string]string{
 		"claim_token_hash":         "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+		"cursor":                   "eyJ2IjoyLCJraW5kIjoiYnVuZGxlIiwib2Zmc2V0IjowfQ",
 		redactionSessionIDFieldKey: "550e8400-e29b-41d4-a716-446655440000",
 		"run_id":                   "62f82910-18ca-4f2e-aa4a-54dcde9fe761",
 		"fingerprint":              "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
@@ -299,7 +300,7 @@ func TestEngineRedactJSONPreservesStructuredEnvelope(t *testing.T) {
 		t.Fatalf("json.Marshal() error = %v", err)
 	}
 
-	redacted := New(Options{}).RedactJSON(raw, []string{"", redactionMessageFieldKey})
+	redacted := New(Options{}).RedactJSON(raw, []string{redactionMessageFieldKey})
 	var got map[string]string
 	if err := json.Unmarshal(redacted, &got); err != nil {
 		t.Fatalf("json.Unmarshal() error = %v payload=%s", err, redacted)

@@ -728,7 +728,7 @@ func TestConfigApplyServiceAppliesProviderModelOnlyChangesLive(t *testing.T) {
 		}
 	})
 
-	t.Run("Should persist explicit five-rate changes without materializing unchanged catalog metadata", func(t *testing.T) {
+	t.Run("Should persist explicit five-rate changes without catalog defaults", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := context.Background()
@@ -1787,11 +1787,21 @@ func (a *providerModelCurationRuntimeApplier) ApplyActiveConfig(
 				effort := modelcatalog.ReasoningEffort(curated.DefaultReasoningEffort)
 				models[index].DefaultReasoningEffort = &effort
 			}
-			models[index].CostInputPerMillion = cloneFloat64Ptr(curated.CostInputPerMillion)
-			models[index].CostOutputPerMillion = cloneFloat64Ptr(curated.CostOutputPerMillion)
-			models[index].CostCacheReadPerMillion = cloneFloat64Ptr(curated.CostCacheReadPerMillion)
-			models[index].CostCacheWritePerMillion = cloneFloat64Ptr(curated.CostCacheWritePerMillion)
-			models[index].CostReasoningPerMillion = cloneFloat64Ptr(curated.CostReasoningPerMillion)
+			if curated.CostInputPerMillion != nil {
+				models[index].CostInputPerMillion = cloneFloat64Ptr(curated.CostInputPerMillion)
+			}
+			if curated.CostOutputPerMillion != nil {
+				models[index].CostOutputPerMillion = cloneFloat64Ptr(curated.CostOutputPerMillion)
+			}
+			if curated.CostCacheReadPerMillion != nil {
+				models[index].CostCacheReadPerMillion = cloneFloat64Ptr(curated.CostCacheReadPerMillion)
+			}
+			if curated.CostCacheWritePerMillion != nil {
+				models[index].CostCacheWritePerMillion = cloneFloat64Ptr(curated.CostCacheWritePerMillion)
+			}
+			if curated.CostReasoningPerMillion != nil {
+				models[index].CostReasoningPerMillion = cloneFloat64Ptr(curated.CostReasoningPerMillion)
+			}
 			break
 		}
 	}

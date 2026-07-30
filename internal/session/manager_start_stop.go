@@ -32,6 +32,7 @@ func (m *Manager) stopStartingSession(
 		releaseCommit()
 		releaseCommit = nil
 	}
+	defer releaseLaunchCommit()
 	if run != nil {
 		if err := waitForSessionStartRecorder(ctx, run); err != nil {
 			return true, fmt.Errorf("session: wait for starting recorder for %q: %w", id, err)

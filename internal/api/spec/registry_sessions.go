@@ -156,6 +156,11 @@ func attachSessionOperationSpec() OperationSpec {
 			{Status: 400, Description: "Invalid attach lease request", Body: contract.ErrorPayload{}},
 			{Status: 404, Description: specSessionNotFoundDescription, Body: contract.ErrorPayload{}},
 			{Status: 409, Description: "Session cannot be attached", Body: contract.ErrorPayload{}},
+			{
+				Status:      503,
+				Description: specServiceUnavailableDependentServiceMissingDescription,
+				Body:        contract.ErrorPayload{},
+			},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},
 	}

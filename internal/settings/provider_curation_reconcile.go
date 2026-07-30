@@ -109,8 +109,10 @@ func (s *service) currentProviderModels(
 	ctx context.Context,
 	providerID string,
 ) ([]modelcatalog.Model, error) {
-	if err := s.requireProviderModelCatalog(); err != nil {
-		return nil, err
+	if s.modelCatalog == nil {
+		return nil, validationError(
+			errors.New("settings: model catalog is required to reconcile curated provider models"),
+		)
 	}
 	models, err := s.modelCatalog.ListModels(ctx, modelcatalog.ListOptions{
 		ProviderID: providerID,
@@ -212,58 +214,71 @@ func mergeProviderModelConfigDeltas(
 ) compozyconfig.ProviderModelConfig {
 	next := cloneProviderModelConfigs([]compozyconfig.ProviderModelConfig{raw})[0]
 	next.ID = strings.TrimSpace(desired.ID)
-	if desired.DisplayName != current.DisplayName {
-		next.DisplayName = desired.DisplayName
-	}
-	if !reflect.DeepEqual(desired.ContextWindow, current.ContextWindow) {
-		next.ContextWindow = cloneInt64Ptr(desired.ContextWindow)
-	}
-	if !reflect.DeepEqual(desired.MaxInputTokens, current.MaxInputTokens) {
-		next.MaxInputTokens = cloneInt64Ptr(desired.MaxInputTokens)
-	}
-	if !reflect.DeepEqual(desired.MaxOutputTokens, current.MaxOutputTokens) {
-		next.MaxOutputTokens = cloneInt64Ptr(desired.MaxOutputTokens)
-	}
-	if !reflect.DeepEqual(desired.SupportsTools, current.SupportsTools) {
-		next.SupportsTools = cloneBoolPtr(desired.SupportsTools)
-	}
-	if !reflect.DeepEqual(desired.SupportsReasoning, current.SupportsReasoning) {
-		next.SupportsReasoning = cloneBoolPtr(desired.SupportsReasoning)
-	}
+	mergeProviderModelValueDelta(&next.DisplayName, current.DisplayName, desired.DisplayName)
+	mergeProviderModelPointerDelta(&next.ContextWindow, current.ContextWindow, desired.ContextWindow)
+	mergeProviderModelPointerDelta(&next.MaxInputTokens, current.MaxInputTokens, desired.MaxInputTokens)
+	mergeProviderModelPointerDelta(&next.MaxOutputTokens, current.MaxOutputTokens, desired.MaxOutputTokens)
+	mergeProviderModelPointerDelta(&next.SupportsTools, current.SupportsTools, desired.SupportsTools)
+	mergeProviderModelPointerDelta(&next.SupportsReasoning, current.SupportsReasoning, desired.SupportsReasoning)
 	if !reflect.DeepEqual(desired.ReasoningEfforts, current.ReasoningEfforts) {
 		next.ReasoningEfforts = cloneStringSlicePreserveNil(desired.ReasoningEfforts)
 	}
-	if desired.DefaultReasoningEffort != current.DefaultReasoningEffort {
-		next.DefaultReasoningEffort = desired.DefaultReasoningEffort
-	}
-	if !reflect.DeepEqual(desired.CostInputPerMillion, current.CostInputPerMillion) {
-		next.CostInputPerMillion = cloneFloat64Ptr(desired.CostInputPerMillion)
-	}
-	if !reflect.DeepEqual(desired.CostOutputPerMillion, current.CostOutputPerMillion) {
-		next.CostOutputPerMillion = cloneFloat64Ptr(desired.CostOutputPerMillion)
-	}
-	if !reflect.DeepEqual(desired.CostCacheReadPerMillion, current.CostCacheReadPerMillion) {
-		next.CostCacheReadPerMillion = cloneFloat64Ptr(desired.CostCacheReadPerMillion)
-	}
-	if !reflect.DeepEqual(desired.CostCacheWritePerMillion, current.CostCacheWritePerMillion) {
-		next.CostCacheWritePerMillion = cloneFloat64Ptr(desired.CostCacheWritePerMillion)
-	}
-	if !reflect.DeepEqual(desired.CostReasoningPerMillion, current.CostReasoningPerMillion) {
-		next.CostReasoningPerMillion = cloneFloat64Ptr(desired.CostReasoningPerMillion)
-	}
-	if !reflect.DeepEqual(desired.Deprecated, current.Deprecated) {
-		next.Deprecated = cloneBoolPtr(desired.Deprecated)
-	}
-	if !reflect.DeepEqual(desired.Hidden, current.Hidden) {
-		next.Hidden = cloneBoolPtr(desired.Hidden)
-	}
-	if !reflect.DeepEqual(desired.Featured, current.Featured) {
-		next.Featured = cloneBoolPtr(desired.Featured)
-	}
-	if desired.ReleaseDate != current.ReleaseDate {
-		next.ReleaseDate = desired.ReleaseDate
-	}
+	mergeProviderModelValueDelta(
+		&next.DefaultReasoningEffort,
+		current.DefaultReasoningEffort,
+		desired.DefaultReasoningEffort,
+	)
+	mergeProviderModelPointerDelta(
+		&next.CostInputPerMillion,
+		current.CostInputPerMillion,
+		desired.CostInputPerMillion,
+	)
+	mergeProviderModelPointerDelta(
+		&next.CostOutputPerMillion,
+		current.CostOutputPerMillion,
+		desired.CostOutputPerMillion,
+	)
+	mergeProviderModelPointerDelta(
+		&next.CostCacheReadPerMillion,
+		current.CostCacheReadPerMillion,
+		desired.CostCacheReadPerMillion,
+	)
+	mergeProviderModelPointerDelta(
+		&next.CostCacheWritePerMillion,
+		current.CostCacheWritePerMillion,
+		desired.CostCacheWritePerMillion,
+	)
+	mergeProviderModelPointerDelta(
+		&next.CostReasoningPerMillion,
+		current.CostReasoningPerMillion,
+		desired.CostReasoningPerMillion,
+	)
+	mergeProviderModelPointerDelta(&next.Deprecated, current.Deprecated, desired.Deprecated)
+	mergeProviderModelPointerDelta(&next.Hidden, current.Hidden, desired.Hidden)
+	mergeProviderModelPointerDelta(&next.Featured, current.Featured, desired.Featured)
+	mergeProviderModelValueDelta(&next.ReleaseDate, current.ReleaseDate, desired.ReleaseDate)
 	return next
+}
+
+func mergeProviderModelValueDelta[T comparable](target *T, current T, desired T) {
+	if desired != current {
+		*target = desired
+	}
+}
+
+func mergeProviderModelPointerDelta[T comparable](target **T, current *T, desired *T) {
+	if current == nil && desired == nil {
+		return
+	}
+	if current != nil && desired != nil && *current == *desired {
+		return
+	}
+	if desired == nil {
+		*target = nil
+		return
+	}
+	value := *desired
+	*target = &value
 }
 
 func providerModelsWriteClearsConfig(models compozyconfig.ProviderModelsConfig) bool {

@@ -217,7 +217,7 @@ func (r *Runtime) runCheck(
 
 	logger.Info("daemon: starting dream consolidation", "reason", reason, "workspace_ref", workspaceRef)
 	if err := service.Run(ctx, spawner, workspaceRef); err != nil {
-		if ctx.Err() != nil && errors.Is(err, ctx.Err()) {
+		if ctx != nil && ctx.Err() != nil && errors.Is(err, ctx.Err()) {
 			logger.Debug(
 				"daemon: dream consolidation stopped with runtime context",
 				"reason", reason,

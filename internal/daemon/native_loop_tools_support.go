@@ -245,7 +245,9 @@ func nativeLoopReasonToolError(id toolspkg.ToolID, err error) error {
 }
 
 func nativeLoopVersionConflictToolError(id toolspkg.ToolID, err error, currentVersion int) error {
-	structured, marshalErr := json.Marshal(map[string]int{"current_version": currentVersion})
+	structured, marshalErr := json.Marshal(map[string]map[string]int{
+		"version_conflict": {"current_version": currentVersion},
+	})
 	if marshalErr != nil {
 		return toolspkg.NewToolError(
 			toolspkg.ErrorCodeBackendFailed,

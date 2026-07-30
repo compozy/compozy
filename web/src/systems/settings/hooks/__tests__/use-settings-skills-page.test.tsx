@@ -332,4 +332,51 @@ describe("useSettingsSkillsPage", () => {
     expect(agentStore.getSnapshot().context.draft).toEqual(agent);
     expect(agentStore.getSnapshot().context.labels).toEqual({ disabled: null, policy: null });
   });
+
+  it("Should merge out-of-order independent saves into one baseline", async () => {
+    let resolveDisabled!: () => void;
+    let resolvePolicy!: () => void;
+    const disabledSave = new Promise<void>(resolve => {
+      resolveDisabled = resolve;
+    });
+    const policySave = new Promise<void>(resolve => {
+      resolvePolicy = resolve;
+    });
+    const disabledBaseline = {
+      ...skillsEnvelope.config,
+      disabled_skills: ["alpha", "beta"],
+    };
+    const policyBaseline = {
+      ...skillsEnvelope.config,
+      poll_interval: "10m",
+    };
+    const store = settingsSkillsDraftLogic.createStore({
+      baseline: skillsEnvelope.config,
+      key: "global",
+    });
+
+    store.trigger.saveRequested({
+      baseline: disabledBaseline,
+      execute: () => disabledSave,
+      kind: "disabled",
+      label: "Disabled saved",
+    });
+    store.trigger.saveRequested({
+      baseline: policyBaseline,
+      execute: () => policySave,
+      kind: "policy",
+      label: "Policy saved",
+    });
+    resolvePolicy();
+    await vi.waitFor(() => {
+      expect(store.getSnapshot().context.baseline?.poll_interval).toBe("10m");
+    });
+    resolveDisabled();
+    await vi.waitFor(() => {
+      expect(store.getSnapshot().context.baseline).toMatchObject({
+        disabled_skills: ["alpha", "beta"],
+        poll_interval: "10m",
+      });
+    });
+  });
 });

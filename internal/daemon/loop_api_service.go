@@ -61,6 +61,7 @@ type daemonLoopAPIService struct {
 	sessionStatus     loopSessionStatusReader
 	creationStore     store.SessionCreationStore
 	runtimeCatalog    looppkg.WorkspaceRuntimeCatalog
+	logger            *slog.Logger
 	publishMu         sync.Mutex
 }
 
@@ -139,6 +140,7 @@ func newDaemonLoopAPIService(
 		sessionStatus:     state.sessions,
 		creationStore:     sessionCreationStoreFromRegistry(state.registry),
 		runtimeCatalog:    runtimeCatalog,
+		logger:            logger,
 	}, nil
 }
 

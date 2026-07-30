@@ -942,6 +942,15 @@ func TestListSkills(t *testing.T) {
 		if rec.Code != http.StatusNotFound {
 			t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusNotFound, rec.Body.String())
 		}
+		var payload contract.ErrorPayload
+		testutil.DecodeJSONResponse(t, rec, &payload)
+		if payload.Error != workspacepkg.ErrWorkspaceNotFound.Error() {
+			t.Fatalf(
+				"error = %q, want %q",
+				payload.Error,
+				workspacepkg.ErrWorkspaceNotFound.Error(),
+			)
+		}
 	})
 }
 

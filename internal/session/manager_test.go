@@ -423,7 +423,9 @@ func TestManagerWorkAdmission(t *testing.T) {
 			PromptStopReason: acp.PromptStopReasonEndTurn,
 		}
 		close(source)
-		h.driver.promptHook = func(_ *fakeProcess, _ acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+		var continuationRequest acp.PromptRequest
+		h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			continuationRequest = req
 			return source, nil
 		}
 		events, err := h.manager.PromptLifecycleContinuation(
@@ -440,6 +442,20 @@ func TestManagerWorkAdmission(t *testing.T) {
 		}
 		if terminal.Type != acp.EventTypeDone {
 			t.Fatalf("continuation terminal event = %q, want %q", terminal.Type, acp.EventTypeDone)
+		}
+		if continuationRequest.Meta.TurnSource != acp.PromptTurnSourceSynthetic {
+			t.Fatalf(
+				"continuation turn source = %q, want %q",
+				continuationRequest.Meta.TurnSource,
+				acp.PromptTurnSourceSynthetic,
+			)
+		}
+		if continuationRequest.Meta.Synthetic == nil ||
+			continuationRequest.Meta.Synthetic.Reason != promptReasonLifecycleContinuation {
+			t.Fatalf(
+				"continuation synthetic metadata = %#v, want lifecycle continuation reason",
+				continuationRequest.Meta.Synthetic,
+			)
 		}
 		if err := h.manager.Stop(testutil.Context(t), continuation.ID); err != nil {
 			t.Fatalf("Stop() error = %v", err)

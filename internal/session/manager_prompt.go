@@ -16,10 +16,11 @@ import (
 type promptSubmissionPath string
 
 const (
-	promptSubmissionPathUserFacing promptSubmissionPath = "user_facing"
-	promptSubmissionPathSynthetic  promptSubmissionPath = "synthetic"
-	jsonReasonFieldReason                               = "reason"
-	maxMCPAuthReasonJSONDepth                           = 16
+	promptSubmissionPathUserFacing    promptSubmissionPath = "user_facing"
+	promptSubmissionPathSynthetic     promptSubmissionPath = "synthetic"
+	promptReasonLifecycleContinuation                      = "dream_lifecycle_continuation"
+	jsonReasonFieldReason                                  = "reason"
+	maxMCPAuthReasonJSONDepth                              = 16
 )
 
 type promptPumpLoopState struct {
@@ -111,9 +112,11 @@ func (m *Manager) PromptLifecycleContinuation(
 	id string,
 	msg string,
 ) (<-chan acp.AgentEvent, error) {
-	req, err := m.parsePromptRequest(ctx, id, PromptOpts{
-		Message:    msg,
-		TurnSource: TurnSourceUser,
+	req, err := m.parseSyntheticPromptRequest(ctx, id, SyntheticPromptOpts{
+		Message: msg,
+		Metadata: acp.PromptSyntheticMeta{
+			Reason: promptReasonLifecycleContinuation,
+		},
 	})
 	if err != nil {
 		return nil, err

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"path/filepath"
 	"strings"
 	"time"
@@ -43,7 +44,16 @@ func (s *daemonLoopAPIService) DeleteLoop(ctx context.Context, workspaceID strin
 		return s.rollbackLoopDelete(ctx, staged, ws, name, state, err)
 	}
 	if err := staged.Commit(); err != nil {
-		return fmt.Errorf("daemon: finalize Loop definition deletion %q: %w", name, err)
+		logger := s.logger
+		if logger == nil {
+			logger = slog.Default()
+		}
+		logger.Warn(
+			"daemon: Loop definition deletion cleanup failed after commit",
+			"workspace_id", workspaceID,
+			"loop_name", name,
+			"error", err,
+		)
 	}
 	return nil
 }

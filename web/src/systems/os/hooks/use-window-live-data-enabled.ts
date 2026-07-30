@@ -3,12 +3,12 @@ import { useDesktop } from "./use-desktop";
 /** A retained OS window owns long-lived live-data connections only while visible and focused. */
 export function useWindowLiveDataEnabled(windowId: string): boolean {
   return useDesktop(state => {
-    const window = state.windows[windowId];
+    const desktopWindow = state.windows[windowId];
     return (
-      window !== undefined &&
+      desktopWindow !== undefined &&
       state.focusedId === windowId &&
-      state.activeDesktopId === window.desktopId &&
-      !window.minimized
+      state.activeDesktopId === desktopWindow.desktopId &&
+      !desktopWindow.minimized
     );
   });
 }

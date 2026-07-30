@@ -164,6 +164,8 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 			t.Fatalf("json.Marshal(loop_create input) error = %v", err)
 		}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Sessions:   nativeNetworkTestSessionManager("ws-alpha"),
+			Workspaces: nativeNetworkTestWorkspaceService(t),
 			Loops: func() core.LoopService {
 				return &nativeLoopServiceStub{
 					patchLoopFn: func(
@@ -180,7 +182,7 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 
 		_, err = registry.Call(
 			t.Context(),
-			toolspkg.Scope{WorkspaceID: "ws-alpha"},
+			toolspkg.Scope{SessionID: "sess-alpha", WorkspaceID: "ws-alpha"},
 			toolspkg.CallRequest{ToolID: toolspkg.ToolIDLoopCreate, Input: input},
 		)
 		var toolErr *toolspkg.ToolError
@@ -190,9 +192,19 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 		if !slices.Contains(toolErr.ReasonCodes, toolspkg.ReasonLoopVersionConflict) {
 			t.Fatalf("ReasonCodes = %#v, want loop_version_conflict", toolErr.ReasonCodes)
 		}
-		if toolErr.PartialResult == nil ||
-			!strings.Contains(string(toolErr.PartialResult.Structured), `"current_version":2`) {
-			t.Fatalf("partial result = %#v, want current_version 2", toolErr.PartialResult)
+		if toolErr.PartialResult == nil {
+			t.Fatal("partial result = nil, want version conflict details")
+		}
+		var partial struct {
+			VersionConflict struct {
+				CurrentVersion int `json:"current_version"`
+			} `json:"version_conflict"`
+		}
+		if err := json.Unmarshal(toolErr.PartialResult.Structured, &partial); err != nil {
+			t.Fatalf("json.Unmarshal(partial result) error = %v", err)
+		}
+		if partial.VersionConflict.CurrentVersion != 2 {
+			t.Fatalf("partial result = %#v, want version_conflict.current_version 2", partial)
 		}
 	})
 
@@ -200,6 +212,8 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 		t.Parallel()
 
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Sessions:   nativeNetworkTestSessionManager("ws-alpha"),
+			Workspaces: nativeNetworkTestWorkspaceService(t),
 			Loops: func() core.LoopService {
 				return &nativeLoopServiceStub{
 					deleteLoopFn: func(context.Context, string, string) error {
@@ -211,7 +225,7 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 
 		_, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{WorkspaceID: "ws-alpha"},
+			toolspkg.Scope{SessionID: "sess-alpha", WorkspaceID: "ws-alpha"},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDLoopDelete,
 				Input:  json.RawMessage(`{"name":"review-and-fix"}`),
@@ -231,28 +245,32 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 		t.Parallel()
 
 		cases := []struct {
-			name       string
-			toolID     toolspkg.ToolID
-			input      json.RawMessage
-			reasonCode looppkg.ReasonCode
+			name         string
+			toolID       toolspkg.ToolID
+			input        json.RawMessage
+			domainReason looppkg.ReasonCode
+			wantReason   toolspkg.ReasonCode
 		}{
 			{
-				name:       "Should preserve invalid status transitions for Pause",
-				toolID:     toolspkg.ToolIDLoopPause,
-				input:      json.RawMessage(`{"run_id":"looprun-paused"}`),
-				reasonCode: looppkg.ReasonCodeInvalidStatusTransition,
+				name:         "Should preserve invalid status transitions for Pause",
+				toolID:       toolspkg.ToolIDLoopPause,
+				input:        json.RawMessage(`{"run_id":"looprun-paused"}`),
+				domainReason: looppkg.ReasonCodeInvalidStatusTransition,
+				wantReason:   toolspkg.ReasonLoopInvalidStatusTransition,
 			},
 			{
-				name:       "Should preserve terminal run rejection for Stop",
-				toolID:     toolspkg.ToolIDLoopStop,
-				input:      json.RawMessage(`{"run_id":"looprun-terminal"}`),
-				reasonCode: looppkg.ReasonCodeTerminalRun,
+				name:         "Should preserve terminal run rejection for Stop",
+				toolID:       toolspkg.ToolIDLoopStop,
+				input:        json.RawMessage(`{"run_id":"looprun-terminal"}`),
+				domainReason: looppkg.ReasonCodeTerminalRun,
+				wantReason:   toolspkg.ReasonLoopTerminalRun,
 			},
 			{
-				name:       "Should preserve invalid status transitions for Resume",
-				toolID:     toolspkg.ToolIDLoopResume,
-				input:      json.RawMessage(`{"run_id":"looprun-running"}`),
-				reasonCode: looppkg.ReasonCodeInvalidStatusTransition,
+				name:         "Should preserve invalid status transitions for Resume",
+				toolID:       toolspkg.ToolIDLoopResume,
+				input:        json.RawMessage(`{"run_id":"looprun-running"}`),
+				domainReason: looppkg.ReasonCodeInvalidStatusTransition,
+				wantReason:   toolspkg.ReasonLoopInvalidStatusTransition,
 			},
 			{
 				name:   "Should preserve invalid status transitions for Approve",
@@ -260,15 +278,18 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 				input: json.RawMessage(
 					`{"run_id":"looprun-running","gate_id":"human","decision":"approve"}`,
 				),
-				reasonCode: looppkg.ReasonCodeInvalidStatusTransition,
+				domainReason: looppkg.ReasonCodeInvalidStatusTransition,
+				wantReason:   toolspkg.ReasonLoopInvalidStatusTransition,
 			},
 		}
 		for _, tc := range cases {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 
-				domainErr := &looppkg.ReasonError{Code: tc.reasonCode, Err: looppkg.ErrInvalidTransition}
+				domainErr := &looppkg.ReasonError{Code: tc.domainReason, Err: looppkg.ErrInvalidTransition}
 				registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+					Sessions:   nativeNetworkTestSessionManager("ws-alpha"),
+					Workspaces: nativeNetworkTestWorkspaceService(t),
 					Loops: func() core.LoopService {
 						return &nativeLoopServiceStub{
 							stopLoopRunFn: func(context.Context, string, string) error {
@@ -295,17 +316,20 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 
 				_, err := registry.Call(
 					t.Context(),
-					toolspkg.Scope{SessionID: "sess-caller", WorkspaceID: "ws-alpha"},
+					toolspkg.Scope{SessionID: "sess-alpha", WorkspaceID: "ws-alpha"},
 					toolspkg.CallRequest{ToolID: tc.toolID, Input: tc.input},
 				)
 				var toolErr *toolspkg.ToolError
 				if !errors.As(err, &toolErr) || toolErr.Code != toolspkg.ErrorCodeInvalidInput {
 					t.Fatalf("Registry.Call(%s) error = %#v, want invalid-input ToolError", tc.toolID, err)
 				}
-				wantReason := toolspkg.ReasonCode(tc.reasonCode)
-				if !slices.Contains(toolErr.ReasonCodes, wantReason) ||
+				if !slices.Contains(toolErr.ReasonCodes, tc.wantReason) ||
 					slices.Contains(toolErr.ReasonCodes, toolspkg.ReasonSchemaInvalid) {
-					t.Fatalf("ReasonCodes = %#v, want only %q Loop control semantics", toolErr.ReasonCodes, wantReason)
+					t.Fatalf(
+						"ReasonCodes = %#v, want only %q Loop control semantics",
+						toolErr.ReasonCodes,
+						tc.wantReason,
+					)
 				}
 				if !errors.Is(err, looppkg.ErrInvalidTransition) {
 					t.Fatalf("Registry.Call(%s) error = %v, want wrapped ErrInvalidTransition", tc.toolID, err)
@@ -682,32 +706,21 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 
 		var loopSvc core.LoopService
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Sessions: nativeNetworkTestSessionManager("ws-alpha"),
-			Loops:    func() core.LoopService { return loopSvc },
+			Sessions:   nativeNetworkTestSessionManager("ws-alpha"),
+			Workspaces: nativeNetworkTestWorkspaceService(t),
+			Loops:      func() core.LoopService { return loopSvc },
 		}, nativeApproveAllPolicyInputs())
-		scope := toolspkg.Scope{Operator: true}
-		loopToolIDs := []toolspkg.ToolID{
-			toolspkg.ToolIDLoopList,
-			toolspkg.ToolIDLoopInspect,
-			toolspkg.ToolIDLoopValidate,
-			toolspkg.ToolIDLoopCreate,
-			toolspkg.ToolIDLoopRun,
-			toolspkg.ToolIDLoopStatus,
-			toolspkg.ToolIDLoopRuns,
-			toolspkg.ToolIDLoopTurns,
-			toolspkg.ToolIDLoopStop,
-			toolspkg.ToolIDLoopPause,
-			toolspkg.ToolIDLoopResume,
-			toolspkg.ToolIDLoopConfigure,
-			toolspkg.ToolIDLoopApprove,
-			toolspkg.ToolIDLoopDelete,
-		}
-
+		scope := toolspkg.Scope{SessionID: "sess-alpha", WorkspaceID: "ws-alpha"}
 		views, err := registry.OperatorProjection(t.Context(), scope)
 		if err != nil {
 			t.Fatalf("OperatorProjection(before service) error = %v", err)
 		}
-		for _, id := range loopToolIDs {
+		readinessToolIDs := nativeToolIDsWithPrefixes(views, "loop_", "goal_")
+		loopToolIDs := nativeToolIDsWithPrefixes(views, "loop_")
+		if len(readinessToolIDs) == 0 || len(loopToolIDs) == 0 {
+			t.Fatal("OperatorProjection(before service) contains no Loop or Goal tools")
+		}
+		for _, id := range readinessToolIDs {
 			requireNativeToolUnavailableReason(t, views, id)
 		}
 
@@ -1026,6 +1039,21 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 		requireNativeStructuredContains(t, result, []byte(`"result_status":null`))
 		requireNativeStructuredContains(t, result, []byte(`"next_after_seq":9`))
 	})
+}
+
+func nativeToolIDsWithPrefixes(views []toolspkg.ToolView, prefixes ...string) []toolspkg.ToolID {
+	ids := make([]toolspkg.ToolID, 0)
+	for index := range views {
+		view := &views[index]
+		name := strings.TrimPrefix(string(view.Descriptor.ID), "compozy__")
+		for _, prefix := range prefixes {
+			if strings.HasPrefix(name, prefix) {
+				ids = append(ids, view.Descriptor.ID)
+				break
+			}
+		}
+	}
+	return ids
 }
 
 type nativeLoopServiceStub struct {

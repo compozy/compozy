@@ -1910,8 +1910,11 @@ id = "raw-model"
 			Name:              "custom",
 			Provider:          &settings,
 		})
-		if !errors.Is(err, modelcatalog.ErrAllSourcesFailed) {
-			t.Fatalf("PutCollectionItem(explicit clear without catalog) error = %v, want ErrAllSourcesFailed", err)
+		if !errors.Is(err, ErrValidation) {
+			t.Fatalf("PutCollectionItem(explicit clear without catalog) error = %v, want ErrValidation", err)
+		}
+		if errors.Is(err, modelcatalog.ErrAllSourcesFailed) {
+			t.Fatalf("PutCollectionItem(explicit clear without catalog) error = %v, want no source failure", err)
 		}
 		if after := readFile(t, homePaths.ConfigFile); after != before {
 			t.Fatalf("config changed after rejected explicit clear without catalog:\n%s", after)
