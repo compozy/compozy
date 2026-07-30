@@ -6,13 +6,13 @@ persona: Théo
 journey: J-13
 expected: A prompt captures its selected provider, model, reasoning effort, and speed; Compozy configures the live process or replaces it as required before dispatching that prompt, persists the transition, and restores the prior runtime if the transition fails.
 entry_points: web session composer; POST /api/sessions/:sid/prompt over HTTP+UDS; CLI compozy session prompt
-qa_status: untested
+qa_status: pass
 bug_ids:
 fix_status:
-retest_status:
+retest_status: pass
 fix_commits:
-evidence:
-last_report:
+evidence: docs/qa/evidence/2026-07-30-session-runtime-selector/runtime-selector-proof.md;docs/qa/evidence/2026-07-30-session-runtime-selector/07-sol-max-turn-complete.png;docs/qa/evidence/2026-07-30-session-runtime-selector/12-claude-max-selected.png
+last_report: docs/qa/reports/2026-07-30-session-runtime-selector.md
 overlaps: RT-018; RT-019; RT-061; RT-062
 ---
 

@@ -4460,8 +4460,22 @@ export interface SessionPreStopPayload {
   updated_at: ISODateTime;
 }
 
+export type BusyInputMode = string;
+
 export interface SessionPromptResult {
-  turn_id: string;
+  status: string;
+  mode?: BusyInputMode;
+  turn_id?: string;
+  queue_entry_id?: string;
+  queue_position?: number;
+  queue_generation?: number;
+  estimated_send_at?: ISODateTime;
+  previous_turn_id?: string;
+  interrupted?: boolean;
+  staged?: boolean;
+  queued?: boolean;
+  canceled_queued_entries?: number;
+  fallback_mode_if_no_tool_result?: string;
 }
 
 export interface SessionSoulRefreshParams {
@@ -4474,6 +4488,60 @@ export interface SessionSoulRefreshParams {
 export interface SessionSoulRefreshRequest {
   expected_digest: string;
   idempotency_key?: string;
+}
+
+export type SessionRuntimeStatus = string;
+
+export type SessionRuntimeTransition = string;
+
+export type Speed = string;
+
+export type ResolutionStatus = string;
+
+export type ResolutionReason = string;
+
+export interface Resolution {
+  requested: Speed;
+  status: ResolutionStatus;
+  reason?: ResolutionReason;
+}
+
+export interface RuntimeSelectionPayload {
+  provider: string;
+  model?: string;
+  reasoning_effort?: ReasoningEffort;
+  speed?: Speed;
+  speed_resolution?: Resolution;
+}
+
+export interface SessionConfigOptionValuePayload {
+  value: string;
+  label?: string;
+  description?: string;
+}
+
+export interface SessionConfigOptionPayload {
+  id: string;
+  label?: string;
+  description?: string;
+  kind: string;
+  current?: string;
+  values?: SessionConfigOptionValuePayload[];
+}
+
+export interface ACPCapsPayload {
+  supports_load_session: boolean;
+  supported_modes?: string[];
+  config_options?: SessionConfigOptionPayload[];
+}
+
+export interface SessionRuntimePayload {
+  status: SessionRuntimeStatus;
+  transition?: SessionRuntimeTransition;
+  failure?: string;
+  effective?: RuntimeSelectionPayload;
+  acp_session_id?: string;
+  acp_caps?: ACPCapsPayload;
 }
 
 export type State = "starting" | "active" | "stopping" | "stopped";
@@ -4494,13 +4562,12 @@ export interface SessionStatus {
   session_id: string;
   name?: string;
   agent: string;
-  provider: string;
+  runtime: SessionRuntimePayload;
   workspace_id?: string;
   workspace?: string;
   state: State;
   stop_reason?: StopReason;
   stop_detail?: string;
-  acp_session_id?: string;
   created_at: ISODateTime;
   updated_at: ISODateTime;
 }
@@ -4528,7 +4595,7 @@ export interface SessionSummary {
   id: string;
   name?: string;
   agent: string;
-  provider: string;
+  runtime: SessionRuntimePayload;
   workspace?: string;
   state: State;
   created_at: ISODateTime;
@@ -4548,8 +4615,6 @@ export interface SessionsCreateParams {
 export interface SessionsListParams {
   workspace?: string;
 }
-
-export type Speed = string;
 
 export interface PromptRuntimeSelectionPayload {
   provider: string;

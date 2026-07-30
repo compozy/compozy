@@ -128,17 +128,16 @@ func hostAPISessionStatusFromInfo(info *session.Info) hostAPISessionStatus {
 		return hostAPISessionStatus{}
 	}
 	return hostAPISessionStatus{
-		SessionID:    info.ID,
-		Name:         info.Name,
-		Agent:        info.AgentName,
-		Provider:     info.Provider,
-		WorkspaceID:  info.WorkspaceID,
-		Workspace:    info.Workspace,
-		State:        info.State,
-		StopReason:   info.StopReason,
-		StopDetail:   info.StopDetail,
-		ACPSessionID: info.ACPSessionID,
-		CreatedAt:    info.CreatedAt,
-		UpdatedAt:    info.UpdatedAt,
+		SessionID:   info.ID,
+		Name:        info.Name,
+		Agent:       info.AgentName,
+		Runtime:     hostAPISessionRuntimePayloadFromInfo(info),
+		WorkspaceID: info.WorkspaceID,
+		Workspace:   info.Workspace,
+		State:       info.State,
+		StopReason:  info.StopReason,
+		StopDetail:  info.StopDetail,
+		CreatedAt:   info.CreatedAt,
+		UpdatedAt:   info.UpdatedAt,
 	}
 }

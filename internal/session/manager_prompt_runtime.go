@@ -7,8 +7,6 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/acp"
-	compozyconfig "github.com/compozy/compozy/internal/config"
-	"github.com/compozy/compozy/internal/store"
 )
 
 type promptRuntimePlan struct {
@@ -45,11 +43,11 @@ func (m *Manager) ensurePromptRuntime(
 	if snapshot.process != nil &&
 		strings.TrimSpace(snapshot.selection.Provider) == strings.TrimSpace(plan.selection.Provider) {
 		if configurator, ok := m.driver.(RuntimeConfigurator); ok {
-			liveErr := m.configurePromptRuntime(ctx, session, configurator, snapshot, plan.selection)
+			liveErr := m.configurePromptRuntime(ctx, session, configurator, &snapshot, plan.selection)
 			if liveErr == nil {
 				return snapshot.process, nil
 			}
-			proc, replacementErr := m.replacePromptRuntime(ctx, session, snapshot, plan)
+			proc, replacementErr := m.replacePromptRuntime(ctx, session, &snapshot, plan)
 			if replacementErr == nil {
 				return proc, nil
 			}
@@ -57,14 +55,14 @@ func (m *Manager) ensurePromptRuntime(
 		}
 	}
 
-	return m.replacePromptRuntime(ctx, session, snapshot, plan)
+	return m.replacePromptRuntime(ctx, session, &snapshot, plan)
 }
 
 func (m *Manager) configurePromptRuntime(
 	ctx context.Context,
 	session *Session,
 	configurator RuntimeConfigurator,
-	snapshot runtimeBindingSnapshot,
+	snapshot *runtimeBindingSnapshot,
 	selection RuntimeSelection,
 ) error {
 	if err := session.beginRuntimeTransition(
@@ -81,19 +79,15 @@ func (m *Manager) configurePromptRuntime(
 		return errors.Join(err, m.persistSessionLifecycleState(cleanupCtx, session, true))
 	}
 
-	err := configurator.ConfigureRuntime(ctx, snapshot.process, acp.RuntimeConfig{
-		Model:           selection.Model,
-		ReasoningEffort: selection.ReasoningEffort,
-		Speed:           selection.Speed,
-	})
+	err := configurator.ConfigureRuntime(ctx, snapshot.process, runtimeConfigForSelection(selection))
 	if err != nil {
 		cleanupCtx, cancel := m.runtimeCleanupContext()
 		defer cancel()
-		rollbackErr := configurator.ConfigureRuntime(cleanupCtx, snapshot.process, acp.RuntimeConfig{
-			Model:           snapshot.selection.Model,
-			ReasoningEffort: snapshot.selection.ReasoningEffort,
-			Speed:           snapshot.selection.Speed,
-		})
+		rollbackErr := configurator.ConfigureRuntime(
+			cleanupCtx,
+			snapshot.process,
+			runtimeConfigForSelection(snapshot.selection),
+		)
 		session.restoreRuntimeBinding(snapshot, err.Error(), m.now())
 		persistErr := m.persistSessionLifecycleState(cleanupCtx, session, true)
 		return errors.Join(fmt.Errorf("session: configure runtime: %w", err), rollbackErr, persistErr)
@@ -108,11 +102,11 @@ func (m *Manager) configurePromptRuntime(
 	if err := m.persistSessionLifecycleState(ctx, session, true); err != nil {
 		cleanupCtx, cancel := m.runtimeCleanupContext()
 		defer cancel()
-		rollbackErr := configurator.ConfigureRuntime(cleanupCtx, snapshot.process, acp.RuntimeConfig{
-			Model:           snapshot.selection.Model,
-			ReasoningEffort: snapshot.selection.ReasoningEffort,
-			Speed:           snapshot.selection.Speed,
-		})
+		rollbackErr := configurator.ConfigureRuntime(
+			cleanupCtx,
+			snapshot.process,
+			runtimeConfigForSelection(snapshot.selection),
+		)
 		session.restoreRuntimeBinding(snapshot, err.Error(), m.now())
 		restoreErr := m.persistSessionLifecycleState(cleanupCtx, session, true)
 		return errors.Join(err, rollbackErr, restoreErr)
@@ -123,7 +117,7 @@ func (m *Manager) configurePromptRuntime(
 func (m *Manager) replacePromptRuntime(
 	ctx context.Context,
 	session *Session,
-	snapshot runtimeBindingSnapshot,
+	snapshot *runtimeBindingSnapshot,
 	plan *promptRuntimePlan,
 ) (*AgentProcess, error) {
 	strategy := RuntimeTransitionProcessReplacement
@@ -172,13 +166,13 @@ func (m *Manager) replacePromptRuntime(
 		}
 	}
 	m.dispatchAgentSpawned(ctx, session, candidate, runtime.agent)
-	m.watchProcess(m.lifecycleCtx, session)
+	m.watchProcess(session)
 	return candidate, nil
 }
 
 func (m *Manager) restorePromptRuntime(
 	session *Session,
-	snapshot runtimeBindingSnapshot,
+	snapshot *runtimeBindingSnapshot,
 	cause error,
 ) error {
 	session.restoreRuntimeBinding(snapshot, cause.Error(), m.now())
@@ -196,15 +190,19 @@ func (m *Manager) runtimeCleanupContext() (context.Context, context.CancelFunc) 
 	return context.WithTimeout(context.WithoutCancel(base), defaultLifecycleTimeout)
 }
 
+func runtimeConfigForSelection(selection RuntimeSelection) acp.RuntimeConfig {
+	return acp.RuntimeConfig{
+		Model:           selection.Model,
+		ReasoningEffort: selection.ReasoningEffort,
+		Speed:           selection.Speed,
+	}
+}
+
 func (m *Manager) stopReplacedRuntime(session *Session, proc *AgentProcess, emitHook bool) error {
 	if proc == nil {
 		return nil
 	}
-	base := m.lifecycleCtx
-	if base == nil {
-		base = context.Background()
-	}
-	stopCtx, cancel := context.WithTimeout(context.WithoutCancel(base), defaultLifecycleTimeout)
+	stopCtx, cancel := m.runtimeCleanupContext()
 	defer cancel()
 	if err := m.driver.Stop(stopCtx, proc); err != nil {
 		return err
@@ -236,33 +234,14 @@ func (m *Manager) preparePromptRuntimePlan(
 		return nil, err
 	}
 
-	spec := sessionStartSpec{
-		sessionID:            meta.ID,
-		sandboxID:            sessionSandboxID(meta.Sandbox),
-		sandbox:              cloneSessionSandboxMeta(meta.Sandbox),
-		sandboxDisabled:      meta.Sandbox == nil,
-		sessionName:          meta.Name,
-		agentName:            meta.AgentName,
-		provider:             selection.Provider,
-		model:                selection.Model,
-		reasoningEffort:      selection.ReasoningEffort,
-		speed:                selection.Speed,
-		permissions:          compozyconfig.PermissionMode(meta.EffectivePermissions),
-		workspace:            workspace,
-		networkParticipation: meta.NetworkSpecSnapshot(),
-		networkOwnerKey:      meta.NetworkOwnerKeySnapshot(),
-		cwd:                  cwd,
-		sessionType:          normalizeSessionType(Type(meta.SessionType)),
-		lineage:              store.CloneSessionLineage(meta.Lineage),
-		createdAt:            meta.CreatedAt,
-		soulSnapshotID:       meta.SoulSnapshotID,
-		soulDigest:           meta.SoulDigest,
-		parentSoulDigest:     meta.ParentSoulDigest,
+	spec, err := sessionStartSpecFromMeta(meta, &workspace, cwd)
+	if err != nil {
+		return nil, fmt.Errorf("session: reconstruct runtime start spec: %w", err)
 	}
-	if profile := meta.CreationProfile; profile != nil {
-		spec.runtimeMode = profile.RuntimeMode
-		spec.allowedToolsOverride = append([]string(nil), profile.AllowedTools...)
-	}
+	spec.provider = selection.Provider
+	spec.model = selection.Model
+	spec.reasoningEffort = selection.ReasoningEffort
+	spec.speed = selection.Speed
 	runtime, err := m.resolveSessionStartRuntime(ctx, &spec)
 	if err != nil {
 		return nil, err

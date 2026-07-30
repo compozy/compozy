@@ -862,49 +862,53 @@ func TestWorkspaceSandboxRefJSONFields(t *testing.T) {
 func TestAgentEventPayloadRoundTripsThroughJSON(t *testing.T) {
 	t.Parallel()
 
-	inputTokens := int64(12)
-	event := (acp.AgentEvent{
-		Type:      acp.EventTypePermission,
-		SessionID: "sess-1",
-		TurnID:    "turn-1",
-		RequestID: "req-1",
-		Timestamp: time.Date(2026, 4, 7, 10, 30, 0, 0, time.UTC),
-		Action:    "fs/read_text_file",
-		Resource:  "/tmp/file.txt",
-		Decision:  "pending",
-		Error:     "",
-		Usage: &acp.TokenUsage{
-			TurnID:      "turn-1",
-			InputTokens: &inputTokens,
-			Timestamp:   time.Date(2026, 4, 7, 10, 30, 1, 0, time.UTC),
-		},
-		Raw: []byte(`{"ok":true}`),
-	}).WithPromptRuntime(&acp.PromptRuntime{
-		Provider:        "codex",
-		Model:           "gpt-5.6",
-		ReasoningEffort: "high",
-		Speed:           speedpkg.SpeedFast,
+	t.Run("Should round-trip prompt runtime with agent event payload data", func(t *testing.T) {
+		t.Parallel()
+
+		inputTokens := int64(12)
+		event := (acp.AgentEvent{
+			Type:      acp.EventTypePermission,
+			SessionID: "sess-1",
+			TurnID:    "turn-1",
+			RequestID: "req-1",
+			Timestamp: time.Date(2026, 4, 7, 10, 30, 0, 0, time.UTC),
+			Action:    "fs/read_text_file",
+			Resource:  "/tmp/file.txt",
+			Decision:  "pending",
+			Error:     "",
+			Usage: &acp.TokenUsage{
+				TurnID:      "turn-1",
+				InputTokens: &inputTokens,
+				Timestamp:   time.Date(2026, 4, 7, 10, 30, 1, 0, time.UTC),
+			},
+			Raw: []byte(`{"ok":true}`),
+		}).WithPromptRuntime(&acp.PromptRuntime{
+			Provider:        "codex",
+			Model:           "gpt-5.6",
+			ReasoningEffort: "high",
+			Speed:           speedpkg.SpeedFast,
+		})
+
+		payload := core.AgentEventPayloadFromEvent(event)
+		var roundTrip contract.AgentEventPayload
+		marshalJSON(t, payload, &roundTrip)
+
+		if roundTrip.Type != event.Type || roundTrip.RequestID != event.RequestID || roundTrip.Action != event.Action {
+			t.Fatalf("roundTrip payload = %#v", roundTrip)
+		}
+		if roundTrip.Usage == nil || roundTrip.Usage.InputTokens == nil || *roundTrip.Usage.InputTokens != inputTokens {
+			t.Fatalf("usage payload = %#v", roundTrip.Usage)
+		}
+		if string(roundTrip.Raw) != `{"ok":true}` {
+			t.Fatalf("raw payload = %s", string(roundTrip.Raw))
+		}
+		if roundTrip.PromptRuntime == nil || roundTrip.PromptRuntime.Provider != "codex" ||
+			roundTrip.PromptRuntime.Model != "gpt-5.6" ||
+			roundTrip.PromptRuntime.ReasoningEffort != contract.ReasoningEffort("high") ||
+			roundTrip.PromptRuntime.Speed != contract.SpeedFast {
+			t.Fatalf("prompt runtime payload = %#v", roundTrip.PromptRuntime)
+		}
 	})
-
-	payload := core.AgentEventPayloadFromEvent(event)
-	var roundTrip contract.AgentEventPayload
-	marshalJSON(t, payload, &roundTrip)
-
-	if roundTrip.Type != event.Type || roundTrip.RequestID != event.RequestID || roundTrip.Action != event.Action {
-		t.Fatalf("roundTrip payload = %#v", roundTrip)
-	}
-	if roundTrip.Usage == nil || roundTrip.Usage.InputTokens == nil || *roundTrip.Usage.InputTokens != inputTokens {
-		t.Fatalf("usage payload = %#v", roundTrip.Usage)
-	}
-	if string(roundTrip.Raw) != `{"ok":true}` {
-		t.Fatalf("raw payload = %s", string(roundTrip.Raw))
-	}
-	if roundTrip.PromptRuntime == nil || roundTrip.PromptRuntime.Provider != "codex" ||
-		roundTrip.PromptRuntime.Model != "gpt-5.6" ||
-		roundTrip.PromptRuntime.ReasoningEffort != contract.ReasoningEffort("high") ||
-		roundTrip.PromptRuntime.Speed != contract.SpeedFast {
-		t.Fatalf("prompt runtime payload = %#v", roundTrip.PromptRuntime)
-	}
 }
 
 func TestAutomationJobPayloadJSONShape(t *testing.T) {

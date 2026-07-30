@@ -49,48 +49,19 @@ func (m *Manager) prepareResumeStart(ctx context.Context, meta store.SessionMeta
 	if err != nil {
 		return sessionStartSpec{}, fmt.Errorf("session: validate resume cwd for %q: %w", meta.ID, err)
 	}
-	requestedSpeed, err := normalizeRequestedSpeed(meta.Speed)
+	spec, err := sessionStartSpecFromMeta(meta, &resolvedWorkspace, cwd)
 	if err != nil {
 		return sessionStartSpec{}, fmt.Errorf("session: validate resume speed for %q: %w", meta.ID, err)
 	}
-
-	return sessionStartSpec{
-		sessionID:               meta.ID,
-		sandboxID:               sessionSandboxID(meta.Sandbox),
-		sandbox:                 cloneSessionSandboxMeta(meta.Sandbox),
-		sandboxDisabled:         meta.Sandbox == nil,
-		sessionName:             meta.Name,
-		agentName:               meta.AgentName,
-		provider:                strings.TrimSpace(meta.Provider),
-		model:                   strings.TrimSpace(meta.Model),
-		reasoningEffort:         strings.TrimSpace(meta.ReasoningEffort),
-		speed:                   requestedSpeed,
-		permissions:             compozyconfig.PermissionMode(strings.TrimSpace(meta.EffectivePermissions)),
-		workspace:               resolvedWorkspace,
-		networkParticipation:    meta.NetworkSpecSnapshot(),
-		networkOwnerKey:         meta.NetworkOwnerKeySnapshot(),
-		cwd:                     cwd,
-		sessionType:             normalizeSessionType(Type(meta.SessionType)),
-		lineage:                 store.NormalizeSessionLineage(meta.ID, meta.Lineage),
-		postEvent:               hookspkg.HookSessionPostResume,
-		startAction:             sessionStartActionResume,
-		includePromptUpdatedAt:  true,
-		preserveStopReason:      sessionMetaStopReason(meta) == store.StopAgentCrashed,
-		createdAt:               meta.CreatedAt,
-		acpSessionID:            derefString(meta.ACPSessionID),
-		stopReason:              sessionMetaStopReason(meta),
-		stopDetail:              strings.TrimSpace(meta.StopDetail),
-		failure:                 store.CloneSessionFailure(meta.Failure),
-		soulSnapshotID:          strings.TrimSpace(meta.SoulSnapshotID),
-		soulDigest:              strings.TrimSpace(meta.SoulDigest),
-		parentSoulDigest:        strings.TrimSpace(meta.ParentSoulDigest),
-		creationProfile:         cloneCreationProfile(meta.CreationProfile),
-		creationOptions:         cloneCreationOptions(meta.CreationOptions),
-		creationIdentity:        creationIdentityFromMeta(meta),
-		creationIdentityPinned:  meta.CreationProfile != nil,
-		creationIdentityEnabled: meta.CreationProfile != nil,
-		advertisedCommands:      store.CloneSessionAdvertisedCommands(meta.AdvertisedCommands),
-	}, nil
+	spec.postEvent = hookspkg.HookSessionPostResume
+	spec.startAction = sessionStartActionResume
+	spec.includePromptUpdatedAt = true
+	spec.preserveStopReason = sessionMetaStopReason(meta) == store.StopAgentCrashed
+	spec.acpSessionID = derefString(meta.ACPSessionID)
+	spec.stopReason = sessionMetaStopReason(meta)
+	spec.stopDetail = strings.TrimSpace(meta.StopDetail)
+	spec.failure = store.CloneSessionFailure(meta.Failure)
+	return spec, nil
 }
 
 func resumeSessionCWD(meta store.SessionMeta, workspaceRoot string) (string, error) {

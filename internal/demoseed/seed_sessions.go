@@ -58,7 +58,8 @@ func seedSession(
 		ID: story.ID, Name: story.Name, AgentName: story.AgentName, Provider: story.Provider,
 		EffectivePermissions: approveReads, WorkspaceID: workspace.ID, CWD: workspace.RootDir,
 		SessionType: string(session.SessionTypeUser), State: string(session.StateStopped),
-		StopReason: &stopReason, StopDetail: "Work completed and handed off.",
+		RuntimeStatus: store.SessionRuntimeUnbound,
+		StopReason:    &stopReason, StopDetail: "Work completed and handed off.",
 		NetworkParticipation: &networkSpec, CreatedAt: story.StartedAt, UpdatedAt: story.EndedAt,
 	}
 	if err := store.WriteSessionMeta(store.SessionMetaFile(sessionDir), meta); err != nil {
@@ -68,7 +69,8 @@ func seedSession(
 		ID: story.ID, Name: story.Name, AgentName: story.AgentName, Provider: story.Provider,
 		WorkspaceID: workspace.ID, SessionType: string(session.SessionTypeUser),
 		SessionNetworkState: &store.SessionNetworkState{NetworkSpec: networkSpec},
-		State:               string(session.StateStopped), StopReason: store.StopCompleted,
+		State:               string(session.StateStopped), RuntimeStatus: store.SessionRuntimeUnbound,
+		StopReason: store.StopCompleted,
 		StopDetail: "Work completed and handed off.", CreatedAt: story.StartedAt, UpdatedAt: story.EndedAt,
 	}); err != nil {
 		return fmt.Errorf("demo seed: register session %q: %w", story.ID, err)

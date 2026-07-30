@@ -63,13 +63,14 @@ func TestGlobalDBWriteAndListNetworkMessages(t *testing.T) {
 		recordedAt := time.Date(2026, 4, 11, 12, 0, 0, 0, time.UTC)
 		globalDB.now = func() time.Time { return recordedAt }
 		if err := globalDB.RegisterSession(testutil.Context(t), SessionInfo{
-			ID:          "sess-audit",
-			AgentName:   "coder",
-			Provider:    "claude",
-			WorkspaceID: workspaceID,
-			State:       "active",
-			CreatedAt:   recordedAt,
-			UpdatedAt:   recordedAt,
+			ID:            "sess-audit",
+			AgentName:     "coder",
+			Provider:      "claude",
+			RuntimeStatus: store.SessionRuntimeUnbound,
+			WorkspaceID:   workspaceID,
+			State:         "active",
+			CreatedAt:     recordedAt,
+			UpdatedAt:     recordedAt,
 		}); err != nil {
 			t.Fatalf("RegisterSession() error = %v", err)
 		}

@@ -86,7 +86,7 @@ func SessionPayloadFromStoreInfo(info store.SessionInfo) contract.SessionPayload
 		AgentName:            strings.TrimSpace(info.AgentName),
 		RuntimeStatus:        info.RuntimeStatus,
 		RuntimeTransition:    info.RuntimeTransition,
-		RuntimeFailure:       diagnostics.RedactAndBound(info.RuntimeFailure, maxDiagnosticPayloadBytes),
+		RuntimeFailure:       strings.TrimSpace(info.RuntimeFailure),
 		Provider:             strings.TrimSpace(info.Provider),
 		Model:                strings.TrimSpace(info.Model),
 		ReasoningEffort:      strings.TrimSpace(info.ReasoningEffort),

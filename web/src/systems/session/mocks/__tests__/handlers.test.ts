@@ -55,7 +55,11 @@ describe("session MSW handlers", () => {
   it("Should return a durable unbound record without accepting a first message", async () => {
     const createSession = async () => {
       const response = await fetch(`${API}/api/sessions`, {
-        body: JSON.stringify({ agent_name: "codex", workspace: "workspace_local" }),
+        body: JSON.stringify({
+          agent_name: "codex",
+          prompt: "Draft the release notes.",
+          workspace: "workspace_local",
+        }),
         headers: { "content-type": "application/json" },
         method: "POST",
       });

@@ -22,6 +22,7 @@ type hostAPIPromptSubmission struct {
 	TurnID             string
 	SeedEvents         []bridgepkg.DeliveryProjectionEvent
 	DeliveryRegistered bool
+	Admission          session.SendPromptResult
 }
 
 func (h *HostAPIHandler) submitPrompt(
@@ -40,11 +41,14 @@ func (h *HostAPIHandler) submitPrompt(
 	}
 
 	promptCtx := context.WithoutCancel(ctx)
-	eventsCh, err := h.submitRuntimePrompt(promptCtx, sessionID, message, runtime)
+	admission, err := h.submitRuntimePrompt(promptCtx, sessionID, message, runtime)
 	if err != nil {
 		return hostAPIPromptSubmission{}, err
 	}
-	drainAgentEvents(eventsCh)
+	if admission.Events == nil {
+		return hostAPIPromptSubmission{Admission: admission}, nil
+	}
+	drainAgentEvents(admission.Events)
 
 	events, err := h.sessions.Events(ctx, sessionID, store.EventQuery{
 		AfterSequence: lastSequence,
@@ -53,7 +57,12 @@ func (h *HostAPIHandler) submitPrompt(
 		return hostAPIPromptSubmission{}, err
 	}
 
-	return promptSubmissionFromStoredEvents(events)
+	submission, err := promptSubmissionFromStoredEvents(events)
+	if err != nil {
+		return hostAPIPromptSubmission{}, err
+	}
+	submission.Admission = admission
+	return submission, nil
 }
 
 func (h *HostAPIHandler) submitRuntimePrompt(
@@ -61,25 +70,28 @@ func (h *HostAPIHandler) submitRuntimePrompt(
 	sessionID string,
 	message string,
 	runtime *session.RuntimeSelection,
-) (<-chan acp.AgentEvent, error) {
+) (session.SendPromptResult, error) {
 	if runtime == nil {
-		return h.sessions.Prompt(ctx, sessionID, message)
+		events, err := h.sessions.Prompt(ctx, sessionID, message)
+		if err != nil {
+			return session.SendPromptResult{}, err
+		}
+		return session.SendPromptResult{Status: "accepted", Events: events}, nil
 	}
 	prompter, ok := h.sessions.(hostAPIRuntimePromptSessionManager)
 	if !ok {
-		return nil, errors.New("extension: session manager does not support prompt runtime selection")
+		return session.SendPromptResult{}, errors.New(
+			"extension: session manager does not support prompt runtime selection",
+		)
 	}
 	result, err := prompter.SendPrompt(ctx, sessionID, session.SendPromptOpts{
 		Message: message,
 		Runtime: runtime,
 	})
 	if err != nil {
-		return nil, err
+		return session.SendPromptResult{}, err
 	}
-	if result.Events == nil {
-		return nil, errors.New("extension: prompt runtime selection was not admitted for immediate delivery")
-	}
-	return result.Events, nil
+	return result, nil
 }
 
 func promptSubmissionFromStoredEvents(events []store.SessionEvent) (hostAPIPromptSubmission, error) {

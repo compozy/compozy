@@ -7,14 +7,16 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
+	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 type sessionCreateInput struct {
-	Workspace string `json:"workspace,omitempty"`
-	Agent     string `json:"agent"`
-	Name      string `json:"name,omitempty"`
+	Workspace            string                 `json:"workspace,omitempty"`
+	Agent                string                 `json:"agent"`
+	Name                 string                 `json:"name,omitempty"`
+	NetworkParticipation *participation.Request `json:"network_participation,omitempty"`
 }
 
 type sessionPromptInput struct {
@@ -54,6 +56,9 @@ func (n *daemonNativeTools) sessionCreate(
 		Name:      strings.TrimSpace(input.Name),
 		Workspace: workspaceID,
 		Type:      session.SessionTypeUser,
+		NetworkParticipation: participation.CloneRequest(
+			input.NetworkParticipation,
+		),
 	}})
 	if err != nil {
 		return toolspkg.ToolResult{}, err

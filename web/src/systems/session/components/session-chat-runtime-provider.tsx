@@ -1,10 +1,14 @@
-import { useRef, useSyncExternalStore, type ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
 import { AssistantRuntimeProvider, DataRenderers, Tools, useAui } from "@assistant-ui/react";
+import { useSelector } from "@xstate/store-react";
 
 import { useMergedSessionRuntimeTranscript } from "../hooks/use-merged-session-runtime-transcript";
 import { useSessionChatRuntime } from "../hooks/use-session-chat-runtime";
 import { SessionPromptDispatchPendingProvider } from "@/components/assistant-ui/session-prompt-dispatch-context";
-import { createSessionPromptDispatchStore } from "@/components/assistant-ui/session-prompt-dispatch-store";
+import {
+  createSessionPromptDispatchStore,
+  type SessionPromptDispatchStore,
+} from "@/components/assistant-ui/session-prompt-dispatch-store";
 import type { SessionStreamEventSourceFactory } from "../hooks/use-session-live-tail";
 import { CompozyEventDataUI, CompozyPermissionDataUI } from "../lib/session-data-ui";
 import { sessionToolkit } from "../lib/session-toolkit";
@@ -75,7 +79,7 @@ function SessionChatRuntimeBinding({
   liveTailEnabled = true,
   children,
 }: SessionChatRuntimeProviderProps & {
-  promptDispatch: ReturnType<typeof createSessionPromptDispatchStore>;
+  promptDispatch: SessionPromptDispatchStore;
 }) {
   const resolvedWorkspaceId = requireWorkspaceId(workspaceId);
   const runtime = useSessionChatRuntime({
@@ -105,16 +109,12 @@ function SessionChatRuntimeBinding({
 }
 
 export function SessionChatRuntimeProvider(props: SessionChatRuntimeProviderProps) {
-  const promptDispatchRef = useRef<ReturnType<typeof createSessionPromptDispatchStore>>(null);
+  const promptDispatchRef = useRef<SessionPromptDispatchStore>(null);
   if (promptDispatchRef.current === null) {
     promptDispatchRef.current = createSessionPromptDispatchStore();
   }
   const promptDispatch = promptDispatchRef.current;
-  const runtimeGeneration = useSyncExternalStore(
-    promptDispatch.subscribe,
-    promptDispatch.getGeneration,
-    promptDispatch.getGeneration
-  );
+  const runtimeGeneration = useSelector(promptDispatch, snapshot => snapshot.context.generation);
 
   return (
     <SessionChatRuntimeBinding {...props} key={runtimeGeneration} promptDispatch={promptDispatch} />

@@ -7,6 +7,10 @@ import (
 	"time"
 )
 
+type OriginKind string
+
+type OwnerKind string
+
 type OwnerRef struct {
 	WorkspaceID string                 `json:"workspace_id"`
 	Kind        ParticipationOwnerKind `json:"kind"`
@@ -225,35 +229,4 @@ type PromptRuntimeSelectionPayload struct {
 
 type ProviderModelListResponse struct {
 	Models []ProviderModelPayload `json:"models"`
-}
-
-type ProviderModelPayload struct {
-	ProviderID             string                         `json:"provider_id"`
-	ModelID                string                         `json:"model_id"`
-	DisplayName            string                         `json:"display_name,omitempty"`
-	Sources                []ModelCatalogSourceRefPayload `json:"sources"`
-	Available              *bool                          `json:"available"`
-	AvailabilityState      string                         `json:"availability_state"`
-	Stale                  bool                           `json:"stale"`
-	RefreshedAt            string                         `json:"refreshed_at,omitempty"`
-	ContextWindow          *int64                         `json:"context_window,omitempty"`
-	MaxInputTokens         *int64                         `json:"max_input_tokens,omitempty"`
-	MaxOutputTokens        *int64                         `json:"max_output_tokens,omitempty"`
-	SupportsTools          *bool                          `json:"supports_tools,omitempty"`
-	SupportsReasoning      *bool                          `json:"supports_reasoning,omitempty"`
-	ReasoningEfforts       []Effort                       `json:"reasoning_efforts,omitempty"`
-	DefaultReasoningEffort *Effort                        `json:"default_reasoning_effort,omitempty"`
-	Cost                   *ModelCatalogCostPayload       `json:"cost,omitempty"`
-	Curated                bool                           `json:"curated"`
-	Deprecated             bool                           `json:"deprecated"`
-	Hidden                 bool                           `json:"hidden"`
-	Featured               bool                           `json:"featured"`
-	ReleaseDate            string                         `json:"release_date,omitempty"`
-	ReasoningSource        ReasoningSource                `json:"reasoning_source,omitempty"`
-	LastError              string                         `json:"last_error,omitempty"`
-}
-
-type ProviderModelRefreshResponse struct {
-	Sources []ModelCatalogSourceStatusPayload `json:"sources"`
-	Error   string                            `json:"error,omitempty"`
 }

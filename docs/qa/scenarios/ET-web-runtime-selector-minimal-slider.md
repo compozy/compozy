@@ -6,13 +6,13 @@ persona: Sol
 journey: J-17
 expected: The session-composer "Next prompt" selector is ONE button (provider logo, model name, intensity meter, chevron — no provider name text, effort label, ⌘J badge, or dividers) that toggles the popup; provider rail and model rows remain minimal; the reasoning footer exposes only real levels, and drag, stop-label click, or track arrow keys commit the canonical effort for the next prompt snapshot.
 entry_points: web session-composer runtime selector; agent create/settings runtime control; onboarding default-model step
-qa_status: untested
+qa_status: pass
 bug_ids:
 fix_status:
-retest_status:
+retest_status: pass
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-et-current-source-20260730-061655-910372-lab/qa-artifacts/qa
-last_report: docs/qa/reports/2026-07-28-untested-full.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-et-current-source-20260730-061655-910372-lab/qa-artifacts/qa;docs/qa/evidence/2026-07-30-session-runtime-selector/05-session-runtime-selector.png;docs/qa/evidence/2026-07-30-session-runtime-selector/12-claude-max-selected.png;docs/qa/evidence/2026-07-30-session-runtime-selector/runtime-selector-proof.md
+last_report: docs/qa/reports/2026-07-30-session-runtime-selector.md
 overlaps: RT-068;RT-072;RT-071;RT-064;RT-061
 ---
 

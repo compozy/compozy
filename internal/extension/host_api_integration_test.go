@@ -76,8 +76,8 @@ func TestHostAPIIntegrationSessionLifecycleThroughHostAPI(t *testing.T) {
 	if status.State == "" {
 		t.Fatal("sessions/status state = empty, want non-empty")
 	}
-	if status.Provider != "fake-alt" {
-		t.Fatalf("sessions/status provider = %q, want %q", status.Provider, "fake-alt")
+	if status.Runtime.Effective == nil || status.Runtime.Effective.Provider != "fake-alt" {
+		t.Fatalf("sessions/status runtime = %#v, want effective fake-alt provider", status.Runtime)
 	}
 
 	eventsResult, err := env.call(t, "ext-integration", "sessions/events", map[string]any{

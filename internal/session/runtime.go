@@ -59,19 +59,7 @@ func NormalizeRuntimeSelection(selection RuntimeSelection) (RuntimeSelection, er
 	if normalized.Provider == "" {
 		return RuntimeSelection{}, fmt.Errorf("%w: provider is required", ErrInvalidRuntimeOverride)
 	}
-	if normalized.Model != "" && normalized.Provider == "" {
-		return RuntimeSelection{}, fmt.Errorf(
-			"%w: provider is required when model is set",
-			ErrInvalidRuntimeOverride,
-		)
-	}
 	if normalized.ReasoningEffort != "" {
-		if normalized.Provider == "" {
-			return RuntimeSelection{}, fmt.Errorf(
-				"%w: provider is required when reasoning_effort is set",
-				ErrInvalidRuntimeOverride,
-			)
-		}
 		if err := ValidateReasoningEffort(normalized.ReasoningEffort); err != nil {
 			return RuntimeSelection{}, err
 		}

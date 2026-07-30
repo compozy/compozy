@@ -6,13 +6,13 @@ persona: Dora
 journey: J-17
 expected: Opening Start session shows agent selection, with workspace, optional name, working path, and Network participation in Advanced; it contains neither a first-message composer nor a runtime selector. Launch creates one durable session, activates its returned owner workspace, and navigates to its composer. Choosing another workspace clears only workspace-scoped launch selections. The session composer owns the "Next prompt" RuntimeSelector and its catalog state; the header carries the only close control.
 entry_points: web desktop shell → Start session (dock, command palette, agent catalog, agent detail, dashboard)
-qa_status: untested
-bug_ids:
-fix_status:
-retest_status:
+qa_status: pass
+bug_ids: BUG-20260730-session-create-window-intent
+fix_status: fixed
+retest_status: pass
 fix_commits:
-evidence: .compozy/tasks/modals-redesign/evidence/visual/task_02/VC-01; .compozy/tasks/modals-redesign/evidence/visual/task_02/VC-02; .compozy/tasks/modals-redesign/evidence/visual/task_02/VC-09;/Users/pedronauck/dev/qa-labs/compozy-ms-wave2-current-20260730-061842-796290-lab/qa-artifacts/qa
-last_report: docs/qa/reports/2026-07-28-untested-full.md
+evidence: .compozy/tasks/modals-redesign/evidence/visual/task_02/VC-01; .compozy/tasks/modals-redesign/evidence/visual/task_02/VC-02; .compozy/tasks/modals-redesign/evidence/visual/task_02/VC-09;/Users/pedronauck/dev/qa-labs/compozy-ms-wave2-current-20260730-061842-796290-lab/qa-artifacts/qa;docs/qa/evidence/2026-07-30-session-runtime-selector/01-create-simple.png;docs/qa/evidence/2026-07-30-session-runtime-selector/02-create-advanced.png;docs/qa/evidence/2026-07-30-session-runtime-selector/04-session-open-after-create.png
+last_report: docs/qa/reports/2026-07-30-session-runtime-selector.md
 overlaps: MS-web-entity-modal-shell; NB-participation-controls-serialize
 ---
 

@@ -60,23 +60,35 @@ func (m *Manager) Stop(ctx context.Context, id string) error {
 	return m.StopWithCause(ctx, id, CauseUserRequested, "")
 }
 
-func (m *Manager) watchProcess(ctx context.Context, session *Session) {
+func (m *Manager) watchProcess(session *Session) {
+	if m == nil || session == nil {
+		return
+	}
 	proc := session.processHandle()
 	if proc == nil {
 		return
 	}
+	ctx, ok := m.beginProcessWatch()
+	if !ok {
+		return
+	}
 
 	go func() {
+		defer m.processWatchWG.Done()
 		select {
-		case <-ctx.Done():
-			return
 		case <-proc.Done():
+		case <-ctx.Done():
+			select {
+			case <-proc.Done():
+			default:
+				return
+			}
 		}
 		if !session.isCurrentProcess(proc) {
 			return
 		}
 		waitErr := proc.Wait()
-		if err := m.handleProcessExit(ctx, session, proc, waitErr); err != nil {
+		if err := m.handleProcessExit(context.WithoutCancel(ctx), session, proc, waitErr); err != nil {
 			m.sessionLogger(session).Warn("session: process exit handling failed", "error", err)
 		}
 	}()

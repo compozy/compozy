@@ -4,6 +4,12 @@ package contracts
 
 import "time"
 
+type ACPCapsPayload struct {
+	SupportsLoadSession bool                         `json:"supports_load_session"`
+	SupportedModes      []string                     `json:"supported_modes,omitempty"`
+	ConfigOptions       []SessionConfigOptionPayload `json:"config_options,omitempty"`
+}
+
 type AcceptedCapabilities struct {
 	Provides    []string        `json:"provides"`
 	Permissions []HostAPIMethod `json:"permissions"`
@@ -244,9 +250,4 @@ type AgentSoulFrontmatterPayload struct {
 	Collaboration []string `json:"collaboration,omitempty"`
 	MemoryPolicy  []string `json:"memory_policy,omitempty"`
 	Tags          []string `json:"tags,omitempty"`
-}
-
-type AgentSoulGetParams struct {
-	WorkspaceID string `json:"workspace_id,omitempty"`
-	AgentName   string `json:"agent_name"`
 }

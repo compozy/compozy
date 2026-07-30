@@ -709,6 +709,14 @@ func TestHTTPSessionStreamReconnectsWithLastEventID(t *testing.T) {
 }
 
 func TestHTTPSessionStreamReconnectPreservesCursorWhenNoNewEventsExistYet(t *testing.T) {
+	t.Run("Should preserve the stream cursor while a prompt is still running", func(t *testing.T) {
+		exerciseHTTPSessionStreamReconnectPreservesCursorWhenNoNewEventsExistYet(t)
+	})
+}
+
+func exerciseHTTPSessionStreamReconnectPreservesCursorWhenNoNewEventsExistYet(t *testing.T) {
+	t.Helper()
+
 	runtime := newIntegrationRuntime(t)
 	sessionID := createIntegrationSession(t, runtime)
 
@@ -849,6 +857,14 @@ func TestHTTPSessionStreamReconnectPreservesCursorWhenNoNewEventsExistYet(t *tes
 }
 
 func TestHTTPSessionStopReasonPropagatesToGlobalDBAndAPI(t *testing.T) {
+	t.Run("Should propagate a user stop reason to persistence and HTTP", func(t *testing.T) {
+		exerciseHTTPSessionStopReasonPropagatesToGlobalDBAndAPI(t)
+	})
+}
+
+func exerciseHTTPSessionStopReasonPropagatesToGlobalDBAndAPI(t *testing.T) {
+	t.Helper()
+
 	runtime := newIntegrationRuntime(t)
 	sessionID := createIntegrationSession(t, runtime)
 	bindIntegrationSessionRuntime(t, runtime, sessionID)
@@ -1050,6 +1066,14 @@ func TestHTTPSessionParticipationRoundTrip(t *testing.T) {
 }
 
 func TestHTTPSessionCrashStopReasonPropagatesToGlobalDBAndAPI(t *testing.T) {
+	t.Run("Should propagate an agent crash reason to persistence and HTTP", func(t *testing.T) {
+		exerciseHTTPSessionCrashStopReasonPropagatesToGlobalDBAndAPI(t)
+	})
+}
+
+func exerciseHTTPSessionCrashStopReasonPropagatesToGlobalDBAndAPI(t *testing.T) {
+	t.Helper()
+
 	runtime := newIntegrationRuntime(t)
 	sessionID := createIntegrationSession(t, runtime)
 	bindIntegrationSessionRuntime(t, runtime, sessionID)
@@ -3937,13 +3961,24 @@ func bindIntegrationSessionRuntime(t *testing.T, runtime integrationRuntime, ses
 		}),
 		nil,
 	)
+	body := readAndCloseIntegrationResponse(t, resp.Body, "runtime bind prompt")
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		_ = resp.Body.Close()
 		t.Fatalf("runtime bind prompt status = %d, want %d; body=%s", resp.StatusCode, http.StatusOK, string(body))
 	}
-	_, _ = io.ReadAll(resp.Body)
-	_ = resp.Body.Close()
+}
+
+func readAndCloseIntegrationResponse(t *testing.T, body io.ReadCloser, operation string) []byte {
+	t.Helper()
+
+	payload, readErr := io.ReadAll(body)
+	closeErr := body.Close()
+	if readErr != nil {
+		t.Fatalf("read %s response body error = %v", operation, readErr)
+	}
+	if closeErr != nil {
+		t.Fatalf("close %s response body error = %v", operation, closeErr)
+	}
+	return payload
 }
 
 func mustIntegrationPrompt(t *testing.T, events <-chan acp.AgentEvent, err error) <-chan acp.AgentEvent {

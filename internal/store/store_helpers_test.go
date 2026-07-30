@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -18,9 +19,10 @@ func TestValidationHelpersAndPathUtilities(t *testing.T) {
 	now := time.Date(2026, 4, 3, 20, 0, 0, 0, time.UTC)
 
 	tests := []struct {
-		name      string
-		validate  func() error
-		wantError bool
+		name              string
+		validate          func() error
+		wantError         bool
+		wantErrorContains string
 	}{
 		{
 			name: "session event valid",
@@ -95,7 +97,7 @@ func TestValidationHelpersAndPathUtilities(t *testing.T) {
 			wantError: true,
 		},
 		{
-			name: "session info missing runtime status",
+			name: "Should reject SessionInfo without a runtime status",
 			validate: func() error {
 				return (SessionInfo{
 					ID:          "sess-1",
@@ -104,7 +106,8 @@ func TestValidationHelpersAndPathUtilities(t *testing.T) {
 					State:       "active",
 				}).Validate()
 			},
-			wantError: true,
+			wantError:         true,
+			wantErrorContains: "invalid session runtime status",
 		},
 		{
 			name: "session info missing agent",
@@ -472,6 +475,9 @@ func TestValidationHelpersAndPathUtilities(t *testing.T) {
 			err := tt.validate()
 			if tt.wantError && err == nil {
 				t.Fatal("validate() error = nil, want non-nil")
+			}
+			if tt.wantErrorContains != "" && !strings.Contains(err.Error(), tt.wantErrorContains) {
+				t.Fatalf("validate() error = %v, want substring %q", err, tt.wantErrorContains)
 			}
 			if !tt.wantError && err != nil {
 				t.Fatalf("validate() error = %v", err)

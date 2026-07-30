@@ -29,6 +29,7 @@ func (m *Manager) applyRuntimeDefaults() error {
 	if m.lifecycleCtx == nil {
 		m.lifecycleCtx = context.Background()
 	}
+	m.ensureProcessWatchContext()
 	if m.now == nil {
 		m.now = func() time.Time {
 			return time.Now().UTC()

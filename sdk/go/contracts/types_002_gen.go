@@ -4,6 +4,11 @@ package contracts
 
 import "time"
 
+type AgentSoulGetParams struct {
+	WorkspaceID string `json:"workspace_id,omitempty"`
+	AgentName   string `json:"agent_name"`
+}
+
 type AgentSoulHistoryParams struct {
 	WorkspaceID string `json:"workspace_id,omitempty"`
 	AgentName   string `json:"agent_name"`
@@ -230,11 +235,3 @@ type AgentStoppedPayload struct {
 type ApprovalPolicy string
 
 type ApprovalState string
-
-type ArtifactRef struct {
-	URI      string `json:"uri"`
-	Name     string `json:"name,omitempty"`
-	MIMEType string `json:"mime_type,omitempty"`
-	Bytes    int64  `json:"bytes,omitempty"`
-	SHA256   string `json:"sha256,omitempty"`
-}

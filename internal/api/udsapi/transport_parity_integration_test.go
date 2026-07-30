@@ -663,19 +663,6 @@ func TestUDSTransportStoppedSessionRemainsUnattachable(t *testing.T) {
 		}},
 	})
 
-	registration, ok := runtimeHarness.MockAgentRegistration(transportUDSAutomationAgent)
-	if !ok {
-		t.Fatalf("MockAgentRegistration(%q) not found", transportUDSAutomationAgent)
-	}
-
-	writeTransportProviderOverrideConfig(
-		t,
-		runtimeHarness.WorkspaceRoot,
-		transportUDSOverrideProvider,
-		registration.Command,
-		true,
-	)
-
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
@@ -707,14 +694,6 @@ func TestUDSTransportStoppedSessionRemainsUnattachable(t *testing.T) {
 		)
 	}
 	_ = stopResp.Body.Close()
-
-	writeTransportProviderOverrideConfig(
-		t,
-		runtimeHarness.WorkspaceRoot,
-		transportUDSOverrideProvider,
-		registration.Command,
-		false,
-	)
 
 	resumeResp := mustUnixRequest(
 		t,

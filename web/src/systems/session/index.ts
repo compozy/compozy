@@ -70,6 +70,10 @@ export {
   type SessionPromptRuntimeProviderProps,
 } from "./contexts/session-prompt-runtime-context";
 export {
+  getSessionPromptRuntimeSnapshot,
+  useSessionPromptRuntime,
+} from "./hooks/use-session-prompt-runtime";
+export {
   useOptionalSessionPromptRuntimeContext,
   useSessionPromptRuntimeContext,
 } from "./hooks/use-session-prompt-runtime-context";

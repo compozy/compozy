@@ -11,6 +11,11 @@ import (
 	"github.com/compozy/compozy/internal/fileutil"
 )
 
+var (
+	// ErrSessionMetadataSchemaBehind reports metadata that predates the runtime binding contract.
+	ErrSessionMetadataSchemaBehind = errors.New("store: session metadata schema is behind this binary")
+)
+
 // ReadSessionMeta loads a session metadata document from disk.
 func ReadSessionMeta(path string) (SessionMeta, error) {
 	cleanPath := strings.TrimSpace(path)

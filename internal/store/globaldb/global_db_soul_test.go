@@ -406,6 +406,7 @@ func TestGlobalDBSoulSessionProvenance(t *testing.T) {
 				ID:               "sess-soul",
 				AgentName:        "coder",
 				Provider:         "claude",
+				RuntimeStatus:    store.SessionRuntimeUnbound,
 				WorkspaceID:      workspaceID,
 				State:            "active",
 				SoulSnapshotID:   saved.ID,

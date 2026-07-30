@@ -63,7 +63,7 @@ func (h *HostAPIHandler) handleSessionsList(ctx context.Context, raw json.RawMes
 			ID:        info.ID,
 			Name:      info.Name,
 			Agent:     info.AgentName,
-			Provider:  info.Provider,
+			Runtime:   hostAPISessionRuntimePayloadFromInfo(info),
 			Workspace: info.Workspace,
 			State:     info.State,
 			CreatedAt: info.CreatedAt,
@@ -128,21 +128,43 @@ func (h *HostAPIHandler) handleSessionsPrompt(ctx context.Context, raw json.RawM
 		return nil, err
 	}
 
-	return hostAPISessionPromptResult{TurnID: submission.TurnID}, nil
+	return hostAPISessionPromptResultFromSubmission(submission), nil
 }
 
 func hostAPIPromptRuntimeSelection(
 	payload *apicontract.PromptRuntimeSelectionPayload,
 ) *session.RuntimeSelection {
-	if payload == nil {
-		return nil
+	return apicontract.PromptRuntimeSelectionFromPayload(payload)
+}
+
+func hostAPISessionPromptResultFromSubmission(
+	submission hostAPIPromptSubmission,
+) hostAPISessionPromptResult {
+	admission := submission.Admission
+	turnID := strings.TrimSpace(submission.TurnID)
+	if turnID == "" {
+		turnID = strings.TrimSpace(admission.NewTurnID)
 	}
-	return &session.RuntimeSelection{
-		Provider:        payload.Provider,
-		Model:           payload.Model,
-		ReasoningEffort: string(payload.ReasoningEffort),
-		Speed:           payload.Speed,
+
+	result := hostAPISessionPromptResult{
+		Status:                     strings.TrimSpace(admission.Status),
+		Mode:                       admission.Mode,
+		TurnID:                     turnID,
+		QueueEntryID:               strings.TrimSpace(admission.QueueEntryID),
+		QueuePosition:              admission.QueuePosition,
+		QueueGeneration:            admission.QueueGeneration,
+		PreviousTurnID:             strings.TrimSpace(admission.PreviousTurnID),
+		Interrupted:                admission.Interrupted,
+		Staged:                     admission.Staged,
+		Queued:                     admission.Queued,
+		CanceledQueuedEntries:      admission.CanceledQueuedEntries,
+		FallbackModeIfNoToolResult: strings.TrimSpace(admission.FallbackModeIfNoToolResult),
 	}
+	if admission.EstimatedSendAt != nil {
+		estimated := admission.EstimatedSendAt.UTC()
+		result.EstimatedSendAt = &estimated
+	}
+	return result
 }
 
 func (h *HostAPIHandler) handleSessionsStop(ctx context.Context, raw json.RawMessage) (any, error) {

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/store"
 )
 
@@ -111,6 +112,44 @@ func TestSessionInfoCopiesCapabilities(t *testing.T) {
 		if latest.ACPCaps.ConfigOptions[0].Current != "gpt" ||
 			latest.ACPCaps.ConfigOptions[0].Values[0].Value != "gpt" {
 			t.Fatalf("ConfigOptions mutated through Info() copy: %#v", latest.ACPCaps.ConfigOptions)
+		}
+	})
+}
+
+func TestRuntimeBindingSnapshotRestore(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should restore the agent definition with the runtime binding", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 7, 30, 12, 0, 0, 0, time.UTC)
+		session := &Session{
+			ID:        "sess-1",
+			AgentName: "coder",
+			Workspace: t.TempDir(),
+			State:     StateActive,
+			agentDef: compozyconfig.AgentDef{
+				Name:   "coder",
+				Prompt: "previous definition",
+				Tools:  []string{"read"},
+			},
+			CreatedAt: now,
+			UpdatedAt: now,
+		}
+		snapshot := session.runtimeBindingSnapshot()
+		session.setAgentDefinition(compozyconfig.AgentDef{
+			Name:   "coder",
+			Prompt: "candidate definition",
+			Tools:  []string{"write"},
+		})
+
+		session.restoreRuntimeBinding(&snapshot, "catalog persistence failed", now.Add(time.Second))
+		definition := session.AgentDefinition()
+		if definition.Prompt != "previous definition" {
+			t.Fatalf("AgentDefinition().Prompt = %q, want prior definition", definition.Prompt)
+		}
+		if len(definition.Tools) != 1 || definition.Tools[0] != "read" {
+			t.Fatalf("AgentDefinition().Tools = %#v, want prior definition tools", definition.Tools)
 		}
 	})
 }

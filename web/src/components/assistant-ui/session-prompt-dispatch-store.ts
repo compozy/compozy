@@ -1,58 +1,59 @@
 import { createContext } from "react";
+import { createStore } from "@xstate/store";
 
-type Listener = () => void;
-
-export interface SessionPromptDispatchStore {
-  cancelPending: () => void;
-  complete: (controller: AbortController) => void;
-  getGeneration: () => number;
-  getSnapshot: () => SessionPromptDispatchSnapshot;
-  start: (controller: AbortController) => void;
-  subscribe: (listener: Listener) => () => void;
-}
-
-export interface SessionPromptDispatchSnapshot {
+interface SessionPromptDispatchContext {
   canceled: boolean;
+  controller: AbortController | null;
+  generation: number;
   pending: boolean;
 }
 
-export function createSessionPromptDispatchStore(): SessionPromptDispatchStore {
-  let controller: AbortController | null = null;
-  let generation = 0;
-  let snapshot: SessionPromptDispatchSnapshot = { canceled: false, pending: false };
-  const listeners = new Set<Listener>();
+export type SessionPromptDispatchStoreEvents = {
+  pendingCanceled: Record<never, never>;
+  requestCompleted: { controller: AbortController };
+  requestStarted: { controller: AbortController };
+};
 
-  const emit = () => {
-    for (const listener of listeners) listener();
-  };
-
-  return {
-    cancelPending: () => {
-      if (controller === null) return;
-      snapshot = { canceled: true, pending: false };
-      generation += 1;
-      emit();
-      controller.abort();
+export function createSessionPromptDispatchStore() {
+  return createStore<SessionPromptDispatchContext, SessionPromptDispatchStoreEvents>({
+    context: {
+      canceled: false,
+      controller: null,
+      generation: 0,
+      pending: false,
     },
-    complete: completedController => {
-      if (controller !== completedController) return;
-      controller = null;
-      if (snapshot.canceled) return;
-      snapshot = { canceled: false, pending: false };
-      emit();
+    on: {
+      pendingCanceled: (context, _event, enqueue) => {
+        if (context.controller === null) return;
+        const controller = context.controller;
+        enqueue.effect(() => controller.abort());
+        return {
+          ...context,
+          canceled: true,
+          controller: null,
+          generation: context.generation + 1,
+          pending: false,
+        };
+      },
+      requestCompleted: (context, event) => {
+        if (context.controller !== event.controller) return;
+        return {
+          ...context,
+          canceled: false,
+          controller: null,
+          pending: false,
+        };
+      },
+      requestStarted: (context, event) => ({
+        ...context,
+        canceled: false,
+        controller: event.controller,
+        pending: true,
+      }),
     },
-    getSnapshot: () => snapshot,
-    getGeneration: () => generation,
-    start: nextController => {
-      controller = nextController;
-      snapshot = { canceled: false, pending: true };
-      emit();
-    },
-    subscribe: listener => {
-      listeners.add(listener);
-      return () => listeners.delete(listener);
-    },
-  };
+  });
 }
 
-export const SessionPromptDispatchContext = createContext(createSessionPromptDispatchStore());
+export type SessionPromptDispatchStore = ReturnType<typeof createSessionPromptDispatchStore>;
+
+export const SessionPromptDispatchContext = createContext<SessionPromptDispatchStore | null>(null);

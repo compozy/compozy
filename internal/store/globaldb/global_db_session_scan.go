@@ -125,6 +125,9 @@ func scanSessionInfo(scanner rowScanner) (store.SessionInfo, error) {
 	if err := populateSessionScanParts(&session, &row); err != nil {
 		return store.SessionInfo{}, err
 	}
+	if err := session.Validate(); err != nil {
+		return store.SessionInfo{}, err
+	}
 	return session, nil
 }
 

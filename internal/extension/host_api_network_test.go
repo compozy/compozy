@@ -1158,6 +1158,7 @@ func openHostAPINetworkTestStore(t testing.TB) *globaldb.GlobalDB {
 		{
 			ID:                  "sess-local",
 			AgentName:           "local",
+			RuntimeStatus:       store.SessionRuntimeUnbound,
 			WorkspaceID:         hostAPINetworkWorkspaceID,
 			SessionNetworkState: &store.SessionNetworkState{NetworkSpec: participation.LocalSpec()},
 			SessionType:         "system",
@@ -1168,6 +1169,7 @@ func openHostAPINetworkTestStore(t testing.TB) *globaldb.GlobalDB {
 		{
 			ID:                  "sess-remote",
 			AgentName:           "remote",
+			RuntimeStatus:       store.SessionRuntimeUnbound,
 			WorkspaceID:         hostAPINetworkWorkspaceID,
 			SessionNetworkState: &store.SessionNetworkState{NetworkSpec: participation.LocalSpec()},
 			SessionType:         "system",

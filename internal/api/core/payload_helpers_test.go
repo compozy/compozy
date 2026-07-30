@@ -757,27 +757,31 @@ func TestCoreTimeAndSessionHelpers(t *testing.T) {
 func TestSessionAndNetworkMappingHelpers(t *testing.T) {
 	t.Parallel()
 
-	payload := SessionPayloadFromInfo(&session.Info{
-		ID:            "sess-1",
-		Name:          "Support session",
-		AgentName:     "coder",
-		Provider:      "fake",
-		RuntimeStatus: session.RuntimeStatusReady,
-		WorkspaceID:   " ws-1 ",
-		Workspace:     " /tmp/ws ",
-		ACPCaps: acp.Caps{
-			SupportsLoadSession: true,
-			SupportedModes:      []string{"edit"},
-		},
+	t.Run("Should map an effective runtime selection into a session payload", func(t *testing.T) {
+		t.Parallel()
+
+		payload := SessionPayloadFromInfo(&session.Info{
+			ID:            "sess-1",
+			Name:          "Support session",
+			AgentName:     "coder",
+			Provider:      "fake",
+			RuntimeStatus: session.RuntimeStatusReady,
+			WorkspaceID:   " ws-1 ",
+			Workspace:     " /tmp/ws ",
+			ACPCaps: acp.Caps{
+				SupportsLoadSession: true,
+				SupportedModes:      []string{"edit"},
+			},
+		})
+		if payload.ID != "sess-1" || payload.Runtime.Effective == nil || payload.Runtime.Effective.Provider != "fake" ||
+			payload.WorkspaceID != "ws-1" || payload.WorkspacePath != "/tmp/ws" ||
+			payload.Runtime.ACPCaps == nil {
+			t.Fatalf("SessionPayloadFromInfo() = %#v", payload)
+		}
+		if zero := SessionPayloadFromInfo(nil); zero.ID != "" {
+			t.Fatalf("SessionPayloadFromInfo(nil) = %#v", zero)
+		}
 	})
-	if payload.ID != "sess-1" || payload.Runtime.Effective == nil || payload.Runtime.Effective.Provider != "fake" ||
-		payload.WorkspaceID != "ws-1" || payload.WorkspacePath != "/tmp/ws" ||
-		payload.Runtime.ACPCaps == nil {
-		t.Fatalf("SessionPayloadFromInfo() = %#v", payload)
-	}
-	if zero := SessionPayloadFromInfo(nil); zero.ID != "" {
-		t.Fatalf("SessionPayloadFromInfo(nil) = %#v", zero)
-	}
 
 	t.Run("Should derive network message previews", func(t *testing.T) {
 		t.Parallel()

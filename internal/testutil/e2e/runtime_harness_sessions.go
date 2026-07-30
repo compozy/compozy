@@ -335,7 +335,17 @@ func (h *RuntimeHarness) PromptSession(
 	sessionID string,
 	message string,
 ) ([]SSEEvent, error) {
-	return h.PromptSessionWithEvents(ctx, sessionID, message, nil)
+	return h.PromptSessionWithRuntime(ctx, sessionID, message, nil)
+}
+
+// PromptSessionWithRuntime sends one prompt with an explicit runtime selection and drains the SSE stream.
+func (h *RuntimeHarness) PromptSessionWithRuntime(
+	ctx context.Context,
+	sessionID string,
+	message string,
+	runtime *compozycontract.PromptRuntimeSelectionPayload,
+) ([]SSEEvent, error) {
+	return h.promptSessionWithRuntime(ctx, sessionID, message, runtime, nil)
 }
 
 // PromptSessionWithEvents sends one prompt through the operator surface and lets
@@ -346,7 +356,17 @@ func (h *RuntimeHarness) PromptSessionWithEvents(
 	message string,
 	onEvent func(SSEEvent) error,
 ) (_ []SSEEvent, err error) {
-	body := map[string]string{runtimeHarnessMessageKey: message}
+	return h.promptSessionWithRuntime(ctx, sessionID, message, nil, onEvent)
+}
+
+func (h *RuntimeHarness) promptSessionWithRuntime(
+	ctx context.Context,
+	sessionID string,
+	message string,
+	runtime *compozycontract.PromptRuntimeSelectionPayload,
+	onEvent func(SSEEvent) error,
+) (_ []SSEEvent, err error) {
+	body := compozycontract.SendPromptRequest{Message: message, Runtime: runtime}
 	path, err := h.sessionScopedAPIPath(sessionID, "/prompt")
 	if err != nil {
 		return nil, err

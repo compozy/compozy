@@ -473,13 +473,14 @@ func TestManagedHeartbeatAuthoringServiceDeleteRollbackHistoryAndPersistence(t *
 			t.Fatalf("Delete() error = %v", err)
 		}
 		if err := fixture.db.RegisterSession(fixture.ctx, compozystore.SessionInfo{
-			ID:          "sess-delete",
-			AgentName:   "coder",
-			Provider:    "claude",
-			WorkspaceID: fixture.workspaceID,
-			State:       string(heartbeat.SessionHealthStateIdle),
-			CreatedAt:   fixture.now,
-			UpdatedAt:   fixture.now,
+			ID:            "sess-delete",
+			AgentName:     "coder",
+			Provider:      "claude",
+			WorkspaceID:   fixture.workspaceID,
+			RuntimeStatus: compozystore.SessionRuntimeUnbound,
+			State:         string(heartbeat.SessionHealthStateIdle),
+			CreatedAt:     fixture.now,
+			UpdatedAt:     fixture.now,
 		}); err != nil {
 			t.Fatalf("RegisterSession(sess-delete) error = %v", err)
 		}
@@ -770,13 +771,14 @@ func TestManagedHeartbeatAuthoringServiceSafetyBoundaries(t *testing.T) {
 
 		fixture := newHeartbeatFixture(t)
 		session := compozystore.SessionInfo{
-			ID:          "sess-authoring",
-			AgentName:   "coder",
-			Provider:    "claude",
-			WorkspaceID: fixture.workspaceID,
-			State:       "active",
-			CreatedAt:   fixture.now,
-			UpdatedAt:   fixture.now,
+			ID:            "sess-authoring",
+			AgentName:     "coder",
+			Provider:      "claude",
+			WorkspaceID:   fixture.workspaceID,
+			RuntimeStatus: compozystore.SessionRuntimeUnbound,
+			State:         "active",
+			CreatedAt:     fixture.now,
+			UpdatedAt:     fixture.now,
 		}
 		if err := fixture.db.RegisterSession(fixture.ctx, session); err != nil {
 			t.Fatalf("RegisterSession() error = %v", err)
@@ -1496,13 +1498,14 @@ func registerManagedHeartbeatSession(t *testing.T, fixture heartbeatFixture, ses
 	t.Helper()
 
 	if err := fixture.db.RegisterSession(fixture.ctx, compozystore.SessionInfo{
-		ID:          sessionID,
-		AgentName:   "coder",
-		Provider:    "claude",
-		WorkspaceID: fixture.workspaceID,
-		State:       "active",
-		CreatedAt:   fixture.now,
-		UpdatedAt:   fixture.now,
+		ID:            sessionID,
+		AgentName:     "coder",
+		Provider:      "claude",
+		WorkspaceID:   fixture.workspaceID,
+		RuntimeStatus: compozystore.SessionRuntimeUnbound,
+		State:         "active",
+		CreatedAt:     fixture.now,
+		UpdatedAt:     fixture.now,
 	}); err != nil {
 		t.Fatalf("RegisterSession(%q) error = %v", sessionID, err)
 	}

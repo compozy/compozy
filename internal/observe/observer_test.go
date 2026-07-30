@@ -998,13 +998,14 @@ func TestHealthIncludesLifecycleFailuresAndAgentProbes(t *testing.T) {
 	h := newHarness(t)
 	ctx := testutil.Context(t)
 	if err := h.registry.RegisterSession(ctx, store.SessionInfo{
-		ID:          "sess-protocol",
-		Name:        "Protocol",
-		AgentName:   "reviewer",
-		Provider:    "codex",
-		WorkspaceID: h.workspaceID,
-		State:       string(session.StateStopped),
-		StopReason:  store.StopError,
+		ID:            "sess-protocol",
+		Name:          "Protocol",
+		AgentName:     "reviewer",
+		Provider:      "codex",
+		RuntimeStatus: store.SessionRuntimeUnbound,
+		WorkspaceID:   h.workspaceID,
+		State:         string(session.StateStopped),
+		StopReason:    store.StopError,
 		Failure: &store.SessionFailure{
 			Kind:    store.FailureProtocol,
 			Summary: "bad ACP frame",
@@ -1015,13 +1016,14 @@ func TestHealthIncludesLifecycleFailuresAndAgentProbes(t *testing.T) {
 		t.Fatalf("RegisterSession(protocol) error = %v", err)
 	}
 	if err := h.registry.RegisterSession(ctx, store.SessionInfo{
-		ID:          "sess-crash",
-		Name:        "Crashed",
-		AgentName:   "coder",
-		Provider:    "claude",
-		WorkspaceID: h.workspaceID,
-		State:       string(session.StateStopped),
-		StopReason:  store.StopAgentCrashed,
+		ID:            "sess-crash",
+		Name:          "Crashed",
+		AgentName:     "coder",
+		Provider:      "claude",
+		RuntimeStatus: store.SessionRuntimeUnbound,
+		WorkspaceID:   h.workspaceID,
+		State:         string(session.StateStopped),
+		StopReason:    store.StopAgentCrashed,
 		Failure: &store.SessionFailure{
 			Kind:            store.FailureProcess,
 			Summary:         "provider crashed token=super-secret",
@@ -1093,13 +1095,14 @@ func TestHealthStatusDegradesForLifecycleFailures(t *testing.T) {
 		h := newHarness(t)
 		ctx := testutil.Context(t)
 		if err := h.registry.RegisterSession(ctx, store.SessionInfo{
-			ID:          "sess-user-canceled",
-			Name:        "User Canceled",
-			AgentName:   "coder",
-			Provider:    "codex",
-			WorkspaceID: h.workspaceID,
-			State:       string(session.StateStopped),
-			StopReason:  store.StopUserCanceled,
+			ID:            "sess-user-canceled",
+			Name:          "User Canceled",
+			AgentName:     "coder",
+			Provider:      "codex",
+			RuntimeStatus: store.SessionRuntimeUnbound,
+			WorkspaceID:   h.workspaceID,
+			State:         string(session.StateStopped),
+			StopReason:    store.StopUserCanceled,
 			Failure: &store.SessionFailure{
 				Kind:    store.FailureCanceled,
 				Summary: "session canceled by user",
@@ -1137,13 +1140,14 @@ func TestHealthStatusDegradesForLifecycleFailures(t *testing.T) {
 		h := newHarness(t)
 		ctx := testutil.Context(t)
 		if err := h.registry.RegisterSession(ctx, store.SessionInfo{
-			ID:          "sess-failure-only",
-			Name:        "Failure Only",
-			AgentName:   "coder",
-			Provider:    "codex",
-			WorkspaceID: h.workspaceID,
-			State:       string(session.StateStopped),
-			StopReason:  store.StopError,
+			ID:            "sess-failure-only",
+			Name:          "Failure Only",
+			AgentName:     "coder",
+			Provider:      "codex",
+			RuntimeStatus: store.SessionRuntimeUnbound,
+			WorkspaceID:   h.workspaceID,
+			State:         string(session.StateStopped),
+			StopReason:    store.StopError,
 			Failure: &store.SessionFailure{
 				Kind:    store.FailureProtocol,
 				Summary: "bad frame",
@@ -1427,15 +1431,16 @@ func (h *harness) singleTokenStat(t *testing.T, sessionID string) store.TokenSta
 
 func newSession(id string, state session.State, workspace string, now time.Time) *session.Session {
 	return &session.Session{
-		ID:           id,
-		Name:         strings.ToUpper(id),
-		AgentName:    "coder",
-		Provider:     "claude",
-		WorkspaceID:  observerWorkspaceID,
-		Workspace:    workspace,
-		State:        state,
-		ACPSessionID: "acp-" + id,
-		CreatedAt:    now,
-		UpdatedAt:    now,
+		ID:            id,
+		Name:          strings.ToUpper(id),
+		AgentName:     "coder",
+		Provider:      "claude",
+		RuntimeStatus: session.RuntimeStatusReady,
+		WorkspaceID:   observerWorkspaceID,
+		Workspace:     workspace,
+		State:         state,
+		ACPSessionID:  "acp-" + id,
+		CreatedAt:     now,
+		UpdatedAt:     now,
 	}
 }

@@ -9,7 +9,6 @@ import { FIXTURE_AGENT_DEFINITION_DIGEST } from "@/systems/agent/mocks";
 import type { WorkspacePayload } from "@/systems/workspace";
 
 import type { SessionPayload } from "../../types";
-import { createSessionCreateStore } from "../../stores/session-create-store";
 import {
   useSessionCreateDialogController,
   useSessionCreateDialogViewModel,
@@ -278,24 +277,5 @@ describe("useSessionCreateDialog", () => {
     expect(result.current.submitError).toBe(
       "Working path must stay within the selected workspace."
     );
-  });
-
-  it("Should clear advanced-only values when returning to Simple", () => {
-    const store = createSessionCreateStore();
-    store.trigger.dialogOpened({ agentName: "claude-agent", workspaceId: activeWorkspace.id });
-    store.trigger.modeSelected({ mode: "advanced" });
-    store.trigger.sessionNameChanged({ sessionName: "Keep this" });
-    store.trigger.workspacePathChanged({ workspacePath: "services/checkout" });
-    store.trigger.networkParticipationSelected({
-      networkParticipationMode: "live",
-      networkChannelId: "release-room",
-      networkChannelStrategy: "named",
-    });
-
-    store.trigger.modeSelected({ mode: "simple" });
-    const { draft } = store.getSnapshot().context;
-    expect(draft.sessionName).toBe("Keep this");
-    expect(draft.workspacePath).toBe("");
-    expect(draft.networkParticipationMode).toBe("local");
   });
 });

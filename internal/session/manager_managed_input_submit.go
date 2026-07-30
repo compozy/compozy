@@ -26,7 +26,39 @@ type managedInputExecution struct {
 	submission ManagedInputSubmission
 }
 
-func (m *Manager) startManagedInputPrompt(session *Session, entry *store.SessionInputQueueEntry) {
+type managedInput struct {
+	id            string
+	sessionID     string
+	text          string
+	taskRunID     string
+	runGeneration *int64
+	loopRunID     string
+	ownerKind     string
+	ownerEpoch    *int64
+	bindingEpoch  *int64
+	promptID      string
+	promptKind    string
+	promptAttempt int
+}
+
+func managedInputFromQueueEntry(entry *store.SessionInputQueueEntry) managedInput {
+	return managedInput{
+		id:            entry.ID,
+		sessionID:     entry.SessionID,
+		text:          entry.Text,
+		taskRunID:     entry.TaskRunID,
+		runGeneration: entry.RunGeneration,
+		loopRunID:     entry.LoopRunID,
+		ownerKind:     entry.OwnerKind,
+		ownerEpoch:    entry.OwnerEpoch,
+		bindingEpoch:  entry.BindingEpoch,
+		promptID:      entry.PromptID,
+		promptKind:    entry.PromptKind,
+		promptAttempt: entry.PromptAttempt,
+	}
+}
+
+func (m *Manager) startManagedInputPrompt(session *Session, entry managedInput) {
 	if m == nil || session == nil {
 		return
 	}
@@ -34,13 +66,13 @@ func (m *Manager) startManagedInputPrompt(session *Session, entry *store.Session
 	if lifecycle == nil {
 		m.sessionLogger(session).Error(
 			"session: managed input lifecycle is unavailable",
-			"entry_id", entry.ID,
+			"entry_id", entry.id,
 		)
 		return
 	}
 	owner, err := managedInputOwnerFromEntry(entry)
 	if err != nil {
-		m.sessionLogger(session).Error("session: invalid managed input owner", "entry_id", entry.ID, "error", err)
+		m.sessionLogger(session).Error("session: invalid managed input owner", "entry_id", entry.id, "error", err)
 		return
 	}
 	proc, err := session.beginExclusivePromptSetup()
@@ -100,26 +132,26 @@ func (m *Manager) startManagedInputPrompt(session *Session, entry *store.Session
 	go drainPromptSource(events)
 }
 
-func managedInputOwnerFromEntry(entry *store.SessionInputQueueEntry) (ManagedInputOwner, error) {
-	if entry.RunGeneration == nil || entry.OwnerEpoch == nil || entry.BindingEpoch == nil ||
-		strings.TrimSpace(entry.ID) == "" || strings.TrimSpace(entry.SessionID) == "" ||
-		entry.OwnerKind != managedInputOwnerGoal || strings.TrimSpace(entry.LoopRunID) == "" ||
-		strings.TrimSpace(entry.TaskRunID) == "" || strings.TrimSpace(entry.PromptID) == "" ||
-		strings.TrimSpace(entry.PromptKind) == "" || entry.PromptAttempt < 0 {
+func managedInputOwnerFromEntry(entry managedInput) (ManagedInputOwner, error) {
+	if entry.runGeneration == nil || entry.ownerEpoch == nil || entry.bindingEpoch == nil ||
+		strings.TrimSpace(entry.id) == "" || strings.TrimSpace(entry.sessionID) == "" ||
+		entry.ownerKind != managedInputOwnerGoal || strings.TrimSpace(entry.loopRunID) == "" ||
+		strings.TrimSpace(entry.taskRunID) == "" || strings.TrimSpace(entry.promptID) == "" ||
+		strings.TrimSpace(entry.promptKind) == "" || entry.promptAttempt < 0 {
 		return ManagedInputOwner{}, errors.New("session: managed input queue owner is incomplete")
 	}
 	return ManagedInputOwner{
-		QueueEntryID:  entry.ID,
-		SessionID:     entry.SessionID,
-		OwnerKind:     entry.OwnerKind,
-		LoopRunID:     entry.LoopRunID,
-		TaskRunID:     entry.TaskRunID,
-		RunGeneration: int(*entry.RunGeneration),
-		PromptAttempt: entry.PromptAttempt,
-		ControlEpoch:  *entry.OwnerEpoch,
-		BindingEpoch:  *entry.BindingEpoch,
-		PromptID:      entry.PromptID,
-		PromptKind:    entry.PromptKind,
+		QueueEntryID:  entry.id,
+		SessionID:     entry.sessionID,
+		OwnerKind:     entry.ownerKind,
+		LoopRunID:     entry.loopRunID,
+		TaskRunID:     entry.taskRunID,
+		RunGeneration: int(*entry.runGeneration),
+		PromptAttempt: entry.promptAttempt,
+		ControlEpoch:  *entry.ownerEpoch,
+		BindingEpoch:  *entry.bindingEpoch,
+		PromptID:      entry.promptID,
+		PromptKind:    entry.promptKind,
 	}, nil
 }
 
@@ -136,7 +168,7 @@ func validateManagedInputSubmission(owner ManagedInputOwner, submission ManagedI
 }
 
 func managedInputPromptRequest(
-	entry *store.SessionInputQueueEntry,
+	entry managedInput,
 	submission ManagedInputSubmission,
 ) (promptRequest, error) {
 	goalMeta, err := goalPromptMetaFromManagedInput(submission.PromptMeta)
@@ -145,15 +177,15 @@ func managedInputPromptRequest(
 	}
 	return promptRequest{
 		turnID:          submission.PromptMeta.PromptID,
-		target:          entry.SessionID,
-		message:         entry.Text,
-		authoredMessage: entry.Text,
+		target:          entry.sessionID,
+		message:         entry.text,
+		authoredMessage: entry.text,
 		turnSource:      TurnSourceSynthetic,
 		meta: acp.PromptMeta{
 			TurnSource: string(TurnSourceSynthetic),
 			Synthetic: &acp.PromptSyntheticMeta{
-				TaskRunID:  entry.TaskRunID,
-				WorkflowID: entry.LoopRunID,
+				TaskRunID:  entry.taskRunID,
+				WorkflowID: entry.loopRunID,
 				Reason:     managedInputReasonGoal,
 				Goal:       goalMeta,
 			},

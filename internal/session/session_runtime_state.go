@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 )
@@ -20,6 +21,7 @@ type runtimeBindingSnapshot struct {
 	acpCaps         acp.Caps
 	speedResolution *speedpkg.Resolution
 	liveness        *store.SessionLivenessMeta
+	agentDef        compozyconfig.AgentDef
 }
 
 func (s *Session) runtimeBindingSnapshot() runtimeBindingSnapshot {
@@ -43,6 +45,7 @@ func (s *Session) runtimeBindingSnapshot() runtimeBindingSnapshot {
 		acpCaps:         cloneCaps(s.ACPCaps),
 		speedResolution: speedpkg.CloneResolution(s.SpeedResolution),
 		liveness:        store.CloneSessionLivenessMeta(s.Liveness),
+		agentDef:        compozyconfig.CloneAgentDef(s.agentDef),
 	}
 }
 
@@ -91,7 +94,7 @@ func (s *Session) completeRuntimeTransition(
 	return previous
 }
 
-func (s *Session) restoreRuntimeBinding(snapshot runtimeBindingSnapshot, failure string, now time.Time) {
+func (s *Session) restoreRuntimeBinding(snapshot *runtimeBindingSnapshot, failure string, now time.Time) {
 	if s == nil {
 		return
 	}
@@ -109,6 +112,7 @@ func (s *Session) restoreRuntimeBinding(snapshot runtimeBindingSnapshot, failure
 	s.ACPCaps = cloneCaps(snapshot.acpCaps)
 	s.SpeedResolution = speedpkg.CloneResolution(snapshot.speedResolution)
 	s.Liveness = store.CloneSessionLivenessMeta(snapshot.liveness)
+	s.agentDef = compozyconfig.CloneAgentDef(snapshot.agentDef)
 	if !now.IsZero() {
 		s.UpdatedAt = now.UTC()
 	}

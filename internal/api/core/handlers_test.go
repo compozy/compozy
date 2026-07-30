@@ -213,24 +213,41 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 	})
 
 	t.Run("Should reject legacy runtime and prompt fields at session creation", func(t *testing.T) {
-		createCalled.Store(false)
-		createResp := performRequest(
-			t,
-			fixture.Engine,
-			http.MethodPost,
-			"/sessions",
-			[]byte(`{"agent_name":"coder","workspace":"alpha","provider":"codex","prompt":"legacy"}`),
-		)
-		if createResp.Code != http.StatusBadRequest {
-			t.Fatalf(
-				"create status = %d, want %d; body=%s",
-				createResp.Code,
-				http.StatusBadRequest,
-				createResp.Body.String(),
-			)
+		tests := []struct {
+			field string
+			value string
+		}{
+			{field: "provider", value: `"codex"`},
+			{field: "model", value: `"gpt-5.6"`},
+			{field: "reasoning_effort", value: `"high"`},
+			{field: "speed", value: `"fast"`},
+			{field: "prompt", value: `"legacy"`},
 		}
-		if createCalled.Load() {
-			t.Fatal("CreateAccepted() called for a request with deleted fields")
+		for _, tt := range tests {
+			t.Run("Should reject retired "+tt.field+" field", func(t *testing.T) {
+				createCalled.Store(false)
+				body := []byte(`{"agent_name":"coder","workspace":"alpha","` + tt.field + `":` + tt.value + `}`)
+				createResp := performRequest(t, fixture.Engine, http.MethodPost, "/sessions", body)
+				if createResp.Code != http.StatusBadRequest {
+					t.Fatalf(
+						"create status = %d, want %d; body=%s",
+						createResp.Code,
+						http.StatusBadRequest,
+						createResp.Body.String(),
+					)
+				}
+				if !strings.Contains(createResp.Body.String(), "unknown_field") ||
+					!strings.Contains(createResp.Body.String(), tt.field) {
+					t.Fatalf(
+						"create error body = %s, want normalized unknown_field naming %q",
+						createResp.Body.String(),
+						tt.field,
+					)
+				}
+				if createCalled.Load() {
+					t.Fatal("CreateAccepted() called for a request with deleted fields")
+				}
+			})
 		}
 	})
 

@@ -3,6 +3,7 @@ package contract
 import (
 	"time"
 
+	apicontract "github.com/compozy/compozy/internal/api/contract"
 	bridgepkg "github.com/compozy/compozy/internal/bridges/contract"
 
 	observepkg "github.com/compozy/compozy/internal/observe"
@@ -13,29 +14,28 @@ import (
 
 // SessionSummary is the lightweight host-visible session listing shape.
 type SessionSummary struct {
-	ID        string        `json:"id"`
-	Name      string        `json:"name,omitempty"`
-	Agent     string        `json:"agent"`
-	Provider  string        `json:"provider"`
-	Workspace string        `json:"workspace,omitempty"`
-	State     session.State `json:"state"`
-	CreatedAt time.Time     `json:"created_at"`
+	ID        string                            `json:"id"`
+	Name      string                            `json:"name,omitempty"`
+	Agent     string                            `json:"agent"`
+	Runtime   apicontract.SessionRuntimePayload `json:"runtime"`
+	Workspace string                            `json:"workspace,omitempty"`
+	State     session.State                     `json:"state"`
+	CreatedAt time.Time                         `json:"created_at"`
 }
 
 // SessionStatus is the detailed host-visible session status shape.
 type SessionStatus struct {
-	SessionID    string           `json:"session_id"`
-	Name         string           `json:"name,omitempty"`
-	Agent        string           `json:"agent"`
-	Provider     string           `json:"provider"`
-	WorkspaceID  string           `json:"workspace_id,omitempty"`
-	Workspace    string           `json:"workspace,omitempty"`
-	State        session.State    `json:"state"`
-	StopReason   store.StopReason `json:"stop_reason,omitempty"`
-	StopDetail   string           `json:"stop_detail,omitempty"`
-	ACPSessionID string           `json:"acp_session_id,omitempty"`
-	CreatedAt    time.Time        `json:"created_at"`
-	UpdatedAt    time.Time        `json:"updated_at"`
+	SessionID   string                            `json:"session_id"`
+	Name        string                            `json:"name,omitempty"`
+	Agent       string                            `json:"agent"`
+	Runtime     apicontract.SessionRuntimePayload `json:"runtime"`
+	WorkspaceID string                            `json:"workspace_id,omitempty"`
+	Workspace   string                            `json:"workspace,omitempty"`
+	State       session.State                     `json:"state"`
+	StopReason  store.StopReason                  `json:"stop_reason,omitempty"`
+	StopDetail  string                            `json:"stop_detail,omitempty"`
+	CreatedAt   time.Time                         `json:"created_at"`
+	UpdatedAt   time.Time                         `json:"updated_at"`
 }
 
 // SessionEvent is the host-visible session or observe event record.
@@ -50,9 +50,21 @@ type SessionCreateResult struct {
 	SessionID string `json:"session_id"`
 }
 
-// SessionPromptResult returns the created turn identifier.
+// SessionPromptResult reports an immediate or deferred prompt admission.
 type SessionPromptResult struct {
-	TurnID string `json:"turn_id"`
+	Status                     string                `json:"status"`
+	Mode                       session.BusyInputMode `json:"mode,omitempty"`
+	TurnID                     string                `json:"turn_id,omitempty"`
+	QueueEntryID               string                `json:"queue_entry_id,omitempty"`
+	QueuePosition              int                   `json:"queue_position,omitempty"`
+	QueueGeneration            int64                 `json:"queue_generation,omitempty"`
+	EstimatedSendAt            *time.Time            `json:"estimated_send_at,omitempty"`
+	PreviousTurnID             string                `json:"previous_turn_id,omitempty"`
+	Interrupted                bool                  `json:"interrupted,omitempty"`
+	Staged                     bool                  `json:"staged,omitempty"`
+	Queued                     bool                  `json:"queued,omitempty"`
+	CanceledQueuedEntries      int                   `json:"canceled_queued_entries,omitempty"`
+	FallbackModeIfNoToolResult string                `json:"fallback_mode_if_no_tool_result,omitempty"`
 }
 
 // SandboxSummary is one active sandbox in the host-visible list response.

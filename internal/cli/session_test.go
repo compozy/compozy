@@ -431,8 +431,19 @@ func TestSessionNewAdvertisesAndAcceptsOnlyNamedChannelStrategy(t *testing.T) {
 func TestSessionNewRejectsRemovedFlags(t *testing.T) {
 	t.Parallel()
 
-	for _, flag := range []string{"--provider", "--no-wait"} {
-		t.Run("Should reject "+flag, func(t *testing.T) {
+	tests := []struct {
+		flag  string
+		value string
+	}{
+		{flag: "--provider", value: "fake-alt"},
+		{flag: "--model", value: "gpt-5.6-sol"},
+		{flag: "--prompt", value: "legacy prompt"},
+		{flag: "--speed", value: "fast"},
+		{flag: "--reasoning-effort", value: "high"},
+		{flag: "--no-wait"},
+	}
+	for _, tt := range tests {
+		t.Run("Should reject "+tt.flag, func(t *testing.T) {
 			t.Parallel()
 
 			deps := newWorkspaceTestDeps(t, &stubClient{
@@ -441,13 +452,13 @@ func TestSessionNewRejectsRemovedFlags(t *testing.T) {
 					return SessionRecord{}, nil
 				},
 			})
-			args := []string{"session", "new", flag}
-			if flag == "--provider" {
-				args = append(args, "fake-alt")
+			args := []string{"session", "new", tt.flag}
+			if tt.value != "" {
+				args = append(args, tt.value)
 			}
 			_, _, err := executeRootCommand(t, deps, args...)
 			if err == nil || !strings.Contains(err.Error(), "unknown flag") {
-				t.Fatalf("executeRootCommand(%s) error = %v, want unknown flag", flag, err)
+				t.Fatalf("executeRootCommand(%s) error = %v, want unknown flag", tt.flag, err)
 			}
 		})
 	}
@@ -1688,6 +1699,30 @@ func TestSessionPromptBusyInputActions(t *testing.T) {
 			t.Fatalf("executeRootCommand(mutually exclusive) error = %v, want choose only one", err)
 		}
 	})
+
+	for _, tt := range []struct {
+		name string
+		args []string
+	}{
+		{
+			name: "Should reject runtime selection with steer",
+			args: []string{"session", "prompt", "sess-1", "hello", "--steer", "--provider", "codex"},
+		},
+		{
+			name: "Should reject runtime selection with cancel",
+			args: []string{"session", "prompt", "sess-1", "--cancel", "queue-1", "--provider", "codex"},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			deps := newWorkspaceTestDeps(t, &stubClient{})
+			_, _, err := executeRootCommand(t, deps, tt.args...)
+			if err == nil || !strings.Contains(err.Error(), "runtime selection applies only to submitted prompts") {
+				t.Fatalf("executeRootCommand(%#v) error = %v, want runtime selection rejection", tt.args, err)
+			}
+		})
+	}
 }
 
 func TestSessionPromptJSONLOutput(t *testing.T) {

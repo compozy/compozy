@@ -4,6 +4,16 @@ package contracts
 
 import "time"
 
+type CompactionMatcher struct {
+	Reason   string `json:"compaction_reason,omitempty"`
+	Strategy string `json:"compaction_strategy,omitempty"`
+}
+
+type ConsentArea struct {
+	Area   string `json:"area"`
+	Access string `json:"access"`
+}
+
 type ContextBlock struct {
 	Kind     string            `json:"kind,omitempty"`
 	Text     string            `json:"text,omitempty"`
@@ -262,16 +272,3 @@ type CoordinatorStoppedPayload struct {
 type CostSource string
 
 type CostStatus string
-
-type CountedCursorPagePayload struct {
-	NextCursor string `json:"next_cursor,omitempty"`
-	HasMore    bool   `json:"has_more"`
-	Total      int    `json:"total"`
-	Limit      int    `json:"limit"`
-}
-
-type CursorPagePayload struct {
-	NextCursor string `json:"next_cursor,omitempty"`
-	HasMore    bool   `json:"has_more"`
-	Limit      int    `json:"limit"`
-}

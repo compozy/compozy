@@ -175,20 +175,22 @@ func TestGlobalDBDefaultsAndFilteredListings(t *testing.T) {
 		filepath.Join(t.TempDir(), "filtered-workspace"),
 	)
 	if err := globalDB.RegisterSession(testutil.Context(t), SessionInfo{
-		ID:          "sess-defaults",
-		AgentName:   "coder",
-		WorkspaceID: workspaceID,
-		State:       "active",
+		ID:            "sess-defaults",
+		AgentName:     "coder",
+		RuntimeStatus: store.SessionRuntimeUnbound,
+		WorkspaceID:   workspaceID,
+		State:         "active",
 	}); err != nil {
 		t.Fatalf("RegisterSession(defaults) error = %v", err)
 	}
 	if err := globalDB.RegisterSession(testutil.Context(t), SessionInfo{
-		ID:          "sess-reviewer",
-		AgentName:   "reviewer",
-		WorkspaceID: workspaceID,
-		State:       "active",
-		CreatedAt:   base.Add(-time.Hour),
-		UpdatedAt:   base.Add(-time.Hour),
+		ID:            "sess-reviewer",
+		AgentName:     "reviewer",
+		RuntimeStatus: store.SessionRuntimeUnbound,
+		WorkspaceID:   workspaceID,
+		State:         "active",
+		CreatedAt:     base.Add(-time.Hour),
+		UpdatedAt:     base.Add(-time.Hour),
 	}); err != nil {
 		t.Fatalf("RegisterSession(reviewer) error = %v", err)
 	}
@@ -311,12 +313,13 @@ func TestListEventSummariesPreservesHarnessFiltersAndRecentOrdering(t *testing.T
 		filepath.Join(t.TempDir(), "harness-observe-workspace"),
 	)
 	if err := globalDB.RegisterSession(testutil.Context(t), SessionInfo{
-		ID:          "sess-harness",
-		AgentName:   "coder",
-		WorkspaceID: workspaceID,
-		State:       "active",
-		CreatedAt:   base,
-		UpdatedAt:   base,
+		ID:            "sess-harness",
+		AgentName:     "coder",
+		RuntimeStatus: store.SessionRuntimeUnbound,
+		WorkspaceID:   workspaceID,
+		State:         "active",
+		CreatedAt:     base,
+		UpdatedAt:     base,
 	}); err != nil {
 		t.Fatalf("RegisterSession() error = %v", err)
 	}

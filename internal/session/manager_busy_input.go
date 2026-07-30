@@ -72,11 +72,31 @@ func (m *Manager) SendPrompt(ctx context.Context, id string, opts SendPromptOpts
 	if err != nil {
 		return SendPromptResult{}, err
 	}
-	preparation.request.runtime, err = normalizePromptRuntimeSelection(session, preparation.request.runtime)
+	preparation.request.runtime, err = m.resolvePromptRuntimeAtAdmission(
+		ctx,
+		session,
+		preparation.request.runtime,
+	)
 	if err != nil {
 		return SendPromptResult{}, err
 	}
 	return m.submitPreparedPrompt(ctx, session, preparation)
+}
+
+func (m *Manager) resolvePromptRuntimeAtAdmission(
+	ctx context.Context,
+	session *Session,
+	requested *RuntimeSelection,
+) (*RuntimeSelection, error) {
+	selection, err := normalizePromptRuntimeSelection(session, requested)
+	if err != nil {
+		return nil, err
+	}
+	plan, err := m.preparePromptRuntimePlan(ctx, session, *selection)
+	if err != nil {
+		return nil, err
+	}
+	return &plan.selection, nil
 }
 
 type sendPromptPreparation struct {
@@ -266,7 +286,7 @@ func (m *Manager) CancelQueuedPrompt(ctx context.Context, id string, queueEntryI
 		session.CurrentTurnID(),
 		transcript.MarkerPromptDropped,
 		"Queued input canceled by operator.",
-		queueEntryEvidence(&entry, 0),
+		queueEntryEvidence(entry.ID, entry.SessionGeneration, entry.Status, entry.Mode, 0),
 	)
 	return SendPromptResult{
 		Status:          "canceled",
@@ -314,7 +334,7 @@ func (m *Manager) enqueueBusyPrompt(
 		session.CurrentTurnID(),
 		transcript.MarkerPromptQueued,
 		"Input queued while the session is busy.",
-		queueEntryEvidence(&entry, position),
+		queueEntryEvidence(entry.ID, entry.SessionGeneration, entry.Status, entry.Mode, position),
 	)
 	return SendPromptResult{
 		Status:          "queued",
@@ -354,7 +374,7 @@ func (m *Manager) stageSteerPrompt(
 		session.CurrentTurnID(),
 		transcript.MarkerPromptSteered,
 		"Steering input staged while the session is busy.",
-		queueEntryEvidence(&entry, 0),
+		queueEntryEvidence(entry.ID, entry.SessionGeneration, entry.Status, entry.Mode, 0),
 	)
 	return SendPromptResult{
 		Status:                     "staged",
@@ -440,12 +460,12 @@ func (m *Manager) advanceInputGeneration(ctx context.Context, sessionID string) 
 	return m.inputQueue.AdvanceGeneration(ctx, sessionID)
 }
 
-func queueEntryEvidence(entry *store.SessionInputQueueEntry, position int) map[string]any {
+func queueEntryEvidence(entryID string, generation int64, status string, mode string, position int) map[string]any {
 	evidence := map[string]any{
-		"queue_entry_id":                 entry.ID,
-		promptEvidenceQueueGenerationKey: entry.SessionGeneration,
-		"queue_status":                   entry.Status,
-		"mode":                           entry.Mode,
+		"queue_entry_id":                 entryID,
+		promptEvidenceQueueGenerationKey: generation,
+		"queue_status":                   status,
+		"mode":                           mode,
 	}
 	if position > 0 {
 		evidence["queue_position"] = position

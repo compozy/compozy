@@ -575,6 +575,7 @@ func TestManagedSoulAuthoringServiceSafetyBoundaries(t *testing.T) {
 			ID:             "sess-authoring",
 			AgentName:      "coder",
 			WorkspaceID:    fixture.workspaceID,
+			RuntimeStatus:  store.SessionRuntimeUnbound,
 			State:          "active",
 			SoulSnapshotID: first.Snapshot.ID,
 			SoulDigest:     first.Soul.Digest,

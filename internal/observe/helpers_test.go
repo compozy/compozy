@@ -335,10 +335,11 @@ func TestHealthFallsBackToRegistryWithoutSessionSource(t *testing.T) {
 	lastActivityAt := now.Add(-40 * time.Minute)
 	for _, info := range []store.SessionInfo{
 		{
-			ID:          "sess-active",
-			AgentName:   "coder",
-			WorkspaceID: h.workspaceID,
-			State:       "active",
+			ID:            "sess-active",
+			AgentName:     "coder",
+			WorkspaceID:   h.workspaceID,
+			State:         "active",
+			RuntimeStatus: store.SessionRuntimeUnbound,
 			Liveness: &store.SessionLivenessMeta{
 				StallState:  store.SessionStallStateDetected,
 				StallReason: store.SessionStallReasonActivityTimeout,
@@ -351,8 +352,8 @@ func TestHealthFallsBackToRegistryWithoutSessionSource(t *testing.T) {
 			CreatedAt: now,
 			UpdatedAt: now,
 		},
-		{ID: "sess-stopped", AgentName: "coder", WorkspaceID: h.workspaceID, State: "stopped", CreatedAt: now, UpdatedAt: now},
-		{ID: "sess-orphaned", AgentName: "coder", WorkspaceID: h.workspaceID, State: "orphaned", CreatedAt: now, UpdatedAt: now},
+		{ID: "sess-stopped", AgentName: "coder", WorkspaceID: h.workspaceID, State: "stopped", RuntimeStatus: store.SessionRuntimeUnbound, CreatedAt: now, UpdatedAt: now},
+		{ID: "sess-orphaned", AgentName: "coder", WorkspaceID: h.workspaceID, State: "orphaned", RuntimeStatus: store.SessionRuntimeUnbound, CreatedAt: now, UpdatedAt: now},
 	} {
 		if err := h.observer.registry.RegisterSession(testutil.Context(t), info); err != nil {
 			t.Fatalf("RegisterSession(%q) error = %v", info.ID, err)
@@ -433,6 +434,7 @@ func TestLoadSessionMetadataSkipsMissingMetaAndKeepsStoppedState(t *testing.T) {
 		WorkspaceID:          h.workspaceID,
 		NetworkParticipation: participation.CloneSpec(participation.LocalSpec()),
 		State:                "stopped",
+		RuntimeStatus:        store.SessionRuntimeUnbound,
 		CreatedAt:            h.now,
 		UpdatedAt:            h.now,
 	}); err != nil {
@@ -466,6 +468,7 @@ func TestLoadSessionMetadataLogsOriginalSessionIDWhenLegacyProviderRepairFails(t
 		WorkspaceID:          "missing-workspace",
 		NetworkParticipation: participation.CloneSpec(participation.LocalSpec()),
 		State:                "stopped",
+		RuntimeStatus:        store.SessionRuntimeUnbound,
 		CreatedAt:            h.now,
 		UpdatedAt:            h.now,
 	}); err != nil {

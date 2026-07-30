@@ -9,13 +9,5 @@ import (
 func PromptRuntimeSelectionFromPayload(
 	payload *contract.PromptRuntimeSelectionPayload,
 ) *session.RuntimeSelection {
-	if payload == nil {
-		return nil
-	}
-	return &session.RuntimeSelection{
-		Provider:        payload.Provider,
-		Model:           payload.Model,
-		ReasoningEffort: string(payload.ReasoningEffort),
-		Speed:           payload.Speed,
-	}
+	return contract.PromptRuntimeSelectionFromPayload(payload)
 }

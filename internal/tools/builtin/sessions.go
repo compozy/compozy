@@ -125,7 +125,11 @@ func sessionListDescriptor() toolspkg.Descriptor {
 }
 
 func sessionDescriptors() []toolspkg.Descriptor {
-	return sessionTools
+	descriptors := make([]toolspkg.Descriptor, len(sessionTools))
+	copy(descriptors, sessionTools)
+	descriptors[1].OutputSchema = json.RawMessage(sessionCreateOutputSchema)
+	descriptors[2].OutputSchema = json.RawMessage(sessionPromptOutputSchema)
+	return descriptors
 }
 
 const sessionListInputSchema = `{
@@ -151,7 +155,8 @@ const sessionCreateInputSchema = `{
 	"properties":{
 		"workspace":{"type":"string"},
 		"agent":{"type":"string","minLength":1},
-		"name":{"type":"string"}
+		"name":{"type":"string"},
+		"network_participation":` + networkParticipationRequestSchema + `
 	},
 	"additionalProperties":false
 }`
@@ -191,6 +196,66 @@ const sessionListOutputSchema = `{
 				"has_more":{"type":"boolean"},
 				"total":{"type":"integer","minimum":0},
 				"limit":{"type":"integer","minimum":1,"maximum":100}
+			},
+			"additionalProperties":false
+		}
+	},
+	"additionalProperties":false
+}`
+
+const sessionCreateOutputSchema = `{
+	"type":"object",
+	"required":["session"],
+	"properties":{
+		"session":{
+			"type":"object",
+			"required":["id","agent_name","runtime","state"],
+			"properties":{
+				"id":{"type":"string"},
+				"agent_name":{"type":"string"},
+				"runtime":{
+					"type":"object",
+					"required":["status"],
+					"properties":{
+						"status":{"type":"string","enum":["unbound","binding","ready","reconfiguring","failed"]},
+						"transition":{"type":"string","enum":["","initial_bind","live_configuration","process_replacement"]},
+						"failure":{"type":"string"},
+						"effective":{"type":"object"},
+						"acp_session_id":{"type":"string"},
+						"acp_caps":{"type":"object"}
+					},
+					"additionalProperties":false
+				},
+				"state":{"type":"string","enum":["starting","active","stopping","stopped"]}
+			},
+			"additionalProperties":true
+		}
+	},
+	"additionalProperties":false
+}`
+
+const sessionPromptOutputSchema = `{
+	"type":"object",
+	"required":["prompt"],
+	"properties":{
+		"prompt":{
+			"type":"object",
+			"required":["status"],
+			"properties":{
+				"status":{"type":"string"},
+				"mode":{"type":"string","enum":["queue","interrupt","steer"]},
+				"queued":{"type":"boolean"},
+				"staged":{"type":"boolean"},
+				"interrupted":{"type":"boolean"},
+				"queue_entry_id":{"type":"string"},
+				"queue_position":{"type":"integer"},
+				"queue_generation":{"type":"integer"},
+				"estimated_send_at":{"type":"string","format":"date-time"},
+				"previous_turn_id":{"type":"string"},
+				"new_turn_id":{"type":"string"},
+				"canceled_queued_entries":{"type":"integer"},
+				"fallback_mode_if_no_tool_result":{"type":"string","enum":["queue","interrupt","steer"]},
+				"goal":{"type":"object"}
 			},
 			"additionalProperties":false
 		}

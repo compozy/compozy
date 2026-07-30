@@ -250,6 +250,7 @@ func TestSessionStartEnvForProviderSupportsIsolatedPolicy(t *testing.T) {
 				NetworkParticipation: testLiveParticipation("ws-test", "ops"),
 			},
 			compozyconfig.ProviderEnvPolicyIsolated,
+			"",
 		)
 
 		if got := envValue(env, "OPENAI_API_KEY"); got != "" {
@@ -263,6 +264,25 @@ func TestSessionStartEnvForProviderSupportsIsolatedPolicy(t *testing.T) {
 		}
 		if got := envValue(env, "COMPOZY_SESSION_ID"); got != "sess-1" {
 			t.Fatalf("COMPOZY_SESSION_ID = %q, want %q", got, "sess-1")
+		}
+	})
+
+	t.Run("Should use the effective launch effort instead of session state", func(t *testing.T) {
+		t.Parallel()
+
+		env := sessionStartEnvForProvider(
+			[]string{"PATH=/usr/bin"},
+			&Session{
+				ID:              "sess-1",
+				AgentName:       "coder",
+				ReasoningEffort: "low",
+			},
+			compozyconfig.ProviderEnvPolicyFiltered,
+			"high",
+		)
+
+		if got := envValue(env, "COMPOZY_REASONING_EFFORT"); got != "high" {
+			t.Fatalf("COMPOZY_REASONING_EFFORT = %q, want %q", got, "high")
 		}
 	})
 }

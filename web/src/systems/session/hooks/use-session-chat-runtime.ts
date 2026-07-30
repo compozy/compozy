@@ -9,6 +9,7 @@ import { invalidateSessionMutationQueries } from "../lib/session-query-invalidat
 import { createGoalAwareFetch } from "../lib/session-goal-chat-transport";
 import { sessionStore } from "../stores/session-store";
 import type { SessionPromptRuntimeSnapshot } from "../contexts/session-prompt-runtime-context-value";
+import { getSessionPromptRuntimeSnapshot } from "./use-session-prompt-runtime";
 import { useOptionalSessionPromptRuntimeContext } from "./use-session-prompt-runtime-context";
 
 type QueryClient = ReturnType<typeof useQueryClient>;
@@ -55,12 +56,12 @@ function buildSessionRuntimeConfig(
     } else {
       upstreamSignal?.addEventListener("abort", abortFromUpstream, { once: true });
     }
-    promptDispatch.start(controller);
+    promptDispatch.trigger.requestStarted({ controller });
     try {
       return await goalAwareFetch(input, { ...init, signal: controller.signal });
     } finally {
       upstreamSignal?.removeEventListener("abort", abortFromUpstream);
-      promptDispatch.complete(controller);
+      promptDispatch.trigger.requestCompleted({ controller });
     }
   };
   return {
@@ -100,7 +101,7 @@ export function useSessionChatRuntime({
     workspaceId,
     sessionId,
     promptDispatch,
-    promptRuntime?.getRuntimeSnapshot
+    promptRuntime ? () => getSessionPromptRuntimeSnapshot(promptRuntime) : undefined
   );
 
   return useChatRuntime({

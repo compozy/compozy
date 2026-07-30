@@ -31,6 +31,10 @@ import {
   SessionPromptRuntimeContext,
   type SessionPromptRuntimeSnapshot,
 } from "../../contexts/session-prompt-runtime-context-value";
+import {
+  sessionPromptRuntimeInput,
+  sessionPromptRuntimeStoreLogic,
+} from "../../stores/session-prompt-runtime-store";
 
 const SESSION_STREAM_QUERY = "frames=transcript";
 
@@ -395,35 +399,31 @@ function renderSessionThread(
       </SessionChatRuntimeProvider>
     </QueryClientProvider>
   );
-  const tree = options.runtimeSnapshot ? (
-    <SessionPromptRuntimeContext
-      value={{
-        canSelectRuntime: true,
-        catalog: {
-          error: null,
-          loaded: true,
-          loading: false,
-          models: [],
-          providers: [],
-          refresh: () => undefined,
-          refreshError: null,
-          refreshing: false,
-          stale: false,
-        },
-        getRuntimeSnapshot: () => options.runtimeSnapshot ?? null,
-        onRuntimeChange: () => undefined,
-        onSpeedChange: () => undefined,
-        speed: "normal",
-        value: { provider: "", model: "", reasoning_effort: "" },
-      }}
-    >
-      {sessionRuntime}
-    </SessionPromptRuntimeContext>
-  ) : (
-    sessionRuntime
-  );
+  const tree = options.runtimeSnapshot
+    ? withRuntimeSnapshot(sessionRuntime, options.runtimeSnapshot)
+    : sessionRuntime;
   const utils = render(options.strictMode ? <StrictMode>{tree}</StrictMode> : tree);
   return { ...utils, queryClient };
+}
+
+function withRuntimeSnapshot(
+  children: React.ReactNode,
+  runtimeSnapshot: SessionPromptRuntimeSnapshot
+) {
+  const store = sessionPromptRuntimeStoreLogic.createStore(
+    sessionPromptRuntimeInput(primarySessionFixture, true)
+  );
+  store.trigger.runtimeSelected({
+    value: {
+      provider: runtimeSnapshot.provider,
+      model: runtimeSnapshot.model ?? "",
+      reasoning_effort: runtimeSnapshot.reasoning_effort ?? "",
+    },
+  });
+  if (runtimeSnapshot.speed === "fast") {
+    store.trigger.speedSelected({ speed: "fast" });
+  }
+  return <SessionPromptRuntimeContext value={store}>{children}</SessionPromptRuntimeContext>;
 }
 
 function countTranscriptFetches(fetchMock: ReturnType<typeof vi.fn>): number {

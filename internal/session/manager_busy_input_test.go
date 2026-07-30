@@ -134,6 +134,8 @@ func TestManagerBusyInputRuntimeSnapshots(t *testing.T) {
 			registerManagerInputQueueWorkspace(t, queueStore, h)
 			session := createSession(t, h)
 			registerManagerInputQueueSession(t, queueStore, h, session)
+			setManagerBusyInputProviderDefault(t, h, "codex", "codex-admission-model")
+			setManagerBusyInputProviderDefault(t, h, "claude", "claude-admission-model")
 
 			activeEntered := make(chan struct{})
 			queuedEntered := make(chan struct{})
@@ -197,8 +199,17 @@ func TestManagerBusyInputRuntimeSnapshots(t *testing.T) {
 			if err != nil {
 				t.Fatalf("SendPrompt(steer) error = %v", err)
 			}
-			assertManagerBusyInputRuntime(t, h, session.ID, queued.QueueEntryID, "codex")
-			assertManagerBusyInputRuntime(t, h, session.ID, steered.QueueEntryID, "claude")
+			assertManagerBusyInputRuntime(t, h, session.ID, queued.QueueEntryID, RuntimeSelection{
+				Provider: "codex",
+				Model:    "codex-admission-model",
+			})
+			assertManagerBusyInputRuntime(t, h, session.ID, steered.QueueEntryID, RuntimeSelection{
+				Provider: "claude",
+				Model:    "claude-admission-model",
+			})
+
+			setManagerBusyInputProviderDefault(t, h, "codex", "codex-updated-model")
+			setManagerBusyInputProviderDefault(t, h, "claude", "claude-updated-model")
 
 			releaseActiveOnce.Do(func() { close(releaseActive) })
 			collectEvents(t, active.Events)
@@ -206,12 +217,26 @@ func TestManagerBusyInputRuntimeSnapshots(t *testing.T) {
 			if got := session.Info().Provider; got != "codex" {
 				t.Fatalf("runtime after queued dispatch = %q, want codex", got)
 			}
+			if got := session.Info().Model; got != "codex-admission-model" {
+				t.Fatalf("runtime model after queued dispatch = %q, want codex admission model", got)
+			}
+			assertManagerBusyInputPersistedRuntime(t, session, "queued codex runtime", RuntimeSelection{
+				Provider: "codex",
+				Model:    "codex-admission-model",
+			})
 
 			releaseQueuedOnce.Do(func() { close(releaseQueued) })
 			<-steerEntered
 			if got := session.Info().Provider; got != "claude" {
 				t.Fatalf("runtime after fallback steering dispatch = %q, want claude", got)
 			}
+			if got := session.Info().Model; got != "claude-admission-model" {
+				t.Fatalf("runtime model after fallback steering dispatch = %q, want claude admission model", got)
+			}
+			assertManagerBusyInputPersistedRuntime(t, session, "steered claude runtime", RuntimeSelection{
+				Provider: "claude",
+				Model:    "claude-admission-model",
+			})
 			releaseSteerOnce.Do(func() { close(releaseSteer) })
 			waitForCondition(t, "all busy-input prompts dispatched", func() bool {
 				return len(managerPromptCalls(h)) == 3
@@ -225,7 +250,7 @@ func assertManagerBusyInputRuntime(
 	h *harness,
 	sessionID string,
 	entryID string,
-	wantProvider string,
+	want RuntimeSelection,
 ) {
 	t.Helper()
 
@@ -233,9 +258,58 @@ func assertManagerBusyInputRuntime(
 	if err != nil {
 		t.Fatalf("inputQueue.Get(%q) error = %v", entryID, err)
 	}
-	if got := entry.Runtime.Provider; got != wantProvider {
-		t.Fatalf("queue entry %q runtime provider = %q, want %q", entryID, got, wantProvider)
+	if got := entry.Runtime.Provider; got != want.Provider {
+		t.Fatalf("queue entry %q runtime provider = %q, want %q", entryID, got, want.Provider)
 	}
+	if got := entry.Runtime.Model; got != want.Model {
+		t.Fatalf("queue entry %q runtime model = %q, want %q", entryID, got, want.Model)
+	}
+}
+
+func setManagerBusyInputProviderDefault(t *testing.T, h *harness, provider string, model string) {
+	t.Helper()
+
+	resolved, err := h.resolver.Resolve(testutil.Context(t), h.workspaceID)
+	if err != nil {
+		t.Fatalf("Resolve(workspace) error = %v", err)
+	}
+	resolved.Config.Providers[provider] = compozyconfig.ProviderConfig{
+		Models: compozyconfig.ProviderModelsConfig{Default: model},
+	}
+	h.resolver.mu.Lock()
+	h.resolver.upsert(&resolved)
+	h.resolver.mu.Unlock()
+}
+
+func assertManagerBusyInputPersistedRuntime(
+	t *testing.T,
+	session *Session,
+	wantText string,
+	want RuntimeSelection,
+) {
+	t.Helper()
+
+	for _, event := range readStoredEvents(t, session) {
+		if event.Type != acp.EventTypeUserMessage {
+			continue
+		}
+		payload := decodeStoredEventPayload(t, event)
+		if got, _ := payload["text"].(string); got != wantText {
+			continue
+		}
+		runtime, ok := payload["prompt_runtime"].(map[string]any)
+		if !ok {
+			t.Fatalf("persisted runtime for %q = %#v, want object", wantText, payload["prompt_runtime"])
+		}
+		if got, _ := runtime["provider"].(string); got != want.Provider {
+			t.Fatalf("persisted runtime provider for %q = %q, want %q", wantText, got, want.Provider)
+		}
+		if got, _ := runtime["model"].(string); got != want.Model {
+			t.Fatalf("persisted runtime model for %q = %q, want %q", wantText, got, want.Model)
+		}
+		return
+	}
+	t.Fatalf("persisted user message %q not found", wantText)
 }
 
 func promptRequestEndsWith(message string, request string) bool {
@@ -668,7 +742,7 @@ func TestManagerBusyInputManagedLifecycle(t *testing.T) {
 				entry := managedInputQueueEntry(sess.ID, "goalq-meta-"+tc.queueKind)
 				entry.PromptKind = tc.queueKind
 				entry.PromptAttempt = 4
-				h.manager.startManagedInputPrompt(sess, &entry)
+				h.manager.startManagedInputPrompt(sess, managedInputFromQueueEntry(&entry))
 				lifecycle.waitTerminal(t)
 
 				calls := managerPromptCalls(h)
@@ -754,7 +828,7 @@ func TestManagerBusyInputManagedLifecycle(t *testing.T) {
 			PromptKind: "work", PromptAttempt: 0,
 		}
 
-		h.manager.startManagedInputPrompt(sess, &entry)
+		h.manager.startManagedInputPrompt(sess, managedInputFromQueueEntry(&entry))
 		terminal := lifecycle.waitTerminal(t)
 
 		got := lifecycle.callsSnapshot()
@@ -907,7 +981,7 @@ func TestManagerBusyInputManagedLifecycle(t *testing.T) {
 				}
 
 				entry := managedInputQueueEntry(sess.ID, "goalq-invalid-usage")
-				h.manager.startManagedInputPrompt(sess, &entry)
+				h.manager.startManagedInputPrompt(sess, managedInputFromQueueEntry(&entry))
 				receipt := lifecycle.waitAmbiguous(t)
 
 				if receipt.Owner.QueueEntryID != entry.ID || receipt.ReasonCode != managedInputReasonRecoveryAmbiguous {
@@ -960,7 +1034,7 @@ func TestManagerBusyInputManagedLifecycle(t *testing.T) {
 		}
 
 		entry := managedInputQueueEntry(sess.ID, "goalq-terminal-failure")
-		h.manager.startManagedInputPrompt(sess, &entry)
+		h.manager.startManagedInputPrompt(sess, managedInputFromQueueEntry(&entry))
 		terminal := lifecycle.waitTerminal(t)
 		receipt := lifecycle.waitAmbiguous(t)
 

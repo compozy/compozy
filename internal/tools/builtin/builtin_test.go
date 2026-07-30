@@ -361,6 +361,14 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		}
 	})
 
+	t.Run("Should expose closed session mutation contracts", func(t *testing.T) {
+		t.Parallel()
+
+		descriptors := descriptorMap(NativeDescriptors())
+		assertSessionCreateMutationSchema(t, descriptors[toolspkg.ToolIDSessionCreate])
+		assertSessionPromptMutationSchema(t, descriptors[toolspkg.ToolIDSessionPrompt])
+	})
+
 	t.Run("Should expose a closed atomic memory operations batch schema", func(t *testing.T) {
 		t.Parallel()
 
@@ -1292,6 +1300,7 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 type nativeObjectSchema struct {
 	Type                 string                     `json:"type"`
 	Properties           map[string]json.RawMessage `json:"properties"`
+	Required             []string                   `json:"required"`
 	Enum                 []string                   `json:"enum"`
 	OneOf                []json.RawMessage          `json:"oneOf"`
 	Pattern              string                     `json:"pattern"`
@@ -1368,6 +1377,66 @@ func assertTypedNetworkParticipationSchema(t *testing.T, owner string, raw json.
 		}
 	}
 	assertNetworkParticipationSchemaMatchesRuntime(t, owner, raw)
+}
+
+func assertSessionCreateMutationSchema(t *testing.T, descriptor toolspkg.Descriptor) {
+	t.Helper()
+	var input nativeObjectSchema
+	if err := json.Unmarshal(descriptor.InputSchema, &input); err != nil {
+		t.Fatalf("%s input schema unmarshal error = %v", descriptor.ID, err)
+	}
+	assertClosedObjectSchema(t, descriptor.ID.String()+" input", input, []string{
+		"agent", "name", "network_participation", "workspace",
+	})
+	assertTypedNetworkParticipationSchema(
+		t,
+		descriptor.ID.String(),
+		input.Properties["network_participation"],
+	)
+	assertSessionMutationEnvelopeSchema(t, descriptor.ID.String()+" output", descriptor.OutputSchema, "session")
+}
+
+func assertSessionPromptMutationSchema(t *testing.T, descriptor toolspkg.Descriptor) {
+	t.Helper()
+	var input nativeObjectSchema
+	if err := json.Unmarshal(descriptor.InputSchema, &input); err != nil {
+		t.Fatalf("%s input schema unmarshal error = %v", descriptor.ID, err)
+	}
+	assertClosedObjectSchema(t, descriptor.ID.String()+" input", input, []string{
+		"message", "runtime", "session_id", "workspace",
+	})
+	var runtime nativeObjectSchema
+	if err := json.Unmarshal(input.Properties["runtime"], &runtime); err != nil {
+		t.Fatalf("%s runtime schema unmarshal error = %v", descriptor.ID, err)
+	}
+	assertClosedObjectSchema(t, descriptor.ID.String()+" runtime", runtime, []string{
+		"model", "provider", "reasoning_effort", "speed",
+	})
+	if !slices.Equal(runtime.Required, []string{"provider"}) {
+		t.Fatalf("%s runtime required = %#v, want [provider]", descriptor.ID, runtime.Required)
+	}
+	assertSessionMutationEnvelopeSchema(t, descriptor.ID.String()+" output", descriptor.OutputSchema, "prompt")
+}
+
+func assertSessionMutationEnvelopeSchema(
+	t *testing.T,
+	owner string,
+	raw json.RawMessage,
+	key string,
+) {
+	t.Helper()
+	var envelope nativeObjectSchema
+	if err := json.Unmarshal(raw, &envelope); err != nil {
+		t.Fatalf("%s schema unmarshal error = %v", owner, err)
+	}
+	assertClosedObjectSchema(t, owner, envelope, []string{key})
+	var payload nativeObjectSchema
+	if err := json.Unmarshal(envelope.Properties[key], &payload); err != nil {
+		t.Fatalf("%s payload schema unmarshal error = %v", owner, err)
+	}
+	if payload.Type != "object" {
+		t.Fatalf("%s payload = %#v, want object", owner, payload)
+	}
 }
 
 func assertNetworkParticipationSchemaMatchesRuntime(t *testing.T, owner string, raw json.RawMessage) {

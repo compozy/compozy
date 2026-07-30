@@ -7,6 +7,8 @@ import (
 	"time"
 )
 
+type BridgeDegradationReason string
+
 type BridgeInstance struct {
 	ID                   string               `json:"id"`
 	Scope                BridgeScope          `json:"scope"`
@@ -89,6 +91,8 @@ type BridgesMessagesIngestResult struct {
 	RoutingKey   RoutingKey `json:"routing_key"`
 }
 
+type BusyInputMode string
+
 type CatalogScope string
 
 type CatalogSort string
@@ -128,13 +132,3 @@ const (
 	CommandFlagTypeInteger CommandFlagType = "integer"
 	CommandFlagTypeNumber  CommandFlagType = "number"
 )
-
-type CompactionMatcher struct {
-	Reason   string `json:"compaction_reason,omitempty"`
-	Strategy string `json:"compaction_strategy,omitempty"`
-}
-
-type ConsentArea struct {
-	Area   string `json:"area"`
-	Access string `json:"access"`
-}

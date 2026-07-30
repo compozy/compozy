@@ -2,6 +2,24 @@
 
 package contracts
 
+type AutomationTriggerCreateParams struct {
+	Scope              Scope             `json:"scope"`
+	Name               string            `json:"name"`
+	TargetKind         TargetKind        `json:"target_kind,omitempty"`
+	AgentName          string            `json:"agent_name"`
+	WorkspaceID        string            `json:"workspace_id,omitempty"`
+	Prompt             string            `json:"prompt"`
+	Event              string            `json:"event"`
+	Filter             map[string]string `json:"filter,omitempty"`
+	LoopTarget         *LoopTarget       `json:"loop_target,omitempty"`
+	Enabled            *bool             `json:"enabled,omitempty"`
+	Retry              *RetryConfig      `json:"retry,omitempty"`
+	FireLimit          *FireLimitConfig  `json:"fire_limit,omitempty"`
+	WebhookID          string            `json:"webhook_id,omitempty"`
+	EndpointSlug       string            `json:"endpoint_slug,omitempty"`
+	WebhookSecretValue string            `json:"webhook_secret_value,omitempty"`
+}
+
 type AutomationTriggerFireParams struct {
 	Event       string         `json:"event"`
 	Scope       Scope          `json:"scope"`
@@ -162,5 +180,3 @@ type BridgeDegradation struct {
 	Reason  BridgeDegradationReason `json:"reason"`
 	Message string                  `json:"message,omitempty"`
 }
-
-type BridgeDegradationReason string

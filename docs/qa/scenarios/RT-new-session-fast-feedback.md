@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-17
 expected: Clicking New session opens launch details without a first-message composer; Create gives visible feedback within 100 ms, creates one durable session and activates its owner workspace before navigation within 250 ms, then the destination composer accepts the separate first prompt and its runtime selection without duplicate creation.
 entry_points: web agent detail New session; web Agents Start session
-qa_status: untested
-bug_ids: BUG-20260713-cursor-model-startup-contract; BUG-20260713-new-session-modal-lingers; BUG-20260713-first-prompt-optimistic-stuck; BUG-20260713-stop-generation-local-stuck; BUG-20260729-accepted-start-stop-identity-race
+qa_status: pass
+bug_ids: BUG-20260713-cursor-model-startup-contract; BUG-20260713-new-session-modal-lingers; BUG-20260713-first-prompt-optimistic-stuck; BUG-20260713-stop-generation-local-stuck; BUG-20260729-accepted-start-stop-identity-race; BUG-20260730-session-create-window-intent
 fix_status: fixed
 retest_status: pass
 fix_commits: 8eeb8a38
-evidence: /Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/new-session-modal-timing.json;/Users/pedronauck/dev/qa-labs/compozy-qa-rt-current-source-20260730-20260730-061631-252740-lab/qa-artifacts/qa
-last_report: docs/qa/reports/2026-07-28-untested-full.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/new-session-modal-timing.json;/Users/pedronauck/dev/qa-labs/compozy-qa-rt-current-source-20260730-20260730-061631-252740-lab/qa-artifacts/qa;docs/qa/evidence/2026-07-30-session-runtime-selector/04-session-open-after-create.png;docs/qa/evidence/2026-07-30-session-runtime-selector/runtime-selector-proof.md
+last_report: docs/qa/reports/2026-07-30-session-runtime-selector.md
 overlaps: RT-010
 ---
 

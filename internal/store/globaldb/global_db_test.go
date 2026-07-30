@@ -1070,13 +1070,14 @@ func TestGlobalDBRegisterSessionUpsertsProvider(t *testing.T) {
 	createdAt := time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC)
 
 	session := SessionInfo{
-		ID:          "sess-provider-upsert",
-		AgentName:   "coder",
-		Provider:    "claude",
-		WorkspaceID: workspaceID,
-		State:       "active",
-		CreatedAt:   createdAt,
-		UpdatedAt:   createdAt,
+		ID:            "sess-provider-upsert",
+		AgentName:     "coder",
+		Provider:      "claude",
+		RuntimeStatus: store.SessionRuntimeUnbound,
+		WorkspaceID:   workspaceID,
+		State:         "active",
+		CreatedAt:     createdAt,
+		UpdatedAt:     createdAt,
 	}
 	if err := globalDB.RegisterSession(testutil.Context(t), session); err != nil {
 		t.Fatalf("RegisterSession(initial) error = %v", err)
@@ -1144,14 +1145,15 @@ func TestGlobalDBRegisterSessionPersistsStopFields(t *testing.T) {
 				filepath.Join(t.TempDir(), "workspace"),
 			)
 			session := SessionInfo{
-				ID:          "sess-" + strings.ReplaceAll(tc.name, " ", "-"),
-				AgentName:   "coder",
-				WorkspaceID: workspaceID,
-				State:       "stopped",
-				StopReason:  tc.stopReason,
-				StopDetail:  tc.stopDetail,
-				CreatedAt:   time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC),
-				UpdatedAt:   time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC),
+				ID:            "sess-" + strings.ReplaceAll(tc.name, " ", "-"),
+				AgentName:     "coder",
+				RuntimeStatus: store.SessionRuntimeUnbound,
+				WorkspaceID:   workspaceID,
+				State:         "stopped",
+				StopReason:    tc.stopReason,
+				StopDetail:    tc.stopDetail,
+				CreatedAt:     time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC),
+				UpdatedAt:     time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC),
 			}
 
 			if err := globalDB.RegisterSession(testutil.Context(t), session); err != nil {
@@ -1190,12 +1192,13 @@ func TestGlobalDBRegisterSessionDefaultsTypeToUser(t *testing.T) {
 		filepath.Join(t.TempDir(), "workspace-default-type"),
 	)
 	session := SessionInfo{
-		ID:          "sess-default-type",
-		AgentName:   "coder",
-		WorkspaceID: workspaceID,
-		State:       "active",
-		CreatedAt:   time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC),
-		UpdatedAt:   time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC),
+		ID:            "sess-default-type",
+		AgentName:     "coder",
+		RuntimeStatus: store.SessionRuntimeUnbound,
+		WorkspaceID:   workspaceID,
+		State:         "active",
+		CreatedAt:     time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC),
+		UpdatedAt:     time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC),
 	}
 
 	if err := globalDB.RegisterSession(testutil.Context(t), session); err != nil {
@@ -1630,12 +1633,13 @@ func TestGlobalDBDeleteWorkspaceCascadeDeletesStoppedSessions(t *testing.T) {
 		filepath.Join(t.TempDir(), "workspace-delete-guard"),
 	)
 	if err := globalDB.RegisterSession(testutil.Context(t), SessionInfo{
-		ID:          "sess-delete-guard",
-		AgentName:   "coder",
-		WorkspaceID: workspaceID,
-		State:       "stopped",
-		CreatedAt:   time.Date(2026, 4, 3, 14, 0, 0, 0, time.UTC),
-		UpdatedAt:   time.Date(2026, 4, 3, 14, 0, 0, 0, time.UTC),
+		ID:            "sess-delete-guard",
+		AgentName:     "coder",
+		RuntimeStatus: store.SessionRuntimeUnbound,
+		WorkspaceID:   workspaceID,
+		State:         "stopped",
+		CreatedAt:     time.Date(2026, 4, 3, 14, 0, 0, 0, time.UTC),
+		UpdatedAt:     time.Date(2026, 4, 3, 14, 0, 0, 0, time.UTC),
 	}); err != nil {
 		t.Fatalf("RegisterSession() error = %v", err)
 	}
@@ -1831,12 +1835,13 @@ func TestGlobalDBDeleteWorkspaceRejectsActiveSessions(t *testing.T) {
 		filepath.Join(t.TempDir(), "ws-active-sessions"),
 	)
 	if err := globalDB.RegisterSession(testutil.Context(t), SessionInfo{
-		ID:          "sess-active-guard",
-		AgentName:   "coder",
-		WorkspaceID: workspaceID,
-		State:       "active",
-		CreatedAt:   time.Date(2026, 4, 3, 14, 0, 0, 0, time.UTC),
-		UpdatedAt:   time.Date(2026, 4, 3, 14, 0, 0, 0, time.UTC),
+		ID:            "sess-active-guard",
+		AgentName:     "coder",
+		RuntimeStatus: store.SessionRuntimeUnbound,
+		WorkspaceID:   workspaceID,
+		State:         "active",
+		CreatedAt:     time.Date(2026, 4, 3, 14, 0, 0, 0, time.UTC),
+		UpdatedAt:     time.Date(2026, 4, 3, 14, 0, 0, 0, time.UTC),
 	}); err != nil {
 		t.Fatalf("RegisterSession() error = %v", err)
 	}
@@ -1921,12 +1926,13 @@ func TestGlobalDBWorkspaceConstraintViolations(t *testing.T) {
 			filepath.Join(t.TempDir(), "workspace-delete-constraint"),
 		)
 		if err := globalDB.RegisterSession(ctx, SessionInfo{
-			ID:          "sess-delete-constraint",
-			AgentName:   "coder",
-			WorkspaceID: workspaceID,
-			State:       "stopped",
-			CreatedAt:   time.Date(2026, 4, 3, 14, 0, 0, 0, time.UTC),
-			UpdatedAt:   time.Date(2026, 4, 3, 14, 0, 0, 0, time.UTC),
+			ID:            "sess-delete-constraint",
+			AgentName:     "coder",
+			RuntimeStatus: store.SessionRuntimeUnbound,
+			WorkspaceID:   workspaceID,
+			State:         "stopped",
+			CreatedAt:     time.Date(2026, 4, 3, 14, 0, 0, 0, time.UTC),
+			UpdatedAt:     time.Date(2026, 4, 3, 14, 0, 0, 0, time.UTC),
 		}); err != nil {
 			t.Fatalf("RegisterSession() error = %v", err)
 		}
@@ -2151,6 +2157,7 @@ func TestGlobalDBRegisterAndListSessionsUseWorkspaceID(t *testing.T) {
 	session := SessionInfo{
 		ID:                  "sess-workspace-id",
 		AgentName:           "coder",
+		RuntimeStatus:       store.SessionRuntimeUnbound,
 		WorkspaceID:         workspaceID,
 		SessionNetworkState: &store.SessionNetworkState{NetworkSpec: participation.LocalSpec()},
 		State:               "active",
@@ -2304,10 +2311,11 @@ func TestGlobalDBRegisterSessionRejectsStallStateWithoutReason(t *testing.T) {
 	)
 
 	err := globalDB.RegisterSession(testutil.Context(t), SessionInfo{
-		ID:          "sess-invalid-stall",
-		AgentName:   "coder",
-		WorkspaceID: workspaceID,
-		State:       "active",
+		ID:            "sess-invalid-stall",
+		AgentName:     "coder",
+		RuntimeStatus: store.SessionRuntimeUnbound,
+		WorkspaceID:   workspaceID,
+		State:         "active",
 		Liveness: &store.SessionLivenessMeta{
 			SubprocessPID: 77,
 			StallState:    store.SessionStallStateDetected,
@@ -2340,10 +2348,11 @@ func TestGlobalDBRegisterSessionRejectsUnmarshalableActivity(t *testing.T) {
 		unmarshalableTime := time.Date(10000, 1, 1, 0, 0, 0, 0, time.UTC)
 
 		err := globalDB.RegisterSession(testutil.Context(t), SessionInfo{
-			ID:          "sess-invalid-activity",
-			AgentName:   "coder",
-			WorkspaceID: workspaceID,
-			State:       "active",
+			ID:            "sess-invalid-activity",
+			AgentName:     "coder",
+			RuntimeStatus: store.SessionRuntimeUnbound,
+			WorkspaceID:   workspaceID,
+			State:         "active",
 			Liveness: &store.SessionLivenessMeta{
 				Activity: &store.SessionActivityMeta{
 					TurnStartedAt: &unmarshalableTime,
@@ -2789,12 +2798,13 @@ func TestGlobalDBUpdateSessionStateHandlesStopFields(t *testing.T) {
 			filepath.Join(t.TempDir(), "workspace"),
 		)
 		if err := globalDB.RegisterSession(testutil.Context(t), SessionInfo{
-			ID:          "sess-update-stop",
-			AgentName:   "coder",
-			WorkspaceID: workspaceID,
-			State:       "active",
-			CreatedAt:   time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC),
-			UpdatedAt:   time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC),
+			ID:            "sess-update-stop",
+			AgentName:     "coder",
+			RuntimeStatus: store.SessionRuntimeUnbound,
+			WorkspaceID:   workspaceID,
+			State:         "active",
+			CreatedAt:     time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC),
+			UpdatedAt:     time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC),
 		}); err != nil {
 			t.Fatalf("RegisterSession() error = %v", err)
 		}
@@ -2827,14 +2837,15 @@ func TestGlobalDBUpdateSessionStateHandlesStopFields(t *testing.T) {
 			filepath.Join(t.TempDir(), "workspace"),
 		)
 		if err := globalDB.RegisterSession(testutil.Context(t), SessionInfo{
-			ID:          "sess-preserve-stop",
-			AgentName:   "coder",
-			WorkspaceID: workspaceID,
-			State:       "stopped",
-			StopReason:  store.StopTimeout,
-			StopDetail:  "deadline exceeded",
-			CreatedAt:   time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC),
-			UpdatedAt:   time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC),
+			ID:            "sess-preserve-stop",
+			AgentName:     "coder",
+			RuntimeStatus: store.SessionRuntimeUnbound,
+			WorkspaceID:   workspaceID,
+			State:         "stopped",
+			StopReason:    store.StopTimeout,
+			StopDetail:    "deadline exceeded",
+			CreatedAt:     time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC),
+			UpdatedAt:     time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC),
 		}); err != nil {
 			t.Fatalf("RegisterSession() error = %v", err)
 		}
@@ -2863,14 +2874,15 @@ func TestGlobalDBUpdateSessionStateHandlesStopFields(t *testing.T) {
 			filepath.Join(t.TempDir(), "workspace"),
 		)
 		if err := globalDB.RegisterSession(testutil.Context(t), SessionInfo{
-			ID:          "sess-clear-stop",
-			AgentName:   "coder",
-			WorkspaceID: workspaceID,
-			State:       "stopped",
-			StopReason:  store.StopTimeout,
-			StopDetail:  "deadline exceeded",
-			CreatedAt:   time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC),
-			UpdatedAt:   time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC),
+			ID:            "sess-clear-stop",
+			AgentName:     "coder",
+			RuntimeStatus: store.SessionRuntimeUnbound,
+			WorkspaceID:   workspaceID,
+			State:         "stopped",
+			StopReason:    store.StopTimeout,
+			StopDetail:    "deadline exceeded",
+			CreatedAt:     time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC),
+			UpdatedAt:     time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC),
 		}); err != nil {
 			t.Fatalf("RegisterSession() error = %v", err)
 		}
@@ -2929,9 +2941,10 @@ func TestGlobalDBReconcileSessions(t *testing.T) {
 
 	onDisk := []SessionInfo{
 		{
-			ID:        "sess-keep",
-			AgentName: "coder",
-			Provider:  "claude",
+			ID:            "sess-keep",
+			AgentName:     "coder",
+			Provider:      "claude",
+			RuntimeStatus: store.SessionRuntimeUnbound,
 			WorkspaceID: registerWorkspaceForGlobalTests(
 				t,
 				globalDB,
@@ -2944,9 +2957,10 @@ func TestGlobalDBReconcileSessions(t *testing.T) {
 			UpdatedAt:  time.Date(2026, 4, 3, 16, 0, 0, 0, time.UTC),
 		},
 		{
-			ID:        "sess-new",
-			AgentName: "reviewer",
-			Provider:  "codex",
+			ID:            "sess-new",
+			AgentName:     "reviewer",
+			Provider:      "codex",
+			RuntimeStatus: store.SessionRuntimeUnbound,
 			WorkspaceID: registerWorkspaceForGlobalTests(
 				t,
 				globalDB,
@@ -3017,18 +3031,20 @@ func TestGlobalDBReconcileSessionsSkipsDuplicateIDsAndDefaultsTimestamps(t *test
 	)
 	onDisk := []SessionInfo{
 		{
-			ID:          "sess-duplicate",
-			AgentName:   "coder",
-			Provider:    "claude",
-			WorkspaceID: workspaceID,
-			State:       "stopped",
+			ID:            "sess-duplicate",
+			AgentName:     "coder",
+			Provider:      "claude",
+			RuntimeStatus: store.SessionRuntimeUnbound,
+			WorkspaceID:   workspaceID,
+			State:         "stopped",
 		},
 		{
-			ID:          "sess-duplicate",
-			AgentName:   "coder",
-			Provider:    "codex",
-			WorkspaceID: workspaceID,
-			State:       "orphaned",
+			ID:            "sess-duplicate",
+			AgentName:     "coder",
+			Provider:      "codex",
+			RuntimeStatus: store.SessionRuntimeUnbound,
+			WorkspaceID:   workspaceID,
+			State:         "orphaned",
 		},
 	}
 

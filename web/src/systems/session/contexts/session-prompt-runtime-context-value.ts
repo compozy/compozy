@@ -1,11 +1,7 @@
 import { createContext } from "react";
 
 import type { ReasoningEffort, RuntimeSpeed } from "@/lib/api-contract";
-import type {
-  RuntimeModelOption,
-  RuntimeProviderOption,
-  RuntimeSelectorValue,
-} from "@/systems/runtime";
+import type { SessionPromptRuntimeStore } from "../stores/session-prompt-runtime-store";
 
 /** Runtime intent captured when a user dispatches one session prompt. */
 export interface SessionPromptRuntimeSnapshot {
@@ -15,26 +11,4 @@ export interface SessionPromptRuntimeSnapshot {
   speed?: RuntimeSpeed;
 }
 
-export interface SessionPromptRuntimeContextValue {
-  catalog: {
-    error: string | null;
-    loaded: boolean;
-    loading: boolean;
-    models: RuntimeModelOption[];
-    providers: RuntimeProviderOption[];
-    refresh: () => void;
-    refreshError: string | null;
-    refreshing: boolean;
-    stale: boolean;
-  };
-  canSelectRuntime: boolean;
-  getRuntimeSnapshot: () => SessionPromptRuntimeSnapshot | null;
-  onRuntimeChange: (next: RuntimeSelectorValue) => void;
-  onSpeedChange: (next: RuntimeSpeed) => void;
-  speed: RuntimeSpeed;
-  value: RuntimeSelectorValue;
-}
-
-export const SessionPromptRuntimeContext = createContext<SessionPromptRuntimeContextValue | null>(
-  null
-);
+export const SessionPromptRuntimeContext = createContext<SessionPromptRuntimeStore | null>(null);

@@ -2222,8 +2222,8 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "878b061d7461635506679696d9336681dfadebcf1ebb98ef93768f02b4f6247f",
-    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+    "input_schema_digest": "c6ada21f22c6b67fbb10223b4026a7dfe28b0475f86b15a1ed93234d42f0c9f9",
+    "output_schema_digest": "4e2876896ce1a929f19fa5fec6efa36524c1db0cbdb85184de20fd06078cba37"
   },
   {
     "tool_id": "compozy__session_describe",
@@ -2302,7 +2302,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "c849c275dd883801752b7adee346dfe7e84ff5d1988841c98638eb433e3b1965",
-    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+    "output_schema_digest": "7aed0603aea9c3d8813b5ccab3fd871821370cadce3ebf85b15a9a2625ea6d99"
   },
   {
     "tool_id": "compozy__session_status",
