@@ -45,10 +45,8 @@ func TestMCPServeCommand(t *testing.T) {
 		cmd := newMCPServeCommand(deps)
 		stdin := strings.NewReader("input")
 		stdout := &bytes.Buffer{}
-		stderr := &bytes.Buffer{}
 		cmd.SetIn(stdin)
 		cmd.SetOut(stdout)
-		cmd.SetErr(stderr)
 		cmd.SetArgs([]string{
 			"--workspace", "alpha",
 			"--transport", "http",
@@ -62,7 +60,7 @@ func TestMCPServeCommand(t *testing.T) {
 			captured.Listen != "127.0.0.1:3131" || captured.TokenEnv != "CUSTOM_TOKEN" {
 			t.Fatalf("captured options = %#v, want command flags", captured)
 		}
-		if captured.Stdin != stdin || captured.Stdout != stdout || captured.Stderr != stderr {
+		if captured.Stdin != stdin || captured.Stdout != stdout {
 			t.Fatalf("captured streams = %#v, want command streams", captured)
 		}
 		if cmd.Flags().Lookup("token") != nil {
@@ -132,7 +130,6 @@ func TestMCPServeCommand(t *testing.T) {
 				Transport: mcpServeTransportStdio,
 				Stdin:     stdin,
 				Stdout:    &bytes.Buffer{},
-				Stderr:    &bytes.Buffer{},
 			})
 		}()
 		if _, err := io.WriteString(stdinWriter, requests); err != nil {

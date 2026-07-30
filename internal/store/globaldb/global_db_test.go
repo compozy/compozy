@@ -1760,7 +1760,10 @@ func TestGlobalDBDeleteWorkspaceWithoutSessions(t *testing.T) {
 		for _, ref := range []string{accessRef, refreshRef} {
 			assertVaultRefPresence(ctx, t, globalDB.db, ref, false)
 		}
-		if _, err := globalDB.GetMCPAuthRegistration(ctx, targets[0]); !errors.Is(err, mcpauth.ErrRegistrationNotFound) {
+		if _, err := globalDB.GetMCPAuthRegistration(ctx, targets[0]); !errors.Is(
+			err,
+			mcpauth.ErrRegistrationNotFound,
+		) {
 			t.Fatalf("GetMCPAuthRegistration(deleted workspace) error = %v, want ErrRegistrationNotFound", err)
 		}
 		for _, ref := range []string{
@@ -1814,6 +1817,14 @@ func TestGlobalDBDeleteWorkspaceWithoutSessions(t *testing.T) {
 		}); err != nil {
 			t.Fatalf("SaveMCPAuthToken() error = %v", err)
 		}
+		registration, err := globalDB.SaveMCPAuthRegistration(
+			ctx,
+			mcpOAuthRegistrationRecord(t, target, issuedAt),
+			mcpOAuthRegistrationSecrets(),
+		)
+		if err != nil {
+			t.Fatalf("SaveMCPAuthRegistration() error = %v", err)
+		}
 		var accessRef, refreshRef string
 		if err := globalDB.db.QueryRowContext(
 			ctx,
@@ -1827,18 +1838,18 @@ func TestGlobalDBDeleteWorkspaceWithoutSessions(t *testing.T) {
 		}
 		if _, err := globalDB.db.ExecContext(
 			ctx,
-			`CREATE TRIGGER fail_workspace_mcp_secret_cleanup
+			`CREATE TRIGGER fail_workspace_mcp_dcr_secret_cleanup
 			 BEFORE DELETE ON vault_secrets
-			 WHEN OLD.kind = 'mcp_oauth_access_token'
+			 WHEN OLD.kind = 'mcp_oauth_dcr_client_secret'
 			 BEGIN
-			   SELECT RAISE(ABORT, 'forced MCP secret cleanup failure');
+			   SELECT RAISE(ABORT, 'forced MCP DCR secret cleanup failure');
 			 END`,
 		); err != nil {
 			t.Fatalf("create cleanup failure trigger error = %v", err)
 		}
 
-		err := globalDB.DeleteWorkspace(ctx, workspaceID)
-		if err == nil || !strings.Contains(err.Error(), "forced MCP secret cleanup failure") {
+		err = globalDB.DeleteWorkspace(ctx, workspaceID)
+		if err == nil || !strings.Contains(err.Error(), "forced MCP DCR secret cleanup failure") {
 			t.Fatalf("DeleteWorkspace() error = %v, want forced cleanup failure", err)
 		}
 		if _, err := globalDB.GetWorkspace(ctx, workspaceID); err != nil {
@@ -1847,7 +1858,13 @@ func TestGlobalDBDeleteWorkspaceWithoutSessions(t *testing.T) {
 		if _, err := globalDB.GetMCPAuthToken(ctx, target); err != nil {
 			t.Fatalf("GetMCPAuthToken(after rollback) error = %v", err)
 		}
+		if _, err := globalDB.GetMCPAuthRegistration(ctx, target); err != nil {
+			t.Fatalf("GetMCPAuthRegistration(after rollback) error = %v", err)
+		}
 		for _, ref := range []string{accessRef, refreshRef} {
+			assertVaultRefPresence(ctx, t, globalDB.db, ref, true)
+		}
+		for _, ref := range []string{registration.ClientSecretRef, registration.RegistrationAccessTokenRef} {
 			assertVaultRefPresence(ctx, t, globalDB.db, ref, true)
 		}
 	})

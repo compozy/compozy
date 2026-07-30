@@ -247,6 +247,7 @@ func approvalGrantHostedClient(
 	}
 	client := startHostedMCPClient(
 		t,
+		ctx,
 		requireHostedMCPStdioServer(t, diagnostics, hostedMCPServerEarliest),
 	)
 	return client

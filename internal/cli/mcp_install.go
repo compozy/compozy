@@ -95,6 +95,11 @@ func bindMCPInstallFlags(cmd *cobra.Command, flags *mcpInstallFlags) {
 		nil,
 		"Set one catalog input as ID=VALUE (repeatable)",
 	)
-	cmd.Flags().StringArrayVar(&flags.secretIDs, "secret", nil, "Read one secret catalog input from stdin or a hidden terminal prompt (repeatable)")
+	cmd.Flags().StringArrayVar(
+		&flags.secretIDs,
+		"secret",
+		nil,
+		"Read one secret catalog input from stdin or a hidden terminal prompt (repeatable)",
+	)
 	cmd.Flags().StringArrayVar(&flags.vaultRefs, "vault-ref", nil, "Bind a feed field as KEY=vault:mcp/...")
 }

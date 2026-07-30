@@ -25,6 +25,9 @@ func (p policy) validateURL(destination *url.URL) error {
 			return ErrInsecureTransport
 		}
 	}
+	if isExplicitLoopback && !p.allowLoopback {
+		return ErrBlockedDestination
+	}
 	if ip, err := netip.ParseAddr(host); err == nil {
 		if err := p.validateAddress(ip, isExplicitLoopback); err != nil {
 			return err
@@ -77,7 +80,21 @@ func sameOrigin(left, right *url.URL) bool {
 		return false
 	}
 	return strings.EqualFold(left.Scheme, right.Scheme) &&
-		strings.EqualFold(left.Hostname(), right.Hostname()) && left.Port() == right.Port()
+		strings.EqualFold(left.Hostname(), right.Hostname()) && effectivePort(left) == effectivePort(right)
+}
+
+func effectivePort(destination *url.URL) string {
+	if port := destination.Port(); port != "" {
+		return port
+	}
+	switch strings.ToLower(destination.Scheme) {
+	case "http":
+		return "80"
+	case "https":
+		return "443"
+	default:
+		return ""
+	}
 }
 
 func isSpecialUseAddress(address netip.Addr) bool {

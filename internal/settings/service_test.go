@@ -2228,7 +2228,7 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 			}
 
 			invalidateErr := errors.New("auth invalidation unavailable")
-			runtime := &recordingMCPAuthRuntime{invalidateErrs: map[int]error{2: invalidateErr}}
+			runtime := &recordingMCPAuthRuntime{deleteStateErrs: map[int]error{1: invalidateErr}}
 			service := testService(t, homePaths, Dependencies{
 				MCPAuth:         runtime,
 				ProviderSecrets: secretStore,
@@ -2252,11 +2252,21 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 			if got := secretStore.plaintext[ref]; got != "old-secret" {
 				t.Fatalf("restored secret = %q, want old-secret", got)
 			}
-			if got, want := len(runtime.invalidated), 3; got != want {
+			if got, want := len(runtime.operations), 3; got != want {
 				t.Fatalf(
-					"auth invalidation calls = %d, want pre-mutation, failed post-mutation, and post-rollback",
+					"auth lifecycle calls = %d, want invalidate, failed state deletion, and rollback invalidate",
 					got,
 				)
+			}
+			wantKinds := []string{
+				recordingMCPAuthInvalidate,
+				recordingMCPAuthDeleteState,
+				recordingMCPAuthInvalidate,
+			}
+			for index, operation := range runtime.operations {
+				if operation.kind != wantKinds[index] {
+					t.Fatalf("auth lifecycle[%d] = %#v, want kind %q", index, operation, wantKinds[index])
+				}
 			}
 		},
 	)
@@ -2284,7 +2294,7 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 
 			invalidateErr := errors.New("auth invalidation unavailable")
 			rollbackErr := errors.New("definition rollback unavailable")
-			runtime := &recordingMCPAuthRuntime{invalidateErrs: map[int]error{2: invalidateErr}}
+			runtime := &recordingMCPAuthRuntime{deleteStateErrs: map[int]error{1: invalidateErr}}
 			writeCalls := 0
 			writer := func(
 				home compozyconfig.HomePaths,
@@ -3141,6 +3151,53 @@ func TestInstallMCPCatalogEnforcesBornValidVaultSemantics(t *testing.T) {
 		}
 	})
 
+	t.Run("Should reject a Vault ref owned by another workspace", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+		workspaceID := "workspace-a"
+		workspaceRoot := filepath.Join(t.TempDir(), "workspace-a")
+		otherPrefix, err := vault.MCPSecretOwnerPrefix(
+			vault.MCPWorkspaceScope,
+			"workspace-b",
+			"GitHub",
+		)
+		if err != nil {
+			t.Fatalf("MCPSecretOwnerPrefix(workspace-b) error = %v", err)
+		}
+		otherRef := otherPrefix + "env/GITHUB_TOKEN"
+		secretStore := newFakeProviderSecretStore()
+		if _, err := secretStore.PutSecret(ctx, otherRef, "mcp", "workspace-b-secret"); err != nil {
+			t.Fatalf("PutSecret(workspace-b) error = %v", err)
+		}
+		service := testService(t, homePaths, Dependencies{
+			MCPCatalog:      fakeMCPCatalog{entry: stdioMCPCatalogEntry()},
+			ProviderSecrets: secretStore,
+			WorkspaceResolver: fakeWorkspaceResolver{resolved: map[string]workspacepkg.ResolvedWorkspace{
+				workspaceID: {Workspace: workspacepkg.Workspace{ID: workspaceID, RootDir: workspaceRoot}},
+			}},
+		})
+
+		_, err = service.InstallMCPCatalog(ctx, MCPCatalogInstallRequest{
+			EntryID:     "github",
+			Scope:       ScopeWorkspace,
+			WorkspaceID: workspaceID,
+			Values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
+				"github_token": {VaultRef: otherRef},
+			}},
+		})
+		if !errors.Is(err, ErrValidation) || !strings.Contains(err.Error(), "must belong to the target server") {
+			t.Fatalf("InstallMCPCatalog(cross-workspace ref) error = %v, want owner rejection", err)
+		}
+		if _, statErr := os.Stat(
+			filepath.Join(workspaceRoot, compozyconfig.DirName, compozyconfig.MCPJSONName),
+		); !errors.Is(statErr, os.ErrNotExist) {
+			t.Fatalf("workspace sidecar exists after cross-workspace rejection: %v", statErr)
+		}
+	})
+
 	t.Run("Should garbage collect a superseded install-owned ref", func(t *testing.T) {
 		t.Parallel()
 
@@ -3213,7 +3270,7 @@ func TestInstallMCPCatalogEnforcesBornValidVaultSemantics(t *testing.T) {
 		if err != nil {
 			t.Fatalf("InstallMCPCatalog(owned ref) error = %v", err)
 		}
-		invalidationBaseline := len(runtime.invalidated)
+		lifecycleBaseline := len(runtime.operations)
 
 		_, err = service.InstallMCPCatalog(ctx, MCPCatalogInstallRequest{
 			EntryID: "github",
@@ -3225,7 +3282,7 @@ func TestInstallMCPCatalogEnforcesBornValidVaultSemantics(t *testing.T) {
 		if err != nil {
 			t.Fatalf("InstallMCPCatalog(owner ref replacement) error = %v", err)
 		}
-		if got, want := len(runtime.invalidated), invalidationBaseline+2; got != want {
+		if got, want := len(runtime.operations), lifecycleBaseline+2; got != want {
 			t.Fatalf(
 				"auth lifecycle calls after owner ref replacement = %d, want %d (pre, delete state)",
 				got,

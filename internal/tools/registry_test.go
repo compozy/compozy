@@ -14,12 +14,17 @@ type registryTestProvider struct {
 	listScoped  func(Scope) []Descriptor
 	handles     map[ToolID]Handle
 	resolveErr  map[ToolID]error
+	deferred    bool
 }
 
 var _ Provider = registryTestProvider{}
 
 func (p registryTestProvider) ID() SourceRef {
 	return p.source
+}
+
+func (p registryTestProvider) DeferInitialDiscovery() bool {
+	return p.deferred
 }
 
 func (p registryTestProvider) List(_ context.Context, scope Scope) ([]Descriptor, error) {
@@ -397,6 +402,70 @@ func TestRuntimeRegistryProjections(t *testing.T) {
 		}
 		if sessionViews[0].Descriptor.ID != skillView.ID {
 			t.Fatalf("session tool = %q, want %q", sessionViews[0].Descriptor.ID, skillView.ID)
+		}
+	})
+
+	t.Run("Should defer remote discovery from the bootstrap projection", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		local := descriptorWithID(ToolIDTaskRunClaimNext, "Claim Task Run", ToolsetIDAutonomy)
+		secondLocal := descriptorWithID(ToolIDTaskRead, "Read Task", ToolsetIDTasks)
+		remote := mcpDescriptor("mcp__github__search", "github", "search")
+		localProvider := providerWithDescriptors(
+			SourceRef{Kind: SourceBuiltin, Owner: "daemon"},
+			local,
+			secondLocal,
+		)
+		remoteProvider := providerWithDescriptors(SourceRef{Kind: SourceDynamic, Owner: "mcp"}, remote)
+		remoteListCalls := 0
+		remoteProvider.deferred = true
+		remoteProvider.list = func() []Descriptor {
+			remoteListCalls++
+			return []Descriptor{remote}
+		}
+		registry, err := NewRegistry(
+			WithProviders(localProvider, remoteProvider),
+			WithPolicyInputs(PolicyInputs{
+				SystemPermissionMode: PermissionModeApproveAll,
+				ExternalDefault:      ExternalDefaultEnabled,
+			}, ToolsetCatalog{}),
+		)
+		if err != nil {
+			t.Fatalf("NewRegistry() error = %v", err)
+		}
+
+		bootstrap, err := registry.BootstrapSessionProjection(ctx, Scope{})
+		if err != nil {
+			t.Fatalf("BootstrapSessionProjection() error = %v", err)
+		}
+		requireToolIDs(t, bootstrap, local.ID, secondLocal.ID)
+		if remoteListCalls != 0 {
+			t.Fatalf("deferred provider list calls = %d, want 0 during bootstrap", remoteListCalls)
+		}
+		localHandle, ok := localProvider.handles[secondLocal.ID].(*registryTestHandle)
+		if !ok {
+			t.Fatalf("local provider handle = %T, want *registryTestHandle", localProvider.handles[secondLocal.ID])
+		}
+		localHandle.result = ToolResult{Content: []ToolContent{{Type: "text", Text: "read"}}}
+		result, err := registry.BootstrapSessionCall(ctx, Scope{}, CallRequest{ToolID: secondLocal.ID})
+		if err != nil {
+			t.Fatalf("BootstrapSessionCall() error = %v", err)
+		}
+		if len(result.Content) != 1 || result.Content[0].Text != "read" {
+			t.Fatalf("BootstrapSessionCall() result = %#v, want read text", result)
+		}
+		if remoteListCalls != 0 {
+			t.Fatalf("deferred provider list calls = %d, want 0 during bootstrap call", remoteListCalls)
+		}
+
+		full, err := registry.SessionProjection(ctx, Scope{})
+		if err != nil {
+			t.Fatalf("SessionProjection() error = %v", err)
+		}
+		requireToolIDs(t, full, local.ID, secondLocal.ID, remote.ID)
+		if remoteListCalls == 0 {
+			t.Fatal("deferred provider list calls = 0, want discovery during full projection")
 		}
 	})
 }

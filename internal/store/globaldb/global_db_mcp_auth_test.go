@@ -353,6 +353,13 @@ func TestMCPOAuthRegistrationStorePersistsTargetScopedDCRState(t *testing.T) {
 		if stored.ClientID != saved.ClientID || stored.ResourceURL != saved.ResourceURL {
 			t.Fatalf("stored registration = %#v, want persisted client and resource identity", stored)
 		}
+		if stored.TokenEndpointAuthMethod != saved.TokenEndpointAuthMethod {
+			t.Fatalf(
+				"stored token endpoint auth method = %q, want %q",
+				stored.TokenEndpointAuthMethod,
+				saved.TokenEndpointAuthMethod,
+			)
+		}
 		if stored.ClientSecretRef != saved.ClientSecretRef ||
 			stored.RegistrationAccessTokenRef != saved.RegistrationAccessTokenRef {
 			t.Fatalf("stored registration refs = %#v, want DCR vault refs", stored)
@@ -370,6 +377,40 @@ func TestMCPOAuthRegistrationStorePersistsTargetScopedDCRState(t *testing.T) {
 		}
 		for _, ref := range []string{saved.ClientSecretRef, saved.RegistrationAccessTokenRef} {
 			assertVaultRefPresence(ctx, t, db.db, ref, false)
+		}
+	})
+
+	t.Run("Should persist empty registration scopes as a JSON array", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		db := openTestGlobalDB(t)
+		registration := mcpOAuthRegistrationRecord(
+			t,
+			globalMCPAuthTarget("empty-scopes"),
+			time.Date(2026, 7, 30, 15, 15, 0, 0, time.UTC),
+		)
+		registration.Scopes = nil
+		saved, err := db.SaveMCPAuthRegistration(ctx, registration, mcpOAuthRegistrationSecrets())
+		if err != nil {
+			t.Fatalf("SaveMCPAuthRegistration(empty scopes) error = %v", err)
+		}
+		if saved.Scopes == nil || len(saved.Scopes) != 0 {
+			t.Fatalf("SaveMCPAuthRegistration(empty scopes).Scopes = %#v, want non-nil empty slice", saved.Scopes)
+		}
+		var scopesJSON string
+		if err := db.db.QueryRowContext(
+			ctx,
+			`SELECT scopes_json FROM mcp_oauth_registrations
+			 WHERE scope = ? AND workspace_id = ? AND server_name = ?`,
+			string(saved.Target.Scope),
+			saved.Target.WorkspaceID,
+			saved.Target.ServerName,
+		).Scan(&scopesJSON); err != nil {
+			t.Fatalf("query persisted registration scopes error = %v", err)
+		}
+		if scopesJSON != `[]` {
+			t.Fatalf("persisted scopes_json = %q, want []", scopesJSON)
 		}
 	})
 
@@ -658,6 +699,85 @@ func TestMCPAuthTokenScopeMigration(t *testing.T) {
 		})
 		assertUnboundMCPAuthMigrationRow(ctx, t, reopened.db)
 	})
+
+	t.Run("Should preserve DCR registration rows when adding token endpoint auth method", func(t *testing.T) {
+		t.Parallel()
+
+		databasePath := filepath.Join(t.TempDir(), store.GlobalDatabaseName)
+		previousDB, err := sql.Open(sqliteDriverName, databasePath)
+		if err != nil {
+			t.Fatalf("sql.Open(previous) error = %v", err)
+		}
+		prefix := globalMigrationPrefixBefore(t, "00031_schema.sql")
+		if err := applyGlobalMigrationPrefix(t, previousDB, prefix); err != nil {
+			closeErr := previousDB.Close()
+			t.Fatalf("Apply(global v30) error = %v; close error = %v", err, closeErr)
+		}
+		ctx := testutil.Context(t)
+		if _, err := previousDB.ExecContext(
+			ctx,
+			`INSERT INTO mcp_oauth_registrations (
+				scope, workspace_id, server_name, definition_fingerprint, resource_url,
+				issuer, client_id, redirect_uri, scopes_json, updated_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			"global",
+			"",
+			"linear",
+			testMCPDefinitionFingerprint,
+			"https://mcp.example/resource",
+			"https://issuer.example",
+			"dcr-client",
+			"http://127.0.0.1:8787/callback",
+			`["read"]`,
+			"2026-07-30T15:00:00Z",
+		); err != nil {
+			closeErr := previousDB.Close()
+			t.Fatalf("seed global v30 registration error = %v; close error = %v", err, closeErr)
+		}
+		if err := previousDB.Close(); err != nil {
+			t.Fatalf("Close(previous) error = %v", err)
+		}
+
+		migrated, err := openGlobalMigrationUpgrade(t, databasePath)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB(migrate v31) error = %v", err)
+		}
+		ctx = testutil.Context(t)
+		stored, err := migrated.GetMCPAuthRegistration(ctx, globalMCPAuthTarget("linear"))
+		if err != nil {
+			closeErr := migrated.Close(ctx)
+			t.Fatalf("GetMCPAuthRegistration(migrated) error = %v; close error = %v", err, closeErr)
+		}
+		if stored.ClientID != "dcr-client" || stored.TokenEndpointAuthMethod != "" {
+			closeErr := migrated.Close(ctx)
+			t.Fatalf(
+				"migrated registration = %#v, want preserved client and empty method; close error = %v",
+				stored,
+				closeErr,
+			)
+		}
+		if err := migrated.Close(ctx); err != nil {
+			t.Fatalf("Close(migrated) error = %v", err)
+		}
+
+		reopened, err := OpenGlobalDB(ctx, databasePath)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB(reopen v31) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := reopened.Close(testutil.Context(t)); err != nil {
+				t.Errorf("Close(reopened) error = %v", err)
+			}
+		})
+		ctx = testutil.Context(t)
+		stored, err = reopened.GetMCPAuthRegistration(ctx, globalMCPAuthTarget("linear"))
+		if err != nil {
+			t.Fatalf("GetMCPAuthRegistration(reopened) error = %v", err)
+		}
+		if stored.ClientID != "dcr-client" || stored.TokenEndpointAuthMethod != "" {
+			t.Fatalf("reopened registration = %#v, want preserved client and empty method", stored)
+		}
+	})
 }
 
 func assertUnboundMCPAuthMigrationRow(ctx context.Context, t *testing.T, db *sql.DB) {
@@ -759,17 +879,18 @@ func mcpOAuthRegistrationRecord(
 ) mcpauth.ClientRegistration {
 	t.Helper()
 	return mcpauth.ClientRegistration{
-		Target:                target,
-		DefinitionFingerprint: testMCPDefinitionFingerprint,
-		ResourceURL:           "https://mcp.example/resource",
-		Issuer:                "https://issuer.example",
-		ClientID:              "dcr-client",
-		RegistrationClientURI: "https://issuer.example/register/dcr-client",
-		ClientIDIssuedAt:      issuedAt,
-		ClientSecretExpiresAt: issuedAt.Add(time.Hour),
-		RedirectURL:           "http://127.0.0.1:8787/callback",
-		Scopes:                []string{"read", "write"},
-		UpdatedAt:             issuedAt,
+		Target:                  target,
+		DefinitionFingerprint:   testMCPDefinitionFingerprint,
+		ResourceURL:             "https://mcp.example/resource",
+		Issuer:                  "https://issuer.example",
+		ClientID:                "dcr-client",
+		TokenEndpointAuthMethod: "client_secret_basic",
+		RegistrationClientURI:   "https://issuer.example/register/dcr-client",
+		ClientIDIssuedAt:        issuedAt,
+		ClientSecretExpiresAt:   issuedAt.Add(time.Hour),
+		RedirectURL:             "http://127.0.0.1:8787/callback",
+		Scopes:                  []string{"read", "write"},
+		UpdatedAt:               issuedAt,
 	}
 }
 

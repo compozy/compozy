@@ -9,9 +9,9 @@ entry_points: /marketplace/mcps?tab=installed; /marketplace/mcp/<entry-id>
 qa_status: blocked-verify
 bug_ids:
 fix_status:
-retest_status:
+retest_status: pass
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-et-current-source-20260730-061655-910372-lab/qa-artifacts/qa
+evidence: /Users/pedronauck/dev/qa-labs/compozy-mcp-2026-catalog-v2-final-rerun-20260730-204949-514647-lab/qa-artifacts/qa/screenshots/mcp-guided-linear-installed.png; /Users/pedronauck/dev/qa-labs/compozy-mcp-2026-catalog-v2-final-rerun-20260730-204949-514647-lab/qa-artifacts/qa/notes/mcp-status-after-linear.json
 last_report: docs/qa/reports/2026-07-30-mcp-2026-catalog-v2.md
 overlaps: ET-web-mcp-authorize; ET-web-mcp-authorize-manual; ET-web-mcp-status-matrix
 ---
@@ -35,3 +35,7 @@ cannot supply the displayed runtime/auth state or receive the authorization requ
 QA impact 2026-07-19: while installed-detail OAuth authorization is awaiting confirmation, the
 workspace- or global-scoped MCP projection polls at the dedicated authorization cadence and reports
 success only after the refreshed status is authenticated with a token present.
+
+QA result 2026-07-30: the installed Linear surface exposed the exact target's authorization handoff
+and remained unauthenticated. Human consent and the post-exchange token-present confirmation remain
+`blocked-verify`.

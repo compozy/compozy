@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
+	"net/url"
 	"strings"
 	"sync"
 	"testing"
@@ -51,6 +52,12 @@ func TestClientValidateURL(t *testing.T) {
 			name:   "Should reject loopback without explicit permission",
 			client: publicClient,
 			url:    "https://127.0.0.1/mcp",
+			want:   ErrBlockedDestination,
+		},
+		{
+			name:   "Should reject named loopback without explicit permission",
+			client: publicClient,
+			url:    "https://localhost/mcp",
 			want:   ErrBlockedDestination,
 		},
 		{
@@ -177,6 +184,45 @@ func TestSecureDialerDNSPolicy(t *testing.T) {
 }
 
 func TestClientRedirectPolicy(t *testing.T) {
+	t.Run("Should preserve credentials across equivalent default-port origins", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name   string
+			client *Client
+			from   string
+			to     string
+		}{
+			{
+				name:   "Should equate implicit and explicit HTTPS ports",
+				client: NewClient(),
+				from:   "https://mcp.example.test/start",
+				to:     "https://mcp.example.test:443/finish",
+			},
+			{
+				name:   "Should equate implicit and explicit HTTP ports",
+				client: NewClient(WithAllowLoopback(true)),
+				from:   "http://localhost/start",
+				to:     "http://localhost:80/finish",
+			},
+		}
+		for _, test := range tests {
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
+
+				previous := newRequest(t, test.from)
+				next := newRequest(t, test.to)
+				next.Header.Set("Authorization", "Bearer retained")
+				if err := test.client.checkRedirect(defaultMaxRedirects)(next, []*http.Request{previous}); err != nil {
+					t.Fatalf("checkRedirect() error = %v", err)
+				}
+				if got, want := next.Header.Get("Authorization"), "Bearer retained"; got != want {
+					t.Fatalf("redirect Authorization = %q, want %q", got, want)
+				}
+			})
+		}
+	})
+
 	t.Run("Should strip credentials when following a cross-origin redirect", func(t *testing.T) {
 		t.Parallel()
 
@@ -237,6 +283,28 @@ func TestClientRedirectPolicy(t *testing.T) {
 		}
 		if strings.Contains(err.Error(), "secret-code") {
 			t.Fatalf("Do() error leaked redirect secret: %q", err)
+		}
+	})
+
+	t.Run("Should redact URL-bearing SDK errors while preserving their cause", func(t *testing.T) {
+		t.Parallel()
+
+		cause := errors.New("redirect rejected")
+		err := RedactError(&url.Error{
+			Op:  http.MethodGet,
+			URL: "https://oauth.example.test/authorize?state=secret-state",
+			Err: &url.Error{
+				Op:  http.MethodGet,
+				URL: "https://oauth.example.test/callback?code=secret-code",
+				Err: cause,
+			},
+		})
+		if !errors.Is(err, cause) {
+			t.Fatalf("RedactError() error = %v, want wrapped cause", err)
+		}
+		if strings.Contains(err.Error(), "secret-code") || strings.Contains(err.Error(), "secret-state") ||
+			strings.Contains(err.Error(), "oauth.example.test") {
+			t.Fatalf("RedactError() leaked request URL: %q", err)
 		}
 	})
 }

@@ -11,21 +11,6 @@ import (
 	"github.com/compozy/compozy/internal/mcp/securehttp"
 )
 
-func newSettingsMCPAuthManager(
-	store mcpauth.TokenStore,
-	notifier mcpauth.LifecycleNotifier,
-	generation ...*mcpauth.MutationGeneration,
-) (*mcpauth.Manager, error) {
-	return newSettingsMCPAuthManagerWithConfig(
-		store,
-		notifier,
-		nil,
-		nil,
-		compozyconfig.MCPOAuthConfig{},
-		generation...,
-	)
-}
-
 func newSettingsMCPAuthManagerWithConfig(
 	store mcpauth.TokenStore,
 	notifier mcpauth.LifecycleNotifier,

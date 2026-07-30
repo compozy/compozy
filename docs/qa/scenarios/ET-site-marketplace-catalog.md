@@ -11,7 +11,7 @@ bug_ids:
 fix_status:
 retest_status: pass
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-mcp-2026-catalog-v2-20260730-172217-425770-lab/qa-artifacts/qa/evidence/site-marketplace-mcp.png; /Users/pedronauck/dev/qa-labs/compozy-mcp-2026-catalog-v2-20260730-172217-425770-lab/qa-artifacts/qa/evidence/site-marketplace-github.png
+evidence: /Users/pedronauck/dev/qa-labs/compozy-mcp-2026-catalog-v2-final-rerun-20260730-204949-514647-lab/qa-artifacts/qa/screenshots/site-marketplace-mcp.png; /Users/pedronauck/dev/qa-labs/compozy-mcp-2026-catalog-v2-final-rerun-20260730-204949-514647-lab/qa-artifacts/qa/screenshots/site-marketplace-github.png; /Users/pedronauck/dev/qa-labs/compozy-mcp-2026-catalog-v2-final-rerun-20260730-204949-514647-lab/qa-artifacts/qa/notes/api-marketplace-mcp-final.json
 last_report: docs/qa/reports/2026-07-30-mcp-2026-catalog-v2.md
 overlaps: ET-site-docs-single-tree-ia
 ---
@@ -36,3 +36,12 @@ kind tab strip with counts and a client-side filter with a no-match state — an
 `/marketplace/[kind]/[entryId]` gained masthead crumbs, an identity meta strip, and icon-headed
 sections. Reset to `untested` because every marketplace route changed. Deliberate deltas to verify as
 absences: no Bundles section (three feed kinds only) and no Featured spotlight.
+
+QA result 2026-07-30: the public MCP listing rendered the checked-in 17-entry manifest-v2 snapshot,
+and GitHub detail rendered its launch metadata and secret input name without a value. The daemon API
+returned the same 17 entry IDs.
+
+QA impact 2026-07-30 deep-review remediation: reset after manifest-v2 site validation gained daemon
+parity for launch identifiers, digests, public HTTPS remotes, argument safety, typed defaults, and
+duplicate input destinations. Entry details must pair `--set`, `--secret`, and `--vault-ref` with the
+owning `compozy mcp install` command and continue to expose no secret value.

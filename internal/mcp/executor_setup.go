@@ -23,7 +23,7 @@ type secretRefResolver interface {
 	ResolveRef(ctx context.Context, ref string) (string, error)
 }
 
-// CallExecutor lists and calls configured MCP servers through mcp-go clients.
+// CallExecutor lists and calls configured MCP servers through official MCP SDK clients.
 type CallExecutor struct {
 	servers        ServerResolver
 	tokenStore     mcpauth.TokenStore
@@ -31,6 +31,7 @@ type CallExecutor struct {
 	lookupSecret   func(string) string
 	secretResolver secretRefResolver
 	httpClient     *http.Client
+	secureClient   *securehttp.Client
 	authGeneration *mcpauth.MutationGeneration
 	timeout        time.Duration
 	toolCache      mcpToolListCache
@@ -74,6 +75,7 @@ func WithSecretResolver(resolver secretRefResolver) CallExecutorOption {
 func WithHTTPClient(client *http.Client) CallExecutorOption {
 	return func(executor *CallExecutor) {
 		executor.httpClient = client
+		executor.secureClient = nil
 	}
 }
 
@@ -105,10 +107,9 @@ func NewMCPCallExecutor(
 		)
 	}
 	executor := &CallExecutor{
-		servers:    servers,
-		httpClient: securehttp.NewClient(securehttp.WithAllowLoopback(true), securehttp.WithTimeout(defaultCallTimeout)).HTTPClient(),
-		timeout:    defaultCallTimeout,
-		toolCache:  mcpToolListCache{entries: make(map[string]mcpToolListCacheEntry)},
+		servers:   servers,
+		timeout:   defaultCallTimeout,
+		toolCache: mcpToolListCache{entries: make(map[string]mcpToolListCacheEntry)},
 	}
 	for _, opt := range opts {
 		if opt != nil {
@@ -122,7 +123,11 @@ func NewMCPCallExecutor(
 		executor.timeout = defaultCallTimeout
 	}
 	if executor.httpClient == nil {
-		executor.httpClient = securehttp.NewClient(securehttp.WithAllowLoopback(true), securehttp.WithTimeout(executor.timeout)).HTTPClient()
+		executor.secureClient = securehttp.NewClient(
+			securehttp.WithAllowLoopback(true),
+			securehttp.WithTimeout(executor.timeout),
+		)
+		executor.httpClient = executor.secureClient.HTTPClient()
 	}
 	if executor.httpClient.Timeout <= 0 {
 		cloned := *executor.httpClient
@@ -130,9 +135,14 @@ func NewMCPCallExecutor(
 		executor.httpClient = &cloned
 	}
 	if executor.auth == nil && executor.tokenStore != nil {
-		options := []mcpauth.ServiceOption{
-			mcpauth.WithHTTPClient(executor.httpClient),
-			mcpauth.WithMutationGeneration(executor.authGeneration),
+		options := []mcpauth.ServiceOption{mcpauth.WithMutationGeneration(executor.authGeneration)}
+		if executor.secureClient != nil {
+			options = append(options, mcpauth.WithSecureHTTPClient(executor.secureClient))
+		} else {
+			options = append(options, mcpauth.WithHTTPClient(executor.httpClient))
+		}
+		if executor.secretResolver != nil {
+			options = append(options, mcpauth.WithSecretRefResolver(executor.secretResolver.ResolveRef))
 		}
 		if registrations, ok := executor.tokenStore.(mcpauth.RegistrationStore); ok {
 			options = append(options, mcpauth.WithRegistrationStore(registrations))

@@ -133,8 +133,18 @@ func TestRunHostedProxyUsesPrivateTTLCacheForProjectionChanges(t *testing.T) {
 		})
 	}()
 
-	mcpClient := sdkmcp.NewClient(&sdkmcp.Implementation{Name: "hosted-proxy-test", Version: "1.0.0"}, &sdkmcp.ClientOptions{Capabilities: &sdkmcp.ClientCapabilities{}})
-	session, err := mcpClient.Connect(ctx, &sdkmcp.IOTransport{Reader: io.NopCloser(clientReader), Writer: nopWriteCloser{Writer: clientWriter}}, nil)
+	mcpClient := sdkmcp.NewClient(
+		&sdkmcp.Implementation{Name: "hosted-proxy-test", Version: "1.0.0"},
+		&sdkmcp.ClientOptions{Capabilities: &sdkmcp.ClientCapabilities{}},
+	)
+	session, err := mcpClient.Connect(
+		ctx,
+		&sdkmcp.IOTransport{
+			Reader: io.NopCloser(clientReader),
+			Writer: nopWriteCloser{Writer: clientWriter},
+		},
+		nil,
+	)
 	if err != nil {
 		t.Fatalf("Connect() error = %v", err)
 	}
@@ -152,7 +162,14 @@ func TestRunHostedProxyUsesPrivateTTLCacheForProjectionChanges(t *testing.T) {
 		t.Fatalf("initial tools = %#v, want %#v", got, want)
 	}
 
-	result, err := session.CallTool(ctx, &sdkmcp.CallToolParams{Name: "compozy__hosted_echo", Arguments: map[string]any{"message": "hello"}, Meta: sdkmcp.Meta{"toolCallId": "call-1", "approvalToken": "ignored"}})
+	result, err := session.CallTool(ctx, &sdkmcp.CallToolParams{
+		Name:      "compozy__hosted_echo",
+		Arguments: map[string]any{"message": "hello"},
+		Meta: sdkmcp.Meta{
+			"toolCallId":    "call-1",
+			"approvalToken": "ignored",
+		},
+	})
 	if err != nil {
 		t.Fatalf("CallTool() error = %v", err)
 	}
@@ -196,6 +213,133 @@ func TestRunHostedProxyUsesPrivateTTLCacheForProjectionChanges(t *testing.T) {
 	if got := proxyClient.releaseCount(); got != 1 {
 		t.Fatalf("ReleaseHostedMCP calls = %d, want 1", got)
 	}
+}
+
+func TestRunHostedProxyProviderProtocolCompatibility(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should expose the claim tool to the managed provider protocol", func(t *testing.T) {
+		t.Parallel()
+
+		claim := hostedToolView(tools.ToolIDTaskRunClaimNext)
+		proxyClient := newHostedProxyClientStub(HostedBindResponse{
+			BindID: "bind-provider",
+			Scope: tools.Scope{
+				SessionID:   "sess-provider",
+				WorkspaceID: "ws-provider",
+				AgentName:   "codex",
+			},
+			Tools:  []tools.ToolView{claim},
+			Digest: "provider",
+		})
+
+		serverReader, clientWriter := io.Pipe()
+		clientReader, serverWriter := io.Pipe()
+		ctx, cancel := context.WithCancel(t.Context())
+		errCh := make(chan error, 1)
+		go func() {
+			errCh <- RunHostedProxy(ctx, proxyClient, HostedProxyOptions{
+				SessionID: "sess-provider",
+				Nonce:     "nonce-provider",
+				Stdin:     serverReader,
+				Stdout:    serverWriter,
+				Stderr:    io.Discard,
+				Version:   "test",
+			})
+		}()
+
+		encoder := json.NewEncoder(clientWriter)
+		decoder := json.NewDecoder(clientReader)
+		if err := encoder.Encode(map[string]any{
+			"jsonrpc": "2.0",
+			"id":      1,
+			"method":  "initialize",
+			"params": map[string]any{
+				"protocolVersion": protocolVersionProviderLegacy,
+				"capabilities": map[string]any{
+					"elicitation": map[string]any{
+						"form": map[string]any{},
+						"url":  map[string]any{},
+					},
+				},
+				"clientInfo": map[string]string{
+					"name":    "codex-mcp-client",
+					"title":   "Codex",
+					"version": "0.146.0",
+				},
+			},
+		}); err != nil {
+			t.Fatalf("encode initialize request error = %v", err)
+		}
+		var initialized struct {
+			Result struct {
+				ProtocolVersion string `json:"protocolVersion"`
+			} `json:"result"`
+			Error json.RawMessage `json:"error"`
+		}
+		if err := decoder.Decode(&initialized); err != nil {
+			t.Fatalf("decode initialize response error = %v", err)
+		}
+		if len(initialized.Error) > 0 && string(initialized.Error) != "null" {
+			t.Fatalf("initialize response error = %s", initialized.Error)
+		}
+		if got, want := initialized.Result.ProtocolVersion, protocolVersionProviderLegacy; got != want {
+			t.Fatalf("initialize protocol version = %q, want %q", got, want)
+		}
+
+		if err := encoder.Encode(map[string]any{
+			"jsonrpc": "2.0",
+			"method":  "notifications/initialized",
+		}); err != nil {
+			t.Fatalf("encode initialized notification error = %v", err)
+		}
+		if err := encoder.Encode(map[string]any{
+			"jsonrpc": "2.0",
+			"id":      2,
+			"method":  "tools/list",
+			"params":  map[string]any{},
+		}); err != nil {
+			t.Fatalf("encode tools/list request error = %v", err)
+		}
+		var listed struct {
+			Result struct {
+				Tools []struct {
+					Name string `json:"name"`
+				} `json:"tools"`
+			} `json:"result"`
+			Error json.RawMessage `json:"error"`
+		}
+		if err := decoder.Decode(&listed); err != nil {
+			t.Fatalf("decode tools/list response error = %v", err)
+		}
+		if len(listed.Error) > 0 && string(listed.Error) != "null" {
+			t.Fatalf("tools/list response error = %s", listed.Error)
+		}
+		if got, want := listed.Result.Tools, []struct {
+			Name string `json:"name"`
+		}{{Name: tools.ToolIDTaskRunClaimNext.String()}}; !reflect.DeepEqual(got, want) {
+			t.Fatalf("tools/list tools = %#v, want %#v", got, want)
+		}
+
+		cancel()
+		if err := clientWriter.Close(); err != nil {
+			t.Errorf("client writer close error = %v", err)
+		}
+		if err := clientReader.Close(); err != nil {
+			t.Errorf("client reader close error = %v", err)
+		}
+		select {
+		case runErr := <-errCh:
+			if !isExpectedStdioServerTermination(runErr) && !errors.Is(runErr, io.ErrClosedPipe) {
+				t.Fatalf("RunHostedProxy() error = %v", runErr)
+			}
+		case <-time.After(2 * time.Second):
+			t.Fatal("timed out waiting for hosted provider proxy shutdown")
+		}
+		if got := proxyClient.releaseCount(); got != 1 {
+			t.Fatalf("ReleaseHostedMCP calls = %d, want 1", got)
+		}
+	})
 }
 
 func TestHostedProxyHelpers(t *testing.T) {
@@ -383,7 +527,10 @@ func listHostedProxyTools(t *testing.T, server *sdkmcp.Server) map[string]*sdkmc
 			t.Errorf("serverSession.Close() error = %v", closeErr)
 		}
 	})
-	client := sdkmcp.NewClient(&sdkmcp.Implementation{Name: "hosted-proxy-test", Version: "test"}, &sdkmcp.ClientOptions{Capabilities: &sdkmcp.ClientCapabilities{}})
+	client := sdkmcp.NewClient(
+		&sdkmcp.Implementation{Name: "hosted-proxy-test", Version: "test"},
+		&sdkmcp.ClientOptions{Capabilities: &sdkmcp.ClientCapabilities{}},
+	)
 	clientSession, err := client.Connect(t.Context(), clientTransport, nil)
 	if err != nil {
 		t.Fatalf("client.Connect() error = %v", err)

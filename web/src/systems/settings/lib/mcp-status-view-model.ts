@@ -1,6 +1,7 @@
 import type { PillTone } from "@compozy/ui";
 
 import type { SettingsMCPAuthFilter, SettingsMCPServerEntry } from "../types";
+import { mcpScopeEscalationScopes } from "./mcp-authorize-model";
 import { deriveMCPManagementFilter } from "./mcp-management-target";
 
 /**
@@ -119,7 +120,7 @@ export function isOAuthRepairable(server: SettingsMCPServerEntry): boolean {
   if (!isOAuthCapable(server)) return false;
   const authenticated = server.auth_status?.status === "authenticated";
   const refreshFailed = server.runtime_status?.state === "auth_refresh_failed";
-  return !authenticated || refreshFailed;
+  return !authenticated || refreshFailed || mcpScopeEscalationScopes(server).length > 0;
 }
 
 export function authorizeLabel(server: SettingsMCPServerEntry): MCPAuthorizeLabel | null {

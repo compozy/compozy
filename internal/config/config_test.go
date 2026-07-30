@@ -699,7 +699,7 @@ func TestDefaultWithHomeIncludesMCPOAuthDefaults(t *testing.T) {
 	t.Parallel()
 
 	cfg := DefaultWithHome(HomePaths{})
-	if got, want := cfg.MCP.OAuth.ClientMetadataURL, "https://compozy.com/.well-known/mcp-client.json"; got != want {
+	if got, want := cfg.MCP.OAuth.ClientMetadataURL, DefaultMCPClientMetadataURL; got != want {
 		t.Fatalf("DefaultWithHome() MCP.OAuth.ClientMetadataURL = %q, want %q", got, want)
 	}
 	if got, want := cfg.MCP.OAuth.RedirectURI, "http://127.0.0.1:2123/api/mcp/oauth/callback"; got != want {
@@ -1372,6 +1372,12 @@ scopes = ["tools"]
 	}
 	if got, want := linear.Auth.Registration, MCPAuthRegistrationPreRegistered; got != want {
 		t.Fatalf("Load() linear.Auth.Registration = %q, want %q", got, want)
+	}
+	if got, want := linear.Auth.IssuerURL, "https://auth.example"; got != want {
+		t.Fatalf("Load() linear.Auth.IssuerURL = %q, want %q", got, want)
+	}
+	if got, want := linear.Auth.ClientID, "client-id"; got != want {
+		t.Fatalf("Load() linear.Auth.ClientID = %q, want %q", got, want)
 	}
 	if got, want := linear.Auth.ClientSecretRef, "env:LINEAR_CLIENT_SECRET"; got != want {
 		t.Fatalf("Load() linear.Auth.ClientSecretRef = %q, want %q", got, want)

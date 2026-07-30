@@ -644,7 +644,12 @@ func TestSettingsMCPAuthHandlersKeepSecretsOutOfResponses(t *testing.T) {
 
 		statusResponse := performRequest(t, fixture.Engine, http.MethodGet, targetPath+"status"+query, nil)
 		if statusResponse.Code != http.StatusOK {
-			t.Fatalf("status response = %d, want %d; body=%s", statusResponse.Code, http.StatusOK, statusResponse.Body.String())
+			t.Fatalf(
+				"status response = %d, want %d; body=%s",
+				statusResponse.Code,
+				http.StatusOK,
+				statusResponse.Body.String(),
+			)
 		}
 		var statusPayload contract.SettingsMCPAuthStatusPayload
 		decodeJSON(t, statusResponse.Body.Bytes(), &statusPayload)
@@ -673,12 +678,16 @@ func TestSettingsMCPAuthHandlersKeepSecretsOutOfResponses(t *testing.T) {
 			t.Fatalf("begin payload = %#v", beginPayload)
 		}
 
+		exchangeBody := []byte(
+			`{"redirect_url":"http://127.0.0.1:2123/api/mcp/oauth/callback` +
+				`?code=sensitive-one-time-code&state=public-state"}`,
+		)
 		exchange := performRequest(
 			t,
 			fixture.Engine,
 			http.MethodPost,
 			targetPath+"exchange"+query,
-			[]byte(`{"redirect_url":"http://127.0.0.1:2123/api/mcp/oauth/callback?code=sensitive-one-time-code&state=public-state"}`),
+			exchangeBody,
 		)
 		if exchange.Code != http.StatusOK {
 			t.Fatalf("exchange status = %d, want %d; body=%s", exchange.Code, http.StatusOK, exchange.Body.String())
@@ -770,7 +779,7 @@ func TestSettingsMCPAuthHandlersKeepSecretsOutOfResponses(t *testing.T) {
 	})
 }
 
-func TestSettingsMCPAuthHandlersUseEffectiveLoopbackListener(t *testing.T) {
+func TestSettingsMCPAuthHandlersUseConfiguredRedirectURI(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -782,7 +791,7 @@ func TestSettingsMCPAuthHandlersUseEffectiveLoopbackListener(t *testing.T) {
 		wantCalls    int
 	}{
 		{
-			name:         "Should advertise the configured IPv6 loopback listener",
+			name:         "Should advertise the configured IPv6 loopback redirect URI",
 			host:         "::1",
 			mode:         contract.SettingsMCPAuthBeginModeAutomatic,
 			wantStatus:   http.StatusOK,
@@ -790,7 +799,7 @@ func TestSettingsMCPAuthHandlersUseEffectiveLoopbackListener(t *testing.T) {
 			wantCalls:    1,
 		},
 		{
-			name:         "Should use the configured loopback redirect despite a public listener",
+			name:         "Should use the configured redirect URI independently of the public listener",
 			host:         "0.0.0.0",
 			mode:         contract.SettingsMCPAuthBeginModeAutomatic,
 			wantStatus:   http.StatusOK,
@@ -798,7 +807,7 @@ func TestSettingsMCPAuthHandlersUseEffectiveLoopbackListener(t *testing.T) {
 			wantCalls:    1,
 		},
 		{
-			name:         "Should allow manual authorization without a loopback listener",
+			name:         "Should allow manual authorization with the configured redirect URI",
 			host:         "0.0.0.0",
 			mode:         contract.SettingsMCPAuthBeginModeManual,
 			wantStatus:   http.StatusOK,
@@ -876,7 +885,9 @@ func TestSettingsMCPAuthHandlersRejectInvalidTargetsAndBodies(t *testing.T) {
 		{
 			name: "Should reject unknown exchange fields without echoing their value",
 			path: "/api/settings/mcp-servers/linear/auth/exchange?scope=global",
-			body: []byte(`{"redirect_url":"http://127.0.0.1:2123/api/mcp/oauth/callback?code=sensitive-code","verifier":"sensitive-verifier"}`),
+			body: []byte(
+				`{"redirect_url":"http://127.0.0.1:2123/api/mcp/oauth/callback?code=sensitive-code","verifier":"sensitive-verifier"}`,
+			),
 		},
 		{
 			name: "Should reject scope escalation without explicit approval",
@@ -3279,7 +3290,7 @@ func TestInstallSettingsMCPServerMapsStrictRequestAndRedactedResponse(t *testing
 			Scope:       contract.SettingsWorkspaceScopeWorkspace,
 			WorkspaceID: "ws-1",
 			Values: &contract.SettingsMCPCatalogInstallValuesPayload{
-				Inputs: map[string]contract.SettingsMCPSecretInputPayload{
+				Inputs: map[string]contract.SettingsMCPCatalogInputPayload{
 					"github_token": {Value: "write-only-secret"},
 				},
 			},

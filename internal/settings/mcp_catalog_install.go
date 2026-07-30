@@ -216,7 +216,7 @@ func validateMCPSecretInput(path string, input MCPSecretInput) (mcpSecretInputMo
 	if hasVaultRef {
 		return mcpSecretInputVaultRef, nil
 	}
-	if err := validateMCPCatalogInputValue(input.Value); err != nil {
+	if err := marketplace.ValidateMCPInputValue(input.Value); err != nil {
 		return 0, validationError(fmt.Errorf("settings: %s: %w", path, err))
 	}
 	return mcpSecretInputValue, nil
@@ -225,11 +225,19 @@ func validateMCPSecretInput(path string, input MCPSecretInput) (mcpSecretInputMo
 func (s *service) validateCatalogInputVaultRef(
 	ctx context.Context,
 	path string,
-	_ MCPCatalogInstallRequest,
-	_ string,
+	scope ScopeKind,
+	workspaceID string,
+	serverName string,
 	rawRef string,
 ) (string, error) {
-	return s.validateExistingMCPRef(ctx, path, rawRef)
+	ref := vault.NormalizeRef(rawRef)
+	if err := vault.ValidateSecretRefNamespace(ref, "mcp"); err != nil {
+		return "", validationError(fmt.Errorf("settings: %s.vault_ref must use vault:mcp/**: %w", path, err))
+	}
+	if err := vault.ValidateMCPSecretRefAccess(ref, string(scope), workspaceID, serverName); err != nil {
+		return "", validationError(fmt.Errorf("settings: %s.vault_ref is not accessible: %w", path, err))
+	}
+	return s.validateExistingMCPRef(ctx, path, ref)
 }
 
 func (s *service) validateExistingMCPRef(

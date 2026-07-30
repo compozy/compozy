@@ -96,13 +96,13 @@ func (c *Client) Do(request *http.Request) (*http.Response, error) {
 	}
 	response, err := c.httpClient.Do(request)
 	if err != nil {
-		return nil, redactRequestError(err)
+		return nil, RedactError(err)
 	}
 	return response, nil
 }
 
 // HTTPClient returns the underlying client for APIs that require *http.Client.
-// Call Do when a redacted error is required at this boundary.
+// Call Do directly or pass API errors through RedactError at the boundary.
 func (c *Client) HTTPClient() *http.Client {
 	if c == nil {
 		return nil
@@ -174,12 +174,24 @@ func (c *Client) checkRedirect(maxRedirects int) func(*http.Request, []*http.Req
 	}
 }
 
-func redactRequestError(err error) error {
-	var requestError *url.Error
-	if errors.As(err, &requestError) {
-		return fmt.Errorf("securehttp: request failed: %w", requestError.Err)
+// RedactError removes request URLs and credentials from errors returned by APIs
+// that require the underlying HTTP client.
+func RedactError(err error) error {
+	if err == nil {
+		return nil
 	}
-	return fmt.Errorf("securehttp: request failed: %w", err)
+	redacted := err
+	for {
+		var requestError *url.Error
+		if !errors.As(redacted, &requestError) {
+			break
+		}
+		redacted = requestError.Err
+		if redacted == nil {
+			return errors.New("securehttp: request failed")
+		}
+	}
+	return fmt.Errorf("securehttp: request failed: %w", redacted)
 }
 
 type ipResolver interface {

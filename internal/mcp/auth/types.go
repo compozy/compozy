@@ -98,26 +98,24 @@ const (
 	RegistrationPreRegistered RegistrationStrategy = "pre_registered"
 )
 
-const (
-	authTypeOAuth            = "oauth"
-	defaultClientMetadataURL = "https://compozy.com/.well-known/mcp-client.json"
-)
+const authTypeOAuth = "oauth"
 
 // ServerConfig is the token-free auth configuration used by the OAuth service.
 type ServerConfig struct {
-	Target          Target
-	Transport       string
-	RemoteURL       string
-	CatalogEntry    string
-	Type            string
-	IssuerURL       string
-	ClientID        string
-	ClientSecret    string
-	ClientSecretRef string
-	Scopes          []string
-	Registration    RegistrationStrategy
-	ResourceURL     string
-	PRMURL          string
+	Target                  Target
+	Transport               string
+	RemoteURL               string
+	CatalogEntry            string
+	Type                    string
+	IssuerURL               string
+	ClientID                string
+	ClientSecret            string
+	ClientSecretRef         string
+	Scopes                  []string
+	Registration            RegistrationStrategy
+	ResourceURL             string
+	PRMURL                  string
+	TokenEndpointAuthMethod string
 }
 
 // Metadata is the OAuth authorization server metadata needed for PKCE flows.
@@ -160,6 +158,7 @@ type ClientRegistration struct {
 	RegistrationAccessTokenRef string
 	ClientIDIssuedAt           time.Time
 	ClientSecretExpiresAt      time.Time
+	TokenEndpointAuthMethod    string
 	RedirectURL                string
 	Scopes                     []string
 	UpdatedAt                  time.Time

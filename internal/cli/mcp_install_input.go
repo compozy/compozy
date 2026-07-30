@@ -85,8 +85,8 @@ func mcpInstallInputs(
 	secretIDs []string,
 	vaultRefs []string,
 	readSecret func(string) (string, error),
-) (map[string]contract.SettingsMCPSecretInputPayload, error) {
-	inputs := make(map[string]contract.SettingsMCPSecretInputPayload, len(setValues)+len(secretIDs)+len(vaultRefs))
+) (map[string]contract.SettingsMCPCatalogInputPayload, error) {
+	inputs := make(map[string]contract.SettingsMCPCatalogInputPayload, len(setValues)+len(secretIDs)+len(vaultRefs))
 	for _, assignment := range setValues {
 		key, value, err := parseMCPInstallAssignment("--set", assignment)
 		if err != nil {
@@ -95,8 +95,9 @@ func mcpInstallInputs(
 		if _, exists := inputs[key]; exists {
 			return nil, fmt.Errorf("cli: MCP install field %q is assigned more than once", key)
 		}
-		inputs[key] = contract.SettingsMCPSecretInputPayload{Value: value}
+		inputs[key] = contract.SettingsMCPCatalogInputPayload{Value: value}
 	}
+	pendingSecrets := make([]string, 0, len(secretIDs))
 	for _, rawID := range secretIDs {
 		key, err := parseMCPInstallInputID("--secret", rawID)
 		if err != nil {
@@ -105,11 +106,8 @@ func mcpInstallInputs(
 		if _, exists := inputs[key]; exists {
 			return nil, fmt.Errorf("cli: MCP install field %q is assigned more than once", key)
 		}
-		value, err := readSecret(key)
-		if err != nil {
-			return nil, err
-		}
-		inputs[key] = contract.SettingsMCPSecretInputPayload{Value: value}
+		inputs[key] = contract.SettingsMCPCatalogInputPayload{}
+		pendingSecrets = append(pendingSecrets, key)
 	}
 	for _, assignment := range vaultRefs {
 		key, ref, err := parseMCPInstallAssignment("--vault-ref", assignment)
@@ -119,7 +117,14 @@ func mcpInstallInputs(
 		if _, exists := inputs[key]; exists {
 			return nil, fmt.Errorf("cli: MCP install field %q is assigned more than once", key)
 		}
-		inputs[key] = contract.SettingsMCPSecretInputPayload{VaultRef: strings.TrimSpace(ref)}
+		inputs[key] = contract.SettingsMCPCatalogInputPayload{VaultRef: strings.TrimSpace(ref)}
+	}
+	for _, key := range pendingSecrets {
+		value, err := readSecret(key)
+		if err != nil {
+			return nil, err
+		}
+		inputs[key] = contract.SettingsMCPCatalogInputPayload{Value: value}
 	}
 	if len(inputs) == 0 {
 		return nil, nil

@@ -14,9 +14,34 @@ import {
   exchangeSettingsMCPAuth,
 } from "@/systems/settings/adapters/settings-mcp-auth-api";
 import { useMCPAuthorize } from "@/systems/settings/hooks/use-mcp-authorize";
+import type { SettingsMCPServerEntry } from "@/systems/settings/types";
 
 const filter = { scope: "workspace" as const, workspace_id: "ws-alpha" };
 const prior = { status: "needs_login", tokenPresent: false };
+const serverEntry = {
+  name: "linear",
+  transport: "http",
+  scope: "workspace",
+  workspace_id: "ws-alpha",
+  auth: { client_secret_configured: false, registration: "auto", scopes: ["read"] },
+  auth_status: {
+    refreshable: true,
+    scope: "workspace",
+    server_name: "linear",
+    scopes: ["read"],
+    status: "needs_login",
+    token_present: false,
+  },
+  source_metadata: {
+    available_targets: ["workspace-config"],
+    effective_source: {
+      kind: "workspace-config",
+      scope: "workspace",
+      workspace_id: "ws-alpha",
+    },
+    shadowed_sources: [],
+  },
+} as SettingsMCPServerEntry;
 
 const beginResponse = {
   authorization_url: "https://auth.linear.app/oauth/authorize?state=x",
@@ -60,8 +85,8 @@ describe("useMCPAuthorize", () => {
     const { result } = renderHook(() => useMCPAuthorize(), { wrapper });
 
     act(() => {
-      result.current.beginAuthorize(filter, "linear", prior);
-      result.current.beginAuthorize(filter, "linear", prior);
+      result.current.requestAuthorize(filter, serverEntry);
+      result.current.requestAuthorize(filter, serverEntry);
     });
 
     await waitFor(() => expect(result.current.phase).toBe("waiting"));
@@ -71,38 +96,33 @@ describe("useMCPAuthorize", () => {
     expect(beginSettingsMCPAuth).toHaveBeenCalledWith("linear", filter, { mode: "automatic" });
   });
 
-  it("requires explicit confirmation before beginning a scope escalation", async () => {
+  it("reviews and normalizes additional scopes before beginning a scope escalation", async () => {
     vi.mocked(beginSettingsMCPAuth).mockResolvedValue(beginResponse);
     const { wrapper } = createWrapper();
     const { result } = renderHook(() => useMCPAuthorize(), { wrapper });
 
-    let started = true;
     act(() => {
-      started = result.current.beginScopeEscalation(
-        filter,
-        "linear",
-        prior,
-        ["read", "write"],
-        false
-      );
+      result.current.requestAuthorize(filter, {
+        ...serverEntry,
+        auth: { ...serverEntry.auth!, scopes: ["read", " write ", "", "write"] },
+        auth_status: {
+          ...serverEntry.auth_status!,
+          status: "authenticated",
+          token_present: true,
+        },
+      });
     });
-    expect(started).toBe(false);
+    expect(result.current.phase).toBe("reviewing_scopes");
+    expect(result.current.approvedScopes).toEqual(["write"]);
     expect(beginSettingsMCPAuth).not.toHaveBeenCalled();
 
     act(() => {
-      started = result.current.beginScopeEscalation(
-        filter,
-        "linear",
-        prior,
-        ["read", " write "],
-        true
-      );
+      result.current.confirmScopeEscalation();
     });
-    expect(started).toBe(true);
     await waitFor(() => expect(result.current.phase).toBe("waiting"));
     expect(beginSettingsMCPAuth).toHaveBeenCalledWith("linear", filter, {
       approve_scope_escalation: true,
-      approved_scopes: ["read", "write"],
+      approved_scopes: ["write"],
       mode: "automatic",
     });
   });
@@ -112,7 +132,7 @@ describe("useMCPAuthorize", () => {
     const { wrapper } = createWrapper();
     const { result } = renderHook(() => useMCPAuthorize(), { wrapper });
 
-    act(() => result.current.beginAuthorize(filter, "linear", prior));
+    act(() => result.current.requestAuthorize(filter, serverEntry));
 
     await waitFor(() => expect(result.current.phase).toBe("failed"));
     expect(result.current.error).toBe("provider unreachable");
@@ -137,12 +157,12 @@ describe("useMCPAuthorize", () => {
     const { result } = renderHook(() => useMCPAuthorize(), { wrapper });
 
     act(() => {
-      result.current.beginAuthorize(filter, "linear", prior);
+      result.current.requestAuthorize(filter, serverEntry);
     });
     await waitFor(() => expect(result.current.phase).toBe("beginning"));
     act(() => result.current.cancel());
     act(() => {
-      result.current.beginAuthorize(filter, "linear", prior);
+      result.current.requestAuthorize(filter, serverEntry);
     });
     await waitFor(() => expect(result.current.phase).toBe("beginning"));
 
@@ -164,7 +184,7 @@ describe("useMCPAuthorize", () => {
     const { wrapper } = createWrapper();
     const { result } = renderHook(() => useMCPAuthorize(), { wrapper });
 
-    act(() => result.current.beginAuthorize(filter, "linear", prior));
+    act(() => result.current.requestAuthorize(filter, serverEntry));
     await waitFor(() => expect(result.current.phase).toBe("waiting"));
     act(() => result.current.enterManual());
     await waitFor(() => expect(result.current.phase).toBe("manual"));
@@ -192,7 +212,7 @@ describe("useMCPAuthorize", () => {
     const { wrapper } = createWrapper();
     const { result, unmount } = renderHook(() => useMCPAuthorize({ onConfirmed }), { wrapper });
 
-    act(() => result.current.beginAuthorize(filter, "linear", prior));
+    act(() => result.current.requestAuthorize(filter, serverEntry));
     await waitFor(() => expect(result.current.phase).toBe("waiting"));
     act(() => result.current.enterManual());
     await waitFor(() => expect(result.current.phase).toBe("manual"));
@@ -215,12 +235,12 @@ describe("useMCPAuthorize", () => {
     const { wrapper } = createWrapper();
     const { result } = renderHook(() => useMCPAuthorize(), { wrapper });
 
-    act(() => result.current.beginAuthorize(filter, "linear", prior));
+    act(() => result.current.requestAuthorize(filter, serverEntry));
     await waitFor(() => expect(result.current.phase).toBe("waiting"));
     act(() => result.current.enterManual());
     await waitFor(() => expect(result.current.phase).toBe("manual"));
     const redirect = "http://127.0.0.1:2123/api/mcp/oauth/callback?code=abc&state=x";
-    act(() => result.current.submitManual(redirect));
+    act(() => result.current.submitManual(`  ${redirect}  `));
 
     await waitFor(() => expect(result.current.phase).toBe("confirmed"));
     expect(exchangeSettingsMCPAuth).toHaveBeenCalledWith("linear", filter, {
@@ -237,7 +257,7 @@ describe("useMCPAuthorize", () => {
     const { wrapper } = createWrapper();
     const { result } = renderHook(() => useMCPAuthorize(), { wrapper });
 
-    act(() => result.current.beginAuthorize(filter, "linear", prior));
+    act(() => result.current.requestAuthorize(filter, serverEntry));
     await waitFor(() => expect(result.current.phase).toBe("waiting"));
     act(() => result.current.enterManual());
     await waitFor(() => expect(result.current.phase).toBe("manual"));
@@ -256,7 +276,7 @@ describe("useMCPAuthorize", () => {
     const { wrapper } = createWrapper();
     const { result } = renderHook(() => useMCPAuthorize(), { wrapper });
 
-    act(() => result.current.beginAuthorize(filter, "linear", prior));
+    act(() => result.current.requestAuthorize(filter, serverEntry));
     await waitFor(() => expect(result.current.phase).toBe("waiting"));
 
     // A tools/list-style success without a token must not flip the UI.
@@ -278,7 +298,7 @@ describe("useMCPAuthorize", () => {
       { initialProps: { onConfirmed: firstConfirmed }, wrapper }
     );
 
-    act(() => result.current.beginAuthorize(filter, "linear", prior));
+    act(() => result.current.requestAuthorize(filter, serverEntry));
     await waitFor(() => expect(result.current.phase).toBe("waiting"));
 
     rerender({ onConfirmed: latestConfirmed });
@@ -295,7 +315,7 @@ describe("useMCPAuthorize", () => {
     const { wrapper } = createWrapper();
     const { result } = renderHook(() => useMCPAuthorize(), { wrapper });
 
-    act(() => result.current.beginAuthorize(filter, "linear", prior));
+    act(() => result.current.requestAuthorize(filter, serverEntry));
     await waitFor(() => expect(result.current.phase).toBe("waiting"));
     act(() => result.current.cancel());
 

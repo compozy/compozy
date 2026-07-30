@@ -199,6 +199,22 @@ describe("authorize gating", () => {
     expect(authorizeLabel(healthy)).toBeNull();
   });
 
+  it("offers reauthorization when configured scopes exceed the granted token scopes", () => {
+    const scopeEscalation = makeEntry({
+      transport: "http",
+      auth: { ...oauthConfig(), scopes: ["read", "write"] },
+      authStatus: {
+        scopes: ["read"],
+        status: "authenticated",
+        token_present: true,
+      },
+      runtimeStatus: { state: "permission_denied", probe: "failed" },
+    });
+
+    expect(isOAuthRepairable(scopeEscalation)).toBe(true);
+    expect(authorizeLabel(scopeEscalation)).toBe("Reauthorize");
+  });
+
   it("never offers browser oauth to stdio or non-oauth remotes", () => {
     const stdio = makeEntry({
       transport: "stdio",

@@ -1497,7 +1497,7 @@ func TestSettingsAndExtensionMutationsReachHandlersOnLoopbackHost(t *testing.T) 
 				Scope:       contract.SettingsWorkspaceScopeWorkspace,
 				WorkspaceID: "ws-1",
 				Values: &contract.SettingsMCPCatalogInstallValuesPayload{
-					Inputs: map[string]contract.SettingsMCPSecretInputPayload{
+					Inputs: map[string]contract.SettingsMCPCatalogInputPayload{
 						"TOKEN": {VaultRef: "vault:mcp/shared/token"},
 					},
 				},

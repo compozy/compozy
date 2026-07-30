@@ -9,7 +9,7 @@ import (
 	"net/url"
 	"strings"
 
-	sdkauth "github.com/modelcontextprotocol/go-sdk/auth"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/modelcontextprotocol/go-sdk/oauthex"
 )
 
@@ -35,14 +35,11 @@ func (s *Service) beginHostedOAuth(
 		)
 	}
 	issuer := strings.TrimSpace(prm.AuthorizationServers[0])
-	asm, err := sdkauth.GetAuthServerMetadata(ctx, issuer, s.clientFor(cfg))
+	asm, err := s.authServerMetadata(ctx, cfg, issuer)
 	if err != nil {
-		return LoginState{}, fmt.Errorf("mcp auth: discover authorization server metadata: %w", err)
+		return LoginState{}, err
 	}
-	if asm == nil {
-		return LoginState{}, errors.New("mcp auth: authorization server metadata is required")
-	}
-	clientID, clientSecret, err := s.resolveHostedRegistration(
+	clientID, clientSecret, tokenEndpointAuthMethod, err := s.resolveHostedRegistration(
 		ctx,
 		cfg,
 		resourceURL,
@@ -67,6 +64,7 @@ func (s *Service) beginHostedOAuth(
 	effectiveCfg := cfg
 	effectiveCfg.ClientID = clientID
 	effectiveCfg.ClientSecret = clientSecret
+	effectiveCfg.TokenEndpointAuthMethod = tokenEndpointAuthMethod
 	authorizationURL, err := authorizationURL(
 		metadata.AuthorizationEndpoint,
 		effectiveCfg,
@@ -77,19 +75,12 @@ func (s *Service) beginHostedOAuth(
 	if err != nil {
 		return LoginState{}, err
 	}
-	parsedURL, err := url.Parse(authorizationURL)
-	if err != nil {
-		return LoginState{}, fmt.Errorf("mcp auth: parse authorization URL: %w", err)
-	}
-	values := parsedURL.Query()
-	values.Set("resource", resourceURL)
-	parsedURL.RawQuery = values.Encode()
 	return LoginState{
 		Target:           cfg.Target.Normalize(),
 		RedirectURL:      strings.TrimSpace(redirectURL),
 		State:            state,
 		Verifier:         pkce.Verifier,
-		AuthorizationURL: parsedURL.String(),
+		AuthorizationURL: authorizationURL,
 		Metadata:         metadata,
 		Config:           effectiveCfg,
 		ResourceURL:      resourceURL,
@@ -110,17 +101,9 @@ func (s *Service) hostedRefreshConfig(
 			"mcp auth: protected resource metadata has no authorization servers",
 		)
 	}
-	asm, err := sdkauth.GetAuthServerMetadata(ctx, prm.AuthorizationServers[0], s.clientFor(cfg))
+	asm, err := s.authServerMetadata(ctx, cfg, prm.AuthorizationServers[0])
 	if err != nil {
-		return ServerConfig{}, Metadata{}, fmt.Errorf(
-			"mcp auth: discover authorization server metadata: %w",
-			err,
-		)
-	}
-	if asm == nil {
-		return ServerConfig{}, Metadata{}, errors.New(
-			"mcp auth: authorization server metadata is required",
-		)
+		return ServerConfig{}, Metadata{}, err
 	}
 	redirectURL := strings.TrimSpace(s.defaultRedirectURL)
 	if redirectURL == "" {
@@ -128,7 +111,7 @@ func (s *Service) hostedRefreshConfig(
 			"mcp auth: redirect URL is required to resolve client registration",
 		)
 	}
-	clientID, clientSecret, err := s.resolveHostedRegistration(
+	clientID, clientSecret, tokenEndpointAuthMethod, err := s.resolveHostedRegistration(
 		ctx,
 		cfg,
 		resourceURL,
@@ -142,6 +125,7 @@ func (s *Service) hostedRefreshConfig(
 	resolved.ResourceURL = resourceURL
 	resolved.ClientID = clientID
 	resolved.ClientSecret = clientSecret
+	resolved.TokenEndpointAuthMethod = tokenEndpointAuthMethod
 	return resolved, metadataFromAuthServer(asm), nil
 }
 
@@ -161,7 +145,7 @@ func (s *Service) protectedResourceMetadata(
 			ctx,
 			candidate.URL,
 			candidate.ResourceURL,
-			s.clientFor(cfg),
+			s.sdkHTTPClientFor(cfg),
 		)
 		if err == nil && prm != nil {
 			return prm, nil
@@ -261,19 +245,23 @@ func (s *Service) resolveHostedRegistration(
 	resourceURL string,
 	redirectURL string,
 	asm *oauthex.AuthServerMeta,
-) (string, string, error) {
+) (string, string, string, error) {
 	if cfg.registrationStrategy() == RegistrationPreRegistered {
 		if !issuersEqual(cfg.IssuerURL, asm.Issuer) {
-			return "", "", errors.New(
+			return "", "", "", errors.New(
 				"mcp auth: pre-registered issuer does not match authorization server",
 			)
 		}
-		return strings.TrimSpace(cfg.ClientID), strings.TrimSpace(cfg.ClientSecret), nil
+		method, err := effectiveTokenEndpointAuthMethod(cfg)
+		if err != nil {
+			return "", "", "", err
+		}
+		return strings.TrimSpace(cfg.ClientID), strings.TrimSpace(cfg.ClientSecret), method, nil
 	}
 	if asm.ClientIDMetadataDocumentSupported {
 		clientMetadataURL := strings.TrimSpace(s.clientMetadataURL)
 		if clientMetadataURL == "" {
-			clientMetadataURL = defaultClientMetadataURL
+			clientMetadataURL = compozyconfig.DefaultMCPClientMetadataURL
 		}
 		if err := validateClientMetadataURL(clientMetadataURL); err == nil {
 			if validateErr := s.validateCIMD(ctx, cfg, clientMetadataURL, redirectURL); validateErr == nil {
@@ -285,9 +273,9 @@ func (s *Service) resolveHostedRegistration(
 					asm.Issuer,
 					clientMetadataURL,
 				); persistErr != nil {
-					return "", "", persistErr
+					return "", "", "", persistErr
 				}
-				return clientMetadataURL, "", nil
+				return clientMetadataURL, "", tokenEndpointAuthMethodNone, nil
 			}
 		}
 	}

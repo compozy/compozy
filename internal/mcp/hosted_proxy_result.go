@@ -20,12 +20,21 @@ func hostedToolResult(result tools.ToolResult) (*sdkmcp.CallToolResult, error) {
 	if len(result.Structured) > 0 {
 		var structured any
 		if err := json.Unmarshal(result.Structured, &structured); err == nil {
-			converted := &sdkmcp.CallToolResult{StructuredContent: structured, Content: []sdkmcp.Content{&sdkmcp.TextContent{Text: hostedResultFallback(result)}}}
+			converted := &sdkmcp.CallToolResult{
+				StructuredContent: structured,
+				Content: []sdkmcp.Content{
+					&sdkmcp.TextContent{Text: hostedResultFallback(result)},
+				},
+			}
 			return finishHostedToolResult(converted, result, isError)
 		}
 	}
 	if len(result.Content) == 0 {
-		converted := &sdkmcp.CallToolResult{Content: []sdkmcp.Content{&sdkmcp.TextContent{Text: hostedResultFallback(result)}}}
+		converted := &sdkmcp.CallToolResult{
+			Content: []sdkmcp.Content{
+				&sdkmcp.TextContent{Text: hostedResultFallback(result)},
+			},
+		}
 		return finishHostedToolResult(converted, result, isError)
 	}
 	content := make([]sdkmcp.Content, 0, len(result.Content))
@@ -39,13 +48,21 @@ func hostedToolResult(result tools.ToolResult) (*sdkmcp.CallToolResult, error) {
 		}
 	}
 	if len(content) == 0 {
-		converted := &sdkmcp.CallToolResult{Content: []sdkmcp.Content{&sdkmcp.TextContent{Text: hostedResultFallback(result)}}}
+		converted := &sdkmcp.CallToolResult{
+			Content: []sdkmcp.Content{
+				&sdkmcp.TextContent{Text: hostedResultFallback(result)},
+			},
+		}
 		return finishHostedToolResult(converted, result, isError)
 	}
 	return finishHostedToolResult(&sdkmcp.CallToolResult{Content: content}, result, isError)
 }
 
-func finishHostedToolResult(converted *sdkmcp.CallToolResult, result tools.ToolResult, isError bool) (*sdkmcp.CallToolResult, error) {
+func finishHostedToolResult(
+	converted *sdkmcp.CallToolResult,
+	result tools.ToolResult,
+	isError bool,
+) (*sdkmcp.CallToolResult, error) {
 	if converted == nil {
 		return nil, errors.New("mcp: hosted tool result is required")
 	}

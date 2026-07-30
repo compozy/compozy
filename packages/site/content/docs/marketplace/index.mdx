@@ -217,9 +217,9 @@ compozy mcp auth status linear --scope workspace --workspace <workspace-id> -o j
 
 Treat authorization as complete only when status is `authenticated` and `token_present` is `true`.
 A failed or canceled reauthorization preserves the existing token. The automatic HTTP callback is
-disabled on non-loopback binds; manual exchange is the supported remote-operator completion path.
-Loopback begin responses use the daemon's effective listener host and port, including IPv6, rather
-than assuming an IPv4 address.
+available only when the configured `mcp.oauth.redirect_uri` uses a loopback host; manual exchange is
+the supported remote-operator completion path. Automatic begin uses that configured URI exactly, so
+set it explicitly when the daemon uses a non-default loopback port.
 
 ## Manage And Repair MCP Servers
 

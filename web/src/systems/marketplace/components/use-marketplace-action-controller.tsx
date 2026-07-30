@@ -265,10 +265,7 @@ function useMarketplaceActionController(
       toast.error(`Workspace scope is required to authorize ${server.name}`);
       return;
     }
-    authorize.beginAuthorize(filter, server.name, {
-      status: server.auth_status?.status ?? "needs_login",
-      tokenPresent: Boolean(server.auth_status?.token_present),
-    });
+    authorize.requestAuthorize(filter, server);
   };
 
   const confirmUnverifiedExtension = () => {

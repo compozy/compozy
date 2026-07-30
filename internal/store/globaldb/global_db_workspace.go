@@ -126,7 +126,11 @@ func (g *WorkspaceRepo) DeleteWorkspace(ctx context.Context, id string) error {
 					continue
 				}
 				if _, err := queries.DeleteVaultSecret(ctx, ref); err != nil {
-					return fmt.Errorf("store: delete MCP OAuth registration secret for workspace %q: %w", trimmedID, err)
+					return fmt.Errorf(
+						"store: delete MCP OAuth registration secret for workspace %q: %w",
+						trimmedID,
+						err,
+					)
 				}
 			}
 		}

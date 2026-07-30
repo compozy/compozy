@@ -25,7 +25,7 @@ import {
 
 import type { MarketplaceEntryResponse, MCPInstallRequest, MCPInstallResponse } from "../types";
 import { bindingValuePresent, type MCPFieldBinding, type MCPInputField } from "./mcp-install-model";
-import { marketplaceErrorMessage } from "./marketplace-ui";
+import { formatMarketplaceMCPLaunch, marketplaceErrorMessage } from "./marketplace-ui";
 import { useMCPInstallDialog } from "./use-mcp-install-dialog";
 
 interface MCPInstallDialogProps {
@@ -80,8 +80,8 @@ function MCPInstallDialog({
               <p className="eyebrow text-muted">MCP · curated</p>
               <DialogTitle>Install {entry.name}</DialogTitle>
               <DialogDescription id="mcp-install-description">
-                Choose a scope and provide the configuration required by this server. Compozy opens
-                authorization after install when the catalog requires it.
+                Choose a scope and provide the configuration required by this server. After
+                installation, use the Authorize action when the catalog requires it.
               </DialogDescription>
             </div>
           </div>
@@ -91,7 +91,7 @@ function MCPInstallDialog({
           <MetadataList>
             <MetadataList.Row label="Launch">
               <code className="break-all font-mono text-form-input text-fg">
-                {formatLaunch(mcp.launch)}
+                {formatMarketplaceMCPLaunch(mcp.launch)}
               </code>
             </MetadataList.Row>
             <MetadataList.Row label="Connection">
@@ -342,15 +342,6 @@ function MCPInstallField({
       value={binding.typedValue}
     />
   );
-}
-
-function formatLaunch(launch: NonNullable<NonNullable<MarketplaceEntryResponse["mcp"]>["launch"]>) {
-  if (launch.type === "remote") return launch.url;
-  if (launch.type === "docker")
-    return [launch.image, launch.digest, ...(launch.args ?? [])].join(" ");
-  return [launch.type, launch.package, launch.version, ...(launch.args ?? [])]
-    .filter(Boolean)
-    .join(" ");
 }
 
 export { MCPInstallDialog };

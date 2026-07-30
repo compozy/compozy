@@ -82,9 +82,12 @@ func projectedHostAPITools() ([]mcpgo.Tool, error) {
 		if err != nil {
 			return nil, fmt.Errorf("mcp: build input schema for %q: %w", method, err)
 		}
+		description := "Invoke the Compozy Host API method " +
+			string(method) +
+			" in the workspace bound to this MCP server."
 		tools = append(tools, mcpgo.Tool{
 			Name:        hostAPIToolName(method),
-			Description: "Invoke the Compozy Host API method " + string(method) + " in the workspace bound to this MCP server.",
+			Description: description,
 			InputSchema: rawSchema,
 		})
 	}

@@ -8,15 +8,15 @@ const (
 	SettingsMCPInstallNextStepAuthorize SettingsMCPInstallNextStep = "authorize"
 )
 
-// SettingsMCPSecretInputPayload contains exactly one write-only value or existing Vault ref.
-type SettingsMCPSecretInputPayload struct {
+// SettingsMCPCatalogInputPayload contains exactly one write-only catalog value or existing Vault ref.
+type SettingsMCPCatalogInputPayload struct {
 	Value    string `json:"value,omitempty"`
 	VaultRef string `json:"vault_ref,omitempty"`
 }
 
 // SettingsMCPCatalogInstallValuesPayload contains operator-supplied catalog inputs.
 type SettingsMCPCatalogInstallValuesPayload struct {
-	Inputs map[string]SettingsMCPSecretInputPayload `json:"inputs,omitempty"`
+	Inputs map[string]SettingsMCPCatalogInputPayload `json:"inputs,omitempty"`
 }
 
 // InstallSettingsMCPServerRequest installs one feed-locked MCP entry.

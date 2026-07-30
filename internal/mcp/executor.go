@@ -78,7 +78,11 @@ func (e *CallExecutor) ListToolsWithProtocol(
 	descriptors := make([]toolspkg.MCPToolDescriptor, 0, len(tools))
 	for i := range tools {
 		if tools[i] == nil {
-			return nil, "", toolspkg.NewValidationError("tools", toolspkg.ReasonSchemaInvalid, "mcp server returned an empty tool descriptor")
+			return nil, "", toolspkg.NewValidationError(
+				"tools",
+				toolspkg.ReasonSchemaInvalid,
+				"mcp server returned an empty tool descriptor",
+			)
 		}
 		descriptor, err := e.descriptorFromTool(source, resolved.Server, *tools[i])
 		if err != nil {
@@ -167,6 +171,15 @@ func normalizeMCPErrorWithContext(ctx context.Context, id toolspkg.ToolID, err e
 			id,
 			scopeErr.Error(),
 			scopeErr,
+			toolspkg.ReasonMCPAuthRequired,
+		)
+	}
+	if errors.Is(err, ErrAuthorizationRequired) {
+		return toolspkg.NewToolError(
+			toolspkg.ErrorCodeUnavailable,
+			id,
+			ErrAuthorizationRequired.Error(),
+			ErrAuthorizationRequired,
 			toolspkg.ReasonMCPAuthRequired,
 		)
 	}

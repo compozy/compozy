@@ -784,6 +784,7 @@ type McpOauthRegistration struct {
 	ResourceUrl                string         `json:"resource_url"`
 	Issuer                     string         `json:"issuer"`
 	ClientID                   string         `json:"client_id"`
+	TokenEndpointAuthMethod    string         `json:"token_endpoint_auth_method"`
 	ClientSecretRef            string         `json:"client_secret_ref"`
 	RegistrationAccessTokenRef string         `json:"registration_access_token_ref"`
 	RegistrationClientUri      string         `json:"registration_client_uri"`

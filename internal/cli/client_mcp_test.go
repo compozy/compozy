@@ -121,7 +121,10 @@ func TestUnixSocketClientMCPAuthRoutesCarryExactWorkspaceIdentity(t *testing.T) 
 		status, err := client.ExchangeSettingsMCPAuth(
 			ctx,
 			target,
-			SettingsMCPAuthExchangeRequest{RedirectURL: "http://127.0.0.1:2123/api/mcp/oauth/callback?code=sensitive-code&state=public"},
+			SettingsMCPAuthExchangeRequest{
+				RedirectURL: "http://127.0.0.1:2123/api/mcp/oauth/callback" +
+					"?code=sensitive-code&state=public",
+			},
 		)
 		if err != nil {
 			t.Fatalf("ExchangeSettingsMCPAuth() error = %v", err)

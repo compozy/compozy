@@ -157,6 +157,7 @@ func (q *Queries) GetMCPAuthTokenRefs(ctx context.Context, arg GetMCPAuthTokenRe
 
 const getMCPOAuthRegistration = `-- name: GetMCPOAuthRegistration :one
 SELECT scope, workspace_id, server_name, definition_fingerprint, resource_url, issuer, client_id,
+       token_endpoint_auth_method,
        client_secret_ref, registration_access_token_ref, registration_client_uri, client_id_issued_at,
        client_secret_expires_at, redirect_uri, scopes_json, updated_at
 FROM mcp_oauth_registrations
@@ -182,6 +183,7 @@ func (q *Queries) GetMCPOAuthRegistration(ctx context.Context, arg GetMCPOAuthRe
 		&i.ResourceUrl,
 		&i.Issuer,
 		&i.ClientID,
+		&i.TokenEndpointAuthMethod,
 		&i.ClientSecretRef,
 		&i.RegistrationAccessTokenRef,
 		&i.RegistrationClientUri,
@@ -411,19 +413,22 @@ func (q *Queries) UpsertMCPAuthToken(ctx context.Context, arg UpsertMCPAuthToken
 const upsertMCPOAuthRegistration = `-- name: UpsertMCPOAuthRegistration :exec
 INSERT INTO mcp_oauth_registrations (
   scope, workspace_id, server_name, definition_fingerprint, resource_url, issuer, client_id,
+  token_endpoint_auth_method,
   client_secret_ref, registration_access_token_ref, registration_client_uri, client_id_issued_at,
   client_secret_expires_at, redirect_uri, scopes_json, updated_at
 ) VALUES (
   ?1, ?2, ?3,
   ?4, ?5, ?6, ?7,
-  ?8, ?9, ?10, ?11,
-  ?12, ?13, ?14, ?15
+  ?8,
+  ?9, ?10, ?11, ?12,
+  ?13, ?14, ?15, ?16
 )
 ON CONFLICT(scope, workspace_id, server_name) DO UPDATE SET
   definition_fingerprint = excluded.definition_fingerprint,
   resource_url = excluded.resource_url,
   issuer = excluded.issuer,
   client_id = excluded.client_id,
+  token_endpoint_auth_method = excluded.token_endpoint_auth_method,
   client_secret_ref = excluded.client_secret_ref,
   registration_access_token_ref = excluded.registration_access_token_ref,
   registration_client_uri = excluded.registration_client_uri,
@@ -442,6 +447,7 @@ type UpsertMCPOAuthRegistrationParams struct {
 	ResourceUrl                string         `json:"resource_url"`
 	Issuer                     string         `json:"issuer"`
 	ClientID                   string         `json:"client_id"`
+	TokenEndpointAuthMethod    string         `json:"token_endpoint_auth_method"`
 	ClientSecretRef            string         `json:"client_secret_ref"`
 	RegistrationAccessTokenRef string         `json:"registration_access_token_ref"`
 	RegistrationClientUri      string         `json:"registration_client_uri"`
@@ -461,6 +467,7 @@ func (q *Queries) UpsertMCPOAuthRegistration(ctx context.Context, arg UpsertMCPO
 		arg.ResourceUrl,
 		arg.Issuer,
 		arg.ClientID,
+		arg.TokenEndpointAuthMethod,
 		arg.ClientSecretRef,
 		arg.RegistrationAccessTokenRef,
 		arg.RegistrationClientUri,

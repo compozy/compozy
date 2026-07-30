@@ -131,3 +131,45 @@ func TestMCPSecretOwnerPrefixIsCollisionSafeAcrossScopes(t *testing.T) {
 		}
 	})
 }
+
+func TestValidateMCPSecretRefAccessIsolatesOwners(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should allow owned and shared refs while rejecting another workspace", func(t *testing.T) {
+		t.Parallel()
+
+		workspaceA := "workspace-a"
+		workspaceBPrefix, err := MCPSecretOwnerPrefix(MCPWorkspaceScope, "workspace-b", "linear")
+		if err != nil {
+			t.Fatalf("MCPSecretOwnerPrefix(workspace-b) error = %v", err)
+		}
+		workspaceAPrefix, err := MCPSecretOwnerPrefix(MCPWorkspaceScope, workspaceA, "linear")
+		if err != nil {
+			t.Fatalf("MCPSecretOwnerPrefix(workspace-a) error = %v", err)
+		}
+		if err := ValidateMCPSecretRefAccess(
+			workspaceAPrefix+"env/TOKEN",
+			MCPWorkspaceScope,
+			workspaceA,
+			"linear",
+		); err != nil {
+			t.Fatalf("ValidateMCPSecretRefAccess(owned) error = %v", err)
+		}
+		if err := ValidateMCPSecretRefAccess(
+			MCPSharedRefPrefix+"linear-token",
+			MCPWorkspaceScope,
+			workspaceA,
+			"linear",
+		); err != nil {
+			t.Fatalf("ValidateMCPSecretRefAccess(shared) error = %v", err)
+		}
+		if err := ValidateMCPSecretRefAccess(
+			workspaceBPrefix+"env/TOKEN",
+			MCPWorkspaceScope,
+			workspaceA,
+			"linear",
+		); err == nil {
+			t.Fatal("ValidateMCPSecretRefAccess(other workspace) error = nil, want owner rejection")
+		}
+	})
+}

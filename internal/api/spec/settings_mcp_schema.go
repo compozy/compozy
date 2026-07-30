@@ -2,16 +2,16 @@ package spec
 
 import "github.com/getkin/kin-openapi/openapi3"
 
-const settingsMCPSecretValueKey = "value"
+const settingsMCPCatalogInputValueKey = "value"
 
 const settingsMCPAuthRedirectURLKey = "redirect_url"
 
-func customizeSettingsMCPSecretInputSchema(schema *openapi3.Schema) {
+func customizeSettingsMCPCatalogInputSchema(schema *openapi3.Schema) {
 	value := openapi3.NewStringSchema().WithMinLength(1)
 	value.WriteOnly = true
 	valueVariant := openapi3.NewObjectSchema().
-		WithProperty(settingsMCPSecretValueKey, value).
-		WithRequired([]string{settingsMCPSecretValueKey}).
+		WithProperty(settingsMCPCatalogInputValueKey, value).
+		WithRequired([]string{settingsMCPCatalogInputValueKey}).
 		WithoutAdditionalProperties()
 
 	vaultRef := openapi3.NewStringSchema().WithMinLength(1)

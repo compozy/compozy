@@ -57,7 +57,11 @@ func (a MCPAuthConfig) Validate(path string) error {
 	case MCPAuthRegistrationAuto:
 		if strings.TrimSpace(a.IssuerURL) != "" || strings.TrimSpace(a.ClientID) != "" ||
 			strings.TrimSpace(a.ClientSecretRef) != "" {
-			return fmt.Errorf("%s issuer_url, client_id, and client_secret_ref require registration = %q", path, MCPAuthRegistrationPreRegistered)
+			return fmt.Errorf(
+				"%s issuer_url, client_id, and client_secret_ref require registration = %q",
+				path,
+				MCPAuthRegistrationPreRegistered,
+			)
 		}
 	case MCPAuthRegistrationPreRegistered:
 		if strings.TrimSpace(a.IssuerURL) == "" {
@@ -75,7 +79,12 @@ func (a MCPAuthConfig) Validate(path string) error {
 			}
 		}
 	default:
-		return fmt.Errorf("%s.registration must be one of %q or %q", path, MCPAuthRegistrationAuto, MCPAuthRegistrationPreRegistered)
+		return fmt.Errorf(
+			"%s.registration must be one of %q or %q",
+			path,
+			MCPAuthRegistrationAuto,
+			MCPAuthRegistrationPreRegistered,
+		)
 	}
 	seenScopes := make(map[string]struct{}, len(a.Scopes))
 	for idx, scope := range a.Scopes {
@@ -94,7 +103,7 @@ func (a MCPAuthConfig) Validate(path string) error {
 // Validate ensures global MCP OAuth client configuration is safe to use.
 func (c MCPOAuthConfig) Validate(path string) error {
 	if value := strings.TrimSpace(c.ClientMetadataURL); value != "" {
-		if err := ValidateMCPOAuthURL(path+".client_metadata_url", value); err != nil {
+		if err := ValidateMCPClientMetadataURL(path+".client_metadata_url", value); err != nil {
 			return err
 		}
 	}
@@ -102,6 +111,16 @@ func (c MCPOAuthConfig) Validate(path string) error {
 		if err := ValidateMCPOAuthURL(path+".redirect_uri", value); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+// ValidateMCPClientMetadataURL enforces the public CIMD URL contract used by MCP OAuth.
+func ValidateMCPClientMetadataURL(path string, raw string) error {
+	parsed, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil || !strings.EqualFold(parsed.Scheme, "https") || parsed.Host == "" ||
+		parsed.Path == "" || parsed.Path == "/" || parsed.User != nil {
+		return fmt.Errorf("%s must be a non-root HTTPS URL without credentials", path)
 	}
 	return nil
 }

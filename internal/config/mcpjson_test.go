@@ -319,6 +319,15 @@ func TestPutMCPSidecarServerPreservesRemoteAuthFields(t *testing.T) {
 		if got, want := server.Auth.ClientSecretRef, "vault:mcp/linear/oauth/client-secret"; got != want {
 			t.Fatalf("Config.MCPServers[0].Auth.ClientSecretRef = %q, want %q", got, want)
 		}
+		if got, want := server.Auth.Registration, MCPAuthRegistrationPreRegistered; got != want {
+			t.Fatalf("Config.MCPServers[0].Auth.Registration = %q, want %q", got, want)
+		}
+		if got, want := server.Auth.IssuerURL, "https://linear.app"; got != want {
+			t.Fatalf("Config.MCPServers[0].Auth.IssuerURL = %q, want %q", got, want)
+		}
+		if got, want := server.Auth.ClientID, "compozy-client"; got != want {
+			t.Fatalf("Config.MCPServers[0].Auth.ClientID = %q, want %q", got, want)
+		}
 
 		payload, err := os.ReadFile(target.path)
 		if err != nil {
@@ -341,6 +350,15 @@ func TestPutMCPSidecarServerPreservesRemoteAuthFields(t *testing.T) {
 		}
 		if got, want := linear.Auth.ClientSecretRef, "vault:mcp/linear/oauth/client-secret"; got != want {
 			t.Fatalf("servers[linear].Auth.ClientSecretRef = %q, want %q", got, want)
+		}
+		if got, want := linear.Auth.Registration, MCPAuthRegistrationPreRegistered; got != want {
+			t.Fatalf("servers[linear].Auth.Registration = %q, want %q", got, want)
+		}
+		if got, want := linear.Auth.IssuerURL, "https://linear.app"; got != want {
+			t.Fatalf("servers[linear].Auth.IssuerURL = %q, want %q", got, want)
+		}
+		if got, want := linear.Auth.ClientID, "compozy-client"; got != want {
+			t.Fatalf("servers[linear].Auth.ClientID = %q, want %q", got, want)
 		}
 	})
 }

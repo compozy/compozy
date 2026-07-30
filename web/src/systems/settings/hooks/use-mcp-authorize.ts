@@ -5,10 +5,10 @@ import {
   type MCPAuthorizeBegin,
   type MCPAuthorizeExchange,
   type MCPAuthorizePriorStatus,
-  type MCPAuthorizeScopeApproval,
   type MCPAuthorizeState,
 } from "../stores/mcp-authorize-store";
-import type { SettingsMCPAuthFilter } from "../types";
+import { mcpScopeEscalationScopes, normalizeMCPAuthScopes } from "../lib/mcp-authorize-model";
+import type { SettingsMCPAuthFilter, SettingsMCPServerEntry } from "../types";
 import { useBeginMCPAuth, useExchangeMCPAuth } from "./use-settings-mutations";
 
 export type { MCPAuthorizePriorStatus, MCPAuthorizeState };
@@ -19,7 +19,7 @@ export function isMCPAuthorizeAwaiting(phase: MCPAuthorizePhase): boolean {
 }
 
 export function isMCPAuthorizePending(phase: MCPAuthorizePhase): boolean {
-  return phase === "beginning" || isMCPAuthorizeAwaiting(phase);
+  return phase === "reviewing_scopes" || phase === "beginning" || isMCPAuthorizeAwaiting(phase);
 }
 
 const mcpAuthorizeLogic = createMCPAuthorizeLogic();
@@ -38,11 +38,7 @@ export function useMCPAuthorize(options: MCPAuthorizeOptions = {}) {
   const state = useSelector(store, snapshot => snapshot.context);
   const beginExecution: MCPAuthorizeBegin = input => {
     const scopeApproval = input.scopeApproval;
-    const scopes =
-      scopeApproval?.approvedScopes.flatMap(scope => {
-        const trimmed = scope.trim();
-        return trimmed ? [trimmed] : [];
-      }) ?? [];
+    const scopes = normalizeMCPAuthScopes(scopeApproval?.approvedScopes ?? []);
     const explicitScopeApproval =
       scopeApproval?.approveScopeEscalation === true && scopes.length > 0;
     return beginMutation.mutateAsync({
@@ -59,48 +55,30 @@ export function useMCPAuthorize(options: MCPAuthorizeOptions = {}) {
   const exchangeExecution: MCPAuthorizeExchange = input =>
     exchangeMutation.mutateAsync({ name: input.server, filter: input.filter, body: input.body });
 
-  const beginAuthorize = (
-    filter: SettingsMCPAuthFilter,
-    server: string,
-    prior: MCPAuthorizePriorStatus
-  ) => {
-    store.trigger.authorizeRequested({
-      begin: beginExecution,
-      dismissOnConfirmation: options.dismissOnConfirmation ?? false,
-      server,
-      prior,
-      filter,
-      mode: "automatic",
-    });
-  };
-
-  const beginScopeEscalation = (
-    filter: SettingsMCPAuthFilter,
-    server: string,
-    prior: MCPAuthorizePriorStatus,
-    approvedScopes: string[],
-    confirmed: boolean
-  ) => {
-    if (!confirmed) return false;
-    const scopes = approvedScopes.flatMap(scope => {
-      const trimmed = scope.trim();
-      return trimmed ? [trimmed] : [];
-    });
-    if (scopes.length === 0) return false;
-    const scopeApproval: MCPAuthorizeScopeApproval = {
-      approveScopeEscalation: true,
-      approvedScopes: scopes,
+  const requestAuthorize = (filter: SettingsMCPAuthFilter, server: SettingsMCPServerEntry) => {
+    const prior: MCPAuthorizePriorStatus = {
+      status: server.auth_status?.status ?? "needs_login",
+      tokenPresent: Boolean(server.auth_status?.token_present),
     };
+    const approvedScopes = mcpScopeEscalationScopes(server);
+    if (approvedScopes.length > 0) {
+      store.trigger.scopeEscalationRequested({
+        approvedScopes,
+        dismissOnConfirmation: options.dismissOnConfirmation ?? false,
+        server: server.name,
+        prior,
+        filter,
+      });
+      return;
+    }
     store.trigger.authorizeRequested({
       begin: beginExecution,
       dismissOnConfirmation: options.dismissOnConfirmation ?? false,
-      server,
+      server: server.name,
       prior,
       filter,
       mode: "automatic",
-      scopeApproval,
     });
-    return true;
   };
 
   const activeState = state.phase === "idle" ? null : state;
@@ -114,8 +92,9 @@ export function useMCPAuthorize(options: MCPAuthorizeOptions = {}) {
     error,
     prior: activeState?.prior ?? null,
     mode: activeState?.mode ?? null,
-    beginAuthorize,
-    beginScopeEscalation,
+    approvedScopes: activeState?.scopeApproval?.approvedScopes ?? [],
+    requestAuthorize,
+    confirmScopeEscalation: () => store.trigger.scopeEscalationConfirmed({ begin: beginExecution }),
     retryBegin: () => store.trigger.beginRetried({ begin: beginExecution }),
     enterManual: () => store.trigger.manualAuthorizationRequested({ begin: beginExecution }),
     submitManual: (value: string) => {

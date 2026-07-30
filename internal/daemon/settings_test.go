@@ -169,9 +169,15 @@ func TestSettingsRuntimeSurfaceMCPAuthStatusSurvivesStoreReopen(t *testing.T) {
 			}
 		}()
 
-		manager, err := newSettingsMCPAuthManager(reopened, nil)
+		manager, err := newSettingsMCPAuthManagerWithConfig(
+			reopened,
+			nil,
+			nil,
+			nil,
+			compozyconfig.MCPOAuthConfig{},
+		)
 		if err != nil {
-			t.Fatalf("newSettingsMCPAuthManager() error = %v", err)
+			t.Fatalf("newSettingsMCPAuthManagerWithConfig() error = %v", err)
 		}
 		surface := &settingsRuntimeSurface{mcpAuthStore: reopened, mcpAuthManager: manager}
 		status, err := surface.MCPAuthStatus(ctx, target, server)
@@ -396,10 +402,16 @@ func newSettingsMCPTestServer() *mcp.Server {
 	server := mcp.NewServer(&mcp.Implementation{Name: "settings-test", Version: "1.0.0"}, &mcp.ServerOptions{
 		Capabilities: &mcp.ServerCapabilities{Tools: &mcp.ToolCapabilities{}},
 	})
+	inputSchema := json.RawMessage(`{
+		"type":"object",
+		"properties":{"query":{"type":"string"}},
+		"required":["query"],
+		"additionalProperties":false
+	}`)
 	server.AddTool(&mcp.Tool{
 		Name:         "lookup",
 		Description:  "Lookup documentation",
-		InputSchema:  json.RawMessage(`{"type":"object","properties":{"query":{"type":"string"}},"required":["query"],"additionalProperties":false}`),
+		InputSchema:  inputSchema,
 		OutputSchema: json.RawMessage(`{"type":"object","properties":{"answer":{"type":"string"}}}`),
 		Annotations:  &mcp.ToolAnnotations{ReadOnlyHint: true},
 	}, func(context.Context, *mcp.CallToolRequest) (*mcp.CallToolResult, error) {

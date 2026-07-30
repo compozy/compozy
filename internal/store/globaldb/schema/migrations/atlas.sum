@@ -1,4 +1,4 @@
-h1:8Q/OzoT86lxd7CBzBCu2YyozZ+0NcNCqU90Q9scU9Fo=
+h1:h4pM31LETQFYZ+z1i5m3l9cqFLt0mnZYozIVE205K6s=
 00001_baseline.sql h1:S/Hl9w8PyqMpsW5NP7g/7u/VnQI84pVFJZUUBi0MMy0=
 00002_schema.sql h1:PBK6FCjEVDmfxcoY4whqvHExe4llHojr9bZjNymgtHw=
 00003_schema.sql h1:x8VmofWOLCS5ARICKEemtVqBU1zUxT7fJSwOeC8yV18=
@@ -31,3 +31,4 @@ h1:8Q/OzoT86lxd7CBzBCu2YyozZ+0NcNCqU90Q9scU9Fo=
 00030_schema.sql h1:VKr+3+zrKj3k/lC3orhXpDUXQcLvqdsl/ybArJj6k2E=
 00031_schema.sql h1:QsBwu0YqHUYbSTgSTSOcSiPfeoWxvrhVur7vQYXj1Po=
 00032_marketplace_catalog_manifest_v2.sql h1:Bkz1+yOSAgPumqqsXfG2DkjNZWYXXTWjvJmLIAXnhdI=
+00033_schema.sql h1:5glL06QB7+dpiEjxfViLIIGwtiLqp51jyJde+MfNOMU=

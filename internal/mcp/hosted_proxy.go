@@ -93,12 +93,15 @@ func RunHostedProxy(ctx context.Context, client HostedProxyClient, opts HostedPr
 		}
 	}()
 
-	mcpServer := sdkmcp.NewServer(&sdkmcp.Implementation{Name: HostedServerName, Version: version}, &sdkmcp.ServerOptions{
-		Capabilities: &sdkmcp.ServerCapabilities{Tools: &sdkmcp.ToolCapabilities{}},
-	})
+	mcpServer := sdkmcp.NewServer(
+		&sdkmcp.Implementation{Name: HostedServerName, Version: version},
+		&sdkmcp.ServerOptions{
+			Capabilities: &sdkmcp.ServerCapabilities{Tools: &sdkmcp.ToolCapabilities{}},
+		},
+	)
 	defer hostedServerToolNames.Delete(mcpServer)
 	mcpServer.AddReceivingMiddleware(privateToolListCacheMiddleware())
-	mcpServer.AddReceivingMiddleware(protocolVersionMiddleware())
+	mcpServer.AddReceivingMiddleware(hostedProviderProtocolVersionMiddleware())
 	applyHostedTools(mcpServer, client, bind.BindID, bind.Tools)
 
 	proxyCtx, cancel := context.WithCancel(ctx)
@@ -108,7 +111,15 @@ func RunHostedProxy(ctx context.Context, client HostedProxyClient, opts HostedPr
 		streamHostedProjection(proxyCtx, client, mcpServer, bind)
 	})
 
-	err = mcpServer.Run(proxyCtx, protocolRestrictedTransport{Transport: &sdkmcp.IOTransport{Reader: io.NopCloser(stdin), Writer: nopWriteCloser{Writer: stdout}}})
+	err = mcpServer.Run(
+		proxyCtx,
+		hostedProviderProtocolTransport{
+			Transport: &sdkmcp.IOTransport{
+				Reader: io.NopCloser(stdin),
+				Writer: nopWriteCloser{Writer: stdout},
+			},
+		},
+	)
 	cancel()
 	streamWG.Wait()
 	return err
@@ -169,9 +180,15 @@ func applyHostedTools(
 			},
 			Meta: hostedToolMeta(view.Descriptor),
 		}
-		mcpServer.AddTool(&tool, func(ctx context.Context, req *sdkmcp.CallToolRequest) (*sdkmcp.CallToolResult, error) {
-			return callHostedTool(ctx, client, bindID, req)
-		})
+		mcpServer.AddTool(
+			&tool,
+			func(
+				ctx context.Context,
+				req *sdkmcp.CallToolRequest,
+			) (*sdkmcp.CallToolResult, error) {
+				return callHostedTool(ctx, client, bindID, req)
+			},
+		)
 	}
 	setHostedToolNames(mcpServer, views)
 }
@@ -184,7 +201,10 @@ func callHostedTool(
 ) (*sdkmcp.CallToolResult, error) {
 	rawInput, err := rawArguments(req.Params.Arguments)
 	if err != nil {
-		return &sdkmcp.CallToolResult{Content: []sdkmcp.Content{&sdkmcp.TextContent{Text: err.Error()}}, IsError: true}, nil
+		return &sdkmcp.CallToolResult{
+			Content: []sdkmcp.Content{&sdkmcp.TextContent{Text: err.Error()}},
+			IsError: true,
+		}, nil
 	}
 	response, err := client.CallHostedMCP(ctx, HostedCallRequest{
 		BindID:     bindID,
@@ -195,11 +215,21 @@ func callHostedTool(
 	if err != nil {
 		if partial, ok, partialErr := hostedToolPartialErrorResult(err); ok {
 			if partialErr != nil {
-				return &sdkmcp.CallToolResult{Content: []sdkmcp.Content{&sdkmcp.TextContent{Text: hostedToolErrorMessage(partialErr)}}, IsError: true}, nil
+				return &sdkmcp.CallToolResult{
+					Content: []sdkmcp.Content{
+						&sdkmcp.TextContent{Text: hostedToolErrorMessage(partialErr)},
+					},
+					IsError: true,
+				}, nil
 			}
 			return partial, nil
 		}
-		return &sdkmcp.CallToolResult{Content: []sdkmcp.Content{&sdkmcp.TextContent{Text: hostedToolErrorMessage(err)}}, IsError: true}, nil
+		return &sdkmcp.CallToolResult{
+			Content: []sdkmcp.Content{
+				&sdkmcp.TextContent{Text: hostedToolErrorMessage(err)},
+			},
+			IsError: true,
+		}, nil
 	}
 	return hostedToolResult(response.Result)
 }

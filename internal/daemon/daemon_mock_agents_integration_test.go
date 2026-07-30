@@ -3,6 +3,7 @@
 package daemon
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -12,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -769,7 +771,7 @@ func TestDaemonE2EHostedMCPProjectsAndCallsNonBootstrapNativeTool(t *testing.T) 
 			t.Fatalf("ReadDiagnostics(hosted-native) error = %v", err)
 		}
 		hostedServer := requireHostedMCPStdioServer(t, diagnostics, hostedMCPServerEarliest)
-		client := startHostedMCPClient(t, hostedServer)
+		client := startHostedMCPClient(t, ctx, hostedServer)
 		defer func() {
 			if closeErr := client.Close(); closeErr != nil {
 				t.Fatalf("Close(hosted MCP client) error = %v", closeErr)
@@ -821,6 +823,51 @@ func TestDaemonE2EHostedMCPProjectsAndCallsNonBootstrapNativeTool(t *testing.T) 
 		}
 	})
 
+	t.Run("Should expose the real session projection to the managed provider protocol", func(t *testing.T) {
+		t.Parallel()
+
+		harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
+			MockAgents: []e2etest.MockAgentSpec{{
+				FixturePath:  mockFixturePath(t, "hosted_native_tools_fixture.json"),
+				FixtureAgent: "hosted-native",
+				AgentName:    "mock-hosted-provider-legacy",
+			}},
+		})
+		registration, ok := harness.MockAgentRegistration("mock-hosted-provider-legacy")
+		if !ok {
+			t.Fatal("MockAgentRegistration(mock-hosted-provider-legacy) = missing, want present")
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		createFixtureBackedSession(t, ctx, harness, "mock-hosted-provider-legacy", "hosted-provider-legacy")
+		diagnostics, err := acpmock.ReadDiagnostics(registration.DiagnosticsPath)
+		if err != nil {
+			t.Fatalf("ReadDiagnostics(hosted-provider-legacy) error = %v", err)
+		}
+		stdio := requireHostedMCPStdioServer(t, diagnostics, hostedMCPServerEarliest)
+		firstToolNames := listLegacyHostedMCPTools(
+			t,
+			ctx,
+			stdio,
+		)
+		if !slices.Contains(firstToolNames, toolspkg.ToolIDTaskRunClaimNext.String()) {
+			t.Fatalf(
+				"first legacy hosted MCP tools = %#v, want %s",
+				firstToolNames,
+				toolspkg.ToolIDTaskRunClaimNext,
+			)
+		}
+		restartedToolNames := listLegacyHostedMCPTools(t, ctx, stdio)
+		if !slices.Contains(restartedToolNames, toolspkg.ToolIDTaskRunClaimNext.String()) {
+			t.Fatalf(
+				"restarted legacy hosted MCP tools = %#v, want %s",
+				restartedToolNames,
+				toolspkg.ToolIDTaskRunClaimNext,
+			)
+		}
+	})
+
 	t.Run("Should round trip provider model curation across CLI HTTP and hosted native tools", func(t *testing.T) {
 		t.Parallel()
 
@@ -847,6 +894,7 @@ func TestDaemonE2EHostedMCPProjectsAndCallsNonBootstrapNativeTool(t *testing.T) 
 		}
 		client := startHostedMCPClient(
 			t,
+			ctx,
 			requireHostedMCPStdioServer(t, diagnostics, hostedMCPServerEarliest),
 		)
 		defer func() {
@@ -1263,7 +1311,7 @@ func TestDaemonE2ETaskWakeCreatorDeliversSyntheticTurnAndSuppressesIneligibleWak
 		t.Fatalf("ReadDiagnostics(wake-creator) error = %v", err)
 	}
 	hostedServer := requireHostedMCPStdioServer(t, diagnostics, hostedMCPServerEarliest)
-	client := startHostedMCPClient(t, hostedServer)
+	client := startHostedMCPClient(t, ctx, hostedServer)
 	clientClosed := false
 	defer func() {
 		if clientClosed {
@@ -1426,6 +1474,7 @@ func newWorkspaceAccessHostedSession(
 	}
 	client := startHostedMCPClient(
 		t,
+		ctx,
 		requireHostedMCPStdioServer(t, diagnostics, hostedMCPServerLatest),
 	)
 	t.Cleanup(func() {
@@ -1871,6 +1920,7 @@ func requireHostedMCPStdioServer(
 
 func startHostedMCPClient(
 	t testing.TB,
+	ctx context.Context,
 	stdio acpsdk.McpServerStdio,
 ) *sdkmcp.ClientSession {
 	t.Helper()
@@ -1878,17 +1928,142 @@ func startHostedMCPClient(
 	if strings.TrimSpace(stdio.Command) == "" {
 		t.Fatalf("hosted MCP stdio server = %#v, want command", stdio)
 	}
-	command := exec.Command(stdio.Command, stdio.Args...)
+	command := exec.CommandContext(ctx, stdio.Command, stdio.Args...)
 	command.Env = append(os.Environ(), hostedMCPStdioEnv(stdio)...)
 	client := sdkmcp.NewClient(
 		&sdkmcp.Implementation{Name: "compozy-hosted-e2e", Version: "1.0.0"},
 		&sdkmcp.ClientOptions{Capabilities: &sdkmcp.ClientCapabilities{}},
 	)
-	session, err := client.Connect(context.Background(), &sdkmcp.CommandTransport{Command: command}, nil)
+	session, err := client.Connect(ctx, &sdkmcp.CommandTransport{Command: command}, nil)
 	if err != nil {
 		t.Fatalf("Connect(hosted MCP %q) error = %v", stdio.Command, err)
 	}
 	return session
+}
+
+func listLegacyHostedMCPTools(
+	t testing.TB,
+	ctx context.Context,
+	stdio acpsdk.McpServerStdio,
+) []string {
+	t.Helper()
+
+	if strings.TrimSpace(stdio.Command) == "" {
+		t.Fatalf("hosted MCP stdio server = %#v, want command", stdio)
+	}
+	command := exec.CommandContext(ctx, stdio.Command, stdio.Args...)
+	command.Env = append(os.Environ(), hostedMCPStdioEnv(stdio)...)
+	stdin, err := command.StdinPipe()
+	if err != nil {
+		t.Fatalf("StdinPipe(hosted MCP) error = %v", err)
+	}
+	stdout, err := command.StdoutPipe()
+	if err != nil {
+		t.Fatalf("StdoutPipe(hosted MCP) error = %v", err)
+	}
+	var stderr bytes.Buffer
+	command.Stderr = &stderr
+	if err := command.Start(); err != nil {
+		t.Fatalf("Start(hosted MCP %q) error = %v", stdio.Command, err)
+	}
+	waited := false
+	t.Cleanup(func() {
+		if waited {
+			return
+		}
+		if err := stdin.Close(); err != nil && !errors.Is(err, os.ErrClosed) {
+			t.Errorf("Close(hosted MCP stdin) error = %v", err)
+		}
+		if err := command.Process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
+			t.Errorf("Kill(hosted MCP process) error = %v", err)
+		}
+		if err := command.Wait(); err != nil && !strings.Contains(stderr.String(), "EOF") {
+			t.Errorf("Wait(hosted MCP process) error = %v; stderr = %s", err, stderr.String())
+		}
+	})
+
+	encoder := json.NewEncoder(stdin)
+	decoder := json.NewDecoder(stdout)
+	if err := encoder.Encode(map[string]any{
+		"jsonrpc": "2.0",
+		"id":      0,
+		"method":  "initialize",
+		"params": map[string]any{
+			"protocolVersion": "2025-06-18",
+			"capabilities": map[string]any{
+				"elicitation": map[string]any{
+					"form": map[string]any{},
+					"url":  map[string]any{},
+				},
+			},
+			"clientInfo": map[string]string{
+				"name":    "codex-mcp-client",
+				"title":   "Codex",
+				"version": "0.146.0",
+			},
+		},
+	}); err != nil {
+		t.Fatalf("Encode(hosted MCP initialize) error = %v", err)
+	}
+	var initialized struct {
+		Result struct {
+			ProtocolVersion string `json:"protocolVersion"`
+		} `json:"result"`
+		Error json.RawMessage `json:"error"`
+	}
+	if err := decoder.Decode(&initialized); err != nil {
+		t.Fatalf("Decode(hosted MCP initialize) error = %v; stderr = %s", err, stderr.String())
+	}
+	if len(initialized.Error) > 0 && string(initialized.Error) != "null" {
+		t.Fatalf("hosted MCP initialize error = %s", initialized.Error)
+	}
+	if initialized.Result.ProtocolVersion != "2025-06-18" {
+		t.Fatalf(
+			"hosted MCP protocol version = %q, want 2025-06-18",
+			initialized.Result.ProtocolVersion,
+		)
+	}
+	if err := encoder.Encode(map[string]any{
+		"jsonrpc": "2.0",
+		"method":  "notifications/initialized",
+	}); err != nil {
+		t.Fatalf("Encode(hosted MCP initialized notification) error = %v", err)
+	}
+	if err := encoder.Encode(map[string]any{
+		"jsonrpc": "2.0",
+		"id":      1,
+		"method":  "tools/list",
+		"params":  map[string]any{},
+	}); err != nil {
+		t.Fatalf("Encode(hosted MCP tools/list) error = %v", err)
+	}
+	var listed struct {
+		Result struct {
+			Tools []struct {
+				Name string `json:"name"`
+			} `json:"tools"`
+		} `json:"result"`
+		Error json.RawMessage `json:"error"`
+	}
+	if err := decoder.Decode(&listed); err != nil {
+		t.Fatalf("Decode(hosted MCP tools/list) error = %v; stderr = %s", err, stderr.String())
+	}
+	if len(listed.Error) > 0 && string(listed.Error) != "null" {
+		t.Fatalf("hosted MCP tools/list error = %s", listed.Error)
+	}
+
+	toolNames := make([]string, 0, len(listed.Result.Tools))
+	for _, tool := range listed.Result.Tools {
+		toolNames = append(toolNames, tool.Name)
+	}
+	if err := stdin.Close(); err != nil {
+		t.Fatalf("Close(hosted MCP stdin) error = %v", err)
+	}
+	if err := command.Wait(); err != nil && !strings.Contains(stderr.String(), "EOF") {
+		t.Fatalf("Wait(hosted MCP process) error = %v; stderr = %s", err, stderr.String())
+	}
+	waited = true
+	return toolNames
 }
 
 func hostedMCPStdioEnv(stdio acpsdk.McpServerStdio) []string {

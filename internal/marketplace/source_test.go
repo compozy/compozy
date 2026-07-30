@@ -4,11 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -172,7 +174,11 @@ func TestDecodeDocumentValidation(t *testing.T) {
 
 		_, err := DecodeDocument(
 			KindMCP,
-			[]byte(`{"manifest_version":3,"generated_at":"2026-07-13T00:00:00Z","entries":[]}`),
+			fmt.Appendf(
+				nil,
+				`{"manifest_version":%d,"generated_at":"2026-07-13T00:00:00Z","entries":[]}`,
+				ManifestVersion+1,
+			),
 		)
 		if err == nil {
 			t.Fatal("DecodeDocument() error = nil, want unsupported manifest error")
@@ -200,8 +206,9 @@ func TestDecodeMCPV2LaunchAndInputValidation(t *testing.T) {
 		t.Parallel()
 
 		tests := []struct {
-			name string
-			raw  string
+			name     string
+			raw      string
+			wantArgs []string
 		}{
 			{
 				name: "Should accept npm launch arguments as literal argv",
@@ -209,6 +216,7 @@ func TestDecodeMCPV2LaunchAndInputValidation(t *testing.T) {
 					`"launch":{"type":"npm","package":"@acme/server","version":"1.2.3","args":["--read-only","path with spaces"]}`,
 					`[]`,
 				),
+				wantArgs: []string{"--read-only", "path with spaces"},
 			},
 			{
 				name: "Should accept uvx launch",
@@ -240,14 +248,13 @@ func TestDecodeMCPV2LaunchAndInputValidation(t *testing.T) {
 				if err != nil {
 					t.Fatalf("DecodeDocument() error = %v", err)
 				}
-				if tt.name == "Should accept npm launch arguments as literal argv" {
+				if tt.wantArgs != nil {
 					details, projectErr := ProjectEntry(document.Entries[0])
 					if projectErr != nil {
 						t.Fatalf("ProjectEntry() error = %v", projectErr)
 					}
-					if got, want := strings.Join(details.MCP.Launch.Args, "|"),
-						"--read-only|path with spaces"; got != want {
-						t.Fatalf("ProjectEntry() launch args = %q, want %q", got, want)
+					if got := details.MCP.Launch.Args; !slices.Equal(got, tt.wantArgs) {
+						t.Fatalf("ProjectEntry() launch args = %#v, want %#v", got, tt.wantArgs)
 					}
 				}
 			})
@@ -397,6 +404,14 @@ func TestDecodeMCPV2LaunchAndInputValidation(t *testing.T) {
 				wantErr: "exact package name",
 			},
 			{
+				name: "Should reject an npm-scoped package in a uvx launch",
+				raw: validEntry(
+					`"launch":{"type":"uvx","package":"@acme/server","version":"1.2.3"}`,
+					`[]`,
+				),
+				wantErr: "exact package name",
+			},
+			{
 				name: "Should reject tagged docker images",
 				raw: validEntry(
 					`"launch":{"type":"docker","image":"ghcr.io/acme/server:latest","digest":"sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"}`,
@@ -446,6 +461,43 @@ func TestDecodeMCPV2LaunchAndInputValidation(t *testing.T) {
 		input := mcpInput{Type: mcpInputTypeBoolean, Default: json.RawMessage(`true false`)}
 		if err := input.validateDefault("input"); err == nil || !strings.Contains(err.Error(), "trailing JSON") {
 			t.Fatalf("validateDefault() error = %v, want trailing JSON validation", err)
+		}
+	})
+
+	t.Run("Should reject defaults that violate install-time value constraints", func(t *testing.T) {
+		t.Parallel()
+
+		oversized, err := json.Marshal(strings.Repeat("a", maxMCPInputValueBytes+1))
+		if err != nil {
+			t.Fatalf("json.Marshal(oversized default) error = %v", err)
+		}
+		tests := []struct {
+			name    string
+			input   mcpInput
+			wantErr string
+		}{
+			{
+				name: "Should reject NUL in an identifier default",
+				input: mcpInput{
+					Type: mcpInputTypeIdentifier, Default: json.RawMessage(`"unsafe\u0000identifier"`),
+				},
+				wantErr: "must not contain NUL",
+			},
+			{
+				name:    "Should reject an oversized string default",
+				input:   mcpInput{Type: mcpInputTypeString, Default: oversized},
+				wantErr: "exceeds 8192 bytes",
+			},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				err := tt.input.validateDefault("input")
+				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+					t.Fatalf("validateDefault() error = %v, want %q", err, tt.wantErr)
+				}
+			})
 		}
 	})
 }

@@ -472,7 +472,10 @@ func TestHostAPIMCPServerRoundTrip(t *testing.T) {
 				t.Errorf("serverSession.Close() error = %v", closeErr)
 			}
 		})
-		client := sdkmcp.NewClient(&sdkmcp.Implementation{Name: "test-client", Version: "1.0.0"}, &sdkmcp.ClientOptions{Capabilities: &sdkmcp.ClientCapabilities{}})
+		client := sdkmcp.NewClient(
+			&sdkmcp.Implementation{Name: "test-client", Version: "1.0.0"},
+			&sdkmcp.ClientOptions{Capabilities: &sdkmcp.ClientCapabilities{}},
+		)
 		clientSession, err := client.Connect(t.Context(), clientTransport, nil)
 		if err != nil {
 			t.Fatalf("client.Connect() error = %v", err)

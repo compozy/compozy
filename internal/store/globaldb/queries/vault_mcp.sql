@@ -72,11 +72,13 @@ WHERE scope = 'workspace'
 -- name: UpsertMCPOAuthRegistration :exec
 INSERT INTO mcp_oauth_registrations (
   scope, workspace_id, server_name, definition_fingerprint, resource_url, issuer, client_id,
+  token_endpoint_auth_method,
   client_secret_ref, registration_access_token_ref, registration_client_uri, client_id_issued_at,
   client_secret_expires_at, redirect_uri, scopes_json, updated_at
 ) VALUES (
   sqlc.arg(scope), sqlc.arg(workspace_id), sqlc.arg(server_name),
   sqlc.arg(definition_fingerprint), sqlc.arg(resource_url), sqlc.arg(issuer), sqlc.arg(client_id),
+  sqlc.arg(token_endpoint_auth_method),
   sqlc.arg(client_secret_ref), sqlc.arg(registration_access_token_ref), sqlc.arg(registration_client_uri), sqlc.narg(client_id_issued_at),
   sqlc.narg(client_secret_expires_at), sqlc.arg(redirect_uri), sqlc.arg(scopes_json), sqlc.arg(updated_at)
 )
@@ -85,6 +87,7 @@ ON CONFLICT(scope, workspace_id, server_name) DO UPDATE SET
   resource_url = excluded.resource_url,
   issuer = excluded.issuer,
   client_id = excluded.client_id,
+  token_endpoint_auth_method = excluded.token_endpoint_auth_method,
   client_secret_ref = excluded.client_secret_ref,
   registration_access_token_ref = excluded.registration_access_token_ref,
   registration_client_uri = excluded.registration_client_uri,
@@ -96,6 +99,7 @@ ON CONFLICT(scope, workspace_id, server_name) DO UPDATE SET
 
 -- name: GetMCPOAuthRegistration :one
 SELECT scope, workspace_id, server_name, definition_fingerprint, resource_url, issuer, client_id,
+       token_endpoint_auth_method,
        client_secret_ref, registration_access_token_ref, registration_client_uri, client_id_issued_at,
        client_secret_expires_at, redirect_uri, scopes_json, updated_at
 FROM mcp_oauth_registrations

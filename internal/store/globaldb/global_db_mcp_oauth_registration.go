@@ -56,7 +56,11 @@ func (g *VaultRepo) SaveMCPAuthRegistration(
 				"mcp_oauth_dcr_client_secret",
 				normalizedSecrets.ClientSecret,
 			); err != nil {
-				return fmt.Errorf("store: save MCP OAuth registration client secret for %q: %w", normalized.Target.ServerName, err)
+				return fmt.Errorf(
+					"store: save MCP OAuth registration client secret for %q: %w",
+					normalized.Target.ServerName,
+					err,
+				)
 			}
 		}
 		if normalizedSecrets.RegistrationAccessToken != "" {
@@ -73,7 +77,8 @@ func (g *VaultRepo) SaveMCPAuthRegistration(
 				)
 			}
 		}
-		if err := queries.UpsertMCPOAuthRegistration(ctx, registrationUpsertParams(normalized, string(scopesJSON))); err != nil {
+		params := registrationUpsertParams(normalized, string(scopesJSON))
+		if err := queries.UpsertMCPOAuthRegistration(ctx, params); err != nil {
 			return fmt.Errorf("store: save MCP OAuth registration for %q: %w", normalized.Target.ServerName, err)
 		}
 		for _, ref := range staleMCPOAuthRegistrationRefs(
@@ -199,31 +204,49 @@ func normalizeMCPOAuthRegistration(
 	registration.ResourceURL = strings.TrimSpace(registration.ResourceURL)
 	registration.Issuer = strings.TrimSpace(registration.Issuer)
 	registration.ClientID = strings.TrimSpace(registration.ClientID)
+	registration.TokenEndpointAuthMethod = strings.TrimSpace(registration.TokenEndpointAuthMethod)
 	registration.RegistrationClientURI = strings.TrimSpace(registration.RegistrationClientURI)
 	secrets.ClientSecret = strings.TrimSpace(secrets.ClientSecret)
 	secrets.RegistrationAccessToken = strings.TrimSpace(secrets.RegistrationAccessToken)
 	registration.RedirectURL = strings.TrimSpace(registration.RedirectURL)
 	registration.Scopes = trimTokenScopes(registration.Scopes)
+	if registration.Scopes == nil {
+		registration.Scopes = []string{}
+	}
 	if registration.UpdatedAt.IsZero() {
 		registration.UpdatedAt = now.UTC()
 	}
 	if err := registration.Target.Validate(); err != nil {
-		return mcpauth.ClientRegistration{}, mcpauth.RegistrationSecrets{}, fmt.Errorf("store: invalid MCP auth target: %w", err)
+		return mcpauth.ClientRegistration{}, mcpauth.RegistrationSecrets{}, fmt.Errorf(
+			"store: invalid MCP auth target: %w",
+			err,
+		)
 	}
 	if err := mcpauth.ValidateDefinitionFingerprint(registration.DefinitionFingerprint); err != nil {
-		return mcpauth.ClientRegistration{}, mcpauth.RegistrationSecrets{}, fmt.Errorf("store: invalid MCP OAuth registration fingerprint: %w", err)
+		return mcpauth.ClientRegistration{}, mcpauth.RegistrationSecrets{}, fmt.Errorf(
+			"store: invalid MCP OAuth registration fingerprint: %w",
+			err,
+		)
 	}
 	if registration.ResourceURL == "" {
-		return mcpauth.ClientRegistration{}, mcpauth.RegistrationSecrets{}, errors.New("store: MCP OAuth registration resource URL is required")
+		return mcpauth.ClientRegistration{}, mcpauth.RegistrationSecrets{}, errors.New(
+			"store: MCP OAuth registration resource URL is required",
+		)
 	}
 	if registration.Issuer == "" {
-		return mcpauth.ClientRegistration{}, mcpauth.RegistrationSecrets{}, errors.New("store: MCP OAuth registration issuer is required")
+		return mcpauth.ClientRegistration{}, mcpauth.RegistrationSecrets{}, errors.New(
+			"store: MCP OAuth registration issuer is required",
+		)
 	}
 	if registration.ClientID == "" {
-		return mcpauth.ClientRegistration{}, mcpauth.RegistrationSecrets{}, errors.New("store: MCP OAuth registration client ID is required")
+		return mcpauth.ClientRegistration{}, mcpauth.RegistrationSecrets{}, errors.New(
+			"store: MCP OAuth registration client ID is required",
+		)
 	}
 	if registration.RedirectURL == "" {
-		return mcpauth.ClientRegistration{}, mcpauth.RegistrationSecrets{}, errors.New("store: MCP OAuth registration redirect URL is required")
+		return mcpauth.ClientRegistration{}, mcpauth.RegistrationSecrets{}, errors.New(
+			"store: MCP OAuth registration redirect URL is required",
+		)
 	}
 	if (secrets.RegistrationAccessToken == "") != (registration.RegistrationClientURI == "") {
 		return mcpauth.ClientRegistration{}, mcpauth.RegistrationSecrets{}, errors.New(
@@ -236,7 +259,10 @@ func normalizeMCPOAuthRegistration(
 		registration.Target.ServerName,
 	)
 	if err != nil {
-		return mcpauth.ClientRegistration{}, mcpauth.RegistrationSecrets{}, fmt.Errorf("store: build MCP OAuth registration refs: %w", err)
+		return mcpauth.ClientRegistration{}, mcpauth.RegistrationSecrets{}, fmt.Errorf(
+			"store: build MCP OAuth registration refs: %w",
+			err,
+		)
 	}
 	registration.ClientSecretRef = ""
 	registration.RegistrationAccessTokenRef = ""
@@ -261,6 +287,7 @@ func registrationUpsertParams(
 		ResourceUrl:                registration.ResourceURL,
 		Issuer:                     registration.Issuer,
 		ClientID:                   registration.ClientID,
+		TokenEndpointAuthMethod:    registration.TokenEndpointAuthMethod,
 		ClientSecretRef:            registration.ClientSecretRef,
 		RegistrationAccessTokenRef: registration.RegistrationAccessTokenRef,
 		RegistrationClientUri:      registration.RegistrationClientURI,
@@ -283,6 +310,7 @@ func mcpOAuthRegistrationFromGenerated(row sqlcgen.McpOauthRegistration) (mcpaut
 		ResourceURL:                row.ResourceUrl,
 		Issuer:                     row.Issuer,
 		ClientID:                   row.ClientID,
+		TokenEndpointAuthMethod:    row.TokenEndpointAuthMethod,
 		ClientSecretRef:            row.ClientSecretRef,
 		RegistrationAccessTokenRef: row.RegistrationAccessTokenRef,
 		RegistrationClientURI:      row.RegistrationClientUri,
@@ -294,14 +322,20 @@ func mcpOAuthRegistrationFromGenerated(row sqlcgen.McpOauthRegistration) (mcpaut
 	if row.ClientIDIssuedAt.Valid {
 		issuedAt, err := store.ParseTimestamp(row.ClientIDIssuedAt.String)
 		if err != nil {
-			return mcpauth.ClientRegistration{}, fmt.Errorf("store: parse MCP OAuth registration client_id_issued_at: %w", err)
+			return mcpauth.ClientRegistration{}, fmt.Errorf(
+				"store: parse MCP OAuth registration client_id_issued_at: %w",
+				err,
+			)
 		}
 		registration.ClientIDIssuedAt = issuedAt
 	}
 	if row.ClientSecretExpiresAt.Valid {
 		expiresAt, err := store.ParseTimestamp(row.ClientSecretExpiresAt.String)
 		if err != nil {
-			return mcpauth.ClientRegistration{}, fmt.Errorf("store: parse MCP OAuth registration client_secret_expires_at: %w", err)
+			return mcpauth.ClientRegistration{}, fmt.Errorf(
+				"store: parse MCP OAuth registration client_secret_expires_at: %w",
+				err,
+			)
 		}
 		registration.ClientSecretExpiresAt = expiresAt
 	}
@@ -328,7 +362,12 @@ func getMCPOAuthRegistrationRefsWithExecutor(
 	return strings.TrimSpace(row.ClientSecretRef), strings.TrimSpace(row.RegistrationAccessTokenRef), nil
 }
 
-func staleMCPOAuthRegistrationRefs(previousClientSecretRef string, previousRegistrationTokenRef string, clientSecretRef string, registrationTokenRef string) []string {
+func staleMCPOAuthRegistrationRefs(
+	previousClientSecretRef string,
+	previousRegistrationTokenRef string,
+	clientSecretRef string,
+	registrationTokenRef string,
+) []string {
 	previous := []string{previousClientSecretRef, previousRegistrationTokenRef}
 	current := map[string]struct{}{clientSecretRef: {}, registrationTokenRef: {}}
 	stale := make([]string, 0, len(previous))

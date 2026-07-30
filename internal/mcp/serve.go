@@ -59,7 +59,6 @@ func ServeStdio(
 	workspace string,
 	stdin io.Reader,
 	stdout io.Writer,
-	_ io.Writer,
 ) (err error) {
 	serveSessionID := uuid.NewString()
 	mcpServer, err := newHostAPIMCPServer(invoker, serveSessionID, workspace)
@@ -69,7 +68,12 @@ func ServeStdio(
 	defer func() {
 		err = errors.Join(err, closeHostAPISession(invoker, serveSessionID))
 	}()
-	transport := protocolRestrictedTransport{Transport: &mcpgo.IOTransport{Reader: io.NopCloser(stdin), Writer: nopWriteCloser{Writer: stdout}}}
+	transport := protocolRestrictedTransport{
+		Transport: &mcpgo.IOTransport{
+			Reader: io.NopCloser(stdin),
+			Writer: nopWriteCloser{Writer: stdout},
+		},
+	}
 	if err := mcpServer.Run(ctx, transport); !isExpectedStdioServerTermination(err) {
 		return fmt.Errorf("mcp: serve stdio: %w", err)
 	}
@@ -77,7 +81,10 @@ func ServeStdio(
 }
 
 func isExpectedStdioServerTermination(err error) bool {
-	if err == nil || errors.Is(err, context.Canceled) || errors.Is(err, io.EOF) || errors.Is(err, mcpgo.ErrConnectionClosed) {
+	if err == nil ||
+		errors.Is(err, context.Canceled) ||
+		errors.Is(err, io.EOF) ||
+		errors.Is(err, mcpgo.ErrConnectionClosed) {
 		return true
 	}
 	// The SDK's JSON-RPC transport currently formats a normal stdin EOF as
@@ -109,10 +116,13 @@ func newHostAPIMCPServer(
 	if err != nil {
 		return nil, err
 	}
-	mcpServer := mcpgo.NewServer(&mcpgo.Implementation{Name: hostAPIServerName, Version: version.Current().Version}, &mcpgo.ServerOptions{
-		Logger:       slog.Default(),
-		Capabilities: &mcpgo.ServerCapabilities{Tools: &mcpgo.ToolCapabilities{}},
-	})
+	mcpServer := mcpgo.NewServer(
+		&mcpgo.Implementation{Name: hostAPIServerName, Version: version.Current().Version},
+		&mcpgo.ServerOptions{
+			Logger:       slog.Default(),
+			Capabilities: &mcpgo.ServerCapabilities{Tools: &mcpgo.ToolCapabilities{}},
+		},
+	)
 	mcpServer.AddReceivingMiddleware(privateToolListCacheMiddleware())
 	mcpServer.AddReceivingMiddleware(protocolVersionMiddleware())
 	for _, tool := range tools {

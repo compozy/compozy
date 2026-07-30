@@ -6,6 +6,9 @@ import (
 	automationpkg "github.com/compozy/compozy/internal/automation/model"
 )
 
+// DefaultMCPClientMetadataURL is the public OAuth client identity used by MCP authorization.
+const DefaultMCPClientMetadataURL = "https://compozy.com/.well-known/mcp-client.json"
+
 // DefaultWithHome returns the built-in default configuration for the supplied Compozy home.
 func DefaultWithHome(homePaths HomePaths) Config {
 	return Config{
@@ -35,7 +38,7 @@ func DefaultWithHome(homePaths HomePaths) Config {
 			Mode: PermissionModeApproveAll,
 		},
 		MCP: MCPConfig{OAuth: MCPOAuthConfig{
-			ClientMetadataURL: "https://compozy.com/.well-known/mcp-client.json",
+			ClientMetadataURL: DefaultMCPClientMetadataURL,
 			RedirectURI:       "http://127.0.0.1:2123/api/mcp/oauth/callback",
 		}},
 		Providers:    map[string]ProviderConfig{},

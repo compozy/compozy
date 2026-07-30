@@ -32,7 +32,7 @@ func (e *CallExecutor) cachedTools(key string, now time.Time) ([]toolspkg.MCPToo
 		delete(e.toolCache.entries, key)
 		return nil, false
 	}
-	return append([]toolspkg.MCPToolDescriptor(nil), entry.descriptors...), true
+	return cloneMCPToolDescriptors(entry.descriptors), true
 }
 
 func (e *CallExecutor) cacheTools(key string, descriptors []toolspkg.MCPToolDescriptor, ttlMs int, now time.Time) {
@@ -40,14 +40,35 @@ func (e *CallExecutor) cacheTools(key string, descriptors []toolspkg.MCPToolDesc
 		return
 	}
 	e.toolCache.mu.Lock()
+	if e.toolCache.entries == nil {
+		e.toolCache.entries = make(map[string]mcpToolListCacheEntry)
+	}
+	for cachedKey, entry := range e.toolCache.entries {
+		if !now.Before(entry.expiresAt) {
+			delete(e.toolCache.entries, cachedKey)
+		}
+	}
 	e.toolCache.entries[key] = mcpToolListCacheEntry{
-		descriptors: append([]toolspkg.MCPToolDescriptor(nil), descriptors...),
+		descriptors: cloneMCPToolDescriptors(descriptors),
 		expiresAt:   now.Add(time.Duration(ttlMs) * time.Millisecond),
 	}
 	e.toolCache.mu.Unlock()
 }
 
-func (e *CallExecutor) toolCacheKey(ctx context.Context, resolved ResolvedServer, protocolVersion string) (string, error) {
+func cloneMCPToolDescriptors(descriptors []toolspkg.MCPToolDescriptor) []toolspkg.MCPToolDescriptor {
+	cloned := append([]toolspkg.MCPToolDescriptor(nil), descriptors...)
+	for index := range cloned {
+		cloned[index].InputSchema = append(json.RawMessage(nil), cloned[index].InputSchema...)
+		cloned[index].OutputSchema = append(json.RawMessage(nil), cloned[index].OutputSchema...)
+	}
+	return cloned
+}
+
+func (e *CallExecutor) toolCacheKey(
+	ctx context.Context,
+	resolved ResolvedServer,
+	protocolVersion string,
+) (string, error) {
 	targetKey, err := resolved.Target.Key()
 	if err != nil {
 		return "", fmt.Errorf("mcp: cache target key: %w", err)
@@ -71,7 +92,11 @@ func (e *CallExecutor) toolCacheKey(ctx context.Context, resolved ResolvedServer
 		fingerprint = hex.EncodeToString(sum[:])
 	}
 	authBinding := sha256.Sum256([]byte(e.authorizationHeader(ctx, resolved)))
-	return targetKey + "\x00" + fingerprint + "\x00" + protocolVersion + "\x00" + hex.EncodeToString(authBinding[:]), nil
+	key := targetKey + "\x00" +
+		fingerprint + "\x00" +
+		protocolVersion + "\x00" +
+		hex.EncodeToString(authBinding[:])
+	return key, nil
 }
 
 func negotiatedProtocolVersion(session *mcpsdk.ClientSession) string {

@@ -65,8 +65,15 @@ func TestFixtureStreamableHTTP(t *testing.T) {
 		if err != nil {
 			t.Fatalf("CallTool(echo) error = %v", err)
 		}
-		if got, want := result.StructuredContent.(map[string]any)["message"], "hello"; got != want {
-			t.Fatalf("echo structured message = %q, want %q", got, want)
+		if result == nil {
+			t.Fatal("CallTool(echo) result = nil")
+		}
+		structured, ok := result.StructuredContent.(map[string]any)
+		if !ok {
+			t.Fatalf("echo structured content = %#v, want object", result.StructuredContent)
+		}
+		if got, want := structured["message"], "hello"; got != want {
+			t.Fatalf("echo structured message = %#v, want %q", got, want)
 		}
 	})
 
@@ -150,8 +157,15 @@ func TestFixtureRunStdio(t *testing.T) {
 		if err != nil {
 			t.Fatalf("CallTool(echo) error = %v", err)
 		}
-		if got, want := result.StructuredContent.(map[string]any)["message"], "stdio"; got != want {
-			t.Fatalf("echo structured message = %q, want %q", got, want)
+		if result == nil {
+			t.Fatal("CallTool(echo) result = nil")
+		}
+		structured, ok := result.StructuredContent.(map[string]any)
+		if !ok {
+			t.Fatalf("echo structured content = %#v, want object", result.StructuredContent)
+		}
+		if got, want := structured["message"], "stdio"; got != want {
+			t.Fatalf("echo structured message = %#v, want %q", got, want)
 		}
 		if err := session.Close(); err != nil {
 			t.Fatalf("ClientSession.Close() error = %v", err)

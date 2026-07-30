@@ -30,6 +30,7 @@ CREATE TABLE mcp_oauth_registrations (
 			resource_url                  TEXT NOT NULL CHECK (trim(resource_url) <> ''),
 			issuer                        TEXT NOT NULL CHECK (trim(issuer) <> ''),
 			client_id                     TEXT NOT NULL CHECK (trim(client_id) <> ''),
+			token_endpoint_auth_method    TEXT NOT NULL DEFAULT '',
 			client_secret_ref             TEXT NOT NULL DEFAULT '',
 			registration_access_token_ref TEXT NOT NULL DEFAULT '',
 			registration_client_uri       TEXT NOT NULL DEFAULT '',

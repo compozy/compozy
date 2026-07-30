@@ -29,7 +29,9 @@ function makeAuthorize(overrides: Partial<UseMCPAuthorizeReturn> = {}): UseMCPAu
     error: null,
     prior: null,
     mode: "automatic",
-    beginAuthorize: vi.fn(),
+    approvedScopes: [],
+    requestAuthorize: vi.fn(),
+    confirmScopeEscalation: vi.fn(),
     retryBegin: vi.fn(),
     enterManual: vi.fn(),
     submitManual: vi.fn(),
@@ -121,5 +123,26 @@ describe("MCPAuthorizeDialog failure recovery", () => {
     expect(screen.getByTestId("settings-page-mcp-authorize-manual")).toBeInTheDocument();
     expect(screen.getByTestId("settings-page-mcp-authorize-exchange")).toBeInTheDocument();
     expect(screen.queryByTestId("settings-page-mcp-authorize-retry")).not.toBeInTheDocument();
+  });
+});
+
+describe("MCPAuthorizeDialog scope escalation", () => {
+  it("Should require an explicit action before starting authorization with additional scopes", () => {
+    const confirmScopeEscalation = vi.fn();
+    renderDialog({
+      approvedScopes: ["issues:read", "issues:write"],
+      begin: null,
+      confirmScopeEscalation,
+      phase: "reviewing_scopes",
+    });
+
+    expect(screen.getByRole("heading", { name: "Approve additional scopes" })).toBeInTheDocument();
+    expect(screen.getByText("issues:read")).toBeInTheDocument();
+    expect(screen.getByText("issues:write")).toBeInTheDocument();
+    expect(confirmScopeEscalation).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Approve scopes" }));
+
+    expect(confirmScopeEscalation).toHaveBeenCalledOnce();
   });
 });

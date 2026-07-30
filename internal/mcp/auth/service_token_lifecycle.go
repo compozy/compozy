@@ -8,7 +8,10 @@ import (
 )
 
 // Exchange validates the OAuth callback and stores the token response.
-func (s *Service) Exchange(ctx context.Context, state LoginState, callbackURL string) (Status, error) {
+func (s *Service) Exchange(ctx context.Context, state *LoginState, callbackURL string) (Status, error) {
+	if state == nil {
+		return Status{}, errors.New("mcp auth: login state is required")
+	}
 	generation, err := s.generation.Advance(state.Config.Target)
 	if err != nil {
 		return Status{}, err
@@ -38,10 +41,10 @@ func (s *Service) persistReplacementTokenAtGeneration(
 	return statusFromToken(cfg, &token, s.now()), nil
 }
 
-func (s *Service) exchangeToken(ctx context.Context, state LoginState, callbackURL string) (TokenRecord, error) {
+func (s *Service) exchangeToken(ctx context.Context, state *LoginState, callbackURL string) (TokenRecord, error) {
 	code, err := authorizationCodeFromCallbackMetadata(callbackURL, state.State, state.Metadata)
 	if err != nil {
-		return TokenRecord{}, err
+		return TokenRecord{}, fmt.Errorf("%w: %v", ErrInvalidExchange, err)
 	}
 	if err := validateVerifier(state.Verifier); err != nil {
 		return TokenRecord{}, err
@@ -188,9 +191,6 @@ func (s *Service) Logout(ctx context.Context, cfg ServerConfig) (Status, error) 
 	if err := cfg.Validate(); err != nil {
 		return Status{}, err
 	}
-	if _, err := s.generation.Advance(cfg.Target); err != nil {
-		return Status{}, err
-	}
 	token, err := s.store.GetMCPAuthToken(ctx, cfg.Target)
 	if err != nil && !errors.Is(err, ErrTokenNotFound) {
 		return Status{}, err
@@ -213,7 +213,7 @@ func (s *Service) Logout(ctx context.Context, cfg ServerConfig) (Status, error) 
 			}
 		}
 	}
-	if err := s.store.DeleteMCPAuthorizationState(ctx, cfg.Target); err != nil {
+	if err := s.deleteAuthorizationState(ctx, cfg.Target); err != nil {
 		return Status{}, err
 	}
 	if remoteErr != nil {
@@ -240,6 +240,10 @@ func (s *Service) DeleteAuthorizationState(ctx context.Context, target Target) e
 	if err := target.Validate(); err != nil {
 		return err
 	}
+	return s.deleteAuthorizationState(ctx, target)
+}
+
+func (s *Service) deleteAuthorizationState(ctx context.Context, target Target) error {
 	if _, err := s.generation.Advance(target); err != nil {
 		return err
 	}

@@ -78,7 +78,9 @@ func TestMCPAuthLoginUsesDaemonOwnedManualExchange(t *testing.T) {
 			target SettingsMCPAuthTarget,
 			request SettingsMCPAuthExchangeRequest,
 		) (SettingsMCPAuthStatusRecord, error) {
-			if target.Name != "linear" || request.RedirectURL != "http://127.0.0.1:2123/api/mcp/oauth/callback?code=one-time-code&state=public-state" {
+			wantRedirectURL := "http://127.0.0.1:2123/api/mcp/oauth/callback" +
+				"?code=one-time-code&state=public-state"
+			if target.Name != "linear" || request.RedirectURL != wantRedirectURL {
 				t.Fatalf("exchange target/request = %#v / %#v", target, request)
 			}
 			return mcpAuthStatus("linear", "global", "", true, timePointer(time.Now())), nil
@@ -503,23 +505,40 @@ func TestManualMCPAuthExchangeRequestRequiresFullRedirectURL(t *testing.T) {
 	for _, tc := range []struct {
 		name         string
 		input        string
-		wantRedirect bool
+		wantRedirect string
+		wantErr      bool
 	}{
 		{
 			name:         "Should classify an absolute redirect URL",
 			input:        "https://callback.example/oauth?code=opaque&state=public",
-			wantRedirect: true,
+			wantRedirect: "https://callback.example/oauth?code=opaque&state=public",
+		},
+		{
+			name:    "Should reject an opaque authorization code",
+			input:   "opaque-authorization-code",
+			wantErr: true,
+		},
+		{
+			name:    "Should reject a non-absolute callback path",
+			input:   "/oauth/callback?code=opaque&state=public",
+			wantErr: true,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
 			request, err := manualMCPAuthExchangeRequest(tc.input)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatalf("manualMCPAuthExchangeRequest() error = nil, want rejection")
+				}
+				return
+			}
 			if err != nil {
 				t.Fatalf("manualMCPAuthExchangeRequest() error = %v", err)
 			}
-			if (request.RedirectURL != "") != tc.wantRedirect {
-				t.Fatalf("request = %#v", request)
+			if request.RedirectURL != tc.wantRedirect {
+				t.Fatalf("request.RedirectURL = %q, want %q", request.RedirectURL, tc.wantRedirect)
 			}
 		})
 	}
@@ -543,6 +562,55 @@ func TestMCPAuthLoginRequiresExplicitScopeEscalationApproval(t *testing.T) {
 		)
 		if err == nil || !strings.Contains(err.Error(), "--approve-scope-escalation") {
 			t.Fatalf("mcp auth login error = %v, want explicit scope escalation approval", err)
+		}
+	})
+
+	t.Run("Should forward explicitly approved scopes", func(t *testing.T) {
+		t.Parallel()
+
+		client := &stubClient{
+			getSettingsMCPAuthStatusFn: func(
+				context.Context,
+				SettingsMCPAuthTarget,
+			) (SettingsMCPAuthStatusRecord, error) {
+				return mcpAuthStatus("linear", "global", "", false, nil), nil
+			},
+			beginSettingsMCPAuthFn: func(
+				_ context.Context,
+				_ SettingsMCPAuthTarget,
+				request SettingsMCPAuthBeginRequest,
+			) (SettingsMCPAuthBeginRecord, error) {
+				if strings.Join(request.ApprovedScopes, ",") != "tools.write,resources.read" {
+					t.Fatalf("begin approved scopes = %v", request.ApprovedScopes)
+				}
+				if !request.ApproveScopeEscalation {
+					t.Fatal("begin scope escalation approval = false, want true")
+				}
+				return SettingsMCPAuthBeginRecord{
+					AuthorizationURL: "https://auth.example/authorize",
+					ExpiresAt:        time.Now().Add(time.Minute),
+					ManualSupported:  true,
+				}, nil
+			},
+			exchangeSettingsMCPAuthFn: func(
+				context.Context,
+				SettingsMCPAuthTarget,
+				SettingsMCPAuthExchangeRequest,
+			) (SettingsMCPAuthStatusRecord, error) {
+				return mcpAuthStatus("linear", "global", "", true, timePointer(time.Now())), nil
+			},
+		}
+		_, _, err := executeMCPAuthCommandWithInput(
+			t,
+			newWorkspaceTestDeps(t, client),
+			"http://127.0.0.1:2123/api/mcp/oauth/callback?code=one-time-code&state=public-state\n",
+			"mcp", "auth", "login", "linear", "--manual",
+			"--approved-scope", "tools.write",
+			"--approved-scope", "resources.read",
+			"--approve-scope-escalation",
+		)
+		if err != nil {
+			t.Fatalf("execute mcp auth login with approved scopes error = %v", err)
 		}
 	})
 }

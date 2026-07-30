@@ -64,10 +64,13 @@ func (e *CallExecutor) openClient(ctx context.Context, resolved ResolvedServer) 
 }
 
 func (e *CallExecutor) connectClient(ctx context.Context, transport mcpsdk.Transport) (*mcpsdk.ClientSession, error) {
-	client := mcpsdk.NewClient(&mcpsdk.Implementation{Name: "compozy", Version: version.Current().Version}, &mcpsdk.ClientOptions{
-		Capabilities:   &mcpsdk.ClientCapabilities{},
-		MultiRoundTrip: &mcpsdk.MultiRoundTripOptions{Disabled: true},
-	})
+	client := mcpsdk.NewClient(
+		&mcpsdk.Implementation{Name: "compozy", Version: version.Current().Version},
+		&mcpsdk.ClientOptions{
+			Capabilities:   &mcpsdk.ClientCapabilities{},
+			MultiRoundTrip: &mcpsdk.MultiRoundTripOptions{Disabled: true},
+		},
+	)
 	session, err := client.Connect(ctx, transport, nil)
 	if err != nil {
 		return nil, normalizeMCPError("", err)
@@ -137,13 +140,23 @@ func (t authorizationRoundTripper) RoundTrip(request *http.Request) (*http.Respo
 	if err != nil {
 		return nil, err
 	}
-	if scopeErr := insufficientScopeError(response); scopeErr != nil {
+	if authErr := authorizationChallengeError(response); authErr != nil {
 		if response.Body == nil {
-			return nil, scopeErr
+			return nil, authErr
 		}
-		return nil, errors.Join(scopeErr, response.Body.Close())
+		return nil, errors.Join(authErr, response.Body.Close())
 	}
 	return response, nil
+}
+
+func authorizationChallengeError(response *http.Response) error {
+	if response == nil {
+		return nil
+	}
+	if response.StatusCode == http.StatusUnauthorized {
+		return ErrAuthorizationRequired
+	}
+	return insufficientScopeError(response)
 }
 
 func insufficientScopeError(response *http.Response) error {

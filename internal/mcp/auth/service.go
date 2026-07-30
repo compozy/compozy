@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/mcp/securehttp"
 )
 
@@ -28,7 +29,8 @@ type Service struct {
 	store              TokenStore
 	registrations      RegistrationStore
 	client             *http.Client
-	catalogClient      *http.Client
+	secureClient       *securehttp.Client
+	catalogClient      *securehttp.Client
 	random             io.Reader
 	now                func() time.Time
 	generation         *MutationGeneration
@@ -42,12 +44,14 @@ func NewService(store TokenStore, opts ...ServiceOption) (*Service, error) {
 	if store == nil {
 		return nil, errors.New("mcp auth: token store is required")
 	}
+	operatorClient := securehttp.NewClient()
 	service := &Service{
 		store:             store,
-		client:            securehttp.NewClient().HTTPClient(),
-		catalogClient:     securehttp.NewClient().HTTPClient(),
+		client:            operatorClient.HTTPClient(),
+		secureClient:      operatorClient,
+		catalogClient:     securehttp.NewClient(),
 		generation:        NewMutationGeneration(),
-		clientMetadataURL: defaultClientMetadataURL,
+		clientMetadataURL: compozyconfig.DefaultMCPClientMetadataURL,
 		now: func() time.Time {
 			return time.Now().UTC()
 		},
@@ -58,10 +62,11 @@ func NewService(store TokenStore, opts ...ServiceOption) (*Service, error) {
 		}
 	}
 	if service.client == nil {
-		service.client = securehttp.NewClient().HTTPClient()
+		service.secureClient = securehttp.NewClient()
+		service.client = service.secureClient.HTTPClient()
 	}
 	if service.catalogClient == nil {
-		service.catalogClient = securehttp.NewClient().HTTPClient()
+		service.catalogClient = securehttp.NewClient()
 	}
 	if service.now == nil {
 		service.now = func() time.Time { return time.Now().UTC() }
@@ -72,9 +77,23 @@ func NewService(store TokenStore, opts ...ServiceOption) (*Service, error) {
 	return service, nil
 }
 
-func (s *Service) clientFor(cfg ServerConfig) *http.Client {
+type httpDoer interface {
+	Do(*http.Request) (*http.Response, error)
+}
+
+func (s *Service) clientFor(cfg ServerConfig) httpDoer {
 	if strings.TrimSpace(cfg.CatalogEntry) != "" {
 		return s.catalogClient
+	}
+	if s.secureClient != nil {
+		return s.secureClient
+	}
+	return s.client
+}
+
+func (s *Service) sdkHTTPClientFor(cfg ServerConfig) *http.Client {
+	if strings.TrimSpace(cfg.CatalogEntry) != "" {
+		return s.catalogClient.HTTPClient()
 	}
 	return s.client
 }
@@ -132,12 +151,11 @@ func authorizationURL(
 	if scopes := strings.Join(trimStrings(cfg.Scopes), " "); scopes != "" {
 		values.Set("scope", scopes)
 	}
+	if resourceURL := firstNonEmpty(cfg.ResourceURL, cfg.RemoteURL); resourceURL != "" {
+		values.Set("resource", resourceURL)
+	}
 	parsed.RawQuery = values.Encode()
 	return parsed.String(), nil
-}
-
-func authorizationCodeFromCallback(callbackURL string, wantState string) (string, error) {
-	return authorizationCodeFromCallbackMetadata(callbackURL, wantState, Metadata{})
 }
 
 func authorizationCodeFromCallbackMetadata(callbackURL string, wantState string, metadata Metadata) (string, error) {
@@ -198,21 +216,16 @@ func (e *tokenExpiresIn) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (s *Service) exchangeCode(ctx context.Context, state LoginState, code string) (TokenRecord, error) {
+func (s *Service) exchangeCode(ctx context.Context, state *LoginState, code string) (TokenRecord, error) {
 	values := url.Values{}
 	values.Set("grant_type", "authorization_code")
 	values.Set("code", code)
 	values.Set("redirect_uri", strings.TrimSpace(state.RedirectURL))
-	values.Set("client_id", strings.TrimSpace(state.Config.ClientID))
 	values.Set("code_verifier", state.Verifier)
 	if strings.TrimSpace(state.ResourceURL) != "" {
 		values.Set("resource", state.ResourceURL)
 	}
-	if strings.TrimSpace(state.Config.ClientSecret) != "" {
-		values.Set("client_secret", state.Config.ClientSecret)
-	}
-
-	resp, err := s.postForm(ctx, state.Metadata.TokenEndpoint, values)
+	resp, err := s.postForm(ctx, state.Config, state.Metadata.TokenEndpoint, values)
 	if err != nil {
 		return TokenRecord{}, err
 	}
@@ -228,15 +241,10 @@ func (s *Service) refreshToken(
 	values := url.Values{}
 	values.Set("grant_type", serviceRefreshTokenKey)
 	values.Set(serviceRefreshTokenKey, current.RefreshToken)
-	values.Set("client_id", strings.TrimSpace(cfg.ClientID))
 	if resourceURL := strings.TrimSpace(cfg.ResourceURL); resourceURL != "" {
 		values.Set("resource", resourceURL)
 	}
-	if strings.TrimSpace(cfg.ClientSecret) != "" {
-		values.Set("client_secret", cfg.ClientSecret)
-	}
-
-	resp, err := s.postForm(ctx, metadata.TokenEndpoint, values)
+	resp, err := s.postForm(ctx, cfg, metadata.TokenEndpoint, values)
 	if err != nil {
 		return TokenRecord{}, err
 	}
@@ -245,22 +253,18 @@ func (s *Service) refreshToken(
 
 func (s *Service) postForm(
 	ctx context.Context,
+	cfg ServerConfig,
 	endpoint string,
 	values url.Values,
 ) (payload tokenEndpointResponse, err error) {
-	req, err := http.NewRequestWithContext(
-		ctx,
-		http.MethodPost,
-		strings.TrimSpace(endpoint),
-		strings.NewReader(values.Encode()),
-	)
+	req, err := newAuthenticatedFormRequest(ctx, endpoint, cfg, values)
 	if err != nil {
 		return tokenEndpointResponse{}, fmt.Errorf("mcp auth: build token request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Accept", "application/json")
 
-	resp, err := s.client.Do(req)
+	resp, err := s.clientFor(cfg).Do(req)
 	if err != nil {
 		return tokenEndpointResponse{}, fmt.Errorf("mcp auth: call token endpoint: %w", err)
 	}
@@ -319,9 +323,13 @@ func (s *Service) tokenRecordFromResponse(
 	if obtainedAt.IsZero() {
 		obtainedAt = now
 	}
-	fingerprint, err := ServerDefinitionFingerprint(cfg)
-	if err != nil {
-		return TokenRecord{}, err
+	fingerprint := strings.TrimSpace(current.DefinitionFingerprint)
+	if fingerprint == "" {
+		var err error
+		fingerprint, err = ServerDefinitionFingerprint(cfg)
+		if err != nil {
+			return TokenRecord{}, err
+		}
 	}
 
 	return TokenRecord{
@@ -369,21 +377,12 @@ func (s *Service) revoke(
 	values := url.Values{}
 	values.Set("token", revokeToken)
 	values.Set("token_type_hint", hint)
-	values.Set("client_id", strings.TrimSpace(cfg.ClientID))
-	if strings.TrimSpace(cfg.ClientSecret) != "" {
-		values.Set("client_secret", cfg.ClientSecret)
-	}
-	req, err := http.NewRequestWithContext(
-		ctx,
-		http.MethodPost,
-		strings.TrimSpace(metadata.RevocationEndpoint),
-		strings.NewReader(values.Encode()),
-	)
+	req, err := newAuthenticatedFormRequest(ctx, metadata.RevocationEndpoint, cfg, values)
 	if err != nil {
 		return fmt.Errorf("mcp auth: build revocation request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	resp, err := s.client.Do(req)
+	resp, err := s.clientFor(cfg).Do(req)
 	if err != nil {
 		return fmt.Errorf("mcp auth: call revocation endpoint: %w", err)
 	}

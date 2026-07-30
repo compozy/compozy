@@ -17,7 +17,11 @@ import { MarketplaceDetailExtensionManage } from "./marketplace-detail-extension
 import { MarketplaceDetailMeta } from "./marketplace-detail-meta";
 import { MarketplaceDetailMCPManage } from "./marketplace-detail-mcp-manage";
 import { MarketplaceDetailSkillManage } from "./marketplace-detail-skill-manage";
-import { formatMarketplaceCount, formatMarketplaceVersion } from "./marketplace-ui";
+import {
+  formatMarketplaceCount,
+  formatMarketplaceMCPLaunch,
+  formatMarketplaceVersion,
+} from "./marketplace-ui";
 
 interface MarketplaceDetailProps {
   data: MarketplaceEntryResponse;
@@ -134,7 +138,7 @@ function MarketplaceMCPDetails({ mcp }: { mcp: NonNullable<MarketplaceEntryRespo
         <Eyebrow className="text-muted">Configuration</Eyebrow>
         <div className="flex flex-col gap-4 rounded-lg bg-canvas-soft p-5">
           <div className="min-w-0 overflow-x-auto rounded-md bg-canvas px-3 py-2 font-mono text-form-input text-fg">
-            {formatMCPCatalogLaunch(mcp.launch)}
+            {formatMarketplaceMCPLaunch(mcp.launch)}
           </div>
           <MetadataList>
             <MetadataList.Row label="Connection">
@@ -182,17 +186,6 @@ function MarketplaceMCPDetails({ mcp }: { mcp: NonNullable<MarketplaceEntryRespo
       ) : null}
     </>
   );
-}
-
-function formatMCPCatalogLaunch(
-  launch: NonNullable<NonNullable<MarketplaceEntryResponse["mcp"]>["launch"]>
-) {
-  if (launch.type === "remote") return launch.url;
-  if (launch.type === "docker")
-    return [launch.image, launch.digest, ...(launch.args ?? [])].join(" ");
-  return [launch.type, launch.package, launch.version, ...(launch.args ?? [])]
-    .filter(Boolean)
-    .join(" ");
 }
 
 type TrustWarnings = NonNullable<

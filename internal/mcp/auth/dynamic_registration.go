@@ -19,31 +19,36 @@ func (s *Service) dynamicClientRegistration(
 	resourceURL string,
 	redirectURL string,
 	asm *oauthex.AuthServerMeta,
-) (string, string, error) {
+) (string, string, string, error) {
 	if s.registrations == nil {
-		return "", "", errors.New(
+		return "", "", "", errors.New(
 			"mcp auth: registration store is required for dynamic registration",
 		)
 	}
 	fingerprint, err := ServerDefinitionFingerprint(cfg)
 	if err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
 	existing, err := s.registrations.GetMCPAuthRegistration(ctx, cfg.Target)
-	if err == nil && existing.DefinitionFingerprint == fingerprint &&
-		existing.ResourceURL == resourceURL && issuersEqual(existing.Issuer, asm.Issuer) &&
-		strings.TrimSpace(existing.ClientID) != "" {
+	if err == nil && s.dynamicRegistrationReusable(
+		existing,
+		cfg,
+		fingerprint,
+		resourceURL,
+		redirectURL,
+		asm.Issuer,
+	) {
 		secret, resolveErr := s.resolveRegistrationSecret(ctx, existing.ClientSecretRef)
 		if resolveErr != nil {
-			return "", "", resolveErr
+			return "", "", "", resolveErr
 		}
-		return existing.ClientID, secret, nil
+		return existing.ClientID, secret, existing.TokenEndpointAuthMethod, nil
 	}
 	if err != nil && !errors.Is(err, ErrRegistrationNotFound) {
-		return "", "", fmt.Errorf("mcp auth: load client registration: %w", err)
+		return "", "", "", fmt.Errorf("mcp auth: load client registration: %w", err)
 	}
 	if strings.TrimSpace(asm.RegistrationEndpoint) == "" {
-		return "", "", errors.New(
+		return "", "", "", errors.New(
 			"mcp auth: authorization server does not support CIMD or dynamic registration",
 		)
 	}
@@ -60,7 +65,7 @@ func (s *Service) dynamicClientRegistration(
 		},
 	)
 	if err != nil {
-		return "", "", fmt.Errorf("mcp auth: dynamic client registration: %w", err)
+		return "", "", "", fmt.Errorf("mcp auth: dynamic client registration: %w", err)
 	}
 	registration, secret, err := s.persistDynamicRegistration(
 		ctx,
@@ -72,9 +77,37 @@ func (s *Service) dynamicClientRegistration(
 		response,
 	)
 	if err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
-	return registration.ClientID, secret, nil
+	return registration.ClientID, secret, registration.TokenEndpointAuthMethod, nil
+}
+
+func (s *Service) dynamicRegistrationReusable(
+	existing ClientRegistration,
+	cfg ServerConfig,
+	fingerprint string,
+	resourceURL string,
+	redirectURL string,
+	issuer string,
+) bool {
+	if existing.DefinitionFingerprint != fingerprint || existing.ResourceURL != resourceURL ||
+		!issuersEqual(existing.Issuer, issuer) ||
+		strings.TrimSpace(existing.ClientID) == "" ||
+		strings.TrimSpace(existing.RedirectURL) != strings.TrimSpace(redirectURL) ||
+		!scopesCover(existing.Scopes, cfg.Scopes) ||
+		(!existing.ClientSecretExpiresAt.IsZero() &&
+			!existing.ClientSecretExpiresAt.After(s.now().UTC())) {
+		return false
+	}
+	method := strings.TrimSpace(existing.TokenEndpointAuthMethod)
+	switch method {
+	case tokenEndpointAuthMethodNone:
+		return true
+	case tokenEndpointAuthMethodBasic, tokenEndpointAuthMethodPost:
+		return strings.TrimSpace(existing.ClientSecretRef) != ""
+	default:
+		return false
+	}
 }
 
 func (s *Service) persistDynamicRegistration(
@@ -89,20 +122,31 @@ func (s *Service) persistDynamicRegistration(
 	if strings.TrimSpace(response.Registration.ClientID) == "" {
 		return ClientRegistration{}, "", errors.New("mcp auth: DCR response client id is required")
 	}
-	registration := ClientRegistration{
-		Target:                cfg.Target.Normalize(),
-		DefinitionFingerprint: fingerprint,
-		ResourceURL:           resourceURL,
-		Issuer:                strings.TrimSpace(issuer),
-		ClientID:              strings.TrimSpace(response.Registration.ClientID),
-		RegistrationClientURI: response.RegistrationClientURI,
-		ClientIDIssuedAt:      response.Registration.ClientIDIssuedAt.UTC(),
-		ClientSecretExpiresAt: response.Registration.ClientSecretExpiresAt.UTC(),
-		RedirectURL:           redirectURL,
-		Scopes:                trimStrings(cfg.Scopes),
-		UpdatedAt:             s.now().UTC(),
-	}
 	secret := strings.TrimSpace(response.Registration.ClientSecret)
+	authMethod, err := registrationTokenEndpointAuthMethod(
+		response.Registration.TokenEndpointAuthMethod,
+		secret,
+	)
+	if err != nil {
+		return ClientRegistration{}, "", err
+	}
+	if authMethod == tokenEndpointAuthMethodNone {
+		secret = ""
+	}
+	registration := ClientRegistration{
+		Target:                  cfg.Target.Normalize(),
+		DefinitionFingerprint:   fingerprint,
+		ResourceURL:             resourceURL,
+		Issuer:                  strings.TrimSpace(issuer),
+		ClientID:                strings.TrimSpace(response.Registration.ClientID),
+		RegistrationClientURI:   response.RegistrationClientURI,
+		ClientIDIssuedAt:        response.Registration.ClientIDIssuedAt.UTC(),
+		ClientSecretExpiresAt:   response.Registration.ClientSecretExpiresAt.UTC(),
+		TokenEndpointAuthMethod: authMethod,
+		RedirectURL:             redirectURL,
+		Scopes:                  trimStrings(cfg.Scopes),
+		UpdatedAt:               s.now().UTC(),
+	}
 	persisted, err := s.registrations.SaveMCPAuthRegistration(
 		ctx,
 		registration,
@@ -159,7 +203,10 @@ func (s *Service) registerClient(
 		err = errors.Join(err, drainAndCloseResponseBody(resp.Body))
 	}()
 	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
-		return dynamicRegistrationResponse{}, errors.New("mcp auth: dynamic registration rejected")
+		return dynamicRegistrationResponse{}, fmt.Errorf(
+			"mcp auth: dynamic registration rejected with HTTP %d",
+			resp.StatusCode,
+		)
 	}
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {

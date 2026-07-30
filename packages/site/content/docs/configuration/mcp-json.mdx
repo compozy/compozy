@@ -212,11 +212,12 @@ Each route requires `scope`; workspace targets also require `workspace_id`. The 
 over HTTP and UDS. Begin requires a JSON body with `mode: "automatic"` or `mode: "manual"`; manual
 mode creates a fresh paste-based PKCE session instead of reusing an automatic callback session.
 The named status route reads only the target's redacted auth state; it does not start a runtime probe.
-`GET /api/mcp/oauth/callback` is HTTP-only and refuses automatic completion when the daemon bind
-host is not loopback. On loopback, begin derives the callback origin from the effective listener,
-including bracketed IPv6 addresses; an unavailable callback runtime returns a documented `503`
-HTML response. Exchange accepts exactly one of `code` or `redirect_url`, and success requires
-redacted status with both `authenticated` and `token_present`.
+`GET /api/mcp/oauth/callback` is HTTP-only. Automatic begin uses the configured
+`mcp.oauth.redirect_uri` exactly and requires its host to be loopback; it does not derive a callback
+from the daemon listener. Set `redirect_uri` explicitly when the daemon uses a non-default loopback
+port. An unavailable callback runtime returns a documented `503` HTML response. Exchange accepts a
+JSON body containing the full `redirect_url` only, and success requires redacted status with both
+`authenticated` and `token_present`.
 
 Each pending session and issued token is bound to the exact scoped server definition. Editing or
 deleting the server invalidates pending completion. If the transport, remote URL, or OAuth settings

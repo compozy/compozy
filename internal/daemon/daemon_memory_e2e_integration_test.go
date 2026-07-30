@@ -396,7 +396,7 @@ func TestDaemonE2EAgentMemoryBatchIsRecalledByNextSession(t *testing.T) {
 		t.Fatalf("ReadDiagnostics(memory-batch-writer) error = %v", err)
 	}
 	hostedServer := requireHostedMCPStdioServer(t, writerDiagnostics, hostedMCPServerEarliest)
-	client := startHostedMCPClient(t, hostedServer)
+	client := startHostedMCPClient(t, ctx, hostedServer)
 	defer func() {
 		if closeErr := client.Close(); closeErr != nil {
 			t.Fatalf("Close(memory batch hosted MCP client) error = %v", closeErr)

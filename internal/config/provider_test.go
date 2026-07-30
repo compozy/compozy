@@ -1304,6 +1304,34 @@ func TestMCPServerValidateSupportsRemotePreRegisteredOAuth(t *testing.T) {
 	}
 }
 
+func TestMCPOAuthConfigValidatesClientMetadataURL(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		url  string
+	}{
+		{name: "Should reject loopback HTTP", url: "http://127.0.0.1/client-metadata.json"},
+		{name: "Should reject an HTTPS root", url: "https://client.example/"},
+		{name: "Should reject credentials", url: "https://user:pass@client.example/metadata.json"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			config := MCPOAuthConfig{ClientMetadataURL: tt.url}
+			if err := config.Validate("mcp.oauth"); err == nil {
+				t.Fatalf("Validate(%q) error = nil, want client metadata URL rejection", tt.url)
+			}
+		})
+	}
+
+	config := MCPOAuthConfig{ClientMetadataURL: DefaultMCPClientMetadataURL}
+	if err := config.Validate("mcp.oauth"); err != nil {
+		t.Fatalf("Validate(default client metadata URL) error = %v", err)
+	}
+}
+
 func TestMCPServerValidateRejectsUnsafeStdioEnv(t *testing.T) {
 	t.Parallel()
 

@@ -154,6 +154,16 @@ func TestMCPOAuthRegistrationStoreAtomicityContract(t *testing.T) {
 		if clientSecret != "client-secret" {
 			t.Fatalf("client secret after failed save = %q, want original secret", clientSecret)
 		}
+		registrationToken, err := service.ResolveRef(ctx, saved.RegistrationAccessTokenRef)
+		if err != nil {
+			t.Fatalf("ResolveRef(registration access token) error = %v", err)
+		}
+		if registrationToken != "registration-access-token" {
+			t.Fatalf(
+				"registration access token after failed save = %q, want original token",
+				registrationToken,
+			)
+		}
 	})
 
 	t.Run("Should roll back registration deletion when DCR secret cleanup fails", func(t *testing.T) {

@@ -5,12 +5,15 @@
 package mcpfixture
 
 import (
+	"bytes"
 	"encoding/json"
 	"io"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestOAuthHTTPServer(t *testing.T) {
@@ -46,6 +49,15 @@ func TestOAuthHTTPServer(t *testing.T) {
 		decodeJSON(t, metadataResponse, &protectedMetadata)
 		if got, want := protectedMetadata.Resource, server.Endpoints.MCPURL; got != want {
 			t.Fatalf("PRM resource = %q, want %q", got, want)
+		}
+		if got, want := protectedMetadata.ScopesSupported, []string{
+			"tools.read",
+			"tools.write",
+		}; !slices.Equal(got, want) {
+			t.Fatalf("PRM scopes = %#v, want %#v", got, want)
+		}
+		if len(protectedMetadata.AuthorizationServers) == 0 {
+			t.Fatal("PRM authorization servers are empty")
 		}
 		if got, want := protectedMetadata.AuthorizationServers[0], server.Endpoints.IssuerURL; got != want {
 			t.Fatalf("PRM authorization server = %q, want %q", got, want)
@@ -226,6 +238,7 @@ func TestOAuthHTTPServer(t *testing.T) {
 func noRedirectClient() *http.Client {
 	return &http.Client{
 		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+		Timeout:       5 * time.Second,
 	}
 }
 
@@ -263,7 +276,7 @@ func postJSON(t *testing.T, client *http.Client, rawURL string, value any) *http
 	if err != nil {
 		t.Fatalf("json.Marshal() error = %v", err)
 	}
-	request, err := http.NewRequestWithContext(t.Context(), http.MethodPost, rawURL, strings.NewReader(string(data)))
+	request, err := http.NewRequestWithContext(t.Context(), http.MethodPost, rawURL, bytes.NewReader(data))
 	if err != nil {
 		t.Fatalf("http.NewRequest(JSON post) error = %v", err)
 	}

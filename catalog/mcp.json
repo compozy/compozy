@@ -27,7 +27,7 @@
             "entry_id": "github",
             "name": "GitHub",
             "description": "Inspect GitHub repositories, issues, pull requests, and releases with GitHub's official MCP server.",
-            "version": "v1.8.0",
+            "version": "1.8.0",
             "launch": {
                 "type": "docker",
                 "image": "ghcr.io/github/github-mcp-server",

@@ -20,8 +20,8 @@ import { toast } from "sonner";
 
 import type { UseMCPAuthorizeReturn } from "../hooks/use-mcp-authorize";
 
+import { isAbsoluteMCPRedirectURL } from "../lib/mcp-authorize-model";
 import { authTone, formatStatusLabel } from "../lib/mcp-status-view-model";
-import { isAbsoluteMCPRedirectURL } from "../stores/mcp-authorize-store";
 import type { SettingsMCPServerEntry } from "../types";
 
 export interface MCPAuthorizeDialogProps {
@@ -45,7 +45,9 @@ export function MCPAuthorizeDialog({ authorize, scope, server }: MCPAuthorizeDia
         unframed
         data-testid="settings-page-mcp-authorize"
       >
-        {open ? (
+        {open && authorize.phase === "reviewing_scopes" ? (
+          <ScopeEscalationReview authorize={authorize} scope={scope} server={server} />
+        ) : open ? (
           <AuthorizeContent
             key={authorize.server ?? "none"}
             authorize={authorize}
@@ -55,6 +57,71 @@ export function MCPAuthorizeDialog({ authorize, scope, server }: MCPAuthorizeDia
         ) : null}
       </DialogContent>
     </Dialog>
+  );
+}
+
+function ScopeEscalationReview({ authorize, scope, server }: MCPAuthorizeDialogProps) {
+  const name = authorize.server ?? server?.name ?? "MCP server";
+  const scopes = authorize.approvedScopes;
+  return (
+    <>
+      <DialogHeader variant="ruled">
+        <Eyebrow className="flex items-center gap-2 text-muted">
+          <Plug className="size-3.5" />
+          {name} · {scope} · OAuth
+        </Eyebrow>
+        <DialogTitle>Approve additional scopes</DialogTitle>
+        <DialogDescription>
+          Review the access {name} is requesting beyond its current authorization.
+        </DialogDescription>
+      </DialogHeader>
+
+      <div className="flex max-h-[60vh] flex-col gap-3 overflow-y-auto px-5 py-4">
+        <Alert variant="warning" data-testid="settings-page-mcp-scope-review">
+          <CircleAlert />
+          <AlertTitle>Authorization scope increase</AlertTitle>
+          <AlertDescription>
+            Approving starts a new provider authorization for these scopes. Existing credentials
+            stay unchanged until the provider confirms the exchange.
+          </AlertDescription>
+        </Alert>
+        <ul aria-label="Additional OAuth scopes" className="flex flex-wrap gap-2">
+          {scopes.map(scopeName => (
+            <li key={scopeName}>
+              <Pill mono tone="warning">
+                {scopeName}
+              </Pill>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      <DialogFooter variant="ruled" className="grid items-center">
+        <span className="text-caption text-muted">
+          The daemon sends these scopes only after this confirmation.
+        </span>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <Button
+            data-testid="settings-page-mcp-scope-cancel"
+            onClick={authorize.cancel}
+            size="sm"
+            type="button"
+            variant="ghost"
+          >
+            Cancel
+          </Button>
+          <Button
+            data-testid="settings-page-mcp-scope-confirm"
+            disabled={scopes.length === 0}
+            onClick={authorize.confirmScopeEscalation}
+            size="sm"
+            type="button"
+          >
+            Approve scopes
+          </Button>
+        </div>
+      </DialogFooter>
+    </>
   );
 }
 

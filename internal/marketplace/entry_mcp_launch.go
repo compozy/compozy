@@ -20,7 +20,8 @@ const (
 var (
 	semverPattern       = regexp.MustCompile(`^v?\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$`)
 	dockerDigestPattern = regexp.MustCompile(`^sha256:[a-f0-9]{64}$`)
-	packagePattern      = regexp.MustCompile(`^(?:@[a-z0-9][a-z0-9._-]*/)?[a-z0-9][a-z0-9._-]*$`)
+	npmPackagePattern   = regexp.MustCompile(`^(?:@[a-z0-9][a-z0-9._-]*/)?[a-z0-9][a-z0-9._-]*$`)
+	uvxPackagePattern   = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?$`)
 	dockerImagePattern  = regexp.MustCompile(`^[a-z0-9][a-z0-9.-]*(?::[0-9]+)?(?:/[a-z0-9][a-z0-9._-]*)+$`)
 )
 
@@ -55,6 +56,10 @@ func (l mcpLaunch) validatePackage(entryID string) error {
 			entryID,
 			l.Type,
 		)
+	}
+	packagePattern := npmPackagePattern
+	if l.Type == mcpLaunchTypeUVX {
+		packagePattern = uvxPackagePattern
 	}
 	if packageName != l.Package || !packagePattern.MatchString(packageName) {
 		return fmt.Errorf("marketplace catalog MCP entry %q launch.package must be an exact package name", entryID)

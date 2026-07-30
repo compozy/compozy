@@ -15,9 +15,30 @@ const (
 	MCPGlobalScope = "global"
 	// MCPWorkspaceScope identifies workspace-owned MCP credentials.
 	MCPWorkspaceScope = "workspace"
+	// MCPSharedRefPrefix identifies MCP secrets explicitly shared across owners.
+	MCPSharedRefPrefix = "vault:mcp/shared/"
 
 	mcpEncodedSegmentPrefix = "encoded-"
 )
+
+// ValidateMCPSecretRefAccess permits only the target server's owned refs or the explicit shared namespace.
+func ValidateMCPSecretRefAccess(ref string, scope string, workspaceID string, serverName string) error {
+	normalized := NormalizeRef(ref)
+	if err := ValidateSecretRefNamespace(normalized, "mcp"); err != nil {
+		return err
+	}
+	if strings.HasPrefix(normalized, MCPSharedRefPrefix) {
+		return nil
+	}
+	ownerPrefix, err := MCPSecretOwnerPrefix(scope, workspaceID, serverName)
+	if err != nil {
+		return err
+	}
+	if !strings.HasPrefix(normalized, ownerPrefix) {
+		return errors.New("vault: MCP secret ref must belong to the target server or the shared namespace")
+	}
+	return nil
+}
 
 // MCPDCRSecretRefs identifies the Vault locations for one MCP OAuth client registration.
 type MCPDCRSecretRefs struct {

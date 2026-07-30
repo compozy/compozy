@@ -1,6 +1,6 @@
 import { Box, Plug, Puzzle, Wrench, type LucideIcon } from "lucide-react";
 
-import type { MarketplaceKind, MarketplaceListing } from "../types";
+import type { MarketplaceEntryResponse, MarketplaceKind, MarketplaceListing } from "../types";
 
 export type MarketplaceViewSort = "relevance" | "downloads" | "name";
 
@@ -66,6 +66,18 @@ export function formatMarketplaceVersion(version: string | null | undefined): st
   const trimmed = version?.trim();
   if (!trimmed) return null;
   return `v${trimmed.replace(/^[vV]+/, "")}`;
+}
+
+export function formatMarketplaceMCPLaunch(
+  launch: NonNullable<NonNullable<MarketplaceEntryResponse["mcp"]>["launch"]>
+): string | undefined {
+  if (launch.type === "remote") return launch.url;
+  if (launch.type === "docker") {
+    return [launch.image, launch.digest, ...(launch.args ?? [])].join(" ");
+  }
+  return [launch.type, launch.package, launch.version, ...(launch.args ?? [])]
+    .filter(Boolean)
+    .join(" ");
 }
 
 export function sortMarketplaceEntries(

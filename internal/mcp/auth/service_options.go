@@ -31,13 +31,17 @@ func WithDefaultRedirectURL(raw string) ServiceOption {
 
 // WithHTTPClient overrides the HTTP client used for metadata and token calls.
 func WithHTTPClient(client *http.Client) ServiceOption {
-	return func(service *Service) { service.client = client }
+	return func(service *Service) {
+		service.client = client
+		service.secureClient = nil
+	}
 }
 
 // WithSecureHTTPClient uses Compozy's policy-enforcing remote client for OAuth calls.
 func WithSecureHTTPClient(client *securehttp.Client) ServiceOption {
 	return func(service *Service) {
 		if client != nil {
+			service.secureClient = client
 			service.client = client.HTTPClient()
 		}
 	}

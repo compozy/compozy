@@ -179,7 +179,7 @@ const (
 	MCPAuthRegistrationPreRegistered MCPAuthRegistration = "pre_registered"
 )
 
-// MCPAuthConfig describes discovered OAuth for a remote MCP server.
+// MCPAuthConfig describes OAuth registration policy and optional pre-registered client values for a remote MCP server.
 type MCPAuthConfig struct {
 	Registration    MCPAuthRegistration `json:"registration,omitempty"      yaml:"registration,omitempty"      toml:"registration,omitempty"`
 	IssuerURL       string              `json:"issuer_url,omitempty"        yaml:"issuer_url,omitempty"        toml:"issuer_url,omitempty"`

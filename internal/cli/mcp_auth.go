@@ -91,8 +91,18 @@ func newMCPAuthorizationCommand(deps commandDeps, use string, short string) *cob
 	}
 	addMCPAuthTargetFlags(cmd, &opts)
 	cmd.Flags().BoolVar(&opts.manual, "manual", false, "Paste the full authorization redirect URL")
-	cmd.Flags().StringArrayVar(&opts.approvedScopes, "approved-scope", nil, "Approve one additional OAuth scope (repeatable)")
-	cmd.Flags().BoolVar(&opts.approveScopeEscalation, "approve-scope-escalation", false, "Confirm the requested OAuth scope escalation")
+	cmd.Flags().StringArrayVar(
+		&opts.approvedScopes,
+		"approved-scope",
+		nil,
+		"Approve one additional OAuth scope (repeatable)",
+	)
+	cmd.Flags().BoolVar(
+		&opts.approveScopeEscalation,
+		"approve-scope-escalation",
+		false,
+		"Confirm the requested OAuth scope escalation",
+	)
 	cmd.Flags().DurationVar(&opts.timeout, "timeout", defaultMCPAuthLoginTimeout, "Authorization timeout")
 	return cmd
 }

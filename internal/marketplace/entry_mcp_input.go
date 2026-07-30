@@ -3,9 +3,11 @@ package marketplace
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/url"
+	"strconv"
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -18,6 +20,7 @@ const (
 	mcpInputTypeSecret     = "secret"
 	mcpInputBindingEnv     = "env"
 	mcpInputBindingQuery   = "url_query"
+	maxMCPInputValueBytes  = 8 * 1024
 )
 
 type mcpInput struct {
@@ -164,9 +167,57 @@ func (i mcpInput) validateDefault(prefix string) error {
 		}
 	case mcpInputTypeString, mcpInputTypeIdentifier:
 		text, ok := value.(string)
-		if !ok || (i.Type == mcpInputTypeIdentifier && strings.TrimSpace(text) == "") {
-			return fmt.Errorf("%s.default must be a non-empty string for %s inputs", prefix, i.Type)
+		if !ok {
+			return fmt.Errorf("%s.default must be a string for %s inputs", prefix, i.Type)
 		}
+		if _, err := NormalizeMCPInputValue(i.Type, text); err != nil {
+			return fmt.Errorf("%s.default is invalid: %w", prefix, err)
+		}
+	}
+	return nil
+}
+
+// NormalizeMCPInputValue validates and canonicalizes a catalog input value.
+func NormalizeMCPInputValue(inputType string, raw string) (string, error) {
+	if err := ValidateMCPInputValue(raw); err != nil {
+		return "", err
+	}
+	switch inputType {
+	case mcpInputTypeString:
+		return raw, nil
+	case mcpInputTypeIdentifier:
+		value := strings.TrimSpace(raw)
+		if value == "" {
+			return "", errors.New("identifier must not be blank")
+		}
+		for _, runeValue := range value {
+			isUnreserved := (runeValue >= 'a' && runeValue <= 'z') ||
+				(runeValue >= 'A' && runeValue <= 'Z') ||
+				(runeValue >= '0' && runeValue <= '9') ||
+				runeValue == '.' || runeValue == '_' || runeValue == '~' || runeValue == '-'
+			if !isUnreserved {
+				return "", errors.New("identifier must use URL-safe unreserved characters")
+			}
+		}
+		return value, nil
+	case mcpInputTypeBoolean:
+		value, err := strconv.ParseBool(strings.TrimSpace(raw))
+		if err != nil {
+			return "", errors.New("boolean must be true or false")
+		}
+		return strconv.FormatBool(value), nil
+	default:
+		return "", fmt.Errorf("unsupported input type %q", inputType)
+	}
+}
+
+// ValidateMCPInputValue enforces transport-safe bounds shared by feed defaults and install values.
+func ValidateMCPInputValue(value string) error {
+	if strings.ContainsRune(value, '\x00') {
+		return errors.New("value must not contain NUL")
+	}
+	if len(value) > maxMCPInputValueBytes {
+		return fmt.Errorf("value exceeds %d bytes", maxMCPInputValueBytes)
 	}
 	return nil
 }

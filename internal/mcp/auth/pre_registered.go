@@ -3,10 +3,7 @@ package auth
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
-
-	sdkauth "github.com/modelcontextprotocol/go-sdk/auth"
 )
 
 func (s *Service) beginPreRegisteredOAuth(
@@ -56,12 +53,9 @@ func (s *Service) preRegisteredMetadata(ctx context.Context, cfg ServerConfig) (
 	if issuer == "" {
 		return Metadata{}, errors.New("mcp auth: pre-registered issuer is required")
 	}
-	asm, err := sdkauth.GetAuthServerMetadata(ctx, issuer, s.clientFor(cfg))
+	asm, err := s.authServerMetadata(ctx, cfg, issuer)
 	if err != nil {
-		return Metadata{}, fmt.Errorf("mcp auth: discover authorization server metadata: %w", err)
-	}
-	if asm == nil {
-		return Metadata{}, errors.New("mcp auth: authorization server metadata is required")
+		return Metadata{}, err
 	}
 	if !issuersEqual(issuer, asm.Issuer) {
 		return Metadata{}, errors.New(
@@ -101,12 +95,9 @@ func (s *Service) metadataForConfig(ctx context.Context, cfg ServerConfig) (Meta
 			"mcp auth: protected resource metadata has no authorization servers",
 		)
 	}
-	asm, err := sdkauth.GetAuthServerMetadata(ctx, prm.AuthorizationServers[0], s.clientFor(cfg))
+	asm, err := s.authServerMetadata(ctx, cfg, prm.AuthorizationServers[0])
 	if err != nil {
-		return Metadata{}, fmt.Errorf("mcp auth: discover authorization server metadata: %w", err)
-	}
-	if asm == nil {
-		return Metadata{}, errors.New("mcp auth: authorization server metadata is required")
+		return Metadata{}, err
 	}
 	return metadataFromAuthServer(asm), nil
 }

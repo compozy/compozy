@@ -251,6 +251,27 @@ func TestMCPInstallCommandRejectsAmbiguousInputsBeforeCallingDaemon(t *testing.T
 			}
 		})
 	}
+
+	t.Run("Should reject duplicate secret and Vault modes before reading secret input", func(t *testing.T) {
+		t.Parallel()
+
+		secretRead := false
+		_, err := mcpInstallInputs(
+			nil,
+			[]string{"TOKEN"},
+			[]string{"TOKEN=vault:mcp/shared/token"},
+			func(string) (string, error) {
+				secretRead = true
+				return "secret", nil
+			},
+		)
+		if err == nil || !strings.Contains(err.Error(), "assigned more than once") {
+			t.Fatalf("mcpInstallInputs() error = %v, want duplicate assignment rejection", err)
+		}
+		if secretRead {
+			t.Fatal("mcpInstallInputs() read secret input before validating all assignments")
+		}
+	})
 }
 
 func TestMCPInstallInfersWorkspaceForWorkspaceScope(t *testing.T) {

@@ -118,10 +118,7 @@ function MarketplaceDetailMCPManage({
                 disabled={!authFilter || awaitingAuthorization}
                 onClick={() => {
                   if (!authFilter) return;
-                  authorize.beginAuthorize(authFilter, server.name, {
-                    status: server.auth_status?.status ?? "needs_login",
-                    tokenPresent: Boolean(server.auth_status?.token_present),
-                  });
+                  authorize.requestAuthorize(authFilter, server);
                 }}
                 size="sm"
                 type="button"

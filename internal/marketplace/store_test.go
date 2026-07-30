@@ -334,7 +334,7 @@ func TestSQLiteStoreRejectsInvalidInputsBeforeMutation(t *testing.T) {
 		{
 			name:     "Should reject a future manifest",
 			kind:     KindSkill,
-			document: &Document{ManifestVersion: 3, GeneratedAt: now, FetchedAt: now},
+			document: &Document{ManifestVersion: ManifestVersion + 1, GeneratedAt: now, FetchedAt: now},
 			wantErr:  "client too old",
 		},
 		{

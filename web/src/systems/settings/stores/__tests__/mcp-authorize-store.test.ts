@@ -122,21 +122,40 @@ describe("createMCPAuthorizeLogic", () => {
     expect(currentBegin).toHaveBeenCalledWith({ server: "linear", filter, mode: "automatic" });
   });
 
-  it("rejects scope escalation until its scopes are explicitly approved", () => {
+  it("reviews non-empty scope escalation before beginning with explicit approval", () => {
     pendingBegin.mockClear();
     const store = createMCPAuthorizeLogic().createStore();
 
-    store.trigger.authorizeRequested({
-      begin: pendingBegin,
+    store.trigger.scopeEscalationRequested({
       dismissOnConfirmation: false,
       server: "linear",
       filter,
       prior,
-      mode: "automatic",
-      scopeApproval: { approveScopeEscalation: false, approvedScopes: ["write"] },
+      approvedScopes: [],
     });
 
     expect(store.getSnapshot().context.phase).toBe("idle");
     expect(pendingBegin).not.toHaveBeenCalled();
+
+    store.trigger.scopeEscalationRequested({
+      dismissOnConfirmation: false,
+      server: "linear",
+      filter,
+      prior,
+      approvedScopes: ["write"],
+    });
+
+    expect(store.getSnapshot().context.phase).toBe("reviewing_scopes");
+    expect(pendingBegin).not.toHaveBeenCalled();
+
+    store.trigger.scopeEscalationConfirmed({ begin: pendingBegin });
+
+    expect(store.getSnapshot().context.phase).toBe("beginning");
+    expect(pendingBegin).toHaveBeenCalledWith({
+      server: "linear",
+      filter,
+      mode: "automatic",
+      scopeApproval: { approveScopeEscalation: true, approvedScopes: ["write"] },
+    });
   });
 });

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { marketplaceListings } from "../../mocks";
 import {
+  formatMarketplaceMCPLaunch,
   formatMarketplaceCount,
   formatMarketplaceVersion,
   isMarketplaceKind,
@@ -45,5 +46,27 @@ describe("marketplace UI helpers", () => {
     ["Vv1.8.0", "v1.8.0"],
   ])("Should render marketplace version %s with exactly one prefix", (version, expected) => {
     expect(formatMarketplaceVersion(version)).toBe(expected);
+  });
+
+  it("Should format every MCP launch distribution through one catalog formatter", () => {
+    expect(formatMarketplaceMCPLaunch({ type: "remote", url: "https://mcp.linear.app/mcp" })).toBe(
+      "https://mcp.linear.app/mcp"
+    );
+    expect(
+      formatMarketplaceMCPLaunch({
+        args: ["--read-only"],
+        digest: "sha256:abc",
+        image: "ghcr.io/github/github-mcp-server",
+        type: "docker",
+      })
+    ).toBe("ghcr.io/github/github-mcp-server sha256:abc --read-only");
+    expect(
+      formatMarketplaceMCPLaunch({
+        args: ["--stdio"],
+        package: "@modelcontextprotocol/server-github",
+        type: "npx",
+        version: "1.2.3",
+      })
+    ).toBe("npx @modelcontextprotocol/server-github 1.2.3 --stdio");
   });
 });

@@ -447,21 +447,34 @@ func TestMCPAuthOperationsResolveExactWorkspaceSidecarTarget(t *testing.T) {
 }
 
 type recordingMCPAuthRuntime struct {
-	statusTarget   mcpauth.Target
-	statusServer   compozyconfig.MCPServer
-	beginTarget    mcpauth.Target
-	beginServer    compozyconfig.MCPServer
-	exchangeTarget mcpauth.Target
-	exchangeServer compozyconfig.MCPServer
-	exchangeInput  mcpauth.ExchangeInput
-	logoutTarget   mcpauth.Target
-	logoutServer   compozyconfig.MCPServer
-	callbackTarget mcpauth.Target
-	callbackServer compozyconfig.MCPServer
-	callbackURL    string
-	invalidated    []mcpauth.Target
-	invalidateErrs map[int]error
+	statusTarget    mcpauth.Target
+	statusServer    compozyconfig.MCPServer
+	beginTarget     mcpauth.Target
+	beginServer     compozyconfig.MCPServer
+	exchangeTarget  mcpauth.Target
+	exchangeServer  compozyconfig.MCPServer
+	exchangeInput   mcpauth.ExchangeInput
+	logoutTarget    mcpauth.Target
+	logoutServer    compozyconfig.MCPServer
+	callbackTarget  mcpauth.Target
+	callbackServer  compozyconfig.MCPServer
+	callbackURL     string
+	operations      []recordingMCPAuthOperation
+	invalidateCalls int
+	deleteCalls     int
+	invalidateErrs  map[int]error
+	deleteStateErrs map[int]error
 }
+
+type recordingMCPAuthOperation struct {
+	kind   string
+	target mcpauth.Target
+}
+
+const (
+	recordingMCPAuthInvalidate  = "invalidate"
+	recordingMCPAuthDeleteState = "delete_state"
+)
 
 func (r *recordingMCPAuthRuntime) MCPAuthStatus(
 	_ context.Context,
@@ -535,16 +548,18 @@ func (r *recordingMCPAuthRuntime) MCPAuthCompleteCallback(
 }
 
 func (r *recordingMCPAuthRuntime) MCPAuthInvalidate(target mcpauth.Target) error {
-	r.invalidated = append(r.invalidated, target)
-	if err := r.invalidateErrs[len(r.invalidated)]; err != nil {
+	r.operations = append(r.operations, recordingMCPAuthOperation{kind: recordingMCPAuthInvalidate, target: target})
+	r.invalidateCalls++
+	if err := r.invalidateErrs[r.invalidateCalls]; err != nil {
 		return err
 	}
 	return nil
 }
 
 func (r *recordingMCPAuthRuntime) MCPAuthDeleteState(_ context.Context, target mcpauth.Target) error {
-	r.invalidated = append(r.invalidated, target)
-	if err := r.invalidateErrs[len(r.invalidated)]; err != nil {
+	r.operations = append(r.operations, recordingMCPAuthOperation{kind: recordingMCPAuthDeleteState, target: target})
+	r.deleteCalls++
+	if err := r.deleteStateErrs[r.deleteCalls]; err != nil {
 		return err
 	}
 	return nil

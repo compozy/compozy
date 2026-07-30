@@ -16,7 +16,9 @@ import (
 
 const (
 	mcpCatalogLaunchNPM    = "npm"
+	mcpCatalogLaunchUVX    = "uvx"
 	mcpCatalogLaunchDocker = "docker"
+	mcpCatalogLaunchRemote = "remote"
 	mcpCatalogInputSecret  = "secret"
 	mcpCatalogCommandNPX   = "npx"
 )
@@ -39,14 +41,14 @@ func mcpServerFromCatalogLaunch(
 	case mcpCatalogLaunchNPM:
 		server.Command = mcpCatalogCommandNPX
 		server.Args = append([]string{"-y", launch.Package + "@" + launch.Version}, launch.Args...)
-	case "uvx":
-		server.Command = "uvx"
+	case mcpCatalogLaunchUVX:
+		server.Command = mcpCatalogLaunchUVX
 		server.Args = append(
 			[]string{"--from", launch.Package + "==" + strings.TrimPrefix(launch.Version, "v"), launch.Package},
 			launch.Args...)
 	case mcpCatalogLaunchDocker:
 		server.Command = mcpCatalogLaunchDocker
-	case "remote":
+	case mcpCatalogLaunchRemote:
 		server.Transport = compozyconfig.MCPServerTransportHTTP
 		server.URL = strings.TrimSpace(launch.URL)
 	default:
@@ -84,7 +86,8 @@ func finalizeMCPCatalogLaunch(server *compozyconfig.MCPServer, detail *marketpla
 	}
 	image := strings.TrimSpace(detail.Launch.Image) + "@" + strings.TrimSpace(detail.Launch.Digest)
 	args = append(args, image)
-	server.Args = append(args, detail.Launch.Args...)
+	args = append(args, detail.Launch.Args...)
+	server.Args = args
 	return nil
 }
 
@@ -168,7 +171,14 @@ func (s *service) applyCatalogSecretInput(
 		return err
 	}
 	if mode == mcpSecretInputVaultRef {
-		ref, err := s.validateCatalogInputVaultRef(ctx, "values.inputs."+id, req, input.Binding.Name, value.VaultRef)
+		ref, err := s.validateCatalogInputVaultRef(
+			ctx,
+			"values.inputs."+id,
+			req.Scope,
+			req.WorkspaceID,
+			server.Name,
+			value.VaultRef,
+		)
 		if err != nil {
 			return err
 		}
@@ -198,7 +208,7 @@ func resolveCatalogPlainInput(
 				fmt.Errorf("settings: values.inputs.%s must use value for a non-secret input", id),
 			)
 		}
-		value, err := normalizeCatalogInputValue(input.Type, provided.Value)
+		value, err := marketplace.NormalizeMCPInputValue(input.Type, provided.Value)
 		if err != nil {
 			return "", false, validationError(fmt.Errorf("settings: values.inputs.%s: %w", id, err))
 		}
@@ -219,51 +229,6 @@ func resolveCatalogPlainInput(
 	return value, true, nil
 }
 
-func normalizeCatalogInputValue(inputType string, raw string) (string, error) {
-	if err := validateMCPCatalogInputValue(raw); err != nil {
-		return "", err
-	}
-	switch inputType {
-	case "string":
-		return raw, nil
-	case "identifier":
-		value := strings.TrimSpace(raw)
-		if value == "" {
-			return "", errors.New("identifier must not be blank")
-		}
-		for _, runeValue := range value {
-			isUnreserved := (runeValue >= 'a' && runeValue <= 'z') ||
-				(runeValue >= 'A' && runeValue <= 'Z') ||
-				(runeValue >= '0' && runeValue <= '9') ||
-				runeValue == '.' || runeValue == '_' || runeValue == '~' || runeValue == '-'
-			if !isUnreserved {
-				return "", errors.New("identifier must use URL-safe unreserved characters")
-			}
-		}
-		return value, nil
-	case "boolean":
-		value, err := strconv.ParseBool(strings.TrimSpace(raw))
-		if err != nil {
-			return "", errors.New("boolean must be true or false")
-		}
-		return strconv.FormatBool(value), nil
-	default:
-		return "", fmt.Errorf("unsupported input type %q", inputType)
-	}
-}
-
-const maxMCPCatalogInputValueBytes = 8 * 1024
-
-func validateMCPCatalogInputValue(value string) error {
-	if strings.ContainsRune(value, '\x00') {
-		return errors.New("value must not contain NUL")
-	}
-	if len(value) > maxMCPCatalogInputValueBytes {
-		return fmt.Errorf("value exceeds %d bytes", maxMCPCatalogInputValueBytes)
-	}
-	return nil
-}
-
 func catalogDefaultInputValue(inputType string, raw json.RawMessage) (string, error) {
 	switch inputType {
 	case "string", "identifier":
@@ -271,7 +236,7 @@ func catalogDefaultInputValue(inputType string, raw json.RawMessage) (string, er
 		if err := json.Unmarshal(raw, &value); err != nil {
 			return "", fmt.Errorf("decode string: %w", err)
 		}
-		return normalizeCatalogInputValue(inputType, value)
+		return marketplace.NormalizeMCPInputValue(inputType, value)
 	case "boolean":
 		var value bool
 		if err := json.Unmarshal(raw, &value); err != nil {

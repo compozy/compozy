@@ -11,15 +11,15 @@ bug_ids:
 fix_status: fixed
 retest_status: pass
 fix_commits:
-evidence: web/src/systems/settings/lib/mcp-status-view-model.ts; web/src/systems/settings/components/mcp-servers-table.tsx; /Users/pedronauck/dev/qa-labs/compozy-mcp-2026-catalog-v2-20260730-172217-425770-lab/qa-artifacts/qa/evidence/playwright-runtime-status.json; /Users/pedronauck/dev/qa-labs/compozy-mcp-2026-catalog-v2-20260730-172217-425770-lab/qa-artifacts/qa/evidence/auth-status-parity.json; /tmp/eng-ui-screenshot.ePSjW2/captures/marketplace-mcps.png
+evidence: /Users/pedronauck/dev/qa-labs/compozy-mcp-2026-catalog-v2-final-rerun-20260730-204949-514647-lab/qa-artifacts/qa/notes/web-status-matrix.json; /Users/pedronauck/dev/qa-labs/compozy-mcp-2026-catalog-v2-final-rerun-20260730-204949-514647-lab/qa-artifacts/qa/screenshots/mcp-status-matrix.png
 last_report: docs/qa/reports/2026-07-30-mcp-2026-catalog-v2.md
 overlaps: MS-029
 ---
 
-Passed in the 2026-07-30 MCP 2026/catalog-v2 retest: the final daemon reported Playwright `ready`
-with 24 tools and negotiated protocol `2025-11-25`, preserved explicit unavailable and dead states
-for invalid/login-required targets, and completed the dense collection in 13.7 seconds. Named auth
-status matched over CLI, HTTP, and UDS without collection probing or credential/provenance leakage.
+Passed in the 2026-07-30 final rerun: GitHub rendered dead with its probe skipped and never appeared
+green; Linear rendered authorization-required without being labeled running. The settings payload
+contained neither tokens nor Vault refs. The authenticated-remote 401 branch remains unit-covered
+but was not newly induced against a vendor endpoint in this walk.
 
 Planning note: workspace-guard action-gating verification remains pending; no bug fix is associated with this scenario.
 
@@ -39,3 +39,8 @@ canonical settings status model instead of defaulting non-auth states to `runnin
 
 QA impact 2026-07-18: OAuth authorization now targets `source_metadata.effective_source`; verify a
 global-only MCP remains authorizable when it appears in a workspace-scoped collection response.
+
+QA impact 2026-07-30 deep-review remediation: reset after authenticated remote HTTP 401 responses
+were reclassified from unreachable to `mcp_auth_required`. Verify cards and detail management offer
+Authorize/Reauthorize without claiming the server is running, while transport/network failures remain
+unavailable and no token, binding ref, or OAuth redirect appears in status payloads.

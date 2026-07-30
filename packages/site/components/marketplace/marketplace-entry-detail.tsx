@@ -8,6 +8,7 @@ import {
 import { Clock, Lock, Plug, Settings2, ShieldCheck, Tag } from "lucide-react";
 import Link from "next/link";
 import {
+  installCommand,
   marketplaceSearchCommand,
   type ExtensionEntry,
   type MarketplaceEntry,
@@ -225,11 +226,10 @@ function MCPDetail({ entry }: { entry: MCPEntry }) {
             </table>
           </div>
           <p className="mt-3 text-small-body leading-relaxed text-subtle">
-            Supply a secret with <code>--secret id</code> or a Vault ref. Use{" "}
+            When installing with <code>{installCommand("mcp", entry)}</code>, use{" "}
+            <code>--secret id</code> or <code>--vault-ref id=vault:mcp/...</code> for secrets and{" "}
             <code>--set id=value</code>
-            {
-              " for non-secret inputs; secret values are never stored in the catalog or rendered on this page."
-            }
+            {". Secret values are never stored in the catalog or rendered on this page."}
           </p>
         </section>
       ) : null}

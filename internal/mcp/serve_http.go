@@ -50,12 +50,15 @@ func ServeHTTP(
 	defer func() {
 		err = errors.Join(err, closeHostAPISession(invoker, serveSessionID))
 	}()
-	transport := mcpgo.NewStreamableHTTPHandler(func(*http.Request) *mcpgo.Server { return mcpServer }, &mcpgo.StreamableHTTPOptions{
-		Stateless:                    true,
-		JSONResponse:                 true,
-		Logger:                       logger,
-		PropagateRequestCancellation: true,
-	})
+	transport := mcpgo.NewStreamableHTTPHandler(
+		func(*http.Request) *mcpgo.Server { return mcpServer },
+		&mcpgo.StreamableHTTPOptions{
+			Stateless:                    true,
+			JSONResponse:                 true,
+			Logger:                       logger,
+			PropagateRequestCancellation: true,
+		},
+	)
 	var listenConfig net.ListenConfig
 	listener, err := listenConfig.Listen(ctx, "tcp", listenAddress)
 	if err != nil {

@@ -3,7 +3,6 @@ package auth
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -213,7 +212,7 @@ func (m *Manager) BeginStepUp(
 	return m.Begin(ctx, cfg, callbackURL)
 }
 
-// Exchange completes one target's active session using a code or full redirect URL.
+// Exchange completes one target's active session from a complete authorization redirect URL.
 func (m *Manager) Exchange(
 	ctx context.Context,
 	cfg ServerConfig,
@@ -234,7 +233,7 @@ func (m *Manager) Exchange(
 	if err := validateLoginSessionDefinition(session, cfg); err != nil {
 		return Status{}, err
 	}
-	token, err := m.service.exchangeToken(ctx, session.state, callbackURL)
+	token, err := m.service.exchangeToken(ctx, &session.state, callbackURL)
 	if err != nil {
 		return Status{}, err
 	}
@@ -264,10 +263,7 @@ func (m *Manager) ExchangeCallback(
 	if err := validateLoginSessionDefinition(session, cfg); err != nil {
 		return Status{}, err
 	}
-	if _, err := authorizationCodeFromCallback(callbackURL, session.state.State); err != nil {
-		return Status{}, fmt.Errorf("%w: %v", ErrInvalidExchange, err)
-	}
-	token, err := m.service.exchangeToken(ctx, session.state, callbackURL)
+	token, err := m.service.exchangeToken(ctx, &session.state, callbackURL)
 	if err != nil {
 		return Status{}, err
 	}
@@ -370,13 +366,8 @@ func (m *Manager) claimByTarget(target Target, callbackURL string) (*loginSessio
 		m.pruneExpiredLocked()
 		return nil, ErrLoginSessionExpired
 	}
-	if callbackURL != "" {
-		if err := validateCallbackRedirect(session.state.RedirectURL, callbackURL); err != nil {
-			return nil, err
-		}
-		if _, err := authorizationCodeFromCallback(callbackURL, session.state.State); err != nil {
-			return nil, fmt.Errorf("%w: %v", ErrInvalidExchange, err)
-		}
+	if err := validateCallbackRedirect(session.state.RedirectURL, callbackURL); err != nil {
+		return nil, err
 	}
 	m.removeSessionLocked(key, session)
 	m.pruneExpiredLocked()

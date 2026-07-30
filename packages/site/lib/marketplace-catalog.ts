@@ -2,6 +2,14 @@ import { z } from "zod";
 import extensionsFeed from "../../../catalog/extensions.json";
 import mcpFeed from "../../../catalog/mcp.json";
 import skillsFeed from "../../../catalog/skills.json";
+import {
+  isExactDockerImageName,
+  isExactMCPPackageName,
+  isMCPLaunchArgument,
+  isPublicMCPRemoteURL,
+  isVerifiedDockerDigest,
+  mcpRemoteURLQueryNames,
+} from "./marketplace-catalog-validation";
 
 /**
  * Build-time validation mirror of `internal/marketplace`. This validates the checked-in catalog
@@ -11,7 +19,6 @@ import skillsFeed from "../../../catalog/skills.json";
 const ENTRY_ID_PATTERN = /^[A-Za-z0-9._~-]+$/;
 const ENV_NAME_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const SHA256_PATTERN = /^[a-f0-9]{64}$/i;
-const DOCKER_DIGEST_PATTERN = /^sha256:[a-f0-9]{64}$/i;
 const SEMVER_PATTERN = /^v?\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 const RFC3339_PATTERN =
   /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(Z|[+-]\d{2}:\d{2})$/;
@@ -136,35 +143,45 @@ export const extensionEntrySchema = z
     }
   });
 
+const mcpLaunchArgs = z
+  .array(z.string().refine(isMCPLaunchArgument, { message: "must be a non-empty argument" }))
+  .optional();
+
 const mcpLaunchSchema = z.discriminatedUnion("type", [
   z.strictObject({
     type: z.literal("npm"),
-    package: nonBlankString,
+    package: z.string().refine(isExactMCPPackageName, {
+      message: "must be an exact package name",
+    }),
     version: nonBlankString.refine(value => SEMVER_PATTERN.test(value), {
       message: "must be an exact semantic version",
     }),
-    args: z.array(nonBlankString).optional(),
+    args: mcpLaunchArgs,
   }),
   z.strictObject({
     type: z.literal("uvx"),
-    package: nonBlankString,
+    package: z.string().refine(isExactMCPPackageName, {
+      message: "must be an exact package name",
+    }),
     version: nonBlankString.refine(value => SEMVER_PATTERN.test(value), {
       message: "must be an exact semantic version",
     }),
-    args: z.array(nonBlankString).optional(),
+    args: mcpLaunchArgs,
   }),
   z.strictObject({
     type: z.literal("docker"),
-    image: nonBlankString,
-    digest: nonBlankString.refine(value => DOCKER_DIGEST_PATTERN.test(value), {
+    image: z.string().refine(isExactDockerImageName, {
+      message: "must be an exact untagged image name",
+    }),
+    digest: nonBlankString.refine(isVerifiedDockerDigest, {
       message: "must be a verified sha256 digest",
     }),
-    args: z.array(nonBlankString).optional(),
+    args: mcpLaunchArgs,
   }),
   z.strictObject({
     type: z.literal("remote"),
-    url: nonBlankString.refine(value => parseAbsoluteURL(value)?.protocol === "https:", {
-      message: "must be an absolute HTTPS URL",
+    url: nonBlankString.refine(isPublicMCPRemoteURL, {
+      message: "must target a public HTTPS destination",
     }),
   }),
 ]);
@@ -223,11 +240,22 @@ const mcpInputSchema = z
     if (
       (input.type === "string" || input.type === "identifier") &&
       input.default !== undefined &&
-      (typeof input.default !== "string" || (input.type === "identifier" && input.default === ""))
+      typeof input.default !== "string"
     ) {
       ctx.addIssue({
         code: "custom",
-        message: "string defaults must be non-empty identifiers",
+        message: `${input.type} defaults must be strings`,
+        path: ["default"],
+      });
+    }
+    if (
+      input.type === "identifier" &&
+      typeof input.default === "string" &&
+      input.default.trim() === ""
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        message: "identifier defaults must be non-empty strings",
         path: ["default"],
       });
     }
@@ -267,6 +295,9 @@ export const mcpEntrySchema = z
       });
     }
     const seen = new Set<string>();
+    const seenBindings = new Set<string>();
+    const launchQueryNames =
+      entry.launch.type === "remote" ? mcpRemoteURLQueryNames(entry.launch.url) : new Set<string>();
     for (const [index, input] of (entry.inputs ?? []).entries()) {
       if (seen.has(input.id)) {
         ctx.addIssue({
@@ -276,6 +307,15 @@ export const mcpEntrySchema = z
         });
       }
       seen.add(input.id);
+      const binding = `${input.binding.type}\0${input.binding.name}`;
+      if (seenBindings.has(binding)) {
+        ctx.addIssue({
+          code: "custom",
+          message: `input binding ${input.binding.type}/${input.binding.name} is duplicated`,
+          path: ["inputs", index, "binding"],
+        });
+      }
+      seenBindings.add(binding);
       if (input.binding.type === "env" && entry.launch.type === "remote") {
         ctx.addIssue({
           code: "custom",
@@ -294,6 +334,13 @@ export const mcpEntrySchema = z
         ctx.addIssue({
           code: "custom",
           message: "secret inputs cannot bind url_query",
+          path: ["inputs", index, "binding"],
+        });
+      }
+      if (input.binding.type === "url_query" && launchQueryNames.has(input.binding.name)) {
+        ctx.addIssue({
+          code: "custom",
+          message: `input binding url_query/${input.binding.name} conflicts with launch URL`,
           path: ["inputs", index, "binding"],
         });
       }

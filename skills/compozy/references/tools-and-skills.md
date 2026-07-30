@@ -126,9 +126,9 @@ HTTP/UDS auth routes include `GET /api/settings/mcp-servers/{name}/auth/status`;
 target's redacted auth state and does not start a runtime probe. `/auth/begin`, `/auth/exchange`, and
 `/auth/logout` use explicit `scope` and optional `workspace_id`; begin requires
 `mode: "automatic" | "manual"`, with manual creating a fresh paste session. The HTTP-only callback
-auto-completes only on loopback, follows the effective listener
-(including IPv6), and returns documented `503` HTML when unavailable. Keep exchange codes/redirects
-out of status and events.
+auto-completes only on the loopback origin configured by `mcp.oauth.redirect_uri`; it is not derived
+from the daemon listener. Manual exchange accepts only the complete redirect URL returned by the
+authorization server. Keep exchange codes/redirects out of status and events.
 
 Inspect MCP management truth with `compozy__mcp_status`, `compozy__mcp_auth_status`, or
 `GET /api/settings/mcp-servers`. Configuration, authorization, runtime, and probe are independent

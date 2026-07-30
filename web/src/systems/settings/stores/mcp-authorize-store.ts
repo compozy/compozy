@@ -7,6 +7,11 @@ import type {
   SettingsMCPAuthFilter,
   SettingsMCPAuthStatusResponse,
 } from "../types";
+import {
+  isAbsoluteMCPRedirectURL,
+  normalizeMCPAuthScopes,
+  normalizeMCPRedirectURL,
+} from "../lib/mcp-authorize-model";
 
 export interface MCPAuthorizePriorStatus {
   status: string;
@@ -36,6 +41,11 @@ interface MCPAuthorizeAttempt {
 
 interface MCPAuthorizeBeginningState extends MCPAuthorizeAttempt {
   phase: "beginning";
+}
+
+interface MCPAuthorizeScopeReviewState extends MCPAuthorizeAttempt {
+  phase: "reviewing_scopes";
+  scopeApproval: MCPAuthorizeScopeApproval;
 }
 
 interface MCPAuthorizeWaitingState extends MCPAuthorizeAttempt {
@@ -73,6 +83,7 @@ interface MCPAuthorizeCompletionFailedState extends MCPAuthorizeAttempt {
 
 export type MCPAuthorizeState =
   | MCPAuthorizeIdleState
+  | MCPAuthorizeScopeReviewState
   | MCPAuthorizeBeginningState
   | MCPAuthorizeWaitingState
   | MCPAuthorizeManualState
@@ -95,6 +106,14 @@ export type MCPAuthorizeExchange = (input: {
 }) => Promise<SettingsMCPAuthStatusResponse>;
 
 type MCPAuthorizeEventPayloadMap = {
+  scopeEscalationRequested: {
+    approvedScopes: string[];
+    dismissOnConfirmation: boolean;
+    server: string;
+    filter: SettingsMCPAuthFilter;
+    prior: MCPAuthorizePriorStatus;
+  };
+  scopeEscalationConfirmed: { begin: MCPAuthorizeBegin };
   authorizeRequested: {
     begin: MCPAuthorizeBegin;
     dismissOnConfirmation: boolean;
@@ -136,6 +155,39 @@ export function createMCPAuthorizeLogic() {
   return createStoreLogic<MCPAuthorizeState, MCPAuthorizeEventPayloadMap>({
     context: { phase: "idle", attemptId: 0 },
     on: {
+      scopeEscalationRequested: (context, event) => {
+        if (context.phase !== "idle") return;
+        const approvedScopes = normalizeMCPAuthScopes(event.approvedScopes);
+        const scopeApproval: MCPAuthorizeScopeApproval = {
+          approveScopeEscalation: true,
+          approvedScopes,
+        };
+        if (!hasExplicitScopeApproval(scopeApproval)) return;
+        return {
+          phase: "reviewing_scopes",
+          attemptId: context.attemptId,
+          dismissOnConfirmation: event.dismissOnConfirmation,
+          server: event.server,
+          filter: event.filter,
+          prior: event.prior,
+          mode: "automatic",
+          scopeApproval,
+        };
+      },
+      scopeEscalationConfirmed: (context, event, enqueue) => {
+        if (context.phase !== "reviewing_scopes") return;
+        const attemptId = context.attemptId + 1;
+        enqueueBegin(
+          event.begin,
+          enqueue,
+          attemptId,
+          context.server,
+          context.filter,
+          context.mode,
+          context.scopeApproval
+        );
+        return { ...context, phase: "beginning", attemptId };
+      },
       authorizeRequested: (context, event, enqueue) => {
         if (context.phase !== "idle") return;
         if (event.scopeApproval && !hasExplicitScopeApproval(event.scopeApproval)) return;
@@ -161,7 +213,13 @@ export function createMCPAuthorizeLogic() {
         };
       },
       manualAuthorizationRequested: (context, event, enqueue) => {
-        if (context.phase === "idle" || context.phase === "beginning") return;
+        if (
+          context.phase === "idle" ||
+          context.phase === "beginning" ||
+          context.phase === "reviewing_scopes"
+        ) {
+          return;
+        }
         const attemptId = context.attemptId + 1;
         enqueueBegin(
           event.begin,
@@ -344,25 +402,15 @@ function isConfirmed(status: string, tokenPresent: boolean): boolean {
   return status === "authenticated" && tokenPresent;
 }
 
-/** A manual exchange is a full HTTP(S) redirect URL, never a bare authorization code. */
-export function isAbsoluteMCPRedirectURL(value: string): boolean {
-  try {
-    const url = new URL(value.trim());
-    return url.protocol === "http:" || url.protocol === "https:";
-  } catch {
-    return false;
-  }
-}
-
 function hasExplicitScopeApproval(approval: MCPAuthorizeScopeApproval): boolean {
   return (
-    approval.approveScopeEscalation && approval.approvedScopes.some(scope => scope.trim() !== "")
+    approval.approveScopeEscalation && normalizeMCPAuthScopes(approval.approvedScopes).length > 0
   );
 }
 
 /** The daemon validates state, issuer, and remaining callback constraints. */
 function toExchangeBody(value: string): SettingsMCPAuthExchangeRequest {
-  return { redirect_url: value.trim() };
+  return { redirect_url: normalizeMCPRedirectURL(value) };
 }
 
 function errorMessage(error: unknown, fallback: string): string {
