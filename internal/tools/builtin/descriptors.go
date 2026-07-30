@@ -12,8 +12,10 @@ const (
 	descriptorKeywordStatus      = "status"
 	descriptorKeywordCreate      = "create"
 	descriptorKeywordDiagnostics = "diagnostics"
+	descriptorKeywordSearch      = "search"
 	descriptorKeywordSnapshot    = "snapshot"
 	descriptorKeywordUpdate      = "update"
+	descriptorKeywordValidate    = "validate"
 	emptyInputSchema             = `{"type":"object","additionalProperties":false}`
 )
 

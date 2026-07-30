@@ -13,21 +13,27 @@ type PolicyConfig = SettingsHooksExtensionsSection["config"];
 
 function clonePolicy(config: PolicyConfig): PolicyConfig {
   return {
-    marketplace: { ...config.marketplace },
+    dev: { ...config.dev },
     resources: {
       ...config.resources,
       allowed_kinds: [...(config.resources.allowed_kinds ?? [])],
       operator_write_rate_limit: { ...config.resources.operator_write_rate_limit },
       snapshot_rate_limit: { ...config.resources.snapshot_rate_limit },
     },
+    sources: {
+      git: { ...config.sources.git },
+      github: { ...config.sources.github },
+    },
+    trust: { ...config.trust },
   };
 }
 
-function sameMarketplace(a: PolicyConfig, b: PolicyConfig): boolean {
+function samePolicy(a: PolicyConfig, b: PolicyConfig): boolean {
   return (
-    (a.marketplace.registry ?? "") === (b.marketplace.registry ?? "") &&
-    (a.marketplace.base_url ?? "") === (b.marketplace.base_url ?? "") &&
-    a.marketplace.allow_unverified === b.marketplace.allow_unverified
+    a.trust.allow_unverified === b.trust.allow_unverified &&
+    a.sources.github.enabled === b.sources.github.enabled &&
+    a.sources.github.base_url === b.sources.github.base_url &&
+    a.sources.git.enabled === b.sources.git.enabled
   );
 }
 
@@ -43,7 +49,7 @@ export function useSettingsExtensionsPage() {
   const envelope = query.data ?? null;
   const [draftOverride, setDraftOverride] = useState<PolicyConfig | undefined>();
   const draft = draftOverride ?? (envelope ? clonePolicy(envelope.config) : null);
-  const isPolicyDirty = Boolean(envelope && draft && !sameMarketplace(envelope.config, draft));
+  const isPolicyDirty = Boolean(envelope && draft && !samePolicy(envelope.config, draft));
   const handleSavePolicy = () => {
     if (!draft) return;
     const body: SettingsUpdateHooksExtensionsRequest = { config: draft };

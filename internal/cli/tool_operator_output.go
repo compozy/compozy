@@ -4,6 +4,8 @@ import (
 	"fmt"
 
 	"strings"
+
+	"github.com/spf13/cobra"
 )
 
 func toolListBundle(response ToolsResponseRecord) outputBundle {
@@ -11,7 +13,7 @@ func toolListBundle(response ToolsResponseRecord) outputBundle {
 		response,
 		response.Tools,
 		toolOperatorToolsValue,
-		[]string{"TOOL ID", "BACKEND", "SOURCE", cliStatusHeader, "CALLABLE", "REASONS"},
+		[]string{toolOperatorToolIDHeader, "BACKEND", "SOURCE", cliStatusHeader, "CALLABLE", "REASONS"},
 		"tools",
 		[]string{
 			toolOperatorToolIDKey,
@@ -125,6 +127,9 @@ func toolApprovalBundle(response ToolApprovalRecord) outputBundle {
 func toolInvokeBundle(response ToolInvokeResponseRecord) outputBundle {
 	return outputBundle{
 		jsonValue: response,
+		jsonl: func(cmd *cobra.Command) error {
+			return writeJSONLine(cmd, response)
+		},
 		human: func() (string, error) {
 			rows := []keyValue{
 				{Label: toolOperatorToolIDValue, Value: response.ToolID.String()},

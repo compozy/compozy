@@ -20,8 +20,12 @@ import (
 )
 
 const (
+	subcommandAll   = "all"
 	subcommandCheck = "check"
 )
+
+const usage = "usage: compozy-codegen " +
+	"<openapi|sdk-contracts|sdk-contracts-go|loop-enums|lifecycle-matrix|native-tool-catalog|all|check>"
 
 const defaultSDKContractsPath = "sdk/typescript/src/generated/contracts.ts"
 const defaultLoopEnumsPath = "web/src/generated/loop-enums.ts"
@@ -45,10 +49,18 @@ func run(ctx context.Context, args []string) error {
 }
 
 func runWithPaths(ctx context.Context, args []string, openapiPath string, sdkContractsPath string) error {
+	return runWithAllPaths(ctx, args, openapiPath, sdkContractsPath, sdkGoContractsPathFor(sdkContractsPath))
+}
+
+func runWithAllPaths(
+	ctx context.Context,
+	args []string,
+	openapiPath string,
+	sdkContractsPath string,
+	sdkGoContractsPath string,
+) error {
 	if len(args) == 0 {
-		return fmt.Errorf(
-			"usage: compozy-codegen <openapi|sdk-contracts|loop-enums|lifecycle-matrix|native-tool-catalog|all|check>",
-		)
+		return errors.New(usage)
 	}
 	loopEnumsPath := loopEnumsPathFor(openapiPath)
 	lifecycleMatrixPath := lifecycleMatrixPathFor(openapiPath)
@@ -59,19 +71,34 @@ func runWithPaths(ctx context.Context, args []string, openapiPath string, sdkCon
 		return writeOpenAPI(ctx, openapiPath)
 	case "sdk-contracts":
 		return writeSDKContracts(ctx, sdkContractsPath)
+	case "sdk-contracts-go":
+		if len(args) > 1 && args[1] == "--check" {
+			return checkSDKGoContracts(sdkGoContractsPath)
+		}
+		return writeSDKGoContracts(sdkGoContractsPath)
 	case "loop-enums":
 		return writeLoopEnums(ctx, loopEnumsPath)
 	case "lifecycle-matrix":
 		return writeLifecycleMatrix(lifecycleMatrixPath)
 	case "native-tool-catalog":
 		return writeNativeToolCatalog(nativeToolCatalogPath)
-	case "all":
-		return writeAll(ctx, openapiPath, sdkContractsPath, lifecycleMatrixPath, nativeToolCatalogPath)
+	case subcommandAll:
+		return writeAll(
+			ctx,
+			openapiPath,
+			sdkContractsPath,
+			sdkGoContractsPath,
+			lifecycleMatrixPath,
+			nativeToolCatalogPath,
+		)
 	case subcommandCheck:
 		if err := checkOpenAPI(openapiPath); err != nil {
 			return err
 		}
 		if err := checkSDKContracts(ctx, sdkContractsPath); err != nil {
+			return err
+		}
+		if err := checkSDKGoContracts(sdkGoContractsPath); err != nil {
 			return err
 		}
 		if err := checkLoopEnums(ctx, loopEnumsPath); err != nil {
@@ -112,9 +139,14 @@ func writeAll(
 	ctx context.Context,
 	openapiPath string,
 	sdkContractsPath string,
+	sdkGoContractsPath string,
 	lifecycleMatrixPath string,
 	nativeToolCatalogPath string,
 ) error {
+	goContracts, err := generateSDKGoContracts()
+	if err != nil {
+		return err
+	}
 	if err := writeAllWith(
 		ctx,
 		openapiPath,
@@ -126,6 +158,9 @@ func writeAll(
 		publishGeneratedFile,
 	); err != nil {
 		return err
+	}
+	if err := publishGeneratedTree(sdkGoContractsPath, goContracts.Files); err != nil {
+		return fmt.Errorf("write Go SDK contracts to %q: %w", sdkGoContractsPath, err)
 	}
 	if err := writeLifecycleMatrix(lifecycleMatrixPath); err != nil {
 		return err
@@ -223,7 +258,15 @@ func checkOpenAPI(path string) error {
 }
 
 func checkSDKContracts(ctx context.Context, path string) error {
-	content, err := generateFormattedSDKContracts(ctx, path)
+	return checkSDKContractsWith(ctx, path, generateFormattedSDKContracts)
+}
+
+func checkSDKContractsWith(
+	ctx context.Context,
+	path string,
+	generate func(context.Context, string) ([]byte, error),
+) error {
+	content, err := generate(ctx, path)
 	if err != nil {
 		return err
 	}

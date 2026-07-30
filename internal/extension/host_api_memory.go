@@ -151,7 +151,7 @@ func (h *HostAPIHandler) handleListLogs(ctx context.Context, raw json.RawMessage
 				hostAPIWorkspaceIDKey: event.WorkspaceID,
 				hostAPISessionIDKey:   event.SessionID,
 				hostAPIAgentNameKey:   event.AgentName,
-				"summary":             event.Summary,
+				manifestSummaryKey:    event.Summary,
 			},
 		})
 	}

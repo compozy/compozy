@@ -133,9 +133,18 @@ allowed_marketplace_hooks = ["@registry/hook-a", "@registry/hook-b"]
 registry = "clawhub"
 base_url = "https://registry.example.test/api/v1"
 
-[extensions.marketplace]
-registry = "github"
+[extensions.trust]
+allow_unverified = false
+
+[extensions.sources.github]
+enabled = true
 base_url = "https://api.github.example.test"
+
+[extensions.sources.git]
+enabled = false
+
+[extensions.dev]
+watch_interval = "3s"
 
 [memory]
 enabled = true
@@ -302,11 +311,20 @@ max_wakes = 80
 	if got, want := cfg.Skills.Marketplace.BaseURL, "https://registry.example.test/api/v1"; got != want {
 		t.Fatalf("Load() Skills.Marketplace.BaseURL = %q, want %q", got, want)
 	}
-	if got, want := cfg.Extensions.Marketplace.Registry, "github"; got != want {
-		t.Fatalf("Load() Extensions.Marketplace.Registry = %q, want %q", got, want)
+	if cfg.Extensions.Trust.AllowUnverified {
+		t.Fatal("Load() Extensions.Trust.AllowUnverified = true, want false")
 	}
-	if got, want := cfg.Extensions.Marketplace.BaseURL, "https://api.github.example.test"; got != want {
-		t.Fatalf("Load() Extensions.Marketplace.BaseURL = %q, want %q", got, want)
+	if !cfg.Extensions.Sources.GitHub.Enabled {
+		t.Fatal("Load() Extensions.Sources.GitHub.Enabled = false, want true")
+	}
+	if got, want := cfg.Extensions.Sources.GitHub.BaseURL, "https://api.github.example.test"; got != want {
+		t.Fatalf("Load() Extensions.Sources.GitHub.BaseURL = %q, want %q", got, want)
+	}
+	if cfg.Extensions.Sources.Git.Enabled {
+		t.Fatal("Load() Extensions.Sources.Git.Enabled = true, want false")
+	}
+	if got, want := cfg.Extensions.Dev.WatchInterval, 3*time.Second; got != want {
+		t.Fatalf("Load() Extensions.Dev.WatchInterval = %s, want %s", got, want)
 	}
 	userHome, err := os.UserHomeDir()
 	if err != nil {
@@ -1787,6 +1805,27 @@ unknown = true
 	}
 }
 
+func TestLoadRejectsRemovedExtensionMarketplaceConfig(t *testing.T) {
+	t.Run("Should reject the removed extension marketplace configuration", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := loadConfigOverlayBytes([]byte(`[extensions.marketplace]
+allow_unverified = true
+`), "legacy-extension-config.toml")
+		if err == nil {
+			t.Fatal("loadConfigOverlayBytes() error = nil, want removed-key rejection")
+		}
+		for _, fragment := range []string{
+			"extensions.marketplace.allow_unverified",
+			"extensions.trust.allow_unverified",
+		} {
+			if !strings.Contains(err.Error(), fragment) {
+				t.Fatalf("loadConfigOverlayBytes() error = %v, want fragment %q", err, fragment)
+			}
+		}
+	})
+}
+
 func TestLoadRejectsTimeoutOnSessionBackedRoles(t *testing.T) {
 	t.Parallel()
 
@@ -1896,7 +1935,7 @@ unknown = true
 	}
 }
 
-func TestDefaultWithHomeLeavesMarketplaceConfigEmpty(t *testing.T) {
+func TestDefaultWithHomeSetsExtensionConfigDefaults(t *testing.T) {
 	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
@@ -1918,11 +1957,17 @@ func TestDefaultWithHomeLeavesMarketplaceConfigEmpty(t *testing.T) {
 	if cfg.Skills.Marketplace != (MarketplaceConfig{}) {
 		t.Fatalf("DefaultWithHome() Skills.Marketplace = %#v, want zero value", cfg.Skills.Marketplace)
 	}
-	if cfg.Extensions.Marketplace != (ExtensionsMarketplaceConfig{}) {
-		t.Fatalf("DefaultWithHome() Extensions.Marketplace = %#v, want zero value", cfg.Extensions.Marketplace)
+	if !cfg.Extensions.Trust.AllowUnverified {
+		t.Fatal("DefaultWithHome() Extensions.Trust.AllowUnverified = false, want true")
 	}
-	if cfg.Extensions.Marketplace.AllowUnverified {
-		t.Fatal("DefaultWithHome() Extensions.Marketplace.AllowUnverified = true, want false")
+	if !cfg.Extensions.Sources.GitHub.Enabled || cfg.Extensions.Sources.GitHub.BaseURL != "https://api.github.com" {
+		t.Fatalf("DefaultWithHome() Extensions.Sources.GitHub = %#v", cfg.Extensions.Sources.GitHub)
+	}
+	if !cfg.Extensions.Sources.Git.Enabled {
+		t.Fatal("DefaultWithHome() Extensions.Sources.Git.Enabled = false, want true")
+	}
+	if cfg.Extensions.Dev.WatchInterval != 2*time.Second {
+		t.Fatalf("DefaultWithHome() Extensions.Dev.WatchInterval = %s, want 2s", cfg.Extensions.Dev.WatchInterval)
 	}
 	if len(cfg.Extensions.Resources.AllowedKinds) != 0 ||
 		cfg.Extensions.Resources.MaxScope != "" ||
@@ -1984,44 +2029,40 @@ func TestSkillsConfigValidateMarketplaceConfig(t *testing.T) {
 	})
 }
 
-func TestExtensionsConfigValidateMarketplaceConfig(t *testing.T) {
+func TestExtensionsConfigValidateSourcesAndDevelopment(t *testing.T) {
 	tests := []struct {
 		name        string
 		cfg         ExtensionsConfig
 		wantErrPath string
 	}{
 		{
-			name: "ShouldAcceptValidMarketplaceConfig",
+			name: "ShouldAcceptValidSourceAndDevelopmentConfig",
 			cfg: ExtensionsConfig{
-				Marketplace: ExtensionsMarketplaceConfig{
-					Registry: "github",
-					BaseURL:  "https://api.github.example.test",
+				Sources: ExtensionsSourcesConfig{
+					GitHub: ExtensionsGitHubSourceConfig{Enabled: true, BaseURL: "https://api.github.example.test"},
 				},
+				Dev: ExtensionsDevConfig{WatchInterval: time.Second},
 			},
 		},
 		{
-			name: "ShouldAcceptEmptyMarketplaceConfig",
+			name: "ShouldAcceptEmptyConfig",
 			cfg:  ExtensionsConfig{},
 		},
 		{
-			name: "ShouldRejectMarketplaceBaseURLWithoutHost",
+			name: "ShouldRejectGitHubBaseURLWithoutHost",
 			cfg: ExtensionsConfig{
-				Marketplace: ExtensionsMarketplaceConfig{
-					Registry: "github",
-					BaseURL:  "https://",
+				Sources: ExtensionsSourcesConfig{
+					GitHub: ExtensionsGitHubSourceConfig{Enabled: true, BaseURL: "https://"},
 				},
 			},
-			wantErrPath: "extensions.marketplace.base_url",
+			wantErrPath: "extensions.sources.github.base_url",
 		},
 		{
-			name: "ShouldRejectUnknownMarketplaceRegistry",
+			name: "ShouldRejectNonPositiveWatchInterval",
 			cfg: ExtensionsConfig{
-				Marketplace: ExtensionsMarketplaceConfig{
-					Registry: "unknown",
-					BaseURL:  "https://api.github.example.test",
-				},
+				Dev: ExtensionsDevConfig{WatchInterval: -time.Second},
 			},
-			wantErrPath: "extensions.marketplace.registry",
+			wantErrPath: "extensions.dev.watch_interval",
 		},
 	}
 
@@ -2035,7 +2076,7 @@ func TestExtensionsConfigValidateMarketplaceConfig(t *testing.T) {
 				return
 			}
 			if err == nil {
-				t.Fatal("ExtensionsConfig.Validate() error = nil, want marketplace validation failure")
+				t.Fatal("ExtensionsConfig.Validate() error = nil, want extension config validation failure")
 			}
 			if !strings.Contains(err.Error(), tt.wantErrPath) {
 				t.Fatalf("ExtensionsConfig.Validate() error = %v, want %s context", err, tt.wantErrPath)
@@ -2052,9 +2093,8 @@ func TestExtensionsConfigValidateMarketplaceConfig(t *testing.T) {
 		defer slog.SetDefault(original)
 
 		cfg := ExtensionsConfig{
-			Marketplace: ExtensionsMarketplaceConfig{
-				Registry: "github",
-				BaseURL:  "http://api.github.example.test",
+			Sources: ExtensionsSourcesConfig{
+				GitHub: ExtensionsGitHubSourceConfig{Enabled: true, BaseURL: "http://api.github.example.test"},
 			},
 		}
 

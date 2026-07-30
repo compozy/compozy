@@ -8,6 +8,7 @@ import type {
 } from "./types.js";
 import { CapabilityDeniedError, InvalidParamsError, ToolExecutionError } from "./errors.js";
 import { cloneJSON } from "./json.js";
+import { PROVIDE_TOOLS_METHOD, TOOLS_CALL_METHOD } from "./capabilities.js";
 
 export function normalizeStringList(values: readonly string[] | undefined): string[] {
   return Array.from(new Set((values ?? []).map(value => value.trim()).filter(Boolean))).sort();
@@ -17,6 +18,28 @@ export function normalizeHostMethodList(
   values: readonly HostAPIMethod[] | undefined
 ): HostAPIMethod[] {
   return normalizeStringList(values) as HostAPIMethod[];
+}
+
+export function implementedExtensionMethods(
+  userMethods: Iterable<string>,
+  hasTools: boolean,
+  watchMethods: readonly string[]
+): string[] {
+  const methods = new Set<string>(["health_check", "shutdown", ...userMethods, ...watchMethods]);
+  if (hasTools) {
+    methods.add(PROVIDE_TOOLS_METHOD);
+    methods.add(TOOLS_CALL_METHOD);
+  }
+  return [...methods].sort();
+}
+
+export function transportMethods(userMethods: Iterable<string>, hasTools: boolean): string[] {
+  const methods = new Set<string>(["initialize", "health_check", "shutdown", ...userMethods]);
+  if (hasTools) {
+    methods.add(PROVIDE_TOOLS_METHOD);
+    methods.add(TOOLS_CALL_METHOD);
+  }
+  return [...methods];
 }
 
 export function ensureSubset(label: string, requested: string[], granted: readonly string[]): void {
@@ -60,6 +83,10 @@ export function parseToolCallRequest(params: unknown): ExtensionToolCallRequest 
     tool_id: request.tool_id.trim(),
     handler: request.handler.trim(),
     ...(request.session_id ? { session_id: request.session_id } : {}),
+    ...(request.invocation_id !== undefined ? { invocation_id: request.invocation_id } : {}),
+    ...(request.trusted_workspace !== undefined
+      ? { trusted_workspace: request.trusted_workspace }
+      : {}),
     input: (request.input ?? {}) as JSONValue,
   };
 }

@@ -339,6 +339,17 @@ type ExtensionResponse struct {
 	Extension ExtensionPayload `json:"extension"`
 }
 
+// ExtensionLogsResponse wraps a bounded snapshot of redacted extension logs.
+type ExtensionLogsResponse struct {
+	Logs []ExtensionLogPayload `json:"logs"`
+}
+
+// ExtensionCommandsResponse wraps the storage-free contributed-command projection.
+type ExtensionCommandsResponse struct {
+	Commands []ExtensionCommandPayload      `json:"commands"`
+	Groups   []ExtensionCommandGroupPayload `json:"groups"`
+}
+
 // ExtensionProvenanceResponse wraps one installed extension provenance record.
 type ExtensionProvenanceResponse struct {
 	Provenance ExtensionProvenancePayload `json:"provenance"`
@@ -347,6 +358,11 @@ type ExtensionProvenanceResponse struct {
 // ExtensionUpdateResponse wraps one marketplace extension update result.
 type ExtensionUpdateResponse struct {
 	Update ManagedExtensionUpdatePayload `json:"update"`
+}
+
+// ExtensionUpdateBatchResponse wraps per-item extension update outcomes.
+type ExtensionUpdateBatchResponse struct {
+	Updates []ManagedExtensionUpdatePayload `json:"updates"`
 }
 
 // ExtensionRemoveResponse wraps one removed extension result.
@@ -364,6 +380,7 @@ type ManagedExtensionUpdatePayload struct {
 	Path           string           `json:"path"`
 	Status         string           `json:"status"`
 	Warnings       []DiagnosticItem `json:"warnings,omitempty"`
+	Error          *DiagnosticItem  `json:"error,omitempty"`
 }
 
 // ManagedExtensionRemovePayload describes one daemon-owned extension removal.

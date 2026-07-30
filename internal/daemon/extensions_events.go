@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	eventspkg "github.com/compozy/compozy/internal/events"
@@ -13,6 +14,60 @@ import (
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
+
+type extensionLifecycleEventStoreSink struct {
+	writer    store.EventSummaryStore
+	now       func() time.Time
+	actorKind string
+	actorID   string
+}
+
+var _ extensionpkg.LifecycleEventSink = extensionLifecycleEventStoreSink{}
+
+func (s extensionLifecycleEventStoreSink) RecordExtensionLifecycleEvent(
+	ctx context.Context,
+	event extensionpkg.LifecycleEvent,
+) error {
+	if s.writer == nil {
+		return nil
+	}
+	if ctx == nil {
+		return errors.New("daemon: extension event context is required")
+	}
+	fields, err := event.RequiredFields()
+	if err != nil {
+		return err
+	}
+	content, err := json.Marshal(fields)
+	if err != nil {
+		return fmt.Errorf("daemon: encode extension lifecycle event: %w", err)
+	}
+	now := s.now
+	if now == nil {
+		now = time.Now
+	}
+	if err := s.writer.WriteEventSummary(context.WithoutCancel(ctx), store.EventSummary{
+		Type: event.Type, Outcome: string(eventspkg.OutcomeFor(event.Type)), Content: content,
+		Summary: event.Type + " " + event.ExtensionName, Timestamp: now().UTC(),
+		EventCorrelation: store.EventCorrelation{ActorKind: s.actorKind, ActorID: s.actorID},
+	}); err != nil {
+		return fmt.Errorf("daemon: record extension lifecycle event: %w", err)
+	}
+	return nil
+}
+
+func (s *daemonExtensionService) recordCanonicalExtensionLifecycleEvent(
+	ctx context.Context,
+	actor taskpkg.ActorContext,
+	event extensionpkg.LifecycleEvent,
+) error {
+	return (extensionLifecycleEventStoreSink{
+		writer:    s.eventWriter,
+		now:       s.now,
+		actorKind: string(actor.Actor.Kind.Normalize()),
+		actorID:   strings.TrimSpace(actor.Actor.Ref),
+	}).RecordExtensionLifecycleEvent(ctx, event)
+}
 
 type extensionLifecycleEventPayload struct {
 	ActorKind        string                    `json:"actor_kind,omitempty"`
@@ -32,6 +87,8 @@ type extensionLifecycleEventPayload struct {
 	RegistryTier     string                    `json:"registry_tier,omitempty"`
 	AllowUnverified  bool                      `json:"allow_unverified"`
 	Warnings         []contract.DiagnosticItem `json:"warnings,omitempty"`
+	WorkspaceID      string                    `json:"workspace_id,omitempty"`
+	GenerationHash   string                    `json:"generation_hash,omitempty"`
 }
 
 type extensionDigestVerificationPayload struct {
@@ -51,7 +108,13 @@ func (s *daemonExtensionService) recordExtensionEvent(
 	actor taskpkg.ActorContext,
 	item contract.ExtensionPayload,
 ) error {
-	payload := extensionLifecycleEventPayload{Name: item.Name, Version: item.Version, Status: item.State}
+	payload := extensionLifecycleEventPayload{
+		Name:           item.Name,
+		Version:        item.Version,
+		Status:         item.State,
+		WorkspaceID:    item.WorkspaceID,
+		GenerationHash: item.GenerationHash,
+	}
 	if item.Provenance != nil {
 		payload.Slug = item.Provenance.Slug
 		payload.InstalledFrom = item.Provenance.InstalledFrom
@@ -66,21 +129,6 @@ func (s *daemonExtensionService) recordExtensionEvent(
 		payload.AllowUnverified = item.Trust.AllowUnverified
 	}
 	return s.recordExtensionLifecycleEvent(ctx, eventType, actor, payload)
-}
-
-func (s *daemonExtensionService) recordExtensionUpdateEvent(
-	ctx context.Context,
-	actor taskpkg.ActorContext,
-	item contract.ManagedExtensionUpdatePayload,
-) error {
-	return s.recordExtensionLifecycleEvent(ctx, eventspkg.ExtensionUpdated, actor, extensionLifecycleEventPayload{
-		Name:           item.Name,
-		Slug:           item.Slug,
-		CurrentVersion: item.CurrentVersion,
-		LatestVersion:  item.LatestVersion,
-		Status:         item.Status,
-		Warnings:       append([]contract.DiagnosticItem(nil), item.Warnings...),
-	})
 }
 
 func (s *daemonExtensionService) recordExtensionRemoveEvent(
@@ -188,16 +236,16 @@ func extensionLifecycleEventSummary(eventType string, payload extensionLifecycle
 		name = strings.TrimSpace(payload.Slug)
 	}
 	switch eventType {
-	case eventspkg.ExtensionInstalled:
-		return fmt.Sprintf("extension %s installed", name)
-	case eventspkg.ExtensionUpdated:
-		return fmt.Sprintf("extension %s updated", name)
 	case eventspkg.ExtensionRemoved:
 		return fmt.Sprintf("extension %s removed", name)
 	case eventspkg.ExtensionEnabled:
 		return fmt.Sprintf("extension %s enabled", name)
 	case eventspkg.ExtensionDisabled:
 		return fmt.Sprintf("extension %s disabled", name)
+	case eventspkg.ExtensionDevLinked:
+		return fmt.Sprintf("extension %s linked for development", name)
+	case eventspkg.ExtensionDevUnlinked:
+		return fmt.Sprintf("extension %s unlinked from development", name)
 	default:
 		return strings.TrimSpace(eventType)
 	}

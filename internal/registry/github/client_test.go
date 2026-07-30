@@ -5,12 +5,15 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -18,20 +21,164 @@ import (
 	"github.com/compozy/compozy/internal/registry"
 )
 
-func TestClientSearchNotSupported(t *testing.T) {
+func TestClientSearchFindsExtensionTopicRepositories(t *testing.T) {
 	t.Parallel()
 
-	_, err := NewClient("").Search(context.Background(), "anything", registry.SearchOpts{})
-	if !errors.Is(err, registry.ErrNotSupported) {
-		t.Fatalf("Search() error = %v, want ErrNotSupported", err)
-	}
+	t.Run("Should query the exact page for an aligned offset", func(t *testing.T) {
+		t.Parallel()
+
+		server := newGitHubServer(t, func(writer http.ResponseWriter, request *http.Request) {
+			if request.URL.Path != "/search/repositories" {
+				t.Fatalf("Search() path = %q, want /search/repositories", request.URL.Path)
+			}
+			if got := request.URL.Query().Get("q"); got != "bridge topic:compozy-extension" {
+				t.Fatalf("Search() q = %q, want topic-qualified query", got)
+			}
+			if got := request.URL.Query().Get("per_page"); got != "5" {
+				t.Fatalf("Search() per_page = %q, want 5", got)
+			}
+			if got := request.URL.Query().Get("page"); got != "3" {
+				t.Fatalf("Search() page = %q, want 3", got)
+			}
+			writeJSON(
+				writer,
+				`{"items":[{"full_name":"acme/bridge","name":"bridge","description":"Bridge extension","owner":{"login":"acme"},"stargazers_count":42,"html_url":"https://github.com/acme/bridge","topics":["compozy-extension"],"default_branch":"main"}]}`,
+			)
+		})
+		defer server.Close()
+
+		items, err := NewClient(server.URL).Search(t.Context(), " bridge ", registry.SearchOpts{
+			Limit:  5,
+			Offset: 10,
+			Type:   registry.PackageTypeExtension,
+		})
+		if err != nil {
+			t.Fatalf("Search() error = %v", err)
+		}
+		if len(items) != 1 {
+			t.Fatalf("Search() items = %#v, want one", items)
+		}
+		want := registry.Listing{
+			Slug: "acme/bridge", Name: "bridge", Description: "Bridge extension", Author: "acme",
+			Downloads: 42, Source: "github", Type: registry.PackageTypeExtension,
+		}
+		if items[0] != want {
+			t.Fatalf("Search() item = %#v, want %#v", items[0], want)
+		}
+	})
+
+	t.Run("Should start at a partial offset and still return the requested limit", func(t *testing.T) {
+		t.Parallel()
+
+		server := newGitHubServer(t, func(writer http.ResponseWriter, request *http.Request) {
+			if got := request.URL.Query().Get("per_page"); got != "5" {
+				t.Fatalf("Search() per_page = %q, want 5", got)
+			}
+			switch request.URL.Query().Get("page") {
+			case "1":
+				writeJSON(writer, `{"items":[
+					{"full_name":"acme/repo-0","name":"repo-0","owner":{"login":"acme"},"topics":["compozy-extension"],"default_branch":"main"},
+					{"full_name":"acme/repo-1","name":"repo-1","owner":{"login":"acme"},"topics":["compozy-extension"],"default_branch":"main"},
+					{"full_name":"acme/repo-2","name":"repo-2","owner":{"login":"acme"},"topics":["compozy-extension"],"default_branch":"main"},
+					{"full_name":"acme/repo-3","name":"repo-3","owner":{"login":"acme"},"topics":["compozy-extension"],"default_branch":"main"},
+					{"full_name":"acme/repo-4","name":"repo-4","owner":{"login":"acme"},"topics":["compozy-extension"],"default_branch":"main"}
+				]}`)
+			case "2":
+				writeJSON(writer, `{"items":[
+					{"full_name":"acme/repo-5","name":"repo-5","owner":{"login":"acme"},"topics":["compozy-extension"],"default_branch":"main"},
+					{"full_name":"acme/repo-6","name":"repo-6","owner":{"login":"acme"},"topics":["compozy-extension"],"default_branch":"main"},
+					{"full_name":"acme/repo-7","name":"repo-7","owner":{"login":"acme"},"topics":["compozy-extension"],"default_branch":"main"},
+					{"full_name":"acme/repo-8","name":"repo-8","owner":{"login":"acme"},"topics":["compozy-extension"],"default_branch":"main"},
+					{"full_name":"acme/repo-9","name":"repo-9","owner":{"login":"acme"},"topics":["compozy-extension"],"default_branch":"main"}
+				]}`)
+			default:
+				t.Fatalf("Search() page = %q, want 1 or 2", request.URL.Query().Get("page"))
+			}
+		})
+		defer server.Close()
+
+		items, err := NewClient(server.URL).Search(t.Context(), "repo", registry.SearchOpts{
+			Limit: 5, Offset: 2, Type: registry.PackageTypeExtension,
+		})
+		if err != nil {
+			t.Fatalf("Search() error = %v", err)
+		}
+		if len(items) != 5 {
+			t.Fatalf("Search() count = %d, want 5: %#v", len(items), items)
+		}
+		for index, item := range items {
+			want := "acme/repo-" + strconv.Itoa(index+2)
+			if item.Slug != want {
+				t.Fatalf("Search() item[%d].Slug = %q, want %q", index, item.Slug, want)
+			}
+		}
+	})
 }
 
 func TestClientCapabilities(t *testing.T) {
+	t.Run("Should report repository search support", testClientCapabilities)
+}
+
+func testClientCapabilities(t *testing.T) {
 	t.Parallel()
 
-	if caps := NewClient("").Capabilities(); caps != (registry.SourceCaps{Search: false}) {
-		t.Fatalf("Capabilities() = %#v, want search disabled", caps)
+	if caps := NewClient("").Capabilities(); caps != (registry.SourceCaps{Search: true}) {
+		t.Fatalf("Capabilities() = %#v, want search enabled", caps)
+	}
+}
+
+func TestClientUploadRelease(t *testing.T) {
+	t.Run("Should publish an archive and digest sidecar", testClientUploadRelease)
+}
+
+func testClientUploadRelease(t *testing.T) {
+	t.Parallel()
+
+	token := "publish-token-sentinel"
+	uploaded := make(map[string]string)
+	server := newGitHubServer(t, func(writer http.ResponseWriter, request *http.Request) {
+		if request.Header.Get("Authorization") != "Bearer "+token {
+			t.Fatalf("Authorization header missing bound credential")
+		}
+		switch {
+		case request.Method == http.MethodGet && request.URL.Path == "/repos/acme/demo/releases/tags/v1.2.3":
+			writer.WriteHeader(http.StatusNotFound)
+		case request.Method == http.MethodPost && request.URL.Path == "/repos/acme/demo/releases":
+			writeJSON(writer,
+				`{"id":7,"tag_name":"v1.2.3","html_url":"https://github.test/acme/demo/releases/v1.2.3",`+
+					`"upload_url":"SERVER_URL/uploads/7{?name,label}","assets":[]}`,
+			)
+		case request.Method == http.MethodPost && request.URL.Path == "/uploads/7":
+			payload, err := io.ReadAll(request.Body)
+			if err != nil {
+				t.Fatalf("io.ReadAll(upload) error = %v", err)
+			}
+			name := request.URL.Query().Get("name")
+			uploaded[name] = string(payload)
+			writeJSON(writer,
+				`{"id":9,"name":"`+name+`",`+
+					`"browser_download_url":"https://github.test/downloads/`+name+`"}`,
+			)
+		default:
+			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
+		}
+	})
+	defer server.Close()
+
+	result, err := NewClient(server.URL, WithToken(token)).UploadRelease(t.Context(), ReleaseUploadRequest{
+		Repository: "acme/demo", TagName: "v1.2.3", AssetName: "demo-v1.2.3.tar.gz",
+		Archive: []byte("archive"), DigestSidecar: []byte("digest  demo-v1.2.3.tar.gz\n"),
+	})
+	if err != nil {
+		t.Fatalf("UploadRelease() error = %v", err)
+	}
+	if result.ReleaseURL != "https://github.test/acme/demo/releases/v1.2.3" ||
+		result.AssetURL != "https://github.test/downloads/demo-v1.2.3.tar.gz" {
+		t.Fatalf("UploadRelease() = %#v", result)
+	}
+	if uploaded["demo-v1.2.3.tar.gz"] != "archive" ||
+		uploaded["demo-v1.2.3.tar.gz.sha256"] != "digest  demo-v1.2.3.tar.gz\n" {
+		t.Fatalf("uploaded assets = %#v, want archive and sidecar", uploaded)
 	}
 }
 
@@ -135,6 +282,57 @@ func TestClientDownloadSingleTarballAsset(t *testing.T) {
 	files := readTarGz(t, result.Reader)
 	if files["demo/extension.toml"] == "" {
 		t.Fatalf("downloaded files = %#v, want extension.toml", files)
+	}
+}
+
+func TestClientDownloadUsesReleaseDigestSidecar(t *testing.T) {
+	t.Run("Should bind the release digest sidecar to the download", testClientDownloadUsesReleaseDigestSidecar)
+}
+
+func testClientDownloadUsesReleaseDigestSidecar(t *testing.T) {
+	t.Parallel()
+
+	archive := mustTarGz(t, map[string]string{"demo/extension.toml": "name = \"demo\"\nversion = \"1.2.3\"\n"})
+	digestBytes := sha256.Sum256(archive)
+	digest := hex.EncodeToString(digestBytes[:])
+	server := newGitHubServer(t, func(writer http.ResponseWriter, request *http.Request) {
+		switch request.URL.Path {
+		case "/repos/acme/demo/releases/latest":
+			writeJSON(writer, `{
+				"tag_name":"v1.2.3",
+				"assets":[
+					{"name":"demo-v1.2.3.tar.gz","url":"`+serverURLPlaceholder+`/downloads/asset.tar.gz","content_type":"application/gzip","size":123},
+					{"name":"demo-v1.2.3.tar.gz.sha256","url":"`+serverURLPlaceholder+`/downloads/asset.tar.gz.sha256","content_type":"text/plain","size":80}
+				]
+			}`)
+		case "/downloads/asset.tar.gz.sha256":
+			writer.Header().Set("Content-Type", "text/plain")
+			if _, err := writer.Write([]byte(digest + "  demo-v1.2.3.tar.gz\n")); err != nil {
+				t.Fatalf("writer.Write(sidecar) error = %v", err)
+			}
+		case "/downloads/asset.tar.gz":
+			writer.Header().Set("Content-Type", "application/gzip")
+			if _, err := writer.Write(archive); err != nil {
+				t.Fatalf("writer.Write(archive) error = %v", err)
+			}
+		default:
+			http.NotFound(writer, request)
+		}
+	})
+	defer server.Close()
+
+	client := NewClient(server.URL)
+	result, err := client.Download(context.Background(), "acme/demo", registry.DownloadOpts{})
+	if err != nil {
+		t.Fatalf("Download() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := result.Reader.Close(); err != nil {
+			t.Errorf("result.Reader.Close() error = %v", err)
+		}
+	})
+	if result.ExpectedSHA256 != digest {
+		t.Fatalf("Download() expected SHA-256 = %q, want %q", result.ExpectedSHA256, digest)
 	}
 }
 
@@ -651,16 +849,18 @@ func TestClientFetchRequestedReleaseByTag(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient(server.URL)
-	release, err := client.fetchRequestedRelease(
-		context.Background(),
-		repoSlug{owner: "acme", name: "demo", full: "acme/demo"},
-		"v1.2.3",
-	)
-	if err != nil {
-		t.Fatalf("fetchRequestedRelease() error = %v", err)
-	}
-	if release.TagName != "v1.2.3" {
-		t.Fatalf("fetchRequestedRelease() tag = %q, want v1.2.3", release.TagName)
+	for _, version := range []string{"v1.2.3", "1.2.3"} {
+		release, err := client.fetchRequestedRelease(
+			context.Background(),
+			repoSlug{owner: "acme", name: "demo", full: "acme/demo"},
+			version,
+		)
+		if err != nil {
+			t.Fatalf("fetchRequestedRelease(%q) error = %v", version, err)
+		}
+		if release.TagName != "v1.2.3" {
+			t.Fatalf("fetchRequestedRelease(%q) tag = %q, want v1.2.3", version, release.TagName)
+		}
 	}
 }
 

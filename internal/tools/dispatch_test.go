@@ -226,8 +226,10 @@ func TestRuntimeRegistryDispatchValidationAndPolicy(t *testing.T) {
 		t.Parallel()
 
 		descriptor := validDispatchDescriptor()
+		descriptor.RequiresInteraction = true
 		called := false
 		events := &recordingToolEventSink{}
+		bridge := &recordingApprovalBridge{}
 		provider := dispatchProviderWithHandle(descriptor, &registryTestHandle{
 			descriptor: descriptor,
 			availability: Availability{
@@ -243,7 +245,16 @@ func TestRuntimeRegistryDispatchValidationAndPolicy(t *testing.T) {
 				return ToolResult{}, nil
 			},
 		})
-		registry := mustDispatchRegistry(t, provider, WithToolEventSink(events))
+		registry := mustDispatchRegistry(
+			t,
+			provider,
+			WithToolEventSink(events),
+			WithApprovalBridge(bridge),
+			WithPolicyInputs(PolicyInputs{
+				SystemPermissionMode: PermissionModeApproveReads,
+				ApprovalAvailable:    true,
+			}, ToolsetCatalog{}),
+		)
 
 		_, err := registry.Call(
 			t.Context(),
@@ -255,6 +266,9 @@ func TestRuntimeRegistryDispatchValidationAndPolicy(t *testing.T) {
 		}
 		if called {
 			t.Fatal("provider handle was called for unavailable tool")
+		}
+		if len(bridge.calls) != 0 {
+			t.Fatalf("approval bridge calls = %d, want 0 for unavailable tool", len(bridge.calls))
 		}
 		if got, want := events.kinds(), []ToolCallEventKind{ToolCallDenied}; !slices.Equal(got, want) {
 			t.Fatalf("event kinds = %#v, want %#v", got, want)

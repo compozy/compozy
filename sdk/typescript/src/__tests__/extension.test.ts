@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import { Extension } from "../extension.js";
 import {
   CapabilityDeniedError,
+  InternalError,
   MethodNotFoundError,
   NotInitializedError,
   ShutdownInProgressError,
@@ -37,8 +38,7 @@ function initializeFor(extension: Extension): InitializeRequest {
     },
     capabilities: {
       provides: extension.definition.capabilities?.provides ?? [],
-      granted_actions: extension.definition.actions?.requires ?? [],
-      granted_security: extension.definition.security?.capabilities ?? [],
+      granted_permissions: extension.definition.permissions?.requires ?? [],
       granted_resource_kinds: [],
       granted_resource_scopes: [],
     },
@@ -129,7 +129,7 @@ describe("Extension", () => {
       {
         name: "denied",
         version: "0.1.0",
-        actions: { requires: ["sessions/list"] },
+        permissions: { requires: ["sessions/list"] },
       },
       { transport: pair.extension }
     );
@@ -140,8 +140,7 @@ describe("Extension", () => {
         ...initializeFor(extension),
         capabilities: {
           provides: [],
-          granted_actions: [],
-          granted_security: [],
+          granted_permissions: [],
           granted_resource_kinds: [],
           granted_resource_scopes: [],
         },
@@ -162,27 +161,26 @@ describe("Extension", () => {
     await expect(harness.call("health_check", {})).resolves.toMatchObject({ healthy: true });
   });
 
-  it("negotiates bridges/deliver for bridge adapters and exposes scoped runtime data", async () => {
+  it("negotiates bridge adapter services and exposes scoped runtime data", async () => {
     const ready = vi.fn();
     const harness = new TestHarness();
     const extension = new Extension({
       name: "bridge-adapter",
       version: "0.1.0",
       capabilities: { provides: ["bridge.adapter"] },
-      actions: { requires: ["bridges/instances/get"] },
-      security: { capabilities: ["bridge.read"] },
+      permissions: { requires: ["bridges/instances/get"] },
     });
 
     extension.handle("bridges/deliver", async () => ({
       acknowledged: true,
     }));
+    extension.handle("bridges/targets/snapshot", async () => ({ targets: [] }));
     extension.onReady((_host, session) => {
       ready(session.initializeRequest.runtime.bridge?.managed_instances?.[0]?.instance.id);
     });
 
     await harness.loadExtension(extension, {
-      grantedActions: ["bridges/instances/get"],
-      grantedSecurity: ["bridge.read"],
+      grantedPermissions: ["bridges/instances/get"],
       runtime: {
         bridge: {
           runtime_version: "1",
@@ -221,7 +219,9 @@ describe("Extension", () => {
         granted_resource_kinds: [],
         granted_resource_scopes: [],
       },
-      methods: { extension_services: ["bridges/deliver"] },
+      methods: {
+        extension_services: ["bridges/deliver", "bridges/targets/snapshot"],
+      },
     });
     expect(ready).toHaveBeenCalledWith("chan-1");
   });
@@ -288,11 +288,14 @@ describe("Extension", () => {
     await expect(harness.call("health_check", {})).rejects.toBeInstanceOf(ShutdownInProgressError);
   });
 
-  it("registers executable tools and serves runtime descriptors", async () => {
+  it("registers executable tools and preserves trusted invocation context", async () => {
     const harness = new TestHarness();
+    const clarify = vi.fn(async () => ({ text: "ship it", fallback: false }));
+    harness.mockHostAPI("clarify/ask", clarify);
     const extension = new Extension({
       name: "linear",
       version: "0.1.0",
+      permissions: { requires: ["clarify/ask"] },
     });
 
     extension.tool<{ query: string }>(
@@ -307,12 +310,17 @@ describe("Extension", () => {
           },
         },
       },
-      async ({ input }) => ({
-        content: [{ type: "text", text: `found ${input.query}` }],
-        truncated: false,
-        bytes: 0,
-        duration_ms: 0,
-      })
+      async ({ input, trustedWorkspace, invocationId, askClarification }) => {
+        expect(trustedWorkspace).toEqual({ id: "workspace-1", root: "/workspace/one" });
+        expect(invocationId).toBe("invocation-1");
+        const answer = await askClarification({ question: "Deploy?", choices: ["yes", "no"] });
+        return {
+          content: [{ type: "text", text: `found ${input.query}: ${answer.text}` }],
+          truncated: false,
+          bytes: 0,
+          duration_ms: 0,
+        };
+      }
     );
 
     await harness.loadExtension(extension);
@@ -327,8 +335,16 @@ describe("Extension", () => {
         {
           id: "ext__linear__search",
           handler: "search",
+          input_schema: {
+            required: ["query"],
+            type: "object",
+            properties: {
+              query: { type: "string" },
+            },
+          },
           input_schema_digest: "1dc63095e8672403bbe40fa26719d175e695c0167f6daad6b9655f6506491f01",
           read_only: true,
+          requires_interaction: false,
           risk: "read",
           capabilities: [],
         },
@@ -340,15 +356,120 @@ describe("Extension", () => {
         tool_id: "ext__linear__search",
         handler: "search",
         session_id: "session-1",
+        invocation_id: "invocation-1",
+        trusted_workspace: { id: "workspace-1", root: "/workspace/one" },
         input: { query: "alpha" },
       })
     ).resolves.toEqual({
       result: {
-        content: [{ type: "text", text: "found alpha" }],
+        content: [{ type: "text", text: "found alpha: ship it" }],
         truncated: false,
         bytes: 0,
         duration_ms: 0,
       },
+    });
+    expect(clarify).toHaveBeenCalledWith({
+      invocation_id: "invocation-1",
+      question: "Deploy?",
+      choices: ["yes", "no"],
+    });
+  });
+
+  it("prints a deterministic describe payload and exits without transport startup", async () => {
+    const harness = new TestHarness();
+    const extension = new Extension(
+      {
+        name: "describe-fixture",
+        version: "0.1.0",
+        description: "Describe fixture",
+        subprocess: { command: "node", args: ["index.js"] },
+        permissions: { requires: ["sessions/list"] },
+        supported_hook_events: ["prompt.post_assemble"],
+      },
+      { describeProcess: harness.captureDescribeProcess() }
+    );
+    extension.tool<{ query: string }>(
+      "search",
+      {
+        description: "Search extension data",
+        readOnly: true,
+        requiresInteraction: true,
+        inputSchema: {
+          type: "object",
+          required: ["query"],
+          properties: { query: { type: "string" } },
+        },
+        command: {
+          verb: "review/search",
+          summary: "Search reviews",
+          flags: { query: "query" },
+        },
+      },
+      async () => ({ content: [], truncated: false, bytes: 0, duration_ms: 0 })
+    );
+    extension.commandGroup("review", "Review commands");
+    extension.watchSource("reviews", {}, async () => ({ ready: false }));
+
+    await expect(extension.start()).resolves.toBeDefined();
+    const result = harness.getDescribeResult();
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout.trim().split("\n")).toHaveLength(1);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      name: "describe-fixture",
+      version: "0.1.0",
+      description: "Describe fixture",
+      provides: ["loop.watch_source", "tool.provider"],
+      permissions: ["sessions/list"],
+      subprocess: { command: "node", args: ["index.js"] },
+      tools: [
+        {
+          id: "ext__describe_fixture__search",
+          handler: "search",
+          description: "Search extension data",
+          input_schema: {
+            type: "object",
+            required: ["query"],
+            properties: { query: { type: "string" } },
+          },
+          input_schema_digest: schemaDigest({
+            type: "object",
+            required: ["query"],
+            properties: { query: { type: "string" } },
+          }),
+          requires_interaction: true,
+          command: {
+            verb: "review/search",
+            summary: "Search reviews",
+            flags: { query: "query" },
+          },
+        },
+      ],
+      command_groups: [{ path: "review", summary: "Review commands" }],
+      hook_events: ["prompt.post_assemble"],
+      watch_source_kinds: ["reviews"],
+      sdk: {
+        name: "@compozy/extension-sdk",
+        protocol_version: "1",
+        min_compozy_version: "0.3.0-beta.1",
+      },
+    });
+  });
+
+  it("rejects model source initialize when generated required methods are missing", async () => {
+    const pair = createMockTransportPair();
+    const extension = new Extension(
+      {
+        name: "incomplete-model-source",
+        version: "0.1.0",
+        capabilities: { provides: ["model.source"] },
+      },
+      { transport: pair.extension }
+    );
+
+    void extension.start();
+    await expect(pair.host.call("initialize", initializeFor(extension))).rejects.toMatchObject({
+      constructor: InternalError,
+      data: { error: expect.stringContaining("models/list") },
     });
   });
 

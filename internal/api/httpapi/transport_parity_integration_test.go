@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"slices"
 	"sort"
@@ -606,33 +607,14 @@ func extensionsSemanticallyEqual(left, right []compozycontract.ExtensionPayload)
 func extensionSemanticallyEqual(left, right compozycontract.ExtensionPayload) bool {
 	left = normalizeExtensionPayload(left)
 	right = normalizeExtensionPayload(right)
-
-	if left.Name != right.Name ||
-		left.Version != right.Version ||
-		left.Type != right.Type ||
-		left.Source != right.Source ||
-		left.Enabled != right.Enabled ||
-		left.State != right.State ||
-		left.PID != right.PID ||
-		left.UptimeSeconds != right.UptimeSeconds ||
-		left.Health != right.Health ||
-		left.HealthMessage != right.HealthMessage ||
-		left.LastError != right.LastError ||
-		left.DaemonRunning != right.DaemonRunning {
-		return false
-	}
-	if !slices.Equal(left.Capabilities, right.Capabilities) {
-		return false
-	}
-	if !slices.Equal(left.Actions, right.Actions) {
-		return false
-	}
-	return extensionBundlesSemanticallyEqual(left.Bundles, right.Bundles)
+	return reflect.DeepEqual(left, right)
 }
 
 func normalizeExtensionPayload(value compozycontract.ExtensionPayload) compozycontract.ExtensionPayload {
 	value.Capabilities = normalizeStrings(value.Capabilities)
-	value.Actions = normalizeStrings(value.Actions)
+	value.Permissions = normalizeStrings(value.Permissions)
+	value.RequiresEnv = normalizeStrings(value.RequiresEnv)
+	value.MissingEnv = normalizeStrings(value.MissingEnv)
 	value.Bundles = normalizeExtensionBundles(value.Bundles)
 	return value
 }
@@ -650,17 +632,6 @@ func normalizeExtensionBundles(
 		normalized[idx] = value
 	}
 	return normalized
-}
-
-func extensionBundlesSemanticallyEqual(
-	left,
-	right []compozycontract.ExtensionBundleSummaryPayload,
-) bool {
-	return slices.EqualFunc(left, right, func(left, right compozycontract.ExtensionBundleSummaryPayload) bool {
-		return left.Name == right.Name &&
-			left.Description == right.Description &&
-			slices.Equal(left.Profiles, right.Profiles)
-	})
 }
 
 func normalizeStrings(values []string) []string {

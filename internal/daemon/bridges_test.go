@@ -2392,7 +2392,12 @@ func mustInstallDaemonExtension(
 	if err != nil {
 		t.Fatalf("ComputeDirectoryChecksum(%s) error = %v", dir, err)
 	}
-	if err := registry.Install(manifest, dir, checksum); err != nil {
+	if err := registry.Install(
+		manifest,
+		dir,
+		checksum,
+		extensionpkg.WithInstallSource(extensionpkg.SourceBundled),
+	); err != nil {
 		t.Fatalf("Install(%s) error = %v", fixture.name, err)
 	}
 	if !fixture.enabled {

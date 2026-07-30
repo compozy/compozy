@@ -1,11 +1,11 @@
 ---
 title: "compozy extension search"
-description: "Search marketplace extensions"
+description: "Search curated and GitHub extensions"
 ---
 
 ## compozy extension search
 
-Search marketplace extensions
+Search curated and GitHub extensions
 
 ```
 compozy extension search <query> [flags]
@@ -14,8 +14,10 @@ compozy extension search <query> [flags]
 ### Options
 
 ```
-  -h, --help        help for search
-      --limit int   Maximum number of extension registry results to return (default 20)
+      --cursor string    Continue a stable extension search page
+  -h, --help             help for search
+      --limit int        Maximum number of extension registry results to return (default 20)
+      --sources string   Comma-separated discovery sources: curated,github (default "curated,github")
 ```
 
 ### Options inherited from parent commands

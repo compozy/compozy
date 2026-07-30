@@ -614,7 +614,7 @@ func buildGoSDKToolProviderBinary(t *testing.T, name string, readOnly bool) stri
 	writeFile(
 		t,
 		filepath.Join(dir, "go.mod"),
-		"module example.com/"+name+"\n\ngo 1.26.4\n\nrequire github.com/compozy/compozy v0.0.0\n",
+		"module example.com/"+name+"\n\ngo 1.26.4\n\nrequire github.com/compozy/compozy/sdk/go v0.0.0\n",
 	)
 	writeFile(t, filepath.Join(dir, "main.go"), goSDKToolProviderSource(name, readOnly))
 
@@ -624,7 +624,7 @@ func buildGoSDKToolProviderBinary(t *testing.T, name string, readOnly bool) stri
 		"mod",
 		"edit",
 		"-replace",
-		"github.com/compozy/compozy="+repoRoot,
+		"github.com/compozy/compozy/sdk/go="+filepath.Join(repoRoot, "sdk", "go"),
 	)
 	edit.Dir = dir
 	if output, err := edit.CombinedOutput(); err != nil {

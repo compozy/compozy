@@ -353,8 +353,10 @@ type skillsOverlay struct {
 }
 
 type extensionsOverlay struct {
-	Marketplace extensionsMarketplaceOverlay `toml:"marketplace"`
-	Resources   extensionsResourcesOverlay   `toml:"resources"`
+	Trust     extensionsTrustOverlay     `toml:"trust"`
+	Sources   extensionsSourcesOverlay   `toml:"sources"`
+	Dev       extensionsDevOverlay       `toml:"dev"`
+	Resources extensionsResourcesOverlay `toml:"resources"`
 }
 
 type extensionsResourcesOverlay struct {

@@ -358,10 +358,11 @@ func schedulerWakeMessage(target *schedulerpkg.WakeTarget) string {
 	return fmt.Sprintf(
 		"A task run is queued and may be claimable by this session.\n\n"+
 			"Task: %s\nRun: %s\n\n"+
-			"Use the existing task claim path before doing any work. "+
+			"%s "+
 			"This notification does not assign ownership.",
 		taskTitle,
 		strings.TrimSpace(target.Work.Run.ID),
+		taskClaimNativeInstruction(target.Work.Run.ID, nil),
 	)
 }
 

@@ -1333,7 +1333,7 @@ func TestExtensionCommandRoundTripIntegration(t *testing.T) {
 	t.Parallel()
 
 	h := newIntegrationHarness(t)
-	h.runner.cfg.Extensions.Marketplace.AllowUnverified = true
+	h.runner.cfg.Extensions.Trust.AllowUnverified = true
 	mustExecuteRoot(t, h.deps, "daemon", "start", "-o", "json")
 	defer func() {
 		_, _, _ = executeRootCommand(t, h.deps, "daemon", "stop", "-o", "json")
@@ -3136,6 +3136,21 @@ type integrationExtensionService struct {
 	marketplaceTrust                 *extensionpkg.MarketplaceTrustEvidence
 }
 
+func (s *integrationExtensionService) Search(
+	context.Context,
+	contract.ExtensionSearchRequest,
+) (contract.ExtensionSearchResponse, error) {
+	return contract.ExtensionSearchResponse{}, nil
+}
+
+func (s *integrationExtensionService) UpdateBatch(
+	context.Context,
+	contract.UpdateExtensionsRequest,
+	taskpkg.ActorContext,
+) ([]contract.ManagedExtensionUpdatePayload, error) {
+	return nil, nil
+}
+
 type integrationBridgeSecretStore interface {
 	ListBridgeSecretBindings(context.Context, string) ([]bridgepkg.BridgeSecretBinding, error)
 	PutBridgeSecretBinding(context.Context, bridgepkg.BridgeSecretBinding) error
@@ -3397,15 +3412,19 @@ func (s *integrationExtensionService) Install(
 	req contract.InstallExtensionRequest,
 	_ taskpkg.ActorContext,
 ) (contract.ExtensionPayload, error) {
-	if strings.TrimSpace(req.Slug) != "" {
+	if req.Source != contract.InstallExtensionSourceLocalPath {
+		sourceFilter := string(req.Source)
+		if req.Source == contract.InstallExtensionSourceCurated {
+			sourceFilter = ""
+		}
 		info, err := extensionpkg.InstallMarketplaceManaged(
 			ctx,
 			s.homePaths,
 			s.registry,
 			s.marketplaceLoader,
 			extensionpkg.MarketplaceInstallRequest{
-				Slug:                   req.Slug,
-				SourceFilter:           req.Source,
+				Slug:                   req.Ref,
+				SourceFilter:           sourceFilter,
 				Version:                req.Version,
 				Asset:                  req.Asset,
 				PolicyAllowsUnverified: s.marketplacePolicyAllowUnverified,
@@ -3422,19 +3441,23 @@ func (s *integrationExtensionService) Install(
 		}
 		return s.Status(ctx, info.Name)
 	}
-	manifest, err := extensionpkg.LoadManifest(req.Path)
+	manifest, err := extensionpkg.LoadManifest(req.Ref)
 	if err != nil {
 		return contract.ExtensionPayload{}, err
 	}
 	if err := extensionpkg.ValidateUnverifiedSideLoad(
 		manifest.Name,
-		req.Path,
+		req.Ref,
 		s.marketplacePolicyAllowUnverified,
 		req.AllowUnverified,
 	); err != nil {
 		return contract.ExtensionPayload{}, err
 	}
-	if err := s.registry.Install(manifest, req.Path, req.Checksum); err != nil {
+	checksum, err := extensionpkg.ComputeDirectoryChecksum(req.Ref)
+	if err != nil {
+		return contract.ExtensionPayload{}, err
+	}
+	if err := extensionpkg.InstallLocalManaged(s.homePaths, s.registry, manifest, req.Ref, checksum); err != nil {
 		return contract.ExtensionPayload{}, err
 	}
 	if err := s.manager.Reload(ctx); err != nil {
@@ -3833,7 +3856,7 @@ func (d *integrationDaemon) Run(ctx context.Context) (runErr error) {
 		registry:                         extRegistry,
 		manager:                          extManager,
 		marketplaceLoader:                d.extensionMarketplaceLoader(),
-		marketplacePolicyAllowUnverified: d.cfg.Extensions.Marketplace.AllowUnverified,
+		marketplacePolicyAllowUnverified: d.cfg.Extensions.Trust.AllowUnverified,
 		marketplaceTrust:                 d.extensionTrust,
 	}
 

@@ -7,8 +7,11 @@ guide for the executable reference, architecture, implementation sequence, and o
 Do not duplicate that walkthrough here.
 
 In-tree providers are trusted Go extensions and may import `internal/bridgesdk`. External modules
-cannot use these internal packages, and Compozy does not yet publish a complete external bridge SDK,
-grant surface, or conformance harness.
+cannot use these internal packages. External bridge authoring is a **planned follow-up program**
+(ADR-006): the public bridge SDK surface, grant model, and importable conformance harness are not
+implemented yet, and an installed third-party manifest declaring `bridge.adapter` is rejected
+deterministically. The generated contract layer already emits the bridge service methods as
+groundwork that follow-up program consumes.
 
 ## Canonical owners
 
@@ -16,7 +19,7 @@ grant surface, or conformance harness.
 | ----------------------------------------- | ----------------------------------------------------------------- |
 | Wire types shared with provider binaries  | `internal/bridges/contract`                                       |
 | Runtime/session/lifecycle helpers         | `internal/bridgesdk`                                              |
-| CI-safe protocol implementation           | `sdk/examples/telegram-reference`                                 |
+| CI-safe protocol implementation           | `internal/extension/testdata/telegram-reference`                  |
 | Modern lifecycle and HTTP composition     | `extensions/bridges/slack`                                        |
 | Remote webhook control runtime            | `extensions/bridges/telegram`                                     |
 | Service/control subprocess boundary       | `internal/extension` and `internal/subprocess`                    |

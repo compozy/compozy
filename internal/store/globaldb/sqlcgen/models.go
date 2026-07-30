@@ -436,19 +436,27 @@ type EventSummary struct {
 }
 
 type Extension struct {
-	Name           string         `json:"name"`
-	Version        string         `json:"version"`
-	Source         string         `json:"source"`
-	Enabled        bool           `json:"enabled"`
-	ManifestPath   string         `json:"manifest_path"`
-	InstalledAt    string         `json:"installed_at"`
-	Capabilities   string         `json:"capabilities"`
-	Actions        string         `json:"actions"`
-	Checksum       string         `json:"checksum"`
-	RegistrySlug   sql.NullString `json:"registry_slug"`
-	RegistryName   sql.NullString `json:"registry_name"`
-	RemoteVersion  sql.NullString `json:"remote_version"`
-	ProvenanceJson string         `json:"provenance_json"`
+	Name            string         `json:"name"`
+	Version         string         `json:"version"`
+	Source          string         `json:"source"`
+	Enabled         bool           `json:"enabled"`
+	ManifestPath    string         `json:"manifest_path"`
+	InstalledAt     string         `json:"installed_at"`
+	ProvidesJson    string         `json:"provides_json"`
+	PermissionsJson string         `json:"permissions_json"`
+	Checksum        string         `json:"checksum"`
+	RegistrySlug    sql.NullString `json:"registry_slug"`
+	RegistryName    sql.NullString `json:"registry_name"`
+	RemoteVersion   sql.NullString `json:"remote_version"`
+	ProvenanceJson  string         `json:"provenance_json"`
+}
+
+type ExtensionDevLink struct {
+	ExtensionName    string    `json:"extension_name"`
+	WorkspaceID      string    `json:"workspace_id"`
+	OriginPath       string    `json:"origin_path"`
+	BundleGeneration string    `json:"bundle_generation"`
+	LinkedAt         time.Time `json:"linked_at"`
 }
 
 type LoopConfig struct {

@@ -199,6 +199,15 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			toolspkg.ToolIDLoopApprove,
 			toolspkg.ToolIDLoopDelete,
 			toolspkg.ToolIDMarketplaceSearch,
+			toolspkg.ToolIDExtensionsInit,
+			toolspkg.ToolIDExtensionsBuild,
+			toolspkg.ToolIDExtensionsValidate,
+			toolspkg.ToolIDExtensionsDev,
+			toolspkg.ToolIDExtensionsReload,
+			toolspkg.ToolIDExtensionsLogs,
+			toolspkg.ToolIDExtensionsSearch,
+			toolspkg.ToolIDExtensionsProvenance,
+			toolspkg.ToolIDExtensionsPublish,
 			toolspkg.ToolIDExtensionsList,
 			toolspkg.ToolIDExtensionsInfo,
 			toolspkg.ToolIDExtensionsInstall,
@@ -768,6 +777,25 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			false,
 		)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDNetworkSend], toolspkg.RiskOpenWorld, false, false, true)
+		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDExtensionsSearch], toolspkg.RiskRead, true, false, false)
+		requireDescriptorRisk(
+			t,
+			descriptors[toolspkg.ToolIDExtensionsProvenance],
+			toolspkg.RiskRead,
+			true,
+			false,
+			false,
+		)
+		publish := descriptors[toolspkg.ToolIDExtensionsPublish]
+		requireDescriptorRisk(t, publish, toolspkg.RiskOpenWorld, false, false, true)
+		if !publish.RequiresInteraction {
+			t.Fatal("extensions_publish RequiresInteraction = false, want true")
+		}
+		for _, forbidden := range []string{"credential", "secret", "token"} {
+			if strings.Contains(strings.ToLower(string(publish.InputSchema)), forbidden) {
+				t.Fatalf("extensions_publish schema contains forbidden credential field %q", forbidden)
+			}
+		}
 		requireDescriptorRisk(
 			t,
 			descriptors[toolspkg.ToolIDNetworkDirectResolve],

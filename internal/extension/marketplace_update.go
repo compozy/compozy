@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
+	diagnosticspkg "github.com/compozy/compozy/internal/diagnostics"
 	registrypkg "github.com/compozy/compozy/internal/registry"
 )
 
@@ -29,17 +31,61 @@ func UpdateMarketplaceManaged(
 	for _, info := range targets {
 		item, err := updateMarketplaceExtension(ctx, homePaths, registry, loader, info, req, reload)
 		if err != nil {
-			if item.Status != "" {
-				items = append(items, item)
-			}
-			if len(items) == 0 {
-				return nil, err
-			}
+			item = failedMarketplaceUpdateResult(info, item, err)
+			items = append(items, item)
 			return items, newMarketplaceUpdateBatchError(info.Name, items, err)
 		}
 		items = append(items, item)
 	}
 	return items, nil
+}
+
+func failedMarketplaceUpdateResult(
+	info ExtensionInfo,
+	item MarketplaceUpdateResult,
+	cause error,
+) MarketplaceUpdateResult {
+	if strings.TrimSpace(item.Name) == "" {
+		item.Name = strings.TrimSpace(info.Name)
+	}
+	if strings.TrimSpace(item.Slug) == "" {
+		item.Slug = dereferenceOptionalString(info.RegistrySlug)
+	}
+	if strings.TrimSpace(item.Registry) == "" {
+		item.Registry = dereferenceOptionalString(info.RegistryName)
+	}
+	if strings.TrimSpace(item.CurrentVersion) == "" {
+		item.CurrentVersion = firstNonEmpty(dereferenceOptionalString(info.RemoteVersion), info.Version)
+	}
+	if strings.TrimSpace(item.LatestVersion) == "" {
+		item.LatestVersion = item.CurrentVersion
+	}
+	if strings.TrimSpace(item.Path) == "" {
+		if manifestPath := strings.TrimSpace(info.ManifestPath); manifestPath != "" {
+			item.Path = filepath.Dir(manifestPath)
+		}
+	}
+	item.Status = MarketplaceUpdateStatusFailed
+	item.Error = marketplaceUpdateFailureDiagnostic(item.Name, cause)
+	return item
+}
+
+func marketplaceUpdateFailureDiagnostic(name string, cause error) *diagnosticcontract.DiagnosticItem {
+	message := fmt.Sprintf("Extension %q could not be updated.", strings.TrimSpace(name))
+	if errors.Is(cause, context.Canceled) || errors.Is(cause, context.DeadlineExceeded) {
+		message = fmt.Sprintf("Extension %q update was interrupted.", strings.TrimSpace(name))
+	}
+	item := diagnosticspkg.NewItem(
+		"extension-update-failed:"+strings.TrimSpace(name),
+		diagnosticcontract.CodeExtensionUpdateFailed,
+		diagnosticcontract.CategoryExtension,
+		"Extension update failed",
+		message,
+		diagnosticcontract.SeverityError,
+		diagnosticcontract.FreshnessLive,
+		diagnosticspkg.WithSuggestedCommand("compozy extension status "+strings.TrimSpace(name)),
+	)
+	return &item
 }
 
 func updateMarketplaceExtension(
@@ -326,6 +372,7 @@ func marketplaceUpdateProvenance(
 		provenance.CatalogEntryID = strings.TrimSpace(trust.CatalogEntryID)
 		provenance.SourceURL = firstNonEmpty(curatedMarketplaceSourceURL(trust), provenance.SourceURL)
 		provenance.ArchiveDigestSHA256 = result.ArchiveDigestSHA256
+		provenance.DigestMatched = result.DigestMatched
 		provenance.ChecksumVerified = true
 		provenance.RegistryTier = registryTier
 		provenance.AllowUnverified = registryTier == ExtensionRegistryTierUnverified && allowUnverified
@@ -333,9 +380,10 @@ func marketplaceUpdateProvenance(
 		return provenance
 	}
 	provenance.CatalogEntryID = ""
-	provenance.ArchiveDigestSHA256 = ""
+	provenance.ArchiveDigestSHA256 = result.ArchiveDigestSHA256
+	provenance.DigestMatched = result.DigestMatched
 	provenance.ChecksumVerified = false
-	provenance.RegistryTier = registryTierForSource(SourceMarketplace, registryName)
+	provenance.RegistryTier = ExtensionRegistryTierUnverified
 	provenance.AllowUnverified = allowUnverified
 	provenance.Warnings = []diagnosticcontract.DiagnosticItem{
 		extensionChecksumUnverifiedDiagnostic(provenance.Slug, registryName, allowUnverified),

@@ -29,7 +29,9 @@ func (o skillsOverlay) Apply(dst *SkillsConfig) {
 }
 
 func (o extensionsOverlay) Apply(dst *ExtensionsConfig) {
-	o.Marketplace.Apply(&dst.Marketplace)
+	o.Trust.Apply(&dst.Trust)
+	o.Sources.Apply(&dst.Sources)
+	o.Dev.Apply(&dst.Dev)
 	o.Resources.Apply(&dst.Resources)
 }
 

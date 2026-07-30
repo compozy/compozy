@@ -16,6 +16,7 @@ export type RuntimeMode = RuntimeModeAttach | RuntimeModeLaunch;
 
 export interface RuntimeConfigInput {
   extensionsAllowUnverified?: boolean;
+  extensionsGitHubBaseURL?: string;
   host: string;
   includeMockAgentProvider?: boolean;
   modelsDevEnabled?: boolean;
@@ -75,8 +76,16 @@ export function renderRuntimeConfig(input: RuntimeConfigInput): string {
     ...(input.extensionsAllowUnverified === undefined
       ? []
       : [
-          "[extensions.marketplace]",
+          "[extensions.trust]",
           `allow_unverified = ${input.extensionsAllowUnverified ? "true" : "false"}`,
+          "",
+        ]),
+    ...(input.extensionsGitHubBaseURL === undefined
+      ? []
+      : [
+          "[extensions.sources.github]",
+          "enabled = true",
+          `base_url = ${tomlString(input.extensionsGitHubBaseURL)}`,
           "",
         ]),
     ...(input.skillsMarketplaceBaseURL === undefined

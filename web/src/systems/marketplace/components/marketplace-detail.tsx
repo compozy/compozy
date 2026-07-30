@@ -268,7 +268,15 @@ function MarketplaceDetailManage({
 }) {
   const name = entry.installed_name?.trim() || entry.name;
   if (entry.kind === "skill") return <MarketplaceDetailSkillManage name={name} />;
-  if (entry.kind === "extension") return <MarketplaceDetailExtensionManage name={name} />;
+  if (entry.kind === "extension") {
+    return (
+      <MarketplaceDetailExtensionManage
+        catalogUpdateAvailable={entry.update_available}
+        catalogVersion={entry.version}
+        name={name}
+      />
+    );
+  }
   if (entry.kind === "mcp") {
     return (
       <MarketplaceDetailMCPManage entry={entry} scope={mcpScope} workspaceId={mcpWorkspaceId} />
@@ -317,7 +325,7 @@ function MarketplaceTrustRail({
         <MarketplaceKvRow term="Decision">{trust.decision.replaceAll("_", " ")}</MarketplaceKvRow>
         <MarketplaceKvRow term="Registry tier">{trust.registry_tier}</MarketplaceKvRow>
         <MarketplaceKvRow term="Checksum">
-          {trust.checksum_verified ? "verified" : "checked during install"}
+          {trust.checksum_verified ? "verified" : "not yet verified"}
         </MarketplaceKvRow>
         <MarketplaceKvRow term="Warnings">{String(trust.warnings?.length ?? 0)}</MarketplaceKvRow>
       </MarketplaceKvRail>

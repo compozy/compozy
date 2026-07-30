@@ -13,6 +13,7 @@ import (
 
 const (
 	ExtensionInstalledFromMarketplace = "marketplace_registry"
+	ExtensionInstalledFromGitHub      = "github"
 	ExtensionInstalledFromLocalPath   = "local_path"
 	ExtensionInstalledFromGitURL      = "git_url"
 
@@ -27,7 +28,7 @@ const (
 	extensionTrustInstalledByOperator = "operator"
 	extensionTrustEvidenceSourceKey   = "source"
 	extensionTrustEvidenceVersionKey  = "version"
-	extensionTrustGitHubSource        = "github"
+	extensionRegistrySourceGit        = "git"
 )
 
 var ErrExtensionChecksumUnverified = errors.New("extension: checksum is unverified")
@@ -40,6 +41,7 @@ type ExtensionProvenance struct {
 	SourceURL           string                    `json:"source_url,omitempty"`
 	ChecksumSHA256      string                    `json:"checksum_sha256"`
 	ArchiveDigestSHA256 string                    `json:"archive_digest_sha256,omitempty"`
+	DigestMatched       bool                      `json:"digest_matched"`
 	ChecksumVerified    bool                      `json:"checksum_verified"`
 	RegistryTier        string                    `json:"registry_tier"`
 	Permissions         []string                  `json:"permissions,omitempty"`
@@ -187,8 +189,7 @@ func extensionPermissions(manifest *Manifest) []string {
 	}
 	items := permissionSet{}
 	items.addValues("capabilities.provides", manifest.Capabilities.Provides)
-	items.addValues("security.capability", manifest.Security.Capabilities)
-	items.addValues("actions.requires", manifest.Actions.Requires)
+	items.addValues("permissions.requires", manifest.Permissions.Requires)
 	items.addValues("requires_env", manifest.RequiresEnv)
 	if len(manifest.Resources.Publish.Families) > 0 {
 		items.addValues("resources.publish.family", manifest.Resources.Publish.Families)
@@ -227,10 +228,10 @@ func extensionPermissions(manifest *Manifest) []string {
 	return items.sorted()
 }
 
-func extensionPermissionsFromParts(capabilities CapabilitiesConfig, actions ActionsConfig) []string {
+func extensionPermissionsFromParts(capabilities CapabilitiesConfig, permissions PermissionsConfig) []string {
 	items := permissionSet{}
 	items.addValues("capabilities.provides", capabilities.Provides)
-	items.addValues("actions.requires", actions.Requires)
+	items.addValues("permissions.requires", permissions.Requires)
 	return items.sorted()
 }
 
@@ -279,17 +280,14 @@ func installedFromForSource(source ExtensionSource) string {
 	}
 }
 
-func registryTierForSource(source ExtensionSource, registryName string) string {
-	if source != SourceMarketplace {
-		return ExtensionRegistryTierUnverified
-	}
-	switch strings.ToLower(strings.TrimSpace(registryName)) {
-	case extensionTrustGitHubSource:
-		return ExtensionRegistryTierCommunity
-	case "":
-		return ExtensionRegistryTierUnverified
+func installedFromForRegistrySource(source string) string {
+	switch strings.ToLower(strings.TrimSpace(source)) {
+	case ExtensionInstalledFromGitHub:
+		return ExtensionInstalledFromGitHub
+	case extensionRegistrySourceGit:
+		return ExtensionInstalledFromGitURL
 	default:
-		return ExtensionRegistryTierCommunity
+		return ExtensionInstalledFromMarketplace
 	}
 }
 

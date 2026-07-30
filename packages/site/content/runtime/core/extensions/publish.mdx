@@ -1,0 +1,158 @@
+---
+title: Publish an Extension
+description: Ship an extension to other people through GitHub Releases or a plain Git repository — no catalog gatekeeper, no pull request to Compozy.
+---
+
+Publishing an extension does not require a pull request to `compozy/compozy` and does not require the
+curated catalog. You own a repository; that is the whole prerequisite.
+
+```bash
+compozy extension build
+compozy extension publish ./dist/gen-<hash> --repository acme/hello --tag v0.1.0
+```
+
+Anyone can then install it:
+
+```bash
+compozy extension install github:acme/hello@v0.1.0
+```
+
+## Before you publish
+
+Publish an **immutable generation**, never a source directory. `build` produces one:
+
+```bash
+compozy extension build
+```
+
+```json
+{
+  "name": "hello",
+  "generation_hash": "cc1358b134cbf3394c562604dc17ad10b41c5478d32f01d3acb4c1f7e61b6b13",
+  "generation_dir": "/work/hello/dist/gen-cc1358…",
+  "manifest_path": "/work/hello/dist/gen-cc1358…/extension.toml"
+}
+```
+
+Then check what an installer will see:
+
+```bash
+compozy extension validate ./dist/gen-cc1358… -o json
+```
+
+Fix every `error` issue. Warnings are advisory. The `consent_areas` in that report are exactly what an
+operator is asked to accept — if they are wider than your extension needs, narrow
+[`permissions.requires`](/runtime/core/extensions/permissions) before you ship, not after.
+
+Remember the published ceiling: extensions installed from `curated`, `github`, or `git` run under the
+marketplace tier, whose grants are limited to `logs.read`, `memory.read`, `observe.read`,
+`session.read`, `skills.read`, and `tool.read`. Anything outside that is dropped at grant time with a
+recorded diagnostic.
+
+## Publish to GitHub Releases
+
+```bash
+export GITHUB_TOKEN=<token with repo scope>
+compozy extension publish ./dist/gen-<hash> --repository acme/hello --tag v0.1.0
+```
+
+| Flag           | Required | Meaning                                              |
+| -------------- | -------- | ---------------------------------------------------- |
+| `--repository` | yes      | `owner/name`.                                        |
+| `--tag`        | yes      | Release tag. Convention: match the manifest version. |
+| `--draft`      | no       | Create or update a draft release.                    |
+
+The generation directory argument defaults to the working directory.
+
+`publish` archives the generation as `<name>-<tag>.tar.gz`, computes its SHA-256, and uploads both the
+archive and a `<asset>.sha256` sidecar to the release. The result names all three:
+
+```json
+{
+  "release_url": "https://github.com/acme/hello/releases/tag/v0.1.0",
+  "asset_url": "https://github.com/acme/hello/releases/download/v0.1.0/hello-v0.1.0.tar.gz",
+  "digest_sha256": "6f1c…"
+}
+```
+
+<OperatorNote label="Credentials never travel in a payload">
+  The CLI reads `GITHUB_TOKEN` from its own process environment. The agent-facing
+  `compozy__extensions_publish` tool resolves `env:GITHUB_TOKEN` and then `vault:github/publish`
+  **inside the daemon** and registers the value for redaction. No surface accepts a credential
+  field, and an unresolvable credential fails before any upload.
+</OperatorNote>
+
+`publish` is a CLI-local and native-tool verb. It has no HTTP or UDS route.
+
+## What the digest sidecar does — and does not do
+
+When a release carries `<asset>.sha256`, the installer verifies the downloaded archive against it
+before extraction and records `digest_matched` in provenance.
+
+That is an **integrity** fact only. A matching sidecar never raises the registry tier above
+`unverified`, never sets `checksum_verified`, and never removes the install-time consent requirement.
+A mismatch aborts the install before any registry write, with no unverified bypass.
+
+`checksum_verified` remains exclusive to curated catalog installs, where the digest is pinned by the
+feed rather than by the publisher.
+
+## Publish through plain Git
+
+No release process, no token:
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+Consumers install with a shallow clone at the ref:
+
+```bash
+compozy extension install git:https://github.com/acme/hello@v0.1.0
+```
+
+The repository must contain a built generation — commit `dist/gen-<hash>/` or make the repository root
+the generation. Git installs need the `git` executable on the daemon host; a missing binary is the
+deterministic `extension_git_unavailable` diagnostic. URLs carrying embedded credentials are rejected
+before any request.
+
+## Ship an update
+
+Build, publish a new tag, and consumers pick it up:
+
+```bash
+compozy extension build
+compozy extension publish ./dist/gen-<new-hash> --repository acme/hello --tag v0.2.0
+```
+
+```bash
+compozy extension update hello
+```
+
+Update availability is a passive projection: `compozy extension list` shows an `Update` column and
+`compozy extension search` reports the remote version, with no `--check` flag required. Batch updates
+(`compozy extension update --all`) report per-item progress and stop at the first failure without
+discarding completed items.
+
+## Help people find it
+
+Source-union search spans the curated catalog and GitHub:
+
+```bash
+compozy extension search notes --sources curated,github
+```
+
+GitHub discovery is unauthenticated by default and subject to anonymous rate limits; a
+`GITHUB_TOKEN` in the daemon environment raises them. A rate-limited or unreachable source degrades
+to cached-or-omitted results with a `sources_degraded` marker rather than failing the whole search.
+
+The curated catalog remains a separate, editorially selected feed with digest pinning. Publishing
+does not require it, and not being in it costs a publisher only the `official`/`community` tier
+badge.
+
+## Related
+
+- [Install Extensions](/runtime/core/extensions/install) — the consumer side, source by source.
+- [Extension Permissions](/runtime/core/extensions/permissions) — the published-source ceiling.
+- [`compozy extension publish`](/runtime/cli-reference/extension/publish)
+- [`compozy extension install`](/runtime/cli-reference/extension/install)

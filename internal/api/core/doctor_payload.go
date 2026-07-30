@@ -42,6 +42,9 @@ func (h *BaseHandlers) doctorPayload(ctx context.Context, opts doctor.RunOptions
 			return contract.DoctorPayload{}, err
 		}
 	}
+	if err := h.registerExtensionDoctorProbe(registry); err != nil {
+		return contract.DoctorPayload{}, err
+	}
 	if h.RuntimeMemory != nil {
 		if err := registry.Register(&doctor.RuntimeMemoryProbe{Source: h.RuntimeMemory}); err != nil {
 			return contract.DoctorPayload{}, err

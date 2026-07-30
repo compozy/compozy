@@ -96,8 +96,8 @@ func validateBridgeInitializeRequest(request InitializeRequest) error {
 		return nil
 	}
 	capabilities := request.Capabilities
-	if len(capabilities.Provides) != 0 || len(capabilities.GrantedActions) != 0 ||
-		len(capabilities.GrantedSecurity) != 0 || len(capabilities.GrantedResourceKinds) != 0 ||
+	if len(capabilities.Provides) != 0 || len(capabilities.GrantedPermissions) != 0 ||
+		len(capabilities.GrantedResourceKinds) != 0 ||
 		len(capabilities.GrantedResourceScopes) != 0 {
 		return errors.New("subprocess: initialize bridge control runtime requires zero Host API grants")
 	}
@@ -114,8 +114,8 @@ func validateBridgeInitializeRequest(request InitializeRequest) error {
 
 func validateControlInitializeResponse(request InitializeRequest, response InitializeResponse) error {
 	runtime := request.Runtime.Bridge.normalize()
-	if len(response.AcceptedCapabilities.Provides) != 0 || len(response.AcceptedCapabilities.Actions) != 0 ||
-		len(response.AcceptedCapabilities.Security) != 0 {
+	if len(response.AcceptedCapabilities.Provides) != 0 ||
+		len(response.AcceptedCapabilities.Permissions) != 0 {
 		return errors.New("subprocess: initialize bridge control response accepted unexpected capabilities")
 	}
 	implemented := append([]string(nil), response.ImplementedMethods...)

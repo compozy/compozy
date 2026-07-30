@@ -120,7 +120,7 @@ func (i *Installer) downloadInstallArchive(
 	if err := validateDownloadContentType(download.ContentType); err != nil {
 		return nil, err
 	}
-	download.expectedSHA256 = strings.TrimSpace(opts.ExpectedSHA256)
+	download.expectedSHA256 = firstNonEmpty(opts.ExpectedSHA256, download.ExpectedSHA256)
 	readerOwned = false
 	return download, nil
 }

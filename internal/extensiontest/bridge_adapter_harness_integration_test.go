@@ -29,7 +29,7 @@ func TestHarnessIntegrationTelegramReferenceConformance(t *testing.T) {
 	t.Run("Should ready_delivery", func(t *testing.T) {
 		startTime := time.Date(2026, 4, 11, 8, 0, 0, 0, time.UTC)
 		harness := NewHarness(t, HarnessConfig{
-			ExtensionDir: filepath.Join(repoRoot, "sdk", "examples", "telegram-reference"),
+			ExtensionDir: filepath.Join(repoRoot, "internal", "extension", "testdata", "telegram-reference"),
 			BoundSecrets: []subprocess.InitializeBridgeBoundSecret{
 				{BindingName: "bot_token", Kind: "token", Value: "telegram-bot-token"},
 			},
@@ -96,7 +96,7 @@ func TestHarnessIntegrationTelegramReferenceConformance(t *testing.T) {
 	t.Run("Should resume_delivery", func(t *testing.T) {
 		startTime := time.Date(2026, 4, 11, 8, 5, 0, 0, time.UTC)
 		harness := NewHarness(t, HarnessConfig{
-			ExtensionDir: filepath.Join(repoRoot, "sdk", "examples", "telegram-reference"),
+			ExtensionDir: filepath.Join(repoRoot, "internal", "extension", "testdata", "telegram-reference"),
 			BoundSecrets: []subprocess.InitializeBridgeBoundSecret{
 				{BindingName: "bot_token", Kind: "token", Value: "telegram-bot-token"},
 			},
@@ -167,7 +167,7 @@ func TestHarnessIntegrationTelegramReferenceConformance(t *testing.T) {
 	t.Run("Should auth_required_health", func(t *testing.T) {
 		startTime := time.Date(2026, 4, 11, 8, 10, 0, 0, time.UTC)
 		harness := NewHarness(t, HarnessConfig{
-			ExtensionDir: filepath.Join(repoRoot, "sdk", "examples", "telegram-reference"),
+			ExtensionDir: filepath.Join(repoRoot, "internal", "extension", "testdata", "telegram-reference"),
 			StartTime:    startTime,
 		})
 
@@ -202,7 +202,7 @@ func TestHarnessIntegrationTelegramReferenceConformance(t *testing.T) {
 	t.Run("Should multi_instance_provider_scope", func(t *testing.T) {
 		startTime := time.Date(2026, 4, 11, 8, 15, 0, 0, time.UTC)
 		harness := NewHarness(t, HarnessConfig{
-			ExtensionDir: filepath.Join(repoRoot, "sdk", "examples", "telegram-reference"),
+			ExtensionDir: filepath.Join(repoRoot, "internal", "extension", "testdata", "telegram-reference"),
 			ManagedInstances: []ManagedInstanceConfig{
 				{
 					ID:          "brg-telegram-reference-a",
@@ -362,8 +362,8 @@ func buildHarnessTelegramReferenceAdapter(t *testing.T, repoRoot string) {
 			"go",
 			"build",
 			"-o",
-			"./sdk/examples/telegram-reference/bin/telegram-reference",
-			"./sdk/examples/telegram-reference",
+			"./internal/extension/testdata/telegram-reference/bin/telegram-reference",
+			"./internal/extension/testdata/telegram-reference",
 		)
 		cmd.Dir = repoRoot
 		output, err := cmd.CombinedOutput()

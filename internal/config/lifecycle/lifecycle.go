@@ -79,7 +79,7 @@ var Matrix = []Rule{
 	{Pattern: "providers.*.models", Lifecycle: Live, DiffClass: DiffClassLive},
 	{Pattern: "providers.*.models.*", Lifecycle: Live, DiffClass: DiffClassLive},
 	{Pattern: "marketplace.catalog.*", Lifecycle: Live, DiffClass: DiffClassLive},
-	{Pattern: "extensions.marketplace.allow_unverified", Lifecycle: Live, DiffClass: DiffClassLive},
+	{Pattern: "extensions.trust.allow_unverified", Lifecycle: Live, DiffClass: DiffClassLive},
 	{Pattern: pathRoles, Lifecycle: Live, DiffClass: DiffClassLive},
 	{Pattern: pathRoles + ".*", Lifecycle: Live, DiffClass: DiffClassLive},
 	{Pattern: "providers.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},

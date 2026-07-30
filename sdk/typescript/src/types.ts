@@ -7,6 +7,9 @@ import type {
   HookPatchByEvent,
   HookPayloadByEvent,
   HostAPIMethod,
+  DescribeSubprocess,
+  ExtensionCommandGroupSpec,
+  ExtensionCommandSpec,
   RiskClass,
   SourceKind,
   ToolID,
@@ -73,6 +76,7 @@ export interface ToolConfig {
   tags?: string[];
   search_hints?: string[];
   required_capabilities?: string[];
+  command?: ExtensionCommandSpec;
 }
 
 export interface ResourcesConfig {
@@ -80,6 +84,7 @@ export interface ResourcesConfig {
   agents?: string[];
   hooks?: HookConfig[];
   tools?: Record<string, ToolConfig>;
+  command_groups?: ExtensionCommandGroupSpec[];
   mcp_servers?: Record<string, MCPServerConfig>;
 }
 
@@ -87,7 +92,7 @@ export interface CapabilitiesConfig {
   provides?: string[];
 }
 
-export interface ActionsConfig {
+export interface PermissionsConfig {
   requires?: HostAPIMethod[];
 }
 
@@ -99,10 +104,6 @@ export interface SubprocessConfig {
   shutdown_timeout?: string;
 }
 
-export interface SecurityConfig {
-  capabilities?: string[];
-}
-
 export interface ExtensionManifest {
   name: string;
   version: string;
@@ -110,21 +111,16 @@ export interface ExtensionManifest {
   min_compozy_version?: string;
   resources?: ResourcesConfig;
   capabilities?: CapabilitiesConfig;
-  actions?: ActionsConfig;
+  permissions?: PermissionsConfig;
   subprocess?: SubprocessConfig;
-  security?: SecurityConfig;
 }
 
 export interface ExtensionDefinition extends Pick<
   ExtensionManifest,
-  | "name"
-  | "version"
-  | "description"
-  | "min_compozy_version"
-  | "capabilities"
-  | "actions"
-  | "security"
+  "name" | "version" | "description" | "capabilities" | "permissions"
 > {
+  requires_env?: string[];
+  subprocess?: DescribeSubprocess;
   supported_hook_events?: HookEvent[];
 }
 

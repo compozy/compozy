@@ -1,4 +1,9 @@
-import type { BundleActivation, ExtensionEntry, ExtensionProvenance } from "@/systems/extensions";
+import type {
+  BundleActivation,
+  ExtensionEntry,
+  ExtensionLogEntry,
+  ExtensionProvenance,
+} from "@/systems/extensions";
 
 const trustWarning = {
   category: "supply_chain",
@@ -16,11 +21,12 @@ export const extensionProvenanceFixtures: Record<string, ExtensionProvenance> = 
     catalog_entry_id: "otel-bridge",
     checksum_sha256: "sha256:otel-bridge-060",
     checksum_verified: true,
+    digest_matched: true,
     installed_at: "2026-07-10T14:20:00Z",
     installed_by: "operator:web",
     installed_from: "marketplace_registry",
     permissions: ["sessions.read", "telemetry.write"],
-    registry_tier: "verified",
+    registry_tier: "official",
     slug: "compozy/otel-bridge",
     source_url: "https://compozy.com/registry/compozy/otel-bridge",
   },
@@ -29,6 +35,7 @@ export const extensionProvenanceFixtures: Record<string, ExtensionProvenance> = 
     catalog_entry_id: "slack-notify",
     checksum_sha256: "sha256:slack-notify-114",
     checksum_verified: false,
+    digest_matched: false,
     installed_at: "2026-07-08T09:15:00Z",
     installed_by: "operator:cli",
     installed_from: "marketplace_registry",
@@ -42,34 +49,38 @@ export const extensionProvenanceFixtures: Record<string, ExtensionProvenance> = 
 
 export const extensionFixtures: ExtensionEntry[] = [
   {
-    actions: ["export-spans", "flush-telemetry"],
     bundles: [],
-    capabilities: ["telemetry.export", "sessions.observe"],
+    capabilities: ["loop.watch_source", "tool.provider"],
+    consecutive_failures: 0,
     daemon_running: true,
     diagnostics: [],
+    digest_matched: true,
     enabled: true,
     health: "healthy",
     health_message: "Collector connection healthy",
     missing_env: [],
     name: "otel-bridge",
+    permissions: ["observe/health", "sessions/events", "sessions/list"],
     pid: 4812,
     provenance: extensionProvenanceFixtures["otel-bridge"],
     requires_env: ["OTEL_EXPORTER_OTLP_ENDPOINT"],
+    restart_backoff_ms: 0,
     source: "marketplace",
     state: "running",
     trust: {
       allow_unverified: false,
       checksum_verified: true,
       decision: "verified",
-      registry_tier: "verified",
+      registry_tier: "official",
       warnings: [],
     },
     type: "backend",
+    update_available: true,
+    remote_version: "0.6.0",
     uptime_seconds: 18420,
     version: "0.5.2",
   },
   {
-    actions: ["post-run-summary"],
     bundles: [
       {
         description: "Incident response capabilities and delivery channels.",
@@ -77,7 +88,8 @@ export const extensionFixtures: ExtensionEntry[] = [
         profiles: ["production"],
       },
     ],
-    capabilities: ["notifications.send"],
+    capabilities: ["tool.provider"],
+    consecutive_failures: 0,
     daemon_running: false,
     diagnostics: [
       {
@@ -91,14 +103,17 @@ export const extensionFixtures: ExtensionEntry[] = [
         title: "Required environment is missing",
       },
     ],
+    digest_matched: false,
     enabled: true,
     health: "degraded",
     health_message: "Waiting for required environment",
     last_error: "SLACK_BOT_TOKEN is not configured",
     missing_env: ["SLACK_BOT_TOKEN"],
     name: "slack-notify",
+    permissions: ["network/send", "sessions/list"],
     provenance: extensionProvenanceFixtures["slack-notify"],
     requires_env: ["SLACK_BOT_TOKEN", "SLACK_CHANNEL_ID"],
+    restart_backoff_ms: 0,
     source: "marketplace",
     state: "stopped",
     trust: {
@@ -109,9 +124,77 @@ export const extensionFixtures: ExtensionEntry[] = [
       warnings: [trustWarning],
     },
     type: "backend",
+    update_available: false,
     version: "1.1.4",
   },
 ];
+
+/** Workspace dev overlay: shadows the published row without owning its lifecycle. */
+export const DEV_EXTENSION_WORKSPACE_ID = "ws_northstar";
+
+export const devExtensionFixture: ExtensionEntry = {
+  bundles: [],
+  capabilities: ["tool.provider"],
+  consecutive_failures: 2,
+  daemon_running: true,
+  dev: true,
+  diagnostics: [],
+  digest_matched: false,
+  enabled: true,
+  generation_hash: "gen-9f2c41ab77e0",
+  health: "degraded",
+  health_message: "Restarted after a failed activation",
+  last_error: "handler exited with status 1",
+  missing_env: [],
+  name: "ops-dev-extension",
+  origin_path: "/Users/dev/src/ops-dev-extension",
+  overrides_published: true,
+  permissions: ["sessions/list"],
+  pid: 5120,
+  requires_env: [],
+  restart_backoff_ms: 4000,
+  source: "dev",
+  state: "running",
+  type: "backend",
+  update_available: false,
+  uptime_seconds: 240,
+  version: "0.2.0-dev",
+  workspace_id: DEV_EXTENSION_WORKSPACE_ID,
+};
+
+export const extensionLogFixtures: Record<string, Record<string, ExtensionLogEntry[]>> = {
+  [DEV_EXTENSION_WORKSPACE_ID]: {
+    "ops-dev-extension": [
+      {
+        generation_hash: "gen-9f2c41ab77e0",
+        message: "dev generation gen-9f2c41ab77e0 activated",
+        sequence: 1,
+        timestamp: "2026-07-20T10:00:00Z",
+      },
+      {
+        generation_hash: "gen-9f2c41ab77e0",
+        message: "tool.provider registered: archive",
+        sequence: 2,
+        timestamp: "2026-07-20T10:00:01Z",
+      },
+      {
+        generation_hash: "gen-9f2c41ab77e0",
+        message: "handler exited with status 1",
+        sequence: 3,
+        timestamp: "2026-07-20T10:00:12Z",
+      },
+    ],
+  },
+  "": {
+    "otel-bridge": [
+      {
+        message: "collector connection established",
+        sequence: 1,
+        timestamp: "2026-07-20T09:58:00Z",
+      },
+    ],
+  },
+};
 
 export const bundleActivationFixtures: BundleActivation[] = [
   {

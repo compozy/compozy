@@ -21,6 +21,14 @@ type ExtensionToolRuntime interface {
 	toolspkg.ExtensionToolInvoker
 }
 
+type extensionScopedToolRuntime interface {
+	ExtensionToolRuntime
+	GetForInstance(InstanceKey) (*Extension, error)
+	ListForWorkspace(string) []ExtensionInfo
+	ProvideToolsForInstance(context.Context, InstanceKey) ([]toolspkg.ExtensionToolRuntimeDescriptor, error)
+	CallToolForInstance(context.Context, InstanceKey, toolspkg.ExtensionToolCallRequest) (toolspkg.ToolResult, error)
+}
+
 // ExtensionToolRuntimeResolver returns the current live extension runtime.
 type ExtensionToolRuntimeResolver func() ExtensionToolRuntime
 
@@ -79,11 +87,11 @@ func (p *ExtensionToolProvider) ID() toolspkg.SourceRef {
 }
 
 // List returns manifest-authoritative extension-host tool descriptors.
-func (p *ExtensionToolProvider) List(ctx context.Context, _ toolspkg.Scope) ([]toolspkg.Descriptor, error) {
+func (p *ExtensionToolProvider) List(ctx context.Context, scope toolspkg.Scope) ([]toolspkg.Descriptor, error) {
 	if err := extensionProviderContextErr(ctx); err != nil {
 		return nil, err
 	}
-	manifestTools, err := p.manifestTools()
+	manifestTools, err := p.manifestTools(scope)
 	if err != nil {
 		return nil, err
 	}
@@ -107,7 +115,7 @@ func (p *ExtensionToolProvider) Resolve(
 	if err := id.Validate(); err != nil {
 		return nil, false, err
 	}
-	manifestTool, found, err := p.manifestTool(id)
+	manifestTool, found, err := p.manifestTool(scope, id)
 	if err != nil || !found {
 		return nil, found, err
 	}
@@ -120,6 +128,7 @@ func (p *ExtensionToolProvider) Resolve(
 
 type extensionManifestTool struct {
 	info       ExtensionInfo
+	key        InstanceKey
 	descriptor ManifestToolDescriptor
 }
 
@@ -151,7 +160,7 @@ func (h *extensionToolHandle) Availability(ctx context.Context, _ toolspkg.Scope
 	if runtime == nil {
 		return ReconcileManifestToolRuntime(&h.manifest.descriptor, nil, state)
 	}
-	descriptors, err := runtime.ProvideTools(ctx, h.extensionID())
+	descriptors, err := h.provideTools(ctx, runtime)
 	if err != nil {
 		availability := ReconcileManifestToolRuntime(&h.manifest.descriptor, nil, state)
 		availability.ReasonCodes = appendToolReason(availability.ReasonCodes, toolspkg.ReasonBackendUnhealthy)
@@ -212,6 +221,9 @@ func (h *extensionToolHandle) Call(ctx context.Context, req toolspkg.CallRequest
 			Root: root,
 		}
 	}
+	if scoped, ok := runtime.(extensionScopedToolRuntime); ok {
+		return scoped.CallToolForInstance(ctx, h.manifest.key, callRequest)
+	}
 	return runtime.CallTool(ctx, h.extensionID(), callRequest)
 }
 
@@ -223,7 +235,13 @@ func (h *extensionToolHandle) runtimeState() (ExtensionToolRuntimeState, Extensi
 	if runtime == nil {
 		return state, nil
 	}
-	snapshot, err := runtime.Get(h.extensionID())
+	var snapshot *Extension
+	var err error
+	if scoped, ok := runtime.(extensionScopedToolRuntime); ok {
+		snapshot, err = scoped.GetForInstance(h.manifest.key)
+	} else {
+		snapshot, err = runtime.Get(h.extensionID())
+	}
 	if err != nil || snapshot == nil {
 		return state, runtime
 	}
@@ -247,10 +265,21 @@ func (h *extensionToolHandle) extensionID() string {
 	return strings.TrimSpace(h.manifest.descriptor.Tool.Backend.ExtensionID)
 }
 
+func (h *extensionToolHandle) provideTools(
+	ctx context.Context,
+	runtime ExtensionToolRuntime,
+) ([]toolspkg.ExtensionToolRuntimeDescriptor, error) {
+	if scoped, ok := runtime.(extensionScopedToolRuntime); ok {
+		return scoped.ProvideToolsForInstance(ctx, h.manifest.key)
+	}
+	return runtime.ProvideTools(ctx, h.extensionID())
+}
+
 func (p *ExtensionToolProvider) manifestTool(
+	scope toolspkg.Scope,
 	id toolspkg.ToolID,
 ) (extensionManifestTool, bool, error) {
-	manifestTools, err := p.manifestTools()
+	manifestTools, err := p.manifestTools(scope)
 	if err != nil {
 		return extensionManifestTool{}, false, err
 	}
@@ -262,7 +291,7 @@ func (p *ExtensionToolProvider) manifestTool(
 	return extensionManifestTool{}, false, nil
 }
 
-func (p *ExtensionToolProvider) manifestTools() ([]extensionManifestTool, error) {
+func (p *ExtensionToolProvider) manifestTools(scope toolspkg.Scope) ([]extensionManifestTool, error) {
 	if p == nil || p.registry == nil {
 		return nil, toolspkg.NewValidationError(
 			"provider",
@@ -270,11 +299,21 @@ func (p *ExtensionToolProvider) manifestTools() ([]extensionManifestTool, error)
 			"extension tool provider is required",
 		)
 	}
-	infos, err := p.registry.List()
-	if err != nil {
-		return nil, fmt.Errorf("extension: list tool manifests: %w", err)
+	workspaceID := strings.TrimSpace(scope.WorkspaceID)
+	var infos []ExtensionInfo
+	if runtime := p.runtimeInstance(); runtime != nil {
+		if scoped, ok := runtime.(extensionScopedToolRuntime); ok {
+			infos = scoped.ListForWorkspace(workspaceID)
+		}
 	}
-	fingerprint, err := extensionToolManifestFingerprint(infos)
+	if infos == nil {
+		var err error
+		infos, err = p.registry.List()
+		if err != nil {
+			return nil, fmt.Errorf("extension: list tool manifests: %w", err)
+		}
+	}
+	fingerprint, err := extensionToolManifestFingerprint(workspaceID, infos)
 	if err != nil {
 		return nil, err
 	}
@@ -286,6 +325,13 @@ func (p *ExtensionToolProvider) manifestTools() ([]extensionManifestTool, error)
 	for _, info := range infos {
 		if !info.Enabled {
 			continue
+		}
+		key := GlobalInstanceKey(info.Name)
+		if workspaceID != "" {
+			if link, linkErr := p.registry.GetDevLink(info.Name, workspaceID); linkErr == nil &&
+				strings.TrimSpace(link.BundleGeneration) == strings.TrimSpace(info.Checksum) {
+				key.WorkspaceID = workspaceID
+			}
 		}
 		manifest, err := loadManifestAtPath(info.ManifestPath)
 		if err != nil {
@@ -301,6 +347,7 @@ func (p *ExtensionToolProvider) manifestTools() ([]extensionManifestTool, error)
 			}
 			manifestTools = append(manifestTools, extensionManifestTool{
 				info:       cloneExtensionInfo(info),
+				key:        key,
 				descriptor: cloneManifestToolDescriptor(&descriptors[i]),
 			})
 		}
@@ -310,6 +357,13 @@ func (p *ExtensionToolProvider) manifestTools() ([]extensionManifestTool, error)
 	})
 	p.storeManifestTools(fingerprint, manifestTools)
 	return cloneExtensionManifestTools(manifestTools), nil
+}
+
+func (p *ExtensionToolProvider) runtimeInstance() ExtensionToolRuntime {
+	if p == nil || p.runtime == nil {
+		return nil
+	}
+	return p.runtime()
 }
 
 func (p *ExtensionToolProvider) cachedManifestTools(fingerprint string) ([]extensionManifestTool, bool) {
@@ -330,8 +384,10 @@ func (p *ExtensionToolProvider) storeManifestTools(fingerprint string, tools []e
 	}
 }
 
-func extensionToolManifestFingerprint(infos []ExtensionInfo) (string, error) {
+func extensionToolManifestFingerprint(workspaceID string, infos []ExtensionInfo) (string, error) {
 	var builder strings.Builder
+	builder.WriteString(strings.TrimSpace(workspaceID))
+	builder.WriteByte(0)
 	for i := range infos {
 		info := infos[i]
 		builder.WriteString(info.Name)
@@ -376,6 +432,7 @@ func runtimeDescriptorForTool(
 		}
 		descriptor := descriptors[i]
 		descriptor.Capabilities = slices.Clone(descriptors[i].Capabilities)
+		descriptor.Command = cloneExtensionCommandSpec(descriptors[i].Command)
 		found = &descriptor
 	}
 	return found, false
@@ -385,6 +442,7 @@ func cloneManifestToolDescriptor(src *ManifestToolDescriptor) ManifestToolDescri
 	cloned := *src
 	cloned.Tool = src.Tool.Descriptor().Tool()
 	cloned.RuntimeDescriptor.Capabilities = slices.Clone(src.RuntimeDescriptor.Capabilities)
+	cloned.RuntimeDescriptor.Command = cloneExtensionCommandSpec(src.RuntimeDescriptor.Command)
 	return cloned
 }
 
@@ -393,6 +451,7 @@ func cloneExtensionManifestTools(src []extensionManifestTool) []extensionManifes
 	for i := range src {
 		cloned[i] = extensionManifestTool{
 			info:       cloneExtensionInfo(src[i].info),
+			key:        src[i].key,
 			descriptor: cloneManifestToolDescriptor(&src[i].descriptor),
 		}
 	}

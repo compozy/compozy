@@ -69,6 +69,7 @@ func normalizeTools(src map[string]ToolConfig) map[string]ToolConfig {
 			RequiresEnv:          normalizeStrings(tool.RequiresEnv),
 			RequiredCapabilities: normalizeStrings(tool.RequiredCapabilities),
 			Visibility:           strings.TrimSpace(tool.Visibility),
+			Command:              normalizeExtensionCommandSpec(tool.Command),
 		}
 	}
 	if len(dst) == 0 {

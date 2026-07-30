@@ -401,20 +401,6 @@ func registerBundleRoutes(api gin.IRouter, handlers *Handlers) {
 	}
 }
 
-func registerExtensionRoutes(api gin.IRouter, handlers *Handlers) {
-	extensions := api.Group("/extensions")
-	{
-		extensions.GET("", handlers.ListExtensions)
-		extensions.POST("", handlers.InstallExtension)
-		extensions.PUT("/:name", handlers.UpdateExtension)
-		extensions.DELETE("/:name", handlers.RemoveExtension)
-		extensions.GET("/:name/provenance", handlers.ExtensionProvenance)
-		extensions.GET("/:name", handlers.ExtensionStatus)
-		extensions.POST("/:name/enable", handlers.EnableExtension)
-		extensions.POST("/:name/disable", handlers.DisableExtension)
-	}
-}
-
 func registerSettingsRoutes(api gin.IRouter, handlers *Handlers) {
 	settings := api.Group("/settings")
 

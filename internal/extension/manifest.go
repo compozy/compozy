@@ -6,16 +6,41 @@ import (
 	"time"
 
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	extensioncontract "github.com/compozy/compozy/internal/extension/contract"
 	"github.com/compozy/compozy/internal/resources"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 const (
 	manifestMustBeASemanticVersionValue = "must be a semantic version"
+	manifestArgsKey                     = "args"
+	manifestBackendKey                  = "backend"
+	manifestCommandKey                  = "command"
+	manifestDescriptionKey              = "description"
+	manifestEnvKey                      = "env"
+	manifestEventKey                    = "event"
+	manifestExecutorKey                 = "executor"
+	manifestExtensionKey                = "extension"
+	manifestHandlerKey                  = "handler"
+	manifestInputSchemaKey              = "input_schema"
+	manifestKindKey                     = "kind"
 	manifestMinCompozyVersionKey        = "min_compozy_version"
+	manifestModeKey                     = "mode"
 	manifestNameKey                     = "name"
 	manifestNullKey                     = "null"
+	manifestOutputSchemaKey             = "output_schema"
+	manifestPathKey                     = "path"
+	manifestReadOnlyKey                 = "read_only"
 	manifestResourcesPublishPath        = "resources.publish"
+	manifestRiskKey                     = "risk"
+	manifestSubprocessKey               = "subprocess"
+	manifestSummaryKey                  = "summary"
+	manifestVersionKey                  = "version"
+	manifestVisibilityKey               = "visibility"
 )
+
+type manifestCommandSpec = toolspkg.ExtensionCommandSpec
+type manifestCommandGroupSpec = extensioncontract.ExtensionCommandGroupSpec
 
 const (
 	manifestTOMLFileName = "extension.toml"
@@ -45,22 +70,22 @@ type Manifest struct {
 	NetworkParticipation *manifestNetworkRequirement `toml:"network_participation,omitempty" json:"network_participation,omitempty"`
 	Resources            ResourcesConfig             `toml:"resources"                       json:"resources"`
 	Capabilities         CapabilitiesConfig          `toml:"capabilities"                    json:"capabilities"`
-	Actions              ActionsConfig               `toml:"actions"                         json:"actions"`
+	Permissions          PermissionsConfig           `toml:"permissions"                     json:"permissions"`
 	Subprocess           SubprocessConfig            `toml:"subprocess"                      json:"subprocess"`
-	Security             SecurityConfig              `toml:"security"                        json:"security"`
 	Bridge               BridgeConfig                `toml:"bridge"                          json:"bridge"`
 }
 
 // ResourcesConfig declares static assets bundled with an extension.
 type ResourcesConfig struct {
-	Skills     []string                   `toml:"skills,omitempty"      json:"skills,omitempty"`
-	Loops      []string                   `toml:"loops,omitempty"       json:"loops,omitempty"`
-	Agents     []string                   `toml:"agents,omitempty"      json:"agents,omitempty"`
-	Bundles    []string                   `toml:"bundles,omitempty"     json:"bundles,omitempty"`
-	Hooks      []HookConfig               `toml:"hooks,omitempty"       json:"hooks,omitempty"`
-	Tools      map[string]ToolConfig      `toml:"tools,omitempty"       json:"tools,omitempty"`
-	MCPServers map[string]MCPServerConfig `toml:"mcp_servers,omitempty" json:"mcp_servers,omitempty"`
-	Publish    ResourceGrantRequest       `toml:"publish,omitempty"     json:"publish"`
+	Skills        []string                   `toml:"skills,omitempty"         json:"skills,omitempty"`
+	Loops         []string                   `toml:"loops,omitempty"          json:"loops,omitempty"`
+	Agents        []string                   `toml:"agents,omitempty"         json:"agents,omitempty"`
+	Bundles       []string                   `toml:"bundles,omitempty"        json:"bundles,omitempty"`
+	Hooks         []HookConfig               `toml:"hooks,omitempty"          json:"hooks,omitempty"`
+	Tools         map[string]ToolConfig      `toml:"tools,omitempty"          json:"tools,omitempty"`
+	CommandGroups []manifestCommandGroupSpec `toml:"command_groups,omitempty" json:"command_groups,omitempty"`
+	MCPServers    map[string]MCPServerConfig `toml:"mcp_servers,omitempty"    json:"mcp_servers,omitempty"`
+	Publish       ResourceGrantRequest       `toml:"publish,omitempty"        json:"publish"`
 }
 
 // ResourceGrantRequest declares the resource families and scope ceiling an extension requests.
@@ -74,8 +99,8 @@ type CapabilitiesConfig struct {
 	Provides []string `toml:"provides,omitempty" json:"provides,omitempty"`
 }
 
-// ActionsConfig declares Host API methods the extension wants to call.
-type ActionsConfig struct {
+// PermissionsConfig declares Host API methods the extension wants to call.
+type PermissionsConfig struct {
 	Requires []string `toml:"requires,omitempty" json:"requires,omitempty"`
 }
 
@@ -87,11 +112,6 @@ type SubprocessConfig struct {
 	SecretEnv           map[string]string `toml:"secret_env,omitempty"            json:"secret_env,omitempty"`
 	HealthCheckInterval Duration          `toml:"health_check_interval,omitempty" json:"health_check_interval,omitempty"`
 	ShutdownTimeout     Duration          `toml:"shutdown_timeout,omitempty"      json:"shutdown_timeout,omitempty"`
-}
-
-// SecurityConfig declares the security grants the extension requests.
-type SecurityConfig struct {
-	Capabilities []string `toml:"capabilities,omitempty" json:"capabilities,omitempty"`
 }
 
 // BridgeConfig declares provider metadata for bridge-capable extensions.
@@ -184,6 +204,8 @@ type ToolConfig struct {
 	RequiresEnv          []string          `toml:"requires_env,omitempty"          json:"requires_env,omitempty"`
 	RequiredCapabilities []string          `toml:"required_capabilities,omitempty" json:"required_capabilities,omitempty"`
 	Visibility           string            `toml:"visibility,omitempty"            json:"visibility,omitempty"`
+
+	Command *manifestCommandSpec `toml:"command,omitempty" json:"command,omitempty"`
 }
 
 // ToolBackendConfig binds a manifest tool to its backend metadata.
@@ -210,9 +232,8 @@ type manifestDocument struct {
 	NetworkParticipation *manifestNetworkRequirement `toml:"network_participation,omitempty" json:"network_participation,omitempty"`
 	Resources            ResourcesConfig             `toml:"resources"                       json:"resources"`
 	Capabilities         CapabilitiesConfig          `toml:"capabilities"                    json:"capabilities"`
-	Actions              ActionsConfig               `toml:"actions"                         json:"actions"`
+	Permissions          PermissionsConfig           `toml:"permissions"                     json:"permissions"`
 	Subprocess           SubprocessConfig            `toml:"subprocess"                      json:"subprocess"`
-	Security             SecurityConfig              `toml:"security"                        json:"security"`
 	Bridge               BridgeConfig                `toml:"bridge"                          json:"bridge"`
 }
 

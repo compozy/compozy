@@ -31,10 +31,12 @@ var askInputSchema = map[string]any{
 
 func main() {
 	extension := compozysdk.NewExtension(compozysdk.ExtensionDefinition{
-		Name:    "clarify-tool",
-		Version: "0.1.0",
-		Capabilities: compozysdk.CapabilitiesConfig{
-			Provides: []string{compozysdk.CapabilityToolProvider},
+		Name:        "clarify-tool",
+		Version:     "0.1.0",
+		Description: "Ask the operator one bounded clarification question",
+		Subprocess:  compozysdk.DescribeSubprocess{Command: "./bin"},
+		Permissions: compozysdk.PermissionsConfig{
+			Requires: []compozysdk.HostAPIMethod{compozysdk.HostAPIMethodClarifyAsk},
 		},
 	})
 

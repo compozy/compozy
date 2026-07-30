@@ -73,6 +73,13 @@ func (lateBootExtensionService) List(context.Context) ([]contract.ExtensionPaylo
 	return []contract.ExtensionPayload{}, nil
 }
 
+func (lateBootExtensionService) Search(
+	context.Context,
+	contract.ExtensionSearchRequest,
+) (contract.ExtensionSearchResponse, error) {
+	return contract.ExtensionSearchResponse{}, nil
+}
+
 func (lateBootExtensionService) MarketplaceTrust(
 	context.Context,
 	extensionpkg.MarketplaceTrustEvidence,
@@ -99,6 +106,14 @@ func (lateBootExtensionService) Update(
 	taskpkg.ActorContext,
 ) (contract.ManagedExtensionUpdatePayload, error) {
 	return contract.ManagedExtensionUpdatePayload{}, errors.New("unexpected Update call")
+}
+
+func (lateBootExtensionService) UpdateBatch(
+	context.Context,
+	contract.UpdateExtensionsRequest,
+	taskpkg.ActorContext,
+) ([]contract.ManagedExtensionUpdatePayload, error) {
+	return nil, errors.New("unexpected UpdateBatch call")
 }
 
 func (lateBootExtensionService) Remove(

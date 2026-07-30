@@ -3,6 +3,7 @@ import { pathToFileURL } from "node:url";
 
 import { MethodNotFoundError } from "../errors.js";
 import { Extension } from "../extension.js";
+import type { ExtensionDescribeProcess } from "../extension-contract.js";
 import type {
   ExtensionDefinition,
   HostAPIMethod,
@@ -16,12 +17,10 @@ import { MockTransport, createMockTransportPair } from "./mock-transport.js";
 export interface HarnessLoadOptions {
   sourceTier?: "bundled" | "user" | "workspace" | "marketplace";
   provides?: string[];
-  grantedActions?: string[];
-  grantedSecurity?: string[];
+  grantedPermissions?: string[];
   grantedResourceKinds?: string[];
   grantedResourceScopes?: ("global" | "workspace")[];
   sessionNonce?: string;
-  capabilities?: string[];
   daemonRequests?: string[];
   extensionServices?: string[];
   compozyVersion?: string;
@@ -63,6 +62,8 @@ export class TestHarness {
   private extension: Extension | undefined;
   private initializeRequest: InitializeRequest | undefined;
   private initializeResponse: InitializeResponse | undefined;
+  private describeStdout = "";
+  private describeExitCode: number | undefined;
 
   public constructor(options: { stderr?: NodeJS.WritableStream } = {}) {
     this.stderr = options.stderr ?? process.stderr;
@@ -132,6 +133,29 @@ export class TestHarness {
     return this.hostTransport;
   }
 
+  public captureDescribeProcess(
+    argv: readonly string[] = ["extension", "__describe"]
+  ): ExtensionDescribeProcess {
+    this.describeStdout = "";
+    this.describeExitCode = undefined;
+    return {
+      argv,
+      stdout: {
+        write: ((chunk: string | Uint8Array) => {
+          this.describeStdout += typeof chunk === "string" ? chunk : Buffer.from(chunk).toString();
+          return true;
+        }) as NodeJS.WritableStream["write"],
+      },
+      setExitCode: code => {
+        this.describeExitCode = code;
+      },
+    };
+  }
+
+  public getDescribeResult(): { stdout: string; exitCode: number | undefined } {
+    return { stdout: this.describeStdout, exitCode: this.describeExitCode };
+  }
+
   private bindMockedHostHandler(
     method: string,
     handler: (params: unknown) => unknown | Promise<unknown>
@@ -184,8 +208,7 @@ export class TestHarness {
       options.extensionServices ?? implementedMethods.filter(method => !DAEMON_METHODS.has(method));
 
     const requestedProvides = definition.capabilities?.provides ?? [];
-    const requestedActions = definition.actions?.requires ?? [];
-    const requestedSecurity = definition.security?.capabilities ?? [];
+    const requestedPermissions = definition.permissions?.requires ?? [];
 
     return {
       protocol_version: "1",
@@ -199,8 +222,9 @@ export class TestHarness {
       },
       capabilities: {
         provides: options.provides ?? [...requestedProvides],
-        granted_actions: (options.grantedActions ?? [...requestedActions]) as HostAPIMethod[],
-        granted_security: options.grantedSecurity ?? options.capabilities ?? [...requestedSecurity],
+        granted_permissions: (options.grantedPermissions ?? [
+          ...requestedPermissions,
+        ]) as HostAPIMethod[],
         granted_resource_kinds: options.grantedResourceKinds ?? [],
         granted_resource_scopes: options.grantedResourceScopes ?? [],
       },

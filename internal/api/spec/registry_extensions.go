@@ -2,9 +2,15 @@ package spec
 
 import "github.com/compozy/compozy/internal/api/contract"
 
+// specExtensionWorkspaceParamDescription documents the already-supported instance-scope selector
+// shared by the extension read and remove operations.
+const specExtensionWorkspaceParamDescription = "Operator workspace reference; " +
+	"omit for the global instance"
+
 func registryExtensionOperations() []OperationSpec {
 	return []OperationSpec{
 		listExtensionsOperationSpec(),
+		listExtensionCommandsOperationSpec(),
 		installExtensionOperationSpec(),
 		getExtensionOperationSpec(),
 		updateExtensionOperationSpec(),
@@ -12,6 +18,96 @@ func registryExtensionOperations() []OperationSpec {
 		getExtensionProvenanceOperationSpec(),
 		enableExtensionOperationSpec(),
 		disableExtensionOperationSpec(),
+		devExtensionOperationSpec(),
+		reloadDevExtensionOperationSpec(),
+		getExtensionLogsOperationSpec(),
+	}
+}
+
+func listExtensionCommandsOperationSpec() OperationSpec {
+	return OperationSpec{
+		Method:      httpMethodGet,
+		Path:        specAPIExtensionsCommandsPath,
+		OperationID: "listExtensionCommands",
+		Summary:     "List active extension-contributed commands",
+		Tags:        []string{specExtensionsKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			queryParam("extension", "Filter by exact extension name", false),
+			queryParam("workspace", "Operator workspace reference; agent callers use trusted session scope", false),
+		},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.ExtensionCommandsResponse{}},
+			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
+			{Status: 503, Description: specExtensionServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
+		},
+	}
+}
+
+func devExtensionOperationSpec() OperationSpec {
+	return OperationSpec{
+		Method:      httpMethodPost,
+		Path:        specAPIExtensionsDevPath,
+		OperationID: "devExtension",
+		Summary:     "Link an immutable extension generation to the resolved workspace",
+		Tags:        []string{specExtensionsKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			queryParam("workspace", "Operator workspace reference; agent callers use trusted session scope", false),
+		},
+		RequestBody: contract.DevLinkExtensionRequest{},
+		Responses: []ResponseSpec{
+			{Status: 201, Description: specCreatedDescription, Body: contract.ExtensionResponse{}},
+			{Status: 400, Description: "Invalid dev generation", Body: contract.ErrorPayload{}},
+			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
+			{Status: 503, Description: specExtensionServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
+		},
+	}
+}
+
+func reloadDevExtensionOperationSpec() OperationSpec {
+	return OperationSpec{
+		Method:      httpMethodPost,
+		Path:        specAPIExtensionsNameReloadPath,
+		OperationID: "reloadDevExtension",
+		Summary:     "Reload a workspace extension from an immutable generation",
+		Tags:        []string{specExtensionsKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("name", "Extension name"),
+			queryParam("workspace", "Operator workspace reference; agent callers use trusted session scope", false),
+		},
+		RequestBody: contract.ReloadExtensionRequest{},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.ExtensionResponse{}},
+			{Status: 400, Description: "Invalid generation", Body: contract.ErrorPayload{}},
+			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
+			{Status: 409, Description: "Extension is not dev linked", Body: contract.ErrorPayload{}},
+			{Status: 503, Description: specExtensionServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
+		},
+	}
+}
+
+func getExtensionLogsOperationSpec() OperationSpec {
+	return OperationSpec{
+		Method:      httpMethodGet,
+		Path:        specAPIExtensionsNameLogsPath,
+		OperationID: "getExtensionLogs",
+		Summary:     "Read or follow redacted extension logs",
+		Tags:        []string{specExtensionsKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("name", "Extension name"),
+			queryParam("workspace", "Operator workspace reference; omit for the global instance", false),
+			queryParam("follow", "Stream new entries as extension_log SSE events", false),
+			queryParam("after", "Return entries after this monotonic sequence", false),
+		},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.ExtensionLogsResponse{}},
+			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
+			{Status: 404, Description: specExtensionNotFoundDescription, Body: contract.ErrorPayload{}},
+			{Status: 503, Description: specExtensionServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
+		},
 	}
 }
 func listExtensionsOperationSpec() OperationSpec {
@@ -22,6 +118,9 @@ func listExtensionsOperationSpec() OperationSpec {
 		Summary:     "List installed extensions",
 		Tags:        []string{specExtensionsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			queryParam("workspace", specExtensionWorkspaceParamDescription, false),
+		},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.ExtensionsResponse{}},
 			{Status: 503, Description: specExtensionServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
@@ -58,6 +157,7 @@ func getExtensionOperationSpec() OperationSpec {
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
 			pathParam("name", "Extension name"),
+			queryParam("workspace", specExtensionWorkspaceParamDescription, false),
 		},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.ExtensionResponse{}},
@@ -100,6 +200,7 @@ func removeExtensionOperationSpec() OperationSpec {
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
 			pathParam("name", "Extension name"),
+			queryParam("workspace", specExtensionWorkspaceParamDescription, false),
 		},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.ExtensionRemoveResponse{}},

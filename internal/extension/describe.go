@@ -44,33 +44,47 @@ func DescribeExtension(ext *Extension, daemonRunning bool, now time.Time) contra
 	if len(ext.Status.MissingEnv) > 0 {
 		missingEnv = append([]string(nil), ext.Status.MissingEnv...)
 	}
+	originPath := ""
+	if ext.DevLink != nil {
+		originPath = ext.DevLink.OriginPath
+	}
 
 	return contract.ExtensionPayload{
-		Name:          ext.Info.Name,
-		Version:       ext.Info.Version,
-		Type:          extensionType(ext.Manifest, ext.Info),
-		Source:        ext.Info.Source.String(),
-		Enabled:       ext.Info.Enabled,
-		State:         extensionState(ext.Info, ext.Status, daemonRunning),
-		Capabilities:  append([]string(nil), ext.Info.Capabilities.Provides...),
-		Actions:       append([]string(nil), ext.Info.Actions.Requires...),
-		RequiresEnv:   requiresEnv,
-		MissingEnv:    missingEnv,
-		PID:           ext.Status.PID,
-		UptimeSeconds: uptimeSeconds,
-		Health:        extensionHealth(ext.Manifest, ext.Info, ext.Status, daemonRunning),
-		HealthMessage: ext.Status.HealthMessage,
-		LastError:     ext.Status.LastError,
-		DaemonRunning: daemonRunning,
-		Bundles:       bundleSummaryPayloads(ext.Bundles),
-		Provenance:    extensionProvenancePayload(ext.Info.Provenance),
-		Trust:         extensionTrustPayload(ext.Info.Provenance),
-		Diagnostics:   append([]contract.DiagnosticItem(nil), ext.Info.Provenance.Warnings...),
+		Name:                ext.Info.Name,
+		WorkspaceID:         ext.Status.WorkspaceID,
+		Version:             ext.Info.Version,
+		Type:                extensionType(ext.Manifest, ext.Info),
+		Source:              ext.Info.Source.String(),
+		Enabled:             ext.Info.Enabled,
+		State:               extensionState(ext.Info, ext.Status, daemonRunning),
+		Capabilities:        append([]string(nil), ext.Info.Capabilities.Provides...),
+		Permissions:         append([]string(nil), ext.Info.Permissions.Requires...),
+		RequiresEnv:         requiresEnv,
+		MissingEnv:          missingEnv,
+		PID:                 ext.Status.PID,
+		UptimeSeconds:       uptimeSeconds,
+		Health:              extensionHealth(ext.Manifest, ext.Info, ext.Status, daemonRunning),
+		HealthMessage:       ext.Status.HealthMessage,
+		LastError:           ext.Status.LastError,
+		FailureCode:         ext.Status.FailureCode,
+		ConsecutiveFailures: ext.Status.ConsecutiveFailures,
+		RestartBackoffMS:    ext.Status.RestartBackoff.Milliseconds(),
+		GenerationHash:      ext.Status.GenerationHash,
+		Dev:                 ext.DevLink != nil || ext.Status.WorkspaceID != "",
+		OverridesPublished:  ext.OverridesPublished,
+		OriginPath:          originPath,
+		RemoteVersion:       dereferenceOptionalString(ext.Info.RemoteVersion),
+		DigestMatched:       ext.Info.Provenance.DigestMatched,
+		DaemonRunning:       daemonRunning,
+		Bundles:             bundleSummaryPayloads(ext.Bundles),
+		Provenance:          extensionProvenancePayload(ext.Info.Provenance),
+		Trust:               extensionTrustPayload(ext.Info.Provenance),
+		Diagnostics:         append([]contract.DiagnosticItem(nil), ext.Info.Provenance.Warnings...),
 	}
 }
 
 func extensionType(manifest *Manifest, info ExtensionInfo) string {
-	if requiresSubprocess(manifest) || len(info.Capabilities.Provides) > 0 || len(info.Actions.Requires) > 0 {
+	if requiresSubprocess(manifest) || len(info.Capabilities.Provides) > 0 || len(info.Permissions.Requires) > 0 {
 		return describeSubprocessKey
 	}
 	return describeResourceKey
@@ -101,7 +115,7 @@ func extensionHealth(manifest *Manifest, info ExtensionInfo, status ExtensionSta
 	}
 	if status.Active {
 		if status.Healthy ||
-			(!requiresSubprocess(manifest) && len(info.Capabilities.Provides) == 0 && len(info.Actions.Requires) == 0) {
+			(!requiresSubprocess(manifest) && len(info.Capabilities.Provides) == 0 && len(info.Permissions.Requires) == 0) {
 			return extensionHealthHealthy
 		}
 		return extensionHealthUnhealthy
@@ -109,7 +123,7 @@ func extensionHealth(manifest *Manifest, info ExtensionInfo, status ExtensionSta
 	if status.LastError != "" {
 		return extensionHealthUnhealthy
 	}
-	if !requiresSubprocess(manifest) && len(info.Capabilities.Provides) == 0 && len(info.Actions.Requires) == 0 &&
+	if !requiresSubprocess(manifest) && len(info.Capabilities.Provides) == 0 && len(info.Permissions.Requires) == 0 &&
 		status.Registered {
 		return extensionHealthHealthy
 	}
@@ -148,6 +162,7 @@ func extensionProvenancePayload(
 		SourceURL:           value.SourceURL,
 		ChecksumSHA256:      value.ChecksumSHA256,
 		ArchiveDigestSHA256: value.ArchiveDigestSHA256,
+		DigestMatched:       value.DigestMatched,
 		ChecksumVerified:    value.ChecksumVerified,
 		RegistryTier:        value.RegistryTier,
 		Permissions:         append([]string(nil), value.Permissions...),

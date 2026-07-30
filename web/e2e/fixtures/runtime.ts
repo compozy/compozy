@@ -8,6 +8,10 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 
 import { ArtifactCollector } from "./artifacts";
+import {
+  closeExtensionRegistryServer,
+  startExtensionRegistryServer,
+} from "./extension-registry-server";
 import { closeMarketplaceCatalogServer, startMarketplaceCatalogServer } from "./marketplace-server";
 import {
   applyBrowserRuntimeSeed,
@@ -124,6 +128,7 @@ export {
   type WorkspacePayload,
 } from "./runtime-seed";
 interface RuntimeLaunchState {
+  extensionRegistryServer?: Server;
   marketplaceCatalogServer?: Server;
   process: ChildProcessWithoutNullStreams;
   repoRoot: string;
@@ -160,10 +165,14 @@ export async function createBrowserRuntime(
   const boundHost = options.host ?? DEFAULT_HOST;
   const skillMarketplace = await startSkillMarketplaceServer(options.seed?.skillMarketplace);
   let marketplaceCatalog: Awaited<ReturnType<typeof startMarketplaceCatalogServer>> = undefined;
+  let extensionRegistry: Awaited<ReturnType<typeof startExtensionRegistryServer>> = undefined;
   let runtime: RuntimeLaunchState | undefined;
 
   try {
-    marketplaceCatalog = await startMarketplaceCatalogServer(options.seed?.marketplaceCatalog);
+    extensionRegistry = await startExtensionRegistryServer(options.seed?.extensionRegistry);
+    marketplaceCatalog = await startMarketplaceCatalogServer(
+      resolveMarketplaceCatalogSeed(options.seed?.marketplaceCatalog, extensionRegistry)
+    );
     await seedBrowserRuntimeHome(
       {
         homeDir: paths.homeDir,
@@ -175,6 +184,7 @@ export async function createBrowserRuntime(
       paths.configFile,
       renderRuntimeConfig({
         extensionsAllowUnverified: options.extensionsAllowUnverified,
+        extensionsGitHubBaseURL: extensionRegistry?.baseURL,
         host: boundHost,
         includeMockAgentProvider: (options.seed?.mockAgents?.length ?? 0) > 0,
         modelsDevEnabled: options.modelsDevEnabled,
@@ -191,6 +201,7 @@ export async function createBrowserRuntime(
     const runtimeEnv = await createRuntimeEnv(paths, binaryPath, repoRoot, env);
     runtime = startDaemonProcess(binaryPath, repoRoot, runtimeEnv, paths.daemonLog);
     runtime.marketplaceCatalogServer = marketplaceCatalog?.server;
+    runtime.extensionRegistryServer = extensionRegistry?.server;
     runtime.skillMarketplaceServer = skillMarketplace?.server;
     const baseURL = `http://${DEFAULT_HOST}:${httpPort}`;
     const requireHTTPAPIStatus = requiresHTTPAPIReadinessProbe(boundHost);
@@ -213,8 +224,37 @@ export async function createBrowserRuntime(
     const seeded = await applyBrowserRuntimeSeed(activeRuntime, options.seed);
     return activeRuntime.withSeeded(seeded);
   } catch (error) {
-    return await cleanupFailedRuntimeLaunch(error, runtime, skillMarketplace, marketplaceCatalog);
+    return await cleanupFailedRuntimeLaunch(
+      error,
+      runtime,
+      skillMarketplace,
+      marketplaceCatalog,
+      extensionRegistry
+    );
   }
+}
+
+function resolveMarketplaceCatalogSeed(
+  seed: BrowserRuntimeSeed["marketplaceCatalog"],
+  extensionRegistry: Awaited<ReturnType<typeof startExtensionRegistryServer>>
+): BrowserRuntimeSeed["marketplaceCatalog"] {
+  if (!seed?.extensions) return seed;
+  return {
+    ...seed,
+    extensions: seed.extensions.map(entry => {
+      const { digest_release_tag: digestReleaseTag, ...catalogEntry } = entry;
+      if (!digestReleaseTag) return catalogEntry;
+      if (!extensionRegistry) {
+        throw new Error(
+          `marketplace extension ${entry.entry_id} requires an extension registry digest`
+        );
+      }
+      return {
+        ...catalogEntry,
+        digest_sha256: extensionRegistry.digestFor(digestReleaseTag),
+      };
+    }),
+  };
 }
 
 export function resolveBrowserRuntimeEnv(
@@ -331,6 +371,7 @@ class ActiveBrowserRuntime implements BrowserRuntime {
       await Promise.all([
         closeSkillMarketplaceServer(this.launchState.skillMarketplaceServer),
         closeMarketplaceCatalogServer(this.launchState.marketplaceCatalogServer),
+        closeExtensionRegistryServer(this.launchState.extensionRegistryServer),
       ]);
     }
   }
@@ -361,7 +402,8 @@ async function cleanupFailedRuntimeLaunch(
   cause: unknown,
   runtime: RuntimeLaunchState | undefined,
   skillMarketplace: SkillMarketplaceTestServer | undefined,
-  marketplaceCatalog: Awaited<ReturnType<typeof startMarketplaceCatalogServer>>
+  marketplaceCatalog: Awaited<ReturnType<typeof startMarketplaceCatalogServer>>,
+  extensionRegistry: Awaited<ReturnType<typeof startExtensionRegistryServer>>
 ): Promise<never> {
   const cleanupErrors: Error[] = [];
   if (runtime !== undefined) {
@@ -379,6 +421,11 @@ async function cleanupFailedRuntimeLaunch(
   }
   try {
     await closeMarketplaceCatalogServer(marketplaceCatalog?.server);
+  } catch (error) {
+    cleanupErrors.push(errorFromUnknown(error));
+  }
+  try {
+    await closeExtensionRegistryServer(extensionRegistry?.server);
   } catch (error) {
     cleanupErrors.push(errorFromUnknown(error));
   }

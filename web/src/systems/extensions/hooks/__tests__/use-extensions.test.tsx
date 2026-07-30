@@ -8,14 +8,20 @@ import {
   extensionFixtures,
   extensionProvenanceFixtures,
 } from "../../mocks/fixtures";
+import { extensionKeys } from "../../lib/query-keys";
 import type { ExtensionEntry } from "../../types";
 
 const mocks = vi.hoisted(() => ({
+  activeWorkspaceId: null as string | null,
   getBundleActivation: vi.fn(),
   getExtensionProvenance: vi.fn(),
   listBundleActivations: vi.fn(),
   listExtensions: vi.fn(),
   useMarketplaceKind: vi.fn(),
+}));
+
+vi.mock("@/systems/workspace", () => ({
+  useActiveWorkspace: () => ({ activeWorkspaceId: mocks.activeWorkspaceId }),
 }));
 
 vi.mock("@/systems/marketplace", () => ({
@@ -57,6 +63,7 @@ function wrapper({ children }: { children: ReactNode }) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.activeWorkspaceId = null;
   mocks.listExtensions.mockResolvedValue(extensionFixtures);
   mocks.listBundleActivations.mockResolvedValue(bundleActivationFixtures);
   mocks.getBundleActivation.mockResolvedValue(bundleActivationFixtures[0]);
@@ -84,12 +91,41 @@ describe("useExtensionInventory", () => {
     expect(mocks.useMarketplaceKind).not.toHaveBeenCalled();
   });
 
-  it("Should leave the listing null when the server attaches no projection", async () => {
+  it("Should cache each workspace instance under its own key and never reuse another's rows", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const scopedWrapper = ({ children }: { children: ReactNode }) =>
+      createElement(QueryClientProvider, { client }, children);
+    mocks.activeWorkspaceId = "ws_northstar";
+    const scoped = renderHook(() => useExtensionInventory(), { wrapper: scopedWrapper });
+    await waitFor(() => expect(scoped.result.current.isSuccess).toBe(true));
+
+    expect(mocks.listExtensions).toHaveBeenCalledWith(
+      { workspaceId: "ws_northstar" },
+      expect.any(AbortSignal)
+    );
+    expect(client.getQueryData(extensionKeys.list("ws_northstar"))).toEqual(extensionFixtures);
+    expect(client.getQueryData(extensionKeys.list())).toBeUndefined();
+
+    mocks.activeWorkspaceId = null;
+    const global = renderHook(() => useExtensionInventory(), { wrapper: scopedWrapper });
+    await waitFor(() => expect(global.result.current.isSuccess).toBe(true));
+
+    expect(mocks.listExtensions).toHaveBeenLastCalledWith(
+      { workspaceId: null },
+      expect.any(AbortSignal)
+    );
+    expect(client.getQueryData(extensionKeys.list())).toEqual(extensionFixtures);
+  });
+
+  it("Should preserve daemon update availability when the server attaches no listing", async () => {
     const { result } = renderHook(() => useExtensionInventory(), { wrapper });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-    expect(result.current.data.every(item => item.updateAvailable === false)).toBe(true);
+    expect(result.current.data.map(item => [item.extension.name, item.updateAvailable])).toEqual([
+      ["otel-bridge", true],
+      ["slack-notify", false],
+    ]);
     expect(result.current.data.every(item => item.listing === null)).toBe(true);
   });
 });

@@ -246,19 +246,23 @@ describe("marketplace acquisition cache boundaries", () => {
   it("Should invalidate marketplace and extension management after extension install", async () => {
     vi.mocked(installMarketplaceExtension).mockResolvedValue({
       extension: {
+        consecutive_failures: 0,
         daemon_running: false,
+        digest_matched: true,
         enabled: true,
         name: "review-pack",
+        restart_backoff_ms: 0,
         source: "marketplace",
         state: "installed",
         type: "native",
+        update_available: false,
         version: "2.0.0",
       },
     });
     const { invalidateQueries, wrapper } = setup();
     const { result } = renderHook(() => useInstallMarketplaceExtension(), { wrapper });
 
-    act(() => result.current.mutate({ slug: "review-pack", version: "2.0.0" }));
+    act(() => result.current.mutate({ ref: "review-pack", source: "curated", version: "2.0.0" }));
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["marketplace"] });

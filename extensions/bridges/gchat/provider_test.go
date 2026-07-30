@@ -3699,13 +3699,12 @@ func testInitializeRequest(
 		},
 		Capabilities: subprocess.InitializeCapabilities{
 			Provides: []string{"bridge.adapter"},
-			GrantedActions: []extensionprotocol.HostAPIMethod{
+			GrantedPermissions: []extensionprotocol.HostAPIMethod{
 				extensionprotocol.HostAPIMethodBridgesInstancesList,
 				extensionprotocol.HostAPIMethodBridgesInstancesGet,
 				extensionprotocol.HostAPIMethodBridgesInstancesReportState,
 				extensionprotocol.HostAPIMethodBridgesMessagesIngest,
 			},
-			GrantedSecurity: []string{"bridge.read", "bridge.write"},
 		},
 		Methods: subprocess.InitializeMethods{
 			ExtensionServices: []string{"bridges/deliver", "health_check", "shutdown"},

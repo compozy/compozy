@@ -1289,10 +1289,15 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 					},
 				}},
 				Extensions: compozyconfig.ExtensionsConfig{
-					Marketplace: compozyconfig.ExtensionsMarketplaceConfig{
-						Registry: "extensions.example",
-						BaseURL:  "https://extensions.example",
+					Trust: compozyconfig.ExtensionsTrustConfig{AllowUnverified: true},
+					Sources: compozyconfig.ExtensionsSourcesConfig{
+						GitHub: compozyconfig.ExtensionsGitHubSourceConfig{
+							Enabled: true,
+							BaseURL: "https://extensions.example",
+						},
+						Git: compozyconfig.ExtensionsGitSourceConfig{Enabled: true},
 					},
+					Dev: compozyconfig.ExtensionsDevConfig{WatchInterval: 2 * time.Second},
 					Resources: compozyconfig.ExtensionsResourcesConfig{
 						AllowedKinds: []resources.ResourceKind{resources.ResourceKind("tool")},
 						MaxScope:     resources.ResourceScopeKindWorkspace,
@@ -1964,11 +1969,15 @@ func TestUpdateSettingsSectionHandlersDelegateValidPayloads(t *testing.T) {
 			path: "/api/settings/hooks-extensions",
 			body: contract.UpdateSettingsHooksExtensionsRequest{
 				Config: contract.SettingsExtensionsConfigPayload{
-					Marketplace: contract.SettingsExtensionMarketplacePayload{
-						Registry:        "github",
-						BaseURL:         "https://extensions.example",
-						AllowUnverified: true,
+					Trust: contract.SettingsExtensionTrustPayload{AllowUnverified: true},
+					Sources: contract.SettingsExtensionSourcesPayload{
+						GitHub: contract.SettingsExtensionGitHubSourcePayload{
+							Enabled: true,
+							BaseURL: "https://extensions.example",
+						},
+						Git: contract.SettingsExtensionGitSourcePayload{Enabled: true},
 					},
+					Dev: contract.SettingsExtensionDevPayload{WatchInterval: "2s"},
 					Resources: contract.SettingsExtensionResourcesPayload{
 						AllowedKinds: []string{"tool"},
 						MaxScope:     resources.ResourceScopeKindWorkspace,
@@ -1989,7 +1998,7 @@ func TestUpdateSettingsSectionHandlersDelegateValidPayloads(t *testing.T) {
 				t.Helper()
 				if req.HooksExtensions == nil ||
 					req.HooksExtensions.Resources.MaxScope != resources.ResourceScopeKindWorkspace ||
-					!req.HooksExtensions.Marketplace.AllowUnverified {
+					!req.HooksExtensions.Trust.AllowUnverified {
 					t.Fatalf("req.HooksExtensions = %#v, want populated extensions config", req.HooksExtensions)
 				}
 			},
@@ -2845,7 +2854,13 @@ func TestSettingsRemainingReadAndDeleteHandlers(t *testing.T) {
 			case settingspkg.SectionHooksExtensions:
 				envelope.HooksExtensions = &settingspkg.HooksExtensionsSection{
 					Extensions: compozyconfig.ExtensionsConfig{
-						Marketplace: compozyconfig.ExtensionsMarketplaceConfig{Registry: "github"},
+						Sources: compozyconfig.ExtensionsSourcesConfig{
+							GitHub: compozyconfig.ExtensionsGitHubSourceConfig{
+								Enabled: true,
+								BaseURL: "https://api.github.com",
+							},
+						},
+						Dev: compozyconfig.ExtensionsDevConfig{WatchInterval: 2 * time.Second},
 					},
 				}
 			default:

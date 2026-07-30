@@ -2,6 +2,7 @@ package contract
 
 import (
 	bridgepkg "github.com/compozy/compozy/internal/bridges/contract"
+	"github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/subprocess"
 )
 
@@ -18,7 +19,23 @@ var sdkBridgeControlTypes = []NamedType{
 
 // SDKRootTypes returns a defensive copy of every canonical generated SDK contract root.
 func SDKRootTypes() []NamedType {
-	types := make([]NamedType, 0, len(sdkRootTypes)+len(sdkBridgeControlTypes))
+	types := make([]NamedType, 0, len(sdkRootTypes)+len(sdkBridgeControlTypes)+14)
 	types = append(types, sdkRootTypes...)
-	return append(types, sdkBridgeControlTypes...)
+	types = append(types, sdkBridgeControlTypes...)
+	return append(types,
+		NamedType{Name: "HostAPIMethod", Value: HostAPIMethod("")},
+		NamedType{Name: "HookEvent", Value: hooks.HookEvent("")},
+		NamedType{Name: "DescribePayload", Value: DescribePayload{}},
+		NamedType{Name: "DescribeSubprocess", Value: DescribeSubprocess{}},
+		NamedType{Name: "DescribeSDKInfo", Value: DescribeSDKInfo{}},
+		NamedType{Name: "ExtensionCommandSpec", Value: ExtensionCommandSpec{}},
+		NamedType{Name: "ExtensionCommandGroupSpec", Value: ExtensionCommandGroupSpec{}},
+		NamedType{Name: "CommandFlagType", Value: CommandFlagType("")},
+		NamedType{Name: "CommandFlag", Value: CommandFlag{}},
+		NamedType{Name: "IssueSeverity", Value: IssueSeverity("")},
+		NamedType{Name: "ValidationIssue", Value: ValidationIssue{}},
+		NamedType{Name: "ConsentArea", Value: ConsentArea{}},
+		NamedType{Name: "ExtensionManifestSummary", Value: ExtensionManifestSummary{}},
+		NamedType{Name: "ExtensionValidatePayload", Value: ExtensionValidatePayload{}},
+	)
 }

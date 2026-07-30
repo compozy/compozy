@@ -3,11 +3,12 @@ package compozysdk
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"regexp"
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/compozy/compozy/sdk/go/contracts"
 )
 
 const (
@@ -22,6 +23,9 @@ const SDKVersion = "0.1.0"
 
 // ProtocolVersion is the Compozy extension subprocess protocol version.
 const ProtocolVersion = "1"
+
+// MinCompozyVersion is the oldest Compozy daemon supported by this SDK release.
+const MinCompozyVersion = "0.3.0-beta.1"
 
 // CapabilityToolProvider is the provide surface for executable extension-host tools.
 const CapabilityToolProvider = "tool.provider"
@@ -100,10 +104,10 @@ type ExtensionDefinition struct {
 	Name                string             `json:"name"`
 	Version             string             `json:"version"`
 	Description         string             `json:"description,omitempty"`
-	MinCompozyVersion   string             `json:"min_compozy_version,omitempty"`
+	RequiresEnv         []string           `json:"requires_env,omitempty"`
+	Subprocess          DescribeSubprocess `json:"subprocess"`
 	Capabilities        CapabilitiesConfig `json:"capabilities"`
-	Actions             ActionsConfig      `json:"actions"`
-	Security            SecurityConfig     `json:"security"`
+	Permissions         PermissionsConfig  `json:"permissions"`
 	SupportedHookEvents []string           `json:"supported_hook_events,omitempty"`
 	Metadata            map[string]string  `json:"metadata,omitempty"`
 }
@@ -113,14 +117,9 @@ type CapabilitiesConfig struct {
 	Provides []string `json:"provides,omitempty"`
 }
 
-// ActionsConfig lists required Host API methods.
-type ActionsConfig struct {
+// PermissionsConfig lists required Host API methods.
+type PermissionsConfig struct {
 	Requires []HostAPIMethod `json:"requires,omitempty"`
-}
-
-// SecurityConfig lists required security grants.
-type SecurityConfig struct {
-	Capabilities []string `json:"capabilities,omitempty"`
 }
 
 // InitializeRequest is the Compozy -> extension session contract request.
@@ -145,8 +144,7 @@ type InitializeExtension struct {
 // InitializeCapabilities carries runtime-granted capabilities.
 type InitializeCapabilities struct {
 	Provides              []string        `json:"provides"`
-	GrantedActions        []HostAPIMethod `json:"granted_actions"`
-	GrantedSecurity       []string        `json:"granted_security"`
+	GrantedPermissions    []HostAPIMethod `json:"granted_permissions"`
 	GrantedResourceKinds  []string        `json:"granted_resource_kinds"`
 	GrantedResourceScopes []string        `json:"granted_resource_scopes"`
 }
@@ -187,9 +185,8 @@ type InitializeExtensionInfo struct {
 
 // AcceptedCapabilities is the subset the extension accepted for this session.
 type AcceptedCapabilities struct {
-	Provides []string        `json:"provides"`
-	Actions  []HostAPIMethod `json:"actions"`
-	Security []string        `json:"security"`
+	Provides    []string        `json:"provides"`
+	Permissions []HostAPIMethod `json:"permissions"`
 }
 
 // InitializeSupports advertises optional protocol features.
@@ -227,24 +224,41 @@ type ShutdownResponse struct {
 type ToolOptions struct {
 	ID                   ToolID
 	Description          string
+	FriendlyVerb         string
+	Preview              string
 	InputSchema          any
 	OutputSchema         any
 	ReadOnly             bool
 	Risk                 RiskClass
+	RequiresInteraction  bool
 	Capabilities         []string
 	SensitiveInputFields []string
+	Command              *ExtensionCommandSpec
 }
+
+// ExtensionCommandSpec presents an extension tool as an operator-facing command.
+type ExtensionCommandSpec = contracts.ExtensionCommandSpec
 
 // ExtensionToolRuntimeDescriptor is the runtime proof descriptor returned by provide_tools.
 type ExtensionToolRuntimeDescriptor struct {
-	ID                 ToolID    `json:"id"`
-	Handler            string    `json:"handler"`
-	InputSchemaDigest  string    `json:"input_schema_digest"`
-	OutputSchemaDigest string    `json:"output_schema_digest,omitempty"`
-	ReadOnly           bool      `json:"read_only"`
-	Risk               RiskClass `json:"risk"`
-	Capabilities       []string  `json:"capabilities,omitempty"`
+	ID                  ToolID                `json:"id"`
+	Handler             string                `json:"handler"`
+	Description         string                `json:"description,omitempty"`
+	FriendlyVerb        string                `json:"friendly_verb,omitempty"`
+	Preview             string                `json:"preview,omitempty"`
+	InputSchema         json.RawMessage       `json:"input_schema,omitempty"`
+	OutputSchema        json.RawMessage       `json:"output_schema,omitempty"`
+	InputSchemaDigest   string                `json:"input_schema_digest"`
+	OutputSchemaDigest  string                `json:"output_schema_digest,omitempty"`
+	ReadOnly            bool                  `json:"read_only"`
+	Risk                RiskClass             `json:"risk"`
+	RequiresInteraction bool                  `json:"requires_interaction"`
+	Capabilities        []string              `json:"capabilities,omitempty"`
+	Command             *ExtensionCommandSpec `json:"command,omitempty"`
 }
+
+// DescribeSubprocess declares the generated bundle's process entrypoint.
+type DescribeSubprocess = contracts.DescribeSubprocess
 
 // ExtensionProvideToolsResponse is returned by provide_tools.
 type ExtensionProvideToolsResponse struct {
@@ -253,12 +267,16 @@ type ExtensionProvideToolsResponse struct {
 
 // ExtensionToolCallRequest is sent by Compozy for tools/call.
 type ExtensionToolCallRequest struct {
-	ToolID       ToolID          `json:"tool_id"`
-	Handler      string          `json:"handler"`
-	SessionID    string          `json:"session_id,omitempty"`
-	InvocationID string          `json:"invocation_id,omitempty"`
-	Input        json.RawMessage `json:"input"`
+	ToolID           ToolID                       `json:"tool_id"`
+	Handler          string                       `json:"handler"`
+	SessionID        string                       `json:"session_id,omitempty"`
+	InvocationID     string                       `json:"invocation_id,omitempty"`
+	TrustedWorkspace *ExtensionToolWorkspaceScope `json:"trusted_workspace,omitempty"`
+	Input            json.RawMessage              `json:"input"`
 }
+
+// ExtensionToolWorkspaceScope is daemon-authenticated invocation context.
+type ExtensionToolWorkspaceScope = contracts.ExtensionToolWorkspaceScope
 
 // ClarifyQuestion is one bounded question authored by an extension-host tool.
 type ClarifyQuestion struct {
@@ -403,16 +421,10 @@ func validateProvidedMethodCoverage(provides []string, implemented []string) err
 	for _, method := range implemented {
 		implementedSet[method] = struct{}{}
 	}
-	requiredByCapability := map[string][]string{
-		"bridge.adapter":             {"bridges/deliver"},
-		"memory.backend":             {"memory/store", "memory/recall", "memory/forget"},
-		CapabilityToolProvider:       {ExtensionServiceMethodProvideTools, ExtensionServiceMethodToolsCall},
-		CapabilityProvideWatchSource: {ExtensionServiceMethodWatchPoll},
-	}
 	for _, capability := range provides {
-		for _, method := range requiredByCapability[capability] {
+		for _, method := range contracts.RequiredMethods(capability) {
 			if _, ok := implementedSet[method]; !ok {
-				return NewInternalError(fmt.Sprintf("capability %s requires method %s", capability, method))
+				return NewInternalError("capability " + capability + " requires method " + method)
 			}
 		}
 	}

@@ -94,6 +94,11 @@ func (r *nativeToolPolicyResolver) Resolve(ctx context.Context, scope toolspkg.S
 	if err := r.applyBundledExtensionTrust(&inputs); err != nil {
 		return toolspkg.PolicyInputs{}, err
 	}
+	if resolvedWorkspace != nil {
+		if err := r.applyDevelopmentExtensionTrust(&inputs, resolvedWorkspace.WorkspaceID); err != nil {
+			return toolspkg.PolicyInputs{}, err
+		}
+	}
 	if err := applySessionToolPolicy(&inputs, info); err != nil {
 		return toolspkg.PolicyInputs{}, err
 	}
@@ -117,19 +122,49 @@ func (r *nativeToolPolicyResolver) applyBundledExtensionTrust(inputs *toolspkg.P
 		return fmt.Errorf("daemon: list bundled extension tool policy sources: %w", err)
 	}
 	for _, name := range names {
-		grant := toolspkg.SourceGrant{
-			Kind:  toolspkg.SourceExtension,
-			Owner: strings.TrimSpace(name),
-		}
-		if err := grant.Validate("bundled_extension_source"); err != nil {
+		if err := grantTrustedExtensionSource(inputs, name, "bundled_extension_source"); err != nil {
 			return fmt.Errorf("daemon: bundled extension source %q: %w", name, err)
 		}
-		if !sourceGrantExists(inputs.TrustedSources, grant) {
-			inputs.TrustedSources = append(inputs.TrustedSources, grant)
+	}
+	return nil
+}
+
+func (r *nativeToolPolicyResolver) applyDevelopmentExtensionTrust(
+	inputs *toolspkg.PolicyInputs,
+	workspaceID string,
+) error {
+	if r == nil || r.extensionRegistry == nil || strings.TrimSpace(workspaceID) == "" {
+		return nil
+	}
+	names, err := r.extensionRegistry.DevLinkNamesForWorkspace(workspaceID)
+	if err != nil {
+		return fmt.Errorf("daemon: list development extension tool policy sources: %w", err)
+	}
+	for _, name := range names {
+		if err := grantTrustedExtensionSource(inputs, name, "development_extension_source"); err != nil {
+			return fmt.Errorf("daemon: development extension source %q: %w", name, err)
 		}
-		if !sourceGrantExists(inputs.AllowSources, grant) {
-			inputs.AllowSources = append(inputs.AllowSources, grant)
-		}
+	}
+	return nil
+}
+
+func grantTrustedExtensionSource(
+	inputs *toolspkg.PolicyInputs,
+	name string,
+	field string,
+) error {
+	grant := toolspkg.SourceGrant{
+		Kind:  toolspkg.SourceExtension,
+		Owner: strings.TrimSpace(name),
+	}
+	if err := grant.Validate(field); err != nil {
+		return err
+	}
+	if !sourceGrantExists(inputs.TrustedSources, grant) {
+		inputs.TrustedSources = append(inputs.TrustedSources, grant)
+	}
+	if !sourceGrantExists(inputs.AllowSources, grant) {
+		inputs.AllowSources = append(inputs.AllowSources, grant)
 	}
 	return nil
 }

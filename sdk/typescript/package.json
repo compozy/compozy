@@ -1,9 +1,16 @@
 {
     "name": "@compozy/extension-sdk",
     "version": "0.1.0",
-    "private": true,
+    "private": false,
     "description": "TypeScript SDK for building Compozy subprocess extensions",
-    "license": "UNLICENSED",
+    "homepage": "https://compozy.com",
+    "bugs": "https://github.com/compozy/compozy/issues",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/compozy/compozy.git",
+        "directory": "sdk/typescript"
+    },
     "files": [
         "dist/**/*"
     ],
@@ -23,6 +30,11 @@
             "import": "./dist/esm/testing/index.js"
         },
         "./package.json": "./package.json"
+    },
+    "publishConfig": {
+        "access": "public",
+        "provenance": true,
+        "registry": "https://registry.npmjs.org"
     },
     "scripts": {
         "codegen-check": "bun run --cwd ../.. codegen-check",

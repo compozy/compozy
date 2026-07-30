@@ -38,6 +38,7 @@ const (
 	cliPriorityValue         = "Priority"
 	cliCodeValue             = "Code"
 	cliCommandValue          = "Command"
+	cliDirectoryValue        = "Directory"
 	cliDurationMSKey         = "duration_ms"
 	cliDurationValue         = "Duration"
 	cliHashValue             = "Hash"

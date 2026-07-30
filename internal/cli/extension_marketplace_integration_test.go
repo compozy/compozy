@@ -53,7 +53,7 @@ func newExtensionRegistryTestEnv(
 	t.Helper()
 
 	h := newIntegrationHarness(t)
-	h.runner.cfg.Extensions.Marketplace.AllowUnverified = opts.allowUnverified
+	h.runner.cfg.Extensions.Trust.AllowUnverified = opts.allowUnverified
 	h.runner.extensionTrust = opts.trust
 	h.runner.extensionSources = append([]registrypkg.Source(nil), sources...)
 	mustExecuteRoot(t, h.deps, "daemon", "start", "-o", "json")
@@ -386,7 +386,7 @@ func TestExtensionInstallCommandIntegrationReturnsStructuredPolicyBlock(t *testi
 		for _, want := range []string{
 			diagnosticcontract.CodeExtensionUnverifiedPolicyBlocked,
 			"Settings › Extensions",
-			"extensions.marketplace.allow_unverified",
+			"extensions.trust.allow_unverified",
 		} {
 			if !strings.Contains(stderr, want) {
 				t.Fatalf("extension install policy stderr = %q, want %q", stderr, want)

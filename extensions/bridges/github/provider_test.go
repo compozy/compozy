@@ -2221,7 +2221,7 @@ func newGitHubTestSession(
 		ProtocolVersion: "1.0",
 		Capabilities: subprocess.InitializeCapabilities{
 			Provides: []string{"bridge.adapter"},
-			GrantedActions: []extensionprotocol.HostAPIMethod{
+			GrantedPermissions: []extensionprotocol.HostAPIMethod{
 				"bridges/instances/list",
 				"bridges/instances/get",
 				"bridges/instances/report_state",

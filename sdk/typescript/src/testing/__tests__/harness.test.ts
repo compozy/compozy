@@ -31,7 +31,7 @@ describe("TestHarness", () => {
     const extension = new Extension({
       name: "mock-host",
       version: "0.1.0",
-      actions: { requires: ["sessions/list"] },
+      permissions: { requires: ["sessions/list"] },
     });
     extension.onReady(async host => {
       const result = await host.sessions.list();

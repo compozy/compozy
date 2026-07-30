@@ -26,8 +26,7 @@ func CloneInitializeRequest(src InitializeRequest) InitializeRequest {
 func cloneInitializeCapabilities(src InitializeCapabilities) InitializeCapabilities {
 	cloned := src
 	cloned.Provides = append([]string(nil), src.Provides...)
-	cloned.GrantedActions = append([]extensionprotocol.HostAPIMethod(nil), src.GrantedActions...)
-	cloned.GrantedSecurity = append([]string(nil), src.GrantedSecurity...)
+	cloned.GrantedPermissions = append([]extensionprotocol.HostAPIMethod(nil), src.GrantedPermissions...)
 	cloned.GrantedResourceKinds = append([]string(nil), src.GrantedResourceKinds...)
 	cloned.GrantedResourceScopes = append([]string(nil), src.GrantedResourceScopes...)
 	return cloned
@@ -55,8 +54,7 @@ type InitializeExtension struct {
 // InitializeCapabilities carries runtime-granted capabilities.
 type InitializeCapabilities struct {
 	Provides              []string                          `json:"provides"`
-	GrantedActions        []extensionprotocol.HostAPIMethod `json:"granted_actions"`
-	GrantedSecurity       []string                          `json:"granted_security"`
+	GrantedPermissions    []extensionprotocol.HostAPIMethod `json:"granted_permissions"`
 	GrantedResourceKinds  []string                          `json:"granted_resource_kinds"`
 	GrantedResourceScopes []string                          `json:"granted_resource_scopes"`
 }
@@ -141,9 +139,8 @@ type InitializeExtensionInfo struct {
 
 // AcceptedCapabilities is the subset the extension accepted for this session.
 type AcceptedCapabilities struct {
-	Provides []string                          `json:"provides"`
-	Actions  []extensionprotocol.HostAPIMethod `json:"actions"`
-	Security []string                          `json:"security"`
+	Provides    []string                          `json:"provides"`
+	Permissions []extensionprotocol.HostAPIMethod `json:"permissions"`
 }
 
 // InitializeSupports advertises optional protocol features.
@@ -237,16 +234,9 @@ func validateInitializeResponse(request InitializeRequest, response InitializeRe
 		return validateControlInitializeResponse(request, response)
 	}
 	if err := validateSubset(
-		"accepted actions",
-		response.AcceptedCapabilities.Actions,
-		request.Capabilities.GrantedActions,
-	); err != nil {
-		return err
-	}
-	if err := validateSubset(
-		"accepted security",
-		response.AcceptedCapabilities.Security,
-		request.Capabilities.GrantedSecurity,
+		"accepted permissions",
+		response.AcceptedCapabilities.Permissions,
+		request.Capabilities.GrantedPermissions,
 	); err != nil {
 		return err
 	}

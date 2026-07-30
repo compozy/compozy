@@ -3,11 +3,55 @@ package extensionpkg
 import (
 	"errors"
 	"slices"
+	"strings"
 	"testing"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	extensioncontract "github.com/compozy/compozy/internal/extension/contract"
 	"github.com/compozy/compozy/internal/resources"
 )
+
+func TestDeriveConsentAreas(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should derive unique consent areas from permissions", func(t *testing.T) {
+		t.Parallel()
+
+		got, err := DeriveConsentAreas([]string{"sessions/list", "memory/store", "sessions/list"})
+		if err != nil {
+			t.Fatalf("DeriveConsentAreas() error = %v", err)
+		}
+		want := []ConsentArea{
+			{Area: "memory", Access: "write"},
+			{Area: "sessions", Access: "read"},
+		}
+		if !slices.Equal(got, want) {
+			t.Fatalf("DeriveConsentAreas() = %#v, want %#v", got, want)
+		}
+	})
+
+	t.Run("Should reject an unknown permission", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := DeriveConsentAreas([]string{"nope/x"})
+		if err == nil {
+			t.Fatal("DeriveConsentAreas() error = nil, want membership error")
+		}
+		if !strings.Contains(err.Error(), "nope/x") || !strings.Contains(err.Error(), "unknown Host API permission") {
+			t.Fatalf("DeriveConsentAreas() error = %v, want unknown permission", err)
+		}
+	})
+
+	t.Run("Should map every generated Host API permission to a consent area", func(t *testing.T) {
+		t.Parallel()
+
+		for _, contract := range extensioncontract.PermissionContracts() {
+			if contract.Area == "" || contract.Access == "" || contract.Capability == "" {
+				t.Fatalf("permission contract %q = %#v, want non-empty consent area", contract.Method, contract)
+			}
+		}
+	})
+}
 
 func TestCapabilityCheckerCheckShouldAllowGrantedCapability(t *testing.T) {
 	t.Parallel()
@@ -57,137 +101,44 @@ func TestCapabilityCheckerCheckShouldReturnCapabilityDenied(t *testing.T) {
 	}
 }
 
-func TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates(t *testing.T) {
+func TestCapabilityCheckerCheckHostAPIShouldEnforcePermissions(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name         string
-		actions      []string
-		security     []string
+		permissions  []string
 		method       string
 		wantRequired []string
 		wantGranted  []string
 		wantErr      bool
 	}{
 		{
-			name:     "succeeds when action and security are granted",
-			actions:  []string{"sessions/list"},
-			security: []string{"session.read"},
-			method:   "sessions/list",
+			name:        "Should allow a declared read permission",
+			permissions: []string{"sessions/list"},
+			method:      "sessions/list",
 		},
 		{
-			name:     "allows bridge list method with matching grant",
-			actions:  []string{"bridges/instances/list"},
-			security: []string{"bridge.read"},
-			method:   "bridges/instances/list",
+			name:        "Should allow a declared write permission",
+			permissions: []string{"bridges/instances/report_state"},
+			method:      "bridges/instances/report_state",
 		},
 		{
-			name:     "allows bridge read method with matching grant",
-			actions:  []string{"bridges/instances/get"},
-			security: []string{"bridge.read"},
-			method:   "bridges/instances/get",
+			name:        "Should allow a declared execution permission",
+			permissions: []string{"sandbox/exec"},
+			method:      "sandbox/exec",
 		},
 		{
-			name:    "allows sandbox list with action grant only",
-			actions: []string{"sandbox/list"},
-			method:  "sandbox/list",
-		},
-		{
-			name:    "allows sandbox info with action grant only",
-			actions: []string{"sandbox/info"},
-			method:  "sandbox/info",
-		},
-		{
-			name:     "allows sandbox exec with action and exec capability",
-			actions:  []string{"sandbox/exec"},
-			security: []string{"sandbox.exec"},
-			method:   "sandbox/exec",
-		},
-		{
-			name:         "rejects sandbox exec without exec capability",
-			actions:      []string{"sandbox/exec"},
-			security:     []string{"session.read"},
-			method:       "sandbox/exec",
-			wantRequired: []string{"sandbox.exec"},
-			wantGranted:  []string{"session.read"},
-			wantErr:      true,
-		},
-		{
-			name:     "ShouldAllowBridgeStateReportWithWriteGrant",
-			actions:  []string{"bridges/instances/report_state"},
-			security: []string{"bridge.write"},
-			method:   "bridges/instances/report_state",
-		},
-		{
-			name:         "ShouldRejectBridgeStateReportWithoutActionGrant",
-			actions:      []string{"bridges/instances/get"},
-			security:     []string{"bridge.write"},
+			name:         "Should reject an undeclared write permission",
+			permissions:  []string{"bridges/instances/get"},
 			method:       "bridges/instances/report_state",
 			wantRequired: []string{"bridges/instances/report_state"},
 			wantGranted:  []string{"bridges/instances/get"},
 			wantErr:      true,
 		},
 		{
-			name:         "ShouldRejectBridgeStateReportWithoutWriteGrant",
-			actions:      []string{"bridges/instances/report_state"},
-			security:     []string{"bridge.read"},
-			method:       "bridges/instances/report_state",
-			wantRequired: []string{"bridge.write"},
-			wantGranted:  []string{"bridge.read"},
-			wantErr:      true,
-		},
-		{
-			name:         "fails when action grant is missing",
-			actions:      nil,
-			security:     []string{"session.read"},
+			name:         "Should reject an undeclared read permission",
 			method:       "sessions/list",
 			wantRequired: []string{"sessions/list"},
-			wantGranted:  nil,
-			wantErr:      true,
-		},
-		{
-			name:         "fails when security grant is missing",
-			actions:      []string{"sessions/list"},
-			security:     []string{"observe.read"},
-			method:       "sessions/list",
-			wantRequired: []string{"session.read"},
-			wantGranted:  []string{"observe.read"},
-			wantErr:      true,
-		},
-		{
-			name:     "allows logs list with logs read capability",
-			actions:  []string{"logs/list"},
-			security: []string{"logs.read"},
-			method:   "logs/list",
-		},
-		{
-			name:         "rejects logs list with observe read only",
-			actions:      []string{"logs/list"},
-			security:     []string{"observe.read"},
-			method:       "logs/list",
-			wantRequired: []string{"logs.read"},
-			wantGranted:  []string{"observe.read"},
-			wantErr:      true,
-		},
-		{
-			name:     "automation read requires action and automation.read capability",
-			actions:  []string{"automation/jobs"},
-			security: []string{"automation.read"},
-			method:   "automation/jobs",
-		},
-		{
-			name:     "automation write requires action and automation.write capability",
-			actions:  []string{"automation/jobs/create"},
-			security: []string{"automation.write"},
-			method:   "automation/jobs/create",
-		},
-		{
-			name:         "fails for bridge write method without bridge security grant",
-			actions:      []string{"bridges/messages/ingest"},
-			security:     []string{"bridge.read"},
-			method:       "bridges/messages/ingest",
-			wantRequired: []string{"bridge.write"},
-			wantGranted:  []string{"bridge.read"},
 			wantErr:      true,
 		},
 	}
@@ -196,7 +147,7 @@ func TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			checker := newTestCapabilityChecker("ext", SourceUser, tt.actions, tt.security)
+			checker := newTestCapabilityChecker("ext", SourceUser, tt.permissions)
 			err := checker.CheckHostAPI("ext", tt.method)
 			if !tt.wantErr {
 				if err != nil {
@@ -315,10 +266,9 @@ func TestCapabilityCheckerRegisterShouldGrantRequestedCapabilitiesForTrustedSour
 				"ext",
 				tt.source,
 				[]string{"memory/store", "sessions/create"},
-				[]string{"agent.pre_start", "memory.write", "permission.request", "session.write"},
 			)
 
-			for _, capability := range []string{"agent.pre_start", "memory.write", "permission.request", "session.write"} {
+			for _, capability := range []string{"memory.write", "session.write"} {
 				if err := checker.Check("ext", capability); err != nil {
 					t.Fatalf("Check(%q) error = %v, want nil", capability, err)
 				}
@@ -337,18 +287,18 @@ func TestCapabilityCheckerMarketplaceShouldDenyRestrictedCapabilities(t *testing
 
 	tests := []struct {
 		name       string
+		method     string
 		capability string
 	}{
-		{name: "permission family", capability: "permission.request"},
-		{name: "session write", capability: "session.write"},
-		{name: "memory write", capability: "memory.write"},
+		{name: "session write", method: "sessions/create", capability: "session.write"},
+		{name: "memory write", method: "memory/store", capability: "memory.write"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			checker := newTestCapabilityChecker("ext", SourceMarketplace, nil, []string{tt.capability})
+			checker := newTestCapabilityChecker("ext", SourceMarketplace, []string{tt.method})
 			err := checker.Check("ext", tt.capability)
 			if err == nil {
 				t.Fatalf("Check(%q) error = nil, want capability denied", tt.capability)
@@ -367,8 +317,7 @@ func TestCapabilityCheckerMarketplaceShouldAllowDefaultReadCapabilities(t *testi
 	checker := newTestCapabilityChecker(
 		"ext",
 		SourceMarketplace,
-		[]string{"memory/recall", "logs/list", "sessions/list"},
-		[]string{"*"},
+		[]string{"memory/recall", "logs/list", "observe/health", "sessions/list", "skills/list"},
 	)
 
 	for _, capability := range []string{"memory.read", "logs.read", "observe.read", "session.read"} {
@@ -376,7 +325,7 @@ func TestCapabilityCheckerMarketplaceShouldAllowDefaultReadCapabilities(t *testi
 			t.Fatalf("Check(%q) error = %v, want nil", capability, err)
 		}
 	}
-	for _, method := range []string{"memory/recall", "logs/list", "sessions/list"} {
+	for _, method := range []string{"memory/recall", "logs/list", "observe/health", "sessions/list", "skills/list"} {
 		if err := checker.CheckHostAPI("ext", method); err != nil {
 			t.Fatalf("CheckHostAPI(%q) error = %v, want nil", method, err)
 		}
@@ -388,7 +337,7 @@ func TestCapabilityCheckerRegisterShouldApplyMarketplaceTierCeiling(t *testing.T
 
 	checker := &CapabilityChecker{}
 	checker.Register("ext", SourceMarketplace, &Manifest{
-		Actions: ActionsConfig{
+		Permissions: PermissionsConfig{
 			Requires: []string{
 				"logs/list",
 				"memory/recall",
@@ -398,54 +347,25 @@ func TestCapabilityCheckerRegisterShouldApplyMarketplaceTierCeiling(t *testing.T
 				"skills/list",
 			},
 		},
-		Security: SecurityConfig{
-			Capabilities: []string{"*"},
-		},
 	})
 
 	grant := checker.grants["ext"]
-	if !slices.Equal(grant.actions, []string{"logs/list", "memory/recall", "sessions/list", "skills/list"}) {
+	if !slices.Equal(grant.permissions, []string{"logs/list", "memory/recall", "sessions/list", "skills/list"}) {
 		t.Fatalf(
-			"grant.actions = %v, want %v",
-			grant.actions,
+			"grant.permissions = %v, want %v",
+			grant.permissions,
 			[]string{"logs/list", "memory/recall", "sessions/list", "skills/list"},
 		)
 	}
 	if !slices.Equal(
 		grant.security,
-		[]string{"logs.read", "memory.read", "observe.read", "session.read", "skills.read", "tool.read"},
+		[]string{"logs.read", "memory.read", "session.read", "skills.read"},
 	) {
 		t.Fatalf(
 			"grant.security = %v, want %v",
 			grant.security,
-			[]string{"logs.read", "memory.read", "observe.read", "session.read", "skills.read", "tool.read"},
+			[]string{"logs.read", "memory.read", "session.read", "skills.read"},
 		)
-	}
-}
-
-func TestCapabilityCheckerCheckShouldHonorGlobalWildcardGrant(t *testing.T) {
-	t.Parallel()
-
-	checker := newTestCapabilityChecker("ext", SourceUser, nil, []string{"*"})
-	for _, capability := range []string{"agent.pre_start", "permission.request", "session.write"} {
-		if err := checker.Check("ext", capability); err != nil {
-			t.Fatalf("Check(%q) error = %v, want nil", capability, err)
-		}
-	}
-}
-
-func TestCapabilityCheckerCheckShouldHonorFamilyWildcardGrant(t *testing.T) {
-	t.Parallel()
-
-	checker := newTestCapabilityChecker("ext", SourceUser, nil, []string{"session.*"})
-	for _, capability := range []string{"session.read", "session.write"} {
-		if err := checker.Check("ext", capability); err != nil {
-			t.Fatalf("Check(%q) error = %v, want nil", capability, err)
-		}
-	}
-
-	if err := checker.Check("ext", "memory.read"); err == nil {
-		t.Fatal("Check(memory.read) error = nil, want capability denied")
 	}
 }
 
@@ -572,7 +492,7 @@ func TestCapabilityCheckerNilResolveReturnsEmptyGrant(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Resolve(nil) error = %v, want nil", err)
 	}
-	if len(grant.Actions) != 0 ||
+	if len(grant.Permissions) != 0 ||
 		len(grant.Security) != 0 ||
 		len(grant.ResourceKinds) != 0 ||
 		len(grant.ResourceScopes) != 0 {
@@ -667,25 +587,25 @@ func TestCapabilityHelperPoliciesAndCeilings(t *testing.T) {
 	t.Run("Should enforce wildcard grant ceilings", func(t *testing.T) {
 		t.Parallel()
 
-		if !ceilingAllowsRequestedGrant([]string{"network.*"}, "network.http") {
-			t.Fatalf("ceilingAllowsRequestedGrant() = false, want true for wildcard superset")
+		if !capabilityGranted([]string{"network.*"}, "network.http") {
+			t.Fatalf("capabilityGranted() = false, want true for wildcard superset")
 		}
-		if ceilingAllowsRequestedGrant([]string{"network.http"}, "network.*") {
-			t.Fatalf("ceilingAllowsRequestedGrant() = true, want false when request exceeds ceiling")
+		if capabilityGranted([]string{"network.http"}, "network.*") {
+			t.Fatalf("capabilityGranted() = true, want false when request exceeds ceiling")
 		}
 	})
 
-	t.Run("Should restrict marketplace actions while preserving the global read ceiling", func(t *testing.T) {
+	t.Run("Should restrict marketplace permissions while preserving the global read ceiling", func(t *testing.T) {
 		t.Parallel()
 
 		marketplace := sourcePolicy(SourceMarketplace)
-		if marketplace.allowAllActions || marketplace.allowAllSecurity {
-			t.Fatalf("marketplace policy = %#v, want narrowed actions and security", marketplace)
+		if marketplace.allowAllPermissions {
+			t.Fatalf("marketplace policy = %#v, want narrowed permissions", marketplace)
 		}
 		if marketplace.maxResourceScope != resources.ResourceScopeKindGlobal {
 			t.Fatalf("marketplace maxResourceScope = %q, want global", marketplace.maxResourceScope)
 		}
-		if len(marketplace.allowedActions) == 0 || len(marketplace.allowedSecurity) == 0 {
+		if len(marketplace.allowedConsent) == 0 {
 			t.Fatalf("marketplace policy = %#v, want populated ceilings", marketplace)
 		}
 	})
@@ -694,8 +614,8 @@ func TestCapabilityHelperPoliciesAndCeilings(t *testing.T) {
 		t.Parallel()
 
 		bundled := sourcePolicy(SourceBundled)
-		if !bundled.allowAllActions || !bundled.allowAllSecurity {
-			t.Fatalf("bundled policy = %#v, want full action and security grants", bundled)
+		if !bundled.allowAllPermissions {
+			t.Fatalf("bundled policy = %#v, want full permission grants", bundled)
 		}
 		if bundled.maxResourceScope != resources.ResourceScopeKindGlobal {
 			t.Fatalf("bundled maxResourceScope = %q, want global", bundled.maxResourceScope)
@@ -717,16 +637,13 @@ func TestCapabilityHelperPoliciesAndCeilings(t *testing.T) {
 func newTestCapabilityChecker(
 	extName string,
 	source ExtensionSource,
-	actions []string,
-	security []string,
+	permissions []string,
+	_ ...[]string,
 ) *CapabilityChecker {
 	checker := &CapabilityChecker{}
 	checker.Register(extName, source, &Manifest{
-		Actions: ActionsConfig{
-			Requires: actions,
-		},
-		Security: SecurityConfig{
-			Capabilities: security,
+		Permissions: PermissionsConfig{
+			Requires: permissions,
 		},
 	})
 	return checker

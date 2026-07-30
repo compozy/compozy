@@ -975,14 +975,17 @@ func TestUDSTransportMarketplaceParityMatchesHTTPAndCLI(t *testing.T) {
 		}
 	})
 
-	t.Run("Should retarget extension search without changing its output fields", func(t *testing.T) {
-		var cliValue []struct {
-			Slug        string `json:"slug"`
-			Name        string `json:"name"`
-			Description string `json:"description"`
-			Version     string `json:"version"`
-			Source      string `json:"source"`
+	t.Run("Should preserve the current extension search envelope across HTTP, UDS, and CLI", func(t *testing.T) {
+		path := "/api/extensions/search?q=bridge&limit=20"
+		var httpValue compozycontract.ExtensionSearchResponse
+		if err := runtimeHarness.HTTPJSON(ctx, http.MethodGet, path, nil, &httpValue); err != nil {
+			t.Fatalf("HTTPJSON(%s) error = %v", path, err)
 		}
+		var udsValue compozycontract.ExtensionSearchResponse
+		if err := runtimeHarness.UDSJSON(ctx, http.MethodGet, path, nil, &udsValue); err != nil {
+			t.Fatalf("UDSJSON(%s) error = %v", path, err)
+		}
+		var cliValue compozycontract.ExtensionSearchResponse
 		if err := clients.CLI.RunJSON(
 			ctx,
 			&cliValue,
@@ -996,16 +999,19 @@ func TestUDSTransportMarketplaceParityMatchesHTTPAndCLI(t *testing.T) {
 		); err != nil {
 			t.Fatalf("CLI extension search error = %v", err)
 		}
-		if len(cliValue) != 1 {
+		assertTransportMarketplaceParity(t, path, httpValue, udsValue, cliValue)
+		if len(cliValue.Items) != 1 {
 			t.Fatalf("CLI extension search items = %#v, want one curated entry", cliValue)
 		}
-		item := cliValue[0]
+		item := cliValue.Items[0]
 		if item.Slug != "compozy/bridge-github" ||
 			item.Name != "GitHub bridge" ||
 			item.Description != "Connect GitHub events to Compozy" ||
 			item.Version != "1.0.0" ||
-			item.Source != "compozy-catalog" {
-			t.Fatalf("CLI extension search item = %#v, want unchanged extension search fields", item)
+			item.Source != "curated" ||
+			item.Tier != "official" ||
+			item.Integrity != "catalog_digest" {
+			t.Fatalf("CLI extension search item = %#v, want current source-union fields", item)
 		}
 	})
 

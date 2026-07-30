@@ -122,10 +122,9 @@ func githubRuntimeInitializeRequest(
 		},
 		Capabilities: subprocess.InitializeCapabilities{
 			Provides: []string{"bridge.adapter"},
-			GrantedActions: []extensionprotocol.HostAPIMethod{
+			GrantedPermissions: []extensionprotocol.HostAPIMethod{
 				extensionprotocol.HostAPIMethodBridgesInstancesList,
 			},
-			GrantedSecurity: []string{"bridge.read", "bridge.write"},
 		},
 		Methods: subprocess.InitializeMethods{
 			ExtensionServices: []string{"bridges/deliver", "health_check", "shutdown"},

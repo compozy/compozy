@@ -128,7 +128,10 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"GET /api/doctor",
 		"POST /api/drain",
 		"GET /api/extensions",
+		"GET /api/extensions/commands",
+		"GET /api/extensions/search",
 		"GET /api/extensions/:name",
+		"GET /api/extensions/:name/logs",
 		"GET /api/extensions/:name/provenance",
 		"GET /api/hooks/catalog",
 		"GET /api/hooks/events",
@@ -368,8 +371,11 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"POST /api/bundles/activations",
 		"POST /api/bundles/preview",
 		"POST /api/extensions",
+		"POST /api/extensions/:name/reload",
 		"POST /api/extensions/:name/disable",
 		"POST /api/extensions/:name/enable",
+		"POST /api/extensions/dev",
+		"POST /api/extensions/update",
 		"POST /api/notifications/presets",
 		"POST /api/workspaces/:workspace_id/network/send",
 		"POST /api/sessions",
@@ -1553,12 +1559,13 @@ func TestSettingsAndExtensionMutationsReachHandlersOnLoopbackHost(t *testing.T) 
 			path:       "/api/extensions",
 			wantStatus: http.StatusCreated,
 			body: mustJSONBody(t, contract.InstallExtensionRequest{
-				Path:     "/extensions/demo",
-				Checksum: "sha256-demo",
+				Source: contract.InstallExtensionSourceLocalPath,
+				Ref:    "/extensions/demo",
 			}),
 			assert: func(t *testing.T) {
 				t.Helper()
-				if installedReq.Path != "/extensions/demo" || installedReq.Checksum != "sha256-demo" {
+				if installedReq.Source != contract.InstallExtensionSourceLocalPath ||
+					installedReq.Ref != "/extensions/demo" {
 					t.Fatalf("installedReq = %#v", installedReq)
 				}
 			},

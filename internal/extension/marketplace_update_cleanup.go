@@ -90,7 +90,7 @@ func marketplaceUpdateCleanupWarning(
 		diagnostics.WithEvidence(map[string]any{
 			managerExtensionKey: strings.TrimSpace(extensionName),
 			"cleanup_target":    strings.TrimSpace(target),
-			"path":              strings.TrimSpace(path),
+			manifestPathKey:     strings.TrimSpace(path),
 		}),
 	)
 }

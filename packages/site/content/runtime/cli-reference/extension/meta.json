@@ -2,14 +2,23 @@
     "title": "Extension",
     "pages": [
         "index",
+        "build",
+        "commands",
+        "dev",
         "disable",
         "enable",
+        "exec",
+        "init",
         "install",
         "list",
+        "logs",
         "provenance",
+        "publish",
+        "reload",
         "remove",
         "search",
         "status",
-        "update"
+        "update",
+        "validate"
     ]
 }

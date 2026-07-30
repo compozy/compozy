@@ -73,7 +73,10 @@ Unknown TOML keys are errors. Sandbox profiles are implemented under `[sandboxes
 | `[memory.workspace]`                 | Workspace identity file location and auto-creation.                                  | `<workspace>/.compozy/workspace.toml`, auto-create on first touch                                     |
 | `[skills]`                           | Skill discovery, polling, disable list, and marketplace trust gates.                 | enabled, poll every 3 seconds                                                                         |
 | `[skills.marketplace]`               | Skill registry override.                                                             | unset                                                                                                 |
-| `[extensions.marketplace]`           | Extension registry override and side-load policy.                                    | registry unset, unverified side-loads disabled                                                        |
+| `[extensions.trust]`                 | Operator policy for non-curated extension installs.                                  | `allow_unverified = true`; per-install consent still required                                         |
+| `[extensions.sources.*]`             | Published extension source availability and endpoints.                               | GitHub and git enabled, `https://api.github.com`                                                      |
+| `[extensions.dev]`                   | CLI-side extension dev-loop poll cadence.                                            | `watch_interval = "2s"`                                                                               |
+| `[extensions.resources]`             | Resource kinds, scope ceiling, and rate limits for extension-published resources.    | unrestricted kinds and scope, rate limits off                                                         |
 | `[automation]`                       | Automation scheduler defaults.                                                       | enabled, UTC, 5 concurrent jobs                                                                       |
 | `[[automation.jobs]]`                | Scheduled automation jobs.                                                           | empty list                                                                                            |
 | `[[automation.triggers]]`            | Event-driven automation triggers.                                                    | empty list                                                                                            |
@@ -548,10 +551,22 @@ allowed_marketplace_hooks = ["clawhub:@team/format-hook"]
 registry = "clawhub"
 base_url = "https://registry.example.com"
 
-[extensions.marketplace]
-registry = "github"
+[extensions.trust]
+allow_unverified = true
+
+[extensions.sources.github]
+enabled = true
 base_url = "https://api.github.com"
-allow_unverified = false
+
+[extensions.sources.git]
+enabled = true
+
+[extensions.dev]
+watch_interval = "2s"
+
+[extensions.resources]
+allowed_kinds = ["window_layout"]
+max_scope = "workspace"
 
 [automation]
 enabled = true
@@ -1658,20 +1673,69 @@ If `enabled = false`, skill polling and marketplace validation are skipped.
 | `registry` | string     | empty   | Empty or `clawhub`. Required when `base_url` is set. | Skill marketplace registry adapter. |
 | `base_url` | string URL | empty   | Empty or `http` or `https` URL with host.            | Registry base URL override.         |
 
-## `[extensions.marketplace]`
+## `[extensions.trust]`
 
-`allow_unverified` controls non-curated side-loads only. Enabling it permits the install path, but each install must still include the `--allow-unverified` confirmation. Curated installs always verify the catalog-pinned archive digest before extraction; a mismatch cannot be bypassed. Policy changes apply live.
+Operator policy for installs that are not curated-and-tiered. Enabling it permits the install path;
+each install must still carry `--allow-unverified` (plus `--yes` for structured output). Curated
+installs always verify the catalog-pinned archive digest before extraction, and that check cannot be
+bypassed. Policy changes apply live.
 
-| Field              | Type       | Default | Valid values                                        | Description                                                        |
-| ------------------ | ---------- | ------- | --------------------------------------------------- | ------------------------------------------------------------------ |
-| `registry`         | string     | empty   | Empty or `github`. Required when `base_url` is set. | Extension marketplace registry adapter.                            |
-| `base_url`         | string URL | empty   | Empty or `http` or `https` URL with host.           | Registry base URL override. `http` is accepted but logs a warning. |
-| `allow_unverified` | boolean    | `false` | `true` or `false`                                   | Allows individually confirmed non-curated extension side-loads.    |
+| Field              | Type    | Default | Valid values      | Description                                                                                       |
+| ------------------ | ------- | ------- | ----------------- | ------------------------------------------------------------------------------------------------- |
+| `allow_unverified` | boolean | `true`  | `true` or `false` | Allows individually confirmed `curated (unverified)`, `github`, `git`, and `local_path` installs. |
 
-`extensions.marketplace.allow_unverified` is the only live path in this key family; the registry
-and base URL remain restart-required under the broader `extensions.*` lifecycle. Verify the exact
-result through `compozy config reload -o json` and `compozy config apply-history -o json`. A policy-blocked
-side-load reports `extension_unverified_policy_blocked` and points to `/settings/extensions`.
+A policy-blocked install reports `extension_unverified_policy_blocked` and points to
+`/settings/extensions`. Policy on without request consent reports `extension_checksum_unverified`.
+Verify the applied result through `compozy config reload -o json` and
+`compozy config apply-history -o json`.
+
+## `[extensions.sources.github]`
+
+| Field      | Type       | Default                  | Valid values                                            | Description                                                           |
+| ---------- | ---------- | ------------------------ | ------------------------------------------------------- | --------------------------------------------------------------------- |
+| `enabled`  | boolean    | `true`                   | `true` or `false`                                       | Enables `github:` installs and the GitHub arm of source-union search. |
+| `base_url` | string URL | `https://api.github.com` | `http` or `https` URL with host. Required when enabled. | GitHub API base URL. `http` is accepted but logs a warning.           |
+
+The GitHub client reads `GITHUB_TOKEN` from the daemon environment for authenticated release access
+and higher rate limits. An anonymous rate limit degrades search to cached-or-omitted results with a
+`sources_degraded` marker instead of failing the query.
+
+## `[extensions.sources.git]`
+
+| Field     | Type    | Default | Valid values      | Description                                                           |
+| --------- | ------- | ------- | ----------------- | --------------------------------------------------------------------- |
+| `enabled` | boolean | `true`  | `true` or `false` | Enables `git:` installs through a shallow clone at the requested ref. |
+
+Git installs require the `git` executable on the daemon host; a missing binary is the deterministic
+`extension_git_unavailable` diagnostic. Git sources do not support search.
+
+## `[extensions.dev]`
+
+| Field            | Type     | Default | Valid values          | Description                                                                                                             |
+| ---------------- | -------- | ------- | --------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `watch_interval` | duration | `2s`    | Positive Go duration. | Poll cadence for `compozy extension dev --watch`. The watcher is CLI-side; the daemon never watches author directories. |
+
+## `[extensions.resources]`
+
+Operator policy for resources an extension publishes through `resources/snapshot`. Every field is
+optional; empty means "do not narrow". The effective grant is the narrowest of the manifest's
+`[resources.publish]` request, the extension source tier, this policy, and the runtime session scope.
+
+| Field           | Type         | Default | Valid values                                        | Description                                               |
+| --------------- | ------------ | ------- | --------------------------------------------------- | --------------------------------------------------------- |
+| `allowed_kinds` | string array | empty   | Registered resource kinds, such as `window_layout`. | Restricts which resource kinds any extension may publish. |
+| `max_scope`     | string       | empty   | `global` or `workspace`.                            | Caps the widest publication scope.                        |
+
+### `[extensions.resources.snapshot_rate_limit]` and `[extensions.resources.operator_write_rate_limit]`
+
+Both buckets share one shape and are disabled when all three fields are zero. Setting any field
+requires positive `requests` and `window`, and a non-negative `queue`.
+
+| Field      | Type     | Default | Valid values          | Description                                        |
+| ---------- | -------- | ------- | --------------------- | -------------------------------------------------- |
+| `requests` | integer  | `0`     | Positive integer.     | Requests allowed per window.                       |
+| `window`   | duration | `0s`    | Positive Go duration. | Rolling window.                                    |
+| `queue`    | integer  | `0`     | Zero or positive.     | Requests allowed to wait when the bucket is empty. |
 
 ## `[automation]`
 

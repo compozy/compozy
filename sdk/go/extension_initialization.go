@@ -33,16 +33,16 @@ func (e *Extension) handleInitialize(params json.RawMessage) (InitializeResponse
 		})
 	}
 	requestedProvides := normalizeStrings(e.definition.Capabilities.Provides)
-	requestedActions := normalizeHostMethods(e.definition.Actions.Requires)
-	requestedSecurity := normalizeStrings(e.definition.Security.Capabilities)
-	grantedActions := hostMethodsToStrings(request.Capabilities.GrantedActions)
+	requestedPermissions := normalizeHostMethods(e.definition.Permissions.Requires)
+	grantedPermissions := hostMethodsToStrings(request.Capabilities.GrantedPermissions)
 	if err := ensureSubset("provides", requestedProvides, request.Capabilities.Provides); err != nil {
 		return InitializeResponse{}, err
 	}
-	if err := ensureSubset("actions", hostMethodsToStrings(requestedActions), grantedActions); err != nil {
-		return InitializeResponse{}, err
-	}
-	if err := ensureSubset("security", requestedSecurity, request.Capabilities.GrantedSecurity); err != nil {
+	if err := ensureSubset(
+		"permissions",
+		hostMethodsToStrings(requestedPermissions),
+		grantedPermissions,
+	); err != nil {
 		return InitializeResponse{}, err
 	}
 	implemented := e.implementedMethodsLocked()
@@ -58,9 +58,8 @@ func (e *Extension) handleInitialize(params json.RawMessage) (InitializeResponse
 			SDKVersion: e.sdkVersion,
 		},
 		AcceptedCapabilities: AcceptedCapabilities{
-			Provides: requestedProvides,
-			Actions:  requestedActions,
-			Security: requestedSecurity,
+			Provides:    requestedProvides,
+			Permissions: requestedPermissions,
 		},
 		ImplementedMethods:  implemented,
 		SupportedHookEvents: normalizeStrings(e.definition.SupportedHookEvents),

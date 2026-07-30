@@ -809,11 +809,11 @@ func TestHostAPIHandlerSandboxMethodsRequireSessionManager(t *testing.T) {
 	}
 }
 
-func TestHostAPIHandlerSandboxExecRequiresExecCapability(t *testing.T) {
+func TestHostAPIHandlerSandboxExecRequiresPermission(t *testing.T) {
 	t.Parallel()
 
 	env := newHostAPITestEnv(t)
-	env.grant("ext-env-exec-denied", []string{"sandbox/exec"}, nil)
+	env.grant("ext-env-exec-denied", nil, nil)
 	sess := env.createSession(t)
 
 	_, err := env.call(t, "ext-env-exec-denied", "sandbox/exec", map[string]any{
@@ -956,10 +956,7 @@ func TestHostAPIHandlerSessionsMethodsRequireConfiguredManager(t *testing.T) {
 
 	checker := &CapabilityChecker{}
 	checker.Register("ext-sessions", SourceUser, &Manifest{
-		Actions: ActionsConfig{Requires: []string{"sessions/stop", "sessions/status", "sessions/events"}},
-		Security: SecurityConfig{
-			Capabilities: []string{"session.read", "session.write"},
-		},
+		Permissions: PermissionsConfig{Requires: []string{"sessions/stop", "sessions/status", "sessions/events"}},
 	})
 
 	handler := NewHostAPIHandler(
@@ -1309,10 +1306,7 @@ func TestHostAPIHandlerMemoryRecallRequiresConfiguredStore(t *testing.T) {
 
 	checker := &CapabilityChecker{}
 	checker.Register("ext-memory", SourceUser, &Manifest{
-		Actions: ActionsConfig{Requires: []string{"memory/recall"}},
-		Security: SecurityConfig{
-			Capabilities: []string{"memory.read"},
-		},
+		Permissions: PermissionsConfig{Requires: []string{"memory/recall"}},
 	})
 
 	handler := NewHostAPIHandler(
@@ -1405,11 +1399,11 @@ func TestHostAPIHandlerListLogsReturnsFilteredEventsWithSince(t *testing.T) {
 	}
 }
 
-func TestHostAPIHandlerListLogsRejectsObserveReadWithoutLogsRead(t *testing.T) {
+func TestHostAPIHandlerListLogsRequiresPermission(t *testing.T) {
 	t.Parallel()
 
 	env := newHostAPITestEnv(t)
-	env.grant("ext-observe", []string{"logs/list"}, []string{"observe.read"})
+	env.grant("ext-observe", []string{"observe/health"}, nil)
 
 	_, err := env.call(t, "ext-observe", "logs/list", map[string]any{
 		"workspace_id": env.workspaceID,
@@ -1418,8 +1412,8 @@ func TestHostAPIHandlerListLogsRejectsObserveReadWithoutLogsRead(t *testing.T) {
 	assertCapabilityDenied(t, err, "logs/list")
 	data := decodeRPCData(t, err)
 	required, ok := data["required"].([]any)
-	if !ok || len(required) != 1 || required[0] != "logs.read" {
-		t.Fatalf("rpc data required = %#v, want [logs.read]", data["required"])
+	if !ok || len(required) != 1 || required[0] != "logs/list" {
+		t.Fatalf("rpc data required = %#v, want [logs/list]", data["required"])
 	}
 }
 
@@ -3373,7 +3367,7 @@ func TestDescribeExtensionProjectsHealthAndState(t *testing.T) {
 	payload := DescribeExtension(&Extension{
 		Manifest: &Manifest{
 			Capabilities: CapabilitiesConfig{Provides: []string{"runtime"}},
-			Actions:      ActionsConfig{Requires: []string{"automation/jobs"}},
+			Permissions:  PermissionsConfig{Requires: []string{"automation/jobs"}},
 			Subprocess:   SubprocessConfig{Command: "ext-runtime"},
 		},
 		Info: ExtensionInfo{
@@ -3384,7 +3378,7 @@ func TestDescribeExtensionProjectsHealthAndState(t *testing.T) {
 			Capabilities: CapabilitiesConfig{
 				Provides: []string{"runtime"},
 			},
-			Actions: ActionsConfig{Requires: []string{"automation/jobs"}},
+			Permissions: PermissionsConfig{Requires: []string{"automation/jobs"}},
 		},
 		Status: ExtensionStatus{
 			Active:        true,
@@ -3516,10 +3510,7 @@ func TestHostAPIHandlerAutomationGetterAndMethodHandlers(t *testing.T) {
 	}
 
 	env.checker.Register("ext-automation", SourceUser, &Manifest{
-		Actions: ActionsConfig{Requires: []string{"automation/jobs"}},
-		Security: SecurityConfig{
-			Capabilities: []string{"automation.read"},
-		},
+		Permissions: PermissionsConfig{Requires: []string{"automation/jobs"}},
 	})
 
 	result, err := handler.Handle(testutil.Context(t), "ext-automation", "automation/jobs", json.RawMessage(`{}`))
@@ -4533,7 +4524,7 @@ func TestHostAPIHandlerTaskMethodsValidateInputsAndConfiguration(t *testing.T) {
 
 		checker := &CapabilityChecker{}
 		checker.Register("ext-tasks", SourceUser, &Manifest{
-			Actions: ActionsConfig{Requires: []string{
+			Permissions: PermissionsConfig{Requires: []string{
 				"tasks",
 				"tasks/get",
 				"tasks/timeline",
@@ -4541,9 +4532,6 @@ func TestHostAPIHandlerTaskMethodsValidateInputsAndConfiguration(t *testing.T) {
 				"tasks/runs",
 				"tasks/runs/get",
 			}},
-			Security: SecurityConfig{
-				Capabilities: []string{"task.read"},
-			},
 		})
 
 		handler := NewHostAPIHandler(
@@ -5967,26 +5955,24 @@ func waitForHostAPISessionState(
 	}
 }
 
-func (e *hostAPITestEnv) grant(extName string, actions []string, security []string) {
+func (e *hostAPITestEnv) grant(extName string, permissions []string, _ []string) {
 	e.checker.Register(extName, SourceUser, &Manifest{
-		Actions:  ActionsConfig{Requires: append([]string(nil), actions...)},
-		Security: SecurityConfig{Capabilities: append([]string(nil), security...)},
+		Permissions: PermissionsConfig{Requires: append([]string(nil), permissions...)},
 	})
 }
 
 func (e *hostAPITestEnv) grantWithResources(
 	t testing.TB,
 	extName string,
-	actions []string,
-	security []string,
+	permissions []string,
+	_ []string,
 	resourceFamilies []string,
 	maxScope resources.ResourceScopeKind,
 ) {
 	t.Helper()
 
 	_, err := e.checker.RegisterForSession(extName, SourceUser, &Manifest{
-		Actions:  ActionsConfig{Requires: append([]string(nil), actions...)},
-		Security: SecurityConfig{Capabilities: append([]string(nil), security...)},
+		Permissions: PermissionsConfig{Requires: append([]string(nil), permissions...)},
 		Resources: ResourcesConfig{
 			Publish: ResourceGrantRequest{
 				Families: append([]string(nil), resourceFamilies...),

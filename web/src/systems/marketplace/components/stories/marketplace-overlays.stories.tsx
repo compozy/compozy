@@ -129,6 +129,32 @@ export const BundleConflict: Story = {
   },
 };
 
+/** Source-union install entry point for extensions the curated catalog does not carry. */
+export const ExtensionUnionInstall: Story = {
+  parameters: appRouteParameters("/marketplace/extensions"),
+  render: () => <StorybookWorkspaceSetup />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(await canvas.findByTestId("marketplace-extension-install"));
+    const dialog = within(document.body);
+    await expect(dialog.findByTestId("extension-install-dialog")).resolves.toBeDefined();
+    await expect(dialog.findByText(/absolute path to a built extension/i)).resolves.toBeDefined();
+  },
+};
+
+/** GitHub releases add the version and asset selectors the local-path branch has no use for. */
+export const ExtensionUnionInstallGitHub: Story = {
+  parameters: appRouteParameters("/marketplace/extensions"),
+  render: () => <StorybookWorkspaceSetup />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(await canvas.findByTestId("marketplace-extension-install"));
+    const dialog = within(document.body);
+    await userEvent.click(await dialog.findByTestId("extension-install-source-github"));
+    await expect(dialog.findByTestId("extension-install-asset")).resolves.toBeDefined();
+  },
+};
+
 export const ExtensionWarning: Story = {
   parameters: appRouteParameters("/marketplace/extensions"),
   render: () => <StorybookWorkspaceSetup />,

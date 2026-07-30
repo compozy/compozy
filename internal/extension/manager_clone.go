@@ -63,7 +63,7 @@ func cloneStringMap(src map[string]string) map[string]string {
 func cloneExtensionInfo(info ExtensionInfo) ExtensionInfo {
 	cloned := info
 	cloned.Capabilities = normalizeCapabilitiesConfig(info.Capabilities)
-	cloned.Actions = normalizeActionsConfig(info.Actions)
+	cloned.Permissions = normalizePermissionsConfig(info.Permissions)
 	return cloned
 }
 
@@ -75,9 +75,8 @@ func cloneManifest(src *Manifest) *Manifest {
 	cloned := *src
 	cloned.Resources = normalizeResourcesConfig(src.Resources)
 	cloned.Capabilities = normalizeCapabilitiesConfig(src.Capabilities)
-	cloned.Actions = normalizeActionsConfig(src.Actions)
+	cloned.Permissions = normalizePermissionsConfig(src.Permissions)
 	cloned.Subprocess = normalizeSubprocessConfig(src.Subprocess)
-	cloned.Security = normalizeSecurityConfig(src.Security)
 	return &cloned
 }
 
@@ -168,7 +167,6 @@ func cloneInitializeResponse(src *subprocess.InitializeResponse) *subprocess.Ini
 	cloned.SupportedHookEvents = slices.Clone(src.SupportedHookEvents)
 	cloned.WatchSourceKinds = slices.Clone(src.WatchSourceKinds)
 	cloned.AcceptedCapabilities.Provides = slices.Clone(src.AcceptedCapabilities.Provides)
-	cloned.AcceptedCapabilities.Actions = slices.Clone(src.AcceptedCapabilities.Actions)
-	cloned.AcceptedCapabilities.Security = slices.Clone(src.AcceptedCapabilities.Security)
+	cloned.AcceptedCapabilities.Permissions = slices.Clone(src.AcceptedCapabilities.Permissions)
 	return &cloned
 }

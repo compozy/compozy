@@ -82,11 +82,8 @@ func TestExtensionRuntimeBuiltInAndCustomMethods(t *testing.T) {
 			Capabilities: compozysdk.CapabilitiesConfig{
 				Provides: []string{"memory.backend"},
 			},
-			Actions: compozysdk.ActionsConfig{
+			Permissions: compozysdk.PermissionsConfig{
 				Requires: []compozysdk.HostAPIMethod{compozysdk.HostAPIMethodSessionsList},
-			},
-			Security: compozysdk.SecurityConfig{
-				Capabilities: []string{"memory.read"},
 			},
 			SupportedHookEvents: []string{"session.started"},
 		},
@@ -162,7 +159,6 @@ func TestExtensionRuntimeBuiltInAndCustomMethods(t *testing.T) {
 		"Memory Extension",
 		[]string{"memory.backend"},
 		[]string{"sessions/list"},
-		[]string{"memory.read"},
 	))
 	if initialize.Error != nil {
 		t.Fatalf("initialize error = %#v", initialize.Error)
@@ -344,7 +340,7 @@ func TestExtensionConvenienceAndFailureBranches(t *testing.T) {
 			compozysdk.ExtensionDefinition{
 				Name:    "Grant Extension",
 				Version: "0.1.0",
-				Actions: compozysdk.ActionsConfig{
+				Permissions: compozysdk.PermissionsConfig{
 					Requires: []compozysdk.HostAPIMethod{compozysdk.HostAPIMethodSessionsList},
 				},
 			},
@@ -371,6 +367,15 @@ func TestExtensionConvenienceAndFailureBranches(t *testing.T) {
 		if response.Error == nil || response.Error.Code != -32001 {
 			t.Fatalf("initialize error = %#v, want capability denied", response.Error)
 		}
+		var denied struct {
+			Field    string   `json:"field"`
+			Required []string `json:"required"`
+			Granted  []string `json:"granted"`
+		}
+		decodeResult(t, response.Error.Data, &denied)
+		if denied.Field != "permissions" || !contains(denied.Required, "sessions/list") {
+			t.Fatalf("capability denied data = %#v, want missing sessions/list grant", denied)
+		}
 	})
 }
 
@@ -385,7 +390,7 @@ func TestTransportAndReadyCallbackBranches(t *testing.T) {
 			compozysdk.ExtensionDefinition{
 				Name:    "Ready Extension",
 				Version: "0.1.0",
-				Actions: compozysdk.ActionsConfig{
+				Permissions: compozysdk.PermissionsConfig{
 					Requires: []compozysdk.HostAPIMethod{compozysdk.HostAPIMethodSessionsList},
 				},
 			},
@@ -416,7 +421,6 @@ func TestTransportAndReadyCallbackBranches(t *testing.T) {
 			"Ready Extension",
 			nil,
 			[]string{"sessions/list"},
-			nil,
 		))
 		reader := runtime.daemonReader
 		seenInitialize := false
@@ -727,14 +731,12 @@ func TestInitializeValidationBranches(t *testing.T) {
 func initializeParamsWithGrants(
 	name string,
 	provides []string,
-	actions []string,
-	security []string,
+	permissions []string,
 ) map[string]any {
 	params := initializeParams(name)
 	capabilities := params["capabilities"].(map[string]any)
 	capabilities["provides"] = provides
-	capabilities["granted_actions"] = actions
-	capabilities["granted_security"] = security
+	capabilities["granted_permissions"] = permissions
 	extensionServices := []string{"memory/store", "memory/recall", "memory/forget"}
 	if contains(provides, "tool.provider") {
 		extensionServices = append(extensionServices, "provide_tools", "tools/call")

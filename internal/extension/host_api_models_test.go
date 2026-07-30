@@ -297,10 +297,10 @@ func TestHostAPIModelsStatusShouldReturnDaemonSourceStatus(t *testing.T) {
 	})
 }
 
-func TestHostAPIModelsListShouldRequireModelReadGrant(t *testing.T) {
+func TestHostAPIModelsListShouldRequirePermission(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should require model read grant", func(t *testing.T) {
+	t.Run("Should require models list permission", func(t *testing.T) {
 		t.Parallel()
 
 		handler := NewHostAPIHandler(
@@ -312,8 +312,7 @@ func TestHostAPIModelsListShouldRequireModelReadGrant(t *testing.T) {
 			WithHostAPICapabilityChecker(newTestCapabilityChecker(
 				"ext",
 				SourceUser,
-				[]string{"models/list"},
-				[]string{"session.read"},
+				nil,
 			)),
 		)
 
@@ -335,66 +334,59 @@ func TestHostAPIModelsShouldMapValidationAndAvailabilityErrors(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name     string
-		method   string
-		params   json.RawMessage
-		actions  []string
-		security []string
-		service  modelcatalog.Service
-		wantCode int
+		name        string
+		method      string
+		params      json.RawMessage
+		permissions []string
+		service     modelcatalog.Service
+		wantCode    int
 	}{
 		{
-			name:     "Should reject invalid source id",
-			method:   "models/list",
-			params:   json.RawMessage(`{"source_id":"bad source"}`),
-			actions:  []string{"models/list"},
-			security: []string{"model.read"},
-			service:  &fakeHostAPIModelCatalogService{},
-			wantCode: HostAPIInvalidParamsCode,
+			name:        "Should reject invalid source id",
+			method:      "models/list",
+			params:      json.RawMessage(`{"source_id":"bad source"}`),
+			permissions: []string{"models/list"},
+			service:     &fakeHostAPIModelCatalogService{},
+			wantCode:    HostAPIInvalidParamsCode,
 		},
 		{
-			name:     "Should reject invalid provider id",
-			method:   "models/list",
-			params:   json.RawMessage(`{"provider_id":"Bad"}`),
-			actions:  []string{"models/list"},
-			security: []string{"model.read"},
-			service:  &fakeHostAPIModelCatalogService{},
-			wantCode: HostAPIInvalidParamsCode,
+			name:        "Should reject invalid provider id",
+			method:      "models/list",
+			params:      json.RawMessage(`{"provider_id":"Bad"}`),
+			permissions: []string{"models/list"},
+			service:     &fakeHostAPIModelCatalogService{},
+			wantCode:    HostAPIInvalidParamsCode,
 		},
 		{
-			name:     "Should map unregistered source to invalid params",
-			method:   "models/list",
-			params:   json.RawMessage(`{"source_id":"extension:missing"}`),
-			actions:  []string{"models/list"},
-			security: []string{"model.read"},
-			service:  &fakeHostAPIModelCatalogService{listErr: modelcatalog.ErrSourceNotRegistered},
-			wantCode: HostAPIInvalidParamsCode,
+			name:        "Should map unregistered source to invalid params",
+			method:      "models/list",
+			params:      json.RawMessage(`{"source_id":"extension:missing"}`),
+			permissions: []string{"models/list"},
+			service:     &fakeHostAPIModelCatalogService{listErr: modelcatalog.ErrSourceNotRegistered},
+			wantCode:    HostAPIInvalidParamsCode,
 		},
 		{
-			name:     "Should map refresh failure without statuses to unavailable",
-			method:   "models/refresh",
-			params:   json.RawMessage(`{"source_id":"extension:missing"}`),
-			actions:  []string{"models/refresh"},
-			security: []string{"model.write"},
-			service:  &fakeHostAPIModelCatalogService{refreshErr: modelcatalog.ErrAllSourcesFailed},
-			wantCode: HostAPIUnavailableCode,
+			name:        "Should map refresh failure without statuses to unavailable",
+			method:      "models/refresh",
+			params:      json.RawMessage(`{"source_id":"extension:missing"}`),
+			permissions: []string{"models/refresh"},
+			service:     &fakeHostAPIModelCatalogService{refreshErr: modelcatalog.ErrAllSourcesFailed},
+			wantCode:    HostAPIUnavailableCode,
 		},
 		{
-			name:     "Should map missing status service to unavailable",
-			method:   "models/status",
-			params:   json.RawMessage(`{}`),
-			actions:  []string{"models/status"},
-			security: []string{"model.read"},
-			wantCode: HostAPIUnavailableCode,
+			name:        "Should map missing status service to unavailable",
+			method:      "models/status",
+			params:      json.RawMessage(`{}`),
+			permissions: []string{"models/status"},
+			wantCode:    HostAPIUnavailableCode,
 		},
 		{
-			name:     "Should map status service failure to unavailable",
-			method:   "models/status",
-			params:   json.RawMessage(`{}`),
-			actions:  []string{"models/status"},
-			security: []string{"model.read"},
-			service:  &fakeHostAPIModelCatalogService{statusErr: errors.New("status offline")},
-			wantCode: HostAPIUnavailableCode,
+			name:        "Should map status service failure to unavailable",
+			method:      "models/status",
+			params:      json.RawMessage(`{}`),
+			permissions: []string{"models/status"},
+			service:     &fakeHostAPIModelCatalogService{statusErr: errors.New("status offline")},
+			wantCode:    HostAPIUnavailableCode,
 		},
 	}
 
@@ -403,7 +395,7 @@ func TestHostAPIModelsShouldMapValidationAndAvailabilityErrors(t *testing.T) {
 			t.Parallel()
 
 			opts := []HostAPIOption{
-				WithHostAPICapabilityChecker(newTestCapabilityChecker("ext", SourceUser, tt.actions, tt.security)),
+				WithHostAPICapabilityChecker(newTestCapabilityChecker("ext", SourceUser, tt.permissions)),
 			}
 			if tt.service != nil {
 				opts = append(opts, WithHostAPIModelCatalogService(tt.service))

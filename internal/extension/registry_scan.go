@@ -32,8 +32,8 @@ func scanExtensionInfo(scanner interface{ Scan(dest ...any) error }) (*Extension
 		info            ExtensionInfo
 		sourceText      string
 		installedAtText string
-		capabilitiesRaw string
-		actionsRaw      string
+		providesRaw     string
+		permissionsRaw  string
 		registrySlug    sql.NullString
 		registryName    sql.NullString
 		remoteVersion   sql.NullString
@@ -47,8 +47,8 @@ func scanExtensionInfo(scanner interface{ Scan(dest ...any) error }) (*Extension
 		&info.Enabled,
 		&info.ManifestPath,
 		&installedAtText,
-		&capabilitiesRaw,
-		&actionsRaw,
+		&providesRaw,
+		&permissionsRaw,
 		&info.Checksum,
 		&registrySlug,
 		&registryName,
@@ -69,15 +69,15 @@ func scanExtensionInfo(scanner interface{ Scan(dest ...any) error }) (*Extension
 		return nil, fmt.Errorf("extension: parse installed_at for %q: %w", info.Name, err)
 	}
 
-	if err := decodeRegistryJSON(capabilitiesRaw, &info.Capabilities); err != nil {
+	if err := decodeRegistryJSONArray(providesRaw, &info.Capabilities.Provides); err != nil {
 		return nil, fmt.Errorf("extension: decode capabilities for %q: %w", info.Name, err)
 	}
-	if err := decodeRegistryJSON(actionsRaw, &info.Actions); err != nil {
-		return nil, fmt.Errorf("extension: decode actions for %q: %w", info.Name, err)
+	if err := decodeRegistryJSONArray(permissionsRaw, &info.Permissions.Requires); err != nil {
+		return nil, fmt.Errorf("extension: decode permissions for %q: %w", info.Name, err)
 	}
 
 	info.Capabilities = normalizeCapabilitiesConfig(info.Capabilities)
-	info.Actions = normalizeActionsConfig(info.Actions)
+	info.Permissions = normalizePermissionsConfig(info.Permissions)
 	info.RegistrySlug = nullableStringPointer(registrySlug)
 	info.RegistryName = nullableStringPointer(registryName)
 	info.RemoteVersion = nullableStringPointer(remoteVersion)
@@ -90,8 +90,8 @@ func scanExtensionInfo(scanner interface{ Scan(dest ...any) error }) (*Extension
 		SourceURL:        info.ManifestPath,
 		ChecksumSHA256:   info.Checksum,
 		ChecksumVerified: info.Source != SourceMarketplace,
-		RegistryTier:     registryTierForSource(info.Source, dereferenceOptionalString(info.RegistryName)),
-		Permissions:      extensionPermissionsFromParts(info.Capabilities, info.Actions),
+		RegistryTier:     ExtensionRegistryTierUnverified,
+		Permissions:      extensionPermissionsFromParts(info.Capabilities, info.Permissions),
 		InstalledAt:      info.InstalledAt,
 		InstalledBy:      extensionTrustInstalledByOperator,
 		AllowUnverified:  false,
@@ -130,6 +130,14 @@ func decodeRegistryJSON(raw string, target any) error {
 	payload := strings.TrimSpace(raw)
 	if payload == "" {
 		payload = "{}"
+	}
+	return json.Unmarshal([]byte(payload), target)
+}
+
+func decodeRegistryJSONArray(raw string, target any) error {
+	payload := strings.TrimSpace(raw)
+	if payload == "" {
+		payload = "[]"
 	}
 	return json.Unmarshal([]byte(payload), target)
 }

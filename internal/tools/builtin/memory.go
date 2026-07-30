@@ -46,7 +46,7 @@ var memoryTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDMemory},
-		[]string{memoryAdminMemoryKey, "search"},
+		[]string{memoryAdminMemoryKey, descriptorKeywordSearch},
 		[]string{"memory search", "recall memory"},
 	),
 	nativeDescriptor(

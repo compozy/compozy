@@ -1,4 +1,9 @@
-import type { BundleActivation } from "@/systems/extensions";
+import {
+  extensionTrustFacts,
+  type BundleActivation,
+  type ExtensionTrustFacts,
+  type ExtensionTrustSource,
+} from "@/systems/extensions";
 import { mcpManagementScopeLabel, type SettingsMCPServerEntry } from "@/systems/settings";
 import type { SkillPayload } from "@/systems/skill";
 
@@ -8,6 +13,8 @@ export interface MarketplaceInstalledItem {
   entry: MarketplaceListing;
   skill?: SkillPayload;
   extensionEnabled?: boolean;
+  /** Distribution truth for an installed extension; absent for every other kind. */
+  extensionFacts?: ExtensionTrustFacts;
   viaBundle?: string | null;
   activationId?: string;
   activationVersion?: number;
@@ -22,7 +29,7 @@ interface InstalledItemsInput {
   marketItems: readonly MarketplaceListing[];
   skills: readonly SkillPayload[];
   extensions: readonly {
-    extension: {
+    extension: ExtensionTrustSource & {
       name: string;
       version: string;
       enabled: boolean;
@@ -214,11 +221,12 @@ function buildInstalledExtensionItems(input: InstalledItemsInput): MarketplaceIn
           installed_version: extension.version,
           update_available: item.updateAvailable,
           version: extension.version,
-          source: "",
+          source: extension.source ?? "",
         };
     const installed: MarketplaceInstalledItem = {
       entry,
       extensionEnabled: extension.enabled,
+      extensionFacts: extensionTrustFacts(extension),
     };
     if (matchesMarketplaceQuery(marketplaceListingHaystack(installed.entry), input.query)) {
       items.push(installed);

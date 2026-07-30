@@ -1,14 +1,14 @@
 ---
 title: "compozy extension install"
-description: "Install a local extension or download one from a registry"
+description: "Install an extension from curated, GitHub, git, or a local path"
 ---
 
 ## compozy extension install
 
-Install a local extension or download one from a registry
+Install an extension from curated, GitHub, git, or a local path
 
 ```
-compozy extension install <path-or-slug> [flags]
+compozy extension install <source> [flags]
 ```
 
 ### Options
@@ -16,7 +16,6 @@ compozy extension install <path-or-slug> [flags]
 ```
       --allow-unverified   Allow install when the extension checksum is not registry-verified
       --asset string       Select a specific registry asset when multiple archives exist
-      --from string        Only use one configured extension registry source
   -h, --help               help for install
       --version string     Install a specific registry version
       --yes                Skip confirmation when using --allow-unverified
@@ -41,5 +40,5 @@ Every Compozy command supports `-o, --output`:
 Example:
 
 ```bash
-compozy extension install <path-or-slug> -o json
+compozy extension install <source> -o json
 ```

@@ -50,6 +50,7 @@ import type {
   TaskRun,
   TaskRunDetailView,
 } from "@/systems/tasks";
+import type { BrowserExtensionRegistrySeed } from "./extension-registry-server";
 
 const execFileAsync = promisify(execFile);
 const MOCK_AGENT_PROVIDER_NAME = "acpmock";
@@ -155,7 +156,8 @@ export interface BrowserMarketplaceMCPEntrySeed extends BrowserMarketplaceEntryS
 export interface BrowserMarketplaceExtensionEntrySeed extends BrowserMarketplaceEntrySeed {
   artifact_url: string;
   author?: string;
-  digest_sha256: string;
+  digest_release_tag?: string;
+  digest_sha256?: string;
   install_slug: string;
   repository?: string;
   tier: "official" | "community" | "unverified";
@@ -176,6 +178,8 @@ export interface BrowserMarketplaceCatalogSeed {
 }
 
 export interface BrowserRuntimeSeed {
+  bundledBridgeExtension?: boolean;
+  extensionRegistry?: BrowserExtensionRegistrySeed;
   marketplaceCatalog?: BrowserMarketplaceCatalogSeed;
   skillMarketplace?: BrowserSkillMarketplaceSeed;
   skills?: BrowserSkillSeed[];
@@ -446,6 +450,7 @@ const BRIDGE_EXTENSION_NAME = "telegram-reference";
 const BRIDGE_PLATFORM = "telegram";
 
 let acpMockDriverBinaryPromise: Promise<string> | undefined;
+let bundledExtensionSeederBinaryPromise: Promise<string> | undefined;
 
 export const browserNetworkOperatorFlowScenario = {
   messageIds: {
@@ -572,6 +577,10 @@ export async function seedBrowserRuntimeHome(
   const skills = seed?.skills ?? [];
   if (skills.length > 0) {
     await seedBrowserSkills(paths.homeDir, skills);
+  }
+
+  if (seed?.bundledBridgeExtension === true) {
+    await seedBrowserBundledBridgeExtension(paths);
   }
 
   const mockAgents = seed?.mockAgents ?? [];
@@ -1631,25 +1640,19 @@ async function installBrowserBridgeExtension(
     }
     return await runtime.requestJSON<T>(pathname, init);
   };
-  const prepareExtension = options.prepareExtension ?? prepareBrowserBridgeExtension;
+  const prepareExtension =
+    options.prepareExtension ?? (() => resolveSeededBrowserBridgeExtension(runtime));
   const timeoutMs = options.timeoutMs ?? BRIDGE_OPERATOR_FLOW_TIMEOUT_MS;
   const prepared = await prepareExtension();
 
-  await requestOperatorJSON<{ extension: { name: string } }>("/api/extensions", {
-    method: "POST",
-    body: JSON.stringify({
-      allow_unverified: true,
-      checksum: prepared.checksum,
-      path: prepared.extensionDir,
-    }),
-  });
-
-  await waitForSeedCondition(
+  const installed = await waitForSeedCondition(
     async () => {
       const payload = await requestOperatorJSON<{
-        extension: { enabled: boolean; name: string };
+        extension: { checksum: string; enabled: boolean; name: string; source: string };
       }>(`/api/extensions/${encodeURIComponent(BRIDGE_EXTENSION_NAME)}`);
-      return payload.extension.name === BRIDGE_EXTENSION_NAME && payload.extension.enabled
+      return payload.extension.name === BRIDGE_EXTENSION_NAME &&
+        payload.extension.enabled &&
+        payload.extension.source === "bundled"
         ? payload.extension
         : null;
     },
@@ -1658,12 +1661,68 @@ async function installBrowserBridgeExtension(
   );
 
   return {
-    checksum: prepared.checksum,
+    checksum: installed.checksum || prepared.checksum,
     dir: prepared.extensionDir,
     markers: prepared.markers,
     name: BRIDGE_EXTENSION_NAME,
     platform: BRIDGE_PLATFORM,
   };
+}
+
+async function resolveSeededBrowserBridgeExtension(
+  runtime: BrowserBridgeOperatorSeedRuntime
+): Promise<PreparedBrowserBridgeExtension> {
+  const homeDir = runtime.paths?.homeDir?.trim();
+  if (!homeDir) {
+    throw new Error("browser bridge flow requires a launch-mode bundled extension seed");
+  }
+  const extensionDir = path.join(homeDir, "fixtures", BRIDGE_EXTENSION_NAME);
+  return {
+    checksum: "",
+    extensionDir,
+    markers: createBridgeAdapterMarkerPaths(path.join(extensionDir, "markers")),
+  };
+}
+
+async function seedBrowserBundledBridgeExtension(paths: BrowserRuntimeSeedPaths): Promise<void> {
+  const fixtureRoot = path.join(paths.homeDir, "fixtures");
+  const prepared = await prepareBrowserBridgeExtension(fixtureRoot);
+  const seederPath = await ensureBundledExtensionSeederBinary(paths.repoRoot);
+  await execFileAsync(seederPath, ["--home", paths.homeDir, "--source", prepared.extensionDir], {
+    cwd: paths.repoRoot,
+    env: process.env,
+    maxBuffer: 20 * 1024 * 1024,
+  });
+}
+
+async function ensureBundledExtensionSeederBinary(repoRoot: string): Promise<string> {
+  if (bundledExtensionSeederBinaryPromise === undefined) {
+    bundledExtensionSeederBinaryPromise = buildBundledExtensionSeederBinary(repoRoot).catch(
+      error => {
+        bundledExtensionSeederBinaryPromise = undefined;
+        throw error;
+      }
+    );
+  }
+  return await bundledExtensionSeederBinaryPromise;
+}
+
+async function buildBundledExtensionSeederBinary(repoRoot: string): Promise<string> {
+  const buildDir = await mkdtemp(path.join(os.tmpdir(), "compozy-bundled-extension-seeder-"));
+  const outputPath = path.join(
+    buildDir,
+    process.platform === "win32" ? "bundled-extension-seeder.exe" : "bundled-extension-seeder"
+  );
+  await execFileAsync(
+    "go",
+    ["build", "-o", outputPath, "./web/e2e/fixtures/bundled-extension-seeder"],
+    {
+      cwd: repoRoot,
+      env: process.env,
+      maxBuffer: 20 * 1024 * 1024,
+    }
+  );
+  return outputPath;
 }
 
 function buildSettingsMCPServersListPath(
@@ -2142,13 +2201,19 @@ async function createAutomationOperatorTrigger(
   ).trigger;
 }
 
-async function prepareBrowserBridgeExtension(): Promise<PreparedBrowserBridgeExtension> {
+async function prepareBrowserBridgeExtension(
+  fixtureRoot?: string
+): Promise<PreparedBrowserBridgeExtension> {
   const repoRoot = resolveBrowserRepoRoot();
-  const sourceDir = path.join(repoRoot, "sdk", "examples", BRIDGE_EXTENSION_NAME);
-  const tempRoot = await mkdtemp(path.join(os.tmpdir(), "compozy-browser-bridge-extension-"));
+  const sourceDir = path.join(repoRoot, "internal", "extension", "testdata", BRIDGE_EXTENSION_NAME);
+  const tempRoot = fixtureRoot
+    ? path.resolve(fixtureRoot)
+    : await mkdtemp(path.join(os.tmpdir(), "compozy-browser-bridge-extension-"));
   const extensionDir = path.join(tempRoot, BRIDGE_EXTENSION_NAME);
   const markers = createBridgeAdapterMarkerPaths(path.join(extensionDir, "markers"));
 
+  await mkdir(tempRoot, { recursive: true });
+  await rm(extensionDir, { force: true, recursive: true });
   await cp(sourceDir, extensionDir, { recursive: true });
   await mkdir(path.join(extensionDir, "bin"), { recursive: true });
   await mkdir(path.dirname(markers.handshake), { recursive: true });
@@ -2163,7 +2228,7 @@ async function prepareBrowserBridgeExtension(): Promise<PreparedBrowserBridgeExt
       "build",
       "-o",
       path.join(extensionDir, "bin", BRIDGE_EXTENSION_NAME),
-      "./sdk/examples/telegram-reference",
+      "./internal/extension/testdata/telegram-reference",
     ],
     {
       cwd: repoRoot,

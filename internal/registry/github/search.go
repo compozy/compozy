@@ -1,0 +1,135 @@
+package github
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+	"strconv"
+	"strings"
+
+	"github.com/compozy/compozy/internal/registry"
+)
+
+const (
+	githubExtensionTopic = "compozy-extension"
+	defaultSearchLimit   = 20
+	maxSearchLimit       = 100
+)
+
+type repositorySearchResponse struct {
+	Items []repositorySearchItem `json:"items"`
+}
+
+type repositorySearchItem struct {
+	FullName    string   `json:"full_name"`
+	Name        string   `json:"name"`
+	Description string   `json:"description"`
+	Stargazers  int      `json:"stargazers_count"`
+	Topics      []string `json:"topics"`
+	Owner       struct {
+		Login string `json:"login"`
+	} `json:"owner"`
+}
+
+func (c *Client) searchRepositories(
+	ctx context.Context,
+	query string,
+	opts registry.SearchOpts,
+) ([]registry.Listing, error) {
+	if opts.Type != registry.PackageTypeAll && opts.Type != registry.PackageTypeExtension {
+		return []registry.Listing{}, nil
+	}
+	limit := opts.Limit
+	if limit <= 0 {
+		limit = defaultSearchLimit
+	}
+	if limit > maxSearchLimit {
+		limit = maxSearchLimit
+	}
+	offset := max(opts.Offset, 0)
+	page := offset/limit + 1
+	qualifiedQuery := strings.TrimSpace(strings.TrimSpace(query) + " topic:" + githubExtensionTopic)
+	items, err := c.fetchRepositorySearchPage(ctx, qualifiedQuery, limit, page)
+	if err != nil {
+		return nil, err
+	}
+	pageOffset := offset % limit
+	if pageOffset > 0 && len(items) == limit {
+		nextItems, err := c.fetchRepositorySearchPage(ctx, qualifiedQuery, limit, page+1)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, nextItems...)
+	}
+	if pageOffset >= len(items) {
+		return []registry.Listing{}, nil
+	}
+	items = items[pageOffset:min(pageOffset+limit, len(items))]
+
+	listings := make([]registry.Listing, 0, len(items))
+	for _, item := range items {
+		if !containsTopic(item.Topics, githubExtensionTopic) {
+			continue
+		}
+		listings = append(listings, registry.Listing{
+			Slug:        strings.TrimSpace(item.FullName),
+			Name:        strings.TrimSpace(item.Name),
+			Description: strings.TrimSpace(item.Description),
+			Author:      strings.TrimSpace(item.Owner.Login),
+			Downloads:   item.Stargazers,
+			Source:      c.Name(),
+			Type:        registry.PackageTypeExtension,
+		})
+	}
+	return listings, nil
+}
+
+func (c *Client) fetchRepositorySearchPage(
+	ctx context.Context,
+	qualifiedQuery string,
+	limit int,
+	page int,
+) (_ []repositorySearchItem, err error) {
+	parameters := url.Values{
+		"q":        {qualifiedQuery},
+		"per_page": {strconv.Itoa(limit)},
+		"page":     {strconv.Itoa(page)},
+		"sort":     {"stars"},
+		"order":    {"desc"},
+	}
+	response, err := c.doRequest(ctx, c.baseURL+"/search/repositories?"+parameters.Encode(), acceptJSON)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		err = errors.Join(err, closeResponseBody(response.Body, "repository search response"))
+	}()
+	if response.StatusCode != http.StatusOK {
+		return nil, responseError(response, "repository search", qualifiedQuery)
+	}
+	payload, err := io.ReadAll(io.LimitReader(response.Body, publishResponseLimit+1))
+	if err != nil {
+		return nil, fmt.Errorf("github: read repository search response: %w", err)
+	}
+	if len(payload) > publishResponseLimit {
+		return nil, fmt.Errorf("github: repository search response exceeds %d bytes", publishResponseLimit)
+	}
+	var result repositorySearchResponse
+	if err := json.Unmarshal(payload, &result); err != nil {
+		return nil, fmt.Errorf("github: decode repository search response: %w", err)
+	}
+	return result.Items, nil
+}
+
+func containsTopic(topics []string, wanted string) bool {
+	for _, topic := range topics {
+		if strings.EqualFold(strings.TrimSpace(topic), wanted) {
+			return true
+		}
+	}
+	return false
+}

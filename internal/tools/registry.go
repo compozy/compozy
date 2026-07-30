@@ -410,15 +410,6 @@ func appendReason(reasons []ReasonCode, reason ReasonCode) []ReasonCode {
 func denialErrorForView(view *ToolView) error {
 	id := view.Descriptor.ID
 	reasons := view.Decision.ReasonCodes
-	if slices.Contains(reasons, ReasonApprovalRequired) {
-		return NewToolError(
-			ErrorCodeApprovalRequired,
-			id,
-			fmt.Sprintf("tool %q requires approval", id),
-			ErrToolApprovalRequired,
-			reasons...,
-		)
-	}
 	if view.Availability.Conflicted {
 		return NewToolError(
 			ErrorCodeConflict,
@@ -433,6 +424,15 @@ func denialErrorForView(view *ToolView) error {
 			id,
 			fmt.Sprintf("tool %q is unavailable", id),
 			ErrToolUnavailable,
+			reasons...,
+		)
+	}
+	if slices.Contains(reasons, ReasonApprovalRequired) {
+		return NewToolError(
+			ErrorCodeApprovalRequired,
+			id,
+			fmt.Sprintf("tool %q requires approval", id),
+			ErrToolApprovalRequired,
 			reasons...,
 		)
 	}

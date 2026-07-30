@@ -7,7 +7,7 @@ journey: J-bound-runaway-work
 expected: Two concurrent exact ClaimNextRun calls naming the same queued RunID converge to exactly one owner; the loser receives the typed no-claimable-run outcome, never a false success, and an exact claim on an already-claimed or running run returns a typed error without overwriting ownership.
 entry_points: POST /api/agent/tasks/claim-next; compozy task next --wait -o json; compozy__task_run_claim_next
 qa_status: untested
-bug_ids:
+bug_ids: BUG-20260729-provider-worker-native-claim-guidance
 fix_status:
 retest_status:
 fix_commits:

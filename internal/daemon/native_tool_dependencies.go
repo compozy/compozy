@@ -31,6 +31,10 @@ type daemonNativeSkillsRegistry interface {
 	) ([]*skillspkg.Skill, error)
 }
 
+type extensionPublishSecretResolver interface {
+	ResolveRef(context.Context, string) (string, error)
+}
+
 type daemonNativeToolsDeps struct {
 	Registry                   func() toolspkg.Registry
 	ToolArtifacts              toolspkg.ToolArtifactStore
@@ -68,9 +72,10 @@ type daemonNativeToolsDeps struct {
 	ExtensionRegistry          *extensionpkg.Registry
 	Extensions                 func() core.ExtensionService
 	ExtensionRuntime           func() extensionRuntime
-	ExtensionMarket            compozyconfig.ExtensionsMarketplaceConfig
+	ExtensionConfig            compozyconfig.ExtensionsConfig
 	ExtensionSources           extensionMarketplaceSourceLoader
 	ExtensionEvents            store.EventSummaryStore
+	ExtensionSecrets           extensionPublishSecretResolver
 	AgentSkills                agentSkillPublisher
 	AgentSkillsRuntime         func() agentSkillPublisher
 	ToolMCP                    toolMCPPublisher

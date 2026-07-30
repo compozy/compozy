@@ -81,7 +81,7 @@ describe("RemoveExtensionDialog", () => {
     expect(screen.getByTestId("remove-extension-confirm")).toBeDisabled();
   });
 
-  it("Should show provenance permissions and keep removal blocked by an active bundle", async () => {
+  it("Should show declared permissions and keep removal blocked by an active bundle", async () => {
     const user = userEvent.setup();
     render(
       <RemoveExtensionDialog
@@ -96,7 +96,7 @@ describe("RemoveExtensionDialog", () => {
     );
 
     expect(screen.getByRole("note")).toHaveTextContent(
-      "Revoked permissions: sessions.read, network.egress"
+      "Revoked permissions: network/send, sessions/list"
     );
     expect(screen.getByRole("note")).toHaveTextContent(
       "The daemon returns 409 while an active bundle depends on this extension"
@@ -129,9 +129,37 @@ describe("RemoveExtensionDialog", () => {
     await user.type(screen.getByLabelText("Type to confirm"), "-bridge");
     expect(confirm).toBeEnabled();
     await user.click(confirm);
-    await waitFor(() => expect(mocks.remove).toHaveBeenCalledWith("otel-bridge"));
+    await waitFor(() =>
+      expect(mocks.remove).toHaveBeenCalledWith({ dev: false, name: "otel-bridge" })
+    );
     expect(onOpenChange).toHaveBeenCalledWith(false);
     expect(onRemoved).toHaveBeenCalledOnce();
+  });
+
+  it("Should unlink a workspace dev overlay without promising global removal", async () => {
+    const user = userEvent.setup();
+    const extension = { ...extensionFixtures[0]!, dev: true };
+    render(
+      <RemoveExtensionDialog
+        activeBundles={bundleActivationFixtures}
+        dependencyError={null}
+        dependencyLoading={false}
+        extension={extension}
+        onOpenChange={vi.fn()}
+        onRetryDependencies={vi.fn()}
+        open
+      />
+    );
+
+    expect(screen.getByText(/published installation stays in place/i)).toBeInTheDocument();
+    await user.type(screen.getByLabelText("Type to confirm"), extension.name);
+    const confirm = screen.getByRole("button", { name: "Unlink dev overlay" });
+    expect(confirm).toBeEnabled();
+    await user.click(confirm);
+
+    await waitFor(() =>
+      expect(mocks.remove).toHaveBeenCalledWith({ dev: true, name: extension.name })
+    );
   });
 });
 

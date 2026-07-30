@@ -15,6 +15,8 @@ type ToolRequest[TInput any] struct {
 	Session  ExtensionSession
 	ToolID   ToolID
 	Handler  string
+	// TrustedWorkspace is the daemon-authenticated workspace scope for this invocation.
+	TrustedWorkspace *ExtensionToolWorkspaceScope
 
 	invocationID string
 }
@@ -23,11 +25,12 @@ type ToolRequest[TInput any] struct {
 type ToolHandlerFunc[TInput any] func(context.Context, ToolRequest[TInput]) (ToolResult, error)
 
 type rawToolRequest struct {
-	input        json.RawMessage
-	context      ExtensionContext
-	toolID       ToolID
-	handler      string
-	invocationID string
+	input            json.RawMessage
+	context          ExtensionContext
+	toolID           ToolID
+	handler          string
+	invocationID     string
+	trustedWorkspace *ExtensionToolWorkspaceScope
 }
 
 type clarifyAskWireParams struct {
@@ -44,13 +47,12 @@ func (r ToolRequest[TInput]) AskClarification(
 	if r.Host == nil {
 		return ClarifyAnswer{}, NewNotInitializedError()
 	}
-	invocationID := strings.TrimSpace(r.invocationID)
-	if invocationID == "" {
+	if strings.TrimSpace(r.invocationID) == "" {
 		return ClarifyAnswer{}, NewInvalidParamsError("tool invocation context is required", nil)
 	}
 	var answer ClarifyAnswer
 	err := r.Host.Request(ctx, HostAPIMethodClarifyAsk, clarifyAskWireParams{
-		InvocationID: invocationID,
+		InvocationID: r.invocationID,
 		Question:     question.Question,
 		Choices:      append([]string(nil), question.Choices...),
 	}, &answer)

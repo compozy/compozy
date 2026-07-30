@@ -1,0 +1,195 @@
+---
+title: Build your first extension
+description: Scaffold, link, and invoke a working Compozy extension in three commands, then iterate with edit and reload.
+---
+
+An extension is one installable unit of runtime behavior: tools an agent can call, hooks that observe
+or patch runtime events, and resources the daemon already knows how to load. This guide takes an empty
+directory to a tool you can invoke, then shows the edit loop.
+
+You write code. `compozy extension build` writes the manifest.
+
+<OperatorNote label="Before you start">
+  You need the daemon running and a registered workspace. Both come from
+  [Installation](/runtime/core/getting-started/installation):
+
+```bash
+compozy daemon start
+```
+
+Run the commands below from inside that workspace. The Go path needs the Go toolchain; a TypeScript
+variant is at the end of the page.
+
+</OperatorNote>
+
+## Three commands
+
+{/* extension-quickstart:begin */}
+
+```bash
+compozy extension init hello --template tool-provider-go
+compozy extension dev hello
+compozy tool invoke ext__hello__search --workspace . --input '{"query":"compozy"}'
+```
+
+{/* extension-quickstart:end */}
+
+The last command prints the tool result:
+
+```text
+No results for compozy
+```
+
+That is the whole first-success path. Nothing was installed from a registry, no trust policy was
+flipped, and no consent prompt appeared: `dev` links code you own.
+
+### What each command did
+
+| Command                   | What happened                                                                                                                                                    |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `extension init hello`    | Wrote `hello/` from an embedded template: `main.go`, `go.mod`. No manifest — the manifest is generated.                                                          |
+| `extension dev hello`     | Compiled the source, ran the built binary in describe mode, generated `hello/dist/gen-<hash>/extension.toml`, and linked that immutable bundle to the workspace. |
+| `tool invoke ext__hello…` | Called the tool through daemon tool policy, exactly as an agent would.                                                                                           |
+
+A dev link is scoped to one workspace, so `tool invoke` needs `--workspace .` to look inside it. The
+extension verbs that act on an instance — `reload`, `logs`, `remove` — infer the workspace from the
+directory you run them in.
+
+## The code you started from
+
+`hello/main.go` declares one tool. The identity, the input schema, and the handler are declared once,
+in code:
+
+```go
+type searchInput struct {
+	Query string `json:"query"`
+}
+
+var searchInputSchema = map[string]any{
+	"type":                 "object",
+	"additionalProperties": false,
+	"required":             []string{"query"},
+	"properties": map[string]any{
+		"query": map[string]any{"type": "string"},
+	},
+}
+
+func main() {
+	extension := compozysdk.NewExtension(compozysdk.ExtensionDefinition{
+		Name:        "hello",
+		Version:     "0.1.0",
+		Description: "Search extension-owned data",
+		Subprocess:  compozysdk.DescribeSubprocess{Command: "./bin"},
+		Permissions: compozysdk.PermissionsConfig{},
+	})
+	if err := compozysdk.Tool[searchInput](
+		extension,
+		"search",
+		compozysdk.ToolOptions{
+			Description: "Search extension-owned data",
+			ReadOnly:    true,
+			InputSchema: searchInputSchema,
+		},
+		func(_ context.Context, req compozysdk.ToolRequest[searchInput]) (compozysdk.ToolResult, error) {
+			return compozysdk.TextResult("No results for " + req.Input.Query), nil
+		},
+	); err != nil {
+		fmt.Fprintf(os.Stderr, "register tool: %v\n", err)
+		os.Exit(1)
+	}
+	if err := extension.Run(context.Background()); err != nil {
+		fmt.Fprintf(os.Stderr, "run extension: %v\n", err)
+		os.Exit(1)
+	}
+}
+```
+
+The handler name `search` plus the extension name `hello` produce the tool ID `ext__hello__search`.
+That grammar is fixed: `ext__<extension>__<tool>`, with `-` normalized to `_`. See
+[Develop Extensions](/runtime/core/extensions/develop#tool-ids) for the full rule.
+
+## Edit, reload, observe
+
+Change the result text in `main.go`:
+
+```go
+return compozysdk.TextResult("Found nothing for " + req.Input.Query), nil
+```
+
+Rebuild and swap the running extension in place:
+
+```bash
+compozy extension reload hello hello
+compozy tool invoke ext__hello__search --workspace . --input '{"query":"compozy"}'
+```
+
+The second invocation returns the new text. `reload` builds a new immutable generation and swaps it
+atomically; if the new build fails to activate, the previous generation keeps serving and the reload
+call returns the activation error rather than taking your extension down.
+
+To skip the manual step, leave a watcher running:
+
+```bash
+compozy extension dev hello --watch
+```
+
+Read what the subprocess writes to stderr:
+
+```bash
+compozy extension logs hello --follow
+```
+
+## Clean up
+
+```bash
+compozy extension remove hello
+```
+
+Inside a workspace, `remove` unlinks the dev overlay only. A published installation of the same name
+would resume serving; `--global` removes that instead.
+
+## TypeScript instead
+
+The TypeScript template needs one extra action because its build step installs npm dependencies:
+
+```bash
+compozy extension init hello --template tool-provider-ts
+bun install --cwd hello
+compozy extension dev hello
+compozy tool invoke ext__hello__search --workspace . --input '{"query":"compozy"}'
+```
+
+`hello/src/index.ts` declares the same tool through
+[`@compozy/extension-sdk`](https://www.npmjs.com/package/@compozy/extension-sdk). Every other command
+on this page is identical.
+
+Available templates: `tool-provider-ts` (default), `tool-provider-go`, `hook-ts`,
+`memory-backend-ts`, `loop-watch-source-go`.
+
+## What you had to learn
+
+Nine concepts carried the path above:
+
+1. **Extension** — the installable unit.
+2. **Template** — the starting point `init` writes.
+3. **Tool** — the callable surface you expose.
+4. **Input schema** — JSON Schema for that tool's input, declared once.
+5. **Handler** — the function that runs.
+6. **Generation** — the immutable `dist/gen-<hash>` bundle `build` produces.
+7. **Dev link** — a workspace-scoped overlay on your source, with no trust ceremony.
+8. **Tool ID** — `ext__<extension>__<tool>`.
+9. **Reload** — atomic generation swap with last-good fallback.
+
+Packaging, permissions, trust tiers, and publishing are not on this path. They arrive when you need
+them, in the order below.
+
+## Next
+
+- [Develop Extensions](/runtime/core/extensions/develop) — hooks, provide surfaces, resources, and the
+  full authoring loop.
+- [Extension Permissions](/runtime/core/extensions/permissions) — call the Host API and see the
+  consent your extension will request.
+- [Extension Commands](/runtime/core/extensions/commands) — expose a tool as an operator verb.
+- [Publish an Extension](/runtime/core/extensions/publish) — ship it to other people without a
+  gatekeeper.
+- [Extension Manifest](/runtime/core/extensions/manifest) — the generated file, field by field.

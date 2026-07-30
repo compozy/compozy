@@ -14,24 +14,33 @@ import {
 
 import type { MarketplaceListing } from "../types";
 
+type ExtensionTrustWarning = NonNullable<
+  NonNullable<MarketplaceListing["trust"]>["warnings"]
+>[number];
+
 interface ExtensionTrustDialogProps {
-  entry: MarketplaceListing;
+  /** Extension identity being consented to — a catalog entry name or a source-union ref. */
+  name: string;
+  description?: string;
   error?: string | null;
   open: boolean;
   pending?: boolean;
+  warnings?: readonly ExtensionTrustWarning[];
   onConfirm: () => void;
   onOpenChange: (open: boolean) => void;
 }
 
+/** The single explicit-consent gate for every unverified extension install or update. */
 function ExtensionTrustDialog({
-  entry,
+  name,
+  description,
   error,
   open,
   pending = false,
+  warnings = [],
   onConfirm,
   onOpenChange,
 }: ExtensionTrustDialogProps) {
-  const warnings = entry.trust?.warnings ?? [];
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
       <DialogContent
@@ -46,9 +55,10 @@ function ExtensionTrustDialog({
               <AlertTriangle aria-hidden="true" className="size-4" />
             </span>
             <div className="flex flex-col gap-1.5">
-              <DialogTitle>Install {entry.name}?</DialogTitle>
+              <DialogTitle>Install {name}?</DialogTitle>
               <DialogDescription id="extension-trust-description">
-                This extension is not verified. Review the daemon warnings before installing it.
+                {description ??
+                  "This extension is not verified. Review the daemon warnings before installing it."}
               </DialogDescription>
             </div>
           </div>

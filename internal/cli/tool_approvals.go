@@ -158,9 +158,9 @@ func toolApprovalGrantListBundle(response ToolApprovalGrantListRecord) outputBun
 		response,
 		response.Grants,
 		"Remembered Tool Approvals",
-		[]string{"ID", "TOOL ID", "AGENT", "DECISION", "INPUT DIGEST", "LAST USED"},
+		[]string{"ID", toolOperatorToolIDHeader, "AGENT", "DECISION", "INPUT DIGEST", "LAST USED"},
 		"tool_approval_grants",
-		[]string{"id", "tool_id", installAgentNameKey, "decision", "input_digest", "last_used_at"},
+		[]string{"id", toolOperatorToolIDKey, installAgentNameKey, "decision", "input_digest", "last_used_at"},
 		func(grant ToolApprovalGrantRecord) []string {
 			return []string{
 				grant.ID,

@@ -203,8 +203,7 @@ func (f *HostAPIFacade) session(
 
 	principal := mcpServePrincipalPrefix + f.salt + "__" + serveSessionID + "__" + workspaceID
 	manifest := &extensionpkg.Manifest{
-		Actions:  extensionpkg.ActionsConfig{Requires: ProjectedHostAPIMethods()},
-		Security: extensionpkg.SecurityConfig{Capabilities: []string{"*"}},
+		Permissions: extensionpkg.PermissionsConfig{Requires: ProjectedHostAPIMethods()},
 		Resources: extensionpkg.ResourcesConfig{Publish: extensionpkg.ResourceGrantRequest{
 			Families: resourceManifestFamilies(),
 			MaxScope: resources.ResourceScopeKindWorkspace,

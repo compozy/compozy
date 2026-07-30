@@ -500,7 +500,7 @@ test.describe("Marketplace acquisition", () => {
     await runBrowserRuntimeCLIJSON<unknown>(runtime, [
       "config",
       "set",
-      "extensions.marketplace.allow_unverified",
+      "extensions.trust.allow_unverified",
       String(enabled),
     ]);
   }
@@ -1948,13 +1948,23 @@ test.describe("Extension and bundle marketplace runtime", () => {
     expect(updatedActivation.id).toBe(activationID);
     expect(updatedActivation.extension_name).toBe(extensionName);
 
+    // The source union carries no operator checksum: an unverified local path installs only after
+    // an explicit consent decision, and the daemon refuses it otherwise.
     const failureHTTP = await appPage.request.post(runtime.url("/api/extensions"), {
-      data: { path: checksumFailureDir, checksum: "sha256:bad-checksum" },
+      data: { ref: checksumFailureDir, source: "local_path" },
     });
     expect(failureHTTP.status()).toBe(422);
     const checksumFailureBody = (await failureHTTP.json()) as { error?: unknown };
     expect(checksumFailureBody).toHaveProperty("error");
-    expect(JSON.stringify(checksumFailureBody.error)).toMatch(/checksum|mismatch/i);
+    expect(JSON.stringify(checksumFailureBody.error)).toMatch(/unverified|checksum/i);
+
+    const malformedSourceHTTP = await appPage.request.post(runtime.url("/api/extensions"), {
+      data: { ref: checksumFailureDir, source: "ftp" },
+    });
+    expect(malformedSourceHTTP.status()).toBe(400);
+    expect(JSON.stringify(await malformedSourceHTTP.json())).toMatch(
+      /unsupported extension source/i
+    );
 
     const invalidInstall = await runCLIExpectFailure(runtime.paths, [
       "extension",
@@ -2297,7 +2307,7 @@ test.describe("Extension and bundle marketplace runtime", () => {
           sdk_name: "browser-e2e-fixture",
           sdk_version: "0.1.0"
         },
-        accepted_capabilities: { provides: ["tool.provider"], actions: [], security: [] },
+        accepted_capabilities: { provides: ["tool.provider"], permissions: [] },
         implemented_methods: ["health_check", "provide_tools", "tools/call", "shutdown"],
         supported_hook_events: [],
         supports: { health_check: true }
@@ -2702,4 +2712,118 @@ test.describe("Extension and bundle marketplace runtime", () => {
         .join(path.delimiter),
     };
   }
+});
+
+// E2E-005: the browser projection exposes daemon update availability on the landing and detail
+// surfaces, and applying the update re-renders the installed version.
+test.describe("Extension update affordance", () => {
+  const extensionName = "browser-update-extension";
+  const repository = "acme/browser-update-extension";
+  const catalogEntryID = "browser-update-extension";
+
+  test.use({
+    runtimeOptions: {
+      extensionsAllowUnverified: true,
+      seed: {
+        extensionRegistry: {
+          description: "Browser lane extension with two published releases.",
+          extensionName,
+          releases: [
+            { tag: "v0.1.0", version: "0.1.0" },
+            { tag: "v0.2.0", version: "0.2.0" },
+          ],
+          repository,
+        },
+        marketplaceCatalog: {
+          extensions: [
+            {
+              artifact_url: `https://github.com/${repository}/releases/download/v0.2.0/${extensionName}.tar.gz`,
+              author: "acme",
+              description: "Browser lane extension with a newer catalog release.",
+              digest_release_tag: "v0.2.0",
+              entry_id: catalogEntryID,
+              install_slug: repository,
+              name: extensionName,
+              repository: `https://github.com/${repository}`,
+              tier: "unverified",
+              version: "0.2.0",
+            },
+          ],
+        },
+      },
+    },
+  });
+
+  test("operator sees a daemon-projected update on the landing scope and applies it from the extension detail", async ({
+    appPage,
+    runtime,
+  }) => {
+    if (!runtime.paths) {
+      throw new Error("extension update affordance requires launch-mode runtime paths");
+    }
+
+    const installed = await runBrowserRuntimeCLIJSON<{
+      name: string;
+      version: string;
+      provenance?: { slug?: string; digest_matched?: boolean };
+    }>(runtime, [
+      "extension",
+      "install",
+      `github:${repository}@v0.1.0`,
+      "--allow-unverified",
+      "--yes",
+    ]);
+    expect(installed.name).toBe(extensionName);
+    expect(installed.version).toBe("0.1.0");
+    expect(installed.provenance?.slug).toBe(repository);
+
+    await useGlobalWorkspaceIfPrompted(appPage);
+    await appPage.goto(runtime.url("/marketplace/extensions"), { waitUntil: "domcontentloaded" });
+    const marketplaceWin = appPage.getByTestId("os-window-app:marketplace");
+    await expect(marketplaceWin).toBeVisible();
+    const marketplace = marketplaceOperatorSelectors(marketplaceWin);
+    await expect(marketplace.kind("extension")).toBeVisible({ timeout: 20_000 });
+
+    // The landing scope is the market projection: the count must not be structurally zero there.
+    await expect(marketplace.kindUpdates("extension")).toHaveText("1");
+    const catalogCard = marketplace.card(catalogEntryID);
+    await expect(catalogCard).toContainText("v0.2.0 available");
+
+    await catalogCard.getByRole("link", { name: `View ${extensionName} details` }).click();
+    await expect(marketplace.detail).toBeVisible({ timeout: 20_000 });
+    await expect(marketplace.extensionUpdateAction).toBeVisible();
+
+    const updateResponse = appPage.waitForResponse(
+      response =>
+        response.request().method() === "PUT" &&
+        new URL(response.url()).pathname === `/api/extensions/${extensionName}`
+    );
+    await marketplace.extensionUpdateAction.click();
+    // The installed archive is not registry-verified, so the update needs explicit consent.
+    await expect(marketplace.extensionUpdateConsentConfirm).toBeVisible();
+    await marketplace.extensionUpdateConsentConfirm.click();
+    expect((await updateResponse).status()).toBe(200);
+
+    await expect
+      .poll(
+        async () => {
+          const payload = await runtime.requestJSON<{
+            extension: { version: string };
+          }>(`/api/extensions/${extensionName}`);
+          return payload.extension.version;
+        },
+        { timeout: 20_000 }
+      )
+      .toBe("0.2.0");
+
+    await appPage.goto(runtime.url("/marketplace/extensions?tab=installed"), {
+      waitUntil: "domcontentloaded",
+    });
+    const installedCard = appPage
+      .getByTestId(`marketplace-installed-card-${extensionName}`)
+      .or(appPage.getByTestId(`marketplace-installed-card-${catalogEntryID}`))
+      .first();
+    await expect(installedCard).toContainText("v0.2.0");
+    await expect(installedCard.getByRole("button", { exact: true, name: "Update" })).toBeHidden();
+  });
 });

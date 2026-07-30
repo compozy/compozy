@@ -1,10 +1,10 @@
 # BUG-20260729-extension-update-partial-error: Native extension update hid committed partial progress
 
-- **Status:** open
+- **Status:** fixed
 - **Impact (user-side):** Blocks-Completion
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Bruno
-- **Journey Step:** J-extension-policy-admin, update all managed extensions
+- **Journey Step:** J-extension-distribution, update all managed extensions
 - **Scenarios:** ET-019
 - **Found:** 2026-07-29 · **Report:** docs/qa/reports/2026-07-28-untested-full.md
 - **Origin:** Fresh isolated native-tool replay
@@ -44,11 +44,11 @@ the native response exposed only a generic backend failure.
 - **Correction:** Batch failures now retain committed payloads in a bounded native `partial_result`
   with `failed_target` and `completed_count`. Extension-domain validation errors are mapped before
   dispatch normalization.
-- **Fix commit:** pending completion gate
+- **Fix commit:** `351f3535`
 - **Regression test:** `Should preserve committed all-update results in a typed partial failure` in
   `internal/daemon/native_extension_tools_test.go`.
 
 ## Verification
 
 - The focused native extension suite passes under the race detector.
-- **Retested:** pending rebuilt-candidate replay and fix commit
+- **Retested:** pending under Bruno; the 2026-07-29 Ada distribution charter supplied adjacent batch-update evidence.

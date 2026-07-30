@@ -11,7 +11,9 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"testing/fstest"
 
+	atlasmigrate "ariga.io/atlas/sql/migrate"
 	atlasschema "ariga.io/atlas/sql/schema"
 	atlassqlite "ariga.io/atlas/sql/sqlite"
 	"github.com/compozy/compozy/internal/memory"
@@ -150,6 +152,120 @@ func TestProductionMigrationStreams(t *testing.T) {
 			t.Fatal("memory_events missing after shared-file baseline application")
 		}
 	})
+}
+
+func TestGlobalExtensionManifestV2Migration(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t)
+	db := openStreamTestDB(t, "extension-manifest-v2.db")
+	stream := globaldb.MigrationStream()
+	if err := store.Apply(ctx, db, migrationPrefixStream(t, stream, 27)); err != nil {
+		t.Fatalf("Apply(global prefix) error = %v", err)
+	}
+	if _, err := db.ExecContext(
+		ctx,
+		`INSERT INTO extensions (
+			name, version, source, manifest_path, installed_at,
+			capabilities, actions, checksum, provenance_json
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		"fixture-ext",
+		"0.1.0",
+		"user",
+		"/extensions/fixture-ext/extension.toml",
+		"2026-07-28T00:00:00Z",
+		`{"provides":["memory.backend","tool.provider"]}`,
+		`{"requires":["memory/store","sessions/list"]}`,
+		"sha256:fixture",
+		`{"source_kind":"local"}`,
+	); err != nil {
+		t.Fatalf("seed manifest v1 extension: %v", err)
+	}
+
+	stream.Bootstrap = nil
+	if err := store.Apply(ctx, db, stream); err != nil {
+		t.Fatalf("Apply(global) error = %v", err)
+	}
+
+	var providesJSON string
+	var permissionsJSON string
+	if err := db.QueryRowContext(
+		ctx,
+		`SELECT provides_json, permissions_json FROM extensions WHERE name = ?`,
+		"fixture-ext",
+	).Scan(&providesJSON, &permissionsJSON); err != nil {
+		t.Fatalf("query migrated extension: %v", err)
+	}
+	if got, want := providesJSON, `["memory.backend","tool.provider"]`; got != want {
+		t.Fatalf("provides_json = %q, want %q", got, want)
+	}
+	if got, want := permissionsJSON, `["memory/store","sessions/list"]`; got != want {
+		t.Fatalf("permissions_json = %q, want %q", got, want)
+	}
+	for _, table := range []string{"extensions", "extension_dev_links"} {
+		if !sqliteTableExists(t, db, table) {
+			t.Fatalf("table %q missing after manifest v2 migration", table)
+		}
+	}
+	columns := sqliteColumns(t, db, "extensions")
+	for _, removed := range []string{"capabilities", "actions"} {
+		if columns[removed] {
+			t.Fatalf("extensions column %q remains after manifest v2 migration", removed)
+		}
+	}
+	for _, added := range []string{"provides_json", "permissions_json"} {
+		if !columns[added] {
+			t.Fatalf("extensions column %q missing after manifest v2 migration", added)
+		}
+	}
+}
+
+func migrationPrefixStream(t *testing.T, stream store.MigrationStream, head int) store.MigrationStream {
+	t.Helper()
+
+	files := fstest.MapFS{}
+	directory := &atlasmigrate.MemDir{}
+	entries, err := fs.ReadDir(stream.FS, stream.Dir)
+	if err != nil {
+		t.Fatalf("read %s migration directory: %v", stream.Name, err)
+	}
+	for _, entry := range entries {
+		if entry.IsDir() || filepath.Ext(entry.Name()) != ".sql" {
+			continue
+		}
+		separator := strings.IndexByte(entry.Name(), '_')
+		if separator <= 0 {
+			t.Fatalf("migration filename %q has no version prefix", entry.Name())
+		}
+		version, err := strconv.Atoi(entry.Name()[:separator])
+		if err != nil {
+			t.Fatalf("parse migration version from %q: %v", entry.Name(), err)
+		}
+		if version > head {
+			continue
+		}
+		contents, err := fs.ReadFile(stream.FS, path.Join(stream.Dir, entry.Name()))
+		if err != nil {
+			t.Fatalf("read migration %q: %v", entry.Name(), err)
+		}
+		if err := directory.WriteFile(entry.Name(), contents); err != nil {
+			t.Fatalf("write migration prefix %q: %v", entry.Name(), err)
+		}
+		files[path.Join(stream.Dir, entry.Name())] = &fstest.MapFile{Data: contents}
+	}
+	checksum, err := directory.Checksum()
+	if err != nil {
+		t.Fatalf("checksum %s migration prefix: %v", stream.Name, err)
+	}
+	checksumBytes, err := checksum.MarshalText()
+	if err != nil {
+		t.Fatalf("marshal %s migration prefix checksum: %v", stream.Name, err)
+	}
+	files[path.Join(stream.Dir, atlasmigrate.HashFileName)] = &fstest.MapFile{Data: checksumBytes}
+
+	stream.FS = files
+	stream.Bootstrap = nil
+	return stream
 }
 
 func embeddedMigrationVersions(t *testing.T, stream store.MigrationStream) []int {
@@ -519,6 +635,32 @@ func sqliteTableExists(t *testing.T, db *sql.DB, table string) bool {
 		t.Fatalf("query table %s existence: %v", table, err)
 	}
 	return exists
+}
+
+func sqliteColumns(t *testing.T, db *sql.DB, table string) map[string]bool {
+	t.Helper()
+	rows, err := db.QueryContext(testutil.Context(t), `SELECT name FROM pragma_table_info(?)`, table)
+	if err != nil {
+		t.Fatalf("query table %s columns: %v", table, err)
+	}
+	defer func() {
+		if err := rows.Close(); err != nil {
+			t.Errorf("close table %s column rows: %v", table, err)
+		}
+	}()
+
+	columns := make(map[string]bool)
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			t.Fatalf("scan table %s column: %v", table, err)
+		}
+		columns[name] = true
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("iterate table %s columns: %v", table, err)
+	}
+	return columns
 }
 
 func normalizeSchemaSQL(statement string) string {

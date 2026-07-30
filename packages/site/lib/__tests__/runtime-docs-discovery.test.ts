@@ -58,6 +58,7 @@ describe("runtime docs discovery", () => {
 
     expect(guidesMeta.pages).toEqual([
       "index",
+      "build-your-first-extension",
       "choose-an-operator-surface",
       "debug-a-failed-session",
       "coordinate-agents-over-network",

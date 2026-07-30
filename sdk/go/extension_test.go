@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -118,6 +119,79 @@ func TestToolRegistrationValidation(t *testing.T) {
 		}
 		if err := extension.Tool("search", options, rawOKHandler); err != nil {
 			t.Fatalf("Tool() raw schema registration error = %v", err)
+		}
+	})
+
+	t.Run("Should Project Typed Registration Into Describe Payload", func(t *testing.T) {
+		t.Parallel()
+
+		type searchInput struct {
+			Query string `json:"query"`
+		}
+		inputSchema := json.RawMessage(`{
+  "type": "object",
+  "required": ["query"],
+  "properties": {"query": {"type": "string"}}
+}`)
+		extension := compozysdk.NewExtension(
+			compozysdk.ExtensionDefinition{
+				Name:       "describe-fixture",
+				Version:    "0.1.0",
+				Subprocess: compozysdk.DescribeSubprocess{Command: "./bin"},
+			},
+			compozysdk.WithStderr(io.Discard),
+		)
+		if err := compozysdk.Tool[searchInput](
+			extension,
+			"search",
+			compozysdk.ToolOptions{
+				Description:         "Search extension data",
+				ReadOnly:            true,
+				RequiresInteraction: true,
+				InputSchema:         inputSchema,
+				Command: &compozysdk.ExtensionCommandSpec{
+					Verb: "review/search", Summary: "Search reviews",
+					Flags: map[string]string{"query": "query"},
+				},
+			},
+			func(context.Context, compozysdk.ToolRequest[searchInput]) (compozysdk.ToolResult, error) {
+				return compozysdk.EmptyResult(), nil
+			},
+		); err != nil {
+			t.Fatalf("Tool() error = %v", err)
+		}
+		if err := extension.CommandGroup("review", "Review commands"); err != nil {
+			t.Fatalf("CommandGroup() error = %v", err)
+		}
+
+		payload, err := extension.Describe()
+		if err != nil {
+			t.Fatalf("Describe() error = %v", err)
+		}
+		if len(payload.Tools) != 1 {
+			t.Fatalf("len(Describe().Tools) = %d, want 1", len(payload.Tools))
+		}
+		digest, err := compozysdk.SchemaDigest(inputSchema)
+		if err != nil {
+			t.Fatalf("SchemaDigest() error = %v", err)
+		}
+		tool := payload.Tools[0]
+		if tool.Handler != "search" || tool.Description != "Search extension data" {
+			t.Fatalf("Describe().Tools[0] = %#v, want registered metadata", tool)
+		}
+		if tool.InputSchemaDigest != digest {
+			t.Fatalf("InputSchemaDigest = %q, want %q", tool.InputSchemaDigest, digest)
+		}
+		if !jsonEqual(tool.InputSchema, inputSchema) {
+			t.Fatalf("InputSchema = %s, want %s", tool.InputSchema, inputSchema)
+		}
+		if !tool.RequiresInteraction || tool.Command == nil || tool.Command.Verb != "review/search" ||
+			tool.Command.Flags["query"] != "query" {
+			t.Fatalf("Describe().Tools[0] command metadata = %#v", tool)
+		}
+		if len(payload.CommandGroups) != 1 || payload.CommandGroups[0].Path != "review" ||
+			payload.CommandGroups[0].Summary != "Review commands" {
+			t.Fatalf("Describe().CommandGroups = %#v", payload.CommandGroups)
 		}
 	})
 
@@ -238,11 +312,13 @@ func TestStdioRuntimeProvidesAndCallsTools(t *testing.T) {
 		type searchInput struct {
 			Query string `json:"query"`
 		}
+		workspaceSeen := make(chan *compozysdk.ExtensionToolWorkspaceScope, 1)
 		if err := compozysdk.Tool[searchInput](
 			extension,
 			"search",
 			validToolOptions(),
 			func(_ context.Context, req compozysdk.ToolRequest[searchInput]) (compozysdk.ToolResult, error) {
+				workspaceSeen <- req.TrustedWorkspace
 				return compozysdk.TextResult("result:" + req.Input.Query), nil
 			},
 		); err != nil {
@@ -292,9 +368,14 @@ func TestStdioRuntimeProvidesAndCallsTools(t *testing.T) {
 		}
 
 		call := runtime.call(t, 3, "tools/call", map[string]any{
-			"tool_id": "ext__go_tool__search",
-			"handler": "search",
-			"input":   map[string]any{"query": "alpha"},
+			"tool_id":       "ext__go_tool__search",
+			"handler":       "search",
+			"invocation_id": "invocation-1",
+			"trusted_workspace": map[string]any{
+				"id":   "workspace-1",
+				"root": "/workspace/one",
+			},
+			"input": map[string]any{"query": "alpha"},
 		})
 		if call.Error != nil {
 			t.Fatalf("tools/call error = %#v", call.Error)
@@ -303,6 +384,10 @@ func TestStdioRuntimeProvidesAndCallsTools(t *testing.T) {
 		decodeResult(t, call.Result, &callResult)
 		if len(callResult.Result.Content) != 1 || callResult.Result.Content[0].Text != "result:alpha" {
 			t.Fatalf("tool result = %#v, want result:alpha", callResult.Result)
+		}
+		workspace := <-workspaceSeen
+		if workspace == nil || workspace.ID != "workspace-1" || workspace.Root != "/workspace/one" {
+			t.Fatalf("trusted workspace = %#v, want daemon-authenticated scope", workspace)
 		}
 	})
 
@@ -489,7 +574,7 @@ func TestExternalConsumerBuildsAgainstPublicSDK(t *testing.T) {
 	writeText(
 		t,
 		filepath.Join(dir, "go.mod"),
-		"module example.com/compozy-sdk-consumer\n\ngo 1.26.4\n\nrequire github.com/compozy/compozy v0.0.0\n",
+		"module example.com/compozy-sdk-consumer\n\ngo 1.26.4\n\nrequire github.com/compozy/compozy/sdk/go v0.0.0\n",
 	)
 	writeText(t, filepath.Join(dir, "main.go"), `package main
 
@@ -525,7 +610,7 @@ func main() {
 		"mod",
 		"edit",
 		"-replace",
-		"github.com/compozy/compozy="+repoRoot,
+		"github.com/compozy/compozy/sdk/go="+filepath.Join(repoRoot, "sdk", "go"),
 	)
 	edit.Dir = dir
 	if output, err := edit.CombinedOutput(); err != nil {
@@ -555,6 +640,15 @@ func validToolOptions() compozysdk.ToolOptions {
 
 func rawOKHandler(context.Context, compozysdk.ToolRequest[json.RawMessage]) (compozysdk.ToolResult, error) {
 	return compozysdk.EmptyResult(), nil
+}
+
+func jsonEqual(left, right []byte) bool {
+	var leftValue any
+	var rightValue any
+	if json.Unmarshal(left, &leftValue) != nil || json.Unmarshal(right, &rightValue) != nil {
+		return false
+	}
+	return reflect.DeepEqual(leftValue, rightValue)
 }
 
 func readDigestFixtures(t *testing.T) []digestFixture {
@@ -673,8 +767,7 @@ func initializeParams(name string) map[string]any {
 		},
 		"capabilities": map[string]any{
 			"provides":                []string{"tool.provider"},
-			"granted_actions":         []string{},
-			"granted_security":        []string{},
+			"granted_permissions":     []string{},
 			"granted_resource_kinds":  []string{},
 			"granted_resource_scopes": []string{},
 		},

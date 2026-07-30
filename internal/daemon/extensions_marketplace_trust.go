@@ -16,21 +16,52 @@ func (s *daemonExtensionService) marketplaceInstallRequest(
 	req contract.InstallExtensionRequest,
 	installedBy string,
 ) (extensionpkg.MarketplaceInstallRequest, error) {
-	trust, err := s.resolveMarketplaceExtensionTrust(ctx, req.Slug, req.Version)
-	if err != nil {
-		return extensionpkg.MarketplaceInstallRequest{}, err
+	ref, embeddedVersion := splitExtensionDistributionRef(req.Ref)
+	version := strings.TrimSpace(req.Version)
+	if version == "" {
+		version = embeddedVersion
+	}
+	var trust *extensionpkg.MarketplaceTrustEvidence
+	var err error
+	if req.Source == contract.InstallExtensionSourceCurated {
+		trust, err = s.resolveMarketplaceExtensionTrust(ctx, ref, version)
+		if err != nil {
+			return extensionpkg.MarketplaceInstallRequest{}, err
+		}
+		if trust == nil {
+			return extensionpkg.MarketplaceInstallRequest{}, marketplacepkg.ErrEntryNotFound
+		}
+	}
+	sourceFilter := string(req.Source)
+	if req.Source == contract.InstallExtensionSourceCurated {
+		sourceFilter = ""
 	}
 	cfg := s.marketplaceConfig()
 	return extensionpkg.MarketplaceInstallRequest{
-		Slug:                   req.Slug,
-		SourceFilter:           req.Source,
-		Version:                req.Version,
+		Slug:                   ref,
+		SourceFilter:           sourceFilter,
+		Version:                version,
 		Asset:                  req.Asset,
-		PolicyAllowsUnverified: cfg.AllowUnverified,
+		PolicyAllowsUnverified: cfg.Trust.AllowUnverified,
 		AllowUnverified:        req.AllowUnverified,
 		InstalledBy:            installedBy,
 		Trust:                  trust,
 	}, nil
+}
+
+func splitExtensionDistributionRef(value string) (string, string) {
+	trimmed := strings.TrimSpace(value)
+	index := strings.LastIndex(trimmed, "@")
+	if index <= 0 || index == len(trimmed)-1 {
+		return trimmed, ""
+	}
+	if scheme := strings.Index(trimmed, "://"); scheme >= 0 {
+		hostEnd := strings.Index(trimmed[scheme+3:], "/")
+		if hostEnd < 0 || index < scheme+3+hostEnd {
+			return trimmed, ""
+		}
+	}
+	return strings.TrimSpace(trimmed[:index]), strings.TrimSpace(trimmed[index+1:])
 }
 
 func (s *daemonExtensionService) MarketplaceTrust(
@@ -39,7 +70,7 @@ func (s *daemonExtensionService) MarketplaceTrust(
 ) (contract.ExtensionTrustReportPayload, error) {
 	return extensionpkg.MarketplaceEntryTrustReport(
 		evidence,
-		s.marketplaceConfig().AllowUnverified,
+		s.marketplaceConfig().Trust.AllowUnverified,
 	)
 }
 

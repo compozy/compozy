@@ -4,9 +4,22 @@ import type {
   BundleActivation,
   BundleActivationUpdateRequest,
   ExtensionEntry,
+  ExtensionInstanceScope,
+  ExtensionLogEntry,
   ExtensionProvenance,
   ExtensionUpdateRequest,
 } from "../types";
+
+/**
+ * The daemon reads `?workspace=` as the instance selector: present resolves the caller's workspace
+ * instance (dev overlay when linked), absent resolves the global published row.
+ */
+function instanceQuery(
+  scope: ExtensionInstanceScope | undefined
+): { workspace: string } | undefined {
+  const workspace = scope?.workspaceId?.trim() ?? "";
+  return workspace === "" ? undefined : { workspace };
+}
 
 export type ExtensionsApiErrorKind = "daemon" | "malformed_response" | "transport";
 
@@ -71,13 +84,36 @@ function requiredObject<T extends object>(
   return value;
 }
 
-export async function listExtensions(signal?: AbortSignal): Promise<ExtensionEntry[]> {
-  const { data, error, response } = await apiClient.GET("/api/extensions", { signal });
+export async function listExtensions(
+  scope?: ExtensionInstanceScope,
+  signal?: AbortSignal
+): Promise<ExtensionEntry[]> {
+  const { data, error, response } = await apiClient.GET("/api/extensions", {
+    params: { query: instanceQuery(scope) },
+    signal,
+  });
   if (apiRequestFailed(response, error))
     throw responseError("Failed to list extensions", response, error);
   const fallback = "Failed to list extensions";
   const envelope = responseData(data, response, fallback);
   return requiredArray(envelope.extensions, response, fallback, "extensions");
+}
+
+export async function listExtensionLogs(
+  name: string,
+  options: ExtensionInstanceScope & { after?: number } = {},
+  signal?: AbortSignal
+): Promise<ExtensionLogEntry[]> {
+  const after =
+    options.after !== undefined && options.after > 0 ? String(options.after) : undefined;
+  const { data, error, response } = await apiClient.GET("/api/extensions/{name}/logs", {
+    params: { path: { name }, query: { ...instanceQuery(options), after } },
+    signal,
+  });
+  const fallback = `Failed to load logs for ${name}`;
+  if (apiRequestFailed(response, error)) throw responseError(fallback, response, error);
+  const envelope = responseData(data, response, fallback);
+  return requiredArray(envelope.logs, response, fallback, "logs");
 }
 
 export async function getExtensionProvenance(
@@ -136,9 +172,14 @@ export async function updateExtension(
     throw responseError(`Failed to update ${name}`, response, error);
 }
 
-export async function removeExtension(name: string, signal?: AbortSignal): Promise<void> {
+/** A workspace selects a dev unlink when present; an absent workspace removes the global row. */
+export async function removeExtension(
+  name: string,
+  scope?: ExtensionInstanceScope,
+  signal?: AbortSignal
+): Promise<void> {
   const { error, response } = await apiClient.DELETE("/api/extensions/{name}", {
-    params: { path: { name } },
+    params: { path: { name }, query: instanceQuery(scope) },
     signal,
   });
   if (apiRequestFailed(response, error))

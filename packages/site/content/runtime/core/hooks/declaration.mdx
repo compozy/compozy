@@ -15,13 +15,13 @@ agent definitions, skills, and extension manifests into one deterministic pipeli
 
 ## Declaration Sources
 
-| Source                           | Where to declare                                              | Notes                                                                                          |
-| -------------------------------- | ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| `config`                         | `[[hooks.declarations]]` in Compozy config TOML               | Global and workspace config declarations are loaded through workspace resolution.              |
-| `agent_definition`               | `hooks:` YAML or `[[hooks]]` TOML frontmatter in `AGENT.md`   | Compozy scopes the matcher to that agent name. A conflicting `matcher.agent_name` is rejected. |
-| `skill`                          | `metadata.compozy.hooks` in `SKILL.md` frontmatter            | Marketplace skill hooks are blocked unless allowed by `skills.allowed_marketplace_hooks`.      |
-| `config` with extension metadata | `[[resources.hooks]]` in `extension.toml` or `extension.json` | Extension hooks run from the extension root and receive `metadata.extension`.                  |
-| `native`                         | Daemon code only                                              | Used by built-in runtime hooks with Go executors. Users should not declare `native` hooks.     |
+| Source             | Where to declare                                              | Notes                                                                                                                                                   |
+| ------------------ | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `config`           | `[[hooks.declarations]]` in Compozy config TOML               | Global and workspace config declarations are loaded through workspace resolution.                                                                       |
+| `agent_definition` | `hooks:` YAML or `[[hooks]]` TOML frontmatter in `AGENT.md`   | Compozy scopes the matcher to that agent name. A conflicting `matcher.agent_name` is rejected.                                                          |
+| `skill`            | `metadata.compozy.hooks` in `SKILL.md` frontmatter            | Marketplace skill hooks are blocked unless allowed by `skills.allowed_marketplace_hooks`.                                                               |
+| `extension`        | `[[resources.hooks]]` in `extension.toml` or `extension.json` | Extension hooks run from the extension root and receive `metadata.extension`. Generated from the SDK's supported hook events for subprocess extensions. |
+| `native`           | Daemon code only                                              | Used by built-in runtime hooks with Go executors. Users should not declare `native` hooks.                                                              |
 
 ## Field Reference
 
@@ -65,7 +65,7 @@ caption="Sync hooks can mutate the runtime payload. Async hooks observe the sync
 
 Compozy orders hooks by source, then priority, then name:
 
-1. Source order: `native`, `config`, `agent_definition`, `skill`.
+1. Source order: `native`, `config`, `extension`, `agent_definition`, `skill`.
 2. Higher `priority` runs before lower `priority`.
 3. Skill hooks with the same priority are ordered by skill source: `bundled`, `marketplace`,
    `user`, `additional`, `workspace`.
@@ -77,8 +77,12 @@ Default priorities are:
 | ------------------ | ---------------: |
 | `native`           |           `1000` |
 | `config`           |            `500` |
+| `extension`        |            `300` |
 | `agent_definition` |            `100` |
 | `skill`            |              `0` |
+
+Source order is the outer sort key, so an extension hook always runs after every config hook and
+before every agent-definition hook regardless of the `priority` each one declares.
 
 Sync hooks run serially. A sync hook sees the payload patched by earlier sync hooks for the same
 event. Async hooks are queued only after the sync chain completes without a denial or required-hook

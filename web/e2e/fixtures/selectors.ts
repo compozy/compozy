@@ -231,6 +231,22 @@ export const knowledgeOperatorTestIds = {
 
 export const marketplaceOperatorTestIds = {
   bundleActivateConfirm: "bundle-activate-confirm",
+  extensionInstallAllowUnverified: "extension-install-allow-unverified",
+  extensionInstallDialog: "extension-install-dialog",
+  extensionInstallEntry: "marketplace-extension-install",
+  extensionInstallError: "extension-install-error",
+  extensionInstallRef: "extension-install-ref",
+  extensionInstallRefError: "extension-install-ref-error",
+  extensionInstallSubmit: "extension-install-submit",
+  extensionDevBadge: "extension-dev-badge",
+  extensionLogsFollow: "extension-logs-follow",
+  extensionLogsLines: "extension-logs-lines",
+  extensionLogsPanel: "extension-logs-panel",
+  extensionLogsStatus: "extension-logs-status",
+  extensionOriginPath: "extension-origin-path",
+  extensionOverridesPublishedBadge: "extension-overrides-published-badge",
+  extensionUpdateAction: "extension-update-action",
+  extensionUpdateConsentConfirm: "extension-update-consent-confirm",
   bundleActivationDialog: "bundle-activation-dialog",
   bundlePreviewError: "bundle-preview-error",
   detail: "marketplace-detail",
@@ -480,6 +496,24 @@ export interface KnowledgeOperatorSelectors {
 
 export interface MarketplaceOperatorSelectors {
   action(entryId: string): Locator;
+  extensionDevBadge: Locator;
+  extensionInstallAllowUnverified: Locator;
+  extensionInstallDialog: Locator;
+  extensionInstallEntry: Locator;
+  extensionInstallError: Locator;
+  extensionInstallRef: Locator;
+  extensionInstallRefError: Locator;
+  extensionInstallSubmit: Locator;
+  extensionInstallSource(source: string): Locator;
+  extensionLogsFollow: Locator;
+  extensionLogsLines: Locator;
+  extensionLogsPanel: Locator;
+  extensionLogsStatus: Locator;
+  extensionOriginPath: Locator;
+  extensionOverridesPublishedBadge: Locator;
+  extensionUpdateAction: Locator;
+  extensionUpdateConsentConfirm: Locator;
+  kindUpdates(kind: string): Locator;
   bundleActivateConfirm: Locator;
   bundleActivationDialog: Locator;
   bundlePreviewError: Locator;
@@ -616,10 +650,10 @@ export const settingsHooksTestIds = {
 
 export const settingsExtensionsTestIds = {
   allowUnverified: "settings-page-extensions-policy-allow-unverified-input",
+  gitEnabled: "settings-page-extensions-policy-git-enabled-input",
+  githubBaseURLInput: "settings-page-extensions-policy-github-base-url-input",
+  githubEnabled: "settings-page-extensions-policy-github-enabled-input",
   page: "settings-page-extensions",
-  policyBaseURLInput: "settings-page-extensions-policy-base-url-input",
-  policyControls: "settings-page-extensions-policy-controls",
-  policyRegistryInput: "settings-page-extensions-policy-registry-input",
   save: "settings-page-extensions-save",
   restartNotice: "settings-page-extensions-restart-notice",
 } as const;
@@ -730,10 +764,10 @@ interface SettingsHooksSelectors {
 
 interface SettingsExtensionsSelectors {
   allowUnverified: Locator;
+  gitEnabled: Locator;
+  githubBaseURLInput: Locator;
+  githubEnabled: Locator;
   page: Locator;
-  policyBaseURLInput: Locator;
-  policyControls: Locator;
-  policyRegistryInput: Locator;
   save: Locator;
   restartNotice: Locator;
 }
@@ -1176,6 +1210,31 @@ export function marketplaceOperatorSelectors(
     bundlePreviewError: page.getByTestId(marketplaceOperatorTestIds.bundlePreviewError),
     card: (entryId: string) => page.getByTestId(`marketplace-card-${entryId}`),
     detail: page.getByTestId(marketplaceOperatorTestIds.detail),
+    extensionDevBadge: page.getByTestId(marketplaceOperatorTestIds.extensionDevBadge),
+    extensionInstallAllowUnverified: page.getByTestId(
+      marketplaceOperatorTestIds.extensionInstallAllowUnverified
+    ),
+    extensionInstallDialog: page.getByTestId(marketplaceOperatorTestIds.extensionInstallDialog),
+    extensionInstallEntry: page.getByTestId(marketplaceOperatorTestIds.extensionInstallEntry),
+    extensionInstallError: page.getByTestId(marketplaceOperatorTestIds.extensionInstallError),
+    extensionInstallRef: page.getByTestId(marketplaceOperatorTestIds.extensionInstallRef),
+    extensionInstallRefError: page.getByTestId(marketplaceOperatorTestIds.extensionInstallRefError),
+    extensionInstallSource: (source: string) =>
+      page.getByTestId(`extension-install-source-${source}`),
+    extensionInstallSubmit: page.getByTestId(marketplaceOperatorTestIds.extensionInstallSubmit),
+    extensionLogsFollow: page.getByTestId(marketplaceOperatorTestIds.extensionLogsFollow),
+    extensionLogsLines: page.getByTestId(marketplaceOperatorTestIds.extensionLogsLines),
+    extensionLogsPanel: page.getByTestId(marketplaceOperatorTestIds.extensionLogsPanel),
+    extensionLogsStatus: page.getByTestId(marketplaceOperatorTestIds.extensionLogsStatus),
+    extensionOriginPath: page.getByTestId(marketplaceOperatorTestIds.extensionOriginPath),
+    extensionOverridesPublishedBadge: page.getByTestId(
+      marketplaceOperatorTestIds.extensionOverridesPublishedBadge
+    ),
+    extensionUpdateAction: page.getByTestId(marketplaceOperatorTestIds.extensionUpdateAction),
+    extensionUpdateConsentConfirm: page.getByTestId(
+      marketplaceOperatorTestIds.extensionUpdateConsentConfirm
+    ),
+    kindUpdates: (kind: string) => page.getByTestId(`marketplace-kind-updates-${kind}`),
     detailAction: page.getByTestId(marketplaceOperatorTestIds.detailAction),
     extensionTrustConfirm: page.getByTestId(marketplaceOperatorTestIds.extensionTrustConfirm),
     extensionTrustDialog: page.getByTestId(marketplaceOperatorTestIds.extensionTrustDialog),
@@ -1513,10 +1572,10 @@ export function settingsOperatorSelectors(
     },
     extensions: {
       allowUnverified: page.getByTestId(settingsExtensionsTestIds.allowUnverified),
+      gitEnabled: page.getByTestId(settingsExtensionsTestIds.gitEnabled),
+      githubBaseURLInput: page.getByTestId(settingsExtensionsTestIds.githubBaseURLInput),
+      githubEnabled: page.getByTestId(settingsExtensionsTestIds.githubEnabled),
       page: page.getByTestId(settingsExtensionsTestIds.page),
-      policyControls: page.getByTestId(settingsExtensionsTestIds.policyControls),
-      policyRegistryInput: page.getByTestId(settingsExtensionsTestIds.policyRegistryInput),
-      policyBaseURLInput: page.getByTestId(settingsExtensionsTestIds.policyBaseURLInput),
       save: page.getByTestId(settingsExtensionsTestIds.save),
       restartNotice: page.getByTestId(settingsExtensionsTestIds.restartNotice),
     },

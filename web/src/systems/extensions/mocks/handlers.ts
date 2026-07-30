@@ -4,7 +4,10 @@ import { compozyApiMock } from "@/storybook/openapi-msw";
 
 import {
   bundleActivationFixtures,
+  DEV_EXTENSION_WORKSPACE_ID,
+  devExtensionFixture,
   extensionFixtures,
+  extensionLogFixtures,
   extensionProvenanceFixtures,
 } from "./fixtures";
 import type { BundleActivation, ExtensionEntry } from "../types";
@@ -17,12 +20,24 @@ function cloneBundleActivations(): BundleActivation[] {
   return structuredClone(bundleActivationFixtures);
 }
 
+function cloneDevExtensions(): Record<string, ExtensionEntry[]> {
+  return { [DEV_EXTENSION_WORKSPACE_ID]: [structuredClone(devExtensionFixture)] };
+}
+
+function cloneExtensionLogs() {
+  return structuredClone(extensionLogFixtures);
+}
+
 let extensionsState = cloneExtensions();
 let bundleActivationsState = cloneBundleActivations();
+let devExtensionsState = cloneDevExtensions();
+let extensionLogsState = cloneExtensionLogs();
 
 export function resetExtensionMockState(): void {
   extensionsState = cloneExtensions();
   bundleActivationsState = cloneBundleActivations();
+  devExtensionsState = cloneDevExtensions();
+  extensionLogsState = cloneExtensionLogs();
 }
 
 function extensionByName(name: string) {
@@ -33,8 +48,63 @@ function activationById(id: string) {
   return bundleActivationsState.find(activation => activation.id === id);
 }
 
+/** Mirrors the daemon: `?workspace=` resolves that workspace's instances, absent the global rows. */
+function extensionsForWorkspace(workspace: string): ExtensionEntry[] {
+  if (workspace === "") return extensionsState;
+  const overlays = devExtensionsState[workspace] ?? [];
+  return [...overlays, ...extensionsState];
+}
+
 export const handlers: HttpHandler[] = [
-  compozyApiMock.get("/api/extensions", () => HttpResponse.json({ extensions: extensionsState })),
+  compozyApiMock.get("/api/extensions", ({ request }) => {
+    const workspace = new URL(request.url).searchParams.get("workspace")?.trim() ?? "";
+    return HttpResponse.json({ extensions: extensionsForWorkspace(workspace) });
+  }),
+  compozyApiMock.post("/api/extensions", async ({ request }) => {
+    const body = (await request.json()) as {
+      allow_unverified?: boolean;
+      ref?: string;
+      source?: string;
+    };
+    const source = body.source?.trim() ?? "";
+    const ref = body.ref?.trim() ?? "";
+    if (source === "" || ref === "") {
+      return HttpResponse.json({ error: "extension source and ref are required" }, { status: 400 });
+    }
+    if (!["curated", "github", "git", "local_path"].includes(source)) {
+      return HttpResponse.json(
+        { error: `unsupported extension source "${source}"` },
+        { status: 400 }
+      );
+    }
+    if (source !== "curated" && body.allow_unverified !== true) {
+      return HttpResponse.json(
+        { error: "extension trust decision required: rerun with allow_unverified" },
+        { status: 422 }
+      );
+    }
+    const installed: ExtensionEntry = {
+      ...structuredClone(extensionFixtures[0]!),
+      digest_matched: source === "github",
+      name: ref.split("/").pop() ?? ref,
+      provenance: undefined,
+      source,
+      trust: undefined,
+      update_available: false,
+    };
+    extensionsState = [...extensionsState, installed];
+    return HttpResponse.json({ extension: installed }, { status: 201 });
+  }),
+  compozyApiMock.get("/api/extensions/{name}/logs", ({ params, request }) => {
+    const name = String(params.name);
+    const search = new URL(request.url).searchParams;
+    const after = Number(search.get("after") ?? "0");
+    const workspace = search.get("workspace")?.trim() ?? "";
+    const logs = (extensionLogsState[workspace]?.[name] ?? []).filter(
+      entry => entry.sequence > after
+    );
+    return HttpResponse.json({ logs });
+  }),
   compozyApiMock.get("/api/extensions/{name}/provenance", ({ params }) => {
     const name = String(params.name);
     const provenance = extensionProvenanceFixtures[name];
@@ -79,8 +149,31 @@ export const handlers: HttpHandler[] = [
         })
       : HttpResponse.json({ error: `Extension not found: ${name}` }, { status: 404 });
   }),
-  compozyApiMock.delete("/api/extensions/{name}", ({ params }) => {
+  compozyApiMock.delete("/api/extensions/{name}", ({ params, request }) => {
     const name = String(params.name);
+    const workspace = new URL(request.url).searchParams.get("workspace")?.trim() ?? "";
+    if (workspace !== "") {
+      const overlays = devExtensionsState[workspace] ?? [];
+      const extension = overlays.find(item => item.name === name);
+      if (!extension) {
+        return HttpResponse.json({ error: `Extension not found: ${name}` }, { status: 404 });
+      }
+      devExtensionsState = {
+        ...devExtensionsState,
+        [workspace]: overlays.filter(item => item.name !== name),
+      };
+      extensionLogsState = {
+        ...extensionLogsState,
+        [workspace]: { ...extensionLogsState[workspace], [name]: [] },
+      };
+      return HttpResponse.json({
+        extension: {
+          name,
+          path: extension.origin_path ?? `/var/lib/compozy/extensions/${name}`,
+          status: "removed",
+        },
+      });
+    }
     if (!extensionByName(name)) {
       return HttpResponse.json({ error: `Extension not found: ${name}` }, { status: 404 });
     }

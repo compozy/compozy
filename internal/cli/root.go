@@ -36,6 +36,8 @@ const (
 	outputFlagName = "output"
 	jsonFlagName   = "json"
 	yesFlagName    = "yes"
+	outputFlagArg  = "--" + outputFlagName
+	jsonFlagArg    = "--" + jsonFlagName
 
 	defaultPollInterval = 100 * time.Millisecond
 	defaultStartTimeout = 15 * time.Second
@@ -207,14 +209,44 @@ func writeExecutionError(stderr io.Writer, args []string, err error) int {
 	if payload, ok := marshalStructuredExecutionError(args, err); ok {
 		if _, writeErr := stderr.Write(payload); writeErr == nil {
 			if len(payload) == 0 || payload[len(payload)-1] != '\n' {
-				_, _ = fmt.Fprintln(stderr)
+				if _, newlineErr := fmt.Fprintln(stderr); newlineErr != nil {
+					return exitCode
+				}
 			}
 			return exitCode
 		}
 	}
 
-	_, _ = fmt.Fprintf(stderr, "error: %v\n", err)
+	if rendered, ok := renderHumanExecutionError(err); ok {
+		if _, writeErr := fmt.Fprintln(stderr, rendered); writeErr != nil {
+			return exitCode
+		}
+		return exitCode
+	}
+	if _, writeErr := fmt.Fprintf(stderr, "error: %v\n", err); writeErr != nil {
+		return exitCode
+	}
 	return exitCode
+}
+
+func renderHumanExecutionError(err error) (string, bool) {
+	item, ok := diagnosticspkg.ItemFromError(err)
+	if !ok {
+		return "", false
+	}
+
+	title := strings.TrimSpace(item.Title)
+	if title == "" {
+		title = diagnosticspkg.Redact(err.Error())
+	}
+	lines := []string{"error: " + title}
+	if detail := strings.TrimSpace(item.Message); detail != "" && detail != title {
+		lines = append(lines, "  "+detail)
+	}
+	if command := strings.TrimSpace(item.SuggestedCommand); command != "" {
+		lines = append(lines, "try: "+command)
+	}
+	return strings.Join(lines, "\n"), true
 }
 
 func marshalStructuredExecutionError(args []string, err error) ([]byte, bool) {
@@ -338,15 +370,15 @@ func requestedOutputFormat(args []string) OutputFormat {
 	mode := OutputHuman
 	for i := 0; i < len(args); i++ {
 		switch arg := strings.TrimSpace(args[i]); {
-		case arg == "--json":
+		case arg == jsonFlagArg:
 			mode = OutputJSON
-		case arg == "-o" || arg == "--output":
+		case arg == "-o" || arg == outputFlagArg:
 			if i+1 < len(args) {
 				mode = OutputFormat(strings.ToLower(strings.TrimSpace(args[i+1])))
 				i++
 			}
-		case strings.HasPrefix(arg, "--output="):
-			mode = OutputFormat(strings.ToLower(strings.TrimSpace(strings.TrimPrefix(arg, "--output="))))
+		case strings.HasPrefix(arg, outputFlagArg+"="):
+			mode = OutputFormat(strings.ToLower(strings.TrimSpace(strings.TrimPrefix(arg, outputFlagArg+"="))))
 		case strings.HasPrefix(arg, "-o="):
 			mode = OutputFormat(strings.ToLower(strings.TrimSpace(strings.TrimPrefix(arg, "-o="))))
 		}

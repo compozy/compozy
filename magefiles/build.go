@@ -3,6 +3,7 @@
 package main
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -28,6 +29,9 @@ func buildGo() error {
 		return err
 	}
 	if err := sh.RunV("go", "build", "-ldflags", ldflags, "./..."); err != nil {
+		return err
+	}
+	if err := runCommandInDir(context.Background(), "sdk/go", "go", "build", "./..."); err != nil {
 		return err
 	}
 	out := filepath.Join(binDir, cliBinary)

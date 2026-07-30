@@ -229,7 +229,8 @@ describe("marketplace acquisition transport", () => {
   it("Should install extensions and activate bundles through separate mutations", async () => {
     const extensionBody = {
       allow_unverified: true,
-      slug: "review-pack",
+      ref: "review-pack",
+      source: "curated",
       version: "2.0.0",
     };
     mockJsonResponse({ extension: { name: "review-pack" } }, { status: 201 });
@@ -265,7 +266,10 @@ describe("marketplace acquisition transport", () => {
     ],
     ["skill install", () => installMarketplaceSkill({ slug: "@compozy/reviewer" })],
     ["skill update", () => updateMarketplaceSkill({ name: "reviewer" })],
-    ["extension install", () => installMarketplaceExtension({ slug: "review-pack" })],
+    [
+      "extension install",
+      () => installMarketplaceExtension({ ref: "review-pack", source: "curated" }),
+    ],
     [
       "bundle preview",
       () =>
@@ -293,6 +297,23 @@ describe("marketplace acquisition transport", () => {
     await expect(request()).rejects.toMatchObject({
       message: "catalog mutation rejected",
       status: 409,
+    });
+  });
+
+  it("Should preserve the daemon diagnostic code for extension consent decisions", async () => {
+    mockJsonResponse(
+      {
+        diagnostic: { code: "extension_checksum_unverified" },
+        error: "extension checksum is not registry-verified",
+      },
+      { status: 422 }
+    );
+
+    await expect(
+      installMarketplaceExtension({ ref: "/srv/hello", source: "local_path" })
+    ).rejects.toMatchObject({
+      diagnosticCode: "extension_checksum_unverified",
+      status: 422,
     });
   });
 });

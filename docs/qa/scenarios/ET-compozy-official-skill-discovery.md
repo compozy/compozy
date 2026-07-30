@@ -9,12 +9,17 @@ entry_points: bundled skills/compozy/SKILL.md; GET /api/skills; compozy skill li
 qa_status: pass
 bug_ids:
 fix_status:
-retest_status:
+retest_status: pass
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-compozy-migration-beta-20260727-135201-116083-lab/qa-artifacts/qa/gate-test-integration-rerun.log; /Users/pedronauck/dev/qa-labs/compozy-compozy-migration-beta-20260727-135201-116083-lab/qa-artifacts/qa/gate-test-e2e-web-final-2.log
-last_report: docs/qa/reports/2026-07-27-devtool-oss-launch.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-compozy-migration-beta-20260727-135201-116083-lab/qa-artifacts/qa/gate-test-integration-rerun.log; /Users/pedronauck/dev/qa-labs/compozy-compozy-migration-beta-20260727-135201-116083-lab/qa-artifacts/qa/gate-test-e2e-web-final-2.log; /Users/pedronauck/dev/qa-labs/compozy-ext-improvs-final-20260729-230047-267985-lab/qa-artifacts/qa/extension-charters.json
+last_report: docs/qa/reports/2026-07-29-ext-improvs.md
 overlaps: ET-001; ET-002; ET-003; ET-skill-activation-gates
 ---
 
 QA impact 2026-07-26: the official bundled skill, loader namespace, and every structured
 management surface received one hard cut. Planning flag only; the next QA cycle owns execution.
+
+QA impact 2026-07-29 (ext-improvs Phase G): the bundled skill gained
+`references/extension-authoring.md` and a new router row for writing extension code. Resource
+discovery, the reference inventory, and router coverage changed; reset to untested for the next
+cycle.

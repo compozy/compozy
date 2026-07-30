@@ -12,8 +12,8 @@ func TestRegistryIntegrationLifecycle(t *testing.T) {
 
 	env := newRegistryTestEnv(t)
 	dir, manifest, checksum := createRegistryTestExtension(t, "lifecycle-ext", registryManifestOptions{
-		capabilities: []string{"memory.backend", "prompt.provider"},
-		actions:      []string{"observe/health", "sessions/list"},
+		capabilities: []string{"memory.backend", "tool.provider"},
+		permissions:  []string{"observe/health", "sessions/list"},
 		extraFiles: map[string]string{
 			"hooks/post_prompt.js": "console.log('hook');\n",
 		},
@@ -74,14 +74,14 @@ func TestRegistryIntegrationMultipleSourcesCoexist(t *testing.T) {
 	env := newRegistryTestEnv(t)
 	userDir, userManifest, userChecksum := createRegistryTestExtension(t, "user-ext", registryManifestOptions{
 		capabilities: []string{"memory.backend"},
-		actions:      []string{"sessions/list"},
+		permissions:  []string{"sessions/list"},
 	})
 	workspaceDir, workspaceManifest, workspaceChecksum := createRegistryTestExtension(
 		t,
 		"workspace-ext",
 		registryManifestOptions{
-			capabilities: []string{"prompt.provider"},
-			actions:      []string{"observe/health"},
+			capabilities: []string{"tool.provider"},
+			permissions:  []string{"observe/health"},
 		},
 	)
 

@@ -3,7 +3,6 @@ package extensionpkg
 import (
 	"context"
 
-	"errors"
 	"fmt"
 
 	"slices"
@@ -18,26 +17,43 @@ import (
 
 // Get returns the current snapshot for one installed extension.
 func (m *Manager) Get(name string) (*Extension, error) {
+	return m.GetForInstance(GlobalInstanceKey(name))
+}
+
+// GetForInstance resolves a workspace dev overlay before the global published instance.
+func (m *Manager) GetForInstance(key InstanceKey) (*Extension, error) {
 	if m == nil {
 		return nil, ErrManagerRequired
 	}
 
-	trimmed := strings.TrimSpace(name)
-	if trimmed == "" {
-		return nil, errors.New("extension: extension name is required")
+	key = key.Normalize()
+	if err := key.Validate(); err != nil {
+		return nil, err
 	}
 
 	m.mu.RLock()
-	ext := m.extensions[trimmed]
+	ext := m.instanceLocked(key)
+	if ext == nil && !key.IsGlobal() {
+		ext = m.extensions[key.Name]
+	}
 	m.mu.RUnlock()
 	if ext != nil {
-		return m.cloneExtension(ext), nil
+		snapshot := m.cloneExtension(ext)
+		if !ext.instanceKey().IsGlobal() {
+			link, err := m.registry.GetDevLink(key.Name, key.WorkspaceID)
+			if err == nil {
+				snapshot.DevLink = link
+				_, publishedErr := m.registry.Get(key.Name)
+				snapshot.OverridesPublished = publishedErr == nil
+			}
+		}
+		return snapshot, nil
 	}
 
 	if m.registry == nil {
-		return nil, &ExtensionNotFoundError{Name: trimmed}
+		return nil, &ExtensionNotFoundError{Name: key.Name}
 	}
-	info, err := m.registry.Get(trimmed)
+	info, err := m.registry.Get(key.Name)
 	if err != nil {
 		return nil, err
 	}
@@ -45,6 +61,48 @@ func (m *Manager) Get(name string) (*Extension, error) {
 		Info:   *info,
 		Status: ExtensionStatus{Name: info.Name, Version: info.Version, Source: info.Source, Enabled: info.Enabled},
 	}, nil
+}
+
+// ListForWorkspace returns the effective extension registry for one trusted workspace.
+func (m *Manager) ListForWorkspace(workspaceID string) []ExtensionInfo {
+	if m == nil {
+		return nil
+	}
+	workspaceID = strings.TrimSpace(workspaceID)
+	m.mu.RLock()
+	byName := make(map[string]ExtensionInfo, len(m.extensions)+len(m.devExtensions))
+	for name, ext := range m.extensions {
+		byName[name] = ext.info
+	}
+	if workspaceID != "" {
+		for key, ext := range m.devExtensions {
+			if key.WorkspaceID == workspaceID {
+				byName[key.Name] = ext.info
+			}
+		}
+	}
+	m.mu.RUnlock()
+	infos := make([]ExtensionInfo, 0, len(byName))
+	for _, info := range byName {
+		infos = append(infos, info)
+	}
+	slices.SortFunc(infos, func(left, right ExtensionInfo) int {
+		return strings.Compare(left.Name, right.Name)
+	})
+	return infos
+}
+
+// StatusesForWorkspace returns effective status without leaking another workspace's dev instances.
+func (m *Manager) StatusesForWorkspace(workspaceID string) []ExtensionStatus {
+	infos := m.ListForWorkspace(workspaceID)
+	statuses := make([]ExtensionStatus, 0, len(infos))
+	for _, info := range infos {
+		snapshot, err := m.GetForInstance(InstanceKey{Name: info.Name, WorkspaceID: workspaceID})
+		if err == nil {
+			statuses = append(statuses, snapshot.Status)
+		}
+	}
+	return statuses
 }
 
 // List returns every currently known registry row in name order.

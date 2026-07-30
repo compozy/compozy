@@ -8,6 +8,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
+	registrygit "github.com/compozy/compozy/internal/registry/gitsrc"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
@@ -66,7 +67,9 @@ func nativeExtensionToolError(id toolspkg.ToolID, err error) error {
 		)
 	case isExtensionValidationError(err):
 		return nativeExtensionValidationError(id, err)
-	case errors.Is(err, extensionpkg.ErrExtensionHasActiveBundles):
+	case errors.Is(err, extensionpkg.ErrExtensionHasActiveBundles),
+		errors.Is(err, extensionpkg.ErrExtensionDevOriginMissing),
+		errors.Is(err, extensionpkg.ErrExtensionNotDevLinked):
 		return toolspkg.NewToolError(
 			toolspkg.ErrorCodeConflict,
 			id,
@@ -74,6 +77,16 @@ func nativeExtensionToolError(id toolspkg.ToolID, err error) error {
 			fmt.Errorf("%w: %w", toolspkg.ErrToolConflict, err),
 			toolspkg.ReasonExtensionValidationFailed,
 		)
+	case errors.Is(err, extensionpkg.ErrExtensionWorkspaceDenied):
+		return toolspkg.NewToolError(
+			toolspkg.ErrorCodeDenied,
+			id,
+			err.Error(),
+			fmt.Errorf("%w: %w", toolspkg.ErrToolDenied, err),
+			toolspkg.ReasonExtensionSourceForbidden,
+		)
+	case errors.Is(err, registrygit.ErrGitUnavailable):
+		return nativeHTTPStatusToolError(id, err, core.ExtensionStatusCode(err))
 	case isExtensionSourceError(err):
 		return nativeExtensionSourceError(id, err)
 	default:
@@ -105,6 +118,7 @@ func isExtensionValidationError(err error) bool {
 	return errors.Is(err, extensionpkg.ErrExtensionExists) ||
 		errors.Is(err, extensionpkg.ErrExtensionChecksumMismatch) ||
 		errors.Is(err, extensionpkg.ErrExtensionArchiveDigestMismatch) ||
+		errors.Is(err, extensionpkg.ErrExtensionGenerationInvalid) ||
 		errors.Is(err, extensionpkg.ErrManifestInvalid) ||
 		errors.Is(err, extensionpkg.ErrManifestIncompatible) ||
 		errors.Is(err, extensionpkg.ErrManifestNotFound) ||

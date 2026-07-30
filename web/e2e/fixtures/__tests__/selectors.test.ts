@@ -478,12 +478,13 @@ describe("settings operator selectors", () => {
     );
 
     expect(selectors.extensions.page).toBe(`locator:${settingsExtensionsTestIds.page}`);
-    expect(selectors.extensions.policyControls).toBe(
-      `locator:${settingsExtensionsTestIds.policyControls}`
+    expect(selectors.extensions.githubEnabled).toBe(
+      `locator:${settingsExtensionsTestIds.githubEnabled}`
     );
-    expect(selectors.extensions.policyBaseURLInput).toBe(
-      `locator:${settingsExtensionsTestIds.policyBaseURLInput}`
+    expect(selectors.extensions.githubBaseURLInput).toBe(
+      `locator:${settingsExtensionsTestIds.githubBaseURLInput}`
     );
+    expect(selectors.extensions.gitEnabled).toBe(`locator:${settingsExtensionsTestIds.gitEnabled}`);
     expect(selectors.extensions.allowUnverified).toBe(
       `locator:${settingsExtensionsTestIds.allowUnverified}`
     );

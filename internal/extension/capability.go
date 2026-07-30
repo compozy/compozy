@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	extensioncontract "github.com/compozy/compozy/internal/extension/contract"
 
 	"github.com/compozy/compozy/internal/resources"
 )
@@ -25,13 +26,6 @@ const (
 	hostAPISessionsCreatePath              = "sessions/create"
 	hostAPISessionsEventsPath              = "sessions/events"
 	hostAPISkillsListPath                  = "skills/list"
-)
-
-const (
-	capabilityModelsListPath    = "models/list"
-	capabilityModelsRefreshPath = "models/refresh"
-	capabilityTasksKey          = "tasks"
-	capabilityTasksCreatePath   = "tasks/create"
 )
 
 const (
@@ -112,7 +106,7 @@ const (
 )
 
 var (
-	marketplaceSecurityCeiling = []string{
+	marketplaceConsentCeiling = []string{
 		capabilityMemoryReadPath,
 		capabilityLogsReadPath,
 		capabilityObserveReadPath,
@@ -200,7 +194,7 @@ type CapabilityChecker struct {
 
 type capabilityGrant struct {
 	source         ExtensionSource
-	actions        []string
+	permissions    []string
 	security       []string
 	resourceKinds  []resources.ResourceKind
 	resourceScopes []resources.ResourceScopeKind
@@ -208,7 +202,7 @@ type capabilityGrant struct {
 
 // EffectiveGrant is the daemon-derived grant snapshot for one extension session.
 type EffectiveGrant struct {
-	Actions        []string
+	Permissions    []string
 	Security       []string
 	ResourceKinds  []resources.ResourceKind
 	ResourceScopes []resources.ResourceScopeKind
@@ -318,28 +312,21 @@ func (c *CapabilityChecker) Check(extName, capability string) error {
 	return newCapabilityDeniedError(required, []string{required}, grant.security)
 }
 
-// CheckHostAPI reports whether extName may call the Host API method under both
-// the granted_actions and granted_security gates.
+// CheckHostAPI reports whether extName may call the Host API method.
 func (c *CapabilityChecker) CheckHostAPI(extName, method string) error {
 	method = strings.TrimSpace(method)
 	if method == "" {
 		return fmt.Errorf("extension: host api method is required")
 	}
 
-	requiredSecurity, ok := hostAPIMethodSecurityCapability[method]
+	_, ok := extensioncontract.PermissionContractForMethod(method)
 	if !ok {
 		return fmt.Errorf("extension: unknown host api method %q", method)
 	}
 
 	grant := c.lookup(extName)
-	if !slices.Contains(grant.actions, method) {
-		return newCapabilityDeniedError(method, []string{method}, grant.actions)
-	}
-	if strings.TrimSpace(requiredSecurity) == "" {
-		return nil
-	}
-	if !capabilityGranted(grant.security, requiredSecurity) {
-		return newCapabilityDeniedError(method, []string{requiredSecurity}, grant.security)
+	if !slices.Contains(grant.permissions, method) {
+		return newCapabilityDeniedError(method, []string{method}, grant.permissions)
 	}
 	return nil
 }

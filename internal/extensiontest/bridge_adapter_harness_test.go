@@ -418,13 +418,12 @@ func validConformanceReport() ConformanceReport {
 			Request: subprocess.InitializeRequest{
 				Capabilities: subprocess.InitializeCapabilities{
 					Provides: []string{"bridge.adapter"},
-					GrantedActions: []extensionprotocol.HostAPIMethod{
+					GrantedPermissions: []extensionprotocol.HostAPIMethod{
 						extensionprotocol.HostAPIMethodBridgesInstancesList,
 						extensionprotocol.HostAPIMethodBridgesMessagesIngest,
 						extensionprotocol.HostAPIMethodBridgesInstancesGet,
 						extensionprotocol.HostAPIMethodBridgesInstancesReportState,
 					},
-					GrantedSecurity: []string{"bridge.read", "bridge.write"},
 				},
 				Methods: subprocess.InitializeMethods{
 					ExtensionServices: []string{"bridges/deliver", "health_check", "shutdown"},

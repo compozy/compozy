@@ -75,8 +75,8 @@ func TestManagerCheckBridgeUsesRestrictedTransientRuntimeAndCleansUp(t *testing.
 		if !slices.Equal(gotMethods, wantMethods) {
 			t.Fatalf("ExtensionServices = %#v, want %#v", gotMethods, wantMethods)
 		}
-		if len(request.Capabilities.Provides) != 0 || len(request.Capabilities.GrantedActions) != 0 ||
-			len(request.Capabilities.GrantedSecurity) != 0 || len(request.Capabilities.GrantedResourceKinds) != 0 ||
+		if len(request.Capabilities.Provides) != 0 || len(request.Capabilities.GrantedPermissions) != 0 ||
+			len(request.Capabilities.GrantedResourceKinds) != 0 ||
 			len(request.Capabilities.GrantedResourceScopes) != 0 {
 			t.Fatalf("Initialize() capabilities = %#v, want zero grants", request.Capabilities)
 		}

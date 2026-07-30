@@ -9,6 +9,8 @@ import (
 
 	"strings"
 	"sync"
+
+	"github.com/compozy/compozy/sdk/go/contracts"
 )
 
 const (
@@ -46,6 +48,7 @@ type Extension struct {
 	mu                 sync.RWMutex
 	handlers           map[string]ExtensionHandler
 	toolHandlers       map[string]registeredTool
+	commandGroups      []contracts.ExtensionCommandGroupSpec
 	watchHandlers      map[string]registeredWatchSource
 	readyCallbacks     []func(context.Context, *HostAPI, ExtensionSession) error
 	initialized        bool
@@ -177,14 +180,15 @@ func Tool[TInput any](
 			})
 		}
 		return fn(ctx, ToolRequest[TInput]{
-			Input:        input,
-			RawInput:     cloneRawMessage(rawInput),
-			Context:      req.context,
-			Host:         req.context.Host,
-			Session:      req.context.Session,
-			ToolID:       req.toolID,
-			Handler:      req.handler,
-			invocationID: req.invocationID,
+			Input:            input,
+			RawInput:         cloneRawMessage(rawInput),
+			Context:          req.context,
+			Host:             req.context.Host,
+			Session:          req.context.Session,
+			ToolID:           req.toolID,
+			Handler:          req.handler,
+			TrustedWorkspace: req.trustedWorkspace,
+			invocationID:     req.invocationID,
 		})
 	})
 }
@@ -214,6 +218,9 @@ func (e *Extension) Run(ctx context.Context) error {
 	}
 	if err := e.definition.validate(); err != nil {
 		return err
+	}
+	if describeModeRequested(os.Args) {
+		return e.writeDescribe(os.Stdout)
 	}
 	return e.transport.Run(ctx)
 }

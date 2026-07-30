@@ -6,6 +6,8 @@ import readline from "node:readline";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { publicProvideFixtures, validateProvideConformance } from "../testing/conformance.js";
+
 let tempDirs: string[] = [];
 const sourceDir = resolve(__dirname, "..");
 const packageDir = resolve(sourceDir, "..");
@@ -281,6 +283,25 @@ describe("SDK integration", () => {
     await Promise.all(tempDirs.map(async dir => await rm(dir, { force: true, recursive: true })));
   });
 
+  it("runs generated conformance fixtures for every public provide", () => {
+    const fixtures = publicProvideFixtures();
+    expect(fixtures).toHaveLength(4);
+    expect(fixtures.map(fixture => fixture.provide)).not.toContain("bridge.adapter");
+
+    for (const fixture of fixtures) {
+      expect(() =>
+        validateProvideConformance(fixture.provide, fixture.requiredMethods)
+      ).not.toThrow();
+      expect(fixture.requiredMethods.length).toBeGreaterThan(0);
+      expect(() =>
+        validateProvideConformance(fixture.provide, fixture.requiredMethods.slice(1))
+      ).toThrow(fixture.requiredMethods[0]);
+    }
+    expect(() =>
+      validateProvideConformance("bridge.adapter", ["bridges/deliver", "bridges/targets/snapshot"])
+    ).toThrow("no public conformance fixture");
+  });
+
   it(
     "builds an SDK-based extension and serves real JSON-RPC over stdio",
     async () => {
@@ -295,8 +316,7 @@ describe("SDK integration", () => {
            name: "integration-ext",
            version: "0.1.0",
            capabilities: { provides: ["memory.backend"] },
-           actions: { requires: ["sessions/list"] },
-           security: { capabilities: ["memory.read", "memory.write", "session.read"] }
+           permissions: { requires: ["sessions/list"] }
          }
        );
        extension.handle("memory/store", async (_ctx, params) => ({ stored: params.key }));
@@ -335,8 +355,7 @@ describe("SDK integration", () => {
               extension: { name: "integration-ext", version: "0.1.0", source_tier: "user" },
               capabilities: {
                 provides: ["memory.backend"],
-                granted_actions: ["sessions/list"],
-                granted_security: ["memory.read", "memory.write", "session.read"],
+                granted_permissions: ["sessions/list"],
                 granted_resource_kinds: [],
                 granted_resource_scopes: [],
               },
@@ -486,8 +505,7 @@ describe("SDK integration", () => {
               extension: { name: "tool-ext", version: "0.1.0", source_tier: "user" },
               capabilities: {
                 provides: ["tool.provider"],
-                granted_actions: [],
-                granted_security: [],
+                granted_permissions: [],
                 granted_resource_kinds: [],
                 granted_resource_scopes: [],
               },

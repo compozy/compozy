@@ -41,11 +41,12 @@ func (e *Extension) handleToolCall(
 	}
 	contextValue := e.makeContext(request)
 	result, err := registered.handler(ctx, rawToolRequest{
-		input:        cloneRawMessage(call.Input),
-		context:      contextValue,
-		toolID:       call.ToolID,
-		handler:      call.Handler,
-		invocationID: strings.TrimSpace(call.InvocationID),
+		input:            cloneRawMessage(call.Input),
+		context:          contextValue,
+		toolID:           call.ToolID,
+		handler:          call.Handler,
+		invocationID:     call.InvocationID,
+		trustedWorkspace: call.TrustedWorkspace,
 	})
 	if err != nil {
 		if rpcErr := ensureRPCErrorIfTyped(err); rpcErr != nil {

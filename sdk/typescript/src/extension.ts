@@ -13,6 +13,7 @@ import type {
   HealthCheckResult,
   HookEvent,
   ExtensionToolCallResponse,
+  ExtensionCommandGroupSpec,
   ExtensionToolRuntimeDescriptor,
   InitializeResponse,
   JSONRPCRequestEnvelope,
@@ -27,7 +28,6 @@ import {
   isToolProviderMethod,
   validateProvidedMethodCoverage,
 } from "./capabilities.js";
-import { schemaDigest } from "./schema-digest.js";
 import {
   InvalidParamsError,
   MethodNotFoundError,
@@ -37,19 +37,27 @@ import {
 } from "./errors.js";
 
 import {
-  canonicalExtensionToolID,
   ensureSubset,
+  implementedExtensionMethods,
   normalizeHostMethodList,
-  normalizeSchema,
   normalizeStringList,
   normalizeToolResult,
   parseShutdownRequest,
   parseToolCallRequest,
   toolExecutionError,
+  transportMethods,
 } from "./extension-runtime.js";
 import { SDK_NAME, SDK_VERSION } from "./extension-contract.js";
 import { makeExtensionContext, writeExtensionError } from "./extension-context.js";
+import { makeExtensionToolContext } from "./extension-tool-context.js";
 import { parseInitializeRequest, validateProtocolVersion } from "./extension-initialize.js";
+import {
+  buildExtensionDescribePayload,
+  cloneExtensionToolDescriptors,
+  defaultExtensionDescribeProcess,
+  runExtensionDescribeMode,
+} from "./extension-describe.js";
+import { buildRegisteredTool } from "./extension-tool-registration.js";
 import type {
   ExtensionContext,
   ExtensionHandler,
@@ -65,8 +73,10 @@ export class Extension {
   private transport: TransportLike;
   private readonly stderr: NodeJS.WritableStream;
   private readonly sdkVersion: string;
+  private readonly describeProcess: NonNullable<ExtensionOptions["describeProcess"]>;
   private readonly handlers = new Map<string, ExtensionHandler>();
   private readonly toolHandlers = new Map<string, RegisteredTool>();
+  private readonly commandGroups: ExtensionCommandGroupSpec[] = [];
   private readonly watchSources = new ExtensionWatchSources({
     bindMethod: method => this.bindMethod(method),
     hasUserHandler: method => this.handlers.has(method),
@@ -90,6 +100,7 @@ export class Extension {
     this.transport = options.transport ?? new StdioTransport();
     this.stderr = options.stderr ?? process.stderr;
     this.sdkVersion = options.sdkVersion ?? SDK_VERSION;
+    this.describeProcess = options.describeProcess ?? defaultExtensionDescribeProcess();
     this.host = new HostAPI(
       {
         call: async <TResult>(method: string, params?: unknown): Promise<TResult> =>
@@ -145,25 +156,10 @@ export class Extension {
     if (this.handlers.has(PROVIDE_TOOLS_METHOD) || this.handlers.has(TOOLS_CALL_METHOD)) {
       throw new Error("provide_tools and tools/call are reserved by extension.tool()");
     }
-    const inputSchema = normalizeSchema(options.inputSchema, "inputSchema");
-    const outputSchema =
-      options.outputSchema === undefined
-        ? undefined
-        : normalizeSchema(options.outputSchema, "outputSchema");
-    const descriptor: ExtensionToolRuntimeDescriptor = {
-      id: options.id ?? canonicalExtensionToolID(this.definition.name, cleanHandler),
-      handler: cleanHandler,
-      input_schema_digest: schemaDigest(inputSchema),
-      ...(outputSchema ? { output_schema_digest: schemaDigest(outputSchema) } : {}),
-      read_only: Boolean(options.readOnly),
-      risk: options.risk ?? (options.readOnly ? "read" : "mutating"),
-      capabilities: normalizeStringList(options.capabilities),
-    };
-    this.toolHandlers.set(cleanHandler, {
-      descriptor,
-      handler: toolHandler as ExtensionToolHandler,
-      sensitiveInputFields: normalizeStringList(options.sensitiveInputFields),
-    });
+    this.toolHandlers.set(
+      cleanHandler,
+      buildRegisteredTool(this.definition.name, cleanHandler, options, toolHandler)
+    );
     this.ensureToolProviderCapability();
     this.ensureToolProviderHandlers();
     return this;
@@ -178,6 +174,14 @@ export class Extension {
     return this;
   }
 
+  public commandGroup(path: string, summary: string): this {
+    if (this.initialized) {
+      throw new Error("extension registration is closed after initialize");
+    }
+    this.commandGroups.push({ path: path.trim(), summary: summary.trim() });
+    return this;
+  }
+
   public onReady(callback: ReadyCallback): this {
     this.readyCallbacks.add(callback);
     if (this.initialized && this.session) {
@@ -189,6 +193,9 @@ export class Extension {
   }
 
   public async start(): Promise<HostAPI> {
+    if (runExtensionDescribeMode(this.describeProcess, () => this.describe())) {
+      return this.host;
+    }
     if (this.startPromise) {
       return await this.startPromise;
     }
@@ -210,18 +217,11 @@ export class Extension {
   }
 
   public getImplementedMethods(): string[] {
-    const methods = new Set<string>(["health_check", "shutdown"]);
-    for (const method of this.handlers.keys()) {
-      methods.add(method);
-    }
-    if (this.toolHandlers.size > 0) {
-      methods.add(PROVIDE_TOOLS_METHOD);
-      methods.add(TOOLS_CALL_METHOD);
-    }
-    for (const method of this.watchSources.implementedMethods()) {
-      methods.add(method);
-    }
-    return Array.from(methods).sort();
+    return implementedExtensionMethods(
+      this.handlers.keys(),
+      this.toolHandlers.size > 0,
+      this.watchSources.implementedMethods()
+    );
   }
 
   public getSupportedHookEvents(): HookEvent[] {
@@ -229,22 +229,22 @@ export class Extension {
   }
 
   public getToolDescriptors(): ExtensionToolRuntimeDescriptor[] {
-    return [...this.toolHandlers.values()].map(tool => ({
-      ...tool.descriptor,
-      capabilities: [...(tool.descriptor.capabilities ?? [])],
-    }));
+    return cloneExtensionToolDescriptors(this.toolHandlers.values());
+  }
+
+  public describe() {
+    return buildExtensionDescribePayload({
+      definition: this.definition,
+      tools: this.getToolDescriptors(),
+      commandGroups: this.commandGroups.map(group => ({ ...group })),
+      watchSourceKinds: this.watchSources.kinds(),
+      sdkVersion: this.sdkVersion,
+    });
   }
 
   private bindTransportHandlers(): void {
-    this.bindMethod("initialize");
-    this.bindMethod("health_check");
-    this.bindMethod("shutdown");
-    for (const method of this.handlers.keys()) {
+    for (const method of transportMethods(this.handlers.keys(), this.toolHandlers.size > 0)) {
       this.bindMethod(method);
-    }
-    if (this.toolHandlers.size > 0) {
-      this.bindMethod(PROVIDE_TOOLS_METHOD);
-      this.bindMethod(TOOLS_CALL_METHOD);
     }
     this.watchSources.bindMethods();
   }
@@ -306,12 +306,10 @@ export class Extension {
     validateProtocolVersion(request);
 
     const requestedProvides = normalizeStringList(this.definition.capabilities?.provides);
-    const requestedActions = normalizeHostMethodList(this.definition.actions?.requires);
-    const requestedSecurity = normalizeStringList(this.definition.security?.capabilities);
+    const requestedPermissions = normalizeHostMethodList(this.definition.permissions?.requires);
 
     ensureSubset("provides", requestedProvides, request.capabilities.provides);
-    ensureSubset("actions", requestedActions, request.capabilities.granted_actions);
-    ensureSubset("security", requestedSecurity, request.capabilities.granted_security);
+    ensureSubset("permissions", requestedPermissions, request.capabilities.granted_permissions);
 
     const implementedMethods = this.getImplementedMethods();
     validateProvidedMethodCoverage(requestedProvides, implementedMethods);
@@ -326,8 +324,7 @@ export class Extension {
       },
       accepted_capabilities: {
         provides: requestedProvides,
-        actions: requestedActions,
-        security: requestedSecurity,
+        permissions: requestedPermissions,
       },
       implemented_methods: implementedMethods,
       supported_hook_events: this.getSupportedHookEvents(),
@@ -434,14 +431,7 @@ export class Extension {
 
     const context = this.makeContext(request);
     try {
-      const result = await registered.handler({
-        input: call.input,
-        context,
-        host: context.host,
-        session: context.session,
-        toolID: call.tool_id,
-        handler: call.handler,
-      });
+      const result = await registered.handler(makeExtensionToolContext(call, context));
       return { result: normalizeToolResult(result) };
     } catch (error) {
       if (isRPCError(error)) {
@@ -488,6 +478,7 @@ export class Extension {
 
 export type {
   ExtensionContext,
+  ExtensionDescribeProcess,
   ExtensionHandler,
   ExtensionOptions,
   ExtensionSession,

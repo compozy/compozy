@@ -77,7 +77,7 @@ Scheduler controls affect dispatch, not task truth. They do not complete work, a
 
 A claimable run that no eligible session claims past `[autonomy.scheduler].min_queued_age` escalates on a bounded ladder: fan-out wake to every eligible session, then a capability-matched worker spawn, then the `task.run_starved` event (once), then `needs_attention`. Compatible sessions that are starting, prompting, already processing a run, or reserved for an earlier run in the same scheduler cycle are capacity, not absence. Their queued work remains queued without consuming the escalation budget; the daemon records `scheduler.capacity_waiting` diagnostics until capacity becomes available.
 
-`compozy scheduler status -o json` surfaces `starved_run_count` as the number of queued, claimable runs with an active durable escalation episode. Queue age alone does not increment it, and capacity-waiting runs remain visible through `queued_run_count`. `needs_attention_run_count` reports runs already parked by the ladder. The scheduler never claims — spawned `system` workers self-claim via `compozy task next` and are TTL-reaped. Tune the ladder under `[autonomy.scheduler]`.
+`compozy scheduler status -o json` surfaces `starved_run_count` as the number of queued, claimable runs with an active durable escalation episode. Queue age alone does not increment it, and capacity-waiting runs remain visible through `queued_run_count`. `needs_attention_run_count` reports runs already parked by the ladder. The scheduler never claims — spawned `system` workers self-claim through the hosted `compozy__task_run_claim_next` tool and are TTL-reaped. Tune the ladder under `[autonomy.scheduler]`.
 
 ## Coordinator Loop
 
@@ -116,23 +116,23 @@ Never spawn another coordinator unless the runtime explicitly supports that dele
 
 Use this guidance only inside a worker session with an active task claim or while entering the session-bound claim loop.
 
-1. Inspect compozy me context -o json or the agent context bundle before changing files.
+1. Inspect the agent context bundle before changing files.
 2. Confirm task id, run id, objective, acceptance criteria, lease status, and available task tools.
-3. Use `compozy task inspect <run-id> -o json` when lease or run health is ambiguous.
-4. Claim work with the session-bound path such as compozy task next --wait -o json when prompted by the runtime.
-5. Keep lease/heartbeat requirements current through daemon-provided tools.
-6. Complete, fail, or release only through session-bound Compozy task authority.
+3. Use the hosted task read tools when lease or run health is ambiguous.
+4. Claim the assigned run with `compozy__task_run_claim_next`, passing the runtime-provided `run_id` and any required capabilities. Do not use the CLI for session-bound lease operations.
+5. Keep the lease current with `compozy__task_run_heartbeat`.
+6. Complete, fail, or release only through `compozy__task_run_complete`, `compozy__task_run_fail`, or `compozy__task_run_release` from the same session.
 7. Include changed files, verification commands, and residual risks in the run summary.
 
 When a run includes a designation, follow only your own `designation.brief`; do not merge sibling
 assignments into your scope.
 
-Use `compozy task next --run-id <run-id> -o json` when the runtime assigns a specific queued run. It uses the same session-bound lease path as unfiltered `compozy task next`.
+The native tool scope supplies the caller session and workspace identity. A provider shell may intentionally omit daemon identity, so a CLI subprocess is not an equivalent claim path.
 
 Workspace-scoped worker and coordinator claims are bounded by
 `task.orchestration.max_active_runs_per_workspace` (default `16`; `0` disables). When capacity is
-full, the run stays queued: `compozy task next --wait -o json` keeps polling, while a non-waiting native
-claim returns the typed reason `autonomy_workspace_capacity`. Wait for capacity instead of releasing
+full, the run stays queued and the native claim returns the typed reason `autonomy_workspace_capacity`.
+Wait for the next runtime wake instead of releasing
 an unrelated lease. Global task runs and Network wake runs do not consume this workspace limit.
 
 Action nodes without an explicit timeout inherit `task.orchestration.action_run_timeout` (default

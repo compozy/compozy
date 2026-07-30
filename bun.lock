@@ -113,13 +113,6 @@
         "tailwindcss": "^4.3.3",
       },
     },
-    "sdk/create-extension": {
-      "name": "@compozy/create-extension",
-      "version": "0.1.0",
-      "bin": {
-        "create-extension": "./dist/index.js",
-      },
-    },
     "sdk/examples/prompt-enhancer": {
       "name": "@compozy/example-prompt-enhancer",
       "version": "0.1.0",
@@ -345,8 +338,6 @@
     "@commitlint/top-level": ["@commitlint/top-level@21.2.0", "", { "dependencies": { "escalade": "^3.2.0" } }, "sha512-Y5gmQ+KxzqCrBFJfLvFEPvvwD3LDiNZoTT2yeFBm96M8qhmqSzQc5DvX3rheAaAMjyIvMXOCLS/mWfdpONsjyQ=="],
 
     "@commitlint/types": ["@commitlint/types@21.2.0", "", { "dependencies": { "conventional-commits-parser": "^7.0.0", "picocolors": "^1.1.1" } }, "sha512-7zVFCDB2reMvJH5dmbKnOQPjZEvjdJTH8jc0U/PIPU1r3/+vf5pD1HlfitV2MWsWXrvu7u39iY1lyLUPOaN0Gw=="],
-
-    "@compozy/create-extension": ["@compozy/create-extension@workspace:sdk/create-extension"],
 
     "@compozy/example-prompt-enhancer": ["@compozy/example-prompt-enhancer@workspace:sdk/examples/prompt-enhancer"],
 

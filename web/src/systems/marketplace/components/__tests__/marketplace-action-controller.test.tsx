@@ -639,7 +639,8 @@ describe("useMarketplaceActionController", () => {
     await waitFor(() =>
       expect(mocks.installExtension).toHaveBeenCalledWith({
         allow_unverified: false,
-        slug: "compozy/otel-bridge",
+        ref: "compozy/otel-bridge",
+        source: "curated",
         version: "0.6.0",
       })
     );
@@ -669,7 +670,8 @@ describe("useMarketplaceActionController", () => {
     );
     expect(mocks.installExtension).toHaveBeenLastCalledWith({
       allow_unverified: true,
-      slug: "community/slack-notify",
+      ref: "community/slack-notify",
+      source: "curated",
       version: "1.1.4",
     });
     const warningToast = mocks.toastSuccess.mock.calls.find(

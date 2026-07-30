@@ -38,3 +38,9 @@ PageHead with actions in the topbar slot. Flag only — next QA cycle.
 
 QA impact 2026-07-18: extension and bundle management moved into their Marketplace Installed
 scopes; the legacy Extensions inventory and Bundles tab no longer exist.
+
+QA impact 2026-07-29: the Extensions landing count now unions the installed and catalog update
+projections (non-zero on the market scope, never claiming exactness from a partial catalog), the
+installed cards carry source/registry-tier/integrity badges, the empty-state CLI hint names real
+verbs, and an Extensions-only "Install extension" toolbar entry opens the source-union form.
+Flag only — retest in the next QA cycle.

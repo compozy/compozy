@@ -155,7 +155,7 @@ func hookExecutorKindValues() []string {
 }
 
 func hookSourceValues() []string {
-	return []string{"native", "config", "agent_definition", "skill"}
+	return []string{"native", "config", "extension", "agent_definition", "skill"}
 }
 
 func memoryTypeValues() []string {

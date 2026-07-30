@@ -35,18 +35,18 @@ const (
 )
 
 const (
-	defaultProtocolVersion         = "1"
-	defaultHealthCheckInterval     = 30 * time.Second
-	defaultHealthCheckTimeout      = 5 * time.Second
-	defaultInitializeTimeout       = 5 * time.Second
-	defaultHookTimeout             = 5 * time.Second
-	defaultShutdownTimeout         = 10 * time.Second
-	defaultRestartBackoffMax       = 60 * time.Second
-	defaultRestartFailureThreshold = 5
+	defaultProtocolVersion     = "1"
+	defaultHealthCheckInterval = 30 * time.Second
+	defaultHealthCheckTimeout  = 5 * time.Second
+	defaultInitializeTimeout   = 5 * time.Second
+	defaultHookTimeout         = 5 * time.Second
+	defaultShutdownTimeout     = 10 * time.Second
+	defaultRestartBackoffMax   = 60 * time.Second
+	// DefaultRestartFailureThreshold is the production crash-loop cutoff shared by status and doctor projections.
+	DefaultRestartFailureThreshold = 5
 	defaultHealthPollFloor         = 50 * time.Millisecond
 	defaultHealthPollCeiling       = time.Second
 	defaultSubprocessSignalGrace   = 10 * time.Second
-	extensionHookSource            = hookspkg.HookSourceConfig
 	manifestFileExtTOML            = ".toml"
 	manifestFileExtJSON            = ".json"
 )
@@ -134,6 +134,7 @@ const (
 // ExtensionStatus captures the runtime state exposed to health/observer code.
 type ExtensionStatus struct {
 	Name                string
+	WorkspaceID         string
 	Version             string
 	Source              ExtensionSource
 	Enabled             bool
@@ -149,6 +150,9 @@ type ExtensionStatus struct {
 	ConsecutiveFailures int
 	RestartBackoff      time.Duration
 	LastError           string
+	FailureCode         string
+	GenerationHash      string
+	LastGoodGeneration  string
 	LastStartedAt       time.Time
 	LastExitedAt        time.Time
 }
@@ -163,15 +167,18 @@ type Extension struct {
 	Bundles               []BundleSpec
 	Skills                []*skillspkg.Skill
 	Loops                 []looppkg.ResourceSpec
-	GrantedActions        []string
+	GrantedPermissions    []string
 	GrantedSecurity       []string
 	GrantedResourceKinds  []resources.ResourceKind
 	GrantedResourceScopes []resources.ResourceScopeKind
 	InitializeResult      *subprocess.InitializeResponse
 	Status                ExtensionStatus
+	DevLink               *DevLink
+	OverridesPublished    bool
 }
 
 type managedExtension struct {
+	key                   InstanceKey
 	info                  ExtensionInfo
 	rootDir               string
 	manifest              *Manifest
@@ -180,7 +187,7 @@ type managedExtension struct {
 	bundles               []BundleSpec
 	skills                []*skillspkg.Skill
 	loops                 []looppkg.ResourceSpec
-	grantedActions        []string
+	grantedPermissions    []string
 	grantedSecurity       []string
 	grantedResourceKinds  []resources.ResourceKind
 	grantedResourceScopes []resources.ResourceScopeKind
@@ -189,6 +196,8 @@ type managedExtension struct {
 	runtime               subprocess.InitializeRuntime
 	healthInterval        time.Duration
 	generation            int64
+	generationHash        string
+	lastGoodGeneration    string
 	sessionNonce          string
 	redactionCleanups     []func()
 
@@ -199,8 +208,12 @@ type managedExtension struct {
 	consecutiveFailures int
 	restartBackoff      time.Duration
 	lastError           string
+	failureCode         string
 	lastStartedAt       time.Time
 	lastExitedAt        time.Time
+	logRing             *ExtensionLogRing
+	deferSupervision    bool
+	supervisionStopped  bool
 }
 
 type launchedRuntime struct {
@@ -224,6 +237,7 @@ type Manager struct {
 	capChecker            *CapabilityChecker
 	bridgeRuntimeResolver BridgeRuntimeResolver
 	bridgeTelemetrySink   BridgeTelemetrySink
+	lifecycleEventSink    LifecycleEventSink
 	sourceSessions        resources.SourceSessionManager
 	workspaceResolver     workspacepkg.RuntimeResolver
 	processRegistry       *toolruntime.Registry
@@ -254,7 +268,10 @@ type Manager struct {
 	started      bool
 	stopping     bool
 
-	extensions map[string]*managedExtension
+	extensions      map[string]*managedExtension
+	devExtensions   map[InstanceKey]*managedExtension
+	devCoordinators map[InstanceKey]*sync.Mutex
+	devLogs         map[InstanceKey]*ExtensionLogRing
 }
 
 // NewManager constructs an extension manager with sensible defaults.
@@ -287,11 +304,14 @@ func newManagerDefaults(registry *Registry) *Manager {
 		defaultHookTimeout:        defaultHookTimeout,
 		defaultShutdownTimeout:    defaultShutdownTimeout,
 		restartBackoffMax:         defaultRestartBackoffMax,
-		restartFailureThreshold:   defaultRestartFailureThreshold,
+		restartFailureThreshold:   DefaultRestartFailureThreshold,
 		healthPollFloor:           defaultHealthPollFloor,
 		healthPollCeiling:         defaultHealthPollCeiling,
 		subprocessSignalGrace:     defaultSubprocessSignalGrace,
 		extensions:                make(map[string]*managedExtension),
+		devExtensions:             make(map[InstanceKey]*managedExtension),
+		devCoordinators:           make(map[InstanceKey]*sync.Mutex),
+		devLogs:                   make(map[InstanceKey]*ExtensionLogRing),
 	}
 	manager.launch = func(ctx context.Context, cfg subprocess.LaunchConfig) (processHandle, error) {
 		return subprocess.Launch(ctx, cfg)
@@ -345,7 +365,7 @@ func normalizeManagerDefaults(manager *Manager) {
 		manager.restartBackoffMax = defaultRestartBackoffMax
 	}
 	if manager.restartFailureThreshold <= 0 {
-		manager.restartFailureThreshold = defaultRestartFailureThreshold
+		manager.restartFailureThreshold = DefaultRestartFailureThreshold
 	}
 	if manager.healthPollFloor <= 0 {
 		manager.healthPollFloor = defaultHealthPollFloor

@@ -10,7 +10,9 @@ require (
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/coder/acp-go-sdk v0.13.5
 	github.com/compozy/compozy-web-assets v0.0.21
+	github.com/compozy/compozy/sdk/go v0.0.0
 	github.com/creativeprojects/go-selfupdate v1.5.2
+	github.com/dave/jennifer v1.7.1
 	github.com/daytonaio/daytona/libs/sdk-go v0.190.0
 	github.com/getkin/kin-openapi v0.140.0
 	github.com/gin-gonic/gin v1.12.0
@@ -235,3 +237,5 @@ require (
 )
 
 tool github.com/sqlc-dev/sqlc/cmd/sqlc
+
+replace github.com/compozy/compozy/sdk/go => ./sdk/go

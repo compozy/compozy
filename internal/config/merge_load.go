@@ -8,6 +8,8 @@ import (
 	burnttoml "github.com/BurntSushi/toml"
 )
 
+const configBaseURLKey = "base_url"
+
 // ApplyConfigOverlayFile deep-merges an optional TOML config file into dst.
 func ApplyConfigOverlayFile(path string, dst *Config) error {
 	if dst == nil {
@@ -61,10 +63,50 @@ func loadConfigOverlayBytes(contents []byte, source string) (configOverlay, erro
 		if err := rejectRemovedProviderModelKeys(source, undecoded); err != nil {
 			return overlay, err
 		}
+		if err := rejectRemovedExtensionMarketplaceKeys(source, undecoded); err != nil {
+			return overlay, err
+		}
 		return overlay, fmt.Errorf("unknown config keys in %q: %s", source, joinTOMLKeys(undecoded))
 	}
 
 	return overlay, nil
+}
+
+func rejectRemovedExtensionMarketplaceKeys(source string, keys []burnttoml.Key) error {
+	replacements := map[string]string{
+		"allow_unverified": "extensions.trust.allow_unverified",
+		configBaseURLKey:   "extensions.sources.github.base_url",
+		"registry":         "extensions.sources.github.enabled",
+	}
+	var removedSection burnttoml.Key
+	for _, key := range sortedTOMLKeys(keys) {
+		if len(key) < 2 || key[0] != "extensions" || key[1] != toolSurfaceMarketplaceKey {
+			continue
+		}
+		if len(key) < 3 {
+			removedSection = key
+			continue
+		}
+		replacement := replacements[key[2]]
+		if replacement == "" {
+			replacement = "extensions.trust or extensions.sources"
+		}
+		return fmt.Errorf(
+			"removed config key %q in %q: use %q",
+			key.String(),
+			source,
+			replacement,
+		)
+	}
+	if len(removedSection) > 0 {
+		return fmt.Errorf(
+			"removed config key %q in %q: use %q",
+			removedSection.String(),
+			source,
+			"extensions.trust or extensions.sources",
+		)
+	}
+	return nil
 }
 
 func rejectRemovedLoopRuntimeKeys(source string, keys []burnttoml.Key) error {

@@ -128,7 +128,9 @@ describe("tool-first canonical surface docs", () => {
       "`compozy__extensions_remove`",
       "`compozy__bundles_activate`",
       "`compozy__resources_snapshot`",
-      "`resource.write` capability names are not accepted",
+      "`resources/list`",
+      "`resources/get`",
+      "`resources/snapshot`",
       "EXTENSION_SOURCE_FORBIDDEN",
       "EXTENSION_APPROVAL_REQUIRED",
     ]);

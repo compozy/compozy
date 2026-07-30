@@ -50,83 +50,44 @@ func (s *daemonExtensionService) Install(
 	ctx context.Context,
 	req contract.InstallExtensionRequest,
 	actor taskpkg.ActorContext,
-) (contract.ExtensionPayload, error) {
+) (item contract.ExtensionPayload, err error) {
 	if err := s.checkReady(); err != nil {
 		return contract.ExtensionPayload{}, err
 	}
 	if err := validateExtensionWriteActor(actor); err != nil {
 		return contract.ExtensionPayload{}, err
 	}
-	installedBy := extensionInstalledBy(actor)
-
-	if strings.TrimSpace(req.Slug) != "" || strings.TrimSpace(req.Path) == "" {
-		installReq, err := s.marketplaceInstallRequest(ctx, req, installedBy)
-		if err != nil {
-			return contract.ExtensionPayload{}, err
-		}
-		installReq.ObserveDigestVerification = func(
-			trust *extensionpkg.MarketplaceTrustEvidence,
-			verificationErr error,
-		) {
-			s.observeExtensionDigestVerification(ctx, actor, trust, verificationErr)
-		}
-		info, err := extensionpkg.InstallMarketplaceManaged(
-			ctx,
-			s.homePaths,
-			s.registry,
-			s.marketplaceSourceLoader(),
-			installReq,
-		)
-		if err != nil {
-			return contract.ExtensionPayload{}, err
-		}
-		if err := s.reload(ctx); err != nil {
-			return contract.ExtensionPayload{}, s.rollbackFailedInstall(ctx, info.Name, err)
-		}
-		return s.completeExtensionInstall(ctx, actor, info.Name)
+	event := extensionpkg.LifecycleEvent{
+		Type: eventspkg.ExtensionInstallFailed, ExtensionName: req.Ref, SourceKind: string(req.Source),
 	}
-
-	manifest, err := extensionpkg.LoadManifest(strings.TrimSpace(req.Path))
+	defer func() {
+		if err == nil {
+			event.Type = eventspkg.ExtensionInstallCompleted
+			event.ExtensionName = item.Name
+			event.DigestMatched = item.DigestMatched
+		}
+		err = errors.Join(err, s.recordCanonicalExtensionLifecycleEvent(ctx, actor, event))
+	}()
+	installedBy := extensionInstalledBy(actor)
+	name, err := s.installExtensionSource(ctx, req, actor, installedBy)
+	if strings.TrimSpace(name) != "" {
+		event.ExtensionName = name
+	}
 	if err != nil {
 		return contract.ExtensionPayload{}, err
 	}
-	cfg := s.marketplaceConfig()
-	if err := extensionpkg.ValidateUnverifiedSideLoad(
-		manifest.Name,
-		req.Path,
-		cfg.AllowUnverified,
-		req.AllowUnverified,
-	); err != nil {
-		return contract.ExtensionPayload{}, err
-	}
-	provenance := extensionpkg.LocalPathProvenance(manifest, req.Path, req.Checksum, s.now(), req.AllowUnverified)
-	provenance.InstalledBy = installedBy
-	if err := extensionpkg.InstallLocalManaged(
-		s.homePaths,
-		s.registry,
-		manifest,
-		req.Path,
-		req.Checksum,
-		extensionpkg.WithInstallProvenance(provenance),
-	); err != nil {
-		return contract.ExtensionPayload{}, err
-	}
 	if err := s.reload(ctx); err != nil {
-		return contract.ExtensionPayload{}, s.rollbackFailedInstall(ctx, manifest.Name, err)
+		return contract.ExtensionPayload{}, s.rollbackFailedInstall(ctx, name, err)
 	}
-	return s.completeExtensionInstall(ctx, actor, manifest.Name)
+	return s.completeExtensionInstall(ctx, name)
 }
 
 func (s *daemonExtensionService) completeExtensionInstall(
 	ctx context.Context,
-	actor taskpkg.ActorContext,
 	name string,
 ) (contract.ExtensionPayload, error) {
 	item, err := s.Status(ctx, name)
 	if err != nil {
-		return contract.ExtensionPayload{}, err
-	}
-	if err := s.recordExtensionEvent(ctx, eventspkg.ExtensionInstalled, actor, item); err != nil {
 		return contract.ExtensionPayload{}, err
 	}
 	return item, nil
@@ -138,7 +99,7 @@ func (s *daemonExtensionService) Update(
 	req contract.UpdateExtensionRequest,
 	actor taskpkg.ActorContext,
 ) (contract.ManagedExtensionUpdatePayload, error) {
-	items, err := s.UpdateBatch(ctx, extensionpkg.MarketplaceUpdateRequest{
+	items, err := s.UpdateBatch(ctx, contract.UpdateExtensionsRequest{
 		Names:           []string{name},
 		Version:         req.Version,
 		CheckOnly:       req.CheckOnly,
@@ -155,7 +116,7 @@ func (s *daemonExtensionService) Update(
 
 func (s *daemonExtensionService) UpdateBatch(
 	ctx context.Context,
-	req extensionpkg.MarketplaceUpdateRequest,
+	req contract.UpdateExtensionsRequest,
 	actor taskpkg.ActorContext,
 ) ([]contract.ManagedExtensionUpdatePayload, error) {
 	if err := s.checkReady(); err != nil {
@@ -164,11 +125,13 @@ func (s *daemonExtensionService) UpdateBatch(
 	if err := validateExtensionWriteActor(actor); err != nil {
 		return nil, err
 	}
-	req.InstalledBy = extensionInstalledBy(actor)
 	cfg := s.marketplaceConfig()
-	req.PolicyAllowsUnverified = cfg.AllowUnverified
-	req.ResolveTrust = s.marketplaceTrustResolver()
-	req.ObserveDigestVerification = func(
+	domainReq := extensionpkg.MarketplaceUpdateRequest{
+		Names: req.Names, All: req.All, CheckOnly: req.CheckOnly, Version: req.Version,
+		AllowUnverified: req.AllowUnverified, InstalledBy: extensionInstalledBy(actor),
+		PolicyAllowsUnverified: cfg.Trust.AllowUnverified, ResolveTrust: s.marketplaceTrustResolver(),
+	}
+	domainReq.ObserveDigestVerification = func(
 		trust *extensionpkg.MarketplaceTrustEvidence,
 		verificationErr error,
 	) {
@@ -179,7 +142,7 @@ func (s *daemonExtensionService) UpdateBatch(
 		s.homePaths,
 		s.registry,
 		s.marketplaceSourceLoader(),
-		req,
+		domainReq,
 		s.reload,
 	)
 	return s.finalizeMarketplaceUpdateBatch(ctx, actor, items, updateErr)
@@ -331,6 +294,10 @@ func (s *daemonExtensionService) reload(ctx context.Context) error {
 	}
 
 	reloadErr := s.runtime.Reload(ctx)
+	return errors.Join(reloadErr, s.syncExtensionConsumers(ctx))
+}
+
+func (s *daemonExtensionService) syncExtensionConsumers(ctx context.Context) error {
 	var syncErr error
 	if s.agentSkill != nil {
 		syncErr = errors.Join(syncErr, s.agentSkill.Sync(ctx))
@@ -347,7 +314,7 @@ func (s *daemonExtensionService) reload(ctx context.Context) error {
 	if s.loops != nil {
 		syncErr = errors.Join(syncErr, s.loops.Sync(ctx))
 	}
-	return errors.Join(reloadErr, syncErr)
+	return syncErr
 }
 
 func (s *daemonExtensionService) lookup(ctx context.Context, name string) (*extensionpkg.Extension, error) {
@@ -481,5 +448,6 @@ func extensionUpdatePayload(value extensionpkg.MarketplaceUpdateResult) contract
 		Path:           value.Path,
 		Status:         value.Status,
 		Warnings:       append([]contract.DiagnosticItem(nil), value.Warnings...),
+		Error:          value.Error,
 	}
 }

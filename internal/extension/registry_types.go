@@ -25,7 +25,7 @@ type ExtensionInfo struct {
 	ManifestPath  string
 	InstalledAt   time.Time
 	Capabilities  CapabilitiesConfig
-	Actions       ActionsConfig
+	Permissions   PermissionsConfig
 	Checksum      string
 	RegistrySlug  *string
 	RegistryName  *string

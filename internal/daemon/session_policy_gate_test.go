@@ -172,7 +172,7 @@ func TestSessionPolicyGateBuildsConcreteTaskRoleCreateOpts(t *testing.T) {
 			ResolvedNetworkParticipation: participationSnapshotPointer(
 				daemonTestLiveParticipation("ws-parity", "design-review"),
 			),
-			PromptOverlay: "A queued Compozy task run is assigned to this agent.\n\nTask: Parity task\nRun: run-parity\nCoordination channel: design-review\n\nUse `compozy task next --run-id 'run-parity' --wait -o json --capability 'frontend'` once to claim work for this session before changing files. Complete or fail the claimed run through the Compozy task lease commands from this same session.\n\nRuntime evidence mode is enabled for this task. You may boot local app runtimes, run browser or simulator validation, and capture runtime evidence artifacts required by the task.",
+			PromptOverlay: "A queued Compozy task run is assigned to this agent.\n\nTask: Parity task\nRun: run-parity\nCoordination channel: design-review\n\nCall the hosted native tool `compozy__task_run_claim_next` with `run_id` set to \"run-parity\" and `required_capabilities` set to [\"frontend\"] before doing any work. Do not use the CLI for session-bound lease operations. Maintain and settle the lease from this same session with `compozy__task_run_heartbeat`, `compozy__task_run_complete`, `compozy__task_run_fail`, or `compozy__task_run_release`.\n\nRuntime evidence mode is enabled for this task. You may boot local app runtimes, run browser or simulator validation, and capture runtime evidence artifacts required by the task.",
 			Type:          session.SessionTypeSystem,
 		}
 		if !reflect.DeepEqual(got, want) {

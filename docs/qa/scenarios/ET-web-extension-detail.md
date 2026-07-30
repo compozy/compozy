@@ -32,3 +32,13 @@ active, and confirmed-inactive dependency states; retest the error message and R
 QA impact 2026-07-18: the Marketplace hard-cut detail preserves runtime state, health message,
 daemon/PID/uptime, capabilities, actions, environment, diagnostics, provenance, and active-bundle
 links. Exercise both healthy/running and degraded/stopped payloads.
+
+QA impact 2026-07-29: extension detail now renders the daemon's update affordance (with explicit
+consent for unverified archives), the workspace dev overlay badges (`dev`, `overrides published`,
+origin path, generation), crash-loop counters and restart backoff, and separates archive integrity
+(`digest_matched`) from curated checksum pinning. Enable/disable and Update are withheld while a dev
+overlay is selected. Flag only — retest in the next QA cycle.
+
+QA impact 2026-07-29 deep-review remediation: a workspace dev overlay can be unlinked even when a
+published extension with the same name is referenced by an active bundle. The published removal remains
+blocked. Retest both branches from the installed-extension dialog.

@@ -24,45 +24,72 @@ export function PolicySection({ draft, setDraft, canMutate }: PolicySectionProps
     <>
       <SettingsGroup
         data-testid="settings-page-extensions-source-section"
-        description="The marketplace this daemon trusts for extension discovery and installs."
+        description="The install sources this daemon accepts for published extensions."
         title="Where extensions come from"
       >
         <SettingsFieldRow
-          data-testid="settings-page-extensions-policy-registry"
-          description="Identifier of the marketplace publisher"
-          label="Marketplace"
+          data-testid="settings-page-extensions-policy-github-enabled"
+          description="Install extensions from GitHub releases"
+          label="GitHub"
           control={
-            <Input
-              className="w-56 font-mono"
-              data-testid="settings-page-extensions-policy-registry-input"
+            <Switch
+              aria-label="GitHub"
+              checked={draft.sources.github.enabled}
+              data-testid="settings-page-extensions-policy-github-enabled-input"
               disabled={!canMutate}
-              onChange={event =>
+              onCheckedChange={enabled =>
                 setDraft(current => ({
                   ...current,
-                  marketplace: { ...current.marketplace, registry: event.target.value },
+                  sources: {
+                    ...current.sources,
+                    github: { ...current.sources.github, enabled },
+                  },
                 }))
               }
-              value={draft.marketplace.registry ?? ""}
+              size="sm"
             />
           }
         />
         <SettingsFieldRow
-          data-testid="settings-page-extensions-policy-base-url"
-          description="Override the registry's default endpoint"
-          label="Marketplace URL"
+          data-testid="settings-page-extensions-policy-github-base-url"
+          description="Endpoint used for GitHub installs and search"
+          label="GitHub API URL"
           control={
             <Input
               className="w-72 font-mono"
-              data-testid="settings-page-extensions-policy-base-url-input"
+              data-testid="settings-page-extensions-policy-github-base-url-input"
               disabled={!canMutate}
               onChange={event =>
                 setDraft(current => ({
                   ...current,
-                  marketplace: { ...current.marketplace, base_url: event.target.value },
+                  sources: {
+                    ...current.sources,
+                    github: { ...current.sources.github, base_url: event.target.value },
+                  },
                 }))
               }
-              placeholder="https://"
-              value={draft.marketplace.base_url ?? ""}
+              placeholder="https://api.github.com"
+              value={draft.sources.github.base_url}
+            />
+          }
+        />
+        <SettingsFieldRow
+          data-testid="settings-page-extensions-policy-git-enabled"
+          description="Install extensions by cloning a Git repository"
+          label="Git"
+          control={
+            <Switch
+              aria-label="Git"
+              checked={draft.sources.git.enabled}
+              data-testid="settings-page-extensions-policy-git-enabled-input"
+              disabled={!canMutate}
+              onCheckedChange={enabled =>
+                setDraft(current => ({
+                  ...current,
+                  sources: { ...current.sources, git: { ...current.sources.git, enabled } },
+                }))
+              }
+              size="sm"
             />
           }
         />
@@ -85,16 +112,13 @@ export function PolicySection({ draft, setDraft, canMutate }: PolicySectionProps
           control={
             <Switch
               aria-label="Allow unverified extensions"
-              checked={draft.marketplace.allow_unverified}
+              checked={draft.trust.allow_unverified}
               data-testid="settings-page-extensions-policy-allow-unverified-input"
               disabled={!canMutate}
               onCheckedChange={allowUnverified =>
                 setDraft(current => ({
                   ...current,
-                  marketplace: {
-                    ...current.marketplace,
-                    allow_unverified: allowUnverified,
-                  },
+                  trust: { ...current.trust, allow_unverified: allowUnverified },
                 }))
               }
               size="sm"

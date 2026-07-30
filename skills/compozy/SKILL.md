@@ -17,24 +17,26 @@ Use this skill when operating Compozy or contributing to the Compozy repository.
 
 Match the task to the row. Read the listed files in full before producing output. They are not appendices. Inline reminders in this file are only tripwires.
 
-| Task                                                                                                                         | MUST read                                                                 |
-| ---------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| Start, inspect, prompt, stop, resume, or debug Compozy sessions and daemon state                                             | references/runtime-operations.md                                          |
-| Inspect or configure daemon-owned background roles, role diagnostics, builtin identities, or role fallback routing           | references/runtime-operations.md + references/agent-definitions.md        |
-| Inspect, refresh, curate, or configure provider models, reasoning strategy, and pricing                                      | references/runtime-operations.md + references/native-tools.md             |
-| Expose one Compozy workspace to an external MCP client with `compozy mcp serve`                                              | references/runtime-operations.md                                          |
-| Inspect, mutate, or watch virtual desktops, managed windows, or workspace layouts through native tools, CLI, HTTP, or UDS    | references/window-management.md + references/native-tools.md              |
-| Create, update, inspect, or troubleshoot messaging bridges and bridge-delivered tool progress                                | references/runtime-operations.md                                          |
-| Create or review Compozy agent definitions, provider defaults, permissions, or MCP sidecars                                  | references/agent-definitions.md + references/tools-and-skills.md          |
-| Discover or call Compozy-native tools, inspect native tool IDs, view skills, or choose tools vs CLI                          | references/tools-and-skills.md + references/native-tools.md               |
-| Participate in a Compozy Network channel, thread, direct room, work item, receipt, trace, or capability exchange             | references/network.md                                                     |
-| Read, write, clean, or consolidate Compozy memory                                                                            | references/memory.md                                                      |
-| Work as a coordinator, task worker, or task reviewer; block or recover a task; or wake a task creator                        | references/tasks-and-orchestration.md                                     |
-| Author, configure, run, observe, approve, or stop a Compozy Loop or Goal; use `/goal`; read Loop terminal outcomes or events | references/loops.md + references/native-tools.md                          |
-| Design or manage capabilities, bundles, extension resources, hooks, config lifecycle, or agent-manageable runtime surfaces   | references/capabilities-and-bundles.md + references/tools-and-skills.md   |
-| Contribute to the Compozy repository, especially Go runtime code or tests                                                    | references/contributing-to-compozy.md + references/qa-and-verification.md |
-| Change public docs, product copy, design guidance, site docs, or UI-facing text                                              | references/docs-design-and-copy.md                                        |
-| Finish work, claim readiness, or prepare a handoff                                                                           | references/qa-and-verification.md                                         |
+| Task                                                                                                                         | MUST read                                                                  |
+| ---------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| Start, inspect, prompt, stop, resume, or debug Compozy sessions and daemon state                                             | references/runtime-operations.md                                           |
+| Inspect or configure daemon-owned background roles, role diagnostics, builtin identities, or role fallback routing           | references/runtime-operations.md + references/agent-definitions.md         |
+| Inspect, refresh, curate, or configure provider models, reasoning strategy, and pricing                                      | references/runtime-operations.md + references/native-tools.md              |
+| Expose one Compozy workspace to an external MCP client with `compozy mcp serve`                                              | references/runtime-operations.md                                           |
+| Inspect, mutate, or watch virtual desktops, managed windows, or workspace layouts through native tools, CLI, HTTP, or UDS    | references/window-management.md + references/native-tools.md               |
+| Create, update, inspect, or troubleshoot messaging bridges and bridge-delivered tool progress                                | references/runtime-operations.md                                           |
+| Create or review Compozy agent definitions, provider defaults, permissions, or MCP sidecars                                  | references/agent-definitions.md + references/tools-and-skills.md           |
+| Discover or call Compozy-native tools, inspect native tool IDs, view skills, or choose tools vs CLI                          | references/tools-and-skills.md + references/native-tools.md                |
+| Participate in a Compozy Network channel, thread, direct room, work item, receipt, trace, or capability exchange             | references/network.md                                                      |
+| Read, write, clean, or consolidate Compozy memory                                                                            | references/memory.md                                                       |
+| Work as a coordinator, task worker, or task reviewer; block or recover a task; or wake a task creator                        | references/tasks-and-orchestration.md                                      |
+| Author, configure, run, observe, approve, or stop a Compozy Loop or Goal; use `/goal`; read Loop terminal outcomes or events | references/loops.md + references/native-tools.md                           |
+| Design or manage capabilities, bundles, extension resources, hooks, config lifecycle, or agent-manageable runtime surfaces   | references/capabilities-and-bundles.md + references/tools-and-skills.md    |
+| Write, scaffold, or change extension code: manifests, permissions, provide surfaces, contributed commands                    | references/extension-authoring.md + references/capabilities-and-bundles.md |
+| Build, validate, dev-link, reload, watch, read logs for, or publish a Compozy extension                                      | references/capabilities-and-bundles.md + references/native-tools.md        |
+| Contribute to the Compozy repository, especially Go runtime code or tests                                                    | references/contributing-to-compozy.md + references/qa-and-verification.md  |
+| Change public docs, product copy, design guidance, site docs, or UI-facing text                                              | references/docs-design-and-copy.md                                         |
+| Finish work, claim readiness, or prepare a handoff                                                                           | references/qa-and-verification.md                                          |
 
 ## Reference Index
 
@@ -47,7 +49,8 @@ Match the task to the row. Read the listed files in full before producing output
 - references/memory.md - durable memory scopes, CLI operations, memory hygiene, and when not to write memory.
 - references/tasks-and-orchestration.md - coordinator, worker, and reviewer loops, task authority boundaries, typed blocks and the unblock-loop breaker, wake-creator, completion claims, review verdict rules, and sensitive-data limits.
 - references/loops.md - Loop and Goal authoring/operation, `/goal` commands, native tools, terminal and context states, approval/recovery semantics, reference grammar, hooks, and watch behavior.
-- references/capabilities-and-bundles.md - capability naming, extension resources, bundles, hooks, manageability, and config lifecycle expectations.
+- references/capabilities-and-bundles.md - capability naming, extension resources, bundles, extension install trust, the authoring and dev loop, hooks, manageability, and config lifecycle expectations.
+- references/extension-authoring.md - code-first extension authoring: templates, SDK declaration shape, closed permissions and derived consent, provide surfaces, contributed commands, generated manifest, and structured workflows.
 - references/contributing-to-compozy.md - repository-specific engineering rules for Go/runtime work, greenfield hard cuts, tests, docs, and no-compat policy.
 - references/qa-and-verification.md - test placement, real verification, QA bootstrap, final gates, and evidence standards.
 - references/docs-design-and-copy.md - docs/site/copy/design authority, vocabulary, generated docs, and truthful UI/copy rules.

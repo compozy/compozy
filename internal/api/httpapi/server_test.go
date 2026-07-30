@@ -415,12 +415,13 @@ func TestLoopbackServerAllowsSettingsAndExtensionMutations(t *testing.T) {
 			path:       "/api/extensions",
 			wantStatus: http.StatusCreated,
 			body: mustJSONBody(t, contract.InstallExtensionRequest{
-				Path:     "/extensions/demo",
-				Checksum: "sha256-demo",
+				Source: contract.InstallExtensionSourceLocalPath,
+				Ref:    "/extensions/demo",
 			}),
 			assert: func(t *testing.T) {
 				t.Helper()
-				if installedReq.Path != "/extensions/demo" || installedReq.Checksum != "sha256-demo" {
+				if installedReq.Source != contract.InstallExtensionSourceLocalPath ||
+					installedReq.Ref != "/extensions/demo" {
 					t.Fatalf("installedReq = %#v", installedReq)
 				}
 			},
@@ -615,8 +616,8 @@ func TestLoopbackServerMapsDuplicateExtensionInstallToConflict(t *testing.T) {
 		http.MethodPost,
 		mustURL("127.0.0.1", server.Port(), "/api/extensions"),
 		mustJSONBody(t, contract.InstallExtensionRequest{
-			Path:     "/extensions/demo",
-			Checksum: "sha256-demo",
+			Source: contract.InstallExtensionSourceLocalPath,
+			Ref:    "/extensions/demo",
 		}),
 	)
 	defer func() {

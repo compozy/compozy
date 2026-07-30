@@ -9,6 +9,7 @@ import (
 	"time"
 
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	eventspkg "github.com/compozy/compozy/internal/events"
 )
 
 func (m *Manager) setFailure(ext *managedExtension, phase ExtensionPhase, err error) {
@@ -27,38 +28,58 @@ func (m *Manager) setFailure(ext *managedExtension, phase ExtensionPhase, err er
 }
 
 func (m *Manager) lookupManaged(name string) (*managedExtension, bool) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	ext := m.extensions[name]
-	return ext, ext != nil
+	return m.lookupInstance(GlobalInstanceKey(name))
 }
 
 func (m *Manager) currentProcess(name string, generation int64) (processHandle, time.Duration, bool) {
+	return m.currentInstanceProcess(GlobalInstanceKey(name), generation)
+}
+
+func (m *Manager) currentInstanceProcess(key InstanceKey, generation int64) (processHandle, time.Duration, bool) {
+	_, proc, interval, ok := m.currentSupervisedInstance(key, generation)
+	return proc, interval, ok
+}
+
+func (m *Manager) currentSupervisedInstance(
+	key InstanceKey,
+	generation int64,
+) (*managedExtension, processHandle, time.Duration, bool) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	ext := m.extensions[name]
-	if ext == nil || ext.process == nil || ext.generation != generation {
-		return nil, 0, false
+	ext := m.instanceLocked(key)
+	if ext == nil || ext.process == nil || ext.generation != generation || ext.supervisionStopped {
+		return nil, nil, 0, false
 	}
-	return ext.process, ext.healthInterval, true
+	return ext, ext.process, ext.healthInterval, true
 }
 
 func (m *Manager) shouldStopSupervision(name string, generation int64, proc processHandle) bool {
+	return m.shouldStopInstanceSupervision(GlobalInstanceKey(name), generation, proc)
+}
+
+func (m *Manager) shouldStopInstanceSupervision(key InstanceKey, generation int64, proc processHandle) bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
 	if m.stopping {
 		return true
 	}
-	ext := m.extensions[name]
-	return ext == nil || ext.process == nil || ext.process != proc || ext.generation != generation
+	ext := m.instanceLocked(key)
+	return ext == nil || ext.process == nil || ext.process != proc || ext.generation != generation ||
+		ext.supervisionStopped
 }
 
-func (m *Manager) recordFailure(name string, reason error) (time.Duration, bool, bool) {
+func (m *Manager) recordOwnedInstanceFailure(
+	key InstanceKey,
+	owner *managedExtension,
+	expectedProcess processHandle,
+	reason error,
+) (time.Duration, bool, bool) {
 	m.mu.Lock()
-	ext := m.extensions[name]
-	if ext == nil || m.stopping {
+	ext := m.instanceLocked(key)
+	if ext == nil || m.stopping || ext.supervisionStopped || owner != nil && ext != owner ||
+		expectedProcess != nil && ext.process != expectedProcess {
 		m.mu.Unlock()
 		return 0, false, false
 	}
@@ -74,6 +95,7 @@ func (m *Manager) recordFailure(name string, reason error) (time.Duration, bool,
 	ext.redactionCleanups = nil
 	instanceIDs := managedBridgeInstanceIDs(ext)
 	failures := ext.consecutiveFailures
+	name := key.runtimeID()
 	if ext.consecutiveFailures >= m.restartFailureThreshold {
 		m.mu.Unlock()
 		runExtensionRedactionCleanups(cleanups)
@@ -97,6 +119,12 @@ func (m *Manager) recordFailure(name string, reason error) (time.Duration, bool,
 	m.mu.Unlock()
 	runExtensionRedactionCleanups(cleanups)
 	m.reportBridgeRuntimeIssues(instanceIDs, bridgepkg.BridgeStatusDegraded, reason)
+	if eventErr := recordExtensionLifecycleEvent(m.lifecycleContext(), m.lifecycleEventSink, LifecycleEvent{
+		Type: eventspkg.ExtensionCrashLoopBackoff, ExtensionName: key.Name,
+		WorkspaceID: key.WorkspaceID,
+	}); eventErr != nil {
+		m.logger.Error("extension: record crash-loop backoff event", managerExtensionKey, name, "error", eventErr)
+	}
 
 	m.logger.Warn(
 		"extension.lifecycle.failed",
@@ -110,7 +138,11 @@ func (m *Manager) recordFailure(name string, reason error) (time.Duration, bool,
 }
 
 func (m *Manager) disableExtension(name string, reason error) {
-	ext, ok := m.lookupManaged(name)
+	m.disableInstance(GlobalInstanceKey(name), reason)
+}
+
+func (m *Manager) disableInstance(key InstanceKey, reason error) {
+	ext, ok := m.lookupInstance(key)
 	if !ok {
 		return
 	}
@@ -119,8 +151,10 @@ func (m *Manager) disableExtension(name string, reason error) {
 		reason = errors.Join(reason, err)
 	}
 
-	if err := m.registry.Disable(name); err != nil {
-		reason = errors.Join(reason, err)
+	if key.IsGlobal() {
+		if err := m.registry.Disable(key.Name); err != nil {
+			reason = errors.Join(reason, err)
+		}
 	}
 
 	m.mu.Lock()
@@ -142,9 +176,10 @@ func (m *Manager) unregisterResources(ctx context.Context, ext *managedExtension
 	if ext == nil {
 		return nil
 	}
-	m.capChecker.Unregister(ext.info.Name)
+	key := ext.instanceKey()
+	m.capChecker.Unregister(key.runtimeID())
 
-	if err := m.resetExtensionSource(ctx, ext.info.Name); err != nil {
+	if err := m.resetExtensionSource(ctx, key); err != nil {
 		return err
 	}
 
@@ -155,7 +190,7 @@ func (m *Manager) unregisterResources(ctx context.Context, ext *managedExtension
 	return nil
 }
 
-func (m *Manager) resetExtensionSource(ctx context.Context, extensionName string) error {
+func (m *Manager) resetExtensionSource(ctx context.Context, key InstanceKey) error {
 	if m == nil || m.sourceSessions == nil {
 		return nil
 	}
@@ -163,7 +198,7 @@ func (m *Manager) resetExtensionSource(ctx context.Context, extensionName string
 		return ErrContextRequired
 	}
 
-	source := extensionResourceSource(extensionName)
+	source := extensionResourceSource(key)
 	if err := m.sourceSessions.ResetSource(ctx, extensionManagerResourceActor(), source); err != nil {
 		return fmt.Errorf("extension: reset source session for %q: %w", source.ID, err)
 	}
@@ -171,8 +206,12 @@ func (m *Manager) resetExtensionSource(ctx context.Context, extensionName string
 }
 
 func (m *Manager) markStable(name string, generation int64) {
+	m.markInstanceStable(GlobalInstanceKey(name), generation)
+}
+
+func (m *Manager) markInstanceStable(key InstanceKey, generation int64) {
 	m.mu.Lock()
-	ext := m.extensions[name]
+	ext := m.instanceLocked(key)
 	if ext == nil || ext.generation != generation || !ext.awaitingStability {
 		m.mu.Unlock()
 		return
@@ -186,19 +225,29 @@ func (m *Manager) markStable(name string, generation int64) {
 }
 
 func (m *Manager) statusLocked(ext *managedExtension) ExtensionStatus {
+	var missingEnv []string
+	missingEnvChecked := false
+	if ext.manifest != nil {
+		missingEnv = ext.manifest.MissingEnv(m.getenv)
+		missingEnvChecked = len(ext.manifest.RequiresEnv) > 0
+	}
 	status := ExtensionStatus{
 		Name:                ext.info.Name,
+		WorkspaceID:         ext.instanceKey().WorkspaceID,
 		Version:             ext.info.Version,
 		Source:              ext.info.Source,
 		Enabled:             ext.info.Enabled,
-		MissingEnv:          ext.manifest.MissingEnv(m.getenv),
-		MissingEnvChecked:   ext.manifest != nil && len(ext.manifest.RequiresEnv) > 0,
+		MissingEnv:          missingEnv,
+		MissingEnvChecked:   missingEnvChecked,
 		Registered:          ext.registered,
 		Active:              ext.active,
 		Phase:               ext.phase,
 		ConsecutiveFailures: ext.consecutiveFailures,
 		RestartBackoff:      ext.restartBackoff,
 		LastError:           ext.lastError,
+		FailureCode:         ext.failureCode,
+		GenerationHash:      ext.generationHash,
+		LastGoodGeneration:  ext.lastGoodGeneration,
 		LastStartedAt:       ext.lastStartedAt,
 		LastExitedAt:        ext.lastExitedAt,
 	}

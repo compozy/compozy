@@ -64,7 +64,7 @@ func DefaultWithHome(homePaths HomePaths) Config {
 			Enabled:      true,
 			PollInterval: 3 * time.Second,
 		},
-		Extensions: ExtensionsConfig{},
+		Extensions: defaultExtensionsConfig(),
 		Tools:      DefaultToolsConfig(),
 		Automation: AutomationConfig{
 			Enabled:           true,

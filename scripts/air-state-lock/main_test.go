@@ -1,3 +1,5 @@
+//go:build !windows
+
 // Suite: Air state lock process integration.
 // Invariant: The lock is held only for the serialized command's lifetime, never a descendant's lifetime.
 // Boundary IN: The helper binary, flock, child execution, and descriptor inheritance.

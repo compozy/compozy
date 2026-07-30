@@ -11,6 +11,10 @@ import (
 
 func validateDaemonCompatibility(minVersion string) error {
 	current := version.Current().Version
+	return validateCompozyVersionCompatibility(current, minVersion)
+}
+
+func validateCompozyVersionCompatibility(current, minVersion string) error {
 	currentVersion, ok := parseSemanticVersion(normalizeDaemonVersionForCompatibility(current))
 	if !ok {
 		return nil
@@ -33,6 +37,21 @@ func validateDaemonCompatibility(minVersion string) error {
 		CurrentVersion: current,
 		MinVersion:     strings.TrimSpace(minVersion),
 	}
+}
+
+// ValidateManifestForCompozyVersion checks a manifest against an explicitly stamped daemon version.
+func ValidateManifestForCompozyVersion(manifest *Manifest, currentVersion string) error {
+	if manifest == nil {
+		return errors.New("extension: manifest is required")
+	}
+	if _, ok := parseSemanticVersion(normalizeDaemonVersionForCompatibility(currentVersion)); !ok {
+		return &ManifestValidationError{
+			Field:   "compozy_version",
+			Value:   currentVersion,
+			Message: manifestMustBeASemanticVersionValue,
+		}
+	}
+	return validateCompozyVersionCompatibility(currentVersion, manifest.MinCompozyVersion)
 }
 
 func normalizeDaemonVersionForCompatibility(value string) string {

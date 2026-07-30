@@ -92,8 +92,7 @@ export type HostAPIMethod =
 
 export interface AcceptedCapabilities {
   provides: string[];
-  actions: HostAPIMethod[];
-  security: string[];
+  permissions: HostAPIMethod[];
 }
 
 export interface AgentCrashedPatch {
@@ -1185,9 +1184,29 @@ export interface ClarifyAskParams {
   choices?: string[];
 }
 
+export type CommandFlagType = "string" | "boolean" | "integer" | "number";
+
+export interface CommandFlag {
+  name: string;
+  field: string;
+  type: CommandFlagType;
+  repeatable: boolean;
+  required: boolean;
+  nullable: boolean;
+  enum?: string[];
+  default?: JSONValue;
+  minimum?: number;
+  maximum?: number;
+}
+
 export interface CompactionMatcher {
   compaction_reason?: string;
   compaction_strategy?: string;
+}
+
+export interface ConsentArea {
+  area: string;
+  access: string;
 }
 
 export interface ContextBlock {
@@ -1558,6 +1577,67 @@ export interface DeliveryRequest {
   snapshot?: DeliverySnapshot;
 }
 
+export interface DescribeSubprocess {
+  command: string;
+  args?: string[];
+  env?: Record<string, string>;
+}
+
+export type ToolID = string;
+
+export type RiskClass = string;
+
+export interface ExtensionCommandSpec {
+  verb: string;
+  summary: string;
+  example?: string;
+  flags?: Record<string, string>;
+}
+
+export interface ExtensionToolRuntimeDescriptor {
+  id: ToolID;
+  handler: string;
+  description?: string;
+  friendly_verb?: string;
+  preview?: string;
+  input_schema?: JSONValue;
+  output_schema?: JSONValue;
+  input_schema_digest: string;
+  output_schema_digest?: string;
+  read_only: boolean;
+  risk: RiskClass;
+  requires_interaction: boolean;
+  capabilities?: string[];
+  command?: ExtensionCommandSpec;
+}
+
+export interface ExtensionCommandGroupSpec {
+  path: string;
+  summary: string;
+}
+
+export interface DescribeSDKInfo {
+  name: string;
+  version: string;
+  protocol_version: string;
+  min_compozy_version: string;
+}
+
+export interface DescribePayload {
+  name: string;
+  version: string;
+  description?: string;
+  provides: string[];
+  permissions: string[];
+  requires_env?: string[];
+  subprocess: DescribeSubprocess;
+  tools?: ExtensionToolRuntimeDescriptor[];
+  hook_events?: string[];
+  watch_source_kinds?: string[];
+  command_groups?: ExtensionCommandGroupSpec[];
+  sdk: DescribeSDKInfo;
+}
+
 export type EmptyResult = Record<string, never>;
 
 export interface EventPostRecordPatch {
@@ -1635,20 +1715,13 @@ export interface EventRecordPayload {
   content?: JSONValue;
 }
 
-export type ToolID = string;
-
-export type RiskClass = string;
-
-export interface ExtensionToolRuntimeDescriptor {
-  id: ToolID;
-  handler: string;
-  friendly_verb?: string;
-  preview?: string;
-  input_schema_digest: string;
-  output_schema_digest?: string;
-  read_only: boolean;
-  risk: RiskClass;
-  capabilities?: string[];
+export interface ExtensionManifestSummary {
+  name: string;
+  version: string;
+  description?: string;
+  min_compozy_version: string;
+  provides: string[];
+  permissions: string[];
 }
 
 export interface ExtensionProvideToolsResponse {
@@ -1699,6 +1772,23 @@ export interface ToolResult {
 
 export interface ExtensionToolCallResponse {
   result: ToolResult;
+}
+
+export type IssueSeverity = "error" | "warning";
+
+export interface ValidationIssue {
+  path: string;
+  line?: number;
+  column?: number;
+  field?: string;
+  message: string;
+  severity: IssueSeverity;
+}
+
+export interface ExtensionValidatePayload {
+  manifest?: ExtensionManifestSummary;
+  issues: ValidationIssue[];
+  consent_areas: ConsentArea[];
 }
 
 export interface HeartbeatDeleteRequest {
@@ -2019,7 +2109,7 @@ export interface HookMatcher {
 
 export type HookExecutorKind = "native" | "subprocess" | "wasm";
 
-export type HookSource = "native" | "config" | "agent_definition" | "skill";
+export type HookSource = "native" | "config" | "extension" | "agent_definition" | "skill";
 
 export interface HookDecl {
   name: string;
@@ -2168,8 +2258,7 @@ export interface InitializeBridgeRuntime {
 
 export interface InitializeCapabilities {
   provides: string[];
-  granted_actions: HostAPIMethod[];
-  granted_security: string[];
+  granted_permissions: HostAPIMethod[];
   granted_resource_kinds: string[];
   granted_resource_scopes: string[];
 }
@@ -6795,3 +6884,26 @@ export interface HostAPIMethodMap {
     result: ClarifyAnswer;
   };
 }
+
+export const REQUIRED_METHODS_BY_PROVIDE = {
+  "bridge.adapter": ["bridges/deliver", "bridges/targets/snapshot"],
+  "loop.watch_source": ["watch/poll"],
+  "memory.backend": ["memory/forget", "memory/recall", "memory/store"],
+  "model.source": ["models/list"],
+  "tool.provider": ["provide_tools", "tools/call"],
+} as const satisfies Readonly<Record<string, readonly string[]>>;
+
+export interface ProvideConformanceFixture {
+  provide: string;
+  required_methods: readonly string[];
+}
+
+export const PUBLIC_PROVIDE_CONFORMANCE_FIXTURES: readonly ProvideConformanceFixture[] = [
+  {
+    provide: "loop.watch_source",
+    required_methods: REQUIRED_METHODS_BY_PROVIDE["loop.watch_source"],
+  },
+  { provide: "memory.backend", required_methods: REQUIRED_METHODS_BY_PROVIDE["memory.backend"] },
+  { provide: "model.source", required_methods: REQUIRED_METHODS_BY_PROVIDE["model.source"] },
+  { provide: "tool.provider", required_methods: REQUIRED_METHODS_BY_PROVIDE["tool.provider"] },
+];

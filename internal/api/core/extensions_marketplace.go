@@ -66,6 +66,10 @@ func (h *BaseHandlers) joinInstalledExtensionMarketplace(
 			continue
 		}
 		item.Marketplace = &listing
+		item.UpdateAvailable = listing.UpdateAvailable
+		if listing.UpdateAvailable {
+			item.RemoteVersion = listing.Version
+		}
 	}
 	return errors.Join(joinErrors...)
 }

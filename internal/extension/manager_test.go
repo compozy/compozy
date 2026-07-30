@@ -90,8 +90,7 @@ func TestManagerStartRegistersResourcesAndActivatesExtension(t *testing.T) {
 		withHooks:    true,
 		withMCP:      true,
 		capabilities: []string{"memory.backend"},
-		actions:      []string{"sessions/list"},
-		security:     []string{"session.read"},
+		permissions:  []string{"sessions/list"},
 	}), map[string]string{
 		"skills/ext-review/SKILL.md": managerSkillFile("ext-review", "External review workflow"),
 		"agents/coder.md":            managerAgentFile("ext-agent"),
@@ -147,13 +146,10 @@ func TestManagerStartRegistersResourcesAndActivatesExtension(t *testing.T) {
 	if strings.TrimSpace(request.SessionNonce) == "" {
 		t.Fatal("initialize session nonce = empty, want daemon-issued nonce")
 	}
-	if !slices.Equal(request.Capabilities.GrantedActions, []extensionprotocol.HostAPIMethod{
+	if !slices.Equal(request.Capabilities.GrantedPermissions, []extensionprotocol.HostAPIMethod{
 		extensionprotocol.HostAPIMethodSessionsList,
 	}) {
-		t.Fatalf("initialize granted actions = %#v, want [sessions/list]", request.Capabilities.GrantedActions)
-	}
-	if !slices.Equal(request.Capabilities.GrantedSecurity, []string{"session.read"}) {
-		t.Fatalf("initialize granted security = %#v, want [session.read]", request.Capabilities.GrantedSecurity)
+		t.Fatalf("initialize granted permissions = %#v, want [sessions/list]", request.Capabilities.GrantedPermissions)
 	}
 	if !slices.Equal(request.Methods.ExtensionServices, []string{"memory/forget", "memory/recall", "memory/store"}) {
 		t.Fatalf("initialize extension services = %#v, want memory backend methods", request.Methods.ExtensionServices)
@@ -168,6 +164,12 @@ func TestManagerStartRegistersResourcesAndActivatesExtension(t *testing.T) {
 	}
 	if got, want := decls[0].Name, "ext-runtime-hook"; got != want {
 		t.Fatalf("HookDeclarations()[0].Name = %q, want %q", got, want)
+	}
+	if got, want := decls[0].Source, hookspkg.HookSourceExtension; got != want {
+		t.Fatalf("HookDeclarations()[0].Source = %q, want %q", got, want)
+	}
+	if got, want := decls[0].Priority, int32(300); got != want {
+		t.Fatalf("HookDeclarations()[0].Priority = %d, want %d", got, want)
 	}
 	if got, want := decls[0].Metadata["extension"], "ext-runtime"; got != want {
 		t.Fatalf("HookDeclarations()[0].Metadata[extension] = %q, want %q", got, want)
@@ -199,6 +201,32 @@ func TestManagerStartRegistersResourcesAndActivatesExtension(t *testing.T) {
 	}
 	if got, want := loaded.Status.Phase, ExtensionPhaseActivate; got != want {
 		t.Fatalf("Get(ext-runtime).Status.Phase = %q, want %q", got, want)
+	}
+}
+
+func TestManagerInitializeRuntimeRequestEncodesEmptyCapabilitiesAsArrays(t *testing.T) {
+	t.Parallel()
+
+	manager := NewManager(nil)
+	request := manager.initializeRuntimeRequest(
+		&managedExtension{
+			info:     ExtensionInfo{Source: SourceUser},
+			manifest: &Manifest{Name: "empty-capabilities", Version: "0.1.0"},
+		},
+		subprocess.InitializeRuntime{},
+		&hostAPIResourceSession{Actor: resources.MutationActor{SessionNonce: "nonce"}},
+	)
+	payload, err := json.Marshal(request)
+	if err != nil {
+		t.Fatalf("json.Marshal(initialize request) error = %v", err)
+	}
+	var wire subprocess.InitializeRequest
+	if err := json.Unmarshal(payload, &wire); err != nil {
+		t.Fatalf("json.Unmarshal(initialize request) error = %v", err)
+	}
+	if wire.Capabilities.Provides == nil || wire.Capabilities.GrantedPermissions == nil ||
+		wire.Capabilities.GrantedResourceKinds == nil || wire.Capabilities.GrantedResourceScopes == nil {
+		t.Fatalf("initialize capabilities = %#v, want JSON arrays for every empty grant", wire.Capabilities)
 	}
 }
 
@@ -258,14 +286,13 @@ func TestManagerStartBridgeAdapterNegotiatesScopedLaunchRuntime(t *testing.T) {
 	fixture := createManagerTestExtension(t, managerTestManifest("ext-bridge", managerManifestOptions{
 		command:      "fake-extension",
 		capabilities: []string{extensionprotocol.CapabilityProvideBridgeAdapter},
-		actions: []string{
+		permissions: []string{
 			string(extensionprotocol.HostAPIMethodBridgesMessagesIngest),
 			string(extensionprotocol.HostAPIMethodBridgesInstancesGet),
 			string(extensionprotocol.HostAPIMethodBridgesInstancesReportState),
 		},
-		security: []string{"bridge.read", "bridge.write"},
 	}), nil)
-	installManagerFixture(t, env.registry, fixture, SourceUser, true)
+	installManagerFixture(t, env.registry, fixture, SourceBundled, true)
 
 	fakeProc := newFakeProcess(303)
 	launcher := &fakeLauncher{queue: []*fakeProcess{fakeProc}}
@@ -308,15 +335,15 @@ func TestManagerStartBridgeAdapterNegotiatesScopedLaunchRuntime(t *testing.T) {
 			request.Methods.ExtensionServices,
 		)
 	}
-	if !slices.Equal(request.Capabilities.GrantedActions, []extensionprotocol.HostAPIMethod{
+	if !slices.Equal(request.Capabilities.GrantedPermissions, []extensionprotocol.HostAPIMethod{
 		extensionprotocol.HostAPIMethodBridgesInstancesGet,
 		extensionprotocol.HostAPIMethodBridgesInstancesReportState,
 		extensionprotocol.HostAPIMethodBridgesMessagesIngest,
 	}) {
-		t.Fatalf("initialize granted actions = %#v, want bridge actions", request.Capabilities.GrantedActions)
-	}
-	if !slices.Equal(request.Capabilities.GrantedSecurity, []string{"bridge.read", "bridge.write"}) {
-		t.Fatalf("initialize granted security = %#v, want bridge grants", request.Capabilities.GrantedSecurity)
+		t.Fatalf(
+			"initialize granted permissions = %#v, want bridge permissions",
+			request.Capabilities.GrantedPermissions,
+		)
 	}
 	if request.Runtime.Bridge == nil {
 		t.Fatal("initialize runtime bridge = nil, want scoped bridge launch payload")
@@ -332,9 +359,9 @@ func TestManagerStartBridgeAdapterNegotiatesScopedLaunchRuntime(t *testing.T) {
 		t.Fatalf("initialize runtime bridge bound secrets = %#v, want only bot_token", got)
 	}
 
-	for _, method := range request.Capabilities.GrantedActions {
+	for _, method := range request.Capabilities.GrantedPermissions {
 		if strings.Contains(string(method), "vault/") || strings.Contains(string(method), "secret/") {
-			t.Fatalf("initialize granted actions leaked secret lookup method %q", method)
+			t.Fatalf("initialize granted permissions leaked secret lookup method %q", method)
 		}
 	}
 	for _, method := range request.Methods.ExtensionServices {
@@ -352,10 +379,9 @@ func TestManagerStartBridgeAdapterRequiresScopedLaunchRuntime(t *testing.T) {
 	fixture := createManagerTestExtension(t, managerTestManifest("ext-bridge-missing", managerManifestOptions{
 		command:      "fake-extension",
 		capabilities: []string{extensionprotocol.CapabilityProvideBridgeAdapter},
-		actions:      []string{string(extensionprotocol.HostAPIMethodBridgesInstancesGet)},
-		security:     []string{"bridge.read"},
+		permissions:  []string{string(extensionprotocol.HostAPIMethodBridgesInstancesGet)},
 	}), nil)
-	installManagerFixture(t, env.registry, fixture, SourceUser, true)
+	installManagerFixture(t, env.registry, fixture, SourceBundled, true)
 
 	manager := NewManager(
 		env.registry,
@@ -379,13 +405,12 @@ func TestManagerStartBridgeAdapterDefersUntilRuntimeExists(t *testing.T) {
 	fixture := createManagerTestExtension(t, managerTestManifest("ext-bridge-deferred", managerManifestOptions{
 		command:      "fake-extension",
 		capabilities: []string{extensionprotocol.CapabilityProvideBridgeAdapter},
-		actions: []string{
+		permissions: []string{
 			string(extensionprotocol.HostAPIMethodBridgesMessagesIngest),
 			string(extensionprotocol.HostAPIMethodBridgesInstancesGet),
 		},
-		security: []string{"bridge.read"},
 	}), nil)
-	installManagerFixture(t, env.registry, fixture, SourceUser, true)
+	installManagerFixture(t, env.registry, fixture, SourceBundled, true)
 
 	launcher := &fakeLauncher{}
 	manager := NewManager(
@@ -430,8 +455,7 @@ func TestManagerStartSkipsDisabledExtensions(t *testing.T) {
 	fixture := createManagerTestExtension(t, managerTestManifest("ext-disabled", managerManifestOptions{
 		command:      "fake-extension",
 		capabilities: []string{"memory.backend"},
-		actions:      []string{"sessions/list"},
-		security:     []string{"session.read"},
+		permissions:  []string{"sessions/list"},
 	}), nil)
 	installManagerFixture(t, env.registry, fixture, SourceUser, false)
 
@@ -522,8 +546,7 @@ func TestManagerStartContinuesAfterParseFailure(t *testing.T) {
 	badFixture := createManagerTestExtension(t, managerTestManifest("ext-bad", managerManifestOptions{
 		command:      "fake-extension",
 		capabilities: []string{"memory.backend"},
-		actions:      []string{"sessions/list"},
-		security:     []string{"session.read"},
+		permissions:  []string{"sessions/list"},
 	}), nil)
 	installManagerFixture(t, env.registry, badFixture, SourceUser, true)
 	writeFile(t, filepath.Join(badFixture.dir, manifestTOMLFileName), "not = [valid")
@@ -531,8 +554,7 @@ func TestManagerStartContinuesAfterParseFailure(t *testing.T) {
 	goodFixture := createManagerTestExtension(t, managerTestManifest("ext-good", managerManifestOptions{
 		command:      "fake-extension",
 		capabilities: []string{"memory.backend"},
-		actions:      []string{"sessions/list"},
-		security:     []string{"session.read"},
+		permissions:  []string{"sessions/list"},
 		withHooks:    true,
 	}), nil)
 	installManagerFixture(t, env.registry, goodFixture, SourceUser, true)
@@ -577,8 +599,7 @@ func TestManagerStartRejectsIncompatibleManifest(t *testing.T) {
 	fixture := createManagerTestExtension(t, managerTestManifest("ext-incompatible", managerManifestOptions{
 		command:      "fake-extension",
 		capabilities: []string{"memory.backend"},
-		actions:      []string{"sessions/list"},
-		security:     []string{"session.read"},
+		permissions:  []string{"sessions/list"},
 	}), nil)
 	installManagerFixture(t, env.registry, fixture, SourceUser, true)
 	writeFile(
@@ -588,8 +609,7 @@ func TestManagerStartRejectsIncompatibleManifest(t *testing.T) {
 			command:      "fake-extension",
 			minVersion:   "9.0.0",
 			capabilities: []string{"memory.backend"},
-			actions:      []string{"sessions/list"},
-			security:     []string{"session.read"},
+			permissions:  []string{"sessions/list"},
 		}),
 	)
 
@@ -616,8 +636,7 @@ func TestManagerCrashTriggersRestartWithBackoff(t *testing.T) {
 	fixture := createManagerTestExtension(t, managerTestManifest("ext-restart", managerManifestOptions{
 		command:      "fake-extension",
 		capabilities: []string{"memory.backend"},
-		actions:      []string{"sessions/list"},
-		security:     []string{"session.read"},
+		permissions:  []string{"sessions/list"},
 	}), nil)
 	installManagerFixture(t, env.registry, fixture, SourceUser, true)
 
@@ -668,8 +687,7 @@ func TestManagerStartDetachesSupervisorFromStartContext(t *testing.T) {
 	fixture := createManagerTestExtension(t, managerTestManifest("ext-detached", managerManifestOptions{
 		command:      "fake-extension",
 		capabilities: []string{"memory.backend"},
-		actions:      []string{"sessions/list"},
-		security:     []string{"session.read"},
+		permissions:  []string{"sessions/list"},
 	}), nil)
 	installManagerFixture(t, env.registry, fixture, SourceUser, true)
 
@@ -714,8 +732,7 @@ func TestManagerDisablesExtensionAfterConsecutiveFailures(t *testing.T) {
 	fixture := createManagerTestExtension(t, managerTestManifest("ext-flaky", managerManifestOptions{
 		command:      "fake-extension",
 		capabilities: []string{"memory.backend"},
-		actions:      []string{"sessions/list"},
-		security:     []string{"session.read"},
+		permissions:  []string{"sessions/list"},
 		withHooks:    true,
 	}), nil)
 	installManagerFixture(t, env.registry, fixture, SourceUser, true)
@@ -777,8 +794,7 @@ func TestManagerStopUsesRealSubprocessShutdown(t *testing.T) {
 		args:         helperArgs(),
 		withEnv:      helperEnv("default", markerPath),
 		capabilities: []string{"memory.backend"},
-		actions:      []string{"sessions/list"},
-		security:     []string{"session.read"},
+		permissions:  []string{"sessions/list"},
 	}), nil)
 	installManagerFixture(t, env.registry, fixture, SourceUser, true)
 
@@ -811,8 +827,7 @@ func TestManagerStopKillsHungSubprocessAfterTimeout(t *testing.T) {
 		args:         helperArgs(),
 		withEnv:      helperEnv("shutdown_hang", ""),
 		capabilities: []string{"memory.backend"},
-		actions:      []string{"sessions/list"},
-		security:     []string{"session.read"},
+		permissions:  []string{"sessions/list"},
 		shutdown:     40 * time.Millisecond,
 	}), nil)
 	installManagerFixture(t, env.registry, fixture, SourceUser, true)
@@ -891,7 +906,7 @@ func TestNewManagerAppliesOptionsAndRestoresDefaults(t *testing.T) {
 	if got, want := manager.restartBackoffMax, defaultRestartBackoffMax; got != want {
 		t.Fatalf("restartBackoffMax = %v, want %v", got, want)
 	}
-	if got, want := manager.restartFailureThreshold, defaultRestartFailureThreshold; got != want {
+	if got, want := manager.restartFailureThreshold, DefaultRestartFailureThreshold; got != want {
 		t.Fatalf("restartFailureThreshold = %d, want %d", got, want)
 	}
 	if got, want := manager.healthPollFloor, defaultHealthPollFloor; got != want {
@@ -949,8 +964,7 @@ func TestManagerReloadValidatesAndRestarts(t *testing.T) {
 		fixture := createManagerTestExtension(t, managerTestManifest("ext-reload", managerManifestOptions{
 			command:      "fake-extension",
 			capabilities: []string{"memory.backend"},
-			actions:      []string{"sessions/list"},
-			security:     []string{"session.read"},
+			permissions:  []string{"sessions/list"},
 		}), nil)
 		installManagerFixture(t, env.registry, fixture, SourceUser, true)
 
@@ -1005,8 +1019,7 @@ func TestManagerReloadValidatesAndRestarts(t *testing.T) {
 		fixture := createManagerTestExtension(t, managerTestManifest("ext-reload-serialized", managerManifestOptions{
 			command:      "fake-extension",
 			capabilities: []string{"memory.backend"},
-			actions:      []string{"sessions/list"},
-			security:     []string{"session.read"},
+			permissions:  []string{"sessions/list"},
 		}), nil)
 		installManagerFixture(t, env.registry, fixture, SourceUser, true)
 
@@ -1103,8 +1116,7 @@ func TestManagerHelperPathsAndAccessors(t *testing.T) {
 	fixture := createManagerTestExtension(t, managerTestManifest("ext-fallback", managerManifestOptions{
 		command:      "fake-extension",
 		capabilities: []string{"memory.backend"},
-		actions:      []string{"sessions/list"},
-		security:     []string{"session.read"},
+		permissions:  []string{"sessions/list"},
 	}), nil)
 	installManagerFixture(t, env.registry, fixture, SourceUser, true)
 
@@ -1214,8 +1226,8 @@ func TestManagerHelperPathsAndAccessors(t *testing.T) {
 		t.Fatalf("restartBackoff(10) = %v, want capped 5s", got)
 	}
 
-	if !requiresSubprocess(&Manifest{Actions: ActionsConfig{Requires: []string{"sessions/list"}}}) {
-		t.Fatal("requiresSubprocess(actions-only) = false, want true")
+	if !requiresSubprocess(&Manifest{Permissions: PermissionsConfig{Requires: []string{"sessions/list"}}}) {
+		t.Fatal("requiresSubprocess(permissions-only) = false, want true")
 	}
 	if !requiresSubprocess(
 		&Manifest{Resources: ResourcesConfig{Publish: ResourceGrantRequest{Families: []string{"tools"}}}},
@@ -1351,7 +1363,7 @@ func TestManagerCloneExtensionReturnsIsolatedSnapshot(t *testing.T) {
 			Capabilities: CapabilitiesConfig{
 				Provides: []string{"memory.backend"},
 			},
-			Actions: ActionsConfig{
+			Permissions: PermissionsConfig{
 				Requires: []string{"sessions/list"},
 			},
 		},
@@ -1368,7 +1380,7 @@ func TestManagerCloneExtensionReturnsIsolatedSnapshot(t *testing.T) {
 			Capabilities: CapabilitiesConfig{
 				Provides: []string{"memory.backend"},
 			},
-			Actions: ActionsConfig{
+			Permissions: PermissionsConfig{
 				Requires: []string{"sessions/list"},
 			},
 			Subprocess: SubprocessConfig{
@@ -1377,9 +1389,6 @@ func TestManagerCloneExtensionReturnsIsolatedSnapshot(t *testing.T) {
 				Env: map[string]string{
 					"TOKEN": "value",
 				},
-			},
-			Security: SecurityConfig{
-				Capabilities: []string{"memory.read"},
 			},
 		},
 		skills: []*skillspkg.Skill{{
@@ -1459,9 +1468,8 @@ func TestManagerCloneExtensionReturnsIsolatedSnapshot(t *testing.T) {
 			ImplementedMethods:  []string{"shutdown"},
 			SupportedHookEvents: []string{"turn.start"},
 			AcceptedCapabilities: subprocess.AcceptedCapabilities{
-				Provides: []string{"memory.backend"},
-				Actions:  []extensionprotocol.HostAPIMethod{"sessions/list"},
-				Security: []string{"memory.read"},
+				Provides:    []string{"memory.backend"},
+				Permissions: []extensionprotocol.HostAPIMethod{"sessions/list"},
 			},
 		},
 	}
@@ -1473,7 +1481,7 @@ func TestManagerCloneExtensionReturnsIsolatedSnapshot(t *testing.T) {
 	}
 
 	clone.Info.Capabilities.Provides[0] = "changed"
-	clone.Info.Actions.Requires[0] = "changed"
+	clone.Info.Permissions.Requires[0] = "changed"
 	clone.Manifest.Resources.Skills[0] = "changed"
 	clone.Manifest.Subprocess.Env["TOKEN"] = "changed"
 	clone.Manifest.Resources.Publish.Families[0] = "changed"
@@ -1498,8 +1506,8 @@ func TestManagerCloneExtensionReturnsIsolatedSnapshot(t *testing.T) {
 	if ext.info.Capabilities.Provides[0] != "memory.backend" {
 		t.Fatalf("original capabilities mutated to %#v", ext.info.Capabilities.Provides)
 	}
-	if ext.info.Actions.Requires[0] != "sessions/list" {
-		t.Fatalf("original actions mutated to %#v", ext.info.Actions.Requires)
+	if ext.info.Permissions.Requires[0] != "sessions/list" {
+		t.Fatalf("original permissions mutated to %#v", ext.info.Permissions.Requires)
 	}
 	if ext.manifest.Resources.Skills[0] != "skills/" {
 		t.Fatalf("original manifest resources mutated to %#v", ext.manifest.Resources.Skills)
@@ -1637,7 +1645,7 @@ func TestManagerDirectPhaseAndMonitorBranches(t *testing.T) {
 		Name:              "ext-validate",
 		Version:           "1.0.0",
 		MinCompozyVersion: "0.5.0",
-		Actions:           ActionsConfig{Requires: []string{"sessions/list"}},
+		Permissions:       PermissionsConfig{Requires: []string{"sessions/list"}},
 	}
 	if err := manager.validateExtension(validate); err == nil {
 		t.Fatal("validateExtension(missing subprocess command) error = nil, want subprocess validation error")
@@ -1693,8 +1701,7 @@ func TestManagerDirectPhaseAndMonitorBranches(t *testing.T) {
 	}
 
 	manager.capChecker.Register("ext-host", SourceUser, &Manifest{
-		Actions:  ActionsConfig{Requires: []string{"sessions/list"}},
-		Security: SecurityConfig{Capabilities: []string{"session.read"}},
+		Permissions: PermissionsConfig{Requires: []string{"sessions/list"}},
 	})
 	allowed := manager.wrapHostHandler(
 		"ext-host",
@@ -1830,8 +1837,7 @@ type managerManifestOptions struct {
 	resourceMaxScope  string
 	minVersion        string
 	capabilities      []string
-	actions           []string
-	security          []string
+	permissions       []string
 	bridgePlatform    string
 	bridgeDisplayName string
 	shutdown          time.Duration
@@ -1994,9 +2000,8 @@ func fakeInitializeResponse(req subprocess.InitializeRequest) subprocess.Initial
 			Version: req.Extension.Version,
 		},
 		AcceptedCapabilities: subprocess.AcceptedCapabilities{
-			Provides: slices.Clone(req.Capabilities.Provides),
-			Actions:  slices.Clone(req.Capabilities.GrantedActions),
-			Security: slices.Clone(req.Capabilities.GrantedSecurity),
+			Provides:    slices.Clone(req.Capabilities.Provides),
+			Permissions: slices.Clone(req.Capabilities.GrantedPermissions),
 		},
 		ImplementedMethods:  implemented,
 		SupportedHookEvents: []string{string(hookspkg.HookTurnStart)},
@@ -2221,11 +2226,15 @@ func (h *extensionHelperServer) handleRequest(req helperRequest) error {
 				"error": "handler failed",
 			})
 		}
+		prefix := "search"
+		if h.scenario == "tool_call_generation_marker" {
+			prefix = "generation:" + h.marker
+		}
 		return h.sendResult(req.ID, toolspkg.ExtensionToolCallResponse{
 			Result: toolspkg.ToolResult{
 				Content: []toolspkg.ToolContent{{
 					Type: "text",
-					Text: fmt.Sprintf("search:%s", strings.TrimSpace(string(params.Input))),
+					Text: fmt.Sprintf("%s:%s", prefix, strings.TrimSpace(string(params.Input))),
 				}},
 			},
 		})
@@ -2233,7 +2242,7 @@ func (h *extensionHelperServer) handleRequest(req helperRequest) error {
 		if h.scenario == "shutdown_hang" {
 			select {}
 		}
-		if h.marker != "" {
+		if h.marker != "" && h.scenario != "tool_call_generation_marker" {
 			if err := os.WriteFile(h.marker, []byte("shutdown"), 0o600); err != nil {
 				return err
 			}
@@ -2501,13 +2510,9 @@ func managerTestManifest(name string, opts managerManifestOptions) string {
 	if len(capabilities) == 0 {
 		capabilities = []string{"memory.backend"}
 	}
-	actions := opts.actions
-	if len(actions) == 0 {
-		actions = []string{"sessions/list"}
-	}
-	security := opts.security
-	if len(security) == 0 {
-		security = []string{"session.read"}
+	permissions := opts.permissions
+	if len(permissions) == 0 {
+		permissions = []string{"sessions/list"}
 	}
 	bridgePlatform := opts.bridgePlatform
 	bridgeDisplayName := opts.bridgeDisplayName
@@ -2581,8 +2586,8 @@ display_name = %q
 
 `, bridgePlatform, bridgeDisplayName)
 	}
-	builder.WriteString(`[actions]
-requires = ` + tomlStringArray(actions) + `
+	builder.WriteString(`[permissions]
+requires = ` + tomlStringArray(permissions) + `
 
 [subprocess]
 command = ` + fmt.Sprintf("%q", command) + `
@@ -2608,11 +2613,6 @@ command = ` + fmt.Sprintf("%q", command) + `
 			fmt.Fprintf(&builder, "%s = %q\n", key, opts.withEnv[key])
 		}
 	}
-	builder.WriteString(`
-[security]
-capabilities = ` + tomlStringArray(security) + `
-`)
-
 	return builder.String()
 }
 

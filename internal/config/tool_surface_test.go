@@ -418,7 +418,7 @@ func TestToolConfigPathPolicy(t *testing.T) {
 		},
 		{
 			name:   "Should reject extension trust root",
-			path:   "extensions.marketplace.registry",
+			path:   "extensions.sources.github.enabled",
 			denial: ConfigPathTrustForbidden,
 		},
 		{

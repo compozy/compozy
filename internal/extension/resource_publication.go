@@ -126,7 +126,7 @@ func resolveManifestToolDescriptor(
 		Tags:                normalizeStrings(cfg.Tags),
 		SearchHints:         normalizeStrings(cfg.SearchHints),
 	}
-	runtimeDescriptor, err := manifestRuntimeDescriptor(tool)
+	runtimeDescriptor, err := manifestRuntimeDescriptor(tool, cfg.Command)
 	if err != nil {
 		return ManifestToolDescriptor{}, err
 	}
@@ -365,7 +365,10 @@ func manifestToolDisplayTitle(name string, value string) string {
 	return name
 }
 
-func manifestRuntimeDescriptor(tool toolspkg.Tool) (toolspkg.ExtensionToolRuntimeDescriptor, error) {
+func manifestRuntimeDescriptor(
+	tool toolspkg.Tool,
+	command *toolspkg.ExtensionCommandSpec,
+) (toolspkg.ExtensionToolRuntimeDescriptor, error) {
 	presentation := tool.Presentation()
 	inputDigest, err := toolspkg.SchemaDigest(tool.InputSchema)
 	if err != nil {
@@ -387,15 +390,17 @@ func manifestRuntimeDescriptor(tool toolspkg.Tool) (toolspkg.ExtensionToolRuntim
 		}
 	}
 	descriptor := toolspkg.ExtensionToolRuntimeDescriptor{
-		ID:                 tool.ID,
-		Handler:            tool.Backend.Handler,
-		FriendlyVerb:       presentation.FriendlyVerb,
-		Preview:            presentation.Preview,
-		InputSchemaDigest:  inputDigest,
-		OutputSchemaDigest: outputDigest,
-		ReadOnly:           tool.ReadOnly,
-		Risk:               tool.Risk,
-		Capabilities:       append([]string(nil), tool.Backend.RequiresCapabilities...),
+		ID:                  tool.ID,
+		Handler:             tool.Backend.Handler,
+		FriendlyVerb:        presentation.FriendlyVerb,
+		Preview:             presentation.Preview,
+		InputSchemaDigest:   inputDigest,
+		OutputSchemaDigest:  outputDigest,
+		ReadOnly:            tool.ReadOnly,
+		Risk:                tool.Risk,
+		RequiresInteraction: tool.RequiresInteraction,
+		Capabilities:        append([]string(nil), tool.Backend.RequiresCapabilities...),
+		Command:             cloneExtensionCommandSpec(command),
 	}
 	if err := descriptor.Validate(); err != nil {
 		return toolspkg.ExtensionToolRuntimeDescriptor{}, err

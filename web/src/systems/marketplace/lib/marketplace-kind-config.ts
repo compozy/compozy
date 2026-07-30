@@ -38,7 +38,7 @@ const KIND_CONFIG: Record<MarketplaceKind, MarketplaceKindConfig> = {
     installedNoun: "installed",
     teachingEmptyTitle: "No MCPs installed yet",
     teachingEmptyBody: "Everything you install from the marketplace shows up here.",
-    cliHint: "compozy mcp install <name>",
+    cliHint: "compozy mcp install <entry>",
   },
   extension: {
     kind: "extension",
@@ -49,8 +49,9 @@ const KIND_CONFIG: Record<MarketplaceKind, MarketplaceKindConfig> = {
     verb: "Install",
     installedNoun: "installed",
     teachingEmptyTitle: "No extensions installed yet",
-    teachingEmptyBody: "Everything you install from the marketplace shows up here.",
-    cliHint: "compozy extension install <path-or-slug>",
+    teachingEmptyBody:
+      "Install from the marketplace, a GitHub release, a git repository, or a local build.",
+    cliHint: "compozy extension install github:owner/repo",
   },
   bundle: {
     kind: "bundle",

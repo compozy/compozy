@@ -38,6 +38,7 @@ func Generate() (string, error) {
 	}
 	gen.emitHookMaps()
 	gen.emitHostMethodMap()
+	gen.emitCapabilityContracts()
 
 	var out strings.Builder
 	out.Grow(estimatedOutputSize(gen.blocks))

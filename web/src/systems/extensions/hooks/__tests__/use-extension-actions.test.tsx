@@ -8,6 +8,7 @@ import { extensionKeys } from "../../lib/query-keys";
 import { marketplaceKeys } from "@/systems/marketplace/lib/query-keys";
 
 const mocks = vi.hoisted(() => ({
+  activeWorkspaceId: null as string | null,
   deactivateBundle: vi.fn(),
   disableExtension: vi.fn(),
   enableExtension: vi.fn(),
@@ -20,6 +21,10 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("sonner", () => ({
   toast: { error: mocks.toastError, success: mocks.toastSuccess },
+}));
+
+vi.mock("@/systems/workspace", () => ({
+  useActiveWorkspace: () => ({ activeWorkspaceId: mocks.activeWorkspaceId }),
 }));
 
 vi.mock("../../adapters/extensions-api", () => ({
@@ -50,6 +55,7 @@ function setup() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.activeWorkspaceId = null;
   mocks.enableExtension.mockResolvedValue(extensionFixtures[0]);
   mocks.disableExtension.mockResolvedValue(extensionFixtures[0]);
   mocks.updateExtension.mockResolvedValue(undefined);
@@ -108,7 +114,33 @@ describe("useToggleExtension", () => {
     });
 
     expect(mocks.enableExtension).toHaveBeenCalledWith("otel-bridge");
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: extensionKeys.list() });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: extensionKeys.lists() });
+  });
+
+  it("Should apply the optimistic toggle to the active workspace instance row only", async () => {
+    mocks.activeWorkspaceId = "ws_northstar";
+    const { queryClient, wrapper } = setup();
+    queryClient.setQueryData(
+      extensionKeys.list("ws_northstar"),
+      extensionFixtures.map(extension => ({ ...extension }))
+    );
+    queryClient.setQueryData(
+      extensionKeys.list(),
+      extensionFixtures.map(extension => ({ ...extension }))
+    );
+    const { result } = renderHook(() => useToggleExtension(), { wrapper });
+
+    await act(async () => {
+      await result.current.mutateAsync({ enabled: false, name: "otel-bridge" });
+    });
+
+    expect(
+      queryClient.getQueryData<typeof extensionFixtures>(extensionKeys.list("ws_northstar"))?.[0]
+        ?.enabled
+    ).toBe(false);
+    expect(
+      queryClient.getQueryData<typeof extensionFixtures>(extensionKeys.list())?.[0]?.enabled
+    ).toBe(true);
   });
 });
 
@@ -174,11 +206,38 @@ describe("extension and bundle lifecycle mutations", () => {
     const { result } = renderHook(() => useUpdateExtension(), { wrapper });
 
     await act(async () => {
-      await result.current.mutateAsync("otel-bridge");
+      await result.current.mutateAsync({ name: "otel-bridge", version: "0.6.0" });
     });
 
+    expect(mocks.updateExtension).toHaveBeenCalledWith("otel-bridge", {
+      allow_unverified: false,
+      version: "0.6.0",
+    });
+    expect(mocks.toastSuccess).toHaveBeenCalledWith("otel-bridge updated to v0.6.0");
     expect(invalidate).toHaveBeenCalledWith({ queryKey: extensionKeys.all });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: marketplaceKeys.all });
+  });
+
+  it("Should scope only a dev unlink to the active workspace instance", async () => {
+    mocks.activeWorkspaceId = "ws_northstar";
+    const { wrapper } = setup();
+    const { result } = renderHook(() => useRemoveExtension(), { wrapper });
+
+    await act(async () => {
+      await result.current.mutateAsync({ dev: true, name: "slack-notify" });
+    });
+
+    expect(mocks.removeExtension).toHaveBeenCalledWith("slack-notify", {
+      workspaceId: "ws_northstar",
+    });
+    expect(mocks.toastSuccess).toHaveBeenCalledWith("slack-notify dev overlay unlinked");
+
+    await act(async () => {
+      await result.current.mutateAsync({ dev: false, name: "otel-bridge" });
+    });
+
+    expect(mocks.removeExtension).toHaveBeenLastCalledWith("otel-bridge", {});
+    expect(mocks.toastSuccess).toHaveBeenCalledWith("otel-bridge removed");
   });
 
   it("Should toast successful lifecycle actions without leaking mutation context", async () => {
@@ -193,13 +252,13 @@ describe("extension and bundle lifecycle mutations", () => {
     );
 
     await act(async () => {
-      await result.current.update.mutateAsync("otel-bridge");
-      await result.current.remove.mutateAsync("slack-notify");
+      await result.current.update.mutateAsync({ name: "otel-bridge" });
+      await result.current.remove.mutateAsync({ dev: false, name: "slack-notify" });
       await result.current.deactivate.mutateAsync("activation-ops-starter");
     });
 
-    expect(mocks.updateExtension).toHaveBeenCalledWith("otel-bridge", {});
-    expect(mocks.removeExtension).toHaveBeenCalledWith("slack-notify");
+    expect(mocks.updateExtension).toHaveBeenCalledWith("otel-bridge", { allow_unverified: false });
+    expect(mocks.removeExtension).toHaveBeenCalledWith("slack-notify", {});
     expect(mocks.deactivateBundle).toHaveBeenCalledWith("activation-ops-starter");
     expect(mocks.toastSuccess).toHaveBeenCalledWith("otel-bridge updated");
     expect(mocks.toastSuccess).toHaveBeenCalledWith("slack-notify removed");
@@ -216,9 +275,9 @@ describe("extension and bundle lifecycle mutations", () => {
     );
 
     await act(async () => {
-      await expect(result.current.remove.mutateAsync("slack-notify")).rejects.toThrow(
-        "remove rejected"
-      );
+      await expect(
+        result.current.remove.mutateAsync({ dev: false, name: "slack-notify" })
+      ).rejects.toThrow("remove rejected");
       await expect(result.current.deactivate.mutateAsync("activation-ops-starter")).rejects.toThrow(
         "deactivate rejected"
       );

@@ -18,6 +18,55 @@ import (
 func TestDaemonExtensionToolProvider(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should canonicalize workspace scope and attach authority to arbitrary extension tools", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+		inner := &daemonExtensionProviderStub{handle: &daemonExtensionHandleStub{}}
+		resolver := &daemonExtensionWorkspaceResolverStub{
+			resolved: workspacepkg.ResolvedWorkspace{
+				Workspace:   workspacepkg.Workspace{ID: "workspace-registration", RootDir: root},
+				WorkspaceID: "workspace-identity",
+			},
+		}
+		provider := newDaemonScopedExtensionToolProvider(inner, resolver)
+		if _, err := provider.List(t.Context(), toolspkg.Scope{WorkspaceID: "workspace-registration"}); err != nil {
+			t.Fatalf("List() error = %v", err)
+		}
+		if got, want := inner.listScope.WorkspaceID, "workspace-identity"; got != want {
+			t.Fatalf("List() workspace = %q, want %q", got, want)
+		}
+
+		toolID := toolspkg.ToolID("ext__workspace_tool__search")
+		handle, ok, err := provider.Resolve(
+			t.Context(),
+			toolspkg.Scope{WorkspaceID: "workspace-registration"},
+			toolID,
+		)
+		if err != nil {
+			t.Fatalf("Resolve() error = %v", err)
+		}
+		if !ok {
+			t.Fatal("Resolve() ok = false, want true")
+		}
+		if got, want := inner.resolveScope.WorkspaceID, "workspace-identity"; got != want {
+			t.Fatalf("Resolve() workspace = %q, want %q", got, want)
+		}
+		if _, err := handle.Call(t.Context(), toolspkg.CallRequest{
+			ToolID:      toolID,
+			WorkspaceID: "workspace-registration",
+			Input:       json.RawMessage(`{}`),
+		}); err != nil {
+			t.Fatalf("Call() error = %v", err)
+		}
+		if got, want := inner.handle.request.WorkspaceID, "workspace-identity"; got != want {
+			t.Fatalf("Call() workspace = %q, want %q", got, want)
+		}
+		if got, want := inner.handle.request.TrustedWorkspaceRoot, root; got != want {
+			t.Fatalf("Call() trusted root = %q, want %q", got, want)
+		}
+	})
+
 	t.Run("Should attach resolved workspace authority to workspace-bound dev-cycle calls", func(t *testing.T) {
 		t.Parallel()
 
@@ -339,7 +388,7 @@ func TestDaemonExtensionToolProvider(t *testing.T) {
 		provider := newDaemonScopedExtensionToolProvider(inner, resolver)
 		handle, ok, err := provider.Resolve(
 			t.Context(),
-			toolspkg.Scope{WorkspaceID: "ws-1"},
+			toolspkg.Scope{},
 			devCycleImportTasksToolID,
 		)
 		if err != nil {
@@ -373,7 +422,9 @@ func TestDaemonExtensionToolProvider(t *testing.T) {
 }
 
 type daemonExtensionProviderStub struct {
-	handle *daemonExtensionHandleStub
+	handle       *daemonExtensionHandleStub
+	listScope    toolspkg.Scope
+	resolveScope toolspkg.Scope
 }
 
 var _ toolspkg.Provider = (*daemonExtensionProviderStub)(nil)
@@ -383,17 +434,19 @@ func (p *daemonExtensionProviderStub) ID() toolspkg.SourceRef {
 }
 
 func (p *daemonExtensionProviderStub) List(
-	context.Context,
-	toolspkg.Scope,
+	_ context.Context,
+	scope toolspkg.Scope,
 ) ([]toolspkg.Descriptor, error) {
+	p.listScope = scope
 	return []toolspkg.Descriptor{p.handle.Descriptor()}, nil
 }
 
 func (p *daemonExtensionProviderStub) Resolve(
-	context.Context,
-	toolspkg.Scope,
-	toolspkg.ToolID,
+	_ context.Context,
+	scope toolspkg.Scope,
+	_ toolspkg.ToolID,
 ) (toolspkg.Handle, bool, error) {
+	p.resolveScope = scope
 	return p.handle, true, nil
 }
 

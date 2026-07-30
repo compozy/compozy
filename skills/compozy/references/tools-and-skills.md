@@ -85,13 +85,10 @@ feed-owned and `manage_path` is an opaque presentation path to follow, not recon
 
 Extension rows carry the daemon's pre-install `trust` report. Use its `decision`, `registry_tier`,
 `allow_unverified`, and `warnings` directly; `checksum_verified` remains false until download verification.
-Curated extension detail also carries an absolute HTTPS `artifact_url`. The daemon downloads that
-exact feed-owned archive and verifies `digest_sha256` before extraction; it does not guess among
-GitHub release assets. Manual non-curated installs continue through the configured registry.
-For non-curated side-loads, `extension_unverified_policy_blocked` means the live
-`extensions.marketplace.allow_unverified` gate is false; its diagnostic points to
-`/settings/extensions` and the config key. `extension_archive_digest_mismatch` means curated bytes
-do not match the catalog pin; do not retry with `--allow-unverified`.
+Curated extension detail also carries an absolute HTTPS `artifact_url` and its `digest_sha256`; the
+daemon installs that exact feed-owned archive instead of guessing among GitHub release assets.
+`github`, `git`, and `local_path` installs bypass this feed and carry their own install-time consent
+gate, not a marketplace row.
 
 Install MCP catalog entries with
 `compozy mcp install <entry> --scope global|workspace [--workspace <id>] -o json` or
@@ -136,10 +133,13 @@ repair requires `authenticated` plus `token_present=true`. Reads project `env_ke
 `secret_env_keys`, never values/refs. Preserve exact-target fields with `preserve_env` or
 `preserve_secrets`; renames and target changes require replacement.
 
-The singular `compozy skill search`, `compozy skill info <entry_id>`, and `compozy extension search` commands
-read the same discovery namespace. Use `compozy skill inspect <installed-name>` for effective metadata
-and resources. Do not call the deleted skill- or extension-specific browse endpoints or invent a
-per-extension native search tool.
+`compozy skill search` and `compozy skill info <entry_id>` read the same skill discovery namespace.
+Extension source search is separate: `compozy extension search <query> [--sources curated,github]
+[--limit N] [--cursor <opaque>]` and native `compozy__extensions_search` page
+`GET /api/extensions/search`, tagging rows with `source`, `tier`, `integrity`, and `digest_matched`
+and naming any failed or slow source in `sources_degraded`. Use `compozy skill inspect
+<installed-name>` for effective installed metadata and resources, and do not call the deleted skill-
+or extension-specific browse endpoints.
 
 ## Skill Loading
 

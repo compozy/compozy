@@ -35,8 +35,7 @@ func TestManagerIntegrationLifecycleAndHostAPICall(t *testing.T) {
 		args:         helperArgs(),
 		withEnv:      helperEnv("host_call", markerPath),
 		capabilities: []string{"memory.backend"},
-		actions:      []string{"sessions/list"},
-		security:     []string{"session.read"},
+		permissions:  []string{"sessions/list"},
 	}), nil)
 	installManagerFixture(t, env.registry, fixture, SourceUser, true)
 
@@ -82,8 +81,7 @@ func TestManagerIntegrationRestartRecovery(t *testing.T) {
 		args:         helperArgs(),
 		withEnv:      helperEnv("auto_exit", markerPath),
 		capabilities: []string{"memory.backend"},
-		actions:      []string{"sessions/list"},
-		security:     []string{"session.read"},
+		permissions:  []string{"sessions/list"},
 	}), nil)
 	installManagerFixture(t, env.registry, fixture, SourceUser, true)
 
@@ -126,8 +124,7 @@ func TestManagerIntegrationResourceRegistration(t *testing.T) {
 		withHooks:    true,
 		withMCP:      true,
 		capabilities: []string{"memory.backend"},
-		actions:      []string{"sessions/list"},
-		security:     []string{"session.read"},
+		permissions:  []string{"sessions/list"},
 	}), map[string]string{
 		"skills/review/SKILL.md": managerSkillFile("resource-skill", "Loaded from extension"),
 		"agents/agent.md":        managerAgentFile("resource-agent"),
@@ -176,14 +173,13 @@ func TestManagerIntegrationBridgeAdapterNegotiatesDeliveryRuntime(t *testing.T) 
 		args:         helperArgs(),
 		withEnv:      helperEnv("record_initialize", markerPath),
 		capabilities: []string{extensionprotocol.CapabilityProvideBridgeAdapter},
-		actions: []string{
+		permissions: []string{
 			string(extensionprotocol.HostAPIMethodBridgesMessagesIngest),
 			string(extensionprotocol.HostAPIMethodBridgesInstancesGet),
 			string(extensionprotocol.HostAPIMethodBridgesInstancesReportState),
 		},
-		security: []string{"bridge.read", "bridge.write"},
 	}), nil)
-	installManagerFixture(t, env.registry, fixture, SourceUser, true)
+	installManagerFixture(t, env.registry, fixture, SourceBundled, true)
 
 	manager := NewManager(
 		env.registry,
@@ -258,14 +254,13 @@ func TestManagerIntegrationInvalidDeliveryResultsAreIndeterminate(t *testing.T) 
 				args:         helperArgs(),
 				withEnv:      helperEnv(scenario, markerPath),
 				capabilities: []string{extensionprotocol.CapabilityProvideBridgeAdapter},
-				actions: []string{
+				permissions: []string{
 					string(extensionprotocol.HostAPIMethodBridgesMessagesIngest),
 					string(extensionprotocol.HostAPIMethodBridgesInstancesGet),
 					string(extensionprotocol.HostAPIMethodBridgesInstancesReportState),
 				},
-				security: []string{"bridge.read", "bridge.write"},
 			}), nil)
-			installManagerFixture(t, env.registry, fixture, SourceUser, true)
+			installManagerFixture(t, env.registry, fixture, SourceBundled, true)
 
 			manager := NewManager(
 				env.registry,
@@ -506,8 +501,7 @@ func TestManagerIntegrationNonBridgeExtensionStartsWithoutBridgeNegotiation(t *t
 		args:         helperArgs(),
 		withEnv:      helperEnv("record_initialize", markerPath),
 		capabilities: []string{"memory.backend"},
-		actions:      []string{"sessions/list"},
-		security:     []string{"session.read"},
+		permissions:  []string{"sessions/list"},
 	}), nil)
 	installManagerFixture(t, env.registry, fixture, SourceUser, true)
 
@@ -557,14 +551,13 @@ func TestManagerIntegrationBridgeAdapterRestartPreservesNegotiatedSurface(t *tes
 		args:         helperArgs(),
 		withEnv:      helperEnv("auto_exit_record_initialize", markerPath),
 		capabilities: []string{extensionprotocol.CapabilityProvideBridgeAdapter},
-		actions: []string{
+		permissions: []string{
 			string(extensionprotocol.HostAPIMethodBridgesMessagesIngest),
 			string(extensionprotocol.HostAPIMethodBridgesInstancesGet),
 			string(extensionprotocol.HostAPIMethodBridgesInstancesReportState),
 		},
-		security: []string{"bridge.read", "bridge.write"},
 	}), nil)
-	installManagerFixture(t, env.registry, fixture, SourceUser, true)
+	installManagerFixture(t, env.registry, fixture, SourceBundled, true)
 
 	manager := NewManager(
 		env.registry,
@@ -653,14 +646,13 @@ func TestManagerIntegrationBridgeAdapterDefersUntilRuntimeExists(t *testing.T) {
 		args:         helperArgs(),
 		withEnv:      helperEnv("record_initialize", markerPath),
 		capabilities: []string{extensionprotocol.CapabilityProvideBridgeAdapter},
-		actions: []string{
+		permissions: []string{
 			string(extensionprotocol.HostAPIMethodBridgesMessagesIngest),
 			string(extensionprotocol.HostAPIMethodBridgesInstancesGet),
 			string(extensionprotocol.HostAPIMethodBridgesInstancesReportState),
 		},
-		security: []string{"bridge.read", "bridge.write"},
 	}), nil)
-	installManagerFixture(t, env.registry, fixture, SourceUser, true)
+	installManagerFixture(t, env.registry, fixture, SourceBundled, true)
 
 	manager := NewManager(
 		env.registry,

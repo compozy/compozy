@@ -29,11 +29,8 @@ export function parseInitializeRequest(params: unknown): InitializeRequest {
   if (!Array.isArray(request.capabilities.provides)) {
     throw new InvalidParamsError("capabilities.provides must be an array");
   }
-  if (!Array.isArray(request.capabilities.granted_actions)) {
-    throw new InvalidParamsError("capabilities.granted_actions must be an array");
-  }
-  if (!Array.isArray(request.capabilities.granted_security)) {
-    throw new InvalidParamsError("capabilities.granted_security must be an array");
+  if (!Array.isArray(request.capabilities.granted_permissions)) {
+    throw new InvalidParamsError("capabilities.granted_permissions must be an array");
   }
   if (!Array.isArray(request.capabilities.granted_resource_kinds)) {
     throw new InvalidParamsError("capabilities.granted_resource_kinds must be an array");

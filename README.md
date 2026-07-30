@@ -144,15 +144,26 @@ compozy session new --agent general
 
 ## 🔌 Extensions
 
-Extensions add versioned resources and runtime behavior through declared capabilities. The daemon
+Extensions add versioned resources and runtime behavior through declared provide surfaces. The daemon
 owns discovery, enablement, trust decisions, lifecycle, and hooks; extensions do not bypass public
 runtime contracts.
 
+### Build one in three commands
+
+```bash
+compozy extension init hello --template tool-provider-go
+compozy extension dev hello
+compozy tool invoke ext__hello__search --workspace . --input '{"query":"compozy"}'
+```
+
+Authoring is code-first: you declare the tool once in code and `compozy extension build` generates
+the manifest. Walkthrough:
+[Build your first extension](https://compozy.com/runtime/guides/build-your-first-extension).
+
 ### SDK support
 
-The current Go and TypeScript SDK workspaces are version-matched repository internals, not v0.2
-compatibility packages. External v0.2 integrations should stay pinned while they are redesigned for
-the v0.3 extension contract.
+`@compozy/extension-sdk` (npm, MIT) and `github.com/compozy/compozy/sdk/go` are published and
+version-matched to the daemon.
 
 ### Extension CLI
 
@@ -160,11 +171,14 @@ the v0.3 extension contract.
 compozy extension list -o json
 compozy extension status <name> -o json
 compozy extension provenance <name> -o json
+compozy extension logs <name> --follow
 ```
 
 ### Learn more
 
+- [Build your first extension](https://compozy.com/runtime/guides/build-your-first-extension)
 - [Extensions](https://compozy.com/runtime/core/extensions)
+- [Publish an extension](https://compozy.com/runtime/core/extensions/publish)
 - [Capabilities and bundles](https://compozy.com/runtime)
 - [Official Compozy skill](skills/compozy/)
 - [Migration guide](MIGRATION_GUIDE.md)

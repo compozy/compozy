@@ -267,9 +267,13 @@ func skillWhereBundle(record SkillShadowsRecord) outputBundle {
 				renderHumanSection("Skill Resolution", []keyValue{
 					{Label: automationNameValue, Value: stringOrDash(record.Name)},
 					{Label: "Winner", Value: stringOrDash(record.Winner.Path)},
-					{Label: "Tier", Value: stringOrDash(record.Winner.Tier)},
+					{Label: extensionMarketplaceTierValue, Value: stringOrDash(record.Winner.Tier)},
 				}),
-				renderHumanTable("Locations", []string{"Winner", "Tier", skillOutputPathValue}, rows),
+				renderHumanTable(
+					"Locations",
+					[]string{"Winner", extensionMarketplaceTierValue, skillOutputPathValue},
+					rows,
+				),
 			), nil
 		},
 		toon: func() (string, error) {

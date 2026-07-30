@@ -12,10 +12,20 @@ import (
 
 func settingsExtensionsConfigPayload(value compozyconfig.ExtensionsConfig) contract.SettingsExtensionsConfigPayload {
 	return contract.SettingsExtensionsConfigPayload{
-		Marketplace: contract.SettingsExtensionMarketplacePayload{
-			Registry:        strings.TrimSpace(value.Marketplace.Registry),
-			BaseURL:         strings.TrimSpace(value.Marketplace.BaseURL),
-			AllowUnverified: value.Marketplace.AllowUnverified,
+		Trust: contract.SettingsExtensionTrustPayload{
+			AllowUnverified: value.Trust.AllowUnverified,
+		},
+		Sources: contract.SettingsExtensionSourcesPayload{
+			GitHub: contract.SettingsExtensionGitHubSourcePayload{
+				Enabled: value.Sources.GitHub.Enabled,
+				BaseURL: strings.TrimSpace(value.Sources.GitHub.BaseURL),
+			},
+			Git: contract.SettingsExtensionGitSourcePayload{
+				Enabled: value.Sources.Git.Enabled,
+			},
+		},
+		Dev: contract.SettingsExtensionDevPayload{
+			WatchInterval: value.Dev.WatchInterval.String(),
 		},
 		Resources: contract.SettingsExtensionResourcesPayload{
 			AllowedKinds:           resourceKindsToStrings(value.Resources.AllowedKinds),
@@ -62,10 +72,17 @@ func extensionsConfigFromPayload(
 	}
 
 	value := compozyconfig.ExtensionsConfig{
-		Marketplace: compozyconfig.ExtensionsMarketplaceConfig{
-			Registry:        strings.TrimSpace(payload.Marketplace.Registry),
-			BaseURL:         strings.TrimSpace(payload.Marketplace.BaseURL),
-			AllowUnverified: payload.Marketplace.AllowUnverified,
+		Trust: compozyconfig.ExtensionsTrustConfig{
+			AllowUnverified: payload.Trust.AllowUnverified,
+		},
+		Sources: compozyconfig.ExtensionsSourcesConfig{
+			GitHub: compozyconfig.ExtensionsGitHubSourceConfig{
+				Enabled: payload.Sources.GitHub.Enabled,
+				BaseURL: strings.TrimSpace(payload.Sources.GitHub.BaseURL),
+			},
+			Git: compozyconfig.ExtensionsGitSourceConfig{
+				Enabled: payload.Sources.Git.Enabled,
+			},
 		},
 		Resources: compozyconfig.ExtensionsResourcesConfig{
 			AllowedKinds:           allowedKinds,
@@ -73,6 +90,13 @@ func extensionsConfigFromPayload(
 			SnapshotRateLimit:      snapshotRateLimit,
 			OperatorWriteRateLimit: operatorWriteRateLimit,
 		},
+	}
+	value.Dev.WatchInterval, err = parseOptionalDuration(
+		payload.Dev.WatchInterval,
+		"hooks-extensions.config.dev.watch_interval",
+	)
+	if err != nil {
+		return compozyconfig.ExtensionsConfig{}, err
 	}
 	if err := value.Validate(); err != nil {
 		return compozyconfig.ExtensionsConfig{}, NewSettingsValidationError(err)

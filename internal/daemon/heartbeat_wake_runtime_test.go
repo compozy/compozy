@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -161,6 +162,13 @@ func TestSchedulerHeartbeatWakeIntegration(t *testing.T) {
 			}
 			if got, want := call.opts.Metadata.ClaimTokenHash, "sha256:coordinator"; got != want {
 				t.Fatalf("synthetic claim token hash = %q, want %q", got, want)
+			}
+			if !strings.Contains(call.opts.Message, "compozy__task_run_claim_next") ||
+				!strings.Contains(call.opts.Message, "`run_id` set to \"run-coordinator-wake\"") {
+				t.Fatalf("synthetic message = %q, want native claim instruction", call.opts.Message)
+			}
+			if strings.Contains(call.opts.Message, "compozy task next") {
+				t.Fatalf("synthetic message = %q, want no CLI claim instruction", call.opts.Message)
 			}
 		},
 	)

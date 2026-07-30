@@ -776,14 +776,13 @@ func newDeliveryIntegrationEnv(
 		args:         helperArgs(),
 		withEnv:      helperEnv(scenario, markerPath),
 		capabilities: []string{"bridge.adapter"},
-		actions: []string{
+		permissions: []string{
 			"bridges/messages/ingest",
 			"bridges/instances/get",
 			"bridges/instances/report_state",
 		},
-		security: []string{"bridge.read", "bridge.write"},
 	}), nil)
-	installManagerFixture(t, registryEnv.registry, fixture, SourceUser, true)
+	installManagerFixture(t, registryEnv.registry, fixture, SourceBundled, true)
 
 	manager := NewManager(
 		registryEnv.registry,
@@ -841,8 +840,7 @@ func newDeliveryIntegrationEnv(
 		WithHostAPIRateLimit(1000, 1000),
 	)
 	checker.Register(extensionName, SourceUser, &Manifest{
-		Actions:  ActionsConfig{Requires: []string{"bridges/messages/ingest"}},
-		Security: SecurityConfig{Capabilities: []string{"bridge.write"}},
+		Permissions: PermissionsConfig{Requires: []string{"bridges/messages/ingest"}},
 	})
 
 	env := &deliveryIntegrationEnv{

@@ -65,7 +65,17 @@ function MarketplaceCard({
               {entry.transport ? (
                 <span className="normal-case font-mono tracking-normal">{entry.transport}</span>
               ) : null}
-              {entry.tier ? <span>{entry.tier}</span> : null}
+              {/* Catalog tier and trust tier are the same fact; render it once. */}
+              {entry.tier || entry.trust?.registry_tier ? (
+                <span data-testid={`marketplace-card-tier-${entry.entry_id}`}>
+                  {entry.tier || entry.trust?.registry_tier}
+                </span>
+              ) : null}
+              {kind === "extension" && entry.source ? (
+                <span data-testid={`marketplace-card-source-${entry.entry_id}`}>
+                  {entry.source}
+                </span>
+              ) : null}
             </CatalogCard.Meta>
           </div>
         </div>

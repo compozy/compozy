@@ -65,7 +65,7 @@ var loopTools = []toolspkg.Descriptor{
 		toolspkg.RiskRead,
 		true,
 		false,
-		[]string{loopKey, "validate", "lint"},
+		[]string{loopKey, descriptorKeywordValidate, "lint"},
 		[]string{"loop validate", "loop lint", "compile loop"},
 	),
 	nativeLoopDescriptor(

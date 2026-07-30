@@ -12,8 +12,10 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
@@ -22,6 +24,7 @@ import (
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	marketplacepkg "github.com/compozy/compozy/internal/marketplace"
 	registrypkg "github.com/compozy/compozy/internal/registry"
+	registrygit "github.com/compozy/compozy/internal/registry/gitsrc"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	toolspkg "github.com/compozy/compozy/internal/tools"
@@ -128,6 +131,24 @@ func (s *nativeExtensionSource) Close() error {
 }
 
 func TestDaemonNativeExtensionTools(t *testing.T) {
+	t.Run("Should report a missing Git dependency as tool unavailable", func(t *testing.T) {
+		t.Parallel()
+
+		err := nativeExtensionToolError(
+			toolspkg.ToolIDExtensionsInstall,
+			fmt.Errorf("install extension: %w", registrygit.ErrGitUnavailable),
+		)
+		var toolErr *toolspkg.ToolError
+		if !errors.As(err, &toolErr) ||
+			toolErr.Code != toolspkg.ErrorCodeUnavailable ||
+			!slices.Contains(toolErr.ReasonCodes, toolspkg.ReasonDependencyMissing) {
+			t.Fatalf("nativeExtensionToolError() = %#v, want unavailable dependency ToolError", err)
+		}
+		if !errors.Is(err, registrygit.ErrGitUnavailable) {
+			t.Fatalf("nativeExtensionToolError() = %v, want ErrGitUnavailable ancestry", err)
+		}
+	})
+
 	t.Run("Should install local extension sources through managed install", func(t *testing.T) {
 		t.Parallel()
 
@@ -140,7 +161,10 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDExtensionsInstall,
-				Input:  json.RawMessage(fmt.Sprintf(`{"source":"local","path":%q,"allow_unverified":true}`, sourceDir)),
+				Input: json.RawMessage(fmt.Sprintf(
+					`{"source":"local_path","ref":%q,"allow_unverified":true}`,
+					sourceDir,
+				)),
 			},
 		)
 		if err != nil {
@@ -166,23 +190,23 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDExtensionsInstall,
-				Input:  json.RawMessage(fmt.Sprintf(`{"source":"local","path":%q,"slug":"acme/bad"}`, sourceDir)),
+				Input:  json.RawMessage(fmt.Sprintf(`{"source":"local_path","ref":%q,"slug":"acme/bad"}`, sourceDir)),
 			},
 		)
-		requireToolReason(t, err, toolspkg.ErrToolInvalidInput, toolspkg.ReasonExtensionValidationFailed)
+		requireToolReason(t, err, toolspkg.ErrToolInvalidInput, toolspkg.ReasonSchemaInvalid)
 	})
 
 	t.Run("Should require live policy plus request consent for local side-loads", func(t *testing.T) {
 		t.Parallel()
 
 		deps, extRegistry, _, runtime := newNativeExtensionToolDeps(t)
-		deps.ExtensionMarket.AllowUnverified = false
+		deps.ExtensionConfig.Trust.AllowUnverified = false
 		registry := newDaemonNativeRegistry(t, deps, nativeApproveAllPolicyInputs())
 		sourceDir := writeNativeLocalExtensionFixture(t, "blocked-local-ext", "1.0.0")
 
 		_, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDExtensionsInstall,
-			Input:  json.RawMessage(fmt.Sprintf(`{"source":"local","path":%q,"allow_unverified":true}`, sourceDir)),
+			Input:  json.RawMessage(fmt.Sprintf(`{"source":"local_path","ref":%q,"allow_unverified":true}`, sourceDir)),
 		})
 		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonExtensionSourceForbidden)
 		if _, err := extRegistry.Get("blocked-local-ext"); !errors.Is(err, extensionpkg.ErrExtensionNotFound) {
@@ -206,7 +230,7 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDExtensionsInstall,
 				Input: json.RawMessage(
-					`{"source":"marketplace","slug":"acme/tool-ext","registry":"github","allow_unverified":true}`,
+					`{"source":"github","ref":"acme/tool-ext","allow_unverified":true}`,
 				),
 			},
 		)
@@ -401,7 +425,7 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 			nil,
 			nil,
 			withDaemonExtensionMarketplace(
-				compozyconfig.ExtensionsMarketplaceConfig{Registry: "github"},
+				validNativeExtensionConfig(false),
 				deps.ExtensionSources,
 			),
 			withDaemonExtensionCatalog(catalog),
@@ -412,7 +436,7 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 
 		result, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDExtensionsInstall,
-			Input:  json.RawMessage(`{"source":"marketplace","slug":"acme/tool-ext","registry":"github"}`),
+			Input:  json.RawMessage(`{"source":"curated","ref":"acme/tool-ext"}`),
 		})
 		if err != nil {
 			t.Fatalf("Registry.Call(curated extension install) error = %v", err)
@@ -471,7 +495,7 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 		service := newDaemonExtensionService(
 			extRegistry, runtime, nil, nil, nil, nil, nil, deps.HomePaths, nil, nil,
 			withDaemonExtensionMarketplace(
-				compozyconfig.ExtensionsMarketplaceConfig{Registry: "github", AllowUnverified: true},
+				validNativeExtensionConfig(true),
 				deps.ExtensionSources,
 			),
 			withDaemonExtensionCatalog(catalog),
@@ -483,7 +507,7 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 		_, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDExtensionsInstall,
 			Input: json.RawMessage(
-				`{"source":"marketplace","slug":"acme/tool-ext","registry":"github","allow_unverified":true}`,
+				`{"source":"curated","ref":"acme/tool-ext","allow_unverified":true}`,
 			),
 		})
 		requireToolReason(t, err, toolspkg.ErrToolInvalidInput, toolspkg.ReasonExtensionValidationFailed)
@@ -508,7 +532,7 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 
 		deps, extRegistry, _, runtime := newNativeExtensionToolDeps(t)
 		sourceCalls := 0
-		deps.ExtensionSources = func(context.Context, compozyconfig.ExtensionsMarketplaceConfig) ([]registrypkg.Source, error) {
+		deps.ExtensionSources = func(context.Context, compozyconfig.ExtensionsConfig) ([]registrypkg.Source, error) {
 			sourceCalls++
 			return nil, errors.New("source should not be called")
 		}
@@ -522,7 +546,7 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 			toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDExtensionsInstall,
-				Input:  json.RawMessage(`{"source":"marketplace","slug":"acme/tool-ext"}`),
+				Input:  json.RawMessage(`{"source":"github","ref":"acme/tool-ext"}`),
 			},
 		)
 		if !errors.Is(err, toolspkg.ErrToolApprovalRequired) {
@@ -571,13 +595,27 @@ func newNativeExtensionToolDeps(
 		ExtensionRuntime: func() extensionRuntime {
 			return runtime
 		},
-		ExtensionSources: func(context.Context, compozyconfig.ExtensionsMarketplaceConfig) ([]registrypkg.Source, error) {
+		ExtensionSources: func(context.Context, compozyconfig.ExtensionsConfig) ([]registrypkg.Source, error) {
 			return []registrypkg.Source{source}, nil
 		},
-		ExtensionMarket: compozyconfig.ExtensionsMarketplaceConfig{Registry: "github", AllowUnverified: true},
+		ExtensionConfig: validNativeExtensionConfig(true),
 		ExtensionEvents: db,
 	}
 	return &deps, extRegistry, source, runtime
+}
+
+func validNativeExtensionConfig(allowUnverified bool) compozyconfig.ExtensionsConfig {
+	return compozyconfig.ExtensionsConfig{
+		Trust: compozyconfig.ExtensionsTrustConfig{AllowUnverified: allowUnverified},
+		Sources: compozyconfig.ExtensionsSourcesConfig{
+			GitHub: compozyconfig.ExtensionsGitHubSourceConfig{
+				Enabled: true,
+				BaseURL: "https://api.github.com",
+			},
+			Git: compozyconfig.ExtensionsGitSourceConfig{Enabled: true},
+		},
+		Dev: compozyconfig.ExtensionsDevConfig{WatchInterval: 2 * time.Second},
+	}
 }
 
 func newNativeExtensionSource(t *testing.T, versions ...string) *nativeExtensionSource {
@@ -618,7 +656,7 @@ min_compozy_version = "0.5.0"
 [capabilities]
 provides = ["memory.backend"]
 
-[actions]
+[permissions]
 requires = ["sessions/list"]
 `, version),
 		filepath.Join("tool-ext", "VERSION.txt"): version + "\n",
@@ -669,7 +707,7 @@ min_compozy_version = "0.5.0"
 [capabilities]
 provides = ["memory.backend"]
 
-[actions]
+[permissions]
 requires = ["sessions/list"]
 `, name, version)
 	if err := os.WriteFile(filepath.Join(dir, "extension.toml"), []byte(content), 0o644); err != nil {

@@ -375,10 +375,15 @@ export const settingsHooksExtensionsSectionFixture: SettingsHooksExtensionsSecti
   scope: "global",
   available_scopes: ["global"],
   config: {
-    marketplace: {
-      registry: "northstar",
-      base_url: storyCompany.hooksMarketplaceBaseUrl,
+    trust: {
       allow_unverified: false,
+    },
+    sources: {
+      github: { enabled: true, base_url: "https://api.github.com" },
+      git: { enabled: false },
+    },
+    dev: {
+      watch_interval: "2s",
     },
     resources: {
       allowed_kinds: ["snapshot", "artifact"],

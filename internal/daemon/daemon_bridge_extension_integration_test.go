@@ -48,13 +48,13 @@ func TestDaemonE2EBridgeDeliveryReconcilesAfterRestart(t *testing.T) {
 		delete(env, extensiontest.EnvCrashOncePath)
 		env["COMPOZY_TEST_TELEGRAM_TOKEN"] = "telegram-bot-token"
 		homePaths := e2etest.NewHomePaths(t)
+		seedDaemonBundledBridgeExtension(t, homePaths, extensionDir)
 		workspaceRoot := filepath.Join(t.TempDir(), "workspace")
 		options := e2etest.RuntimeHarnessOptions{
 			HomePaths: homePaths,
 			ConfigSeed: e2etest.ConfigSeedOptions{
 				DefaultAgent:   bridgeIngressFixtureAgentName,
 				PermissionMode: compozyconfig.PermissionModeApproveAll,
-				Mutate:         allowUnverifiedBridgeExtensionInstalls,
 			},
 			MockAgents: []e2etest.MockAgentSpec{{
 				FixturePath:  mockFixturePath(t, "bridge_ingress_fixture.json"),
@@ -68,17 +68,6 @@ func TestDaemonE2EBridgeDeliveryReconcilesAfterRestart(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 		defer cancel()
 
-		checksum, err := extensionpkg.ComputeDirectoryChecksum(extensionDir)
-		if err != nil {
-			t.Fatalf("ComputeDirectoryChecksum(%q) error = %v", extensionDir, err)
-		}
-		if _, err := first.InstallExtension(ctx, compozycontract.InstallExtensionRequest{
-			Path:            extensionDir,
-			Checksum:        checksum,
-			AllowUnverified: true,
-		}); err != nil {
-			t.Fatalf("InstallExtension(%q) error = %v", extensionDir, err)
-		}
 		waitForRuntimeCondition(t, "telegram restart extension registered", 10*time.Second, func() bool {
 			ext, err := first.GetExtension(ctx, "telegram-reference")
 			return err == nil && ext.Enabled
@@ -254,11 +243,13 @@ func testDaemonE2EBridgeIngressCreatesAndReusesRouteThroughOptedInLowTierContrac
 	delete(env, extensiontest.EnvCrashOncePath)
 	env["COMPOZY_TEST_TELEGRAM_TOKEN"] = "telegram-bot-token"
 
+	homePaths := e2etest.NewHomePaths(t)
+	seedDaemonBundledBridgeExtension(t, homePaths, extensionDir)
 	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
+		HomePaths: homePaths,
 		ConfigSeed: e2etest.ConfigSeedOptions{
 			DefaultAgent:   bridgeIngressFixtureAgentName,
 			PermissionMode: compozyconfig.PermissionModeApproveAll,
-			Mutate:         allowUnverifiedBridgeExtensionInstalls,
 		},
 		MockAgents: []e2etest.MockAgentSpec{{
 			FixturePath:  mockFixturePath(t, "bridge_ingress_fixture.json"),
@@ -281,23 +272,6 @@ func testDaemonE2EBridgeIngressCreatesAndReusesRouteThroughOptedInLowTierContrac
 		sessionID string
 	)
 	registerBridgeExtensionArtifacts(t, harness, markers, registration, &bridgeID, &sessionID)
-
-	checksum, err := extensionpkg.ComputeDirectoryChecksum(extensionDir)
-	if err != nil {
-		t.Fatalf("ComputeDirectoryChecksum(%q) error = %v", extensionDir, err)
-	}
-
-	installed, err := harness.InstallExtension(ctx, compozycontract.InstallExtensionRequest{
-		Path:            extensionDir,
-		Checksum:        checksum,
-		AllowUnverified: true,
-	})
-	if err != nil {
-		t.Fatalf("InstallExtension(%q) error = %v", extensionDir, err)
-	}
-	if got, want := installed.Name, "telegram-reference"; got != want {
-		t.Fatalf("installed.Name = %q, want %q", got, want)
-	}
 
 	waitForRuntimeCondition(t, "telegram extension registered", 10*time.Second, func() bool {
 		ext, err := harness.GetExtension(ctx, "telegram-reference")
@@ -880,12 +854,49 @@ func daemonBridgeRuntimeRepoRoot(t *testing.T) string {
 	return filepath.Clean(filepath.Join(filepath.Dir(currentFile), "..", ".."))
 }
 
-func allowUnverifiedBridgeExtensionInstalls(cfg *compozyconfig.Config) {
-	cfg.Extensions.Marketplace.AllowUnverified = true
+func daemonTelegramReferenceExtensionDir(repoRoot string) string {
+	return filepath.Join(repoRoot, "internal", "extension", "testdata", "telegram-reference")
 }
 
-func daemonTelegramReferenceExtensionDir(repoRoot string) string {
-	return filepath.Join(repoRoot, "sdk", "examples", "telegram-reference")
+func allowUnverifiedBridgeExtensionInstalls(cfg *compozyconfig.Config) {
+	cfg.Extensions.Trust.AllowUnverified = true
+}
+
+func seedDaemonBundledBridgeExtension(
+	t *testing.T,
+	homePaths compozyconfig.HomePaths,
+	extensionDir string,
+) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+	if err != nil {
+		t.Fatalf("OpenGlobalDB() error = %v", err)
+	}
+	defer func() {
+		if closeErr := db.Close(ctx); closeErr != nil {
+			t.Errorf("CloseGlobalDB() error = %v", closeErr)
+		}
+	}()
+	manifest, err := extensionpkg.LoadManifest(extensionDir)
+	if err != nil {
+		t.Fatalf("LoadManifest(%q) error = %v", extensionDir, err)
+	}
+	checksum, err := extensionpkg.ComputeDirectoryChecksum(extensionDir)
+	if err != nil {
+		t.Fatalf("ComputeDirectoryChecksum(%q) error = %v", extensionDir, err)
+	}
+	registry := extensionpkg.NewRegistry(db.DB())
+	if err := registry.Install(
+		manifest,
+		extensionDir,
+		checksum,
+		extensionpkg.WithInstallSource(extensionpkg.SourceBundled),
+	); err != nil {
+		t.Fatalf("Install(%q, source=bundled) error = %v", extensionDir, err)
+	}
 }
 
 func prepareDaemonTelegramReferenceExtension(t *testing.T, repoRoot string) string {
@@ -960,7 +971,7 @@ func buildDaemonTelegramReferenceAdapter(t *testing.T, repoRoot string, extensio
 		"go",
 		"build",
 		"-o", filepath.Join(extensionDir, "bin", "telegram-reference"),
-		"./sdk/examples/telegram-reference",
+		"./internal/extension/testdata/telegram-reference",
 	)
 	cmd.Dir = repoRoot
 	output, err := cmd.CombinedOutput()

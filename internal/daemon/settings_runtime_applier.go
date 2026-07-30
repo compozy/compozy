@@ -201,7 +201,7 @@ func (a daemonSettingsRuntimeApplier) reconcileExtensionMarketplace(cfg *compozy
 	if !ok || service == nil {
 		return
 	}
-	service.reconcileMarketplaceConfig(cfg.Extensions.Marketplace)
+	service.reconcileMarketplaceConfig(cfg.Extensions)
 }
 
 func (a daemonSettingsRuntimeApplier) persistNetworkAvailability(

@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	compozydaemon "github.com/compozy/compozy/internal/daemon"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
@@ -20,7 +21,7 @@ import (
 
 type extensionFixtureOptions struct {
 	capabilities []string
-	actions      []string
+	permissions  []string
 	requiresEnv  []string
 }
 
@@ -69,7 +70,9 @@ func TestExtensionInstallOfflineRequiresSideLoadPolicy(t *testing.T) {
 
 		deps, homePaths := newExtensionLocalDeps(t, &stubClient{})
 		deps.loadConfig = func() (compozyconfig.Config, error) {
-			return compozyconfig.DefaultWithHome(homePaths), nil
+			cfg := compozyconfig.DefaultWithHome(homePaths)
+			cfg.Extensions.Trust.AllowUnverified = false
+			return cfg, nil
 		}
 		dir := writeExtensionFixture(t, "blocked-offline-ext", extensionFixtureOptions{})
 
@@ -209,6 +212,7 @@ func TestExtensionListFormatsOffline(t *testing.T) {
 			"Extensions",
 			"Name",
 			"Version",
+			"Update",
 			"Type",
 			"State",
 			"Capabilities",
@@ -240,7 +244,10 @@ func TestExtensionListFormatsOffline(t *testing.T) {
 		if err != nil {
 			t.Fatalf("extension list toon error = %v", err)
 		}
-		if !strings.Contains(stdout, "extensions[1]{name,version,type,state,source,missing_env,capabilities}:") {
+		if !strings.Contains(
+			stdout,
+			"extensions[1]{name,version,update,type,state,source,missing_env,capabilities}:",
+		) {
 			t.Fatalf("toon output = %q, want extensions TOON table", stdout)
 		}
 	})
@@ -292,7 +299,7 @@ func TestExtensionStatusOnlineUsesDaemonClient(t *testing.T) {
 		Enabled:       true,
 		State:         "active",
 		Capabilities:  []string{"memory.backend"},
-		Actions:       []string{"memory/store"},
+		Permissions:   []string{"memory/store"},
 		PID:           4242,
 		UptimeSeconds: 120,
 		Health:        "healthy",
@@ -439,8 +446,100 @@ func TestExtensionInstallUsesDaemonClientWhenRunning(t *testing.T) {
 	); err != nil {
 		t.Fatalf("extension install online error = %v", err)
 	}
-	if captured.Path == "" || captured.Checksum == "" || !captured.AllowUnverified {
-		t.Fatalf("captured install request = %#v, want path, checksum, and allow_unverified", captured)
+	if captured.Source != contract.InstallExtensionSourceLocalPath ||
+		captured.Ref != filepath.Clean(dir) ||
+		!captured.AllowUnverified {
+		t.Fatalf("captured install request = %#v, want local_path ref and allow_unverified", captured)
+	}
+}
+
+func TestExtensionDevBindsResolvedCurrentWorkspace(t *testing.T) {
+	t.Parallel()
+
+	sourceDir := filepath.Join(t.TempDir(), "cli-dev-extension")
+	if err := os.MkdirAll(sourceDir, 0o755); err != nil {
+		t.Fatalf("os.MkdirAll(sourceDir) error = %v", err)
+	}
+	writeExtensionManifest(t, filepath.Join(sourceDir, "go.mod"), "module example.com/cli-dev-extension\n\ngo 1.26.4\n")
+	writeExtensionManifest(t, filepath.Join(sourceDir, "main.go"), `package main
+
+import (
+	"fmt"
+	"os"
+)
+
+func main() {
+	if len(os.Args) > 1 && os.Args[1] == "__describe" {
+		fmt.Print(`+"`"+`{"name":"cli-dev","version":"0.1.0","description":"CLI dev fixture","provides":[],"permissions":[],"subprocess":{"command":"./bin"},"sdk":{"name":"go","version":"0.1.0","protocol_version":"1","min_compozy_version":"0.3.0-beta.1"}}`+"`"+`)
+	}
+}
+`)
+
+	var capturedWorkspace string
+	var capturedRequest DevLinkExtensionRequest
+	client := &stubClient{
+		getWorkspaceFn: func(_ context.Context, ref string) (WorkspaceDetailRecord, error) {
+			if ref != "workspace-alias" {
+				t.Fatalf("GetWorkspace() ref = %q, want workspace-alias", ref)
+			}
+			return WorkspaceDetailRecord{Workspace: WorkspaceRecord{
+				ID:      "workspace-stable",
+				Name:    "workspace-alias",
+				RootDir: filepath.Dir(sourceDir),
+			}}, nil
+		},
+		devExtensionFn: func(
+			_ context.Context,
+			workspaceRef string,
+			request DevLinkExtensionRequest,
+		) (ExtensionRecord, error) {
+			capturedWorkspace = workspaceRef
+			capturedRequest = request
+			return ExtensionRecord{
+				Name:          "cli-dev",
+				WorkspaceID:   workspaceRef,
+				Version:       "0.1.0",
+				Dev:           true,
+				DaemonRunning: true,
+			}, nil
+		},
+	}
+	deps, _ := newExtensionLocalDeps(t, client)
+	deps.readDaemonInfo = func(string) (compozydaemon.Info, error) {
+		return compozydaemon.Info{PID: 101, StartedAt: fixedTestNow}, nil
+	}
+	deps.processAlive = func(int) bool { return true }
+
+	stdout, _, err := executeRootCommand(
+		t,
+		deps,
+		"extension",
+		"dev",
+		sourceDir,
+		"--workspace",
+		"workspace-alias",
+		"-o",
+		"json",
+	)
+	if err != nil {
+		t.Fatalf("extension dev error = %v", err)
+	}
+	if capturedWorkspace != "workspace-stable" {
+		t.Fatalf("DevExtension() workspace = %q, want stable resolved ID", capturedWorkspace)
+	}
+	wantOrigin, err := filepath.Abs(sourceDir)
+	if err != nil {
+		t.Fatalf("filepath.Abs(sourceDir) error = %v", err)
+	}
+	if capturedRequest.OriginPath != wantOrigin || len(capturedRequest.GenerationHash) != 64 {
+		t.Fatalf("DevExtension() request = %#v, want canonical origin and content hash", capturedRequest)
+	}
+	var output ExtensionRecord
+	if err := json.Unmarshal([]byte(stdout), &output); err != nil {
+		t.Fatalf("json.Unmarshal(extension dev) error = %v", err)
+	}
+	if output.WorkspaceID != "workspace-stable" || !output.Dev {
+		t.Fatalf("extension dev output = %#v", output)
 	}
 }
 
@@ -455,7 +554,7 @@ func TestExtensionBundleAndHelpers(t *testing.T) {
 		Enabled:       true,
 		State:         "active",
 		Capabilities:  []string{"observe.exporter"},
-		Actions:       []string{"observe/health"},
+		Permissions:   []string{"observe/health"},
 		PID:           321,
 		UptimeSeconds: 3660,
 		Health:        "healthy",
@@ -480,7 +579,8 @@ func TestExtensionBundleAndHelpers(t *testing.T) {
 	if !strings.Contains(
 		toon,
 		"extension{name,version,type,source,enabled,state,daemon_running,"+
-			"pid,uptime_seconds,health,last_error,capabilities,actions,requires_env,missing_env}:",
+			"pid,uptime_seconds,health,last_error,capabilities,permissions,requires_env,missing_env,"+
+			"consecutive_failures,restart_backoff_ms,summary}:",
 	) {
 		t.Fatalf("toon output = %q, want extension TOON object", toon)
 	}
@@ -522,7 +622,7 @@ func newExtensionLocalDeps(t *testing.T, client DaemonClient) (commandDeps, comp
 	deps.ensureHome = compozyconfig.EnsureHomeLayout
 	deps.loadConfig = func() (compozyconfig.Config, error) {
 		cfg := compozyconfig.DefaultWithHome(homePaths)
-		cfg.Extensions.Marketplace.AllowUnverified = true
+		cfg.Extensions.Trust.AllowUnverified = true
 		return cfg, nil
 	}
 	return deps, homePaths
@@ -564,11 +664,11 @@ min_compozy_version = "0.5.0"
 provides = [%s]
 `, quotedTOMLValues(opts.capabilities))
 	}
-	if len(opts.actions) > 0 {
+	if len(opts.permissions) > 0 {
 		fmt.Fprintf(&builder, `
-[actions]
+[permissions]
 requires = [%s]
-`, quotedTOMLValues(opts.actions))
+`, quotedTOMLValues(opts.permissions))
 	}
 	return builder.String()
 }

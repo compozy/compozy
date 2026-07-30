@@ -122,8 +122,8 @@ func TestRuntimeHarnessCaptureHelpersPersistArtifacts(t *testing.T) {
 	}
 
 	installedExtension, err := harness.InstallExtension(testContext(t), compozycontract.InstallExtensionRequest{
-		Path:     "/extensions/telegram-reference",
-		Checksum: "sha256-demo",
+		Source: compozycontract.InstallExtensionSourceLocalPath,
+		Ref:    "/extensions/telegram-reference",
 	})
 	if err != nil {
 		t.Fatalf("InstallExtension() error = %v", err)
@@ -1477,7 +1477,7 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 					Enabled:       true,
 					State:         "registered",
 					Capabilities:  []string{"bridge.adapter"},
-					Actions:       []string{"bridges/messages/ingest", "bridges/instances/report_state"},
+					Permissions:   []string{"bridges/messages/ingest", "bridges/instances/report_state"},
 					Health:        "healthy",
 					DaemonRunning: true,
 				}},
@@ -1494,23 +1494,23 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 				)
 				return
 			}
-			if got, want := request.Path, "/extensions/telegram-reference"; got != want {
+			if got, want := request.Ref, "/extensions/telegram-reference"; got != want {
 				reportHarnessHandlerError(
 					w,
 					handlerErrs,
 					http.StatusBadRequest,
-					"install extension path = %q, want %q",
+					"install extension ref = %q, want %q",
 					got,
 					want,
 				)
 				return
 			}
-			if got, want := request.Checksum, "sha256-demo"; got != want {
+			if got, want := request.Source, compozycontract.InstallExtensionSourceLocalPath; got != want {
 				reportHarnessHandlerError(
 					w,
 					handlerErrs,
 					http.StatusBadRequest,
-					"install extension checksum = %q, want %q",
+					"install extension source = %q, want %q",
 					got,
 					want,
 				)
@@ -1526,7 +1526,7 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 					Enabled:       true,
 					State:         "registered",
 					Capabilities:  []string{"bridge.adapter"},
-					Actions:       []string{"bridges/messages/ingest", "bridges/instances/report_state"},
+					Permissions:   []string{"bridges/messages/ingest", "bridges/instances/report_state"},
 					Health:        "healthy",
 					DaemonRunning: true,
 				},
@@ -1545,7 +1545,7 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 				Enabled:       true,
 				State:         "registered",
 				Capabilities:  []string{"bridge.adapter"},
-				Actions:       []string{"bridges/messages/ingest", "bridges/instances/report_state"},
+				Permissions:   []string{"bridges/messages/ingest", "bridges/instances/report_state"},
 				Health:        "healthy",
 				DaemonRunning: true,
 			},
@@ -1561,7 +1561,7 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 				Enabled:       true,
 				State:         "active",
 				Capabilities:  []string{"bridge.adapter"},
-				Actions:       []string{"bridges/messages/ingest", "bridges/instances/report_state"},
+				Permissions:   []string{"bridges/messages/ingest", "bridges/instances/report_state"},
 				Health:        "healthy",
 				DaemonRunning: true,
 			},
@@ -1577,7 +1577,7 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 				Enabled:       false,
 				State:         "registered",
 				Capabilities:  []string{"bridge.adapter"},
-				Actions:       []string{"bridges/messages/ingest", "bridges/instances/report_state"},
+				Permissions:   []string{"bridges/messages/ingest", "bridges/instances/report_state"},
 				Health:        "idle",
 				DaemonRunning: true,
 			},

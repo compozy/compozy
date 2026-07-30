@@ -171,10 +171,13 @@ jobs:
       - name: Verify npm publish authentication
         run: |
           if [ -z "${NPM_TOKEN:-}" ]; then
-            echo "::error::NPM_TOKEN is required to publish @compozy/cli"
+            echo "::error::NPM_TOKEN is required to publish @compozy/cli and @compozy/extension-sdk"
             exit 1
           fi
           npm whoami --registry=https://registry.npmjs.org
+
+      - name: Validate TypeScript extension SDK package
+        run: scripts/publish-extension-sdk.sh --dry-run 0.0.0-beta.0 beta
 
       - name: Setup Release Tools
         uses: ./.github/actions/setup-release
@@ -529,6 +532,20 @@ jobs:
           test -s "${RUNNER_TEMP}/RELEASE_BODY.md"
           head -1 "${RUNNER_TEMP}/RELEASE_BODY.md"
 
+      - name: Validate extension SDK release assets
+        if: steps.publication.outputs.already_published != 'true'
+        run: |
+          if ! grep -q '"name": "@compozy/extension-sdk"' sdk/typescript/package.json; then
+            echo "::error::Missing @compozy/extension-sdk package metadata"
+            exit 1
+          fi
+          if ! grep -q '"license": "MIT"' sdk/typescript/package.json; then
+            echo "::error::@compozy/extension-sdk must ship under the MIT license"
+            exit 1
+          fi
+          go run ./cmd/compozy-manifest-check --version "${{ needs.release-plan.outputs.release_version }}"
+          scripts/publish-extension-sdk.sh --dry-run "${{ needs.release-plan.outputs.release_version }}" "${{ needs.release-plan.outputs.npm_tag }}"
+
       - name: Create and push annotated release tag
         env:
           RELEASE_COMMIT: ${{ needs.release-plan.outputs.release_commit }}
@@ -539,23 +556,31 @@ jobs:
             echo "::error::Authoritative release ref moved after planning"
             exit 1
           fi
-          existing_commit="$(git rev-list -n 1 "${RELEASE_TAG}" 2>/dev/null || true)"
-          if [[ -n "${existing_commit}" ]]; then
-            if [[ "$(git cat-file -t "${RELEASE_TAG}")" != "tag" ]]; then
-              echo "::error::Release tag ${RELEASE_TAG} is not annotated"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          ensure_annotated_tag() {
+            local tag="$1"
+            local existing_commit
+            existing_commit="$(git rev-list -n 1 "${tag}" 2>/dev/null || true)"
+            if [[ -z "${existing_commit}" ]]; then
+              git tag -a "${tag}" -m "Release ${tag}"
+              return
+            fi
+            if [[ "$(git cat-file -t "${tag}")" != "tag" ]]; then
+              echo "::error::Release tag ${tag} is not annotated"
               exit 1
             fi
             if [[ "${existing_commit}" != "${RELEASE_COMMIT}" ]]; then
-              echo "::error::Release tag ${RELEASE_TAG} points to ${existing_commit}, want ${RELEASE_COMMIT}"
+              echo "::error::Release tag ${tag} points to ${existing_commit}, want ${RELEASE_COMMIT}"
               exit 1
             fi
-            echo "reusing annotated release tag ${RELEASE_TAG} at ${RELEASE_COMMIT}"
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -a "${RELEASE_TAG}" -m "Release ${RELEASE_TAG}"
-          git push origin "refs/tags/${RELEASE_TAG}"
+            echo "reusing annotated release tag ${tag} at ${RELEASE_COMMIT}"
+          }
+          sdk_go_tag="sdk/go/${RELEASE_TAG}"
+          git check-ref-format "refs/tags/${sdk_go_tag}" >/dev/null
+          ensure_annotated_tag "${RELEASE_TAG}"
+          ensure_annotated_tag "${sdk_go_tag}"
+          git push origin "refs/tags/${RELEASE_TAG}" "refs/tags/${sdk_go_tag}"
 
       - uses: goreleaser/goreleaser-action@v6
         if: steps.publication.outputs.already_published != 'true'
@@ -579,6 +604,12 @@ jobs:
           GITHUB_MAKE_LATEST: ${{ needs.release-plan.outputs.github_make_latest }}
           NPM_TAG: ${{ needs.release-plan.outputs.npm_tag }}
           HOMEBREW_SKIP_UPLOAD: ${{ needs.release-plan.outputs.homebrew_skip_upload }}
+
+      - name: Publish TypeScript extension SDK
+        env:
+          RELEASE_VERSION: ${{ needs.release-plan.outputs.release_version }}
+          NPM_TAG: ${{ needs.release-plan.outputs.npm_tag }}
+        run: scripts/publish-extension-sdk.sh "${RELEASE_VERSION}" "${NPM_TAG}"
 
       - name: Checkout canonical formula renderer
         if: needs.release-plan.outputs.homebrew_skip_upload == 'false'
@@ -700,18 +731,20 @@ jobs:
             exit 1
           fi
 
-          dist_tags="$(npm view @compozy/cli dist-tags --json --registry=https://registry.npmjs.org)"
-          DIST_TAGS_JSON="${dist_tags}" node <<'NODE'
+          for package_name in @compozy/cli @compozy/extension-sdk; do
+            dist_tags="$(npm view "${package_name}" dist-tags --json --registry=https://registry.npmjs.org)"
+            PACKAGE_NAME="${package_name}" DIST_TAGS_JSON="${dist_tags}" node <<'NODE'
           const tags = JSON.parse(process.env.DIST_TAGS_JSON || "{}");
           const expectedTag = process.env.NPM_TAG;
           const version = process.env.RELEASE_VERSION;
           if (tags[expectedTag] !== version) {
-            throw new Error(`npm ${expectedTag} points to ${tags[expectedTag]}, want ${version}`);
+            throw new Error(`${process.env.PACKAGE_NAME} ${expectedTag} points to ${tags[expectedTag]}, want ${version}`);
           }
           if (expectedTag === "beta" && tags.latest === version) {
-            throw new Error("npm latest moved during a beta release");
+            throw new Error(`${process.env.PACKAGE_NAME} latest moved during a beta release`);
           }
           NODE
+          done
 
       # The receipt is generated from the REAL published tag (never the release
       # PR's base version) so the site changelog only ever advertises releases

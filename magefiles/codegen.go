@@ -56,6 +56,9 @@ func CodegenCheck() error {
 	if err := runCommandInDir(context.Background(), ".", "go", "run", "./cmd/compozy-codegen", "check"); err != nil {
 		return err
 	}
+	if err := runCommandInDir(context.Background(), ".", "go", "run", "./cmd/compozy-manifest-check"); err != nil {
+		return err
+	}
 	artifacts, err := webOpenAPIArtifactsForCheck()
 	if err != nil {
 		return err

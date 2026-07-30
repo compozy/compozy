@@ -263,7 +263,7 @@ func TestConfigSetReportsMutationLifecycle(t *testing.T) {
 		},
 		{
 			name:          "Should apply the extension side-load policy live",
-			path:          "extensions.marketplace.allow_unverified",
+			path:          "extensions.trust.allow_unverified",
 			value:         "true",
 			wantLifecycle: "live",
 			wantApplied:   true,
@@ -1258,6 +1258,36 @@ func TestConfigRenderingAndMutationHelpers(t *testing.T) {
 				wantAllowed: true,
 			},
 			{
+				name:        "Should allow extension unverified trust policy",
+				path:        "extensions.trust.allow_unverified",
+				wantKind:    configSetBool,
+				wantAllowed: true,
+			},
+			{
+				name:        "Should allow GitHub extension source toggle",
+				path:        "extensions.sources.github.enabled",
+				wantKind:    configSetBool,
+				wantAllowed: true,
+			},
+			{
+				name:        "Should allow GitHub extension source base URL",
+				path:        "extensions.sources.github.base_url",
+				wantKind:    configSetString,
+				wantAllowed: true,
+			},
+			{
+				name:        "Should allow direct Git extension source toggle",
+				path:        "extensions.sources.git.enabled",
+				wantKind:    configSetBool,
+				wantAllowed: true,
+			},
+			{
+				name:        "Should allow extension dev watch interval",
+				path:        "extensions.dev.watch_interval",
+				wantKind:    configSetDuration,
+				wantAllowed: true,
+			},
+			{
 				name:        "Should allow window manager string behavior",
 				path:        "window_manager.new_window_policy",
 				wantKind:    configSetString,
@@ -1336,6 +1366,29 @@ func TestConfigRenderingAndMutationHelpers(t *testing.T) {
 					)
 				}
 			})
+		}
+	})
+
+	t.Run("Should reject removed extension paths with replacements", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			path        string
+			replacement string
+		}{
+			{path: "extensions.marketplace.allow_unverified", replacement: "extensions.trust.allow_unverified"},
+			{path: "extensions.marketplace.base_url", replacement: "extensions.sources.github.base_url"},
+			{path: "extensions.marketplace.registry", replacement: "extensions.sources.github.enabled"},
+			{path: "extensions.marketplace.enabled", replacement: "extensions.trust or extensions.sources"},
+		}
+		for _, tt := range tests {
+			_, _, _, err := configMutationPath(tt.path)
+			if err == nil {
+				t.Fatalf("configMutationPath(%q) error = nil, want removed-path rejection", tt.path)
+			}
+			if !strings.Contains(err.Error(), tt.path) || !strings.Contains(err.Error(), tt.replacement) {
+				t.Fatalf("configMutationPath(%q) error = %v, want replacement %q", tt.path, err, tt.replacement)
+			}
 		}
 	})
 

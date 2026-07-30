@@ -1,8 +1,22 @@
 export { BundleActivationDialog } from "./bundle-activation-dialog";
 export type { BundleActivationDialogProps } from "./bundle-activation-dialog";
 export { buildBundleRequest } from "./bundle-activation-model";
+export { ExtensionInstallDialog } from "./extension-install-dialog";
+export type { ExtensionInstallDialogProps } from "./extension-install-dialog";
+export {
+  buildExtensionInstallRequest,
+  createExtensionInstallForm,
+  EXTENSION_INSTALL_SOURCES,
+  validateExtensionInstallForm,
+} from "./extension-install-model";
+export type {
+  ExtensionInstallFieldError,
+  ExtensionInstallForm,
+  ExtensionInstallSource,
+} from "./extension-install-model";
 export { ExtensionTrustDialog } from "./extension-trust-dialog";
 export type { ExtensionTrustDialogProps } from "./extension-trust-dialog";
+export { useExtensionInstallDialog } from "./use-extension-install-dialog";
 export { MarketplaceCard } from "./marketplace-card";
 export type { MarketplaceCardProps } from "./marketplace-card";
 export { MarketplaceEntryAction, MarketplaceEntryStatus } from "./marketplace-entry-actions";

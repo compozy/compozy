@@ -2,11 +2,11 @@ package cli
 
 import (
 	"fmt"
-
 	"strings"
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/spf13/cobra"
 )
 
 func extensionListBundle(items []ExtensionRecord) outputBundle {
@@ -17,6 +17,7 @@ func extensionListBundle(items []ExtensionRecord) outputBundle {
 		[]string{
 			automationNameValue,
 			versionValue,
+			extensionUpdateValue,
 			sessionTypeValue,
 			authoredContextStateValue,
 			authoredContextSourceValue,
@@ -27,6 +28,7 @@ func extensionListBundle(items []ExtensionRecord) outputBundle {
 		[]string{
 			automationNameKey,
 			versionKey,
+			updateUpdateKey,
 			extensionTypeKey,
 			stateKey,
 			automationSourceKey,
@@ -37,6 +39,7 @@ func extensionListBundle(items []ExtensionRecord) outputBundle {
 			return []string{
 				stringOrDash(item.Name),
 				stringOrDash(item.Version),
+				stringOrDash(extensionUpdateLabel(item.UpdateAvailable, item.RemoteVersion)),
 				stringOrDash(item.Type),
 				stringOrDash(item.State),
 				stringOrDash(item.Source),
@@ -48,6 +51,7 @@ func extensionListBundle(items []ExtensionRecord) outputBundle {
 			return []string{
 				item.Name,
 				item.Version,
+				extensionUpdateLabel(item.UpdateAvailable, item.RemoteVersion),
 				item.Type,
 				item.State,
 				item.Source,
@@ -61,6 +65,9 @@ func extensionListBundle(items []ExtensionRecord) outputBundle {
 func extensionBundle(item ExtensionRecord) outputBundle {
 	return outputBundle{
 		jsonValue: item,
+		jsonl: func(cmd *cobra.Command) error {
+			return writeJSONLine(cmd, item)
+		},
 		human: func() (string, error) {
 			return renderHumanSection("Extension", []keyValue{
 				{Label: automationNameValue, Value: stringOrDash(item.Name)},
@@ -77,9 +84,12 @@ func extensionBundle(item ExtensionRecord) outputBundle {
 					Value: stringOrDash(joinExtensionHealth(item.Health, item.HealthMessage)),
 				},
 				{Label: extensionCapabilitiesValue, Value: stringOrDash(strings.Join(item.Capabilities, ", "))},
-				{Label: "Actions", Value: stringOrDash(strings.Join(item.Actions, ", "))},
+				{Label: installPermissionsValue, Value: stringOrDash(strings.Join(item.Permissions, ", "))},
 				{Label: "Requires Env", Value: stringOrDash(strings.Join(item.RequiresEnv, ", "))},
 				{Label: "Missing Env", Value: stringOrDash(strings.Join(item.MissingEnv, ", "))},
+				{Label: "Consecutive Failures", Value: fmt.Sprintf("%d", item.ConsecutiveFailures)},
+				{Label: "Restart Backoff", Value: formatExtensionBackoff(item.RestartBackoffMS)},
+				{Label: "Summary", Value: extensionRuntimeSummary(item)},
 				{Label: "Last Error", Value: stringOrDash(item.LastError)},
 			}), nil
 		},
@@ -97,9 +107,12 @@ func extensionBundle(item ExtensionRecord) outputBundle {
 				extensionHealthKey,
 				"last_error",
 				extensionCapabilitiesKey,
-				"actions",
+				configPermissionsKey,
 				"requires_env",
 				"missing_env",
+				"consecutive_failures",
+				"restart_backoff_ms",
+				"summary",
 			}, []string{
 				item.Name,
 				item.Version,
@@ -113,12 +126,79 @@ func extensionBundle(item ExtensionRecord) outputBundle {
 				joinExtensionHealth(item.Health, item.HealthMessage),
 				item.LastError,
 				strings.Join(item.Capabilities, "|"),
-				strings.Join(item.Actions, "|"),
+				strings.Join(item.Permissions, "|"),
 				strings.Join(item.RequiresEnv, "|"),
 				strings.Join(item.MissingEnv, "|"),
+				fmt.Sprintf("%d", item.ConsecutiveFailures),
+				fmt.Sprintf("%d", item.RestartBackoffMS),
+				extensionRuntimeSummary(item),
 			}), nil
 		},
 	}
+}
+
+func extensionSuccessBundle(verb string, item ExtensionRecord) outputBundle {
+	bundle := extensionBundle(item)
+	baseHuman := bundle.human
+	bundle.human = func() (string, error) {
+		detail, err := baseHuman()
+		if err != nil {
+			return "", err
+		}
+		return renderHumanBlocks(
+			fmt.Sprintf("✓ %s %s", strings.TrimSpace(verb), strings.TrimSpace(item.Name)),
+			"next: "+extensionSuccessNextCommand(verb, item.Name),
+			detail,
+		), nil
+	}
+	return bundle
+}
+
+func extensionSuccessNextCommand(verb string, name string) string {
+	trimmedName := strings.TrimSpace(name)
+	switch strings.TrimSpace(verb) {
+	case extensionDevVerb, extensionReloadVerb:
+		return "compozy extension logs " + trimmedName + " --follow"
+	default:
+		return "compozy extension status " + trimmedName
+	}
+}
+
+func extensionUpdateLabel(available bool, remoteVersion string) string {
+	if !available {
+		return ""
+	}
+	if version := strings.TrimSpace(remoteVersion); version != "" {
+		return "→ " + version
+	}
+	return extensionUpdateAvailable
+}
+
+func formatExtensionBackoff(milliseconds int64) string {
+	if milliseconds <= 0 {
+		return "0s"
+	}
+	return (time.Duration(milliseconds) * time.Millisecond).String()
+}
+
+func extensionRuntimeSummary(item ExtensionRecord) string {
+	if item.ConsecutiveFailures > 0 {
+		return fmt.Sprintf(
+			"crash-looping (%d failures, backoff %s)",
+			item.ConsecutiveFailures,
+			formatExtensionBackoff(item.RestartBackoffMS),
+		)
+	}
+	if !item.Enabled {
+		return "disabled"
+	}
+	if item.DaemonRunning && strings.EqualFold(strings.TrimSpace(item.Health), "healthy") {
+		return "running and healthy"
+	}
+	if state := strings.TrimSpace(item.State); state != "" {
+		return state
+	}
+	return extensionRuntimeUnknown
 }
 
 func formatExtensionUptime(seconds int64) string {
@@ -155,6 +235,9 @@ func joinExtensionHealth(health string, message string) string {
 func extensionProvenanceBundle(item ExtensionProvenanceRecord) outputBundle {
 	return outputBundle{
 		jsonValue: item,
+		jsonl: func(cmd *cobra.Command) error {
+			return writeJSONLine(cmd, item)
+		},
 		human: func() (string, error) {
 			return renderHumanSection("Extension Provenance", []keyValue{
 				{Label: extensionMarketplaceSlugValue, Value: stringOrDash(item.Slug)},

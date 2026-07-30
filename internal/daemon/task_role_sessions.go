@@ -94,8 +94,8 @@ func (r *taskRoleRuntime) createRoleSession(
 }
 
 // activateForStarvation spawns a capability-matched worker for a starved run that no agent has
-// claimed. The worker self-claims via `compozy task next`; the scheduler never claims. It carries a
-// TTL + spawn budget so the reaper bounds its lifetime. Dedup on (agent, channel, scope) keeps the
+// claimed. The worker self-claims through the hosted session-bound native tool; the scheduler never
+// claims. It carries a TTL + spawn budget so the reaper bounds its lifetime. Dedup on (agent, channel, scope) keeps the
 // effective per-workspace cap at one active worker per role.
 func (r *taskRoleRuntime) activateForStarvation(
 	ctx context.Context,
@@ -296,7 +296,6 @@ func taskRoleProfileFingerprint(activation taskRoleActivation) string {
 
 func taskRolePromptOverlay(activation taskRoleActivation) string {
 	title := firstNonEmpty(activation.Title, activation.TaskID)
-	claimCommand := taskRoleClaimCommand(activation.RunID, activation.Capabilities)
 	designation := taskRoleDesignationOverlay(activation)
 	channelLine := ""
 	if activation.NetworkParticipation != nil &&
@@ -309,12 +308,13 @@ Task: %s
 Run: %s
 %s
 %s
-Use `+"`%s`"+` once to claim work for this session before changing files. Complete or fail the claimed run through the Compozy task lease commands from this same session.`,
+%s %s`,
 		title,
 		activation.RunID,
 		channelLine,
 		designation,
-		claimCommand,
+		taskClaimNativeInstruction(activation.RunID, activation.Capabilities),
+		taskLeaseNativeInstruction(),
 	)
 }
 
@@ -344,14 +344,6 @@ func applyTaskRoleDesignation(activation *taskRoleActivation, run taskpkg.Run) {
 	activation.HasDesignation = true
 }
 
-func taskRoleClaimCommand(runID string, capabilities []string) string {
-	args := []string{"compozy task next --run-id " + shellQuoteSimple(strings.TrimSpace(runID)) + " --wait -o json"}
-	for _, capability := range uniqueNonEmptyStrings(capabilities) {
-		args = append(args, "--capability "+shellQuoteSimple(capability))
-	}
-	return strings.Join(args, " ")
-}
-
 func profileRequiredWorkerCapabilities(profile *taskpkg.ExecutionProfile) []string {
 	if profile == nil {
 		return nil
@@ -374,13 +366,6 @@ func uniqueNonEmptyStrings(values []string) []string {
 		result = append(result, trimmed)
 	}
 	return result
-}
-
-func shellQuoteSimple(value string) string {
-	if value == "" {
-		return "''"
-	}
-	return "'" + strings.ReplaceAll(value, "'", "'\\''") + "'"
 }
 
 func (r *taskRoleRuntime) logTaskRoleError(

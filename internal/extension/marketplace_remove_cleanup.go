@@ -37,7 +37,7 @@ func marketplaceRemoveCleanupWarning(
 		diagnostics.WithEvidence(map[string]any{
 			managerExtensionKey: extensionName,
 			"cleanup_target":    marketplaceUpdateCleanupBackup,
-			"path":              path,
+			manifestPathKey:     path,
 		}),
 	)
 }

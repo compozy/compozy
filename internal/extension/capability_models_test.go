@@ -10,38 +10,33 @@ func TestCapabilityCheckerModelHostAPIMethods(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name       string
-		actions    []string
-		security   []string
-		method     string
-		wantError  bool
-		wantNeeded []string
+		name        string
+		permissions []string
+		method      string
+		wantError   bool
+		wantNeeded  []string
 	}{
 		{
-			name:     "Should allow models list with read grant",
-			actions:  []string{"models/list"},
-			security: []string{"model.read"},
-			method:   "models/list",
+			name:        "Should allow models list with read grant",
+			permissions: []string{"models/list"},
+			method:      "models/list",
 		},
 		{
-			name:     "Should allow models status with read grant",
-			actions:  []string{"models/status"},
-			security: []string{"model.read"},
-			method:   "models/status",
+			name:        "Should allow models status with read grant",
+			permissions: []string{"models/status"},
+			method:      "models/status",
 		},
 		{
-			name:     "Should allow models refresh with write grant",
-			actions:  []string{"models/refresh"},
-			security: []string{"model.write"},
-			method:   "models/refresh",
+			name:        "Should allow models refresh with write grant",
+			permissions: []string{"models/refresh"},
+			method:      "models/refresh",
 		},
 		{
-			name:       "Should reject models refresh without write grant",
-			actions:    []string{"models/refresh"},
-			security:   []string{"model.read"},
-			method:     "models/refresh",
-			wantError:  true,
-			wantNeeded: []string{"model.write"},
+			name:        "Should reject an undeclared models refresh permission",
+			permissions: []string{"models/list"},
+			method:      "models/refresh",
+			wantError:   true,
+			wantNeeded:  []string{"models/refresh"},
 		},
 	}
 
@@ -49,7 +44,7 @@ func TestCapabilityCheckerModelHostAPIMethods(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			checker := newTestCapabilityChecker("ext", SourceUser, tt.actions, tt.security)
+			checker := newTestCapabilityChecker("ext", SourceUser, tt.permissions)
 			err := checker.CheckHostAPI("ext", tt.method)
 			if !tt.wantError {
 				if err != nil {
@@ -104,28 +99,28 @@ func TestCapabilityCheckerMarketplaceModelCeilings(t *testing.T) {
 
 		checker := &CapabilityChecker{}
 		checker.Register("ext", SourceMarketplace, &Manifest{
-			Actions: ActionsConfig{
+			Permissions: PermissionsConfig{
 				Requires: []string{"models/list", "models/refresh", "models/status", "sessions/list"},
-			},
-			Security: SecurityConfig{
-				Capabilities: []string{"model.read", "model.write", "session.read"},
 			},
 		})
 
 		grant := checker.Grant("ext")
-		if slices.Contains(grant.Actions, "models/list") ||
-			slices.Contains(grant.Actions, "models/refresh") ||
-			slices.Contains(grant.Actions, "models/status") {
-			t.Fatalf("Grant.Actions = %v, want marketplace model actions denied by source tier ceiling", grant.Actions)
+		if slices.Contains(grant.Permissions, "models/list") ||
+			slices.Contains(grant.Permissions, "models/refresh") ||
+			slices.Contains(grant.Permissions, "models/status") {
+			t.Fatalf(
+				"Grant.Permissions = %v, want marketplace model permissions denied by source tier ceiling",
+				grant.Permissions,
+			)
 		}
 		if slices.Contains(grant.Security, "model.read") || slices.Contains(grant.Security, "model.write") {
 			t.Fatalf(
-				"Grant.Security = %v, want marketplace model security denied by source tier ceiling",
+				"Grant.Security = %v, want derived marketplace model consent denied by source tier ceiling",
 				grant.Security,
 			)
 		}
-		if !slices.Equal(grant.Actions, []string{"sessions/list"}) {
-			t.Fatalf("Grant.Actions = %v, want [sessions/list]", grant.Actions)
+		if !slices.Equal(grant.Permissions, []string{"sessions/list"}) {
+			t.Fatalf("Grant.Permissions = %v, want [sessions/list]", grant.Permissions)
 		}
 		if !slices.Equal(grant.Security, []string{"session.read"}) {
 			t.Fatalf("Grant.Security = %v, want [session.read]", grant.Security)

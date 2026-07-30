@@ -307,13 +307,12 @@ func discoveredProviderInitializeRequest(
 		},
 		Capabilities: subprocess.InitializeCapabilities{
 			Provides: []string{protocol.CapabilityProvideBridgeAdapter},
-			GrantedActions: []protocol.HostAPIMethod{
+			GrantedPermissions: []protocol.HostAPIMethod{
 				protocol.HostAPIMethodBridgesInstancesList,
 				protocol.HostAPIMethodBridgesInstancesGet,
 				protocol.HostAPIMethodBridgesInstancesReportState,
 				protocol.HostAPIMethodBridgesMessagesIngest,
 			},
-			GrantedSecurity: []string{"bridge.read", "bridge.write"},
 		},
 		Methods: subprocess.InitializeMethods{ExtensionServices: []string{
 			"bridges/deliver",
@@ -441,7 +440,7 @@ required = true
 schema = "compozy.bridge.synthetic"
 version = "1"
 
-[actions]
+[permissions]
 requires = [
   "bridges/instances/list",
   "bridges/instances/get",
@@ -453,8 +452,6 @@ requires = [
 command = "./synthetic"
 args = ["serve"]
 
-[security]
-capabilities = ["bridge.read", "bridge.write"]
 `
 
 const syntheticProviderSource = `

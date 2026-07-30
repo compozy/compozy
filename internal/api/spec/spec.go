@@ -31,10 +31,14 @@ const (
 	specAPIAutomationTriggersIDPath                          = "/api/automation/triggers/{id}"
 	specAPIBundlesActivationsIDPath                          = "/api/bundles/activations/{id}"
 	specAPIExtensionsPath                                    = "/api/extensions"
+	specAPIExtensionsCommandsPath                            = specAPIExtensionsPath + "/commands"
 	specAPIExtensionsNamePath                                = "/api/extensions/{name}"
 	specAPIExtensionsNameProvenancePath                      = specAPIExtensionsNamePath + "/provenance"
 	specAPIExtensionsNameEnablePath                          = specAPIExtensionsNamePath + "/enable"
 	specAPIExtensionsNameDisablePath                         = specAPIExtensionsNamePath + "/disable"
+	specAPIExtensionsDevPath                                 = specAPIExtensionsPath + "/dev"
+	specAPIExtensionsNameReloadPath                          = specAPIExtensionsNamePath + "/reload"
+	specAPIExtensionsNameLogsPath                            = specAPIExtensionsNamePath + "/logs"
 	specAPIMemoryFilenamePath                                = "/api/memory/{filename}"
 	specAPINotificationsPresetsPath                          = "/api/notifications/presets"
 	specAPINotificationsPresetsNamePath                      = specAPINotificationsPresetsPath + "/{name}"
@@ -267,6 +271,9 @@ func Document() (*openapi3.T, error) {
 			{Name: specVaultKey},
 			{Name: specWorkspacesKey},
 		},
+	}
+	if err := registerExtensionAuthoringComponentSchemas(doc.Components.Schemas); err != nil {
+		return nil, fmt.Errorf("register extension authoring component schemas: %w", err)
 	}
 	if err := registerWindowManagerComponentSchemas(doc.Components.Schemas); err != nil {
 		return nil, fmt.Errorf("register window-manager component schemas: %w", err)

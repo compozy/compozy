@@ -9,6 +9,9 @@ import (
 
 	"net/http"
 	"net/url"
+	"strings"
+
+	registrypkg "github.com/compozy/compozy/internal/registry"
 )
 
 func (c *Client) fetchLatestRelease(ctx context.Context, repo repoSlug) (_ *release, err error) {
@@ -146,6 +149,12 @@ func (c *Client) fetchRequestedRelease(
 			fmt.Sprintf("release response for %q at %q", repo.full, version),
 		); err != nil {
 			return nil, err
+		}
+		trimmedVersion := strings.TrimSpace(version)
+		if !strings.HasPrefix(trimmedVersion, "v") &&
+			!strings.HasPrefix(trimmedVersion, "V") &&
+			registrypkg.VersionIsNewer("", trimmedVersion) {
+			return c.fetchRequestedRelease(ctx, repo, "v"+trimmedVersion)
 		}
 		return nil, fmt.Errorf("github: release %q not found for repository %q", version, repo.full)
 	default:

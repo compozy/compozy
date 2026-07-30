@@ -2,7 +2,6 @@ export const storyCompany = {
   name: "Northstar Pay",
   shortName: "Northstar",
   registryBaseUrl: "https://registry.northstarpay.internal/compozy",
-  hooksMarketplaceBaseUrl: "https://extensions.northstarpay.internal/compozy",
   tagline: "Launch week for Northstar Pay Checkout across Brazil and Mexico",
 } as const;
 

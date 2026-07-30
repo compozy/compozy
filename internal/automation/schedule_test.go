@@ -857,6 +857,7 @@ func TestSchedulerRestartAfterClaimDoesNotDuplicateAlreadyClaimedFire(t *testing
 	); got != want {
 		t.Fatalf("overlap skip reason = %#v, want %q", got, want)
 	}
+	waitForTimers(t, secondClock, 1)
 
 	cancelDispatch()
 	select {

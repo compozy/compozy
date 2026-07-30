@@ -592,9 +592,10 @@ func TestSessionInitializeAccessorsReturnClones(t *testing.T) {
 	session := &Session{
 		request: subprocess.InitializeRequest{
 			Capabilities: subprocess.InitializeCapabilities{
-				Provides:        []string{"bridge.adapter"},
-				GrantedActions:  []extensionprotocol.HostAPIMethod{extensionprotocol.HostAPIMethodBridgesInstancesList},
-				GrantedSecurity: []string{"bridge.read"},
+				Provides: []string{"bridge.adapter"},
+				GrantedPermissions: []extensionprotocol.HostAPIMethod{
+					extensionprotocol.HostAPIMethodBridgesInstancesList,
+				},
 			},
 			Methods: subprocess.InitializeMethods{
 				DaemonRequests:    []string{"ping"},
@@ -606,9 +607,8 @@ func TestSessionInitializeAccessorsReturnClones(t *testing.T) {
 		},
 		response: subprocess.InitializeResponse{
 			AcceptedCapabilities: subprocess.AcceptedCapabilities{
-				Provides: []string{"bridge.adapter"},
-				Actions:  []extensionprotocol.HostAPIMethod{extensionprotocol.HostAPIMethodBridgesInstancesGet},
-				Security: []string{"bridge.write"},
+				Provides:    []string{"bridge.adapter"},
+				Permissions: []extensionprotocol.HostAPIMethod{extensionprotocol.HostAPIMethodBridgesInstancesGet},
 			},
 			ImplementedMethods:  []string{"bridges/deliver"},
 			SupportedHookEvents: []string{"hook"},
@@ -619,15 +619,13 @@ func TestSessionInitializeAccessorsReturnClones(t *testing.T) {
 	response := session.InitializeResponse()
 
 	request.Capabilities.Provides[0] = "mutated"
-	request.Capabilities.GrantedActions[0] = extensionprotocol.HostAPIMethodBridgesInstancesGet
-	request.Capabilities.GrantedSecurity[0] = "mutated"
+	request.Capabilities.GrantedPermissions[0] = extensionprotocol.HostAPIMethodBridgesInstancesGet
 	request.Methods.DaemonRequests[0] = "mutated"
 	request.Methods.ExtensionServices[0] = "mutated"
 	request.Runtime.Bridge.ManagedInstances[0].Instance.ID = "mutated"
 
 	response.AcceptedCapabilities.Provides[0] = "mutated"
-	response.AcceptedCapabilities.Actions[0] = extensionprotocol.HostAPIMethodBridgesMessagesIngest
-	response.AcceptedCapabilities.Security[0] = "mutated"
+	response.AcceptedCapabilities.Permissions[0] = extensionprotocol.HostAPIMethodBridgesMessagesIngest
 	response.ImplementedMethods[0] = "mutated"
 	response.SupportedHookEvents[0] = "mutated"
 

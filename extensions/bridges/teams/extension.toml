@@ -2,7 +2,7 @@
 name = "teams"
 version = "0.1.0"
 description = "Production Microsoft Teams bridge provider built on internal/bridgesdk"
-min_compozy_version = "0.5.0"
+min_compozy_version = "0.3.0-beta.1"
 
 [capabilities]
 provides = ["bridge.adapter"]
@@ -30,7 +30,7 @@ required = false
 schema = "compozy.bridge.teams"
 version = "1"
 
-[actions]
+[permissions]
 requires = [
   "bridges/instances/list",
   "bridges/messages/ingest",
@@ -56,6 +56,3 @@ COMPOZY_BRIDGE_TEAMS_SERVICE_URL = "{{env:COMPOZY_BRIDGE_TEAMS_SERVICE_URL}}"
 COMPOZY_BRIDGE_TEAMS_OPENID_METADATA_URL = "{{env:COMPOZY_BRIDGE_TEAMS_OPENID_METADATA_URL}}"
 COMPOZY_BRIDGE_TEAMS_TOKEN_URL = "{{env:COMPOZY_BRIDGE_TEAMS_TOKEN_URL}}"
 COMPOZY_BRIDGE_TEAMS_ALLOW_LOOPBACK_AUTH_FOR_TESTING = "{{env:COMPOZY_BRIDGE_TEAMS_ALLOW_LOOPBACK_AUTH_FOR_TESTING}}"
-
-[security]
-capabilities = ["bridge.read", "bridge.write"]

@@ -36,6 +36,7 @@ import (
 
 type stubExtensionService struct {
 	ListFn             func(context.Context) ([]contract.ExtensionPayload, error)
+	SearchFn           func(context.Context, contract.ExtensionSearchRequest) (contract.ExtensionSearchResponse, error)
 	MarketplaceTrustFn func(context.Context, extensionpkg.MarketplaceTrustEvidence) (contract.ExtensionTrustReportPayload, error)
 	InstallFn          func(context.Context, contract.InstallExtensionRequest, taskpkg.ActorContext) (contract.ExtensionPayload, error)
 	UpdateFn           func(context.Context, string, contract.UpdateExtensionRequest, taskpkg.ActorContext) (contract.ManagedExtensionUpdatePayload, error)
@@ -44,6 +45,16 @@ type stubExtensionService struct {
 	DisableFn          func(context.Context, string, taskpkg.ActorContext) (contract.ExtensionPayload, error)
 	StatusFn           func(context.Context, string) (contract.ExtensionPayload, error)
 	ProvenanceFn       func(context.Context, string) (contract.ExtensionProvenancePayload, error)
+}
+
+func (s stubExtensionService) Search(
+	ctx context.Context,
+	req contract.ExtensionSearchRequest,
+) (contract.ExtensionSearchResponse, error) {
+	if s.SearchFn == nil {
+		return contract.ExtensionSearchResponse{}, nil
+	}
+	return s.SearchFn(ctx, req)
 }
 
 func (s stubExtensionService) List(ctx context.Context) ([]contract.ExtensionPayload, error) {
@@ -84,6 +95,14 @@ func (s stubExtensionService) Update(
 		return contract.ManagedExtensionUpdatePayload{}, nil
 	}
 	return s.UpdateFn(ctx, name, req, actor)
+}
+
+func (s stubExtensionService) UpdateBatch(
+	context.Context,
+	contract.UpdateExtensionsRequest,
+	taskpkg.ActorContext,
+) ([]contract.ManagedExtensionUpdatePayload, error) {
+	return nil, nil
 }
 
 func (s stubExtensionService) Remove(
@@ -225,7 +244,10 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"GET /api/doctor",
 			"POST /api/drain",
 			"GET /api/extensions",
+			"GET /api/extensions/commands",
+			"GET /api/extensions/search",
 			"GET /api/extensions/:name",
+			"GET /api/extensions/:name/logs",
 			"GET /api/extensions/:name/provenance",
 			"GET /api/hooks/catalog",
 			"GET /api/hooks/events",
@@ -428,8 +450,11 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"POST /api/agents/:name/soul/rollback",
 			"POST /api/agents/:name/soul/validate",
 			"POST /api/extensions",
+			"POST /api/extensions/:name/reload",
 			"POST /api/extensions/:name/disable",
 			"POST /api/extensions/:name/enable",
+			"POST /api/extensions/dev",
+			"POST /api/extensions/update",
 			"POST /api/notifications/presets",
 			"POST /api/internal/hosted-mcp/bind",
 			"POST /api/internal/hosted-mcp/release",
