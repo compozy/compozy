@@ -45,7 +45,11 @@ const createdSession: SessionPayload = {
   id: "sess-created",
   name: "Created session",
   agent_name: "claude-agent",
-  provider: "claude",
+  runtime: {
+    status: "ready",
+    transition: "initial_bind",
+    effective: { provider: "claude" },
+  },
   workspace_id: "ws_alpha",
   workspace_path: "/workspace/alpha",
   state: "active",

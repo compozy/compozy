@@ -7,6 +7,10 @@ import (
 	"time"
 )
 
+type ProviderModelStatusResponse struct {
+	Sources []ModelCatalogSourceStatusPayload `json:"sources"`
+}
+
 type ReasonCode string
 
 type ReasoningSource string
@@ -140,9 +144,4 @@ type Run struct {
 	DeliveryErrorAt      *time.Time     `json:"delivery_error_at,omitempty"`
 	NetworkParticipation *Request       `json:"network_participation,omitempty"`
 	Metadata             map[string]any `json:"metadata,omitempty"`
-}
-
-type RunDesignationSummary struct {
-	Index int    `json:"index"`
-	Brief string `json:"brief,omitempty"`
 }

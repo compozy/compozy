@@ -78,6 +78,7 @@ func TestSessionMetaValidateStopReason(t *testing.T) {
 				WorkspaceID:          "ws-meta",
 				NetworkParticipation: participation.CloneSpec(participation.LocalSpec()),
 				State:                "stopped",
+				RuntimeStatus:        SessionRuntimeReady,
 				StopReason:           tt.reason,
 				CreatedAt:            now,
 				UpdatedAt:            now,
@@ -106,13 +107,14 @@ func TestSessionStopReasonValidationContract(t *testing.T) {
 		t.Parallel()
 
 		info := SessionInfo{
-			ID:          "sess-info",
-			AgentName:   "coder",
-			WorkspaceID: "ws-info",
-			State:       "stopped",
-			StopReason:  StopReason("invalid"),
-			CreatedAt:   now,
-			UpdatedAt:   now,
+			ID:            "sess-info",
+			AgentName:     "coder",
+			WorkspaceID:   "ws-info",
+			State:         "stopped",
+			RuntimeStatus: SessionRuntimeReady,
+			StopReason:    StopReason("invalid"),
+			CreatedAt:     now,
+			UpdatedAt:     now,
 		}
 
 		err := info.Validate()
@@ -135,13 +137,14 @@ func TestSessionStopReasonValidationContract(t *testing.T) {
 				t.Parallel()
 
 				info := SessionInfo{
-					ID:          "sess-info-" + tc.name,
-					AgentName:   "coder",
-					WorkspaceID: "ws-info",
-					State:       "stopped",
-					StopReason:  tc.reason,
-					CreatedAt:   now,
-					UpdatedAt:   now,
+					ID:            "sess-info-" + tc.name,
+					AgentName:     "coder",
+					WorkspaceID:   "ws-info",
+					State:         "stopped",
+					StopReason:    tc.reason,
+					RuntimeStatus: SessionRuntimeReady,
+					CreatedAt:     now,
+					UpdatedAt:     now,
 				}
 				if err := info.Validate(); err != nil {
 					t.Fatalf("Validate() error = %v", err)

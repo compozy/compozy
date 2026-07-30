@@ -364,9 +364,16 @@ func TestPromptErrorPaths(t *testing.T) {
 
 	h = newHarness(t)
 	session = createSession(t, h)
-	session.clearProcess(time.Now().UTC())
-	if _, err := h.manager.Prompt(testutil.Context(t), session.ID, "missing-process"); err == nil {
-		t.Fatal("Prompt(missing process) error = nil, want non-nil")
+	session.markRuntimeUnbound(time.Now().UTC())
+	if got := session.Info().RuntimeStatus; got != RuntimeStatusUnbound {
+		t.Fatalf("unbound session runtime status = %q, want %q", got, RuntimeStatusUnbound)
+	}
+	bindErr := errors.New("runtime bind unavailable")
+	h.driver.startHook = func(_ acp.StartOpts, _ int) (*fakeProcess, error) {
+		return nil, bindErr
+	}
+	if _, err := h.manager.Prompt(testutil.Context(t), session.ID, "bind-runtime"); !errors.Is(err, bindErr) {
+		t.Fatalf("Prompt(unbound) error = %v, want runtime bind failure", err)
 	}
 }
 
@@ -614,6 +621,7 @@ func TestCreateAndResumeRequireWorkspaceResolver(t *testing.T) {
 		WorkspaceID:          "ws-stored",
 		NetworkParticipation: testLocalParticipationPtr(),
 		State:                string(StateStopped),
+		RuntimeStatus:        store.SessionRuntimeReady,
 		CreatedAt:            time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
 		UpdatedAt:            time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
 	}); err != nil {

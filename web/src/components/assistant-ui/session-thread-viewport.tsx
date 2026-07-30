@@ -1,14 +1,17 @@
 import { ThreadPrimitive } from "@assistant-ui/react";
-import { type ComponentPropsWithoutRef, useLayoutEffect, useRef } from "react";
+import { type ComponentPropsWithoutRef, useRef } from "react";
 
 import { cn } from "@/lib/utils";
 import { SessionLoadOlderButton } from "@/systems/session/components/session-load-older-button";
 import { useSessionTranscriptThreadState } from "@/systems/session";
 import type { SessionFailurePayload, SessionState } from "@/systems/session";
 import { useThreadScrollController } from "./hooks/use-thread-scroll-controller";
+import { useOlderTranscriptAnchor } from "./hooks/use-older-transcript-anchor";
+import { usePrefersReducedMotion } from "./hooks/use-prefers-reduced-motion";
 import { ScrollToBottomPill } from "./scroll-to-bottom-pill";
 import { ThreadContentRail, type SessionThreadContentInset } from "./session-thread-content-rail";
 import { ThreadMessages } from "./session-thread-messages";
+import { WorkingIndicator } from "./session-working-row";
 
 type ThreadViewportProps = ComponentPropsWithoutRef<typeof ThreadPrimitive.Viewport>;
 
@@ -25,6 +28,7 @@ export function ThreadViewport({
   sessionState,
   failure,
   startupFailed,
+  showPromptDispatchWorking,
   className,
   ...props
 }: ThreadViewportProps & {
@@ -35,8 +39,10 @@ export function ThreadViewport({
   sessionState?: SessionState;
   failure?: SessionFailurePayload | null;
   startupFailed: boolean;
+  showPromptDispatchWorking: boolean;
 }) {
   const viewportRef = useRef<HTMLDivElement | null>(null);
+  const reducedMotion = usePrefersReducedMotion();
   const {
     messages: transcriptMessages,
     status: transcriptStatus,
@@ -46,43 +52,17 @@ export function ThreadViewport({
     loadOlder,
     retry: retryTranscript,
   } = useSessionTranscriptThreadState();
-  const olderAnchorRef = useRef<{ messageId: string; offsetTop: number } | null>(null);
   const messageCount = transcriptMessages.length;
   const { showScrollToBottom, scrollToEnd } = useThreadScrollController(
     viewportRef,
     transcriptMessages
   );
-  const loadOlderWithAnchor = () => {
-    const viewport = viewportRef.current;
-    if (viewport) {
-      const viewportTop = viewport.getBoundingClientRect().top;
-      const messageRows = [...viewport.querySelectorAll<HTMLElement>("[data-message-id]")];
-      const anchorRow =
-        messageRows.find(row => row.getBoundingClientRect().bottom >= viewportTop) ??
-        messageRows[0];
-      const messageId = anchorRow?.dataset.messageId;
-      olderAnchorRef.current =
-        anchorRow && messageId
-          ? { messageId, offsetTop: anchorRow.getBoundingClientRect().top - viewportTop }
-          : null;
-    }
-    loadOlder();
-  };
-
-  useLayoutEffect(() => {
-    const viewport = viewportRef.current;
-    const anchor = olderAnchorRef.current;
-    if (!viewport || !anchor || isFetchingOlder) return;
-    const anchorRow = [...viewport.querySelectorAll<HTMLElement>("[data-message-id]")].find(
-      row => row.dataset.messageId === anchor.messageId
-    );
-    if (anchorRow) {
-      const nextOffset =
-        anchorRow.getBoundingClientRect().top - viewport.getBoundingClientRect().top;
-      viewport.scrollTop += nextOffset - anchor.offsetTop;
-    }
-    olderAnchorRef.current = null;
-  }, [isFetchingOlder, messageCount]);
+  const loadOlderWithAnchor = useOlderTranscriptAnchor({
+    viewportRef,
+    isFetchingOlder,
+    messageCount,
+    loadOlder,
+  });
 
   return (
     <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
@@ -109,6 +89,11 @@ export function ThreadViewport({
             failure={failure}
             startupFailed={startupFailed}
           />
+          {showPromptDispatchWorking && messageCount > 0 ? (
+            <div className="flex w-full min-w-0 items-start pb-transcript-turn-gap pt-1">
+              <WorkingIndicator reducedMotion={reducedMotion} />
+            </div>
+          ) : null}
         </ThreadContentRail>
       </ThreadPrimitive.Viewport>
       <ScrollToBottomPill visible={showScrollToBottom} onClick={scrollToEnd} />

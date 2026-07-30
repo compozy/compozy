@@ -13,6 +13,24 @@ func (m *Manager) submitPromptRequest(ctx context.Context, req promptRequest) (<
 	if err != nil {
 		return nil, err
 	}
+	proc, err := session.beginExclusivePromptSetup()
+	if err != nil {
+		return nil, err
+	}
+	slotReserved := true
+	defer func() {
+		if slotReserved {
+			session.finishPromptSetup()
+		}
+	}()
+	proc, err = m.ensurePromptRuntime(ctx, session, req.runtime, proc)
+	if err != nil {
+		return nil, err
+	}
+	if req.releaseSlotBeforeHooks {
+		session.finishPromptSetup()
+		slotReserved = false
+	}
 	message, err := m.dispatchInputPreSubmit(ctx, session, req.turnID, req.turnSource, req.message)
 	if err != nil {
 		return nil, err
@@ -21,11 +39,17 @@ func (m *Manager) submitPromptRequest(ctx context.Context, req promptRequest) (<
 	if err := m.dispatchTurnStart(ctx, turnState); err != nil {
 		return nil, err
 	}
-	proc, err := session.beginExclusivePromptSetup()
-	if err != nil {
-		return nil, err
+	if !slotReserved {
+		proc, err = session.beginExclusivePromptSetup()
+		if err != nil {
+			return nil, err
+		}
+		slotReserved = true
+		proc, err = m.ensurePromptRuntime(ctx, session, req.runtime, proc)
+		if err != nil {
+			return nil, err
+		}
 	}
-	defer session.finishPromptSetup()
 	return m.submitPromptInReservedSlot(ctx, session, proc, req, message, turnState)
 }
 

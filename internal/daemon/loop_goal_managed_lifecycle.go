@@ -162,7 +162,7 @@ func (l *loopGoalManagedInputLifecycle) RecordAmbiguous(
 	operation, err := l.loadOperation(ctx, receipt.Owner)
 	if err != nil {
 		entry, lookupErr := l.store.GetSessionInputQueueEntryByID(ctx, receipt.Owner.QueueEntryID)
-		if lookupErr == nil && managedGoalEntrySettled(entry) {
+		if lookupErr == nil && managedGoalEntrySettled(&entry) {
 			return nil
 		}
 		return errors.Join(err, lookupErr)
@@ -235,7 +235,7 @@ func (l *loopGoalManagedInputLifecycle) loadOperation(
 	if err != nil {
 		return managedGoalOperation{}, err
 	}
-	if !managedGoalEntryMatchesOwner(entry, owner) {
+	if !managedGoalEntryMatchesOwner(&entry, owner) {
 		return managedGoalOperation{}, fmt.Errorf("%w: managed Goal queue owner changed", looppkg.ErrTransitionConflict)
 	}
 	taskRun, err := l.store.GetTaskRun(ctx, owner.TaskRunID)
@@ -326,7 +326,7 @@ func (l *loopGoalManagedInputLifecycle) reconcileClaimError(
 			cause,
 		)
 	}
-	if managedGoalEntrySettled(entry) {
+	if managedGoalEntrySettled(&entry) {
 		return session.ManagedInputSubmission{}, &session.ManagedInputEffectError{
 			Owner:      owner,
 			Certainty:  session.EffectKnownFalse,
@@ -424,7 +424,7 @@ func managedGoalDispatchActor(run taskpkg.Run) (string, string) {
 	return string(taskpkg.ActorKindDaemon), loopActionRuntimeActorRef
 }
 
-func managedGoalEntrySettled(entry store.SessionInputQueueEntry) bool {
+func managedGoalEntrySettled(entry *store.SessionInputQueueEntry) bool {
 	return entry.TerminalAt != nil || strings.TrimSpace(entry.FenceKind) != ""
 }
 

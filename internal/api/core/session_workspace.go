@@ -16,7 +16,6 @@ import (
 	"github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
-	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/transcript"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -44,38 +43,6 @@ func validateCreateSessionRequest(prefix string, workspaceRef string, workspaceP
 	default:
 		return nil
 	}
-}
-
-// validateCreateSessionRuntimeOverrides enforces the model + reasoning_effort
-// invariants for create-session payloads. Provider must be set when either
-// override is present, and reasoning_effort must match the supported enum.
-func validateCreateSessionRuntimeOverrides(
-	prefix string,
-	provider string,
-	model string,
-	reasoningEffort string,
-	requestedSpeed string,
-) error {
-	trimmedProvider := strings.TrimSpace(provider)
-	trimmedModel := strings.TrimSpace(model)
-	trimmedEffort := strings.TrimSpace(reasoningEffort)
-	if trimmedModel != "" && trimmedProvider == "" {
-		return prefixedRuntimeOverrideError(prefix, "provider is required when model is set")
-	}
-	if trimmedEffort != "" {
-		if trimmedProvider == "" {
-			return prefixedRuntimeOverrideError(prefix, "provider is required when reasoning_effort is set")
-		}
-		if err := session.ValidateReasoningEffort(trimmedEffort); err != nil {
-			return prefixedRuntimeOverrideErr(prefix, err)
-		}
-	}
-	if strings.TrimSpace(requestedSpeed) != "" {
-		if _, err := speedpkg.Parse(requestedSpeed); err != nil {
-			return prefixedRuntimeOverrideErr(prefix, fmt.Errorf("%w: %w", session.ErrInvalidRuntimeOverride, err))
-		}
-	}
-	return nil
 }
 
 // LookupWorkspaceID resolves a workspace reference into a stable workspace ID.
@@ -267,16 +234,4 @@ func prefixedError(prefix string, message string) error {
 		return errors.New(message)
 	}
 	return fmt.Errorf("%s: %s", label, message)
-}
-
-func prefixedRuntimeOverrideError(prefix string, message string) error {
-	return fmt.Errorf("%w: %w", session.ErrInvalidRuntimeOverride, prefixedError(prefix, message))
-}
-
-func prefixedRuntimeOverrideErr(prefix string, err error) error {
-	label := strings.TrimSpace(prefix)
-	if label == "" {
-		return err
-	}
-	return fmt.Errorf("%s: %w", label, err)
 }

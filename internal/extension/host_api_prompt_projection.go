@@ -12,6 +12,7 @@ import (
 
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
 
+	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 
 	"github.com/compozy/compozy/internal/transcript"
@@ -27,6 +28,7 @@ func (h *HostAPIHandler) submitPrompt(
 	ctx context.Context,
 	sessionID string,
 	message string,
+	runtime *session.RuntimeSelection,
 ) (hostAPIPromptSubmission, error) {
 	if h.sessions == nil {
 		return hostAPIPromptSubmission{}, errors.New("extension: session manager is not configured")
@@ -38,7 +40,7 @@ func (h *HostAPIHandler) submitPrompt(
 	}
 
 	promptCtx := context.WithoutCancel(ctx)
-	eventsCh, err := h.sessions.Prompt(promptCtx, sessionID, message)
+	eventsCh, err := h.submitRuntimePrompt(promptCtx, sessionID, message, runtime)
 	if err != nil {
 		return hostAPIPromptSubmission{}, err
 	}
@@ -52,6 +54,32 @@ func (h *HostAPIHandler) submitPrompt(
 	}
 
 	return promptSubmissionFromStoredEvents(events)
+}
+
+func (h *HostAPIHandler) submitRuntimePrompt(
+	ctx context.Context,
+	sessionID string,
+	message string,
+	runtime *session.RuntimeSelection,
+) (<-chan acp.AgentEvent, error) {
+	if runtime == nil {
+		return h.sessions.Prompt(ctx, sessionID, message)
+	}
+	prompter, ok := h.sessions.(hostAPIRuntimePromptSessionManager)
+	if !ok {
+		return nil, errors.New("extension: session manager does not support prompt runtime selection")
+	}
+	result, err := prompter.SendPrompt(ctx, sessionID, session.SendPromptOpts{
+		Message: message,
+		Runtime: runtime,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if result.Events == nil {
+		return nil, errors.New("extension: prompt runtime selection was not admitted for immediate delivery")
+	}
+	return result.Events, nil
 }
 
 func promptSubmissionFromStoredEvents(events []store.SessionEvent) (hostAPIPromptSubmission, error) {

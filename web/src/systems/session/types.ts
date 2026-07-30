@@ -11,7 +11,9 @@ export type SessionResponse = OperationResponse<"getSession", 200>;
 export type SessionByIDResponse = OperationResponse<"getSessionByID", 200>;
 /** Minimal workspace-ownership projection: the only session read allowed before a switch confirm. */
 export type SessionOwnerResponse = OperationResponse<"getSessionOwner", 200>;
-export type ACPCaps = NonNullable<SessionPayload["acp_caps"]>;
+export type SessionRuntimePayload = SessionPayload["runtime"];
+export type SessionRuntimeEffective = NonNullable<SessionRuntimePayload["effective"]>;
+export type ACPCaps = NonNullable<SessionRuntimePayload["acp_caps"]>;
 export type SessionState = SessionPayload["state"];
 export type SessionFailurePayload = NonNullable<SessionPayload["failure"]>;
 export type SessionLineagePayload = NonNullable<SessionPayload["lineage"]>;

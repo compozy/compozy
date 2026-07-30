@@ -7,6 +7,8 @@ import (
 	"time"
 )
 
+type Scope string
+
 type SessionActivityHealth struct {
 	SessionID          string     `json:"session_id"`
 	TurnID             string     `json:"turn_id,omitempty"`
@@ -54,7 +56,6 @@ type SessionCreatePatch struct {
 
 type SessionCreateResult struct {
 	SessionID string `json:"session_id"`
-	Provider  string `json:"provider"`
 }
 
 type SessionEvent struct {
@@ -262,23 +263,6 @@ type SessionPostStopPatch struct {
 }
 
 type SessionPostStopPayload struct {
-	Event          HookEvent `json:"event"`
-	Timestamp      time.Time `json:"timestamp"`
-	SessionID      string    `json:"session_id,omitempty"`
-	SessionName    string    `json:"session_name,omitempty"`
-	SessionType    string    `json:"session_type,omitempty"`
-	AgentName      string    `json:"agent_name,omitempty"`
-	WorkspaceID    string    `json:"workspace_id,omitempty"`
-	Workspace      string    `json:"workspace,omitempty"`
-	ACPSessionID   string    `json:"acp_session_id,omitempty"`
-	State          string    `json:"state,omitempty"`
-	SoulSnapshotID string    `json:"soul_snapshot_id,omitempty"`
-	SoulDigest     string    `json:"soul_digest,omitempty"`
-	CreatedAt      time.Time `json:"created_at"`
-	UpdatedAt      time.Time `json:"updated_at"`
-}
-
-type SessionPreCreatePayload struct {
 	Event          HookEvent `json:"event"`
 	Timestamp      time.Time `json:"timestamp"`
 	SessionID      string    `json:"session_id,omitempty"`

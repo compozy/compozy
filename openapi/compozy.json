@@ -24710,74 +24710,6 @@
                         },
                         "session": {
                           "properties": {
-                            "acp_caps": {
-                              "nullable": true,
-                              "properties": {
-                                "config_options": {
-                                  "items": {
-                                    "properties": {
-                                      "current": {
-                                        "type": "string"
-                                      },
-                                      "description": {
-                                        "type": "string"
-                                      },
-                                      "id": {
-                                        "type": "string"
-                                      },
-                                      "kind": {
-                                        "type": "string"
-                                      },
-                                      "label": {
-                                        "type": "string"
-                                      },
-                                      "values": {
-                                        "items": {
-                                          "properties": {
-                                            "description": {
-                                              "type": "string"
-                                            },
-                                            "label": {
-                                              "type": "string"
-                                            },
-                                            "value": {
-                                              "type": "string"
-                                            }
-                                          },
-                                          "required": [
-                                            "value"
-                                          ],
-                                          "type": "object"
-                                        },
-                                        "type": "array"
-                                      }
-                                    },
-                                    "required": [
-                                      "id",
-                                      "kind"
-                                    ],
-                                    "type": "object"
-                                  },
-                                  "type": "array"
-                                },
-                                "supported_modes": {
-                                  "items": {
-                                    "type": "string"
-                                  },
-                                  "type": "array"
-                                },
-                                "supports_load_session": {
-                                  "type": "boolean"
-                                }
-                              },
-                              "required": [
-                                "supports_load_session"
-                              ],
-                              "type": "object"
-                            },
-                            "acp_session_id": {
-                              "type": "string"
-                            },
                             "activity": {
                               "nullable": true,
                               "properties": {
@@ -25106,25 +25038,7 @@
                               ],
                               "type": "object"
                             },
-                            "model": {
-                              "type": "string"
-                            },
                             "name": {
-                              "type": "string"
-                            },
-                            "provider": {
-                              "type": "string"
-                            },
-                            "reasoning_effort": {
-                              "enum": [
-                                "none",
-                                "minimal",
-                                "low",
-                                "medium",
-                                "high",
-                                "xhigh",
-                                "max"
-                              ],
                               "type": "string"
                             },
                             "resolved_network_participation": {
@@ -25267,6 +25181,159 @@
                                 }
                               ]
                             },
+                            "runtime": {
+                              "properties": {
+                                "acp_caps": {
+                                  "nullable": true,
+                                  "properties": {
+                                    "config_options": {
+                                      "items": {
+                                        "properties": {
+                                          "current": {
+                                            "type": "string"
+                                          },
+                                          "description": {
+                                            "type": "string"
+                                          },
+                                          "id": {
+                                            "type": "string"
+                                          },
+                                          "kind": {
+                                            "type": "string"
+                                          },
+                                          "label": {
+                                            "type": "string"
+                                          },
+                                          "values": {
+                                            "items": {
+                                              "properties": {
+                                                "description": {
+                                                  "type": "string"
+                                                },
+                                                "label": {
+                                                  "type": "string"
+                                                },
+                                                "value": {
+                                                  "type": "string"
+                                                }
+                                              },
+                                              "required": [
+                                                "value"
+                                              ],
+                                              "type": "object"
+                                            },
+                                            "type": "array"
+                                          }
+                                        },
+                                        "required": [
+                                          "id",
+                                          "kind"
+                                        ],
+                                        "type": "object"
+                                      },
+                                      "type": "array"
+                                    },
+                                    "supported_modes": {
+                                      "items": {
+                                        "type": "string"
+                                      },
+                                      "type": "array"
+                                    },
+                                    "supports_load_session": {
+                                      "type": "boolean"
+                                    }
+                                  },
+                                  "required": [
+                                    "supports_load_session"
+                                  ],
+                                  "type": "object"
+                                },
+                                "acp_session_id": {
+                                  "type": "string"
+                                },
+                                "effective": {
+                                  "nullable": true,
+                                  "properties": {
+                                    "model": {
+                                      "type": "string"
+                                    },
+                                    "provider": {
+                                      "type": "string"
+                                    },
+                                    "reasoning_effort": {
+                                      "enum": [
+                                        "none",
+                                        "minimal",
+                                        "low",
+                                        "medium",
+                                        "high",
+                                        "xhigh",
+                                        "max"
+                                      ],
+                                      "type": "string"
+                                    },
+                                    "speed": {
+                                      "enum": [
+                                        "normal",
+                                        "fast"
+                                      ],
+                                      "type": "string"
+                                    },
+                                    "speed_resolution": {
+                                      "nullable": true,
+                                      "properties": {
+                                        "reason": {
+                                          "enum": [
+                                            "capability_absent",
+                                            "capability_ambiguous",
+                                            "value_ambiguous",
+                                            "provider_rejected"
+                                          ],
+                                          "type": "string"
+                                        },
+                                        "requested": {
+                                          "enum": [
+                                            "normal",
+                                            "fast"
+                                          ],
+                                          "type": "string"
+                                        },
+                                        "status": {
+                                          "enum": [
+                                            "applied",
+                                            "unsupported",
+                                            "rejected"
+                                          ],
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "requested",
+                                        "status"
+                                      ],
+                                      "type": "object"
+                                    }
+                                  },
+                                  "required": [
+                                    "provider"
+                                  ],
+                                  "type": "object"
+                                },
+                                "failure": {
+                                  "type": "string"
+                                },
+                                "status": {
+                                  "type": "string"
+                                },
+                                "transition": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "status"
+                              ],
+                              "type": "object"
+                            },
                             "sandbox": {
                               "nullable": true,
                               "properties": {
@@ -25290,47 +25357,6 @@
                                   "type": "string"
                                 }
                               },
-                              "type": "object"
-                            },
-                            "speed": {
-                              "enum": [
-                                "normal",
-                                "fast"
-                              ],
-                              "type": "string"
-                            },
-                            "speed_resolution": {
-                              "nullable": true,
-                              "properties": {
-                                "reason": {
-                                  "enum": [
-                                    "capability_absent",
-                                    "capability_ambiguous",
-                                    "value_ambiguous",
-                                    "provider_rejected"
-                                  ],
-                                  "type": "string"
-                                },
-                                "requested": {
-                                  "enum": [
-                                    "normal",
-                                    "fast"
-                                  ],
-                                  "type": "string"
-                                },
-                                "status": {
-                                  "enum": [
-                                    "applied",
-                                    "unsupported",
-                                    "rejected"
-                                  ],
-                                  "type": "string"
-                                }
-                              },
-                              "required": [
-                                "requested",
-                                "status"
-                              ],
                               "type": "object"
                             },
                             "state": {
@@ -25392,7 +25418,7 @@
                             "badge",
                             "created_at",
                             "id",
-                            "provider",
+                            "runtime",
                             "state",
                             "updated_at"
                           ],
@@ -116009,74 +116035,6 @@
                     "sessions": {
                       "items": {
                         "properties": {
-                          "acp_caps": {
-                            "nullable": true,
-                            "properties": {
-                              "config_options": {
-                                "items": {
-                                  "properties": {
-                                    "current": {
-                                      "type": "string"
-                                    },
-                                    "description": {
-                                      "type": "string"
-                                    },
-                                    "id": {
-                                      "type": "string"
-                                    },
-                                    "kind": {
-                                      "type": "string"
-                                    },
-                                    "label": {
-                                      "type": "string"
-                                    },
-                                    "values": {
-                                      "items": {
-                                        "properties": {
-                                          "description": {
-                                            "type": "string"
-                                          },
-                                          "label": {
-                                            "type": "string"
-                                          },
-                                          "value": {
-                                            "type": "string"
-                                          }
-                                        },
-                                        "required": [
-                                          "value"
-                                        ],
-                                        "type": "object"
-                                      },
-                                      "type": "array"
-                                    }
-                                  },
-                                  "required": [
-                                    "id",
-                                    "kind"
-                                  ],
-                                  "type": "object"
-                                },
-                                "type": "array"
-                              },
-                              "supported_modes": {
-                                "items": {
-                                  "type": "string"
-                                },
-                                "type": "array"
-                              },
-                              "supports_load_session": {
-                                "type": "boolean"
-                              }
-                            },
-                            "required": [
-                              "supports_load_session"
-                            ],
-                            "type": "object"
-                          },
-                          "acp_session_id": {
-                            "type": "string"
-                          },
                           "activity": {
                             "nullable": true,
                             "properties": {
@@ -116405,25 +116363,7 @@
                             ],
                             "type": "object"
                           },
-                          "model": {
-                            "type": "string"
-                          },
                           "name": {
-                            "type": "string"
-                          },
-                          "provider": {
-                            "type": "string"
-                          },
-                          "reasoning_effort": {
-                            "enum": [
-                              "none",
-                              "minimal",
-                              "low",
-                              "medium",
-                              "high",
-                              "xhigh",
-                              "max"
-                            ],
                             "type": "string"
                           },
                           "resolved_network_participation": {
@@ -116566,6 +116506,159 @@
                               }
                             ]
                           },
+                          "runtime": {
+                            "properties": {
+                              "acp_caps": {
+                                "nullable": true,
+                                "properties": {
+                                  "config_options": {
+                                    "items": {
+                                      "properties": {
+                                        "current": {
+                                          "type": "string"
+                                        },
+                                        "description": {
+                                          "type": "string"
+                                        },
+                                        "id": {
+                                          "type": "string"
+                                        },
+                                        "kind": {
+                                          "type": "string"
+                                        },
+                                        "label": {
+                                          "type": "string"
+                                        },
+                                        "values": {
+                                          "items": {
+                                            "properties": {
+                                              "description": {
+                                                "type": "string"
+                                              },
+                                              "label": {
+                                                "type": "string"
+                                              },
+                                              "value": {
+                                                "type": "string"
+                                              }
+                                            },
+                                            "required": [
+                                              "value"
+                                            ],
+                                            "type": "object"
+                                          },
+                                          "type": "array"
+                                        }
+                                      },
+                                      "required": [
+                                        "id",
+                                        "kind"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    "type": "array"
+                                  },
+                                  "supported_modes": {
+                                    "items": {
+                                      "type": "string"
+                                    },
+                                    "type": "array"
+                                  },
+                                  "supports_load_session": {
+                                    "type": "boolean"
+                                  }
+                                },
+                                "required": [
+                                  "supports_load_session"
+                                ],
+                                "type": "object"
+                              },
+                              "acp_session_id": {
+                                "type": "string"
+                              },
+                              "effective": {
+                                "nullable": true,
+                                "properties": {
+                                  "model": {
+                                    "type": "string"
+                                  },
+                                  "provider": {
+                                    "type": "string"
+                                  },
+                                  "reasoning_effort": {
+                                    "enum": [
+                                      "none",
+                                      "minimal",
+                                      "low",
+                                      "medium",
+                                      "high",
+                                      "xhigh",
+                                      "max"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "speed": {
+                                    "enum": [
+                                      "normal",
+                                      "fast"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "speed_resolution": {
+                                    "nullable": true,
+                                    "properties": {
+                                      "reason": {
+                                        "enum": [
+                                          "capability_absent",
+                                          "capability_ambiguous",
+                                          "value_ambiguous",
+                                          "provider_rejected"
+                                        ],
+                                        "type": "string"
+                                      },
+                                      "requested": {
+                                        "enum": [
+                                          "normal",
+                                          "fast"
+                                        ],
+                                        "type": "string"
+                                      },
+                                      "status": {
+                                        "enum": [
+                                          "applied",
+                                          "unsupported",
+                                          "rejected"
+                                        ],
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "requested",
+                                      "status"
+                                    ],
+                                    "type": "object"
+                                  }
+                                },
+                                "required": [
+                                  "provider"
+                                ],
+                                "type": "object"
+                              },
+                              "failure": {
+                                "type": "string"
+                              },
+                              "status": {
+                                "type": "string"
+                              },
+                              "transition": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "status"
+                            ],
+                            "type": "object"
+                          },
                           "sandbox": {
                             "nullable": true,
                             "properties": {
@@ -116589,47 +116682,6 @@
                                 "type": "string"
                               }
                             },
-                            "type": "object"
-                          },
-                          "speed": {
-                            "enum": [
-                              "normal",
-                              "fast"
-                            ],
-                            "type": "string"
-                          },
-                          "speed_resolution": {
-                            "nullable": true,
-                            "properties": {
-                              "reason": {
-                                "enum": [
-                                  "capability_absent",
-                                  "capability_ambiguous",
-                                  "value_ambiguous",
-                                  "provider_rejected"
-                                ],
-                                "type": "string"
-                              },
-                              "requested": {
-                                "enum": [
-                                  "normal",
-                                  "fast"
-                                ],
-                                "type": "string"
-                              },
-                              "status": {
-                                "enum": [
-                                  "applied",
-                                  "unsupported",
-                                  "rejected"
-                                ],
-                                "type": "string"
-                              }
-                            },
-                            "required": [
-                              "requested",
-                              "status"
-                            ],
                             "type": "object"
                           },
                           "state": {
@@ -116691,7 +116743,7 @@
                           "badge",
                           "created_at",
                           "id",
-                          "provider",
+                          "runtime",
                           "state",
                           "updated_at"
                         ],
@@ -117050,9 +117102,6 @@
                   "agent_name": {
                     "type": "string"
                   },
-                  "model": {
-                    "type": "string"
-                  },
                   "name": {
                     "type": "string"
                   },
@@ -117258,31 +117307,6 @@
                       }
                     ]
                   },
-                  "prompt": {
-                    "type": "string"
-                  },
-                  "provider": {
-                    "type": "string"
-                  },
-                  "reasoning_effort": {
-                    "enum": [
-                      "none",
-                      "minimal",
-                      "low",
-                      "medium",
-                      "high",
-                      "xhigh",
-                      "max"
-                    ],
-                    "type": "string"
-                  },
-                  "speed": {
-                    "enum": [
-                      "normal",
-                      "fast"
-                    ],
-                    "type": "string"
-                  },
                   "workspace": {
                     "type": "string"
                   },
@@ -117305,74 +117329,6 @@
                   "properties": {
                     "session": {
                       "properties": {
-                        "acp_caps": {
-                          "nullable": true,
-                          "properties": {
-                            "config_options": {
-                              "items": {
-                                "properties": {
-                                  "current": {
-                                    "type": "string"
-                                  },
-                                  "description": {
-                                    "type": "string"
-                                  },
-                                  "id": {
-                                    "type": "string"
-                                  },
-                                  "kind": {
-                                    "type": "string"
-                                  },
-                                  "label": {
-                                    "type": "string"
-                                  },
-                                  "values": {
-                                    "items": {
-                                      "properties": {
-                                        "description": {
-                                          "type": "string"
-                                        },
-                                        "label": {
-                                          "type": "string"
-                                        },
-                                        "value": {
-                                          "type": "string"
-                                        }
-                                      },
-                                      "required": [
-                                        "value"
-                                      ],
-                                      "type": "object"
-                                    },
-                                    "type": "array"
-                                  }
-                                },
-                                "required": [
-                                  "id",
-                                  "kind"
-                                ],
-                                "type": "object"
-                              },
-                              "type": "array"
-                            },
-                            "supported_modes": {
-                              "items": {
-                                "type": "string"
-                              },
-                              "type": "array"
-                            },
-                            "supports_load_session": {
-                              "type": "boolean"
-                            }
-                          },
-                          "required": [
-                            "supports_load_session"
-                          ],
-                          "type": "object"
-                        },
-                        "acp_session_id": {
-                          "type": "string"
-                        },
                         "activity": {
                           "nullable": true,
                           "properties": {
@@ -117701,25 +117657,7 @@
                           ],
                           "type": "object"
                         },
-                        "model": {
-                          "type": "string"
-                        },
                         "name": {
-                          "type": "string"
-                        },
-                        "provider": {
-                          "type": "string"
-                        },
-                        "reasoning_effort": {
-                          "enum": [
-                            "none",
-                            "minimal",
-                            "low",
-                            "medium",
-                            "high",
-                            "xhigh",
-                            "max"
-                          ],
                           "type": "string"
                         },
                         "resolved_network_participation": {
@@ -117862,6 +117800,159 @@
                             }
                           ]
                         },
+                        "runtime": {
+                          "properties": {
+                            "acp_caps": {
+                              "nullable": true,
+                              "properties": {
+                                "config_options": {
+                                  "items": {
+                                    "properties": {
+                                      "current": {
+                                        "type": "string"
+                                      },
+                                      "description": {
+                                        "type": "string"
+                                      },
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "kind": {
+                                        "type": "string"
+                                      },
+                                      "label": {
+                                        "type": "string"
+                                      },
+                                      "values": {
+                                        "items": {
+                                          "properties": {
+                                            "description": {
+                                              "type": "string"
+                                            },
+                                            "label": {
+                                              "type": "string"
+                                            },
+                                            "value": {
+                                              "type": "string"
+                                            }
+                                          },
+                                          "required": [
+                                            "value"
+                                          ],
+                                          "type": "object"
+                                        },
+                                        "type": "array"
+                                      }
+                                    },
+                                    "required": [
+                                      "id",
+                                      "kind"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "type": "array"
+                                },
+                                "supported_modes": {
+                                  "items": {
+                                    "type": "string"
+                                  },
+                                  "type": "array"
+                                },
+                                "supports_load_session": {
+                                  "type": "boolean"
+                                }
+                              },
+                              "required": [
+                                "supports_load_session"
+                              ],
+                              "type": "object"
+                            },
+                            "acp_session_id": {
+                              "type": "string"
+                            },
+                            "effective": {
+                              "nullable": true,
+                              "properties": {
+                                "model": {
+                                  "type": "string"
+                                },
+                                "provider": {
+                                  "type": "string"
+                                },
+                                "reasoning_effort": {
+                                  "enum": [
+                                    "none",
+                                    "minimal",
+                                    "low",
+                                    "medium",
+                                    "high",
+                                    "xhigh",
+                                    "max"
+                                  ],
+                                  "type": "string"
+                                },
+                                "speed": {
+                                  "enum": [
+                                    "normal",
+                                    "fast"
+                                  ],
+                                  "type": "string"
+                                },
+                                "speed_resolution": {
+                                  "nullable": true,
+                                  "properties": {
+                                    "reason": {
+                                      "enum": [
+                                        "capability_absent",
+                                        "capability_ambiguous",
+                                        "value_ambiguous",
+                                        "provider_rejected"
+                                      ],
+                                      "type": "string"
+                                    },
+                                    "requested": {
+                                      "enum": [
+                                        "normal",
+                                        "fast"
+                                      ],
+                                      "type": "string"
+                                    },
+                                    "status": {
+                                      "enum": [
+                                        "applied",
+                                        "unsupported",
+                                        "rejected"
+                                      ],
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "requested",
+                                    "status"
+                                  ],
+                                  "type": "object"
+                                }
+                              },
+                              "required": [
+                                "provider"
+                              ],
+                              "type": "object"
+                            },
+                            "failure": {
+                              "type": "string"
+                            },
+                            "status": {
+                              "type": "string"
+                            },
+                            "transition": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "status"
+                          ],
+                          "type": "object"
+                        },
                         "sandbox": {
                           "nullable": true,
                           "properties": {
@@ -117885,47 +117976,6 @@
                               "type": "string"
                             }
                           },
-                          "type": "object"
-                        },
-                        "speed": {
-                          "enum": [
-                            "normal",
-                            "fast"
-                          ],
-                          "type": "string"
-                        },
-                        "speed_resolution": {
-                          "nullable": true,
-                          "properties": {
-                            "reason": {
-                              "enum": [
-                                "capability_absent",
-                                "capability_ambiguous",
-                                "value_ambiguous",
-                                "provider_rejected"
-                              ],
-                              "type": "string"
-                            },
-                            "requested": {
-                              "enum": [
-                                "normal",
-                                "fast"
-                              ],
-                              "type": "string"
-                            },
-                            "status": {
-                              "enum": [
-                                "applied",
-                                "unsupported",
-                                "rejected"
-                              ],
-                              "type": "string"
-                            }
-                          },
-                          "required": [
-                            "requested",
-                            "status"
-                          ],
                           "type": "object"
                         },
                         "state": {
@@ -117987,7 +118037,7 @@
                         "badge",
                         "created_at",
                         "id",
-                        "provider",
+                        "runtime",
                         "state",
                         "updated_at"
                       ],
@@ -118533,74 +118583,6 @@
                   "properties": {
                     "session": {
                       "properties": {
-                        "acp_caps": {
-                          "nullable": true,
-                          "properties": {
-                            "config_options": {
-                              "items": {
-                                "properties": {
-                                  "current": {
-                                    "type": "string"
-                                  },
-                                  "description": {
-                                    "type": "string"
-                                  },
-                                  "id": {
-                                    "type": "string"
-                                  },
-                                  "kind": {
-                                    "type": "string"
-                                  },
-                                  "label": {
-                                    "type": "string"
-                                  },
-                                  "values": {
-                                    "items": {
-                                      "properties": {
-                                        "description": {
-                                          "type": "string"
-                                        },
-                                        "label": {
-                                          "type": "string"
-                                        },
-                                        "value": {
-                                          "type": "string"
-                                        }
-                                      },
-                                      "required": [
-                                        "value"
-                                      ],
-                                      "type": "object"
-                                    },
-                                    "type": "array"
-                                  }
-                                },
-                                "required": [
-                                  "id",
-                                  "kind"
-                                ],
-                                "type": "object"
-                              },
-                              "type": "array"
-                            },
-                            "supported_modes": {
-                              "items": {
-                                "type": "string"
-                              },
-                              "type": "array"
-                            },
-                            "supports_load_session": {
-                              "type": "boolean"
-                            }
-                          },
-                          "required": [
-                            "supports_load_session"
-                          ],
-                          "type": "object"
-                        },
-                        "acp_session_id": {
-                          "type": "string"
-                        },
                         "activity": {
                           "nullable": true,
                           "properties": {
@@ -118929,25 +118911,7 @@
                           ],
                           "type": "object"
                         },
-                        "model": {
-                          "type": "string"
-                        },
                         "name": {
-                          "type": "string"
-                        },
-                        "provider": {
-                          "type": "string"
-                        },
-                        "reasoning_effort": {
-                          "enum": [
-                            "none",
-                            "minimal",
-                            "low",
-                            "medium",
-                            "high",
-                            "xhigh",
-                            "max"
-                          ],
                           "type": "string"
                         },
                         "resolved_network_participation": {
@@ -119090,6 +119054,159 @@
                             }
                           ]
                         },
+                        "runtime": {
+                          "properties": {
+                            "acp_caps": {
+                              "nullable": true,
+                              "properties": {
+                                "config_options": {
+                                  "items": {
+                                    "properties": {
+                                      "current": {
+                                        "type": "string"
+                                      },
+                                      "description": {
+                                        "type": "string"
+                                      },
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "kind": {
+                                        "type": "string"
+                                      },
+                                      "label": {
+                                        "type": "string"
+                                      },
+                                      "values": {
+                                        "items": {
+                                          "properties": {
+                                            "description": {
+                                              "type": "string"
+                                            },
+                                            "label": {
+                                              "type": "string"
+                                            },
+                                            "value": {
+                                              "type": "string"
+                                            }
+                                          },
+                                          "required": [
+                                            "value"
+                                          ],
+                                          "type": "object"
+                                        },
+                                        "type": "array"
+                                      }
+                                    },
+                                    "required": [
+                                      "id",
+                                      "kind"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "type": "array"
+                                },
+                                "supported_modes": {
+                                  "items": {
+                                    "type": "string"
+                                  },
+                                  "type": "array"
+                                },
+                                "supports_load_session": {
+                                  "type": "boolean"
+                                }
+                              },
+                              "required": [
+                                "supports_load_session"
+                              ],
+                              "type": "object"
+                            },
+                            "acp_session_id": {
+                              "type": "string"
+                            },
+                            "effective": {
+                              "nullable": true,
+                              "properties": {
+                                "model": {
+                                  "type": "string"
+                                },
+                                "provider": {
+                                  "type": "string"
+                                },
+                                "reasoning_effort": {
+                                  "enum": [
+                                    "none",
+                                    "minimal",
+                                    "low",
+                                    "medium",
+                                    "high",
+                                    "xhigh",
+                                    "max"
+                                  ],
+                                  "type": "string"
+                                },
+                                "speed": {
+                                  "enum": [
+                                    "normal",
+                                    "fast"
+                                  ],
+                                  "type": "string"
+                                },
+                                "speed_resolution": {
+                                  "nullable": true,
+                                  "properties": {
+                                    "reason": {
+                                      "enum": [
+                                        "capability_absent",
+                                        "capability_ambiguous",
+                                        "value_ambiguous",
+                                        "provider_rejected"
+                                      ],
+                                      "type": "string"
+                                    },
+                                    "requested": {
+                                      "enum": [
+                                        "normal",
+                                        "fast"
+                                      ],
+                                      "type": "string"
+                                    },
+                                    "status": {
+                                      "enum": [
+                                        "applied",
+                                        "unsupported",
+                                        "rejected"
+                                      ],
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "requested",
+                                    "status"
+                                  ],
+                                  "type": "object"
+                                }
+                              },
+                              "required": [
+                                "provider"
+                              ],
+                              "type": "object"
+                            },
+                            "failure": {
+                              "type": "string"
+                            },
+                            "status": {
+                              "type": "string"
+                            },
+                            "transition": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "status"
+                          ],
+                          "type": "object"
+                        },
                         "sandbox": {
                           "nullable": true,
                           "properties": {
@@ -119113,47 +119230,6 @@
                               "type": "string"
                             }
                           },
-                          "type": "object"
-                        },
-                        "speed": {
-                          "enum": [
-                            "normal",
-                            "fast"
-                          ],
-                          "type": "string"
-                        },
-                        "speed_resolution": {
-                          "nullable": true,
-                          "properties": {
-                            "reason": {
-                              "enum": [
-                                "capability_absent",
-                                "capability_ambiguous",
-                                "value_ambiguous",
-                                "provider_rejected"
-                              ],
-                              "type": "string"
-                            },
-                            "requested": {
-                              "enum": [
-                                "normal",
-                                "fast"
-                              ],
-                              "type": "string"
-                            },
-                            "status": {
-                              "enum": [
-                                "applied",
-                                "unsupported",
-                                "rejected"
-                              ],
-                              "type": "string"
-                            }
-                          },
-                          "required": [
-                            "requested",
-                            "status"
-                          ],
                           "type": "object"
                         },
                         "state": {
@@ -119215,7 +119291,7 @@
                         "badge",
                         "created_at",
                         "id",
-                        "provider",
+                        "runtime",
                         "state",
                         "updated_at"
                       ],
@@ -205518,74 +205594,6 @@
                     "sessions": {
                       "items": {
                         "properties": {
-                          "acp_caps": {
-                            "nullable": true,
-                            "properties": {
-                              "config_options": {
-                                "items": {
-                                  "properties": {
-                                    "current": {
-                                      "type": "string"
-                                    },
-                                    "description": {
-                                      "type": "string"
-                                    },
-                                    "id": {
-                                      "type": "string"
-                                    },
-                                    "kind": {
-                                      "type": "string"
-                                    },
-                                    "label": {
-                                      "type": "string"
-                                    },
-                                    "values": {
-                                      "items": {
-                                        "properties": {
-                                          "description": {
-                                            "type": "string"
-                                          },
-                                          "label": {
-                                            "type": "string"
-                                          },
-                                          "value": {
-                                            "type": "string"
-                                          }
-                                        },
-                                        "required": [
-                                          "value"
-                                        ],
-                                        "type": "object"
-                                      },
-                                      "type": "array"
-                                    }
-                                  },
-                                  "required": [
-                                    "id",
-                                    "kind"
-                                  ],
-                                  "type": "object"
-                                },
-                                "type": "array"
-                              },
-                              "supported_modes": {
-                                "items": {
-                                  "type": "string"
-                                },
-                                "type": "array"
-                              },
-                              "supports_load_session": {
-                                "type": "boolean"
-                              }
-                            },
-                            "required": [
-                              "supports_load_session"
-                            ],
-                            "type": "object"
-                          },
-                          "acp_session_id": {
-                            "type": "string"
-                          },
                           "activity": {
                             "nullable": true,
                             "properties": {
@@ -205914,25 +205922,7 @@
                             ],
                             "type": "object"
                           },
-                          "model": {
-                            "type": "string"
-                          },
                           "name": {
-                            "type": "string"
-                          },
-                          "provider": {
-                            "type": "string"
-                          },
-                          "reasoning_effort": {
-                            "enum": [
-                              "none",
-                              "minimal",
-                              "low",
-                              "medium",
-                              "high",
-                              "xhigh",
-                              "max"
-                            ],
                             "type": "string"
                           },
                           "resolved_network_participation": {
@@ -206075,6 +206065,159 @@
                               }
                             ]
                           },
+                          "runtime": {
+                            "properties": {
+                              "acp_caps": {
+                                "nullable": true,
+                                "properties": {
+                                  "config_options": {
+                                    "items": {
+                                      "properties": {
+                                        "current": {
+                                          "type": "string"
+                                        },
+                                        "description": {
+                                          "type": "string"
+                                        },
+                                        "id": {
+                                          "type": "string"
+                                        },
+                                        "kind": {
+                                          "type": "string"
+                                        },
+                                        "label": {
+                                          "type": "string"
+                                        },
+                                        "values": {
+                                          "items": {
+                                            "properties": {
+                                              "description": {
+                                                "type": "string"
+                                              },
+                                              "label": {
+                                                "type": "string"
+                                              },
+                                              "value": {
+                                                "type": "string"
+                                              }
+                                            },
+                                            "required": [
+                                              "value"
+                                            ],
+                                            "type": "object"
+                                          },
+                                          "type": "array"
+                                        }
+                                      },
+                                      "required": [
+                                        "id",
+                                        "kind"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    "type": "array"
+                                  },
+                                  "supported_modes": {
+                                    "items": {
+                                      "type": "string"
+                                    },
+                                    "type": "array"
+                                  },
+                                  "supports_load_session": {
+                                    "type": "boolean"
+                                  }
+                                },
+                                "required": [
+                                  "supports_load_session"
+                                ],
+                                "type": "object"
+                              },
+                              "acp_session_id": {
+                                "type": "string"
+                              },
+                              "effective": {
+                                "nullable": true,
+                                "properties": {
+                                  "model": {
+                                    "type": "string"
+                                  },
+                                  "provider": {
+                                    "type": "string"
+                                  },
+                                  "reasoning_effort": {
+                                    "enum": [
+                                      "none",
+                                      "minimal",
+                                      "low",
+                                      "medium",
+                                      "high",
+                                      "xhigh",
+                                      "max"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "speed": {
+                                    "enum": [
+                                      "normal",
+                                      "fast"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "speed_resolution": {
+                                    "nullable": true,
+                                    "properties": {
+                                      "reason": {
+                                        "enum": [
+                                          "capability_absent",
+                                          "capability_ambiguous",
+                                          "value_ambiguous",
+                                          "provider_rejected"
+                                        ],
+                                        "type": "string"
+                                      },
+                                      "requested": {
+                                        "enum": [
+                                          "normal",
+                                          "fast"
+                                        ],
+                                        "type": "string"
+                                      },
+                                      "status": {
+                                        "enum": [
+                                          "applied",
+                                          "unsupported",
+                                          "rejected"
+                                        ],
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "requested",
+                                      "status"
+                                    ],
+                                    "type": "object"
+                                  }
+                                },
+                                "required": [
+                                  "provider"
+                                ],
+                                "type": "object"
+                              },
+                              "failure": {
+                                "type": "string"
+                              },
+                              "status": {
+                                "type": "string"
+                              },
+                              "transition": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "status"
+                            ],
+                            "type": "object"
+                          },
                           "sandbox": {
                             "nullable": true,
                             "properties": {
@@ -206098,47 +206241,6 @@
                                 "type": "string"
                               }
                             },
-                            "type": "object"
-                          },
-                          "speed": {
-                            "enum": [
-                              "normal",
-                              "fast"
-                            ],
-                            "type": "string"
-                          },
-                          "speed_resolution": {
-                            "nullable": true,
-                            "properties": {
-                              "reason": {
-                                "enum": [
-                                  "capability_absent",
-                                  "capability_ambiguous",
-                                  "value_ambiguous",
-                                  "provider_rejected"
-                                ],
-                                "type": "string"
-                              },
-                              "requested": {
-                                "enum": [
-                                  "normal",
-                                  "fast"
-                                ],
-                                "type": "string"
-                              },
-                              "status": {
-                                "enum": [
-                                  "applied",
-                                  "unsupported",
-                                  "rejected"
-                                ],
-                                "type": "string"
-                              }
-                            },
-                            "required": [
-                              "requested",
-                              "status"
-                            ],
                             "type": "object"
                           },
                           "state": {
@@ -206200,7 +206302,7 @@
                           "badge",
                           "created_at",
                           "id",
-                          "provider",
+                          "runtime",
                           "state",
                           "updated_at"
                         ],
@@ -232582,74 +232684,6 @@
                         "sessions": {
                           "items": {
                             "properties": {
-                              "acp_caps": {
-                                "nullable": true,
-                                "properties": {
-                                  "config_options": {
-                                    "items": {
-                                      "properties": {
-                                        "current": {
-                                          "type": "string"
-                                        },
-                                        "description": {
-                                          "type": "string"
-                                        },
-                                        "id": {
-                                          "type": "string"
-                                        },
-                                        "kind": {
-                                          "type": "string"
-                                        },
-                                        "label": {
-                                          "type": "string"
-                                        },
-                                        "values": {
-                                          "items": {
-                                            "properties": {
-                                              "description": {
-                                                "type": "string"
-                                              },
-                                              "label": {
-                                                "type": "string"
-                                              },
-                                              "value": {
-                                                "type": "string"
-                                              }
-                                            },
-                                            "required": [
-                                              "value"
-                                            ],
-                                            "type": "object"
-                                          },
-                                          "type": "array"
-                                        }
-                                      },
-                                      "required": [
-                                        "id",
-                                        "kind"
-                                      ],
-                                      "type": "object"
-                                    },
-                                    "type": "array"
-                                  },
-                                  "supported_modes": {
-                                    "items": {
-                                      "type": "string"
-                                    },
-                                    "type": "array"
-                                  },
-                                  "supports_load_session": {
-                                    "type": "boolean"
-                                  }
-                                },
-                                "required": [
-                                  "supports_load_session"
-                                ],
-                                "type": "object"
-                              },
-                              "acp_session_id": {
-                                "type": "string"
-                              },
                               "activity": {
                                 "nullable": true,
                                 "properties": {
@@ -232978,25 +233012,7 @@
                                 ],
                                 "type": "object"
                               },
-                              "model": {
-                                "type": "string"
-                              },
                               "name": {
-                                "type": "string"
-                              },
-                              "provider": {
-                                "type": "string"
-                              },
-                              "reasoning_effort": {
-                                "enum": [
-                                  "none",
-                                  "minimal",
-                                  "low",
-                                  "medium",
-                                  "high",
-                                  "xhigh",
-                                  "max"
-                                ],
                                 "type": "string"
                               },
                               "resolved_network_participation": {
@@ -233139,6 +233155,159 @@
                                   }
                                 ]
                               },
+                              "runtime": {
+                                "properties": {
+                                  "acp_caps": {
+                                    "nullable": true,
+                                    "properties": {
+                                      "config_options": {
+                                        "items": {
+                                          "properties": {
+                                            "current": {
+                                              "type": "string"
+                                            },
+                                            "description": {
+                                              "type": "string"
+                                            },
+                                            "id": {
+                                              "type": "string"
+                                            },
+                                            "kind": {
+                                              "type": "string"
+                                            },
+                                            "label": {
+                                              "type": "string"
+                                            },
+                                            "values": {
+                                              "items": {
+                                                "properties": {
+                                                  "description": {
+                                                    "type": "string"
+                                                  },
+                                                  "label": {
+                                                    "type": "string"
+                                                  },
+                                                  "value": {
+                                                    "type": "string"
+                                                  }
+                                                },
+                                                "required": [
+                                                  "value"
+                                                ],
+                                                "type": "object"
+                                              },
+                                              "type": "array"
+                                            }
+                                          },
+                                          "required": [
+                                            "id",
+                                            "kind"
+                                          ],
+                                          "type": "object"
+                                        },
+                                        "type": "array"
+                                      },
+                                      "supported_modes": {
+                                        "items": {
+                                          "type": "string"
+                                        },
+                                        "type": "array"
+                                      },
+                                      "supports_load_session": {
+                                        "type": "boolean"
+                                      }
+                                    },
+                                    "required": [
+                                      "supports_load_session"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "acp_session_id": {
+                                    "type": "string"
+                                  },
+                                  "effective": {
+                                    "nullable": true,
+                                    "properties": {
+                                      "model": {
+                                        "type": "string"
+                                      },
+                                      "provider": {
+                                        "type": "string"
+                                      },
+                                      "reasoning_effort": {
+                                        "enum": [
+                                          "none",
+                                          "minimal",
+                                          "low",
+                                          "medium",
+                                          "high",
+                                          "xhigh",
+                                          "max"
+                                        ],
+                                        "type": "string"
+                                      },
+                                      "speed": {
+                                        "enum": [
+                                          "normal",
+                                          "fast"
+                                        ],
+                                        "type": "string"
+                                      },
+                                      "speed_resolution": {
+                                        "nullable": true,
+                                        "properties": {
+                                          "reason": {
+                                            "enum": [
+                                              "capability_absent",
+                                              "capability_ambiguous",
+                                              "value_ambiguous",
+                                              "provider_rejected"
+                                            ],
+                                            "type": "string"
+                                          },
+                                          "requested": {
+                                            "enum": [
+                                              "normal",
+                                              "fast"
+                                            ],
+                                            "type": "string"
+                                          },
+                                          "status": {
+                                            "enum": [
+                                              "applied",
+                                              "unsupported",
+                                              "rejected"
+                                            ],
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": [
+                                          "requested",
+                                          "status"
+                                        ],
+                                        "type": "object"
+                                      }
+                                    },
+                                    "required": [
+                                      "provider"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "failure": {
+                                    "type": "string"
+                                  },
+                                  "status": {
+                                    "type": "string"
+                                  },
+                                  "transition": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "status"
+                                ],
+                                "type": "object"
+                              },
                               "sandbox": {
                                 "nullable": true,
                                 "properties": {
@@ -233162,47 +233331,6 @@
                                     "type": "string"
                                   }
                                 },
-                                "type": "object"
-                              },
-                              "speed": {
-                                "enum": [
-                                  "normal",
-                                  "fast"
-                                ],
-                                "type": "string"
-                              },
-                              "speed_resolution": {
-                                "nullable": true,
-                                "properties": {
-                                  "reason": {
-                                    "enum": [
-                                      "capability_absent",
-                                      "capability_ambiguous",
-                                      "value_ambiguous",
-                                      "provider_rejected"
-                                    ],
-                                    "type": "string"
-                                  },
-                                  "requested": {
-                                    "enum": [
-                                      "normal",
-                                      "fast"
-                                    ],
-                                    "type": "string"
-                                  },
-                                  "status": {
-                                    "enum": [
-                                      "applied",
-                                      "unsupported",
-                                      "rejected"
-                                    ],
-                                    "type": "string"
-                                  }
-                                },
-                                "required": [
-                                  "requested",
-                                  "status"
-                                ],
                                 "type": "object"
                               },
                               "state": {
@@ -233264,7 +233392,7 @@
                               "badge",
                               "created_at",
                               "id",
-                              "provider",
+                              "runtime",
                               "state",
                               "updated_at"
                             ],
@@ -233763,74 +233891,6 @@
                         "sessions": {
                           "items": {
                             "properties": {
-                              "acp_caps": {
-                                "nullable": true,
-                                "properties": {
-                                  "config_options": {
-                                    "items": {
-                                      "properties": {
-                                        "current": {
-                                          "type": "string"
-                                        },
-                                        "description": {
-                                          "type": "string"
-                                        },
-                                        "id": {
-                                          "type": "string"
-                                        },
-                                        "kind": {
-                                          "type": "string"
-                                        },
-                                        "label": {
-                                          "type": "string"
-                                        },
-                                        "values": {
-                                          "items": {
-                                            "properties": {
-                                              "description": {
-                                                "type": "string"
-                                              },
-                                              "label": {
-                                                "type": "string"
-                                              },
-                                              "value": {
-                                                "type": "string"
-                                              }
-                                            },
-                                            "required": [
-                                              "value"
-                                            ],
-                                            "type": "object"
-                                          },
-                                          "type": "array"
-                                        }
-                                      },
-                                      "required": [
-                                        "id",
-                                        "kind"
-                                      ],
-                                      "type": "object"
-                                    },
-                                    "type": "array"
-                                  },
-                                  "supported_modes": {
-                                    "items": {
-                                      "type": "string"
-                                    },
-                                    "type": "array"
-                                  },
-                                  "supports_load_session": {
-                                    "type": "boolean"
-                                  }
-                                },
-                                "required": [
-                                  "supports_load_session"
-                                ],
-                                "type": "object"
-                              },
-                              "acp_session_id": {
-                                "type": "string"
-                              },
                               "activity": {
                                 "nullable": true,
                                 "properties": {
@@ -234159,25 +234219,7 @@
                                 ],
                                 "type": "object"
                               },
-                              "model": {
-                                "type": "string"
-                              },
                               "name": {
-                                "type": "string"
-                              },
-                              "provider": {
-                                "type": "string"
-                              },
-                              "reasoning_effort": {
-                                "enum": [
-                                  "none",
-                                  "minimal",
-                                  "low",
-                                  "medium",
-                                  "high",
-                                  "xhigh",
-                                  "max"
-                                ],
                                 "type": "string"
                               },
                               "resolved_network_participation": {
@@ -234320,6 +234362,159 @@
                                   }
                                 ]
                               },
+                              "runtime": {
+                                "properties": {
+                                  "acp_caps": {
+                                    "nullable": true,
+                                    "properties": {
+                                      "config_options": {
+                                        "items": {
+                                          "properties": {
+                                            "current": {
+                                              "type": "string"
+                                            },
+                                            "description": {
+                                              "type": "string"
+                                            },
+                                            "id": {
+                                              "type": "string"
+                                            },
+                                            "kind": {
+                                              "type": "string"
+                                            },
+                                            "label": {
+                                              "type": "string"
+                                            },
+                                            "values": {
+                                              "items": {
+                                                "properties": {
+                                                  "description": {
+                                                    "type": "string"
+                                                  },
+                                                  "label": {
+                                                    "type": "string"
+                                                  },
+                                                  "value": {
+                                                    "type": "string"
+                                                  }
+                                                },
+                                                "required": [
+                                                  "value"
+                                                ],
+                                                "type": "object"
+                                              },
+                                              "type": "array"
+                                            }
+                                          },
+                                          "required": [
+                                            "id",
+                                            "kind"
+                                          ],
+                                          "type": "object"
+                                        },
+                                        "type": "array"
+                                      },
+                                      "supported_modes": {
+                                        "items": {
+                                          "type": "string"
+                                        },
+                                        "type": "array"
+                                      },
+                                      "supports_load_session": {
+                                        "type": "boolean"
+                                      }
+                                    },
+                                    "required": [
+                                      "supports_load_session"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "acp_session_id": {
+                                    "type": "string"
+                                  },
+                                  "effective": {
+                                    "nullable": true,
+                                    "properties": {
+                                      "model": {
+                                        "type": "string"
+                                      },
+                                      "provider": {
+                                        "type": "string"
+                                      },
+                                      "reasoning_effort": {
+                                        "enum": [
+                                          "none",
+                                          "minimal",
+                                          "low",
+                                          "medium",
+                                          "high",
+                                          "xhigh",
+                                          "max"
+                                        ],
+                                        "type": "string"
+                                      },
+                                      "speed": {
+                                        "enum": [
+                                          "normal",
+                                          "fast"
+                                        ],
+                                        "type": "string"
+                                      },
+                                      "speed_resolution": {
+                                        "nullable": true,
+                                        "properties": {
+                                          "reason": {
+                                            "enum": [
+                                              "capability_absent",
+                                              "capability_ambiguous",
+                                              "value_ambiguous",
+                                              "provider_rejected"
+                                            ],
+                                            "type": "string"
+                                          },
+                                          "requested": {
+                                            "enum": [
+                                              "normal",
+                                              "fast"
+                                            ],
+                                            "type": "string"
+                                          },
+                                          "status": {
+                                            "enum": [
+                                              "applied",
+                                              "unsupported",
+                                              "rejected"
+                                            ],
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": [
+                                          "requested",
+                                          "status"
+                                        ],
+                                        "type": "object"
+                                      }
+                                    },
+                                    "required": [
+                                      "provider"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "failure": {
+                                    "type": "string"
+                                  },
+                                  "status": {
+                                    "type": "string"
+                                  },
+                                  "transition": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "status"
+                                ],
+                                "type": "object"
+                              },
                               "sandbox": {
                                 "nullable": true,
                                 "properties": {
@@ -234343,47 +234538,6 @@
                                     "type": "string"
                                   }
                                 },
-                                "type": "object"
-                              },
-                              "speed": {
-                                "enum": [
-                                  "normal",
-                                  "fast"
-                                ],
-                                "type": "string"
-                              },
-                              "speed_resolution": {
-                                "nullable": true,
-                                "properties": {
-                                  "reason": {
-                                    "enum": [
-                                      "capability_absent",
-                                      "capability_ambiguous",
-                                      "value_ambiguous",
-                                      "provider_rejected"
-                                    ],
-                                    "type": "string"
-                                  },
-                                  "requested": {
-                                    "enum": [
-                                      "normal",
-                                      "fast"
-                                    ],
-                                    "type": "string"
-                                  },
-                                  "status": {
-                                    "enum": [
-                                      "applied",
-                                      "unsupported",
-                                      "rejected"
-                                    ],
-                                    "type": "string"
-                                  }
-                                },
-                                "required": [
-                                  "requested",
-                                  "status"
-                                ],
                                 "type": "object"
                               },
                               "state": {
@@ -234445,7 +234599,7 @@
                               "badge",
                               "created_at",
                               "id",
-                              "provider",
+                              "runtime",
                               "state",
                               "updated_at"
                             ],
@@ -234967,74 +235121,6 @@
                         "sessions": {
                           "items": {
                             "properties": {
-                              "acp_caps": {
-                                "nullable": true,
-                                "properties": {
-                                  "config_options": {
-                                    "items": {
-                                      "properties": {
-                                        "current": {
-                                          "type": "string"
-                                        },
-                                        "description": {
-                                          "type": "string"
-                                        },
-                                        "id": {
-                                          "type": "string"
-                                        },
-                                        "kind": {
-                                          "type": "string"
-                                        },
-                                        "label": {
-                                          "type": "string"
-                                        },
-                                        "values": {
-                                          "items": {
-                                            "properties": {
-                                              "description": {
-                                                "type": "string"
-                                              },
-                                              "label": {
-                                                "type": "string"
-                                              },
-                                              "value": {
-                                                "type": "string"
-                                              }
-                                            },
-                                            "required": [
-                                              "value"
-                                            ],
-                                            "type": "object"
-                                          },
-                                          "type": "array"
-                                        }
-                                      },
-                                      "required": [
-                                        "id",
-                                        "kind"
-                                      ],
-                                      "type": "object"
-                                    },
-                                    "type": "array"
-                                  },
-                                  "supported_modes": {
-                                    "items": {
-                                      "type": "string"
-                                    },
-                                    "type": "array"
-                                  },
-                                  "supports_load_session": {
-                                    "type": "boolean"
-                                  }
-                                },
-                                "required": [
-                                  "supports_load_session"
-                                ],
-                                "type": "object"
-                              },
-                              "acp_session_id": {
-                                "type": "string"
-                              },
                               "activity": {
                                 "nullable": true,
                                 "properties": {
@@ -235363,25 +235449,7 @@
                                 ],
                                 "type": "object"
                               },
-                              "model": {
-                                "type": "string"
-                              },
                               "name": {
-                                "type": "string"
-                              },
-                              "provider": {
-                                "type": "string"
-                              },
-                              "reasoning_effort": {
-                                "enum": [
-                                  "none",
-                                  "minimal",
-                                  "low",
-                                  "medium",
-                                  "high",
-                                  "xhigh",
-                                  "max"
-                                ],
                                 "type": "string"
                               },
                               "resolved_network_participation": {
@@ -235524,6 +235592,159 @@
                                   }
                                 ]
                               },
+                              "runtime": {
+                                "properties": {
+                                  "acp_caps": {
+                                    "nullable": true,
+                                    "properties": {
+                                      "config_options": {
+                                        "items": {
+                                          "properties": {
+                                            "current": {
+                                              "type": "string"
+                                            },
+                                            "description": {
+                                              "type": "string"
+                                            },
+                                            "id": {
+                                              "type": "string"
+                                            },
+                                            "kind": {
+                                              "type": "string"
+                                            },
+                                            "label": {
+                                              "type": "string"
+                                            },
+                                            "values": {
+                                              "items": {
+                                                "properties": {
+                                                  "description": {
+                                                    "type": "string"
+                                                  },
+                                                  "label": {
+                                                    "type": "string"
+                                                  },
+                                                  "value": {
+                                                    "type": "string"
+                                                  }
+                                                },
+                                                "required": [
+                                                  "value"
+                                                ],
+                                                "type": "object"
+                                              },
+                                              "type": "array"
+                                            }
+                                          },
+                                          "required": [
+                                            "id",
+                                            "kind"
+                                          ],
+                                          "type": "object"
+                                        },
+                                        "type": "array"
+                                      },
+                                      "supported_modes": {
+                                        "items": {
+                                          "type": "string"
+                                        },
+                                        "type": "array"
+                                      },
+                                      "supports_load_session": {
+                                        "type": "boolean"
+                                      }
+                                    },
+                                    "required": [
+                                      "supports_load_session"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "acp_session_id": {
+                                    "type": "string"
+                                  },
+                                  "effective": {
+                                    "nullable": true,
+                                    "properties": {
+                                      "model": {
+                                        "type": "string"
+                                      },
+                                      "provider": {
+                                        "type": "string"
+                                      },
+                                      "reasoning_effort": {
+                                        "enum": [
+                                          "none",
+                                          "minimal",
+                                          "low",
+                                          "medium",
+                                          "high",
+                                          "xhigh",
+                                          "max"
+                                        ],
+                                        "type": "string"
+                                      },
+                                      "speed": {
+                                        "enum": [
+                                          "normal",
+                                          "fast"
+                                        ],
+                                        "type": "string"
+                                      },
+                                      "speed_resolution": {
+                                        "nullable": true,
+                                        "properties": {
+                                          "reason": {
+                                            "enum": [
+                                              "capability_absent",
+                                              "capability_ambiguous",
+                                              "value_ambiguous",
+                                              "provider_rejected"
+                                            ],
+                                            "type": "string"
+                                          },
+                                          "requested": {
+                                            "enum": [
+                                              "normal",
+                                              "fast"
+                                            ],
+                                            "type": "string"
+                                          },
+                                          "status": {
+                                            "enum": [
+                                              "applied",
+                                              "unsupported",
+                                              "rejected"
+                                            ],
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": [
+                                          "requested",
+                                          "status"
+                                        ],
+                                        "type": "object"
+                                      }
+                                    },
+                                    "required": [
+                                      "provider"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "failure": {
+                                    "type": "string"
+                                  },
+                                  "status": {
+                                    "type": "string"
+                                  },
+                                  "transition": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "status"
+                                ],
+                                "type": "object"
+                              },
                               "sandbox": {
                                 "nullable": true,
                                 "properties": {
@@ -235547,47 +235768,6 @@
                                     "type": "string"
                                   }
                                 },
-                                "type": "object"
-                              },
-                              "speed": {
-                                "enum": [
-                                  "normal",
-                                  "fast"
-                                ],
-                                "type": "string"
-                              },
-                              "speed_resolution": {
-                                "nullable": true,
-                                "properties": {
-                                  "reason": {
-                                    "enum": [
-                                      "capability_absent",
-                                      "capability_ambiguous",
-                                      "value_ambiguous",
-                                      "provider_rejected"
-                                    ],
-                                    "type": "string"
-                                  },
-                                  "requested": {
-                                    "enum": [
-                                      "normal",
-                                      "fast"
-                                    ],
-                                    "type": "string"
-                                  },
-                                  "status": {
-                                    "enum": [
-                                      "applied",
-                                      "unsupported",
-                                      "rejected"
-                                    ],
-                                    "type": "string"
-                                  }
-                                },
-                                "required": [
-                                  "requested",
-                                  "status"
-                                ],
                                 "type": "object"
                               },
                               "state": {
@@ -235649,7 +235829,7 @@
                               "badge",
                               "created_at",
                               "id",
-                              "provider",
+                              "runtime",
                               "state",
                               "updated_at"
                             ],
@@ -243381,74 +243561,6 @@
                   "properties": {
                     "session": {
                       "properties": {
-                        "acp_caps": {
-                          "nullable": true,
-                          "properties": {
-                            "config_options": {
-                              "items": {
-                                "properties": {
-                                  "current": {
-                                    "type": "string"
-                                  },
-                                  "description": {
-                                    "type": "string"
-                                  },
-                                  "id": {
-                                    "type": "string"
-                                  },
-                                  "kind": {
-                                    "type": "string"
-                                  },
-                                  "label": {
-                                    "type": "string"
-                                  },
-                                  "values": {
-                                    "items": {
-                                      "properties": {
-                                        "description": {
-                                          "type": "string"
-                                        },
-                                        "label": {
-                                          "type": "string"
-                                        },
-                                        "value": {
-                                          "type": "string"
-                                        }
-                                      },
-                                      "required": [
-                                        "value"
-                                      ],
-                                      "type": "object"
-                                    },
-                                    "type": "array"
-                                  }
-                                },
-                                "required": [
-                                  "id",
-                                  "kind"
-                                ],
-                                "type": "object"
-                              },
-                              "type": "array"
-                            },
-                            "supported_modes": {
-                              "items": {
-                                "type": "string"
-                              },
-                              "type": "array"
-                            },
-                            "supports_load_session": {
-                              "type": "boolean"
-                            }
-                          },
-                          "required": [
-                            "supports_load_session"
-                          ],
-                          "type": "object"
-                        },
-                        "acp_session_id": {
-                          "type": "string"
-                        },
                         "activity": {
                           "nullable": true,
                           "properties": {
@@ -243777,25 +243889,7 @@
                           ],
                           "type": "object"
                         },
-                        "model": {
-                          "type": "string"
-                        },
                         "name": {
-                          "type": "string"
-                        },
-                        "provider": {
-                          "type": "string"
-                        },
-                        "reasoning_effort": {
-                          "enum": [
-                            "none",
-                            "minimal",
-                            "low",
-                            "medium",
-                            "high",
-                            "xhigh",
-                            "max"
-                          ],
                           "type": "string"
                         },
                         "resolved_network_participation": {
@@ -243938,6 +244032,159 @@
                             }
                           ]
                         },
+                        "runtime": {
+                          "properties": {
+                            "acp_caps": {
+                              "nullable": true,
+                              "properties": {
+                                "config_options": {
+                                  "items": {
+                                    "properties": {
+                                      "current": {
+                                        "type": "string"
+                                      },
+                                      "description": {
+                                        "type": "string"
+                                      },
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "kind": {
+                                        "type": "string"
+                                      },
+                                      "label": {
+                                        "type": "string"
+                                      },
+                                      "values": {
+                                        "items": {
+                                          "properties": {
+                                            "description": {
+                                              "type": "string"
+                                            },
+                                            "label": {
+                                              "type": "string"
+                                            },
+                                            "value": {
+                                              "type": "string"
+                                            }
+                                          },
+                                          "required": [
+                                            "value"
+                                          ],
+                                          "type": "object"
+                                        },
+                                        "type": "array"
+                                      }
+                                    },
+                                    "required": [
+                                      "id",
+                                      "kind"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "type": "array"
+                                },
+                                "supported_modes": {
+                                  "items": {
+                                    "type": "string"
+                                  },
+                                  "type": "array"
+                                },
+                                "supports_load_session": {
+                                  "type": "boolean"
+                                }
+                              },
+                              "required": [
+                                "supports_load_session"
+                              ],
+                              "type": "object"
+                            },
+                            "acp_session_id": {
+                              "type": "string"
+                            },
+                            "effective": {
+                              "nullable": true,
+                              "properties": {
+                                "model": {
+                                  "type": "string"
+                                },
+                                "provider": {
+                                  "type": "string"
+                                },
+                                "reasoning_effort": {
+                                  "enum": [
+                                    "none",
+                                    "minimal",
+                                    "low",
+                                    "medium",
+                                    "high",
+                                    "xhigh",
+                                    "max"
+                                  ],
+                                  "type": "string"
+                                },
+                                "speed": {
+                                  "enum": [
+                                    "normal",
+                                    "fast"
+                                  ],
+                                  "type": "string"
+                                },
+                                "speed_resolution": {
+                                  "nullable": true,
+                                  "properties": {
+                                    "reason": {
+                                      "enum": [
+                                        "capability_absent",
+                                        "capability_ambiguous",
+                                        "value_ambiguous",
+                                        "provider_rejected"
+                                      ],
+                                      "type": "string"
+                                    },
+                                    "requested": {
+                                      "enum": [
+                                        "normal",
+                                        "fast"
+                                      ],
+                                      "type": "string"
+                                    },
+                                    "status": {
+                                      "enum": [
+                                        "applied",
+                                        "unsupported",
+                                        "rejected"
+                                      ],
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "requested",
+                                    "status"
+                                  ],
+                                  "type": "object"
+                                }
+                              },
+                              "required": [
+                                "provider"
+                              ],
+                              "type": "object"
+                            },
+                            "failure": {
+                              "type": "string"
+                            },
+                            "status": {
+                              "type": "string"
+                            },
+                            "transition": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "status"
+                          ],
+                          "type": "object"
+                        },
                         "sandbox": {
                           "nullable": true,
                           "properties": {
@@ -243961,47 +244208,6 @@
                               "type": "string"
                             }
                           },
-                          "type": "object"
-                        },
-                        "speed": {
-                          "enum": [
-                            "normal",
-                            "fast"
-                          ],
-                          "type": "string"
-                        },
-                        "speed_resolution": {
-                          "nullable": true,
-                          "properties": {
-                            "reason": {
-                              "enum": [
-                                "capability_absent",
-                                "capability_ambiguous",
-                                "value_ambiguous",
-                                "provider_rejected"
-                              ],
-                              "type": "string"
-                            },
-                            "requested": {
-                              "enum": [
-                                "normal",
-                                "fast"
-                              ],
-                              "type": "string"
-                            },
-                            "status": {
-                              "enum": [
-                                "applied",
-                                "unsupported",
-                                "rejected"
-                              ],
-                              "type": "string"
-                            }
-                          },
-                          "required": [
-                            "requested",
-                            "status"
-                          ],
                           "type": "object"
                         },
                         "state": {
@@ -244063,7 +244269,7 @@
                         "badge",
                         "created_at",
                         "id",
-                        "provider",
+                        "runtime",
                         "state",
                         "updated_at"
                       ],
@@ -244565,74 +244771,6 @@
                     },
                     "session": {
                       "properties": {
-                        "acp_caps": {
-                          "nullable": true,
-                          "properties": {
-                            "config_options": {
-                              "items": {
-                                "properties": {
-                                  "current": {
-                                    "type": "string"
-                                  },
-                                  "description": {
-                                    "type": "string"
-                                  },
-                                  "id": {
-                                    "type": "string"
-                                  },
-                                  "kind": {
-                                    "type": "string"
-                                  },
-                                  "label": {
-                                    "type": "string"
-                                  },
-                                  "values": {
-                                    "items": {
-                                      "properties": {
-                                        "description": {
-                                          "type": "string"
-                                        },
-                                        "label": {
-                                          "type": "string"
-                                        },
-                                        "value": {
-                                          "type": "string"
-                                        }
-                                      },
-                                      "required": [
-                                        "value"
-                                      ],
-                                      "type": "object"
-                                    },
-                                    "type": "array"
-                                  }
-                                },
-                                "required": [
-                                  "id",
-                                  "kind"
-                                ],
-                                "type": "object"
-                              },
-                              "type": "array"
-                            },
-                            "supported_modes": {
-                              "items": {
-                                "type": "string"
-                              },
-                              "type": "array"
-                            },
-                            "supports_load_session": {
-                              "type": "boolean"
-                            }
-                          },
-                          "required": [
-                            "supports_load_session"
-                          ],
-                          "type": "object"
-                        },
-                        "acp_session_id": {
-                          "type": "string"
-                        },
                         "activity": {
                           "nullable": true,
                           "properties": {
@@ -244961,25 +245099,7 @@
                           ],
                           "type": "object"
                         },
-                        "model": {
-                          "type": "string"
-                        },
                         "name": {
-                          "type": "string"
-                        },
-                        "provider": {
-                          "type": "string"
-                        },
-                        "reasoning_effort": {
-                          "enum": [
-                            "none",
-                            "minimal",
-                            "low",
-                            "medium",
-                            "high",
-                            "xhigh",
-                            "max"
-                          ],
                           "type": "string"
                         },
                         "resolved_network_participation": {
@@ -245122,6 +245242,159 @@
                             }
                           ]
                         },
+                        "runtime": {
+                          "properties": {
+                            "acp_caps": {
+                              "nullable": true,
+                              "properties": {
+                                "config_options": {
+                                  "items": {
+                                    "properties": {
+                                      "current": {
+                                        "type": "string"
+                                      },
+                                      "description": {
+                                        "type": "string"
+                                      },
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "kind": {
+                                        "type": "string"
+                                      },
+                                      "label": {
+                                        "type": "string"
+                                      },
+                                      "values": {
+                                        "items": {
+                                          "properties": {
+                                            "description": {
+                                              "type": "string"
+                                            },
+                                            "label": {
+                                              "type": "string"
+                                            },
+                                            "value": {
+                                              "type": "string"
+                                            }
+                                          },
+                                          "required": [
+                                            "value"
+                                          ],
+                                          "type": "object"
+                                        },
+                                        "type": "array"
+                                      }
+                                    },
+                                    "required": [
+                                      "id",
+                                      "kind"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "type": "array"
+                                },
+                                "supported_modes": {
+                                  "items": {
+                                    "type": "string"
+                                  },
+                                  "type": "array"
+                                },
+                                "supports_load_session": {
+                                  "type": "boolean"
+                                }
+                              },
+                              "required": [
+                                "supports_load_session"
+                              ],
+                              "type": "object"
+                            },
+                            "acp_session_id": {
+                              "type": "string"
+                            },
+                            "effective": {
+                              "nullable": true,
+                              "properties": {
+                                "model": {
+                                  "type": "string"
+                                },
+                                "provider": {
+                                  "type": "string"
+                                },
+                                "reasoning_effort": {
+                                  "enum": [
+                                    "none",
+                                    "minimal",
+                                    "low",
+                                    "medium",
+                                    "high",
+                                    "xhigh",
+                                    "max"
+                                  ],
+                                  "type": "string"
+                                },
+                                "speed": {
+                                  "enum": [
+                                    "normal",
+                                    "fast"
+                                  ],
+                                  "type": "string"
+                                },
+                                "speed_resolution": {
+                                  "nullable": true,
+                                  "properties": {
+                                    "reason": {
+                                      "enum": [
+                                        "capability_absent",
+                                        "capability_ambiguous",
+                                        "value_ambiguous",
+                                        "provider_rejected"
+                                      ],
+                                      "type": "string"
+                                    },
+                                    "requested": {
+                                      "enum": [
+                                        "normal",
+                                        "fast"
+                                      ],
+                                      "type": "string"
+                                    },
+                                    "status": {
+                                      "enum": [
+                                        "applied",
+                                        "unsupported",
+                                        "rejected"
+                                      ],
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "requested",
+                                    "status"
+                                  ],
+                                  "type": "object"
+                                }
+                              },
+                              "required": [
+                                "provider"
+                              ],
+                              "type": "object"
+                            },
+                            "failure": {
+                              "type": "string"
+                            },
+                            "status": {
+                              "type": "string"
+                            },
+                            "transition": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "status"
+                          ],
+                          "type": "object"
+                        },
                         "sandbox": {
                           "nullable": true,
                           "properties": {
@@ -245145,47 +245418,6 @@
                               "type": "string"
                             }
                           },
-                          "type": "object"
-                        },
-                        "speed": {
-                          "enum": [
-                            "normal",
-                            "fast"
-                          ],
-                          "type": "string"
-                        },
-                        "speed_resolution": {
-                          "nullable": true,
-                          "properties": {
-                            "reason": {
-                              "enum": [
-                                "capability_absent",
-                                "capability_ambiguous",
-                                "value_ambiguous",
-                                "provider_rejected"
-                              ],
-                              "type": "string"
-                            },
-                            "requested": {
-                              "enum": [
-                                "normal",
-                                "fast"
-                              ],
-                              "type": "string"
-                            },
-                            "status": {
-                              "enum": [
-                                "applied",
-                                "unsupported",
-                                "rejected"
-                              ],
-                              "type": "string"
-                            }
-                          },
-                          "required": [
-                            "requested",
-                            "status"
-                          ],
                           "type": "object"
                         },
                         "state": {
@@ -245247,7 +245479,7 @@
                         "badge",
                         "created_at",
                         "id",
-                        "provider",
+                        "runtime",
                         "state",
                         "updated_at"
                       ],
@@ -246193,74 +246425,6 @@
                   "properties": {
                     "session": {
                       "properties": {
-                        "acp_caps": {
-                          "nullable": true,
-                          "properties": {
-                            "config_options": {
-                              "items": {
-                                "properties": {
-                                  "current": {
-                                    "type": "string"
-                                  },
-                                  "description": {
-                                    "type": "string"
-                                  },
-                                  "id": {
-                                    "type": "string"
-                                  },
-                                  "kind": {
-                                    "type": "string"
-                                  },
-                                  "label": {
-                                    "type": "string"
-                                  },
-                                  "values": {
-                                    "items": {
-                                      "properties": {
-                                        "description": {
-                                          "type": "string"
-                                        },
-                                        "label": {
-                                          "type": "string"
-                                        },
-                                        "value": {
-                                          "type": "string"
-                                        }
-                                      },
-                                      "required": [
-                                        "value"
-                                      ],
-                                      "type": "object"
-                                    },
-                                    "type": "array"
-                                  }
-                                },
-                                "required": [
-                                  "id",
-                                  "kind"
-                                ],
-                                "type": "object"
-                              },
-                              "type": "array"
-                            },
-                            "supported_modes": {
-                              "items": {
-                                "type": "string"
-                              },
-                              "type": "array"
-                            },
-                            "supports_load_session": {
-                              "type": "boolean"
-                            }
-                          },
-                          "required": [
-                            "supports_load_session"
-                          ],
-                          "type": "object"
-                        },
-                        "acp_session_id": {
-                          "type": "string"
-                        },
                         "activity": {
                           "nullable": true,
                           "properties": {
@@ -246589,25 +246753,7 @@
                           ],
                           "type": "object"
                         },
-                        "model": {
-                          "type": "string"
-                        },
                         "name": {
-                          "type": "string"
-                        },
-                        "provider": {
-                          "type": "string"
-                        },
-                        "reasoning_effort": {
-                          "enum": [
-                            "none",
-                            "minimal",
-                            "low",
-                            "medium",
-                            "high",
-                            "xhigh",
-                            "max"
-                          ],
                           "type": "string"
                         },
                         "resolved_network_participation": {
@@ -246750,6 +246896,159 @@
                             }
                           ]
                         },
+                        "runtime": {
+                          "properties": {
+                            "acp_caps": {
+                              "nullable": true,
+                              "properties": {
+                                "config_options": {
+                                  "items": {
+                                    "properties": {
+                                      "current": {
+                                        "type": "string"
+                                      },
+                                      "description": {
+                                        "type": "string"
+                                      },
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "kind": {
+                                        "type": "string"
+                                      },
+                                      "label": {
+                                        "type": "string"
+                                      },
+                                      "values": {
+                                        "items": {
+                                          "properties": {
+                                            "description": {
+                                              "type": "string"
+                                            },
+                                            "label": {
+                                              "type": "string"
+                                            },
+                                            "value": {
+                                              "type": "string"
+                                            }
+                                          },
+                                          "required": [
+                                            "value"
+                                          ],
+                                          "type": "object"
+                                        },
+                                        "type": "array"
+                                      }
+                                    },
+                                    "required": [
+                                      "id",
+                                      "kind"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "type": "array"
+                                },
+                                "supported_modes": {
+                                  "items": {
+                                    "type": "string"
+                                  },
+                                  "type": "array"
+                                },
+                                "supports_load_session": {
+                                  "type": "boolean"
+                                }
+                              },
+                              "required": [
+                                "supports_load_session"
+                              ],
+                              "type": "object"
+                            },
+                            "acp_session_id": {
+                              "type": "string"
+                            },
+                            "effective": {
+                              "nullable": true,
+                              "properties": {
+                                "model": {
+                                  "type": "string"
+                                },
+                                "provider": {
+                                  "type": "string"
+                                },
+                                "reasoning_effort": {
+                                  "enum": [
+                                    "none",
+                                    "minimal",
+                                    "low",
+                                    "medium",
+                                    "high",
+                                    "xhigh",
+                                    "max"
+                                  ],
+                                  "type": "string"
+                                },
+                                "speed": {
+                                  "enum": [
+                                    "normal",
+                                    "fast"
+                                  ],
+                                  "type": "string"
+                                },
+                                "speed_resolution": {
+                                  "nullable": true,
+                                  "properties": {
+                                    "reason": {
+                                      "enum": [
+                                        "capability_absent",
+                                        "capability_ambiguous",
+                                        "value_ambiguous",
+                                        "provider_rejected"
+                                      ],
+                                      "type": "string"
+                                    },
+                                    "requested": {
+                                      "enum": [
+                                        "normal",
+                                        "fast"
+                                      ],
+                                      "type": "string"
+                                    },
+                                    "status": {
+                                      "enum": [
+                                        "applied",
+                                        "unsupported",
+                                        "rejected"
+                                      ],
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "requested",
+                                    "status"
+                                  ],
+                                  "type": "object"
+                                }
+                              },
+                              "required": [
+                                "provider"
+                              ],
+                              "type": "object"
+                            },
+                            "failure": {
+                              "type": "string"
+                            },
+                            "status": {
+                              "type": "string"
+                            },
+                            "transition": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "status"
+                          ],
+                          "type": "object"
+                        },
                         "sandbox": {
                           "nullable": true,
                           "properties": {
@@ -246773,47 +247072,6 @@
                               "type": "string"
                             }
                           },
-                          "type": "object"
-                        },
-                        "speed": {
-                          "enum": [
-                            "normal",
-                            "fast"
-                          ],
-                          "type": "string"
-                        },
-                        "speed_resolution": {
-                          "nullable": true,
-                          "properties": {
-                            "reason": {
-                              "enum": [
-                                "capability_absent",
-                                "capability_ambiguous",
-                                "value_ambiguous",
-                                "provider_rejected"
-                              ],
-                              "type": "string"
-                            },
-                            "requested": {
-                              "enum": [
-                                "normal",
-                                "fast"
-                              ],
-                              "type": "string"
-                            },
-                            "status": {
-                              "enum": [
-                                "applied",
-                                "unsupported",
-                                "rejected"
-                              ],
-                              "type": "string"
-                            }
-                          },
-                          "required": [
-                            "requested",
-                            "status"
-                          ],
                           "type": "object"
                         },
                         "state": {
@@ -246875,7 +247133,7 @@
                         "badge",
                         "created_at",
                         "id",
-                        "provider",
+                        "runtime",
                         "state",
                         "updated_at"
                       ],
@@ -250131,6 +250389,40 @@
                   },
                   "mode": {
                     "type": "string"
+                  },
+                  "runtime": {
+                    "nullable": true,
+                    "properties": {
+                      "model": {
+                        "type": "string"
+                      },
+                      "provider": {
+                        "type": "string"
+                      },
+                      "reasoning_effort": {
+                        "enum": [
+                          "none",
+                          "minimal",
+                          "low",
+                          "medium",
+                          "high",
+                          "xhigh",
+                          "max"
+                        ],
+                        "type": "string"
+                      },
+                      "speed": {
+                        "enum": [
+                          "normal",
+                          "fast"
+                        ],
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "provider"
+                    ],
+                    "type": "object"
                   }
                 },
                 "type": "object"
@@ -253669,74 +253961,6 @@
                         },
                         "session": {
                           "properties": {
-                            "acp_caps": {
-                              "nullable": true,
-                              "properties": {
-                                "config_options": {
-                                  "items": {
-                                    "properties": {
-                                      "current": {
-                                        "type": "string"
-                                      },
-                                      "description": {
-                                        "type": "string"
-                                      },
-                                      "id": {
-                                        "type": "string"
-                                      },
-                                      "kind": {
-                                        "type": "string"
-                                      },
-                                      "label": {
-                                        "type": "string"
-                                      },
-                                      "values": {
-                                        "items": {
-                                          "properties": {
-                                            "description": {
-                                              "type": "string"
-                                            },
-                                            "label": {
-                                              "type": "string"
-                                            },
-                                            "value": {
-                                              "type": "string"
-                                            }
-                                          },
-                                          "required": [
-                                            "value"
-                                          ],
-                                          "type": "object"
-                                        },
-                                        "type": "array"
-                                      }
-                                    },
-                                    "required": [
-                                      "id",
-                                      "kind"
-                                    ],
-                                    "type": "object"
-                                  },
-                                  "type": "array"
-                                },
-                                "supported_modes": {
-                                  "items": {
-                                    "type": "string"
-                                  },
-                                  "type": "array"
-                                },
-                                "supports_load_session": {
-                                  "type": "boolean"
-                                }
-                              },
-                              "required": [
-                                "supports_load_session"
-                              ],
-                              "type": "object"
-                            },
-                            "acp_session_id": {
-                              "type": "string"
-                            },
                             "activity": {
                               "nullable": true,
                               "properties": {
@@ -254065,25 +254289,7 @@
                               ],
                               "type": "object"
                             },
-                            "model": {
-                              "type": "string"
-                            },
                             "name": {
-                              "type": "string"
-                            },
-                            "provider": {
-                              "type": "string"
-                            },
-                            "reasoning_effort": {
-                              "enum": [
-                                "none",
-                                "minimal",
-                                "low",
-                                "medium",
-                                "high",
-                                "xhigh",
-                                "max"
-                              ],
                               "type": "string"
                             },
                             "resolved_network_participation": {
@@ -254226,6 +254432,159 @@
                                 }
                               ]
                             },
+                            "runtime": {
+                              "properties": {
+                                "acp_caps": {
+                                  "nullable": true,
+                                  "properties": {
+                                    "config_options": {
+                                      "items": {
+                                        "properties": {
+                                          "current": {
+                                            "type": "string"
+                                          },
+                                          "description": {
+                                            "type": "string"
+                                          },
+                                          "id": {
+                                            "type": "string"
+                                          },
+                                          "kind": {
+                                            "type": "string"
+                                          },
+                                          "label": {
+                                            "type": "string"
+                                          },
+                                          "values": {
+                                            "items": {
+                                              "properties": {
+                                                "description": {
+                                                  "type": "string"
+                                                },
+                                                "label": {
+                                                  "type": "string"
+                                                },
+                                                "value": {
+                                                  "type": "string"
+                                                }
+                                              },
+                                              "required": [
+                                                "value"
+                                              ],
+                                              "type": "object"
+                                            },
+                                            "type": "array"
+                                          }
+                                        },
+                                        "required": [
+                                          "id",
+                                          "kind"
+                                        ],
+                                        "type": "object"
+                                      },
+                                      "type": "array"
+                                    },
+                                    "supported_modes": {
+                                      "items": {
+                                        "type": "string"
+                                      },
+                                      "type": "array"
+                                    },
+                                    "supports_load_session": {
+                                      "type": "boolean"
+                                    }
+                                  },
+                                  "required": [
+                                    "supports_load_session"
+                                  ],
+                                  "type": "object"
+                                },
+                                "acp_session_id": {
+                                  "type": "string"
+                                },
+                                "effective": {
+                                  "nullable": true,
+                                  "properties": {
+                                    "model": {
+                                      "type": "string"
+                                    },
+                                    "provider": {
+                                      "type": "string"
+                                    },
+                                    "reasoning_effort": {
+                                      "enum": [
+                                        "none",
+                                        "minimal",
+                                        "low",
+                                        "medium",
+                                        "high",
+                                        "xhigh",
+                                        "max"
+                                      ],
+                                      "type": "string"
+                                    },
+                                    "speed": {
+                                      "enum": [
+                                        "normal",
+                                        "fast"
+                                      ],
+                                      "type": "string"
+                                    },
+                                    "speed_resolution": {
+                                      "nullable": true,
+                                      "properties": {
+                                        "reason": {
+                                          "enum": [
+                                            "capability_absent",
+                                            "capability_ambiguous",
+                                            "value_ambiguous",
+                                            "provider_rejected"
+                                          ],
+                                          "type": "string"
+                                        },
+                                        "requested": {
+                                          "enum": [
+                                            "normal",
+                                            "fast"
+                                          ],
+                                          "type": "string"
+                                        },
+                                        "status": {
+                                          "enum": [
+                                            "applied",
+                                            "unsupported",
+                                            "rejected"
+                                          ],
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "requested",
+                                        "status"
+                                      ],
+                                      "type": "object"
+                                    }
+                                  },
+                                  "required": [
+                                    "provider"
+                                  ],
+                                  "type": "object"
+                                },
+                                "failure": {
+                                  "type": "string"
+                                },
+                                "status": {
+                                  "type": "string"
+                                },
+                                "transition": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "status"
+                              ],
+                              "type": "object"
+                            },
                             "sandbox": {
                               "nullable": true,
                               "properties": {
@@ -254249,47 +254608,6 @@
                                   "type": "string"
                                 }
                               },
-                              "type": "object"
-                            },
-                            "speed": {
-                              "enum": [
-                                "normal",
-                                "fast"
-                              ],
-                              "type": "string"
-                            },
-                            "speed_resolution": {
-                              "nullable": true,
-                              "properties": {
-                                "reason": {
-                                  "enum": [
-                                    "capability_absent",
-                                    "capability_ambiguous",
-                                    "value_ambiguous",
-                                    "provider_rejected"
-                                  ],
-                                  "type": "string"
-                                },
-                                "requested": {
-                                  "enum": [
-                                    "normal",
-                                    "fast"
-                                  ],
-                                  "type": "string"
-                                },
-                                "status": {
-                                  "enum": [
-                                    "applied",
-                                    "unsupported",
-                                    "rejected"
-                                  ],
-                                  "type": "string"
-                                }
-                              },
-                              "required": [
-                                "requested",
-                                "status"
-                              ],
                               "type": "object"
                             },
                             "state": {
@@ -254351,7 +254669,7 @@
                             "badge",
                             "created_at",
                             "id",
-                            "provider",
+                            "runtime",
                             "state",
                             "updated_at"
                           ],

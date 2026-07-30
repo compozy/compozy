@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	speedpkg "github.com/compozy/compozy/internal/speed"
 )
 
 func TestAgentEventToolPayloadPreservesValueSemantics(t *testing.T) {
@@ -64,6 +66,39 @@ func TestAgentEventToolPayloadPreservesValueSemantics(t *testing.T) {
 		}
 		if got, want := copied.ToolName(), "compozy__read"; got != want {
 			t.Fatalf("copied tool name = %q, want %q", got, want)
+		}
+	})
+}
+
+func TestAgentEventPromptRuntimePreservesValueSemantics(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should isolate prompt runtime snapshots across event copies", func(t *testing.T) {
+		t.Parallel()
+
+		runtime := &PromptRuntime{
+			Provider:        "openai",
+			Model:           "gpt-5.6",
+			ReasoningEffort: "high",
+			Speed:           speedpkg.SpeedFast,
+		}
+		event := (AgentEvent{Type: EventTypeAgentMessage}).WithPromptRuntime(runtime)
+		copied := event.WithTool("compozy__read", json.RawMessage(`{"path":"README.md"}`), false)
+
+		runtime.Provider = "mutated"
+		snapshot := event.PromptRuntimeSnapshot()
+		snapshot.Model = "mutated"
+
+		if got, want := event.PromptRuntimeSnapshot(), (&PromptRuntime{
+			Provider:        "openai",
+			Model:           "gpt-5.6",
+			ReasoningEffort: "high",
+			Speed:           speedpkg.SpeedFast,
+		}); got == nil || *got != *want {
+			t.Fatalf("original prompt runtime = %#v, want %#v", got, want)
+		}
+		if got, want := copied.PromptRuntimeSnapshot(), event.PromptRuntimeSnapshot(); got == nil || *got != *want {
+			t.Fatalf("copied prompt runtime = %#v, want %#v", got, want)
 		}
 	})
 }

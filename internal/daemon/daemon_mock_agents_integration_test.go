@@ -159,10 +159,6 @@ func TestDaemonE2EProviderReasoningNegotiatesThroughAdvertisedACPOptions(t *test
 			t.Fatalf("CreateSession(agent default) error = %v", err)
 		}
 		sessionPayload = waitForReasoningSessionActive(t, ctx, harness, sessionPayload)
-		if sessionPayload.Provider != "claude" || sessionPayload.Model != "claude-sonnet-5" ||
-			sessionPayload.ReasoningEffort != compozycontract.ReasoningEffort("max") {
-			t.Fatalf("session runtime = %#v, want claude/claude-sonnet-5/max", sessionPayload)
-		}
 		if _, err := harness.PromptSession(ctx, sessionPayload.ID, "claude max"); err != nil {
 			t.Fatalf("PromptSession(agent default) error = %v", err)
 		}
@@ -227,20 +223,13 @@ func TestDaemonE2EProviderReasoningNegotiatesThroughAdvertisedACPOptions(t *test
 				t.Fatalf("MockAgentRegistration(%q) = missing", tt.agentName)
 			}
 			sessionPayload, err := harness.CreateSession(ctx, compozycontract.CreateSessionRequest{
-				AgentName:       tt.agentName,
-				Provider:        tt.provider,
-				Model:           tt.model,
-				ReasoningEffort: tt.effort,
-				WorkspacePath:   harness.WorkspaceRoot,
+				AgentName:     tt.agentName,
+				WorkspacePath: harness.WorkspaceRoot,
 			})
 			if err != nil {
 				t.Fatalf("CreateSession(%q) error = %v", tt.agentName, err)
 			}
 			sessionPayload = waitForReasoningSessionActive(t, ctx, harness, sessionPayload)
-			if sessionPayload.Provider != tt.provider || sessionPayload.Model != tt.model ||
-				sessionPayload.ReasoningEffort != tt.effort {
-				t.Fatalf("session runtime = %#v, want %s/%s/%s", sessionPayload, tt.provider, tt.model, tt.effort)
-			}
 			if _, err := harness.PromptSession(ctx, sessionPayload.ID, tt.prompt); err != nil {
 				t.Fatalf("PromptSession(%q) error = %v", tt.agentName, err)
 			}
@@ -267,11 +256,8 @@ func TestDaemonE2EProviderReasoningNegotiatesThroughAdvertisedACPOptions(t *test
 		sessions := make([]compozycontract.SessionPayload, 0, 2)
 		for index := 0; index < 2; index++ {
 			sessionPayload, err := harness.CreateSession(ctx, compozycontract.CreateSessionRequest{
-				AgentName:       "reasoning-claude-concurrent",
-				Provider:        "claude",
-				Model:           "claude-sonnet-5",
-				ReasoningEffort: "max",
-				WorkspacePath:   harness.WorkspaceRoot,
+				AgentName:     "reasoning-claude-concurrent",
+				WorkspacePath: harness.WorkspaceRoot,
 			})
 			if err != nil {
 				t.Fatalf("CreateSession(concurrent %d) error = %v", index, err)
@@ -341,11 +327,8 @@ func TestDaemonE2EProviderReasoningNegotiatesThroughAdvertisedACPOptions(t *test
 			t.Fatal("MockAgentRegistration(reasoning-codex-missing) = missing")
 		}
 		status, accepted := createSessionHTTPAccepted(t, ctx, harness, compozycontract.CreateSessionRequest{
-			AgentName:       "reasoning-codex-missing",
-			Provider:        "codex",
-			Model:           "gpt-5.6-sol",
-			ReasoningEffort: "max",
-			WorkspacePath:   harness.WorkspaceRoot,
+			AgentName:     "reasoning-codex-missing",
+			WorkspacePath: harness.WorkspaceRoot,
 		})
 		if status != http.StatusCreated || accepted.State != session.StateStarting {
 			t.Fatalf("HTTP create session = status:%d session:%#v, want 201 starting", status, accepted)
@@ -379,11 +362,8 @@ func TestDaemonE2EProviderReasoningNegotiatesThroughAdvertisedACPOptions(t *test
 			t.Fatal("MockAgentRegistration(reasoning-codex-unavailable) = missing")
 		}
 		status, accepted := createSessionHTTPAccepted(t, ctx, harness, compozycontract.CreateSessionRequest{
-			AgentName:       "reasoning-codex-unavailable",
-			Provider:        "codex",
-			Model:           "gpt-5.6-terra",
-			ReasoningEffort: "max",
-			WorkspacePath:   harness.WorkspaceRoot,
+			AgentName:     "reasoning-codex-unavailable",
+			WorkspacePath: harness.WorkspaceRoot,
 		})
 		if status != http.StatusCreated || accepted.State != session.StateStarting {
 			t.Fatalf("HTTP create session = status:%d session:%#v, want 201 starting", status, accepted)
@@ -413,11 +393,8 @@ func TestDaemonE2EProviderReasoningNegotiatesThroughAdvertisedACPOptions(t *test
 			t.Fatal("MockAgentRegistration(reasoning-codex-unsupported) = missing")
 		}
 		status, accepted := createSessionHTTPAccepted(t, ctx, harness, compozycontract.CreateSessionRequest{
-			AgentName:       "reasoning-codex-unsupported",
-			Provider:        "codex",
-			Model:           "gpt-5.6-sol",
-			ReasoningEffort: "minimal",
-			WorkspacePath:   harness.WorkspaceRoot,
+			AgentName:     "reasoning-codex-unsupported",
+			WorkspacePath: harness.WorkspaceRoot,
 		})
 		if status != http.StatusCreated || accepted.State != session.StateStarting {
 			t.Fatalf("HTTP create session = status:%d session:%#v, want 201 starting", status, accepted)

@@ -60,6 +60,8 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			toolspkg.ToolIDNetworkDirectMessages,
 			toolspkg.ToolIDNetworkWork,
 			toolspkg.ToolIDSessionList,
+			toolspkg.ToolIDSessionCreate,
+			toolspkg.ToolIDSessionPrompt,
 			toolspkg.ToolIDSessionStatus,
 			toolspkg.ToolIDSessionHistory,
 			toolspkg.ToolIDSessionEvents,
@@ -626,6 +628,8 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			t.Fatalf("session list input schema exposes internal dream type: %s", sessionListDescriptor.InputSchema)
 		}
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDSessionStatus], toolspkg.RiskRead, true, false, false)
+		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDSessionCreate], toolspkg.RiskMutating, false, false, false)
+		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDSessionPrompt], toolspkg.RiskMutating, false, false, false)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDSessionHistory], toolspkg.RiskRead, true, false, false)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDSessionEvents], toolspkg.RiskRead, true, false, false)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDSessionDescribe], toolspkg.RiskRead, true, false, false)
@@ -1827,10 +1831,12 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 			t.Fatalf("Expand(sessions) error = %v", err)
 		}
 		if !slices.Contains(sessions, toolspkg.ToolIDSessionList) ||
+			!slices.Contains(sessions, toolspkg.ToolIDSessionCreate) ||
+			!slices.Contains(sessions, toolspkg.ToolIDSessionPrompt) ||
 			!slices.Contains(sessions, toolspkg.ToolIDSessionDescribe) ||
 			!slices.Contains(sessions, toolspkg.ToolIDSessionHealth) ||
 			slices.Contains(sessions, toolspkg.ToolID("compozy__session_stop")) {
-			t.Fatalf("sessions toolset expansion = %#v, want read-only session tools", sessions)
+			t.Fatalf("sessions toolset expansion = %#v, want session read and mutation tools", sessions)
 		}
 
 		authoredContext, err := catalog.Expand(toolspkg.ToolsetIDAuthoredContext, universe)

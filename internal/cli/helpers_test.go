@@ -162,7 +162,7 @@ type stubClient struct {
 	sendSessionPromptFn         func(context.Context, string, SessionPromptRequest) (SessionPromptRecord, error)
 	steerSessionPromptFn        func(context.Context, string, string) (SessionPromptRecord, error)
 	cancelQueuedSessionPromptFn func(context.Context, string, string) (SessionPromptRecord, error)
-	streamPromptSessionFn       func(context.Context, string, string, SSEHandler) error
+	streamPromptSessionFn       func(context.Context, string, SessionPromptRequest, SSEHandler) error
 	sessionEventsFn             func(context.Context, string, SessionEventQuery) ([]SessionEventRecord, error)
 	streamSessionFn             func(context.Context, string, SessionEventQuery, string, SSEHandler) error
 	sessionHistoryFn            func(context.Context, string, SessionEventQuery) ([]TurnHistoryRecord, error)
@@ -1654,11 +1654,11 @@ func (s *stubClient) CancelQueuedSessionPrompt(
 func (s *stubClient) StreamPromptSession(
 	ctx context.Context,
 	id string,
-	message string,
+	request SessionPromptRequest,
 	handler SSEHandler,
 ) error {
 	if s.streamPromptSessionFn != nil {
-		return s.streamPromptSessionFn(ctx, id, message, handler)
+		return s.streamPromptSessionFn(ctx, id, request, handler)
 	}
 	return errors.New("unexpected StreamPromptSession call")
 }

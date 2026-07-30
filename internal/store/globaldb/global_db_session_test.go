@@ -57,6 +57,13 @@ func TestScanSessionInfoReadsStopFields(t *testing.T) {
 			'Demo',
 			'coder',
 			'claude',
+			'claude-opus-4',
+			'high',
+			'fast',
+			'{"requested":"fast","status":"applied"}',
+			'ready',
+			'live_configuration',
+			'',
 			'ws-1',
 			?,
 			'live',
@@ -130,6 +137,22 @@ func TestScanSessionInfoReadsStopFields(t *testing.T) {
 		if got, want := info.Provider, "claude"; got != want {
 			t.Fatalf("info.Provider = %q, want %q", got, want)
 		}
+		if got, want := info.Model, "claude-opus-4"; got != want {
+			t.Fatalf("info.Model = %q, want %q", got, want)
+		}
+		if got, want := info.ReasoningEffort, "high"; got != want {
+			t.Fatalf("info.ReasoningEffort = %q, want %q", got, want)
+		}
+		if got, want := info.RuntimeStatus, store.SessionRuntimeReady; got != want {
+			t.Fatalf("info.RuntimeStatus = %q, want %q", got, want)
+		}
+		if got, want := info.RuntimeTransition, store.SessionRuntimeTransitionLiveConfiguration; got != want {
+			t.Fatalf("info.RuntimeTransition = %q, want %q", got, want)
+		}
+		if info.SpeedResolution == nil || info.SpeedResolution.Requested != "fast" ||
+			info.SpeedResolution.Status != "applied" {
+			t.Fatalf("info.SpeedResolution = %#v, want applied fast", info.SpeedResolution)
+		}
 		if got, want := info.NetworkSpecSnapshot(), liveSpec; got != want {
 			t.Fatalf("info Network participation = %#v, want %#v", got, want)
 		}
@@ -191,6 +214,13 @@ func TestScanSessionInfoHandlesNullStopReason(t *testing.T) {
 			'sess-null',
 			NULL,
 			'coder',
+			'',
+			'',
+			'',
+			'',
+			'',
+			'unbound',
+			'',
 			'',
 			'ws-1',
 			'{"version":"network-participation/v1","mode":"local","source":"built_in_local"}',
@@ -282,6 +312,13 @@ func TestScanSessionInfoRejectsInvalidSandboxLastSyncAt(t *testing.T) {
 			'Demo',
 			'coder',
 			'claude',
+			'',
+			'',
+			'',
+			'',
+			'unbound',
+			'',
+			'',
 			'ws-1',
 			'{"version":"network-participation/v1","mode":"local","source":"built_in_local"}',
 			'local',
@@ -352,6 +389,13 @@ func TestScanSessionInfoRejectsStallStateWithoutReason(t *testing.T) {
 			'Demo',
 			'coder',
 			'claude',
+			'',
+			'',
+			'',
+			'',
+			'unbound',
+			'',
+			'',
 			'ws-1',
 			'{"version":"network-participation/v1","mode":"local","source":"built_in_local"}',
 			'local',

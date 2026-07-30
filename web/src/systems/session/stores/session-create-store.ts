@@ -8,7 +8,6 @@ import {
   ADVANCED_DEFAULTS,
   applySessionAgentSelection,
   EMPTY_SESSION_CREATE_DRAFT,
-  RUNTIME_OVERRIDE_DEFAULTS,
   type SessionCreateDialogDraft,
 } from "../lib/session-create-draft";
 import type { SessionPayload } from "../types";
@@ -45,14 +44,7 @@ type SessionCreateStoreEvents = {
     SessionCreateDialogDraft,
     "networkParticipationMode" | "networkChannelId" | "networkChannelStrategy"
   >;
-  promptChanged: { prompt: string };
-  providerSettingsRequested: {};
-  runtimeSelected: Pick<
-    SessionCreateDialogDraft,
-    "providerOverride" | "modelOverride" | "reasoningEffort"
-  >;
   sessionNameChanged: { sessionName: string };
-  speedSelected: Pick<SessionCreateDialogDraft, "speed">;
   submissionFailed: { attempt: number; message: string };
   submissionRequested: {
     agentName: string;
@@ -110,8 +102,6 @@ export const sessionCreateStoreLogic = createStoreLogic<
         ...context.draft,
         workspaceId: event.workspaceId,
         agentName: "",
-        prompt: "",
-        ...RUNTIME_OVERRIDE_DEFAULTS,
         ...ADVANCED_DEFAULTS,
       },
       submitError: null,
@@ -132,28 +122,11 @@ export const sessionCreateStoreLogic = createStoreLogic<
       ...context,
       draft: { ...context.draft, workspacePath: event.workspacePath },
     }),
-    promptChanged: (context, event) => ({
-      ...context,
-      draft: { ...context.draft, prompt: event.prompt },
-      submitError: null,
-    }),
-    runtimeSelected: (context, event) => ({
-      ...context,
-      draft: { ...context.draft, ...event },
-      submitError: null,
-    }),
-    speedSelected: (context, event) => ({
-      ...context,
-      draft: { ...context.draft, ...event },
-      submitError: null,
-    }),
     networkParticipationSelected: (context, event) => ({
       ...context,
       draft: { ...context.draft, ...event },
       submitError: null,
     }),
-    providerSettingsRequested: context =>
-      context.operation.status === "submitting" ? undefined : { ...context, open: false },
     validationFailed: (context, event) => ({
       ...context,
       submitError: event.message,

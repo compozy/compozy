@@ -32,13 +32,15 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 		now := time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)
 		ttl := now.Add(time.Hour)
 		payload := core.SessionPayloadFromInfo(&session.Info{
-			ID:              "sess-1",
-			Name:            "demo",
-			AgentName:       "coder",
-			Provider:        "fake",
-			Model:           "  gpt-test  ",
-			ReasoningEffort: "  high  ",
-			Speed:           speedpkg.SpeedFast,
+			ID:                "sess-1",
+			Name:              "demo",
+			AgentName:         "coder",
+			Provider:          "fake",
+			Model:             "  gpt-test  ",
+			ReasoningEffort:   "  high  ",
+			Speed:             speedpkg.SpeedFast,
+			RuntimeStatus:     session.RuntimeStatusReady,
+			RuntimeTransition: session.RuntimeTransitionLiveConfiguration,
 			SpeedResolution: &speedpkg.Resolution{
 				Requested: speedpkg.SpeedFast,
 				Status:    speedpkg.ResolutionUnsupported,
@@ -126,26 +128,24 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 				wantParticipation,
 			)
 		}
-		if payload.Provider != "fake" {
-			t.Fatalf("payload.Provider = %q, want %q", payload.Provider, "fake")
+		if payload.Runtime.Status != session.RuntimeStatusReady ||
+			payload.Runtime.Transition != session.RuntimeTransitionLiveConfiguration ||
+			payload.Runtime.Effective == nil || payload.Runtime.Effective.Provider != "fake" ||
+			payload.Runtime.Effective.Model != "gpt-test" ||
+			payload.Runtime.Effective.ReasoningEffort != "high" {
+			t.Fatalf("payload runtime = %#v", payload.Runtime)
 		}
-		if payload.Model != "gpt-test" {
-			t.Fatalf("payload.Model = %q, want %q", payload.Model, "gpt-test")
-		}
-		if payload.ReasoningEffort != "high" {
-			t.Fatalf("payload.ReasoningEffort = %q, want %q", payload.ReasoningEffort, "high")
-		}
-		if payload.Speed != contract.SpeedFast ||
-			payload.SpeedResolution == nil ||
-			payload.SpeedResolution.Status != speedpkg.ResolutionUnsupported ||
-			payload.SpeedResolution.Reason != speedpkg.ReasonCapabilityAbsent {
+		if payload.Runtime.Effective.Speed != contract.SpeedFast ||
+			payload.Runtime.Effective.SpeedResolution == nil ||
+			payload.Runtime.Effective.SpeedResolution.Status != speedpkg.ResolutionUnsupported ||
+			payload.Runtime.Effective.SpeedResolution.Reason != speedpkg.ReasonCapabilityAbsent {
 			t.Fatalf(
 				"payload speed fields = %q, %#v, want fast unsupported capability_absent",
-				payload.Speed,
-				payload.SpeedResolution,
+				payload.Runtime.Effective.Speed,
+				payload.Runtime.Effective.SpeedResolution,
 			)
 		}
-		if payload.State != session.StateActive || payload.ACPSessionID != "acp-123" {
+		if payload.State != session.StateActive || payload.Runtime.ACPSessionID != "acp-123" {
 			t.Fatalf("payload session fields = %#v", payload)
 		}
 		if payload.Type != session.SessionTypeDream {
@@ -172,25 +172,25 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 			payload.Failure.CrashBundlePath != "/tmp/compozy-crash.json" {
 			t.Fatalf("payload failure = %#v", payload.Failure)
 		}
-		if payload.ACPCaps == nil || !payload.ACPCaps.SupportsLoadSession {
-			t.Fatalf("caps = %#v", payload.ACPCaps)
+		if payload.Runtime.ACPCaps == nil || !payload.Runtime.ACPCaps.SupportsLoadSession {
+			t.Fatalf("caps = %#v", payload.Runtime.ACPCaps)
 		}
 		if len(payload.AvailableCommands) != 1 || payload.AvailableCommands[0].Name != "compact" ||
 			payload.AvailableCommands[0].Input == nil ||
 			payload.AvailableCommands[0].Input.Hint != "optional focus" {
 			t.Fatalf("payload.AvailableCommands = %#v", payload.AvailableCommands)
 		}
-		if got := payload.ACPCaps.SupportedModes; len(got) != 1 || got[0] != "chat" {
+		if got := payload.Runtime.ACPCaps.SupportedModes; len(got) != 1 || got[0] != "chat" {
 			t.Fatalf("supported modes = %#v, want [chat]", got)
 		}
-		if len(payload.ACPCaps.ConfigOptions) != 1 {
-			t.Fatalf("config options = %#v", payload.ACPCaps.ConfigOptions)
+		if len(payload.Runtime.ACPCaps.ConfigOptions) != 1 {
+			t.Fatalf("config options = %#v", payload.Runtime.ACPCaps.ConfigOptions)
 		}
-		if got := payload.ACPCaps.ConfigOptions[0]; got.ID != "reasoning_effort" || got.Current != "high" ||
+		if got := payload.Runtime.ACPCaps.ConfigOptions[0]; got.ID != "reasoning_effort" || got.Current != "high" ||
 			got.Kind != "select" || len(got.Values) != 2 {
 			t.Fatalf("config option payload = %#v", got)
 		}
-		if got := payload.ACPCaps.ConfigOptions[0].Values; got[0].Value != "low" || got[1].Value != "high" {
+		if got := payload.Runtime.ACPCaps.ConfigOptions[0].Values; got[0].Value != "low" || got[1].Value != "high" {
 			t.Fatalf("config option values = %#v, want [low high]", got)
 		}
 		if payload.Sandbox == nil || payload.Sandbox.SandboxID != "env-1" ||
@@ -210,9 +210,11 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 		t.Parallel()
 
 		payload := core.SessionPayloadFromInfo(&session.Info{
-			ID:        "sess-stalled",
-			AgentName: "coder",
-			State:     session.StateActive,
+			ID:            "sess-stalled",
+			AgentName:     "coder",
+			Provider:      "fake",
+			RuntimeStatus: session.RuntimeStatusUnbound,
+			State:         session.StateActive,
 			Liveness: &store.SessionLivenessMeta{
 				StallState:  store.SessionStallStateDetected,
 				StallReason: store.SessionStallReasonActivityTimeout,
@@ -223,6 +225,40 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 		}
 		if payload.Attachable {
 			t.Fatalf("payload.Attachable = true, want false for stalled session")
+		}
+		if payload.Runtime.Effective != nil {
+			t.Fatalf("payload.Runtime.Effective = %#v, want nil while unbound", payload.Runtime.Effective)
+		}
+	})
+
+	t.Run("Should map the durable runtime projection from the session catalog", func(t *testing.T) {
+		t.Parallel()
+
+		payload := core.SessionPayloadFromStoreInfo(store.SessionInfo{
+			ID:                "sess-catalog",
+			AgentName:         "coder",
+			Provider:          "codex",
+			Model:             "gpt-5.4",
+			ReasoningEffort:   "high",
+			Speed:             speedpkg.SpeedFast,
+			RuntimeStatus:     store.SessionRuntimeReady,
+			RuntimeTransition: store.SessionRuntimeTransitionLiveConfiguration,
+			WorkspaceID:       "ws-catalog",
+			SessionType:       string(session.SessionTypeUser),
+			State:             string(session.StateActive),
+			CreatedAt:         time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
+			UpdatedAt:         time.Date(2026, 4, 3, 12, 1, 0, 0, time.UTC),
+		})
+		if payload.Runtime.Status != session.RuntimeStatusReady ||
+			payload.Runtime.Transition != session.RuntimeTransitionLiveConfiguration ||
+			payload.Runtime.Effective == nil || payload.Runtime.Effective.Provider != "codex" ||
+			payload.Runtime.Effective.Model != "gpt-5.4" ||
+			payload.Runtime.Effective.ReasoningEffort != "high" ||
+			payload.Runtime.Effective.Speed != contract.SpeedFast {
+			t.Fatalf("catalog runtime = %#v", payload.Runtime)
+		}
+		if payload.Runtime.ACPCaps != nil {
+			t.Fatalf("catalog runtime caps = %#v, want nil without a live ACP process", payload.Runtime.ACPCaps)
 		}
 	})
 }

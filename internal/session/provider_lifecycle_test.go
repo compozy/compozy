@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
@@ -47,6 +48,132 @@ func TestCreateWithProviderOverridePropagatesToSessionRuntime(t *testing.T) {
 	if got := h.driver.startCalls[0].Command; got != codexProvider.Command {
 		t.Fatalf("start command = %q, want %q", got, codexProvider.Command)
 	}
+}
+
+func TestPromptRuntimeReplacementLifecycle(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should replace a provider runtime with replay while ignoring the retired process exit", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		session := createSession(t, h)
+		t.Cleanup(func() {
+			if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+				t.Errorf("Stop(%q) error = %v", session.ID, err)
+			}
+		})
+
+		previousProcess := session.processHandle()
+		if previousProcess == nil {
+			t.Fatal("initial runtime process = nil")
+		}
+		previousFakeProcess := h.driver.lastProcess()
+		if previousFakeProcess == nil {
+			t.Fatal("initial fake runtime process = nil")
+		}
+
+		first, err := h.manager.SendPrompt(testutil.Context(t), session.ID, SendPromptOpts{
+			Message: "Establish the existing session context",
+		})
+		if err != nil {
+			t.Fatalf("SendPrompt(initial) error = %v", err)
+		}
+		collectEvents(t, first.Events)
+		eventsBeforeReplacement := readStoredEvents(t, session)
+
+		h.driver.stopHook = func(proc *fakeProcess) error {
+			if proc == previousFakeProcess {
+				return nil
+			}
+			proc.exit()
+			return nil
+		}
+		replacement, err := h.manager.SendPrompt(testutil.Context(t), session.ID, SendPromptOpts{
+			Message: "Continue using the replacement runtime",
+			Runtime: &RuntimeSelection{Provider: "codex"},
+		})
+		if err != nil {
+			t.Fatalf("SendPrompt(replacement) error = %v", err)
+		}
+		collectEvents(t, replacement.Events)
+
+		if got, want := len(h.driver.startCalls), 2; got != want {
+			t.Fatalf("runtime start calls = %d, want %d", got, want)
+		}
+		if got := h.driver.startCalls[1].ResumeSessionID; got != "" {
+			t.Fatalf("replacement ResumeSessionID = %q, want empty across provider boundary", got)
+		}
+		if got := session.Info().Provider; got != "codex" {
+			t.Fatalf("replacement provider = %q, want codex", got)
+		}
+		currentProcess := session.processHandle()
+		if currentProcess == nil || currentProcess == previousProcess {
+			t.Fatalf("replacement process = %p, want a new process distinct from %p", currentProcess, previousProcess)
+		}
+		promptCalls := managerPromptCalls(h)
+		if got, want := len(promptCalls), 2; got != want {
+			t.Fatalf("prompt calls = %d, want %d", got, want)
+		}
+		assertResumeReplayEqualsPrunedEvents(t, promptCalls[1].Message, eventsBeforeReplacement)
+
+		previousFakeProcess.exit()
+		if err := h.manager.handleProcessExit(testutil.Context(t), session, previousProcess, nil); err != nil {
+			t.Fatalf("handleProcessExit(retired runtime) error = %v", err)
+		}
+		if got := session.Info().State; got != StateActive {
+			t.Fatalf("session state after retired runtime exit = %q, want %q", got, StateActive)
+		}
+		if got := session.processHandle(); got != currentProcess {
+			t.Fatalf("current runtime after retired runtime exit = %p, want %p", got, currentProcess)
+		}
+	})
+
+	t.Run("Should preserve the prior binding and transcript when replacement startup fails", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		session := createSession(t, h)
+		t.Cleanup(func() {
+			if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+				t.Errorf("Stop(%q) error = %v", session.ID, err)
+			}
+		})
+
+		previous := session.Info()
+		previousProcess := session.processHandle()
+		if previousProcess == nil {
+			t.Fatal("initial runtime process = nil")
+		}
+		startFailure := errors.New("replacement provider failed to start")
+		h.driver.startHook = func(_ acp.StartOpts, sequence int) (*fakeProcess, error) {
+			if sequence != 2 {
+				return nil, errors.New("unexpected runtime start sequence")
+			}
+			return nil, startFailure
+		}
+
+		_, err := h.manager.SendPrompt(testutil.Context(t), session.ID, SendPromptOpts{
+			Message: "This prompt must not become durable",
+			Runtime: &RuntimeSelection{Provider: "codex"},
+		})
+		if !errors.Is(err, startFailure) {
+			t.Fatalf("SendPrompt(replacement failure) error = %v, want %v", err, startFailure)
+		}
+		if got := session.Info(); got.State != StateActive || got.Provider != previous.Provider ||
+			got.RuntimeStatus != previous.RuntimeStatus || got.ACPSessionID != previous.ACPSessionID {
+			t.Fatalf("runtime after failed replacement = %#v, want prior binding %#v", got, previous)
+		}
+		if got := session.processHandle(); got != previousProcess {
+			t.Fatalf("runtime process after failed replacement = %p, want %p", got, previousProcess)
+		}
+		if inputs := managerUserPromptEvents(t, h, session.ID); len(inputs) != 0 {
+			t.Fatalf("persisted prompt inputs after failed replacement = %#v, want none", inputs)
+		}
+		if calls := managerPromptCalls(h); len(calls) != 0 {
+			t.Fatalf("ACP prompt calls after failed replacement = %#v, want none", calls)
+		}
+	})
 }
 
 func TestCreateWithInvalidProviderFailsBeforePersistenceAndLogs(t *testing.T) {

@@ -53,7 +53,7 @@ func agentSessionLookup(client agentSessionClient) agentidentity.SessionLookup {
 			ID:            record.ID,
 			Name:          record.Name,
 			AgentName:     record.AgentName,
-			Provider:      record.Provider,
+			Provider:      sessionRuntimeProvider(record),
 			WorkspaceID:   record.WorkspaceID,
 			WorkspacePath: record.WorkspacePath,
 			Type:          record.Type,

@@ -30,6 +30,16 @@ var (
 	ErrSessionInputQueueEntryNotFound = errors.New("store: session input queue entry not found")
 )
 
+// SessionInputRuntime is the immutable runtime selection captured when busy
+// input is admitted. It intentionally uses storage-native fields so queued
+// work remains independent from the live session binding and selector state.
+type SessionInputRuntime struct {
+	Provider        string
+	Model           string
+	ReasoningEffort string
+	Speed           string
+}
+
 // SessionInputQueueEntry is one persisted busy-input item.
 type SessionInputQueueEntry struct {
 	ID                       string
@@ -37,6 +47,7 @@ type SessionInputQueueEntry struct {
 	Status                   string
 	Mode                     string
 	Text                     string
+	Runtime                  SessionInputRuntime
 	SessionGeneration        int64
 	TaskRunID                string
 	RunGeneration            *int64
@@ -90,6 +101,7 @@ type SessionInputQueueInsert struct {
 	SessionID         string
 	Mode              string
 	Text              string
+	Runtime           SessionInputRuntime
 	SessionGeneration int64
 	TaskRunID         string
 	RunGeneration     *int64

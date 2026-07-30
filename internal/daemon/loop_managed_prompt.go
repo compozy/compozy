@@ -111,8 +111,8 @@ func (b *loopActionSessionBinder) AwaitActionPrompt(
 				looppkg.ErrTransitionConflict,
 			)
 		}
-		if managedGoalPromptSettled(entry) {
-			result, resultErr := b.managedGoalPromptResult(ctx, entry)
+		if managedGoalPromptSettled(&entry) {
+			result, resultErr := b.managedGoalPromptResult(ctx, &entry)
 			if resultErr == nil {
 				b.usageReporters.remove(queueEntryID)
 			}
@@ -224,13 +224,13 @@ func managedInputOwner(checkpoint goalpkg.Checkpoint, generation int) session.Ma
 	}
 }
 
-func managedGoalPromptSettled(entry store.SessionInputQueueEntry) bool {
+func managedGoalPromptSettled(entry *store.SessionInputQueueEntry) bool {
 	return entry.TerminalAt != nil || strings.TrimSpace(entry.FenceKind) != ""
 }
 
 func (b *loopActionSessionBinder) managedGoalPromptResult(
 	ctx context.Context,
-	entry store.SessionInputQueueEntry,
+	entry *store.SessionInputQueueEntry,
 ) (looppkg.ActionPromptResult, error) {
 	disposition := looppkg.ActionDisposition(firstNonEmptyManagedGoal(
 		entry.TerminalDisposition,

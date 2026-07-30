@@ -20,6 +20,34 @@ const (
 var sessionTools = []toolspkg.Descriptor{
 	sessionListDescriptor(),
 	nativeDescriptor(
+		toolspkg.ToolIDSessionCreate,
+		"session_create",
+		"Session Create",
+		"Create an unbound logical user session. Select its runtime on the first prompt.",
+		sessionCreateInputSchema,
+		toolspkg.RiskMutating,
+		false,
+		false,
+		false,
+		[]toolspkg.ToolsetID{toolspkg.ToolsetIDSessions},
+		[]string{sessionsSessionsKey, descriptorKeywordCreate},
+		[]string{"create session", "new session"},
+	),
+	nativeDescriptor(
+		toolspkg.ToolIDSessionPrompt,
+		"session_prompt",
+		"Session Prompt",
+		"Send a prompt to a session, optionally selecting the runtime for that prompt.",
+		sessionPromptInputSchema,
+		toolspkg.RiskMutating,
+		false,
+		false,
+		false,
+		[]toolspkg.ToolsetID{toolspkg.ToolsetIDSessions},
+		[]string{sessionsSessionsKey, "prompt", "runtime"},
+		[]string{"session prompt", "select runtime", "switch model"},
+	),
+	nativeDescriptor(
 		toolspkg.ToolIDSessionStatus,
 		"session_status",
 		"Session Status",
@@ -113,6 +141,39 @@ const sessionListInputSchema = `{
 		"sort":{"type":"string","enum":["recent","last_activity"]},
 		"cursor":{"type":"string"},
 		"limit":{"type":"integer","minimum":1,"maximum":100}
+	},
+	"additionalProperties":false
+}`
+
+const sessionCreateInputSchema = `{
+	"type":"object",
+	"required":["agent"],
+	"properties":{
+		"workspace":{"type":"string"},
+		"agent":{"type":"string","minLength":1},
+		"name":{"type":"string"}
+	},
+	"additionalProperties":false
+}`
+
+const sessionPromptInputSchema = `{
+	"type":"object",
+	"required":["session_id","message"],
+	"properties":{
+		"workspace":{"type":"string"},
+		"session_id":{"type":"string","minLength":1},
+		"message":{"type":"string","minLength":1},
+		"runtime":{
+			"type":"object",
+			"required":["provider"],
+			"properties":{
+				"provider":{"type":"string","minLength":1},
+				"model":{"type":"string"},
+				"reasoning_effort":{"type":"string","enum":["none","minimal","low","medium","high","xhigh","max"]},
+				"speed":{"type":"string","enum":["normal","fast"]}
+			},
+			"additionalProperties":false
+		}
 	},
 	"additionalProperties":false
 }`

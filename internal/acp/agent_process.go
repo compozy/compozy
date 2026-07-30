@@ -26,6 +26,7 @@ type AgentProcess struct {
 	StartedAt time.Time
 
 	capsMu          sync.RWMutex
+	runtimeConfigMu sync.Mutex
 	managed         *subprocess.Process
 	handle          sandbox.Handle
 	toolHostMu      sync.Mutex

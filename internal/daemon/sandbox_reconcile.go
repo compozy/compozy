@@ -51,12 +51,12 @@ func (d *Daemon) reconcileDaemonSandboxes(ctx context.Context, state *bootState)
 		return
 	}
 
-	for _, candidate := range sessions {
+	for index := range sessions {
 		if err := ctx.Err(); err != nil {
 			logger.Warn("daemon: sandbox reconciliation canceled", "error", err)
 			return
 		}
-		d.reconcileDaemonSandboxSession(ctx, state, candidate)
+		d.reconcileDaemonSandboxSession(ctx, state, &sessions[index])
 	}
 
 	logger.Info("daemon: sandbox reconciliation complete", "sessions", len(sessions))
@@ -109,7 +109,7 @@ func (d *Daemon) loadSandboxReconcileSessions(
 func (d *Daemon) reconcileDaemonSandboxSession(
 	ctx context.Context,
 	state *bootState,
-	candidate sandboxReconcileSession,
+	candidate *sandboxReconcileSession,
 ) {
 	meta := candidate.meta
 	envMeta := cloneDaemonSessionSandboxMeta(meta.Sandbox)
@@ -223,7 +223,7 @@ func (d *Daemon) reattachDaemonSandbox(
 	ctx context.Context,
 	state *bootState,
 	provider sandbox.Provider,
-	candidate sandboxReconcileSession,
+	candidate *sandboxReconcileSession,
 	envMeta *store.SessionSandboxMeta,
 	providerState sandbox.SessionState,
 	resolvedEnv sandbox.Resolved,
@@ -273,7 +273,7 @@ func (d *Daemon) destroyDaemonSandbox(
 	ctx context.Context,
 	state *bootState,
 	provider sandbox.Provider,
-	candidate sandboxReconcileSession,
+	candidate *sandboxReconcileSession,
 	envMeta *store.SessionSandboxMeta,
 	providerState sandbox.SessionState,
 ) {

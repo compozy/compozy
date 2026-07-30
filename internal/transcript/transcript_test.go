@@ -11,6 +11,7 @@ import (
 
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/diagnostics"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 )
 
@@ -1866,7 +1867,7 @@ func TestUnmarshalAgentEventRoundTripPreservesStructuredFieldsWithoutRaw(t *test
 	t.Run("Should round-trip structured fields without restoring canonical raw payloads", func(t *testing.T) {
 		t.Parallel()
 
-		payload, err := MarshalAgentEvent(acp.AgentEvent{
+		event := (acp.AgentEvent{
 			Type:             acp.EventTypeAgentMessage,
 			SessionID:        "acp-1",
 			TurnID:           "turn-1",
@@ -1881,12 +1882,18 @@ func TestUnmarshalAgentEventRoundTripPreservesStructuredFieldsWithoutRaw(t *test
 				{Name: "review", Description: "Review changes"},
 			}),
 			Raw: json.RawMessage(`{"chunk":1}`),
+		}).WithPromptRuntime(&acp.PromptRuntime{
+			Provider:        "codex",
+			Model:           "gpt-5.6",
+			ReasoningEffort: "high",
+			Speed:           speedpkg.SpeedFast,
 		})
+		payload, err := MarshalAgentEvent(event)
 		if err != nil {
 			t.Fatalf("MarshalAgentEvent() error = %v", err)
 		}
 
-		event, err := UnmarshalAgentEvent(payload)
+		event, err = UnmarshalAgentEvent(payload)
 		if err != nil {
 			t.Fatalf("UnmarshalAgentEvent() error = %v", err)
 		}
@@ -1907,6 +1914,14 @@ func TestUnmarshalAgentEventRoundTripPreservesStructuredFieldsWithoutRaw(t *test
 		}
 		if got, want := event.PromptStopReason, acp.PromptStopReasonMaxTokens; got != want {
 			t.Fatalf("PromptStopReason = %q, want %q", got, want)
+		}
+		if got, want := event.PromptRuntimeSnapshot(), (&acp.PromptRuntime{
+			Provider:        "codex",
+			Model:           "gpt-5.6",
+			ReasoningEffort: "high",
+			Speed:           speedpkg.SpeedFast,
+		}); !reflect.DeepEqual(got, want) {
+			t.Fatalf("PromptRuntime = %#v, want %#v", got, want)
 		}
 		if got, want := event.AvailableCommands.Values(), []store.SessionAdvertisedCommand{
 			{Name: "compact", Description: "Compact context"},

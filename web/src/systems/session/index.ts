@@ -62,8 +62,21 @@ export type {
   TurnHistoryPayload,
   UIMessage,
 } from "./types";
+export type { SessionPromptRuntimeSnapshot } from "./contexts/session-prompt-runtime-context-value";
 
 // Adapters
+export {
+  SessionPromptRuntimeProvider,
+  type SessionPromptRuntimeProviderProps,
+} from "./contexts/session-prompt-runtime-context";
+export {
+  useOptionalSessionPromptRuntimeContext,
+  useSessionPromptRuntimeContext,
+} from "./hooks/use-session-prompt-runtime-context";
+export {
+  SessionPromptRuntimeSelector,
+  type SessionPromptRuntimeSelectorProps,
+} from "./components/session-prompt-runtime-selector";
 export {
   answerSessionClarification,
   approveSession,

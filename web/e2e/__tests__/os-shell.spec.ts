@@ -928,19 +928,40 @@ test("E2E-022: menubar traverses five menus and operates workspaces, sessions, D
 }) => {
   const workspace = await prepareShell(appPage, runtime);
   const secondWorkspace = await addSecondWorkspace(runtime, workspace.id);
-  await appPage.reload({ waitUntil: "domcontentloaded" });
-
-  await appPage.locator('[data-slot="os-menubar-workspace"]').click();
-  await expect(appPage.getByTestId(`os-workspace-option-${workspace.id}`)).toBeVisible();
-  await appPage.getByTestId(`os-workspace-option-${secondWorkspace.id}`).click();
-  await expect(appPage.locator('[data-slot="os-menubar-workspace"]')).toContainText(
-    secondWorkspace.name
-  );
 
   await openMenu(appPage, "Session");
   await appPage.getByTestId("os-menu-new-session").click();
-  await expect(appPage.getByTestId("session-create-dialog")).toBeVisible();
-  await appPage.keyboard.press("Escape");
+  const createDialog = appPage.getByTestId("session-create-dialog");
+  await expect(createDialog).toBeVisible();
+  await createDialog.getByTestId("session-create-mode-advanced").click();
+  await createDialog.getByTestId("session-create-workspace-select").click();
+  await appPage.getByTestId(`workspace-command-item-${secondWorkspace.id}`).click();
+  await expect(createDialog.getByTestId("session-create-workspace-select")).toContainText(
+    secondWorkspace.name
+  );
+  await createDialog.getByTestId("session-create-agent-select").click();
+  await appPage.getByTestId(`agent-command-item-${browserLifecycleAgent}`).click();
+  await expect(createDialog.getByTestId("session-create-agent-select")).toContainText(
+    browserLifecycleAgent
+  );
+  const createResponsePromise = appPage.waitForResponse(
+    response => response.request().method() === "POST" && response.url().endsWith("/api/sessions")
+  );
+  await createDialog.getByTestId("session-create-submit").click();
+  const createResponse = await createResponsePromise;
+  expect(createResponse.ok()).toBeTruthy();
+  const createPayload = (await createResponse.json()) as { session?: { id?: string } };
+  const createdSessionId = createPayload.session?.id ?? "";
+  expect(createdSessionId).not.toBe("");
+  await expect
+    .poll(() => new URL(appPage.url()).pathname)
+    .toBe(
+      `/agents/${encodeURIComponent(browserLifecycleAgent)}/sessions/${encodeURIComponent(createdSessionId)}`
+    );
+  await expect(appPage.getByTestId(`os-window-session:${createdSessionId}`)).toBeVisible();
+  await expect(appPage.locator('[data-slot="os-menubar-workspace"]')).toContainText(
+    secondWorkspace.name
+  );
 
   // One menubar: arrow keys traverse it and hovering a sibling switches menus.
   await openMenu(appPage, "Session");

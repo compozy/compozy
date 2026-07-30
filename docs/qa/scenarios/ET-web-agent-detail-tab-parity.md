@@ -4,9 +4,9 @@ area: ET
 title: Agent detail tab panelbox and content contracts
 persona: Bruno
 journey: J-31
-expected: Overview Runtime lists Model (live selector), Command, and Permissions inside panelbox surfaces; At a glance shows MCP mono chips and Skills; Instructions AGENT.md shows file-meta Read-only here with markdown prose; Configuration Access deny tools use danger pills and MCP uses hairline rows; Sessions empty folds New session into Empty action.
+expected: Overview Runtime lists Model (live selector), Command, and Permissions inside panelbox surfaces; At a glance shows MCP mono chips and Skills; Instructions AGENT.md shows file-meta Read-only here with markdown prose; Configuration Access deny tools use danger pills and MCP uses hairline rows; Sessions empty New session opens the launch dialog and, after creation, navigates through the created session owner workspace to its composer.
 entry_points: web /agents/$name?tab=overview|instructions|configuration|sessions
-qa_status: pass
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status: pass

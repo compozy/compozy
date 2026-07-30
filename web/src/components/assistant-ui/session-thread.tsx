@@ -7,6 +7,7 @@ import type { SessionFailurePayload, SessionState } from "@/systems/session";
 import { useSessionComposerState } from "./hooks/use-session-composer-state";
 import { SessionComposer, type SessionComposerProps } from "./session-composer";
 import { SessionComposerPrefillProvider } from "./session-composer-prefill-context";
+import { useSessionPromptDispatch } from "./hooks/use-session-prompt-dispatch";
 import {
   SESSION_THREAD_CONTENT_INSET_DEFAULT,
   ThreadContentRail,
@@ -48,14 +49,23 @@ export function SessionThread({
   acpSessionId,
   sessionState,
   failure,
+  runtimeControl,
 }: SessionThreadProps) {
   const aui = useAui();
   const composerState = useSessionComposerState(sessionId);
+  const promptDispatch = useSessionPromptDispatch();
+  const promptDispatchPending = promptDispatch.pending;
+  const renderedComposerState = promptDispatch.canceled
+    ? { ...composerState, isRunning: false }
+    : composerState;
+  const runtimeRunning =
+    isSessionRunning || renderedComposerState.isRunning || promptDispatchPending;
   const startupFailed =
     sessionState === "stopped" && Boolean(failure) && !acpSessionId?.trim().length;
   const lifecycleCanPrompt = canPrompt && sessionState !== "starting" && !startupFailed;
   const handleCancelPrompt = () => {
     aui.thread().cancelRun();
+    promptDispatch.cancelPending();
     onCancelPrompt();
   };
   return (
@@ -73,17 +83,18 @@ export function SessionThread({
         <ThreadViewport
           agentName={agentName}
           sessionId={sessionId}
-          isSessionRunning={isSessionRunning}
+          isSessionRunning={runtimeRunning}
           contentInset={contentInset}
           sessionState={sessionState}
           failure={failure}
           startupFailed={startupFailed}
+          showPromptDispatchWorking={promptDispatchPending && !renderedComposerState.isRunning}
         />
         <ThreadContentRail inset={contentInset} className="pt-2">
           <SessionGoalCommandErrorNotice sessionId={sessionId} />
         </ThreadContentRail>
         <SessionComposer
-          composerState={composerState}
+          composerState={renderedComposerState}
           contentInset={contentInset}
           decisionDock={
             workspaceId ? (
@@ -96,7 +107,7 @@ export function SessionThread({
           onInterruptPrompt={onInterruptPrompt}
           onSteerPrompt={onSteerPrompt}
           isBusyInputPending={isBusyInputPending}
-          isSessionRunning={isSessionRunning}
+          isSessionRunning={runtimeRunning}
           allowBusyInput={allowBusyInput}
           queuedPrompts={queuedPrompts}
           onRemoveQueuedPrompt={onRemoveQueuedPrompt}
@@ -108,6 +119,7 @@ export function SessionThread({
                 ? "Session failed to start"
                 : undefined
           }
+          runtimeControl={runtimeControl}
         />
       </SessionComposerPrefillProvider>
     </ThreadPrimitive.Root>

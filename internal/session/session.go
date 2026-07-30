@@ -60,6 +60,9 @@ type Info struct {
 	ReasoningEffort      string
 	Speed                speedpkg.Speed
 	SpeedResolution      *speedpkg.Resolution
+	RuntimeStatus        RuntimeStatus
+	RuntimeTransition    RuntimeTransitionStrategy
+	RuntimeFailure       string
 	EffectivePermissions string
 	WorkspaceID          string
 	Workspace            string
@@ -98,6 +101,9 @@ type Session struct {
 	ReasoningEffort      string
 	Speed                speedpkg.Speed
 	SpeedResolution      *speedpkg.Resolution
+	RuntimeStatus        RuntimeStatus
+	RuntimeTransition    RuntimeTransitionStrategy
+	RuntimeFailure       string
 	EffectivePermissions string
 	WorkspaceID          string
 	Workspace            string

@@ -311,7 +311,7 @@ func TestReadManagedGoalPromptOutputShouldIgnoreOnlyCorrelatedAuxiliaryEvents(t 
 			text, structured, err := readManagedGoalPromptOutput(
 				testutil.Context(t),
 				staticLoopSessionEventReader{events: events},
-				store.SessionInputQueueEntry{SessionID: "session-recovery", PromptID: promptID},
+				&store.SessionInputQueueEntry{SessionID: "session-recovery", PromptID: promptID},
 				looppkg.ActionPromptResult{PromptID: promptID, EventStartSeq: 31, EventEndSeq: 34},
 			)
 			if err != nil {
@@ -337,7 +337,7 @@ func TestReadManagedGoalPromptOutputShouldIgnoreOnlyCorrelatedAuxiliaryEvents(t 
 		_, _, err := readManagedGoalPromptOutput(
 			testutil.Context(t),
 			staticLoopSessionEventReader{events: events},
-			store.SessionInputQueueEntry{SessionID: "session-recovery", PromptID: promptID},
+			&store.SessionInputQueueEntry{SessionID: "session-recovery", PromptID: promptID},
 			looppkg.ActionPromptResult{PromptID: promptID, EventStartSeq: 41, EventEndSeq: 42},
 		)
 		if !errors.Is(err, looppkg.ErrTransitionConflict) {

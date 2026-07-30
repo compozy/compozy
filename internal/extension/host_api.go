@@ -154,6 +154,10 @@ type hostAPISessionAcceptanceManager interface {
 	CreateAccepted(ctx context.Context, opts session.CreateAcceptedOpts) (*session.Info, error)
 }
 
+type hostAPIRuntimePromptSessionManager interface {
+	SendPrompt(ctx context.Context, id string, opts session.SendPromptOpts) (session.SendPromptResult, error)
+}
+
 type hostAPIBridgePromptSessionManager interface {
 	PromptWithOpts(
 		ctx context.Context,

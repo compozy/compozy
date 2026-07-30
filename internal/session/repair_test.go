@@ -265,6 +265,7 @@ func repairSessionMeta(id string, reason store.StopReason, workspaceID string) s
 		WorkspaceID:          workspaceID,
 		NetworkParticipation: testLocalParticipationPtr(),
 		State:                string(StateStopped),
+		RuntimeStatus:        store.SessionRuntimeReady,
 		StopReason:           &reason,
 		CreatedAt:            now,
 		UpdatedAt:            now,

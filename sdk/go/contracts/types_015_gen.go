@@ -216,6 +216,13 @@ type PromptPayload struct {
 	ContextBlocks  []ContextBlock `json:"context_blocks,omitempty"`
 }
 
+type PromptRuntimeSelectionPayload struct {
+	Provider        string `json:"provider"`
+	Model           string `json:"model,omitempty"`
+	ReasoningEffort Effort `json:"reasoning_effort,omitempty"`
+	Speed           Speed  `json:"speed,omitempty"`
+}
+
 type ProviderModelListResponse struct {
 	Models []ProviderModelPayload `json:"models"`
 }
@@ -249,8 +256,4 @@ type ProviderModelPayload struct {
 type ProviderModelRefreshResponse struct {
 	Sources []ModelCatalogSourceStatusPayload `json:"sources"`
 	Error   string                            `json:"error,omitempty"`
-}
-
-type ProviderModelStatusResponse struct {
-	Sources []ModelCatalogSourceStatusPayload `json:"sources"`
 }

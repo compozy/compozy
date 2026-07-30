@@ -27,6 +27,7 @@ import type {
   SessionPromptResult,
   SessionRepairQuery,
 } from "../types";
+import type { SessionPromptRuntimeSnapshot } from "../contexts/session-prompt-runtime-context-value";
 
 function requireWorkspace(workspaceId: string | null | undefined): string {
   if (!workspaceId) {
@@ -196,6 +197,7 @@ export function useClearSessionConversation(options: UseSessionWorkspaceOptions 
 export interface SessionPromptActionParams {
   id: string;
   message: string;
+  runtime?: SessionPromptRuntimeSnapshot;
 }
 
 export interface SendSessionPromptParams extends SessionPromptActionParams {
@@ -213,8 +215,12 @@ export function useSendSessionPrompt(options: UseSessionWorkspaceOptions = {}) {
   const workspaceId = resolveWorkspaceId(options.workspaceId, activeWorkspaceId);
 
   return useMutation<SessionPromptResult, Error, SendSessionPromptParams>({
-    mutationFn: ({ id, message, mode }) =>
-      sendSessionPrompt(requireWorkspace(workspaceId), id, { message, mode }),
+    mutationFn: ({ id, message, mode, runtime }) =>
+      sendSessionPrompt(requireWorkspace(workspaceId), id, {
+        message,
+        mode,
+        ...(runtime ? { runtime } : {}),
+      }),
     onSettled: (_data, _error, params) => {
       if (workspaceId) void invalidateSessionMutationQueries(queryClient, workspaceId, params.id);
     },
@@ -227,8 +233,12 @@ export function useQueueSessionPrompt(options: UseSessionWorkspaceOptions = {}) 
   const workspaceId = resolveWorkspaceId(options.workspaceId, activeWorkspaceId);
 
   return useMutation<SessionPromptResult, Error, SessionPromptActionParams>({
-    mutationFn: ({ id, message }) =>
-      sendSessionPrompt(requireWorkspace(workspaceId), id, { message, mode: "queue" }),
+    mutationFn: ({ id, message, runtime }) =>
+      sendSessionPrompt(requireWorkspace(workspaceId), id, {
+        message,
+        mode: "queue",
+        ...(runtime ? { runtime } : {}),
+      }),
     onSettled: (_data, _error, params) => {
       if (workspaceId) void invalidateSessionMutationQueries(queryClient, workspaceId, params.id);
     },
@@ -241,8 +251,12 @@ export function useInterruptSessionPrompt(options: UseSessionWorkspaceOptions = 
   const workspaceId = resolveWorkspaceId(options.workspaceId, activeWorkspaceId);
 
   return useMutation<SessionPromptResult, Error, SessionPromptActionParams>({
-    mutationFn: ({ id, message }) =>
-      sendSessionPrompt(requireWorkspace(workspaceId), id, { message, mode: "interrupt" }),
+    mutationFn: ({ id, message, runtime }) =>
+      sendSessionPrompt(requireWorkspace(workspaceId), id, {
+        message,
+        mode: "interrupt",
+        ...(runtime ? { runtime } : {}),
+      }),
     onSettled: (_data, _error, params) => {
       if (workspaceId) void invalidateSessionMutationQueries(queryClient, workspaceId, params.id);
     },

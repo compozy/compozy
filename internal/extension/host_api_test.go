@@ -330,7 +330,6 @@ func TestHostAPIHandlerSessionsCreateReturnsSessionID(t *testing.T) {
 
 	result, err := env.call(t, "ext-create", "sessions/create", map[string]any{
 		"agent":     "coder",
-		"provider":  "fake-alt",
 		"workspace": env.workspaceID,
 		"network_participation": map[string]any{
 			"mode":             "live",
@@ -347,14 +346,7 @@ func TestHostAPIHandlerSessionsCreateReturnsSessionID(t *testing.T) {
 	if created.SessionID == "" {
 		t.Fatal("sessions/create session_id = empty, want non-empty")
 	}
-	if created.Provider != "fake-alt" {
-		t.Fatalf("sessions/create provider = %q, want %q", created.Provider, "fake-alt")
-	}
-
 	info := waitForHostAPISessionState(t, env.sessions, created.SessionID, session.StateActive)
-	if info.Provider != "fake-alt" {
-		t.Fatalf("created session provider = %q, want %q", info.Provider, "fake-alt")
-	}
 	if info.NetworkParticipation.Mode != participation.ModeLive ||
 		info.NetworkParticipation.ChannelID != "builders" {
 		t.Fatalf(
@@ -372,21 +364,17 @@ func TestHostAPIHandlerSessionsCreateReturnsSessionID(t *testing.T) {
 	assertErrorContains(t, err, "network_channel")
 }
 
-func TestHostAPIHandlerSessionsCreateUsesAtomicAcceptedPrompt(t *testing.T) {
+func TestHostAPIHandlerSessionsCreateUsesDurableLogicalAcceptance(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should use atomic accepted create with a trimmed prompt", func(t *testing.T) {
+	t.Run("Should accept a logical session without prompt or runtime", func(t *testing.T) {
 		t.Parallel()
 
 		sessions := &recordingHostAPISessionManager{}
 		handler := &HostAPIHandler{sessions: sessions}
 		raw := json.RawMessage(`{
 			"agent":"coder",
-			"provider":"codex",
-			"model":"gpt-5.6-sol",
-			"reasoning_effort":"high",
-			"workspace":"ws-alpha",
-			"prompt":"  Investigate the failing build  "
+			"workspace":"ws-alpha"
 		}`)
 
 		result, err := handler.handleSessionsCreate(testutil.Context(t), raw)
@@ -400,16 +388,12 @@ func TestHostAPIHandlerSessionsCreateUsesAtomicAcceptedPrompt(t *testing.T) {
 			t.Fatalf("CreateAccepted() calls = %#v, want one", sessions.acceptedCreateCalls)
 		}
 		accepted := sessions.acceptedCreateCalls[0]
-		if accepted.InitialPrompt != "Investigate the failing build" {
-			t.Fatalf("CreateAccepted() InitialPrompt = %q, want trimmed prompt", accepted.InitialPrompt)
-		}
-		if accepted.Session.Provider != "codex" || accepted.Session.Model != "gpt-5.6-sol" ||
-			accepted.Session.ReasoningEffort != "high" {
-			t.Fatalf("CreateAccepted() runtime = %#v", accepted.Session)
+		if accepted.Session.AgentName != "coder" || accepted.Session.Workspace != "ws-alpha" {
+			t.Fatalf("CreateAccepted() Session = %#v", accepted.Session)
 		}
 		var created hostAPISessionCreateResult
 		decodeResult(t, result, &created)
-		if created.SessionID != "sess-accepted" || created.Provider != "codex" {
+		if created.SessionID != "sess-accepted" {
 			t.Fatalf("sessions/create result = %#v", created)
 		}
 	})
@@ -2371,7 +2355,7 @@ func TestHostAPIHandlerSubmitPromptRejectsMissingSessionManager(t *testing.T) {
 	t.Parallel()
 
 	var handler HostAPIHandler
-	_, err := handler.submitPrompt(testutil.Context(t), "sess-1", "hello")
+	_, err := handler.submitPrompt(testutil.Context(t), "sess-1", "hello", nil)
 	if err == nil {
 		t.Fatal("submitPrompt() error = nil, want missing session manager error")
 	}
@@ -2408,7 +2392,7 @@ func TestHostAPIHandlerSubmitPromptRejectsMissingBoundaryEvents(t *testing.T) {
 		},
 	}
 
-	_, err := handler.submitPrompt(testutil.Context(t), "sess-1", "hello")
+	_, err := handler.submitPrompt(testutil.Context(t), "sess-1", "hello", nil)
 	if err == nil {
 		t.Fatal("submitPrompt() error = nil, want missing boundary error")
 	}
@@ -2463,7 +2447,7 @@ func TestHostAPIHandlerSubmitPromptRejectsUnexpectedStubCalls(t *testing.T) {
 			t.Parallel()
 
 			handler := &HostAPIHandler{sessions: tt.sessions}
-			_, err := handler.submitPrompt(testutil.Context(t), "sess-1", "hello")
+			_, err := handler.submitPrompt(testutil.Context(t), "sess-1", "hello", nil)
 			if err == nil {
 				t.Fatalf("submitPrompt() error = nil, want %q", tt.wantErr)
 			}

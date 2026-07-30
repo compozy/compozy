@@ -1,6 +1,7 @@
 import { useSessionClearDialog } from "@/hooks/routes/use-session-clear-dialog";
 import { useSessionDeleteDialog } from "@/hooks/routes/use-session-delete-dialog";
 import { useSessionPageControls } from "@/hooks/routes/use-session-page-controls";
+import { useSessionPromptRuntimeContext } from "@/systems/session/hooks/use-session-prompt-runtime-context";
 import {
   SessionGoalHeadAction,
   useSessionGoalHeader,
@@ -20,7 +21,9 @@ export function useSessionWindowController(input: {
   onDeleteSuccess: () => void;
 }) {
   const { sessionId, session, onDeleteSuccess } = input;
+  const { getRuntimeSnapshot } = useSessionPromptRuntimeContext();
   const controls = useSessionPageControls(sessionId, session, {
+    getRuntimeSnapshot,
     onDeleteSuccess,
     workspaceId: session.workspace_id,
   });

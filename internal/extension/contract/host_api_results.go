@@ -48,7 +48,6 @@ type SessionEvent struct {
 // SessionCreateResult returns the created session identifier.
 type SessionCreateResult struct {
 	SessionID string `json:"session_id"`
-	Provider  string `json:"provider"`
 }
 
 // SessionPromptResult returns the created turn identifier.

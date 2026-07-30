@@ -2532,7 +2532,8 @@ func TestPromptSessionHandlerReturnsBusyInputDecision(t *testing.T) {
 			"/api/workspaces/ws-workspace/sessions/sess-123/prompt",
 			[]byte(
 				`{"messages":[{"id":"client-queue-1","role":"user",`+
-					`"parts":[{"type":"text","text":"queue me"}]}],"mode":"queue"}`,
+					`"parts":[{"type":"text","text":"queue me"}]}],"mode":"queue",`+
+					`"runtime":{"provider":"codex","model":"gpt-5.4","reasoning_effort":"high","speed":"fast"}}`,
 			),
 		)
 		if recorder.Code != http.StatusAccepted {
@@ -2541,6 +2542,11 @@ func TestPromptSessionHandlerReturnsBusyInputDecision(t *testing.T) {
 		if gotOpts.Message != "queue me" || gotOpts.Mode != session.BusyInputModeQueue ||
 			gotOpts.ClientMessageID != "client-queue-1" {
 			t.Fatalf("SendPrompt() opts = %#v, want queue me queue", gotOpts)
+		}
+		if gotOpts.Runtime == nil || gotOpts.Runtime.Provider != "codex" ||
+			gotOpts.Runtime.Model != "gpt-5.4" || gotOpts.Runtime.ReasoningEffort != "high" ||
+			gotOpts.Runtime.Speed != contract.SpeedFast {
+			t.Fatalf("SendPrompt() runtime = %#v, want codex gpt-5.4 high fast", gotOpts.Runtime)
 		}
 		var decoded contract.SendPromptResultResponse
 		if err := json.Unmarshal(recorder.Body.Bytes(), &decoded); err != nil {

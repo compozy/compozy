@@ -818,6 +818,7 @@ func TestManagerStatusDoesNotRepairPendingStartMetadata(t *testing.T) {
 		WorkspaceID:          h.workspaceID,
 		NetworkParticipation: testLocalParticipationPtr(),
 		State:                string(StateStarting),
+		RuntimeStatus:        store.SessionRuntimeBinding,
 		ACPSessionID:         stringPointer(acpSessionID),
 		CreatedAt:            time.Date(2026, 4, 20, 12, 0, 0, 0, time.UTC),
 		UpdatedAt:            time.Date(2026, 4, 20, 12, 0, 1, 0, time.UTC),
@@ -1445,12 +1446,13 @@ func TestReadMetaAndQueryHelpers(t *testing.T) {
 		CreationOptions: &store.SessionCreationOptions{
 			NetworkOwnerKey: " session:sess-1 ",
 		},
-		State:        string(StateStopped),
-		StopReason:   &stopReason,
-		StopDetail:   "deadline exceeded",
-		ACPSessionID: &acpID,
-		CreatedAt:    createdAt,
-		UpdatedAt:    updatedAt,
+		State:         string(StateStopped),
+		RuntimeStatus: store.SessionRuntimeReady,
+		StopReason:    &stopReason,
+		StopDetail:    "deadline exceeded",
+		ACPSessionID:  &acpID,
+		CreatedAt:     createdAt,
+		UpdatedAt:     updatedAt,
 	})
 	if got := info.ACPSessionID; got != "acp-123" {
 		t.Fatalf("sessionInfoFromMeta().ACPSessionID = %q, want %q", got, "acp-123")
@@ -1490,6 +1492,7 @@ func TestReadMetaAndQueryHelpers(t *testing.T) {
 			WorkspaceID:          "ws-1",
 			NetworkParticipation: testLocalParticipationPtr(),
 			State:                string(StateStopped),
+			RuntimeStatus:        store.SessionRuntimeReady,
 			CreatedAt:            createdAt,
 			UpdatedAt:            updatedAt,
 		})
@@ -1611,6 +1614,7 @@ func writeStoppedSessionArtifacts(t *testing.T, h *harness, id string, withDB bo
 		WorkspaceID:          h.workspaceID,
 		NetworkParticipation: testLocalParticipationPtr(),
 		State:                string(StateStopped),
+		RuntimeStatus:        store.SessionRuntimeReady,
 		CreatedAt:            now,
 		UpdatedAt:            now,
 	}); err != nil {
@@ -1645,6 +1649,7 @@ func createEscapedStoredSession(t *testing.T, h *harness) string {
 		NetworkParticipation: testLocalParticipationPtr(),
 		SessionType:          string(SessionTypeUser),
 		State:                string(StateStopped),
+		RuntimeStatus:        store.SessionRuntimeReady,
 		CreatedAt:            now.Add(-time.Minute),
 		UpdatedAt:            now,
 	}); err != nil {

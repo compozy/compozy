@@ -1,8 +1,10 @@
-import type { ReactNode } from "react";
+import { useRef, useSyncExternalStore, type ReactNode } from "react";
 import { AssistantRuntimeProvider, DataRenderers, Tools, useAui } from "@assistant-ui/react";
 
 import { useMergedSessionRuntimeTranscript } from "../hooks/use-merged-session-runtime-transcript";
 import { useSessionChatRuntime } from "../hooks/use-session-chat-runtime";
+import { SessionPromptDispatchPendingProvider } from "@/components/assistant-ui/session-prompt-dispatch-context";
+import { createSessionPromptDispatchStore } from "@/components/assistant-ui/session-prompt-dispatch-store";
 import type { SessionStreamEventSourceFactory } from "../hooks/use-session-live-tail";
 import { CompozyEventDataUI, CompozyPermissionDataUI } from "../lib/session-data-ui";
 import { sessionToolkit } from "../lib/session-toolkit";
@@ -65,15 +67,22 @@ export interface SessionChatRuntimeProviderProps {
   children: ReactNode;
 }
 
-export function SessionChatRuntimeProvider({
+function SessionChatRuntimeBinding({
   sessionId,
   workspaceId,
+  promptDispatch,
   eventSourceFactory,
   liveTailEnabled = true,
   children,
-}: SessionChatRuntimeProviderProps) {
+}: SessionChatRuntimeProviderProps & {
+  promptDispatch: ReturnType<typeof createSessionPromptDispatchStore>;
+}) {
   const resolvedWorkspaceId = requireWorkspaceId(workspaceId);
-  const runtime = useSessionChatRuntime({ sessionId, workspaceId: resolvedWorkspaceId });
+  const runtime = useSessionChatRuntime({
+    sessionId,
+    workspaceId: resolvedWorkspaceId,
+    promptDispatch,
+  });
   const aui = useAui({
     tools: Tools({ toolkit: sessionToolkit }),
     dataRenderers: DataRenderers(),
@@ -81,14 +90,33 @@ export function SessionChatRuntimeProvider({
 
   return (
     <AssistantRuntimeProvider runtime={runtime} aui={aui}>
-      <SessionRuntimeExtensions
-        sessionId={sessionId}
-        workspaceId={resolvedWorkspaceId}
-        eventSourceFactory={eventSourceFactory}
-        liveTailEnabled={liveTailEnabled}
-      >
-        {children}
-      </SessionRuntimeExtensions>
+      <SessionPromptDispatchPendingProvider store={promptDispatch}>
+        <SessionRuntimeExtensions
+          sessionId={sessionId}
+          workspaceId={resolvedWorkspaceId}
+          eventSourceFactory={eventSourceFactory}
+          liveTailEnabled={liveTailEnabled}
+        >
+          {children}
+        </SessionRuntimeExtensions>
+      </SessionPromptDispatchPendingProvider>
     </AssistantRuntimeProvider>
+  );
+}
+
+export function SessionChatRuntimeProvider(props: SessionChatRuntimeProviderProps) {
+  const promptDispatchRef = useRef<ReturnType<typeof createSessionPromptDispatchStore>>(null);
+  if (promptDispatchRef.current === null) {
+    promptDispatchRef.current = createSessionPromptDispatchStore();
+  }
+  const promptDispatch = promptDispatchRef.current;
+  const runtimeGeneration = useSyncExternalStore(
+    promptDispatch.subscribe,
+    promptDispatch.getGeneration,
+    promptDispatch.getGeneration
+  );
+
+  return (
+    <SessionChatRuntimeBinding {...props} key={runtimeGeneration} promptDispatch={promptDispatch} />
   );
 }

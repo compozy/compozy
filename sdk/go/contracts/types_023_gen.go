@@ -7,6 +7,41 @@ import (
 	"time"
 )
 
+type TaskRunContext struct {
+	TaskID                       string    `json:"task_id,omitempty"`
+	RunID                        string    `json:"run_id,omitempty"`
+	RunKind                      *string   `json:"run_kind,omitempty"`
+	WakeID                       string    `json:"wake_id,omitempty"`
+	OwnerKey                     string    `json:"owner_key,omitempty"`
+	TargetSessionID              string    `json:"target_session_id,omitempty"`
+	LoopRunID                    string    `json:"loop_run_id,omitempty"`
+	WorkspaceID                  string    `json:"workspace_id,omitempty"`
+	WorkflowID                   string    `json:"workflow_id,omitempty"`
+	ResolvedNetworkParticipation *Spec     `json:"resolved_network_participation"`
+	AgentName                    string    `json:"agent_name,omitempty"`
+	SessionID                    string    `json:"session_id,omitempty"`
+	ActorKind                    string    `json:"actor_kind,omitempty"`
+	ActorID                      string    `json:"actor_id,omitempty"`
+	OriginKind                   string    `json:"origin_kind,omitempty"`
+	OriginRef                    string    `json:"origin_ref,omitempty"`
+	TaskStatus                   string    `json:"task_status,omitempty"`
+	RunStatus                    string    `json:"run_status,omitempty"`
+	SoulSnapshotID               string    `json:"soul_snapshot_id,omitempty"`
+	SoulDigest                   string    `json:"soul_digest,omitempty"`
+	Attempt                      int       `json:"attempt,omitempty"`
+	LeaseUntil                   time.Time `json:"lease_until"`
+	ReleaseReason                string    `json:"release_reason,omitempty"`
+	Error                        string    `json:"error,omitempty"`
+}
+
+type TaskRunConversationRefPayload struct {
+	WorkspaceID string `json:"workspace_id"`
+	Channel     string `json:"channel"`
+	Surface     string `json:"surface"`
+	ThreadID    string `json:"thread_id"`
+	StreamURL   string `json:"stream_url"`
+}
+
 type TaskRunDetail struct {
 	Run     TaskRun                          `json:"run"`
 	Task    *TaskReferencePayload            `json:"task,omitempty"`
@@ -400,13 +435,3 @@ type TaskRunTotal struct {
 	ChannelID  string        `json:"channel_id,omitempty"`
 	Count      int           `json:"count"`
 }
-
-type TaskRunsParams struct {
-	ID                   string        `json:"id"`
-	Status               TaskRunStatus `json:"status,omitempty"`
-	SessionID            string        `json:"session_id,omitempty"`
-	ParticipationChannel string        `json:"participation_channel,omitempty"`
-	Limit                int           `json:"limit,omitempty"`
-}
-
-type TaskScope string

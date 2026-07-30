@@ -3,17 +3,22 @@ import { useQueryClient } from "@tanstack/react-query";
 import { AssistantChatTransport, useChatRuntime } from "@assistant-ui/react-ai-sdk";
 
 import { loopsKeys } from "@/systems/loops";
+import type { SessionPromptDispatchStore } from "@/components/assistant-ui/session-prompt-dispatch-store";
 import { sessionKeys } from "../lib/query-keys";
 import { invalidateSessionMutationQueries } from "../lib/session-query-invalidation";
 import { createGoalAwareFetch } from "../lib/session-goal-chat-transport";
 import { sessionStore } from "../stores/session-store";
+import type { SessionPromptRuntimeSnapshot } from "../contexts/session-prompt-runtime-context-value";
+import { useOptionalSessionPromptRuntimeContext } from "./use-session-prompt-runtime-context";
 
 type QueryClient = ReturnType<typeof useQueryClient>;
 
 function buildSessionRuntimeConfig(
   queryClient: QueryClient,
   workspaceId: string,
-  sessionId: string
+  sessionId: string,
+  promptDispatch: SessionPromptDispatchStore,
+  getRuntimeSnapshot?: () => SessionPromptRuntimeSnapshot | null
 ) {
   const goalAwareFetch = createGoalAwareFetch({
     onRequest: () => {
@@ -41,10 +46,35 @@ function buildSessionRuntimeConfig(
       });
     },
   });
+  const trackedFetch: typeof globalThis.fetch = async (input, init) => {
+    const controller = new AbortController();
+    const upstreamSignal = init?.signal;
+    const abortFromUpstream = () => controller.abort(upstreamSignal?.reason);
+    if (upstreamSignal?.aborted) {
+      abortFromUpstream();
+    } else {
+      upstreamSignal?.addEventListener("abort", abortFromUpstream, { once: true });
+    }
+    promptDispatch.start(controller);
+    try {
+      return await goalAwareFetch(input, { ...init, signal: controller.signal });
+    } finally {
+      upstreamSignal?.removeEventListener("abort", abortFromUpstream);
+      promptDispatch.complete(controller);
+    }
+  };
   return {
     transport: new AssistantChatTransport({
       api: `/api/workspaces/${encodeURIComponent(workspaceId)}/sessions/${encodeURIComponent(sessionId)}/prompt`,
-      fetch: goalAwareFetch,
+      fetch: trackedFetch,
+      ...(getRuntimeSnapshot
+        ? {
+            body: () => {
+              const runtime = getRuntimeSnapshot();
+              return runtime === null ? {} : { runtime };
+            },
+          }
+        : {}),
     }),
     onFinish: () => {
       startTransition(() => {
@@ -57,12 +87,21 @@ function buildSessionRuntimeConfig(
 export function useSessionChatRuntime({
   sessionId,
   workspaceId,
+  promptDispatch,
 }: {
   sessionId: string;
   workspaceId: string;
+  promptDispatch: SessionPromptDispatchStore;
 }) {
   const queryClient = useQueryClient();
-  const runtimeConfig = buildSessionRuntimeConfig(queryClient, workspaceId, sessionId);
+  const promptRuntime = useOptionalSessionPromptRuntimeContext();
+  const runtimeConfig = buildSessionRuntimeConfig(
+    queryClient,
+    workspaceId,
+    sessionId,
+    promptDispatch,
+    promptRuntime?.getRuntimeSnapshot
+  );
 
   return useChatRuntime({
     transport: runtimeConfig.transport,

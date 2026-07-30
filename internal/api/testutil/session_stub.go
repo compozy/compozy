@@ -2,8 +2,6 @@ package testutil
 
 import (
 	"context"
-	"errors"
-	"strings"
 
 	"github.com/compozy/compozy/internal/acp"
 	core "github.com/compozy/compozy/internal/api/core"
@@ -64,9 +62,6 @@ func (s StubSessionManager) CreateAccepted(
 ) (*session.Info, error) {
 	if s.CreateAcceptedFn != nil {
 		return s.CreateAcceptedFn(ctx, opts)
-	}
-	if strings.TrimSpace(opts.InitialPrompt) != "" {
-		return nil, errors.New("testutil: CreateAcceptedFn is required for an initial prompt")
 	}
 	created, err := s.Create(ctx, opts.Session)
 	if created == nil || err != nil {

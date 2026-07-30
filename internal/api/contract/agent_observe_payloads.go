@@ -86,6 +86,7 @@ type AgentEventPayload struct {
 	Goal              *GoalPromptMeta              `json:"goal,omitempty"`
 	Usage             *TokenUsagePayload           `json:"usage,omitempty"`
 	Runtime           *RuntimeActivityPayload      `json:"runtime,omitempty"`
+	PromptRuntime     *RuntimeSelectionPayload     `json:"prompt_runtime,omitempty"`
 	Raw               json.RawMessage              `json:"raw,omitempty"`
 }
 

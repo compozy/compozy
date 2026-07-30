@@ -370,8 +370,11 @@ func insertSessionInputQueueEntry(
 	}
 	if err := sqlcgen.New(exec).InsertSessionInputQueueEntry(ctx, sqlcgen.InsertSessionInputQueueEntryParams{
 		ID: normalized.ID, SessionID: normalized.SessionID, Status: store.SessionInputQueueStatusQueued,
-		Mode: normalized.Mode, Text: normalized.Text, SessionGeneration: normalized.SessionGeneration,
-		TaskRunID: normalized.TaskRunID, RunGeneration: runGeneration, EnqueuedAt: nowRaw, UpdatedAt: nowRaw,
+		Mode: normalized.Mode, Text: normalized.Text,
+		RuntimeProvider: normalized.Runtime.Provider, RuntimeModel: normalized.Runtime.Model,
+		RuntimeReasoningEffort: normalized.Runtime.ReasoningEffort, RuntimeSpeed: normalized.Runtime.Speed,
+		SessionGeneration: normalized.SessionGeneration,
+		TaskRunID:         normalized.TaskRunID, RunGeneration: runGeneration, EnqueuedAt: nowRaw, UpdatedAt: nowRaw,
 	}); err != nil {
 		return store.SessionInputQueueEntry{}, fmt.Errorf("store: insert session input queue entry: %w", err)
 	}

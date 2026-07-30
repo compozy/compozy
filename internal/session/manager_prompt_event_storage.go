@@ -2,10 +2,8 @@ package session
 
 import (
 	"context"
-
 	"errors"
 	"fmt"
-
 	"strings"
 
 	"github.com/compozy/compozy/internal/acp"
@@ -54,6 +52,7 @@ func ackPromptPumpRuntimeEvent(loop *promptPumpLoopState, normalized acp.AgentEv
 func (m *Manager) normalizeEvent(session *Session, turnID string, event acp.AgentEvent) acp.AgentEvent {
 	normalized := event
 	normalized.Goal = acp.CloneGoalPromptMeta(event.Goal)
+	normalized = normalized.WithPromptRuntime(event.PromptRuntimeSnapshot())
 	if strings.TrimSpace(normalized.TurnID) == "" {
 		normalized.TurnID = turnID
 	}
@@ -65,6 +64,11 @@ func (m *Manager) normalizeEvent(session *Session, turnID string, event acp.Agen
 			normalized.Goal = goalPromptMetaFromPromptMeta(session.CurrentPromptMeta())
 		}
 		info := session.Info()
+		if normalized.PromptRuntimeSnapshot() == nil {
+			normalized = normalized.WithPromptRuntime(
+				promptRuntimeFromSelection(session.runtimeBindingSnapshot().selection),
+			)
+		}
 		if strings.TrimSpace(normalized.SessionID) == "" {
 			normalized.SessionID = info.ACPSessionID
 		}
@@ -165,6 +169,10 @@ func (m *Manager) enrichRecordedAgentEvent(session *Session, event acp.AgentEven
 	}
 
 	enriched := event
+	enriched = enriched.WithPromptRuntime(event.PromptRuntimeSnapshot())
+	if enriched.PromptRuntimeSnapshot() == nil {
+		enriched = enriched.WithPromptRuntime(promptRuntimeFromSelection(session.runtimeBindingSnapshot().selection))
+	}
 	if enriched.Goal == nil {
 		enriched.Goal = goalPromptMetaFromPromptMeta(session.CurrentPromptMeta())
 	} else {

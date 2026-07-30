@@ -1,11 +1,12 @@
 import { Play } from "lucide-react";
-import { useRef, type FormEvent } from "react";
+import { type FormEvent } from "react";
 
 import {
   Dialog,
   DialogContent,
   dialogShellClass,
   EntityDialogBody,
+  EntityDialogFooter,
   EntityDialogHeader,
   EntityModeToolbar,
   FieldError,
@@ -13,22 +14,13 @@ import {
 } from "@compozy/ui";
 
 import type { AgentPayload } from "@/systems/agent";
-import type { RuntimeSpeed } from "@/lib/api-contract";
 import {
   isNetworkParticipationDraftValid,
   type NetworkParticipationDraft,
 } from "@/lib/network-participation";
-import {
-  RuntimeSelector,
-  type RuntimeModelOption,
-  type RuntimeProviderOption,
-  type RuntimeSelectorValue,
-} from "@/systems/runtime";
 import type { WorkspaceCommandSelectOption, WorkspacePayload } from "@/systems/workspace";
 
-import { validateSessionModelSelection } from "../lib/session-model-selection";
 import { SessionCreateAdvancedSection } from "./session-create-advanced-section";
-import { SessionCreatePromptComposer } from "./session-create-prompt-composer";
 import { SessionCreateSimpleSection } from "./session-create-simple-section";
 
 export interface SessionCreateDialogProps {
@@ -47,28 +39,9 @@ export interface SessionCreateDialogProps {
   workspacePath: string;
   onWorkspacePathChange: (next: string) => void;
   selectedAgentName: string;
-  runtimeValue: RuntimeSelectorValue;
-  runtimeSpeed: RuntimeSpeed;
-  runtimeProviders: RuntimeProviderOption[];
-  runtimeModels: RuntimeModelOption[];
-  catalogStale: boolean;
-  catalogLoading: boolean;
-  catalogLoaded: boolean;
-  catalogError: string | null;
-  catalogRefreshing: boolean;
-  catalogRefreshError: string | null;
-  providersLoading: boolean;
-  providersError: string | null;
-  hasProviderOptions: boolean;
   networkParticipation: NetworkParticipationDraft;
-  promptValue: string;
-  onPromptChange: (next: string) => void;
   onAgentChange: (agentName: string) => void;
-  onRuntimeChange: (next: RuntimeSelectorValue) => void;
-  onRuntimeSpeedChange: (next: RuntimeSpeed) => void;
   onNetworkParticipationChange: (next: NetworkParticipationDraft) => void;
-  onCatalogRefresh: () => void;
-  onOpenProviderSettings: () => void;
   onSubmit: () => void;
   isSubmitting: boolean;
   submitError: string | null;
@@ -90,56 +63,22 @@ function SessionCreateDialog({
   workspacePath,
   onWorkspacePathChange,
   selectedAgentName,
-  runtimeValue,
-  runtimeSpeed,
-  runtimeProviders,
-  runtimeModels,
-  catalogStale,
-  catalogLoading,
-  catalogLoaded,
-  catalogError,
-  catalogRefreshing,
-  catalogRefreshError,
-  providersLoading,
-  providersError,
-  hasProviderOptions,
   networkParticipation,
-  promptValue,
-  onPromptChange,
   onAgentChange,
-  onRuntimeChange,
-  onRuntimeSpeedChange,
   onNetworkParticipationChange,
-  onCatalogRefresh,
-  onOpenProviderSettings,
   onSubmit,
   isSubmitting,
   submitError,
 }: SessionCreateDialogProps) {
-  const promptRef = useRef<HTMLTextAreaElement>(null);
   const trimmedSelectedAgentName = selectedAgentName.trim();
   const workspaceSelected = workspace !== undefined;
   const hasAgents = agents.length > 0;
   const hasSelectedAgent = agents.some(agent => agent.name === trimmedSelectedAgentName);
-  const hasSelectedProvider = runtimeProviders.some(option => option.id === runtimeValue.provider);
-  const modelSelection = validateSessionModelSelection({
-    provider: runtimeValue.provider,
-    model: runtimeValue.model,
-    models: runtimeModels,
-    catalogLoading,
-    catalogLoaded,
-    catalogError,
-  });
   const canSubmit =
     !isSubmitting &&
-    !providersLoading &&
     workspaceSelected &&
     hasAgents &&
     hasSelectedAgent &&
-    hasProviderOptions &&
-    hasSelectedProvider &&
-    modelSelection.valid &&
-    promptValue.trim().length > 0 &&
     isNetworkParticipationDraftValid(networkParticipation, ["named"]);
 
   const submitIfAllowed = () => {
@@ -153,32 +92,23 @@ function SessionCreateDialog({
   };
 
   const handleOpenChange = (nextOpen: boolean) => {
-    if (isSubmitting && !nextOpen) {
-      return;
-    }
+    if (isSubmitting && !nextOpen) return;
     onOpenChange(nextOpen);
   };
 
   return (
     <Dialog onOpenChange={handleOpenChange} open={open}>
       <DialogContent
-        className={`grid-rows-[auto_auto_minmax(0,1fr)] text-fg ${dialogShellClass("sm")}`}
+        className={`grid-rows-[auto_auto_minmax(0,1fr)_auto] text-fg ${dialogShellClass("sm")}`}
         data-testid="session-create-dialog"
-        initialFocus={promptRef}
         showCloseButton={false}
         unframed
       >
         <EntityDialogHeader
           description={
-            workspaceSelected ? (
-              <>
-                Launch an agent in a workspace.{" "}
-                <b className="font-medium text-muted">This starts a run</b> — it does not create or
-                edit a definition.
-              </>
-            ) : (
-              "Choose an active workspace before starting a session."
-            )
+            workspaceSelected
+              ? "Start a durable session. Choose its runtime when you send the first message."
+              : "Choose an active workspace before starting a session."
           }
           eyebrow="Operate · Session"
           icon={Play}
@@ -194,14 +124,8 @@ function SessionCreateDialog({
               agents={agents}
               isSubmitting={isSubmitting}
               onAgentChange={onAgentChange}
-              onSessionNameChange={onSessionNameChange}
-              onWorkspaceChange={onWorkspaceChange}
               selectedAgentName={selectedAgentName}
-              sessionName={sessionName}
-              workspaceId={workspaceId}
-              userHomeDir={userHomeDir}
               workspaceSelected={workspaceSelected}
-              workspaces={workspaces}
             />
 
             {mode === "advanced" ? (
@@ -209,167 +133,51 @@ function SessionCreateDialog({
                 isSubmitting={isSubmitting}
                 networkParticipation={networkParticipation}
                 onNetworkParticipationChange={onNetworkParticipationChange}
+                onSessionNameChange={onSessionNameChange}
+                onWorkspaceChange={onWorkspaceChange}
                 onWorkspacePathChange={onWorkspacePathChange}
+                sessionName={sessionName}
+                userHomeDir={userHomeDir}
+                workspaceId={workspaceId}
                 workspacePath={workspacePath}
+                workspaces={workspaces}
               />
             ) : null}
 
-            <SessionCreatePromptComposer
-              canSubmit={canSubmit}
-              disabled={!workspaceSelected || !hasAgents}
-              errorMessageId={submitError ? "session-create-submit-error" : undefined}
-              inputRef={promptRef}
-              isSubmitting={isSubmitting}
-              onChange={onPromptChange}
-              onSubmitDraft={submitIfAllowed}
-              runtimeControl={
-                <RuntimeSelector
-                  catalogStatus={
-                    <CatalogStatusLine
-                      error={catalogError}
-                      loading={catalogLoading}
-                      optionCount={runtimeModels.length}
-                      refreshError={catalogRefreshError}
-                      refreshing={catalogRefreshing}
-                      stale={catalogStale}
-                    />
-                  }
-                  disabled={
-                    !workspaceSelected || providersLoading || !hasProviderOptions || isSubmitting
-                  }
-                  loading={catalogLoading}
-                  models={runtimeModels}
-                  onChange={onRuntimeChange}
-                  onOpenProviderSettings={onOpenProviderSettings}
-                  onRefreshCatalog={onCatalogRefresh}
-                  providers={runtimeProviders}
-                  refreshing={catalogRefreshing}
-                  speed={runtimeSpeed}
-                  onSpeedChange={onRuntimeSpeedChange}
-                  triggerId="session-create-runtime"
-                  triggerTestId="session-create-runtime-select"
-                  value={runtimeValue}
-                  variant="composer"
-                />
-              }
-              value={promptValue}
-            />
-
-            {providersError ? (
-              <p
-                className="text-form-hint text-danger"
-                data-testid="session-create-providers-error"
-                role="alert"
-              >
-                {providersError}
-              </p>
-            ) : null}
-            {workspaceSelected && !providersLoading && !providersError && !hasProviderOptions ? (
-              <p
-                className="text-form-hint text-warning"
-                data-testid="session-create-providers-empty"
-              >
-                No providers are configured for this workspace.
-              </p>
-            ) : null}
-            {modelSelection.error ? (
+            {submitError ? (
               <FieldError
-                className="text-form-hint text-danger"
-                data-testid="session-create-model-error"
+                className="mt-4 text-form-hint text-danger"
+                data-testid="session-create-submit-error"
               >
-                {modelSelection.error}
+                {submitError}
               </FieldError>
             ) : null}
 
             {isSubmitting ? (
               <p
                 aria-live="polite"
-                className="text-form-hint text-subtle"
+                className="mt-4 text-form-hint text-subtle"
                 data-testid="session-create-pending-status"
                 role="status"
               >
-                Starting the session. It opens as soon as CompozyOS durably accepts it; the first
-                message is sent when the runtime starts.
-              </p>
-            ) : null}
-
-            {submitError ? (
-              <p
-                className="text-form-hint text-danger"
-                data-testid="session-create-submit-error"
-                id="session-create-submit-error"
-                role="alert"
-              >
-                {submitError}
+                Starting the session. It opens as soon as CompozyOS durably accepts it.
               </p>
             ) : null}
           </EntityDialogBody>
+
+          <EntityDialogFooter
+            hint="Choose a runtime when you send the first message."
+            isSaving={isSubmitting}
+            onCancel={() => handleOpenChange(false)}
+            primaryDisabled={!canSubmit}
+            primaryLabel="Start session"
+            primaryTestId="session-create-submit"
+            primaryType="submit"
+          />
         </form>
       </DialogContent>
     </Dialog>
   );
-}
-
-interface CatalogStatusLineProps {
-  loading: boolean;
-  refreshing: boolean;
-  stale: boolean;
-  error: string | null;
-  refreshError: string | null;
-  optionCount: number;
-}
-
-function CatalogStatusLine({
-  loading,
-  refreshing,
-  stale,
-  error,
-  refreshError,
-  optionCount,
-}: CatalogStatusLineProps) {
-  if (refreshError) {
-    return (
-      <span className="text-danger" data-testid="session-create-catalog-refresh-error" role="alert">
-        {refreshError}
-      </span>
-    );
-  }
-  if (error) {
-    return (
-      <span className="text-danger" data-testid="session-create-catalog-error" role="alert">
-        {error}. Refresh the catalog or leave Model blank to use the provider default.
-      </span>
-    );
-  }
-  if (refreshing) {
-    return (
-      <span className="text-subtle" data-testid="session-create-catalog-refreshing">
-        Refreshing model catalog…
-      </span>
-    );
-  }
-  if (loading) {
-    return (
-      <span className="text-subtle" data-testid="session-create-catalog-loading">
-        Loading provider models…
-      </span>
-    );
-  }
-  if (stale) {
-    return (
-      <span className="text-warning" data-testid="session-create-catalog-stale">
-        Some models are stale — refresh to confirm availability.
-      </span>
-    );
-  }
-  if (optionCount === 0) {
-    return (
-      <span className="text-subtle" data-testid="session-create-catalog-empty">
-        No catalog models. Leave Model blank to use the provider default.
-      </span>
-    );
-  }
-  return null;
 }
 
 export { SessionCreateDialog };

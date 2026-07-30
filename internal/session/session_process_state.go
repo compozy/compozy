@@ -57,6 +57,15 @@ func (s *Session) activateWithProcess(
 		return fmt.Errorf("%w: %s -> %s", ErrInvalidStateTransition, s.State, StateActive)
 	}
 	s.State = StateActive
+	if proc == nil {
+		s.RuntimeStatus = RuntimeStatusUnbound
+	} else {
+		s.RuntimeStatus = RuntimeStatusReady
+		if s.RuntimeTransition == RuntimeTransitionNone {
+			s.RuntimeTransition = RuntimeTransitionInitialBind
+		}
+	}
+	s.RuntimeFailure = ""
 	if !preserveStopReason {
 		s.stopCause = CauseNone
 		if s.stopReason != store.StopAgentCrashed {

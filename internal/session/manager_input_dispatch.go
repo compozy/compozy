@@ -15,7 +15,7 @@ func (m *Manager) startNextQueuedInputPrompt(sessionID string) {
 		return
 	}
 	if selected.OwnerKind == managedInputOwnerGoal {
-		m.startManagedInputPrompt(session, selected)
+		m.startManagedInputPrompt(session, &selected)
 		return
 	}
 	entry, ok, err := m.inputQueue.ClaimNext(m.fallbackLifecycleContext(), target)
@@ -37,7 +37,7 @@ func (m *Manager) startNextQueuedInputPrompt(sessionID string) {
 		m.startNextQueuedInputPrompt(target)
 		return
 	}
-	m.dispatchHumanQueuedInput(target, session, entry)
+	m.dispatchHumanQueuedInput(target, session, &entry)
 }
 
 func (m *Manager) peekNextQueuedInputPrompt(
@@ -65,7 +65,7 @@ func (m *Manager) peekNextQueuedInputPrompt(
 func (m *Manager) dispatchHumanQueuedInput(
 	target string,
 	session *Session,
-	entry store.SessionInputQueueEntry,
+	entry *store.SessionInputQueueEntry,
 ) {
 	if entry.Mode == store.SessionInputQueueModeSteer {
 		m.emitQueuedSteerFallback(session, entry)
@@ -83,7 +83,7 @@ func (m *Manager) dispatchHumanQueuedInput(
 	go m.drainQueuedInputEvents(target, events)
 }
 
-func (m *Manager) emitQueuedSteerFallback(session *Session, entry store.SessionInputQueueEntry) {
+func (m *Manager) emitQueuedSteerFallback(session *Session, entry *store.SessionInputQueueEntry) {
 	evidence := queueEntryEvidence(entry, 0)
 	evidence["fallback_to_queue"] = true
 	m.emitTranscriptMarker(
@@ -99,7 +99,7 @@ func (m *Manager) emitQueuedSteerFallback(session *Session, entry store.SessionI
 func (m *Manager) newQueuedInputPromptRequest(
 	session *Session,
 	target string,
-	entry store.SessionInputQueueEntry,
+	entry *store.SessionInputQueueEntry,
 ) (promptRequest, bool) {
 	meta, err := normalizePromptMeta(
 		TurnSourceUser,
@@ -121,13 +121,14 @@ func (m *Manager) newQueuedInputPromptRequest(
 		authoredMessage: entry.Text,
 		turnSource:      TurnSourceUser,
 		meta:            meta,
+		runtime:         runtimeSelectionFromStore(entry.Runtime),
 	}, true
 }
 
 func (m *Manager) handleQueuedInputDispatchError(
 	session *Session,
 	target string,
-	entry store.SessionInputQueueEntry,
+	entry *store.SessionInputQueueEntry,
 	req promptRequest,
 	cause error,
 ) {
@@ -154,7 +155,7 @@ func (m *Manager) handleQueuedInputDispatchError(
 func (m *Manager) acceptQueuedInputDispatch(
 	session *Session,
 	target string,
-	entry store.SessionInputQueueEntry,
+	entry *store.SessionInputQueueEntry,
 	req promptRequest,
 ) {
 	if err := m.inputQueue.MarkSent(m.fallbackLifecycleContext(), target, entry.ID); err != nil {

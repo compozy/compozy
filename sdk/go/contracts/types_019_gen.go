@@ -4,6 +4,23 @@ package contracts
 
 import "time"
 
+type SessionPreCreatePayload struct {
+	Event          HookEvent `json:"event"`
+	Timestamp      time.Time `json:"timestamp"`
+	SessionID      string    `json:"session_id,omitempty"`
+	SessionName    string    `json:"session_name,omitempty"`
+	SessionType    string    `json:"session_type,omitempty"`
+	AgentName      string    `json:"agent_name,omitempty"`
+	WorkspaceID    string    `json:"workspace_id,omitempty"`
+	Workspace      string    `json:"workspace,omitempty"`
+	ACPSessionID   string    `json:"acp_session_id,omitempty"`
+	State          string    `json:"state,omitempty"`
+	SoulSnapshotID string    `json:"soul_snapshot_id,omitempty"`
+	SoulDigest     string    `json:"soul_digest,omitempty"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
+}
+
 type SessionPreResumePatch struct {
 	Deny        bool    `json:"deny,omitempty"`
 	DenyReason  string  `json:"deny_reason,omitempty"`
@@ -125,10 +142,6 @@ type SessionTargetParams struct {
 
 type SessionsCreateParams struct {
 	Agent                string   `json:"agent"`
-	Prompt               string   `json:"prompt,omitempty"`
-	Provider             string   `json:"provider,omitempty"`
-	Model                string   `json:"model,omitempty"`
-	ReasoningEffort      Effort   `json:"reasoning_effort,omitempty"`
 	Workspace            string   `json:"workspace,omitempty"`
 	NetworkParticipation *Request `json:"network_participation,omitempty"`
 }
@@ -138,9 +151,10 @@ type SessionsListParams struct {
 }
 
 type SessionsPromptParams struct {
-	WorkspaceID string `json:"workspace_id"`
-	SessionID   string `json:"session_id"`
-	Message     string `json:"message"`
+	WorkspaceID string                         `json:"workspace_id"`
+	SessionID   string                         `json:"session_id"`
+	Message     string                         `json:"message"`
+	Runtime     *PromptRuntimeSelectionPayload `json:"runtime,omitempty"`
 }
 
 type ShutdownRequest struct {
@@ -180,5 +194,3 @@ type SkillsListParams struct {
 }
 
 type Source string
-
-type SourceKind string

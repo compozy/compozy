@@ -603,6 +603,7 @@ func seedTaskStatusProjectionThread(
 		ID: "sess-origin", AgentName: "reviewer", WorkspaceID: "wks_status",
 		SessionNetworkState: &store.SessionNetworkState{NetworkSpec: participation.LocalSpec()},
 		SessionType:         "system", State: "stopped", CreatedAt: now, UpdatedAt: now,
+		RuntimeStatus: store.SessionRuntimeUnbound,
 	}); err != nil {
 		t.Fatalf("RegisterSession() error = %v", err)
 	}

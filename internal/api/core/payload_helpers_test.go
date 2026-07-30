@@ -758,20 +758,21 @@ func TestSessionAndNetworkMappingHelpers(t *testing.T) {
 	t.Parallel()
 
 	payload := SessionPayloadFromInfo(&session.Info{
-		ID:          "sess-1",
-		Name:        "Support session",
-		AgentName:   "coder",
-		Provider:    "fake",
-		WorkspaceID: " ws-1 ",
-		Workspace:   " /tmp/ws ",
+		ID:            "sess-1",
+		Name:          "Support session",
+		AgentName:     "coder",
+		Provider:      "fake",
+		RuntimeStatus: session.RuntimeStatusReady,
+		WorkspaceID:   " ws-1 ",
+		Workspace:     " /tmp/ws ",
 		ACPCaps: acp.Caps{
 			SupportsLoadSession: true,
 			SupportedModes:      []string{"edit"},
 		},
 	})
-	if payload.ID != "sess-1" || payload.Provider != "fake" ||
+	if payload.ID != "sess-1" || payload.Runtime.Effective == nil || payload.Runtime.Effective.Provider != "fake" ||
 		payload.WorkspaceID != "ws-1" || payload.WorkspacePath != "/tmp/ws" ||
-		payload.ACPCaps == nil {
+		payload.Runtime.ACPCaps == nil {
 		t.Fatalf("SessionPayloadFromInfo() = %#v", payload)
 	}
 	if zero := SessionPayloadFromInfo(nil); zero.ID != "" {

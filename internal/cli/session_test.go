@@ -14,7 +14,6 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
-	"github.com/compozy/compozy/internal/store"
 )
 
 func TestParseSinceFlagRFC3339(t *testing.T) {
@@ -62,6 +61,10 @@ func TestSessionNewUsesConfigDefaultWhenAgentFlagIsOmitted(t *testing.T) {
 				UpdatedAt:     fixedTestNow,
 			}, nil
 		},
+		getSessionFn: func(context.Context, string) (SessionRecord, error) {
+			t.Fatal("GetSession() called after logical session acceptance")
+			return SessionRecord{}, nil
+		},
 	})
 
 	stdout, _, err := executeRootCommand(t, deps, "session", "new", "-o", "json")
@@ -78,91 +81,22 @@ func TestSessionNewUsesConfigDefaultWhenAgentFlagIsOmitted(t *testing.T) {
 	}
 }
 
-func TestSessionNewWaitsForStartupByDefault(t *testing.T) {
+func TestSessionPromptPassesRuntimeSelection(t *testing.T) {
 	t.Parallel()
 
-	var statusCalls int
-	deps := newWorkspaceTestDeps(t, &stubClient{
-		createSessionFn: func(_ context.Context, request CreateSessionRequest) (SessionRecord, error) {
-			if request.Prompt != "Plan the migration" {
-				t.Fatalf("CreateSession() Prompt = %q, want initial prompt", request.Prompt)
-			}
-			return SessionRecord{ID: "sess-1", State: session.StateStarting}, nil
-		},
-		getSessionFn: func(_ context.Context, id string) (SessionRecord, error) {
-			statusCalls++
-			if id != "sess-1" {
-				t.Fatalf("GetSession() id = %q, want sess-1", id)
-			}
-			return SessionRecord{ID: id, State: session.StateActive}, nil
-		},
-	})
-	deps.pollInterval = time.Millisecond
-
-	stdout, _, err := executeRootCommand(t, deps, "session", "new", "--prompt", "Plan the migration", "-o", "json")
-	if err != nil {
-		t.Fatalf("executeRootCommand(session new) error = %v", err)
-	}
-	if statusCalls != 1 {
-		t.Fatalf("GetSession() calls = %d, want 1", statusCalls)
-	}
-	var decoded SessionRecord
-	if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
-		t.Fatalf("json.Unmarshal(session new) error = %v", err)
-	}
-	if decoded.State != session.StateActive {
-		t.Fatalf("decoded.State = %q, want %q", decoded.State, session.StateActive)
-	}
-}
-
-func TestSessionNewNoWaitReturnsAcceptedStartingSession(t *testing.T) {
-	t.Parallel()
-
-	deps := newWorkspaceTestDeps(t, &stubClient{
-		createSessionFn: func(_ context.Context, _ CreateSessionRequest) (SessionRecord, error) {
-			return SessionRecord{ID: "sess-1", State: session.StateStarting}, nil
-		},
-		getSessionFn: func(context.Context, string) (SessionRecord, error) {
-			t.Fatal("GetSession() called with --no-wait")
-			return SessionRecord{}, nil
-		},
-	})
-
-	stdout, _, err := executeRootCommand(t, deps, "session", "new", "--no-wait", "-o", "json")
-	if err != nil {
-		t.Fatalf("executeRootCommand(session new --no-wait) error = %v", err)
-	}
-	var decoded SessionRecord
-	if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
-		t.Fatalf("json.Unmarshal(session new --no-wait) error = %v", err)
-	}
-	if decoded.State != session.StateStarting {
-		t.Fatalf("decoded.State = %q, want %q", decoded.State, session.StateStarting)
-	}
-}
-
-func TestSessionNewPassesInitialPromptWithRuntimeOverrides(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should serialize the prompt with runtime overrides in no-wait mode", func(t *testing.T) {
+	t.Run("Should serialize the runtime with the prompt", func(t *testing.T) {
 		t.Parallel()
 
+		var gotRequest SessionPromptRequest
 		deps := newWorkspaceTestDeps(t, &stubClient{
-			createSessionFn: func(_ context.Context, request CreateSessionRequest) (SessionRecord, error) {
-				if request.Prompt != "Investigate the failing build" {
-					t.Fatalf("CreateSession() Prompt = %q, want initial prompt", request.Prompt)
+			sendSessionPromptFn: func(_ context.Context, id string, request SessionPromptRequest) (SessionPromptRecord, error) {
+				if id != "sess-1" {
+					t.Fatalf("SendSessionPrompt() id = %q, want sess-1", id)
 				}
-				if request.Provider != "codex" || request.Model != "gpt-5.6-sol" || request.ReasoningEffort != "high" {
-					t.Fatalf("CreateSession() runtime overrides = %#v", request)
-				}
-				if request.Speed != contract.SpeedFast {
-					t.Fatalf("CreateSession() Speed = %q, want fast", request.Speed)
-				}
-				return SessionRecord{ID: "sess-1", State: session.StateStarting}, nil
-			},
-			getSessionFn: func(context.Context, string) (SessionRecord, error) {
-				t.Fatal("GetSession() called with --no-wait --prompt")
-				return SessionRecord{}, nil
+				gotRequest = request
+				return SessionPromptRecord{
+					Prompt: SessionPromptResultRecord{Status: "accepted", NewTurnID: "turn-1"},
+				}, nil
 			},
 		})
 
@@ -170,9 +104,8 @@ func TestSessionNewPassesInitialPromptWithRuntimeOverrides(t *testing.T) {
 			t,
 			deps,
 			"session",
-			"new",
-			"--no-wait",
-			"--prompt",
+			"prompt",
+			"sess-1",
 			"Investigate the failing build",
 			"--provider",
 			"codex",
@@ -186,60 +119,50 @@ func TestSessionNewPassesInitialPromptWithRuntimeOverrides(t *testing.T) {
 			"json",
 		)
 		if err != nil {
-			t.Fatalf("executeRootCommand(session new --no-wait --prompt) error = %v", err)
+			t.Fatalf("executeRootCommand(session prompt) error = %v", err)
 		}
-		var decoded SessionRecord
+		if gotRequest.Message != "Investigate the failing build" || gotRequest.Runtime == nil {
+			t.Fatalf("SendSessionPrompt() request = %#v", gotRequest)
+		}
+		if gotRequest.Runtime.Provider != "codex" || gotRequest.Runtime.Model != "gpt-5.6-sol" ||
+			gotRequest.Runtime.ReasoningEffort != "high" || gotRequest.Runtime.Speed != contract.SpeedFast {
+			t.Fatalf("SendSessionPrompt() Runtime = %#v", gotRequest.Runtime)
+		}
+		var decoded SessionPromptRecord
 		if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
-			t.Fatalf("json.Unmarshal(session new --no-wait --prompt) error = %v", err)
+			t.Fatalf("json.Unmarshal(session prompt) error = %v", err)
 		}
-		if decoded.State != session.StateStarting {
-			t.Fatalf("decoded.State = %q, want %q", decoded.State, session.StateStarting)
+		if decoded.Prompt.NewTurnID != "turn-1" {
+			t.Fatalf("decoded prompt = %#v", decoded)
 		}
 	})
 }
 
-func TestSessionNewRejectsInvalidSpeed(t *testing.T) {
+func TestSessionPromptRejectsInvalidSpeed(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should reject invalid speed before creating a session", func(t *testing.T) {
+	t.Run("Should reject invalid speed before sending a prompt", func(t *testing.T) {
 		t.Parallel()
 
 		deps := newTestDeps(t, &stubClient{
-			createSessionFn: func(context.Context, CreateSessionRequest) (SessionRecord, error) {
-				t.Fatal("CreateSession() called with invalid speed")
-				return SessionRecord{}, nil
+			sendSessionPromptFn: func(context.Context, string, SessionPromptRequest) (SessionPromptRecord, error) {
+				t.Fatal("SendSessionPrompt() called with invalid speed")
+				return SessionPromptRecord{}, nil
 			},
 		})
-		if _, _, err := executeRootCommand(t, deps, "session", "new", "--speed", "turbo"); err == nil {
-			t.Fatal("executeRootCommand(session new --speed turbo) error = nil")
+		if _, _, err := executeRootCommand(
+			t,
+			deps,
+			"session",
+			"prompt",
+			"sess-1",
+			"hello",
+			"--speed",
+			"turbo",
+		); err == nil {
+			t.Fatal("executeRootCommand(session prompt --speed turbo) error = nil")
 		}
 	})
-}
-
-func TestSessionNewReportsDurableStartupFailure(t *testing.T) {
-	t.Parallel()
-
-	deps := newWorkspaceTestDeps(t, &stubClient{
-		createSessionFn: func(_ context.Context, _ CreateSessionRequest) (SessionRecord, error) {
-			return SessionRecord{ID: "sess-1", State: session.StateStarting}, nil
-		},
-		getSessionFn: func(_ context.Context, id string) (SessionRecord, error) {
-			return SessionRecord{
-				ID:    id,
-				State: session.StateStopped,
-				Failure: &contract.SessionFailurePayload{
-					Kind:    store.FailureStartup,
-					Summary: "provider authentication expired",
-				},
-			}, nil
-		},
-	})
-	deps.pollInterval = time.Millisecond
-
-	_, _, err := executeRootCommand(t, deps, "session", "new", "-o", "json")
-	if err == nil || !strings.Contains(err.Error(), "provider authentication expired") {
-		t.Fatalf("executeRootCommand(session new) error = %v, want startup failure summary", err)
-	}
 }
 
 func TestSessionNewWorkspaceOptions(t *testing.T) {
@@ -505,47 +428,28 @@ func TestSessionNewAdvertisesAndAcceptsOnlyNamedChannelStrategy(t *testing.T) {
 	}
 }
 
-func TestSessionNewPassesProviderFlag(t *testing.T) {
+func TestSessionNewRejectsRemovedFlags(t *testing.T) {
 	t.Parallel()
 
-	deps := newWorkspaceTestDeps(t, &stubClient{
-		createSessionFn: func(_ context.Context, request CreateSessionRequest) (SessionRecord, error) {
-			if request.Provider != "fake-alt" {
-				t.Fatalf("CreateSession() Provider = %q, want %q", request.Provider, "fake-alt")
+	for _, flag := range []string{"--provider", "--no-wait"} {
+		t.Run("Should reject "+flag, func(t *testing.T) {
+			t.Parallel()
+
+			deps := newWorkspaceTestDeps(t, &stubClient{
+				createSessionFn: func(context.Context, CreateSessionRequest) (SessionRecord, error) {
+					t.Fatal("CreateSession() called with a removed flag")
+					return SessionRecord{}, nil
+				},
+			})
+			args := []string{"session", "new", flag}
+			if flag == "--provider" {
+				args = append(args, "fake-alt")
 			}
-			return SessionRecord{
-				ID:            "sess-1",
-				AgentName:     "general",
-				Provider:      request.Provider,
-				WorkspaceID:   "ws-1",
-				WorkspacePath: request.WorkspacePath,
-				State:         session.StateActive,
-				CreatedAt:     fixedTestNow,
-				UpdatedAt:     fixedTestNow,
-			}, nil
-		},
-	})
-
-	stdout, _, err := executeRootCommand(
-		t,
-		deps,
-		"session",
-		"new",
-		"--provider",
-		"fake-alt",
-		"-o",
-		"json",
-	)
-	if err != nil {
-		t.Fatalf("executeRootCommand(session new --provider) error = %v", err)
-	}
-
-	var decoded SessionRecord
-	if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
-		t.Fatalf("json.Unmarshal(session new --provider) error = %v", err)
-	}
-	if decoded.Provider != "fake-alt" {
-		t.Fatalf("decoded.Provider = %q, want %q", decoded.Provider, "fake-alt")
+			_, _, err := executeRootCommand(t, deps, args...)
+			if err == nil || !strings.Contains(err.Error(), "unknown flag") {
+				t.Fatalf("executeRootCommand(%s) error = %v, want unknown flag", flag, err)
+			}
+		})
 	}
 }
 
@@ -1621,7 +1525,12 @@ func TestSessionPromptRendersStructuredGoalResult(t *testing.T) {
 					) (SessionPromptRecord, error) {
 						return SessionPromptRecord{}, goalConflict()
 					},
-					streamPromptSessionFn: func(context.Context, string, string, SSEHandler) error {
+					streamPromptSessionFn: func(
+						context.Context,
+						string,
+						SessionPromptRequest,
+						SSEHandler,
+					) error {
 						return goalConflict()
 					},
 				})
@@ -1791,10 +1700,19 @@ func TestSessionPromptJSONLOutput(t *testing.T) {
 				t.Fatal("PromptSession should not be called for prompt -o jsonl")
 				return nil, nil
 			},
-			streamPromptSessionFn: func(_ context.Context, id string, message string, handler SSEHandler) error {
+			streamPromptSessionFn: func(
+				_ context.Context,
+				id string,
+				request SessionPromptRequest,
+				handler SSEHandler,
+			) error {
 				streamCalled = true
-				if id != "sess-1" || message != "hello" {
-					t.Fatalf("StreamPromptSession() = (%q, %q), want (sess-1, hello)", id, message)
+				if id != "sess-1" || request.Message != "hello" {
+					t.Fatalf("StreamPromptSession() = (%q, %#v), want sess-1/hello", id, request)
+				}
+				if request.Runtime == nil || request.Runtime.Provider != "codex" ||
+					request.Runtime.Model != "gpt-5.6-sol" {
+					t.Fatalf("StreamPromptSession() runtime = %#v, want codex/gpt-5.6-sol", request.Runtime)
 				}
 				events := []SSEEvent{
 					{
@@ -1841,7 +1759,13 @@ func TestSessionPromptJSONLOutput(t *testing.T) {
 			},
 		})
 
-		stdout, _, err := executeRootCommand(t, deps, "session", "prompt", "sess-1", "hello", "-o", "jsonl")
+		stdout, _, err := executeRootCommand(
+			t,
+			deps,
+			"session", "prompt", "sess-1", "hello",
+			"--provider", "codex", "--model", "gpt-5.6-sol",
+			"-o", "jsonl",
+		)
 		if err != nil {
 			t.Fatalf("executeRootCommand(session prompt jsonl) error = %v", err)
 		}
@@ -1879,11 +1803,11 @@ func TestSessionPromptJSONLOutput(t *testing.T) {
 			streamPromptSessionFn: func(
 				_ context.Context,
 				id string,
-				message string,
+				request SessionPromptRequest,
 				handler SSEHandler,
 			) error {
-				if id != "sess-1" || message != "/goal clear" {
-					t.Fatalf("StreamPromptSession() = %q/%q", id, message)
+				if id != "sess-1" || request.Message != "/goal clear" {
+					t.Fatalf("StreamPromptSession() = %q/%#v", id, request)
 				}
 				return handler(SSEEvent{Event: goalResultEventName, Data: mustJSON(t, result)})
 			},
@@ -1915,10 +1839,12 @@ func TestSessionListBundleRendersHumanAndToon(t *testing.T) {
 	t.Parallel()
 
 	items := []SessionRecord{{
-		ID:                           "sess-1",
-		Name:                         "demo",
-		AgentName:                    "coder",
-		Provider:                     "fake",
+		ID:        "sess-1",
+		Name:      "demo",
+		AgentName: "coder",
+		Runtime: contract.SessionRuntimePayload{Effective: &contract.RuntimeSelectionPayload{
+			Provider: "fake",
+		}},
 		WorkspaceID:                  "ws-1",
 		WorkspacePath:                "/workspace/project",
 		ResolvedNetworkParticipation: testLiveResolvedParticipation("builders"),
@@ -1979,13 +1905,15 @@ func TestSessionBundleRendersProviderInHumanAndToon(t *testing.T) {
 		ID:        "sess-1",
 		Name:      "demo",
 		AgentName: "coder",
-		Provider:  "fake",
-		Speed:     contract.SpeedFast,
-		SpeedResolution: &contract.SpeedResolution{
-			Requested: contract.SpeedFast,
-			Status:    contract.SpeedResolutionUnsupported,
-			Reason:    contract.SpeedResolutionReasonCapabilityAbsent,
-		},
+		Runtime: contract.SessionRuntimePayload{Effective: &contract.RuntimeSelectionPayload{
+			Provider: "fake",
+			Speed:    contract.SpeedFast,
+			SpeedResolution: &contract.SpeedResolution{
+				Requested: contract.SpeedFast,
+				Status:    contract.SpeedResolutionUnsupported,
+				Reason:    contract.SpeedResolutionReasonCapabilityAbsent,
+			},
+		}},
 		WorkspaceID:   "ws-1",
 		WorkspacePath: "/workspace/project",
 		State:         session.StateActive,

@@ -13,6 +13,7 @@ type agentEventPayload struct {
 	toolErrorDetail string
 	toolFailed      bool
 	hasTool         bool
+	promptRuntime   *PromptRuntime
 }
 
 func (e AgentEvent) clonePayload() *agentEventPayload {
@@ -21,11 +22,12 @@ func (e AgentEvent) clonePayload() *agentEventPayload {
 	}
 	cloned := *e.payload
 	cloned.toolInput = CloneRawMessage(e.payload.toolInput)
+	cloned.promptRuntime = ClonePromptRuntime(e.payload.promptRuntime)
 	return &cloned
 }
 
 func normalizeAgentEventPayload(payload *agentEventPayload) *agentEventPayload {
-	if payload == nil || payload.clientMessageID == "" && !payload.hasTool {
+	if payload == nil || payload.clientMessageID == "" && !payload.hasTool && payload.promptRuntime == nil {
 		return nil
 	}
 	return payload

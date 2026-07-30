@@ -16,19 +16,19 @@ import (
 type BusyInputMode string
 
 const (
-	BusyInputModeQueue     BusyInputMode = "queue"
-	BusyInputModeInterrupt BusyInputMode = "interrupt"
-	BusyInputModeSteer     BusyInputMode = "steer"
-	promptStatusAccepted                 = "accepted"
+	BusyInputModeQueue               BusyInputMode = "queue"
+	BusyInputModeInterrupt           BusyInputMode = "interrupt"
+	BusyInputModeSteer               BusyInputMode = "steer"
+	promptStatusAccepted                           = "accepted"
+	promptEvidenceQueueGenerationKey               = "queue_generation"
 )
-
-const promptEvidenceQueueGenerationKey = "queue_generation"
 
 // SendPromptOpts carries one user-facing prompt plus optional busy-input mode.
 type SendPromptOpts struct {
 	Message           string
 	ClientMessageID   string
 	Mode              BusyInputMode
+	Runtime           *RuntimeSelection
 	DeliveryContext   context.Context
 	Caller            PromptCaller
 	AllowGoalCommands bool
@@ -61,9 +61,38 @@ func (m *Manager) SendPrompt(ctx context.Context, id string, opts SendPromptOpts
 	if ctx == nil {
 		return SendPromptResult{}, errors.New("session: prompt context is required")
 	}
-	mode, err := m.normalizeBusyInputMode(opts.Mode)
+	preparation, goalResult, err := m.prepareSendPrompt(ctx, id, opts)
 	if err != nil {
 		return SendPromptResult{}, err
+	}
+	if goalResult != nil {
+		return *goalResult, nil
+	}
+	session, err := m.lookupPromptSession(ctx, preparation.request.target)
+	if err != nil {
+		return SendPromptResult{}, err
+	}
+	preparation.request.runtime, err = normalizePromptRuntimeSelection(session, preparation.request.runtime)
+	if err != nil {
+		return SendPromptResult{}, err
+	}
+	return m.submitPreparedPrompt(ctx, session, preparation)
+}
+
+type sendPromptPreparation struct {
+	request      promptRequest
+	mode         BusyInputMode
+	rejectIfBusy bool
+}
+
+func (m *Manager) prepareSendPrompt(
+	ctx context.Context,
+	id string,
+	opts SendPromptOpts,
+) (sendPromptPreparation, *SendPromptResult, error) {
+	mode, err := m.normalizeBusyInputMode(opts.Mode)
+	if err != nil {
+		return sendPromptPreparation{}, nil, err
 	}
 	req, err := m.parsePromptRequest(ctx, id, PromptOpts{
 		Message:         opts.Message,
@@ -71,62 +100,67 @@ func (m *Manager) SendPrompt(ctx context.Context, id string, opts SendPromptOpts
 		DeliveryContext: opts.DeliveryContext,
 	})
 	if err != nil {
-		return SendPromptResult{}, err
+		return sendPromptPreparation{}, nil, err
 	}
 	if err := m.checkNewWorkAdmission(ctx); err != nil {
-		return SendPromptResult{}, err
+		return sendPromptPreparation{}, nil, err
 	}
 	req.clientMessageID = strings.TrimSpace(opts.ClientMessageID)
+	req.runtime = cloneRuntimeSelection(opts.Runtime)
 	m.discardInterruptedPromptSalvage(req.target)
-	rejectIfBusy := false
-	if opts.AllowGoalCommands {
-		decision, handled, dispatchErr := m.dispatchGoalCommand(ctx, &req, opts)
-		if dispatchErr != nil {
-			return SendPromptResult{}, dispatchErr
-		}
-		if handled {
-			switch decision.Kind {
-			case GoalDispatchRespond:
-				return SendPromptResult{Status: managedInputOwnerGoal, Goal: decision.Result}, nil
-			case GoalDispatchPrompt:
-				req.message = decision.RewrittenMessage
-				rejectIfBusy = decision.BusyPolicy == goalBusyPolicyRejectIfBusy
-			default:
-				return SendPromptResult{}, errors.New("session: Goal dispatcher returned an invalid decision")
-			}
-		}
-	}
-	session, err := m.lookupPromptSession(ctx, req.target)
+	rejectIfBusy, goalResult, err := m.applyGoalCommand(ctx, &req, opts)
 	if err != nil {
-		return SendPromptResult{}, err
+		return sendPromptPreparation{}, nil, err
 	}
+	return sendPromptPreparation{
+		request:      req,
+		mode:         mode,
+		rejectIfBusy: rejectIfBusy,
+	}, goalResult, nil
+}
+func (m *Manager) submitPreparedPrompt(
+	ctx context.Context,
+	session *Session,
+	preparation sendPromptPreparation,
+) (SendPromptResult, error) {
+	req := preparation.request
 	if session.IsPrompting() {
-		if rejectIfBusy {
-			return goalDraftBusyResult(), nil
-		}
-		switch mode {
-		case BusyInputModeQueue:
-			return m.enqueueBusyPrompt(ctx, session, req)
-		case BusyInputModeInterrupt:
-			return m.interruptAndSubmitPrompt(ctx, session, req)
-		case BusyInputModeSteer:
-			return m.stageSteerPrompt(ctx, session, req)
-		}
+		return m.submitBusyPreparedPrompt(ctx, session, req, preparation)
 	}
-
 	events, err := m.submitPromptRequest(ctx, req)
 	if err != nil {
-		if rejectIfBusy && errors.Is(err, ErrPromptInProgress) {
+		if preparation.rejectIfBusy && errors.Is(err, ErrPromptInProgress) {
 			return goalDraftBusyResult(), nil
 		}
 		return SendPromptResult{}, err
 	}
 	return SendPromptResult{
 		Status:    promptStatusAccepted,
-		Mode:      mode,
+		Mode:      preparation.mode,
 		Events:    events,
 		NewTurnID: req.turnID,
 	}, nil
+}
+
+func (m *Manager) submitBusyPreparedPrompt(
+	ctx context.Context,
+	session *Session,
+	req promptRequest,
+	preparation sendPromptPreparation,
+) (SendPromptResult, error) {
+	if preparation.rejectIfBusy {
+		return goalDraftBusyResult(), nil
+	}
+	switch preparation.mode {
+	case BusyInputModeQueue:
+		return m.enqueueBusyPrompt(ctx, session, req)
+	case BusyInputModeInterrupt:
+		return m.interruptAndSubmitPrompt(ctx, session, req)
+	case BusyInputModeSteer:
+		return m.stageSteerPrompt(ctx, session, req)
+	default:
+		return SendPromptResult{}, fmt.Errorf("session: invalid busy input mode %q", preparation.mode)
+	}
 }
 
 // InterruptPrompt cancels the active user/session turn and fences stale queued input.
@@ -232,7 +266,7 @@ func (m *Manager) CancelQueuedPrompt(ctx context.Context, id string, queueEntryI
 		session.CurrentTurnID(),
 		transcript.MarkerPromptDropped,
 		"Queued input canceled by operator.",
-		queueEntryEvidence(entry, 0),
+		queueEntryEvidence(&entry, 0),
 	)
 	return SendPromptResult{
 		Status:          "canceled",
@@ -254,7 +288,13 @@ func (m *Manager) enqueueBusyPrompt(
 	if err != nil {
 		return SendPromptResult{}, err
 	}
-	entry, position, err := m.inputQueue.Enqueue(ctx, session.ID, req.message, generation)
+	entry, position, err := m.inputQueue.Enqueue(
+		ctx,
+		session.ID,
+		req.message,
+		generation,
+		storeRuntimeSelection(req.runtime),
+	)
 	if err != nil {
 		if errors.Is(err, store.ErrSessionInputQueueFull) {
 			m.emitTranscriptMarker(
@@ -274,7 +314,7 @@ func (m *Manager) enqueueBusyPrompt(
 		session.CurrentTurnID(),
 		transcript.MarkerPromptQueued,
 		"Input queued while the session is busy.",
-		queueEntryEvidence(entry, position),
+		queueEntryEvidence(&entry, position),
 	)
 	return SendPromptResult{
 		Status:          "queued",
@@ -298,7 +338,13 @@ func (m *Manager) stageSteerPrompt(
 	if err != nil {
 		return SendPromptResult{}, err
 	}
-	entry, err := m.inputQueue.StageSteer(ctx, session.ID, req.message, generation)
+	entry, err := m.inputQueue.StageSteer(
+		ctx,
+		session.ID,
+		req.message,
+		generation,
+		storeRuntimeSelection(req.runtime),
+	)
 	if err != nil {
 		return SendPromptResult{}, err
 	}
@@ -308,7 +354,7 @@ func (m *Manager) stageSteerPrompt(
 		session.CurrentTurnID(),
 		transcript.MarkerPromptSteered,
 		"Steering input staged while the session is busy.",
-		queueEntryEvidence(entry, 0),
+		queueEntryEvidence(&entry, 0),
 	)
 	return SendPromptResult{
 		Status:                     "staged",
@@ -394,7 +440,7 @@ func (m *Manager) advanceInputGeneration(ctx context.Context, sessionID string) 
 	return m.inputQueue.AdvanceGeneration(ctx, sessionID)
 }
 
-func queueEntryEvidence(entry store.SessionInputQueueEntry, position int) map[string]any {
+func queueEntryEvidence(entry *store.SessionInputQueueEntry, position int) map[string]any {
 	evidence := map[string]any{
 		"queue_entry_id":                 entry.ID,
 		promptEvidenceQueueGenerationKey: entry.SessionGeneration,

@@ -199,6 +199,9 @@ func TestSessionMetadataRoundTrip(t *testing.T) {
 			Name:                 "Provider Session",
 			AgentName:            "coder",
 			Provider:             "codex",
+			RuntimeStatus:        RuntimeStatusReady,
+			RuntimeTransition:    RuntimeTransitionInitialBind,
+			ACPSessionID:         "acp-provider",
 			WorkspaceID:          "ws-provider",
 			Workspace:            t.TempDir(),
 			NetworkParticipation: testLocalParticipation(),
@@ -241,6 +244,7 @@ func TestSessionMetadataRoundTrip(t *testing.T) {
 		session := &Session{
 			ID:                   "sess-commands",
 			AgentName:            "coder",
+			RuntimeStatus:        RuntimeStatusUnbound,
 			WorkspaceID:          "ws-commands",
 			Workspace:            t.TempDir(),
 			NetworkParticipation: testLocalParticipation(),

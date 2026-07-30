@@ -135,3 +135,13 @@ func (n *daemonNativeTools) baseNativeToolAvailability() nativeToolAvailabilityS
 		mcpAuth: n.dependencyAvailability(func() bool { return n.mcpAuthProvider() != nil }),
 	}
 }
+
+func (n *daemonNativeTools) sessionCreateAvailability() toolspkg.NativeAvailabilityFunc {
+	return n.dependencyAvailability(func() bool {
+		if n == nil || n.deps == nil {
+			return false
+		}
+		_, ok := n.deps.Sessions.(core.SessionAcceptanceManager)
+		return ok
+	})
+}

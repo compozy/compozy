@@ -13,10 +13,11 @@ const (
 
 // SendPromptRequest captures user-facing prompt input plus optional busy-input mode.
 type SendPromptRequest struct {
-	Message   string            `json:"message,omitempty"`
-	Messages  []PromptUIMessage `json:"messages,omitempty"`
-	MessageID string            `json:"messageId,omitempty"`
-	Mode      PromptMode        `json:"mode,omitempty"`
+	Message   string                         `json:"message,omitempty"`
+	Messages  []PromptUIMessage              `json:"messages,omitempty"`
+	MessageID string                         `json:"messageId,omitempty"`
+	Mode      PromptMode                     `json:"mode,omitempty"`
+	Runtime   *PromptRuntimeSelectionPayload `json:"runtime,omitempty"`
 }
 
 // PromptUIMessage carries Vercel AI SDK compatible message input.

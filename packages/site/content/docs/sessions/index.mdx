@@ -3,8 +3,9 @@ title: Sessions
 description: The durable runtime unit Compozy creates, attaches, audits, and governs.
 ---
 
-A session is the unit Compozy actually manages. It binds one agent subprocess to a workspace,
-permission policy, event store, and attach record under one stable Compozy session ID.
+A session is the durable logical unit Compozy manages. Creation returns it `active` and unbound:
+it has a workspace, permission policy, event store, and attach record under one stable Compozy
+session ID, but no ACP process. The first prompt binds a provider runtime snapshot and starts ACP.
 
 Live session events are written to `events.db` while the session runs. After the session stops,
 Compozy materializes a read-only forensic JSONL ledger at
@@ -24,7 +25,8 @@ the daemon or database itself, use Operations after you identify the affected se
 
 <OperatorNote>
   Reach for this section when you need the operational contract around one live session: how it
-  starts, what gets stored, how replay works, and how approvals are enforced while the agent runs.
+  starts, how a prompt binds its runtime, what gets stored, how replay works, and how approvals are
+  enforced while the agent runs.
 </OperatorNote>
 
 ## Browse the session catalog

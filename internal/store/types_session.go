@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	speedpkg "github.com/compozy/compozy/internal/speed"
 )
 
 var (
@@ -54,11 +56,18 @@ func ValidStopReason(r StopReason) bool {
 
 // SessionInfo is the canonical session index row stored in the global database.
 type SessionInfo struct {
-	ID          string
-	Name        string
-	AgentName   string
-	Provider    string
-	WorkspaceID string
+	ID                string
+	Name              string
+	AgentName         string
+	Provider          string
+	Model             string
+	ReasoningEffort   string
+	Speed             speedpkg.Speed
+	SpeedResolution   *speedpkg.Resolution
+	RuntimeStatus     SessionRuntimeStatus
+	RuntimeTransition SessionRuntimeTransition
+	RuntimeFailure    string
+	WorkspaceID       string
 	*SessionNetworkState
 	SessionType      string
 	Lineage          *SessionLineage
@@ -97,6 +106,12 @@ func (s SessionInfo) Validate() error {
 		return err
 	}
 	if err := validateSessionStopReason(s.StopReason); err != nil {
+		return err
+	}
+	if err := validateSessionRuntime(s.RuntimeStatus, s.RuntimeTransition); err != nil {
+		return err
+	}
+	if err := validateSessionSpeedMetadata(s.Speed, s.SpeedResolution); err != nil {
 		return err
 	}
 	if err := s.Liveness.Validate(); err != nil {

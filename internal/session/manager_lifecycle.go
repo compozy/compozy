@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/compozy/compozy/internal/acp"
@@ -61,87 +60,6 @@ func (m *Manager) Stop(ctx context.Context, id string) error {
 	return m.StopWithCause(ctx, id, CauseUserRequested, "")
 }
 
-// Resume restarts a stopped session from its persisted metadata and event history.
-func (m *Manager) Resume(ctx context.Context, id string) (_ *Session, err error) {
-	if ctx == nil {
-		return nil, errors.New("session: resume context is required")
-	}
-
-	target := strings.TrimSpace(id)
-	if target == "" {
-		return nil, errors.New("session: session id is required")
-	}
-
-	if session, ok := m.Get(target); ok {
-		return session, nil
-	}
-	if err := m.checkNewWorkAdmission(ctx); err != nil {
-		return nil, err
-	}
-
-	meta, err := m.readMetaWithContext(ctx, target)
-	if err != nil {
-		return nil, err
-	}
-	if validationErrs := m.validateInfrastructure(ctx, meta); len(validationErrs) > 0 {
-		m.logResumeValidationFailures(meta, validationErrs)
-		return nil, fmt.Errorf(
-			"session: validate resume infrastructure for %q: %w",
-			target,
-			errors.Join(validationErrs...),
-		)
-	}
-
-	spec, err := m.prepareResumeStart(ctx, meta)
-	if err != nil {
-		return nil, err
-	}
-	if strings.TrimSpace(spec.acpSessionID) == "" {
-		spec.resumeReplay = true
-	}
-
-	session, err := m.startSession(ctx, &spec)
-	if err == nil {
-		return session, nil
-	}
-
-	metaPath := store.SessionMetaFile(filepath.Join(m.homePaths.SessionsDir, target))
-	clearACP := acp.IsLoadSessionResourceMissing(err) || errors.Is(err, acp.ErrAgentDoesNotSupportSession)
-	restoredMeta, restoreErr := m.restoreFailedResumeStart(metaPath, meta, clearACP)
-	if restoreErr != nil {
-		return nil, errors.Join(err, restoreErr)
-	}
-	if projectionErr := m.persistSessionCatalogFromMeta(ctx, restoredMeta); projectionErr != nil {
-		return nil, errors.Join(err, projectionErr)
-	}
-	if !clearACP {
-		return nil, err
-	}
-
-	fallbackReason := "load_session_resource_missing"
-	if errors.Is(err, acp.ErrAgentDoesNotSupportSession) {
-		fallbackReason = "load_session_unsupported"
-	}
-	m.resumeLogger(meta).Info(
-		"session.resume.context_replay_fallback",
-		"phase", "resume",
-		"fallback_reason", fallbackReason,
-		"error", err,
-	)
-
-	fallbackSpec, fallbackSpecErr := m.prepareResumeStart(ctx, restoredMeta)
-	if fallbackSpecErr != nil {
-		return nil, errors.Join(err, fallbackSpecErr)
-	}
-	fallbackSpec.resumeReplay = true
-
-	fallbackSession, fallbackErr := m.startSession(ctx, &fallbackSpec)
-	if fallbackErr != nil {
-		return nil, errors.Join(err, fallbackErr)
-	}
-	return fallbackSession, nil
-}
-
 func (m *Manager) watchProcess(ctx context.Context, session *Session) {
 	proc := session.processHandle()
 	if proc == nil {
@@ -154,15 +72,26 @@ func (m *Manager) watchProcess(ctx context.Context, session *Session) {
 			return
 		case <-proc.Done():
 		}
+		if !session.isCurrentProcess(proc) {
+			return
+		}
 		waitErr := proc.Wait()
-		if err := m.handleProcessExit(ctx, session, waitErr); err != nil {
+		if err := m.handleProcessExit(ctx, session, proc, waitErr); err != nil {
 			m.sessionLogger(session).Warn("session: process exit handling failed", "error", err)
 		}
 	}()
 }
 
-func (m *Manager) handleProcessExit(ctx context.Context, session *Session, waitErr error) error {
+func (m *Manager) handleProcessExit(
+	ctx context.Context,
+	session *Session,
+	proc *AgentProcess,
+	waitErr error,
+) error {
 	if session == nil {
+		return nil
+	}
+	if !session.isCurrentProcess(proc) {
 		return nil
 	}
 

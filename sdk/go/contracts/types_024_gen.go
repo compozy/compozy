@@ -7,6 +7,16 @@ import (
 	"time"
 )
 
+type TaskRunsParams struct {
+	ID                   string        `json:"id"`
+	Status               TaskRunStatus `json:"status,omitempty"`
+	SessionID            string        `json:"session_id,omitempty"`
+	ParticipationChannel string        `json:"participation_channel,omitempty"`
+	Limit                int           `json:"limit,omitempty"`
+}
+
+type TaskScope string
+
 type TaskStatusChangedPayload struct {
 	Event                        HookEvent `json:"event"`
 	Timestamp                    time.Time `json:"timestamp"`
@@ -274,50 +284,4 @@ type ToolPostErrorPatch struct {
 	Title      *string         `json:"title,omitempty"`
 	ToolResult json.RawMessage `json:"tool_result,omitempty"`
 	Error      *string         `json:"error,omitempty"`
-}
-
-type ToolPostErrorPayload struct {
-	Event          HookEvent       `json:"event"`
-	Timestamp      time.Time       `json:"timestamp"`
-	SessionID      string          `json:"session_id,omitempty"`
-	SessionName    string          `json:"session_name,omitempty"`
-	SessionType    string          `json:"session_type,omitempty"`
-	AgentName      string          `json:"agent_name,omitempty"`
-	WorkspaceID    string          `json:"workspace_id,omitempty"`
-	Workspace      string          `json:"workspace,omitempty"`
-	ACPSessionID   string          `json:"acp_session_id,omitempty"`
-	State          string          `json:"state,omitempty"`
-	SoulSnapshotID string          `json:"soul_snapshot_id,omitempty"`
-	SoulDigest     string          `json:"soul_digest,omitempty"`
-	CreatedAt      time.Time       `json:"created_at"`
-	UpdatedAt      time.Time       `json:"updated_at"`
-	TurnID         string          `json:"turn_id,omitempty"`
-	ToolCallID     string          `json:"tool_call_id,omitempty"`
-	ToolID         string          `json:"tool_id,omitempty"`
-	ReadOnly       bool            `json:"read_only,omitempty"`
-	Title          string          `json:"title,omitempty"`
-	ToolInput      json.RawMessage `json:"tool_input,omitempty"`
-	Error          string          `json:"error,omitempty"`
-}
-
-type ToolPreCallPayload struct {
-	Event          HookEvent       `json:"event"`
-	Timestamp      time.Time       `json:"timestamp"`
-	SessionID      string          `json:"session_id,omitempty"`
-	SessionName    string          `json:"session_name,omitempty"`
-	SessionType    string          `json:"session_type,omitempty"`
-	AgentName      string          `json:"agent_name,omitempty"`
-	WorkspaceID    string          `json:"workspace_id,omitempty"`
-	Workspace      string          `json:"workspace,omitempty"`
-	ACPSessionID   string          `json:"acp_session_id,omitempty"`
-	State          string          `json:"state,omitempty"`
-	SoulSnapshotID string          `json:"soul_snapshot_id,omitempty"`
-	SoulDigest     string          `json:"soul_digest,omitempty"`
-	CreatedAt      time.Time       `json:"created_at"`
-	UpdatedAt      time.Time       `json:"updated_at"`
-	TurnID         string          `json:"turn_id,omitempty"`
-	ToolCallID     string          `json:"tool_call_id,omitempty"`
-	ToolID         string          `json:"tool_id,omitempty"`
-	ReadOnly       bool            `json:"read_only,omitempty"`
-	ToolInput      json.RawMessage `json:"tool_input,omitempty"`
 }

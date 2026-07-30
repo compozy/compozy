@@ -54,7 +54,10 @@ export function useSessionComposerState(sessionId: string): SessionComposerState
   };
 
   useLayoutEffect(() => {
-    if (hydratedSessionIdRef.current === sessionId) {
+    if (
+      hydratedSessionIdRef.current === sessionId &&
+      aui.composer().getState().text === draftText
+    ) {
       return;
     }
     hydratedSessionIdRef.current = sessionId;

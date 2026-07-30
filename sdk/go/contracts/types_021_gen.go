@@ -7,6 +7,32 @@ import (
 	"time"
 )
 
+type TaskCatalogRunPayload struct {
+	ID                           string         `json:"id"`
+	TaskID                       string         `json:"task_id"`
+	Status                       TaskRunStatus  `json:"status"`
+	Attempt                      int            `json:"attempt"`
+	RecoveryCount                int            `json:"recovery_count"`
+	PreviousRunID                string         `json:"previous_run_id,omitempty"`
+	FailureKind                  string         `json:"failure_kind,omitempty"`
+	MaxAttempts                  int            `json:"max_attempts"`
+	SessionID                    string         `json:"session_id,omitempty"`
+	ClaimedBy                    *ActorIdentity `json:"claimed_by,omitempty"`
+	LeaseUntil                   *time.Time     `json:"lease_until,omitempty"`
+	HeartbeatAt                  *time.Time     `json:"heartbeat_at,omitempty"`
+	ResolvedNetworkParticipation *Spec          `json:"resolved_network_participation,omitempty"`
+	QueuedAt                     time.Time      `json:"queued_at"`
+	ClaimedAt                    *time.Time     `json:"claimed_at,omitempty"`
+	StartedAt                    *time.Time     `json:"started_at,omitempty"`
+	EndedAt                      *time.Time     `json:"ended_at,omitempty"`
+	Error                        string         `json:"error,omitempty"`
+}
+
+type TaskCatalogStatusFacetPayload struct {
+	Status Status `json:"status"`
+	Count  int    `json:"count"`
+}
+
 type TaskContext struct {
 	TaskID                       string `json:"task_id,omitempty"`
 	ParentTaskID                 string `json:"parent_task_id,omitempty"`
@@ -234,29 +260,4 @@ type TaskEventPayload struct {
 	Origin    Origin          `json:"origin"`
 	Payload   json.RawMessage `json:"payload,omitempty"`
 	Timestamp time.Time       `json:"timestamp"`
-}
-
-type TaskHealth struct {
-	Status                     string             `json:"status"`
-	QueueDepthTotal            int                `json:"queue_depth_total"`
-	OldestQueuedAt             time.Time          `json:"oldest_queued_at"`
-	OldestQueueAgeMilli        int64              `json:"oldest_queue_age_ms"`
-	QueueDepth                 []TaskQueueDepth   `json:"queue_depth,omitempty"`
-	StuckRuns                  []StuckTaskRun     `json:"stuck_runs,omitempty"`
-	ActiveOrphanRuns           int                `json:"active_orphan_runs"`
-	TaskTotals                 []TaskStatusTotal  `json:"task_totals,omitempty"`
-	RunTotals                  []TaskRunTotal     `json:"run_totals,omitempty"`
-	OwnerTotals                []TaskOwnerTotal   `json:"owner_totals,omitempty"`
-	ForcedStopsSinceStart      int                `json:"forced_stops_since_start"`
-	DuplicateIngressSinceStart int                `json:"duplicate_ingress_since_start"`
-	ChannelMismatchSinceStart  int                `json:"channel_mismatch_since_start"`
-	RecoverySinceStart         TaskRecoveryTotals `json:"recovery_since_start"`
-}
-
-type TaskInbox struct {
-	UnreadTotal   int                         `json:"unread_total"`
-	ArchivedTotal int                         `json:"archived_total"`
-	Groups        []TaskInboxLaneGroupPayload `json:"groups"`
-	Page          CountedCursorPagePayload    `json:"page"`
-	Facets        TaskInboxFacetsPayload      `json:"facets"`
 }

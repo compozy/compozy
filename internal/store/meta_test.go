@@ -24,6 +24,7 @@ func TestWriteSessionMetaAndReadBack(t *testing.T) {
 		NetworkParticipation: participation.CloneSpec(participation.LocalSpec()),
 		SessionType:          "system",
 		State:                "stopped",
+		RuntimeStatus:        SessionRuntimeReady,
 		StopReason:           &stopReason,
 		StopDetail:           "hook denied continuation",
 		Sandbox: &SessionSandboxMeta{
@@ -110,6 +111,7 @@ func TestWriteSessionMetaConcurrentWritesDoNotCorruptFile(t *testing.T) {
 		WorkspaceID:          "ws-meta-concurrent",
 		NetworkParticipation: participation.CloneSpec(participation.LocalSpec()),
 		State:                "active",
+		RuntimeStatus:        SessionRuntimeReady,
 		CreatedAt:            time.Date(2026, 4, 3, 18, 0, 0, 0, time.UTC),
 		UpdatedAt:            time.Date(2026, 4, 3, 18, 0, 0, 0, time.UTC),
 	}
@@ -209,6 +211,7 @@ func TestSessionMetaValidateRejectsParticipationOutsideCreationIdentity(t *testi
 		NetworkParticipation: participation.CloneSpec(live),
 		SessionType:          options.SessionType,
 		State:                "stopped",
+		RuntimeStatus:        SessionRuntimeReady,
 		CreationProfile:      &profile,
 		CreationOptions:      &options,
 		CreationProfileRef:   profileRef,
@@ -240,6 +243,7 @@ func TestReadSessionMetaStopFieldsOmitted(t *testing.T) {
   },
   "session_type": "user",
   "state": "stopped",
+  "runtime_status": "ready",
   "created_at": "2026-04-03T17:00:00Z",
   "updated_at": "2026-04-03T17:01:00Z"
 }

@@ -14,11 +14,17 @@ import (
 
 func sessionInputQueueFromGenerated(row *sqlcgen.SessionInputQueue) (store.SessionInputQueueEntry, error) {
 	entry := store.SessionInputQueueEntry{
-		ID:                       row.ID,
-		SessionID:                row.SessionID,
-		Status:                   row.Status,
-		Mode:                     row.Mode,
-		Text:                     row.Text,
+		ID:        row.ID,
+		SessionID: row.SessionID,
+		Status:    row.Status,
+		Mode:      row.Mode,
+		Text:      row.Text,
+		Runtime: store.SessionInputRuntime{
+			Provider:        row.RuntimeProvider,
+			Model:           row.RuntimeModel,
+			ReasoningEffort: row.RuntimeReasoningEffort,
+			Speed:           row.RuntimeSpeed,
+		},
 		SessionGeneration:        row.SessionGeneration,
 		TaskRunID:                row.TaskRunID,
 		RunGeneration:            nullableInt64Pointer(row.RunGeneration),

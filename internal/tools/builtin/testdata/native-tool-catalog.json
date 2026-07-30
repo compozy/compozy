@@ -2213,6 +2213,19 @@
     ]
   },
   {
+    "tool_id": "compozy__session_create",
+    "native_name": "session_create",
+    "toolsets": [
+      "compozy__sessions"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "878b061d7461635506679696d9336681dfadebcf1ebb98ef93768f02b4f6247f",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
     "tool_id": "compozy__session_describe",
     "native_name": "session_describe",
     "toolsets": [
@@ -2277,6 +2290,19 @@
     "open_world": false,
     "input_schema_digest": "f674e12153b1a019aba76dd8323e03f91a78410ebc6c2d10f55f1dd06572d9a9",
     "output_schema_digest": "8003521e0a33d873299bea49afede257877a3cb3ea602bfc592b77ade7b96808"
+  },
+  {
+    "tool_id": "compozy__session_prompt",
+    "native_name": "session_prompt",
+    "toolsets": [
+      "compozy__sessions"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "c849c275dd883801752b7adee346dfe7e84ff5d1988841c98638eb433e3b1965",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
     "tool_id": "compozy__session_status",

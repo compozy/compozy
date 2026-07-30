@@ -11,16 +11,18 @@ import (
 )
 
 type promptRequest struct {
-	turnID          string
-	target          string
-	message         string
-	authoredMessage string
-	clientMessageID string
-	turnSource      TurnSource
-	meta            acp.PromptMeta
-	deliveryCtx     context.Context
-	prepareDelivery PromptDeliveryPreparer
-	inputRecorded   bool
+	turnID                 string
+	target                 string
+	message                string
+	authoredMessage        string
+	clientMessageID        string
+	runtime                *RuntimeSelection
+	turnSource             TurnSource
+	meta                   acp.PromptMeta
+	deliveryCtx            context.Context
+	prepareDelivery        PromptDeliveryPreparer
+	inputRecorded          bool
+	releaseSlotBeforeHooks bool
 }
 
 func (m *Manager) recordPromptInputEvent(
@@ -46,6 +48,7 @@ func (m *Manager) recordPromptInputEvent(
 		Timestamp: m.now(),
 		Text:      req.message,
 	}
+	event = event.WithPromptRuntime(promptRuntimeFromSelectionPointer(req.runtime))
 	if clientMessageID := strings.TrimSpace(req.clientMessageID); clientMessageID != "" {
 		event = event.WithClientMessageID(clientMessageID)
 	}

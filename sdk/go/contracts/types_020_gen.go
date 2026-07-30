@@ -7,6 +7,8 @@ import (
 	"time"
 )
 
+type SourceKind string
+
 type SourceRef struct {
 	Kind            SourceKind `json:"kind"`
 	Owner           string     `json:"owner"`
@@ -222,6 +224,8 @@ type Spec struct {
 	Bounds          Bounds          `json:"bounds,omitzero"`
 }
 
+type Speed string
+
 type State string
 
 type Status string
@@ -352,30 +356,4 @@ type TaskCatalogItemPayload struct {
 type TaskCatalogOwnerFacetPayload struct {
 	Owner Ownership `json:"owner"`
 	Count int       `json:"count"`
-}
-
-type TaskCatalogRunPayload struct {
-	ID                           string         `json:"id"`
-	TaskID                       string         `json:"task_id"`
-	Status                       TaskRunStatus  `json:"status"`
-	Attempt                      int            `json:"attempt"`
-	RecoveryCount                int            `json:"recovery_count"`
-	PreviousRunID                string         `json:"previous_run_id,omitempty"`
-	FailureKind                  string         `json:"failure_kind,omitempty"`
-	MaxAttempts                  int            `json:"max_attempts"`
-	SessionID                    string         `json:"session_id,omitempty"`
-	ClaimedBy                    *ActorIdentity `json:"claimed_by,omitempty"`
-	LeaseUntil                   *time.Time     `json:"lease_until,omitempty"`
-	HeartbeatAt                  *time.Time     `json:"heartbeat_at,omitempty"`
-	ResolvedNetworkParticipation *Spec          `json:"resolved_network_participation,omitempty"`
-	QueuedAt                     time.Time      `json:"queued_at"`
-	ClaimedAt                    *time.Time     `json:"claimed_at,omitempty"`
-	StartedAt                    *time.Time     `json:"started_at,omitempty"`
-	EndedAt                      *time.Time     `json:"ended_at,omitempty"`
-	Error                        string         `json:"error,omitempty"`
-}
-
-type TaskCatalogStatusFacetPayload struct {
-	Status Status `json:"status"`
-	Count  int    `json:"count"`
 }

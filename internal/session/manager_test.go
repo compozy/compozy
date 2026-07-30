@@ -1003,7 +1003,15 @@ func TestResumeLoadsMetaAndPassesStoredACPSessionID(t *testing.T) {
 
 	h := newHarness(t)
 	session := createSession(t, h)
+	events, err := h.manager.Prompt(testutil.Context(t), session.ID, "bind the runtime")
+	if err != nil {
+		t.Fatalf("Prompt(bind runtime) error = %v", err)
+	}
+	collectEvents(t, events)
 	originalACP := session.Info().ACPSessionID
+	if originalACP == "" {
+		t.Fatal("bound session ACP session id is empty")
+	}
 
 	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
 		t.Fatalf("Stop() error = %v", err)

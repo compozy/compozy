@@ -1,0 +1,56 @@
+package store
+
+import (
+	"fmt"
+	"strings"
+)
+
+// SessionRuntimeStatus is the persisted lifecycle of a logical session's ACP binding.
+type SessionRuntimeStatus string
+
+const (
+	SessionRuntimeUnbound       SessionRuntimeStatus = "unbound"
+	SessionRuntimeBinding       SessionRuntimeStatus = "binding"
+	SessionRuntimeReady         SessionRuntimeStatus = "ready"
+	SessionRuntimeReconfiguring SessionRuntimeStatus = "reconfiguring"
+	SessionRuntimeFailed        SessionRuntimeStatus = "failed"
+)
+
+// SessionRuntimeTransition identifies the most recent successful binding strategy.
+type SessionRuntimeTransition string
+
+const (
+	SessionRuntimeTransitionNone               SessionRuntimeTransition = ""
+	SessionRuntimeTransitionInitialBind        SessionRuntimeTransition = "initial_bind"
+	SessionRuntimeTransitionLiveConfiguration  SessionRuntimeTransition = "live_configuration"
+	SessionRuntimeTransitionProcessReplacement SessionRuntimeTransition = "process_replacement"
+)
+
+func validateSessionRuntime(status SessionRuntimeStatus, transition SessionRuntimeTransition) error {
+	switch status {
+	case SessionRuntimeUnbound,
+		SessionRuntimeBinding,
+		SessionRuntimeReady,
+		SessionRuntimeReconfiguring,
+		SessionRuntimeFailed:
+	default:
+		return fmt.Errorf("store: invalid session runtime status %q", status)
+	}
+	switch transition {
+	case SessionRuntimeTransitionNone,
+		SessionRuntimeTransitionInitialBind,
+		SessionRuntimeTransitionLiveConfiguration,
+		SessionRuntimeTransitionProcessReplacement:
+	default:
+		return fmt.Errorf("store: invalid session runtime transition %q", transition)
+	}
+	if status == SessionRuntimeFailed && strings.TrimSpace(string(transition)) == "" {
+		return fmt.Errorf("store: failed session runtime requires a transition strategy")
+	}
+	return nil
+}
+
+// ValidateSessionRuntime validates one durable runtime binding projection.
+func ValidateSessionRuntime(status SessionRuntimeStatus, transition SessionRuntimeTransition) error {
+	return validateSessionRuntime(status, transition)
+}

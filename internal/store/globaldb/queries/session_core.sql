@@ -54,7 +54,8 @@ ORDER BY updated_at DESC, session_id DESC;
 
 -- name: UpsertSession :execrows
 INSERT INTO sessions (
-  id, name, agent_name, provider, workspace_id, session_type,
+  id, name, agent_name, provider, model, reasoning_effort, speed, speed_resolution_json,
+  runtime_status, runtime_transition, runtime_failure, workspace_id, session_type,
   network_spec_json, network_mode, network_channel, network_source, state,
   parent_session_id, root_session_id, spawn_depth, spawn_role, ttl_expires_at,
   auto_stop_on_parent, spawn_budget_json, permission_policy_json,
@@ -65,7 +66,9 @@ INSERT INTO sessions (
   sandbox_state, sandbox_provider_state_json, sandbox_last_sync_at, sandbox_last_sync_error,
   created_at, updated_at
 ) VALUES (
-  sqlc.arg(id), sqlc.narg(name), sqlc.arg(agent_name), sqlc.arg(provider), sqlc.arg(workspace_id),
+  sqlc.arg(id), sqlc.narg(name), sqlc.arg(agent_name), sqlc.arg(provider), sqlc.arg(model),
+  sqlc.arg(reasoning_effort), sqlc.arg(speed), sqlc.arg(speed_resolution_json),
+  sqlc.arg(runtime_status), sqlc.arg(runtime_transition), sqlc.arg(runtime_failure), sqlc.arg(workspace_id),
   sqlc.arg(session_type), sqlc.arg(network_spec_json), sqlc.arg(network_mode),
   sqlc.narg(network_channel), sqlc.arg(network_source), sqlc.arg(state), sqlc.narg(parent_session_id),
   sqlc.narg(root_session_id), sqlc.arg(spawn_depth), sqlc.narg(spawn_role), sqlc.narg(ttl_expires_at),
@@ -84,6 +87,13 @@ ON CONFLICT(id) DO UPDATE SET
   name = excluded.name,
   agent_name = excluded.agent_name,
   provider = excluded.provider,
+	model = excluded.model,
+	reasoning_effort = excluded.reasoning_effort,
+	speed = excluded.speed,
+	speed_resolution_json = excluded.speed_resolution_json,
+	runtime_status = excluded.runtime_status,
+	runtime_transition = excluded.runtime_transition,
+	runtime_failure = excluded.runtime_failure,
   workspace_id = excluded.workspace_id,
   session_type = excluded.session_type,
   state = excluded.state,

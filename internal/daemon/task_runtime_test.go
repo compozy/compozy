@@ -1887,6 +1887,7 @@ func TestBootTasksRecoversPendingRunsOnStartup(t *testing.T) {
 		if err := db.RegisterSession(testutil.Context(t), store.SessionInfo{
 			ID: sessionID, AgentName: "coder", Provider: "test",
 			WorkspaceID: "global", State: string(session.StateActive), CreatedAt: now, UpdatedAt: now,
+			RuntimeStatus: store.SessionRuntimeUnbound,
 		}); err != nil {
 			t.Fatalf("RegisterSession(%q) error = %v", sessionID, err)
 		}
@@ -4093,14 +4094,15 @@ func newDetachedHarnessTaskRuntimeForTest(
 			agentName = "daemon-test-agent"
 		}
 		storedInfo := store.SessionInfo{
-			ID:          info.ID,
-			Name:        info.Name,
-			AgentName:   agentName,
-			WorkspaceID: workspaceID,
-			SessionType: string(info.Type),
-			State:       string(info.State),
-			CreatedAt:   time.Now().UTC(),
-			UpdatedAt:   time.Now().UTC(),
+			ID:            info.ID,
+			Name:          info.Name,
+			AgentName:     agentName,
+			WorkspaceID:   workspaceID,
+			SessionType:   string(info.Type),
+			State:         string(info.State),
+			RuntimeStatus: store.SessionRuntimeUnbound,
+			CreatedAt:     time.Now().UTC(),
+			UpdatedAt:     time.Now().UTC(),
 		}
 		storedInfo.SetNetworkSpec(info.NetworkParticipation)
 		if err := db.RegisterSession(testutil.Context(t), storedInfo); err != nil {

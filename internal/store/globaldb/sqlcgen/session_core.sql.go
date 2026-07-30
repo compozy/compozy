@@ -233,7 +233,8 @@ func (q *Queries) SweepExpiredSessionAttachLocks(ctx context.Context, now string
 
 const upsertSession = `-- name: UpsertSession :execrows
 INSERT INTO sessions (
-  id, name, agent_name, provider, workspace_id, session_type,
+  id, name, agent_name, provider, model, reasoning_effort, speed, speed_resolution_json,
+  runtime_status, runtime_transition, runtime_failure, workspace_id, session_type,
   network_spec_json, network_mode, network_channel, network_source, state,
   parent_session_id, root_session_id, spawn_depth, spawn_role, ttl_expires_at,
   auto_stop_on_parent, spawn_budget_json, permission_policy_json,
@@ -247,22 +248,31 @@ INSERT INTO sessions (
   ?1, ?2, ?3, ?4, ?5,
   ?6, ?7, ?8,
   ?9, ?10, ?11, ?12,
-  ?13, ?14, ?15, ?16,
-  ?17, ?18, ?19,
+  ?13, ?14, ?15,
+  ?16, ?17, ?18, ?19,
   ?20, ?21, ?22, ?23,
   ?24, ?25, ?26,
-  ?27, ?28, ?29,
-  ?30, ?31, ?32,
-  ?33, ?34, ?35,
-  ?36, ?37, ?38,
-  ?39, ?40, ?41,
-  ?42, ?43,
-  ?44, ?45
+  ?27, ?28, ?29, ?30,
+  ?31, ?32, ?33,
+  ?34, ?35, ?36,
+  ?37, ?38, ?39,
+  ?40, ?41, ?42,
+  ?43, ?44, ?45,
+  ?46, ?47, ?48,
+  ?49, ?50,
+  ?51, ?52
 )
 ON CONFLICT(id) DO UPDATE SET
   name = excluded.name,
   agent_name = excluded.agent_name,
   provider = excluded.provider,
+	model = excluded.model,
+	reasoning_effort = excluded.reasoning_effort,
+	speed = excluded.speed,
+	speed_resolution_json = excluded.speed_resolution_json,
+	runtime_status = excluded.runtime_status,
+	runtime_transition = excluded.runtime_transition,
+	runtime_failure = excluded.runtime_failure,
   workspace_id = excluded.workspace_id,
   session_type = excluded.session_type,
   state = excluded.state,
@@ -310,6 +320,13 @@ type UpsertSessionParams struct {
 	Name                     sql.NullString `json:"name"`
 	AgentName                string         `json:"agent_name"`
 	Provider                 string         `json:"provider"`
+	Model                    string         `json:"model"`
+	ReasoningEffort          string         `json:"reasoning_effort"`
+	Speed                    string         `json:"speed"`
+	SpeedResolutionJson      string         `json:"speed_resolution_json"`
+	RuntimeStatus            string         `json:"runtime_status"`
+	RuntimeTransition        string         `json:"runtime_transition"`
+	RuntimeFailure           string         `json:"runtime_failure"`
 	WorkspaceID              string         `json:"workspace_id"`
 	SessionType              string         `json:"session_type"`
 	NetworkSpecJson          string         `json:"network_spec_json"`
@@ -359,6 +376,13 @@ func (q *Queries) UpsertSession(ctx context.Context, arg UpsertSessionParams) (i
 		arg.Name,
 		arg.AgentName,
 		arg.Provider,
+		arg.Model,
+		arg.ReasoningEffort,
+		arg.Speed,
+		arg.SpeedResolutionJson,
+		arg.RuntimeStatus,
+		arg.RuntimeTransition,
+		arg.RuntimeFailure,
 		arg.WorkspaceID,
 		arg.SessionType,
 		arg.NetworkSpecJson,

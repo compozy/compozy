@@ -170,7 +170,8 @@ func seedNetworkWakeIntegrationScope(
 		if err := db.RegisterSession(t.Context(), store.SessionInfo{
 			ID: sessionID, AgentName: "coder", Provider: "test",
 			WorkspaceID: "workspace-network", State: "active",
-			CreatedAt: now, UpdatedAt: now,
+			RuntimeStatus: store.SessionRuntimeUnbound,
+			CreatedAt:     now, UpdatedAt: now,
 		}); err != nil {
 			t.Fatalf("RegisterSession(%q) error = %v", sessionID, err)
 		}

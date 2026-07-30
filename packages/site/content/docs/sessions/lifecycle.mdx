@@ -5,7 +5,7 @@ description: How Compozy creates, activates, stops, and classifies one durable r
 
 A session is the runtime object Compozy manages. It ties together:
 
-- one ACP-compatible agent subprocess
+- one logical agent session, which can bind an ACP-compatible agent subprocess when a prompt runs
 - one workspace boundary
 - one per-session SQLite event store
 - one permission policy
@@ -14,32 +14,27 @@ A session is the runtime object Compozy manages. It ties together:
 That Compozy session ID identifies one durable lifecycle and its retained record.
 
 <OperatorNote>
-  The public lifecycle is strict: normal work follows `starting -> active -> stopping -> stopped`;
-  cancellation during startup can follow `starting -> stopping -> stopped`, and an accepted
-  background startup failure can persist `starting -> stopped`. No public transition leaves
-  `stopped`. `compozy session resume` only attaches to an eligible live session.
+  Creation is promptless. It returns an `active` logical session with `runtime.status: "unbound"`;
+  no ACP process or ACP session exists yet. The first prompt binds the selected runtime. No public
+  transition leaves `stopped`. `compozy session resume` only attaches to an eligible live session.
 </OperatorNote>
 
 ## State machine
 
 <Mermaid
   chart={`stateDiagram-v2
-[*] --> starting: create
-starting --> active: agent ready
-starting --> stopping: startup canceled
-starting --> stopped: startup failed
+[*] --> active: create
 active --> stopping: stop requested
 active --> stopping: shutdown or process exit
 stopping --> stopped: finalization complete`}
-  caption="Compozy creates a session in `starting`, activates it once the ACP driver is ready, and normally finalizes it through `stopping`; an accepted background startup failure can persist terminal `stopped` directly."
+  caption="Compozy creates an active logical session without starting ACP. Its first prompt binds a runtime; stopping normally finalizes the session through `stopping`."
 />
 
-| State      | Meaning                                                                                                                                                  | Valid live transition                                                  |
-| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| `starting` | Compozy has durably allocated the session ID, prepared its storage, and published the catalog record while provider startup continues in the background. | `starting -> active`, `starting -> stopping`, or `starting -> stopped` |
-| `active`   | The agent is ready to accept prompts and emit events. This is the only state that accepts live prompts and approvals.                                    | `active -> stopping`                                                   |
-| `stopping` | Compozy has accepted a stop request and is draining the session toward a terminal state.                                                                 | `stopping -> stopped`                                                  |
-| `stopped`  | Final metadata is written, the recorder is closed, and the durable record remains available for listing, history, recap, and repair.                     | none                                                                   |
+| State      | Meaning                                                                                                                                                                            | Valid live transition |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------- |
+| `active`   | Compozy has durably allocated the session ID, prepared its storage, and accepts prompts. Before the first prompt, its runtime is `unbound`; after binding, it can emit ACP events. | `active -> stopping`  |
+| `stopping` | Compozy has accepted a stop request and is draining the session toward a terminal state.                                                                                           | `stopping -> stopped` |
+| `stopped`  | Final metadata is written, the recorder is closed, and the durable record remains available for listing, history, recap, and repair.                                               | none                  |
 
 ## Creating a session
 
@@ -49,12 +44,7 @@ Create a new session from the CLI:
 compozy session new \
   --agent general \
   --cwd "$PWD" \
-  --name code-review \
-  --provider codex \
-  --model gpt-5.6-sol \
-  --reasoning-effort high \
-  --speed fast \
-  --prompt "Review the current changes and report correctness risks."
+  --name code-review
 ```
 
 Create the same session over HTTP:
@@ -65,12 +55,7 @@ curl -X POST http://localhost:2123/api/sessions \
   -d '{
     "agent_name": "general",
     "name": "code-review",
-    "workspace_path": "/absolute/path/to/repo",
-    "provider": "codex",
-    "model": "gpt-5.6-sol",
-    "reasoning_effort": "high",
-    "speed": "fast",
-    "prompt": "Review the current changes and report correctness risks."
+    "workspace_path": "/absolute/path/to/repo"
   }'
 ```
 
@@ -90,47 +75,50 @@ Behind that request, Compozy:
 1. Resolves the workspace and agent definition.
 2. Creates `~/.compozy/sessions/<session-id>/`.
 3. Opens `events.db` for the session.
-4. Persists `starting` metadata and the workspace catalog row.
-5. If `prompt` contains non-whitespace content, trims it and stages it in the session input queue.
-6. Returns HTTP/UDS `201 Created` with that durable session.
-7. Spawns the ACP subprocess and initializes the JSON-RPC connection in the background.
-8. Creates or loads the ACP session.
-9. Transitions the Compozy session from `starting` to `active`.
-10. Dispatches the staged prompt as the normal first user turn.
+4. Persists the catalog row and session metadata.
+5. Activates the logical session with `runtime.status: "unbound"`.
+6. Returns HTTP/UDS `201 Created` with `state: "active"` and no ACP process or ACP session ID.
 
-Prompt staging is part of durable admission. If the queue rejects the prompt, Compozy removes the new
-session, its catalog row, and its session directory instead of returning `201`. Omitting `prompt`,
-sending an empty string, or sending only whitespace keeps create-only behavior and does not enqueue
-a turn. The selected provider, model, reasoning effort, and speed are fixed for the session and apply
-before its first prompt is dispatched. Speed defaults to `normal`; `fast` is applied only through an
-unambiguous ACP select/value-ID option. Unsupported speed capabilities remain observable without
-blocking startup, while a provider rejection fails startup with `speed_rejected`.
-
-`compozy session new` waits for step 9 by default so interactive callers receive an active session or a
-startup error. Add `--no-wait` to return the durable `starting` record immediately. HTTP/UDS callers
-always receive the accepted record and should read session detail until it becomes `active` or
-durably `stopped`. A failed background start persists `failure.kind=startup_failure`; it does not
-delete the accepted session or its diagnostic evidence. The public lifecycle does not restart that
-stopped session. Fix the startup cause and create a new session for new work; deleting the failed
-session removes its queued input with the rest of the retained record.
+Creation never accepts a prompt or runtime selector. It only creates the durable logical session.
+The agent definition supplies the defaults that the first prompt can use, but Compozy does not launch
+ACP or negotiate provider options until that prompt arrives.
 
 ## Running an active session
 
-Once a session is `active`, prompts are accepted through the CLI or HTTP transport:
+Once a session is `active`, a prompt supplies an immutable runtime snapshot. The first prompt binds
+the logical session to that runtime; later prompts can choose a different snapshot:
 
 ```bash
-compozy session prompt sess-1234 "Explain how the stop path works."
+compozy session prompt sess-1234 "Review the current changes and report correctness risks." \
+  --provider codex \
+  --model gpt-5.6-sol \
+  --reasoning-effort high \
+  --speed fast
 ```
 
 ```bash
 curl -N -X POST http://localhost:2123/api/workspaces/ws_alpha/sessions/sess-1234/prompt \
   -H "Content-Type: application/json" \
-  -d '{"message":"Explain how the stop path works."}'
+  -d '{
+    "message": "Review the current changes and report correctness risks.",
+    "runtime": {
+      "provider": "codex",
+      "model": "gpt-5.6-sol",
+      "reasoning_effort": "high",
+      "speed": "fast"
+    }
+  }'
 ```
 
 Two operational details matter here:
 
-- Compozy records a `user_message` event before it hands the prompt to ACP, so persisted history keeps the prompt even if prompt startup fails later.
+- `runtime` is a prompt-bound snapshot of `provider`, `model`, `reasoning_effort`, and `speed`. The
+  accepted snapshot is retained with the turn and is not rewritten by later runtime changes.
+- If a snapshot keeps the same provider, Compozy configures the existing ACP session in place when
+  the provider exposes the needed live options. A provider or harness change replaces the process
+  and replays the canonical stored transcript into the replacement ACP session.
+- Compozy records `user_message` only after runtime binding or reconfiguration succeeds. If binding,
+  replacement, or its rollback fails, the authored message is not persisted as a user turn.
 - One session processes one prompt turn at a time. Stop logic waits for in-flight prompt setup to finish before it asks the ACP driver to stop the subprocess.
 - Long-running prompts stay healthy through runtime activity supervision. Compozy updates
   `activity.last_activity_at` on real ACP events and metadata-only waiting heartbeats, then emits
@@ -148,11 +136,11 @@ modes so operators and agents do not have to guess what happens when a prompt is
 `session.busy_input.default_mode` defaults to `queue`; `session.busy_input.queue_cap` bounds
 the persisted queue.
 
-| Mode        | CLI                                                | HTTP shape                                                                                        | Result                                                                                                                                                     |
-| ----------- | -------------------------------------------------- | ------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `queue`     | `compozy session prompt <id> "<text>" --queue`     | `POST /api/workspaces/:workspace/sessions/:id/prompt` with `{"mode":"queue","message":"..."}`     | Persists the input in FIFO order and returns `202` with `queue_entry_id`, position, and generation.                                                        |
-| `interrupt` | `compozy session prompt <id> "<text>" --interrupt` | `POST /api/workspaces/:workspace/sessions/:id/prompt` with `{"mode":"interrupt","message":"..."}` | Cancels the active turn through the session cancellation path, advances the queue generation, drops stale queued input, and starts the replacement prompt. |
-| `steer`     | `compozy session prompt <id> "<text>" --steer`     | `POST /api/workspaces/:workspace/sessions/:id/steer` with `{"text":"..."}`                        | Stages steering text for the next ACP `tool_result` boundary and reports `fallback_mode_if_no_tool_result: "queue"`.                                       |
+| Mode        | CLI                                                | HTTP shape                                                                                                        | Result                                                                                                                                                                                        |
+| ----------- | -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `queue`     | `compozy session prompt <id> "<text>" --queue`     | `POST /api/workspaces/:workspace/sessions/:id/prompt` with `{"mode":"queue","message":"...","runtime":{...}}`     | Persists the input and its runtime snapshot in FIFO order, then returns `202` with `queue_entry_id`, position, and generation.                                                                |
+| `interrupt` | `compozy session prompt <id> "<text>" --interrupt` | `POST /api/workspaces/:workspace/sessions/:id/prompt` with `{"mode":"interrupt","message":"...","runtime":{...}}` | Cancels the active turn through the session cancellation path, advances the queue generation, drops stale queued input, and starts the replacement prompt with its accepted runtime snapshot. |
+| `steer`     | `compozy session prompt <id> "<text>" --steer`     | `POST /api/workspaces/:workspace/sessions/:id/steer` with `{"text":"..."}`                                        | Stages steering text for the next ACP `tool_result` boundary and reports `fallback_mode_if_no_tool_result: "queue"`.                                                                          |
 
 Queued entries can be canceled when the caller has the queue entry id:
 
@@ -169,6 +157,10 @@ curl -X DELETE \
 operation when the caller wants to interrupt without supplying a replacement prompt. Every busy-input
 transition writes transcript marker evidence for recap, replay, and audit: queued, accepted,
 interrupted, steered, and dropped stale input are visible instead of being hidden client behavior.
+
+Queue and interrupt preserve the runtime snapshot accepted with their replacement input. A queued
+prompt therefore runs with the selected provider, model, reasoning effort, and speed even if a later
+prompt changes the session binding first.
 
 A dedicated interrupt followed by `steer` preserves the canceled authored prompt once and submits
 it with the explicit correction as the next generation-fenced input. A second steer cannot reuse

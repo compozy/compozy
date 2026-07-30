@@ -45,9 +45,6 @@ func (s *Session) beginExclusivePromptSetup() (*AgentProcess, error) {
 	if s.State != StateActive {
 		return nil, fmt.Errorf("%w: %s", ErrSessionNotActive, s.ID)
 	}
-	if s.process == nil {
-		return nil, errors.New("session: agent process is not available")
-	}
 	if s.promptSetupCount > 0 || s.currentTurnSource != "" {
 		return nil, ErrPromptInProgress
 	}

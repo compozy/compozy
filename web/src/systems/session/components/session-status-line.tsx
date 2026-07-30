@@ -35,7 +35,7 @@ export interface SessionStatusLineProps extends Omit<React.ComponentProps<"span"
 }
 
 /**
- * Daemon badge plus agent/provider identity for session chrome. Document
+ * Daemon badge plus agent/runtime identity for session chrome. Document
  * windows can move the state signal to the leading mark while retaining meta.
  */
 export function SessionStatusLine({
@@ -47,7 +47,7 @@ export function SessionStatusLine({
   const badge = session.badge ?? STATE_BADGE_FALLBACK[session.state] ?? "unknown";
   const signal = BADGE_SIGNAL[badge] ?? BADGE_SIGNAL.unknown;
   const agentLabel = session.agent_name.trim();
-  const providerLabel = session.provider?.trim();
+  const providerLabel = session.runtime.effective?.provider.trim();
 
   return (
     <span

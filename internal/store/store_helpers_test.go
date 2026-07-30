@@ -78,7 +78,13 @@ func TestValidationHelpersAndPathUtilities(t *testing.T) {
 		{
 			name: "session info valid",
 			validate: func() error {
-				return (SessionInfo{ID: "sess-1", AgentName: "coder", WorkspaceID: "ws-1", State: "active"}).Validate()
+				return (SessionInfo{
+					ID:            "sess-1",
+					AgentName:     "coder",
+					WorkspaceID:   "ws-1",
+					State:         "active",
+					RuntimeStatus: SessionRuntimeReady,
+				}).Validate()
 			},
 		},
 		{
@@ -89,23 +95,35 @@ func TestValidationHelpersAndPathUtilities(t *testing.T) {
 			wantError: true,
 		},
 		{
+			name: "session info missing runtime status",
+			validate: func() error {
+				return (SessionInfo{
+					ID:          "sess-1",
+					AgentName:   "coder",
+					WorkspaceID: "ws-1",
+					State:       "active",
+				}).Validate()
+			},
+			wantError: true,
+		},
+		{
 			name: "session info missing agent",
 			validate: func() error {
-				return (SessionInfo{ID: "sess-1"}).Validate()
+				return (SessionInfo{ID: "sess-1", RuntimeStatus: SessionRuntimeReady}).Validate()
 			},
 			wantError: true,
 		},
 		{
 			name: "session info missing workspace",
 			validate: func() error {
-				return (SessionInfo{ID: "sess-1", AgentName: "coder"}).Validate()
+				return (SessionInfo{ID: "sess-1", AgentName: "coder", RuntimeStatus: SessionRuntimeReady}).Validate()
 			},
 			wantError: true,
 		},
 		{
 			name: "session info missing state",
 			validate: func() error {
-				return (SessionInfo{ID: "sess-1", AgentName: "coder", WorkspaceID: "ws-1"}).Validate()
+				return (SessionInfo{ID: "sess-1", AgentName: "coder", WorkspaceID: "ws-1", RuntimeStatus: SessionRuntimeReady}).Validate()
 			},
 			wantError: true,
 		},
@@ -434,6 +452,7 @@ func TestValidationHelpersAndPathUtilities(t *testing.T) {
 					WorkspaceID:          "ws-meta",
 					NetworkParticipation: participation.CloneSpec(participation.LocalSpec()),
 					State:                "active",
+					RuntimeStatus:        SessionRuntimeReady,
 					CreatedAt:            now,
 					UpdatedAt:            now,
 				}).Validate()

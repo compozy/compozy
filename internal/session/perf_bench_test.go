@@ -88,6 +88,7 @@ func BenchmarkManagerListAllLarge(b *testing.B) {
 			NetworkParticipation: testLocalParticipationPtr(),
 			SessionType:          string(SessionTypeUser),
 			State:                string(StateStopped),
+			RuntimeStatus:        store.SessionRuntimeReady,
 			CreatedAt:            benchmarkSessionTime.Add(-time.Duration(idx) * time.Minute),
 			UpdatedAt:            benchmarkSessionTime.Add(-time.Duration(idx) * time.Second),
 		}); err != nil {

@@ -4,6 +4,11 @@ package contracts
 
 import "time"
 
+type RunDesignationSummary struct {
+	Index int    `json:"index"`
+	Brief string `json:"brief,omitempty"`
+}
+
 type RunStatus string
 
 type SandboxExecParams struct {
@@ -232,5 +237,3 @@ type ScheduleSpec struct {
 }
 
 type SchedulerCatchUpPolicy string
-
-type Scope string

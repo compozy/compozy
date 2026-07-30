@@ -48,7 +48,13 @@ const sensitivePattern =
 interface SessionPayload {
   id: string;
   agent_name: string;
-  provider: string;
+  runtime: {
+    effective?: {
+      model?: string;
+      provider: string;
+    } | null;
+    status: string;
+  };
   state: string;
   workspace_id: string;
   name?: string | null;
@@ -629,7 +635,13 @@ async function openUsageCostForProvider(
   workspaceID: string,
   opts: { provider: string; model: string; status: string }
 ): Promise<import("@playwright/test").Locator> {
-  const session = await createProviderSession(runtime, workspaceID, opts.provider, opts.model);
+  const session = await createProviderSession(
+    runtime,
+    workspaceID,
+    opts.provider,
+    opts.model,
+    costProvenancePrompt
+  );
 
   await page.goto(runtime.url(sessionPath(costProvenanceAgent, session.id)), {
     waitUntil: "domcontentloaded",
@@ -637,9 +649,6 @@ async function openUsageCostForProvider(
   const sessionWin = sessionWindow(page, session.id);
   const sessionUi = sessionWindowSelectors(sessionWin, page);
   await expect(sessionWin).toBeVisible();
-  await expect(sessionUi.composerTextarea).toBeEnabled();
-  await sessionUi.composerTextarea.fill(costProvenancePrompt);
-  await sessionUi.composerTextarea.press("Enter");
   await expect(sessionUi.chatView).toContainText("Cost provenance run recorded.");
 
   await expect
@@ -667,20 +676,40 @@ async function createProviderSession(
   runtime: BrowserRuntime,
   workspaceID: string,
   provider: string,
-  model: string
+  model: string,
+  prompt: string
 ): Promise<SessionPayload> {
   const payload = await runtime.requestJSON<SessionEnvelope>("/api/sessions", {
     method: "POST",
     body: JSON.stringify({
       agent_name: costProvenanceAgent,
-      provider,
-      model,
       workspace: workspaceID,
     }),
   });
   expect(payload.session.id).not.toBe("");
-  expect(payload.session.provider).toBe(provider);
-  return payload.session;
+  expect(payload.session.runtime.status).toBe("unbound");
+
+  await runtime.requestJSON(sessionAPIPath(workspaceID, payload.session.id, "/prompt"), {
+    method: "POST",
+    body: JSON.stringify({
+      message: prompt,
+      runtime: { model, provider },
+    }),
+  });
+
+  await expect
+    .poll(async () => {
+      const detail = await runtime.requestJSON<SessionEnvelope>(
+        sessionAPIPath(workspaceID, payload.session.id)
+      );
+      return detail.session.runtime.effective?.provider ?? "";
+    })
+    .toBe(provider);
+
+  const detail = await runtime.requestJSON<SessionEnvelope>(
+    sessionAPIPath(workspaceID, payload.session.id)
+  );
+  return detail.session;
 }
 
 async function readSeededAgentCommand(homeDir: string, agentName: string): Promise<string> {

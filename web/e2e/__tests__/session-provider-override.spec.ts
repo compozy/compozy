@@ -44,9 +44,14 @@ function browserLifecycleSessionPath(sessionId: string): string {
 interface SessionPayload {
   id: string;
   agent_name: string;
-  provider: string;
-  model?: string | null;
-  reasoning_effort?: string | null;
+  runtime: {
+    effective?: {
+      model?: string | null;
+      provider: string;
+      reasoning_effort?: string | null;
+    } | null;
+    status: string;
+  };
   state: string;
   workspace_id: string;
 }
@@ -121,14 +126,33 @@ test("operator can create a provider/model override session and attach without l
   await fleet.agentPageNewSession.click();
 
   await expect(appPage.getByTestId("session-create-dialog")).toBeVisible();
-  await expect(appPage.getByTestId("session-create-agent-select")).toContainText(
-    browserLifecycleAgent
+  const createRequestPromise = appPage.waitForRequest(
+    request => request.method() === "POST" && request.url().endsWith("/api/sessions")
   );
-  // The unified runtime selector trigger shows the agent's default provider truth.
-  const runtimeTrigger = appPage.getByTestId("session-create-runtime-select");
-  await expect(runtimeTrigger).toContainText("ACP Mock");
+  const createResponsePromise = appPage.waitForResponse(
+    response => response.request().method() === "POST" && response.url().endsWith("/api/sessions")
+  );
 
-  // Open the popup; the provider rail is a LOCAL filter listing every workspace provider.
+  await appPage.getByTestId("session-create-submit").click();
+
+  const createRequest = await createRequestPromise;
+  const createResponse = await createResponsePromise;
+  expect(createRequest.postDataJSON()).toMatchObject({
+    agent_name: browserLifecycleAgent,
+    workspace: workspace.id,
+  });
+  expect(createResponse.ok()).toBeTruthy();
+
+  const createdSession = (await createResponse.json()) as SessionEnvelope;
+  expect(createdSession.session.runtime.status).toBe("unbound");
+
+  await expect
+    .poll(() => new URL(appPage.url()).pathname)
+    .toBe(browserLifecycleSessionPath(createdSession.session.id));
+  const sessionWin = sessionWindow(appPage, createdSession.session.id);
+  const sessionUi = sessionWindowSelectors(sessionWin, appPage);
+  await expect(sessionWin).toBeVisible();
+  const runtimeTrigger = sessionWin.getByTestId("session-prompt-runtime-select");
   await runtimeTrigger.click();
   await expect(appPage.getByTestId("runtime-selector-popup")).toBeVisible();
   const railProviders = await appPage
@@ -140,75 +164,20 @@ test("operator can create a provider/model override session and attach without l
         .sort()
     );
   expect(railProviders).toEqual(workspaceDetail.providers.map(provider => provider.name).sort());
-
-  await browserArtifacts.captureScreenshot("session-provider-dialog-desktop", appPage);
-  await appPage.setViewportSize({ width: 375, height: 812 });
-  await expect(appPage.getByTestId("runtime-selector-popup")).toBeVisible();
-  await browserArtifacts.captureScreenshot("session-provider-dialog-mobile", appPage);
-  await appPage.setViewportSize({ width: 1280, height: 800 });
-
-  // Filter the list to the override provider, then refresh the AGGREGATE catalog
-  // (the selector owns one truthful global refresh, not a per-provider fan-out).
   await appPage.locator(`[data-rail="${overrideProvider}"]`).click();
-  const catalogRefreshResponse = appPage.waitForResponse(
-    response =>
-      response.request().method() === "POST" &&
-      response.url().endsWith(`/api/model-catalog/models/refresh`)
-  );
-  const refreshCatalog = appPage.getByTestId("runtime-selector-refresh");
-  await expect(refreshCatalog).toBeEnabled();
-  await refreshCatalog.click();
-  expect((await catalogRefreshResponse).ok()).toBe(true);
-
-  // The workspace override provider has no global-catalog rows → enter a custom id
-  // scoped to the active (override) provider tuple, then close the popup.
   await appPage.getByTestId("runtime-selector-search").fill("qa-browser-model");
-  await expect(appPage.getByTestId("runtime-selector-custom")).toBeVisible();
   await appPage.getByTestId("runtime-selector-custom").click();
   await appPage.keyboard.press("Escape");
-  await expect(appPage.getByTestId("runtime-selector-popup")).toHaveCount(0);
-  await expect(runtimeTrigger).toContainText("qa-browser-model");
-  // The custom id is unknown to the catalog, so no reasoning segment is offered.
-  await expect(runtimeTrigger).not.toContainText(/Low|Medium|High/);
-
-  const createRequestPromise = appPage.waitForRequest(
-    request => request.method() === "POST" && request.url().endsWith("/api/sessions")
+  const promptRequestPromise = appPage.waitForRequest(
+    request => request.method() === "POST" && request.url().endsWith("/prompt")
   );
-  const createResponsePromise = appPage.waitForResponse(
-    response => response.request().method() === "POST" && response.url().endsWith("/api/sessions")
-  );
-
-  await appPage.getByTestId("session-create-prompt").fill(SESSION_CREATE_FIRST_MESSAGE);
-  await appPage.getByTestId("session-create-send").click();
-
-  const createRequest = await createRequestPromise;
-  const createResponse = await createResponsePromise;
-  const createRequestBody = createRequest.postDataJSON() as {
-    agent_name?: string;
-    model?: string;
-    provider?: string;
-    reasoning_effort?: string;
-    workspace?: string;
-  };
-  expect(createRequestBody).toMatchObject({
-    agent_name: browserLifecycleAgent,
-    model: "qa-browser-model",
-    provider: overrideProvider,
-    workspace: workspace.id,
+  await sessionUi.composerTextarea.fill(SESSION_CREATE_FIRST_MESSAGE);
+  await sessionUi.composerTextarea.press("Enter");
+  expect((await promptRequestPromise).postDataJSON()).toMatchObject({
+    message: SESSION_CREATE_FIRST_MESSAGE,
+    runtime: { model: "qa-browser-model", provider: overrideProvider },
   });
-  expect(createRequestBody).not.toHaveProperty("reasoning_effort");
-  expect(createResponse.ok()).toBeTruthy();
-
-  const createdSession = (await createResponse.json()) as SessionEnvelope;
-  expect(createdSession.session.provider).toBe(overrideProvider);
   await waitForSeedSessionActive(runtime, createdSession.session.id);
-
-  await expect
-    .poll(() => new URL(appPage.url()).pathname)
-    .toBe(browserLifecycleSessionPath(createdSession.session.id));
-  const sessionWin = sessionWindow(appPage, createdSession.session.id);
-  const sessionUi = sessionWindowSelectors(sessionWin, appPage);
-  await expect(sessionWin).toBeVisible();
   await expect(sessionWin.getByTestId("session-status-provider")).toHaveText(overrideProvider);
   await browserArtifacts.captureScreenshot("session-provider-created", appPage);
 
@@ -272,62 +241,61 @@ test("operator persists an advertised model and non-empty reasoning effort on th
   await fleet.agentPageNewSession.click();
   await expect(appPage.getByTestId("session-create-dialog")).toBeVisible();
 
-  const runtimeTrigger = appPage.getByTestId("session-create-runtime-select");
-  await runtimeTrigger.click();
-  await expect(appPage.getByTestId("runtime-selector-popup")).toBeVisible();
-
-  const catalogRow = appPage.locator(
-    `[data-provider="${mockAgentProvider}"][data-model="${catalogModel}"]`
-  );
-  await expect(catalogRow).toBeVisible();
-  await catalogRow.click();
-
-  const reasoningStrip = appPage.getByTestId("runtime-selector-reasoning");
-  await expect(reasoningStrip).toHaveAttribute("data-reasoning-mode", "levels");
-  const reasoningSlider = reasoningStrip.getByRole("slider");
-  await reasoningSlider.press("End");
-  await expect(reasoningSlider).toHaveAttribute("aria-valuetext", "High");
-
-  await appPage.keyboard.press("Escape");
-  await expect(appPage.getByTestId("runtime-selector-popup")).toHaveCount(0);
-  await expect(runtimeTrigger).toContainText(catalogModelLabel);
-  await expect(runtimeTrigger).toContainText("High");
-
   const createRequestPromise = appPage.waitForRequest(
     request => request.method() === "POST" && request.url().endsWith("/api/sessions")
   );
   const createResponsePromise = appPage.waitForResponse(
     response => response.request().method() === "POST" && response.url().endsWith("/api/sessions")
   );
-  await appPage.getByTestId("session-create-prompt").fill(SESSION_CREATE_FIRST_MESSAGE);
-  await appPage.getByTestId("session-create-send").click();
+  await appPage.getByTestId("session-create-submit").click();
 
   const createRequest = await createRequestPromise;
   const createResponse = await createResponsePromise;
   expect(createRequest.postDataJSON()).toMatchObject({
     agent_name: browserLifecycleAgent,
-    provider: mockAgentProvider,
-    model: catalogModel,
-    reasoning_effort: "high",
   });
   expect(createResponse.ok()).toBe(true);
 
   const created = (await createResponse.json()) as SessionEnvelope;
-  expect(created.session).toMatchObject({
-    provider: mockAgentProvider,
-    model: catalogModel,
-    reasoning_effort: "high",
-  });
+  expect(created.session.runtime.status).toBe("unbound");
   await expect
     .poll(() => new URL(appPage.url()).pathname)
     .toBe(browserLifecycleSessionPath(created.session.id));
   const sessionWin = sessionWindow(appPage, created.session.id);
   await expect(sessionWin).toBeVisible();
+  const sessionUi = sessionWindowSelectors(sessionWin, appPage);
+  const runtimeTrigger = sessionWin.getByTestId("session-prompt-runtime-select");
+  await runtimeTrigger.click();
+  const catalogRow = appPage.locator(
+    `[data-provider="${mockAgentProvider}"][data-model="${catalogModel}"]`
+  );
+  await expect(catalogRow).toBeVisible();
+  await catalogRow.click();
+  const reasoningStrip = appPage.getByTestId("runtime-selector-reasoning");
+  await expect(reasoningStrip).toHaveAttribute("data-reasoning-mode", "levels");
+  const reasoningSlider = reasoningStrip.getByRole("slider");
+  await reasoningSlider.press("End");
+  await appPage.keyboard.press("Escape");
+  await expect(runtimeTrigger).toContainText(catalogModelLabel);
+  await expect(runtimeTrigger).toContainText("High");
+  const promptRequestPromise = appPage.waitForRequest(
+    request => request.method() === "POST" && request.url().endsWith("/prompt")
+  );
+  await sessionUi.composerTextarea.fill(SESSION_CREATE_FIRST_MESSAGE);
+  await sessionUi.composerTextarea.press("Enter");
+  expect((await promptRequestPromise).postDataJSON()).toMatchObject({
+    message: SESSION_CREATE_FIRST_MESSAGE,
+    runtime: {
+      model: catalogModel,
+      provider: mockAgentProvider,
+      reasoning_effort: "high",
+    },
+  });
 
   const rehydrated = await runtime.requestJSON<SessionEnvelope>(
     sessionAPIPath(created.session.workspace_id, created.session.id)
   );
-  expect(rehydrated.session).toMatchObject({
+  expect(rehydrated.session.runtime.effective).toMatchObject({
     provider: mockAgentProvider,
     model: catalogModel,
     reasoning_effort: "high",
@@ -346,13 +314,13 @@ async function assertSessionParity(
 ): Promise<void> {
   const path = sessionAPIPath(workspaceID, sessionID);
   const httpRecord = await runtime.requestJSON<SessionEnvelope>(path);
-  expect(httpRecord.session.provider).toBe(expectedProvider);
+  expect(httpRecord.session.runtime.effective?.provider).toBe(expectedProvider);
 
   if (!runtime.requestOperatorJSON) {
     throw new Error("provider override parity check requires operator UDS access");
   }
   const udsRecord = await runtime.requestOperatorJSON<SessionEnvelope>(path);
-  expect(udsRecord.session.provider).toBe(expectedProvider);
+  expect(udsRecord.session.runtime.effective?.provider).toBe(expectedProvider);
 
   if (!runtime.paths) {
     throw new Error("provider override parity check requires runtime CLI paths");
@@ -366,7 +334,7 @@ async function assertSessionParity(
   );
   const cliRecords = (JSON.parse(stdout) as SessionListEnvelope).sessions;
   const cliRecord = cliRecords.find(session => session.id === sessionID);
-  expect(cliRecord?.provider).toBe(expectedProvider);
+  expect(cliRecord?.runtime.effective?.provider).toBe(expectedProvider);
 }
 
 function sessionAPIPath(workspaceID: string, sessionID: string, suffix = ""): string {

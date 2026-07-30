@@ -16,18 +16,24 @@ func (m *Manager) sessionStartOpts(
 	resolved compozyconfig.ResolvedAgent,
 	mcpServers []compozyconfig.MCPServer,
 ) acp.StartOpts {
+	env := sessionStartEnvForProvider(os.Environ(), session, resolved.EnvPolicy)
+	if effort := strings.TrimSpace(s.reasoningEffort); effort != "" {
+		env = setSessionStartEnvValue(env, "COMPOZY_REASONING_EFFORT", effort)
+	} else {
+		env = unsetSessionStartEnvKeys(env, "COMPOZY_REASONING_EFFORT")
+	}
 	return acp.StartOpts{
 		AgentName:       resolved.Name,
 		Command:         resolved.Command,
 		Cwd:             s.cwd,
 		AdditionalDirs:  append([]string(nil), s.workspace.AdditionalDirs...),
-		Env:             sessionStartEnvForProvider(os.Environ(), session, resolved.EnvPolicy),
+		Env:             env,
 		MCPServers:      mcpServers,
 		Permissions:     m.startPermissions(session.Type, startSpecPermissions(s, resolved.Permissions)),
 		SystemPrompt:    resolved.Prompt,
 		PreferredModel:  preferredACPModel(resolved, strings.TrimSpace(s.model) != ""),
-		ReasoningEffort: strings.TrimSpace(session.ReasoningEffort),
-		Speed:           session.Speed,
+		ReasoningEffort: strings.TrimSpace(s.reasoningEffort),
+		Speed:           s.speed,
 		ResumeSessionID: s.acpSessionID,
 		ToolGateway:     newProviderNativeToolGateway(m, session, s.runtimeMode),
 	}

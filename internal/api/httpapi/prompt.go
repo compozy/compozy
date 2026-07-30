@@ -51,6 +51,7 @@ func (h *Handlers) promptSession(c *gin.Context) {
 		Message:           input.message,
 		ClientMessageID:   input.clientMessageID,
 		Mode:              session.BusyInputMode(req.Mode),
+		Runtime:           core.PromptRuntimeSelectionFromPayload(req.Runtime),
 		DeliveryContext:   deliveryCtx,
 		Caller:            caller,
 		AllowGoalCommands: true,

@@ -4,9 +4,9 @@ area: RT
 title: Start Cursor in a mode that can perform agent work
 persona: Bruno
 journey: J-17
-expected: New session exposes and persists a supported Cursor operating mode so a normal agent task can create the requested artifact without an impossible switch instruction.
-entry_points: web Start a new session runtime selector; web session runtime controls
-qa_status: blocked-verify
+expected: A new session navigates to its composer, whose next-prompt runtime selector exposes a supported Cursor operating mode; the selected prompt can create the requested artifact without an impossible switch instruction.
+entry_points: web Start a new session; web session-composer runtime controls
+qa_status: untested
 bug_ids: BUG-20260713-cursor-agent-mode-unavailable
 fix_status: fixed
 retest_status: pass

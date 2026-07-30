@@ -4,9 +4,9 @@ area: ET
 title: Minimal runtime selector trigger and reasoning slider
 persona: Sol
 journey: J-17
-expected: Closed selector is ONE button (provider logo, model name, intensity meter, chevron — no provider name text, no effort label, no ⌘J badge, no dividers) that toggles the popup; provider rail items have visible vertical spacing; model rows are single-line (bare provider icon without a boxed background, name, faint brain icon on reasoning-capable models, no context/cost/tools/levels chips); the selected row uses the neutral gray row tint plus a check, never the accent tint; the reasoning footer is a range slider whose stops are only the model's real levels (no None, no Default stop) with the model's default effort preselected while the wire value stays empty; drag, stop-label click, and track arrow keys all commit explicit canonical efforts.
-entry_points: web session-create runtime selector; agent create/settings runtime control; onboarding default-model step
-qa_status: blocked-verify
+expected: The session-composer "Next prompt" selector is ONE button (provider logo, model name, intensity meter, chevron — no provider name text, effort label, ⌘J badge, or dividers) that toggles the popup; provider rail and model rows remain minimal; the reasoning footer exposes only real levels, and drag, stop-label click, or track arrow keys commit the canonical effort for the next prompt snapshot.
+entry_points: web session-composer runtime selector; agent create/settings runtime control; onboarding default-model step
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status:

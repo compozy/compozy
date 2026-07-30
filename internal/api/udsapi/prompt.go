@@ -44,6 +44,7 @@ func (h *Handlers) promptSession(c *gin.Context) {
 			req.Message,
 			strings.TrimSpace(req.MessageID),
 			session.BusyInputMode(req.Mode),
+			core.PromptRuntimeSelectionFromPayload(req.Runtime),
 			caller,
 		)
 		return
@@ -56,6 +57,7 @@ func (h *Handlers) promptSession(c *gin.Context) {
 		Message:           req.Message,
 		ClientMessageID:   strings.TrimSpace(req.MessageID),
 		Mode:              session.BusyInputMode(req.Mode),
+		Runtime:           core.PromptRuntimeSelectionFromPayload(req.Runtime),
 		DeliveryContext:   deliveryCtx,
 		Caller:            caller,
 		AllowGoalCommands: true,
@@ -98,6 +100,7 @@ func (h *Handlers) promptSessionRaw(
 	message string,
 	clientMessageID string,
 	mode session.BusyInputMode,
+	runtime *session.RuntimeSelection,
 	caller session.PromptCaller,
 ) {
 	executionCtx := context.WithoutCancel(c.Request.Context())
@@ -107,6 +110,7 @@ func (h *Handlers) promptSessionRaw(
 		Message:           message,
 		ClientMessageID:   clientMessageID,
 		Mode:              mode,
+		Runtime:           runtime,
 		DeliveryContext:   deliveryCtx,
 		Caller:            caller,
 		AllowGoalCommands: true,

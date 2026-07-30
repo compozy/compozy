@@ -7,6 +7,7 @@ import (
 
 	"strings"
 
+	apicontract "github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/network/participation"
 
 	"github.com/compozy/compozy/internal/session"
@@ -87,34 +88,19 @@ func (h *HostAPIHandler) handleSessionsCreate(ctx context.Context, raw json.RawM
 
 	createOpts := session.CreateOpts{
 		AgentName:            strings.TrimSpace(params.Agent),
-		Provider:             strings.TrimSpace(params.Provider),
-		Model:                strings.TrimSpace(params.Model),
-		ReasoningEffort:      strings.TrimSpace(string(params.ReasoningEffort)),
 		Workspace:            strings.TrimSpace(params.Workspace),
 		NetworkParticipation: participation.CloneRequest(params.NetworkParticipation),
 		Type:                 session.SessionTypeSystem,
 	}
-	prompt := strings.TrimSpace(params.Prompt)
-	if prompt != "" {
-		acceptance, ok := h.sessions.(hostAPISessionAcceptanceManager)
-		if !ok {
-			return nil, errors.New("extension: session manager does not support durable acceptance")
-		}
-		info, err := acceptance.CreateAccepted(ctx, session.CreateAcceptedOpts{
-			Session:       createOpts,
-			InitialPrompt: prompt,
-		})
-		if err != nil {
-			return nil, err
-		}
-		return hostAPISessionCreateResult{SessionID: info.ID, Provider: info.Provider}, nil
+	acceptance, ok := h.sessions.(hostAPISessionAcceptanceManager)
+	if !ok {
+		return nil, errors.New("extension: session manager does not support durable acceptance")
 	}
-
-	sess, err := h.sessions.Create(ctx, createOpts)
+	info, err := acceptance.CreateAccepted(ctx, session.CreateAcceptedOpts{Session: createOpts})
 	if err != nil {
 		return nil, err
 	}
-	return hostAPISessionCreateResult{SessionID: sess.ID, Provider: sess.Info().Provider}, nil
+	return hostAPISessionCreateResult{SessionID: info.ID}, nil
 }
 
 func (h *HostAPIHandler) handleSessionsPrompt(ctx context.Context, raw json.RawMessage) (any, error) {
@@ -132,12 +118,31 @@ func (h *HostAPIHandler) handleSessionsPrompt(ctx context.Context, raw json.RawM
 		return nil, err
 	}
 
-	submission, err := h.submitPrompt(ctx, params.SessionID, params.Message)
+	submission, err := h.submitPrompt(
+		ctx,
+		params.SessionID,
+		params.Message,
+		hostAPIPromptRuntimeSelection(params.Runtime),
+	)
 	if err != nil {
 		return nil, err
 	}
 
 	return hostAPISessionPromptResult{TurnID: submission.TurnID}, nil
+}
+
+func hostAPIPromptRuntimeSelection(
+	payload *apicontract.PromptRuntimeSelectionPayload,
+) *session.RuntimeSelection {
+	if payload == nil {
+		return nil
+	}
+	return &session.RuntimeSelection{
+		Provider:        payload.Provider,
+		Model:           payload.Model,
+		ReasoningEffort: string(payload.ReasoningEffort),
+		Speed:           payload.Speed,
+	}
 }
 
 func (h *HostAPIHandler) handleSessionsStop(ctx context.Context, raw json.RawMessage) (any, error) {

@@ -851,6 +851,7 @@ func TestHTTPSessionStreamReconnectPreservesCursorWhenNoNewEventsExistYet(t *tes
 func TestHTTPSessionStopReasonPropagatesToGlobalDBAndAPI(t *testing.T) {
 	runtime := newIntegrationRuntime(t)
 	sessionID := createIntegrationSession(t, runtime)
+	bindIntegrationSessionRuntime(t, runtime, sessionID)
 
 	stopIntegrationSession(t, runtime, sessionID)
 
@@ -1051,6 +1052,7 @@ func TestHTTPSessionParticipationRoundTrip(t *testing.T) {
 func TestHTTPSessionCrashStopReasonPropagatesToGlobalDBAndAPI(t *testing.T) {
 	runtime := newIntegrationRuntime(t)
 	sessionID := createIntegrationSession(t, runtime)
+	bindIntegrationSessionRuntime(t, runtime, sessionID)
 
 	sess, ok := runtime.manager.Get(sessionID)
 	if !ok {
@@ -3916,6 +3918,29 @@ func sendPrompt(t *testing.T, runtime integrationRuntime, sessionID string, mess
 		body, _ := io.ReadAll(resp.Body)
 		_ = resp.Body.Close()
 		t.Fatalf("prompt status = %d, want %d; body=%s", resp.StatusCode, http.StatusOK, string(body))
+	}
+	_, _ = io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+}
+
+func bindIntegrationSessionRuntime(t *testing.T, runtime integrationRuntime, sessionID string) {
+	t.Helper()
+
+	resp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodPost,
+		mustURL(runtime.host, runtime.port, "/api/workspaces/ws-workspace/sessions/"+sessionID+"/prompt"),
+		mustIntegrationJSON(map[string]any{
+			"message": "bind runtime",
+			"runtime": map[string]any{"provider": "fake"},
+		}),
+		nil,
+	)
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		t.Fatalf("runtime bind prompt status = %d, want %d; body=%s", resp.StatusCode, http.StatusOK, string(body))
 	}
 	_, _ = io.ReadAll(resp.Body)
 	_ = resp.Body.Close()

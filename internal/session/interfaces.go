@@ -360,6 +360,12 @@ type AgentDriver interface {
 	Stop(ctx context.Context, proc *AgentProcess) error
 }
 
+// RuntimeConfigurator is the optional driver surface for applying mutable ACP
+// settings at a prompt boundary without replacing the process.
+type RuntimeConfigurator interface {
+	ConfigureRuntime(ctx context.Context, proc *AgentProcess, config acp.RuntimeConfig) error
+}
+
 // ErrScopedInterruptNotFound reports that no registered tool process matched a scoped interrupt.
 var ErrScopedInterruptNotFound = toolruntime.ErrProcessNotFound
 

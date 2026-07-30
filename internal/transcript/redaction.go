@@ -39,6 +39,7 @@ func RedactAgentEvent(event acp.AgentEvent) acp.AgentEvent {
 		redacted.AvailableCommands = acp.NewAvailableCommandSet(event.AvailableCommands.Values())
 	}
 	redacted.Runtime = redactRuntimeActivity(event.Runtime)
+	redacted = redacted.WithPromptRuntime(event.PromptRuntimeSnapshot())
 	redacted.Raw = redactRawMessage(event.Raw)
 	return redacted
 }

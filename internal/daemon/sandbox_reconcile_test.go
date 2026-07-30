@@ -571,6 +571,7 @@ func writeSandboxReconcileMeta(t *testing.T, daemon *Daemon, spec sandboxReconci
 		NetworkParticipation: participation.CloneSpec(networkSpec),
 		SessionType:          string(session.SessionTypeUser),
 		State:                string(spec.state),
+		RuntimeStatus:        store.SessionRuntimeUnbound,
 		Sandbox:              spec.env,
 		CreatedAt:            time.Date(2026, 4, 16, 10, 0, 0, 0, time.UTC),
 		UpdatedAt:            time.Date(2026, 4, 16, 10, 0, 0, 0, time.UTC),

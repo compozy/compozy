@@ -1,13 +1,12 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useSelector } from "@xstate/store-react";
-import { act, render, renderHook, waitFor } from "@testing-library/react";
-import { createElement, useEffect, type ReactNode } from "react";
+import { act, renderHook, waitFor } from "@testing-library/react";
+import { createElement, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AgentPayload } from "@/systems/agent";
 import { FIXTURE_AGENT_DEFINITION_DIGEST } from "@/systems/agent/mocks";
-import type { AllModelsListResponse, AllModelsRefreshResponse } from "@/systems/model-catalog";
-import type { WorkspaceDetailPayload, WorkspacePayload } from "@/systems/workspace";
+import type { WorkspacePayload } from "@/systems/workspace";
 
 import type { SessionPayload } from "../../types";
 import { createSessionCreateStore } from "../../stores/session-create-store";
@@ -17,85 +16,30 @@ import {
   type SessionCreateDialogApi,
 } from "../use-session-create-dialog";
 
-type SessionCreateDialogTestHarness = SessionCreateDialogApi & {
-  openDialog: (agentName: string) => void;
-};
-
-function useSessionCreateDialog(context: {
-  agents: AgentPayload[] | undefined;
-  activeWorkspace: WorkspacePayload | undefined;
-}): SessionCreateDialogTestHarness {
-  const controller = useSessionCreateDialogController();
-  const dialog = useSessionCreateDialogViewModel(context, controller.store);
-  return {
-    ...dialog,
-    openDialog: agentName => {
-      if (!context.activeWorkspace) return;
-      controller.store.trigger.dialogOpened({
-        agentName,
-        workspaceId: context.activeWorkspace.id,
-      });
-    },
-  };
-}
-
-function useSessionCreateControllerPair() {
-  const first = useSessionCreateDialogController();
-  const second = useSessionCreateDialogController();
-
-  return {
-    firstDraftAgentName: useSelector(first.store, snapshot => snapshot.context.draft.agentName),
-    firstIsSubmitting: useSelector(
-      first.store,
-      snapshot => snapshot.context.operation.status === "submitting"
-    ),
-    firstStore: first.store,
-    secondDraftAgentName: useSelector(second.store, snapshot => snapshot.context.draft.agentName),
-    secondIsSubmitting: useSelector(
-      second.store,
-      snapshot => snapshot.context.operation.status === "submitting"
-    ),
-    secondStore: second.store,
-  };
-}
-
-type ProviderModelPayload = AllModelsListResponse["models"][number];
-
-const visibleCatalogFlags = {
-  curated: true,
-  deprecated: false,
-  featured: false,
-  hidden: false,
-} satisfies Pick<ProviderModelPayload, "curated" | "deprecated" | "featured" | "hidden">;
-
+// Invariant: creation submits only durable session identity and launch context, then hands off
+// to the canonical session route. Owning layer: session-create view model. Canonical suite: this hook test.
 const {
-  mockNavigate,
+  mockActivateWorkspace,
   mockMutateAsync,
-  mockUseCreateSessionPending,
-  mockUserHomeDir,
-  mockWorkspaceQuery,
-  mockWorkspaceListRef,
+  mockNavigate,
   mockUseAgents,
-  mockListAllModels,
-  mockRefreshAllModels,
+  mockUserHomeDir,
+  mockWorkspaceListRef,
 } = vi.hoisted(() => ({
-  mockNavigate: vi.fn<(input: unknown) => Promise<void>>(),
+  mockActivateWorkspace: vi.fn(),
   mockMutateAsync: vi.fn<(input: unknown) => Promise<SessionPayload>>(),
-  mockUseCreateSessionPending: { current: false as boolean },
-  mockUserHomeDir: { current: undefined as string | undefined },
-  mockWorkspaceQuery: vi.fn(),
-  mockWorkspaceListRef: { current: [] as WorkspacePayload[] },
+  mockNavigate: vi.fn<(input: unknown) => Promise<void>>(),
   mockUseAgents: vi.fn(),
-  mockListAllModels: vi.fn<(input: unknown) => Promise<AllModelsListResponse>>(),
-  mockRefreshAllModels: vi.fn<(input: unknown) => Promise<AllModelsRefreshResponse>>(),
+  mockUserHomeDir: { current: undefined as string | undefined },
+  mockWorkspaceListRef: { current: [] as WorkspacePayload[] },
 }));
 
-vi.mock("@tanstack/react-router", () => ({
-  useNavigate: () => mockNavigate,
-}));
+vi.mock("@tanstack/react-router", () => ({ useNavigate: () => mockNavigate }));
 
-vi.mock("@/systems/agent/hooks/use-agents", () => {
+vi.mock("@/systems/agent", async () => {
+  const actual = await vi.importActual<typeof import("@/systems/agent")>("@/systems/agent");
   return {
+    ...actual,
     useAgents: (workspaceId: string, options?: { enabled?: boolean }) =>
       mockUseAgents(workspaceId, options),
   };
@@ -103,36 +47,19 @@ vi.mock("@/systems/agent/hooks/use-agents", () => {
 
 vi.mock("@/systems/workspace", async () => {
   const actual = await vi.importActual<typeof import("@/systems/workspace")>("@/systems/workspace");
-
   return {
     ...actual,
-    useWorkspace: (workspaceId: string, options?: { enabled?: boolean }) =>
-      mockWorkspaceQuery(workspaceId, options),
-    useWorkspaces: () => ({
-      data: mockWorkspaceListRef.current,
-      error: null,
-      isLoading: false,
-    }),
     useUserHomeDir: () => mockUserHomeDir.current,
-  };
-});
-
-vi.mock("@/systems/model-catalog/adapters/model-catalog-api", async () => {
-  const actual = await vi.importActual<
-    typeof import("@/systems/model-catalog/adapters/model-catalog-api")
-  >("@/systems/model-catalog/adapters/model-catalog-api");
-  return {
-    ...actual,
-    listAllModels: (...args: unknown[]) => mockListAllModels(args[0]),
-    refreshAllModels: (...args: unknown[]) => mockRefreshAllModels(args[0]),
+    useWorkspaces: () => ({ data: mockWorkspaceListRef.current, error: null, isLoading: false }),
   };
 });
 
 vi.mock("../use-session-actions", () => ({
-  useCreateSession: () => ({
-    mutateAsync: mockMutateAsync,
-    isPending: mockUseCreateSessionPending.current,
-  }),
+  useCreateSession: () => ({ mutateAsync: mockMutateAsync, isPending: false }),
+}));
+
+vi.mock("../../lib/session-create-navigation", () => ({
+  activateCreatedSessionWorkspace: mockActivateWorkspace,
 }));
 
 const activeWorkspace: WorkspacePayload = {
@@ -163,330 +90,181 @@ const agents: AgentPayload[] = [
   },
 ];
 
-const agentsWithDefaultModel: AgentPayload[] = [
-  {
-    name: "claude-agent",
-    provider: "claude",
-    prompt: "help",
-    origin: "workspace",
-    workspace_id: "ws_alpha",
-    definition_digest: FIXTURE_AGENT_DEFINITION_DIGEST,
-  },
-  {
-    name: "codex-agent",
-    provider: "codex",
-    model: "gpt-5.5",
-    prompt: "code",
-    origin: "workspace",
-    workspace_id: "ws_alpha",
-    definition_digest: FIXTURE_AGENT_DEFINITION_DIGEST,
-  },
-];
-
-const agentsWithInheritedRuntime: AgentPayload[] = [
-  {
-    name: "inherited-agent",
-    provider: "",
-    prompt: "code",
-    origin: "workspace",
-    workspace_id: "ws_alpha",
-    definition_digest: FIXTURE_AGENT_DEFINITION_DIGEST,
-    effective_runtime: {
-      provider: "codex",
-      model: "gpt-5.4",
-      reasoning_effort: "high",
-      sources: {
-        provider: "project_default",
-        model: "provider_default",
-        reasoning_effort: "model_default",
-      },
-    },
-  },
-];
-
-const agentsWithUnavailableInheritedRuntime: AgentPayload[] = [
-  {
-    ...agentsWithInheritedRuntime[0],
-    name: "unavailable-agent",
-    effective_runtime: {
-      ...agentsWithInheritedRuntime[0].effective_runtime!,
-      provider: "missing-provider",
-    },
-  },
-];
-
-const agentsWithCursorAlias: AgentPayload[] = [
-  ...agents,
-  {
-    name: "cursor-agent",
-    provider: "cursor",
-    model: "cursor-grok-4.5-high",
-    prompt: "edit",
-    origin: "workspace",
-    workspace_id: "ws_alpha",
-    definition_digest: FIXTURE_AGENT_DEFINITION_DIGEST,
-  },
-];
-
 const createdSession: SessionPayload = {
   id: "sess-new",
   agent_name: "codex-agent",
-  provider: "codex",
   workspace_id: "ws_alpha",
   workspace_path: "/workspace/alpha",
   state: "active",
   badge: "idle",
   attachable: true,
   available_commands: [],
+  runtime: { status: "unbound" },
   created_at: "2026-04-20T10:00:00Z",
   updated_at: "2026-04-20T10:00:01Z",
-};
-
-let workspaceQueryResult: {
-  data: WorkspaceDetailPayload | undefined;
-  isLoading: boolean;
-  error: Error | null;
-};
-
-const codexCatalog: AllModelsListResponse = {
-  models: [
-    {
-      ...visibleCatalogFlags,
-      provider_id: "codex",
-      model_id: "gpt-5.4",
-      display_name: "GPT-5.4",
-      availability_state: "available_live",
-      available: true,
-      stale: false,
-      refreshed_at: "2026-05-07T10:00:00Z",
-      sources: [
-        {
-          source_id: "config",
-          source_kind: "config",
-          priority: 120,
-          refreshed_at: "2026-05-07T10:00:00Z",
-          stale: false,
-        },
-      ],
-      supports_reasoning: true,
-      reasoning_efforts: ["low", "medium", "high"],
-      default_reasoning_effort: "medium",
-    },
-    {
-      ...visibleCatalogFlags,
-      provider_id: "codex",
-      model_id: "gpt-5.4-mini",
-      display_name: "GPT-5.4 Mini",
-      availability_state: "available_stale",
-      available: true,
-      stale: true,
-      refreshed_at: "2026-05-06T10:00:00Z",
-      sources: [
-        {
-          source_id: "models_dev",
-          source_kind: "models_dev",
-          priority: 50,
-          refreshed_at: "2026-05-06T10:00:00Z",
-          stale: true,
-        },
-      ],
-      supports_reasoning: false,
-    },
-  ],
 };
 
 function createWrapper() {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
-
   const wrapper = ({ children }: { children: ReactNode }) =>
     createElement(QueryClientProvider, { client: queryClient }, children);
-
-  return { queryClient, wrapper };
+  return { wrapper };
 }
 
-const FIRST_MESSAGE = "Draft the release notes.";
+function useSessionCreateDialog(context: {
+  agents: AgentPayload[] | undefined;
+  activeWorkspace: WorkspacePayload | undefined;
+}): SessionCreateDialogApi & { openDialog: (agentName: string) => void } {
+  const controller = useSessionCreateDialogController();
+  const dialog = useSessionCreateDialogViewModel(context, controller.store);
+  return {
+    ...dialog,
+    openDialog: agentName => {
+      if (!context.activeWorkspace) return;
+      controller.store.trigger.dialogOpened({
+        agentName,
+        workspaceId: context.activeWorkspace.id,
+      });
+    },
+  };
+}
 
-async function submitWithPrompt(
-  result: { current: SessionCreateDialogApi },
-  prompt: string = FIRST_MESSAGE
-) {
-  act(() => {
-    result.current.onPromptChange(prompt);
-  });
-  await act(async () => {
-    await result.current.submit();
-  });
+function useSessionCreateControllerPair() {
+  const first = useSessionCreateDialogController();
+  const second = useSessionCreateDialogController();
+  return {
+    firstDraftAgentName: useSelector(first.store, snapshot => snapshot.context.draft.agentName),
+    firstStore: first.store,
+    secondDraftAgentName: useSelector(second.store, snapshot => snapshot.context.draft.agentName),
+  };
 }
 
 describe("useSessionCreateDialog", () => {
   beforeEach(() => {
-    mockNavigate.mockReset();
-    mockNavigate.mockResolvedValue(undefined);
+    mockActivateWorkspace.mockReset();
     mockMutateAsync.mockReset();
     mockMutateAsync.mockResolvedValue(createdSession);
-    mockWorkspaceQuery.mockReset();
-    mockWorkspaceListRef.current = [activeWorkspace];
+    mockNavigate.mockReset();
+    mockNavigate.mockResolvedValue(undefined);
     mockUseAgents.mockReset();
     mockUseAgents.mockReturnValue({ data: undefined });
-    mockUseCreateSessionPending.current = false;
     mockUserHomeDir.current = undefined;
-
-    workspaceQueryResult = {
-      data: {
-        workspace: activeWorkspace,
-        providers: [{ name: "claude" }, { name: "codex" }, { name: "cursor" }, { name: "gemini" }],
-      },
-      isLoading: false,
-      error: null,
-    };
-
-    mockWorkspaceQuery.mockImplementation(() => workspaceQueryResult);
-    mockListAllModels.mockReset();
-    mockListAllModels.mockResolvedValue(codexCatalog);
-    mockRefreshAllModels.mockReset();
-    mockRefreshAllModels.mockResolvedValue({
-      sources: [
-        {
-          source_id: "models_dev",
-          source_kind: "models_dev",
-          priority: 50,
-          provider_id: "codex",
-          refresh_state: "succeeded",
-          row_count: 2,
-          stale: false,
-        },
-      ],
-    });
+    mockWorkspaceListRef.current = [activeWorkspace];
   });
 
-  it("Should resolve an empty public new-session intent to the first available agent", () => {
-    mockUseAgents.mockReturnValue({ data: agents });
-    const store = createSessionCreateStore();
+  it("Should isolate draft state between dialog controller instances", () => {
     const { wrapper } = createWrapper();
-    const { result } = renderHook(
-      () => useSessionCreateDialogViewModel({ agents, activeWorkspace }, store),
-      { wrapper }
-    );
-
-    act(() => store.trigger.dialogOpened({ agentName: "", workspaceId: activeWorkspace.id }));
-
-    expect(result.current.selectedAgentName).toBe("claude-agent");
-    expect(store.getSnapshot().context.open).toBe(true);
-  });
-
-  it("Should isolate draft and busy state between shell store instances", () => {
-    const { result } = renderHook(() => useSessionCreateControllerPair());
+    const { result } = renderHook(() => useSessionCreateControllerPair(), { wrapper });
 
     act(() => {
       result.current.firstStore.trigger.dialogOpened({
         agentName: "claude-agent",
-        workspaceId: "ws_alpha",
+        workspaceId: activeWorkspace.id,
       });
     });
 
     expect(result.current.firstDraftAgentName).toBe("claude-agent");
     expect(result.current.secondDraftAgentName).toBe("");
-    expect(result.current.firstIsSubmitting).toBe(false);
-    expect(result.current.secondIsSubmitting).toBe(false);
-
-    act(() => {
-      result.current.firstStore.trigger.submissionRequested({
-        agentName: "claude-agent",
-        workspaceId: "ws_alpha",
-        execute: () => new Promise<SessionPayload>(() => {}),
-      });
-    });
-
-    expect(result.current.firstIsSubmitting).toBe(true);
-    expect(result.current.secondIsSubmitting).toBe(false);
   });
 
-  it("Should expose the daemon home directory to the session-create view model", () => {
-    mockUserHomeDir.current = "/Users/operator";
+  it("Should expose the active workspace and select the requested agent", () => {
     const { wrapper } = createWrapper();
     const { result } = renderHook(() => useSessionCreateDialog({ agents, activeWorkspace }), {
       wrapper,
     });
 
-    expect(result.current.userHomeDir).toBe("/Users/operator");
+    act(() => result.current.openDialog("codex-agent"));
+
+    expect(result.current.workspaceId).toBe("ws_alpha");
+    expect(result.current.selectedAgentName).toBe("codex-agent");
   });
 
-  it("Should derive the default provider once workspace providers arrive after opening", async () => {
-    workspaceQueryResult = {
-      data: {
-        workspace: activeWorkspace,
-        providers: [],
-      },
-      isLoading: true,
-      error: null,
-    };
-
+  it("Should submit a durable session without prompt or runtime overrides", async () => {
     const { wrapper } = createWrapper();
-    const { result, rerender } = renderHook(
-      () => useSessionCreateDialog({ agents, activeWorkspace }),
-      { wrapper }
-    );
-
-    act(() => {
-      result.current.openDialog("codex-agent");
+    const { result } = renderHook(() => useSessionCreateDialog({ agents, activeWorkspace }), {
+      wrapper,
     });
 
-    expect(result.current.selectedAgentName).toBe("codex-agent");
-    expect(result.current.runtimeValue.provider).toBe("");
-
-    workspaceQueryResult = {
-      data: {
-        workspace: activeWorkspace,
-        providers: [{ name: "claude" }, { name: "codex" }, { name: "gemini" }],
-      },
-      isLoading: false,
-      error: null,
-    };
-
-    rerender();
-
-    expect(result.current.runtimeValue.provider).toBe("codex");
-
-    await submitWithPrompt(result);
+    act(() => result.current.openDialog("codex-agent"));
+    act(() => result.current.onSessionNameChange("  Investigate checkout latency  "));
+    await act(async () => result.current.submit());
 
     expect(mockMutateAsync).toHaveBeenCalledWith({
       agent_name: "codex-agent",
+      name: "Investigate checkout latency",
       workspace: "ws_alpha",
-      prompt: FIRST_MESSAGE,
       network_participation: { mode: "local" },
     });
-    expect(mockNavigate).toHaveBeenCalledWith({
-      to: "/agents/$name/sessions/$id",
-      params: { name: "codex-agent", id: "sess-new" },
-    });
+    await waitFor(() =>
+      expect(mockNavigate).toHaveBeenCalledWith({
+        to: "/agents/$name/sessions/$id",
+        params: { name: "codex-agent", id: "sess-new" },
+      })
+    );
+    expect(mockActivateWorkspace).toHaveBeenCalledWith(createdSession);
   });
 
-  it("Should resolve a relative working path without sending a workspace reference", async () => {
+  it("Should activate a selected workspace before navigating to its created session", async () => {
+    const otherWorkspace: WorkspacePayload = { ...activeWorkspace, id: "ws_beta", name: "beta" };
+    const betaAgent: AgentPayload = {
+      ...agents[0],
+      name: "beta-agent",
+      workspace_id: otherWorkspace.id,
+    };
+    const sessionInOtherWorkspace: SessionPayload = {
+      ...createdSession,
+      agent_name: betaAgent.name,
+      id: "sess-beta",
+      workspace_id: otherWorkspace.id,
+      workspace_path: otherWorkspace.root_dir,
+    };
+    mockWorkspaceListRef.current = [activeWorkspace, otherWorkspace];
+    mockUseAgents.mockImplementation((workspaceId: string) => ({
+      data: workspaceId === otherWorkspace.id ? [betaAgent] : agents,
+    }));
+    mockMutateAsync.mockResolvedValue(sessionInOtherWorkspace);
+    mockNavigate.mockImplementation(async () => {
+      expect(mockActivateWorkspace).toHaveBeenCalledWith(sessionInOtherWorkspace);
+    });
+
     const { wrapper } = createWrapper();
     const { result } = renderHook(() => useSessionCreateDialog({ agents, activeWorkspace }), {
       wrapper,
     });
 
     act(() => result.current.openDialog("claude-agent"));
-    act(() => {
-      result.current.onSessionNameChange("  Investigate checkout latency  ");
-      result.current.onWorkspacePathChange("  services/checkout  ");
+    act(() => result.current.onWorkspaceChange(otherWorkspace.id));
+    act(() => result.current.onAgentChange(betaAgent.name));
+    await act(async () => result.current.submit());
+
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith({
+        to: "/agents/$name/sessions/$id",
+        params: { name: betaAgent.name, id: sessionInOtherWorkspace.id },
+      });
+    });
+  });
+
+  it("Should resolve a relative working path only when Advanced supplies one", async () => {
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useSessionCreateDialog({ agents, activeWorkspace }), {
+      wrapper,
     });
 
-    await submitWithPrompt(result);
+    act(() => result.current.openDialog("claude-agent"));
+    act(() => result.current.onWorkspacePathChange("  services/checkout  "));
+    await act(async () => result.current.submit());
 
     expect(mockMutateAsync).toHaveBeenCalledWith({
       agent_name: "claude-agent",
-      name: "Investigate checkout latency",
       workspace_path: "/workspace/alpha/services/checkout",
-      prompt: FIRST_MESSAGE,
       network_participation: { mode: "local" },
     });
   });
 
-  it("Should reject a working path that escapes the selected workspace", async () => {
+  it("Should retain validation when a working path escapes the workspace", async () => {
     const { wrapper } = createWrapper();
     const { result } = renderHook(() => useSessionCreateDialog({ agents, activeWorkspace }), {
       wrapper,
@@ -494,7 +272,7 @@ describe("useSessionCreateDialog", () => {
 
     act(() => result.current.openDialog("claude-agent"));
     act(() => result.current.onWorkspacePathChange("../other-workspace"));
-    await submitWithPrompt(result);
+    await act(async () => result.current.submit());
 
     expect(mockMutateAsync).not.toHaveBeenCalled();
     expect(result.current.submitError).toBe(
@@ -502,1070 +280,22 @@ describe("useSessionCreateDialog", () => {
     );
   });
 
-  it("Should omit name, working path, and runtime overrides while they are untouched", async () => {
-    const { wrapper } = createWrapper();
-    const { result } = renderHook(() => useSessionCreateDialog({ agents, activeWorkspace }), {
-      wrapper,
-    });
-
-    act(() => result.current.openDialog("claude-agent"));
-    await submitWithPrompt(result);
-
-    const payload = mockMutateAsync.mock.calls.at(-1)?.[0] as Record<string, unknown>;
-    expect(payload).not.toHaveProperty("name");
-    expect(payload).not.toHaveProperty("workspace_path");
-    expect(payload).not.toHaveProperty("provider");
-    expect(payload).not.toHaveProperty("model");
-    expect(payload).not.toHaveProperty("reasoning_effort");
-    expect(payload).not.toHaveProperty("speed");
-  });
-
-  it("Should send speed: fast on the create body when the fast request is active", async () => {
-    const { wrapper } = createWrapper();
-    const { result } = renderHook(() => useSessionCreateDialog({ agents, activeWorkspace }), {
-      wrapper,
-    });
-
-    act(() => result.current.openDialog("claude-agent"));
-    expect(result.current.runtimeSpeed).toBe("normal");
-
-    act(() => result.current.onRuntimeSpeedChange("fast"));
-    expect(result.current.runtimeSpeed).toBe("fast");
-    await submitWithPrompt(result);
-
-    expect(mockMutateAsync.mock.calls.at(-1)?.[0]).toMatchObject({ speed: "fast" });
-  });
-
-  it("Should reset the fast request to normal when agent identity changes", () => {
-    const { wrapper } = createWrapper();
-    const { result } = renderHook(() => useSessionCreateDialog({ agents, activeWorkspace }), {
-      wrapper,
-    });
-
-    act(() => result.current.openDialog("claude-agent"));
-    act(() => result.current.onRuntimeSpeedChange("fast"));
-    expect(result.current.runtimeSpeed).toBe("fast");
-
-    // Speed is a per-launch request riding the runtime-override lifecycle:
-    // agent identity change resets it to the daemon default.
-    act(() => result.current.onAgentChange("codex-agent"));
-    expect(result.current.runtimeSpeed).toBe("normal");
-  });
-
-  it("Should snap advanced-only selections back to a Simple-valid default when leaving Advanced", async () => {
-    const { wrapper } = createWrapper();
-    const { result } = renderHook(() => useSessionCreateDialog({ agents, activeWorkspace }), {
-      wrapper,
-    });
-
-    act(() => result.current.openDialog("claude-agent"));
-    act(() => result.current.onModeChange("advanced"));
-    act(() => {
-      result.current.onWorkspacePathChange("services/checkout");
-      result.current.onNetworkParticipationChange({
-        mode: "live",
-        channelId: "",
-        channelStrategy: "named",
-      });
-    });
-
-    // A live participation draft with no channel is invalid — leaving Advanced
-    // must not strand the operator with a blocking value they can no longer see.
-    expect(result.current.networkParticipation.mode).toBe("live");
-
-    act(() => result.current.onModeChange("simple"));
-
-    expect(result.current.mode).toBe("simple");
-    expect(result.current.workspacePath).toBe("");
-    expect(result.current.networkParticipation).toEqual({
-      mode: "local",
-      channelId: "",
-      channelStrategy: "",
-    });
-  });
-
-  it("Should retarget the launch when a different workspace is selected", () => {
-    const otherWorkspace = { ...activeWorkspace, id: "ws_beta", name: "beta" };
-    mockWorkspaceListRef.current = [activeWorkspace, otherWorkspace];
-    const { wrapper } = createWrapper();
-    const { result } = renderHook(() => useSessionCreateDialog({ agents, activeWorkspace }), {
-      wrapper,
-    });
-
-    act(() => result.current.openDialog("claude-agent"));
-    expect(result.current.workspaceId).toBe("ws_alpha");
-
-    act(() => result.current.onWorkspaceChange("ws_beta"));
-
-    expect(result.current.workspaceId).toBe("ws_beta");
-    expect(result.current.workspace?.id).toBe("ws_beta");
-    // Agents and providers are workspace-scoped, so the agent pick cannot carry over.
-    expect(result.current.selectedAgentName).toBe("");
-  });
-
-  it("Should replace the agent population with the selected workspace query", () => {
-    const betaWorkspace = { ...activeWorkspace, id: "ws_beta", name: "beta" };
-    const betaAgents: AgentPayload[] = [
-      {
-        name: "beta-agent",
-        provider: "codex",
-        prompt: "work in beta",
-        origin: "workspace",
-        workspace_id: betaWorkspace.id,
-        definition_digest: FIXTURE_AGENT_DEFINITION_DIGEST,
-      },
-    ];
-    mockWorkspaceListRef.current = [activeWorkspace, betaWorkspace];
-    mockUseAgents.mockImplementation((workspaceId: string) => ({
-      data: workspaceId === betaWorkspace.id ? betaAgents : undefined,
-    }));
-    const { wrapper } = createWrapper();
-    const { result } = renderHook(() => useSessionCreateDialog({ agents, activeWorkspace }), {
-      wrapper,
-    });
-
-    act(() => result.current.openDialog("claude-agent"));
-    expect(result.current.agents.map(agent => agent.name)).toEqual(["claude-agent", "codex-agent"]);
-
-    act(() => result.current.onWorkspaceChange(betaWorkspace.id));
-
-    expect(mockUseAgents).toHaveBeenLastCalledWith(betaWorkspace.id, { enabled: true });
-    expect(result.current.agents.map(agent => agent.name)).toEqual(["beta-agent"]);
-  });
-
-  it("Should keep an unavailable inherited provider unresolved instead of displaying an unsent fallback", async () => {
-    const { wrapper } = createWrapper();
-    const { result } = renderHook(
-      () =>
-        useSessionCreateDialog({
-          agents: agentsWithUnavailableInheritedRuntime,
-          activeWorkspace,
-        }),
-      { wrapper }
-    );
-
-    act(() => {
-      result.current.openDialog("unavailable-agent");
-    });
-
-    await waitFor(() => {
-      expect(result.current.providersLoading).toBe(false);
-    });
-    expect(result.current.runtimeValue.provider).toBe("");
-    expect(result.current.providersError).toContain('Provider "missing-provider" is not available');
-
-    await submitWithPrompt(result);
-
-    expect(mockMutateAsync).not.toHaveBeenCalled();
-    expect(result.current.submitError).toBe("Choose a provider configured for this workspace.");
-
-    act(() => {
-      result.current.onRuntimeChange({
-        provider: "codex",
-        model: "gpt-5.4",
-        reasoning_effort: "high",
-      });
-    });
-    expect(result.current.providersError).toBeNull();
-
-    await submitWithPrompt(result);
-
-    expect(mockMutateAsync).toHaveBeenCalledWith({
-      agent_name: "unavailable-agent",
-      workspace: "ws_alpha",
-      prompt: FIRST_MESSAGE,
-      network_participation: { mode: "local" },
-      provider: "codex",
-      model: "gpt-5.4",
-      reasoning_effort: "high",
-    });
-  });
-
-  it("Should display effective project runtime while preserving inheritance on create", async () => {
-    const { wrapper } = createWrapper();
-    const { result } = renderHook(
-      () => useSessionCreateDialog({ agents: agentsWithInheritedRuntime, activeWorkspace }),
-      { wrapper }
-    );
-
-    act(() => {
-      result.current.openDialog("inherited-agent");
-    });
-
-    await waitFor(() => {
-      expect(result.current.runtimeModels).toHaveLength(2);
-    });
-    expect(result.current.runtimeValue).toEqual({
-      provider: "codex",
-      model: "gpt-5.4",
-      reasoning_effort: "high",
-    });
-
-    await submitWithPrompt(result);
-
-    expect(mockMutateAsync).toHaveBeenCalledWith({
-      agent_name: "inherited-agent",
-      workspace: "ws_alpha",
-      prompt: FIRST_MESSAGE,
-      network_participation: { mode: "local" },
-    });
-  });
-
-  it("Should release the creation dialog before destination navigation settles", async () => {
-    let resolveNavigation: (() => void) | undefined;
-    const navigation = new Promise<void>(resolve => {
-      resolveNavigation = resolve;
-    });
-    let blockingDialogPresentWhenNavigationStarted: boolean | undefined;
-    let composerPresentWhenNavigationStarted: boolean | undefined;
-    const dialog = { current: undefined as SessionCreateDialogTestHarness | undefined };
-
-    const { wrapper } = createWrapper();
-    const Harness = () => {
-      const nextDialog = useSessionCreateDialog({ agents, activeWorkspace });
-      useEffect(() => {
-        dialog.current = nextDialog;
-      }, [nextDialog]);
-      return nextDialog.open
-        ? createElement("div", { role: "dialog" }, "Starting session")
-        : createElement("textarea", { "aria-label": "Session composer", readOnly: true });
-    };
-    const getDialog = () => {
-      if (!dialog.current) throw new Error("Session create dialog harness did not render");
-      return dialog.current;
-    };
-
-    render(createElement(Harness), { wrapper });
-    mockNavigate.mockImplementation(() => {
-      blockingDialogPresentWhenNavigationStarted =
-        document.querySelector('[role="dialog"]') !== null;
-      composerPresentWhenNavigationStarted =
-        document.querySelector('[aria-label="Session composer"]') !== null;
-      return navigation;
-    });
-
-    act(() => {
-      getDialog().openDialog("codex-agent");
-    });
-    act(() => {
-      getDialog().onPromptChange(FIRST_MESSAGE);
-    });
-
-    act(() => {
-      getDialog().submit();
-    });
-
-    try {
-      await waitFor(() => {
-        expect(mockNavigate).toHaveBeenCalledWith({
-          to: "/agents/$name/sessions/$id",
-          params: { name: "codex-agent", id: "sess-new" },
-        });
-      });
-
-      expect(blockingDialogPresentWhenNavigationStarted).toBe(false);
-      expect(composerPresentWhenNavigationStarted).toBe(true);
-      expect(getDialog().open).toBe(false);
-      expect(getDialog().pendingAgentName).toBeNull();
-      expect(getDialog().pendingWorkspaceId).toBeNull();
-    } finally {
-      await act(async () => {
-        resolveNavigation?.();
-        await navigation;
-      });
-    }
-  });
-
-  it("Should map workspace providers onto the runtime rail options", () => {
-    const { wrapper } = createWrapper();
-    const { result } = renderHook(() => useSessionCreateDialog({ agents, activeWorkspace }), {
-      wrapper,
-    });
-
-    act(() => {
-      result.current.openDialog("codex-agent");
-    });
-
-    expect(result.current.hasProviderOptions).toBe(true);
-    expect(result.current.runtimeProviders.map(option => option.id)).toEqual([
-      "claude",
-      "codex",
-      "cursor",
-      "gemini",
-    ]);
-  });
-
-  it("Should clear an explicit provider override when the operator changes agents", () => {
-    const { wrapper } = createWrapper();
-    const { result } = renderHook(() => useSessionCreateDialog({ agents, activeWorkspace }), {
-      wrapper,
-    });
-
-    act(() => {
-      result.current.openDialog("claude-agent");
-    });
-
-    expect(result.current.runtimeValue.provider).toBe("claude");
-
-    act(() => {
-      result.current.onRuntimeChange({ provider: "gemini", model: "", reasoning_effort: "" });
-    });
-
-    expect(result.current.runtimeValue.provider).toBe("gemini");
-
-    act(() => {
-      result.current.onAgentChange("codex-agent");
-    });
-
-    expect(result.current.selectedAgentName).toBe("codex-agent");
-    expect(result.current.runtimeValue.provider).toBe("codex");
-  });
-
-  describe("first message", () => {
-    it("Should stage the trimmed first message on the single creation request", async () => {
-      const { wrapper } = createWrapper();
-      const { result } = renderHook(() => useSessionCreateDialog({ agents, activeWorkspace }), {
-        wrapper,
-      });
-
-      act(() => {
-        result.current.openDialog("codex-agent");
-      });
-      await submitWithPrompt(result, `  \n${FIRST_MESSAGE}\n  `);
-
-      expect(mockMutateAsync).toHaveBeenCalledTimes(1);
-      expect(mockMutateAsync).toHaveBeenCalledWith(
-        expect.objectContaining({ prompt: FIRST_MESSAGE })
-      );
-    });
-
-    it("Should refuse to create a session from a blank first message", async () => {
-      const { wrapper } = createWrapper();
-      const { result } = renderHook(() => useSessionCreateDialog({ agents, activeWorkspace }), {
-        wrapper,
-      });
-
-      act(() => {
-        result.current.openDialog("codex-agent");
-      });
-      await submitWithPrompt(result, "   \n  ");
-
-      expect(mockMutateAsync).not.toHaveBeenCalled();
-      expect(mockNavigate).not.toHaveBeenCalled();
-      expect(result.current.submitError).toBe(
-        "Write the first message before starting the session."
-      );
-    });
-
-    it("Should preserve the draft for a retry when creation fails", async () => {
-      mockMutateAsync.mockRejectedValueOnce(new Error("daemon unavailable"));
-      const { wrapper } = createWrapper();
-      const { result } = renderHook(() => useSessionCreateDialog({ agents, activeWorkspace }), {
-        wrapper,
-      });
-
-      act(() => {
-        result.current.openDialog("codex-agent");
-      });
-      act(() => {
-        result.current.onRuntimeChange({
-          provider: "codex",
-          model: "gpt-5.4",
-          reasoning_effort: "high",
-        });
-      });
-      await submitWithPrompt(result);
-
-      expect(result.current.submitError).toBe("daemon unavailable");
-      expect(result.current.open).toBe(true);
-      expect(result.current.promptValue).toBe(FIRST_MESSAGE);
-      expect(result.current.runtimeValue.model).toBe("gpt-5.4");
-    });
-
-    it("Should submit only once when two actions reenter before mutation state updates", async () => {
-      let resolveCreate: ((session: SessionPayload) => void) | undefined;
-      mockMutateAsync.mockImplementationOnce(
-        () =>
-          new Promise<SessionPayload>(resolve => {
-            resolveCreate = resolve;
-          })
-      );
-      const { wrapper } = createWrapper();
-      const { result } = renderHook(() => useSessionCreateDialog({ agents, activeWorkspace }), {
-        wrapper,
-      });
-
-      act(() => {
-        result.current.openDialog("codex-agent");
-        result.current.onPromptChange(FIRST_MESSAGE);
-      });
-
-      act(() => {
-        result.current.submit();
-        result.current.submit();
-      });
-      expect(mockMutateAsync).toHaveBeenCalledTimes(1);
-
-      await act(async () => {
-        resolveCreate?.(createdSession);
-        await Promise.resolve();
-      });
-    });
-
-    it("Should clear the draft only after the daemon durably accepts the session", async () => {
-      const { wrapper } = createWrapper();
-      const { result } = renderHook(() => useSessionCreateDialog({ agents, activeWorkspace }), {
-        wrapper,
-      });
-
-      act(() => {
-        result.current.openDialog("codex-agent");
-      });
-      await submitWithPrompt(result);
-
-      expect(mockMutateAsync).toHaveBeenCalledTimes(1);
-      expect(result.current.promptValue).toBe("");
-      expect(result.current.open).toBe(false);
-    });
-
-    it("Should keep the typed message when the operator switches agents", () => {
-      const { wrapper } = createWrapper();
-      const { result } = renderHook(() => useSessionCreateDialog({ agents, activeWorkspace }), {
-        wrapper,
-      });
-
-      act(() => {
-        result.current.openDialog("claude-agent");
-      });
-      act(() => {
-        result.current.onPromptChange(FIRST_MESSAGE);
-      });
-      act(() => {
-        result.current.onRuntimeChange({ provider: "gemini", model: "", reasoning_effort: "" });
-      });
-      act(() => {
-        result.current.onAgentChange("codex-agent");
-      });
-
-      expect(result.current.promptValue).toBe(FIRST_MESSAGE);
-      expect(result.current.runtimeValue.provider).toBe("codex");
-    });
-
-    it("Should preserve prompt and runtime when the dialog is closed and reopened for the same agent", async () => {
-      const { wrapper } = createWrapper();
-      const { result } = renderHook(() => useSessionCreateDialog({ agents, activeWorkspace }), {
-        wrapper,
-      });
-
-      act(() => {
-        result.current.openDialog("claude-agent");
-      });
-      await waitFor(() => {
-        expect(result.current.runtimeModels.length).toBeGreaterThan(0);
-      });
-      act(() => {
-        result.current.onPromptChange(FIRST_MESSAGE);
-      });
-      act(() => {
-        result.current.onRuntimeChange({
-          provider: "codex",
-          model: "gpt-5.4",
-          reasoning_effort: "high",
-        });
-      });
-      act(() => {
-        result.current.onOpenChange(false);
-      });
-      act(() => {
-        result.current.openDialog("claude-agent");
-      });
-
-      expect(result.current.open).toBe(true);
-      expect(result.current.promptValue).toBe(FIRST_MESSAGE);
-      expect(result.current.runtimeValue).toEqual({
-        provider: "codex",
-        model: "gpt-5.4",
-        reasoning_effort: "high",
-      });
-    });
-
-    it("Should reset agent-derived runtime and Network when reopened in a different workspace", () => {
-      const otherWorkspace: WorkspacePayload = { ...activeWorkspace, id: "ws_beta", name: "beta" };
-      const { wrapper } = createWrapper();
-      const { result, rerender } = renderHook(
-        ({ workspace }: { workspace: WorkspacePayload }) =>
-          useSessionCreateDialog({ agents, activeWorkspace: workspace }),
-        { wrapper, initialProps: { workspace: activeWorkspace } }
-      );
-
-      act(() => {
-        result.current.openDialog("claude-agent");
-      });
-      act(() => {
-        result.current.onPromptChange(FIRST_MESSAGE);
-      });
-      act(() => {
-        result.current.onRuntimeChange({ provider: "gemini", model: "", reasoning_effort: "" });
-      });
-      act(() => {
-        result.current.onNetworkParticipationChange({
-          mode: "live",
-          channelId: "alpha-release-room",
-          channelStrategy: "named",
-        });
-      });
-      act(() => {
-        result.current.onOpenChange(false);
-      });
-
-      rerender({ workspace: otherWorkspace });
-      act(() => {
-        result.current.openDialog("claude-agent");
-      });
-
-      expect(result.current.promptValue).toBe("");
-      expect(result.current.runtimeValue.provider).toBe("claude");
-      expect(result.current.runtimeValue.model).toBe("");
-      expect(result.current.networkParticipation).toEqual({
-        mode: "local",
-        channelId: "",
-        channelStrategy: "",
-      });
-    });
-
-    it("Should preserve the message but reset runtime when reopened for a different agent", () => {
-      const { wrapper } = createWrapper();
-      const { result } = renderHook(() => useSessionCreateDialog({ agents, activeWorkspace }), {
-        wrapper,
-      });
-
-      act(() => {
-        result.current.openDialog("claude-agent");
-      });
-      act(() => {
-        result.current.onPromptChange(FIRST_MESSAGE);
-      });
-      act(() => {
-        result.current.onRuntimeChange({ provider: "gemini", model: "", reasoning_effort: "" });
-      });
-      act(() => {
-        result.current.onOpenChange(false);
-      });
-      act(() => {
-        result.current.openDialog("codex-agent");
-      });
-
-      expect(result.current.promptValue).toBe(FIRST_MESSAGE);
-      expect(result.current.runtimeValue.provider).toBe("codex");
-    });
-  });
-
-  it("Should expose deduped runtime models for the selected provider using the all view", async () => {
-    mockListAllModels.mockResolvedValueOnce({
-      models: [
-        codexCatalog.models[0],
-        codexCatalog.models[1],
-        codexCatalog.models[0],
-      ] as AllModelsListResponse["models"],
-    });
-    const { wrapper } = createWrapper();
-    const { result } = renderHook(() => useSessionCreateDialog({ agents, activeWorkspace }), {
-      wrapper,
-    });
-
-    act(() => {
-      result.current.openDialog("codex-agent");
-    });
-
-    await waitFor(() => {
-      expect(result.current.runtimeModels).toHaveLength(2);
-    });
-    expect(result.current.runtimeModels.map(option => option.id)).toEqual([
-      "gpt-5.4",
-      "gpt-5.4-mini",
-    ]);
-    // Single aggregate `view=all` request across providers — never per-provider.
-    expect(mockListAllModels).toHaveBeenCalledWith(
-      expect.objectContaining({ includeStale: true, view: "all" })
-    );
-  });
-
-  it("Should reject a non-catalog model for an authoritative provider when the catalog is empty", async () => {
-    mockListAllModels.mockResolvedValueOnce({ models: [] });
-
-    const { wrapper } = createWrapper();
-    const { result } = renderHook(() => useSessionCreateDialog({ agents, activeWorkspace }), {
-      wrapper,
-    });
-
-    act(() => {
-      result.current.openDialog("codex-agent");
-    });
-
-    await waitFor(() => {
-      expect(result.current.catalogLoading).toBe(false);
-    });
-    expect(result.current.runtimeModels).toEqual([]);
-
-    act(() => {
-      result.current.onRuntimeChange({
-        provider: "cursor",
-        model: "cursor-grok-4.5-high",
-        reasoning_effort: "",
-      });
-    });
-
-    await submitWithPrompt(result);
-
-    expect(mockMutateAsync).not.toHaveBeenCalled();
-    expect(result.current.submitError).toContain("not in the selected provider catalog");
-
-    act(() => {
-      result.current.onNetworkParticipationChange({
-        mode: "live",
-        channelId: "release-room",
-        channelStrategy: "named",
-      });
-    });
-    expect(result.current.submitError).toBeNull();
-  });
-
-  it("Should preserve a free-form model for a non-authoritative provider when the catalog is empty", async () => {
-    mockListAllModels.mockResolvedValueOnce({ models: [] });
-
-    const { wrapper } = createWrapper();
-    const { result } = renderHook(() => useSessionCreateDialog({ agents, activeWorkspace }), {
-      wrapper,
-    });
-
-    act(() => {
-      result.current.openDialog("codex-agent");
-    });
-
-    await waitFor(() => {
-      expect(result.current.catalogLoading).toBe(false);
-    });
-
-    act(() => {
-      result.current.onRuntimeChange({
-        provider: "codex",
-        model: "custom-experimental",
-        reasoning_effort: "",
-      });
-    });
-
-    await submitWithPrompt(result);
-
-    expect(mockMutateAsync).toHaveBeenCalledWith({
-      agent_name: "codex-agent",
-      workspace: "ws_alpha",
-      prompt: FIRST_MESSAGE,
-      network_participation: { mode: "local" },
-      provider: "codex",
-      model: "custom-experimental",
-    });
-    expect(result.current.submitError).toBeNull();
-  });
-
-  it("Should expose stale catalog rows without blocking session creation", async () => {
-    const { wrapper } = createWrapper();
-    const { result } = renderHook(() => useSessionCreateDialog({ agents, activeWorkspace }), {
-      wrapper,
-    });
-
-    act(() => {
-      result.current.openDialog("codex-agent");
-    });
-
-    await waitFor(() => {
-      expect(result.current.runtimeModels).toHaveLength(2);
-    });
-
-    expect(result.current.catalogStale).toBe(true);
-    const staleOption = result.current.runtimeModels.find(option => option.id === "gpt-5.4-mini");
-    expect(staleOption?.availability).toBe("stale");
-    const liveOption = result.current.runtimeModels.find(option => option.id === "gpt-5.4");
-    expect(liveOption?.availability).toBe("live");
-
-    act(() => {
-      result.current.onRuntimeChange({
-        provider: "codex",
-        model: "gpt-5.4-mini",
-        reasoning_effort: "",
-      });
-    });
-
-    await submitWithPrompt(result);
-
-    expect(mockMutateAsync).toHaveBeenCalledWith({
-      agent_name: "codex-agent",
-      workspace: "ws_alpha",
-      prompt: FIRST_MESSAGE,
-      network_participation: { mode: "local" },
-      provider: "codex",
-      model: "gpt-5.4-mini",
-    });
-  });
-
-  it("Should reject an explicit model for an authoritative provider when the catalog is unavailable", async () => {
-    mockListAllModels.mockReset();
-    mockListAllModels.mockRejectedValue(new Error("catalog upstream failed"));
-
-    const { wrapper } = createWrapper();
-    const { result } = renderHook(() => useSessionCreateDialog({ agents, activeWorkspace }), {
-      wrapper,
-    });
-
-    act(() => {
-      result.current.openDialog("codex-agent");
-    });
-
-    await waitFor(
-      () => {
-        expect(result.current.catalogError).toContain("catalog upstream failed");
-      },
-      { timeout: 5000 }
-    );
-    expect(result.current.runtimeModels).toEqual([]);
-
-    act(() => {
-      result.current.onRuntimeChange({
-        provider: "cursor",
-        model: "cursor-grok-4.5-high",
-        reasoning_effort: "",
-      });
-    });
-
-    await submitWithPrompt(result);
-
-    expect(mockMutateAsync).not.toHaveBeenCalled();
-    expect(result.current.submitError).toContain("Model catalog is unavailable");
-  });
-
-  it("Should preserve a free-form model for a non-authoritative provider when the catalog is unavailable", async () => {
-    mockListAllModels.mockReset();
-    mockListAllModels.mockRejectedValue(new Error("catalog upstream failed"));
-
-    const { wrapper } = createWrapper();
-    const { result } = renderHook(() => useSessionCreateDialog({ agents, activeWorkspace }), {
-      wrapper,
-    });
-
-    act(() => {
-      result.current.openDialog("codex-agent");
-    });
-
-    await waitFor(
-      () => {
-        expect(result.current.catalogError).toContain("catalog upstream failed");
-      },
-      { timeout: 5000 }
-    );
-
-    act(() => {
-      result.current.onRuntimeChange({
-        provider: "codex",
-        model: "manual-fallback",
-        reasoning_effort: "",
-      });
-    });
-
-    await submitWithPrompt(result);
-
-    expect(mockMutateAsync).toHaveBeenCalledWith({
-      agent_name: "codex-agent",
-      workspace: "ws_alpha",
-      prompt: FIRST_MESSAGE,
-      network_participation: { mode: "local" },
-      provider: "codex",
-      model: "manual-fallback",
-    });
-    expect(result.current.submitError).toBeNull();
-  });
-
-  it("Should preserve the provider-native model default when the catalog is unavailable", async () => {
-    mockListAllModels.mockReset();
-    mockListAllModels.mockRejectedValue(new Error("catalog upstream failed"));
-
-    const { wrapper } = createWrapper();
-    const { result } = renderHook(() => useSessionCreateDialog({ agents, activeWorkspace }), {
-      wrapper,
-    });
-
-    act(() => {
-      result.current.openDialog("codex-agent");
-    });
-
-    await waitFor(
-      () => {
-        expect(result.current.catalogError).toContain("catalog upstream failed");
-      },
-      { timeout: 5000 }
-    );
-
-    await submitWithPrompt(result);
-
-    expect(mockMutateAsync).toHaveBeenCalledWith({
-      agent_name: "codex-agent",
-      workspace: "ws_alpha",
-      prompt: FIRST_MESSAGE,
-      network_participation: { mode: "local" },
-    });
-  });
-
-  it("Should reject an inherited model alias before session mutation", async () => {
-    const { wrapper } = createWrapper();
-    const { result } = renderHook(
-      () => useSessionCreateDialog({ agents: agentsWithCursorAlias, activeWorkspace }),
-      { wrapper }
-    );
-
-    act(() => {
-      result.current.openDialog("cursor-agent");
-    });
-
-    await waitFor(() => {
-      expect(result.current.catalogLoaded).toBe(true);
-    });
-    expect(result.current.runtimeValue.model).toBe("cursor-grok-4.5-high");
-
-    await submitWithPrompt(result);
-
-    expect(mockMutateAsync).not.toHaveBeenCalled();
-    expect(result.current.submitError).toContain("not in the selected provider catalog");
-  });
-
-  it("Should invalidate catalog queries on refresh", async () => {
-    const { queryClient, wrapper } = createWrapper();
-    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
-
-    const { result } = renderHook(() => useSessionCreateDialog({ agents, activeWorkspace }), {
-      wrapper,
-    });
-
-    act(() => {
-      result.current.openDialog("codex-agent");
-    });
-
-    await waitFor(() => {
-      expect(result.current.runtimeModels).toHaveLength(2);
-    });
-
-    act(() => {
-      result.current.refreshCatalog();
-    });
-
-    await waitFor(() => {
-      // The refresh affordance truthfully refreshes the whole catalog.
-      expect(mockRefreshAllModels).toHaveBeenCalledWith({});
-    });
-    await waitFor(() => {
-      expect(invalidateSpy).toHaveBeenCalled();
-    });
-  });
-
-  it("Should thread the model and reasoning override when the model supports reasoning", async () => {
-    const { wrapper } = createWrapper();
-    const { result } = renderHook(() => useSessionCreateDialog({ agents, activeWorkspace }), {
-      wrapper,
-    });
-
-    act(() => {
-      result.current.openDialog("codex-agent");
-    });
-
-    await waitFor(() => {
-      expect(result.current.runtimeModels.length).toBeGreaterThan(0);
-    });
-
-    act(() => {
-      result.current.onRuntimeChange({
-        provider: "codex",
-        model: "gpt-5.4",
-        reasoning_effort: "high",
-      });
-    });
-
-    await submitWithPrompt(result);
-
-    expect(mockMutateAsync).toHaveBeenLastCalledWith({
-      agent_name: "codex-agent",
-      workspace: "ws_alpha",
-      prompt: FIRST_MESSAGE,
-      network_participation: { mode: "local" },
-      provider: "codex",
-      model: "gpt-5.4",
-      reasoning_effort: "high",
-    });
-  });
-
-  it("Should omit the reasoning override when the selected model lacks reasoning support", async () => {
-    const { wrapper } = createWrapper();
-    const { result } = renderHook(() => useSessionCreateDialog({ agents, activeWorkspace }), {
-      wrapper,
-    });
-
-    act(() => {
-      result.current.openDialog("codex-agent");
-    });
-
-    await waitFor(() => {
-      expect(result.current.runtimeModels.length).toBeGreaterThan(0);
-    });
-
-    act(() => {
-      result.current.onRuntimeChange({
-        provider: "codex",
-        model: "gpt-5.4-mini",
-        reasoning_effort: "high",
-      });
-    });
-
-    await submitWithPrompt(result);
-
-    expect(mockMutateAsync).toHaveBeenLastCalledWith({
-      agent_name: "codex-agent",
-      workspace: "ws_alpha",
-      prompt: FIRST_MESSAGE,
-      network_participation: { mode: "local" },
-      provider: "codex",
-      model: "gpt-5.4-mini",
-    });
-  });
-
-  it("Should submit a coherent runtime override when reasoning changes", async () => {
-    mockListAllModels.mockResolvedValueOnce({
-      models: [
-        ...codexCatalog.models,
-        {
-          ...visibleCatalogFlags,
-          provider_id: "codex",
-          model_id: "gpt-5.5",
-          display_name: "GPT-5.5",
-          availability_state: "available_live",
-          available: true,
-          stale: false,
-          refreshed_at: "2026-05-07T10:00:00Z",
-          sources: [
-            {
-              source_id: "models_dev",
-              source_kind: "models_dev",
-              priority: 50,
-              refreshed_at: "2026-05-07T10:00:00Z",
-              stale: false,
-            },
-          ],
-          supports_reasoning: true,
-          reasoning_efforts: ["minimal", "low", "medium", "high", "xhigh"],
-          default_reasoning_effort: "medium",
-        },
-      ],
-    });
-    const { wrapper } = createWrapper();
-    const { result } = renderHook(
-      () => useSessionCreateDialog({ agents: agentsWithDefaultModel, activeWorkspace }),
-      { wrapper }
-    );
-
-    act(() => {
-      result.current.openDialog("codex-agent");
-    });
-
-    await waitFor(() => {
-      expect(result.current.runtimeModels.some(option => option.id === "gpt-5.5")).toBe(true);
-    });
-    // The inherited agent-default model is RENDERED so its reasoning is reachable…
-    expect(result.current.runtimeValue.model).toBe("gpt-5.5");
-
-    act(() => {
-      // …and the selector emits the effective model with the chosen effort.
-      result.current.onRuntimeChange({
-        provider: "codex",
-        model: "gpt-5.5",
-        reasoning_effort: "high",
-      });
-    });
-
-    await submitWithPrompt(result);
-
-    // A selector change becomes one coherent override so provider/model/reasoning
-    // cannot be interpreted against different defaults during session startup.
-    expect(mockMutateAsync).toHaveBeenCalledWith({
-      agent_name: "codex-agent",
-      workspace: "ws_alpha",
-      prompt: FIRST_MESSAGE,
-      network_participation: { mode: "local" },
-      provider: "codex",
-      model: "gpt-5.5",
-      reasoning_effort: "high",
-    });
-  });
-
-  it("Should send the model when the same model id is chosen under a different provider", async () => {
-    // The same canonical id exists under BOTH codex and claude. The agent default
-    // is codex/gpt-5.5; picking gpt-5.5 under CLAUDE must ship the model with the
-    // chosen provider (compound identity), never silently inherit the codex default.
-    const sharedModel = {
-      ...visibleCatalogFlags,
-      model_id: "gpt-5.5",
-      display_name: "GPT-5.5",
-      availability_state: "available_live",
-      available: true,
-      stale: false,
-      refreshed_at: "2026-05-07T10:00:00Z",
-      sources: [
-        {
-          source_id: "config",
-          source_kind: "config",
-          priority: 120,
-          refreshed_at: "2026-05-07T10:00:00Z",
-          stale: false,
-        },
-      ],
-      supports_reasoning: false,
-    };
-    mockListAllModels.mockResolvedValueOnce({
-      models: [
-        ...codexCatalog.models,
-        { ...sharedModel, provider_id: "codex" },
-        { ...sharedModel, provider_id: "claude" },
-      ],
-    });
-    const { wrapper } = createWrapper();
-    const { result } = renderHook(
-      () => useSessionCreateDialog({ agents: agentsWithDefaultModel, activeWorkspace }),
-      { wrapper }
-    );
-
-    act(() => {
-      result.current.openDialog("codex-agent");
-    });
-
-    await waitFor(() => {
-      expect(
-        result.current.runtimeModels.some(
-          option => option.id === "gpt-5.5" && option.provider === "claude"
-        )
-      ).toBe(true);
-    });
-
-    act(() => {
-      result.current.onRuntimeChange({
-        provider: "claude",
-        model: "gpt-5.5",
-        reasoning_effort: "",
-      });
-    });
-
-    await submitWithPrompt(result);
-
-    expect(mockMutateAsync).toHaveBeenLastCalledWith({
-      agent_name: "codex-agent",
-      workspace: "ws_alpha",
-      prompt: FIRST_MESSAGE,
-      network_participation: { mode: "local" },
-      provider: "claude",
-      model: "gpt-5.5",
-    });
+  it("Should clear advanced-only values when returning to Simple", () => {
+    const store = createSessionCreateStore();
+    store.trigger.dialogOpened({ agentName: "claude-agent", workspaceId: activeWorkspace.id });
+    store.trigger.modeSelected({ mode: "advanced" });
+    store.trigger.sessionNameChanged({ sessionName: "Keep this" });
+    store.trigger.workspacePathChanged({ workspacePath: "services/checkout" });
+    store.trigger.networkParticipationSelected({
+      networkParticipationMode: "live",
+      networkChannelId: "release-room",
+      networkChannelStrategy: "named",
+    });
+
+    store.trigger.modeSelected({ mode: "simple" });
+    const { draft } = store.getSnapshot().context;
+    expect(draft.sessionName).toBe("Keep this");
+    expect(draft.workspacePath).toBe("");
+    expect(draft.networkParticipationMode).toBe("local");
   });
 });

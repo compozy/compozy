@@ -583,7 +583,7 @@ func TestUDSTransportApprovalFlowMatchesHTTP(t *testing.T) {
 	}
 }
 
-func TestUDSTransportSessionProviderCreateReadMatchesHTTP(t *testing.T) {
+func TestUDSTransportSessionRuntimeCreateReadMatchesHTTP(t *testing.T) {
 	acpmock.RequireDriver(t)
 	t.Parallel()
 
@@ -595,42 +595,26 @@ func TestUDSTransportSessionProviderCreateReadMatchesHTTP(t *testing.T) {
 		}},
 	})
 
-	registration, ok := runtimeHarness.MockAgentRegistration(transportUDSAutomationAgent)
-	if !ok {
-		t.Fatalf("MockAgentRegistration(%q) not found", transportUDSAutomationAgent)
-	}
-	provider := registration.Provider
-
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
 	var created compozycontract.SessionResponse
 	if err := runtimeHarness.UDSJSON(ctx, http.MethodPost, "/api/sessions", compozycontract.CreateSessionRequest{
 		AgentName:     transportUDSAutomationAgent,
-		Provider:      provider,
 		WorkspacePath: runtimeHarness.WorkspaceRoot,
-		Prompt:        "Continue delegated task run",
 	}, &created); err != nil {
 		t.Fatalf("UDS create session error = %v", err)
 	}
 	if created.Session.ID == "" {
 		t.Fatal("UDS create session id = empty, want non-empty")
 	}
-	if created.Session.Provider != provider {
-		t.Fatalf("UDS create provider = %q, want %q", created.Session.Provider, provider)
+	if created.Session.Runtime.Status != "unbound" || created.Session.Runtime.Effective != nil {
+		t.Fatalf("UDS create runtime = %#v, want unbound without effective selection", created.Session.Runtime)
 	}
-	if created.Session.State != session.StateStarting {
-		t.Fatalf("UDS accepted create state = %q, want %q", created.Session.State, session.StateStarting)
+	if created.Session.State != session.StateActive {
+		t.Fatalf("UDS accepted create state = %q, want %q", created.Session.State, session.StateActive)
 	}
 	created.Session = waitForTransportSessionActive(t, ctx, runtimeHarness, created.Session)
-	waitForTransportTranscriptText(
-		t,
-		ctx,
-		runtimeHarness,
-		created.Session.ID,
-		"Continue delegated task run",
-		"Delegated task session responded.",
-	)
 
 	var udsDetail compozycontract.SessionResponse
 	if err := runtimeHarness.UDSJSON(
@@ -642,11 +626,10 @@ func TestUDSTransportSessionProviderCreateReadMatchesHTTP(t *testing.T) {
 	); err != nil {
 		t.Fatalf("UDS get session error = %v", err)
 	}
-	if udsDetail.Session.Provider != created.Session.Provider {
+	if udsDetail.Session.Runtime.Status != created.Session.Runtime.Status || udsDetail.Session.Runtime.Effective != nil {
 		t.Fatalf(
-			"UDS detail provider = %q, want create provider %q",
-			udsDetail.Session.Provider,
-			created.Session.Provider,
+			"UDS detail runtime = %#v, want unbound without effective selection",
+			udsDetail.Session.Runtime,
 		)
 	}
 
@@ -660,16 +643,15 @@ func TestUDSTransportSessionProviderCreateReadMatchesHTTP(t *testing.T) {
 	); err != nil {
 		t.Fatalf("HTTP get session error = %v", err)
 	}
-	if httpDetail.Session.Provider != created.Session.Provider {
+	if httpDetail.Session.Runtime.Status != created.Session.Runtime.Status || httpDetail.Session.Runtime.Effective != nil {
 		t.Fatalf(
-			"HTTP detail provider = %q, want UDS create provider %q",
-			httpDetail.Session.Provider,
-			created.Session.Provider,
+			"HTTP detail runtime = %#v, want unbound without effective selection",
+			httpDetail.Session.Runtime,
 		)
 	}
 }
 
-func TestUDSTransportResumeMissingProviderReturnsExplicitBadRequest(t *testing.T) {
+func TestUDSTransportStoppedSessionRemainsUnattachable(t *testing.T) {
 	acpmock.RequireDriver(t)
 	t.Parallel()
 
@@ -700,7 +682,6 @@ func TestUDSTransportResumeMissingProviderReturnsExplicitBadRequest(t *testing.T
 	var created compozycontract.SessionResponse
 	if err := runtimeHarness.UDSJSON(ctx, http.MethodPost, "/api/sessions", compozycontract.CreateSessionRequest{
 		AgentName:     transportUDSAutomationAgent,
-		Provider:      transportUDSOverrideProvider,
 		WorkspacePath: runtimeHarness.WorkspaceRoot,
 	}, &created); err != nil {
 		t.Fatalf("UDS create session error = %v", err)

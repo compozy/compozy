@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/spf13/cobra"
 )
 
@@ -20,10 +21,12 @@ func TestBundlesRenderHumanAndToon(t *testing.T) {
 		WorkspaceID:   "ws-1",
 		WorkspacePath: "/workspace/project",
 		State:         "active",
-		ACPSessionID:  "acp-1",
-		ACPCaps: &ACPCapsRecord{
-			SupportsLoadSession: true,
-			SupportedModes:      []string{"chat"},
+		Runtime: contract.SessionRuntimePayload{
+			ACPSessionID: "acp-1",
+			ACPCaps: &ACPCapsRecord{
+				SupportsLoadSession: true,
+				SupportedModes:      []string{"chat"},
+			},
 		},
 		CreatedAt: fixedTestNow.Add(-10 * time.Minute),
 		UpdatedAt: fixedTestNow,

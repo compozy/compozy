@@ -15,7 +15,9 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("next/navigation", () => ({
+  useParams: () => ({}),
   usePathname: () => mocks.pathname,
+  useRouter: () => ({ push: () => undefined, refresh: () => undefined }),
 }));
 
 function createFolder(folderKey = "loops", page = "catalog"): Folder {

@@ -15,6 +15,7 @@ type ACPDriverAdapter struct {
 
 var _ AgentDriver = (*ACPDriverAdapter)(nil)
 var _ ScopedInterrupter = (*ACPDriverAdapter)(nil)
+var _ RuntimeConfigurator = (*ACPDriverAdapter)(nil)
 
 // NewACPDriverAdapter wraps the provided ACP driver for use by the session manager.
 func NewACPDriverAdapter(driver *acp.Driver) *ACPDriverAdapter {
@@ -50,6 +51,19 @@ func (a *ACPDriverAdapter) Cancel(ctx context.Context, proc *AgentProcess) error
 		return err
 	}
 	return a.driver.Cancel(ctx, native)
+}
+
+// ConfigureRuntime applies mutable ACP settings to the active process.
+func (a *ACPDriverAdapter) ConfigureRuntime(
+	ctx context.Context,
+	proc *AgentProcess,
+	config acp.RuntimeConfig,
+) error {
+	native, err := a.nativeProcess(proc)
+	if err != nil {
+		return err
+	}
+	return a.driver.ConfigureRuntime(ctx, native, config)
 }
 
 // Interrupt signals only registered tool processes scoped to the session turn.

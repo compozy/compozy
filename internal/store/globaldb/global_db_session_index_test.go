@@ -570,14 +570,15 @@ func sessionInfoForWorkspaceStateIndexTest(
 	baseAt time.Time,
 ) store.SessionInfo {
 	return store.SessionInfo{
-		ID:          id,
-		Name:        id,
-		AgentName:   "coder",
-		WorkspaceID: workspaceID,
-		SessionType: "root",
-		State:       state,
-		CreatedAt:   baseAt,
-		UpdatedAt:   baseAt.Add(time.Duration(len(id)) * time.Second),
+		ID:            id,
+		Name:          id,
+		AgentName:     "coder",
+		RuntimeStatus: store.SessionRuntimeUnbound,
+		WorkspaceID:   workspaceID,
+		SessionType:   "root",
+		State:         state,
+		CreatedAt:     baseAt,
+		UpdatedAt:     baseAt.Add(time.Duration(len(id)) * time.Second),
 	}
 }
 

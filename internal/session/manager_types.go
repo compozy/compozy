@@ -58,11 +58,9 @@ type CreateOpts struct {
 	DiscardStartFailure bool
 }
 
-// CreateAcceptedOpts combines session creation options with an optional first
-// prompt that must be durably staged before the starting session is returned.
+// CreateAcceptedOpts carries one logical user-session creation request.
 type CreateAcceptedOpts struct {
-	Session       CreateOpts
-	InitialPrompt string
+	Session CreateOpts
 }
 
 // StoreOpener opens the per-session events store for a session directory.

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/listcursor"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 )
 
@@ -351,6 +352,13 @@ func sessionInfoFromCatalog(info store.SessionInfo) *Info {
 		Name:                 strings.TrimSpace(info.Name),
 		AgentName:            strings.TrimSpace(info.AgentName),
 		Provider:             strings.TrimSpace(info.Provider),
+		Model:                strings.TrimSpace(info.Model),
+		ReasoningEffort:      strings.TrimSpace(info.ReasoningEffort),
+		Speed:                info.Speed,
+		SpeedResolution:      speedpkg.CloneResolution(info.SpeedResolution),
+		RuntimeStatus:        info.RuntimeStatus,
+		RuntimeTransition:    info.RuntimeTransition,
+		RuntimeFailure:       strings.TrimSpace(info.RuntimeFailure),
 		WorkspaceID:          strings.TrimSpace(info.WorkspaceID),
 		NetworkParticipation: info.NetworkSpecSnapshot(),
 		Type:                 Type(strings.TrimSpace(info.SessionType)),

@@ -27,6 +27,10 @@ import { primarySessionFixture, sessionTranscriptFixture } from "@/systems/sessi
 import type { TranscriptMessage } from "@/systems/session/types";
 
 import { SessionChatRuntimeProvider } from "../session-chat-runtime-provider";
+import {
+  SessionPromptRuntimeContext,
+  type SessionPromptRuntimeSnapshot,
+} from "../../contexts/session-prompt-runtime-context-value";
 
 const SESSION_STREAM_QUERY = "frames=transcript";
 
@@ -360,12 +364,13 @@ function renderSessionThread(
     liveTailEnabled?: boolean;
     onCancelPrompt?: () => void;
     onRuntimeTranscriptCommit?: (sample: RuntimeTranscriptCommit) => void;
+    runtimeSnapshot?: SessionPromptRuntimeSnapshot;
     strictMode?: boolean;
   } = {}
 ) {
   const queryClient = options.queryClient ?? createQueryClient();
 
-  const tree = (
+  const sessionRuntime = (
     <QueryClientProvider client={queryClient}>
       <SessionChatRuntimeProvider
         sessionId={primarySessionFixture.id}
@@ -389,6 +394,33 @@ function renderSessionThread(
         {options.includeToaster ? <Toaster duration={500} /> : null}
       </SessionChatRuntimeProvider>
     </QueryClientProvider>
+  );
+  const tree = options.runtimeSnapshot ? (
+    <SessionPromptRuntimeContext
+      value={{
+        canSelectRuntime: true,
+        catalog: {
+          error: null,
+          loaded: true,
+          loading: false,
+          models: [],
+          providers: [],
+          refresh: () => undefined,
+          refreshError: null,
+          refreshing: false,
+          stale: false,
+        },
+        getRuntimeSnapshot: () => options.runtimeSnapshot ?? null,
+        onRuntimeChange: () => undefined,
+        onSpeedChange: () => undefined,
+        speed: "normal",
+        value: { provider: "", model: "", reasoning_effort: "" },
+      }}
+    >
+      {sessionRuntime}
+    </SessionPromptRuntimeContext>
+  ) : (
+    sessionRuntime
   );
   const utils = render(options.strictMode ? <StrictMode>{tree}</StrictMode> : tree);
   return { ...utils, queryClient };
@@ -918,16 +950,24 @@ describe("SessionChatRuntimeProvider", () => {
       fireEvent.change(composer, { target: { value: prompt } });
       await user.click(screen.getByTestId("composer-send-button"));
 
+      await waitFor(() => expect(countPromptFetches(fetchMock)).toBe(1));
+      const promptRequest = fetchMock.mock.calls.find(([input]) =>
+        getPathname(input as RequestInfo | URL).endsWith("/prompt")
+      );
+      expect((promptRequest?.[1] as RequestInit | undefined)?.signal?.aborted).toBe(false);
       expect(await screen.findByText(prompt)).toBeInTheDocument();
       expect(await screen.findByLabelText("Working")).toBeInTheDocument();
-      await waitFor(() => expect(countPromptFetches(fetchMock)).toBe(1));
 
       await user.click(screen.getByTestId("composer-stop-button"));
 
       expect(onCancelPrompt).toHaveBeenCalledTimes(1);
       await waitFor(() => {
+        expect((promptRequest?.[1] as RequestInit | undefined)?.signal?.aborted).toBe(true);
         expect(screen.queryByTestId("composer-stop-button")).not.toBeInTheDocument();
-        expect(screen.getByTestId("composer-send-button")).toBeEnabled();
+        const idleComposer = screen.getByRole("textbox", { name: "Session prompt" });
+        expect(idleComposer).toBeEnabled();
+        expect(idleComposer).toHaveValue("");
+        expect(screen.getByTestId("composer-send-button")).toBeDisabled();
       });
     } finally {
       promptResponse.resolve(
@@ -1101,6 +1141,40 @@ describe("SessionChatRuntimeProvider", () => {
     expect(
       completedRuntimeCommits.every(sample => sample.projectedIds.includes("turn-runtime-001"))
     ).toBe(true);
+  });
+
+  // Invariant: the assistant transport reads the runtime only when it builds a
+  // send request, preserving the selector's per-prompt snapshot. Owning layer:
+  // session chat transport integration. Canonical suite: this provider suite.
+  it("includes the selected runtime in the prompt transport body", async () => {
+    const runtime = {
+      model: "gpt-5.4",
+      provider: "codex",
+      reasoning_effort: "high" as const,
+      speed: "fast" as const,
+    };
+    const user = userEvent.setup();
+    renderSessionThread({ runtimeSnapshot: runtime });
+
+    fireEvent.change(screen.getByTestId("composer-textarea"), {
+      target: { value: "Use the selected runtime for this prompt" },
+    });
+    await user.click(screen.getByTestId("composer-send-button"));
+
+    await waitFor(() => expect(countPromptFetches(fetchMock)).toBe(1));
+    const promptCall = fetchMock.mock.calls.find(([input]) => {
+      return (
+        getPathname(input as RequestInfo | URL) ===
+        `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/${primarySessionFixture.id}/prompt`
+      );
+    });
+    const init = promptCall?.[1] as RequestInit | undefined;
+    const body = JSON.parse(String(init?.body)) as {
+      messages?: Array<{ role?: string }>;
+      runtime?: unknown;
+    };
+    expect(body.runtime).toEqual(runtime);
+    expect(body.messages?.at(-1)).toEqual(expect.objectContaining({ role: "user" }));
   });
 
   it("Should dock a live permission while the prompt stream remains open", async () => {

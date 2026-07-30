@@ -16,6 +16,7 @@ import (
 	"time"
 
 	devcycle "github.com/compozy/compozy/extensions/dev-cycle"
+	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
 	apitest "github.com/compozy/compozy/internal/api/testutil"
@@ -1461,6 +1462,8 @@ func TestDaemonNativeTools(t *testing.T) {
 		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDNetworkDirectResolve)
 		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDNetworkWork)
 		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDSessionList)
+		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDSessionCreate)
+		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDSessionPrompt)
 		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDSessionHealth)
 		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDAgentHeartbeatStatus)
 		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDAgentHeartbeatWake)
@@ -1487,6 +1490,8 @@ func TestDaemonNativeTools(t *testing.T) {
 			toolspkg.ToolIDNetworkDirectResolve,
 			toolspkg.ToolIDNetworkWork,
 			toolspkg.ToolIDSessionList,
+			toolspkg.ToolIDSessionCreate,
+			toolspkg.ToolIDSessionPrompt,
 			toolspkg.ToolIDSessionHealth,
 			toolspkg.ToolIDAgentHeartbeatStatus,
 			toolspkg.ToolIDAgentHeartbeatWake,
@@ -5379,6 +5384,8 @@ func TestDaemonNativeTools(t *testing.T) {
 		registryWorkspaceID := "ws-1"
 		foreignStableWorkspaceID := "ws-foreign-stable"
 		var seenListQuery session.ListQuery
+		var acceptedCreate session.CreateAcceptedOpts
+		var submittedPrompt session.SendPromptOpts
 		info := &session.Info{
 			ID:          "sess-1",
 			AgentName:   "coder",
@@ -5417,6 +5424,15 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 		manager := &nativeSessionPageHealthManager{
 			StubSessionManager: apitest.StubSessionManager{
+				CreateAcceptedFn: func(_ context.Context, opts session.CreateAcceptedOpts) (*session.Info, error) {
+					acceptedCreate = opts
+					return &session.Info{
+						ID:          "sess-created",
+						AgentName:   opts.Session.AgentName,
+						WorkspaceID: opts.Session.Workspace,
+						State:       session.StateActive,
+					}, nil
+				},
 				ListAllFn: func(context.Context) ([]*session.Info, error) {
 					return []*session.Info{info}, nil
 				},
@@ -5435,6 +5451,15 @@ func TestDaemonNativeTools(t *testing.T) {
 						return nil, session.ErrSessionNotFound
 					}
 					return info, nil
+				},
+				SendPromptFn: func(_ context.Context, id string, opts session.SendPromptOpts) (session.SendPromptResult, error) {
+					if id != "sess-1" {
+						return session.SendPromptResult{}, session.ErrSessionNotFound
+					}
+					submittedPrompt = opts
+					events := make(chan acp.AgentEvent)
+					close(events)
+					return session.SendPromptResult{Status: "accepted", NewTurnID: "turn-native", Events: events}, nil
 				},
 				EventsFn: func(_ context.Context, id string, query store.EventQuery) ([]store.SessionEvent, error) {
 					if id != "sess-1" || query.Limit != 1 {
@@ -5510,6 +5535,43 @@ func TestDaemonNativeTools(t *testing.T) {
 				requireNativeStructuredContains(t, result, tc.want)
 			})
 		}
+
+		createdResult, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{Operator: true},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSessionCreate,
+				Input:  json.RawMessage(`{"workspace":"ws-stable","agent":"coder","name":"native"}`),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(session_create) error = %v", err)
+		}
+		if acceptedCreate.Session.AgentName != "coder" || acceptedCreate.Session.Name != "native" ||
+			acceptedCreate.Session.Workspace != registryWorkspaceID {
+			t.Fatalf("session_create opts = %#v", acceptedCreate)
+		}
+		requireNativeStructuredContains(t, createdResult, []byte(`"sess-created"`))
+
+		promptResult, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{Operator: true},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSessionPrompt,
+				Input: json.RawMessage(
+					`{"workspace":"ws-stable","session_id":"sess-1","message":"review","runtime":{"provider":"codex","model":"gpt-5.6-sol","reasoning_effort":"high","speed":"fast"}}`,
+				),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(session_prompt) error = %v", err)
+		}
+		if submittedPrompt.Message != "review" || submittedPrompt.Runtime == nil ||
+			submittedPrompt.Runtime.Provider != "codex" || submittedPrompt.Runtime.Model != "gpt-5.6-sol" ||
+			submittedPrompt.Runtime.ReasoningEffort != "high" || submittedPrompt.Runtime.Speed != "fast" {
+			t.Fatalf("session_prompt opts = %#v", submittedPrompt)
+		}
+		requireNativeStructuredContains(t, promptResult, []byte(`"accepted"`))
 
 		listResult, err := registry.Call(
 			t.Context(),

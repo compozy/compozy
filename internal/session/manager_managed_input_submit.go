@@ -26,7 +26,7 @@ type managedInputExecution struct {
 	submission ManagedInputSubmission
 }
 
-func (m *Manager) startManagedInputPrompt(session *Session, entry store.SessionInputQueueEntry) {
+func (m *Manager) startManagedInputPrompt(session *Session, entry *store.SessionInputQueueEntry) {
 	if m == nil || session == nil {
 		return
 	}
@@ -100,7 +100,7 @@ func (m *Manager) startManagedInputPrompt(session *Session, entry store.SessionI
 	go drainPromptSource(events)
 }
 
-func managedInputOwnerFromEntry(entry store.SessionInputQueueEntry) (ManagedInputOwner, error) {
+func managedInputOwnerFromEntry(entry *store.SessionInputQueueEntry) (ManagedInputOwner, error) {
 	if entry.RunGeneration == nil || entry.OwnerEpoch == nil || entry.BindingEpoch == nil ||
 		strings.TrimSpace(entry.ID) == "" || strings.TrimSpace(entry.SessionID) == "" ||
 		entry.OwnerKind != managedInputOwnerGoal || strings.TrimSpace(entry.LoopRunID) == "" ||
@@ -136,7 +136,7 @@ func validateManagedInputSubmission(owner ManagedInputOwner, submission ManagedI
 }
 
 func managedInputPromptRequest(
-	entry store.SessionInputQueueEntry,
+	entry *store.SessionInputQueueEntry,
 	submission ManagedInputSubmission,
 ) (promptRequest, error) {
 	goalMeta, err := goalPromptMetaFromManagedInput(submission.PromptMeta)

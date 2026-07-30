@@ -1414,6 +1414,74 @@ func TestStartAppliesModelBeforeModelSpecificReasoning(t *testing.T) {
 	})
 }
 
+func TestConfigureRuntime(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should apply model then refreshed reasoning effort then speed", func(t *testing.T) {
+		t.Parallel()
+
+		driver := New()
+		captureFile := filepath.Join(t.TempDir(), "configure-runtime.jsonl")
+		proc := startHelperProcess(t, driver, "runtime_config_options", "", StartOpts{
+			Env: helperEnvWithCapture("runtime_config_options", "", captureFile),
+		})
+		defer stopProcess(t, driver, proc)
+
+		err := driver.ConfigureRuntime(testutil.Context(t), proc, RuntimeConfig{
+			Model:           "other-model",
+			ReasoningEffort: "max",
+			Speed:           speedpkg.SpeedFast,
+		})
+		if err != nil {
+			t.Fatalf("ConfigureRuntime() error = %v", err)
+		}
+
+		got := captureNegotiationSequence(t, captureFile)
+		want := []string{"model:other-model", "effort:max", "speed:fast"}
+		if !slices.Equal(got, want) {
+			t.Fatalf("runtime configuration sequence = %#v, want %#v", got, want)
+		}
+
+		caps := proc.CapsSnapshot()
+		assertConfigOption(t, caps.ConfigOptions, "model", "other-model", "other-model")
+		assertConfigOption(t, caps.ConfigOptions, "effort", "max", "none", "max")
+		assertConfigOption(t, caps.ConfigOptions, "speed", "fast", "normal", "fast")
+		if caps.SpeedResolution == nil ||
+			caps.SpeedResolution.Requested != speedpkg.SpeedFast ||
+			caps.SpeedResolution.Status != speedpkg.ResolutionApplied {
+			t.Fatalf("speed resolution = %#v, want applied fast", caps.SpeedResolution)
+		}
+	})
+
+	t.Run("Should return a typed failure when the provider rejects speed", func(t *testing.T) {
+		t.Parallel()
+
+		driver := New()
+		captureFile := filepath.Join(t.TempDir(), "configure-runtime-speed-rejected.jsonl")
+		proc := startHelperProcess(t, driver, "config_options_reject_speed", "", StartOpts{
+			Env: helperEnvWithCapture("config_options_reject_speed", "", captureFile),
+		})
+		defer stopProcess(t, driver, proc)
+
+		err := driver.ConfigureRuntime(testutil.Context(t), proc, RuntimeConfig{Speed: speedpkg.SpeedFast})
+		var negotiationErr *NegotiationError
+		if !errors.As(err, &negotiationErr) ||
+			negotiationErr.Code != NegotiationCodeSpeedRejected ||
+			negotiationErr.Stage != "speed" ||
+			negotiationErr.Requested != string(speedpkg.SpeedFast) {
+			t.Fatalf("ConfigureRuntime() error = %v, want speed_rejected NegotiationError", err)
+		}
+		if !captureMethodExists(t, captureFile, acpsdk.AgentMethodSessionSetConfigOption) {
+			t.Fatal("ConfigureRuntime() did not send the advertised speed config option")
+		}
+		resolution := proc.CapsSnapshot().SpeedResolution
+		if resolution == nil || resolution.Status != speedpkg.ResolutionRejected ||
+			resolution.Reason != speedpkg.ReasonProviderRejected {
+			t.Fatalf("speed resolution = %#v, want rejected by provider", resolution)
+		}
+	})
+}
+
 func TestStartRejectsReasoningEffortWhenConfigOptionIsAbsent(t *testing.T) {
 	t.Parallel()
 
@@ -2674,6 +2742,7 @@ func (a *helperACPAgent) NewSession(context.Context, acpsdk.NewSessionRequest) (
 		a.scenario == "config_options_no_model" ||
 		a.scenario == "config_options_no_reasoning" ||
 		a.scenario == "model_specific_config_options" ||
+		a.scenario == "runtime_config_options" ||
 		a.scenario == "config_option_update" {
 		configOptions := helperConfigOptions("new-model", "medium")
 		if a.scenario == "model_specific_config_options" {
@@ -3013,11 +3082,16 @@ func (a *helperACPAgent) SetSessionConfigOption(
 		if a.scenario == "config_options_reject_speed" && configID == "speed" {
 			return acpsdk.SetSessionConfigOptionResponse{}, errors.New("provider rejected speed")
 		}
-		if a.scenario == "model_specific_config_options" && configID == "model" {
-			a.configOptions = append(
+		if (a.scenario == "model_specific_config_options" || a.scenario == "runtime_config_options") &&
+			configID == "model" {
+			configOptions := append(
 				helperModelConfigOptions(string(value)),
 				helperSelectConfigOption("effort", "Reasoning effort", "none", "none", "max"),
 			)
+			if a.scenario == "runtime_config_options" {
+				configOptions = append(configOptions, helperSpeedConfigOption("normal"))
+			}
+			a.configOptions = configOptions
 			return acpsdk.SetSessionConfigOptionResponse{
 				ConfigOptions: append([]acpsdk.SessionConfigOption(nil), a.configOptions...),
 			}, nil

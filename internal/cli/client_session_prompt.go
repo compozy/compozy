@@ -104,7 +104,7 @@ func (c *unixSocketClient) doSessionPrompt(
 func (c *unixSocketClient) StreamPromptSession(
 	ctx context.Context,
 	id string,
-	message string,
+	request SessionPromptRequest,
 	handler SSEHandler,
 ) (err error) {
 	path, err := c.sessionScopedPath(ctx, id, "/prompt")
@@ -116,7 +116,7 @@ func (c *unixSocketClient) StreamPromptSession(
 		http.MethodPost,
 		path,
 		nil,
-		map[string]string{clientMessageKey: message},
+		request,
 		"",
 		agentidentity.Credentials{},
 		c.streamHTTPClient(),

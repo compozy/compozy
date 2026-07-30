@@ -4,9 +4,9 @@ area: RT
 title: Start a new session with immediate truthful feedback
 persona: Bruno
 journey: J-17
-expected: Clicking New session opens a first-message composer; Send gives visible feedback within 100 ms, atomically queues the prompt, navigates to one durable `starting` session within 250 ms, and surfaces a durable startup failure without duplicate creation; the queued prompt remains available for explicit resume and is never posted a second time by the web client.
+expected: Clicking New session opens launch details without a first-message composer; Create gives visible feedback within 100 ms, creates one durable session and activates its owner workspace before navigation within 250 ms, then the destination composer accepts the separate first prompt and its runtime selection without duplicate creation.
 entry_points: web agent detail New session; web Agents Start session
-qa_status: blocked-verify
+qa_status: untested
 bug_ids: BUG-20260713-cursor-model-startup-contract; BUG-20260713-new-session-modal-lingers; BUG-20260713-first-prompt-optimistic-stuck; BUG-20260713-stop-generation-local-stuck; BUG-20260729-accepted-start-stop-identity-race
 fix_status: fixed
 retest_status: pass

@@ -38,5 +38,6 @@ type canonicalEventPayload struct {
 	AvailableCommands []store.SessionAdvertisedCommand `json:"available_commands,omitempty"`
 	Usage             *acp.TokenUsage                  `json:"usage,omitempty"`
 	Runtime           *acp.RuntimeActivity             `json:"runtime,omitempty"`
+	PromptRuntime     *acp.PromptRuntime               `json:"prompt_runtime,omitempty"`
 	Raw               json.RawMessage                  `json:"raw,omitempty"`
 }

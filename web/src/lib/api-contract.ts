@@ -66,9 +66,9 @@ export type OperationRequestBody<Id extends OperationId> = OperationRequestBodyF
   Id
 >;
 
-export type ReasoningEffort = NonNullable<
-  OperationRequestBody<"createSession">["reasoning_effort"]
->;
+type PromptRuntimeSelection = NonNullable<OperationRequestBody<"sendSessionPrompt">["runtime"]>;
+
+export type ReasoningEffort = NonNullable<PromptRuntimeSelection["reasoning_effort"]>;
 
 /**
  * Provider-neutral ACP runtime speed (PR #267). "normal" is the daemon default;
@@ -77,7 +77,7 @@ export type ReasoningEffort = NonNullable<
  * applied | unsupported | rejected) — there is no pre-session capability
  * signal, so UI treats this as intent, never as a guaranteed mode.
  */
-export type RuntimeSpeed = NonNullable<OperationRequestBody<"createSession">["speed"]>;
+export type RuntimeSpeed = NonNullable<PromptRuntimeSelection["speed"]>;
 
 const reasoningEffortMembership = {
   none: true,

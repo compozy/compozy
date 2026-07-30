@@ -25,6 +25,7 @@ import (
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	memorypkg "github.com/compozy/compozy/internal/memory"
 	"github.com/compozy/compozy/internal/network/participation"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 	globalschema "github.com/compozy/compozy/internal/store/globaldb/schema"
 	"github.com/compozy/compozy/internal/store/sessiondb"
@@ -971,15 +972,21 @@ func TestGlobalDBRegisterUpdateAndListSessions(t *testing.T) {
 		filepath.Join(t.TempDir(), "workspace-global"),
 	)
 	session := SessionInfo{
-		ID:          "sess-global",
-		Name:        "Alpha",
-		AgentName:   "coder",
-		Provider:    "claude",
-		WorkspaceID: workspaceID,
-		SessionType: "dream",
-		State:       "active",
-		CreatedAt:   createdAt,
-		UpdatedAt:   createdAt,
+		ID:                "sess-global",
+		Name:              "Alpha",
+		AgentName:         "coder",
+		Provider:          "claude",
+		Model:             "claude-opus-4",
+		ReasoningEffort:   "high",
+		Speed:             speedpkg.SpeedFast,
+		SpeedResolution:   &speedpkg.Resolution{Requested: speedpkg.SpeedFast, Status: speedpkg.ResolutionApplied},
+		RuntimeStatus:     store.SessionRuntimeReady,
+		RuntimeTransition: store.SessionRuntimeTransitionLiveConfiguration,
+		WorkspaceID:       workspaceID,
+		SessionType:       "dream",
+		State:             "active",
+		CreatedAt:         createdAt,
+		UpdatedAt:         createdAt,
 	}
 
 	if err := globalDB.RegisterSession(testutil.Context(t), session); err != nil {
@@ -996,7 +1003,30 @@ func TestGlobalDBRegisterUpdateAndListSessions(t *testing.T) {
 		t.Fatalf("UpdateSessionState() error = %v", err)
 	}
 
-	sessions, err := globalDB.ListSessions(testutil.Context(t), SessionListQuery{State: "stopped"})
+	foreignWorkspaceID := registerWorkspaceForGlobalTests(
+		t,
+		globalDB,
+		"sess-global-foreign-workspace",
+		filepath.Join(t.TempDir(), "workspace-global-foreign"),
+	)
+	if err := globalDB.RegisterSession(testutil.Context(t), SessionInfo{
+		ID:                "sess-global-foreign",
+		AgentName:         "coder",
+		Provider:          "foreign-provider",
+		Model:             "foreign-model",
+		RuntimeStatus:     store.SessionRuntimeReady,
+		RuntimeTransition: store.SessionRuntimeTransitionInitialBind,
+		WorkspaceID:       foreignWorkspaceID,
+		State:             "stopped",
+		CreatedAt:         createdAt,
+		UpdatedAt:         createdAt,
+	}); err != nil {
+		t.Fatalf("RegisterSession(foreign) error = %v", err)
+	}
+
+	sessions, err := globalDB.ListSessions(testutil.Context(t), SessionListQuery{
+		State: "stopped", WorkspaceID: workspaceID,
+	})
 	if err != nil {
 		t.Fatalf("ListSessions() error = %v", err)
 	}
@@ -1014,6 +1044,13 @@ func TestGlobalDBRegisterUpdateAndListSessions(t *testing.T) {
 	}
 	if sessions[0].Provider != "claude" {
 		t.Fatalf("sessions[0].Provider = %q, want claude", sessions[0].Provider)
+	}
+	if sessions[0].Model != "claude-opus-4" || sessions[0].ReasoningEffort != "high" ||
+		sessions[0].Speed != speedpkg.SpeedFast || sessions[0].SpeedResolution == nil ||
+		sessions[0].SpeedResolution.Status != speedpkg.ResolutionApplied ||
+		sessions[0].RuntimeStatus != store.SessionRuntimeReady ||
+		sessions[0].RuntimeTransition != store.SessionRuntimeTransitionLiveConfiguration {
+		t.Fatalf("sessions[0] runtime projection = %#v", sessions[0])
 	}
 	if sessions[0].ACPSessionID == nil || *sessions[0].ACPSessionID != "acp-123" {
 		t.Fatalf("sessions[0].ACPSessionID = %#v, want acp-123", sessions[0].ACPSessionID)
@@ -2197,6 +2234,13 @@ func TestGlobalDBRegisterAndListSessionsUseWorkspaceID(t *testing.T) {
 			"name",
 			"agent_name",
 			"provider",
+			"model",
+			"reasoning_effort",
+			"speed",
+			"speed_resolution_json",
+			"runtime_status",
+			"runtime_transition",
+			"runtime_failure",
 			"workspace_id",
 			"session_type",
 			"state",
@@ -3088,13 +3132,14 @@ func registerSessionForGlobalTests(t *testing.T, globalDB *GlobalDB, sessionID s
 		filepath.Join(t.TempDir(), sessionID),
 	)
 	if err := globalDB.RegisterSession(testutil.Context(t), SessionInfo{
-		ID:          sessionID,
-		AgentName:   "coder",
-		Provider:    "claude",
-		WorkspaceID: workspaceID,
-		State:       "active",
-		CreatedAt:   now,
-		UpdatedAt:   now,
+		ID:            sessionID,
+		AgentName:     "coder",
+		Provider:      "claude",
+		RuntimeStatus: store.SessionRuntimeUnbound,
+		WorkspaceID:   workspaceID,
+		State:         "active",
+		CreatedAt:     now,
+		UpdatedAt:     now,
 	}); err != nil {
 		t.Fatalf("RegisterSession(%q) error = %v", sessionID, err)
 	}

@@ -4200,7 +4200,6 @@ export interface SessionCreatePatch {
 
 export interface SessionCreateResult {
   session_id: string;
-  provider: string;
 }
 
 export interface SessionEvent {
@@ -4542,10 +4541,6 @@ export interface SessionTargetParams {
 
 export interface SessionsCreateParams {
   agent: string;
-  prompt?: string;
-  provider?: string;
-  model?: string;
-  reasoning_effort?: ReasoningEffort;
   workspace?: string;
   network_participation?: NetworkParticipationRequest;
 }
@@ -4554,10 +4549,20 @@ export interface SessionsListParams {
   workspace?: string;
 }
 
+export type Speed = string;
+
+export interface PromptRuntimeSelectionPayload {
+  provider: string;
+  model?: string;
+  reasoning_effort?: ReasoningEffort;
+  speed?: Speed;
+}
+
 export interface SessionsPromptParams {
   workspace_id: string;
   session_id: string;
   message: string;
+  runtime?: PromptRuntimeSelectionPayload;
 }
 
 export interface ShutdownRequest {

@@ -2,7 +2,12 @@ import { AlertCircle } from "lucide-react";
 
 import { Spinner } from "@compozy/ui";
 
-import { SessionChatRuntimeProvider, type SessionPayload } from "@/systems/session";
+import {
+  isUserControllableSession,
+  SessionChatRuntimeProvider,
+  SessionPromptRuntimeProvider,
+  type SessionPayload,
+} from "@/systems/session";
 
 import { SessionWindowContent } from "./session-window-content";
 
@@ -43,20 +48,25 @@ export function SessionWindowView({
 
   const resolvedAgentName = session.agent_name || name;
   return (
-    <SessionChatRuntimeProvider
+    <SessionPromptRuntimeProvider
       key={id}
-      sessionId={id}
-      workspaceId={sessionWorkspaceId}
-      liveTailEnabled={liveTailEnabled}
+      canPrompt={session.state === "active" && isUserControllableSession(session)}
+      session={session}
     >
-      <SessionWindowContent
-        agentName={resolvedAgentName}
+      <SessionChatRuntimeProvider
         sessionId={id}
-        session={session}
         workspaceId={sessionWorkspaceId}
-        onDeleteSuccess={onDeleteSuccess}
-      />
-    </SessionChatRuntimeProvider>
+        liveTailEnabled={liveTailEnabled}
+      >
+        <SessionWindowContent
+          agentName={resolvedAgentName}
+          sessionId={id}
+          session={session}
+          workspaceId={sessionWorkspaceId}
+          onDeleteSuccess={onDeleteSuccess}
+        />
+      </SessionChatRuntimeProvider>
+    </SessionPromptRuntimeProvider>
   );
 }
 

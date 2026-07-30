@@ -13255,23 +13255,6 @@ export interface operations {
                 workspace_paths: string[];
               };
               session: {
-                acp_caps?: {
-                  config_options?: {
-                    current?: string;
-                    description?: string;
-                    id: string;
-                    kind: string;
-                    label?: string;
-                    values?: {
-                      description?: string;
-                      label?: string;
-                      value: string;
-                    }[];
-                  }[];
-                  supported_modes?: string[];
-                  supports_load_session: boolean;
-                } | null;
-                acp_session_id?: string;
                 activity?: {
                   current_tool?: string;
                   /** Format: date-time */
@@ -13369,11 +13352,7 @@ export interface operations {
                   /** Format: date-time */
                   ttl_expires_at?: string | null;
                 } | null;
-                model?: string;
                 name?: string;
-                provider: string;
-                /** @enum {string} */
-                reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
                 resolved_network_participation?:
                   | (
                       | {
@@ -13421,6 +13400,55 @@ export interface operations {
                         }
                     )
                   | null;
+                runtime: {
+                  acp_caps?: {
+                    config_options?: {
+                      current?: string;
+                      description?: string;
+                      id: string;
+                      kind: string;
+                      label?: string;
+                      values?: {
+                        description?: string;
+                        label?: string;
+                        value: string;
+                      }[];
+                    }[];
+                    supported_modes?: string[];
+                    supports_load_session: boolean;
+                  } | null;
+                  acp_session_id?: string;
+                  effective?: {
+                    model?: string;
+                    provider: string;
+                    /** @enum {string} */
+                    reasoning_effort?:
+                      | "none"
+                      | "minimal"
+                      | "low"
+                      | "medium"
+                      | "high"
+                      | "xhigh"
+                      | "max";
+                    /** @enum {string} */
+                    speed?: "normal" | "fast";
+                    speed_resolution?: {
+                      /** @enum {string} */
+                      reason?:
+                        | "capability_absent"
+                        | "capability_ambiguous"
+                        | "value_ambiguous"
+                        | "provider_rejected";
+                      /** @enum {string} */
+                      requested: "normal" | "fast";
+                      /** @enum {string} */
+                      status: "applied" | "unsupported" | "rejected";
+                    } | null;
+                  } | null;
+                  failure?: string;
+                  status: string;
+                  transition?: string;
+                };
                 sandbox?: {
                   backend?: string;
                   instance_id?: string;
@@ -13429,20 +13457,6 @@ export interface operations {
                   provider_state_json?: unknown;
                   sandbox_id?: string;
                   state?: string;
-                } | null;
-                /** @enum {string} */
-                speed?: "normal" | "fast";
-                speed_resolution?: {
-                  /** @enum {string} */
-                  reason?:
-                    | "capability_absent"
-                    | "capability_ambiguous"
-                    | "value_ambiguous"
-                    | "provider_rejected";
-                  /** @enum {string} */
-                  requested: "normal" | "fast";
-                  /** @enum {string} */
-                  status: "applied" | "unsupported" | "rejected";
                 } | null;
                 /** @enum {string} */
                 state: "starting" | "active" | "stopping" | "stopped";
@@ -46805,23 +46819,6 @@ export interface operations {
               total: number;
             };
             sessions: {
-              acp_caps?: {
-                config_options?: {
-                  current?: string;
-                  description?: string;
-                  id: string;
-                  kind: string;
-                  label?: string;
-                  values?: {
-                    description?: string;
-                    label?: string;
-                    value: string;
-                  }[];
-                }[];
-                supported_modes?: string[];
-                supports_load_session: boolean;
-              } | null;
-              acp_session_id?: string;
               activity?: {
                 current_tool?: string;
                 /** Format: date-time */
@@ -46919,11 +46916,7 @@ export interface operations {
                 /** Format: date-time */
                 ttl_expires_at?: string | null;
               } | null;
-              model?: string;
               name?: string;
-              provider: string;
-              /** @enum {string} */
-              reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
               resolved_network_participation?:
                 | (
                     | {
@@ -46971,6 +46964,55 @@ export interface operations {
                       }
                   )
                 | null;
+              runtime: {
+                acp_caps?: {
+                  config_options?: {
+                    current?: string;
+                    description?: string;
+                    id: string;
+                    kind: string;
+                    label?: string;
+                    values?: {
+                      description?: string;
+                      label?: string;
+                      value: string;
+                    }[];
+                  }[];
+                  supported_modes?: string[];
+                  supports_load_session: boolean;
+                } | null;
+                acp_session_id?: string;
+                effective?: {
+                  model?: string;
+                  provider: string;
+                  /** @enum {string} */
+                  reasoning_effort?:
+                    | "none"
+                    | "minimal"
+                    | "low"
+                    | "medium"
+                    | "high"
+                    | "xhigh"
+                    | "max";
+                  /** @enum {string} */
+                  speed?: "normal" | "fast";
+                  speed_resolution?: {
+                    /** @enum {string} */
+                    reason?:
+                      | "capability_absent"
+                      | "capability_ambiguous"
+                      | "value_ambiguous"
+                      | "provider_rejected";
+                    /** @enum {string} */
+                    requested: "normal" | "fast";
+                    /** @enum {string} */
+                    status: "applied" | "unsupported" | "rejected";
+                  } | null;
+                } | null;
+                failure?: string;
+                status: string;
+                transition?: string;
+              };
               sandbox?: {
                 backend?: string;
                 instance_id?: string;
@@ -46979,20 +47021,6 @@ export interface operations {
                 provider_state_json?: unknown;
                 sandbox_id?: string;
                 state?: string;
-              } | null;
-              /** @enum {string} */
-              speed?: "normal" | "fast";
-              speed_resolution?: {
-                /** @enum {string} */
-                reason?:
-                  | "capability_absent"
-                  | "capability_ambiguous"
-                  | "value_ambiguous"
-                  | "provider_rejected";
-                /** @enum {string} */
-                requested: "normal" | "fast";
-                /** @enum {string} */
-                status: "applied" | "unsupported" | "rejected";
               } | null;
               /** @enum {string} */
               state: "starting" | "active" | "stopping" | "stopped";
@@ -47160,7 +47188,6 @@ export interface operations {
       content: {
         "application/json": {
           agent_name?: string;
-          model?: string;
           name?: string;
           network_participation?:
             | (
@@ -47222,12 +47249,6 @@ export interface operations {
                   }
               )
             | null;
-          prompt?: string;
-          provider?: string;
-          /** @enum {string} */
-          reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
-          /** @enum {string} */
-          speed?: "normal" | "fast";
           workspace?: string;
           workspace_path?: string;
         };
@@ -47242,23 +47263,6 @@ export interface operations {
         content: {
           "application/json": {
             session: {
-              acp_caps?: {
-                config_options?: {
-                  current?: string;
-                  description?: string;
-                  id: string;
-                  kind: string;
-                  label?: string;
-                  values?: {
-                    description?: string;
-                    label?: string;
-                    value: string;
-                  }[];
-                }[];
-                supported_modes?: string[];
-                supports_load_session: boolean;
-              } | null;
-              acp_session_id?: string;
               activity?: {
                 current_tool?: string;
                 /** Format: date-time */
@@ -47356,11 +47360,7 @@ export interface operations {
                 /** Format: date-time */
                 ttl_expires_at?: string | null;
               } | null;
-              model?: string;
               name?: string;
-              provider: string;
-              /** @enum {string} */
-              reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
               resolved_network_participation?:
                 | (
                     | {
@@ -47408,6 +47408,55 @@ export interface operations {
                       }
                   )
                 | null;
+              runtime: {
+                acp_caps?: {
+                  config_options?: {
+                    current?: string;
+                    description?: string;
+                    id: string;
+                    kind: string;
+                    label?: string;
+                    values?: {
+                      description?: string;
+                      label?: string;
+                      value: string;
+                    }[];
+                  }[];
+                  supported_modes?: string[];
+                  supports_load_session: boolean;
+                } | null;
+                acp_session_id?: string;
+                effective?: {
+                  model?: string;
+                  provider: string;
+                  /** @enum {string} */
+                  reasoning_effort?:
+                    | "none"
+                    | "minimal"
+                    | "low"
+                    | "medium"
+                    | "high"
+                    | "xhigh"
+                    | "max";
+                  /** @enum {string} */
+                  speed?: "normal" | "fast";
+                  speed_resolution?: {
+                    /** @enum {string} */
+                    reason?:
+                      | "capability_absent"
+                      | "capability_ambiguous"
+                      | "value_ambiguous"
+                      | "provider_rejected";
+                    /** @enum {string} */
+                    requested: "normal" | "fast";
+                    /** @enum {string} */
+                    status: "applied" | "unsupported" | "rejected";
+                  } | null;
+                } | null;
+                failure?: string;
+                status: string;
+                transition?: string;
+              };
               sandbox?: {
                 backend?: string;
                 instance_id?: string;
@@ -47416,20 +47465,6 @@ export interface operations {
                 provider_state_json?: unknown;
                 sandbox_id?: string;
                 state?: string;
-              } | null;
-              /** @enum {string} */
-              speed?: "normal" | "fast";
-              speed_resolution?: {
-                /** @enum {string} */
-                reason?:
-                  | "capability_absent"
-                  | "capability_ambiguous"
-                  | "value_ambiguous"
-                  | "provider_rejected";
-                /** @enum {string} */
-                requested: "normal" | "fast";
-                /** @enum {string} */
-                status: "applied" | "unsupported" | "rejected";
               } | null;
               /** @enum {string} */
               state: "starting" | "active" | "stopping" | "stopped";
@@ -47682,23 +47717,6 @@ export interface operations {
         content: {
           "application/json": {
             session: {
-              acp_caps?: {
-                config_options?: {
-                  current?: string;
-                  description?: string;
-                  id: string;
-                  kind: string;
-                  label?: string;
-                  values?: {
-                    description?: string;
-                    label?: string;
-                    value: string;
-                  }[];
-                }[];
-                supported_modes?: string[];
-                supports_load_session: boolean;
-              } | null;
-              acp_session_id?: string;
               activity?: {
                 current_tool?: string;
                 /** Format: date-time */
@@ -47796,11 +47814,7 @@ export interface operations {
                 /** Format: date-time */
                 ttl_expires_at?: string | null;
               } | null;
-              model?: string;
               name?: string;
-              provider: string;
-              /** @enum {string} */
-              reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
               resolved_network_participation?:
                 | (
                     | {
@@ -47848,6 +47862,55 @@ export interface operations {
                       }
                   )
                 | null;
+              runtime: {
+                acp_caps?: {
+                  config_options?: {
+                    current?: string;
+                    description?: string;
+                    id: string;
+                    kind: string;
+                    label?: string;
+                    values?: {
+                      description?: string;
+                      label?: string;
+                      value: string;
+                    }[];
+                  }[];
+                  supported_modes?: string[];
+                  supports_load_session: boolean;
+                } | null;
+                acp_session_id?: string;
+                effective?: {
+                  model?: string;
+                  provider: string;
+                  /** @enum {string} */
+                  reasoning_effort?:
+                    | "none"
+                    | "minimal"
+                    | "low"
+                    | "medium"
+                    | "high"
+                    | "xhigh"
+                    | "max";
+                  /** @enum {string} */
+                  speed?: "normal" | "fast";
+                  speed_resolution?: {
+                    /** @enum {string} */
+                    reason?:
+                      | "capability_absent"
+                      | "capability_ambiguous"
+                      | "value_ambiguous"
+                      | "provider_rejected";
+                    /** @enum {string} */
+                    requested: "normal" | "fast";
+                    /** @enum {string} */
+                    status: "applied" | "unsupported" | "rejected";
+                  } | null;
+                } | null;
+                failure?: string;
+                status: string;
+                transition?: string;
+              };
               sandbox?: {
                 backend?: string;
                 instance_id?: string;
@@ -47856,20 +47919,6 @@ export interface operations {
                 provider_state_json?: unknown;
                 sandbox_id?: string;
                 state?: string;
-              } | null;
-              /** @enum {string} */
-              speed?: "normal" | "fast";
-              speed_resolution?: {
-                /** @enum {string} */
-                reason?:
-                  | "capability_absent"
-                  | "capability_ambiguous"
-                  | "value_ambiguous"
-                  | "provider_rejected";
-                /** @enum {string} */
-                requested: "normal" | "fast";
-                /** @enum {string} */
-                status: "applied" | "unsupported" | "rejected";
               } | null;
               /** @enum {string} */
               state: "starting" | "active" | "stopping" | "stopped";
@@ -82436,23 +82485,6 @@ export interface operations {
               runtime_provider?: string;
             }[];
             sessions?: {
-              acp_caps?: {
-                config_options?: {
-                  current?: string;
-                  description?: string;
-                  id: string;
-                  kind: string;
-                  label?: string;
-                  values?: {
-                    description?: string;
-                    label?: string;
-                    value: string;
-                  }[];
-                }[];
-                supported_modes?: string[];
-                supports_load_session: boolean;
-              } | null;
-              acp_session_id?: string;
               activity?: {
                 current_tool?: string;
                 /** Format: date-time */
@@ -82550,11 +82582,7 @@ export interface operations {
                 /** Format: date-time */
                 ttl_expires_at?: string | null;
               } | null;
-              model?: string;
               name?: string;
-              provider: string;
-              /** @enum {string} */
-              reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
               resolved_network_participation?:
                 | (
                     | {
@@ -82602,6 +82630,55 @@ export interface operations {
                       }
                   )
                 | null;
+              runtime: {
+                acp_caps?: {
+                  config_options?: {
+                    current?: string;
+                    description?: string;
+                    id: string;
+                    kind: string;
+                    label?: string;
+                    values?: {
+                      description?: string;
+                      label?: string;
+                      value: string;
+                    }[];
+                  }[];
+                  supported_modes?: string[];
+                  supports_load_session: boolean;
+                } | null;
+                acp_session_id?: string;
+                effective?: {
+                  model?: string;
+                  provider: string;
+                  /** @enum {string} */
+                  reasoning_effort?:
+                    | "none"
+                    | "minimal"
+                    | "low"
+                    | "medium"
+                    | "high"
+                    | "xhigh"
+                    | "max";
+                  /** @enum {string} */
+                  speed?: "normal" | "fast";
+                  speed_resolution?: {
+                    /** @enum {string} */
+                    reason?:
+                      | "capability_absent"
+                      | "capability_ambiguous"
+                      | "value_ambiguous"
+                      | "provider_rejected";
+                    /** @enum {string} */
+                    requested: "normal" | "fast";
+                    /** @enum {string} */
+                    status: "applied" | "unsupported" | "rejected";
+                  } | null;
+                } | null;
+                failure?: string;
+                status: string;
+                transition?: string;
+              };
               sandbox?: {
                 backend?: string;
                 instance_id?: string;
@@ -82610,20 +82687,6 @@ export interface operations {
                 provider_state_json?: unknown;
                 sandbox_id?: string;
                 state?: string;
-              } | null;
-              /** @enum {string} */
-              speed?: "normal" | "fast";
-              speed_resolution?: {
-                /** @enum {string} */
-                reason?:
-                  | "capability_absent"
-                  | "capability_ambiguous"
-                  | "value_ambiguous"
-                  | "provider_rejected";
-                /** @enum {string} */
-                requested: "normal" | "fast";
-                /** @enum {string} */
-                status: "applied" | "unsupported" | "rejected";
               } | null;
               /** @enum {string} */
               state: "starting" | "active" | "stopping" | "stopped";
@@ -92484,23 +92547,6 @@ export interface operations {
               purpose?: string;
               session_count?: number;
               sessions?: {
-                acp_caps?: {
-                  config_options?: {
-                    current?: string;
-                    description?: string;
-                    id: string;
-                    kind: string;
-                    label?: string;
-                    values?: {
-                      description?: string;
-                      label?: string;
-                      value: string;
-                    }[];
-                  }[];
-                  supported_modes?: string[];
-                  supports_load_session: boolean;
-                } | null;
-                acp_session_id?: string;
                 activity?: {
                   current_tool?: string;
                   /** Format: date-time */
@@ -92598,11 +92644,7 @@ export interface operations {
                   /** Format: date-time */
                   ttl_expires_at?: string | null;
                 } | null;
-                model?: string;
                 name?: string;
-                provider: string;
-                /** @enum {string} */
-                reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
                 resolved_network_participation?:
                   | (
                       | {
@@ -92650,6 +92692,55 @@ export interface operations {
                         }
                     )
                   | null;
+                runtime: {
+                  acp_caps?: {
+                    config_options?: {
+                      current?: string;
+                      description?: string;
+                      id: string;
+                      kind: string;
+                      label?: string;
+                      values?: {
+                        description?: string;
+                        label?: string;
+                        value: string;
+                      }[];
+                    }[];
+                    supported_modes?: string[];
+                    supports_load_session: boolean;
+                  } | null;
+                  acp_session_id?: string;
+                  effective?: {
+                    model?: string;
+                    provider: string;
+                    /** @enum {string} */
+                    reasoning_effort?:
+                      | "none"
+                      | "minimal"
+                      | "low"
+                      | "medium"
+                      | "high"
+                      | "xhigh"
+                      | "max";
+                    /** @enum {string} */
+                    speed?: "normal" | "fast";
+                    speed_resolution?: {
+                      /** @enum {string} */
+                      reason?:
+                        | "capability_absent"
+                        | "capability_ambiguous"
+                        | "value_ambiguous"
+                        | "provider_rejected";
+                      /** @enum {string} */
+                      requested: "normal" | "fast";
+                      /** @enum {string} */
+                      status: "applied" | "unsupported" | "rejected";
+                    } | null;
+                  } | null;
+                  failure?: string;
+                  status: string;
+                  transition?: string;
+                };
                 sandbox?: {
                   backend?: string;
                   instance_id?: string;
@@ -92658,20 +92749,6 @@ export interface operations {
                   provider_state_json?: unknown;
                   sandbox_id?: string;
                   state?: string;
-                } | null;
-                /** @enum {string} */
-                speed?: "normal" | "fast";
-                speed_resolution?: {
-                  /** @enum {string} */
-                  reason?:
-                    | "capability_absent"
-                    | "capability_ambiguous"
-                    | "value_ambiguous"
-                    | "provider_rejected";
-                  /** @enum {string} */
-                  requested: "normal" | "fast";
-                  /** @enum {string} */
-                  status: "applied" | "unsupported" | "rejected";
                 } | null;
                 /** @enum {string} */
                 state: "starting" | "active" | "stopping" | "stopped";
@@ -92874,23 +92951,6 @@ export interface operations {
               purpose?: string;
               session_count?: number;
               sessions?: {
-                acp_caps?: {
-                  config_options?: {
-                    current?: string;
-                    description?: string;
-                    id: string;
-                    kind: string;
-                    label?: string;
-                    values?: {
-                      description?: string;
-                      label?: string;
-                      value: string;
-                    }[];
-                  }[];
-                  supported_modes?: string[];
-                  supports_load_session: boolean;
-                } | null;
-                acp_session_id?: string;
                 activity?: {
                   current_tool?: string;
                   /** Format: date-time */
@@ -92988,11 +93048,7 @@ export interface operations {
                   /** Format: date-time */
                   ttl_expires_at?: string | null;
                 } | null;
-                model?: string;
                 name?: string;
-                provider: string;
-                /** @enum {string} */
-                reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
                 resolved_network_participation?:
                   | (
                       | {
@@ -93040,6 +93096,55 @@ export interface operations {
                         }
                     )
                   | null;
+                runtime: {
+                  acp_caps?: {
+                    config_options?: {
+                      current?: string;
+                      description?: string;
+                      id: string;
+                      kind: string;
+                      label?: string;
+                      values?: {
+                        description?: string;
+                        label?: string;
+                        value: string;
+                      }[];
+                    }[];
+                    supported_modes?: string[];
+                    supports_load_session: boolean;
+                  } | null;
+                  acp_session_id?: string;
+                  effective?: {
+                    model?: string;
+                    provider: string;
+                    /** @enum {string} */
+                    reasoning_effort?:
+                      | "none"
+                      | "minimal"
+                      | "low"
+                      | "medium"
+                      | "high"
+                      | "xhigh"
+                      | "max";
+                    /** @enum {string} */
+                    speed?: "normal" | "fast";
+                    speed_resolution?: {
+                      /** @enum {string} */
+                      reason?:
+                        | "capability_absent"
+                        | "capability_ambiguous"
+                        | "value_ambiguous"
+                        | "provider_rejected";
+                      /** @enum {string} */
+                      requested: "normal" | "fast";
+                      /** @enum {string} */
+                      status: "applied" | "unsupported" | "rejected";
+                    } | null;
+                  } | null;
+                  failure?: string;
+                  status: string;
+                  transition?: string;
+                };
                 sandbox?: {
                   backend?: string;
                   instance_id?: string;
@@ -93048,20 +93153,6 @@ export interface operations {
                   provider_state_json?: unknown;
                   sandbox_id?: string;
                   state?: string;
-                } | null;
-                /** @enum {string} */
-                speed?: "normal" | "fast";
-                speed_resolution?: {
-                  /** @enum {string} */
-                  reason?:
-                    | "capability_absent"
-                    | "capability_ambiguous"
-                    | "value_ambiguous"
-                    | "provider_rejected";
-                  /** @enum {string} */
-                  requested: "normal" | "fast";
-                  /** @enum {string} */
-                  status: "applied" | "unsupported" | "rejected";
                 } | null;
                 /** @enum {string} */
                 state: "starting" | "active" | "stopping" | "stopped";
@@ -93273,23 +93364,6 @@ export interface operations {
               purpose?: string;
               session_count?: number;
               sessions?: {
-                acp_caps?: {
-                  config_options?: {
-                    current?: string;
-                    description?: string;
-                    id: string;
-                    kind: string;
-                    label?: string;
-                    values?: {
-                      description?: string;
-                      label?: string;
-                      value: string;
-                    }[];
-                  }[];
-                  supported_modes?: string[];
-                  supports_load_session: boolean;
-                } | null;
-                acp_session_id?: string;
                 activity?: {
                   current_tool?: string;
                   /** Format: date-time */
@@ -93387,11 +93461,7 @@ export interface operations {
                   /** Format: date-time */
                   ttl_expires_at?: string | null;
                 } | null;
-                model?: string;
                 name?: string;
-                provider: string;
-                /** @enum {string} */
-                reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
                 resolved_network_participation?:
                   | (
                       | {
@@ -93439,6 +93509,55 @@ export interface operations {
                         }
                     )
                   | null;
+                runtime: {
+                  acp_caps?: {
+                    config_options?: {
+                      current?: string;
+                      description?: string;
+                      id: string;
+                      kind: string;
+                      label?: string;
+                      values?: {
+                        description?: string;
+                        label?: string;
+                        value: string;
+                      }[];
+                    }[];
+                    supported_modes?: string[];
+                    supports_load_session: boolean;
+                  } | null;
+                  acp_session_id?: string;
+                  effective?: {
+                    model?: string;
+                    provider: string;
+                    /** @enum {string} */
+                    reasoning_effort?:
+                      | "none"
+                      | "minimal"
+                      | "low"
+                      | "medium"
+                      | "high"
+                      | "xhigh"
+                      | "max";
+                    /** @enum {string} */
+                    speed?: "normal" | "fast";
+                    speed_resolution?: {
+                      /** @enum {string} */
+                      reason?:
+                        | "capability_absent"
+                        | "capability_ambiguous"
+                        | "value_ambiguous"
+                        | "provider_rejected";
+                      /** @enum {string} */
+                      requested: "normal" | "fast";
+                      /** @enum {string} */
+                      status: "applied" | "unsupported" | "rejected";
+                    } | null;
+                  } | null;
+                  failure?: string;
+                  status: string;
+                  transition?: string;
+                };
                 sandbox?: {
                   backend?: string;
                   instance_id?: string;
@@ -93447,20 +93566,6 @@ export interface operations {
                   provider_state_json?: unknown;
                   sandbox_id?: string;
                   state?: string;
-                } | null;
-                /** @enum {string} */
-                speed?: "normal" | "fast";
-                speed_resolution?: {
-                  /** @enum {string} */
-                  reason?:
-                    | "capability_absent"
-                    | "capability_ambiguous"
-                    | "value_ambiguous"
-                    | "provider_rejected";
-                  /** @enum {string} */
-                  requested: "normal" | "fast";
-                  /** @enum {string} */
-                  status: "applied" | "unsupported" | "rejected";
                 } | null;
                 /** @enum {string} */
                 state: "starting" | "active" | "stopping" | "stopped";
@@ -96357,23 +96462,6 @@ export interface operations {
         content: {
           "application/json": {
             session: {
-              acp_caps?: {
-                config_options?: {
-                  current?: string;
-                  description?: string;
-                  id: string;
-                  kind: string;
-                  label?: string;
-                  values?: {
-                    description?: string;
-                    label?: string;
-                    value: string;
-                  }[];
-                }[];
-                supported_modes?: string[];
-                supports_load_session: boolean;
-              } | null;
-              acp_session_id?: string;
               activity?: {
                 current_tool?: string;
                 /** Format: date-time */
@@ -96471,11 +96559,7 @@ export interface operations {
                 /** Format: date-time */
                 ttl_expires_at?: string | null;
               } | null;
-              model?: string;
               name?: string;
-              provider: string;
-              /** @enum {string} */
-              reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
               resolved_network_participation?:
                 | (
                     | {
@@ -96523,6 +96607,55 @@ export interface operations {
                       }
                   )
                 | null;
+              runtime: {
+                acp_caps?: {
+                  config_options?: {
+                    current?: string;
+                    description?: string;
+                    id: string;
+                    kind: string;
+                    label?: string;
+                    values?: {
+                      description?: string;
+                      label?: string;
+                      value: string;
+                    }[];
+                  }[];
+                  supported_modes?: string[];
+                  supports_load_session: boolean;
+                } | null;
+                acp_session_id?: string;
+                effective?: {
+                  model?: string;
+                  provider: string;
+                  /** @enum {string} */
+                  reasoning_effort?:
+                    | "none"
+                    | "minimal"
+                    | "low"
+                    | "medium"
+                    | "high"
+                    | "xhigh"
+                    | "max";
+                  /** @enum {string} */
+                  speed?: "normal" | "fast";
+                  speed_resolution?: {
+                    /** @enum {string} */
+                    reason?:
+                      | "capability_absent"
+                      | "capability_ambiguous"
+                      | "value_ambiguous"
+                      | "provider_rejected";
+                    /** @enum {string} */
+                    requested: "normal" | "fast";
+                    /** @enum {string} */
+                    status: "applied" | "unsupported" | "rejected";
+                  } | null;
+                } | null;
+                failure?: string;
+                status: string;
+                transition?: string;
+              };
               sandbox?: {
                 backend?: string;
                 instance_id?: string;
@@ -96531,20 +96664,6 @@ export interface operations {
                 provider_state_json?: unknown;
                 sandbox_id?: string;
                 state?: string;
-              } | null;
-              /** @enum {string} */
-              speed?: "normal" | "fast";
-              speed_resolution?: {
-                /** @enum {string} */
-                reason?:
-                  | "capability_absent"
-                  | "capability_ambiguous"
-                  | "value_ambiguous"
-                  | "provider_rejected";
-                /** @enum {string} */
-                requested: "normal" | "fast";
-                /** @enum {string} */
-                status: "applied" | "unsupported" | "rejected";
               } | null;
               /** @enum {string} */
               state: "starting" | "active" | "stopping" | "stopped";
@@ -96847,23 +96966,6 @@ export interface operations {
               session_id: string;
             };
             session: {
-              acp_caps?: {
-                config_options?: {
-                  current?: string;
-                  description?: string;
-                  id: string;
-                  kind: string;
-                  label?: string;
-                  values?: {
-                    description?: string;
-                    label?: string;
-                    value: string;
-                  }[];
-                }[];
-                supported_modes?: string[];
-                supports_load_session: boolean;
-              } | null;
-              acp_session_id?: string;
               activity?: {
                 current_tool?: string;
                 /** Format: date-time */
@@ -96961,11 +97063,7 @@ export interface operations {
                 /** Format: date-time */
                 ttl_expires_at?: string | null;
               } | null;
-              model?: string;
               name?: string;
-              provider: string;
-              /** @enum {string} */
-              reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
               resolved_network_participation?:
                 | (
                     | {
@@ -97013,6 +97111,55 @@ export interface operations {
                       }
                   )
                 | null;
+              runtime: {
+                acp_caps?: {
+                  config_options?: {
+                    current?: string;
+                    description?: string;
+                    id: string;
+                    kind: string;
+                    label?: string;
+                    values?: {
+                      description?: string;
+                      label?: string;
+                      value: string;
+                    }[];
+                  }[];
+                  supported_modes?: string[];
+                  supports_load_session: boolean;
+                } | null;
+                acp_session_id?: string;
+                effective?: {
+                  model?: string;
+                  provider: string;
+                  /** @enum {string} */
+                  reasoning_effort?:
+                    | "none"
+                    | "minimal"
+                    | "low"
+                    | "medium"
+                    | "high"
+                    | "xhigh"
+                    | "max";
+                  /** @enum {string} */
+                  speed?: "normal" | "fast";
+                  speed_resolution?: {
+                    /** @enum {string} */
+                    reason?:
+                      | "capability_absent"
+                      | "capability_ambiguous"
+                      | "value_ambiguous"
+                      | "provider_rejected";
+                    /** @enum {string} */
+                    requested: "normal" | "fast";
+                    /** @enum {string} */
+                    status: "applied" | "unsupported" | "rejected";
+                  } | null;
+                } | null;
+                failure?: string;
+                status: string;
+                transition?: string;
+              };
               sandbox?: {
                 backend?: string;
                 instance_id?: string;
@@ -97021,20 +97168,6 @@ export interface operations {
                 provider_state_json?: unknown;
                 sandbox_id?: string;
                 state?: string;
-              } | null;
-              /** @enum {string} */
-              speed?: "normal" | "fast";
-              speed_resolution?: {
-                /** @enum {string} */
-                reason?:
-                  | "capability_absent"
-                  | "capability_ambiguous"
-                  | "value_ambiguous"
-                  | "provider_rejected";
-                /** @enum {string} */
-                requested: "normal" | "fast";
-                /** @enum {string} */
-                status: "applied" | "unsupported" | "rejected";
               } | null;
               /** @enum {string} */
               state: "starting" | "active" | "stopping" | "stopped";
@@ -97438,23 +97571,6 @@ export interface operations {
         content: {
           "application/json": {
             session: {
-              acp_caps?: {
-                config_options?: {
-                  current?: string;
-                  description?: string;
-                  id: string;
-                  kind: string;
-                  label?: string;
-                  values?: {
-                    description?: string;
-                    label?: string;
-                    value: string;
-                  }[];
-                }[];
-                supported_modes?: string[];
-                supports_load_session: boolean;
-              } | null;
-              acp_session_id?: string;
               activity?: {
                 current_tool?: string;
                 /** Format: date-time */
@@ -97552,11 +97668,7 @@ export interface operations {
                 /** Format: date-time */
                 ttl_expires_at?: string | null;
               } | null;
-              model?: string;
               name?: string;
-              provider: string;
-              /** @enum {string} */
-              reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
               resolved_network_participation?:
                 | (
                     | {
@@ -97604,6 +97716,55 @@ export interface operations {
                       }
                   )
                 | null;
+              runtime: {
+                acp_caps?: {
+                  config_options?: {
+                    current?: string;
+                    description?: string;
+                    id: string;
+                    kind: string;
+                    label?: string;
+                    values?: {
+                      description?: string;
+                      label?: string;
+                      value: string;
+                    }[];
+                  }[];
+                  supported_modes?: string[];
+                  supports_load_session: boolean;
+                } | null;
+                acp_session_id?: string;
+                effective?: {
+                  model?: string;
+                  provider: string;
+                  /** @enum {string} */
+                  reasoning_effort?:
+                    | "none"
+                    | "minimal"
+                    | "low"
+                    | "medium"
+                    | "high"
+                    | "xhigh"
+                    | "max";
+                  /** @enum {string} */
+                  speed?: "normal" | "fast";
+                  speed_resolution?: {
+                    /** @enum {string} */
+                    reason?:
+                      | "capability_absent"
+                      | "capability_ambiguous"
+                      | "value_ambiguous"
+                      | "provider_rejected";
+                    /** @enum {string} */
+                    requested: "normal" | "fast";
+                    /** @enum {string} */
+                    status: "applied" | "unsupported" | "rejected";
+                  } | null;
+                } | null;
+                failure?: string;
+                status: string;
+                transition?: string;
+              };
               sandbox?: {
                 backend?: string;
                 instance_id?: string;
@@ -97612,20 +97773,6 @@ export interface operations {
                 provider_state_json?: unknown;
                 sandbox_id?: string;
                 state?: string;
-              } | null;
-              /** @enum {string} */
-              speed?: "normal" | "fast";
-              speed_resolution?: {
-                /** @enum {string} */
-                reason?:
-                  | "capability_absent"
-                  | "capability_ambiguous"
-                  | "value_ambiguous"
-                  | "provider_rejected";
-                /** @enum {string} */
-                requested: "normal" | "fast";
-                /** @enum {string} */
-                status: "applied" | "unsupported" | "rejected";
               } | null;
               /** @enum {string} */
               state: "starting" | "active" | "stopping" | "stopped";
@@ -98965,6 +99112,14 @@ export interface operations {
             role: string;
           }[];
           mode?: string;
+          runtime?: {
+            model?: string;
+            provider: string;
+            /** @enum {string} */
+            reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+            /** @enum {string} */
+            speed?: "normal" | "fast";
+          } | null;
         };
       };
     };
@@ -100659,23 +100814,6 @@ export interface operations {
                 role: string;
               }[];
               session: {
-                acp_caps?: {
-                  config_options?: {
-                    current?: string;
-                    description?: string;
-                    id: string;
-                    kind: string;
-                    label?: string;
-                    values?: {
-                      description?: string;
-                      label?: string;
-                      value: string;
-                    }[];
-                  }[];
-                  supported_modes?: string[];
-                  supports_load_session: boolean;
-                } | null;
-                acp_session_id?: string;
                 activity?: {
                   current_tool?: string;
                   /** Format: date-time */
@@ -100773,11 +100911,7 @@ export interface operations {
                   /** Format: date-time */
                   ttl_expires_at?: string | null;
                 } | null;
-                model?: string;
                 name?: string;
-                provider: string;
-                /** @enum {string} */
-                reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
                 resolved_network_participation?:
                   | (
                       | {
@@ -100825,6 +100959,55 @@ export interface operations {
                         }
                     )
                   | null;
+                runtime: {
+                  acp_caps?: {
+                    config_options?: {
+                      current?: string;
+                      description?: string;
+                      id: string;
+                      kind: string;
+                      label?: string;
+                      values?: {
+                        description?: string;
+                        label?: string;
+                        value: string;
+                      }[];
+                    }[];
+                    supported_modes?: string[];
+                    supports_load_session: boolean;
+                  } | null;
+                  acp_session_id?: string;
+                  effective?: {
+                    model?: string;
+                    provider: string;
+                    /** @enum {string} */
+                    reasoning_effort?:
+                      | "none"
+                      | "minimal"
+                      | "low"
+                      | "medium"
+                      | "high"
+                      | "xhigh"
+                      | "max";
+                    /** @enum {string} */
+                    speed?: "normal" | "fast";
+                    speed_resolution?: {
+                      /** @enum {string} */
+                      reason?:
+                        | "capability_absent"
+                        | "capability_ambiguous"
+                        | "value_ambiguous"
+                        | "provider_rejected";
+                      /** @enum {string} */
+                      requested: "normal" | "fast";
+                      /** @enum {string} */
+                      status: "applied" | "unsupported" | "rejected";
+                    } | null;
+                  } | null;
+                  failure?: string;
+                  status: string;
+                  transition?: string;
+                };
                 sandbox?: {
                   backend?: string;
                   instance_id?: string;
@@ -100833,20 +101016,6 @@ export interface operations {
                   provider_state_json?: unknown;
                   sandbox_id?: string;
                   state?: string;
-                } | null;
-                /** @enum {string} */
-                speed?: "normal" | "fast";
-                speed_resolution?: {
-                  /** @enum {string} */
-                  reason?:
-                    | "capability_absent"
-                    | "capability_ambiguous"
-                    | "value_ambiguous"
-                    | "provider_rejected";
-                  /** @enum {string} */
-                  requested: "normal" | "fast";
-                  /** @enum {string} */
-                  status: "applied" | "unsupported" | "rejected";
                 } | null;
                 /** @enum {string} */
                 state: "starting" | "active" | "stopping" | "stopped";

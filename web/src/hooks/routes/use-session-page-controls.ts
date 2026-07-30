@@ -20,6 +20,7 @@ import {
   isUserControllableSession,
   type QueuedPrompt,
   type SessionPayload,
+  type SessionPromptRuntimeSnapshot,
 } from "@/systems/session";
 import {
   createSessionPageControlsLogic,
@@ -31,6 +32,7 @@ import {
 } from "./session-page-controls-store";
 
 interface UseSessionPageControlsOptions {
+  getRuntimeSnapshot?: () => SessionPromptRuntimeSnapshot | null;
   onDeleteSuccess?: () => void;
   workspaceId?: string;
 }
@@ -45,6 +47,7 @@ export function useSessionPageControls(
   const aui = useAui();
   const workspaceId = options.workspaceId ?? "";
   const onDeleteSuccess = options.onDeleteSuccess;
+  const getRuntimeSnapshot = options.getRuntimeSnapshot;
   const messages = useAuiState(state => state.thread.messages);
   const transcriptMessages = useSessionTranscriptThreadMessages();
   const isRunning = useAuiState(state => state.thread.isRunning);
@@ -106,10 +109,16 @@ export function useSessionPageControls(
     if (!promptControlsAvailable || busyInputIsPending(store) || text.length === 0) {
       return;
     }
+    const runtime = getRuntimeSnapshot?.() ?? null;
 
     return requestBusyInput(store, () =>
       store.trigger.busyInputRequested({
-        execute: () => queuePromptMutation.mutateAsync({ id: sessionId, message: text }),
+        execute: () =>
+          queuePromptMutation.mutateAsync({
+            id: sessionId,
+            message: text,
+            ...(runtime ? { runtime } : {}),
+          }),
         kind: "queue",
         message: text,
       })
@@ -121,10 +130,16 @@ export function useSessionPageControls(
     if (!promptControlsAvailable || busyInputIsPending(store) || text.length === 0) {
       return;
     }
+    const runtime = getRuntimeSnapshot?.() ?? null;
 
     return requestBusyInput(store, () =>
       store.trigger.busyInputRequested({
-        execute: () => interruptPromptMutation.mutateAsync({ id: sessionId, message: text }),
+        execute: () =>
+          interruptPromptMutation.mutateAsync({
+            id: sessionId,
+            message: text,
+            ...(runtime ? { runtime } : {}),
+          }),
         kind: "interrupt",
         message: text,
       })

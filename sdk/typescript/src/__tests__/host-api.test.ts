@@ -18,21 +18,19 @@ describe("HostAPI", () => {
     pair.host.handle("sessions/create", async params => {
       expect(params).toEqual({
         agent: "coder",
-        prompt: "debug this",
         workspace: "workspace-1",
       });
       return { session_id: "sess-1" };
     });
 
     await expect(
-      host.sessions.create({ agent: "coder", prompt: "debug this", workspace: "workspace-1" })
+      host.sessions.create({ agent: "coder", workspace: "workspace-1" })
     ).resolves.toEqual({ session_id: "sess-1" });
 
     expect(pair.extension.requests[0]).toMatchObject({
       method: "sessions/create",
       params: {
         agent: "coder",
-        prompt: "debug this",
         workspace: "workspace-1",
       },
     });
