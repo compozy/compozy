@@ -79,7 +79,12 @@ function MCPMeta({ entry }: { entry: MCPEntry }) {
       <Pill size="sm" className="font-mono">
         {entry.launch.type}
       </Pill>
-      {inputs ? <span>{inputs}</span> : null}
+      {inputs ? (
+        <>
+          <MetaSeparator />
+          <span>{inputs}</span>
+        </>
+      ) : null}
       <MetaSeparator />
       <span>
         Installs {entry.default_scope === "global" ? "globally" : "per workspace"} by default

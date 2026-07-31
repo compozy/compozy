@@ -29,8 +29,8 @@ func WithDefaultRedirectURL(raw string) ServiceOption {
 	return func(service *Service) { service.defaultRedirectURL = strings.TrimSpace(raw) }
 }
 
-// WithHTTPClient overrides the HTTP client used for metadata and token calls.
-func WithHTTPClient(client *http.Client) ServiceOption {
+// withHTTPClientForTest bypasses the production network policy for local test fixtures.
+func withHTTPClientForTest(client *http.Client) ServiceOption {
 	return func(service *Service) {
 		service.client = client
 		service.secureClient = nil

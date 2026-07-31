@@ -106,7 +106,9 @@ function MCPInstallDialog({
                 Authorization · OAuth
               </div>
               <MetadataList className="mt-2">
-                <MetadataList.Row label="Registration">Automatic</MetadataList.Row>
+                <MetadataList.Row label="Registration">
+                  {mcp.auth.registration === "pre_registered" ? "Pre-registered" : "Automatic"}
+                </MetadataList.Row>
                 {mcp.auth.scopes?.length ? (
                   <MetadataList.Row label="Scopes">{mcp.auth.scopes.join(", ")}</MetadataList.Row>
                 ) : null}

@@ -290,7 +290,7 @@ func TestDecodeMCPV2LaunchAndInputValidation(t *testing.T) {
 			{
 				name:    "Should reject a v1 manifest",
 				raw:     `{"manifest_version":1,"generated_at":"2026-07-13T00:00:00Z","entries":[]}`,
-				wantErr: "client too old",
+				wantErr: "feed too old",
 			},
 			{
 				name: "Should reject legacy MCP launch fields",
@@ -498,6 +498,32 @@ func TestDecodeMCPV2LaunchAndInputValidation(t *testing.T) {
 					t.Fatalf("validateDefault() error = %v, want %q", err, tt.wantErr)
 				}
 			})
+		}
+	})
+}
+
+func TestNormalizeMCPInputValue(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should preserve a validated secret value without canonicalization", func(t *testing.T) {
+		t.Parallel()
+
+		raw := "  secret value  "
+		value, err := NormalizeMCPInputValue(mcpInputTypeSecret, raw)
+		if err != nil {
+			t.Fatalf("NormalizeMCPInputValue(secret) error = %v", err)
+		}
+		if value != raw {
+			t.Fatalf("NormalizeMCPInputValue(secret) = %q, want %q", value, raw)
+		}
+	})
+
+	t.Run("Should reject a secret value containing NUL", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := NormalizeMCPInputValue(mcpInputTypeSecret, "secret\x00value")
+		if err == nil || !strings.Contains(err.Error(), "must not contain NUL") {
+			t.Fatalf("NormalizeMCPInputValue(secret) error = %v, want NUL validation", err)
 		}
 	})
 }

@@ -428,6 +428,8 @@ func TestMCPOAuthRegistrationStorePersistsTargetScopedDCRState(t *testing.T) {
 
 		if _, err := db.SaveMCPAuthRegistration(ctx, registration, mcpOAuthRegistrationSecrets()); err == nil {
 			t.Fatal("SaveMCPAuthRegistration() error = nil, want access token and URI validation failure")
+		} else if !strings.Contains(err.Error(), "access token and client URI must be set together") {
+			t.Fatalf("SaveMCPAuthRegistration() error = %v, want paired management credential validation", err)
 		}
 	})
 

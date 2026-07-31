@@ -71,7 +71,7 @@ func WithSecretResolver(resolver secretRefResolver) CallExecutorOption {
 	}
 }
 
-// WithHTTPClient configures remote MCP and auth HTTP calls with an explicit client.
+// WithHTTPClient configures remote MCP HTTP calls with an explicit client.
 func WithHTTPClient(client *http.Client) CallExecutorOption {
 	return func(executor *CallExecutor) {
 		executor.httpClient = client
@@ -136,11 +136,14 @@ func NewMCPCallExecutor(
 	}
 	if executor.auth == nil && executor.tokenStore != nil {
 		options := []mcpauth.ServiceOption{mcpauth.WithMutationGeneration(executor.authGeneration)}
-		if executor.secureClient != nil {
-			options = append(options, mcpauth.WithSecureHTTPClient(executor.secureClient))
-		} else {
-			options = append(options, mcpauth.WithHTTPClient(executor.httpClient))
+		authClient := executor.secureClient
+		if authClient == nil {
+			authClient = securehttp.NewClient(
+				securehttp.WithAllowLoopback(true),
+				securehttp.WithTimeout(executor.timeout),
+			)
 		}
+		options = append(options, mcpauth.WithSecureHTTPClient(authClient))
 		if executor.secretResolver != nil {
 			options = append(options, mcpauth.WithSecretRefResolver(executor.secretResolver.ResolveRef))
 		}

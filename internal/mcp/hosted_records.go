@@ -94,12 +94,13 @@ func (s *HostedService) projection(ctx context.Context, record *hostedBindRecord
 }
 
 func hostedProjectionResponse(views []tools.ToolView) HostedProjectionResponse {
-	slices.SortFunc(views, func(left, right tools.ToolView) int {
+	sorted := append([]tools.ToolView(nil), views...)
+	slices.SortFunc(sorted, func(left, right tools.ToolView) int {
 		return strings.Compare(left.Descriptor.ID.String(), right.Descriptor.ID.String())
 	})
 	return HostedProjectionResponse{
-		Tools:  cloneToolViews(views),
-		Digest: hostedProjectionDigest(views),
+		Tools:  cloneToolViews(sorted),
+		Digest: hostedProjectionDigest(sorted),
 	}
 }
 

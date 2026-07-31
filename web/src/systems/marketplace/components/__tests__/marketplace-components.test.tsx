@@ -1481,6 +1481,7 @@ describe("MCP guided install", () => {
     );
 
     expect(screen.getByText("Authorization · OAuth")).toBeInTheDocument();
+    expect(screen.getByText("Automatic")).toBeInTheDocument();
     expect(screen.queryByText("Required configuration")).not.toBeInTheDocument();
     await user.click(screen.getByTestId("mcp-install-confirm"));
 
@@ -1489,6 +1490,30 @@ describe("MCP guided install", () => {
       expect.objectContaining({ entry_id: "linear", values: null })
     );
     expect(buildMCPInstallRequest(remote, "global", null, {}).values).toBeNull();
+  });
+
+  it("Should render the catalog's pre-registered OAuth mode", () => {
+    const remote = marketplaceDetails["mcp:linear"]!;
+    const data: MarketplaceEntryResponse = {
+      ...remote,
+      mcp: {
+        ...remote.mcp!,
+        auth: { ...remote.mcp!.auth!, registration: "pre_registered" },
+      },
+    };
+
+    render(
+      <MCPInstallDialog
+        data={data}
+        onInstall={vi.fn().mockResolvedValue({} as MCPInstallResponse)}
+        onOpenChange={vi.fn()}
+        open
+        workspaceId="ws-story"
+      />
+    );
+
+    expect(screen.getByText("Pre-registered")).toBeInTheDocument();
+    expect(screen.queryByText("Automatic")).not.toBeInTheDocument();
   });
 });
 

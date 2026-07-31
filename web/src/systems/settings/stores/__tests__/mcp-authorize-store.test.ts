@@ -87,23 +87,40 @@ describe("createMCPAuthorizeLogic", () => {
       store.can.manualRedirectSubmitted({
         exchange: pendingExchange,
         onConfirmed: ignoreConfirmation,
-        value: "",
-      })
-    ).toBe(false);
-    expect(
-      store.can.manualRedirectSubmitted({
-        exchange: pendingExchange,
-        onConfirmed: ignoreConfirmation,
-        value: "code-only",
-      })
-    ).toBe(false);
-    expect(
-      store.can.manualRedirectSubmitted({
-        exchange: pendingExchange,
-        onConfirmed: ignoreConfirmation,
         value: "http://127.0.0.1:2123/api/mcp/oauth/callback?code=example&state=x",
       })
     ).toBe(true);
+  });
+
+  it("Should surface an invalid manual redirect as a completion failure", () => {
+    const store = createMCPAuthorizeLogic().createStore();
+
+    store.trigger.authorizeRequested({
+      begin: pendingBegin,
+      dismissOnConfirmation: false,
+      server: "linear",
+      filter,
+      prior,
+      mode: "automatic",
+    });
+    const automaticAttemptId = store.getSnapshot().context.attemptId;
+    store.trigger.beginSucceeded({ attemptId: automaticAttemptId, begin: beginResponse });
+    store.trigger.manualAuthorizationRequested({ begin: pendingBegin });
+    const manualAttemptId = store.getSnapshot().context.attemptId;
+    store.trigger.beginSucceeded({ attemptId: manualAttemptId, begin: beginResponse });
+
+    store.trigger.manualRedirectSubmitted({
+      exchange: pendingExchange,
+      onConfirmed: ignoreConfirmation,
+      value: "code-only",
+    });
+
+    expect(store.getSnapshot().context).toMatchObject({
+      phase: "failed",
+      stage: "completion",
+      error: "Callback URL must be a complete HTTP or HTTPS URL.",
+    });
+    expect(pendingExchange).not.toHaveBeenCalled();
   });
 
   it("executes the begin callback carried by the accepted intent", () => {
@@ -156,6 +173,41 @@ describe("createMCPAuthorizeLogic", () => {
       filter,
       mode: "automatic",
       scopeApproval: { approveScopeEscalation: true, approvedScopes: ["write"] },
+    });
+  });
+
+  it("Should normalize explicitly approved scopes before beginning authorization", () => {
+    const begin = vi.fn(() => new Promise<never>(() => undefined));
+    const store = createMCPAuthorizeLogic().createStore();
+
+    store.trigger.authorizeRequested({
+      begin,
+      dismissOnConfirmation: false,
+      server: "linear",
+      filter,
+      prior,
+      mode: "automatic",
+      scopeApproval: {
+        approveScopeEscalation: true,
+        approvedScopes: [" issues:read ", "", "issues:read", "issues:write"],
+      },
+    });
+
+    expect(begin).toHaveBeenCalledWith({
+      server: "linear",
+      filter,
+      mode: "automatic",
+      scopeApproval: {
+        approveScopeEscalation: true,
+        approvedScopes: ["issues:read", "issues:write"],
+      },
+    });
+    expect(store.getSnapshot().context).toMatchObject({
+      phase: "beginning",
+      scopeApproval: {
+        approveScopeEscalation: true,
+        approvedScopes: ["issues:read", "issues:write"],
+      },
     });
   });
 });

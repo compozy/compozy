@@ -2,7 +2,6 @@ package tools
 
 import (
 	"context"
-	"errors"
 )
 
 // DeferredDiscoveryProvider marks providers whose discovery may require external I/O.
@@ -16,17 +15,12 @@ func (r *RuntimeRegistry) BootstrapSessionProjection(ctx context.Context, scope 
 	return r.sessionProjection(ctx, scope, includeInitialProvider, nil)
 }
 
-// BootstrapSessionCall dispatches tools from initial providers without waiting on deferred discovery.
-// Tools absent from the initial projection use the complete registry path.
+// BootstrapSessionCall dispatches through the complete registry to enforce policy and conflict checks.
 func (r *RuntimeRegistry) BootstrapSessionCall(
 	ctx context.Context,
 	scope Scope,
 	req CallRequest,
 ) (ToolResult, error) {
-	result, err := r.dispatchMatching(ctx, scope, req, includeInitialProvider)
-	if err == nil || !errors.Is(err, ErrToolNotFound) {
-		return result, err
-	}
 	return r.Call(ctx, scope, req)
 }
 

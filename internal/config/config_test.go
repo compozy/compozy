@@ -699,12 +699,18 @@ func TestDefaultWithHomeIncludesMCPOAuthDefaults(t *testing.T) {
 	t.Parallel()
 
 	cfg := DefaultWithHome(HomePaths{})
-	if got, want := cfg.MCP.OAuth.ClientMetadataURL, DefaultMCPClientMetadataURL; got != want {
-		t.Fatalf("DefaultWithHome() MCP.OAuth.ClientMetadataURL = %q, want %q", got, want)
-	}
-	if got, want := cfg.MCP.OAuth.RedirectURI, "http://127.0.0.1:2123/api/mcp/oauth/callback"; got != want {
-		t.Fatalf("DefaultWithHome() MCP.OAuth.RedirectURI = %q, want %q", got, want)
-	}
+	t.Run("Should populate the default MCP OAuth client metadata URL", func(t *testing.T) {
+		t.Parallel()
+		if got, want := cfg.MCP.OAuth.ClientMetadataURL, DefaultMCPClientMetadataURL; got != want {
+			t.Fatalf("DefaultWithHome() MCP.OAuth.ClientMetadataURL = %q, want %q", got, want)
+		}
+	})
+	t.Run("Should populate the default MCP OAuth redirect URI", func(t *testing.T) {
+		t.Parallel()
+		if got, want := cfg.MCP.OAuth.RedirectURI, "http://127.0.0.1:2123/api/mcp/oauth/callback"; got != want {
+			t.Fatalf("DefaultWithHome() MCP.OAuth.RedirectURI = %q, want %q", got, want)
+		}
+	})
 }
 
 func TestSoulConfigValidation(t *testing.T) {

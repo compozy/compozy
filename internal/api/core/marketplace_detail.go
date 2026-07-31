@@ -84,7 +84,11 @@ func (h *BaseHandlers) curatedMarketplaceEntry(
 	response := contract.MarketplaceEntryResponse{Entry: listing}
 	switch kind {
 	case marketplacepkg.KindMCP:
-		response.MCP = marketplaceMCPDetail(details)
+		mcpDetail, err := marketplaceMCPDetail(details)
+		if err != nil {
+			return contract.MarketplaceEntryResponse{}, err
+		}
+		response.MCP = mcpDetail
 	case marketplacepkg.KindExtension:
 		response.Extension = marketplaceExtensionDetail(details)
 	case marketplacepkg.KindSkill:
@@ -233,9 +237,9 @@ func (h *BaseHandlers) bundleMarketplaceEntry(
 	}, nil
 }
 
-func marketplaceMCPDetail(details marketplacepkg.EntryDetails) *contract.MarketplaceMCPDetailPayload {
+func marketplaceMCPDetail(details marketplacepkg.EntryDetails) (*contract.MarketplaceMCPDetailPayload, error) {
 	if details.MCP == nil {
-		return nil
+		return nil, nil
 	}
 	result := &contract.MarketplaceMCPDetailPayload{
 		Launch: contract.MarketplaceMCPLaunchPayload{
@@ -251,7 +255,7 @@ func marketplaceMCPDetail(details marketplacepkg.EntryDetails) *contract.Marketp
 		var defaultValue any
 		if len(input.Default) > 0 {
 			if err := json.Unmarshal(input.Default, &defaultValue); err != nil {
-				return nil
+				return nil, fmt.Errorf("marketplace MCP input %q default: %w", input.ID, err)
 			}
 		}
 		result.Inputs = append(result.Inputs, contract.MarketplaceMCPInputPayload{
@@ -266,7 +270,7 @@ func marketplaceMCPDetail(details marketplacepkg.EntryDetails) *contract.Marketp
 			Scopes: append([]string(nil), details.MCP.Auth.Scopes...),
 		}
 	}
-	return result
+	return result, nil
 }
 
 func marketplaceExtensionDetail(

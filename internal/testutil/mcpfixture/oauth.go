@@ -324,15 +324,17 @@ func cloneValuesSlice(values []url.Values) []url.Values {
 }
 
 func cloneRegistrationSlice(values []map[string]any) []map[string]any {
-	cloned := make([]map[string]any, len(values))
-	for index, value := range values {
+	cloned := make([]map[string]any, 0, len(values))
+	for _, value := range values {
 		data, err := json.Marshal(value)
 		if err != nil {
 			continue
 		}
-		if err := json.Unmarshal(data, &cloned[index]); err != nil {
+		var entry map[string]any
+		if err := json.Unmarshal(data, &entry); err != nil {
 			continue
 		}
+		cloned = append(cloned, entry)
 	}
 	return cloned
 }

@@ -154,16 +154,6 @@ func (e *CallExecutor) CallTool(
 }
 
 func normalizeMCPErrorWithContext(ctx context.Context, id toolspkg.ToolID, err error, discovery bool) error {
-	if ctxErr := ctx.Err(); ctxErr != nil {
-		err = ctxErr
-	} else if deadline, hasDeadline := ctx.Deadline(); hasDeadline && !time.Now().Before(deadline) {
-		err = context.DeadlineExceeded
-	} else {
-		var networkError net.Error
-		if errors.As(err, &networkError) && networkError.Timeout() {
-			err = context.DeadlineExceeded
-		}
-	}
 	var scopeErr *InsufficientScopeError
 	if errors.As(err, &scopeErr) {
 		return toolspkg.NewToolError(
@@ -183,36 +173,20 @@ func normalizeMCPErrorWithContext(ctx context.Context, id toolspkg.ToolID, err e
 			toolspkg.ReasonMCPAuthRequired,
 		)
 	}
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		err = ctxErr
+	} else if deadline, hasDeadline := ctx.Deadline(); hasDeadline && !time.Now().Before(deadline) {
+		err = context.DeadlineExceeded
+	} else {
+		var networkError net.Error
+		if errors.As(err, &networkError) && networkError.Timeout() {
+			err = context.DeadlineExceeded
+		}
+	}
 	if discovery {
 		return normalizeMCPDiscoveryError(err)
 	}
 	return normalizeMCPError(id, err)
-}
-
-func listMCPTools(ctx context.Context, client *mcpsdk.ClientSession) ([]*mcpsdk.Tool, int, error) {
-	tools := make([]*mcpsdk.Tool, 0)
-	cursor := ""
-	seen := map[string]struct{}{}
-	ttlMs := 0
-	for {
-		result, err := client.ListTools(ctx, &mcpsdk.ListToolsParams{Cursor: cursor})
-		if err != nil {
-			return nil, 0, err
-		}
-		tools = append(tools, result.Tools...)
-		if ttl := result.GetTTLMs(); ttl > 0 && (ttlMs == 0 || ttl < ttlMs) {
-			ttlMs = ttl
-		}
-		next := strings.TrimSpace(result.NextCursor)
-		if next == "" {
-			return tools, ttlMs, nil
-		}
-		if _, duplicate := seen[next]; duplicate {
-			return nil, 0, errors.New("mcp: tools/list returned a repeated cursor")
-		}
-		seen[next] = struct{}{}
-		cursor = next
-	}
 }
 
 // Status returns token-redacted auth diagnostics for registry availability.

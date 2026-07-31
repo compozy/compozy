@@ -20,6 +20,8 @@ const (
 	mcpCatalogLaunchDocker = "docker"
 	mcpCatalogLaunchRemote = "remote"
 	mcpCatalogInputSecret  = "secret"
+	mcpCatalogBindingEnv   = "env"
+	mcpCatalogBindingQuery = "url_query"
 	mcpCatalogCommandNPX   = "npx"
 )
 
@@ -160,6 +162,14 @@ func (s *service) applyCatalogSecretInput(
 	supplied bool,
 ) error {
 	id := strings.TrimSpace(input.ID)
+	bindingType := strings.TrimSpace(input.Binding.Type)
+	if bindingType != mcpCatalogBindingEnv {
+		return validationError(fmt.Errorf(
+			"settings: unsupported catalog secret input binding %q",
+			bindingType,
+		))
+	}
+	bindingName := strings.TrimSpace(input.Binding.Name)
 	if !supplied {
 		if input.Required {
 			return validationError(fmt.Errorf("settings: values.inputs.%s is required by the catalog entry", id))
@@ -182,13 +192,13 @@ func (s *service) applyCatalogSecretInput(
 		if err != nil {
 			return err
 		}
-		setMCPSecretEnvRef(server, input.Binding.Name, ref)
+		setMCPSecretEnvRef(server, bindingName, ref)
 		return nil
 	}
 	if secrets.SecretEnv == nil {
 		secrets.SecretEnv = make(map[string]string)
 	}
-	secrets.SecretEnv[strings.TrimSpace(input.Binding.Name)] = value.Value
+	secrets.SecretEnv[bindingName] = value.Value
 	return nil
 }
 
@@ -258,16 +268,22 @@ func bindCatalogPlainInput(
 		return nil
 	}
 	switch input.Binding.Type {
-	case "env":
+	case mcpCatalogBindingEnv:
 		if server.Env == nil {
 			server.Env = make(map[string]string)
 		}
 		server.Env[strings.TrimSpace(input.Binding.Name)] = value
 		return nil
-	case "url_query":
+	case mcpCatalogBindingQuery:
+		if strings.TrimSpace(server.URL) == "" {
+			return validationError(fmt.Errorf(
+				"settings: catalog input %q uses a url_query binding on a non-remote launch",
+				strings.TrimSpace(input.ID),
+			))
+		}
 		parsed, err := url.Parse(server.URL)
 		if err != nil {
-			return fmt.Errorf("settings: parse catalog remote URL: %w", err)
+			return validationError(fmt.Errorf("settings: parse catalog remote URL: %w", err))
 		}
 		query := parsed.Query()
 		query.Set(strings.TrimSpace(input.Binding.Name), value)

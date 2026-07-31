@@ -135,6 +135,8 @@ func TestMCPOAuthRegistrationStoreAtomicityContract(t *testing.T) {
 		}
 		if _, err := db.SaveMCPAuthRegistration(ctx, replacement, replacementSecrets); err == nil {
 			t.Fatal("SaveMCPAuthRegistration(update) error = nil, want injected metadata failure")
+		} else if !strings.Contains(err.Error(), "forced MCP registration update failure") {
+			t.Fatalf("SaveMCPAuthRegistration(update) error = %v, want injected metadata failure", err)
 		}
 		preserved, err := db.GetMCPAuthRegistration(ctx, registration.Target)
 		if err != nil {
@@ -193,6 +195,8 @@ func TestMCPOAuthRegistrationStoreAtomicityContract(t *testing.T) {
 		}
 		if err := db.DeleteMCPAuthRegistration(ctx, saved.Target); err == nil {
 			t.Fatal("DeleteMCPAuthRegistration() error = nil, want injected vault cleanup failure")
+		} else if !strings.Contains(err.Error(), "forced MCP registration secret cleanup failure") {
+			t.Fatalf("DeleteMCPAuthRegistration() error = %v, want injected vault cleanup failure", err)
 		}
 		preserved, err := db.GetMCPAuthRegistration(ctx, saved.Target)
 		if err != nil {
@@ -234,6 +238,8 @@ func TestMCPOAuthRegistrationStoreAtomicityContract(t *testing.T) {
 
 		if err := db.DeleteMCPAuthorizationState(ctx, target); err == nil {
 			t.Fatal("DeleteMCPAuthorizationState() error = nil, want injected vault cleanup failure")
+		} else if !strings.Contains(err.Error(), "forced authorization cleanup failure") {
+			t.Fatalf("DeleteMCPAuthorizationState() error = %v, want injected vault cleanup failure", err)
 		}
 		if _, err := db.GetMCPAuthToken(ctx, target); err != nil {
 			t.Fatalf("GetMCPAuthToken() after failed authorization cleanup error = %v", err)

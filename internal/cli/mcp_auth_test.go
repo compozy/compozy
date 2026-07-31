@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"strings"
@@ -227,12 +228,25 @@ func TestMCPAuthLoginManualHonorsTimeout(t *testing.T) {
 	t.Run("Should interrupt pending manual input at the authorization deadline", func(t *testing.T) {
 		t.Parallel()
 
-		input := newDelayedMCPAuthReader(200 * time.Millisecond)
+		input, writer, err := os.Pipe()
+		if err != nil {
+			t.Fatalf("os.Pipe() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := input.Close(); err != nil && !errors.Is(err, os.ErrClosed) {
+				t.Errorf("manual input close error = %v", err)
+			}
+		})
+		t.Cleanup(func() {
+			if err := writer.Close(); err != nil {
+				t.Errorf("manual input writer close error = %v", err)
+			}
+		})
 		client := newClient(nil)
 		cmd := newRootCommand(newWorkspaceTestDeps(t, client))
 		cmd.SetIn(input)
 		cmd.SetArgs([]string{"mcp", "auth", "login", "linear", "--manual", "--timeout", "20ms"})
-		err := cmd.ExecuteContext(t.Context())
+		err = cmd.ExecuteContext(t.Context())
 		if err == nil || !strings.Contains(err.Error(), "authorization timed out") {
 			t.Fatalf("mcp auth login error = %v, want authorization timeout", err)
 		}
@@ -260,32 +274,6 @@ func TestMCPAuthLoginManualHonorsTimeout(t *testing.T) {
 			t.Fatalf("mcp auth login error = %v, want stable authorization timeout", err)
 		}
 	})
-}
-
-type delayedMCPAuthReader struct {
-	delay  time.Duration
-	closed chan struct{}
-	once   sync.Once
-}
-
-func newDelayedMCPAuthReader(delay time.Duration) *delayedMCPAuthReader {
-	return &delayedMCPAuthReader{delay: delay, closed: make(chan struct{})}
-}
-
-func (r *delayedMCPAuthReader) Read([]byte) (int, error) {
-	timer := time.NewTimer(r.delay)
-	defer timer.Stop()
-	select {
-	case <-timer.C:
-		return 0, io.EOF
-	case <-r.closed:
-		return 0, io.ErrClosedPipe
-	}
-}
-
-func (r *delayedMCPAuthReader) Close() error {
-	r.once.Do(func() { close(r.closed) })
-	return nil
 }
 
 func TestReadManualMCPAuthInput(t *testing.T) {
@@ -358,6 +346,77 @@ func TestReadManualMCPAuthInput(t *testing.T) {
 		}
 		if output.Len() != 0 {
 			t.Fatalf("piped output = %q, want empty", output.String())
+		}
+	})
+}
+
+func TestReadManualMCPAuthInputContext(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should keep terminal input open until the hidden read returns", func(t *testing.T) {
+		t.Parallel()
+
+		terminalInput, terminalWriter, err := os.Pipe()
+		if err != nil {
+			t.Fatalf("os.Pipe() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := terminalInput.Close(); err != nil && !errors.Is(err, os.ErrClosed) {
+				t.Errorf("terminal input close error = %v", err)
+			}
+		})
+		t.Cleanup(func() {
+			if err := terminalWriter.Close(); err != nil {
+				t.Errorf("terminal writer close error = %v", err)
+			}
+		})
+
+		ctx, cancel := context.WithTimeout(t.Context(), 20*time.Millisecond)
+		t.Cleanup(cancel)
+		passwordReadStarted := make(chan struct{})
+		allowPasswordReadReturn := make(chan struct{})
+		var releasePasswordRead sync.Once
+		t.Cleanup(func() { releasePasswordRead.Do(func() { close(allowPasswordReadReturn) }) })
+		results := make(chan error, 1)
+		go func() {
+			_, readErr := readManualMCPAuthInputContextWithTerminal(
+				ctx,
+				terminalInput,
+				io.Discard,
+				func(io.Reader) bool { return true },
+				func(fd int) ([]byte, error) {
+					if fd != int(terminalInput.Fd()) {
+						return nil, fmt.Errorf("terminal fd = %d, want %d", fd, terminalInput.Fd())
+					}
+					close(passwordReadStarted)
+					<-allowPasswordReadReturn
+					return []byte("http://127.0.0.1:2123/api/mcp/oauth/callback?code=code&state=state"), nil
+				},
+			)
+			results <- readErr
+		}()
+
+		select {
+		case <-passwordReadStarted:
+		case <-t.Context().Done():
+			t.Fatalf("hidden password read did not start: %v", t.Context().Err())
+		}
+		<-ctx.Done()
+		returnTimer := time.NewTimer(100 * time.Millisecond)
+		defer returnTimer.Stop()
+		select {
+		case readErr := <-results:
+			t.Fatalf("readManualMCPAuthInputContextWithTerminal() returned before password read finished: %v", readErr)
+		case <-returnTimer.C:
+		}
+		if _, err := terminalInput.Stat(); err != nil {
+			t.Fatalf("terminal input was closed before password read returned: %v", err)
+		}
+
+		releasePasswordRead.Do(func() { close(allowPasswordReadReturn) })
+		if readErr := <-results; !errors.Is(readErr, context.DeadlineExceeded) ||
+			!strings.Contains(readErr.Error(), "authorization timed out") {
+			t.Fatalf("readManualMCPAuthInputContextWithTerminal() error = %v, want authorization timeout", readErr)
 		}
 	})
 }

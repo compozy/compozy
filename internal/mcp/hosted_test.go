@@ -96,6 +96,27 @@ func TestHostedServiceBindNonceLifecycle(t *testing.T) {
 	})
 }
 
+func TestHostedProjectionResponse(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should preserve the registry-owned projection order", func(t *testing.T) {
+		t.Parallel()
+
+		views := []tools.ToolView{
+			hostedToolView("compozy__zeta"),
+			hostedToolView("compozy__alpha"),
+		}
+
+		projection := hostedProjectionResponse(views)
+		if got, want := hostedToolIDs(projection.Tools), []string{"compozy__alpha", "compozy__zeta"}; !slices.Equal(got, want) {
+			t.Fatalf("projection tools = %#v, want %#v", got, want)
+		}
+		if got, want := hostedToolIDs(views), []string{"compozy__zeta", "compozy__alpha"}; !slices.Equal(got, want) {
+			t.Fatalf("registry-owned views = %#v, want %#v", got, want)
+		}
+	})
+}
+
 func TestHostedServiceValidatesPeerAndBinaryFailClosed(t *testing.T) {
 	t.Parallel()
 

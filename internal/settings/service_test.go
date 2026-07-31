@@ -3198,7 +3198,7 @@ func TestInstallMCPCatalogEnforcesBornValidVaultSemantics(t *testing.T) {
 		}
 	})
 
-	t.Run("Should garbage collect a superseded install-owned ref", func(t *testing.T) {
+	t.Run("Should retain an owned ref supplied explicitly as a vault_ref", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := context.Background()
@@ -3488,6 +3488,18 @@ func TestInstallMCPCatalogRejectsInvalidInputsBeforeWrites(t *testing.T) {
 	t.Parallel()
 	invalidProjection := stdioMCPCatalogEntry()
 	invalidProjection.Payload = json.RawMessage(`{`)
+	urlQueryOnStdio := plainEnvMCPCatalogEntry()
+	urlQueryOnStdio.Payload = json.RawMessage(`{
+		"launch":{"type":"npm","package":"plain-env-server","version":"1.0.0"},
+		"inputs":[{"id":"project","prompt":"Project","type":"identifier","required":true,"binding":{"type":"url_query","name":"project"}}],
+		"default_scope":"global"
+	}`)
+	secretQueryInput := stdioMCPCatalogEntry()
+	secretQueryInput.Payload = json.RawMessage(`{
+		"launch":{"type":"npm","package":"@modelcontextprotocol/server-github","version":"1.0.0"},
+		"inputs":[{"id":"github_token","prompt":"GitHub token","type":"secret","required":true,"binding":{"type":"url_query","name":"token"}}],
+		"default_scope":"global"
+	}`)
 	nonMCPProjection := &marketplace.Entry{
 		Kind:    marketplace.KindSkill,
 		EntryID: "github",
@@ -3677,6 +3689,28 @@ func TestInstallMCPCatalogRejectsInvalidInputsBeforeWrites(t *testing.T) {
 			}},
 			wantErr:    ErrValidation,
 			wantDetail: "must use value for a non-secret input",
+		},
+		{
+			name:    "Should reject a URL query input on a stdio launch",
+			catalog: fakeMCPCatalog{entry: urlQueryOnStdio},
+			entryID: "plain-env",
+			scope:   ScopeGlobal,
+			values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
+				"project": {Value: "compozy"},
+			}},
+			wantErr:    ErrValidation,
+			wantDetail: "uses a url_query binding on a non-remote launch",
+		},
+		{
+			name:    "Should reject a secret input with a non-env binding",
+			catalog: fakeMCPCatalog{entry: secretQueryInput},
+			entryID: "github",
+			scope:   ScopeGlobal,
+			values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
+				"github_token": {Value: "secret"},
+			}},
+			wantErr:    ErrValidation,
+			wantDetail: "unsupported catalog secret input binding \"url_query\"",
 		},
 	}
 

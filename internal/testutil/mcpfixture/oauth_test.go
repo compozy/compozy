@@ -225,12 +225,32 @@ func TestOAuthHTTPServer(t *testing.T) {
 		authorizeURL.RawQuery = query.Encode()
 		response := performRequest(t, client, http.MethodGet, authorizeURL.String(), nil)
 		defer closeResponse(t, response)
+		if got, want := response.StatusCode, http.StatusFound; got != want {
+			t.Fatalf("mix-up authorize status = %d, want %d", got, want)
+		}
 		callbackURL, err := url.Parse(response.Header.Get("Location"))
 		if err != nil {
 			t.Fatalf("url.Parse(mix-up callback) error = %v", err)
 		}
 		if got, want := callbackURL.Query().Get("iss"), "https://unexpected-issuer.example"; got != want {
 			t.Fatalf("mix-up callback issuer = %q, want %q", got, want)
+		}
+	})
+}
+
+func TestCloneRegistrationSlice(t *testing.T) {
+	t.Parallel()
+	t.Run("Should omit registrations that cannot be cloned", func(t *testing.T) {
+		t.Parallel()
+		cloned := cloneRegistrationSlice([]map[string]any{
+			{"client_id": "valid-client"},
+			{"invalid": make(chan struct{})},
+		})
+		if got, want := len(cloned), 1; got != want {
+			t.Fatalf("cloneRegistrationSlice() length = %d, want %d", got, want)
+		}
+		if got, want := cloned[0]["client_id"], "valid-client"; got != want {
+			t.Fatalf("cloneRegistrationSlice() first client ID = %#v, want %q", got, want)
 		}
 	})
 }

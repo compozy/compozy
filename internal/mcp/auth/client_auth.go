@@ -18,7 +18,11 @@ const (
 func registrationTokenEndpointAuthMethod(method string, clientSecret string) (string, error) {
 	normalized := strings.TrimSpace(method)
 	if normalized == "" {
-		normalized = tokenEndpointAuthMethodBasic
+		if strings.TrimSpace(clientSecret) == "" {
+			normalized = tokenEndpointAuthMethodNone
+		} else {
+			normalized = tokenEndpointAuthMethodBasic
+		}
 	}
 	if err := validateTokenEndpointAuthMethod(normalized, clientSecret); err != nil {
 		return "", err
@@ -87,6 +91,8 @@ func newAuthenticatedFormRequest(
 	if err != nil {
 		return nil, err
 	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Accept", "application/json")
 	if method == tokenEndpointAuthMethodBasic {
 		req.SetBasicAuth(clientID, cfg.ClientSecret)
 	}

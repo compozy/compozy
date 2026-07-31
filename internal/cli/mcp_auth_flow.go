@@ -96,13 +96,61 @@ func exchangeManualMCPAuth(
 }
 
 func readManualMCPAuthInputContext(ctx context.Context, input io.Reader, output io.Writer) (string, error) {
+	return readManualMCPAuthInputContextWithTerminal(
+		ctx,
+		input,
+		output,
+		supportBundleInputIsTerminal,
+		term.ReadPassword,
+	)
+}
+
+func readManualMCPAuthInputContextWithTerminal(
+	ctx context.Context,
+	input io.Reader,
+	output io.Writer,
+	isTerminal func(io.Reader) bool,
+	readPassword func(int) ([]byte, error),
+) (string, error) {
+	inputIsTerminal := isTerminal(input)
+	readInput := func() (string, error) {
+		return readManualMCPAuthInputWithTerminal(
+			input,
+			output,
+			func(io.Reader) bool { return inputIsTerminal },
+			readPassword,
+		)
+	}
+	if inputIsTerminal {
+		value, err := readInput()
+		if err != nil {
+			return "", err
+		}
+		if err := ctx.Err(); err != nil {
+			return "", mcpAuthorizationTimeoutError(err)
+		}
+		return value, nil
+	}
+
+	file, ok := input.(*os.File)
+	if !ok {
+		value, err := readInput()
+		if err != nil {
+			return "", err
+		}
+		if err := ctx.Err(); err != nil {
+			return "", mcpAuthorizationTimeoutError(err)
+		}
+		return value, nil
+	}
+
 	type readResult struct {
 		value string
 		err   error
 	}
 	results := make(chan readResult, 1)
 	go func() {
-		value, err := readManualMCPAuthInput(input, output)
+		value, err := readInput()
 		results <- readResult{value: value, err: err}
 	}()
 	select {
@@ -113,26 +161,16 @@ func readManualMCPAuthInputContext(ctx context.Context, input io.Reader, output 
 		return result.value, result.err
 	case <-ctx.Done():
 		timeoutErr := mcpAuthorizationTimeoutError(ctx.Err())
-		if closer, ok := input.(io.Closer); ok {
-			if err := closer.Close(); err != nil {
-				return "", errors.Join(timeoutErr, fmt.Errorf("cli: cancel MCP authorization input: %w", err))
-			}
+		if err := file.Close(); err != nil {
+			return "", errors.Join(timeoutErr, fmt.Errorf("cli: cancel MCP authorization input: %w", err))
 		}
+		<-results
 		return "", timeoutErr
 	}
 }
 
 func mcpAuthorizationTimeoutError(err error) error {
 	return fmt.Errorf("cli: MCP authorization timed out: %w", err)
-}
-
-func readManualMCPAuthInput(input io.Reader, output io.Writer) (string, error) {
-	return readManualMCPAuthInputWithTerminal(
-		input,
-		output,
-		supportBundleInputIsTerminal,
-		term.ReadPassword,
-	)
 }
 
 func readManualMCPAuthInputWithTerminal(

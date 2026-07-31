@@ -26,7 +26,7 @@ func Test() error {
 	if err := runGotestsum(ctx, nil, args...); err != nil {
 		return err
 	}
-	return runCommandInDir(ctx, "sdk/go", "go", "test", "-race", "-parallel=4", "./...")
+	return runRaceEnabledCommandInDir(ctx, "sdk/go", nil, "go", "test", "-race", "-parallel=4", "./...")
 }
 
 // TestIntegration runs all tests including integration tests.

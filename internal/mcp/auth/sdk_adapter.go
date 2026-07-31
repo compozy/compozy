@@ -168,20 +168,46 @@ func (s *Service) protectedResourceMetadataURLFromProbe(
 		return ""
 	}
 	defer func() {
-		if drainAndCloseResponseBody(resp.Body) != nil {
+		if drainErr := drainAndCloseResponseBody(resp.Body); drainErr != nil && metadataURL == "" {
 			metadataURL = ""
 		}
 	}()
 	challenges, err := oauthex.ParseWWWAuthenticate(resp.Header.Values("WWW-Authenticate"))
-	if err != nil {
-		return ""
-	}
-	for _, challenge := range challenges {
-		if raw := strings.TrimSpace(challenge.Params["resource_metadata"]); raw != "" {
-			return raw
+	if err == nil {
+		for _, challenge := range challenges {
+			raw := strings.TrimSpace(challenge.Params["resource_metadata"])
+			if raw == "" {
+				continue
+			}
+			if err := validateAdvertisedMetadataURL(raw, resourceURL); err != nil {
+				continue
+			}
+			metadataURL = raw
+			break
 		}
 	}
-	return ""
+	return metadataURL
+}
+
+func validateAdvertisedMetadataURL(metadataURL, resourceURL string) error {
+	if err := validateAbsoluteHTTPURL("advertised protected resource metadata URL", metadataURL); err != nil {
+		return err
+	}
+	if err := validateAbsoluteHTTPURL("resource URL", resourceURL); err != nil {
+		return err
+	}
+	metadata, err := url.Parse(strings.TrimSpace(metadataURL))
+	if err != nil {
+		return fmt.Errorf("mcp auth: parse advertised protected resource metadata URL: %w", err)
+	}
+	resource, err := url.Parse(strings.TrimSpace(resourceURL))
+	if err != nil {
+		return fmt.Errorf("mcp auth: parse resource URL: %w", err)
+	}
+	if !strings.EqualFold(metadata.Host, resource.Host) {
+		return errors.New("mcp auth: advertised protected resource metadata host does not match resource URL")
+	}
+	return nil
 }
 
 type protectedResourceMetadataCandidate struct {
@@ -205,6 +231,8 @@ func protectedResourceMetadataURLs(
 		resource.Path,
 		"/",
 	)
+	atEndpoint.RawQuery = ""
+	atEndpoint.Fragment = ""
 	urls = append(
 		urls,
 		protectedResourceMetadataCandidate{URL: atEndpoint.String(), ResourceURL: resourceURL},

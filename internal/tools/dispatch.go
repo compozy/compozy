@@ -16,15 +16,6 @@ type dispatchTarget struct {
 }
 
 func (r *RuntimeRegistry) dispatch(ctx context.Context, scope Scope, req CallRequest) (ToolResult, error) {
-	return r.dispatchMatching(ctx, scope, req, nil)
-}
-
-func (r *RuntimeRegistry) dispatchMatching(
-	ctx context.Context,
-	scope Scope,
-	req CallRequest,
-	includeProvider func(Provider) bool,
-) (ToolResult, error) {
 	started := time.Now().UTC()
 	if err := contextErr(ctx, req.ToolID); err != nil {
 		return ToolResult{}, err
@@ -36,7 +27,7 @@ func (r *RuntimeRegistry) dispatchMatching(
 	if err := req.ToolID.Validate(); err != nil {
 		return ToolResult{}, invalidInputError(req.ToolID, "tool id is invalid", err)
 	}
-	target, err := r.resolveDispatchTargetMatching(ctx, scope, req.ToolID, includeProvider)
+	target, err := r.resolveDispatchTarget(ctx, scope, req.ToolID)
 	if err != nil {
 		if target.descriptor.ID == "" {
 			return ToolResult{}, normalizeToolError(req.ToolID, err)
@@ -179,13 +170,12 @@ func validateHookCallRequestIdentity(original CallRequest, patched CallRequest) 
 	return nil
 }
 
-func (r *RuntimeRegistry) resolveDispatchTargetMatching(
+func (r *RuntimeRegistry) resolveDispatchTarget(
 	ctx context.Context,
 	scope Scope,
 	id ToolID,
-	includeProvider func(Provider) bool,
 ) (dispatchTarget, error) {
-	index, err := r.buildIndexMatching(ctx, scope, includeProvider)
+	index, err := r.buildIndex(ctx, scope)
 	if err != nil {
 		return dispatchTarget{}, err
 	}

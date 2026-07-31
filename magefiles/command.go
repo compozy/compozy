@@ -36,15 +36,29 @@ func runRaceEnabledCommand(
 	name string,
 	args ...string,
 ) error {
+	return runRaceEnabledCommandInDir(ctx, ".", env, name, args...)
+}
+
+func runRaceEnabledCommandInDir(
+	ctx context.Context,
+	dir string,
+	env map[string]string,
+	name string,
+	args ...string,
+) error {
 	cmd := exec.CommandContext(ctx, name, args...)
-	cmd.Dir = "."
+	cmd.Dir = dir
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	cmd.Env = hermeticGoTestEnv(withRaceEnabledEnv(env))
+	cmd.Env = raceEnabledCommandEnv(env)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("race-enabled %s command %v: %w", name, args, err)
 	}
 	return nil
+}
+
+func raceEnabledCommandEnv(overrides map[string]string) []string {
+	return hermeticGoTestEnv(withRaceEnabledEnv(overrides))
 }
 
 func withRaceEnabledEnv(overrides map[string]string) map[string]string {

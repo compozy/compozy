@@ -183,7 +183,7 @@ func NormalizeMCPInputValue(inputType string, raw string) (string, error) {
 		return "", err
 	}
 	switch inputType {
-	case mcpInputTypeString:
+	case mcpInputTypeString, mcpInputTypeSecret:
 		return raw, nil
 	case mcpInputTypeIdentifier:
 		value := strings.TrimSpace(raw)

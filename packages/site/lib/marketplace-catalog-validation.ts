@@ -120,11 +120,11 @@ function parseIPv6Words(value: string): number[] | null {
 function isBlockedIPv6(words: number[]): boolean {
   const allZero = words.every(word => word === 0);
   const loopback = words.slice(0, 7).every(word => word === 0) && words[7] === 1;
-  const mappedIPv4 =
-    words.slice(0, 5).every(word => word === 0) && words[5] === 0xffff
+  const embeddedIPv4 =
+    words.slice(0, 5).every(word => word === 0) && (words[5] === 0xffff || words[5] === 0)
       ? ([words[6] >> 8, words[6] & 0xff, words[7] >> 8, words[7] & 0xff] as IPv4Address)
       : null;
-  if (mappedIPv4) return isBlockedIPv4(mappedIPv4);
+  if (embeddedIPv4) return isBlockedIPv4(embeddedIPv4);
 
   return (
     allZero ||

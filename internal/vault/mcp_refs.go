@@ -18,7 +18,8 @@ const (
 	// MCPSharedRefPrefix identifies MCP secrets explicitly shared across owners.
 	MCPSharedRefPrefix = "vault:mcp/shared/"
 
-	mcpEncodedSegmentPrefix = "encoded-"
+	mcpEncodedSegmentPrefix  = "encoded-"
+	mcpOAuthSecretPathPrefix = "oauth/"
 )
 
 // ValidateMCPSecretRefAccess permits only the target server's owned refs or the explicit shared namespace.
@@ -37,6 +38,9 @@ func ValidateMCPSecretRefAccess(ref string, scope string, workspaceID string, se
 	if !strings.HasPrefix(normalized, ownerPrefix) {
 		return errors.New("vault: MCP secret ref must belong to the target server or the shared namespace")
 	}
+	if strings.HasPrefix(normalized, ownerPrefix+mcpOAuthSecretPathPrefix) {
+		return errors.New("vault: MCP secret ref must not access the daemon-managed OAuth subtree")
+	}
 	return nil
 }
 
@@ -53,8 +57,8 @@ func MCPDCRSecretRefsForTarget(scope string, workspaceID string, serverName stri
 		return MCPDCRSecretRefs{}, err
 	}
 	return MCPDCRSecretRefs{
-		ClientSecretRef:            prefix + "oauth/dcr-client-secret",
-		RegistrationAccessTokenRef: prefix + "oauth/registration-access-token",
+		ClientSecretRef:            prefix + mcpOAuthSecretPathPrefix + "dcr-client-secret",
+		RegistrationAccessTokenRef: prefix + mcpOAuthSecretPathPrefix + "registration-access-token",
 	}, nil
 }
 

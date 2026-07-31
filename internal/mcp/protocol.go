@@ -66,7 +66,7 @@ func protocolVersionMiddlewareFor(supports func(string) bool) mcpgo.Middleware {
 				return result, err
 			}
 			if discover, ok := result.(*mcpgo.DiscoverResult); ok {
-				versions := discover.SupportedVersions[:0]
+				versions := make([]string, 0, len(discover.SupportedVersions))
 				for _, version := range discover.SupportedVersions {
 					if supports(version) {
 						versions = append(versions, version)

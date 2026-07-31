@@ -14,6 +14,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 )
 
 func TestManagerSessionMutationRaces(t *testing.T) {
@@ -91,6 +92,55 @@ func TestManagerSessionMutationRaces(t *testing.T) {
 		}
 		if _, err := store.GetMCPAuthToken(t.Context(), cfg.Target); !errors.Is(err, ErrTokenNotFound) {
 			t.Fatalf("GetMCPAuthToken(after supersession) error = %v, want ErrTokenNotFound", err)
+		}
+	})
+
+	t.Run("Should release the manager lock while validating a durable registration", func(t *testing.T) {
+		t.Parallel()
+		manager, cfg, store, _ := newManagerRaceHarness(t, false)
+		cfg.Registration = RegistrationAuto
+		fingerprint, err := ServerDefinitionFingerprint(cfg)
+		if err != nil {
+			t.Fatalf("ServerDefinitionFingerprint() error = %v", err)
+		}
+		store.registration = ClientRegistration{
+			Target:                cfg.Target,
+			DefinitionFingerprint: fingerprint,
+			ResourceURL:           cfg.RemoteURL,
+			Issuer:                cfg.IssuerURL,
+			ClientID:              cfg.ClientID,
+		}
+		store.registrationStarted = make(chan struct{})
+		store.releaseRegistration = make(chan struct{})
+		manager.service.registrations = store
+		token := managerBoundToken(t, cfg, "exchanged-access")
+
+		commitErr := make(chan error, 1)
+		go func() {
+			_, commitErrValue := manager.commitExchange(
+				t.Context(),
+				&loginSession{generation: 0},
+				cfg,
+				token,
+			)
+			commitErr <- commitErrValue
+		}()
+		<-store.registrationStarted
+
+		invalidationErr := make(chan error, 1)
+		go func() { invalidationErr <- manager.Invalidate(cfg.Target) }()
+		select {
+		case err := <-invalidationErr:
+			if err != nil {
+				t.Fatalf("Invalidate() error = %v", err)
+			}
+		case <-time.After(time.Second):
+			close(store.releaseRegistration)
+			t.Fatal("Invalidate() blocked behind registration-store I/O")
+		}
+		close(store.releaseRegistration)
+		if err := <-commitErr; !errors.Is(err, ErrLoginSessionStale) {
+			t.Fatalf("commitExchange() error = %v, want ErrLoginSessionStale", err)
 		}
 	})
 }
@@ -226,7 +276,7 @@ func newManagerRaceHarness(
 		server.Close()
 	})
 	store := &managerTestStore{}
-	service, err := NewService(store, WithHTTPClient(server.Client()))
+	service, err := NewService(store, withHTTPClientForTest(server.Client()))
 	if err != nil {
 		t.Fatalf("NewService() error = %v", err)
 	}
@@ -297,9 +347,12 @@ func writeManagerTestResponse(t *testing.T, writer http.ResponseWriter, body str
 }
 
 type managerTestStore struct {
-	mu      sync.Mutex
-	token   TokenRecord
-	deleted bool
+	mu                  sync.Mutex
+	token               TokenRecord
+	deleted             bool
+	registration        ClientRegistration
+	registrationStarted chan struct{}
+	releaseRegistration chan struct{}
 }
 
 func (s *managerTestStore) SaveMCPAuthToken(_ context.Context, token TokenRecord) error {
@@ -343,4 +396,44 @@ func (s *managerTestStore) DeleteMCPAuthorizationState(context.Context, Target) 
 	return nil
 }
 
+func (s *managerTestStore) GetMCPAuthRegistration(
+	context.Context,
+	Target,
+) (ClientRegistration, error) {
+	s.mu.Lock()
+	registration := s.registration
+	started := s.registrationStarted
+	release := s.releaseRegistration
+	s.mu.Unlock()
+	if started != nil {
+		close(started)
+	}
+	if release != nil {
+		<-release
+	}
+	if strings.TrimSpace(registration.ClientID) == "" {
+		return ClientRegistration{}, ErrRegistrationNotFound
+	}
+	return registration, nil
+}
+
+func (s *managerTestStore) SaveMCPAuthRegistration(
+	_ context.Context,
+	registration ClientRegistration,
+	_ RegistrationSecrets,
+) (ClientRegistration, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.registration = registration
+	return registration, nil
+}
+
+func (s *managerTestStore) DeleteMCPAuthRegistration(context.Context, Target) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.registration = ClientRegistration{}
+	return nil
+}
+
 var _ TokenStore = (*managerTestStore)(nil)
+var _ RegistrationStore = (*managerTestStore)(nil)

@@ -789,6 +789,7 @@ func TestSettingsMCPAuthHandlersUseConfiguredRedirectURI(t *testing.T) {
 		wantStatus   int
 		wantCallback string
 		wantCalls    int
+		wantError    string
 	}{
 		{
 			name:         "Should advertise the configured IPv6 loopback redirect URI",
@@ -813,6 +814,13 @@ func TestSettingsMCPAuthHandlersUseConfiguredRedirectURI(t *testing.T) {
 			wantStatus:   http.StatusOK,
 			wantCallback: "http://127.0.0.1:2123/api/mcp/oauth/callback",
 			wantCalls:    1,
+		},
+		{
+			name:       "Should reject manual authorization without a configured redirect URI",
+			host:       "0.0.0.0",
+			mode:       contract.SettingsMCPAuthBeginModeManual,
+			wantStatus: http.StatusServiceUnavailable,
+			wantError:  "MCP OAuth redirect_uri is required",
 		},
 	}
 	for _, tc := range tests {
@@ -849,6 +857,9 @@ func TestSettingsMCPAuthHandlersUseConfiguredRedirectURI(t *testing.T) {
 			)
 			if response.Code != tc.wantStatus {
 				t.Fatalf("begin status = %d, want %d; body=%s", response.Code, tc.wantStatus, response.Body.String())
+			}
+			if tc.wantError != "" && !strings.Contains(response.Body.String(), tc.wantError) {
+				t.Fatalf("begin error body = %s, want %q", response.Body.String(), tc.wantError)
 			}
 			if service.BeginMCPAuthCalls != tc.wantCalls {
 				t.Fatalf("BeginMCPAuthCalls = %d, want %d", service.BeginMCPAuthCalls, tc.wantCalls)

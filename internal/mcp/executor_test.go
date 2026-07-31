@@ -728,14 +728,15 @@ func TestProtocolVersionMiddleware(t *testing.T) {
 	t.Run("Should advertise only the modern and legacy contract versions", func(t *testing.T) {
 		t.Parallel()
 
+		versions := []string{
+			protocolVersionModern,
+			protocolVersionProviderLegacy,
+			protocolVersionLegacy,
+		}
 		handler := protocolVersionMiddleware()(
 			func(context.Context, string, mcpsdk.Request) (mcpsdk.Result, error) {
 				return &mcpsdk.DiscoverResult{
-					SupportedVersions: []string{
-						protocolVersionModern,
-						protocolVersionLegacy,
-						"2025-06-18",
-					},
+					SupportedVersions: versions,
 				}, nil
 			},
 		)
@@ -756,6 +757,13 @@ func TestProtocolVersionMiddleware(t *testing.T) {
 			protocolVersionLegacy,
 		}; !slices.Equal(got, want) {
 			t.Fatalf("supported versions = %#v, want %#v", got, want)
+		}
+		if got, want := versions, []string{
+			protocolVersionModern,
+			protocolVersionProviderLegacy,
+			protocolVersionLegacy,
+		}; !slices.Equal(got, want) {
+			t.Fatalf("handler versions = %#v, want %#v", got, want)
 		}
 	})
 
@@ -778,6 +786,46 @@ func TestProtocolVersionMiddleware(t *testing.T) {
 			t.Fatal("initialize middleware called the server for an unsupported version")
 		}
 	})
+}
+
+func TestNormalizeMCPErrorWithContext(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		err       error
+		wantScope bool
+	}{
+		{
+			name:      "Should preserve an insufficient scope error after the deadline",
+			err:       &InsufficientScopeError{Scopes: []string{"tools.read"}},
+			wantScope: true,
+		},
+		{
+			name: "Should preserve an authorization requirement after the deadline",
+			err:  ErrAuthorizationRequired,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx, cancel := context.WithDeadline(t.Context(), time.Now().Add(-time.Second))
+			defer cancel()
+			normalized := normalizeMCPErrorWithContext(ctx, "mcp__fixture__echo", test.err, true)
+			requireReason(t, normalized, toolspkg.ReasonMCPAuthRequired)
+			if test.wantScope {
+				var scopeErr *InsufficientScopeError
+				if !errors.As(normalized, &scopeErr) {
+					t.Fatalf("normalizeMCPErrorWithContext() error = %v, want InsufficientScopeError", normalized)
+				}
+				return
+			}
+			if !errors.Is(normalized, ErrAuthorizationRequired) {
+				t.Fatalf("normalizeMCPErrorWithContext() error = %v, want ErrAuthorizationRequired", normalized)
+			}
+		})
+	}
 }
 
 func TestConnectClientRejectsUnsupportedNegotiatedProtocol(t *testing.T) {
@@ -818,6 +866,58 @@ func TestConnectClientRejectsUnsupportedNegotiatedProtocol(t *testing.T) {
 		case <-serverErr:
 		case <-time.After(time.Second):
 			t.Fatal("timed out waiting for unsupported-protocol peer to close")
+		}
+	})
+}
+
+func TestListMCPTools(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject a server that never finishes distinct cursor pagination", func(t *testing.T) {
+		t.Parallel()
+
+		serverTransport, clientTransport := mcpsdk.NewInMemoryTransports()
+		server := newFakeSDKServer(nil)
+		calls := 0
+		server.AddReceivingMiddleware(func(next mcpsdk.MethodHandler) mcpsdk.MethodHandler {
+			return func(ctx context.Context, method string, request mcpsdk.Request) (mcpsdk.Result, error) {
+				if method == "tools/list" {
+					calls++
+					return &mcpsdk.ListToolsResult{NextCursor: fmt.Sprintf("page-%d", calls)}, nil
+				}
+				return next(ctx, method, request)
+			}
+		})
+		serverCtx, cancelServer := context.WithCancel(t.Context())
+		serverErr := make(chan error, 1)
+		go func() {
+			serverErr <- server.Run(serverCtx, serverTransport)
+		}()
+		t.Cleanup(func() {
+			cancelServer()
+			select {
+			case <-serverErr:
+			case <-time.After(time.Second):
+				t.Error("timed out waiting for paginated tool server shutdown")
+			}
+		})
+
+		session, err := (&CallExecutor{}).connectClient(t.Context(), clientTransport)
+		if err != nil {
+			t.Fatalf("connectClient() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if closeErr := session.Close(); closeErr != nil {
+				t.Errorf("session.Close() error = %v", closeErr)
+			}
+		})
+
+		_, _, err = listMCPTools(t.Context(), session)
+		if err == nil || !strings.Contains(err.Error(), "exceeded maximum page count") {
+			t.Fatalf("listMCPTools() error = %v, want page limit error", err)
+		}
+		if got, want := calls, maxMCPToolListPages; got != want {
+			t.Fatalf("tools/list calls = %d, want %d", got, want)
 		}
 	})
 }

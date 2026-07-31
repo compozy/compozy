@@ -1294,14 +1294,20 @@ func TestMCPServerValidateSupportsRemotePreRegisteredOAuth(t *testing.T) {
 			Scopes:       []string{"read", "write"},
 		},
 	}
-	if err := server.Validate("mcp_servers[0]"); err != nil {
-		t.Fatalf("Validate(remote OAuth) error = %v", err)
-	}
-
-	server.Auth.ClientID = ""
-	if err := server.Validate("mcp_servers[0]"); err == nil {
-		t.Fatal("Validate(missing pre-registered client ID) error = nil, want validation failure")
-	}
+	t.Run("Should validate a pre-registered remote OAuth config", func(t *testing.T) {
+		t.Parallel()
+		if err := server.Validate("mcp_servers[0]"); err != nil {
+			t.Fatalf("Validate(remote OAuth) error = %v", err)
+		}
+	})
+	t.Run("Should reject a missing pre-registered client ID", func(t *testing.T) {
+		t.Parallel()
+		invalid := server
+		invalid.Auth.ClientID = ""
+		if err := invalid.Validate("mcp_servers[0]"); err == nil {
+			t.Fatal("Validate(missing pre-registered client ID) error = nil, want validation failure")
+		}
+	})
 }
 
 func TestMCPOAuthConfigValidatesClientMetadataURL(t *testing.T) {

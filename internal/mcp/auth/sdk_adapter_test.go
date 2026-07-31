@@ -31,7 +31,7 @@ func TestHostedOAuthAdapterPersistsDCRBeforeHandoff(t *testing.T) {
 		store := &adapterTestStore{}
 		service, err := NewService(
 			store,
-			WithHTTPClient(fixture.Server.Client()),
+			withHTTPClientForTest(fixture.Server.Client()),
 			WithRegistrationStore(store),
 			WithSecretRefResolver(func(context.Context, string) (string, error) {
 				return store.secrets.ClientSecret, nil
@@ -84,7 +84,7 @@ func TestCatalogOAuthBlocksLoopbackDiscovery(t *testing.T) {
 		store := &adapterTestStore{}
 		service, err := NewService(
 			store,
-			WithHTTPClient(server.Client()),
+			withHTTPClientForTest(server.Client()),
 			WithRegistrationStore(store),
 		)
 		if err != nil {
@@ -128,7 +128,7 @@ func TestCatalogOAuthBlocksLoopbackCredentialEndpoints(t *testing.T) {
 		}))
 		defer server.Close()
 
-		service, err := NewService(&adapterTestStore{}, WithHTTPClient(server.Client()))
+		service, err := NewService(&adapterTestStore{}, withHTTPClientForTest(server.Client()))
 		if err != nil {
 			t.Fatalf("NewService() error = %v", err)
 		}
@@ -164,7 +164,7 @@ func TestManagerExchangeSupportsRFC9207Issuer(t *testing.T) {
 		store := &adapterTestStore{}
 		service, err := NewService(
 			store,
-			WithHTTPClient(fixture.Server.Client()),
+			withHTTPClientForTest(fixture.Server.Client()),
 			WithRegistrationStore(store),
 			WithSecretRefResolver(func(context.Context, string) (string, error) {
 				return store.secrets.ClientSecret, nil
@@ -221,7 +221,7 @@ func TestPreRegisteredAuthorizationBindsResource(t *testing.T) {
 			mcpfixture.MustNew(mcpfixture.ProfileModern2026),
 			mcpfixture.OAuthConfig{},
 		)
-		service, err := NewService(&adapterTestStore{}, WithHTTPClient(fixture.Server.Client()))
+		service, err := NewService(&adapterTestStore{}, withHTTPClientForTest(fixture.Server.Client()))
 		if err != nil {
 			t.Fatalf("NewService() error = %v", err)
 		}
@@ -263,7 +263,7 @@ func TestDynamicRegistrationReuseValidatesBindings(t *testing.T) {
 		now := time.Date(2026, 7, 30, 12, 0, 0, 0, time.UTC)
 		service, err := NewService(
 			store,
-			WithHTTPClient(fixture.Server.Client()),
+			withHTTPClientForTest(fixture.Server.Client()),
 			WithRegistrationStore(store),
 			WithSecretRefResolver(func(context.Context, string) (string, error) {
 				return store.secrets.ClientSecret, nil
@@ -314,6 +314,14 @@ func TestTokenEndpointClientAuthentication(t *testing.T) {
 	t.Run("Should use HTTP Basic for a DCR client registered with client_secret_basic", func(t *testing.T) {
 		t.Parallel()
 		server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+			if got, want := request.Header.Get("Content-Type"), "application/x-www-form-urlencoded"; got != want {
+				http.Error(writer, "unexpected content type", http.StatusUnsupportedMediaType)
+				return
+			}
+			if got, want := request.Header.Get("Accept"), "application/json"; got != want {
+				http.Error(writer, "unexpected accept header", http.StatusNotAcceptable)
+				return
+			}
 			clientID, clientSecret, ok := request.BasicAuth()
 			if !ok || clientID != "client" || clientSecret != "secret" {
 				http.Error(writer, "missing basic client authentication", http.StatusUnauthorized)
@@ -334,7 +342,7 @@ func TestTokenEndpointClientAuthentication(t *testing.T) {
 		}))
 		defer server.Close()
 
-		service, err := NewService(&adapterTestStore{}, WithHTTPClient(server.Client()))
+		service, err := NewService(&adapterTestStore{}, withHTTPClientForTest(server.Client()))
 		if err != nil {
 			t.Fatalf("NewService() error = %v", err)
 		}
@@ -356,6 +364,59 @@ func TestTokenEndpointClientAuthentication(t *testing.T) {
 			t.Fatalf("exchangeCode(client_secret_basic) error = %v", err)
 		}
 	})
+
+	t.Run("Should default an omitted public DCR auth method to none", func(t *testing.T) {
+		t.Parallel()
+		method, err := registrationTokenEndpointAuthMethod("", "")
+		if err != nil {
+			t.Fatalf("registrationTokenEndpointAuthMethod() error = %v", err)
+		}
+		if got, want := method, tokenEndpointAuthMethodNone; got != want {
+			t.Fatalf("registrationTokenEndpointAuthMethod() = %q, want %q", got, want)
+		}
+	})
+}
+
+func TestProtectedResourceMetadataURLValidation(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should accept advertised metadata on the resource host", func(t *testing.T) {
+		t.Parallel()
+		if err := validateAdvertisedMetadataURL(
+			"https://mcp.example.test/metadata",
+			"https://mcp.example.test/connect",
+		); err != nil {
+			t.Fatalf("validateAdvertisedMetadataURL() error = %v", err)
+		}
+	})
+
+	t.Run("Should reject advertised metadata on another host", func(t *testing.T) {
+		t.Parallel()
+		if err := validateAdvertisedMetadataURL(
+			"https://attacker.example.test/metadata",
+			"https://mcp.example.test/connect",
+		); err == nil {
+			t.Fatal("validateAdvertisedMetadataURL() error = nil, want host rejection")
+		}
+	})
+}
+
+func TestProtectedResourceMetadataURLs(t *testing.T) {
+	t.Parallel()
+	t.Run("Should omit resource query and fragment from endpoint metadata candidates", func(t *testing.T) {
+		t.Parallel()
+		candidates := protectedResourceMetadataURLs("", "https://mcp.example.test/connect?tenant=a#section")
+		if len(candidates) == 0 {
+			t.Fatal("protectedResourceMetadataURLs() returned no candidates")
+		}
+		endpoint, err := url.Parse(candidates[0].URL)
+		if err != nil {
+			t.Fatalf("url.Parse(endpoint candidate) error = %v", err)
+		}
+		if endpoint.RawQuery != "" || endpoint.Fragment != "" {
+			t.Fatalf("endpoint candidate = %q, want no query or fragment", candidates[0].URL)
+		}
+	})
 }
 
 func TestRegisterClientReportsRejectionStatus(t *testing.T) {
@@ -366,7 +427,7 @@ func TestRegisterClientReportsRejectionStatus(t *testing.T) {
 			http.Error(writer, "sensitive provider detail", http.StatusForbidden)
 		}))
 		defer server.Close()
-		service, err := NewService(&adapterTestStore{}, WithHTTPClient(server.Client()))
+		service, err := NewService(&adapterTestStore{}, withHTTPClientForTest(server.Client()))
 		if err != nil {
 			t.Fatalf("NewService() error = %v", err)
 		}
@@ -438,7 +499,7 @@ func TestManagerExchangeRejectsMismatchedRedirectURL(t *testing.T) {
 		store := &adapterTestStore{}
 		service, err := NewService(
 			store,
-			WithHTTPClient(fixture.Server.Client()),
+			withHTTPClientForTest(fixture.Server.Client()),
 			WithRegistrationStore(store),
 		)
 		if err != nil {
@@ -499,7 +560,7 @@ func TestManagerStepUpPreservesApprovedScopes(t *testing.T) {
 			store := &adapterTestStore{}
 			service, err := NewService(
 				store,
-				WithHTTPClient(fixture.Server.Client()),
+				withHTTPClientForTest(fixture.Server.Client()),
 				WithRegistrationStore(store),
 			)
 			if err != nil {
@@ -946,7 +1007,7 @@ func TestRegisterClientDiscardsIncompleteDCRManagementCredentials(t *testing.T) 
 			store := &adapterTestStore{}
 			service, err := NewService(
 				store,
-				WithHTTPClient(server.Client()),
+				withHTTPClientForTest(server.Client()),
 				WithRegistrationStore(store),
 			)
 			if err != nil {
@@ -1105,7 +1166,7 @@ func newPreRegisteredTestService(
 	extraOptions ...ServiceOption,
 ) (*Service, ServerConfig) {
 	t.Helper()
-	options := []ServiceOption{WithHTTPClient(server.Client())}
+	options := []ServiceOption{withHTTPClientForTest(server.Client())}
 	options = append(options, extraOptions...)
 	service, err := NewService(store, options...)
 	if err != nil {

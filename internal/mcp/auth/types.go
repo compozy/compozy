@@ -296,6 +296,8 @@ func (c ServerConfig) Validate() error {
 	switch {
 	case strings.TrimSpace(c.Type) == "":
 		return errors.New("mcp auth: auth type is required")
+	case strings.TrimSpace(c.Type) != authTypeOAuth:
+		return fmt.Errorf("mcp auth: unsupported auth type %q", c.Type)
 	case c.registrationStrategy() == RegistrationPreRegistered && strings.TrimSpace(c.ClientID) == "":
 		return errors.New("mcp auth: pre-registered client id is required")
 	case c.registrationStrategy() != RegistrationAuto && c.registrationStrategy() != RegistrationPreRegistered:

@@ -383,6 +383,7 @@ describe("marketplace catalog", () => {
     "https://192.0.2.1/server",
     "https://100.64.0.1/server",
     "https://[::1]/server",
+    "https://[::127.0.0.1]/server",
     "https://example.com/server#credentials",
   ])("rejects non-public MCP remote destination %s", url => {
     expect(() => mcpEntrySchema.parse(validMCPEntry({ launch: { type: "remote", url } }))).toThrow(
@@ -413,6 +414,25 @@ describe("marketplace catalog", () => {
         })
       )
     ).toThrow(/binding env\/SERVER_MODE is duplicated/);
+  });
+
+  it("explains which local launch types allow environment inputs", () => {
+    expect(() =>
+      mcpEntrySchema.parse(
+        validMCPEntry({
+          launch: { type: "remote", url: "https://mcp.example.com/server" },
+          inputs: [
+            {
+              id: "profile",
+              prompt: "Profile",
+              type: "string",
+              required: false,
+              binding: { type: "env", name: "PROFILE" },
+            },
+          ],
+        })
+      )
+    ).toThrow(/local launch \(npm, uvx, docker\)/);
   });
 
   it("rejects MCP query inputs that override launch configuration", () => {

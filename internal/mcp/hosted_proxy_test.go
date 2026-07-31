@@ -236,6 +236,7 @@ func TestRunHostedProxyProviderProtocolCompatibility(t *testing.T) {
 		serverReader, clientWriter := io.Pipe()
 		clientReader, serverWriter := io.Pipe()
 		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
 		errCh := make(chan error, 1)
 		go func() {
 			errCh <- RunHostedProxy(ctx, proxyClient, HostedProxyOptions{

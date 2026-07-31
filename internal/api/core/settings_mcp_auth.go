@@ -123,7 +123,11 @@ func (h *BaseHandlers) mcpOAuthCallbackURLForMode(mode contract.SettingsMCPAuthB
 	case contract.SettingsMCPAuthBeginModeAutomatic:
 		return h.mcpOAuthCallbackURL()
 	case contract.SettingsMCPAuthBeginModeManual:
-		return strings.TrimSpace(h.Config.MCP.OAuth.RedirectURI), nil
+		redirectURI := strings.TrimSpace(h.Config.MCP.OAuth.RedirectURI)
+		if redirectURI == "" {
+			return "", errors.New("settings: MCP OAuth redirect_uri is required")
+		}
+		return redirectURI, nil
 	default:
 		return "", errInvalidMCPAuthBeginMode
 	}

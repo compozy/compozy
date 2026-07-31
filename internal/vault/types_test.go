@@ -172,4 +172,19 @@ func TestValidateMCPSecretRefAccessIsolatesOwners(t *testing.T) {
 			t.Fatal("ValidateMCPSecretRefAccess(other workspace) error = nil, want owner rejection")
 		}
 	})
+
+	t.Run("Should reject caller refs in the daemon-managed OAuth subtree", func(t *testing.T) {
+		t.Parallel()
+
+		refs, err := MCPDCRSecretRefsForTarget(MCPGlobalScope, "", "linear")
+		if err != nil {
+			t.Fatalf("MCPDCRSecretRefsForTarget() error = %v", err)
+		}
+		for _, ref := range []string{refs.ClientSecretRef, refs.RegistrationAccessTokenRef} {
+			err := ValidateMCPSecretRefAccess(ref, MCPGlobalScope, "", "linear")
+			if err == nil || !strings.Contains(err.Error(), "daemon-managed OAuth subtree") {
+				t.Fatalf("ValidateMCPSecretRefAccess(%q) error = %v, want OAuth subtree rejection", ref, err)
+			}
+		}
+	})
 }

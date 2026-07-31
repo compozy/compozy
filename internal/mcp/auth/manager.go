@@ -444,10 +444,11 @@ func (m *Manager) commitExchange(
 		return Status{}, err
 	}
 	m.mu.Lock()
-	defer m.mu.Unlock()
 	if m.revision[targetKey] != session.revision {
+		m.mu.Unlock()
 		return Status{}, ErrLoginSessionStale
 	}
+	m.mu.Unlock()
 	matches, matchErr := m.service.tokenMatchesServerDefinition(ctx, token, cfg)
 	if matchErr != nil {
 		return Status{}, matchErr
@@ -455,6 +456,12 @@ func (m *Manager) commitExchange(
 	if !matches {
 		return Status{}, ErrLoginSessionStale
 	}
+	m.mu.Lock()
+	if m.revision[targetKey] != session.revision {
+		m.mu.Unlock()
+		return Status{}, ErrLoginSessionStale
+	}
+	m.mu.Unlock()
 	return m.service.persistReplacementTokenAtGeneration(ctx, cfg, token, session.generation)
 }
 

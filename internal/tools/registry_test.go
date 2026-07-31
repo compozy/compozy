@@ -455,8 +455,8 @@ func TestRuntimeRegistryProjections(t *testing.T) {
 		if len(result.Content) != 1 || result.Content[0].Text != "read" {
 			t.Fatalf("BootstrapSessionCall() result = %#v, want read text", result)
 		}
-		if remoteListCalls != 0 {
-			t.Fatalf("deferred provider list calls = %d, want 0 during bootstrap call", remoteListCalls)
+		if got, want := remoteListCalls, 1; got != want {
+			t.Fatalf("deferred provider list calls = %d, want %d during bootstrap call", got, want)
 		}
 
 		full, err := registry.SessionProjection(ctx, Scope{})
@@ -466,6 +466,87 @@ func TestRuntimeRegistryProjections(t *testing.T) {
 		requireToolIDs(t, full, local.ID, secondLocal.ID, remote.ID)
 		if remoteListCalls == 0 {
 			t.Fatal("deferred provider list calls = 0, want discovery during full projection")
+		}
+	})
+
+	t.Run("Should retain deferred descriptor metadata after a bootstrap projection", func(t *testing.T) {
+		t.Parallel()
+
+		local := descriptorWithID(ToolIDTaskRead, "Read Task", ToolsetIDTasks)
+		remote := mcpDescriptor("mcp__github__search", "github", "search")
+		remote.ToolPresentation = NewToolPresentation("Searching GitHub", "query")
+		remoteProvider := providerWithDescriptors(SourceRef{Kind: SourceDynamic, Owner: "mcp"}, remote)
+		remoteProvider.deferred = true
+		registry, err := NewRegistry(
+			WithProviders(
+				providerWithDescriptors(SourceRef{Kind: SourceBuiltin, Owner: "daemon"}, local),
+				remoteProvider,
+			),
+			WithPolicyInputs(PolicyInputs{
+				SystemPermissionMode: PermissionModeApproveAll,
+				ExternalDefault:      ExternalDefaultEnabled,
+			}, ToolsetCatalog{}),
+		)
+		if err != nil {
+			t.Fatalf("NewRegistry() error = %v", err)
+		}
+
+		if _, err := registry.SessionProjection(t.Context(), Scope{}); err != nil {
+			t.Fatalf("SessionProjection() error = %v", err)
+		}
+		if _, ok := registry.LookupToolMetadata("", remote.ID.String()); !ok {
+			t.Fatal("LookupToolMetadata(remote before bootstrap) ok = false, want true")
+		}
+		if _, err := registry.BootstrapSessionProjection(t.Context(), Scope{}); err != nil {
+			t.Fatalf("BootstrapSessionProjection() error = %v", err)
+		}
+		if _, ok := registry.LookupToolMetadata("", remote.ID.String()); !ok {
+			t.Fatal("LookupToolMetadata(remote after bootstrap) ok = false, want true")
+		}
+	})
+
+	t.Run("Should reject a bootstrap call when deferred discovery conflicts with its tool ID", func(t *testing.T) {
+		t.Parallel()
+
+		local := descriptorWithID(ToolIDTaskRead, "Read Task", ToolsetIDTasks)
+		localCalled := false
+		localProvider := providerWithDescriptors(SourceRef{Kind: SourceBuiltin, Owner: "daemon"}, local)
+		localProvider.handles[local.ID] = &registryTestHandle{
+			descriptor:   local,
+			availability: availableDispatchHandle(),
+			call: func(context.Context, CallRequest) (ToolResult, error) {
+				localCalled = true
+				return ToolResult{Content: []ToolContent{{Type: "text", Text: "unexpected"}}}, nil
+			},
+		}
+		remote := mcpDescriptor(local.ID, "github", "read")
+		remoteProvider := providerWithDescriptors(SourceRef{Kind: SourceDynamic, Owner: "mcp"}, remote)
+		remoteProvider.deferred = true
+		remoteListCalls := 0
+		remoteProvider.list = func() []Descriptor {
+			remoteListCalls++
+			return []Descriptor{remote}
+		}
+		registry, err := NewRegistry(
+			WithProviders(localProvider, remoteProvider),
+			WithPolicyInputs(PolicyInputs{
+				SystemPermissionMode: PermissionModeApproveAll,
+				ExternalDefault:      ExternalDefaultEnabled,
+			}, ToolsetCatalog{}),
+		)
+		if err != nil {
+			t.Fatalf("NewRegistry() error = %v", err)
+		}
+
+		_, err = registry.BootstrapSessionCall(t.Context(), Scope{}, CallRequest{ToolID: local.ID})
+		if !errors.Is(err, ErrToolConflict) {
+			t.Fatalf("BootstrapSessionCall() error = %v, want ErrToolConflict", err)
+		}
+		if localCalled {
+			t.Fatal("local provider handle was called for conflicted tool")
+		}
+		if got, want := remoteListCalls, 1; got != want {
+			t.Fatalf("deferred provider list calls = %d, want %d for authoritative conflict detection", got, want)
 		}
 	})
 }

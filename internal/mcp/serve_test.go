@@ -66,11 +66,14 @@ func TestHostAPIProjectionDecisions(t *testing.T) {
 			t.Fatalf("len(projectedHostAPITools()) = %d, want %d", got, want)
 		}
 		for _, tool := range tools {
+			if tool.InputSchema == nil {
+				t.Fatalf("tool %q input schema = nil, want JSON schema", tool.Name)
+			}
 			schema, err := json.Marshal(tool.InputSchema)
 			if err != nil {
 				t.Fatalf("json.Marshal(tool %q input schema) error = %v", tool.Name, err)
 			}
-			if len(schema) == 0 || !json.Valid(schema) {
+			if len(schema) == 0 || string(schema) == "null" || !json.Valid(schema) {
 				t.Fatalf("tool %q schema = %s, want valid JSON", tool.Name, schema)
 			}
 		}

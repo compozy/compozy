@@ -190,7 +190,13 @@ export function createMCPAuthorizeLogic() {
       },
       authorizeRequested: (context, event, enqueue) => {
         if (context.phase !== "idle") return;
-        if (event.scopeApproval && !hasExplicitScopeApproval(event.scopeApproval)) return;
+        const scopeApproval = event.scopeApproval
+          ? {
+              approveScopeEscalation: event.scopeApproval.approveScopeEscalation,
+              approvedScopes: normalizeMCPAuthScopes(event.scopeApproval.approvedScopes),
+            }
+          : undefined;
+        if (scopeApproval && !hasExplicitScopeApproval(scopeApproval)) return;
         const attemptId = context.attemptId + 1;
         enqueueBegin(
           event.begin,
@@ -199,7 +205,7 @@ export function createMCPAuthorizeLogic() {
           event.server,
           event.filter,
           event.mode,
-          event.scopeApproval
+          scopeApproval
         );
         return {
           phase: "beginning",
@@ -209,7 +215,7 @@ export function createMCPAuthorizeLogic() {
           filter: event.filter,
           prior: event.prior,
           mode: event.mode,
-          scopeApproval: event.scopeApproval,
+          scopeApproval,
         };
       },
       manualAuthorizationRequested: (context, event, enqueue) => {
@@ -242,7 +248,15 @@ export function createMCPAuthorizeLogic() {
         };
       },
       manualRedirectSubmitted: (context, event, enqueue) => {
-        if (context.phase !== "manual" || !isAbsoluteMCPRedirectURL(event.value)) return;
+        if (context.phase !== "manual") return;
+        if (!isAbsoluteMCPRedirectURL(event.value)) {
+          return {
+            ...context,
+            phase: "failed",
+            stage: "completion",
+            error: "Callback URL must be a complete HTTP or HTTPS URL.",
+          };
+        }
         enqueueExchange(event.exchange, enqueue, context, event.value, event.onConfirmed);
         return { ...context, phase: "exchanging" };
       },
@@ -403,9 +417,7 @@ function isConfirmed(status: string, tokenPresent: boolean): boolean {
 }
 
 function hasExplicitScopeApproval(approval: MCPAuthorizeScopeApproval): boolean {
-  return (
-    approval.approveScopeEscalation && normalizeMCPAuthScopes(approval.approvedScopes).length > 0
-  );
+  return approval.approveScopeEscalation && approval.approvedScopes.length > 0;
 }
 
 /** The daemon validates state, issuer, and remaining callback constraints. */

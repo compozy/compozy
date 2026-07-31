@@ -60,7 +60,9 @@ func (r *RuntimeRegistry) buildIndexMatching(
 	slices.SortFunc(index.entries, func(a *registryEntry, b *registryEntry) int {
 		return strings.Compare(a.descriptor.ID.String(), b.descriptor.ID.String())
 	})
-	r.descriptorMetadata.remember(scope.WorkspaceID, index.entries)
+	if include == nil {
+		r.descriptorMetadata.remember(scope.WorkspaceID, index.entries)
+	}
 	return index, nil
 }
 

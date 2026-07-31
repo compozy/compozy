@@ -186,16 +186,16 @@ func TestFixtureValidation(t *testing.T) {
 	t.Run("Should reject unsupported profiles and incomplete stdio streams", func(t *testing.T) {
 		t.Parallel()
 
-		if _, err := New(Profile("unsupported")); err == nil {
-			t.Fatal("New(unsupported profile) error = nil, want validation error")
+		if _, err := New(Profile("unsupported")); err == nil || !strings.Contains(err.Error(), "profile") {
+			t.Fatalf("New(unsupported profile) error = %v, want profile validation", err)
 		}
 		fixture := MustNew(ProfileModern2026)
-		if err := fixture.RunStdio(t.Context(), nil, nil); err == nil {
-			t.Fatal("RunStdio(nil input) error = nil, want validation error")
+		if err := fixture.RunStdio(t.Context(), nil, nil); err == nil || !strings.Contains(err.Error(), "input") {
+			t.Fatalf("RunStdio(nil input) error = %v, want input validation", err)
 		}
 		input := io.NopCloser(strings.NewReader(""))
-		if err := fixture.RunStdio(t.Context(), input, nil); err == nil {
-			t.Fatal("RunStdio(nil output) error = nil, want validation error")
+		if err := fixture.RunStdio(t.Context(), input, nil); err == nil || !strings.Contains(err.Error(), "output") {
+			t.Fatalf("RunStdio(nil output) error = %v, want output validation", err)
 		}
 		if err := input.Close(); err != nil {
 			t.Fatalf("stdio input close error = %v", err)

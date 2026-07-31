@@ -319,7 +319,7 @@ export const mcpEntrySchema = z
       if (input.binding.type === "env" && entry.launch.type === "remote") {
         ctx.addIssue({
           code: "custom",
-          message: "env inputs are only allowed for stdio launch",
+          message: "env inputs are only allowed for local launch (npm, uvx, docker)",
           path: ["inputs", index, "binding"],
         });
       }
