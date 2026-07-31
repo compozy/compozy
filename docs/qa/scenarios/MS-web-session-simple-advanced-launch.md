@@ -1,18 +1,18 @@
 ---
 id: MS-web-session-simple-advanced-launch
 area: MS
-title: Start session combines simple identity fields with a first-message composer
+title: Start session separates launch details from the prompt composer
 persona: Dora
 journey: J-17
-expected: Opening Start session shows the Simple identity fields — agent picker, workspace picker, and optional session name — plus the required first-message composer. The composer owns the chromeless RuntimeSelector and its Send disc is the only creation action. Switching to Advanced reveals Network participation and working path without hiding any Simple field or the composer. Switching back to Simple resets only those hidden advanced values, so they cannot block Send; the visible runtime choice remains intact. Sending atomically queues the trimmed first prompt, includes `name` and `workspace_path` only when non-empty, and omits `provider`, `model`, and `reasoning_effort` while runtime inheritance remains untouched. Choosing another workspace retargets the launch and clears the workspace-scoped agent, prompt, runtime, and Network selections. Catalog state (loading, refreshing, stale, empty, error) stays inside the RuntimeSelector popover. The header carries the only close control.
+expected: Opening Start session shows agent selection, with workspace, optional name, working path, and Network participation in Advanced; it contains neither a first-message composer nor a runtime selector. Launch creates one durable session, activates its returned owner workspace, and navigates to its composer. Choosing another workspace clears only workspace-scoped launch selections. The session composer owns the "Next prompt" RuntimeSelector and its catalog state; the header carries the only close control.
 entry_points: web desktop shell → Start session (dock, command palette, agent catalog, agent detail, dashboard)
-qa_status: blocked-verify
-bug_ids:
-fix_status:
-retest_status:
+qa_status: pass
+bug_ids: BUG-20260730-session-create-window-intent
+fix_status: fixed
+retest_status: pass
 fix_commits:
-evidence: .compozy/tasks/modals-redesign/evidence/visual/task_02/VC-01; .compozy/tasks/modals-redesign/evidence/visual/task_02/VC-02; .compozy/tasks/modals-redesign/evidence/visual/task_02/VC-09;/Users/pedronauck/dev/qa-labs/compozy-ms-wave2-current-20260730-061842-796290-lab/qa-artifacts/qa
-last_report: docs/qa/reports/2026-07-28-untested-full.md
+evidence: .compozy/tasks/modals-redesign/evidence/visual/task_02/VC-01; .compozy/tasks/modals-redesign/evidence/visual/task_02/VC-02; .compozy/tasks/modals-redesign/evidence/visual/task_02/VC-09;/Users/pedronauck/dev/qa-labs/compozy-ms-wave2-current-20260730-061842-796290-lab/qa-artifacts/qa;docs/qa/evidence/2026-07-30-session-runtime-selector/01-create-simple.png;docs/qa/evidence/2026-07-30-session-runtime-selector/02-create-advanced.png;docs/qa/evidence/2026-07-30-session-runtime-selector/04-session-open-after-create.png
+last_report: docs/qa/reports/2026-07-30-session-runtime-selector.md
 overlaps: MS-web-entity-modal-shell; NB-participation-controls-serialize
 ---
 

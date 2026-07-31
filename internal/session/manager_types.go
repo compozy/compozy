@@ -58,11 +58,9 @@ type CreateOpts struct {
 	DiscardStartFailure bool
 }
 
-// CreateAcceptedOpts combines session creation options with an optional first
-// prompt that must be durably staged before the starting session is returned.
+// CreateAcceptedOpts carries one logical user-session creation request.
 type CreateAcceptedOpts struct {
-	Session       CreateOpts
-	InitialPrompt string
+	Session CreateOpts
 }
 
 // StoreOpener opens the per-session events store for a session directory.
@@ -109,28 +107,33 @@ type sessionReservation struct {
 
 // Manager owns active session lifecycle and runtime orchestration.
 type Manager struct {
-	mu                 sync.RWMutex
-	lifecycleMu        sync.Mutex
-	sessions           map[string]*Session
-	pending            map[string]sessionReservation
-	finalizing         map[string]*sessionFinalization
-	promptDrains       map[chan struct{}]struct{}
-	spawnMu            sync.Mutex
-	managedInputMu     sync.Mutex
-	managedInputLeases map[string]managedInputLease
-	goalCommandMu      sync.RWMutex
-	resumeReplayMu     sync.Mutex
-	resumeReplays      map[string]string
-	interruptSalvageMu sync.Mutex
-	interruptSalvages  map[string]interruptedPromptSalvage
-	compactionMu       sync.Mutex
-	compactions        map[string]*sessionCompactionState
-	compactionWG       sync.WaitGroup
-	compactionClosing  bool
-	startMu            sync.Mutex
-	startRuns          map[string]*sessionStartRun
-	startWG            sync.WaitGroup
-	startClosing       bool
+	mu                  sync.RWMutex
+	lifecycleMu         sync.Mutex
+	sessions            map[string]*Session
+	pending             map[string]sessionReservation
+	finalizing          map[string]*sessionFinalization
+	promptDrains        map[chan struct{}]struct{}
+	spawnMu             sync.Mutex
+	managedInputMu      sync.Mutex
+	managedInputLeases  map[string]managedInputLease
+	goalCommandMu       sync.RWMutex
+	resumeReplayMu      sync.Mutex
+	resumeReplays       map[string]string
+	interruptSalvageMu  sync.Mutex
+	interruptSalvages   map[string]interruptedPromptSalvage
+	compactionMu        sync.Mutex
+	compactions         map[string]*sessionCompactionState
+	compactionWG        sync.WaitGroup
+	compactionClosing   bool
+	startMu             sync.Mutex
+	startRuns           map[string]*sessionStartRun
+	startWG             sync.WaitGroup
+	startClosing        bool
+	processWatchMu      sync.Mutex
+	processWatchWG      sync.WaitGroup
+	processWatchCtx     context.Context
+	processWatchCancel  context.CancelFunc
+	processWatchClosing bool
 
 	syntheticMu           sync.Mutex
 	syntheticQueues       map[string][]queuedSyntheticPrompt

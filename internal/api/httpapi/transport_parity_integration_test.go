@@ -140,16 +140,13 @@ func TestHTTPTransportSessionProviderLifecycle(t *testing.T) {
 	if !ok {
 		t.Fatalf("MockAgentRegistration(%q) not found", transportAutomationAgent)
 	}
-	provider := registration.Provider
-
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	t.Run("Should round-trip the provider through create and read", func(t *testing.T) {
+	t.Run("Should return an unbound runtime through create and read", func(t *testing.T) {
 		var created compozycontract.SessionResponse
 		if err := runtimeHarness.HTTPJSON(ctx, http.MethodPost, "/api/sessions", compozycontract.CreateSessionRequest{
 			AgentName:     transportAutomationAgent,
-			Provider:      provider,
 			WorkspacePath: runtimeHarness.WorkspaceRoot,
 		}, &created); err != nil {
 			t.Fatalf("HTTP create session error = %v", err)
@@ -157,8 +154,8 @@ func TestHTTPTransportSessionProviderLifecycle(t *testing.T) {
 		if created.Session.ID == "" {
 			t.Fatal("HTTP create session id = empty, want non-empty")
 		}
-		if created.Session.Provider != provider {
-			t.Fatalf("HTTP create provider = %q, want %q", created.Session.Provider, provider)
+		if created.Session.Runtime.Status != "unbound" || created.Session.Runtime.Effective != nil {
+			t.Fatalf("HTTP create runtime = %#v, want unbound without effective selection", created.Session.Runtime)
 		}
 		created.Session = waitForHTTPTransportSessionActive(t, ctx, runtimeHarness, created.Session)
 
@@ -172,11 +169,11 @@ func TestHTTPTransportSessionProviderLifecycle(t *testing.T) {
 		); err != nil {
 			t.Fatalf("HTTP get session error = %v", err)
 		}
-		if detail.Session.Provider != created.Session.Provider {
+		if detail.Session.Runtime.Status != created.Session.Runtime.Status ||
+			detail.Session.Runtime.Effective != nil {
 			t.Fatalf(
-				"HTTP detail provider = %q, want create provider %q",
-				detail.Session.Provider,
-				created.Session.Provider,
+				"HTTP detail runtime = %#v, want unbound without effective selection",
+				detail.Session.Runtime,
 			)
 		}
 	})
@@ -193,7 +190,6 @@ func TestHTTPTransportSessionProviderLifecycle(t *testing.T) {
 		var created compozycontract.SessionResponse
 		if err := runtimeHarness.HTTPJSON(ctx, http.MethodPost, "/api/sessions", compozycontract.CreateSessionRequest{
 			AgentName:     transportAutomationAgent,
-			Provider:      transportOverrideProvider,
 			WorkspacePath: runtimeHarness.WorkspaceRoot,
 		}, &created); err != nil {
 			t.Fatalf("HTTP create session error = %v", err)

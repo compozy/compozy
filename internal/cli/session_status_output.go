@@ -19,8 +19,8 @@ func renderSessionHuman(info SessionRecord, now func() time.Time) (string, error
 		{Label: "ID", Value: stringOrDash(info.ID)},
 		{Label: sessionNameValue, Value: stringOrDash(info.Name)},
 		{Label: sessionAgentValue, Value: stringOrDash(info.AgentName)},
-		{Label: sessionProviderValue, Value: stringOrDash(info.Provider)},
-		{Label: "Speed", Value: stringOrDash(string(info.Speed))},
+		{Label: sessionProviderValue, Value: stringOrDash(sessionRuntimeProvider(info))},
+		{Label: "Speed", Value: stringOrDash(sessionRuntimeSpeed(info))},
 		{Label: "Speed Outcome", Value: sessionSpeedOutcome(info)},
 		{Label: sessionWorkspaceValue, Value: stringOrDash(displaySessionWorkspace(info))},
 		{Label: sessionChannelValue, Value: sessionResolvedChannel(info)},
@@ -33,7 +33,7 @@ func renderSessionHuman(info SessionRecord, now func() time.Time) (string, error
 		{Label: "Failure Kind", Value: stringOrDash(sessionFailureKind(info))},
 		{Label: "Failure Summary", Value: stringOrDash(sessionFailureSummary(info))},
 		{Label: "Crash Bundle", Value: stringOrDash(sessionCrashBundlePath(info))},
-		{Label: "ACP Session", Value: stringOrDash(info.ACPSessionID)},
+		{Label: "ACP Session", Value: stringOrDash(info.Runtime.ACPSessionID)},
 		{Label: sessionCreatedValue, Value: stringOrDash(formatTime(info.CreatedAt))},
 		{Label: sessionUpdatedValue, Value: stringOrDash(formatTime(info.UpdatedAt))},
 		{Label: "Age", Value: stringOrDash(formatAge(now, info.CreatedAt))},
@@ -60,12 +60,12 @@ func appendSessionSandboxBlock(blocks []string, info SessionRecord) []string {
 }
 
 func appendSessionCapsBlock(blocks []string, info SessionRecord) []string {
-	if info.ACPCaps == nil {
+	if info.Runtime.ACPCaps == nil {
 		return blocks
 	}
 	return append(blocks, renderHumanSection("Capabilities", []keyValue{
-		{Label: "Supports Load", Value: strconv.FormatBool(info.ACPCaps.SupportsLoadSession)},
-		{Label: "Modes", Value: stringOrDash(strings.Join(info.ACPCaps.SupportedModes, ", "))},
+		{Label: "Supports Load", Value: strconv.FormatBool(info.Runtime.ACPCaps.SupportsLoadSession)},
+		{Label: "Modes", Value: stringOrDash(strings.Join(info.Runtime.ACPCaps.SupportedModes, ", "))},
 	}))
 }
 
@@ -95,8 +95,8 @@ func renderSessionToon(info SessionRecord) (string, error) {
 		info.ID,
 		info.Name,
 		info.AgentName,
-		info.Provider,
-		string(info.Speed),
+		sessionRuntimeProvider(info),
+		sessionRuntimeSpeed(info),
 		sessionSpeedOutcome(info),
 		sessionSandboxBackend(info),
 		displaySessionWorkspace(info),
@@ -109,20 +109,35 @@ func renderSessionToon(info SessionRecord) (string, error) {
 		sessionFailureKind(info),
 		sessionFailureSummary(info),
 		sessionCrashBundlePath(info),
-		info.ACPSessionID,
+		info.Runtime.ACPSessionID,
 		formatTime(info.CreatedAt),
 		formatTime(info.UpdatedAt),
 	}), nil
 }
 
 func sessionSpeedOutcome(info SessionRecord) string {
-	if info.SpeedResolution == nil {
+	effective := info.Runtime.Effective
+	if effective == nil || effective.SpeedResolution == nil {
 		return ""
 	}
-	if info.SpeedResolution.Reason == "" {
-		return string(info.SpeedResolution.Status)
+	if effective.SpeedResolution.Reason == "" {
+		return string(effective.SpeedResolution.Status)
 	}
-	return string(info.SpeedResolution.Status) + ":" + string(info.SpeedResolution.Reason)
+	return string(effective.SpeedResolution.Status) + ":" + string(effective.SpeedResolution.Reason)
+}
+
+func sessionRuntimeProvider(info SessionRecord) string {
+	if info.Runtime.Effective == nil {
+		return ""
+	}
+	return info.Runtime.Effective.Provider
+}
+
+func sessionRuntimeSpeed(info SessionRecord) string {
+	if info.Runtime.Effective == nil {
+		return ""
+	}
+	return string(info.Runtime.Effective.Speed)
 }
 
 func sessionResumeEmptyBundle() outputBundle {

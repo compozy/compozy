@@ -7,6 +7,21 @@ import (
 	"time"
 )
 
+type MemoryStoreParams struct {
+	Key       string      `json:"key"`
+	Content   string      `json:"content"`
+	Scope     MemoryScope `json:"scope,omitempty"`
+	Workspace string      `json:"workspace,omitempty"`
+	Tags      []string    `json:"tags,omitempty"`
+}
+
+type MessageAttachment struct {
+	ID       string `json:"id,omitempty"`
+	Name     string `json:"name,omitempty"`
+	MIMEType string `json:"mime_type,omitempty"`
+	URL      string `json:"url,omitempty"`
+}
+
 type MessageContent struct {
 	Text string `json:"text,omitempty"`
 }
@@ -240,27 +255,4 @@ type NetworkBudgetUsagePayload struct {
 type NetworkCapabilityBriefPayload struct {
 	ID      string `json:"id"`
 	Summary string `json:"summary"`
-}
-
-type NetworkChannelPayload struct {
-	Channel                    string     `json:"channel"`
-	WorkspaceID                string     `json:"workspace_id,omitempty"`
-	Purpose                    string     `json:"purpose,omitempty"`
-	FanoutPolicy               string     `json:"fanout_policy,omitempty"`
-	CoordinatorPeerID          string     `json:"coordinator_peer_id,omitempty"`
-	CreatedBy                  string     `json:"created_by,omitempty"`
-	CreatedAt                  *time.Time `json:"created_at,omitempty"`
-	PeerCount                  int        `json:"peer_count"`
-	LocalPeerCount             int        `json:"local_peer_count,omitempty"`
-	SessionCount               int        `json:"session_count,omitempty"`
-	MessageCount               int        `json:"message_count,omitempty"`
-	PresenceCount              int        `json:"presence_count,omitempty"`
-	HistoricalParticipantCount int        `json:"historical_participant_count,omitempty"`
-	LastActivityAt             *time.Time `json:"last_activity_at,omitempty"`
-	LastPresenceAt             *time.Time `json:"last_presence_at,omitempty"`
-	LastMessagePreview         string     `json:"last_message_preview,omitempty"`
-}
-
-type NetworkChannelsParams struct {
-	WorkspaceID string `json:"workspace_id"`
 }

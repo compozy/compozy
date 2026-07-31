@@ -13,19 +13,35 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newSessionPromptCommand(deps commandDeps) *cobra.Command {
-	var (
-		queue       bool
-		interrupt   bool
-		steer       bool
-		cancelEntry string
-	)
+type sessionPromptCommandFlags struct {
+	queue       bool
+	interrupt   bool
+	steer       bool
+	cancelEntry string
+	runtime     sessionPromptRuntimeFlags
+}
 
-	cmd := &cobra.Command{
+func newSessionPromptCommand(deps commandDeps) *cobra.Command {
+	flags := &sessionPromptCommandFlags{}
+	cmd := newSessionPromptCobraCommand(deps, flags)
+	cmd.Flags().BoolVar(&flags.queue, "queue", false, "Queue the prompt if the session is busy")
+	cmd.Flags().BoolVar(&flags.interrupt, "interrupt", false, "Interrupt the active turn before sending this prompt")
+	cmd.Flags().BoolVar(&flags.steer, "steer", false, "Stage steering guidance for the active turn")
+	cmd.Flags().StringVar(&flags.cancelEntry, "cancel", "", "Cancel a queued prompt entry by id")
+	bindSessionPromptRuntimeFlags(cmd, &flags.runtime)
+	return cmd
+}
+
+func newSessionPromptCobraCommand(deps commandDeps, flags *sessionPromptCommandFlags) *cobra.Command {
+	return &cobra.Command{
 		Use:   "prompt <id> <message>",
 		Short: "Send a prompt to a session",
 		Example: `  # Send a follow-up prompt to an active session
   compozy session prompt sess_1234 "Summarize the current changes."
+
+  # Select the runtime snapshot for this prompt
+  compozy session prompt sess_1234 "Review the patch." \
+    --provider codex --model gpt-5.6-sol --reasoning-effort high --speed fast
 
   # Queue input while the session is busy
   compozy session prompt sess_1234 "Run the next check." --queue
@@ -35,69 +51,86 @@ func newSessionPromptCommand(deps commandDeps) *cobra.Command {
 
   # Cancel queued input by entry id
   compozy session prompt sess_1234 --cancel queue_entry_1234`,
-		Args: func(cmd *cobra.Command, args []string) error {
-			cancelChanged := cmd.Flags().Changed("cancel")
-			modeCount := 0
-			for _, enabled := range []bool{queue, interrupt, steer, cancelChanged} {
-				if enabled {
-					modeCount++
-				}
-			}
-			if modeCount > 1 {
-				return errors.New("cli: choose only one of --queue, --interrupt, --steer, or --cancel")
-			}
-			if cancelChanged {
-				if strings.TrimSpace(cancelEntry) == "" {
-					return errors.New("cli: --cancel requires a queue entry id")
-				}
-				if len(args) != 1 {
-					return fmt.Errorf("cli: session prompt --cancel accepts 1 arg, received %d", len(args))
-				}
-				return nil
-			}
-			if len(args) != 2 {
-				return fmt.Errorf("cli: session prompt accepts 2 args, received %d", len(args))
-			}
-			return nil
-		},
-		RunE: func(cmd *cobra.Command, args []string) error {
-			mode, err := resolveOutputFormat(cmd)
-			if err != nil {
-				return err
-			}
-			client, err := clientFromDeps(deps)
-			if err != nil {
-				return err
-			}
-			if mode == OutputJSONL {
-				if queue || interrupt || steer || cmd.Flags().Changed("cancel") {
-					return errors.New("cli: busy-input prompt actions do not support jsonl output")
-				}
-				return streamPromptEventsJSONL(cmd, client, args[0], args[1])
-			}
-
-			record, err := runSessionPromptAction(cmd, client, args, queue, interrupt, steer, cancelEntry)
-			if err != nil {
-				return err
-			}
-			return writeCommandOutput(cmd, sessionPromptBundle(record))
-		},
+		Args: flags.validateArgs,
+		RunE: flags.run(deps),
 	}
-	cmd.Flags().BoolVar(&queue, "queue", false, "Queue the prompt if the session is busy")
-	cmd.Flags().BoolVar(&interrupt, "interrupt", false, "Interrupt the active turn before sending this prompt")
-	cmd.Flags().BoolVar(&steer, "steer", false, "Stage steering guidance for the active turn")
-	cmd.Flags().StringVar(&cancelEntry, "cancel", "", "Cancel a queued prompt entry by id")
-	return cmd
+}
+
+func (flags *sessionPromptCommandFlags) validateArgs(cmd *cobra.Command, args []string) error {
+	cancelChanged := cmd.Flags().Changed("cancel")
+	modeCount := 0
+	for _, enabled := range []bool{flags.queue, flags.interrupt, flags.steer, cancelChanged} {
+		if enabled {
+			modeCount++
+		}
+	}
+	if modeCount > 1 {
+		return errors.New("cli: choose only one of --queue, --interrupt, --steer, or --cancel")
+	}
+	if !cancelChanged {
+		if len(args) != 2 {
+			return fmt.Errorf("cli: session prompt accepts 2 args, received %d", len(args))
+		}
+		return nil
+	}
+	if strings.TrimSpace(flags.cancelEntry) == "" {
+		return errors.New("cli: --cancel requires a queue entry id")
+	}
+	if len(args) != 1 {
+		return fmt.Errorf("cli: session prompt --cancel accepts 1 arg, received %d", len(args))
+	}
+	return nil
+}
+
+func (flags *sessionPromptCommandFlags) run(deps commandDeps) func(*cobra.Command, []string) error {
+	return func(cmd *cobra.Command, args []string) error {
+		mode, err := resolveOutputFormat(cmd)
+		if err != nil {
+			return err
+		}
+		client, err := clientFromDeps(deps)
+		if err != nil {
+			return err
+		}
+		runtimeSelection, err := flags.runtime.selection(cmd)
+		if err != nil {
+			return err
+		}
+		if runtimeSelection != nil && (flags.steer || cmd.Flags().Changed("cancel")) {
+			return errors.New("cli: runtime selection applies only to submitted prompts")
+		}
+		if mode == OutputJSONL {
+			return flags.streamJSONL(cmd, client, args, runtimeSelection)
+		}
+		record, err := runSessionPromptAction(cmd, client, args, flags, runtimeSelection)
+		if err != nil {
+			return err
+		}
+		return writeCommandOutput(cmd, sessionPromptBundle(record))
+	}
+}
+
+func (flags *sessionPromptCommandFlags) streamJSONL(
+	cmd *cobra.Command,
+	client DaemonClient,
+	args []string,
+	runtime *contract.PromptRuntimeSelectionPayload,
+) error {
+	if flags.queue || flags.interrupt || flags.steer || cmd.Flags().Changed("cancel") {
+		return errors.New("cli: busy-input prompt actions do not support jsonl output")
+	}
+	return streamPromptEventsJSONL(cmd, client, args[0], SessionPromptRequest{
+		Message: args[1],
+		Runtime: runtime,
+	})
 }
 
 func runSessionPromptAction(
 	cmd *cobra.Command,
 	client DaemonClient,
 	args []string,
-	queue bool,
-	interrupt bool,
-	steer bool,
-	cancelEntry string,
+	flags *sessionPromptCommandFlags,
+	runtime *contract.PromptRuntimeSelectionPayload,
 ) (SessionPromptRecord, error) {
 	if cmd == nil {
 		return SessionPromptRecord{}, errors.New("cli: command is required")
@@ -106,16 +139,16 @@ func runSessionPromptAction(
 		return SessionPromptRecord{}, errors.New("cli: daemon client is required")
 	}
 	if cmd.Flags().Changed("cancel") {
-		return client.CancelQueuedSessionPrompt(cmd.Context(), args[0], strings.TrimSpace(cancelEntry))
+		return client.CancelQueuedSessionPrompt(cmd.Context(), args[0], strings.TrimSpace(flags.cancelEntry))
 	}
-	if steer {
+	if flags.steer {
 		return client.SteerSessionPrompt(cmd.Context(), args[0], args[1])
 	}
-	request := SessionPromptRequest{Message: args[1]}
-	if queue {
+	request := SessionPromptRequest{Message: args[1], Runtime: runtime}
+	if flags.queue {
 		request.Mode = contract.PromptModeQueue
 	}
-	if interrupt {
+	if flags.interrupt {
 		request.Mode = contract.PromptModeInterrupt
 	}
 	return client.SendSessionPrompt(cmd.Context(), args[0], request)
@@ -178,8 +211,13 @@ func newSessionEventsCommand(deps commandDeps) *cobra.Command {
 	return cmd
 }
 
-func streamPromptEventsJSONL(cmd *cobra.Command, client DaemonClient, id string, message string) error {
-	return client.StreamPromptSession(cmd.Context(), id, message, func(event SSEEvent) error {
+func streamPromptEventsJSONL(
+	cmd *cobra.Command,
+	client DaemonClient,
+	id string,
+	request SessionPromptRequest,
+) error {
+	return client.StreamPromptSession(cmd.Context(), id, request, func(event SSEEvent) error {
 		if len(event.Data) == 0 || strings.TrimSpace(string(event.Data)) == "[DONE]" {
 			return nil
 		}

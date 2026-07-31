@@ -1998,16 +1998,17 @@ func registerWatchSessionForTest(
 ) {
 	t.Helper()
 	if err := globalDB.RegisterSession(ctx, SessionInfo{
-		ID:          sessionID,
-		Name:        sessionID,
-		AgentName:   agentName,
-		Provider:    "mock",
-		WorkspaceID: workspaceID,
-		SessionType: defaultSessionType,
-		State:       globalDBSessionStateActive,
-		Lineage:     store.NormalizeSessionLineage(sessionID, nil),
-		CreatedAt:   time.Date(2026, 7, 9, 9, 30, 0, 0, time.UTC),
-		UpdatedAt:   time.Date(2026, 7, 9, 9, 30, 0, 0, time.UTC),
+		ID:            sessionID,
+		Name:          sessionID,
+		AgentName:     agentName,
+		Provider:      "mock",
+		RuntimeStatus: store.SessionRuntimeUnbound,
+		WorkspaceID:   workspaceID,
+		SessionType:   defaultSessionType,
+		State:         globalDBSessionStateActive,
+		Lineage:       store.NormalizeSessionLineage(sessionID, nil),
+		CreatedAt:     time.Date(2026, 7, 9, 9, 30, 0, 0, time.UTC),
+		UpdatedAt:     time.Date(2026, 7, 9, 9, 30, 0, 0, time.UTC),
 	}); err != nil {
 		t.Fatalf("RegisterSession(%s) error = %v", sessionID, err)
 	}

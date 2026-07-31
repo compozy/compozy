@@ -29,7 +29,7 @@ type sessionClientAPI interface {
 	SendSessionPrompt(context.Context, string, SessionPromptRequest) (SessionPromptRecord, error)
 	SteerSessionPrompt(context.Context, string, string) (SessionPromptRecord, error)
 	CancelQueuedSessionPrompt(context.Context, string, string) (SessionPromptRecord, error)
-	StreamPromptSession(context.Context, string, string, SSEHandler) error
+	StreamPromptSession(context.Context, string, SessionPromptRequest, SSEHandler) error
 	SessionEvents(context.Context, string, SessionEventQuery) ([]SessionEventRecord, error)
 	StreamSessionEvents(context.Context, string, SessionEventQuery, string, SSEHandler) error
 	SessionHistory(context.Context, string, SessionEventQuery) ([]TurnHistoryRecord, error)

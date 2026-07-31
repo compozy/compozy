@@ -971,12 +971,13 @@ func seedOriginBindingOwnerForTest(
 
 func goalSessionInfoForTest(id string, workspaceID string, now time.Time) store.SessionInfo {
 	return store.SessionInfo{
-		ID:          id,
-		AgentName:   "codex",
-		WorkspaceID: workspaceID,
-		State:       "active",
-		CreatedAt:   now,
-		UpdatedAt:   now,
+		ID:            id,
+		AgentName:     "codex",
+		RuntimeStatus: store.SessionRuntimeUnbound,
+		WorkspaceID:   workspaceID,
+		State:         "active",
+		CreatedAt:     now,
+		UpdatedAt:     now,
 	}
 }
 

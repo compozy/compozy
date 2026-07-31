@@ -4,7 +4,60 @@ package contracts
 
 import "time"
 
+type RetryStrategy string
+
+type RiskClass string
+
+type RoutingKey struct {
+	Scope            BridgeScope `json:"scope"`
+	WorkspaceID      string      `json:"workspace_id,omitempty"`
+	BridgeInstanceID string      `json:"bridge_instance_id"`
+	PeerID           string      `json:"peer_id,omitempty"`
+	ThreadID         string      `json:"thread_id,omitempty"`
+	GroupID          string      `json:"group_id,omitempty"`
+}
+
+type RoutingPolicy struct {
+	IncludePeer   bool `json:"include_peer"`
+	IncludeThread bool `json:"include_thread"`
+	IncludeGroup  bool `json:"include_group"`
+}
+
+type Run struct {
+	ID                   string         `json:"id"`
+	JobID                string         `json:"job_id,omitempty"`
+	TriggerID            string         `json:"trigger_id,omitempty"`
+	SessionID            string         `json:"session_id,omitempty"`
+	TaskID               string         `json:"task_id,omitempty"`
+	TaskRunID            string         `json:"task_run_id,omitempty"`
+	LoopRunID            string         `json:"loop_run_id,omitempty"`
+	FireID               string         `json:"fire_id,omitempty"`
+	Status               RunStatus      `json:"status"`
+	Attempt              int            `json:"attempt"`
+	ScheduledAt          *time.Time     `json:"scheduled_at,omitempty"`
+	StartedAt            *time.Time     `json:"started_at,omitempty"`
+	EndedAt              *time.Time     `json:"ended_at,omitempty"`
+	Error                string         `json:"error,omitempty"`
+	DeliveryError        string         `json:"delivery_error,omitempty"`
+	DeliveryErrorAt      *time.Time     `json:"delivery_error_at,omitempty"`
+	NetworkParticipation *Request       `json:"network_participation,omitempty"`
+	Metadata             map[string]any `json:"metadata,omitempty"`
+}
+
+type RunDesignationSummary struct {
+	Index int    `json:"index"`
+	Brief string `json:"brief,omitempty"`
+}
+
 type RunStatus string
+
+type RuntimeSelectionPayload struct {
+	Provider        string      `json:"provider"`
+	Model           string      `json:"model,omitempty"`
+	ReasoningEffort Effort      `json:"reasoning_effort,omitempty"`
+	Speed           Speed       `json:"speed,omitempty"`
+	SpeedResolution *Resolution `json:"speed_resolution,omitempty"`
+}
 
 type SandboxExecParams struct {
 	WorkspaceID string `json:"workspace_id"`
@@ -158,79 +211,3 @@ type SandboxSummary struct {
 }
 
 type SandboxSyncAfterPatch struct{}
-
-type SandboxSyncAfterPayload struct {
-	Event            HookEvent `json:"event"`
-	Timestamp        time.Time `json:"timestamp"`
-	SessionID        string    `json:"session_id,omitempty"`
-	SessionName      string    `json:"session_name,omitempty"`
-	SessionType      string    `json:"session_type,omitempty"`
-	AgentName        string    `json:"agent_name,omitempty"`
-	WorkspaceID      string    `json:"workspace_id,omitempty"`
-	Workspace        string    `json:"workspace,omitempty"`
-	ACPSessionID     string    `json:"acp_session_id,omitempty"`
-	State            string    `json:"state,omitempty"`
-	SoulSnapshotID   string    `json:"soul_snapshot_id,omitempty"`
-	SoulDigest       string    `json:"soul_digest,omitempty"`
-	CreatedAt        time.Time `json:"created_at"`
-	UpdatedAt        time.Time `json:"updated_at"`
-	SandboxID        string    `json:"sandbox_id,omitempty"`
-	Backend          string    `json:"backend,omitempty"`
-	Profile          string    `json:"profile,omitempty"`
-	InstanceID       string    `json:"instance_id,omitempty"`
-	RuntimeRootDir   string    `json:"runtime_root,omitempty"`
-	Direction        string    `json:"direction,omitempty"`
-	Reason           string    `json:"reason,omitempty"`
-	FilesSynced      int       `json:"files_synced,omitempty"`
-	BytesTransferred int64     `json:"bytes_transferred,omitempty"`
-	DurationMS       int64     `json:"duration_ms,omitempty"`
-	Errors           []string  `json:"errors,omitempty"`
-}
-
-type SandboxSyncBeforePatch struct {
-	Deny            bool     `json:"deny,omitempty"`
-	DenyReason      string   `json:"deny_reason,omitempty"`
-	ExcludePatterns []string `json:"exclude_patterns,omitempty"`
-}
-
-type SandboxSyncBeforePayload struct {
-	Event           HookEvent `json:"event"`
-	Timestamp       time.Time `json:"timestamp"`
-	SessionID       string    `json:"session_id,omitempty"`
-	SessionName     string    `json:"session_name,omitempty"`
-	SessionType     string    `json:"session_type,omitempty"`
-	AgentName       string    `json:"agent_name,omitempty"`
-	WorkspaceID     string    `json:"workspace_id,omitempty"`
-	Workspace       string    `json:"workspace,omitempty"`
-	ACPSessionID    string    `json:"acp_session_id,omitempty"`
-	State           string    `json:"state,omitempty"`
-	SoulSnapshotID  string    `json:"soul_snapshot_id,omitempty"`
-	SoulDigest      string    `json:"soul_digest,omitempty"`
-	CreatedAt       time.Time `json:"created_at"`
-	UpdatedAt       time.Time `json:"updated_at"`
-	SandboxID       string    `json:"sandbox_id,omitempty"`
-	Backend         string    `json:"backend,omitempty"`
-	Profile         string    `json:"profile,omitempty"`
-	InstanceID      string    `json:"instance_id,omitempty"`
-	RuntimeRootDir  string    `json:"runtime_root,omitempty"`
-	Direction       string    `json:"direction,omitempty"`
-	Reason          string    `json:"reason,omitempty"`
-	ExcludePatterns []string  `json:"exclude_patterns,omitempty"`
-	Denied          bool      `json:"denied,omitempty"`
-	DenyReason      string    `json:"deny_reason,omitempty"`
-}
-
-type ScheduleMode string
-
-type ScheduleSpec struct {
-	Mode                ScheduleMode           `json:"mode"`
-	Expr                string                 `json:"expr,omitempty"`
-	Interval            string                 `json:"interval,omitempty"`
-	Time                string                 `json:"time,omitempty"`
-	CatchUpPolicy       SchedulerCatchUpPolicy `json:"catch_up_policy,omitempty"`
-	MisfireGraceSeconds int                    `json:"misfire_grace_seconds,omitempty"`
-}
-
-type SchedulerCatchUpPolicy string
-
-type Scope string

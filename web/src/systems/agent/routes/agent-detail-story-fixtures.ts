@@ -21,7 +21,11 @@ const fallbackFraudSession: SessionPayload = {
   id: storySessionIds.fraud,
   name: "Payout hold triage",
   agent_name: storyAgentNames.fraud,
-  provider: "claude",
+  runtime: {
+    status: "ready",
+    transition: "initial_bind",
+    effective: { provider: "claude" },
+  },
   workspace_id: storyWorkspaceIds.risk,
   workspace_path: storyWorkspacePaths.risk,
   state: "active",

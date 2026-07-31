@@ -50,7 +50,11 @@ function makeSession(overrides: Partial<SessionPayload> = {}): SessionPayload {
   return {
     id: "sess-001",
     agent_name: "claude-agent",
-    provider: "claude",
+    runtime: {
+      status: "ready",
+      transition: "initial_bind",
+      effective: { provider: "claude" },
+    },
     workspace_id: "ws_alpha",
     workspace_path: "/workspace/alpha",
     state: "active",
@@ -87,7 +91,7 @@ describe("useSessions", () => {
       expect(result.current.data).toHaveLength(1);
     });
 
-    expect(result.current.data?.[0]?.provider).toBe("claude");
+    expect(result.current.data?.[0]?.runtime.effective?.provider).toBe("claude");
     expect(result.current.total).toBe(1);
     expect(fetchSessions).toHaveBeenCalledWith({ workspace: "ws_alpha" }, expect.any(AbortSignal));
   });
@@ -257,7 +261,11 @@ describe("useSession", () => {
     vi.mocked(fetchSession).mockResolvedValue({
       id: "sess-001",
       agent_name: "claude-agent",
-      provider: "claude",
+      runtime: {
+        status: "ready",
+        transition: "initial_bind",
+        effective: { provider: "claude" },
+      },
       workspace_id: "ws_alpha",
       workspace_path: "/workspace/alpha",
       state: "active",
@@ -276,7 +284,7 @@ describe("useSession", () => {
       expect(result.current.data?.id).toBe("sess-001");
     });
 
-    expect(result.current.data?.provider).toBe("claude");
+    expect(result.current.data?.runtime.effective?.provider).toBe("claude");
     expect(fetchSession).toHaveBeenCalledWith("ws_alpha", "sess-001", expect.any(AbortSignal));
   });
 });

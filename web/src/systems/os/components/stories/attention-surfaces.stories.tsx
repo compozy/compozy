@@ -24,7 +24,11 @@ function session(
     id,
     name,
     agent_name: agentName,
-    provider: "codex",
+    runtime: {
+      status: "ready",
+      transition: "initial_bind",
+      effective: { provider: "codex" },
+    },
     workspace_id: "workspace-compozy",
     workspace_path: "/workspace/compozy",
     state: badge === "stopped" || badge === "failed" ? "stopped" : "active",

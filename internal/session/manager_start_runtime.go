@@ -53,6 +53,27 @@ func (m *Manager) prepareAcceptedSessionRuntime(
 	if runtime == nil {
 		return fmt.Errorf("session: accepted runtime is required")
 	}
+	if err := m.prepareAcceptedSessionDefinition(ctx, spec, runtime, updatedAt); err != nil {
+		return err
+	}
+
+	var err error
+	runtime.mcpServers, err = m.sessionMCPServers(ctx, spec, runtime.agent, runtime.agentDef)
+	if err != nil {
+		return fmt.Errorf("session: resolve MCP servers for %q: %w", spec.sessionID, err)
+	}
+	return nil
+}
+
+func (m *Manager) prepareAcceptedSessionDefinition(
+	ctx context.Context,
+	spec *sessionStartSpec,
+	runtime *sessionStartRuntime,
+	updatedAt time.Time,
+) error {
+	if runtime == nil {
+		return fmt.Errorf("session: accepted runtime is required")
+	}
 	artifacts, err := m.resolveWorkspaceAgentArtifactsForSession(spec.agentName, spec.sessionType, &spec.workspace)
 	if err != nil {
 		return fmt.Errorf("session: resolve workspace agent %q: %w", spec.agentName, err)
@@ -95,11 +116,6 @@ func (m *Manager) prepareAcceptedSessionRuntime(
 	}
 	runtime.agentDef = compozyconfig.CloneAgentDef(agentDef)
 	runtime.agent.Prompt = agentDef.Prompt
-
-	runtime.mcpServers, err = m.sessionMCPServers(ctx, spec, runtime.agent, agentDef)
-	if err != nil {
-		return fmt.Errorf("session: resolve MCP servers for %q: %w", spec.sessionID, err)
-	}
 	return nil
 }
 

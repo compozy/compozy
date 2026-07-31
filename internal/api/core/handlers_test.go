@@ -20,7 +20,6 @@ import (
 	core "github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/api/testutil"
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	"github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/events"
 	"github.com/compozy/compozy/internal/heartbeat"
 	"github.com/compozy/compozy/internal/network"
@@ -52,20 +51,15 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 			createCalled.Store(true)
 			opts := acceptedOpts.Session
 			if opts.AgentName != "coder" ||
-				opts.Provider != "fake" ||
-				opts.Model != "fake-pro" ||
-				opts.ReasoningEffort != "high" ||
+				opts.Name != "investigation" ||
 				opts.Workspace != "alpha" ||
 				opts.Type != session.SessionTypeUser {
 				t.Fatalf("CreateAccepted opts = %#v", opts)
 			}
-			if acceptedOpts.InitialPrompt != "Investigate the failing build" {
-				t.Fatalf("CreateAccepted initial prompt = %q", acceptedOpts.InitialPrompt)
-			}
 			created := testutil.NewSessionInfo("sess-created")
 			created.AgentName = opts.AgentName
-			created.Provider = opts.Provider
-			created.State = session.StateStarting
+			created.State = session.StateActive
+			created.RuntimeStatus = session.RuntimeStatusUnbound
 			return created, nil
 		},
 		StatusFn: func(_ context.Context, id string) (*session.Info, error) {
@@ -195,11 +189,8 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 			"/sessions",
 			[]byte(`{
 				"agent_name":"coder",
-				"provider":"fake",
-				"model":"fake-pro",
-				"reasoning_effort":"high",
-				"workspace":"alpha",
-				"prompt":"  Investigate the failing build  "
+				"name":"investigation",
+				"workspace":"alpha"
 			}`),
 		)
 		if createResp.Code != http.StatusCreated || !createCalled.Load() {
@@ -209,11 +200,54 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 		if err := json.Unmarshal(createResp.Body.Bytes(), &payload); err != nil {
 			t.Fatalf("json.Unmarshal(create response) error = %v", err)
 		}
-		if payload.Session.Provider != "fake" {
-			t.Fatalf("created session provider = %q, want %q", payload.Session.Provider, "fake")
+		if payload.Session.Runtime.Status != session.RuntimeStatusUnbound ||
+			payload.Session.Runtime.Effective != nil {
+			t.Fatalf(
+				"created session runtime = %#v, want unbound without an effective selection",
+				payload.Session.Runtime,
+			)
 		}
-		if payload.Session.State != session.StateStarting {
-			t.Fatalf("created session state = %q, want %q", payload.Session.State, session.StateStarting)
+		if payload.Session.State != session.StateActive {
+			t.Fatalf("created session state = %q, want %q", payload.Session.State, session.StateActive)
+		}
+	})
+
+	t.Run("Should reject legacy runtime and prompt fields at session creation", func(t *testing.T) {
+		tests := []struct {
+			field string
+			value string
+		}{
+			{field: "provider", value: `"codex"`},
+			{field: "model", value: `"gpt-5.6"`},
+			{field: "reasoning_effort", value: `"high"`},
+			{field: "speed", value: `"fast"`},
+			{field: "prompt", value: `"legacy"`},
+		}
+		for _, tt := range tests {
+			t.Run("Should reject retired "+tt.field+" field", func(t *testing.T) {
+				createCalled.Store(false)
+				body := []byte(`{"agent_name":"coder","workspace":"alpha","` + tt.field + `":` + tt.value + `}`)
+				createResp := performRequest(t, fixture.Engine, http.MethodPost, "/sessions", body)
+				if createResp.Code != http.StatusBadRequest {
+					t.Fatalf(
+						"create status = %d, want %d; body=%s",
+						createResp.Code,
+						http.StatusBadRequest,
+						createResp.Body.String(),
+					)
+				}
+				if !strings.Contains(createResp.Body.String(), "unknown_field") ||
+					!strings.Contains(createResp.Body.String(), tt.field) {
+					t.Fatalf(
+						"create error body = %s, want normalized unknown_field naming %q",
+						createResp.Body.String(),
+						tt.field,
+					)
+				}
+				if createCalled.Load() {
+					t.Fatal("CreateAccepted() called for a request with deleted fields")
+				}
+			})
 		}
 	})
 
@@ -227,7 +261,7 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 				fixture.Engine,
 				http.MethodPost,
 				"/sessions",
-				[]byte(`{"agent_name":"coder","provider":"fake","workspace":"alpha"}`),
+				[]byte(`{"agent_name":"coder","workspace":"alpha"}`),
 			)
 			fixture.Handlers.SessionAcceptance = manager
 			if resp.Code != http.StatusServiceUnavailable {
@@ -658,196 +692,6 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 		)
 		if transcriptResp.Code != http.StatusNotFound {
 			t.Fatalf("foreign transcript status = %d, want %d", transcriptResp.Code, http.StatusNotFound)
-		}
-	})
-}
-
-func TestCreateSessionProviderAuthFailureReturnsDiagnostic(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should return diagnostic for provider auth failure", func(t *testing.T) {
-		t.Parallel()
-
-		item := diagnostics.NewItem(
-			"provider.codex.auth",
-			contract.CodeProviderCLIMissing,
-			contract.CategoryProvider,
-			"Provider auth status",
-			"Provider CLI is not installed or not available on PATH.",
-			contract.SeverityError,
-			contract.FreshnessLive,
-		)
-		manager := testutil.StubSessionManager{
-			CreateFn: func(context.Context, session.CreateOpts) (*session.Session, error) {
-				return nil, acp.WrapFailure(
-					store.FailureProviderAuth,
-					"provider auth pre-start probe failed",
-					diagnostics.NewStructuredError(item, errors.New("missing provider CLI")),
-				)
-			},
-		}
-		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
-
-		response := performRequest(
-			t,
-			fixture.Engine,
-			http.MethodPost,
-			"/sessions",
-			[]byte(`{"agent_name":"coder","provider":"codex","workspace":"alpha"}`),
-		)
-		if response.Code != http.StatusUnprocessableEntity {
-			t.Fatalf("create status = %d body = %s, want 422", response.Code, response.Body.String())
-		}
-		var payload contract.ErrorPayload
-		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
-			t.Fatalf("json.Unmarshal(error payload) error = %v", err)
-		}
-		if payload.Diagnostic == nil {
-			t.Fatal("payload.Diagnostic = nil, want provider diagnostic")
-		}
-		if got, want := payload.Diagnostic.Code, contract.CodeProviderCLIMissing; got != want {
-			t.Fatalf("payload.Diagnostic.Code = %q, want %q", got, want)
-		}
-	})
-}
-
-func TestCreateSessionNegotiationFailuresReturnStableDiagnostics(t *testing.T) {
-	t.Parallel()
-
-	testCases := []struct {
-		name      string
-		code      string
-		stage     string
-		requested string
-	}{
-		{
-			name:      "Should return model_unavailable",
-			code:      acp.NegotiationCodeModelUnavailable,
-			stage:     "model",
-			requested: "missing-model",
-		},
-		{
-			name:      "Should return reasoning_option_missing",
-			code:      acp.NegotiationCodeReasoningOptionMissing,
-			stage:     "reasoning effort",
-			requested: "max",
-		},
-		{
-			name:      "Should return reasoning_effort_unsupported",
-			code:      acp.NegotiationCodeReasoningEffortUnsupported,
-			stage:     "reasoning effort",
-			requested: "max",
-		},
-		{
-			name:      "Should return speed_rejected",
-			code:      acp.NegotiationCodeSpeedRejected,
-			stage:     "speed",
-			requested: "fast",
-		},
-	}
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			negotiationErr := &acp.NegotiationError{
-				Code:         tc.code,
-				Stage:        tc.stage,
-				Requested:    tc.requested,
-				ValidChoices: []string{"high", "low"},
-			}
-			item := diagnostics.NewItem(
-				"provider.negotiation."+tc.code,
-				tc.code,
-				contract.CategoryProvider,
-				"Provider configuration is unavailable",
-				negotiationErr.Error(),
-				contract.SeverityError,
-				contract.FreshnessLive,
-				diagnostics.WithEvidence(map[string]any{
-					"requested":     tc.requested,
-					"valid_choices": []string{"high", "low"},
-				}),
-			)
-			manager := testutil.StubSessionManager{
-				CreateFn: func(context.Context, session.CreateOpts) (*session.Session, error) {
-					return nil, diagnostics.NewStructuredError(item, negotiationErr)
-				},
-			}
-			fixture := newHandlerFixture(
-				t,
-				manager,
-				testutil.StubObserver{},
-				testutil.StubWorkspaceService{},
-				nil,
-				nil,
-			)
-
-			response := performRequest(
-				t,
-				fixture.Engine,
-				http.MethodPost,
-				"/sessions",
-				[]byte(
-					`{"agent_name":"coder","provider":"codex","workspace":"alpha","model":"gpt-5.6-sol","reasoning_effort":"max"}`,
-				),
-			)
-			if response.Code != http.StatusUnprocessableEntity {
-				t.Fatalf("create status = %d body = %s, want 422", response.Code, response.Body.String())
-			}
-			var payload contract.ErrorPayload
-			if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
-				t.Fatalf("json.Unmarshal(error payload) error = %v", err)
-			}
-			if payload.Diagnostic == nil || payload.Diagnostic.Code != tc.code {
-				t.Fatalf("payload.Diagnostic = %#v, want code %q", payload.Diagnostic, tc.code)
-			}
-			if payload.Diagnostic.Evidence["requested"] != tc.requested {
-				t.Fatalf("diagnostic evidence = %#v, want requested %q", payload.Diagnostic.Evidence, tc.requested)
-			}
-		})
-	}
-
-	t.Run("Should return reasoning_effort_unsupported for an unknown effort value", func(t *testing.T) {
-		t.Parallel()
-
-		manager := testutil.StubSessionManager{
-			CreateFn: func(context.Context, session.CreateOpts) (*session.Session, error) {
-				t.Fatal("session manager Create() called after request validation failed")
-				return nil, nil
-			},
-		}
-		fixture := newHandlerFixture(
-			t,
-			manager,
-			testutil.StubObserver{},
-			testutil.StubWorkspaceService{},
-			nil,
-			nil,
-		)
-		response := performRequest(
-			t,
-			fixture.Engine,
-			http.MethodPost,
-			"/sessions",
-			[]byte(`{"agent_name":"coder","provider":"codex","workspace":"alpha","reasoning_effort":"ultra"}`),
-		)
-		if response.Code != http.StatusUnprocessableEntity {
-			t.Fatalf("create status = %d body = %s, want 422", response.Code, response.Body.String())
-		}
-		var payload contract.ErrorPayload
-		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
-			t.Fatalf("json.Unmarshal(error payload) error = %v", err)
-		}
-		if payload.Diagnostic == nil ||
-			payload.Diagnostic.Code != contract.CodeReasoningEffortUnsupported {
-			t.Fatalf(
-				"payload.Diagnostic = %#v, want code %q",
-				payload.Diagnostic,
-				contract.CodeReasoningEffortUnsupported,
-			)
-		}
-		if got, want := payload.Diagnostic.Evidence["requested"], "ultra"; got != want {
-			t.Fatalf("diagnostic requested evidence = %#v, want %q", got, want)
 		}
 	})
 }

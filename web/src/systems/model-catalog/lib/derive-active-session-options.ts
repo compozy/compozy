@@ -2,7 +2,9 @@ import type { OperationResponse } from "@/lib/api-contract";
 
 import { isKnownAvailabilityState, type ProviderModelPayload } from "../types";
 
-type ACPCaps = NonNullable<OperationResponse<"listSessions", 200>["sessions"][number]["acp_caps"]>;
+type ACPCaps = NonNullable<
+  OperationResponse<"listSessions", 200>["sessions"][number]["runtime"]["acp_caps"]
+>;
 type ACPConfigOption = NonNullable<ACPCaps["config_options"]>[number];
 
 const MODEL_OPTION_IDS = new Set(["model"]);

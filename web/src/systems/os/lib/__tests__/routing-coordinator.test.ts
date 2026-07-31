@@ -4,7 +4,7 @@
 // Owning layer: the sole URL ↔ window-manager bridge.
 import { describe, expect, it, vi } from "vitest";
 
-import type { OsOpenTarget, OsWindow, OsWindowRoute } from "../os-types";
+import type { OsHydration, OsOpenTarget, OsWindow, OsWindowRoute } from "../os-types";
 import { osWindowId } from "../os-types";
 import { RoutingCoordinator, type OsRouterPort } from "../routing-coordinator";
 import type { WindowManagerClientView } from "../window-manager-types";
@@ -48,6 +48,7 @@ function createStore(initialWindows: readonly OsWindow[] = []) {
     connectedAt: "2026-07-22T00:00:00Z",
     presentationRevision: 1,
   };
+  let hydration: OsHydration = "live";
   let lifecycleResult: Promise<boolean> | null = null;
   let resolveLifecycle: ((accepted: boolean) => void) | null = null;
 
@@ -135,6 +136,9 @@ function createStore(initialWindows: readonly OsWindow[] = []) {
     get client() {
       return client;
     },
+    get hydration() {
+      return hydration;
+    },
     openOrFocus,
     focusWindow,
     closeWindow,
@@ -162,6 +166,12 @@ function createStore(initialWindows: readonly OsWindow[] = []) {
     resetWorkspace,
     setAuthoritativeFocus,
     setClientConnected,
+    setHydration: (next: OsHydration) => {
+      hydration = next;
+    },
+    resumeLifecycle: () => {
+      lifecycleResult = null;
+    },
     spies: { openOrFocus, focusWindow, closeWindow, minimizeWindow, zoomWindow, navigateWindow },
   };
 }
@@ -266,7 +276,7 @@ describe("RoutingCoordinator", () => {
     expect(router.navigate).not.toHaveBeenCalled();
   });
 
-  it("Should release an immediately rejected route intent for authoritative recovery", () => {
+  it("Should preserve an unavailable route intent for authoritative recovery", () => {
     const tasks = windowFixture("tasks", "/tasks");
     const settings = windowFixture("settings", "/settings/general");
     const { coordinator, router, store } = createCoordinator([tasks, settings]);
@@ -281,12 +291,53 @@ describe("RoutingCoordinator", () => {
 
     coordinator.reportRouteMatch(deepLink);
 
-    expect(router.replace).toHaveBeenCalledOnce();
-    expect(router.replace).toHaveBeenCalledWith(settings.route);
+    expect(router.replace).not.toHaveBeenCalled();
+
+    coordinator.reportAuthoritativeState();
+
+    expect(store.openOrFocus).toHaveBeenCalledTimes(2);
+  });
+
+  it("Should wait for live hydration before opening a session route", () => {
+    const { coordinator, router, store } = createCoordinator();
+    const deepLink = route("/agents/general/sessions/sess-created");
+    coordinator.completeHydration();
+    store.setHydration("pending");
 
     coordinator.reportRouteMatch(deepLink);
 
+    expect(store.openOrFocus).not.toHaveBeenCalled();
+    expect(router.replace).not.toHaveBeenCalled();
+
+    store.setHydration("live");
+    coordinator.reportAuthoritativeState();
+
+    expect(store.openOrFocus).toHaveBeenCalledOnce();
+    expect(store.openOrFocus).toHaveBeenCalledWith({
+      app: "session",
+      instanceKey: "sess-created",
+      route: deepLink,
+    });
+  });
+
+  it("Should retry a session route after an accepted open finishes unapplied", async () => {
+    const { coordinator, router, store } = createCoordinator();
+    const deepLink = route("/agents/general/sessions/sess-created");
+    coordinator.completeHydration();
+    store.deferLifecycle();
+
+    coordinator.reportRouteMatch(deepLink);
+    store.settleLifecycle(false);
+    await vi.waitFor(() => expect(store.openOrFocus).toHaveBeenCalledOnce());
+
+    expect(router.replace).not.toHaveBeenCalled();
+
+    store.resumeLifecycle();
+    coordinator.reportAuthoritativeState();
+
     expect(store.openOrFocus).toHaveBeenCalledTimes(2);
+    expect(store.getState().windows["session:sess-created"]).toBeDefined();
+    expect(store.getState().focusedId).toBe("session:sess-created");
   });
 
   it("Should preserve an explicit route while its semantic focus is pending", async () => {

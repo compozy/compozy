@@ -90,13 +90,14 @@ func assertGlobalDBNetworkSubscriptionChannelCommandIsAtomic(t *testing.T) {
 	)
 	recordedAt := time.Date(2026, 7, 16, 12, 0, 0, 0, time.UTC)
 	if err := globalDB.RegisterSession(ctx, store.SessionInfo{
-		ID:          "sess-subscription-command",
-		AgentName:   "worker",
-		Provider:    "codex",
-		WorkspaceID: workspaceID,
-		State:       "active",
-		CreatedAt:   recordedAt,
-		UpdatedAt:   recordedAt,
+		ID:            "sess-subscription-command",
+		AgentName:     "worker",
+		Provider:      "codex",
+		RuntimeStatus: store.SessionRuntimeUnbound,
+		WorkspaceID:   workspaceID,
+		State:         "active",
+		CreatedAt:     recordedAt,
+		UpdatedAt:     recordedAt,
 	}); err != nil {
 		t.Fatalf("RegisterSession() error = %v", err)
 	}
@@ -258,13 +259,14 @@ func assertGlobalDBNetworkChannelsRemainWorkspaceQualified(t *testing.T) {
 	}
 
 	sessionB := store.SessionInfo{
-		ID:          "sess-network-isolation-b",
-		AgentName:   "reviewer",
-		Provider:    "codex",
-		WorkspaceID: workspaceB,
-		State:       "active",
-		CreatedAt:   writtenAt,
-		UpdatedAt:   writtenAt,
+		ID:            "sess-network-isolation-b",
+		AgentName:     "reviewer",
+		Provider:      "codex",
+		RuntimeStatus: store.SessionRuntimeUnbound,
+		WorkspaceID:   workspaceB,
+		State:         "active",
+		CreatedAt:     writtenAt,
+		UpdatedAt:     writtenAt,
 	}
 	if err := globalDB.RegisterSession(ctx, sessionB); err != nil {
 		t.Fatalf("RegisterSession(workspace B) error = %v", err)
@@ -303,22 +305,24 @@ func assertGlobalDBNetworkSubscriptionsRemainDeterministic(t *testing.T) {
 	}
 	for _, session := range []store.SessionInfo{
 		{
-			ID:          "sess-subscription-a",
-			AgentName:   "alpha",
-			Provider:    "codex",
-			WorkspaceID: workspaceID,
-			State:       "active",
-			CreatedAt:   recordedAt,
-			UpdatedAt:   recordedAt,
+			ID:            "sess-subscription-a",
+			AgentName:     "alpha",
+			Provider:      "codex",
+			RuntimeStatus: store.SessionRuntimeUnbound,
+			WorkspaceID:   workspaceID,
+			State:         "active",
+			CreatedAt:     recordedAt,
+			UpdatedAt:     recordedAt,
 		},
 		{
-			ID:          "sess-subscription-b",
-			AgentName:   "beta",
-			Provider:    "codex",
-			WorkspaceID: workspaceID,
-			State:       "active",
-			CreatedAt:   recordedAt,
-			UpdatedAt:   recordedAt,
+			ID:            "sess-subscription-b",
+			AgentName:     "beta",
+			Provider:      "codex",
+			RuntimeStatus: store.SessionRuntimeUnbound,
+			WorkspaceID:   workspaceID,
+			State:         "active",
+			CreatedAt:     recordedAt,
+			UpdatedAt:     recordedAt,
 		},
 	} {
 		if err := globalDB.RegisterSession(ctx, session); err != nil {

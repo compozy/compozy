@@ -73,10 +73,14 @@ GROUP BY mode, status;
 
 -- name: InsertSessionInputQueueEntry :exec
 INSERT INTO session_input_queue (
-  id, session_id, status, mode, text, session_generation, task_run_id, run_generation,
+  id, session_id, status, mode, text,
+  runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed,
+  session_generation, task_run_id, run_generation,
   attempt_count, enqueued_at, updated_at
 ) VALUES (
   sqlc.arg(id), sqlc.arg(session_id), sqlc.arg(status), sqlc.arg(mode), sqlc.arg(text),
+  sqlc.arg(runtime_provider), sqlc.arg(runtime_model),
+  sqlc.arg(runtime_reasoning_effort), sqlc.arg(runtime_speed),
   sqlc.arg(session_generation), sqlc.arg(task_run_id), sqlc.narg(run_generation),
   0, sqlc.arg(enqueued_at), sqlc.arg(updated_at)
 );

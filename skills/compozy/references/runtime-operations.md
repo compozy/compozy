@@ -38,9 +38,16 @@ Confirm drain through `.daemon.status == "draining"` in `compozy status -o json`
 Compozy sessions are daemon-owned runtimes. Common states:
 
 - starting - the daemon accepted the session and is booting the provider.
-- active - the provider is connected and ready for prompts.
+- active - the logical session accepts prompts; its runtime may be `unbound` or ready.
 - stopping - shutdown has started.
 - stopped - the runtime exited. The durable record remains inspectable, but the public lifecycle is terminal.
+
+Creation and runtime binding are separate. `compozy session new` creates an `active` logical session
+without starting a provider process: its nested status is `runtime.status="unbound"` and it has no
+`runtime.effective` selection. Send the first prompt to bind a provider. Read the nested `runtime`
+object from `session status -o json` (or any session read), rather than inferring process state from
+the top-level session state: it reports `status`, `transition`, redacted `failure`, `effective`, ACP
+session ID, and advertised ACP capabilities.
 
 Session types include user sessions and daemon-managed sessions such as dream, system, coordinator, worker, and reviewer sessions. Do not infer authority from a session type alone. Use the session context and daemon tools to confirm what the current session may do.
 
@@ -79,8 +86,7 @@ cannot be validated fail closed.
 
     compozy session new --agent general --name review-run
     compozy session new --agent codex --cwd /absolute/path/to/worktree --name fix-task
-    compozy session new --provider codex --model gpt-5.6-sol --reasoning-effort high --speed fast --prompt "Inspect the failing build."
-    compozy session new --agent general --no-wait -o json
+    compozy session prompt <session-id> "Inspect the failing build." --provider codex --model gpt-5.6-sol --reasoning-effort high --speed fast
     compozy session list --all -o json
     compozy session list --type user --state active --sort last_activity -o json
     compozy session list --resumable -o json
@@ -105,22 +111,25 @@ cannot be validated fail closed.
     compozy session clarify answer <session-id> <request-id> --text "Use staging" -o json
     compozy session wait <session-id>
 
-`compozy session new` waits for the accepted session to become `active` and returns a startup error if
-the durable session stops with a failure. Use `--no-wait` when a controller needs the accepted
-`starting` record immediately; then observe that session through status/list or the workspace detail
-API until it becomes `active` or durably `stopped` with `failure.kind=startup_failure`.
+`compozy session new` is promptless and accepts no runtime selection. It returns the durable active,
+unbound session; use its ID in a later `compozy session prompt`. A prompt to an unbound session must
+select `--provider`; `--model`, `--reasoning-effort`, and `--speed` refine that prompt's snapshot.
+`--speed` defaults to `normal`; `fast` applies only through an unambiguous ACP select/value-ID option.
 
-Use `--prompt` with non-whitespace text to atomically create a session and stage its first user turn.
-Compozy persists the `starting` session and the trimmed prompt before returning, then dispatches the
-prompt once after the selected provider, model, reasoning effort, and requested speed become active. Speed defaults
-to `normal`; `fast` is applied only through an unambiguous ACP select/value-ID option. An absent or
-ambiguous speed capability is reported as `unsupported` without failing startup, while a provider
-rejection fails before the first prompt with `speed_rejected`. Empty or
-whitespace-only values keep create-only behavior. `--no-wait --prompt` returns the durable `starting`
-record with the prompt still queued. A startup failure retains that prompt and its diagnostic
-evidence, but the public attach command cannot restart that stopped session. Inspect the failure,
-correct its cause, and create a new session for new work. Deleting the failed session removes the
-queued input. Do not send the same prompt again to the original create request.
+Each accepted prompt records its immutable runtime snapshot with the authored user event. Omitting
+runtime flags reuses the session's current effective selection; this is invalid while the session is
+unbound. A queued prompt retains its submitted snapshot until dispatch. An interrupt advances the
+input generation, drops stale queued entries, then applies the replacement prompt's snapshot only
+after the current turn becomes idle. Inspect the prompt result's queue ID, queue position, and queue
+generation instead of assuming a busy input ran immediately.
+
+At a prompt boundary, a same-provider change uses live configuration when the provider supports it.
+If that is unavailable or fails, or the provider changes, Compozy replaces the ACP process and
+replays the canonical durable session context before sending the newly accepted prompt. A failed live
+configuration or replacement restores the prior binding and reports the runtime failure; because the
+user event is persisted only after a runtime is ready, rollback creates no user prompt event to retry.
+Read `runtime.transition` to distinguish `initial_bind`, `live_configuration`, and
+`process_replacement`.
 
 If a Compozy-native session tool is visible, prefer the tool because it is policy-aware and easier for the daemon to audit. Use the CLI when the tool is denied, absent, or explicitly requested.
 

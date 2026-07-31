@@ -12,6 +12,7 @@ import (
 
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
 
+	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 
 	"github.com/compozy/compozy/internal/transcript"
@@ -21,12 +22,14 @@ type hostAPIPromptSubmission struct {
 	TurnID             string
 	SeedEvents         []bridgepkg.DeliveryProjectionEvent
 	DeliveryRegistered bool
+	Admission          session.SendPromptResult
 }
 
 func (h *HostAPIHandler) submitPrompt(
 	ctx context.Context,
 	sessionID string,
 	message string,
+	runtime *session.RuntimeSelection,
 ) (hostAPIPromptSubmission, error) {
 	if h.sessions == nil {
 		return hostAPIPromptSubmission{}, errors.New("extension: session manager is not configured")
@@ -38,11 +41,14 @@ func (h *HostAPIHandler) submitPrompt(
 	}
 
 	promptCtx := context.WithoutCancel(ctx)
-	eventsCh, err := h.sessions.Prompt(promptCtx, sessionID, message)
+	admission, err := h.submitRuntimePrompt(promptCtx, sessionID, message, runtime)
 	if err != nil {
 		return hostAPIPromptSubmission{}, err
 	}
-	drainAgentEvents(eventsCh)
+	if admission.Events == nil {
+		return hostAPIPromptSubmission{Admission: admission}, nil
+	}
+	drainAgentEvents(admission.Events)
 
 	events, err := h.sessions.Events(ctx, sessionID, store.EventQuery{
 		AfterSequence: lastSequence,
@@ -51,7 +57,41 @@ func (h *HostAPIHandler) submitPrompt(
 		return hostAPIPromptSubmission{}, err
 	}
 
-	return promptSubmissionFromStoredEvents(events)
+	submission, err := promptSubmissionFromStoredEvents(events)
+	if err != nil {
+		return hostAPIPromptSubmission{}, err
+	}
+	submission.Admission = admission
+	return submission, nil
+}
+
+func (h *HostAPIHandler) submitRuntimePrompt(
+	ctx context.Context,
+	sessionID string,
+	message string,
+	runtime *session.RuntimeSelection,
+) (session.SendPromptResult, error) {
+	if runtime == nil {
+		events, err := h.sessions.Prompt(ctx, sessionID, message)
+		if err != nil {
+			return session.SendPromptResult{}, err
+		}
+		return session.SendPromptResult{Status: "accepted", Events: events}, nil
+	}
+	prompter, ok := h.sessions.(hostAPIRuntimePromptSessionManager)
+	if !ok {
+		return session.SendPromptResult{}, errors.New(
+			"extension: session manager does not support prompt runtime selection",
+		)
+	}
+	result, err := prompter.SendPrompt(ctx, sessionID, session.SendPromptOpts{
+		Message: message,
+		Runtime: runtime,
+	})
+	if err != nil {
+		return session.SendPromptResult{}, err
+	}
+	return result, nil
 }
 
 func promptSubmissionFromStoredEvents(events []store.SessionEvent) (hostAPIPromptSubmission, error) {

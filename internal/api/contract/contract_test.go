@@ -314,13 +314,16 @@ func TestSessionPayloadJSONShape(t *testing.T) {
 		now := time.Date(2026, 4, 7, 10, 30, 0, 0, time.UTC)
 		ttl := now.Add(time.Hour)
 		payload := core.SessionPayloadFromInfo(&session.Info{
-			ID:              "sess-1",
-			Name:            "demo",
-			AgentName:       "coder",
-			Provider:        "fake",
-			Model:           "gpt-test",
-			ReasoningEffort: "high",
-			Speed:           speedpkg.SpeedFast,
+			ID:                "sess-1",
+			Name:              "demo",
+			AgentName:         "coder",
+			Provider:          "fake",
+			Model:             "gpt-test",
+			ReasoningEffort:   "high",
+			Speed:             speedpkg.SpeedFast,
+			RuntimeStatus:     session.RuntimeStatusReady,
+			RuntimeTransition: session.RuntimeTransitionLiveConfiguration,
+			RuntimeFailure:    "provider rejected compozy_claim_RAWTOKEN123",
 			SpeedResolution: &speedpkg.Resolution{
 				Requested: speedpkg.SpeedFast,
 				Status:    speedpkg.ResolutionApplied,
@@ -366,28 +369,40 @@ func TestSessionPayloadJSONShape(t *testing.T) {
 		marshalJSON(t, payload, &got)
 
 		if got["agent_name"] != "coder" ||
-			got["provider"] != "fake" ||
-			got["model"] != "gpt-test" ||
-			got["reasoning_effort"] != "high" ||
-			got["speed"] != "fast" ||
 			got["workspace_id"] != "ws_alpha" ||
 			got["workspace_path"] != "/workspace" {
 			t.Fatalf("session JSON = %#v", got)
 		}
-		speedResolution, ok := got["speed_resolution"].(map[string]any)
+		if _, exists := got["provider"]; exists {
+			t.Fatalf("session JSON leaked top-level provider: %#v", got)
+		}
+		runtime, ok := got["runtime"].(map[string]any)
+		if !ok {
+			t.Fatalf("runtime type = %T, want object", got["runtime"])
+		}
+		if runtime["status"] != "ready" || runtime["transition"] != "live_configuration" ||
+			runtime["acp_session_id"] != "acp-123" {
+			t.Fatalf("runtime JSON = %#v", runtime)
+		}
+		if failure, ok := runtime["failure"].(string); !ok || strings.Contains(failure, "compozy_claim_RAWTOKEN123") {
+			t.Fatalf("runtime failure = %#v, want redacted diagnostic", runtime["failure"])
+		}
+		effective, ok := runtime["effective"].(map[string]any)
+		if !ok || effective["provider"] != "fake" || effective["model"] != "gpt-test" ||
+			effective["reasoning_effort"] != "high" || effective["speed"] != "fast" {
+			t.Fatalf("runtime effective JSON = %#v", runtime["effective"])
+		}
+		speedResolution, ok := effective["speed_resolution"].(map[string]any)
 		if !ok ||
 			speedResolution["requested"] != "fast" ||
 			speedResolution["status"] != "applied" {
-			t.Fatalf("speed_resolution JSON = %#v", got["speed_resolution"])
+			t.Fatalf("speed_resolution JSON = %#v", effective["speed_resolution"])
 		}
 		if _, exists := got["stop_reason"]; exists {
 			t.Fatalf("session JSON should omit empty stop_reason: %#v", got)
 		}
 		if _, exists := got["stop_detail"]; exists {
 			t.Fatalf("session JSON should omit empty stop_detail: %#v", got)
-		}
-		if _, exists := got["acp_session_id"]; !exists {
-			t.Fatalf("session JSON missing acp_session_id: %#v", got)
 		}
 		lineage, ok := got["lineage"].(map[string]any)
 		if !ok {
@@ -399,7 +414,7 @@ func TestSessionPayloadJSONShape(t *testing.T) {
 		if _, exists := lineage["permission_policy_json"]; exists {
 			t.Fatalf("lineage JSON leaked raw policy storage: %#v", lineage)
 		}
-		acpCaps, ok := got["acp_caps"].(map[string]any)
+		acpCaps, ok := runtime["acp_caps"].(map[string]any)
 		if !ok {
 			t.Fatalf("acp_caps type = %T, want object", got["acp_caps"])
 		}
@@ -562,22 +577,22 @@ func TestRuntimeActivityJSONPreservesZeroMetrics(t *testing.T) {
 func TestCreateSessionRequestJSONShape(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should decode optional provider when present", func(t *testing.T) {
+	t.Run("Should decode session identity and workspace fields", func(t *testing.T) {
 		t.Parallel()
 
 		var req contract.CreateSessionRequest
 		if err := json.Unmarshal(
-			[]byte(`{"agent_name":"coder","provider":"fake","workspace":"alpha"}`),
+			[]byte(`{"agent_name":"coder","name":"planning","workspace":"alpha"}`),
 			&req,
 		); err != nil {
 			t.Fatalf("json.Unmarshal() error = %v", err)
 		}
-		if req.AgentName != "coder" || req.Provider != "fake" || req.Workspace != "alpha" {
+		if req.AgentName != "coder" || req.Name != "planning" || req.Workspace != "alpha" {
 			t.Fatalf("request = %#v", req)
 		}
 	})
 
-	t.Run("Should omit provider cleanly when absent", func(t *testing.T) {
+	t.Run("Should preserve workspace path", func(t *testing.T) {
 		t.Parallel()
 
 		var req contract.CreateSessionRequest
@@ -587,24 +602,17 @@ func TestCreateSessionRequestJSONShape(t *testing.T) {
 		); err != nil {
 			t.Fatalf("json.Unmarshal() error = %v", err)
 		}
-		if req.Provider != "" {
-			t.Fatalf("request.Provider = %q, want empty", req.Provider)
-		}
 		if req.WorkspacePath != "/workspace" {
 			t.Fatalf("request = %#v", req)
 		}
 	})
 
-	t.Run("Should round-trip runtime overrides", func(t *testing.T) {
+	t.Run("Should hard-delete runtime and prompt fields", func(t *testing.T) {
 		t.Parallel()
 
 		req := contract.CreateSessionRequest{
-			AgentName:       "coder",
-			Provider:        "codex",
-			Model:           "gpt-5.4",
-			ReasoningEffort: "high",
-			Speed:           contract.SpeedFast,
-			Workspace:       "alpha",
+			AgentName: "coder",
+			Workspace: "alpha",
 		}
 		raw, err := json.Marshal(req)
 		if err != nil {
@@ -614,78 +622,66 @@ func TestCreateSessionRequestJSONShape(t *testing.T) {
 		if err := json.Unmarshal(raw, &decoded); err != nil {
 			t.Fatalf("json.Unmarshal() error = %v", err)
 		}
-		if decoded.Model != "gpt-5.4" ||
-			decoded.ReasoningEffort != "high" ||
-			decoded.Speed != contract.SpeedFast {
+		if decoded != req {
 			t.Fatalf("decoded = %#v", decoded)
 		}
 		var shape map[string]any
 		if err := json.Unmarshal(raw, &shape); err != nil {
 			t.Fatalf("json.Unmarshal(map) error = %v", err)
 		}
-		if shape["model"] != "gpt-5.4" ||
-			shape["reasoning_effort"] != "high" ||
-			shape["speed"] != "fast" {
-			t.Fatalf("shape = %#v", shape)
-		}
-	})
-
-	t.Run("Should round-trip the optional initial prompt", func(t *testing.T) {
-		t.Parallel()
-
-		req := contract.CreateSessionRequest{
-			AgentName: "coder",
-			Workspace: "alpha",
-			Prompt:    "Investigate the failing build",
-		}
-		raw, err := json.Marshal(req)
-		if err != nil {
-			t.Fatalf("json.Marshal() error = %v", err)
-		}
-		var decoded contract.CreateSessionRequest
-		if err := json.Unmarshal(raw, &decoded); err != nil {
-			t.Fatalf("json.Unmarshal() error = %v", err)
-		}
-		if decoded.Prompt != req.Prompt {
-			t.Fatalf("decoded.Prompt = %q, want %q", decoded.Prompt, req.Prompt)
-		}
-		var shape map[string]any
-		if err := json.Unmarshal(raw, &shape); err != nil {
-			t.Fatalf("json.Unmarshal(map) error = %v", err)
-		}
-		if shape["prompt"] != req.Prompt {
-			t.Fatalf("shape = %#v, want prompt key %q", shape, req.Prompt)
-		}
-	})
-
-	t.Run("Should omit optional runtime controls cleanly when absent", func(t *testing.T) {
-		t.Parallel()
-
-		req := contract.CreateSessionRequest{AgentName: "coder", Workspace: "alpha"}
-		raw, err := json.Marshal(req)
-		if err != nil {
-			t.Fatalf("json.Marshal() error = %v", err)
-		}
-		var shape map[string]any
-		if err := json.Unmarshal(raw, &shape); err != nil {
-			t.Fatalf("json.Unmarshal() error = %v", err)
-		}
-		for _, field := range []string{"model", "reasoning_effort", "speed"} {
+		for _, field := range []string{"provider", "model", "reasoning_effort", "speed", "prompt"} {
 			if _, ok := shape[field]; ok {
 				t.Fatalf("shape = %#v, want %q omitted", shape, field)
 			}
 		}
 	})
+}
 
-	t.Run("Should omit prompt cleanly when absent", func(t *testing.T) {
+func TestSendPromptRequestJSONShape(t *testing.T) {
+	t.Run("Should preserve an optional runtime snapshot with the prompt", func(t *testing.T) {
 		t.Parallel()
 
-		raw, err := json.Marshal(contract.CreateSessionRequest{AgentName: "coder", Workspace: "alpha"})
+		req := contract.SendPromptRequest{
+			Message: "Review this change.",
+			Runtime: &contract.PromptRuntimeSelectionPayload{
+				Provider:        "codex",
+				Model:           "gpt-5.4",
+				ReasoningEffort: "high",
+				Speed:           contract.SpeedFast,
+			},
+		}
+		raw, err := json.Marshal(req)
 		if err != nil {
 			t.Fatalf("json.Marshal() error = %v", err)
 		}
-		if strings.Contains(string(raw), "prompt") {
-			t.Fatalf("raw = %s, want prompt omitted", string(raw))
+		var decoded contract.SendPromptRequest
+		if err := json.Unmarshal(raw, &decoded); err != nil {
+			t.Fatalf("json.Unmarshal() error = %v", err)
+		}
+		if decoded.Runtime == nil || decoded.Runtime.Provider != "codex" ||
+			decoded.Runtime.Model != "gpt-5.4" || decoded.Runtime.ReasoningEffort != "high" ||
+			decoded.Runtime.Speed != contract.SpeedFast {
+			t.Fatalf("decoded runtime = %#v", decoded.Runtime)
+		}
+	})
+}
+
+func TestPromptRuntimeSelectionFromPayload(t *testing.T) {
+	t.Run("Should canonicalize whitespace at the API boundary", func(t *testing.T) {
+		t.Parallel()
+
+		selection := contract.PromptRuntimeSelectionFromPayload(&contract.PromptRuntimeSelectionPayload{
+			Provider:        " codex ",
+			Model:           " gpt-5.6 ",
+			ReasoningEffort: " high ",
+			Speed:           contract.SpeedFast,
+		})
+		if selection == nil {
+			t.Fatal("PromptRuntimeSelectionFromPayload() = nil, want selection")
+		}
+		if selection.Provider != "codex" || selection.Model != "gpt-5.6" ||
+			selection.ReasoningEffort != "high" || selection.Speed != contract.SpeedFast {
+			t.Fatalf("PromptRuntimeSelectionFromPayload() = %#v, want canonical selection", selection)
 		}
 	})
 }
@@ -886,38 +882,53 @@ func TestWorkspaceSandboxRefJSONFields(t *testing.T) {
 func TestAgentEventPayloadRoundTripsThroughJSON(t *testing.T) {
 	t.Parallel()
 
-	inputTokens := int64(12)
-	event := acp.AgentEvent{
-		Type:      acp.EventTypePermission,
-		SessionID: "sess-1",
-		TurnID:    "turn-1",
-		RequestID: "req-1",
-		Timestamp: time.Date(2026, 4, 7, 10, 30, 0, 0, time.UTC),
-		Action:    "fs/read_text_file",
-		Resource:  "/tmp/file.txt",
-		Decision:  "pending",
-		Error:     "",
-		Usage: &acp.TokenUsage{
-			TurnID:      "turn-1",
-			InputTokens: &inputTokens,
-			Timestamp:   time.Date(2026, 4, 7, 10, 30, 1, 0, time.UTC),
-		},
-		Raw: []byte(`{"ok":true}`),
-	}
+	t.Run("Should round-trip prompt runtime with agent event payload data", func(t *testing.T) {
+		t.Parallel()
 
-	payload := core.AgentEventPayloadFromEvent(event)
-	var roundTrip contract.AgentEventPayload
-	marshalJSON(t, payload, &roundTrip)
+		inputTokens := int64(12)
+		event := (acp.AgentEvent{
+			Type:      acp.EventTypePermission,
+			SessionID: "sess-1",
+			TurnID:    "turn-1",
+			RequestID: "req-1",
+			Timestamp: time.Date(2026, 4, 7, 10, 30, 0, 0, time.UTC),
+			Action:    "fs/read_text_file",
+			Resource:  "/tmp/file.txt",
+			Decision:  "pending",
+			Error:     "",
+			Usage: &acp.TokenUsage{
+				TurnID:      "turn-1",
+				InputTokens: &inputTokens,
+				Timestamp:   time.Date(2026, 4, 7, 10, 30, 1, 0, time.UTC),
+			},
+			Raw: []byte(`{"ok":true}`),
+		}).WithPromptRuntime(&acp.PromptRuntime{
+			Provider:        "codex",
+			Model:           "gpt-5.6",
+			ReasoningEffort: "high",
+			Speed:           speedpkg.SpeedFast,
+		})
 
-	if roundTrip.Type != event.Type || roundTrip.RequestID != event.RequestID || roundTrip.Action != event.Action {
-		t.Fatalf("roundTrip payload = %#v", roundTrip)
-	}
-	if roundTrip.Usage == nil || roundTrip.Usage.InputTokens == nil || *roundTrip.Usage.InputTokens != inputTokens {
-		t.Fatalf("usage payload = %#v", roundTrip.Usage)
-	}
-	if string(roundTrip.Raw) != `{"ok":true}` {
-		t.Fatalf("raw payload = %s", string(roundTrip.Raw))
-	}
+		payload := core.AgentEventPayloadFromEvent(event)
+		var roundTrip contract.AgentEventPayload
+		marshalJSON(t, payload, &roundTrip)
+
+		if roundTrip.Type != event.Type || roundTrip.RequestID != event.RequestID || roundTrip.Action != event.Action {
+			t.Fatalf("roundTrip payload = %#v", roundTrip)
+		}
+		if roundTrip.Usage == nil || roundTrip.Usage.InputTokens == nil || *roundTrip.Usage.InputTokens != inputTokens {
+			t.Fatalf("usage payload = %#v", roundTrip.Usage)
+		}
+		if string(roundTrip.Raw) != `{"ok":true}` {
+			t.Fatalf("raw payload = %s", string(roundTrip.Raw))
+		}
+		if roundTrip.PromptRuntime == nil || roundTrip.PromptRuntime.Provider != "codex" ||
+			roundTrip.PromptRuntime.Model != "gpt-5.6" ||
+			roundTrip.PromptRuntime.ReasoningEffort != contract.ReasoningEffort("high") ||
+			roundTrip.PromptRuntime.Speed != contract.SpeedFast {
+			t.Fatalf("prompt runtime payload = %#v", roundTrip.PromptRuntime)
+		}
+	})
 }
 
 func TestAutomationJobPayloadJSONShape(t *testing.T) {

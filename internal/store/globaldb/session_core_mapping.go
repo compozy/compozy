@@ -2,9 +2,12 @@ package globaldb
 
 import (
 	"database/sql"
+	"encoding/json"
+	"fmt"
 	"strings"
 	"time"
 
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
@@ -12,25 +15,36 @@ import (
 func upsertSessionParams(record sessionCatalogRecord) (sqlcgen.UpsertSessionParams, error) {
 	session := record.session
 	lineage := record.lineage
+	speedResolutionJSON, err := encodeSessionSpeedResolution(session.SpeedResolution)
+	if err != nil {
+		return sqlcgen.UpsertSessionParams{}, err
+	}
 	network, err := encodeParticipationSnapshot(session.WorkspaceID, session.NetworkSpecSnapshot())
 	if err != nil {
 		return sqlcgen.UpsertSessionParams{}, err
 	}
 	return sqlcgen.UpsertSessionParams{
-		ID:              session.ID,
-		Name:            nullableSessionString(session.Name),
-		AgentName:       session.AgentName,
-		Provider:        strings.TrimSpace(session.Provider),
-		WorkspaceID:     session.WorkspaceID,
-		SessionType:     store.NormalizeSessionType(session.SessionType),
-		NetworkSpecJson: network.JSON,
-		NetworkMode:     network.Mode,
-		NetworkChannel:  network.Channel,
-		NetworkSource:   network.Source,
-		State:           session.State,
-		ParentSessionID: nullableSessionString(lineage.ParentSessionID),
-		RootSessionID:   nullableSessionString(lineage.RootSessionID),
-		SpawnDepth:      int64(lineage.SpawnDepth),
+		ID:                  session.ID,
+		Name:                nullableSessionString(session.Name),
+		AgentName:           session.AgentName,
+		Provider:            strings.TrimSpace(session.Provider),
+		Model:               strings.TrimSpace(session.Model),
+		ReasoningEffort:     strings.TrimSpace(session.ReasoningEffort),
+		Speed:               string(session.Speed),
+		SpeedResolutionJson: speedResolutionJSON,
+		RuntimeStatus:       string(session.RuntimeStatus),
+		RuntimeTransition:   string(session.RuntimeTransition),
+		RuntimeFailure:      strings.TrimSpace(session.RuntimeFailure),
+		WorkspaceID:         session.WorkspaceID,
+		SessionType:         store.NormalizeSessionType(session.SessionType),
+		NetworkSpecJson:     network.JSON,
+		NetworkMode:         network.Mode,
+		NetworkChannel:      network.Channel,
+		NetworkSource:       network.Source,
+		State:               session.State,
+		ParentSessionID:     nullableSessionString(lineage.ParentSessionID),
+		RootSessionID:       nullableSessionString(lineage.RootSessionID),
+		SpawnDepth:          int64(lineage.SpawnDepth),
 		SpawnRole: nullableSessionString(
 			lineage.SpawnRole,
 		),
@@ -79,6 +93,20 @@ func upsertSessionParams(record sessionCatalogRecord) (sqlcgen.UpsertSessionPara
 		),
 		UpdatedAt: store.FormatTimestamp(session.UpdatedAt),
 	}, nil
+}
+
+func encodeSessionSpeedResolution(value *speedpkg.Resolution) (string, error) {
+	if value == nil {
+		return "", nil
+	}
+	if err := speedpkg.ValidateResolution(*value); err != nil {
+		return "", fmt.Errorf("store: validate session speed resolution: %w", err)
+	}
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		return "", fmt.Errorf("store: encode session speed resolution: %w", err)
+	}
+	return string(encoded), nil
 }
 
 func nullableSessionString(value string) sql.NullString {

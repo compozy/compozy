@@ -42,8 +42,8 @@ func (r *loopGoalPromptRecovery) ReconcileTerminalFromEvents(
 	if err != nil {
 		return looppkg.ActionPromptResult{}, false, err
 	}
-	if managedGoalEntrySettled(entry) {
-		result, resultErr := r.binder.managedGoalPromptResult(ctx, entry)
+	if managedGoalEntrySettled(&entry) {
+		result, resultErr := r.binder.managedGoalPromptResult(ctx, &entry)
 		return result, resultErr == nil, resultErr
 	}
 	checkpoint, err := r.store.LoadCheckpoint(ctx, identity.Key)
@@ -109,7 +109,7 @@ func (r *loopGoalPromptRecovery) loadGoalRecoveryEntry(
 			err,
 		)
 	}
-	owner, err := managedInputOwnerFromQueueEntry(entry)
+	owner, err := managedInputOwnerFromQueueEntry(&entry)
 	if err != nil {
 		return store.SessionInputQueueEntry{}, fmt.Errorf(
 			"daemon: decode Goal recovery owner for queue entry %q: %w",

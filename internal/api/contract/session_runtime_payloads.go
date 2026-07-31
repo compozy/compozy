@@ -22,11 +22,6 @@ const (
 // CreateSessionRequest is the shared session creation request payload.
 type CreateSessionRequest struct {
 	AgentName            string                 `json:"agent_name,omitempty"`
-	Provider             string                 `json:"provider,omitempty"`
-	Model                string                 `json:"model,omitempty"`
-	ReasoningEffort      ReasoningEffort        `json:"reasoning_effort,omitempty"`
-	Speed                Speed                  `json:"speed,omitempty"`
-	Prompt               string                 `json:"prompt,omitempty"`
 	Name                 string                 `json:"name,omitempty"`
 	Workspace            string                 `json:"workspace,omitempty"`
 	WorkspacePath        string                 `json:"workspace_path,omitempty"`
@@ -42,31 +37,25 @@ type ApproveSessionRequest struct {
 
 // SessionPayload is the shared session response payload.
 type SessionPayload struct {
-	ID                           string              `json:"id"`
-	Name                         string              `json:"name,omitempty"`
-	AgentName                    string              `json:"agent_name"`
-	Provider                     string              `json:"provider"`
-	Model                        string              `json:"model,omitempty"`
-	ReasoningEffort              ReasoningEffort     `json:"reasoning_effort,omitempty"`
-	Speed                        Speed               `json:"speed,omitempty"`
-	SpeedResolution              *SpeedResolution    `json:"speed_resolution,omitempty"`
-	WorkspaceID                  string              `json:"workspace_id,omitempty"`
-	WorkspacePath                string              `json:"workspace_path,omitempty"`
-	ResolvedNetworkParticipation *participation.Spec `json:"resolved_network_participation,omitempty"`
-	Type                         session.Type        `json:"type,omitempty"`
-	State                        session.State       `json:"state"`
-	Badge                        session.Badge       `json:"badge"`
-	Attachable                   bool                `json:"attachable"`
-	AttachedTo                   string              `json:"attached_to,omitempty"`
-	AttachExpiresAt              *time.Time          `json:"attach_expires_at,omitempty"`
-	TranscriptEpoch              int64               `json:"transcript_epoch,omitempty"`
+	ID                           string                `json:"id"`
+	Name                         string                `json:"name,omitempty"`
+	AgentName                    string                `json:"agent_name"`
+	Runtime                      SessionRuntimePayload `json:"runtime"`
+	WorkspaceID                  string                `json:"workspace_id,omitempty"`
+	WorkspacePath                string                `json:"workspace_path,omitempty"`
+	ResolvedNetworkParticipation *participation.Spec   `json:"resolved_network_participation,omitempty"`
+	Type                         session.Type          `json:"type,omitempty"`
+	State                        session.State         `json:"state"`
+	Badge                        session.Badge         `json:"badge"`
+	Attachable                   bool                  `json:"attachable"`
+	AttachedTo                   string                `json:"attached_to,omitempty"`
+	AttachExpiresAt              *time.Time            `json:"attach_expires_at,omitempty"`
+	TranscriptEpoch              int64                 `json:"transcript_epoch,omitempty"`
 	// StopReason is the session-level stop classification, distinct from AgentEventPayload.StopReason.
 	StopReason store.StopReason `json:"stop_reason,omitempty"`
 	// StopDetail is the session-level stop context paired with StopReason.
 	StopDetail        string                       `json:"stop_detail,omitempty"`
 	Failure           *SessionFailurePayload       `json:"failure,omitempty"`
-	ACPSessionID      string                       `json:"acp_session_id,omitempty"`
-	ACPCaps           *ACPCapsPayload              `json:"acp_caps,omitempty"`
 	AvailableCommands []ACPAvailableCommandPayload `json:"available_commands"`
 	Activity          *RuntimeActivityPayload      `json:"activity,omitempty"`
 	Sandbox           *SessionSandboxPayload       `json:"sandbox,omitempty"`
@@ -74,6 +63,33 @@ type SessionPayload struct {
 	Health            *SessionHealthPayload        `json:"health,omitempty"`
 	CreatedAt         time.Time                    `json:"created_at"`
 	UpdatedAt         time.Time                    `json:"updated_at"`
+}
+
+// SessionRuntimePayload reports the current ACP binding and its effective runtime.
+type SessionRuntimePayload struct {
+	Status       session.RuntimeStatus             `json:"status"`
+	Transition   session.RuntimeTransitionStrategy `json:"transition,omitempty"`
+	Failure      string                            `json:"failure,omitempty"`
+	Effective    *RuntimeSelectionPayload          `json:"effective,omitempty"`
+	ACPSessionID string                            `json:"acp_session_id,omitempty"`
+	ACPCaps      *ACPCapsPayload                   `json:"acp_caps,omitempty"`
+}
+
+// RuntimeSelectionPayload is the effective runtime bound to a logical session.
+type RuntimeSelectionPayload struct {
+	Provider        string           `json:"provider"`
+	Model           string           `json:"model,omitempty"`
+	ReasoningEffort ReasoningEffort  `json:"reasoning_effort,omitempty"`
+	Speed           Speed            `json:"speed,omitempty"`
+	SpeedResolution *SpeedResolution `json:"speed_resolution,omitempty"`
+}
+
+// PromptRuntimeSelectionPayload is the caller-selected runtime for one prompt.
+type PromptRuntimeSelectionPayload struct {
+	Provider        string          `json:"provider"`
+	Model           string          `json:"model,omitempty"`
+	ReasoningEffort ReasoningEffort `json:"reasoning_effort,omitempty"`
+	Speed           Speed           `json:"speed,omitempty"`
 }
 
 // SessionFailurePayload is the redacted lifecycle failure diagnostic shared by

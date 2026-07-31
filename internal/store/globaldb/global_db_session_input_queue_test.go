@@ -11,6 +11,49 @@ import (
 )
 
 func TestGlobalDBSessionInputQueueGeneration(t *testing.T) {
+	t.Run("Should preserve the runtime snapshot through queue leasing", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		sessionID := registerInputQueueSession(t, globalDB)
+		now := time.Date(2026, 7, 30, 12, 0, 0, 0, time.UTC)
+		wantRuntime := store.SessionInputRuntime{
+			Provider:        "openai",
+			Model:           "gpt-5.6",
+			ReasoningEffort: "high",
+			Speed:           "fast",
+		}
+
+		enqueued, _, err := globalDB.EnqueueSessionInput(ctx, store.SessionInputQueueInsert{
+			ID:                "inq-runtime-snapshot",
+			SessionID:         sessionID,
+			Mode:              store.SessionInputQueueModeQueue,
+			Text:              "queued input",
+			Runtime:           wantRuntime,
+			SessionGeneration: 0,
+			QueueCap:          10,
+			Now:               now,
+		})
+		if err != nil {
+			t.Fatalf("EnqueueSessionInput() error = %v", err)
+		}
+		if got, want := enqueued.Runtime, wantRuntime; got != want {
+			t.Fatalf("enqueued runtime = %#v, want %#v", got, want)
+		}
+
+		claimed, ok, err := globalDB.ClaimNextSessionInput(ctx, sessionID, now.Add(time.Second))
+		if err != nil {
+			t.Fatalf("ClaimNextSessionInput() error = %v", err)
+		}
+		if !ok {
+			t.Fatal("ClaimNextSessionInput() ok = false, want true")
+		}
+		if got, want := claimed.Runtime, wantRuntime; got != want {
+			t.Fatalf("claimed runtime = %#v, want %#v", got, want)
+		}
+	})
+
 	t.Run("Should fence stale queued input when generation advances", func(t *testing.T) {
 		t.Parallel()
 
@@ -246,15 +289,16 @@ func registerInputQueueSession(t *testing.T, globalDB *GlobalDB) string {
 	)
 	sessionID := "sess-input-queue"
 	if err := globalDB.RegisterSession(testutil.Context(t), SessionInfo{
-		ID:          sessionID,
-		Name:        "Input Queue",
-		AgentName:   "coder",
-		Provider:    "claude",
-		WorkspaceID: workspaceID,
-		SessionType: defaultSessionType,
-		State:       "active",
-		CreatedAt:   time.Date(2026, 5, 21, 11, 0, 0, 0, time.UTC),
-		UpdatedAt:   time.Date(2026, 5, 21, 11, 0, 0, 0, time.UTC),
+		ID:            sessionID,
+		Name:          "Input Queue",
+		AgentName:     "coder",
+		Provider:      "claude",
+		RuntimeStatus: store.SessionRuntimeUnbound,
+		WorkspaceID:   workspaceID,
+		SessionType:   defaultSessionType,
+		State:         "active",
+		CreatedAt:     time.Date(2026, 5, 21, 11, 0, 0, 0, time.UTC),
+		UpdatedAt:     time.Date(2026, 5, 21, 11, 0, 0, 0, time.UTC),
 	}); err != nil {
 		t.Fatalf("RegisterSession() error = %v", err)
 	}

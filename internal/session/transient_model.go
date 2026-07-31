@@ -76,7 +76,7 @@ func (m *Manager) InvokeTransientModel(
 		AgentName:       transientMemoryControllerAgentName,
 		Command:         resolved.Command,
 		Cwd:             strings.TrimSpace(call.CWD),
-		Env:             sessionStartEnvForProvider(os.Environ(), nil, resolved.EnvPolicy),
+		Env:             sessionStartEnvForProvider(os.Environ(), nil, resolved.EnvPolicy, ""),
 		Permissions:     compozyconfig.PermissionModeDenyAll,
 		SystemPrompt:    strings.TrimSpace(call.SystemPrompt),
 		PreferredModel:  resolved.Model,

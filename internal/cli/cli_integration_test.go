@@ -458,8 +458,6 @@ func TestCLISessionProviderOverrideIntegration(t *testing.T) {
 		"coder",
 		"--name",
 		"provider-demo",
-		"--provider",
-		"fake-alt",
 		"--cwd",
 		h.workspace,
 		"-o",
@@ -473,8 +471,22 @@ func TestCLISessionProviderOverrideIntegration(t *testing.T) {
 	if err := json.Unmarshal([]byte(newOut), &created); err != nil {
 		t.Fatalf("json.Unmarshal(session new --provider) error = %v", err)
 	}
-	if created.Provider != "fake-alt" {
-		t.Fatalf("created.Provider = %q, want %q", created.Provider, "fake-alt")
+	if created.Runtime.Effective != nil {
+		t.Fatalf("created runtime = %#v, want unbound session", created.Runtime)
+	}
+	if _, _, err := executeRootCommand(
+		t,
+		h.deps,
+		"session",
+		"prompt",
+		created.ID,
+		"use the alternate provider",
+		"--provider",
+		"fake-alt",
+		"-o",
+		"json",
+	); err != nil {
+		t.Fatalf("session prompt --provider error = %v", err)
 	}
 
 	statusOut, _, err := executeRootCommand(t, h.deps, "session", "status", created.ID, "-o", "json")
@@ -502,8 +514,8 @@ func TestCLISessionProviderOverrideIntegration(t *testing.T) {
 	if got, want := len(listed.Sessions), 1; got != want {
 		t.Fatalf("len(listed) = %d, want %d", got, want)
 	}
-	if listed.Sessions[0].Provider != "fake-alt" {
-		t.Fatalf("listed[0].Provider = %q, want %q", listed.Sessions[0].Provider, "fake-alt")
+	if sessionRuntimeProvider(listed.Sessions[0]) != "fake-alt" {
+		t.Fatalf("listed runtime provider = %q, want fake-alt", sessionRuntimeProvider(listed.Sessions[0]))
 	}
 
 	stopOut, _, err := executeRootCommand(t, h.deps, "session", "stop", created.ID, "-o", "json")
@@ -515,7 +527,7 @@ func TestCLISessionProviderOverrideIntegration(t *testing.T) {
 	if err := json.Unmarshal([]byte(stopOut), &stopped); err != nil {
 		t.Fatalf("json.Unmarshal(session stop) error = %v", err)
 	}
-	if stopped.Provider != "fake-alt" || stopped.State != session.StateStopped {
+	if sessionRuntimeProvider(stopped) != "fake-alt" || stopped.State != session.StateStopped {
 		t.Fatalf("stopped = %#v, want stopped fake-alt session", stopped)
 	}
 

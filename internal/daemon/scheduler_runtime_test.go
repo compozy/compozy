@@ -130,6 +130,7 @@ func TestSchedulerTaskSourcePendingRunsShouldExposeOnlyTaskAnchoredGenericWorker
 		if err := db.RegisterSession(ctx, store.SessionInfo{
 			ID: "sess-1", AgentName: "coder", Provider: "test",
 			WorkspaceID: "ws-scheduler", State: "active", CreatedAt: now, UpdatedAt: now,
+			RuntimeStatus: store.SessionRuntimeUnbound,
 		}); err != nil {
 			t.Fatalf("RegisterSession(network wake target) error = %v", err)
 		}

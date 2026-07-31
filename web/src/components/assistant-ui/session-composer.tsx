@@ -34,6 +34,8 @@ export interface SessionComposerProps {
   inactivePlaceholder?: string;
   /** Pending decision panel fused onto the composer top (permission/clarification dock). */
   decisionDock?: ReactNode;
+  /** Runtime picker that applies to the next submitted prompt. */
+  runtimeControl?: ReactNode;
 }
 
 function describeComposerActionError(error: unknown, fallback: string): string {
@@ -72,6 +74,7 @@ export function SessionComposer({
   onSteerQueuedPrompt,
   inactivePlaceholder = "Session is not active",
   decisionDock,
+  runtimeControl,
 }: SessionComposerProps & { composerState: SessionComposerState }) {
   const {
     clearComposer,
@@ -190,6 +193,9 @@ export function SessionComposer({
               )}
             />
             <div className="flex min-h-7 flex-wrap items-center gap-2">
+              {runtimeControl ? (
+                <div className="flex min-w-0 items-center">{runtimeControl}</div>
+              ) : null}
               {goalCommandReady ? (
                 <div
                   role="status"

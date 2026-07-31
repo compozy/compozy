@@ -98,8 +98,9 @@ func (s *Service) Enqueue(
 	sessionID string,
 	text string,
 	generation int64,
+	runtime store.SessionInputRuntime,
 ) (store.SessionInputQueueEntry, int, error) {
-	insert, err := s.newInsert(sessionID, text, store.SessionInputQueueModeQueue, generation)
+	insert, err := s.newInsert(sessionID, text, store.SessionInputQueueModeQueue, generation, runtime)
 	if err != nil {
 		return store.SessionInputQueueEntry{}, 0, err
 	}
@@ -119,8 +120,9 @@ func (s *Service) StageSteer(
 	sessionID string,
 	text string,
 	generation int64,
+	runtime store.SessionInputRuntime,
 ) (store.SessionInputQueueEntry, error) {
-	insert, err := s.newInsert(sessionID, text, store.SessionInputQueueModeSteer, generation)
+	insert, err := s.newInsert(sessionID, text, store.SessionInputQueueModeSteer, generation, runtime)
 	if err != nil {
 		return store.SessionInputQueueEntry{}, err
 	}
@@ -227,6 +229,7 @@ func (s *Service) newInsert(
 	text string,
 	mode string,
 	generation int64,
+	runtime store.SessionInputRuntime,
 ) (store.SessionInputQueueInsert, error) {
 	target := strings.TrimSpace(sessionID)
 	message := strings.TrimSpace(text)
@@ -247,6 +250,7 @@ func (s *Service) newInsert(
 		SessionID:         target,
 		Mode:              mode,
 		Text:              message,
+		Runtime:           runtime,
 		SessionGeneration: generation,
 		QueueCap:          s.cfg.QueueCap,
 		Now:               s.now(),

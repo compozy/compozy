@@ -35,6 +35,9 @@ type SessionMeta struct {
 	ReasoningEffort      string                     `json:"reasoning_effort,omitempty"`
 	Speed                speedpkg.Speed             `json:"speed,omitempty"`
 	SpeedResolution      *speedpkg.Resolution       `json:"speed_resolution,omitempty"`
+	RuntimeStatus        SessionRuntimeStatus       `json:"runtime_status"`
+	RuntimeTransition    SessionRuntimeTransition   `json:"runtime_transition,omitempty"`
+	RuntimeFailure       string                     `json:"runtime_failure,omitempty"`
 	EffectivePermissions string                     `json:"effective_permissions,omitempty"`
 	WorkspaceID          string                     `json:"workspace_id,omitempty"`
 	CWD                  string                     `json:"cwd,omitempty"`
@@ -98,6 +101,9 @@ func (m SessionMeta) Validate() error {
 		return err
 	}
 	if err := validateSessionSpeedMetadata(m.Speed, m.SpeedResolution); err != nil {
+		return err
+	}
+	if err := validateSessionRuntime(m.RuntimeStatus, m.RuntimeTransition, m.RuntimeFailure); err != nil {
 		return err
 	}
 	seenCommands := make(map[string]struct{}, len(m.AdvertisedCommands))

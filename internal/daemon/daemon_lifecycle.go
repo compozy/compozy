@@ -33,13 +33,13 @@ func (d *Daemon) Run(ctx context.Context) error {
 			return err
 		}
 	case <-ctx.Done():
-		cancelRun()
+		d.cancelBootBeforeReady(cancelRun)
 		if err := <-bootErr; err != nil {
 			return err
 		}
 		return d.shutdownAfterRunTrigger(ctx)
 	case sig, ok := <-sigCh:
-		cancelRun()
+		d.cancelBootBeforeReady(cancelRun)
 		if err := <-bootErr; err != nil {
 			return err
 		}
@@ -80,6 +80,18 @@ func (d *Daemon) Run(ctx context.Context) error {
 		}
 	}
 	return d.shutdownAfterRunTrigger(ctx)
+}
+
+func (d *Daemon) cancelBootBeforeReady(cancel context.CancelFunc) {
+	if cancel == nil {
+		return
+	}
+	select {
+	case <-d.readyCh:
+		return
+	default:
+		cancel()
+	}
 }
 
 func (d *Daemon) shutdownAfterRunTrigger(ctx context.Context) error {

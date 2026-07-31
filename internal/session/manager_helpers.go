@@ -117,7 +117,7 @@ func (m *Manager) activateAndWatch(
 	if _, err := m.persistSessionPresence(ctx, session, now); err != nil {
 		m.sessionLogger(session).Warn("session: persist health presence failed", "error", err)
 	}
-	m.watchProcess(m.lifecycleCtx, session)
+	m.watchProcess(session)
 	return nil
 }
 

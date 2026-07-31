@@ -24,6 +24,7 @@ import {
   storyWorkspaceIds,
   storyWorkspacePaths,
 } from "@/storybook/fintech-scenario";
+import { sessionRuntime } from "@/systems/session/mocks";
 
 function makePeerCard({
   peerId,
@@ -538,7 +539,10 @@ export const networkChannelFixture: NetworkChannel = {
       id: storySessionIds.product,
       name: "Launch room command brief",
       agent_name: storyAgentNames.product,
-      provider: "gemini",
+      runtime: sessionRuntime("gemini", {
+        supports_load_session: true,
+        supported_modes: ["chat"],
+      }),
       state: "active",
       badge: "idle",
       attachable: true,
@@ -547,16 +551,15 @@ export const networkChannelFixture: NetworkChannel = {
       updated_at: "2026-04-17T18:14:00Z",
       workspace_id: storyWorkspaceIds.hq,
       workspace_path: storyWorkspacePaths.hq,
-      acp_caps: {
-        supports_load_session: true,
-        supported_modes: ["chat"],
-      },
     },
     {
       id: storySessionIds.cto,
       name: "Executive launch review",
       agent_name: storyAgentNames.cto,
-      provider: "claude",
+      runtime: sessionRuntime("claude", {
+        supports_load_session: true,
+        supported_modes: ["chat"],
+      }),
       state: "active",
       badge: "idle",
       attachable: true,
@@ -565,16 +568,15 @@ export const networkChannelFixture: NetworkChannel = {
       updated_at: "2026-04-17T18:11:00Z",
       workspace_id: storyWorkspaceIds.hq,
       workspace_path: storyWorkspacePaths.hq,
-      acp_caps: {
-        supports_load_session: true,
-        supported_modes: ["chat"],
-      },
     },
     {
       id: storySessionIds.cfo,
       name: "Launch revenue watch",
       agent_name: storyAgentNames.cfo,
-      provider: "claude",
+      runtime: sessionRuntime("claude", {
+        supports_load_session: true,
+        supported_modes: ["chat"],
+      }),
       state: "active",
       badge: "idle",
       attachable: true,
@@ -583,16 +585,15 @@ export const networkChannelFixture: NetworkChannel = {
       updated_at: "2026-04-17T18:13:00Z",
       workspace_id: storyWorkspaceIds.finance,
       workspace_path: storyWorkspacePaths.finance,
-      acp_caps: {
-        supports_load_session: true,
-        supported_modes: ["chat"],
-      },
     },
     {
       id: storySessionIds.compliance,
       name: "Claim compliance review",
       agent_name: storyAgentNames.compliance,
-      provider: "qwen-code",
+      runtime: sessionRuntime("qwen-code", {
+        supports_load_session: true,
+        supported_modes: ["chat"],
+      }),
       state: "active",
       badge: "idle",
       attachable: true,
@@ -601,16 +602,15 @@ export const networkChannelFixture: NetworkChannel = {
       updated_at: "2026-04-17T18:04:00Z",
       workspace_id: storyWorkspaceIds.risk,
       workspace_path: storyWorkspacePaths.risk,
-      acp_caps: {
-        supports_load_session: true,
-        supported_modes: ["chat"],
-      },
     },
     {
       id: storySessionIds.frontend,
       name: "Landing page launch QA",
       agent_name: storyAgentNames.frontend,
-      provider: "codex",
+      runtime: sessionRuntime("codex", {
+        supports_load_session: true,
+        supported_modes: ["chat"],
+      }),
       state: "active",
       badge: "idle",
       attachable: true,
@@ -619,16 +619,15 @@ export const networkChannelFixture: NetworkChannel = {
       updated_at: "2026-04-17T18:09:00Z",
       workspace_id: storyWorkspaceIds.product,
       workspace_path: storyWorkspacePaths.product,
-      acp_caps: {
-        supports_load_session: true,
-        supported_modes: ["chat"],
-      },
     },
     {
       id: storySessionIds.support,
       name: "Launch support swarm",
       agent_name: storyAgentNames.support,
-      provider: "claude",
+      runtime: sessionRuntime("claude", {
+        supports_load_session: true,
+        supported_modes: ["chat"],
+      }),
       state: "active",
       badge: "idle",
       attachable: true,
@@ -637,10 +636,6 @@ export const networkChannelFixture: NetworkChannel = {
       updated_at: "2026-04-17T18:08:00Z",
       workspace_id: storyWorkspaceIds.support,
       workspace_path: storyWorkspacePaths.support,
-      acp_caps: {
-        supports_load_session: true,
-        supported_modes: ["chat"],
-      },
     },
   ],
   workspace_id: storyWorkspaceIds.hq,

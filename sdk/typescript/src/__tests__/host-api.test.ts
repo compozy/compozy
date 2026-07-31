@@ -18,21 +18,19 @@ describe("HostAPI", () => {
     pair.host.handle("sessions/create", async params => {
       expect(params).toEqual({
         agent: "coder",
-        prompt: "debug this",
         workspace: "workspace-1",
       });
       return { session_id: "sess-1" };
     });
 
     await expect(
-      host.sessions.create({ agent: "coder", prompt: "debug this", workspace: "workspace-1" })
+      host.sessions.create({ agent: "coder", workspace: "workspace-1" })
     ).resolves.toEqual({ session_id: "sess-1" });
 
     expect(pair.extension.requests[0]).toMatchObject({
       method: "sessions/create",
       params: {
         agent: "coder",
-        prompt: "debug this",
         workspace: "workspace-1",
       },
     });
@@ -47,6 +45,7 @@ describe("HostAPI", () => {
         id: "sess-1",
         name: "debug",
         agent: "claude",
+        runtime: { status: "unbound" },
         state: "active",
         created_at: "2026-04-10T12:00:00.000Z",
       },
@@ -57,6 +56,7 @@ describe("HostAPI", () => {
         id: "sess-1",
         name: "debug",
         agent: "claude",
+        runtime: { status: "unbound" },
         state: "active",
         created_at: "2026-04-10T12:00:00.000Z",
       },
@@ -509,8 +509,18 @@ describe("HostAPI", () => {
     const host = new HostAPI(pair.extension, { isReady: () => true });
 
     pair.host.handle("sessions/prompt", async params => {
-      expect(params).toEqual({ workspace_id: "ws-1", session_id: "sess-1", message: "hello" });
-      return { turn_id: "turn-1" };
+      expect(params).toEqual({
+        workspace_id: "ws-1",
+        session_id: "sess-1",
+        message: "hello",
+        runtime: {
+          provider: "codex",
+          model: "gpt-5.6",
+          reasoning_effort: "high",
+          speed: "fast",
+        },
+      });
+      return { status: "accepted", turn_id: "turn-1" };
     });
     pair.host.handle("sessions/stop", async params => {
       expect(params).toEqual({ workspace_id: "ws-1", session_id: "sess-1" });
@@ -519,6 +529,7 @@ describe("HostAPI", () => {
     pair.host.handle("sessions/status", async () => ({
       session_id: "sess-1",
       agent: "claude",
+      runtime: { status: "ready", effective: { provider: "codex", model: "gpt-5.6" } },
       state: "active",
       created_at: "2026-04-10T12:00:00.000Z",
       updated_at: "2026-04-10T12:01:00.000Z",
@@ -615,8 +626,19 @@ describe("HostAPI", () => {
     });
 
     await expect(
-      host.sessions.prompt({ workspace_id: "ws-1", session_id: "sess-1", message: "hello" })
+      host.sessions.prompt({
+        workspace_id: "ws-1",
+        session_id: "sess-1",
+        message: "hello",
+        runtime: {
+          provider: "codex",
+          model: "gpt-5.6",
+          reasoning_effort: "high",
+          speed: "fast",
+        },
+      })
     ).resolves.toEqual({
+      status: "accepted",
       turn_id: "turn-1",
     });
     await expect(

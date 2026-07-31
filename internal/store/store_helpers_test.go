@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -18,9 +19,10 @@ func TestValidationHelpersAndPathUtilities(t *testing.T) {
 	now := time.Date(2026, 4, 3, 20, 0, 0, 0, time.UTC)
 
 	tests := []struct {
-		name      string
-		validate  func() error
-		wantError bool
+		name              string
+		validate          func() error
+		wantError         bool
+		wantErrorContains string
 	}{
 		{
 			name: "session event valid",
@@ -78,7 +80,13 @@ func TestValidationHelpersAndPathUtilities(t *testing.T) {
 		{
 			name: "session info valid",
 			validate: func() error {
-				return (SessionInfo{ID: "sess-1", AgentName: "coder", WorkspaceID: "ws-1", State: "active"}).Validate()
+				return (SessionInfo{
+					ID:            "sess-1",
+					AgentName:     "coder",
+					WorkspaceID:   "ws-1",
+					State:         "active",
+					RuntimeStatus: SessionRuntimeReady,
+				}).Validate()
 			},
 		},
 		{
@@ -89,23 +97,36 @@ func TestValidationHelpersAndPathUtilities(t *testing.T) {
 			wantError: true,
 		},
 		{
+			name: "Should reject SessionInfo without a runtime status",
+			validate: func() error {
+				return (SessionInfo{
+					ID:          "sess-1",
+					AgentName:   "coder",
+					WorkspaceID: "ws-1",
+					State:       "active",
+				}).Validate()
+			},
+			wantError:         true,
+			wantErrorContains: "invalid session runtime status",
+		},
+		{
 			name: "session info missing agent",
 			validate: func() error {
-				return (SessionInfo{ID: "sess-1"}).Validate()
+				return (SessionInfo{ID: "sess-1", RuntimeStatus: SessionRuntimeReady}).Validate()
 			},
 			wantError: true,
 		},
 		{
 			name: "session info missing workspace",
 			validate: func() error {
-				return (SessionInfo{ID: "sess-1", AgentName: "coder"}).Validate()
+				return (SessionInfo{ID: "sess-1", AgentName: "coder", RuntimeStatus: SessionRuntimeReady}).Validate()
 			},
 			wantError: true,
 		},
 		{
 			name: "session info missing state",
 			validate: func() error {
-				return (SessionInfo{ID: "sess-1", AgentName: "coder", WorkspaceID: "ws-1"}).Validate()
+				return (SessionInfo{ID: "sess-1", AgentName: "coder", WorkspaceID: "ws-1", RuntimeStatus: SessionRuntimeReady}).Validate()
 			},
 			wantError: true,
 		},
@@ -135,6 +156,48 @@ func TestValidationHelpersAndPathUtilities(t *testing.T) {
 				return (SessionStateUpdate{ID: "sess-1"}).Validate()
 			},
 			wantError: true,
+		},
+		{
+			name: "Should reject a failed runtime update without failure evidence",
+			validate: func() error {
+				return (SessionStateUpdate{
+					ID:                "sess-1",
+					State:             "active",
+					RuntimeSet:        true,
+					RuntimeStatus:     SessionRuntimeFailed,
+					RuntimeTransition: SessionRuntimeTransitionInitialBind,
+				}).Validate()
+			},
+			wantError:         true,
+			wantErrorContains: "requires a failure",
+		},
+		{
+			name: "Should reject failed session metadata without failure evidence",
+			validate: func() error {
+				return (SessionInfo{
+					ID:                "sess-1",
+					AgentName:         "coder",
+					WorkspaceID:       "ws-1",
+					State:             "active",
+					RuntimeStatus:     SessionRuntimeFailed,
+					RuntimeTransition: SessionRuntimeTransitionInitialBind,
+				}).Validate()
+			},
+			wantError:         true,
+			wantErrorContains: "requires a failure",
+		},
+		{
+			name: "Should accept a failed runtime update with failure evidence",
+			validate: func() error {
+				return (SessionStateUpdate{
+					ID:                "sess-1",
+					State:             "active",
+					RuntimeSet:        true,
+					RuntimeStatus:     SessionRuntimeFailed,
+					RuntimeTransition: SessionRuntimeTransitionInitialBind,
+					RuntimeFailure:    "provider startup failed",
+				}).Validate()
+			},
 		},
 		{
 			name: "event summary valid",
@@ -434,6 +497,7 @@ func TestValidationHelpersAndPathUtilities(t *testing.T) {
 					WorkspaceID:          "ws-meta",
 					NetworkParticipation: participation.CloneSpec(participation.LocalSpec()),
 					State:                "active",
+					RuntimeStatus:        SessionRuntimeReady,
 					CreatedAt:            now,
 					UpdatedAt:            now,
 				}).Validate()
@@ -453,6 +517,9 @@ func TestValidationHelpersAndPathUtilities(t *testing.T) {
 			err := tt.validate()
 			if tt.wantError && err == nil {
 				t.Fatal("validate() error = nil, want non-nil")
+			}
+			if tt.wantErrorContains != "" && !strings.Contains(err.Error(), tt.wantErrorContains) {
+				t.Fatalf("validate() error = %v, want substring %q", err, tt.wantErrorContains)
 			}
 			if !tt.wantError && err != nil {
 				t.Fatalf("validate() error = %v", err)

@@ -639,8 +639,10 @@ test.describe("Skills marketplace management", () => {
 
   interface SessionEnvelope {
     session: {
-      acp_session_id?: string;
       id: string;
+      runtime: {
+        acp_session_id?: string;
+      };
       workspace_id: string;
     };
   }
@@ -1201,7 +1203,7 @@ test.describe("Skills marketplace management", () => {
         const detail = await runtime.requestJSON<SessionEnvelope>(
           sessionAPIPath(workspaceID, sessionID)
         );
-        acpSessionID = detail.session.acp_session_id ?? "";
+        acpSessionID = detail.session.runtime.acp_session_id ?? "";
         return acpSessionID !== "";
       })
       .toBe(true);

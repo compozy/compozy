@@ -1001,39 +1001,51 @@ func TestStopTransitionsToStoppedAndNotifies(t *testing.T) {
 func TestResumeLoadsMetaAndPassesStoredACPSessionID(t *testing.T) {
 	t.Parallel()
 
-	h := newHarness(t)
-	session := createSession(t, h)
-	originalACP := session.Info().ACPSessionID
+	t.Run("Should bind a runtime before resuming its stored ACP session", func(t *testing.T) {
+		t.Parallel()
 
-	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
-		t.Fatalf("Stop() error = %v", err)
-	}
+		h := newHarness(t)
+		session := createSession(t, h)
+		events, err := h.manager.Prompt(testutil.Context(t), session.ID, "bind the runtime")
+		if err != nil {
+			t.Fatalf("Prompt(bind runtime) error = %v", err)
+		}
+		collectEvents(t, events)
+		originalACP := session.Info().ACPSessionID
+		if originalACP == "" {
+			t.Fatal("bound session ACP session id is empty")
+		}
 
-	resumed, err := h.manager.Resume(testutil.Context(t), session.ID)
-	if err != nil {
-		t.Fatalf("Resume() error = %v", err)
-	}
-	t.Cleanup(func() {
-		if err := h.manager.Stop(testutil.Context(t), resumed.ID); err != nil {
-			t.Errorf("Stop(resumed) error = %v", err)
+		if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+
+		resumed, err := h.manager.Resume(testutil.Context(t), session.ID)
+		if err != nil {
+			t.Fatalf("Resume() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := h.manager.Stop(testutil.Context(t), resumed.ID); err != nil {
+				t.Errorf("Stop(resumed) error = %v", err)
+			}
+		})
+
+		if got := h.driver.startCalls[1].ResumeSessionID; got != originalACP {
+			t.Fatalf("resume start ResumeSessionID = %q, want %q", got, originalACP)
+		}
+		if got := resumed.Info().ACPSessionID; got != originalACP {
+			t.Fatalf("resumed ACPSessionID = %q, want %q", got, originalACP)
+		}
+		if got := resumed.Info().State; got != StateActive {
+			t.Fatalf("resumed state = %q, want %q", got, StateActive)
+		}
+		if got := resumed.Info().StopReason; got != "" {
+			t.Fatalf("resumed stop reason = %q, want empty", got)
+		}
+		if got := resumed.Info().StopDetail; got != "" {
+			t.Fatalf("resumed stop detail = %q, want empty", got)
 		}
 	})
-
-	if got := h.driver.startCalls[1].ResumeSessionID; got != originalACP {
-		t.Fatalf("resume start ResumeSessionID = %q, want %q", got, originalACP)
-	}
-	if got := resumed.Info().ACPSessionID; got != originalACP {
-		t.Fatalf("resumed ACPSessionID = %q, want %q", got, originalACP)
-	}
-	if got := resumed.Info().State; got != StateActive {
-		t.Fatalf("resumed state = %q, want %q", got, StateActive)
-	}
-	if got := resumed.Info().StopReason; got != "" {
-		t.Fatalf("resumed stop reason = %q, want empty", got)
-	}
-	if got := resumed.Info().StopDetail; got != "" {
-		t.Fatalf("resumed stop detail = %q, want empty", got)
-	}
 }
 
 func TestCreateAndResumePreserveNetworkParticipation(t *testing.T) {
@@ -4450,6 +4462,41 @@ func TestWaitForPromptDrains(t *testing.T) {
 			t.Fatalf("Shutdown() error = %v", err)
 		}
 	})
+
+	t.Run("Should cancel and join live process watchers during shutdown", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		session := createSession(t, h)
+		events, err := h.manager.Prompt(testutil.Context(t), session.ID, "bind the runtime")
+		if err != nil {
+			t.Fatalf("Prompt(bind runtime) error = %v", err)
+		}
+		collectEvents(t, events)
+
+		proc := h.driver.lastProcess()
+		if proc == nil {
+			t.Fatal("bound process = nil")
+		}
+
+		ctx, cancel := context.WithTimeout(testutil.Context(t), 2*time.Second)
+		defer cancel()
+		if err := h.manager.Shutdown(ctx); err != nil {
+			t.Fatalf("Shutdown() error = %v", err)
+		}
+
+		select {
+		case <-proc.done:
+			t.Fatal("Shutdown() stopped the process, want only watcher cancellation")
+		default:
+		}
+		h.driver.mu.Lock()
+		stopCalls := h.driver.stopCalls
+		h.driver.mu.Unlock()
+		if stopCalls != 0 {
+			t.Fatalf("driver stop calls = %d, want 0", stopCalls)
+		}
+	})
 }
 
 func TestNormalizeEventSetsTimestampOnlyWhenZero(t *testing.T) {
@@ -4471,6 +4518,12 @@ func TestNormalizeEventSetsTimestampOnlyWhenZero(t *testing.T) {
 	}
 	if normalized.Timestamp.Before(now) {
 		t.Fatalf("normalizeEvent() timestamp = %v, want >= %v", normalized.Timestamp, now)
+	}
+	if normalized.PromptRuntimeSnapshot() == nil {
+		t.Fatal("normalizeEvent() runtime = nil, want session runtime fallback")
+	}
+	if normalized.PromptRuntimeSnapshot().Provider != session.Provider {
+		t.Fatalf("normalizeEvent() runtime provider = %q, want %q", normalized.PromptRuntimeSnapshot().Provider, session.Provider)
 	}
 }
 

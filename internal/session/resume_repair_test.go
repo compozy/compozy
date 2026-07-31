@@ -31,7 +31,7 @@ func TestClassifyPreviousStop(t *testing.T) {
 	}{
 		{
 			name:        "active session classified as crashed",
-			meta:        store.SessionMeta{State: string(StateActive)},
+			meta:        store.SessionMeta{State: string(StateActive), RuntimeStatus: store.SessionRuntimeReady},
 			wantChanged: true,
 			wantState:   string(StateStopped),
 			wantReason:  stopReasonPointer(store.StopAgentCrashed),
@@ -39,15 +39,19 @@ func TestClassifyPreviousStop(t *testing.T) {
 		},
 		{
 			name:        "stopping session classified as crashed",
-			meta:        store.SessionMeta{State: string(StateStopping)},
+			meta:        store.SessionMeta{State: string(StateStopping), RuntimeStatus: store.SessionRuntimeReady},
 			wantChanged: true,
 			wantState:   string(StateStopped),
 			wantReason:  stopReasonPointer(store.StopAgentCrashed),
 			wantDetail:  "stop did not complete",
 		},
 		{
-			name:        "starting session classified as error",
-			meta:        store.SessionMeta{State: string(StateStarting), ACPSessionID: stringPointer("acp-stale")},
+			name: "starting session classified as error",
+			meta: store.SessionMeta{
+				State:         string(StateStarting),
+				RuntimeStatus: store.SessionRuntimeBinding,
+				ACPSessionID:  stringPointer("acp-stale"),
+			},
 			wantChanged: true,
 			wantState:   string(StateStopped),
 			wantReason:  stopReasonPointer(store.StopError),
@@ -57,9 +61,10 @@ func TestClassifyPreviousStop(t *testing.T) {
 		{
 			name: "stopped session preserves existing reason",
 			meta: store.SessionMeta{
-				State:      string(StateStopped),
-				StopReason: &existingReason,
-				StopDetail: "requested by user",
+				State:         string(StateStopped),
+				RuntimeStatus: store.SessionRuntimeReady,
+				StopReason:    &existingReason,
+				StopDetail:    "requested by user",
 			},
 			wantChanged: false,
 			wantState:   string(StateStopped),
@@ -68,7 +73,7 @@ func TestClassifyPreviousStop(t *testing.T) {
 		},
 		{
 			name:        "stopped session with no reason remains unchanged",
-			meta:        store.SessionMeta{State: string(StateStopped)},
+			meta:        store.SessionMeta{State: string(StateStopped), RuntimeStatus: store.SessionRuntimeReady},
 			wantChanged: false,
 			wantState:   string(StateStopped),
 			wantReason:  nil,
@@ -77,10 +82,11 @@ func TestClassifyPreviousStop(t *testing.T) {
 		{
 			name: "stopped incomplete start clears stale acp session id",
 			meta: store.SessionMeta{
-				State:        string(StateStopped),
-				StopReason:   stopReasonPointer(store.StopError),
-				StopDetail:   resumeStopDetailStartIncomplete,
-				ACPSessionID: stringPointer("acp-stale"),
+				State:         string(StateStopped),
+				RuntimeStatus: store.SessionRuntimeReady,
+				StopReason:    stopReasonPointer(store.StopError),
+				StopDetail:    resumeStopDetailStartIncomplete,
+				ACPSessionID:  stringPointer("acp-stale"),
 			},
 			wantChanged: true,
 			wantState:   string(StateStopped),
@@ -129,7 +135,8 @@ func TestClassifyInactiveMetaForRecoveryPreservesFailureDetails(t *testing.T) {
 			t.Parallel()
 
 			meta := store.SessionMeta{
-				State: string(tc.state),
+				State:         string(tc.state),
+				RuntimeStatus: store.SessionRuntimeReady,
 				Failure: &store.SessionFailure{
 					CrashBundlePath: "/tmp/compozy/crash-bundles/existing.json",
 				},
@@ -281,6 +288,7 @@ func validResumeMeta(h *harness, sessionID string) store.SessionMeta {
 		NetworkParticipation: testLocalParticipationPtr(),
 		SessionType:          string(SessionTypeUser),
 		State:                string(StateStopped),
+		RuntimeStatus:        store.SessionRuntimeReady,
 	}
 }
 

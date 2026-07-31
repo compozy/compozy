@@ -79,7 +79,11 @@ function makeSession(id: string, workspaceId: string, name: string): OwnedSessio
     id,
     name,
     agent_name: "general",
-    provider: "codex",
+    runtime: {
+      status: "ready",
+      transition: "initial_bind",
+      effective: { provider: "codex" },
+    },
     workspace_id: workspaceId,
     workspace_path: `/workspace/${name}`,
     state: "active",

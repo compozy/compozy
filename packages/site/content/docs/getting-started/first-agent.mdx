@@ -70,11 +70,17 @@ compozy session new --cwd "$PWD" --agent code-reviewer
 Then send it a focused task:
 
 ```bash
-compozy session prompt sess_1234 "Review the changes in this repository and tell me the highest-risk issue first."
+compozy session prompt sess_1234 "Review the changes in this repository and tell me the highest-risk issue first." \
+  --provider claude \
+  --model claude-sonnet-5 \
+  --reasoning-effort high \
+  --speed normal
 ```
 
-Because the agent uses `approve-reads`, read operations can proceed automatically, while write or
-terminal operations still require approval.
+Creating the session is promptless: it returns `state: "active"` with `runtime.status: "unbound"`
+and no ACP process. The prompt above supplies the first runtime snapshot and binds ACP. Because the
+agent uses `approve-reads`, read operations can proceed automatically, while write or terminal
+operations still require approval.
 
 ## 5. Understand the enforcement boundaries
 
@@ -82,8 +88,10 @@ This minimal definition sets only a provider and permission mode, but the other 
 not descriptive metadata:
 
 - `permissions` sets the runtime approval policy.
-- `model` is selected through the provider's live ACP options before the first prompt. An
-  unadvertised model fails startup instead of silently falling back.
+- `provider`, `model`, `reasoning_effort`, and `speed` form the runtime snapshot for each prompt.
+  The first prompt binds ACP. A same-provider change can configure that ACP session live; a provider
+  or harness change replaces the process and replays the canonical transcript. An unadvertised model
+  fails that prompt instead of silently falling back.
 - `tools` and `toolsets` narrow the callable tool registry for the agent. `deny_tools` narrows it
   further and wins when an allow and deny overlap.
 

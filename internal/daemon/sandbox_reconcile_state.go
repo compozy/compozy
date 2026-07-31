@@ -14,7 +14,7 @@ import (
 func (d *Daemon) persistSandboxReconcileMeta(
 	ctx context.Context,
 	state *bootState,
-	candidate sandboxReconcileSession,
+	candidate *sandboxReconcileSession,
 	envMeta *store.SessionSandboxMeta,
 ) {
 	logger := sandboxReconcileLogger(state)

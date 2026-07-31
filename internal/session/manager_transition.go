@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 )
 
@@ -119,26 +120,33 @@ func sessionCatalogInfoFromRuntime(info *Info) store.SessionInfo {
 		return store.SessionInfo{}
 	}
 	result := store.SessionInfo{
-		ID:               info.ID,
-		Name:             info.Name,
-		AgentName:        info.AgentName,
-		Provider:         info.Provider,
-		WorkspaceID:      info.WorkspaceID,
-		SessionType:      string(info.Type),
-		Lineage:          store.CloneSessionLineage(info.Lineage),
-		State:            string(info.State),
-		ACPSessionID:     stringPointer(info.ACPSessionID),
-		StopReason:       info.StopReason,
-		StopDetail:       info.StopDetail,
-		Failure:          store.CloneSessionFailure(info.Failure),
-		Liveness:         store.CloneSessionLivenessMeta(info.Liveness),
-		Sandbox:          cloneSessionSandboxMeta(info.Sandbox),
-		SoulSnapshotID:   strings.TrimSpace(info.SoulSnapshotID),
-		SoulDigest:       strings.TrimSpace(info.SoulDigest),
-		ParentSoulDigest: strings.TrimSpace(info.ParentSoulDigest),
-		TranscriptEpoch:  info.TranscriptEpoch,
-		CreatedAt:        info.CreatedAt,
-		UpdatedAt:        info.UpdatedAt,
+		ID:                info.ID,
+		Name:              info.Name,
+		AgentName:         info.AgentName,
+		Provider:          info.Provider,
+		Model:             info.Model,
+		ReasoningEffort:   info.ReasoningEffort,
+		Speed:             info.Speed,
+		SpeedResolution:   speedpkg.CloneResolution(info.SpeedResolution),
+		RuntimeStatus:     info.RuntimeStatus,
+		RuntimeTransition: info.RuntimeTransition,
+		RuntimeFailure:    info.RuntimeFailure,
+		WorkspaceID:       info.WorkspaceID,
+		SessionType:       string(info.Type),
+		Lineage:           store.CloneSessionLineage(info.Lineage),
+		State:             string(info.State),
+		ACPSessionID:      stringPointer(info.ACPSessionID),
+		StopReason:        info.StopReason,
+		StopDetail:        info.StopDetail,
+		Failure:           store.CloneSessionFailure(info.Failure),
+		Liveness:          store.CloneSessionLivenessMeta(info.Liveness),
+		Sandbox:           cloneSessionSandboxMeta(info.Sandbox),
+		SoulSnapshotID:    strings.TrimSpace(info.SoulSnapshotID),
+		SoulDigest:        strings.TrimSpace(info.SoulDigest),
+		ParentSoulDigest:  strings.TrimSpace(info.ParentSoulDigest),
+		TranscriptEpoch:   info.TranscriptEpoch,
+		CreatedAt:         info.CreatedAt,
+		UpdatedAt:         info.UpdatedAt,
 	}
 	result.SetNetworkSpec(info.NetworkParticipation)
 	return result
@@ -149,16 +157,25 @@ func sessionCatalogStateUpdate(info *Info) store.SessionStateUpdate {
 		return store.SessionStateUpdate{}
 	}
 	return store.SessionStateUpdate{
-		ID:            info.ID,
-		State:         string(info.State),
-		ACPSessionID:  stringPointer(info.ACPSessionID),
-		StopReasonSet: true,
-		StopReason:    stringPointer(string(info.StopReason)),
-		StopDetail:    info.StopDetail,
-		FailureSet:    true,
-		Failure:       store.CloneSessionFailure(info.Failure),
-		Liveness:      store.CloneSessionLivenessMeta(info.Liveness),
-		Sandbox:       cloneSessionSandboxMeta(info.Sandbox),
-		UpdatedAt:     info.UpdatedAt,
+		ID:                info.ID,
+		State:             string(info.State),
+		ACPSessionID:      stringPointer(info.ACPSessionID),
+		RuntimeSet:        true,
+		Provider:          info.Provider,
+		Model:             info.Model,
+		ReasoningEffort:   info.ReasoningEffort,
+		Speed:             info.Speed,
+		SpeedResolution:   speedpkg.CloneResolution(info.SpeedResolution),
+		RuntimeStatus:     info.RuntimeStatus,
+		RuntimeTransition: info.RuntimeTransition,
+		RuntimeFailure:    info.RuntimeFailure,
+		StopReasonSet:     true,
+		StopReason:        stringPointer(string(info.StopReason)),
+		StopDetail:        info.StopDetail,
+		FailureSet:        true,
+		Failure:           store.CloneSessionFailure(info.Failure),
+		Liveness:          store.CloneSessionLivenessMeta(info.Liveness),
+		Sandbox:           cloneSessionSandboxMeta(info.Sandbox),
+		UpdatedAt:         info.UpdatedAt,
 	}
 }

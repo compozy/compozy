@@ -163,7 +163,7 @@ func agentSpawnBundle(record *AgentSpawnRecord) outputBundle {
 				renderHumanSection("Spawn", []keyValue{
 					{Label: spawnSessionValue, Value: stringOrDash(record.Session.ID)},
 					{Label: spawnAgentValue, Value: stringOrDash(record.Session.AgentName)},
-					{Label: spawnProviderValue, Value: stringOrDash(record.Session.Provider)},
+					{Label: spawnProviderValue, Value: stringOrDash(sessionRuntimeProvider(record.Session))},
 					{Label: spawnWorkspaceValue, Value: stringOrDash(record.Session.WorkspaceID)},
 					{Label: spawnParentValue, Value: stringOrDash(record.Lineage.ParentSessionID)},
 					{Label: spawnRootValue, Value: stringOrDash(record.Lineage.RootSessionID)},

@@ -33,7 +33,7 @@ export interface OsRouterPort {
 }
 
 type RoutingManager = {
-  getState(): Pick<OsDesktopRuntimeStore, "client" | "windows" | "focusedId">;
+  getState(): Pick<OsDesktopRuntimeStore, "client" | "windows" | "focusedId" | "hydration">;
   openOrFocus(target: OsOpenTarget): WindowManagerOpenOutcome;
   closeWindow(windowId: string): Promise<boolean>;
   focusWindow(windowId: string): WindowManagerCommandOutcome;
@@ -270,13 +270,14 @@ export class RoutingCoordinator {
   private reconcilePendingRoute(): void {
     const pending = this.routeReconciliation;
     if (pending === null || pending.inFlight || this.phase !== "ready" || this.heldRoute) return;
+    const state = this.manager.getState();
+    if (state.client === null || state.hydration !== "live") return;
     const route = pending.route;
     const resolved = resolveAppForPath(route.pathname);
     if (!resolved) {
       this.routeReconciliation = null;
       return;
     }
-    const state = this.manager.getState();
     const { app, instanceKey } = resolved;
     if (route.pathname === "/") {
       const existing = state.windows[osWindowId(app.id)];
@@ -322,13 +323,16 @@ export class RoutingCoordinator {
   ): void {
     if (!outcome.accepted) {
       if (this.routeReconciliation?.token !== pending.token) return;
-      this.routeReconciliation = null;
-      this.reportAuthoritativeState();
+      this.routeReconciliation = { ...pending, inFlight: false };
       return;
     }
     this.routeReconciliation = { ...pending, inFlight: true };
-    void outcome.completion.then(() => {
+    void outcome.completion.then(applied => {
       if (this.routeReconciliation?.token !== pending.token) return;
+      if (!applied) {
+        this.routeReconciliation = { ...pending, inFlight: false };
+        return;
+      }
       this.routeReconciliation = null;
       this.reportAuthoritativeState();
     });

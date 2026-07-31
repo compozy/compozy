@@ -1,5 +1,10 @@
 import { SessionThread } from "@/components/assistant-ui/session-thread";
-import { SessionInspector, SessionResumeFailure, type SessionPayload } from "@/systems/session";
+import {
+  SessionInspector,
+  SessionPromptRuntimeSelector,
+  SessionResumeFailure,
+  type SessionPayload,
+} from "@/systems/session";
 
 import { SessionClearDialog, SessionDeleteDialog } from "./session-window-dialogs";
 import { useSessionWindowController } from "./use-session-window-controller";
@@ -46,7 +51,7 @@ export function SessionWindowContent({
           sessionId={sessionId}
           workspaceId={workspaceId}
           agentName={agentName}
-          acpSessionId={session.acp_session_id}
+          acpSessionId={session.runtime.acp_session_id}
           sessionState={session.state}
           failure={session.failure}
           canPrompt={controls.canPrompt}
@@ -60,6 +65,7 @@ export function SessionWindowContent({
           queuedPrompts={controls.queuedPrompts}
           onRemoveQueuedPrompt={controls.handleRemoveQueuedPrompt}
           onSteerQueuedPrompt={controls.handleSteerQueuedPrompt}
+          runtimeControl={<SessionPromptRuntimeSelector canPrompt={controls.canPrompt} />}
         />
       </div>
       {inspector.open ? (

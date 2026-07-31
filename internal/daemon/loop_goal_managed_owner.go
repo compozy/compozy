@@ -53,7 +53,7 @@ func operationOwner(operation *managedGoalOperation) session.ManagedInputOwner {
 	}
 }
 
-func managedInputOwnerFromQueueEntry(entry store.SessionInputQueueEntry) (session.ManagedInputOwner, error) {
+func managedInputOwnerFromQueueEntry(entry *store.SessionInputQueueEntry) (session.ManagedInputOwner, error) {
 	if entry.RunGeneration == nil || entry.OwnerEpoch == nil || entry.BindingEpoch == nil {
 		return session.ManagedInputOwner{}, errors.New("daemon: managed Goal queue epochs are incomplete")
 	}
@@ -83,7 +83,7 @@ func validateManagedGoalOwner(owner session.ManagedInputOwner) error {
 	return nil
 }
 
-func managedGoalEntryMatchesOwner(entry store.SessionInputQueueEntry, owner session.ManagedInputOwner) bool {
+func managedGoalEntryMatchesOwner(entry *store.SessionInputQueueEntry, owner session.ManagedInputOwner) bool {
 	loaded, err := managedInputOwnerFromQueueEntry(entry)
 	return err == nil && loaded == owner
 }

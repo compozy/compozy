@@ -16,18 +16,24 @@ func (m *Manager) sessionStartOpts(
 	resolved compozyconfig.ResolvedAgent,
 	mcpServers []compozyconfig.MCPServer,
 ) acp.StartOpts {
+	env := sessionStartEnvForProvider(
+		os.Environ(),
+		session,
+		resolved.EnvPolicy,
+		strings.TrimSpace(s.reasoningEffort),
+	)
 	return acp.StartOpts{
 		AgentName:       resolved.Name,
 		Command:         resolved.Command,
 		Cwd:             s.cwd,
 		AdditionalDirs:  append([]string(nil), s.workspace.AdditionalDirs...),
-		Env:             sessionStartEnvForProvider(os.Environ(), session, resolved.EnvPolicy),
+		Env:             env,
 		MCPServers:      mcpServers,
 		Permissions:     m.startPermissions(session.Type, startSpecPermissions(s, resolved.Permissions)),
 		SystemPrompt:    resolved.Prompt,
 		PreferredModel:  preferredACPModel(resolved, strings.TrimSpace(s.model) != ""),
-		ReasoningEffort: strings.TrimSpace(session.ReasoningEffort),
-		Speed:           session.Speed,
+		ReasoningEffort: strings.TrimSpace(s.reasoningEffort),
+		Speed:           s.speed,
 		ResumeSessionID: s.acpSessionID,
 		ToolGateway:     newProviderNativeToolGateway(m, session, s.runtimeMode),
 	}
@@ -41,13 +47,23 @@ func startSpecPermissions(s *sessionStartSpec, fallback string) string {
 }
 
 func sessionStartEnv(base []string, session *Session) []string {
-	return sessionStartEnvForProvider(base, session, compozyconfig.ProviderEnvPolicyFiltered)
+	reasoningEffort := ""
+	if session != nil {
+		reasoningEffort = session.ReasoningEffort
+	}
+	return sessionStartEnvForProvider(
+		base,
+		session,
+		compozyconfig.ProviderEnvPolicyFiltered,
+		reasoningEffort,
+	)
 }
 
 func sessionStartEnvForProvider(
 	base []string,
 	session *Session,
 	envPolicy compozyconfig.ProviderEnvPolicy,
+	reasoningEffort string,
 ) []string {
 	env := procutil.FilteredDaemonEnv(base)
 	if envPolicy == compozyconfig.ProviderEnvPolicyIsolated {
@@ -62,7 +78,7 @@ func sessionStartEnvForProvider(
 	env = setSessionStartEnvValue(env, "COMPOZY_AGENT_NAME", strings.TrimSpace(session.AgentName))
 	env = unsetSessionStartEnvKeys(env, "COMPOZY_SESSION_CHANNEL", "COMPOZY_PEER_ID")
 
-	if effort := strings.TrimSpace(session.ReasoningEffort); effort != "" {
+	if effort := strings.TrimSpace(reasoningEffort); effort != "" {
 		env = setSessionStartEnvValue(env, "COMPOZY_REASONING_EFFORT", effort)
 	} else {
 		env = unsetSessionStartEnvKeys(env, "COMPOZY_REASONING_EFFORT")

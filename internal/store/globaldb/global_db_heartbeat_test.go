@@ -991,13 +991,14 @@ func registerHeartbeatWorkspaceAndSession(
 	workspaceID := registerWorkspaceForGlobalTests(t, globalDB, workspaceName, t.TempDir())
 	now := time.Date(2026, 5, 2, 11, 0, 0, 0, time.UTC)
 	if err := globalDB.RegisterSession(testutil.Context(t), store.SessionInfo{
-		ID:          sessionID,
-		AgentName:   "coder",
-		Provider:    "claude",
-		WorkspaceID: workspaceID,
-		State:       "active",
-		CreatedAt:   now,
-		UpdatedAt:   now,
+		ID:            sessionID,
+		AgentName:     "coder",
+		Provider:      "claude",
+		RuntimeStatus: store.SessionRuntimeUnbound,
+		WorkspaceID:   workspaceID,
+		State:         "active",
+		CreatedAt:     now,
+		UpdatedAt:     now,
 	}); err != nil {
 		t.Fatalf("RegisterSession(%q) error = %v", sessionID, err)
 	}

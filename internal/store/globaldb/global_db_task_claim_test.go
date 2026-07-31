@@ -660,7 +660,7 @@ func registerNetworkWakeRunSessionsForClaimTest(
 	)
 	for _, sessionID := range sessionIDs {
 		if err := globalDB.RegisterSession(testutil.Context(t), SessionInfo{
-			ID: sessionID, AgentName: "coder", Provider: "claude",
+			ID: sessionID, AgentName: "coder", Provider: "claude", RuntimeStatus: store.SessionRuntimeUnbound,
 			WorkspaceID: workspaceID, State: "active", CreatedAt: now, UpdatedAt: now,
 		}); err != nil {
 			t.Fatalf("RegisterSession(%q) error = %v", sessionID, err)

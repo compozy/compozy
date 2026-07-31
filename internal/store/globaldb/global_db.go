@@ -110,6 +110,9 @@ func (g *GlobalDB) Close(ctx context.Context) error {
 
 func openGlobalSQLite(ctx context.Context, path string) (*sql.DB, error) {
 	return store.OpenSQLiteDatabase(ctx, path, func(ctx context.Context, db *sql.DB) error {
+		if err := rejectSessionMetadataWithoutRuntime(ctx, path); err != nil {
+			return err
+		}
 		return store.Apply(ctx, db, MigrationStream())
 	})
 }

@@ -43,6 +43,27 @@ describe("WorkspaceCommandSelect", () => {
     expect(screen.getByTestId("workspace-switcher-chevron")).toBeInTheDocument();
   });
 
+  it("Should associate the trigger with an external field label when provided", () => {
+    render(
+      <UIProvider reducedMotion="never" skipAnimations>
+        <span id="workspace-field-label">Workspace</span>
+        <WorkspaceCommandSelect
+          ariaLabelledBy="workspace-field-label"
+          userHomeDir={undefined}
+          workspaces={workspaces}
+          value="ws_alpha"
+          onChange={() => undefined}
+        />
+      </UIProvider>
+    );
+
+    expect(screen.getByTestId("workspace-switcher")).toHaveAttribute(
+      "aria-labelledby",
+      "workspace-field-label"
+    );
+    expect(screen.getByRole("button", { name: "Workspace" })).toBeInTheDocument();
+  });
+
   it("Should render the selected home workspace with the home icon", () => {
     render(
       <UIProvider reducedMotion="never" skipAnimations>

@@ -8,7 +8,11 @@ function session(overrides: Partial<SessionPayload> = {}): SessionPayload {
   return {
     id: "sess-1",
     agent_name: "coder",
-    provider: "claude",
+    runtime: {
+      status: "ready",
+      transition: "initial_bind",
+      effective: { provider: "claude" },
+    },
     workspace_id: "ws_alpha",
     workspace_path: "/ws",
     state: "stopped",

@@ -1,9 +1,10 @@
 package globaldb
 
 import (
+	"context"
+	"database/sql"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
@@ -23,9 +24,7 @@ func TestGlobalDBTokenCostMigration(t *testing.T) {
 			t.Fatalf("OpenSQLiteDatabase(v17 prefix) error = %v", err)
 		}
 		ctx := testutil.Context(t)
-		prefixGlobalDB := &GlobalDB{db: prefixDB, path: path, now: tokenCostMigrationTestTime}
-		prefixGlobalDB.initializeRepositories(openConfig{})
-		registerSessionForGlobalTests(t, prefixGlobalDB, "sess-cost-migration")
+		seedTokenCostMigrationSession(ctx, t, prefixDB, "sess-cost-migration")
 		if _, err := prefixDB.ExecContext(ctx, `INSERT INTO token_stats (
 		id, session_id, agent_name, total_tokens, total_cost, cost_currency, turn_count, updated_at
 	) VALUES
@@ -109,6 +108,25 @@ func tokenCostMigrationPrefix(t *testing.T) store.MigrationStream {
 	)
 }
 
-func tokenCostMigrationTestTime() time.Time {
-	return time.Date(2026, 7, 15, 12, 0, 0, 0, time.UTC)
+func seedTokenCostMigrationSession(ctx context.Context, t *testing.T, db *sql.DB, sessionID string) {
+	t.Helper()
+
+	if _, err := db.ExecContext(ctx, `INSERT INTO workspaces (
+		id, root_dir, add_dirs, name, default_agent, sandbox_ref, created_at, updated_at
+	) VALUES (
+		'sess-cost-migration-workspace', '/tmp/sess-cost-migration', '[]',
+		'sess-cost-migration', '', '', '2026-07-15T12:00:00Z', '2026-07-15T12:00:00Z'
+	)`); err != nil {
+		t.Fatalf("seed v17 workspace error = %v", err)
+	}
+	if _, err := db.ExecContext(ctx, `INSERT INTO sessions (
+		id, agent_name, provider, workspace_id, session_type, state,
+		network_spec_json, network_mode, network_source, created_at, updated_at
+	) VALUES (
+		?, 'coder', 'claude', 'sess-cost-migration-workspace', 'user', 'active',
+		'{"version":"network-participation/v1","mode":"local","source":"built_in_local"}',
+		'local', 'built_in_local', '2026-07-15T12:00:00Z', '2026-07-15T12:00:00Z'
+	)`, sessionID); err != nil {
+		t.Fatalf("seed v17 session error = %v", err)
+	}
 }

@@ -8,8 +8,9 @@ import (
 )
 
 const (
-	memoryAdminMemoryKey    = "memory"
-	memoryAdminSessionIDKey = "session_id"
+	memoryAdminMemoryKey       = "memory"
+	memoryAdminSessionIDKey    = "session_id"
+	memoryAdminProviderNameKey = "name"
 )
 
 type memoryAdminDescriptorSpec struct {
@@ -458,11 +459,11 @@ var (
 	)
 	memoryAdminWorkspaceInputSchema    = memoryAdminSchema(nil, `"workspace":{"type":"string"}`)
 	memoryAdminProviderNameInputSchema = memoryAdminSchema(
-		[]string{"name"},
+		[]string{memoryAdminProviderNameKey},
 		`"name":{"type":"string"},"workspace":{"type":"string"}`,
 	)
 	memoryAdminProviderLifecycleInputSchema = memoryAdminSchema(
-		[]string{"name"},
+		[]string{memoryAdminProviderNameKey},
 		`"name":{"type":"string"},"workspace":{"type":"string"},"reason":{"type":"string"}`,
 	)
 	memoryAdminSessionIDInputSchema = memoryAdminSchema(

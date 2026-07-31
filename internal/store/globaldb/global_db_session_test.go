@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io/fs"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -13,6 +14,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/network/participation"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 	globalschema "github.com/compozy/compozy/internal/store/globaldb/schema"
 	"github.com/compozy/compozy/internal/testutil"
@@ -57,6 +59,13 @@ func TestScanSessionInfoReadsStopFields(t *testing.T) {
 			'Demo',
 			'coder',
 			'claude',
+			'claude-opus-4',
+			'high',
+			'fast',
+			'{"requested":"fast","status":"applied"}',
+			'ready',
+			'live_configuration',
+			'',
 			'ws-1',
 			?,
 			'live',
@@ -130,6 +139,22 @@ func TestScanSessionInfoReadsStopFields(t *testing.T) {
 		if got, want := info.Provider, "claude"; got != want {
 			t.Fatalf("info.Provider = %q, want %q", got, want)
 		}
+		if got, want := info.Model, "claude-opus-4"; got != want {
+			t.Fatalf("info.Model = %q, want %q", got, want)
+		}
+		if got, want := info.ReasoningEffort, "high"; got != want {
+			t.Fatalf("info.ReasoningEffort = %q, want %q", got, want)
+		}
+		if got, want := info.RuntimeStatus, store.SessionRuntimeReady; got != want {
+			t.Fatalf("info.RuntimeStatus = %q, want %q", got, want)
+		}
+		if got, want := info.RuntimeTransition, store.SessionRuntimeTransitionLiveConfiguration; got != want {
+			t.Fatalf("info.RuntimeTransition = %q, want %q", got, want)
+		}
+		if info.SpeedResolution == nil || info.SpeedResolution.Requested != "fast" ||
+			info.SpeedResolution.Status != "applied" {
+			t.Fatalf("info.SpeedResolution = %#v, want applied fast", info.SpeedResolution)
+		}
 		if got, want := info.NetworkSpecSnapshot(), liveSpec; got != want {
 			t.Fatalf("info Network participation = %#v, want %#v", got, want)
 		}
@@ -179,6 +204,57 @@ func TestScanSessionInfoReadsStopFields(t *testing.T) {
 	})
 }
 
+func TestGlobalDBSessionCatalogRejectsInconsistentSpeedResolution(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject a persisted runtime resolution that disagrees with speed", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		workspaceID := registerWorkspaceForGlobalTests(
+			t,
+			globalDB,
+			"runtime-resolution-workspace",
+			filepath.Join(t.TempDir(), "runtime-resolution-workspace"),
+		)
+		now := time.Date(2026, 7, 30, 12, 0, 0, 0, time.UTC)
+		if err := globalDB.RegisterSession(ctx, store.SessionInfo{
+			ID:                "sess-inconsistent-runtime-resolution",
+			AgentName:         "coder",
+			Provider:          "claude",
+			Speed:             speedpkg.SpeedFast,
+			SpeedResolution:   &speedpkg.Resolution{Requested: speedpkg.SpeedFast, Status: speedpkg.ResolutionApplied},
+			RuntimeStatus:     store.SessionRuntimeReady,
+			RuntimeTransition: store.SessionRuntimeTransitionInitialBind,
+			WorkspaceID:       workspaceID,
+			SessionType:       defaultSessionType,
+			State:             globalDBSessionStateActive,
+			CreatedAt:         now,
+			UpdatedAt:         now,
+		}); err != nil {
+			t.Fatalf("RegisterSession() error = %v", err)
+		}
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			`UPDATE sessions SET speed_resolution_json = '{"requested":"normal","status":"applied"}' WHERE id = 'sess-inconsistent-runtime-resolution'`,
+		); err != nil {
+			t.Fatalf("ExecContext(corrupt speed resolution) error = %v", err)
+		}
+
+		_, err := globalDB.ListSessions(ctx, store.SessionListQuery{
+			ID:    "sess-inconsistent-runtime-resolution",
+			Limit: 1,
+		})
+		if err == nil || !strings.Contains(err.Error(), "session speed resolution requested") {
+			t.Fatalf(
+				"ListSessions(inconsistent runtime resolution) error = %v, want speed resolution validation failure",
+				err,
+			)
+		}
+	})
+}
+
 func TestScanSessionInfoHandlesNullStopReason(t *testing.T) {
 	t.Parallel()
 
@@ -191,6 +267,13 @@ func TestScanSessionInfoHandlesNullStopReason(t *testing.T) {
 			'sess-null',
 			NULL,
 			'coder',
+			'',
+			'',
+			'',
+			'',
+			'',
+			'unbound',
+			'',
 			'',
 			'ws-1',
 			'{"version":"network-participation/v1","mode":"local","source":"built_in_local"}',
@@ -282,6 +365,13 @@ func TestScanSessionInfoRejectsInvalidSandboxLastSyncAt(t *testing.T) {
 			'Demo',
 			'coder',
 			'claude',
+			'',
+			'',
+			'',
+			'',
+			'unbound',
+			'',
+			'',
 			'ws-1',
 			'{"version":"network-participation/v1","mode":"local","source":"built_in_local"}',
 			'local',
@@ -352,6 +442,13 @@ func TestScanSessionInfoRejectsStallStateWithoutReason(t *testing.T) {
 			'Demo',
 			'coder',
 			'claude',
+			'',
+			'',
+			'',
+			'',
+			'unbound',
+			'',
+			'',
 			'ws-1',
 			'{"version":"network-participation/v1","mode":"local","source":"built_in_local"}',
 			'local',
@@ -430,13 +527,14 @@ func TestGlobalDBAttachSessionRejectsStalledSessions(t *testing.T) {
 		)
 		now := time.Date(2026, 5, 22, 10, 0, 0, 0, time.UTC)
 		if err := globalDB.RegisterSession(ctx, store.SessionInfo{
-			ID:          "sess-stalled-attach",
-			Name:        "Stalled Attach",
-			AgentName:   "coder",
-			Provider:    "claude",
-			WorkspaceID: workspaceID,
-			SessionType: defaultSessionType,
-			State:       globalDBSessionStateActive,
+			ID:            "sess-stalled-attach",
+			Name:          "Stalled Attach",
+			AgentName:     "coder",
+			Provider:      "claude",
+			RuntimeStatus: store.SessionRuntimeUnbound,
+			WorkspaceID:   workspaceID,
+			SessionType:   defaultSessionType,
+			State:         globalDBSessionStateActive,
 			Liveness: &store.SessionLivenessMeta{
 				SubprocessPID: 77,
 				StallState:    store.SessionStallStateDetected,
@@ -487,6 +585,7 @@ func TestGlobalDBRegisterSessionPreservesTranscriptEpoch(t *testing.T) {
 			Name:            "Transcript Epoch",
 			AgentName:       "coder",
 			Provider:        "claude",
+			RuntimeStatus:   store.SessionRuntimeUnbound,
 			WorkspaceID:     workspaceID,
 			SessionType:     defaultSessionType,
 			State:           globalDBSessionStateActive,
@@ -539,15 +638,16 @@ func TestGlobalDBRegisterSessionRejectsParticipationSnapshotChange(t *testing.T)
 	)
 	now := time.Date(2026, 7, 16, 12, 0, 0, 0, time.UTC)
 	session := store.SessionInfo{
-		ID:          "sess-immutable-participation",
-		Name:        "Immutable Participation",
-		AgentName:   "coder",
-		Provider:    "claude",
-		WorkspaceID: workspaceID,
-		SessionType: defaultSessionType,
-		State:       globalDBSessionStateActive,
-		CreatedAt:   now,
-		UpdatedAt:   now,
+		ID:            "sess-immutable-participation",
+		Name:          "Immutable Participation",
+		AgentName:     "coder",
+		Provider:      "claude",
+		RuntimeStatus: store.SessionRuntimeUnbound,
+		WorkspaceID:   workspaceID,
+		SessionType:   defaultSessionType,
+		State:         globalDBSessionStateActive,
+		CreatedAt:     now,
+		UpdatedAt:     now,
 	}
 	session.SetNetworkSpec(participation.LocalSpec())
 	if err := globalDB.RegisterSession(ctx, session); err != nil {
@@ -704,6 +804,89 @@ func TestGlobalDBSessionCascadeMigration(t *testing.T) {
 	})
 }
 
+// TestGlobalDBRuntimeMetadataHardCut is serial because it opens a frozen v29
+// global catalog and verifies that the runtime metadata cut happens before
+// Goose can mutate it.
+func TestGlobalDBRuntimeMetadataHardCut(t *testing.T) {
+	t.Run("Should reject pre-runtime metadata before applying the v30 catalog migration", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		prefixDB, err := openGlobalMigrationPrefixDatabase(t, path, runtimeMetadataMigrationPrefix(t))
+		if err != nil {
+			t.Fatalf("OpenSQLiteDatabase(v29 prefix) error = %v", err)
+		}
+		if err := prefixDB.Close(); err != nil {
+			t.Fatalf("Close(v29 prefix) error = %v", err)
+		}
+
+		metaPath := store.SessionMetaFile(filepath.Join(filepath.Dir(path), "sessions", "sess-v29"))
+		if err := os.MkdirAll(filepath.Dir(metaPath), 0o700); err != nil {
+			t.Fatalf("MkdirAll(session metadata directory) error = %v", err)
+		}
+		if err := os.WriteFile(metaPath, []byte(`{
+  "id": "sess-v29",
+  "agent_name": "coder",
+  "workspace_id": "ws-v29",
+  "state": "stopped"
+}
+`), 0o600); err != nil {
+			t.Fatalf("WriteFile(pre-runtime metadata) error = %v", err)
+		}
+
+		if _, err := OpenGlobalDB(testutil.Context(t), path); !errors.Is(err, store.ErrSessionMetadataSchemaBehind) {
+			t.Fatalf("OpenGlobalDB(pre-runtime metadata) error = %v, want ErrSessionMetadataSchemaBehind", err)
+		}
+
+		inspectDB, err := sql.Open(sqliteDriverName, path)
+		if err != nil {
+			t.Fatalf("sql.Open(rejected v29 catalog) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if closeErr := inspectDB.Close(); closeErr != nil {
+				t.Errorf("Close(rejected v29 catalog) error = %v", closeErr)
+			}
+		})
+		status, err := store.Status(testutil.Context(t), inspectDB, runtimeMetadataMigrationPrefix(t))
+		if err != nil {
+			t.Fatalf("Status(rejected v29 catalog) error = %v", err)
+		}
+		if status.Version != 29 || status.AppliedCount != 29 {
+			t.Fatalf("Status(rejected v29 catalog) = %#v, want immutable v29 prefix", status)
+		}
+	})
+
+	t.Run("Should reject pre-runtime metadata after the catalog already reached v30", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		globalDB, err := OpenGlobalDB(testutil.Context(t), path)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB(fresh catalog) error = %v", err)
+		}
+		if err := globalDB.Close(testutil.Context(t)); err != nil {
+			t.Fatalf("Close(fresh catalog) error = %v", err)
+		}
+
+		metaPath := store.SessionMetaFile(filepath.Join(filepath.Dir(path), "sessions", "sess-v30"))
+		if err := os.MkdirAll(filepath.Dir(metaPath), 0o700); err != nil {
+			t.Fatalf("MkdirAll(session metadata directory) error = %v", err)
+		}
+		if err := os.WriteFile(metaPath, []byte(`{
+  "id": "sess-v30",
+  "agent_name": "coder",
+  "workspace_id": "ws-v30",
+  "state": "stopped"
+}
+`), 0o600); err != nil {
+			t.Fatalf("WriteFile(pre-runtime metadata) error = %v", err)
+		}
+
+		if _, err := OpenGlobalDB(testutil.Context(t), path); !errors.Is(err, store.ErrSessionMetadataSchemaBehind) {
+			t.Fatalf(
+				"OpenGlobalDB(current catalog with pre-runtime metadata) error = %v, want ErrSessionMetadataSchemaBehind",
+				err,
+			)
+		}
+	})
+}
+
 func TestGlobalDBEnsureSessionTranscriptEpoch(t *testing.T) {
 	t.Parallel()
 
@@ -724,6 +907,7 @@ func TestGlobalDBEnsureSessionTranscriptEpoch(t *testing.T) {
 			Name:            "Ensure Transcript Epoch",
 			AgentName:       "coder",
 			Provider:        "claude",
+			RuntimeStatus:   store.SessionRuntimeUnbound,
 			WorkspaceID:     workspaceID,
 			SessionType:     defaultSessionType,
 			State:           globalDBSessionStateActive,
@@ -793,6 +977,7 @@ func TestGlobalDBListSessionsSweepsExpiredAttachLocks(t *testing.T) {
 			Name:            "Expired Attach",
 			AgentName:       "coder",
 			Provider:        "claude",
+			RuntimeStatus:   store.SessionRuntimeUnbound,
 			WorkspaceID:     workspaceID,
 			SessionType:     defaultSessionType,
 			State:           globalDBSessionStateActive,
@@ -987,6 +1172,23 @@ func sessionCascadeMigrationPrefix(t *testing.T) store.MigrationStream {
 	stream.FS = files
 	stream.Dir = "."
 	return stream
+}
+
+func runtimeMetadataMigrationPrefix(t *testing.T) store.MigrationStream {
+	t.Helper()
+
+	entries, err := fs.ReadDir(globalschema.Files, "migrations")
+	if err != nil {
+		t.Fatalf("ReadDir(global migrations) error = %v", err)
+	}
+	names := make([]string, 0, len(entries)-1)
+	for _, entry := range entries {
+		if entry.IsDir() || filepath.Ext(entry.Name()) != ".sql" || entry.Name() == "00030_schema.sql" {
+			continue
+		}
+		names = append(names, entry.Name())
+	}
+	return globalMigrationPrefix(t, names...)
 }
 
 func assertSessionDeleteForeignKeysCascade(t *testing.T, db *sql.DB) {

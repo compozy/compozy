@@ -43,7 +43,17 @@ The discovery loop and denial-handling rules live in the preceding tools-and-ski
 
 ## Runtime And Workspace Tools
 
-Session tools: `compozy__session_list`, `compozy__session_status`, `compozy__session_history`, `compozy__session_events`, `compozy__session_describe`, `compozy__session_health`.
+Session tools: `compozy__session_list`, `compozy__session_create`, `compozy__session_prompt`,
+`compozy__session_status`, `compozy__session_history`, `compozy__session_events`,
+`compozy__session_describe`, `compozy__session_health`.
+
+`compozy__session_create` accepts only workspace, agent, and optional name. It creates an active
+logical session with `runtime.status="unbound"`; it does not accept or send a prompt or runtime.
+Use `compozy__session_prompt` with `session_id`, `message`, and an optional `runtime` snapshot. A
+first prompt to an unbound session requires `runtime.provider`; model, reasoning effort, and speed
+are optional snapshot fields. Read the runtime semantics, queued/interrupt snapshot behavior, and
+rollback rule in `references/runtime-operations.md`; inspect `compozy__session_status` for the nested
+`runtime` object rather than deriving it from the session state.
 
 Remembered approvals: `compozy__tool_approvals_set`, `compozy__tool_approvals_list`, and
 `compozy__tool_approvals_revoke`. `allow-always` or `reject-always` creates an exact workspace + agent +

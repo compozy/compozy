@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/session"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 )
 
@@ -149,25 +150,32 @@ func recoveredSessionFromMeta(meta store.SessionMeta) recoveredSession {
 		stopReason = *meta.StopReason
 	}
 	recovered := recoveredSession{SessionInfo: store.SessionInfo{
-		ID:               meta.ID,
-		Name:             meta.Name,
-		AgentName:        meta.AgentName,
-		Provider:         meta.Provider,
-		WorkspaceID:      meta.WorkspaceID,
-		SessionType:      meta.SessionType,
-		Lineage:          store.CloneSessionLineage(meta.Lineage),
-		State:            meta.State,
-		ACPSessionID:     meta.ACPSessionID,
-		StopReason:       stopReason,
-		StopDetail:       meta.StopDetail,
-		Failure:          store.CloneSessionFailure(meta.Failure),
-		Liveness:         store.CloneSessionLivenessMeta(meta.Liveness),
-		Sandbox:          cloneSessionSandboxMeta(meta.Sandbox),
-		SoulSnapshotID:   strings.TrimSpace(meta.SoulSnapshotID),
-		SoulDigest:       strings.TrimSpace(meta.SoulDigest),
-		ParentSoulDigest: strings.TrimSpace(meta.ParentSoulDigest),
-		CreatedAt:        meta.CreatedAt,
-		UpdatedAt:        meta.UpdatedAt,
+		ID:                meta.ID,
+		Name:              meta.Name,
+		AgentName:         meta.AgentName,
+		Provider:          meta.Provider,
+		Model:             strings.TrimSpace(meta.Model),
+		ReasoningEffort:   strings.TrimSpace(meta.ReasoningEffort),
+		Speed:             meta.Speed,
+		SpeedResolution:   speedpkg.CloneResolution(meta.SpeedResolution),
+		RuntimeStatus:     meta.RuntimeStatus,
+		RuntimeTransition: meta.RuntimeTransition,
+		RuntimeFailure:    strings.TrimSpace(meta.RuntimeFailure),
+		WorkspaceID:       meta.WorkspaceID,
+		SessionType:       meta.SessionType,
+		Lineage:           store.CloneSessionLineage(meta.Lineage),
+		State:             meta.State,
+		ACPSessionID:      meta.ACPSessionID,
+		StopReason:        stopReason,
+		StopDetail:        meta.StopDetail,
+		Failure:           store.CloneSessionFailure(meta.Failure),
+		Liveness:          store.CloneSessionLivenessMeta(meta.Liveness),
+		Sandbox:           cloneSessionSandboxMeta(meta.Sandbox),
+		SoulSnapshotID:    strings.TrimSpace(meta.SoulSnapshotID),
+		SoulDigest:        strings.TrimSpace(meta.SoulDigest),
+		ParentSoulDigest:  strings.TrimSpace(meta.ParentSoulDigest),
+		CreatedAt:         meta.CreatedAt,
+		UpdatedAt:         meta.UpdatedAt,
 	}}
 	recovered.SetNetworkSpec(meta.NetworkSpecSnapshot())
 	if meta.CreationProfile != nil {

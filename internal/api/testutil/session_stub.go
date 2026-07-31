@@ -2,13 +2,12 @@ package testutil
 
 import (
 	"context"
-	"errors"
-	"strings"
 
 	"github.com/compozy/compozy/internal/acp"
 	core "github.com/compozy/compozy/internal/api/core"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/session"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/transcript"
 )
@@ -64,9 +63,6 @@ func (s StubSessionManager) CreateAccepted(
 ) (*session.Info, error) {
 	if s.CreateAcceptedFn != nil {
 		return s.CreateAcceptedFn(ctx, opts)
-	}
-	if strings.TrimSpace(opts.InitialPrompt) != "" {
-		return nil, errors.New("testutil: CreateAcceptedFn is required for an initial prompt")
 	}
 	created, err := s.Create(ctx, opts.Session)
 	if created == nil || err != nil {
@@ -428,11 +424,18 @@ var _ core.AgentSessionMetricsReader = (*StubSessionManager)(nil)
 
 func storeSessionInfoFromRuntime(info *session.Info) store.SessionInfo {
 	storeInfo := store.SessionInfo{
-		ID:          info.ID,
-		Name:        info.Name,
-		AgentName:   info.AgentName,
-		Provider:    info.Provider,
-		WorkspaceID: info.WorkspaceID,
+		ID:                info.ID,
+		Name:              info.Name,
+		AgentName:         info.AgentName,
+		Provider:          info.Provider,
+		Model:             info.Model,
+		ReasoningEffort:   info.ReasoningEffort,
+		Speed:             info.Speed,
+		SpeedResolution:   speedpkg.CloneResolution(info.SpeedResolution),
+		RuntimeStatus:     info.RuntimeStatus,
+		RuntimeTransition: info.RuntimeTransition,
+		RuntimeFailure:    info.RuntimeFailure,
+		WorkspaceID:       info.WorkspaceID,
 		SessionNetworkState: &store.SessionNetworkState{
 			NetworkSpec: info.NetworkParticipation,
 		},

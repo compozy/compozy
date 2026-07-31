@@ -23,12 +23,27 @@ function liveParticipation(workspaceId: string, channelId: string) {
   return buildLiveNetworkParticipationFixture({ workspaceId, channelId });
 }
 
+export function sessionRuntime(
+  provider: string,
+  acpCaps?: SessionPayload["runtime"]["acp_caps"]
+): SessionPayload["runtime"] {
+  return {
+    status: "ready",
+    transition: "initial_bind",
+    effective: { provider },
+    ...(acpCaps ? { acp_caps: acpCaps } : {}),
+  };
+}
+
 export const sessionFixtures: SessionPayload[] = [
   {
     id: storySessionIds.frontend,
     name: "Landing page launch QA",
     agent_name: storyAgentNames.frontend,
-    provider: "codex",
+    runtime: sessionRuntime("codex", {
+      supports_load_session: true,
+      supported_modes: ["chat"],
+    }),
     workspace_id: storyWorkspaceIds.product,
     workspace_path: storyWorkspacePaths.product,
     state: "active",
@@ -62,16 +77,12 @@ export const sessionFixtures: SessionPayload[] = [
     },
     created_at: "2026-04-17T12:00:00Z",
     updated_at: "2026-04-17T18:09:00Z",
-    acp_caps: {
-      supports_load_session: true,
-      supported_modes: ["chat"],
-    },
   },
   {
     id: storySessionIds.cto,
     name: "Executive launch review",
     agent_name: storyAgentNames.cto,
-    provider: "claude",
+    runtime: sessionRuntime("claude"),
     workspace_id: storyWorkspaceIds.hq,
     workspace_path: storyWorkspacePaths.hq,
     state: "active",
@@ -89,7 +100,7 @@ export const sessionFixtures: SessionPayload[] = [
     id: storySessionIds.cfo,
     name: "Launch revenue watch",
     agent_name: storyAgentNames.cfo,
-    provider: "claude",
+    runtime: sessionRuntime("claude"),
     workspace_id: storyWorkspaceIds.finance,
     workspace_path: storyWorkspacePaths.finance,
     state: "active",
@@ -107,7 +118,7 @@ export const sessionFixtures: SessionPayload[] = [
     id: storySessionIds.product,
     name: "Launch room command brief",
     agent_name: storyAgentNames.product,
-    provider: "gemini",
+    runtime: sessionRuntime("gemini"),
     workspace_id: storyWorkspaceIds.hq,
     workspace_path: storyWorkspacePaths.hq,
     state: "active",
@@ -125,7 +136,7 @@ export const sessionFixtures: SessionPayload[] = [
     id: storySessionIds.marketing,
     name: "CRM launch timing",
     agent_name: storyAgentNames.marketing,
-    provider: "gemini",
+    runtime: sessionRuntime("gemini"),
     workspace_id: storyWorkspaceIds.growth,
     workspace_path: storyWorkspacePaths.growth,
     state: "stopped",
@@ -143,7 +154,7 @@ export const sessionFixtures: SessionPayload[] = [
     id: storySessionIds.copywriter,
     name: "Headline claim polish",
     agent_name: storyAgentNames.copywriter,
-    provider: "claude",
+    runtime: sessionRuntime("claude"),
     workspace_id: storyWorkspaceIds.growth,
     workspace_path: storyWorkspacePaths.growth,
     state: "active",
@@ -161,7 +172,7 @@ export const sessionFixtures: SessionPayload[] = [
     id: storySessionIds.support,
     name: "Launch support swarm",
     agent_name: storyAgentNames.support,
-    provider: "claude",
+    runtime: sessionRuntime("claude"),
     workspace_id: storyWorkspaceIds.support,
     workspace_path: storyWorkspacePaths.support,
     state: "active",
@@ -179,7 +190,7 @@ export const sessionFixtures: SessionPayload[] = [
     id: storySessionIds.fraud,
     name: "Reserve spike monitor",
     agent_name: storyAgentNames.fraud,
-    provider: "claude",
+    runtime: sessionRuntime("claude"),
     workspace_id: storyWorkspaceIds.risk,
     workspace_path: storyWorkspacePaths.risk,
     state: "active",
@@ -197,7 +208,7 @@ export const sessionFixtures: SessionPayload[] = [
     id: storySessionIds.compliance,
     name: "Claim compliance review",
     agent_name: storyAgentNames.compliance,
-    provider: "qwen-code",
+    runtime: sessionRuntime("qwen-code"),
     workspace_id: storyWorkspaceIds.risk,
     workspace_path: storyWorkspacePaths.risk,
     state: "active",
@@ -215,7 +226,7 @@ export const sessionFixtures: SessionPayload[] = [
     id: storySessionIds.release,
     name: "Release control canary",
     agent_name: storyAgentNames.release,
-    provider: "codex",
+    runtime: sessionRuntime("codex"),
     workspace_id: storyWorkspaceIds.platform,
     workspace_path: storyWorkspacePaths.platform,
     state: "active",
@@ -233,7 +244,7 @@ export const sessionFixtures: SessionPayload[] = [
     id: storySessionIds.platform,
     name: "Partner webhook stability",
     agent_name: storyAgentNames.platform,
-    provider: "codex",
+    runtime: sessionRuntime("codex"),
     workspace_id: storyWorkspaceIds.platform,
     workspace_path: storyWorkspacePaths.platform,
     state: "active",

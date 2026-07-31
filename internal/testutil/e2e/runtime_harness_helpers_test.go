@@ -80,6 +80,7 @@ func TestRuntimeHarnessCaptureHelpersPersistArtifacts(t *testing.T) {
 		ID:                   "sess-1",
 		AgentName:            "coder",
 		WorkspaceID:          "ws-1",
+		RuntimeStatus:        store.SessionRuntimeUnbound,
 		NetworkParticipation: participation.CloneSpec(participation.LocalSpec()),
 		State:                "stopped",
 		Sandbox: &store.SessionSandboxMeta{

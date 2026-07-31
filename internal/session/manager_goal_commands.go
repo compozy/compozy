@@ -61,6 +61,34 @@ func (m *Manager) dispatchGoalCommand(
 	return decision, true, nil
 }
 
+func (m *Manager) applyGoalCommand(
+	ctx context.Context,
+	req *promptRequest,
+	opts SendPromptOpts,
+) (bool, *SendPromptResult, error) {
+	if !opts.AllowGoalCommands {
+		return false, nil, nil
+	}
+	decision, handled, err := m.dispatchGoalCommand(ctx, req, opts)
+	if err != nil {
+		return false, nil, err
+	}
+	if !handled {
+		return false, nil, nil
+	}
+	switch decision.Kind {
+	case GoalDispatchRespond:
+		return false, &SendPromptResult{Status: managedInputOwnerGoal, Goal: decision.Result}, nil
+	case GoalDispatchPrompt:
+		req.message = decision.RewrittenMessage
+		rejectIfBusy := decision.BusyPolicy == goalBusyPolicyRejectIfBusy
+		req.releaseSlotBeforeHooks = rejectIfBusy
+		return rejectIfBusy, nil, nil
+	default:
+		return false, nil, errors.New("session: Goal dispatcher returned an invalid decision")
+	}
+}
+
 func (m *Manager) goalCommandWorkspaceID(ctx context.Context, sessionID string) (string, error) {
 	if session, ok := m.Get(sessionID); ok {
 		info := session.Info()

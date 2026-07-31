@@ -448,7 +448,8 @@ context_nudge_ratio = 0.0
 		WorkspaceID:         workspaceID,
 		SessionNetworkState: &store.SessionNetworkState{NetworkSpec: participation.LocalSpec()},
 		SessionType:         string(session.SessionTypeUser), State: string(session.StateActive),
-		CreatedAt: now, UpdatedAt: now,
+		RuntimeStatus: store.SessionRuntimeUnbound,
+		CreatedAt:     now, UpdatedAt: now,
 	}, identity); err != nil {
 		t.Fatalf("RegisterSessionWithCreationIdentity() error = %v", err)
 	}

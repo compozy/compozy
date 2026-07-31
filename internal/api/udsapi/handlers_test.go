@@ -2024,7 +2024,9 @@ func TestPromptSessionRawHandlerPreservesBusyInputMode(t *testing.T) {
 			engine,
 			http.MethodPost,
 			"/api/workspaces/ws-workspace/sessions/sess-123/prompt?format=raw",
-			[]byte(`{"message":"replace","messageId":"client-replace-1","mode":"interrupt"}`),
+			[]byte(
+				`{"message":"replace","messageId":"client-replace-1","mode":"interrupt","runtime":{"provider":"codex","model":"gpt-5.4","reasoning_effort":"high","speed":"fast"}}`,
+			),
 		)
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
@@ -2032,6 +2034,11 @@ func TestPromptSessionRawHandlerPreservesBusyInputMode(t *testing.T) {
 		if gotOpts.Message != "replace" || gotOpts.ClientMessageID != "client-replace-1" ||
 			gotOpts.Mode != session.BusyInputModeInterrupt {
 			t.Fatalf("SendPrompt() opts = %#v, want interrupt replace", gotOpts)
+		}
+		if gotOpts.Runtime == nil || gotOpts.Runtime.Provider != "codex" ||
+			gotOpts.Runtime.Model != "gpt-5.4" || gotOpts.Runtime.ReasoningEffort != "high" ||
+			gotOpts.Runtime.Speed != contract.SpeedFast {
+			t.Fatalf("SendPrompt() runtime = %#v, want codex gpt-5.4 high fast", gotOpts.Runtime)
 		}
 		var decoded contract.SendPromptResultResponse
 		if err := json.Unmarshal(recorder.Body.Bytes(), &decoded); err != nil {

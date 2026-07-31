@@ -709,6 +709,16 @@ func TestHTTPSessionStreamReconnectsWithLastEventID(t *testing.T) {
 }
 
 func TestHTTPSessionStreamReconnectPreservesCursorWhenNoNewEventsExistYet(t *testing.T) {
+	t.Run("Should preserve the stream cursor while a prompt is still running", func(t *testing.T) {
+		t.Parallel()
+
+		exerciseHTTPSessionStreamReconnectPreservesCursorWhenNoNewEventsExistYet(t)
+	})
+}
+
+func exerciseHTTPSessionStreamReconnectPreservesCursorWhenNoNewEventsExistYet(t *testing.T) {
+	t.Helper()
+
 	runtime := newIntegrationRuntime(t)
 	sessionID := createIntegrationSession(t, runtime)
 
@@ -849,8 +859,19 @@ func TestHTTPSessionStreamReconnectPreservesCursorWhenNoNewEventsExistYet(t *tes
 }
 
 func TestHTTPSessionStopReasonPropagatesToGlobalDBAndAPI(t *testing.T) {
+	t.Run("Should propagate a user stop reason to persistence and HTTP", func(t *testing.T) {
+		t.Parallel()
+
+		exerciseHTTPSessionStopReasonPropagatesToGlobalDBAndAPI(t)
+	})
+}
+
+func exerciseHTTPSessionStopReasonPropagatesToGlobalDBAndAPI(t *testing.T) {
+	t.Helper()
+
 	runtime := newIntegrationRuntime(t)
 	sessionID := createIntegrationSession(t, runtime)
+	bindIntegrationSessionRuntime(t, runtime, sessionID)
 
 	stopIntegrationSession(t, runtime, sessionID)
 
@@ -1049,8 +1070,19 @@ func TestHTTPSessionParticipationRoundTrip(t *testing.T) {
 }
 
 func TestHTTPSessionCrashStopReasonPropagatesToGlobalDBAndAPI(t *testing.T) {
+	t.Run("Should propagate an agent crash reason to persistence and HTTP", func(t *testing.T) {
+		t.Parallel()
+
+		exerciseHTTPSessionCrashStopReasonPropagatesToGlobalDBAndAPI(t)
+	})
+}
+
+func exerciseHTTPSessionCrashStopReasonPropagatesToGlobalDBAndAPI(t *testing.T) {
+	t.Helper()
+
 	runtime := newIntegrationRuntime(t)
 	sessionID := createIntegrationSession(t, runtime)
+	bindIntegrationSessionRuntime(t, runtime, sessionID)
 
 	sess, ok := runtime.manager.Get(sessionID)
 	if !ok {
@@ -3919,6 +3951,40 @@ func sendPrompt(t *testing.T, runtime integrationRuntime, sessionID string, mess
 	}
 	_, _ = io.ReadAll(resp.Body)
 	_ = resp.Body.Close()
+}
+
+func bindIntegrationSessionRuntime(t *testing.T, runtime integrationRuntime, sessionID string) {
+	t.Helper()
+
+	resp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodPost,
+		mustURL(runtime.host, runtime.port, "/api/workspaces/ws-workspace/sessions/"+sessionID+"/prompt"),
+		mustIntegrationJSON(map[string]any{
+			"message": "bind runtime",
+			"runtime": map[string]any{"provider": "fake"},
+		}),
+		nil,
+	)
+	body := readAndCloseIntegrationResponse(t, resp.Body, "runtime bind prompt")
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("runtime bind prompt status = %d, want %d; body=%s", resp.StatusCode, http.StatusOK, string(body))
+	}
+}
+
+func readAndCloseIntegrationResponse(t *testing.T, body io.ReadCloser, operation string) []byte {
+	t.Helper()
+
+	payload, readErr := io.ReadAll(body)
+	closeErr := body.Close()
+	if readErr != nil {
+		t.Fatalf("read %s response body error = %v", operation, readErr)
+	}
+	if closeErr != nil {
+		t.Fatalf("close %s response body error = %v", operation, closeErr)
+	}
+	return payload
 }
 
 func mustIntegrationPrompt(t *testing.T, events <-chan acp.AgentEvent, err error) <-chan acp.AgentEvent {

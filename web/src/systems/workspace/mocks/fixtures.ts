@@ -17,6 +17,14 @@ function liveParticipation(workspaceId: string, channelId: string) {
   return buildLiveNetworkParticipationFixture({ workspaceId, channelId });
 }
 
+function sessionRuntime(provider: string) {
+  return {
+    status: "ready",
+    transition: "initial_bind",
+    effective: { provider },
+  };
+}
+
 export const workspaceFixtures: WorkspacePayload[] = [
   {
     id: storyWorkspaceIds.hq,
@@ -242,7 +250,7 @@ export const workspaceDetailFixture: WorkspaceDetailPayload = {
         primaryWorkspaceFixture.id,
         storyChannels.launchWarRoom
       ),
-      provider: "gemini",
+      runtime: sessionRuntime("gemini"),
       workspace_id: primaryWorkspaceFixture.id,
       workspace_path: primaryWorkspaceFixture.root_dir,
       state: "active",
@@ -260,7 +268,7 @@ export const workspaceDetailFixture: WorkspaceDetailPayload = {
         primaryWorkspaceFixture.id,
         storyChannels.landingPage
       ),
-      provider: "codex",
+      runtime: sessionRuntime("codex"),
       workspace_id: primaryWorkspaceFixture.id,
       workspace_path: primaryWorkspaceFixture.root_dir,
       state: "active",
@@ -278,7 +286,7 @@ export const workspaceDetailFixture: WorkspaceDetailPayload = {
         primaryWorkspaceFixture.id,
         storyChannels.execSignal
       ),
-      provider: "claude",
+      runtime: sessionRuntime("claude"),
       workspace_id: primaryWorkspaceFixture.id,
       workspace_path: primaryWorkspaceFixture.root_dir,
       state: "active",
@@ -296,7 +304,7 @@ export const workspaceDetailFixture: WorkspaceDetailPayload = {
         primaryWorkspaceFixture.id,
         storyChannels.financeWatch
       ),
-      provider: "claude",
+      runtime: sessionRuntime("claude"),
       workspace_id: primaryWorkspaceFixture.id,
       workspace_path: primaryWorkspaceFixture.root_dir,
       state: "active",
@@ -314,7 +322,7 @@ export const workspaceDetailFixture: WorkspaceDetailPayload = {
         primaryWorkspaceFixture.id,
         storyChannels.growthLaunch
       ),
-      provider: "gemini",
+      runtime: sessionRuntime("gemini"),
       workspace_id: primaryWorkspaceFixture.id,
       workspace_path: primaryWorkspaceFixture.root_dir,
       state: "stopped",
@@ -332,7 +340,7 @@ export const workspaceDetailFixture: WorkspaceDetailPayload = {
         primaryWorkspaceFixture.id,
         storyChannels.landingPage
       ),
-      provider: "claude",
+      runtime: sessionRuntime("claude"),
       workspace_id: primaryWorkspaceFixture.id,
       workspace_path: primaryWorkspaceFixture.root_dir,
       state: "active",
@@ -350,7 +358,7 @@ export const workspaceDetailFixture: WorkspaceDetailPayload = {
         primaryWorkspaceFixture.id,
         storyChannels.releaseControl
       ),
-      provider: "codex",
+      runtime: sessionRuntime("codex"),
       workspace_id: primaryWorkspaceFixture.id,
       workspace_path: primaryWorkspaceFixture.root_dir,
       state: "active",

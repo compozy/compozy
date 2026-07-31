@@ -33,7 +33,20 @@ func AgentEventPayloadFromEvent(event acp.AgentEvent) contract.AgentEventPayload
 		Resource: event.Resource, Decision: event.Decision, Error: event.Error,
 		Failure: SessionFailurePayloadFromStore(event.Failure), Usage: TokenUsagePayloadFromUsage(event.Usage),
 		Goal: goalPromptMetaPayload(event.Goal), Runtime: runtimeActivityPayloadFromEvent(event.Runtime),
-		Raw: payloadJSONBytes(event.Raw),
+		PromptRuntime: runtimeSelectionPayloadFromACP(event.PromptRuntimeSnapshot()),
+		Raw:           payloadJSONBytes(event.Raw),
+	}
+}
+
+func runtimeSelectionPayloadFromACP(runtime *acp.PromptRuntime) *contract.RuntimeSelectionPayload {
+	if runtime == nil {
+		return nil
+	}
+	return &contract.RuntimeSelectionPayload{
+		Provider:        runtime.Provider,
+		Model:           runtime.Model,
+		ReasoningEffort: contract.ReasoningEffort(runtime.ReasoningEffort),
+		Speed:           runtime.Speed,
 	}
 }
 

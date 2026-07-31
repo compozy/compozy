@@ -69,8 +69,12 @@ func TestHostAPIHandlerSessionsListReturnsAuthorizedSessions(t *testing.T) {
 	if sessionsList[0].Agent != "coder" {
 		t.Fatalf("sessions/list[0].Agent = %q, want coder", sessionsList[0].Agent)
 	}
-	if sessionsList[0].Provider != sess.Info().Provider {
-		t.Fatalf("sessions/list[0].Provider = %q, want %q", sessionsList[0].Provider, sess.Info().Provider)
+	if sessionsList[0].Runtime.Status != sess.Info().RuntimeStatus {
+		t.Fatalf(
+			"sessions/list[0].Runtime.Status = %q, want %q",
+			sessionsList[0].Runtime.Status,
+			sess.Info().RuntimeStatus,
+		)
 	}
 }
 
@@ -330,7 +334,6 @@ func TestHostAPIHandlerSessionsCreateReturnsSessionID(t *testing.T) {
 
 	result, err := env.call(t, "ext-create", "sessions/create", map[string]any{
 		"agent":     "coder",
-		"provider":  "fake-alt",
 		"workspace": env.workspaceID,
 		"network_participation": map[string]any{
 			"mode":             "live",
@@ -347,14 +350,7 @@ func TestHostAPIHandlerSessionsCreateReturnsSessionID(t *testing.T) {
 	if created.SessionID == "" {
 		t.Fatal("sessions/create session_id = empty, want non-empty")
 	}
-	if created.Provider != "fake-alt" {
-		t.Fatalf("sessions/create provider = %q, want %q", created.Provider, "fake-alt")
-	}
-
 	info := waitForHostAPISessionState(t, env.sessions, created.SessionID, session.StateActive)
-	if info.Provider != "fake-alt" {
-		t.Fatalf("created session provider = %q, want %q", info.Provider, "fake-alt")
-	}
 	if info.NetworkParticipation.Mode != participation.ModeLive ||
 		info.NetworkParticipation.ChannelID != "builders" {
 		t.Fatalf(
@@ -372,21 +368,17 @@ func TestHostAPIHandlerSessionsCreateReturnsSessionID(t *testing.T) {
 	assertErrorContains(t, err, "network_channel")
 }
 
-func TestHostAPIHandlerSessionsCreateUsesAtomicAcceptedPrompt(t *testing.T) {
+func TestHostAPIHandlerSessionsCreateUsesDurableLogicalAcceptance(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should use atomic accepted create with a trimmed prompt", func(t *testing.T) {
+	t.Run("Should accept a logical session without prompt or runtime", func(t *testing.T) {
 		t.Parallel()
 
 		sessions := &recordingHostAPISessionManager{}
 		handler := &HostAPIHandler{sessions: sessions}
 		raw := json.RawMessage(`{
 			"agent":"coder",
-			"provider":"codex",
-			"model":"gpt-5.6-sol",
-			"reasoning_effort":"high",
-			"workspace":"ws-alpha",
-			"prompt":"  Investigate the failing build  "
+			"workspace":"ws-alpha"
 		}`)
 
 		result, err := handler.handleSessionsCreate(testutil.Context(t), raw)
@@ -400,16 +392,12 @@ func TestHostAPIHandlerSessionsCreateUsesAtomicAcceptedPrompt(t *testing.T) {
 			t.Fatalf("CreateAccepted() calls = %#v, want one", sessions.acceptedCreateCalls)
 		}
 		accepted := sessions.acceptedCreateCalls[0]
-		if accepted.InitialPrompt != "Investigate the failing build" {
-			t.Fatalf("CreateAccepted() InitialPrompt = %q, want trimmed prompt", accepted.InitialPrompt)
-		}
-		if accepted.Session.Provider != "codex" || accepted.Session.Model != "gpt-5.6-sol" ||
-			accepted.Session.ReasoningEffort != "high" {
-			t.Fatalf("CreateAccepted() runtime = %#v", accepted.Session)
+		if accepted.Session.AgentName != "coder" || accepted.Session.Workspace != "ws-alpha" {
+			t.Fatalf("CreateAccepted() Session = %#v", accepted.Session)
 		}
 		var created hostAPISessionCreateResult
 		decodeResult(t, result, &created)
-		if created.SessionID != "sess-accepted" || created.Provider != "codex" {
+		if created.SessionID != "sess-accepted" {
 			t.Fatalf("sessions/create result = %#v", created)
 		}
 	})
@@ -519,8 +507,12 @@ func TestHostAPIHandlerSessionsStatusReturnsAuthorizedState(t *testing.T) {
 	if status.State != session.StateActive {
 		t.Fatalf("sessions/status state = %q, want %q", status.State, session.StateActive)
 	}
-	if status.Provider != sess.Info().Provider {
-		t.Fatalf("sessions/status provider = %q, want %q", status.Provider, sess.Info().Provider)
+	if status.Runtime.Status != sess.Info().RuntimeStatus {
+		t.Fatalf(
+			"sessions/status runtime status = %q, want %q",
+			status.Runtime.Status,
+			sess.Info().RuntimeStatus,
+		)
 	}
 
 	foreign := env.workspace
@@ -535,6 +527,151 @@ func TestHostAPIHandlerSessionsStatusReturnsAuthorizedState(t *testing.T) {
 		"session_id":   sess.ID,
 	})
 	assertRPCErrorCode(t, err, HostAPINotFoundCode)
+}
+
+func TestHostAPIHandlerSessionReadsProjectNestedRuntime(t *testing.T) {
+	t.Parallel()
+	t.Run("Should project nested runtime through session reads", func(t *testing.T) {
+		t.Parallel()
+
+		const workspaceID = "ws-runtime"
+		info := &session.Info{
+			ID:                "sess-runtime",
+			Name:              "Runtime session",
+			AgentName:         "coder",
+			Provider:          "codex",
+			Model:             "gpt-5.6",
+			ReasoningEffort:   "high",
+			Speed:             "fast",
+			RuntimeStatus:     session.RuntimeStatusReady,
+			RuntimeTransition: session.RuntimeTransitionLiveConfiguration,
+			RuntimeFailure:    "runtime warning",
+			WorkspaceID:       workspaceID,
+			Workspace:         "/tmp/runtime",
+			State:             session.StateActive,
+			ACPSessionID:      "acp-runtime",
+			ACPCaps: acp.Caps{
+				SupportsLoadSession: true,
+				SupportedModes:      []string{"edit"},
+			},
+			CreatedAt: time.Date(2026, 7, 30, 12, 0, 0, 0, time.UTC),
+			UpdatedAt: time.Date(2026, 7, 30, 12, 1, 0, 0, time.UTC),
+		}
+		handler := &HostAPIHandler{sessions: promptSessionManagerStub{
+			listAllFn: func(context.Context) ([]*session.Info, error) {
+				return []*session.Info{info}, nil
+			},
+			statusFn: func(context.Context, string) (*session.Info, error) {
+				return info, nil
+			},
+		}}
+
+		listResult, err := handler.handleSessionsList(testutil.Context(t), nil)
+		if err != nil {
+			t.Fatalf("handleSessionsList() error = %v", err)
+		}
+		var listed []hostAPISessionSummary
+		decodeResult(t, listResult, &listed)
+		if len(listed) != 1 {
+			t.Fatalf("sessions/list len = %d, want 1", len(listed))
+		}
+		assertHostAPISessionRuntimePayload(t, listed[0].Runtime)
+
+		statusResult, err := handler.handleSessionsStatus(testutil.Context(t), mustMarshalRawMessage(t, map[string]string{
+			"workspace_id": workspaceID,
+			"session_id":   info.ID,
+		}))
+		if err != nil {
+			t.Fatalf("handleSessionsStatus() error = %v", err)
+		}
+		var status hostAPISessionStatus
+		decodeResult(t, statusResult, &status)
+		assertHostAPISessionRuntimePayload(t, status.Runtime)
+	})
+}
+
+func TestHostAPIHandlerSessionsPromptReturnsQueuedRuntimeAdmission(t *testing.T) {
+	t.Parallel()
+	t.Run("Should preserve queued runtime in prompt admission", func(t *testing.T) {
+		t.Parallel()
+
+		const workspaceID = "ws-queued-runtime"
+		estimatedSendAt := time.Date(2026, 7, 30, 12, 5, 0, 0, time.UTC)
+		var received session.SendPromptOpts
+		handler := &HostAPIHandler{sessions: promptSessionManagerStub{
+			statusFn: func(context.Context, string) (*session.Info, error) {
+				return &session.Info{ID: "sess-queued-runtime", WorkspaceID: workspaceID}, nil
+			},
+			eventsFn: func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error) {
+				return nil, nil
+			},
+			sendPromptFn: func(_ context.Context, _ string, opts session.SendPromptOpts) (session.SendPromptResult, error) {
+				received = opts
+				return session.SendPromptResult{
+					Status:          "queued",
+					Mode:            session.BusyInputModeQueue,
+					QueueEntryID:    "input-queued",
+					QueuePosition:   2,
+					QueueGeneration: 7,
+					EstimatedSendAt: &estimatedSendAt,
+					Queued:          true,
+				}, nil
+			},
+		}}
+
+		result, err := handler.handleSessionsPrompt(testutil.Context(t), mustMarshalRawMessage(t, map[string]any{
+			"workspace_id": workspaceID,
+			"session_id":   "sess-queued-runtime",
+			"message":      "Continue with the queued runtime.",
+			"runtime": map[string]string{
+				"provider":         "codex",
+				"model":            "gpt-5.6",
+				"reasoning_effort": "high",
+				"speed":            "fast",
+			},
+		}))
+		if err != nil {
+			t.Fatalf("handleSessionsPrompt() error = %v", err)
+		}
+		if received.Runtime == nil || received.Runtime.Provider != "codex" ||
+			received.Runtime.Model != "gpt-5.6" || received.Runtime.ReasoningEffort != "high" ||
+			received.Runtime.Speed != "fast" {
+			t.Fatalf("SendPrompt runtime = %#v, want requested runtime snapshot", received.Runtime)
+		}
+
+		var admission hostAPISessionPromptResult
+		decodeResult(t, result, &admission)
+		if admission.Status != "queued" || admission.Mode != session.BusyInputModeQueue ||
+			!admission.Queued || admission.QueueEntryID != "input-queued" ||
+			admission.QueuePosition != 2 || admission.QueueGeneration != 7 {
+			t.Fatalf("sessions/prompt admission = %#v, want queued admission metadata", admission)
+		}
+		if admission.TurnID != "" {
+			t.Fatalf("sessions/prompt queued turn_id = %q, want empty before delivery", admission.TurnID)
+		}
+		if admission.EstimatedSendAt == nil || !admission.EstimatedSendAt.Equal(estimatedSendAt) {
+			t.Fatalf("sessions/prompt estimated_send_at = %v, want %v", admission.EstimatedSendAt, estimatedSendAt)
+		}
+	})
+}
+
+func assertHostAPISessionRuntimePayload(t testing.TB, runtime apicontract.SessionRuntimePayload) {
+	t.Helper()
+
+	if runtime.Status != session.RuntimeStatusReady ||
+		runtime.Transition != session.RuntimeTransitionLiveConfiguration ||
+		runtime.Failure != "runtime warning" || runtime.ACPSessionID != "acp-runtime" {
+		t.Fatalf("runtime lifecycle payload = %#v", runtime)
+	}
+	if runtime.Effective == nil || runtime.Effective.Provider != "codex" ||
+		runtime.Effective.Model != "gpt-5.6" || runtime.Effective.ReasoningEffort != "high" ||
+		runtime.Effective.Speed != "fast" {
+		t.Fatalf("runtime effective payload = %#v", runtime.Effective)
+	}
+	if runtime.ACPCaps == nil || !runtime.ACPCaps.SupportsLoadSession ||
+		len(runtime.ACPCaps.SupportedModes) != 1 || runtime.ACPCaps.SupportedModes[0] != "edit" {
+		t.Fatalf("runtime ACP caps payload = %#v", runtime.ACPCaps)
+	}
 }
 
 func TestHostAPIHandlerCreateBridgeSessionUsesExplicitEmptyProvider(t *testing.T) {
@@ -2371,7 +2508,7 @@ func TestHostAPIHandlerSubmitPromptRejectsMissingSessionManager(t *testing.T) {
 	t.Parallel()
 
 	var handler HostAPIHandler
-	_, err := handler.submitPrompt(testutil.Context(t), "sess-1", "hello")
+	_, err := handler.submitPrompt(testutil.Context(t), "sess-1", "hello", nil)
 	if err == nil {
 		t.Fatal("submitPrompt() error = nil, want missing session manager error")
 	}
@@ -2408,7 +2545,7 @@ func TestHostAPIHandlerSubmitPromptRejectsMissingBoundaryEvents(t *testing.T) {
 		},
 	}
 
-	_, err := handler.submitPrompt(testutil.Context(t), "sess-1", "hello")
+	_, err := handler.submitPrompt(testutil.Context(t), "sess-1", "hello", nil)
 	if err == nil {
 		t.Fatal("submitPrompt() error = nil, want missing boundary error")
 	}
@@ -2463,7 +2600,7 @@ func TestHostAPIHandlerSubmitPromptRejectsUnexpectedStubCalls(t *testing.T) {
 			t.Parallel()
 
 			handler := &HostAPIHandler{sessions: tt.sessions}
-			_, err := handler.submitPrompt(testutil.Context(t), "sess-1", "hello")
+			_, err := handler.submitPrompt(testutil.Context(t), "sess-1", "hello", nil)
 			if err == nil {
 				t.Fatalf("submitPrompt() error = nil, want %q", tt.wantErr)
 			}
@@ -6646,16 +6783,21 @@ func mustStoredPromptEvent(t *testing.T, id string, sequence int64, event acp.Ag
 }
 
 type promptSessionManagerStub struct {
-	promptFn func(context.Context, string, string) (<-chan acp.AgentEvent, error)
-	eventsFn func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error)
-	statusFn func(context.Context, string) (*session.Info, error)
+	promptFn     func(context.Context, string, string) (<-chan acp.AgentEvent, error)
+	sendPromptFn func(context.Context, string, session.SendPromptOpts) (session.SendPromptResult, error)
+	eventsFn     func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error)
+	statusFn     func(context.Context, string) (*session.Info, error)
+	listAllFn    func(context.Context) ([]*session.Info, error)
 }
 
 func (s promptSessionManagerStub) Create(context.Context, session.CreateOpts) (*session.Session, error) {
 	return nil, errors.New("unexpected create call")
 }
 
-func (s promptSessionManagerStub) ListAll(context.Context) ([]*session.Info, error) {
+func (s promptSessionManagerStub) ListAll(ctx context.Context) ([]*session.Info, error) {
+	if s.listAllFn != nil {
+		return s.listAllFn(ctx)
+	}
 	return nil, errors.New("unexpected list call")
 }
 
@@ -6686,6 +6828,17 @@ func (s promptSessionManagerStub) Prompt(ctx context.Context, id string, msg str
 		return nil, errors.New("unexpected prompt call")
 	}
 	return s.promptFn(ctx, id, msg)
+}
+
+func (s promptSessionManagerStub) SendPrompt(
+	ctx context.Context,
+	id string,
+	opts session.SendPromptOpts,
+) (session.SendPromptResult, error) {
+	if s.sendPromptFn == nil {
+		return session.SendPromptResult{}, errors.New("unexpected send prompt call")
+	}
+	return s.sendPromptFn(ctx, id, opts)
 }
 
 func (s promptSessionManagerStub) ExecSandbox(

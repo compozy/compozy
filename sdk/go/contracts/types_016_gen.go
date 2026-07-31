@@ -7,6 +7,41 @@ import (
 	"time"
 )
 
+type ProviderModelPayload struct {
+	ProviderID             string                         `json:"provider_id"`
+	ModelID                string                         `json:"model_id"`
+	DisplayName            string                         `json:"display_name,omitempty"`
+	Sources                []ModelCatalogSourceRefPayload `json:"sources"`
+	Available              *bool                          `json:"available"`
+	AvailabilityState      string                         `json:"availability_state"`
+	Stale                  bool                           `json:"stale"`
+	RefreshedAt            string                         `json:"refreshed_at,omitempty"`
+	ContextWindow          *int64                         `json:"context_window,omitempty"`
+	MaxInputTokens         *int64                         `json:"max_input_tokens,omitempty"`
+	MaxOutputTokens        *int64                         `json:"max_output_tokens,omitempty"`
+	SupportsTools          *bool                          `json:"supports_tools,omitempty"`
+	SupportsReasoning      *bool                          `json:"supports_reasoning,omitempty"`
+	ReasoningEfforts       []Effort                       `json:"reasoning_efforts,omitempty"`
+	DefaultReasoningEffort *Effort                        `json:"default_reasoning_effort,omitempty"`
+	Cost                   *ModelCatalogCostPayload       `json:"cost,omitempty"`
+	Curated                bool                           `json:"curated"`
+	Deprecated             bool                           `json:"deprecated"`
+	Hidden                 bool                           `json:"hidden"`
+	Featured               bool                           `json:"featured"`
+	ReleaseDate            string                         `json:"release_date,omitempty"`
+	ReasoningSource        ReasoningSource                `json:"reasoning_source,omitempty"`
+	LastError              string                         `json:"last_error,omitempty"`
+}
+
+type ProviderModelRefreshResponse struct {
+	Sources []ModelCatalogSourceStatusPayload `json:"sources"`
+	Error   string                            `json:"error,omitempty"`
+}
+
+type ProviderModelStatusResponse struct {
+	Sources []ModelCatalogSourceStatusPayload `json:"sources"`
+}
+
 type ReasonCode string
 
 type ReasoningSource string
@@ -23,6 +58,16 @@ type Request struct {
 	ChannelID       *string          `json:"channel_id,omitempty"`
 	Bounds          *BoundsRequest   `json:"bounds,omitempty"`
 }
+
+type Resolution struct {
+	Requested Speed            `json:"requested"`
+	Status    ResolutionStatus `json:"status"`
+	Reason    ResolutionReason `json:"reason,omitempty"`
+}
+
+type ResolutionReason string
+
+type ResolutionStatus string
 
 type ResourceGetParams struct {
 	Kind ResourceKind `json:"kind"`
@@ -100,49 +145,4 @@ type RetryConfig struct {
 	Strategy   RetryStrategy `json:"strategy"`
 	MaxRetries int           `json:"max_retries"`
 	BaseDelay  string        `json:"base_delay"`
-}
-
-type RetryStrategy string
-
-type RiskClass string
-
-type RoutingKey struct {
-	Scope            BridgeScope `json:"scope"`
-	WorkspaceID      string      `json:"workspace_id,omitempty"`
-	BridgeInstanceID string      `json:"bridge_instance_id"`
-	PeerID           string      `json:"peer_id,omitempty"`
-	ThreadID         string      `json:"thread_id,omitempty"`
-	GroupID          string      `json:"group_id,omitempty"`
-}
-
-type RoutingPolicy struct {
-	IncludePeer   bool `json:"include_peer"`
-	IncludeThread bool `json:"include_thread"`
-	IncludeGroup  bool `json:"include_group"`
-}
-
-type Run struct {
-	ID                   string         `json:"id"`
-	JobID                string         `json:"job_id,omitempty"`
-	TriggerID            string         `json:"trigger_id,omitempty"`
-	SessionID            string         `json:"session_id,omitempty"`
-	TaskID               string         `json:"task_id,omitempty"`
-	TaskRunID            string         `json:"task_run_id,omitempty"`
-	LoopRunID            string         `json:"loop_run_id,omitempty"`
-	FireID               string         `json:"fire_id,omitempty"`
-	Status               RunStatus      `json:"status"`
-	Attempt              int            `json:"attempt"`
-	ScheduledAt          *time.Time     `json:"scheduled_at,omitempty"`
-	StartedAt            *time.Time     `json:"started_at,omitempty"`
-	EndedAt              *time.Time     `json:"ended_at,omitempty"`
-	Error                string         `json:"error,omitempty"`
-	DeliveryError        string         `json:"delivery_error,omitempty"`
-	DeliveryErrorAt      *time.Time     `json:"delivery_error_at,omitempty"`
-	NetworkParticipation *Request       `json:"network_participation,omitempty"`
-	Metadata             map[string]any `json:"metadata,omitempty"`
-}
-
-type RunDesignationSummary struct {
-	Index int    `json:"index"`
-	Brief string `json:"brief,omitempty"`
 }

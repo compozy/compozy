@@ -1,20 +1,10 @@
-import { isReasoningEffort, type ReasoningEffort, type RuntimeSpeed } from "@/lib/api-contract";
-import { resolveAgentRuntimeValue, type AgentPayload } from "@/systems/agent";
-import type { SessionProviderOption } from "@/systems/workspace";
-
 import type { NetworkParticipationStrategy } from "@/lib/network-participation";
 
 export interface SessionCreateDialogDraft {
   agentName: string;
   workspaceId: string;
   sessionName: string;
-  prompt: string;
   workspacePath: string;
-  providerOverride: string;
-  modelOverride: string;
-  reasoningEffort: ReasoningEffort | "";
-  /** ACP speed request (PR #267); "normal" is omitted from the POST body. */
-  speed: RuntimeSpeed;
   networkParticipationMode: "local" | "live";
   networkChannelId: string;
   networkChannelStrategy: NetworkParticipationStrategy | "";
@@ -28,24 +18,14 @@ export const ADVANCED_DEFAULTS = {
   networkChannelStrategy: "" as NetworkParticipationStrategy | "",
 };
 
-/** Runtime choices are visible in the composer but reset with agent/workspace identity. */
-export const RUNTIME_OVERRIDE_DEFAULTS = {
-  providerOverride: "",
-  modelOverride: "",
-  reasoningEffort: "" as ReasoningEffort | "",
-  speed: "normal" as RuntimeSpeed,
-};
-
 export const EMPTY_SESSION_CREATE_DRAFT: SessionCreateDialogDraft = {
   agentName: "",
   workspaceId: "",
   sessionName: "",
-  prompt: "",
-  ...RUNTIME_OVERRIDE_DEFAULTS,
   ...ADVANCED_DEFAULTS,
 };
 
-/** Preserve same-workspace text while resetting selections derived from agent identity. */
+/** Preserve the selected workspace while changing the session agent. */
 export function applySessionAgentSelection(
   current: SessionCreateDialogDraft,
   nextAgentName: string,
@@ -58,41 +38,7 @@ export function applySessionAgentSelection(
     ...EMPTY_SESSION_CREATE_DRAFT,
     agentName: nextAgentName,
     workspaceId: nextWorkspaceId,
-    prompt: current.workspaceId === nextWorkspaceId ? current.prompt : "",
   };
-}
-
-function pickDefaultProvider(
-  agent: AgentPayload | undefined,
-  options: SessionProviderOption[]
-): string {
-  if (options.length === 0) {
-    return "";
-  }
-  const effectiveProvider = resolveAgentRuntimeValue(agent).provider;
-  if (options.some(option => option.name === effectiveProvider)) {
-    return effectiveProvider;
-  }
-  return "";
-}
-
-export function resolveSelectedProvider(
-  agentName: string,
-  providerOverride: string,
-  agent: AgentPayload | undefined,
-  options: SessionProviderOption[]
-): string {
-  if (providerOverride.length > 0 && options.some(option => option.name === providerOverride)) {
-    return providerOverride;
-  }
-  if (agentName.trim().length === 0) {
-    return "";
-  }
-  return pickDefaultProvider(agent, options);
-}
-
-export function normalizeEffort(effort: string): ReasoningEffort | "" {
-  return effort === "" ? "" : isReasoningEffort(effort) ? effort : "";
 }
 
 type SessionWorkspacePathResolution =
@@ -103,7 +49,7 @@ type SessionWorkspacePathResolution =
 
 /**
  * Resolves the dialog's relative working-path input into the absolute create-session contract.
- * The input cannot escape the workspace selected for its agent/provider population.
+ * The input cannot escape the workspace selected for the session.
  */
 export function resolveSessionWorkspacePath(
   workspaceRoot: string,
@@ -128,11 +74,4 @@ export function resolveSessionWorkspacePath(
   const normalizedWorkspaceRoot =
     trimmedWorkspaceRoot === "/" ? "" : trimmedWorkspaceRoot.replace(/\/+$/, "");
   return { workspacePath: `${normalizedWorkspaceRoot}/${trimmedWorkingPath}` };
-}
-
-export function describeWorkspaceError(error: unknown): string {
-  if (error instanceof Error && error.message.trim().length > 0) {
-    return error.message;
-  }
-  return "Unable to load provider options for this workspace.";
 }

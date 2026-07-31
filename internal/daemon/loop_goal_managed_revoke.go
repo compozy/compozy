@@ -20,7 +20,7 @@ func (l *loopGoalManagedInputLifecycle) Revoke(
 	operation, err := l.loadOperation(ctx, owner)
 	if err != nil {
 		entry, lookupErr := l.store.GetSessionInputQueueEntryByID(ctx, owner.QueueEntryID)
-		if lookupErr == nil && managedGoalEntrySettled(entry) {
+		if lookupErr == nil && managedGoalEntrySettled(&entry) {
 			l.clearUsageReporter(owner.QueueEntryID)
 			return nil
 		}

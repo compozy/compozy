@@ -224,7 +224,8 @@ func TestGlobalDBAcceptNetworkMessage(t *testing.T) {
 		now := time.Date(2026, 7, 14, 2, 20, 0, 0, time.UTC)
 		if err := globalDB.RegisterSession(testutil.Context(t), SessionInfo{
 			ID: "sess-foreign-recipient", AgentName: "coder", Provider: "claude",
-			WorkspaceID: foreignWorkspaceID, State: "active", CreatedAt: now, UpdatedAt: now,
+			RuntimeStatus: store.SessionRuntimeUnbound,
+			WorkspaceID:   foreignWorkspaceID, State: "active", CreatedAt: now, UpdatedAt: now,
 		}); err != nil {
 			t.Fatalf("RegisterSession(foreign) error = %v", err)
 		}
@@ -1814,7 +1815,8 @@ func TestGlobalDBWriteConversationMessageDirectIsolationAndWorkLookup(t *testing
 		for _, sessionID := range []string{"foreign.coder", "foreign.reviewer"} {
 			if err := globalDB.RegisterSession(testutil.Context(t), SessionInfo{
 				ID: sessionID, AgentName: "coder", Provider: "claude",
-				WorkspaceID: foreignWorkspaceID, State: "active",
+				RuntimeStatus: store.SessionRuntimeUnbound,
+				WorkspaceID:   foreignWorkspaceID, State: "active",
 				CreatedAt: startedAt, UpdatedAt: startedAt,
 			}); err != nil {
 				t.Fatalf("RegisterSession(%q, foreign) error = %v", sessionID, err)
@@ -3492,13 +3494,14 @@ func openNetworkConversationRepositoryTestDB(t *testing.T) *GlobalDB {
 		"zulu.sess",
 	} {
 		if err := globalDB.RegisterSession(testutil.Context(t), SessionInfo{
-			ID:          sessionID,
-			AgentName:   "coder",
-			Provider:    "claude",
-			WorkspaceID: workspaceID,
-			State:       "active",
-			CreatedAt:   now,
-			UpdatedAt:   now,
+			ID:            sessionID,
+			AgentName:     "coder",
+			Provider:      "claude",
+			RuntimeStatus: store.SessionRuntimeUnbound,
+			WorkspaceID:   workspaceID,
+			State:         "active",
+			CreatedAt:     now,
+			UpdatedAt:     now,
 		}); err != nil {
 			t.Fatalf("RegisterSession(%q) error = %v", sessionID, err)
 		}

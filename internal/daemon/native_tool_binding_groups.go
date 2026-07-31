@@ -53,6 +53,14 @@ func (n *daemonNativeTools) sessionToolBindings(
 			call:         n.sessionList,
 			availability: catalogAvailability,
 		},
+		toolspkg.ToolIDSessionCreate: {
+			call:         n.sessionCreate,
+			availability: n.sessionCreateAvailability(),
+		},
+		toolspkg.ToolIDSessionPrompt: {
+			call:         n.sessionPrompt,
+			availability: availability,
+		},
 		toolspkg.ToolIDSessionStatus: {
 			call:         n.sessionStatus,
 			availability: availability,

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -22,6 +23,7 @@ import (
 	core "github.com/compozy/compozy/internal/api/core"
 	apitestutil "github.com/compozy/compozy/internal/api/testutil"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/diagnostics"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/observe"
@@ -2532,7 +2534,8 @@ func TestPromptSessionHandlerReturnsBusyInputDecision(t *testing.T) {
 			"/api/workspaces/ws-workspace/sessions/sess-123/prompt",
 			[]byte(
 				`{"messages":[{"id":"client-queue-1","role":"user",`+
-					`"parts":[{"type":"text","text":"queue me"}]}],"mode":"queue"}`,
+					`"parts":[{"type":"text","text":"queue me"}]}],"mode":"queue",`+
+					`"runtime":{"provider":"codex","model":"gpt-5.4","reasoning_effort":"high","speed":"fast"}}`,
 			),
 		)
 		if recorder.Code != http.StatusAccepted {
@@ -2542,6 +2545,11 @@ func TestPromptSessionHandlerReturnsBusyInputDecision(t *testing.T) {
 			gotOpts.ClientMessageID != "client-queue-1" {
 			t.Fatalf("SendPrompt() opts = %#v, want queue me queue", gotOpts)
 		}
+		if gotOpts.Runtime == nil || gotOpts.Runtime.Provider != "codex" ||
+			gotOpts.Runtime.Model != "gpt-5.4" || gotOpts.Runtime.ReasoningEffort != "high" ||
+			gotOpts.Runtime.Speed != contract.SpeedFast {
+			t.Fatalf("SendPrompt() runtime = %#v, want codex gpt-5.4 high fast", gotOpts.Runtime)
+		}
 		var decoded contract.SendPromptResultResponse
 		if err := json.Unmarshal(recorder.Body.Bytes(), &decoded); err != nil {
 			t.Fatalf("json.Unmarshal(prompt result) error = %v; body=%s", err, recorder.Body.String())
@@ -2550,6 +2558,119 @@ func TestPromptSessionHandlerReturnsBusyInputDecision(t *testing.T) {
 			t.Fatalf("decoded prompt = %#v, want queued inq-1", decoded.Prompt)
 		}
 	})
+}
+
+func TestPromptSessionHandlerPreservesRuntimeFailureDiagnostics(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name             string
+		err              error
+		wantCode         string
+		wantEvidence     map[string]any
+		wantSuggestedCmd string
+	}{
+		{
+			name: "Should preserve negotiation diagnostics from the prompt handler",
+			err: diagnostics.NewStructuredError(
+				diagnostics.NewItem(
+					"provider.negotiation.model_unavailable",
+					contract.CodeModelUnavailable,
+					contract.CategoryProvider,
+					"Requested model is unavailable",
+					"The requested model is unavailable for this provider.",
+					contract.SeverityError,
+					contract.FreshnessLive,
+					diagnostics.WithEvidence(map[string]any{
+						"stage":     "model",
+						"requested": "missing-model",
+					}),
+					diagnostics.WithSuggestedCommand("compozy settings providers get codex"),
+				),
+				&acp.NegotiationError{
+					Code:      acp.NegotiationCodeModelUnavailable,
+					Stage:     "model",
+					Requested: "missing-model",
+				},
+			),
+			wantCode: contract.CodeModelUnavailable,
+			wantEvidence: map[string]any{
+				"stage":     "model",
+				"requested": "missing-model",
+			},
+			wantSuggestedCmd: "compozy settings providers get codex",
+		},
+		{
+			name: "Should preserve provider authentication diagnostics from the prompt handler",
+			err: &acp.FailureError{
+				Kind:    store.FailureProviderAuth,
+				Summary: "provider authentication failed",
+				Err: diagnostics.NewStructuredError(
+					diagnostics.NewItem(
+						"provider.auth.not_authenticated",
+						contract.CodeProviderNotAuthenticated,
+						contract.CategoryProvider,
+						"Provider is not authenticated",
+						"Sign in before sending a prompt.",
+						contract.SeverityError,
+						contract.FreshnessLive,
+						diagnostics.WithEvidence(map[string]any{
+							"provider": "codex",
+							"state":    "needs_login",
+						}),
+						diagnostics.WithSuggestedCommand("codex login"),
+					),
+					errors.New("provider authentication is required"),
+				),
+			},
+			wantCode: contract.CodeProviderNotAuthenticated,
+			wantEvidence: map[string]any{
+				"provider": "codex",
+				"state":    "needs_login",
+			},
+			wantSuggestedCmd: "codex login",
+		},
+	}
+
+	for _, testCase := range testCases {
+		testCase := testCase
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			homePaths := newTestHomePaths(t)
+			manager := stubSessionManager{
+				SendPromptFn: func(context.Context, string, session.SendPromptOpts) (session.SendPromptResult, error) {
+					return session.SendPromptResult{}, testCase.err
+				},
+			}
+			engine := newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, homePaths))
+			recorder := performRequest(
+				t,
+				engine,
+				http.MethodPost,
+				"/api/workspaces/ws-workspace/sessions/sess-123/prompt",
+				[]byte(`{"message":"hello"}`),
+			)
+			if recorder.Code != http.StatusUnprocessableEntity {
+				t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusUnprocessableEntity, recorder.Body.String())
+			}
+
+			var payload contract.ErrorPayload
+			decodeJSONResponse(t, recorder, &payload)
+			if payload.Diagnostic == nil {
+				t.Fatalf("error payload = %#v, want diagnostic", payload)
+			}
+			if payload.Diagnostic.Code != testCase.wantCode {
+				t.Fatalf("diagnostic code = %q, want %q", payload.Diagnostic.Code, testCase.wantCode)
+			}
+			if !maps.Equal(payload.Diagnostic.Evidence, testCase.wantEvidence) {
+				t.Fatalf("diagnostic evidence = %#v, want %#v", payload.Diagnostic.Evidence, testCase.wantEvidence)
+			}
+			if payload.Diagnostic.SuggestedCommand != testCase.wantSuggestedCmd {
+				t.Fatalf("diagnostic suggested command = %q, want %q", payload.Diagnostic.SuggestedCommand, testCase.wantSuggestedCmd)
+			}
+		})
+	}
 }
 
 func TestPromptSessionHandlerReturnsStructuredGoalDecision(t *testing.T) {

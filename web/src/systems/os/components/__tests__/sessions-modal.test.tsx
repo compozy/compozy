@@ -20,7 +20,11 @@ function session(overrides: Partial<SessionPayload> = {}): SessionPayload {
     id: "session-1",
     name: "Web shell polish",
     agent_name: "codex",
-    provider: "codex",
+    runtime: {
+      status: "ready",
+      transition: "initial_bind",
+      effective: { provider: "codex" },
+    },
     workspace_id: "workspace-1",
     workspace_path: "/workspace/compozy",
     state: "active",

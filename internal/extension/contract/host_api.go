@@ -142,20 +142,17 @@ type SessionsListParams struct {
 
 // SessionsCreateParams starts a new session.
 type SessionsCreateParams struct {
-	Agent                string                      `json:"agent"`
-	Prompt               string                      `json:"prompt,omitempty"`
-	Provider             string                      `json:"provider,omitempty"`
-	Model                string                      `json:"model,omitempty"`
-	ReasoningEffort      apicontract.ReasoningEffort `json:"reasoning_effort,omitempty"`
-	Workspace            string                      `json:"workspace,omitempty"`
-	NetworkParticipation *participation.Request      `json:"network_participation,omitempty"`
+	Agent                string                 `json:"agent"`
+	Workspace            string                 `json:"workspace,omitempty"`
+	NetworkParticipation *participation.Request `json:"network_participation,omitempty"`
 }
 
 // SessionsPromptParams submits one prompt to an existing session.
 type SessionsPromptParams struct {
-	WorkspaceID string `json:"workspace_id"`
-	SessionID   string `json:"session_id"`
-	Message     string `json:"message"`
+	WorkspaceID string                                     `json:"workspace_id"`
+	SessionID   string                                     `json:"session_id"`
+	Message     string                                     `json:"message"`
+	Runtime     *apicontract.PromptRuntimeSelectionPayload `json:"runtime,omitempty"`
 }
 
 // SessionTargetParams identifies an existing session.

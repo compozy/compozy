@@ -11,8 +11,6 @@ import (
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/admission"
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	"github.com/compozy/compozy/internal/diagnosticcontract"
-	"github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/transcript"
@@ -64,58 +62,6 @@ func TestSessionWorkspaceHelpers(t *testing.T) {
 		}
 		if err := validateCreateSessionRequest("core-test", "alpha", ""); err != nil {
 			t.Fatalf("validateCreateSessionRequest(workspace ref) error = %v", err)
-		}
-	})
-
-	t.Run("Should validate create session runtime overrides", func(t *testing.T) {
-		t.Parallel()
-
-		if err := validateCreateSessionRuntimeOverrides("core-test", "", "gpt-5.4", "", ""); !errors.Is(
-			err,
-			session.ErrInvalidRuntimeOverride,
-		) {
-			t.Fatalf("validateCreateSessionRuntimeOverrides(model) error = %v, want ErrInvalidRuntimeOverride", err)
-		}
-		if err := validateCreateSessionRuntimeOverrides("core-test", "", "", "high", ""); !errors.Is(
-			err,
-			session.ErrInvalidRuntimeOverride,
-		) {
-			t.Fatalf(
-				"validateCreateSessionRuntimeOverrides(reasoning provider) error = %v, want ErrInvalidRuntimeOverride",
-				err,
-			)
-		}
-		err := validateCreateSessionRuntimeOverrides(
-			"core-test",
-			"codex",
-			"",
-			"ultra",
-			"",
-		)
-		if !errors.Is(err, session.ErrInvalidRuntimeOverride) {
-			t.Fatalf(
-				"validateCreateSessionRuntimeOverrides(reasoning enum) error = %v, want ErrInvalidRuntimeOverride",
-				err,
-			)
-		}
-		item, ok := diagnostics.ItemFromError(err)
-		if !ok || item.Code != diagnosticcontract.CodeReasoningEffortUnsupported {
-			t.Fatalf("reasoning enum diagnostic = %#v, want reasoning_effort_unsupported; err=%v", item, err)
-		}
-		if got, want := statusForSessionError(err), http.StatusUnprocessableEntity; got != want {
-			t.Fatalf("statusForSessionError(reasoning enum) = %d, want %d", got, want)
-		}
-		if err := validateCreateSessionRuntimeOverrides("core-test", "codex", "gpt-5.4", "high", "fast"); err != nil {
-			t.Fatalf("validateCreateSessionRuntimeOverrides(valid) error = %v", err)
-		}
-	})
-
-	t.Run("Should reject an invalid speed override", func(t *testing.T) {
-		t.Parallel()
-
-		err := validateCreateSessionRuntimeOverrides("core-test", "", "", "", "turbo")
-		if !errors.Is(err, session.ErrInvalidRuntimeOverride) {
-			t.Fatalf("validateCreateSessionRuntimeOverrides(speed) error = %v, want ErrInvalidRuntimeOverride", err)
 		}
 	})
 

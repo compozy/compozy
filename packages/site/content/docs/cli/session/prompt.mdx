@@ -17,6 +17,10 @@ compozy session prompt <id> <message> [flags]
   # Send a follow-up prompt to an active session
   compozy session prompt sess_1234 "Summarize the current changes."
 
+  # Select the runtime snapshot for this prompt
+  compozy session prompt sess_1234 "Review the patch." \
+    --provider codex --model gpt-5.6-sol --reasoning-effort high --speed fast
+
   # Queue input while the session is busy
   compozy session prompt sess_1234 "Run the next check." --queue
 
@@ -30,11 +34,15 @@ compozy session prompt <id> <message> [flags]
 ### Options
 
 ```
-      --cancel string   Cancel a queued prompt entry by id
-  -h, --help            help for prompt
-      --interrupt       Interrupt the active turn before sending this prompt
-      --queue           Queue the prompt if the session is busy
-      --steer           Stage steering guidance for the active turn
+      --cancel string             Cancel a queued prompt entry by id
+  -h, --help                      help for prompt
+      --interrupt                 Interrupt the active turn before sending this prompt
+      --model string              Runtime model for this prompt
+      --provider string           Runtime provider for this prompt
+      --queue                     Queue the prompt if the session is busy
+      --reasoning-effort string   Runtime reasoning effort for this prompt (none|minimal|low|medium|high|xhigh|max)
+      --speed string              Runtime speed for this prompt (normal|fast)
+      --steer                     Stage steering guidance for the active turn
 ```
 
 ### Options inherited from parent commands

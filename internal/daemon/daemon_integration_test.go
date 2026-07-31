@@ -3974,10 +3974,11 @@ func seedDetachedHarnessSessionIndex(
 			SessionNetworkState: &store.SessionNetworkState{
 				NetworkSpec: info.NetworkParticipation,
 			},
-			SessionType: string(info.Type),
-			State:       string(info.State),
-			CreatedAt:   time.Now().UTC(),
-			UpdatedAt:   time.Now().UTC(),
+			SessionType:   string(info.Type),
+			State:         string(info.State),
+			RuntimeStatus: store.SessionRuntimeUnbound,
+			CreatedAt:     time.Now().UTC(),
+			UpdatedAt:     time.Now().UTC(),
 		}); err != nil {
 			t.Fatalf("RegisterSession(%q) error = %v", info.ID, err)
 		}

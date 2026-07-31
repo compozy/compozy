@@ -3,10 +3,11 @@ title: Provider Model Catalog
 description: Daemon-owned model catalog — sources, refresh lifecycle, native HTTP/UDS endpoints, OpenAI-compatible projection, and extension model.source contract.
 ---
 
-The model catalog is the daemon-owned authority for **pre-session** provider model selection. The
-new-session dialog, CLI, HTTP, UDS, Host API, web settings, and the OpenAI-compatible model list
-all read the same projected rows. Active session controls keep flowing through ACP `configOptions`
-once a session is running.
+The model catalog is the daemon-owned authority for provider model selection before a prompt binds
+ACP. The session-create dialog, CLI, HTTP, UDS, Host API, web settings, and the OpenAI-compatible
+model list all read the same projected rows. Creating a session does not start ACP; the first prompt
+carries its nested `runtime` snapshot and negotiates the selected provider, model, reasoning effort,
+and speed.
 
 Catalog refresh never blocks session creation. Every refresh is detached from the request lifetime,
 runs under an explicit deadline, falls back to stale rows when refresh fails, and exposes source
@@ -15,12 +16,12 @@ first prompt when the active ACP adapter does not advertise an applicable option
 
 ## Why a separate catalog
 
-ACP `models.availableModels` is observed only after `session/new` or `session/load`, which is too
-late for the new-session dialog and for agents picking a model through CLI/HTTP/UDS. The catalog
+ACP `models.availableModels` is observed only after prompt binding or replay, which is too late for
+the session-create dialog and for agents picking a model through CLI/HTTP/UDS. The catalog
 splits two concepts that used to live together:
 
-- Pre-session catalog: which provider models Compozy knows about before creating a session.
-- Active session config: which controls the running ACP session exposes right now.
+- Pre-prompt catalog: which provider models Compozy knows about before a prompt binds a session.
+- Bound runtime config: which controls the current ACP process exposes right now.
 
 The catalog is daemon-owned, persisted, refreshable, extensible, and agent-manageable. Active
 session `configOptions` continue to govern the live session — catalog rows never override them.
@@ -303,8 +304,9 @@ between `compozy provider models …` and the daemon HTTP response for the same 
 | `reasoning_option_missing`     | An effort was requested, but the adapter advertised no applicable reasoning option. |
 | `reasoning_effort_unsupported` | The reasoning option exists, but does not advertise the requested level.            |
 
-Session negotiation failures return HTTP/UDS 422 before the first prompt. CLI and native-tool
-errors preserve the same diagnostic code.
+Session negotiation failures return HTTP/UDS 422 for the prompt that selected the runtime. A failed
+bind, replacement, or rollback does not create a persisted `user_message`; the logical session stays
+available for a later prompt. CLI and native-tool errors preserve the same diagnostic code.
 
 See [`compozy provider models`](/docs/cli/provider/models) for full flag and output
 documentation generated from the cobra source.

@@ -61,13 +61,9 @@ func (h *BaseHandlers) CreateSession(c *gin.Context) {
 
 	opts := session.CreateOpts{
 		AgentName:            req.AgentName,
-		Provider:             strings.TrimSpace(req.Provider),
-		Model:                strings.TrimSpace(req.Model),
-		ReasoningEffort:      strings.TrimSpace(string(req.ReasoningEffort)),
-		Speed:                req.Speed,
 		Name:                 req.Name,
-		Workspace:            strings.TrimSpace(req.Workspace),
-		WorkspacePath:        strings.TrimSpace(req.WorkspacePath),
+		Workspace:            req.Workspace,
+		WorkspacePath:        req.WorkspacePath,
 		NetworkParticipation: req.NetworkParticipation,
 		Type:                 session.SessionTypeUser,
 	}
@@ -79,10 +75,7 @@ func (h *BaseHandlers) CreateSession(c *gin.Context) {
 		)
 		return
 	}
-	info, err := h.SessionAcceptance.CreateAccepted(c.Request.Context(), session.CreateAcceptedOpts{
-		Session:       opts,
-		InitialPrompt: strings.TrimSpace(req.Prompt),
-	})
+	info, err := h.SessionAcceptance.CreateAccepted(c.Request.Context(), session.CreateAcceptedOpts{Session: opts})
 	if err != nil {
 		h.respondError(c, StatusForSessionError(err), err)
 		return

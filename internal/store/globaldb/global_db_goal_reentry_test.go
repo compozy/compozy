@@ -63,12 +63,13 @@ func TestGlobalDBReactivateGoalRunShouldEnqueueOneEpochScopedSuccessor(t *testin
 			t.Fatalf("insert Goal generation output error = %v", err)
 		}
 		if err := globalDB.RegisterSession(ctx, SessionInfo{
-			ID:          "session-goal-reentry",
-			AgentName:   "codex",
-			WorkspaceID: string(loopRun.WorkspaceID),
-			State:       "active",
-			CreatedAt:   now,
-			UpdatedAt:   now,
+			ID:            "session-goal-reentry",
+			AgentName:     "codex",
+			RuntimeStatus: store.SessionRuntimeUnbound,
+			WorkspaceID:   string(loopRun.WorkspaceID),
+			State:         "active",
+			CreatedAt:     now,
+			UpdatedAt:     now,
 		}); err != nil {
 			t.Fatalf("RegisterSession() error = %v", err)
 		}

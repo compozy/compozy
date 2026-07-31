@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/store"
 )
 
@@ -115,6 +116,44 @@ func TestSessionInfoCopiesCapabilities(t *testing.T) {
 	})
 }
 
+func TestRuntimeBindingSnapshotRestore(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should restore the agent definition with the runtime binding", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 7, 30, 12, 0, 0, 0, time.UTC)
+		session := &Session{
+			ID:        "sess-1",
+			AgentName: "coder",
+			Workspace: t.TempDir(),
+			State:     StateActive,
+			agentDef: compozyconfig.AgentDef{
+				Name:   "coder",
+				Prompt: "previous definition",
+				Tools:  []string{"read"},
+			},
+			CreatedAt: now,
+			UpdatedAt: now,
+		}
+		snapshot := session.runtimeBindingSnapshot()
+		session.setAgentDefinition(compozyconfig.AgentDef{
+			Name:   "coder",
+			Prompt: "candidate definition",
+			Tools:  []string{"write"},
+		})
+
+		session.restoreRuntimeBinding(&snapshot, "catalog persistence failed", now.Add(time.Second))
+		definition := session.AgentDefinition()
+		if definition.Prompt != "previous definition" {
+			t.Fatalf("AgentDefinition().Prompt = %q, want prior definition", definition.Prompt)
+		}
+		if len(definition.Tools) != 1 || definition.Tools[0] != "read" {
+			t.Fatalf("AgentDefinition().Tools = %#v, want prior definition tools", definition.Tools)
+		}
+	})
+}
+
 func TestSessionActivateCanPreserveRecoveredStopClassification(t *testing.T) {
 	t.Parallel()
 
@@ -199,6 +238,9 @@ func TestSessionMetadataRoundTrip(t *testing.T) {
 			Name:                 "Provider Session",
 			AgentName:            "coder",
 			Provider:             "codex",
+			RuntimeStatus:        RuntimeStatusReady,
+			RuntimeTransition:    RuntimeTransitionInitialBind,
+			ACPSessionID:         "acp-provider",
 			WorkspaceID:          "ws-provider",
 			Workspace:            t.TempDir(),
 			NetworkParticipation: testLocalParticipation(),
@@ -211,8 +253,17 @@ func TestSessionMetadataRoundTrip(t *testing.T) {
 		if got := meta.Provider; got != "codex" {
 			t.Fatalf("Meta().Provider = %q, want %q", got, "codex")
 		}
-		if got := session.Info().Provider; got != "codex" {
+		if meta.RuntimeStatus != RuntimeStatusReady || meta.RuntimeTransition != RuntimeTransitionInitialBind ||
+			derefString(meta.ACPSessionID) != "acp-provider" {
+			t.Fatalf("Meta() runtime = %#v, want ready initial bind with ACP session", meta)
+		}
+		info := session.Info()
+		if got := info.Provider; got != "codex" {
 			t.Fatalf("Info().Provider = %q, want %q", got, "codex")
+		}
+		if info.RuntimeStatus != RuntimeStatusReady || info.RuntimeTransition != RuntimeTransitionInitialBind ||
+			info.ACPSessionID != "acp-provider" {
+			t.Fatalf("Info() runtime = %#v, want ready initial bind with ACP session", info)
 		}
 
 		metaPath := filepath.Join(t.TempDir(), "meta.json")
@@ -226,6 +277,11 @@ func TestSessionMetadataRoundTrip(t *testing.T) {
 		}
 		if got := readBack.Provider; got != "codex" {
 			t.Fatalf("ReadSessionMeta().Provider = %q, want %q", got, "codex")
+		}
+		if readBack.RuntimeStatus != RuntimeStatusReady ||
+			readBack.RuntimeTransition != RuntimeTransitionInitialBind ||
+			derefString(readBack.ACPSessionID) != "acp-provider" {
+			t.Fatalf("ReadSessionMeta() runtime = %#v, want ready initial bind with ACP session", readBack)
 		}
 	})
 
@@ -241,6 +297,7 @@ func TestSessionMetadataRoundTrip(t *testing.T) {
 		session := &Session{
 			ID:                   "sess-commands",
 			AgentName:            "coder",
+			RuntimeStatus:        RuntimeStatusUnbound,
 			WorkspaceID:          "ws-commands",
 			Workspace:            t.TempDir(),
 			NetworkParticipation: testLocalParticipation(),
@@ -252,6 +309,9 @@ func TestSessionMetadataRoundTrip(t *testing.T) {
 
 		meta := session.Meta()
 		info := session.Info()
+		if meta.RuntimeStatus != RuntimeStatusUnbound || info.RuntimeStatus != RuntimeStatusUnbound {
+			t.Fatalf("logical session runtime = meta %q / info %q, want unbound", meta.RuntimeStatus, info.RuntimeStatus)
+		}
 		commands[0].Name = "mutated-source"
 		if got := meta.AdvertisedCommands[0].Name; got != "compact" {
 			t.Fatalf("Meta().AdvertisedCommands[0].Name = %q, want compact", got)
@@ -274,6 +334,9 @@ func TestSessionMetadataRoundTrip(t *testing.T) {
 				readBack.AdvertisedCommands,
 				meta.AdvertisedCommands,
 			)
+		}
+		if readBack.RuntimeStatus != RuntimeStatusUnbound {
+			t.Fatalf("ReadSessionMeta().RuntimeStatus = %q, want %q", readBack.RuntimeStatus, RuntimeStatusUnbound)
 		}
 	})
 }

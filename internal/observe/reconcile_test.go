@@ -36,6 +36,7 @@ func TestReconciliationIndexesSessionDirNotInDB(t *testing.T) {
 			WorkspaceID:          h.workspaceID,
 			NetworkParticipation: participation.CloneSpec(participation.LocalSpec()),
 			State:                "stopped",
+			RuntimeStatus:        store.SessionRuntimeUnbound,
 			StopReason:           &stopReason,
 			StopDetail:           "requested by API",
 			CreatedAt:            now,
@@ -150,6 +151,7 @@ func TestReconciliationPreservesDurableSessionProjectionMetadata(t *testing.T) {
 				WorkspaceID:          h.workspaceID,
 				NetworkParticipation: participation.CloneSpec(participation.LocalSpec()),
 				State:                "stopped",
+				RuntimeStatus:        store.SessionRuntimeUnbound,
 				CreatedAt:            now,
 				UpdatedAt:            now,
 			},
@@ -166,6 +168,7 @@ func TestReconciliationPreservesDurableSessionProjectionMetadata(t *testing.T) {
 				WorkspaceID:          h.workspaceID,
 				NetworkParticipation: participation.CloneSpec(participation.LocalSpec()),
 				State:                "stopped",
+				RuntimeStatus:        store.SessionRuntimeUnbound,
 				Lineage: &store.SessionLineage{
 					ParentSessionID: rootID,
 					RootSessionID:   rootID,
@@ -184,10 +187,14 @@ func TestReconciliationPreservesDurableSessionProjectionMetadata(t *testing.T) {
 				Name:                 "Child",
 				AgentName:            "coder",
 				Provider:             "claude",
+				Model:                " gpt-5.6 ",
+				ReasoningEffort:      " high ",
+				RuntimeFailure:       " runtime warning ",
 				WorkspaceID:          h.workspaceID,
 				NetworkParticipation: participation.CloneSpec(participation.LocalSpec()),
 				SessionType:          "worker",
 				State:                "stopped",
+				RuntimeStatus:        store.SessionRuntimeUnbound,
 				ACPSessionID:         &acpSessionID,
 				StopReason:           &stopReason,
 				StopDetail:           "agent process exited",
@@ -254,6 +261,10 @@ func TestReconciliationPreservesDurableSessionProjectionMetadata(t *testing.T) {
 		}
 		if indexed.ID == "" {
 			t.Fatalf("ListSessions() = %#v, want child session", sessions)
+		}
+		if indexed.Model != "gpt-5.6" || indexed.ReasoningEffort != "high" ||
+			indexed.RuntimeFailure != "runtime warning" {
+			t.Fatalf("indexed runtime metadata = %#v, want trimmed metadata", indexed)
 		}
 		if indexed.Lineage == nil ||
 			indexed.Lineage.ParentSessionID != parentID ||
@@ -347,14 +358,15 @@ func TestReconciliationMarksMissingDirectoryAsOrphaned(t *testing.T) {
 		h := newHarness(t)
 		now := h.now
 		if err := h.observer.registry.RegisterSession(testutil.Context(t), store.SessionInfo{
-			ID:          "sess-orphan",
-			Name:        "Orphan",
-			AgentName:   "coder",
-			Provider:    "claude",
-			WorkspaceID: h.workspaceID,
-			State:       "active",
-			CreatedAt:   now,
-			UpdatedAt:   now,
+			ID:            "sess-orphan",
+			Name:          "Orphan",
+			AgentName:     "coder",
+			Provider:      "claude",
+			RuntimeStatus: store.SessionRuntimeUnbound,
+			WorkspaceID:   h.workspaceID,
+			State:         "active",
+			CreatedAt:     now,
+			UpdatedAt:     now,
 		}); err != nil {
 			t.Fatalf("RegisterSession() error = %v", err)
 		}
@@ -405,6 +417,7 @@ func TestReconciliationLegacyProviderRepair(t *testing.T) {
 					WorkspaceID:          h.workspaceID,
 					NetworkParticipation: participation.CloneSpec(participation.LocalSpec()),
 					State:                "stopped",
+					RuntimeStatus:        store.SessionRuntimeUnbound,
 					CreatedAt:            now,
 					UpdatedAt:            now,
 				}); err != nil {
@@ -459,6 +472,7 @@ func TestReconciliationLegacyProviderRepair(t *testing.T) {
 					WorkspaceID:          h.workspaceID,
 					NetworkParticipation: participation.CloneSpec(participation.LocalSpec()),
 					State:                "active",
+					RuntimeStatus:        store.SessionRuntimeUnbound,
 					CreatedAt:            now,
 					UpdatedAt:            now,
 				}); err != nil {
@@ -471,6 +485,7 @@ func TestReconciliationLegacyProviderRepair(t *testing.T) {
 					WorkspaceID:          h.workspaceID,
 					NetworkParticipation: participation.CloneSpec(participation.LocalSpec()),
 					State:                "stopped",
+					RuntimeStatus:        store.SessionRuntimeUnbound,
 					CreatedAt:            now,
 					UpdatedAt:            now,
 				}); err != nil {
@@ -549,6 +564,7 @@ func TestReconciliationSkipsLegacyStoppedSessionMetadata(t *testing.T) {
 			WorkspaceID:          h.workspaceID,
 			NetworkParticipation: participation.CloneSpec(participation.LocalSpec()),
 			State:                "active",
+			RuntimeStatus:        store.SessionRuntimeUnbound,
 			CreatedAt:            now,
 			UpdatedAt:            now,
 		}); err != nil {

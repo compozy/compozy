@@ -119,7 +119,7 @@ export const handlers: HttpHandler[] = [
       );
     }
 
-    // The durable 201 remains asynchronous; prompt dispatch belongs to the daemon.
+    // Creation accepts a durable, unbound session; prompt dispatch owns runtime binding.
     return HttpResponse.json(
       {
         session: {
@@ -127,7 +127,8 @@ export const handlers: HttpHandler[] = [
           id: `sess_${(body.name ?? body.agent_name ?? "story").replace(/[^a-zA-Z0-9]+/g, "_").toLowerCase()}`,
           name: body.name ?? primarySessionFixture.name,
           agent_name: body.agent_name ?? primarySessionFixture.agent_name,
-          state: "starting",
+          state: "active",
+          runtime: { status: "unbound" },
           workspace_id: workspaceId,
           workspace_path:
             body.workspace_path ?? body.workspace ?? primarySessionFixture.workspace_path,

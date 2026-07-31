@@ -97,7 +97,10 @@ function makeSession(state: SessionPayload["state"]): SessionPayload {
   return {
     id: "sess-1",
     agent_name: "codex-agent",
-    provider: "codex",
+    runtime: {
+      status: state === "stopped" ? "unbound" : "ready",
+      effective: { provider: "codex" },
+    },
     workspace_id: WORKSPACE_ID,
     workspace_path: "/workspace",
     state,
@@ -439,6 +442,46 @@ describe("useSessionPageControls", () => {
       message: "queue me",
     });
     expect(result.current.queuedPrompts).toEqual([{ id: "inq-1", text: "queue me" }]);
+  });
+
+  // Invariant: a busy-input request carries the runtime selected at its own
+  // dispatch boundary, so later selector changes cannot alter a queued or
+  // replacement prompt. Owning layer: route control orchestration. Canonical
+  // suite: use-session-page-controls.test.tsx.
+  it("snapshots the selected runtime for queued and interrupted prompts", async () => {
+    const runtime = {
+      model: "gpt-5.4",
+      provider: "codex",
+      reasoning_effort: "high" as const,
+      speed: "fast" as const,
+    };
+    routeHookMocks.auiState.thread.isRunning = true;
+    routeHookMocks.queuePromptMutation.mutateAsync.mockResolvedValue({
+      queued: true,
+      queue_entry_id: "inq-runtime",
+    });
+    routeHookMocks.interruptPromptMutation.mutateAsync.mockResolvedValue({ queued: false });
+    const getRuntimeSnapshot = vi.fn(() => runtime);
+    const { result } = renderControls("active", { getRuntimeSnapshot });
+
+    await act(async () => {
+      await result.current.handleQueuePrompt("queue with selected runtime");
+    });
+    await act(async () => {
+      await result.current.handleInterruptPrompt("replace with selected runtime");
+    });
+
+    expect(routeHookMocks.queuePromptMutation.mutateAsync).toHaveBeenCalledWith({
+      id: "sess-1",
+      message: "queue with selected runtime",
+      runtime,
+    });
+    expect(routeHookMocks.interruptPromptMutation.mutateAsync).toHaveBeenCalledWith({
+      id: "sess-1",
+      message: "replace with selected runtime",
+      runtime,
+    });
+    expect(getRuntimeSnapshot).toHaveBeenCalledTimes(2);
   });
 
   it("keeps a pending busy-input request owned while the daemon advances turns", async () => {

@@ -7,6 +7,7 @@ const siteRoot = fileURLToPath(new URL(".", import.meta.url));
 export default defineConfig({
   plugins: [react()],
   resolve: {
+    dedupe: ["fumadocs-core"],
     alias: {
       "@": fileURLToPath(new URL(".", import.meta.url)),
       "@compozy/ui/utils": fileURLToPath(new URL("../ui/src/lib/utils.ts", import.meta.url)),
@@ -27,5 +28,10 @@ export default defineConfig({
     globals: true,
     include: ["**/*.{test,spec}.{ts,tsx}"],
     exclude: ["**/node_modules/**", "**/out/**", "**/.next/**"],
+    server: {
+      deps: {
+        inline: [/fumadocs-core/, /fumadocs-ui/],
+      },
+    },
   },
 });

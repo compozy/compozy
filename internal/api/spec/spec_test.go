@@ -282,12 +282,38 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					sessionSchema,
 					"id",
 					"agent_name",
-					"provider",
+					"runtime",
 					"state",
 					"badge",
 					"attachable",
 					"created_at",
 					"updated_at",
+				)
+				assertPropertyAbsent(t, sessionSchema, "provider")
+				assertPropertyAbsent(t, sessionSchema, "model")
+				assertPropertyAbsent(t, sessionSchema, "reasoning_effort")
+				assertPropertyAbsent(t, sessionSchema, "speed")
+
+				runtimeSchema := propertySchema(t, sessionSchema, "runtime")
+				assertRequired(t, runtimeSchema, "status")
+				assertNotRequired(
+					t,
+					runtimeSchema,
+					"transition",
+					"failure",
+					"effective",
+					"acp_session_id",
+					"acp_caps",
+				)
+				effectiveRuntimeSchema := propertySchema(t, runtimeSchema, "effective")
+				assertRequired(t, effectiveRuntimeSchema, "provider")
+				assertNotRequired(
+					t,
+					effectiveRuntimeSchema,
+					"model",
+					"reasoning_effort",
+					"speed",
+					"speed_resolution",
 				)
 				assertNotRequired(
 					t,
@@ -618,28 +644,15 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					t,
 					createSessionSchema,
 					"agent_name",
-					"provider",
 					"name",
 					"workspace",
 					"workspace_path",
 				)
-				assertEnumValues(
-					t,
-					propertySchema(t, createSessionSchema, "reasoning_effort"),
-					"none",
-					"minimal",
-					"low",
-					"medium",
-					"high",
-					"xhigh",
-					"max",
-				)
-				assertEnumValues(
-					t,
-					propertySchema(t, createSessionSchema, "speed"),
-					"normal",
-					"fast",
-				)
+				assertPropertyAbsent(t, createSessionSchema, "provider")
+				assertPropertyAbsent(t, createSessionSchema, "model")
+				assertPropertyAbsent(t, createSessionSchema, "reasoning_effort")
+				assertPropertyAbsent(t, createSessionSchema, "speed")
+				assertPropertyAbsent(t, createSessionSchema, "runtime")
 			},
 		},
 		{

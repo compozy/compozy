@@ -17,7 +17,7 @@ import (
 func readManagedGoalPromptOutput(
 	ctx context.Context,
 	reader loopSessionEventReader,
-	entry store.SessionInputQueueEntry,
+	entry *store.SessionInputQueueEntry,
 	result looppkg.ActionPromptResult,
 ) (string, json.RawMessage, error) {
 	events, err := reader.Events(ctx, entry.SessionID, store.EventQuery{TurnID: entry.PromptID})

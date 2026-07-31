@@ -2,6 +2,14 @@
 
 package contracts
 
+type ArtifactRef struct {
+	URI      string `json:"uri"`
+	Name     string `json:"name,omitempty"`
+	MIMEType string `json:"mime_type,omitempty"`
+	Bytes    int64  `json:"bytes,omitempty"`
+	SHA256   string `json:"sha256,omitempty"`
+}
+
 type AuthoredContextActorPayload struct {
 	Kind string `json:"kind"`
 	Ref  string `json:"ref,omitempty"`
@@ -171,22 +179,4 @@ type AutomationSchedulePayload struct {
 
 type AutomationTargetParams struct {
 	ID string `json:"id"`
-}
-
-type AutomationTriggerCreateParams struct {
-	Scope              Scope             `json:"scope"`
-	Name               string            `json:"name"`
-	TargetKind         TargetKind        `json:"target_kind,omitempty"`
-	AgentName          string            `json:"agent_name"`
-	WorkspaceID        string            `json:"workspace_id,omitempty"`
-	Prompt             string            `json:"prompt"`
-	Event              string            `json:"event"`
-	Filter             map[string]string `json:"filter,omitempty"`
-	LoopTarget         *LoopTarget       `json:"loop_target,omitempty"`
-	Enabled            *bool             `json:"enabled,omitempty"`
-	Retry              *RetryConfig      `json:"retry,omitempty"`
-	FireLimit          *FireLimitConfig  `json:"fire_limit,omitempty"`
-	WebhookID          string            `json:"webhook_id,omitempty"`
-	EndpointSlug       string            `json:"endpoint_slug,omitempty"`
-	WebhookSecretValue string            `json:"webhook_secret_value,omitempty"`
 }

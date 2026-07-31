@@ -134,10 +134,12 @@ func TestSpawnCommandMapsBoundedChildRequest(t *testing.T) {
 			ttl := fixedTestNow.Add(2 * time.Minute)
 			return AgentSpawnRecord{
 				Session: SessionRecord{
-					ID:            "sess-child",
-					Name:          request.Name,
-					AgentName:     request.AgentName,
-					Provider:      request.Provider,
+					ID:        "sess-child",
+					Name:      request.Name,
+					AgentName: request.AgentName,
+					Runtime: contract.SessionRuntimePayload{Effective: &contract.RuntimeSelectionPayload{
+						Provider: request.Provider,
+					}},
 					WorkspaceID:   "ws-1",
 					WorkspacePath: "/workspace/project",
 					Type:          session.SessionTypeSpawned,
@@ -859,10 +861,12 @@ func agentCommandEnv(key string) string {
 
 func agentCommandSessionRecord() SessionRecord {
 	return SessionRecord{
-		ID:            "sess-agent",
-		Name:          "worker",
-		AgentName:     "coder",
-		Provider:      "test-provider",
+		ID:        "sess-agent",
+		Name:      "worker",
+		AgentName: "coder",
+		Runtime: contract.SessionRuntimePayload{Effective: &contract.RuntimeSelectionPayload{
+			Provider: "test-provider",
+		}},
 		WorkspaceID:   "ws-1",
 		WorkspacePath: "/workspace/project",
 		Type:          session.SessionTypeUser,

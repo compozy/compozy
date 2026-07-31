@@ -65,6 +65,7 @@ func TestSessionMetaValidateSpeed(t *testing.T) {
 				WorkspaceID:          "ws-speed",
 				NetworkParticipation: participation.CloneSpec(participation.LocalSpec()),
 				State:                "active",
+				RuntimeStatus:        SessionRuntimeReady,
 				Speed:                test.speed,
 				SpeedResolution:      speedpkg.CloneResolution(test.resolution),
 				CreatedAt:            now,

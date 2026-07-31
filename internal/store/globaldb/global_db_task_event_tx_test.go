@@ -360,6 +360,7 @@ func seedTaskStatusProjectionForTest(
 	for _, sessionID := range []string{"sess-origin-" + suffix, "sess-full-" + suffix, "sess-muted-" + suffix} {
 		if err := globalDB.RegisterSession(ctx, store.SessionInfo{
 			ID: sessionID, AgentName: "agent-" + sessionID, WorkspaceID: workspaceID,
+			RuntimeStatus:       store.SessionRuntimeUnbound,
 			SessionNetworkState: &store.SessionNetworkState{NetworkSpec: participation.LocalSpec()},
 			SessionType:         "agent", State: "running", CreatedAt: now, UpdatedAt: now,
 		}); err != nil {

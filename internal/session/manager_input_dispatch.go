@@ -9,13 +9,22 @@ import (
 	"github.com/compozy/compozy/internal/transcript"
 )
 
+type humanQueuedInput struct {
+	id                string
+	mode              string
+	status            string
+	text              string
+	runtime           store.SessionInputRuntime
+	sessionGeneration int64
+}
+
 func (m *Manager) startNextQueuedInputPrompt(sessionID string) {
 	target, session, selected, ok := m.peekNextQueuedInputPrompt(sessionID)
 	if !ok {
 		return
 	}
 	if selected.OwnerKind == managedInputOwnerGoal {
-		m.startManagedInputPrompt(session, selected)
+		m.startManagedInputPrompt(session, managedInputFromQueueEntry(&selected))
 		return
 	}
 	entry, ok, err := m.inputQueue.ClaimNext(m.fallbackLifecycleContext(), target)
@@ -37,7 +46,14 @@ func (m *Manager) startNextQueuedInputPrompt(sessionID string) {
 		m.startNextQueuedInputPrompt(target)
 		return
 	}
-	m.dispatchHumanQueuedInput(target, session, entry)
+	m.dispatchHumanQueuedInput(target, session, humanQueuedInput{
+		id:                entry.ID,
+		mode:              entry.Mode,
+		status:            entry.Status,
+		text:              entry.Text,
+		runtime:           entry.Runtime,
+		sessionGeneration: entry.SessionGeneration,
+	})
 }
 
 func (m *Manager) peekNextQueuedInputPrompt(
@@ -65,15 +81,12 @@ func (m *Manager) peekNextQueuedInputPrompt(
 func (m *Manager) dispatchHumanQueuedInput(
 	target string,
 	session *Session,
-	entry store.SessionInputQueueEntry,
+	entry humanQueuedInput,
 ) {
-	if entry.Mode == store.SessionInputQueueModeSteer {
+	if entry.mode == store.SessionInputQueueModeSteer {
 		m.emitQueuedSteerFallback(session, entry)
 	}
-	req, ok := m.newQueuedInputPromptRequest(session, target, entry)
-	if !ok {
-		return
-	}
+	req := m.newQueuedInputPromptRequest(target, entry)
 	events, err := m.submitPromptRequest(m.fallbackLifecycleContext(), req)
 	if err != nil {
 		m.handleQueuedInputDispatchError(session, target, entry, req, err)
@@ -83,8 +96,8 @@ func (m *Manager) dispatchHumanQueuedInput(
 	go m.drainQueuedInputEvents(target, events)
 }
 
-func (m *Manager) emitQueuedSteerFallback(session *Session, entry store.SessionInputQueueEntry) {
-	evidence := queueEntryEvidence(entry, 0)
+func (m *Manager) emitQueuedSteerFallback(session *Session, entry humanQueuedInput) {
+	evidence := queueEntryEvidence(entry.id, entry.sessionGeneration, entry.status, entry.mode, 0)
 	evidence["fallback_to_queue"] = true
 	m.emitTranscriptMarker(
 		m.fallbackLifecycleContext(),
@@ -97,48 +110,35 @@ func (m *Manager) emitQueuedSteerFallback(session *Session, entry store.SessionI
 }
 
 func (m *Manager) newQueuedInputPromptRequest(
-	session *Session,
 	target string,
-	entry store.SessionInputQueueEntry,
-) (promptRequest, bool) {
-	meta, err := normalizePromptMeta(
-		TurnSourceUser,
-		acp.PromptMeta{TurnSource: string(TurnSourceUser)},
-		promptSubmissionPathUserFacing,
-	)
-	if err != nil {
-		m.sessionLogger(session).Warn(
-			"session: normalize queued input metadata failed",
-			"entry_id", entry.ID,
-			"error", err,
-		)
-		return promptRequest{}, false
-	}
+	entry humanQueuedInput,
+) promptRequest {
 	return promptRequest{
 		turnID:          m.newPromptTurnID(),
 		target:          target,
-		message:         entry.Text,
-		authoredMessage: entry.Text,
+		message:         entry.text,
+		authoredMessage: entry.text,
 		turnSource:      TurnSourceUser,
-		meta:            meta,
-	}, true
+		meta:            acp.PromptMeta{TurnSource: string(TurnSourceUser)},
+		runtime:         runtimeSelectionFromStore(entry.runtime),
+	}
 }
 
 func (m *Manager) handleQueuedInputDispatchError(
 	session *Session,
 	target string,
-	entry store.SessionInputQueueEntry,
+	entry humanQueuedInput,
 	req promptRequest,
 	cause error,
 ) {
 	if errors.Is(cause, ErrPromptInProgress) {
-		if err := m.inputQueue.Release(m.fallbackLifecycleContext(), target, entry.ID); err != nil {
-			m.sessionLogger(session).Warn("session: release queued input failed", "entry_id", entry.ID, "error", err)
+		if err := m.inputQueue.Release(m.fallbackLifecycleContext(), target, entry.id); err != nil {
+			m.sessionLogger(session).Warn("session: release queued input failed", "entry_id", entry.id, "error", err)
 		}
 		return
 	}
-	if err := m.inputQueue.MarkFailed(m.fallbackLifecycleContext(), target, entry.ID, cause.Error()); err != nil {
-		m.sessionLogger(session).Warn("session: mark queued input failed", "entry_id", entry.ID, "error", err)
+	if err := m.inputQueue.MarkFailed(m.fallbackLifecycleContext(), target, entry.id, cause.Error()); err != nil {
+		m.sessionLogger(session).Warn("session: mark queued input failed", "entry_id", entry.id, "error", err)
 	}
 	m.emitTranscriptMarker(
 		m.fallbackLifecycleContext(),
@@ -146,7 +146,7 @@ func (m *Manager) handleQueuedInputDispatchError(
 		req.turnID,
 		transcript.MarkerPromptDropped,
 		"Queued input failed before dispatch.",
-		queueEntryEvidence(entry, 0),
+		queueEntryEvidence(entry.id, entry.sessionGeneration, entry.status, entry.mode, 0),
 	)
 	m.startNextQueuedInputPrompt(target)
 }
@@ -154,11 +154,11 @@ func (m *Manager) handleQueuedInputDispatchError(
 func (m *Manager) acceptQueuedInputDispatch(
 	session *Session,
 	target string,
-	entry store.SessionInputQueueEntry,
+	entry humanQueuedInput,
 	req promptRequest,
 ) {
-	if err := m.inputQueue.MarkSent(m.fallbackLifecycleContext(), target, entry.ID); err != nil {
-		m.sessionLogger(session).Warn("session: mark queued input sent failed", "entry_id", entry.ID, "error", err)
+	if err := m.inputQueue.MarkSent(m.fallbackLifecycleContext(), target, entry.id); err != nil {
+		m.sessionLogger(session).Warn("session: mark queued input sent failed", "entry_id", entry.id, "error", err)
 	}
 	m.emitTranscriptMarker(
 		m.fallbackLifecycleContext(),
@@ -166,7 +166,7 @@ func (m *Manager) acceptQueuedInputDispatch(
 		req.turnID,
 		transcript.MarkerPromptAccepted,
 		"Queued input accepted for dispatch.",
-		queueEntryEvidence(entry, 0),
+		queueEntryEvidence(entry.id, entry.sessionGeneration, entry.status, entry.mode, 0),
 	)
 }
 

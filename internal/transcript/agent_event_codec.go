@@ -52,6 +52,7 @@ func marshalAgentEvent(event acp.AgentEvent, authoredText string) (string, error
 		AvailableCommands: event.AvailableCommands.Values(),
 		Usage:             event.Usage,
 		Runtime:           cloneRuntimeActivity(event.Runtime),
+		PromptRuntime:     event.PromptRuntimeSnapshot(),
 	}
 
 	if len(event.Raw) > 0 {
@@ -138,6 +139,7 @@ func UnmarshalAgentEvent(payload string) (acp.AgentEvent, error) {
 		Runtime:          cloneRuntimeActivity(decoded.Runtime),
 		Raw:              acp.CloneRawMessage(decoded.Raw),
 	}
+	event = event.WithPromptRuntime(decoded.PromptRuntime)
 	if clientMessageID := strings.TrimSpace(decoded.ClientMessageID); clientMessageID != "" {
 		event = event.WithClientMessageID(clientMessageID)
 	}

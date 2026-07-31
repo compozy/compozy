@@ -31,23 +31,25 @@ func TestGlobalDBSessionLineagePersistsAfterReopenAndFilters(t *testing.T) {
 		ttl := now.Add(90 * time.Minute)
 
 		if err := globalDB.RegisterSession(ctx, SessionInfo{
-			ID:          "sess-root",
-			AgentName:   "coder",
-			Provider:    "claude",
-			WorkspaceID: workspaceID,
-			SessionType: "user",
-			State:       "active",
-			CreatedAt:   now,
-			UpdatedAt:   now,
+			ID:            "sess-root",
+			AgentName:     "coder",
+			Provider:      "claude",
+			RuntimeStatus: store.SessionRuntimeUnbound,
+			WorkspaceID:   workspaceID,
+			SessionType:   "user",
+			State:         "active",
+			CreatedAt:     now,
+			UpdatedAt:     now,
 		}); err != nil {
 			t.Fatalf("RegisterSession(root) error = %v", err)
 		}
 		if err := globalDB.RegisterSession(ctx, SessionInfo{
-			ID:          "sess-child",
-			AgentName:   "coder",
-			Provider:    "claude",
-			WorkspaceID: workspaceID,
-			SessionType: "spawned",
+			ID:            "sess-child",
+			AgentName:     "coder",
+			Provider:      "claude",
+			RuntimeStatus: store.SessionRuntimeUnbound,
+			WorkspaceID:   workspaceID,
+			SessionType:   "spawned",
 			Lineage: &store.SessionLineage{
 				ParentSessionID:  "sess-root",
 				RootSessionID:    "sess-root",

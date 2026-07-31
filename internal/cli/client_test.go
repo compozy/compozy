@@ -37,7 +37,12 @@ func (f roundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 func TestUnixSocketClientSessionPromptShouldDecodeStructuredGoalJSON(t *testing.T) {
 	t.Parallel()
 
-	newClient := func(t *testing.T, status int, body string) *unixSocketClient {
+	newClient := func(
+		t *testing.T,
+		status int,
+		body string,
+		observePromptRequest func(*http.Request),
+	) *unixSocketClient {
 		t.Helper()
 		transport := roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 			switch {
@@ -48,6 +53,9 @@ func TestUnixSocketClientSessionPromptShouldDecodeStructuredGoalJSON(t *testing.
 				), nil
 			case req.Method == http.MethodPost &&
 				req.URL.Path == "/api/workspaces/ws-1/sessions/sess-1/prompt":
+				if observePromptRequest != nil {
+					observePromptRequest(req)
+				}
 				response := newHTTPResponse(status, body)
 				response.Header.Set("Content-Type", "application/json")
 				return response, nil
@@ -71,6 +79,7 @@ func TestUnixSocketClientSessionPromptShouldDecodeStructuredGoalJSON(t *testing.
 			t,
 			http.StatusOK,
 			`{"outcome":"status","reason_code":null,"snapshot":null,"replaced_run_id":null}`,
+			nil,
 		)
 		record, err := client.SendSessionPrompt(
 			t.Context(),
@@ -88,16 +97,42 @@ func TestUnixSocketClientSessionPromptShouldDecodeStructuredGoalJSON(t *testing.
 	t.Run("Should surface one direct Goal result through the streaming JSONL seam", func(t *testing.T) {
 		t.Parallel()
 
+		var requestBody contract.SendPromptRequest
 		client := newClient(
 			t,
 			http.StatusAccepted,
 			`{"outcome":"started","reason_code":null,"snapshot":null,"replaced_run_id":null}`,
+			func(req *http.Request) {
+				body, err := io.ReadAll(req.Body)
+				if err != nil {
+					t.Fatalf("read streamed prompt request body error = %v", err)
+				}
+				if err := req.Body.Close(); err != nil {
+					t.Fatalf("close streamed prompt request body error = %v", err)
+				}
+				if err := json.Unmarshal(body, &requestBody); err != nil {
+					t.Fatalf("decode streamed prompt request body error = %v", err)
+				}
+			},
 		)
 		var events []SSEEvent
-		err := client.StreamPromptSession(t.Context(), "sess-1", "/goal ship", func(event SSEEvent) error {
-			events = append(events, event)
-			return nil
-		})
+		err := client.StreamPromptSession(
+			t.Context(),
+			"sess-1",
+			SessionPromptRequest{
+				Message: "/goal ship",
+				Runtime: &contract.PromptRuntimeSelectionPayload{
+					Provider:        "codex",
+					Model:           "gpt-5.6-sol",
+					ReasoningEffort: contract.ReasoningEffort("high"),
+					Speed:           contract.SpeedFast,
+				},
+			},
+			func(event SSEEvent) error {
+				events = append(events, event)
+				return nil
+			},
+		)
 		if err != nil {
 			t.Fatalf("StreamPromptSession(Goal start) error = %v", err)
 		}
@@ -111,6 +146,12 @@ func TestUnixSocketClientSessionPromptShouldDecodeStructuredGoalJSON(t *testing.
 		if result.Outcome != contract.GoalOutcomeStarted {
 			t.Fatalf("streamed Goal result = %#v", result)
 		}
+		if requestBody.Runtime == nil || requestBody.Runtime.Provider != "codex" ||
+			requestBody.Runtime.Model != "gpt-5.6-sol" ||
+			requestBody.Runtime.ReasoningEffort != contract.ReasoningEffort("high") ||
+			requestBody.Runtime.Speed != contract.SpeedFast {
+			t.Fatalf("streamed prompt request runtime = %#v", requestBody.Runtime)
+		}
 	})
 
 	t.Run("Should preserve a structured Goal error body", func(t *testing.T) {
@@ -120,6 +161,7 @@ func TestUnixSocketClientSessionPromptShouldDecodeStructuredGoalJSON(t *testing.
 			t,
 			http.StatusConflict,
 			`{"outcome":"error","reason_code":"goal_replace_required","snapshot":null,"replaced_run_id":null}`,
+			nil,
 		)
 		_, err := client.SendSessionPrompt(
 			t.Context(),
@@ -4278,15 +4320,15 @@ func TestCLIUsesSharedContractAliases(t *testing.T) {
 func TestSharedContractJSONParity(t *testing.T) {
 	t.Parallel()
 
-	sessionResponse := `{"sessions":[{"id":"sess-1","name":"demo","agent_name":"coder","workspace_id":"ws-1","workspace_path":"/workspace/project","state":"active","acp_caps":{"supports_load_session":true,"supported_modes":["chat"]},"created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:00:00Z"}]}`
+	sessionResponse := `{"sessions":[{"id":"sess-1","name":"demo","agent_name":"coder","workspace_id":"ws-1","workspace_path":"/workspace/project","state":"active","runtime":{"acp_caps":{"supports_load_session":true,"supported_modes":["chat"]}},"created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:00:00Z"}]}`
 	var cliSessions struct {
 		Sessions []SessionRecord `json:"sessions"`
 	}
 	if err := json.Unmarshal([]byte(sessionResponse), &cliSessions); err != nil {
 		t.Fatalf("json.Unmarshal(cli session response) error = %v", err)
 	}
-	if len(cliSessions.Sessions) != 1 || cliSessions.Sessions[0].ACPCaps == nil ||
-		!cliSessions.Sessions[0].ACPCaps.SupportsLoadSession {
+	if len(cliSessions.Sessions) != 1 || cliSessions.Sessions[0].Runtime.ACPCaps == nil ||
+		!cliSessions.Sessions[0].Runtime.ACPCaps.SupportsLoadSession {
 		t.Fatalf("cli session decode = %#v, want decoded shared contract payload", cliSessions)
 	}
 

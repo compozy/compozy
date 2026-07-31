@@ -3,9 +3,11 @@ import { useSessionDeleteDialog } from "@/hooks/routes/use-session-delete-dialog
 import { useSessionPageControls } from "@/hooks/routes/use-session-page-controls";
 import {
   SessionGoalHeadAction,
+  getSessionPromptRuntimeSnapshot,
   useSessionGoalHeader,
   useSessionInspectorState,
   useSessionLedger,
+  useSessionPromptRuntimeContext,
   useSessionTopbarSlot,
   useSessionUsage,
   type InspectorMemoryState,
@@ -20,7 +22,9 @@ export function useSessionWindowController(input: {
   onDeleteSuccess: () => void;
 }) {
   const { sessionId, session, onDeleteSuccess } = input;
+  const promptRuntime = useSessionPromptRuntimeContext();
   const controls = useSessionPageControls(sessionId, session, {
+    getRuntimeSnapshot: () => getSessionPromptRuntimeSnapshot(promptRuntime),
     onDeleteSuccess,
     workspaceId: session.workspace_id,
   });

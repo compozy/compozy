@@ -7,6 +7,7 @@ import (
 
 	"strings"
 
+	apicontract "github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/network/participation"
 
 	"github.com/compozy/compozy/internal/session"
@@ -62,7 +63,7 @@ func (h *HostAPIHandler) handleSessionsList(ctx context.Context, raw json.RawMes
 			ID:        info.ID,
 			Name:      info.Name,
 			Agent:     info.AgentName,
-			Provider:  info.Provider,
+			Runtime:   hostAPISessionRuntimePayloadFromInfo(info),
 			Workspace: info.Workspace,
 			State:     info.State,
 			CreatedAt: info.CreatedAt,
@@ -87,34 +88,19 @@ func (h *HostAPIHandler) handleSessionsCreate(ctx context.Context, raw json.RawM
 
 	createOpts := session.CreateOpts{
 		AgentName:            strings.TrimSpace(params.Agent),
-		Provider:             strings.TrimSpace(params.Provider),
-		Model:                strings.TrimSpace(params.Model),
-		ReasoningEffort:      strings.TrimSpace(string(params.ReasoningEffort)),
 		Workspace:            strings.TrimSpace(params.Workspace),
 		NetworkParticipation: participation.CloneRequest(params.NetworkParticipation),
 		Type:                 session.SessionTypeSystem,
 	}
-	prompt := strings.TrimSpace(params.Prompt)
-	if prompt != "" {
-		acceptance, ok := h.sessions.(hostAPISessionAcceptanceManager)
-		if !ok {
-			return nil, errors.New("extension: session manager does not support durable acceptance")
-		}
-		info, err := acceptance.CreateAccepted(ctx, session.CreateAcceptedOpts{
-			Session:       createOpts,
-			InitialPrompt: prompt,
-		})
-		if err != nil {
-			return nil, err
-		}
-		return hostAPISessionCreateResult{SessionID: info.ID, Provider: info.Provider}, nil
+	acceptance, ok := h.sessions.(hostAPISessionAcceptanceManager)
+	if !ok {
+		return nil, errors.New("extension: session manager does not support durable acceptance")
 	}
-
-	sess, err := h.sessions.Create(ctx, createOpts)
+	info, err := acceptance.CreateAccepted(ctx, session.CreateAcceptedOpts{Session: createOpts})
 	if err != nil {
 		return nil, err
 	}
-	return hostAPISessionCreateResult{SessionID: sess.ID, Provider: sess.Info().Provider}, nil
+	return hostAPISessionCreateResult{SessionID: info.ID}, nil
 }
 
 func (h *HostAPIHandler) handleSessionsPrompt(ctx context.Context, raw json.RawMessage) (any, error) {
@@ -132,12 +118,53 @@ func (h *HostAPIHandler) handleSessionsPrompt(ctx context.Context, raw json.RawM
 		return nil, err
 	}
 
-	submission, err := h.submitPrompt(ctx, params.SessionID, params.Message)
+	submission, err := h.submitPrompt(
+		ctx,
+		params.SessionID,
+		params.Message,
+		hostAPIPromptRuntimeSelection(params.Runtime),
+	)
 	if err != nil {
 		return nil, err
 	}
 
-	return hostAPISessionPromptResult{TurnID: submission.TurnID}, nil
+	return hostAPISessionPromptResultFromSubmission(submission), nil
+}
+
+func hostAPIPromptRuntimeSelection(
+	payload *apicontract.PromptRuntimeSelectionPayload,
+) *session.RuntimeSelection {
+	return apicontract.PromptRuntimeSelectionFromPayload(payload)
+}
+
+func hostAPISessionPromptResultFromSubmission(
+	submission hostAPIPromptSubmission,
+) hostAPISessionPromptResult {
+	admission := submission.Admission
+	turnID := strings.TrimSpace(submission.TurnID)
+	if turnID == "" {
+		turnID = strings.TrimSpace(admission.NewTurnID)
+	}
+
+	result := hostAPISessionPromptResult{
+		Status:                     strings.TrimSpace(admission.Status),
+		Mode:                       admission.Mode,
+		TurnID:                     turnID,
+		QueueEntryID:               strings.TrimSpace(admission.QueueEntryID),
+		QueuePosition:              admission.QueuePosition,
+		QueueGeneration:            admission.QueueGeneration,
+		PreviousTurnID:             strings.TrimSpace(admission.PreviousTurnID),
+		Interrupted:                admission.Interrupted,
+		Staged:                     admission.Staged,
+		Queued:                     admission.Queued,
+		CanceledQueuedEntries:      admission.CanceledQueuedEntries,
+		FallbackModeIfNoToolResult: strings.TrimSpace(admission.FallbackModeIfNoToolResult),
+	}
+	if admission.EstimatedSendAt != nil {
+		estimated := admission.EstimatedSendAt.UTC()
+		result.EstimatedSendAt = &estimated
+	}
+	return result
 }
 
 func (h *HostAPIHandler) handleSessionsStop(ctx context.Context, raw json.RawMessage) (any, error) {

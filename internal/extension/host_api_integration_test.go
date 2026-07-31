@@ -44,7 +44,6 @@ func TestHostAPIIntegrationSessionLifecycleThroughHostAPI(t *testing.T) {
 
 	createResult, err := env.call(t, "ext-integration", "sessions/create", map[string]string{
 		"agent":     "coder",
-		"provider":  "fake-alt",
 		"workspace": env.workspaceID,
 	})
 	if err != nil {
@@ -56,10 +55,6 @@ func TestHostAPIIntegrationSessionLifecycleThroughHostAPI(t *testing.T) {
 	if created.SessionID == "" {
 		t.Fatal("sessions/create session_id = empty, want non-empty")
 	}
-	if created.Provider != "fake-alt" {
-		t.Fatalf("sessions/create provider = %q, want %q", created.Provider, "fake-alt")
-	}
-
 	prompt, err := env.submitPrompt(t, "ext-integration", created.SessionID, "integration prompt")
 	if err != nil {
 		t.Fatalf("submitPrompt() error = %v", err)
@@ -81,8 +76,8 @@ func TestHostAPIIntegrationSessionLifecycleThroughHostAPI(t *testing.T) {
 	if status.State == "" {
 		t.Fatal("sessions/status state = empty, want non-empty")
 	}
-	if status.Provider != "fake-alt" {
-		t.Fatalf("sessions/status provider = %q, want %q", status.Provider, "fake-alt")
+	if status.Runtime.Effective == nil || status.Runtime.Effective.Provider != "fake-alt" {
+		t.Fatalf("sessions/status runtime = %#v, want effective fake-alt provider", status.Runtime)
 	}
 
 	eventsResult, err := env.call(t, "ext-integration", "sessions/events", map[string]any{

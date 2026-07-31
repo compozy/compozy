@@ -6,6 +6,7 @@ import (
 
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/diagnostics"
 
 	"github.com/compozy/compozy/internal/network/participation"
 
@@ -34,14 +35,15 @@ func sessionPayloadFromInfoAt(info *session.Info, now time.Time) contract.Sessio
 
 	ref := workref.NewPath(info.WorkspaceID, info.Workspace)
 	payload = contract.SessionPayload{
-		ID:                           info.ID,
-		Name:                         info.Name,
-		AgentName:                    info.AgentName,
-		Provider:                     info.Provider,
-		Model:                        strings.TrimSpace(info.Model),
-		ReasoningEffort:              contract.ReasoningEffort(strings.TrimSpace(info.ReasoningEffort)),
-		Speed:                        info.Speed,
-		SpeedResolution:              speedpkg.CloneResolution(info.SpeedResolution),
+		ID:        info.ID,
+		Name:      info.Name,
+		AgentName: info.AgentName,
+		Runtime: contract.SessionRuntimePayload{
+			Status:       info.RuntimeStatus,
+			Transition:   info.RuntimeTransition,
+			Failure:      diagnostics.RedactAndBound(info.RuntimeFailure, maxDiagnosticPayloadBytes),
+			ACPSessionID: info.ACPSessionID,
+		},
 		WorkspaceID:                  ref.WorkspaceID,
 		WorkspacePath:                ref.WorkspacePath,
 		ResolvedNetworkParticipation: participation.CloneSpec(info.NetworkParticipation),
@@ -55,14 +57,16 @@ func sessionPayloadFromInfoAt(info *session.Info, now time.Time) contract.Sessio
 		StopReason:                   info.StopReason,
 		StopDetail:                   info.StopDetail,
 		Failure:                      SessionFailurePayloadFromStore(info.Failure),
-		ACPSessionID:                 info.ACPSessionID,
 		AvailableCommands:            availableCommandPayloads(info.AdvertisedCommands),
 		Lineage:                      contract.SessionLineagePayloadFromStore(info.Lineage),
 		CreatedAt:                    info.CreatedAt,
 		UpdatedAt:                    info.UpdatedAt,
 	}
+	if runtime := runtimeSelectionPayloadFromInfo(info); runtime != nil {
+		payload.Runtime.Effective = runtime
+	}
 	if caps := ACPCapsPayloadFromInfo(info.ACPCaps); caps != nil {
-		payload.ACPCaps = caps
+		payload.Runtime.ACPCaps = caps
 	}
 	if activity := RuntimeActivityPayloadFromSessionMeta(info.Liveness, now); activity != nil {
 		payload.Activity = activity
@@ -80,7 +84,14 @@ func SessionPayloadFromStoreInfo(info store.SessionInfo) contract.SessionPayload
 		ID:                   strings.TrimSpace(info.ID),
 		Name:                 strings.TrimSpace(info.Name),
 		AgentName:            strings.TrimSpace(info.AgentName),
+		RuntimeStatus:        info.RuntimeStatus,
+		RuntimeTransition:    info.RuntimeTransition,
+		RuntimeFailure:       strings.TrimSpace(info.RuntimeFailure),
 		Provider:             strings.TrimSpace(info.Provider),
+		Model:                strings.TrimSpace(info.Model),
+		ReasoningEffort:      strings.TrimSpace(info.ReasoningEffort),
+		Speed:                info.Speed,
+		SpeedResolution:      speedpkg.CloneResolution(info.SpeedResolution),
 		WorkspaceID:          strings.TrimSpace(info.WorkspaceID),
 		NetworkParticipation: info.NetworkSpecSnapshot(),
 		Type:                 session.Type(strings.TrimSpace(info.SessionType)),
@@ -102,6 +113,28 @@ func SessionPayloadFromStoreInfo(info store.SessionInfo) contract.SessionPayload
 		UpdatedAt:            info.UpdatedAt,
 	}
 	return SessionPayloadFromInfo(converted)
+}
+
+func runtimeSelectionPayloadFromInfo(info *session.Info) *contract.RuntimeSelectionPayload {
+	if info == nil || !runtimeHasEffectiveSelection(info.RuntimeStatus) || strings.TrimSpace(info.Provider) == "" {
+		return nil
+	}
+	return &contract.RuntimeSelectionPayload{
+		Provider:        strings.TrimSpace(info.Provider),
+		Model:           strings.TrimSpace(info.Model),
+		ReasoningEffort: contract.ReasoningEffort(strings.TrimSpace(info.ReasoningEffort)),
+		Speed:           info.Speed,
+		SpeedResolution: speedpkg.CloneResolution(info.SpeedResolution),
+	}
+}
+
+func runtimeHasEffectiveSelection(status session.RuntimeStatus) bool {
+	switch status {
+	case session.RuntimeStatusReady, session.RuntimeStatusReconfiguring, session.RuntimeStatusFailed:
+		return true
+	default:
+		return false
+	}
 }
 
 func visibleSessionInfosInternal(infos []*session.Info) []*session.Info {

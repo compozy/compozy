@@ -4,15 +4,15 @@ area: ET
 title: Agent detail tab panelbox and content contracts
 persona: Bruno
 journey: J-31
-expected: Overview Runtime lists Model (live selector), Command, and Permissions inside panelbox surfaces; At a glance shows MCP mono chips and Skills; Instructions AGENT.md shows file-meta Read-only here with markdown prose; Configuration Access deny tools use danger pills and MCP uses hairline rows; Sessions empty folds New session into Empty action.
+expected: Overview Runtime lists Model (live selector), Command, and Permissions inside panelbox surfaces; At a glance shows MCP mono chips and Skills; Instructions AGENT.md shows file-meta Read-only here with markdown prose; Configuration Access deny tools use danger pills and MCP uses hairline rows; Sessions empty New session opens the launch dialog and, after creation, navigates through the created session owner workspace to its composer.
 entry_points: web /agents/$name?tab=overview|instructions|configuration|sessions
 qa_status: pass
 bug_ids:
 fix_status:
 retest_status: pass
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-et-current-source-20260730-061655-910372-lab/qa-artifacts/qa
-last_report: docs/qa/reports/2026-07-28-untested-full.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-et-current-source-20260730-061655-910372-lab/qa-artifacts/qa;docs/qa/evidence/2026-07-30-session-runtime-selector/09-agent-detail-sessions.png;docs/qa/evidence/2026-07-30-session-runtime-selector/runtime-selector-proof.md
+last_report: docs/qa/reports/2026-07-30-session-runtime-selector.md
 overlaps: RT-agent-overview-canonical-metrics;RT-076
 ---
 

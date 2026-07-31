@@ -1181,6 +1181,13 @@ type Session struct {
 	Name                     sql.NullString `json:"name"`
 	AgentName                string         `json:"agent_name"`
 	Provider                 string         `json:"provider"`
+	Model                    string         `json:"model"`
+	ReasoningEffort          string         `json:"reasoning_effort"`
+	Speed                    string         `json:"speed"`
+	SpeedResolutionJson      string         `json:"speed_resolution_json"`
+	RuntimeStatus            string         `json:"runtime_status"`
+	RuntimeTransition        string         `json:"runtime_transition"`
+	RuntimeFailure           string         `json:"runtime_failure"`
 	WorkspaceID              string         `json:"workspace_id"`
 	SessionType              string         `json:"session_type"`
 	State                    string         `json:"state"`
@@ -1258,6 +1265,10 @@ type SessionInputQueue struct {
 	Status                   string         `json:"status"`
 	Mode                     string         `json:"mode"`
 	Text                     string         `json:"text"`
+	RuntimeProvider          string         `json:"runtime_provider"`
+	RuntimeModel             string         `json:"runtime_model"`
+	RuntimeReasoningEffort   string         `json:"runtime_reasoning_effort"`
+	RuntimeSpeed             string         `json:"runtime_speed"`
 	SessionGeneration        int64          `json:"session_generation"`
 	TaskRunID                string         `json:"task_run_id"`
 	RunGeneration            sql.NullInt64  `json:"run_generation"`

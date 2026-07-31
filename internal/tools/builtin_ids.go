@@ -64,6 +64,10 @@ const (
 	ToolIDNetworkWork ToolID = "compozy__network_work"
 	// ToolIDSessionList lists runtime sessions.
 	ToolIDSessionList ToolID = "compozy__session_list"
+	// ToolIDSessionCreate accepts one unbound logical user session.
+	ToolIDSessionCreate ToolID = "compozy__session_create"
+	// ToolIDSessionPrompt submits one prompt with an optional runtime snapshot.
+	ToolIDSessionPrompt ToolID = "compozy__session_prompt"
 	// ToolIDSessionStatus reads one runtime session snapshot.
 	ToolIDSessionStatus ToolID = "compozy__session_status"
 	// ToolIDSessionHistory reads grouped turn history for one session.
@@ -435,7 +439,7 @@ const (
 	ToolsetIDTasks ToolsetID = "compozy__tasks"
 	// ToolsetIDAutonomy groups session-bound task-run autonomy tools.
 	ToolsetIDAutonomy ToolsetID = "compozy__autonomy"
-	// ToolsetIDSessions groups read-only runtime session tools.
+	// ToolsetIDSessions groups runtime session tools.
 	ToolsetIDSessions ToolsetID = "compozy__sessions"
 	// ToolsetIDAuthoredContext groups managed Soul/Heartbeat read and wake tools.
 	ToolsetIDAuthoredContext ToolsetID = "compozy__authored_context"
