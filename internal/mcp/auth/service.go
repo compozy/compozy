@@ -10,6 +10,9 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/mcp/securehttp"
 )
 
 const (
@@ -23,11 +26,17 @@ type ServiceOption func(*Service)
 
 // Service executes OAuth 2.1 authorization-code flows for remote MCP servers.
 type Service struct {
-	store      TokenStore
-	client     *http.Client
-	random     io.Reader
-	now        func() time.Time
-	generation *MutationGeneration
+	store              TokenStore
+	registrations      RegistrationStore
+	client             *http.Client
+	secureClient       *securehttp.Client
+	catalogClient      *securehttp.Client
+	random             io.Reader
+	now                func() time.Time
+	generation         *MutationGeneration
+	secretResolver     SecretRefResolver
+	clientMetadataURL  string
+	defaultRedirectURL string
 }
 
 // NewService constructs an MCP auth service.
@@ -35,10 +44,14 @@ func NewService(store TokenStore, opts ...ServiceOption) (*Service, error) {
 	if store == nil {
 		return nil, errors.New("mcp auth: token store is required")
 	}
+	operatorClient := securehttp.NewClient()
 	service := &Service{
-		store:      store,
-		client:     &http.Client{Timeout: defaultMetadataClientTimeout},
-		generation: NewMutationGeneration(),
+		store:             store,
+		client:            operatorClient.HTTPClient(),
+		secureClient:      operatorClient,
+		catalogClient:     securehttp.NewClient(),
+		generation:        NewMutationGeneration(),
+		clientMetadataURL: compozyconfig.DefaultMCPClientMetadataURL,
 		now: func() time.Time {
 			return time.Now().UTC()
 		},
@@ -49,7 +62,11 @@ func NewService(store TokenStore, opts ...ServiceOption) (*Service, error) {
 		}
 	}
 	if service.client == nil {
-		service.client = &http.Client{Timeout: defaultMetadataClientTimeout}
+		service.secureClient = securehttp.NewClient()
+		service.client = service.secureClient.HTTPClient()
+	}
+	if service.catalogClient == nil {
+		service.catalogClient = securehttp.NewClient()
 	}
 	if service.now == nil {
 		service.now = func() time.Time { return time.Now().UTC() }
@@ -60,25 +77,25 @@ func NewService(store TokenStore, opts ...ServiceOption) (*Service, error) {
 	return service, nil
 }
 
-// WithHTTPClient overrides the HTTP client used for metadata and token calls.
-func WithHTTPClient(client *http.Client) ServiceOption {
-	return func(service *Service) {
-		service.client = client
-	}
+type httpDoer interface {
+	Do(*http.Request) (*http.Response, error)
 }
 
-// WithRandom overrides the entropy source for tests.
-func WithRandom(random io.Reader) ServiceOption {
-	return func(service *Service) {
-		service.random = random
+func (s *Service) clientFor(cfg ServerConfig) httpDoer {
+	if strings.TrimSpace(cfg.CatalogEntry) != "" {
+		return s.catalogClient
 	}
+	if s.secureClient != nil {
+		return s.secureClient
+	}
+	return s.client
 }
 
-// WithNow overrides the clock for tests.
-func WithNow(now func() time.Time) ServiceOption {
-	return func(service *Service) {
-		service.now = now
+func (s *Service) sdkHTTPClientFor(cfg ServerConfig) *http.Client {
+	if strings.TrimSpace(cfg.CatalogEntry) != "" {
+		return s.catalogClient.HTTPClient()
 	}
+	return s.client
 }
 
 // LoginState holds the short-lived in-memory authorization flow state.
@@ -90,6 +107,7 @@ type LoginState struct {
 	AuthorizationURL string
 	Metadata         Metadata
 	Config           ServerConfig
+	ResourceURL      string
 }
 
 // BeginLogin discovers metadata, generates PKCE state, and returns the URL the
@@ -106,38 +124,10 @@ func (s *Service) BeginLogin(
 		return LoginState{}, err
 	}
 
-	metadata, err := discoverMetadata(ctx, s.client, cfg)
-	if err != nil {
-		return LoginState{}, err
+	if cfg.registrationStrategy() == RegistrationAuto {
+		return s.beginHostedOAuth(ctx, cfg, redirectURL)
 	}
-	if !supportsS256(metadata.CodeChallengeMethodsSupported) {
-		return LoginState{}, errors.New("mcp auth: OAuth server must support S256 PKCE")
-	}
-	pkce, err := newPKCEPair(s.random)
-	if err != nil {
-		return LoginState{}, err
-	}
-	if err := validateVerifier(pkce.Verifier); err != nil {
-		return LoginState{}, err
-	}
-	state, err := newState(s.random)
-	if err != nil {
-		return LoginState{}, err
-	}
-
-	authURL, err := authorizationURL(metadata.AuthorizationEndpoint, cfg, redirectURL, state, pkce)
-	if err != nil {
-		return LoginState{}, err
-	}
-	return LoginState{
-		Target:           cfg.Target.Normalize(),
-		RedirectURL:      strings.TrimSpace(redirectURL),
-		State:            state,
-		Verifier:         pkce.Verifier,
-		AuthorizationURL: authURL,
-		Metadata:         metadata,
-		Config:           cfg,
-	}, nil
+	return s.beginPreRegisteredOAuth(ctx, cfg, redirectURL)
 }
 
 func authorizationURL(
@@ -161,11 +151,14 @@ func authorizationURL(
 	if scopes := strings.Join(trimStrings(cfg.Scopes), " "); scopes != "" {
 		values.Set("scope", scopes)
 	}
+	if resourceURL := firstNonEmpty(cfg.ResourceURL, cfg.RemoteURL); resourceURL != "" {
+		values.Set("resource", resourceURL)
+	}
 	parsed.RawQuery = values.Encode()
 	return parsed.String(), nil
 }
 
-func authorizationCodeFromCallback(callbackURL string, wantState string) (string, error) {
+func authorizationCodeFromCallbackMetadata(callbackURL string, wantState string, metadata Metadata) (string, error) {
 	parsed, err := url.Parse(strings.TrimSpace(callbackURL))
 	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
 		return "", errors.New("mcp auth: callback URL is invalid")
@@ -173,6 +166,14 @@ func authorizationCodeFromCallback(callbackURL string, wantState string) (string
 	values := parsed.Query()
 	if gotState := values.Get("state"); gotState == "" || gotState != wantState {
 		return "", errors.New("mcp auth: OAuth callback state mismatch")
+	}
+	issuer := strings.TrimSpace(values.Get("iss"))
+	if metadata.IssuerParameterSupported {
+		if issuer == "" || !issuersEqual(issuer, metadata.Issuer) {
+			return "", errors.New("mcp auth: OAuth callback issuer mismatch")
+		}
+	} else if issuer != "" {
+		return "", errors.New("mcp auth: OAuth callback unexpectedly included issuer")
 	}
 	if oauthErr := strings.TrimSpace(values.Get("error")); oauthErr != "" {
 		return "", errors.New("mcp auth: OAuth callback reported an error")
@@ -215,18 +216,16 @@ func (e *tokenExpiresIn) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (s *Service) exchangeCode(ctx context.Context, state LoginState, code string) (TokenRecord, error) {
+func (s *Service) exchangeCode(ctx context.Context, state *LoginState, code string) (TokenRecord, error) {
 	values := url.Values{}
 	values.Set("grant_type", "authorization_code")
 	values.Set("code", code)
 	values.Set("redirect_uri", strings.TrimSpace(state.RedirectURL))
-	values.Set("client_id", strings.TrimSpace(state.Config.ClientID))
 	values.Set("code_verifier", state.Verifier)
-	if strings.TrimSpace(state.Config.ClientSecret) != "" {
-		values.Set("client_secret", state.Config.ClientSecret)
+	if strings.TrimSpace(state.ResourceURL) != "" {
+		values.Set("resource", state.ResourceURL)
 	}
-
-	resp, err := s.postForm(ctx, state.Metadata.TokenEndpoint, values)
+	resp, err := s.postForm(ctx, state.Config, state.Metadata.TokenEndpoint, values)
 	if err != nil {
 		return TokenRecord{}, err
 	}
@@ -242,12 +241,10 @@ func (s *Service) refreshToken(
 	values := url.Values{}
 	values.Set("grant_type", serviceRefreshTokenKey)
 	values.Set(serviceRefreshTokenKey, current.RefreshToken)
-	values.Set("client_id", strings.TrimSpace(cfg.ClientID))
-	if strings.TrimSpace(cfg.ClientSecret) != "" {
-		values.Set("client_secret", cfg.ClientSecret)
+	if resourceURL := strings.TrimSpace(cfg.ResourceURL); resourceURL != "" {
+		values.Set("resource", resourceURL)
 	}
-
-	resp, err := s.postForm(ctx, metadata.TokenEndpoint, values)
+	resp, err := s.postForm(ctx, cfg, metadata.TokenEndpoint, values)
 	if err != nil {
 		return TokenRecord{}, err
 	}
@@ -256,22 +253,18 @@ func (s *Service) refreshToken(
 
 func (s *Service) postForm(
 	ctx context.Context,
+	cfg ServerConfig,
 	endpoint string,
 	values url.Values,
 ) (payload tokenEndpointResponse, err error) {
-	req, err := http.NewRequestWithContext(
-		ctx,
-		http.MethodPost,
-		strings.TrimSpace(endpoint),
-		strings.NewReader(values.Encode()),
-	)
+	req, err := newAuthenticatedFormRequest(ctx, endpoint, cfg, values)
 	if err != nil {
 		return tokenEndpointResponse{}, fmt.Errorf("mcp auth: build token request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Accept", "application/json")
 
-	resp, err := s.client.Do(req)
+	resp, err := s.clientFor(cfg).Do(req)
 	if err != nil {
 		return tokenEndpointResponse{}, fmt.Errorf("mcp auth: call token endpoint: %w", err)
 	}
@@ -330,9 +323,13 @@ func (s *Service) tokenRecordFromResponse(
 	if obtainedAt.IsZero() {
 		obtainedAt = now
 	}
-	fingerprint, err := ServerDefinitionFingerprint(cfg)
-	if err != nil {
-		return TokenRecord{}, err
+	fingerprint := strings.TrimSpace(current.DefinitionFingerprint)
+	if fingerprint == "" {
+		var err error
+		fingerprint, err = ServerDefinitionFingerprint(cfg)
+		if err != nil {
+			return TokenRecord{}, err
+		}
 	}
 
 	return TokenRecord{
@@ -380,21 +377,12 @@ func (s *Service) revoke(
 	values := url.Values{}
 	values.Set("token", revokeToken)
 	values.Set("token_type_hint", hint)
-	values.Set("client_id", strings.TrimSpace(cfg.ClientID))
-	if strings.TrimSpace(cfg.ClientSecret) != "" {
-		values.Set("client_secret", cfg.ClientSecret)
-	}
-	req, err := http.NewRequestWithContext(
-		ctx,
-		http.MethodPost,
-		strings.TrimSpace(metadata.RevocationEndpoint),
-		strings.NewReader(values.Encode()),
-	)
+	req, err := newAuthenticatedFormRequest(ctx, metadata.RevocationEndpoint, cfg, values)
 	if err != nil {
 		return fmt.Errorf("mcp auth: build revocation request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	resp, err := s.client.Do(req)
+	resp, err := s.clientFor(cfg).Do(req)
 	if err != nil {
 		return fmt.Errorf("mcp auth: call revocation endpoint: %w", err)
 	}
@@ -417,17 +405,15 @@ func statusFromTokenWithDiagnostic(
 ) Status {
 	cfg.Target = cfg.Target.Normalize()
 	status := Status{
-		ServerName:       cfg.Target.ServerName,
-		Scope:            cfg.Target.Scope,
-		WorkspaceID:      cfg.Target.WorkspaceID,
-		Status:           StatusNeedsLogin,
-		RemoteURL:        strings.TrimSpace(cfg.RemoteURL),
-		AuthType:         strings.TrimSpace(cfg.Type),
-		ClientID:         strings.TrimSpace(cfg.ClientID),
-		Scopes:           trimStrings(cfg.Scopes),
-		RevocationURL:    strings.TrimSpace(cfg.RevocationURL),
-		AuthorizationURL: strings.TrimSpace(cfg.AuthorizationURL),
-		Diagnostic:       strings.TrimSpace(diagnostic),
+		ServerName:  cfg.Target.ServerName,
+		Scope:       cfg.Target.Scope,
+		WorkspaceID: cfg.Target.WorkspaceID,
+		Status:      StatusNeedsLogin,
+		RemoteURL:   strings.TrimSpace(cfg.RemoteURL),
+		AuthType:    strings.TrimSpace(cfg.Type),
+		ClientID:    strings.TrimSpace(cfg.ClientID),
+		Scopes:      trimStrings(cfg.Scopes),
+		Diagnostic:  strings.TrimSpace(diagnostic),
 	}
 	if strings.TrimSpace(cfg.Type) == "" {
 		status.Status = StatusUnconfigured

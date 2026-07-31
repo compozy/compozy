@@ -23,7 +23,7 @@ import { SkillActivationPill, SkillActivationReasons } from "@/systems/skill";
 import type { MarketplaceInstalledItem } from "../hooks/use-marketplace-kind-page";
 import { marketplaceMCPInstalledStatus } from "../lib/mcp-installed-status";
 import type { MarketplaceKind, MarketplaceListing } from "../types";
-import { marketplaceKindIcon } from "./marketplace-ui";
+import { formatMarketplaceVersion, marketplaceKindIcon } from "./marketplace-ui";
 import { useMarketplaceInstalledCardConfirmation } from "./use-marketplace-installed-card-confirmation";
 
 interface MarketplaceInstalledCardProps {
@@ -278,6 +278,7 @@ function InstalledCardHead({
 }) {
   const transport = item.mcpServer?.transport || entry.transport;
   const scopeMeta = item.scopeLabel;
+  const version = formatMarketplaceVersion(entry.version);
 
   return (
     <>
@@ -295,8 +296,8 @@ function InstalledCardHead({
               <span className="normal-case font-mono tracking-normal">{transport}</span>
             ) : null}
             {entry.kind === "mcp" && scopeMeta ? <span>{scopeMeta}</span> : null}
-            {entry.kind !== "mcp" && entry.version ? (
-              <span className="normal-case font-mono tracking-normal">{`v${entry.version}`}</span>
+            {entry.kind !== "mcp" && version ? (
+              <span className="normal-case font-mono tracking-normal">{version}</span>
             ) : null}
             {item.profileName ? <span>{`profile ${item.profileName}`}</span> : null}
             {entry.kind !== "mcp" && item.scopeLabel ? <span>{item.scopeLabel}</span> : null}
@@ -328,6 +329,7 @@ function InstalledPills({
   mcpStatus: ReturnType<typeof marketplaceMCPInstalledStatus> | null;
 }) {
   const { entry } = item;
+  const version = formatMarketplaceVersion(entry.version);
   return (
     <>
       {item.viaBundle ? <Pill mono>{`via ${item.viaBundle}`}</Pill> : null}
@@ -351,7 +353,7 @@ function InstalledPills({
       ) : null}
       {entry.update_available ? (
         <Pill mono tone="warning">
-          {entry.version ? `v${entry.version} available` : "update available"}
+          {version ? `${version} available` : "update available"}
         </Pill>
       ) : null}
     </>

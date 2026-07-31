@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/compozy/compozy/internal/tools"
-	sdkmcp "github.com/mark3labs/mcp-go/mcp"
+	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 func TestHostedToolResultContract(t *testing.T) {
@@ -45,19 +45,19 @@ func TestHostedToolResultContract(t *testing.T) {
 			t.Fatalf("hostedToolResult() = %#v, want two media blocks", result)
 		}
 
-		imageContent, ok := result.Content[0].(sdkmcp.ImageContent)
+		imageContent, ok := result.Content[0].(*sdkmcp.ImageContent)
 		if !ok {
 			t.Fatalf("result.Content[0] type = %T, want sdkmcp.ImageContent", result.Content[0])
 		}
-		if imageContent.Data != "aW1n" || imageContent.MIMEType != "image/png" {
+		if string(imageContent.Data) != "img" || imageContent.MIMEType != "image/png" {
 			t.Fatalf("image content = %#v, want data and MIME type preserved", imageContent)
 		}
 
-		audioContent, ok := result.Content[1].(sdkmcp.AudioContent)
+		audioContent, ok := result.Content[1].(*sdkmcp.AudioContent)
 		if !ok {
 			t.Fatalf("result.Content[1] type = %T, want sdkmcp.AudioContent", result.Content[1])
 		}
-		if audioContent.Data != "YXVkaW8=" || audioContent.MIMEType != "audio/mpeg" {
+		if string(audioContent.Data) != "audio" || audioContent.MIMEType != "audio/mpeg" {
 			t.Fatalf("audio content = %#v, want data and MIME type preserved", audioContent)
 		}
 	})

@@ -19,8 +19,7 @@ import (
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/vault"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
-	mcpsdk "github.com/mark3labs/mcp-go/mcp"
-	mcpsrv "github.com/mark3labs/mcp-go/server"
+	mcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 const settingsCatalogMCPHelperEnv = "COMPOZY_SETTINGS_CATALOG_MCP_HELPER"
@@ -139,7 +138,7 @@ func TestMCPCatalogInstallPersistsEncryptedSecretAndExecutorResolvesIt(t *testin
 		installed, err := service.InstallMCPCatalog(ctx, MCPCatalogInstallRequest{
 			EntryID: "github",
 			Scope:   ScopeGlobal,
-			Values: MCPCatalogInstallValues{Env: map[string]MCPSecretInput{
+			Values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
 				"CATALOG_TOKEN": {Value: "executor-secret"},
 			}},
 		})
@@ -222,19 +221,28 @@ func TestSettingsCatalogMCPStdioHelperProcess(t *testing.T) {
 	}
 	// Intentionally serial: this subprocess test owns stdin/stdout as the MCP stdio protocol.
 	t.Run("Should serve the catalog MCP helper over stdio", func(_ *testing.T) {
-		server := mcpsrv.NewMCPServer("settings-catalog-helper", "1.0.0", mcpsrv.WithToolCapabilities(true))
-		server.AddTool(
-			mcpsdk.NewTool("env", mcpsdk.WithString("message")),
-			func(_ context.Context, req mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
-				name := mcpsdk.ParseString(req, "message", "")
-				value := os.Getenv(name)
-				return mcpsdk.NewToolResultStructured(
-					map[string]string{"message": value},
-					"env: "+value,
-				), nil
-			},
-		)
-		if err := mcpsrv.ServeStdio(server); err != nil {
+		server := mcp.NewServer(&mcp.Implementation{Name: "settings-catalog-helper", Version: "1.0.0"}, &mcp.ServerOptions{
+			Capabilities: &mcp.ServerCapabilities{Tools: &mcp.ToolCapabilities{}},
+		})
+		server.AddTool(&mcp.Tool{
+			Name: "env",
+			InputSchema: json.RawMessage(
+				`{"type":"object","properties":{"message":{"type":"string"}},"required":["message"],"additionalProperties":false}`,
+			),
+		}, func(_ context.Context, request *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			var input struct {
+				Message string `json:"message"`
+			}
+			if err := json.Unmarshal(request.Params.Arguments, &input); err != nil {
+				return nil, fmt.Errorf("decode env tool input: %w", err)
+			}
+			value := os.Getenv(input.Message)
+			return &mcp.CallToolResult{
+				Content:           []mcp.Content{&mcp.TextContent{Text: "env: " + value}},
+				StructuredContent: map[string]string{"message": value},
+			}, nil
+		})
+		if err := server.Run(context.Background(), &mcp.IOTransport{Reader: os.Stdin, Writer: os.Stdout}); err != nil {
 			if _, writeErr := fmt.Fprintln(os.Stderr, err); writeErr != nil {
 				os.Exit(3)
 			}

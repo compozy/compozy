@@ -8,7 +8,10 @@ import (
 )
 
 // Exchange validates the OAuth callback and stores the token response.
-func (s *Service) Exchange(ctx context.Context, state LoginState, callbackURL string) (Status, error) {
+func (s *Service) Exchange(ctx context.Context, state *LoginState, callbackURL string) (Status, error) {
+	if state == nil {
+		return Status{}, errors.New("mcp auth: login state is required")
+	}
 	generation, err := s.generation.Advance(state.Config.Target)
 	if err != nil {
 		return Status{}, err
@@ -38,10 +41,10 @@ func (s *Service) persistReplacementTokenAtGeneration(
 	return statusFromToken(cfg, &token, s.now()), nil
 }
 
-func (s *Service) exchangeToken(ctx context.Context, state LoginState, callbackURL string) (TokenRecord, error) {
-	code, err := authorizationCodeFromCallback(callbackURL, state.State)
+func (s *Service) exchangeToken(ctx context.Context, state *LoginState, callbackURL string) (TokenRecord, error) {
+	code, err := authorizationCodeFromCallbackMetadata(callbackURL, state.State, state.Metadata)
 	if err != nil {
-		return TokenRecord{}, err
+		return TokenRecord{}, fmt.Errorf("%w: %v", ErrInvalidExchange, err)
 	}
 	if err := validateVerifier(state.Verifier); err != nil {
 		return TokenRecord{}, err
@@ -88,7 +91,11 @@ func (s *Service) Refresh(ctx context.Context, cfg ServerConfig) (Status, error)
 		}
 		return Status{}, err
 	}
-	if !tokenMatchesServerDefinition(current, cfg) {
+	matches, err := s.tokenMatchesServerDefinition(ctx, current, cfg)
+	if err != nil {
+		return Status{}, err
+	}
+	if !matches {
 		return statusFromTokenWithDiagnostic(
 			cfg,
 			nil,
@@ -105,11 +112,11 @@ func (s *Service) Refresh(ctx context.Context, cfg ServerConfig) (Status, error)
 		), nil
 	}
 
-	metadata, err := discoverMetadata(ctx, s.client, cfg)
+	refreshConfig, metadata, err := s.refreshConfiguration(ctx, cfg)
 	if err != nil {
 		return Status{}, err
 	}
-	refreshed, err := s.refreshToken(ctx, cfg, metadata, current)
+	refreshed, err := s.refreshToken(ctx, refreshConfig, metadata, current)
 	if err != nil {
 		return Status{}, err
 	}
@@ -141,7 +148,11 @@ func (s *Service) Status(ctx context.Context, cfg ServerConfig) (Status, error) 
 		}
 		return Status{}, err
 	}
-	if !tokenMatchesServerDefinition(token, cfg) {
+	matches, err := s.tokenMatchesServerDefinition(ctx, token, cfg)
+	if err != nil {
+		return Status{}, err
+	}
+	if !matches {
 		return statusFromTokenWithDiagnostic(
 			cfg,
 			nil,
@@ -152,13 +163,32 @@ func (s *Service) Status(ctx context.Context, cfg ServerConfig) (Status, error) 
 	return statusFromToken(cfg, &token, s.now()), nil
 }
 
+// AuthorizationToken returns bearer material only after full definition, registration, and scope binding validation.
+func (s *Service) AuthorizationToken(ctx context.Context, cfg ServerConfig) (TokenRecord, error) {
+	if err := cfg.Validate(); err != nil {
+		return TokenRecord{}, err
+	}
+	token, err := s.store.GetMCPAuthToken(ctx, cfg.Target)
+	if err != nil {
+		return TokenRecord{}, err
+	}
+	matches, err := s.tokenMatchesServerDefinition(ctx, token, cfg)
+	if err != nil {
+		return TokenRecord{}, err
+	}
+	if !matches || strings.TrimSpace(token.AccessToken) == "" {
+		return TokenRecord{}, ErrTokenBindingInvalid
+	}
+	if !token.ExpiresAt.IsZero() && !token.ExpiresAt.After(s.now().UTC()) {
+		return TokenRecord{}, ErrTokenExpired
+	}
+	return token, nil
+}
+
 // Logout revokes the refresh token when revocation metadata is configured,
 // then deletes local durable token state.
 func (s *Service) Logout(ctx context.Context, cfg ServerConfig) (Status, error) {
 	if err := cfg.Validate(); err != nil {
-		return Status{}, err
-	}
-	if _, err := s.generation.Advance(cfg.Target); err != nil {
 		return Status{}, err
 	}
 	token, err := s.store.GetMCPAuthToken(ctx, cfg.Target)
@@ -166,9 +196,15 @@ func (s *Service) Logout(ctx context.Context, cfg ServerConfig) (Status, error) 
 		return Status{}, err
 	}
 	var remoteErr error
-	definitionMatches := err == nil && tokenMatchesServerDefinition(token, cfg)
+	definitionMatches := false
+	if err == nil {
+		definitionMatches, err = s.tokenMatchesServerDefinition(ctx, token, cfg)
+		if err != nil {
+			return Status{}, err
+		}
+	}
 	if definitionMatches {
-		metadata, metaErr := discoverMetadata(ctx, s.client, cfg)
+		metadata, metaErr := s.metadataForConfig(ctx, cfg)
 		if metaErr != nil {
 			remoteErr = fmt.Errorf("mcp auth: discover revocation metadata: %w", metaErr)
 		} else if strings.TrimSpace(metadata.RevocationEndpoint) != "" {
@@ -177,7 +213,7 @@ func (s *Service) Logout(ctx context.Context, cfg ServerConfig) (Status, error) 
 			}
 		}
 	}
-	if err := s.store.DeleteMCPAuthToken(ctx, cfg.Target); err != nil {
+	if err := s.deleteAuthorizationState(ctx, cfg.Target); err != nil {
 		return Status{}, err
 	}
 	if remoteErr != nil {
@@ -197,4 +233,22 @@ func (s *Service) Logout(ctx context.Context, cfg ServerConfig) (Status, error) 
 		), nil
 	}
 	return statusFromToken(cfg, nil, s.now()), nil
+}
+
+// DeleteAuthorizationState atomically removes token, registration, and Vault state for one target.
+func (s *Service) DeleteAuthorizationState(ctx context.Context, target Target) error {
+	if err := target.Validate(); err != nil {
+		return err
+	}
+	return s.deleteAuthorizationState(ctx, target)
+}
+
+func (s *Service) deleteAuthorizationState(ctx context.Context, target Target) error {
+	if _, err := s.generation.Advance(target); err != nil {
+		return err
+	}
+	if err := s.store.DeleteMCPAuthorizationState(ctx, target); err != nil {
+		return fmt.Errorf("mcp auth: delete authorization state: %w", err)
+	}
+	return nil
 }

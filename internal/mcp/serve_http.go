@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/mark3labs/mcp-go/server"
+	mcpgo "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 const (
@@ -50,9 +50,14 @@ func ServeHTTP(
 	defer func() {
 		err = errors.Join(err, closeHostAPISession(invoker, serveSessionID))
 	}()
-	transport := server.NewStreamableHTTPServer(
-		mcpServer,
-		server.WithStreamableHTTPLogger(logger),
+	transport := mcpgo.NewStreamableHTTPHandler(
+		func(*http.Request) *mcpgo.Server { return mcpServer },
+		&mcpgo.StreamableHTTPOptions{
+			Stateless:                    true,
+			JSONResponse:                 true,
+			Logger:                       logger,
+			PropagateRequestCancellation: true,
+		},
 	)
 	var listenConfig net.ListenConfig
 	listener, err := listenConfig.Listen(ctx, "tcp", listenAddress)
@@ -82,13 +87,12 @@ func ServeHTTP(
 	case <-ctx.Done():
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), serveHTTPShutdownTimeout)
 		defer cancel()
-		transportErr := transport.Shutdown(shutdownCtx)
 		httpErr := httpServer.Shutdown(shutdownCtx)
 		serverErr := <-serveErr
 		if errors.Is(serverErr, http.ErrServerClosed) {
 			serverErr = nil
 		}
-		if joined := errors.Join(transportErr, httpErr, serverErr); joined != nil {
+		if joined := errors.Join(httpErr, serverErr); joined != nil {
 			return fmt.Errorf("mcp: shutdown HTTP: %w", joined)
 		}
 		return nil

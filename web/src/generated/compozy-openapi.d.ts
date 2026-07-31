@@ -2897,6 +2897,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/settings/mcp-servers/{name}/auth/status": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get redacted daemon-mediated OAuth state for one MCP server */
+    get: operations["getSettingsMCPAuthStatus"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/settings/memory": {
     parameters: {
       query?: never;
@@ -15407,15 +15424,11 @@ export interface operations {
               mcp_servers?: {
                 args?: string[];
                 auth?: {
-                  authorization_url?: string;
                   client_id?: string;
                   client_secret_configured: boolean;
                   issuer_url?: string;
-                  metadata_url?: string;
-                  revocation_url?: string;
+                  registration?: string;
                   scopes?: string[];
-                  token_url?: string;
-                  type?: string;
                 } | null;
                 command?: string;
                 env?: {
@@ -15541,15 +15554,11 @@ export interface operations {
               mcp_servers?: {
                 args?: string[];
                 auth?: {
-                  authorization_url?: string;
                   client_id?: string;
                   client_secret_configured: boolean;
                   issuer_url?: string;
-                  metadata_url?: string;
-                  revocation_url?: string;
+                  registration?: string;
                   scopes?: string[];
-                  token_url?: string;
-                  type?: string;
                 } | null;
                 command?: string;
                 env?: {
@@ -15821,15 +15830,11 @@ export interface operations {
                 mcp_servers?: {
                   args?: string[];
                   auth?: {
-                    authorization_url?: string;
                     client_id?: string;
                     client_secret_configured: boolean;
                     issuer_url?: string;
-                    metadata_url?: string;
-                    revocation_url?: string;
+                    registration?: string;
                     scopes?: string[];
-                    token_url?: string;
-                    type?: string;
                   } | null;
                   command?: string;
                   env?: {
@@ -16057,15 +16062,11 @@ export interface operations {
               mcp_servers?: {
                 args?: string[];
                 auth?: {
-                  authorization_url?: string;
                   client_id?: string;
                   client_secret_configured: boolean;
                   issuer_url?: string;
-                  metadata_url?: string;
-                  revocation_url?: string;
+                  registration?: string;
                   scopes?: string[];
-                  token_url?: string;
-                  type?: string;
                 } | null;
                 command?: string;
                 env?: {
@@ -16218,15 +16219,11 @@ export interface operations {
               mcp_servers?: {
                 args?: string[];
                 auth?: {
-                  authorization_url?: string;
                   client_id?: string;
                   client_secret_configured: boolean;
                   issuer_url?: string;
-                  metadata_url?: string;
-                  revocation_url?: string;
+                  registration?: string;
                   scopes?: string[];
-                  token_url?: string;
-                  type?: string;
                 } | null;
                 command?: string;
                 env?: {
@@ -16637,15 +16634,11 @@ export interface operations {
               mcp_servers?: {
                 args?: string[];
                 auth?: {
-                  authorization_url?: string;
                   client_id?: string;
                   client_secret_configured: boolean;
                   issuer_url?: string;
-                  metadata_url?: string;
-                  revocation_url?: string;
+                  registration?: string;
                   scopes?: string[];
-                  token_url?: string;
-                  type?: string;
                 } | null;
                 command?: string;
                 env?: {
@@ -34256,25 +34249,32 @@ export interface operations {
               repository?: string;
             } | null;
             mcp?: {
-              args?: string[];
-              command?: string;
-              default_scope?: string;
-              env?: {
-                default?: string;
-                name: string;
-                prompt?: string;
-                required: boolean;
-                secret: boolean;
-              }[];
-              oauth?: {
-                authorization_url?: string;
-                client_id: string;
-                issuer_url?: string;
+              auth?: {
+                method: string;
+                registration: string;
                 scopes?: string[];
-                token_url?: string;
               } | null;
-              transport: string;
-              url?: string;
+              default_scope: string;
+              inputs?: {
+                binding: {
+                  name: string;
+                  type: string;
+                };
+                default?: unknown;
+                id: string;
+                prompt: string;
+                required: boolean;
+                type: string;
+              }[];
+              launch: {
+                args?: string[];
+                digest?: string;
+                image?: string;
+                package?: string;
+                type: string;
+                url?: string;
+                version?: string;
+              };
             } | null;
             skill?: {
               display_name?: string;
@@ -50319,19 +50319,14 @@ export interface operations {
             mcp_servers: {
               args?: string[];
               auth?: {
-                authorization_url?: string;
                 client_id?: string;
                 client_secret_configured: boolean;
                 issuer_url?: string;
-                metadata_url?: string;
-                revocation_url?: string;
+                registration?: string;
                 scopes?: string[];
-                token_url?: string;
-                type?: string;
               } | null;
               auth_status?: {
                 auth_type?: string;
-                authorization_url?: string;
                 client_id?: string;
                 diagnostic?: string;
                 /** Format: date-time */
@@ -50339,7 +50334,6 @@ export interface operations {
                 issuer?: string;
                 refreshable: boolean;
                 remote_url?: string;
-                revocation_url?: string;
                 scope: string;
                 scopes?: string[];
                 server_name: string;
@@ -50359,6 +50353,7 @@ export interface operations {
                 diagnostic?: string;
                 initialized: boolean;
                 probe: string;
+                protocol_version?: string;
                 reason?: string;
                 state: string;
                 tool_count: number;
@@ -50507,9 +50502,9 @@ export interface operations {
           entry_id: string;
           name?: string;
           /** @enum {string} */
-          scope: "global" | "workspace";
+          scope?: "global" | "workspace";
           values: {
-            env?: {
+            inputs?: {
               [key: string]:
                 | {
                     value: string;
@@ -50518,13 +50513,6 @@ export interface operations {
                     vault_ref: string;
                   };
             };
-            oauth_client_secret?:
-              | {
-                  value: string;
-                }
-              | {
-                  vault_ref: string;
-                };
           } | null;
           workspace_id?: string;
         };
@@ -50606,19 +50594,14 @@ export interface operations {
             mcp_server: {
               args?: string[];
               auth?: {
-                authorization_url?: string;
                 client_id?: string;
                 client_secret_configured: boolean;
                 issuer_url?: string;
-                metadata_url?: string;
-                revocation_url?: string;
+                registration?: string;
                 scopes?: string[];
-                token_url?: string;
-                type?: string;
               } | null;
               auth_status?: {
                 auth_type?: string;
-                authorization_url?: string;
                 client_id?: string;
                 diagnostic?: string;
                 /** Format: date-time */
@@ -50626,7 +50609,6 @@ export interface operations {
                 issuer?: string;
                 refreshable: boolean;
                 remote_url?: string;
-                revocation_url?: string;
                 scope: string;
                 scopes?: string[];
                 server_name: string;
@@ -50646,6 +50628,7 @@ export interface operations {
                 diagnostic?: string;
                 initialized: boolean;
                 probe: string;
+                protocol_version?: string;
                 reason?: string;
                 state: string;
                 tool_count: number;
@@ -50928,15 +50911,11 @@ export interface operations {
           server: {
             args?: string[];
             auth?: {
-              authorization_url?: string;
               client_id?: string;
               client_secret_ref?: string;
               issuer_url?: string;
-              metadata_url?: string;
-              revocation_url?: string;
+              registration?: string;
               scopes?: string[];
-              token_url?: string;
-              type?: string;
             } | null;
             command?: string;
             env?: {
@@ -51391,6 +51370,8 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
+          approve_scope_escalation?: boolean;
+          approved_scopes?: string[];
           /** @enum {string} */
           mode: "automatic" | "manual";
         };
@@ -51558,13 +51539,9 @@ export interface operations {
     /** @description JSON request body */
     requestBody: {
       content: {
-        "application/json":
-          | {
-              code: string;
-            }
-          | {
-              redirect_url: string;
-            };
+        "application/json": {
+          redirect_url: string;
+        };
       };
     };
     responses: {
@@ -51576,7 +51553,6 @@ export interface operations {
         content: {
           "application/json": {
             auth_type?: string;
-            authorization_url?: string;
             client_id?: string;
             diagnostic?: string;
             /** Format: date-time */
@@ -51584,7 +51560,6 @@ export interface operations {
             issuer?: string;
             refreshable: boolean;
             remote_url?: string;
-            revocation_url?: string;
             scope: string;
             scopes?: string[];
             server_name: string;
@@ -51748,7 +51723,6 @@ export interface operations {
         content: {
           "application/json": {
             auth_type?: string;
-            authorization_url?: string;
             client_id?: string;
             diagnostic?: string;
             /** Format: date-time */
@@ -51756,7 +51730,176 @@ export interface operations {
             issuer?: string;
             refreshable: boolean;
             remote_url?: string;
-            revocation_url?: string;
+            scope: string;
+            scopes?: string[];
+            server_name: string;
+            status: string;
+            token_present: boolean;
+            /** Format: date-time */
+            updated_at?: string | null;
+            workspace_id?: string;
+          };
+        };
+      };
+      /** @description Invalid MCP OAuth request or session */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description MCP server or workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description MCP OAuth runtime is unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  getSettingsMCPAuthStatus: {
+    parameters: {
+      query: {
+        /** @description Exact MCP settings scope */
+        scope: "global" | "workspace";
+        /** @description Required when scope is workspace */
+        workspace_id?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Configured MCP server name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            auth_type?: string;
+            client_id?: string;
+            diagnostic?: string;
+            /** Format: date-time */
+            expires_at?: string | null;
+            issuer?: string;
+            refreshable: boolean;
+            remote_url?: string;
             scope: string;
             scopes?: string[];
             server_name: string;
@@ -82438,15 +82581,11 @@ export interface operations {
               mcp_servers?: {
                 args?: string[];
                 auth?: {
-                  authorization_url?: string;
                   client_id?: string;
                   client_secret_configured: boolean;
                   issuer_url?: string;
-                  metadata_url?: string;
-                  revocation_url?: string;
+                  registration?: string;
                   scopes?: string[];
-                  token_url?: string;
-                  type?: string;
                 } | null;
                 command?: string;
                 env?: {

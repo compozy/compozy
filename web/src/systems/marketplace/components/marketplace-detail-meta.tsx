@@ -3,7 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { Pill } from "@compozy/ui";
 
 import type { MarketplaceEntryResponse, MarketplaceKind } from "../types";
-import { formatMarketplaceCount } from "./marketplace-ui";
+import { formatMarketplaceCount, formatMarketplaceVersion } from "./marketplace-ui";
 
 interface MarketplaceDetailMetaProps {
   entry: MarketplaceEntryResponse["entry"];
@@ -16,6 +16,7 @@ interface MarketplaceDetailMetaProps {
 function MarketplaceDetailMeta({ entry }: MarketplaceDetailMetaProps) {
   const kind = entry.kind as MarketplaceKind;
   const blocked = kind === "extension" && entry.trust?.decision === "blocked";
+  const version = formatMarketplaceVersion(entry.version);
 
   return (
     <div
@@ -24,7 +25,7 @@ function MarketplaceDetailMeta({ entry }: MarketplaceDetailMetaProps) {
     >
       <div className="flex min-w-0 flex-wrap items-center gap-2">
         <Pill mono>{kind}</Pill>
-        {entry.version ? <Pill mono>v{entry.version}</Pill> : null}
+        {version ? <Pill mono>{version}</Pill> : null}
       </div>
       <div className="flex flex-wrap items-center gap-2 text-small-body text-muted">
         {entry.author ? <span>{entry.author}</span> : null}

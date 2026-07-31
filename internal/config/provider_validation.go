@@ -116,21 +116,17 @@ func (s MCPServer) EffectiveTransport() MCPServerTransport {
 // Validate reports whether the transport is supported.
 func (t MCPServerTransport) Validate(path string) error {
 	switch t {
-	case "", MCPServerTransportStdio, MCPServerTransportHTTP, MCPServerTransportSSE:
+	case "", MCPServerTransportStdio, MCPServerTransportHTTP:
 		return nil
 	default:
-		return fmt.Errorf("%s must be one of stdio, http, or sse", path)
+		return fmt.Errorf("%s must be one of stdio or http", path)
 	}
 }
 
 // IsZero reports whether the auth config is empty.
 func (a MCPAuthConfig) IsZero() bool {
-	return strings.TrimSpace(string(a.Type)) == "" &&
+	return strings.TrimSpace(string(a.Registration)) == "" &&
 		strings.TrimSpace(a.IssuerURL) == "" &&
-		strings.TrimSpace(a.MetadataURL) == "" &&
-		strings.TrimSpace(a.AuthorizationURL) == "" &&
-		strings.TrimSpace(a.TokenURL) == "" &&
-		strings.TrimSpace(a.RevocationURL) == "" &&
 		strings.TrimSpace(a.ClientID) == "" &&
 		strings.TrimSpace(a.ClientSecretRef) == "" &&
 		len(a.Scopes) == 0

@@ -1,0 +1,88 @@
+---
+title: Curated MCP catalog
+description: Reference for the MCP servers Compozy curates, their safe defaults, and deliberate omissions.
+---
+
+This is a reference for operators choosing a curated MCP server. The catalog supplies a pinned
+launch definition or an official hosted endpoint; it does not grant access, approve tool calls, or
+make a server ready. Install through the daemon, then inspect its authorization and runtime status.
+
+## Curated entries
+
+| Entry                 | Delivery                                                  | Default boundary                                                                                                                         |
+| --------------------- | --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| Context7              | Pinned npm package `@upstash/context7-mcp@3.2.3`          | Global scope; its API key is optional.                                                                                                   |
+| GitHub                | Digest-pinned official Docker image `v1.8.0`              | Workspace scope; runs with GitHub's `--read-only` mode.                                                                                  |
+| Linear                | Hosted Streamable HTTP                                    | Workspace scope; OAuth discovery and registration are automatic.                                                                         |
+| Notion                | Hosted Streamable HTTP                                    | Workspace scope; OAuth discovery and registration are automatic.                                                                         |
+| Sentry                | Hosted Streamable HTTP                                    | Workspace scope; OAuth discovery and registration are automatic.                                                                         |
+| PostgreSQL (Yaw Labs) | Pinned npm package `@yawlabs/postgres-mcp@0.7.0`          | Workspace scope; the maintained server is read-only by default.                                                                          |
+| Supabase              | Hosted Streamable HTTP                                    | Workspace scope; requires a project reference and fixes `read_only=true`.                                                                |
+| Brave Search          | Pinned npm package `@brave/brave-search-mcp-server@2.1.0` | Workspace scope; needs a Brave API key.                                                                                                  |
+| Playwright            | Pinned npm package `@playwright/mcp@0.0.78`               | Workspace scope; launches with `--headless`.                                                                                             |
+| Stripe                | Hosted Streamable HTTP                                    | Workspace scope; inspect customers, payments, invoices, and subscriptions. Money-moving actions remain governed by upstream permissions. |
+| PostHog               | Hosted Streamable HTTP                                    | Workspace scope; OAuth discovery and registration are automatic.                                                                         |
+| Airtable              | Hosted Streamable HTTP                                    | Workspace scope; OAuth discovery and registration are automatic.                                                                         |
+| GitLab                | Hosted Streamable HTTP                                    | Workspace scope; OAuth discovery and registration are automatic.                                                                         |
+| Atlassian             | Hosted Streamable HTTP                                    | Workspace scope; OAuth discovery and registration are automatic.                                                                         |
+| Grafana               | Pinned uvx package `mcp-grafana==1.0.0`                   | Workspace scope; requires a Grafana URL and service-account token, and launches with `--disable-write`.                                  |
+| Cal.com               | Hosted Streamable HTTP                                    | Workspace scope; OAuth discovery and registration are automatic.                                                                         |
+| Cloudflare Code Mode  | Hosted Streamable HTTP                                    | Workspace scope; OAuth discovery and registration are automatic.                                                                         |
+
+Pinned local distributions are exact so a catalog refresh cannot silently select a different
+package. A Docker distribution is additionally pinned to a verified image digest. Hosted entries
+intentionally omit a catalog version because the provider owns the running service version.
+
+## Inputs and authorization
+
+The catalog declares typed inputs rather than arbitrary environment maps. A secret input can be
+entered securely or bound to an existing Vault ref. Non-secret inputs can only populate a local
+server environment or a hosted URL query parameter; secret query values are never accepted.
+
+Use the catalog default scope unless you have a concrete reason to choose another one. Every new
+vendor entry defaults to `workspace`; Context7 is the global exception. For a hosted entry with
+OAuth, install first and then use the daemon-owned login flow. The catalog's `registration: auto`
+does not accept a copied client secret or a manual OAuth endpoint template.
+
+## Curation sources
+
+The catalog uses direct provider documentation and maintained upstream packages. For example,
+Linear documents its Streamable HTTP endpoint; Notion recommends its hosted Streamable HTTP endpoint;
+Supabase documents hosted OAuth and a project-scoped URL; and Grafana documents its open-source
+server. [Linear](https://linear.app/docs/mcp),
+[Notion](https://developers.notion.com/guides/mcp/get-started-with-mcp),
+[Supabase](https://supabase.com/docs/guides/ai-tools/mcp),
+[Grafana](https://grafana.com/docs/grafana/latest/developer-resources/mcp/introduction/)
+
+GitHub documents both its official container image and read-only mode. The catalog resolves the
+`v1.8.0` multi-architecture image index to its immutable digest before publication. [GitHub MCP
+Server](https://github.com/github/github-mcp-server)
+
+The PostgreSQL entry deliberately identifies Yaw Labs rather than presenting it as a PostgreSQL
+project distribution. Its package describes itself as maintained by Yaw Labs and read-only by
+default. [Yaw Labs PostgreSQL MCP](https://www.npmjs.com/package/@yawlabs/postgres-mcp)
+
+Cloudflare's Code Mode design exposes a small progressive-discovery interface and keeps
+credentials in the host callback rather than generated code. [Cloudflare Code
+Mode](https://developers.cloudflare.com/agents/model-context-protocol/codemode/)
+
+## Deliberate omissions
+
+Figma is not a curated entry by product decision. Figma limits its remote server to clients in its
+own MCP Catalog; this v2 catalog does not ship that Figma-specific client integration.
+[Figma MCP server introduction](https://developers.figma.com/docs/figma-mcp-server/)
+
+Shopify is not a generic entry. Shopify publishes multiple UCP MCP interfaces: a global endpoint,
+store-specific endpoints, dynamic customer-account discovery, and requests that carry an agent
+profile. That does not fit a single safe catalog launch with no templates or custom headers.
+[Shopify catalog interfaces](https://shopify.dev/docs/agents/catalog)
+
+Slack is not a generic entry. Its official server requires a registered Slack app with a fixed app
+ID and client credentials, and Slack does not support Dynamic Client Registration. Compozy's
+curated remote OAuth entries use automatic registration and do not carry provider-specific client
+secrets. [Slack MCP overview](https://docs.slack.dev/ai/slack-mcp-server/)
+
+## Related references
+
+- [Marketplace](/docs/marketplace) explains installation, managed status, and provenance.
+- [MCP configuration](/docs/configuration/mcp-json) explains local and remote server definitions.

@@ -14,12 +14,17 @@ type registryTestProvider struct {
 	listScoped  func(Scope) []Descriptor
 	handles     map[ToolID]Handle
 	resolveErr  map[ToolID]error
+	deferred    bool
 }
 
 var _ Provider = registryTestProvider{}
 
 func (p registryTestProvider) ID() SourceRef {
 	return p.source
+}
+
+func (p registryTestProvider) DeferInitialDiscovery() bool {
+	return p.deferred
 }
 
 func (p registryTestProvider) List(_ context.Context, scope Scope) ([]Descriptor, error) {
@@ -397,6 +402,151 @@ func TestRuntimeRegistryProjections(t *testing.T) {
 		}
 		if sessionViews[0].Descriptor.ID != skillView.ID {
 			t.Fatalf("session tool = %q, want %q", sessionViews[0].Descriptor.ID, skillView.ID)
+		}
+	})
+
+	t.Run("Should defer remote discovery from the bootstrap projection", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		local := descriptorWithID(ToolIDTaskRunClaimNext, "Claim Task Run", ToolsetIDAutonomy)
+		secondLocal := descriptorWithID(ToolIDTaskRead, "Read Task", ToolsetIDTasks)
+		remote := mcpDescriptor("mcp__github__search", "github", "search")
+		localProvider := providerWithDescriptors(
+			SourceRef{Kind: SourceBuiltin, Owner: "daemon"},
+			local,
+			secondLocal,
+		)
+		remoteProvider := providerWithDescriptors(SourceRef{Kind: SourceDynamic, Owner: "mcp"}, remote)
+		remoteListCalls := 0
+		remoteProvider.deferred = true
+		remoteProvider.list = func() []Descriptor {
+			remoteListCalls++
+			return []Descriptor{remote}
+		}
+		registry, err := NewRegistry(
+			WithProviders(localProvider, remoteProvider),
+			WithPolicyInputs(PolicyInputs{
+				SystemPermissionMode: PermissionModeApproveAll,
+				ExternalDefault:      ExternalDefaultEnabled,
+			}, ToolsetCatalog{}),
+		)
+		if err != nil {
+			t.Fatalf("NewRegistry() error = %v", err)
+		}
+
+		bootstrap, err := registry.BootstrapSessionProjection(ctx, Scope{})
+		if err != nil {
+			t.Fatalf("BootstrapSessionProjection() error = %v", err)
+		}
+		requireToolIDs(t, bootstrap, local.ID, secondLocal.ID)
+		if remoteListCalls != 0 {
+			t.Fatalf("deferred provider list calls = %d, want 0 during bootstrap", remoteListCalls)
+		}
+		localHandle, ok := localProvider.handles[secondLocal.ID].(*registryTestHandle)
+		if !ok {
+			t.Fatalf("local provider handle = %T, want *registryTestHandle", localProvider.handles[secondLocal.ID])
+		}
+		localHandle.result = ToolResult{Content: []ToolContent{{Type: "text", Text: "read"}}}
+		result, err := registry.BootstrapSessionCall(ctx, Scope{}, CallRequest{ToolID: secondLocal.ID})
+		if err != nil {
+			t.Fatalf("BootstrapSessionCall() error = %v", err)
+		}
+		if len(result.Content) != 1 || result.Content[0].Text != "read" {
+			t.Fatalf("BootstrapSessionCall() result = %#v, want read text", result)
+		}
+		if got, want := remoteListCalls, 1; got != want {
+			t.Fatalf("deferred provider list calls = %d, want %d during bootstrap call", got, want)
+		}
+
+		full, err := registry.SessionProjection(ctx, Scope{})
+		if err != nil {
+			t.Fatalf("SessionProjection() error = %v", err)
+		}
+		requireToolIDs(t, full, local.ID, secondLocal.ID, remote.ID)
+		if remoteListCalls == 0 {
+			t.Fatal("deferred provider list calls = 0, want discovery during full projection")
+		}
+	})
+
+	t.Run("Should retain deferred descriptor metadata after a bootstrap projection", func(t *testing.T) {
+		t.Parallel()
+
+		local := descriptorWithID(ToolIDTaskRead, "Read Task", ToolsetIDTasks)
+		remote := mcpDescriptor("mcp__github__search", "github", "search")
+		remote.ToolPresentation = NewToolPresentation("Searching GitHub", "query")
+		remoteProvider := providerWithDescriptors(SourceRef{Kind: SourceDynamic, Owner: "mcp"}, remote)
+		remoteProvider.deferred = true
+		registry, err := NewRegistry(
+			WithProviders(
+				providerWithDescriptors(SourceRef{Kind: SourceBuiltin, Owner: "daemon"}, local),
+				remoteProvider,
+			),
+			WithPolicyInputs(PolicyInputs{
+				SystemPermissionMode: PermissionModeApproveAll,
+				ExternalDefault:      ExternalDefaultEnabled,
+			}, ToolsetCatalog{}),
+		)
+		if err != nil {
+			t.Fatalf("NewRegistry() error = %v", err)
+		}
+
+		if _, err := registry.SessionProjection(t.Context(), Scope{}); err != nil {
+			t.Fatalf("SessionProjection() error = %v", err)
+		}
+		if _, ok := registry.LookupToolMetadata("", remote.ID.String()); !ok {
+			t.Fatal("LookupToolMetadata(remote before bootstrap) ok = false, want true")
+		}
+		if _, err := registry.BootstrapSessionProjection(t.Context(), Scope{}); err != nil {
+			t.Fatalf("BootstrapSessionProjection() error = %v", err)
+		}
+		if _, ok := registry.LookupToolMetadata("", remote.ID.String()); !ok {
+			t.Fatal("LookupToolMetadata(remote after bootstrap) ok = false, want true")
+		}
+	})
+
+	t.Run("Should reject a bootstrap call when deferred discovery conflicts with its tool ID", func(t *testing.T) {
+		t.Parallel()
+
+		local := descriptorWithID(ToolIDTaskRead, "Read Task", ToolsetIDTasks)
+		localCalled := false
+		localProvider := providerWithDescriptors(SourceRef{Kind: SourceBuiltin, Owner: "daemon"}, local)
+		localProvider.handles[local.ID] = &registryTestHandle{
+			descriptor:   local,
+			availability: availableDispatchHandle(),
+			call: func(context.Context, CallRequest) (ToolResult, error) {
+				localCalled = true
+				return ToolResult{Content: []ToolContent{{Type: "text", Text: "unexpected"}}}, nil
+			},
+		}
+		remote := mcpDescriptor(local.ID, "github", "read")
+		remoteProvider := providerWithDescriptors(SourceRef{Kind: SourceDynamic, Owner: "mcp"}, remote)
+		remoteProvider.deferred = true
+		remoteListCalls := 0
+		remoteProvider.list = func() []Descriptor {
+			remoteListCalls++
+			return []Descriptor{remote}
+		}
+		registry, err := NewRegistry(
+			WithProviders(localProvider, remoteProvider),
+			WithPolicyInputs(PolicyInputs{
+				SystemPermissionMode: PermissionModeApproveAll,
+				ExternalDefault:      ExternalDefaultEnabled,
+			}, ToolsetCatalog{}),
+		)
+		if err != nil {
+			t.Fatalf("NewRegistry() error = %v", err)
+		}
+
+		_, err = registry.BootstrapSessionCall(t.Context(), Scope{}, CallRequest{ToolID: local.ID})
+		if !errors.Is(err, ErrToolConflict) {
+			t.Fatalf("BootstrapSessionCall() error = %v, want ErrToolConflict", err)
+		}
+		if localCalled {
+			t.Fatal("local provider handle was called for conflicted tool")
+		}
+		if got, want := remoteListCalls, 1; got != want {
+			t.Fatalf("deferred provider list calls = %d, want %d for authoritative conflict detection", got, want)
 		}
 	})
 }

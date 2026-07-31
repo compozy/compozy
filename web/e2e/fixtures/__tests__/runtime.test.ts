@@ -217,11 +217,16 @@ describe("runtime helpers", () => {
       generatedAt: "2026-07-14T00:00:00Z",
       mcp: [
         {
-          command: "npx",
           description: "Read repository metadata",
           entry_id: "browser-github-mcp",
+          launch: {
+            package: "@browser/github-mcp",
+            type: "npm",
+            version: "1.0.0",
+          },
           name: "Browser GitHub MCP",
-          transport: "stdio",
+          version: "1.0.0",
+          default_scope: "global",
         },
       ],
       skills: [
@@ -240,15 +245,20 @@ describe("runtime helpers", () => {
       const mcpResponse = await fetch(`${marketplace.baseURL}/mcp.json`);
       expect(mcpResponse.status).toBe(200);
       await expect(mcpResponse.json()).resolves.toEqual({
-        manifest_version: 1,
+        manifest_version: 2,
         generated_at: "2026-07-14T00:00:00Z",
         entries: [
           {
-            command: "npx",
             description: "Read repository metadata",
             entry_id: "browser-github-mcp",
+            launch: {
+              package: "@browser/github-mcp",
+              type: "npm",
+              version: "1.0.0",
+            },
             name: "Browser GitHub MCP",
-            transport: "stdio",
+            version: "1.0.0",
+            default_scope: "global",
           },
         ],
       });

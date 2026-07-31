@@ -3,7 +3,6 @@ package auth
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -57,9 +56,8 @@ type BeginResult struct {
 	ManualSupported  bool      `json:"manual_supported"`
 }
 
-// ExchangeInput accepts exactly one manual completion representation.
+// ExchangeInput accepts the complete authorization redirect URL.
 type ExchangeInput struct {
-	Code        string
 	RedirectURL string
 }
 
@@ -197,7 +195,24 @@ func (m *Manager) Begin(
 	}, nil
 }
 
-// Exchange completes one target's active session using a code or full redirect URL.
+// BeginStepUp starts an explicitly approved scope escalation for one target.
+func (m *Manager) BeginStepUp(
+	ctx context.Context,
+	cfg ServerConfig,
+	callbackURL string,
+	approvedScopes []string,
+	approved bool,
+) (BeginResult, error) {
+	if !approved {
+		return BeginResult{}, errors.New(
+			"mcp auth: explicit scope approval is required for step-up",
+		)
+	}
+	cfg.Scopes = unionScopes(cfg.Scopes, approvedScopes)
+	return m.Begin(ctx, cfg, callbackURL)
+}
+
+// Exchange completes one target's active session from a complete authorization redirect URL.
 func (m *Manager) Exchange(
 	ctx context.Context,
 	cfg ServerConfig,
@@ -218,13 +233,7 @@ func (m *Manager) Exchange(
 	if err := validateLoginSessionDefinition(session, cfg); err != nil {
 		return Status{}, err
 	}
-	if callbackURL == "" {
-		callbackURL, err = callbackURLForCode(session.state, strings.TrimSpace(input.Code))
-		if err != nil {
-			return Status{}, err
-		}
-	}
-	token, err := m.service.exchangeToken(ctx, session.state, callbackURL)
+	token, err := m.service.exchangeToken(ctx, &session.state, callbackURL)
 	if err != nil {
 		return Status{}, err
 	}
@@ -246,7 +255,7 @@ func (m *Manager) ExchangeCallback(
 	if err != nil {
 		return Status{}, err
 	}
-	session, err := m.claimByState(state)
+	session, err := m.claimByState(state, callbackURL)
 	if err != nil {
 		return Status{}, err
 	}
@@ -254,10 +263,7 @@ func (m *Manager) ExchangeCallback(
 	if err := validateLoginSessionDefinition(session, cfg); err != nil {
 		return Status{}, err
 	}
-	if _, err := authorizationCodeFromCallback(callbackURL, session.state.State); err != nil {
-		return Status{}, fmt.Errorf("%w: %v", ErrInvalidExchange, err)
-	}
-	token, err := m.service.exchangeToken(ctx, session.state, callbackURL)
+	token, err := m.service.exchangeToken(ctx, &session.state, callbackURL)
 	if err != nil {
 		return Status{}, err
 	}
@@ -329,6 +335,20 @@ func (m *Manager) Invalidate(target Target) error {
 	return nil
 }
 
+// DeleteState invalidates pending flows and removes all durable authorization state.
+func (m *Manager) DeleteState(ctx context.Context, target Target) error {
+	if ctx == nil {
+		return errors.New("mcp auth: delete state context is required")
+	}
+	if err := m.Invalidate(target); err != nil {
+		return err
+	}
+	if err := m.service.DeleteAuthorizationState(ctx, target); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (m *Manager) claimByTarget(target Target, callbackURL string) (*loginSession, error) {
 	key, err := target.Key()
 	if err != nil {
@@ -346,17 +366,15 @@ func (m *Manager) claimByTarget(target Target, callbackURL string) (*loginSessio
 		m.pruneExpiredLocked()
 		return nil, ErrLoginSessionExpired
 	}
-	if callbackURL != "" {
-		if _, err := authorizationCodeFromCallback(callbackURL, session.state.State); err != nil {
-			return nil, fmt.Errorf("%w: %v", ErrInvalidExchange, err)
-		}
+	if err := validateCallbackRedirect(session.state.RedirectURL, callbackURL); err != nil {
+		return nil, err
 	}
 	m.removeSessionLocked(key, session)
 	m.pruneExpiredLocked()
 	return session, nil
 }
 
-func (m *Manager) claimByState(state string) (*loginSession, error) {
+func (m *Manager) claimByState(state string, callbackURL string) (*loginSession, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	targetKey, ok := m.byState[strings.TrimSpace(state)]
@@ -370,11 +388,16 @@ func (m *Manager) claimByState(state string) (*loginSession, error) {
 		m.pruneExpiredLocked()
 		return nil, ErrLoginSessionNotFound
 	}
-	m.removeSessionLocked(targetKey, session)
-	m.pruneExpiredLocked()
 	if !session.expiresAt.After(m.now().UTC()) {
+		m.removeSessionLocked(targetKey, session)
+		m.pruneExpiredLocked()
 		return nil, ErrLoginSessionExpired
 	}
+	if err := validateCallbackRedirect(session.state.RedirectURL, callbackURL); err != nil {
+		return nil, err
+	}
+	m.removeSessionLocked(targetKey, session)
+	m.pruneExpiredLocked()
 	return session, nil
 }
 
@@ -400,7 +423,8 @@ func validateLoginSessionDefinition(session *loginSession, cfg ServerConfig) err
 	if err != nil {
 		return err
 	}
-	if fingerprint != session.definitionFingerprint || cfg.Target.Normalize() != session.state.Target.Normalize() {
+	if fingerprint != session.definitionFingerprint ||
+		cfg.Target.Normalize() != session.state.Target.Normalize() {
 		return ErrLoginSessionStale
 	}
 	return nil
@@ -420,13 +444,24 @@ func (m *Manager) commitExchange(
 		return Status{}, err
 	}
 	m.mu.Lock()
-	defer m.mu.Unlock()
 	if m.revision[targetKey] != session.revision {
+		m.mu.Unlock()
 		return Status{}, ErrLoginSessionStale
 	}
-	if !tokenMatchesServerDefinition(token, cfg) {
+	m.mu.Unlock()
+	matches, matchErr := m.service.tokenMatchesServerDefinition(ctx, token, cfg)
+	if matchErr != nil {
+		return Status{}, matchErr
+	}
+	if !matches {
 		return Status{}, ErrLoginSessionStale
 	}
+	m.mu.Lock()
+	if m.revision[targetKey] != session.revision {
+		m.mu.Unlock()
+		return Status{}, ErrLoginSessionStale
+	}
+	m.mu.Unlock()
 	return m.service.persistReplacementTokenAtGeneration(ctx, cfg, token, session.generation)
 }
 
@@ -452,6 +487,6 @@ func managerErrorClass(err error) string {
 	case errors.Is(err, ErrLoginSessionNotFound):
 		return "not_found"
 	default:
-		return "oauth"
+		return authTypeOAuth
 	}
 }

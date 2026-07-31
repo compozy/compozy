@@ -27,7 +27,6 @@ type mcpServeOptions struct {
 	TokenEnv  string
 	Stdin     io.Reader
 	Stdout    io.Writer
-	Stderr    io.Writer
 }
 
 func newMCPServeCommand(deps commandDeps) *cobra.Command {
@@ -39,7 +38,6 @@ func newMCPServeCommand(deps commandDeps) *cobra.Command {
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			opts.Stdin = cmd.InOrStdin()
 			opts.Stdout = cmd.OutOrStdout()
-			opts.Stderr = cmd.ErrOrStderr()
 			return deps.runMCPServe(cmd.Context(), opts)
 		},
 	}
@@ -97,7 +95,6 @@ func runMCPServe(ctx context.Context, deps commandDeps, opts mcpServeOptions) er
 			opts.Workspace,
 			opts.Stdin,
 			opts.Stdout,
-			opts.Stderr,
 		)
 	}
 	tokenEnv := strings.TrimSpace(opts.TokenEnv)

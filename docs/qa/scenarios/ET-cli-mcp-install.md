@@ -4,17 +4,22 @@ area: ET
 title: Install a curated MCP server through the CLI
 persona: Ada
 journey: J-agent-marketplace-parity
-expected: `compozy mcp install` validates field keys and the final server name before reading stdin, reads typed values from stdin or a hidden prompt, persists only scope-qualified Vault refs, preserves catalog provenance, and returns the complete install response in JSON without secret values or binding refs. Human and TOON output remain reduced summaries. A post-commit event failure is visible as `mcp_install_event_persist_failed` with the committed server intact.
-entry_points: compozy mcp install <entry> --scope global --set KEY -o json; compozy mcp install <entry> --scope workspace --workspace <id> --set KEY -o json; compozy mcp install <entry> --vault-ref KEY=vault:mcp/shared/ref -o json; compozy mcp install <entry> --oauth-client-secret -o json; compozy mcp install <entry> --oauth-client-secret-vault-ref vault:mcp/shared/oauth -o json
-qa_status: blocked-decision
+expected: `compozy mcp install` validates manifest-v2 input ids and the final server name before reading stdin, accepts `--set id=value`, `--secret id`, and `--vault-ref id=vault:...` only for declared typed inputs, applies the catalog default scope when omitted, persists scope-qualified Vault refs, and returns JSON without secret values or binding refs. Human and TOON output remain reduced summaries. A post-commit event failure is visible as `mcp_install_event_persist_failed` with the committed server intact.
+entry_points: compozy mcp install <entry> --set id=value -o json; compozy mcp install <entry> --secret id -o json; compozy mcp install <entry> --vault-ref id=vault:mcp/shared/ref -o json; compozy mcp install <entry> --scope workspace --workspace <id> -o json
+qa_status: pass
 bug_ids: BUG-20260729-mcp-cli-json-parity
-fix_status: pending
-retest_status: blocked-decision
+fix_status: fixed
+retest_status: pass
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/marketplace-agent-parity-final.json; /Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/marketplace-under-minute.json; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-021949-664736-lab/qa-artifacts/qa/evidence/023-mcp-catalog-install
-last_report: docs/qa/reports/2026-07-28-untested-full.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-mcp-2026-catalog-v2-final-rerun-20260730-204949-514647-lab/qa-artifacts/qa/notes/cli-mcp-install-inline.json; /Users/pedronauck/dev/qa-labs/compozy-mcp-2026-catalog-v2-final-rerun-20260730-204949-514647-lab/qa-artifacts/qa/notes/cli-mcp-install-vault.json; /Users/pedronauck/dev/qa-labs/compozy-mcp-2026-catalog-v2-final-rerun-20260730-204949-514647-lab/qa-artifacts/qa/notes/cli-mcp-install-foreign.stderr; /Users/pedronauck/dev/qa-labs/compozy-mcp-2026-catalog-v2-final-rerun-20260730-204949-514647-lab/qa-artifacts/qa/notes/mcp-list-after-cli-installs.json
+last_report: docs/qa/reports/2026-07-30-mcp-2026-catalog-v2.md
 overlaps: ET-api-mcp-catalog-install; ET-cli-marketplace-search; MS-029
 ---
+
+Passed in the 2026-07-30 final rerun: Brave Search installed through both an inline secret and an
+existing Vault ref, the resulting reads stayed redacted, and a foreign-workspace Vault ref was
+rejected before mutation. The synthetic post-commit event-persistence fault remains
+`blocked-decision` because no public healthy-daemon owner can create that internal failure state.
 
 Added by marketplace Task 03. QA should cover typed and choose-existing secret modes, global and two-workspace identity, a required-field rejection with no side effects, OAuth `next_step=authorize`, presence-only reads, and absence of plaintext or binding refs in CLI output, events, and logs. Config sidecars retain refs as runtime configuration.
 
@@ -30,3 +35,9 @@ QA result 2026-07-29: stdin-only values, validation order, presence-only output,
 apply truth, scoped Vault ownership, replacement, and cleanup passed. Workspace JSON added the
 CLI-only `resolution_source` field; the scenario remains failed while the required structural writer
 TechSpec is pending.
+
+QA impact 2026-07-30 deep-review remediation: reset after install validation moved before secret
+prompting and Vault-ref authorization was hardened. Verify a workspace install accepts only its own
+`vault:mcp/ws/<workspace>/<server>/...` bindings or an explicit `vault:mcp/shared/...` binding, and
+rejects another workspace's ref before mutation or secret input. The public event-persistence fault
+branch may remain `blocked-decision` only if no legitimate fault owner exists.

@@ -7,10 +7,21 @@ import type {
   SettingsMCPAuthFilter,
   SettingsMCPAuthStatusResponse,
 } from "../types";
+import {
+  isAbsoluteMCPRedirectURL,
+  normalizeMCPAuthScopes,
+  normalizeMCPRedirectURL,
+} from "../lib/mcp-authorize-model";
 
 export interface MCPAuthorizePriorStatus {
   status: string;
   tokenPresent: boolean;
+}
+
+/** Scope elevation may only be sent after an explicit operator confirmation. */
+export interface MCPAuthorizeScopeApproval {
+  approvedScopes: string[];
+  approveScopeEscalation: boolean;
 }
 
 interface MCPAuthorizeIdleState {
@@ -25,10 +36,16 @@ interface MCPAuthorizeAttempt {
   filter: SettingsMCPAuthFilter;
   prior: MCPAuthorizePriorStatus;
   mode: SettingsMCPAuthBeginMode;
+  scopeApproval?: MCPAuthorizeScopeApproval;
 }
 
 interface MCPAuthorizeBeginningState extends MCPAuthorizeAttempt {
   phase: "beginning";
+}
+
+interface MCPAuthorizeScopeReviewState extends MCPAuthorizeAttempt {
+  phase: "reviewing_scopes";
+  scopeApproval: MCPAuthorizeScopeApproval;
 }
 
 interface MCPAuthorizeWaitingState extends MCPAuthorizeAttempt {
@@ -66,6 +83,7 @@ interface MCPAuthorizeCompletionFailedState extends MCPAuthorizeAttempt {
 
 export type MCPAuthorizeState =
   | MCPAuthorizeIdleState
+  | MCPAuthorizeScopeReviewState
   | MCPAuthorizeBeginningState
   | MCPAuthorizeWaitingState
   | MCPAuthorizeManualState
@@ -78,6 +96,7 @@ export type MCPAuthorizeBegin = (input: {
   filter: SettingsMCPAuthFilter;
   mode: SettingsMCPAuthBeginMode;
   server: string;
+  scopeApproval?: MCPAuthorizeScopeApproval;
 }) => Promise<SettingsMCPAuthBeginResponse>;
 
 export type MCPAuthorizeExchange = (input: {
@@ -87,6 +106,14 @@ export type MCPAuthorizeExchange = (input: {
 }) => Promise<SettingsMCPAuthStatusResponse>;
 
 type MCPAuthorizeEventPayloadMap = {
+  scopeEscalationRequested: {
+    approvedScopes: string[];
+    dismissOnConfirmation: boolean;
+    server: string;
+    filter: SettingsMCPAuthFilter;
+    prior: MCPAuthorizePriorStatus;
+  };
+  scopeEscalationConfirmed: { begin: MCPAuthorizeBegin };
   authorizeRequested: {
     begin: MCPAuthorizeBegin;
     dismissOnConfirmation: boolean;
@@ -94,9 +121,10 @@ type MCPAuthorizeEventPayloadMap = {
     filter: SettingsMCPAuthFilter;
     prior: MCPAuthorizePriorStatus;
     mode: SettingsMCPAuthBeginMode;
+    scopeApproval?: MCPAuthorizeScopeApproval;
   };
   manualAuthorizationRequested: { begin: MCPAuthorizeBegin };
-  manualCodeSubmitted: {
+  manualRedirectSubmitted: {
     exchange: MCPAuthorizeExchange;
     onConfirmed: (server: string) => void;
     value: string;
@@ -127,10 +155,58 @@ export function createMCPAuthorizeLogic() {
   return createStoreLogic<MCPAuthorizeState, MCPAuthorizeEventPayloadMap>({
     context: { phase: "idle", attemptId: 0 },
     on: {
+      scopeEscalationRequested: (context, event) => {
+        if (context.phase !== "idle") return;
+        const approvedScopes = normalizeMCPAuthScopes(event.approvedScopes);
+        const scopeApproval: MCPAuthorizeScopeApproval = {
+          approveScopeEscalation: true,
+          approvedScopes,
+        };
+        if (!hasExplicitScopeApproval(scopeApproval)) return;
+        return {
+          phase: "reviewing_scopes",
+          attemptId: context.attemptId,
+          dismissOnConfirmation: event.dismissOnConfirmation,
+          server: event.server,
+          filter: event.filter,
+          prior: event.prior,
+          mode: "automatic",
+          scopeApproval,
+        };
+      },
+      scopeEscalationConfirmed: (context, event, enqueue) => {
+        if (context.phase !== "reviewing_scopes") return;
+        const attemptId = context.attemptId + 1;
+        enqueueBegin(
+          event.begin,
+          enqueue,
+          attemptId,
+          context.server,
+          context.filter,
+          context.mode,
+          context.scopeApproval
+        );
+        return { ...context, phase: "beginning", attemptId };
+      },
       authorizeRequested: (context, event, enqueue) => {
         if (context.phase !== "idle") return;
+        const scopeApproval = event.scopeApproval
+          ? {
+              approveScopeEscalation: event.scopeApproval.approveScopeEscalation,
+              approvedScopes: normalizeMCPAuthScopes(event.scopeApproval.approvedScopes),
+            }
+          : undefined;
+        if (scopeApproval && !hasExplicitScopeApproval(scopeApproval)) return;
         const attemptId = context.attemptId + 1;
-        enqueueBegin(event.begin, enqueue, attemptId, event.server, event.filter, event.mode);
+        enqueueBegin(
+          event.begin,
+          enqueue,
+          attemptId,
+          event.server,
+          event.filter,
+          event.mode,
+          scopeApproval
+        );
         return {
           phase: "beginning",
           attemptId,
@@ -139,12 +215,27 @@ export function createMCPAuthorizeLogic() {
           filter: event.filter,
           prior: event.prior,
           mode: event.mode,
+          scopeApproval,
         };
       },
       manualAuthorizationRequested: (context, event, enqueue) => {
-        if (context.phase === "idle" || context.phase === "beginning") return;
+        if (
+          context.phase === "idle" ||
+          context.phase === "beginning" ||
+          context.phase === "reviewing_scopes"
+        ) {
+          return;
+        }
         const attemptId = context.attemptId + 1;
-        enqueueBegin(event.begin, enqueue, attemptId, context.server, context.filter, "manual");
+        enqueueBegin(
+          event.begin,
+          enqueue,
+          attemptId,
+          context.server,
+          context.filter,
+          "manual",
+          context.scopeApproval
+        );
         return {
           phase: "beginning",
           attemptId,
@@ -153,10 +244,19 @@ export function createMCPAuthorizeLogic() {
           filter: context.filter,
           prior: context.prior,
           mode: "manual",
+          scopeApproval: context.scopeApproval,
         };
       },
-      manualCodeSubmitted: (context, event, enqueue) => {
-        if (context.phase !== "manual" || event.value.trim() === "") return;
+      manualRedirectSubmitted: (context, event, enqueue) => {
+        if (context.phase !== "manual") return;
+        if (!isAbsoluteMCPRedirectURL(event.value)) {
+          return {
+            ...context,
+            phase: "failed",
+            stage: "completion",
+            error: "Callback URL must be a complete HTTP or HTTPS URL.",
+          };
+        }
         enqueueExchange(event.exchange, enqueue, context, event.value, event.onConfirmed);
         return { ...context, phase: "exchanging" };
       },
@@ -164,7 +264,7 @@ export function createMCPAuthorizeLogic() {
         if (
           context.phase !== "failed" ||
           context.stage !== "completion" ||
-          event.value.trim() === ""
+          !isAbsoluteMCPRedirectURL(event.value)
         ) {
           return;
         }
@@ -214,7 +314,15 @@ export function createMCPAuthorizeLogic() {
       beginRetried: (context, event, enqueue) => {
         if (context.phase !== "failed") return;
         const attemptId = context.attemptId + 1;
-        enqueueBegin(event.begin, enqueue, attemptId, context.server, context.filter, context.mode);
+        enqueueBegin(
+          event.begin,
+          enqueue,
+          attemptId,
+          context.server,
+          context.filter,
+          context.mode,
+          context.scopeApproval
+        );
         return {
           phase: "beginning",
           attemptId,
@@ -223,6 +331,7 @@ export function createMCPAuthorizeLogic() {
           filter: context.filter,
           prior: context.prior,
           mode: context.mode,
+          scopeApproval: context.scopeApproval,
         };
       },
     },
@@ -253,13 +362,19 @@ function enqueueBegin(
   attemptId: number,
   server: string,
   filter: SettingsMCPAuthFilter,
-  mode: SettingsMCPAuthBeginMode
+  mode: SettingsMCPAuthBeginMode,
+  scopeApproval?: MCPAuthorizeScopeApproval
 ): void {
   enqueue.effect(async ({ trigger }) => {
     try {
       trigger.beginSucceeded({
         attemptId,
-        begin: await begin({ server, filter, mode }),
+        begin: await begin({
+          server,
+          filter,
+          mode,
+          ...(scopeApproval ? { scopeApproval } : {}),
+        }),
       });
     } catch (error) {
       trigger.beginFailed({
@@ -301,10 +416,13 @@ function isConfirmed(status: string, tokenPresent: boolean): boolean {
   return status === "authenticated" && tokenPresent;
 }
 
-/** A full redirect URL is pasted back; a bare code otherwise. */
+function hasExplicitScopeApproval(approval: MCPAuthorizeScopeApproval): boolean {
+  return approval.approveScopeEscalation && approval.approvedScopes.length > 0;
+}
+
+/** The daemon validates state, issuer, and remaining callback constraints. */
 function toExchangeBody(value: string): SettingsMCPAuthExchangeRequest {
-  const trimmed = value.trim();
-  return /^https?:\/\//i.test(trimmed) ? { redirect_url: trimmed } : { code: trimmed };
+  return { redirect_url: normalizeMCPRedirectURL(value) };
 }
 
 function errorMessage(error: unknown, fallback: string): string {

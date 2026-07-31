@@ -20,22 +20,17 @@ describe("agent contract types", () => {
       command?: string;
       url?: string;
       auth?: {
-        authorization_url?: string;
         client_id?: string;
-        client_secret_configured: boolean;
         issuer_url?: string;
-        metadata_url?: string;
-        revocation_url?: string;
+        registration?: string;
         scopes?: string[];
-        token_url?: string;
-        type?: string;
       } | null;
       args?: string[];
       env?: Record<string, string>;
     }>();
 
     type AgentMCPAuth = NonNullable<AgentMCPServer["auth"]>;
-    expectTypeOf<AgentMCPAuth["client_secret_configured"]>().toEqualTypeOf<boolean>();
+    expectTypeOf<AgentMCPAuth["registration"]>().toEqualTypeOf<string | undefined>();
     expectTypeOf<Extract<"client_secret_ref", keyof AgentMCPAuth>>().toEqualTypeOf<never>();
 
     expectTypeOf<AgentsResponse>().toMatchTypeOf<{ agents: AgentPayload[] }>();

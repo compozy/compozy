@@ -395,13 +395,9 @@ type hooksOverlay struct {
 }
 
 type mcpAuthOverlay struct {
-	Type             *MCPAuthType `toml:"type"`
-	IssuerURL        *string      `toml:"issuer_url"`
-	MetadataURL      *string      `toml:"metadata_url"`
-	AuthorizationURL *string      `toml:"authorization_url"`
-	TokenURL         *string      `toml:"token_url"`
-	RevocationURL    *string      `toml:"revocation_url"`
-	ClientID         *string      `toml:"client_id"`
-	ClientSecretRef  *string      `toml:"client_secret_ref"`
-	Scopes           *[]string    `toml:"scopes"`
+	Registration    *MCPAuthRegistration `toml:"registration"`
+	IssuerURL       *string              `toml:"issuer_url"`
+	ClientID        *string              `toml:"client_id"`
+	ClientSecretRef *string              `toml:"client_secret_ref"`
+	Scopes          *[]string            `toml:"scopes"`
 }

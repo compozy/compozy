@@ -128,7 +128,7 @@ type hostedLaunchRecord struct {
 	expiresAt     time.Time
 	expectedBin   string
 	createdAt     time.Time
-	consumed      bool
+	established   bool
 	correlationID string
 }
 
@@ -228,20 +228,9 @@ func (s *HostedService) Launch(ctx context.Context, req HostedLaunchRequest) (co
 	}, nil
 }
 
-// CancelLaunch removes an unbound launch record for a failed session start.
+// CancelLaunch removes all hosted state for a failed session start.
 func (s *HostedService) CancelLaunch(sessionID string) {
-	if s == nil {
-		return
-	}
-	sessionID = strings.TrimSpace(sessionID)
-	if sessionID == "" {
-		return
-	}
-	s.mu.Lock()
-	if record, ok := s.launches[sessionID]; ok && !record.consumed {
-		delete(s.launches, sessionID)
-	}
-	s.mu.Unlock()
+	s.ReleaseSession(sessionID)
 }
 
 // ReleaseSession removes all hosted state for a stopped session.

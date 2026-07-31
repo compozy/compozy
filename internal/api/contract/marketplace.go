@@ -63,33 +63,46 @@ type MarketplaceKindResponse struct {
 	Items      []MarketplaceListingPayload `json:"items"`
 }
 
-// MarketplaceMCPEnvFieldPayload describes one guided MCP environment input.
-type MarketplaceMCPEnvFieldPayload struct {
-	Name     string `json:"name"`
-	Prompt   string `json:"prompt,omitempty"`
-	Required bool   `json:"required"`
-	Secret   bool   `json:"secret"`
-	Default  string `json:"default,omitempty"`
+// MarketplaceMCPLaunchPayload contains the typed catalog launch declaration.
+type MarketplaceMCPLaunchPayload struct {
+	Type    string   `json:"type"`
+	Package string   `json:"package,omitempty"`
+	Version string   `json:"version,omitempty"`
+	Image   string   `json:"image,omitempty"`
+	Digest  string   `json:"digest,omitempty"`
+	URL     string   `json:"url,omitempty"`
+	Args    []string `json:"args,omitempty"`
 }
 
-// MarketplaceMCPOAuthPayload contains public OAuth client metadata from the catalog.
+// MarketplaceMCPOAuthPayload contains OAuth discovery policy from the catalog.
 type MarketplaceMCPOAuthPayload struct {
-	IssuerURL        string   `json:"issuer_url,omitempty"`
-	AuthorizationURL string   `json:"authorization_url,omitempty"`
-	TokenURL         string   `json:"token_url,omitempty"`
-	ClientID         string   `json:"client_id"`
-	Scopes           []string `json:"scopes,omitempty"`
+	Method       string   `json:"method"`
+	Registration string   `json:"registration"`
+	Scopes       []string `json:"scopes,omitempty"`
+}
+
+// MarketplaceMCPInputBindingPayload identifies the sole allowed materialization target.
+type MarketplaceMCPInputBindingPayload struct {
+	Type string `json:"type"`
+	Name string `json:"name"`
+}
+
+// MarketplaceMCPInputPayload describes one typed operator input.
+type MarketplaceMCPInputPayload struct {
+	ID       string                            `json:"id"`
+	Prompt   string                            `json:"prompt"`
+	Type     string                            `json:"type"`
+	Required bool                              `json:"required"`
+	Binding  MarketplaceMCPInputBindingPayload `json:"binding"`
+	Default  any                               `json:"default,omitempty"`
 }
 
 // MarketplaceMCPDetailPayload contains the feed-locked MCP install template.
 type MarketplaceMCPDetailPayload struct {
-	Transport    string                          `json:"transport"`
-	Command      string                          `json:"command,omitempty"`
-	Args         []string                        `json:"args,omitempty"`
-	URL          string                          `json:"url,omitempty"`
-	OAuth        *MarketplaceMCPOAuthPayload     `json:"oauth,omitempty"`
-	Env          []MarketplaceMCPEnvFieldPayload `json:"env,omitempty"`
-	DefaultScope string                          `json:"default_scope,omitempty"`
+	Launch       MarketplaceMCPLaunchPayload  `json:"launch"`
+	Auth         *MarketplaceMCPOAuthPayload  `json:"auth,omitempty"`
+	Inputs       []MarketplaceMCPInputPayload `json:"inputs,omitempty"`
+	DefaultScope string                       `json:"default_scope"`
 }
 
 // MarketplaceExtensionDetailPayload contains curated extension acquisition metadata.

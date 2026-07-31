@@ -132,7 +132,7 @@ func (s *HTTPSource) Fetch(ctx context.Context) (document *Document, err error) 
 	return document, nil
 }
 
-// DecodeDocument strictly validates one complete v1 document.
+// DecodeDocument strictly validates one complete v2 document.
 func DecodeDocument(kind Kind, raw []byte) (*Document, error) {
 	if _, err := kindFilename(kind); err != nil {
 		return nil, err

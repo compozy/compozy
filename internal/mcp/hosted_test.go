@@ -18,7 +18,7 @@ import (
 func TestHostedServiceBindNonceLifecycle(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should consume nonce once and reject expired nonce without leaks", func(t *testing.T) {
+	t.Run("Should allow established session rebinds and reject expired first binds without leaks", func(t *testing.T) {
 		t.Parallel()
 
 		now := time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC)
@@ -45,12 +45,28 @@ func TestHostedServiceBindNonceLifecycle(t *testing.T) {
 			t.Fatalf("bind scope = %#v, want launch scope", bind.Scope)
 		}
 
-		_, err = service.Bind(t.Context(), HostedBindRequest{SessionID: "sess-1", Nonce: nonce}, peer)
-		if !errors.Is(err, ErrHostedNonceInvalid) {
-			t.Fatalf("second Bind() error = %v, want ErrHostedNonceInvalid", err)
+		now = now.Add(3 * time.Second)
+		restartedPeer := peer
+		restartedPeer.PID++
+		restarted, err := service.Bind(
+			t.Context(),
+			HostedBindRequest{SessionID: "sess-1", Nonce: nonce},
+			restartedPeer,
+		)
+		if err != nil {
+			t.Fatalf("Bind(restarted provider after launch TTL) error = %v", err)
 		}
-		if strings.Contains(err.Error(), nonce) {
-			t.Fatalf("second Bind() leaked nonce in error: %q", err.Error())
+		if restarted.BindID == bind.BindID {
+			t.Fatalf("restarted BindID = %q, want a distinct peer-bound bind", restarted.BindID)
+		}
+
+		_, err = service.Bind(
+			t.Context(),
+			HostedBindRequest{SessionID: "sess-1", Nonce: "wrong-nonce"},
+			restartedPeer,
+		)
+		if !errors.Is(err, ErrHostedNonceInvalid) {
+			t.Fatalf("Bind(wrong established nonce) error = %v, want ErrHostedNonceInvalid", err)
 		}
 
 		expiring, err := service.Launch(t.Context(), HostedLaunchRequest{SessionID: "sess-expired"})
@@ -66,6 +82,37 @@ func TestHostedServiceBindNonceLifecycle(t *testing.T) {
 		}
 		if strings.Contains(err.Error(), expiredNonce) {
 			t.Fatalf("expired Bind() leaked nonce in error: %q", err.Error())
+		}
+
+		service.ReleaseSession("sess-1")
+		_, err = service.Bind(
+			t.Context(),
+			HostedBindRequest{SessionID: "sess-1", Nonce: nonce},
+			restartedPeer,
+		)
+		if !errors.Is(err, ErrHostedNonceInvalid) {
+			t.Fatalf("Bind(after ReleaseSession) error = %v, want ErrHostedNonceInvalid", err)
+		}
+	})
+}
+
+func TestHostedProjectionResponse(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should preserve the registry-owned projection order", func(t *testing.T) {
+		t.Parallel()
+
+		views := []tools.ToolView{
+			hostedToolView("compozy__zeta"),
+			hostedToolView("compozy__alpha"),
+		}
+
+		projection := hostedProjectionResponse(views)
+		if got, want := hostedToolIDs(projection.Tools), []string{"compozy__alpha", "compozy__zeta"}; !slices.Equal(got, want) {
+			t.Fatalf("projection tools = %#v, want %#v", got, want)
+		}
+		if got, want := hostedToolIDs(views), []string{"compozy__zeta", "compozy__alpha"}; !slices.Equal(got, want) {
+			t.Fatalf("registry-owned views = %#v, want %#v", got, want)
 		}
 	})
 }
@@ -222,6 +269,66 @@ func TestHostedServiceProjectionAndCallUseRegistryScope(t *testing.T) {
 		if call.ApprovalToken != "" {
 			t.Fatalf("registry call ApprovalToken = %q, want empty", call.ApprovalToken)
 		}
+		directCalls, bootstrapCalls := registry.callCounts()
+		if directCalls != 0 || bootstrapCalls != 1 {
+			t.Fatalf(
+				"registry call counts = direct:%d bootstrap:%d, want direct:0 bootstrap:1",
+				directCalls,
+				bootstrapCalls,
+			)
+		}
+	})
+
+	t.Run("Should bind the bootstrap projection before deferred tools arrive", func(t *testing.T) {
+		t.Parallel()
+
+		native := hostedToolView("compozy__task_run_claim_next")
+		vendor := hostedToolView("mcp__github__search")
+		registry := &hostedRegistryStub{
+			views:          []tools.ToolView{vendor, native},
+			bootstrapViews: []tools.ToolView{native},
+			bootstrapSet:   true,
+		}
+		executable := hostedTestExecutable(t, "compozy")
+		service := newHostedTestService(
+			t,
+			executable,
+			registry,
+			func() time.Time { return time.Date(2026, 4, 30, 12, 0, 0, 0, time.UTC) },
+		)
+		peer := hostedTestPeer(executable)
+		launch, err := service.Launch(t.Context(), HostedLaunchRequest{SessionID: "sess-bootstrap"})
+		if err != nil {
+			t.Fatalf("Launch() error = %v", err)
+		}
+		bind, err := service.Bind(
+			t.Context(),
+			HostedBindRequest{
+				SessionID: "sess-bootstrap",
+				Nonce:     hostedLaunchNonce(t, launch.Args),
+			},
+			peer,
+		)
+		if err != nil {
+			t.Fatalf("Bind() error = %v", err)
+		}
+		if got, want := hostedToolIDs(bind.Tools), []string{native.Descriptor.ID.String()}; !slices.Equal(got, want) {
+			t.Fatalf("Bind() tools = %#v, want bootstrap tools %#v", got, want)
+		}
+
+		projection, err := service.Projection(t.Context(), bind.BindID, peer)
+		if err != nil {
+			t.Fatalf("Projection() error = %v", err)
+		}
+		if got, want := hostedToolIDs(projection.Tools), []string{
+			native.Descriptor.ID.String(),
+			vendor.Descriptor.ID.String(),
+		}; !slices.Equal(got, want) {
+			t.Fatalf("Projection() tools = %#v, want full tools %#v", got, want)
+		}
+		if projection.Digest == bind.Digest {
+			t.Fatalf("Projection() digest = bootstrap digest %q, want deferred update", projection.Digest)
+		}
 	})
 }
 
@@ -231,8 +338,8 @@ func TestHostedServiceProjectionMatchesRegistrySessionProjection(t *testing.T) {
 	t.Run("Should mirror callable session projection and keep operator denial diagnostics", func(t *testing.T) {
 		t.Parallel()
 
-		readID := tools.ToolIDMCPAuthStatus
-		mutateID := tools.ToolID("compozy__hosted_mutate")
+		readID := tools.ToolIDToolInfo
+		mutateID := tools.ToolIDTaskRunFail
 		registry := hostedRuntimeRegistry(t, tools.PolicyInputs{
 			SystemPermissionMode: tools.PermissionModeApproveReads,
 			ApprovalAvailable:    false,
@@ -296,7 +403,7 @@ func TestHostedServiceCallUsesRegistryApprovalBridge(t *testing.T) {
 	t.Run("Should request daemon-mediated approval without accepting hosted approval tokens", func(t *testing.T) {
 		t.Parallel()
 
-		mutateID := tools.ToolID("compozy__hosted_mutate")
+		mutateID := tools.ToolIDTaskRunFail
 		bridge := &hostedApprovalBridge{}
 		registry := hostedRuntimeRegistry(t, tools.PolicyInputs{
 			SystemPermissionMode: tools.PermissionModeDenyAll,
@@ -711,12 +818,16 @@ func (b *hostedApprovalBridge) last(t *testing.T) (tools.Scope, tools.CallReques
 }
 
 type hostedRegistryStub struct {
-	mu     sync.Mutex
-	views  []tools.ToolView
-	scopes []tools.Scope
-	calls  []tools.CallRequest
-	result tools.ToolResult
-	err    error
+	mu             sync.Mutex
+	views          []tools.ToolView
+	bootstrapViews []tools.ToolView
+	bootstrapSet   bool
+	scopes         []tools.Scope
+	calls          []tools.CallRequest
+	result         tools.ToolResult
+	err            error
+	directCalls    int
+	bootstrapCalls int
 }
 
 var _ tools.Registry = (*hostedRegistryStub)(nil)
@@ -731,6 +842,22 @@ func (r *hostedRegistryStub) List(_ context.Context, scope tools.Scope) ([]tools
 	out := make([]tools.ToolView, len(r.views))
 	copy(out, r.views)
 	return out, nil
+}
+
+func (r *hostedRegistryStub) BootstrapSessionProjection(
+	ctx context.Context,
+	scope tools.Scope,
+) ([]tools.ToolView, error) {
+	if !r.bootstrapSet {
+		return r.List(ctx, scope)
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.scopes = append(r.scopes, scope)
+	if r.err != nil {
+		return nil, r.err
+	}
+	return append([]tools.ToolView(nil), r.bootstrapViews...), nil
 }
 
 func (r *hostedRegistryStub) Search(
@@ -761,6 +888,25 @@ func (r *hostedRegistryStub) Call(
 ) (tools.ToolResult, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	r.directCalls++
+	return r.callLocked(scope, req)
+}
+
+func (r *hostedRegistryStub) BootstrapSessionCall(
+	_ context.Context,
+	scope tools.Scope,
+	req tools.CallRequest,
+) (tools.ToolResult, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.bootstrapCalls++
+	return r.callLocked(scope, req)
+}
+
+func (r *hostedRegistryStub) callLocked(
+	scope tools.Scope,
+	req tools.CallRequest,
+) (tools.ToolResult, error) {
 	r.scopes = append(r.scopes, scope)
 	r.calls = append(r.calls, req)
 	if r.err != nil {
@@ -770,6 +916,12 @@ func (r *hostedRegistryStub) Call(
 		return r.result, nil
 	}
 	return tools.ToolResult{Content: []tools.ToolContent{{Type: "text", Text: "ok"}}}, nil
+}
+
+func (r *hostedRegistryStub) callCounts() (direct int, bootstrap int) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.directCalls, r.bootstrapCalls
 }
 
 func (r *hostedRegistryStub) lastCall(t *testing.T) (tools.Scope, tools.CallRequest) {

@@ -329,6 +329,163 @@ func TestMCPAuthTokenStoreIsolatesSameNamedScopedCredentials(t *testing.T) {
 	})
 }
 
+func TestMCPOAuthRegistrationStorePersistsTargetScopedDCRState(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should persist DCR registration metadata and delete only its target secrets", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		db := openTestGlobalDB(t)
+		issuedAt := time.Date(2026, 7, 30, 15, 0, 0, 0, time.UTC)
+		target := mcpauth.Target{
+			Scope: mcpauth.ScopeWorkspace, WorkspaceID: "workspace-dcr", ServerName: "linear",
+		}
+		registration := mcpOAuthRegistrationRecord(t, target, issuedAt)
+		saved, err := db.SaveMCPAuthRegistration(ctx, registration, mcpOAuthRegistrationSecrets())
+		if err != nil {
+			t.Fatalf("SaveMCPAuthRegistration() error = %v", err)
+		}
+		stored, err := db.GetMCPAuthRegistration(ctx, target)
+		if err != nil {
+			t.Fatalf("GetMCPAuthRegistration() error = %v", err)
+		}
+		if stored.ClientID != saved.ClientID || stored.ResourceURL != saved.ResourceURL {
+			t.Fatalf("stored registration = %#v, want persisted client and resource identity", stored)
+		}
+		if stored.TokenEndpointAuthMethod != saved.TokenEndpointAuthMethod {
+			t.Fatalf(
+				"stored token endpoint auth method = %q, want %q",
+				stored.TokenEndpointAuthMethod,
+				saved.TokenEndpointAuthMethod,
+			)
+		}
+		if stored.ClientSecretRef != saved.ClientSecretRef ||
+			stored.RegistrationAccessTokenRef != saved.RegistrationAccessTokenRef {
+			t.Fatalf("stored registration refs = %#v, want DCR vault refs", stored)
+		}
+		if !stored.ClientIDIssuedAt.Equal(saved.ClientIDIssuedAt) ||
+			!stored.ClientSecretExpiresAt.Equal(saved.ClientSecretExpiresAt) {
+			t.Fatalf("stored registration times = %#v, want issued and expiry times", stored)
+		}
+
+		if err := db.DeleteMCPAuthRegistration(ctx, target); err != nil {
+			t.Fatalf("DeleteMCPAuthRegistration() error = %v", err)
+		}
+		if _, err := db.GetMCPAuthRegistration(ctx, target); !errors.Is(err, mcpauth.ErrRegistrationNotFound) {
+			t.Fatalf("GetMCPAuthRegistration(deleted) error = %v, want ErrRegistrationNotFound", err)
+		}
+		for _, ref := range []string{saved.ClientSecretRef, saved.RegistrationAccessTokenRef} {
+			assertVaultRefPresence(ctx, t, db.db, ref, false)
+		}
+	})
+
+	t.Run("Should persist empty registration scopes as a JSON array", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		db := openTestGlobalDB(t)
+		registration := mcpOAuthRegistrationRecord(
+			t,
+			globalMCPAuthTarget("empty-scopes"),
+			time.Date(2026, 7, 30, 15, 15, 0, 0, time.UTC),
+		)
+		registration.Scopes = nil
+		saved, err := db.SaveMCPAuthRegistration(ctx, registration, mcpOAuthRegistrationSecrets())
+		if err != nil {
+			t.Fatalf("SaveMCPAuthRegistration(empty scopes) error = %v", err)
+		}
+		if saved.Scopes == nil || len(saved.Scopes) != 0 {
+			t.Fatalf("SaveMCPAuthRegistration(empty scopes).Scopes = %#v, want non-nil empty slice", saved.Scopes)
+		}
+		var scopesJSON string
+		if err := db.db.QueryRowContext(
+			ctx,
+			`SELECT scopes_json FROM mcp_oauth_registrations
+			 WHERE scope = ? AND workspace_id = ? AND server_name = ?`,
+			string(saved.Target.Scope),
+			saved.Target.WorkspaceID,
+			saved.Target.ServerName,
+		).Scan(&scopesJSON); err != nil {
+			t.Fatalf("query persisted registration scopes error = %v", err)
+		}
+		if scopesJSON != `[]` {
+			t.Fatalf("persisted scopes_json = %q, want []", scopesJSON)
+		}
+	})
+
+	t.Run("Should reject a registration access token without its management URI", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		db := openTestGlobalDB(t)
+		registration := mcpOAuthRegistrationRecord(
+			t,
+			globalMCPAuthTarget("linear"),
+			time.Date(2026, 7, 30, 15, 30, 0, 0, time.UTC),
+		)
+		registration.RegistrationClientURI = ""
+
+		if _, err := db.SaveMCPAuthRegistration(ctx, registration, mcpOAuthRegistrationSecrets()); err == nil {
+			t.Fatal("SaveMCPAuthRegistration() error = nil, want access token and URI validation failure")
+		} else if !strings.Contains(err.Error(), "access token and client URI must be set together") {
+			t.Fatalf("SaveMCPAuthRegistration() error = %v, want paired management credential validation", err)
+		}
+	})
+
+	t.Run("Should delete full authorization state only for its exact target", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		db := openTestGlobalDB(t)
+		issuedAt := time.Date(2026, 7, 30, 16, 0, 0, 0, time.UTC)
+		targets := []mcpauth.Target{
+			globalMCPAuthTarget("linear"),
+			{Scope: mcpauth.ScopeWorkspace, WorkspaceID: "workspace-authorization", ServerName: "linear"},
+		}
+		registrations := make([]mcpauth.ClientRegistration, 0, len(targets))
+		for _, target := range targets {
+			if err := db.SaveMCPAuthToken(ctx, mcpAuthorizationTokenRecord(target, issuedAt)); err != nil {
+				t.Fatalf("SaveMCPAuthToken(%#v) error = %v", target, err)
+			}
+			registration, err := db.SaveMCPAuthRegistration(
+				ctx,
+				mcpOAuthRegistrationRecord(t, target, issuedAt),
+				mcpOAuthRegistrationSecrets(),
+			)
+			if err != nil {
+				t.Fatalf("SaveMCPAuthRegistration(%#v) error = %v", target, err)
+			}
+			registrations = append(registrations, registration)
+		}
+
+		if err := db.DeleteMCPAuthorizationState(ctx, targets[0]); err != nil {
+			t.Fatalf("DeleteMCPAuthorizationState(global) error = %v", err)
+		}
+		if err := db.DeleteMCPAuthorizationState(ctx, targets[0]); err != nil {
+			t.Fatalf("DeleteMCPAuthorizationState(global retry) error = %v", err)
+		}
+		if _, err := db.GetMCPAuthToken(ctx, targets[0]); !errors.Is(err, mcpauth.ErrTokenNotFound) {
+			t.Fatalf("GetMCPAuthToken(deleted global) error = %v, want ErrTokenNotFound", err)
+		}
+		if _, err := db.GetMCPAuthRegistration(ctx, targets[0]); !errors.Is(err, mcpauth.ErrRegistrationNotFound) {
+			t.Fatalf("GetMCPAuthRegistration(deleted global) error = %v, want ErrRegistrationNotFound", err)
+		}
+		for _, ref := range mcpAuthorizationSecretRefs(t, targets[0], registrations[0]) {
+			assertVaultRefPresence(ctx, t, db.db, ref, false)
+		}
+		if _, err := db.GetMCPAuthToken(ctx, targets[1]); err != nil {
+			t.Fatalf("GetMCPAuthToken(preserved workspace) error = %v", err)
+		}
+		if _, err := db.GetMCPAuthRegistration(ctx, targets[1]); err != nil {
+			t.Fatalf("GetMCPAuthRegistration(preserved workspace) error = %v", err)
+		}
+		for _, ref := range mcpAuthorizationSecretRefs(t, targets[1], registrations[1]) {
+			assertVaultRefPresence(ctx, t, db.db, ref, true)
+		}
+	})
+}
+
 func TestMCPAuthTokenScopeMigration(t *testing.T) {
 	t.Run("Should hard-cut name-only tokens while preserving scoped marketplace secrets", func(t *testing.T) {
 		t.Parallel()
@@ -544,6 +701,85 @@ func TestMCPAuthTokenScopeMigration(t *testing.T) {
 		})
 		assertUnboundMCPAuthMigrationRow(ctx, t, reopened.db)
 	})
+
+	t.Run("Should preserve DCR registration rows when adding token endpoint auth method", func(t *testing.T) {
+		t.Parallel()
+
+		databasePath := filepath.Join(t.TempDir(), store.GlobalDatabaseName)
+		previousDB, err := sql.Open(sqliteDriverName, databasePath)
+		if err != nil {
+			t.Fatalf("sql.Open(previous) error = %v", err)
+		}
+		prefix := globalMigrationPrefixBefore(t, "00033_schema.sql")
+		if err := applyGlobalMigrationPrefix(t, previousDB, prefix); err != nil {
+			closeErr := previousDB.Close()
+			t.Fatalf("Apply(global v32) error = %v; close error = %v", err, closeErr)
+		}
+		ctx := testutil.Context(t)
+		if _, err := previousDB.ExecContext(
+			ctx,
+			`INSERT INTO mcp_oauth_registrations (
+				scope, workspace_id, server_name, definition_fingerprint, resource_url,
+				issuer, client_id, redirect_uri, scopes_json, updated_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			"global",
+			"",
+			"linear",
+			testMCPDefinitionFingerprint,
+			"https://mcp.example/resource",
+			"https://issuer.example",
+			"dcr-client",
+			"http://127.0.0.1:8787/callback",
+			`["read"]`,
+			"2026-07-30T15:00:00Z",
+		); err != nil {
+			closeErr := previousDB.Close()
+			t.Fatalf("seed global v32 registration error = %v; close error = %v", err, closeErr)
+		}
+		if err := previousDB.Close(); err != nil {
+			t.Fatalf("Close(previous) error = %v", err)
+		}
+
+		migrated, err := openGlobalMigrationUpgrade(t, databasePath)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB(migrate v33) error = %v", err)
+		}
+		ctx = testutil.Context(t)
+		stored, err := migrated.GetMCPAuthRegistration(ctx, globalMCPAuthTarget("linear"))
+		if err != nil {
+			closeErr := migrated.Close(ctx)
+			t.Fatalf("GetMCPAuthRegistration(migrated) error = %v; close error = %v", err, closeErr)
+		}
+		if stored.ClientID != "dcr-client" || stored.TokenEndpointAuthMethod != "" {
+			closeErr := migrated.Close(ctx)
+			t.Fatalf(
+				"migrated registration = %#v, want preserved client and empty method; close error = %v",
+				stored,
+				closeErr,
+			)
+		}
+		if err := migrated.Close(ctx); err != nil {
+			t.Fatalf("Close(migrated) error = %v", err)
+		}
+
+		reopened, err := OpenGlobalDB(ctx, databasePath)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB(reopen v33) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := reopened.Close(testutil.Context(t)); err != nil {
+				t.Errorf("Close(reopened) error = %v", err)
+			}
+		})
+		ctx = testutil.Context(t)
+		stored, err = reopened.GetMCPAuthRegistration(ctx, globalMCPAuthTarget("linear"))
+		if err != nil {
+			t.Fatalf("GetMCPAuthRegistration(reopened) error = %v", err)
+		}
+		if stored.ClientID != "dcr-client" || stored.TokenEndpointAuthMethod != "" {
+			t.Fatalf("reopened registration = %#v, want preserved client and empty method", stored)
+		}
+	})
 }
 
 func assertUnboundMCPAuthMigrationRow(ctx context.Context, t *testing.T, db *sql.DB) {
@@ -594,6 +830,23 @@ func globalMigrationPrefix(t *testing.T, names ...string) store.MigrationStream 
 	return fullStream
 }
 
+func globalMigrationPrefixBefore(t *testing.T, excludedMigration string) store.MigrationStream {
+	t.Helper()
+	fullStream := MigrationStream()
+	entries, err := fs.ReadDir(fullStream.FS, fullStream.Dir)
+	if err != nil {
+		t.Fatalf("read global migration directory: %v", err)
+	}
+	names := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".sql") || entry.Name() >= excludedMigration {
+			continue
+		}
+		names = append(names, entry.Name())
+	}
+	return globalMigrationPrefix(t, names...)
+}
+
 func assertMCPAuthRowCount(ctx context.Context, t *testing.T, db *sql.DB, want int) {
 	t.Helper()
 	var got int
@@ -619,4 +872,64 @@ func assertVaultRefPresence(ctx context.Context, t *testing.T, db *sql.DB, ref s
 
 func globalMCPAuthTarget(serverName string) mcpauth.Target {
 	return mcpauth.Target{Scope: mcpauth.ScopeGlobal, ServerName: serverName}
+}
+
+func mcpOAuthRegistrationRecord(
+	t *testing.T,
+	target mcpauth.Target,
+	issuedAt time.Time,
+) mcpauth.ClientRegistration {
+	t.Helper()
+	return mcpauth.ClientRegistration{
+		Target:                  target,
+		DefinitionFingerprint:   testMCPDefinitionFingerprint,
+		ResourceURL:             "https://mcp.example/resource",
+		Issuer:                  "https://issuer.example",
+		ClientID:                "dcr-client",
+		TokenEndpointAuthMethod: "client_secret_basic",
+		RegistrationClientURI:   "https://issuer.example/register/dcr-client",
+		ClientIDIssuedAt:        issuedAt,
+		ClientSecretExpiresAt:   issuedAt.Add(time.Hour),
+		RedirectURL:             "http://127.0.0.1:8787/callback",
+		Scopes:                  []string{"read", "write"},
+		UpdatedAt:               issuedAt,
+	}
+}
+
+func mcpOAuthRegistrationSecrets() mcpauth.RegistrationSecrets {
+	return mcpauth.RegistrationSecrets{
+		ClientSecret:            "client-secret",
+		RegistrationAccessToken: "registration-access-token",
+	}
+}
+
+func mcpAuthorizationTokenRecord(target mcpauth.Target, issuedAt time.Time) mcpauth.TokenRecord {
+	return mcpauth.TokenRecord{
+		Target:                target,
+		DefinitionFingerprint: testMCPDefinitionFingerprint,
+		Issuer:                "https://issuer.example",
+		ClientID:              "dcr-client",
+		AccessToken:           "access-token",
+		RefreshToken:          "refresh-token",
+		ObtainedAt:            issuedAt,
+		UpdatedAt:             issuedAt,
+	}
+}
+
+func mcpAuthorizationSecretRefs(
+	t *testing.T,
+	target mcpauth.Target,
+	registration mcpauth.ClientRegistration,
+) []string {
+	t.Helper()
+	prefix, err := vault.MCPSecretOwnerPrefix(string(target.Scope), target.WorkspaceID, target.ServerName)
+	if err != nil {
+		t.Fatalf("MCPSecretOwnerPrefix(%#v) error = %v", target, err)
+	}
+	return []string{
+		prefix + "oauth/access-token",
+		prefix + "oauth/refresh-token",
+		registration.ClientSecretRef,
+		registration.RegistrationAccessTokenRef,
+	}
 }

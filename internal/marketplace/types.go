@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-const ManifestVersion = 1
+const ManifestVersion = 2
 
 // RemoteSkillEntryPrefix reserves the synthetic ID namespace used for registry-only skills.
 const RemoteSkillEntryPrefix = "skill_"

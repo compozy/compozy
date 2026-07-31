@@ -19,11 +19,22 @@ type registryEntry struct {
 }
 
 func (r *RuntimeRegistry) buildIndex(ctx context.Context, scope Scope) (*registryIndex, error) {
+	return r.buildIndexMatching(ctx, scope, nil)
+}
+
+func (r *RuntimeRegistry) buildIndexMatching(
+	ctx context.Context,
+	scope Scope,
+	include func(Provider) bool,
+) (*registryIndex, error) {
 	index := &registryIndex{
 		entries: make([]*registryEntry, 0),
 		byID:    make(map[ToolID]*registryEntry),
 	}
 	for _, provider := range r.providers {
+		if include != nil && !include(provider) {
+			continue
+		}
 		descriptors, err := provider.List(ctx, scope)
 		if err != nil {
 			return nil, fmt.Errorf("tools: list provider %s: %w", sourceKey(provider.ID()), err)
@@ -49,7 +60,9 @@ func (r *RuntimeRegistry) buildIndex(ctx context.Context, scope Scope) (*registr
 	slices.SortFunc(index.entries, func(a *registryEntry, b *registryEntry) int {
 		return strings.Compare(a.descriptor.ID.String(), b.descriptor.ID.String())
 	})
-	r.descriptorMetadata.remember(scope.WorkspaceID, index.entries)
+	if include == nil {
+		r.descriptorMetadata.remember(scope.WorkspaceID, index.entries)
+	}
 	return index, nil
 }
 

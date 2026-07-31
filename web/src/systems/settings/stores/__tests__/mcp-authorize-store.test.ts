@@ -1,6 +1,6 @@
 // Suite: MCP authorization transition logic
-// Invariant: stale completions cannot replace the active attempt, manual exchange is phase-gated,
-// and the accepted authorization request executes its own callback.
+// Invariant: stale completions cannot replace the active attempt, manual exchange requires a full
+// redirect URL and is phase-gated, and the accepted request executes its own callback.
 // Boundary IN: createMCPAuthorizeLogic transitions and enqueued executor callbacks.
 // Boundary OUT: React hook subscriptions and Settings MCP HTTP adapters.
 import { describe, expect, it, vi } from "vitest";
@@ -51,14 +51,14 @@ describe("createMCPAuthorizeLogic", () => {
     expect(snapshot.context.phase).toBe("waiting");
   });
 
-  it("allows manual code submission only from the manual phase", () => {
+  it("allows a full manual redirect only from the manual phase", () => {
     const store = createMCPAuthorizeLogic().createStore();
 
     expect(
-      store.can.manualCodeSubmitted({
+      store.can.manualRedirectSubmitted({
         exchange: pendingExchange,
         onConfirmed: ignoreConfirmation,
-        value: "code-123",
+        value: "http://127.0.0.1:2123/api/mcp/oauth/callback?code=example&state=x",
       })
     ).toBe(false);
     store.trigger.authorizeRequested({
@@ -72,10 +72,10 @@ describe("createMCPAuthorizeLogic", () => {
     const automaticAttemptId = store.getSnapshot().context.attemptId;
     store.trigger.beginSucceeded({ attemptId: automaticAttemptId, begin: beginResponse });
     expect(
-      store.can.manualCodeSubmitted({
+      store.can.manualRedirectSubmitted({
         exchange: pendingExchange,
         onConfirmed: ignoreConfirmation,
-        value: "code-123",
+        value: "http://127.0.0.1:2123/api/mcp/oauth/callback?code=example&state=x",
       })
     ).toBe(false);
 
@@ -84,19 +84,43 @@ describe("createMCPAuthorizeLogic", () => {
     store.trigger.beginSucceeded({ attemptId: manualAttemptId, begin: beginResponse });
 
     expect(
-      store.can.manualCodeSubmitted({
+      store.can.manualRedirectSubmitted({
         exchange: pendingExchange,
         onConfirmed: ignoreConfirmation,
-        value: "",
-      })
-    ).toBe(false);
-    expect(
-      store.can.manualCodeSubmitted({
-        exchange: pendingExchange,
-        onConfirmed: ignoreConfirmation,
-        value: "code-123",
+        value: "http://127.0.0.1:2123/api/mcp/oauth/callback?code=example&state=x",
       })
     ).toBe(true);
+  });
+
+  it("Should surface an invalid manual redirect as a completion failure", () => {
+    const store = createMCPAuthorizeLogic().createStore();
+
+    store.trigger.authorizeRequested({
+      begin: pendingBegin,
+      dismissOnConfirmation: false,
+      server: "linear",
+      filter,
+      prior,
+      mode: "automatic",
+    });
+    const automaticAttemptId = store.getSnapshot().context.attemptId;
+    store.trigger.beginSucceeded({ attemptId: automaticAttemptId, begin: beginResponse });
+    store.trigger.manualAuthorizationRequested({ begin: pendingBegin });
+    const manualAttemptId = store.getSnapshot().context.attemptId;
+    store.trigger.beginSucceeded({ attemptId: manualAttemptId, begin: beginResponse });
+
+    store.trigger.manualRedirectSubmitted({
+      exchange: pendingExchange,
+      onConfirmed: ignoreConfirmation,
+      value: "code-only",
+    });
+
+    expect(store.getSnapshot().context).toMatchObject({
+      phase: "failed",
+      stage: "completion",
+      error: "Callback URL must be a complete HTTP or HTTPS URL.",
+    });
+    expect(pendingExchange).not.toHaveBeenCalled();
   });
 
   it("executes the begin callback carried by the accepted intent", () => {
@@ -113,5 +137,77 @@ describe("createMCPAuthorizeLogic", () => {
     });
 
     expect(currentBegin).toHaveBeenCalledWith({ server: "linear", filter, mode: "automatic" });
+  });
+
+  it("reviews non-empty scope escalation before beginning with explicit approval", () => {
+    pendingBegin.mockClear();
+    const store = createMCPAuthorizeLogic().createStore();
+
+    store.trigger.scopeEscalationRequested({
+      dismissOnConfirmation: false,
+      server: "linear",
+      filter,
+      prior,
+      approvedScopes: [],
+    });
+
+    expect(store.getSnapshot().context.phase).toBe("idle");
+    expect(pendingBegin).not.toHaveBeenCalled();
+
+    store.trigger.scopeEscalationRequested({
+      dismissOnConfirmation: false,
+      server: "linear",
+      filter,
+      prior,
+      approvedScopes: ["write"],
+    });
+
+    expect(store.getSnapshot().context.phase).toBe("reviewing_scopes");
+    expect(pendingBegin).not.toHaveBeenCalled();
+
+    store.trigger.scopeEscalationConfirmed({ begin: pendingBegin });
+
+    expect(store.getSnapshot().context.phase).toBe("beginning");
+    expect(pendingBegin).toHaveBeenCalledWith({
+      server: "linear",
+      filter,
+      mode: "automatic",
+      scopeApproval: { approveScopeEscalation: true, approvedScopes: ["write"] },
+    });
+  });
+
+  it("Should normalize explicitly approved scopes before beginning authorization", () => {
+    const begin = vi.fn(() => new Promise<never>(() => undefined));
+    const store = createMCPAuthorizeLogic().createStore();
+
+    store.trigger.authorizeRequested({
+      begin,
+      dismissOnConfirmation: false,
+      server: "linear",
+      filter,
+      prior,
+      mode: "automatic",
+      scopeApproval: {
+        approveScopeEscalation: true,
+        approvedScopes: [" issues:read ", "", "issues:read", "issues:write"],
+      },
+    });
+
+    expect(begin).toHaveBeenCalledWith({
+      server: "linear",
+      filter,
+      mode: "automatic",
+      scopeApproval: {
+        approveScopeEscalation: true,
+        approvedScopes: ["issues:read", "issues:write"],
+      },
+    });
+    expect(store.getSnapshot().context).toMatchObject({
+      phase: "beginning",
+      scopeApproval: {
+        approveScopeEscalation: true,
+        approvedScopes: ["issues:read", "issues:write"],
+      },
+    });
   });
 });

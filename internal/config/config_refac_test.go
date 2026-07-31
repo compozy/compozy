@@ -94,8 +94,8 @@ func TestMergeMCPServerLayersMergesCollisionsWithoutAliasingInputs(t *testing.T)
 				"TOKEN": "env:OVERLAY_TOKEN",
 			},
 			Auth: MCPAuthConfig{
-				Type:   MCPAuthTypeOAuth2PKCE,
-				Scopes: []string{"overlay-scope"},
+				Registration: MCPAuthRegistrationPreRegistered,
+				Scopes:       []string{"overlay-scope"},
 			},
 		}}
 
@@ -118,8 +118,8 @@ func TestMergeMCPServerLayersMergesCollisionsWithoutAliasingInputs(t *testing.T)
 		if got, want := merged[0].SecretEnv["TOKEN"], "env:OVERLAY_TOKEN"; got != want {
 			t.Fatalf("merged[0].SecretEnv[TOKEN] = %q, want %q", got, want)
 		}
-		if got, want := merged[0].Auth.Type, MCPAuthTypeOAuth2PKCE; got != want {
-			t.Fatalf("merged[0].Auth.Type = %q, want %q", got, want)
+		if got, want := merged[0].Auth.Registration, MCPAuthRegistrationPreRegistered; got != want {
+			t.Fatalf("merged[0].Auth.Registration = %q, want %q", got, want)
 		}
 		if got, want := strings.Join(merged[0].Auth.Scopes, ","), "overlay-scope"; got != want {
 			t.Fatalf("merged[0].Auth.Scopes = %#v, want %q", merged[0].Auth.Scopes, want)

@@ -139,6 +139,18 @@ func TestClassifyPath(t *testing.T) {
 			wantDiffClass: DiffClassLive,
 		},
 		{
+			name:          "Should classify MCP OAuth client metadata as restart required",
+			path:          "mcp.oauth.client_metadata_url",
+			wantLifecycle: RestartRequired,
+			wantDiffClass: DiffClassRestartRequired,
+		},
+		{
+			name:          "Should classify MCP OAuth redirect URI as restart required",
+			path:          "mcp.oauth.redirect_uri",
+			wantLifecycle: RestartRequired,
+			wantDiffClass: DiffClassRestartRequired,
+		},
+		{
 			name:    "Should reject unknown paths",
 			path:    "unknown.path",
 			wantErr: true,

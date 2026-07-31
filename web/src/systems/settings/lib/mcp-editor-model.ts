@@ -4,15 +4,16 @@ import type { SettingsMCPServerEntry, SettingsMCPServerRequest } from "../types"
  * Transport-aware MCP editor draft plus serialization/validation. This module
  * mirrors the daemon's transport-conditional field exclusivity client-side:
  *  - stdio keeps command, ordered args, non-secret env, and hybrid secret_env;
- *  - remote (http/sse) keeps url + optional OAuth, and OMITS command/args/env/secret_env.
+ *  - remote HTTP keeps its url and daemon-discovered OAuth policy, and OMITS
+ *    command/args/env/secret_env.
  * Secret values and bindings are write-only. Read responses expose configured
  * presence only; unchanged bindings are retained through `preserve_secrets`.
  * Field-error strings mirror `internal/config/mcp_server_validation.go` so the
  * client message matches the daemon rejection.
  */
 
-export type MCPTransport = "stdio" | "http" | "sse";
-export type MCPOAuthDiscovery = "issuer" | "metadata" | "endpoints";
+export type MCPTransport = "stdio" | "http";
+export type MCPAuthRegistration = "auto" | "pre_registered";
 export type MCPSecretMode = "preserve" | "typed" | "ref";
 
 export type MCPEnvPair = {
@@ -45,16 +46,11 @@ export interface MCPSecretEnvEntry {
 
 export interface MCPOAuthDraft {
   enabled: boolean;
-  clientId: string;
-  discovery: MCPOAuthDiscovery;
+  registration: MCPAuthRegistration;
   issuerUrl: string;
-  metadataUrl: string;
-  authorizationUrl: string;
-  tokenUrl: string;
-  revocationUrl: string;
+  clientId: string;
   /** Space-separated scopes in the input; serialized to a string[]. */
   scopes: string;
-  clientSecret: MCPSecretBinding;
 }
 
 export interface MCPDraft {
@@ -75,8 +71,7 @@ export interface MCPDraftErrors {
   command?: string;
   url?: string;
   clientId?: string;
-  clientSecret?: string;
-  metadata?: string;
+  issuerUrl?: string;
   remoteFields?: string;
   /** Per-row plain-env errors, keyed by the draft `env` index. */
   env?: Record<number, string>;
@@ -96,15 +91,10 @@ function emptyBinding(): MCPSecretBinding {
 function emptyOAuth(): MCPOAuthDraft {
   return {
     enabled: false,
-    clientId: "",
-    discovery: "metadata",
+    registration: "auto",
     issuerUrl: "",
-    metadataUrl: "",
-    authorizationUrl: "",
-    tokenUrl: "",
-    revocationUrl: "",
+    clientId: "",
     scopes: "",
-    clientSecret: emptyBinding(),
   };
 }
 
@@ -124,8 +114,8 @@ export function emptyDraft(transport: MCPTransport = "stdio"): MCPDraft {
 /**
  * Normalize a draft when its transport changes so the newly visible form starts
  * completable and no prior-transport field can leak or serialize. Crossing the
- * stdio↔remote boundary clears the other side's fields; switching within the
- * remote family (http↔sse) keeps the shared url + oauth. Same transport is a no-op.
+ * stdio↔remote boundary clears the other side's fields; a same-transport
+ * selection is a no-op.
  */
 export function withTransport(draft: MCPDraft, transport: MCPTransport): MCPDraft {
   if (draft.transport === transport) return draft;
@@ -136,14 +126,7 @@ export function withTransport(draft: MCPDraft, transport: MCPTransport): MCPDraf
 }
 
 function normalizeTransport(value: string | undefined): MCPTransport {
-  return value === "http" || value === "sse" ? value : "stdio";
-}
-
-function inferDiscovery(auth: NonNullable<SettingsMCPServerEntry["auth"]>): MCPOAuthDiscovery {
-  if (auth.issuer_url) return "issuer";
-  if (auth.metadata_url) return "metadata";
-  if (auth.authorization_url || auth.token_url) return "endpoints";
-  return "metadata";
+  return value === "http" ? "http" : "stdio";
 }
 
 function configuredBinding(configured: boolean): MCPSecretBinding {
@@ -170,15 +153,10 @@ export function toDraft(entry: SettingsMCPServerEntry): MCPDraft {
   const oauth: MCPOAuthDraft = auth
     ? {
         enabled: true,
-        clientId: auth.client_id ?? "",
-        discovery: inferDiscovery(auth),
+        registration: auth.registration === "pre_registered" ? "pre_registered" : "auto",
         issuerUrl: auth.issuer_url ?? "",
-        metadataUrl: auth.metadata_url ?? "",
-        authorizationUrl: auth.authorization_url ?? "",
-        tokenUrl: auth.token_url ?? "",
-        revocationUrl: auth.revocation_url ?? "",
+        clientId: auth.client_id ?? "",
         scopes: (auth.scopes ?? []).join(" "),
-        clientSecret: configuredBinding(auth.client_secret_configured),
       }
     : emptyOAuth();
   return {
@@ -208,16 +186,11 @@ export function withoutMCPSecretPreservation(draft: MCPDraft): MCPDraft {
       originalKey: undefined,
       binding: withoutPreservation(entry.binding),
     })),
-    oauth: {
-      ...draft.oauth,
-      clientSecret: withoutPreservation(draft.oauth.clientSecret),
-    },
   };
 }
 
 type ServerBody = SettingsMCPServerRequest["server"];
 type AuthBody = NonNullable<ServerBody["auth"]>;
-type SecretValues = NonNullable<SettingsMCPServerRequest["secret_values"]>;
 
 type SecretResolution =
   | { kind: "preserve" }
@@ -227,9 +200,9 @@ type SecretResolution =
 
 /**
  * The single precedence rule for what a hybrid secret binding contributes to a
- * request, shared by stdio secret_env, OAuth client-secret serialization, and
- * validation so the three can never drift. Each explicit mode has one output:
- * preservation by presence, a selected Vault ref, or a typed write-only value.
+ * request, shared by stdio secret_env serialization and validation so the two
+ * can never drift. Each explicit mode has one output: preservation by presence,
+ * a selected Vault ref, or a typed write-only value.
  */
 function resolveSecretBinding(binding: MCPSecretBinding): SecretResolution {
   if (binding.mode === "preserve") {
@@ -279,38 +252,13 @@ function collectEnv(pairs: MCPEnvPair[]): {
   return { values: env, preserved };
 }
 
-function buildAuthBody(oauth: MCPOAuthDraft): {
-  auth: AuthBody;
-  oauthClientSecret?: string;
-  preserveOAuthClientSecret: boolean;
-} {
-  const auth: AuthBody = { type: "oauth2_pkce", client_id: oauth.clientId.trim() };
-  if (oauth.discovery === "issuer") auth.issuer_url = oauth.issuerUrl.trim();
-  else if (oauth.discovery === "metadata") auth.metadata_url = oauth.metadataUrl.trim();
-  else {
-    auth.authorization_url = oauth.authorizationUrl.trim();
-    auth.token_url = oauth.tokenUrl.trim();
-  }
-  if (oauth.revocationUrl.trim()) auth.revocation_url = oauth.revocationUrl.trim();
-  const scopes = oauth.scopes.split(/\s+/).filter(Boolean);
-  if (scopes.length > 0) auth.scopes = scopes;
-  let oauthClientSecret: string | undefined;
-  const resolved = resolveSecretBinding(oauth.clientSecret);
-  if (resolved.kind === "ref") auth.client_secret_ref = resolved.ref;
-  else if (resolved.kind === "typed") oauthClientSecret = resolved.value;
-  return {
-    auth,
-    oauthClientSecret,
-    preserveOAuthClientSecret: resolved.kind === "preserve",
-  };
-}
-
 /**
  * Serialize a draft into the PUT body. stdio emits command/args/env + explicitly
  * selected refs on `server.secret_env`, unchanged names under `preserve_secrets`,
  * and typed replacements under `secret_values.secret_env`;
- * remote emits url + optional OAuth and NEVER command/args/env/secret_env. The
- * daemon computes canonical scope-qualified refs from the typed values.
+ * remote emits url + optional discovered OAuth policy and NEVER
+ * command/args/env/secret_env. The daemon computes canonical scope-qualified
+ * refs from typed stdio values.
  */
 export function toRequest(draft: MCPDraft): SettingsMCPServerRequest {
   const name = draft.name.trim();
@@ -348,15 +296,12 @@ export function toRequest(draft: MCPDraft): SettingsMCPServerRequest {
   const server: ServerBody = { name, transport: draft.transport, url: draft.url.trim() };
   const request: SettingsMCPServerRequest = { server };
   if (draft.oauth.enabled) {
-    const { auth, oauthClientSecret, preserveOAuthClientSecret } = buildAuthBody(draft.oauth);
+    const auth: AuthBody = { registration: draft.oauth.registration };
+    if (draft.oauth.issuerUrl.trim()) auth.issuer_url = draft.oauth.issuerUrl.trim();
+    if (draft.oauth.clientId.trim()) auth.client_id = draft.oauth.clientId.trim();
+    const scopes = draft.oauth.scopes.split(/\s+/).filter(Boolean);
+    if (scopes.length > 0) auth.scopes = scopes;
     server.auth = auth;
-    if (preserveOAuthClientSecret) {
-      request.preserve_secrets = { oauth_client_secret: true };
-    }
-    if (oauthClientSecret !== undefined) {
-      const secretValues: SecretValues = { oauth_client_secret: oauthClientSecret };
-      request.secret_values = secretValues;
-    }
   }
   return request;
 }
@@ -417,28 +362,11 @@ export function validateDraft(draft: MCPDraft): MCPDraftValidation {
     }
     const forbidden = hasRemoteForbiddenFields(draft);
     if (forbidden) errors.remoteFields = forbidden;
-    if (draft.oauth.enabled) {
+    if (draft.oauth.enabled && draft.oauth.registration === "pre_registered") {
       if (draft.oauth.clientId.trim().length === 0) {
         errors.clientId = "Client ID is required for OAuth";
       }
-      if (
-        draft.oauth.clientSecret.existing &&
-        draft.oauth.clientSecret.mode !== "preserve" &&
-        resolveSecretBinding(draft.oauth.clientSecret).kind === "none"
-      ) {
-        errors.clientSecret = "Enter a replacement value or select a Vault reference";
-      }
-      const { discovery, issuerUrl, metadataUrl, authorizationUrl, tokenUrl } = draft.oauth;
-      if (discovery === "issuer" && issuerUrl.trim().length === 0) {
-        errors.metadata = "Issuer URL is required";
-      } else if (discovery === "metadata" && metadataUrl.trim().length === 0) {
-        errors.metadata = "Metadata URL is required";
-      } else if (
-        discovery === "endpoints" &&
-        (authorizationUrl.trim().length === 0 || tokenUrl.trim().length === 0)
-      ) {
-        errors.metadata = "Authorization URL and token URL are required";
-      }
+      if (draft.oauth.issuerUrl.trim().length === 0) errors.issuerUrl = "Issuer URL is required";
     }
   }
 

@@ -15,7 +15,6 @@ import (
 	core "github.com/compozy/compozy/internal/api/core"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/deadentity"
-	"github.com/compozy/compozy/internal/diagnostics"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	"github.com/compozy/compozy/internal/memory"
 	"github.com/compozy/compozy/internal/network"
@@ -65,45 +64,22 @@ func newSettingsRuntimeSurface(d *Daemon, state *bootState) (*settingsRuntimeSur
 		return &settingsRuntimeSurface{}, nil
 	}
 
-	now := time.Now
-	pid := func() int { return 0 }
-	info := func() Info { return Info{} }
-	if d != nil {
-		if d.now != nil {
-			now = d.now
-		}
-		if d.pid != nil {
-			pid = d.pid
-		}
-		info = d.settingsInfoSnapshot
-	}
-
-	var mcpAuthStore mcpauth.TokenStore
-	if store, ok := state.registry.(mcpauth.TokenStore); ok {
-		mcpAuthStore = store
-	}
-	mcpAuthManager, err := newSettingsMCPAuthManager(mcpAuthStore, &daemonMCPAuthNotifier{
-		writer: state.registry,
-		logger: state.logger,
-		now:    now,
-	}, state.mcpAuthGeneration)
+	now, pid, info := settingsRuntimeFunctions(d)
+	mcpAuthStore, mcpAuthRegistrations, secretResolver, secretRefs := settingsMCPAuthDependencies(state)
+	mcpAuthManager, err := newSettingsMCPAuthManagerWithConfig(
+		mcpAuthStore,
+		&daemonMCPAuthNotifier{
+			writer: state.registry,
+			logger: state.logger,
+			now:    now,
+		},
+		mcpAuthRegistrations,
+		secretResolver,
+		state.cfg.MCP.OAuth,
+		state.mcpAuthGeneration,
+	)
 	if err != nil {
 		return nil, err
-	}
-	var secretResolver mcpauth.SecretRefResolver
-	var secretRefs interface {
-		ResolveRef(context.Context, string) (string, error)
-	}
-	if state.providerVault != nil {
-		secretRefs = state.providerVault
-		secretResolver = func(ctx context.Context, ref string) (string, error) {
-			value, err := state.providerVault.ResolveRef(ctx, ref)
-			if err != nil {
-				return "", err
-			}
-			diagnostics.RegisterDynamicSecret(value)
-			return value, nil
-		}
 	}
 	lookupSecret := os.Getenv
 	if d != nil && d.getenv != nil {

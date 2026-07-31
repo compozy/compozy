@@ -343,6 +343,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"GET /api/settings/hooks",
 			"GET /api/settings/hooks-extensions",
 			"GET /api/settings/mcp-servers",
+			"GET /api/settings/mcp-servers/:name/auth/status",
 			"POST /api/settings/mcp-servers/install",
 			"POST /api/settings/mcp-servers/:name/auth/begin",
 			"POST /api/settings/mcp-servers/:name/auth/exchange",

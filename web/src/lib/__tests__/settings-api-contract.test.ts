@@ -86,15 +86,11 @@ describe("settings openapi contract", () => {
     expectTypeOf<PutSettingsMCPServerBody["server"]["url"]>().toEqualTypeOf<string | undefined>();
     expectTypeOf<PutSettingsMCPServerBody["server"]["auth"]>().toEqualTypeOf<
       | {
-          authorization_url?: string;
           client_id?: string;
           client_secret_ref?: string;
           issuer_url?: string;
-          metadata_url?: string;
-          revocation_url?: string;
+          registration?: string;
           scopes?: string[];
-          token_url?: string;
-          type?: string;
         }
       | null
       | undefined
@@ -124,14 +120,12 @@ describe("settings openapi contract", () => {
     >().toEqualTypeOf<
       | {
           auth_type?: string;
-          authorization_url?: string;
           client_id?: string;
           diagnostic?: string;
           expires_at?: string | null;
           issuer?: string;
           refreshable: boolean;
           remote_url?: string;
-          revocation_url?: string;
           scope: string;
           scopes?: string[];
           server_name: string;

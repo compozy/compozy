@@ -21,3 +21,17 @@ func TestTargetKeyRejectsIdentitySeparatorBytes(t *testing.T) {
 		}
 	})
 }
+
+func TestServerConfigValidate(t *testing.T) {
+	t.Parallel()
+	t.Run("Should reject unsupported auth types", func(t *testing.T) {
+		t.Parallel()
+		cfg := ServerConfig{
+			Target: Target{Scope: ScopeGlobal, ServerName: "fixture"},
+			Type:   "unsupported",
+		}
+		if err := cfg.Validate(); err == nil {
+			t.Fatal("ServerConfig.Validate() error = nil, want unsupported auth type rejection")
+		}
+	})
+}

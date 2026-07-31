@@ -45,6 +45,7 @@ type MCPSettingsClient interface {
 		scope contract.SettingsWorkspaceScopeKind,
 		workspaceID string,
 	) (contract.SettingsMCPServersResponse, error)
+	GetSettingsMCPAuthStatus(ctx context.Context, target SettingsMCPAuthTarget) (SettingsMCPAuthStatusRecord, error)
 	BeginSettingsMCPAuth(
 		ctx context.Context,
 		target SettingsMCPAuthTarget,
@@ -89,6 +90,24 @@ func (c *unixSocketClient) ListSettingsMCPServers(
 	var response contract.SettingsMCPServersResponse
 	if err := c.doJSON(ctx, http.MethodGet, "/api/settings/mcp-servers", query, nil, &response); err != nil {
 		return contract.SettingsMCPServersResponse{}, err
+	}
+	return response, nil
+}
+
+func (c *unixSocketClient) GetSettingsMCPAuthStatus(
+	ctx context.Context,
+	target SettingsMCPAuthTarget,
+) (SettingsMCPAuthStatusRecord, error) {
+	var response SettingsMCPAuthStatusRecord
+	if err := c.doJSON(
+		ctx,
+		http.MethodGet,
+		settingsMCPAuthPath(target, "status"),
+		settingsMCPAuthQuery(target),
+		nil,
+		&response,
+	); err != nil {
+		return SettingsMCPAuthStatusRecord{}, err
 	}
 	return response, nil
 }

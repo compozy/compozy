@@ -14,7 +14,9 @@ const (
 
 // SettingsMCPAuthBeginRequest selects automatic or manual callback delivery.
 type SettingsMCPAuthBeginRequest struct {
-	Mode SettingsMCPAuthBeginMode `json:"mode"`
+	Mode                   SettingsMCPAuthBeginMode `json:"mode"`
+	ApprovedScopes         []string                 `json:"approved_scopes,omitempty"`
+	ApproveScopeEscalation bool                     `json:"approve_scope_escalation,omitempty"`
 }
 
 // SettingsMCPAuthBeginResponse returns the verifier-free PKCE handoff.
@@ -26,8 +28,7 @@ type SettingsMCPAuthBeginResponse struct {
 	ManualSupported  bool      `json:"manual_supported"`
 }
 
-// SettingsMCPAuthExchangeRequest completes one login with exactly one input.
+// SettingsMCPAuthExchangeRequest completes one login with the full redirect URL.
 type SettingsMCPAuthExchangeRequest struct {
-	Code        string `json:"code,omitempty"`
-	RedirectURL string `json:"redirect_url,omitempty"`
+	RedirectURL string `json:"redirect_url"`
 }

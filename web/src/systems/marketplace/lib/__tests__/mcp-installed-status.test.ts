@@ -24,8 +24,8 @@ describe("marketplaceMCPInstalledStatus", () => {
       marketplaceMCPInstalledStatus(
         server({
           name: "linear",
-          transport: "sse",
-          auth: { type: "oauth2_pkce", client_id: "x", client_secret_configured: false },
+          transport: "http",
+          auth: { client_secret_configured: false, registration: "auto" },
           auth_status: {
             server_name: "linear",
             scope: "workspace",
@@ -50,8 +50,8 @@ describe("marketplaceMCPInstalledStatus", () => {
       marketplaceMCPInstalledStatus(
         server({
           name: "sentry",
-          transport: "sse",
-          auth: { type: "oauth2_pkce", client_id: "x", client_secret_configured: false },
+          transport: "http",
+          auth: { client_secret_configured: false, registration: "auto" },
           auth_status: {
             server_name: "sentry",
             scope: "workspace",

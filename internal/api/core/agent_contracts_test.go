@@ -20,10 +20,13 @@ func TestAgentPayloadDoesNotExposeMCPSecretBindings(t *testing.T) {
 			Provider: "codex",
 			MCPServers: []compozyconfig.MCPServer{{
 				Name:      "github",
-				Command:   "npx",
+				Transport: compozyconfig.MCPServerTransportHTTP,
+				URL:       "https://mcp.github.example/mcp",
 				SecretEnv: map[string]string{"GITHUB_TOKEN": "vault:mcp/global/github/env/GITHUB_TOKEN"},
 				Auth: compozyconfig.MCPAuthConfig{
-					Type:            compozyconfig.MCPAuthTypeOAuth2PKCE,
+					Registration:    compozyconfig.MCPAuthRegistrationPreRegistered,
+					IssuerURL:       "https://auth.github.example",
+					ClientID:        "compozy-client",
 					ClientSecretRef: "vault:mcp/global/github/oauth/client-secret",
 				},
 			}},

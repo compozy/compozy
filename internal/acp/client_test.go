@@ -1760,11 +1760,6 @@ func TestStartMCPServersSkipsRemoteTransports(t *testing.T) {
 					Transport: compozyconfig.MCPServerTransportHTTP,
 					URL:       "https://example.test/mcp",
 				},
-				{
-					Name:      "remote-sse",
-					Transport: compozyconfig.MCPServerTransportSSE,
-					URL:       "https://example.test/sse",
-				},
 			},
 		})
 		defer stopProcess(t, driver, proc)

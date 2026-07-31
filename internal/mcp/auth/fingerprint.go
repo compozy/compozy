@@ -1,30 +1,29 @@
 package auth
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"slices"
 	"strings"
 )
 
 const definitionFingerprintPrefix = "sha256:"
 
 type fingerprintDefinition struct {
-	Target           Target   `json:"target"`
-	Transport        string   `json:"transport"`
-	RemoteURL        string   `json:"remote_url"`
-	Type             string   `json:"type"`
-	IssuerURL        string   `json:"issuer_url"`
-	MetadataURL      string   `json:"metadata_url"`
-	AuthorizationURL string   `json:"authorization_url"`
-	TokenURL         string   `json:"token_url"`
-	RevocationURL    string   `json:"revocation_url"`
-	ClientID         string   `json:"client_id"`
-	ClientSecretRef  string   `json:"client_secret_ref"`
-	Scopes           []string `json:"scopes"`
+	Target          Target `json:"target"`
+	Transport       string `json:"transport"`
+	RemoteURL       string `json:"remote_url"`
+	CatalogEntry    string `json:"catalog_entry"`
+	Type            string `json:"type"`
+	IssuerURL       string `json:"issuer_url"`
+	ClientID        string `json:"client_id"`
+	ClientSecretRef string `json:"client_secret_ref"`
+	Registration    string `json:"registration"`
+	ResourceURL     string `json:"resource_url"`
+	PRMURL          string `json:"prm_url"`
 }
 
 // ServerDefinitionFingerprint binds OAuth state to one exact remote and auth definition.
@@ -33,21 +32,24 @@ func ServerDefinitionFingerprint(cfg ServerConfig) (string, error) {
 	if err := cfg.Validate(); err != nil {
 		return "", err
 	}
-	scopes := trimStrings(cfg.Scopes)
-	slices.Sort(scopes)
+	clientID := strings.TrimSpace(cfg.ClientID)
+	clientSecretRef := strings.TrimSpace(cfg.ClientSecretRef)
+	if cfg.registrationStrategy() == RegistrationAuto {
+		clientID = ""
+		clientSecretRef = ""
+	}
 	definition := fingerprintDefinition{
-		Target:           cfg.Target.Normalize(),
-		Transport:        strings.TrimSpace(cfg.Transport),
-		RemoteURL:        strings.TrimSpace(cfg.RemoteURL),
-		Type:             strings.TrimSpace(cfg.Type),
-		IssuerURL:        strings.TrimSpace(cfg.IssuerURL),
-		MetadataURL:      strings.TrimSpace(cfg.MetadataURL),
-		AuthorizationURL: strings.TrimSpace(cfg.AuthorizationURL),
-		TokenURL:         strings.TrimSpace(cfg.TokenURL),
-		RevocationURL:    strings.TrimSpace(cfg.RevocationURL),
-		ClientID:         strings.TrimSpace(cfg.ClientID),
-		ClientSecretRef:  strings.TrimSpace(cfg.ClientSecretRef),
-		Scopes:           scopes,
+		Target:          cfg.Target.Normalize(),
+		Transport:       strings.TrimSpace(cfg.Transport),
+		RemoteURL:       strings.TrimSpace(cfg.RemoteURL),
+		CatalogEntry:    strings.TrimSpace(cfg.CatalogEntry),
+		Type:            strings.TrimSpace(cfg.Type),
+		IssuerURL:       strings.TrimSpace(cfg.IssuerURL),
+		ClientID:        clientID,
+		ClientSecretRef: clientSecretRef,
+		Registration:    string(cfg.registrationStrategy()),
+		ResourceURL:     strings.TrimSpace(cfg.ResourceURL),
+		PRMURL:          strings.TrimSpace(cfg.PRMURL),
 	}
 	payload, err := json.Marshal(definition)
 	if err != nil {
@@ -73,10 +75,61 @@ func ValidateDefinitionFingerprint(value string) error {
 	return nil
 }
 
-func tokenMatchesServerDefinition(token TokenRecord, cfg ServerConfig) bool {
+func tokenMatchesFingerprint(token TokenRecord, cfg ServerConfig) bool {
 	fingerprint, err := ServerDefinitionFingerprint(cfg)
 	if err != nil {
 		return false
 	}
 	return strings.TrimSpace(token.DefinitionFingerprint) == fingerprint
+}
+
+func (s *Service) tokenMatchesServerDefinition(
+	ctx context.Context,
+	token TokenRecord,
+	cfg ServerConfig,
+) (bool, error) {
+	if !tokenMatchesFingerprint(token, cfg) {
+		return false, nil
+	}
+	if !scopesCover(token.Scopes, cfg.Scopes) {
+		return false, nil
+	}
+	if cfg.registrationStrategy() == RegistrationPreRegistered {
+		return issuersEqual(token.Issuer, cfg.IssuerURL) &&
+			strings.TrimSpace(token.ClientID) == strings.TrimSpace(cfg.ClientID), nil
+	}
+	if s.registrations == nil {
+		return false, errors.New(
+			"mcp auth: registration store is required to validate token binding",
+		)
+	}
+	registration, err := s.registrations.GetMCPAuthRegistration(ctx, cfg.Target)
+	if err != nil {
+		if errors.Is(err, ErrRegistrationNotFound) {
+			return false, nil
+		}
+		return false, fmt.Errorf("mcp auth: load registration for token binding: %w", err)
+	}
+	return registration.DefinitionFingerprint == token.DefinitionFingerprint &&
+		issuersEqual(registration.Issuer, token.Issuer) &&
+		strings.TrimSpace(registration.ClientID) == strings.TrimSpace(token.ClientID) &&
+		strings.TrimSpace(
+			registration.ResourceURL,
+		) == firstNonEmpty(
+			cfg.ResourceURL,
+			cfg.RemoteURL,
+		), nil
+}
+
+func scopesCover(granted []string, required []string) bool {
+	grantedSet := make(map[string]struct{}, len(granted))
+	for _, scope := range trimStrings(granted) {
+		grantedSet[scope] = struct{}{}
+	}
+	for _, scope := range trimStrings(required) {
+		if _, ok := grantedSet[scope]; !ok {
+			return false
+		}
+	}
+	return true
 }

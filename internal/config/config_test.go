@@ -695,6 +695,24 @@ func TestDefaultWithHomeIncludesSoulDefaults(t *testing.T) {
 	}
 }
 
+func TestDefaultWithHomeIncludesMCPOAuthDefaults(t *testing.T) {
+	t.Parallel()
+
+	cfg := DefaultWithHome(HomePaths{})
+	t.Run("Should populate the default MCP OAuth client metadata URL", func(t *testing.T) {
+		t.Parallel()
+		if got, want := cfg.MCP.OAuth.ClientMetadataURL, DefaultMCPClientMetadataURL; got != want {
+			t.Fatalf("DefaultWithHome() MCP.OAuth.ClientMetadataURL = %q, want %q", got, want)
+		}
+	})
+	t.Run("Should populate the default MCP OAuth redirect URI", func(t *testing.T) {
+		t.Parallel()
+		if got, want := cfg.MCP.OAuth.RedirectURI, "http://127.0.0.1:2123/api/mcp/oauth/callback"; got != want {
+			t.Fatalf("DefaultWithHome() MCP.OAuth.RedirectURI = %q, want %q", got, want)
+		}
+	})
+}
+
 func TestSoulConfigValidation(t *testing.T) {
 	t.Parallel()
 
@@ -1321,13 +1339,12 @@ func TestLoadSupportsRemoteMCPAuthFieldsInTOML(t *testing.T) {
 	writeFile(t, homePaths.ConfigFile, `
 [[mcp_servers]]
 name = "linear"
-transport = "sse"
-url = "https://mcp.example/sse"
+transport = "http"
+url = "https://mcp.example/mcp"
 
 [mcp_servers.auth]
-type = "oauth2_pkce"
-authorization_url = "https://auth.example/authorize"
-token_url = "https://auth.example/token"
+registration = "pre_registered"
+issuer_url = "https://auth.example"
 client_id = "client-id"
 client_secret_ref = "env:LINEAR_CLIENT_SECRET"
 scopes = ["read"]
@@ -1338,7 +1355,7 @@ transport = "http"
 url = "https://provider.example/mcp"
 
 [providers.codex.mcp_servers.auth]
-type = "oauth2_pkce"
+registration = "pre_registered"
 issuer_url = "https://issuer.example"
 client_id = "provider-client"
 scopes = ["tools"]
@@ -1353,20 +1370,20 @@ scopes = ["tools"]
 		t.Fatalf("Load() MCPServers len = %d, want %d (%#v)", got, want, cfg.MCPServers)
 	}
 	linear := cfg.MCPServers[0]
-	if got, want := linear.Transport, MCPServerTransportSSE; got != want {
+	if got, want := linear.Transport, MCPServerTransportHTTP; got != want {
 		t.Fatalf("Load() linear.Transport = %q, want %q", got, want)
 	}
-	if got, want := linear.URL, "https://mcp.example/sse"; got != want {
+	if got, want := linear.URL, "https://mcp.example/mcp"; got != want {
 		t.Fatalf("Load() linear.URL = %q, want %q", got, want)
 	}
-	if got, want := linear.Auth.Type, MCPAuthTypeOAuth2PKCE; got != want {
-		t.Fatalf("Load() linear.Auth.Type = %q, want %q", got, want)
+	if got, want := linear.Auth.Registration, MCPAuthRegistrationPreRegistered; got != want {
+		t.Fatalf("Load() linear.Auth.Registration = %q, want %q", got, want)
 	}
-	if got, want := linear.Auth.AuthorizationURL, "https://auth.example/authorize"; got != want {
-		t.Fatalf("Load() linear.Auth.AuthorizationURL = %q, want %q", got, want)
+	if got, want := linear.Auth.IssuerURL, "https://auth.example"; got != want {
+		t.Fatalf("Load() linear.Auth.IssuerURL = %q, want %q", got, want)
 	}
-	if got, want := linear.Auth.TokenURL, "https://auth.example/token"; got != want {
-		t.Fatalf("Load() linear.Auth.TokenURL = %q, want %q", got, want)
+	if got, want := linear.Auth.ClientID, "client-id"; got != want {
+		t.Fatalf("Load() linear.Auth.ClientID = %q, want %q", got, want)
 	}
 	if got, want := linear.Auth.ClientSecretRef, "env:LINEAR_CLIENT_SECRET"; got != want {
 		t.Fatalf("Load() linear.Auth.ClientSecretRef = %q, want %q", got, want)

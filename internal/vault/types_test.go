@@ -77,6 +77,16 @@ func TestMCPSecretOwnerPrefixIsCollisionSafeAcrossScopes(t *testing.T) {
 		if got, want := globalPrefix, "vault:mcp/global/linear/"; got != want {
 			t.Fatalf("global prefix = %q, want %q", got, want)
 		}
+		globalDCRRefs, err := MCPDCRSecretRefsForTarget(MCPGlobalScope, "", "linear")
+		if err != nil {
+			t.Fatalf("MCPDCRSecretRefsForTarget(global) error = %v", err)
+		}
+		if got, want := globalDCRRefs.ClientSecretRef, globalPrefix+"oauth/dcr-client-secret"; got != want {
+			t.Fatalf("global DCR client secret ref = %q, want %q", got, want)
+		}
+		if got, want := globalDCRRefs.RegistrationAccessTokenRef, globalPrefix+"oauth/registration-access-token"; got != want {
+			t.Fatalf("global DCR registration token ref = %q, want %q", got, want)
+		}
 		segment, err := MCPWorkspaceSegment(workspaceID)
 		if err != nil {
 			t.Fatalf("MCPWorkspaceSegment() error = %v", err)
@@ -118,6 +128,67 @@ func TestMCPSecretOwnerPrefixIsCollisionSafeAcrossScopes(t *testing.T) {
 		}
 		if reservedSegment == segment {
 			t.Fatalf("encoded server name collided with reserved literal: %q", segment)
+		}
+	})
+}
+
+func TestValidateMCPSecretRefAccessIsolatesOwners(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should allow owned and shared refs while rejecting another workspace", func(t *testing.T) {
+		t.Parallel()
+
+		workspaceA := "workspace-a"
+		workspaceBPrefix, err := MCPSecretOwnerPrefix(MCPWorkspaceScope, "workspace-b", "linear")
+		if err != nil {
+			t.Fatalf("MCPSecretOwnerPrefix(workspace-b) error = %v", err)
+		}
+		workspaceAPrefix, err := MCPSecretOwnerPrefix(MCPWorkspaceScope, workspaceA, "linear")
+		if err != nil {
+			t.Fatalf("MCPSecretOwnerPrefix(workspace-a) error = %v", err)
+		}
+		if err := ValidateMCPSecretRefAccess(
+			workspaceAPrefix+"env/TOKEN",
+			MCPWorkspaceScope,
+			workspaceA,
+			"linear",
+		); err != nil {
+			t.Fatalf("ValidateMCPSecretRefAccess(owned) error = %v", err)
+		}
+		if err := ValidateMCPSecretRefAccess(
+			MCPSharedRefPrefix+"linear-token",
+			MCPWorkspaceScope,
+			workspaceA,
+			"linear",
+		); err != nil {
+			t.Fatalf("ValidateMCPSecretRefAccess(shared) error = %v", err)
+		}
+		if err := ValidateMCPSecretRefAccess(
+			workspaceBPrefix+"env/TOKEN",
+			MCPWorkspaceScope,
+			workspaceA,
+			"linear",
+		); err == nil {
+			t.Fatal("ValidateMCPSecretRefAccess(other workspace) error = nil, want owner rejection")
+		}
+	})
+
+	t.Run("Should reject caller refs in the daemon-managed OAuth subtree", func(t *testing.T) {
+		t.Parallel()
+
+		refs, err := MCPDCRSecretRefsForTarget(MCPGlobalScope, "", "linear")
+		if err != nil {
+			t.Fatalf("MCPDCRSecretRefsForTarget() error = %v", err)
+		}
+		for _, ref := range []string{
+			refs.ClientSecretRef,
+			refs.RegistrationAccessTokenRef,
+			strings.Replace(refs.ClientSecretRef, "/oauth/", "/OAuth/", 1),
+		} {
+			err := ValidateMCPSecretRefAccess(ref, MCPGlobalScope, "", "linear")
+			if err == nil || !strings.Contains(err.Error(), "daemon-managed OAuth subtree") {
+				t.Fatalf("ValidateMCPSecretRefAccess(%q) error = %v, want OAuth subtree rejection", ref, err)
+			}
 		}
 	})
 }

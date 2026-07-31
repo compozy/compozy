@@ -37,10 +37,10 @@ function remoteEntry(): SettingsMCPServerEntry {
     transport: "http",
     url: "https://mcp.linear.app/mcp",
     auth: {
-      type: "oauth2_pkce",
       client_id: "compozy-linear-public",
-      client_secret_configured: true,
+      client_secret_configured: false,
       issuer_url: "https://auth.linear.app",
+      registration: "pre_registered",
       scopes: ["read", "write"],
     },
     scope: "workspace",
@@ -56,15 +56,16 @@ function remoteEntry(): SettingsMCPServerEntry {
 }
 
 describe("emptyDraft", () => {
-  it("defaults to stdio and carries an empty oauth block", () => {
+  it("defaults to stdio and carries an automatic OAuth policy", () => {
     const draft = emptyDraft();
     expect(draft.transport).toBe("stdio");
     expect(draft.oauth.enabled).toBe(false);
+    expect(draft.oauth.registration).toBe("auto");
     expect(draft.args).toEqual([]);
   });
 
   it("honors an explicit transport", () => {
-    expect(emptyDraft("sse").transport).toBe("sse");
+    expect(emptyDraft("http").transport).toBe("http");
   });
 });
 
@@ -101,16 +102,23 @@ describe("withTransport", () => {
       ...emptyDraft("http"),
       name: "srv",
       url: "https://mcp.example/mcp",
-      oauth: { ...emptyDraft("http").oauth, enabled: true, clientId: "compozy" },
+      oauth: {
+        ...emptyDraft("http").oauth,
+        enabled: true,
+        registration: "pre_registered",
+        clientId: "compozy",
+        issuerUrl: "https://auth.example",
+      },
     };
     const stdio = withTransport(remote, "stdio");
     expect(stdio.transport).toBe("stdio");
     expect(stdio.url).toBe("");
     expect(stdio.oauth.enabled).toBe(false);
+    expect(stdio.oauth.registration).toBe("auto");
     expect(stdio.oauth.clientId).toBe("");
   });
 
-  it("preserves shared url + oauth switching within the remote family (http ↔ sse)", () => {
+  it("keeps a remote HTTP draft unchanged when the same transport is selected", () => {
     const http: MCPDraft = {
       ...emptyDraft("http"),
       name: "srv",
@@ -119,15 +127,15 @@ describe("withTransport", () => {
         ...emptyDraft("http").oauth,
         enabled: true,
         clientId: "compozy",
-        discovery: "issuer",
+        registration: "pre_registered",
         issuerUrl: "https://auth",
       },
     };
-    const sse = withTransport(http, "sse");
-    expect(sse.transport).toBe("sse");
-    expect(sse.url).toBe("https://mcp.example/mcp");
-    expect(sse.oauth.enabled).toBe(true);
-    expect(sse.oauth.clientId).toBe("compozy");
+    const same = withTransport(http, "http");
+    expect(same).toBe(http);
+    expect(same.url).toBe("https://mcp.example/mcp");
+    expect(same.oauth.enabled).toBe(true);
+    expect(same.oauth.clientId).toBe("compozy");
   });
 
   it("returns the same draft reference when the transport is unchanged", () => {
@@ -160,20 +168,15 @@ describe("toDraft", () => {
     expect(binding.typedValue).toBe("");
   });
 
-  it("reads remote url and infers the oauth discovery form from the auth block", () => {
+  it("reads a remote URL and its pre-registered OAuth policy", () => {
     const draft = toDraft(remoteEntry());
     expect(draft.transport).toBe("http");
     expect(draft.url).toBe("https://mcp.linear.app/mcp");
     expect(draft.oauth.enabled).toBe(true);
     expect(draft.oauth.clientId).toBe("compozy-linear-public");
-    expect(draft.oauth.discovery).toBe("issuer");
+    expect(draft.oauth.registration).toBe("pre_registered");
+    expect(draft.oauth.issuerUrl).toBe("https://auth.linear.app");
     expect(draft.oauth.scopes).toBe("read write");
-    expect(draft.oauth.clientSecret).toEqual({
-      mode: "preserve",
-      existing: true,
-      typedValue: "",
-      vaultRef: "",
-    });
   });
 });
 
@@ -284,7 +287,7 @@ describe("toRequest stdio", () => {
 });
 
 describe("toRequest remote", () => {
-  it("emits url + oauth and never command/args/env/secret_env", () => {
+  it("emits URL plus the pre-registered policy and never command/args/env/secret_env", () => {
     const request = toRequest(toDraft(remoteEntry()));
     expect(request.server.transport).toBe("http");
     expect(request.server.url).toBe("https://mcp.linear.app/mcp");
@@ -292,59 +295,12 @@ describe("toRequest remote", () => {
     expect(request.server.args).toBeUndefined();
     expect(request.server.env).toBeUndefined();
     expect(request.server.secret_env).toBeUndefined();
-    expect(request.server.auth?.type).toBe("oauth2_pkce");
+    expect(request.server.auth?.registration).toBe("pre_registered");
+    expect(request.server.auth?.client_id).toBe("compozy-linear-public");
     expect(request.server.auth?.issuer_url).toBe("https://auth.linear.app");
     expect(request.server.auth?.scopes).toEqual(["read", "write"]);
     expect(request.server.auth?.client_secret_ref).toBeUndefined();
-    expect(request.preserve_secrets).toEqual({ oauth_client_secret: true });
-  });
-
-  it("sends a rotated client secret as a write-only value", () => {
-    const draft = toDraft(remoteEntry());
-    draft.oauth.clientSecret = {
-      mode: "typed",
-      existing: true,
-      typedValue: "new-secret",
-      vaultRef: "",
-    };
-    const request = toRequest(draft);
-    expect(request.server.auth?.client_secret_ref).toBeUndefined();
-    expect(request.secret_values).toEqual({ oauth_client_secret: "new-secret" });
-  });
-
-  it("writes an explicitly selected OAuth Vault ref without preserving the hidden binding", () => {
-    const draft = toDraft(remoteEntry());
-    draft.oauth.clientSecret = {
-      mode: "ref",
-      existing: true,
-      typedValue: "",
-      vaultRef: "vault:mcp/ws/ws-platform/shared/linear-client-secret",
-    };
-    const request = toRequest(draft);
-    expect(request.server.auth?.client_secret_ref).toBe(
-      "vault:mcp/ws/ws-platform/shared/linear-client-secret"
-    );
     expect(request.preserve_secrets).toBeUndefined();
-    expect(request.secret_values).toBeUndefined();
-  });
-
-  it("rejects an empty replacement for a configured OAuth client secret", () => {
-    const draft = toDraft(remoteEntry());
-    draft.oauth.clientSecret = {
-      mode: "typed",
-      existing: true,
-      typedValue: "",
-      vaultRef: "",
-    };
-
-    const validation = validateDraft(draft);
-
-    expect(validation.valid).toBe(false);
-    expect(validation.errors.clientSecret).toBe(
-      "Enter a replacement value or select a Vault reference"
-    );
-    expect(toRequest(draft).preserve_secrets).toBeUndefined();
-    expect(toRequest(draft).secret_values).toBeUndefined();
   });
 
   it("omits the auth block entirely when oauth is disabled", () => {
@@ -379,7 +335,7 @@ describe("validateDraft", () => {
   });
 
   it("blocks command and secret_env on a remote draft with the daemon message", () => {
-    const draft = emptyDraft("sse");
+    const draft = emptyDraft("http");
     const withCommand = validateDraft({ ...draft, name: "srv", url: "https://x", command: "npx" });
     expect(withCommand.errors.remoteFields).toBe("Command is only valid for stdio transport");
     const withSecret = validateDraft({
@@ -396,31 +352,33 @@ describe("validateDraft", () => {
     expect(withSecret.errors.remoteFields).toBe("Secret env is only valid for stdio transport");
   });
 
-  it("requires client_id and a metadata form when oauth is enabled", () => {
+  it("requires issuer and client ID only for a pre-registered OAuth policy", () => {
     const draft = emptyDraft("http");
     const missingClient = validateDraft({
       ...draft,
       name: "srv",
       url: "https://x",
-      oauth: { ...draft.oauth, enabled: true, discovery: "issuer", issuerUrl: "https://auth" },
+      oauth: {
+        ...draft.oauth,
+        enabled: true,
+        registration: "pre_registered",
+        issuerUrl: "https://auth",
+      },
     });
     expect(missingClient.errors.clientId).toBe("Client ID is required for OAuth");
 
-    const missingMetadata = validateDraft({
+    const missingIssuer = validateDraft({
       ...draft,
       name: "srv",
       url: "https://x",
-      oauth: { ...draft.oauth, enabled: true, clientId: "compozy", discovery: "metadata" },
+      oauth: {
+        ...draft.oauth,
+        enabled: true,
+        registration: "pre_registered",
+        clientId: "compozy",
+      },
     });
-    expect(missingMetadata.errors.metadata).toBe("Metadata URL is required");
-
-    const endpointsMissing = validateDraft({
-      ...draft,
-      name: "srv",
-      url: "https://x",
-      oauth: { ...draft.oauth, enabled: true, clientId: "compozy", discovery: "endpoints" },
-    });
-    expect(endpointsMissing.errors.metadata).toBe("Authorization URL and token URL are required");
+    expect(missingIssuer.errors.issuerUrl).toBe("Issuer URL is required");
   });
 
   it("flags a non-empty stdio secret key whose binding resolves to nothing", () => {
@@ -507,7 +465,7 @@ describe("validateDraft", () => {
     expect(result.errors.secretEnv).toBeUndefined();
   });
 
-  it("accepts a valid stdio draft and a valid remote oauth draft", () => {
+  it("accepts a valid stdio draft and a valid auto-discovered remote OAuth draft", () => {
     expect(validateDraft({ ...base(), name: "srv", command: "npx" }).valid).toBe(true);
     const remote = emptyDraft("http");
     expect(
@@ -518,9 +476,7 @@ describe("validateDraft", () => {
         oauth: {
           ...remote.oauth,
           enabled: true,
-          clientId: "compozy",
-          discovery: "issuer",
-          issuerUrl: "https://auth",
+          registration: "auto",
         },
       }).valid
     ).toBe(true);

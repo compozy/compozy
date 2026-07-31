@@ -85,6 +85,7 @@ type stubClient struct {
 	refreshMarketplaceFn        func(context.Context, string) (MarketplaceRefreshRecord, error)
 	installSettingsMCPServerFn  func(context.Context, InstallSettingsMCPServerRequest) (InstallSettingsMCPServerRecord, error)
 	listSettingsMCPServersFn    func(context.Context, contract.SettingsWorkspaceScopeKind, string) (contract.SettingsMCPServersResponse, error)
+	getSettingsMCPAuthStatusFn  func(context.Context, SettingsMCPAuthTarget) (SettingsMCPAuthStatusRecord, error)
 	beginSettingsMCPAuthFn      func(
 		context.Context,
 		SettingsMCPAuthTarget,
@@ -1021,6 +1022,16 @@ func (s *stubClient) ListSettingsMCPServers(
 		return s.listSettingsMCPServersFn(ctx, scope, workspaceID)
 	}
 	return contract.SettingsMCPServersResponse{}, errors.New("unexpected ListSettingsMCPServers call")
+}
+
+func (s *stubClient) GetSettingsMCPAuthStatus(
+	ctx context.Context,
+	target SettingsMCPAuthTarget,
+) (SettingsMCPAuthStatusRecord, error) {
+	if s.getSettingsMCPAuthStatusFn != nil {
+		return s.getSettingsMCPAuthStatusFn(ctx, target)
+	}
+	return SettingsMCPAuthStatusRecord{}, errors.New("unexpected GetSettingsMCPAuthStatus call")
 }
 
 func (s *stubClient) BeginSettingsMCPAuth(

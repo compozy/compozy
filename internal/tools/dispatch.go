@@ -34,38 +34,48 @@ func (r *RuntimeRegistry) dispatch(ctx context.Context, scope Scope, req CallReq
 		}
 		return ToolResult{}, r.failDispatch(ctx, &target, req, started, err, ToolCallFailed)
 	}
+	return r.executeDispatchTarget(ctx, scope, req, &target, started)
+}
+
+func (r *RuntimeRegistry) executeDispatchTarget(
+	ctx context.Context,
+	scope Scope,
+	req CallRequest,
+	target *dispatchTarget,
+	started time.Time,
+) (ToolResult, error) {
 	req.Input = normalizeCallInput(req.Input)
-	if err := r.ensureDispatchTargetCallable(ctx, &target, req, started); err != nil {
+	if err := r.ensureDispatchTargetCallable(ctx, target, req, started); err != nil {
 		return ToolResult{}, err
 	}
-	req, err = r.bindCallInput(ctx, scope, target.descriptor, req)
+	req, err := r.bindCallInput(ctx, scope, target.descriptor, req)
 	if err != nil {
-		if emitErr := r.emit(ctx, &target, req, ToolCallStarted, ToolEventData{
+		if emitErr := r.emit(ctx, target, req, ToolCallStarted, ToolEventData{
 			StartedAt: started,
 			Input:     req.Input,
 		}); emitErr != nil {
 			return ToolResult{}, emitErr
 		}
-		return ToolResult{}, r.failDispatch(ctx, &target, req, started, err, callInputFailureEvent(err))
+		return ToolResult{}, r.failDispatch(ctx, target, req, started, err, callInputFailureEvent(err))
 	}
-	if err := r.emit(ctx, &target, req, ToolCallStarted, ToolEventData{
+	if err := r.emit(ctx, target, req, ToolCallStarted, ToolEventData{
 		StartedAt: started,
 		Input:     req.Input,
 	}); err != nil {
 		return ToolResult{}, err
 	}
 	if err := validateCallInput(target.descriptor, req.Input); err != nil {
-		return ToolResult{}, r.failDispatch(ctx, &target, req, started, err, ToolCallFailed)
+		return ToolResult{}, r.failDispatch(ctx, target, req, started, err, ToolCallFailed)
 	}
-	patchedReq, err := r.runPreCallHook(ctx, &target, req)
+	patchedReq, err := r.runPreCallHook(ctx, target, req)
 	if err != nil {
-		return ToolResult{}, r.failDispatch(ctx, &target, req, started, err, ToolCallDenied)
+		return ToolResult{}, r.failDispatch(ctx, target, req, started, err, ToolCallDenied)
 	}
 	patchedReq, err = r.bindCallInput(ctx, scope, target.descriptor, patchedReq)
 	if err != nil {
 		return ToolResult{}, r.failDispatch(
 			ctx,
-			&target,
+			target,
 			patchedReq,
 			started,
 			err,
@@ -73,26 +83,26 @@ func (r *RuntimeRegistry) dispatch(ctx context.Context, scope Scope, req CallReq
 		)
 	}
 	if err := validateCallInput(target.descriptor, patchedReq.Input); err != nil {
-		return ToolResult{}, r.failDispatch(ctx, &target, patchedReq, started, err, ToolCallFailed)
+		return ToolResult{}, r.failDispatch(ctx, target, patchedReq, started, err, ToolCallFailed)
 	}
 	if err := r.authorizeBoundCallInput(ctx, scope, target.descriptor, patchedReq); err != nil {
-		return ToolResult{}, r.failDispatch(ctx, &target, patchedReq, started, err, ToolCallDenied)
+		return ToolResult{}, r.failDispatch(ctx, target, patchedReq, started, err, ToolCallDenied)
 	}
 	if err := contextErr(ctx, target.descriptor.ID); err != nil {
-		return ToolResult{}, r.failDispatch(ctx, &target, patchedReq, started, err, ToolCallFailed)
+		return ToolResult{}, r.failDispatch(ctx, target, patchedReq, started, err, ToolCallFailed)
 	}
-	if err := r.requestApproval(ctx, scope, &target, patchedReq); err != nil {
-		return ToolResult{}, r.failDispatch(ctx, &target, patchedReq, started, err, ToolCallDenied)
+	if err := r.requestApproval(ctx, scope, target, patchedReq); err != nil {
+		return ToolResult{}, r.failDispatch(ctx, target, patchedReq, started, err, ToolCallDenied)
 	}
 	providerResult, err := target.handle.Call(ctx, patchedReq)
 	if err != nil {
 		normalized := normalizeBackendError(target.descriptor.ID, err)
-		if hookErr := r.runPostErrorHook(ctx, &target, patchedReq, normalized); hookErr != nil {
+		if hookErr := r.runPostErrorHook(ctx, target, patchedReq, normalized); hookErr != nil {
 			normalized = hookErr
 		}
-		return ToolResult{}, r.failDispatch(ctx, &target, patchedReq, started, normalized, ToolCallFailed)
+		return ToolResult{}, r.failDispatch(ctx, target, patchedReq, started, normalized, ToolCallFailed)
 	}
-	return r.completeDispatch(ctx, scope, &target, patchedReq, started, providerResult)
+	return r.completeDispatch(ctx, scope, target, patchedReq, started, providerResult)
 }
 
 func normalizeCallRequest(scope Scope, req CallRequest) (CallRequest, error) {

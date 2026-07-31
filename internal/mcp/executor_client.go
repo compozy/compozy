@@ -2,76 +2,58 @@ package mcp
 
 import (
 	"context"
+	"crypto/sha256"
+	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"sort"
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/diagnostics"
+	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
+	"github.com/compozy/compozy/internal/mcp/securehttp"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/vault"
-	mcpclient "github.com/mark3labs/mcp-go/client"
-	mcptransport "github.com/mark3labs/mcp-go/client/transport"
-	mcpsdk "github.com/mark3labs/mcp-go/mcp"
+	"github.com/compozy/compozy/internal/version"
+	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/modelcontextprotocol/go-sdk/oauthex"
 )
 
-func (e *CallExecutor) openClient(ctx context.Context, resolved ResolvedServer) (*mcpclient.Client, error) {
+type managedMCPClient struct {
+	session *mcpsdk.ClientSession
+	cleanup func() error
+}
+
+func (e *CallExecutor) openClient(ctx context.Context, resolved ResolvedServer) (*managedMCPClient, error) {
 	server := resolved.Server
 	transport := server.EffectiveTransport()
 	switch transport {
 	case compozyconfig.MCPServerTransportStdio:
-		env, err := e.mcpServerEnv(ctx, server)
+		launch, err := e.newMCPStdioLaunch(ctx, server, resolved.Target)
 		if err != nil {
 			return nil, err
 		}
-		client, err := mcpclient.NewStdioMCPClientWithOptions(
-			strings.TrimSpace(server.Command),
-			env,
-			trimStrings(server.Args),
-			mcptransport.WithCommandFunc(mcpStdioCommandWithExactEnv),
-		)
+		session, err := e.connectClient(ctx, &mcpsdk.CommandTransport{Command: launch.command})
 		if err != nil {
-			return nil, normalizeMCPError("", err)
+			return nil, errors.Join(err, launch.cleanup())
 		}
-		if err := client.Start(ctx); err != nil {
-			return nil, normalizeMCPStartError(client, err)
-		}
-		return client, nil
+		return &managedMCPClient{session: session, cleanup: launch.cleanup}, nil
 	case compozyconfig.MCPServerTransportHTTP:
-		options := []mcptransport.StreamableHTTPCOption{
-			mcptransport.WithHTTPBasicClient(e.httpClientForCall()),
-		}
-		if server.Auth.Enabled() {
-			options = append(options, mcptransport.WithHTTPHeaderFunc(e.authHeaderFunc(resolved)))
-		}
-		client, err := mcpclient.NewStreamableHttpClient(strings.TrimSpace(server.URL), options...)
+		session, err := e.connectClient(ctx, &mcpsdk.StreamableClientTransport{
+			Endpoint:             strings.TrimSpace(server.URL),
+			HTTPClient:           e.httpClientWithAuthorization(resolved),
+			DisableStandaloneSSE: true,
+			MaxRetries:           -1,
+		})
 		if err != nil {
-			return nil, normalizeMCPError("", err)
+			return nil, err
 		}
-		if err := client.Start(ctx); err != nil {
-			return nil, normalizeMCPStartError(client, err)
-		}
-		return client, nil
-	case compozyconfig.MCPServerTransportSSE:
-		options := []mcptransport.ClientOption{
-			mcptransport.WithHTTPClient(e.httpClientForCall()),
-			mcptransport.WithEndpointTimeout(e.timeout),
-			mcptransport.WithResponseTimeout(e.timeout),
-		}
-		if server.Auth.Enabled() {
-			options = append(options, mcptransport.WithHeaderFunc(e.authHeaderFunc(resolved)))
-		}
-		client, err := mcpclient.NewSSEMCPClient(strings.TrimSpace(server.URL), options...)
-		if err != nil {
-			return nil, normalizeMCPError("", err)
-		}
-		if err := client.Start(ctx); err != nil {
-			return nil, normalizeMCPStartError(client, err)
-		}
-		return client, nil
+		return &managedMCPClient{session: session}, nil
 	default:
 		return nil, toolspkg.NewValidationError(
 			"mcp_server.transport",
@@ -81,40 +63,122 @@ func (e *CallExecutor) openClient(ctx context.Context, resolved ResolvedServer) 
 	}
 }
 
-func initializeClient(ctx context.Context, client *mcpclient.Client) error {
-	_, err := client.Initialize(ctx, mcpsdk.InitializeRequest{
-		Params: mcpsdk.InitializeParams{
-			ProtocolVersion: mcpsdk.LATEST_PROTOCOL_VERSION,
-			ClientInfo: mcpsdk.Implementation{
-				Name:    "compozy",
-				Version: "0.0.0",
-			},
-			Capabilities: mcpsdk.ClientCapabilities{},
+func (e *CallExecutor) connectClient(ctx context.Context, transport mcpsdk.Transport) (*mcpsdk.ClientSession, error) {
+	client := mcpsdk.NewClient(
+		&mcpsdk.Implementation{Name: "compozy", Version: version.Current().Version},
+		&mcpsdk.ClientOptions{
+			Capabilities:   &mcpsdk.ClientCapabilities{},
+			MultiRoundTrip: &mcpsdk.MultiRoundTripOptions{Disabled: true},
 		},
-	})
-	return err
-}
-
-func normalizeMCPStartError(client *mcpclient.Client, err error) error {
-	if closeErr := client.Close(); closeErr != nil {
-		err = fmt.Errorf("%w; close MCP client after start failure: %v", err, closeErr)
+	)
+	session, err := client.Connect(ctx, transport, nil)
+	if err != nil {
+		return nil, normalizeMCPError("", err)
 	}
-	return normalizeMCPError("", err)
+	if result := session.InitializeResult(); result == nil || !supportedProtocolVersion(result.ProtocolVersion) {
+		closeMCPClient(&managedMCPClient{session: session})
+		version := ""
+		if result != nil {
+			version = result.ProtocolVersion
+		}
+		return nil, &UnsupportedProtocolVersionError{Version: version}
+	}
+	return session, nil
 }
 
-func closeMCPClient(client *mcpclient.Client) {
+func closeMCPClient(client *managedMCPClient) {
 	if client == nil {
 		return
 	}
-	if err := client.Close(); err != nil {
-		// The operation already completed; callers have no useful recovery action for transport close failure.
-		return
+	if client.session != nil {
+		if err := client.session.Close(); err != nil {
+			slog.Default().Debug("close MCP client session", "error", err)
+		}
 	}
+	if client.cleanup != nil {
+		if err := client.cleanup(); err != nil {
+			slog.Default().Debug("clean up MCP stdio home", "error", err)
+		}
+	}
+}
+
+func (e *CallExecutor) httpClientWithAuthorization(resolved ResolvedServer) *http.Client {
+	client := e.httpClientForServer(resolved)
+	if resolved.Server.Auth.Enabled() {
+		client.CheckRedirect = func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		}
+	}
+	transport := client.Transport
+	if transport == nil {
+		transport = http.DefaultTransport
+	}
+	client.Transport = authorizationRoundTripper{next: transport, header: func(ctx context.Context) string {
+		return e.authorizationHeader(ctx, resolved)
+	}}
+	return client
+}
+
+func (e *CallExecutor) httpClientForServer(resolved ResolvedServer) *http.Client {
+	if strings.TrimSpace(resolved.Server.CatalogEntry) != "" {
+		return securehttp.NewClient(securehttp.WithTimeout(e.timeout)).HTTPClient()
+	}
+	return e.httpClientForCall()
+}
+
+type authorizationRoundTripper struct {
+	next   http.RoundTripper
+	header func(context.Context) string
+}
+
+func (t authorizationRoundTripper) RoundTrip(request *http.Request) (*http.Response, error) {
+	cloned := request.Clone(request.Context())
+	if header := t.header(request.Context()); header != "" {
+		cloned.Header.Set("Authorization", header)
+	}
+	response, err := t.next.RoundTrip(cloned)
+	if err != nil {
+		return nil, err
+	}
+	if authErr := authorizationChallengeError(response); authErr != nil {
+		if response.Body == nil {
+			return nil, authErr
+		}
+		return nil, errors.Join(authErr, response.Body.Close())
+	}
+	return response, nil
+}
+
+func authorizationChallengeError(response *http.Response) error {
+	if response == nil {
+		return nil
+	}
+	if response.StatusCode == http.StatusUnauthorized {
+		return ErrAuthorizationRequired
+	}
+	return insufficientScopeError(response)
+}
+
+func insufficientScopeError(response *http.Response) error {
+	if response == nil || response.StatusCode != http.StatusForbidden {
+		return nil
+	}
+	challenges, err := oauthex.ParseWWWAuthenticate(response.Header.Values("WWW-Authenticate"))
+	if err != nil {
+		return nil
+	}
+	for _, challenge := range challenges {
+		if challenge.Scheme != "bearer" || challenge.Params["error"] != "insufficient_scope" {
+			continue
+		}
+		return &InsufficientScopeError{Scopes: trimStrings(strings.Fields(challenge.Params["scope"]))}
+	}
+	return nil
 }
 
 func (e *CallExecutor) httpClientForCall() *http.Client {
 	cloned := *e.httpClient
-	if cloned.Timeout <= 0 {
+	if cloned.Timeout <= 0 || cloned.Timeout > e.timeout {
 		cloned.Timeout = e.timeout
 	}
 	return &cloned
@@ -143,19 +207,78 @@ func mcpServerEnv(env map[string]string) []string {
 	return values
 }
 
-func mcpStdioCommandWithExactEnv(ctx context.Context, command string, env []string, args []string) (*exec.Cmd, error) {
+func mcpStdioCommandWithExactEnv(ctx context.Context, command string, env []string, args []string) *exec.Cmd {
 	cmd := exec.CommandContext(ctx, command, args...)
 	cmd.Env = append([]string(nil), env...)
-	return cmd, nil
+	return cmd
+}
+
+type mcpStdioLaunch struct {
+	command *exec.Cmd
+	cleanup func() error
+}
+
+func (e *CallExecutor) newMCPStdioLaunch(
+	ctx context.Context,
+	server compozyconfig.MCPServer,
+	target mcpauth.Target,
+) (mcpStdioLaunch, error) {
+	env, err := e.mcpServerEnv(ctx, server)
+	if err != nil {
+		return mcpStdioLaunch{}, err
+	}
+	home, err := mcpStdioHome(target)
+	if err != nil {
+		return mcpStdioLaunch{}, err
+	}
+	cleanup := func() error {
+		return os.RemoveAll(home)
+	}
+	env = append(env,
+		"HOME="+home,
+		"XDG_CONFIG_HOME="+filepath.Join(home, "config"),
+		"XDG_CACHE_HOME="+filepath.Join(home, "cache"),
+		"npm_config_cache="+filepath.Join(home, "npm-cache"),
+		"UV_CACHE_DIR="+filepath.Join(home, "uv-cache"),
+	)
+	command := mcpStdioCommandWithExactEnv(ctx, strings.TrimSpace(server.Command), env, trimStrings(server.Args))
+	return mcpStdioLaunch{command: command, cleanup: cleanup}, nil
+}
+
+func mcpStdioHome(target mcpauth.Target) (string, error) {
+	key, err := target.Key()
+	if err != nil {
+		return "", fmt.Errorf("mcp: derive stdio target identity: %w", err)
+	}
+	prefix := mcpStdioHomePrefix(key)
+	home, err := os.MkdirTemp("", prefix)
+	if err != nil {
+		return "", fmt.Errorf("mcp: create isolated stdio home: %w", err)
+	}
+	for _, path := range []string{
+		filepath.Join(home, "config"),
+		filepath.Join(home, "cache"),
+		filepath.Join(home, "npm-cache"),
+		filepath.Join(home, "uv-cache"),
+	} {
+		if err := os.Mkdir(path, 0o700); err != nil {
+			return "", errors.Join(
+				fmt.Errorf("mcp: create isolated stdio directory %q: %w", path, err),
+				os.RemoveAll(home),
+			)
+		}
+	}
+	return home, nil
+}
+
+func mcpStdioHomePrefix(targetKey string) string {
+	digest := sha256.Sum256([]byte(targetKey))
+	return fmt.Sprintf("compozy-mcp-%x-", digest[:8])
 }
 
 func mcpStdioBaseEnv() map[string]string {
 	keys := []string{
 		"PATH",
-		"HOME",
-		"TMPDIR",
-		"TMP",
-		"TEMP",
 		"SystemRoot",
 		"WINDIR",
 		"COMSPEC",

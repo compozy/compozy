@@ -11,8 +11,8 @@ bug_ids: BUG-20260729-marketplace-json-parity
 fix_status: fixed
 retest_status: pass
 fix_commits: 351f3535
-evidence: /Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/marketplace-agent-parity-final.json; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-021949-664736-lab/qa-artifacts/qa/evidence/022-marketplace-namespace
-last_report: docs/qa/reports/2026-07-28-untested-full.md
+evidence: docs/qa/reports/2026-07-30-mcp-2026-catalog-v2.md
+last_report: docs/qa/reports/2026-07-30-mcp-2026-catalog-v2.md
 overlaps: ET-008
 ---
 

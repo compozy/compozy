@@ -92,20 +92,26 @@ func (s *service) buildMCPServerItems(
 	}
 	sort.Strings(names)
 
-	items := make([]MCPServerItem, 0, len(names))
+	items := make([]mcpCollectionItem, 0, len(names))
 	for _, name := range names {
 		entries := sources[name]
 		if len(entries) == 0 {
 			continue
 		}
 		effective := entries[len(entries)-1]
-		item := baseMCPServerItem(effective, entries, scope, workspaceID)
-		if err := s.populateMCPServerStatuses(ctx, &item, effective); err != nil {
-			return nil, err
-		}
-		items = append(items, cloneMCPServerItem(item))
+		items = append(items, mcpCollectionItem{
+			item:  baseMCPServerItem(effective, entries, scope, workspaceID),
+			entry: effective,
+		})
 	}
-	return items, nil
+	if err := s.populateMCPCollectionStatuses(ctx, items); err != nil {
+		return nil, err
+	}
+	result := make([]MCPServerItem, 0, len(items))
+	for index := range items {
+		result = append(result, cloneMCPServerItem(items[index].item))
+	}
+	return result, nil
 }
 
 func (s *service) putProvider(

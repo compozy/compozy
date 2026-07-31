@@ -95,7 +95,7 @@ export const handlers: HttpHandler[] = [
         write_target: body.scope === "workspace" ? "workspace-mcp-sidecar" : "global-mcp-sidecar",
       },
       mcp_server: {
-        auth: remote ? { type: "oauth2", client_secret_configured: false } : null,
+        auth: remote ? { client_secret_configured: false, registration: "auto" } : null,
         auth_status: null,
         catalog_entry: body.entry_id,
         name: body.name ?? body.entry_id ?? "mcp-server",
@@ -108,8 +108,8 @@ export const handlers: HttpHandler[] = [
           },
           shadowed_sources: [],
         },
-        transport: remote ? "sse" : "stdio",
-        url: remote ? "https://mcp.linear.app/sse" : undefined,
+        transport: remote ? "http" : "stdio",
+        url: remote ? "https://mcp.linear.app/mcp" : undefined,
       },
       next_step: remote ? "authorize" : "none",
     });

@@ -57,17 +57,14 @@ func TestMCPInstallCommandMapsFlagsAndPreservesStructuredResponse(t *testing.T) 
 				if request.Values == nil {
 					t.Fatal("request.Values = nil")
 				}
-				if got, want := request.Values.Env["GITHUB_TOKEN"].Value, "write-only-secret"; got != want {
-					t.Fatalf("GITHUB_TOKEN value = %q, want mapped secret", got)
+				if got, want := request.Values.Inputs["github_token"].Value, "write-only-secret"; got != want {
+					t.Fatalf("github_token value = %q, want mapped secret", got)
 				}
-				if got, want := request.Values.Env["CONFIG"].VaultRef, "vault:mcp/shared/config"; got != want {
-					t.Fatalf("CONFIG VaultRef = %q, want %q", got, want)
+				if got, want := request.Values.Inputs["config"].VaultRef, "vault:mcp/shared/config"; got != want {
+					t.Fatalf("config VaultRef = %q, want %q", got, want)
 				}
-				if request.Values.OAuthClientSecret == nil {
-					t.Fatal("OAuthClientSecret = nil")
-				}
-				if got, want := request.Values.OAuthClientSecret.Value, "oauth-write-only-secret"; got != want {
-					t.Fatalf("OAuthClientSecret.Value = %q, want mapped secret", got)
+				if got, want := request.Values.Inputs["project"].Value, "compozy"; got != want {
+					t.Fatalf("project value = %q, want mapped setting", got)
 				}
 				return want, nil
 			},
@@ -83,11 +80,12 @@ func TestMCPInstallCommandMapsFlagsAndPreservesStructuredResponse(t *testing.T) 
 			"workspace",
 			"--workspace",
 			"ws-1",
-			"--set",
-			"GITHUB_TOKEN",
+			"--secret",
+			"github_token",
 			"--vault-ref",
-			"CONFIG=vault:mcp/shared/config",
-			"--oauth-client-secret",
+			"config=vault:mcp/shared/config",
+			"--set",
+			"project=compozy",
 			"-o",
 			"json",
 		}
@@ -99,7 +97,7 @@ func TestMCPInstallCommandMapsFlagsAndPreservesStructuredResponse(t *testing.T) 
 		stdout, _, err := executeMCPInstallCommand(
 			t,
 			deps,
-			"write-only-secret\noauth-write-only-secret\n",
+			"write-only-secret\n",
 			args...,
 		)
 		if err != nil {
@@ -107,6 +105,13 @@ func TestMCPInstallCommandMapsFlagsAndPreservesStructuredResponse(t *testing.T) 
 		}
 		if strings.Contains(stdout, "write-only-secret") {
 			t.Fatalf("mcp install output leaked write-only secret: %s", stdout)
+		}
+		var fields map[string]json.RawMessage
+		if err := json.Unmarshal([]byte(stdout), &fields); err != nil {
+			t.Fatalf("json.Unmarshal(mcp install fields) error = %v", err)
+		}
+		if _, found := fields["resolution_source"]; found {
+			t.Fatalf("mcp install JSON contains resolution_source, want raw daemon payload: %s", stdout)
 		}
 		for _, secretMaterial := range []string{
 			"vault:mcp/ws/ws-1/github-workspace/env/GITHUB_TOKEN",
@@ -158,7 +163,7 @@ func TestMCPInstallCommandMapsFlagsAndPreservesStructuredResponse(t *testing.T) 
 		}
 	})
 
-	t.Run("Should map an OAuth client secret Vault ref", func(t *testing.T) {
+	t.Run("Should map a catalog secret Vault ref", func(t *testing.T) {
 		t.Parallel()
 
 		client := &stubClient{
@@ -166,11 +171,11 @@ func TestMCPInstallCommandMapsFlagsAndPreservesStructuredResponse(t *testing.T) 
 				_ context.Context,
 				request InstallSettingsMCPServerRequest,
 			) (InstallSettingsMCPServerRecord, error) {
-				if request.Values == nil || request.Values.OAuthClientSecret == nil {
-					t.Fatalf("request.Values = %#v, want OAuth client secret", request.Values)
+				if request.Values == nil {
+					t.Fatal("request.Values = nil")
 				}
-				if got, want := request.Values.OAuthClientSecret.VaultRef, "vault:mcp/shared/oauth"; got != want {
-					t.Fatalf("OAuthClientSecret.VaultRef = %q, want %q", got, want)
+				if got, want := request.Values.Inputs["linear_token"].VaultRef, "vault:mcp/shared/oauth"; got != want {
+					t.Fatalf("linear_token VaultRef = %q, want %q", got, want)
 				}
 				return InstallSettingsMCPServerRecord{
 					MCPServer: contract.SettingsMCPServerItemPayload{
@@ -186,8 +191,8 @@ func TestMCPInstallCommandMapsFlagsAndPreservesStructuredResponse(t *testing.T) 
 			"mcp",
 			"install",
 			"github",
-			"--oauth-client-secret-vault-ref",
-			"vault:mcp/shared/oauth",
+			"--vault-ref",
+			"linear_token=vault:mcp/shared/oauth",
 			"-o",
 			"json",
 		)
@@ -195,7 +200,7 @@ func TestMCPInstallCommandMapsFlagsAndPreservesStructuredResponse(t *testing.T) 
 			t.Fatalf("mcp install command error = %v", err)
 		}
 		if strings.Contains(stdout, "vault:mcp/shared/oauth") {
-			t.Fatalf("mcp install output leaked OAuth client secret ref: %s", stdout)
+			t.Fatalf("mcp install output leaked catalog secret ref: %s", stdout)
 		}
 	})
 }
@@ -212,19 +217,10 @@ func TestMCPInstallCommandRejectsAmbiguousInputsBeforeCallingDaemon(t *testing.T
 			name: "Should reject duplicate typed and Vault modes",
 			args: []string{
 				"mcp", "install", "github",
-				"--set", "TOKEN",
+				"--set", "TOKEN=secret",
 				"--vault-ref", "TOKEN=vault:mcp/shared/token",
 			},
 			detail: "assigned more than once",
-		},
-		{
-			name: "Should reject duplicate OAuth client secret modes",
-			args: []string{
-				"mcp", "install", "github",
-				"--oauth-client-secret",
-				"--oauth-client-secret-vault-ref", "vault:mcp/shared/oauth",
-			},
-			detail: "OAuth client secret is assigned more than once",
 		},
 		{
 			name:   "Should reject workspace ID in global scope",
@@ -234,14 +230,14 @@ func TestMCPInstallCommandRejectsAmbiguousInputsBeforeCallingDaemon(t *testing.T
 		{
 			name: "Should reject scope before reading requested secret input",
 			args: []string{
-				"mcp", "install", "github", "--scope", "invalid", "--set", "TOKEN",
+				"mcp", "install", "github", "--scope", "invalid", "--set", "TOKEN=secret",
 			},
 			detail: "unsupported MCP install scope",
 		},
 		{
 			name:   "Should reject malformed assignments",
-			args:   []string{"mcp", "install", "github", "--set", "TOKEN=secret"},
-			detail: "requires a field name without a value",
+			args:   []string{"mcp", "install", "github", "--set", "TOKEN"},
+			detail: "requires KEY=VALUE",
 		},
 	}
 
@@ -255,6 +251,27 @@ func TestMCPInstallCommandRejectsAmbiguousInputsBeforeCallingDaemon(t *testing.T
 			}
 		})
 	}
+
+	t.Run("Should reject duplicate secret and Vault modes before reading secret input", func(t *testing.T) {
+		t.Parallel()
+
+		secretRead := false
+		_, err := mcpInstallInputs(
+			nil,
+			[]string{"TOKEN"},
+			[]string{"TOKEN=vault:mcp/shared/token"},
+			func(string) (string, error) {
+				secretRead = true
+				return "secret", nil
+			},
+		)
+		if err == nil || !strings.Contains(err.Error(), "assigned more than once") {
+			t.Fatalf("mcpInstallInputs() error = %v, want duplicate assignment rejection", err)
+		}
+		if secretRead {
+			t.Fatal("mcpInstallInputs() read secret input before validating all assignments")
+		}
+	})
 }
 
 func TestMCPInstallInfersWorkspaceForWorkspaceScope(t *testing.T) {
@@ -301,7 +318,7 @@ func TestMCPInstallCommandRejectsBlankSecretInputBeforeCallingDaemon(t *testing.
 			"mcp",
 			"install",
 			"github",
-			"--set",
+			"--secret",
 			"TOKEN",
 		)
 		if err == nil || !strings.Contains(err.Error(), "requires a non-blank value from stdin") {

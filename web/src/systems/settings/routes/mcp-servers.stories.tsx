@@ -21,7 +21,7 @@ const meta: Meta<typeof StorybookRouteCanvas> = {
     docs: {
       description: {
         component:
-          "Marketplace MCP management: composed status matrix, authorize/repair flow, and the stdio/HTTP/SSE editor. Stories back the Task 08 Visual Contract capture set.",
+          "Marketplace MCP management: composed status matrix, authorize/repair flow, and the stdio/HTTP editor. Stories back the Task 08 Visual Contract capture set.",
       },
     },
   },
@@ -199,7 +199,7 @@ export const AuthFailure: Story = {
     await userEvent.click(page.getByTestId("settings-page-mcp-authorize-manual-trigger"));
     await userEvent.type(
       await page.findByTestId("settings-page-mcp-authorize-manual-input"),
-      "rejected-code"
+      "http://127.0.0.1:2123/api/mcp/oauth/callback?code=rejected&state=x"
     );
     await userEvent.click(page.getByTestId("settings-page-mcp-authorize-exchange"));
     await page.findByTestId("settings-page-mcp-authorize-failure");
@@ -243,7 +243,7 @@ export const Authenticated: Story = {
     await userEvent.click(page.getByTestId("settings-page-mcp-authorize-manual-trigger"));
     await userEvent.type(
       await page.findByTestId("settings-page-mcp-authorize-manual-input"),
-      "valid-code"
+      "http://127.0.0.1:2123/api/mcp/oauth/callback?code=valid&state=x"
     );
     await userEvent.click(page.getByTestId("settings-page-mcp-authorize-exchange"));
     await page.findByTestId("settings-page-mcp-authorize-confirmed");
@@ -313,8 +313,8 @@ export const EditorHttp: Story = {
   },
 };
 
-/** editor-sse-desktop */
-export const EditorSse: Story = {
+/** editor-remote-status-desktop */
+export const EditorRemoteStatus: Story = {
   args: {},
   tags: ["play-fn"],
   parameters: managementParams("/marketplace/mcps?tab=installed"),

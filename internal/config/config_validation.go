@@ -56,6 +56,9 @@ func (c *Config) validateCore() error {
 	if err := c.Permissions.Validate(); err != nil {
 		return err
 	}
+	if err := c.MCP.Validate(); err != nil {
+		return err
+	}
 	if err := c.Roles.Validate("roles", c); err != nil {
 		return err
 	}

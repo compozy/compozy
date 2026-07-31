@@ -20,8 +20,7 @@ import (
 	"github.com/compozy/compozy/internal/store/globaldb"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
-	mcpsdk "github.com/mark3labs/mcp-go/mcp"
-	mcpsrv "github.com/mark3labs/mcp-go/server"
+	mcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 const (
@@ -167,7 +166,7 @@ func TestDeadEntityMCPStdioHelperProcess(t *testing.T) {
 	if strings.TrimSpace(string(stateBytes)) == deadEntityMCPStateTerminated {
 		os.Exit(17)
 	}
-	if err := mcpsrv.ServeStdio(newDeadEntityMCPFixtureServer()); err != nil {
+	if err := newDeadEntityMCPFixtureServer().Run(context.Background(), &mcp.IOTransport{Reader: os.Stdin, Writer: os.Stdout}); err != nil {
 		if _, writeErr := fmt.Fprintln(os.Stderr, err); writeErr != nil {
 			os.Exit(3)
 		}
@@ -176,22 +175,19 @@ func TestDeadEntityMCPStdioHelperProcess(t *testing.T) {
 	os.Exit(0)
 }
 
-func newDeadEntityMCPFixtureServer() *mcpsrv.MCPServer {
-	server := mcpsrv.NewMCPServer("dead-entity-fixture", "1.0.0", mcpsrv.WithToolCapabilities(true))
-	server.AddTool(
-		mcpsdk.NewTool(
-			"lookup",
-			mcpsdk.WithDescription("Look up a recovery fixture value"),
-			mcpsdk.WithString("query"),
-			mcpsdk.WithRawOutputSchema(json.RawMessage(
-				`{"type":"object","properties":{"answer":{"type":"string"}}}`,
-			)),
-			mcpsdk.WithReadOnlyHintAnnotation(true),
-		),
-		func(context.Context, mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
-			return mcpsdk.NewToolResultText("ready"), nil
-		},
-	)
+func newDeadEntityMCPFixtureServer() *mcp.Server {
+	server := mcp.NewServer(&mcp.Implementation{Name: "dead-entity-fixture", Version: "1.0.0"}, &mcp.ServerOptions{
+		Capabilities: &mcp.ServerCapabilities{Tools: &mcp.ToolCapabilities{}},
+	})
+	server.AddTool(&mcp.Tool{
+		Name:         "lookup",
+		Description:  "Look up a recovery fixture value",
+		InputSchema:  json.RawMessage(`{"type":"object","properties":{"query":{"type":"string"}},"required":["query"],"additionalProperties":false}`),
+		OutputSchema: json.RawMessage(`{"type":"object","properties":{"answer":{"type":"string"}}}`),
+		Annotations:  &mcp.ToolAnnotations{ReadOnlyHint: true},
+	}, func(context.Context, *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: "ready"}}}, nil
+	})
 	return server
 }
 

@@ -1,29 +1,17 @@
 import { Globe, TerminalSquare } from "lucide-react";
 
-import {
-  FormSection,
-  ImmutableIdentity,
-  Input,
-  NativeSelect,
-  NativeSelectOption,
-  RadioCard,
-} from "@compozy/ui";
+import { FormSection, ImmutableIdentity, Input, RadioCard } from "@compozy/ui";
 
-import type { MCPDraft, MCPDraftErrors, MCPTransport } from "../lib/mcp-editor-model";
+import type { MCPDraft, MCPDraftErrors } from "../lib/mcp-editor-model";
 import { withTransport } from "../lib/mcp-editor-model";
 import type { SettingsMCPServerTarget } from "../types";
 
 import { MCPFieldLabel, MCPNameField, MCPTargetField } from "./mcp-editor-fields";
 
 /**
- * Local vs remote is the consequence-bearing choice; the wire transport is a
- * detail of the remote branch. `stdio` is the only local transport, so pairing
- * the two into three flat cards would present a false three-way choice.
+ * Local vs remote is the consequence-bearing choice. HTTP is the sole remote
+ * transport, so a wire-level picker would imply unsupported runtime behavior.
  */
-const REMOTE_TRANSPORTS: readonly { value: MCPTransport; label: string }[] = [
-  { value: "http", label: "HTTP" },
-  { value: "sse", label: "SSE" },
-];
 
 export interface MCPEditorConnectionSectionProps {
   draft: MCPDraft;
@@ -90,11 +78,7 @@ export function MCPEditorConnectionSection({
           data-testid="settings-mcp-servers-editor-transport-remote"
           description="Connects to a hosted MCP server, optionally with OAuth."
           icon={Globe}
-          onSelect={() =>
-            onChange(current =>
-              current.transport === "stdio" ? withTransport(current, "http") : current
-            )
-          }
+          onSelect={() => onChange(current => withTransport(current, "http"))}
           selected={isRemote}
           title="Remote endpoint"
           titleClassName="min-w-0 flex-1 truncate"
@@ -112,23 +96,6 @@ export function MCPEditorConnectionSection({
 
       {isRemote ? (
         <>
-          <div>
-            <MCPFieldLabel htmlFor="mcp-editor-remote-transport">Wire transport</MCPFieldLabel>
-            <NativeSelect
-              data-testid="settings-mcp-servers-editor-remote-transport"
-              id="mcp-editor-remote-transport"
-              onChange={event =>
-                onChange(current => withTransport(current, event.target.value as MCPTransport))
-              }
-              value={draft.transport}
-            >
-              {REMOTE_TRANSPORTS.map(option => (
-                <NativeSelectOption key={option.value} value={option.value}>
-                  {option.label}
-                </NativeSelectOption>
-              ))}
-            </NativeSelect>
-          </div>
           <div>
             <MCPFieldLabel hint="required" htmlFor="mcp-editor-url">
               URL

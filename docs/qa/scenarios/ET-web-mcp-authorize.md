@@ -11,8 +11,8 @@ bug_ids: BUG-20260715-mcp-oauth-name-segment
 fix_status: fixed
 retest_status: pass
 fix_commits: 8eeb8a38
-evidence: web/src/hooks/routes/use-mcp-authorize.ts; web/src/systems/settings/components/mcp-authorize-dialog.tsx; web/e2e/__tests__/mcp.spec.ts; .compozy/tasks/marketplace/evidence/visual/task-08/authorize-waiting-desktop; /Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/mcp-oauth-name-segment.json; /Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/web/mcp-oauth-confirmed.png;/Users/pedronauck/dev/qa-labs/compozy-qa-et-current-source-20260730-061655-910372-lab/qa-artifacts/qa
-last_report: docs/qa/reports/2026-07-28-untested-full.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-mcp-2026-catalog-v2-final-rerun-20260730-204949-514647-lab/qa-artifacts/qa/screenshots/mcp-guided-linear-installed.png; /Users/pedronauck/dev/qa-labs/compozy-mcp-2026-catalog-v2-final-rerun-20260730-204949-514647-lab/qa-artifacts/qa/notes/mcp-status-after-linear.json; /Users/pedronauck/dev/qa-labs/compozy-mcp-2026-catalog-v2-final-rerun-20260730-204949-514647-lab/qa-artifacts/qa/screenshots/mcp-status-matrix.png
+last_report: docs/qa/reports/2026-07-30-mcp-2026-catalog-v2.md
 overlaps: ET-api-mcp-oauth-endpoints; ET-cli-mcp-authorize; ET-web-mcp-authorize-manual
 ---
 
@@ -38,3 +38,13 @@ global effective source instead of an unavailable workspace target.
 QA impact 2026-07-26: browser and manual authorization completion is fenced and delivered by the
 store even if the initiating hook unmounts; retries cannot settle an older attempt. Status remains
 untested; no QA replay ran.
+
+QA impact 2026-07-30 deep-review remediation: configured scopes missing from the granted token now
+open an explicit review dialog. Verify no OAuth begin occurs before approval, only newly configured
+scopes are requested, cancel preserves the existing token, and approval sends
+`approve_scope_escalation=true` with normalized deduplicated scopes. Human vendor consent remains
+`blocked-verify`; the local fixture and deterministic Web flow must still pass.
+
+QA result 2026-07-30: the installed Linear target truthfully exposed the authorization handoff and
+remained authorization-required; the UI did not claim completion or expose token material. Human
+Linear consent and the resulting authenticated refetch remain `blocked-verify`.

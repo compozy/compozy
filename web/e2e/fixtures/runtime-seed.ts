@@ -132,25 +132,38 @@ interface BrowserMarketplaceEntrySeed {
 }
 
 export interface BrowserMarketplaceMCPEntrySeed extends BrowserMarketplaceEntrySeed {
+  launch: BrowserMarketplaceMCPLaunchSeed;
+  auth?: BrowserMarketplaceMCPAuthSeed;
+  inputs?: BrowserMarketplaceMCPInputSeed[];
+  default_scope: "global" | "workspace";
+}
+
+export interface BrowserMarketplaceMCPLaunchSeed {
+  type: "npm" | "uvx" | "docker" | "remote";
   args?: string[];
-  command?: string;
-  default_scope?: "global" | "workspace";
-  env?: Array<{
-    default?: string;
-    name: string;
-    prompt?: string;
-    required: boolean;
-    secret: boolean;
-  }>;
-  oauth?: {
-    authorization_url?: string;
-    client_id: string;
-    issuer_url?: string;
-    scopes?: string[];
-    token_url?: string;
-  };
-  transport: "stdio" | "http" | "sse";
+  digest?: string;
+  image?: string;
+  package?: string;
   url?: string;
+  version?: string;
+}
+
+export interface BrowserMarketplaceMCPAuthSeed {
+  method: "oauth";
+  registration: "auto";
+  scopes?: string[];
+}
+
+export interface BrowserMarketplaceMCPInputSeed {
+  id: string;
+  prompt: string;
+  type: "string" | "identifier" | "boolean" | "secret";
+  required: boolean;
+  binding: {
+    type: "env" | "url_query";
+    name: string;
+  };
+  default?: boolean | string;
 }
 
 export interface BrowserMarketplaceExtensionEntrySeed extends BrowserMarketplaceEntrySeed {

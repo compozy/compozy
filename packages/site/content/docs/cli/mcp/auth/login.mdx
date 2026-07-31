@@ -14,11 +14,13 @@ compozy mcp auth login <server> [flags]
 ### Options
 
 ```
-  -h, --help               help for login
-      --manual             Paste an authorization code or redirect URL
-      --scope string       MCP server scope: global or workspace (default "global")
-      --timeout duration   Authorization timeout (default 5m0s)
-      --workspace string   Override workspace (ID, name, or path)
+      --approve-scope-escalation     Confirm the requested OAuth scope escalation
+      --approved-scope stringArray   Approve one additional OAuth scope (repeatable)
+  -h, --help                         help for login
+      --manual                       Paste the full authorization redirect URL
+      --scope string                 MCP server scope: global or workspace (default "global")
+      --timeout duration             Authorization timeout (default 5m0s)
+      --workspace string             Override workspace (ID, name, or path)
 ```
 
 ### Options inherited from parent commands

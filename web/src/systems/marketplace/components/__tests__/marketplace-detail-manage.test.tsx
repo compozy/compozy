@@ -17,7 +17,7 @@ import {
 
 const mocks = vi.hoisted(() => ({
   acknowledgeStatus: vi.fn(),
-  beginAuthorize: vi.fn(),
+  requestAuthorize: vi.fn(),
   disableSkill: vi.fn(),
   disableSkillError: null as Error | null,
   extensionConsecutiveFailures: 0,
@@ -72,7 +72,7 @@ vi.mock("@/systems/settings", async importOriginal => {
     },
     useMCPAuthorize: () => ({
       acknowledgeStatus: mocks.acknowledgeStatus,
-      beginAuthorize: mocks.beginAuthorize,
+      requestAuthorize: mocks.requestAuthorize,
       phase: mocks.authorizePhase,
     }),
   };
@@ -632,9 +632,8 @@ describe("Marketplace installed-detail management", () => {
     const user = userEvent.setup();
     const server: SettingsMCPServerEntry = {
       auth: {
-        client_id: "oauth-client",
         client_secret_configured: false,
-        type: "oauth2_pkce",
+        registration: "auto",
       },
       auth_status: {
         refreshable: true,
@@ -706,10 +705,7 @@ describe("Marketplace installed-detail management", () => {
     expect(screen.getByRole("status", { name: "Detail authorization scope" })).toHaveTextContent(
       "global"
     );
-    expect(mocks.beginAuthorize).toHaveBeenCalledWith({ scope: "global" }, "oauth-server", {
-      status: "needs_login",
-      tokenPresent: false,
-    });
+    expect(mocks.requestAuthorize).toHaveBeenCalledWith({ scope: "global" }, server);
 
     mocks.authorizePhase = "waiting";
     server.auth_status = {

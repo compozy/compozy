@@ -9,12 +9,14 @@ import {
 } from "@compozy/ui";
 
 import type { MarketplaceListing } from "../types";
+import { formatMarketplaceVersion } from "./marketplace-ui";
 
 function MarketplaceEntryStatus({ entry }: { entry: MarketplaceListing }) {
+  const version = formatMarketplaceVersion(entry.version);
   if (entry.update_available) {
     return (
       <Pill mono tone="warning">
-        {entry.version ? `v${entry.version} available` : "update available"}
+        {version ? `${version} available` : "update available"}
       </Pill>
     );
   }

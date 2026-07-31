@@ -14,14 +14,13 @@ compozy mcp install <entry> [flags]
 ### Options
 
 ```
-  -h, --help                                   help for install
-      --name string                            Override the installed MCP server name
-      --oauth-client-secret                    Read the write-only OAuth client secret from stdin or a hidden terminal prompt
-      --oauth-client-secret-vault-ref string   Bind the OAuth client secret to an existing vault:mcp/... ref
-      --scope string                           Install scope: global or workspace (default "global")
-      --set stringArray                        Read one feed field value from stdin or a hidden terminal prompt (repeatable)
-      --vault-ref stringArray                  Bind a feed field as KEY=vault:mcp/...
-      --workspace string                       Override workspace (ID, name, or path)
+  -h, --help                    help for install
+      --name string             Override the installed MCP server name
+      --scope string            Install scope override: global or workspace (defaults to the catalog entry)
+      --secret stringArray      Read one secret catalog input from stdin or a hidden terminal prompt (repeatable)
+      --set stringArray         Set one catalog input as ID=VALUE (repeatable)
+      --vault-ref stringArray   Bind a feed field as KEY=vault:mcp/...
+      --workspace string        Override workspace (ID, name, or path)
 ```
 
 ### Options inherited from parent commands

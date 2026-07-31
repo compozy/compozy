@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -17,10 +19,9 @@ import (
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
+	"github.com/compozy/compozy/internal/testutil/mcpfixture"
 	toolspkg "github.com/compozy/compozy/internal/tools"
-	mcptransport "github.com/mark3labs/mcp-go/client/transport"
-	mcpsdk "github.com/mark3labs/mcp-go/mcp"
-	mcpsrv "github.com/mark3labs/mcp-go/server"
+	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 const (
@@ -33,10 +34,75 @@ const (
 )
 
 func TestMCPCallExecutor(t *testing.T) {
+	t.Run("Should negotiate modern protocol and paginate tools", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := mcpfixture.MustNew(mcpfixture.ProfileModern2026)
+		executor := newTestMCPExecutor(t, compozyconfig.MCPServer{
+			Name:      "fixture",
+			Transport: compozyconfig.MCPServerTransportHTTP,
+			URL:       fixture.StartHTTP(t).URL,
+		})
+		source := toolspkg.SourceRef{Kind: toolspkg.SourceMCP, Owner: "fixture", RawServerName: "fixture"}
+		descriptors, protocolVersion, err := executor.ListToolsWithProtocol(t.Context(), source)
+		if err != nil {
+			t.Fatalf("ListToolsWithProtocol() error = %v", err)
+		}
+		if got, want := protocolVersion, mcpfixture.ModernProtocolVersion; got != want {
+			t.Fatalf("protocol version = %q, want %q", got, want)
+		}
+		if got, want := len(descriptors), 2; got != want {
+			t.Fatalf("descriptor count = %d, want %d after pagination", got, want)
+		}
+	})
+
+	t.Run("Should negotiate legacy fallback and reject MRTR input requests", func(t *testing.T) {
+		t.Parallel()
+
+		legacy := mcpfixture.MustNew(mcpfixture.ProfileLegacy2025)
+		legacyExecutor := newTestMCPExecutor(t, compozyconfig.MCPServer{
+			Name:      "legacy",
+			Transport: compozyconfig.MCPServerTransportHTTP,
+			URL:       legacy.StartHTTP(t).URL,
+		})
+		legacySource := toolspkg.SourceRef{Kind: toolspkg.SourceMCP, Owner: "legacy", RawServerName: "legacy"}
+		_, protocolVersion, err := legacyExecutor.ListToolsWithProtocol(t.Context(), legacySource)
+		if err != nil {
+			t.Fatalf("ListToolsWithProtocol(legacy) error = %v", err)
+		}
+		if got, want := protocolVersion, mcpfixture.LegacyProtocolVersion; got != want {
+			t.Fatalf("legacy protocol version = %q, want %q", got, want)
+		}
+
+		inputRequired := mcpfixture.MustNew(mcpfixture.ProfileInputRequired)
+		executor := newTestMCPExecutor(t, compozyconfig.MCPServer{
+			Name:      "input-required",
+			Transport: compozyconfig.MCPServerTransportHTTP,
+			URL:       inputRequired.StartHTTP(t).URL,
+		})
+		_, err = executor.CallTool(
+			t.Context(),
+			toolspkg.SourceRef{
+				Kind:          toolspkg.SourceMCP,
+				Owner:         "input-required",
+				RawServerName: "input-required",
+			},
+			toolspkg.MCPToolCallRequest{
+				ToolID:      "mcp__input_required__confirm",
+				RawToolName: "confirm",
+				Input:       json.RawMessage(`{}`),
+			},
+		)
+		var unsupported *UnsupportedCapabilityError
+		if !errors.As(err, &unsupported) || unsupported.Capability != "input_requests" {
+			t.Fatalf("CallTool(confirm) error = %v, want unsupported input_requests capability", err)
+		}
+	})
+
 	t.Run("Should List And Call Streamable HTTP Server", func(t *testing.T) {
 		t.Parallel()
 
-		testServer := mcpsrv.NewTestStreamableHTTPServer(newFakeSDKServer(nil))
+		testServer := newTestMCPHTTPServer(newFakeSDKServer(nil))
 		t.Cleanup(testServer.Close)
 		executor := newTestMCPExecutor(t, compozyconfig.MCPServer{
 			Name:      "GitHub",
@@ -52,21 +118,100 @@ func TestMCPCallExecutor(t *testing.T) {
 		requireJSONContainsPath(t, descriptor.OutputSchema, "message")
 	})
 
-	t.Run("Should List And Call SSE Server", func(t *testing.T) {
+	t.Run("Should block catalog HTTP servers from reaching loopback", func(t *testing.T) {
 		t.Parallel()
 
-		testServer := mcpsrv.NewTestServer(newFakeSDKServer(nil))
+		testServer := newTestMCPHTTPServer(newFakeSDKServer(nil))
 		t.Cleanup(testServer.Close)
 		executor := newTestMCPExecutor(t, compozyconfig.MCPServer{
-			Name:      "Linear",
-			Transport: compozyconfig.MCPServerTransportSSE,
-			URL:       testServer.URL + "/sse",
+			Name:         "catalog-remote",
+			Transport:    compozyconfig.MCPServerTransportHTTP,
+			URL:          testServer.URL,
+			CatalogEntry: "registry.example/catalog-remote",
 		})
+		_, err := executor.ListTools(t.Context(), toolspkg.SourceRef{
+			Kind:          toolspkg.SourceMCP,
+			Owner:         "catalog-remote",
+			RawServerName: "catalog-remote",
+		})
+		requireReason(t, err, toolspkg.ReasonMCPUnreachable)
+	})
 
-		descriptor := requireMCPDescriptor(t, executor, "Linear", "mcp__linear__echo")
-		result := callMCPTool(t, executor, descriptor, json.RawMessage(`{"message":"from-sse"}`))
-		if got, want := result.Preview, "echo: from-sse"; got != want {
-			t.Fatalf("result.Preview = %q, want %q", got, want)
+	t.Run("Should surface insufficient scope challenge without authorizing", func(t *testing.T) {
+		t.Parallel()
+
+		server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+			writer.Header().Set(
+				"WWW-Authenticate",
+				`Bearer error="insufficient_scope", scope="issues.read issues.write"`,
+			)
+			writer.WriteHeader(http.StatusForbidden)
+		}))
+		t.Cleanup(server.Close)
+		executor := newTestMCPExecutor(t, compozyconfig.MCPServer{
+			Name:      "scope-challenge",
+			Transport: compozyconfig.MCPServerTransportHTTP,
+			URL:       server.URL,
+		})
+		_, err := executor.ListTools(t.Context(), toolspkg.SourceRef{
+			Kind:          toolspkg.SourceMCP,
+			Owner:         "scope-challenge",
+			RawServerName: "scope-challenge",
+		})
+		var scopeErr *InsufficientScopeError
+		if !errors.As(err, &scopeErr) {
+			t.Fatalf("ListTools() error = %v, want insufficient scope challenge", err)
+		}
+		requireReason(t, err, toolspkg.ReasonMCPAuthRequired)
+		if got, want := scopeErr.Scopes, []string{"issues.read", "issues.write"}; !slices.Equal(got, want) {
+			t.Fatalf("challenge scopes = %#v, want %#v", got, want)
+		}
+	})
+
+	t.Run("Should classify a rejected bearer token as authentication required", func(t *testing.T) {
+		t.Parallel()
+
+		seenAuthorization := make(chan string, 1)
+		server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+			select {
+			case seenAuthorization <- request.Header.Get("Authorization"):
+			default:
+			}
+			writer.Header().Set("WWW-Authenticate", `Bearer error="invalid_token"`)
+			writer.WriteHeader(http.StatusUnauthorized)
+		}))
+		t.Cleanup(server.Close)
+		configuredServer := authEnabledServer("rejected-token", compozyconfig.MCPServerTransportHTTP, server.URL)
+		target := globalMCPExecutorTarget("rejected-token")
+		store := newMemoryTokenStore()
+		if err := store.SaveMCPAuthToken(t.Context(), mcpauth.TokenRecord{
+			Target:                target,
+			DefinitionFingerprint: definitionFingerprint(t, target, configuredServer),
+			Issuer:                "https://issuer.example.test",
+			ClientID:              "client-id",
+			Scopes:                []string{"tools.read"},
+			AccessToken:           "rejected-access",
+			RefreshToken:          "refresh-token",
+			TokenType:             "Bearer",
+			ExpiresAt:             time.Now().Add(time.Hour),
+			UpdatedAt:             time.Now(),
+		}); err != nil {
+			t.Fatalf("SaveMCPAuthToken() error = %v", err)
+		}
+		executor := newTestMCPExecutor(t, configuredServer, WithTokenStore(store))
+		_, err := executor.ListTools(t.Context(), toolspkg.SourceRef{
+			Kind:          toolspkg.SourceMCP,
+			Owner:         "rejected-token",
+			RawServerName: "rejected-token",
+		})
+		requireReason(t, err, toolspkg.ReasonMCPAuthRequired)
+		select {
+		case got := <-seenAuthorization:
+			if want := "Bearer rejected-access"; got != want {
+				t.Fatalf("Authorization = %q, want %q", got, want)
+			}
+		default:
+			t.Fatal("remote MCP server did not receive an authorization header")
 		}
 	})
 
@@ -95,7 +240,7 @@ func TestMCPCallExecutor(t *testing.T) {
 
 		var mu sync.Mutex
 		seenHeaders := make([]string, 0)
-		handler := mcpsrv.NewStreamableHTTPServer(newFakeSDKServer(nil))
+		handler := newTestMCPHandler(newFakeSDKServer(nil))
 		testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			header := r.Header.Get("Authorization")
 			if header != "Bearer secret-access" {
@@ -113,10 +258,16 @@ func TestMCPCallExecutor(t *testing.T) {
 		target := globalMCPExecutorTarget("secure")
 		store := newMemoryTokenStore()
 		if err := store.SaveMCPAuthToken(context.Background(), mcpauth.TokenRecord{
-			Target: target, DefinitionFingerprint: definitionFingerprint(t, target, configuredServer),
-			ClientID: "client-id", Scopes: []string{"tools.read"}, AccessToken: "secret-access",
-			RefreshToken: "secret-refresh", TokenType: "Bearer",
-			ExpiresAt: time.Now().Add(time.Hour), UpdatedAt: time.Now(),
+			Target:                target,
+			DefinitionFingerprint: definitionFingerprint(t, target, configuredServer),
+			Issuer:                "https://issuer.example.test",
+			ClientID:              "client-id",
+			Scopes:                []string{"tools.read"},
+			AccessToken:           "secret-access",
+			RefreshToken:          "secret-refresh",
+			TokenType:             "Bearer",
+			ExpiresAt:             time.Now().Add(time.Hour),
+			UpdatedAt:             time.Now(),
 		}); err != nil {
 			t.Fatalf("SaveMCPAuthToken() error = %v", err)
 		}
@@ -138,6 +289,94 @@ func TestMCPCallExecutor(t *testing.T) {
 		assertJSONDoesNotContain(t, "result", result, "secret-access", "secret-refresh")
 	})
 
+	t.Run("Should resolve a persisted DCR client secret through the executor auth service", func(t *testing.T) {
+		t.Parallel()
+
+		oauthFixture := mcpfixture.StartOAuthHTTP(
+			t,
+			mcpfixture.MustNew(mcpfixture.ProfileModern2026),
+			mcpfixture.OAuthConfig{},
+		)
+		server := compozyconfig.MCPServer{
+			Name:      "fixture",
+			Transport: compozyconfig.MCPServerTransportHTTP,
+			URL:       oauthFixture.Endpoints.MCPURL,
+			Auth: compozyconfig.MCPAuthConfig{
+				Registration: compozyconfig.MCPAuthRegistrationAuto,
+				Scopes:       []string{"tools.read"},
+			},
+		}
+		target := globalMCPExecutorTarget("fixture")
+		cfg, err := mcpauth.ServerConfigFromMCP(t.Context(), target, server, nil)
+		if err != nil {
+			t.Fatalf("ServerConfigFromMCP() error = %v", err)
+		}
+		fingerprint, err := mcpauth.ServerDefinitionFingerprint(cfg)
+		if err != nil {
+			t.Fatalf("ServerDefinitionFingerprint() error = %v", err)
+		}
+		const (
+			redirectURL = "http://127.0.0.1:2123/api/mcp/oauth/callback"
+			secretRef   = "vault:mcp/test-dcr-client-secret"
+			secretValue = "persisted-client-secret"
+		)
+		store := newMemoryTokenStore()
+		_, err = store.SaveMCPAuthRegistration(t.Context(), mcpauth.ClientRegistration{
+			Target:                  target,
+			DefinitionFingerprint:   fingerprint,
+			ResourceURL:             oauthFixture.Endpoints.MCPURL,
+			Issuer:                  oauthFixture.Endpoints.IssuerURL,
+			ClientID:                "persisted-client-id",
+			ClientSecretRef:         secretRef,
+			TokenEndpointAuthMethod: "client_secret_post",
+			RedirectURL:             redirectURL,
+			Scopes:                  []string{"tools.read"},
+		}, mcpauth.RegistrationSecrets{})
+		if err != nil {
+			t.Fatalf("SaveMCPAuthRegistration() error = %v", err)
+		}
+		resolvedRefs := make(chan string, 1)
+		executor, err := NewMCPCallExecutor(
+			ServerResolverFunc(func(context.Context, toolspkg.SourceRef) (ResolvedServer, error) {
+				return ResolvedServer{Server: server, Target: target}, nil
+			}),
+			WithTokenStore(store),
+			WithHTTPClient(oauthFixture.Server.Client()),
+			WithSecretResolver(secretRefResolverFunc(func(_ context.Context, ref string) (string, error) {
+				select {
+				case resolvedRefs <- ref:
+				default:
+				}
+				return secretValue, nil
+			})),
+		)
+		if err != nil {
+			t.Fatalf("NewMCPCallExecutor() error = %v", err)
+		}
+		service, ok := executor.auth.(*mcpauth.Service)
+		if !ok {
+			t.Fatalf("executor auth service = %T, want *auth.Service", executor.auth)
+		}
+		state, err := service.BeginLogin(t.Context(), cfg, redirectURL)
+		if err != nil {
+			t.Fatalf("BeginLogin() error = %v", err)
+		}
+		select {
+		case got := <-resolvedRefs:
+			if want := secretRef; got != want {
+				t.Fatalf("resolved secret ref = %q, want %q", got, want)
+			}
+		default:
+			t.Fatal("persisted DCR client secret was not resolved")
+		}
+		if got, want := state.Config.ClientSecret, secretValue; got != want {
+			t.Fatalf("resolved client secret = %q, want configured persisted secret", got)
+		}
+		if got, want := state.Config.ClientID, "persisted-client-id"; got != want {
+			t.Fatalf("resolved client id = %q, want %q", got, want)
+		}
+	})
+
 	t.Run("Should never send a token bound to a replaced server definition", func(t *testing.T) {
 		t.Parallel()
 
@@ -154,9 +393,14 @@ func TestMCPCallExecutor(t *testing.T) {
 		)
 		store := newMemoryTokenStore()
 		if err := store.SaveMCPAuthToken(t.Context(), mcpauth.TokenRecord{
-			Target: target, DefinitionFingerprint: definitionFingerprint(t, target, original),
-			ClientID: "client-id", AccessToken: "original-secret", TokenType: "Bearer",
-			ExpiresAt: time.Now().Add(time.Hour), UpdatedAt: time.Now(),
+			Target:                target,
+			DefinitionFingerprint: definitionFingerprint(t, target, original),
+			Issuer:                "https://issuer.example.test",
+			ClientID:              "client-id",
+			AccessToken:           "original-secret",
+			TokenType:             "Bearer",
+			ExpiresAt:             time.Now().Add(time.Hour),
+			UpdatedAt:             time.Now(),
 		}); err != nil {
 			t.Fatalf("SaveMCPAuthToken(original) error = %v", err)
 		}
@@ -168,7 +412,7 @@ func TestMCPCallExecutor(t *testing.T) {
 		_, err := executor.ListTools(t.Context(), toolspkg.SourceRef{
 			Kind: toolspkg.SourceMCP, Owner: "secure", RawServerName: "secure",
 		})
-		requireReason(t, err, toolspkg.ReasonMCPAuthRequired)
+		requireReason(t, err, toolspkg.ReasonMCPAuthInvalid)
 	})
 
 	t.Run("Should isolate same-named workspace credentials at executor resolution", func(t *testing.T) {
@@ -189,15 +433,27 @@ func TestMCPCallExecutor(t *testing.T) {
 		}{
 			{
 				record: mcpauth.TokenRecord{
-					Target: workspaceA, AccessToken: "workspace-a-token", TokenType: "Bearer",
-					ExpiresAt: time.Now().Add(time.Hour), UpdatedAt: time.Now(),
+					Target:      workspaceA,
+					Issuer:      "https://issuer.example.test",
+					ClientID:    "client-id",
+					Scopes:      []string{"tools.read"},
+					AccessToken: "workspace-a-token",
+					TokenType:   "Bearer",
+					ExpiresAt:   time.Now().Add(time.Hour),
+					UpdatedAt:   time.Now(),
 				},
 				server: authEnabledServer("linear", compozyconfig.MCPServerTransportHTTP, serverA.URL),
 			},
 			{
 				record: mcpauth.TokenRecord{
-					Target: workspaceB, AccessToken: "workspace-b-token", TokenType: "Bearer",
-					ExpiresAt: time.Now().Add(time.Hour), UpdatedAt: time.Now(),
+					Target:      workspaceB,
+					Issuer:      "https://issuer.example.test",
+					ClientID:    "client-id",
+					Scopes:      []string{"tools.read"},
+					AccessToken: "workspace-b-token",
+					TokenType:   "Bearer",
+					ExpiresAt:   time.Now().Add(time.Hour),
+					UpdatedAt:   time.Now(),
 				},
 				server: authEnabledServer("linear", compozyconfig.MCPServerTransportHTTP, serverB.URL),
 			},
@@ -293,9 +549,15 @@ func TestMCPCallExecutor(t *testing.T) {
 		target := globalMCPExecutorTarget("secure")
 		store := newMemoryTokenStore()
 		if err := store.SaveMCPAuthToken(context.Background(), mcpauth.TokenRecord{
-			Target: target, DefinitionFingerprint: definitionFingerprint(t, target, server),
-			ClientID: "client-id", RefreshToken: "secret-refresh", TokenType: "Bearer",
-			ExpiresAt: time.Now().Add(time.Hour), UpdatedAt: time.Now(),
+			Target:                target,
+			DefinitionFingerprint: definitionFingerprint(t, target, server),
+			Issuer:                "https://issuer.example.test",
+			ClientID:              "client-id",
+			Scopes:                []string{"tools.read"},
+			RefreshToken:          "secret-refresh",
+			TokenType:             "Bearer",
+			ExpiresAt:             time.Now().Add(time.Hour),
+			UpdatedAt:             time.Now(),
 		}); err != nil {
 			t.Fatalf("SaveMCPAuthToken() error = %v", err)
 		}
@@ -320,7 +582,7 @@ func TestMCPCallExecutor(t *testing.T) {
 			status: mcpauth.Status{
 				ServerName:   "secure",
 				Status:       mcpauth.StatusExpired,
-				AuthType:     string(compozyconfig.MCPAuthTypeOAuth2PKCE),
+				AuthType:     "oauth",
 				ClientID:     "client-id",
 				TokenPresent: true,
 				Refreshable:  true,
@@ -410,49 +672,253 @@ func TestMCPCallExecutor(t *testing.T) {
 		})
 		requireReason(t, err, toolspkg.ReasonMCPUnreachable)
 	})
+}
 
-	t.Run("Should Use Explicit MCP Constructors And Avoid OAuth Helpers", func(t *testing.T) {
+func TestMCPToolListCache(t *testing.T) {
+	t.Run("Should isolate cached descriptor schemas from caller mutation", func(t *testing.T) {
 		t.Parallel()
 
-		paths, err := filepath.Glob("executor*.go")
+		now := time.Now()
+		executor := &CallExecutor{toolCache: mcpToolListCache{entries: make(map[string]mcpToolListCacheEntry)}}
+		descriptors := []toolspkg.MCPToolDescriptor{{
+			ID:           "mcp__fixture__echo",
+			InputSchema:  json.RawMessage(`{"type":"object"}`),
+			OutputSchema: json.RawMessage(`{"type":"string"}`),
+		}}
+		executor.cacheTools("fixture", descriptors, 1_000, now)
+		descriptors[0].InputSchema[0] = '['
+
+		first, ok := executor.cachedTools("fixture", now)
+		if !ok {
+			t.Fatal("cachedTools() miss, want hit")
+		}
+		if got, want := string(first[0].InputSchema), `{"type":"object"}`; got != want {
+			t.Fatalf("cached input schema = %q, want %q", got, want)
+		}
+		first[0].OutputSchema[0] = '['
+		second, ok := executor.cachedTools("fixture", now)
+		if !ok {
+			t.Fatal("cachedTools() second miss, want hit")
+		}
+		if got, want := string(second[0].OutputSchema), `{"type":"string"}`; got != want {
+			t.Fatalf("cached output schema = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should prune detached expired entries while caching a new binding", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Now()
+		executor := &CallExecutor{toolCache: mcpToolListCache{entries: make(map[string]mcpToolListCacheEntry)}}
+		executor.cacheTools("expired-binding", nil, 1, now)
+		executor.cacheTools("current-binding", nil, 1_000, now.Add(time.Millisecond))
+
+		executor.toolCache.mu.Lock()
+		_, retainedExpired := executor.toolCache.entries["expired-binding"]
+		entryCount := len(executor.toolCache.entries)
+		entries := maps.Clone(executor.toolCache.entries)
+		executor.toolCache.mu.Unlock()
+		if retainedExpired || entryCount != 1 {
+			t.Fatalf("cache entries = %#v, want only current binding", entries)
+		}
+	})
+}
+
+func TestProtocolVersionMiddleware(t *testing.T) {
+	t.Run("Should advertise only the modern and legacy contract versions", func(t *testing.T) {
+		t.Parallel()
+
+		versions := []string{
+			protocolVersionModern,
+			protocolVersionProviderLegacy,
+			protocolVersionLegacy,
+		}
+		handler := protocolVersionMiddleware()(
+			func(context.Context, string, mcpsdk.Request) (mcpsdk.Result, error) {
+				return &mcpsdk.DiscoverResult{
+					SupportedVersions: versions,
+				}, nil
+			},
+		)
+		result, err := handler(
+			t.Context(),
+			"server/discover",
+			&mcpsdk.ServerRequest[*mcpsdk.DiscoverParams]{Params: &mcpsdk.DiscoverParams{}},
+		)
 		if err != nil {
-			t.Fatalf("filepath.Glob(executor files) error = %v", err)
+			t.Fatalf("server/discover middleware error = %v", err)
 		}
-		var source strings.Builder
-		for _, path := range paths {
-			if strings.HasSuffix(path, "_test.go") {
-				continue
+		discover, ok := result.(*mcpsdk.DiscoverResult)
+		if !ok {
+			t.Fatalf("server/discover result = %T, want *DiscoverResult", result)
+		}
+		if got, want := discover.SupportedVersions, []string{
+			protocolVersionModern,
+			protocolVersionLegacy,
+		}; !slices.Equal(got, want) {
+			t.Fatalf("supported versions = %#v, want %#v", got, want)
+		}
+		if got, want := versions, []string{
+			protocolVersionModern,
+			protocolVersionProviderLegacy,
+			protocolVersionLegacy,
+		}; !slices.Equal(got, want) {
+			t.Fatalf("handler versions = %#v, want %#v", got, want)
+		}
+	})
+
+	t.Run("Should reject legacy initialize versions outside the contract", func(t *testing.T) {
+		t.Parallel()
+
+		nextCalled := false
+		handler := protocolVersionMiddleware()(func(context.Context, string, mcpsdk.Request) (mcpsdk.Result, error) {
+			nextCalled = true
+			return nil, nil
+		})
+		_, err := handler(t.Context(), "initialize", &mcpsdk.ServerRequest[*mcpsdk.InitializeParams]{
+			Params: &mcpsdk.InitializeParams{ProtocolVersion: "2025-06-18"},
+		})
+		var unsupported *UnsupportedProtocolVersionError
+		if !errors.As(err, &unsupported) || unsupported.Version != "2025-06-18" {
+			t.Fatalf("initialize middleware error = %v, want unsupported 2025-06-18", err)
+		}
+		if nextCalled {
+			t.Fatal("initialize middleware called the server for an unsupported version")
+		}
+	})
+}
+
+func TestNormalizeMCPErrorWithContext(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		err       error
+		wantScope bool
+	}{
+		{
+			name:      "Should preserve an insufficient scope error after the deadline",
+			err:       &InsufficientScopeError{Scopes: []string{"tools.read"}},
+			wantScope: true,
+		},
+		{
+			name: "Should preserve an authorization requirement after the deadline",
+			err:  ErrAuthorizationRequired,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx, cancel := context.WithDeadline(t.Context(), time.Now().Add(-time.Second))
+			defer cancel()
+			normalized := normalizeMCPErrorWithContext(ctx, "mcp__fixture__echo", test.err, true)
+			requireReason(t, normalized, toolspkg.ReasonMCPAuthRequired)
+			if test.wantScope {
+				var scopeErr *InsufficientScopeError
+				if !errors.As(normalized, &scopeErr) {
+					t.Fatalf("normalizeMCPErrorWithContext() error = %v, want InsufficientScopeError", normalized)
+				}
+				return
 			}
-			data, readErr := os.ReadFile(path)
-			if readErr != nil {
-				t.Fatalf("os.ReadFile(%s) error = %v", path, readErr)
+			if !errors.Is(normalized, ErrAuthorizationRequired) {
+				t.Fatalf("normalizeMCPErrorWithContext() error = %v, want ErrAuthorizationRequired", normalized)
 			}
-			source.Write(data)
-		}
-		required := []string{
-			"NewStdioMCPClient",
-			"NewStreamableHttpClient",
-			"NewSSEMCPClient",
-		}
-		for _, needle := range required {
-			if !strings.Contains(source.String(), needle) {
-				t.Fatalf("executor implementation does not contain required constructor %q", needle)
+		})
+	}
+}
+
+func TestConnectClientRejectsUnsupportedNegotiatedProtocol(t *testing.T) {
+	t.Run("Should reject an unsupported negotiated protocol", func(t *testing.T) {
+		t.Parallel()
+
+		serverTransport, clientTransport := mcpsdk.NewInMemoryTransports()
+		server := newFakeSDKServer(nil)
+		server.AddReceivingMiddleware(func(next mcpsdk.MethodHandler) mcpsdk.MethodHandler {
+			return func(ctx context.Context, method string, request mcpsdk.Request) (mcpsdk.Result, error) {
+				if method == "server/discover" {
+					return nil, errors.New("legacy peer does not support server/discover")
+				}
+				result, err := next(ctx, method, request)
+				if err != nil || method != "initialize" {
+					return result, err
+				}
+				if initialize, ok := result.(*mcpsdk.InitializeResult); ok {
+					initialize.ProtocolVersion = "2025-06-18"
+				}
+				return result, nil
 			}
+		})
+		serverCtx, cancelServer := context.WithCancel(t.Context())
+		defer cancelServer()
+		serverErr := make(chan error, 1)
+		go func() {
+			serverErr <- server.Run(serverCtx, serverTransport)
+		}()
+
+		_, err := (&CallExecutor{}).connectClient(t.Context(), clientTransport)
+		var unsupported *UnsupportedProtocolVersionError
+		if !errors.As(err, &unsupported) || unsupported.Version != "2025-06-18" {
+			t.Fatalf("connectClient() error = %v, want unsupported 2025-06-18", err)
 		}
-		forbidden := []string{
-			"NewOAuthStreamableHttpClient",
-			"NewOAuthSSEClient",
-			"NewOAuthHandler",
-			"MemoryTokenStore",
-			"WithHTTPOAuth",
-			"WithOAuth(",
+		cancelServer()
+		select {
+		case <-serverErr:
+		case <-time.After(time.Second):
+			t.Fatal("timed out waiting for unsupported-protocol peer to close")
 		}
-		for _, needle := range forbidden {
-			if strings.Contains(source.String(), needle) {
-				t.Fatalf("executor implementation contains forbidden OAuth helper %q", needle)
+	})
+}
+
+func TestListMCPTools(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject a server that never finishes distinct cursor pagination", func(t *testing.T) {
+		t.Parallel()
+
+		serverTransport, clientTransport := mcpsdk.NewInMemoryTransports()
+		server := newFakeSDKServer(nil)
+		calls := 0
+		server.AddReceivingMiddleware(func(next mcpsdk.MethodHandler) mcpsdk.MethodHandler {
+			return func(ctx context.Context, method string, request mcpsdk.Request) (mcpsdk.Result, error) {
+				if method == "tools/list" {
+					calls++
+					return &mcpsdk.ListToolsResult{NextCursor: fmt.Sprintf("page-%d", calls)}, nil
+				}
+				return next(ctx, method, request)
 			}
+		})
+		serverCtx, cancelServer := context.WithCancel(t.Context())
+		serverErr := make(chan error, 1)
+		go func() {
+			serverErr <- server.Run(serverCtx, serverTransport)
+		}()
+		t.Cleanup(func() {
+			cancelServer()
+			select {
+			case <-serverErr:
+			case <-time.After(time.Second):
+				t.Error("timed out waiting for paginated tool server shutdown")
+			}
+		})
+
+		session, err := (&CallExecutor{}).connectClient(t.Context(), clientTransport)
+		if err != nil {
+			t.Fatalf("connectClient() error = %v", err)
 		}
-		assertInternalToolsDoNotReferenceTokenMaterial(t)
+		t.Cleanup(func() {
+			if closeErr := session.Close(); closeErr != nil {
+				t.Errorf("session.Close() error = %v", closeErr)
+			}
+		})
+
+		_, _, err = listMCPTools(t.Context(), session)
+		if err == nil || !strings.Contains(err.Error(), "exceeded maximum page count") {
+			t.Fatalf("listMCPTools() error = %v, want page limit error", err)
+		}
+		if got, want := calls, maxMCPToolListPages; got != want {
+			t.Fatalf("tools/list calls = %d, want %d", got, want)
+		}
 	})
 }
 
@@ -467,13 +933,13 @@ func TestCallExecutorDescriptorFromToolPreservesPresentationMetadata(t *testing.
 			mcpsdk.Tool{
 				Name:        "lookup",
 				Description: "Look up an issue",
-				RawInputSchema: json.RawMessage(
+				InputSchema: json.RawMessage(
 					`{"type":"object","properties":{"query":{"type":"string"}}}`,
 				),
-				Meta: &mcpsdk.Meta{AdditionalFields: map[string]any{
+				Meta: mcpsdk.Meta{
 					mcpFriendlyVerbMetadataKey: "Looking up",
 					mcpPreviewMetadataKey:      "arg:query",
-				}},
+				},
 			},
 		)
 		if err != nil {
@@ -491,9 +957,9 @@ func TestCallExecutorDescriptorFromToolPreservesPresentationMetadata(t *testing.
 		t.Parallel()
 
 		_, _, err := mcpToolPresentationMetadata(mcpsdk.Tool{
-			Meta: &mcpsdk.Meta{AdditionalFields: map[string]any{
+			Meta: mcpsdk.Meta{
 				mcpFriendlyVerbMetadataKey: true,
-			}},
+			},
 		})
 		if err == nil {
 			t.Fatal("mcpToolPresentationMetadata() error = nil, want invalid type failure")
@@ -502,6 +968,86 @@ func TestCallExecutorDescriptorFromToolPreservesPresentationMetadata(t *testing.
 }
 
 func TestMCPCallExecutorStdioEnvironmentBoundary(t *testing.T) {
+	t.Run("Should isolate subprocess homes by target and remove them after use", func(t *testing.T) {
+		setMCPTestEnv(t, "HOME", "/operator-home")
+
+		executor := &CallExecutor{}
+		server := compozyconfig.MCPServer{
+			Name:      "local",
+			Transport: compozyconfig.MCPServerTransportStdio,
+			Command:   os.Args[0],
+		}
+		firstTarget := globalMCPExecutorTarget("first")
+		secondTarget := globalMCPExecutorTarget("second")
+		first, err := executor.newMCPStdioLaunch(t.Context(), server, firstTarget)
+		if err != nil {
+			t.Fatalf("newMCPStdioLaunch(first) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if cleanupErr := first.cleanup(); cleanupErr != nil {
+				t.Errorf("first stdio home cleanup error = %v", cleanupErr)
+			}
+		})
+		second, err := executor.newMCPStdioLaunch(t.Context(), server, secondTarget)
+		if err != nil {
+			if cleanupErr := first.cleanup(); cleanupErr != nil {
+				t.Fatalf("newMCPStdioLaunch(second) error = %v; first cleanup error = %v", err, cleanupErr)
+			}
+			t.Fatalf("newMCPStdioLaunch(second) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if cleanupErr := second.cleanup(); cleanupErr != nil {
+				t.Errorf("second stdio home cleanup error = %v", cleanupErr)
+			}
+		})
+
+		firstHome := commandEnvironmentValue(t, first.command, "HOME")
+		secondHome := commandEnvironmentValue(t, second.command, "HOME")
+		if firstHome == "/operator-home" || secondHome == "/operator-home" {
+			t.Fatalf("stdio HOME inherited operator home: first=%q second=%q", firstHome, secondHome)
+		}
+		if firstHome == secondHome {
+			t.Fatalf("stdio targets share HOME %q", firstHome)
+		}
+		for _, pair := range []struct {
+			home   string
+			target mcpauth.Target
+		}{
+			{home: firstHome, target: firstTarget},
+			{home: secondHome, target: secondTarget},
+		} {
+			key, err := pair.target.Key()
+			if err != nil {
+				t.Fatalf("target key error = %v", err)
+			}
+			base := filepath.Base(pair.home)
+			if !strings.HasPrefix(base, mcpStdioHomePrefix(key)) {
+				t.Fatalf("isolated stdio HOME base = %q, want portable hashed prefix", base)
+			}
+		}
+		for _, launch := range []mcpStdioLaunch{first, second} {
+			home := commandEnvironmentValue(t, launch.command, "HOME")
+			for key, suffix := range map[string]string{
+				"XDG_CONFIG_HOME":  "config",
+				"XDG_CACHE_HOME":   "cache",
+				"npm_config_cache": "npm-cache",
+				"UV_CACHE_DIR":     "uv-cache",
+			} {
+				got := commandEnvironmentValue(t, launch.command, key)
+				want := filepath.Join(home, suffix)
+				if got != want {
+					t.Fatalf("%s = %q, want %q", key, got, want)
+				}
+			}
+			if err := launch.cleanup(); err != nil {
+				t.Fatalf("stdio home cleanup error = %v", err)
+			}
+			if _, err := os.Stat(home); !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("isolated stdio HOME %q remains after cleanup: %v", home, err)
+			}
+		}
+	})
+
 	t.Run("Should exclude ambient daemon secrets from stdio MCP processes", func(t *testing.T) {
 		setMCPTestEnv(t, stdioParentSecretEnv, "ambient-secret")
 
@@ -560,6 +1106,18 @@ func TestMCPCallExecutorStdioEnvironmentBoundary(t *testing.T) {
 	})
 }
 
+func commandEnvironmentValue(t *testing.T, command *exec.Cmd, key string) string {
+	t.Helper()
+	prefix := key + "="
+	for _, value := range command.Env {
+		if result, ok := strings.CutPrefix(value, prefix); ok {
+			return result
+		}
+	}
+	t.Fatalf("command environment has no %s", key)
+	return ""
+}
+
 func setMCPTestEnv(t *testing.T, key string, value string) {
 	t.Helper()
 
@@ -587,16 +1145,27 @@ func TestMCPStdioHelperProcess(t *testing.T) {
 		}
 		if os.Getenv(stdioEnvHelperEnv) == "1" {
 			server := newFakeSDKServer(
-				func(_ context.Context, req mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
-					key := mcpsdk.ParseString(req, "message", "")
+				func(
+					_ context.Context,
+					req *mcpsdk.CallToolRequest,
+				) (*mcpsdk.CallToolResult, error) {
+					var input struct {
+						Message string `json:"message"`
+					}
+					if err := json.Unmarshal(req.Params.Arguments, &input); err != nil {
+						return nil, fmt.Errorf("decode environment helper input: %w", err)
+					}
+					key := input.Message
 					value := os.Getenv(key)
-					return mcpsdk.NewToolResultStructured(
-						map[string]string{"message": value},
-						"env: "+value,
-					), nil
+					return &mcpsdk.CallToolResult{
+						Content: []mcpsdk.Content{
+							&mcpsdk.TextContent{Text: "env: " + value},
+						},
+						StructuredContent: map[string]string{"message": value},
+					}, nil
 				},
 			)
-			if err := mcpsrv.ServeStdio(server); err != nil {
+			if err := server.Run(context.Background(), &mcpsdk.StdioTransport{}); err != nil {
 				if _, writeErr := fmt.Fprintln(os.Stderr, err); writeErr != nil {
 					os.Exit(3)
 				}
@@ -607,7 +1176,7 @@ func TestMCPStdioHelperProcess(t *testing.T) {
 		if os.Getenv(stdioHelperEnv) != "1" {
 			return
 		}
-		if err := mcpsrv.ServeStdio(newFakeSDKServer(nil)); err != nil {
+		if err := newFakeSDKServer(nil).Run(context.Background(), &mcpsdk.StdioTransport{}); err != nil {
 			if _, writeErr := fmt.Fprintln(os.Stderr, err); writeErr != nil {
 				os.Exit(3)
 			}
@@ -626,7 +1195,7 @@ func TestMCPCallExecutorHelpers(t *testing.T) {
 			status: mcpauth.Status{
 				ServerName:   "secure",
 				Status:       mcpauth.StatusAuthenticated,
-				AuthType:     string(compozyconfig.MCPAuthTypeOAuth2PKCE),
+				AuthType:     "oauth",
 				ClientID:     "client-id",
 				Scopes:       []string{" tools.read ", "issues.write"},
 				ExpiresAt:    &expiresAt,
@@ -726,7 +1295,7 @@ func TestMCPCallExecutorHelpers(t *testing.T) {
 		t.Parallel()
 
 		rawSchema := json.RawMessage(`{"type":"object","properties":{"q":{"type":"string"}}}`)
-		tool := mcpsdk.NewTool("lookup", mcpsdk.WithRawInputSchema(rawSchema))
+		tool := mcpsdk.Tool{Name: "lookup", InputSchema: rawSchema}
 		inputSchema, err := inputSchemaBytes(tool)
 		if err != nil {
 			t.Fatalf("inputSchemaBytes(raw) error = %v", err)
@@ -737,7 +1306,7 @@ func TestMCPCallExecutorHelpers(t *testing.T) {
 		if _, err := inputSchemaBytes(mcpsdk.Tool{Name: "bad"}); err == nil {
 			t.Fatal("inputSchemaBytes(missing) error = nil, want error")
 		}
-		output, err := outputSchemaBytes(mcpsdk.NewTool("lookup"))
+		output, err := outputSchemaBytes(mcpsdk.Tool{Name: "lookup"})
 		if err != nil {
 			t.Fatalf("outputSchemaBytes(empty) error = %v", err)
 		}
@@ -745,7 +1314,7 @@ func TestMCPCallExecutorHelpers(t *testing.T) {
 			t.Fatalf("outputSchemaBytes(empty) = %s, want nil", output)
 		}
 		rawOutputSchema := json.RawMessage(`{"type":"object","properties":{"answer":{"type":"string"}}}`)
-		output, err = outputSchemaBytes(mcpsdk.NewTool("lookup", mcpsdk.WithRawOutputSchema(rawOutputSchema)))
+		output, err = outputSchemaBytes(mcpsdk.Tool{Name: "lookup", OutputSchema: rawOutputSchema})
 		if err != nil {
 			t.Fatalf("outputSchemaBytes(raw) error = %v", err)
 		}
@@ -778,9 +1347,9 @@ func TestMCPCallExecutorHelpers(t *testing.T) {
 
 		result, err := toolResultFromMCP(&mcpsdk.CallToolResult{
 			Content: []mcpsdk.Content{
-				mcpsdk.TextContent{Type: "text", Text: "ok"},
-				mcpsdk.ImageContent{Type: "image", Data: "aW1n", MIMEType: "image/png"},
-				mcpsdk.AudioContent{Type: "audio", Data: "YXVkaW8=", MIMEType: "audio/mpeg"},
+				&mcpsdk.TextContent{Text: "ok"},
+				&mcpsdk.ImageContent{Data: []byte("img"), MIMEType: "image/png"},
+				&mcpsdk.AudioContent{Data: []byte("audio"), MIMEType: "audio/mpeg"},
 			},
 			StructuredContent: map[string]string{"ok": "true"},
 			IsError:           true,
@@ -801,13 +1370,7 @@ func TestMCPCallExecutorHelpers(t *testing.T) {
 		if len(emptyResult.Content) != 0 {
 			t.Fatalf("toolResultFromMCP(nil).Content = %#v, want empty", emptyResult.Content)
 		}
-		embedded, err := toolContentFromMCP(mcpsdk.EmbeddedResource{
-			Type: "resource",
-			Resource: mcpsdk.TextResourceContents{
-				URI:  "file://note.txt",
-				Text: "hello",
-			},
-		})
+		embedded, err := toolContentFromMCP(&mcpsdk.EmbeddedResource{})
 		if err != nil {
 			t.Fatalf("toolContentFromMCP(embedded) error = %v", err)
 		}
@@ -826,7 +1389,6 @@ func TestMCPCallExecutorHelpers(t *testing.T) {
 
 		requireReason(t, normalizeMCPError("", context.Canceled), toolspkg.ReasonCallCanceled)
 		requireReason(t, normalizeMCPError("", context.DeadlineExceeded), toolspkg.ReasonCallTimedOut)
-		requireReason(t, normalizeMCPError("", mcptransport.ErrAuthorizationRequired), toolspkg.ReasonMCPAuthRequired)
 	})
 
 	t.Run("Should Handle Expired Auth Refresh Outcomes", func(t *testing.T) {
@@ -837,7 +1399,7 @@ func TestMCPCallExecutorHelpers(t *testing.T) {
 			status: mcpauth.Status{
 				ServerName:   "secure",
 				Status:       mcpauth.StatusExpired,
-				AuthType:     string(compozyconfig.MCPAuthTypeOAuth2PKCE),
+				AuthType:     "oauth",
 				ClientID:     "client-id",
 				TokenPresent: true,
 				Refreshable:  true,
@@ -845,7 +1407,7 @@ func TestMCPCallExecutorHelpers(t *testing.T) {
 			refresh: mcpauth.Status{
 				ServerName:   "secure",
 				Status:       mcpauth.StatusAuthenticated,
-				AuthType:     string(compozyconfig.MCPAuthTypeOAuth2PKCE),
+				AuthType:     "oauth",
 				ClientID:     "client-id",
 				TokenPresent: true,
 				Refreshable:  true,
@@ -864,7 +1426,7 @@ func TestMCPCallExecutorHelpers(t *testing.T) {
 			status: mcpauth.Status{
 				ServerName:   "secure",
 				Status:       mcpauth.StatusExpired,
-				AuthType:     string(compozyconfig.MCPAuthTypeOAuth2PKCE),
+				AuthType:     "oauth",
 				ClientID:     "client-id",
 				TokenPresent: true,
 				Refreshable:  true,
@@ -919,38 +1481,122 @@ func TestMCPCallExecutorHelpers(t *testing.T) {
 			t.Fatal("mcpServerMatches(invalid canonical name) = true, want false")
 		}
 	})
+
+	t.Run("Should inject bearer only after full pre-registered credential binding", func(t *testing.T) {
+		t.Parallel()
+
+		server := authEnabledServer("secure", compozyconfig.MCPServerTransportHTTP, "https://mcp.example.test/mcp")
+		target := globalMCPExecutorTarget("secure")
+		for _, fixture := range []struct {
+			name   string
+			mutate func(*mcpauth.TokenRecord)
+			want   string
+			reason toolspkg.ReasonCode
+		}{
+			{
+				name: "mismatched issuer",
+				mutate: func(token *mcpauth.TokenRecord) {
+					token.Issuer = "https://other-issuer.example.test"
+				},
+			},
+			{
+				name: "mismatched client",
+				mutate: func(token *mcpauth.TokenRecord) {
+					token.ClientID = "other-client"
+				},
+			},
+			{
+				name: "missing baseline scope",
+				mutate: func(token *mcpauth.TokenRecord) {
+					token.Scopes = []string{"other.scope"}
+				},
+				reason: toolspkg.ReasonMCPAuthInvalid,
+			},
+			{
+				name: "step-up scope superset",
+				mutate: func(token *mcpauth.TokenRecord) {
+					token.Scopes = []string{"tools.read", "issues.write"}
+				},
+				want: "Bearer scoped-token",
+			},
+		} {
+			t.Run(fixture.name, func(t *testing.T) {
+				t.Parallel()
+
+				store := newMemoryTokenStore()
+				token := mcpauth.TokenRecord{
+					Target:                target,
+					DefinitionFingerprint: definitionFingerprint(t, target, server),
+					Issuer:                "https://issuer.example.test",
+					ClientID:              "client-id",
+					Scopes:                []string{"tools.read"},
+					AccessToken:           "scoped-token",
+					TokenType:             "Bearer",
+					ExpiresAt:             time.Now().Add(time.Hour),
+				}
+				fixture.mutate(&token)
+				if err := store.SaveMCPAuthToken(t.Context(), token); err != nil {
+					t.Fatalf("SaveMCPAuthToken() error = %v", err)
+				}
+				executor := newTestMCPExecutor(t, server, WithTokenStore(store))
+				resolved := ResolvedServer{Server: server, Target: target}
+				if got := executor.authorizationHeader(t.Context(), resolved); got != fixture.want {
+					t.Fatalf("authorizationHeader() = %q, want %q", got, fixture.want)
+				}
+				if fixture.reason != "" {
+					requireReason(t, executor.ensureAuthorized(t.Context(), resolved), fixture.reason)
+				}
+			})
+		}
+	})
 }
 
-func newFakeSDKServer(handler mcpsrv.ToolHandlerFunc) *mcpsrv.MCPServer {
+func newFakeSDKServer(handler mcpsdk.ToolHandler) *mcpsdk.Server {
 	if handler == nil {
-		handler = func(_ context.Context, req mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
-			message := mcpsdk.ParseString(req, "message", "")
-			return mcpsdk.NewToolResultStructured(
-				map[string]string{"message": message},
-				"echo: "+message,
-			), nil
+		handler = func(_ context.Context, req *mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
+			var input struct {
+				Message string `json:"message"`
+			}
+			if err := json.Unmarshal(req.Params.Arguments, &input); err != nil {
+				return nil, fmt.Errorf("decode echo input: %w", err)
+			}
+			return &mcpsdk.CallToolResult{
+				Content:           []mcpsdk.Content{&mcpsdk.TextContent{Text: "echo: " + input.Message}},
+				StructuredContent: map[string]string{"message": input.Message},
+			}, nil
 		}
 	}
-	server := mcpsrv.NewMCPServer("fake", "1.0.0", mcpsrv.WithToolCapabilities(true))
-	server.AddTool(
-		mcpsdk.NewTool(
-			"echo",
-			mcpsdk.WithDescription("Echo message"),
-			mcpsdk.WithString("message"),
-			mcpsdk.WithRawOutputSchema(json.RawMessage(
-				`{"type":"object","properties":{"message":{"type":"string"}}}`,
-			)),
-			mcpsdk.WithReadOnlyHintAnnotation(true),
-		),
-		handler,
-	)
+	server := mcpsdk.NewServer(&mcpsdk.Implementation{Name: "fake", Version: "1.0.0"}, &mcpsdk.ServerOptions{
+		Capabilities: &mcpsdk.ServerCapabilities{Tools: &mcpsdk.ToolCapabilities{}},
+	})
+	server.AddTool(&mcpsdk.Tool{
+		Name:         "echo",
+		Description:  "Echo message",
+		InputSchema:  json.RawMessage(`{"type":"object","properties":{"message":{"type":"string"}}}`),
+		OutputSchema: json.RawMessage(`{"type":"object","properties":{"message":{"type":"string"}}}`),
+		Annotations:  &mcpsdk.ToolAnnotations{ReadOnlyHint: true},
+	}, handler)
 	return server
+}
+
+func newTestMCPHandler(server *mcpsdk.Server) http.Handler {
+	return mcpsdk.NewStreamableHTTPHandler(
+		func(*http.Request) *mcpsdk.Server { return server },
+		&mcpsdk.StreamableHTTPOptions{
+			Stateless:    true,
+			JSONResponse: true,
+		},
+	)
+}
+
+func newTestMCPHTTPServer(server *mcpsdk.Server) *httptest.Server {
+	return httptest.NewServer(newTestMCPHandler(server))
 }
 
 func newAuthorizedMCPExecutorServer(t *testing.T, token string) *httptest.Server {
 	t.Helper()
 
-	handler := mcpsrv.NewStreamableHTTPServer(newFakeSDKServer(nil))
+	handler := newTestMCPHandler(newFakeSDKServer(nil))
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if got, want := r.Header.Get("Authorization"), "Bearer "+token; got != want {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
@@ -1058,11 +1704,10 @@ func authEnabledServer(name string, transport compozyconfig.MCPServerTransport, 
 		Transport: transport,
 		URL:       url,
 		Auth: compozyconfig.MCPAuthConfig{
-			Type:             compozyconfig.MCPAuthTypeOAuth2PKCE,
-			AuthorizationURL: "https://issuer.example.test/authorize",
-			TokenURL:         "https://issuer.example.test/token",
-			ClientID:         "client-id",
-			Scopes:           []string{"tools.read"},
+			Registration: compozyconfig.MCPAuthRegistrationPreRegistered,
+			IssuerURL:    "https://issuer.example.test",
+			ClientID:     "client-id",
+			Scopes:       []string{"tools.read"},
 		},
 	}
 }
@@ -1130,34 +1775,6 @@ func assertJSONDoesNotContain(t *testing.T, label string, value any, forbidden .
 	}
 }
 
-func assertInternalToolsDoNotReferenceTokenMaterial(t *testing.T) {
-	t.Helper()
-
-	files := []string{
-		"../tools/mcp.go",
-		"../tools/tool.go",
-		"../tools/result.go",
-	}
-	for _, path := range files {
-		data, err := os.ReadFile(path)
-		if err != nil {
-			t.Fatalf("os.ReadFile(%s) error = %v", path, err)
-		}
-		source := string(data)
-		forbidden := []string{
-			"TokenRecord",
-			"AccessToken",
-			"RefreshToken",
-			"Authorization: Bearer",
-		}
-		for _, needle := range forbidden {
-			if strings.Contains(source, needle) {
-				t.Fatalf("%s references forbidden token material %q", path, needle)
-			}
-		}
-	}
-}
-
 type fakeAuthService struct {
 	mu         sync.Mutex
 	status     mcpauth.Status
@@ -1200,6 +1817,10 @@ func (s *fakeAuthService) Refresh(ctx context.Context, cfg mcpauth.ServerConfig)
 	return status, nil
 }
 
+func (s *fakeAuthService) AuthorizationToken(context.Context, mcpauth.ServerConfig) (mcpauth.TokenRecord, error) {
+	return mcpauth.TokenRecord{}, mcpauth.ErrTokenNotFound
+}
+
 func (s *fakeAuthService) refreshCallCount() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -1213,12 +1834,16 @@ func (s *fakeAuthService) lastServerConfig() mcpauth.ServerConfig {
 }
 
 type memoryTokenStore struct {
-	mu     sync.Mutex
-	tokens map[string]mcpauth.TokenRecord
+	mu            sync.Mutex
+	tokens        map[string]mcpauth.TokenRecord
+	registrations map[string]mcpauth.ClientRegistration
 }
 
 func newMemoryTokenStore() *memoryTokenStore {
-	return &memoryTokenStore{tokens: make(map[string]mcpauth.TokenRecord)}
+	return &memoryTokenStore{
+		tokens:        make(map[string]mcpauth.TokenRecord),
+		registrations: make(map[string]mcpauth.ClientRegistration),
+	}
 }
 
 func (s *memoryTokenStore) SaveMCPAuthToken(ctx context.Context, token mcpauth.TokenRecord) error {
@@ -1291,9 +1916,86 @@ func (s *memoryTokenStore) DeleteMCPAuthToken(ctx context.Context, target mcpaut
 	return nil
 }
 
+func (s *memoryTokenStore) DeleteMCPAuthorizationState(ctx context.Context, _ mcpauth.Target) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *memoryTokenStore) GetMCPAuthRegistration(
+	ctx context.Context,
+	target mcpauth.Target,
+) (mcpauth.ClientRegistration, error) {
+	if err := ctx.Err(); err != nil {
+		return mcpauth.ClientRegistration{}, err
+	}
+	key, err := target.Key()
+	if err != nil {
+		return mcpauth.ClientRegistration{}, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	registration, ok := s.registrations[key]
+	if !ok {
+		return mcpauth.ClientRegistration{}, mcpauth.ErrRegistrationNotFound
+	}
+	return cloneClientRegistration(registration), nil
+}
+
+func (s *memoryTokenStore) SaveMCPAuthRegistration(
+	ctx context.Context,
+	registration mcpauth.ClientRegistration,
+	secrets mcpauth.RegistrationSecrets,
+) (mcpauth.ClientRegistration, error) {
+	if err := ctx.Err(); err != nil {
+		return mcpauth.ClientRegistration{}, err
+	}
+	key, err := registration.Target.Key()
+	if err != nil {
+		return mcpauth.ClientRegistration{}, err
+	}
+	if secrets.ClientSecret != "" && registration.ClientSecretRef == "" {
+		registration.ClientSecretRef = "vault:mcp/test-client-secret"
+	}
+	if secrets.RegistrationAccessToken != "" && registration.RegistrationAccessTokenRef == "" {
+		registration.RegistrationAccessTokenRef = "vault:mcp/test-registration-access-token"
+	}
+	registration = cloneClientRegistration(registration)
+	s.mu.Lock()
+	s.registrations[key] = registration
+	s.mu.Unlock()
+	return cloneClientRegistration(registration), nil
+}
+
+func (s *memoryTokenStore) DeleteMCPAuthRegistration(ctx context.Context, target mcpauth.Target) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	key, err := target.Key()
+	if err != nil {
+		return err
+	}
+	s.mu.Lock()
+	delete(s.registrations, key)
+	s.mu.Unlock()
+	return nil
+}
+
 func cloneTokenRecord(token mcpauth.TokenRecord) mcpauth.TokenRecord {
 	token.Scopes = append([]string(nil), token.Scopes...)
 	return token
+}
+
+func cloneClientRegistration(registration mcpauth.ClientRegistration) mcpauth.ClientRegistration {
+	registration.Scopes = append([]string(nil), registration.Scopes...)
+	return registration
+}
+
+type secretRefResolverFunc func(context.Context, string) (string, error)
+
+func (f secretRefResolverFunc) ResolveRef(ctx context.Context, ref string) (string, error) {
+	return f(ctx, ref)
 }
 
 func globalMCPExecutorTarget(serverName string) mcpauth.Target {

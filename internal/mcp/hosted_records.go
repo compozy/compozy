@@ -17,7 +17,7 @@ import (
 	"github.com/compozy/compozy/internal/tools"
 )
 
-func (s *HostedService) consumeLaunch(
+func (s *HostedService) bindLaunch(
 	sessionID string,
 	nonce string,
 	bindID string,
@@ -27,15 +27,14 @@ func (s *HostedService) consumeLaunch(
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	launch, ok := s.launches[sessionID]
-	if !ok || launch == nil || launch.consumed || !constantHashEqual(launch.nonceHash, tokenHash(nonce)) {
+	if !ok || launch == nil || !constantHashEqual(launch.nonceHash, tokenHash(nonce)) {
 		return nil, ErrHostedNonceInvalid
 	}
-	if !launch.expiresAt.After(now) {
+	if !launch.established && !launch.expiresAt.After(now) {
 		delete(s.launches, sessionID)
 		return nil, ErrHostedNonceExpired
 	}
-	launch.consumed = true
-	delete(s.launches, sessionID)
+	launch.established = true
 	record := &hostedBindRecord{
 		bindID:        bindID,
 		sessionID:     launch.sessionID,
@@ -91,13 +90,18 @@ func (s *HostedService) projection(ctx context.Context, record *hostedBindRecord
 	if err != nil {
 		return HostedProjectionResponse{}, err
 	}
-	slices.SortFunc(views, func(left, right tools.ToolView) int {
+	return hostedProjectionResponse(views), nil
+}
+
+func hostedProjectionResponse(views []tools.ToolView) HostedProjectionResponse {
+	sorted := append([]tools.ToolView(nil), views...)
+	slices.SortFunc(sorted, func(left, right tools.ToolView) int {
 		return strings.Compare(left.Descriptor.ID.String(), right.Descriptor.ID.String())
 	})
 	return HostedProjectionResponse{
-		Tools:  cloneToolViews(views),
-		Digest: hostedProjectionDigest(views),
-	}, nil
+		Tools:  cloneToolViews(sorted),
+		Digest: hostedProjectionDigest(sorted),
+	}
 }
 
 func (s *HostedService) validatePeer(peer PeerInfo) error {

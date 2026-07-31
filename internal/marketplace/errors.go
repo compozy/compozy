@@ -13,7 +13,7 @@ var (
 	ErrServiceClosed     = errors.New("marketplace catalog: service is closed")
 )
 
-// UnsupportedManifestVersionError requires the operator to upgrade the client.
+// UnsupportedManifestVersionError reports a feed and client manifest-version mismatch.
 type UnsupportedManifestVersionError struct {
 	Kind    Kind
 	Version int
@@ -21,13 +21,28 @@ type UnsupportedManifestVersionError struct {
 
 func (e *UnsupportedManifestVersionError) Error() string {
 	if e == nil {
-		return "marketplace catalog: client too old for feed manifest"
+		return "marketplace catalog: unsupported feed manifest version"
+	}
+	if e.Version < ManifestVersion {
+		return fmt.Sprintf(
+			"marketplace catalog %q manifest_version %d is unsupported; feed too old (client supports version %d)",
+			e.Kind,
+			e.Version,
+			ManifestVersion,
+		)
+	}
+	if e.Version > ManifestVersion {
+		return fmt.Sprintf(
+			"marketplace catalog %q manifest_version %d is unsupported; client too old (supports version %d)",
+			e.Kind,
+			e.Version,
+			ManifestVersion,
+		)
 	}
 	return fmt.Sprintf(
-		"marketplace catalog %q manifest_version %d is unsupported; client too old (supports version %d)",
+		"marketplace catalog %q manifest_version %d is unsupported",
 		e.Kind,
 		e.Version,
-		ManifestVersion,
 	)
 }
 

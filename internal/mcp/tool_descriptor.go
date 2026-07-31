@@ -8,7 +8,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/toolmeta"
 	toolspkg "github.com/compozy/compozy/internal/tools"
-	mcpsdk "github.com/mark3labs/mcp-go/mcp"
+	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 const (
@@ -47,7 +47,7 @@ func (e *CallExecutor) descriptorFromTool(
 		WorkspaceID:     source.WorkspaceID,
 		Scope:           source.Scope,
 	}
-	readOnly := tool.Annotations.ReadOnlyHint != nil && *tool.Annotations.ReadOnlyHint
+	readOnly := tool.Annotations != nil && tool.Annotations.ReadOnlyHint
 	friendlyVerb, preview, err := mcpToolPresentationMetadata(tool)
 	if err != nil {
 		return toolspkg.MCPToolDescriptor{}, err
@@ -55,7 +55,7 @@ func (e *CallExecutor) descriptorFromTool(
 	return toolspkg.MCPToolDescriptor{
 		ID:           id,
 		RawName:      strings.TrimSpace(tool.Name),
-		Title:        strings.TrimSpace(tool.Annotations.Title),
+		Title:        mcpToolTitle(tool),
 		FriendlyVerb: friendlyVerb,
 		Preview:      preview,
 		Description:  strings.TrimSpace(tool.Description),
@@ -66,15 +66,22 @@ func (e *CallExecutor) descriptorFromTool(
 	}, nil
 }
 
+func mcpToolTitle(tool mcpsdk.Tool) string {
+	if tool.Annotations == nil {
+		return ""
+	}
+	return strings.TrimSpace(tool.Annotations.Title)
+}
+
 func mcpToolPresentationMetadata(tool mcpsdk.Tool) (string, string, error) {
-	if tool.Meta == nil || len(tool.Meta.AdditionalFields) == 0 {
+	if tool.Meta == nil {
 		return "", "", nil
 	}
-	friendlyVerb, err := mcpToolMetadataString(tool.Meta.AdditionalFields, mcpFriendlyVerbMetadataKey)
+	friendlyVerb, err := mcpToolMetadataString(tool.Meta, mcpFriendlyVerbMetadataKey)
 	if err != nil {
 		return "", "", err
 	}
-	preview, err := mcpToolMetadataString(tool.Meta.AdditionalFields, mcpPreviewMetadataKey)
+	preview, err := mcpToolMetadataString(tool.Meta, mcpPreviewMetadataKey)
 	if err != nil {
 		return "", "", err
 	}
@@ -97,10 +104,7 @@ func mcpToolMetadataString(fields map[string]any, key string) (string, error) {
 }
 
 func inputSchemaBytes(tool mcpsdk.Tool) (json.RawMessage, error) {
-	if len(tool.RawInputSchema) > 0 {
-		return cloneRaw(tool.RawInputSchema), nil
-	}
-	if strings.TrimSpace(tool.InputSchema.Type) == "" {
+	if tool.InputSchema == nil {
 		return nil, toolspkg.NewValidationError(
 			"input_schema",
 			toolspkg.ReasonSchemaInvalid,
@@ -115,10 +119,7 @@ func inputSchemaBytes(tool mcpsdk.Tool) (json.RawMessage, error) {
 }
 
 func outputSchemaBytes(tool mcpsdk.Tool) (json.RawMessage, error) {
-	if len(tool.RawOutputSchema) > 0 {
-		return cloneRaw(tool.RawOutputSchema), nil
-	}
-	if strings.TrimSpace(tool.OutputSchema.Type) == "" {
+	if tool.OutputSchema == nil {
 		return nil, nil
 	}
 	data, err := json.Marshal(tool.OutputSchema)

@@ -106,7 +106,12 @@ describe("settings MCP auth MSW handlers", () => {
       {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: action === "exchange" ? JSON.stringify({ code: "test-code" }) : undefined,
+        body:
+          action === "exchange"
+            ? JSON.stringify({
+                redirect_url: "http://127.0.0.1:2123/api/mcp/oauth/callback?code=test&state=x",
+              })
+            : undefined,
       }
     );
 

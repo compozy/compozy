@@ -2228,7 +2228,7 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 			}
 
 			invalidateErr := errors.New("auth invalidation unavailable")
-			runtime := &recordingMCPAuthRuntime{invalidateErrs: map[int]error{2: invalidateErr}}
+			runtime := &recordingMCPAuthRuntime{deleteStateErrs: map[int]error{1: invalidateErr}}
 			service := testService(t, homePaths, Dependencies{
 				MCPAuth:         runtime,
 				ProviderSecrets: secretStore,
@@ -2252,11 +2252,21 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 			if got := secretStore.plaintext[ref]; got != "old-secret" {
 				t.Fatalf("restored secret = %q, want old-secret", got)
 			}
-			if got, want := len(runtime.invalidated), 3; got != want {
+			if got, want := len(runtime.operations), 3; got != want {
 				t.Fatalf(
-					"auth invalidation calls = %d, want pre-mutation, failed post-mutation, and post-rollback",
+					"auth lifecycle calls = %d, want invalidate, failed state deletion, and rollback invalidate",
 					got,
 				)
+			}
+			wantKinds := []string{
+				recordingMCPAuthInvalidate,
+				recordingMCPAuthDeleteState,
+				recordingMCPAuthInvalidate,
+			}
+			for index, operation := range runtime.operations {
+				if operation.kind != wantKinds[index] {
+					t.Fatalf("auth lifecycle[%d] = %#v, want kind %q", index, operation, wantKinds[index])
+				}
 			}
 		},
 	)
@@ -2284,7 +2294,7 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 
 			invalidateErr := errors.New("auth invalidation unavailable")
 			rollbackErr := errors.New("definition rollback unavailable")
-			runtime := &recordingMCPAuthRuntime{invalidateErrs: map[int]error{2: invalidateErr}}
+			runtime := &recordingMCPAuthRuntime{deleteStateErrs: map[int]error{1: invalidateErr}}
 			writeCalls := 0
 			writer := func(
 				home compozyconfig.HomePaths,
@@ -2445,13 +2455,12 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 			Name:              "linear",
 			Target:            TargetAuto,
 			MCPServer: &compozyconfig.MCPServer{
-				Transport: compozyconfig.MCPServerTransportSSE,
-				URL:       "https://mcp.linear.app/sse",
+				Transport: compozyconfig.MCPServerTransportHTTP,
+				URL:       "https://mcp.linear.app/mcp",
 				Auth: compozyconfig.MCPAuthConfig{
-					Type:             compozyconfig.MCPAuthTypeOAuth2PKCE,
-					AuthorizationURL: "https://linear.app/oauth/authorize",
-					TokenURL:         "https://api.linear.app/oauth/token",
-					ClientID:         "compozy-client",
+					Registration: compozyconfig.MCPAuthRegistrationPreRegistered,
+					IssuerURL:    "https://linear.app",
+					ClientID:     "compozy-client",
 				},
 			},
 			MCPSecrets: MCPSecretValues{OAuthClientSecret: &clientSecret},
@@ -2474,13 +2483,12 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 			Name:              "linear",
 			Target:            TargetAuto,
 			MCPServer: &compozyconfig.MCPServer{
-				Transport: compozyconfig.MCPServerTransportSSE,
-				URL:       "https://mcp.linear.app/sse-v2",
+				Transport: compozyconfig.MCPServerTransportHTTP,
+				URL:       "https://mcp.linear.app/mcp-v2",
 				Auth: compozyconfig.MCPAuthConfig{
-					Type:             compozyconfig.MCPAuthTypeOAuth2PKCE,
-					AuthorizationURL: "https://linear.app/oauth/authorize",
-					TokenURL:         "https://api.linear.app/oauth/token",
-					ClientID:         "compozy-client",
+					Registration: compozyconfig.MCPAuthRegistrationPreRegistered,
+					IssuerURL:    "https://linear.app",
+					ClientID:     "compozy-client",
 				},
 			},
 			MCPSecretPreservation: MCPSecretPreservation{OAuthClientSecret: true},
@@ -2492,7 +2500,7 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 			t.Fatalf("ListCollection(preserved MCP OAuth secret) error = %v", err)
 		}
 		item := findMCPItem(t, envelope.MCPServers, "linear")
-		if got, want := item.URL, "https://mcp.linear.app/sse-v2"; got != want {
+		if got, want := item.URL, "https://mcp.linear.app/mcp-v2"; got != want {
 			t.Fatalf("preserved MCP URL = %q, want %q", got, want)
 		}
 		if !item.ClientSecretConfigured || item.Auth.ClientSecretRef != "" {
@@ -2537,14 +2545,10 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 		service := testService(t, homePaths, Dependencies{ProviderSecrets: secretStore})
 		clientSecret := "full-oauth-client-secret"
 		wantAuth := compozyconfig.MCPAuthConfig{
-			Type:             compozyconfig.MCPAuthTypeOAuth2PKCE,
-			IssuerURL:        "https://auth.example.com",
-			MetadataURL:      "https://auth.example.com/.well-known/oauth-authorization-server",
-			AuthorizationURL: "https://auth.example.com/authorize",
-			TokenURL:         "https://auth.example.com/token",
-			RevocationURL:    "https://auth.example.com/revoke",
-			ClientID:         "compozy-client",
-			Scopes:           []string{"read", "write"},
+			Registration: compozyconfig.MCPAuthRegistrationPreRegistered,
+			IssuerURL:    "https://auth.example.com",
+			ClientID:     "compozy-client",
+			Scopes:       []string{"read", "write"},
 		}
 
 		result, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
@@ -2640,11 +2644,10 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 					"GITHUB_TOKEN": "vault:mcp/github/env/GITHUB_TOKEN",
 				},
 				Auth: compozyconfig.MCPAuthConfig{
-					Type:             compozyconfig.MCPAuthTypeOAuth2PKCE,
-					AuthorizationURL: "https://example.com/oauth/authorize",
-					TokenURL:         "https://example.com/oauth/token",
-					ClientID:         "compozy-client",
-					ClientSecretRef:  "vault:mcp/github/oauth/client-secret",
+					Registration:    compozyconfig.MCPAuthRegistrationPreRegistered,
+					IssuerURL:       "https://example.com",
+					ClientID:        "compozy-client",
+					ClientSecretRef: "vault:mcp/github/oauth/client-secret",
 				},
 			},
 			MCPSecrets: MCPSecretValues{
@@ -2721,9 +2724,9 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 					Transport: compozyconfig.MCPServerTransportHTTP,
 					URL:       "https://mcp.example.com",
 					Auth: compozyconfig.MCPAuthConfig{
-						Type:      compozyconfig.MCPAuthTypeOAuth2PKCE,
-						IssuerURL: "https://auth.example.com",
-						ClientID:  "compozy-client",
+						Registration: compozyconfig.MCPAuthRegistrationPreRegistered,
+						IssuerURL:    "https://auth.example.com",
+						ClientID:     "compozy-client",
 					},
 				},
 				secrets:       MCPSecretValues{OAuthClientSecret: &emptyOAuthSecret},
@@ -2800,8 +2803,8 @@ func TestInstallMCPCatalogAppliesLiveConfiguration(t *testing.T) {
 		_, err = service.InstallMCPCatalog(ctx, MCPCatalogInstallRequest{
 			EntryID: "github",
 			Scope:   ScopeGlobal,
-			Values: MCPCatalogInstallValues{Env: map[string]MCPSecretInput{
-				"GITHUB_TOKEN": {Value: "ghp-secret"},
+			Values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
+				"github_token": {Value: "ghp-secret"},
 			}},
 		})
 		if err != nil {
@@ -2868,8 +2871,8 @@ func TestInstallMCPCatalogSerializesConcurrentMutations(t *testing.T) {
 					EntryID: "github",
 					Name:    name,
 					Scope:   ScopeGlobal,
-					Values: MCPCatalogInstallValues{Env: map[string]MCPSecretInput{
-						"GITHUB_TOKEN": {Value: "secret-" + name},
+					Values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
+						"github_token": {Value: "secret-" + name},
 					}},
 				})
 				if err != nil {
@@ -2943,8 +2946,8 @@ func TestInstallMCPCatalogEnforcesBornValidVaultSemantics(t *testing.T) {
 		result, err := service.InstallMCPCatalog(ctx, MCPCatalogInstallRequest{
 			EntryID: "github",
 			Scope:   ScopeGlobal,
-			Values: MCPCatalogInstallValues{Env: map[string]MCPSecretInput{
-				"GITHUB_TOKEN": {Value: "ghp-secret"},
+			Values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
+				"github_token": {Value: "ghp-secret"},
 			}},
 		})
 		if err != nil {
@@ -3010,8 +3013,8 @@ func TestInstallMCPCatalogEnforcesBornValidVaultSemantics(t *testing.T) {
 		result, err := service.InstallMCPCatalog(t.Context(), MCPCatalogInstallRequest{
 			EntryID: "github",
 			Scope:   ScopeGlobal,
-			Values: MCPCatalogInstallValues{Env: map[string]MCPSecretInput{
-				"GITHUB_TOKEN": {Value: "ghp-secret"},
+			Values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
+				"github_token": {Value: "ghp-secret"},
 			}},
 		})
 		if err != nil {
@@ -3042,8 +3045,8 @@ func TestInstallMCPCatalogEnforcesBornValidVaultSemantics(t *testing.T) {
 			EntryID: "plain-env",
 			Name:    "team/server",
 			Scope:   ScopeGlobal,
-			Values: MCPCatalogInstallValues{Env: map[string]MCPSecretInput{
-				"PROJECT": {Value: "compozy"},
+			Values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
+				"project": {Value: "compozy"},
 			}},
 		})
 		if err == nil || !strings.Contains(err.Error(), "server name cannot contain a slash") {
@@ -3067,8 +3070,8 @@ func TestInstallMCPCatalogEnforcesBornValidVaultSemantics(t *testing.T) {
 		result, err := service.InstallMCPCatalog(ctx, MCPCatalogInstallRequest{
 			EntryID: "plain-env",
 			Scope:   ScopeGlobal,
-			Values: MCPCatalogInstallValues{Env: map[string]MCPSecretInput{
-				"PROJECT": {Value: "compozy"},
+			Values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
+				"project": {Value: "compozy"},
 			}},
 		})
 		if err != nil {
@@ -3084,55 +3087,127 @@ func TestInstallMCPCatalogEnforcesBornValidVaultSemantics(t *testing.T) {
 		}
 	})
 
-	t.Run("Should accept a present shared ref and retain it on uninstall", func(t *testing.T) {
+	t.Run("Should retain an explicit shared ref after workspace uninstall", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := context.Background()
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+		workspaceID := "workspace-shared-ref"
+		workspaceRoot := filepath.Join(t.TempDir(), "workspace")
 		secretStore := newFakeProviderSecretStore()
 		sharedRef := "vault:mcp/shared/github-token"
-		if _, err := secretStore.PutSecret(ctx, sharedRef, "shared", "shared-secret"); err != nil {
+		if _, err := secretStore.PutSecret(ctx, sharedRef, "mcp", "shared-secret"); err != nil {
 			t.Fatalf("PutSecret(shared) error = %v", err)
 		}
 		service := testService(t, homePaths, Dependencies{
 			MCPCatalog:      fakeMCPCatalog{entry: stdioMCPCatalogEntry()},
 			ProviderSecrets: secretStore,
+			WorkspaceResolver: fakeWorkspaceResolver{resolved: map[string]workspacepkg.ResolvedWorkspace{
+				workspaceID: {Workspace: workspacepkg.Workspace{ID: workspaceID, RootDir: workspaceRoot}},
+			}},
 		})
 
 		result, err := service.InstallMCPCatalog(ctx, MCPCatalogInstallRequest{
-			EntryID: "github",
-			Scope:   ScopeGlobal,
-			Values: MCPCatalogInstallValues{Env: map[string]MCPSecretInput{
-				"GITHUB_TOKEN": {VaultRef: sharedRef},
+			EntryID:     "github",
+			Scope:       ScopeWorkspace,
+			WorkspaceID: workspaceID,
+			Values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
+				"github_token": {VaultRef: sharedRef},
 			}},
 		})
 		if err != nil {
 			t.Fatalf("InstallMCPCatalog(shared ref) error = %v", err)
 		}
 		assertMCPSecretKeys(t, result.Item, "GITHUB_TOKEN")
+		if result.Item.Scope != ScopeWorkspace || result.Item.WorkspaceID != workspaceID {
+			t.Fatalf("InstallMCPCatalog(shared ref) item = %#v, want workspace scope", result.Item)
+		}
+		responsePayload, err := json.Marshal(result)
+		if err != nil {
+			t.Fatalf("json.Marshal(install result) error = %v", err)
+		}
+		if strings.Contains(string(responsePayload), "shared-secret") ||
+			strings.Contains(string(responsePayload), sharedRef) {
+			t.Fatalf("install result leaked shared secret material or binding: %s", responsePayload)
+		}
+		sidecar := readFile(t, filepath.Join(workspaceRoot, compozyconfig.DirName, compozyconfig.MCPJSONName))
+		if !strings.Contains(sidecar, sharedRef) || strings.Contains(sidecar, "shared-secret") {
+			t.Fatalf("workspace sidecar did not retain only the shared binding:\n%s", sidecar)
+		}
 		if _, err := service.DeleteCollectionItem(ctx, CollectionItemDeleteRequest{
-			CollectionRequest: CollectionRequest{Collection: CollectionMCPServers},
-			Name:              result.Item.Name,
+			CollectionRequest: CollectionRequest{
+				Collection:  CollectionMCPServers,
+				Scope:       ScopeWorkspace,
+				WorkspaceID: workspaceID,
+			},
+			Name: result.Item.Name,
 		}); err != nil {
 			t.Fatalf("DeleteCollectionItem(installed MCP) error = %v", err)
 		}
 		metadata, err := secretStore.GetMetadata(ctx, sharedRef)
 		if err != nil || !metadata.Present {
-			t.Fatalf("shared ref after uninstall = %#v, %v; want retained", metadata, err)
+			t.Fatalf("GetMetadata(shared ref after uninstall) = %#v, %v; want retained", metadata, err)
 		}
 	})
 
-	t.Run("Should garbage collect a superseded install-owned ref", func(t *testing.T) {
+	t.Run("Should reject a Vault ref owned by another workspace", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+		workspaceID := "workspace-a"
+		workspaceRoot := filepath.Join(t.TempDir(), "workspace-a")
+		otherPrefix, err := vault.MCPSecretOwnerPrefix(
+			vault.MCPWorkspaceScope,
+			"workspace-b",
+			"GitHub",
+		)
+		if err != nil {
+			t.Fatalf("MCPSecretOwnerPrefix(workspace-b) error = %v", err)
+		}
+		otherRef := otherPrefix + "env/GITHUB_TOKEN"
+		secretStore := newFakeProviderSecretStore()
+		if _, err := secretStore.PutSecret(ctx, otherRef, "mcp", "workspace-b-secret"); err != nil {
+			t.Fatalf("PutSecret(workspace-b) error = %v", err)
+		}
+		service := testService(t, homePaths, Dependencies{
+			MCPCatalog:      fakeMCPCatalog{entry: stdioMCPCatalogEntry()},
+			ProviderSecrets: secretStore,
+			WorkspaceResolver: fakeWorkspaceResolver{resolved: map[string]workspacepkg.ResolvedWorkspace{
+				workspaceID: {Workspace: workspacepkg.Workspace{ID: workspaceID, RootDir: workspaceRoot}},
+			}},
+		})
+
+		_, err = service.InstallMCPCatalog(ctx, MCPCatalogInstallRequest{
+			EntryID:     "github",
+			Scope:       ScopeWorkspace,
+			WorkspaceID: workspaceID,
+			Values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
+				"github_token": {VaultRef: otherRef},
+			}},
+		})
+		if !errors.Is(err, ErrValidation) || !strings.Contains(err.Error(), "must belong to the target server") {
+			t.Fatalf("InstallMCPCatalog(cross-workspace ref) error = %v, want owner rejection", err)
+		}
+		if _, statErr := os.Stat(
+			filepath.Join(workspaceRoot, compozyconfig.DirName, compozyconfig.MCPJSONName),
+		); !errors.Is(statErr, os.ErrNotExist) {
+			t.Fatalf("workspace sidecar exists after cross-workspace rejection: %v", statErr)
+		}
+	})
+
+	t.Run("Should retain an owned ref supplied explicitly as a vault_ref", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := context.Background()
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
 		secretStore := newFakeProviderSecretStore()
-		sharedRef := "vault:mcp/shared/github-token"
-		if _, err := secretStore.PutSecret(ctx, sharedRef, "shared", "shared-secret"); err != nil {
-			t.Fatalf("PutSecret(shared) error = %v", err)
+		ownedRef := "vault:mcp/global/GitHub/env/GITHUB_TOKEN"
+		if _, err := secretStore.PutSecret(ctx, ownedRef, "mcp", "owned-secret"); err != nil {
+			t.Fatalf("PutSecret(owned) error = %v", err)
 		}
 		service := testService(t, homePaths, Dependencies{
 			MCPCatalog:      fakeMCPCatalog{entry: stdioMCPCatalogEntry()},
@@ -3142,36 +3217,32 @@ func TestInstallMCPCatalogEnforcesBornValidVaultSemantics(t *testing.T) {
 		_, err := service.InstallMCPCatalog(ctx, MCPCatalogInstallRequest{
 			EntryID: "github",
 			Scope:   ScopeGlobal,
-			Values: MCPCatalogInstallValues{Env: map[string]MCPSecretInput{
-				"GITHUB_TOKEN": {Value: "owned-secret"},
+			Values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
+				"github_token": {Value: "owned-secret"},
 			}},
 		})
 		if err != nil {
 			t.Fatalf("InstallMCPCatalog(owned ref) error = %v", err)
 		}
-		ownedRef := "vault:mcp/global/GitHub/env/GITHUB_TOKEN"
 
 		replacement, err := service.InstallMCPCatalog(ctx, MCPCatalogInstallRequest{
 			EntryID: "github",
 			Scope:   ScopeGlobal,
-			Values: MCPCatalogInstallValues{Env: map[string]MCPSecretInput{
-				"GITHUB_TOKEN": {VaultRef: sharedRef},
+			Values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
+				"github_token": {VaultRef: ownedRef},
 			}},
 		})
 		if err != nil {
 			t.Fatalf("InstallMCPCatalog(shared replacement) error = %v", err)
 		}
 		assertMCPSecretKeys(t, replacement.Item, "GITHUB_TOKEN")
-		if _, err := secretStore.GetMetadata(ctx, ownedRef); !errors.Is(err, vault.ErrSecretNotFound) {
-			t.Fatalf("GetMetadata(superseded owned ref) error = %v, want ErrSecretNotFound", err)
-		}
-		metadata, err := secretStore.GetMetadata(ctx, sharedRef)
+		metadata, err := secretStore.GetMetadata(ctx, ownedRef)
 		if err != nil || !metadata.Present {
-			t.Fatalf("shared replacement ref = %#v, %v; want retained", metadata, err)
+			t.Fatalf("owner replacement ref = %#v, %v; want retained", metadata, err)
 		}
 	})
 
-	t.Run("Should restore the previous binding when superseded secret cleanup fails", func(t *testing.T) {
+	t.Run("Should retain the exact owner binding across catalog reinstalls", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := context.Background()
@@ -3179,9 +3250,9 @@ func TestInstallMCPCatalogEnforcesBornValidVaultSemantics(t *testing.T) {
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
 		secretStore := newFakeProviderSecretStore()
 		runtime := &recordingMCPAuthRuntime{}
-		sharedRef := "vault:mcp/shared/github-token"
-		if _, err := secretStore.PutSecret(ctx, sharedRef, "shared", "shared-secret"); err != nil {
-			t.Fatalf("PutSecret(shared) error = %v", err)
+		ownedRef := "vault:mcp/global/GitHub/env/GITHUB_TOKEN"
+		if _, err := secretStore.PutSecret(ctx, ownedRef, "mcp", "owned-secret"); err != nil {
+			t.Fatalf("PutSecret(owned) error = %v", err)
 		}
 		service := testService(t, homePaths, Dependencies{
 			MCPCatalog:      fakeMCPCatalog{entry: stdioMCPCatalogEntry()},
@@ -3192,31 +3263,28 @@ func TestInstallMCPCatalogEnforcesBornValidVaultSemantics(t *testing.T) {
 		initial, err := service.InstallMCPCatalog(ctx, MCPCatalogInstallRequest{
 			EntryID: "github",
 			Scope:   ScopeGlobal,
-			Values: MCPCatalogInstallValues{Env: map[string]MCPSecretInput{
-				"GITHUB_TOKEN": {Value: "owned-secret"},
+			Values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
+				"github_token": {Value: "owned-secret"},
 			}},
 		})
 		if err != nil {
 			t.Fatalf("InstallMCPCatalog(owned ref) error = %v", err)
 		}
-		ownedRef := "vault:mcp/global/GitHub/env/GITHUB_TOKEN"
-		invalidationBaseline := len(runtime.invalidated)
-		deleteFailure := errors.New("forced superseded secret deletion failure")
-		secretStore.deleteErrors[ownedRef] = deleteFailure
+		lifecycleBaseline := len(runtime.operations)
 
 		_, err = service.InstallMCPCatalog(ctx, MCPCatalogInstallRequest{
 			EntryID: "github",
 			Scope:   ScopeGlobal,
-			Values: MCPCatalogInstallValues{Env: map[string]MCPSecretInput{
-				"GITHUB_TOKEN": {VaultRef: sharedRef},
+			Values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
+				"github_token": {VaultRef: ownedRef},
 			}},
 		})
-		if !errors.Is(err, deleteFailure) {
-			t.Fatalf("InstallMCPCatalog(failed replacement cleanup) error = %v, want deletion failure", err)
+		if err != nil {
+			t.Fatalf("InstallMCPCatalog(owner ref replacement) error = %v", err)
 		}
-		if got, want := len(runtime.invalidated), invalidationBaseline+3; got != want {
+		if got, want := len(runtime.operations), lifecycleBaseline+2; got != want {
 			t.Fatalf(
-				"auth invalidation calls after cleanup rollback = %d, want %d (pre, post, restored)",
+				"auth lifecycle calls after owner ref replacement = %d, want %d (pre, delete state)",
 				got,
 				want,
 			)
@@ -3228,16 +3296,12 @@ func TestInstallMCPCatalogEnforcesBornValidVaultSemantics(t *testing.T) {
 		item := findMCPItem(t, envelope.MCPServers, initial.Item.Name)
 		assertMCPSecretKeys(t, item, "GITHUB_TOKEN")
 		sidecar := readFile(t, filepath.Join(homePaths.HomeDir, compozyconfig.MCPJSONName))
-		if !strings.Contains(sidecar, ownedRef) || strings.Contains(sidecar, sharedRef) {
-			t.Fatalf("restored sidecar binding is incorrect:\n%s", sidecar)
+		if !strings.Contains(sidecar, ownedRef) {
+			t.Fatalf("owner sidecar binding is incorrect:\n%s", sidecar)
 		}
 		metadata, err := secretStore.GetMetadata(ctx, ownedRef)
 		if err != nil || !metadata.Present {
 			t.Fatalf("restored owned ref = %#v, %v; want retained", metadata, err)
-		}
-		metadata, err = secretStore.GetMetadata(ctx, sharedRef)
-		if err != nil || !metadata.Present {
-			t.Fatalf("shared ref after failed replacement = %#v, %v; want retained", metadata, err)
 		}
 	})
 
@@ -3255,8 +3319,8 @@ func TestInstallMCPCatalogEnforcesBornValidVaultSemantics(t *testing.T) {
 		result, err := service.InstallMCPCatalog(ctx, MCPCatalogInstallRequest{
 			EntryID: "github",
 			Scope:   ScopeGlobal,
-			Values: MCPCatalogInstallValues{Env: map[string]MCPSecretInput{
-				"GITHUB_TOKEN": {Value: "owned-secret"},
+			Values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
+				"github_token": {Value: "owned-secret"},
 			}},
 		})
 		if err != nil {
@@ -3343,8 +3407,8 @@ func TestInstallMCPCatalogEnforcesBornValidVaultSemantics(t *testing.T) {
 				result, err := service.InstallMCPCatalog(ctx, MCPCatalogInstallRequest{
 					EntryID: "github",
 					Scope:   ScopeGlobal,
-					Values: MCPCatalogInstallValues{Env: map[string]MCPSecretInput{
-						"GITHUB_TOKEN": {Value: "owned-secret"},
+					Values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
+						"github_token": {Value: "owned-secret"},
 					}},
 				})
 				if err != nil {
@@ -3392,19 +3456,14 @@ func TestInstallMCPCatalogEnforcesBornValidVaultSemantics(t *testing.T) {
 		ctx := context.Background()
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
-		secretStore := newFakeProviderSecretStore()
 		service := testService(t, homePaths, Dependencies{
-			MCPCatalog:      fakeMCPCatalog{entry: oauthMCPCatalogEntry()},
-			MCPRuntime:      panicMCPRuntimeProvider{},
-			ProviderSecrets: secretStore,
+			MCPCatalog: fakeMCPCatalog{entry: oauthMCPCatalogEntry()},
+			MCPRuntime: panicMCPRuntimeProvider{},
 		})
 
 		result, err := service.InstallMCPCatalog(ctx, MCPCatalogInstallRequest{
 			EntryID: "linear",
 			Scope:   ScopeGlobal,
-			Values: MCPCatalogInstallValues{
-				OAuthClientSecret: &MCPSecretInput{Value: "oauth-client-secret"},
-			},
 		})
 		if err != nil {
 			t.Fatalf("InstallMCPCatalog(OAuth) error = %v", err)
@@ -3415,20 +3474,12 @@ func TestInstallMCPCatalogEnforcesBornValidVaultSemantics(t *testing.T) {
 		if result.Item.RuntimeStatus != nil {
 			t.Fatalf("RuntimeStatus = %#v, want no live probe result", result.Item.RuntimeStatus)
 		}
-		canonicalRef := "vault:mcp/global/linear/oauth/client-secret"
-		if !result.Item.ClientSecretConfigured || result.Item.Auth.ClientSecretRef != "" {
+		if result.Item.Auth.Registration != compozyconfig.MCPAuthRegistrationAuto {
 			t.Fatalf(
-				"OAuth client secret presence = %t with ref %q, want true without ref",
-				result.Item.ClientSecretConfigured,
-				result.Item.Auth.ClientSecretRef,
+				"OAuth registration = %q, want %q",
+				result.Item.Auth.Registration,
+				compozyconfig.MCPAuthRegistrationAuto,
 			)
-		}
-		if got := secretStore.plaintext[canonicalRef]; got != "oauth-client-secret" {
-			t.Fatalf("stored OAuth client secret = %q, want typed value", got)
-		}
-		sidecar := readFile(t, filepath.Join(homePaths.HomeDir, compozyconfig.MCPJSONName))
-		if !strings.Contains(sidecar, canonicalRef) {
-			t.Fatalf("OAuth sidecar missing configured client secret ref:\n%s", sidecar)
 		}
 	})
 }
@@ -3437,6 +3488,18 @@ func TestInstallMCPCatalogRejectsInvalidInputsBeforeWrites(t *testing.T) {
 	t.Parallel()
 	invalidProjection := stdioMCPCatalogEntry()
 	invalidProjection.Payload = json.RawMessage(`{`)
+	urlQueryOnStdio := plainEnvMCPCatalogEntry()
+	urlQueryOnStdio.Payload = json.RawMessage(`{
+		"launch":{"type":"npm","package":"plain-env-server","version":"1.0.0"},
+		"inputs":[{"id":"project","prompt":"Project","type":"identifier","required":true,"binding":{"type":"url_query","name":"project"}}],
+		"default_scope":"global"
+	}`)
+	secretQueryInput := stdioMCPCatalogEntry()
+	secretQueryInput.Payload = json.RawMessage(`{
+		"launch":{"type":"npm","package":"@modelcontextprotocol/server-github","version":"1.0.0"},
+		"inputs":[{"id":"github_token","prompt":"GitHub token","type":"secret","required":true,"binding":{"type":"url_query","name":"token"}}],
+		"default_scope":"global"
+	}`)
 	nonMCPProjection := &marketplace.Entry{
 		Kind:    marketplace.KindSkill,
 		EntryID: "github",
@@ -3463,7 +3526,7 @@ func TestInstallMCPCatalogRejectsInvalidInputsBeforeWrites(t *testing.T) {
 			entryID:    "github",
 			scope:      ScopeGlobal,
 			wantErr:    ErrValidation,
-			wantDetail: "values.env.GITHUB_TOKEN is required",
+			wantDetail: "values.inputs.github_token is required",
 		},
 		{
 			name:       "Should reject a missing required plain value",
@@ -3471,15 +3534,15 @@ func TestInstallMCPCatalogRejectsInvalidInputsBeforeWrites(t *testing.T) {
 			entryID:    "plain-env",
 			scope:      ScopeGlobal,
 			wantErr:    ErrValidation,
-			wantDetail: "values.env.PROJECT is required",
+			wantDetail: "values.inputs.project is required",
 		},
 		{
 			name:    "Should reject both value modes",
 			catalog: fakeMCPCatalog{entry: stdioMCPCatalogEntry()},
 			entryID: "github",
 			scope:   ScopeGlobal,
-			values: MCPCatalogInstallValues{Env: map[string]MCPSecretInput{
-				"GITHUB_TOKEN": {Value: "secret", VaultRef: "vault:mcp/shared/token"},
+			values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
+				"github_token": {Value: "secret", VaultRef: "vault:mcp/shared/token"},
 			}},
 			wantErr:    ErrValidation,
 			wantDetail: "exactly one of value or vault_ref",
@@ -3489,8 +3552,8 @@ func TestInstallMCPCatalogRejectsInvalidInputsBeforeWrites(t *testing.T) {
 			catalog: fakeMCPCatalog{entry: stdioMCPCatalogEntry()},
 			entryID: "github",
 			scope:   ScopeGlobal,
-			values: MCPCatalogInstallValues{Env: map[string]MCPSecretInput{
-				"GITHUB_TOKEN": {},
+			values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
+				"github_token": {},
 			}},
 			wantErr:    ErrValidation,
 			wantDetail: "exactly one of value or vault_ref",
@@ -3500,8 +3563,8 @@ func TestInstallMCPCatalogRejectsInvalidInputsBeforeWrites(t *testing.T) {
 			catalog: fakeMCPCatalog{entry: stdioMCPCatalogEntry()},
 			entryID: "github",
 			scope:   ScopeGlobal,
-			values: MCPCatalogInstallValues{Env: map[string]MCPSecretInput{
-				"GITHUB_TOKEN": {VaultRef: "vault:providers/github/token"},
+			values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
+				"github_token": {VaultRef: "vault:providers/github/token"},
 			}},
 			wantErr:    ErrValidation,
 			wantDetail: "must use vault:mcp/**",
@@ -3511,8 +3574,8 @@ func TestInstallMCPCatalogRejectsInvalidInputsBeforeWrites(t *testing.T) {
 			catalog: fakeMCPCatalog{entry: stdioMCPCatalogEntry()},
 			entryID: "github",
 			scope:   ScopeGlobal,
-			values: MCPCatalogInstallValues{Env: map[string]MCPSecretInput{
-				"GITHUB_TOKEN": {VaultRef: "vault:mcp/shared/missing"},
+			values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
+				"github_token": {VaultRef: "vault:mcp/shared/missing"},
 			}},
 			wantErr:    ErrValidation,
 			wantDetail: "vault_ref is not present",
@@ -3547,13 +3610,6 @@ func TestInstallMCPCatalogRejectsInvalidInputsBeforeWrites(t *testing.T) {
 			scope:      ScopeGlobal,
 			wantErr:    ErrValidation,
 			wantDetail: "entry_id is required",
-		},
-		{
-			name:       "Should require an explicit scope",
-			catalog:    fakeMCPCatalog{entry: stdioMCPCatalogEntry()},
-			entryID:    "github",
-			wantErr:    ErrValidation,
-			wantDetail: "scope is required",
 		},
 		{
 			name:       "Should require a workspace ID for workspace scope",
@@ -3616,8 +3672,8 @@ func TestInstallMCPCatalogRejectsInvalidInputsBeforeWrites(t *testing.T) {
 			catalog: fakeMCPCatalog{entry: stdioMCPCatalogEntry()},
 			entryID: "github",
 			scope:   ScopeGlobal,
-			values: MCPCatalogInstallValues{Env: map[string]MCPSecretInput{
-				"GITHUB_TOKEN": {Value: "secret"},
+			values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
+				"github_token": {Value: "secret"},
 				"UNKNOWN":      {Value: "value"},
 			}},
 			wantErr:    ErrValidation,
@@ -3628,45 +3684,33 @@ func TestInstallMCPCatalogRejectsInvalidInputsBeforeWrites(t *testing.T) {
 			catalog: fakeMCPCatalog{entry: plainEnvMCPCatalogEntry()},
 			entryID: "plain-env",
 			scope:   ScopeGlobal,
-			values: MCPCatalogInstallValues{Env: map[string]MCPSecretInput{
-				"PROJECT": {VaultRef: "vault:mcp/shared/project"},
+			values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
+				"project": {VaultRef: "vault:mcp/shared/project"},
 			}},
 			wantErr:    ErrValidation,
-			wantDetail: "must use value for a non-secret field",
+			wantDetail: "must use value for a non-secret input",
 		},
 		{
-			name:    "Should reject an OAuth secret for a non-OAuth entry",
-			catalog: fakeMCPCatalog{entry: stdioMCPCatalogEntry()},
+			name:    "Should reject a URL query input on a stdio launch",
+			catalog: fakeMCPCatalog{entry: urlQueryOnStdio},
+			entryID: "plain-env",
+			scope:   ScopeGlobal,
+			values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
+				"project": {Value: "compozy"},
+			}},
+			wantErr:    ErrValidation,
+			wantDetail: "uses a url_query binding on a non-remote launch",
+		},
+		{
+			name:    "Should reject a secret input with a non-env binding",
+			catalog: fakeMCPCatalog{entry: secretQueryInput},
 			entryID: "github",
 			scope:   ScopeGlobal,
-			values: MCPCatalogInstallValues{
-				Env:               map[string]MCPSecretInput{"GITHUB_TOKEN": {Value: "secret"}},
-				OAuthClientSecret: &MCPSecretInput{Value: "oauth-secret"},
-			},
-			wantErr:    ErrValidation,
-			wantDetail: "only valid for a catalog entry with OAuth",
-		},
-		{
-			name:    "Should reject ambiguous OAuth secret modes",
-			catalog: fakeMCPCatalog{entry: oauthMCPCatalogEntry()},
-			entryID: "linear",
-			scope:   ScopeGlobal,
-			values: MCPCatalogInstallValues{OAuthClientSecret: &MCPSecretInput{
-				Value: "secret", VaultRef: "vault:mcp/shared/oauth",
+			values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
+				"github_token": {Value: "secret"},
 			}},
 			wantErr:    ErrValidation,
-			wantDetail: "exactly one of value or vault_ref",
-		},
-		{
-			name:    "Should reject an OAuth ref outside the MCP namespace",
-			catalog: fakeMCPCatalog{entry: oauthMCPCatalogEntry()},
-			entryID: "linear",
-			scope:   ScopeGlobal,
-			values: MCPCatalogInstallValues{OAuthClientSecret: &MCPSecretInput{
-				VaultRef: "vault:providers/linear/client-secret",
-			}},
-			wantErr:    ErrValidation,
-			wantDetail: "must use vault:mcp/**",
+			wantDetail: "unsupported catalog secret input binding \"url_query\"",
 		},
 	}
 
@@ -3732,8 +3776,8 @@ func TestInstallMCPCatalogKeepsWorkspaceCanonicalRefsIsolated(t *testing.T) {
 				Name:        "github",
 				Scope:       ScopeWorkspace,
 				WorkspaceID: workspaceID,
-				Values: MCPCatalogInstallValues{Env: map[string]MCPSecretInput{
-					"GITHUB_TOKEN": {Value: "secret-for-" + workspaceID},
+				Values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
+					"github_token": {Value: "secret-for-" + workspaceID},
 				}},
 			})
 			if err != nil {
@@ -3831,8 +3875,8 @@ func TestInstallMCPCatalogCompensatesPartialFailures(t *testing.T) {
 			_, err := service.InstallMCPCatalog(ctx, MCPCatalogInstallRequest{
 				EntryID: "github",
 				Scope:   ScopeGlobal,
-				Values: MCPCatalogInstallValues{Env: map[string]MCPSecretInput{
-					"GITHUB_TOKEN": {Value: "orphan-candidate"},
+				Values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
+					"github_token": {Value: "orphan-candidate"},
 				}},
 			})
 			if err == nil {
@@ -3884,8 +3928,8 @@ func TestInstallMCPCatalogCompensatesPartialFailures(t *testing.T) {
 		_, err := service.InstallMCPCatalog(ctx, MCPCatalogInstallRequest{
 			EntryID: "github",
 			Scope:   ScopeGlobal,
-			Values: MCPCatalogInstallValues{Env: map[string]MCPSecretInput{
-				"GITHUB_TOKEN": {Value: "replacement-secret"},
+			Values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
+				"github_token": {Value: "replacement-secret"},
 			}},
 		})
 		if err == nil {
@@ -3924,9 +3968,9 @@ func TestInstallMCPCatalogCompensatesPartialFailures(t *testing.T) {
 		_, err := service.InstallMCPCatalog(ctx, MCPCatalogInstallRequest{
 			EntryID: "multi-secret",
 			Scope:   ScopeGlobal,
-			Values: MCPCatalogInstallValues{Env: map[string]MCPSecretInput{
-				"TOKEN_A": {Value: "replacement-secret"},
-				"TOKEN_B": {Value: "second-secret"},
+			Values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
+				"token_a": {Value: "replacement-secret"},
+				"token_b": {Value: "second-secret"},
 			}},
 		})
 		if !errors.Is(err, storeFailure) {
@@ -3959,9 +4003,9 @@ func TestInstallMCPCatalogCompensatesPartialFailures(t *testing.T) {
 		_, err := service.InstallMCPCatalog(ctx, MCPCatalogInstallRequest{
 			EntryID: "multi-secret",
 			Scope:   ScopeGlobal,
-			Values: MCPCatalogInstallValues{Env: map[string]MCPSecretInput{
-				"TOKEN_A": {Value: "first-secret"},
-				"TOKEN_B": {Value: "second-secret"},
+			Values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
+				"token_a": {Value: "first-secret"},
+				"token_b": {Value: "second-secret"},
 			}},
 		})
 		if !errors.Is(err, metadataFailure) {
@@ -3994,9 +4038,9 @@ func TestInstallMCPCatalogCompensatesPartialFailures(t *testing.T) {
 		_, err := service.InstallMCPCatalog(ctx, MCPCatalogInstallRequest{
 			EntryID: "multi-secret",
 			Scope:   ScopeGlobal,
-			Values: MCPCatalogInstallValues{Env: map[string]MCPSecretInput{
-				"TOKEN_A": {Value: "first-secret"},
-				"TOKEN_B": {Value: "second-secret"},
+			Values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
+				"token_a": {Value: "first-secret"},
+				"token_b": {Value: "second-secret"},
 			}},
 		})
 		if !errors.Is(err, storeFailure) {
@@ -4822,10 +4866,8 @@ func stdioMCPCatalogEntry() *marketplace.Entry {
 		Name:    "GitHub",
 		Version: "1.2.3",
 		Payload: json.RawMessage(`{
-			"transport":"stdio",
-			"command":"npx",
-			"args":["-y","@modelcontextprotocol/server-github"],
-			"env":[{"name":"GITHUB_TOKEN","required":true,"secret":true}],
+			"launch":{"type":"npm","package":"@modelcontextprotocol/server-github","version":"1.0.0"},
+			"inputs":[{"id":"github_token","prompt":"GitHub token","type":"secret","required":true,"binding":{"type":"env","name":"GITHUB_TOKEN"}}],
 			"default_scope":"global"
 		}`),
 	}
@@ -4838,11 +4880,10 @@ func plainEnvMCPCatalogEntry() *marketplace.Entry {
 		Name:    "plain-env",
 		Version: "1.0.0",
 		Payload: json.RawMessage(`{
-			"transport":"stdio",
-			"command":"plain-env-server",
-			"env":[
-				{"name":"PROJECT","required":true,"secret":false},
-				{"name":"REGION","required":false,"secret":false,"default":"us-east-1"}
+			"launch":{"type":"npm","package":"plain-env-server","version":"1.0.0"},
+			"inputs":[
+				{"id":"project","prompt":"Project","type":"identifier","required":true,"binding":{"type":"env","name":"PROJECT"}},
+				{"id":"region","prompt":"Region","type":"string","required":false,"binding":{"type":"env","name":"REGION"},"default":"us-east-1"}
 			],
 			"default_scope":"global"
 		}`),
@@ -4856,11 +4897,10 @@ func multiSecretMCPCatalogEntry() *marketplace.Entry {
 		Name:    "MultiSecret",
 		Version: "1.0.0",
 		Payload: json.RawMessage(`{
-			"transport":"stdio",
-			"command":"multi-secret-server",
-			"env":[
-				{"name":"TOKEN_A","required":true,"secret":true},
-				{"name":"TOKEN_B","required":true,"secret":true}
+			"launch":{"type":"npm","package":"multi-secret-server","version":"1.0.0"},
+			"inputs":[
+				{"id":"token_a","prompt":"Token A","type":"secret","required":true,"binding":{"type":"env","name":"TOKEN_A"}},
+				{"id":"token_b","prompt":"Token B","type":"secret","required":true,"binding":{"type":"env","name":"TOKEN_B"}}
 			],
 			"default_scope":"global"
 		}`),
@@ -4874,14 +4914,8 @@ func oauthMCPCatalogEntry() *marketplace.Entry {
 		Name:    "linear",
 		Version: "2.0.0",
 		Payload: json.RawMessage(`{
-			"transport":"http",
-			"url":"https://mcp.linear.example/mcp",
-			"oauth":{
-				"authorization_url":"https://auth.linear.example/authorize",
-				"token_url":"https://auth.linear.example/token",
-				"client_id":"compozy-desktop",
-				"scopes":["read"]
-			},
+			"launch":{"type":"remote","url":"https://mcp.linear.example/mcp"},
+			"auth":{"method":"oauth","registration":"auto","scopes":["read"]},
 			"default_scope":"global"
 		}`),
 	}

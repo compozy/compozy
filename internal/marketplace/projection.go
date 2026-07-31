@@ -19,29 +19,40 @@ type EntryDetails struct {
 
 // MCPEntryDetails contains the feed-locked MCP install template.
 type MCPEntryDetails struct {
-	Transport    string
-	Command      string
-	Args         []string
-	URL          string
-	OAuth        *MCPOAuthDetails
-	Env          []MCPEnvFieldDetails
+	Launch       MCPLaunchDetails
+	Auth         *MCPAuthDetails
+	Inputs       []MCPInputDetails
 	DefaultScope string
 }
 
-type MCPOAuthDetails struct {
-	IssuerURL        string
-	AuthorizationURL string
-	TokenURL         string
-	ClientID         string
-	Scopes           []string
+type MCPLaunchDetails struct {
+	Type    string
+	Package string
+	Version string
+	Image   string
+	Digest  string
+	URL     string
+	Args    []string
 }
 
-type MCPEnvFieldDetails struct {
-	Name     string
+type MCPAuthDetails struct {
+	Method       string
+	Registration string
+	Scopes       []string
+}
+
+type MCPInputDetails struct {
+	ID       string
 	Prompt   string
+	Type     string
 	Required bool
-	Secret   bool
-	Default  string
+	Binding  MCPInputBindingDetails
+	Default  json.RawMessage
+}
+
+type MCPInputBindingDetails struct {
+	Type string
+	Name string
 }
 
 type ExtensionEntryDetails struct {
@@ -77,26 +88,27 @@ func projectMCPEntry(entry Entry) (EntryDetails, error) {
 		return EntryDetails{}, fmt.Errorf("marketplace: decode MCP entry %q: %w", entry.EntryID, err)
 	}
 	detail := &MCPEntryDetails{
-		Transport:    strings.TrimSpace(value.Transport),
-		Command:      strings.TrimSpace(value.Command),
-		Args:         append([]string(nil), value.Args...),
-		URL:          strings.TrimSpace(value.URL),
 		DefaultScope: strings.TrimSpace(value.DefaultScope),
-		Env:          make([]MCPEnvFieldDetails, 0, len(value.Env)),
+		Launch: MCPLaunchDetails{
+			Type: strings.TrimSpace(value.Launch.Type), Package: strings.TrimSpace(value.Launch.Package),
+			Version: strings.TrimSpace(value.Launch.Version), Image: strings.TrimSpace(value.Launch.Image),
+			Digest: strings.TrimSpace(value.Launch.Digest), URL: strings.TrimSpace(value.Launch.URL),
+			Args: append([]string(nil), value.Launch.Args...),
+		},
+		Inputs: make([]MCPInputDetails, 0, len(value.Inputs)),
 	}
-	for _, field := range value.Env {
-		detail.Env = append(detail.Env, MCPEnvFieldDetails{
-			Name: strings.TrimSpace(field.Name), Prompt: strings.TrimSpace(field.Prompt),
-			Required: field.Required, Secret: field.Secret, Default: field.Default,
+	for _, input := range value.Inputs {
+		detail.Inputs = append(detail.Inputs, MCPInputDetails{
+			ID: strings.TrimSpace(input.ID), Prompt: strings.TrimSpace(input.Prompt), Type: input.Type,
+			Required: input.Required,
+			Binding:  MCPInputBindingDetails{Type: input.Binding.Type, Name: strings.TrimSpace(input.Binding.Name)},
+			Default:  append(json.RawMessage(nil), input.Default...),
 		})
 	}
-	if value.OAuth != nil {
-		detail.OAuth = &MCPOAuthDetails{
-			IssuerURL:        strings.TrimSpace(value.OAuth.IssuerURL),
-			AuthorizationURL: strings.TrimSpace(value.OAuth.AuthorizationURL),
-			TokenURL:         strings.TrimSpace(value.OAuth.TokenURL),
-			ClientID:         strings.TrimSpace(value.OAuth.ClientID),
-			Scopes:           append([]string(nil), value.OAuth.Scopes...),
+	if value.Auth != nil {
+		detail.Auth = &MCPAuthDetails{
+			Method: strings.TrimSpace(value.Auth.Method), Registration: strings.TrimSpace(value.Auth.Registration),
+			Scopes: append([]string(nil), value.Auth.Scopes...),
 		}
 	}
 	return EntryDetails{Source: CatalogSource, MCP: detail}, nil

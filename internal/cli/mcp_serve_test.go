@@ -4,12 +4,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	compozydaemon "github.com/compozy/compozy/internal/daemon"
-	mcpgo "github.com/mark3labs/mcp-go/mcp"
+	"github.com/compozy/compozy/internal/testutil/mcpfixture"
 )
 
 func TestMCPServeCommand(t *testing.T) {
@@ -43,10 +45,8 @@ func TestMCPServeCommand(t *testing.T) {
 		cmd := newMCPServeCommand(deps)
 		stdin := strings.NewReader("input")
 		stdout := &bytes.Buffer{}
-		stderr := &bytes.Buffer{}
 		cmd.SetIn(stdin)
 		cmd.SetOut(stdout)
-		cmd.SetErr(stderr)
 		cmd.SetArgs([]string{
 			"--workspace", "alpha",
 			"--transport", "http",
@@ -60,7 +60,7 @@ func TestMCPServeCommand(t *testing.T) {
 			captured.Listen != "127.0.0.1:3131" || captured.TokenEnv != "CUSTOM_TOKEN" {
 			t.Fatalf("captured options = %#v, want command flags", captured)
 		}
-		if captured.Stdin != stdin || captured.Stdout != stdout || captured.Stderr != stderr {
+		if captured.Stdin != stdin || captured.Stdout != stdout {
 			t.Fatalf("captured streams = %#v, want command streams", captured)
 		}
 		if cmd.Flags().Lookup("token") != nil {
@@ -117,19 +117,42 @@ func TestMCPServeCommand(t *testing.T) {
 		deps.processAlive = func(int) bool { return true }
 		requests := strings.Join([]string{
 			`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"` +
-				mcpgo.LATEST_PROTOCOL_VERSION +
+				mcpfixture.LegacyProtocolVersion +
 				`","capabilities":{},"clientInfo":{"name":"cli-test","version":"1.0.0"}}}`,
 			`{"jsonrpc":"2.0","method":"notifications/initialized","params":{}}`,
 			`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"compozy_host__sessions__list","arguments":{}}}`,
 		}, "\n") + "\n"
 
-		err := runMCPServe(t.Context(), deps, mcpServeOptions{
-			Transport: mcpServeTransportStdio,
-			Stdin:     strings.NewReader(requests),
-			Stdout:    &bytes.Buffer{},
-			Stderr:    &bytes.Buffer{},
-		})
-		if err != nil {
+		stdin, stdinWriter := io.Pipe()
+		errCh := make(chan error, 1)
+		go func() {
+			errCh <- runMCPServe(t.Context(), deps, mcpServeOptions{
+				Transport: mcpServeTransportStdio,
+				Stdin:     stdin,
+				Stdout:    &bytes.Buffer{},
+			})
+		}()
+		if _, err := io.WriteString(stdinWriter, requests); err != nil {
+			t.Fatalf("write MCP requests error = %v", err)
+		}
+		deadline := time.NewTimer(time.Second)
+		defer deadline.Stop()
+		tick := time.NewTicker(5 * time.Millisecond)
+		defer tick.Stop()
+		for client.invokedWorkspace() == "" {
+			select {
+			case <-deadline.C:
+				if closeErr := stdinWriter.Close(); closeErr != nil {
+					t.Fatalf("stdin close after invocation timeout error = %v", closeErr)
+				}
+				t.Fatal("timed out waiting for the MCP tool invocation")
+			case <-tick.C:
+			}
+		}
+		if err := stdinWriter.Close(); err != nil {
+			t.Fatalf("stdin close error = %v", err)
+		}
+		if err := <-errCh; err != nil {
 			t.Fatalf("runMCPServe() error = %v", err)
 		}
 		workspaceRefMu.Lock()

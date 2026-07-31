@@ -116,6 +116,28 @@ func (g *WorkspaceRepo) DeleteWorkspace(ctx context.Context, id string) error {
 			return fmt.Errorf("store: delete MCP auth tokens for workspace %q: %w", trimmedID, err)
 		}
 
+		mcpRegistrationRefs, err := queries.ListMCPOAuthRegistrationRefsByWorkspace(ctx, trimmedID)
+		if err != nil {
+			return fmt.Errorf("store: list MCP OAuth registration refs for workspace %q: %w", trimmedID, err)
+		}
+		for _, refs := range mcpRegistrationRefs {
+			for _, ref := range []string{refs.ClientSecretRef, refs.RegistrationAccessTokenRef} {
+				if strings.TrimSpace(ref) == "" {
+					continue
+				}
+				if _, err := queries.DeleteVaultSecret(ctx, ref); err != nil {
+					return fmt.Errorf(
+						"store: delete MCP OAuth registration secret for workspace %q: %w",
+						trimmedID,
+						err,
+					)
+				}
+			}
+		}
+		if _, err := queries.DeleteMCPOAuthRegistrationsByWorkspace(ctx, trimmedID); err != nil {
+			return fmt.Errorf("store: delete MCP OAuth registrations for workspace %q: %w", trimmedID, err)
+		}
+
 		if err := queries.DeleteSessionsByWorkspace(ctx, trimmedID); err != nil {
 			return fmt.Errorf("store: delete stopped sessions for workspace %q: %w", trimmedID, err)
 		}

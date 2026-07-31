@@ -6,13 +6,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"strings"
 	"sync"
 
 	"github.com/compozy/compozy/internal/tools"
-	sdkmcp "github.com/mark3labs/mcp-go/mcp"
-	"github.com/mark3labs/mcp-go/server"
+	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 const (
@@ -20,6 +19,8 @@ const (
 	hostedProxyImageKey = "image"
 	hostedProxyTextKey  = "text"
 )
+
+var hostedServerToolNames sync.Map
 
 // HostedProjectionHandler receives projection snapshots from the daemon stream.
 type HostedProjectionHandler func(HostedProjectionResponse) error
@@ -88,11 +89,19 @@ func RunHostedProxy(ctx context.Context, client HostedProxyClient, opts HostedPr
 	defer func() {
 		releaseErr := client.ReleaseHostedMCP(context.Background(), HostedReleaseRequest{BindID: bind.BindID})
 		if releaseErr != nil {
-			log.New(stderr, "", 0).Printf("hosted MCP release failed: %v", releaseErr)
+			slog.New(slog.NewTextHandler(stderr, nil)).Error("hosted MCP release failed", "error", releaseErr)
 		}
 	}()
 
-	mcpServer := server.NewMCPServer(HostedServerName, version, server.WithToolCapabilities(true))
+	mcpServer := sdkmcp.NewServer(
+		&sdkmcp.Implementation{Name: HostedServerName, Version: version},
+		&sdkmcp.ServerOptions{
+			Capabilities: &sdkmcp.ServerCapabilities{Tools: &sdkmcp.ToolCapabilities{}},
+		},
+	)
+	defer hostedServerToolNames.Delete(mcpServer)
+	mcpServer.AddReceivingMiddleware(privateToolListCacheMiddleware())
+	mcpServer.AddReceivingMiddleware(hostedProviderProtocolVersionMiddleware())
 	applyHostedTools(mcpServer, client, bind.BindID, bind.Tools)
 
 	proxyCtx, cancel := context.WithCancel(ctx)
@@ -102,9 +111,15 @@ func RunHostedProxy(ctx context.Context, client HostedProxyClient, opts HostedPr
 		streamHostedProjection(proxyCtx, client, mcpServer, bind)
 	})
 
-	stdio := server.NewStdioServer(mcpServer)
-	stdio.SetErrorLogger(log.New(stderr, "", 0))
-	err = stdio.Listen(proxyCtx, stdin, stdout)
+	err = mcpServer.Run(
+		proxyCtx,
+		hostedProviderProtocolTransport{
+			Transport: &sdkmcp.IOTransport{
+				Reader: io.NopCloser(stdin),
+				Writer: nopWriteCloser{Writer: stdout},
+			},
+		},
+	)
 	cancel()
 	streamWG.Wait()
 	return err
@@ -113,7 +128,7 @@ func RunHostedProxy(ctx context.Context, client HostedProxyClient, opts HostedPr
 func streamHostedProjection(
 	ctx context.Context,
 	client HostedProxyClient,
-	mcpServer *server.MCPServer,
+	mcpServer *sdkmcp.Server,
 	initial HostedBindResponse,
 ) {
 	lastDigest := strings.TrimSpace(initial.Digest)
@@ -136,7 +151,7 @@ func streamHostedProjection(
 }
 
 func applyHostedTools(
-	mcpServer *server.MCPServer,
+	mcpServer *sdkmcp.Server,
 	client HostedProxyClient,
 	bindID string,
 	views []tools.ToolView,
@@ -144,45 +159,52 @@ func applyHostedTools(
 	if mcpServer == nil {
 		return
 	}
-	toolsForServer := make([]server.ServerTool, 0, len(views))
+	previous := hostedToolNames(mcpServer)
+	mcpServer.RemoveTools(previous...)
 	for i := range views {
 		view := views[i]
 		readOnly := view.Descriptor.ReadOnly
 		destructive := view.Descriptor.Destructive
 		openWorld := view.Descriptor.OpenWorld
 		tool := sdkmcp.Tool{
-			Name:            view.Descriptor.ID.String(),
-			Title:           view.Descriptor.DisplayTitle,
-			Description:     hostedToolDescription(view.Descriptor),
-			RawInputSchema:  cloneRaw(view.Descriptor.InputSchema),
-			RawOutputSchema: cloneRaw(view.Descriptor.OutputSchema),
-			Annotations: sdkmcp.ToolAnnotation{
+			Name:         view.Descriptor.ID.String(),
+			Title:        view.Descriptor.DisplayTitle,
+			Description:  hostedToolDescription(view.Descriptor),
+			InputSchema:  cloneRaw(view.Descriptor.InputSchema),
+			OutputSchema: cloneRaw(view.Descriptor.OutputSchema),
+			Annotations: &sdkmcp.ToolAnnotations{
 				Title:           view.Descriptor.DisplayTitle,
-				ReadOnlyHint:    &readOnly,
+				ReadOnlyHint:    readOnly,
 				DestructiveHint: &destructive,
 				OpenWorldHint:   &openWorld,
 			},
 			Meta: hostedToolMeta(view.Descriptor),
 		}
-		toolsForServer = append(toolsForServer, server.ServerTool{
-			Tool: tool,
-			Handler: func(ctx context.Context, req sdkmcp.CallToolRequest) (*sdkmcp.CallToolResult, error) {
+		mcpServer.AddTool(
+			&tool,
+			func(
+				ctx context.Context,
+				req *sdkmcp.CallToolRequest,
+			) (*sdkmcp.CallToolResult, error) {
 				return callHostedTool(ctx, client, bindID, req)
 			},
-		})
+		)
 	}
-	mcpServer.SetTools(toolsForServer...)
+	setHostedToolNames(mcpServer, views)
 }
 
 func callHostedTool(
 	ctx context.Context,
 	client HostedProxyClient,
 	bindID string,
-	req sdkmcp.CallToolRequest,
+	req *sdkmcp.CallToolRequest,
 ) (*sdkmcp.CallToolResult, error) {
-	rawInput, err := rawArguments(req.GetRawArguments())
+	rawInput, err := rawArguments(req.Params.Arguments)
 	if err != nil {
-		return sdkmcp.NewToolResultError(err.Error()), nil
+		return &sdkmcp.CallToolResult{
+			Content: []sdkmcp.Content{&sdkmcp.TextContent{Text: err.Error()}},
+			IsError: true,
+		}, nil
 	}
 	response, err := client.CallHostedMCP(ctx, HostedCallRequest{
 		BindID:     bindID,
@@ -193,11 +215,21 @@ func callHostedTool(
 	if err != nil {
 		if partial, ok, partialErr := hostedToolPartialErrorResult(err); ok {
 			if partialErr != nil {
-				return sdkmcp.NewToolResultError(hostedToolErrorMessage(partialErr)), nil
+				return &sdkmcp.CallToolResult{
+					Content: []sdkmcp.Content{
+						&sdkmcp.TextContent{Text: hostedToolErrorMessage(partialErr)},
+					},
+					IsError: true,
+				}, nil
 			}
 			return partial, nil
 		}
-		return sdkmcp.NewToolResultError(hostedToolErrorMessage(err)), nil
+		return &sdkmcp.CallToolResult{
+			Content: []sdkmcp.Content{
+				&sdkmcp.TextContent{Text: hostedToolErrorMessage(err)},
+			},
+			IsError: true,
+		}, nil
 	}
 	return hostedToolResult(response.Result)
 }
@@ -230,7 +262,7 @@ func hostedToolDescription(descriptor tools.Descriptor) string {
 	return strings.Join(sections, "\n\n")
 }
 
-func hostedToolMeta(descriptor tools.Descriptor) *sdkmcp.Meta {
+func hostedToolMeta(descriptor tools.Descriptor) sdkmcp.Meta {
 	fields := map[string]any{
 		"anthropic/searchHint": hostedSearchHint(descriptor),
 	}
@@ -238,7 +270,7 @@ func hostedToolMeta(descriptor tools.Descriptor) *sdkmcp.Meta {
 	case tools.ToolIDToolList, tools.ToolIDToolSearch, tools.ToolIDToolInfo:
 		fields["anthropic/alwaysLoad"] = true
 	}
-	return sdkmcp.NewMetaFromMap(fields)
+	return fields
 }
 
 func hostedSearchHint(descriptor tools.Descriptor) string {
@@ -303,11 +335,11 @@ func rawArguments(args any) (json.RawMessage, error) {
 	return json.RawMessage(payload), nil
 }
 
-func hostedToolCallID(req sdkmcp.CallToolRequest) string {
-	if req.Params.Meta == nil {
+func hostedToolCallID(req *sdkmcp.CallToolRequest) string {
+	if req == nil || req.Params == nil || req.Params.Meta == nil {
 		return ""
 	}
-	if value, ok := req.Params.Meta.AdditionalFields["toolCallId"]; ok {
+	if value, ok := req.Params.Meta["toolCallId"]; ok {
 		if text, ok := value.(string); ok {
 			return strings.TrimSpace(text)
 		}
@@ -315,161 +347,25 @@ func hostedToolCallID(req sdkmcp.CallToolRequest) string {
 	return ""
 }
 
-func hostedToolResult(result tools.ToolResult) (*sdkmcp.CallToolResult, error) {
-	isError, err := hostedToolResultIsError(result)
-	if err != nil {
-		return nil, err
+func hostedToolNames(server *sdkmcp.Server) []string {
+	if server == nil {
+		return nil
 	}
-	if len(result.Structured) > 0 {
-		var structured any
-		if err := json.Unmarshal(result.Structured, &structured); err == nil {
-			converted := sdkmcp.NewToolResultStructured(structured, hostedResultFallback(result))
-			return finishHostedToolResult(converted, result, isError)
-		}
+	value, ok := hostedServerToolNames.Load(server)
+	if !ok {
+		return nil
 	}
-	if len(result.Content) == 0 {
-		converted := sdkmcp.NewToolResultText(hostedResultFallback(result))
-		return finishHostedToolResult(converted, result, isError)
+	names, ok := value.([]string)
+	if !ok {
+		return nil
 	}
-	content := make([]sdkmcp.Content, 0, len(result.Content))
-	for _, block := range result.Content {
-		converted, err := hostedToolContent(block)
-		if err != nil {
-			return nil, err
-		}
-		if converted != nil {
-			content = append(content, converted)
-		}
-	}
-	if len(content) == 0 {
-		converted := sdkmcp.NewToolResultText(hostedResultFallback(result))
-		return finishHostedToolResult(converted, result, isError)
-	}
-	return finishHostedToolResult(&sdkmcp.CallToolResult{Content: content}, result, isError)
+	return append([]string(nil), names...)
 }
 
-func finishHostedToolResult(
-	converted *sdkmcp.CallToolResult,
-	result tools.ToolResult,
-	isError bool,
-) (*sdkmcp.CallToolResult, error) {
-	if converted == nil {
-		return nil, errors.New("mcp: hosted tool result is required")
+func setHostedToolNames(server *sdkmcp.Server, views []tools.ToolView) {
+	names := make([]string, 0, len(views))
+	for index := range views {
+		names = append(names, views[index].Descriptor.ID.String())
 	}
-	converted.IsError = isError
-	if len(result.Artifacts) == 0 {
-		return converted, nil
-	}
-	payload := struct {
-		Artifacts []tools.ArtifactRef `json:"artifacts"`
-		ReadTool  tools.ToolID        `json:"read_tool"`
-	}{
-		Artifacts: append([]tools.ArtifactRef(nil), result.Artifacts...),
-		ReadTool:  tools.ToolIDToolArtifactRead,
-	}
-	encoded, err := json.Marshal(payload)
-	if err != nil {
-		return nil, fmt.Errorf("mcp: encode hosted tool artifact references: %w", err)
-	}
-	converted.Content = append(converted.Content, sdkmcp.NewTextContent(string(encoded)))
-	converted.Meta = sdkmcp.NewMetaFromMap(map[string]any{
-		"compozy/artifacts": payload.Artifacts,
-		"compozy/readTool":  payload.ReadTool,
-	})
-	return converted, nil
-}
-
-type hostedPartialResultError interface {
-	error
-	PartialToolResult() *tools.ToolResult
-}
-
-func hostedToolPartialErrorResult(err error) (*sdkmcp.CallToolResult, bool, error) {
-	if err == nil {
-		return nil, false, nil
-	}
-	var partial *tools.ToolResult
-	if toolErr, ok := errors.AsType[*tools.ToolError](err); ok {
-		partial = toolErr.PartialResult
-	} else if carrier, ok := errors.AsType[hostedPartialResultError](err); ok {
-		partial = carrier.PartialToolResult()
-	}
-	if partial == nil {
-		return nil, false, nil
-	}
-	converted, convertErr := hostedToolResult(*partial)
-	if convertErr != nil {
-		return nil, true, convertErr
-	}
-	converted.IsError = true
-	converted.Content = append(converted.Content, sdkmcp.NewTextContent(hostedToolErrorMessage(err)))
-	return converted, true, nil
-}
-
-func hostedToolResultIsError(result tools.ToolResult) (bool, error) {
-	raw, ok := result.Metadata[toolResultIsErrorKey]
-	if !ok || len(raw) == 0 {
-		return false, nil
-	}
-	var isError bool
-	if err := json.Unmarshal(raw, &isError); err != nil {
-		return false, fmt.Errorf("mcp: decode hosted MCP error flag: %w", err)
-	}
-	return isError, nil
-}
-
-func hostedToolContent(block tools.ToolContent) (sdkmcp.Content, error) {
-	switch strings.TrimSpace(block.Type) {
-	case hostedProxyTextKey:
-		return sdkmcp.NewTextContent(block.Text), nil
-	case hostedProxyImageKey:
-		data, err := hostedToolContentData(block, hostedProxyImageKey)
-		if err != nil {
-			return nil, err
-		}
-		return sdkmcp.NewImageContent(data, block.MIMEType), nil
-	case hostedProxyAudioKey:
-		data, err := hostedToolContentData(block, hostedProxyAudioKey)
-		if err != nil {
-			return nil, err
-		}
-		return sdkmcp.NewAudioContent(data, block.MIMEType), nil
-	default:
-		if len(block.Data) > 0 {
-			return sdkmcp.NewTextContent(string(block.Data)), nil
-		}
-		if strings.TrimSpace(block.Text) != "" {
-			return sdkmcp.NewTextContent(block.Text), nil
-		}
-	}
-	return nil, nil
-}
-
-func hostedToolContentData(block tools.ToolContent, contentType string) (string, error) {
-	var data string
-	if err := json.Unmarshal(block.Data, &data); err != nil {
-		return "", fmt.Errorf("mcp: decode hosted MCP %s content: %w", contentType, err)
-	}
-	return data, nil
-}
-
-func hostedResultFallback(result tools.ToolResult) string {
-	if preview := strings.TrimSpace(result.Preview); preview != "" {
-		return preview
-	}
-	if len(result.Structured) > 0 {
-		return string(result.Structured)
-	}
-	if len(result.Content) > 0 {
-		parts := make([]string, 0, len(result.Content))
-		for _, block := range result.Content {
-			if text := strings.TrimSpace(block.Text); text != "" {
-				parts = append(parts, text)
-			}
-		}
-		if len(parts) > 0 {
-			return strings.Join(parts, "\n")
-		}
-	}
-	return "{}"
+	hostedServerToolNames.Store(server, names)
 }

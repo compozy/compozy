@@ -11,10 +11,16 @@ bug_ids: BUG-20260727-runtime-legacy-identity
 fix_status: fixed
 retest_status: pass
 fix_commits: e4df8634
-evidence: /Users/pedronauck/dev/qa-labs/compozy-compozy-migration-beta-20260727-135201-116083-lab/qa-artifacts/qa/gate-test-e2e-web-final-2.log; /Users/pedronauck/dev/qa-labs/compozy-compozy-migration-beta-20260727-135201-116083-lab/qa-artifacts/qa/gate-test-integration-rerun.log
-last_report: docs/qa/reports/2026-07-27-devtool-oss-launch.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-mcp-2026-catalog-v2-final-rerun-20260730-204949-514647-lab/qa-artifacts/qa/notes/native-hosted-task-evidence.json; /var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/compozyqa-cd29600f38c8/runtime/sessions/sess-90553d81675e984c/events.db
+last_report: docs/qa/reports/2026-07-30-mcp-2026-catalog-v2.md
 overlaps: ET-native-tool-approval-grants;ET-workspace-host-api-mcp
 ---
+
+Passed in the 2026-07-30 final rerun: a real Codex-managed task-role session bound nine hosted
+native descriptors in 4 ms, claimed run `run-d24b7bddfc76b2d4`, maintained its lease with two
+heartbeats, and completed it through `compozy__task_run_complete`. The resulting Go canary service
+passed three tests; Python and shell verification also passed. This directly exercises managed
+session calls through `compozy-hosted-tools` without a CLI lease substitute.
 
 QA impact 2026-07-26: native ToolIDs, ToolsetIDs, and the hosted MCP façade now
 use the Compozy namespaces. Planning flag only; the next QA cycle owns real

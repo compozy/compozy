@@ -1280,28 +1280,61 @@ func TestMergeMCPServersSameNameOverlaysFields(t *testing.T) {
 	}
 }
 
-func TestMCPServerValidateSupportsRemoteOAuthPKCE(t *testing.T) {
+func TestMCPServerValidateSupportsRemotePreRegisteredOAuth(t *testing.T) {
 	t.Parallel()
 
 	server := MCPServer{
 		Name:      "linear",
-		Transport: MCPServerTransportSSE,
-		URL:       "https://mcp.example/sse",
+		Transport: MCPServerTransportHTTP,
+		URL:       "https://mcp.example/mcp",
 		Auth: MCPAuthConfig{
-			Type:             MCPAuthTypeOAuth2PKCE,
-			AuthorizationURL: "https://auth.example/authorize",
-			TokenURL:         "https://auth.example/token",
-			ClientID:         "client-1",
-			Scopes:           []string{"read", "write"},
+			Registration: MCPAuthRegistrationPreRegistered,
+			IssuerURL:    "https://auth.example",
+			ClientID:     "client-1",
+			Scopes:       []string{"read", "write"},
 		},
 	}
-	if err := server.Validate("mcp_servers[0]"); err != nil {
-		t.Fatalf("Validate(remote OAuth) error = %v", err)
+	t.Run("Should validate a pre-registered remote OAuth config", func(t *testing.T) {
+		t.Parallel()
+		if err := server.Validate("mcp_servers[0]"); err != nil {
+			t.Fatalf("Validate(remote OAuth) error = %v", err)
+		}
+	})
+	t.Run("Should reject a missing pre-registered client ID", func(t *testing.T) {
+		t.Parallel()
+		invalid := server
+		invalid.Auth.ClientID = ""
+		if err := invalid.Validate("mcp_servers[0]"); err == nil {
+			t.Fatal("Validate(missing pre-registered client ID) error = nil, want validation failure")
+		}
+	})
+}
+
+func TestMCPOAuthConfigValidatesClientMetadataURL(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		url  string
+	}{
+		{name: "Should reject loopback HTTP", url: "http://127.0.0.1/client-metadata.json"},
+		{name: "Should reject an HTTPS root", url: "https://client.example/"},
+		{name: "Should reject credentials", url: "https://user:pass@client.example/metadata.json"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			config := MCPOAuthConfig{ClientMetadataURL: tt.url}
+			if err := config.Validate("mcp.oauth"); err == nil {
+				t.Fatalf("Validate(%q) error = nil, want client metadata URL rejection", tt.url)
+			}
+		})
 	}
 
-	server.Auth.TokenURL = ""
-	if err := server.Validate("mcp_servers[0]"); err == nil {
-		t.Fatal("Validate(missing token metadata) error = nil, want validation failure")
+	config := MCPOAuthConfig{ClientMetadataURL: DefaultMCPClientMetadataURL}
+	if err := config.Validate("mcp.oauth"); err != nil {
+		t.Fatalf("Validate(default client metadata URL) error = %v", err)
 	}
 }
 

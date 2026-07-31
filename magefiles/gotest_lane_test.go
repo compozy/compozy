@@ -191,6 +191,21 @@ func TestHermeticGoTestEnvFromBase(t *testing.T) {
 	})
 }
 
+// not parallel: t.Setenv mutates the process environment for the command environment.
+func TestRaceEnabledCommandEnv(t *testing.T) {
+	t.Setenv("CGO_ENABLED", "0")
+
+	t.Run("Should force cgo for race-enabled commands", func(t *testing.T) {
+		env := raceEnabledCommandEnv(nil)
+		if !slices.Contains(env, "CGO_ENABLED=1") {
+			t.Fatalf("raceEnabledCommandEnv() = %v, want CGO_ENABLED=1", env)
+		}
+		if slices.Contains(env, "CGO_ENABLED=0") {
+			t.Fatalf("raceEnabledCommandEnv() retained disabled cgo: %v", env)
+		}
+	})
+}
+
 func TestMergeEnvOverrides(t *testing.T) {
 	t.Parallel()
 

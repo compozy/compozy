@@ -129,23 +129,11 @@ func (o hooksOverlay) Apply(dst *HooksConfig) error {
 }
 
 func (o mcpAuthOverlay) Apply(dst *MCPAuthConfig) {
-	if o.Type != nil {
-		dst.Type = *o.Type
+	if o.Registration != nil {
+		dst.Registration = *o.Registration
 	}
 	if o.IssuerURL != nil {
 		dst.IssuerURL = *o.IssuerURL
-	}
-	if o.MetadataURL != nil {
-		dst.MetadataURL = *o.MetadataURL
-	}
-	if o.AuthorizationURL != nil {
-		dst.AuthorizationURL = *o.AuthorizationURL
-	}
-	if o.TokenURL != nil {
-		dst.TokenURL = *o.TokenURL
-	}
-	if o.RevocationURL != nil {
-		dst.RevocationURL = *o.RevocationURL
 	}
 	if o.ClientID != nil {
 		dst.ClientID = *o.ClientID

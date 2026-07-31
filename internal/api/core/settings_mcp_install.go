@@ -59,7 +59,7 @@ func parseInstallSettingsMCPServerRequest(c *gin.Context) (settingspkg.MCPCatalo
 	var body struct {
 		EntryID     string                              `json:"entry_id"`
 		Name        string                              `json:"name,omitempty"`
-		Scope       contract.SettingsWorkspaceScopeKind `json:"scope"`
+		Scope       contract.SettingsWorkspaceScopeKind `json:"scope,omitempty"`
 		WorkspaceID string                              `json:"workspace_id,omitempty"`
 		Values      json.RawMessage                     `json:"values"`
 	}
@@ -71,11 +71,6 @@ func parseInstallSettingsMCPServerRequest(c *gin.Context) (settingspkg.MCPCatalo
 	if strings.TrimSpace(body.EntryID) == "" {
 		return settingspkg.MCPCatalogInstallRequest{}, NewSettingsValidationError(
 			errors.New("mcp-servers.install.entry_id is required"),
-		)
-	}
-	if strings.TrimSpace(string(body.Scope)) == "" {
-		return settingspkg.MCPCatalogInstallRequest{}, NewSettingsValidationError(
-			errors.New("mcp-servers.install.scope is required"),
 		)
 	}
 	if body.Values == nil {
@@ -91,18 +86,12 @@ func parseInstallSettingsMCPServerRequest(c *gin.Context) (settingspkg.MCPCatalo
 	}
 	values := settingspkg.MCPCatalogInstallValues{}
 	if valuesPayload != nil {
-		values.Env = make(map[string]settingspkg.MCPSecretInput, len(valuesPayload.Env))
-		for key, input := range valuesPayload.Env {
-			values.Env[key] = settingspkg.MCPSecretInput{Value: input.Value, VaultRef: input.VaultRef}
+		values.Inputs = make(map[string]settingspkg.MCPSecretInput, len(valuesPayload.Inputs))
+		for key, input := range valuesPayload.Inputs {
+			values.Inputs[key] = settingspkg.MCPSecretInput{Value: input.Value, VaultRef: input.VaultRef}
 		}
-		if len(values.Env) == 0 {
-			values.Env = nil
-		}
-		if valuesPayload.OAuthClientSecret != nil {
-			values.OAuthClientSecret = &settingspkg.MCPSecretInput{
-				Value:    valuesPayload.OAuthClientSecret.Value,
-				VaultRef: valuesPayload.OAuthClientSecret.VaultRef,
-			}
+		if len(values.Inputs) == 0 {
+			values.Inputs = nil
 		}
 	}
 	return settingspkg.MCPCatalogInstallRequest{

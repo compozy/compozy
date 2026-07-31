@@ -21,7 +21,7 @@ import { marketplaceEntryOptions } from "../../lib/query-options";
 
 const mocks = vi.hoisted(() => ({
   activateBundle: vi.fn(),
-  beginAuthorize: vi.fn(),
+  requestAuthorize: vi.fn(),
   installExtension: vi.fn(),
   installMCP: vi.fn(),
   installSkill: vi.fn(),
@@ -92,10 +92,12 @@ vi.mock("@/systems/settings", async () => {
         error: null,
         prior: null,
         mode: null,
-        beginAuthorize: (...args: unknown[]) => {
-          mocks.beginAuthorize(...args);
+        approvedScopes: [],
+        requestAuthorize: (...args: unknown[]) => {
+          mocks.requestAuthorize(...args);
           setPhase("waiting");
         },
+        confirmScopeEscalation: vi.fn(),
         retryBegin: vi.fn(),
         enterManual: vi.fn(),
         submitManual: vi.fn(),
@@ -341,9 +343,8 @@ describe("useMarketplaceActionController", () => {
         scope: "workspace",
         workspace_id: "ws-a",
         auth: {
-          type: "oauth2_pkce",
-          client_id: "linear-client",
           client_secret_configured: false,
+          registration: "auto",
         },
         auth_status: {
           refreshable: true,
@@ -370,12 +371,9 @@ describe("useMarketplaceActionController", () => {
 
     await user.click(screen.getByRole("button", { name: "Authorize MCP" }));
 
-    await waitFor(() => expect(mocks.beginAuthorize).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(mocks.requestAuthorize).toHaveBeenCalledTimes(1));
     expect(screen.getByRole("status", { name: "Authorization scope" })).toHaveTextContent("global");
-    expect(mocks.beginAuthorize).toHaveBeenCalledWith({ scope: "global" }, "linear", {
-      status: "needs_login",
-      tokenPresent: false,
-    });
+    expect(mocks.requestAuthorize).toHaveBeenCalledWith({ scope: "global" }, item.mcpServer);
   });
 
   it("Should remove MCP servers from the exact effective source target", async () => {

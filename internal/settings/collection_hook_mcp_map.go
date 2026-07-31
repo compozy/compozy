@@ -101,23 +101,11 @@ func hookExecutorMap(declaration hookspkg.HookDecl) map[string]any {
 
 func mcpAuthMap(auth compozyconfig.MCPAuthConfig) map[string]any {
 	values := map[string]any{}
-	if auth.Type != "" {
-		values["type"] = string(auth.Type)
+	if auth.Registration != "" {
+		values["registration"] = string(auth.Registration)
 	}
 	if strings.TrimSpace(auth.IssuerURL) != "" {
 		values["issuer_url"] = strings.TrimSpace(auth.IssuerURL)
-	}
-	if strings.TrimSpace(auth.MetadataURL) != "" {
-		values["metadata_url"] = strings.TrimSpace(auth.MetadataURL)
-	}
-	if strings.TrimSpace(auth.AuthorizationURL) != "" {
-		values["authorization_url"] = strings.TrimSpace(auth.AuthorizationURL)
-	}
-	if strings.TrimSpace(auth.TokenURL) != "" {
-		values["token_url"] = strings.TrimSpace(auth.TokenURL)
-	}
-	if strings.TrimSpace(auth.RevocationURL) != "" {
-		values["revocation_url"] = strings.TrimSpace(auth.RevocationURL)
 	}
 	if strings.TrimSpace(auth.ClientID) != "" {
 		values["client_id"] = strings.TrimSpace(auth.ClientID)

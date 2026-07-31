@@ -35,6 +35,12 @@ func TestUnixSocketClientMCPAuthRoutesCarryExactWorkspaceIdentity(t *testing.T) 
 					}
 					return newHTTPResponse(http.StatusOK, `{"mcp_servers":[]}`), nil
 				case 2:
+					if req.Method != http.MethodGet ||
+						req.URL.Path != "/api/settings/mcp-servers/linear/auth/status" {
+						return nil, fmt.Errorf("status request = %s %s", req.Method, req.URL.Path)
+					}
+					return newHTTPResponse(http.StatusOK, confirmedClientMCPAuthStatusJSON), nil
+				case 3:
 					if req.Method != http.MethodPost ||
 						req.URL.Path != "/api/settings/mcp-servers/linear/auth/begin" {
 						return nil, fmt.Errorf("begin request = %s %s", req.Method, req.URL.Path)
@@ -57,7 +63,7 @@ func TestUnixSocketClientMCPAuthRoutesCarryExactWorkspaceIdentity(t *testing.T) 
                   "callback_url":"http://127.0.0.1:2123/api/mcp/oauth/callback",
                   "manual_supported":true
                 }`), nil
-				case 3:
+				case 4:
 					if req.Method != http.MethodPost ||
 						req.URL.Path != "/api/settings/mcp-servers/linear/auth/exchange" {
 						return nil, fmt.Errorf("exchange request = %s %s", req.Method, req.URL.Path)
@@ -70,11 +76,11 @@ func TestUnixSocketClientMCPAuthRoutesCarryExactWorkspaceIdentity(t *testing.T) 
 					if err := json.Unmarshal(body, &exchange); err != nil {
 						return nil, fmt.Errorf("decode exchange body: %w", err)
 					}
-					if exchange.Code != "sensitive-code" || exchange.RedirectURL != "" {
+					if exchange.RedirectURL != "http://127.0.0.1:2123/api/mcp/oauth/callback?code=sensitive-code&state=public" {
 						return nil, fmt.Errorf("exchange input classification is incorrect")
 					}
 					return newHTTPResponse(http.StatusOK, confirmedClientMCPAuthStatusJSON), nil
-				case 4:
+				case 5:
 					if req.Method != http.MethodPost ||
 						req.URL.Path != "/api/settings/mcp-servers/linear/auth/logout" {
 						return nil, fmt.Errorf("logout request = %s %s", req.Method, req.URL.Path)
@@ -96,6 +102,13 @@ func TestUnixSocketClientMCPAuthRoutesCarryExactWorkspaceIdentity(t *testing.T) 
 		if _, err := client.ListSettingsMCPServers(ctx, scope, "workspace-a"); err != nil {
 			t.Fatalf("ListSettingsMCPServers() error = %v", err)
 		}
+		readStatus, err := client.GetSettingsMCPAuthStatus(ctx, target)
+		if err != nil {
+			t.Fatalf("GetSettingsMCPAuthStatus() error = %v", err)
+		}
+		if !readStatus.TokenPresent || readStatus.WorkspaceID != "workspace-a" {
+			t.Fatalf("GetSettingsMCPAuthStatus() = %#v", readStatus)
+		}
 		begin, err := client.BeginSettingsMCPAuth(ctx, target, SettingsMCPAuthBeginRequest{
 			Mode: contract.SettingsMCPAuthBeginModeAutomatic,
 		})
@@ -108,7 +121,10 @@ func TestUnixSocketClientMCPAuthRoutesCarryExactWorkspaceIdentity(t *testing.T) 
 		status, err := client.ExchangeSettingsMCPAuth(
 			ctx,
 			target,
-			SettingsMCPAuthExchangeRequest{Code: "sensitive-code"},
+			SettingsMCPAuthExchangeRequest{
+				RedirectURL: "http://127.0.0.1:2123/api/mcp/oauth/callback" +
+					"?code=sensitive-code&state=public",
+			},
 		)
 		if err != nil {
 			t.Fatalf("ExchangeSettingsMCPAuth() error = %v", err)
@@ -123,8 +139,8 @@ func TestUnixSocketClientMCPAuthRoutesCarryExactWorkspaceIdentity(t *testing.T) 
 		if loggedOut.TokenPresent || loggedOut.Status != "needs_login" {
 			t.Fatalf("LogoutSettingsMCPAuth() = %#v", loggedOut)
 		}
-		if requestIndex != 4 {
-			t.Fatalf("request count = %d, want 4", requestIndex)
+		if requestIndex != 5 {
+			t.Fatalf("request count = %d, want 5", requestIndex)
 		}
 	})
 }

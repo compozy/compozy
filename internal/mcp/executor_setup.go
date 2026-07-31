@@ -7,6 +7,7 @@ import (
 	"time"
 
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
+	"github.com/compozy/compozy/internal/mcp/securehttp"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
@@ -15,13 +16,14 @@ const defaultCallTimeout = 30 * time.Second
 type authService interface {
 	Status(ctx context.Context, cfg mcpauth.ServerConfig) (mcpauth.Status, error)
 	Refresh(ctx context.Context, cfg mcpauth.ServerConfig) (mcpauth.Status, error)
+	AuthorizationToken(ctx context.Context, cfg mcpauth.ServerConfig) (mcpauth.TokenRecord, error)
 }
 
 type secretRefResolver interface {
 	ResolveRef(ctx context.Context, ref string) (string, error)
 }
 
-// CallExecutor lists and calls configured MCP servers through mcp-go clients.
+// CallExecutor lists and calls configured MCP servers through official MCP SDK clients.
 type CallExecutor struct {
 	servers        ServerResolver
 	tokenStore     mcpauth.TokenStore
@@ -29,8 +31,10 @@ type CallExecutor struct {
 	lookupSecret   func(string) string
 	secretResolver secretRefResolver
 	httpClient     *http.Client
+	secureClient   *securehttp.Client
 	authGeneration *mcpauth.MutationGeneration
 	timeout        time.Duration
+	toolCache      mcpToolListCache
 }
 
 var _ toolspkg.MCPCallExecutor = (*CallExecutor)(nil)
@@ -67,10 +71,11 @@ func WithSecretResolver(resolver secretRefResolver) CallExecutorOption {
 	}
 }
 
-// WithHTTPClient configures remote MCP and auth HTTP calls with an explicit client.
+// WithHTTPClient configures remote MCP HTTP calls with an explicit client.
 func WithHTTPClient(client *http.Client) CallExecutorOption {
 	return func(executor *CallExecutor) {
 		executor.httpClient = client
+		executor.secureClient = nil
 	}
 }
 
@@ -102,11 +107,9 @@ func NewMCPCallExecutor(
 		)
 	}
 	executor := &CallExecutor{
-		servers: servers,
-		httpClient: &http.Client{
-			Timeout: defaultCallTimeout,
-		},
-		timeout: defaultCallTimeout,
+		servers:   servers,
+		timeout:   defaultCallTimeout,
+		toolCache: mcpToolListCache{entries: make(map[string]mcpToolListCacheEntry)},
 	}
 	for _, opt := range opts {
 		if opt != nil {
@@ -120,7 +123,11 @@ func NewMCPCallExecutor(
 		executor.timeout = defaultCallTimeout
 	}
 	if executor.httpClient == nil {
-		executor.httpClient = &http.Client{Timeout: executor.timeout}
+		executor.secureClient = securehttp.NewClient(
+			securehttp.WithAllowLoopback(true),
+			securehttp.WithTimeout(executor.timeout),
+		)
+		executor.httpClient = executor.secureClient.HTTPClient()
 	}
 	if executor.httpClient.Timeout <= 0 {
 		cloned := *executor.httpClient
@@ -128,10 +135,24 @@ func NewMCPCallExecutor(
 		executor.httpClient = &cloned
 	}
 	if executor.auth == nil && executor.tokenStore != nil {
+		options := []mcpauth.ServiceOption{mcpauth.WithMutationGeneration(executor.authGeneration)}
+		authClient := executor.secureClient
+		if authClient == nil {
+			authClient = securehttp.NewClient(
+				securehttp.WithAllowLoopback(true),
+				securehttp.WithTimeout(executor.timeout),
+			)
+		}
+		options = append(options, mcpauth.WithSecureHTTPClient(authClient))
+		if executor.secretResolver != nil {
+			options = append(options, mcpauth.WithSecretRefResolver(executor.secretResolver.ResolveRef))
+		}
+		if registrations, ok := executor.tokenStore.(mcpauth.RegistrationStore); ok {
+			options = append(options, mcpauth.WithRegistrationStore(registrations))
+		}
 		service, err := mcpauth.NewService(
 			executor.tokenStore,
-			mcpauth.WithHTTPClient(executor.httpClient),
-			mcpauth.WithMutationGeneration(executor.authGeneration),
+			options...,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("mcp: create auth service: %w", err)

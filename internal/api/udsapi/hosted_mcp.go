@@ -37,6 +37,15 @@ func (h *Handlers) bindHostedMCP(c *gin.Context) {
 	}
 	peer, err := mcppkg.PeerInfoFromContext(c.Request.Context())
 	if err != nil {
+		if h.Logger != nil {
+			h.Logger.Warn(
+				"udsapi: hosted MCP peer inspection failed",
+				"operation",
+				"bind",
+				"reason",
+				"peer_credentials_unavailable",
+			)
+		}
 		core.RespondError(c, http.StatusForbidden, err, false)
 		return
 	}

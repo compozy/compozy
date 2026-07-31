@@ -1003,16 +1003,17 @@ func newTransportMarketplaceCatalogServer(t testing.TB) *httptest.Server {
 	t.Helper()
 
 	documents := map[string]string{
-		"/mcp.json": `{"manifest_version":1,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
+		"/mcp.json": `{"manifest_version":2,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
 			`"entry_id":"filesystem","name":"Filesystem","description":"Read approved local files",` +
-			`"version":"1.0.0","transport":"stdio","command":"npx","args":["server-filesystem"]}]}`,
-		"/extensions.json": `{"manifest_version":1,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
+			`"version":"1.0.0","launch":{"type":"npm","package":"server-filesystem","version":"1.0.0"},` +
+			`"default_scope":"global"}]}`,
+		"/extensions.json": `{"manifest_version":2,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
 			`"entry_id":"bridge-github","name":"GitHub bridge","description":"Connect GitHub events to Compozy",` +
 			`"version":"1.0.0","install_slug":"compozy/bridge-github",` +
 			`"artifact_url":"https://downloads.example.test/bridge-github-v1.0.0.tar.gz",` +
 			`"digest_sha256":"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",` +
 			`"tier":"official"}]}`,
-		"/skills.json": `{"manifest_version":1,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
+		"/skills.json": `{"manifest_version":2,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
 			`"entry_id":"compozy","name":"Compozy","display_name":"Compozy operator",` +
 			`"description":"Operate Compozy through structured surfaces","version":"1.0.0",` +
 			`"install_slug":"compozy/compozy","author":"Compozy","tags":["compozy","operations"]}]}`,

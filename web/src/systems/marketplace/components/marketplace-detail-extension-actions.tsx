@@ -19,6 +19,8 @@ import {
 import { ExtensionTrustBadges, type ExtensionEntry } from "@/systems/extensions";
 import type { ExtensionTrustFacts } from "@/systems/extensions";
 
+import { formatMarketplaceVersion } from "./marketplace-ui";
+
 interface MarketplaceDetailExtensionActionsProps {
   catalogUpdateAvailable?: boolean;
   catalogVersion?: string;
@@ -49,7 +51,7 @@ export function MarketplaceDetailExtensionActions({
   togglePending,
 }: MarketplaceDetailExtensionActionsProps) {
   const updateTarget = catalogVersion?.trim() || (extension.remote_version?.trim() ?? "");
-  const displayUpdateTarget = updateTarget.replace(/^[vV](?=\d)/, "");
+  const displayUpdateTarget = formatMarketplaceVersion(updateTarget);
   const canUpdate = !facts.dev && (extension.update_available === true || catalogUpdateAvailable);
   return (
     <div className="flex flex-col gap-3 rounded-lg bg-canvas-soft px-4 py-3">
@@ -83,7 +85,7 @@ export function MarketplaceDetailExtensionActions({
               {isUpdatePending
                 ? "Updating…"
                 : displayUpdateTarget
-                  ? `Update to v${displayUpdateTarget}`
+                  ? `Update to ${displayUpdateTarget}`
                   : "Update"}
             </Button>
           ) : null}
@@ -180,7 +182,7 @@ export function ExtensionUpdateConsentDialog({
       confirmButtonProps={{ "data-testid": "extension-update-consent-confirm" }}
       confirmLabel="Update anyway"
       contentProps={{ "data-testid": "extension-update-consent-dialog" }}
-      description={`This extension is not registry-verified. Updating installs ${targetVersion ? `v${targetVersion}` : "the newer release"} of ${extensionName} without a pinned checksum.`}
+      description={`This extension is not registry-verified. Updating installs ${formatMarketplaceVersion(targetVersion) ?? "the newer release"} of ${extensionName} without a pinned checksum.`}
       error={error}
       isPending={pending}
       note="The daemon requires an explicit decision for every unverified install or update."

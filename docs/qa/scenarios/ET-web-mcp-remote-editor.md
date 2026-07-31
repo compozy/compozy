@@ -1,22 +1,24 @@
 ---
 id: ET-web-mcp-remote-editor
 area: ET
-title: MCP remote-capable editor (stdio/http/sse) with mirrored validation
+title: MCP remote-capable editor (stdio/Streamable HTTP) with mirrored validation
 persona: Bruno
 journey: J-mcp-authorize-repair
-expected: The editor switches field sets by transport. stdio keeps command, ordered args, non-secret env, and hybrid secret_env bindings; remote (http/sse) keeps url + optional OAuth (client_id + metadata triad + scopes + client-secret binding) and omits command/args/env/secret_env. Switching transport clears hidden fields so the new form remains completable. Existing plain env and secret bindings render as presence-only configured state; unchanged exact-target fields use `preserve_env` or `preserve_secrets`, while renames and scope changes require explicit replacement values. Vault inventory renders distinct loading, error/retry, ready-empty, and ready-with-refs states. Scope lives in `validateSearch`; an initial valid `workspace_id` is adopted once, then sidebar selection owns the workspace and updates the URL.
+expected: The editor switches field sets by transport. stdio keeps command, ordered args, non-secret env, and typed secret input bindings; Streamable HTTP keeps url + discovered OAuth registration (`auto` or `pre_registered`) and scopes, and omits command/args/env/secret_env. Switching transport clears hidden fields so the new form remains completable. Existing plain env and secret bindings render as presence-only configured state; unchanged exact-target fields use `preserve_env` or `preserve_secrets`, while renames and scope changes require explicit replacement values. Vault inventory renders distinct loading, error/retry, ready-empty, and ready-with-refs states. Scope lives in `validateSearch`; an initial valid `workspace_id` is adopted once, then sidebar selection owns the workspace and updates the URL.
 entry_points: web `/marketplace/mcps?tab=installed` Add MCP server/Edit configuration; `PUT /api/settings/mcp-servers/{name}`
-qa_status: blocked-verify
+qa_status: skipped
 bug_ids: BUG-20260715-mcp-editor-vault-ref-case
 fix_status: fixed
 retest_status: pass
 fix_commits: 8eeb8a38
 evidence: web/src/systems/settings/lib/mcp-editor-model.ts; web/src/systems/settings/components/mcp-server-editor.tsx; .compozy/tasks/marketplace/evidence/visual/task-08/editor-http-desktop; /Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/mcp-editor-vault-ref-case.json; /Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/web/mcp-editor-vault-ref-case-green.png;/Users/pedronauck/dev/qa-labs/compozy-qa-et-current-source-20260730-061655-910372-lab/qa-artifacts/qa
-last_report: docs/qa/reports/2026-07-28-untested-full.md
+last_report: docs/qa/reports/2026-07-30-mcp-2026-catalog-v2.md
 overlaps: MS-029
 ---
 
-story: As a builder I edit any server class the marketplace can install (local stdio or remote http/sse with OAuth) directly in the product with validation that mirrors the daemon.
+Skipped in the 2026-07-30 MCP 2026/catalog-v2 closeout: no editor transport-switch and saved-configuration validation walk was retained.
+
+story: As a builder I edit any server class the marketplace can install (local stdio or remote Streamable HTTP with OAuth) directly in the product with validation that mirrors the daemon.
 
 src: docs/design/opendesign/mcp-management.html
 

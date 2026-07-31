@@ -96,15 +96,11 @@ func cloneDaemonMCPServer(src compozyconfig.MCPServer) compozyconfig.MCPServer {
 		SecretEnv: cloneStringMap(src.SecretEnv),
 		URL:       src.URL,
 		Auth: compozyconfig.MCPAuthConfig{
-			Type:             src.Auth.Type,
-			IssuerURL:        src.Auth.IssuerURL,
-			MetadataURL:      src.Auth.MetadataURL,
-			AuthorizationURL: src.Auth.AuthorizationURL,
-			TokenURL:         src.Auth.TokenURL,
-			RevocationURL:    src.Auth.RevocationURL,
-			ClientID:         src.Auth.ClientID,
-			ClientSecretRef:  src.Auth.ClientSecretRef,
-			Scopes:           slices.Clone(src.Auth.Scopes),
+			Registration:    src.Auth.Registration,
+			IssuerURL:       src.Auth.IssuerURL,
+			ClientID:        src.Auth.ClientID,
+			ClientSecretRef: src.Auth.ClientSecretRef,
+			Scopes:          slices.Clone(src.Auth.Scopes),
 		},
 	}
 }

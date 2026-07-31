@@ -6,15 +6,17 @@ persona: Ada
 journey: J-agent-marketplace-parity
 expected: Search, kind browse, stable entry detail, and refresh expose matching HTTP and UDS contracts; extension detail includes its exact HTTPS artifact URL; native discovery uses the caller's exact workspace installed-state projection; every deleted skills and extensions browse route returns 404.
 entry_points: GET /api/marketplace/search; GET /api/marketplace/:kind; GET /api/marketplace/:kind/:entry_id; POST /api/marketplace/refresh; compozy__marketplace_search
-qa_status: pass
+qa_status: skipped
 bug_ids: BUG-20260715-native-marketplace-extension-parity; BUG-20260715-marketplace-stale-report; BUG-20260729-marketplace-file-cursor-fence
 fix_status: fixed
 retest_status: pass
 fix_commits: 8eeb8a38;351f3535
 evidence: /Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/marketplace-agent-parity-final.json; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-021949-664736-lab/qa-artifacts/qa/evidence/022-marketplace-namespace
-last_report: docs/qa/reports/2026-07-28-untested-full.md
+last_report: docs/qa/reports/2026-07-30-mcp-2026-catalog-v2.md
 overlaps: ET-007; ET-008; ET-016
 ---
+
+Skipped in the 2026-07-30 MCP 2026/catalog-v2 closeout: no equivalent HTTP and UDS API read was retained.
 
 Historical QA note: authored parameter, enum, and status contract verification remains pending.
 

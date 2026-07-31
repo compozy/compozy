@@ -43,6 +43,7 @@ type stubSettingsService struct {
 	ApplyCollectionFn    func(context.Context, settingspkg.CollectionItemPutRequest) (settingspkg.ApplyResult, error)
 	ApplyModelCurationFn func(context.Context, settingspkg.ProviderModelCurationRequest) (settingspkg.ProviderModelCurationResult, error)
 	InstallMCPCatalogFn  func(context.Context, settingspkg.MCPCatalogInstallRequest) (settingspkg.MCPCatalogInstallResult, error)
+	GetMCPAuthStatusFn   func(context.Context, settingspkg.MCPAuthTargetRequest) (mcpauth.Status, error)
 	BeginMCPAuthFn       func(context.Context, settingspkg.MCPAuthBeginRequest) (mcpauth.BeginResult, error)
 	ExchangeMCPAuthFn    func(context.Context, settingspkg.MCPAuthExchangeRequest) (mcpauth.Status, error)
 	CompleteMCPAuthFn    func(context.Context, string) (mcpauth.Status, error)
@@ -58,6 +59,7 @@ type stubSettingsService struct {
 	LastPutCollectionRequest  settingspkg.CollectionItemPutRequest
 	LastModelCurationRequest  settingspkg.ProviderModelCurationRequest
 	LastMCPCatalogInstall     settingspkg.MCPCatalogInstallRequest
+	LastMCPAuthStatus         settingspkg.MCPAuthTargetRequest
 	LastMCPAuthBegin          settingspkg.MCPAuthBeginRequest
 	LastMCPAuthExchange       settingspkg.MCPAuthExchangeRequest
 	LastMCPAuthCallback       string
@@ -73,6 +75,7 @@ type stubSettingsService struct {
 	ApplyCollectionCalls    int
 	ApplyModelCurationCalls int
 	InstallMCPCatalogCalls  int
+	GetMCPAuthStatusCalls   int
 	BeginMCPAuthCalls       int
 	ExchangeMCPAuthCalls    int
 	CompleteMCPAuthCalls    int
@@ -191,6 +194,18 @@ func (s *stubSettingsService) InstallMCPCatalog(
 		return s.InstallMCPCatalogFn(ctx, req)
 	}
 	return settingspkg.MCPCatalogInstallResult{}, nil
+}
+
+func (s *stubSettingsService) GetMCPAuthStatus(
+	ctx context.Context,
+	req settingspkg.MCPAuthTargetRequest,
+) (mcpauth.Status, error) {
+	s.GetMCPAuthStatusCalls++
+	s.LastMCPAuthStatus = req
+	if s.GetMCPAuthStatusFn != nil {
+		return s.GetMCPAuthStatusFn(ctx, req)
+	}
+	return mcpauth.Status{}, nil
 }
 
 func (s *stubSettingsService) BeginMCPAuth(
@@ -537,6 +552,7 @@ func registerSettingsRoutes(engine *gin.Engine, handlers *core.BaseHandlers) {
 	settings.DELETE("/providers/:name", handlers.DeleteSettingsProvider)
 	settings.GET("/mcp-servers", handlers.ListSettingsMCPServers)
 	settings.POST("/mcp-servers/install", handlers.InstallSettingsMCPServer)
+	settings.GET("/mcp-servers/:name/auth/status", handlers.GetSettingsMCPAuthStatus)
 	settings.POST("/mcp-servers/:name/auth/begin", handlers.BeginSettingsMCPAuth)
 	settings.POST("/mcp-servers/:name/auth/exchange", handlers.ExchangeSettingsMCPAuth)
 	settings.POST("/mcp-servers/:name/auth/logout", handlers.LogoutSettingsMCPAuth)
@@ -563,6 +579,15 @@ func TestSettingsMCPAuthHandlersKeepSecretsOutOfResponses(t *testing.T) {
 
 		expiresAt := time.Date(2026, 7, 13, 16, 5, 0, 0, time.UTC)
 		service := &stubSettingsService{
+			GetMCPAuthStatusFn: func(
+				_ context.Context,
+				req settingspkg.MCPAuthTargetRequest,
+			) (mcpauth.Status, error) {
+				if req.Scope != settingspkg.ScopeWorkspace || req.WorkspaceID != "workspace-a" || req.Name != "linear" {
+					t.Fatalf("GetMCPAuthStatus target = %#v", req)
+				}
+				return confirmedWorkspaceMCPAuthStatus(expiresAt), nil
+			},
 			BeginMCPAuthFn: func(
 				_ context.Context,
 				req settingspkg.MCPAuthBeginRequest,
@@ -588,7 +613,7 @@ func TestSettingsMCPAuthHandlersKeepSecretsOutOfResponses(t *testing.T) {
 				if req.Scope != settingspkg.ScopeWorkspace || req.WorkspaceID != "workspace-a" || req.Name != "linear" {
 					t.Fatalf("ExchangeMCPAuth target = %#v", req.MCPAuthTargetRequest)
 				}
-				if req.Code != "sensitive-one-time-code" || req.RedirectURL != "" {
+				if req.RedirectURL != "http://127.0.0.1:2123/api/mcp/oauth/callback?code=sensitive-one-time-code&state=public-state" {
 					t.Fatalf("ExchangeMCPAuth input classification is incorrect")
 				}
 				return confirmedWorkspaceMCPAuthStatus(expiresAt), nil
@@ -617,6 +642,25 @@ func TestSettingsMCPAuthHandlersKeepSecretsOutOfResponses(t *testing.T) {
 		targetPath := "/api/settings/mcp-servers/linear/auth/"
 		query := "?scope=workspace&workspace_id=workspace-a"
 
+		statusResponse := performRequest(t, fixture.Engine, http.MethodGet, targetPath+"status"+query, nil)
+		if statusResponse.Code != http.StatusOK {
+			t.Fatalf(
+				"status response = %d, want %d; body=%s",
+				statusResponse.Code,
+				http.StatusOK,
+				statusResponse.Body.String(),
+			)
+		}
+		var statusPayload contract.SettingsMCPAuthStatusPayload
+		decodeJSON(t, statusResponse.Body.Bytes(), &statusPayload)
+		if statusPayload.Scope != "workspace" || statusPayload.WorkspaceID != "workspace-a" ||
+			statusPayload.ServerName != "linear" || !statusPayload.TokenPresent {
+			t.Fatalf("status payload = %#v, want redacted workspace auth state", statusPayload)
+		}
+		if service.ListCollectionCalls != 0 {
+			t.Fatalf("GetSettingsMCPAuthStatus triggered collection listing %d times", service.ListCollectionCalls)
+		}
+
 		begin := performRequest(
 			t,
 			fixture.Engine,
@@ -634,12 +678,16 @@ func TestSettingsMCPAuthHandlersKeepSecretsOutOfResponses(t *testing.T) {
 			t.Fatalf("begin payload = %#v", beginPayload)
 		}
 
+		exchangeBody := []byte(
+			`{"redirect_url":"http://127.0.0.1:2123/api/mcp/oauth/callback` +
+				`?code=sensitive-one-time-code&state=public-state"}`,
+		)
 		exchange := performRequest(
 			t,
 			fixture.Engine,
 			http.MethodPost,
 			targetPath+"exchange"+query,
-			[]byte(`{"code":"sensitive-one-time-code"}`),
+			exchangeBody,
 		)
 		if exchange.Code != http.StatusOK {
 			t.Fatalf("exchange status = %d, want %d; body=%s", exchange.Code, http.StatusOK, exchange.Body.String())
@@ -731,7 +779,7 @@ func TestSettingsMCPAuthHandlersKeepSecretsOutOfResponses(t *testing.T) {
 	})
 }
 
-func TestSettingsMCPAuthHandlersUseEffectiveLoopbackListener(t *testing.T) {
+func TestSettingsMCPAuthHandlersUseConfiguredRedirectURI(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -741,9 +789,10 @@ func TestSettingsMCPAuthHandlersUseEffectiveLoopbackListener(t *testing.T) {
 		wantStatus   int
 		wantCallback string
 		wantCalls    int
+		wantError    string
 	}{
 		{
-			name:         "Should advertise the configured IPv6 loopback listener",
+			name:         "Should advertise the configured IPv6 loopback redirect URI",
 			host:         "::1",
 			mode:         contract.SettingsMCPAuthBeginModeAutomatic,
 			wantStatus:   http.StatusOK,
@@ -751,19 +800,27 @@ func TestSettingsMCPAuthHandlersUseEffectiveLoopbackListener(t *testing.T) {
 			wantCalls:    1,
 		},
 		{
-			name:       "Should reject automatic authorization on a non-loopback listener",
-			host:       "0.0.0.0",
-			mode:       contract.SettingsMCPAuthBeginModeAutomatic,
-			wantStatus: http.StatusServiceUnavailable,
-			wantCalls:  0,
+			name:         "Should use the configured redirect URI independently of the public listener",
+			host:         "0.0.0.0",
+			mode:         contract.SettingsMCPAuthBeginModeAutomatic,
+			wantStatus:   http.StatusOK,
+			wantCallback: "http://127.0.0.1:2123/api/mcp/oauth/callback",
+			wantCalls:    1,
 		},
 		{
-			name:         "Should allow manual authorization without a loopback listener",
+			name:         "Should allow manual authorization with the configured redirect URI",
 			host:         "0.0.0.0",
 			mode:         contract.SettingsMCPAuthBeginModeManual,
 			wantStatus:   http.StatusOK,
 			wantCallback: "http://127.0.0.1:2123/api/mcp/oauth/callback",
 			wantCalls:    1,
+		},
+		{
+			name:       "Should reject manual authorization without a configured redirect URI",
+			host:       "0.0.0.0",
+			mode:       contract.SettingsMCPAuthBeginModeManual,
+			wantStatus: http.StatusServiceUnavailable,
+			wantError:  "MCP OAuth redirect_uri is required",
 		},
 	}
 	for _, tc := range tests {
@@ -789,6 +846,7 @@ func TestSettingsMCPAuthHandlersUseEffectiveLoopbackListener(t *testing.T) {
 			}
 			fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
 			fixture.Handlers.Config.HTTP.Host = tc.host
+			fixture.Handlers.Config.MCP.OAuth.RedirectURI = tc.wantCallback
 
 			response := performRequest(
 				t,
@@ -799,6 +857,9 @@ func TestSettingsMCPAuthHandlersUseEffectiveLoopbackListener(t *testing.T) {
 			)
 			if response.Code != tc.wantStatus {
 				t.Fatalf("begin status = %d, want %d; body=%s", response.Code, tc.wantStatus, response.Body.String())
+			}
+			if tc.wantError != "" && !strings.Contains(response.Body.String(), tc.wantError) {
+				t.Fatalf("begin error body = %s, want %q", response.Body.String(), tc.wantError)
 			}
 			if service.BeginMCPAuthCalls != tc.wantCalls {
 				t.Fatalf("BeginMCPAuthCalls = %d, want %d", service.BeginMCPAuthCalls, tc.wantCalls)
@@ -828,9 +889,21 @@ func TestSettingsMCPAuthHandlersRejectInvalidTargetsAndBodies(t *testing.T) {
 			body: []byte(`{"mode":"unspecified"}`),
 		},
 		{
+			name: "Should reject the legacy code exchange field without echoing its value",
+			path: "/api/settings/mcp-servers/linear/auth/exchange?scope=global",
+			body: []byte(`{"code":"sensitive-code"}`),
+		},
+		{
 			name: "Should reject unknown exchange fields without echoing their value",
 			path: "/api/settings/mcp-servers/linear/auth/exchange?scope=global",
-			body: []byte(`{"code":"sensitive-code","verifier":"sensitive-verifier"}`),
+			body: []byte(
+				`{"redirect_url":"http://127.0.0.1:2123/api/mcp/oauth/callback?code=sensitive-code","verifier":"sensitive-verifier"}`,
+			),
+		},
+		{
+			name: "Should reject scope escalation without explicit approval",
+			path: "/api/settings/mcp-servers/linear/auth/begin?scope=global",
+			body: []byte(`{"mode":"automatic","approved_scopes":["tools.write"]}`),
 		},
 	}
 	for _, tc := range tests {
@@ -863,6 +936,12 @@ func TestSettingsMCPAuthHandlersMatchAcrossHTTPAndUDSTransportShims(t *testing.T
 		expiresAt := time.Date(2026, 7, 13, 16, 5, 0, 0, time.UTC)
 		serviceFactory := func() *stubSettingsService {
 			return &stubSettingsService{
+				GetMCPAuthStatusFn: func(
+					context.Context,
+					settingspkg.MCPAuthTargetRequest,
+				) (mcpauth.Status, error) {
+					return confirmedWorkspaceMCPAuthStatus(expiresAt), nil
+				},
 				BeginMCPAuthFn: func(
 					_ context.Context,
 					req settingspkg.MCPAuthBeginRequest,
@@ -895,23 +974,31 @@ func TestSettingsMCPAuthHandlersMatchAcrossHTTPAndUDSTransportShims(t *testing.T
 		httpFixture := newSettingsHandlerFixture(t, "httpapi", serviceFactory(), nil)
 		udsFixture := newSettingsHandlerFixture(t, "udsapi", serviceFactory(), nil)
 		for _, request := range []struct {
-			path string
-			body []byte
+			method string
+			path   string
+			body   []byte
 		}{
 			{
-				path: "/api/settings/mcp-servers/linear/auth/begin?scope=workspace&workspace_id=workspace-a",
-				body: []byte(`{"mode":"automatic"}`),
+				method: http.MethodGet,
+				path:   "/api/settings/mcp-servers/linear/auth/status?scope=workspace&workspace_id=workspace-a",
 			},
 			{
-				path: "/api/settings/mcp-servers/linear/auth/exchange?scope=workspace&workspace_id=workspace-a",
-				body: []byte(`{"code":"opaque-code"}`),
+				method: http.MethodPost,
+				path:   "/api/settings/mcp-servers/linear/auth/begin?scope=workspace&workspace_id=workspace-a",
+				body:   []byte(`{"mode":"automatic"}`),
 			},
 			{
-				path: "/api/settings/mcp-servers/linear/auth/logout?scope=workspace&workspace_id=workspace-a",
+				method: http.MethodPost,
+				path:   "/api/settings/mcp-servers/linear/auth/exchange?scope=workspace&workspace_id=workspace-a",
+				body:   []byte(`{"redirect_url":"http://127.0.0.1:2123/api/mcp/oauth/callback?code=opaque-code&state=public"}`),
+			},
+			{
+				method: http.MethodPost,
+				path:   "/api/settings/mcp-servers/linear/auth/logout?scope=workspace&workspace_id=workspace-a",
 			},
 		} {
-			httpResponse := performRequest(t, httpFixture.Engine, http.MethodPost, request.path, request.body)
-			udsResponse := performRequest(t, udsFixture.Engine, http.MethodPost, request.path, request.body)
+			httpResponse := performRequest(t, httpFixture.Engine, request.method, request.path, request.body)
+			udsResponse := performRequest(t, udsFixture.Engine, request.method, request.path, request.body)
 			if httpResponse.Code != udsResponse.Code || httpResponse.Body.String() != udsResponse.Body.String() {
 				t.Fatalf(
 					"transport mismatch for %s: http=%d %s uds=%d %s",
@@ -3173,18 +3260,14 @@ func TestInstallSettingsMCPServerMapsStrictRequestAndRedactedResponse(t *testing
 			) (settingspkg.MCPCatalogInstallResult, error) {
 				return settingspkg.MCPCatalogInstallResult{
 					Item: settingspkg.MCPServerItem{
-						Name:          req.Name,
-						Transport:     compozyconfig.MCPServerTransportStdio,
-						Command:       "npx",
-						SecretEnvKeys: []string{"GITHUB_TOKEN"},
-						Auth: compozyconfig.MCPAuthConfig{
-							Type: compozyconfig.MCPAuthTypeOAuth2PKCE,
-						},
-						ClientSecretConfigured: true,
-						Scope:                  req.Scope,
-						WorkspaceID:            req.WorkspaceID,
-						CatalogEntry:           req.EntryID,
-						CatalogVersion:         "1.2.3",
+						Name:           req.Name,
+						Transport:      compozyconfig.MCPServerTransportStdio,
+						Command:        "npx",
+						SecretEnvKeys:  []string{"GITHUB_TOKEN"},
+						Scope:          req.Scope,
+						WorkspaceID:    req.WorkspaceID,
+						CatalogEntry:   req.EntryID,
+						CatalogVersion: "1.2.3",
 					},
 					Apply: settingspkg.ApplyResult{
 						Record: settingspkg.ApplyRecord{
@@ -3218,8 +3301,8 @@ func TestInstallSettingsMCPServerMapsStrictRequestAndRedactedResponse(t *testing
 			Scope:       contract.SettingsWorkspaceScopeWorkspace,
 			WorkspaceID: "ws-1",
 			Values: &contract.SettingsMCPCatalogInstallValuesPayload{
-				Env: map[string]contract.SettingsMCPSecretInputPayload{
-					"GITHUB_TOKEN": {Value: "write-only-secret"},
+				Inputs: map[string]contract.SettingsMCPCatalogInputPayload{
+					"github_token": {Value: "write-only-secret"},
 				},
 			},
 		})
@@ -3236,7 +3319,7 @@ func TestInstallSettingsMCPServerMapsStrictRequestAndRedactedResponse(t *testing
 		if got, want := service.LastMCPCatalogInstall.WorkspaceID, "ws-1"; got != want {
 			t.Fatalf("install WorkspaceID = %q, want %q", got, want)
 		}
-		if got, want := service.LastMCPCatalogInstall.Values.Env["GITHUB_TOKEN"].Value, "write-only-secret"; got != want {
+		if got, want := service.LastMCPCatalogInstall.Values.Inputs["github_token"].Value, "write-only-secret"; got != want {
 			t.Fatalf("install secret input = %q, want mapped write-only value", got)
 		}
 		for _, forbidden := range []string{
@@ -3253,9 +3336,6 @@ func TestInstallSettingsMCPServerMapsStrictRequestAndRedactedResponse(t *testing
 		decodeJSON(t, resp.Body.Bytes(), &payload)
 		if got := payload.MCPServer.SecretEnvKeys; len(got) != 1 || got[0] != "GITHUB_TOKEN" {
 			t.Fatalf("response secret env keys = %#v, want [GITHUB_TOKEN]", got)
-		}
-		if payload.MCPServer.Auth == nil || !payload.MCPServer.Auth.ClientSecretConfigured {
-			t.Fatalf("response auth = %#v, want configured client-secret presence", payload.MCPServer.Auth)
 		}
 		if got, want := payload.NextStep, contract.SettingsMCPInstallNextStepNone; got != want {
 			t.Fatalf("response next_step = %q, want %q", got, want)
@@ -3310,8 +3390,7 @@ func TestInstallSettingsMCPServerMapsStrictRequestAndRedactedResponse(t *testing
 		if service.InstallMCPCatalogCalls != 1 {
 			t.Fatalf("InstallMCPCatalogCalls = %d, want 1", service.InstallMCPCatalogCalls)
 		}
-		if service.LastMCPCatalogInstall.Values.Env != nil ||
-			service.LastMCPCatalogInstall.Values.OAuthClientSecret != nil {
+		if service.LastMCPCatalogInstall.Values.Inputs != nil {
 			t.Fatalf("install values = %#v, want empty values", service.LastMCPCatalogInstall.Values)
 		}
 	})

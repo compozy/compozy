@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -10,7 +11,6 @@ import (
 	"github.com/compozy/compozy/internal/diagnostics"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	toolspkg "github.com/compozy/compozy/internal/tools"
-	mcptransport "github.com/mark3labs/mcp-go/client/transport"
 )
 
 const (
@@ -57,7 +57,31 @@ func (e *CallExecutor) ensureAuthorized(ctx context.Context, resolved ResolvedSe
 		if reason == toolspkg.ReasonMCPAuthUnconfigured {
 			reason = toolspkg.ReasonMCPAuthRequired
 		}
+		reason = e.authorizationFailureReason(ctx, resolved, reason)
 		return unavailableAuthError(reason)
+	}
+}
+
+func (e *CallExecutor) authorizationFailureReason(
+	ctx context.Context,
+	resolved ResolvedServer,
+	fallback toolspkg.ReasonCode,
+) toolspkg.ReasonCode {
+	if e == nil || e.auth == nil || fallback != toolspkg.ReasonMCPAuthRequired {
+		return fallback
+	}
+	cfg, err := mcpauth.ServerConfigFromMCP(ctx, resolved.Target, resolved.Server, nil)
+	if err != nil {
+		return fallback
+	}
+	_, err = e.auth.AuthorizationToken(ctx, cfg)
+	switch {
+	case errors.Is(err, mcpauth.ErrTokenBindingInvalid):
+		return toolspkg.ReasonMCPAuthInvalid
+	case errors.Is(err, mcpauth.ErrTokenExpired):
+		return toolspkg.ReasonMCPAuthExpired
+	default:
+		return fallback
 	}
 }
 
@@ -127,30 +151,16 @@ func (e *CallExecutor) refreshAuth(
 	return redactedAuthStatus(status), nil
 }
 
-func (e *CallExecutor) authHeaderFunc(resolved ResolvedServer) mcptransport.HTTPHeaderFunc {
-	return func(ctx context.Context) map[string]string {
-		header := e.authorizationHeader(ctx, resolved)
-		if header == "" {
-			return nil
-		}
-		return map[string]string{"Authorization": header}
-	}
-}
-
 func (e *CallExecutor) authorizationHeader(ctx context.Context, resolved ResolvedServer) string {
-	if e == nil || e.tokenStore == nil {
-		return ""
-	}
-	token, err := e.tokenStore.GetMCPAuthToken(ctx, resolved.Target)
-	if err != nil || strings.TrimSpace(token.AccessToken) == "" {
+	if e == nil || e.auth == nil {
 		return ""
 	}
 	cfg, err := mcpauth.ServerConfigFromMCP(ctx, resolved.Target, resolved.Server, nil)
 	if err != nil {
 		return ""
 	}
-	fingerprint, err := mcpauth.ServerDefinitionFingerprint(cfg)
-	if err != nil || strings.TrimSpace(token.DefinitionFingerprint) != fingerprint {
+	token, err := e.auth.AuthorizationToken(ctx, cfg)
+	if err != nil || strings.TrimSpace(token.AccessToken) == "" {
 		return ""
 	}
 	tokenType := strings.TrimSpace(token.TokenType)

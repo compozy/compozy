@@ -316,25 +316,7 @@ func (r *RuntimeRegistry) OperatorProjection(ctx context.Context, scope Scope) (
 
 // SessionProjection returns only callable tools for the effective session.
 func (r *RuntimeRegistry) SessionProjection(ctx context.Context, scope Scope) ([]ToolView, error) {
-	index, err := r.buildIndex(ctx, scope)
-	if err != nil {
-		return nil, err
-	}
-	evaluator, err := r.evaluatorFor(ctx, scope, index.ids())
-	if err != nil {
-		return nil, err
-	}
-	views := make([]ToolView, 0, len(index.entries))
-	for _, entry := range index.entries {
-		view, err := r.viewFor(ctx, scope, evaluator, entry)
-		if err != nil {
-			return nil, err
-		}
-		if view.Decision.VisibleToSession && view.Decision.Callable {
-			views = append(views, view)
-		}
-	}
-	return views, nil
+	return r.sessionProjection(ctx, scope, nil, nil)
 }
 
 func (r *RuntimeRegistry) viewFor(

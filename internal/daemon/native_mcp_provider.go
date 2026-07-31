@@ -15,9 +15,7 @@ func (d *Daemon) newDaemonMCPToolProvider(
 		return nil, nil, nil
 	}
 	resolver := newDaemonMCPServerResolver(state)
-	options := []mcppkg.CallExecutorOption{
-		mcppkg.WithTimeout(state.cfg.Observability.AgentProbeTimeoutOrDefault()),
-	}
+	var options []mcppkg.CallExecutorOption
 	if d != nil && d.getenv != nil {
 		options = append(options, mcppkg.WithSecretLookup(d.getenv))
 	}

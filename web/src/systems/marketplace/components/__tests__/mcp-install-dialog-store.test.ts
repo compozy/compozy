@@ -54,16 +54,16 @@ describe("MCP install dialog store", () => {
     store.trigger.secretCreationRequested({
       createSecret,
       name: "API_TOKEN",
-      ref: "vault:mcp/ws/ws_alpha/server/env/API_TOKEN",
+      ref: "vault:mcp/ws/ws_alpha/server/inputs/API_TOKEN",
       value: "secret-value",
     });
     expect(createSecret).toHaveBeenCalledWith(
-      "vault:mcp/ws/ws_alpha/server/env/API_TOKEN",
+      "vault:mcp/ws/ws_alpha/server/inputs/API_TOKEN",
       "secret-value"
     );
     await vi.waitFor(() => expect(store.getSnapshot().context.phase).toBe("editing"));
     expect(store.getSnapshot().context.bindings.API_TOKEN?.vaultRef).toBe(
-      "vault:mcp/ws/ws_alpha/server/env/API_TOKEN"
+      "vault:mcp/ws/ws_alpha/server/inputs/API_TOKEN"
     );
   });
 
@@ -84,7 +84,7 @@ describe("MCP install dialog store", () => {
     store.trigger.secretCreationRequested({
       createSecret: () => new Promise<void>(() => undefined),
       name: "API_TOKEN",
-      ref: "vault:mcp/ws/ws_alpha/server/env/API_TOKEN",
+      ref: "vault:mcp/ws/ws_alpha/server/inputs/API_TOKEN",
       value: "secret-value",
     });
     store.trigger.bindingChanged({

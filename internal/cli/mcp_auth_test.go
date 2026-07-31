@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"strings"
@@ -50,12 +51,11 @@ func TestMCPAuthLoginUsesDaemonOwnedManualExchange(t *testing.T) {
 		t.Parallel()
 
 		client := &stubClient{}
-		client.listSettingsMCPServersFn = func(
+		client.getSettingsMCPAuthStatusFn = func(
 			context.Context,
-			contract.SettingsWorkspaceScopeKind,
-			string,
-		) (contract.SettingsMCPServersResponse, error) {
-			return mcpAuthServerResponse(mcpAuthStatus("linear", "global", "", false, nil)), nil
+			SettingsMCPAuthTarget,
+		) (SettingsMCPAuthStatusRecord, error) {
+			return mcpAuthStatus("linear", "global", "", false, nil), nil
 		}
 		client.beginSettingsMCPAuthFn = func(
 			_ context.Context,
@@ -79,7 +79,9 @@ func TestMCPAuthLoginUsesDaemonOwnedManualExchange(t *testing.T) {
 			target SettingsMCPAuthTarget,
 			request SettingsMCPAuthExchangeRequest,
 		) (SettingsMCPAuthStatusRecord, error) {
-			if target.Name != "linear" || request.Code != "one-time-code" || request.RedirectURL != "" {
+			wantRedirectURL := "http://127.0.0.1:2123/api/mcp/oauth/callback" +
+				"?code=one-time-code&state=public-state"
+			if target.Name != "linear" || request.RedirectURL != wantRedirectURL {
 				t.Fatalf("exchange target/request = %#v / %#v", target, request)
 			}
 			return mcpAuthStatus("linear", "global", "", true, timePointer(time.Now())), nil
@@ -88,7 +90,7 @@ func TestMCPAuthLoginUsesDaemonOwnedManualExchange(t *testing.T) {
 		stdout, stderr, err := executeMCPAuthCommandWithInput(
 			t,
 			newWorkspaceTestDeps(t, client),
-			"one-time-code\n",
+			"http://127.0.0.1:2123/api/mcp/oauth/callback?code=one-time-code&state=public-state\n",
 			"mcp", "auth", "login", "linear", "--manual", "-o", "json",
 		)
 		if err != nil {
@@ -113,12 +115,11 @@ func TestMCPAuthLoginUsesDaemonOwnedManualExchange(t *testing.T) {
 		t.Parallel()
 
 		client := &stubClient{
-			listSettingsMCPServersFn: func(
+			getSettingsMCPAuthStatusFn: func(
 				context.Context,
-				contract.SettingsWorkspaceScopeKind,
-				string,
-			) (contract.SettingsMCPServersResponse, error) {
-				return mcpAuthServerResponse(mcpAuthStatus("linear", "global", "", false, nil)), nil
+				SettingsMCPAuthTarget,
+			) (SettingsMCPAuthStatusRecord, error) {
+				return mcpAuthStatus("linear", "global", "", false, nil), nil
 			},
 			beginSettingsMCPAuthFn: func(
 				context.Context,
@@ -144,7 +145,7 @@ func TestMCPAuthLoginUsesDaemonOwnedManualExchange(t *testing.T) {
 		_, _, err := executeMCPAuthCommandWithInput(
 			t,
 			newWorkspaceTestDeps(t, client),
-			"code\n",
+			"http://127.0.0.1:2123/api/mcp/oauth/callback?code=one-time-code&state=public-state\n",
 			"mcp", "auth", "login", "linear", "--manual",
 		)
 		if err == nil || !strings.Contains(err.Error(), "confirmed credential") {
@@ -156,15 +157,13 @@ func TestMCPAuthLoginUsesDaemonOwnedManualExchange(t *testing.T) {
 		t.Parallel()
 
 		client := &stubClient{
-			listSettingsMCPServersFn: func(
+			getSettingsMCPAuthStatusFn: func(
 				context.Context,
-				contract.SettingsWorkspaceScopeKind,
-				string,
-			) (contract.SettingsMCPServersResponse, error) {
-				return contract.SettingsMCPServersResponse{MCPServers: []contract.SettingsMCPServerItemPayload{{
-					Name:  "filesystem",
-					Scope: contract.SettingsScopeGlobal,
-				}}}, nil
+				SettingsMCPAuthTarget,
+			) (SettingsMCPAuthStatusRecord, error) {
+				return SettingsMCPAuthStatusRecord{
+					ServerName: "filesystem", Scope: "global", Status: string(mcpauth.StatusUnconfigured),
+				}, nil
 			},
 		}
 
@@ -196,12 +195,11 @@ func TestMCPAuthLoginManualHonorsTimeout(t *testing.T) {
 
 	newClient := func(exchange func(context.Context) error) *stubClient {
 		return &stubClient{
-			listSettingsMCPServersFn: func(
+			getSettingsMCPAuthStatusFn: func(
 				context.Context,
-				contract.SettingsWorkspaceScopeKind,
-				string,
-			) (contract.SettingsMCPServersResponse, error) {
-				return mcpAuthServerResponse(mcpAuthStatus("linear", "global", "", false, nil)), nil
+				SettingsMCPAuthTarget,
+			) (SettingsMCPAuthStatusRecord, error) {
+				return mcpAuthStatus("linear", "global", "", false, nil), nil
 			},
 			beginSettingsMCPAuthFn: func(
 				context.Context,
@@ -230,12 +228,25 @@ func TestMCPAuthLoginManualHonorsTimeout(t *testing.T) {
 	t.Run("Should interrupt pending manual input at the authorization deadline", func(t *testing.T) {
 		t.Parallel()
 
-		input := newDelayedMCPAuthReader(200 * time.Millisecond)
+		input, writer, err := os.Pipe()
+		if err != nil {
+			t.Fatalf("os.Pipe() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := input.Close(); err != nil && !errors.Is(err, os.ErrClosed) {
+				t.Errorf("manual input close error = %v", err)
+			}
+		})
+		t.Cleanup(func() {
+			if err := writer.Close(); err != nil {
+				t.Errorf("manual input writer close error = %v", err)
+			}
+		})
 		client := newClient(nil)
 		cmd := newRootCommand(newWorkspaceTestDeps(t, client))
 		cmd.SetIn(input)
 		cmd.SetArgs([]string{"mcp", "auth", "login", "linear", "--manual", "--timeout", "20ms"})
-		err := cmd.ExecuteContext(t.Context())
+		err = cmd.ExecuteContext(t.Context())
 		if err == nil || !strings.Contains(err.Error(), "authorization timed out") {
 			t.Fatalf("mcp auth login error = %v, want authorization timeout", err)
 		}
@@ -255,7 +266,7 @@ func TestMCPAuthLoginManualHonorsTimeout(t *testing.T) {
 		_, _, err := executeMCPAuthCommandWithInput(
 			t,
 			newWorkspaceTestDeps(t, client),
-			"one-time-code\n",
+			"http://127.0.0.1:2123/api/mcp/oauth/callback?code=one-time-code&state=public-state\n",
 			"mcp", "auth", "login", "linear", "--manual", "--timeout", "20ms",
 		)
 		if err == nil || !errors.Is(err, context.DeadlineExceeded) ||
@@ -263,32 +274,6 @@ func TestMCPAuthLoginManualHonorsTimeout(t *testing.T) {
 			t.Fatalf("mcp auth login error = %v, want stable authorization timeout", err)
 		}
 	})
-}
-
-type delayedMCPAuthReader struct {
-	delay  time.Duration
-	closed chan struct{}
-	once   sync.Once
-}
-
-func newDelayedMCPAuthReader(delay time.Duration) *delayedMCPAuthReader {
-	return &delayedMCPAuthReader{delay: delay, closed: make(chan struct{})}
-}
-
-func (r *delayedMCPAuthReader) Read([]byte) (int, error) {
-	timer := time.NewTimer(r.delay)
-	defer timer.Stop()
-	select {
-	case <-timer.C:
-		return 0, io.EOF
-	case <-r.closed:
-		return 0, io.ErrClosedPipe
-	}
-}
-
-func (r *delayedMCPAuthReader) Close() error {
-	r.once.Do(func() { close(r.closed) })
-	return nil
 }
 
 func TestReadManualMCPAuthInput(t *testing.T) {
@@ -365,6 +350,77 @@ func TestReadManualMCPAuthInput(t *testing.T) {
 	})
 }
 
+func TestReadManualMCPAuthInputContext(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should keep terminal input open until the hidden read returns", func(t *testing.T) {
+		t.Parallel()
+
+		terminalInput, terminalWriter, err := os.Pipe()
+		if err != nil {
+			t.Fatalf("os.Pipe() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := terminalInput.Close(); err != nil && !errors.Is(err, os.ErrClosed) {
+				t.Errorf("terminal input close error = %v", err)
+			}
+		})
+		t.Cleanup(func() {
+			if err := terminalWriter.Close(); err != nil {
+				t.Errorf("terminal writer close error = %v", err)
+			}
+		})
+
+		ctx, cancel := context.WithTimeout(t.Context(), 20*time.Millisecond)
+		t.Cleanup(cancel)
+		passwordReadStarted := make(chan struct{})
+		allowPasswordReadReturn := make(chan struct{})
+		var releasePasswordRead sync.Once
+		t.Cleanup(func() { releasePasswordRead.Do(func() { close(allowPasswordReadReturn) }) })
+		results := make(chan error, 1)
+		go func() {
+			_, readErr := readManualMCPAuthInputContextWithTerminal(
+				ctx,
+				terminalInput,
+				io.Discard,
+				func(io.Reader) bool { return true },
+				func(fd int) ([]byte, error) {
+					if fd != int(terminalInput.Fd()) {
+						return nil, fmt.Errorf("terminal fd = %d, want %d", fd, terminalInput.Fd())
+					}
+					close(passwordReadStarted)
+					<-allowPasswordReadReturn
+					return []byte("http://127.0.0.1:2123/api/mcp/oauth/callback?code=code&state=state"), nil
+				},
+			)
+			results <- readErr
+		}()
+
+		select {
+		case <-passwordReadStarted:
+		case <-t.Context().Done():
+			t.Fatalf("hidden password read did not start: %v", t.Context().Err())
+		}
+		<-ctx.Done()
+		returnTimer := time.NewTimer(100 * time.Millisecond)
+		defer returnTimer.Stop()
+		select {
+		case readErr := <-results:
+			t.Fatalf("readManualMCPAuthInputContextWithTerminal() returned before password read finished: %v", readErr)
+		case <-returnTimer.C:
+		}
+		if _, err := terminalInput.Stat(); err != nil {
+			t.Fatalf("terminal input was closed before password read returned: %v", err)
+		}
+
+		releasePasswordRead.Do(func() { close(allowPasswordReadReturn) })
+		if readErr := <-results; !errors.Is(readErr, context.DeadlineExceeded) ||
+			!strings.Contains(readErr.Error(), "authorization timed out") {
+			t.Fatalf("readManualMCPAuthInputContextWithTerminal() error = %v, want authorization timeout", readErr)
+		}
+	})
+}
+
 func TestMCPAuthLoginWaitsForAChangedConfirmedCredential(t *testing.T) {
 	t.Parallel()
 
@@ -373,18 +429,17 @@ func TestMCPAuthLoginWaitsForAChangedConfirmedCredential(t *testing.T) {
 
 		oldUpdatedAt := time.Now().Add(-time.Hour).UTC()
 		newUpdatedAt := oldUpdatedAt.Add(time.Minute)
-		var listCalls atomic.Int32
+		var statusCalls atomic.Int32
 		client := &stubClient{
-			listSettingsMCPServersFn: func(
+			getSettingsMCPAuthStatusFn: func(
 				context.Context,
-				contract.SettingsWorkspaceScopeKind,
-				string,
-			) (contract.SettingsMCPServersResponse, error) {
+				SettingsMCPAuthTarget,
+			) (SettingsMCPAuthStatusRecord, error) {
 				updatedAt := &oldUpdatedAt
-				if listCalls.Add(1) >= 3 {
+				if statusCalls.Add(1) >= 3 {
 					updatedAt = &newUpdatedAt
 				}
-				return mcpAuthServerResponse(mcpAuthStatus("linear", "global", "", true, updatedAt)), nil
+				return mcpAuthStatus("linear", "global", "", true, updatedAt), nil
 			},
 			beginSettingsMCPAuthFn: func(
 				_ context.Context,
@@ -409,8 +464,8 @@ func TestMCPAuthLoginWaitsForAChangedConfirmedCredential(t *testing.T) {
 		if err != nil {
 			t.Fatalf("execute mcp auth login error = %v", err)
 		}
-		if listCalls.Load() < 3 {
-			t.Fatalf("ListSettingsMCPServers calls = %d, want baseline plus changed poll", listCalls.Load())
+		if statusCalls.Load() < 3 {
+			t.Fatalf("GetSettingsMCPAuthStatus calls = %d, want baseline plus changed poll", statusCalls.Load())
 		}
 		var status SettingsMCPAuthStatusRecord
 		if err := json.Unmarshal([]byte(stdout), &status); err != nil {
@@ -431,15 +486,14 @@ func TestMCPAuthStatusAndLogoutHonorWorkspaceIdentity(t *testing.T) {
 		workspaceID := "workspace-a"
 		wantStatus := mcpAuthStatus("linear", "workspace", workspaceID, true, timePointer(time.Now()))
 		client := &stubClient{}
-		client.listSettingsMCPServersFn = func(
+		client.getSettingsMCPAuthStatusFn = func(
 			_ context.Context,
-			scope contract.SettingsWorkspaceScopeKind,
-			gotWorkspaceID string,
-		) (contract.SettingsMCPServersResponse, error) {
-			if scope != contract.SettingsWorkspaceScopeWorkspace || gotWorkspaceID != workspaceID {
-				t.Fatalf("status scope/workspace = %q/%q", scope, gotWorkspaceID)
+			target SettingsMCPAuthTarget,
+		) (SettingsMCPAuthStatusRecord, error) {
+			if target.Scope != contract.SettingsWorkspaceScopeWorkspace || target.WorkspaceID != workspaceID {
+				t.Fatalf("status target = %#v", target)
 			}
-			return mcpAuthServerResponse(wantStatus), nil
+			return wantStatus, nil
 		}
 		client.logoutSettingsMCPAuthFn = func(
 			_ context.Context,
@@ -467,6 +521,16 @@ func TestMCPAuthStatusAndLogoutHonorWorkspaceIdentity(t *testing.T) {
 		if strings.Contains(stdout, "access-token") || strings.Contains(stdout, "refresh-token") {
 			t.Fatalf("status output leaked token material: %s", stdout)
 		}
+		var fields []map[string]json.RawMessage
+		if err := json.Unmarshal([]byte(stdout), &fields); err != nil {
+			t.Fatalf("json.Unmarshal(status fields) error = %v", err)
+		}
+		if len(fields) != 1 {
+			t.Fatalf("status field records = %d, want 1", len(fields))
+		}
+		if _, found := fields[0]["resolution_source"]; found {
+			t.Fatalf("mcp auth status JSON contains resolution_source, want raw daemon payload: %s", stdout)
+		}
 		var statuses []SettingsMCPAuthStatusRecord
 		if err := json.Unmarshal([]byte(stdout), &statuses); err != nil {
 			t.Fatalf("json.Unmarshal(statuses) error = %v", err)
@@ -475,45 +539,139 @@ func TestMCPAuthStatusAndLogoutHonorWorkspaceIdentity(t *testing.T) {
 			t.Fatalf("statuses = %#v", statuses)
 		}
 
-		if _, _, err := executeRootCommand(
+		logout, _, err := executeRootCommand(
 			t,
 			deps,
 			"mcp", "auth", "logout", "linear",
-			"--scope", "workspace", "--workspace", workspaceID,
-		); err != nil {
+			"--scope", "workspace", "--workspace", workspaceID, "-o", "json",
+		)
+		if err != nil {
 			t.Fatalf("execute mcp auth logout error = %v", err)
+		}
+		var logoutFields map[string]json.RawMessage
+		if err := json.Unmarshal([]byte(logout), &logoutFields); err != nil {
+			t.Fatalf("json.Unmarshal(logout fields) error = %v", err)
+		}
+		if _, found := logoutFields["resolution_source"]; found {
+			t.Fatalf("mcp auth logout JSON contains resolution_source, want raw daemon payload: %s", logout)
 		}
 	})
 }
 
-func TestManualMCPAuthExchangeRequestClassifiesCodeAndRedirect(t *testing.T) {
+func TestManualMCPAuthExchangeRequestRequiresFullRedirectURL(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
 		name         string
 		input        string
-		wantCode     bool
-		wantRedirect bool
+		wantRedirect string
+		wantErr      bool
 	}{
-		{name: "Should classify an opaque code", input: "opaque-code", wantCode: true},
 		{
 			name:         "Should classify an absolute redirect URL",
 			input:        "https://callback.example/oauth?code=opaque&state=public",
-			wantRedirect: true,
+			wantRedirect: "https://callback.example/oauth?code=opaque&state=public",
+		},
+		{
+			name:    "Should reject an opaque authorization code",
+			input:   "opaque-authorization-code",
+			wantErr: true,
+		},
+		{
+			name:    "Should reject a non-absolute callback path",
+			input:   "/oauth/callback?code=opaque&state=public",
+			wantErr: true,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
 			request, err := manualMCPAuthExchangeRequest(tc.input)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatalf("manualMCPAuthExchangeRequest() error = nil, want rejection")
+				}
+				return
+			}
 			if err != nil {
 				t.Fatalf("manualMCPAuthExchangeRequest() error = %v", err)
 			}
-			if (request.Code != "") != tc.wantCode || (request.RedirectURL != "") != tc.wantRedirect {
-				t.Fatalf("request = %#v", request)
+			if request.RedirectURL != tc.wantRedirect {
+				t.Fatalf("request.RedirectURL = %q, want %q", request.RedirectURL, tc.wantRedirect)
 			}
 		})
 	}
+}
+
+func TestMCPAuthLoginRequiresExplicitScopeEscalationApproval(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should require explicit scope escalation approval", func(t *testing.T) {
+		t.Parallel()
+
+		_, _, err := executeRootCommand(
+			t,
+			newWorkspaceTestDeps(t, &stubClient{}),
+			"mcp",
+			"auth",
+			"login",
+			"linear",
+			"--approved-scope",
+			"tools.write",
+		)
+		if err == nil || !strings.Contains(err.Error(), "--approve-scope-escalation") {
+			t.Fatalf("mcp auth login error = %v, want explicit scope escalation approval", err)
+		}
+	})
+
+	t.Run("Should forward explicitly approved scopes", func(t *testing.T) {
+		t.Parallel()
+
+		client := &stubClient{
+			getSettingsMCPAuthStatusFn: func(
+				context.Context,
+				SettingsMCPAuthTarget,
+			) (SettingsMCPAuthStatusRecord, error) {
+				return mcpAuthStatus("linear", "global", "", false, nil), nil
+			},
+			beginSettingsMCPAuthFn: func(
+				_ context.Context,
+				_ SettingsMCPAuthTarget,
+				request SettingsMCPAuthBeginRequest,
+			) (SettingsMCPAuthBeginRecord, error) {
+				if strings.Join(request.ApprovedScopes, ",") != "tools.write,resources.read" {
+					t.Fatalf("begin approved scopes = %v", request.ApprovedScopes)
+				}
+				if !request.ApproveScopeEscalation {
+					t.Fatal("begin scope escalation approval = false, want true")
+				}
+				return SettingsMCPAuthBeginRecord{
+					AuthorizationURL: "https://auth.example/authorize",
+					ExpiresAt:        time.Now().Add(time.Minute),
+					ManualSupported:  true,
+				}, nil
+			},
+			exchangeSettingsMCPAuthFn: func(
+				context.Context,
+				SettingsMCPAuthTarget,
+				SettingsMCPAuthExchangeRequest,
+			) (SettingsMCPAuthStatusRecord, error) {
+				return mcpAuthStatus("linear", "global", "", true, timePointer(time.Now())), nil
+			},
+		}
+		_, _, err := executeMCPAuthCommandWithInput(
+			t,
+			newWorkspaceTestDeps(t, client),
+			"http://127.0.0.1:2123/api/mcp/oauth/callback?code=one-time-code&state=public-state\n",
+			"mcp", "auth", "login", "linear", "--manual",
+			"--approved-scope", "tools.write",
+			"--approved-scope", "resources.read",
+			"--approve-scope-escalation",
+		)
+		if err != nil {
+			t.Fatalf("execute mcp auth login with approved scopes error = %v", err)
+		}
+	})
 }
 
 func TestMCPAuthStatusBundlesRenderScopeAndTokenPresence(t *testing.T) {
@@ -560,15 +718,6 @@ func mcpAuthStatus(
 		TokenPresent: tokenPresent,
 		UpdatedAt:    updatedAt,
 	}
-}
-
-func mcpAuthServerResponse(status SettingsMCPAuthStatusRecord) contract.SettingsMCPServersResponse {
-	return contract.SettingsMCPServersResponse{MCPServers: []contract.SettingsMCPServerItemPayload{{
-		Name:        status.ServerName,
-		Scope:       contract.SettingsScopeKind(status.Scope),
-		WorkspaceID: status.WorkspaceID,
-		AuthStatus:  &status,
-	}}}
 }
 
 func executeMCPAuthCommandWithInput(

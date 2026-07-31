@@ -17,8 +17,7 @@ import (
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
 	toolspkg "github.com/compozy/compozy/internal/tools"
-	mcpclient "github.com/mark3labs/mcp-go/client"
-	sdkmcp "github.com/mark3labs/mcp-go/mcp"
+	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 func TestDaemonE2EToolApprovalGrantsPersistAcrossRestartAndMatchSurfaces(t *testing.T) {
@@ -235,7 +234,7 @@ func approvalGrantHostedClient(
 	ctx context.Context,
 	harness *e2etest.RuntimeHarness,
 	agentName string,
-) *mcpclient.Client {
+) *sdkmcp.ClientSession {
 	t.Helper()
 
 	registration, ok := harness.MockAgentRegistration(agentName)
@@ -248,17 +247,9 @@ func approvalGrantHostedClient(
 	}
 	client := startHostedMCPClient(
 		t,
+		ctx,
 		requireHostedMCPStdioServer(t, diagnostics, hostedMCPServerEarliest),
 	)
-	var init sdkmcp.InitializeRequest
-	init.Params.ProtocolVersion = sdkmcp.LATEST_PROTOCOL_VERSION
-	init.Params.ClientInfo = sdkmcp.Implementation{Name: "compozy-tool-approval-e2e", Version: "1.0.0"}
-	if _, err := client.Initialize(ctx, init); err != nil {
-		if closeErr := client.Close(); closeErr != nil {
-			t.Fatalf("Initialize(hosted MCP client) error = %v; Close() error = %v", err, closeErr)
-		}
-		t.Fatalf("Initialize(hosted MCP client) error = %v", err)
-	}
 	return client
 }
 
@@ -267,7 +258,7 @@ func callApprovalToolWithDecision(
 	ctx context.Context,
 	harness *e2etest.RuntimeHarness,
 	sessionID string,
-	client *mcpclient.Client,
+	client *sdkmcp.ClientSession,
 	toolID toolspkg.ToolID,
 	toolCallID string,
 	arguments map[string]any,
@@ -306,7 +297,7 @@ func callApprovalToolWithDecision(
 func callHostedApprovalTool(
 	t testing.TB,
 	ctx context.Context,
-	client *mcpclient.Client,
+	client *sdkmcp.ClientSession,
 	toolCallID string,
 	arguments map[string]any,
 ) *sdkmcp.CallToolResult {
@@ -326,12 +317,12 @@ func approvalToolCall(
 	toolID toolspkg.ToolID,
 	toolCallID string,
 	arguments map[string]any,
-) sdkmcp.CallToolRequest {
-	var call sdkmcp.CallToolRequest
-	call.Params.Name = toolID.String()
-	call.Params.Arguments = arguments
-	call.Params.Meta = &sdkmcp.Meta{AdditionalFields: map[string]any{"toolCallId": toolCallID}}
-	return call
+) *sdkmcp.CallToolParams {
+	return &sdkmcp.CallToolParams{
+		Meta:      sdkmcp.Meta{"toolCallId": toolCallID},
+		Name:      toolID.String(),
+		Arguments: arguments,
+	}
 }
 
 func decodeNativeApprovalGrantSet(
@@ -474,14 +465,15 @@ func listApprovalGrantsCLI(
 func listApprovalGrantsNative(
 	t testing.TB,
 	ctx context.Context,
-	client *mcpclient.Client,
+	client *sdkmcp.ClientSession,
 	workspaceID string,
 ) compozycontract.ToolApprovalGrantListResponse {
 	t.Helper()
 
-	var call sdkmcp.CallToolRequest
-	call.Params.Name = toolspkg.ToolIDToolApprovalsList.String()
-	call.Params.Arguments = map[string]any{"workspace": workspaceID}
+	call := &sdkmcp.CallToolParams{
+		Name:      toolspkg.ToolIDToolApprovalsList.String(),
+		Arguments: map[string]any{"workspace": workspaceID},
+	}
 	result, err := client.CallTool(ctx, call)
 	if err != nil {
 		t.Fatalf("CallTool(%s) error = %v", toolspkg.ToolIDToolApprovalsList, err)

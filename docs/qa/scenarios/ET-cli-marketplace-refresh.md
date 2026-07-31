@@ -11,8 +11,8 @@ bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/marketplace-kill-switch.json; /Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/marketplace-agent-parity-final.json
-last_report: docs/qa/reports/2026-07-15-marketplace.md
+evidence: docs/qa/reports/2026-07-30-mcp-2026-catalog-v2.md
+last_report: docs/qa/reports/2026-07-30-mcp-2026-catalog-v2.md
 overlaps: MS-marketplace-catalog-live-config; ET-marketplace-kill-switch
 ---
 

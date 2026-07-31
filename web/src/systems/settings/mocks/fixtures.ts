@@ -943,10 +943,8 @@ export const mcpManagementServerFixtures: SettingsMCPServerEntry[] = [
     transport: "http",
     url: "https://mcp.linear.app/mcp",
     auth: {
-      type: "oauth2_pkce",
-      client_id: "compozy-linear-public",
-      client_secret_configured: true,
-      issuer_url: "https://auth.linear.app",
+      client_secret_configured: false,
+      registration: "auto",
     },
     auth_status: {
       server_name: "linear",
@@ -971,13 +969,11 @@ export const mcpManagementServerFixtures: SettingsMCPServerEntry[] = [
   },
   {
     name: "sentry",
-    transport: "sse",
-    url: "https://mcp.sentry.dev/sse",
+    transport: "http",
+    url: "https://mcp.sentry.dev/mcp",
     auth: {
-      type: "oauth2_pkce",
-      client_id: "compozy-sentry-public",
       client_secret_configured: false,
-      issuer_url: "https://auth.sentry.io",
+      registration: "auto",
     },
     auth_status: {
       server_name: "sentry",
@@ -992,6 +988,7 @@ export const mcpManagementServerFixtures: SettingsMCPServerEntry[] = [
       initialized: true,
       state: "ready",
       probe: "succeeded",
+      protocol_version: "2026-07-28",
       tool_count: 18,
     },
     catalog_entry: "sentry",
@@ -1005,10 +1002,8 @@ export const mcpManagementServerFixtures: SettingsMCPServerEntry[] = [
     transport: "http",
     url: "https://mcp.notion.com/mcp",
     auth: {
-      type: "oauth2_pkce",
-      client_id: "compozy-notion-public",
       client_secret_configured: false,
-      issuer_url: "https://auth.notion.com",
+      registration: "auto",
     },
     auth_status: {
       server_name: "notion",
@@ -1030,17 +1025,15 @@ export const mcpManagementServerFixtures: SettingsMCPServerEntry[] = [
     source_metadata: mcpConfigSource("workspace-config", "workspace"),
   },
   {
-    name: "figma",
-    transport: "sse",
-    url: "https://mcp.figma.com/sse",
+    name: "grafana",
+    transport: "http",
+    url: "https://mcp.grafana.com/mcp",
     auth: {
-      type: "oauth2_pkce",
-      client_id: "compozy-figma-public",
       client_secret_configured: false,
-      issuer_url: "https://auth.figma.com",
+      registration: "auto",
     },
     auth_status: {
-      server_name: "figma",
+      server_name: "grafana",
       scope: "global",
       status: "invalid",
       token_present: true,
@@ -1062,10 +1055,8 @@ export const mcpManagementServerFixtures: SettingsMCPServerEntry[] = [
     transport: "http",
     url: "https://api.githubcopilot.com/mcp",
     auth: {
-      type: "oauth2_pkce",
-      client_id: "compozy-github-public",
       client_secret_configured: false,
-      issuer_url: "https://github.com/login/oauth",
+      registration: "auto",
     },
     auth_status: {
       server_name: "github-remote",
@@ -1106,10 +1097,8 @@ export const mcpManagementServerFixtures: SettingsMCPServerEntry[] = [
     transport: "http",
     url: "https://mcp.pagerduty.com/mcp",
     auth: {
-      type: "oauth2_pkce",
-      client_id: "compozy-pagerduty-public",
       client_secret_configured: false,
-      issuer_url: "https://auth.pagerduty.com",
+      registration: "auto",
     },
     auth_status: {
       server_name: "pagerduty",
@@ -1132,13 +1121,11 @@ export const mcpManagementServerFixtures: SettingsMCPServerEntry[] = [
   },
   {
     name: "buildkite",
-    transport: "sse",
-    url: "https://mcp.buildkite.com/sse",
+    transport: "http",
+    url: "https://mcp.buildkite.com/mcp",
     auth: {
-      type: "oauth2_pkce",
-      client_id: "compozy-buildkite-public",
       client_secret_configured: false,
-      issuer_url: "https://auth.buildkite.com",
+      registration: "auto",
     },
     auth_status: {
       server_name: "buildkite",

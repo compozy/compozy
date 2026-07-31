@@ -144,7 +144,6 @@ export type {
   MCPDraftErrors,
   MCPDraftValidation,
   MCPEnvPair,
-  MCPOAuthDiscovery,
   MCPOAuthDraft,
   MCPSecretBinding,
   MCPSecretEnvEntry,

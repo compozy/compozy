@@ -4,19 +4,19 @@ area: ET
 title: Manage scoped MCP OAuth through daemon API routes
 persona: Ada
 journey: J-mcp-authorize-repair
-expected: HTTP and UDS begin/exchange/logout return equivalent redacted contracts for an explicit global or workspace target; begin requires `mode=automatic|manual`, and manual creates a fresh paste-based PKCE session; HTTP mutations require loopback privilege; the HTTP-only callback completes on loopback while refusing non-loopback binds; replacing or deleting a server invalidates pending target/callback completion, preserves any prior token record, and never sends its bearer to the replacement endpoint. A successful exchange supersedes every older refresh generation.
+expected: HTTP and UDS begin/exchange/logout return equivalent redacted contracts for an explicit global or workspace target; begin requires `mode=automatic|manual`, resolves pre-registration then CIMD then one DCR fallback, and manual accepts only a full redirect URL for a fresh PKCE session. The lifecycle binds target/resource/issuer/redirect/scopes/fingerprint, validates state and RFC 9207 issuer, burns every exchange attempt, and preserves any prior token on failure. HTTP mutations require loopback privilege; the HTTP-only callback completes on loopback while refusing non-loopback binds; replacing or deleting a server invalidates pending target/callback completion and never sends its bearer to the replacement endpoint.
 entry_points: POST /api/settings/mcp-servers/{name}/auth/begin; POST /api/settings/mcp-servers/{name}/auth/exchange; POST /api/settings/mcp-servers/{name}/auth/logout; GET /api/mcp/oauth/callback
 qa_status: blocked-verify
 bug_ids: BUG-20260715-mcp-oauth-name-segment
 fix_status: fixed
 retest_status: pass
 fix_commits: 8eeb8a38
-evidence: /Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/mcp-non-loopback-callback.json; /Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/marketplace-agent-parity-final.json; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-021949-664736-lab/qa-artifacts/qa/evidence/024-mcp-oauth-endpoints; /Users/pedronauck/dev/qa-labs/compozy-mcp-oauth-nonloopback-20260729-20260729-094415-836845-lab/qa-artifacts/qa/evidence/001-mcp-oauth-nonloopback; /Users/pedronauck/dev/qa-labs/compozy-mcp-oauth-replacement-20260729-20260729-095438-704553-lab/qa-artifacts/qa/evidence/001-mcp-replacement;/Users/pedronauck/dev/qa-labs/compozy-qa-et-current-source-20260730-061655-910372-lab/qa-artifacts/qa
-last_report: docs/qa/reports/2026-07-28-untested-full.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-mcp-2026-catalog-v2-final-rerun-20260730-204949-514647-lab/qa-artifacts/qa/notes/cli-mcp-install-linear.json; /Users/pedronauck/dev/qa-labs/compozy-mcp-2026-catalog-v2-final-rerun-20260730-204949-514647-lab/qa-artifacts/qa/notes/mcp-status-after-linear.json; /Users/pedronauck/dev/qa-labs/compozy-mcp-2026-catalog-v2-final-rerun-20260730-204949-514647-lab/qa-artifacts/qa/screenshots/mcp-guided-linear-installed.png
+last_report: docs/qa/reports/2026-07-30-mcp-2026-catalog-v2.md
 overlaps: ET-047; ET-cli-mcp-auth-manual-exchange; ET-cli-mcp-authorize
 ---
 
-Historical QA note: effective IPv4/IPv6 loopback callback origin and documented 503 outcome coverage remains pending.
+Historical QA note: configured IPv4/IPv6 loopback callback-origin coverage remains pending.
 
 Added by marketplace Task 04. QA should compare HTTP and UDS payloads, prove two homonymous
 workspace servers cannot read each other's tokens, confirm logout removes only the selected scoped
@@ -29,9 +29,9 @@ flight; verify the old token remains stored but is neither reported authenticate
 replacement endpoint. Also leave an expired session abandoned, begin another target, and confirm the
 expired state can no longer complete.
 
-QA impact 2026-07-16: begin now derives its callback from the effective loopback listener instead of
-assuming `127.0.0.1`; verify IPv4, IPv6, and non-loopback behavior plus the callback's documented
-`503` HTML response when runtime state is unavailable.
+QA impact 2026-07-16 (superseded 2026-07-30): callback origin had briefly followed the effective
+listener. The MCP 2026 hard cut now treats `mcp.oauth.redirect_uri` as authoritative and never derives
+it from the daemon listener.
 
 QA impact 2026-07-17: begin now requires the explicit automatic/manual mode over HTTP and UDS.
 Exercise a refresh that starts after begin but finishes after exchange; the exchanged credential must
@@ -43,3 +43,12 @@ newer-exchange versus blocked-refresh ordering; non-loopback 403/503 behavior; r
 all passed. The historical name-segment fix passed its fresh retest. The defensive callback-503
 branch with an absent settings runtime remains Pending because no public healthy-daemon fault owner
 can create that handler state.
+
+QA impact 2026-07-30 deep-review remediation: re-walk configured loopback callback validation,
+RFC 9207 `iss`, DCR token-endpoint auth-method persistence, resource indicators, catalog-egress
+policy, refresh, and logout. Full vendor consent remains `blocked-verify`; local fixture branches must
+still pass without exposing codes, redirects, verifiers, registration tokens, or bearer tokens.
+
+QA result 2026-07-30: deterministic installation and status remained redacted and returned
+`next_step=authorize`; no vendor consent, code exchange, refresh token, or logout was performed.
+The scenario therefore remains `blocked-verify` only for human-owned Linear consent.

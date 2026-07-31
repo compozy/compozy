@@ -20,6 +20,7 @@ import { toast } from "sonner";
 
 import type { UseMCPAuthorizeReturn } from "../hooks/use-mcp-authorize";
 
+import { isAbsoluteMCPRedirectURL } from "../lib/mcp-authorize-model";
 import { authTone, formatStatusLabel } from "../lib/mcp-status-view-model";
 import type { SettingsMCPServerEntry } from "../types";
 
@@ -44,7 +45,9 @@ export function MCPAuthorizeDialog({ authorize, scope, server }: MCPAuthorizeDia
         unframed
         data-testid="settings-page-mcp-authorize"
       >
-        {open ? (
+        {open && authorize.phase === "reviewing_scopes" ? (
+          <ScopeEscalationReview authorize={authorize} scope={scope} server={server} />
+        ) : open ? (
           <AuthorizeContent
             key={authorize.server ?? "none"}
             authorize={authorize}
@@ -54,6 +57,71 @@ export function MCPAuthorizeDialog({ authorize, scope, server }: MCPAuthorizeDia
         ) : null}
       </DialogContent>
     </Dialog>
+  );
+}
+
+function ScopeEscalationReview({ authorize, scope, server }: MCPAuthorizeDialogProps) {
+  const name = authorize.server ?? server?.name ?? "MCP server";
+  const scopes = authorize.approvedScopes;
+  return (
+    <>
+      <DialogHeader variant="ruled">
+        <Eyebrow className="flex items-center gap-2 text-muted">
+          <Plug className="size-3.5" />
+          {name} · {scope} · OAuth
+        </Eyebrow>
+        <DialogTitle>Approve additional scopes</DialogTitle>
+        <DialogDescription>
+          Review the access {name} is requesting beyond its current authorization.
+        </DialogDescription>
+      </DialogHeader>
+
+      <div className="flex max-h-[60vh] flex-col gap-3 overflow-y-auto px-5 py-4">
+        <Alert variant="warning" data-testid="settings-page-mcp-scope-review">
+          <CircleAlert />
+          <AlertTitle>Authorization scope increase</AlertTitle>
+          <AlertDescription>
+            Approving starts a new provider authorization for these scopes. Existing credentials
+            stay unchanged until the provider confirms the exchange.
+          </AlertDescription>
+        </Alert>
+        <ul aria-label="Additional OAuth scopes" className="flex flex-wrap gap-2">
+          {scopes.map(scopeName => (
+            <li key={scopeName}>
+              <Pill mono tone="warning">
+                {scopeName}
+              </Pill>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      <DialogFooter variant="ruled" className="grid items-center">
+        <span className="text-caption text-muted">
+          The daemon sends these scopes only after this confirmation.
+        </span>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <Button
+            data-testid="settings-page-mcp-scope-cancel"
+            onClick={authorize.cancel}
+            size="sm"
+            type="button"
+            variant="ghost"
+          >
+            Cancel
+          </Button>
+          <Button
+            data-testid="settings-page-mcp-scope-confirm"
+            disabled={scopes.length === 0}
+            onClick={authorize.confirmScopeEscalation}
+            size="sm"
+            type="button"
+          >
+            Approve scopes
+          </Button>
+        </div>
+      </DialogFooter>
+    </>
   );
 }
 
@@ -75,7 +143,7 @@ function AuthorizeContent({ authorize, scope, server }: MCPAuthorizeDialogProps)
       <DialogHeader variant="ruled">
         <Eyebrow className="flex items-center gap-2 text-muted">
           <Plug className="size-3.5" />
-          {name} · {scope} · oauth2_pkce
+          {name} · {scope} · OAuth
         </Eyebrow>
         <DialogTitle>Authorize {name}</DialogTitle>
         <DialogDescription>
@@ -151,7 +219,7 @@ function AuthorizeContent({ authorize, scope, server }: MCPAuthorizeDialogProps)
               className="mb-1.5 flex items-center gap-2 text-form-label font-medium text-fg"
               htmlFor="mcp-authorize-manual-value"
             >
-              Code or full redirect URL
+              Full redirect URL
               <Eyebrow className="ml-auto text-muted">required</Eyebrow>
             </label>
             <Textarea
@@ -159,13 +227,13 @@ function AuthorizeContent({ authorize, scope, server }: MCPAuthorizeDialogProps)
               className="font-mono"
               value={manualValue}
               onChange={event => setManualValue(event.target.value)}
-              placeholder="Paste the authorization code or the full redirected URL"
+              placeholder="Paste the complete URL returned after provider authorization"
               aria-describedby="mcp-authorize-manual-help"
               data-testid="settings-page-mcp-authorize-manual-input"
             />
             <p className="mt-1.5 text-caption text-muted" id="mcp-authorize-manual-help">
-              Use this when the browser cannot reach the daemon host. CompozyOS sends exactly one
-              value to auth/exchange.
+              Use this when the browser cannot reach the daemon host. Paste the complete redirected
+              URL, including its query parameters. Authorization codes alone are not accepted.
             </p>
           </div>
         ) : null}
@@ -223,7 +291,7 @@ function AuthorizePrimaryAction({
       <Button
         type="button"
         size="sm"
-        disabled={manualValue.trim() === "" || exchanging}
+        disabled={!isAbsoluteMCPRedirectURL(manualValue) || exchanging}
         onClick={() => authorize.submitManual(manualValue)}
         data-testid="settings-page-mcp-authorize-exchange"
       >
@@ -266,7 +334,7 @@ function AuthorizePrimaryAction({
       onClick={() => void authorize.enterManual()}
       data-testid="settings-page-mcp-authorize-manual-trigger"
     >
-      Enter code or redirect
+      Enter redirect URL
     </Button>
   );
 }
