@@ -3,13 +3,20 @@ import { createStoreLogic } from "@xstate/store";
 import { type RuntimeSpeed } from "@/lib/api-contract";
 import type { RuntimeSelectorValue } from "@/systems/runtime";
 
-import type { SessionPayload } from "../types";
+import type { SessionRuntimeEffective } from "../types";
 
 interface SessionPromptRuntimeInput {
   canPrompt: boolean;
-  effectiveRuntime: NonNullable<NonNullable<SessionPayload["runtime"]>["effective"]> | undefined;
+  effectiveRuntime: SessionRuntimeEffective | undefined;
   workspaceId: string;
   agentName: string;
+}
+
+export interface SessionPromptRuntimeInputSource {
+  agentName: string;
+  canPrompt: boolean;
+  effectiveRuntime: SessionRuntimeEffective | null | undefined;
+  workspaceId: string | undefined;
 }
 
 interface SessionPromptRuntimeStoreContext {
@@ -82,23 +89,15 @@ export type SessionPromptRuntimeStore = ReturnType<
 >;
 
 export function sessionPromptRuntimeInput(
-  session: SessionPayload,
-  canPrompt: boolean
+  source: SessionPromptRuntimeInputSource
 ): SessionPromptRuntimeInput {
+  const workspaceId = source.workspaceId?.trim() ?? "";
   return {
-    agentName: session.agent_name,
-    canPrompt,
-    effectiveRuntime: session.runtime?.effective ?? undefined,
-    workspaceId: requireWorkspaceId(session.workspace_id),
+    agentName: source.agentName,
+    canPrompt: source.canPrompt && workspaceId.length > 0,
+    effectiveRuntime: source.effectiveRuntime ?? undefined,
+    workspaceId,
   };
-}
-
-function requireWorkspaceId(workspaceId: string | undefined): string {
-  const normalized = workspaceId?.trim() ?? "";
-  if (!normalized) {
-    throw new Error("Session prompt runtime requires a non-empty workspace_id");
-  }
-  return normalized;
 }
 
 function sameInput(left: SessionPromptRuntimeInput, right: SessionPromptRuntimeInput): boolean {

@@ -93,8 +93,7 @@ export function useSessionCreateDialogViewModel(
     (activeWorkspace?.id === workspaceId ? activeWorkspace : undefined);
   const agentList =
     workspaceAgentsQuery.data ?? (workspaceId === activeWorkspace?.id ? (agents ?? []) : []);
-  const selectedAgent = agentList.find(agent => agent.name === draft.agentName);
-  const selectedAgentName = selectedAgent?.name ?? draft.agentName;
+  const selectedAgentName = draft.agentName;
 
   useEffect(() => {
     if (!navigationTarget) return;
@@ -114,7 +113,10 @@ export function useSessionCreateDialogViewModel(
   const submit = () => {
     if (!targetWorkspace || isSubmitting) return;
     const agentName = selectedAgentName.trim();
-    if (agentName.length === 0) return;
+    if (agentName.length === 0) {
+      store.trigger.validationFailed({ message: "Select an agent before starting the session." });
+      return;
+    }
 
     const networkParticipation = networkParticipationDraftFromValues(
       draft.networkParticipationMode,

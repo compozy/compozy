@@ -1,6 +1,10 @@
 package contract
 
-import "github.com/compozy/compozy/internal/session"
+import (
+	"strings"
+
+	"github.com/compozy/compozy/internal/session"
+)
 
 // PromptRuntimeSelectionFromPayload converts an optional prompt runtime snapshot.
 func PromptRuntimeSelectionFromPayload(
@@ -10,9 +14,9 @@ func PromptRuntimeSelectionFromPayload(
 		return nil
 	}
 	return &session.RuntimeSelection{
-		Provider:        payload.Provider,
-		Model:           payload.Model,
-		ReasoningEffort: string(payload.ReasoningEffort),
+		Provider:        strings.TrimSpace(payload.Provider),
+		Model:           strings.TrimSpace(payload.Model),
+		ReasoningEffort: strings.TrimSpace(string(payload.ReasoningEffort)),
 		Speed:           payload.Speed,
 	}
 }

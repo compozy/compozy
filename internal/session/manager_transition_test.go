@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 )
@@ -47,6 +48,13 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 		}
 		if stoppingCatalog.State != string(StateStopping) {
 			t.Fatalf("catalog state after request stop = %q, want %q", stoppingCatalog.State, StateStopping)
+		}
+		if stoppingCatalog.Provider != stoppingMeta.Provider || stoppingCatalog.Model != stoppingMeta.Model ||
+			stoppingCatalog.ReasoningEffort != stoppingMeta.ReasoningEffort || stoppingCatalog.Speed != stoppingMeta.Speed ||
+			stoppingCatalog.RuntimeStatus != stoppingMeta.RuntimeStatus ||
+			stoppingCatalog.RuntimeTransition != stoppingMeta.RuntimeTransition ||
+			stoppingCatalog.RuntimeFailure != stoppingMeta.RuntimeFailure {
+			t.Fatalf("catalog runtime after request stop = %#v, want metadata runtime %#v", stoppingCatalog, stoppingMeta)
 		}
 	})
 
@@ -313,6 +321,16 @@ func (c *recordingSessionCatalog) UpdateSessionState(_ context.Context, update s
 	}
 	current.State = update.State
 	current.ACPSessionID = update.ACPSessionID
+	if update.RuntimeSet {
+		current.Provider = update.Provider
+		current.Model = update.Model
+		current.ReasoningEffort = update.ReasoningEffort
+		current.Speed = update.Speed
+		current.SpeedResolution = speedpkg.CloneResolution(update.SpeedResolution)
+		current.RuntimeStatus = update.RuntimeStatus
+		current.RuntimeTransition = update.RuntimeTransition
+		current.RuntimeFailure = update.RuntimeFailure
+	}
 	if update.StopReasonSet {
 		current.StopReason = store.StopReason("")
 		if update.StopReason != nil {

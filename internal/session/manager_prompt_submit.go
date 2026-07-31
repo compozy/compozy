@@ -36,9 +36,6 @@ func (m *Manager) submitPromptRequest(ctx context.Context, req promptRequest) (<
 		return nil, err
 	}
 	turnState := newPromptTurnDispatchState(session, req.turnID, req.turnSource, message)
-	if err := m.dispatchTurnStart(ctx, turnState); err != nil {
-		return nil, err
-	}
 	if !slotReserved {
 		proc, err = session.beginExclusivePromptSetup()
 		if err != nil {
@@ -49,6 +46,9 @@ func (m *Manager) submitPromptRequest(ctx context.Context, req promptRequest) (<
 		if err != nil {
 			return nil, err
 		}
+	}
+	if err := m.dispatchTurnStart(ctx, turnState); err != nil {
+		return nil, err
 	}
 	return m.submitPromptInReservedSlot(ctx, session, proc, req, message, turnState)
 }

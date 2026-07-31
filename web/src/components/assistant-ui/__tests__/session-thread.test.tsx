@@ -1396,6 +1396,23 @@ describe("SessionThread composer running semantics", () => {
     expect(await screen.findByTestId("composer-textarea")).toHaveValue("keep this draft");
   });
 
+  it("Should preserve live composer text when a stale persisted draft arrives", async () => {
+    const user = userEvent.setup();
+    renderComposer({ isSessionRunning: false });
+
+    const textarea = await screen.findByTestId("composer-textarea");
+    await user.type(textarea, "Live draft");
+
+    act(() => {
+      sessionStore.trigger.composerDraftChanged({
+        sessionId: primarySessionFixture.id,
+        text: "Stale persisted draft",
+      });
+    });
+
+    expect(textarea).toHaveValue("Live draft");
+  });
+
   it("Should queue the draft on Enter while running and suppress the runtime send", async () => {
     const user = userEvent.setup();
     const onQueuePrompt = vi.fn(() => Promise.resolve());

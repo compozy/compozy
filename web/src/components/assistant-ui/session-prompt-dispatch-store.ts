@@ -44,12 +44,22 @@ export function createSessionPromptDispatchStore() {
           pending: false,
         };
       },
-      requestStarted: (context, event) => ({
-        ...context,
-        canceled: false,
-        controller: event.controller,
-        pending: true,
-      }),
+      requestStarted: (context, event, enqueue) => {
+        if (context.controller !== null && context.controller !== event.controller) {
+          const controller = context.controller;
+          enqueue.effect(() => controller.abort());
+        }
+        return {
+          ...context,
+          canceled: false,
+          controller: event.controller,
+          generation:
+            context.controller === null || context.controller === event.controller
+              ? context.generation
+              : context.generation + 1,
+          pending: true,
+        };
+      },
     },
   });
 }

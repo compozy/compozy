@@ -30,6 +30,7 @@ type managedInput struct {
 	id            string
 	sessionID     string
 	text          string
+	runtime       store.SessionInputRuntime
 	taskRunID     string
 	runGeneration *int64
 	loopRunID     string
@@ -46,6 +47,7 @@ func managedInputFromQueueEntry(entry *store.SessionInputQueueEntry) managedInpu
 		id:            entry.ID,
 		sessionID:     entry.SessionID,
 		text:          entry.Text,
+		runtime:       entry.Runtime,
 		taskRunID:     entry.TaskRunID,
 		runGeneration: entry.RunGeneration,
 		loopRunID:     entry.LoopRunID,
@@ -105,6 +107,12 @@ func (m *Manager) startManagedInputPrompt(session *Session, entry managedInput) 
 	}
 	execution := &managedInputExecution{lifecycle: lifecycle, submission: submission}
 	req, err := managedInputPromptRequest(entry, submission)
+	if err != nil {
+		m.recordManagedInputAmbiguous(leaseCtx, lifecycle, submission, managedInputReasonRecoveryAmbiguous, err)
+		m.releaseManagedInputLease(owner)
+		return
+	}
+	proc, err = m.ensurePromptRuntime(leaseCtx, session, req.runtime, proc)
 	if err != nil {
 		m.recordManagedInputAmbiguous(leaseCtx, lifecycle, submission, managedInputReasonRecoveryAmbiguous, err)
 		m.releaseManagedInputLease(owner)
@@ -181,6 +189,7 @@ func managedInputPromptRequest(
 		message:         entry.text,
 		authoredMessage: entry.text,
 		turnSource:      TurnSourceSynthetic,
+		runtime:         runtimeSelectionFromStore(entry.runtime),
 		meta: acp.PromptMeta{
 			TurnSource: string(TurnSourceSynthetic),
 			Synthetic: &acp.PromptSyntheticMeta{

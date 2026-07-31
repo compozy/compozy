@@ -2,7 +2,7 @@ package session
 
 import "context"
 
-func (m *Manager) ensureProcessWatchContext() {
+func (m *Manager) ensureProcessWatchContextLocked() {
 	if m == nil || m.processWatchCtx != nil {
 		return
 	}
@@ -22,7 +22,7 @@ func (m *Manager) beginProcessWatch() (context.Context, bool) {
 	if m.processWatchClosing {
 		return nil, false
 	}
-	m.ensureProcessWatchContext()
+	m.ensureProcessWatchContextLocked()
 	m.processWatchWG.Add(1)
 	return m.processWatchCtx, true
 }

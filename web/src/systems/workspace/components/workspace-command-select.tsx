@@ -34,6 +34,7 @@ export interface WorkspaceCommandSelectProps {
   onAddWorkspace?: () => void;
   disabled?: boolean;
   className?: string;
+  ariaLabelledBy?: string;
   triggerTestId?: string;
   testIdPrefix?: string;
   open?: boolean;
@@ -49,6 +50,7 @@ export function WorkspaceCommandSelect({
   onAddWorkspace,
   disabled,
   className,
+  ariaLabelledBy,
   triggerTestId = "workspace-switcher",
   testIdPrefix = "workspace-command",
   open: openProp,
@@ -89,6 +91,7 @@ export function WorkspaceCommandSelect({
       <CommandSelectTrigger
         aria-haspopup="listbox"
         aria-expanded={open}
+        aria-labelledby={ariaLabelledBy}
         aria-label={
           hasWorkspaces
             ? selectedIsHome

@@ -187,6 +187,9 @@ func TestReconciliationPreservesDurableSessionProjectionMetadata(t *testing.T) {
 				Name:                 "Child",
 				AgentName:            "coder",
 				Provider:             "claude",
+				Model:                " gpt-5.6 ",
+				ReasoningEffort:      " high ",
+				RuntimeFailure:       " runtime warning ",
 				WorkspaceID:          h.workspaceID,
 				NetworkParticipation: participation.CloneSpec(participation.LocalSpec()),
 				SessionType:          "worker",
@@ -258,6 +261,10 @@ func TestReconciliationPreservesDurableSessionProjectionMetadata(t *testing.T) {
 		}
 		if indexed.ID == "" {
 			t.Fatalf("ListSessions() = %#v, want child session", sessions)
+		}
+		if indexed.Model != "gpt-5.6" || indexed.ReasoningEffort != "high" ||
+			indexed.RuntimeFailure != "runtime warning" {
+			t.Fatalf("indexed runtime metadata = %#v, want trimmed metadata", indexed)
 		}
 		if indexed.Lineage == nil ||
 			indexed.Lineage.ParentSessionID != parentID ||

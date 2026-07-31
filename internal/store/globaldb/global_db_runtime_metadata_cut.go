@@ -45,7 +45,7 @@ func rejectSessionMetadataWithoutRuntime(ctx context.Context, databasePath strin
 				path,
 			)
 		}
-		if err := store.ValidateSessionRuntime(metadata.status, metadata.transition); err != nil {
+		if err := store.ValidateSessionRuntime(metadata.status, metadata.transition, metadata.failure); err != nil {
 			return fmt.Errorf("store: validate runtime metadata in %q before opening the global catalog: %w", path, err)
 		}
 	}
@@ -55,6 +55,7 @@ func rejectSessionMetadataWithoutRuntime(ctx context.Context, databasePath strin
 type runtimeMetadataCut struct {
 	status           store.SessionRuntimeStatus
 	transition       store.SessionRuntimeTransition
+	failure          string
 	hasRuntimeStatus bool
 }
 
@@ -86,6 +87,15 @@ func readRuntimeMetadataCut(path string) (runtimeMetadataCut, error) {
 		if err := json.Unmarshal(transition, &result.transition); err != nil {
 			return runtimeMetadataCut{}, fmt.Errorf(
 				"store: decode runtime transition in %q before opening the global catalog: %w",
+				path,
+				err,
+			)
+		}
+	}
+	if failure, ok := document["runtime_failure"]; ok {
+		if err := json.Unmarshal(failure, &result.failure); err != nil {
+			return runtimeMetadataCut{}, fmt.Errorf(
+				"store: decode runtime failure in %q before opening the global catalog: %w",
 				path,
 				err,
 			)

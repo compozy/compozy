@@ -10,7 +10,7 @@ import (
 
 func sessionStartSpecFromMeta(
 	meta store.SessionMeta,
-	workspace *workspacepkg.ResolvedWorkspace,
+	workspace workspacepkg.ResolvedWorkspace,
 	cwd string,
 ) (sessionStartSpec, error) {
 	requestedSpeed, err := normalizeRequestedSpeed(meta.Speed)
@@ -29,7 +29,7 @@ func sessionStartSpecFromMeta(
 		reasoningEffort:         strings.TrimSpace(meta.ReasoningEffort),
 		speed:                   requestedSpeed,
 		permissions:             compozyconfig.PermissionMode(strings.TrimSpace(meta.EffectivePermissions)),
-		workspace:               *workspace,
+		workspace:               workspace,
 		networkParticipation:    meta.NetworkSpecSnapshot(),
 		networkOwnerKey:         meta.NetworkOwnerKeySnapshot(),
 		cwd:                     cwd,

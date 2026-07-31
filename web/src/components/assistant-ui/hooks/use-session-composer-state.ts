@@ -21,6 +21,7 @@ export function useSessionComposerState(sessionId: string): SessionComposerState
   const isRunning = useAuiState(state => state.thread.isRunning);
   const composerInputElementRef = useRef<HTMLTextAreaElement>(null);
   const hydratedSessionIdRef = useRef<string | null>(null);
+  const hydratedDraftTextRef = useRef<string | null>(null);
 
   const setComposerInputElement: RefCallback<HTMLTextAreaElement> = element => {
     composerInputElementRef.current = element;
@@ -54,13 +55,13 @@ export function useSessionComposerState(sessionId: string): SessionComposerState
   };
 
   useLayoutEffect(() => {
-    if (
-      hydratedSessionIdRef.current === sessionId &&
-      aui.composer().getState().text === draftText
-    ) {
+    const sameSession = hydratedSessionIdRef.current === sessionId;
+    const composerText = aui.composer().getState().text;
+    if (sameSession && composerText !== hydratedDraftTextRef.current) {
       return;
     }
     hydratedSessionIdRef.current = sessionId;
+    hydratedDraftTextRef.current = draftText;
     aui.composer().setText(draftText);
   }, [aui, draftText, sessionId]);
 

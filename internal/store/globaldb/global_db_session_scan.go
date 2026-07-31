@@ -75,7 +75,7 @@ func scanSessionInfo(scanner rowScanner) (store.SessionInfo, error) {
 	session.RuntimeStatus = row.session.RuntimeStatus
 	session.RuntimeTransition = row.session.RuntimeTransition
 	session.RuntimeFailure = strings.TrimSpace(row.session.RuntimeFailure)
-	if err := store.ValidateSessionRuntime(session.RuntimeStatus, session.RuntimeTransition); err != nil {
+	if err := store.ValidateSessionRuntime(session.RuntimeStatus, session.RuntimeTransition, session.RuntimeFailure); err != nil {
 		return store.SessionInfo{}, err
 	}
 	speedResolution, err := decodeSessionSpeedResolution(row.speedResolutionJSON)

@@ -393,6 +393,34 @@ func buildUpdateSessionStateStatement(update store.SessionStateUpdate, updatedAt
 		assignments = append(assignments, "acp_session_id = ?")
 		args = append(args, store.NullableStringPointer(update.ACPSessionID))
 	}
+	if update.RuntimeSet {
+		speedResolutionJSON, err := encodeSessionSpeedResolution(update.SpeedResolution)
+		if err != nil {
+			return "", nil, err
+		}
+		assignments = append(
+			assignments,
+			"provider = ?",
+			"model = ?",
+			"reasoning_effort = ?",
+			"speed = ?",
+			"speed_resolution_json = ?",
+			"runtime_status = ?",
+			"runtime_transition = ?",
+			"runtime_failure = ?",
+		)
+		args = append(
+			args,
+			strings.TrimSpace(update.Provider),
+			strings.TrimSpace(update.Model),
+			strings.TrimSpace(update.ReasoningEffort),
+			string(update.Speed),
+			speedResolutionJSON,
+			string(update.RuntimeStatus),
+			string(update.RuntimeTransition),
+			strings.TrimSpace(update.RuntimeFailure),
+		)
+	}
 	if update.StopReasonSet {
 		assignments = append(assignments, "stop_reason = ?", "stop_detail = ?")
 		args = append(args, store.NullableStringPointer(update.StopReason), store.NullableString(update.StopDetail))

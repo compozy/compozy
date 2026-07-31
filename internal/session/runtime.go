@@ -61,7 +61,7 @@ func NormalizeRuntimeSelection(selection RuntimeSelection) (RuntimeSelection, er
 	}
 	if normalized.ReasoningEffort != "" {
 		if err := ValidateReasoningEffort(normalized.ReasoningEffort); err != nil {
-			return RuntimeSelection{}, err
+			return RuntimeSelection{}, fmt.Errorf("%w: %w", ErrInvalidRuntimeOverride, err)
 		}
 	}
 	return normalized, nil

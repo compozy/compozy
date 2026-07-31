@@ -4490,6 +4490,12 @@ func TestWaitForPromptDrains(t *testing.T) {
 			t.Fatal("Shutdown() stopped the process, want only watcher cancellation")
 		default:
 		}
+		h.driver.mu.Lock()
+		stopCalls := h.driver.stopCalls
+		h.driver.mu.Unlock()
+		if stopCalls != 0 {
+			t.Fatalf("driver stop calls = %d, want 0", stopCalls)
+		}
 	})
 }
 
@@ -4512,6 +4518,12 @@ func TestNormalizeEventSetsTimestampOnlyWhenZero(t *testing.T) {
 	}
 	if normalized.Timestamp.Before(now) {
 		t.Fatalf("normalizeEvent() timestamp = %v, want >= %v", normalized.Timestamp, now)
+	}
+	if normalized.PromptRuntimeSnapshot() == nil {
+		t.Fatal("normalizeEvent() runtime = nil, want session runtime fallback")
+	}
+	if normalized.PromptRuntimeSnapshot().Provider != session.Provider {
+		t.Fatalf("normalizeEvent() runtime provider = %q, want %q", normalized.PromptRuntimeSnapshot().Provider, session.Provider)
 	}
 }
 

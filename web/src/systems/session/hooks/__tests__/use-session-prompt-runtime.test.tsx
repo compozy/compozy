@@ -14,7 +14,12 @@ import {
   type AllModelsListResponse,
   type ProviderModelPayload,
 } from "@/systems/model-catalog";
-import { providerKeys, type ProviderListResponse, type ProviderSummary } from "@/systems/providers";
+import {
+  providerKeys,
+  type ProviderAuthStatus,
+  type ProviderListResponse,
+  type ProviderSummary,
+} from "@/systems/providers";
 import { primarySessionFixture } from "@/systems/session/mocks";
 import { type WorkspaceDetailPayload, workspaceKeys } from "@/systems/workspace";
 import { workspaceDetailFixture } from "@/systems/workspace/mocks";
@@ -40,13 +45,21 @@ function model(providerId: string, modelId: string): ProviderModelPayload {
   } as ProviderModelPayload;
 }
 
-function provider(name: string, authState: string): ProviderSummary {
+function provider(
+  name: string,
+  authState: NonNullable<ProviderAuthStatus>["state"]
+): ProviderSummary {
   return {
-    auth_status: { state: authState },
+    auth_status: {
+      env_policy: "inherit",
+      home_policy: "operator",
+      mode: "native_cli",
+      state: authState,
+    },
     default: name === "codex",
     display_name: name,
     name,
-  } as ProviderSummary;
+  };
 }
 
 function createHarness() {
@@ -112,7 +125,12 @@ describe("useSessionPromptRuntime", () => {
       catalog
     );
     const store = sessionPromptRuntimeStoreLogic.createStore(
-      sessionPromptRuntimeInput(session, true)
+      sessionPromptRuntimeInput({
+        agentName: session.agent_name,
+        canPrompt: true,
+        effectiveRuntime: session.runtime.effective,
+        workspaceId: session.workspace_id,
+      })
     );
 
     const { result } = renderHook(() => useSessionPromptRuntime(store), { wrapper });

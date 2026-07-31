@@ -72,11 +72,11 @@ func (m *Manager) configurePromptRuntime(
 	); err != nil {
 		return err
 	}
-	if err := m.persistSessionLifecycleState(ctx, session, true); err != nil {
+	if err := m.persistSessionLifecycleState(ctx, session, false); err != nil {
 		session.restoreRuntimeBinding(snapshot, err.Error(), m.now())
 		cleanupCtx, cancel := m.runtimeCleanupContext()
 		defer cancel()
-		return errors.Join(err, m.persistSessionLifecycleState(cleanupCtx, session, true))
+		return errors.Join(err, m.persistSessionLifecycleState(cleanupCtx, session, false))
 	}
 
 	err := configurator.ConfigureRuntime(ctx, snapshot.process, runtimeConfigForSelection(selection))
@@ -89,7 +89,7 @@ func (m *Manager) configurePromptRuntime(
 			runtimeConfigForSelection(snapshot.selection),
 		)
 		session.restoreRuntimeBinding(snapshot, err.Error(), m.now())
-		persistErr := m.persistSessionLifecycleState(cleanupCtx, session, true)
+		persistErr := m.persistSessionLifecycleState(cleanupCtx, session, false)
 		return errors.Join(fmt.Errorf("session: configure runtime: %w", err), rollbackErr, persistErr)
 	}
 
@@ -99,7 +99,7 @@ func (m *Manager) configurePromptRuntime(
 		RuntimeTransitionLiveConfiguration,
 		m.now(),
 	)
-	if err := m.persistSessionLifecycleState(ctx, session, true); err != nil {
+	if err := m.persistSessionLifecycleState(ctx, session, false); err != nil {
 		cleanupCtx, cancel := m.runtimeCleanupContext()
 		defer cancel()
 		rollbackErr := configurator.ConfigureRuntime(
@@ -108,7 +108,7 @@ func (m *Manager) configurePromptRuntime(
 			runtimeConfigForSelection(snapshot.selection),
 		)
 		session.restoreRuntimeBinding(snapshot, err.Error(), m.now())
-		restoreErr := m.persistSessionLifecycleState(cleanupCtx, session, true)
+		restoreErr := m.persistSessionLifecycleState(cleanupCtx, session, false)
 		return errors.Join(err, rollbackErr, restoreErr)
 	}
 	return nil
@@ -150,9 +150,11 @@ func (m *Manager) replacePromptRuntime(
 
 	previous := session.completeRuntimeTransition(candidate, plan.selection, strategy, m.now())
 	session.setAgentDefinition(runtime.agentDef)
-	if err := m.persistSessionLifecycleState(ctx, session, true); err != nil {
+	if err := m.persistSessionLifecycleState(ctx, session, false); err != nil {
 		session.restoreRuntimeBinding(snapshot, err.Error(), m.now())
-		restoreErr := m.persistSessionLifecycleState(ctx, session, true)
+		cleanupCtx, cancel := m.runtimeCleanupContext()
+		defer cancel()
+		restoreErr := m.persistSessionLifecycleState(cleanupCtx, session, false)
 		stopErr := m.stopReplacedRuntime(session, candidate, false)
 		return nil, errors.Join(err, restoreErr, stopErr)
 	}
@@ -178,7 +180,7 @@ func (m *Manager) restorePromptRuntime(
 	session.restoreRuntimeBinding(snapshot, cause.Error(), m.now())
 	cleanupCtx, cancel := m.runtimeCleanupContext()
 	defer cancel()
-	persistErr := m.persistSessionLifecycleState(cleanupCtx, session, true)
+	persistErr := m.persistSessionLifecycleState(cleanupCtx, session, false)
 	return errors.Join(cause, persistErr)
 }
 
@@ -234,7 +236,7 @@ func (m *Manager) preparePromptRuntimePlan(
 		return nil, err
 	}
 
-	spec, err := sessionStartSpecFromMeta(meta, &workspace, cwd)
+	spec, err := sessionStartSpecFromMeta(meta, workspace, cwd)
 	if err != nil {
 		return nil, fmt.Errorf("session: reconstruct runtime start spec: %w", err)
 	}

@@ -666,6 +666,26 @@ func TestSendPromptRequestJSONShape(t *testing.T) {
 	})
 }
 
+func TestPromptRuntimeSelectionFromPayload(t *testing.T) {
+	t.Run("Should canonicalize whitespace at the API boundary", func(t *testing.T) {
+		t.Parallel()
+
+		selection := contract.PromptRuntimeSelectionFromPayload(&contract.PromptRuntimeSelectionPayload{
+			Provider:        " codex ",
+			Model:           " gpt-5.6 ",
+			ReasoningEffort: " high ",
+			Speed:           contract.SpeedFast,
+		})
+		if selection == nil {
+			t.Fatal("PromptRuntimeSelectionFromPayload() = nil, want selection")
+		}
+		if selection.Provider != "codex" || selection.Model != "gpt-5.6" ||
+			selection.ReasoningEffort != "high" || selection.Speed != contract.SpeedFast {
+			t.Fatalf("PromptRuntimeSelectionFromPayload() = %#v, want canonical selection", selection)
+		}
+	})
+}
+
 func TestMemoryV2PublicContractJSONShape(t *testing.T) {
 	t.Parallel()
 

@@ -5589,7 +5589,14 @@ func TestDaemonNativeTools(t *testing.T) {
 			)
 			promptCalls <- promptCall{result: result, err: callErr}
 		}()
-		<-promptAccepted
+		select {
+		case call := <-promptCalls:
+			if call.err != nil {
+				t.Fatalf("Registry.Call(session_prompt) error = %v", call.err)
+			}
+			t.Fatalf("Registry.Call(session_prompt) returned before its live stream closed: %#v", call)
+		case <-promptAccepted:
+		}
 		select {
 		case call := <-promptCalls:
 			t.Fatalf("Registry.Call(session_prompt) returned before its live stream closed: %#v", call)

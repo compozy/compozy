@@ -49,9 +49,9 @@ func (m *Manager) prepareResumeStart(ctx context.Context, meta store.SessionMeta
 	if err != nil {
 		return sessionStartSpec{}, fmt.Errorf("session: validate resume cwd for %q: %w", meta.ID, err)
 	}
-	spec, err := sessionStartSpecFromMeta(meta, &resolvedWorkspace, cwd)
+	spec, err := sessionStartSpecFromMeta(meta, resolvedWorkspace, cwd)
 	if err != nil {
-		return sessionStartSpec{}, fmt.Errorf("session: validate resume speed for %q: %w", meta.ID, err)
+		return sessionStartSpec{}, fmt.Errorf("session: build resume start spec for %q: %w", meta.ID, err)
 	}
 	spec.postEvent = hookspkg.HookSessionPostResume
 	spec.startAction = sessionStartActionResume

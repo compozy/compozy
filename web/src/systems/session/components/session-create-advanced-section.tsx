@@ -56,6 +56,7 @@ function SessionCreateAdvancedSection({
           </FieldContent>
           <div className="rounded-md border border-line bg-elevated">
             <WorkspaceCommandSelect
+              ariaLabelledBy="session-create-workspace-label"
               disabled={isSubmitting}
               onChange={onWorkspaceChange}
               triggerTestId="session-create-workspace-select"

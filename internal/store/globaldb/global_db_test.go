@@ -995,10 +995,17 @@ func TestGlobalDBRegisterUpdateAndListSessions(t *testing.T) {
 
 	acpSessionID := "acp-123"
 	if err := globalDB.UpdateSessionState(testutil.Context(t), SessionStateUpdate{
-		ID:           session.ID,
-		State:        "stopped",
-		ACPSessionID: &acpSessionID,
-		UpdatedAt:    createdAt.Add(2 * time.Minute),
+		ID:                session.ID,
+		State:             "stopped",
+		ACPSessionID:      &acpSessionID,
+		RuntimeSet:        true,
+		Provider:          "codex",
+		Model:             "gpt-5.6",
+		ReasoningEffort:   "medium",
+		Speed:             speedpkg.SpeedNormal,
+		RuntimeStatus:     store.SessionRuntimeReady,
+		RuntimeTransition: store.SessionRuntimeTransitionProcessReplacement,
+		UpdatedAt:         createdAt.Add(2 * time.Minute),
 	}); err != nil {
 		t.Fatalf("UpdateSessionState() error = %v", err)
 	}
@@ -1042,14 +1049,13 @@ func TestGlobalDBRegisterUpdateAndListSessions(t *testing.T) {
 	if sessions[0].WorkspaceID != workspaceID {
 		t.Fatalf("sessions[0].WorkspaceID = %q, want %q", sessions[0].WorkspaceID, workspaceID)
 	}
-	if sessions[0].Provider != "claude" {
-		t.Fatalf("sessions[0].Provider = %q, want claude", sessions[0].Provider)
+	if sessions[0].Provider != "codex" {
+		t.Fatalf("sessions[0].Provider = %q, want codex", sessions[0].Provider)
 	}
-	if sessions[0].Model != "claude-opus-4" || sessions[0].ReasoningEffort != "high" ||
-		sessions[0].Speed != speedpkg.SpeedFast || sessions[0].SpeedResolution == nil ||
-		sessions[0].SpeedResolution.Status != speedpkg.ResolutionApplied ||
+	if sessions[0].Model != "gpt-5.6" || sessions[0].ReasoningEffort != "medium" ||
+		sessions[0].Speed != speedpkg.SpeedNormal || sessions[0].SpeedResolution != nil ||
 		sessions[0].RuntimeStatus != store.SessionRuntimeReady ||
-		sessions[0].RuntimeTransition != store.SessionRuntimeTransitionLiveConfiguration {
+		sessions[0].RuntimeTransition != store.SessionRuntimeTransitionProcessReplacement {
 		t.Fatalf("sessions[0] runtime projection = %#v", sessions[0])
 	}
 	if sessions[0].ACPSessionID == nil || *sessions[0].ACPSessionID != "acp-123" {

@@ -14,6 +14,7 @@ export {
   primarySessionFixture,
   readToolMessageFixture,
   runningBashToolMessageFixture,
+  sessionRuntime,
   searchToolMessageFixture,
   sessionApprovalFixture,
   sessionEventsFixture,

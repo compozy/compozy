@@ -253,8 +253,17 @@ func TestSessionMetadataRoundTrip(t *testing.T) {
 		if got := meta.Provider; got != "codex" {
 			t.Fatalf("Meta().Provider = %q, want %q", got, "codex")
 		}
-		if got := session.Info().Provider; got != "codex" {
+		if meta.RuntimeStatus != RuntimeStatusReady || meta.RuntimeTransition != RuntimeTransitionInitialBind ||
+			derefString(meta.ACPSessionID) != "acp-provider" {
+			t.Fatalf("Meta() runtime = %#v, want ready initial bind with ACP session", meta)
+		}
+		info := session.Info()
+		if got := info.Provider; got != "codex" {
 			t.Fatalf("Info().Provider = %q, want %q", got, "codex")
+		}
+		if info.RuntimeStatus != RuntimeStatusReady || info.RuntimeTransition != RuntimeTransitionInitialBind ||
+			info.ACPSessionID != "acp-provider" {
+			t.Fatalf("Info() runtime = %#v, want ready initial bind with ACP session", info)
 		}
 
 		metaPath := filepath.Join(t.TempDir(), "meta.json")
@@ -268,6 +277,11 @@ func TestSessionMetadataRoundTrip(t *testing.T) {
 		}
 		if got := readBack.Provider; got != "codex" {
 			t.Fatalf("ReadSessionMeta().Provider = %q, want %q", got, "codex")
+		}
+		if readBack.RuntimeStatus != RuntimeStatusReady ||
+			readBack.RuntimeTransition != RuntimeTransitionInitialBind ||
+			derefString(readBack.ACPSessionID) != "acp-provider" {
+			t.Fatalf("ReadSessionMeta() runtime = %#v, want ready initial bind with ACP session", readBack)
 		}
 	})
 
@@ -295,6 +309,9 @@ func TestSessionMetadataRoundTrip(t *testing.T) {
 
 		meta := session.Meta()
 		info := session.Info()
+		if meta.RuntimeStatus != RuntimeStatusUnbound || info.RuntimeStatus != RuntimeStatusUnbound {
+			t.Fatalf("logical session runtime = meta %q / info %q, want unbound", meta.RuntimeStatus, info.RuntimeStatus)
+		}
 		commands[0].Name = "mutated-source"
 		if got := meta.AdvertisedCommands[0].Name; got != "compact" {
 			t.Fatalf("Meta().AdvertisedCommands[0].Name = %q, want compact", got)
@@ -317,6 +334,9 @@ func TestSessionMetadataRoundTrip(t *testing.T) {
 				readBack.AdvertisedCommands,
 				meta.AdvertisedCommands,
 			)
+		}
+		if readBack.RuntimeStatus != RuntimeStatusUnbound {
+			t.Fatalf("ReadSessionMeta().RuntimeStatus = %q, want %q", readBack.RuntimeStatus, RuntimeStatusUnbound)
 		}
 	})
 }

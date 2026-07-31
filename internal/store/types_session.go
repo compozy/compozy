@@ -108,7 +108,7 @@ func (s SessionInfo) Validate() error {
 	if err := validateSessionStopReason(s.StopReason); err != nil {
 		return err
 	}
-	if err := validateSessionRuntime(s.RuntimeStatus, s.RuntimeTransition); err != nil {
+	if err := validateSessionRuntime(s.RuntimeStatus, s.RuntimeTransition, s.RuntimeFailure); err != nil {
 		return err
 	}
 	if err := validateSessionSpeedMetadata(s.Speed, s.SpeedResolution); err != nil {
@@ -208,17 +208,26 @@ type SessionAttach struct {
 
 // SessionStateUpdate updates only the stateful fields of an indexed session.
 type SessionStateUpdate struct {
-	ID            string
-	State         string
-	ACPSessionID  *string
-	StopReasonSet bool
-	StopReason    *string
-	StopDetail    string
-	FailureSet    bool
-	Failure       *SessionFailure
-	Liveness      *SessionLivenessMeta
-	Sandbox       *SessionSandboxMeta
-	UpdatedAt     time.Time
+	ID                string
+	State             string
+	ACPSessionID      *string
+	RuntimeSet        bool
+	Provider          string
+	Model             string
+	ReasoningEffort   string
+	Speed             speedpkg.Speed
+	SpeedResolution   *speedpkg.Resolution
+	RuntimeStatus     SessionRuntimeStatus
+	RuntimeTransition SessionRuntimeTransition
+	RuntimeFailure    string
+	StopReasonSet     bool
+	StopReason        *string
+	StopDetail        string
+	FailureSet        bool
+	Failure           *SessionFailure
+	Liveness          *SessionLivenessMeta
+	Sandbox           *SessionSandboxMeta
+	UpdatedAt         time.Time
 }
 
 // SessionSoulSnapshotUpdate updates the Soul provenance attached to a session.
@@ -248,6 +257,14 @@ func (u SessionStateUpdate) Validate() error {
 	}
 	if err := u.Liveness.Validate(); err != nil {
 		return err
+	}
+	if u.RuntimeSet {
+		if err := validateSessionRuntime(u.RuntimeStatus, u.RuntimeTransition, u.RuntimeFailure); err != nil {
+			return err
+		}
+		if err := validateSessionSpeedMetadata(u.Speed, u.SpeedResolution); err != nil {
+			return err
+		}
 	}
 	if u.StopReasonSet && u.StopReason != nil {
 		if err := validateSessionStopReason(StopReason(strings.TrimSpace(*u.StopReason))); err != nil {

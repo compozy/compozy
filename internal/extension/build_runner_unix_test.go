@@ -63,13 +63,16 @@ func waitForBuildRunnerChildPID(t *testing.T, path string) int {
 	for {
 		data, err := os.ReadFile(path)
 		if err == nil {
-			pid, parseErr := strconv.Atoi(strings.TrimSpace(string(data)))
-			if parseErr != nil {
-				t.Fatalf("parse child pid %q: %v", data, parseErr)
+			value := strings.TrimSpace(string(data))
+			if value != "" {
+				pid, parseErr := strconv.Atoi(value)
+				if parseErr != nil {
+					t.Fatalf("parse child pid %q: %v", data, parseErr)
+				}
+				return pid
 			}
-			return pid
 		}
-		if !errors.Is(err, os.ErrNotExist) {
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
 			t.Fatalf("read child pid: %v", err)
 		}
 		select {

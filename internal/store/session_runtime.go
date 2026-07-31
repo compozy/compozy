@@ -26,7 +26,7 @@ const (
 	SessionRuntimeTransitionProcessReplacement SessionRuntimeTransition = "process_replacement"
 )
 
-func validateSessionRuntime(status SessionRuntimeStatus, transition SessionRuntimeTransition) error {
+func validateSessionRuntime(status SessionRuntimeStatus, transition SessionRuntimeTransition, failure string) error {
 	switch status {
 	case SessionRuntimeUnbound,
 		SessionRuntimeBinding,
@@ -47,10 +47,13 @@ func validateSessionRuntime(status SessionRuntimeStatus, transition SessionRunti
 	if status == SessionRuntimeFailed && strings.TrimSpace(string(transition)) == "" {
 		return fmt.Errorf("store: failed session runtime requires a transition strategy")
 	}
+	if status == SessionRuntimeFailed && strings.TrimSpace(failure) == "" {
+		return fmt.Errorf("store: failed session runtime requires a failure")
+	}
 	return nil
 }
 
 // ValidateSessionRuntime validates one durable runtime binding projection.
-func ValidateSessionRuntime(status SessionRuntimeStatus, transition SessionRuntimeTransition) error {
-	return validateSessionRuntime(status, transition)
+func ValidateSessionRuntime(status SessionRuntimeStatus, transition SessionRuntimeTransition, failure string) error {
+	return validateSessionRuntime(status, transition, failure)
 }

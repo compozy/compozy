@@ -23,7 +23,7 @@ function liveParticipation(workspaceId: string, channelId: string) {
   return buildLiveNetworkParticipationFixture({ workspaceId, channelId });
 }
 
-function sessionRuntime(
+export function sessionRuntime(
   provider: string,
   acpCaps?: SessionPayload["runtime"]["acp_caps"]
 ): SessionPayload["runtime"] {

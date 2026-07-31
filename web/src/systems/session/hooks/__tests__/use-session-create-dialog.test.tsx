@@ -224,9 +224,6 @@ describe("useSessionCreateDialog", () => {
       data: workspaceId === otherWorkspace.id ? [betaAgent] : agents,
     }));
     mockMutateAsync.mockResolvedValue(sessionInOtherWorkspace);
-    mockNavigate.mockImplementation(async () => {
-      expect(mockActivateWorkspace).toHaveBeenCalledWith(sessionInOtherWorkspace);
-    });
 
     const { wrapper } = createWrapper();
     const { result } = renderHook(() => useSessionCreateDialog({ agents, activeWorkspace }), {
@@ -244,6 +241,24 @@ describe("useSessionCreateDialog", () => {
         params: { name: betaAgent.name, id: sessionInOtherWorkspace.id },
       });
     });
+    expect(mockActivateWorkspace).toHaveBeenCalledWith(sessionInOtherWorkspace);
+    expect(mockActivateWorkspace.mock.invocationCallOrder[0]).toBeLessThan(
+      mockNavigate.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY
+    );
+  });
+
+  it("Should report validation when the selected agent is empty", async () => {
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useSessionCreateDialog({ agents, activeWorkspace }), {
+      wrapper,
+    });
+
+    act(() => result.current.openDialog("claude-agent"));
+    act(() => result.current.onAgentChange(""));
+    await act(async () => result.current.submit());
+
+    expect(mockMutateAsync).not.toHaveBeenCalled();
+    expect(result.current.submitError).toBe("Select an agent before starting the session.");
   });
 
   it("Should resolve a relative working path only when Advanced supplies one", async () => {

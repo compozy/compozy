@@ -61,6 +61,9 @@ func TestWriteSessionMetaAndReadBack(t *testing.T) {
 		readBack.StopDetail != meta.StopDetail {
 		t.Fatalf("ReadSessionMeta() = %#v, want %#v", readBack, meta)
 	}
+	if readBack.RuntimeStatus != SessionRuntimeReady {
+		t.Fatalf("ReadSessionMeta().RuntimeStatus = %q, want %q", readBack.RuntimeStatus, SessionRuntimeReady)
+	}
 	if readBack.StopReason == nil {
 		t.Fatal("ReadSessionMeta().StopReason = nil, want non-nil")
 	}
@@ -154,6 +157,9 @@ func TestWriteSessionMetaConcurrentWritesDoNotCorruptFile(t *testing.T) {
 			base.AgentName,
 			base.WorkspaceID,
 		)
+	}
+	if meta.RuntimeStatus != SessionRuntimeReady {
+		t.Fatalf("ReadSessionMeta().RuntimeStatus = %q, want %q", meta.RuntimeStatus, SessionRuntimeReady)
 	}
 }
 

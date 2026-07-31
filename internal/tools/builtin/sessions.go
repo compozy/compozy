@@ -19,34 +19,8 @@ const (
 
 var sessionTools = []toolspkg.Descriptor{
 	sessionListDescriptor(),
-	nativeDescriptor(
-		toolspkg.ToolIDSessionCreate,
-		"session_create",
-		"Session Create",
-		"Create an unbound logical user session. Select its runtime on the first prompt.",
-		sessionCreateInputSchema,
-		toolspkg.RiskMutating,
-		false,
-		false,
-		false,
-		[]toolspkg.ToolsetID{toolspkg.ToolsetIDSessions},
-		[]string{sessionsSessionsKey, descriptorKeywordCreate},
-		[]string{"create session", "new session"},
-	),
-	nativeDescriptor(
-		toolspkg.ToolIDSessionPrompt,
-		"session_prompt",
-		"Session Prompt",
-		"Send a prompt to a session, optionally selecting the runtime for that prompt.",
-		sessionPromptInputSchema,
-		toolspkg.RiskMutating,
-		false,
-		false,
-		false,
-		[]toolspkg.ToolsetID{toolspkg.ToolsetIDSessions},
-		[]string{sessionsSessionsKey, "prompt", "runtime"},
-		[]string{"session prompt", "select runtime", "switch model"},
-	),
+	sessionCreateDescriptor(),
+	sessionPromptDescriptor(),
 	nativeDescriptor(
 		toolspkg.ToolIDSessionStatus,
 		"session_status",
@@ -127,9 +101,45 @@ func sessionListDescriptor() toolspkg.Descriptor {
 func sessionDescriptors() []toolspkg.Descriptor {
 	descriptors := make([]toolspkg.Descriptor, len(sessionTools))
 	copy(descriptors, sessionTools)
-	descriptors[1].OutputSchema = json.RawMessage(sessionCreateOutputSchema)
-	descriptors[2].OutputSchema = json.RawMessage(sessionPromptOutputSchema)
 	return descriptors
+}
+
+func sessionCreateDescriptor() toolspkg.Descriptor {
+	descriptor := nativeDescriptor(
+		toolspkg.ToolIDSessionCreate,
+		"session_create",
+		"Session Create",
+		"Create an unbound logical user session. Select its runtime on the first prompt.",
+		sessionCreateInputSchema,
+		toolspkg.RiskMutating,
+		false,
+		false,
+		false,
+		[]toolspkg.ToolsetID{toolspkg.ToolsetIDSessions},
+		[]string{sessionsSessionsKey, descriptorKeywordCreate},
+		[]string{"create session", "new session"},
+	)
+	descriptor.OutputSchema = json.RawMessage(sessionCreateOutputSchema)
+	return descriptor
+}
+
+func sessionPromptDescriptor() toolspkg.Descriptor {
+	descriptor := nativeDescriptor(
+		toolspkg.ToolIDSessionPrompt,
+		"session_prompt",
+		"Session Prompt",
+		"Send a prompt to a session, optionally selecting the runtime for that prompt.",
+		sessionPromptInputSchema,
+		toolspkg.RiskMutating,
+		false,
+		false,
+		false,
+		[]toolspkg.ToolsetID{toolspkg.ToolsetIDSessions},
+		[]string{sessionsSessionsKey, "prompt", "runtime"},
+		[]string{"session prompt", "select runtime", "switch model"},
+	)
+	descriptor.OutputSchema = json.RawMessage(sessionPromptOutputSchema)
+	return descriptor
 }
 
 const sessionListInputSchema = `{

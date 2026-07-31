@@ -16,6 +16,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	eventspkg "github.com/compozy/compozy/internal/events"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/testutil"
@@ -220,9 +221,10 @@ func TestManagerBusyInputRuntimeSnapshots(t *testing.T) {
 			if got := session.Info().Model; got != "codex-admission-model" {
 				t.Fatalf("runtime model after queued dispatch = %q, want codex admission model", got)
 			}
-			assertManagerBusyInputPersistedRuntime(t, session, "queued codex runtime", RuntimeSelection{
+			assertManagerBusyInputPersistedRuntime(t, session, acp.EventTypeUserMessage, "queued codex runtime", RuntimeSelection{
 				Provider: "codex",
 				Model:    "codex-admission-model",
+				Speed:    speedpkg.SpeedNormal,
 			})
 
 			releaseQueuedOnce.Do(func() { close(releaseQueued) })
@@ -233,9 +235,10 @@ func TestManagerBusyInputRuntimeSnapshots(t *testing.T) {
 			if got := session.Info().Model; got != "claude-admission-model" {
 				t.Fatalf("runtime model after fallback steering dispatch = %q, want claude admission model", got)
 			}
-			assertManagerBusyInputPersistedRuntime(t, session, "steered claude runtime", RuntimeSelection{
+			assertManagerBusyInputPersistedRuntime(t, session, acp.EventTypeUserMessage, "steered claude runtime", RuntimeSelection{
 				Provider: "claude",
 				Model:    "claude-admission-model",
+				Speed:    speedpkg.SpeedNormal,
 			})
 			releaseSteerOnce.Do(func() { close(releaseSteer) })
 			waitForCondition(t, "all busy-input prompts dispatched", func() bool {
@@ -284,13 +287,14 @@ func setManagerBusyInputProviderDefault(t *testing.T, h *harness, provider strin
 func assertManagerBusyInputPersistedRuntime(
 	t *testing.T,
 	session *Session,
+	eventType string,
 	wantText string,
 	want RuntimeSelection,
 ) {
 	t.Helper()
 
 	for _, event := range readStoredEvents(t, session) {
-		if event.Type != acp.EventTypeUserMessage {
+		if event.Type != eventType {
 			continue
 		}
 		payload := decodeStoredEventPayload(t, event)
@@ -307,9 +311,20 @@ func assertManagerBusyInputPersistedRuntime(
 		if got, _ := runtime["model"].(string); got != want.Model {
 			t.Fatalf("persisted runtime model for %q = %q, want %q", wantText, got, want.Model)
 		}
+		if got, _ := runtime["reasoning_effort"].(string); got != want.ReasoningEffort {
+			t.Fatalf(
+				"persisted runtime reasoning effort for %q = %q, want %q",
+				wantText,
+				got,
+				want.ReasoningEffort,
+			)
+		}
+		if got, _ := runtime["speed"].(string); got != string(want.Speed) {
+			t.Fatalf("persisted runtime speed for %q = %q, want %q", wantText, got, want.Speed)
+		}
 		return
 	}
-	t.Fatalf("persisted user message %q not found", wantText)
+	t.Fatalf("persisted %s event %q not found", eventType, wantText)
 }
 
 func promptRequestEndsWith(message string, request string) bool {
@@ -582,6 +597,7 @@ func TestManagerGoalCommandDispatchShouldPreserveIngressAndDraftAdmission(t *tes
 		})
 
 		dispatcher := &spyHookDispatcher{}
+		turnStarted := make(chan struct{}, 2)
 		dispatcher.dispatchInputPreSubmitFn = func(
 			ctx context.Context,
 			payload hookspkg.InputPreSubmitPayload,
@@ -596,6 +612,13 @@ func TestManagerGoalCommandDispatchShouldPreserveIngressAndDraftAdmission(t *tes
 			case <-ctx.Done():
 				return payload, ctx.Err()
 			}
+		}
+		dispatcher.dispatchTurnStartFn = func(
+			_ context.Context,
+			payload hookspkg.TurnStartPayload,
+		) (hookspkg.TurnStartPayload, error) {
+			turnStarted <- struct{}{}
+			return payload, nil
 		}
 		handler := GoalCommandHandlerFunc(func(
 			_ context.Context,
@@ -681,6 +704,9 @@ func TestManagerGoalCommandDispatchShouldPreserveIngressAndDraftAdmission(t *tes
 		if calls := managerPromptCalls(h); len(calls) != 1 || calls[0].Message != "active winner" {
 			t.Fatalf("prompt calls after draft race = %#v, want only active winner", calls)
 		}
+		if got := len(turnStarted); got != 1 {
+			t.Fatalf("turn.start dispatches after rejected draft = %d, want active turn only", got)
+		}
 		releaseActiveOnce.Do(func() { close(releaseActive) })
 		collectEvents(t, active.Events)
 	})
@@ -742,6 +768,9 @@ func TestManagerBusyInputManagedLifecycle(t *testing.T) {
 				entry := managedInputQueueEntry(sess.ID, "goalq-meta-"+tc.queueKind)
 				entry.PromptKind = tc.queueKind
 				entry.PromptAttempt = 4
+				entry.Runtime = store.SessionInputRuntime{
+					Provider: "codex", Model: "gpt-5.6", ReasoningEffort: "medium", Speed: "normal",
+				}
 				h.manager.startManagedInputPrompt(sess, managedInputFromQueueEntry(&entry))
 				lifecycle.waitTerminal(t)
 
@@ -750,6 +779,20 @@ func TestManagerBusyInputManagedLifecycle(t *testing.T) {
 					t.Fatalf("managed driver prompt metadata = %#v", calls)
 				}
 				assertGoalPromptMeta(t, calls[0].Meta.Synthetic.Goal, tc.publicKind, &entry, tc.turn)
+				if got := sess.Info(); got.Provider != entry.Runtime.Provider || got.Model != entry.Runtime.Model ||
+					got.ReasoningEffort != entry.Runtime.ReasoningEffort || got.Speed != speedpkg.Speed(entry.Runtime.Speed) {
+					t.Fatalf("managed runtime after dispatch = %#v, want queue snapshot %#v", got, entry.Runtime)
+				}
+				assertManagerBusyInputPersistedRuntime(
+					t,
+					sess,
+					acp.EventTypeSyntheticReentry,
+					entry.Text,
+					RuntimeSelection{
+						Provider: entry.Runtime.Provider, Model: entry.Runtime.Model,
+						ReasoningEffort: entry.Runtime.ReasoningEffort, Speed: speedpkg.Speed(entry.Runtime.Speed),
+					},
+				)
 
 				stored, err := h.manager.Events(testutil.Context(t), sess.ID, store.EventQuery{})
 				if err != nil {

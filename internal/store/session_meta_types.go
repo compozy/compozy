@@ -103,7 +103,7 @@ func (m SessionMeta) Validate() error {
 	if err := validateSessionSpeedMetadata(m.Speed, m.SpeedResolution); err != nil {
 		return err
 	}
-	if err := validateSessionRuntime(m.RuntimeStatus, m.RuntimeTransition); err != nil {
+	if err := validateSessionRuntime(m.RuntimeStatus, m.RuntimeTransition, m.RuntimeFailure); err != nil {
 		return err
 	}
 	seenCommands := make(map[string]struct{}, len(m.AdvertisedCommands))

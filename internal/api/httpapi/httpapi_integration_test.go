@@ -710,6 +710,8 @@ func TestHTTPSessionStreamReconnectsWithLastEventID(t *testing.T) {
 
 func TestHTTPSessionStreamReconnectPreservesCursorWhenNoNewEventsExistYet(t *testing.T) {
 	t.Run("Should preserve the stream cursor while a prompt is still running", func(t *testing.T) {
+		t.Parallel()
+
 		exerciseHTTPSessionStreamReconnectPreservesCursorWhenNoNewEventsExistYet(t)
 	})
 }
@@ -858,6 +860,8 @@ func exerciseHTTPSessionStreamReconnectPreservesCursorWhenNoNewEventsExistYet(t 
 
 func TestHTTPSessionStopReasonPropagatesToGlobalDBAndAPI(t *testing.T) {
 	t.Run("Should propagate a user stop reason to persistence and HTTP", func(t *testing.T) {
+		t.Parallel()
+
 		exerciseHTTPSessionStopReasonPropagatesToGlobalDBAndAPI(t)
 	})
 }
@@ -1067,6 +1071,8 @@ func TestHTTPSessionParticipationRoundTrip(t *testing.T) {
 
 func TestHTTPSessionCrashStopReasonPropagatesToGlobalDBAndAPI(t *testing.T) {
 	t.Run("Should propagate an agent crash reason to persistence and HTTP", func(t *testing.T) {
+		t.Parallel()
+
 		exerciseHTTPSessionCrashStopReasonPropagatesToGlobalDBAndAPI(t)
 	})
 }

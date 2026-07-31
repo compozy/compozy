@@ -2,6 +2,7 @@ package session
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/compozy/compozy/internal/acp"
@@ -178,6 +179,18 @@ func TestCreateAcceptedLogicalRuntimeLifecycle(t *testing.T) {
 		})
 		if !errors.Is(err, startErr) {
 			t.Fatalf("SendPrompt() error = %v, want provider failure", err)
+		}
+		live, ok := h.manager.Get(created.ID)
+		if !ok {
+			t.Fatalf("Get(%q) did not find created session", created.ID)
+		}
+		info := live.Info()
+		if info.RuntimeStatus != RuntimeStatusUnbound || strings.TrimSpace(info.RuntimeFailure) == "" {
+			t.Fatalf("session runtime after failed initial bind = %#v, want unbound with failure", info)
+		}
+		meta := readMeta(t, live.MetaPath())
+		if meta.RuntimeStatus != RuntimeStatusUnbound || strings.TrimSpace(meta.RuntimeFailure) == "" {
+			t.Fatalf("metadata runtime after failed initial bind = %#v, want unbound with failure", meta)
 		}
 		page, queryErr := h.manager.TranscriptPage(testutil.Context(t), created.ID, transcript.PageQuery{})
 		if queryErr != nil {

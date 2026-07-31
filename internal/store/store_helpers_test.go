@@ -158,6 +158,48 @@ func TestValidationHelpersAndPathUtilities(t *testing.T) {
 			wantError: true,
 		},
 		{
+			name: "Should reject a failed runtime update without failure evidence",
+			validate: func() error {
+				return (SessionStateUpdate{
+					ID:                "sess-1",
+					State:             "active",
+					RuntimeSet:        true,
+					RuntimeStatus:     SessionRuntimeFailed,
+					RuntimeTransition: SessionRuntimeTransitionInitialBind,
+				}).Validate()
+			},
+			wantError:         true,
+			wantErrorContains: "requires a failure",
+		},
+		{
+			name: "Should reject failed session metadata without failure evidence",
+			validate: func() error {
+				return (SessionInfo{
+					ID:                "sess-1",
+					AgentName:         "coder",
+					WorkspaceID:       "ws-1",
+					State:             "active",
+					RuntimeStatus:     SessionRuntimeFailed,
+					RuntimeTransition: SessionRuntimeTransitionInitialBind,
+				}).Validate()
+			},
+			wantError:         true,
+			wantErrorContains: "requires a failure",
+		},
+		{
+			name: "Should accept a failed runtime update with failure evidence",
+			validate: func() error {
+				return (SessionStateUpdate{
+					ID:                "sess-1",
+					State:             "active",
+					RuntimeSet:        true,
+					RuntimeStatus:     SessionRuntimeFailed,
+					RuntimeTransition: SessionRuntimeTransitionInitialBind,
+					RuntimeFailure:    "provider startup failed",
+				}).Validate()
+			},
+		},
+		{
 			name: "event summary valid",
 			validate: func() error {
 				return (EventSummary{

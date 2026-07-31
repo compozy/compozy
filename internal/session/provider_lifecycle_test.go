@@ -82,6 +82,7 @@ func TestPromptRuntimeReplacementLifecycle(t *testing.T) {
 		collectEvents(t, first.Events)
 		eventsBeforeReplacement := readStoredEvents(t, session)
 
+		h.driver.mu.Lock()
 		h.driver.stopHook = func(proc *fakeProcess) error {
 			if proc == previousFakeProcess {
 				return nil
@@ -89,6 +90,7 @@ func TestPromptRuntimeReplacementLifecycle(t *testing.T) {
 			proc.exit()
 			return nil
 		}
+		h.driver.mu.Unlock()
 		replacement, err := h.manager.SendPrompt(testutil.Context(t), session.ID, SendPromptOpts{
 			Message: "Continue using the replacement runtime",
 			Runtime: &RuntimeSelection{Provider: "codex"},
@@ -146,12 +148,14 @@ func TestPromptRuntimeReplacementLifecycle(t *testing.T) {
 			t.Fatal("initial runtime process = nil")
 		}
 		startFailure := errors.New("replacement provider failed to start")
+		h.driver.mu.Lock()
 		h.driver.startHook = func(_ acp.StartOpts, sequence int) (*fakeProcess, error) {
 			if sequence != 2 {
 				return nil, errors.New("unexpected runtime start sequence")
 			}
 			return nil, startFailure
 		}
+		h.driver.mu.Unlock()
 
 		_, err := h.manager.SendPrompt(testutil.Context(t), session.ID, SendPromptOpts{
 			Message: "This prompt must not become durable",
@@ -166,6 +170,12 @@ func TestPromptRuntimeReplacementLifecycle(t *testing.T) {
 		}
 		if got := session.processHandle(); got != previousProcess {
 			t.Fatalf("runtime process after failed replacement = %p, want %p", got, previousProcess)
+		}
+		restored := readMeta(t, session.MetaPath())
+		if restored.Provider != previous.Provider || restored.Model != previous.Model ||
+			restored.RuntimeStatus != previous.RuntimeStatus || restored.RuntimeTransition != previous.RuntimeTransition ||
+			restored.RuntimeFailure == "" {
+			t.Fatalf("durable runtime after failed replacement = %#v, want restored binding with failure", restored)
 		}
 		if inputs := managerUserPromptEvents(t, h, session.ID); len(inputs) != 0 {
 			t.Fatalf("persisted prompt inputs after failed replacement = %#v, want none", inputs)

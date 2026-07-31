@@ -531,122 +531,128 @@ func TestHostAPIHandlerSessionsStatusReturnsAuthorizedState(t *testing.T) {
 
 func TestHostAPIHandlerSessionReadsProjectNestedRuntime(t *testing.T) {
 	t.Parallel()
+	t.Run("Should project nested runtime through session reads", func(t *testing.T) {
+		t.Parallel()
 
-	const workspaceID = "ws-runtime"
-	info := &session.Info{
-		ID:                "sess-runtime",
-		Name:              "Runtime session",
-		AgentName:         "coder",
-		Provider:          "codex",
-		Model:             "gpt-5.6",
-		ReasoningEffort:   "high",
-		Speed:             "fast",
-		RuntimeStatus:     session.RuntimeStatusReady,
-		RuntimeTransition: session.RuntimeTransitionLiveConfiguration,
-		RuntimeFailure:    "runtime warning",
-		WorkspaceID:       workspaceID,
-		Workspace:         "/tmp/runtime",
-		State:             session.StateActive,
-		ACPSessionID:      "acp-runtime",
-		ACPCaps: acp.Caps{
-			SupportsLoadSession: true,
-			SupportedModes:      []string{"edit"},
-		},
-		CreatedAt: time.Date(2026, 7, 30, 12, 0, 0, 0, time.UTC),
-		UpdatedAt: time.Date(2026, 7, 30, 12, 1, 0, 0, time.UTC),
-	}
-	handler := &HostAPIHandler{sessions: promptSessionManagerStub{
-		listAllFn: func(context.Context) ([]*session.Info, error) {
-			return []*session.Info{info}, nil
-		},
-		statusFn: func(context.Context, string) (*session.Info, error) {
-			return info, nil
-		},
-	}}
+		const workspaceID = "ws-runtime"
+		info := &session.Info{
+			ID:                "sess-runtime",
+			Name:              "Runtime session",
+			AgentName:         "coder",
+			Provider:          "codex",
+			Model:             "gpt-5.6",
+			ReasoningEffort:   "high",
+			Speed:             "fast",
+			RuntimeStatus:     session.RuntimeStatusReady,
+			RuntimeTransition: session.RuntimeTransitionLiveConfiguration,
+			RuntimeFailure:    "runtime warning",
+			WorkspaceID:       workspaceID,
+			Workspace:         "/tmp/runtime",
+			State:             session.StateActive,
+			ACPSessionID:      "acp-runtime",
+			ACPCaps: acp.Caps{
+				SupportsLoadSession: true,
+				SupportedModes:      []string{"edit"},
+			},
+			CreatedAt: time.Date(2026, 7, 30, 12, 0, 0, 0, time.UTC),
+			UpdatedAt: time.Date(2026, 7, 30, 12, 1, 0, 0, time.UTC),
+		}
+		handler := &HostAPIHandler{sessions: promptSessionManagerStub{
+			listAllFn: func(context.Context) ([]*session.Info, error) {
+				return []*session.Info{info}, nil
+			},
+			statusFn: func(context.Context, string) (*session.Info, error) {
+				return info, nil
+			},
+		}}
 
-	listResult, err := handler.handleSessionsList(testutil.Context(t), nil)
-	if err != nil {
-		t.Fatalf("handleSessionsList() error = %v", err)
-	}
-	var listed []hostAPISessionSummary
-	decodeResult(t, listResult, &listed)
-	if len(listed) != 1 {
-		t.Fatalf("sessions/list len = %d, want 1", len(listed))
-	}
-	assertHostAPISessionRuntimePayload(t, listed[0].Runtime)
+		listResult, err := handler.handleSessionsList(testutil.Context(t), nil)
+		if err != nil {
+			t.Fatalf("handleSessionsList() error = %v", err)
+		}
+		var listed []hostAPISessionSummary
+		decodeResult(t, listResult, &listed)
+		if len(listed) != 1 {
+			t.Fatalf("sessions/list len = %d, want 1", len(listed))
+		}
+		assertHostAPISessionRuntimePayload(t, listed[0].Runtime)
 
-	statusResult, err := handler.handleSessionsStatus(testutil.Context(t), mustMarshalRawMessage(t, map[string]string{
-		"workspace_id": workspaceID,
-		"session_id":   info.ID,
-	}))
-	if err != nil {
-		t.Fatalf("handleSessionsStatus() error = %v", err)
-	}
-	var status hostAPISessionStatus
-	decodeResult(t, statusResult, &status)
-	assertHostAPISessionRuntimePayload(t, status.Runtime)
+		statusResult, err := handler.handleSessionsStatus(testutil.Context(t), mustMarshalRawMessage(t, map[string]string{
+			"workspace_id": workspaceID,
+			"session_id":   info.ID,
+		}))
+		if err != nil {
+			t.Fatalf("handleSessionsStatus() error = %v", err)
+		}
+		var status hostAPISessionStatus
+		decodeResult(t, statusResult, &status)
+		assertHostAPISessionRuntimePayload(t, status.Runtime)
+	})
 }
 
 func TestHostAPIHandlerSessionsPromptReturnsQueuedRuntimeAdmission(t *testing.T) {
 	t.Parallel()
+	t.Run("Should preserve queued runtime in prompt admission", func(t *testing.T) {
+		t.Parallel()
 
-	const workspaceID = "ws-queued-runtime"
-	estimatedSendAt := time.Date(2026, 7, 30, 12, 5, 0, 0, time.UTC)
-	var received session.SendPromptOpts
-	handler := &HostAPIHandler{sessions: promptSessionManagerStub{
-		statusFn: func(context.Context, string) (*session.Info, error) {
-			return &session.Info{ID: "sess-queued-runtime", WorkspaceID: workspaceID}, nil
-		},
-		eventsFn: func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error) {
-			return nil, nil
-		},
-		sendPromptFn: func(_ context.Context, _ string, opts session.SendPromptOpts) (session.SendPromptResult, error) {
-			received = opts
-			return session.SendPromptResult{
-				Status:          "queued",
-				Mode:            session.BusyInputModeQueue,
-				QueueEntryID:    "input-queued",
-				QueuePosition:   2,
-				QueueGeneration: 7,
-				EstimatedSendAt: &estimatedSendAt,
-				Queued:          true,
-			}, nil
-		},
-	}}
+		const workspaceID = "ws-queued-runtime"
+		estimatedSendAt := time.Date(2026, 7, 30, 12, 5, 0, 0, time.UTC)
+		var received session.SendPromptOpts
+		handler := &HostAPIHandler{sessions: promptSessionManagerStub{
+			statusFn: func(context.Context, string) (*session.Info, error) {
+				return &session.Info{ID: "sess-queued-runtime", WorkspaceID: workspaceID}, nil
+			},
+			eventsFn: func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error) {
+				return nil, nil
+			},
+			sendPromptFn: func(_ context.Context, _ string, opts session.SendPromptOpts) (session.SendPromptResult, error) {
+				received = opts
+				return session.SendPromptResult{
+					Status:          "queued",
+					Mode:            session.BusyInputModeQueue,
+					QueueEntryID:    "input-queued",
+					QueuePosition:   2,
+					QueueGeneration: 7,
+					EstimatedSendAt: &estimatedSendAt,
+					Queued:          true,
+				}, nil
+			},
+		}}
 
-	result, err := handler.handleSessionsPrompt(testutil.Context(t), mustMarshalRawMessage(t, map[string]any{
-		"workspace_id": workspaceID,
-		"session_id":   "sess-queued-runtime",
-		"message":      "Continue with the queued runtime.",
-		"runtime": map[string]string{
-			"provider":         "codex",
-			"model":            "gpt-5.6",
-			"reasoning_effort": "high",
-			"speed":            "fast",
-		},
-	}))
-	if err != nil {
-		t.Fatalf("handleSessionsPrompt() error = %v", err)
-	}
-	if received.Runtime == nil || received.Runtime.Provider != "codex" ||
-		received.Runtime.Model != "gpt-5.6" || received.Runtime.ReasoningEffort != "high" ||
-		received.Runtime.Speed != "fast" {
-		t.Fatalf("SendPrompt runtime = %#v, want requested runtime snapshot", received.Runtime)
-	}
+		result, err := handler.handleSessionsPrompt(testutil.Context(t), mustMarshalRawMessage(t, map[string]any{
+			"workspace_id": workspaceID,
+			"session_id":   "sess-queued-runtime",
+			"message":      "Continue with the queued runtime.",
+			"runtime": map[string]string{
+				"provider":         "codex",
+				"model":            "gpt-5.6",
+				"reasoning_effort": "high",
+				"speed":            "fast",
+			},
+		}))
+		if err != nil {
+			t.Fatalf("handleSessionsPrompt() error = %v", err)
+		}
+		if received.Runtime == nil || received.Runtime.Provider != "codex" ||
+			received.Runtime.Model != "gpt-5.6" || received.Runtime.ReasoningEffort != "high" ||
+			received.Runtime.Speed != "fast" {
+			t.Fatalf("SendPrompt runtime = %#v, want requested runtime snapshot", received.Runtime)
+		}
 
-	var admission hostAPISessionPromptResult
-	decodeResult(t, result, &admission)
-	if admission.Status != "queued" || admission.Mode != session.BusyInputModeQueue ||
-		!admission.Queued || admission.QueueEntryID != "input-queued" ||
-		admission.QueuePosition != 2 || admission.QueueGeneration != 7 {
-		t.Fatalf("sessions/prompt admission = %#v, want queued admission metadata", admission)
-	}
-	if admission.TurnID != "" {
-		t.Fatalf("sessions/prompt queued turn_id = %q, want empty before delivery", admission.TurnID)
-	}
-	if admission.EstimatedSendAt == nil || !admission.EstimatedSendAt.Equal(estimatedSendAt) {
-		t.Fatalf("sessions/prompt estimated_send_at = %v, want %v", admission.EstimatedSendAt, estimatedSendAt)
-	}
+		var admission hostAPISessionPromptResult
+		decodeResult(t, result, &admission)
+		if admission.Status != "queued" || admission.Mode != session.BusyInputModeQueue ||
+			!admission.Queued || admission.QueueEntryID != "input-queued" ||
+			admission.QueuePosition != 2 || admission.QueueGeneration != 7 {
+			t.Fatalf("sessions/prompt admission = %#v, want queued admission metadata", admission)
+		}
+		if admission.TurnID != "" {
+			t.Fatalf("sessions/prompt queued turn_id = %q, want empty before delivery", admission.TurnID)
+		}
+		if admission.EstimatedSendAt == nil || !admission.EstimatedSendAt.Equal(estimatedSendAt) {
+			t.Fatalf("sessions/prompt estimated_send_at = %v, want %v", admission.EstimatedSendAt, estimatedSendAt)
+		}
+	})
 }
 
 func assertHostAPISessionRuntimePayload(t testing.TB, runtime apicontract.SessionRuntimePayload) {

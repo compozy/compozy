@@ -24,18 +24,7 @@ import {
   storyWorkspaceIds,
   storyWorkspacePaths,
 } from "@/storybook/fintech-scenario";
-
-function sessionRuntime(
-  provider: string,
-  acpCaps?: { supports_load_session: boolean; supported_modes?: string[] }
-) {
-  return {
-    status: "ready",
-    transition: "initial_bind",
-    effective: { provider },
-    ...(acpCaps ? { acp_caps: acpCaps } : {}),
-  };
-}
+import { sessionRuntime } from "@/systems/session/mocks";
 
 function makePeerCard({
   peerId,

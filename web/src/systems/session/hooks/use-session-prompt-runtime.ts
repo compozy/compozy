@@ -14,10 +14,7 @@ import { useWorkspace, type SessionProviderOption } from "@/systems/workspace";
 
 import type { SessionPromptRuntimeSnapshot } from "../contexts/session-prompt-runtime-context-value";
 import type { SessionPromptRuntimeStore } from "../stores/session-prompt-runtime-store";
-
-type SessionRuntimeEffective = NonNullable<
-  NonNullable<import("../types").SessionPayload["runtime"]>["effective"]
->;
+import type { SessionRuntimeEffective } from "../types";
 
 function runtimeValueFromEffective(
   effective: SessionRuntimeEffective | undefined

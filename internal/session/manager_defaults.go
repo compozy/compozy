@@ -29,7 +29,9 @@ func (m *Manager) applyRuntimeDefaults() error {
 	if m.lifecycleCtx == nil {
 		m.lifecycleCtx = context.Background()
 	}
-	m.ensureProcessWatchContext()
+	m.processWatchMu.Lock()
+	m.ensureProcessWatchContextLocked()
+	m.processWatchMu.Unlock()
 	if m.now == nil {
 		m.now = func() time.Time {
 			return time.Now().UTC()

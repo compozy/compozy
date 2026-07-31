@@ -6,6 +6,7 @@ import { StrictMode, useLayoutEffect, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SessionThread } from "@/components/assistant-ui/session-thread";
+import { createSessionPromptDispatchStore } from "@/components/assistant-ui/session-prompt-dispatch-store";
 import { Toaster } from "@compozy/ui";
 import { formatMessageError } from "@/components/assistant-ui/session-thread-error";
 import { SessionTranscriptThreadProvider } from "@/systems/session/lib/session-transcript-thread-context";
@@ -411,7 +412,12 @@ function withRuntimeSnapshot(
   runtimeSnapshot: SessionPromptRuntimeSnapshot
 ) {
   const store = sessionPromptRuntimeStoreLogic.createStore(
-    sessionPromptRuntimeInput(primarySessionFixture, true)
+    sessionPromptRuntimeInput({
+      agentName: primarySessionFixture.agent_name,
+      canPrompt: true,
+      effectiveRuntime: primarySessionFixture.runtime.effective,
+      workspaceId: primarySessionFixture.workspace_id,
+    })
   );
   store.trigger.runtimeSelected({
     value: {
@@ -453,6 +459,25 @@ function fixtureWorkspaceId(): string {
 }
 
 describe("SessionChatRuntimeProvider", () => {
+  // Invariant: a replacement prompt request cancels the previous in-flight request,
+  // so stale transport work cannot outlive the current prompt. Owning layer: chat-runtime
+  // provider integration. Canonical suite: this file.
+  it("Should abort a superseded prompt request", () => {
+    const store = createSessionPromptDispatchStore();
+    const first = new AbortController();
+    const second = new AbortController();
+
+    store.trigger.requestStarted({ controller: first });
+    store.trigger.requestStarted({ controller: second });
+
+    expect(first.signal.aborted).toBe(true);
+    expect(store.getSnapshot().context).toMatchObject({
+      controller: second,
+      generation: 1,
+      pending: true,
+    });
+  });
+
   // Invariant: message subscribers ignore status and pagination-only transcript
   // synchronization, while status subscribers ignore message-only synchronization.
   // Owning layer: provider/thread integration. Canonical suite: this file.

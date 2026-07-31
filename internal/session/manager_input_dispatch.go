@@ -86,10 +86,7 @@ func (m *Manager) dispatchHumanQueuedInput(
 	if entry.mode == store.SessionInputQueueModeSteer {
 		m.emitQueuedSteerFallback(session, entry)
 	}
-	req, ok := m.newQueuedInputPromptRequest(session, target, entry)
-	if !ok {
-		return
-	}
+	req := m.newQueuedInputPromptRequest(target, entry)
 	events, err := m.submitPromptRequest(m.fallbackLifecycleContext(), req)
 	if err != nil {
 		m.handleQueuedInputDispatchError(session, target, entry, req, err)
@@ -113,32 +110,18 @@ func (m *Manager) emitQueuedSteerFallback(session *Session, entry humanQueuedInp
 }
 
 func (m *Manager) newQueuedInputPromptRequest(
-	session *Session,
 	target string,
 	entry humanQueuedInput,
-) (promptRequest, bool) {
-	meta, err := normalizePromptMeta(
-		TurnSourceUser,
-		acp.PromptMeta{TurnSource: string(TurnSourceUser)},
-		promptSubmissionPathUserFacing,
-	)
-	if err != nil {
-		m.sessionLogger(session).Warn(
-			"session: normalize queued input metadata failed",
-			"entry_id", entry.id,
-			"error", err,
-		)
-		return promptRequest{}, false
-	}
+) promptRequest {
 	return promptRequest{
 		turnID:          m.newPromptTurnID(),
 		target:          target,
 		message:         entry.text,
 		authoredMessage: entry.text,
 		turnSource:      TurnSourceUser,
-		meta:            meta,
+		meta:            acp.PromptMeta{TurnSource: string(TurnSourceUser)},
 		runtime:         runtimeSelectionFromStore(entry.runtime),
-	}, true
+	}
 }
 
 func (m *Manager) handleQueuedInputDispatchError(

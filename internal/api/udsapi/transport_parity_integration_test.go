@@ -683,9 +683,15 @@ func TestUDSTransportStoppedSessionRemainsUnattachable(t *testing.T) {
 		nil,
 		nil,
 	)
+	body, readErr := io.ReadAll(stopResp.Body)
+	closeErr := stopResp.Body.Close()
+	if readErr != nil {
+		t.Fatalf("read UDS stop body error = %v", readErr)
+	}
+	if closeErr != nil {
+		t.Fatalf("close UDS stop body error = %v", closeErr)
+	}
 	if stopResp.StatusCode != http.StatusNoContent {
-		body, _ := io.ReadAll(stopResp.Body)
-		_ = stopResp.Body.Close()
 		t.Fatalf(
 			"UDS stop session status = %d, want %d; body=%s",
 			stopResp.StatusCode,
@@ -693,7 +699,6 @@ func TestUDSTransportStoppedSessionRemainsUnattachable(t *testing.T) {
 			string(body),
 		)
 	}
-	_ = stopResp.Body.Close()
 
 	resumeResp := mustUnixRequest(
 		t,
@@ -703,22 +708,27 @@ func TestUDSTransportStoppedSessionRemainsUnattachable(t *testing.T) {
 		nil,
 		nil,
 	)
-	body, err := io.ReadAll(resumeResp.Body)
-	closeErr := resumeResp.Body.Close()
-	if err != nil {
-		t.Fatalf("read UDS resume body error = %v", err)
+	resumeBody, resumeReadErr := io.ReadAll(resumeResp.Body)
+	resumeCloseErr := resumeResp.Body.Close()
+	if resumeReadErr != nil {
+		t.Fatalf("read UDS resume body error = %v", resumeReadErr)
 	}
-	if closeErr != nil {
-		t.Fatalf("close UDS resume body error = %v", closeErr)
+	if resumeCloseErr != nil {
+		t.Fatalf("close UDS resume body error = %v", resumeCloseErr)
 	}
 	if resumeResp.StatusCode != http.StatusConflict {
-		t.Fatalf("UDS attach status = %d, want %d; body=%s", resumeResp.StatusCode, http.StatusConflict, string(body))
+		t.Fatalf(
+			"UDS attach status = %d, want %d; body=%s",
+			resumeResp.StatusCode,
+			http.StatusConflict,
+			string(resumeBody),
+		)
 	}
-	if !strings.Contains(string(body), created.Session.ID) {
-		t.Fatalf("UDS attach body = %s, want session id %q", string(body), created.Session.ID)
+	if !strings.Contains(string(resumeBody), created.Session.ID) {
+		t.Fatalf("UDS attach body = %s, want session id %q", string(resumeBody), created.Session.ID)
 	}
-	if !strings.Contains(string(body), "not attachable") {
-		t.Fatalf("UDS attach body = %s, want attachability context", string(body))
+	if !strings.Contains(string(resumeBody), "not attachable") {
+		t.Fatalf("UDS attach body = %s, want attachability context", string(resumeBody))
 	}
 }
 
