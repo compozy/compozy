@@ -67,10 +67,10 @@ func TestMarketplaceCatalogManifestV2Migration(t *testing.T) {
 		if err != nil {
 			t.Fatalf("sql.Open(legacy) error = %v", err)
 		}
-		previousStream := globalMigrationPrefixBefore(t, "00030_marketplace_catalog_manifest_v2.sql")
+		previousStream := globalMigrationPrefixBefore(t, "00032_marketplace_catalog_manifest_v2.sql")
 		if err := applyGlobalMigrationPrefix(t, legacy, previousStream); err != nil {
 			closeErr := legacy.Close()
-			t.Fatalf("Apply(global through v29) error = %v; close error = %v", err, closeErr)
+			t.Fatalf("Apply(global through v31) error = %v; close error = %v", err, closeErr)
 		}
 		if _, err := legacy.ExecContext(
 			ctx,

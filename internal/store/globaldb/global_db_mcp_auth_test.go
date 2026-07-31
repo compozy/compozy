@@ -710,10 +710,10 @@ func TestMCPAuthTokenScopeMigration(t *testing.T) {
 		if err != nil {
 			t.Fatalf("sql.Open(previous) error = %v", err)
 		}
-		prefix := globalMigrationPrefixBefore(t, "00031_schema.sql")
+		prefix := globalMigrationPrefixBefore(t, "00033_schema.sql")
 		if err := applyGlobalMigrationPrefix(t, previousDB, prefix); err != nil {
 			closeErr := previousDB.Close()
-			t.Fatalf("Apply(global v30) error = %v; close error = %v", err, closeErr)
+			t.Fatalf("Apply(global v32) error = %v; close error = %v", err, closeErr)
 		}
 		ctx := testutil.Context(t)
 		if _, err := previousDB.ExecContext(
@@ -734,7 +734,7 @@ func TestMCPAuthTokenScopeMigration(t *testing.T) {
 			"2026-07-30T15:00:00Z",
 		); err != nil {
 			closeErr := previousDB.Close()
-			t.Fatalf("seed global v30 registration error = %v; close error = %v", err, closeErr)
+			t.Fatalf("seed global v32 registration error = %v; close error = %v", err, closeErr)
 		}
 		if err := previousDB.Close(); err != nil {
 			t.Fatalf("Close(previous) error = %v", err)
@@ -742,7 +742,7 @@ func TestMCPAuthTokenScopeMigration(t *testing.T) {
 
 		migrated, err := openGlobalMigrationUpgrade(t, databasePath)
 		if err != nil {
-			t.Fatalf("OpenGlobalDB(migrate v31) error = %v", err)
+			t.Fatalf("OpenGlobalDB(migrate v33) error = %v", err)
 		}
 		ctx = testutil.Context(t)
 		stored, err := migrated.GetMCPAuthRegistration(ctx, globalMCPAuthTarget("linear"))
@@ -764,7 +764,7 @@ func TestMCPAuthTokenScopeMigration(t *testing.T) {
 
 		reopened, err := OpenGlobalDB(ctx, databasePath)
 		if err != nil {
-			t.Fatalf("OpenGlobalDB(reopen v31) error = %v", err)
+			t.Fatalf("OpenGlobalDB(reopen v33) error = %v", err)
 		}
 		t.Cleanup(func() {
 			if err := reopened.Close(testutil.Context(t)); err != nil {

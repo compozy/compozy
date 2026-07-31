@@ -1176,19 +1176,7 @@ func sessionCascadeMigrationPrefix(t *testing.T) store.MigrationStream {
 
 func runtimeMetadataMigrationPrefix(t *testing.T) store.MigrationStream {
 	t.Helper()
-
-	entries, err := fs.ReadDir(globalschema.Files, "migrations")
-	if err != nil {
-		t.Fatalf("ReadDir(global migrations) error = %v", err)
-	}
-	names := make([]string, 0, len(entries)-1)
-	for _, entry := range entries {
-		if entry.IsDir() || filepath.Ext(entry.Name()) != ".sql" || entry.Name() == "00030_schema.sql" {
-			continue
-		}
-		names = append(names, entry.Name())
-	}
-	return globalMigrationPrefix(t, names...)
+	return globalMigrationPrefixBefore(t, "00030_schema.sql")
 }
 
 func assertSessionDeleteForeignKeysCascade(t *testing.T, db *sql.DB) {
