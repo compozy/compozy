@@ -22,11 +22,6 @@ export default defineConfig({
     // Bounded pool: turbo runs workspace test tasks concurrently (L-030).
     maxWorkers: "50%",
     setupFiles: ["./vitest.setup.tsx"],
-    server: {
-      deps: {
-        inline: ["fumadocs-core", "fumadocs-ui"],
-      },
-    },
     env: {
       COMPOZY_SITE_ROOT: siteRoot,
     },

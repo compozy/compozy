@@ -307,40 +307,41 @@ export const mcpEntrySchema = z
         });
       }
       seen.add(input.id);
-      const binding = `${input.binding.type}\0${input.binding.name}`;
+      const { name: bindingName, type: bindingType } = input.binding;
+      const binding = `${bindingType}\0${bindingName}`;
       if (seenBindings.has(binding)) {
         ctx.addIssue({
           code: "custom",
-          message: `input binding ${input.binding.type}/${input.binding.name} is duplicated`,
+          message: `input binding ${bindingType}/${bindingName} is duplicated`,
           path: ["inputs", index, "binding"],
         });
       }
       seenBindings.add(binding);
-      if (input.binding.type === "env" && entry.launch.type === "remote") {
+      if (bindingType === "env" && entry.launch.type === "remote") {
         ctx.addIssue({
           code: "custom",
           message: "env inputs are only allowed for local launch (npm, uvx, docker)",
           path: ["inputs", index, "binding"],
         });
       }
-      if (input.binding.type === "url_query" && entry.launch.type !== "remote") {
+      if (bindingType === "url_query" && entry.launch.type !== "remote") {
         ctx.addIssue({
           code: "custom",
           message: "url_query inputs are only allowed for remote launch",
           path: ["inputs", index, "binding"],
         });
       }
-      if (input.binding.type === "url_query" && input.type === "secret") {
+      if (bindingType === "url_query" && input.type === "secret") {
         ctx.addIssue({
           code: "custom",
           message: "secret inputs cannot bind url_query",
           path: ["inputs", index, "binding"],
         });
       }
-      if (input.binding.type === "url_query" && launchQueryNames.has(input.binding.name)) {
+      if (bindingType === "url_query" && launchQueryNames.has(bindingName)) {
         ctx.addIssue({
           code: "custom",
-          message: `input binding url_query/${input.binding.name} conflicts with launch URL`,
+          message: `input binding url_query/${bindingName} conflicts with launch URL`,
           path: ["inputs", index, "binding"],
         });
       }
