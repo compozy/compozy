@@ -2,6 +2,7 @@ package loop
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"log/slog"
@@ -2433,7 +2434,8 @@ func (r *coordinatorRunnerTaskRunReader) GetTaskRun(
 }
 
 type coordinatorRunnerOutputs struct {
-	outputs map[int][]GenerationOutput
+	outputs  map[int][]GenerationOutput
+	payloads map[string]json.RawMessage
 }
 
 func (r coordinatorRunnerOutputs) ListGenerationOutputs(
@@ -2446,6 +2448,17 @@ func (r coordinatorRunnerOutputs) ListGenerationOutputs(
 		return nil, nil
 	}
 	return append([]GenerationOutput(nil), r.outputs[generation]...), nil
+}
+
+func (r coordinatorRunnerOutputs) GetGenerationOutputPayload(
+	_ context.Context,
+	outputRef string,
+) (json.RawMessage, error) {
+	payload, ok := r.payloads[outputRef]
+	if !ok {
+		return nil, ErrOutputRefNotFound
+	}
+	return payload, nil
 }
 
 type coordinatorRunnerLoopStore struct {

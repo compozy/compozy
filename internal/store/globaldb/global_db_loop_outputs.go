@@ -172,6 +172,22 @@ func (g *LoopRepo) LookupLoopGenerationOutputStatus(
 	return strings.TrimSpace(status), true, nil
 }
 
+// GetGenerationOutputPayload loads one externalized loop output payload by its
+// content-addressed ref.
+func (g *LoopRepo) GetGenerationOutputPayload(
+	ctx context.Context,
+	outputRef string,
+) (json.RawMessage, error) {
+	if err := g.checkReady(ctx, "get loop generation output payload"); err != nil {
+		return nil, err
+	}
+	outputRef = strings.TrimSpace(outputRef)
+	if !looppkg.OutputRefLooksContentAddressed(outputRef) {
+		return nil, fmt.Errorf("%w: output_ref is invalid: %q", looppkg.ErrValidation, outputRef)
+	}
+	return getLoopOutputByRefWithExecutor(ctx, g.db, outputRef)
+}
+
 func getLoopOutputByRefWithExecutor(
 	ctx context.Context,
 	exec taskSQLExecutor,

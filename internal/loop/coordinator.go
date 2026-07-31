@@ -2,6 +2,7 @@ package loop
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -45,6 +46,9 @@ type GenerationOutputReader interface {
 		runID RunID,
 		generation int,
 	) ([]GenerationOutput, error)
+	// GetGenerationOutputPayload resolves one content-addressed output ref into the payload
+	// the producing node returned.
+	GetGenerationOutputPayload(ctx context.Context, outputRef string) (json.RawMessage, error)
 }
 
 // GateDecisionReader reads persisted human decisions for coordinator gate re-evaluation.
@@ -196,6 +200,9 @@ func (r *CoordinatorRunner) buildCoordinatorPlan(
 	if run.Generation > 0 {
 		outputs, err := r.outputs.ListGenerationOutputs(ctx, run.WorkspaceID, run.ID, run.Generation)
 		if err != nil {
+			return task.CoordinatorCompletionPlan{}, err
+		}
+		if err := hydrateGenerationOutputs(ctx, r.outputs, outputs); err != nil {
 			return task.CoordinatorCompletionPlan{}, err
 		}
 		if len(outputs) > 0 {

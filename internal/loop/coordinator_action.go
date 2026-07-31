@@ -67,6 +67,9 @@ func (r *CoordinatorRunner) ExecuteActionRun(
 	if err != nil {
 		return task.RunResult{}, err
 	}
+	if err := hydrateGenerationOutputs(ctx, r.outputs, outputs); err != nil {
+		return task.RunResult{}, err
+	}
 	input, err := actionExecutionInput(
 		taskRun,
 		actor,
