@@ -881,7 +881,7 @@ func TestListMCPTools(t *testing.T) {
 		calls := 0
 		server.AddReceivingMiddleware(func(next mcpsdk.MethodHandler) mcpsdk.MethodHandler {
 			return func(ctx context.Context, method string, request mcpsdk.Request) (mcpsdk.Result, error) {
-				if method == "tools/list" {
+				if method == mcpToolsListMethod {
 					calls++
 					return &mcpsdk.ListToolsResult{NextCursor: fmt.Sprintf("page-%d", calls)}, nil
 				}

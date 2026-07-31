@@ -16,38 +16,6 @@
 - Workspace params (#266)
 - Onboarding workspace selection
 
-### 📚 Documentation
-
-- Update readme
-- Change copy
-- Opendesign
-
-### 📦 Build System
-
-- Auto-publish beta releases on release PR merge
-- Push release branch updates with RELEASE_TOKEN
-- Publish site changelog receipts from the release job
-- Delete not need things
-- Fix tests
-- Align release body heading with the published version
-- Fix beta release recovery
-- Restore beta release recovery
-- Recover partial releases
-- Model release recovery states
-- Load recovery tools for old refs
-- Fix release receipt subject
-- Publish site changelog receipt v0.3.0-beta.1
-- Repo clone
-- Fix storybook
-- Changelog fix
-
-### 🔧 CI/CD
-
-- Fix tests
-- Fix release workflow
-- Fix release process
-- Improve release dry run
-
 ### Release Notes
 
 #### Breaking Changes

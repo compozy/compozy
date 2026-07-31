@@ -627,6 +627,22 @@ func TestChangelogConfigPreservesCompozyOSHardCut(t *testing.T) {
 		})
 	}
 
+	t.Run("Should exclude internal commit types from every release surface", func(t *testing.T) {
+		t.Parallel()
+
+		for _, commitType := range []string{"docs", "build", "ci"} {
+			parser := `{ message = "^` + commitType + `(?:\\([^)]*\\))?!?:", skip = true }`
+			parserIndex := strings.Index(cliffConfig, parser)
+			if parserIndex == -1 {
+				t.Fatalf("cliff.toml missing internal commit parser %q", parser)
+			}
+			if parserIndex > firstMessageParser {
+				t.Fatalf("internal commit parser %q must precede conventional message parsers", parser)
+			}
+		}
+		assertContainsText(t, "cliff.toml", cliffConfig, "protect_breaking_commits = false")
+	})
+
 	t.Run("Should retain the CompozyOS migration commit", func(t *testing.T) {
 		t.Parallel()
 

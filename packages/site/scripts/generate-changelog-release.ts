@@ -93,6 +93,9 @@ export function buildChangelogRelease(input: BuildChangelogReleaseInput): Change
     addReleaseNoteToBuckets(buckets, note);
   }
   for (const commit of release.commits) {
+    if (isInternalReleaseCommit(commit)) {
+      continue;
+    }
     const item = formatCommitItem(commit);
     if (item === "") {
       continue;
@@ -245,8 +248,10 @@ function addReleaseNoteToBuckets(
 function classifyCommit(commit: GitCliffCommit): "added" | "changed" | "fixed" | undefined {
   const kind = conventionalCommitKind(commit.rawMessage);
   switch (kind) {
-    case "test":
+    case "docs":
+    case "build":
     case "ci":
+    case "test":
     case "style":
     case "chore":
       return undefined;
@@ -257,11 +262,9 @@ function classifyCommit(commit: GitCliffCommit): "added" | "changed" | "fixed" |
     case "bugfix":
     case "security":
       return "fixed";
-    case "docs":
     case "perf":
     case "refactor":
     case "deps":
-    case "build":
       return "changed";
   }
   const group = normalizeWhitespace(commit.group).toLowerCase();
@@ -271,10 +274,19 @@ function classifyCommit(commit: GitCliffCommit): "added" | "changed" | "fixed" |
   if (includesAny(group, ["bug fix", "bug fixes", "security"])) {
     return "fixed";
   }
-  if (includesAny(group, ["documentation", "performance", "refactor", "dependenc", "build"])) {
+  if (includesAny(group, ["performance", "refactor", "dependenc"])) {
     return "changed";
   }
   return undefined;
+}
+
+function isInternalReleaseCommit(commit: GitCliffCommit): boolean {
+  const kind = conventionalCommitKind(commit.rawMessage);
+  if (kind === "docs" || kind === "build" || kind === "ci") {
+    return true;
+  }
+  const group = normalizeWhitespace(commit.group).toLowerCase();
+  return includesAny(group, ["documentation", "build system", "ci/cd", "continuous integration"]);
 }
 
 function formatCommitItem(commit: GitCliffCommit): string {

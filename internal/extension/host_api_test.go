@@ -577,10 +577,13 @@ func TestHostAPIHandlerSessionReadsProjectNestedRuntime(t *testing.T) {
 		}
 		assertHostAPISessionRuntimePayload(t, listed[0].Runtime)
 
-		statusResult, err := handler.handleSessionsStatus(testutil.Context(t), mustMarshalRawMessage(t, map[string]string{
-			"workspace_id": workspaceID,
-			"session_id":   info.ID,
-		}))
+		statusResult, err := handler.handleSessionsStatus(
+			testutil.Context(t),
+			mustMarshalRawMessage(t, map[string]string{
+				"workspace_id": workspaceID,
+				"session_id":   info.ID,
+			}),
+		)
 		if err != nil {
 			t.Fatalf("handleSessionsStatus() error = %v", err)
 		}

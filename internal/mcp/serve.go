@@ -18,6 +18,7 @@ import (
 const (
 	hostAPIServerName          = "compozy-host-api"
 	jsonNullLiteral            = "null"
+	mcpToolsListMethod         = "tools/list"
 	hostAPISessionCloseTimeout = 5 * time.Second
 	hostedToolListCacheTTLMs   = 60_000
 )
@@ -139,7 +140,7 @@ func privateToolListCacheMiddleware() mcpgo.Middleware {
 	return func(next mcpgo.MethodHandler) mcpgo.MethodHandler {
 		return func(ctx context.Context, method string, request mcpgo.Request) (mcpgo.Result, error) {
 			result, err := next(ctx, method, request)
-			if err != nil || method != "tools/list" {
+			if err != nil || method != mcpToolsListMethod {
 				return result, err
 			}
 			if tools, ok := result.(*mcpgo.ListToolsResult); ok {

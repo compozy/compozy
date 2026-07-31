@@ -310,7 +310,11 @@ func TestSessionMetadataRoundTrip(t *testing.T) {
 		meta := session.Meta()
 		info := session.Info()
 		if meta.RuntimeStatus != RuntimeStatusUnbound || info.RuntimeStatus != RuntimeStatusUnbound {
-			t.Fatalf("logical session runtime = meta %q / info %q, want unbound", meta.RuntimeStatus, info.RuntimeStatus)
+			t.Fatalf(
+				"logical session runtime = meta %q / info %q, want unbound",
+				meta.RuntimeStatus,
+				info.RuntimeStatus,
+			)
 		}
 		commands[0].Name = "mutated-source"
 		if got := meta.AdvertisedCommands[0].Name; got != "compact" {

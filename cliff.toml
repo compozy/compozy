@@ -70,6 +70,11 @@ commit_parsers = [
   { sha = "c202311c8430fc0d4a7442e2dc715cabfbdc68a1", skip = true },
   { sha = "f2f2cf8c2f4b526f726878fcbb732de5ce955ee9", skip = true },
 
+  # Release notes describe product behavior, not repository maintenance.
+  { message = "^docs(?:\\([^)]*\\))?!?:", skip = true },
+  { message = "^build(?:\\([^)]*\\))?!?:", skip = true },
+  { message = "^ci(?:\\([^)]*\\))?!?:", skip = true },
+
   { message = "^feat", group = "🎉 Features" },
   { message = "^feature", group = "🎉 Features" },
 
@@ -79,11 +84,6 @@ commit_parsers = [
   { message = "^perf", group = "⚡ Performance Improvements" },
 
   { message = "^security", group = "🔒 Security" },
-
-  { message = "^docs", group = "📚 Documentation" },
-
-  { message = "^build", group = "📦 Build System" },
-  { message = "^ci", group = "🔧 CI/CD" },
 
   { message = "^refactor", group = "♻️ Refactoring" },
 
@@ -109,7 +109,7 @@ commit_parsers = [
   { message = ".*", group = "Other Changes" },
 ]
 
-protect_breaking_commits = true
+protect_breaking_commits = false
 filter_commits = false
 tag_pattern = "v[0-9].*"
 # Prerelease tags are snapshots of the in-flight line: keep them out of

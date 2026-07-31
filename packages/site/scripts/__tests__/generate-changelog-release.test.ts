@@ -84,6 +84,25 @@ describe("generate changelog release", () => {
               rawMessage: "docs: document release automation",
             },
             {
+              message: "update release dependencies",
+              group: "Build System",
+              breaking: false,
+              rawMessage: "build(release): update release dependencies",
+            },
+            {
+              message: "replace the documentation platform",
+              group: "Documentation",
+              breaking: true,
+              breakingDescription: "The documentation platform changed.",
+              rawMessage: "docs!: replace the documentation platform",
+            },
+            {
+              message: "repair release automation",
+              group: "CI/CD",
+              breaking: false,
+              rawMessage: "ci: repair release automation",
+            },
+            {
               message: "exercise internal fixtures",
               group: "Testing",
               breaking: false,
@@ -102,7 +121,7 @@ describe("generate changelog release", () => {
       compareUrl: "https://github.com/compozy/compozy/compare/v0.7.0...v0.8.0",
       added: ["Operator upgrade path", "site: Add workspace-aware changelog pages"],
       fixed: ["Fix release notes body selection"],
-      changed: ["Document release automation"],
+      changed: [],
       breaking: [],
     });
     expect(entry.added).not.toContain("Exercise internal fixtures");

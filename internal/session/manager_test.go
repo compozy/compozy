@@ -4523,7 +4523,11 @@ func TestNormalizeEventSetsTimestampOnlyWhenZero(t *testing.T) {
 		t.Fatal("normalizeEvent() runtime = nil, want session runtime fallback")
 	}
 	if normalized.PromptRuntimeSnapshot().Provider != session.Provider {
-		t.Fatalf("normalizeEvent() runtime provider = %q, want %q", normalized.PromptRuntimeSnapshot().Provider, session.Provider)
+		t.Fatalf(
+			"normalizeEvent() runtime provider = %q, want %q",
+			normalized.PromptRuntimeSnapshot().Provider,
+			session.Provider,
+		)
 	}
 }
 

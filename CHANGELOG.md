@@ -23,38 +23,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Workspace params (#266)
 - Onboarding workspace selection
 
-### 📚 Documentation
-
-- Update readme
-- Change copy
-- Opendesign
-
-### 📦 Build System
-
-- Auto-publish beta releases on release PR merge
-- Push release branch updates with RELEASE_TOKEN
-- Publish site changelog receipts from the release job
-- Delete not need things
-- Fix tests
-- Align release body heading with the published version
-- Fix beta release recovery
-- Restore beta release recovery
-- Recover partial releases
-- Model release recovery states
-- Load recovery tools for old refs
-- Fix release receipt subject
-- Publish site changelog receipt v0.3.0-beta.1
-- Repo clone
-- Fix storybook
-- Changelog fix
-
-### 🔧 CI/CD
-
-- Fix tests
-- Fix release workflow
-- Fix release process
-- Improve release dry run
-
 ## 0.2.15 - 2026-07-17
 
 ### 🎉 Features
@@ -70,10 +38,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Correct Kiro CLI ACP model handling (#226)
 - Isolate sync tests and clarify ignore checks (#248)
 - Isolate task artifacts and add complexity runtime defaults (#250)
-
-### 📚 Documentation
-
-- Add v0.2.15 release highlights
 
 ## 0.2.14 - 2026-07-15
 
@@ -108,11 +72,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Worktree management (#223)
 - Restore run TUI elapsed timer across retry, failure, cancel, and remote paths (#221)
 
-### 📚 Documentation
-
-- Update skills
-- Add v0.2.11 release notes
-
 ## 0.2.10 - 2026-06-18
 
 ### ♻️ Refactoring
@@ -127,15 +86,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### 🐛 Bug Fixes
 
 - Reviews watch bug
-
-### 📚 Documentation
-
-- Release notes
-
-### 📦 Build System
-
-- Skeeper config (#206)
-- Converge skeeper sidecar lock to main branch
 
 ## 0.2.9 - 2026-06-14
 
@@ -160,10 +110,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 0.2.7 - 2026-05-27
 
-### 🔧 CI/CD
-
-- Support forced release version via workflow_dispatch (#175)
-
 ## 0.2.6 - 2026-05-27
 
 ### 🎉 Features
@@ -173,10 +119,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### 🐛 Bug Fixes
 
 - Add Windows daemon support (#163)
-
-### 📚 Documentation
-
-- Release notes
 
 ## 0.2.5 - 2026-05-25
 
@@ -191,15 +133,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Homebrew formula
 - Emit one task slug per compozy completion candidate (#159)
 - Run managed upgrade commands (#158)
-
-### 📚 Documentation
-
-- Add star history on readme
-- Release notes
-
-### 🔧 CI/CD
-
-- Release fix
 
 ### 🧪 Testing
 
@@ -228,15 +161,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Workspace register (#140)
 - Workspace discover path
 - Prevent false task completion via prompt kickoff + worktree diff-check (#144) (#145)
-
-### 📚 Documentation
-
-- Update
-- Release notes
-
-### 📦 Build System
-
-- Release tool
 
 ## 0.2.1 - 2026-05-01
 
@@ -270,20 +194,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Watch adjustments
 - Lint errors
 
-### 📚 Documentation
-
-- Release notes
-- Daemon prd
-- New prds
-- Update
-- Add release notes
-
-### 🔧 CI/CD
-
-- Fix auto-docs
-- Add release notes
-- Fix windows
-
 ### 🧪 Testing
 
 - Release config
@@ -299,10 +209,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Execution order
 - Fetch reviews parsing
 
-### 🔧 CI/CD
-
-- _(release)_ Prepare release v0.1.12 (#100)
-
 ### 🧪 Testing
 
 - Fix suite
@@ -316,21 +222,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add compozy skill
 - Extension improvements (#83)
 - Migrate core extension (#93)
-
-### 📚 Documentation
-
-- New prds
-- Add auto-docs workflow (claude code on merge)
-- Update
-- Update docs path
-
-### 📦 Build System
-
-- Auto-docs workflow
-
-### 🔧 CI/CD
-
-- _(release)_ Prepare release v0.1.11 (#94)
 
 ## 0.1.10 - 2026-04-10
 
@@ -347,10 +238,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Stop rewriting all _meta.md files when listing workflows (#73)
 
-### 🔧 CI/CD
-
-- _(release)_ Prepare release v0.1.10 (#76)
-
 ## 0.1.9 - 2026-04-06
 
 ### 🎉 Features
@@ -362,14 +249,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Close issue #61 (#63)
 - Fail for unsupported --add-dir (#66)
 
-### 📚 Documentation
-
-- Context7 and exa skills
-
-### 🔧 CI/CD
-
-- _(release)_ Prepare release v0.1.9 (#67)
-
 ## 0.1.8 - 2026-04-05
 
 ### ♻️ Refactoring
@@ -379,10 +258,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### 🎉 Features
 
 - Add GitHub Copilot CLI as ACP runtime (#57)
-
-### 🔧 CI/CD
-
-- _(release)_ Prepare release v0.1.8 (#59)
 
 ## 0.1.7 - 2026-04-05
 
@@ -399,27 +274,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Review round
 
-### 📦 Build System
-
-- Comment AUR release for now
-
-### 🔧 CI/CD
-
-- _(release)_ Prepare release v0.1.7 (#55)
-
 ## 0.1.6 - 2026-04-04
 
 ### 🐛 Bug Fixes
 
 - Improve failures
-
-### 📦 Build System
-
-- Remove ai-docs folder
-
-### 🔧 CI/CD
-
-- _(release)_ Prepare release v0.1.6 (#47)
 
 ## 0.1.5 - 2026-04-03
 
@@ -432,10 +291,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Check skills shift before run
 - Acp permission
 
-### 🔧 CI/CD
-
-- _(release)_ Prepare release v0.1.5 (#45)
-
 ## 0.1.4 - 2026-04-03
 
 ### 🎉 Features
@@ -447,29 +302,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Failed tool call crash
 - Skills frontmatter
 
-### 📦 Build System
-
-- Fix skills symlink
-
-### 🔧 CI/CD
-
-- _(release)_ Prepare release v0.1.4 (#39)
-
 ## 0.1.3 - 2026-04-03
 
 ### 🎉 Features
 
 - _(repo)_ Add archive command
 - Use acp instead of stream raw json (#34)
-
-### 📚 Documentation
-
-- Archive old prds
-- Update readme
-
-### 🔧 CI/CD
-
-- _(release)_ Prepare release v0.1.3 (#36)
 
 ## 0.1.2 - 2026-04-02
 
@@ -478,31 +316,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - _(repo)_ Close tui when finish
 - Correct opencode run flags and add stdin support (#25)
 
-### 📚 Documentation
-
-- _(repo)_ Update readme
-
-### 🔧 CI/CD
-
-- _(release)_ Prepare release v0.1.2 (#28)
-
 ## 0.1.1 - 2026-04-02
 
 ### 🐛 Bug Fixes
 
 - _(repo)_ Automatic completion
-
-### 📚 Documentation
-
-- _(repo)_ Remove installs
-
-### 📦 Build System
-
-- _(repo)_ Fix release
-
-### 🔧 CI/CD
-
-- _(release)_ Prepare release v0.1.1 (#24)
 
 ## 0.1.0 - 2026-04-01
 
@@ -530,61 +348,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - _(repo)_ Release
 - _(repo)_ Color bugs
-
-### 📚 Documentation
-
-- _(repo)_ Improve readme
-- _(repo)_ Remove old templates
-- _(repo)_ Improve readme
-- _(repo)_ Readme
-- _(repo)_ Update readme
-
-### 📦 Build System
-
-- _(repo)_ Release
-- _(repo)_ Gitignore
-- _(repo)_ Rename to compozy
-- _(repo)_ Bump tag
-
-### 🔧 CI/CD
-
-- _(release)_ Prepare release v0.0.1 (#4)
-- _(release)_ Prepare release v0.0.2 (#5)
-- _(release)_ Prepare release v0.0.3 (#11)
-- _(release)_ Prepare release v0.1.0 (#21)
-- _(repo)_ Fix tests
-
-[0.3.0]: https://github.com/compozy/compozy/compare/v0.2.15...v0.3.0
-[0.2.15]: https://github.com/compozy/compozy/compare/v0.2.14...v0.2.15
-[0.2.14]: https://github.com/compozy/compozy/compare/v0.2.13...v0.2.14
-[0.2.13]: https://github.com/compozy/compozy/compare/v0.2.12...v0.2.13
-[0.2.12]: https://github.com/compozy/compozy/compare/v0.2.11...v0.2.12
-[0.2.11]: https://github.com/compozy/compozy/compare/v0.2.10...v0.2.11
-[0.2.10]: https://github.com/compozy/compozy/compare/v0.2.9...v0.2.10
-[0.2.9]: https://github.com/compozy/compozy/compare/v0.2.8...v0.2.9
-[0.2.8]: https://github.com/compozy/compozy/compare/v0.2.7...v0.2.8
-[0.2.7]: https://github.com/compozy/compozy/compare/v0.2.6...v0.2.7
-[0.2.6]: https://github.com/compozy/compozy/compare/v0.2.5...v0.2.6
-[0.2.5]: https://github.com/compozy/compozy/compare/v0.2.4...v0.2.5
-[0.2.4]: https://github.com/compozy/compozy/compare/v0.2.3...v0.2.4
-[0.2.3]: https://github.com/compozy/compozy/compare/v0.2.2...v0.2.3
-[0.2.2]: https://github.com/compozy/compozy/compare/v0.2.1...v0.2.2
-[0.2.1]: https://github.com/compozy/compozy/compare/v0.2.0...v0.2.1
-[0.2.0]: https://github.com/compozy/compozy/compare/v0.1.12...v0.2.0
-[0.1.12]: https://github.com/compozy/compozy/compare/v0.1.11...v0.1.12
-[0.1.11]: https://github.com/compozy/compozy/compare/v0.1.10...v0.1.11
-[0.1.10]: https://github.com/compozy/compozy/compare/v0.1.9...v0.1.10
-[0.1.9]: https://github.com/compozy/compozy/compare/v0.1.8...v0.1.9
-[0.1.8]: https://github.com/compozy/compozy/compare/v0.1.7...v0.1.8
-[0.1.7]: https://github.com/compozy/compozy/compare/v0.1.6...v0.1.7
-[0.1.6]: https://github.com/compozy/compozy/compare/v0.1.5...v0.1.6
-[0.1.5]: https://github.com/compozy/compozy/compare/v0.1.4...v0.1.5
-[0.1.4]: https://github.com/compozy/compozy/compare/v0.1.3...v0.1.4
-[0.1.3]: https://github.com/compozy/compozy/compare/v0.1.2...v0.1.3
-[0.1.2]: https://github.com/compozy/compozy/compare/v0.1.1...v0.1.2
-[0.1.1]: https://github.com/compozy/compozy/compare/v0.1.0...v0.1.1
-[0.1.0]: https://github.com/compozy/compozy/releases/tag/v0.1.0
-
----
-
-_Generated by [git-cliff](https://git-cliff.org)_

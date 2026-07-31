@@ -236,7 +236,7 @@ func (m *Manager) preparePromptRuntimePlan(
 		return nil, err
 	}
 
-	spec, err := sessionStartSpecFromMeta(meta, workspace, cwd)
+	spec, err := sessionStartSpecFromMeta(meta, &workspace, cwd)
 	if err != nil {
 		return nil, fmt.Errorf("session: reconstruct runtime start spec: %w", err)
 	}

@@ -4,15 +4,15 @@ area: SITE
 title: Site changelog lists only published release receipts
 persona: Bruno
 journey: J-evaluate-compozy-beta
-expected: '`/changelog` renders one incremental entry per published release tag (e.g. `v0.3.0-beta.N` with status `beta`), using the exact predecessor-to-release range emitted by the release plan; each compare link resolves on GitHub, later betas do not repeat earlier beta changes, no entry exists for unpublished base versions (e.g. `v0.3.0` before its stable tag), with zero receipts the beta empty state renders, and pre-migration `v0.0.x` entries are gone.'
+expected: '`/changelog` renders one incremental entry per published release tag with the exact planned predecessor range and working compare link, excludes docs, build, and CI maintenance commits including scoped and breaking forms, does not repeat earlier beta changes or advertise unpublished versions, preserves the empty state when no receipts exist, and omits pre-migration `v0.0.x` entries.'
 entry_points: compozy.com `/changelog`, `packages/site/content/blog/changelog/*.mdx`, release workflow "Publish site changelog receipt" step
-qa_status: blocked-verify
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-site-search-context-20260730-062701-777068-lab/qa-artifacts/qa
-last_report: docs/qa/reports/2026-07-28-untested-full.md
+evidence:
+last_report:
 overlaps:
 ---
 

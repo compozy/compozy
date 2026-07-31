@@ -221,11 +221,17 @@ func TestManagerBusyInputRuntimeSnapshots(t *testing.T) {
 			if got := session.Info().Model; got != "codex-admission-model" {
 				t.Fatalf("runtime model after queued dispatch = %q, want codex admission model", got)
 			}
-			assertManagerBusyInputPersistedRuntime(t, session, acp.EventTypeUserMessage, "queued codex runtime", RuntimeSelection{
-				Provider: "codex",
-				Model:    "codex-admission-model",
-				Speed:    speedpkg.SpeedNormal,
-			})
+			assertManagerBusyInputPersistedRuntime(
+				t,
+				session,
+				acp.EventTypeUserMessage,
+				"queued codex runtime",
+				RuntimeSelection{
+					Provider: "codex",
+					Model:    "codex-admission-model",
+					Speed:    speedpkg.SpeedNormal,
+				},
+			)
 
 			releaseQueuedOnce.Do(func() { close(releaseQueued) })
 			<-steerEntered
@@ -235,11 +241,17 @@ func TestManagerBusyInputRuntimeSnapshots(t *testing.T) {
 			if got := session.Info().Model; got != "claude-admission-model" {
 				t.Fatalf("runtime model after fallback steering dispatch = %q, want claude admission model", got)
 			}
-			assertManagerBusyInputPersistedRuntime(t, session, acp.EventTypeUserMessage, "steered claude runtime", RuntimeSelection{
-				Provider: "claude",
-				Model:    "claude-admission-model",
-				Speed:    speedpkg.SpeedNormal,
-			})
+			assertManagerBusyInputPersistedRuntime(
+				t,
+				session,
+				acp.EventTypeUserMessage,
+				"steered claude runtime",
+				RuntimeSelection{
+					Provider: "claude",
+					Model:    "claude-admission-model",
+					Speed:    speedpkg.SpeedNormal,
+				},
+			)
 			releaseSteerOnce.Do(func() { close(releaseSteer) })
 			waitForCondition(t, "all busy-input prompts dispatched", func() bool {
 				return len(managerPromptCalls(h)) == 3

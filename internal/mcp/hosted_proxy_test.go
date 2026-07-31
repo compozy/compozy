@@ -297,7 +297,7 @@ func TestRunHostedProxyProviderProtocolCompatibility(t *testing.T) {
 		if err := encoder.Encode(map[string]any{
 			"jsonrpc": "2.0",
 			"id":      2,
-			"method":  "tools/list",
+			"method":  mcpToolsListMethod,
 			"params":  map[string]any{},
 		}); err != nil {
 			t.Fatalf("encode tools/list request error = %v", err)

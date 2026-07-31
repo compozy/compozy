@@ -16,38 +16,6 @@
 - Workspace params (#266)
 - Onboarding workspace selection
 
-### 📚 Documentation
-
-- Update readme
-- Change copy
-- Opendesign
-
-### 📦 Build System
-
-- Auto-publish beta releases on release PR merge
-- Push release branch updates with RELEASE_TOKEN
-- Publish site changelog receipts from the release job
-- Delete not need things
-- Fix tests
-- Align release body heading with the published version
-- Fix beta release recovery
-- Restore beta release recovery
-- Recover partial releases
-- Model release recovery states
-- Load recovery tools for old refs
-- Fix release receipt subject
-- Publish site changelog receipt v0.3.0-beta.1
-- Repo clone
-- Fix storybook
-- Changelog fix
-
-### 🔧 CI/CD
-
-- Fix tests
-- Fix release workflow
-- Fix release process
-- Improve release dry run
-
 ### Release Notes
 
 #### Breaking Changes
@@ -83,18 +51,6 @@ it does not relicense the code.
 - Native tools (#266)
 - Align release-gated network integration tests with #263 behavior
 
-### 📚 Documentation
-
-- Update skills
-- New skill
-- Add feature stories
-- Add v0.0.9 release notes
-
-### 📦 Build System
-
-- Update go deps
-- Gitignore
-
 ### Release Notes
 
 #### Features
@@ -119,11 +75,6 @@ Native and hosted tool calls now fail legibly. Hosted MCP tool calls return rich
 
 - Acp update and general fixes (#256)
 - Make docs markdown copy retryable
-
-### 📦 Build System
-
-- Update deps
-- Fix msw setup
 
 ### 🧪 Testing
 
@@ -154,10 +105,6 @@ Native and hosted tool calls now fail legibly. Hosted MCP tool calls return rich
 - Persist active workspace and redirect on session/workspace mismatch (#238)
 - Safe workspace delete and compozy session remove command (#239)
 - Unblock release CI (bootstrapRun complexity, stale gate tests) (#249)
-
-### 📚 Documentation
-
-- Release notes
 
 ### Release Notes
 
@@ -204,37 +151,17 @@ The web UI now remembers your active workspace across reloads and browser restar
 
 - Handle provider overlay subtables (#228)
 
-### 📚 Documentation
-
-- Add contributors
-
-### 🔧 CI/CD
-
-- Web asset release
-
 ## 0.0.4 - 2026-05-27
 
 ### 🐛 Bug Fixes
 
 - Default workspace
 
-### 📚 Documentation
-
-- Remove old changelog from website
-
-### 📦 Build System
-
-- Sync web assets module (#217)
-
 ## 0.0.3 - 2026-05-27
 
 ### ♻️ Refactoring
 
 - Memory optimization (#215)
-
-### 📦 Build System
-
-- Sync web assets module (#210)
 
 ## 0.0.2 - 2026-05-27
 
@@ -365,111 +292,6 @@ The web UI now remembers your active workspace across reloads and browser restar
 - Marketplace search focus and filtering (#193)
 - Website video
 - Workspace command select
-
-### 📚 Documentation
-
-- Update agents.md
-- Update prd
-- Update skills
-- Update compozy tasks
-- Update compozy
-- Update compozy
-- Add new skills
-- Archive prd
-- Update prds
-- Update rfc
-- Update prds
-- Update prds
-- Add automation prd
-- Channels prd
-- Update prd
-- Update prd
-- New prds
-- Archive prds
-- Bridges adapters prd
-- Sandbox prd
-- Update
-- Archive prd
-- Update
-- Add new prd
-- New design
-- Update prd
-- Archive prds
-- Update prds
-- Tasks-ui prd tasks
-- Update prd
-- Update design docs
-- Agent capabilities prd
-- Improve site docs
-- Remove old design references
-- Udpate
-- Autonomous prd
-- Update skills
-- Blog design
-- Agent sould prd
-- Final qa plan
-- Update
-- Remove codex ledgers from gitignore
-- Remove not needed files
-- Udpate ledger
-- Update cy-codex-loop skill
-- Orchestration improves prd
-- Update prds
-- Orch improvs prd
-- Memv2 prd
-- Providers model prd
-- Update refacs prd
-- New design proposal
-- Update rules
-- Update skills
-- New blog posts (#173)
-- Format docs
-- Remove old design files
-- Remove old
-- Skeeper update
-
-### 📦 Build System
-
-- Initial structure
-- Commitlint
-- Frontend base structure
-- Update vscode settings
-- Add subagents
-- Coderabbit
-- Prd and tooling
-- Bun lock
-- Lint tooling
-- Copy.md and tooling adjusts
-- Add repoclone rc
-- Upgrade skeeper to v0.2.0
-- Update go.mod
-- Adopt task artifacts into skeeper
-- Sync codex plans with skeeper
-- Skeeper lock
-- Skeeper lock
-- New skills
-- Skeeper lock
-- Skeeper lock
-- Skeeper lock
-- Update deps and go
-- Regenerate daytona sidecar assets for go 1.26.3
-- Fix cliff
-- Ignore docs on fmt
-- Build web assets before goreleaser
-- Extend release dry-run timeout
-- Fix release dry-run token contract
-
-### 🔧 CI/CD
-
-- Lint errors
-- Fint release pr
-- Fix goreleaser
-- Fix release
-- Fix release process
-- Fix release sync
-- Decouple release dry-run npm auth
-- Persist web assets git auth
-- Require npm auth before release merge
 
 ### 🧪 Testing
 
@@ -613,105 +435,6 @@ The web UI now remembers your active workspace across reloads and browser restar
 - Marketplace search focus and filtering (#193)
 - Website video
 - Workspace command select
-
-### 📚 Documentation
-
-- Update agents.md
-- Update prd
-- Update skills
-- Update compozy tasks
-- Update compozy
-- Update compozy
-- Add new skills
-- Archive prd
-- Update prds
-- Update rfc
-- Update prds
-- Update prds
-- Add automation prd
-- Channels prd
-- Update prd
-- Update prd
-- New prds
-- Archive prds
-- Bridges adapters prd
-- Sandbox prd
-- Update
-- Archive prd
-- Update
-- Add new prd
-- New design
-- Update prd
-- Archive prds
-- Update prds
-- Tasks-ui prd tasks
-- Update prd
-- Update design docs
-- Agent capabilities prd
-- Improve site docs
-- Remove old design references
-- Udpate
-- Autonomous prd
-- Update skills
-- Blog design
-- Agent sould prd
-- Final qa plan
-- Update
-- Remove codex ledgers from gitignore
-- Remove not needed files
-- Udpate ledger
-- Update cy-codex-loop skill
-- Orchestration improves prd
-- Update prds
-- Orch improvs prd
-- Memv2 prd
-- Providers model prd
-- Update refacs prd
-- New design proposal
-- Update rules
-- Update skills
-- New blog posts (#173)
-- Format docs
-- Remove old design files
-- Remove old
-- Skeeper update
-
-### 📦 Build System
-
-- Initial structure
-- Commitlint
-- Frontend base structure
-- Update vscode settings
-- Add subagents
-- Coderabbit
-- Prd and tooling
-- Bun lock
-- Lint tooling
-- Copy.md and tooling adjusts
-- Add repoclone rc
-- Upgrade skeeper to v0.2.0
-- Update go.mod
-- Adopt task artifacts into skeeper
-- Sync codex plans with skeeper
-- Skeeper lock
-- Skeeper lock
-- New skills
-- Skeeper lock
-- Skeeper lock
-- Skeeper lock
-- Update deps and go
-- Regenerate daytona sidecar assets for go 1.26.3
-- Fix cliff
-- Ignore docs on fmt
-- Build web assets before goreleaser
-- Extend release dry-run timeout
-
-### 🔧 CI/CD
-
-- Lint errors
-- Fint release pr
-- Fix goreleaser
-- Fix release
 
 ### 🧪 Testing
 

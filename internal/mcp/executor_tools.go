@@ -15,7 +15,7 @@ func listMCPTools(ctx context.Context, client *mcpsdk.ClientSession) ([]*mcpsdk.
 	cursor := ""
 	seen := map[string]struct{}{}
 	ttlMs := 0
-	for page := 0; page < maxMCPToolListPages; page++ {
+	for range maxMCPToolListPages {
 		result, err := client.ListTools(ctx, &mcpsdk.ListToolsParams{Cursor: cursor})
 		if err != nil {
 			return nil, 0, err

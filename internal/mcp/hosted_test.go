@@ -108,7 +108,15 @@ func TestHostedProjectionResponse(t *testing.T) {
 		}
 
 		projection := hostedProjectionResponse(views)
-		if got, want := hostedToolIDs(projection.Tools), []string{"compozy__alpha", "compozy__zeta"}; !slices.Equal(got, want) {
+		if got, want := hostedToolIDs(
+			projection.Tools,
+		), []string{
+			"compozy__alpha",
+			"compozy__zeta",
+		}; !slices.Equal(
+			got,
+			want,
+		) {
 			t.Fatalf("projection tools = %#v, want %#v", got, want)
 		}
 		if got, want := hostedToolIDs(views), []string{"compozy__zeta", "compozy__alpha"}; !slices.Equal(got, want) {

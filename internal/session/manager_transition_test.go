@@ -54,7 +54,11 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 			stoppingCatalog.RuntimeStatus != stoppingMeta.RuntimeStatus ||
 			stoppingCatalog.RuntimeTransition != stoppingMeta.RuntimeTransition ||
 			stoppingCatalog.RuntimeFailure != stoppingMeta.RuntimeFailure {
-			t.Fatalf("catalog runtime after request stop = %#v, want metadata runtime %#v", stoppingCatalog, stoppingMeta)
+			t.Fatalf(
+				"catalog runtime after request stop = %#v, want metadata runtime %#v",
+				stoppingCatalog,
+				stoppingMeta,
+			)
 		}
 	})
 

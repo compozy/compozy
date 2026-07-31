@@ -2634,7 +2634,6 @@ func TestPromptSessionHandlerPreservesRuntimeFailureDiagnostics(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -2653,7 +2652,12 @@ func TestPromptSessionHandlerPreservesRuntimeFailureDiagnostics(t *testing.T) {
 				[]byte(`{"message":"hello"}`),
 			)
 			if recorder.Code != http.StatusUnprocessableEntity {
-				t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusUnprocessableEntity, recorder.Body.String())
+				t.Fatalf(
+					"status = %d, want %d; body=%s",
+					recorder.Code,
+					http.StatusUnprocessableEntity,
+					recorder.Body.String(),
+				)
 			}
 
 			var payload contract.ErrorPayload
@@ -2668,7 +2672,11 @@ func TestPromptSessionHandlerPreservesRuntimeFailureDiagnostics(t *testing.T) {
 				t.Fatalf("diagnostic evidence = %#v, want %#v", payload.Diagnostic.Evidence, testCase.wantEvidence)
 			}
 			if payload.Diagnostic.SuggestedCommand != testCase.wantSuggestedCmd {
-				t.Fatalf("diagnostic suggested command = %q, want %q", payload.Diagnostic.SuggestedCommand, testCase.wantSuggestedCmd)
+				t.Fatalf(
+					"diagnostic suggested command = %q, want %q",
+					payload.Diagnostic.SuggestedCommand,
+					testCase.wantSuggestedCmd,
+				)
 			}
 		})
 	}
