@@ -38,7 +38,9 @@ func ValidateMCPSecretRefAccess(ref string, scope string, workspaceID string, se
 	if !strings.HasPrefix(normalized, ownerPrefix) {
 		return errors.New("vault: MCP secret ref must belong to the target server or the shared namespace")
 	}
-	if strings.HasPrefix(normalized, ownerPrefix+mcpOAuthSecretPathPrefix) {
+	ownerRelativeRef := strings.TrimPrefix(normalized, ownerPrefix)
+	firstSegment, _, _ := strings.Cut(ownerRelativeRef, "/")
+	if strings.EqualFold(firstSegment, strings.TrimSuffix(mcpOAuthSecretPathPrefix, "/")) {
 		return errors.New("vault: MCP secret ref must not access the daemon-managed OAuth subtree")
 	}
 	return nil

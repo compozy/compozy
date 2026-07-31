@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
@@ -168,8 +169,13 @@ func (s *Service) protectedResourceMetadataURLFromProbe(
 		return ""
 	}
 	defer func() {
-		if drainErr := drainAndCloseResponseBody(resp.Body); drainErr != nil && metadataURL == "" {
-			metadataURL = ""
+		if drainErr := drainAndCloseResponseBody(resp.Body); drainErr != nil {
+			slog.DebugContext(
+				ctx,
+				"mcp auth: drain protected resource probe response body",
+				"error",
+				drainErr,
+			)
 		}
 	}()
 	challenges, err := oauthex.ParseWWWAuthenticate(resp.Header.Values("WWW-Authenticate"))

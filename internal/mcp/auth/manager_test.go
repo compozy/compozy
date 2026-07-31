@@ -352,6 +352,7 @@ type managerTestStore struct {
 	deleted             bool
 	registration        ClientRegistration
 	registrationStarted chan struct{}
+	registrationOnce    sync.Once
 	releaseRegistration chan struct{}
 }
 
@@ -406,7 +407,7 @@ func (s *managerTestStore) GetMCPAuthRegistration(
 	release := s.releaseRegistration
 	s.mu.Unlock()
 	if started != nil {
-		close(started)
+		s.registrationOnce.Do(func() { close(started) })
 	}
 	if release != nil {
 		<-release

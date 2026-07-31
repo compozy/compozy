@@ -180,7 +180,11 @@ func TestValidateMCPSecretRefAccessIsolatesOwners(t *testing.T) {
 		if err != nil {
 			t.Fatalf("MCPDCRSecretRefsForTarget() error = %v", err)
 		}
-		for _, ref := range []string{refs.ClientSecretRef, refs.RegistrationAccessTokenRef} {
+		for _, ref := range []string{
+			refs.ClientSecretRef,
+			refs.RegistrationAccessTokenRef,
+			strings.Replace(refs.ClientSecretRef, "/oauth/", "/OAuth/", 1),
+		} {
 			err := ValidateMCPSecretRefAccess(ref, MCPGlobalScope, "", "linear")
 			if err == nil || !strings.Contains(err.Error(), "daemon-managed OAuth subtree") {
 				t.Fatalf("ValidateMCPSecretRefAccess(%q) error = %v, want OAuth subtree rejection", ref, err)
