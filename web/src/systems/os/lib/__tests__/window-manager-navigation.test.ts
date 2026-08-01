@@ -12,6 +12,8 @@ function windowFixture(id: string, desktopId: string, layer: number, minimized =
     app: "tasks",
     instanceKey: null,
     route: { pathname: "/tasks", search: {} },
+    navStack: [],
+    pinned: false,
     desktopId,
     placement: "floating",
     rect: { x: 40, y: 40, w: 720, h: 480 },

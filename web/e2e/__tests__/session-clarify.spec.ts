@@ -111,21 +111,16 @@ test("operator answers a running clarification and unblocks the hosted-MCP call"
   });
   const sessionId = created.session.id;
 
-  // Connect the Node MCP client promptly so the single-use bind nonce is still valid.
   const diagnosticsPath = path.join(
     runtime.paths.homeDir,
     "logs",
     "acpmock",
     `${MOCK_AGENT}.jsonl`
   );
-  const descriptor = await readHostedMcpDescriptor(diagnosticsPath);
 
   let connection: HostedMcpConnection | null = null;
   let toolCall: ReturnType<Client["callTool"]> | undefined;
   try {
-    connection = await connectHostedMcpClient(descriptor);
-    const client = connection.client;
-
     await appPage.goto(runtime.url(`/agents/${MOCK_AGENT}/sessions/${sessionId}`), {
       waitUntil: "domcontentloaded",
     });
@@ -137,6 +132,12 @@ test("operator answers a running clarification and unblocks the hosted-MCP call"
     await sessionUI.composerTextarea.press("Enter");
     await expect(appPage.getByText("native approval ready")).toBeVisible({ timeout: 20_000 });
     await expect(sessionUI.stopButton).toBeVisible({ timeout: 20_000 });
+
+    // The first prompt binds the accepted logical session and starts ACP. Connect promptly after
+    // that bind so the hosted MCP server exists and its single-use nonce is still valid.
+    const descriptor = await readHostedMcpDescriptor(diagnosticsPath);
+    connection = await connectHostedMcpClient(descriptor);
+    const client = connection.client;
 
     // Ask one bounded question through the hosted MCP client. Read-only: no permission prompt opens;
     // the call blocks until the operator answers in the browser.

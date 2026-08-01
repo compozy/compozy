@@ -23,6 +23,7 @@ LOG_DIR="$GATE_DIR/logs"
 CURRENT_FINGERPRINT=""
 FULL_REASONS=""
 GO_SCOPES=""
+SDK_GO=0
 JS_FILTERS=""
 NO_LANE_COUNT=0
 CHANGED_COUNT=0
@@ -126,6 +127,12 @@ classify() {
     internal/*) GO_SCOPES="${GO_SCOPES}./internal/..."$'\n' ;;
     cmd/*) GO_SCOPES="${GO_SCOPES}./cmd/..."$'\n' ;;
     tests/*) GO_SCOPES="${GO_SCOPES}./tests/..."$'\n' ;;
+    sdk/go/*) SDK_GO=1 ;;
+    sdk/typescript/*) JS_FILTERS="${JS_FILTERS}./sdk/typescript"$'\n' ;;
+    sdk/examples/*/*)
+      pkg="${path#sdk/examples/}"
+      JS_FILTERS="${JS_FILTERS}./sdk/examples/${pkg%%/*}"$'\n'
+      ;;
     web/*) JS_FILTERS="${JS_FILTERS}./web"$'\n' ;;
     packages/*/*)
       pkg="${path#packages/}"
@@ -228,12 +235,19 @@ go_test_p() {
 
 go_test_parallel() { printf '4\n'; }
 
+# Lint and tests narrow to the changed subtrees; cross-package fallout in
+# unchanged dependents is owned by the full gate.
 run_go_lanes() {
   local scope_args
   scope_args="$(printf '%s' "$GO_SCOPES" | sort -u | tr '\n' ' ')"
-  run_lane go-lint make go-lint
-  # shellcheck disable=SC2086
-  run_lane go-test env CGO_ENABLED=1 go test -race -p "$(go_test_p)" -parallel "$(go_test_parallel)" $scope_args
+  if [ -n "$GO_SCOPES" ]; then
+    run_lane go-lint env "COMPOZY_GO_LINT_SCOPES=$scope_args" make go-lint
+    # shellcheck disable=SC2086
+    run_lane go-test env CGO_ENABLED=1 go test -race -p "$(go_test_p)" -parallel "$(go_test_parallel)" $scope_args
+  fi
+  if [ "$SDK_GO" -eq 1 ]; then
+    run_lane sdk-go-test env CGO_ENABLED=1 go -C sdk/go test -race -parallel=4 ./...
+  fi
 }
 
 run_js_lanes() {
@@ -252,6 +266,9 @@ print_classification() {
   fi
   if [ -n "$GO_SCOPES" ]; then
     log "go scopes: $(printf '%s' "$GO_SCOPES" | sort -u | tr '\n' ' ')"
+  fi
+  if [ "$SDK_GO" -eq 1 ]; then
+    log "sdk/go lane: separate module (go -C sdk/go)"
   fi
   if [ -n "$JS_FILTERS" ]; then
     log "js filters: $(printf '%s' "$JS_FILTERS" | sort -u | tr '\n' ' ')"
@@ -273,11 +290,11 @@ cmd_auto() {
     cmd_full
     return
   fi
-  if [ -z "$GO_SCOPES" ] && [ -z "$JS_FILTERS" ]; then
+  if [ -z "$GO_SCOPES" ] && [ -z "$JS_FILTERS" ] && [ "$SDK_GO" -eq 0 ]; then
     log "docs/instructions only — no gate required"
     return 0
   fi
-  if [ -n "$GO_SCOPES" ]; then
+  if [ -n "$GO_SCOPES" ] || [ "$SDK_GO" -eq 1 ]; then
     run_go_lanes
   fi
   if [ -n "$JS_FILTERS" ]; then
@@ -303,7 +320,12 @@ cmd_plan() {
     return 0
   fi
   if [ -n "$GO_SCOPES" ]; then
-    log "would run: make go-lint && CGO_ENABLED=1 go test -race -p $(go_test_p) -parallel $(go_test_parallel) $(printf '%s' "$GO_SCOPES" | sort -u | tr '\n' ' ')"
+    local scopes
+    scopes="$(printf '%s' "$GO_SCOPES" | sort -u | tr '\n' ' ')"
+    log "would run: env COMPOZY_GO_LINT_SCOPES='$scopes' make go-lint && CGO_ENABLED=1 go test -race -p $(go_test_p) -parallel $(go_test_parallel) $scopes"
+  fi
+  if [ "$SDK_GO" -eq 1 ]; then
+    log "would run: CGO_ENABLED=1 go -C sdk/go test -race -parallel=4 ./..."
   fi
   if [ -n "$JS_FILTERS" ]; then
     local filter
@@ -311,7 +333,7 @@ cmd_plan() {
       log "would run: bunx turbo run lint typecheck test --filter=$filter"
     done
   fi
-  if [ -z "$GO_SCOPES" ] && [ -z "$JS_FILTERS" ]; then
+  if [ -z "$GO_SCOPES" ] && [ -z "$JS_FILTERS" ] && [ "$SDK_GO" -eq 0 ]; then
     log "would run: nothing (docs/instructions only)"
   fi
 }

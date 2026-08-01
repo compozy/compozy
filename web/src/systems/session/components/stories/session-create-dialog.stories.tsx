@@ -23,6 +23,7 @@ const liveParticipation = {
 
 const baseArgs = {
   open: true,
+  restoreFocusOnClose: true,
   onOpenChange: fn(),
   mode: "simple" as const,
   onModeChange: fn(),
@@ -34,8 +35,6 @@ const baseArgs = {
   onWorkspaceChange: fn(),
   sessionName: "Investigate checkout latency",
   onSessionNameChange: fn(),
-  workspacePath: "",
-  onWorkspacePathChange: fn(),
   selectedAgentName: agentFixtures[0]?.name ?? "",
   networkParticipation: localParticipation,
   onAgentChange: fn(),
@@ -65,12 +64,11 @@ type Story = StoryObj<typeof meta>;
 /** VC-01: the common path exposes the agent and one clear durable-start action. */
 export const Simple: Story = { args: baseArgs };
 
-/** VC-02: the sole disclosure tier contains workspace, name, path, and Network participation. */
+/** VC-02: the sole disclosure tier contains workspace, name, and Network participation. */
 export const Advanced: Story = {
   args: {
     ...baseArgs,
     mode: "advanced" as const,
-    workspacePath: "services/checkout",
   },
 };
 

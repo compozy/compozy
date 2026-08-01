@@ -65,11 +65,20 @@ export function useExtensionLogs({
     instance,
   });
   const [follow, setFollow] = useState(true);
-  const [status, setStatus] = useState<ExtensionLogStreamStatus>("idle");
+  const [streamStatus, setStreamStatus] = useState<ExtensionLogStreamStatus>("idle");
   const cursorRef = useRef(0);
 
   const streamedEntries = streamed.instance === instance ? streamed.entries : [];
   const entries = appendExtensionLogEntries(history.data ?? [], streamedEntries);
+  const status: ExtensionLogStreamStatus = !follow
+    ? "paused"
+    : enabled && name !== ""
+      ? streamStatus
+      : "idle";
+
+  if (streamed.instance !== instance) {
+    setStreamed({ entries: [], instance });
+  }
 
   useEffect(() => {
     cursorRef.current = extensionLogCursor(entries);
@@ -77,32 +86,30 @@ export function useExtensionLogs({
 
   useEffect(() => {
     cursorRef.current = 0;
-    setStreamed({ entries: [], instance });
   }, [instance]);
 
   useEffect(() => {
     if (!enabled || name === "" || !follow) {
-      setStatus(follow ? "idle" : "paused");
       return undefined;
     }
     const factory = eventSourceFactory ?? defaultEventSourceFactory;
     if (!eventSourceFactory && typeof EventSource === "undefined") return undefined;
-    setStatus("connecting");
+    setStreamStatus("connecting");
     const source = factory(
       buildExtensionLogsStreamUrl(name, { after: cursorRef.current, workspaceId })
     );
     const handleLog = (event: Event) => {
       const entry = parseExtensionLogEvent((event as MessageEvent).data);
       if (!entry) return;
-      setStatus("live");
+      setStreamStatus("live");
       setStreamed(current =>
         current.instance === instance
           ? { entries: appendExtensionLogEntries(current.entries, [entry]), instance }
           : { entries: [entry], instance }
       );
     };
-    const handleOpen = () => setStatus("live");
-    const handleError = () => setStatus("reconnecting");
+    const handleOpen = () => setStreamStatus("live");
+    const handleError = () => setStreamStatus("reconnecting");
     source.addEventListener(EXTENSION_LOG_EVENT_NAME, handleLog);
     source.onopen = handleOpen;
     source.onerror = handleError;

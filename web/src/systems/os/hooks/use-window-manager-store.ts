@@ -8,6 +8,7 @@ import {
   selectWindowManagerConflict,
   selectWindowManagerDiagnostic,
   selectWindowManagerGestureActive,
+  selectWindowManagerGestureDragging,
   selectWindowManagerGesturePreview,
   selectWindowManagerOverlay,
   selectWindowManagerWorkArea,
@@ -18,6 +19,7 @@ import {
   type WindowManagerOverlay,
   type WindowManagerRevisionConflict,
   type WindowManagerWorkArea,
+  type WindowPaletteIntent,
   windowManagerStore,
 } from "../stores/window-manager-store";
 
@@ -47,6 +49,12 @@ export function useWindowManagerGestureActive(windowId: string): boolean {
   );
 }
 
+export function useWindowManagerGestureDragging(windowId: string): boolean {
+  return useSelector(windowManagerStore, snapshot =>
+    selectWindowManagerGestureDragging(snapshot.context, windowId)
+  );
+}
+
 export function useWindowManagerGesturePreview(): SnapTarget | null {
   return useSelector(windowManagerStore, snapshot =>
     selectWindowManagerGesturePreview(snapshot.context)
@@ -67,4 +75,8 @@ export function useWindowManagerDiagnostic(): WindowManagerDiagnostic | null {
   return useSelector(windowManagerStore, snapshot =>
     selectWindowManagerDiagnostic(snapshot.context)
   );
+}
+
+export function useWindowPaletteIntent(): WindowPaletteIntent | null {
+  return useSelector(windowManagerStore, snapshot => snapshot.context.paletteIntent);
 }

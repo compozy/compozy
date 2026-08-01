@@ -25,6 +25,7 @@ type SessionCreateOperation =
 
 interface SessionCreateStoreContext {
   open: boolean;
+  restoreFocusOnClose: boolean;
   mode: EntityMode;
   draft: SessionCreateDialogDraft;
   submitError: string | null;
@@ -53,7 +54,6 @@ type SessionCreateStoreEvents = {
   };
   sessionCreated: { attempt: number; session: SessionPayload };
   validationFailed: { message: string };
-  workspacePathChanged: { workspacePath: string };
   workspaceSelected: { workspaceId: string };
 };
 
@@ -63,6 +63,7 @@ export const sessionCreateStoreLogic = createStoreLogic<
 >({
   context: {
     open: false,
+    restoreFocusOnClose: true,
     mode: "simple",
     draft: EMPTY_SESSION_CREATE_DRAFT,
     submitError: null,
@@ -75,6 +76,7 @@ export const sessionCreateStoreLogic = createStoreLogic<
       return {
         ...context,
         open: true,
+        restoreFocusOnClose: true,
         mode: "simple",
         draft: applySessionAgentSelection(context.draft, event.agentName, event.workspaceId),
         operation: { status: "idle" },
@@ -86,6 +88,7 @@ export const sessionCreateStoreLogic = createStoreLogic<
       return {
         ...context,
         open: event.open,
+        restoreFocusOnClose: true,
         operation: event.open ? { status: "idle" } : context.operation,
         submitError: event.open ? context.submitError : null,
       };
@@ -117,10 +120,6 @@ export const sessionCreateStoreLogic = createStoreLogic<
     sessionNameChanged: (context, event) => ({
       ...context,
       draft: { ...context.draft, sessionName: event.sessionName },
-    }),
-    workspacePathChanged: (context, event) => ({
-      ...context,
-      draft: { ...context.draft, workspacePath: event.workspacePath },
     }),
     networkParticipationSelected: (context, event) => ({
       ...context,
@@ -180,6 +179,7 @@ export const sessionCreateStoreLogic = createStoreLogic<
       return {
         ...context,
         open: false,
+        restoreFocusOnClose: false,
         mode: "simple",
         draft: EMPTY_SESSION_CREATE_DRAFT,
         operation: {

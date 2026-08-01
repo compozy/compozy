@@ -20,63 +20,102 @@ import (
 func TestManagerDevelopmentLifecycle(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should invoke the active subprocess generation and restore the published extension after unlink", func(t *testing.T) {
+	t.Run("Should bind a development link to the resolved workspace registration", func(t *testing.T) {
 		t.Parallel()
 
 		env := newRegistryTestEnv(t)
-		published := createManagerTestExtension(t, devManifest("dev-tool", "0.1.0", ""), nil)
-		installManagerFixture(t, env.registry, published, SourceUser, true)
-
-		workspace := newDevTestWorkspace(t, "workspace-tool-runtime")
-		origin := filepath.Join(workspace.RootDir, "tool-extension")
-		firstHash := writeDevTestGenerationFiles(t, origin, map[string]string{
-			manifestJSONFileName: extensionToolManifestJSON(
-				"dev-tool",
-				helperCommand(t),
-				helperArgs(),
-				helperEnv("tool_call_generation_marker", "first"),
-				true,
-			),
-		})
-		secondHash := writeDevTestGenerationFiles(t, origin, map[string]string{
-			manifestJSONFileName: extensionToolManifestJSON(
-				"dev-tool",
-				helperCommand(t),
-				helperArgs(),
-				helperEnv("tool_call_generation_marker", "second"),
-				true,
-			),
-		})
+		workspace := newDevTestWorkspace(t, "workspace-registry")
+		workspace.WorkspaceID = "workspace-local-identity"
+		origin := filepath.Join(workspace.RootDir, "registry-extension")
+		generationHash := writeDevTestGeneration(
+			t,
+			origin,
+			devManifest("registry-extension", "0.1.0", ""),
+		)
 		manager := NewManager(
 			env.registry,
 			WithWorkspaceResolver(newHostAPIFakeWorkspaceResolver(workspace)),
 		)
 		startDevTestManager(t, manager)
 
-		if _, err := manager.LinkDevelopmentFromOrigin(
-			testutil.Context(t), workspace.WorkspaceID, origin, firstHash,
-		); err != nil {
+		linked, err := manager.LinkDevelopmentFromOrigin(
+			testutil.Context(t),
+			workspace.ID,
+			origin,
+			generationHash,
+		)
+		if err != nil {
 			t.Fatalf("LinkDevelopmentFromOrigin() error = %v", err)
 		}
-		key := InstanceKey{Name: "dev-tool", WorkspaceID: workspace.WorkspaceID}
-		assertDevToolGeneration(t, manager, key, "first")
-
-		if _, err := manager.ReloadExtension(testutil.Context(t), key, secondHash); err != nil {
-			t.Fatalf("ReloadExtension() error = %v", err)
-		}
-		assertDevToolGeneration(t, manager, key, "second")
-
-		if err := manager.UnlinkDevelopment(testutil.Context(t), key); err != nil {
-			t.Fatalf("UnlinkDevelopment() error = %v", err)
-		}
-		active, err := env.registry.ResolveActive(key.Name, key.WorkspaceID)
-		if err != nil {
-			t.Fatalf("ResolveActive() error = %v", err)
-		}
-		if active.DevLink != nil || active.Published == nil || active.Published.Version != "0.1.0" {
-			t.Fatalf("ResolveActive() = %#v, want published fallback", active)
+		if linked.Status.WorkspaceID != workspace.ID {
+			t.Fatalf(
+				"linked workspace id = %q, want registration %q",
+				linked.Status.WorkspaceID,
+				workspace.ID,
+			)
 		}
 	})
+
+	t.Run(
+		"Should invoke the active subprocess generation and restore the published extension after unlink",
+		func(t *testing.T) {
+			t.Parallel()
+
+			env := newRegistryTestEnv(t)
+			published := createManagerTestExtension(t, devManifest("dev-tool", "0.1.0", ""), nil)
+			installManagerFixture(t, env.registry, published, SourceUser, true)
+
+			workspace := newDevTestWorkspace(t, "workspace-tool-runtime")
+			origin := filepath.Join(workspace.RootDir, "tool-extension")
+			firstHash := writeDevTestGenerationFiles(t, origin, map[string]string{
+				manifestJSONFileName: extensionToolManifestJSON(
+					"dev-tool",
+					helperCommand(t),
+					helperArgs(),
+					helperEnv("tool_call_generation_marker", "first"),
+					true,
+				),
+			})
+			secondHash := writeDevTestGenerationFiles(t, origin, map[string]string{
+				manifestJSONFileName: extensionToolManifestJSON(
+					"dev-tool",
+					helperCommand(t),
+					helperArgs(),
+					helperEnv("tool_call_generation_marker", "second"),
+					true,
+				),
+			})
+			manager := NewManager(
+				env.registry,
+				WithWorkspaceResolver(newHostAPIFakeWorkspaceResolver(workspace)),
+			)
+			startDevTestManager(t, manager)
+
+			if _, err := manager.LinkDevelopmentFromOrigin(
+				testutil.Context(t), workspace.WorkspaceID, origin, firstHash,
+			); err != nil {
+				t.Fatalf("LinkDevelopmentFromOrigin() error = %v", err)
+			}
+			key := InstanceKey{Name: "dev-tool", WorkspaceID: workspace.WorkspaceID}
+			assertDevToolGeneration(t, manager, key, "first")
+
+			if _, err := manager.ReloadExtension(testutil.Context(t), key, secondHash); err != nil {
+				t.Fatalf("ReloadExtension() error = %v", err)
+			}
+			assertDevToolGeneration(t, manager, key, "second")
+
+			if err := manager.UnlinkDevelopment(testutil.Context(t), key); err != nil {
+				t.Fatalf("UnlinkDevelopment() error = %v", err)
+			}
+			active, err := env.registry.ResolveActive(key.Name, key.WorkspaceID)
+			if err != nil {
+				t.Fatalf("ResolveActive() error = %v", err)
+			}
+			if active.DevLink != nil || active.Published == nil || active.Published.Version != "0.1.0" {
+				t.Fatalf("ResolveActive() = %#v, want published fallback", active)
+			}
+		},
+	)
 
 	t.Run("Should override a published extension and restore it after unlink", func(t *testing.T) {
 		t.Parallel()
@@ -188,7 +227,13 @@ func TestManagerDevelopmentLifecycle(t *testing.T) {
 			t.Fatalf("GetForInstance(second) error = %v", err)
 		}
 		if first.Status.GenerationHash != firstHash || second.Status.GenerationHash != secondHash {
-			t.Fatalf("workspace generations = %q/%q, want %q/%q", first.Status.GenerationHash, second.Status.GenerationHash, firstHash, secondHash)
+			t.Fatalf(
+				"workspace generations = %q/%q, want %q/%q",
+				first.Status.GenerationHash,
+				second.Status.GenerationHash,
+				firstHash,
+				secondHash,
+			)
 		}
 		if first.RootDir == second.RootDir {
 			t.Fatalf("workspace roots both = %q, want isolated generations", first.RootDir)
@@ -240,7 +285,10 @@ func TestManagerDevelopmentLifecycle(t *testing.T) {
 }
 
 func TestManagerDevelopmentReloadConcurrency(t *testing.T) {
-	t.Run("Should serialize reloads per instance without blocking other workspaces", testManagerDevelopmentReloadConcurrency)
+	t.Run(
+		"Should serialize reloads per instance without blocking other workspaces",
+		testManagerDevelopmentReloadConcurrency,
+	)
 }
 
 func testManagerDevelopmentReloadConcurrency(t *testing.T) {
@@ -316,7 +364,10 @@ func testManagerDevelopmentReloadConcurrency(t *testing.T) {
 }
 
 func TestManagerDevelopmentCoordinatorBarrier(t *testing.T) {
-	t.Run("Should activate only generations published beyond the coordinator barrier", testManagerDevelopmentCoordinatorBarrier)
+	t.Run(
+		"Should activate only generations published beyond the coordinator barrier",
+		testManagerDevelopmentCoordinatorBarrier,
+	)
 }
 
 func testManagerDevelopmentCoordinatorBarrier(t *testing.T) {

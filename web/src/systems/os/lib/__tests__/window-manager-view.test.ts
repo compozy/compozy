@@ -5,6 +5,7 @@
 // Boundary OUT: React rendering and daemon command execution.
 import { describe, expect, it } from "vitest";
 
+import { buildDesktopFrames } from "../group-projection";
 import {
   buildWindowManagerMinimums,
   buildWindowManagerProjections,
@@ -13,7 +14,7 @@ import {
 import type { WindowManagerConfig, WindowManagerSnapshot } from "../window-manager-types";
 
 const SNAPSHOT: WindowManagerSnapshot = {
-  version: 1,
+  version: 3,
   workspaceId: "workspace:test",
   revision: 7,
   desktops: [
@@ -40,6 +41,7 @@ const SNAPSHOT: WindowManagerSnapshot = {
         },
       ],
       floating: [],
+      floatingStacks: [],
     },
   ],
   windows: {
@@ -48,6 +50,8 @@ const SNAPSHOT: WindowManagerSnapshot = {
       app: "dashboard",
       instanceKey: null,
       route: { pathname: "/", search: {} },
+      navStack: [],
+      pinned: false,
       placement: "tiled",
       desktopId: "desktop:main",
       floatingRect: { x: 0.1, y: 0.1, w: 0.5, h: 0.5 },
@@ -59,6 +63,8 @@ const SNAPSHOT: WindowManagerSnapshot = {
       app: "tasks",
       instanceKey: null,
       route: { pathname: "/tasks", search: {} },
+      navStack: [],
+      pinned: false,
       placement: "tiled",
       desktopId: "desktop:main",
       floatingRect: { x: 0.2, y: 0.2, w: 0.5, h: 0.5 },
@@ -66,7 +72,7 @@ const SNAPSHOT: WindowManagerSnapshot = {
       returnAnchor: null,
     },
   },
-  history: { undo: [], redo: [] },
+  closedEntryCount: 0,
   overrides: {},
   updatedAt: "2026-07-22T00:00:00Z",
 };
@@ -82,6 +88,8 @@ const CONFIG: WindowManagerConfig = {
   groupMoveModifier: "alt",
   swapModifier: "shift",
   historyLimit: 50,
+  navStackLimit: 50,
+  closedEntryLimit: 20,
   desktopTransition: "slide",
   gaps: { inner: 8, top: 0, right: 0, bottom: 0, left: 0 },
   snap: {
@@ -111,6 +119,7 @@ describe("window-manager view", () => {
         activeDesktopId: "desktop:main",
         focusedWindowId: "window:tasks",
         focusOrder: ["window:dashboard", "window:tasks"],
+        stackActive: {},
         connectedAt: "2026-07-22T00:00:00Z",
         presentationRevision: 1,
       },
@@ -125,13 +134,27 @@ describe("window-manager view", () => {
         activeWindowId: "window:tasks",
       }),
     ]);
+    const frames = buildDesktopFrames({
+      snapshot: SNAPSHOT,
+      client: null,
+      projections,
+      workArea: { x: 0, y: 0, w: 540, h: 400 },
+      raiseOnFocus: false,
+    });
     const windows = buildWindowManagerWindows({
       snapshot: SNAPSHOT,
       client: null,
       workArea: { x: 0, y: 0, w: 540, h: 400 },
       projections,
-      raiseOnFocus: false,
+      frames,
     });
+    expect(frames["desktop:main"]).toEqual([
+      expect.objectContaining({
+        kind: "tiled",
+        adapted: true,
+        members: ["window:dashboard", "window:tasks"],
+      }),
+    ]);
     expect(windows["window:dashboard"]?.parentAxis).toBe("horizontal");
     expect(windows["window:tasks"]?.parentAxis).toBe("horizontal");
     expect(SNAPSHOT.desktops[0]?.groups[0]?.root.kind).toBe("split");
@@ -157,23 +180,37 @@ describe("window-manager view", () => {
       activeDesktopId: "desktop:main",
       focusedWindowId: "window:tasks",
       focusOrder: ["window:tasks", "window:dashboard"],
+      stackActive: {},
       connectedAt: "2026-07-22T00:00:00Z",
       presentationRevision: 1,
     };
 
+    const workArea = { x: 0, y: 0, w: 1440, h: 820 };
     const raised = buildWindowManagerWindows({
       snapshot: floatingSnapshot,
       client,
-      workArea: { x: 0, y: 0, w: 1440, h: 820 },
+      workArea,
       projections: {},
-      raiseOnFocus: true,
+      frames: buildDesktopFrames({
+        snapshot: floatingSnapshot,
+        client,
+        projections: {},
+        workArea,
+        raiseOnFocus: true,
+      }),
     });
     const stable = buildWindowManagerWindows({
       snapshot: floatingSnapshot,
       client,
-      workArea: { x: 0, y: 0, w: 1440, h: 820 },
+      workArea,
       projections: {},
-      raiseOnFocus: false,
+      frames: buildDesktopFrames({
+        snapshot: floatingSnapshot,
+        client,
+        projections: {},
+        workArea,
+        raiseOnFocus: false,
+      }),
     });
 
     expect(raised["window:tasks"]?.layer).toBeGreaterThan(

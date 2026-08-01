@@ -69,6 +69,18 @@ func (n *daemonNativeTools) layoutResize(
 	return n.executeWindowManagerCommand(ctx, scope, req, input.windowManagerMutationInput, input.command())
 }
 
+func (n *daemonNativeTools) layoutFrameResize(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	req toolspkg.CallRequest,
+) (toolspkg.ToolResult, error) {
+	var input windowManagerLayoutFrameResizeInput
+	if err := decodeWindowManagerInput(req, &input); err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	return n.executeWindowManagerCommand(ctx, scope, req, input.windowManagerMutationInput, input.command())
+}
+
 func (n *daemonNativeTools) layoutBalance(
 	ctx context.Context,
 	scope toolspkg.Scope,
@@ -194,6 +206,6 @@ func (n *daemonNativeTools) layoutApply(
 	if err != nil {
 		return toolspkg.ToolResult{}, windowManagerToolError(req.ToolID, err)
 	}
-	payload := newWindowManagerCommandResult(windowmanager.CommandLayoutReplace, result)
+	payload := newWindowManagerCommandResult(windowmanager.CommandLayoutReplace, &result)
 	return structuredResult(payload, fmt.Sprintf("applied layout at revision %d", payload.Revision))
 }

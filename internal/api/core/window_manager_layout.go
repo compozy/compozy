@@ -123,7 +123,7 @@ func (h *BaseHandlers) ReplaceWindowManagerLayout(c *gin.Context) {
 		h.respondWindowManagerError(c, workspaceID, err)
 		return
 	}
-	payload, err := contract.WindowManagerResultFromDomain(result)
+	payload, err := contract.WindowManagerResultFromDomain(&result)
 	if err != nil {
 		h.respondWindowManagerError(c, workspaceID, fmt.Errorf("encode layout replacement: %w", err))
 		return

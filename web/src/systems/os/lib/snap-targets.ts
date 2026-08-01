@@ -73,14 +73,6 @@ export interface SplitSnapTarget {
   rect: PixelRect;
 }
 
-export interface StackSnapTarget {
-  kind: "stack";
-  id: string;
-  targetWindowId: WindowId;
-  targetNodeId: LayoutNodeId;
-  rect: PixelRect;
-}
-
 export interface SwapSnapTarget {
   kind: "swap";
   id: string;
@@ -94,7 +86,6 @@ export type SnapTarget =
   | ZoomSnapTarget
   | InsertSnapTarget
   | SplitSnapTarget
-  | StackSnapTarget
   | SwapSnapTarget;
 
 export interface OccupiedSnapCandidate {
@@ -319,11 +310,14 @@ function occupiedTarget(
         rect: candidateRect,
       };
     }
+    // The occupied center swaps whole units (the tiling-WM convention);
+    // grouping as tabs stays the deck row's and the solo head's precise
+    // gesture, never a body drop.
     const side = sideFromCandidate(point, candidateRect);
     if (side === null) {
       return {
-        kind: "stack",
-        id: `stack:${candidate.nodeId}`,
+        kind: "swap",
+        id: `swap:${candidate.nodeId}`,
         targetWindowId: candidate.windowId,
         targetNodeId: candidate.nodeId,
         rect: candidateRect,

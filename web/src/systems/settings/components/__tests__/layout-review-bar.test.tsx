@@ -28,7 +28,7 @@ import { LayoutReviewBar } from "../layouts/layout-review-bar";
 const INITIAL: WindowManagerLayoutState = {
   revision: 7,
   document: {
-    version: 2,
+    version: 3,
     workspaceId: "workspace-a",
     desktops: [
       {
@@ -38,6 +38,7 @@ const INITIAL: WindowManagerLayoutState = {
         purpose: "standard",
         focusOwner: null,
         floating: [],
+        floatingStacks: [],
         groups: [
           {
             id: "group-main",
@@ -53,6 +54,8 @@ const INITIAL: WindowManagerLayoutState = {
         app: "tasks",
         instanceKey: null,
         route: { pathname: "/tasks", search: {} },
+        navStack: [],
+        pinned: false,
         placement: "tiled",
         desktopId: "desktop-one",
         floatingRect: { x: 0.2, y: 0.2, w: 0.4, h: 0.4 },

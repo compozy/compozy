@@ -1,4 +1,4 @@
-import { Topbar, TopbarSlotProvider, useTopbarSlotValue } from "@compozy/ui";
+import { Topbar, TopbarSlotProvider, useTopbarSlotValue, type TopbarSlotStore } from "@compozy/ui";
 import * as React from "react";
 
 import { cn } from "@/lib/utils";
@@ -6,34 +6,59 @@ import { cn } from "@/lib/utils";
 import { OsTrafficLights, type OsTrafficLightAction } from "./os-traffic-lights";
 
 /**
- * Floating window frame: the shell chrome around one app's route subtree.
- * The window head owns route identity — 44px unified bar (traffic
- * lights · glyph/title or drill-in trail · status + actions) with an optional
- * 38px context strip for listing tools. Per-window `TopbarSlotProvider` lets
- * locations publish identity/tools via `useTopbarSlot`. Frame depth (border +
- * cast shadow) is the sanctioned shell carve-out; window-body content stays flat.
- *
- * Presentational only — drag, z-order, and focus come from the window
- * manager. `focused` selects the focused/unfocused depth and head-dim states.
+ * Outer shell chrome for one window frame (solo window or tab group): border,
+ * radius, and cast shadow are the sanctioned shell carve-out; everything
+ * inside stays flat. Presentational only — drag, z-order, and focus come from
+ * the window manager.
  */
-export interface OsWindowFrameProps extends Omit<React.ComponentProps<"section">, "title"> {
-  /** Default window title when the location has not published a crumb override. */
-  title: React.ReactNode;
-  /** Quiet root glyph when the location has not published `slot.glyph`. */
-  glyph?: React.ReactNode;
-  /** Focused (sharp border, cast shadow) vs unfocused (dimmed head, lighter shadow). */
+export interface OsWindowChromeProps extends React.ComponentProps<"section"> {
   focused?: boolean;
-  /** Traffic-light activation. Omit to render the controls as presentation. */
-  onTrafficLight?: (action: OsTrafficLightAction) => void;
-  /** Wraps the zoom control with its hover menu (window manager wiring). */
-  zoomMenu?: (button: React.ReactNode) => React.ReactNode;
-  /** Extra classes on the head `Topbar` (the WM's drag-handle hook). */
-  headClassName?: string;
-  /**
-   * Compact (<960px, os-v2.css mobile block): full-bleed stack surface — no
-   * border/radius/cast shadow, zoom hidden, enlarged control hit areas.
-   */
+  /** Compact (<960px): full-bleed stack surface — no border/radius/shadow. */
   presentation?: "floating" | "compact";
+}
+
+function targetsWindowChromeControl(target: EventTarget | null): boolean {
+  return (
+    target instanceof Element &&
+    target.closest('[data-slot="os-traffic-lights"] button[data-action]') !== null
+  );
+}
+
+export function OsWindowChrome({
+  focused = true,
+  presentation = "floating",
+  className,
+  children,
+  onPointerDownCapture,
+  ...props
+}: OsWindowChromeProps) {
+  const compact = presentation === "compact";
+  return (
+    <section
+      data-slot="os-window-frame"
+      data-focused={focused ? "" : undefined}
+      data-presentation={compact ? "compact" : undefined}
+      className={cn(
+        "flex min-h-0 flex-col overflow-hidden bg-canvas",
+        compact
+          ? "rounded-none border-0 shadow-none"
+          : [
+              "rounded-window border",
+              focused
+                ? "border-line-focus shadow-window"
+                : "border-line-strong shadow-window-unfocused",
+            ],
+        className
+      )}
+      onPointerDownCapture={event => {
+        if (targetsWindowChromeControl(event.target)) return;
+        onPointerDownCapture?.(event);
+      }}
+      {...props}
+    >
+      {children}
+    </section>
+  );
 }
 
 function OsWindowToolbar() {
@@ -73,58 +98,55 @@ function OsWindowBody({
   );
 }
 
-function targetsWindowChromeControl(target: EventTarget | null): boolean {
-  return (
-    target instanceof Element &&
-    target.closest('[data-slot="os-traffic-lights"] button[data-action]') !== null
-  );
+/**
+ * One member's head + strip + body (D2: the head belongs entirely to the
+ * active tab). The owning frame supplies the member's topbar slot store so
+ * hidden members keep publishing and the deck can read live leaf labels.
+ */
+export interface OsWindowSurfaceProps extends Omit<React.ComponentProps<"section">, "title"> {
+  title: React.ReactNode;
+  glyph?: React.ReactNode;
+  focused?: boolean;
+  /** Deck frames omit head controls — the deck row owns the traffic lights. */
+  controls?: "head" | "deck";
+  onTrafficLight?: (action: OsTrafficLightAction) => void;
+  zoomMenu?: (button: React.ReactNode) => React.ReactNode;
+  headClassName?: string;
+  presentation?: "floating" | "compact";
+  slotStore?: TopbarSlotStore;
 }
 
-export function OsWindowFrame({
+export function OsWindowSurface({
   title,
   glyph,
   focused = true,
+  controls = "head",
   onTrafficLight,
   zoomMenu,
   headClassName,
   presentation = "floating",
+  slotStore,
   className,
   children,
-  onPointerDownCapture,
   ...props
-}: OsWindowFrameProps) {
+}: OsWindowSurfaceProps) {
   const [scrolled, setScrolled] = React.useState(false);
   const compact = presentation === "compact";
 
   return (
     <section
-      data-slot="os-window-frame"
-      data-focused={focused ? "" : undefined}
-      data-presentation={compact ? "compact" : undefined}
-      className={cn(
-        "flex min-h-0 flex-col overflow-hidden bg-canvas",
-        compact
-          ? "rounded-none border-0 shadow-none"
-          : [
-              "rounded-window border",
-              focused
-                ? "border-line-focus shadow-window"
-                : "border-line-strong shadow-window-unfocused",
-            ],
-        className
-      )}
-      onPointerDownCapture={event => {
-        if (targetsWindowChromeControl(event.target)) return;
-        onPointerDownCapture?.(event);
-      }}
+      data-slot="os-window-surface"
+      className={cn("flex min-h-0 flex-1 flex-col overflow-hidden bg-canvas", className)}
       {...props}
     >
-      <TopbarSlotProvider>
+      <TopbarSlotProvider store={slotStore}>
         <Topbar
           data-slot="os-window-head"
           data-scrolled={scrolled ? "" : undefined}
           leading={
-            <OsTrafficLights onSelect={onTrafficLight} compact={compact} wrapZoom={zoomMenu} />
+            controls === "head" ? (
+              <OsTrafficLights onSelect={onTrafficLight} compact={compact} wrapZoom={zoomMenu} />
+            ) : undefined
           }
           title={title}
           glyph={glyph}
@@ -139,5 +161,41 @@ export function OsWindowFrame({
         <OsWindowBody onScrolled={setScrolled}>{children}</OsWindowBody>
       </TopbarSlotProvider>
     </section>
+  );
+}
+
+export type OsWindowFrameProps = Omit<OsWindowChromeProps, "title"> &
+  Pick<OsWindowSurfaceProps, "title" | "glyph" | "onTrafficLight" | "zoomMenu" | "headClassName">;
+
+/**
+ * Solo composition — today's single-window chrome, unchanged (rule D1).
+ * Container props (activation captures included) land on the chrome so the
+ * traffic-light guard keeps chrome clicks out of window activation.
+ */
+export function OsWindowFrame({
+  title,
+  glyph,
+  focused = true,
+  onTrafficLight,
+  zoomMenu,
+  headClassName,
+  presentation = "floating",
+  children,
+  ...chromeProps
+}: OsWindowFrameProps) {
+  return (
+    <OsWindowChrome focused={focused} presentation={presentation} {...chromeProps}>
+      <OsWindowSurface
+        title={title}
+        glyph={glyph}
+        focused={focused}
+        presentation={presentation}
+        onTrafficLight={onTrafficLight}
+        zoomMenu={zoomMenu}
+        headClassName={headClassName}
+      >
+        {children}
+      </OsWindowSurface>
+    </OsWindowChrome>
   );
 }

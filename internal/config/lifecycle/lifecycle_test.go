@@ -10,6 +10,7 @@ func TestClassifyPath(t *testing.T) {
 		path          string
 		wantLifecycle Lifecycle
 		wantDiffClass DiffClass
+		wantPattern   string
 		wantErr       bool
 	}{
 		{
@@ -133,10 +134,25 @@ func TestClassifyPath(t *testing.T) {
 			wantDiffClass: DiffClassRestartRequired,
 		},
 		{
+			name:          "Should classify navigation stack history as live with its specific rule",
+			path:          pathWindowManagerNavStackLimit,
+			wantLifecycle: Live,
+			wantDiffClass: DiffClassLive,
+			wantPattern:   pathWindowManagerNavStackLimit,
+		},
+		{
+			name:          "Should classify closed tab history as live with its specific rule",
+			path:          pathWindowManagerClosedEntryLimit,
+			wantLifecycle: Live,
+			wantDiffClass: DiffClassLive,
+			wantPattern:   pathWindowManagerClosedEntryLimit,
+		},
+		{
 			name:          "Should classify window-manager behavior as live",
 			path:          "window_manager.snap.repeat_ratios",
 			wantLifecycle: Live,
 			wantDiffClass: DiffClassLive,
+			wantPattern:   "window_manager.*",
 		},
 		{
 			name:          "Should classify MCP OAuth client metadata as restart required",
@@ -176,6 +192,9 @@ func TestClassifyPath(t *testing.T) {
 			}
 			if got.DiffClass != tt.wantDiffClass {
 				t.Fatalf("ClassifyPath().DiffClass = %q, want %q", got.DiffClass, tt.wantDiffClass)
+			}
+			if tt.wantPattern != "" && got.Pattern != tt.wantPattern {
+				t.Fatalf("ClassifyPath().Pattern = %q, want %q", got.Pattern, tt.wantPattern)
 			}
 		})
 	}

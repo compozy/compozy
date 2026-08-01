@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/deadentity"
@@ -16,6 +17,8 @@ import (
 	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
+
+const defaultSettingsMCPStatusTimeout = 2 * time.Second
 
 func (s *settingsRuntimeSurface) MCPServerRuntimeStatus(
 	ctx context.Context,
@@ -108,7 +111,15 @@ func (s *settingsRuntimeSurface) newMCPProbeExecutor(
 		mcppkg.WithAuthMutationGeneration(s.mcpAuthGeneration),
 		mcppkg.WithSecretLookup(s.lookupSecret),
 		mcppkg.WithSecretResolver(s.secretRefs),
+		mcppkg.WithTimeout(s.mcpStatusTimeoutOrDefault()),
 	)
+}
+
+func (s *settingsRuntimeSurface) mcpStatusTimeoutOrDefault() time.Duration {
+	if s.mcpStatusTimeout > 0 {
+		return s.mcpStatusTimeout
+	}
+	return defaultSettingsMCPStatusTimeout
 }
 
 func (s *settingsRuntimeSurface) suppressedMCPRuntimeStatus(

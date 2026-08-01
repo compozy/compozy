@@ -2,9 +2,16 @@ package spec
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/windowmanager"
 	"github.com/getkin/kin-openapi/openapi3"
+)
+
+const (
+	windowManagerModeProperty  = "mode"
+	windowManagerRouteProperty = "route"
 )
 
 type windowManagerComponentSchema struct {
@@ -80,11 +87,25 @@ func customizeWindowManagerRouteIntent(schemas openapi3.Schemas) {
 	if payload == nil || payload.Value == nil {
 		return
 	}
-	route := payload.Value.Properties["route"]
+	route := payload.Value.Properties[windowManagerRouteProperty]
 	if route == nil || route.Value == nil {
 		return
 	}
+	payload.Value.Required = slices.DeleteFunc(payload.Value.Required, func(field string) bool {
+		return field == windowManagerRouteProperty
+	})
 	route.Value.WithoutAdditionalProperties()
+	pop := openapi3.NewObjectSchema().
+		WithProperty(windowManagerModeProperty, openapi3.NewStringSchema().WithEnum(string(windowmanager.NavigatePop))).
+		WithRequired([]string{windowManagerModeProperty})
+	pop.Not = openapi3.NewObjectSchema().WithRequired([]string{windowManagerRouteProperty}).NewRef()
+	routed := openapi3.NewObjectSchema().
+		WithProperty(
+			windowManagerModeProperty,
+			openapi3.NewStringSchema().WithEnum("replace", string(windowmanager.NavigatePush)),
+		).
+		WithRequired([]string{windowManagerRouteProperty})
+	payload.Value.OneOf = openapi3.SchemaRefs{pop.NewRef(), routed.NewRef()}
 }
 
 func customizeWindowManagerFrameSchema(schema *openapi3.Schema, value string) {

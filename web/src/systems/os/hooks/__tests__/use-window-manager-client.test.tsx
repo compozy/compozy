@@ -27,6 +27,7 @@ function client(presentationRevision = 1): WindowManagerClientView {
     activeDesktopId: "desktop:main",
     focusedWindowId: null,
     focusOrder: [],
+    stackActive: {},
     connectedAt: "2026-07-22T00:00:00Z",
   };
 }

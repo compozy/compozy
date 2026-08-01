@@ -15,7 +15,7 @@ func (m *Manager) Subscribe(ctx context.Context, request SubscriptionRequest) (S
 		return nil, err
 	}
 	lock.Lock()
-	defer lock.Unlock()
+	defer m.releaseWorkspaceLock(request.WorkspaceID, lock)
 	snapshot, err := m.loadSnapshot(ctx, request.WorkspaceID)
 	if err != nil {
 		return nil, err
@@ -96,10 +96,12 @@ func (m *Manager) DeleteWorkspace(ctx context.Context, workspaceID WorkspaceID) 
 		return err
 	}
 	lock.Lock()
-	defer lock.Unlock()
+	defer m.releaseWorkspaceLock(workspaceID, lock)
 	if err := m.repository.DeleteWorkspace(ctx, workspaceID); err != nil {
 		return fmt.Errorf("delete window workspace: %w", err)
 	}
+	m.coalescer.discardWorkspaceLocked(workspaceID)
+	m.retireWorkspaceLock(workspaceID, lock)
 	m.mu.Lock()
 	delete(m.clients, workspaceID)
 	hub := m.hubs[workspaceID]
@@ -113,9 +115,14 @@ func (m *Manager) DeleteWorkspace(ctx context.Context, workspaceID WorkspaceID) 
 
 // ForgetWorkspace tears down transient state after the workspace owner commits deletion.
 func (m *Manager) ForgetWorkspace(workspaceID WorkspaceID) {
+	if lock, err := m.lockFor(workspaceID); err == nil {
+		lock.Lock()
+		m.coalescer.discardWorkspaceLocked(workspaceID)
+		m.retireWorkspaceLock(workspaceID, lock)
+		m.releaseWorkspaceLock(workspaceID, lock)
+	}
 	m.mu.Lock()
 	delete(m.clients, workspaceID)
-	delete(m.workspaceLocks, workspaceID)
 	hub := m.hubs[workspaceID]
 	delete(m.hubs, workspaceID)
 	m.mu.Unlock()

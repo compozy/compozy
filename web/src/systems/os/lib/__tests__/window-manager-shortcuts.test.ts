@@ -89,6 +89,18 @@ describe("findShortcutConflicts", () => {
     expect(conflicts[0]?.actionIds).toContain("window.close");
   });
 
+  it("Should surface a tab-action override that collides with close [UT-051]", () => {
+    const conflicts = findShortcutConflicts({ "window.tab.next": "meta+KeyW" });
+
+    expect(conflicts).toEqual([
+      {
+        chord: "meta+KeyW",
+        kind: "default",
+        actionIds: ["window.close", "window.tab.next"],
+      },
+    ]);
+  });
+
   it("Should ignore an override that only restates its own default", () => {
     expect(findShortcutConflicts({ "window.close": "meta+KeyW" })).toEqual([]);
   });

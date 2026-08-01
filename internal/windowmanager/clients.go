@@ -16,7 +16,7 @@ func (m *Manager) RegisterClient(ctx context.Context, registration ClientRegistr
 		return ClientView{}, err
 	}
 	lock.Lock()
-	defer lock.Unlock()
+	defer m.releaseWorkspaceLock(registration.WorkspaceID, lock)
 	snapshot, err := m.loadSnapshot(ctx, registration.WorkspaceID)
 	if err != nil {
 		return ClientView{}, err
@@ -53,6 +53,7 @@ func (m *Manager) RegisterClient(ctx context.Context, registration ClientRegistr
 			PresentationRevision: 1,
 			ConnectedAt:          m.now().UTC(),
 			FocusOrder:           []WindowID{},
+			StackActive:          map[NodeID]WindowID{},
 		}
 	} else {
 		before = cloneClientView(view)
@@ -94,7 +95,10 @@ func (m *Manager) UnregisterClient(ctx context.Context, workspaceID WorkspaceID,
 		return err
 	}
 	lock.Lock()
-	defer lock.Unlock()
+	defer m.releaseWorkspaceLock(workspaceID, lock)
+	if _, err := m.flushStackActiveLocked(ctx, workspaceID); err != nil {
+		return fmt.Errorf("flush stack activation before unregister client %q: %w", clientID, err)
+	}
 	m.mu.Lock()
 	workspaceClients := m.clients[workspaceID]
 	if _, exists := workspaceClients[clientID]; !exists {
@@ -117,7 +121,7 @@ func (m *Manager) Clients(ctx context.Context, workspaceID WorkspaceID) ([]Clien
 		return nil, err
 	}
 	lock.Lock()
-	defer lock.Unlock()
+	defer m.releaseWorkspaceLock(workspaceID, lock)
 	m.mu.Lock()
 	views := make([]ClientView, 0, len(m.clients[workspaceID]))
 	for _, view := range m.clients[workspaceID] {
@@ -196,6 +200,7 @@ func (m *Manager) applyPresentation(
 	if !exists {
 		return ClientView{}, false, ChangeSet{}, fmt.Errorf("client %q: %w", *request.ClientID, ErrClientNotFound)
 	}
+	view = cloneClientView(view)
 	before := cloneClientView(view)
 	switch command := request.Payload.(type) {
 	case SwitchDesktopCommand:
@@ -217,6 +222,15 @@ func (m *Manager) applyPresentation(
 			}
 			view.FocusedWindowID = &focused
 			view.FocusOrder = prependFocus(view.FocusOrder, focused)
+			if location, stacked := findStackByWindow(&snapshot, focused); stacked {
+				if view.StackActive == nil {
+					view.StackActive = make(map[NodeID]WindowID)
+				}
+				view.StackActive[location.id()] = focused
+				if persist {
+					m.noteStackActive(request.WorkspaceID, location.id(), focused)
+				}
+			}
 			view = repairClientView(view, snapshot)
 		}
 	default:

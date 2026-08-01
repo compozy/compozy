@@ -71,6 +71,7 @@ type Info struct {
 	Type                 Type
 	Lineage              *store.SessionLineage
 	State                State
+	PendingPermission    bool
 	StopReason           store.StopReason
 	StopDetail           string
 	Failure              *store.SessionFailure
@@ -91,7 +92,8 @@ type Info struct {
 
 // Session is the in-memory runtime representation of one active or stopping session.
 type Session struct {
-	mu sync.RWMutex
+	mu            sync.RWMutex
+	networkPeerMu sync.Mutex
 
 	ID                   string
 	Name                 string

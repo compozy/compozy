@@ -20,6 +20,7 @@ func (s *Session) Info() *Info {
 	if s.process != nil {
 		acpCaps = cloneCaps(s.process.CapsSnapshot())
 	}
+	pendingPermission := s.process != nil && s.process.HasPendingPermission()
 
 	return &Info{
 		ID:                   s.ID,
@@ -41,6 +42,7 @@ func (s *Session) Info() *Info {
 		Type:                 normalizeSessionType(s.Type),
 		Lineage:              store.NormalizeSessionLineage(s.ID, s.Lineage),
 		State:                s.State,
+		PendingPermission:    pendingPermission,
 		StopReason:           s.stopReason,
 		StopDetail:           s.stopDetail,
 		Failure:              store.CloneSessionFailure(s.failure),

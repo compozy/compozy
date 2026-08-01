@@ -4,13 +4,17 @@ import type { ReactNode } from "react";
 import { cn } from "@compozy/ui";
 
 import type { OsAttentionBadges } from "../lib/attention-model";
+import type { OsAppId } from "../lib/os-types";
 import { OsDockZone } from "./os-dock";
+import { OsDockAppMenu } from "./os-dock-app-menu";
 import { OsDockTabBar } from "./os-dock-tab-bar";
 
 export interface DesktopDockProps {
   onNewSession: () => void;
   badges: OsAttentionBadges;
   sessionsOpen: boolean;
+  /** Modal overlays own keyboard and pointer interaction until they close. */
+  contextMenusEnabled: boolean;
   onToggleSessions: () => void;
   pager: ReactNode;
   /** First run: the dock is present but asleep until setup commits. */
@@ -32,6 +36,7 @@ export function DesktopDock({
   onNewSession,
   badges,
   sessionsOpen,
+  contextMenusEnabled,
   onToggleSessions,
   pager,
   dormant = false,
@@ -60,6 +65,16 @@ export function DesktopDock({
       items={entries}
       leading={pager}
       onSelect={handleSelect}
+      renderItemMenu={
+        !contextMenusEnabled
+          ? undefined
+          : (item, children) =>
+              item.id === "session" ? (
+                children
+              ) : (
+                <OsDockAppMenu appId={item.id as OsAppId}>{children}</OsDockAppMenu>
+              )
+      }
       onNewSession={onNewSession}
       magnify={magnify}
     />

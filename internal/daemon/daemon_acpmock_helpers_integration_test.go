@@ -72,6 +72,24 @@ func createBoundFixtureBackedSession(
 	return bound
 }
 
+func bindFixtureBackedSession(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	created compozycontract.SessionPayload,
+	message string,
+) compozycontract.SessionPayload {
+	t.Helper()
+
+	if _, err := harness.PromptSession(ctx, created.ID, message); err != nil {
+		t.Fatalf("PromptSession(%q) error = %v", created.ID, err)
+	}
+	bound, err := harness.GetSession(ctx, created.ID)
+	if err != nil {
+		t.Fatalf("GetSession(%q) after runtime bind error = %v", created.ID, err)
+	}
+	return bound
+}
 func createSessionHTTPFailure(
 	t testing.TB,
 	ctx context.Context,

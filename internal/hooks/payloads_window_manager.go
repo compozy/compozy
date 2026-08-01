@@ -2,11 +2,13 @@ package hooks
 
 // WindowManagerChanges identifies entities changed by one committed command.
 type WindowManagerChanges struct {
-	DesktopIDs []string `json:"desktop_ids,omitempty"`
-	WindowIDs  []string `json:"window_ids,omitempty"`
-	GroupIDs   []string `json:"group_ids,omitempty"`
-	NodeIDs    []string `json:"node_ids,omitempty"`
-	ClientIDs  []string `json:"client_ids,omitempty"`
+	DesktopIDs     []string `json:"desktop_ids,omitempty"`
+	WindowIDs      []string `json:"window_ids,omitempty"`
+	GroupIDs       []string `json:"group_ids,omitempty"`
+	NodeIDs        []string `json:"node_ids,omitempty"`
+	ClientIDs      []string `json:"client_ids,omitempty"`
+	StackGrouped   []string `json:"stack_grouped,omitempty"`
+	StackUngrouped []string `json:"stack_ungrouped,omitempty"`
 }
 
 // WindowManagerActor identifies the command initiator.
@@ -37,6 +39,21 @@ type WindowManagerDesktopDeletedPayload = WindowManagerPayload
 
 // WindowManagerWindowMovedPayload observes a committed window move.
 type WindowManagerWindowMovedPayload = WindowManagerPayload
+
+// WindowManagerWindowOpenedPayload observes windows added by open or reopen.
+type WindowManagerWindowOpenedPayload = WindowManagerPayload
+
+// WindowManagerWindowClosedPayload observes every window removed by one close operation.
+type WindowManagerWindowClosedPayload = WindowManagerPayload
+
+// WindowManagerStackGroupedPayload observes stack membership grouped in one revision.
+type WindowManagerStackGroupedPayload = WindowManagerPayload
+
+// WindowManagerStackUngroupedPayload observes stacks dissolved in one revision.
+type WindowManagerStackUngroupedPayload = WindowManagerPayload
+
+// WindowManagerStackActivatedPayload observes one durable stack activation.
+type WindowManagerStackActivatedPayload = WindowManagerPayload
 
 // WindowManagerObservationPatch is the no-op patch surface for durable observations.
 type WindowManagerObservationPatch struct{}

@@ -14,10 +14,6 @@ type sandboxExecSessionManager interface {
 	ExecSandbox(context.Context, session.SandboxExecRequest) (session.SandboxExecResult, error)
 }
 
-type hostAPISessionAcceptanceManager interface {
-	CreateAccepted(context.Context, session.CreateAcceptedOpts) (*session.Info, error)
-}
-
 type hostAPIExtensionSessionManager interface {
 	SessionManager
 	ExecSandbox(context.Context, session.SandboxExecRequest) (session.SandboxExecResult, error)
@@ -43,8 +39,7 @@ type hostAPIPromptOptsSessionManager interface {
 
 type hostAPISessionManagerAdapter struct {
 	core.SessionManager
-	exec       sandboxExecSessionManager
-	acceptance hostAPISessionAcceptanceManager
+	exec sandboxExecSessionManager
 }
 
 type hostAPINetworkSessionManagerAdapter struct {
@@ -52,10 +47,25 @@ type hostAPINetworkSessionManagerAdapter struct {
 	bridgePrompts hostAPIBridgePromptSessionManager
 }
 
+type hostAPISessionAcceptance struct {
+	acceptance core.SessionAcceptanceManager
+}
+
+type hostAPIAcceptanceSessionManagerAdapter struct {
+	hostAPISessionManagerAdapter
+	hostAPISessionAcceptance
+}
+
+type hostAPIAcceptanceNetworkSessionManagerAdapter struct {
+	hostAPINetworkSessionManagerAdapter
+	hostAPISessionAcceptance
+}
+
 var (
-	_ hostAPISessionAcceptanceManager = (*hostAPISessionManagerAdapter)(nil)
 	_ hostAPIPromptOptsSessionManager = (*hostAPISessionManagerAdapter)(nil)
 	_ hostAPIPromptOptsSessionManager = (*hostAPINetworkSessionManagerAdapter)(nil)
+	_ core.SessionAcceptanceManager   = (*hostAPIAcceptanceSessionManagerAdapter)(nil)
+	_ core.SessionAcceptanceManager   = (*hostAPIAcceptanceNetworkSessionManagerAdapter)(nil)
 )
 
 func newHostAPISessionManagerAdapter(sessions SessionManager) hostAPIExtensionSessionManager {
@@ -63,25 +73,35 @@ func newHostAPISessionManagerAdapter(sessions SessionManager) hostAPIExtensionSe
 	if exec, ok := sessions.(sandboxExecSessionManager); ok {
 		adapter.exec = exec
 	}
-	if acceptance, ok := sessions.(hostAPISessionAcceptanceManager); ok {
-		adapter.acceptance = acceptance
+	bridgePrompts, supportsBridgePrompts := sessions.(hostAPIBridgePromptSessionManager)
+	acceptance, supportsAcceptance := sessions.(core.SessionAcceptanceManager)
+	networkAdapter := hostAPINetworkSessionManagerAdapter{
+		hostAPISessionManagerAdapter: adapter,
+		bridgePrompts:                bridgePrompts,
 	}
-	if bridgePrompts, ok := sessions.(hostAPIBridgePromptSessionManager); ok {
-		return hostAPINetworkSessionManagerAdapter{
-			hostAPISessionManagerAdapter: adapter,
-			bridgePrompts:                bridgePrompts,
+	acceptanceAdapter := hostAPISessionAcceptance{acceptance: acceptance}
+	switch {
+	case supportsBridgePrompts && supportsAcceptance:
+		return hostAPIAcceptanceNetworkSessionManagerAdapter{
+			hostAPINetworkSessionManagerAdapter: networkAdapter,
+			hostAPISessionAcceptance:            acceptanceAdapter,
 		}
+	case supportsBridgePrompts:
+		return networkAdapter
+	case supportsAcceptance:
+		return hostAPIAcceptanceSessionManagerAdapter{
+			hostAPISessionManagerAdapter: adapter,
+			hostAPISessionAcceptance:     acceptanceAdapter,
+		}
+	default:
+		return adapter
 	}
-	return adapter
 }
 
-func (a hostAPISessionManagerAdapter) CreateAccepted(
+func (a hostAPISessionAcceptance) CreateAccepted(
 	ctx context.Context,
 	opts session.CreateAcceptedOpts,
 ) (*session.Info, error) {
-	if a.acceptance == nil {
-		return nil, errors.New("daemon: session manager does not support durable acceptance")
-	}
 	info, err := a.acceptance.CreateAccepted(ctx, opts)
 	if err != nil {
 		return nil, fmt.Errorf("daemon: host api CreateAccepted: %w", err)

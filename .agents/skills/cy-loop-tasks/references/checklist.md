@@ -23,6 +23,7 @@ final iteration.
 - [ ] `mode` was decided by filesystem, not by guess (`tasks` if `_tasks.md` AND a `task_*.md` exist, else `free`).
 - [ ] `goal_signature` was copied verbatim from the user's prompt (CODEX_LOOP `goal=` value or manual reason).
 - [ ] `--frontend` was passed to `init-state.py` if and only if the invocation text carried it, and `state.frontend_agent` matches.
+- [ ] `--stacked` was passed to `init-state.py` if and only if the invocation text carried it; when set, `references/stacked-prs.md` was read in full and its prerequisites verified.
 
 ## Phase B mode=tasks only
 
@@ -31,7 +32,7 @@ final iteration.
 - [ ] Scoped validation ran, every failure was repaired in the same phase action, then `cy-final-verify` passed (or worker PASS evidence was verified for the frontend lane) before `update-state.py`.
 - [ ] No peer-review round (`deep-review`) ran in this iteration — per-task review instructions were deferred to Phase D.
 - [ ] Exactly ONE task was attempted in this iteration.
-- [ ] `commit-checkpoint.py <slug> --task <stem>` ran after `update-state.py` and printed a commit SHA or the literal `SKIP: no changes`, captured in the summary's checkpoint field.
+- [ ] `commit-checkpoint.py <slug> --task <stem>` ran after `update-state.py` and printed a commit SHA or the literal `SKIP: no changes` (plus a `stack: submitted` line when `state.stacked=true`), captured in the summary's checkpoint field.
 
 ## Phase B mode=free only
 

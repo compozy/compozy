@@ -68,6 +68,7 @@ func (m *Service) ReleaseRunLease(
 	if err != nil {
 		return nil, err
 	}
+	defer m.restoreTaskRunNetworkBestEffort(ctx, previous.SessionID, run.ID)
 	if run.IsNetworkWake() {
 		m.dispatchTaskRunReleased(ctx, run, Task{}, actor, previous, normalized.Reason)
 		return &run, nil
@@ -115,43 +116,57 @@ func (m *Service) ReleaseSessionRunLeases(
 
 	results := make([]SessionLeaseReleaseResult, 0, len(runs))
 	for _, previous := range runs {
-		run := requeueSessionRunLease(previous)
-		if err := m.store.UpdateTaskRun(ctx, run); err != nil {
-			return nil, err
+		result, releaseErr := m.releaseSessionRunLease(ctx, previous, normalized.Reason, actor)
+		if releaseErr != nil {
+			return nil, releaseErr
 		}
-		if run.IsNetworkWake() {
-			m.dispatchTaskRunReleased(ctx, run, Task{}, actor, previous, normalized.Reason)
-			results = append(results, SessionLeaseReleaseResult{
-				Run: run, PreviousRunStatus: previous.Status,
-				PreviousSessionID: previous.SessionID, PreviousLeaseUntil: previous.LeaseUntil,
-				PreviousClaimTokenHash: previous.ClaimTokenHash, Reason: normalized.Reason,
-			})
-			continue
-		}
-		reconciledTask, err := m.reconcileTaskCascade(ctx, run.TaskID, actor)
-		if err != nil {
-			return nil, err
-		}
-		if err := m.recordTaskEvent(ctx, run.TaskID, run.ID, taskEventRunReleased, actor, releasedRunPayload{
-			PreviousStatus: previous.Status,
-			Status:         run.Status,
-			TaskStatus:     reconciledTask.Status,
-			Reason:         normalized.Reason,
-			SessionID:      previous.SessionID,
-		}); err != nil {
-			return nil, err
-		}
-		m.dispatchTaskRunReleased(ctx, run, reconciledTask, actor, previous, normalized.Reason)
-		results = append(results, SessionLeaseReleaseResult{
-			Run:                    run,
-			PreviousRunStatus:      previous.Status,
-			PreviousSessionID:      previous.SessionID,
-			PreviousLeaseUntil:     previous.LeaseUntil,
-			PreviousClaimTokenHash: previous.ClaimTokenHash,
-			Reason:                 normalized.Reason,
-		})
+		results = append(results, result)
 	}
 	return results, nil
+}
+
+func (m *Service) releaseSessionRunLease(
+	ctx context.Context,
+	previous Run,
+	reason string,
+	actor ActorContext,
+) (SessionLeaseReleaseResult, error) {
+	run := requeueSessionRunLease(previous)
+	if err := m.store.UpdateTaskRun(ctx, run); err != nil {
+		return SessionLeaseReleaseResult{}, err
+	}
+	defer m.restoreTaskRunNetworkBestEffort(ctx, previous.SessionID, run.ID)
+
+	if run.IsNetworkWake() {
+		m.dispatchTaskRunReleased(ctx, run, Task{}, actor, previous, reason)
+		return newSessionLeaseReleaseResult(run, previous, reason), nil
+	}
+	reconciledTask, err := m.reconcileTaskCascade(ctx, run.TaskID, actor)
+	if err != nil {
+		return SessionLeaseReleaseResult{}, err
+	}
+	if err := m.recordTaskEvent(ctx, run.TaskID, run.ID, taskEventRunReleased, actor, releasedRunPayload{
+		PreviousStatus: previous.Status,
+		Status:         run.Status,
+		TaskStatus:     reconciledTask.Status,
+		Reason:         reason,
+		SessionID:      previous.SessionID,
+	}); err != nil {
+		return SessionLeaseReleaseResult{}, err
+	}
+	m.dispatchTaskRunReleased(ctx, run, reconciledTask, actor, previous, reason)
+	return newSessionLeaseReleaseResult(run, previous, reason), nil
+}
+
+func newSessionLeaseReleaseResult(run Run, previous Run, reason string) SessionLeaseReleaseResult {
+	return SessionLeaseReleaseResult{
+		Run:                    run,
+		PreviousRunStatus:      previous.Status,
+		PreviousSessionID:      previous.SessionID,
+		PreviousLeaseUntil:     previous.LeaseUntil,
+		PreviousClaimTokenHash: previous.ClaimTokenHash,
+		Reason:                 reason,
+	}
 }
 
 // CompleteRunLease marks one active task-run lease complete after token verification.

@@ -428,6 +428,13 @@ export const routeStoryRegistry = [
     storyName: "Default",
   },
   {
+    system: "os",
+    routePath: "/new-tab",
+    storybookPath: "/new-tab",
+    title: "systems/os/routes/NewTab",
+    storyName: "Default",
+  },
+  {
     system: "network",
     routePath: "/network/$workspaceId/$channel/threads/$threadId",
     storybookPath: `${storyNetworkBasePath}/threads/${storyThreadId}`,

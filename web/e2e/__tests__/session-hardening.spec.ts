@@ -689,15 +689,22 @@ async function createProviderSession(
   expect(payload.session.id).not.toBe("");
   expect(payload.session.runtime.status).toBe("unbound");
 
-  await runtime.requestJSON(sessionAPIPath(workspaceID, payload.session.id, "/prompt"), {
-    method: "POST",
-    body: JSON.stringify({
-      idempotency_key: randomUUID(),
-      message: prompt,
-      message_id: randomUUID(),
-      runtime: { model, provider },
-    }),
-  });
+  const promptResponse = await fetch(
+    runtime.url(sessionAPIPath(workspaceID, payload.session.id, "/prompt")),
+    {
+      headers: { "content-type": "application/json" },
+      method: "POST",
+      body: JSON.stringify({
+        idempotency_key: randomUUID(),
+        message: prompt,
+        message_id: randomUUID(),
+        runtime: { model, provider },
+      }),
+    }
+  );
+  expect(promptResponse.ok).toBe(true);
+  expect(promptResponse.headers.get("content-type")).toContain("text/event-stream");
+  await promptResponse.text();
 
   await expect
     .poll(async () => {

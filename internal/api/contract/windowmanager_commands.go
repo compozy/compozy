@@ -23,11 +23,18 @@ const (
 	WindowManagerCommandWindowClose          WindowManagerCommandID = "window.close"
 	WindowManagerCommandWindowFocus          WindowManagerCommandID = "window.focus"
 	WindowManagerCommandWindowMove           WindowManagerCommandID = "window.move"
+	WindowManagerCommandWindowResize         WindowManagerCommandID = "window.resize"
 	WindowManagerCommandWindowSwap           WindowManagerCommandID = "window.swap"
 	WindowManagerCommandWindowToggleFloating WindowManagerCommandID = "window.toggle_floating"
 	WindowManagerCommandWindowZoom           WindowManagerCommandID = "window.zoom"
+	WindowManagerCommandWindowStackGroup     WindowManagerCommandID = "window.stack.group"
+	WindowManagerCommandWindowStackReorder   WindowManagerCommandID = "window.stack.reorder"
+	WindowManagerCommandWindowStackSetActive WindowManagerCommandID = "window.stack.set_active"
+	WindowManagerCommandWindowPin            WindowManagerCommandID = "window.pin"
+	WindowManagerCommandWindowReopen         WindowManagerCommandID = "window.reopen"
 	WindowManagerCommandLayoutArrange        WindowManagerCommandID = "layout.arrange"
 	WindowManagerCommandLayoutResize         WindowManagerCommandID = "layout.resize"
+	WindowManagerCommandLayoutFrameResize    WindowManagerCommandID = "layout.frame_resize"
 	WindowManagerCommandLayoutBalance        WindowManagerCommandID = "layout.balance"
 	WindowManagerCommandLayoutUndo           WindowManagerCommandID = "layout.undo"
 	WindowManagerCommandLayoutRedo           WindowManagerCommandID = "layout.redo"
@@ -42,9 +49,14 @@ func WindowManagerCommandIDValues() []string {
 		string(WindowManagerCommandDesktopDelete), string(WindowManagerCommandWindowOpen),
 		string(WindowManagerCommandWindowNavigate), string(WindowManagerCommandWindowClose),
 		string(WindowManagerCommandWindowFocus),
-		string(WindowManagerCommandWindowMove), string(WindowManagerCommandWindowSwap),
+		string(WindowManagerCommandWindowMove), string(WindowManagerCommandWindowResize),
+		string(WindowManagerCommandWindowSwap),
 		string(WindowManagerCommandWindowToggleFloating), string(WindowManagerCommandWindowZoom),
+		string(WindowManagerCommandWindowStackGroup), string(WindowManagerCommandWindowStackReorder),
+		string(WindowManagerCommandWindowStackSetActive), string(WindowManagerCommandWindowPin),
+		string(WindowManagerCommandWindowReopen),
 		string(WindowManagerCommandLayoutArrange), string(WindowManagerCommandLayoutResize),
+		string(WindowManagerCommandLayoutFrameResize),
 		string(WindowManagerCommandLayoutBalance), string(WindowManagerCommandLayoutUndo),
 		string(WindowManagerCommandLayoutRedo), string(WindowManagerCommandLayoutReplace),
 	}
@@ -163,13 +175,20 @@ func decodeKnownWindowManagerCommandPayload(
 		WindowManagerCommandWindowClose,
 		WindowManagerCommandWindowFocus,
 		WindowManagerCommandWindowMove,
+		WindowManagerCommandWindowResize,
 		WindowManagerCommandWindowSwap,
 		WindowManagerCommandWindowToggleFloating,
-		WindowManagerCommandWindowZoom:
+		WindowManagerCommandWindowZoom,
+		WindowManagerCommandWindowStackGroup,
+		WindowManagerCommandWindowStackReorder,
+		WindowManagerCommandWindowStackSetActive,
+		WindowManagerCommandWindowPin,
+		WindowManagerCommandWindowReopen:
 		command, err := decodeWindowCommandPayload(commandID, raw)
 		return command, true, err
 	case WindowManagerCommandLayoutArrange,
 		WindowManagerCommandLayoutResize,
+		WindowManagerCommandLayoutFrameResize,
 		WindowManagerCommandLayoutBalance,
 		WindowManagerCommandLayoutUndo,
 		WindowManagerCommandLayoutRedo,
@@ -220,12 +239,24 @@ func decodeWindowCommandPayload(
 		return decodeFocusWindowPayload(raw)
 	case WindowManagerCommandWindowMove:
 		return decodeMoveWindowPayload(raw)
+	case WindowManagerCommandWindowResize:
+		return decodeResizeWindowPayload(raw)
 	case WindowManagerCommandWindowSwap:
 		return decodeSwapWindowsPayload(raw)
 	case WindowManagerCommandWindowToggleFloating:
 		return decodeToggleFloatingPayload(raw)
 	case WindowManagerCommandWindowZoom:
 		return decodeZoomWindowPayload(raw)
+	case WindowManagerCommandWindowStackGroup:
+		return decodeGroupWindowsPayload(raw)
+	case WindowManagerCommandWindowStackReorder:
+		return decodeReorderStackPayload(raw)
+	case WindowManagerCommandWindowStackSetActive:
+		return decodeSetStackActivePayload(raw)
+	case WindowManagerCommandWindowPin:
+		return decodePinWindowPayload(raw)
+	case WindowManagerCommandWindowReopen:
+		return decodeReopenWindowPayload(raw)
 	default:
 		return nil, fmt.Errorf(
 			"unknown window command_id %q: %w",
@@ -244,6 +275,8 @@ func decodeLayoutCommandPayload(
 		return decodeArrangeLayoutPayload(raw)
 	case WindowManagerCommandLayoutResize:
 		return decodeResizeLayoutPayload(raw)
+	case WindowManagerCommandLayoutFrameResize:
+		return decodeFrameResizeLayoutPayload(raw)
 	case WindowManagerCommandLayoutBalance:
 		return decodeBalanceLayoutPayload(raw)
 	case WindowManagerCommandLayoutUndo:

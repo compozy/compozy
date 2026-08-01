@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	builtintools "github.com/compozy/compozy/internal/tools/builtin"
@@ -52,9 +51,9 @@ func (d *Daemon) bootToolRegistry(
 			if resolveErr != nil {
 				return "", resolveErr
 			}
-			workspaceID := strings.TrimSpace(resolved.WorkspaceID)
-			if workspaceID == "" {
-				return "", errors.New("daemon: resolved tool workspace id is required")
+			workspaceID, resolveErr := nativeResolvedRegistryWorkspaceID(&resolved)
+			if resolveErr != nil {
+				return "", resolveErr
 			}
 			return workspaceID, nil
 		}),

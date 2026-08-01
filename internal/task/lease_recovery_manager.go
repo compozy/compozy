@@ -35,6 +35,7 @@ func (m *Service) handleExpiredRunLeaseRecovery(
 	result *ExpiredLeaseRecoveryResult,
 	actor ActorContext,
 ) error {
+	defer m.restoreTaskRunNetworkBestEffort(ctx, result.PreviousSessionID, result.Run.ID)
 	if result.Run.IsNetworkWake() {
 		m.dispatchTaskRunLeaseExpired(ctx, result.Run, Task{}, actor, result)
 		m.dispatchTaskRunLeaseRecoveredFromExpiration(ctx, result.Run, Task{}, actor, result)
@@ -46,7 +47,8 @@ func (m *Service) handleExpiredRunLeaseRecovery(
 	}
 	m.dispatchTaskRunLeaseExpired(ctx, result.Run, reconciledTask, actor, result)
 	if result.Exhausted {
-		return m.handleExhaustedRunLeaseRecovery(ctx, result, reconciledTask, actor)
+		m.handleExhaustedRunLeaseRecovery(ctx, result, reconciledTask, actor)
+		return nil
 	}
 	m.dispatchTaskRunLeaseRecoveredFromExpiration(ctx, result.Run, reconciledTask, actor, result)
 	return nil
@@ -57,7 +59,7 @@ func (m *Service) handleExhaustedRunLeaseRecovery(
 	result *ExpiredLeaseRecoveryResult,
 	reconciledTask Task,
 	actor ActorContext,
-) error {
+) {
 	m.dispatchTaskNeedsAttention(
 		ctx,
 		reconciledTask,
@@ -66,5 +68,4 @@ func (m *Service) handleExhaustedRunLeaseRecovery(
 		result.Run.EndedAt,
 		nil,
 	)
-	return nil
 }

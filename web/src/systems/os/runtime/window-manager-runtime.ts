@@ -1,5 +1,6 @@
 import type { QueryClient } from "@tanstack/react-query";
 
+import { frameForWindow } from "../lib/group-projection";
 import { clampFloatingRect } from "../lib/layout-projection";
 import {
   createTileSnapTarget,
@@ -10,11 +11,10 @@ import {
 import {
   arrangeLayoutCommand,
   moveWindowCommand,
-  openWindowCommand,
   restoreWindowCommand,
   swapWindowsCommand,
 } from "../lib/window-manager-command-builders";
-import { effectiveWindowManagerConfig } from "../lib/window-manager-config";
+import { mruWindowInstance, randomOsWindowId } from "../lib/window-instance-lookup";
 import { arrangePeerWindows, directionalFocusTarget } from "../lib/window-manager-navigation";
 import type {
   MoveWindowInput,
@@ -25,30 +25,29 @@ import type {
   OsFloatingDrop,
   OsOpenTarget,
   OsRect,
-  OsWindowRoute,
   OsWallpaper,
   WindowManagerCommandOutcome,
   WindowManagerOpenOutcome,
 } from "../lib/os-types";
-import { OS_COMPACT_BREAKPOINT, osWindowId } from "../lib/os-types";
-import type { FocusDirection } from "../lib/window-manager-types";
+import type { GroupFrameEditInput } from "../lib/frame-seams";
+import type { FocusDirection, NormalizedRect } from "../lib/window-manager-types";
 import { sameOsWindowRoute } from "../lib/window-manager-route";
 import { windowManagerLayoutArea } from "../lib/window-manager-layout-area";
 import {
-  buildWindowManagerProjections,
-  buildWindowManagerWindows,
+  buildOsDesktopRuntimeView,
   normalizedRectToWire,
   pixelRectToNormalized,
 } from "../lib/window-manager-view";
 import { windowManagerStore } from "../stores/window-manager-store";
 import { advanceWindowManagerPlacementCycle } from "../stores/window-manager-store-commands";
-import { randomWindowManagerId, WindowManagerRuntimeCore } from "./window-manager-runtime-core";
+import { randomWindowManagerId } from "./window-manager-runtime-core";
+import { openWindowCommand, WindowManagerTabRuntime } from "./window-manager-tab-commands";
 
 function rejectedCommandOutcome(): WindowManagerCommandOutcome {
   return { accepted: false, completion: Promise.resolve(false) };
 }
 
-export class WindowManagerRuntime extends WindowManagerRuntimeCore implements OsDesktopRuntime {
+export class WindowManagerRuntime extends WindowManagerTabRuntime implements OsDesktopRuntime {
   constructor(queryClient: QueryClient) {
     super(queryClient);
     this.initializeView();
@@ -148,6 +147,13 @@ export class WindowManagerRuntime extends WindowManagerRuntimeCore implements Os
       windowId,
       edge: target.kind === "tile" ? target.edge : null,
     });
+    // A group move carries every frame member in deck order; `window.move`
+    // has no group placement, so tiles arrange the members as one stack.
+    const frameMembers = moveGroup
+      ? frameForWindow(this.view.frames, windowId)?.members
+      : undefined;
+    const groupMembers =
+      frameMembers !== undefined && frameMembers.length > 1 ? frameMembers : null;
     if (target.kind === "zoom") {
       return this.zoomWindow(windowId);
     }
@@ -164,25 +170,48 @@ export class WindowManagerRuntime extends WindowManagerRuntimeCore implements Os
         target.zoneRect,
         windowManagerLayoutArea(this.workArea(), config.gaps)
       );
-      return this.dispatch({
+      const outcome = this.dispatch({
         commandId: "layout.arrange",
         payload: {
           desktop_id: window.desktopId,
-          window_ids: [windowId],
-          arrangement: "horizontal",
+          window_ids: groupMembers === null ? [windowId] : [...groupMembers],
+          arrangement: groupMembers === null ? "horizontal" : "stack",
           frame: normalizedRectToWire(frame),
           group_id: randomWindowManagerId("group"),
         },
       });
+      return groupMembers === null
+        ? outcome
+        : this.restoreStackActive(outcome, groupMembers, windowId);
     }
-    const placement =
-      target.kind === "stack" ? "center" : target.kind === "insert" ? target.relation : target.side;
+    const placement = target.kind === "insert" ? target.relation : target.side;
     return this.moveWindow(windowId, {
       destinationDesktopId: window.desktopId,
       targetWindowId: target.targetWindowId,
       placement,
       moveGroup,
     });
+  }
+
+  /**
+   * `layout.arrange{stack}` activates the first member by contract; when the
+   * dragged frame's active tab sat elsewhere in deck order, one follow-up
+   * `window.stack.set_active` restores it after the arrange lands.
+   */
+  private restoreStackActive(
+    outcome: WindowManagerCommandOutcome,
+    members: readonly string[],
+    activeId: string
+  ): WindowManagerCommandOutcome {
+    if (!outcome.accepted || members[0] === activeId) return outcome;
+    return {
+      accepted: true,
+      completion: outcome.completion.then(async applied => {
+        if (!applied) return false;
+        const activation = this.activateStackMember(activeId);
+        return activation.accepted ? activation.completion : false;
+      }),
+    };
   }
 
   focusDirection(direction: FocusDirection): void {
@@ -219,97 +248,67 @@ export class WindowManagerRuntime extends WindowManagerRuntimeCore implements Os
   }
 
   protected buildView(): OsDesktopRuntimeStore {
-    const snapshot = this.snapshot();
-    const area = this.workArea();
-    const globalConfig = this.config();
-    const config =
-      snapshot && globalConfig
-        ? effectiveWindowManagerConfig(globalConfig, snapshot.overrides)
-        : null;
     const { seamPreview, connectionStatus, workArea, routeIntents } =
       windowManagerStore.getSnapshot().context;
-    const projections = buildWindowManagerProjections(
-      snapshot,
-      this.client,
-      area,
-      config,
-      seamPreview
-    );
-    const windows = buildWindowManagerWindows({
-      snapshot: config ? snapshot : null,
+    return buildOsDesktopRuntimeView({
+      snapshot: this.snapshot(),
+      globalConfig: this.config(),
       client: this.client,
-      workArea: area,
-      projections,
-      raiseOnFocus: config?.raiseOnFocus ?? false,
+      workArea: this.workArea(),
+      workAreaOrigin: workArea?.origin ?? { x: 0, y: 0 },
+      seamPreview,
       routeIntents,
-    });
-    const workAreaOrigin = workArea?.origin ?? { x: 0, y: 0 };
-    const loadError = this.currentLoadError();
-    const hydration =
-      snapshot !== null && config !== null
-        ? loadError
-          ? "degraded"
-          : "live"
-        : loadError
-          ? "degraded"
-          : "pending";
-    const viewportRejected =
-      area.w < OS_COMPACT_BREAKPOINT && config?.smallViewportPolicy === "reject";
-
-    return {
-      snapshot,
-      windowManagerConfig: config,
-      client: this.client,
-      desktops: snapshot?.desktops ?? [],
-      projections,
-      windows,
-      activeDesktopId: this.client?.activeDesktopId ?? snapshot?.desktops[0]?.id ?? null,
-      focusedId: this.client?.focusedWindowId ?? null,
+      connectionStatus,
+      loadError: this.currentLoadError(),
       railCollapsedAgentIds: this.railCollapsedAgentIds,
       wallpaper: this.wallpaper,
       reduceMotion: this.reduceMotion,
       dockMagnify: this.dockMagnify,
-      presentation:
-        area.w < OS_COMPACT_BREAKPOINT && config?.smallViewportPolicy === "stack"
-          ? "compact"
-          : "floating",
-      viewportState: viewportRejected ? "rejected" : "ready",
-      hydration,
-      connectionStatus,
-      desktopBounds: {
-        width: area.w,
-        height: area.h,
-        origin: workAreaOrigin,
-      },
-    };
+    });
   }
 
   openOrFocus = (target: OsOpenTarget): WindowManagerOpenOutcome =>
     this.openOrFocusAttempt(target, true);
 
+  /**
+   * Focus-first launch (ADR-010): resolve the live instance semantically by
+   * `(app, instanceKey)` — most-recently-focused wins — and only open when
+   * none exists. "Open new instance" and "open as tab" skip the lookup, which
+   * is what makes the same gesture explicit instead of ambiguous.
+   */
   private openOrFocusAttempt(
     target: OsOpenTarget,
     recoverTopologyConflict: boolean
   ): WindowManagerOpenOutcome {
-    const id = osWindowId(target.app, target.instanceKey);
-    const existing = this.view.windows[id];
+    const existing =
+      target.forceNewInstance || target.stackTargetWindowId
+        ? null
+        : mruWindowInstance(this.view.windows, this.view.client?.focusOrder ?? [], {
+            app: target.app,
+            instanceKey: target.instanceKey ?? null,
+          });
     if (existing) {
+      const id = existing.id;
       let outcome: WindowManagerCommandOutcome;
       if (existing.minimized) {
         const authoritative = this.view.snapshot?.windows[id];
         outcome = authoritative
           ? this.dispatch(restoreWindowCommand(authoritative, target.route))
-          : { accepted: false, completion: Promise.resolve(false) };
+          : rejectedCommandOutcome();
       } else if (target.route && !sameOsWindowRoute(existing.route, target.route)) {
-        outcome = this.navigateWindow(id, target.route);
+        outcome = this.navigateWindow(id, target.route, target.navigateMode);
       } else {
         outcome = this.focusWindow(id);
       }
       return this.recoverOpenOrFocus(target, id, outcome, recoverTopologyConflict);
     }
 
-    const desktopId = this.view.activeDesktopId;
-    if (desktopId === null) {
+    const desktopId =
+      (target.stackTargetWindowId
+        ? this.view.windows[target.stackTargetWindowId]?.desktopId
+        : undefined) ?? this.view.activeDesktopId;
+    const id = randomOsWindowId();
+    if (desktopId === null || desktopId === undefined) {
       return { windowId: id, accepted: false, completion: Promise.resolve(false) };
     }
     const outcome = this.dispatch(openWindowCommand(target, id, desktopId));
@@ -340,12 +339,7 @@ export class WindowManagerRuntime extends WindowManagerRuntimeCore implements Os
     };
   }
 
-  closeWindow = (id: string): Promise<boolean> => {
-    return this.dispatch({
-      commandId: "window.close",
-      payload: { window_id: id, minimize: false },
-    }).completion;
-  };
+  closeWindow = (id: string): Promise<boolean> => this.closeWindowScoped(id, "tab");
 
   focusWindow = (id: string): WindowManagerCommandOutcome => {
     return this.dispatch({
@@ -361,18 +355,30 @@ export class WindowManagerRuntime extends WindowManagerRuntimeCore implements Os
     }).completion;
   };
 
-  restoreWindow = (id: string): void => {
+  restoreWindow = (id: string): WindowManagerCommandOutcome => {
     const window = this.view.snapshot?.windows[id];
-    if (!window) return;
-    this.dispatch(restoreWindowCommand(window));
+    if (!window) return rejectedCommandOutcome();
+    return this.dispatch(restoreWindowCommand(window));
   };
 
   zoomWindow = (id: string): WindowManagerCommandOutcome => {
     return this.dispatch({ commandId: "window.zoom", payload: { window_id: id } });
   };
 
-  toggleFloating = (id: string): void => {
-    this.dispatch({ commandId: "window.toggle_floating", payload: { window_id: id } });
+  toggleFloating = (id: string, floatingRect?: OsRect): WindowManagerCommandOutcome => {
+    const normalized = floatingRect
+      ? pixelRectToNormalized(
+          clampFloatingRect({ proposedRect: floatingRect, workArea: this.workArea() }),
+          this.workArea()
+        )
+      : undefined;
+    return this.dispatch({
+      commandId: "window.toggle_floating",
+      payload: {
+        window_id: id,
+        ...(normalized ? { floating_rect: normalizedRectToWire(normalized) } : {}),
+      },
+    });
   };
 
   moveWindow = (id: string, input: MoveWindowInput): WindowManagerCommandOutcome => {
@@ -390,7 +396,8 @@ export class WindowManagerRuntime extends WindowManagerRuntimeCore implements Os
   commitFloatingRect = (
     id: string,
     rect: OsRect,
-    drop?: OsFloatingDrop
+    drop?: OsFloatingDrop,
+    moveGroup = false
   ): WindowManagerCommandOutcome => {
     const window = this.view.windows[id];
     if (!window) return rejectedCommandOutcome();
@@ -405,6 +412,7 @@ export class WindowManagerRuntime extends WindowManagerRuntimeCore implements Os
       destinationDesktopId: window.desktopId,
       placement: "floating",
       floatingRect: clamped,
+      moveGroup,
     });
   };
 
@@ -420,6 +428,32 @@ export class WindowManagerRuntime extends WindowManagerRuntimeCore implements Os
     });
   };
 
+  /** Free-edge resize of one tiled unit; the daemon detaches split members. */
+  resizeWindowFrame = (windowId: string, frame: NormalizedRect): WindowManagerCommandOutcome => {
+    return this.dispatch({
+      commandId: "window.resize",
+      payload: { window_id: windowId, frame: normalizedRectToWire(frame) },
+    });
+  };
+
+  /** One atomic multi-island frame rewrite for a shared-boundary drag. */
+  resizeGroupFrames = (
+    desktopId: string,
+    edits: readonly GroupFrameEditInput[]
+  ): WindowManagerCommandOutcome => {
+    if (edits.length === 0) return rejectedCommandOutcome();
+    return this.dispatch({
+      commandId: "layout.frame_resize",
+      payload: {
+        desktop_id: desktopId,
+        edits: edits.map(edit => ({
+          group_id: edit.groupId,
+          frame: normalizedRectToWire(edit.frame),
+        })),
+      },
+    });
+  };
+
   balanceLayout = (groupId?: string, splitId?: string): void => {
     this.dispatch({
       commandId: "layout.balance",
@@ -428,27 +462,6 @@ export class WindowManagerRuntime extends WindowManagerRuntimeCore implements Os
         ...(splitId ? { split_id: splitId } : {}),
       },
     });
-  };
-
-  navigateWindow = (id: string, route: OsWindowRoute): WindowManagerCommandOutcome => {
-    const outcome = this.dispatch({
-      commandId: "window.navigate",
-      payload: { window_id: id, route },
-    });
-    if (!outcome.accepted) return outcome;
-
-    const intentId = randomWindowManagerId("wm-route");
-    windowManagerStore.trigger.routeIntentSet({ intent: { id: intentId, windowId: id, route } });
-    this.publish();
-
-    return {
-      accepted: true,
-      completion: outcome.completion.then(applied => {
-        windowManagerStore.trigger.routeIntentCleared({ windowId: id, intentId });
-        this.publish();
-        return applied;
-      }),
-    };
   };
 
   toggleRailGroup = (agentId: string): void => {

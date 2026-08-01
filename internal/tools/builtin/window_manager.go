@@ -14,6 +14,9 @@ const (
 	windowManagerWindowsTag      = "windows"
 	windowManagerLayoutTag       = "layout"
 	windowManagerTileTag         = "tile"
+	windowManagerStackTag        = "stack"
+	windowManagerTabsTag         = "tabs"
+	windowManagerResizeTag       = "resize"
 )
 
 type windowManagerDescriptorSpec struct {
@@ -109,6 +112,49 @@ var windowManagerToolSpecs = []windowManagerDescriptorSpec{
 		tags: []string{windowManagerTag, windowManagerWindowsTag, "close", "minimize"},
 	},
 	{
+		id: toolspkg.ToolIDWindowGroup, nativeName: "window_group", title: "Window Group",
+		description: "Group managed windows into one ordered stack at an optional insertion index.",
+		inputSchema: windowManagerWindowGroupInputSchema, outputSchema: windowManagerCommandOutputSchema,
+		risk: toolspkg.RiskMutating, capability: windowManagerWriteCapability,
+		tags: []string{
+			windowManagerTag, windowManagerWindowsTag, "group", windowManagerStackTag, windowManagerTabsTag,
+		},
+	},
+	{
+		id: toolspkg.ToolIDWindowReorder, nativeName: "window_reorder", title: "Window Reorder",
+		description: "Reorder one managed window within its existing stack.",
+		inputSchema: windowManagerWindowReorderInputSchema, outputSchema: windowManagerCommandOutputSchema,
+		risk: toolspkg.RiskMutating, capability: windowManagerWriteCapability,
+		tags: []string{
+			windowManagerTag, windowManagerWindowsTag, "reorder", windowManagerStackTag, windowManagerTabsTag,
+		},
+	},
+	{
+		id: toolspkg.ToolIDWindowActivate, nativeName: "window_activate", title: "Window Activate",
+		description: "Durably activate one member of a managed window stack.",
+		inputSchema: windowManagerWindowActivateInputSchema, outputSchema: windowManagerCommandOutputSchema,
+		risk: toolspkg.RiskMutating, capability: windowManagerWriteCapability,
+		tags: []string{
+			windowManagerTag, windowManagerWindowsTag, "activate", windowManagerStackTag, windowManagerTabsTag,
+		},
+	},
+	{
+		id: toolspkg.ToolIDWindowPin, nativeName: "window_pin", title: "Window Pin",
+		description: "Set one managed window's pinned state within its stack.",
+		inputSchema: windowManagerWindowPinInputSchema, outputSchema: windowManagerCommandOutputSchema,
+		risk: toolspkg.RiskMutating, capability: windowManagerWriteCapability,
+		tags: []string{
+			windowManagerTag, windowManagerWindowsTag, "pin", windowManagerStackTag, windowManagerTabsTag,
+		},
+	},
+	{
+		id: toolspkg.ToolIDWindowReopen, nativeName: "window_reopen", title: "Window Reopen",
+		description: "Restore the newest workspace-level closed window entry.",
+		inputSchema: windowManagerWindowReopenInputSchema, outputSchema: windowManagerCommandOutputSchema,
+		risk: toolspkg.RiskMutating, capability: windowManagerWriteCapability,
+		tags: []string{windowManagerTag, windowManagerWindowsTag, "reopen", "restore", windowManagerTabsTag},
+	},
+	{
 		id: toolspkg.ToolIDWindowFocus, nativeName: "window_focus", title: "Window Focus",
 		description: "Focus a window or directional neighbor for one explicit client.",
 		inputSchema: windowManagerWindowFocusInputSchema, outputSchema: windowManagerCommandOutputSchema,
@@ -121,6 +167,13 @@ var windowManagerToolSpecs = []windowManagerDescriptorSpec{
 		inputSchema: windowManagerWindowMoveInputSchema, outputSchema: windowManagerCommandOutputSchema,
 		risk: toolspkg.RiskMutating, capability: windowManagerWriteCapability,
 		tags: []string{windowManagerTag, windowManagerWindowsTag, "move", windowManagerTileTag},
+	},
+	{
+		id: toolspkg.ToolIDWindowResize, nativeName: "window_resize", title: "Window Resize",
+		description: "Resize one window's frame; a tiled split member detaches into its own island.",
+		inputSchema: windowManagerWindowResizeInputSchema, outputSchema: windowManagerCommandOutputSchema,
+		risk: toolspkg.RiskMutating, capability: windowManagerWriteCapability,
+		tags: []string{windowManagerTag, windowManagerWindowsTag, windowManagerResizeTag, windowManagerTileTag},
 	},
 	{
 		id: toolspkg.ToolIDWindowSwap, nativeName: "window_swap", title: "Window Swap",
@@ -169,7 +222,20 @@ var windowManagerToolSpecs = []windowManagerDescriptorSpec{
 		description: "Resize one structural split boundary by a normalized delta.",
 		inputSchema: windowManagerLayoutResizeInputSchema, outputSchema: windowManagerCommandOutputSchema,
 		risk: toolspkg.RiskMutating, capability: windowManagerWriteCapability,
-		tags: []string{windowManagerTag, windowManagerLayoutTag, "resize", "split"},
+		tags: []string{windowManagerTag, windowManagerLayoutTag, windowManagerResizeTag, "split"},
+	},
+	{
+		id: toolspkg.ToolIDLayoutFrameResize, nativeName: "layout_frame_resize", title: "Layout Frame Resize",
+		description: "Atomically rewrite adjacent island frames to move a shared tiled boundary.",
+		inputSchema: windowManagerLayoutFrameResizeInputSchema, outputSchema: windowManagerCommandOutputSchema,
+		risk: toolspkg.RiskMutating, capability: windowManagerWriteCapability,
+		tags: []string{
+			windowManagerTag,
+			windowManagerLayoutTag,
+			windowManagerResizeTag,
+			"frame",
+			windowManagerTileTag,
+		},
 	},
 	{
 		id: toolspkg.ToolIDLayoutBalance, nativeName: "layout_balance", title: "Layout Balance",

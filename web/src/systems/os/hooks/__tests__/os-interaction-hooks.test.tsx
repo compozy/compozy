@@ -6,6 +6,7 @@ import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { OsShellContext, type OsShellHandle } from "../../contexts/os-shell-context";
+import type { OsWindowFrameModel } from "../../lib/group-projection";
 import { RoutingCoordinator } from "../../lib/routing-coordinator";
 import type {
   OsDesktopRuntimeStore,
@@ -21,6 +22,7 @@ import {
 } from "../use-os-zoom-menu";
 import { useOsWindow } from "../use-os-window";
 import { useOsWindowCommands } from "../use-os-window-commands";
+import { useWindowMergeTarget } from "../use-window-merge-target";
 import { useOsWinLayer } from "../use-os-win-layer";
 import { useOsShortcuts, type OsShortcutHandlers } from "../use-os-shortcuts";
 import { windowManagerStore } from "../../stores/window-manager-store";
@@ -37,6 +39,8 @@ const CONFIG: WindowManagerConfig = {
   groupMoveModifier: "alt",
   swapModifier: "shift",
   historyLimit: 50,
+  navStackLimit: 50,
+  closedEntryLimit: 20,
   desktopTransition: "slide",
   gaps: { inner: 8, top: 0, right: 0, bottom: 0, left: 0 },
   snap: {
@@ -50,12 +54,12 @@ const CONFIG: WindowManagerConfig = {
 };
 
 const SNAPSHOT: WindowManagerSnapshot = {
-  version: 1,
+  version: 3,
   workspaceId: "workspace:test",
   revision: 7,
   desktops: [],
   windows: {},
-  history: { undo: [], redo: [] },
+  closedEntryCount: 0,
   overrides: {},
   updatedAt: "2026-07-22T00:00:00Z",
 };
@@ -66,6 +70,8 @@ function windowFixture(id: string, layer: number): OsWindow {
     app: "tasks",
     instanceKey: null,
     route: { pathname: "/tasks", search: {} },
+    navStack: [],
+    pinned: false,
     desktopId: "desktop:main",
     placement: "floating",
     rect: { x: 40 * layer, y: 40, w: 600, h: 420 },
@@ -87,7 +93,7 @@ function createShell({ live = true, withPeer = true } = {}) {
   const primary = windowFixture("window:primary", 2);
   const peer = windowFixture("window:peer", 1);
   const zoomWindow = vi.fn(() => acceptedOutcome());
-  const toggleFloating = vi.fn();
+  const toggleFloating = vi.fn(() => acceptedOutcome());
   const arrangeLayout = vi.fn();
   const state: OsDesktopRuntimeStore = {
     snapshot: SNAPSHOT,
@@ -98,11 +104,13 @@ function createShell({ live = true, withPeer = true } = {}) {
       activeDesktopId: "desktop:main",
       focusedWindowId: primary.id,
       focusOrder: [primary.id],
+      stackActive: {},
       connectedAt: "2026-07-22T00:00:00Z",
       presentationRevision: 1,
     },
     desktops: [],
     projections: {},
+    frames: {},
     windows: withPeer ? { [primary.id]: primary, [peer.id]: peer } : { [primary.id]: primary },
     activeDesktopId: "desktop:main",
     focusedId: primary.id,
@@ -131,19 +139,28 @@ function createShell({ live = true, withPeer = true } = {}) {
     setClient: vi.fn(),
     setConnectionStatus: vi.fn(),
     setLoadError: vi.fn(),
-    openOrFocus: vi.fn(target => ({ windowId: `app:${target.app}`, ...acceptedOutcome() })),
+    openOrFocus: vi.fn(target => ({ windowId: `w-test-${target.app}`, ...acceptedOutcome() })),
     closeWindow: vi.fn(async () => true),
     focusWindow: vi.fn(() => acceptedOutcome()),
     minimizeWindow: vi.fn(async () => true),
-    restoreWindow: vi.fn(),
+    restoreWindow: vi.fn(() => acceptedOutcome()),
     zoomWindow,
     toggleFloating,
     moveWindow: vi.fn(() => acceptedOutcome()),
     arrangeLayout,
     commitFloatingRect: vi.fn(() => acceptedOutcome()),
     resizeLayout: vi.fn(() => acceptedOutcome()),
+    resizeWindowFrame: vi.fn(() => acceptedOutcome()),
+    resizeGroupFrames: vi.fn(() => acceptedOutcome()),
     balanceLayout: vi.fn(),
     navigateWindow: vi.fn(() => acceptedOutcome()),
+    popWindowRoute: vi.fn(() => acceptedOutcome()),
+    groupWindows: vi.fn(() => acceptedOutcome()),
+    reorderStackMember: vi.fn(() => acceptedOutcome()),
+    activateStackMember: vi.fn(() => acceptedOutcome()),
+    pinWindow: vi.fn(() => acceptedOutcome()),
+    reopenWindow: vi.fn(() => acceptedOutcome()),
+    closeWindowScoped: vi.fn(async () => true),
     toggleRailGroup: vi.fn(),
     setWallpaper: vi.fn(),
     setDockMagnify: vi.fn(),
@@ -198,7 +215,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function beginPrimarySnapGesture(): void {
+function beginPrimarySnapGesture(moveMode: "window" | "group" = "window"): void {
   const workArea = { x: 0, y: 0, w: 1280, h: 800 };
   windowManagerStore.trigger.workAreaMeasured({
     workArea: { rect: workArea, origin: { x: 0, y: 0 } },
@@ -212,7 +229,7 @@ function beginPrimarySnapGesture(): void {
       windowId: "window:primary",
       nodeId: null,
       groupId: null,
-      moveMode: "window",
+      moveMode,
     },
   });
 }
@@ -229,11 +246,38 @@ function dragData(x: number, y: number) {
   };
 }
 
+/** Solo floating frame for the primary fixture window (frame rect = authoritative rect). */
+function primaryFrame(): OsWindowFrameModel {
+  return {
+    id: "window:primary",
+    desktopId: "desktop:main",
+    kind: "floating",
+    rect: { x: 80, y: 40, w: 600, h: 420 },
+    members: ["window:primary"],
+    activeWindowId: "window:primary",
+    stackId: null,
+    minimized: false,
+    adapted: false,
+    layer: 2,
+    zone: null,
+    resizableEdges: { left: true, right: true, top: true, bottom: true },
+  };
+}
+
+function stackedFrame(): OsWindowFrameModel {
+  return {
+    ...primaryFrame(),
+    id: "stack:primary",
+    members: ["window:primary", "window:peer"],
+    stackId: "stack:primary",
+  };
+}
+
 describe("useOsWindow", () => {
   it("Should defer a never-visible window and retain it after first visibility", () => {
     const shell = createShell();
     shell.setRuntimeState({ activeDesktopId: "desktop:other" });
-    const { result } = renderHook(() => useOsWindow("window:primary"), {
+    const { result } = renderHook(() => useOsWindow(primaryFrame()), {
       wrapper: shell.wrapper,
     });
 
@@ -251,7 +295,7 @@ describe("useOsWindow", () => {
     const completion = Promise.resolve(false);
     vi.mocked(shell.controller.applySnapTarget).mockReturnValue({ accepted: true, completion });
     beginPrimarySnapGesture();
-    const { result } = renderHook(() => useOsWindow("window:primary"), {
+    const { result } = renderHook(() => useOsWindow(primaryFrame()), {
       wrapper: shell.wrapper,
     });
     const updatePosition = vi.fn();
@@ -279,7 +323,7 @@ describe("useOsWindow", () => {
     const completion = Promise.resolve(true);
     vi.mocked(shell.controller.applySnapTarget).mockReturnValue({ accepted: true, completion });
     beginPrimarySnapGesture();
-    const { result } = renderHook(() => useOsWindow("window:primary"), {
+    const { result } = renderHook(() => useOsWindow(primaryFrame()), {
       wrapper: shell.wrapper,
     });
     const updatePosition = vi.fn();
@@ -307,7 +351,7 @@ describe("useOsWindow", () => {
     const completion = Promise.resolve(false);
     vi.mocked(shell.controller.commitFloatingRect).mockReturnValue({ accepted: true, completion });
     beginPrimarySnapGesture();
-    const { result } = renderHook(() => useOsWindow("window:primary"), {
+    const { result } = renderHook(() => useOsWindow(primaryFrame()), {
       wrapper: shell.wrapper,
     });
     const updatePosition = vi.fn();
@@ -335,7 +379,7 @@ describe("useOsWindow", () => {
     const shell = createShell();
     beginPrimarySnapGesture();
     shell.state.snapshot = { ...SNAPSHOT, revision: SNAPSHOT.revision + 1 };
-    const { result } = renderHook(() => useOsWindow("window:primary"), {
+    const { result } = renderHook(() => useOsWindow(primaryFrame()), {
       wrapper: shell.wrapper,
     });
     const updatePosition = vi.fn();
@@ -362,7 +406,7 @@ describe("useOsWindow", () => {
 
   it("Should restore the authoritative rect when drag stop has no active gesture", async () => {
     const shell = createShell();
-    const { result } = renderHook(() => useOsWindow("window:primary"), {
+    const { result } = renderHook(() => useOsWindow(primaryFrame()), {
       wrapper: shell.wrapper,
     });
     const updatePosition = vi.fn();
@@ -385,6 +429,285 @@ describe("useOsWindow", () => {
     expect(shell.controller.applySnapTarget).not.toHaveBeenCalled();
     expect(updatePosition).toHaveBeenCalledWith({ x: 80, y: 40 });
     expect(updateSize).toHaveBeenCalledWith({ width: 600, height: 420 });
+  });
+
+  it("Should commit a group snap when a floating tab frame drops on a tile zone", () => {
+    const shell = createShell();
+    beginPrimarySnapGesture("group");
+    const { result } = renderHook(() => useOsWindow(stackedFrame()), {
+      wrapper: shell.wrapper,
+    });
+
+    act(() => {
+      result.current.handleDragStop(
+        new MouseEvent("mouseup", { clientX: 1, clientY: 300 }),
+        dragData(1, 300)
+      );
+    });
+
+    expect(shell.controller.applySnapTarget).toHaveBeenCalledOnce();
+    expect(shell.controller.applySnapTarget).toHaveBeenCalledWith(
+      "window:primary",
+      expect.objectContaining({ kind: "tile", edge: "left" }),
+      true
+    );
+    expect(shell.controller.commitFloatingRect).not.toHaveBeenCalled();
+  });
+
+  it("Should commit a group snap when a floating tab frame drops on a split zone", () => {
+    const shell = createShell();
+    const board = {
+      ...windowFixture("window:board", 3),
+      nodeId: "node:board",
+      rect: { x: 660, y: 80, w: 400, h: 400 },
+    };
+    shell.setRuntimeState({ windows: { ...shell.state.windows, [board.id]: board } });
+    beginPrimarySnapGesture("group");
+    const { result } = renderHook(() => useOsWindow(stackedFrame()), {
+      wrapper: shell.wrapper,
+    });
+
+    act(() => {
+      result.current.handleDragStop(
+        new MouseEvent("mouseup", { clientX: 700, clientY: 280 }),
+        dragData(700, 280)
+      );
+    });
+
+    expect(shell.controller.applySnapTarget).toHaveBeenCalledWith(
+      "window:primary",
+      expect.objectContaining({ kind: "split", targetWindowId: "window:board" }),
+      true
+    );
+    expect(shell.controller.commitFloatingRect).not.toHaveBeenCalled();
+  });
+
+  it("Should commit a whole-frame swap when a group move drops on an occupied center", () => {
+    const shell = createShell();
+    const board = {
+      ...windowFixture("window:board", 3),
+      nodeId: "node:board",
+      rect: { x: 660, y: 80, w: 400, h: 400 },
+    };
+    shell.setRuntimeState({ windows: { ...shell.state.windows, [board.id]: board } });
+    beginPrimarySnapGesture("group");
+    const { result } = renderHook(() => useOsWindow(stackedFrame()), {
+      wrapper: shell.wrapper,
+    });
+
+    act(() => {
+      result.current.handleDragStop(
+        new MouseEvent("mouseup", { clientX: 860, clientY: 280 }),
+        dragData(860, 280)
+      );
+    });
+
+    expect(shell.controller.applySnapTarget).toHaveBeenCalledOnce();
+    expect(shell.controller.applySnapTarget).toHaveBeenCalledWith(
+      "window:primary",
+      expect.objectContaining({ kind: "swap", targetWindowId: "window:board" }),
+      true
+    );
+    expect(shell.controller.commitFloatingRect).not.toHaveBeenCalled();
+  });
+
+  it("Should drag a tiled tab frame as one unit from its deck bar", () => {
+    const shell = createShell();
+    act(() => {
+      windowManagerStore.trigger.workAreaMeasured({
+        workArea: { rect: { x: 0, y: 0, w: 1280, h: 800 }, origin: { x: 0, y: 0 } },
+      });
+    });
+    const frame: OsWindowFrameModel = { ...stackedFrame(), kind: "tiled" };
+    const { result } = renderHook(() => useOsWindow(frame), { wrapper: shell.wrapper });
+
+    act(() => {
+      result.current.handleDragStart(
+        new MouseEvent("mousedown", { clientX: 320, clientY: 200 }),
+        dragData(320, 200)
+      );
+    });
+
+    const gesture = windowManagerStore.getSnapshot().context.gesture;
+    expect(gesture?.status).toBe("active");
+    expect(gesture?.status === "active" ? gesture.source.moveMode : null).toBe("group");
+
+    act(() => {
+      result.current.handleDragStop(
+        new MouseEvent("mouseup", { clientX: 500, clientY: 300 }),
+        dragData(500, 300)
+      );
+    });
+
+    expect(shell.controller.commitFloatingRect).toHaveBeenCalledOnce();
+    expect(vi.mocked(shell.controller.commitFloatingRect).mock.calls[0]?.[3]).toBe(true);
+    expect(shell.controller.applySnapTarget).not.toHaveBeenCalled();
+  });
+
+  it("Should hold the released rect while a floating commit is in flight", async () => {
+    const shell = createShell();
+    let resolveCompletion: (applied: boolean) => void = () => {};
+    const completion = new Promise<boolean>(resolve => {
+      resolveCompletion = resolve;
+    });
+    vi.mocked(shell.controller.commitFloatingRect).mockReturnValue({ accepted: true, completion });
+    beginPrimarySnapGesture();
+    const { result } = renderHook(() => useOsWindow(primaryFrame()), {
+      wrapper: shell.wrapper,
+    });
+
+    act(() => {
+      result.current.handleDragStop(
+        new MouseEvent("mouseup", { clientX: 500, clientY: 300 }),
+        dragData(500, 300)
+      );
+    });
+
+    expect(shell.controller.commitFloatingRect).toHaveBeenCalledWith(
+      "window:primary",
+      { x: 500, y: 300, w: 600, h: 420 },
+      undefined,
+      false
+    );
+    expect(result.current.rect).toEqual({ x: 500, y: 300, w: 600, h: 420 });
+
+    await act(async () => {
+      resolveCompletion(true);
+      await completion;
+    });
+
+    expect(result.current.rect).toEqual(primaryFrame().rect);
+  });
+
+  it("Should commit one ordered group command when the release point targets a deck [UT-095]", () => {
+    const shell = createShell();
+    const target = windowFixture("window:target", 3);
+    shell.setRuntimeState({
+      windows: { ...shell.state.windows, [target.id]: target },
+    });
+    beginPrimarySnapGesture();
+    act(() => {
+      windowManagerStore.trigger.deckDropTargeted({
+        target: {
+          frameId: "stack:target",
+          targetWindowId: target.id,
+          insertIndex: 1,
+        },
+      });
+    });
+    const { result } = renderHook(() => useOsWindow(stackedFrame()), {
+      wrapper: shell.wrapper,
+    });
+
+    act(() => {
+      result.current.handleDragStop(
+        new MouseEvent("mouseup", { clientX: 500, clientY: 300 }),
+        dragData(500, 300)
+      );
+    });
+
+    expect(shell.controller.groupWindows).toHaveBeenCalledOnce();
+    expect(shell.controller.groupWindows).toHaveBeenCalledWith(
+      target.id,
+      ["window:primary", "window:peer"],
+      1
+    );
+    expect(shell.controller.applySnapTarget).not.toHaveBeenCalled();
+    expect(shell.controller.commitFloatingRect).not.toHaveBeenCalled();
+    expect(windowManagerStore.getSnapshot().context.deckDropTarget).toBeNull();
+  });
+});
+
+describe("useWindowMergeTarget", () => {
+  function targetFrame(): OsWindowFrameModel {
+    return {
+      id: "window:target",
+      desktopId: "desktop:main",
+      kind: "floating",
+      rect: { x: 100, y: 50, w: 300, h: 260 },
+      members: ["window:target"],
+      activeWindowId: "window:target",
+      stackId: null,
+      minimized: false,
+      adapted: false,
+      layer: 3,
+      zone: null,
+      resizableEdges: { left: true, right: true, top: true, bottom: true },
+    };
+  }
+
+  function chromeWithHead(): HTMLElement {
+    const chrome = document.createElement("section");
+    const head = document.createElement("div");
+    head.setAttribute("data-slot", "os-window-head");
+    Object.defineProperty(head, "getBoundingClientRect", {
+      value: () => ({
+        left: 100,
+        right: 400,
+        top: 50,
+        bottom: 94,
+        width: 300,
+        height: 44,
+        x: 100,
+        y: 50,
+        toJSON: () => ({}),
+      }),
+    });
+    chrome.appendChild(head);
+    return chrome;
+  }
+
+  function pointerMove(clientX: number, clientY: number): void {
+    const event = new Event("pointermove");
+    Object.defineProperties(event, {
+      clientX: { value: clientX },
+      clientY: { value: clientY },
+    });
+    window.dispatchEvent(event);
+  }
+
+  it("Should advertise a solo head as the group target while another frame drags over it", () => {
+    const shell = createShell();
+    shell.setRuntimeState({ frames: { "desktop:main": [targetFrame()] } });
+    const { result } = renderHook(() => useWindowMergeTarget(targetFrame(), true), {
+      wrapper: shell.wrapper,
+    });
+    result.current.chromeRef.current = chromeWithHead();
+
+    act(() => beginPrimarySnapGesture());
+    act(() => pointerMove(200, 60));
+
+    expect(windowManagerStore.getSnapshot().context.deckDropTarget).toEqual({
+      frameId: "window:target",
+      targetWindowId: "window:target",
+      insertIndex: 1,
+    });
+    expect(result.current.mergeTargeted).toBe(true);
+
+    act(() => pointerMove(600, 60));
+    expect(windowManagerStore.getSnapshot().context.deckDropTarget).toBeNull();
+  });
+
+  it("Should not advertise a head occluded by a higher floating frame", () => {
+    const shell = createShell();
+    const over: OsWindowFrameModel = {
+      ...targetFrame(),
+      id: "frame:over",
+      members: ["window:over"],
+      activeWindowId: "window:over",
+      layer: 9,
+      rect: { x: 0, y: 0, w: 1280, h: 800 },
+    };
+    shell.setRuntimeState({ frames: { "desktop:main": [targetFrame(), over] } });
+    const { result } = renderHook(() => useWindowMergeTarget(targetFrame(), true), {
+      wrapper: shell.wrapper,
+    });
+    result.current.chromeRef.current = chromeWithHead();
+
+    act(() => beginPrimarySnapGesture());
+    act(() => pointerMove(200, 60));
+
+    expect(windowManagerStore.getSnapshot().context.deckDropTarget).toBeNull();
   });
 });
 
@@ -435,7 +758,7 @@ describe("useOsShortcuts", () => {
     expect(handlers.onEscape).not.toHaveBeenCalled();
   });
 
-  it("Should dispatch window-manager chords only for a live client outside editable targets", () => {
+  it("Should protect editor-owned chords while keeping tab lifecycle shortcuts global", () => {
     const liveShell = createShell();
     const unavailableShell = createShell({ live: false });
     const handlers: OsShortcutHandlers = {
@@ -457,10 +780,128 @@ describe("useOsShortcuts", () => {
     document.body.append(input);
     fireEvent.keyDown(input, { key: "z", code: "KeyZ", metaKey: true });
     expect(liveShell.controller.undoLayout).not.toHaveBeenCalled();
+    fireEvent.keyDown(input, { key: "w", code: "KeyW", metaKey: true });
+    expect(liveShell.controller.closeWindow).toHaveBeenCalledWith("window:primary");
 
     fireEvent.keyDown(document, { key: "z", code: "KeyZ", metaKey: true });
     expect(liveShell.controller.undoLayout).toHaveBeenCalledOnce();
     input.remove();
+  });
+
+  it("Should honor live tab overrides and ignore the shipped chord [UT-051]", () => {
+    const shell = createShell();
+    const handlers: OsShortcutHandlers = {
+      onPalette: vi.fn(),
+      onNewSession: vi.fn(),
+      onDesktops: vi.fn(),
+      onEscape: vi.fn(),
+    };
+    act(() => {
+      shell.setRuntimeState({
+        frames: { "desktop:main": [stackedFrame()] },
+        windowManagerConfig: {
+          ...CONFIG,
+          shortcuts: { "window.tab.next": "meta+KeyL" },
+        },
+      });
+    });
+    renderHook(() => useOsShortcuts(handlers), { wrapper: shell.wrapper });
+
+    fireEvent.keyDown(document, { key: "Tab", code: "Tab", ctrlKey: true });
+    expect(shell.controller.focusWindow).not.toHaveBeenCalled();
+
+    fireEvent.keyDown(document, { key: "l", code: "KeyL", metaKey: true });
+    expect(shell.controller.focusWindow).toHaveBeenCalledWith("window:peer");
+  });
+
+  it("Should dispatch the shipped tab lifecycle chords through the live shell", () => {
+    const shell = createShell();
+    const handlers: OsShortcutHandlers = {
+      onPalette: vi.fn(),
+      onNewSession: vi.fn(),
+      onDesktops: vi.fn(),
+      onEscape: vi.fn(),
+    };
+    act(() => {
+      shell.setRuntimeState({ frames: { "desktop:main": [stackedFrame()] } });
+    });
+    renderHook(() => useOsShortcuts(handlers), { wrapper: shell.wrapper });
+
+    fireEvent.keyDown(document, { key: "t", code: "KeyT", metaKey: true });
+    expect(shell.controller.openOrFocus).toHaveBeenCalledWith({
+      app: "new-tab",
+      stackTargetWindowId: "window:primary",
+    });
+
+    fireEvent.keyDown(document, {
+      key: "t",
+      code: "KeyT",
+      metaKey: true,
+      shiftKey: true,
+    });
+    expect(shell.controller.reopenWindow).toHaveBeenCalledOnce();
+
+    fireEvent.keyDown(document, { key: "9", code: "Digit9", metaKey: true });
+    expect(shell.controller.focusWindow).toHaveBeenCalledWith("window:peer");
+
+    const jumpTargets = Array.from({ length: 8 }, (_, index) =>
+      index === 0 ? "window:primary" : `window:slot-${index + 1}`
+    );
+    const activeWindowId = "window:active";
+    const jumpWindows = Object.fromEntries(
+      [...jumpTargets, activeWindowId].map((id, index) => [id, windowFixture(id, index + 1)])
+    );
+    act(() => {
+      shell.setRuntimeState({
+        frames: {
+          "desktop:main": [
+            {
+              ...stackedFrame(),
+              members: [...jumpTargets, activeWindowId],
+              activeWindowId,
+            },
+          ],
+        },
+        windows: jumpWindows,
+        focusedId: activeWindowId,
+      });
+    });
+    vi.mocked(shell.controller.focusWindow).mockClear();
+
+    jumpTargets.forEach((target, index) => {
+      const slot = index + 1;
+      fireEvent.keyDown(document, {
+        key: String(slot),
+        code: `Digit${slot}`,
+        metaKey: true,
+      });
+      expect(shell.controller.focusWindow).toHaveBeenCalledTimes(slot);
+      expect(shell.controller.focusWindow).toHaveBeenNthCalledWith(slot, target);
+    });
+  });
+
+  it("Should leave editable descendants and repeated chords untouched [UT-099]", () => {
+    const shell = createShell();
+    const handlers: OsShortcutHandlers = {
+      onPalette: vi.fn(),
+      onNewSession: vi.fn(),
+      onDesktops: vi.fn(),
+      onEscape: vi.fn(),
+    };
+    renderHook(() => useOsShortcuts(handlers), { wrapper: shell.wrapper });
+    const editable = document.createElement("div");
+    editable.setAttribute("contenteditable", "true");
+    const nestedTarget = document.createElement("span");
+    editable.append(nestedTarget);
+    document.body.append(editable);
+
+    fireEvent.keyDown(nestedTarget, { key: "z", code: "KeyZ", metaKey: true });
+    expect(shell.controller.undoLayout).not.toHaveBeenCalled();
+
+    fireEvent.keyDown(document, { key: "z", code: "KeyZ", metaKey: true, repeat: true });
+
+    expect(shell.controller.undoLayout).not.toHaveBeenCalled();
+    editable.remove();
   });
 
   it("Should dispatch nothing while disabled, so first-run setup blocks the whole set", () => {
@@ -642,6 +1083,7 @@ describe("useOsWindowCommands", () => {
             focusOwner: null,
             groups: [],
             floating: [],
+            floatingStacks: [],
           },
           {
             id: "desktop:second",
@@ -651,6 +1093,7 @@ describe("useOsWindowCommands", () => {
             focusOwner: null,
             groups: [],
             floating: [],
+            floatingStacks: [],
           },
         ],
       })

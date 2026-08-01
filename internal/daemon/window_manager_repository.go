@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"sync"
 
 	"github.com/compozy/compozy/internal/clientstate"
@@ -21,27 +22,53 @@ const (
 // windowManagerRepository persists one typed aggregate per workspace.
 type windowManagerRepository struct {
 	service clientstate.Service
+	logger  *slog.Logger
 
 	mu    sync.Mutex
 	locks map[windowmanager.WorkspaceID]*sync.Mutex
 }
 
+var errWindowManagerSnapshotDiscardable = errors.New("daemon: discardable window-manager snapshot")
+
+type windowManagerRepositoryOption func(*windowManagerRepository)
+
+func withWindowManagerRepositoryLogger(logger *slog.Logger) windowManagerRepositoryOption {
+	return func(repository *windowManagerRepository) {
+		if logger != nil {
+			repository.logger = logger
+		}
+	}
+}
+
 var _ windowmanager.Repository = (*windowManagerRepository)(nil)
 
-func newWindowManagerRepository(service clientstate.Service) (*windowManagerRepository, error) {
+func newWindowManagerRepository(
+	service clientstate.Service,
+	options ...windowManagerRepositoryOption,
+) (*windowManagerRepository, error) {
 	if service == nil {
 		return nil, errors.New("daemon: window-manager client-state service is required")
 	}
-	return &windowManagerRepository{
+	repository := &windowManagerRepository{
 		service: service,
+		logger:  slog.Default(),
 		locks:   make(map[windowmanager.WorkspaceID]*sync.Mutex),
-	}, nil
+	}
+	for _, option := range options {
+		if option != nil {
+			option(repository)
+		}
+	}
+	return repository, nil
 }
 
 func (r *windowManagerRepository) Load(
 	ctx context.Context,
 	workspaceID windowmanager.WorkspaceID,
 ) (windowmanager.Snapshot, error) {
+	lock := r.lockFor(workspaceID)
+	lock.Lock()
+	defer lock.Unlock()
 	entry, err := r.service.Get(
 		ctx,
 		clientstate.WorkspaceID(workspaceID),
@@ -51,7 +78,27 @@ func (r *windowManagerRepository) Load(
 	if err != nil {
 		return windowmanager.Snapshot{}, mapWindowManagerStoreError("load snapshot", err)
 	}
-	return decodeWindowManagerSnapshot(entry.Value, workspaceID)
+	snapshot, err := decodeWindowManagerSnapshot(entry.Value, workspaceID)
+	if !errors.Is(err, errWindowManagerSnapshotDiscardable) {
+		return snapshot, err
+	}
+	r.logger.Warn(
+		"discarding incompatible window-manager snapshot",
+		"workspace_id", workspaceID,
+		"error", err,
+	)
+	if deleteErr := r.deleteSnapshotEntry(
+		ctx,
+		workspaceID,
+		entry.Rev,
+		"window-manager.snapshot.discard",
+	); deleteErr != nil {
+		return windowmanager.Snapshot{}, deleteErr
+	}
+	return windowmanager.Snapshot{}, fmt.Errorf(
+		"discarded window-manager snapshot: %w",
+		windowmanager.ErrSnapshotNotFound,
+	)
 }
 
 func (r *windowManagerRepository) Commit(ctx context.Context, commit *windowmanager.Commit) error {
@@ -128,14 +175,21 @@ func (r *windowManagerRepository) DeleteWorkspace(
 	if err != nil {
 		return mapWindowManagerStoreError("load snapshot for deletion", err)
 	}
-	_, err = r.service.Apply(
+	return r.deleteSnapshotEntry(ctx, workspaceID, entry.Rev, "window-manager.workspace.delete")
+}
+
+func (r *windowManagerRepository) deleteSnapshotEntry(
+	ctx context.Context,
+	workspaceID windowmanager.WorkspaceID,
+	revision uint64,
+	origin string,
+) error {
+	_, err := r.service.Apply(
 		ctx,
 		clientstate.WorkspaceID(workspaceID),
 		windowManagerStateDomain,
-		[]clientstate.Op{{
-			Kind: clientstate.OpDelete, Key: windowManagerSnapshotKey, IfRev: entry.Rev,
-		}},
-		clientstate.ApplyOptions{Origin: "window-manager.workspace.delete"},
+		[]clientstate.Op{{Kind: clientstate.OpDelete, Key: windowManagerSnapshotKey, IfRev: revision}},
+		clientstate.ApplyOptions{Origin: origin},
 	)
 	return mapWindowManagerStoreError("delete snapshot", err)
 }
@@ -219,7 +273,7 @@ func decodeWindowManagerSnapshot(
 	if err := decoder.Decode(&snapshot); err != nil {
 		return windowmanager.Snapshot{}, fmt.Errorf(
 			"daemon: decode window-manager snapshot: %w",
-			errors.Join(windowmanager.ErrInvalidTopology, err),
+			errors.Join(windowmanager.ErrInvalidTopology, errWindowManagerSnapshotDiscardable, err),
 		)
 	}
 	var trailing any
@@ -229,7 +283,14 @@ func decodeWindowManagerSnapshot(
 		}
 		return windowmanager.Snapshot{}, fmt.Errorf(
 			"daemon: decode trailing window-manager snapshot data: %w",
-			errors.Join(windowmanager.ErrInvalidTopology, err),
+			errors.Join(windowmanager.ErrInvalidTopology, errWindowManagerSnapshotDiscardable, err),
+		)
+	}
+	if snapshot.Version != windowmanager.SnapshotVersion {
+		return windowmanager.Snapshot{}, fmt.Errorf(
+			"daemon: window-manager snapshot version %d is unsupported: %w",
+			snapshot.Version,
+			errors.Join(windowmanager.ErrInvalidTopology, errWindowManagerSnapshotDiscardable),
 		)
 	}
 	if snapshot.WorkspaceID != workspaceID {

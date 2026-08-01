@@ -242,6 +242,11 @@ func TestAllEventDescriptorsReturnsFullTaxonomy(t *testing.T) {
 		HookWindowManagerDesktopCreated: "WindowManagerDesktopCreatedPayload",
 		HookWindowManagerDesktopDeleted: "WindowManagerDesktopDeletedPayload",
 		HookWindowManagerWindowMoved:    "WindowManagerWindowMovedPayload",
+		HookWindowManagerWindowOpened:   "WindowManagerWindowOpenedPayload",
+		HookWindowManagerWindowClosed:   "WindowManagerWindowClosedPayload",
+		HookWindowManagerStackGrouped:   "WindowManagerStackGroupedPayload",
+		HookWindowManagerStackUngrouped: "WindowManagerStackUngroupedPayload",
+		HookWindowManagerStackActivated: "WindowManagerStackActivatedPayload",
 	}
 	for event, wantPayload := range windowManagerDescriptors {
 		t.Run("Should describe "+string(event), func(t *testing.T) {

@@ -430,6 +430,7 @@
   --radius-dock: 22px;
   --radius-dock-item: 13px;
   --radius-menubar-control: 7px;
+  --radius-deck-tab: 8px;
   --shadow-window: 0 40px 90px -30px rgba(0, 0, 0, 0.7), 0 10px 30px -12px rgba(0, 0, 0, 0.55);
   --shadow-window-unfocused: 0 18px 50px -22px rgba(0, 0, 0, 0.55);
   --shadow-window-head-scrolled: 0 10px 18px -14px rgba(0, 0, 0, 0.55);
@@ -454,6 +455,15 @@
   --size-dock-indicator-min: 5px;
   --size-traffic-light: 12px;
   --size-menubar-logo: 17px;
+  /* The deck — 37px tab row above the window head (window-tabs reference §01). */
+  --height-deck: 37px;
+  --height-deck-tab: 30px;
+  --width-deck-tab-min: 96px;
+  --width-deck-tab-max: 180px;
+  --size-deck-glyph: 13px;
+  --size-deck-badge: 14px;
+  --size-deck-add: 24px;
+  --size-deck-close: 16px;
   --size-workspace-avatar: 18px;
   --size-dock-new-icon: 18px;
   /* Reserved bottom band that keeps the window work area clear of the Dock:

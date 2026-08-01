@@ -19,7 +19,6 @@ export {
 } from "./hooks/use-window-manager-stream";
 export {
   OS_COMPACT_BREAKPOINT,
-  osWindowId,
   type OsAppId,
   type OsDesktopRuntime,
   type OsDesktopRuntimeStore,

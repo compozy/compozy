@@ -37,8 +37,14 @@ func testDaemonE2EToolApprovalGrantsPersistAcrossRestartAndMatchSurfaces(t *test
 		FixtureAgent: "tool-approval-grants",
 		AgentName:    "mock-tool-approval-grants",
 	}
+	configSeed := e2etest.ConfigSeedOptions{
+		PermissionMode: config.PermissionModeApproveReads,
+		Mutate: func(cfg *config.Config) {
+			cfg.Memory.Enabled = false
+		},
+	}
 	first := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
-		ConfigSeed: e2etest.ConfigSeedOptions{PermissionMode: config.PermissionModeApproveReads},
+		ConfigSeed: configSeed,
 		MockAgents: []e2etest.MockAgentSpec{mockSpec},
 	})
 
@@ -57,6 +63,7 @@ func testDaemonE2EToolApprovalGrantsPersistAcrossRestartAndMatchSurfaces(t *test
 		mockSpec.AgentName,
 		"tool-approval-grants-before-restart",
 	)
+	firstSession = bindFixtureBackedSession(t, ctx, first, firstSession, "noop")
 	firstClient := approvalGrantHostedClient(t, ctx, first, mockSpec.AgentName)
 	missingIDs := []string{"missing-http", "missing-uds", "missing-cli", "missing-native"}
 	for index, missingID := range missingIDs {
@@ -126,7 +133,7 @@ func testDaemonE2EToolApprovalGrantsPersistAcrossRestartAndMatchSurfaces(t *test
 	second := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
 		BinaryPath: binaryPath,
 		HomePaths:  homePaths,
-		ConfigSeed: e2etest.ConfigSeedOptions{PermissionMode: config.PermissionModeApproveReads},
+		ConfigSeed: configSeed,
 		MockAgents: []e2etest.MockAgentSpec{mockSpec},
 		Workspace:  e2etest.WorkspaceSeedOptions{Root: workspaceRoot},
 	})
@@ -141,6 +148,7 @@ func testDaemonE2EToolApprovalGrantsPersistAcrossRestartAndMatchSurfaces(t *test
 		mockSpec.AgentName,
 		"tool-approval-grants-after-restart",
 	)
+	secondSession = bindFixtureBackedSession(t, ctx, second, secondSession, "noop")
 	secondClient := approvalGrantHostedClient(t, ctx, second, mockSpec.AgentName)
 	defer func() {
 		if err := secondClient.Close(); err != nil {
@@ -275,13 +283,31 @@ func callApprovalToolWithDecision(
 		result, err := client.CallTool(ctx, approvalToolCall(toolID, toolCallID, arguments))
 		outcomeCh <- callOutcome{result: result, err: err}
 	}()
-	waitForRuntimeCondition(t, "native tool approval prompt", 5*time.Second, func() bool {
-		err := harness.ApproveSessionPermission(ctx, sessionID, compozycontract.ApproveSessionRequest{
-			RequestID: toolCallID,
-			Decision:  decision,
-		})
-		return err == nil
-	})
+	ticker := time.NewTicker(20 * time.Millisecond)
+	defer ticker.Stop()
+	timeout := time.NewTimer(5 * time.Second)
+	defer timeout.Stop()
+	for awaitingApproval := true; awaitingApproval; {
+		select {
+		case outcome := <-outcomeCh:
+			t.Fatalf(
+				"CallTool(%s) completed before approval prompt: result=%#v error=%v",
+				toolID,
+				outcome.result,
+				outcome.err,
+			)
+		case <-ticker.C:
+			err := harness.ApproveSessionPermission(ctx, sessionID, compozycontract.ApproveSessionRequest{
+				RequestID: toolCallID,
+				Decision:  decision,
+			})
+			awaitingApproval = err != nil
+		case <-timeout.C:
+			t.Fatalf("timed out waiting for native tool approval prompt")
+		case <-ctx.Done():
+			t.Fatalf("waiting for native tool approval prompt: %v", ctx.Err())
+		}
+	}
 	select {
 	case outcome := <-outcomeCh:
 		if outcome.err != nil {

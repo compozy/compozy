@@ -35,14 +35,20 @@ export function useThreadScrollController(
   const anchorIndexRef = useRef<number | null>(null);
   const lastUserIdRef = useRef<string | null>(null);
   const previousCountRef = useRef(0);
+  const programmaticScrollTopRef = useRef<number | null>(null);
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
+
+  const setProgrammaticScrollTop = (viewport: HTMLElement, scrollTop: number) => {
+    viewport.scrollTop = scrollTop;
+    programmaticScrollTopRef.current = viewport.scrollTop;
+  };
 
   const scrollToEnd = () => {
     modeRef.current = nextScrollMode(modeRef.current, "scroll-to-end");
     anchorIndexRef.current = null;
     setShowScrollToBottom(false);
     const viewport = viewportRef.current;
-    if (viewport) viewport.scrollTop = viewport.scrollHeight;
+    if (viewport) setProgrammaticScrollTop(viewport, viewport.scrollHeight);
   };
 
   useEffect(() => {
@@ -53,13 +59,26 @@ export function useThreadScrollController(
     const handleManualNavigation = () => {
       modeRef.current = nextScrollMode(modeRef.current, "manual-navigation");
       anchorIndexRef.current = null;
+      programmaticScrollTopRef.current = null;
       setShowScrollToBottom(distanceFromBottom() > AT_END_THRESHOLD);
     };
     const handleScroll = () => {
+      const programmaticScrollTop = programmaticScrollTopRef.current;
+      if (
+        programmaticScrollTop !== null &&
+        Math.abs(viewport.scrollTop - programmaticScrollTop) <= 1
+      ) {
+        programmaticScrollTopRef.current = null;
+        return;
+      }
+      programmaticScrollTopRef.current = null;
       if (distanceFromBottom() <= AT_END_THRESHOLD) {
         modeRef.current = nextScrollMode(modeRef.current, "reached-end");
+        anchorIndexRef.current = null;
         setShowScrollToBottom(false);
-      } else if (modeRef.current === "free-scrolling") {
+      } else {
+        modeRef.current = nextScrollMode(modeRef.current, "manual-navigation");
+        anchorIndexRef.current = null;
         setShowScrollToBottom(true);
       }
     };
@@ -102,15 +121,17 @@ export function useThreadScrollController(
       const anchorTop = anchor.offsetTop;
       const turnBottom = last.offsetTop + last.offsetHeight;
       const turnHeight = turnBottom - anchorTop;
-      viewport.scrollTop =
+      setProgrammaticScrollTop(
+        viewport,
         turnHeight > viewport.clientHeight
           ? Math.max(anchorTop - ANCHOR_OFFSET, turnBottom - viewport.clientHeight)
-          : Math.max(0, anchorTop - ANCHOR_OFFSET);
+          : Math.max(0, anchorTop - ANCHOR_OFFSET)
+      );
       return;
     }
 
     if (modeRef.current === "following-end") {
-      viewport.scrollTop = viewport.scrollHeight;
+      setProgrammaticScrollTop(viewport, viewport.scrollHeight);
     }
   }, [messageCount, messages, viewportRef]);
 

@@ -229,6 +229,11 @@ func assertSoftwareDeliveryRuntimes(t testing.TB, detail contract.LoopRunRespons
 		t.Fatalf("software-delivery resolved runtimes = %#v, want three task rows", got)
 	}
 	for itemIndex, expected := range want {
-		loopRuntimeAssertJSONEqual(t, fmt.Sprintf("software-delivery item %d runtime", itemIndex), got[itemIndex], expected)
+		loopRuntimeAssertJSONEqual(
+			t,
+			fmt.Sprintf("software-delivery item %d runtime", itemIndex),
+			got[itemIndex],
+			expected,
+		)
 	}
 }

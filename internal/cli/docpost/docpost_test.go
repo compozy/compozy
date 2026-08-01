@@ -254,6 +254,55 @@ compozy status [flags]
 		}
 	})
 
+	t.Run("Should reuse a marked executable output example", func(t *testing.T) {
+		t.Parallel()
+
+		executableBody := strings.Replace(
+			body,
+			"### Options inherited from parent commands",
+			"### Examples\n\n```\n  # Output example\n  ### Set WINDOW_ID to an existing window ID.\n  compozy window resize --id \"$WINDOW_ID\" --rect 0.10,0.10,0.80,0.80\n```\n\n### Options inherited from parent commands",
+			1,
+		)
+		for _, test := range []struct {
+			profile OutputProfile
+			format  string
+		}{
+			{profile: OutputProfileResult, format: "json"},
+			{profile: OutputProfileHumanJSONL, format: "jsonl"},
+		} {
+			result := renderOutputFormatsSection(executableBody, test.profile)
+			want := "compozy window resize --id \"$WINDOW_ID\" --rect 0.10,0.10,0.80,0.80 -o " + test.format
+			if !strings.Contains(result, want) {
+				t.Fatalf("output example = %q, want command %q", result, want)
+			}
+		}
+	})
+
+	t.Run("Should scope an output marker to its examples fence", func(t *testing.T) {
+		t.Parallel()
+
+		markedBody := strings.Replace(
+			body,
+			"### Options inherited from parent commands",
+			"compozy prose-only --ignored\n\n```\ncompozy outside-examples --ignored\n```\n\n"+
+				"### Examples\n\n```\n# Output example\n# No command in this fence.\n```\n\n"+
+				"```\ncompozy stale-marker --ignored\n```\n\n### Options inherited from parent commands",
+			1,
+		)
+		for _, profile := range []OutputProfile{OutputProfileResult, OutputProfileHumanJSONL} {
+			result := renderOutputFormatsSection(markedBody, profile)
+			for _, ignored := range []string{
+				"compozy prose-only",
+				"compozy outside-examples",
+				"compozy stale-marker",
+			} {
+				if strings.Contains(result, ignored) {
+					t.Fatalf("output example = %q, unexpectedly selected %q", result, ignored)
+				}
+			}
+		}
+	})
+
 	t.Run("Should keep help-only groups human-readable", func(t *testing.T) {
 		t.Parallel()
 

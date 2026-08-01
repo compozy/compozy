@@ -10,6 +10,7 @@ import {
   tasksOperatorSelectors,
 } from "../fixtures/selectors";
 import {
+  appWindow,
   ensureAppWindow,
   openAppWindow,
   sessionWindow,
@@ -83,7 +84,7 @@ test("creating a task is saved intent, no run is enqueued and labels never imply
   await appPage.goto(runtime.url("/tasks"), { waitUntil: "domcontentloaded" });
   await useGlobalWorkspaceIfPrompted(appPage);
 
-  const tasksWin = appPage.getByTestId("os-window-app:tasks");
+  const tasksWin = appWindow(appPage, "tasks");
   const tasksUI = tasksOperatorSelectors(tasksWin, appPage);
   await expect(tasksWin).toBeVisible();
   await expect(appPage).toHaveURL(/\/tasks$/);
@@ -137,7 +138,7 @@ test("publishing a draft hands off to the coordinator and binds a coordination c
   appPage,
   runtime,
 }) => {
-  const tasksWin = appPage.getByTestId("os-window-app:tasks");
+  const tasksWin = appWindow(appPage, "tasks");
   const tasksUI = tasksOperatorSelectors(tasksWin, appPage);
   const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "compozy-tasks-handoff-workspace-"));
   const workspace = await runtime.resolveWorkspace(workspaceRoot);
@@ -315,12 +316,13 @@ test("starting a manual session is unaffected by task autonomy labels", async ({
   const createResponsePromise = appPage.waitForResponse(response => {
     return response.request().method() === "POST" && response.url().endsWith("/api/sessions");
   });
-  await appPage.getByTestId("session-create-prompt").fill(SESSION_CREATE_FIRST_MESSAGE);
-  await appPage.getByTestId("session-create-send").click();
+  await appPage.getByTestId("session-create-submit").click();
   const createResponse = await createResponsePromise;
   expect(createResponse.ok()).toBeTruthy();
+  const created = (await createResponse.json()) as { session?: { id?: string } };
 
-  let sessionId = "";
+  let sessionId = created.session?.id ?? "";
+  expect(sessionId).not.toBe("");
   await expect
     .poll(() => {
       const pathname = new URL(appPage.url()).pathname;
@@ -333,6 +335,9 @@ test("starting a manual session is unaffected by task autonomy labels", async ({
 
   const sessionWin = sessionWindowSelectors(sessionWindow(appPage, sessionId));
   await expect(sessionWin.chatView).toBeVisible();
+  await sessionWin.composerTextarea.fill(SESSION_CREATE_FIRST_MESSAGE);
+  await sessionWin.composerTextarea.press("Enter");
+  await expect(sessionWin.chatView).toContainText(SESSION_CREATE_FIRST_MESSAGE);
 
   const sessions = await runtime.requestJSON<{
     sessions: Array<{ id: string; agent_name: string; state?: string }>;

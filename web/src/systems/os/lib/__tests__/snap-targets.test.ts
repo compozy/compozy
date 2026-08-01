@@ -50,9 +50,9 @@ describe("resolveSnapTarget", () => {
     expect(resolve({ point: { x: 600, y: AREA.y + AREA.h + 40 }, workArea: AREA })).toBeNull();
   });
 
-  it("Should resolve a whole-window swap over a candidate while the modifier is held", () => {
+  it("Should force a swap over a structural band while the modifier is held", () => {
     const target = resolve({
-      point: { x: 500, y: 370 },
+      point: { x: 500, y: 230 },
       workArea: AREA,
       candidates: [CANDIDATE],
       swapModifierActive: true,
@@ -66,14 +66,20 @@ describe("resolveSnapTarget", () => {
     });
   });
 
-  it("Should keep structural occupied drops when the swap modifier is released", () => {
+  it("Should resolve a whole-unit swap over an occupied center without the modifier", () => {
     const target = resolve({
       point: { x: 500, y: 370 },
       workArea: AREA,
       candidates: [CANDIDATE],
       swapModifierActive: false,
     });
-    expect(target?.kind).toBe("stack");
+    expect(target).toEqual({
+      kind: "swap",
+      id: "swap:leaf:target",
+      targetWindowId: "window:target",
+      targetNodeId: "leaf:target",
+      rect: { x: 300, y: 220, w: 400, h: 300 },
+    });
   });
 
   it.each([
@@ -183,7 +189,7 @@ describe("resolveSnapTarget", () => {
     ).toBeNull();
   });
 
-  it("Should resolve before insertion, orthogonal side split, and center stack", () => {
+  it("Should resolve before insertion and orthogonal side split from the occupied bands", () => {
     const before = resolve({
       point: { x: CANDIDATE.rect.x + 1, y: 370 },
       workArea: AREA,
@@ -194,18 +200,12 @@ describe("resolveSnapTarget", () => {
       workArea: AREA,
       candidates: [CANDIDATE],
     });
-    const stack = resolve({
-      point: { x: 500, y: 370 },
-      workArea: AREA,
-      candidates: [CANDIDATE],
-    });
 
     expect(before?.kind).toBe("insert");
     if (before?.kind === "insert") expect(before.relation).toBe("before");
     expect(side?.kind).toBe("split");
     if (side?.kind === "split") expect(side.side).toBe("top");
-    expect(stack?.kind).toBe("stack");
-    for (const target of [before, side, stack]) {
+    for (const target of [before, side]) {
       expect(target === null ? false : snapTargetIsContained(target, AREA)).toBe(true);
     }
   });

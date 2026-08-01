@@ -2,6 +2,8 @@ import type { OsArrangePreset } from "./os-types";
 import type { SnapCorner, SnapSide } from "./snap-targets";
 
 export type WindowPlacementId = SnapSide | SnapCorner;
+/** Positional tab jumps use browser-deliverable defaults; slot 9 targets the last tab. */
+export type WindowTabJumpSlot = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
 export type WindowManagerActionId =
   | `window.tile.${WindowPlacementId}`
   | "window.close"
@@ -12,6 +14,12 @@ export type WindowManagerActionId =
   | "window.focus.right"
   | "window.focus.up"
   | "window.focus.down"
+  | "window.tab.new"
+  | "window.tab.next"
+  | "window.tab.previous"
+  | "window.tab.last"
+  | "window.tab.reopen"
+  | `window.tab.jump.${WindowTabJumpSlot}`
   | "desktop.switch.previous"
   | "desktop.switch.next"
   | "desktop.overview"
@@ -117,6 +125,40 @@ export const WINDOW_MANAGER_ACTIONS: readonly WindowManagerActionDefinition[] = 
                 : command.placement === "bottom-right"
                   ? "control+alt+KeyK"
                   : undefined,
+    needsFocusedWindow: true,
+  })),
+  {
+    id: "window.tab.new",
+    label: "New tab",
+    defaultChord: "meta+KeyT",
+  },
+  {
+    id: "window.tab.next",
+    label: "Next tab",
+    defaultChord: "control+Tab",
+    needsFocusedWindow: true,
+  },
+  {
+    id: "window.tab.previous",
+    label: "Previous tab",
+    defaultChord: "control+shift+Tab",
+    needsFocusedWindow: true,
+  },
+  {
+    id: "window.tab.last",
+    label: "Last tab",
+    defaultChord: "meta+Digit9",
+    needsFocusedWindow: true,
+  },
+  {
+    id: "window.tab.reopen",
+    label: "Reopen closed tab",
+    defaultChord: "meta+shift+KeyT",
+  },
+  ...([1, 2, 3, 4, 5, 6, 7, 8] as const).map(slot => ({
+    id: `window.tab.jump.${slot}` as const,
+    label: `Go to tab ${slot}`,
+    defaultChord: `meta+Digit${slot}`,
     needsFocusedWindow: true,
   })),
   {

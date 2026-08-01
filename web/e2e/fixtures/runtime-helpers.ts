@@ -63,6 +63,9 @@ export function renderRuntimeConfig(input: RuntimeConfigInput): string {
     `host = ${tomlString(input.host)}`,
     `port = ${input.port}`,
     "",
+    "[mcp.oauth]",
+    `redirect_uri = ${tomlString(`http://127.0.0.1:${input.port}/api/mcp/oauth/callback`)}`,
+    "",
     ...(input.modelsDevEnabled === undefined
       ? []
       : [

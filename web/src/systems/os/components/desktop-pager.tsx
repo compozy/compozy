@@ -124,7 +124,7 @@ export function DesktopPager({
   ...props
 }: DesktopPagerProps) {
   const controls = pagerControls(desktops, activeDesktopId);
-  const controlRefs = useRef(new Map<string, HTMLButtonElement>());
+  const controlRefs = useRef<Map<string, HTMLButtonElement> | null>(null);
   const [rovingKey, setRovingKey] = useState<string>();
   const activeKey = `desktop:${activeDesktopId}`;
   const visibleKeys = new Set(controls.map(control => control.key));
@@ -136,7 +136,7 @@ export function DesktopPager({
     const control = controls[position];
     if (!control) return;
     setRovingKey(control.key);
-    controlRefs.current.get(control.key)?.focus();
+    controlRefs.current?.get(control.key)?.focus();
   };
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>, key: string) => {
@@ -182,8 +182,14 @@ export function DesktopPager({
                     render={
                       <Button
                         ref={node => {
-                          if (node) controlRefs.current.set(control.key, node);
-                          else controlRefs.current.delete(control.key);
+                          if (node) {
+                            const refs =
+                              controlRefs.current ?? new Map<string, HTMLButtonElement>();
+                            controlRefs.current = refs;
+                            refs.set(control.key, node);
+                          } else {
+                            controlRefs.current?.delete(control.key);
+                          }
                         }}
                         type="button"
                         variant="ghost"

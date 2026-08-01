@@ -33,7 +33,7 @@ func TestDaemonExtensionToolProvider(t *testing.T) {
 		if _, err := provider.List(t.Context(), toolspkg.Scope{WorkspaceID: "workspace-registration"}); err != nil {
 			t.Fatalf("List() error = %v", err)
 		}
-		if got, want := inner.listScope.WorkspaceID, "workspace-identity"; got != want {
+		if got, want := inner.listScope.WorkspaceID, "workspace-registration"; got != want {
 			t.Fatalf("List() workspace = %q, want %q", got, want)
 		}
 
@@ -49,7 +49,7 @@ func TestDaemonExtensionToolProvider(t *testing.T) {
 		if !ok {
 			t.Fatal("Resolve() ok = false, want true")
 		}
-		if got, want := inner.resolveScope.WorkspaceID, "workspace-identity"; got != want {
+		if got, want := inner.resolveScope.WorkspaceID, "workspace-registration"; got != want {
 			t.Fatalf("Resolve() workspace = %q, want %q", got, want)
 		}
 		if _, err := handle.Call(t.Context(), toolspkg.CallRequest{
@@ -59,7 +59,7 @@ func TestDaemonExtensionToolProvider(t *testing.T) {
 		}); err != nil {
 			t.Fatalf("Call() error = %v", err)
 		}
-		if got, want := inner.handle.request.WorkspaceID, "workspace-identity"; got != want {
+		if got, want := inner.handle.request.WorkspaceID, "workspace-registration"; got != want {
 			t.Fatalf("Call() workspace = %q, want %q", got, want)
 		}
 		if got, want := inner.handle.request.TrustedWorkspaceRoot, root; got != want {
@@ -102,7 +102,7 @@ func TestDaemonExtensionToolProvider(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Call(%s) error = %v", toolID, err)
 			}
-			if got, want := inner.handle.request.WorkspaceID, "workspace-identity"; got != want {
+			if got, want := inner.handle.request.WorkspaceID, "workspace-registration"; got != want {
 				t.Fatalf("%s request.WorkspaceID = %q, want %q", toolID, got, want)
 			}
 			if got, want := inner.handle.request.TrustedWorkspaceRoot, root; got != want {

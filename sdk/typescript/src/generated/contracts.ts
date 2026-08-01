@@ -189,7 +189,12 @@ export type HookEvent =
   | "window_manager.layout.applied"
   | "window_manager.desktop.created"
   | "window_manager.desktop.deleted"
-  | "window_manager.window.moved";
+  | "window_manager.window.moved"
+  | "window_manager.window.opened"
+  | "window_manager.window.closed"
+  | "window_manager.stack.grouped"
+  | "window_manager.stack.ungrouped"
+  | "window_manager.stack.activated";
 
 export interface AgentCrashedPayload {
   event: HookEvent;
@@ -6370,6 +6375,8 @@ export interface WindowManagerChanges {
   group_ids?: string[];
   node_ids?: string[];
   client_ids?: string[];
+  stack_grouped?: string[];
+  stack_ungrouped?: string[];
 }
 
 export interface WindowManagerActor {
@@ -6412,7 +6419,62 @@ export interface WindowManagerLayoutAppliedPayload {
 
 export type WindowManagerObservationPatch = Record<string, never>;
 
+export interface WindowManagerStackActivatedPayload {
+  event: HookEvent;
+  timestamp: ISODateTime;
+  workspace_id: string;
+  revision: number;
+  command_id: string;
+  changes: WindowManagerChanges;
+  actor: WindowManagerActor;
+  origin?: string;
+}
+
+export interface WindowManagerStackGroupedPayload {
+  event: HookEvent;
+  timestamp: ISODateTime;
+  workspace_id: string;
+  revision: number;
+  command_id: string;
+  changes: WindowManagerChanges;
+  actor: WindowManagerActor;
+  origin?: string;
+}
+
+export interface WindowManagerStackUngroupedPayload {
+  event: HookEvent;
+  timestamp: ISODateTime;
+  workspace_id: string;
+  revision: number;
+  command_id: string;
+  changes: WindowManagerChanges;
+  actor: WindowManagerActor;
+  origin?: string;
+}
+
+export interface WindowManagerWindowClosedPayload {
+  event: HookEvent;
+  timestamp: ISODateTime;
+  workspace_id: string;
+  revision: number;
+  command_id: string;
+  changes: WindowManagerChanges;
+  actor: WindowManagerActor;
+  origin?: string;
+}
+
 export interface WindowManagerWindowMovedPayload {
+  event: HookEvent;
+  timestamp: ISODateTime;
+  workspace_id: string;
+  revision: number;
+  command_id: string;
+  changes: WindowManagerChanges;
+  actor: WindowManagerActor;
+  origin?: string;
+}
+
+export interface WindowManagerWindowOpenedPayload {
   event: HookEvent;
   timestamp: ISODateTime;
   workspace_id: string;
@@ -6514,6 +6576,11 @@ export interface HookPayloadByEvent {
   "window_manager.desktop.created": WindowManagerDesktopCreatedPayload;
   "window_manager.desktop.deleted": WindowManagerDesktopDeletedPayload;
   "window_manager.window.moved": WindowManagerWindowMovedPayload;
+  "window_manager.window.opened": WindowManagerWindowOpenedPayload;
+  "window_manager.window.closed": WindowManagerWindowClosedPayload;
+  "window_manager.stack.grouped": WindowManagerStackGroupedPayload;
+  "window_manager.stack.ungrouped": WindowManagerStackUngroupedPayload;
+  "window_manager.stack.activated": WindowManagerStackActivatedPayload;
 }
 
 export interface HookPatchByEvent {
@@ -6607,6 +6674,11 @@ export interface HookPatchByEvent {
   "window_manager.desktop.created": WindowManagerObservationPatch;
   "window_manager.desktop.deleted": WindowManagerObservationPatch;
   "window_manager.window.moved": WindowManagerObservationPatch;
+  "window_manager.window.opened": WindowManagerObservationPatch;
+  "window_manager.window.closed": WindowManagerObservationPatch;
+  "window_manager.stack.grouped": WindowManagerObservationPatch;
+  "window_manager.stack.ungrouped": WindowManagerObservationPatch;
+  "window_manager.stack.activated": WindowManagerObservationPatch;
 }
 
 export interface HostAPIMethodMap {

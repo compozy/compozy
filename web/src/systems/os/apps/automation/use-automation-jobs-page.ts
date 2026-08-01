@@ -23,7 +23,7 @@ export function useAutomationJobsPage(
 ) {
   const page = useAutomationPageBase("jobs", search);
   const navigate = useNavigate();
-  const pendingRunIdsRef = useRef(new Set<string>());
+  const pendingRunIdsRef = useRef<Set<string> | null>(null);
   const [runPendingIds, setRunPendingIds] = useState<ReadonlySet<string>>(() => new Set());
 
   const jobsQuery = useAutomationJobs(page.listFilters);
@@ -46,17 +46,20 @@ export function useAutomationJobsPage(
 
   const triggerJobMutation = useTriggerAutomationJob();
   const onRunJob = async (id: string) => {
-    if (runDisabled || pendingRunIdsRef.current.has(id)) return;
-    pendingRunIdsRef.current.add(id);
-    setRunPendingIds(new Set(pendingRunIdsRef.current));
+    if (runDisabled) return;
+    const pendingRunIds = pendingRunIdsRef.current ?? new Set<string>();
+    pendingRunIdsRef.current = pendingRunIds;
+    if (pendingRunIds.has(id)) return;
+    pendingRunIds.add(id);
+    setRunPendingIds(new Set(pendingRunIds));
     try {
       const run = await triggerJobMutation.mutateAsync({ id });
       toast.success(`Queued run ${run.id}.`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to trigger automation job");
     }
-    pendingRunIdsRef.current.delete(id);
-    setRunPendingIds(new Set(pendingRunIdsRef.current));
+    pendingRunIds.delete(id);
+    setRunPendingIds(new Set(pendingRunIds));
   };
 
   return {

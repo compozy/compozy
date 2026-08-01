@@ -64,6 +64,36 @@ var windowManagerCommandSchemaSpecs = []windowManagerCommandSchemaSpec{
 		false,
 	),
 	newWindowManagerCommandSchemaSpec(
+		contract.WindowManagerCommandWindowStackGroup,
+		"WindowManagerGroupWindowsPayload",
+		contract.WindowManagerGroupWindowsPayload{},
+		false,
+	),
+	newWindowManagerCommandSchemaSpec(
+		contract.WindowManagerCommandWindowStackReorder,
+		"WindowManagerReorderStackPayload",
+		contract.WindowManagerReorderStackPayload{},
+		false,
+	),
+	newWindowManagerCommandSchemaSpec(
+		contract.WindowManagerCommandWindowStackSetActive,
+		"WindowManagerSetStackActivePayload",
+		contract.WindowManagerSetStackActivePayload{},
+		false,
+	),
+	newWindowManagerCommandSchemaSpec(
+		contract.WindowManagerCommandWindowPin,
+		"WindowManagerPinWindowPayload",
+		contract.WindowManagerPinWindowPayload{},
+		false,
+	),
+	newWindowManagerCommandSchemaSpec(
+		contract.WindowManagerCommandWindowReopen,
+		"WindowManagerReopenWindowPayload",
+		contract.WindowManagerReopenWindowPayload{},
+		false,
+	),
+	newWindowManagerCommandSchemaSpec(
 		contract.WindowManagerCommandWindowFocus,
 		"WindowManagerFocusWindowPayload",
 		contract.WindowManagerFocusWindowPayload{},

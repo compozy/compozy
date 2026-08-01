@@ -47,6 +47,15 @@ func (o *Observer) OnAgentEventForSession(ctx context.Context, sess *session.Ses
 	if info == nil {
 		return
 	}
+	o.trackSession(info.ID, o.observedSessionSnapshot(
+		ctx,
+		info.ID,
+		info.AgentName,
+		info.Provider,
+		info.Model,
+		info.WorkspaceID,
+		info.Lineage,
+	))
 	o.observeAgentEvent(ctx, info.ID, payload)
 }
 

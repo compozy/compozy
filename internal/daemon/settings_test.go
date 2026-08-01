@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -21,6 +23,7 @@ import (
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/testutil/mcpfixture"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 	compozyupdate "github.com/compozy/compozy/internal/update"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	mcp "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -196,6 +199,87 @@ func TestSettingsRuntimeSurfaceMCPAuthStatusSurvivesStoreReopen(t *testing.T) {
 	})
 }
 
+func TestSettingsRuntimeSurfaceMCPAuthAllowsOperatorLoopback(t *testing.T) {
+	t.Run("Should discover operator configured OAuth metadata on loopback", func(t *testing.T) {
+		t.Parallel()
+
+		var requests atomic.Int32
+		var authorizationServer *httptest.Server
+		authorizationHandler := http.HandlerFunc(func(
+			writer http.ResponseWriter,
+			request *http.Request,
+		) {
+			requests.Add(1)
+			if request.URL.Path != "/.well-known/oauth-authorization-server" {
+				http.NotFound(writer, request)
+				return
+			}
+			writer.Header().Set("Content-Type", "application/json")
+			if _, err := fmt.Fprintf(
+				writer,
+				`{"issuer":%q,"authorization_endpoint":%q,"token_endpoint":%q,`+
+					`"code_challenge_methods_supported":["S256"]}`,
+				authorizationServer.URL,
+				authorizationServer.URL+"/authorize",
+				authorizationServer.URL+"/token",
+			); err != nil {
+				t.Errorf("write authorization metadata: %v", err)
+			}
+		})
+		authorizationServer = httptest.NewServer(authorizationHandler)
+		defer authorizationServer.Close()
+
+		ctx := t.Context()
+		database, err := globaldb.OpenGlobalDB(ctx, filepath.Join(t.TempDir(), store.GlobalDatabaseName))
+		if err != nil {
+			t.Fatalf("OpenGlobalDB() error = %v", err)
+		}
+		defer func() {
+			if err := database.Close(context.Background()); err != nil {
+				t.Fatalf("Close() error = %v", err)
+			}
+		}()
+		manager, err := newSettingsMCPAuthManagerWithConfig(
+			database,
+			nil,
+			database,
+			nil,
+			compozyconfig.MCPOAuthConfig{},
+		)
+		if err != nil {
+			t.Fatalf("newSettingsMCPAuthManagerWithConfig() error = %v", err)
+		}
+		target := globalMCPTestTarget("local-oauth")
+		server := compozyconfig.MCPServer{
+			Name:      target.ServerName,
+			Transport: compozyconfig.MCPServerTransportHTTP,
+			URL:       authorizationServer.URL + "/mcp",
+			Auth: compozyconfig.MCPAuthConfig{
+				Registration: compozyconfig.MCPAuthRegistrationPreRegistered,
+				IssuerURL:    authorizationServer.URL,
+				ClientID:     "compozy-local",
+			},
+		}
+
+		surface := &settingsRuntimeSurface{mcpAuthManager: manager}
+		result, err := surface.MCPAuthBegin(
+			ctx,
+			target,
+			server,
+			"http://127.0.0.1:2123/api/mcp/oauth/callback",
+		)
+		if err != nil {
+			t.Fatalf("MCPAuthBegin() error = %v", err)
+		}
+		if !strings.HasPrefix(result.AuthorizationURL, authorizationServer.URL+"/authorize?") {
+			t.Fatalf("AuthorizationURL = %q, want local authorization endpoint", result.AuthorizationURL)
+		}
+		if got := requests.Load(); got != 1 {
+			t.Fatalf("authorization metadata requests = %d, want 1", got)
+		}
+	})
+}
+
 func TestSettingsRuntimeSurfaceMCPAuthStatusResolvesClientSecretRef(t *testing.T) {
 	t.Run("Should resolve MCP client_secret_ref before computing auth status", func(t *testing.T) {
 		t.Parallel()
@@ -273,6 +357,47 @@ func TestSettingsRuntimeSurfaceMCPServerRuntimeStatus(t *testing.T) {
 		}
 		if got, want := status.ProtocolVersion, mcpfixture.ModernProtocolVersion; got != want {
 			t.Fatalf("MCPServerRuntimeStatus().ProtocolVersion = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should bound runtime diagnostics independently of the operational MCP call timeout", func(t *testing.T) {
+		t.Parallel()
+
+		blockingServer := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, request *http.Request) {
+			select {
+			case <-request.Context().Done():
+			case <-time.After(time.Second):
+			}
+		}))
+		t.Cleanup(blockingServer.Close)
+		surface := &settingsRuntimeSurface{mcpStatusTimeout: 20 * time.Millisecond}
+
+		startedAt := time.Now()
+		status, err := surface.MCPServerRuntimeStatus(
+			t.Context(),
+			globalMCPTestTarget("slow"),
+			compozyconfig.MCPServer{
+				Name:      "slow",
+				Transport: compozyconfig.MCPServerTransportHTTP,
+				URL:       blockingServer.URL,
+			},
+		)
+		elapsed := time.Since(startedAt)
+
+		if err != nil {
+			t.Fatalf("MCPServerRuntimeStatus(slow) error = %v", err)
+		}
+		if elapsed >= 250*time.Millisecond {
+			t.Fatalf("MCPServerRuntimeStatus(slow) elapsed = %s, want a bounded diagnostic", elapsed)
+		}
+		if got, want := status.State, settingspkg.MCPServerRuntimeStateRuntimeUnavailable; got != want {
+			t.Fatalf("MCPServerRuntimeStatus(slow).State = %q, want %q", got, want)
+		}
+		if got, want := status.Probe, settingspkg.MCPServerProbeFailed; got != want {
+			t.Fatalf("MCPServerRuntimeStatus(slow).Probe = %q, want %q", got, want)
+		}
+		if got, want := status.Reason, string(toolspkg.ReasonCallTimedOut); got != want {
+			t.Fatalf("MCPServerRuntimeStatus(slow).Reason = %q, want %q", got, want)
 		}
 	})
 

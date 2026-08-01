@@ -142,7 +142,7 @@ func newLayoutResizeCommand(deps commandDeps) *cobra.Command {
 	var boundary int
 	var delta float64
 	cmd := &cobra.Command{
-		Use: "resize", Short: "Resize one shared split boundary", Args: cobra.NoArgs,
+		Use: windowManagerResizeKey, Short: "Resize one shared split boundary", Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			splitID, err := requiredWindowManagerFlag(splitID, "split")
 			if err != nil {
@@ -183,6 +183,81 @@ func newLayoutResizeCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().IntVar(&boundary, "boundary", 0, "Zero-based boundary between adjacent children")
 	cmd.Flags().Float64Var(&delta, "delta", 0, "Normalized weight transferred from right to left")
 	return cmd
+}
+
+func newLayoutFrameResizeCommand(deps commandDeps) *cobra.Command {
+	var flags windowManagerMutationFlags
+	var desktopID string
+	var edits []string
+	cmd := &cobra.Command{
+		Use:   "frame-resize",
+		Short: "Atomically rewrite island frames to move a shared tiled boundary",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			desktopID, err := requiredWindowManagerFlag(desktopID, "desktop")
+			if err != nil {
+				return err
+			}
+			payloadEdits, err := parseWindowManagerFrameEdits(edits)
+			if err != nil {
+				return err
+			}
+			request, err := flags.request(
+				cmd,
+				deps,
+				contract.WindowManagerCommandLayoutFrameResize,
+				contract.WindowManagerFrameResizeLayoutPayload{
+					DesktopID: windowmanager.DesktopID(desktopID),
+					Edits:     payloadEdits,
+				},
+			)
+			if err != nil {
+				return err
+			}
+			result, err := executeWindowManagerCommand(cmd, deps, request)
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, windowManagerResultBundle(result))
+		},
+	}
+	flags.add(cmd)
+	cmd.Flags().StringVar(&desktopID, "desktop", "", "Desktop ID")
+	cmd.Flags().StringArrayVar(
+		&edits,
+		"edit",
+		nil,
+		"Group frame edit as <group-id>=<x>,<y>,<width>,<height> (repeatable)",
+	)
+	return cmd
+}
+
+func parseWindowManagerFrameEdits(values []string) ([]contract.WindowManagerGroupFrameEditPayload, error) {
+	if len(values) == 0 {
+		return nil, errors.New("cli: at least one --edit is required")
+	}
+	edits := make([]contract.WindowManagerGroupFrameEditPayload, 0, len(values))
+	seen := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		groupID, rectRaw, found := strings.Cut(value, "=")
+		groupID = strings.TrimSpace(groupID)
+		if !found || groupID == "" {
+			return nil, fmt.Errorf("cli: --edit %q must be <group-id>=<x>,<y>,<width>,<height>", value)
+		}
+		if _, duplicate := seen[groupID]; duplicate {
+			return nil, fmt.Errorf("cli: --edit contains duplicate group %q", groupID)
+		}
+		seen[groupID] = struct{}{}
+		rect, err := parseWindowManagerRectValue("edit", rectRaw)
+		if err != nil {
+			return nil, err
+		}
+		edits = append(edits, contract.WindowManagerGroupFrameEditPayload{
+			GroupID: windowmanager.GroupID(groupID),
+			Frame:   rect,
+		})
+	}
+	return edits, nil
 }
 
 func newLayoutBalanceCommand(deps commandDeps) *cobra.Command {

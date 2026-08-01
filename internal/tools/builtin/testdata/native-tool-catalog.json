@@ -561,7 +561,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "28b3cd0d2f8d5c9b79c1155d58bf9fa653e716f36280c8a9742a13acc4225d69",
-    "output_schema_digest": "418ecfce2eceb69fe514e82b8b8e2393d2e4ac491a71c8b0571637ea98c5cf9d",
+    "output_schema_digest": "385bfe95251382039c1db34c5862658f8bab2739ecb9fd93216dc2f157e33eaa",
     "required_capabilities": [
       "window_manager.write"
     ]
@@ -577,7 +577,7 @@
     "destructive": true,
     "open_world": false,
     "input_schema_digest": "4ffdd689e7a38a0939403f012b4b8bef9ee8784fe44b8f02a7a41fe121792b89",
-    "output_schema_digest": "418ecfce2eceb69fe514e82b8b8e2393d2e4ac491a71c8b0571637ea98c5cf9d",
+    "output_schema_digest": "385bfe95251382039c1db34c5862658f8bab2739ecb9fd93216dc2f157e33eaa",
     "required_capabilities": [
       "window_manager.write"
     ]
@@ -609,7 +609,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "4ee506ca7491e0e91212b2ac484120da8da6b5f98f558ca8d380b4ab60fe11fa",
-    "output_schema_digest": "418ecfce2eceb69fe514e82b8b8e2393d2e4ac491a71c8b0571637ea98c5cf9d",
+    "output_schema_digest": "385bfe95251382039c1db34c5862658f8bab2739ecb9fd93216dc2f157e33eaa",
     "required_capabilities": [
       "window_manager.write"
     ]
@@ -625,7 +625,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "ada9ad8bdfda5dca873342cc9e80b8a727f09ac164b736d532e3c56324c7b27c",
-    "output_schema_digest": "418ecfce2eceb69fe514e82b8b8e2393d2e4ac491a71c8b0571637ea98c5cf9d",
+    "output_schema_digest": "385bfe95251382039c1db34c5862658f8bab2739ecb9fd93216dc2f157e33eaa",
     "required_capabilities": [
       "window_manager.write"
     ]
@@ -641,7 +641,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "65885aae41dfa0e563e2012f1128a679421454d49a10bd3f335b837ba27331a7",
-    "output_schema_digest": "418ecfce2eceb69fe514e82b8b8e2393d2e4ac491a71c8b0571637ea98c5cf9d",
+    "output_schema_digest": "385bfe95251382039c1db34c5862658f8bab2739ecb9fd93216dc2f157e33eaa",
     "required_capabilities": [
       "window_manager.write"
     ]
@@ -1007,8 +1007,8 @@
     "read_only": false,
     "destructive": true,
     "open_world": false,
-    "input_schema_digest": "4d764895113fbb8f73096617265ac09b497c4cb07ec3dab3fdfed94268a7b19c",
-    "output_schema_digest": "418ecfce2eceb69fe514e82b8b8e2393d2e4ac491a71c8b0571637ea98c5cf9d",
+    "input_schema_digest": "3cf10c825a380b68b4b7e44a4b1e61fd62f31917ad6a00eb05d98920252ab6fe",
+    "output_schema_digest": "385bfe95251382039c1db34c5862658f8bab2739ecb9fd93216dc2f157e33eaa",
     "required_capabilities": [
       "window_manager.write"
     ]
@@ -1024,7 +1024,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "1bda1fad0f2e6e39fcb667cb50a0fca244ea33fde17b7d7d2c81e34a30f78df9",
-    "output_schema_digest": "418ecfce2eceb69fe514e82b8b8e2393d2e4ac491a71c8b0571637ea98c5cf9d",
+    "output_schema_digest": "385bfe95251382039c1db34c5862658f8bab2739ecb9fd93216dc2f157e33eaa",
     "required_capabilities": [
       "window_manager.write"
     ]
@@ -1040,7 +1040,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "292001f69d65dae2931f5ee164abc197efbe7ff5a6696900e2156c59a6690dc0",
-    "output_schema_digest": "418ecfce2eceb69fe514e82b8b8e2393d2e4ac491a71c8b0571637ea98c5cf9d",
+    "output_schema_digest": "385bfe95251382039c1db34c5862658f8bab2739ecb9fd93216dc2f157e33eaa",
     "required_capabilities": [
       "window_manager.write"
     ]
@@ -1059,6 +1059,22 @@
     "output_schema_digest": "9a1dffab06de96da44bd6ea348d55941f912f9329e5ae8759f68e0609ace47cb",
     "required_capabilities": [
       "window_manager.read"
+    ]
+  },
+  {
+    "tool_id": "compozy__layout_frame_resize",
+    "native_name": "layout_frame_resize",
+    "toolsets": [
+      "compozy__window_manager"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "fbc77a9a7c67ae983d21447125e7888c432de3ffe43569abb16ac09dd10ccc63",
+    "output_schema_digest": "385bfe95251382039c1db34c5862658f8bab2739ecb9fd93216dc2f157e33eaa",
+    "required_capabilities": [
+      "window_manager.write"
     ]
   },
   {
@@ -1087,8 +1103,8 @@
     "read_only": true,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "a83e48ed5931551435831aa1206465ae74122a13c5de4da9f7803fde222a6381",
-    "output_schema_digest": "e013b71d3074f9d0265d7e1ca4a0f9a6440b9a9420036ad10fa1f21014cb0d9c",
+    "input_schema_digest": "975a1fcd4252966a869823bb55a2d95f08b45d3a70644dfc3d064a7505267f4e",
+    "output_schema_digest": "17f187f6369d93208bdaa4b73522b33596b3ea82797c600c52a88dbfbbcffd90",
     "required_capabilities": [
       "window_manager.read"
     ]
@@ -1104,7 +1120,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "05f2dce2f20d140a077ddb5e9baa9a7f601f5f60a7ddf5b549d7d5c8efdeac87",
-    "output_schema_digest": "418ecfce2eceb69fe514e82b8b8e2393d2e4ac491a71c8b0571637ea98c5cf9d",
+    "output_schema_digest": "385bfe95251382039c1db34c5862658f8bab2739ecb9fd93216dc2f157e33eaa",
     "required_capabilities": [
       "window_manager.write"
     ]
@@ -1120,7 +1136,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "4f433a7e94a0cf7255d04fc677392e49f2d047572fccd19bd78fab32e7fa52f0",
-    "output_schema_digest": "418ecfce2eceb69fe514e82b8b8e2393d2e4ac491a71c8b0571637ea98c5cf9d",
+    "output_schema_digest": "385bfe95251382039c1db34c5862658f8bab2739ecb9fd93216dc2f157e33eaa",
     "required_capabilities": [
       "window_manager.write"
     ]
@@ -1136,7 +1152,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "05f2dce2f20d140a077ddb5e9baa9a7f601f5f60a7ddf5b549d7d5c8efdeac87",
-    "output_schema_digest": "418ecfce2eceb69fe514e82b8b8e2393d2e4ac491a71c8b0571637ea98c5cf9d",
+    "output_schema_digest": "385bfe95251382039c1db34c5862658f8bab2739ecb9fd93216dc2f157e33eaa",
     "required_capabilities": [
       "window_manager.write"
     ]
@@ -1151,7 +1167,7 @@
     "read_only": true,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "d93acd4c3b5ba77795503f0b993e066370f05e2b4369edf98e3545e60bba60c1",
+    "input_schema_digest": "976ca86fa9f24d52f74ad41d39056a170441b63b2d54b2700d38d22364e97cec",
     "output_schema_digest": "9a1dffab06de96da44bd6ea348d55941f912f9329e5ae8759f68e0609ace47cb",
     "required_capabilities": [
       "window_manager.read"
@@ -2830,6 +2846,22 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
+    "tool_id": "compozy__window_activate",
+    "native_name": "window_activate",
+    "toolsets": [
+      "compozy__window_manager"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "7582da5975183d9c207eff67bc8dca64db1f1d3a8d8709539f135949fa12ab1f",
+    "output_schema_digest": "385bfe95251382039c1db34c5862658f8bab2739ecb9fd93216dc2f157e33eaa",
+    "required_capabilities": [
+      "window_manager.write"
+    ]
+  },
+  {
     "tool_id": "compozy__window_close",
     "native_name": "window_close",
     "toolsets": [
@@ -2839,8 +2871,8 @@
     "read_only": false,
     "destructive": true,
     "open_world": false,
-    "input_schema_digest": "eb9eaa36bf720bbbc55ae2b67a64fa3fca1dc36a6e5503931f18bc4821c1c78c",
-    "output_schema_digest": "418ecfce2eceb69fe514e82b8b8e2393d2e4ac491a71c8b0571637ea98c5cf9d",
+    "input_schema_digest": "57705d17fa858e63f5053c547aa027f0a2c7b2e9c1dc50dc5885206e379bca74",
+    "output_schema_digest": "385bfe95251382039c1db34c5862658f8bab2739ecb9fd93216dc2f157e33eaa",
     "required_capabilities": [
       "window_manager.write"
     ]
@@ -2856,7 +2888,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "ca78d2b54d19801fba499b67431fbc111447a5e44c486b805e7d6e89aabe43d1",
-    "output_schema_digest": "418ecfce2eceb69fe514e82b8b8e2393d2e4ac491a71c8b0571637ea98c5cf9d",
+    "output_schema_digest": "385bfe95251382039c1db34c5862658f8bab2739ecb9fd93216dc2f157e33eaa",
     "required_capabilities": [
       "window_manager.write"
     ]
@@ -2872,7 +2904,23 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "dcc2a352bd026969138cbea169484a92b3542a2bcce6d49811a4b16faba2a0e7",
-    "output_schema_digest": "418ecfce2eceb69fe514e82b8b8e2393d2e4ac491a71c8b0571637ea98c5cf9d",
+    "output_schema_digest": "385bfe95251382039c1db34c5862658f8bab2739ecb9fd93216dc2f157e33eaa",
+    "required_capabilities": [
+      "window_manager.write"
+    ]
+  },
+  {
+    "tool_id": "compozy__window_group",
+    "native_name": "window_group",
+    "toolsets": [
+      "compozy__window_manager"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "59dfb396ce3ac2465e53cafd77756067e893d27a0d2f36a622ba6babe32b209f",
+    "output_schema_digest": "385bfe95251382039c1db34c5862658f8bab2739ecb9fd93216dc2f157e33eaa",
     "required_capabilities": [
       "window_manager.write"
     ]
@@ -2903,8 +2951,8 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "10efdb229f1d4398a708aa1b9f015d5552e895b605153e4cbab02817bf2790da",
-    "output_schema_digest": "418ecfce2eceb69fe514e82b8b8e2393d2e4ac491a71c8b0571637ea98c5cf9d",
+    "input_schema_digest": "6f3a891690b4d4419ea20389fda9a8fae34ee704e6f6b69af6b9fe7de60038c4",
+    "output_schema_digest": "385bfe95251382039c1db34c5862658f8bab2739ecb9fd93216dc2f157e33eaa",
     "required_capabilities": [
       "window_manager.write"
     ]
@@ -2919,8 +2967,8 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "4eaa61ff1745ff2104c9713eb83298bc69f24eec3c958ecf7210e588d8ea7493",
-    "output_schema_digest": "418ecfce2eceb69fe514e82b8b8e2393d2e4ac491a71c8b0571637ea98c5cf9d",
+    "input_schema_digest": "a55147433991508c1a6abf8020ef802ba431bf9f1756039b8ae25bded486727a",
+    "output_schema_digest": "385bfe95251382039c1db34c5862658f8bab2739ecb9fd93216dc2f157e33eaa",
     "required_capabilities": [
       "window_manager.write"
     ]
@@ -2935,8 +2983,72 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "1c0c6ff1df1e5707bd2cc5c83694c6f411807b2be62a51f5d2b76af9f3f0eb4f",
-    "output_schema_digest": "418ecfce2eceb69fe514e82b8b8e2393d2e4ac491a71c8b0571637ea98c5cf9d",
+    "input_schema_digest": "e81cc78818eaee65669cac55a65e237306be2f086b868c067c62b6900ad96deb",
+    "output_schema_digest": "385bfe95251382039c1db34c5862658f8bab2739ecb9fd93216dc2f157e33eaa",
+    "required_capabilities": [
+      "window_manager.write"
+    ]
+  },
+  {
+    "tool_id": "compozy__window_pin",
+    "native_name": "window_pin",
+    "toolsets": [
+      "compozy__window_manager"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "06c0da0af6008513fadea2b39178ee363607b72d59319cb500b73adf24f3b786",
+    "output_schema_digest": "385bfe95251382039c1db34c5862658f8bab2739ecb9fd93216dc2f157e33eaa",
+    "required_capabilities": [
+      "window_manager.write"
+    ]
+  },
+  {
+    "tool_id": "compozy__window_reopen",
+    "native_name": "window_reopen",
+    "toolsets": [
+      "compozy__window_manager"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "a564a459941ebc93ce4f900dccfefe08cfdd0e2bf8399107bedbd9e8b147b085",
+    "output_schema_digest": "385bfe95251382039c1db34c5862658f8bab2739ecb9fd93216dc2f157e33eaa",
+    "required_capabilities": [
+      "window_manager.write"
+    ]
+  },
+  {
+    "tool_id": "compozy__window_reorder",
+    "native_name": "window_reorder",
+    "toolsets": [
+      "compozy__window_manager"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "d58fb5abc22fad8dcaefeb3a0dc09fe73dadf5178aef27bdaabcbbbca1bdeffd",
+    "output_schema_digest": "385bfe95251382039c1db34c5862658f8bab2739ecb9fd93216dc2f157e33eaa",
+    "required_capabilities": [
+      "window_manager.write"
+    ]
+  },
+  {
+    "tool_id": "compozy__window_resize",
+    "native_name": "window_resize",
+    "toolsets": [
+      "compozy__window_manager"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "54c557a4679205a64c4b6a0f6bd3231af5854bd556d31f47e43288acfed6f323",
+    "output_schema_digest": "385bfe95251382039c1db34c5862658f8bab2739ecb9fd93216dc2f157e33eaa",
     "required_capabilities": [
       "window_manager.write"
     ]
@@ -2952,7 +3064,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "27045fe192d5ad7834d2cc80ce85038b484341a8c72934ffdd5b1a8b0a4e5d75",
-    "output_schema_digest": "418ecfce2eceb69fe514e82b8b8e2393d2e4ac491a71c8b0571637ea98c5cf9d",
+    "output_schema_digest": "385bfe95251382039c1db34c5862658f8bab2739ecb9fd93216dc2f157e33eaa",
     "required_capabilities": [
       "window_manager.write"
     ]
@@ -2968,7 +3080,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "8958c6f01114a4c429058ed4a6335f39844f4813bde6cb46dd339b24b0333a6b",
-    "output_schema_digest": "418ecfce2eceb69fe514e82b8b8e2393d2e4ac491a71c8b0571637ea98c5cf9d",
+    "output_schema_digest": "385bfe95251382039c1db34c5862658f8bab2739ecb9fd93216dc2f157e33eaa",
     "required_capabilities": [
       "window_manager.write"
     ]

@@ -182,6 +182,95 @@ func TestWindowManagerWebSocketStream(t *testing.T) {
 		}
 	})
 
+	t.Run("Should broadcast grouped and closed tab revisions to every subscriber", func(t *testing.T) {
+		t.Parallel()
+		fixture := newWindowManagerHandlerFixture(t)
+		revision := windowmanager.Revision(0)
+		for _, windowID := range []windowmanager.WindowID{"window-a", "window-b"} {
+			result, err := fixture.manager.Execute(t.Context(), windowmanager.CommandRequest{
+				WorkspaceID: "workspace-a", ExpectedRevision: revision,
+				Payload: windowmanager.OpenWindowCommand{Window: windowmanager.WindowSpec{
+					ID: windowID, App: "tasks", DesktopID: "desktop-default",
+					Route: windowmanager.RouteIntent{
+						Pathname: "/tasks/" + string(windowID), Search: windowmanager.RouteSearch{},
+					},
+					FloatingRect: windowmanager.NormalizedRect{X: 0.1, Y: 0.1, Width: 0.5, Height: 0.5},
+				}},
+			})
+			if err != nil {
+				t.Fatalf("Execute(window.open %s) error = %v", windowID, err)
+			}
+			revision = result.Snapshot.Revision
+		}
+
+		server := httptest.NewServer(fixture.router)
+		t.Cleanup(server.Close)
+		streamURL := "ws" + strings.TrimPrefix(server.URL, "http") +
+			windowManagerTestPath("workspace-a") + "/stream?after_revision=2"
+		connections := make([]*websocket.Conn, 0, 2)
+		for range 2 {
+			connection, response, err := websocket.DefaultDialer.DialContext(t.Context(), streamURL, nil)
+			if err != nil {
+				closeWindowManagerDialResponse(t, response)
+				t.Fatalf("DialContext() error = %v", err)
+			}
+			connections = append(connections, connection)
+			t.Cleanup(func() {
+				if closeErr := connection.Close(); closeErr != nil {
+					t.Errorf("websocket Close() error = %v", closeErr)
+				}
+			})
+			var snapshotFrame contract.WindowManagerSnapshotFrame
+			if readErr := connection.ReadJSON(&snapshotFrame); readErr != nil {
+				t.Fatalf("ReadJSON(snapshot) error = %v", readErr)
+			}
+			if snapshotFrame.Revision != 2 {
+				t.Fatalf("snapshot revision = %d, want 2", snapshotFrame.Revision)
+			}
+		}
+
+		grouped, err := fixture.manager.Execute(t.Context(), windowmanager.CommandRequest{
+			WorkspaceID: "workspace-a", ExpectedRevision: 2,
+			Payload: windowmanager.GroupWindowsCommand{
+				TargetWindowID: "window-a", WindowIDs: []windowmanager.WindowID{"window-b"},
+			},
+		})
+		if err != nil {
+			t.Fatalf("Execute(window.stack.group) error = %v", err)
+		}
+		for _, connection := range connections {
+			var frame contract.WindowManagerEventFrame
+			if readErr := connection.ReadJSON(&frame); readErr != nil {
+				t.Fatalf("ReadJSON(group event) error = %v", readErr)
+			}
+			if frame.Revision != 3 || frame.Event.CommandID != contract.WindowManagerCommandWindowStackGroup {
+				t.Fatalf("group event frame = %+v", frame)
+			}
+		}
+
+		closed, err := fixture.manager.Execute(t.Context(), windowmanager.CommandRequest{
+			WorkspaceID: "workspace-a", ExpectedRevision: grouped.Snapshot.Revision,
+			Payload: windowmanager.CloseWindowCommand{
+				WindowID: "window-b",
+			},
+		})
+		if err != nil {
+			t.Fatalf("Execute(window.close) error = %v", err)
+		}
+		if closed.Snapshot.Revision != 4 {
+			t.Fatalf("close revision = %d, want 4", closed.Snapshot.Revision)
+		}
+		for _, connection := range connections {
+			var frame contract.WindowManagerEventFrame
+			if readErr := connection.ReadJSON(&frame); readErr != nil {
+				t.Fatalf("ReadJSON(close event) error = %v", readErr)
+			}
+			if frame.Revision != 4 || frame.Event.CommandID != contract.WindowManagerCommandWindowClose {
+				t.Fatalf("close event frame = %+v", frame)
+			}
+		}
+	})
+
 	t.Run("Should upgrade a missing bound client to a terminal error and drain", func(t *testing.T) {
 		t.Parallel()
 		fixture := newWindowManagerHandlerFixture(t)

@@ -28,6 +28,8 @@ const CONFIG: WindowManagerConfig = {
   groupMoveModifier: "alt",
   swapModifier: "shift",
   historyLimit: 100,
+  navStackLimit: 50,
+  closedEntryLimit: 20,
   desktopTransition: "slide",
   gaps: { inner: 8, top: 8, right: 8, bottom: 8, left: 8 },
   snap: { edgeBand: 24, cornerReach: 96, exitSlack: 16, repeatRatios: [0.5, 0.33, 0.67] },

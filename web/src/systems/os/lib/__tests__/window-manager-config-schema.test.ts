@@ -22,6 +22,8 @@ function settingsResponse() {
       group_move_modifier: "alt",
       swap_modifier: "shift",
       history_limit: 100,
+      nav_stack_limit: 75,
+      closed_entry_limit: 30,
       desktop_transition: "slide",
       gaps: { inner: 8, top: 8, right: 8, bottom: 8, left: 8 },
       snap: {
@@ -51,6 +53,8 @@ describe("parseSettingsWindowManagerConfig", () => {
       groupMoveModifier: "alt",
       swapModifier: "shift",
       historyLimit: 100,
+      navStackLimit: 75,
+      closedEntryLimit: 30,
       desktopTransition: "slide",
       gaps: { inner: 8, top: 8, right: 8, bottom: 8, left: 8 },
       snap: {
@@ -69,6 +73,18 @@ describe("parseSettingsWindowManagerConfig", () => {
       label: "history beyond the runtime limit",
       mutate: (response: ReturnType<typeof settingsResponse>) => {
         response.config.history_limit = 501;
+      },
+    },
+    {
+      label: "navigation stack beyond the runtime limit",
+      mutate: (response: ReturnType<typeof settingsResponse>) => {
+        response.config.nav_stack_limit = 201;
+      },
+    },
+    {
+      label: "closed entry retention beyond the runtime limit",
+      mutate: (response: ReturnType<typeof settingsResponse>) => {
+        response.config.closed_entry_limit = 101;
       },
     },
     {

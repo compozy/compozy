@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -43,53 +42,17 @@ func classifyConfigMutationPath(path []string) (configSetValueKind, bool, error)
 }
 
 func classifyWindowManagerMutationPath(path []string) (configSetValueKind, bool) {
-	if len(path) == 2 && path[0] == configWindowManagerKey {
-		switch path[1] {
-		case "new_window_policy",
-			"small_viewport_policy",
-			"focus_policy",
-			"drag_away_policy",
-			"group_move_modifier",
-			"swap_modifier",
-			"desktop_transition":
-			return configSetString, true
-		case "focus_wrap", "focus_follows_pointer", "raise_on_focus":
-			return configSetBool, true
-		case "history_limit":
-			return configSetInt, true
-		}
-	}
-	if len(path) != 3 || path[0] != configWindowManagerKey {
+	spec, ok := lookupWindowManagerMutationSpec(path)
+	if !ok {
 		return configSetString, false
 	}
-	switch path[1] {
-	case "gaps":
-		switch path[2] {
-		case "inner", "top", "right", "bottom", configWindowManagerGapLeft:
-			return configSetInt, true
-		}
-	case "snap":
-		switch path[2] {
-		case "edge_band", "corner_reach", "exit_slack":
-			return configSetInt, true
-		case "repeat_ratios":
-			return configSetFloatSlice, true
-		}
-	case "bindings":
-		switch path[2] {
-		case "top_center", "bottom_center":
-			return configSetString, true
-		}
-	case "shortcuts":
-		return configSetString, true
-	}
-	return configSetString, false
+	return spec.kind, true
 }
 
 const (
-	configPathSandboxes        = "sandboxes"
-	configWindowManagerKey     = "window_manager"
-	configWindowManagerGapLeft = "left"
+	configPathSandboxes             = "sandboxes"
+	configWindowManagerKey          = "window_manager"
+	configWindowManagerShortcutsKey = "shortcuts"
 )
 
 func isProviderMutationPath(path []string) bool {

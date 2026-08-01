@@ -122,6 +122,7 @@ func (m *Manager) recordEventWithAuthoredText(
 	m.dispatchEventPostRecord(ctx, session, event, payload, persisted.Sequence)
 	m.dispatchSessionMessagePersisted(ctx, session, event, persisted, payload)
 	m.publishSessionEvent(ctx, session, persisted)
+	m.publishSessionCatalogWakeForEvent(session, event)
 
 	return nil
 }

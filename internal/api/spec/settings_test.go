@@ -364,6 +364,8 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 			"group_move_modifier",
 			"swap_modifier",
 			"history_limit",
+			"nav_stack_limit",
+			"closed_entry_limit",
 			"desktop_transition",
 			"gaps",
 			"snap",

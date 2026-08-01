@@ -111,7 +111,8 @@ func TestExtensionExecInvokesCanonicalToolExactlyOnceAcrossOutputFormatsIntegrat
 			argv: []string{"-o", "toon"},
 			assert: func(t *testing.T, output string) {
 				t.Helper()
-				if !strings.Contains(output, "tool_invocation") || !strings.Contains(output, "ext__cmd_fixture__greet") {
+				if !strings.Contains(output, "tool_invocation") ||
+					!strings.Contains(output, "ext__cmd_fixture__greet") {
 					t.Fatalf("TOON output = %q", output)
 				}
 			},

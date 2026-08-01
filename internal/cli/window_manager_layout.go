@@ -22,6 +22,7 @@ func newLayoutCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newLayoutPreviewCommand(deps))
 	cmd.AddCommand(newLayoutArrangeCommand(deps))
 	cmd.AddCommand(newLayoutResizeCommand(deps))
+	cmd.AddCommand(newLayoutFrameResizeCommand(deps))
 	cmd.AddCommand(newLayoutBalanceCommand(deps))
 	cmd.AddCommand(newLayoutUndoCommand(deps))
 	cmd.AddCommand(newLayoutRedoCommand(deps))
@@ -117,7 +118,7 @@ func newLayoutExportCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return writeCommandOutput(cmd, windowManagerJSONBundle("window_layout", "Window layout", document))
+			return writeCommandOutput(cmd, windowManagerLayoutDocumentBundle(document))
 		},
 	}
 	cmd.Flags().

@@ -602,6 +602,50 @@ func TestOnAgentEventProjectsTruthfulCostProvenance(t *testing.T) {
 		}
 	})
 
+	t.Run("Should refresh the effective runtime before estimating a logical session event", func(t *testing.T) {
+		t.Parallel()
+
+		inputRate := 2.0
+		outputRate := 6.0
+		catalog := &stubCostCatalog{models: []modelcatalog.Model{{
+			ProviderID:           "runtime-provider",
+			ModelID:              "runtime-model",
+			CostInputPerMillion:  &inputRate,
+			CostOutputPerMillion: &outputRate,
+			CostInputSource:      modelcatalog.SourceKindConfig,
+			CostOutputSource:     modelcatalog.SourceKindConfig,
+		}}}
+		h := newHarness(t)
+		h.observer.costCatalog = catalog
+		h.observer.resolveProviderAuth = fixedProviderAuthMode(compozyconfig.ProviderAuthModeBoundSecret)
+		sess := newSession("sess-cost-runtime-bind", session.StateActive, h.workspace, h.now)
+		sess.Provider = "creation-provider"
+		sess.Model = "creation-model"
+		h.observeSessionCreated(t, sess)
+
+		sess.Provider = "runtime-provider"
+		sess.Model = "runtime-model"
+		input := int64(1_000_000)
+		output := int64(1_000_000)
+		h.observer.OnAgentEventForSession(testutil.Context(t), sess, acp.AgentEvent{
+			Type:   acp.EventTypeDone,
+			TurnID: "turn-runtime-bind",
+			Usage:  &acp.TokenUsage{InputTokens: &input, OutputTokens: &output},
+		})
+
+		stat := h.singleTokenStat(t, sess.ID)
+		if stat.TotalCost == nil || *stat.TotalCost != 8 ||
+			stat.CostStatus != "estimated" || stat.CostSource != "catalog_config" {
+			t.Fatalf("bound runtime cost stat = %#v, want catalog_config USD 8", stat)
+		}
+		if catalog.options.ProviderID != "runtime-provider" {
+			t.Fatalf(
+				"catalog provider = %q, want effective runtime provider",
+				catalog.options.ProviderID,
+			)
+		}
+	})
+
 	t.Run("Should persist unknown when the merged model has no usable rates", func(t *testing.T) {
 		t.Parallel()
 

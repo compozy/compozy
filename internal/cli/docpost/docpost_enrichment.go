@@ -100,7 +100,10 @@ func renderOutputFormatsSection(body string, outputProfile OutputProfile) string
 	b.WriteString(renderOutputFormatProfile(outputProfile))
 
 	if outputProfile == OutputProfileResult || outputProfile == OutputProfileHumanJSONL {
-		usage := extractUsageLine(body)
+		usage := extractOutputExampleLine(body)
+		if usage == "" {
+			usage = extractUsageLine(body)
+		}
 		if usage == "" {
 			return b.String()
 		}
@@ -114,6 +117,42 @@ func renderOutputFormatsSection(body string, outputProfile OutputProfile) string
 	}
 
 	return b.String()
+}
+
+func extractOutputExampleLine(body string) string {
+	inExamples := false
+	inFence := false
+	outputExample := false
+	for line := range strings.SplitSeq(body, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "```") {
+			if inFence {
+				outputExample = false
+			}
+			inFence = !inFence
+			continue
+		}
+		if !inFence {
+			if trimmed == "### Examples" {
+				inExamples = true
+				continue
+			}
+			if inExamples && strings.HasPrefix(trimmed, "### ") {
+				return ""
+			}
+		}
+		if !inExamples || !inFence {
+			continue
+		}
+		if trimmed == "# Output example" {
+			outputExample = true
+			continue
+		}
+		if outputExample && strings.HasPrefix(trimmed, "compozy ") {
+			return trimmed
+		}
+	}
+	return ""
 }
 
 func renderOutputFormatProfile(outputProfile OutputProfile) string {

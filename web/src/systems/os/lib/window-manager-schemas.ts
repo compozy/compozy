@@ -8,16 +8,13 @@ import type {
   WindowManagerActor,
   WindowManagerChangeSet,
   WindowManagerClientView,
-  WindowManagerCommandId,
   WindowManagerCommandResult,
   WindowManagerConflictPayload,
   WindowManagerDiagnosticPayload,
   WindowManagerErrorPayload,
   WindowManagerEvent,
-  WindowManagerHistoryEntry,
   WindowManagerReturnAnchor,
   WindowManagerSnapshot,
-  WindowManagerStateDocument,
   WindowManagerWindow,
 } from "./window-manager-types";
 
@@ -131,6 +128,25 @@ const groupSchema = z
   })
   .transform(group => ({ id: group.id, frame: group.frame, root: group.root }));
 
+const floatingStackSchema = z
+  .strictObject({
+    id: identifierSchema,
+    window_ids: z.array(identifierSchema).min(1),
+    active_id: identifierSchema.optional(),
+    rect: normalizedRectSchema,
+    minimized: z.boolean(),
+  })
+  .refine(stack => stack.active_id === undefined || stack.window_ids.includes(stack.active_id), {
+    message: "active_id must name one floating stack window",
+  })
+  .transform(stack => ({
+    id: stack.id,
+    windowIds: stack.window_ids,
+    activeId: stack.active_id ?? null,
+    rect: stack.rect,
+    minimized: stack.minimized,
+  }));
+
 const desktopSchema = z
   .strictObject({
     id: identifierSchema,
@@ -140,6 +156,7 @@ const desktopSchema = z
     focus_owner: identifierSchema.optional(),
     groups: z.array(groupSchema),
     floating: z.array(identifierSchema),
+    floating_stacks: z.array(floatingStackSchema),
   })
   .transform(
     (desktop): LayoutDesktop => ({
@@ -150,6 +167,7 @@ const desktopSchema = z
       focusOwner: desktop.focus_owner ?? null,
       groups: desktop.groups,
       floating: desktop.floating,
+      floatingStacks: desktop.floating_stacks,
     })
   );
 
@@ -190,6 +208,8 @@ const windowSchema = z
     app: identifierSchema,
     instance_key: z.string().optional(),
     route: routeSchema,
+    nav_stack: z.array(routeSchema),
+    pinned: z.boolean(),
     placement: z.enum(["tiled", "stacked", "floating"]),
     desktop_id: identifierSchema,
     floating_rect: normalizedRectSchema,
@@ -202,6 +222,8 @@ const windowSchema = z
       app: window.app,
       instanceKey: window.instance_key ?? null,
       route: window.route,
+      navStack: window.nav_stack,
+      pinned: window.pinned,
       placement: window.placement,
       desktopId: window.desktop_id,
       floatingRect: window.floating_rect,
@@ -211,20 +233,6 @@ const windowSchema = z
   );
 
 const windowsSchema = z.record(z.string(), windowSchema);
-
-const stateDocumentSchema = z
-  .strictObject({
-    desktops: z.array(desktopSchema),
-    windows: windowsSchema,
-    overrides: windowManagerWorkspaceConfigSchema,
-  })
-  .transform(
-    (state): WindowManagerStateDocument => ({
-      desktops: state.desktops,
-      windows: state.windows,
-      overrides: state.overrides,
-    })
-  );
 
 const commandIdSchema = z.enum([
   "desktop.create",
@@ -240,6 +248,11 @@ const commandIdSchema = z.enum([
   "window.swap",
   "window.toggle_floating",
   "window.zoom",
+  "window.stack.group",
+  "window.stack.reorder",
+  "window.stack.set_active",
+  "window.pin",
+  "window.reopen",
   "layout.arrange",
   "layout.resize",
   "layout.balance",
@@ -248,37 +261,14 @@ const commandIdSchema = z.enum([
   "layout.replace",
 ]);
 
-const historyEntrySchema = z
-  .strictObject({
-    command_id: commandIdSchema,
-    before: stateDocumentSchema,
-    after: stateDocumentSchema,
-    actor: actorSchema,
-    origin: z.string().optional(),
-    created_at: timestampSchema,
-  })
-  .transform(
-    (entry): WindowManagerHistoryEntry => ({
-      commandId: entry.command_id as WindowManagerCommandId,
-      before: entry.before,
-      after: entry.after,
-      actor: entry.actor,
-      origin: entry.origin ?? "",
-      createdAt: entry.created_at,
-    })
-  );
-
 export const windowManagerSnapshotSchema = z
   .strictObject({
-    version: z.number().int().positive(),
+    version: z.literal(3),
     workspace_id: identifierSchema,
     revision: safeRevisionSchema,
     desktops: z.array(desktopSchema).min(1),
     windows: windowsSchema,
-    history: z.strictObject({
-      undo: z.array(historyEntrySchema),
-      redo: z.array(historyEntrySchema),
-    }),
+    closed_entry_count: z.number().int().nonnegative(),
     overrides: windowManagerWorkspaceConfigSchema,
     updated_at: timestampSchema,
   })
@@ -289,7 +279,7 @@ export const windowManagerSnapshotSchema = z
       revision: snapshot.revision,
       desktops: snapshot.desktops,
       windows: snapshot.windows,
-      history: snapshot.history,
+      closedEntryCount: snapshot.closed_entry_count,
       overrides: snapshot.overrides,
       updatedAt: snapshot.updated_at,
     })
@@ -303,6 +293,7 @@ export const windowManagerClientViewSchema = z
     active_desktop_id: identifierSchema,
     focused_window_id: identifierSchema.optional(),
     focus_order: z.array(identifierSchema),
+    stack_active: z.record(z.string(), identifierSchema),
     connected_at: timestampSchema,
   })
   .transform(
@@ -313,6 +304,7 @@ export const windowManagerClientViewSchema = z
       activeDesktopId: client.active_desktop_id,
       focusedWindowId: client.focused_window_id ?? null,
       focusOrder: client.focus_order,
+      stackActive: client.stack_active,
       connectedAt: client.connected_at,
     })
   );
@@ -324,6 +316,8 @@ const changeSetSchema = z
     group_ids: z.array(identifierSchema).optional(),
     node_ids: z.array(identifierSchema).optional(),
     client_ids: z.array(identifierSchema).optional(),
+    stack_grouped: z.array(identifierSchema).optional(),
+    stack_ungrouped: z.array(identifierSchema).optional(),
   })
   .transform(
     (changes): WindowManagerChangeSet => ({
@@ -332,6 +326,8 @@ const changeSetSchema = z
       groupIds: changes.group_ids ?? [],
       nodeIds: changes.node_ids ?? [],
       clientIds: changes.client_ids ?? [],
+      stackGrouped: changes.stack_grouped ?? [],
+      stackUngrouped: changes.stack_ungrouped ?? [],
     })
   );
 

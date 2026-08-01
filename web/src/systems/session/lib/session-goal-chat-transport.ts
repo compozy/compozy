@@ -95,6 +95,23 @@ function requestText(init?: RequestInit): string | null {
   }
 }
 
+function withCanonicalPromptMessage(
+  init: RequestInit | undefined,
+  submittedText: string | null
+): RequestInit | undefined {
+  if (submittedText === null || typeof init?.body !== "string") return init;
+  try {
+    const body: unknown = JSON.parse(init.body);
+    if (typeof body !== "object" || body === null || Array.isArray(body)) return init;
+    return {
+      ...init,
+      body: JSON.stringify({ ...body, message: submittedText }),
+    };
+  } catch {
+    return init;
+  }
+}
+
 function isJsonContentType(value: string | null): boolean {
   return value?.toLowerCase().includes("json") ?? false;
 }
@@ -156,7 +173,7 @@ export function createGoalAwareFetch({
   return async (input, init) => {
     onRequest?.();
     const submittedText = requestText(init);
-    const response = await fetch(input, init);
+    const response = await fetch(input, withCanonicalPromptMessage(init, submittedText));
     if (!isJsonContentType(response.headers.get("content-type"))) {
       return response;
     }

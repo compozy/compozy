@@ -3,6 +3,8 @@ import { useEffect, useEffectEvent } from "react";
 import { dispatchWindowManagerAction } from "../lib/window-manager-action-dispatch";
 import { resolveWindowManagerActions, shortcutMatches } from "../lib/window-manager-shortcuts";
 import { windowManagerCommandsAvailable } from "../lib/window-manager-command-availability";
+import type { WindowManagerActionId } from "../lib/window-manager-command-registry";
+import { windowManagerStore } from "../stores/window-manager-store";
 import { useOsShell } from "./use-os-shell";
 
 export interface OsShortcutHandlers {
@@ -23,13 +25,21 @@ function isPlainMod(event: KeyboardEvent): boolean {
 
 /** AltGr aliases ⌃⌥ on some layouts — never steal keystrokes from text entry. */
 function isEditableTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false;
+  if (!(target instanceof Element)) return false;
+  const editable = target.closest("input, textarea, select, [contenteditable]");
+  if (!(editable instanceof HTMLElement)) return false;
   return (
-    target.isContentEditable ||
-    target instanceof HTMLInputElement ||
-    target instanceof HTMLTextAreaElement ||
-    target instanceof HTMLSelectElement
+    editable.isContentEditable ||
+    (editable.hasAttribute("contenteditable") &&
+      editable.getAttribute("contenteditable") !== "false") ||
+    editable instanceof HTMLInputElement ||
+    editable instanceof HTMLTextAreaElement ||
+    editable instanceof HTMLSelectElement
   );
+}
+
+function isGlobalTabAction(actionId: WindowManagerActionId): boolean {
+  return actionId === "window.close" || actionId.startsWith("window.tab.");
 }
 
 /**
@@ -46,8 +56,9 @@ export function useOsShortcuts(
   options: OsShortcutOptions = {}
 ): void {
   const enabled = options.enabled ?? true;
-  const { projection, manager } = useOsShell();
+  const { projection, manager, coordinator } = useOsShell();
   const handleKeyDown = useEffectEvent((event: KeyboardEvent) => {
+    if (event.repeat) return;
     if (event.key === "Escape") {
       if (event.defaultPrevented) return;
       handlers.onEscape();
@@ -55,22 +66,51 @@ export function useOsShortcuts(
     }
     const state = projection.get();
     const config = state.windowManagerConfig;
-    if (
-      config !== null &&
-      windowManagerCommandsAvailable(state) &&
-      !isEditableTarget(event.target) &&
-      !event.repeat
-    ) {
+    const editableTarget = isEditableTarget(event.target);
+    if (config !== null && windowManagerCommandsAvailable(state)) {
       const action = resolveWindowManagerActions(config.shortcuts).find(
         candidate => candidate.chord && shortcutMatches(event, candidate.chord)
       );
-      if (action && (!action.needsFocusedWindow || state.focusedId !== null)) {
+      if (
+        action &&
+        (!editableTarget || isGlobalTabAction(action.id)) &&
+        (!action.needsFocusedWindow || state.focusedId !== null)
+      ) {
         event.preventDefault();
         dispatchWindowManagerAction(action.id, {
           manager,
           state,
           openDesktops: handlers.onDesktops,
+          activateWindow: windowId => void coordinator.userFocus(windowId),
+          openNewTab: stackTargetWindowId =>
+            void coordinator
+              .userOpen({
+                app: "new-tab",
+                ...(stackTargetWindowId ? { stackTargetWindowId } : {}),
+              })
+              .then(windowId => {
+                if (windowId !== null) {
+                  windowManagerStore.trigger.paletteIntentRequested({
+                    intent: { kind: "destination", windowId },
+                  });
+                }
+              }),
         });
+        return;
+      }
+      // ⌘[ pops the active tab's own stack (D7). The chord is fixed: the Go
+      // rebinding allow-list deliberately excludes navigation pops.
+      if (
+        !editableTarget &&
+        event.metaKey &&
+        !event.ctrlKey &&
+        !event.altKey &&
+        !event.shiftKey &&
+        event.code === "BracketLeft" &&
+        state.focusedId !== null
+      ) {
+        event.preventDefault();
+        void manager.popWindowRoute(state.focusedId).completion;
         return;
       }
     }

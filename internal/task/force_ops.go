@@ -104,6 +104,7 @@ func (m *Service) ForceReleaseRun(
 	if err != nil {
 		return nil, err
 	}
+	defer m.restoreTaskRunNetworkBestEffort(ctx, mutation.Previous.SessionID, mutation.Run.ID)
 	queueGeneration, canceledInputs, err := m.invalidateForceRunInputs(ctx, mutation.Previous)
 	if err != nil {
 		return nil, err
@@ -173,6 +174,7 @@ func (m *Service) ForceFailRun(
 	if err != nil {
 		return nil, err
 	}
+	defer m.restoreTaskRunNetworkBestEffort(ctx, mutation.Previous.SessionID, mutation.Run.ID)
 	queueGeneration, canceledInputs, err := m.invalidateForceRunInputs(ctx, mutation.Previous)
 	if err != nil {
 		return nil, err

@@ -6,7 +6,7 @@ import process from "node:process";
 import { promisify } from "node:util";
 
 import { networkOperatorSelectors } from "../fixtures/selectors";
-import { ensureAppWindow, openAppWindow } from "../fixtures/os-navigation";
+import { appWindow, ensureAppWindow, openAppWindow } from "../fixtures/os-navigation";
 import {
   browserNetworkOperatorFlowScenario,
   seedBrowserNetworkOperatorFlow,
@@ -87,7 +87,7 @@ test.describe("network disabled state", () => {
     await browserArtifacts.captureScreenshot("network-disabled", appPage);
     await networkWin.getByTestId("network-empty-open-settings").click();
     await expect.poll(() => new URL(appPage.url()).pathname).toBe("/settings/network");
-    const settingsWin = appPage.getByTestId("os-window-app:settings");
+    const settingsWin = appWindow(appPage, "settings");
     await expect(settingsWin.getByTestId("settings-page-network-hero")).toContainText("disabled");
 
     await runtime.artifactCollector.captureJSON("browser_api_snapshots", {
@@ -548,7 +548,7 @@ async function captureNetworkParity(
       work: await runtime.requestOperatorJSON<NetworkWorkEnvelope>(workPath),
     },
     cli: {
-      status: await networkCLI(runtime, ["network", "status"]),
+      status: await networkCLI(runtime, ["network", "--workspace", ids.workspaceId, "status"]),
       channels: await networkCLI(runtime, ["network", "--workspace", ids.workspaceId, "channels"]),
       thread: await networkCLI(runtime, [
         "network",

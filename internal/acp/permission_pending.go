@@ -87,6 +87,17 @@ func (p *AgentProcess) clearPendingPermission(requestID string) {
 	delete(p.pendingPermissions, strings.TrimSpace(requestID))
 }
 
+// HasPendingPermission reports whether this process is waiting for an
+// interactive permission decision.
+func (p *AgentProcess) HasPendingPermission() bool {
+	if p == nil {
+		return false
+	}
+	p.pendingPermissionMu.Lock()
+	defer p.pendingPermissionMu.Unlock()
+	return len(p.pendingPermissions) > 0
+}
+
 // ResolvePermission delivers a user decision to a waiting permission request.
 func (p *AgentProcess) ResolvePermission(req ApproveRequest) error {
 	if err := req.Validate(); err != nil {

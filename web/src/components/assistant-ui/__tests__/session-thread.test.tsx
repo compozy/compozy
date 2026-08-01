@@ -1188,7 +1188,7 @@ describe("SessionThread transcript states", () => {
 
   // jsdom leaves scroll metrics at 0, so the live-follow machine cannot observe a
   // gap on its own; mock the viewport geometry to place the reader away from the
-  // live edge, then drive the same wheel/scroll gestures the hook listens for.
+  // live edge, then emit the scroll event that represents the changed viewport.
   function primeScrolledAwayViewport(viewport: HTMLElement) {
     Object.defineProperty(viewport, "scrollHeight", { configurable: true, value: 2000 });
     Object.defineProperty(viewport, "clientHeight", { configurable: true, value: 500 });
@@ -1207,10 +1207,10 @@ describe("SessionThread transcript states", () => {
     expect(pill).toHaveAttribute("data-visible", "false");
     expect(pill).toBeDisabled();
 
-    // A manual wheel gesture opts out of live-follow; the machine reads the gap and
-    // reveals the pill.
+    // A viewport change away from the live edge opts out of live-follow even when
+    // the platform does not expose a preceding wheel/touch/pointer event.
     primeScrolledAwayViewport(viewport);
-    fireEvent.wheel(viewport);
+    fireEvent.scroll(viewport);
     await waitFor(() => {
       expect(pill).toHaveAttribute("data-visible", "true");
       expect(pill).toBeEnabled();

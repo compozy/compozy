@@ -2,7 +2,7 @@ package hooks
 
 import "testing"
 
-const expectedHookEventCount = 90
+const expectedHookEventCount = 95
 
 func TestAllHookEvents(t *testing.T) {
 	t.Parallel()
@@ -68,6 +68,11 @@ func TestSyncEligibleClassification(t *testing.T) {
 		HookWindowManagerDesktopCreated:  {},
 		HookWindowManagerDesktopDeleted:  {},
 		HookWindowManagerWindowMoved:     {},
+		HookWindowManagerWindowOpened:    {},
+		HookWindowManagerWindowClosed:    {},
+		HookWindowManagerStackGrouped:    {},
+		HookWindowManagerStackUngrouped:  {},
+		HookWindowManagerStackActivated:  {},
 	}
 
 	if !HookSessionPreCreate.SyncEligible() {
@@ -175,6 +180,11 @@ func TestWindowManagerHookEventsHaveExpectedFamilyAndSyncEligibility(t *testing.
 			HookWindowManagerDesktopCreated,
 			HookWindowManagerDesktopDeleted,
 			HookWindowManagerWindowMoved,
+			HookWindowManagerWindowOpened,
+			HookWindowManagerWindowClosed,
+			HookWindowManagerStackGrouped,
+			HookWindowManagerStackUngrouped,
+			HookWindowManagerStackActivated,
 		}
 		seen := make(map[HookEvent]struct{}, len(AllHookEvents()))
 		for _, event := range AllHookEvents() {

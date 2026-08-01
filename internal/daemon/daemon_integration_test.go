@@ -38,6 +38,7 @@ import (
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
 	"github.com/compozy/compozy/internal/vault"
+	"github.com/compozy/compozy/internal/windowmanager"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/kballard/go-shellquote"
 )
@@ -2563,30 +2564,78 @@ func TestBootLeavesSkillDependenciesNilWhenSkillsDisabled(t *testing.T) {
 }
 
 func TestBootBuildsHooksFromWorkspaceConfigAgentAndSkills(t *testing.T) {
-	homePaths := integrationHomePaths(t)
-	cfg := testConfig(t, homePaths)
-	cfg.Memory.Enabled = false
-	cfg.Skills.Enabled = true
+	t.Run("Should build hooks from workspace config agent and skills", func(t *testing.T) {
+		homePaths := integrationHomePaths(t)
+		cfg := testConfig(t, homePaths)
+		cfg.Memory.Enabled = false
+		cfg.Skills.Enabled = true
 
-	workspaceRoot := filepath.Join(t.TempDir(), "workspace")
-	if err := os.MkdirAll(filepath.Join(workspaceRoot, compozyconfig.DirName), 0o755); err != nil {
-		t.Fatalf("os.MkdirAll(%q) error = %v", filepath.Join(workspaceRoot, compozyconfig.DirName), err)
-	}
+		workspaceRoot := filepath.Join(t.TempDir(), "workspace")
+		if err := os.MkdirAll(filepath.Join(workspaceRoot, compozyconfig.DirName), 0o755); err != nil {
+			t.Fatalf("os.MkdirAll(%q) error = %v", filepath.Join(workspaceRoot, compozyconfig.DirName), err)
+		}
 
-	scriptPath := writeDaemonHookScript(t, t.TempDir(), "capture.sh", "#!/bin/sh\ncat > \"$1\"\n")
-	configOutput := filepath.Join(t.TempDir(), "config-create.json")
-	agentOutput := filepath.Join(t.TempDir(), "agent-stop.json")
-	skillOutput := filepath.Join(t.TempDir(), "skill-create.json")
+		scriptPath := writeDaemonHookScript(t, t.TempDir(), "capture.sh", "#!/bin/sh\ncat > \"$1\"\n")
+		windowScriptPath := writeDaemonHookScript(
+			t,
+			t.TempDir(),
+			"capture-window.sh",
+			"#!/bin/sh\ncat > \"$2\"\nprintf 'x\\n' >> \"$1\"\n",
+		)
+		configOutput := filepath.Join(t.TempDir(), "config-create.json")
+		agentOutput := filepath.Join(t.TempDir(), "agent-stop.json")
+		skillOutput := filepath.Join(t.TempDir(), "skill-create.json")
+		windowCountOutput := filepath.Join(t.TempDir(), "window-count.txt")
+		windowOpenedOutput := filepath.Join(t.TempDir(), "window-opened.json")
+		windowClosedOutput := filepath.Join(t.TempDir(), "window-closed.json")
+		windowGroupedOutput := filepath.Join(t.TempDir(), "window-grouped.json")
+		windowUngroupedOutput := filepath.Join(t.TempDir(), "window-ungrouped.json")
+		windowActivatedOutput := filepath.Join(t.TempDir(), "window-activated.json")
 
-	writeDaemonFile(t, filepath.Join(workspaceRoot, compozyconfig.DirName, "config.toml"), `
+		writeDaemonFile(t, filepath.Join(workspaceRoot, compozyconfig.DirName, "config.toml"), `
 [[hooks.declarations]]
 name = "config-create"
 event = "session.post_create"
 mode = "sync"
 command = "`+scriptPath+`"
 args = ["`+configOutput+`"]
+
+[[hooks.declarations]]
+name = "window-opened"
+event = "window_manager.window.opened"
+mode = "async"
+command = "`+windowScriptPath+`"
+args = ["`+windowCountOutput+`", "`+windowOpenedOutput+`"]
+
+[[hooks.declarations]]
+name = "window-closed"
+event = "window_manager.window.closed"
+mode = "async"
+command = "`+windowScriptPath+`"
+args = ["`+windowCountOutput+`", "`+windowClosedOutput+`"]
+
+[[hooks.declarations]]
+name = "window-grouped"
+event = "window_manager.stack.grouped"
+mode = "async"
+command = "`+windowScriptPath+`"
+args = ["`+windowCountOutput+`", "`+windowGroupedOutput+`"]
+
+[[hooks.declarations]]
+name = "window-ungrouped"
+event = "window_manager.stack.ungrouped"
+mode = "async"
+command = "`+windowScriptPath+`"
+args = ["`+windowCountOutput+`", "`+windowUngroupedOutput+`"]
+
+[[hooks.declarations]]
+name = "window-activated"
+event = "window_manager.stack.activated"
+mode = "async"
+command = "`+windowScriptPath+`"
+args = ["`+windowCountOutput+`", "`+windowActivatedOutput+`"]
 `)
-	writeDaemonFile(t, filepath.Join(workspaceRoot, compozyconfig.DirName, "agents", "coder", "AGENT.md"), `---
+		writeDaemonFile(t, filepath.Join(workspaceRoot, compozyconfig.DirName, "agents", "coder", "AGENT.md"), `---
 name: coder
 provider: claude
 hooks:
@@ -2599,7 +2648,7 @@ hooks:
 
 Prompt.
 `)
-	writeDaemonFile(t, filepath.Join(workspaceRoot, compozyconfig.DirName, "skills", "local-hook", "SKILL.md"), `---
+		writeDaemonFile(t, filepath.Join(workspaceRoot, compozyconfig.DirName, "skills", "local-hook", "SKILL.md"), `---
 name: local-hook
 description: workspace lifecycle hook
 metadata:
@@ -2615,82 +2664,165 @@ metadata:
 body
 `)
 
-	resolvedWorkspace := seedDaemonWorkspace(t, homePaths, workspaceRoot)
+		resolvedWorkspace := seedDaemonWorkspace(t, homePaths, workspaceRoot)
 
-	var capturedDeps SessionManagerDeps
-	d, err := New(
-		WithHomePaths(homePaths),
-		WithConfig(&cfg),
-		WithLogger(discardLogger()),
-	)
-	if err != nil {
-		t.Fatalf("New() error = %v", err)
-	}
-	d.newSessionManager = func(_ context.Context, deps SessionManagerDeps) (SessionManager, error) {
-		capturedDeps = deps
-		return &fakeSessionManager{}, nil
-	}
-	d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
-		return &fakeObserver{}, nil
-	}
-	d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) {
-		return &fakeServer{name: "http"}, nil
-	}
-	d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) {
-		return &fakeServer{name: "uds"}, nil
-	}
-
-	if err := d.boot(testutil.Context(t)); err != nil {
-		t.Fatalf("boot() error = %v", err)
-	}
-	t.Cleanup(func() {
-		if err := d.Shutdown(testutil.Context(t)); err != nil {
-			t.Fatalf("Shutdown() error = %v", err)
+		var capturedDeps SessionManagerDeps
+		d, err := New(
+			WithHomePaths(homePaths),
+			WithConfig(&cfg),
+			WithLogger(discardLogger()),
+		)
+		if err != nil {
+			t.Fatalf("New() error = %v", err)
 		}
+		d.newSessionManager = func(_ context.Context, deps SessionManagerDeps) (SessionManager, error) {
+			capturedDeps = deps
+			return &fakeSessionManager{}, nil
+		}
+		d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
+			return &fakeObserver{}, nil
+		}
+		d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) {
+			return &fakeServer{name: "http"}, nil
+		}
+		d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) {
+			return &fakeServer{name: "uds"}, nil
+		}
+
+		if err := d.boot(testutil.Context(t)); err != nil {
+			t.Fatalf("boot() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := d.Shutdown(testutil.Context(t)); err != nil {
+				t.Fatalf("Shutdown() error = %v", err)
+			}
+		})
+
+		if d.hooks == nil {
+			t.Fatal("boot() did not initialize hooks runtime")
+		}
+		if capturedDeps.Notifier == nil {
+			t.Fatal("boot() did not inject the hooks notifier")
+		}
+		if capturedDeps.Hooks.Session == nil {
+			t.Fatal("boot() did not inject the hooks dispatcher")
+		}
+
+		sess := &session.Session{
+			ID:          "sess-1",
+			Name:        "demo",
+			AgentName:   "coder",
+			WorkspaceID: resolvedWorkspace.WorkspaceID,
+			Workspace:   resolvedWorkspace.RootDir,
+			Type:        session.SessionTypeUser,
+			State:       session.StateStopped,
+			CreatedAt:   time.Date(2026, 4, 9, 10, 0, 0, 0, time.UTC),
+			UpdatedAt:   time.Date(2026, 4, 9, 11, 0, 0, 0, time.UTC),
+		}
+
+		if _, err := capturedDeps.Hooks.Session.DispatchSessionPostCreate(
+			testutil.Context(t),
+			hookspkg.SessionPostCreatePayload(
+				hookSessionLifecyclePayload(sess, hookspkg.HookSessionPostCreate, time.Now().UTC()),
+			),
+		); err != nil {
+			t.Fatalf("DispatchSessionPostCreate() error = %v", err)
+		}
+		if _, err := capturedDeps.Hooks.Session.DispatchSessionPostStop(
+			testutil.Context(t),
+			hookspkg.SessionPostStopPayload(
+				hookSessionLifecyclePayload(sess, hookspkg.HookSessionPostStop, time.Now().UTC()),
+			),
+		); err != nil {
+			t.Fatalf("DispatchSessionPostStop() error = %v", err)
+		}
+
+		assertLifecycleHookPayload(t, configOutput, hookspkg.HookSessionPostCreate, resolvedWorkspace)
+		assertLifecycleHookPayload(t, skillOutput, hookspkg.HookSessionPostCreate, resolvedWorkspace)
+		assertLifecycleHookPayload(t, agentOutput, hookspkg.HookSessionPostStop, resolvedWorkspace)
+
+		t.Run("Should dispatch configured window-manager hooks", func(t *testing.T) {
+			windowHookDispatcher, ok := d.hooks.(*hookspkg.Hooks)
+			if !ok {
+				t.Fatalf("boot() hooks runtime = %T, want *hooks.Hooks", d.hooks)
+			}
+			windowObserver := newWindowManagerHookObserver(&bootState{
+				logger:         discardLogger(),
+				hookDispatcher: windowHookDispatcher,
+			})
+			windowEvents := []struct {
+				command windowmanager.CommandID
+				changes windowmanager.ChangeSet
+				event   hookspkg.HookEvent
+				output  string
+			}{
+				{
+					command: windowmanager.CommandWindowOpen,
+					event:   hookspkg.HookWindowManagerWindowOpened,
+					output:  windowOpenedOutput,
+				},
+				{
+					command: windowmanager.CommandWindowClose,
+					event:   hookspkg.HookWindowManagerWindowClosed,
+					output:  windowClosedOutput,
+				},
+				{
+					command: windowmanager.CommandWindowStackGroup,
+					changes: windowmanager.ChangeSet{StackGrouped: []windowmanager.NodeID{"stack-a"}},
+					event:   hookspkg.HookWindowManagerStackGrouped,
+					output:  windowGroupedOutput,
+				},
+				{
+					command: windowmanager.CommandWindowMove,
+					changes: windowmanager.ChangeSet{StackUngrouped: []windowmanager.NodeID{"stack-a"}},
+					event:   hookspkg.HookWindowManagerStackUngrouped,
+					output:  windowUngroupedOutput,
+				},
+				{
+					command: windowmanager.CommandWindowStackSetActive,
+					event:   hookspkg.HookWindowManagerStackActivated,
+					output:  windowActivatedOutput,
+				},
+			}
+			for index, item := range windowEvents {
+				windowObserver(testutil.Context(t), windowmanager.Event{
+					WorkspaceID: windowmanager.WorkspaceID(resolvedWorkspace.WorkspaceID),
+					Revision:    windowmanager.Revision(index + 1),
+					CommandID:   item.command,
+					Changes:     item.changes,
+					OccurredAt:  time.Date(2026, 7, 30, 12, index, 0, 0, time.UTC),
+				})
+			}
+			waitForCondition(t, "five window-manager script hook deliveries", func() bool {
+				payload, err := os.ReadFile(windowCountOutput)
+				return err == nil && len(strings.Fields(string(payload))) == len(windowEvents)
+			})
+			for _, item := range windowEvents {
+				payload, err := os.ReadFile(item.output)
+				if err != nil {
+					t.Fatalf("os.ReadFile(%q) error = %v", item.output, err)
+				}
+				var captured hookspkg.WindowManagerPayload
+				if err := json.Unmarshal(payload, &captured); err != nil {
+					t.Fatalf("json.Unmarshal(%s hook payload) error = %v; body=%s", item.event, err, payload)
+				}
+				if captured.Event != item.event || captured.WorkspaceID != resolvedWorkspace.WorkspaceID {
+					t.Fatalf("captured %s hook payload = %#v", item.event, captured)
+				}
+			}
+			windowObserver(testutil.Context(t), windowmanager.Event{
+				WorkspaceID: windowmanager.WorkspaceID(resolvedWorkspace.WorkspaceID),
+				CommandID:   windowmanager.CommandWindowFocus,
+			})
+			countPayload, err := os.ReadFile(windowCountOutput)
+			if err != nil {
+				t.Fatalf("os.ReadFile(%q) error = %v", windowCountOutput, err)
+			}
+			if len(strings.Fields(string(countPayload))) != len(windowEvents) {
+				t.Fatalf("window hook invocation count = %q, want exactly %d", countPayload, len(windowEvents))
+			}
+		})
 	})
-
-	if d.hooks == nil {
-		t.Fatal("boot() did not initialize hooks runtime")
-	}
-	if capturedDeps.Notifier == nil {
-		t.Fatal("boot() did not inject the hooks notifier")
-	}
-	if capturedDeps.Hooks.Session == nil {
-		t.Fatal("boot() did not inject the hooks dispatcher")
-	}
-
-	sess := &session.Session{
-		ID:          "sess-1",
-		Name:        "demo",
-		AgentName:   "coder",
-		WorkspaceID: resolvedWorkspace.WorkspaceID,
-		Workspace:   resolvedWorkspace.RootDir,
-		Type:        session.SessionTypeUser,
-		State:       session.StateStopped,
-		CreatedAt:   time.Date(2026, 4, 9, 10, 0, 0, 0, time.UTC),
-		UpdatedAt:   time.Date(2026, 4, 9, 11, 0, 0, 0, time.UTC),
-	}
-
-	if _, err := capturedDeps.Hooks.Session.DispatchSessionPostCreate(
-		testutil.Context(t),
-		hookspkg.SessionPostCreatePayload(
-			hookSessionLifecyclePayload(sess, hookspkg.HookSessionPostCreate, time.Now().UTC()),
-		),
-	); err != nil {
-		t.Fatalf("DispatchSessionPostCreate() error = %v", err)
-	}
-	if _, err := capturedDeps.Hooks.Session.DispatchSessionPostStop(
-		testutil.Context(t),
-		hookspkg.SessionPostStopPayload(
-			hookSessionLifecyclePayload(sess, hookspkg.HookSessionPostStop, time.Now().UTC()),
-		),
-	); err != nil {
-		t.Fatalf("DispatchSessionPostStop() error = %v", err)
-	}
-
-	assertLifecycleHookPayload(t, configOutput, hookspkg.HookSessionPostCreate, resolvedWorkspace)
-	assertLifecycleHookPayload(t, skillOutput, hookspkg.HookSessionPostCreate, resolvedWorkspace)
-	assertLifecycleHookPayload(t, agentOutput, hookspkg.HookSessionPostStop, resolvedWorkspace)
 }
 
 func TestBootRunsWorkspaceTaskRunHookWithRelativeScriptPath(t *testing.T) {

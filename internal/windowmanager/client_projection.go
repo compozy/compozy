@@ -68,19 +68,45 @@ func projectDurableClientView(
 					view.ActiveDesktopID = window.DesktopID
 				}
 				if window.DesktopID == view.ActiveDesktopID {
-					view.FocusedWindowID = &windowID
-					view.FocusOrder = prependFocus(view.FocusOrder, windowID)
+					view = projectWindowActivation(view, snapshot, windowID)
 				}
 			}
 		case NavigateWindowCommand:
 			if window, exists := snapshot.Windows[command.WindowID]; exists && !window.Minimized {
-				view.ActiveDesktopID = window.DesktopID
-				view.FocusedWindowID = &command.WindowID
-				view.FocusOrder = prependFocus(view.FocusOrder, command.WindowID)
+				view = projectWindowActivation(view, snapshot, command.WindowID)
+			}
+		case GroupWindowsCommand:
+			if len(command.WindowIDs) > 0 {
+				activeID := command.WindowIDs[len(command.WindowIDs)-1]
+				view = projectWindowActivation(view, snapshot, activeID)
+			}
+		case SetStackActiveCommand:
+			if location, stacked := findStackByWindow(&snapshot, command.WindowID); stacked {
+				if view.StackActive == nil {
+					view.StackActive = make(map[NodeID]WindowID)
+				}
+				view.StackActive[location.id()] = command.WindowID
 			}
 		}
 	}
 	return repairClientView(view, snapshot)
+}
+
+func projectWindowActivation(view ClientView, snapshot Snapshot, windowID WindowID) ClientView {
+	window, exists := snapshot.Windows[windowID]
+	if !exists || window.Minimized {
+		return view
+	}
+	view.ActiveDesktopID = window.DesktopID
+	view.FocusedWindowID = &windowID
+	view.FocusOrder = prependFocus(view.FocusOrder, windowID)
+	if location, stacked := findStackByWindow(&snapshot, windowID); stacked {
+		if view.StackActive == nil {
+			view.StackActive = make(map[NodeID]WindowID)
+		}
+		view.StackActive[location.id()] = windowID
+	}
+	return view
 }
 
 func (m *Manager) applyClientProjection(
@@ -145,6 +171,7 @@ func followDepartingZoomOwner(
 }
 
 func repairClientView(view ClientView, snapshot Snapshot) ClientView {
+	view.StackActive = repairStackActive(view.StackActive, &snapshot)
 	if _, exists := desktopIndexByID(&snapshot, view.ActiveDesktopID); !exists {
 		view.ActiveDesktopID = defaultDesktopID(snapshot)
 	}
@@ -173,6 +200,45 @@ func repairClientView(view ClientView, snapshot Snapshot) ClientView {
 	return view
 }
 
+func repairStackActive(current map[NodeID]WindowID, snapshot *Snapshot) map[NodeID]WindowID {
+	repaired := make(map[NodeID]WindowID)
+	for desktopIndex := range snapshot.Desktops {
+		desktop := &snapshot.Desktops[desktopIndex]
+		for stackIndex := range desktop.FloatingStacks {
+			stack := &desktop.FloatingStacks[stackIndex]
+			repaired[stack.ID] = repairedStackActive(current, stack.ID, stack.WindowIDs, stack.ActiveID)
+		}
+		for groupIndex := range desktop.Groups {
+			collectNodeStackActive(&desktop.Groups[groupIndex].Root, current, repaired)
+		}
+	}
+	return repaired
+}
+
+func collectNodeStackActive(node *LayoutNode, current map[NodeID]WindowID, repaired map[NodeID]WindowID) {
+	if node.Kind == NodeKindStack {
+		repaired[node.ID] = repairedStackActive(current, node.ID, node.WindowIDs, node.ActiveID)
+	}
+	for index := range node.Children {
+		collectNodeStackActive(&node.Children[index], current, repaired)
+	}
+}
+
+func repairedStackActive(
+	current map[NodeID]WindowID,
+	stackID NodeID,
+	members []WindowID,
+	durable *WindowID,
+) WindowID {
+	if active, exists := current[stackID]; exists && containsWindowID(members, active) {
+		return active
+	}
+	if durable != nil && containsWindowID(members, *durable) {
+		return *durable
+	}
+	return members[0]
+}
+
 func focusForDesktop(view ClientView, snapshot Snapshot) *WindowID {
 	for _, windowID := range view.FocusOrder {
 		if window, exists := snapshot.Windows[windowID]; exists &&
@@ -194,14 +260,32 @@ func firstVisibleWindow(snapshot Snapshot, desktopID DesktopID) WindowID {
 		return ""
 	}
 	for _, group := range snapshot.Desktops[desktopIndex].Groups {
-		for _, windowID := range nodeWindowIDs(group.Root) {
-			if !snapshot.Windows[windowID].Minimized {
-				return windowID
-			}
+		if windowID := firstVisibleNodeWindow(group.Root); windowID != "" {
+			return windowID
+		}
+	}
+	for _, stack := range snapshot.Desktops[desktopIndex].FloatingStacks {
+		if stack.ActiveID != nil && !snapshot.Windows[*stack.ActiveID].Minimized {
+			return *stack.ActiveID
 		}
 	}
 	for _, windowID := range snapshot.Desktops[desktopIndex].Floating {
 		if !snapshot.Windows[windowID].Minimized {
+			return windowID
+		}
+	}
+	return ""
+}
+
+func firstVisibleNodeWindow(node LayoutNode) WindowID {
+	if node.Kind == NodeKindStack && node.ActiveID != nil {
+		return *node.ActiveID
+	}
+	if node.Kind == NodeKindLeaf && node.WindowID != nil {
+		return *node.WindowID
+	}
+	for _, child := range node.Children {
+		if windowID := firstVisibleNodeWindow(child); windowID != "" {
 			return windowID
 		}
 	}
@@ -223,6 +307,14 @@ func clientViewsEqual(left, right ClientView) bool {
 		valueOrZero(left.FocusedWindowID) != valueOrZero(right.FocusedWindowID) ||
 		len(left.FocusOrder) != len(right.FocusOrder) {
 		return false
+	}
+	if len(left.StackActive) != len(right.StackActive) {
+		return false
+	}
+	for stackID, windowID := range left.StackActive {
+		if right.StackActive[stackID] != windowID {
+			return false
+		}
 	}
 	for index := range left.FocusOrder {
 		if left.FocusOrder[index] != right.FocusOrder[index] {

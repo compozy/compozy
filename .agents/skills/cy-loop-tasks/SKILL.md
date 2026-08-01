@@ -37,6 +37,11 @@ Stop→restart — restarts are a resume safety net, not the driver.
   and activates the herdr frontend lane for the whole loop. Captured once at
   bootstrap into `state.yaml.frontend_agent`; when absent, every task runs
   locally. Syntax examples in `references/goal-header-template.md`.
+- `--stacked` — optional, default off, tasks mode only. Publishes each Phase B
+  checkpoint as one layer of a GitHub stacked-PR chain (`gh stack`). Captured
+  once at bootstrap into `state.yaml.stacked`. When present, read
+  `references/stacked-prs.md` in full during bootstrap and verify its
+  prerequisites before the first Phase B iteration.
 - A pre-authored `.compozy/tasks/<slug>/_techspec.md`. Without it, bootstrap
   stops with a blocker.
 
@@ -107,9 +112,11 @@ the matching branch below is selected.
    `outcome=blocked`, and stop (`state.yaml` does not exist yet, so there is
    no update-state call).
 2. Run `python3 .agents/skills/cy-loop-tasks/scripts/init-state.py <slug> --goal "<goal_text>"`,
-   adding `--frontend <claude|cursor>` when the invocation text carries the
-   parameter. Mode auto-detects: `tasks` when `_tasks.md` plus at least one
-   `task_*.md` exist, else `free`.
+   adding `--frontend <claude|cursor>` and/or `--stacked` when the invocation
+   text carries the parameter (for `--stacked`, first read
+   `references/stacked-prs.md` in full and verify its prerequisites). Mode
+   auto-detects: `tasks` when `_tasks.md` plus at least one `task_*.md`
+   exist, else `free`.
 3. Activate `cy-spec-preflight` for the phase the next iteration enters
    (`tasks`, or `task-body` when a single concrete file is next).
 4. Scaffold `.compozy/tasks/<slug>/memory/MEMORY.md` with the canonical
@@ -146,9 +153,12 @@ sections.
    frontend lane, verify the worker's evidence instead of re-running verify.
 7. Run `python3 .agents/skills/cy-loop-tasks/scripts/update-state.py <slug> --phase B --task-completed <stem> --action "executed <stem>" --outcome completed --memory-written "memory/<stem>.md,memory/MEMORY.md" --verify-pass`.
 8. Run `python3 .agents/skills/cy-loop-tasks/scripts/commit-checkpoint.py <slug> --task <stem>`.
-   Stdout is a commit SHA or `SKIP: no changes`; copy it into the iteration
-   summary. On exit 1, enter the repair loop and retry the normal checkpoint
-   after its root cause is fixed. Never bypass the hook with `--no-verify`.
+   Stdout starts with a commit SHA or `SKIP: no changes`; copy it into the
+   iteration summary (in stacked mode a `stack: submitted` line follows —
+   the script owns the layer branch and PR submission, see
+   `references/stacked-prs.md`). On exit 1, enter the repair loop and retry
+   the normal checkpoint after its root cause is fixed. Never bypass the
+   hook with `--no-verify`.
 
 Done when: task frontmatter, memory, `state.yaml`, and the checkpoint result
 all reflect the same completed task.
@@ -322,7 +332,9 @@ The canonical `[[CODEX_LOOP ...]]` header, the manual invocation text, and
   `cy-execute-task` runs with auto-commit disabled, and every worker packet
   forbids committing. The checkpoint captures code, memory, task frontmatter,
   the master tasks file, and the advanced `state.yaml` in one atomic,
-  restorable snapshot.
+  restorable snapshot. When `state.stacked=true`, the checkpoint script also
+  owns the stack layer and PR submission (`references/stacked-prs.md`); the
+  loop never merges the stack.
 - Phase E requires `qa.report_done=true`, `qa.execution_done=true`,
   `review.ship=true`, and `verify.last_status=PASS`.
 - Do not regenerate the loop's input graph with `cy-create-tasks`,
@@ -341,12 +353,22 @@ The canonical `[[CODEX_LOOP ...]]` header, the manual invocation text, and
   the filesystem. Reconcile by adding/removing `_tasks.md` before bootstrap,
   or run `update-state.py <slug> --reconcile-tasks` when the task graph was
   authored after a free-mode bootstrap.
+- **Stack strategy changed** — after the user explicitly abandons the remote
+  stack, run `update-state.py <slug> --disable-stacked` before the next
+  checkpoint; keep `state.yaml` writer-owned.
+- **Frontend strategy changed** — after the user explicitly abandons worker
+  delegation, run `update-state.py <slug> --disable-frontend`; remaining
+  frontend work executes locally.
 - **`state.yaml` parse failure** — `detect-phase.py` exits 1 with the parse
   error on stderr. Diagnose the malformed writer or interrupted write from
   evidence and repair it without discarding unrelated worktree changes.
 - **`commit-checkpoint.py` exit 1** — repair the hook or commit failure and
   retry normally. If the repair changes tracked source after the last PASS,
   rerun `cy-final-verify` before retrying. `SKIP: no changes` is success.
+- **`commit-checkpoint.py` exit 2 in stacked mode** — resume drift: the
+  worktree is outside the stack while layer branches exist. Run
+  `gh stack checkout <slug>/task-NN` then `gh stack top` and retry
+  (`references/stacked-prs.md`); never re-init the stack.
 - **Worker launch or delegation failure** — the pane shows raw JSON instead
   of a TUI banner, `rtk herdr agent list` stays `unknown`, or the status wait
   times out with no progress: interrupt

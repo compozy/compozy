@@ -30,6 +30,7 @@ func (m *Service) publishCompletedLeaseSettlement(
 	defer advisoryCancel()
 	m.recordCompletionHallucinationSuspected(advisoryCtx, run, actor)
 	m.dispatchTaskRunCompleted(publicationCtx, run, reconciledTask, actor)
+	m.restoreTaskRunNetworkBestEffort(publicationCtx, run.SessionID, run.ID)
 	if !run.IsLoopWorker() {
 		autoCtx, cancel := context.WithTimeout(publicationCtx, autoEnqueueDispatchTimeout)
 		defer cancel()

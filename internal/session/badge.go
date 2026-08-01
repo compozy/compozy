@@ -87,7 +87,7 @@ func BadgeForInfo(info *Info) Badge {
 	return CanonicalBadge(BadgeInputs{
 		State:       info.State,
 		Failure:     info.Failure,
-		PendingAuth: infoFailureNeedsAuth(info.Failure),
+		PendingAuth: info.PendingPermission || infoFailureNeedsAuth(info.Failure),
 		Stalled:     infoHasDetectedStall(info),
 		ActivePrompt: info.Liveness != nil &&
 			info.Liveness.Activity != nil &&
@@ -136,12 +136,13 @@ func BadgeForHealth(info *Info, health heartbeat.SessionHealth) Badge {
 		state = info.State
 		failure = info.Failure
 	}
+	pendingPermission := info != nil && info.PendingPermission
 	return CanonicalBadge(BadgeInputs{
 		State:               state,
 		HealthState:         health.State,
 		Health:              health.Health,
 		Failure:             failure,
-		PendingAuth:         infoFailureNeedsAuth(failure),
+		PendingAuth:         pendingPermission || infoFailureNeedsAuth(failure),
 		ActivePrompt:        health.ActivePrompt,
 		IneligibilityReason: health.IneligibilityReason,
 	})

@@ -310,6 +310,96 @@ func TestDaemonNativeTools(t *testing.T) {
 			t.Fatalf("persisted route = %#v, want task detail", route)
 		}
 
+		secondOpen, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDWindowOpen,
+			Input: json.RawMessage(
+				`{"expected_revision":3,"window_id":"window-second","app":"tasks",` +
+					`"desktop_id":"desktop-build","route":{"pathname":"/tasks/second","search":{}},` +
+					`"floating_rect":{"x":0.2,"y":0.2,"width":0.4,"height":0.4}}`,
+			),
+		})
+		if err != nil {
+			t.Fatalf("Registry.Call(window_open second) error = %v", err)
+		}
+		var secondOpened windowManagerCommandResult
+		if err := json.Unmarshal(secondOpen.Structured, &secondOpened); err != nil {
+			t.Fatalf("json.Unmarshal(window_open second) error = %v", err)
+		}
+		if !secondOpened.Applied || secondOpened.Revision != 4 {
+			t.Fatalf("window_open second result = %#v", secondOpened)
+		}
+
+		groupedResult, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDWindowGroup,
+			Input: json.RawMessage(
+				`{"expected_revision":4,"target_window_id":"window-tasks",` +
+					`"window_ids":["window-second"],"insert_index":1}`,
+			),
+		})
+		if err != nil {
+			t.Fatalf("Registry.Call(window_group) error = %v", err)
+		}
+		var grouped windowManagerCommandResult
+		if err := json.Unmarshal(groupedResult.Structured, &grouped); err != nil {
+			t.Fatalf("json.Unmarshal(window_group) error = %v", err)
+		}
+		if !grouped.Applied || grouped.Revision != 5 || len(grouped.Changes.StackGrouped) != 1 {
+			t.Fatalf("window_group result = %#v", grouped)
+		}
+
+		mutations := []struct {
+			id      toolspkg.ToolID
+			input   string
+			command windowmanager.CommandID
+		}{
+			{
+				id: toolspkg.ToolIDWindowActivate, command: windowmanager.CommandWindowStackSetActive,
+				input: `{"expected_revision":5,"window_id":"window-tasks"}`,
+			},
+			{
+				id: toolspkg.ToolIDWindowReorder, command: windowmanager.CommandWindowStackReorder,
+				input: `{"expected_revision":6,"window_id":"window-second","index":0}`,
+			},
+			{
+				id: toolspkg.ToolIDWindowPin, command: windowmanager.CommandWindowPin,
+				input: `{"expected_revision":7,"window_id":"window-tasks","pinned":true}`,
+			},
+			{
+				id: toolspkg.ToolIDWindowClose, command: windowmanager.CommandWindowClose,
+				input: `{"expected_revision":8,"window_id":"window-second"}`,
+			},
+			{
+				id: toolspkg.ToolIDWindowReopen, command: windowmanager.CommandWindowReopen,
+				input: `{"expected_revision":9}`,
+			},
+		}
+		for index, mutation := range mutations {
+			t.Run(fmt.Sprintf("Should execute %s", mutation.id), func(t *testing.T) {
+				result, callErr := registry.Call(t.Context(), scope, toolspkg.CallRequest{
+					ToolID: mutation.id,
+					Input:  json.RawMessage(mutation.input),
+				})
+				if callErr != nil {
+					t.Fatalf("Registry.Call(%s) error = %v", mutation.id, callErr)
+				}
+				var decoded windowManagerCommandResult
+				if unmarshalErr := json.Unmarshal(result.Structured, &decoded); unmarshalErr != nil {
+					t.Fatalf("json.Unmarshal(%s) error = %v", mutation.id, unmarshalErr)
+				}
+				if !decoded.Applied || decoded.CommandID != mutation.command ||
+					decoded.Revision != windowmanager.Revision(6+index) {
+					t.Fatalf("%s result = %#v", mutation.id, decoded)
+				}
+			})
+		}
+		persisted, err = manager.Snapshot(t.Context(), "workspace-a")
+		if err != nil {
+			t.Fatalf("Manager.Snapshot() after tab tools error = %v", err)
+		}
+		if persisted.Revision != 10 || len(persisted.Windows) != 2 || !persisted.Windows["window-tasks"].Pinned {
+			t.Fatalf("snapshot after tab tools = %#v", persisted)
+		}
+
 		_, err = registry.Call(t.Context(), scope, toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDWindowNavigate,
 			Input: json.RawMessage(
@@ -340,6 +430,102 @@ func TestDaemonNativeTools(t *testing.T) {
 		requireToolReason(t, err, toolspkg.ErrToolInvalidInput, toolspkg.ReasonSchemaInvalid)
 	})
 
+	t.Run("Should expose complete gated native tab tools and extended schemas", func(t *testing.T) {
+		t.Parallel()
+
+		manager, err := windowmanager.NewService(
+			windowmanager.NewMemoryRepository(),
+			windowmanager.NewMemoryWorkspaceResolver("workspace-a"),
+			nil,
+			windowmanager.DefaultConfig(),
+		)
+		if err != nil {
+			t.Fatalf("windowmanager.NewService() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if closeErr := manager.Close(); closeErr != nil {
+				t.Errorf("Manager.Close() error = %v", closeErr)
+			}
+		})
+		scope := toolspkg.Scope{WorkspaceID: "workspace-a", AgentName: "agent-a"}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			WindowManager: manager,
+			Workspaces:    nativeNetworkTestWorkspaceService(t),
+		}, nativeApproveAllPolicyInputs())
+		views, err := registry.List(t.Context(), scope)
+		if err != nil {
+			t.Fatalf("Registry.List() error = %v", err)
+		}
+		byID := make(map[toolspkg.ToolID][]toolspkg.ToolView, len(views))
+		for _, view := range views {
+			byID[view.Descriptor.ID] = append(byID[view.Descriptor.ID], view)
+		}
+		newIDs := []toolspkg.ToolID{
+			toolspkg.ToolIDWindowGroup,
+			toolspkg.ToolIDWindowReorder,
+			toolspkg.ToolIDWindowActivate,
+			toolspkg.ToolIDWindowPin,
+			toolspkg.ToolIDWindowReopen,
+		}
+		for _, id := range newIDs {
+			t.Run(fmt.Sprintf("Should expose the %s descriptor", id), func(t *testing.T) {
+				t.Parallel()
+				matches := byID[id]
+				if len(matches) != 1 {
+					t.Fatalf("registry entries for %q = %d, want 1", id, len(matches))
+				}
+				descriptor := matches[0].Descriptor
+				if !slices.Equal(descriptor.Toolsets, []toolspkg.ToolsetID{toolspkg.ToolsetIDWindowManager}) ||
+					len(descriptor.InputSchema) == 0 || descriptor.InputSchemaDigest == "" ||
+					len(descriptor.OutputSchema) == 0 || descriptor.OutputSchemaDigest == "" ||
+					!slices.Contains(descriptor.Backend.RequiresCapabilities, "window_manager.write") {
+					t.Fatalf("descriptor %q = %#v", id, descriptor)
+				}
+			})
+		}
+
+		extendedSchemas := map[toolspkg.ToolID]string{
+			toolspkg.ToolIDWindowOpen:     "stack_target_window_id",
+			toolspkg.ToolIDWindowNavigate: "mode",
+			toolspkg.ToolIDWindowClose:    "scope",
+		}
+		for id, property := range extendedSchemas {
+			t.Run(fmt.Sprintf("Should expose %s on %s", property, id), func(t *testing.T) {
+				t.Parallel()
+				matches := byID[id]
+				if len(matches) != 1 {
+					t.Fatalf("registry entries for %q = %d, want 1", id, len(matches))
+				}
+				var schema struct {
+					Properties map[string]json.RawMessage `json:"properties"`
+				}
+				if err := json.Unmarshal(matches[0].Descriptor.InputSchema, &schema); err != nil {
+					t.Fatalf("json.Unmarshal(%s input schema) error = %v", id, err)
+				}
+				if _, ok := schema.Properties[property]; !ok {
+					t.Fatalf("%s input schema missing %q: %s", id, property, matches[0].Descriptor.InputSchema)
+				}
+			})
+		}
+
+		unavailable := newDaemonNativeRegistry(
+			t,
+			&daemonNativeToolsDeps{},
+			nativeApproveAllPolicyInputs(),
+		)
+		unavailableViews, err := unavailable.List(t.Context(), scope)
+		if err != nil {
+			t.Fatalf("unavailable Registry.List() error = %v", err)
+		}
+		for _, id := range newIDs {
+			if slices.ContainsFunc(unavailableViews, func(view toolspkg.ToolView) bool {
+				return view.Descriptor.ID == id
+			}) {
+				t.Fatalf("Registry.List() exposed %q without WindowManager+Workspaces", id)
+			}
+		}
+	})
+
 	t.Run("Should reject layout apply fields absent from its descriptor", func(t *testing.T) {
 		t.Parallel()
 		var input windowManagerLayoutApplyInput
@@ -366,24 +552,18 @@ func TestDaemonNativeTools(t *testing.T) {
 				message: "placement is required unless move_group is true",
 			},
 			{
-				name: "Should reject target in group mode",
-				input: `{"expected_revision":0,"window_id":"window-a",` +
-					`"destination_desktop_id":"desktop-b","move_group":true,` +
-					`"target_window_id":"window-b"}`,
-				message: "move_group cannot be combined with target_window_id",
-			},
-			{
-				name: "Should reject placement in group mode",
+				name: "Should reject structural group placement without a target",
 				input: `{"expected_revision":0,"window_id":"window-a",` +
 					`"destination_desktop_id":"desktop-b","move_group":true,"placement":"right"}`,
-				message: "move_group cannot be combined with placement",
+				message: "move_group without target_window_id supports only floating placement",
 			},
 			{
-				name: "Should reject floating rectangle in group mode",
+				name: "Should reject a floating rectangle on a structural group move",
 				input: `{"expected_revision":0,"window_id":"window-a",` +
 					`"destination_desktop_id":"desktop-b","move_group":true,` +
+					`"target_window_id":"window-b",` +
 					`"floating_rect":{"x":0,"y":0,"width":0.5,"height":0.5}}`,
-				message: "move_group cannot be combined with floating_rect",
+				message: "structural move_group cannot be combined with floating_rect",
 			},
 		}
 		for _, tc := range cases {
@@ -8073,7 +8253,7 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonSessionDenied)
 	})
 
-	t.Run("Should trust only development extensions linked to the resolved workspace identity", func(t *testing.T) {
+	t.Run("Should trust only development extensions linked to the registered runtime workspace", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := t.Context()
@@ -8086,7 +8266,7 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 		)
 		for _, link := range []extensionpkg.DevLinkRequest{
 			{
-				Name: "workspace-tool", WorkspaceID: workspaceIdentity,
+				Name: "workspace-tool", WorkspaceID: workspaceRegistration,
 				OriginPath: t.TempDir(), GenerationHash: strings.Repeat("a", 64),
 			},
 			{
@@ -8979,8 +9159,7 @@ func newNativeMemoryAdminFixture(t *testing.T) nativeMemoryAdminFixture {
 
 func openDaemonMemoryCatalog(t *testing.T, store *memorypkg.Store) {
 	t.Helper()
-	ctx := testutil.Context(t)
-	if err := store.OpenCatalog(ctx); err != nil {
+	if err := store.OpenCatalog(testutil.Context(t)); err != nil {
 		t.Fatalf("MemoryStore.OpenCatalog() error = %v", err)
 	}
 	t.Cleanup(func() {

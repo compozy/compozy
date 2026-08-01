@@ -27,6 +27,8 @@ function windowAt(id: string, desktopId: string) {
     app: "tasks",
     instanceKey: null,
     route: { pathname: "/tasks", search: {} },
+    navStack: [],
+    pinned: false,
     placement: "tiled" as const,
     desktopId,
     floatingRect: { x: 0.2, y: 0.2, w: 0.4, h: 0.4 },
@@ -37,7 +39,7 @@ function windowAt(id: string, desktopId: string) {
 
 function documentWith(desktop: WindowManagerLayoutDesktop): WindowManagerLayoutDocument {
   return {
-    version: 2,
+    version: 3,
     workspaceId: "workspace-a",
     desktops: [desktop],
     windows: {
@@ -56,6 +58,7 @@ const SPLIT_DESKTOP: WindowManagerLayoutDesktop = {
   purpose: "standard",
   focusOwner: null,
   floating: ["app:float"],
+  floatingStacks: [],
   groups: [
     {
       id: "group-main",

@@ -46,7 +46,7 @@ func validateLayoutDocument(
 		return Validation{
 			Diagnostics: []Diagnostic{
 				{
-					Code:    "topology.workspace_mismatch",
+					Code:    topologyWorkspaceMismatchCode,
 					Path:    "workspace_id",
 					Message: "layout workspace does not match request",
 				},

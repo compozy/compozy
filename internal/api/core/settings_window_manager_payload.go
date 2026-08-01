@@ -38,6 +38,8 @@ func settingsWindowManagerConfigPayload(
 		GroupMoveModifier:   contract.SettingsWindowDragModifier(cfg.GroupMoveModifier),
 		SwapModifier:        contract.SettingsWindowDragModifier(cfg.SwapModifier),
 		HistoryLimit:        cfg.HistoryLimit,
+		NavStackLimit:       cfg.NavStackLimit,
+		ClosedEntryLimit:    cfg.ClosedEntryLimit,
 		DesktopTransition:   contract.SettingsWindowDesktopTransition(cfg.DesktopTransition),
 		Gaps: contract.SettingsWindowManagerGapsPayload{
 			Inner:  cfg.Gaps.Inner,
@@ -80,6 +82,8 @@ func windowManagerConfigFromPayload(
 		GroupMoveModifier:   strings.TrimSpace(string(payload.GroupMoveModifier)),
 		SwapModifier:        strings.TrimSpace(string(payload.SwapModifier)),
 		HistoryLimit:        payload.HistoryLimit,
+		NavStackLimit:       payload.NavStackLimit,
+		ClosedEntryLimit:    payload.ClosedEntryLimit,
 		DesktopTransition:   strings.TrimSpace(string(payload.DesktopTransition)),
 		Gaps: compozyconfig.WindowManagerGapsConfig{
 			Inner:  payload.Gaps.Inner,

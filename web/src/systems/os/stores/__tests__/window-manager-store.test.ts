@@ -18,6 +18,7 @@ import {
   selectWindowManagerConnectionStatus,
   selectWindowManagerDiagnostic,
   selectWindowManagerGesture,
+  selectWindowManagerGestureDragging,
   selectWindowManagerGesturePreview,
   selectWindowManagerOverlay,
   selectWindowManagerWorkArea,
@@ -327,6 +328,24 @@ describe("window manager store", () => {
     });
   });
 
+  it("Should report gesture dragging only after the pointer leaves the press point", () => {
+    const store = createWindowManagerStore();
+    beginGesture(store);
+
+    expect(selectWindowManagerGestureDragging(state(store), "window:tasks")).toBe(false);
+
+    store.trigger.gesturePreviewed({
+      point: { x: 421, y: 180 },
+      preview: null,
+      currentWorkArea: WORK_AREA.rect,
+    });
+    expect(selectWindowManagerGestureDragging(state(store), "window:tasks")).toBe(true);
+    expect(selectWindowManagerGestureDragging(state(store), "window:other")).toBe(false);
+
+    store.trigger.gestureCancelled({ reason: "escape" });
+    expect(selectWindowManagerGestureDragging(state(store), "window:tasks")).toBe(false);
+  });
+
   it("Should finish through the pure gesture decision without persisting the session", () => {
     const store = createWindowManagerStore();
     beginGesture(store);
@@ -469,7 +488,7 @@ describe("window manager store", () => {
 
     act(() => {
       windowManagerStore.trigger.seamPreviewSet({
-        preview: { splitId: "split:one", boundaryIndex: 0, deltaPx: 20 },
+        preview: { kind: "split", splitId: "split:one", boundaryIndex: 0, deltaPx: 20 },
       });
     });
 

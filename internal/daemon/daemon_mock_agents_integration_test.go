@@ -770,6 +770,7 @@ func TestDaemonE2EHostedMCPProjectsAndCallsNonBootstrapNativeTool(t *testing.T) 
 			current, getErr := harness.GetSession(ctx, session.ID)
 			return getErr == nil && current.ID == session.ID
 		})
+		bindFixtureBackedSession(t, ctx, harness, session, "noop")
 		diagnostics, err := acpmock.ReadDiagnostics(registration.DiagnosticsPath)
 		if err != nil {
 			t.Fatalf("ReadDiagnostics(hosted-native) error = %v", err)
@@ -1745,7 +1746,12 @@ func assertWorkspaceAccessAgentCLIParity(
 	)
 	var exitErr *exec.ExitError
 	if !errors.As(err, &exitErr) || exitErr.ExitCode() != agentidentity.ExitUnauthorized {
-		t.Fatalf("approve-reads CLI error = %v, want exit %d; stderr=%s", err, agentidentity.ExitUnauthorized, deniedStderr)
+		t.Fatalf(
+			"approve-reads CLI error = %v, want exit %d; stderr=%s",
+			err,
+			agentidentity.ExitUnauthorized,
+			deniedStderr,
+		)
 	}
 	if !strings.Contains(deniedStderr, workspaceaccess.DenialHint) {
 		t.Fatalf("approve-reads CLI stderr = %q, want denial hint", deniedStderr)

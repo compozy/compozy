@@ -95,4 +95,9 @@ const (
 	HookEventWindowManagerDesktopCreated    HookEvent = "window_manager.desktop.created"
 	HookEventWindowManagerDesktopDeleted    HookEvent = "window_manager.desktop.deleted"
 	HookEventWindowManagerWindowMoved       HookEvent = "window_manager.window.moved"
+	HookEventWindowManagerWindowOpened      HookEvent = "window_manager.window.opened"
+	HookEventWindowManagerWindowClosed      HookEvent = "window_manager.window.closed"
+	HookEventWindowManagerStackGrouped      HookEvent = "window_manager.stack.grouped"
+	HookEventWindowManagerStackUngrouped    HookEvent = "window_manager.stack.ungrouped"
+	HookEventWindowManagerStackActivated    HookEvent = "window_manager.stack.activated"
 )

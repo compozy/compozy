@@ -391,6 +391,217 @@ func TestValidateSnapshot(t *testing.T) {
 	})
 }
 
+func TestWindowTabTopologyV3(t *testing.T) {
+	t.Run("Should accept a valid floating stack with two members [UT-001]", func(t *testing.T) {
+		t.Parallel()
+		requireValidSnapshot(t, validFloatingStackSnapshot())
+	})
+
+	t.Run("Should diagnose floating stack size active and placement independently [UT-002]", func(t *testing.T) {
+		t.Parallel()
+		snapshot := validFloatingStackSnapshot()
+		w1, w2 := WindowID("w1"), WindowID("w2")
+		snapshot.Desktops[0].FloatingStacks[0].WindowIDs = []WindowID{w1}
+		snapshot.Desktops[0].FloatingStacks[0].ActiveID = &w2
+		window := snapshot.Windows[w1]
+		window.Placement = WindowPlacementFloating
+		snapshot.Windows[w1] = window
+		codes := topologyDiagnosticCodes(t, ValidateSnapshot(snapshot))
+		for _, code := range []string{"topology.stack_size", "topology.stack_active", "topology.window_placement"} {
+			if !slices.Contains(codes, code) {
+				t.Fatalf("diagnostic codes = %v, want %q", codes, code)
+			}
+		}
+	})
+
+	t.Run("Should reject a window in both a floating stack and the floating list [UT-003]", func(t *testing.T) {
+		t.Parallel()
+		snapshot := validFloatingStackSnapshot()
+		snapshot.Desktops[0].Floating = []WindowID{"w1"}
+		codes := topologyDiagnosticCodes(t, ValidateSnapshot(snapshot))
+		if !slices.Contains(codes, "topology.window_membership") {
+			t.Fatalf("diagnostic codes = %v, want topology.window_membership", codes)
+		}
+	})
+
+	t.Run("Should dissolve a singleton floating stack at its frame rectangle [UT-004]", func(t *testing.T) {
+		t.Parallel()
+		snapshot := validFloatingStackSnapshot()
+		delete(snapshot.Windows, "w2")
+		stack := snapshot.Desktops[0].FloatingStacks[0]
+		stack.WindowIDs = []WindowID{"w1"}
+		stack.ActiveID = new(WindowID("w1"))
+		snapshot.Desktops[0].FloatingStacks[0] = stack
+		normalized := NormalizeSnapshot(snapshot)
+		if len(normalized.Desktops[0].FloatingStacks) != 0 ||
+			!slices.Equal(normalized.Desktops[0].Floating, []WindowID{"w1"}) {
+			t.Fatalf("normalized desktop = %+v", normalized.Desktops[0])
+		}
+		window := normalized.Windows["w1"]
+		if window.Placement != WindowPlacementFloating || window.FloatingRect != stack.Rect {
+			t.Fatalf("normalized window = %+v, frame = %+v", window, stack.Rect)
+		}
+		requireValidSnapshot(t, normalized)
+	})
+
+	t.Run("Should repair stale active members in floating and tiled stacks [UT-005]", func(t *testing.T) {
+		t.Parallel()
+		snapshot := validFloatingStackSnapshot()
+		w3, w4, missing := WindowID("w3"), WindowID("w4"), WindowID("missing")
+		for _, windowID := range []WindowID{w3, w4} {
+			snapshot.Windows[windowID] = Window{
+				ID: windowID, App: "Tiled", Route: testRoute("/tiled"), DesktopID: "desktop-default",
+				Placement: WindowPlacementStacked, FloatingRect: fullRect(),
+			}
+		}
+		snapshot.Desktops[0].Groups = []LayoutGroup{{
+			ID: "group", Frame: fullRect(),
+			Root: LayoutNode{ID: "tiled-stack", Kind: NodeKindStack, WindowIDs: []WindowID{w3, w4}, ActiveID: &missing},
+		}}
+		snapshot.Desktops[0].FloatingStacks[0].ActiveID = &missing
+		normalized := NormalizeSnapshot(snapshot)
+		if valueOrZero(normalized.Desktops[0].FloatingStacks[0].ActiveID) != "w1" ||
+			valueOrZero(normalized.Desktops[0].Groups[0].Root.ActiveID) != w3 {
+			t.Fatalf(
+				"normalized active members = floating:%v tiled:%v",
+				normalized.Desktops[0].FloatingStacks[0].ActiveID,
+				normalized.Desktops[0].Groups[0].Root.ActiveID,
+			)
+		}
+		requireValidSnapshot(t, normalized)
+	})
+
+	t.Run("Should collate a stable pinned prefix in both stack representations [UT-006]", func(t *testing.T) {
+		t.Parallel()
+		snapshot := validFloatingStackSnapshot()
+		w3, w4 := WindowID("w3"), WindowID("w4")
+		for _, windowID := range []WindowID{w3, w4} {
+			snapshot.Windows[windowID] = Window{
+				ID: windowID, App: "Tiled", Route: testRoute("/tiled"), DesktopID: "desktop-default",
+				Placement: WindowPlacementStacked, FloatingRect: fullRect(), Pinned: windowID == w4,
+			}
+		}
+		window := snapshot.Windows["w1"]
+		window.Pinned = false
+		snapshot.Windows["w1"] = window
+		window = snapshot.Windows["w2"]
+		window.Pinned = true
+		snapshot.Windows["w2"] = window
+		snapshot.Desktops[0].Groups = []LayoutGroup{{
+			ID: "group", Frame: fullRect(),
+			Root: LayoutNode{ID: "tiled-stack", Kind: NodeKindStack, WindowIDs: []WindowID{w3, w4}, ActiveID: &w3},
+		}}
+		normalized := NormalizeSnapshot(snapshot)
+		if !slices.Equal(normalized.Desktops[0].FloatingStacks[0].WindowIDs, []WindowID{"w2", "w1"}) ||
+			!slices.Equal(normalized.Desktops[0].Groups[0].Root.WindowIDs, []WindowID{w4, w3}) {
+			t.Fatalf(
+				"normalized stacks = floating:%v tiled:%v",
+				normalized.Desktops[0].FloatingStacks[0].WindowIDs,
+				normalized.Desktops[0].Groups[0].Root.WindowIDs,
+			)
+		}
+		requireValidSnapshot(t, normalized)
+	})
+
+	t.Run("Should reject every snapshot version except v3 [UT-007]", func(t *testing.T) {
+		t.Parallel()
+		snapshot := validFloatingStackSnapshot()
+		snapshot.Version = 2
+		codes := topologyDiagnosticCodes(t, ValidateSnapshot(snapshot))
+		if !slices.Contains(codes, "topology.unsupported_version") {
+			t.Fatalf("diagnostic codes = %v", codes)
+		}
+	})
+
+	t.Run("Should enforce only the absolute navigation maximum without normalizing it [UT-008]", func(t *testing.T) {
+		t.Parallel()
+		snapshot := validFloatingStackSnapshot()
+		window := snapshot.Windows["w1"]
+		window.NavStack = make([]RouteIntent, absoluteNavStackLimit+1)
+		for index := range window.NavStack {
+			window.NavStack[index] = testRoute("/history")
+		}
+		snapshot.Windows["w1"] = window
+		if got := len(NormalizeSnapshot(snapshot).Windows["w1"].NavStack); got != absoluteNavStackLimit+1 {
+			t.Fatalf("NormalizeSnapshot() nav stack length = %d", got)
+		}
+		codes := topologyDiagnosticCodes(t, ValidateSnapshot(snapshot))
+		if !slices.Contains(codes, "topology.nav_stack_limit") {
+			t.Fatalf("diagnostic codes = %v", codes)
+		}
+	})
+
+	t.Run("Should enforce only the absolute closed-entry maximum without normalizing it [UT-009]", func(t *testing.T) {
+		t.Parallel()
+		snapshot := validFloatingStackSnapshot()
+		closedWindow := snapshot.Windows["w1"]
+		snapshot.ClosedEntries = make([]ClosedEntry, absoluteClosedEntryLimit+1)
+		for index := range snapshot.ClosedEntries {
+			snapshot.ClosedEntries[index] = ClosedEntry{
+				Windows:   []Window{closedWindow},
+				DesktopID: "desktop-default",
+				Rect:      fullRect(),
+			}
+		}
+		if got := len(NormalizeSnapshot(snapshot).ClosedEntries); got != absoluteClosedEntryLimit+1 {
+			t.Fatalf("NormalizeSnapshot() closed-entry length = %d", got)
+		}
+		codes := topologyDiagnosticCodes(t, ValidateSnapshot(snapshot))
+		if !slices.Contains(codes, "topology.closed_entry_limit") {
+			t.Fatalf("diagnostic codes = %v", codes)
+		}
+	})
+}
+
+func validFloatingStackSnapshot() Snapshot {
+	w1, w2 := WindowID("w1"), WindowID("w2")
+	active := w2
+	return Snapshot{
+		Version: SnapshotVersion, WorkspaceID: "workspace-a",
+		Desktops: []Desktop{{
+			ID: "desktop-default", Name: defaultDesktopName, Purpose: DesktopPurposeStandard,
+			Groups: []LayoutGroup{}, Floating: []WindowID{},
+			FloatingStacks: []FloatingStack{{
+				ID: "floating-stack", WindowIDs: []WindowID{w1, w2}, ActiveID: &active,
+				Rect: NormalizedRect{X: 0.1, Y: 0.1, Width: 0.6, Height: 0.6},
+			}},
+		}},
+		Windows: map[WindowID]Window{
+			w1: {
+				ID:           w1,
+				App:          "One",
+				Route:        testRoute("/one"),
+				DesktopID:    "desktop-default",
+				Placement:    WindowPlacementStacked,
+				FloatingRect: fullRect(),
+				Pinned:       true,
+			},
+			w2: {
+				ID:           w2,
+				App:          "Two",
+				Route:        testRoute("/two"),
+				DesktopID:    "desktop-default",
+				Placement:    WindowPlacementStacked,
+				FloatingRect: fullRect(),
+			},
+		},
+		History: History{Undo: []HistoryEntry{}, Redo: []HistoryEntry{}},
+	}
+}
+
+func topologyDiagnosticCodes(t *testing.T, err error) []string {
+	t.Helper()
+	var topologyErr *TopologyError
+	if !errors.As(err, &topologyErr) {
+		t.Fatalf("error = %v, want TopologyError", err)
+	}
+	codes := make([]string, 0, len(topologyErr.Diagnostics))
+	for _, diagnostic := range topologyErr.Diagnostics {
+		codes = append(codes, diagnostic.Code)
+	}
+	return codes
+}
+
 func TestSharedBoundaryResize(t *testing.T) {
 	t.Run("Should resize one-to-many descendants through one split boundary", func(t *testing.T) {
 		t.Parallel()

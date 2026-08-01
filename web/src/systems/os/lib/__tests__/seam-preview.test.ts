@@ -33,6 +33,7 @@ function desktop(): LayoutDesktop {
     purpose: "standard",
     focusOwner: null,
     floating: [],
+    floatingStacks: [],
     groups: [
       {
         id: "group:main",

@@ -8,6 +8,7 @@ import {
   Home,
   KeyRound,
   ListChecks,
+  Plus,
   Repeat2,
   Settings,
   SquareTerminal,
@@ -80,6 +81,9 @@ const TriggersWindow = lazy(() =>
 );
 const MarketplaceWindow = lazy(() =>
   import("../apps/marketplace/marketplace-window").then(m => ({ default: m.MarketplaceWindow }))
+);
+const NewTabWindow = lazy(() =>
+  import("../apps/new-tab/new-tab-window").then(m => ({ default: m.NewTabWindow }))
 );
 const SESSION_PATH_PATTERN = /^\/agents\/[^/]+\/sessions\/([^/]+)/;
 
@@ -167,6 +171,14 @@ export const OS_APPS: Record<OsAppId, OsAppDefinition> = {
     badge: "sessions",
     matchInstance: matchSessionInstance,
     Controller: SessionWindow,
+  },
+  "new-tab": {
+    id: "new-tab",
+    title: "New tab",
+    icon: Plus,
+    paths: ["/new-tab"],
+    dock: null,
+    Controller: NewTabWindow,
   },
   agents: {
     id: "agents",

@@ -34,6 +34,7 @@ function clientFrame(frameRevision: number, presentationRevision: number) {
       presentation_revision: presentationRevision,
       active_desktop_id: "desktop:main",
       focus_order: [],
+      stack_active: {},
       connected_at: "2026-07-22T00:00:00Z",
     },
   };
@@ -45,7 +46,7 @@ function snapshotFrame() {
     workspace_id: "workspace:test",
     revision: 4,
     snapshot: {
-      version: 1,
+      version: 3,
       workspace_id: "workspace:test",
       revision: 4,
       desktops: [
@@ -56,10 +57,11 @@ function snapshotFrame() {
           purpose: "standard",
           groups: [],
           floating: [],
+          floating_stacks: [],
         },
       ],
       windows: {},
-      history: { undo: [], redo: [] },
+      closed_entry_count: 0,
       overrides: {},
       updated_at: "2026-07-22T00:00:00Z",
     },

@@ -13,10 +13,15 @@ import (
 	"github.com/compozy/compozy/internal/session"
 )
 
-func (n *hooksNotifier) dispatchAgentEvent(ctx context.Context, sessionCtx hookspkg.SessionContext, event any) {
+func (n *hooksNotifier) dispatchAgentEvent(ctx context.Context, sess *session.Session, event any) {
+	sessionCtx := hookSessionContext(sess)
 	hooks, agentEventNotify := n.runtime()
 	if agentEventNotify != nil {
-		agentEventNotify.OnAgentEvent(ctx, sessionCtx.SessionID, event)
+		if aware, ok := agentEventNotify.(session.AgentEventNotifier); ok {
+			aware.OnAgentEventForSession(ctx, sess, event)
+		} else {
+			agentEventNotify.OnAgentEvent(ctx, sessionCtx.SessionID, event)
+		}
 	}
 	if hooks != nil {
 		dispatchACPAgentHookEvent(ctx, n.logger, hooks, sessionCtx, event, n.timestamp())

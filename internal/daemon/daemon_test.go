@@ -33,6 +33,7 @@ import (
 
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/api/core"
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -1270,35 +1271,60 @@ func TestBootExtensionsPreservesDevCycleDisableEnableState(t *testing.T) {
 func TestNewHostAPISessionManagerAdapter(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should expose durable acceptance when source supports it", func(t *testing.T) {
+	t.Run("Should expose and forward durable acceptance when source supports it", func(t *testing.T) {
 		t.Parallel()
 
-		want := &session.Info{ID: "sess-accepted", State: session.StateActive}
-		source := &acceptingHostAPISessionManager{
-			fakeSessionManager: &fakeSessionManager{},
-			accepted:           want,
-		}
+		source := &fakeAcceptingSessionManager{fakeSessionManager: &fakeSessionManager{}}
 		adapter := newHostAPISessionManagerAdapter(source)
-		acceptance, ok := adapter.(hostAPISessionAcceptanceManager)
+		acceptance, ok := adapter.(core.SessionAcceptanceManager)
 		if !ok {
 			t.Fatalf("newHostAPISessionManagerAdapter() = %T, want durable acceptance", adapter)
 		}
-
-		got, err := acceptance.CreateAccepted(testutil.Context(t), session.CreateAcceptedOpts{
-			Session: session.CreateOpts{AgentName: "general", Workspace: "ws-accepted"},
-		})
+		opts := session.CreateAcceptedOpts{Session: session.CreateOpts{Name: "accepted-session"}}
+		info, err := acceptance.CreateAccepted(testutil.Context(t), opts)
 		if err != nil {
 			t.Fatalf("CreateAccepted() error = %v", err)
 		}
-		if got != want {
-			t.Fatalf("CreateAccepted() = %#v, want %#v", got, want)
-		}
-		if source.calls != 1 {
-			t.Fatalf("CreateAccepted() calls = %d, want 1", source.calls)
+		if info.ID != "accepted-session" || source.acceptedCall.Session.Name != opts.Session.Name {
+			t.Fatalf("CreateAccepted() = (%#v, %#v), want forwarded accepted session", info, source.acceptedCall)
 		}
 	})
 
-	t.Run("ShouldExposeBridgePromptMethodsWhenSourceSupportsThem", func(t *testing.T) {
+	t.Run("Should preserve durable acceptance alongside bridge prompt methods", func(t *testing.T) {
+		t.Parallel()
+
+		source := &fakeAcceptingNetworkSessionManager{
+			fakeNetworkBindableSessionManager: newFakeNetworkBindableSessionManager(),
+		}
+		adapter := newHostAPISessionManagerAdapter(source)
+		if _, ok := adapter.(hostAPIBridgePromptSessionManager); !ok {
+			t.Fatalf("newHostAPISessionManagerAdapter() = %T, want bridge prompt methods", adapter)
+		}
+		acceptance, ok := adapter.(core.SessionAcceptanceManager)
+		if !ok {
+			t.Fatalf("newHostAPISessionManagerAdapter() = %T, want durable acceptance", adapter)
+		}
+		if _, err := acceptance.CreateAccepted(
+			testutil.Context(t),
+			session.CreateAcceptedOpts{Session: session.CreateOpts{Name: "network-accepted-session"}},
+		); err != nil {
+			t.Fatalf("CreateAccepted() error = %v", err)
+		}
+		if got, want := source.acceptedCall.Session.Name, "network-accepted-session"; got != want {
+			t.Fatalf("CreateAccepted() name = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should omit durable acceptance when source does not support it", func(t *testing.T) {
+		t.Parallel()
+
+		adapter := newHostAPISessionManagerAdapter(&fakeSessionManager{})
+		if _, ok := adapter.(core.SessionAcceptanceManager); ok {
+			t.Fatalf("newHostAPISessionManagerAdapter() = %T, want no durable acceptance", adapter)
+		}
+	})
+
+	t.Run("Should expose bridge prompt methods when source supports them", func(t *testing.T) {
 		t.Parallel()
 
 		source := newFakeNetworkBindableSessionManager()
@@ -6618,6 +6644,32 @@ type fakeNetworkBindableSessionManager struct {
 	prompting           map[string]bool
 }
 
+type fakeAcceptingSessionManager struct {
+	*fakeSessionManager
+	acceptedCall session.CreateAcceptedOpts
+}
+
+func (f *fakeAcceptingSessionManager) CreateAccepted(
+	_ context.Context,
+	opts session.CreateAcceptedOpts,
+) (*session.Info, error) {
+	f.acceptedCall = opts
+	return &session.Info{ID: "accepted-session"}, nil
+}
+
+type fakeAcceptingNetworkSessionManager struct {
+	*fakeNetworkBindableSessionManager
+	acceptedCall session.CreateAcceptedOpts
+}
+
+func (f *fakeAcceptingNetworkSessionManager) CreateAccepted(
+	_ context.Context,
+	opts session.CreateAcceptedOpts,
+) (*session.Info, error) {
+	f.acceptedCall = opts
+	return &session.Info{ID: "accepted-session"}, nil
+}
+
 func newFakeNetworkBindableSessionManager() *fakeNetworkBindableSessionManager {
 	return &fakeNetworkBindableSessionManager{
 		fakeSessionManager: &fakeSessionManager{},
@@ -8228,7 +8280,8 @@ func (r *recordingRegistry) Close(context.Context) error {
 }
 
 type recordingNotifier struct {
-	events []string
+	events        []string
+	eventSessions []*session.Session
 }
 
 func (n *recordingNotifier) OnSessionCreated(context.Context, *session.Session) {
@@ -8241,6 +8294,15 @@ func (n *recordingNotifier) OnSessionStopped(context.Context, *session.Session) 
 
 func (n *recordingNotifier) OnAgentEvent(context.Context, string, any) {
 	n.events = append(n.events, "agent")
+}
+
+func (n *recordingNotifier) OnAgentEventForSession(
+	_ context.Context,
+	sess *session.Session,
+	_ any,
+) {
+	n.events = append(n.events, "agent")
+	n.eventSessions = append(n.eventSessions, sess)
 }
 
 type recordingHookTelemetrySink struct {

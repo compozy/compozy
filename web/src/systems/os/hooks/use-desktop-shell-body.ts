@@ -1,7 +1,8 @@
 import { useRef } from "react";
 import { shallowEqual } from "@xstate/store";
 
-import type { ProjectedSeam } from "../lib/window-manager-types";
+import { frameSeamEdits } from "../lib/frame-seams";
+import type { ProjectedFrameSeam, ProjectedSeam } from "../lib/window-manager-types";
 import { windowManagerStore } from "../stores/window-manager-store";
 import type { DesktopOverviewSegmentRequest } from "../stores/window-manager-store-types";
 import { useDesktop } from "./use-desktop";
@@ -29,10 +30,17 @@ export interface DesktopShellBodyOptions {
 function setSeamPreview(seam: ProjectedSeam, deltaPx: number): void {
   windowManagerStore.trigger.seamPreviewSet({
     preview: {
+      kind: "split",
       splitId: seam.splitId,
       boundaryIndex: seam.boundaryIndex,
       deltaPx,
     },
+  });
+}
+
+function setFrameSeamPreview(seam: ProjectedFrameSeam, deltaPx: number): void {
+  windowManagerStore.trigger.seamPreviewSet({
+    preview: { kind: "frame", seamId: seam.id, deltaPx },
   });
 }
 
@@ -106,6 +114,16 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
     // straight from previewed to committed sizes.
     void manager.resizeLayout(splitId, boundaryIndex, delta).completion.finally(clearSeamPreview);
   };
+  const onFrameResize = (seam: ProjectedFrameSeam, deltaPx: number) => {
+    const snapshot = manager.getState().snapshot;
+    const groups = snapshot?.desktops.find(entry => entry.id === seam.desktopId)?.groups;
+    const edits = groups === undefined ? [] : frameSeamEdits(groups, seam, deltaPx);
+    if (edits.length === 0) {
+      clearSeamPreview();
+      return;
+    }
+    void manager.resizeGroupFrames(seam.desktopId, edits).completion.finally(clearSeamPreview);
+  };
   return {
     attention,
     desktop,
@@ -114,9 +132,11 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
     manager,
     managerSurfaces,
     onResize,
+    onFrameResize,
     onDesktopManagerOpenChange: setDesktopManagerOpen,
     onOpenDesktopOverview: openDesktopOverview,
     onSeamPreview: setSeamPreview,
+    onFrameSeamPreview: setFrameSeamPreview,
     onSeamPreviewEnd: clearSeamPreview,
     onTransitionComplete: completeDesktopTransition,
     overlays,

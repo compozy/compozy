@@ -20,6 +20,7 @@ const INITIAL_DESKTOP: WindowManagerLayoutDesktop = {
   purpose: "standard",
   focusOwner: null,
   floating: [],
+  floatingStacks: [],
   groups: [
     {
       id: "group-main",

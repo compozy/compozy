@@ -149,6 +149,10 @@ drag_away_policy = "window"
 group_move_modifier = "alt"
 swap_modifier = "shift"
 history_limit = 50
+# Retain at most this many prior routes per window when a new route is pushed.
+nav_stack_limit = 50
+# Retain at most this many newest closed-window entries for reopen.
+closed_entry_limit = 20
 desktop_transition = "slide"
 
 [window_manager.gaps]
@@ -819,7 +823,13 @@ Settings › Layouts, while agents can use `compozy config` or the typed
 | `group_move_modifier`   | string  | `alt`               | `alt`, `control`, `meta`, `shift`, `none` | Modifier that temporarily moves the complete group.       |
 | `swap_modifier`         | string  | `shift`             | `alt`, `control`, `meta`, `shift`, `none` | Modifier that turns an occupied drop into a window swap.  |
 | `history_limit`         | integer | `50`                | `1` through `500`                         | Maximum workspace-scoped layout undo entries.             |
+| `nav_stack_limit`       | integer | `50`                | `1` through `200`                         | Write-time cap for each window's prior-route stack.       |
+| `closed_entry_limit`    | integer | `20`                | `1` through `100`                         | Write-time cap for retained closed-window entries.        |
 | `desktop_transition`    | string  | `slide`             | `slide`, `crossfade`, `instant`           | Desktop transition; reduced motion remains authoritative. |
+
+`nav_stack_limit` applies when `compozy window navigate --mode push` records the current route.
+`closed_entry_limit` applies when a non-minimize close records a reopen entry. Lowering either live
+limit does not remove existing state; the next relevant mutation retains only the newest values.
 
 ### `[window_manager.gaps]`
 

@@ -84,6 +84,14 @@ export interface LayoutGroup {
   root: LayoutNode;
 }
 
+export interface LayoutFloatingStack {
+  id: LayoutNodeId;
+  windowIds: readonly WindowId[];
+  activeId: WindowId | null;
+  rect: NormalizedRect;
+  minimized: boolean;
+}
+
 export interface LayoutDesktop {
   id: DesktopId;
   name: string;
@@ -92,6 +100,7 @@ export interface LayoutDesktop {
   focusOwner: WindowId | null;
   groups: readonly LayoutGroup[];
   floating: readonly WindowId[];
+  floatingStacks: readonly LayoutFloatingStack[];
 }
 
 export interface WindowManagerReturnAnchor {
@@ -113,6 +122,11 @@ export interface WindowManagerWindow {
     pathname: string;
     search: Readonly<Record<string, unknown>>;
   };
+  navStack: readonly {
+    pathname: string;
+    search: Readonly<Record<string, unknown>>;
+  }[];
+  pinned: boolean;
   placement: WindowPlacement;
   desktopId: DesktopId;
   floatingRect: NormalizedRect;
@@ -151,6 +165,8 @@ export interface WindowManagerWorkspaceConfig {
   groupMoveModifier?: WindowManagerDragModifier;
   swapModifier?: WindowManagerDragModifier;
   historyLimit?: number;
+  navStackLimit?: number;
+  closedEntryLimit?: number;
   desktopTransition?: WindowManagerDesktopTransition;
   gaps?: WindowManagerGapsConfig;
   snap?: WindowManagerSnapConfig;
@@ -170,6 +186,8 @@ export interface WindowManagerConfig {
   groupMoveModifier: WindowManagerDragModifier;
   swapModifier: WindowManagerDragModifier;
   historyLimit: number;
+  navStackLimit: number;
+  closedEntryLimit: number;
   desktopTransition: WindowManagerDesktopTransition;
   gaps: WindowManagerGapsConfig;
   snap: WindowManagerSnapConfig;
@@ -188,6 +206,8 @@ export interface WindowManagerChangeSet {
   groupIds: readonly GroupId[];
   nodeIds: readonly LayoutNodeId[];
   clientIds: readonly WindowManagerClientId[];
+  stackGrouped: readonly LayoutNodeId[];
+  stackUngrouped: readonly LayoutNodeId[];
 }
 
 export interface WindowManagerDiagnosticPayload {
@@ -202,31 +222,13 @@ export interface WindowManagerConflictPayload {
   currentId: string | null;
 }
 
-export interface WindowManagerStateDocument {
-  desktops: readonly LayoutDesktop[];
-  windows: Readonly<Record<WindowId, WindowManagerWindow>>;
-  overrides: WindowManagerWorkspaceConfig;
-}
-
-export interface WindowManagerHistoryEntry {
-  commandId: WindowManagerCommandId;
-  before: WindowManagerStateDocument;
-  after: WindowManagerStateDocument;
-  actor: WindowManagerActor;
-  origin: string;
-  createdAt: string;
-}
-
 export interface WindowManagerSnapshot {
-  version: number;
+  version: 3;
   workspaceId: string;
   revision: LayoutRevision;
   desktops: readonly LayoutDesktop[];
   windows: Readonly<Record<WindowId, WindowManagerWindow>>;
-  history: {
-    undo: readonly WindowManagerHistoryEntry[];
-    redo: readonly WindowManagerHistoryEntry[];
-  };
+  closedEntryCount: number;
   overrides: WindowManagerWorkspaceConfig;
   updatedAt: string;
 }
@@ -238,6 +240,7 @@ export interface WindowManagerClientView {
   activeDesktopId: DesktopId;
   focusedWindowId: WindowId | null;
   focusOrder: readonly WindowId[];
+  stackActive: Readonly<Record<LayoutNodeId, WindowId>>;
   connectedAt: string;
 }
 
@@ -252,11 +255,18 @@ export type WindowManagerCommandId =
   | "window.close"
   | "window.focus"
   | "window.move"
+  | "window.resize"
   | "window.swap"
   | "window.toggle_floating"
   | "window.zoom"
+  | "window.stack.group"
+  | "window.stack.reorder"
+  | "window.stack.set_active"
+  | "window.pin"
+  | "window.reopen"
   | "layout.arrange"
   | "layout.resize"
+  | "layout.frame_resize"
   | "layout.balance"
   | "layout.undo"
   | "layout.redo"
@@ -343,6 +353,8 @@ export interface LayoutProjectionInput {
   gaps: ProjectionGaps;
   minimums?: WindowMinimums;
   focusedWindowId?: WindowId | null;
+  /** Per-client display-active per stack; overrides the durable `activeId` (ADR-009). */
+  stackActive?: Readonly<Record<LayoutNodeId, WindowId>>;
 }
 
 export interface ProjectedWindow {
@@ -350,6 +362,8 @@ export interface ProjectedWindow {
   nodeId: LayoutNodeId;
   groupId: GroupId;
   rect: PixelRect;
+  /** Normalized gap-free zone this unit owns inside the layout area. */
+  zone: NormalizedRect;
   stackId: LayoutNodeId | null;
   active: boolean;
   adapted: boolean;
@@ -363,6 +377,8 @@ export interface ProjectedStack {
   windowIds: readonly WindowId[];
   activeWindowId: WindowId;
   rect: PixelRect;
+  /** Normalized gap-free zone this unit owns inside the layout area. */
+  zone: NormalizedRect;
 }
 
 export interface ProjectedSeam {
@@ -380,6 +396,28 @@ export interface ProjectedSeam {
   /** Normalized weights of the two children adjacent to this boundary. */
   leadingWeight: number;
   trailingWeight: number;
+  leadingWindowIds: readonly WindowId[];
+  trailingWindowIds: readonly WindowId[];
+}
+
+/**
+ * One draggable shared boundary between abutting island frames. Every group
+ * whose edge sits on the shared line moves together so frames stay rectangles.
+ */
+export interface ProjectedFrameSeam {
+  id: string;
+  desktopId: DesktopId;
+  orientation: "horizontal" | "vertical";
+  /** Normalized line coordinate every edited frame edge sits on. */
+  line: number;
+  rect: PixelRect;
+  value: number;
+  minValue: number;
+  maxValue: number;
+  /** Pixel length of the layout area along the drag axis. */
+  axisSpan: number;
+  leadingGroupIds: readonly GroupId[];
+  trailingGroupIds: readonly GroupId[];
   leadingWindowIds: readonly WindowId[];
   trailingWindowIds: readonly WindowId[];
 }
@@ -410,5 +448,6 @@ export interface LayoutProjection {
   windows: readonly ProjectedWindow[];
   stacks: readonly ProjectedStack[];
   seams: readonly ProjectedSeam[];
+  frameSeams: readonly ProjectedFrameSeam[];
   diagnostics: readonly LayoutProjectionDiagnostic[];
 }

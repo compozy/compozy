@@ -12,6 +12,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const windowManagerActiveField = "active"
+
 func windowManagerJSONBundle(name string, title string, value any) outputBundle {
 	return outputBundle{
 		jsonValue: value,
@@ -33,6 +35,17 @@ func windowManagerJSONBundle(name string, title string, value any) outputBundle 
 			return renderToonObject(name, []string{"value"}, []string{string(encoded)}), nil
 		},
 	}
+}
+
+func windowManagerLayoutDocumentBundle(document contract.WindowManagerLayoutDocument) outputBundle {
+	bundle := windowManagerJSONBundle("window_layout", "Window layout", document)
+	bundle.json = func(cmd *cobra.Command) error {
+		return writeJSONWithoutWorkspaceResolution(cmd, document)
+	}
+	bundle.jsonl = func(cmd *cobra.Command) error {
+		return writeJSONLineWithoutWorkspaceResolution(cmd, document)
+	}
+	return bundle
 }
 
 type windowManagerChangeSummary struct {
@@ -118,27 +131,115 @@ func windowManagerDesktopListBundle(desktops []contract.WindowManagerDesktop) ou
 }
 
 func windowManagerWindowListBundle(snapshot contract.WindowManagerSnapshot) outputBundle {
-	windows := make([]contract.WindowManagerWindow, 0, len(snapshot.Windows))
+	memberships := windowManagerStackMemberships(snapshot.Desktops)
+	windows := make([]windowManagerWindowListItem, 0, len(snapshot.Windows))
 	for _, window := range snapshot.Windows {
-		windows = append(windows, window)
+		item := windowManagerWindowListItem{
+			WindowManagerWindow: window,
+			NavDepth:            len(window.NavStack),
+		}
+		if membership, ok := memberships[window.ID]; ok {
+			stackID := membership.stackID
+			memberOrder := membership.memberOrder
+			item.StackID = &stackID
+			item.MemberOrder = &memberOrder
+			item.Active = membership.active
+		}
+		windows = append(windows, item)
 	}
-	sort.Slice(windows, func(left, right int) bool { return windows[left].ID < windows[right].ID })
+	sort.Slice(windows, func(left, right int) bool {
+		return windows[left].ID < windows[right].ID
+	})
 	return listBundle(
-		windows, windows, "Windows", []string{"ID", "APP", "DESKTOP", "PLACEMENT", "PATHNAME", "MINIMIZED"},
-		"windows", []string{"id", "app", windowManagerDesktopID, "placement", "pathname", "minimized"},
+		windows, windows, "Windows",
+		[]string{
+			"ID", "APP", "DESKTOP", "PLACEMENT", "PATHNAME", "STACK", "MEMBER ORDER", "ACTIVE", "PINNED", "NAV DEPTH",
+		},
+		"windows",
+		[]string{
+			"id", "app", windowManagerDesktopID, "placement", "pathname", "stack_id", "member_order",
+			windowManagerActiveField, "pinned", "nav_depth",
+		},
 		windowManagerWindowRow,
 		windowManagerWindowRow,
 	)
 }
 
-func windowManagerWindowRow(window contract.WindowManagerWindow) []string {
+type windowManagerWindowListItem struct {
+	contract.WindowManagerWindow
+	StackID     *windowmanager.NodeID `json:"stack_id,omitempty"`
+	MemberOrder *int                  `json:"member_order,omitempty"`
+	Active      bool                  `json:"active"`
+	NavDepth    int                   `json:"nav_depth"`
+}
+
+type windowManagerStackMembership struct {
+	stackID     windowmanager.NodeID
+	memberOrder int
+	active      bool
+}
+
+func windowManagerStackMemberships(
+	desktops []contract.WindowManagerDesktop,
+) map[windowmanager.WindowID]windowManagerStackMembership {
+	memberships := make(map[windowmanager.WindowID]windowManagerStackMembership)
+	for _, desktop := range desktops {
+		for _, stack := range desktop.FloatingStacks {
+			addWindowManagerStackMemberships(memberships, stack.ID, stack.WindowIDs, stack.ActiveID)
+		}
+		for _, group := range desktop.Groups {
+			addWindowManagerNodeStackMemberships(memberships, group.Root)
+		}
+	}
+	return memberships
+}
+
+func addWindowManagerNodeStackMemberships(
+	memberships map[windowmanager.WindowID]windowManagerStackMembership,
+	node contract.WindowManagerLayoutNode,
+) {
+	if node.Kind == windowmanager.NodeKindStack {
+		addWindowManagerStackMemberships(memberships, node.ID, node.WindowIDs, node.ActiveID)
+	}
+	for _, child := range node.Children {
+		addWindowManagerNodeStackMemberships(memberships, child)
+	}
+}
+
+func addWindowManagerStackMemberships(
+	memberships map[windowmanager.WindowID]windowManagerStackMembership,
+	stackID windowmanager.NodeID,
+	windowIDs []windowmanager.WindowID,
+	activeID *windowmanager.WindowID,
+) {
+	for index, windowID := range windowIDs {
+		memberships[windowID] = windowManagerStackMembership{
+			stackID: stackID, memberOrder: index, active: activeID != nil && *activeID == windowID,
+		}
+	}
+}
+
+func windowManagerWindowRow(item windowManagerWindowListItem) []string {
+	window := item.WindowManagerWindow
+	stackID := ""
+	if item.StackID != nil {
+		stackID = string(*item.StackID)
+	}
+	memberOrder := ""
+	if item.MemberOrder != nil {
+		memberOrder = strconv.Itoa(*item.MemberOrder)
+	}
 	return []string{
 		string(window.ID),
 		window.App,
 		string(window.DesktopID),
 		string(window.Placement),
 		window.Route.Pathname,
-		strconv.FormatBool(window.Minimized),
+		stackID,
+		memberOrder,
+		strconv.FormatBool(item.Active),
+		strconv.FormatBool(window.Pinned),
+		strconv.Itoa(item.NavDepth),
 	}
 }
 

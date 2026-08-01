@@ -40,17 +40,25 @@ func restoreState(snapshot *Snapshot, state State) {
 }
 
 func restoreStatePreservingRoutes(snapshot *Snapshot, state State) {
-	routes := make(map[WindowID]RouteIntent, len(snapshot.Windows))
+	type navigationState struct {
+		route    RouteIntent
+		navStack []RouteIntent
+	}
+	navigation := make(map[WindowID]navigationState, len(snapshot.Windows))
 	for windowID, window := range snapshot.Windows {
-		routes[windowID] = cloneRouteIntent(window.Route)
+		navigation[windowID] = navigationState{
+			route:    cloneRouteIntent(window.Route),
+			navStack: cloneRouteIntents(window.NavStack),
+		}
 	}
 	restoreState(snapshot, state)
-	for windowID, route := range routes {
+	for windowID, current := range navigation {
 		window, exists := snapshot.Windows[windowID]
 		if !exists {
 			continue
 		}
-		window.Route = route
+		window.Route = current.route
+		window.NavStack = current.navStack
 		snapshot.Windows[windowID] = window
 	}
 }

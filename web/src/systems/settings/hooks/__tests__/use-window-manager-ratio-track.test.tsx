@@ -22,6 +22,8 @@ const INITIAL_CONFIG: WindowManagerConfig = {
   gaps: { bottom: 8, inner: 8, left: 8, right: 8, top: 8 },
   groupMoveModifier: "alt",
   historyLimit: 100,
+  navStackLimit: 50,
+  closedEntryLimit: 20,
   newWindowPolicy: "floating",
   raiseOnFocus: true,
   shortcuts: {},

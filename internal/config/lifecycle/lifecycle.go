@@ -56,10 +56,12 @@ const (
 )
 
 const (
-	pathDaemonReloadTimeoutProviders = "daemon.reload_timeouts.providers"
-	pathDaemonReloadTimeoutMCP       = "daemon.reload_timeouts.mcp"
-	pathDaemonReloadTimeoutBridges   = "daemon.reload_timeouts.bridges"
-	pathRoles                        = "roles"
+	pathDaemonReloadTimeoutProviders  = "daemon.reload_timeouts.providers"
+	pathDaemonReloadTimeoutMCP        = "daemon.reload_timeouts.mcp"
+	pathDaemonReloadTimeoutBridges    = "daemon.reload_timeouts.bridges"
+	pathRoles                         = "roles"
+	pathWindowManagerNavStackLimit    = "window_manager.nav_stack_limit"
+	pathWindowManagerClosedEntryLimit = "window_manager.closed_entry_limit"
 )
 
 // Rule records the lifecycle for a config path pattern.
@@ -109,6 +111,8 @@ var Matrix = []Rule{
 	{Pattern: "task.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
 	{Pattern: "network.enabled", Lifecycle: Live, DiffClass: DiffClassLive},
 	{Pattern: "network.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
+	{Pattern: pathWindowManagerNavStackLimit, Lifecycle: Live, DiffClass: DiffClassLive},
+	{Pattern: pathWindowManagerClosedEntryLimit, Lifecycle: Live, DiffClass: DiffClassLive},
 	{Pattern: "window_manager.*", Lifecycle: Live, DiffClass: DiffClassLive},
 	{Pattern: "observability.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
 	{Pattern: "log.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},

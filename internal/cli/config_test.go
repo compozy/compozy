@@ -458,6 +458,74 @@ func TestConfigSetDisabledSkillsUsesDaemonSettingsWhenRunning(t *testing.T) {
 	}
 }
 
+func TestConfigSetWindowManagerUsesDaemonSettingsWhenRunning(t *testing.T) {
+	t.Parallel()
+
+	var captured UpdateSettingsWindowManagerRequest
+	client := &stubClient{
+		updateSettingsWindowManagerFn: func(
+			_ context.Context,
+			request UpdateSettingsWindowManagerRequest,
+		) (SettingsMutationRecord, error) {
+			captured = request
+			return SettingsMutationRecord{
+				Section:          "window-manager",
+				Scope:            contract.SettingsScopeGlobal,
+				Lifecycle:        contract.SettingsApplyLifecycleLive,
+				ApplyRecordID:    "cfgapp-window-manager",
+				Applied:          true,
+				ActiveGeneration: 2,
+				ActiveConfigHash: "sha256:window-manager",
+				NextAction:       contract.SettingsApplyNextActionNone,
+			}, nil
+		},
+	}
+
+	deps := newWorkspaceTestDeps(t, client)
+	deps.readDaemonInfo = func(string) (compozydaemon.Info, error) {
+		return compozydaemon.Info{PID: 42, Port: 2123, StartedAt: fixedTestNow}, nil
+	}
+	deps.processAlive = func(pid int) bool { return pid == 42 }
+
+	out, _, err := executeRootCommand(
+		t,
+		deps,
+		"config",
+		"set",
+		"window_manager.nav_stack_limit",
+		"1",
+		"-o",
+		"json",
+	)
+	if err != nil {
+		t.Fatalf("config set window_manager.nav_stack_limit error = %v", err)
+	}
+
+	defaults := compozyconfig.DefaultWindowManagerConfig()
+	if captured.Config.NavStackLimit != 1 || captured.Config.HistoryLimit != defaults.HistoryLimit ||
+		captured.Config.ClosedEntryLimit != defaults.ClosedEntryLimit ||
+		len(captured.Config.Shortcuts) != len(defaults.Shortcuts) {
+		t.Fatalf("daemon window-manager payload = %#v, want complete defaults with nav_stack_limit=1", captured.Config)
+	}
+
+	homePaths, err := deps.resolveHome()
+	if err != nil {
+		t.Fatalf("resolveHome() error = %v", err)
+	}
+	if _, err := os.Stat(homePaths.ConfigFile); !os.IsNotExist(err) {
+		t.Fatalf("config set wrote local overlay while daemon-backed path should own persistence: stat err=%v", err)
+	}
+
+	var record configSetRecord
+	if err := json.Unmarshal([]byte(out), &record); err != nil {
+		t.Fatalf("json.Unmarshal(config set window manager) error = %v", err)
+	}
+	if record.Lifecycle != string(contract.SettingsApplyLifecycleLive) || !record.Applied ||
+		record.RestartRequired {
+		t.Fatalf("config set window manager record = %#v, want live/applied=true", record)
+	}
+}
+
 func TestConfigSetReloadsReachableDaemonWhenProcessTimestampMetadataLags(t *testing.T) {
 	t.Parallel()
 
@@ -1318,6 +1386,18 @@ func TestConfigRenderingAndMutationHelpers(t *testing.T) {
 			{
 				name:        "Should allow window manager integer behavior",
 				path:        "window_manager.snap.edge_band",
+				wantKind:    configSetInt,
+				wantAllowed: true,
+			},
+			{
+				name:        "Should allow the window manager navigation stack limit",
+				path:        "window_manager.nav_stack_limit",
+				wantKind:    configSetInt,
+				wantAllowed: true,
+			},
+			{
+				name:        "Should allow the window manager closed entry limit",
+				path:        "window_manager.closed_entry_limit",
 				wantKind:    configSetInt,
 				wantAllowed: true,
 			},

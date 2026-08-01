@@ -10,6 +10,7 @@ import type { SeamPreview } from "../lib/seam-preview";
 import type { SnapCorner, SnapSide } from "../lib/snap-targets";
 import type { WindowManagerConnectionStatus } from "../lib/window-manager-types";
 import type {
+  DeckDropTarget,
   DesktopOverviewSegmentRequest,
   DesktopTransitionIntent,
   PendingWindowManagerCommand,
@@ -22,6 +23,7 @@ import type {
   WindowManagerStoreEvents,
   WindowManagerStoreState,
   WindowManagerWorkArea,
+  WindowPaletteIntent,
   WindowRouteIntent,
 } from "./window-manager-store-types";
 
@@ -70,6 +72,8 @@ function bindingScopedState(
     overviewSegmentRequest: null,
     transitionIntent: null,
     routeIntents: {},
+    paletteIntent: null,
+    deckDropTarget: null,
     placementCycles: {},
     gesture: null,
     seamPreview: null,
@@ -165,6 +169,21 @@ export function createWindowManagerStore() {
         delete routeIntents[event.windowId];
         return { ...state, routeIntents };
       },
+      paletteIntentRequested: (state, event: { intent: WindowPaletteIntent }) => ({
+        ...state,
+        paletteIntent: { ...event.intent },
+      }),
+      paletteIntentCleared: state =>
+        state.paletteIntent === null ? undefined : { ...state, paletteIntent: null },
+      deckDropTargeted: (state, event: { target: DeckDropTarget }) =>
+        state.gesture?.status === "active"
+          ? { ...state, deckDropTarget: { ...event.target } }
+          : undefined,
+      deckDropCleared: (state, event: { frameId?: string }) =>
+        state.deckDropTarget === null ||
+        (event.frameId !== undefined && state.deckDropTarget.frameId !== event.frameId)
+          ? undefined
+          : { ...state, deckDropTarget: null },
       placementCycleAdvanced: (state, event, enqueue) => {
         const current = state.placementCycles[event.windowId];
         const cycleStep = current?.edge === event.edge ? current.nextStep : 0;
@@ -203,13 +222,18 @@ export function createWindowManagerStore() {
       },
       seamPreviewSet: (state, event: { preview: SeamPreview }) => {
         const preview = event.preview;
-        if (
-          state.seamPreview?.splitId === preview.splitId &&
-          state.seamPreview.boundaryIndex === preview.boundaryIndex &&
-          state.seamPreview.deltaPx === preview.deltaPx
-        ) {
-          return;
-        }
+        const current = state.seamPreview;
+        const unchanged =
+          current !== null &&
+          current.deltaPx === preview.deltaPx &&
+          ((current.kind === "split" &&
+            preview.kind === "split" &&
+            current.splitId === preview.splitId &&
+            current.boundaryIndex === preview.boundaryIndex) ||
+            (current.kind === "frame" &&
+              preview.kind === "frame" &&
+              current.seamId === preview.seamId));
+        if (unchanged) return;
         return { ...state, seamPreview: { ...preview } };
       },
       seamPreviewCleared: state =>
@@ -228,7 +252,7 @@ export function createWindowManagerStore() {
       gestureCancelled: (state, event) => {
         if (state.gesture === null) return;
         const gesture = cancelLayoutGesture(state.gesture, event.reason, event.point);
-        return gesture === state.gesture ? undefined : { ...state, gesture };
+        return gesture === state.gesture ? undefined : { ...state, gesture, deckDropTarget: null };
       },
       gestureFinished: (state, event, enqueue) => {
         if (state.gesture === null) return;
@@ -240,7 +264,10 @@ export function createWindowManagerStore() {
         enqueue.emit.gestureDecisionResolved({ decision });
         return { ...state, gesture };
       },
-      gestureCleared: state => (state.gesture === null ? undefined : { ...state, gesture: null }),
+      gestureCleared: state =>
+        state.gesture === null && state.deckDropTarget === null
+          ? undefined
+          : { ...state, gesture: null, deckDropTarget: null },
       commandBegan: (state, event: { command: PendingWindowManagerCommand }, enqueue) => {
         if (state.commandState.status !== "idle") return;
         enqueue.emit.commandAccepted({ commandId: event.command.id });
@@ -319,6 +346,7 @@ export type WindowManagerStoreApi = ReturnType<typeof createWindowManagerStore>;
 export const windowManagerStore = createWindowManagerStore();
 
 export type {
+  DeckDropTarget,
   DesktopOverviewSegmentRequest,
   DesktopTransitionIntent,
   PendingWindowManagerCommand,
@@ -329,6 +357,7 @@ export type {
   WindowManagerRevisionConflict,
   WindowManagerStoreState,
   WindowManagerWorkArea,
+  WindowPaletteIntent,
   WindowPlacementCycle,
   WindowRouteIntent,
 } from "./window-manager-store-types";
@@ -343,6 +372,7 @@ export {
   selectWindowManagerDiagnostic,
   selectWindowManagerGesture,
   selectWindowManagerGestureActive,
+  selectWindowManagerGestureDragging,
   selectWindowManagerGesturePreview,
   selectWindowManagerOverlay,
   selectWindowManagerWorkArea,

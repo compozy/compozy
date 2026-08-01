@@ -1,6 +1,7 @@
 import { useEffect, useRef, type RefObject } from "react";
 import { shallowEqual } from "@xstate/store";
 
+import type { OsWindowFrameModel } from "../lib/group-projection";
 import type { LayoutDesktop, LayoutProjection } from "../lib/window-manager-types";
 import type { OsPresentation, OsViewportState } from "../lib/os-types";
 import { useDesktop } from "./use-desktop";
@@ -8,7 +9,7 @@ import { useOsShell } from "./use-os-shell";
 
 export interface DesktopLayerModel {
   desktop: LayoutDesktop;
-  windowIds: readonly string[];
+  frames: readonly OsWindowFrameModel[];
   active: boolean;
   anyVisible: boolean;
 }
@@ -21,7 +22,7 @@ export interface OsWinLayerModel {
   activeProjection: LayoutProjection | undefined;
 }
 
-/** Measures one shared work area and groups the Query projection by desktop. */
+/** Measures one shared work area and groups the frame projection by desktop. */
 export function useOsWinLayer(): OsWinLayerModel {
   const { manager } = useOsShell();
   const layerRef = useRef<HTMLDivElement | null>(null);
@@ -32,24 +33,19 @@ export function useOsWinLayer(): OsWinLayerModel {
       activeDesktopId: state.activeDesktopId,
       desktops: state.desktops,
       projections: state.projections,
-      windows: state.windows,
+      frames: state.frames,
     }),
     shallowEqual
   );
-  const windowIdsByDesktop = new Map<string, string[]>();
-  for (const window of Object.values(projection.windows)) {
-    const windowIds = windowIdsByDesktop.get(window.desktopId) ?? [];
-    windowIds.push(window.id);
-    windowIdsByDesktop.set(window.desktopId, windowIds);
-  }
-  const desktops = projection.desktops.map(desktop => ({
-    desktop,
-    active: desktop.id === projection.activeDesktopId,
-    windowIds: windowIdsByDesktop.get(desktop.id) ?? [],
-    anyVisible: (windowIdsByDesktop.get(desktop.id) ?? []).some(
-      windowId => !projection.windows[windowId]?.minimized
-    ),
-  }));
+  const desktops = projection.desktops.map(desktop => {
+    const frames = projection.frames[desktop.id] ?? [];
+    return {
+      desktop,
+      active: desktop.id === projection.activeDesktopId,
+      frames,
+      anyVisible: frames.some(frame => !frame.minimized),
+    };
+  });
 
   useEffect(() => {
     const layer = layerRef.current;

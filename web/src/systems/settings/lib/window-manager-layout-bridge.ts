@@ -25,6 +25,13 @@ export function toDraftDesktop(desktop: LayoutDesktop): WindowManagerLayoutDeskt
     focusOwner: desktop.focusOwner,
     groups: desktop.groups.map(toDraftGroup),
     floating: [...desktop.floating],
+    floatingStacks: desktop.floatingStacks.map(stack => ({
+      id: stack.id,
+      windowIds: [...stack.windowIds],
+      activeId: stack.activeId,
+      rect: { ...stack.rect },
+      minimized: stack.minimized,
+    })),
   };
 }
 

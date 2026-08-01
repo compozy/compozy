@@ -8,14 +8,14 @@ import { promisify } from "node:util";
 
 import type { Page } from "@playwright/test";
 
-import { sessionWindow } from "../fixtures/os-navigation";
+import { appWindow, sessionWindow } from "../fixtures/os-navigation";
 import {
   SESSION_CREATE_FIRST_MESSAGE,
   knowledgeOperatorSelectors,
   sessionLifecycleSelectors,
   sessionWindowSelectors,
 } from "../fixtures/selectors";
-import type { BrowserRuntime } from "../fixtures/runtime";
+import { type BrowserRuntime, waitForSeedSessionActive } from "../fixtures/runtime";
 import { expect, test } from "../fixtures/test";
 import { ensureGlobalWorkspace, useGlobalWorkspaceIfPrompted } from "../fixtures/workspace";
 
@@ -135,7 +135,7 @@ test("operator creates edits reverts searches recalls and deletes workspace know
   await useGlobalWorkspaceIfPrompted(appPage);
 
   await appPage.goto(runtime.url("/knowledge"), { waitUntil: "domcontentloaded" });
-  const kWin = appPage.getByTestId("os-window-app:knowledge");
+  const kWin = appWindow(appPage, "knowledge");
   await expect(kWin).toBeVisible();
   const knowledgeUI = knowledgeOperatorSelectors(kWin);
   await expect(knowledgeUI.shell).toBeVisible();
@@ -248,7 +248,11 @@ test("operator creates edits reverts searches recalls and deletes workspace know
     knowledge_view_visible: true,
   });
 
-  const recalledSession = await createSessionThroughBrowser(appPage, memoryRecallAgentName);
+  const recalledSession = await createSessionThroughBrowser(
+    appPage,
+    runtime,
+    memoryRecallAgentName
+  );
   const recalledSessionUI = sessionWindowSelectors(
     sessionWindow(appPage, recalledSession.session.id)
   );
@@ -316,7 +320,11 @@ test("operator creates edits reverts searches recalls and deletes workspace know
   const searchAfterDelete = await searchMemory(runtime, workspace.id, marker);
   expect(searchAfterDelete.results.some(result => result.memory.filename === filename)).toBe(false);
 
-  const postDeleteSession = await createSessionThroughBrowser(appPage, memoryRecallAgentName);
+  const postDeleteSession = await createSessionThroughBrowser(
+    appPage,
+    runtime,
+    memoryRecallAgentName
+  );
   const postDeleteSessionUI = sessionWindowSelectors(
     sessionWindow(appPage, postDeleteSession.session.id)
   );
@@ -350,12 +358,13 @@ test("operator creates edits reverts searches recalls and deletes workspace know
 
 async function createSessionThroughBrowser(
   page: Page,
+  runtime: BrowserRuntime,
   agentName: string
 ): Promise<SessionEnvelope> {
   await page.goto(new URL(`/agents/${agentName}`, page.url()).toString(), {
     waitUntil: "domcontentloaded",
   });
-  const agentsWin = page.getByTestId("os-window-app:agents");
+  const agentsWin = appWindow(page, "agents");
   await expect(agentsWin).toBeVisible();
   const agentsUI = sessionLifecycleSelectors(agentsWin);
   await expect(agentsUI.agentPageNewSession).toBeVisible();
@@ -364,8 +373,7 @@ async function createSessionThroughBrowser(
   const createResponsePromise = page.waitForResponse(
     response => response.request().method() === "POST" && response.url().endsWith("/api/sessions")
   );
-  await page.getByTestId("session-create-prompt").fill(SESSION_CREATE_FIRST_MESSAGE);
-  await page.getByTestId("session-create-send").click();
+  await page.getByTestId("session-create-submit").click();
   const createResponse = await createResponsePromise;
   expect(createResponse.ok()).toBe(true);
   const session = (await createResponse.json()) as SessionEnvelope;
@@ -374,7 +382,11 @@ async function createSessionThroughBrowser(
     .toBe(`/agents/${agentName}/sessions/${session.session.id}`);
   const sessionWin = sessionWindow(page, session.session.id);
   await expect(sessionWin).toBeVisible();
-  await expect(sessionWindowSelectors(sessionWin).composerTextarea).toBeVisible();
+  const sessionUI = sessionWindowSelectors(sessionWin);
+  await expect(sessionUI.composerTextarea).toBeVisible();
+  await sessionUI.composerTextarea.fill(SESSION_CREATE_FIRST_MESSAGE);
+  await sessionUI.composerTextarea.press("Enter");
+  await waitForSeedSessionActive(runtime, session.session.id);
   return session;
 }
 

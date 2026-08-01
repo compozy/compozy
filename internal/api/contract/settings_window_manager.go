@@ -65,6 +65,8 @@ type SettingsWindowManagerConfigPayload struct {
 	GroupMoveModifier   SettingsWindowDragModifier          `json:"group_move_modifier"`
 	SwapModifier        SettingsWindowDragModifier          `json:"swap_modifier"`
 	HistoryLimit        int                                 `json:"history_limit"`
+	NavStackLimit       int                                 `json:"nav_stack_limit"`
+	ClosedEntryLimit    int                                 `json:"closed_entry_limit"`
 	DesktopTransition   SettingsWindowDesktopTransition     `json:"desktop_transition"`
 	Gaps                SettingsWindowManagerGapsPayload    `json:"gaps"`
 	Snap                SettingsWindowManagerSnapPayload    `json:"snap"`

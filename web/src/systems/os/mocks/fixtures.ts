@@ -5,10 +5,17 @@ import type {
 import { storyDefaultWorkspaceId } from "@/storybook/fintech-scenario";
 
 import { resolveAppForPath } from "../lib/app-registry";
-import { osWindowId } from "../lib/os-types";
 
 export const windowManagerStoryDesktopId = "desktop-launch";
-export const windowManagerStoryWindowId = "app:settings";
+export const windowManagerStoryWindowId = "w-story-settings";
+
+/**
+ * Window IDs are opaque and generated (ADR-010); stories keep them
+ * deterministic per app so MSW handlers and assertions can reference them.
+ */
+function storyWindowId(app: string, instanceKey: string | null): string {
+  return instanceKey ? `w-story-${app}-${instanceKey}` : `w-story-${app}`;
+}
 
 type WindowManagerStorySnapshot = CompozyApiOkJsonResponseFor<
   "get",
@@ -17,7 +24,7 @@ type WindowManagerStorySnapshot = CompozyApiOkJsonResponseFor<
 
 export const windowManagerSnapshotFixture: WindowManagerStorySnapshot = {
   // SnapshotVersion (internal/windowmanager/types.go:9).
-  version: 2,
+  version: 3,
   workspace_id: storyDefaultWorkspaceId,
   revision: 12,
   desktops: [
@@ -38,6 +45,7 @@ export const windowManagerSnapshotFixture: WindowManagerStorySnapshot = {
         },
       ],
       floating: [],
+      floating_stacks: [],
     },
   ],
   windows: {
@@ -45,13 +53,15 @@ export const windowManagerSnapshotFixture: WindowManagerStorySnapshot = {
       id: windowManagerStoryWindowId,
       app: "settings",
       route: { pathname: "/settings/layouts", search: {} },
+      nav_stack: [],
+      pinned: false,
       placement: "tiled",
       desktop_id: windowManagerStoryDesktopId,
       floating_rect: { x: 0.08, y: 0.08, width: 0.84, height: 0.84 },
       minimized: false,
     },
   },
-  history: { undo: [], redo: [] },
+  closed_entry_count: 0,
   overrides: {},
   updated_at: "2026-07-23T01:00:00Z",
 };
@@ -80,7 +90,7 @@ export function windowManagerStorySnapshot(
   snapshot.workspace_id = workspaceId;
   if (resolved === null) return snapshot;
 
-  const windowId = osWindowId(resolved.app.id, resolved.instanceKey);
+  const windowId = storyWindowId(resolved.app.id, resolved.instanceKey);
   const desktop = snapshot.desktops[0];
   if (desktop?.groups[0]?.root.kind === "leaf") {
     desktop.groups[0].root.window_id = windowId;
@@ -111,6 +121,7 @@ export function windowManagerClientFixture(
     active_desktop_id: windowManagerStoryDesktopId,
     focused_window_id: focusedWindowId,
     focus_order: [focusedWindowId],
+    stack_active: {},
     connected_at: "2026-07-23T01:00:00Z",
   };
 }

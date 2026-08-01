@@ -11,7 +11,7 @@ import type { Locator, Page } from "@playwright/test";
 
 import { captureRouteState } from "../fixtures/browser-artifact-session";
 import { closeMCPAuthServer, startMCPAuthServer } from "../fixtures/mcp-auth-server";
-import { sessionWindow, switchWorkspace } from "../fixtures/os-navigation";
+import { appWindow, sessionWindow, switchWorkspace, windowFrame } from "../fixtures/os-navigation";
 import {
   SESSION_CREATE_FIRST_MESSAGE,
   marketplaceOperatorSelectors,
@@ -26,6 +26,7 @@ import {
   type WorkspacePayload,
   cleanupBrowserSettingsFixtures,
   seedBrowserSettingsFixtures,
+  waitForSeedSessionActive,
 } from "../fixtures/runtime";
 import {
   assertNoSensitiveArtifactPayload,
@@ -196,7 +197,7 @@ test.describe("Marketplace acquisition", () => {
     await useGlobalWorkspaceIfPrompted(appPage);
 
     await appPage.goto(runtime.url("/marketplace"), { waitUntil: "domcontentloaded" });
-    const marketplaceWin = appPage.getByTestId("os-window-app:marketplace");
+    const marketplaceWin = appWindow(appPage, "marketplace");
     await expect(marketplaceWin).toBeVisible();
     const marketplace = marketplaceOperatorSelectors(marketplaceWin);
     await expect.poll(() => new URL(appPage.url()).pathname).toBe("/marketplace/skills");
@@ -779,7 +780,7 @@ test.describe("Skills marketplace management", () => {
     await appPage.goto(runtime.url("/marketplace/skills?tab=installed"), {
       waitUntil: "domcontentloaded",
     });
-    const marketplaceWin = appPage.getByTestId("os-window-app:marketplace");
+    const marketplaceWin = appWindow(appPage, "marketplace");
     await expect(marketplaceWin).toBeVisible();
     const marketplace = marketplaceOperatorSelectors(marketplaceWin);
     await expect(marketplace.kind("skill")).toBeVisible();
@@ -842,7 +843,11 @@ test.describe("Skills marketplace management", () => {
       skills_selected_item: contextSkillName,
       skills_view_visible: true,
     });
-    const baselineSession = await createSessionThroughBrowser(appPage, skillsContextAgentName);
+    const baselineSession = await createSessionThroughBrowser(
+      appPage,
+      runtime,
+      skillsContextAgentName
+    );
     const baselineSessionUI = sessionWindowSelectors(
       sessionWindow(appPage, baselineSession.session.id)
     );
@@ -891,7 +896,11 @@ test.describe("Skills marketplace management", () => {
     expect(disabledParity.udsDetail.skill.enabled).toBe(false);
     expect(disabledParity.cliInfo.enabled).toBe(false);
 
-    const disabledSession = await createSessionThroughBrowser(appPage, skillsContextAgentName);
+    const disabledSession = await createSessionThroughBrowser(
+      appPage,
+      runtime,
+      skillsContextAgentName
+    );
     const disabledSessionUI = sessionWindowSelectors(
       sessionWindow(appPage, disabledSession.session.id)
     );
@@ -933,7 +942,11 @@ test.describe("Skills marketplace management", () => {
     expect((await enableResponsePromise).ok()).toBe(true);
     await expect(enabledLabel).toHaveText("Enabled");
 
-    const restoredSession = await createSessionThroughBrowser(appPage, skillsContextAgentName);
+    const restoredSession = await createSessionThroughBrowser(
+      appPage,
+      runtime,
+      skillsContextAgentName
+    );
     const restoredSessionUI = sessionWindowSelectors(
       sessionWindow(appPage, restoredSession.session.id)
     );
@@ -1111,9 +1124,10 @@ test.describe("Skills marketplace management", () => {
 
   async function createSessionThroughBrowser(
     page: Page,
+    runtime: BrowserRuntime,
     agentName: string
   ): Promise<SessionEnvelope> {
-    const marketplaceWin = page.getByTestId("os-window-app:marketplace");
+    const marketplaceWin = appWindow(page, "marketplace");
     if (await marketplaceWin.isVisible()) {
       await marketplaceWin.getByRole("button", { name: "Close window" }).click();
       await expect(marketplaceWin).toBeHidden();
@@ -1121,9 +1135,9 @@ test.describe("Skills marketplace management", () => {
     await page.goto(new URL(`/agents/${agentName}`, page.url()).toString(), {
       waitUntil: "domcontentloaded",
     });
-    const agentsWin = page.getByTestId("os-window-app:agents");
+    const agentsWin = appWindow(page, "agents");
     await expect(agentsWin).toBeVisible();
-    await expect(agentsWin).toHaveAttribute("data-focused", "");
+    await expect(windowFrame(agentsWin)).toHaveAttribute("data-focused", "");
     const agentsUI = sessionLifecycleSelectors(agentsWin);
     await expect(agentsUI.agentPageNewSession).toBeVisible();
     await agentsUI.agentPageNewSession.click();
@@ -1131,8 +1145,7 @@ test.describe("Skills marketplace management", () => {
     const createResponsePromise = page.waitForResponse(
       response => response.request().method() === "POST" && response.url().endsWith("/api/sessions")
     );
-    await page.getByTestId("session-create-prompt").fill(SESSION_CREATE_FIRST_MESSAGE);
-    await page.getByTestId("session-create-send").click();
+    await page.getByTestId("session-create-submit").click();
     const createResponse = await createResponsePromise;
     expect(createResponse.ok()).toBe(true);
     const session = (await createResponse.json()) as SessionEnvelope;
@@ -1141,7 +1154,11 @@ test.describe("Skills marketplace management", () => {
       .toBe(`/agents/${agentName}/sessions/${session.session.id}`);
     const sessionWin = sessionWindow(page, session.session.id);
     await expect(sessionWin).toBeVisible();
-    await expect(sessionWindowSelectors(sessionWin).composerTextarea).toBeVisible();
+    const sessionUI = sessionWindowSelectors(sessionWin);
+    await expect(sessionUI.composerTextarea).toBeVisible();
+    await sessionUI.composerTextarea.fill(SESSION_CREATE_FIRST_MESSAGE);
+    await sessionUI.composerTextarea.press("Enter");
+    await waitForSeedSessionActive(runtime, session.session.id);
     return session;
   }
 
@@ -1149,7 +1166,7 @@ test.describe("Skills marketplace management", () => {
     const win = sessionWindow(page, sessionID);
     await win.getByRole("button", { name: "Close window" }).click();
     await expect(win).toBeHidden();
-    const agentsWin = page.getByTestId("os-window-app:agents");
+    const agentsWin = appWindow(page, "agents");
     if (await agentsWin.isVisible()) {
       await agentsWin.getByRole("button", { name: "Close window" }).click();
       await expect(agentsWin).toBeHidden();
@@ -1370,9 +1387,7 @@ test.describe("MCP marketplace authorization", () => {
         .first();
       await expect(installedCard).toBeVisible();
       await installedCard.getByRole("link", { name: `View ${SERVER_NAME} details` }).click();
-      const detail = appPage
-        .getByTestId("os-window-app:marketplace")
-        .getByTestId("marketplace-detail");
+      const detail = appWindow(appPage, "marketplace").getByTestId("marketplace-detail");
       await expect(detail).toBeVisible();
       await expect(detail.getByText("Needs login", { exact: true })).toBeVisible();
 
@@ -1382,12 +1397,17 @@ test.describe("MCP marketplace authorization", () => {
       await appPage.getByTestId("settings-page-mcp-authorize-manual-trigger").click();
       await expect(appPage.getByTestId("settings-page-mcp-authorize-manual-input")).toBeVisible();
       const manualLiveUrl = (await urlBlock.locator("code").innerText()).trim();
-      const manualState = new URL(manualLiveUrl).searchParams.get("state");
+      const manualAuthorizationURL = new URL(manualLiveUrl);
+      const manualState = manualAuthorizationURL.searchParams.get("state");
+      const manualRedirectURI = manualAuthorizationURL.searchParams.get("redirect_uri");
       expect(manualState, "manual begin must return a live PKCE state").toBeTruthy();
-      const callbackUrl = runtime.url(
-        `/api/mcp/oauth/callback?code=auth-code&state=${encodeURIComponent(manualState ?? "")}`
-      );
-      await appPage.getByTestId("settings-page-mcp-authorize-manual-input").fill(callbackUrl);
+      expect(manualRedirectURI, "manual begin must return the pending redirect URI").toBeTruthy();
+      const callbackURL = new URL(manualRedirectURI ?? "");
+      callbackURL.searchParams.set("code", "auth-code");
+      callbackURL.searchParams.set("state", manualState ?? "");
+      await appPage
+        .getByTestId("settings-page-mcp-authorize-manual-input")
+        .fill(callbackURL.toString());
       await appPage.getByTestId("settings-page-mcp-authorize-exchange").click();
 
       await expect(appPage.getByTestId("settings-page-mcp-authorize-confirmed")).toBeVisible({
@@ -1710,7 +1730,7 @@ test.describe("Extension and bundle marketplace runtime", () => {
     await appPage.goto(runtime.url("/marketplace/extensions?tab=installed"), {
       waitUntil: "domcontentloaded",
     });
-    const marketplaceWin = appPage.getByTestId("os-window-app:marketplace");
+    const marketplaceWin = appWindow(appPage, "marketplace");
     await expect(marketplaceWin).toBeVisible();
     const marketplace = marketplaceOperatorSelectors(marketplaceWin);
     await expect(marketplace.kind("extension")).toBeVisible({ timeout: 20_000 });
@@ -2794,7 +2814,7 @@ test.describe("Extension update affordance", () => {
 
     await useGlobalWorkspaceIfPrompted(appPage);
     await appPage.goto(runtime.url("/marketplace/extensions"), { waitUntil: "domcontentloaded" });
-    const marketplaceWin = appPage.getByTestId("os-window-app:marketplace");
+    const marketplaceWin = appWindow(appPage, "marketplace");
     await expect(marketplaceWin).toBeVisible();
     const marketplace = marketplaceOperatorSelectors(marketplaceWin);
     await expect(marketplace.kind("extension")).toBeVisible({ timeout: 20_000 });

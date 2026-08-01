@@ -5,7 +5,6 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { OsHydration, OsOpenTarget, OsWindow, OsWindowRoute } from "../os-types";
-import { osWindowId } from "../os-types";
 import { RoutingCoordinator, type OsRouterPort } from "../routing-coordinator";
 import type { WindowManagerClientView } from "../window-manager-types";
 
@@ -13,16 +12,24 @@ function route(pathname: string, search: Record<string, unknown> = {}): OsWindow
   return { pathname, search };
 }
 
+/** Window IDs are opaque (ADR-010); the store mock keys them deterministically per fixture. */
+function testWindowId(app: OsWindow["app"], instanceKey?: string | null): string {
+  return instanceKey ? `w-${app}-${instanceKey}` : `w-${app}`;
+}
+
 function windowFixture(
   app: OsWindow["app"],
   pathname: string,
-  instanceKey: string | null = null
+  instanceKey: string | null = null,
+  id = testWindowId(app, instanceKey)
 ): OsWindow {
   return {
-    id: osWindowId(app, instanceKey),
+    id,
     app,
     instanceKey,
     route: route(pathname),
+    navStack: [],
+    pinned: false,
     desktopId: "desktop:main",
     placement: "floating",
     rect: { x: 40, y: 40, w: 720, h: 480 },
@@ -39,12 +46,18 @@ function windowFixture(
 function createStore(initialWindows: readonly OsWindow[] = []) {
   const windows = Object.fromEntries(initialWindows.map(window => [window.id, window]));
   let focusedId = initialWindows.at(-1)?.id ?? null;
+  let focusOrder = initialWindows.map(window => window.id).reverse();
+  const focus = (id: string) => {
+    focusedId = id;
+    focusOrder = [id, ...focusOrder.filter(candidate => candidate !== id)];
+  };
   let client: WindowManagerClientView | null = {
     workspaceId: "workspace:test",
     clientId: "client:web",
     activeDesktopId: "desktop:main",
     focusedWindowId: focusedId,
-    focusOrder: focusedId === null ? [] : [focusedId],
+    focusOrder,
+    stackActive: {},
     connectedAt: "2026-07-22T00:00:00Z",
     presentationRevision: 1,
   };
@@ -60,44 +73,64 @@ function createStore(initialWindows: readonly OsWindow[] = []) {
   };
 
   const openOrFocus = vi.fn((target: OsOpenTarget) => {
-    const id = osWindowId(target.app, target.instanceKey);
+    const instanceKey = target.instanceKey ?? null;
+    const matchesTarget = (window: OsWindow) =>
+      window.app === target.app && (instanceKey === null || window.instanceKey === instanceKey);
+    const existing =
+      focusOrder
+        .map(id => windows[id])
+        .find((window): window is OsWindow => window !== undefined && matchesTarget(window)) ??
+      Object.values(windows)
+        .sort((left, right) => left.id.localeCompare(right.id))
+        .find(matchesTarget);
+    const id = existing?.id ?? testWindowId(target.app, target.instanceKey);
     return {
       windowId: id,
       ...commandOutcome(() => {
-        const existing = windows[id];
+        const current = windows[id];
         windows[id] =
-          existing ??
+          current ??
           windowFixture(
             target.app,
             target.route?.pathname ?? (target.app === "dashboard" ? "/" : `/${target.app}`),
             target.instanceKey ?? null
           );
         if (target.route) windows[id] = { ...windows[id], route: target.route };
-        focusedId = id;
+        focus(id);
       }),
     };
   });
   const focusWindow = vi.fn((id: string) =>
     commandOutcome(() => {
-      if (windows[id]) focusedId = id;
+      if (windows[id]) focus(id);
     })
   );
   const closeWindow = vi.fn(async (id: string) => {
     if (lifecycleResult !== null && !(await lifecycleResult)) return false;
     delete windows[id];
-    if (focusedId === id) focusedId = Object.keys(windows).at(-1) ?? null;
+    focusOrder = focusOrder.filter(candidate => candidate !== id);
+    if (focusedId === id) {
+      const successor = focusOrder[0] ?? null;
+      if (successor === null) focusedId = null;
+      else focus(successor);
+    }
     return true;
   });
   const minimizeWindow = vi.fn(async (id: string) => {
     if (lifecycleResult !== null && !(await lifecycleResult)) return false;
     if (!windows[id]) return false;
     windows[id] = { ...windows[id], minimized: true };
-    if (focusedId === id) focusedId = Object.keys(windows).find(key => key !== id) ?? null;
+    if (focusedId === id) {
+      const successor =
+        focusOrder.find(candidate => candidate !== id && !windows[candidate]?.minimized) ?? null;
+      if (successor === null) focusedId = null;
+      else focus(successor);
+    }
     return true;
   });
   const zoomWindow = vi.fn((id: string) =>
     commandOutcome(() => {
-      if (windows[id]) focusedId = id;
+      if (windows[id]) focus(id);
     })
   );
   const navigateWindow = vi.fn((id: string, nextRoute: OsWindowRoute) =>
@@ -105,13 +138,31 @@ function createStore(initialWindows: readonly OsWindow[] = []) {
       if (windows[id]) windows[id] = { ...windows[id], route: nextRoute };
     })
   );
+  const popWindowRoute = vi.fn((id: string) =>
+    commandOutcome(() => {
+      const win = windows[id];
+      const parent = win?.navStack.at(-1);
+      if (win && parent) {
+        windows[id] = { ...win, route: parent, navStack: win.navStack.slice(0, -1) };
+      }
+    })
+  );
+  const restoreWindow = vi.fn((id: string) =>
+    commandOutcome(() => {
+      if (windows[id]) {
+        windows[id] = { ...windows[id], minimized: false };
+        focus(id);
+      }
+    })
+  );
   const resetWorkspace = () => {
     for (const id of Object.keys(windows)) delete windows[id];
     focusedId = null;
+    focusOrder = [];
   };
   const setAuthoritativeFocus = (id: string, nextRoute?: OsWindowRoute) => {
     if (nextRoute && windows[id]) windows[id] = { ...windows[id], route: nextRoute };
-    focusedId = id;
+    focus(id);
   };
   const setClientConnected = (connected: boolean) => {
     client = connected
@@ -120,7 +171,8 @@ function createStore(initialWindows: readonly OsWindow[] = []) {
           clientId: "client:web",
           activeDesktopId: "desktop:main",
           focusedWindowId: focusedId,
-          focusOrder: focusedId === null ? [] : [focusedId],
+          focusOrder,
+          stackActive: {},
           connectedAt: "2026-07-22T00:00:00Z",
           presentationRevision: 2,
         }
@@ -141,19 +193,24 @@ function createStore(initialWindows: readonly OsWindow[] = []) {
     },
     openOrFocus,
     focusWindow,
+    restoreWindow,
     closeWindow,
     minimizeWindow,
     zoomWindow,
     navigateWindow,
+    popWindowRoute,
   };
 
   return {
     getState: () => state,
     openOrFocus,
     focusWindow,
+    restoreWindow,
     closeWindow,
     minimizeWindow,
     zoomWindow,
+    navigateWindow,
+    popWindowRoute,
     deferLifecycle: () => {
       lifecycleResult = new Promise<boolean>(resolve => {
         resolveLifecycle = resolve;
@@ -172,7 +229,16 @@ function createStore(initialWindows: readonly OsWindow[] = []) {
     resumeLifecycle: () => {
       lifecycleResult = null;
     },
-    spies: { openOrFocus, focusWindow, closeWindow, minimizeWindow, zoomWindow, navigateWindow },
+    spies: {
+      openOrFocus,
+      focusWindow,
+      restoreWindow,
+      closeWindow,
+      minimizeWindow,
+      zoomWindow,
+      navigateWindow,
+      popWindowRoute,
+    },
   };
 }
 
@@ -250,6 +316,28 @@ describe("RoutingCoordinator", () => {
     expect(store.getState().windows[tasks.id]?.route).toEqual(route("/tasks/task-42"));
     expect(store.spies.focusWindow).not.toHaveBeenCalled();
     expect(store.spies.navigateWindow).not.toHaveBeenCalled();
+    expect(router.navigate).not.toHaveBeenCalled();
+    expect(router.replace).not.toHaveBeenCalled();
+  });
+
+  it("[UT-042] Should reconcile a Tasks deep link through the most-recently-focused instance", () => {
+    const older = windowFixture("tasks", "/tasks", null, "w-tasks-older");
+    const mostRecent = windowFixture("tasks", "/tasks", null, "w-tasks-most-recent");
+    const { coordinator, router, store } = createCoordinator([older, mostRecent]);
+    coordinator.completeHydration();
+    vi.mocked(router.replace).mockClear();
+    const deepLink = route("/tasks/task-42", { view: "board" });
+
+    coordinator.reportRouteMatch(deepLink);
+
+    expect(store.spies.openOrFocus).toHaveBeenCalledWith({
+      app: "tasks",
+      instanceKey: undefined,
+      route: deepLink,
+    });
+    expect(store.getState().focusedId).toBe(mostRecent.id);
+    expect(store.getState().windows[mostRecent.id]?.route).toEqual(deepLink);
+    expect(store.getState().windows[older.id]?.route).toEqual(older.route);
     expect(router.navigate).not.toHaveBeenCalled();
     expect(router.replace).not.toHaveBeenCalled();
   });
@@ -335,9 +423,12 @@ describe("RoutingCoordinator", () => {
     store.resumeLifecycle();
     coordinator.reportAuthoritativeState();
 
+    const createdSession = Object.values(store.getState().windows).find(
+      window => window.app === "session" && window.instanceKey === "sess-created"
+    );
     expect(store.openOrFocus).toHaveBeenCalledTimes(2);
-    expect(store.getState().windows["session:sess-created"]).toBeDefined();
-    expect(store.getState().focusedId).toBe("session:sess-created");
+    expect(createdSession).toBeDefined();
+    expect(store.getState().focusedId).toBe(createdSession?.id);
   });
 
   it("Should preserve an explicit route while its semantic focus is pending", async () => {
@@ -371,7 +462,7 @@ describe("RoutingCoordinator", () => {
 
     const id = await coordinator.userOpen({ app: "settings", route: route("/settings/layouts") });
 
-    expect(id).toBe("app:settings");
+    expect(id).toBe("w-settings");
     expect(router.navigate).toHaveBeenCalledOnce();
     expect(router.navigate).toHaveBeenCalledWith(route("/settings/layouts"));
   });
@@ -395,6 +486,29 @@ describe("RoutingCoordinator", () => {
     expect(store.getState().windows[tasks.id]?.route).toEqual(route("/tasks/task-42"));
     expect(router.navigate).not.toHaveBeenCalled();
     expect(router.replace).not.toHaveBeenCalled();
+  });
+
+  it("Should activate a focused window when it is an inactive stack member", async () => {
+    const agents = {
+      ...windowFixture("agents", "/agents"),
+      stackId: "stack:main",
+      stackActive: true,
+    };
+    const tasks = {
+      ...windowFixture("tasks", "/tasks"),
+      stackId: "stack:main",
+      stackActive: false,
+    };
+    const { coordinator, router, store } = createCoordinator([agents, tasks]);
+    coordinator.completeHydration();
+    vi.mocked(router.replace).mockClear();
+
+    await expect(coordinator.userFocus(tasks.id)).resolves.toBe(true);
+
+    expect(store.spies.focusWindow).toHaveBeenCalledOnce();
+    expect(store.spies.focusWindow).toHaveBeenCalledWith(tasks.id);
+    expect(router.navigate).toHaveBeenCalledOnce();
+    expect(router.navigate).toHaveBeenCalledWith(tasks.route);
   });
 
   it("Should replace once when authoritative focus moves to a different route", () => {

@@ -289,18 +289,20 @@ describe("MarketplaceKindPage", () => {
     mocks.isInstalledItemPending.mockReturnValue(false);
   });
 
-  it("Should render kind identity in the topbar, scope PillGroup, and marketplace cards", () => {
+  it("Should lead the strip with views and keep the head two-element [UT-130]", () => {
     renderKindPage("skill");
     expect(screen.getByRole("heading", { level: 1, name: "Skills" })).toBeInTheDocument();
     expect(screen.queryByTestId("marketplace-kind-head-skill")).toBeNull();
     const head = document.querySelector("[data-slot='topbar']");
     const toolbar = document.querySelector("[data-slot='os-window-toolbar']");
-    expect(document.querySelector("[data-slot='topbar-nav']")).toContainElement(
-      screen.getByTestId("marketplace-kind-navigation")
-    );
-    expect(head).toContainElement(screen.getByTestId("marketplace-kind-navigation"));
-    expect(toolbar).toContainElement(screen.getByTestId("marketplace-kind-search-skill"));
-    expect(toolbar).not.toContainElement(screen.getByTestId("marketplace-kind-navigation"));
+    // ADR-007/D3: route views are the strip's leading group, never in the head.
+    expect(document.querySelector("[data-slot='topbar-nav']")).toBeNull();
+    const views = screen.getByTestId("marketplace-kind-navigation");
+    expect(toolbar).toContainElement(views);
+    expect(head).not.toContainElement(views);
+    const search = screen.getByTestId("marketplace-kind-search-skill");
+    expect(toolbar).toContainElement(search);
+    expect(views.compareDocumentPosition(search) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(document.querySelector("[data-slot='topbar-actions']")).toContainElement(
       screen.getByTestId("marketplace-refresh")
     );

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sync"
 )
 
 func (m *Manager) resolveWorkspace(ctx context.Context, workspaceID WorkspaceID) error {
@@ -26,18 +25,39 @@ func (m *Manager) resolveWorkspace(ctx context.Context, workspaceID WorkspaceID)
 	return nil
 }
 
-func (m *Manager) lockFor(workspaceID WorkspaceID) (*sync.Mutex, error) {
+func (m *Manager) lockFor(workspaceID WorkspaceID) (*workspaceLock, error) {
 	m.mu.Lock()
-	defer m.mu.Unlock()
 	if m.closed {
+		m.mu.Unlock()
 		return nil, ErrClosed
 	}
 	lock := m.workspaceLocks[workspaceID]
 	if lock == nil {
-		lock = &sync.Mutex{}
+		lock = &workspaceLock{}
 		m.workspaceLocks[workspaceID] = lock
 	}
+	lock.references++
+	m.coalescer.bindWorkspace(workspaceID, lock)
+	m.mu.Unlock()
 	return lock, nil
+}
+
+func (m *Manager) releaseWorkspaceLock(workspaceID WorkspaceID, lock *workspaceLock) {
+	lock.Unlock()
+	m.mu.Lock()
+	lock.references--
+	if lock.retired && lock.references == 0 && m.workspaceLocks[workspaceID] == lock {
+		delete(m.workspaceLocks, workspaceID)
+	}
+	m.mu.Unlock()
+}
+
+func (m *Manager) retireWorkspaceLock(workspaceID WorkspaceID, lock *workspaceLock) {
+	m.mu.Lock()
+	if m.workspaceLocks[workspaceID] == lock {
+		lock.retired = true
+	}
+	m.mu.Unlock()
 }
 
 // Close terminates live subscriptions and rejects later operations.
@@ -53,10 +73,11 @@ func (m *Manager) Close() error {
 		hubs = append(hubs, hub)
 	}
 	m.mu.Unlock()
+	coalescerErr := m.coalescer.close()
 	for _, hub := range hubs {
 		hub.closeAll(nil)
 	}
-	return nil
+	return coalescerErr
 }
 
 func validateCommandRequest(request CommandRequest) (CommandID, error) {

@@ -52,6 +52,9 @@ type SettingsApplyHistoryQuery struct {
 // UpdateSettingsSkillsRequest captures the shared skills settings update payload.
 type UpdateSettingsSkillsRequest = contract.UpdateSettingsSkillsRequest
 
+// UpdateSettingsWindowManagerRequest captures the shared window-manager settings update payload.
+type UpdateSettingsWindowManagerRequest = contract.UpdateSettingsWindowManagerRequest
+
 // VaultRecord is one redacted vault secret metadata row.
 type VaultRecord = contract.VaultSecretPayload
 

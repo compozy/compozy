@@ -1,3 +1,5 @@
+import { projectFrameSeams } from "./frame-seams";
+import { minimumForNode, minimumForWindow } from "./layout-minimums";
 import type {
   LayoutAxis,
   LayoutGroup,
@@ -6,9 +8,9 @@ import type {
   LayoutProjectionDiagnostic,
   LayoutProjectionInput,
   LayoutSplitNode,
+  NormalizedRect,
   PixelPoint,
   PixelRect,
-  PixelSize,
   ProjectedSeam,
   ProjectedStack,
   ProjectedWindow,
@@ -16,8 +18,6 @@ import type {
   WindowMinimums,
 } from "./window-manager-types";
 import { windowManagerLayoutArea, windowManagerTileInset } from "./window-manager-layout-area";
-
-const EMPTY_MINIMUM: PixelSize = { width: 0, height: 0 };
 
 interface ProjectionCollector {
   windows: ProjectedWindow[];
@@ -31,6 +31,7 @@ interface NodeProjectionContext {
   innerGap: number;
   minimums: WindowMinimums;
   focusedWindowId: WindowId | null;
+  stackActive: Readonly<Record<string, WindowId>>;
   collector: ProjectionCollector;
 }
 
@@ -105,38 +106,18 @@ function projectGroupFrame(
   );
 }
 
-function minimumForWindow(windowId: WindowId, minimums: WindowMinimums): PixelSize {
-  const minimum = minimums[windowId];
-  if (minimum === undefined) return EMPTY_MINIMUM;
-  return {
-    width: nonNegativeInteger(minimum.width),
-    height: nonNegativeInteger(minimum.height),
-  };
-}
-
-function minimumForNode(node: LayoutNode, innerGap: number, minimums: WindowMinimums): PixelSize {
-  if (node.kind === "leaf") return minimumForWindow(node.windowId, minimums);
-  if (node.kind === "stack") {
-    return node.windowIds.reduce<PixelSize>((maximum, windowId) => {
-      const minimum = minimumForWindow(windowId, minimums);
-      return {
-        width: Math.max(maximum.width, minimum.width),
-        height: Math.max(maximum.height, minimum.height),
-      };
-    }, EMPTY_MINIMUM);
-  }
-  const children = node.children.map(child => minimumForNode(child, innerGap, minimums));
-  const gapTotal = innerGap * Math.max(0, children.length - 1);
-  if (node.axis === "horizontal") {
-    return {
-      width: children.reduce((sum, child) => sum + child.width, gapTotal),
-      height: children.reduce((maximum, child) => Math.max(maximum, child.height), 0),
-    };
-  }
-  return {
-    width: children.reduce((maximum, child) => Math.max(maximum, child.width), 0),
-    height: children.reduce((sum, child) => sum + child.height, gapTotal),
-  };
+/** Subdivides a normalized zone the way the daemon's projectNode does. */
+function splitZones(node: LayoutSplitNode, zone: NormalizedRect): NormalizedRect[] {
+  const weights = normalizedWeights(node);
+  let offset = 0;
+  return weights.map(weight => {
+    const childZone =
+      node.axis === "horizontal"
+        ? { x: zone.x + zone.w * offset, y: zone.y, w: zone.w * weight, h: zone.h }
+        : { x: zone.x, y: zone.y + zone.h * offset, w: zone.w, h: zone.h * weight };
+    offset += weight;
+    return childZone;
+  });
 }
 
 function descendantEntries(
@@ -164,10 +145,25 @@ function explicitActiveWindow(node: LayoutNode): WindowId | null {
   return null;
 }
 
-function preferredActiveWindow(node: LayoutNode, focusedWindowId: WindowId | null): WindowId {
+/**
+ * Display-active per ADR-009: the client's own `stackActive` wins, then the
+ * durable `activeId`. Adaptive stacks are viewport degradations the daemon
+ * never models, so they alone keep following focus.
+ */
+function displayActiveWindow(
+  node: LayoutNode,
+  kind: ProjectedStack["kind"],
+  context: NodeProjectionContext
+): WindowId {
   const entries = descendantEntries(node);
-  const focused = entries.find(entry => entry.windowId === focusedWindowId);
-  if (focused !== undefined) return focused.windowId;
+  if (kind === "adaptive") {
+    const focused = entries.find(entry => entry.windowId === context.focusedWindowId);
+    if (focused !== undefined) return focused.windowId;
+  }
+  const clientActive = context.stackActive[node.id];
+  if (clientActive !== undefined && entries.some(entry => entry.windowId === clientActive)) {
+    return clientActive;
+  }
   const explicitActive = explicitActiveWindow(node);
   if (explicitActive !== null) return explicitActive;
   return entries[0]?.windowId ?? "";
@@ -218,13 +214,14 @@ function splitRects(node: LayoutSplitNode, rect: PixelRect, gap: number): PixelR
 function projectStack(
   node: LayoutNode,
   rect: PixelRect,
+  zone: NormalizedRect,
   context: NodeProjectionContext,
   kind: ProjectedStack["kind"],
   parentAxis: LayoutAxis | null
 ): void {
   const entries = descendantEntries(node, parentAxis);
   if (entries.length === 0) return;
-  const activeWindowId = preferredActiveWindow(node, context.focusedWindowId);
+  const activeWindowId = displayActiveWindow(node, kind, context);
   context.collector.stacks.push({
     nodeId: node.id,
     groupId: context.groupId,
@@ -232,6 +229,7 @@ function projectStack(
     windowIds: entries.map(entry => entry.windowId),
     activeWindowId,
     rect,
+    zone,
   });
   for (const entry of entries) {
     context.collector.windows.push({
@@ -239,6 +237,7 @@ function projectStack(
       nodeId: entry.nodeId,
       groupId: context.groupId,
       rect,
+      zone,
       stackId: node.id,
       active: entry.windowId === activeWindowId,
       adapted: kind === "adaptive",
@@ -326,6 +325,7 @@ function splitAllocationsMeetMinimums(
 function projectNode(
   node: LayoutNode,
   rect: PixelRect,
+  zone: NormalizedRect,
   context: NodeProjectionContext,
   parentAxis: LayoutAxis | null
 ): void {
@@ -345,6 +345,7 @@ function projectNode(
       nodeId: node.id,
       groupId: context.groupId,
       rect,
+      zone,
       stackId: null,
       active: true,
       adapted: false,
@@ -353,7 +354,7 @@ function projectNode(
     return;
   }
   if (node.kind === "stack") {
-    projectStack(node, rect, context, "explicit", parentAxis);
+    projectStack(node, rect, zone, context, "explicit", parentAxis);
     return;
   }
   const required = minimumForNode(node, context.innerGap, context.minimums);
@@ -369,12 +370,16 @@ function projectNode(
       required,
       available: { width: rect.w, height: rect.h },
     });
-    projectStack(node, rect, context, "adaptive", parentAxis);
+    projectStack(node, rect, zone, context, "adaptive", parentAxis);
     return;
   }
+  const childZones = splitZones(node, zone);
   node.children.forEach((child, index) => {
     const childRect = childRects[index];
-    if (childRect !== undefined) projectNode(child, childRect, context, node.axis);
+    const childZone = childZones[index];
+    if (childRect !== undefined && childZone !== undefined) {
+      projectNode(child, childRect, childZone, context, node.axis);
+    }
   });
   for (let index = 0; index < node.children.length - 1; index += 1) {
     const seam = seamForBoundary(node, childRects, index, context);
@@ -397,11 +402,13 @@ export function projectLayout(input: LayoutProjectionInput): LayoutProjection {
     projectNode(
       group.root,
       rect,
+      group.frame,
       {
         groupId: group.id,
         innerGap,
         minimums,
         focusedWindowId: input.focusedWindowId ?? null,
+        stackActive: input.stackActive ?? {},
         collector,
       },
       null
@@ -414,6 +421,13 @@ export function projectLayout(input: LayoutProjectionInput): LayoutProjection {
     windows: collector.windows,
     stacks: collector.stacks,
     seams: collector.seams,
+    frameSeams: projectFrameSeams({
+      desktopId: input.desktop.id,
+      groups: input.desktop.groups,
+      layoutArea,
+      innerGap,
+      minimums,
+    }),
     diagnostics: collector.diagnostics,
   };
 }

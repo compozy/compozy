@@ -75,6 +75,8 @@ type Config struct {
 	GroupMoveModifier   string              `json:"group_move_modifier"`
 	SwapModifier        string              `json:"swap_modifier"`
 	HistoryLimit        int                 `json:"history_limit"`
+	NavStackLimit       int                 `json:"nav_stack_limit"`
+	ClosedEntryLimit    int                 `json:"closed_entry_limit"`
 	DesktopTransition   DesktopTransition   `json:"desktop_transition"`
 	Gaps                GapsConfig          `json:"gaps"`
 	Snap                SnapConfig          `json:"snap"`
@@ -94,6 +96,8 @@ type WorkspaceConfig struct {
 	GroupMoveModifier   *string              `json:"group_move_modifier,omitempty"`
 	SwapModifier        *string              `json:"swap_modifier,omitempty"`
 	HistoryLimit        *int                 `json:"history_limit,omitempty"`
+	NavStackLimit       *int                 `json:"nav_stack_limit,omitempty"`
+	ClosedEntryLimit    *int                 `json:"closed_entry_limit,omitempty"`
 	DesktopTransition   *DesktopTransition   `json:"desktop_transition,omitempty"`
 	Gaps                *GapsConfig          `json:"gaps,omitempty"`
 	Snap                *SnapConfig          `json:"snap,omitempty"`
@@ -112,6 +116,8 @@ func DefaultConfig() Config {
 		GroupMoveModifier:   dragModifierAlt,
 		SwapModifier:        dragModifierShift,
 		HistoryLimit:        50,
+		NavStackLimit:       50,
+		ClosedEntryLimit:    20,
 		DesktopTransition:   DesktopTransitionSlide,
 		Gaps:                GapsConfig{Inner: 8, Top: 8, Right: 10, Bottom: 8, Left: 10},
 		Snap: SnapConfig{
@@ -150,6 +156,22 @@ func validateBehaviorConfig(config Config) error {
 	}
 	if config.HistoryLimit <= 0 || config.HistoryLimit > 500 {
 		return fmt.Errorf("history limit %d must be between 1 and 500: %w", config.HistoryLimit, ErrInvalidCommand)
+	}
+	if config.NavStackLimit <= 0 || config.NavStackLimit > absoluteNavStackLimit {
+		return fmt.Errorf(
+			"nav stack limit %d must be between 1 and %d: %w",
+			config.NavStackLimit,
+			absoluteNavStackLimit,
+			ErrInvalidCommand,
+		)
+	}
+	if config.ClosedEntryLimit <= 0 || config.ClosedEntryLimit > absoluteClosedEntryLimit {
+		return fmt.Errorf(
+			"closed entry limit %d must be between 1 and %d: %w",
+			config.ClosedEntryLimit,
+			absoluteClosedEntryLimit,
+			ErrInvalidCommand,
+		)
 	}
 	if config.DesktopTransition != DesktopTransitionSlide && config.DesktopTransition != DesktopTransitionCrossfade &&
 		config.DesktopTransition != DesktopTransitionInstant {
@@ -261,6 +283,12 @@ func effectiveConfig(defaults Config, overrides WorkspaceConfig) (Config, error)
 	}
 	if overrides.HistoryLimit != nil {
 		result.HistoryLimit = *overrides.HistoryLimit
+	}
+	if overrides.NavStackLimit != nil {
+		result.NavStackLimit = *overrides.NavStackLimit
+	}
+	if overrides.ClosedEntryLimit != nil {
+		result.ClosedEntryLimit = *overrides.ClosedEntryLimit
 	}
 	if overrides.DesktopTransition != nil {
 		result.DesktopTransition = *overrides.DesktopTransition

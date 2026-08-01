@@ -36,6 +36,14 @@ export interface WindowManagerLayoutGroup {
   root: WindowManagerLayoutNode;
 }
 
+export interface WindowManagerLayoutFloatingStack {
+  id: string;
+  windowIds: string[];
+  activeId: string | null;
+  rect: WindowManagerNormalizedRect;
+  minimized: boolean;
+}
+
 export interface WindowManagerLayoutDesktop {
   id: string;
   name: string;
@@ -44,6 +52,7 @@ export interface WindowManagerLayoutDesktop {
   focusOwner: string | null;
   groups: WindowManagerLayoutGroup[];
   floating: string[];
+  floatingStacks: WindowManagerLayoutFloatingStack[];
 }
 
 export interface WindowManagerLayoutWindow {
@@ -54,6 +63,11 @@ export interface WindowManagerLayoutWindow {
     pathname: string;
     search: Record<string, unknown>;
   };
+  navStack: {
+    pathname: string;
+    search: Record<string, unknown>;
+  }[];
+  pinned: boolean;
   placement: "tiled" | "stacked" | "floating";
   desktopId: string;
   floatingRect: WindowManagerNormalizedRect;
@@ -62,7 +76,7 @@ export interface WindowManagerLayoutWindow {
 }
 
 export interface WindowManagerLayoutDocument {
-  version: number;
+  version: 3;
   workspaceId: string;
   desktops: WindowManagerLayoutDesktop[];
   windows: Record<string, WindowManagerLayoutWindow>;
@@ -92,6 +106,8 @@ export interface WindowManagerLayoutChanges {
   groupIds: string[];
   nodeIds: string[];
   clientIds: string[];
+  stackGrouped: string[];
+  stackUngrouped: string[];
 }
 
 export interface WindowManagerLayoutPreview {
