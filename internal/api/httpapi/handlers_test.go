@@ -2283,7 +2283,11 @@ func TestPromptSessionHandlerReturnsAISDKSSEStream(t *testing.T) {
 		engine,
 		http.MethodPost,
 		"/api/workspaces/ws-workspace/sessions/sess-123/prompt",
-		[]byte(`{"message_id":"msg-ai-sdk-stream","idempotency_key":"idem-ai-sdk-stream","messages":[{"id":"msg-ai-sdk-stream","role":"user","parts":[{"type":"text","text":"hello"}]}]}`),
+		[]byte(
+			`{"message_id":"msg-ai-sdk-stream","idempotency_key":"idem-ai-sdk-stream",`+
+				`"messages":[{"id":"msg-ai-sdk-stream","role":"user",`+
+				`"parts":[{"type":"text","text":"hello"}]}]}`,
+		),
 	)
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
@@ -2447,7 +2451,11 @@ func TestPromptSessionHandlerPreservesToolInputAfterOutOfOrderToolResult(t *test
 			engine,
 			http.MethodPost,
 			"/api/workspaces/ws-workspace/sessions/sess-123/prompt",
-			[]byte(`{"message_id":"msg-tool-order","idempotency_key":"idem-tool-order","messages":[{"id":"msg-tool-order","role":"user","parts":[{"type":"text","text":"hello"}]}]}`),
+			[]byte(
+				`{"message_id":"msg-tool-order","idempotency_key":"idem-tool-order",`+
+					`"messages":[{"id":"msg-tool-order","role":"user",`+
+					`"parts":[{"type":"text","text":"hello"}]}]}`,
+			),
 		)
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
@@ -2662,7 +2670,55 @@ func TestPromptSessionHandlerReturnsDurableReplayEnvelope(t *testing.T) {
 	})
 }
 
-func TestPromptSessionHandlerReturnsIdentityCollisionDiagnostics(t *testing.T) {
+func TestSteerSessionPromptHandlerPropagatesDurableIdentity(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should stage steering with canonical identity and response envelope", func(t *testing.T) {
+		t.Parallel()
+
+		var gotOpts session.SteerPromptOpts
+		manager := stubSessionManager{
+			SteerFn: func(_ context.Context, id string, opts session.SteerPromptOpts) (session.SendPromptResult, error) {
+				if id != "sess-123" {
+					t.Fatalf("SteerPrompt() id = %q, want sess-123", id)
+				}
+				gotOpts = opts
+				return session.SendPromptResult{
+					Status:         "staged",
+					MessageID:      opts.MessageID,
+					IdempotencyKey: opts.IdempotencyKey,
+					Staged:         true,
+					QueueEntryID:   "inq-steer",
+				}, nil
+			},
+		}
+		engine := newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t)))
+		recorder := performRequest(
+			t,
+			engine,
+			http.MethodPost,
+			"/api/workspaces/ws-workspace/sessions/sess-123/steer",
+			[]byte(`{"text":"focus on the race","message_id":"msg-steer","idempotency_key":"idem-steer"}`),
+		)
+		if recorder.Code != http.StatusAccepted {
+			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusAccepted, recorder.Body.String())
+		}
+		if gotOpts.Message != "focus on the race" || gotOpts.MessageID != "msg-steer" ||
+			gotOpts.IdempotencyKey != "idem-steer" {
+			t.Fatalf("SteerPrompt() opts = %#v, want canonical identity", gotOpts)
+		}
+		var decoded contract.SendPromptResultResponse
+		if err := json.Unmarshal(recorder.Body.Bytes(), &decoded); err != nil {
+			t.Fatalf("json.Unmarshal(steer result) error = %v; body=%s", err, recorder.Body.String())
+		}
+		if !decoded.Prompt.Staged || decoded.Prompt.MessageID != "msg-steer" ||
+			decoded.Prompt.IdempotencyKey != "idem-steer" || decoded.Prompt.QueueEntryID != "inq-steer" {
+			t.Fatalf("steer response = %#v", decoded.Prompt)
+		}
+	})
+}
+
+func TestPromptSessionHandlerReturnsPromptAdmissionDiagnostics(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -2671,14 +2727,19 @@ func TestPromptSessionHandlerReturnsIdentityCollisionDiagnostics(t *testing.T) {
 		wantCode string
 	}{
 		{
-			name:     "ShouldReturnIdempotencyConflictDiagnostic",
+			name:     "Should return idempotency conflict diagnostic",
 			err:      store.ErrSessionPromptIdempotencyConflict,
 			wantCode: contract.CodePromptIdempotencyConflict,
 		},
 		{
-			name:     "ShouldReturnMessageIdentityConflictDiagnostic",
+			name:     "Should return message identity conflict diagnostic",
 			err:      store.ErrSessionPromptMessageConflict,
 			wantCode: contract.CodePromptMessageIdentityConflict,
+		},
+		{
+			name:     "Should return indeterminate dispatch diagnostic",
+			err:      store.ErrSessionPromptDispatchIndeterminate,
+			wantCode: contract.CodePromptDispatchIndeterminate,
 		},
 	}
 
@@ -2799,7 +2860,10 @@ func TestPromptSessionHandlerPreservesRuntimeFailureDiagnostics(t *testing.T) {
 				engine,
 				http.MethodPost,
 				"/api/workspaces/ws-workspace/sessions/sess-123/prompt",
-				[]byte(`{"message":"hello","message_id":"msg-runtime-diagnostic","idempotency_key":"idem-runtime-diagnostic"}`),
+				[]byte(
+					`{"message":"hello","message_id":"msg-runtime-diagnostic",`+
+						`"idempotency_key":"idem-runtime-diagnostic"}`,
+				),
 			)
 			if recorder.Code != http.StatusUnprocessableEntity {
 				t.Fatalf(
@@ -2908,7 +2972,9 @@ func TestPromptSessionHandlerSeparatesPromptExecutionFromDelivery(t *testing.T) 
 			requestCtx,
 			http.MethodPost,
 			"/api/workspaces/ws-workspace/sessions/sess-123/prompt",
-			strings.NewReader(`{"message":"hello","message_id":"msg-delivery-cancel","idempotency_key":"idem-delivery-cancel"}`),
+			strings.NewReader(
+				`{"message":"hello","message_id":"msg-delivery-cancel","idempotency_key":"idem-delivery-cancel"}`,
+			),
 		)
 		req.Header.Set("Content-Type", "application/json")
 

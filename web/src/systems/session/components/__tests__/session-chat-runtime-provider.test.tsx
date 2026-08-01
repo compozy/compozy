@@ -358,10 +358,39 @@ function ClearConversationButton() {
   );
 }
 
+function RetryLatestAssistantMessageButton() {
+  const aui = useAui();
+  const latestAssistantMessageId = useAuiState(state => {
+    for (let index = state.thread.messages.length - 1; index >= 0; index -= 1) {
+      const message = state.thread.messages[index];
+      if (message?.role === "assistant") {
+        return message.id;
+      }
+    }
+    return null;
+  });
+
+  if (latestAssistantMessageId === null) {
+    return null;
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={async () => {
+        await aui.thread().message({ id: latestAssistantMessageId }).reload();
+      }}
+    >
+      Retry latest assistant message
+    </button>
+  );
+}
+
 function renderSessionThread(
   options: {
     eventSourceFactory?: (url: string) => FakeSessionEventSource;
     includeClearAction?: boolean;
+    includeRuntimeRetryControl?: boolean;
     includeToaster?: boolean;
     queryClient?: QueryClient;
     includeTranscriptStateProbe?: boolean;
@@ -375,36 +404,44 @@ function renderSessionThread(
 ) {
   const queryClient = options.queryClient ?? createQueryClient();
 
-  const sessionRuntime = (
-    <QueryClientProvider client={queryClient}>
-      <SessionChatRuntimeProvider
-        sessionId={primarySessionFixture.id}
-        workspaceId={fixtureWorkspaceId()}
-        eventSourceFactory={options.eventSourceFactory}
-        liveTailEnabled={options.liveTailEnabled}
-      >
-        {options.onRuntimeTranscriptCommit ? (
-          <RuntimeTranscriptCoherenceProbe onCommit={options.onRuntimeTranscriptCommit} />
-        ) : null}
-        {options.includeTranscriptStateProbe ? <TranscriptStateProbe /> : null}
-        {options.includeClearAction ? <ClearConversationButton /> : null}
-        <SessionThread
+  const renderTree = () => {
+    const sessionRuntime = (
+      <QueryClientProvider client={queryClient}>
+        <SessionChatRuntimeProvider
           sessionId={primarySessionFixture.id}
-          agentName={primarySessionFixture.agent_name}
-          workspaceId={options.includeDecisionDock ? fixtureWorkspaceId() : undefined}
-          sessionState={options.includeDecisionDock ? "active" : undefined}
-          canPrompt
-          onCancelPrompt={options.onCancelPrompt ?? (() => {})}
-        />
-        {options.includeToaster ? <Toaster duration={500} /> : null}
-      </SessionChatRuntimeProvider>
-    </QueryClientProvider>
-  );
-  const tree = options.runtimeSnapshot
-    ? withRuntimeSnapshot(sessionRuntime, options.runtimeSnapshot)
-    : sessionRuntime;
-  const utils = render(options.strictMode ? <StrictMode>{tree}</StrictMode> : tree);
-  return { ...utils, queryClient };
+          workspaceId={fixtureWorkspaceId()}
+          eventSourceFactory={options.eventSourceFactory}
+          liveTailEnabled={options.liveTailEnabled}
+        >
+          {options.onRuntimeTranscriptCommit ? (
+            <RuntimeTranscriptCoherenceProbe onCommit={options.onRuntimeTranscriptCommit} />
+          ) : null}
+          {options.includeTranscriptStateProbe ? <TranscriptStateProbe /> : null}
+          {options.includeClearAction ? <ClearConversationButton /> : null}
+          {options.includeRuntimeRetryControl ? <RetryLatestAssistantMessageButton /> : null}
+          <SessionThread
+            sessionId={primarySessionFixture.id}
+            agentName={primarySessionFixture.agent_name}
+            workspaceId={options.includeDecisionDock ? fixtureWorkspaceId() : undefined}
+            sessionState={options.includeDecisionDock ? "active" : undefined}
+            canPrompt
+            onCancelPrompt={options.onCancelPrompt ?? (() => {})}
+          />
+          {options.includeToaster ? <Toaster duration={500} /> : null}
+        </SessionChatRuntimeProvider>
+      </QueryClientProvider>
+    );
+    const tree = options.runtimeSnapshot
+      ? withRuntimeSnapshot(sessionRuntime, options.runtimeSnapshot)
+      : sessionRuntime;
+    return options.strictMode ? <StrictMode>{tree}</StrictMode> : tree;
+  };
+  const utils = render(renderTree());
+  return {
+    ...utils,
+    queryClient,
+    rerenderSessionThread: () => utils.rerender(renderTree()),
+  };
 }
 
 function withRuntimeSnapshot(
@@ -1012,6 +1049,49 @@ describe("SessionChatRuntimeProvider", () => {
       );
       view.unmount();
     }
+  });
+
+  // Invariant: retrying an existing user turn after a provider rerender keeps
+  // its original idempotency key. Owning layer: session chat runtime provider
+  // integration. Canonical suite: this provider suite.
+  it("retains the prompt idempotency key when a rerendered provider retries the response", async () => {
+    const user = userEvent.setup();
+    const { rerenderSessionThread } = renderSessionThread({ includeRuntimeRetryControl: true });
+
+    const composer = await screen.findByRole("textbox", { name: "Session prompt" });
+    await user.type(composer, "Retry this answer after the provider rerenders");
+    await user.click(screen.getByTestId("composer-send-button"));
+
+    await waitFor(() => expect(countPromptFetches(fetchMock)).toBe(1));
+    const firstPromptRequest = fetchMock.mock.calls.find(([input]) => {
+      return (
+        getPathname(input as RequestInfo | URL) ===
+        `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/${primarySessionFixture.id}/prompt`
+      );
+    });
+    const firstPromptBody = JSON.parse(String(firstPromptRequest?.[1]?.body)) as {
+      idempotency_key: string;
+      message_id: string;
+    };
+
+    rerenderSessionThread();
+    await user.click(await screen.findByRole("button", { name: "Retry latest assistant message" }));
+
+    await waitFor(() => expect(countPromptFetches(fetchMock)).toBe(2));
+    const promptRequests = fetchMock.mock.calls.filter(([input]) => {
+      return (
+        getPathname(input as RequestInfo | URL) ===
+        `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/${primarySessionFixture.id}/prompt`
+      );
+    });
+    const retryPromptRequest = promptRequests[1];
+    const retryPromptBody = JSON.parse(String(retryPromptRequest?.[1]?.body)) as {
+      idempotency_key: string;
+      message_id: string;
+    };
+
+    expect(retryPromptBody.message_id).toBe(firstPromptBody.message_id);
+    expect(retryPromptBody.idempotency_key).toBe(firstPromptBody.idempotency_key);
   });
 
   it.each([

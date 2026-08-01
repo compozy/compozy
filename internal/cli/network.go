@@ -50,7 +50,7 @@ const (
 	networkLastMessagePreviewKey = "last_message_preview"
 	networkListKey               = "list"
 	networkMessageCountKey       = "message_count"
-	networkMessageIDKey          = "message_id"
+	messageIDKey                 = "message_id"
 	networkNetworkKey            = "network"
 	networkOpenWorkCountKey      = "open_work_count"
 	networkOpenedAtKey           = "opened_at"

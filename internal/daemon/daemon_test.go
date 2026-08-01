@@ -75,8 +75,10 @@ type sessionSteerQueueStub struct {
 	sessionID          string
 	completedSessionID string
 	completedEntryID   string
+	sentAt             time.Time
 	failedSessionID    string
 	failedEntryID      string
+	failedAt           time.Time
 	failureSummary     string
 }
 
@@ -84,10 +86,11 @@ func (s *sessionSteerQueueStub) MarkSessionInputSent(
 	_ context.Context,
 	sessionID string,
 	entryID string,
-	_ time.Time,
+	now time.Time,
 ) error {
 	s.completedSessionID = sessionID
 	s.completedEntryID = entryID
+	s.sentAt = now
 	return nil
 }
 
@@ -96,10 +99,11 @@ func (s *sessionSteerQueueStub) MarkSessionInputFailed(
 	sessionID string,
 	entryID string,
 	summary string,
-	_ time.Time,
+	now time.Time,
 ) error {
 	s.failedSessionID = sessionID
 	s.failedEntryID = entryID
+	s.failedAt = now
 	s.failureSummary = summary
 	return nil
 }
@@ -122,9 +126,10 @@ func TestSessionSteerSource(t *testing.T) {
 			MessageID: "message-steer", IdempotencyKey: "idem-steer",
 			TurnID: "turn-steer", EventID: "event-steer", SessionGeneration: 4,
 		}
+		timestamp := time.Date(2026, 7, 31, 12, 0, 0, 0, time.UTC)
 		queue := &sessionSteerQueueStub{entry: want, found: true}
 		source := sessionSteerSource{queue: queue, now: func() time.Time {
-			return time.Date(2026, 7, 31, 12, 0, 0, 0, time.UTC)
+			return timestamp
 		}}
 
 		got, found, err := source.ConsumeSteer(testutil.Context(t), want.SessionID)
@@ -154,6 +159,9 @@ func TestSessionSteerSource(t *testing.T) {
 				want.ID,
 			)
 		}
+		if !queue.sentAt.Equal(timestamp) {
+			t.Fatalf("CompleteSteer() sent timestamp = %s, want %s", queue.sentAt, timestamp)
+		}
 		if err := source.FailSteer(testutil.Context(t), want.SessionID, want.ID, "provider failed"); err != nil {
 			t.Fatalf("FailSteer() error = %v", err)
 		}
@@ -167,6 +175,9 @@ func TestSessionSteerSource(t *testing.T) {
 				want.SessionID,
 				want.ID,
 			)
+		}
+		if !queue.failedAt.Equal(timestamp) {
+			t.Fatalf("FailSteer() timestamp = %s, want %s", queue.failedAt, timestamp)
 		}
 	})
 }

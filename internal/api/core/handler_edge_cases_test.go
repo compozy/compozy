@@ -324,6 +324,7 @@ func TestPromptResponseFromSessionShouldEnforceClosedGoalOutcomeMatrix(t *testin
 	tests := []struct {
 		name       string
 		result     *session.GoalCommandResult
+		replayed   bool
 		wantStatus int
 		wantError  bool
 		wantErrMsg string
@@ -355,6 +356,12 @@ func TestPromptResponseFromSessionShouldEnforceClosedGoalOutcomeMatrix(t *testin
 		{
 			name:       "Should map not active to not found",
 			result:     &session.GoalCommandResult{Outcome: session.GoalOutcomeError, ReasonCode: &notActive},
+			wantStatus: http.StatusNotFound,
+		},
+		{
+			name:       "Should preserve not found for replayed Goal error",
+			result:     &session.GoalCommandResult{Outcome: session.GoalOutcomeError, ReasonCode: &notActive},
+			replayed:   true,
 			wantStatus: http.StatusNotFound,
 		},
 		{
@@ -417,7 +424,7 @@ func TestPromptResponseFromSessionShouldEnforceClosedGoalOutcomeMatrix(t *testin
 			t.Parallel()
 
 			status, body, err := core.PromptResponseFromSession(
-				session.SendPromptResult{Status: "goal", Goal: tt.result},
+				session.SendPromptResult{Status: "goal", Goal: tt.result, Replayed: tt.replayed},
 			)
 			if tt.wantError {
 				if err == nil {

@@ -21,7 +21,7 @@ func PromptResponseFromSession(result session.SendPromptResult) (int, any, error
 	if result.Goal != nil {
 		status = GoalCommandHTTPStatus(*payload.Goal)
 	}
-	if result.Queued || result.Staged || result.Replayed {
+	if result.Goal == nil && (result.Queued || result.Staged || result.Replayed) {
 		status = http.StatusAccepted
 	}
 	return status, contract.SendPromptResultResponse{Prompt: payload}, nil

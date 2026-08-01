@@ -620,7 +620,8 @@ func runDaemonE2EDreamRoleRoutesBuiltinIdentityAndModel(t *testing.T) {
 		t.Fatalf("GetSession(dream) error = %v", err)
 	}
 	if dreamSession.AgentName != compozyconfig.BuiltinDreamingCuratorAgentName ||
-		dreamSession.Model != roleDreamModel || dreamSession.Type != "dream" {
+		dreamSession.Runtime.Effective == nil || dreamSession.Runtime.Effective.Model != roleDreamModel ||
+		dreamSession.Type != "dream" {
 		t.Fatalf("dream session = %#v, want builtin dreaming-curator routed to %s", dreamSession, roleDreamModel)
 	}
 	assertDreamHiddenFromFleet(t, ctx, harness, dreamSession.ID)
@@ -684,7 +685,8 @@ enabled = false
 	if err != nil {
 		t.Fatalf("GetSession(workspace dream) error = %v", err)
 	}
-	if dreamSession.AgentName != "workspace-curator" || dreamSession.Model != roleDreamModel {
+	if dreamSession.AgentName != "workspace-curator" || dreamSession.Runtime.Effective == nil ||
+		dreamSession.Runtime.Effective.Model != roleDreamModel {
 		t.Fatalf("workspace dream session = %#v, want workspace-curator routed to %s", dreamSession, roleDreamModel)
 	}
 	if got := len(acpmock.PromptDiagnostics(records)); got != 2 {

@@ -1371,10 +1371,10 @@ func TestDaemonE2ETaskWakeCreatorDeliversSyntheticTurnAndSuppressesIneligibleWak
 			terminalRun.ID,
 			5*time.Second,
 		)
-		if strings.TrimSpace(creatorSession.ACPSessionID) == "" {
+		if strings.TrimSpace(creatorSession.Runtime.ACPSessionID) == "" {
 			t.Fatalf("creator session ACPSessionID is empty: %#v", creatorSession)
 		}
-		if got, want := terminalWake.SessionID, creatorSession.ACPSessionID; got != want {
+		if got, want := terminalWake.SessionID, creatorSession.Runtime.ACPSessionID; got != want {
 			t.Fatalf("terminal wake ACP session = %q, want creator ACP session %q", got, want)
 		}
 		terminalMeta := terminalWake.PromptMeta.Normalize()

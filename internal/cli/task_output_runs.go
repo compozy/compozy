@@ -24,7 +24,7 @@ func taskRunBundle(item TaskRunRecord) outputBundle {
 				},
 				{Label: taskSessionValue, Value: stringOrDash(item.SessionID)},
 				{Label: taskOriginValue, Value: stringOrDash(formatTaskOrigin(item.Origin))},
-				{Label: "Idempotency Key", Value: stringOrDash(item.IdempotencyKey)},
+				{Label: idempotencyKeyLabel, Value: stringOrDash(item.IdempotencyKey)},
 				{
 					Label: taskParticipationChannelValue,
 					Value: resolvedParticipationChannel(item.ResolvedNetworkParticipation),
@@ -48,7 +48,7 @@ func taskRunBundle(item TaskRunRecord) outputBundle {
 				taskClaimedByKey,
 				taskSessionIDKey,
 				taskOriginKey,
-				"idempotency_key",
+				idempotencyKeyField,
 				taskParticipationChannelKey,
 				taskQueuedAtKey,
 				"claimed_at",

@@ -22,11 +22,7 @@ func (s sessionSteerSource) ConsumeSteer(
 	if s.queue == nil {
 		return acp.SteerInput{}, false, nil
 	}
-	now := time.Now().UTC()
-	if s.now != nil {
-		now = s.now().UTC()
-	}
-	entry, ok, err := s.queue.ConsumeSessionSteer(ctx, sessionID, now)
+	entry, ok, err := s.queue.ConsumeSessionSteer(ctx, sessionID, s.currentTime())
 	if err != nil || !ok {
 		return acp.SteerInput{}, ok, err
 	}

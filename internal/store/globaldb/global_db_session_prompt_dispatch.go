@@ -8,28 +8,8 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
-
-// dynamic-sql: receipt and queue CAS operations span generated query owners and must commit in one transaction.
-const commitQueuedPromptAdmissionSQL = `
-UPDATE session_prompt_admissions
-SET state = ?, dispatch_committed_at = ?, completed_at = NULL, updated_at = ?
-WHERE id = ? AND session_id = ? AND state = ?
-`
-
-// dynamic-sql: see commitQueuedPromptAdmissionSQL.
-const completeQueuedPromptAdmissionSQL = `
-UPDATE session_prompt_admissions
-SET state = ?, completed_at = ?, indeterminate_reason = '', updated_at = ?
-WHERE id = ? AND session_id = ? AND state = ?
-`
-
-// dynamic-sql: see commitQueuedPromptAdmissionSQL.
-const indeterminateQueuedPromptAdmissionSQL = `
-UPDATE session_prompt_admissions
-SET state = ?, indeterminate_reason = ?, completed_at = NULL, updated_at = ?
-WHERE id = ? AND session_id = ? AND state = ?
-`
 
 func commitQueuedPromptAdmissionDispatch(
 	ctx context.Context,
@@ -40,16 +20,16 @@ func commitQueuedPromptAdmissionDispatch(
 	if entry.PromptAdmissionID == "" {
 		return nil
 	}
-	affected, err := executePromptAdmissionTransition(
+	affected, err := sqlcgen.New(exec).CommitQueuedSessionPromptAdmissionDispatch(
 		ctx,
-		exec,
-		commitQueuedPromptAdmissionSQL,
-		store.SessionPromptAdmissionDispatchCommitted,
-		nowRaw,
-		nowRaw,
-		entry.PromptAdmissionID,
-		entry.SessionID,
-		store.SessionPromptAdmissionCompleted,
+		sqlcgen.CommitQueuedSessionPromptAdmissionDispatchParams{
+			DispatchCommittedState: store.SessionPromptAdmissionDispatchCommitted,
+			DispatchCommittedAt:    sql.NullString{String: nowRaw, Valid: true},
+			UpdatedAt:              nowRaw,
+			ID:                     entry.PromptAdmissionID,
+			SessionID:              entry.SessionID,
+			CompletedState:         store.SessionPromptAdmissionCompleted,
+		},
 	)
 	if err != nil {
 		return fmt.Errorf("store: commit queued prompt admission dispatch: %w", err)
@@ -69,16 +49,16 @@ func completeQueuedPromptAdmissionDispatch(
 	if entry.PromptAdmissionID == "" {
 		return nil
 	}
-	affected, err := executePromptAdmissionTransition(
+	affected, err := sqlcgen.New(exec).CompleteQueuedSessionPromptAdmissionDispatch(
 		ctx,
-		exec,
-		completeQueuedPromptAdmissionSQL,
-		store.SessionPromptAdmissionCompleted,
-		nowRaw,
-		nowRaw,
-		entry.PromptAdmissionID,
-		entry.SessionID,
-		store.SessionPromptAdmissionDispatchCommitted,
+		sqlcgen.CompleteQueuedSessionPromptAdmissionDispatchParams{
+			CompletedState:         store.SessionPromptAdmissionCompleted,
+			CompletedAt:            sql.NullString{String: nowRaw, Valid: true},
+			UpdatedAt:              nowRaw,
+			ID:                     entry.PromptAdmissionID,
+			SessionID:              entry.SessionID,
+			DispatchCommittedState: store.SessionPromptAdmissionDispatchCommitted,
+		},
 	)
 	if err != nil {
 		return fmt.Errorf("store: complete queued prompt admission dispatch: %w", err)
@@ -103,16 +83,16 @@ func markQueuedPromptAdmissionIndeterminate(
 	if summary == "" {
 		summary = "dispatch outcome is unknown"
 	}
-	affected, err := executePromptAdmissionTransition(
+	affected, err := sqlcgen.New(exec).MarkQueuedSessionPromptAdmissionIndeterminate(
 		ctx,
-		exec,
-		indeterminateQueuedPromptAdmissionSQL,
-		store.SessionPromptAdmissionIndeterminate,
-		summary,
-		nowRaw,
-		entry.PromptAdmissionID,
-		entry.SessionID,
-		store.SessionPromptAdmissionDispatchCommitted,
+		sqlcgen.MarkQueuedSessionPromptAdmissionIndeterminateParams{
+			IndeterminateState:     store.SessionPromptAdmissionIndeterminate,
+			IndeterminateReason:    summary,
+			UpdatedAt:              nowRaw,
+			ID:                     entry.PromptAdmissionID,
+			SessionID:              entry.SessionID,
+			DispatchCommittedState: store.SessionPromptAdmissionDispatchCommitted,
+		},
 	)
 	if err != nil {
 		return fmt.Errorf("store: mark queued prompt admission indeterminate: %w", err)
@@ -123,35 +103,17 @@ func markQueuedPromptAdmissionIndeterminate(
 	return nil
 }
 
-func executePromptAdmissionTransition(
-	ctx context.Context,
-	exec globalSQLExecutor,
-	query string,
-	args ...any,
-) (int64, error) {
-	result, err := exec.ExecContext(ctx, query, args...)
-	if err != nil {
-		return 0, err
-	}
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return 0, fmt.Errorf("read prompt admission transition rows affected: %w", err)
-	}
-	return affected, nil
-}
-
 func queuedPromptAdmissionCASFailure(
 	ctx context.Context,
 	exec globalSQLExecutor,
 	entry *store.SessionInputQueueEntry,
 ) error {
-	var state string
-	err := exec.QueryRowContext(
+	state, err := sqlcgen.New(exec).GetQueuedSessionPromptAdmissionState(
 		ctx,
-		`SELECT state FROM session_prompt_admissions WHERE id = ? AND session_id = ?`,
-		entry.PromptAdmissionID,
-		entry.SessionID,
-	).Scan(&state)
+		sqlcgen.GetQueuedSessionPromptAdmissionStateParams{
+			ID: entry.PromptAdmissionID, SessionID: entry.SessionID,
+		},
+	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return store.ErrSessionPromptAdmissionInProgress
 	}

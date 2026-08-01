@@ -56,3 +56,32 @@ WHERE workspace_id = sqlc.arg(workspace_id)
   AND session_id = sqlc.arg(session_id)
   AND idempotency_key = sqlc.arg(idempotency_key)
   AND state = sqlc.arg(dispatch_committed_state);
+
+-- name: CommitQueuedSessionPromptAdmissionDispatch :execrows
+UPDATE session_prompt_admissions
+SET state = sqlc.arg(dispatch_committed_state),
+    dispatch_committed_at = sqlc.arg(dispatch_committed_at), completed_at = NULL,
+    updated_at = sqlc.arg(updated_at)
+WHERE id = sqlc.arg(id)
+  AND session_id = sqlc.arg(session_id)
+  AND state = sqlc.arg(completed_state);
+
+-- name: CompleteQueuedSessionPromptAdmissionDispatch :execrows
+UPDATE session_prompt_admissions
+SET state = sqlc.arg(completed_state), completed_at = sqlc.arg(completed_at),
+    indeterminate_reason = '', updated_at = sqlc.arg(updated_at)
+WHERE id = sqlc.arg(id)
+  AND session_id = sqlc.arg(session_id)
+  AND state = sqlc.arg(dispatch_committed_state);
+
+-- name: MarkQueuedSessionPromptAdmissionIndeterminate :execrows
+UPDATE session_prompt_admissions
+SET state = sqlc.arg(indeterminate_state), indeterminate_reason = sqlc.arg(indeterminate_reason),
+    completed_at = NULL, updated_at = sqlc.arg(updated_at)
+WHERE id = sqlc.arg(id)
+  AND session_id = sqlc.arg(session_id)
+  AND state = sqlc.arg(dispatch_committed_state);
+
+-- name: GetQueuedSessionPromptAdmissionState :one
+SELECT state FROM session_prompt_admissions
+WHERE id = sqlc.arg(id) AND session_id = sqlc.arg(session_id);

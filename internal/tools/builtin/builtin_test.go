@@ -1408,7 +1408,11 @@ func assertSessionPromptMutationSchema(t *testing.T, descriptor toolspkg.Descrip
 	if !slices.Equal(input.Required, []string{
 		"session_id", "message", "message_id", "idempotency_key",
 	}) {
-		t.Fatalf("%s input required = %#v, want session_id/message/message_id/idempotency_key", descriptor.ID, input.Required)
+		t.Fatalf(
+			"%s input required = %#v, want session_id/message/message_id/idempotency_key",
+			descriptor.ID,
+			input.Required,
+		)
 	}
 	var runtime nativeObjectSchema
 	if err := json.Unmarshal(input.Properties["runtime"], &runtime); err != nil {

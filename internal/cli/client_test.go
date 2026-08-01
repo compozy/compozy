@@ -92,6 +92,13 @@ func TestUnixSocketClientSessionPromptShouldDecodeStructuredGoalJSON(t *testing.
 		if record.Goal == nil || record.Goal.Outcome != contract.GoalOutcomeStatus {
 			t.Fatalf("SendSessionPrompt(Goal status) = %#v", record)
 		}
+		if record.Prompt.MessageID != "msg-goal-status" || record.Prompt.IdempotencyKey != "idem-goal-status" {
+			t.Fatalf(
+				"SendSessionPrompt(Goal status) identity = %q/%q, want msg-goal-status/idem-goal-status",
+				record.Prompt.MessageID,
+				record.Prompt.IdempotencyKey,
+			)
+		}
 	})
 
 	t.Run("Should surface one direct Goal result through the streaming JSONL seam", func(t *testing.T) {
@@ -172,7 +179,9 @@ func TestUnixSocketClientSessionPromptShouldDecodeStructuredGoalJSON(t *testing.
 		_, err := client.SendSessionPrompt(
 			t.Context(),
 			"sess-1",
-			SessionPromptRequest{Message: "/goal ship", MessageID: "msg-goal-conflict", IdempotencyKey: "idem-goal-conflict"},
+			SessionPromptRequest{
+				Message: "/goal ship", MessageID: "msg-goal-conflict", IdempotencyKey: "idem-goal-conflict",
+			},
 		)
 		var goalErr *goalCommandAPIError
 		if !errors.As(err, &goalErr) {

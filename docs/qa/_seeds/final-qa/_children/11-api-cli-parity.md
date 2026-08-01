@@ -278,7 +278,7 @@ code_refs:
   - /Users/pedronauck/Dev/compozy/compozy/internal/cli/session.go:287-315
 steps:
   - Create session S1 via CLI: `compozy session new --agent claude -o json` → S1.
-  - Send the same prompt P over HTTP: `curl -N -X POST http://127.0.0.1:$PORT/api/sessions/$S1/prompt -H 'Content-Type: application/json' -d '{"message":"Read README.md and tell me the title in one sentence"}'` → capture all SSE frames into `api-02-http.sse`.
+  - Send the same prompt P over HTTP: `curl -N -X POST http://127.0.0.1:$PORT/api/sessions/$S1/prompt -H 'Content-Type: application/json' -d '{"message":"Read README.md and tell me the title in one sentence","message_id":"msg_api02_http","idempotency_key":"idem_api02_http"}'` → capture all SSE frames into `api-02-http.sse`.
   - Wait for `[DONE]`.
   - Create a second session S2 with the exact same agent/cwd/workspace.
   - Send the identical prompt P over CLI: `compozy session prompt $S2 "Read README.md and tell me the title in one sentence" -o jsonl` → capture stdout into `api-02-cli.jsonl`.
@@ -319,7 +319,7 @@ code_refs:
   - /Users/pedronauck/Dev/compozy/compozy/internal/api/udsapi/server.go:631-684
 steps:
   - Create session S3.
-  - Send the prompt over UDS using `curl --unix-socket "$COMPOZY_HOME/sock/uds.sock" -N -X POST http://localhost/api/sessions/$S3/prompt -H 'Content-Type: application/json' -d '{"message":"<same prompt>"}'`.
+  - Send the prompt over UDS using `curl --unix-socket "$COMPOZY_HOME/sock/uds.sock" -N -X POST http://localhost/api/sessions/$S3/prompt -H 'Content-Type: application/json' -d '{"message":"<same prompt>","message_id":"msg_api03_uds","idempotency_key":"idem_api03_uds"}'`.
   - Capture into `api-03-uds.sse`.
   - Diff against `api-02-cli.jsonl` (CLI also goes through UDS — they should match byte-for-byte modulo volatile fields).
   - Diff against `api-02-http.sse` (HTTP path) for ordered envelope sequence.

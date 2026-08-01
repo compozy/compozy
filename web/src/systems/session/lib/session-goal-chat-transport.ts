@@ -173,8 +173,11 @@ export function createGoalAwareFetch({
       if (replayedGoal) {
         onResult(replayedGoal, submittedText);
       }
+      const newTurnID = prompt.new_turn_id;
       const messageId =
-        typeof prompt.message_id === "string" ? prompt.message_id : `replay-${sequence}`;
+        typeof newTurnID === "string" && newTurnID.trim().length > 0
+          ? newTurnID
+          : `synthetic-replay-turn-${sequence}`;
       sequence += 1;
       return new Response(completionBody(messageId), {
         status: response.status,

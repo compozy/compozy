@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -692,7 +692,9 @@ async function createProviderSession(
   await runtime.requestJSON(sessionAPIPath(workspaceID, payload.session.id, "/prompt"), {
     method: "POST",
     body: JSON.stringify({
+      idempotency_key: randomUUID(),
       message: prompt,
+      message_id: randomUUID(),
       runtime: { model, provider },
     }),
   });

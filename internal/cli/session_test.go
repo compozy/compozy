@@ -169,14 +169,22 @@ func TestSessionPromptIdentity(t *testing.T) {
 			t.Fatalf("executeRootCommand(session prompt explicit identity) error = %v", err)
 		}
 		if received.MessageID != "msg-explicit" || received.IdempotencyKey != "idem-explicit" {
-			t.Fatalf("SendSessionPrompt() identity = %q/%q, want msg-explicit/idem-explicit", received.MessageID, received.IdempotencyKey)
+			t.Fatalf(
+				"SendSessionPrompt() identity = %q/%q, want msg-explicit/idem-explicit",
+				received.MessageID,
+				received.IdempotencyKey,
+			)
 		}
 		var decoded SessionPromptRecord
 		if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
 			t.Fatalf("json.Unmarshal(explicit prompt response) error = %v", err)
 		}
 		if decoded.Prompt.MessageID != "msg-explicit" || decoded.Prompt.IdempotencyKey != "idem-explicit" {
-			t.Fatalf("prompt response identity = %q/%q, want msg-explicit/idem-explicit", decoded.Prompt.MessageID, decoded.Prompt.IdempotencyKey)
+			t.Fatalf(
+				"prompt response identity = %q/%q, want msg-explicit/idem-explicit",
+				decoded.Prompt.MessageID,
+				decoded.Prompt.IdempotencyKey,
+			)
 		}
 	})
 
@@ -184,24 +192,27 @@ func TestSessionPromptIdentity(t *testing.T) {
 		t.Parallel()
 
 		tests := []struct {
-			name    string
-			args    []string
-			wantErr string
+			name string
+			args []string
+			want error
 		}{
 			{
-				name:    "Should reject only a message id",
-				args:    []string{"session", "prompt", "sess-1", "hello", "--message-id", "msg-only"},
-				wantErr: "must be provided together",
+				name: "Should reject only a message id",
+				args: []string{"session", "prompt", "sess-1", "hello", "--message-id", "msg-only"},
+				want: errPromptIdentityPairRequired,
 			},
 			{
-				name:    "Should reject only an idempotency key",
-				args:    []string{"session", "prompt", "sess-1", "hello", "--idempotency-key", "idem-only"},
-				wantErr: "must be provided together",
+				name: "Should reject only an idempotency key",
+				args: []string{"session", "prompt", "sess-1", "hello", "--idempotency-key", "idem-only"},
+				want: errPromptIdentityPairRequired,
 			},
 			{
-				name:    "Should reject blank identity values",
-				args:    []string{"session", "prompt", "sess-1", "hello", "--message-id", " ", "--idempotency-key", "idem"},
-				wantErr: "must not be blank",
+				name: "Should reject blank identity values",
+				args: []string{
+					"session", "prompt", "sess-1", "hello",
+					"--message-id", " ", "--idempotency-key", "idem",
+				},
+				want: errPromptIdentityBlank,
 			},
 		}
 		for _, tt := range tests {
@@ -214,7 +225,10 @@ func TestSessionPromptIdentity(t *testing.T) {
 						return SessionPromptRecord{}, nil
 					},
 				})
-				if _, _, err := executeRootCommand(t, deps, tt.args...); err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				if _, _, err := executeRootCommand(
+					t,
+					deps,
+					tt.args...); !errors.Is(err, tt.want) {
 					t.Fatalf("executeRootCommand(%#v) error = %v, want identity validation error", tt.args, err)
 				}
 			})
@@ -1573,19 +1587,20 @@ func TestSessionPromptRendersReturnedEvents(t *testing.T) {
 func TestSessionPromptRendersStructuredGoalResult(t *testing.T) {
 	t.Parallel()
 
+	result := contract.GoalCommandResult{
+		Outcome: contract.GoalOutcomeStatus,
+		Snapshot: &contract.GoalSnapshot{
+			RunID: "run-goal", NodeID: "goal", Objective: "ship safely",
+			OriginSessionID: "sess-1", BoundSessionID: "sess-1",
+			Status: "active", RunStatus: contract.LoopRunStatusRunning,
+			TurnsUsed: 1, TurnLimit: 4, Live: true, ContractSummary: "objective satisfied",
+			Context: contract.GoalContextSnapshot{State: contract.GoalContextUnknown, NudgeRatio: 0.8},
+		},
+	}
+
 	t.Run("Should render a flat structured Goal status result", func(t *testing.T) {
 		t.Parallel()
 
-		result := contract.GoalCommandResult{
-			Outcome: contract.GoalOutcomeStatus,
-			Snapshot: &contract.GoalSnapshot{
-				RunID: "run-goal", NodeID: "goal", Objective: "ship safely",
-				OriginSessionID: "sess-1", BoundSessionID: "sess-1",
-				Status: "active", RunStatus: contract.LoopRunStatusRunning,
-				TurnsUsed: 1, TurnLimit: 4, Live: true, ContractSummary: "objective satisfied",
-				Context: contract.GoalContextSnapshot{State: contract.GoalContextUnknown, NudgeRatio: 0.8},
-			},
-		}
 		deps := newWorkspaceTestDeps(t, &stubClient{
 			sendSessionPromptFn: func(
 				_ context.Context,
@@ -1595,7 +1610,12 @@ func TestSessionPromptRendersStructuredGoalResult(t *testing.T) {
 				if id != "sess-1" || request.Message != "/goal status" {
 					t.Fatalf("SendSessionPrompt() = %q/%q", id, request.Message)
 				}
-				return SessionPromptRecord{Goal: &result}, nil
+				return SessionPromptRecord{
+					Prompt: SessionPromptResultRecord{
+						MessageID: "msg-goal-status", IdempotencyKey: "idem-goal-status",
+					},
+					Goal: &result,
+				}, nil
 			},
 		})
 
@@ -1621,6 +1641,63 @@ func TestSessionPromptRendersStructuredGoalResult(t *testing.T) {
 		}
 		if _, nested := wrapped["goal"]; nested {
 			t.Fatalf("Goal command JSON was nested: %s", stdout)
+		}
+		if string(wrapped["message_id"]) != `"msg-goal-status"` ||
+			string(wrapped["idempotency_key"]) != `"idem-goal-status"` {
+			t.Fatalf("Goal command JSON identity = %s", stdout)
+		}
+	})
+
+	t.Run("Should render durable Goal identities in human and TOON formats", func(t *testing.T) {
+		t.Parallel()
+
+		for _, tt := range []struct {
+			name     string
+			format   string
+			wantKeys []string
+		}{
+			{
+				name:     "Should render identities in human output",
+				format:   "human",
+				wantKeys: []string{"Message ID", "Idempotency Key", "msg-goal-status", "idem-goal-status"},
+			},
+			{
+				name:     "Should render identities in TOON output",
+				format:   "toon",
+				wantKeys: []string{"message_id", "idempotency_key", "msg-goal-status", "idem-goal-status"},
+			},
+		} {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				deps := newWorkspaceTestDeps(t, &stubClient{
+					sendSessionPromptFn: func(
+						context.Context,
+						string,
+						SessionPromptRequest,
+					) (SessionPromptRecord, error) {
+						return SessionPromptRecord{
+							Prompt: SessionPromptResultRecord{
+								MessageID: "msg-goal-status", IdempotencyKey: "idem-goal-status",
+							},
+							Goal: &result,
+						}, nil
+					},
+				})
+				stdout, _, err := executeRootCommand(
+					t,
+					deps,
+					"session", "prompt", "sess-1", "/goal status", "-o", tt.format,
+				)
+				if err != nil {
+					t.Fatalf("executeRootCommand(session prompt Goal %s) error = %v", tt.format, err)
+				}
+				for _, want := range tt.wantKeys {
+					if !strings.Contains(stdout, want) {
+						t.Fatalf("Goal command %s = %q, want %q", tt.format, stdout, want)
+					}
+				}
+			})
 		}
 	})
 
@@ -1869,7 +1946,11 @@ func TestSessionPromptJSONLOutput(t *testing.T) {
 					t.Fatalf("StreamPromptSession() = (%q, %#v), want sess-1/hello", id, request)
 				}
 				if request.MessageID == "" || request.IdempotencyKey == "" {
-					t.Fatalf("StreamPromptSession() identity = %q/%q, want generated non-empty values", request.MessageID, request.IdempotencyKey)
+					t.Fatalf(
+						"StreamPromptSession() identity = %q/%q, want generated non-empty values",
+						request.MessageID,
+						request.IdempotencyKey,
+					)
 				}
 				if request.Runtime == nil || request.Runtime.Provider != "codex" ||
 					request.Runtime.Model != "gpt-5.6-sol" {
@@ -1959,7 +2040,10 @@ func TestSessionPromptJSONLOutput(t *testing.T) {
 	t.Run("Should emit one direct line for a structured Goal result", func(t *testing.T) {
 		t.Parallel()
 
-		result := contract.GoalCommandResult{Outcome: contract.GoalOutcomeCleared}
+		result := contract.SendPromptResultResponse{Prompt: contract.SendPromptResultPayload{
+			Status: "accepted", MessageID: "msg-goal-clear", IdempotencyKey: "idem-goal-clear",
+			Goal: &contract.GoalCommandResult{Outcome: contract.GoalOutcomeCleared},
+		}}
 		deps := newWorkspaceTestDeps(t, &stubClient{
 			streamPromptSessionFn: func(
 				_ context.Context,
@@ -1986,11 +2070,12 @@ func TestSessionPromptJSONLOutput(t *testing.T) {
 		if len(lines) != 1 {
 			t.Fatalf("Goal prompt jsonl lines = %d, output=%q", len(lines), stdout)
 		}
-		var decoded contract.GoalCommandResult
+		var decoded contract.SendPromptResultResponse
 		if err := json.Unmarshal([]byte(lines[0]), &decoded); err != nil {
 			t.Fatalf("json.Unmarshal(Goal prompt jsonl) error = %v", err)
 		}
-		if decoded.Outcome != contract.GoalOutcomeCleared {
+		if decoded.Prompt.Goal == nil || decoded.Prompt.Goal.Outcome != contract.GoalOutcomeCleared ||
+			decoded.Prompt.MessageID != "msg-goal-clear" || decoded.Prompt.IdempotencyKey != "idem-goal-clear" {
 			t.Fatalf("Goal prompt jsonl = %#v", decoded)
 		}
 	})

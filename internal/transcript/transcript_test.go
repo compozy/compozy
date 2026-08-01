@@ -1061,12 +1061,12 @@ func TestClarificationEventProjectionPreservesTypedEvidence(t *testing.T) {
 	})
 }
 
-func TestToUIMessagesPreservesUserClientIdentity(t *testing.T) {
-	t.Run("Should project the durable client message identity into user metadata", func(t *testing.T) {
+func TestToUIMessagesPreservesUserMessageIdentity(t *testing.T) {
+	t.Run("Should project the durable user message identity into user metadata", func(t *testing.T) {
 		t.Parallel()
 
 		timestamp := time.Date(2026, 7, 13, 23, 55, 0, 0, time.UTC)
-		messageID := "client-user-identity"
+		messageID := "user-message-identity"
 		event := acp.AgentEvent{
 			Type:      acp.EventTypeUserMessage,
 			TurnID:    "turn-user-identity",
@@ -1112,7 +1112,7 @@ func TestToUIMessagesPreservesUserClientIdentity(t *testing.T) {
 			t.Fatalf("json.Unmarshal(metadata) error = %v", err)
 		}
 		if metadata.TurnID != event.TurnID || metadata.MessageID != messageID {
-			t.Fatalf("metadata = %#v, want turn/client identity", metadata)
+			t.Fatalf("metadata = %#v, want turn/message identity", metadata)
 		}
 		if got, want := messages[0].Parts[0].Text, authoredText; got != want {
 			t.Fatalf("projected user text = %q, want exact authored text %q", got, want)

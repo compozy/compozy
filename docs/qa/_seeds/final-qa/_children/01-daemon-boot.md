@@ -841,7 +841,7 @@ steps:
   - run: compozy sessions start --agent claude-code --workspace ./fixtures/db14 -o json | tee sess.json
   - set: SID=$(jq -r '.id' sess.json)
   - run: # Start prompt over HTTP with --detach=false to get the streaming response, then kill the curl client
-  - run: timeout 1 curl -N -X POST -d '{"message":"List files and summarize"}' http://127.0.0.1:$COMPOZY_HTTP_PORT/api/sessions/$SID/prompt 2>/dev/null || true
+  - run: timeout 1 curl -N -X POST -d '{"message":"List files and summarize","message_id":"msg_db14","idempotency_key":"idem_db14"}' http://127.0.0.1:$COMPOZY_HTTP_PORT/api/sessions/$SID/prompt 2>/dev/null || true
   - wait: 1s
   - run: compozy sessions get $SID -o json | jq -r '.state' | tee state1.txt
   - assert: state1.txt == "running"   # daemon kept the prompt going (context.WithoutCancel; internal/CLAUDE.md:33-35)

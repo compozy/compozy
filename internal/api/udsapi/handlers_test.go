@@ -2057,14 +2057,17 @@ func TestPromptSessionRawHandlerPreservesBusyInputMode(t *testing.T) {
 
 func TestSteerSessionPromptHandlerPropagatesDurableIdentity(t *testing.T) {
 	t.Parallel()
-	t.Run("ShouldStageSteeringWithCanonicalMessageIdentity", func(t *testing.T) {
+	t.Run("Should stage steering with canonical message identity", func(t *testing.T) {
 		t.Parallel()
 
 		var gotOpts session.SteerPromptOpts
 		manager := stubSessionManager{
-			SteerFn: func(_ context.Context, id string, opts session.SteerPromptOpts) (session.SendPromptResult, error) {
+			SteerFn: func(ctx context.Context, id string, opts session.SteerPromptOpts) (session.SendPromptResult, error) {
 				if id != "sess-123" {
 					t.Fatalf("SteerPrompt() id = %q, want sess-123", id)
+				}
+				if err := ctx.Err(); err != nil {
+					t.Fatalf("SteerPrompt() context err = %v, want nil after request cancellation", err)
 				}
 				gotOpts = opts
 				return session.SendPromptResult{
@@ -2077,13 +2080,17 @@ func TestSteerSessionPromptHandlerPropagatesDurableIdentity(t *testing.T) {
 			},
 		}
 		engine := newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t)))
-		recorder := performRequest(
-			t,
-			engine,
+		requestCtx, cancel := context.WithCancel(t.Context())
+		cancel()
+		req := httptest.NewRequestWithContext(
+			requestCtx,
 			http.MethodPost,
 			"/api/workspaces/ws-workspace/sessions/sess-123/steer",
-			[]byte(`{"text":"focus on the race","message_id":"msg-steer","idempotency_key":"idem-steer"}`),
+			strings.NewReader(`{"text":"focus on the race","message_id":"msg-steer","idempotency_key":"idem-steer"}`),
 		)
+		req.Header.Set("Content-Type", "application/json")
+		recorder := httptest.NewRecorder()
+		engine.ServeHTTP(recorder, req)
 		if recorder.Code != http.StatusAccepted {
 			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusAccepted, recorder.Body.String())
 		}
@@ -2179,7 +2186,10 @@ func TestPromptSessionHandlerSeparatesPromptExecutionFromDelivery(t *testing.T) 
 			requestCtx,
 			http.MethodPost,
 			"/api/workspaces/ws-workspace/sessions/sess-123/prompt",
-			strings.NewReader(`{"message":"hello","message_id":"msg-uds-delivery-cancel","idempotency_key":"idem-uds-delivery-cancel"}`),
+			strings.NewReader(
+				`{"message":"hello","message_id":"msg-uds-delivery-cancel",`+
+					`"idempotency_key":"idem-uds-delivery-cancel"}`,
+			),
 		)
 		req.Header.Set("Content-Type", "application/json")
 
@@ -2249,7 +2259,10 @@ func TestPromptSessionHandlerSeparatesPromptExecutionFromDelivery(t *testing.T) 
 			requestCtx,
 			http.MethodPost,
 			"/api/workspaces/ws-workspace/sessions/sess-123/prompt",
-			strings.NewReader(`{"message":"hello","message_id":"msg-uds-delivery-shutdown","idempotency_key":"idem-uds-delivery-shutdown"}`),
+			strings.NewReader(
+				`{"message":"hello","message_id":"msg-uds-delivery-shutdown",`+
+					`"idempotency_key":"idem-uds-delivery-shutdown"}`,
+			),
 		)
 		req.Header.Set("Content-Type", "application/json")
 

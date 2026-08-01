@@ -19,6 +19,7 @@ import (
 
 	compozycontract "github.com/compozy/compozy/internal/api/contract"
 	sessionpkg "github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 )
 
 // RuntimeManifestPath returns the stable runtime-manifest path under the harness artifact root.
@@ -366,7 +367,7 @@ func (h *RuntimeHarness) promptSessionWithRuntime(
 	runtime *compozycontract.PromptRuntimeSelectionPayload,
 	onEvent func(SSEEvent) error,
 ) (_ []SSEEvent, err error) {
-	body := compozycontract.SendPromptRequest{Message: message, Runtime: runtime}
+	body := newE2EPromptRequest(message, runtime)
 	path, err := h.sessionScopedAPIPath(sessionID, "/prompt")
 	if err != nil {
 		return nil, err
@@ -399,7 +400,7 @@ func (h *RuntimeHarness) PromptSessionUntil(
 	if err := validateSSEPredicate(predicate); err != nil {
 		return nil, err
 	}
-	body := map[string]string{runtimeHarnessMessageKey: message}
+	body := newE2EPromptRequest(message, nil)
 	path, err := h.sessionScopedAPIPath(sessionID, "/prompt")
 	if err != nil {
 		return nil, err
@@ -419,6 +420,18 @@ func (h *RuntimeHarness) PromptSessionUntil(
 	}
 
 	return readSSERecordsUntil(response.Body, predicate)
+}
+
+func newE2EPromptRequest(
+	message string,
+	runtime *compozycontract.PromptRuntimeSelectionPayload,
+) compozycontract.SendPromptRequest {
+	return compozycontract.SendPromptRequest{
+		Message:        message,
+		MessageID:      store.NewID("msg"),
+		IdempotencyKey: store.NewID("idem"),
+		Runtime:        runtime,
+	}
 }
 
 // SessionTranscript fetches the persisted transcript for one session.

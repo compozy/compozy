@@ -356,7 +356,11 @@ func startGoalThroughHTTPAndDisconnect(
 	objective string,
 ) int {
 	t.Helper()
-	payload, err := json.Marshal(compozycontract.SendPromptRequest{Message: "/goal " + strings.TrimSpace(objective)})
+	payload, err := json.Marshal(compozycontract.SendPromptRequest{
+		Message:        "/goal " + strings.TrimSpace(objective),
+		MessageID:      store.NewID("msg"),
+		IdempotencyKey: store.NewID("idem"),
+	})
 	if err != nil {
 		t.Fatalf("marshal disconnected Goal start error = %v", err)
 	}
@@ -401,7 +405,11 @@ func callGoalCommandUDS(
 	command string,
 ) (int, compozycontract.GoalCommandResult) {
 	t.Helper()
-	payload, err := json.Marshal(compozycontract.SendPromptRequest{Message: strings.TrimSpace(command)})
+	payload, err := json.Marshal(compozycontract.SendPromptRequest{
+		Message:        strings.TrimSpace(command),
+		MessageID:      store.NewID("msg"),
+		IdempotencyKey: store.NewID("idem"),
+	})
 	if err != nil {
 		t.Fatalf("marshal Goal command error = %v", err)
 	}
@@ -427,14 +435,17 @@ func callGoalCommandUDS(
 	if contentType := response.Header.Get("Content-Type"); !strings.HasPrefix(contentType, "application/json") {
 		t.Fatalf("Goal command content type = %q, want application/json", contentType)
 	}
-	var result compozycontract.GoalCommandResult
+	var result compozycontract.SendPromptResultResponse
 	if err := json.Unmarshal(body, &result); err != nil {
 		t.Fatalf("decode Goal command result error = %v; body=%s", err, body)
 	}
-	if result.Outcome == "" {
+	if result.Prompt.Status != "goal" || result.Prompt.Goal == nil || result.Prompt.Goal.Outcome == "" {
 		t.Fatalf("Goal command returned no structured result; status=%d body=%s", response.StatusCode, body)
 	}
-	return response.StatusCode, result
+	if strings.TrimSpace(result.Prompt.MessageID) == "" || strings.TrimSpace(result.Prompt.IdempotencyKey) == "" {
+		t.Fatalf("Goal command returned no durable identity; status=%d body=%s", response.StatusCode, body)
+	}
+	return response.StatusCode, *result.Prompt.Goal
 }
 
 func getGoalSnapshot(

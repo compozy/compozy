@@ -6847,7 +6847,6 @@ func mustStoredPromptEvent(t *testing.T, id string, sequence int64, event acp.Ag
 }
 
 type promptSessionManagerStub struct {
-	promptFn     func(context.Context, string, string) (<-chan acp.AgentEvent, error)
 	sendPromptFn func(context.Context, string, session.SendPromptOpts) (session.SendPromptResult, error)
 	eventsFn     func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error)
 	statusFn     func(context.Context, string) (*session.Info, error)
@@ -6887,11 +6886,8 @@ func (s promptSessionManagerStub) Stop(context.Context, string) error {
 	return errors.New("unexpected stop call")
 }
 
-func (s promptSessionManagerStub) Prompt(ctx context.Context, id string, msg string) (<-chan acp.AgentEvent, error) {
-	if s.promptFn == nil {
-		return nil, errors.New("unexpected prompt call")
-	}
-	return s.promptFn(ctx, id, msg)
+func (promptSessionManagerStub) Prompt(context.Context, string, string) (<-chan acp.AgentEvent, error) {
+	return nil, errors.New("unexpected prompt call")
 }
 
 func (s promptSessionManagerStub) SendPrompt(

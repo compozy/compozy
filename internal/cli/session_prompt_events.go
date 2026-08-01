@@ -24,6 +24,11 @@ type sessionPromptCommandFlags struct {
 	runtime        sessionPromptRuntimeFlags
 }
 
+var (
+	errPromptIdentityPairRequired = errors.New("cli: --message-id and --idempotency-key must be provided together")
+	errPromptIdentityBlank        = errors.New("cli: prompt identity flags must not be blank")
+)
+
 func newSessionPromptCommand(deps commandDeps) *cobra.Command {
 	flags := &sessionPromptCommandFlags{}
 	cmd := newSessionPromptCobraCommand(deps, flags)
@@ -186,7 +191,7 @@ func (flags *sessionPromptCommandFlags) promptIdentity(cmd *cobra.Command) (stri
 	messageChanged := cmd.Flags().Changed("message-id")
 	idempotencyChanged := cmd.Flags().Changed("idempotency-key")
 	if messageChanged != idempotencyChanged {
-		return "", "", errors.New("cli: --message-id and --idempotency-key must be provided together")
+		return "", "", errPromptIdentityPairRequired
 	}
 	if !messageChanged {
 		return store.NewID("msg"), store.NewID("idem"), nil
@@ -194,7 +199,7 @@ func (flags *sessionPromptCommandFlags) promptIdentity(cmd *cobra.Command) (stri
 	messageID := strings.TrimSpace(flags.messageID)
 	idempotencyKey := strings.TrimSpace(flags.idempotencyKey)
 	if messageID == "" || idempotencyKey == "" {
-		return "", "", errors.New("cli: prompt identity flags must not be blank")
+		return "", "", errPromptIdentityBlank
 	}
 	return messageID, idempotencyKey, nil
 }

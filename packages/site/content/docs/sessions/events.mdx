@@ -56,9 +56,10 @@ payload. When its durable result is available, Compozy returns the same wrapped 
 }
 ```
 
-Replay responses use `202 Accepted`. They do not start a second prompt stream or repeat the
-accepted side effect. A client should reconcile the existing transcript message by its exact
-`message_id`, rather than append another user row.
+Ordinary queued, staged, and replayed prompts use `202 Accepted`. Goal-command replays preserve the
+original Goal response status, such as `200`, `404`, `409`, or `422`. No replay starts a second
+prompt stream or repeats the accepted side effect. A client should reconcile the existing transcript
+message by its exact `message_id`, rather than append another user row.
 
 `409 Conflict` means the identity cannot safely be reused: the idempotency key is bound to a
 different request, the message ID is bound to a different idempotency key, or the earlier dispatch

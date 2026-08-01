@@ -15,11 +15,10 @@ function result(
   };
 }
 
-function promptEnvelope(goal: unknown, replayed = false) {
+function promptEnvelope(goal: unknown) {
   return {
     prompt: {
       goal,
-      ...(replayed ? { replayed: true } : {}),
     },
   };
 }
@@ -203,7 +202,7 @@ describe("createGoalAwareFetch", () => {
     expect(onResult).not.toHaveBeenCalled();
   });
 
-  it("Should convert a replayed prompt receipt into an empty valid stream", async () => {
+  it("Should convert a replayed prompt receipt into an empty stream for its accepted turn", async () => {
     const goalFetch = createGoalAwareFetch({
       fetch: vi.fn(
         async () =>
@@ -212,6 +211,7 @@ describe("createGoalAwareFetch", () => {
               prompt: {
                 idempotency_key: "idempotency-001",
                 message_id: "message-001",
+                new_turn_id: "turn-replayed-001",
                 replayed: true,
                 status: "accepted",
               },
@@ -225,7 +225,33 @@ describe("createGoalAwareFetch", () => {
     const response = await goalFetch("/prompt", { method: "POST", body: requestBody("Retry") });
 
     expect(response.headers.get("content-type")).toBe("text/event-stream");
-    await expect(response.text()).resolves.toContain('"type":"finish"');
+    await expect(response.text()).resolves.toContain('"messageId":"turn-replayed-001"');
+  });
+
+  it("Should use a deterministic synthetic turn when a replay receipt omits the accepted turn", async () => {
+    const goalFetch = createGoalAwareFetch({
+      fetch: vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              prompt: {
+                idempotency_key: "idempotency-001",
+                message_id: "authored-user-message-001",
+                replayed: true,
+                status: "accepted",
+              },
+            }),
+            { status: 202, headers: { "content-type": "application/json" } }
+          )
+      ),
+      onResult: vi.fn(),
+    });
+
+    const response = await goalFetch("/prompt", { method: "POST", body: requestBody("Retry") });
+
+    const stream = await response.text();
+    expect(stream).toContain('"messageId":"synthetic-replay-turn-0"');
+    expect(stream).not.toContain("authored-user-message-001");
   });
 
   it("Should preserve a malformed JSON response without consuming its body", async () => {

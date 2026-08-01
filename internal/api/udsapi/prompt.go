@@ -186,9 +186,13 @@ func (h *Handlers) steerSessionPrompt(c *gin.Context) {
 	if !ok {
 		return
 	}
-	result, err := h.Sessions.SteerPrompt(c.Request.Context(), sessionID, session.SteerPromptOpts{
-		Message: req.Text, MessageID: req.MessageID, IdempotencyKey: req.IdempotencyKey,
-	})
+	result, err := h.Sessions.SteerPrompt(
+		context.WithoutCancel(c.Request.Context()),
+		sessionID,
+		session.SteerPromptOpts{
+			Message: req.Text, MessageID: req.MessageID, IdempotencyKey: req.IdempotencyKey,
+		},
+	)
 	if err != nil {
 		core.RespondError(c, core.StatusForSessionError(err), err, false)
 		return

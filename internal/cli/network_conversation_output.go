@@ -98,7 +98,7 @@ func networkThreadPromotionBundle(promoted *PromoteNetworkThreadTaskRecord) outp
 		toon: func() (string, error) {
 			return renderToonObject(
 				"network_thread_promotion",
-				[]string{taskTaskIDKey, networkTitleKey, networkChannelKey, networkThreadIDKey, networkMessageIDKey},
+				[]string{taskTaskIDKey, networkTitleKey, networkChannelKey, networkThreadIDKey, messageIDKey},
 				[]string{
 					promoted.Task.ID,
 					promoted.Task.Title,
@@ -206,7 +206,7 @@ func networkMessagesBundle(jsonValue any, messages []NetworkConversationMessageR
 		},
 		"network_messages",
 		[]string{
-			networkMessageIDKey,
+			messageIDKey,
 			networkChannelKey,
 			networkSurfaceKey,
 			networkThreadIDKey,

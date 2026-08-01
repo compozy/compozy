@@ -220,6 +220,297 @@ func TestManagerPromptAdmissionReplay(t *testing.T) {
 	})
 }
 
+func TestManagerBusyInputPromptAdmissionReplay(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name   string
+		mode   BusyInputMode
+		submit func(context.Context, *Manager, string, string, string) (SendPromptResult, error)
+	}{
+		{
+			name: "Should dispatch one identity-bearing queued prompt after an exact retry",
+			mode: BusyInputModeQueue,
+			submit: func(
+				ctx context.Context,
+				manager *Manager,
+				sessionID string,
+				messageID string,
+				idempotencyKey string,
+			) (SendPromptResult, error) {
+				return manager.SendPrompt(ctx, sessionID, SendPromptOpts{
+					Message: "durable queued retry", MessageID: messageID, IdempotencyKey: idempotencyKey,
+					Mode: BusyInputModeQueue,
+				})
+			},
+		},
+		{
+			name: "Should dispatch one identity-bearing staged steer after an exact retry",
+			mode: BusyInputModeSteer,
+			submit: func(
+				ctx context.Context,
+				manager *Manager,
+				sessionID string,
+				messageID string,
+				idempotencyKey string,
+			) (SendPromptResult, error) {
+				return manager.SteerPrompt(ctx, sessionID, SteerPromptOpts{
+					Message: "durable queued retry", MessageID: messageID, IdempotencyKey: idempotencyKey,
+				})
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			queueStore := openManagerInputQueueStore(t)
+			h := newHarness(
+				t,
+				WithSessionInputQueueStore(queueStore),
+				WithSessionBusyInputConfig(compozyconfig.SessionBusyInputConfig{
+					DefaultMode:  string(BusyInputModeQueue),
+					QueueCap:     3,
+					MaxTextBytes: 4096,
+				}),
+			)
+			registerManagerInputQueueWorkspace(t, queueStore, h)
+			sess := createSession(t, h)
+			registerManagerInputQueueSession(t, queueStore, h, sess)
+
+			activeEntered := make(chan struct{})
+			releaseActive := make(chan struct{})
+			dispatched := make(chan struct{})
+			var releaseActiveOnce sync.Once
+			t.Cleanup(func() {
+				if err := h.manager.Stop(testutil.Context(t), sess.ID); err != nil {
+					t.Errorf("Stop() error = %v", err)
+				}
+			})
+			t.Cleanup(func() {
+				releaseActiveOnce.Do(func() { close(releaseActive) })
+			})
+			h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+				events := make(chan acp.AgentEvent)
+				go func() {
+					defer close(events)
+					switch req.Message {
+					case "active prompt":
+						close(activeEntered)
+						<-releaseActive
+					case "durable queued retry":
+						close(dispatched)
+					}
+					emitDonePromptEvents(events, sess.ID, req.TurnID)
+				}()
+				return events, nil
+			}
+
+			active, err := h.manager.SendPrompt(testutil.Context(t), sess.ID, SendPromptOpts{
+				Message: "active prompt",
+			})
+			if err != nil {
+				t.Fatalf("SendPrompt(active) error = %v", err)
+			}
+			<-activeEntered
+
+			first, err := tc.submit(
+				testutil.Context(t), h.manager, sess.ID, "message-busy-retry", "idem-busy-retry",
+			)
+			if err != nil {
+				t.Fatalf("submit(first) error = %v", err)
+			}
+			if first.Events != nil || first.MessageID != "message-busy-retry" ||
+				first.IdempotencyKey != "idem-busy-retry" || first.QueueEntryID == "" ||
+				first.Mode != tc.mode {
+				t.Fatalf("submit(first) = %#v, want durable %s admission", first, tc.mode)
+			}
+			if tc.mode == BusyInputModeQueue && !first.Queued {
+				t.Fatalf("submit(first) = %#v, want queued result", first)
+			}
+			if tc.mode == BusyInputModeSteer && !first.Staged {
+				t.Fatalf("submit(first) = %#v, want staged result", first)
+			}
+			entry, err := h.manager.inputQueue.Get(testutil.Context(t), sess.ID, first.QueueEntryID)
+			if err != nil {
+				t.Fatalf("inputQueue.Get(first) error = %v", err)
+			}
+			if entry.MessageID != first.MessageID || entry.IdempotencyKey != first.IdempotencyKey ||
+				entry.TurnID == "" || entry.EventID == "" {
+				t.Fatalf("first durable queue entry = %#v, want complete prompt identities", entry)
+			}
+
+			replayed, err := tc.submit(
+				testutil.Context(t), h.manager, sess.ID, "message-busy-retry", "idem-busy-retry",
+			)
+			if err != nil {
+				t.Fatalf("submit(replay) error = %v", err)
+			}
+			if !replayed.Replayed || replayed.Events != nil || replayed.QueueEntryID != first.QueueEntryID ||
+				replayed.MessageID != first.MessageID || replayed.IdempotencyKey != first.IdempotencyKey ||
+				replayed.Mode != first.Mode {
+				t.Fatalf("submit(replay) = %#v, want stable non-streaming replay of %#v", replayed, first)
+			}
+			if got := len(managerPromptCalls(h)); got != 1 {
+				t.Fatalf("len(promptCalls) before busy retry dispatch = %d, want active prompt only", got)
+			}
+
+			releaseActiveOnce.Do(func() { close(releaseActive) })
+			collectEvents(t, active.Events)
+			select {
+			case <-dispatched:
+			case <-time.After(time.Second):
+				t.Fatal("durable busy-input retry did not dispatch")
+			}
+			promptCalls := managerPromptCalls(h)
+			if len(promptCalls) != 2 {
+				t.Fatalf(
+					"prompt calls after busy retry dispatch = %#v, want active and one retried command",
+					promptCalls,
+				)
+			}
+			if got := promptCalls[1].TurnID; got != entry.TurnID {
+				t.Fatalf("dispatched retry turn id = %q, want %q", got, entry.TurnID)
+			}
+			assertManagerBusyInputDispatchedIdentity(t, sess, &entry)
+		})
+	}
+}
+
+func TestManagerBusyInputPromptAdmissionIdentityConflicts(t *testing.T) {
+	t.Parallel()
+
+	baseline := RuntimeSelection{
+		Provider: "claude", Model: "shared-runtime-model", ReasoningEffort: "medium", Speed: speedpkg.SpeedNormal,
+	}
+	cases := []struct {
+		name   string
+		mode   BusyInputMode
+		mutate func(*RuntimeSelection)
+	}{
+		{
+			name:   "Should reject a changed busy-input mode with the same identity",
+			mode:   BusyInputModeSteer,
+			mutate: func(*RuntimeSelection) {},
+		},
+		{
+			name: "Should reject a changed resolved runtime provider with the same identity",
+			mode: BusyInputModeQueue,
+			mutate: func(runtime *RuntimeSelection) {
+				runtime.Provider = "codex"
+			},
+		},
+		{
+			name: "Should reject a changed resolved runtime model with the same identity",
+			mode: BusyInputModeQueue,
+			mutate: func(runtime *RuntimeSelection) {
+				runtime.Model = "alternate-runtime-model"
+			},
+		},
+		{
+			name: "Should reject a changed resolved runtime reasoning effort with the same identity",
+			mode: BusyInputModeQueue,
+			mutate: func(runtime *RuntimeSelection) {
+				runtime.ReasoningEffort = "high"
+			},
+		},
+		{
+			name: "Should reject a changed resolved runtime speed with the same identity",
+			mode: BusyInputModeQueue,
+			mutate: func(runtime *RuntimeSelection) {
+				runtime.Speed = speedpkg.SpeedFast
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			queueStore := openManagerInputQueueStore(t)
+			h := newHarness(
+				t,
+				WithSessionInputQueueStore(queueStore),
+				WithSessionBusyInputConfig(compozyconfig.SessionBusyInputConfig{
+					DefaultMode:  string(BusyInputModeQueue),
+					QueueCap:     3,
+					MaxTextBytes: 4096,
+				}),
+			)
+			registerManagerInputQueueWorkspace(t, queueStore, h)
+			sess := createSession(t, h)
+			registerManagerInputQueueSession(t, queueStore, h, sess)
+			setManagerBusyInputProviderDefault(t, h, "claude", "shared-runtime-model")
+			setManagerBusyInputProviderDefault(t, h, "codex", "shared-runtime-model")
+
+			activeEntered := make(chan struct{})
+			releaseActive := make(chan struct{})
+			var releaseActiveOnce sync.Once
+			t.Cleanup(func() {
+				if err := h.manager.Stop(testutil.Context(t), sess.ID); err != nil {
+					t.Errorf("Stop() error = %v", err)
+				}
+			})
+			t.Cleanup(func() {
+				releaseActiveOnce.Do(func() { close(releaseActive) })
+			})
+			h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+				events := make(chan acp.AgentEvent)
+				go func() {
+					defer close(events)
+					if req.Message == "active prompt" {
+						close(activeEntered)
+						<-releaseActive
+					}
+					emitDonePromptEvents(events, sess.ID, req.TurnID)
+				}()
+				return events, nil
+			}
+
+			active, err := h.manager.SendPrompt(testutil.Context(t), sess.ID, SendPromptOpts{
+				Message: "active prompt",
+			})
+			if err != nil {
+				t.Fatalf("SendPrompt(active) error = %v", err)
+			}
+			<-activeEntered
+
+			first, err := h.manager.SendPrompt(testutil.Context(t), sess.ID, SendPromptOpts{
+				Message: "runtime-bound prompt", MessageID: "message-runtime-conflict",
+				IdempotencyKey: "idem-runtime-conflict", Mode: BusyInputModeQueue, Runtime: &baseline,
+			})
+			if err != nil {
+				t.Fatalf("SendPrompt(first) error = %v", err)
+			}
+			if !first.Queued || first.QueueEntryID == "" {
+				t.Fatalf("SendPrompt(first) = %#v, want queued admission", first)
+			}
+			promptCallsBefore := len(managerPromptCalls(h))
+			eventsBefore := len(readStoredEvents(t, sess))
+
+			conflictingRuntime := baseline
+			tc.mutate(&conflictingRuntime)
+			_, err = h.manager.SendPrompt(testutil.Context(t), sess.ID, SendPromptOpts{
+				Message: "runtime-bound prompt", MessageID: "message-runtime-conflict",
+				IdempotencyKey: "idem-runtime-conflict", Mode: tc.mode, Runtime: &conflictingRuntime,
+			})
+			if !errors.Is(err, store.ErrSessionPromptIdempotencyConflict) {
+				t.Fatalf("SendPrompt(conflicting identity) error = %v, want idempotency conflict", err)
+			}
+			if got := len(managerPromptCalls(h)); got != promptCallsBefore {
+				t.Fatalf("prompt calls after identity conflict = %d, want %d", got, promptCallsBefore)
+			}
+			if got := len(readStoredEvents(t, sess)); got != eventsBefore {
+				t.Fatalf("stored events after identity conflict = %d, want %d", got, eventsBefore)
+			}
+
+			releaseActiveOnce.Do(func() { close(releaseActive) })
+			collectEvents(t, active.Events)
+		})
+	}
+}
+
 func TestManagerBusyInputRuntimeSnapshots(t *testing.T) {
 	t.Parallel()
 
@@ -1573,6 +1864,41 @@ func managerUserPromptEvents(t *testing.T, h *harness, sessionID string) []acp.A
 		events = append(events, event)
 	}
 	return events
+}
+
+func assertManagerBusyInputDispatchedIdentity(
+	t *testing.T,
+	session *Session,
+	entry *store.SessionInputQueueEntry,
+) {
+	t.Helper()
+
+	matched := 0
+	for _, storedEvent := range readStoredEvents(t, session) {
+		if storedEvent.Type != acp.EventTypeUserMessage {
+			continue
+		}
+		event, err := transcript.UnmarshalAgentEvent(storedEvent.Content)
+		if err != nil {
+			t.Fatalf("UnmarshalAgentEvent(%s) error = %v", storedEvent.ID, err)
+		}
+		if event.MessageIDValue() != entry.MessageID {
+			continue
+		}
+		matched++
+		if storedEvent.ID != entry.EventID || storedEvent.TurnID != entry.TurnID ||
+			event.TurnID != entry.TurnID || event.Text != entry.Text {
+			t.Fatalf(
+				"dispatched busy-input event = stored:%#v event:%#v, want entry:%#v",
+				storedEvent,
+				event,
+				entry,
+			)
+		}
+	}
+	if matched != 1 {
+		t.Fatalf("dispatched busy-input events for message %q = %d, want 1", entry.MessageID, matched)
+	}
 }
 
 func managedInputQueueEntry(sessionID string, queueEntryID string) store.SessionInputQueueEntry {

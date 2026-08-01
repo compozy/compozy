@@ -52,7 +52,7 @@ CREATE TABLE session_health (
 	CREATE TABLE session_input_queue (
 			id TEXT PRIMARY KEY,
 			session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
-			prompt_admission_id TEXT,
+			prompt_admission_id TEXT REFERENCES session_prompt_admissions(id) ON DELETE SET NULL,
 			message_id TEXT NOT NULL DEFAULT '',
 			idempotency_key TEXT NOT NULL DEFAULT '',
 			turn_id TEXT NOT NULL DEFAULT '',

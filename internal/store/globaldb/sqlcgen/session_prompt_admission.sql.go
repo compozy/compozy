@@ -10,6 +10,40 @@ import (
 	"database/sql"
 )
 
+const commitQueuedSessionPromptAdmissionDispatch = `-- name: CommitQueuedSessionPromptAdmissionDispatch :execrows
+UPDATE session_prompt_admissions
+SET state = ?1,
+    dispatch_committed_at = ?2, completed_at = NULL,
+    updated_at = ?3
+WHERE id = ?4
+  AND session_id = ?5
+  AND state = ?6
+`
+
+type CommitQueuedSessionPromptAdmissionDispatchParams struct {
+	DispatchCommittedState string         `json:"dispatch_committed_state"`
+	DispatchCommittedAt    sql.NullString `json:"dispatch_committed_at"`
+	UpdatedAt              string         `json:"updated_at"`
+	ID                     string         `json:"id"`
+	SessionID              string         `json:"session_id"`
+	CompletedState         string         `json:"completed_state"`
+}
+
+func (q *Queries) CommitQueuedSessionPromptAdmissionDispatch(ctx context.Context, arg CommitQueuedSessionPromptAdmissionDispatchParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, commitQueuedSessionPromptAdmissionDispatch,
+		arg.DispatchCommittedState,
+		arg.DispatchCommittedAt,
+		arg.UpdatedAt,
+		arg.ID,
+		arg.SessionID,
+		arg.CompletedState,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const commitSessionPromptDispatch = `-- name: CommitSessionPromptDispatch :execrows
 UPDATE session_prompt_admissions
 SET state = ?1,
@@ -41,6 +75,39 @@ func (q *Queries) CommitSessionPromptDispatch(ctx context.Context, arg CommitSes
 		arg.SessionID,
 		arg.IdempotencyKey,
 		arg.ReservedState,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const completeQueuedSessionPromptAdmissionDispatch = `-- name: CompleteQueuedSessionPromptAdmissionDispatch :execrows
+UPDATE session_prompt_admissions
+SET state = ?1, completed_at = ?2,
+    indeterminate_reason = '', updated_at = ?3
+WHERE id = ?4
+  AND session_id = ?5
+  AND state = ?6
+`
+
+type CompleteQueuedSessionPromptAdmissionDispatchParams struct {
+	CompletedState         string         `json:"completed_state"`
+	CompletedAt            sql.NullString `json:"completed_at"`
+	UpdatedAt              string         `json:"updated_at"`
+	ID                     string         `json:"id"`
+	SessionID              string         `json:"session_id"`
+	DispatchCommittedState string         `json:"dispatch_committed_state"`
+}
+
+func (q *Queries) CompleteQueuedSessionPromptAdmissionDispatch(ctx context.Context, arg CompleteQueuedSessionPromptAdmissionDispatchParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, completeQueuedSessionPromptAdmissionDispatch,
+		arg.CompletedState,
+		arg.CompletedAt,
+		arg.UpdatedAt,
+		arg.ID,
+		arg.SessionID,
+		arg.DispatchCommittedState,
 	)
 	if err != nil {
 		return 0, err
@@ -86,6 +153,23 @@ func (q *Queries) CompleteSessionPromptAdmission(ctx context.Context, arg Comple
 		return 0, err
 	}
 	return result.RowsAffected()
+}
+
+const getQueuedSessionPromptAdmissionState = `-- name: GetQueuedSessionPromptAdmissionState :one
+SELECT state FROM session_prompt_admissions
+WHERE id = ?1 AND session_id = ?2
+`
+
+type GetQueuedSessionPromptAdmissionStateParams struct {
+	ID        string `json:"id"`
+	SessionID string `json:"session_id"`
+}
+
+func (q *Queries) GetQueuedSessionPromptAdmissionState(ctx context.Context, arg GetQueuedSessionPromptAdmissionStateParams) (string, error) {
+	row := q.db.QueryRowContext(ctx, getQueuedSessionPromptAdmissionState, arg.ID, arg.SessionID)
+	var state string
+	err := row.Scan(&state)
+	return state, err
 }
 
 const getSessionPromptAdmissionByIdempotencyKey = `-- name: GetSessionPromptAdmissionByIdempotencyKey :one
@@ -237,6 +321,39 @@ func (q *Queries) InsertSessionPromptAdmission(ctx context.Context, arg InsertSe
 		arg.UpdatedAt,
 	)
 	return err
+}
+
+const markQueuedSessionPromptAdmissionIndeterminate = `-- name: MarkQueuedSessionPromptAdmissionIndeterminate :execrows
+UPDATE session_prompt_admissions
+SET state = ?1, indeterminate_reason = ?2,
+    completed_at = NULL, updated_at = ?3
+WHERE id = ?4
+  AND session_id = ?5
+  AND state = ?6
+`
+
+type MarkQueuedSessionPromptAdmissionIndeterminateParams struct {
+	IndeterminateState     string `json:"indeterminate_state"`
+	IndeterminateReason    string `json:"indeterminate_reason"`
+	UpdatedAt              string `json:"updated_at"`
+	ID                     string `json:"id"`
+	SessionID              string `json:"session_id"`
+	DispatchCommittedState string `json:"dispatch_committed_state"`
+}
+
+func (q *Queries) MarkQueuedSessionPromptAdmissionIndeterminate(ctx context.Context, arg MarkQueuedSessionPromptAdmissionIndeterminateParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, markQueuedSessionPromptAdmissionIndeterminate,
+		arg.IndeterminateState,
+		arg.IndeterminateReason,
+		arg.UpdatedAt,
+		arg.ID,
+		arg.SessionID,
+		arg.DispatchCommittedState,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const markSessionPromptAdmissionIndeterminate = `-- name: MarkSessionPromptAdmissionIndeterminate :execrows

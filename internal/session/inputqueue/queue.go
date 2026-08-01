@@ -120,18 +120,10 @@ func (s *Service) EnqueueAdmitted(
 	admission store.SessionPromptAdmissionRequest,
 	generation int64,
 ) (store.SessionPromptAdmission, store.SessionInputQueueEntry, int, bool, error) {
-	admissionStore, ok := s.store.(store.SessionPromptAdmissionStore)
-	if !ok {
-		return store.SessionPromptAdmission{}, store.SessionInputQueueEntry{}, 0, false, errors.New(
-			"inputqueue: prompt admission store is required",
-		)
-	}
-	insert, err := s.newInsert(
-		admission.SessionID,
-		admission.AuthoredText,
-		store.SessionInputQueueModeQueue,
+	admissionStore, insert, err := s.prepareAdmittedEntry(
+		admission,
 		generation,
-		admission.Runtime,
+		store.SessionInputQueueModeQueue,
 	)
 	if err != nil {
 		return store.SessionPromptAdmission{}, store.SessionInputQueueEntry{}, 0, false, err
@@ -172,23 +164,39 @@ func (s *Service) StageAdmittedSteer(
 	admission store.SessionPromptAdmissionRequest,
 	generation int64,
 ) (store.SessionPromptAdmission, store.SessionInputQueueEntry, bool, error) {
+	admissionStore, insert, err := s.prepareAdmittedEntry(
+		admission,
+		generation,
+		store.SessionInputQueueModeSteer,
+	)
+	if err != nil {
+		return store.SessionPromptAdmission{}, store.SessionInputQueueEntry{}, false, err
+	}
+	return admissionStore.StageAdmittedSessionSteer(ctx, admission, insert)
+}
+
+func (s *Service) prepareAdmittedEntry(
+	admission store.SessionPromptAdmissionRequest,
+	generation int64,
+	mode string,
+) (store.SessionPromptAdmissionStore, store.SessionInputQueueInsert, error) {
 	admissionStore, ok := s.store.(store.SessionPromptAdmissionStore)
 	if !ok {
-		return store.SessionPromptAdmission{}, store.SessionInputQueueEntry{}, false, errors.New(
+		return nil, store.SessionInputQueueInsert{}, errors.New(
 			"inputqueue: prompt admission store is required",
 		)
 	}
 	insert, err := s.newInsert(
 		admission.SessionID,
 		admission.AuthoredText,
-		store.SessionInputQueueModeSteer,
+		mode,
 		generation,
 		admission.Runtime,
 	)
 	if err != nil {
-		return store.SessionPromptAdmission{}, store.SessionInputQueueEntry{}, false, err
+		return nil, store.SessionInputQueueInsert{}, err
 	}
-	return admissionStore.StageAdmittedSessionSteer(ctx, admission, insert)
+	return admissionStore, insert, nil
 }
 
 // ConsumeSteer atomically consumes the current staged steer entry, if any.

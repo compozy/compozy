@@ -1,6 +1,7 @@
 package globaldb
 
 import (
+	"database/sql"
 	"errors"
 	"path/filepath"
 	"testing"
@@ -325,8 +326,6 @@ func TestGlobalDBSessionInputQueueCapacity(t *testing.T) {
 
 func TestGlobalDBSessionPromptAdmissionMigration(t *testing.T) {
 	t.Run("Should create the prompt admission schema on a fresh database", func(t *testing.T) {
-		t.Parallel()
-
 		globalDB := openFreshTestGlobalDB(t)
 		assertTablesPresent(t, globalDB.db, "session_prompt_admissions", "session_input_queue")
 		assertTableHasColumns(t, globalDB.db, "session_input_queue", []string{
@@ -350,9 +349,74 @@ func TestGlobalDBSessionPromptAdmissionMigration(t *testing.T) {
 		)
 	})
 
-	t.Run("Should upgrade the 00033 queue while enforcing admission constraints", func(t *testing.T) {
-		t.Parallel()
+	t.Run("Should require queue admissions to exist and clear deleted receipts", func(t *testing.T) {
+		ctx := testutil.Context(t)
+		globalDB := openFreshTestGlobalDB(t)
+		sessionID := registerInputQueueSession(t, globalDB)
+		now := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
+		admissionReq := promptAdmissionRequest("ws-input-queue-workspace", sessionID, "foreign-key", now)
+		admission, created, err := globalDB.ClaimSessionPromptAdmission(ctx, admissionReq)
+		if err != nil {
+			t.Fatalf("ClaimSessionPromptAdmission() error = %v", err)
+		}
+		if !created {
+			t.Fatal("ClaimSessionPromptAdmission() created = false, want true")
+		}
 
+		_, err = globalDB.db.ExecContext(
+			ctx,
+			`INSERT INTO session_input_queue (
+				id, session_id, prompt_admission_id, status, mode, text, enqueued_at, updated_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+			"inq-missing-admission",
+			sessionID,
+			"admission-missing",
+			store.SessionInputQueueStatusQueued,
+			store.SessionInputQueueModeQueue,
+			"missing admission",
+			store.FormatTimestamp(now),
+			store.FormatTimestamp(now),
+		)
+		requireSQLiteConstraintError(t, err)
+
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			`INSERT INTO session_input_queue (
+				id, session_id, prompt_admission_id, status, mode, text, enqueued_at, updated_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+			"inq-deleted-admission",
+			sessionID,
+			admission.ID,
+			store.SessionInputQueueStatusQueued,
+			store.SessionInputQueueModeQueue,
+			"retained queue history",
+			store.FormatTimestamp(now),
+			store.FormatTimestamp(now),
+		); err != nil {
+			t.Fatalf("insert queue admission reference error = %v", err)
+		}
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			`DELETE FROM session_prompt_admissions WHERE id = ?`,
+			admission.ID,
+		); err != nil {
+			t.Fatalf("delete session prompt admission error = %v", err)
+		}
+
+		var promptAdmissionID sql.NullString
+		if err := globalDB.db.QueryRowContext(
+			ctx,
+			`SELECT prompt_admission_id FROM session_input_queue WHERE id = ?`,
+			"inq-deleted-admission",
+		).Scan(&promptAdmissionID); err != nil {
+			t.Fatalf("query queue admission reference after receipt delete error = %v", err)
+		}
+		if promptAdmissionID.Valid {
+			t.Fatalf("prompt_admission_id after receipt delete = %q, want NULL", promptAdmissionID.String)
+		}
+	})
+
+	t.Run("Should upgrade the 00033 queue while enforcing admission constraints", func(t *testing.T) {
 		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
 		prefixDB, err := openGlobalMigrationPrefixDatabase(
 			t,
@@ -395,6 +459,29 @@ func TestGlobalDBSessionPromptAdmissionMigration(t *testing.T) {
 		); err != nil {
 			t.Fatalf("seed 00033 session_input_queue row error = %v", err)
 		}
+		if err := applyGlobalMigrationPrefix(
+			t,
+			prefixDB,
+			globalMigrationPrefixBefore(t, "00036_schema.sql"),
+		); err != nil {
+			t.Fatalf("Apply(global through 00035) error = %v", err)
+		}
+		if _, err := prefixDB.ExecContext(
+			ctx,
+			`INSERT INTO session_input_queue (
+				id, session_id, prompt_admission_id, status, mode, text, enqueued_at, updated_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+			"inq-orphaned-admission-before-00036",
+			sessionID,
+			"admission-orphaned-before-00036",
+			store.SessionInputQueueStatusQueued,
+			store.SessionInputQueueModeQueue,
+			"orphaned receipt reference",
+			store.FormatTimestamp(now),
+			store.FormatTimestamp(now),
+		); err != nil {
+			t.Fatalf("seed orphaned 00035 admission reference error = %v", err)
+		}
 		if err := prefixDB.Close(); err != nil {
 			t.Fatalf("prefixDB.Close() error = %v", err)
 		}
@@ -415,6 +502,13 @@ func TestGlobalDBSessionPromptAdmissionMigration(t *testing.T) {
 			Provider: "claude", Model: "sonnet", ReasoningEffort: "high", Speed: "fast",
 		}); got != want {
 			t.Fatalf("legacy queue runtime = %#v, want %#v", got, want)
+		}
+		orphaned, err := upgraded.GetSessionInputQueueEntry(ctx, sessionID, "inq-orphaned-admission-before-00036")
+		if err != nil {
+			t.Fatalf("GetSessionInputQueueEntry(orphaned) error = %v", err)
+		}
+		if orphaned.PromptAdmissionID != "" {
+			t.Fatalf("orphaned prompt admission after 00036 = %q, want NULL", orphaned.PromptAdmissionID)
 		}
 		if err := upgraded.Close(ctx); err != nil {
 			t.Fatalf("GlobalDB.Close(upgrade) error = %v", err)
@@ -443,7 +537,7 @@ func TestGlobalDBSessionPromptAdmissionMigration(t *testing.T) {
 		if !created {
 			t.Fatal("ClaimSessionPromptAdmission() created = false, want true")
 		}
-		if _, err := reopened.db.ExecContext(
+		_, err = reopened.db.ExecContext(
 			ctx,
 			`INSERT INTO session_prompt_admissions (
 				id, workspace_id, session_id, message_id, idempotency_key, operation,
@@ -465,8 +559,9 @@ func TestGlobalDBSessionPromptAdmissionMigration(t *testing.T) {
 			"event-migration-duplicate",
 			store.FormatTimestamp(now),
 			store.FormatTimestamp(now),
-		); err == nil {
-			t.Fatal("insert duplicate session_prompt_admissions idempotency key error = nil, want constraint failure")
+		)
+		if !isSQLiteUniqueConstraint(err) {
+			t.Fatalf("duplicate session prompt admission error = %v, want SQLite unique constraint", err)
 		}
 
 		queueReq := store.SessionInputQueueInsert{
@@ -484,7 +579,7 @@ func TestGlobalDBSessionPromptAdmissionMigration(t *testing.T) {
 		if !created || entry.PromptAdmissionID != admission.ID {
 			t.Fatalf("admitted queue entry = %#v, created=%v, want admission %q", entry, created, admission.ID)
 		}
-		if _, err := reopened.db.ExecContext(
+		_, err = reopened.db.ExecContext(
 			ctx,
 			`INSERT INTO session_input_queue (
 				id, session_id, prompt_admission_id, status, mode, text, enqueued_at, updated_at
@@ -497,8 +592,23 @@ func TestGlobalDBSessionPromptAdmissionMigration(t *testing.T) {
 			"duplicate admission binding",
 			store.FormatTimestamp(now),
 			store.FormatTimestamp(now),
-		); err == nil {
-			t.Fatal("insert duplicate session_input_queue prompt admission error = nil, want constraint failure")
+		)
+		if !isSQLiteUniqueConstraint(err) {
+			t.Fatalf("duplicate session input queue error = %v, want SQLite unique constraint", err)
+		}
+		if _, err := reopened.db.ExecContext(
+			ctx,
+			`DELETE FROM session_prompt_admissions WHERE id = ?`,
+			admission.ID,
+		); err != nil {
+			t.Fatalf("delete migrated session prompt admission error = %v", err)
+		}
+		migratedEntry, err := reopened.GetSessionInputQueueEntry(ctx, sessionID, entry.ID)
+		if err != nil {
+			t.Fatalf("GetSessionInputQueueEntry(migrated) error = %v", err)
+		}
+		if migratedEntry.PromptAdmissionID != "" {
+			t.Fatalf("migrated prompt admission after receipt delete = %q, want NULL", migratedEntry.PromptAdmissionID)
 		}
 	})
 }

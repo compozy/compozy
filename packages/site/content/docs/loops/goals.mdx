@@ -22,9 +22,12 @@ Send a free-form objective to an active session:
 compozy session prompt sess_123 '/goal Ship the requested change and keep make verify green.' -o json
 ```
 
-The command returns a structured result. A successful start has `outcome: started` and the canonical
-snapshot. If the session already owns a visible Goal, Compozy returns `goal_replace_required` with the
-current snapshot instead of overwriting it.
+The command returns a structured result. A successful start has `outcome: started`, the canonical
+snapshot, `message_id`, and `idempotency_key`. HTTP and UDS return the same Goal result inside the
+prompt envelope, which also reports `replayed`. Retrying the exact request with both original
+identities returns the stored result and preserves its original HTTP status without running the Goal
+command again. If the session already owns a visible Goal, Compozy returns `goal_replace_required`
+with the current snapshot instead of overwriting it. See [Session events and safe retries](/docs/sessions/events#prompt-identity-and-safe-retries).
 
 Read the current Goal through any of these public surfaces:
 

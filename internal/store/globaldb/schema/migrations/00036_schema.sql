@@ -1,0 +1,34 @@
+-- +goose Up
+-- disable the enforcement of foreign-keys constraints
+PRAGMA foreign_keys = off;
+-- clear orphaned optional receipt references before enforcing the new relation
+UPDATE `session_input_queue`
+SET `prompt_admission_id` = NULL
+WHERE `prompt_admission_id` IS NOT NULL
+  AND NOT EXISTS (
+    SELECT 1
+    FROM `session_prompt_admissions`
+    WHERE `session_prompt_admissions`.`id` = `session_input_queue`.`prompt_admission_id`
+  );
+-- create "new_session_input_queue" table
+CREATE TABLE `new_session_input_queue` (`id` text NULL, `session_id` text NOT NULL, `prompt_admission_id` text NULL, `message_id` text NOT NULL DEFAULT '', `idempotency_key` text NOT NULL DEFAULT '', `turn_id` text NOT NULL DEFAULT '', `event_id` text NOT NULL DEFAULT '', `status` text NOT NULL, `mode` text NOT NULL, `text` text NOT NULL, `runtime_provider` text NOT NULL DEFAULT '', `runtime_model` text NOT NULL DEFAULT '', `runtime_reasoning_effort` text NOT NULL DEFAULT '', `runtime_speed` text NOT NULL DEFAULT '', `session_generation` integer NOT NULL DEFAULT 0, `task_run_id` text NOT NULL DEFAULT '', `run_generation` integer NULL, `attempt_count` integer NOT NULL DEFAULT 0, `enqueued_at` text NOT NULL, `dispatch_started_at` text NULL, `sent_at` text NULL, `failed_at` text NULL, `failure_summary` text NOT NULL DEFAULT '', `canceled_at` text NULL, `updated_at` text NOT NULL, `loop_run_id` text NULL, `owner_kind` text NULL, `owner_epoch` integer NULL, `binding_epoch` integer NULL, `prompt_id` text NULL, `prompt_kind` text NULL, `operation_usage_base_tokens` integer NULL, `prompt_attempt` integer NOT NULL DEFAULT 0, `dispatchable` integer NOT NULL DEFAULT 1, `activated_at` timestamp NULL, `dispatch_token_hash` text NULL, `fence_kind` text NULL, `fence_disposition` text NULL, `fence_reason_code` text NULL, `fenced_at` timestamp NULL, `terminal_event_start_seq` integer NULL, `terminal_event_end_seq` integer NULL, `terminal_kind` text NULL, `terminal_stop_reason` text NULL, `terminal_disposition` text NULL, `terminal_reason_code` text NULL, `terminal_tokens_reported` integer NOT NULL DEFAULT 0, `terminal_tokens_used` integer NULL, `terminal_at` timestamp NULL, PRIMARY KEY (`id`), CONSTRAINT `0` FOREIGN KEY (`session_id`) REFERENCES `sessions` (`id`) ON UPDATE NO ACTION ON DELETE CASCADE, CONSTRAINT `1` FOREIGN KEY (`prompt_admission_id`) REFERENCES `session_prompt_admissions` (`id`) ON UPDATE NO ACTION ON DELETE SET NULL, CHECK (status IN ('queued', 'dispatching', 'sent', 'failed', 'canceled')), CHECK (mode IN ('queue', 'steer')), CHECK (attempt_count >= 0), CHECK (prompt_attempt >= 0), CHECK (dispatchable IN (0,1)), CHECK (terminal_tokens_reported IN (0,1)), CHECK (terminal_tokens_used IS NULL OR terminal_tokens_used >= 0));
+-- copy rows from old table "session_input_queue" to new temporary table "new_session_input_queue"
+INSERT INTO `new_session_input_queue` (`id`, `session_id`, `prompt_admission_id`, `message_id`, `idempotency_key`, `turn_id`, `event_id`, `status`, `mode`, `text`, `runtime_provider`, `runtime_model`, `runtime_reasoning_effort`, `runtime_speed`, `session_generation`, `task_run_id`, `run_generation`, `attempt_count`, `enqueued_at`, `dispatch_started_at`, `sent_at`, `failed_at`, `failure_summary`, `canceled_at`, `updated_at`, `loop_run_id`, `owner_kind`, `owner_epoch`, `binding_epoch`, `prompt_id`, `prompt_kind`, `operation_usage_base_tokens`, `prompt_attempt`, `dispatchable`, `activated_at`, `dispatch_token_hash`, `fence_kind`, `fence_disposition`, `fence_reason_code`, `fenced_at`, `terminal_event_start_seq`, `terminal_event_end_seq`, `terminal_kind`, `terminal_stop_reason`, `terminal_disposition`, `terminal_reason_code`, `terminal_tokens_reported`, `terminal_tokens_used`, `terminal_at`) SELECT `id`, `session_id`, `prompt_admission_id`, `message_id`, `idempotency_key`, `turn_id`, `event_id`, `status`, `mode`, `text`, `runtime_provider`, `runtime_model`, `runtime_reasoning_effort`, `runtime_speed`, `session_generation`, `task_run_id`, `run_generation`, `attempt_count`, `enqueued_at`, `dispatch_started_at`, `sent_at`, `failed_at`, `failure_summary`, `canceled_at`, `updated_at`, `loop_run_id`, `owner_kind`, `owner_epoch`, `binding_epoch`, `prompt_id`, `prompt_kind`, `operation_usage_base_tokens`, `prompt_attempt`, `dispatchable`, `activated_at`, `dispatch_token_hash`, `fence_kind`, `fence_disposition`, `fence_reason_code`, `fenced_at`, `terminal_event_start_seq`, `terminal_event_end_seq`, `terminal_kind`, `terminal_stop_reason`, `terminal_disposition`, `terminal_reason_code`, `terminal_tokens_reported`, `terminal_tokens_used`, `terminal_at` FROM `session_input_queue`;
+-- drop "session_input_queue" table after copying rows
+DROP TABLE `session_input_queue`;
+-- rename temporary table "new_session_input_queue" to "session_input_queue"
+ALTER TABLE `new_session_input_queue` RENAME TO `session_input_queue`;
+-- create index "idx_session_input_queue_generation" to table: "session_input_queue"
+CREATE INDEX `idx_session_input_queue_generation` ON `session_input_queue` (`session_id`, `session_generation`, `status`);
+-- create index "idx_session_input_queue_goal_owner" to table: "session_input_queue"
+CREATE INDEX `idx_session_input_queue_goal_owner` ON `session_input_queue` (`loop_run_id`, `task_run_id`, `owner_epoch`, `status`, `dispatchable`, `fence_kind`);
+-- create index "idx_session_input_queue_pending" to table: "session_input_queue"
+CREATE INDEX `idx_session_input_queue_pending` ON `session_input_queue` (`session_id`, `status`, `enqueued_at`, `id`);
+-- create index "uq_session_input_queue_prompt_admission" to table: "session_input_queue"
+CREATE UNIQUE INDEX `uq_session_input_queue_prompt_admission` ON `session_input_queue` (`prompt_admission_id`) WHERE prompt_admission_id IS NOT NULL;
+-- create index "uq_session_input_queue_active_steer" to table: "session_input_queue"
+CREATE UNIQUE INDEX `uq_session_input_queue_active_steer` ON `session_input_queue` (`session_id`) WHERE mode = 'steer' AND status = 'queued';
+-- create index "uq_session_input_queue_goal_prompt" to table: "session_input_queue"
+CREATE UNIQUE INDEX `uq_session_input_queue_goal_prompt` ON `session_input_queue` (`loop_run_id`, `prompt_id`) WHERE prompt_id IS NOT NULL;
+-- enable back the enforcement of foreign-keys constraints
+PRAGMA foreign_keys = on;

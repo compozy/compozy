@@ -101,6 +101,8 @@ curl -N -X POST http://localhost:2123/api/workspaces/ws_alpha/sessions/sess-1234
   -H "Content-Type: application/json" \
   -d '{
     "message": "Review the current changes and report correctness risks.",
+    "message_id": "msg_1234",
+    "idempotency_key": "idem_1234",
     "runtime": {
       "provider": "codex",
       "model": "gpt-5.6-sol",
@@ -112,6 +114,8 @@ curl -N -X POST http://localhost:2123/api/workspaces/ws_alpha/sessions/sess-1234
 
 Two operational details matter here:
 
+- `message_id` identifies the authored transcript row, while `idempotency_key` identifies the
+  submission. Keep both values and reuse them together only when retrying the exact same request.
 - `runtime` is a prompt-bound snapshot of `provider`, `model`, `reasoning_effort`, and `speed`. The
   accepted snapshot is retained with the turn and is not rewritten by later runtime changes.
 - If a snapshot keeps the same provider, Compozy configures the existing ACP session in place when
@@ -136,11 +140,11 @@ modes so operators and agents do not have to guess what happens when a prompt is
 `session.busy_input.default_mode` defaults to `queue`; `session.busy_input.queue_cap` bounds
 the persisted queue.
 
-| Mode        | CLI                                                | HTTP shape                                                                                                        | Result                                                                                                                                                                                        |
-| ----------- | -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `queue`     | `compozy session prompt <id> "<text>" --queue`     | `POST /api/workspaces/:workspace/sessions/:id/prompt` with `{"mode":"queue","message":"...","runtime":{...}}`     | Persists the input and its runtime snapshot in FIFO order, then returns `202` with `queue_entry_id`, position, and generation.                                                                |
-| `interrupt` | `compozy session prompt <id> "<text>" --interrupt` | `POST /api/workspaces/:workspace/sessions/:id/prompt` with `{"mode":"interrupt","message":"...","runtime":{...}}` | Cancels the active turn through the session cancellation path, advances the queue generation, drops stale queued input, and starts the replacement prompt with its accepted runtime snapshot. |
-| `steer`     | `compozy session prompt <id> "<text>" --steer`     | `POST /api/workspaces/:workspace/sessions/:id/steer` with `{"text":"..."}`                                        | Stages steering text for the next ACP `tool_result` boundary and reports `fallback_mode_if_no_tool_result: "queue"`.                                                                          |
+| Mode        | CLI                                                | HTTP shape                                                                                                                                                                                  | Result                                                                                                                                                                                        |
+| ----------- | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `queue`     | `compozy session prompt <id> "<text>" --queue`     | `POST /api/workspaces/:workspace/sessions/:id/prompt` with `{"mode":"queue","message":"...","message_id":"msg_queue_1234","idempotency_key":"idem_queue_1234","runtime":{...}}`             | Persists the input and its runtime snapshot in FIFO order, then returns `202` with `queue_entry_id`, position, and generation.                                                                |
+| `interrupt` | `compozy session prompt <id> "<text>" --interrupt` | `POST /api/workspaces/:workspace/sessions/:id/prompt` with `{"mode":"interrupt","message":"...","message_id":"msg_interrupt_1234","idempotency_key":"idem_interrupt_1234","runtime":{...}}` | Cancels the active turn through the session cancellation path, advances the queue generation, drops stale queued input, and starts the replacement prompt with its accepted runtime snapshot. |
+| `steer`     | `compozy session prompt <id> "<text>" --steer`     | `POST /api/workspaces/:workspace/sessions/:id/steer` with `{"text":"...","message_id":"msg_steer_1234","idempotency_key":"idem_steer_1234"}`                                                | Stages steering text for the next ACP `tool_result` boundary and reports `fallback_mode_if_no_tool_result: "queue"`.                                                                          |
 
 Queued entries can be canceled when the caller has the queue entry id:
 

@@ -9,9 +9,16 @@ const userMessage = (id: string, text = "Continue the durable transcript") => ({
 });
 
 function streamResponse() {
-  return new Response('d:{"finishReason":"stop"}\n', {
-    headers: { "content-type": "text/event-stream" },
-  });
+  return new Response(
+    [
+      'data: {"type":"start","messageId":"prompt-transport-turn"}\n\n',
+      'data: {"type":"finish","finishReason":"stop"}\n\n',
+      "data: [DONE]\n\n",
+    ].join(""),
+    {
+      headers: { "content-type": "text/event-stream" },
+    }
+  );
 }
 
 describe("session prompt chat transport", () => {
