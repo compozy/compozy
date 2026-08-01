@@ -287,6 +287,9 @@ func creationProfileFromStart(
 	if sandboxRef == "" {
 		sandboxRef = strings.TrimSpace(spec.workspace.Config.Defaults.Sandbox)
 	}
+	if sandboxRef == "" && !spec.sandboxDisabled {
+		sandboxRef = strings.TrimSpace(spec.workspace.Sandbox.Profile)
+	}
 	if spec.sandboxDisabled || sandboxRef == "" {
 		sandboxMode = store.SessionCreationSandboxNone
 		sandboxRef = ""

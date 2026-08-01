@@ -26,6 +26,7 @@ func (d *Daemon) attachExtensionRuntime(
 		withDaemonExtensionMarketplace(state.cfg.Extensions, nil),
 		withDaemonExtensionCatalog(state.marketplace),
 		withDaemonExtensionEventWriter(extensionEventSummaryStore(state.registry)),
+		withDaemonExtensionWorkspaceResolver(state.workspaceResolver),
 	)
 	if state.agentSkillResources != nil {
 		if err := state.agentSkillResources.Sync(ctx); err != nil {

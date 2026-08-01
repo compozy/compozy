@@ -11,8 +11,8 @@ bug_ids: BUG-20260713-session-user-message-reorders-or-disappears; BUG-20260801-
 fix_status: fixed
 retest_status: pass
 fix_commits: a73b6587; b9da1778
-evidence: /Users/pedronauck/dev/qa-labs/compozy-session-prompt-idempotency-current-web-20260801-081126-391752-lab/qa-artifacts/qa/structured-replay.json; /Users/pedronauck/dev/qa-labs/compozy-session-prompt-idempotency-current-web-20260801-081126-391752-lab/qa-artifacts/qa/identity-conflicts.json; /Users/pedronauck/dev/qa-labs/compozy-session-prompt-idempotency-current-web-20260801-081126-391752-lab/qa-artifacts/qa/goal-http-replay.json; /Users/pedronauck/dev/qa-labs/compozy-session-prompt-idempotency-coderabbit-20260801-093002-740482-lab/qa-artifacts/qa/goal-replay-coderabbit.json; /Users/pedronauck/dev/qa-labs/compozy-session-prompt-idempotency-coderabbit-20260801-093002-740482-lab/qa-artifacts/qa/screenshots/coderabbit-goal-replay-clean.png
-last_report: docs/qa/reports/2026-08-01-session-prompt-idempotency-coderabbit.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-session-prompt-idempotency-current-web-20260801-081126-391752-lab/qa-artifacts/qa/structured-replay.json; /Users/pedronauck/dev/qa-labs/compozy-session-prompt-idempotency-current-web-20260801-081126-391752-lab/qa-artifacts/qa/identity-conflicts.json; /Users/pedronauck/dev/qa-labs/compozy-session-prompt-idempotency-current-web-20260801-081126-391752-lab/qa-artifacts/qa/goal-http-replay.json; /Users/pedronauck/dev/qa-labs/compozy-session-prompt-idempotency-coderabbit-20260801-093002-740482-lab/qa-artifacts/qa/goal-replay-coderabbit.json; /Users/pedronauck/dev/qa-labs/compozy-session-prompt-idempotency-coderabbit-20260801-093002-740482-lab/qa-artifacts/qa/screenshots/coderabbit-goal-replay-clean.png; /Users/pedronauck/dev/qa-labs/compozy-session-extension-boundary-20260801-140242-564687-lab/qa-artifacts/qa/boundary-verification.json
+last_report: docs/qa/reports/2026-08-01-session-extension-boundary.md
 overlaps: RT-session-message-reload; RT-session-lifecycle-affordances
 ---
 
@@ -29,3 +29,7 @@ Planning impact 2026-07-31: new cross-surface at-most-once admission and exact m
 2026-08-01 CodeRabbit remediation reset: replayed non-OK Goal responses now remain on the failure-rendering path, explicit Web identity pairs reject partial/blank values, and transport recreation retains the shared idempotency map without reading refs during render. A fresh isolated walk is required before completion.
 
 2026-08-01 CodeRabbit remediation retest: an exact Goal retry preserved the original identities and `goal_not_active` HTTP 404 while changing only `replayed=false` to `replayed=true`. The current compiled Web transport rendered one `/goal status` row and the actionable failure guidance, with no synthetic success. The deterministic screenshot passed visual inspection, and teardown stopped both registered processes with `clean=true` and no survivors.
+
+2026-08-01 boundary retest: after a logical session's first provider bind, the exact CLI retry preserved
+`msg-qa-sandbox-first-bind-1` and `turn-abd6e5c31301aee8` with `replayed=true`; an independent HTTP
+transcript read still contained one authored message and one provider response.

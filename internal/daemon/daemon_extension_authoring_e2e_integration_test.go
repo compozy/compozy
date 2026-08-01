@@ -131,7 +131,7 @@ func testDaemonE2EExtensionAuthoringShouldCompleteTheDevelopmentLoopWithoutTrust
 // quickstartGuidePath is the published page that owns the replayed command list. The fenced block
 // between the markers below is the single source: this test never keeps a second copy of it.
 const (
-	quickstartGuidePath  = "packages/site/content/runtime/guides/build-your-first-extension.mdx"
+	quickstartGuidePath  = "packages/site/content/docs/guides/build-your-first-extension.mdx"
 	quickstartBeginMark  = "{/* extension-quickstart:begin */}"
 	quickstartEndMark    = "{/* extension-quickstart:end */}"
 	quickstartExtension  = "hello"

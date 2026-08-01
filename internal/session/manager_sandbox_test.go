@@ -232,6 +232,54 @@ func TestSessionSandboxCreateAppliesRuntimeSandboxOverride(t *testing.T) {
 		}
 	})
 
+	t.Run("Should preserve sandbox policy until an accepted session binds its runtime", func(t *testing.T) {
+		t.Parallel()
+
+		provider := &recordingSandboxProvider{}
+		h := newHarness(t, WithSandboxRegistry(newRegistryForProvider(t, provider)))
+		resolved, err := h.resolver.Resolve(context.Background(), h.workspaceID)
+		if err != nil {
+			t.Fatalf("Resolve(%q) error = %v", h.workspaceID, err)
+		}
+		resolved.Config.Sandboxes["accepted-ref"] = compozyconfig.SandboxProfile{
+			Backend:     string(sandbox.BackendLocal),
+			SyncMode:    string(sandbox.SyncModeNone),
+			Persistence: string(sandbox.PersistenceReuse),
+		}
+		h.resolver.upsert(&resolved)
+
+		accepted, err := h.manager.CreateAccepted(testutil.Context(t), CreateAcceptedOpts{
+			Session: CreateOpts{
+				AgentName:  "coder",
+				Workspace:  h.workspaceID,
+				SandboxRef: "accepted-ref",
+			},
+		})
+		if err != nil {
+			t.Fatalf("CreateAccepted() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := h.manager.Stop(testutil.Context(t), accepted.ID); err != nil {
+				t.Errorf("Stop() error = %v", err)
+			}
+		})
+		if got := len(provider.prepareRequests); got != 0 {
+			t.Fatalf("Prepare() calls before prompt = %d, want 0", got)
+		}
+
+		result, err := h.manager.SendPrompt(testutil.Context(t), accepted.ID, SendPromptOpts{Message: "bind runtime"})
+		if err != nil {
+			t.Fatalf("SendPrompt() error = %v", err)
+		}
+		collectEvents(t, result.Events)
+		if got, want := len(provider.prepareRequests), 1; got != want {
+			t.Fatalf("Prepare() calls after prompt = %d, want %d", got, want)
+		}
+		if got, want := provider.prepareRequests[0].Sandbox.Profile, "accepted-ref"; got != want {
+			t.Fatalf("PrepareRequest.Sandbox.Profile = %q, want %q", got, want)
+		}
+	})
+
 	t.Run("Should reject conflicting sandbox ref and disabled sandbox", func(t *testing.T) {
 		t.Parallel()
 
@@ -465,7 +513,6 @@ func TestSessionSandboxResumeRestoresProviderState(t *testing.T) {
 	if err := store.WriteSessionMeta(session.MetaPath(), meta); err != nil {
 		t.Fatalf("WriteSessionMeta() error = %v", err)
 	}
-
 	resumed, err := h.manager.Resume(testutil.Context(t), session.ID)
 	if err != nil {
 		t.Fatalf("Resume() error = %v", err)

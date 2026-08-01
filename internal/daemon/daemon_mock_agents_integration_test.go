@@ -337,17 +337,16 @@ func TestDaemonE2EProviderReasoningNegotiatesThroughAdvertisedACPOptions(t *test
 		if status != http.StatusCreated || accepted.State != session.StateActive {
 			t.Fatalf("HTTP create session = status:%d session:%#v, want 201 active", status, accepted)
 		}
-		if _, err := harness.PromptSessionWithRuntime(
+		_, promptErr := harness.PromptSessionWithRuntime(
 			ctx,
 			accepted.ID,
 			"codex missing reasoning option",
 			&compozycontract.PromptRuntimeSelectionPayload{
 				Provider: "codex", Model: "gpt-5.6-sol", ReasoningEffort: "max",
 			},
-		); err != nil {
-			t.Fatalf("PromptSessionWithRuntime(reasoning-codex-missing) error = %v", err)
-		}
-		waitForReasoningNegotiationFailure(
+		)
+		requirePromptDispatchIndeterminate(t, promptErr, `reasoning effort "max" is unavailable`)
+		requireIndeterminateRuntimeFailure(
 			t,
 			ctx,
 			harness,
@@ -382,17 +381,16 @@ func TestDaemonE2EProviderReasoningNegotiatesThroughAdvertisedACPOptions(t *test
 		if status != http.StatusCreated || accepted.State != session.StateActive {
 			t.Fatalf("HTTP create session = status:%d session:%#v, want 201 active", status, accepted)
 		}
-		if _, err := harness.PromptSessionWithRuntime(
+		_, promptErr := harness.PromptSessionWithRuntime(
 			ctx,
 			accepted.ID,
 			"codex unavailable model",
 			&compozycontract.PromptRuntimeSelectionPayload{
 				Provider: "codex", Model: "gpt-5.6-terra", ReasoningEffort: "max",
 			},
-		); err != nil {
-			t.Fatalf("PromptSessionWithRuntime(reasoning-codex-unavailable) error = %v", err)
-		}
-		waitForReasoningNegotiationFailure(
+		)
+		requirePromptDispatchIndeterminate(t, promptErr, `model "gpt-5.6-terra" is unavailable`)
+		requireIndeterminateRuntimeFailure(
 			t,
 			ctx,
 			harness,
@@ -423,17 +421,16 @@ func TestDaemonE2EProviderReasoningNegotiatesThroughAdvertisedACPOptions(t *test
 		if status != http.StatusCreated || accepted.State != session.StateActive {
 			t.Fatalf("HTTP create session = status:%d session:%#v, want 201 active", status, accepted)
 		}
-		if _, err := harness.PromptSessionWithRuntime(
+		_, promptErr := harness.PromptSessionWithRuntime(
 			ctx,
 			accepted.ID,
 			"codex unsupported reasoning effort",
 			&compozycontract.PromptRuntimeSelectionPayload{
 				Provider: "codex", Model: "gpt-5.6-sol", ReasoningEffort: "minimal",
 			},
-		); err != nil {
-			t.Fatalf("PromptSessionWithRuntime(reasoning-codex-unsupported) error = %v", err)
-		}
-		waitForReasoningNegotiationFailure(
+		)
+		requirePromptDispatchIndeterminate(t, promptErr, `reasoning effort "minimal" is unavailable`)
+		requireIndeterminateRuntimeFailure(
 			t,
 			ctx,
 			harness,
@@ -479,7 +476,7 @@ func waitForReasoningSessionActive(
 	return current
 }
 
-func waitForReasoningNegotiationFailure(
+func requireIndeterminateRuntimeFailure(
 	t testing.TB,
 	ctx context.Context,
 	harness *e2etest.RuntimeHarness,
@@ -487,25 +484,32 @@ func waitForReasoningNegotiationFailure(
 	wantSummary string,
 ) compozycontract.SessionPayload {
 	t.Helper()
-	var current compozycontract.SessionPayload
-	waitForRuntimeCondition(t, "reasoning negotiation failure", 10*time.Second, func() bool {
-		resolved, err := harness.GetSession(ctx, sessionID)
-		if err != nil {
-			return false
-		}
-		current = resolved
-		return current.State == session.StateStopped
-	})
-	if current.Failure == nil || current.Failure.Kind != store.FailureProtocol ||
-		!strings.Contains(current.Failure.Summary, wantSummary) {
+	current, err := harness.GetSession(ctx, sessionID)
+	if err != nil {
+		t.Fatalf("GetSession(%q) error = %v", sessionID, err)
+	}
+	if current.State != session.StateActive || current.Runtime.Status != session.RuntimeStatusUnbound ||
+		!strings.Contains(current.Runtime.Failure, wantSummary) {
 		t.Fatalf(
-			"reasoning negotiation failure = %#v, want kind %q containing %q",
-			current.Failure,
-			store.FailureProtocol,
+			"reasoning negotiation session = %#v, want active/unbound runtime failure containing %q",
+			current,
 			wantSummary,
 		)
 	}
 	return current
+}
+
+func requirePromptDispatchIndeterminate(t testing.TB, err error, wantCause string) {
+	t.Helper()
+	if err == nil {
+		t.Fatal("PromptSessionWithRuntime() error = nil, want indeterminate dispatch")
+	}
+	message := strings.ReplaceAll(err.Error(), `\"`, `"`)
+	for _, want := range []string{"prompt session status 409", "prompt_dispatch_indeterminate", wantCause} {
+		if !strings.Contains(message, want) {
+			t.Fatalf("PromptSessionWithRuntime() error = %q, want %q", message, want)
+		}
+	}
 }
 
 func assertReasoningProtocolSequence(
@@ -840,7 +844,7 @@ func TestDaemonE2EHostedMCPProjectsAndCallsNonBootstrapNativeTool(t *testing.T) 
 
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
-		createFixtureBackedSession(t, ctx, harness, "mock-hosted-provider-legacy", "hosted-provider-legacy")
+		createBoundFixtureBackedSession(t, ctx, harness, "mock-hosted-provider-legacy", "hosted-provider-legacy")
 		diagnostics, err := acpmock.ReadDiagnostics(registration.DiagnosticsPath)
 		if err != nil {
 			t.Fatalf("ReadDiagnostics(hosted-provider-legacy) error = %v", err)
@@ -887,7 +891,7 @@ func TestDaemonE2EHostedMCPProjectsAndCallsNonBootstrapNativeTool(t *testing.T) 
 		ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 		defer cancel()
 
-		createFixtureBackedSession(t, ctx, harness, "mock-provider-models", "provider-models-session")
+		createBoundFixtureBackedSession(t, ctx, harness, "mock-provider-models", "provider-models-session")
 		diagnostics, err := acpmock.ReadDiagnostics(registration.DiagnosticsPath)
 		if err != nil {
 			t.Fatalf("ReadDiagnostics(provider-models) error = %v", err)
@@ -1305,7 +1309,7 @@ func TestDaemonE2ETaskWakeCreatorDeliversSyntheticTurnAndSuppressesIneligibleWak
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	creatorSession := createFixtureBackedSession(t, ctx, harness, "mock-wake-creator", "wake-creator-session")
+	creatorSession := createBoundFixtureBackedSession(t, ctx, harness, "mock-wake-creator", "wake-creator-session")
 	diagnostics, err := acpmock.ReadDiagnostics(registration.DiagnosticsPath)
 	if err != nil {
 		t.Fatalf("ReadDiagnostics(wake-creator) error = %v", err)
@@ -1452,18 +1456,7 @@ func newWorkspaceAccessHostedSession(
 ) (compozycontract.SessionPayload, *sdkmcp.ClientSession) {
 	t.Helper()
 
-	created, err := harness.CreateSession(ctx, compozycontract.CreateSessionRequest{
-		AgentName:     agentName,
-		Name:          name,
-		WorkspacePath: harness.WorkspaceRoot,
-	})
-	if err != nil {
-		t.Fatalf("CreateSession(%q) error = %v", agentName, err)
-	}
-	active, err := harness.WaitForSessionActive(ctx, created.ID)
-	if err != nil {
-		t.Fatalf("WaitForSessionActive(%q) error = %v", created.ID, err)
-	}
+	active := createBoundFixtureBackedSession(t, ctx, harness, agentName, name)
 	registration, ok := harness.MockAgentRegistration(agentName)
 	if !ok {
 		t.Fatalf("MockAgentRegistration(%q) = missing", agentName)

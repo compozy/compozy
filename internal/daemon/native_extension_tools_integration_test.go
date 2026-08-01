@@ -114,15 +114,16 @@ func TestNativeExtensionToolsIntegrationLifecycleParity(t *testing.T) {
 	t.Run("Should run the workspace-bound authoring and development tools with structured results", func(t *testing.T) {
 		deps, extRegistry, _, _ := newNativeExtensionToolDeps(t)
 		workspaceRoot := t.TempDir()
-		workspaceID := "workspace-native-extension"
+		workspaceRegistrationID := "workspace-native-extension"
+		workspaceIdentity := "01KYYQSM30GYWR3KY485HKB9QT"
 		resolver := &daemonExtensionWorkspaceResolverStub{
 			resolved: workspacepkg.ResolvedWorkspace{
 				Workspace: workspacepkg.Workspace{
-					ID:      workspaceID,
+					ID:      workspaceRegistrationID,
 					Name:    "native-extension-workspace",
 					RootDir: workspaceRoot,
 				},
-				WorkspaceID: workspaceID,
+				WorkspaceID: workspaceIdentity,
 			},
 		}
 		installNativeGlobalResourceExtension(t, extRegistry, "global-native")
@@ -145,7 +146,7 @@ func TestNativeExtensionToolsIntegrationLifecycleParity(t *testing.T) {
 			values: map[string]string{"env:GITHUB_TOKEN": publishCredential},
 		}
 		registry := newDaemonNativeRegistry(t, deps, nativeApproveAllPolicyInputs())
-		scope := toolspkg.Scope{WorkspaceID: workspaceID, Operator: true}
+		scope := toolspkg.Scope{WorkspaceID: workspaceRegistrationID, Operator: true}
 
 		initDir := filepath.Join(workspaceRoot, "scaffolded")
 		initResult, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{
@@ -174,7 +175,7 @@ func TestNativeExtensionToolsIntegrationLifecycleParity(t *testing.T) {
 
 		devResult, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{
 			ToolID:      toolspkg.ToolIDExtensionsDev,
-			WorkspaceID: workspaceID,
+			WorkspaceID: workspaceRegistrationID,
 			Input: json.RawMessage(fmt.Sprintf(
 				`{"origin_path":%q,"generation_hash":%q}`,
 				sourceDir,
@@ -184,13 +185,13 @@ func TestNativeExtensionToolsIntegrationLifecycleParity(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Registry.Call(extensions_dev) error = %v", err)
 		}
-		requireNativeStructuredContains(t, devResult, []byte(`"workspace_id":"`+workspaceID+`"`))
+		requireNativeStructuredContains(t, devResult, []byte(`"workspace_id":"`+workspaceIdentity+`"`))
 
 		writeNativeDevBuildFixture(t, sourceDir, "0.2.0", "second")
 		secondBuild := callNativeExtensionBuild(t, registry, scope, sourceDir)
 		reloadResult, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{
 			ToolID:      toolspkg.ToolIDExtensionsReload,
-			WorkspaceID: workspaceID,
+			WorkspaceID: workspaceRegistrationID,
 			Input: json.RawMessage(fmt.Sprintf(
 				`{"name":"native-dev","generation_hash":%q}`,
 				secondBuild.GenerationHash,
@@ -202,7 +203,7 @@ func TestNativeExtensionToolsIntegrationLifecycleParity(t *testing.T) {
 		requireNativeStructuredContains(t, reloadResult, []byte(secondBuild.GenerationHash))
 		_, err = registry.Call(t.Context(), scope, toolspkg.CallRequest{
 			ToolID:      toolspkg.ToolIDExtensionsReload,
-			WorkspaceID: workspaceID,
+			WorkspaceID: workspaceRegistrationID,
 			Input: json.RawMessage(fmt.Sprintf(
 				`{"name":"native-dev","generation_hash":%q}`,
 				strings.Repeat("0", 64),
@@ -260,7 +261,7 @@ func TestNativeExtensionToolsIntegrationLifecycleParity(t *testing.T) {
 
 		logsResult, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{
 			ToolID:      toolspkg.ToolIDExtensionsLogs,
-			WorkspaceID: workspaceID,
+			WorkspaceID: workspaceRegistrationID,
 			Input:       json.RawMessage(`{"name":"native-dev","after":0}`),
 		})
 		if err != nil {
@@ -295,18 +296,18 @@ func TestNativeExtensionToolsIntegrationLifecycleParity(t *testing.T) {
 			WorkspaceID: "workspace-forged",
 			Input:       json.RawMessage(`{"name":"native-dev"}`),
 		})
-		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonScopeMismatch)
+		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
 
 		_, err = registry.Call(t.Context(), scope, toolspkg.CallRequest{
 			ToolID:      toolspkg.ToolIDExtensionsRemove,
-			WorkspaceID: workspaceID,
+			WorkspaceID: workspaceRegistrationID,
 			Input:       json.RawMessage(`{"name":"native-dev"}`),
 		})
 		if err != nil {
 			t.Fatalf("Registry.Call(extensions_remove dev) error = %v", err)
 		}
 
-		assertNativeExtensionLifecycleEvents(t, deps.ExtensionEvents, workspaceID)
+		assertNativeExtensionLifecycleEvents(t, deps.ExtensionEvents, workspaceIdentity)
 		assertNativeExtensionAuthoringRisk(t)
 	})
 }

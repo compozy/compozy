@@ -92,6 +92,7 @@ func testExtensionSecretTransportAbsence(t *testing.T) {
 			nil,
 		),
 		withDaemonExtensionEventWriter(db),
+		withDaemonExtensionWorkspaceResolver(workspaceResolver),
 	).(*daemonExtensionService)
 	if !ok {
 		t.Fatal("newDaemonExtensionService() did not return daemonExtensionService")

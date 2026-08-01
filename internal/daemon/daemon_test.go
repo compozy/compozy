@@ -1270,6 +1270,34 @@ func TestBootExtensionsPreservesDevCycleDisableEnableState(t *testing.T) {
 func TestNewHostAPISessionManagerAdapter(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should expose durable acceptance when source supports it", func(t *testing.T) {
+		t.Parallel()
+
+		want := &session.Info{ID: "sess-accepted", State: session.StateActive}
+		source := &acceptingHostAPISessionManager{
+			fakeSessionManager: &fakeSessionManager{},
+			accepted:           want,
+		}
+		adapter := newHostAPISessionManagerAdapter(source)
+		acceptance, ok := adapter.(hostAPISessionAcceptanceManager)
+		if !ok {
+			t.Fatalf("newHostAPISessionManagerAdapter() = %T, want durable acceptance", adapter)
+		}
+
+		got, err := acceptance.CreateAccepted(testutil.Context(t), session.CreateAcceptedOpts{
+			Session: session.CreateOpts{AgentName: "general", Workspace: "ws-accepted"},
+		})
+		if err != nil {
+			t.Fatalf("CreateAccepted() error = %v", err)
+		}
+		if got != want {
+			t.Fatalf("CreateAccepted() = %#v, want %#v", got, want)
+		}
+		if source.calls != 1 {
+			t.Fatalf("CreateAccepted() calls = %d, want 1", source.calls)
+		}
+	})
+
 	t.Run("ShouldExposeBridgePromptMethodsWhenSourceSupportsThem", func(t *testing.T) {
 		t.Parallel()
 
@@ -1342,6 +1370,20 @@ func TestNewHostAPISessionManagerAdapter(t *testing.T) {
 			t.Fatalf("PromptWithOpts() calls = %d, want %d", got, want)
 		}
 	})
+}
+
+type acceptingHostAPISessionManager struct {
+	*fakeSessionManager
+	accepted *session.Info
+	calls    int
+}
+
+func (m *acceptingHostAPISessionManager) CreateAccepted(
+	_ context.Context,
+	_ session.CreateAcceptedOpts,
+) (*session.Info, error) {
+	m.calls++
+	return m.accepted, nil
 }
 
 func TestBootExtensionsBuildsManagerDepsAndRebuildsHooks(t *testing.T) {

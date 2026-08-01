@@ -52,6 +52,26 @@ func createFixtureBackedSession(
 	return active
 }
 
+func createBoundFixtureBackedSession(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	agentName string,
+	name string,
+) compozycontract.SessionPayload {
+	t.Helper()
+
+	active := createFixtureBackedSession(t, ctx, harness, agentName, name)
+	if _, err := harness.PromptSession(ctx, active.ID, "noop"); err != nil {
+		t.Fatalf("PromptSession(%q bootstrap) error = %v", active.ID, err)
+	}
+	bound, err := harness.GetSession(ctx, active.ID)
+	if err != nil {
+		t.Fatalf("GetSession(%q bound) error = %v", active.ID, err)
+	}
+	return bound
+}
+
 func createSessionHTTPFailure(
 	t testing.TB,
 	ctx context.Context,

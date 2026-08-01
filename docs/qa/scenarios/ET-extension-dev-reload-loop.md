@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-extension-dev-lifecycle
 expected: `compozy extension dev` links the built generation to the current workspace with no trust prompt, an edit plus `reload` (or `--watch`) makes the next invocation return the new behavior while other workspaces keep serving the published build, `logs --follow` streams the redacted per-instance ring, and removing the dev instance restores the published one.
 entry_points: `compozy extension dev [dir] --watch`; `compozy extension reload <name>`; `compozy extension logs <name> --follow|--global`; `compozy extension remove <name>`; `POST /api/extensions/dev`; `POST /api/extensions/{name}/reload`; `GET /api/extensions/{name}/logs?follow=1`; `DELETE /api/extensions/{name}`; `compozy__extensions_dev|reload|logs|remove`
-qa_status: blocked-verify
+qa_status: pass
 bug_ids:
-fix_status:
-retest_status: pending review-remediation replay
+fix_status: fixed
+retest_status: pass
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-ext-improvs-final-20260729-230047-267985-lab/qa-artifacts/qa/extension-charters.json;/Users/pedronauck/dev/qa-labs/compozy-qa-et-current-source-20260730-061655-910372-lab/qa-artifacts/qa
-last_report: docs/qa/reports/2026-07-28-untested-full.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-ext-improvs-final-20260729-230047-267985-lab/qa-artifacts/qa/extension-charters.json; /Users/pedronauck/dev/qa-labs/compozy-qa-et-current-source-20260730-061655-910372-lab/qa-artifacts/qa; /Users/pedronauck/dev/qa-labs/compozy-session-extension-boundary-20260801-140242-564687-lab/qa-artifacts/qa/boundary-verification.json; /Users/pedronauck/dev/qa-labs/compozy-session-extension-boundary-20260801-140242-564687-lab/qa-artifacts/qa/teardown.json
+last_report: docs/qa/reports/2026-08-01-session-extension-boundary.md
 overlaps: ET-extension-code-first-authoring; ET-020; ET-022
 ---
 
@@ -49,3 +49,11 @@ QA impact 2026-07-29: unlink now discards the workspace instance's retained log 
 relink, and the Web confirmation no longer treats a published bundle dependency as a blocker for the
 workspace-scoped unlink. Historical evidence is retained; replay unlink/relink with the published row
 active and prove the new overlay starts with an empty ring.
+
+2026-08-01 isolated boundary walk: `extension dev` accepted the public registration
+`ws_fcd6ecd9076c58c6` and activated `boundary-search` under stable workspace identity
+`01KYYTH06HE0TR5WV2BTHQMEWA`. CLI tool invocation returned the original behavior. After a source edit,
+`extension reload` changed the generation hash from `fe63cc9a…` to `ae85d1ff…`, and the next invocation
+returned the reloaded behavior. Independent HTTP list/status/log reads resolved the same stable identity;
+workspace removal left zero scoped extensions. The generated Go project used a local SDK replace because
+the public SDK is not published, so this does not settle `ET-extension-quickstart-verbatim`.
