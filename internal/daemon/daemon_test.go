@@ -1398,20 +1398,6 @@ func TestNewHostAPISessionManagerAdapter(t *testing.T) {
 	})
 }
 
-type acceptingHostAPISessionManager struct {
-	*fakeSessionManager
-	accepted *session.Info
-	calls    int
-}
-
-func (m *acceptingHostAPISessionManager) CreateAccepted(
-	_ context.Context,
-	_ session.CreateAcceptedOpts,
-) (*session.Info, error) {
-	m.calls++
-	return m.accepted, nil
-}
-
 func TestBootExtensionsBuildsManagerDepsAndRebuildsHooks(t *testing.T) {
 	t.Parallel()
 
