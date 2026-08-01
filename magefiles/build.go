@@ -59,7 +59,7 @@ func buildLDFlags() string {
 }
 
 func buildGitMetadata(readGit func(...string) (string, error)) (string, string) {
-	version, err := readGit("describe", "--tags", "--always", "--dirty")
+	version, err := readGit("describe", "--tags", "--match", "v*", "--always", "--dirty")
 	if err != nil || strings.TrimSpace(version) == "" {
 		version = "dev"
 	}

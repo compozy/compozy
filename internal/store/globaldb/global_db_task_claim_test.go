@@ -6411,8 +6411,41 @@ func TestGlobalDBHeartbeatRunLeaseShouldPersistCoalescedLoopTokenTicks(t *testin
 	}
 }
 
-func TestLoopGateVerdictEventPayloadShouldSurfaceCriterionScore(t *testing.T) {
+func TestLoopGateVerdictEventPayloadShouldSurfaceCriterionDiagnostics(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should project only the sanitized command output into the criterion note", func(t *testing.T) {
+		t.Parallel()
+
+		const secret = "compozy_claim_LOOP_EVENT_SECRET_1234567890"
+		verdict, err := gate.NewVerdictIntent("definition_of_done", 0, gate.Verdict{
+			Outcome: gate.VerdictOutcomeRejected,
+			Criteria: []gate.CriterionResult{{
+				ID:      "claim_guard",
+				Type:    dsl.CriterionCommand,
+				Outcome: gate.VerdictOutcomeRejected,
+				Stdout:  secret,
+			}},
+		}, nil)
+		if err != nil {
+			t.Fatalf("NewVerdictIntent() error = %v", err)
+		}
+		payload, err := loopGateVerdictEventPayload(1, verdict, nil)
+		if err != nil {
+			t.Fatalf("loopGateVerdictEventPayload() error = %v", err)
+		}
+		criteria, ok := payload["criteria"].([]map[string]any)
+		if !ok || len(criteria) != 1 {
+			t.Fatalf("payload criteria = %#v, want one criterion", payload["criteria"])
+		}
+		note, ok := criteria[0]["note"].(string)
+		if !ok {
+			t.Fatalf("criterion note = %#v, want string", criteria[0]["note"])
+		}
+		if strings.Contains(note, secret) || !strings.Contains(note, "compozy_claim_[REDACTED]") {
+			t.Fatalf("criterion note = %q, want redacted command output", note)
+		}
+	})
 
 	t.Run("Should keep score on each criterion and omit ambiguous summary", func(t *testing.T) {
 		t.Parallel()

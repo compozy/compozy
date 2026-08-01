@@ -93,7 +93,7 @@ func loopGateVerdictEventPayload(
 			"id":                         strings.TrimSpace(criterion.ID),
 			loopRunEventPayloadKeyType:   string(criterion.Type),
 			loopRunEventPayloadKeyStatus: status,
-			"note":                       string(criterion.Outcome),
+			"note":                       loopGateCriterionEventNote(criterion),
 		}
 		if criterion.Score != nil {
 			criterionPayload[loopRunEventPayloadKeyScore] = *criterion.Score
@@ -128,6 +128,17 @@ func loopGateVerdictEventPayload(
 		payload[loopRunEventPayloadKeyScore] = score
 	}
 	return payload, nil
+}
+
+func loopGateCriterionEventNote(criterion gate.CriterionResult) string {
+	parts := []string{string(criterion.Outcome)}
+	if stdout := strings.TrimSpace(criterion.Stdout); stdout != "" {
+		parts = append(parts, "stdout: "+stdout)
+	}
+	if stderr := strings.TrimSpace(criterion.Stderr); stderr != "" {
+		parts = append(parts, "stderr: "+stderr)
+	}
+	return strings.Join(parts, "; ")
 }
 
 func loopGateVerdictSummaryScore(criteria []gate.CriterionResult) (float64, bool) {

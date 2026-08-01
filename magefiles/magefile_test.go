@@ -356,17 +356,23 @@ func TestBuildGitMetadata(t *testing.T) {
 		}
 	})
 
-	t.Run("Should preserve resolved Git metadata", func(t *testing.T) {
+	t.Run("Should resolve versions only from root release tags", func(t *testing.T) {
 		t.Parallel()
 
 		responses := []string{"v1.2.3", "abc1234"}
-		version, commit := buildGitMetadata(func(...string) (string, error) {
+		var calls [][]string
+		version, commit := buildGitMetadata(func(args ...string) (string, error) {
+			calls = append(calls, slices.Clone(args))
 			value := responses[0]
 			responses = responses[1:]
 			return value, nil
 		})
 		if version != "v1.2.3" || commit != "abc1234" {
 			t.Fatalf("buildGitMetadata() = (%q, %q), want (v1.2.3, abc1234)", version, commit)
+		}
+		wantDescribe := []string{"describe", "--tags", "--match", "v*", "--always", "--dirty"}
+		if len(calls) != 2 || !slices.Equal(calls[0], wantDescribe) {
+			t.Fatalf("buildGitMetadata() Git calls = %#v, want describe args %#v", calls, wantDescribe)
 		}
 	})
 }
