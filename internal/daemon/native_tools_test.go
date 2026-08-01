@@ -8984,7 +8984,7 @@ func openDaemonMemoryCatalog(t *testing.T, store *memorypkg.Store) {
 		t.Fatalf("MemoryStore.OpenCatalog() error = %v", err)
 	}
 	t.Cleanup(func() {
-		if err := store.CloseCatalog(ctx); err != nil {
+		if err := store.CloseCatalog(testutil.Context(t)); err != nil {
 			t.Errorf("MemoryStore.CloseCatalog() error = %v", err)
 		}
 	})
