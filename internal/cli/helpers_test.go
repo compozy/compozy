@@ -78,6 +78,7 @@ type stubClient struct {
 	networkInboxFn              func(context.Context, string, string) ([]NetworkEnvelopeRecord, error)
 	promoteNetworkThreadTaskFn  func(context.Context, string, string, string, PromoteNetworkThreadTaskRequest) (PromoteNetworkThreadTaskRecord, error)
 	listExtensionsFn            func(context.Context) ([]ExtensionRecord, error)
+	listExtensionsScopedFn      func(context.Context, string) ([]ExtensionRecord, error)
 	searchExtensionsFn          func(context.Context, ExtensionSearchRequest) (ExtensionSearchRecord, error)
 	listExtensionCommandsFn     func(context.Context, string, string) (ExtensionCommandsRecord, error)
 	searchMarketplaceFn         func(context.Context, string, int, MarketplaceReadScope) (MarketplaceSearchRecord, error)
@@ -101,6 +102,7 @@ type stubClient struct {
 	enableExtensionFn            func(context.Context, string) (ExtensionRecord, error)
 	disableExtensionFn           func(context.Context, string) (ExtensionRecord, error)
 	extensionStatusFn            func(context.Context, string) (ExtensionRecord, error)
+	extensionStatusScopedFn      func(context.Context, string, string) (ExtensionRecord, error)
 	extensionProvenanceFn        func(context.Context, string) (ExtensionProvenanceRecord, error)
 	devExtensionFn               func(context.Context, string, DevLinkExtensionRequest) (ExtensionRecord, error)
 	reloadDevExtensionFn         func(context.Context, string, string, ReloadExtensionRequest) (ExtensionRecord, error)
@@ -968,6 +970,16 @@ func (s *stubClient) ListExtensions(ctx context.Context) ([]ExtensionRecord, err
 	return nil, errors.New("unexpected ListExtensions call")
 }
 
+func (s *stubClient) ListExtensionsScoped(
+	ctx context.Context,
+	workspaceRef string,
+) ([]ExtensionRecord, error) {
+	if s.listExtensionsScopedFn != nil {
+		return s.listExtensionsScopedFn(ctx, workspaceRef)
+	}
+	return nil, errors.New("unexpected ListExtensionsScoped call")
+}
+
 func (s *stubClient) SearchMarketplace(
 	ctx context.Context,
 	query string,
@@ -1137,6 +1149,17 @@ func (s *stubClient) ExtensionStatus(ctx context.Context, name string) (Extensio
 		return s.extensionStatusFn(ctx, name)
 	}
 	return ExtensionRecord{}, errors.New("unexpected ExtensionStatus call")
+}
+
+func (s *stubClient) ExtensionStatusScoped(
+	ctx context.Context,
+	workspaceRef string,
+	name string,
+) (ExtensionRecord, error) {
+	if s.extensionStatusScopedFn != nil {
+		return s.extensionStatusScopedFn(ctx, workspaceRef, name)
+	}
+	return ExtensionRecord{}, errors.New("unexpected ExtensionStatusScoped call")
 }
 
 func (s *stubClient) ExtensionProvenance(ctx context.Context, name string) (ExtensionProvenanceRecord, error) {

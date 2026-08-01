@@ -2549,6 +2549,12 @@ func TestUnixSocketClientExtensionMethods(t *testing.T) {
 		httpClient: &http.Client{
 			Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 				switch {
+				case req.Method == http.MethodGet && req.URL.Path == "/api/extensions" &&
+					req.URL.Query().Get(extensionWorkspaceQueryKey) == "ws-alpha":
+					return newHTTPResponse(
+						http.StatusOK,
+						`{"extensions":[{"name":"ext-dev","workspace_id":"ws-alpha","version":"0.1.0","type":"resource","source":"workspace","enabled":true,"state":"active","dev":true,"daemon_running":true}]}`,
+					), nil
 				case req.Method == http.MethodGet && req.URL.Path == "/api/extensions":
 					return newHTTPResponse(
 						http.StatusOK,
@@ -2581,9 +2587,18 @@ func TestUnixSocketClientExtensionMethods(t *testing.T) {
 						`{"extension":{"name":"ext-a","version":"0.1.0","type":"resource","source":"user","enabled":false,"state":"disabled","daemon_running":true}}`,
 					), nil
 				case req.Method == http.MethodGet && req.URL.Path == "/api/extensions/ext-a":
+					if got := req.URL.Query().Get(extensionWorkspaceQueryKey); got != "" {
+						t.Fatalf("global extension status workspace query = %q, want empty", got)
+					}
 					return newHTTPResponse(
 						http.StatusOK,
 						`{"extension":{"name":"ext-a","version":"0.1.0","type":"resource","source":"user","enabled":true,"state":"active","daemon_running":true}}`,
+					), nil
+				case req.Method == http.MethodGet && req.URL.Path == "/api/extensions/ext-dev" &&
+					req.URL.Query().Get(extensionWorkspaceQueryKey) == "ws-alpha":
+					return newHTTPResponse(
+						http.StatusOK,
+						`{"extension":{"name":"ext-dev","workspace_id":"ws-alpha","version":"0.1.0","type":"resource","source":"workspace","enabled":true,"state":"active","dev":true,"daemon_running":true}}`,
 					), nil
 				default:
 					return newHTTPResponse(http.StatusNotFound, `{"error":"missing"}`), nil
@@ -2597,6 +2612,10 @@ func TestUnixSocketClientExtensionMethods(t *testing.T) {
 	listed, err := client.ListExtensions(ctx)
 	if err != nil || len(listed) != 1 || listed[0].Name != "ext-a" {
 		t.Fatalf("ListExtensions() = %#v, %v", listed, err)
+	}
+	scopedList, err := client.ListExtensionsScoped(ctx, " ws-alpha ")
+	if err != nil || len(scopedList) != 1 || scopedList[0].Name != "ext-dev" || !scopedList[0].Dev {
+		t.Fatalf("ListExtensionsScoped() = %#v, %v", scopedList, err)
 	}
 
 	installed, err := client.InstallExtension(ctx, InstallExtensionRequest{
@@ -2620,6 +2639,10 @@ func TestUnixSocketClientExtensionMethods(t *testing.T) {
 	status, err := client.ExtensionStatus(ctx, "ext-a")
 	if err != nil || status.State != "active" {
 		t.Fatalf("ExtensionStatus() = %#v, %v", status, err)
+	}
+	scopedStatus, err := client.ExtensionStatusScoped(ctx, " ws-alpha ", " ext-dev ")
+	if err != nil || scopedStatus.Name != "ext-dev" || !scopedStatus.Dev {
+		t.Fatalf("ExtensionStatusScoped() = %#v, %v", scopedStatus, err)
 	}
 }
 

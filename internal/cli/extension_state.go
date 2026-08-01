@@ -13,17 +13,27 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func loadExtensionRecords(ctx context.Context, deps commandDeps) ([]ExtensionRecord, error) {
-	client, running, err := daemonClientIfRunning(ctx, deps)
+func loadExtensionRecords(cmd *cobra.Command, deps commandDeps, workspaceRef string) ([]ExtensionRecord, error) {
+	client, running, err := daemonClientIfRunning(cmd.Context(), deps)
 	if err != nil {
 		return nil, err
 	}
 	if running {
-		return client.ListExtensions(ctx)
+		if strings.TrimSpace(workspaceRef) == "" {
+			return client.ListExtensions(cmd.Context())
+		}
+		workspaceID, err := resolveCLIWorkspaceRouteRef(cmd, deps, client, workspaceRef)
+		if err != nil {
+			return nil, err
+		}
+		return client.ListExtensionsScoped(cmd.Context(), workspaceID)
+	}
+	if strings.TrimSpace(workspaceRef) != "" {
+		return nil, errors.New("cli: workspace-scoped extension reads require a running daemon")
 	}
 
 	return withLocalExtensionRegistry(
-		ctx,
+		cmd.Context(),
 		deps,
 		func(_ *runtimeContext, registry localExtensionRegistry) ([]ExtensionRecord, error) {
 			infos, err := registry.List()
@@ -51,12 +61,24 @@ func mutateExtensionEnabled(ctx context.Context, deps commandDeps, name string, 
 	return client.DisableExtension(ctx, name)
 }
 
-func extensionStatus(ctx context.Context, deps commandDeps, name string) (ExtensionRecord, error) {
-	client, err := requireExtensionDaemonClient(ctx, deps)
+func extensionStatus(
+	cmd *cobra.Command,
+	deps commandDeps,
+	workspaceRef string,
+	name string,
+) (ExtensionRecord, error) {
+	client, err := requireExtensionDaemonClient(cmd.Context(), deps)
 	if err != nil {
 		return ExtensionRecord{}, err
 	}
-	return client.ExtensionStatus(ctx, name)
+	if strings.TrimSpace(workspaceRef) == "" {
+		return client.ExtensionStatus(cmd.Context(), name)
+	}
+	workspaceID, err := resolveCLIWorkspaceRouteRef(cmd, deps, client, workspaceRef)
+	if err != nil {
+		return ExtensionRecord{}, err
+	}
+	return client.ExtensionStatusScoped(cmd.Context(), workspaceID, name)
 }
 
 func extensionProvenance(ctx context.Context, deps commandDeps, name string) (ExtensionProvenanceRecord, error) {

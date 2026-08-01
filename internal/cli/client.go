@@ -124,6 +124,7 @@ type DaemonClient interface {
 		request PromoteNetworkThreadTaskRequest,
 	) (PromoteNetworkThreadTaskRecord, error)
 	ListExtensions(ctx context.Context) ([]ExtensionRecord, error)
+	ListExtensionsScoped(ctx context.Context, workspaceRef string) ([]ExtensionRecord, error)
 	SearchExtensions(ctx context.Context, request ExtensionSearchRequest) (ExtensionSearchRecord, error)
 	ListExtensionCommands(ctx context.Context, extension string, workspaceID string) (ExtensionCommandsRecord, error)
 	MarketplaceClient
@@ -135,6 +136,7 @@ type DaemonClient interface {
 	EnableExtension(ctx context.Context, name string) (ExtensionRecord, error)
 	DisableExtension(ctx context.Context, name string) (ExtensionRecord, error)
 	ExtensionStatus(ctx context.Context, name string) (ExtensionRecord, error)
+	ExtensionStatusScoped(ctx context.Context, workspaceRef, name string) (ExtensionRecord, error)
 	ExtensionProvenance(ctx context.Context, name string) (ExtensionProvenanceRecord, error)
 	ListBundleCatalog(ctx context.Context) ([]BundleCatalogRecord, error)
 	PreviewBundleActivation(ctx context.Context, request ActivateBundleRequest) (BundleActivationRecord, error)

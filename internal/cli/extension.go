@@ -104,17 +104,20 @@ func newExtensionSearchCommand(deps commandDeps) *cobra.Command {
 }
 
 func newExtensionListCommand(deps commandDeps) *cobra.Command {
-	return &cobra.Command{
+	var workspaceRef string
+	command := &cobra.Command{
 		Use:   extensionListKey,
 		Short: "List installed extensions",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			items, err := loadExtensionRecords(cmd.Context(), deps)
+			items, err := loadExtensionRecords(cmd, deps, workspaceRef)
 			if err != nil {
 				return err
 			}
 			return writeCommandOutput(cmd, extensionListBundle(items))
 		},
 	}
+	command.Flags().StringVar(&workspaceRef, workspaceFlagName, "", "Override workspace context")
+	return command
 }
 
 func newExtensionInstallCommand(deps commandDeps) *cobra.Command {
@@ -275,18 +278,21 @@ func newExtensionDisableCommand(deps commandDeps) *cobra.Command {
 }
 
 func newExtensionStatusCommand(deps commandDeps) *cobra.Command {
-	return &cobra.Command{
+	var workspaceRef string
+	command := &cobra.Command{
 		Use:   "status <name>",
 		Short: "Show extension runtime status",
 		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			item, err := extensionStatus(cmd.Context(), deps, args[0])
+			item, err := extensionStatus(cmd, deps, workspaceRef, args[0])
 			if err != nil {
 				return err
 			}
 			return writeCommandOutput(cmd, extensionBundle(item))
 		},
 	}
+	command.Flags().StringVar(&workspaceRef, workspaceFlagName, "", "Override workspace context")
+	return command
 }
 
 func newExtensionProvenanceCommand(deps commandDeps) *cobra.Command {

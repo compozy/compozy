@@ -164,10 +164,11 @@ only: `compozy extension logs <name> --global`.
 
 Instance-acting verbs — `reload`, `logs`, `remove` — infer the workspace from the directory you run
 them in, or take `--workspace`. `compozy extension list` and `compozy extension status` read the
-global installed set, so a dev-only instance does not appear there; read it through
-`GET /api/extensions?workspace=<id>`, through an agent caller whose session binds the workspace, or
-through `compozy extension logs <name>`. `compozy tool invoke` also defaults to global scope — pass
-`--workspace .` to reach a dev-linked extension's tools.
+global installed set by default; pass `--workspace <workspace>` to inspect the effective workspace
+instance, including a dev overlay. The same scoped read is available through
+`GET /api/extensions?workspace=<id>` and through an agent caller whose session binds the workspace.
+`compozy tool invoke` also defaults to global scope — pass `--workspace .` to reach a dev-linked
+extension's tools.
 
 Origin paths are canonicalized and must resolve inside the workspace root at link time and on every
 load. A missing or escaping origin loads as `state: error` with `failure_code: missing_origin`; the
