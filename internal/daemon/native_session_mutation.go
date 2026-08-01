@@ -20,10 +20,12 @@ type sessionCreateInput struct {
 }
 
 type sessionPromptInput struct {
-	Workspace string                                  `json:"workspace,omitempty"`
-	SessionID string                                  `json:"session_id"`
-	Message   string                                  `json:"message"`
-	Runtime   *contract.PromptRuntimeSelectionPayload `json:"runtime,omitempty"`
+	Workspace      string                                  `json:"workspace,omitempty"`
+	SessionID      string                                  `json:"session_id"`
+	Message        string                                  `json:"message"`
+	MessageID      string                                  `json:"message_id"`
+	IdempotencyKey string                                  `json:"idempotency_key"`
+	Runtime        *contract.PromptRuntimeSelectionPayload `json:"runtime,omitempty"`
 }
 
 func (n *daemonNativeTools) sessionCreate(
@@ -84,6 +86,14 @@ func (n *daemonNativeTools) sessionPrompt(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
+	messageID, err := requiredNativeString(req.ToolID, "message_id", input.MessageID)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	idempotencyKey, err := requiredNativeString(req.ToolID, "idempotency_key", input.IdempotencyKey)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
 	resolved, err := n.nativeResolvedWorkspace(ctx, req.ToolID, input.Workspace, scope)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
@@ -96,7 +106,7 @@ func (n *daemonNativeTools) sessionPrompt(
 		return toolspkg.ToolResult{}, err
 	}
 	result, err := n.deps.Sessions.SendPrompt(ctx, sessionID, session.SendPromptOpts{
-		Message: message,
+		Message: message, MessageID: messageID, IdempotencyKey: idempotencyKey,
 		Runtime: core.PromptRuntimeSelectionFromPayload(input.Runtime),
 	})
 	if err != nil {

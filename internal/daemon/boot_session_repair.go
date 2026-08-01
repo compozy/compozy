@@ -143,6 +143,14 @@ func sessionInputQueueStoreDependency(registry Registry) store.SessionInputQueue
 	return queueStore
 }
 
+func sessionPromptAdmissionStoreDependency(registry Registry) store.SessionPromptAdmissionStore {
+	admissionStore, ok := registry.(store.SessionPromptAdmissionStore)
+	if !ok {
+		return nil
+	}
+	return admissionStore
+}
+
 func (d *Daemon) newSessionLedgerMaterializer(
 	state *bootState,
 ) (session.LedgerMaterializer, error) {

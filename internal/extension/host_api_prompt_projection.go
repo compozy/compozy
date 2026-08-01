@@ -29,6 +29,8 @@ func (h *HostAPIHandler) submitPrompt(
 	ctx context.Context,
 	sessionID string,
 	message string,
+	messageID string,
+	idempotencyKey string,
 	runtime *session.RuntimeSelection,
 ) (hostAPIPromptSubmission, error) {
 	if h.sessions == nil {
@@ -41,7 +43,14 @@ func (h *HostAPIHandler) submitPrompt(
 	}
 
 	promptCtx := context.WithoutCancel(ctx)
-	admission, err := h.submitRuntimePrompt(promptCtx, sessionID, message, runtime)
+	admission, err := h.submitRuntimePrompt(
+		promptCtx,
+		sessionID,
+		message,
+		messageID,
+		idempotencyKey,
+		runtime,
+	)
 	if err != nil {
 		return hostAPIPromptSubmission{}, err
 	}
@@ -69,15 +78,10 @@ func (h *HostAPIHandler) submitRuntimePrompt(
 	ctx context.Context,
 	sessionID string,
 	message string,
+	messageID string,
+	idempotencyKey string,
 	runtime *session.RuntimeSelection,
 ) (session.SendPromptResult, error) {
-	if runtime == nil {
-		events, err := h.sessions.Prompt(ctx, sessionID, message)
-		if err != nil {
-			return session.SendPromptResult{}, err
-		}
-		return session.SendPromptResult{Status: "accepted", Events: events}, nil
-	}
 	prompter, ok := h.sessions.(hostAPIRuntimePromptSessionManager)
 	if !ok {
 		return session.SendPromptResult{}, errors.New(
@@ -85,8 +89,7 @@ func (h *HostAPIHandler) submitRuntimePrompt(
 		)
 	}
 	result, err := prompter.SendPrompt(ctx, sessionID, session.SendPromptOpts{
-		Message: message,
-		Runtime: runtime,
+		Message: message, MessageID: messageID, IdempotencyKey: idempotencyKey, Runtime: runtime,
 	})
 	if err != nil {
 		return session.SendPromptResult{}, err

@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/store"
 
 	mcppkg "github.com/compozy/compozy/internal/mcp"
 )
@@ -196,7 +197,9 @@ func (c *unixSocketClient) ApproveSession(
 }
 
 func (c *unixSocketClient) PromptSession(ctx context.Context, id string, message string) ([]AgentEventRecord, error) {
-	record, err := c.SendSessionPrompt(ctx, id, SessionPromptRequest{Message: message})
+	record, err := c.SendSessionPrompt(ctx, id, SessionPromptRequest{
+		Message: message, MessageID: store.NewID("msg"), IdempotencyKey: store.NewID("idem"),
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -223,13 +226,13 @@ func (c *unixSocketClient) SendSessionPrompt(
 func (c *unixSocketClient) SteerSessionPrompt(
 	ctx context.Context,
 	id string,
-	text string,
+	request contract.SteerPromptRequest,
 ) (SessionPromptRecord, error) {
 	path, err := c.sessionScopedPath(ctx, id, "/steer")
 	if err != nil {
 		return SessionPromptRecord{}, err
 	}
-	return c.doSessionPrompt(ctx, http.MethodPost, path, nil, contract.SteerPromptRequest{Text: text})
+	return c.doSessionPrompt(ctx, http.MethodPost, path, nil, request)
 }
 
 func (c *unixSocketClient) CancelQueuedSessionPrompt(

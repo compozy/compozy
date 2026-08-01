@@ -117,7 +117,7 @@ func TestUDSFullRoundTripWithRealSessionManager(t *testing.T) {
 		runtime.client,
 		http.MethodPost,
 		sessionAPIPath(created.Session.WorkspaceID, created.Session.ID, "/prompt"),
-		[]byte(`{"message":"hello"}`),
+		integrationPromptJSON(t, "hello"),
 		nil,
 	)
 	if promptResp.StatusCode != http.StatusOK {
@@ -3675,10 +3675,7 @@ func sessionAPIPath(workspaceID string, sessionID string, suffix string) string 
 func sendPrompt(t *testing.T, runtime integrationRuntime, workspaceID string, sessionID string, message string) {
 	t.Helper()
 
-	body, err := json.Marshal(map[string]string{"message": message})
-	if err != nil {
-		t.Fatalf("json.Marshal(prompt body) error = %v", err)
-	}
+	body := integrationPromptJSON(t, message)
 
 	resp := mustUnixRequest(
 		t,
@@ -3699,6 +3696,21 @@ func sendPrompt(t *testing.T, runtime integrationRuntime, workspaceID string, se
 	if err := resp.Body.Close(); err != nil {
 		t.Fatalf("prompt response close error = %v", err)
 	}
+}
+
+func integrationPromptJSON(t *testing.T, message string) []byte {
+	t.Helper()
+
+	identity := strings.NewReplacer("/", "-", " ", "-").Replace(t.Name() + "-" + message)
+	body, err := json.Marshal(map[string]string{
+		"message":         message,
+		"message_id":      "msg-" + identity,
+		"idempotency_key": "idem-" + identity,
+	})
+	if err != nil {
+		t.Fatalf("json.Marshal(prompt body) error = %v", err)
+	}
+	return body
 }
 
 func mustIntegrationPrompt(t *testing.T, events <-chan acp.AgentEvent, err error) <-chan acp.AgentEvent {

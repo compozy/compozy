@@ -78,14 +78,14 @@ func TestUnixSocketClientSessionPromptShouldDecodeStructuredGoalJSON(t *testing.
 		client := newClient(
 			t,
 			http.StatusOK,
-			`{"outcome":"status","reason_code":null,"snapshot":null,"replaced_run_id":null}`,
+			`{"prompt":{"status":"accepted","message_id":"msg-goal-status","idempotency_key":"idem-goal-status","replayed":false,"goal":{"outcome":"status","reason_code":null,"snapshot":null,"replaced_run_id":null}}}`,
 			nil,
 		)
-		record, err := client.SendSessionPrompt(
-			t.Context(),
-			"sess-1",
-			SessionPromptRequest{Message: "/goal status"},
-		)
+		record, err := client.SendSessionPrompt(t.Context(), "sess-1", SessionPromptRequest{
+			Message:        "/goal status",
+			MessageID:      "msg-goal-status",
+			IdempotencyKey: "idem-goal-status",
+		})
 		if err != nil {
 			t.Fatalf("SendSessionPrompt(Goal status) error = %v", err)
 		}
@@ -101,7 +101,7 @@ func TestUnixSocketClientSessionPromptShouldDecodeStructuredGoalJSON(t *testing.
 		client := newClient(
 			t,
 			http.StatusAccepted,
-			`{"outcome":"started","reason_code":null,"snapshot":null,"replaced_run_id":null}`,
+			`{"prompt":{"status":"accepted","message_id":"msg-goal-start","idempotency_key":"idem-goal-start","replayed":false,"goal":{"outcome":"started","reason_code":null,"snapshot":null,"replaced_run_id":null}}}`,
 			func(req *http.Request) {
 				body, err := io.ReadAll(req.Body)
 				if err != nil {
@@ -120,7 +120,9 @@ func TestUnixSocketClientSessionPromptShouldDecodeStructuredGoalJSON(t *testing.
 			t.Context(),
 			"sess-1",
 			SessionPromptRequest{
-				Message: "/goal ship",
+				Message:        "/goal ship",
+				MessageID:      "msg-goal-start",
+				IdempotencyKey: "idem-goal-start",
 				Runtime: &contract.PromptRuntimeSelectionPayload{
 					Provider:        "codex",
 					Model:           "gpt-5.6-sol",
@@ -136,15 +138,19 @@ func TestUnixSocketClientSessionPromptShouldDecodeStructuredGoalJSON(t *testing.
 		if err != nil {
 			t.Fatalf("StreamPromptSession(Goal start) error = %v", err)
 		}
-		if len(events) != 1 || events[0].Event != goalResultEventName {
+		if len(events) != 1 || events[0].Event != promptResultEventName {
 			t.Fatalf("StreamPromptSession(Goal start) events = %#v", events)
 		}
-		var result contract.GoalCommandResult
+		var result contract.SendPromptResultResponse
 		if err := json.Unmarshal(events[0].Data, &result); err != nil {
-			t.Fatalf("decode streamed Goal result error = %v", err)
+			t.Fatalf("decode streamed prompt result error = %v", err)
 		}
-		if result.Outcome != contract.GoalOutcomeStarted {
+		if result.Prompt.Goal == nil || result.Prompt.Goal.Outcome != contract.GoalOutcomeStarted ||
+			result.Prompt.MessageID != "msg-goal-start" || result.Prompt.IdempotencyKey != "idem-goal-start" {
 			t.Fatalf("streamed Goal result = %#v", result)
+		}
+		if requestBody.MessageID != "msg-goal-start" || requestBody.IdempotencyKey != "idem-goal-start" {
+			t.Fatalf("streamed prompt request identity = %q/%q", requestBody.MessageID, requestBody.IdempotencyKey)
 		}
 		if requestBody.Runtime == nil || requestBody.Runtime.Provider != "codex" ||
 			requestBody.Runtime.Model != "gpt-5.6-sol" ||
@@ -160,13 +166,13 @@ func TestUnixSocketClientSessionPromptShouldDecodeStructuredGoalJSON(t *testing.
 		client := newClient(
 			t,
 			http.StatusConflict,
-			`{"outcome":"error","reason_code":"goal_replace_required","snapshot":null,"replaced_run_id":null}`,
+			`{"prompt":{"status":"rejected","message_id":"msg-goal-conflict","idempotency_key":"idem-goal-conflict","replayed":false,"goal":{"outcome":"error","reason_code":"goal_replace_required","snapshot":null,"replaced_run_id":null}}}`,
 			nil,
 		)
 		_, err := client.SendSessionPrompt(
 			t.Context(),
 			"sess-1",
-			SessionPromptRequest{Message: "/goal ship"},
+			SessionPromptRequest{Message: "/goal ship", MessageID: "msg-goal-conflict", IdempotencyKey: "idem-goal-conflict"},
 		)
 		var goalErr *goalCommandAPIError
 		if !errors.As(err, &goalErr) {

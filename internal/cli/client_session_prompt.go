@@ -16,7 +16,7 @@ import (
 
 const (
 	sessionPromptBodyLimit = 1 << 20
-	goalResultEventName    = "goal_result"
+	promptResultEventName  = "prompt_result"
 )
 
 type goalCommandAPIError struct {
@@ -91,14 +91,11 @@ func (c *unixSocketClient) doSessionPrompt(
 	if err != nil {
 		return SessionPromptRecord{}, err
 	}
-	if goalResult, ok := decodeGoalCommandResult(body); ok {
-		return SessionPromptRecord{Goal: &goalResult}, nil
-	}
 	var responseBody contract.SendPromptResultResponse
 	if err := json.Unmarshal(body, &responseBody); err != nil {
 		return SessionPromptRecord{}, fmt.Errorf("cli: decode %s %s response: %w", method, path, err)
 	}
-	return SessionPromptRecord{Prompt: responseBody.Prompt}, nil
+	return SessionPromptRecord{Prompt: responseBody.Prompt, Goal: responseBody.Prompt.Goal}, nil
 }
 
 func (c *unixSocketClient) StreamPromptSession(
@@ -148,7 +145,7 @@ func (c *unixSocketClient) StreamPromptSession(
 	if handler == nil {
 		return nil
 	}
-	return handler(SSEEvent{Event: goalResultEventName, Data: body})
+	return handler(SSEEvent{Event: promptResultEventName, Data: body})
 }
 
 func sessionPromptIsEventStream(response *http.Response) bool {
@@ -182,11 +179,12 @@ func readSessionPromptBody(body io.Reader) ([]byte, error) {
 }
 
 func decodeGoalCommandResult(body []byte) (contract.GoalCommandResult, bool) {
-	var result contract.GoalCommandResult
-	if len(body) == 0 || json.Unmarshal(body, &result) != nil || result.Outcome == "" {
+	var response contract.SendPromptResultResponse
+	if len(body) == 0 || json.Unmarshal(body, &response) != nil || response.Prompt.Goal == nil ||
+		response.Prompt.Goal.Outcome == "" {
 		return contract.GoalCommandResult{}, false
 	}
-	return result, true
+	return *response.Prompt.Goal, true
 }
 
 func marshalGoalCommandExecutionError(args []string, goalErr *goalCommandAPIError) ([]byte, bool) {

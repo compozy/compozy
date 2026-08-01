@@ -2241,8 +2241,10 @@ func TestStopSessionHandlerReturnsStopped(t *testing.T) {
 
 func TestPromptSessionHandlerReturnsAISDKSSEStream(t *testing.T) {
 	homePaths := newTestHomePaths(t)
+	var gotOpts session.SendPromptOpts
 	manager := stubSessionManager{
-		SendPromptFn: func(context.Context, string, session.SendPromptOpts) (session.SendPromptResult, error) {
+		SendPromptFn: func(_ context.Context, _ string, opts session.SendPromptOpts) (session.SendPromptResult, error) {
+			gotOpts = opts
 			ch := make(chan acp.AgentEvent, 4)
 			ch <- acp.AgentEvent{
 				Type:      "agent_message",
@@ -2281,10 +2283,15 @@ func TestPromptSessionHandlerReturnsAISDKSSEStream(t *testing.T) {
 		engine,
 		http.MethodPost,
 		"/api/workspaces/ws-workspace/sessions/sess-123/prompt",
-		[]byte(`{"messages":[{"role":"user","parts":[{"type":"text","text":"hello"}]}]}`),
+		[]byte(`{"message_id":"msg-ai-sdk-stream","idempotency_key":"idem-ai-sdk-stream","messages":[{"id":"msg-ai-sdk-stream","role":"user","parts":[{"type":"text","text":"hello"}]}]}`),
 	)
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
+	}
+	if gotOpts.Message != "hello" ||
+		gotOpts.MessageID != "msg-ai-sdk-stream" ||
+		gotOpts.IdempotencyKey != "idem-ai-sdk-stream" {
+		t.Fatalf("SendPrompt() opts = %#v, want canonical message identity", gotOpts)
 	}
 	if got := recorder.Header().Get("Content-Type"); got != "text/event-stream" {
 		t.Fatalf("Content-Type = %q, want text/event-stream", got)
@@ -2380,7 +2387,7 @@ func TestPromptSessionHandlerRequiresAcceptedTurnIDForAISDKStream(t *testing.T) 
 			engine,
 			http.MethodPost,
 			"/api/workspaces/ws-workspace/sessions/sess-123/prompt",
-			[]byte("{\"message\":\"hello\"}"),
+			[]byte(`{"message":"hello","message_id":"msg-accepted-turn","idempotency_key":"idem-accepted-turn"}`),
 		)
 		if recorder.Code != http.StatusInternalServerError {
 			t.Fatalf(
@@ -2440,7 +2447,7 @@ func TestPromptSessionHandlerPreservesToolInputAfterOutOfOrderToolResult(t *test
 			engine,
 			http.MethodPost,
 			"/api/workspaces/ws-workspace/sessions/sess-123/prompt",
-			[]byte(`{"messages":[{"role":"user","parts":[{"type":"text","text":"hello"}]}]}`),
+			[]byte(`{"message_id":"msg-tool-order","idempotency_key":"idem-tool-order","messages":[{"id":"msg-tool-order","role":"user","parts":[{"type":"text","text":"hello"}]}]}`),
 		)
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
@@ -2534,7 +2541,8 @@ func TestPromptSessionHandlerReturnsBusyInputDecision(t *testing.T) {
 			http.MethodPost,
 			"/api/workspaces/ws-workspace/sessions/sess-123/prompt",
 			[]byte(
-				`{"messages":[{"id":"client-queue-1","role":"user",`+
+				`{"message_id":"client-queue-1","idempotency_key":"idem-queue-1",`+
+					`"messages":[{"id":"client-queue-1","role":"user",`+
 					`"parts":[{"type":"text","text":"queue me"}]}],"mode":"queue",`+
 					`"runtime":{"provider":"codex","model":"gpt-5.4","reasoning_effort":"high","speed":"fast"}}`,
 			),
@@ -2543,7 +2551,7 @@ func TestPromptSessionHandlerReturnsBusyInputDecision(t *testing.T) {
 			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusAccepted, recorder.Body.String())
 		}
 		if gotOpts.Message != "queue me" || gotOpts.Mode != session.BusyInputModeQueue ||
-			gotOpts.ClientMessageID != "client-queue-1" {
+			gotOpts.MessageID != "client-queue-1" || gotOpts.IdempotencyKey != "idem-queue-1" {
 			t.Fatalf("SendPrompt() opts = %#v, want queue me queue", gotOpts)
 		}
 		if gotOpts.Runtime == nil || gotOpts.Runtime.Provider != "codex" ||
@@ -2559,6 +2567,148 @@ func TestPromptSessionHandlerReturnsBusyInputDecision(t *testing.T) {
 			t.Fatalf("decoded prompt = %#v, want queued inq-1", decoded.Prompt)
 		}
 	})
+}
+
+func TestPromptSessionHandlerEnforcesDurableIdentityContract(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name      string
+		body      string
+		wantError string
+	}{
+		{
+			name:      "ShouldRejectMissingMessageIdentity",
+			body:      `{"message":"hello","idempotency_key":"idem-missing-message"}`,
+			wantError: "message_id is required",
+		},
+		{
+			name:      "ShouldRejectMissingIdempotencyKey",
+			body:      `{"message":"hello","message_id":"msg-missing-idempotency"}`,
+			wantError: "idempotency_key is required",
+		},
+		{
+			name: "ShouldRejectUserMessageIDThatDiffersFromCanonicalIdentity",
+			body: `{"message_id":"msg-canonical","idempotency_key":"idem-canonical",` +
+				`"messages":[{"id":"msg-different","role":"user","content":"hello"}]}`,
+			wantError: "latest user message id must equal message_id",
+		},
+		{
+			name: "ShouldRejectTopLevelTextThatDiffersFromLatestUserMessage",
+			body: `{"message":"different","message_id":"msg-canonical","idempotency_key":"idem-canonical",` +
+				`"messages":[{"id":"msg-canonical","role":"user","content":"hello"}]}`,
+			wantError: "message must equal the latest user message text",
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{}, stubObserver{}, newTestHomePaths(t)))
+			recorder := performRequest(
+				t,
+				engine,
+				http.MethodPost,
+				"/api/workspaces/ws-workspace/sessions/sess-123/prompt",
+				[]byte(testCase.body),
+			)
+			if recorder.Code != http.StatusBadRequest {
+				t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusBadRequest, recorder.Body.String())
+			}
+			if !strings.Contains(recorder.Body.String(), testCase.wantError) {
+				t.Fatalf("body = %q, want %q", recorder.Body.String(), testCase.wantError)
+			}
+		})
+	}
+}
+
+func TestPromptSessionHandlerReturnsDurableReplayEnvelope(t *testing.T) {
+	t.Parallel()
+	t.Run("ShouldReturnReplayedPromptEnvelopeWithAcceptedStatus", func(t *testing.T) {
+		t.Parallel()
+
+		manager := stubSessionManager{
+			SendPromptFn: func(_ context.Context, _ string, opts session.SendPromptOpts) (session.SendPromptResult, error) {
+				return session.SendPromptResult{
+					Status:         "queued",
+					MessageID:      opts.MessageID,
+					IdempotencyKey: opts.IdempotencyKey,
+					Replayed:       true,
+					Queued:         true,
+					QueueEntryID:   "inq-replayed",
+				}, nil
+			},
+		}
+		engine := newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t)))
+		recorder := performRequest(
+			t,
+			engine,
+			http.MethodPost,
+			"/api/workspaces/ws-workspace/sessions/sess-123/prompt",
+			[]byte(`{"message":"retry me","message_id":"msg-replay","idempotency_key":"idem-replay"}`),
+		)
+		if recorder.Code != http.StatusAccepted {
+			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusAccepted, recorder.Body.String())
+		}
+		var decoded contract.SendPromptResultResponse
+		if err := json.Unmarshal(recorder.Body.Bytes(), &decoded); err != nil {
+			t.Fatalf("json.Unmarshal(replay response) error = %v; body=%s", err, recorder.Body.String())
+		}
+		if !decoded.Prompt.Replayed || decoded.Prompt.MessageID != "msg-replay" ||
+			decoded.Prompt.IdempotencyKey != "idem-replay" || decoded.Prompt.QueueEntryID != "inq-replayed" {
+			t.Fatalf("prompt replay = %#v", decoded.Prompt)
+		}
+	})
+}
+
+func TestPromptSessionHandlerReturnsIdentityCollisionDiagnostics(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		err      error
+		wantCode string
+	}{
+		{
+			name:     "ShouldReturnIdempotencyConflictDiagnostic",
+			err:      store.ErrSessionPromptIdempotencyConflict,
+			wantCode: contract.CodePromptIdempotencyConflict,
+		},
+		{
+			name:     "ShouldReturnMessageIdentityConflictDiagnostic",
+			err:      store.ErrSessionPromptMessageConflict,
+			wantCode: contract.CodePromptMessageIdentityConflict,
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			manager := stubSessionManager{
+				SendPromptFn: func(context.Context, string, session.SendPromptOpts) (session.SendPromptResult, error) {
+					return session.SendPromptResult{}, testCase.err
+				},
+			}
+			engine := newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t)))
+			recorder := performRequest(
+				t,
+				engine,
+				http.MethodPost,
+				"/api/workspaces/ws-workspace/sessions/sess-123/prompt",
+				[]byte(`{"message":"collision","message_id":"msg-collision","idempotency_key":"idem-collision"}`),
+			)
+			if recorder.Code != http.StatusConflict {
+				t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusConflict, recorder.Body.String())
+			}
+			var decoded contract.ErrorPayload
+			decodeJSONResponse(t, recorder, &decoded)
+			if decoded.Diagnostic == nil || decoded.Diagnostic.Code != testCase.wantCode {
+				t.Fatalf("collision payload = %#v, want diagnostic %q", decoded, testCase.wantCode)
+			}
+		})
+	}
 }
 
 func TestPromptSessionHandlerPreservesRuntimeFailureDiagnostics(t *testing.T) {
@@ -2649,7 +2799,7 @@ func TestPromptSessionHandlerPreservesRuntimeFailureDiagnostics(t *testing.T) {
 				engine,
 				http.MethodPost,
 				"/api/workspaces/ws-workspace/sessions/sess-123/prompt",
-				[]byte(`{"message":"hello"}`),
+				[]byte(`{"message":"hello","message_id":"msg-runtime-diagnostic","idempotency_key":"idem-runtime-diagnostic"}`),
 			)
 			if recorder.Code != http.StatusUnprocessableEntity {
 				t.Fatalf(
@@ -2695,9 +2845,14 @@ func TestPromptSessionHandlerReturnsStructuredGoalDecision(t *testing.T) {
 					t.Fatalf("SendPrompt() id = %q, want sess-123", id)
 				}
 				gotOpts = opts
-				return session.SendPromptResult{Status: "goal", Goal: &session.GoalCommandResult{
-					Outcome: session.GoalOutcomeError, ReasonCode: &reason,
-				}}, nil
+				return session.SendPromptResult{
+					Status:         "goal",
+					MessageID:      opts.MessageID,
+					IdempotencyKey: opts.IdempotencyKey,
+					Goal: &session.GoalCommandResult{
+						Outcome: session.GoalOutcomeError, ReasonCode: &reason,
+					},
+				}, nil
 			},
 		}
 		engine := newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, homePaths))
@@ -2706,7 +2861,7 @@ func TestPromptSessionHandlerReturnsStructuredGoalDecision(t *testing.T) {
 			engine,
 			http.MethodPost,
 			"/api/workspaces/ws-workspace/sessions/sess-123/prompt",
-			[]byte(`{"message":"/goal status"}`),
+			[]byte(`{"message":"/goal status","message_id":"msg-goal","idempotency_key":"idem-goal"}`),
 		)
 		if recorder.Code != http.StatusNotFound {
 			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusNotFound, recorder.Body.String())
@@ -2718,13 +2873,16 @@ func TestPromptSessionHandlerReturnsStructuredGoalDecision(t *testing.T) {
 			gotOpts.Caller.ID != "local-user" || gotOpts.Caller.Source != string(taskpkg.OriginKindHTTP) {
 			t.Fatalf("SendPrompt() authenticated opts = %#v", gotOpts)
 		}
-		var decoded contract.GoalCommandResult
+		var decoded contract.SendPromptResultResponse
 		if err := json.Unmarshal(recorder.Body.Bytes(), &decoded); err != nil {
 			t.Fatalf("json.Unmarshal(Goal result) error = %v; body=%s", err, recorder.Body.String())
 		}
-		if decoded.Outcome != contract.GoalOutcomeError || decoded.ReasonCode == nil ||
-			*decoded.ReasonCode != contract.GoalReasonNotActive {
-			t.Fatalf("Goal result = %#v", decoded)
+		if decoded.Prompt.Goal == nil || decoded.Prompt.Goal.Outcome != contract.GoalOutcomeError ||
+			decoded.Prompt.Goal.ReasonCode == nil || *decoded.Prompt.Goal.ReasonCode != contract.GoalReasonNotActive {
+			t.Fatalf("prompt result = %#v", decoded)
+		}
+		if decoded.Prompt.MessageID != "msg-goal" || decoded.Prompt.IdempotencyKey != "idem-goal" {
+			t.Fatalf("prompt identity = %#v", decoded.Prompt)
 		}
 	})
 }
@@ -2750,7 +2908,7 @@ func TestPromptSessionHandlerSeparatesPromptExecutionFromDelivery(t *testing.T) 
 			requestCtx,
 			http.MethodPost,
 			"/api/workspaces/ws-workspace/sessions/sess-123/prompt",
-			strings.NewReader(`{"message":"hello"}`),
+			strings.NewReader(`{"message":"hello","message_id":"msg-delivery-cancel","idempotency_key":"idem-delivery-cancel"}`),
 		)
 		req.Header.Set("Content-Type", "application/json")
 

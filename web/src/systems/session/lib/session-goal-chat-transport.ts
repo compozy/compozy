@@ -70,7 +70,6 @@ function requestText(init?: RequestInit): string | null {
   try {
     const body: unknown = JSON.parse(init.body);
     if (typeof body !== "object" || body === null) return null;
-    if ("message" in body && typeof body.message === "string") return body.message;
     if (!("messages" in body) || !Array.isArray(body.messages)) return null;
     const last = body.messages.at(-1);
     if (
@@ -107,6 +106,20 @@ function isGoalCommandResult(value: unknown): value is SessionGoalCommandResult 
     "outcome" in value &&
     typeof value.outcome === "string"
   );
+}
+
+function promptResult(value: unknown): Record<string, unknown> | null {
+  if (typeof value !== "object" || value === null || !("prompt" in value)) return null;
+  const prompt = value.prompt;
+  return typeof prompt === "object" && prompt !== null ? (prompt as Record<string, unknown>) : null;
+}
+
+function isPromptReplay(value: Record<string, unknown>): boolean {
+  return value.replayed === true;
+}
+
+function goalResult(value: Record<string, unknown>): SessionGoalCommandResult | null {
+  return isGoalCommandResult(value.goal) ? value.goal : null;
 }
 
 function completionBody(messageId: string): string {
@@ -154,13 +167,30 @@ export function createGoalAwareFetch({
     } catch {
       return response;
     }
-    if (!isGoalCommandResult(payload)) {
+    const prompt = promptResult(payload);
+    if (prompt && isPromptReplay(prompt)) {
+      const replayedGoal = goalResult(prompt);
+      if (replayedGoal) {
+        onResult(replayedGoal, submittedText);
+      }
+      const messageId =
+        typeof prompt.message_id === "string" ? prompt.message_id : `replay-${sequence}`;
+      sequence += 1;
+      return new Response(completionBody(messageId), {
+        status: response.status,
+        statusText: response.statusText,
+        headers: { "content-type": "text/event-stream" },
+      });
+    }
+
+    const result = prompt ? goalResult(prompt) : null;
+    if (!result) {
       return response;
     }
 
-    onResult(payload, submittedText);
+    onResult(result, submittedText);
     if (!response.ok) {
-      return new Response(goalCommandFailureMessage(payload.reason_code), {
+      return new Response(goalCommandFailureMessage(result.reason_code), {
         status: response.status,
         statusText: response.statusText,
         headers: { "content-type": "text/plain; charset=utf-8" },

@@ -366,7 +366,7 @@ func TestPromptSessionHandlerCoversThoughtPermissionAndErrorBranches(t *testing.
 		engine,
 		http.MethodPost,
 		"/api/workspaces/ws-workspace/sessions/sess-123/prompt",
-		[]byte(`{"message":"hello"}`),
+		[]byte(`{"message":"hello","message_id":"msg-thought-permission","idempotency_key":"idem-thought-permission"}`),
 	)
 	if resp.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())

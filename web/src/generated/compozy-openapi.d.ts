@@ -99131,7 +99131,9 @@ export interface operations {
                   turns_used: number;
                 } | null;
               } | null;
+              idempotency_key: string;
               interrupted?: boolean;
+              message_id: string;
               mode?: string;
               new_turn_id?: string;
               previous_turn_id?: string;
@@ -99140,6 +99142,7 @@ export interface operations {
               queue_generation?: number;
               queue_position?: number;
               queued?: boolean;
+              replayed: boolean;
               staged?: boolean;
               status: string;
             };
@@ -99239,8 +99242,9 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
+          idempotency_key: string;
           message?: string;
-          messageId?: string;
+          message_id: string;
           messages?: {
             content?: string;
             id?: string;
@@ -99269,173 +99273,13 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json":
-            | {
-                prompt: {
-                  canceled_queued_entries?: number;
-                  /** Format: date-time */
-                  estimated_send_at?: string | null;
-                  fallback_mode_if_no_tool_result?: string;
-                  goal?: {
-                    /** @enum {string} */
-                    outcome:
-                      | "started"
-                      | "replaced"
-                      | "status"
-                      | "paused"
-                      | "resumed"
-                      | "cleared"
-                      | "error";
-                    /** @enum {string|null} */
-                    reason_code:
-                      | "goal_not_active"
-                      | "goal_replace_required"
-                      | "goal_replace_stale"
-                      | "goal_objective_required"
-                      | "goal_objective_too_large"
-                      | "goal_contract_clause_empty"
-                      | "goal_command_invalid"
-                      | "goal_draft_requires_idle"
-                      | "goal_evidence_too_large"
-                      | "goal_report_conflict"
-                      | "goal_session_busy_queue_full"
-                      | "goal_turn_filter_invalid"
-                      | "goal_judge_unavailable"
-                      | "goal_judge_broken"
-                      | "goal_judge_outcome_invalid"
-                      | "goal_action_control_invalid"
-                      | "goal_stop_reason_invalid"
-                      | "goal_prompt_request_failed"
-                      | "goal_agent_refused"
-                      | "goal_compaction_cancelled"
-                      | "goal_recovery_ambiguous"
-                      | "goal_control_revoked_in_flight"
-                      | "goal_reseed_confirmation_required"
-                      | "goal_presubmit_retries_exhausted"
-                      | "goal_budget_fenced"
-                      | "goal_origin_invalid"
-                      | "goal_origin_workspace_mismatch"
-                      | "goal_origin_profile_unavailable"
-                      | "goal_control_stale"
-                      | "goal_prompt_fenced"
-                      | "session_creation_identity_mismatch"
-                      | "continuous_binding_mismatch"
-                      | null;
-                    replaced_run_id: string | null;
-                    snapshot: {
-                      bound_session_id: string;
-                      /** @enum {string|null} */
-                      cause:
-                        | "goal_not_active"
-                        | "goal_replace_required"
-                        | "goal_replace_stale"
-                        | "goal_objective_required"
-                        | "goal_objective_too_large"
-                        | "goal_contract_clause_empty"
-                        | "goal_command_invalid"
-                        | "goal_draft_requires_idle"
-                        | "goal_evidence_too_large"
-                        | "goal_report_conflict"
-                        | "goal_session_busy_queue_full"
-                        | "goal_turn_filter_invalid"
-                        | "goal_judge_unavailable"
-                        | "goal_judge_broken"
-                        | "goal_judge_outcome_invalid"
-                        | "goal_action_control_invalid"
-                        | "goal_stop_reason_invalid"
-                        | "goal_prompt_request_failed"
-                        | "goal_agent_refused"
-                        | "goal_compaction_cancelled"
-                        | "goal_recovery_ambiguous"
-                        | "goal_control_revoked_in_flight"
-                        | "goal_reseed_confirmation_required"
-                        | "goal_presubmit_retries_exhausted"
-                        | "goal_budget_fenced"
-                        | "goal_origin_invalid"
-                        | "goal_origin_workspace_mismatch"
-                        | "goal_origin_profile_unavailable"
-                        | "goal_control_stale"
-                        | "goal_prompt_fenced"
-                        | "session_creation_identity_mismatch"
-                        | "continuous_binding_mismatch"
-                        | null;
-                      context: {
-                        /** Format: double */
-                        nudge_ratio: number;
-                        /** Format: double */
-                        ratio: number | null;
-                        /** Format: date-time */
-                        reported_at: string | null;
-                        /** Format: int64 */
-                        size: number | null;
-                        /** @enum {string} */
-                        state: "known" | "unknown" | "pending";
-                        /** Format: int64 */
-                        used: number | null;
-                      };
-                      contract_summary: string;
-                      last_verdict: {
-                        blocking_issues: {
-                          id: string;
-                          note: string;
-                        }[];
-                        /** Format: date-time */
-                        evaluated_at: string;
-                        evidence_ref: string | null;
-                        /** @enum {string} */
-                        outcome:
-                          | "approved"
-                          | "rejected"
-                          | "awaiting_approval"
-                          | "blocked"
-                          | "error"
-                          | "timeout"
-                          | "invalid_output";
-                      } | null;
-                      live: boolean;
-                      node_id: string;
-                      objective: string;
-                      origin_session_id: string;
-                      run_id: string;
-                      /** @enum {string} */
-                      run_status:
-                        | "queued"
-                        | "running"
-                        | "watching"
-                        | "needs-approval"
-                        | "paused"
-                        | "done"
-                        | "no-op"
-                        | "blocked"
-                        | "failed"
-                        | "exhausted"
-                        | "stalled";
-                      /** @enum {string} */
-                      status:
-                        | "active"
-                        | "paused"
-                        | "blocked"
-                        | "usage-limited"
-                        | "budget-limited"
-                        | "complete";
-                      turn_limit: number;
-                      turns_used: number;
-                    } | null;
-                  } | null;
-                  interrupted?: boolean;
-                  mode?: string;
-                  new_turn_id?: string;
-                  previous_turn_id?: string;
-                  queue_entry_id?: string;
-                  /** Format: int64 */
-                  queue_generation?: number;
-                  queue_position?: number;
-                  queued?: boolean;
-                  staged?: boolean;
-                  status: string;
-                };
-              }
-            | {
+          "application/json": {
+            prompt: {
+              canceled_queued_entries?: number;
+              /** Format: date-time */
+              estimated_send_at?: string | null;
+              fallback_mode_if_no_tool_result?: string;
+              goal?: {
                 /** @enum {string} */
                 outcome:
                   | "started"
@@ -99580,7 +99424,23 @@ export interface operations {
                   turn_limit: number;
                   turns_used: number;
                 } | null;
-              };
+              } | null;
+              idempotency_key: string;
+              interrupted?: boolean;
+              message_id: string;
+              mode?: string;
+              new_turn_id?: string;
+              previous_turn_id?: string;
+              queue_entry_id?: string;
+              /** Format: int64 */
+              queue_generation?: number;
+              queue_position?: number;
+              queued?: boolean;
+              replayed: boolean;
+              staged?: boolean;
+              status: string;
+            };
+          };
         };
       };
       /** @description Prompt queued, staged, or Goal command started */
@@ -99589,173 +99449,13 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json":
-            | {
-                prompt: {
-                  canceled_queued_entries?: number;
-                  /** Format: date-time */
-                  estimated_send_at?: string | null;
-                  fallback_mode_if_no_tool_result?: string;
-                  goal?: {
-                    /** @enum {string} */
-                    outcome:
-                      | "started"
-                      | "replaced"
-                      | "status"
-                      | "paused"
-                      | "resumed"
-                      | "cleared"
-                      | "error";
-                    /** @enum {string|null} */
-                    reason_code:
-                      | "goal_not_active"
-                      | "goal_replace_required"
-                      | "goal_replace_stale"
-                      | "goal_objective_required"
-                      | "goal_objective_too_large"
-                      | "goal_contract_clause_empty"
-                      | "goal_command_invalid"
-                      | "goal_draft_requires_idle"
-                      | "goal_evidence_too_large"
-                      | "goal_report_conflict"
-                      | "goal_session_busy_queue_full"
-                      | "goal_turn_filter_invalid"
-                      | "goal_judge_unavailable"
-                      | "goal_judge_broken"
-                      | "goal_judge_outcome_invalid"
-                      | "goal_action_control_invalid"
-                      | "goal_stop_reason_invalid"
-                      | "goal_prompt_request_failed"
-                      | "goal_agent_refused"
-                      | "goal_compaction_cancelled"
-                      | "goal_recovery_ambiguous"
-                      | "goal_control_revoked_in_flight"
-                      | "goal_reseed_confirmation_required"
-                      | "goal_presubmit_retries_exhausted"
-                      | "goal_budget_fenced"
-                      | "goal_origin_invalid"
-                      | "goal_origin_workspace_mismatch"
-                      | "goal_origin_profile_unavailable"
-                      | "goal_control_stale"
-                      | "goal_prompt_fenced"
-                      | "session_creation_identity_mismatch"
-                      | "continuous_binding_mismatch"
-                      | null;
-                    replaced_run_id: string | null;
-                    snapshot: {
-                      bound_session_id: string;
-                      /** @enum {string|null} */
-                      cause:
-                        | "goal_not_active"
-                        | "goal_replace_required"
-                        | "goal_replace_stale"
-                        | "goal_objective_required"
-                        | "goal_objective_too_large"
-                        | "goal_contract_clause_empty"
-                        | "goal_command_invalid"
-                        | "goal_draft_requires_idle"
-                        | "goal_evidence_too_large"
-                        | "goal_report_conflict"
-                        | "goal_session_busy_queue_full"
-                        | "goal_turn_filter_invalid"
-                        | "goal_judge_unavailable"
-                        | "goal_judge_broken"
-                        | "goal_judge_outcome_invalid"
-                        | "goal_action_control_invalid"
-                        | "goal_stop_reason_invalid"
-                        | "goal_prompt_request_failed"
-                        | "goal_agent_refused"
-                        | "goal_compaction_cancelled"
-                        | "goal_recovery_ambiguous"
-                        | "goal_control_revoked_in_flight"
-                        | "goal_reseed_confirmation_required"
-                        | "goal_presubmit_retries_exhausted"
-                        | "goal_budget_fenced"
-                        | "goal_origin_invalid"
-                        | "goal_origin_workspace_mismatch"
-                        | "goal_origin_profile_unavailable"
-                        | "goal_control_stale"
-                        | "goal_prompt_fenced"
-                        | "session_creation_identity_mismatch"
-                        | "continuous_binding_mismatch"
-                        | null;
-                      context: {
-                        /** Format: double */
-                        nudge_ratio: number;
-                        /** Format: double */
-                        ratio: number | null;
-                        /** Format: date-time */
-                        reported_at: string | null;
-                        /** Format: int64 */
-                        size: number | null;
-                        /** @enum {string} */
-                        state: "known" | "unknown" | "pending";
-                        /** Format: int64 */
-                        used: number | null;
-                      };
-                      contract_summary: string;
-                      last_verdict: {
-                        blocking_issues: {
-                          id: string;
-                          note: string;
-                        }[];
-                        /** Format: date-time */
-                        evaluated_at: string;
-                        evidence_ref: string | null;
-                        /** @enum {string} */
-                        outcome:
-                          | "approved"
-                          | "rejected"
-                          | "awaiting_approval"
-                          | "blocked"
-                          | "error"
-                          | "timeout"
-                          | "invalid_output";
-                      } | null;
-                      live: boolean;
-                      node_id: string;
-                      objective: string;
-                      origin_session_id: string;
-                      run_id: string;
-                      /** @enum {string} */
-                      run_status:
-                        | "queued"
-                        | "running"
-                        | "watching"
-                        | "needs-approval"
-                        | "paused"
-                        | "done"
-                        | "no-op"
-                        | "blocked"
-                        | "failed"
-                        | "exhausted"
-                        | "stalled";
-                      /** @enum {string} */
-                      status:
-                        | "active"
-                        | "paused"
-                        | "blocked"
-                        | "usage-limited"
-                        | "budget-limited"
-                        | "complete";
-                      turn_limit: number;
-                      turns_used: number;
-                    } | null;
-                  } | null;
-                  interrupted?: boolean;
-                  mode?: string;
-                  new_turn_id?: string;
-                  previous_turn_id?: string;
-                  queue_entry_id?: string;
-                  /** Format: int64 */
-                  queue_generation?: number;
-                  queue_position?: number;
-                  queued?: boolean;
-                  staged?: boolean;
-                  status: string;
-                };
-              }
-            | {
+          "application/json": {
+            prompt: {
+              canceled_queued_entries?: number;
+              /** Format: date-time */
+              estimated_send_at?: string | null;
+              fallback_mode_if_no_tool_result?: string;
+              goal?: {
                 /** @enum {string} */
                 outcome:
                   | "started"
@@ -99900,7 +99600,23 @@ export interface operations {
                   turn_limit: number;
                   turns_used: number;
                 } | null;
-              };
+              } | null;
+              idempotency_key: string;
+              interrupted?: boolean;
+              message_id: string;
+              mode?: string;
+              new_turn_id?: string;
+              previous_turn_id?: string;
+              queue_entry_id?: string;
+              /** Format: int64 */
+              queue_generation?: number;
+              queue_position?: number;
+              queued?: boolean;
+              replayed: boolean;
+              staged?: boolean;
+              status: string;
+            };
+          };
         };
       };
       /** @description Invalid prompt request */
@@ -99953,150 +99669,172 @@ export interface operations {
                 error: string;
               }
             | {
-                /** @enum {string} */
-                outcome:
-                  | "started"
-                  | "replaced"
-                  | "status"
-                  | "paused"
-                  | "resumed"
-                  | "cleared"
-                  | "error";
-                /** @enum {string|null} */
-                reason_code:
-                  | "goal_not_active"
-                  | "goal_replace_required"
-                  | "goal_replace_stale"
-                  | "goal_objective_required"
-                  | "goal_objective_too_large"
-                  | "goal_contract_clause_empty"
-                  | "goal_command_invalid"
-                  | "goal_draft_requires_idle"
-                  | "goal_evidence_too_large"
-                  | "goal_report_conflict"
-                  | "goal_session_busy_queue_full"
-                  | "goal_turn_filter_invalid"
-                  | "goal_judge_unavailable"
-                  | "goal_judge_broken"
-                  | "goal_judge_outcome_invalid"
-                  | "goal_action_control_invalid"
-                  | "goal_stop_reason_invalid"
-                  | "goal_prompt_request_failed"
-                  | "goal_agent_refused"
-                  | "goal_compaction_cancelled"
-                  | "goal_recovery_ambiguous"
-                  | "goal_control_revoked_in_flight"
-                  | "goal_reseed_confirmation_required"
-                  | "goal_presubmit_retries_exhausted"
-                  | "goal_budget_fenced"
-                  | "goal_origin_invalid"
-                  | "goal_origin_workspace_mismatch"
-                  | "goal_origin_profile_unavailable"
-                  | "goal_control_stale"
-                  | "goal_prompt_fenced"
-                  | "session_creation_identity_mismatch"
-                  | "continuous_binding_mismatch"
-                  | null;
-                replaced_run_id: string | null;
-                snapshot: {
-                  bound_session_id: string;
-                  /** @enum {string|null} */
-                  cause:
-                    | "goal_not_active"
-                    | "goal_replace_required"
-                    | "goal_replace_stale"
-                    | "goal_objective_required"
-                    | "goal_objective_too_large"
-                    | "goal_contract_clause_empty"
-                    | "goal_command_invalid"
-                    | "goal_draft_requires_idle"
-                    | "goal_evidence_too_large"
-                    | "goal_report_conflict"
-                    | "goal_session_busy_queue_full"
-                    | "goal_turn_filter_invalid"
-                    | "goal_judge_unavailable"
-                    | "goal_judge_broken"
-                    | "goal_judge_outcome_invalid"
-                    | "goal_action_control_invalid"
-                    | "goal_stop_reason_invalid"
-                    | "goal_prompt_request_failed"
-                    | "goal_agent_refused"
-                    | "goal_compaction_cancelled"
-                    | "goal_recovery_ambiguous"
-                    | "goal_control_revoked_in_flight"
-                    | "goal_reseed_confirmation_required"
-                    | "goal_presubmit_retries_exhausted"
-                    | "goal_budget_fenced"
-                    | "goal_origin_invalid"
-                    | "goal_origin_workspace_mismatch"
-                    | "goal_origin_profile_unavailable"
-                    | "goal_control_stale"
-                    | "goal_prompt_fenced"
-                    | "session_creation_identity_mismatch"
-                    | "continuous_binding_mismatch"
-                    | null;
-                  context: {
-                    /** Format: double */
-                    nudge_ratio: number;
-                    /** Format: double */
-                    ratio: number | null;
-                    /** Format: date-time */
-                    reported_at: string | null;
-                    /** Format: int64 */
-                    size: number | null;
-                    /** @enum {string} */
-                    state: "known" | "unknown" | "pending";
-                    /** Format: int64 */
-                    used: number | null;
-                  };
-                  contract_summary: string;
-                  last_verdict: {
-                    blocking_issues: {
-                      id: string;
-                      note: string;
-                    }[];
-                    /** Format: date-time */
-                    evaluated_at: string;
-                    evidence_ref: string | null;
+                prompt: {
+                  canceled_queued_entries?: number;
+                  /** Format: date-time */
+                  estimated_send_at?: string | null;
+                  fallback_mode_if_no_tool_result?: string;
+                  goal?: {
                     /** @enum {string} */
                     outcome:
-                      | "approved"
-                      | "rejected"
-                      | "awaiting_approval"
-                      | "blocked"
-                      | "error"
-                      | "timeout"
-                      | "invalid_output";
+                      | "started"
+                      | "replaced"
+                      | "status"
+                      | "paused"
+                      | "resumed"
+                      | "cleared"
+                      | "error";
+                    /** @enum {string|null} */
+                    reason_code:
+                      | "goal_not_active"
+                      | "goal_replace_required"
+                      | "goal_replace_stale"
+                      | "goal_objective_required"
+                      | "goal_objective_too_large"
+                      | "goal_contract_clause_empty"
+                      | "goal_command_invalid"
+                      | "goal_draft_requires_idle"
+                      | "goal_evidence_too_large"
+                      | "goal_report_conflict"
+                      | "goal_session_busy_queue_full"
+                      | "goal_turn_filter_invalid"
+                      | "goal_judge_unavailable"
+                      | "goal_judge_broken"
+                      | "goal_judge_outcome_invalid"
+                      | "goal_action_control_invalid"
+                      | "goal_stop_reason_invalid"
+                      | "goal_prompt_request_failed"
+                      | "goal_agent_refused"
+                      | "goal_compaction_cancelled"
+                      | "goal_recovery_ambiguous"
+                      | "goal_control_revoked_in_flight"
+                      | "goal_reseed_confirmation_required"
+                      | "goal_presubmit_retries_exhausted"
+                      | "goal_budget_fenced"
+                      | "goal_origin_invalid"
+                      | "goal_origin_workspace_mismatch"
+                      | "goal_origin_profile_unavailable"
+                      | "goal_control_stale"
+                      | "goal_prompt_fenced"
+                      | "session_creation_identity_mismatch"
+                      | "continuous_binding_mismatch"
+                      | null;
+                    replaced_run_id: string | null;
+                    snapshot: {
+                      bound_session_id: string;
+                      /** @enum {string|null} */
+                      cause:
+                        | "goal_not_active"
+                        | "goal_replace_required"
+                        | "goal_replace_stale"
+                        | "goal_objective_required"
+                        | "goal_objective_too_large"
+                        | "goal_contract_clause_empty"
+                        | "goal_command_invalid"
+                        | "goal_draft_requires_idle"
+                        | "goal_evidence_too_large"
+                        | "goal_report_conflict"
+                        | "goal_session_busy_queue_full"
+                        | "goal_turn_filter_invalid"
+                        | "goal_judge_unavailable"
+                        | "goal_judge_broken"
+                        | "goal_judge_outcome_invalid"
+                        | "goal_action_control_invalid"
+                        | "goal_stop_reason_invalid"
+                        | "goal_prompt_request_failed"
+                        | "goal_agent_refused"
+                        | "goal_compaction_cancelled"
+                        | "goal_recovery_ambiguous"
+                        | "goal_control_revoked_in_flight"
+                        | "goal_reseed_confirmation_required"
+                        | "goal_presubmit_retries_exhausted"
+                        | "goal_budget_fenced"
+                        | "goal_origin_invalid"
+                        | "goal_origin_workspace_mismatch"
+                        | "goal_origin_profile_unavailable"
+                        | "goal_control_stale"
+                        | "goal_prompt_fenced"
+                        | "session_creation_identity_mismatch"
+                        | "continuous_binding_mismatch"
+                        | null;
+                      context: {
+                        /** Format: double */
+                        nudge_ratio: number;
+                        /** Format: double */
+                        ratio: number | null;
+                        /** Format: date-time */
+                        reported_at: string | null;
+                        /** Format: int64 */
+                        size: number | null;
+                        /** @enum {string} */
+                        state: "known" | "unknown" | "pending";
+                        /** Format: int64 */
+                        used: number | null;
+                      };
+                      contract_summary: string;
+                      last_verdict: {
+                        blocking_issues: {
+                          id: string;
+                          note: string;
+                        }[];
+                        /** Format: date-time */
+                        evaluated_at: string;
+                        evidence_ref: string | null;
+                        /** @enum {string} */
+                        outcome:
+                          | "approved"
+                          | "rejected"
+                          | "awaiting_approval"
+                          | "blocked"
+                          | "error"
+                          | "timeout"
+                          | "invalid_output";
+                      } | null;
+                      live: boolean;
+                      node_id: string;
+                      objective: string;
+                      origin_session_id: string;
+                      run_id: string;
+                      /** @enum {string} */
+                      run_status:
+                        | "queued"
+                        | "running"
+                        | "watching"
+                        | "needs-approval"
+                        | "paused"
+                        | "done"
+                        | "no-op"
+                        | "blocked"
+                        | "failed"
+                        | "exhausted"
+                        | "stalled";
+                      /** @enum {string} */
+                      status:
+                        | "active"
+                        | "paused"
+                        | "blocked"
+                        | "usage-limited"
+                        | "budget-limited"
+                        | "complete";
+                      turn_limit: number;
+                      turns_used: number;
+                    } | null;
                   } | null;
-                  live: boolean;
-                  node_id: string;
-                  objective: string;
-                  origin_session_id: string;
-                  run_id: string;
-                  /** @enum {string} */
-                  run_status:
-                    | "queued"
-                    | "running"
-                    | "watching"
-                    | "needs-approval"
-                    | "paused"
-                    | "done"
-                    | "no-op"
-                    | "blocked"
-                    | "failed"
-                    | "exhausted"
-                    | "stalled";
-                  /** @enum {string} */
-                  status:
-                    | "active"
-                    | "paused"
-                    | "blocked"
-                    | "usage-limited"
-                    | "budget-limited"
-                    | "complete";
-                  turn_limit: number;
-                  turns_used: number;
-                } | null;
+                  idempotency_key: string;
+                  interrupted?: boolean;
+                  message_id: string;
+                  mode?: string;
+                  new_turn_id?: string;
+                  previous_turn_id?: string;
+                  queue_entry_id?: string;
+                  /** Format: int64 */
+                  queue_generation?: number;
+                  queue_position?: number;
+                  queued?: boolean;
+                  replayed: boolean;
+                  staged?: boolean;
+                  status: string;
+                };
               };
         };
       };
@@ -100125,150 +99863,172 @@ export interface operations {
                 error: string;
               }
             | {
-                /** @enum {string} */
-                outcome:
-                  | "started"
-                  | "replaced"
-                  | "status"
-                  | "paused"
-                  | "resumed"
-                  | "cleared"
-                  | "error";
-                /** @enum {string|null} */
-                reason_code:
-                  | "goal_not_active"
-                  | "goal_replace_required"
-                  | "goal_replace_stale"
-                  | "goal_objective_required"
-                  | "goal_objective_too_large"
-                  | "goal_contract_clause_empty"
-                  | "goal_command_invalid"
-                  | "goal_draft_requires_idle"
-                  | "goal_evidence_too_large"
-                  | "goal_report_conflict"
-                  | "goal_session_busy_queue_full"
-                  | "goal_turn_filter_invalid"
-                  | "goal_judge_unavailable"
-                  | "goal_judge_broken"
-                  | "goal_judge_outcome_invalid"
-                  | "goal_action_control_invalid"
-                  | "goal_stop_reason_invalid"
-                  | "goal_prompt_request_failed"
-                  | "goal_agent_refused"
-                  | "goal_compaction_cancelled"
-                  | "goal_recovery_ambiguous"
-                  | "goal_control_revoked_in_flight"
-                  | "goal_reseed_confirmation_required"
-                  | "goal_presubmit_retries_exhausted"
-                  | "goal_budget_fenced"
-                  | "goal_origin_invalid"
-                  | "goal_origin_workspace_mismatch"
-                  | "goal_origin_profile_unavailable"
-                  | "goal_control_stale"
-                  | "goal_prompt_fenced"
-                  | "session_creation_identity_mismatch"
-                  | "continuous_binding_mismatch"
-                  | null;
-                replaced_run_id: string | null;
-                snapshot: {
-                  bound_session_id: string;
-                  /** @enum {string|null} */
-                  cause:
-                    | "goal_not_active"
-                    | "goal_replace_required"
-                    | "goal_replace_stale"
-                    | "goal_objective_required"
-                    | "goal_objective_too_large"
-                    | "goal_contract_clause_empty"
-                    | "goal_command_invalid"
-                    | "goal_draft_requires_idle"
-                    | "goal_evidence_too_large"
-                    | "goal_report_conflict"
-                    | "goal_session_busy_queue_full"
-                    | "goal_turn_filter_invalid"
-                    | "goal_judge_unavailable"
-                    | "goal_judge_broken"
-                    | "goal_judge_outcome_invalid"
-                    | "goal_action_control_invalid"
-                    | "goal_stop_reason_invalid"
-                    | "goal_prompt_request_failed"
-                    | "goal_agent_refused"
-                    | "goal_compaction_cancelled"
-                    | "goal_recovery_ambiguous"
-                    | "goal_control_revoked_in_flight"
-                    | "goal_reseed_confirmation_required"
-                    | "goal_presubmit_retries_exhausted"
-                    | "goal_budget_fenced"
-                    | "goal_origin_invalid"
-                    | "goal_origin_workspace_mismatch"
-                    | "goal_origin_profile_unavailable"
-                    | "goal_control_stale"
-                    | "goal_prompt_fenced"
-                    | "session_creation_identity_mismatch"
-                    | "continuous_binding_mismatch"
-                    | null;
-                  context: {
-                    /** Format: double */
-                    nudge_ratio: number;
-                    /** Format: double */
-                    ratio: number | null;
-                    /** Format: date-time */
-                    reported_at: string | null;
-                    /** Format: int64 */
-                    size: number | null;
-                    /** @enum {string} */
-                    state: "known" | "unknown" | "pending";
-                    /** Format: int64 */
-                    used: number | null;
-                  };
-                  contract_summary: string;
-                  last_verdict: {
-                    blocking_issues: {
-                      id: string;
-                      note: string;
-                    }[];
-                    /** Format: date-time */
-                    evaluated_at: string;
-                    evidence_ref: string | null;
+                prompt: {
+                  canceled_queued_entries?: number;
+                  /** Format: date-time */
+                  estimated_send_at?: string | null;
+                  fallback_mode_if_no_tool_result?: string;
+                  goal?: {
                     /** @enum {string} */
                     outcome:
-                      | "approved"
-                      | "rejected"
-                      | "awaiting_approval"
-                      | "blocked"
-                      | "error"
-                      | "timeout"
-                      | "invalid_output";
+                      | "started"
+                      | "replaced"
+                      | "status"
+                      | "paused"
+                      | "resumed"
+                      | "cleared"
+                      | "error";
+                    /** @enum {string|null} */
+                    reason_code:
+                      | "goal_not_active"
+                      | "goal_replace_required"
+                      | "goal_replace_stale"
+                      | "goal_objective_required"
+                      | "goal_objective_too_large"
+                      | "goal_contract_clause_empty"
+                      | "goal_command_invalid"
+                      | "goal_draft_requires_idle"
+                      | "goal_evidence_too_large"
+                      | "goal_report_conflict"
+                      | "goal_session_busy_queue_full"
+                      | "goal_turn_filter_invalid"
+                      | "goal_judge_unavailable"
+                      | "goal_judge_broken"
+                      | "goal_judge_outcome_invalid"
+                      | "goal_action_control_invalid"
+                      | "goal_stop_reason_invalid"
+                      | "goal_prompt_request_failed"
+                      | "goal_agent_refused"
+                      | "goal_compaction_cancelled"
+                      | "goal_recovery_ambiguous"
+                      | "goal_control_revoked_in_flight"
+                      | "goal_reseed_confirmation_required"
+                      | "goal_presubmit_retries_exhausted"
+                      | "goal_budget_fenced"
+                      | "goal_origin_invalid"
+                      | "goal_origin_workspace_mismatch"
+                      | "goal_origin_profile_unavailable"
+                      | "goal_control_stale"
+                      | "goal_prompt_fenced"
+                      | "session_creation_identity_mismatch"
+                      | "continuous_binding_mismatch"
+                      | null;
+                    replaced_run_id: string | null;
+                    snapshot: {
+                      bound_session_id: string;
+                      /** @enum {string|null} */
+                      cause:
+                        | "goal_not_active"
+                        | "goal_replace_required"
+                        | "goal_replace_stale"
+                        | "goal_objective_required"
+                        | "goal_objective_too_large"
+                        | "goal_contract_clause_empty"
+                        | "goal_command_invalid"
+                        | "goal_draft_requires_idle"
+                        | "goal_evidence_too_large"
+                        | "goal_report_conflict"
+                        | "goal_session_busy_queue_full"
+                        | "goal_turn_filter_invalid"
+                        | "goal_judge_unavailable"
+                        | "goal_judge_broken"
+                        | "goal_judge_outcome_invalid"
+                        | "goal_action_control_invalid"
+                        | "goal_stop_reason_invalid"
+                        | "goal_prompt_request_failed"
+                        | "goal_agent_refused"
+                        | "goal_compaction_cancelled"
+                        | "goal_recovery_ambiguous"
+                        | "goal_control_revoked_in_flight"
+                        | "goal_reseed_confirmation_required"
+                        | "goal_presubmit_retries_exhausted"
+                        | "goal_budget_fenced"
+                        | "goal_origin_invalid"
+                        | "goal_origin_workspace_mismatch"
+                        | "goal_origin_profile_unavailable"
+                        | "goal_control_stale"
+                        | "goal_prompt_fenced"
+                        | "session_creation_identity_mismatch"
+                        | "continuous_binding_mismatch"
+                        | null;
+                      context: {
+                        /** Format: double */
+                        nudge_ratio: number;
+                        /** Format: double */
+                        ratio: number | null;
+                        /** Format: date-time */
+                        reported_at: string | null;
+                        /** Format: int64 */
+                        size: number | null;
+                        /** @enum {string} */
+                        state: "known" | "unknown" | "pending";
+                        /** Format: int64 */
+                        used: number | null;
+                      };
+                      contract_summary: string;
+                      last_verdict: {
+                        blocking_issues: {
+                          id: string;
+                          note: string;
+                        }[];
+                        /** Format: date-time */
+                        evaluated_at: string;
+                        evidence_ref: string | null;
+                        /** @enum {string} */
+                        outcome:
+                          | "approved"
+                          | "rejected"
+                          | "awaiting_approval"
+                          | "blocked"
+                          | "error"
+                          | "timeout"
+                          | "invalid_output";
+                      } | null;
+                      live: boolean;
+                      node_id: string;
+                      objective: string;
+                      origin_session_id: string;
+                      run_id: string;
+                      /** @enum {string} */
+                      run_status:
+                        | "queued"
+                        | "running"
+                        | "watching"
+                        | "needs-approval"
+                        | "paused"
+                        | "done"
+                        | "no-op"
+                        | "blocked"
+                        | "failed"
+                        | "exhausted"
+                        | "stalled";
+                      /** @enum {string} */
+                      status:
+                        | "active"
+                        | "paused"
+                        | "blocked"
+                        | "usage-limited"
+                        | "budget-limited"
+                        | "complete";
+                      turn_limit: number;
+                      turns_used: number;
+                    } | null;
                   } | null;
-                  live: boolean;
-                  node_id: string;
-                  objective: string;
-                  origin_session_id: string;
-                  run_id: string;
-                  /** @enum {string} */
-                  run_status:
-                    | "queued"
-                    | "running"
-                    | "watching"
-                    | "needs-approval"
-                    | "paused"
-                    | "done"
-                    | "no-op"
-                    | "blocked"
-                    | "failed"
-                    | "exhausted"
-                    | "stalled";
-                  /** @enum {string} */
-                  status:
-                    | "active"
-                    | "paused"
-                    | "blocked"
-                    | "usage-limited"
-                    | "budget-limited"
-                    | "complete";
-                  turn_limit: number;
-                  turns_used: number;
-                } | null;
+                  idempotency_key: string;
+                  interrupted?: boolean;
+                  message_id: string;
+                  mode?: string;
+                  new_turn_id?: string;
+                  previous_turn_id?: string;
+                  queue_entry_id?: string;
+                  /** Format: int64 */
+                  queue_generation?: number;
+                  queue_position?: number;
+                  queued?: boolean;
+                  replayed: boolean;
+                  staged?: boolean;
+                  status: string;
+                };
               };
         };
       };
@@ -100322,150 +100082,172 @@ export interface operations {
                 error: string;
               }
             | {
-                /** @enum {string} */
-                outcome:
-                  | "started"
-                  | "replaced"
-                  | "status"
-                  | "paused"
-                  | "resumed"
-                  | "cleared"
-                  | "error";
-                /** @enum {string|null} */
-                reason_code:
-                  | "goal_not_active"
-                  | "goal_replace_required"
-                  | "goal_replace_stale"
-                  | "goal_objective_required"
-                  | "goal_objective_too_large"
-                  | "goal_contract_clause_empty"
-                  | "goal_command_invalid"
-                  | "goal_draft_requires_idle"
-                  | "goal_evidence_too_large"
-                  | "goal_report_conflict"
-                  | "goal_session_busy_queue_full"
-                  | "goal_turn_filter_invalid"
-                  | "goal_judge_unavailable"
-                  | "goal_judge_broken"
-                  | "goal_judge_outcome_invalid"
-                  | "goal_action_control_invalid"
-                  | "goal_stop_reason_invalid"
-                  | "goal_prompt_request_failed"
-                  | "goal_agent_refused"
-                  | "goal_compaction_cancelled"
-                  | "goal_recovery_ambiguous"
-                  | "goal_control_revoked_in_flight"
-                  | "goal_reseed_confirmation_required"
-                  | "goal_presubmit_retries_exhausted"
-                  | "goal_budget_fenced"
-                  | "goal_origin_invalid"
-                  | "goal_origin_workspace_mismatch"
-                  | "goal_origin_profile_unavailable"
-                  | "goal_control_stale"
-                  | "goal_prompt_fenced"
-                  | "session_creation_identity_mismatch"
-                  | "continuous_binding_mismatch"
-                  | null;
-                replaced_run_id: string | null;
-                snapshot: {
-                  bound_session_id: string;
-                  /** @enum {string|null} */
-                  cause:
-                    | "goal_not_active"
-                    | "goal_replace_required"
-                    | "goal_replace_stale"
-                    | "goal_objective_required"
-                    | "goal_objective_too_large"
-                    | "goal_contract_clause_empty"
-                    | "goal_command_invalid"
-                    | "goal_draft_requires_idle"
-                    | "goal_evidence_too_large"
-                    | "goal_report_conflict"
-                    | "goal_session_busy_queue_full"
-                    | "goal_turn_filter_invalid"
-                    | "goal_judge_unavailable"
-                    | "goal_judge_broken"
-                    | "goal_judge_outcome_invalid"
-                    | "goal_action_control_invalid"
-                    | "goal_stop_reason_invalid"
-                    | "goal_prompt_request_failed"
-                    | "goal_agent_refused"
-                    | "goal_compaction_cancelled"
-                    | "goal_recovery_ambiguous"
-                    | "goal_control_revoked_in_flight"
-                    | "goal_reseed_confirmation_required"
-                    | "goal_presubmit_retries_exhausted"
-                    | "goal_budget_fenced"
-                    | "goal_origin_invalid"
-                    | "goal_origin_workspace_mismatch"
-                    | "goal_origin_profile_unavailable"
-                    | "goal_control_stale"
-                    | "goal_prompt_fenced"
-                    | "session_creation_identity_mismatch"
-                    | "continuous_binding_mismatch"
-                    | null;
-                  context: {
-                    /** Format: double */
-                    nudge_ratio: number;
-                    /** Format: double */
-                    ratio: number | null;
-                    /** Format: date-time */
-                    reported_at: string | null;
-                    /** Format: int64 */
-                    size: number | null;
-                    /** @enum {string} */
-                    state: "known" | "unknown" | "pending";
-                    /** Format: int64 */
-                    used: number | null;
-                  };
-                  contract_summary: string;
-                  last_verdict: {
-                    blocking_issues: {
-                      id: string;
-                      note: string;
-                    }[];
-                    /** Format: date-time */
-                    evaluated_at: string;
-                    evidence_ref: string | null;
+                prompt: {
+                  canceled_queued_entries?: number;
+                  /** Format: date-time */
+                  estimated_send_at?: string | null;
+                  fallback_mode_if_no_tool_result?: string;
+                  goal?: {
                     /** @enum {string} */
                     outcome:
-                      | "approved"
-                      | "rejected"
-                      | "awaiting_approval"
-                      | "blocked"
-                      | "error"
-                      | "timeout"
-                      | "invalid_output";
+                      | "started"
+                      | "replaced"
+                      | "status"
+                      | "paused"
+                      | "resumed"
+                      | "cleared"
+                      | "error";
+                    /** @enum {string|null} */
+                    reason_code:
+                      | "goal_not_active"
+                      | "goal_replace_required"
+                      | "goal_replace_stale"
+                      | "goal_objective_required"
+                      | "goal_objective_too_large"
+                      | "goal_contract_clause_empty"
+                      | "goal_command_invalid"
+                      | "goal_draft_requires_idle"
+                      | "goal_evidence_too_large"
+                      | "goal_report_conflict"
+                      | "goal_session_busy_queue_full"
+                      | "goal_turn_filter_invalid"
+                      | "goal_judge_unavailable"
+                      | "goal_judge_broken"
+                      | "goal_judge_outcome_invalid"
+                      | "goal_action_control_invalid"
+                      | "goal_stop_reason_invalid"
+                      | "goal_prompt_request_failed"
+                      | "goal_agent_refused"
+                      | "goal_compaction_cancelled"
+                      | "goal_recovery_ambiguous"
+                      | "goal_control_revoked_in_flight"
+                      | "goal_reseed_confirmation_required"
+                      | "goal_presubmit_retries_exhausted"
+                      | "goal_budget_fenced"
+                      | "goal_origin_invalid"
+                      | "goal_origin_workspace_mismatch"
+                      | "goal_origin_profile_unavailable"
+                      | "goal_control_stale"
+                      | "goal_prompt_fenced"
+                      | "session_creation_identity_mismatch"
+                      | "continuous_binding_mismatch"
+                      | null;
+                    replaced_run_id: string | null;
+                    snapshot: {
+                      bound_session_id: string;
+                      /** @enum {string|null} */
+                      cause:
+                        | "goal_not_active"
+                        | "goal_replace_required"
+                        | "goal_replace_stale"
+                        | "goal_objective_required"
+                        | "goal_objective_too_large"
+                        | "goal_contract_clause_empty"
+                        | "goal_command_invalid"
+                        | "goal_draft_requires_idle"
+                        | "goal_evidence_too_large"
+                        | "goal_report_conflict"
+                        | "goal_session_busy_queue_full"
+                        | "goal_turn_filter_invalid"
+                        | "goal_judge_unavailable"
+                        | "goal_judge_broken"
+                        | "goal_judge_outcome_invalid"
+                        | "goal_action_control_invalid"
+                        | "goal_stop_reason_invalid"
+                        | "goal_prompt_request_failed"
+                        | "goal_agent_refused"
+                        | "goal_compaction_cancelled"
+                        | "goal_recovery_ambiguous"
+                        | "goal_control_revoked_in_flight"
+                        | "goal_reseed_confirmation_required"
+                        | "goal_presubmit_retries_exhausted"
+                        | "goal_budget_fenced"
+                        | "goal_origin_invalid"
+                        | "goal_origin_workspace_mismatch"
+                        | "goal_origin_profile_unavailable"
+                        | "goal_control_stale"
+                        | "goal_prompt_fenced"
+                        | "session_creation_identity_mismatch"
+                        | "continuous_binding_mismatch"
+                        | null;
+                      context: {
+                        /** Format: double */
+                        nudge_ratio: number;
+                        /** Format: double */
+                        ratio: number | null;
+                        /** Format: date-time */
+                        reported_at: string | null;
+                        /** Format: int64 */
+                        size: number | null;
+                        /** @enum {string} */
+                        state: "known" | "unknown" | "pending";
+                        /** Format: int64 */
+                        used: number | null;
+                      };
+                      contract_summary: string;
+                      last_verdict: {
+                        blocking_issues: {
+                          id: string;
+                          note: string;
+                        }[];
+                        /** Format: date-time */
+                        evaluated_at: string;
+                        evidence_ref: string | null;
+                        /** @enum {string} */
+                        outcome:
+                          | "approved"
+                          | "rejected"
+                          | "awaiting_approval"
+                          | "blocked"
+                          | "error"
+                          | "timeout"
+                          | "invalid_output";
+                      } | null;
+                      live: boolean;
+                      node_id: string;
+                      objective: string;
+                      origin_session_id: string;
+                      run_id: string;
+                      /** @enum {string} */
+                      run_status:
+                        | "queued"
+                        | "running"
+                        | "watching"
+                        | "needs-approval"
+                        | "paused"
+                        | "done"
+                        | "no-op"
+                        | "blocked"
+                        | "failed"
+                        | "exhausted"
+                        | "stalled";
+                      /** @enum {string} */
+                      status:
+                        | "active"
+                        | "paused"
+                        | "blocked"
+                        | "usage-limited"
+                        | "budget-limited"
+                        | "complete";
+                      turn_limit: number;
+                      turns_used: number;
+                    } | null;
                   } | null;
-                  live: boolean;
-                  node_id: string;
-                  objective: string;
-                  origin_session_id: string;
-                  run_id: string;
-                  /** @enum {string} */
-                  run_status:
-                    | "queued"
-                    | "running"
-                    | "watching"
-                    | "needs-approval"
-                    | "paused"
-                    | "done"
-                    | "no-op"
-                    | "blocked"
-                    | "failed"
-                    | "exhausted"
-                    | "stalled";
-                  /** @enum {string} */
-                  status:
-                    | "active"
-                    | "paused"
-                    | "blocked"
-                    | "usage-limited"
-                    | "budget-limited"
-                    | "complete";
-                  turn_limit: number;
-                  turns_used: number;
-                } | null;
+                  idempotency_key: string;
+                  interrupted?: boolean;
+                  message_id: string;
+                  mode?: string;
+                  new_turn_id?: string;
+                  previous_turn_id?: string;
+                  queue_entry_id?: string;
+                  /** Format: int64 */
+                  queue_generation?: number;
+                  queue_position?: number;
+                  queued?: boolean;
+                  replayed: boolean;
+                  staged?: boolean;
+                  status: string;
+                };
               };
         };
       };
@@ -100695,7 +100477,9 @@ export interface operations {
                   turns_used: number;
                 } | null;
               } | null;
+              idempotency_key: string;
               interrupted?: boolean;
+              message_id: string;
               mode?: string;
               new_turn_id?: string;
               previous_turn_id?: string;
@@ -100704,6 +100488,7 @@ export interface operations {
               queue_generation?: number;
               queue_position?: number;
               queued?: boolean;
+              replayed: boolean;
               staged?: boolean;
               status: string;
             };
@@ -101819,6 +101604,8 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
+          idempotency_key: string;
+          message_id: string;
           text: string;
         };
       };
@@ -101982,7 +101769,9 @@ export interface operations {
                   turns_used: number;
                 } | null;
               } | null;
+              idempotency_key: string;
               interrupted?: boolean;
+              message_id: string;
               mode?: string;
               new_turn_id?: string;
               previous_turn_id?: string;
@@ -101991,6 +101780,7 @@ export interface operations {
               queue_generation?: number;
               queue_position?: number;
               queued?: boolean;
+              replayed: boolean;
               staged?: boolean;
               status: string;
             };

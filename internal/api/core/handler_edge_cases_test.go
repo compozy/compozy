@@ -196,7 +196,7 @@ func TestConversionAndStatusHelpers(t *testing.T) {
 
 	usageValue := int64(10)
 	goalTurn := 2
-	clientMessageID := "client-message-1"
+	messageID := "client-message-1"
 	event := acp.AgentEvent{
 		Type:      acp.EventTypePermission,
 		SessionID: "sess-1",
@@ -216,13 +216,13 @@ func TestConversionAndStatusHelpers(t *testing.T) {
 			ItemIndex: 1, Turn: &goalTurn, PromptAttempt: 2, PromptID: "goal-prompt-2",
 		},
 		Raw: []byte(`{"ok":true}`),
-	}.WithClientMessageID(clientMessageID)
+	}.WithMessageID(messageID)
 	agentEvent := core.AgentEventPayloadFromEvent(event)
 	if agentEvent.Type != acp.EventTypePermission || agentEvent.Usage == nil || agentEvent.Usage.InputTokens == nil {
 		t.Fatalf("agent event payload = %#v", agentEvent)
 	}
-	if got, want := agentEvent.ClientMessageID, "client-message-1"; got != want {
-		t.Fatalf("agent event client_message_id = %q, want %q", got, want)
+	if got, want := agentEvent.MessageID, "client-message-1"; got != want {
+		t.Fatalf("agent event message_id = %q, want %q", got, want)
 	}
 	if agentEvent.Failure == nil || agentEvent.Failure.Kind != store.FailurePermission {
 		t.Fatalf("agent event failure = %#v", agentEvent.Failure)
@@ -434,10 +434,14 @@ func TestPromptResponseFromSessionShouldEnforceClosedGoalOutcomeMatrix(t *testin
 			if status != tt.wantStatus {
 				t.Fatalf("status = %d, want %d", status, tt.wantStatus)
 			}
-			result, ok := body.(contract.GoalCommandResult)
+			response, ok := body.(contract.SendPromptResultResponse)
 			if !ok {
-				t.Fatalf("body type = %T, want contract.GoalCommandResult", body)
+				t.Fatalf("body type = %T, want contract.SendPromptResultResponse", body)
 			}
+			if response.Prompt.Goal == nil {
+				t.Fatal("body prompt goal = nil")
+			}
+			result := *response.Prompt.Goal
 			if result.Outcome != contract.GoalCommandOutcome(tt.result.Outcome) {
 				t.Fatalf("body outcome = %q, want %q", result.Outcome, tt.result.Outcome)
 			}

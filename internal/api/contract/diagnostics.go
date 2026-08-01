@@ -104,6 +104,9 @@ const (
 	CodePresetNotFound                = diagnosticcontract.CodePresetNotFound
 	CodeProbeFailed                   = diagnosticcontract.CodeProbeFailed
 	CodeProbeTimeout                  = diagnosticcontract.CodeProbeTimeout
+	CodePromptDispatchIndeterminate   = diagnosticcontract.CodePromptDispatchIndeterminate
+	CodePromptIdempotencyConflict     = diagnosticcontract.CodePromptIdempotencyConflict
+	CodePromptMessageIdentityConflict = diagnosticcontract.CodePromptMessageIdentityConflict
 	CodeProviderClassificationUnknown = diagnosticcontract.CodeProviderClassificationUnknown
 	CodeProviderCLIMissing            = diagnosticcontract.CodeProviderCLIMissing
 	CodeProviderCredentialUnresolved  = diagnosticcontract.CodeProviderCredentialUnresolved

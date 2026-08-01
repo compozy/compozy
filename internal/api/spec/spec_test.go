@@ -201,6 +201,40 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 			},
 		},
 		{
+			name: "ShouldDescribeDurablePromptIdentityContracts",
+			check: func(t *testing.T, doc *openapi3.T) {
+				t.Helper()
+
+				prompt := operationFor(
+					t,
+					doc,
+					"/api/workspaces/{workspace_id}/sessions/{session_id}/prompt",
+					http.MethodPost,
+				)
+				promptRequest := jsonRequestSchema(t, prompt)
+				assertRequired(t, promptRequest, "message_id", "idempotency_key")
+				assertPropertyAbsent(t, promptRequest, "messageId")
+				assertResponseStatus(t, prompt, http.StatusConflict)
+				for _, status := range []int{http.StatusOK, http.StatusAccepted} {
+					response := jsonResponseSchema(t, prompt, status)
+					assertRequired(t, response, "prompt")
+					payload := propertySchema(t, response, "prompt")
+					assertRequired(t, payload, "status", "message_id", "idempotency_key", "replayed")
+				}
+
+				steer := operationFor(
+					t,
+					doc,
+					"/api/workspaces/{workspace_id}/sessions/{session_id}/steer",
+					http.MethodPost,
+				)
+				steerRequest := jsonRequestSchema(t, steer)
+				assertRequired(t, steerRequest, "text", "message_id", "idempotency_key")
+				assertPropertyAbsent(t, steerRequest, "messageId")
+				assertResponseStatus(t, steer, http.StatusConflict)
+			},
+		},
+		{
 			name: "ShouldDescribeBoundedLoopCatalogContract",
 			check: func(t *testing.T, doc *openapi3.T) {
 				t.Helper()

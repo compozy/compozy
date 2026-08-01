@@ -8,6 +8,7 @@ import {
   useClearSessionConversation,
   useCreateSession,
   useDeleteSession,
+  useQueueSessionPrompt,
   useRepairSession,
 } from "../use-session-actions";
 import { sessionKeys } from "../../lib/query-keys";
@@ -21,6 +22,8 @@ vi.mock("../../adapters/session-api", () => ({
   repairSession: vi.fn(),
   stopSession: vi.fn(),
   resumeSession: vi.fn(),
+  sendSessionPrompt: vi.fn(),
+  steerSessionPrompt: vi.fn(),
 }));
 
 vi.mock("@/systems/workspace", () => ({
@@ -32,6 +35,7 @@ import {
   createSession,
   deleteSession,
   repairSession,
+  sendSessionPrompt,
 } from "../../adapters/session-api";
 
 const WORKSPACE_ID = "ws_alpha";
@@ -379,6 +383,43 @@ describe("session actions", () => {
     });
     expect(invalidateSpy).toHaveBeenCalledWith({
       queryKey: sessionKeys.workspaceLists(WORKSPACE_ID),
+    });
+  });
+
+  it("useQueueSessionPrompt builds the canonical durable request from an action identity", async () => {
+    vi.mocked(sendSessionPrompt).mockResolvedValue({
+      idempotency_key: "idempotency-001",
+      message_id: "message-001",
+      replayed: false,
+      status: "queued",
+    });
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const { result } = renderHook(() => useQueueSessionPrompt(), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    await act(async () => {
+      await result.current.mutateAsync({
+        id: createdSession.id,
+        idempotencyKey: "idempotency-001",
+        message: "Queue this durable input.",
+        messageId: "message-001",
+      });
+    });
+
+    expect(sendSessionPrompt).toHaveBeenCalledWith(WORKSPACE_ID, createdSession.id, {
+      idempotency_key: "idempotency-001",
+      message_id: "message-001",
+      messages: [
+        {
+          id: "message-001",
+          parts: [{ text: "Queue this durable input.", type: "text" }],
+          role: "user",
+        },
+      ],
+      mode: "queue",
     });
   });
 });

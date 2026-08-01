@@ -6,6 +6,11 @@ import (
 	bridgepkg "github.com/compozy/compozy/internal/bridges/contract"
 )
 
+const (
+	hostAPISessionsPromptParamsValue = "SessionsPromptParams"
+	hostAPISessionPromptResultValue  = "SessionPromptResult"
+)
+
 var hostAPIMethodSpecs = []HostAPIMethodSpec{
 	{
 		Method:         HostAPIMethodSessionsList,
@@ -20,8 +25,8 @@ var hostAPIMethodSpecs = []HostAPIMethodSpec{
 	},
 	{
 		Method: HostAPIMethodSessionsPrompt,
-		Params: NamedType{Name: "SessionsPromptParams", Value: SessionsPromptParams{}},
-		Result: NamedType{Name: "SessionPromptResult", Value: SessionPromptResult{}},
+		Params: NamedType{Name: hostAPISessionsPromptParamsValue, Value: SessionsPromptParams{}},
+		Result: NamedType{Name: hostAPISessionPromptResultValue, Value: SessionPromptResult{}},
 	},
 	{
 		Method: HostAPIMethodSessionsStop,

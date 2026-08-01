@@ -229,6 +229,18 @@ func WithPromptInputAugmenter(augmenter PromptInputAugmenter) Option {
 func WithSessionInputQueueStore(queueStore store.SessionInputQueueStore) Option {
 	return func(manager *Manager) {
 		manager.inputQueueStore = queueStore
+		if manager.promptAdmissionStore == nil {
+			if admissionStore, ok := queueStore.(store.SessionPromptAdmissionStore); ok {
+				manager.promptAdmissionStore = admissionStore
+			}
+		}
+	}
+}
+
+// WithSessionPromptAdmissionStore injects durable at-most-once prompt command storage.
+func WithSessionPromptAdmissionStore(admissionStore store.SessionPromptAdmissionStore) Option {
+	return func(manager *Manager) {
+		manager.promptAdmissionStore = admissionStore
 	}
 }
 

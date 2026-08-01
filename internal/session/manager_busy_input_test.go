@@ -114,6 +114,112 @@ func TestManagerBusyInputQueue(t *testing.T) {
 	})
 }
 
+func TestManagerPromptAdmissionReplay(t *testing.T) {
+	t.Run("Should replay one direct prompt without repeated effects", func(t *testing.T) {
+		t.Parallel()
+
+		queueStore := openManagerInputQueueStore(t)
+		inputPreSubmitCalls := 0
+		turnStartCalls := 0
+		dispatcher := &spyHookDispatcher{}
+		dispatcher.dispatchInputPreSubmitFn = func(
+			_ context.Context,
+			payload hookspkg.InputPreSubmitPayload,
+		) (hookspkg.InputPreSubmitPayload, error) {
+			inputPreSubmitCalls++
+			return payload, nil
+		}
+		dispatcher.dispatchTurnStartFn = func(
+			_ context.Context,
+			payload hookspkg.TurnStartPayload,
+		) (hookspkg.TurnStartPayload, error) {
+			turnStartCalls++
+			return payload, nil
+		}
+		h := newHarness(
+			t,
+			WithSessionInputQueueStore(queueStore),
+			WithHookSet(fullHookSet(dispatcher)),
+		)
+		registerManagerInputQueueWorkspace(t, queueStore, h)
+		sess := createSession(t, h)
+		registerManagerInputQueueSession(t, queueStore, h, sess)
+		t.Cleanup(func() {
+			if err := h.manager.Stop(testutil.Context(t), sess.ID); err != nil {
+				t.Errorf("Stop() error = %v", err)
+			}
+		})
+
+		first, err := h.manager.SendPrompt(testutil.Context(t), sess.ID, SendPromptOpts{
+			Message: "one durable prompt", MessageID: "message-direct-replay",
+			IdempotencyKey: "idem-direct-replay",
+		})
+		if err != nil {
+			t.Fatalf("SendPrompt(first) error = %v", err)
+		}
+		collectEvents(t, first.Events)
+
+		replayed, err := h.manager.SendPrompt(testutil.Context(t), sess.ID, SendPromptOpts{
+			Message: "one durable prompt", MessageID: "message-direct-replay",
+			IdempotencyKey: "idem-direct-replay",
+		})
+		if err != nil {
+			t.Fatalf("SendPrompt(replay) error = %v", err)
+		}
+		if !replayed.Replayed || replayed.Events != nil || replayed.Status != promptStatusAccepted ||
+			replayed.MessageID != first.MessageID || replayed.IdempotencyKey != first.IdempotencyKey ||
+			replayed.NewTurnID != first.NewTurnID {
+			t.Fatalf("SendPrompt(replay) = %#v, want stable non-streaming replay of %#v", replayed, first)
+		}
+		if got := len(managerPromptCalls(h)); got != 1 {
+			t.Fatalf("len(promptCalls) = %d, want 1", got)
+		}
+		if inputPreSubmitCalls != 1 || turnStartCalls != 1 {
+			t.Fatalf(
+				"hook calls = input_pre_submit:%d turn_start:%d, want 1 each",
+				inputPreSubmitCalls,
+				turnStartCalls,
+			)
+		}
+
+		matchingAuthoredEvents := 0
+		for _, storedEvent := range readStoredEvents(t, sess) {
+			if storedEvent.Type != acp.EventTypeUserMessage {
+				continue
+			}
+			decoded, decodeErr := transcript.UnmarshalAgentEvent(storedEvent.Content)
+			if decodeErr != nil {
+				t.Fatalf("UnmarshalAgentEvent() error = %v", decodeErr)
+			}
+			if decoded.MessageIDValue() != first.MessageID {
+				continue
+			}
+			matchingAuthoredEvents++
+			if strings.TrimSpace(storedEvent.ID) == "" || decoded.TurnID != first.NewTurnID {
+				t.Fatalf("stored authored event = %#v / %#v, want stable ids", storedEvent, decoded)
+			}
+		}
+		if matchingAuthoredEvents != 1 {
+			t.Fatalf("matching authored events = %d, want 1", matchingAuthoredEvents)
+		}
+
+		_, err = h.manager.SendPrompt(testutil.Context(t), sess.ID, SendPromptOpts{
+			Message: "changed payload", MessageID: "message-direct-replay",
+			IdempotencyKey: "idem-direct-replay",
+		})
+		if !errors.Is(err, store.ErrSessionPromptIdempotencyConflict) {
+			t.Fatalf("SendPrompt(changed payload) error = %v, want idempotency conflict", err)
+		}
+		_, err = h.manager.SendPrompt(testutil.Context(t), sess.ID, SendPromptOpts{
+			Message: "one durable prompt", MessageID: "message-direct-replay",
+			IdempotencyKey: "idem-direct-replay-other",
+		})
+		if !errors.Is(err, store.ErrSessionPromptMessageConflict) {
+			t.Fatalf("SendPrompt(reused message id) error = %v, want message identity conflict", err)
+		}
+	})
+}
+
 func TestManagerBusyInputRuntimeSnapshots(t *testing.T) {
 	t.Parallel()
 
@@ -350,7 +456,8 @@ func TestManagerGoalCommandDispatchShouldPreserveIngressAndDraftAdmission(t *tes
 		t.Parallel()
 
 		var handlerCalls int
-		h := newHarness(t, WithGoalCommandHandler(GoalCommandHandlerFunc(func(
+		queueStore := openManagerInputQueueStore(t)
+		h := newHarness(t, WithSessionInputQueueStore(queueStore), WithGoalCommandHandler(GoalCommandHandlerFunc(func(
 			context.Context,
 			string,
 			string,
@@ -360,7 +467,9 @@ func TestManagerGoalCommandDispatchShouldPreserveIngressAndDraftAdmission(t *tes
 			handlerCalls++
 			return GoalDispatchDecision{}, errors.New("unexpected Goal handler call")
 		})))
+		registerManagerInputQueueWorkspace(t, queueStore, h)
 		sess := createSession(t, h)
+		registerManagerInputQueueSession(t, queueStore, h, sess)
 		t.Cleanup(func() {
 			if err := h.manager.Stop(testutil.Context(t), sess.ID); err != nil {
 				t.Errorf("Stop() error = %v", err)
@@ -368,7 +477,7 @@ func TestManagerGoalCommandDispatchShouldPreserveIngressAndDraftAdmission(t *tes
 		})
 
 		result, err := h.manager.SendPrompt(testutil.Context(t), sess.ID, SendPromptOpts{
-			Message: "/goal status", ClientMessageID: "client-literal-goal",
+			Message: "/goal status", MessageID: "client-literal-goal", IdempotencyKey: "idem-literal-goal",
 		})
 		if err != nil {
 			t.Fatalf("SendPrompt(literal Goal) error = %v", err)
@@ -386,7 +495,7 @@ func TestManagerGoalCommandDispatchShouldPreserveIngressAndDraftAdmission(t *tes
 			t.Fatalf("persisted literal inputs = %d, want %d; events=%#v", got, want, persistedInputs)
 		}
 		if persistedInputs[0].Text != "/goal status" ||
-			persistedInputs[0].ClientMessageIDValue() != "client-literal-goal" {
+			persistedInputs[0].MessageIDValue() != "client-literal-goal" {
 			t.Fatalf("persisted literal input = %#v", persistedInputs[0])
 		}
 	})
@@ -394,7 +503,8 @@ func TestManagerGoalCommandDispatchShouldPreserveIngressAndDraftAdmission(t *tes
 	t.Run("Should return a structured command result without invoking ACP", func(t *testing.T) {
 		t.Parallel()
 
-		h := newHarness(t, WithGoalCommandHandler(GoalCommandHandlerFunc(func(
+		queueStore := openManagerInputQueueStore(t)
+		h := newHarness(t, WithSessionInputQueueStore(queueStore), WithGoalCommandHandler(GoalCommandHandlerFunc(func(
 			_ context.Context,
 			workspaceID string,
 			sessionID string,
@@ -417,7 +527,9 @@ func TestManagerGoalCommandDispatchShouldPreserveIngressAndDraftAdmission(t *tes
 				}},
 			}, nil
 		})))
+		registerManagerInputQueueWorkspace(t, queueStore, h)
 		sess := createSession(t, h)
+		registerManagerInputQueueSession(t, queueStore, h, sess)
 		t.Cleanup(func() {
 			if err := h.manager.Stop(testutil.Context(t), sess.ID); err != nil {
 				t.Errorf("Stop() error = %v", err)
@@ -426,8 +538,9 @@ func TestManagerGoalCommandDispatchShouldPreserveIngressAndDraftAdmission(t *tes
 
 		result, err := h.manager.SendPrompt(testutil.Context(t), sess.ID, SendPromptOpts{
 			Message: "/goal status", AllowGoalCommands: true,
-			ClientMessageID: "client-goal-status",
-			Caller:          PromptCaller{Kind: "human", ID: "operator", Source: "http"},
+			MessageID:      "client-goal-status",
+			IdempotencyKey: "idem-goal-status",
+			Caller:         PromptCaller{Kind: "human", ID: "operator", Source: "http"},
 		})
 		if err != nil {
 			t.Fatalf("SendPrompt(Goal status) error = %v", err)
@@ -443,7 +556,7 @@ func TestManagerGoalCommandDispatchShouldPreserveIngressAndDraftAdmission(t *tes
 			t.Fatalf("persisted Goal status inputs = %d, want %d; events=%#v", got, want, persistedInputs)
 		}
 		if persistedInputs[0].Text != "/goal status" ||
-			persistedInputs[0].ClientMessageIDValue() != "client-goal-status" {
+			persistedInputs[0].MessageIDValue() != "client-goal-status" {
 			t.Fatalf("persisted Goal status input = %#v", persistedInputs[0])
 		}
 	})
@@ -454,7 +567,8 @@ func TestManagerGoalCommandDispatchShouldPreserveIngressAndDraftAdmission(t *tes
 		var handlerCalls int
 		var expectedWorkspaceID string
 		var expectedSessionID string
-		h := newHarness(t, WithGoalCommandHandler(GoalCommandHandlerFunc(func(
+		queueStore := openManagerInputQueueStore(t)
+		h := newHarness(t, WithSessionInputQueueStore(queueStore), WithGoalCommandHandler(GoalCommandHandlerFunc(func(
 			_ context.Context,
 			workspaceID string,
 			sessionID string,
@@ -477,7 +591,9 @@ func TestManagerGoalCommandDispatchShouldPreserveIngressAndDraftAdmission(t *tes
 				Result: &GoalCommandResult{Outcome: GoalOutcomeCleared},
 			}, nil
 		})))
+		registerManagerInputQueueWorkspace(t, queueStore, h)
 		sess := createSession(t, h)
+		registerManagerInputQueueSession(t, queueStore, h, sess)
 		expectedWorkspaceID = h.workspaceID
 		expectedSessionID = sess.ID
 		if err := h.manager.Stop(testutil.Context(t), sess.ID); err != nil {
@@ -486,8 +602,9 @@ func TestManagerGoalCommandDispatchShouldPreserveIngressAndDraftAdmission(t *tes
 
 		result, err := h.manager.SendPrompt(testutil.Context(t), sess.ID, SendPromptOpts{
 			Message: "/goal clear", AllowGoalCommands: true,
-			ClientMessageID: "client-goal-clear",
-			Caller:          PromptCaller{Kind: "human", ID: "operator", Source: "http"},
+			MessageID:      "client-goal-clear",
+			IdempotencyKey: "idem-goal-clear",
+			Caller:         PromptCaller{Kind: "human", ID: "operator", Source: "http"},
 		})
 		if err != nil {
 			t.Fatalf("SendPrompt(Goal clear) error = %v", err)
@@ -506,7 +623,7 @@ func TestManagerGoalCommandDispatchShouldPreserveIngressAndDraftAdmission(t *tes
 			t.Fatalf("persisted stopped-session Goal inputs = %d, want %d; events=%#v", got, want, persistedInputs)
 		}
 		if persistedInputs[0].Text != "/goal clear" ||
-			persistedInputs[0].ClientMessageIDValue() != "client-goal-clear" {
+			persistedInputs[0].MessageIDValue() != "client-goal-clear" {
 			t.Fatalf("persisted stopped-session Goal input = %#v", persistedInputs[0])
 		}
 	})
@@ -530,8 +647,11 @@ func TestManagerGoalCommandDispatchShouldPreserveIngressAndDraftAdmission(t *tes
 				BusyReason: GoalReasonDraftRequiresIdle,
 			}, nil
 		})
-		h := newHarness(t, WithGoalCommandHandler(handler))
+		queueStore := openManagerInputQueueStore(t)
+		h := newHarness(t, WithSessionInputQueueStore(queueStore), WithGoalCommandHandler(handler))
+		registerManagerInputQueueWorkspace(t, queueStore, h)
 		sess := createSession(t, h)
+		registerManagerInputQueueSession(t, queueStore, h, sess)
 		t.Cleanup(func() {
 			if err := h.manager.Stop(testutil.Context(t), sess.ID); err != nil {
 				t.Errorf("Stop() error = %v", err)
@@ -541,7 +661,7 @@ func TestManagerGoalCommandDispatchShouldPreserveIngressAndDraftAdmission(t *tes
 
 		admitted, err := h.manager.SendPrompt(testutil.Context(t), sess.ID, SendPromptOpts{
 			Message: "/goal draft improve objective", AllowGoalCommands: true, Caller: caller,
-			ClientMessageID: "client-goal-draft",
+			MessageID: "client-goal-draft", IdempotencyKey: "idem-goal-draft",
 		})
 		if err != nil {
 			t.Fatalf("SendPrompt(idle draft) error = %v", err)
@@ -556,7 +676,7 @@ func TestManagerGoalCommandDispatchShouldPreserveIngressAndDraftAdmission(t *tes
 			t.Fatalf("persisted Goal draft inputs = %d, want %d; events=%#v", got, want, persistedInputs)
 		}
 		if persistedInputs[0].Text != "/goal draft improve objective" ||
-			persistedInputs[0].ClientMessageIDValue() != "client-goal-draft" {
+			persistedInputs[0].MessageIDValue() != "client-goal-draft" {
 			t.Fatalf("persisted Goal draft input = %#v", persistedInputs[0])
 		}
 
@@ -1290,7 +1410,9 @@ func TestManagerBusyInputInterrupt(t *testing.T) {
 			if interrupted.QueueGeneration != 1 || !interrupted.Interrupted {
 				t.Fatalf("InterruptPrompt() result = %#v", interrupted)
 			}
-			salvaged, err := h.manager.SteerPrompt(testutil.Context(t), sess.ID, "Preserve the retry budget")
+			salvaged, err := h.manager.SteerPrompt(testutil.Context(t), sess.ID, SteerPromptOpts{
+				Message: "Preserve the retry budget",
+			})
 			if err != nil {
 				t.Fatalf("SteerPrompt() error = %v", err)
 			}
@@ -1316,7 +1438,7 @@ func TestManagerBusyInputInterrupt(t *testing.T) {
 			_, err = h.manager.SteerPrompt(
 				testutil.Context(t),
 				sess.ID,
-				"duplicate correction",
+				SteerPromptOpts{Message: "duplicate correction"},
 			)
 			if !errors.Is(err, ErrPromptNotInProgress) {
 				t.Fatalf("SteerPrompt(duplicate) error = %v, want ErrPromptNotInProgress", err)
@@ -1384,7 +1506,7 @@ func TestManagerBusyInputInterrupt(t *testing.T) {
 		_, err = h.manager.SteerPrompt(
 			testutil.Context(t),
 			sess.ID,
-			"late correction",
+			SteerPromptOpts{Message: "late correction"},
 		)
 		if !errors.Is(err, ErrPromptNotInProgress) {
 			t.Fatalf("SteerPrompt(after replacement) error = %v, want ErrPromptNotInProgress", err)

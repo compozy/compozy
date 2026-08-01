@@ -31,7 +31,7 @@ type sessionManagerStub struct {
 	promptSynthetic   func(context.Context, string, session.SyntheticPromptOpts) (<-chan acp.AgentEvent, error)
 	sendPrompt        func(context.Context, string, session.SendPromptOpts) (session.SendPromptResult, error)
 	interruptPrompt   func(context.Context, string) (session.SendPromptResult, error)
-	steerPrompt       func(context.Context, string, string) (session.SendPromptResult, error)
+	steerPrompt       func(context.Context, string, session.SteerPromptOpts) (session.SendPromptResult, error)
 	cancelQueued      func(context.Context, string, string) (session.SendPromptResult, error)
 	cancelPrompt      func(context.Context, string) error
 	approvePermission func(context.Context, string, acp.ApproveRequest) error
@@ -231,10 +231,10 @@ func (s sessionManagerStub) InterruptPrompt(ctx context.Context, id string) (ses
 func (s sessionManagerStub) SteerPrompt(
 	ctx context.Context,
 	id string,
-	msg string,
+	opts session.SteerPromptOpts,
 ) (session.SendPromptResult, error) {
 	if s.steerPrompt != nil {
-		return s.steerPrompt(ctx, id, msg)
+		return s.steerPrompt(ctx, id, opts)
 	}
 	return session.SendPromptResult{}, session.ErrSessionNotFound
 }

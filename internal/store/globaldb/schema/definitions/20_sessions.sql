@@ -20,9 +20,43 @@ CREATE TABLE session_health (
 			updated_at TEXT NOT NULL
 		);
 
-CREATE TABLE session_input_queue (
+	CREATE TABLE session_prompt_admissions (
+		id TEXT NOT NULL PRIMARY KEY CHECK (length(trim(id)) > 0),
+		workspace_id TEXT NOT NULL,
+		session_id TEXT NOT NULL,
+		message_id TEXT NOT NULL CHECK (length(trim(message_id)) > 0),
+		idempotency_key TEXT NOT NULL CHECK (length(trim(idempotency_key)) > 0),
+		operation TEXT NOT NULL CHECK (operation IN ('prompt', 'steer')),
+		fingerprint_version TEXT NOT NULL CHECK (length(trim(fingerprint_version)) > 0),
+		request_fingerprint TEXT NOT NULL CHECK (length(trim(request_fingerprint)) > 0),
+		state TEXT NOT NULL CHECK (state IN ('reserved', 'dispatch_committed', 'completed', 'indeterminate')),
+		mode TEXT NOT NULL DEFAULT '',
+		authored_text TEXT NOT NULL DEFAULT '',
+		runtime_provider TEXT NOT NULL DEFAULT '',
+		runtime_model TEXT NOT NULL DEFAULT '',
+		runtime_reasoning_effort TEXT NOT NULL DEFAULT '',
+		runtime_speed TEXT NOT NULL DEFAULT '',
+		turn_id TEXT NOT NULL CHECK (length(trim(turn_id)) > 0),
+		event_id TEXT NOT NULL CHECK (length(trim(event_id)) > 0),
+		result_json TEXT CHECK (result_json IS NULL OR json_valid(result_json)),
+		indeterminate_reason TEXT NOT NULL DEFAULT '',
+		created_at TEXT NOT NULL,
+		dispatch_committed_at TEXT,
+		completed_at TEXT,
+		updated_at TEXT NOT NULL,
+		FOREIGN KEY (workspace_id, session_id) REFERENCES sessions(workspace_id, id) ON DELETE CASCADE,
+		UNIQUE (workspace_id, session_id, idempotency_key),
+		UNIQUE (workspace_id, session_id, message_id)
+	);
+
+	CREATE TABLE session_input_queue (
 			id TEXT PRIMARY KEY,
 			session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+			prompt_admission_id TEXT,
+			message_id TEXT NOT NULL DEFAULT '',
+			idempotency_key TEXT NOT NULL DEFAULT '',
+			turn_id TEXT NOT NULL DEFAULT '',
+			event_id TEXT NOT NULL DEFAULT '',
 			status TEXT NOT NULL CHECK (status IN ('queued', 'dispatching', 'sent', 'failed', 'canceled')),
 			mode TEXT NOT NULL CHECK (mode IN ('queue', 'steer')),
 			text TEXT NOT NULL,
@@ -142,8 +176,15 @@ CREATE INDEX idx_session_input_queue_generation
 CREATE INDEX idx_session_input_queue_goal_owner
 			ON session_input_queue(loop_run_id, task_run_id, owner_epoch, status, dispatchable, fence_kind);
 
-CREATE INDEX idx_session_input_queue_pending
+	CREATE INDEX idx_session_input_queue_pending
 			ON session_input_queue(session_id, status, enqueued_at, id);
+
+	CREATE UNIQUE INDEX uq_session_input_queue_prompt_admission
+			ON session_input_queue(prompt_admission_id)
+			WHERE prompt_admission_id IS NOT NULL;
+
+	CREATE INDEX idx_session_prompt_admissions_state
+			ON session_prompt_admissions(workspace_id, session_id, state, updated_at);
 
 CREATE INDEX idx_sessions_attach_lock
 			ON sessions(attached_to, attach_expires_at);
@@ -179,7 +220,7 @@ CREATE INDEX idx_token_usage_daily_workspace ON token_usage_daily(workspace_id, 
 
 CREATE UNIQUE INDEX uq_session_input_queue_active_steer
 			ON session_input_queue(session_id)
-			WHERE mode = 'steer' AND status IN ('queued', 'dispatching');
+			WHERE mode = 'steer' AND status = 'queued';
 
 CREATE UNIQUE INDEX uq_session_input_queue_goal_prompt
 			ON session_input_queue(loop_run_id, prompt_id)

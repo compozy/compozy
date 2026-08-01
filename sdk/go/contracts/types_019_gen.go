@@ -207,6 +207,9 @@ type SessionPreStopPayload struct {
 type SessionPromptResult struct {
 	Status                     string        `json:"status"`
 	Mode                       BusyInputMode `json:"mode,omitempty"`
+	MessageID                  string        `json:"message_id"`
+	IdempotencyKey             string        `json:"idempotency_key"`
+	Replayed                   bool          `json:"replayed"`
 	TurnID                     string        `json:"turn_id,omitempty"`
 	QueueEntryID               string        `json:"queue_entry_id,omitempty"`
 	QueuePosition              int           `json:"queue_position,omitempty"`

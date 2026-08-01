@@ -26,16 +26,16 @@ func inputUIMessage(decoded *decodedStoredEvent, role string) *UIMessage {
 
 func inputUIMessageMetadata(event acp.AgentEvent) json.RawMessage {
 	turnID := strings.TrimSpace(event.TurnID)
-	clientMessageID := event.ClientMessageIDValue()
+	messageID := event.MessageIDValue()
 	goal := acp.CloneGoalPromptMeta(event.Goal)
-	if turnID == "" && clientMessageID == "" && goal == nil {
+	if turnID == "" && messageID == "" && goal == nil {
 		return nil
 	}
 	encoded, err := json.Marshal(struct {
-		TurnID          string              `json:"turn_id,omitempty"`
-		ClientMessageID string              `json:"client_message_id,omitempty"`
-		Goal            *acp.GoalPromptMeta `json:"goal,omitempty"`
-	}{TurnID: turnID, ClientMessageID: clientMessageID, Goal: goal})
+		TurnID    string              `json:"turn_id,omitempty"`
+		MessageID string              `json:"message_id,omitempty"`
+		Goal      *acp.GoalPromptMeta `json:"goal,omitempty"`
+	}{TurnID: turnID, MessageID: messageID, Goal: goal})
 	if err != nil {
 		return nil
 	}

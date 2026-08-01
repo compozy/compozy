@@ -107,33 +107,35 @@ type sessionReservation struct {
 
 // Manager owns active session lifecycle and runtime orchestration.
 type Manager struct {
-	mu                  sync.RWMutex
-	lifecycleMu         sync.Mutex
-	sessions            map[string]*Session
-	pending             map[string]sessionReservation
-	finalizing          map[string]*sessionFinalization
-	promptDrains        map[chan struct{}]struct{}
-	spawnMu             sync.Mutex
-	managedInputMu      sync.Mutex
-	managedInputLeases  map[string]managedInputLease
-	goalCommandMu       sync.RWMutex
-	resumeReplayMu      sync.Mutex
-	resumeReplays       map[string]string
-	interruptSalvageMu  sync.Mutex
-	interruptSalvages   map[string]interruptedPromptSalvage
-	compactionMu        sync.Mutex
-	compactions         map[string]*sessionCompactionState
-	compactionWG        sync.WaitGroup
-	compactionClosing   bool
-	startMu             sync.Mutex
-	startRuns           map[string]*sessionStartRun
-	startWG             sync.WaitGroup
-	startClosing        bool
-	processWatchMu      sync.Mutex
-	processWatchWG      sync.WaitGroup
-	processWatchCtx     context.Context
-	processWatchCancel  context.CancelFunc
-	processWatchClosing bool
+	mu                   sync.RWMutex
+	lifecycleMu          sync.Mutex
+	sessions             map[string]*Session
+	pending              map[string]sessionReservation
+	finalizing           map[string]*sessionFinalization
+	promptDrains         map[chan struct{}]struct{}
+	spawnMu              sync.Mutex
+	managedInputMu       sync.Mutex
+	managedInputLeases   map[string]managedInputLease
+	goalCommandMu        sync.RWMutex
+	promptAdmissionMu    sync.Mutex
+	promptAdmissionLocks map[string]*promptAdmissionLock
+	resumeReplayMu       sync.Mutex
+	resumeReplays        map[string]string
+	interruptSalvageMu   sync.Mutex
+	interruptSalvages    map[string]interruptedPromptSalvage
+	compactionMu         sync.Mutex
+	compactions          map[string]*sessionCompactionState
+	compactionWG         sync.WaitGroup
+	compactionClosing    bool
+	startMu              sync.Mutex
+	startRuns            map[string]*sessionStartRun
+	startWG              sync.WaitGroup
+	startClosing         bool
+	processWatchMu       sync.Mutex
+	processWatchWG       sync.WaitGroup
+	processWatchCtx      context.Context
+	processWatchCancel   context.CancelFunc
+	processWatchClosing  bool
 
 	syntheticMu           sync.Mutex
 	syntheticQueues       map[string][]queuedSyntheticPrompt
@@ -156,6 +158,7 @@ type Manager struct {
 	inputAugmenter               PromptInputAugmenter
 	inputQueue                   *inputqueue.Service
 	inputQueueStore              store.SessionInputQueueStore
+	promptAdmissionStore         store.SessionPromptAdmissionStore
 	managedInputLifecycle        ManagedInputLifecycle
 	workAdmission                admission.Checker
 	goalCommandHandler           GoalCommandHandler

@@ -27,6 +27,45 @@ Use the persisted session stream when you need reconnect support or a live trans
 Use `frames=raw` on that stream when you need audit-grade event rows. Use the prompt stream when
 you are driving one interactive prompt call.
 
+## Prompt identity and safe retries
+
+Every prompt and steer request requires two caller-provided values:
+
+- `message_id` identifies the authored user message. It is the durable `UIMessage.id` for that
+  transcript entry, so clients must keep it when they reconnect or reconcile optimistic state.
+- `idempotency_key` identifies this submission. It lets Compozy decide whether a request is the
+  same command or a conflicting reuse of an existing command identity.
+
+For an AI SDK request, `message_id` must equal the latest user message's `id`; if top-level
+`message` is also supplied, it must equal that message's text. The API rejects missing or mismatched
+identity with `400`.
+
+Repeat an uncertain request with the exact same `message_id`, `idempotency_key`, operation, and
+payload. When its durable result is available, Compozy returns the same wrapped prompt result:
+
+```json
+{
+  "prompt": {
+    "status": "queued",
+    "message_id": "msg_1234",
+    "idempotency_key": "idem_1234",
+    "replayed": true,
+    "queued": true,
+    "queue_entry_id": "queue_1234"
+  }
+}
+```
+
+Replay responses use `202 Accepted`. They do not start a second prompt stream or repeat the
+accepted side effect. A client should reconcile the existing transcript message by its exact
+`message_id`, rather than append another user row.
+
+`409 Conflict` means the identity cannot safely be reused: the idempotency key is bound to a
+different request, the message ID is bound to a different idempotency key, or the earlier dispatch
+is indeterminate. For an indeterminate dispatch, do not blindly resend with either the old or new
+identities. Inspect the session and decide with the operator whether the original work happened;
+only then submit a deliberate new command with new identities if that is the chosen action.
+
 ## Outer persisted event envelope
 
 Every stored event row is returned as `SessionEventPayload`:
@@ -78,25 +117,25 @@ Those IDs can diverge after a resume that falls back to a fresh ACP session.
 
 The persisted event `type` values currently emitted by Compozy are:
 
-| Type                         | When it is recorded                                                                             | Key `content` fields                                                                     |
-| ---------------------------- | ----------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| `user_message`               | After Compozy has bound or reconfigured the selected runtime, before it submits a prompt to ACP | `schema`, `type`, `session_id`, `turn_id`, `timestamp`, `text`, `prompt_runtime`         |
-| `agent_message`              | Agent text chunk                                                                                | `text`, plus the shared canonical fields                                                 |
-| `thought`                    | Agent reasoning chunk                                                                           | `text`, plus the shared canonical fields                                                 |
-| `tool_call`                  | Tool call started or updated before completion                                                  | `title`, `tool_name`, `tool_kind`, `tool_call_id`, optional `tool_input`, optional `raw` |
-| `tool_result`                | Tool call completed or failed                                                                   | `tool_call_id`, `tool_name`, `tool_result`, `tool_error`, optional `raw`                 |
-| `plan`                       | ACP plan update                                                                                 | optional `raw`; Compozy stores the canonical envelope even when the payload is sparse    |
-| `permission`                 | ACP permission request or resolved decision                                                     | `request_id`, `action`, `resource`, `decision`, `title`, `tool_call_id`, `raw`           |
-| `usage`                      | Token or context usage update                                                                   | `usage` with token counts, context counts, cost fields, and `timestamp`                  |
-| `runtime_progress`           | Low-frequency long-running prompt progress update                                               | `text`, `runtime` activity payload                                                       |
-| `runtime_warning`            | Runtime supervision warning or inactivity timeout notice                                        | `text`, `runtime` activity payload, optional `raw`                                       |
-| `session.compaction_fired`   | Pressure compaction admitted for a complete prior-turn sequence span                            | `raw` with workspace/session/turn IDs, sequence bounds, usage, pressure, strategy        |
-| `transcript_marker.created`  | Durable runtime evidence added to the transcript                                                | marker kind, summary, occurrence time, and optional evidence                             |
-| `transcript_marker.redacted` | Durable marker whose diagnostic evidence was redacted                                           | marker kind, summary, occurrence time, and redaction metadata                            |
-| `system`                     | Available-command updates, mode updates, or other non-chat ACP system updates                   | `title`, optional `raw`                                                                  |
-| `done`                       | End of a prompt turn                                                                            | `stop_reason`, optional `usage`, optional `raw`                                          |
-| `error`                      | Prompt processing error                                                                         | `error`, optional `raw`                                                                  |
-| `session_stopped`            | Session finalization                                                                            | `stop_reason`, optional `failure`, optional `error`, optional `text`                     |
+| Type                         | When it is recorded                                                                             | Key `content` fields                                                                           |
+| ---------------------------- | ----------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `user_message`               | After Compozy has bound or reconfigured the selected runtime, before it submits a prompt to ACP | `schema`, `type`, `session_id`, `turn_id`, `timestamp`, `text`, `message_id`, `prompt_runtime` |
+| `agent_message`              | Agent text chunk                                                                                | `text`, plus the shared canonical fields                                                       |
+| `thought`                    | Agent reasoning chunk                                                                           | `text`, plus the shared canonical fields                                                       |
+| `tool_call`                  | Tool call started or updated before completion                                                  | `title`, `tool_name`, `tool_kind`, `tool_call_id`, optional `tool_input`, optional `raw`       |
+| `tool_result`                | Tool call completed or failed                                                                   | `tool_call_id`, `tool_name`, `tool_result`, `tool_error`, optional `raw`                       |
+| `plan`                       | ACP plan update                                                                                 | optional `raw`; Compozy stores the canonical envelope even when the payload is sparse          |
+| `permission`                 | ACP permission request or resolved decision                                                     | `request_id`, `action`, `resource`, `decision`, `title`, `tool_call_id`, `raw`                 |
+| `usage`                      | Token or context usage update                                                                   | `usage` with token counts, context counts, cost fields, and `timestamp`                        |
+| `runtime_progress`           | Low-frequency long-running prompt progress update                                               | `text`, `runtime` activity payload                                                             |
+| `runtime_warning`            | Runtime supervision warning or inactivity timeout notice                                        | `text`, `runtime` activity payload, optional `raw`                                             |
+| `session.compaction_fired`   | Pressure compaction admitted for a complete prior-turn sequence span                            | `raw` with workspace/session/turn IDs, sequence bounds, usage, pressure, strategy              |
+| `transcript_marker.created`  | Durable runtime evidence added to the transcript                                                | marker kind, summary, occurrence time, and optional evidence                                   |
+| `transcript_marker.redacted` | Durable marker whose diagnostic evidence was redacted                                           | marker kind, summary, occurrence time, and redaction metadata                                  |
+| `system`                     | Available-command updates, mode updates, or other non-chat ACP system updates                   | `title`, optional `raw`                                                                        |
+| `done`                       | End of a prompt turn                                                                            | `stop_reason`, optional `usage`, optional `raw`                                                |
+| `error`                      | Prompt processing error                                                                         | `error`, optional `raw`                                                                        |
+| `session_stopped`            | Session finalization                                                                            | `stop_reason`, optional `failure`, optional `error`, optional `text`                           |
 
 ### Runtime supervision events
 
@@ -145,6 +184,7 @@ The stored canonical envelope can include these fields when they apply:
 | `type`           | Inner event type                                                                                               |
 | `session_id`     | ACP session ID from the runtime event                                                                          |
 | `turn_id`        | Prompt turn ID                                                                                                 |
+| `message_id`     | Durable authored user-message identity; it becomes the transcript `UIMessage.id`                               |
 | `request_id`     | Permission request ID                                                                                          |
 | `timestamp`      | Event timestamp                                                                                                |
 | `text`           | User text, assistant text, or thought text                                                                     |
@@ -170,6 +210,11 @@ The stored canonical envelope can include these fields when they apply:
 It records the runtime that was accepted for that prompt, not the session's current binding at read
 time. Queue and interrupt inputs preserve their accepted snapshot until dispatch. If runtime binding,
 replacement, or rollback fails, Compozy does not persist the authored `user_message`.
+
+Compozy records the admitted local user input itself. It drops ACP-provider `user_message_chunk`
+echoes before they reach the persisted event stream or transcript, so a provider echo cannot create
+a second user message. A staged steer remains a local user event when it is consumed at its tool-result
+boundary; it is not suppressed as a provider echo.
 
 ## Usage cost and provenance
 

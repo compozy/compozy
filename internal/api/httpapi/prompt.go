@@ -4,17 +4,12 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/gin-gonic/gin"
-)
-
-const (
-	promptUserKey = "user"
 )
 
 type promptRequest = contract.SendPromptRequest
@@ -49,7 +44,8 @@ func (h *Handlers) promptSession(c *gin.Context) {
 	defer cancelDelivery()
 	result, err := h.Sessions.SendPrompt(executionCtx, sessionID, session.SendPromptOpts{
 		Message:           input.message,
-		ClientMessageID:   input.clientMessageID,
+		MessageID:         input.messageID,
+		IdempotencyKey:    input.idempotencyKey,
 		Mode:              session.BusyInputMode(req.Mode),
 		Runtime:           core.PromptRuntimeSelectionFromPayload(req.Runtime),
 		DeliveryContext:   deliveryCtx,
@@ -108,15 +104,21 @@ func (h *Handlers) steerSessionPrompt(c *gin.Context) {
 		core.RespondError(c, http.StatusBadRequest, invalidRequestPayloadError{cause: err}, true)
 		return
 	}
-	if strings.TrimSpace(req.Text) == "" {
-		core.RespondError(c, http.StatusBadRequest, errors.New("text is required"), true)
+	if err := req.Validate(); err != nil {
+		core.RespondError(c, http.StatusBadRequest, err, true)
 		return
 	}
 	sessionID, ok := h.RequireRouteSessionInWorkspace(c)
 	if !ok {
 		return
 	}
-	result, err := h.Sessions.SteerPrompt(context.WithoutCancel(c.Request.Context()), sessionID, req.Text)
+	result, err := h.Sessions.SteerPrompt(
+		context.WithoutCancel(c.Request.Context()),
+		sessionID,
+		session.SteerPromptOpts{
+			Message: req.Text, MessageID: req.MessageID, IdempotencyKey: req.IdempotencyKey,
+		},
+	)
 	if err != nil {
 		core.RespondError(c, core.StatusForSessionError(err), err, true)
 		return
@@ -148,50 +150,19 @@ func extractPromptMessage(req contract.SendPromptRequest) (string, error) {
 }
 
 type extractedPromptInput struct {
-	message         string
-	clientMessageID string
+	message        string
+	messageID      string
+	idempotencyKey string
 }
 
 func extractPromptInput(req contract.SendPromptRequest) (extractedPromptInput, error) {
-	if message := strings.TrimSpace(req.Message); message != "" {
-		return extractedPromptInput{
-			message:         message,
-			clientMessageID: strings.TrimSpace(req.MessageID),
-		}, nil
+	input, err := contract.ExtractPromptInput(req)
+	if err != nil {
+		return extractedPromptInput{}, err
 	}
-
-	for _, msg := range slices.Backward(req.Messages) {
-		if strings.TrimSpace(msg.Role) != promptUserKey {
-			continue
-		}
-		clientMessageID := strings.TrimSpace(msg.ID)
-		if clientMessageID == "" {
-			clientMessageID = strings.TrimSpace(req.MessageID)
-		}
-
-		if content := strings.TrimSpace(msg.Content); content != "" {
-			return extractedPromptInput{message: content, clientMessageID: clientMessageID}, nil
-		}
-
-		parts := make([]string, 0, len(msg.Parts))
-		for _, part := range msg.Parts {
-			partType := strings.TrimSpace(part.Type)
-			if partType != "" && !strings.EqualFold(partType, "text") {
-				continue
-			}
-			if text := strings.TrimSpace(part.Text); text != "" {
-				parts = append(parts, text)
-			}
-		}
-		if len(parts) > 0 {
-			return extractedPromptInput{
-				message:         strings.Join(parts, "\n"),
-				clientMessageID: clientMessageID,
-			}, nil
-		}
-	}
-
-	return extractedPromptInput{}, errors.New("message is required")
+	return extractedPromptInput{
+		message: input.Message, messageID: input.MessageID, idempotencyKey: input.IdempotencyKey,
+	}, nil
 }
 
 type invalidRequestPayloadError struct {

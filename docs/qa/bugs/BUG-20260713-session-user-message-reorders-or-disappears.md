@@ -1,6 +1,6 @@
 # BUG-20260713-session-user-message-reorders-or-disappears: Authored session messages reorder or disappear
 
-- **Status:** verified
+- **Status:** regressed
 - **Impact (user-side):** Trust-Damage
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Théo
@@ -12,6 +12,10 @@
 ## Summary
 
 All authored user messages could lose their original position while the live transcript reconciled. Ordinary messages rendered twice, with one optimistic copy moving below the assistant response. Reload repaired those duplicates, but a structured `/goal` command disappeared entirely because it had never been recorded as a durable user event.
+
+## Regression — 2026-07-31
+
+The opening prompt rendered twice when the first agent stream update arrived. The optimistic Assistant UI row and the durable transcript row still had different identities, so the thread treated one authored message as two entities. The remediation now carries the optimistic `message_id` through every ingress and stores it as the canonical transcript `UIMessage.id`; provider `user_message_chunk` echoes are rejected at ACP ingress, and retries are fenced by a separate durable `idempotency_key`. Verification remains open until isolated live settlement and cold reload pass.
 
 ## Reproduction
 

@@ -1,6 +1,10 @@
 package cli
 
-import "context"
+import (
+	"context"
+
+	"github.com/compozy/compozy/internal/api/contract"
+)
 
 // sessionClientAPI groups the daemon's session-scoped CLI transport surface.
 type sessionClientAPI interface {
@@ -27,7 +31,7 @@ type sessionClientAPI interface {
 	) (ClarificationAnswerRecord, error)
 	PromptSession(context.Context, string, string) ([]AgentEventRecord, error)
 	SendSessionPrompt(context.Context, string, SessionPromptRequest) (SessionPromptRecord, error)
-	SteerSessionPrompt(context.Context, string, string) (SessionPromptRecord, error)
+	SteerSessionPrompt(context.Context, string, contract.SteerPromptRequest) (SessionPromptRecord, error)
 	CancelQueuedSessionPrompt(context.Context, string, string) (SessionPromptRecord, error)
 	StreamPromptSession(context.Context, string, SessionPromptRequest, SSEHandler) error
 	SessionEvents(context.Context, string, SessionEventQuery) ([]SessionEventRecord, error)

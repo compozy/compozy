@@ -69,7 +69,7 @@ type AgentEventPayload struct {
 	Type              string                       `json:"type"`
 	SessionID         string                       `json:"session_id,omitempty"`
 	TurnID            string                       `json:"turn_id,omitempty"`
-	ClientMessageID   string                       `json:"client_message_id,omitempty"`
+	MessageID         string                       `json:"message_id,omitempty"`
 	RequestID         string                       `json:"request_id,omitempty"`
 	Timestamp         time.Time                    `json:"timestamp"`
 	Text              string                       `json:"text,omitempty"`

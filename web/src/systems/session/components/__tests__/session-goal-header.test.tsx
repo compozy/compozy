@@ -112,6 +112,26 @@ function requestBody(
   return Promise.resolve({});
 }
 
+function latestPromptText(body: Record<string, unknown>): string {
+  if (!Array.isArray(body.messages)) return "";
+  const message = body.messages.at(-1);
+  if (typeof message !== "object" || message === null || !("parts" in message)) return "";
+  if (!Array.isArray(message.parts)) return "";
+  const parts = message.parts as unknown[];
+  return parts
+    .filter(
+      (part: unknown): part is { text: string; type: "text" } =>
+        typeof part === "object" &&
+        part !== null &&
+        "type" in part &&
+        part.type === "text" &&
+        "text" in part &&
+        typeof part.text === "string"
+    )
+    .map(part => part.text)
+    .join("\n");
+}
+
 // Mirrors the production split: the strip (container) owns stream
 // reconciliation; the window-head action reads the shared query cache.
 function HeadActionHarness() {
@@ -167,25 +187,41 @@ describe("SessionGoalHeader", () => {
         }
         if (pathname.endsWith(`/sessions/${SESSION_ID}/prompt`)) {
           const body = await requestBody(input, init);
-          const message = typeof body.message === "string" ? body.message : "";
+          const message = latestPromptText(body);
           commands.push(message);
           if (message === "/goal pause") {
             visibleGoal = snapshot({ status: "paused", run_status: "paused" });
             return Response.json({
-              outcome: "paused",
-              reason_code: null,
-              replaced_run_id: null,
-              snapshot: visibleGoal,
-            } satisfies SessionGoalCommandResult);
+              prompt: {
+                goal: {
+                  outcome: "paused",
+                  reason_code: null,
+                  replaced_run_id: null,
+                  snapshot: visibleGoal,
+                } satisfies SessionGoalCommandResult,
+                idempotency_key: body.idempotency_key,
+                message_id: body.message_id,
+                replayed: false,
+                status: "accepted",
+              },
+            });
           }
           if (message === "/goal clear") {
             visibleGoal = null;
             return Response.json({
-              outcome: "cleared",
-              reason_code: null,
-              replaced_run_id: null,
-              snapshot: null,
-            } satisfies SessionGoalCommandResult);
+              prompt: {
+                goal: {
+                  outcome: "cleared",
+                  reason_code: null,
+                  replaced_run_id: null,
+                  snapshot: null,
+                } satisfies SessionGoalCommandResult,
+                idempotency_key: body.idempotency_key,
+                message_id: body.message_id,
+                replayed: false,
+                status: "accepted",
+              },
+            });
           }
         }
         throw new Error(`Unhandled Goal header request: ${pathname}`);

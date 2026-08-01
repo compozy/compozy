@@ -17,35 +17,36 @@ import (
 
 // SessionManagerDeps captures the composition-root dependencies needed to create a session manager.
 type SessionManagerDeps struct {
-	HomePaths             compozyconfig.HomePaths
-	Logger                *slog.Logger
-	Notifier              session.Notifier
-	Hooks                 session.HookSet
-	PromptAssembler       session.PromptAssembler
-	StartupPromptOverlay  session.StartupPromptOverlay
-	PromptInputAugmenter  session.PromptInputAugmenter
-	WorkAdmission         admission.Checker
-	MemoryStore           *memory.Store
-	LedgerMaterializer    session.LedgerMaterializer
-	AgentResolver         session.AgentResolver
-	SkillRegistry         session.SkillRegistry
-	MCPResolver           session.MCPResolver
-	ModelCatalog          modelcatalog.Service
-	WorkspaceResolver     workspacepkg.RuntimeResolver
-	ParticipationResolver participation.Resolver
-	SandboxRegistry       *sandbox.Registry
-	SessionSupervision    compozyconfig.SessionSupervisionConfig
-	SessionBusyInput      compozyconfig.SessionBusyInputConfig
-	SessionCompaction     compozyconfig.SessionCompactionConfig
-	SessionInputQueue     store.SessionInputQueueStore
-	SessionHealthConfig   compozyconfig.HeartbeatConfig
-	SessionCatalog        store.SessionCatalog
-	ProcessRegistry       *toolruntime.Registry
-	HostedMCP             session.HostedMCPLauncher
-	ProviderSecrets       session.ProviderSecretResolver
-	SoulStore             session.SoulSnapshotStore
-	SoulRunChecker        session.SoulRunActivityChecker
-	SessionHealthStore    session.HealthStore
+	HomePaths              compozyconfig.HomePaths
+	Logger                 *slog.Logger
+	Notifier               session.Notifier
+	Hooks                  session.HookSet
+	PromptAssembler        session.PromptAssembler
+	StartupPromptOverlay   session.StartupPromptOverlay
+	PromptInputAugmenter   session.PromptInputAugmenter
+	WorkAdmission          admission.Checker
+	MemoryStore            *memory.Store
+	LedgerMaterializer     session.LedgerMaterializer
+	AgentResolver          session.AgentResolver
+	SkillRegistry          session.SkillRegistry
+	MCPResolver            session.MCPResolver
+	ModelCatalog           modelcatalog.Service
+	WorkspaceResolver      workspacepkg.RuntimeResolver
+	ParticipationResolver  participation.Resolver
+	SandboxRegistry        *sandbox.Registry
+	SessionSupervision     compozyconfig.SessionSupervisionConfig
+	SessionBusyInput       compozyconfig.SessionBusyInputConfig
+	SessionCompaction      compozyconfig.SessionCompactionConfig
+	SessionInputQueue      store.SessionInputQueueStore
+	SessionPromptAdmission store.SessionPromptAdmissionStore
+	SessionHealthConfig    compozyconfig.HeartbeatConfig
+	SessionCatalog         store.SessionCatalog
+	ProcessRegistry        *toolruntime.Registry
+	HostedMCP              session.HostedMCPLauncher
+	ProviderSecrets        session.ProviderSecretResolver
+	SoulStore              session.SoulSnapshotStore
+	SoulRunChecker         session.SoulRunActivityChecker
+	SessionHealthStore     session.HealthStore
 }
 
 func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
@@ -75,23 +76,24 @@ func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
 			soul:      state.soulCatalog,
 			heartbeat: state.heartbeatCatalog,
 		}),
-		SkillRegistry:         skillRegistryDependency(state.skillsRegistry),
-		MCPResolver:           mcpResolverDependency(state.mcpResolver),
-		ModelCatalog:          state.modelCatalog,
-		WorkspaceResolver:     state.workspaceResolver,
-		ParticipationResolver: state.participationResolver,
-		SandboxRegistry:       state.sandboxRegistry,
-		SessionSupervision:    state.cfg.Session.Supervision,
-		SessionBusyInput:      state.cfg.Session.BusyInput,
-		SessionCompaction:     state.cfg.Session.Compaction,
-		SessionInputQueue:     sessionInputQueueStoreDependency(state.registry),
-		SessionHealthConfig:   state.cfg.Agents.Heartbeat,
-		SessionCatalog:        state.registry,
-		ProcessRegistry:       state.processRegistry,
-		HostedMCP:             hostedMCPLauncher(state.hostedMCP),
-		ProviderSecrets:       sessionProviderVaultDependency(state.providerVault),
-		SoulStore:             soulSnapshotStoreDependency(state.registry),
-		SoulRunChecker:        soulRunActivityCheckerDependency(state.registry),
-		SessionHealthStore:    sessionHealthStoreDependency(state.registry),
+		SkillRegistry:          skillRegistryDependency(state.skillsRegistry),
+		MCPResolver:            mcpResolverDependency(state.mcpResolver),
+		ModelCatalog:           state.modelCatalog,
+		WorkspaceResolver:      state.workspaceResolver,
+		ParticipationResolver:  state.participationResolver,
+		SandboxRegistry:        state.sandboxRegistry,
+		SessionSupervision:     state.cfg.Session.Supervision,
+		SessionBusyInput:       state.cfg.Session.BusyInput,
+		SessionCompaction:      state.cfg.Session.Compaction,
+		SessionInputQueue:      sessionInputQueueStoreDependency(state.registry),
+		SessionPromptAdmission: sessionPromptAdmissionStoreDependency(state.registry),
+		SessionHealthConfig:    state.cfg.Agents.Heartbeat,
+		SessionCatalog:         state.registry,
+		ProcessRegistry:        state.processRegistry,
+		HostedMCP:              hostedMCPLauncher(state.hostedMCP),
+		ProviderSecrets:        sessionProviderVaultDependency(state.providerVault),
+		SoulStore:              soulSnapshotStoreDependency(state.registry),
+		SoulRunChecker:         soulRunActivityCheckerDependency(state.registry),
+		SessionHealthStore:     sessionHealthStoreDependency(state.registry),
 	}
 }

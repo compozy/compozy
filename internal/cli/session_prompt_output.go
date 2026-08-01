@@ -8,7 +8,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const goalLiveKey = "live"
+const (
+	goalLiveKey            = "live"
+	sessionPromptQueuedKey = "queued"
+)
 
 func sessionPromptBundle(record SessionPromptRecord) outputBundle {
 	if record.Goal != nil {
@@ -132,7 +135,7 @@ func sessionPromptFields() []string {
 	return []string{
 		sessionStatusKey,
 		bridgeModeKey,
-		"queued",
+		sessionPromptQueuedKey,
 		"staged",
 		"interrupted",
 		"queue_entry_id",

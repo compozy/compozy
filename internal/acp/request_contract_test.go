@@ -21,12 +21,16 @@ func TestACPBehaviorContracts(t *testing.T) {
 
 		input := json.RawMessage(`{"path":"README.md"}`)
 		event := AgentEvent{}.
-			WithClientMessageID(" client-message-1 ").
+			WithEventID(" event-1 ").
+			WithMessageID(" client-message-1 ").
 			WithToolDetail("read_file", input, true, "permission denied")
 		input[2] = 'X'
 
-		if got, want := event.ClientMessageIDValue(), "client-message-1"; got != want {
-			t.Fatalf("ClientMessageIDValue() = %q, want %q", got, want)
+		if got, want := event.MessageIDValue(), "client-message-1"; got != want {
+			t.Fatalf("MessageIDValue() = %q, want %q", got, want)
+		}
+		if got, want := event.EventIDValue(), "event-1"; got != want {
+			t.Fatalf("EventIDValue() = %q, want %q", got, want)
 		}
 		if !event.HasToolPayload() || event.ToolName() != "read_file" || !event.ToolError() ||
 			event.ToolErrorDetail() != "permission denied" {
@@ -42,11 +46,12 @@ func TestACPBehaviorContracts(t *testing.T) {
 		}
 
 		clientOnly := event.WithToolDetail("", nil, false, "")
-		if clientOnly.HasToolPayload() || clientOnly.ClientMessageIDValue() != "client-message-1" {
+		if clientOnly.HasToolPayload() || clientOnly.MessageIDValue() != "client-message-1" ||
+			clientOnly.EventIDValue() != "event-1" {
 			t.Fatalf("cleared tool payload lost authored identity: %#v", clientOnly)
 		}
-		toolOnly := event.WithClientMessageID("")
-		if toolOnly.ClientMessageIDValue() != "" || !toolOnly.HasToolPayload() {
+		toolOnly := event.WithMessageID("").WithEventID("")
+		if toolOnly.MessageIDValue() != "" || toolOnly.EventIDValue() != "" || !toolOnly.HasToolPayload() {
 			t.Fatalf("cleared authored identity lost tool payload: %#v", toolOnly)
 		}
 	})

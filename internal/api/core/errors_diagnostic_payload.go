@@ -7,6 +7,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	diagnosticspkg "github.com/compozy/compozy/internal/diagnostics"
+	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
@@ -48,6 +49,14 @@ type diagnosticCodeCarrier interface {
 }
 
 func diagnosticCodeFromError(err error) string {
+	switch {
+	case errors.Is(err, store.ErrSessionPromptDispatchIndeterminate):
+		return contract.CodePromptDispatchIndeterminate
+	case errors.Is(err, store.ErrSessionPromptIdempotencyConflict):
+		return contract.CodePromptIdempotencyConflict
+	case errors.Is(err, store.ErrSessionPromptMessageConflict):
+		return contract.CodePromptMessageIdentityConflict
+	}
 	var carrier diagnosticCodeCarrier
 	if !errors.As(err, &carrier) {
 		return ""

@@ -2,6 +2,7 @@ package acp
 
 import (
 	"context"
+	"errors"
 
 	"fmt"
 	"strconv"
@@ -37,20 +38,25 @@ func (p *AgentProcess) injectSteerAfterToolResult(ctx context.Context, boundary 
 		return
 	}
 
-	turnID := firstNonEmptyString(p.activeTurnID(), boundary.TurnID)
-	p.emitPromptEvent(AgentEvent{
+	turnID := firstNonEmptyString(input.TurnID, p.activeTurnID(), boundary.TurnID)
+	p.emitPromptEvent(steeredUserEvent(sessionID, turnID, input))
+
+	go p.dispatchSteerPrompt(steerDispatchContext(p), input, turnID)
+}
+
+func steeredUserEvent(sessionID string, turnID string, input SteerInput) AgentEvent {
+	localEvent := AgentEvent{
 		Type:      EventTypeUserMessage,
-		SessionID: sessionID,
-		TurnID:    turnID,
+		SessionID: strings.TrimSpace(sessionID),
+		TurnID:    strings.TrimSpace(turnID),
 		RequestID: strings.TrimSpace(input.QueueEntryID),
 		Timestamp: timeNowUTC(),
 		Text:      strings.TrimSpace(input.Text),
 		Action:    PromptActionSteered,
 		Resource:  "session_input_queue",
 		Decision:  strconv.FormatInt(input.QueueGeneration, 10),
-	})
-
-	go p.dispatchSteerPrompt(steerDispatchContext(p), input, turnID)
+	}
+	return localEvent.WithMessageID(input.MessageID).WithEventID(input.EventID)
 }
 
 func steerConsumeContext(ctx context.Context, process *AgentProcess) (context.Context, context.CancelFunc) {
@@ -89,12 +95,13 @@ func (p *AgentProcess) dispatchSteerPrompt(ctx context.Context, input SteerInput
 	if meta, err := steerPromptMeta(input); err == nil {
 		request.Meta = meta
 	} else {
+		finalizeErr := p.failSteerDispatch(ctx, input, err)
 		p.emitPromptEvent(AgentEvent{
 			Type:      EventTypeError,
 			SessionID: p.SessionID,
 			TurnID:    turnID,
 			Timestamp: timeNowUTC(),
-			Error:     fmt.Sprintf("build staged steer metadata: %v", err),
+			Error:     fmt.Sprintf("build staged steer metadata: %v", errors.Join(err, finalizeErr)),
 		})
 		return
 	}
@@ -104,17 +111,69 @@ func (p *AgentProcess) dispatchSteerPrompt(ctx context.Context, input SteerInput
 		acpsdk.AgentMethodSessionPrompt,
 		request,
 	); err != nil {
+		finalizeErr := p.failSteerDispatch(ctx, input, err)
 		failure, _ := FailureFromError(err, store.FailurePrompt)
 		p.emitPromptEvent(AgentEvent{
 			Type:      EventTypeError,
 			SessionID: p.SessionID,
 			TurnID:    turnID,
 			Timestamp: timeNowUTC(),
-			Error:     fmt.Sprintf("dispatch staged steer input: %v", err),
+			Error:     fmt.Sprintf("dispatch staged steer input: %v", errors.Join(err, finalizeErr)),
 			Failure:   failure,
 			Raw:       requestErrorRaw(err),
 		})
+		return
 	}
+	if err := p.completeSteerDispatch(ctx, input); err != nil {
+		p.emitPromptEvent(AgentEvent{
+			Type:      EventTypeError,
+			SessionID: p.SessionID,
+			TurnID:    turnID,
+			Timestamp: timeNowUTC(),
+			Error:     fmt.Sprintf("complete staged steer dispatch: %v", err),
+		})
+	}
+}
+
+func (p *AgentProcess) completeSteerDispatch(ctx context.Context, input SteerInput) error {
+	if p == nil || p.steerSource == nil {
+		return nil
+	}
+	finalizeCtx, cancel := steerFinalizeContext(ctx, p)
+	defer cancel()
+	return p.steerSource.CompleteSteer(
+		finalizeCtx,
+		strings.TrimSpace(p.SessionID),
+		strings.TrimSpace(input.QueueEntryID),
+	)
+}
+
+func (p *AgentProcess) failSteerDispatch(ctx context.Context, input SteerInput, cause error) error {
+	if p == nil || p.steerSource == nil {
+		return nil
+	}
+	finalizeCtx, cancel := steerFinalizeContext(ctx, p)
+	defer cancel()
+	summary := "staged steer dispatch failed"
+	if cause != nil {
+		summary = cause.Error()
+	}
+	return p.steerSource.FailSteer(
+		finalizeCtx,
+		strings.TrimSpace(p.SessionID),
+		strings.TrimSpace(input.QueueEntryID),
+		summary,
+	)
+}
+
+func steerFinalizeContext(ctx context.Context, process *AgentProcess) (context.Context, context.CancelFunc) {
+	base := context.Background()
+	if process != nil && process.processCtx != nil {
+		base = context.WithoutCancel(process.processCtx)
+	} else if ctx != nil {
+		base = context.WithoutCancel(ctx)
+	}
+	return context.WithTimeout(base, steerDispatchTimeout)
 }
 
 func steerTimeoutContext(ctx context.Context) (context.Context, context.CancelFunc) {

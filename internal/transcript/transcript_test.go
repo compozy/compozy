@@ -1066,13 +1066,13 @@ func TestToUIMessagesPreservesUserClientIdentity(t *testing.T) {
 		t.Parallel()
 
 		timestamp := time.Date(2026, 7, 13, 23, 55, 0, 0, time.UTC)
-		clientMessageID := "client-user-identity"
+		messageID := "client-user-identity"
 		event := acp.AgentEvent{
 			Type:      acp.EventTypeUserMessage,
 			TurnID:    "turn-user-identity",
 			Timestamp: timestamp,
 			Text:      "Transformed provider input.",
-		}.WithClientMessageID(clientMessageID)
+		}.WithMessageID(messageID)
 		authoredText := "Keep this message after reload."
 		payload, err := MarshalPromptInputEvent(event, authoredText)
 		if err != nil {
@@ -1082,8 +1082,8 @@ func TestToUIMessagesPreservesUserClientIdentity(t *testing.T) {
 		if err != nil {
 			t.Fatalf("UnmarshalAgentEvent() error = %v", err)
 		}
-		if got, want := decoded.ClientMessageIDValue(), clientMessageID; got != want {
-			t.Fatalf("ClientMessageID = %q, want %q", got, want)
+		if got, want := decoded.MessageIDValue(), messageID; got != want {
+			t.Fatalf("MessageID = %q, want %q", got, want)
 		}
 		if got, want := decoded.Text, event.Text; got != want {
 			t.Fatalf("effective Text = %q, want %q", got, want)
@@ -1105,13 +1105,13 @@ func TestToUIMessagesPreservesUserClientIdentity(t *testing.T) {
 			t.Fatalf("len(messages) = %d, want %d", got, want)
 		}
 		var metadata struct {
-			TurnID          string `json:"turn_id"`
-			ClientMessageID string `json:"client_message_id"`
+			TurnID    string `json:"turn_id"`
+			MessageID string `json:"message_id"`
 		}
 		if err := json.Unmarshal(messages[0].Metadata, &metadata); err != nil {
 			t.Fatalf("json.Unmarshal(metadata) error = %v", err)
 		}
-		if metadata.TurnID != event.TurnID || metadata.ClientMessageID != clientMessageID {
+		if metadata.TurnID != event.TurnID || metadata.MessageID != messageID {
 			t.Fatalf("metadata = %#v, want turn/client identity", metadata)
 		}
 		if got, want := messages[0].Parts[0].Text, authoredText; got != want {

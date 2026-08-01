@@ -4465,6 +4465,9 @@ export type BusyInputMode = string;
 export interface SessionPromptResult {
   status: string;
   mode?: BusyInputMode;
+  message_id: string;
+  idempotency_key: string;
+  replayed: boolean;
   turn_id?: string;
   queue_entry_id?: string;
   queue_position?: number;
@@ -4627,6 +4630,8 @@ export interface SessionsPromptParams {
   workspace_id: string;
   session_id: string;
   message: string;
+  message_id: string;
+  idempotency_key: string;
   runtime?: PromptRuntimeSelectionPayload;
 }
 

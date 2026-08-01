@@ -512,6 +512,8 @@ describe("HostAPI", () => {
       expect(params).toEqual({
         workspace_id: "ws-1",
         session_id: "sess-1",
+        message_id: "message-1",
+        idempotency_key: "idempotency-1",
         message: "hello",
         runtime: {
           provider: "codex",
@@ -520,7 +522,13 @@ describe("HostAPI", () => {
           speed: "fast",
         },
       });
-      return { status: "accepted", turn_id: "turn-1" };
+      return {
+        status: "accepted",
+        turn_id: "turn-1",
+        message_id: "message-1",
+        idempotency_key: "idempotency-1",
+        replayed: false,
+      };
     });
     pair.host.handle("sessions/stop", async params => {
       expect(params).toEqual({ workspace_id: "ws-1", session_id: "sess-1" });
@@ -629,6 +637,8 @@ describe("HostAPI", () => {
       host.sessions.prompt({
         workspace_id: "ws-1",
         session_id: "sess-1",
+        message_id: "message-1",
+        idempotency_key: "idempotency-1",
         message: "hello",
         runtime: {
           provider: "codex",
@@ -640,6 +650,9 @@ describe("HostAPI", () => {
     ).resolves.toEqual({
       status: "accepted",
       turn_id: "turn-1",
+      message_id: "message-1",
+      idempotency_key: "idempotency-1",
+      replayed: false,
     });
     await expect(
       host.sessions.stop({ workspace_id: "ws-1", session_id: "sess-1" })

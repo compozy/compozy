@@ -7,51 +7,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/transcript"
 )
 
-// BusyInputMode selects how a user-facing prompt behaves while a session is busy.
-type BusyInputMode string
-
 const (
-	BusyInputModeQueue               BusyInputMode = "queue"
-	BusyInputModeInterrupt           BusyInputMode = "interrupt"
-	BusyInputModeSteer               BusyInputMode = "steer"
-	promptStatusAccepted                           = "accepted"
-	promptEvidenceQueueGenerationKey               = "queue_generation"
+	promptStatusAccepted             = "accepted"
+	promptEvidenceQueueGenerationKey = "queue_generation"
 )
-
-// SendPromptOpts carries one user-facing prompt plus optional busy-input mode.
-type SendPromptOpts struct {
-	Message           string
-	ClientMessageID   string
-	Mode              BusyInputMode
-	Runtime           *RuntimeSelection
-	DeliveryContext   context.Context
-	Caller            PromptCaller
-	AllowGoalCommands bool
-}
-
-// SendPromptResult reports whether input streamed immediately or was staged.
-type SendPromptResult struct {
-	Status                     string
-	Mode                       BusyInputMode
-	Events                     <-chan acp.AgentEvent
-	QueueEntryID               string
-	QueuePosition              int
-	QueueGeneration            int64
-	EstimatedSendAt            *time.Time
-	PreviousTurnID             string
-	NewTurnID                  string
-	Interrupted                bool
-	Staged                     bool
-	Queued                     bool
-	CanceledQueuedEntries      int
-	FallbackModeIfNoToolResult string
-	Goal                       *GoalCommandResult
-}
 
 // SendPrompt submits a user-facing prompt and applies busy-input policy when a turn is active.
 func (m *Manager) SendPrompt(ctx context.Context, id string, opts SendPromptOpts) (SendPromptResult, error) {
@@ -68,6 +31,16 @@ func (m *Manager) SendPrompt(ctx context.Context, id string, opts SendPromptOpts
 	if goalResult != nil {
 		return *goalResult, nil
 	}
+	if preparation.request.hasPromptAdmissionIdentity() && opts.AllowGoalCommands {
+		_, matched, parseErr := ParseGoalCommand(preparation.request.authoredMessage)
+		if parseErr != nil && !matched {
+			return SendPromptResult{}, fmt.Errorf("session: parse Goal command: %w", parseErr)
+		}
+		if matched {
+			// submitAdmittedGoalByTarget parses again to persist the deterministic Goal result.
+			return m.submitAdmittedGoalByTarget(ctx, preparation, opts)
+		}
+	}
 	session, err := m.lookupPromptSession(ctx, preparation.request.target)
 	if err != nil {
 		return SendPromptResult{}, err
@@ -79,6 +52,9 @@ func (m *Manager) SendPrompt(ctx context.Context, id string, opts SendPromptOpts
 	)
 	if err != nil {
 		return SendPromptResult{}, err
+	}
+	if preparation.request.hasPromptAdmissionIdentity() {
+		return m.submitAdmittedPrompt(ctx, session, preparation)
 	}
 	return m.submitPreparedPrompt(ctx, session, preparation)
 }
@@ -125,9 +101,16 @@ func (m *Manager) prepareSendPrompt(
 	if err := m.checkNewWorkAdmission(ctx); err != nil {
 		return sendPromptPreparation{}, nil, err
 	}
-	req.clientMessageID = strings.TrimSpace(opts.ClientMessageID)
+	req.messageID = strings.TrimSpace(opts.MessageID)
+	req.idempotencyKey = strings.TrimSpace(opts.IdempotencyKey)
 	req.runtime = cloneRuntimeSelection(opts.Runtime)
 	m.discardInterruptedPromptSalvage(req.target)
+	if err := req.validatePromptAdmissionIdentity(); err != nil {
+		return sendPromptPreparation{}, nil, err
+	}
+	if req.hasPromptAdmissionIdentity() {
+		return sendPromptPreparation{request: req, mode: mode}, nil, nil
+	}
 	rejectIfBusy, goalResult, err := m.applyGoalCommand(ctx, &req, opts)
 	if err != nil {
 		return sendPromptPreparation{}, nil, err
@@ -237,20 +220,32 @@ func (m *Manager) InterruptPrompt(ctx context.Context, id string) (SendPromptRes
 }
 
 // SteerPrompt stages guidance for the active turn, falling back to queue dispatch if no tool boundary arrives.
-func (m *Manager) SteerPrompt(ctx context.Context, id string, msg string) (SendPromptResult, error) {
+func (m *Manager) SteerPrompt(ctx context.Context, id string, opts SteerPromptOpts) (SendPromptResult, error) {
 	if m == nil {
 		return SendPromptResult{}, errors.New("session: manager is required")
 	}
 	if ctx == nil {
 		return SendPromptResult{}, errors.New("session: steer prompt context is required")
 	}
-	req, err := m.parsePromptRequest(ctx, id, PromptOpts{Message: msg, TurnSource: TurnSourceUser})
+	req, err := m.parsePromptRequest(ctx, id, PromptOpts{Message: opts.Message, TurnSource: TurnSourceUser})
 	if err != nil {
+		return SendPromptResult{}, err
+	}
+	req.messageID = strings.TrimSpace(opts.MessageID)
+	req.idempotencyKey = strings.TrimSpace(opts.IdempotencyKey)
+	if err := req.validatePromptAdmissionIdentity(); err != nil {
 		return SendPromptResult{}, err
 	}
 	session, err := m.lookupPromptSession(ctx, req.target)
 	if err != nil {
 		return SendPromptResult{}, err
+	}
+	if req.hasPromptAdmissionIdentity() {
+		req.runtime, err = m.resolvePromptRuntimeAtAdmission(ctx, session, nil)
+		if err != nil {
+			return SendPromptResult{}, err
+		}
+		return m.submitAdmittedSteerCommand(ctx, session, req)
 	}
 	if salvage, ok := m.pendingInterruptedPromptSalvage(session.ID); ok {
 		return m.submitInterruptedPromptSalvage(ctx, session, req, salvage)

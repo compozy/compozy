@@ -124,6 +124,13 @@ func TestSessionPromptPassesRuntimeSelection(t *testing.T) {
 		if gotRequest.Message != "Investigate the failing build" || gotRequest.Runtime == nil {
 			t.Fatalf("SendSessionPrompt() request = %#v", gotRequest)
 		}
+		if gotRequest.MessageID == "" || gotRequest.IdempotencyKey == "" {
+			t.Fatalf(
+				"SendSessionPrompt() identity = %q/%q, want generated non-empty values",
+				gotRequest.MessageID,
+				gotRequest.IdempotencyKey,
+			)
+		}
 		if gotRequest.Runtime.Provider != "codex" || gotRequest.Runtime.Model != "gpt-5.6-sol" ||
 			gotRequest.Runtime.ReasoningEffort != "high" || gotRequest.Runtime.Speed != contract.SpeedFast {
 			t.Fatalf("SendSessionPrompt() Runtime = %#v", gotRequest.Runtime)
@@ -134,6 +141,112 @@ func TestSessionPromptPassesRuntimeSelection(t *testing.T) {
 		}
 		if decoded.Prompt.NewTurnID != "turn-1" {
 			t.Fatalf("decoded prompt = %#v", decoded)
+		}
+	})
+}
+
+func TestSessionPromptIdentity(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should forward an explicit durable identity pair", func(t *testing.T) {
+		t.Parallel()
+
+		var received SessionPromptRequest
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			sendSessionPromptFn: func(_ context.Context, _ string, request SessionPromptRequest) (SessionPromptRecord, error) {
+				received = request
+				return SessionPromptRecord{Prompt: SessionPromptResultRecord{
+					Status: "accepted", MessageID: request.MessageID, IdempotencyKey: request.IdempotencyKey,
+				}}, nil
+			},
+		})
+
+		stdout, _, err := executeRootCommand(t, deps,
+			"session", "prompt", "sess-1", "retry safely",
+			"--message-id", "msg-explicit", "--idempotency-key", "idem-explicit", "-o", "json",
+		)
+		if err != nil {
+			t.Fatalf("executeRootCommand(session prompt explicit identity) error = %v", err)
+		}
+		if received.MessageID != "msg-explicit" || received.IdempotencyKey != "idem-explicit" {
+			t.Fatalf("SendSessionPrompt() identity = %q/%q, want msg-explicit/idem-explicit", received.MessageID, received.IdempotencyKey)
+		}
+		var decoded SessionPromptRecord
+		if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
+			t.Fatalf("json.Unmarshal(explicit prompt response) error = %v", err)
+		}
+		if decoded.Prompt.MessageID != "msg-explicit" || decoded.Prompt.IdempotencyKey != "idem-explicit" {
+			t.Fatalf("prompt response identity = %q/%q, want msg-explicit/idem-explicit", decoded.Prompt.MessageID, decoded.Prompt.IdempotencyKey)
+		}
+	})
+
+	t.Run("Should reject incomplete or blank explicit identity pairs before submission", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name    string
+			args    []string
+			wantErr string
+		}{
+			{
+				name:    "Should reject only a message id",
+				args:    []string{"session", "prompt", "sess-1", "hello", "--message-id", "msg-only"},
+				wantErr: "must be provided together",
+			},
+			{
+				name:    "Should reject only an idempotency key",
+				args:    []string{"session", "prompt", "sess-1", "hello", "--idempotency-key", "idem-only"},
+				wantErr: "must be provided together",
+			},
+			{
+				name:    "Should reject blank identity values",
+				args:    []string{"session", "prompt", "sess-1", "hello", "--message-id", " ", "--idempotency-key", "idem"},
+				wantErr: "must not be blank",
+			},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				deps := newWorkspaceTestDeps(t, &stubClient{
+					sendSessionPromptFn: func(context.Context, string, SessionPromptRequest) (SessionPromptRecord, error) {
+						t.Fatal("SendSessionPrompt() called for invalid identity flags")
+						return SessionPromptRecord{}, nil
+					},
+				})
+				if _, _, err := executeRootCommand(t, deps, tt.args...); err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+					t.Fatalf("executeRootCommand(%#v) error = %v, want identity validation error", tt.args, err)
+				}
+			})
+		}
+	})
+
+	t.Run("Should preserve a replay admission envelope", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			sendSessionPromptFn: func(_ context.Context, _ string, request SessionPromptRequest) (SessionPromptRecord, error) {
+				return SessionPromptRecord{Prompt: SessionPromptResultRecord{
+					Status: "queued", MessageID: request.MessageID, IdempotencyKey: request.IdempotencyKey,
+					Replayed: true, Queued: true, QueueEntryID: "queue-replayed",
+				}}, nil
+			},
+		})
+
+		stdout, _, err := executeRootCommand(t, deps,
+			"session", "prompt", "sess-1", "retry safely",
+			"--message-id", "msg-replay", "--idempotency-key", "idem-replay", "-o", "json",
+		)
+		if err != nil {
+			t.Fatalf("executeRootCommand(session prompt replay) error = %v", err)
+		}
+		var decoded SessionPromptRecord
+		if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
+			t.Fatalf("json.Unmarshal(replay prompt response) error = %v", err)
+		}
+		if !decoded.Prompt.Replayed || decoded.Prompt.QueueEntryID != "queue-replayed" ||
+			decoded.Prompt.MessageID != "msg-replay" || decoded.Prompt.IdempotencyKey != "idem-replay" {
+			t.Fatalf("replay prompt response = %#v", decoded.Prompt)
 		}
 	})
 }
@@ -1592,7 +1705,8 @@ func TestSessionPromptBusyInputActions(t *testing.T) {
 		if err != nil {
 			t.Fatalf("executeRootCommand(session prompt --queue) error = %v", err)
 		}
-		if gotRequest.Message != "hello" || gotRequest.Mode != contract.PromptModeQueue {
+		if gotRequest.Message != "hello" || gotRequest.Mode != contract.PromptModeQueue ||
+			gotRequest.MessageID == "" || gotRequest.IdempotencyKey == "" {
 			t.Fatalf("SendSessionPrompt() request = %#v, want queue hello", gotRequest)
 		}
 		var decoded SessionPromptRecord
@@ -1627,7 +1741,8 @@ func TestSessionPromptBusyInputActions(t *testing.T) {
 		if err != nil {
 			t.Fatalf("executeRootCommand(session prompt --interrupt) error = %v", err)
 		}
-		if gotRequest.Message != "replace" || gotRequest.Mode != contract.PromptModeInterrupt {
+		if gotRequest.Message != "replace" || gotRequest.Mode != contract.PromptModeInterrupt ||
+			gotRequest.MessageID == "" || gotRequest.IdempotencyKey == "" {
 			t.Fatalf("SendSessionPrompt() request = %#v, want interrupt replace", gotRequest)
 		}
 	})
@@ -1636,13 +1751,21 @@ func TestSessionPromptBusyInputActions(t *testing.T) {
 		t.Parallel()
 
 		var (
-			gotID   string
-			gotText string
+			gotID             string
+			gotText           string
+			gotMessageID      string
+			gotIdempotencyKey string
 		)
 		deps := newWorkspaceTestDeps(t, &stubClient{
-			steerSessionPromptFn: func(_ context.Context, id string, text string) (SessionPromptRecord, error) {
+			steerSessionPromptFn: func(
+				_ context.Context,
+				id string,
+				request contract.SteerPromptRequest,
+			) (SessionPromptRecord, error) {
 				gotID = id
-				gotText = text
+				gotText = request.Text
+				gotMessageID = request.MessageID
+				gotIdempotencyKey = request.IdempotencyKey
 				return SessionPromptRecord{Prompt: SessionPromptResultRecord{
 					Status:          "staged",
 					Mode:            contract.PromptModeSteer,
@@ -1657,7 +1780,7 @@ func TestSessionPromptBusyInputActions(t *testing.T) {
 		if err != nil {
 			t.Fatalf("executeRootCommand(session prompt --steer) error = %v", err)
 		}
-		if gotID != "sess-1" || gotText != "prefer small patch" {
+		if gotID != "sess-1" || gotText != "prefer small patch" || gotMessageID == "" || gotIdempotencyKey == "" {
 			t.Fatalf("SteerSessionPrompt() = (%q, %q), want (sess-1, prefer small patch)", gotID, gotText)
 		}
 	})
@@ -1744,6 +1867,9 @@ func TestSessionPromptJSONLOutput(t *testing.T) {
 				streamCalled = true
 				if id != "sess-1" || request.Message != "hello" {
 					t.Fatalf("StreamPromptSession() = (%q, %#v), want sess-1/hello", id, request)
+				}
+				if request.MessageID == "" || request.IdempotencyKey == "" {
+					t.Fatalf("StreamPromptSession() identity = %q/%q, want generated non-empty values", request.MessageID, request.IdempotencyKey)
 				}
 				if request.Runtime == nil || request.Runtime.Provider != "codex" ||
 					request.Runtime.Model != "gpt-5.6-sol" {
@@ -1844,7 +1970,7 @@ func TestSessionPromptJSONLOutput(t *testing.T) {
 				if id != "sess-1" || request.Message != "/goal clear" {
 					t.Fatalf("StreamPromptSession() = %q/%#v", id, request)
 				}
-				return handler(SSEEvent{Event: goalResultEventName, Data: mustJSON(t, result)})
+				return handler(SSEEvent{Event: promptResultEventName, Data: mustJSON(t, result)})
 			},
 		})
 

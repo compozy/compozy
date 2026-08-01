@@ -23,8 +23,9 @@ func (h *Handlers) promptSession(c *gin.Context) {
 		core.RespondError(c, http.StatusBadRequest, fmt.Errorf("udsapi: decode prompt request: %w", err), false)
 		return
 	}
-	if strings.TrimSpace(req.Message) == "" {
-		core.RespondError(c, http.StatusBadRequest, errors.New("message is required"), false)
+	input, err := contract.ExtractPromptInput(req)
+	if err != nil {
+		core.RespondError(c, http.StatusBadRequest, err, false)
 		return
 	}
 	sessionID, ok := h.RequireRouteSessionInWorkspace(c)
@@ -41,8 +42,9 @@ func (h *Handlers) promptSession(c *gin.Context) {
 		h.promptSessionRaw(
 			c,
 			sessionID,
-			req.Message,
-			strings.TrimSpace(req.MessageID),
+			input.Message,
+			input.MessageID,
+			input.IdempotencyKey,
 			session.BusyInputMode(req.Mode),
 			core.PromptRuntimeSelectionFromPayload(req.Runtime),
 			caller,
@@ -54,8 +56,9 @@ func (h *Handlers) promptSession(c *gin.Context) {
 	deliveryCtx, cancelDelivery := context.WithCancel(c.Request.Context())
 	defer cancelDelivery()
 	result, err := h.Sessions.SendPrompt(executionCtx, sessionID, session.SendPromptOpts{
-		Message:           req.Message,
-		ClientMessageID:   strings.TrimSpace(req.MessageID),
+		Message:           input.Message,
+		MessageID:         input.MessageID,
+		IdempotencyKey:    input.IdempotencyKey,
 		Mode:              session.BusyInputMode(req.Mode),
 		Runtime:           core.PromptRuntimeSelectionFromPayload(req.Runtime),
 		DeliveryContext:   deliveryCtx,
@@ -98,7 +101,8 @@ func (h *Handlers) promptSessionRaw(
 	c *gin.Context,
 	sessionID string,
 	message string,
-	clientMessageID string,
+	messageID string,
+	idempotencyKey string,
 	mode session.BusyInputMode,
 	runtime *session.RuntimeSelection,
 	caller session.PromptCaller,
@@ -108,7 +112,8 @@ func (h *Handlers) promptSessionRaw(
 	defer cancelDelivery()
 	result, err := h.Sessions.SendPrompt(executionCtx, sessionID, session.SendPromptOpts{
 		Message:           message,
-		ClientMessageID:   clientMessageID,
+		MessageID:         messageID,
+		IdempotencyKey:    idempotencyKey,
 		Mode:              mode,
 		Runtime:           runtime,
 		DeliveryContext:   deliveryCtx,
@@ -173,15 +178,17 @@ func (h *Handlers) steerSessionPrompt(c *gin.Context) {
 		core.RespondError(c, http.StatusBadRequest, fmt.Errorf("udsapi: decode steer request: %w", err), false)
 		return
 	}
-	if strings.TrimSpace(req.Text) == "" {
-		core.RespondError(c, http.StatusBadRequest, errors.New("text is required"), false)
+	if err := req.Validate(); err != nil {
+		core.RespondError(c, http.StatusBadRequest, err, false)
 		return
 	}
 	sessionID, ok := h.RequireRouteSessionInWorkspace(c)
 	if !ok {
 		return
 	}
-	result, err := h.Sessions.SteerPrompt(c.Request.Context(), sessionID, req.Text)
+	result, err := h.Sessions.SteerPrompt(c.Request.Context(), sessionID, session.SteerPromptOpts{
+		Message: req.Text, MessageID: req.MessageID, IdempotencyKey: req.IdempotencyKey,
+	})
 	if err != nil {
 		core.RespondError(c, core.StatusForSessionError(err), err, false)
 		return

@@ -10,6 +10,7 @@ import type {
   SessionPromptPayload,
   SessionPromptRequest,
   SessionPromptResult,
+  SessionSteerPromptRequest,
   SessionRecapPayload,
   SessionRepairPayload,
   SessionRepairQuery,
@@ -156,7 +157,14 @@ export async function sendSessionPrompt(
     throwSessionRequestError(response, error, `Failed to send prompt to session "${id}"`, id);
   }
   const result = requireResponseData(data, response, `Failed to send prompt to session "${id}"`);
-  return "prompt" in result ? result.prompt : result;
+  if (!("prompt" in result)) {
+    throw new SessionApiError(
+      `Failed to send prompt to session "${id}": invalid response payload`,
+      500,
+      id
+    );
+  }
+  return result.prompt.goal ?? result.prompt;
 }
 
 export async function interruptSessionPrompt(
@@ -180,14 +188,14 @@ export async function interruptSessionPrompt(
 export async function steerSessionPrompt(
   workspaceId: string,
   id: string,
-  text: string,
+  params: SessionSteerPromptRequest,
   signal?: AbortSignal
 ): Promise<SessionPromptPayload> {
   const { data, error, response } = await apiClient.POST(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/steer",
     {
       params: { path: { workspace_id: workspaceId, session_id: id } },
-      body: { text },
+      body: params,
       signal,
     }
   );
