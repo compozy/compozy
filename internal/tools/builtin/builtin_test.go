@@ -1444,6 +1444,20 @@ func assertSessionPromptMutationOutputSchema(t *testing.T, owner string, raw jso
 	if !slices.Equal(prompt.Required, []string{"status", "message_id", "idempotency_key", "replayed"}) {
 		t.Fatalf("%s prompt required = %#v, want status/message_id/idempotency_key/replayed", owner, prompt.Required)
 	}
+	for _, field := range []string{"message_id", "idempotency_key"} {
+		var identity nativeObjectSchema
+		if err := json.Unmarshal(prompt.Properties[field], &identity); err != nil {
+			t.Fatalf("%s prompt.%s schema unmarshal error = %v", owner, field, err)
+		}
+		if identity.Type != "string" || identity.MinLength != 1 {
+			t.Fatalf(
+				"%s prompt.%s schema = %#v, want non-empty string",
+				owner,
+				field,
+				identity,
+			)
+		}
+	}
 }
 
 func assertSessionMutationEnvelopeSchema(

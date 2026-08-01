@@ -422,4 +422,32 @@ describe("session actions", () => {
       mode: "queue",
     });
   });
+
+  it.each([
+    ["only a message id", { messageId: "message-001" }],
+    ["only an idempotency key", { idempotencyKey: "idempotency-001" }],
+    ["a blank message id", { idempotencyKey: "idempotency-001", messageId: "   " }],
+    ["a blank idempotency key", { idempotencyKey: "   ", messageId: "message-001" }],
+  ])("useQueueSessionPrompt rejects %s in an explicit action identity", async (_case, identity) => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const { result } = renderHook(() => useQueueSessionPrompt(), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    await act(async () => {
+      await expect(
+        result.current.mutateAsync({
+          id: createdSession.id,
+          message: "Queue this durable input.",
+          ...identity,
+        })
+      ).rejects.toThrow(
+        "A session prompt action requires both non-empty message_id and idempotency_key"
+      );
+    });
+
+    expect(sendSessionPrompt).not.toHaveBeenCalled();
+  });
 });

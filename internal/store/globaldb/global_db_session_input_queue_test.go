@@ -1,6 +1,7 @@
 package globaldb
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"path/filepath"
@@ -416,201 +417,273 @@ func TestGlobalDBSessionPromptAdmissionMigration(t *testing.T) {
 		}
 	})
 
-	t.Run("Should upgrade the 00033 queue while enforcing admission constraints", func(t *testing.T) {
-		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
-		prefixDB, err := openGlobalMigrationPrefixDatabase(
-			t,
-			path,
-			globalMigrationPrefixBefore(t, "00034_schema.sql"),
-		)
-		if err != nil {
-			t.Fatalf("OpenSQLiteDatabase(00033 prefix) error = %v", err)
-		}
-		ctx := testutil.Context(t)
-		now := time.Date(2026, 7, 31, 14, 0, 0, 0, time.UTC)
-		prefixGlobalDB := &GlobalDB{
-			db:   prefixDB,
-			path: path,
-			now: func() time.Time {
-				return now
-			},
-		}
-		prefixGlobalDB.initializeRepositories(openConfig{})
-		sessionID := registerInputQueueSession(t, prefixGlobalDB)
-		if _, err := prefixDB.ExecContext(
-			ctx,
-			`INSERT INTO session_input_queue (
-				id, session_id, status, mode, text,
-				runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed,
-				session_generation, enqueued_at, updated_at
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			"inq-legacy-before-00034",
-			sessionID,
-			store.SessionInputQueueStatusQueued,
-			store.SessionInputQueueModeQueue,
-			"legacy queued input",
-			"claude",
-			"sonnet",
-			"high",
-			"fast",
-			0,
-			store.FormatTimestamp(now),
-			store.FormatTimestamp(now),
-		); err != nil {
-			t.Fatalf("seed 00033 session_input_queue row error = %v", err)
-		}
-		if err := applyGlobalMigrationPrefix(
-			t,
-			prefixDB,
-			globalMigrationPrefixBefore(t, "00036_schema.sql"),
-		); err != nil {
-			t.Fatalf("Apply(global through 00035) error = %v", err)
-		}
-		if _, err := prefixDB.ExecContext(
-			ctx,
-			`INSERT INTO session_input_queue (
-				id, session_id, prompt_admission_id, status, mode, text, enqueued_at, updated_at
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-			"inq-orphaned-admission-before-00036",
-			sessionID,
-			"admission-orphaned-before-00036",
-			store.SessionInputQueueStatusQueued,
-			store.SessionInputQueueModeQueue,
-			"orphaned receipt reference",
-			store.FormatTimestamp(now),
-			store.FormatTimestamp(now),
-		); err != nil {
-			t.Fatalf("seed orphaned 00035 admission reference error = %v", err)
-		}
-		if err := prefixDB.Close(); err != nil {
-			t.Fatalf("prefixDB.Close() error = %v", err)
-		}
+	t.Run("Should upgrade the 00033 queue to an admission-aware schema", func(t *testing.T) {
+		fixture := openSessionPromptAdmissionMigrationFixture(t)
 
-		upgraded, err := openGlobalMigrationUpgrade(t, path)
-		if err != nil {
-			t.Fatalf("OpenGlobalDB(00034 upgrade) error = %v", err)
-		}
-		legacy, err := upgraded.GetSessionInputQueueEntry(ctx, sessionID, "inq-legacy-before-00034")
-		if err != nil {
-			t.Fatalf("GetSessionInputQueueEntry(legacy) error = %v", err)
-		}
-		if legacy.PromptAdmissionID != "" || legacy.MessageID != "" || legacy.IdempotencyKey != "" ||
-			legacy.TurnID != "" || legacy.EventID != "" {
-			t.Fatalf("legacy queue identity = %#v, want empty 00034 defaults", legacy)
-		}
-		if got, want := legacy.Runtime, (store.SessionInputRuntime{
-			Provider: "claude", Model: "sonnet", ReasoningEffort: "high", Speed: "fast",
-		}); got != want {
-			t.Fatalf("legacy queue runtime = %#v, want %#v", got, want)
-		}
-		orphaned, err := upgraded.GetSessionInputQueueEntry(ctx, sessionID, "inq-orphaned-admission-before-00036")
-		if err != nil {
-			t.Fatalf("GetSessionInputQueueEntry(orphaned) error = %v", err)
-		}
-		if orphaned.PromptAdmissionID != "" {
-			t.Fatalf("orphaned prompt admission after 00036 = %q, want NULL", orphaned.PromptAdmissionID)
-		}
-		if err := upgraded.Close(ctx); err != nil {
-			t.Fatalf("GlobalDB.Close(upgrade) error = %v", err)
-		}
-
-		reopened, err := OpenGlobalDB(ctx, path)
-		if err != nil {
-			t.Fatalf("OpenGlobalDB(reopen) error = %v", err)
-		}
-		t.Cleanup(func() {
-			if closeErr := reopened.Close(testutil.Context(t)); closeErr != nil {
-				t.Errorf("GlobalDB.Close(reopen) error = %v", closeErr)
+		t.Run("Should preserve legacy queue values and clear orphaned receipt links", func(t *testing.T) {
+			legacy, err := fixture.database.GetSessionInputQueueEntry(
+				fixture.ctx,
+				fixture.sessionID,
+				"inq-legacy-before-00034",
+			)
+			if err != nil {
+				t.Fatalf("GetSessionInputQueueEntry(legacy) error = %v", err)
+			}
+			if legacy.PromptAdmissionID != "" || legacy.MessageID != "" || legacy.IdempotencyKey != "" ||
+				legacy.TurnID != "" || legacy.EventID != "" {
+				t.Fatalf("legacy queue identity = %#v, want empty 00034 defaults", legacy)
+			}
+			if got, want := legacy.Runtime, (store.SessionInputRuntime{
+				Provider: "claude", Model: "sonnet", ReasoningEffort: "high", Speed: "fast",
+			}); got != want {
+				t.Fatalf("legacy queue runtime = %#v, want %#v", got, want)
+			}
+			orphaned, err := fixture.database.GetSessionInputQueueEntry(
+				fixture.ctx,
+				fixture.sessionID,
+				"inq-orphaned-admission-before-00036",
+			)
+			if err != nil {
+				t.Fatalf("GetSessionInputQueueEntry(orphaned) error = %v", err)
+			}
+			if orphaned.PromptAdmissionID != "" {
+				t.Fatalf("orphaned prompt admission after 00036 = %q, want NULL", orphaned.PromptAdmissionID)
 			}
 		})
-		status, err := store.Status(ctx, reopened.db, MigrationStream())
-		if err != nil {
-			t.Fatalf("Status(global) error = %v", err)
-		}
-		assertCompleteMigrationStream(t, status, MigrationStream())
 
-		admissionReq := promptAdmissionRequest("ws-input-queue-workspace", sessionID, "migration", now)
-		admission, created, err := reopened.ClaimSessionPromptAdmission(ctx, admissionReq)
-		if err != nil {
-			t.Fatalf("ClaimSessionPromptAdmission() error = %v", err)
-		}
-		if !created {
-			t.Fatal("ClaimSessionPromptAdmission() created = false, want true")
-		}
-		_, err = reopened.db.ExecContext(
-			ctx,
-			`INSERT INTO session_prompt_admissions (
-				id, workspace_id, session_id, message_id, idempotency_key, operation,
-				fingerprint_version, request_fingerprint, state, mode, authored_text,
-				turn_id, event_id, created_at, updated_at
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			"admission-migration-duplicate",
-			admissionReq.WorkspaceID,
-			sessionID,
-			"message-migration-duplicate",
-			admissionReq.IdempotencyKey,
-			store.SessionPromptOperationPrompt,
-			admissionReq.FingerprintVersion,
-			"sha256:migration-duplicate",
-			store.SessionPromptAdmissionReserved,
-			store.SessionInputQueueModeQueue,
-			"duplicate idempotency key",
-			"turn-migration-duplicate",
-			"event-migration-duplicate",
-			store.FormatTimestamp(now),
-			store.FormatTimestamp(now),
-		)
-		if !isSQLiteUniqueConstraint(err) {
-			t.Fatalf("duplicate session prompt admission error = %v, want SQLite unique constraint", err)
-		}
+		t.Run("Should report the migration stream as complete after reopening", func(t *testing.T) {
+			status, err := store.Status(fixture.ctx, fixture.database.db, MigrationStream())
+			if err != nil {
+				t.Fatalf("Status(global) error = %v", err)
+			}
+			assertCompleteMigrationStream(t, status, MigrationStream())
+		})
 
-		queueReq := store.SessionInputQueueInsert{
-			ID:                "inq-admitted-migration",
-			SessionID:         sessionID,
-			Text:              "admitted after migration",
-			SessionGeneration: 0,
-			QueueCap:          10,
-			Now:               now,
+		t.Run("Should enforce receipt constraints for migrated queue entries", func(t *testing.T) {
+			admissionReq := promptAdmissionRequest(
+				"ws-input-queue-workspace",
+				fixture.sessionID,
+				"migration",
+				fixture.now,
+			)
+			admission, created, err := fixture.database.ClaimSessionPromptAdmission(fixture.ctx, admissionReq)
+			if err != nil {
+				t.Fatalf("ClaimSessionPromptAdmission() error = %v", err)
+			}
+			if !created {
+				t.Fatal("ClaimSessionPromptAdmission() created = false, want true")
+			}
+			_, err = fixture.database.db.ExecContext(
+				fixture.ctx,
+				`INSERT INTO session_prompt_admissions (
+					id, workspace_id, session_id, message_id, idempotency_key, operation,
+					fingerprint_version, request_fingerprint, state, mode, authored_text,
+					turn_id, event_id, created_at, updated_at
+				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				"admission-migration-duplicate",
+				admissionReq.WorkspaceID,
+				fixture.sessionID,
+				"message-migration-duplicate",
+				admissionReq.IdempotencyKey,
+				store.SessionPromptOperationPrompt,
+				admissionReq.FingerprintVersion,
+				"sha256:migration-duplicate",
+				store.SessionPromptAdmissionReserved,
+				store.SessionInputQueueModeQueue,
+				"duplicate idempotency key",
+				"turn-migration-duplicate",
+				"event-migration-duplicate",
+				store.FormatTimestamp(fixture.now),
+				store.FormatTimestamp(fixture.now),
+			)
+			if !isSQLiteUniqueConstraint(err) {
+				t.Fatalf("duplicate session prompt admission error = %v, want SQLite unique constraint", err)
+			}
+
+			queueReq := store.SessionInputQueueInsert{
+				ID:                "inq-admitted-migration",
+				SessionID:         fixture.sessionID,
+				Text:              "admitted after migration",
+				SessionGeneration: 0,
+				QueueCap:          10,
+				Now:               fixture.now,
+			}
+			_, entry, _, created, err := fixture.database.EnqueueAdmittedSessionInput(
+				fixture.ctx,
+				admissionReq,
+				queueReq,
+			)
+			if err != nil {
+				t.Fatalf("EnqueueAdmittedSessionInput() error = %v", err)
+			}
+			if !created || entry.PromptAdmissionID != admission.ID {
+				t.Fatalf("admitted queue entry = %#v, created=%v, want admission %q", entry, created, admission.ID)
+			}
+			_, err = fixture.database.db.ExecContext(
+				fixture.ctx,
+				`INSERT INTO session_input_queue (
+					id, session_id, prompt_admission_id, status, mode, text, enqueued_at, updated_at
+				) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+				"inq-admitted-migration-duplicate",
+				fixture.sessionID,
+				admission.ID,
+				store.SessionInputQueueStatusQueued,
+				store.SessionInputQueueModeQueue,
+				"duplicate admission binding",
+				store.FormatTimestamp(fixture.now),
+				store.FormatTimestamp(fixture.now),
+			)
+			if !isSQLiteUniqueConstraint(err) {
+				t.Fatalf("duplicate session input queue error = %v, want SQLite unique constraint", err)
+			}
+			if _, err := fixture.database.db.ExecContext(
+				fixture.ctx,
+				`DELETE FROM session_prompt_admissions WHERE id = ?`,
+				admission.ID,
+			); err != nil {
+				t.Fatalf("delete migrated session prompt admission error = %v", err)
+			}
+			migratedEntry, err := fixture.database.GetSessionInputQueueEntry(
+				fixture.ctx,
+				fixture.sessionID,
+				entry.ID,
+			)
+			if err != nil {
+				t.Fatalf("GetSessionInputQueueEntry(migrated) error = %v", err)
+			}
+			if migratedEntry.PromptAdmissionID != "" {
+				t.Fatalf(
+					"migrated prompt admission after receipt delete = %q, want NULL",
+					migratedEntry.PromptAdmissionID,
+				)
+			}
+		})
+	})
+}
+
+type sessionPromptAdmissionMigrationFixture struct {
+	ctx       context.Context
+	database  *GlobalDB
+	sessionID string
+	now       time.Time
+}
+
+func openSessionPromptAdmissionMigrationFixture(t *testing.T) sessionPromptAdmissionMigrationFixture {
+	t.Helper()
+
+	path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+	prefixDB, err := openGlobalMigrationPrefixDatabase(
+		t,
+		path,
+		globalMigrationPrefixBefore(t, "00034_schema.sql"),
+	)
+	if err != nil {
+		t.Fatalf("OpenSQLiteDatabase(00033 prefix) error = %v", err)
+	}
+	prefixClosed := false
+	defer func() {
+		if prefixClosed {
+			return
 		}
-		_, entry, _, created, err := reopened.EnqueueAdmittedSessionInput(ctx, admissionReq, queueReq)
-		if err != nil {
-			t.Fatalf("EnqueueAdmittedSessionInput() error = %v", err)
+		if closeErr := prefixDB.Close(); closeErr != nil {
+			t.Errorf("prefixDB.Close() error = %v", closeErr)
 		}
-		if !created || entry.PromptAdmissionID != admission.ID {
-			t.Fatalf("admitted queue entry = %#v, created=%v, want admission %q", entry, created, admission.ID)
+	}()
+
+	ctx := testutil.Context(t)
+	now := time.Date(2026, 7, 31, 14, 0, 0, 0, time.UTC)
+	prefixGlobalDB := &GlobalDB{
+		db:   prefixDB,
+		path: path,
+		now: func() time.Time {
+			return now
+		},
+	}
+	prefixGlobalDB.initializeRepositories(openConfig{})
+	sessionID := registerInputQueueSession(t, prefixGlobalDB)
+	if _, err := prefixDB.ExecContext(
+		ctx,
+		`INSERT INTO session_input_queue (
+			id, session_id, status, mode, text,
+			runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed,
+			session_generation, enqueued_at, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		"inq-legacy-before-00034",
+		sessionID,
+		store.SessionInputQueueStatusQueued,
+		store.SessionInputQueueModeQueue,
+		"legacy queued input",
+		"claude",
+		"sonnet",
+		"high",
+		"fast",
+		0,
+		store.FormatTimestamp(now),
+		store.FormatTimestamp(now),
+	); err != nil {
+		t.Fatalf("seed 00033 session_input_queue row error = %v", err)
+	}
+	if err := applyGlobalMigrationPrefix(
+		t,
+		prefixDB,
+		globalMigrationPrefixBefore(t, "00036_schema.sql"),
+	); err != nil {
+		t.Fatalf("Apply(global through 00035) error = %v", err)
+	}
+	if _, err := prefixDB.ExecContext(
+		ctx,
+		`INSERT INTO session_input_queue (
+			id, session_id, prompt_admission_id, status, mode, text, enqueued_at, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		"inq-orphaned-admission-before-00036",
+		sessionID,
+		"admission-orphaned-before-00036",
+		store.SessionInputQueueStatusQueued,
+		store.SessionInputQueueModeQueue,
+		"orphaned receipt reference",
+		store.FormatTimestamp(now),
+		store.FormatTimestamp(now),
+	); err != nil {
+		t.Fatalf("seed orphaned 00035 admission reference error = %v", err)
+	}
+	if err := prefixDB.Close(); err != nil {
+		t.Fatalf("prefixDB.Close() error = %v", err)
+	}
+	prefixClosed = true
+
+	upgraded, err := openGlobalMigrationUpgrade(t, path)
+	if err != nil {
+		t.Fatalf("OpenGlobalDB(00036 upgrade) error = %v", err)
+	}
+	upgradedClosed := false
+	defer func() {
+		if upgradedClosed {
+			return
 		}
-		_, err = reopened.db.ExecContext(
-			ctx,
-			`INSERT INTO session_input_queue (
-				id, session_id, prompt_admission_id, status, mode, text, enqueued_at, updated_at
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-			"inq-admitted-migration-duplicate",
-			sessionID,
-			admission.ID,
-			store.SessionInputQueueStatusQueued,
-			store.SessionInputQueueModeQueue,
-			"duplicate admission binding",
-			store.FormatTimestamp(now),
-			store.FormatTimestamp(now),
-		)
-		if !isSQLiteUniqueConstraint(err) {
-			t.Fatalf("duplicate session input queue error = %v, want SQLite unique constraint", err)
+		if closeErr := upgraded.Close(testutil.Context(t)); closeErr != nil {
+			t.Errorf("GlobalDB.Close(upgrade) error = %v", closeErr)
 		}
-		if _, err := reopened.db.ExecContext(
-			ctx,
-			`DELETE FROM session_prompt_admissions WHERE id = ?`,
-			admission.ID,
-		); err != nil {
-			t.Fatalf("delete migrated session prompt admission error = %v", err)
-		}
-		migratedEntry, err := reopened.GetSessionInputQueueEntry(ctx, sessionID, entry.ID)
-		if err != nil {
-			t.Fatalf("GetSessionInputQueueEntry(migrated) error = %v", err)
-		}
-		if migratedEntry.PromptAdmissionID != "" {
-			t.Fatalf("migrated prompt admission after receipt delete = %q, want NULL", migratedEntry.PromptAdmissionID)
+	}()
+	if err := upgraded.Close(ctx); err != nil {
+		t.Fatalf("GlobalDB.Close(upgrade) error = %v", err)
+	}
+	upgradedClosed = true
+
+	reopened, err := OpenGlobalDB(ctx, path)
+	if err != nil {
+		t.Fatalf("OpenGlobalDB(reopen) error = %v", err)
+	}
+	t.Cleanup(func() {
+		if closeErr := reopened.Close(testutil.Context(t)); closeErr != nil {
+			t.Errorf("GlobalDB.Close(reopen) error = %v", closeErr)
 		}
 	})
+	return sessionPromptAdmissionMigrationFixture{
+		ctx:       ctx,
+		database:  reopened,
+		sessionID: sessionID,
+		now:       now,
+	}
 }
 
 func TestGlobalDBSessionPromptAdmission(t *testing.T) {
@@ -688,19 +761,19 @@ func TestGlobalDBSessionPromptAdmission(t *testing.T) {
 		for _, terminal := range []struct {
 			name   string
 			status string
-			apply  func(*GlobalDB, string, string, time.Time) error
+			apply  func(*testing.T, *GlobalDB, string, string, time.Time) error
 		}{
 			{
 				name:   "Should restore replay after sending the leased input",
 				status: store.SessionInputQueueStatusSent,
-				apply: func(db *GlobalDB, sessionID string, entryID string, now time.Time) error {
+				apply: func(t *testing.T, db *GlobalDB, sessionID string, entryID string, now time.Time) error {
 					return db.MarkSessionInputSent(testutil.Context(t), sessionID, entryID, now)
 				},
 			},
 			{
 				name:   "Should restore replay after releasing the leased input",
 				status: store.SessionInputQueueStatusQueued,
-				apply: func(db *GlobalDB, sessionID string, entryID string, now time.Time) error {
+				apply: func(t *testing.T, db *GlobalDB, sessionID string, entryID string, now time.Time) error {
 					return db.ReleaseSessionInput(testutil.Context(t), sessionID, entryID, now)
 				},
 			},
@@ -728,7 +801,7 @@ func TestGlobalDBSessionPromptAdmission(t *testing.T) {
 				); claimErr != nil || !ok {
 					t.Fatalf("ClaimNextSessionInput() = ok %v, error %v", ok, claimErr)
 				}
-				if applyErr := terminal.apply(db, sessionID, enqueued.ID, now.Add(2*time.Second)); applyErr != nil {
+				if applyErr := terminal.apply(t, db, sessionID, enqueued.ID, now.Add(2*time.Second)); applyErr != nil {
 					t.Fatalf("terminal transition error = %v", applyErr)
 				}
 				terminalEntry, getErr := db.GetSessionInputQueueEntry(ctx, sessionID, enqueued.ID)
@@ -1016,6 +1089,35 @@ func TestGlobalDBSessionPromptAdmission(t *testing.T) {
 			now.Add(time.Second),
 		); err != nil {
 			t.Fatalf("CommitSessionPromptDispatch() error = %v", err)
+		}
+		if err := globalDB.CommitSessionPromptDispatch(
+			ctx,
+			req.WorkspaceID,
+			req.SessionID,
+			req.IdempotencyKey,
+			now.Add(2*time.Second),
+		); !errors.Is(err, store.ErrSessionPromptDispatchIndeterminate) {
+			t.Fatalf("CommitSessionPromptDispatch(retry) error = %v, want dispatch indeterminate", err)
+		}
+		if err := globalDB.MarkSessionPromptAdmissionIndeterminate(
+			ctx,
+			req.WorkspaceID,
+			req.SessionID,
+			req.IdempotencyKey,
+			"delivery outcome is unknown",
+			now.Add(3*time.Second),
+		); err != nil {
+			t.Fatalf("MarkSessionPromptAdmissionIndeterminate() error = %v", err)
+		}
+		if err := globalDB.MarkSessionPromptAdmissionIndeterminate(
+			ctx,
+			req.WorkspaceID,
+			req.SessionID,
+			req.IdempotencyKey,
+			"delivery outcome is unknown",
+			now.Add(4*time.Second),
+		); !errors.Is(err, store.ErrSessionPromptDispatchIndeterminate) {
+			t.Fatalf("MarkSessionPromptAdmissionIndeterminate(retry) error = %v, want dispatch indeterminate", err)
 		}
 		_, _, err := globalDB.ClaimSessionPromptAdmission(ctx, req)
 		if !errors.Is(err, store.ErrSessionPromptDispatchIndeterminate) {

@@ -1,4 +1,4 @@
-import { startTransition, useRef } from "react";
+import { startTransition, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useChatRuntime } from "@assistant-ui/react-ai-sdk";
 
@@ -92,17 +92,14 @@ export function useSessionChatRuntime({
 }) {
   const queryClient = useQueryClient();
   const promptRuntime = useOptionalSessionPromptRuntimeContext();
-  const idempotencyKeysRef = useRef<Map<string, string> | null>(null);
-  if (idempotencyKeysRef.current === null) {
-    idempotencyKeysRef.current = new Map<string, string>();
-  }
+  const [idempotencyKeys] = useState(() => new Map<string, string>());
   const runtimeConfig = buildSessionRuntimeConfig(
     queryClient,
     workspaceId,
     sessionId,
     promptDispatch,
     promptRuntime ? () => getSessionPromptRuntimeSnapshot(promptRuntime) : undefined,
-    idempotencyKeysRef.current
+    idempotencyKeys
   );
 
   return useChatRuntime({

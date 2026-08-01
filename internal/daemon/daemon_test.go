@@ -73,6 +73,7 @@ type sessionSteerQueueStub struct {
 	found              bool
 	err                error
 	sessionID          string
+	consumedAt         time.Time
 	completedSessionID string
 	completedEntryID   string
 	sentAt             time.Time
@@ -111,13 +112,16 @@ func (s *sessionSteerQueueStub) MarkSessionInputFailed(
 func (s *sessionSteerQueueStub) ConsumeSessionSteer(
 	_ context.Context,
 	sessionID string,
-	_ time.Time,
+	now time.Time,
 ) (store.SessionInputQueueEntry, bool, error) {
 	s.sessionID = sessionID
+	s.consumedAt = now
 	return s.entry, s.found, s.err
 }
 
 func TestSessionSteerSource(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Should preserve the durable admission identity", func(t *testing.T) {
 		t.Parallel()
 
@@ -141,6 +145,9 @@ func TestSessionSteerSource(t *testing.T) {
 		}
 		if queue.sessionID != want.SessionID {
 			t.Fatalf("consumed session id = %q, want %q", queue.sessionID, want.SessionID)
+		}
+		if !queue.consumedAt.Equal(timestamp) {
+			t.Fatalf("ConsumeSteer() timestamp = %s, want %s", queue.consumedAt, timestamp)
 		}
 		if got.Text != want.Text || got.QueueEntryID != want.ID ||
 			got.QueueGeneration != want.SessionGeneration || got.MessageID != want.MessageID ||

@@ -255,8 +255,8 @@ const sessionPromptOutputSchema = `{
 			"required":["status","message_id","idempotency_key","replayed"],
 			"properties":{
 				"status":{"type":"string"},
-				"message_id":{"type":"string"},
-				"idempotency_key":{"type":"string"},
+				"message_id":{"type":"string","minLength":1},
+				"idempotency_key":{"type":"string","minLength":1},
 				"replayed":{"type":"boolean"},
 				"mode":{"type":"string","enum":["queue","interrupt","steer"]},
 				"queued":{"type":"boolean"},

@@ -56,19 +56,24 @@ func (g *SessionRepo) CommitSessionPromptDispatch(
 	if err != nil {
 		return err
 	}
-	affected, err := g.queries.CommitSessionPromptDispatch(ctx, sqlcgen.CommitSessionPromptDispatchParams{
-		DispatchCommittedState: store.SessionPromptAdmissionDispatchCommitted,
-		DispatchCommittedAt:    nullableSessionTime(now), UpdatedAt: store.FormatTimestamp(now),
-		WorkspaceID: workspaceID, SessionID: sessionID, IdempotencyKey: idempotencyKey,
-		ReservedState: store.SessionPromptAdmissionReserved,
+	return g.withImmediateTransaction(ctx, "commit session prompt dispatch", func(exec globalSQLExecutor) error {
+		affected, commitErr := sqlcgen.New(exec).CommitSessionPromptDispatch(
+			ctx,
+			sqlcgen.CommitSessionPromptDispatchParams{
+				DispatchCommittedState: store.SessionPromptAdmissionDispatchCommitted,
+				DispatchCommittedAt:    nullableSessionTime(now), UpdatedAt: store.FormatTimestamp(now),
+				WorkspaceID: workspaceID, SessionID: sessionID, IdempotencyKey: idempotencyKey,
+				ReservedState: store.SessionPromptAdmissionReserved,
+			},
+		)
+		if commitErr != nil {
+			return fmt.Errorf("store: commit session prompt dispatch: %w", commitErr)
+		}
+		if affected != 1 {
+			return promptAdmissionCASFailure(ctx, exec, workspaceID, sessionID, idempotencyKey)
+		}
+		return nil
 	})
-	if err != nil {
-		return fmt.Errorf("store: commit session prompt dispatch: %w", err)
-	}
-	if affected != 1 {
-		return g.promptAdmissionCASFailure(ctx, workspaceID, sessionID, idempotencyKey)
-	}
-	return nil
 }
 
 // CompleteSessionPromptAdmission stores the stable replay result for one command.
@@ -141,22 +146,28 @@ func (g *SessionRepo) MarkSessionPromptAdmissionIndeterminate(
 	if reason == "" {
 		reason = "dispatch outcome is unknown"
 	}
-	affected, err := g.queries.MarkSessionPromptAdmissionIndeterminate(
+	return g.withImmediateTransaction(
 		ctx,
-		sqlcgen.MarkSessionPromptAdmissionIndeterminateParams{
-			IndeterminateState:  store.SessionPromptAdmissionIndeterminate,
-			IndeterminateReason: reason, UpdatedAt: store.FormatTimestamp(now),
-			WorkspaceID: workspaceID, SessionID: sessionID, IdempotencyKey: idempotencyKey,
-			DispatchCommittedState: store.SessionPromptAdmissionDispatchCommitted,
+		"mark session prompt admission indeterminate",
+		func(exec globalSQLExecutor) error {
+			affected, markErr := sqlcgen.New(exec).MarkSessionPromptAdmissionIndeterminate(
+				ctx,
+				sqlcgen.MarkSessionPromptAdmissionIndeterminateParams{
+					IndeterminateState:  store.SessionPromptAdmissionIndeterminate,
+					IndeterminateReason: reason, UpdatedAt: store.FormatTimestamp(now),
+					WorkspaceID: workspaceID, SessionID: sessionID, IdempotencyKey: idempotencyKey,
+					DispatchCommittedState: store.SessionPromptAdmissionDispatchCommitted,
+				},
+			)
+			if markErr != nil {
+				return fmt.Errorf("store: mark session prompt admission indeterminate: %w", markErr)
+			}
+			if affected != 1 {
+				return promptAdmissionCASFailure(ctx, exec, workspaceID, sessionID, idempotencyKey)
+			}
+			return nil
 		},
 	)
-	if err != nil {
-		return fmt.Errorf("store: mark session prompt admission indeterminate: %w", err)
-	}
-	if affected != 1 {
-		return g.promptAdmissionCASFailure(ctx, workspaceID, sessionID, idempotencyKey)
-	}
-	return nil
 }
 
 func claimSessionPromptAdmission(
@@ -319,13 +330,14 @@ func normalizePromptAdmissionScope(
 	return workspaceID, sessionID, idempotencyKey, now, nil
 }
 
-func (g *SessionRepo) promptAdmissionCASFailure(
+func promptAdmissionCASFailure(
 	ctx context.Context,
+	exec globalSQLExecutor,
 	workspaceID string,
 	sessionID string,
 	idempotencyKey string,
 ) error {
-	row, err := g.queries.GetSessionPromptAdmissionByIdempotencyKey(
+	row, err := sqlcgen.New(exec).GetSessionPromptAdmissionByIdempotencyKey(
 		ctx,
 		sqlcgen.GetSessionPromptAdmissionByIdempotencyKeyParams{
 			WorkspaceID: workspaceID, SessionID: sessionID, IdempotencyKey: idempotencyKey,

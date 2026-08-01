@@ -147,34 +147,40 @@ func (r SessionPromptAdmissionRequest) Validate() error {
 // SessionPromptAdmissionStore persists command receipts and their queue-linked admission decisions.
 type SessionPromptAdmissionStore interface {
 	ClaimSessionPromptAdmission(
-		context.Context,
-		SessionPromptAdmissionRequest,
+		ctx context.Context,
+		request SessionPromptAdmissionRequest,
 	) (SessionPromptAdmission, bool, error)
-	CommitSessionPromptDispatch(context.Context, string, string, string, time.Time) error
+	CommitSessionPromptDispatch(
+		ctx context.Context,
+		workspaceID string,
+		sessionID string,
+		idempotencyKey string,
+		now time.Time,
+	) error
 	CompleteSessionPromptAdmission(
-		context.Context,
-		string,
-		string,
-		string,
-		SessionPromptAdmissionResult,
-		time.Time,
+		ctx context.Context,
+		workspaceID string,
+		sessionID string,
+		idempotencyKey string,
+		result SessionPromptAdmissionResult,
+		now time.Time,
 	) (SessionPromptAdmission, error)
 	MarkSessionPromptAdmissionIndeterminate(
-		context.Context,
-		string,
-		string,
-		string,
-		string,
-		time.Time,
+		ctx context.Context,
+		workspaceID string,
+		sessionID string,
+		idempotencyKey string,
+		reason string,
+		now time.Time,
 	) error
 	EnqueueAdmittedSessionInput(
-		context.Context,
-		SessionPromptAdmissionRequest,
-		SessionInputQueueInsert,
+		ctx context.Context,
+		request SessionPromptAdmissionRequest,
+		queueInput SessionInputQueueInsert,
 	) (SessionPromptAdmission, SessionInputQueueEntry, int, bool, error)
 	StageAdmittedSessionSteer(
-		context.Context,
-		SessionPromptAdmissionRequest,
-		SessionInputQueueInsert,
+		ctx context.Context,
+		request SessionPromptAdmissionRequest,
+		queueInput SessionInputQueueInsert,
 	) (SessionPromptAdmission, SessionInputQueueEntry, bool, error)
 }

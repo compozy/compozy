@@ -254,6 +254,33 @@ describe("createGoalAwareFetch", () => {
     expect(stream).not.toContain("authored-user-message-001");
   });
 
+  it("Should preserve Goal failure guidance when a replay receipt is not accepted", async () => {
+    const payload = result("error", "goal_objective_required");
+    const onResult = vi.fn();
+    const goalFetch = createGoalAwareFetch({
+      fetch: vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              prompt: {
+                goal: payload,
+                replayed: true,
+              },
+            }),
+            { status: 422, headers: { "content-type": "application/json" } }
+          )
+      ),
+      onResult,
+    });
+
+    const response = await goalFetch("/prompt", { method: "POST", body: requestBody("/goal") });
+
+    expect(onResult).toHaveBeenCalledWith(payload, "/goal");
+    expect(response.status).toBe(422);
+    expect(response.headers.get("content-type")).toContain("text/plain");
+    await expect(response.text()).resolves.toBe("Add an objective after /goal, then try again.");
+  });
+
   it("Should preserve a malformed JSON response without consuming its body", async () => {
     const response = new Response("{not-json", {
       headers: { "content-type": "application/json" },

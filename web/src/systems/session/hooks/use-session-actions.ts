@@ -230,7 +230,17 @@ function promptIdentityForAction(params: SessionPromptActionParams): {
   idempotencyKey: string;
   messageId: string;
 } {
-  if (params.messageId && params.idempotencyKey) {
+  if (params.messageId !== undefined || params.idempotencyKey !== undefined) {
+    if (
+      typeof params.messageId !== "string" ||
+      params.messageId.trim().length === 0 ||
+      typeof params.idempotencyKey !== "string" ||
+      params.idempotencyKey.trim().length === 0
+    ) {
+      throw new Error(
+        "A session prompt action requires both non-empty message_id and idempotency_key"
+      );
+    }
     return { idempotencyKey: params.idempotencyKey, messageId: params.messageId };
   }
   const existing = actionPromptIdentities.get(params);

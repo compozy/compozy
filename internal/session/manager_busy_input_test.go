@@ -115,6 +115,8 @@ func TestManagerBusyInputQueue(t *testing.T) {
 }
 
 func TestManagerPromptAdmissionReplay(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Should replay one direct prompt without repeated effects", func(t *testing.T) {
 		t.Parallel()
 

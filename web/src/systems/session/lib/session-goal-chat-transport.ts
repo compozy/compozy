@@ -168,10 +168,10 @@ export function createGoalAwareFetch({
       return response;
     }
     const prompt = promptResult(payload);
-    if (prompt && isPromptReplay(prompt)) {
-      const replayedGoal = goalResult(prompt);
-      if (replayedGoal) {
-        onResult(replayedGoal, submittedText);
+    const result = prompt ? goalResult(prompt) : null;
+    if (prompt && isPromptReplay(prompt) && response.ok) {
+      if (result) {
+        onResult(result, submittedText);
       }
       const newTurnID = prompt.new_turn_id;
       const messageId =
@@ -186,7 +186,6 @@ export function createGoalAwareFetch({
       });
     }
 
-    const result = prompt ? goalResult(prompt) : null;
     if (!result) {
       return response;
     }

@@ -139,7 +139,7 @@ func (p *AgentProcess) completeSteerDispatch(ctx context.Context, input SteerInp
 	if p == nil || p.steerSource == nil {
 		return nil
 	}
-	finalizeCtx, cancel := steerFinalizeContext(ctx, p)
+	finalizeCtx, cancel := steerFinalizeContextWithFreshTimeout(ctx, p)
 	defer cancel()
 	return p.steerSource.CompleteSteer(
 		finalizeCtx,
@@ -152,7 +152,7 @@ func (p *AgentProcess) failSteerDispatch(ctx context.Context, input SteerInput, 
 	if p == nil || p.steerSource == nil {
 		return nil
 	}
-	finalizeCtx, cancel := steerFinalizeContext(ctx, p)
+	finalizeCtx, cancel := steerFinalizeContextWithFreshTimeout(ctx, p)
 	defer cancel()
 	summary := "staged steer dispatch failed"
 	if cause != nil {
@@ -166,7 +166,10 @@ func (p *AgentProcess) failSteerDispatch(ctx context.Context, input SteerInput, 
 	)
 }
 
-func steerFinalizeContext(ctx context.Context, process *AgentProcess) (context.Context, context.CancelFunc) {
+func steerFinalizeContextWithFreshTimeout(
+	ctx context.Context,
+	process *AgentProcess,
+) (context.Context, context.CancelFunc) {
 	base := context.Background()
 	if process != nil && process.processCtx != nil {
 		base = context.WithoutCancel(process.processCtx)

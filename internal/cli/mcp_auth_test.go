@@ -524,6 +524,24 @@ func TestReadManualMCPAuthFileContext(t *testing.T) {
 			t.Fatalf("input after deadline = %q, want %q", got, "r")
 		}
 	})
+
+	t.Run("Should not start a no-deadline read after cancellation", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+		readCalled := false
+		_, err := readManualMCPAuthFileWithoutDeadline(ctx, func() (string, error) {
+			readCalled = true
+			return "", nil
+		}, os.ErrNoDeadline)
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("readManualMCPAuthFileWithoutDeadline() error = %v, want context cancellation", err)
+		}
+		if readCalled {
+			t.Fatal("readManualMCPAuthFileWithoutDeadline() called readInput after cancellation")
+		}
+	})
 }
 
 func TestMCPAuthLoginWaitsForAChangedConfirmedCredential(t *testing.T) {

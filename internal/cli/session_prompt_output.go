@@ -48,7 +48,7 @@ func goalCommandBundle(prompt SessionPromptResultRecord, result contract.GoalCom
 	return outputBundle{
 		jsonValue: output,
 		jsonl: func(cmd *cobra.Command) error {
-			return writeJSONLine(cmd, result)
+			return writeJSONLine(cmd, output)
 		},
 		human: func() (string, error) {
 			return renderHumanSectionResult("Goal", goalCommandRows(prompt, result))

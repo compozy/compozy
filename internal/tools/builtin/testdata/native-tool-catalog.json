@@ -2302,7 +2302,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "906fe39bea0f4e798607011a1624bffee8bb1ca822cd3e96cc236587e894c006",
-    "output_schema_digest": "b407e3caa593101657f326aae5448b5b30869c32263fe4bf7e881c4847e0bea8"
+    "output_schema_digest": "573f71101e07fdfedc63ee1c6e2e52d73334099f32ffc92f438370912f94a36a"
   },
   {
     "tool_id": "compozy__session_status",

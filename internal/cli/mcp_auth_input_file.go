@@ -53,6 +53,10 @@ func readManualMCPAuthFileWithoutDeadline(
 	if !errors.Is(deadlineErr, os.ErrNoDeadline) {
 		return "", fmt.Errorf("cli: set MCP authorization input deadline: %w", deadlineErr)
 	}
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return "", mcpAuthorizationTimeoutError(ctxErr)
+	}
+	// Interrupting input without deadline support would require closing caller-owned input.
 	value, err := readInput()
 	if err != nil {
 		return "", err
