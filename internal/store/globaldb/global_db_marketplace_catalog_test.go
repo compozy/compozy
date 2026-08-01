@@ -56,12 +56,7 @@ func TestMarketplaceCatalogReopenAfterRestart(t *testing.T) {
 }
 
 func TestMarketplaceCatalogManifestV2Migration(t *testing.T) {
-	t.Parallel()
-
 	t.Run("Should discard every cached v1 catalog projection before the v2 reader opens", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t)
 		path := filepath.Join(t.TempDir(), store.GlobalDatabaseName)
 		legacy, err := sql.Open(sqliteDriverName, path)
 		if err != nil {
@@ -72,6 +67,7 @@ func TestMarketplaceCatalogManifestV2Migration(t *testing.T) {
 			closeErr := legacy.Close()
 			t.Fatalf("Apply(global through v31) error = %v; close error = %v", err, closeErr)
 		}
+		ctx := testutil.Context(t)
 		if _, err := legacy.ExecContext(
 			ctx,
 			`INSERT INTO marketplace_catalog_state (kind, manifest_version, generated_at, fetched_at, stale, last_error)
@@ -93,7 +89,7 @@ func TestMarketplaceCatalogManifestV2Migration(t *testing.T) {
 			t.Fatalf("Close(legacy) error = %v", err)
 		}
 
-		upgraded, err := OpenGlobalDB(ctx, path)
+		upgraded, err := openGlobalMigrationUpgrade(t, path)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB(v2 migration) error = %v", err)
 		}
