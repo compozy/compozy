@@ -11,7 +11,7 @@ import type { Page } from "@playwright/test";
 
 import { reloadDaemonServedPage } from "../fixtures/navigation";
 import { automationOperatorSelectors, sessionWindowSelectors } from "../fixtures/selectors";
-import { sessionWindow, switchWorkspace, windowTitle } from "../fixtures/os-navigation";
+import { appWindow, sessionWindow, switchWorkspace, windowTitle } from "../fixtures/os-navigation";
 import type { BrowserRuntime } from "../fixtures/runtime";
 import { browserAutomationOperatorFlowScenario } from "../fixtures/runtime";
 import { expect, test } from "../fixtures/test";
@@ -168,7 +168,7 @@ test("operator creates edits disables enables triggers and deletes a dynamic job
   browserArtifacts,
   runtime,
 }) => {
-  const jobsWin = appPage.getByTestId("os-window-app:jobs");
+  const jobsWin = appWindow(appPage, "jobs");
   const ui = automationOperatorSelectors(jobsWin, appPage);
   const shellUI = automationOperatorSelectors(appPage);
   const jobStatus = jobsWin.locator('[data-slot="topbar-status"]');
@@ -341,7 +341,7 @@ test("scheduled job survives daemon restart and does not duplicate fire ids", as
   browserArtifacts,
   runtime,
 }) => {
-  const jobsWin = appPage.getByTestId("os-window-app:jobs");
+  const jobsWin = appWindow(appPage, "jobs");
   const ui = automationOperatorSelectors(jobsWin, appPage);
   const shellUI = automationOperatorSelectors(appPage);
   const job = await createJob(
@@ -408,7 +408,7 @@ test("failed job run is diagnosable from browser and CLI without leaking secrets
   browserArtifacts,
   runtime,
 }) => {
-  const jobsWin = appPage.getByTestId("os-window-app:jobs");
+  const jobsWin = appWindow(appPage, "jobs");
   const ui = automationOperatorSelectors(jobsWin, appPage);
   const shellUI = automationOperatorSelectors(appPage);
   const job = await createJob(
@@ -714,7 +714,7 @@ async function assertJobsLifecycleViewportMatrix(
   runtime: BrowserRuntime,
   jobID: string
 ): Promise<void> {
-  const jobsWin = appPage.getByTestId("os-window-app:jobs");
+  const jobsWin = appWindow(appPage, "jobs");
   const ui = automationOperatorSelectors(jobsWin, appPage);
   for (const width of [375, 768, 1280]) {
     await appPage.setViewportSize({ width, height: 820 });
@@ -742,7 +742,7 @@ async function assertJobsViewportMatrix(
   runtime: BrowserRuntime,
   jobID: string
 ): Promise<void> {
-  const jobsWin = appPage.getByTestId("os-window-app:jobs");
+  const jobsWin = appWindow(appPage, "jobs");
   const ui = automationOperatorSelectors(jobsWin, appPage);
   for (const width of [375, 768, 1280]) {
     await appPage.setViewportSize({ width, height: 820 });

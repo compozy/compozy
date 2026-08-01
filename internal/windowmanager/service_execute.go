@@ -34,8 +34,10 @@ func (m *Manager) executeDurable(
 	}
 	working.Revision = nextRevision
 	working.UpdatedAt = m.now().UTC()
-	if err := m.recordCommandHistory(&working, snapshot, request, commandID, workspaceDefaults); err != nil {
-		return Result{}, err
+	if reduced.applied {
+		if err := m.recordCommandHistory(&working, snapshot, request, commandID, workspaceDefaults); err != nil {
+			return Result{}, err
+		}
 	}
 	projection, err := m.projectClientViews(request.WorkspaceID, snapshot, working, request)
 	if err != nil {
@@ -51,7 +53,7 @@ func (m *Manager) executeDurable(
 		m.publishClient(view)
 	}
 	return Result{
-		Snapshot: cloneSnapshot(working), Applied: true, Changes: reduced.changes,
+		Snapshot: cloneSnapshot(working), Applied: reduced.applied, Changes: reduced.changes,
 		Client: client, RebasedFrom: rebasedFrom,
 	}, nil
 }
@@ -67,7 +69,14 @@ func isObservableCommand(commandID CommandID) bool {
 	switch commandID {
 	case CommandDesktopCreate,
 		CommandDesktopDelete,
+		CommandWindowOpen,
+		CommandWindowClose,
 		CommandWindowMove,
+		CommandWindowResize,
+		CommandWindowToggleFloating,
+		CommandWindowStackGroup,
+		CommandWindowStackSetActive,
+		CommandWindowReopen,
 		CommandLayoutArrange,
 		CommandLayoutReplace:
 		return true
@@ -105,11 +114,13 @@ func (m *Manager) reduceDurable(
 	}
 	working := cloneSnapshot(snapshot)
 	var focused *WindowID
+	var activeDesktop *DesktopID
 	if client != nil {
 		focused = clonePointer(client.FocusedWindowID)
+		activeDesktop = new(client.ActiveDesktopID)
 	}
 	reduced, err := (&reducer{
-		generate: m.generate, config: config, focusedWindow: focused,
+		generate: m.generate, config: config, focusedWindow: focused, activeDesktop: activeDesktop, now: m.now,
 	}).reduce(&working, payload)
 	if err != nil {
 		return Snapshot{}, reduction{}, Config{}, err
@@ -124,7 +135,8 @@ func (m *Manager) recordCommandHistory(
 	commandID CommandID,
 	workspaceDefaults Config,
 ) error {
-	if commandID == CommandLayoutUndo || commandID == CommandLayoutRedo || commandID == CommandWindowNavigate {
+	if commandID == CommandLayoutUndo || commandID == CommandLayoutRedo || commandID == CommandWindowNavigate ||
+		commandID == CommandWindowStackSetActive {
 		return nil
 	}
 	config, err := effectiveConfig(workspaceDefaults, working.Overrides)

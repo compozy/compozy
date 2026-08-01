@@ -193,6 +193,12 @@ func writeJSONLine(cmd *cobra.Command, value any) error {
 	return encoder.Encode(outputValueWithWorkspaceResolution(cmd, value))
 }
 
+func writeJSONLineWithoutWorkspaceResolution(cmd *cobra.Command, value any) error {
+	encoder := json.NewEncoder(cmd.OutOrStdout())
+	encoder.SetEscapeHTML(false)
+	return encoder.Encode(value)
+}
+
 func writeJSONLines[T any](cmd *cobra.Command, items []T) error {
 	for _, item := range items {
 		if err := writeJSONLine(cmd, item); err != nil {

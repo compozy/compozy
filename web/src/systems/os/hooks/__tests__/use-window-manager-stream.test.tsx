@@ -50,7 +50,7 @@ class FakeSocket implements WindowManagerSocket {
 
 function snapshot(revision: number): WindowManagerSnapshot {
   return {
-    version: 1,
+    version: 3,
     workspaceId: "workspace:test",
     revision,
     desktops: [
@@ -62,10 +62,11 @@ function snapshot(revision: number): WindowManagerSnapshot {
         focusOwner: null,
         groups: [],
         floating: [],
+        floatingStacks: [],
       },
     ],
     windows: {},
-    history: { undo: [], redo: [] },
+    closedEntryCount: 0,
     overrides: {},
     updatedAt: "2026-07-22T00:00:00Z",
   };
@@ -79,6 +80,7 @@ function client(presentationRevision: number, clientId = "client:web"): WindowMa
     activeDesktopId: "desktop:main",
     focusedWindowId: null,
     focusOrder: [],
+    stackActive: {},
     connectedAt: "2026-07-22T00:00:00Z",
   };
 }
@@ -94,6 +96,7 @@ function rawClientFrame(presentationRevision: number, clientId = "client:web") {
       presentation_revision: presentationRevision,
       active_desktop_id: "desktop:main",
       focus_order: [],
+      stack_active: {},
       connected_at: "2026-07-22T00:00:00Z",
     },
   };
@@ -122,7 +125,7 @@ function rawSnapshotFrame(revision: number) {
     workspace_id: "workspace:test",
     revision,
     snapshot: {
-      version: 1,
+      version: 3,
       workspace_id: "workspace:test",
       revision,
       desktops: [
@@ -133,10 +136,11 @@ function rawSnapshotFrame(revision: number) {
           purpose: "standard",
           groups: [],
           floating: [],
+          floating_stacks: [],
         },
       ],
       windows: {},
-      history: { undo: [], redo: [] },
+      closed_entry_count: 0,
       overrides: {},
       updated_at: "2026-07-22T00:00:00Z",
     },

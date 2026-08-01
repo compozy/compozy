@@ -40,6 +40,8 @@ const CONFIG: WindowManagerConfig = {
   groupMoveModifier: "alt",
   swapModifier: "shift",
   historyLimit: 50,
+  navStackLimit: 50,
+  closedEntryLimit: 20,
   desktopTransition: "slide",
   gaps: { inner: 8, top: 0, right: 0, bottom: 0, left: 0 },
   snap: { edgeBand: 32, cornerReach: 150, exitSlack: 16, repeatRatios: [0.5, 0.666667, 0.333333] },
@@ -48,12 +50,12 @@ const CONFIG: WindowManagerConfig = {
 };
 
 const SNAPSHOT: WindowManagerSnapshot = {
-  version: 1,
+  version: 3,
   workspaceId: "workspace-compozy",
   revision: 12,
   desktops: [],
   windows: {},
-  history: { undo: [], redo: [] },
+  closedEntryCount: 0,
   overrides: {},
   updatedAt: "2026-07-23T01:00:00Z",
 };
@@ -64,6 +66,8 @@ function storyWindow(id: string, layer: number): OsWindow {
     app: "tasks",
     instanceKey: null,
     route: { pathname: "/tasks", search: {} },
+    navStack: [],
+    pinned: false,
     desktopId: STORY_DESKTOP_ID,
     placement: "tiled",
     rect: { x: 40 * layer, y: 40, w: 600, h: 420 },
@@ -86,9 +90,19 @@ function outcome(): WindowManagerCommandOutcome {
  * a visible peer — the state in which every Window-menu predicate passes, so
  * the enabled menu can be captured.
  */
-export function createLiveStoryShell(): OsShellHandle {
-  const focused = storyWindow("app:tasks", 2);
-  const peer = storyWindow("app:agents", 1);
+export interface LiveStoryShellOptions {
+  windows?: Record<string, OsWindow>;
+  focusedWindowId?: string | null;
+}
+
+export function createLiveStoryShell({
+  windows: suppliedWindows,
+  focusedWindowId: suppliedFocusedWindowId,
+}: LiveStoryShellOptions = {}): OsShellHandle {
+  const focused = storyWindow("w-story-tasks", 2);
+  const peer = storyWindow("w-story-agents", 1);
+  const windows = suppliedWindows ?? { [focused.id]: focused, [peer.id]: peer };
+  const focusedWindowId = suppliedFocusedWindowId ?? focused.id;
   const state: OsDesktopRuntimeStore = {
     snapshot: SNAPSHOT,
     windowManagerConfig: CONFIG,
@@ -96,8 +110,9 @@ export function createLiveStoryShell(): OsShellHandle {
       workspaceId: "workspace-compozy",
       clientId: "client:story",
       activeDesktopId: STORY_DESKTOP_ID,
-      focusedWindowId: focused.id,
-      focusOrder: [focused.id],
+      focusedWindowId,
+      focusOrder: focusedWindowId === null ? [] : [focusedWindowId],
+      stackActive: {},
       connectedAt: "2026-07-23T01:00:00Z",
       presentationRevision: 1,
     },
@@ -107,9 +122,10 @@ export function createLiveStoryShell(): OsShellHandle {
         name: "Launch",
         order: 0,
         purpose: "standard",
-        focusOwner: focused.id,
+        focusOwner: focusedWindowId,
         groups: [],
         floating: [],
+        floatingStacks: [],
       },
       {
         id: "desktop:second",
@@ -119,12 +135,14 @@ export function createLiveStoryShell(): OsShellHandle {
         focusOwner: null,
         groups: [],
         floating: [],
+        floatingStacks: [],
       },
     ],
     projections: {},
-    windows: { [focused.id]: focused, [peer.id]: peer },
+    frames: {},
+    windows,
     activeDesktopId: STORY_DESKTOP_ID,
-    focusedId: focused.id,
+    focusedId: focusedWindowId,
     railCollapsedAgentIds: [],
     wallpaper: "ember",
     reduceMotion: false,
@@ -145,19 +163,28 @@ export function createLiveStoryShell(): OsShellHandle {
     setClient: fn(),
     setConnectionStatus: fn(),
     setLoadError: fn(),
-    openOrFocus: target => ({ windowId: `app:${target.app}`, ...outcome() }),
+    openOrFocus: target => ({ windowId: `w-story-${target.app}`, ...outcome() }),
     closeWindow: async () => true,
     focusWindow: () => outcome(),
     minimizeWindow: async () => true,
-    restoreWindow: fn(),
+    restoreWindow: () => outcome(),
     zoomWindow: () => outcome(),
-    toggleFloating: fn(),
+    toggleFloating: () => outcome(),
     moveWindow: () => outcome(),
     arrangeLayout: fn(),
     commitFloatingRect: () => outcome(),
     resizeLayout: () => outcome(),
+    resizeWindowFrame: () => outcome(),
+    resizeGroupFrames: () => outcome(),
     balanceLayout: fn(),
     navigateWindow: () => outcome(),
+    popWindowRoute: () => outcome(),
+    groupWindows: () => outcome(),
+    reorderStackMember: () => outcome(),
+    activateStackMember: () => outcome(),
+    pinWindow: () => outcome(),
+    reopenWindow: () => outcome(),
+    closeWindowScoped: async () => true,
     toggleRailGroup: fn(),
     setWallpaper: fn(),
     setDockMagnify: fn(),

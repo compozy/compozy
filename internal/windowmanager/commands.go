@@ -13,11 +13,18 @@ const (
 	CommandWindowClose          CommandID = "window.close"
 	CommandWindowFocus          CommandID = "window.focus"
 	CommandWindowMove           CommandID = "window.move"
+	CommandWindowResize         CommandID = "window.resize"
 	CommandWindowSwap           CommandID = "window.swap"
 	CommandWindowToggleFloating CommandID = "window.toggle_floating"
 	CommandWindowZoom           CommandID = "window.zoom"
+	CommandWindowStackGroup     CommandID = "window.stack.group"
+	CommandWindowStackReorder   CommandID = "window.stack.reorder"
+	CommandWindowStackSetActive CommandID = "window.stack.set_active"
+	CommandWindowPin            CommandID = "window.pin"
+	CommandWindowReopen         CommandID = "window.reopen"
 	CommandLayoutArrange        CommandID = "layout.arrange"
 	CommandLayoutResize         CommandID = "layout.resize"
+	CommandLayoutFrameResize    CommandID = "layout.frame_resize"
 	CommandLayoutBalance        CommandID = "layout.balance"
 	CommandLayoutUndo           CommandID = "layout.undo"
 	CommandLayoutRedo           CommandID = "layout.redo"
@@ -87,13 +94,14 @@ type DeleteDesktopCommand struct {
 func (DeleteDesktopCommand) CommandID() CommandID { return CommandDesktopDelete }
 
 type WindowSpec struct {
-	ID           WindowID
-	App          string
-	InstanceKey  *string
-	Route        RouteIntent
-	DesktopID    DesktopID
-	FloatingRect NormalizedRect
-	InsertTiled  bool
+	ID                  WindowID       `json:"id,omitempty"`
+	App                 string         `json:"app"`
+	InstanceKey         *string        `json:"instance_key,omitempty"`
+	Route               RouteIntent    `json:"route"`
+	DesktopID           DesktopID      `json:"desktop_id"`
+	FloatingRect        NormalizedRect `json:"floating_rect"`
+	InsertTiled         bool           `json:"insert_tiled,omitempty"`
+	StackTargetWindowID *WindowID      `json:"stack_target_window_id,omitempty"`
 }
 
 type OpenWindowCommand struct {
@@ -104,19 +112,70 @@ type OpenWindowCommand struct {
 func (OpenWindowCommand) CommandID() CommandID { return CommandWindowOpen }
 
 type NavigateWindowCommand struct {
-	WindowID WindowID
-	Route    RouteIntent
+	WindowID WindowID     `json:"window_id"`
+	Route    RouteIntent  `json:"route,omitzero"`
+	Mode     NavigateMode `json:"mode,omitempty"`
 }
 
 func (NavigateWindowCommand) CommandID() CommandID { return CommandWindowNavigate }
 
 // CloseWindowCommand minimizes instead of deleting when Minimize is true.
 type CloseWindowCommand struct {
-	WindowID WindowID
-	Minimize bool
+	WindowID WindowID   `json:"window_id"`
+	Minimize bool       `json:"minimize,omitempty"`
+	Scope    CloseScope `json:"scope,omitempty"`
 }
 
 func (CloseWindowCommand) CommandID() CommandID { return CommandWindowClose }
+
+type NavigateMode string
+
+const (
+	NavigateReplace NavigateMode = ""
+	NavigatePush    NavigateMode = "push"
+	NavigatePop     NavigateMode = "pop"
+)
+
+type CloseScope string
+
+const (
+	CloseScopeTab    CloseScope = ""
+	CloseScopeGroup  CloseScope = "group"
+	CloseScopeOthers CloseScope = "others"
+	CloseScopeRight  CloseScope = "right"
+)
+
+type GroupWindowsCommand struct {
+	TargetWindowID WindowID   `json:"target_window_id"`
+	WindowIDs      []WindowID `json:"window_ids"`
+	InsertIndex    *int       `json:"insert_index,omitempty"`
+}
+
+func (GroupWindowsCommand) CommandID() CommandID { return CommandWindowStackGroup }
+
+type ReorderStackCommand struct {
+	WindowID WindowID `json:"window_id"`
+	Index    int      `json:"index"`
+}
+
+func (ReorderStackCommand) CommandID() CommandID { return CommandWindowStackReorder }
+
+type SetStackActiveCommand struct {
+	WindowID WindowID `json:"window_id"`
+}
+
+func (SetStackActiveCommand) CommandID() CommandID { return CommandWindowStackSetActive }
+
+type PinWindowCommand struct {
+	WindowID WindowID `json:"window_id"`
+	Pinned   bool     `json:"pinned"`
+}
+
+func (PinWindowCommand) CommandID() CommandID { return CommandWindowPin }
+
+type ReopenCommand struct{}
+
+func (ReopenCommand) CommandID() CommandID { return CommandWindowReopen }
 
 type FocusDirection string
 
@@ -157,6 +216,16 @@ type MoveWindowCommand struct {
 }
 
 func (MoveWindowCommand) CommandID() CommandID { return CommandWindowMove }
+
+// ResizeWindowCommand assigns a normalized frame to the unit containing the
+// window: a floating rect, a floating stack rect, a solo group frame, or a
+// split member that detaches into its own island at the requested frame.
+type ResizeWindowCommand struct {
+	WindowID WindowID
+	Frame    NormalizedRect
+}
+
+func (ResizeWindowCommand) CommandID() CommandID { return CommandWindowResize }
 
 type SwapWindowsCommand struct {
 	FirstWindowID  WindowID
@@ -204,6 +273,21 @@ type ResizeLayoutCommand struct {
 
 func (ResizeLayoutCommand) CommandID() CommandID { return CommandLayoutResize }
 
+// GroupFrameEdit assigns one group frame inside an atomic multi-group resize.
+type GroupFrameEdit struct {
+	GroupID GroupID
+	Frame   NormalizedRect
+}
+
+// FrameResizeLayoutCommand moves shared group boundaries by rewriting every
+// affected island frame in one atomic, overlap-checked mutation.
+type FrameResizeLayoutCommand struct {
+	DesktopID DesktopID
+	Edits     []GroupFrameEdit
+}
+
+func (FrameResizeLayoutCommand) CommandID() CommandID { return CommandLayoutFrameResize }
+
 type BalanceLayoutCommand struct {
 	GroupID *GroupID
 	SplitID *NodeID
@@ -225,11 +309,13 @@ func (ReplaceLayoutCommand) CommandID() CommandID { return CommandLayoutReplace 
 
 // ChangeSet names the entities affected by one command.
 type ChangeSet struct {
-	DesktopIDs []DesktopID `json:"desktop_ids,omitempty"`
-	WindowIDs  []WindowID  `json:"window_ids,omitempty"`
-	GroupIDs   []GroupID   `json:"group_ids,omitempty"`
-	NodeIDs    []NodeID    `json:"node_ids,omitempty"`
-	ClientIDs  []ClientID  `json:"client_ids,omitempty"`
+	DesktopIDs     []DesktopID `json:"desktop_ids,omitempty"`
+	WindowIDs      []WindowID  `json:"window_ids,omitempty"`
+	GroupIDs       []GroupID   `json:"group_ids,omitempty"`
+	NodeIDs        []NodeID    `json:"node_ids,omitempty"`
+	ClientIDs      []ClientID  `json:"client_ids,omitempty"`
+	StackGrouped   []NodeID    `json:"stack_grouped,omitempty"`
+	StackUngrouped []NodeID    `json:"stack_ungrouped,omitempty"`
 }
 
 // Result reports one applied or no-op command.

@@ -8,7 +8,7 @@ import { promisify } from "node:util";
 
 import type { Locator, Page } from "@playwright/test";
 
-import { sessionWindow, switchWorkspace } from "../fixtures/os-navigation";
+import { appWindow, sessionWindow, switchWorkspace } from "../fixtures/os-navigation";
 import {
   sandboxOperatorSelectors,
   sessionLifecycleSelectors,
@@ -127,7 +127,7 @@ test("operator manages a local sandbox profile and binds it to real session exec
   await useGlobalWorkspaceIfPrompted(sessionLifecycleSelectors(appPage));
 
   await appPage.goto(runtime.url("/sandbox"), { waitUntil: "domcontentloaded" });
-  const sandboxWin = appPage.getByTestId("os-window-app:sandbox");
+  const sandboxWin = appWindow(appPage, "sandbox");
   await expect(sandboxWin).toBeVisible({ timeout: 20_000 });
   const sandboxUI = sandboxOperatorSelectors(sandboxWin);
   await expect(sandboxUI.shell).toBeVisible({ timeout: 20_000 });

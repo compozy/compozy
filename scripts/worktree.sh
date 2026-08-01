@@ -10,10 +10,11 @@
 # replaces shared dirs (.claude .codex .compozy .resources docs) with copies
 # from the main checkout, then bootstraps. `bootstrap` makes the CURRENT
 # checkout dev-ready: mise tool pins, bun install (postinstall links
-# .claude/skills + AGENTS.md), optional `make build` (--build) and Playwright
-# chromium (--e2e). Go lanes need no per-worktree setup (GOCACHE/GOMODCACHE
-# are shared); `make verify` and the E2E lanes queue machine-wide (L-030),
-# scoped lanes are capacity-bounded.
+# .claude/skills + AGENTS.md), golangci-lint cache seeded from the main
+# checkout (the cache is per-worktree), optional `make build` (--build) and
+# Playwright chromium (--e2e). GOCACHE/GOMODCACHE are shared; `make verify`
+# and the E2E lanes queue machine-wide (L-030), scoped lanes are
+# capacity-bounded.
 set -euo pipefail
 
 # Dirs wiped in the new worktree and replaced with copies from the main checkout.
@@ -68,6 +69,63 @@ sync_shared_dirs_from_main() {
   done
 }
 
+user_cache_base() {
+  case "$(uname -s)" in
+    Darwin) printf '%s/Library/Caches' "$HOME" ;;
+    *) printf '%s' "${XDG_CACHE_HOME:-$HOME/.cache}" ;;
+  esac
+}
+
+root_cache_digest() {
+  if command -v shasum >/dev/null 2>&1; then
+    printf '%s' "$1" | shasum -a 256 | cut -c1-16
+  else
+    printf '%s' "$1" | sha256sum | cut -c1-16
+  fi
+}
+
+# Warm this checkout's golangci-lint cache from the main checkout's: the cache
+# is keyed per worktree root (magefiles/deps_lint.go), so a fresh worktree would
+# otherwise pay a cold full-repo analysis. Stale entries are safe
+# (content-addressed); best-effort — never fails the bootstrap.
+seed_lint_cache() {
+  local dest_root="$1" src_root version base src dest tmp
+  src_root="$(main_root)"
+  [ "$src_root" = "$dest_root" ] && return 0
+  if [ -n "${GOLANGCI_LINT_CACHE:-}" ]; then
+    echo "worktree: GOLANGCI_LINT_CACHE is set (shared cache) — skipping lint cache seed"
+    return 0
+  fi
+  if ! command -v shasum >/dev/null 2>&1 && ! command -v sha256sum >/dev/null 2>&1; then
+    echo "worktree: no sha256 tool — skipping lint cache seed"
+    return 0
+  fi
+  version="$(sed -n 's/^golangci-lint[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "$dest_root/mise.toml" 2>/dev/null | head -n1 || true)"
+  if [ -z "$version" ]; then
+    echo "worktree: no golangci-lint pin in mise.toml — skipping lint cache seed"
+    return 0
+  fi
+  base="$(user_cache_base)/compozy-dev/golangci-lint/${version#v}"
+  src="$base/$(root_cache_digest "$src_root")"
+  dest="$base/$(root_cache_digest "$dest_root")"
+  if [ ! -d "$src" ]; then
+    echo "worktree: main checkout has no lint cache yet — skipping lint cache seed"
+    return 0
+  fi
+  if [ -d "$dest" ]; then
+    echo "worktree: lint cache already present — skipping lint cache seed"
+    return 0
+  fi
+  echo "worktree: seeding golangci-lint cache from main ($(du -sh "$src" 2>/dev/null | cut -f1 || echo '?'))"
+  tmp="$dest.seed.$$"
+  rm -rf "$tmp"
+  if cp -a "$src" "$tmp" && mv "$tmp" "$dest"; then
+    return 0
+  fi
+  rm -rf "$tmp"
+  echo "worktree: lint cache seed failed — first lint run will be cold"
+}
+
 bootstrap() {
   local do_build=0 do_e2e=0 skip_install=0
   while [ $# -gt 0 ]; do
@@ -89,6 +147,8 @@ bootstrap() {
   else
     echo "worktree: mise not found — ensure golangci-lint/gotestsum match mise.toml pins manually"
   fi
+
+  seed_lint_cache "$root"
 
   if [ "$skip_install" -eq 1 ]; then
     echo "worktree: skipping bun install (--skip-install)"

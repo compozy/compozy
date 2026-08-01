@@ -1437,6 +1437,38 @@ func TestJoinNetworkPeerHandlesNoOpConditionsAndCapabilityProjection(t *testing.
 			t.Fatalf("join capabilities = %#v, want %#v", call.capabilities, capabilities)
 		}
 	})
+
+	t.Run("Should rebind an active peer and restore its durable participation", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		lifecycle := newFakeNetworkPeerLifecycle()
+		h.manager.SetNetworkPeerLifecycle(lifecycle)
+		active := createLiveNetworkSession(t, h)
+		taskSpec := testLiveParticipation(h.workspaceID, "lifecycle-cadence")
+
+		if err := h.manager.BindNetworkPeer(
+			testutil.Context(t),
+			active.ID,
+			taskSpec,
+			"task_run:run-lifecycle",
+		); err != nil {
+			t.Fatalf("BindNetworkPeer() error = %v", err)
+		}
+		if got, want := lifecycle.joinCall(1).channel, "lifecycle-cadence"; got != want {
+			t.Fatalf("bound peer channel = %q, want %q", got, want)
+		}
+		if got, want := active.Info().NetworkParticipation.ChannelID, "builders"; got != want {
+			t.Fatalf("durable session channel = %q, want %q", got, want)
+		}
+
+		if err := h.manager.RestoreNetworkPeer(testutil.Context(t), active.ID); err != nil {
+			t.Fatalf("RestoreNetworkPeer() error = %v", err)
+		}
+		if got, want := lifecycle.joinCall(2).channel, "builders"; got != want {
+			t.Fatalf("restored peer channel = %q, want %q", got, want)
+		}
+	})
 }
 
 func TestResumeRepairsIncompleteStartAndStartsFreshACPClient(t *testing.T) {

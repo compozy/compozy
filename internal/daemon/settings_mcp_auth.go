@@ -27,7 +27,7 @@ func newSettingsMCPAuthManagerWithConfig(
 		mcpauth.WithDefaultRedirectURL(oauthConfig.RedirectURI),
 		mcpauth.WithRegistrationStore(registrations),
 		mcpauth.WithSecretRefResolver(secretResolver),
-		mcpauth.WithSecureHTTPClient(securehttp.NewClient()),
+		mcpauth.WithSecureHTTPClient(securehttp.NewClient(securehttp.WithAllowLoopback(true))),
 	}
 	if len(generation) > 0 && generation[0] != nil {
 		serviceOptions = append(serviceOptions, mcpauth.WithMutationGeneration(generation[0]))

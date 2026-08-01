@@ -17,6 +17,7 @@ type managerOptions struct {
 	subscriptionBuffer int
 	eventObserver      EventObserver
 	workspaceConfig    WorkspaceConfigResolver
+	lifecycleContext   context.Context
 }
 
 // Option customizes the manager without introducing operational globals.
@@ -85,8 +86,24 @@ func WithWorkspaceConfigResolver(resolver WorkspaceConfigResolver) Option {
 	}
 }
 
+// WithLifecycleContext preserves boot-scoped values for detached background work.
+func WithLifecycleContext(ctx context.Context) Option {
+	return func(options *managerOptions) error {
+		if ctx == nil {
+			return errors.New("window manager lifecycle context is required")
+		}
+		options.lifecycleContext = context.WithoutCancel(ctx)
+		return nil
+	}
+}
+
 func resolveOptions(options []Option) (managerOptions, error) {
-	resolved := managerOptions{now: time.Now, generate: randomID, subscriptionBuffer: defaultSubscriptionBuffer}
+	resolved := managerOptions{
+		now:                time.Now,
+		generate:           randomID,
+		subscriptionBuffer: defaultSubscriptionBuffer,
+		lifecycleContext:   context.Background(),
+	}
 	for _, option := range options {
 		if option == nil {
 			continue
@@ -99,9 +116,17 @@ func resolveOptions(options []Option) (managerOptions, error) {
 }
 
 func randomID(kind string) (string, error) {
-	bytes := make([]byte, 16)
+	prefix, randomBytes := idShape(kind)
+	bytes := make([]byte, randomBytes)
 	if _, err := rand.Read(bytes); err != nil {
 		return "", fmt.Errorf("read random ID: %w", err)
 	}
-	return kind + "-" + hex.EncodeToString(bytes), nil
+	return prefix + hex.EncodeToString(bytes), nil
+}
+
+func idShape(kind string) (string, int) {
+	if kind == "window" {
+		return "w-", 13
+	}
+	return kind + "-", 16
 }

@@ -43,7 +43,9 @@ function DesktopLayer({
   seamProjection,
   preview,
   onResize,
+  onFrameResize,
   onSeamPreview,
+  onFrameSeamPreview,
   onSeamPreviewEnd,
 }: {
   model: DesktopLayerModel;
@@ -107,15 +109,17 @@ function DesktopLayer({
           <Kbd>⌘K</Kbd> to open anything — or pick a surface from the dock
         </p>
       ) : null}
-      {model.windowIds.map(id => (
-        <OsWindow key={id} windowId={id} />
+      {model.frames.map(frame => (
+        <OsWindow key={frame.id} frame={frame} />
       ))}
       {!compact && interactive ? (
         <>
           <OsSnapSeamLayer
             projection={seamProjection}
             onResize={onResize}
+            onFrameResize={onFrameResize}
             onSeamPreview={onSeamPreview}
+            onFrameSeamPreview={onFrameSeamPreview}
             onSeamPreviewEnd={onSeamPreviewEnd}
           />
           <OsSnapOverlay preview={preview} />
@@ -133,7 +137,9 @@ export function OsWinLayer({
   preview,
   onTransitionComplete,
   onResize,
+  onFrameResize,
   onSeamPreview,
+  onFrameSeamPreview,
   onSeamPreviewEnd,
 }: {
   model: OsWinLayerModel;
@@ -162,7 +168,9 @@ export function OsWinLayer({
           seamProjection={activeProjection}
           preview={preview}
           onResize={onResize}
+          onFrameResize={onFrameResize}
           onSeamPreview={onSeamPreview}
+          onFrameSeamPreview={onFrameSeamPreview}
           onSeamPreviewEnd={onSeamPreviewEnd}
         />
       ))}

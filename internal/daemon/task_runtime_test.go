@@ -649,6 +649,114 @@ func TestTaskSessionBridgeStartTaskSessionUsesDedicatedSystemSessions(t *testing
 	}
 }
 
+func TestTaskSessionBridgeBindsClaimedRunsToTheirNetworkOwner(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		run          taskpkg.Run
+		wantOwnerKey string
+	}{
+		{
+			name: "Should bind a task run to its task-run owner",
+			run: taskpkg.Run{
+				ID:     "run-network-task",
+				TaskID: "task-network",
+			},
+			wantOwnerKey: "task_run:run-network-task",
+		},
+		{
+			name: "Should bind a loop worker to its loop-run owner",
+			run: taskpkg.Run{
+				ID:        "run-network-loop",
+				TaskID:    "task-network-loop",
+				LoopRunID: "loop-network-owner",
+			},
+			wantOwnerKey: "loop_run:loop-network-owner",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			sessions := &recordingTaskBridgeSessionManager{fakeSessionManager: &fakeSessionManager{}}
+			bridge, err := newTaskSessionBridge(sessions, t.TempDir(), discardLogger())
+			if err != nil {
+				t.Fatalf("newTaskSessionBridge() error = %v", err)
+			}
+			run := test.run
+			run.SetNetworkState(
+				daemonTestLiveParticipation("ws-network", "lifecycle-cadence"),
+				"",
+				"",
+				"",
+			)
+
+			if err := bridge.BindTaskRunNetwork(
+				context.Background(),
+				"sess-network-worker",
+				run,
+			); err != nil {
+				t.Fatalf("BindTaskRunNetwork() error = %v", err)
+			}
+			if got, want := len(sessions.bindCalls), 1; got != want {
+				t.Fatalf("BindNetworkPeer() calls = %d, want %d", got, want)
+			}
+			call := sessions.bindCalls[0]
+			if call.sessionID != "sess-network-worker" ||
+				call.spec.ChannelID != "lifecycle-cadence" ||
+				call.ownerKey != test.wantOwnerKey {
+				t.Fatalf("BindNetworkPeer() call = %#v, want session/channel/owner binding", call)
+			}
+
+			if err := bridge.RestoreTaskRunNetwork(
+				context.Background(),
+				"sess-network-worker",
+			); err != nil {
+				t.Fatalf("RestoreTaskRunNetwork() error = %v", err)
+			}
+			if got, want := sessions.restoreCalls, []string{"sess-network-worker"}; !slices.Equal(got, want) {
+				t.Fatalf("RestoreNetworkPeer() calls = %v, want %v", got, want)
+			}
+		})
+	}
+}
+
+type taskBridgeNetworkBindCall struct {
+	sessionID string
+	spec      participation.Spec
+	ownerKey  string
+}
+
+type recordingTaskBridgeSessionManager struct {
+	*fakeSessionManager
+	bindCalls    []taskBridgeNetworkBindCall
+	restoreCalls []string
+}
+
+func (m *recordingTaskBridgeSessionManager) BindNetworkPeer(
+	_ context.Context,
+	sessionID string,
+	spec participation.Spec,
+	ownerKey string,
+) error {
+	m.bindCalls = append(m.bindCalls, taskBridgeNetworkBindCall{
+		sessionID: sessionID,
+		spec:      spec,
+		ownerKey:  ownerKey,
+	})
+	return nil
+}
+
+func (m *recordingTaskBridgeSessionManager) RestoreNetworkPeer(
+	_ context.Context,
+	sessionID string,
+) error {
+	m.restoreCalls = append(m.restoreCalls, sessionID)
+	return nil
+}
+
 func TestTaskSessionBridgeStartTaskSessionAppliesExecutionProfileWorkerRuntime(t *testing.T) {
 	t.Parallel()
 

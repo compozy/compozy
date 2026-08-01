@@ -41,6 +41,22 @@ Bootstrap passes the value to `init-state.py --frontend`; it lands in
 `state.yaml.frontend_agent` and holds for the whole loop. Omit the parameter
 to run every task locally.
 
+## Stacked PRs (`--stacked`)
+
+Opt-in, default off, tasks mode only. Append `--stacked` to the invocation
+line (combinable with `--frontend`):
+
+```text
+Use the cy-loop-tasks skill at .agents/skills/cy-loop-tasks/SKILL.md.
+The skill is a self-healing continue loop — repair command and gate failures inside the current phase action, then continue until Phase E or a proven external blocker. Slug: <slug>. --stacked
+```
+
+Bootstrap passes it to `init-state.py --stacked`; it lands in
+`state.yaml.stacked` and makes every Phase B checkpoint publish its task as
+one `gh stack` layer with a draft PR. Prerequisites and semantics:
+`references/stacked-prs.md`. Omit the parameter for the default single-branch
+checkpoint flow.
+
 ## Invoking without the plugin (manual run)
 
 ```

@@ -2,14 +2,20 @@
     "title": "Window",
     "pages": [
         "index",
+        "activate",
         "close",
         "float",
         "focus",
+        "group",
         "list",
         "move",
         "navigate",
         "open",
+        "pin",
+        "reopen",
+        "resize",
         "swap",
+        "unpin",
         "zoom"
     ]
 }

@@ -10,8 +10,11 @@ flowchart TD
     O --> T{Target already open?}
     T -->|yes| F[Focus the existing semantic window]
     T -->|no| N[Create one window at its declared default size]
-    F --> M[Move, resize, minimize, restore, or switch workspace]
-    N --> M
+    F --> G{Join related work?}
+    N --> G
+    G -->|yes| D[Group into a tab frame and activate one member]
+    G -->|no| M[Move, resize, minimize, restore, or switch workspace]
+    D --> M
     M --> R[Reload or reconnect]
     R --> C{Server and client topology agree?}
     C -->|no| B[Blocker: duplicate, lost, or falsely active surface]
@@ -39,8 +42,8 @@ journey:
       verb: "Open and dismiss global Sessions, Shortcuts, and About surfaces"
       expected_observable: "Dialog ownership, keyboard focus, and dismissal remain consistent"
     - step: 3
-      verb: "Arrange windows and switch workspace or connection state"
-      expected_observable: "Client-local focus and shared topology remain truthful; degraded states explain what is unavailable"
+      verb: "Group related windows into tabs, arrange frames, and switch workspace or connection state"
+      expected_observable: "Client-local active tabs and focus remain independent over shared topology; degraded states explain what is unavailable"
     - step: 4
       verb: "Reload and continue from the restored shell"
       expected_observable: "URL, active workspace, and visible windows converge without duplicates or lost routes"
@@ -54,5 +57,5 @@ journey:
     - at_step: 2
       how: "Dismiss a global modal or leave during a disconnected state."
       resume: "Reopen from another shell entry point; no resource mutation or duplicate window remains."
-  crosses: [web-router, window-manager, dock, menubar, command-palette, session-catalog, accessibility, connection-state]
+  crosses: [web-router, window-manager, tab-deck, dock, menubar, command-palette, session-catalog, accessibility, connection-state]
 ```

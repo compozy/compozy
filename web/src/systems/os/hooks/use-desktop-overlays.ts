@@ -1,7 +1,7 @@
 import { useState } from "react";
 
 import { windowManagerStore } from "../stores/window-manager-store";
-import { useWindowManagerOverlay } from "./use-window-manager-store";
+import { useWindowManagerOverlay, useWindowPaletteIntent } from "./use-window-manager-store";
 
 /**
  * One id per shell overlay, including one per menubar menu. Sharing a single
@@ -26,14 +26,27 @@ export type DesktopOverlay =
 
 type LocalDesktopOverlay = Exclude<DesktopOverlay, "desktops">;
 
-/** One owner for shell overlays; Desktops Overview lives in the WM interaction store. */
+/**
+ * One owner for shell overlays; Desktops Overview lives in the WM interaction
+ * store. A live palette intent (new-tab picker, deck `+`) IS the palette being
+ * open — derived, so "intent set but picker closed" cannot exist (US-005);
+ * dismissing the palette consumes the intent and the empty tab stays put.
+ */
 export function useDesktopOverlays() {
   const [localOverlay, setLocalOverlay] = useState<LocalDesktopOverlay | null>(null);
   const windowManagerOverlay = useWindowManagerOverlay();
+  const paletteIntent = useWindowPaletteIntent();
   const activeOverlay: DesktopOverlay | null =
-    windowManagerOverlay?.kind === "desktops-overview" ? "desktops" : localOverlay;
+    windowManagerOverlay?.kind === "desktops-overview"
+      ? "desktops"
+      : paletteIntent !== null
+        ? "palette"
+        : localOverlay;
 
   const setOverlayOpen = (overlay: DesktopOverlay, open: boolean) => {
+    if (paletteIntent !== null && (!open || overlay !== "palette")) {
+      windowManagerStore.trigger.paletteIntentCleared();
+    }
     if (overlay === "desktops") {
       setLocalOverlay(null);
       if (open) {
@@ -46,6 +59,9 @@ export function useDesktopOverlays() {
     if (open) windowManagerStore.trigger.overlayClosed();
     setLocalOverlay(current => {
       if (open) return overlay;
+      // An intent-opened palette may shadow an earlier local overlay; closing
+      // it must not reveal that stale surface underneath.
+      if (overlay === "palette") return null;
       return current === overlay ? null : current;
     });
   };

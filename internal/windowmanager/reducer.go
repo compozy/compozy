@@ -1,22 +1,50 @@
 package windowmanager
 
-import "fmt"
+import (
+	"fmt"
+	"time"
+)
 
 type reducer struct {
 	generate      idGenerator
 	config        Config
 	focusedWindow *WindowID
+	activeDesktop *DesktopID
+	now           func() time.Time
 	changes       changeBuilder
 }
 
 type reduction struct {
 	changed bool
+	applied bool
 	changes ChangeSet
 }
 
 func (r *reducer) reduce(snapshot *Snapshot, command Command) (reduction, error) {
-	var changed bool
-	var err error
+	changed, reportsApplied, handled, err := r.reduceTopologyCommand(snapshot, command)
+	if !handled {
+		changed, handled, err = r.reduceLayoutCommand(snapshot, command)
+		reportsApplied = true
+	}
+	if err != nil {
+		return reduction{}, err
+	}
+	if !handled {
+		switch command.(type) {
+		case SwitchDesktopCommand, FocusWindowCommand:
+			return reduction{}, fmt.Errorf("presentation command reached durable reducer: %w", ErrInvalidCommand)
+		default:
+			return reduction{}, fmt.Errorf("unsupported command %T: %w", command, ErrInvalidCommand)
+		}
+	}
+	return r.completeReduction(snapshot, changed, changed && reportsApplied), nil
+}
+
+func (r *reducer) reduceTopologyCommand(
+	snapshot *Snapshot,
+	command Command,
+) (changed bool, reportsApplied bool, handled bool, err error) {
+	reportsApplied = true
 	switch payload := command.(type) {
 	case CreateDesktopCommand:
 		changed, err = r.createDesktop(snapshot, payload)
@@ -34,16 +62,42 @@ func (r *reducer) reduce(snapshot *Snapshot, command Command) (reduction, error)
 		changed, err = r.closeWindow(snapshot, payload)
 	case MoveWindowCommand:
 		changed, err = r.moveWindow(snapshot, payload)
+	case ResizeWindowCommand:
+		changed, err = r.resizeWindow(snapshot, payload)
 	case SwapWindowsCommand:
 		changed, err = r.swapWindows(snapshot, payload)
 	case ToggleFloatingCommand:
 		changed, err = r.toggleFloating(snapshot, payload)
+	case GroupWindowsCommand:
+		changed, err = r.groupWindows(snapshot, payload)
+	case ReorderStackCommand:
+		changed, err = r.reorderStack(snapshot, payload)
+	case SetStackActiveCommand:
+		changed, err = r.setStackActive(snapshot, payload)
+	case PinWindowCommand:
+		changed, err = r.pinWindow(snapshot, payload)
+	case ReopenCommand:
+		changed = r.reopenWindow(snapshot)
+		reportsApplied = len(r.changes.windows) > 0
 	case ZoomWindowCommand:
 		changed, err = r.zoomWindow(snapshot, payload)
+	default:
+		return false, true, false, nil
+	}
+	return changed, reportsApplied, true, err
+}
+
+func (r *reducer) reduceLayoutCommand(
+	snapshot *Snapshot,
+	command Command,
+) (changed bool, handled bool, err error) {
+	switch payload := command.(type) {
 	case ArrangeLayoutCommand:
 		changed, err = r.arrange(snapshot, payload)
 	case ResizeLayoutCommand:
 		changed, err = r.resize(snapshot, payload)
+	case FrameResizeLayoutCommand:
+		changed, err = r.frameResize(snapshot, payload)
 	case BalanceLayoutCommand:
 		changed, err = r.balance(snapshot, payload)
 	case UndoLayoutCommand:
@@ -52,29 +106,26 @@ func (r *reducer) reduce(snapshot *Snapshot, command Command) (reduction, error)
 		changed, err = r.redo(snapshot)
 	case ReplaceLayoutCommand:
 		changed, err = r.replace(snapshot, payload)
-	case SwitchDesktopCommand, FocusWindowCommand:
-		return reduction{}, fmt.Errorf("presentation command reached durable reducer: %w", ErrInvalidCommand)
 	default:
-		return reduction{}, fmt.Errorf("unsupported command %T: %w", command, ErrInvalidCommand)
+		return false, false, nil
 	}
-	if err != nil {
-		return reduction{}, err
-	}
-	return r.completeReduction(snapshot, changed), nil
+	return changed, true, err
 }
 
-func (r *reducer) completeReduction(snapshot *Snapshot, changed bool) reduction {
+func (r *reducer) completeReduction(snapshot *Snapshot, changed bool, applied bool) reduction {
 	if changed {
 		r.releaseDetachedFocusDesktops(snapshot)
 	}
-	return reduction{changed: changed, changes: r.changes.result()}
+	return reduction{changed: changed, applied: applied, changes: r.changes.result()}
 }
 
 type changeBuilder struct {
-	desktops map[DesktopID]struct{}
-	windows  map[WindowID]struct{}
-	groups   map[GroupID]struct{}
-	nodes    map[NodeID]struct{}
+	desktops        map[DesktopID]struct{}
+	windows         map[WindowID]struct{}
+	groups          map[GroupID]struct{}
+	nodes           map[NodeID]struct{}
+	groupedStacks   map[NodeID]struct{}
+	ungroupedStacks map[NodeID]struct{}
 }
 
 func (b *changeBuilder) desktop(id DesktopID) {
@@ -101,6 +152,18 @@ func (b *changeBuilder) node(id NodeID) {
 	}
 	b.nodes[id] = struct{}{}
 }
+func (b *changeBuilder) stackGrouped(id NodeID) {
+	if b.groupedStacks == nil {
+		b.groupedStacks = make(map[NodeID]struct{})
+	}
+	b.groupedStacks[id] = struct{}{}
+}
+func (b *changeBuilder) stackUngrouped(id NodeID) {
+	if b.ungroupedStacks == nil {
+		b.ungroupedStacks = make(map[NodeID]struct{})
+	}
+	b.ungroupedStacks[id] = struct{}{}
+}
 func (b *changeBuilder) result() ChangeSet {
 	result := ChangeSet{}
 	for id := range b.desktops {
@@ -114,6 +177,12 @@ func (b *changeBuilder) result() ChangeSet {
 	}
 	for id := range b.nodes {
 		result.NodeIDs = append(result.NodeIDs, id)
+	}
+	for id := range b.groupedStacks {
+		result.StackGrouped = append(result.StackGrouped, id)
+	}
+	for id := range b.ungroupedStacks {
+		result.StackUngrouped = append(result.StackUngrouped, id)
 	}
 	sortChangeSet(&result)
 	return result

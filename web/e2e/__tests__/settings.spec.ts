@@ -4,7 +4,7 @@ import path from "node:path";
 import process from "node:process";
 
 import { reloadDaemonServedPage } from "../fixtures/navigation";
-import { openAppWindow, switchWorkspace } from "../fixtures/os-navigation";
+import { appWindow, openAppWindow, switchWorkspace } from "../fixtures/os-navigation";
 import { settingsOperatorSelectors, sessionLifecycleSelectors } from "../fixtures/selectors";
 import {
   browserSettingsOperatorFlowScenario,
@@ -34,7 +34,7 @@ test("operator can navigate the settings shell and complete a restart-aware gene
   await ensureGlobalWorkspace(runtime);
   await useGlobalWorkspaceIfPrompted(sessionUI);
   await appPage.goto(runtime.url("/settings/general"), { waitUntil: "domcontentloaded" });
-  const settingsWin = appPage.getByTestId("os-window-app:settings");
+  const settingsWin = appWindow(appPage, "settings");
   await expect(settingsWin).toBeVisible({ timeout: 20_000 });
   const settingsUI = settingsOperatorSelectors(settingsWin);
   await expect(settingsUI.shell.shell).toBeVisible({ timeout: 20_000 });
@@ -149,7 +149,7 @@ test("operator can distinguish skills actions that apply now from policy changes
     await ensureGlobalWorkspace(runtime);
     await useGlobalWorkspaceIfPrompted(sessionUI);
     await appPage.goto(runtime.url("/settings/skills"), { waitUntil: "domcontentloaded" });
-    const settingsWin = appPage.getByTestId("os-window-app:settings");
+    const settingsWin = appWindow(appPage, "settings");
     await expect(settingsWin).toBeVisible({ timeout: 20_000 });
     const settingsUI = settingsOperatorSelectors(settingsWin);
 
@@ -202,7 +202,7 @@ test("operator can replace a builtin provider with a config overlay and delete i
   await ensureGlobalWorkspace(runtime);
   await useGlobalWorkspaceIfPrompted(sessionUI);
   await appPage.goto(runtime.url("/settings/providers"), { waitUntil: "domcontentloaded" });
-  const settingsWin = appPage.getByTestId("os-window-app:settings");
+  const settingsWin = appWindow(appPage, "settings");
   await expect(settingsWin).toBeVisible({ timeout: 20_000 });
   const settingsUI = settingsOperatorSelectors(settingsWin);
 
@@ -369,7 +369,7 @@ test("operator can manage restart-aware hooks and extension policy on split sett
     await appPage.goto(runtime.url("/settings/hooks"), {
       waitUntil: "domcontentloaded",
     });
-    const settingsWin = appPage.getByTestId("os-window-app:settings");
+    const settingsWin = appWindow(appPage, "settings");
     await expect(settingsWin).toBeVisible({ timeout: 20_000 });
     const settingsUI = settingsOperatorSelectors(settingsWin);
 

@@ -16,6 +16,18 @@ func (r *reducer) openWindow(snapshot *Snapshot, command OpenWindowCommand) (boo
 	windowID := window.ID
 	desktopID := window.DesktopID
 	snapshot.Windows[windowID] = window
+	if command.Window.StackTargetWindowID != nil {
+		desktopIndex, _ := desktopIndexByID(snapshot, desktopID)
+		snapshot.Desktops[desktopIndex].Floating = append(snapshot.Desktops[desktopIndex].Floating, windowID)
+		changed, groupErr := r.groupWindows(snapshot, GroupWindowsCommand{
+			TargetWindowID: *command.Window.StackTargetWindowID,
+			WindowIDs:      []WindowID{windowID},
+		})
+		if groupErr != nil {
+			return false, groupErr
+		}
+		return changed, nil
+	}
 	insertTiled := command.Window.InsertTiled || r.config.NewWindowPolicy == NewWindowInsert
 	if insertTiled && r.focusedWindow != nil {
 		focused, exists := snapshot.Windows[*r.focusedWindow]
@@ -67,14 +79,33 @@ func (r *reducer) openWindow(snapshot *Snapshot, command OpenWindowCommand) (boo
 func (r *reducer) newOpenWindow(snapshot *Snapshot, spec WindowSpec) (Window, error) {
 	windowID := spec.ID
 	if windowID == "" {
-		generated, err := r.generate("window")
-		if err != nil {
-			return Window{}, fmt.Errorf("generate window ID: %w", err)
+		for range 128 {
+			generated, err := r.generate("window")
+			if err != nil {
+				return Window{}, fmt.Errorf("generate window ID: %w", err)
+			}
+			candidate := WindowID(generated)
+			if !reservedWindowID(snapshot, candidate) {
+				windowID = candidate
+				break
+			}
 		}
-		windowID = WindowID(generated)
+		if windowID == "" {
+			return Window{}, fmt.Errorf("generate unique window ID: %w", ErrInvalidCommand)
+		}
 	}
-	if _, exists := snapshot.Windows[windowID]; exists {
+	if reservedWindowID(snapshot, windowID) {
 		return Window{}, fmt.Errorf("window %q already exists: %w", windowID, ErrInvalidCommand)
+	}
+	if spec.StackTargetWindowID != nil {
+		target, exists := snapshot.Windows[*spec.StackTargetWindowID]
+		if !exists {
+			return Window{}, fmt.Errorf("stack target window %q: %w", *spec.StackTargetWindowID, ErrWindowNotFound)
+		}
+		if spec.DesktopID != "" && spec.DesktopID != target.DesktopID {
+			return Window{}, fmt.Errorf("stack target belongs to another desktop: %w", ErrInvalidCommand)
+		}
+		spec.DesktopID = target.DesktopID
 	}
 	app := strings.TrimSpace(spec.App)
 	if app == "" {

@@ -1255,9 +1255,9 @@ describe("SessionChatRuntimeProvider", () => {
     ).toBe(true);
   });
 
-  // Invariant: the assistant transport reads the runtime only when it builds a
-  // send request, preserving the selector's per-prompt snapshot. Owning layer:
-  // session chat transport integration. Canonical suite: this provider suite.
+  // Invariant: the assistant transport binds the selected runtime, canonical
+  // authored text, and durable identities without discarding assistant-ui history.
+  // Owning layer: session chat transport integration. Canonical suite: this provider suite.
   it("includes the selected runtime in the prompt transport body", async () => {
     const runtime = {
       model: "gpt-5.4",
@@ -1290,10 +1290,10 @@ describe("SessionChatRuntimeProvider", () => {
       runtime?: unknown;
     };
     expect(body.runtime).toEqual(runtime);
+    expect(body.message).toBe("Use the selected runtime for this prompt");
     expect(body.messages?.at(-1)).toEqual(expect.objectContaining({ role: "user" }));
     expect(body.message_id).toBe(getLastUserMessageID(init));
     expect(typeof body.idempotency_key).toBe("string");
-    expect(body.message).toBeUndefined();
     expect(body.messageId).toBeUndefined();
   });
 

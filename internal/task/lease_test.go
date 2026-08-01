@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -11,6 +12,7 @@ import (
 	"time"
 
 	hookspkg "github.com/compozy/compozy/internal/hooks"
+	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
@@ -606,6 +608,391 @@ func TestManagerClaimNextRunAndLeaseFencing(t *testing.T) {
 	if got, want := failed.Error, "worker failed"; got != want {
 		t.Fatalf("failed.Error = %q, want %q", got, want)
 	}
+}
+
+func TestManagerClaimedRunNetworkBindingLifecycle(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should restore the claimant network when release fails after the lease mutation", func(t *testing.T) {
+		t.Parallel()
+		base := newInMemoryManagerStore()
+		sentinel := errors.New("record release event")
+		store := &failingTaskEventStore{Store: base, err: sentinel}
+		executor := &recordingTaskRunNetworkExecutor{}
+		manager := newTaskManagerForTestWithOptions(t, store, WithSessionExecutor(executor))
+		operator := validActorContext()
+		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+			Scope: ScopeGlobal,
+			Title: "Release cleanup failure path",
+		}, operator)
+		if err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		run, err := manager.EnqueueRun(context.Background(), EnqueueRun{TaskID: taskRecord.ID}, operator)
+		if err != nil {
+			t.Fatalf("EnqueueRun() error = %v", err)
+		}
+		agent := agentActorContextForTest("sess-network-worker", "ws-network-binding")
+		claim, err := manager.ClaimNextRun(context.Background(), ClaimCriteria{
+			RunID:            run.ID,
+			Scope:            ScopeGlobal,
+			ClaimerSessionID: "sess-network-worker",
+			LeaseDuration:    time.Minute,
+			Now:              time.Date(2026, 7, 31, 13, 0, 0, 0, time.UTC),
+		}, agent)
+		if err != nil {
+			t.Fatalf("ClaimNextRun() error = %v", err)
+		}
+
+		store.fail = true
+		_, err = manager.ReleaseRunLease(context.Background(), LeaseRelease{
+			RunID:      run.ID,
+			ClaimToken: claim.ClaimToken,
+			Reason:     "handoff",
+			Now:        time.Date(2026, 7, 31, 13, 0, 30, 0, time.UTC),
+		}, agent)
+		if !errors.Is(err, sentinel) {
+			t.Fatalf("ReleaseRunLease() error = %v, want identity %v", err, sentinel)
+		}
+		_, restores := executor.snapshots()
+		if !slices.Equal(restores, []string{"sess-network-worker"}) {
+			t.Fatalf("network restores = %v, want claimant session", restores)
+		}
+	})
+
+	t.Run("Should restore the claimant network when force release event recording fails", func(t *testing.T) {
+		t.Parallel()
+		sentinel := errors.New("record force release event")
+		store := &failingTaskEventStore{Store: newInMemoryManagerStore(), err: sentinel}
+		manager, executor, run, agent := newClaimedRunNetworkBindingTestWithStore(t, store)
+		claimNetworkBindingRun(t, manager, run, agent, time.Date(2026, 7, 31, 13, 10, 0, 0, time.UTC))
+		store.fail = true
+
+		_, err := manager.ForceReleaseRun(context.Background(), run.ID, ForceReleaseRun{
+			Reason: "operator handoff",
+		}, validActorContext())
+		if !errors.Is(err, sentinel) {
+			t.Fatalf("ForceReleaseRun() error = %v, want identity %v", err, sentinel)
+		}
+		_, restores := executor.snapshots()
+		if !slices.Equal(restores, []string{"sess-network-worker"}) {
+			t.Fatalf("network restores = %v, want claimant session", restores)
+		}
+	})
+
+	t.Run("Should restore the claimant network when force fail event recording fails", func(t *testing.T) {
+		t.Parallel()
+		sentinel := errors.New("record force fail event")
+		store := &failingTaskEventStore{Store: newInMemoryManagerStore(), err: sentinel}
+		manager, executor, run, agent := newClaimedRunNetworkBindingTestWithStore(t, store)
+		claimNetworkBindingRun(t, manager, run, agent, time.Date(2026, 7, 31, 13, 20, 0, 0, time.UTC))
+		store.fail = true
+
+		_, err := manager.ForceFailRun(context.Background(), run.ID, ForceFailRun{
+			Reason: "operator recovery",
+		}, validActorContext())
+		if !errors.Is(err, sentinel) {
+			t.Fatalf("ForceFailRun() error = %v, want identity %v", err, sentinel)
+		}
+		_, restores := executor.snapshots()
+		if !slices.Equal(restores, []string{"sess-network-worker"}) {
+			t.Fatalf("network restores = %v, want claimant session", restores)
+		}
+	})
+
+	t.Run("Should restore the claimant network when session release event recording fails", func(t *testing.T) {
+		t.Parallel()
+		sentinel := errors.New("record session release event")
+		store := &failingTaskEventStore{Store: newInMemoryManagerStore(), err: sentinel}
+		manager, executor, run, agent := newClaimedRunNetworkBindingTestWithStore(t, store)
+		claimNetworkBindingRun(t, manager, run, agent, time.Date(2026, 7, 31, 13, 30, 0, 0, time.UTC))
+		store.fail = true
+
+		_, err := manager.ReleaseSessionRunLeases(context.Background(), SessionLeaseRelease{
+			SessionID: "sess-network-worker",
+			Reason:    "session teardown",
+			Now:       time.Date(2026, 7, 31, 13, 30, 30, 0, time.UTC),
+		}, validActorContext())
+		if !errors.Is(err, sentinel) {
+			t.Fatalf("ReleaseSessionRunLeases() error = %v, want identity %v", err, sentinel)
+		}
+		_, restores := executor.snapshots()
+		if !slices.Equal(restores, []string{"sess-network-worker"}) {
+			t.Fatalf("network restores = %v, want claimant session", restores)
+		}
+	})
+
+	t.Run("Should restore the claimant network after token-fenced failure", func(t *testing.T) {
+		t.Parallel()
+		manager, executor, run, agent := newClaimedRunNetworkBindingTest(t)
+		claim := claimNetworkBindingRun(
+			t,
+			manager,
+			run,
+			agent,
+			time.Date(2026, 7, 31, 13, 40, 0, 0, time.UTC),
+		)
+
+		if _, err := manager.FailRunLease(context.Background(), LeaseFailure{
+			RunID:      run.ID,
+			ClaimToken: claim.ClaimToken,
+			Failure:    RunFailure{Error: "worker failed"},
+			Now:        time.Date(2026, 7, 31, 13, 40, 30, 0, time.UTC),
+		}, agent); err != nil {
+			t.Fatalf("FailRunLease() error = %v", err)
+		}
+		_, restores := executor.snapshots()
+		if !slices.Equal(restores, []string{"sess-network-worker"}) {
+			t.Fatalf("network restores = %v, want claimant session", restores)
+		}
+	})
+
+	t.Run("Should restore the claimant network after expired lease recovery", func(t *testing.T) {
+		t.Parallel()
+		manager, executor, run, agent := newClaimedRunNetworkBindingTest(t)
+		claimNetworkBindingRun(t, manager, run, agent, time.Date(2026, 7, 31, 13, 50, 0, 0, time.UTC))
+
+		results, err := manager.RecoverExpiredRunLeases(context.Background(), ExpiredLeaseRecovery{
+			Now:    time.Date(2026, 7, 31, 13, 52, 0, 0, time.UTC),
+			Reason: "lease expired",
+		}, validActorContext())
+		if err != nil {
+			t.Fatalf("RecoverExpiredRunLeases() error = %v", err)
+		}
+		if len(results) != 1 || results[0].Run.ID != run.ID {
+			t.Fatalf("recovery results = %#v, want run %q", results, run.ID)
+		}
+		_, restores := executor.snapshots()
+		if !slices.Equal(restores, []string{"sess-network-worker"}) {
+			t.Fatalf("network restores = %v, want claimant session", restores)
+		}
+	})
+
+	t.Run("Should bind the claimant for the lease and restore it after completion", func(t *testing.T) {
+		t.Parallel()
+
+		manager, executor, run, agent := newClaimedRunNetworkBindingTest(t)
+		claim, err := manager.ClaimNextRun(context.Background(), ClaimCriteria{
+			RunID:            run.ID,
+			Scope:            ScopeGlobal,
+			ClaimerSessionID: "sess-network-worker",
+			LeaseDuration:    time.Minute,
+			Now:              time.Date(2026, 7, 31, 13, 0, 0, 0, time.UTC),
+		}, agent)
+		if err != nil {
+			t.Fatalf("ClaimNextRun() error = %v", err)
+		}
+		binds, restores := executor.snapshots()
+		if got, want := len(binds), 1; got != want {
+			t.Fatalf("network bind calls = %d, want %d", got, want)
+		}
+		if got, want := binds[0].sessionID, "sess-network-worker"; got != want {
+			t.Fatalf("network bind session = %q, want %q", got, want)
+		}
+		if got, want := binds[0].run.NetworkSpecSnapshot().ChannelID, "lifecycle-cadence"; got != want {
+			t.Fatalf("network bind channel = %q, want %q", got, want)
+		}
+		if len(restores) != 0 {
+			t.Fatalf("network restores before settlement = %v, want none", restores)
+		}
+
+		if _, err := manager.CompleteRunLease(context.Background(), LeaseCompletion{
+			RunID:      run.ID,
+			ClaimToken: claim.ClaimToken,
+			Result:     RunResult{Value: json.RawMessage(`{"ok":true}`)},
+			Now:        time.Date(2026, 7, 31, 13, 0, 30, 0, time.UTC),
+		}, agent); err != nil {
+			t.Fatalf("CompleteRunLease() error = %v", err)
+		}
+		_, restores = executor.snapshots()
+		if got, want := restores, []string{"sess-network-worker"}; !slices.Equal(got, want) {
+			t.Fatalf("network restores = %v, want %v", got, want)
+		}
+	})
+
+	t.Run("Should release the lease when network binding fails so the run is claimable again", func(t *testing.T) {
+		t.Parallel()
+
+		manager, executor, run, agent := newClaimedRunNetworkBindingTest(t)
+		executor.setBindError(errors.New("network bind unavailable"))
+		_, err := manager.ClaimNextRun(context.Background(), ClaimCriteria{
+			RunID:            run.ID,
+			Scope:            ScopeGlobal,
+			ClaimerSessionID: "sess-network-worker",
+			LeaseDuration:    time.Minute,
+			Now:              time.Date(2026, 7, 31, 13, 5, 0, 0, time.UTC),
+		}, agent)
+		if err == nil || !strings.Contains(err.Error(), "network bind unavailable") {
+			t.Fatalf("ClaimNextRun() error = %v, want network bind failure", err)
+		}
+		requeued, err := manager.store.GetTaskRun(context.Background(), run.ID)
+		if err != nil {
+			t.Fatalf("GetTaskRun() error = %v", err)
+		}
+		if requeued.Status != TaskRunStatusQueued ||
+			requeued.SessionID != "" ||
+			requeued.ClaimTokenHash != "" {
+			t.Fatalf("requeued run = %#v, want reusable queued ownership", requeued)
+		}
+
+		executor.setBindError(nil)
+		reclaimed, err := manager.ClaimNextRun(context.Background(), ClaimCriteria{
+			RunID:            run.ID,
+			Scope:            ScopeGlobal,
+			ClaimerSessionID: "sess-network-worker",
+			LeaseDuration:    time.Minute,
+			Now:              time.Date(2026, 7, 31, 13, 5, 30, 0, time.UTC),
+		}, agent)
+		if err != nil {
+			t.Fatalf("ClaimNextRun(retry) error = %v", err)
+		}
+		if reclaimed.Run.ID != run.ID {
+			t.Fatalf("ClaimNextRun(retry).Run.ID = %q, want %q", reclaimed.Run.ID, run.ID)
+		}
+	})
+}
+
+type taskRunNetworkBindCall struct {
+	sessionID string
+	run       Run
+}
+
+type recordingTaskRunNetworkExecutor struct {
+	testSessionExecutor
+
+	mu       sync.Mutex
+	binds    []taskRunNetworkBindCall
+	restores []string
+	bindErr  error
+}
+
+type failingTaskEventStore struct {
+	Store
+	fail bool
+	err  error
+}
+
+func (s *failingTaskEventStore) CreateTaskEvent(ctx context.Context, event Event) error {
+	if s.fail {
+		return s.err
+	}
+	return s.Store.CreateTaskEvent(ctx, event)
+}
+
+func (e *recordingTaskRunNetworkExecutor) BindTaskRunNetwork(
+	_ context.Context,
+	sessionID string,
+	run Run,
+) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.binds = append(e.binds, taskRunNetworkBindCall{sessionID: sessionID, run: run})
+	return e.bindErr
+}
+
+func (e *recordingTaskRunNetworkExecutor) RestoreTaskRunNetwork(
+	_ context.Context,
+	sessionID string,
+) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.restores = append(e.restores, sessionID)
+	return nil
+}
+
+func (e *recordingTaskRunNetworkExecutor) setBindError(err error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.bindErr = err
+}
+
+func (e *recordingTaskRunNetworkExecutor) snapshots() ([]taskRunNetworkBindCall, []string) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return append([]taskRunNetworkBindCall(nil), e.binds...), append([]string(nil), e.restores...)
+}
+
+func newClaimedRunNetworkBindingTest(
+	t *testing.T,
+) (*Service, *recordingTaskRunNetworkExecutor, *Run, ActorContext) {
+	t.Helper()
+	return newClaimedRunNetworkBindingTestWithStore(t, newInMemoryManagerStore())
+}
+
+func newClaimedRunNetworkBindingTestWithStore(
+	t *testing.T,
+	store Store,
+) (*Service, *recordingTaskRunNetworkExecutor, *Run, ActorContext) {
+	t.Helper()
+
+	liveSpec := participation.Spec{
+		Version:         participation.SpecVersion,
+		Mode:            participation.ModeLive,
+		WorkspaceID:     "ws-network-binding",
+		ChannelStrategy: participation.StrategyNamed,
+		ChannelID:       "lifecycle-cadence",
+		Source:          participation.SourceExplicitRequest,
+		Bounds: participation.Bounds{
+			MaxWakes:         1,
+			MaxWakeWallTime:  "1m",
+			MaxTotalWallTime: "5m",
+			MaxInputTokens:   1024,
+			MaxOutputTokens:  512,
+			MaxWakeDepth:     1,
+			CoalesceWindow:   "500ms",
+		},
+	}
+	executor := &recordingTaskRunNetworkExecutor{}
+	manager := newTaskManagerForTestWithOptions(
+		t,
+		store,
+		WithSessionExecutor(executor),
+		WithParticipationResolver(&recordingParticipationResolver{spec: liveSpec}),
+	)
+	operator := validActorContext()
+	taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+		Scope: ScopeGlobal,
+		Title: "Task-run network binding",
+	}, operator)
+	if err != nil {
+		t.Fatalf("CreateTask() error = %v", err)
+	}
+	live := participation.ModeLive
+	strategy := participation.StrategyNamed
+	channel := "lifecycle-cadence"
+	run, err := manager.EnqueueRun(context.Background(), EnqueueRun{
+		TaskID: taskRecord.ID,
+		NetworkParticipation: &participation.Request{
+			Mode:            &live,
+			ChannelStrategy: &strategy,
+			ChannelID:       &channel,
+		},
+	}, operator)
+	if err != nil {
+		t.Fatalf("EnqueueRun() error = %v", err)
+	}
+	return manager, executor, run, agentActorContextForTest("sess-network-worker", "ws-network-binding")
+}
+
+func claimNetworkBindingRun(
+	t *testing.T,
+	manager *Service,
+	run *Run,
+	agent ActorContext,
+	now time.Time,
+) *ClaimResult {
+	t.Helper()
+	claim, err := manager.ClaimNextRun(context.Background(), ClaimCriteria{
+		RunID:            run.ID,
+		Scope:            ScopeGlobal,
+		ClaimerSessionID: "sess-network-worker",
+		LeaseDuration:    time.Minute,
+		Now:              now,
+	}, agent)
+	if err != nil {
+		t.Fatalf("ClaimNextRun() error = %v", err)
+	}
+	return claim
 }
 
 func TestManagerCompleteRunLeaseHallucinationGate(t *testing.T) {

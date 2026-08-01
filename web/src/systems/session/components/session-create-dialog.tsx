@@ -1,5 +1,5 @@
 import { Play } from "lucide-react";
-import { type FormEvent } from "react";
+import { type FormEvent, useLayoutEffect, useRef } from "react";
 
 import {
   Dialog,
@@ -25,6 +25,7 @@ import { SessionCreateSimpleSection } from "./session-create-simple-section";
 
 export interface SessionCreateDialogProps {
   open: boolean;
+  restoreFocusOnClose: boolean;
   onOpenChange: (open: boolean) => void;
   mode: EntityMode;
   onModeChange: (mode: EntityMode) => void;
@@ -36,8 +37,6 @@ export interface SessionCreateDialogProps {
   onWorkspaceChange: (workspaceId: string) => void;
   sessionName: string;
   onSessionNameChange: (next: string) => void;
-  workspacePath: string;
-  onWorkspacePathChange: (next: string) => void;
   selectedAgentName: string;
   networkParticipation: NetworkParticipationDraft;
   onAgentChange: (agentName: string) => void;
@@ -49,6 +48,7 @@ export interface SessionCreateDialogProps {
 
 function SessionCreateDialog({
   open,
+  restoreFocusOnClose,
   onOpenChange,
   mode,
   onModeChange,
@@ -60,8 +60,6 @@ function SessionCreateDialog({
   onWorkspaceChange,
   sessionName,
   onSessionNameChange,
-  workspacePath,
-  onWorkspacePathChange,
   selectedAgentName,
   networkParticipation,
   onAgentChange,
@@ -70,6 +68,11 @@ function SessionCreateDialog({
   isSubmitting,
   submitError,
 }: SessionCreateDialogProps) {
+  const restoreFocusOnCloseRef = useRef(restoreFocusOnClose);
+  useLayoutEffect(() => {
+    restoreFocusOnCloseRef.current = restoreFocusOnClose;
+  }, [restoreFocusOnClose]);
+
   const trimmedSelectedAgentName = selectedAgentName.trim();
   const workspaceSelected = workspace !== undefined;
   const hasAgents = agents.length > 0;
@@ -101,6 +104,7 @@ function SessionCreateDialog({
       <DialogContent
         className={`grid-rows-[auto_auto_minmax(0,1fr)_auto] text-fg ${dialogShellClass("sm")}`}
         data-testid="session-create-dialog"
+        finalFocus={() => restoreFocusOnCloseRef.current}
         showCloseButton={false}
         unframed
       >
@@ -119,7 +123,7 @@ function SessionCreateDialog({
         <EntityModeToolbar mode={mode} onModeChange={onModeChange} testIdPrefix="session-create" />
 
         <form className="contents" onSubmit={handleSubmit}>
-          <EntityDialogBody className="flex flex-col">
+          <EntityDialogBody className="flex flex-col gap-4">
             <SessionCreateSimpleSection
               agents={agents}
               isSubmitting={isSubmitting}
@@ -135,11 +139,9 @@ function SessionCreateDialog({
                 onNetworkParticipationChange={onNetworkParticipationChange}
                 onSessionNameChange={onSessionNameChange}
                 onWorkspaceChange={onWorkspaceChange}
-                onWorkspacePathChange={onWorkspacePathChange}
                 sessionName={sessionName}
                 userHomeDir={userHomeDir}
                 workspaceId={workspaceId}
-                workspacePath={workspacePath}
                 workspaces={workspaces}
               />
             ) : null}

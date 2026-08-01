@@ -52,6 +52,8 @@ export const settingsWindowManagerSectionFixture: SettingsWindowManagerSection =
     group_move_modifier: "alt",
     swap_modifier: "shift",
     history_limit: 100,
+    nav_stack_limit: 50,
+    closed_entry_limit: 20,
     desktop_transition: "slide",
     gaps: { inner: 8, top: 8, right: 10, bottom: 8, left: 10 },
     snap: {
@@ -78,7 +80,7 @@ export const settingsWindowManagerDesktopIds = {
  * review capture.
  */
 export const settingsWindowManagerSnapshotFixture: WindowManagerSnapshotWire = {
-  version: 2,
+  version: 3,
   workspace_id: storyDefaultWorkspaceId,
   revision: 41,
   desktops: [
@@ -123,6 +125,7 @@ export const settingsWindowManagerSnapshotFixture: WindowManagerSnapshotWire = {
         },
       ],
       floating: ["app:vault"],
+      floating_stacks: [],
     },
     {
       id: settingsWindowManagerDesktopIds.review,
@@ -151,6 +154,7 @@ export const settingsWindowManagerSnapshotFixture: WindowManagerSnapshotWire = {
         },
       ],
       floating: ["app:agents"],
+      floating_stacks: [],
     },
     {
       id: settingsWindowManagerDesktopIds.focus,
@@ -166,6 +170,7 @@ export const settingsWindowManagerSnapshotFixture: WindowManagerSnapshotWire = {
         },
       ],
       floating: [],
+      floating_stacks: [],
     },
   ],
   windows: {
@@ -228,7 +233,7 @@ export const settingsWindowManagerSnapshotFixture: WindowManagerSnapshotWire = {
       settingsWindowManagerDesktopIds.focus
     ),
   },
-  history: { undo: [], redo: [] },
+  closed_entry_count: 0,
   overrides: {},
   updated_at: "2026-07-23T01:00:00Z",
 };
@@ -243,6 +248,8 @@ function tiled(
     id,
     app,
     route: { pathname, search: {} },
+    nav_stack: [],
+    pinned: false,
     placement: "tiled",
     desktop_id: desktopId,
     floating_rect: { x: 0.2, y: 0.2, width: 0.4, height: 0.4 },
@@ -251,7 +258,7 @@ function tiled(
 }
 
 export const windowManagerLayoutDocumentFixture: WindowManagerLayoutDocumentWire = {
-  version: 2,
+  version: 3,
   workspace_id: storyDefaultWorkspaceId,
   desktops: settingsWindowManagerSnapshotFixture.desktops,
   windows: settingsWindowManagerSnapshotFixture.windows,

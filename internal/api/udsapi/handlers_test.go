@@ -915,6 +915,8 @@ func TestSettingsRoutesUseSharedCoreHandlers(t *testing.T) {
 				if request.Section != settingspkg.SectionWindowManager ||
 					request.WindowManager == nil ||
 					request.WindowManager.HistoryLimit != 77 ||
+					request.WindowManager.NavStackLimit != 66 ||
+					request.WindowManager.ClosedEntryLimit != 18 ||
 					request.WindowManager.Shortcuts["desktop.switch.next"] != "Meta+ArrowRight" {
 					t.Fatalf("LastUpdateSectionRequest = %#v, want parsed window-manager config", request)
 				}
@@ -1092,6 +1094,8 @@ func validUDSWindowManagerSettingsPayload() contract.SettingsWindowManagerConfig
 		GroupMoveModifier:   contract.SettingsWindowDragModifierControl,
 		SwapModifier:        contract.SettingsWindowDragModifierMeta,
 		HistoryLimit:        77,
+		NavStackLimit:       66,
+		ClosedEntryLimit:    18,
 		DesktopTransition:   contract.SettingsWindowDesktopTransitionCrossfade,
 		Gaps: contract.SettingsWindowManagerGapsPayload{
 			Inner: 12, Top: 18, Right: 14, Bottom: 16, Left: 20,

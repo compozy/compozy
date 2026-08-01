@@ -4,7 +4,8 @@ import { LayoutDashboard, ListChecks } from "lucide-react";
 import { Button } from "../../button";
 import { ListingToolbar } from "../listing-toolbar";
 import { RouteNav } from "../route-nav";
-import { Topbar, TopbarOverflowIcon, TopbarSlotProvider, useTopbarSlot } from "../topbar";
+import { Topbar, TopbarOverflowIcon, TopbarSlotProvider } from "../topbar";
+import { useTopbarSlot } from "../hooks/use-topbar-slot";
 
 const meta: Meta<typeof Topbar> = {
   title: "components/custom/Topbar",
@@ -82,33 +83,34 @@ function FullCompositionSetup() {
     glyph: <ListChecks />,
     count: 12,
     actions: <Button size="sm">New task</Button>,
-    nav: (
-      <RouteNav aria-label="Tasks views">
-        <RouteNav.Link aria-current="page" href="#list">
-          List
-        </RouteNav.Link>
-        <RouteNav.Link href="#kanban">Kanban</RouteNav.Link>
-        <RouteNav.Link href="#inbox">
-          Inbox <RouteNav.Count>2</RouteNav.Count>
-        </RouteNav.Link>
-      </RouteNav>
-    ),
+    // Route views lead the strip (ADR-007/D3): views · filters · spacer · display-mode.
     toolbar: (
-      <ListingToolbar className="w-full">
-        <ListingToolbar.Leading>
-          <span className="text-xs text-subtle">filters</span>
-        </ListingToolbar.Leading>
-        <ListingToolbar.Trailing>
-          <span className="text-xs text-subtle">Rows | Cards</span>
-        </ListingToolbar.Trailing>
-      </ListingToolbar>
+      <>
+        <RouteNav aria-label="Tasks views">
+          <RouteNav.Link aria-current="page" href="#list">
+            List
+          </RouteNav.Link>
+          <RouteNav.Link href="#kanban">Kanban</RouteNav.Link>
+          <RouteNav.Link href="#inbox">
+            Inbox <RouteNav.Count>2</RouteNav.Count>
+          </RouteNav.Link>
+        </RouteNav>
+        <ListingToolbar className="w-full">
+          <ListingToolbar.Leading>
+            <span className="text-xs text-subtle">filters</span>
+          </ListingToolbar.Leading>
+          <ListingToolbar.Trailing>
+            <span className="text-xs text-subtle">Rows | Cards</span>
+          </ListingToolbar.Trailing>
+        </ListingToolbar>
+      </>
     ),
   });
   return null;
 }
 
 /**
- * T3 · Catalog root — peer RouteNav after identity; tools in the frame strip.
+ * T3 · Catalog root — two-element head; views lead the frame strip (D3).
  */
 export const CatalogWithTools: Story = {
   args: {},

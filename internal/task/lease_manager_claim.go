@@ -48,5 +48,8 @@ func (m *Service) ClaimNextRun(
 	}
 	m.dispatchTaskRunPostClaim(ctx, result.Run, reconciledTask, actor)
 	result.Task = &reconciledTask
+	if err := m.bindClaimedRunNetwork(ctx, &result, actor); err != nil {
+		return nil, err
+	}
 	return &result, nil
 }

@@ -1,12 +1,12 @@
 import { resolveAppForPath } from "./app-registry";
-import {
-  osWindowId,
-  type OsDesktopRuntimeStore,
-  type OsOpenTarget,
-  type OsWindowRoute,
-  type WindowManagerCommandOutcome,
-  type WindowManagerOpenOutcome,
+import type {
+  OsDesktopRuntimeStore,
+  OsOpenTarget,
+  OsWindowRoute,
+  WindowManagerCommandOutcome,
+  WindowManagerOpenOutcome,
 } from "./os-types";
+import { mruWindowInstance } from "./window-instance-lookup";
 import { sameOsWindowRoute } from "./window-manager-route";
 import { defaultOsWindowRoute } from "./window-manager-view";
 
@@ -37,8 +37,15 @@ type RoutingManager = {
   openOrFocus(target: OsOpenTarget): WindowManagerOpenOutcome;
   closeWindow(windowId: string): Promise<boolean>;
   focusWindow(windowId: string): WindowManagerCommandOutcome;
+  restoreWindow(windowId: string): WindowManagerCommandOutcome;
   minimizeWindow(windowId: string): Promise<boolean>;
   zoomWindow(windowId: string): WindowManagerCommandOutcome;
+  navigateWindow(
+    windowId: string,
+    route: OsWindowRoute,
+    mode?: "replace" | "push" | "pop"
+  ): WindowManagerCommandOutcome;
+  popWindowRoute(windowId: string): WindowManagerCommandOutcome;
 };
 
 interface RouteReconciliation {
@@ -57,6 +64,7 @@ export class RoutingCoordinator {
   private heldRoute: OsWindowRoute | null = null;
   private routeReconciliation: RouteReconciliation | null = null;
   private nextReconciliationToken = 0;
+  private pendingNavigateMode: "push" | "pop" | null = null;
 
   constructor(manager: RoutingManager, router: OsRouterPort) {
     this.manager = manager;
@@ -151,6 +159,16 @@ export class RoutingCoordinator {
     this.heldRoute = null;
   }
 
+  /**
+   * Navigation intent classified where it is known (ADR-011): a drill-in link
+   * inside a window body marks `push`, the breadcrumb back marks `pop`. The
+   * flag is one-shot — the next route reconciliation consumes it; everything
+   * unmarked keeps today's `replace` semantics.
+   */
+  noteNavigateMode(mode: "push" | "pop"): void {
+    this.pendingNavigateMode = mode;
+  }
+
   /** Dock, palette, rail, menubar: open-or-focus then one history entry. */
   async userOpen(target: OsOpenTarget): Promise<string | null> {
     const outcome = this.manager.openOrFocus(target);
@@ -172,8 +190,29 @@ export class RoutingCoordinator {
   async userFocus(windowId: string, opts: { viaLink?: boolean } = {}): Promise<boolean> {
     const state = this.manager.getState();
     const win = state.windows[windowId];
-    if (!win || opts.viaLink || (state.focusedId === windowId && !win.minimized)) return false;
+    const alreadyActive =
+      state.focusedId === windowId && !win?.minimized && win?.stackActive === true;
+    if (!win || opts.viaLink || alreadyActive) return false;
     const outcome = this.manager.focusWindow(windowId);
+    if (!(await outcome.completion)) return false;
+    const focused = this.manager.getState().windows[windowId];
+    if (focused) this.pushRoute(focused.route);
+    return focused !== undefined;
+  }
+
+  /**
+   * Dock cycling, palette "Go to tab", session rows: land on a specific window
+   * in one action (US-017/US-021). Restore carries focus and the desktop
+   * switch for the acting client; `window.focus` alone rejects minimized
+   * targets, so the two paths are a single decision here.
+   */
+  async userActivateWindow(windowId: string): Promise<boolean> {
+    const state = this.manager.getState();
+    const win = state.windows[windowId];
+    if (!win) return false;
+    const outcome = win.minimized
+      ? this.manager.restoreWindow(windowId)
+      : this.manager.focusWindow(windowId);
     if (!(await outcome.completion)) return false;
     const focused = this.manager.getState().windows[windowId];
     if (focused) this.pushRoute(focused.route);
@@ -274,13 +313,21 @@ export class RoutingCoordinator {
     if (state.client === null || state.hydration !== "live") return;
     const route = pending.route;
     const resolved = resolveAppForPath(route.pathname);
+    const mode = this.pendingNavigateMode;
+    this.pendingNavigateMode = null;
     if (!resolved) {
       this.routeReconciliation = null;
       return;
     }
     const { app, instanceKey } = resolved;
+    // Deep links land on the most-recently-used instance of the resolved app
+    // (PRD BR-11): with multi-instance apps there is no longer a single window
+    // an ID can name.
+    const existing = mruWindowInstance(state.windows, state.client?.focusOrder ?? [], {
+      app: app.id,
+      instanceKey,
+    });
     if (route.pathname === "/") {
-      const existing = state.windows[osWindowId(app.id)];
       if (!existing) {
         this.routeReconciliation = null;
         return;
@@ -296,15 +343,20 @@ export class RoutingCoordinator {
       this.startRouteReconciliation(pending, this.manager.openOrFocus({ app: app.id, route }));
       return;
     }
-    const existingId = osWindowId(app.id, instanceKey);
-    const existing = state.windows[existingId];
     if (
       existing &&
-      state.focusedId === existingId &&
+      state.focusedId === existing.id &&
       !existing.minimized &&
       sameOsWindowRoute(existing.route, route)
     ) {
       this.routeReconciliation = null;
+      return;
+    }
+    // Breadcrumb back: the durable nav stack owns the destination — the
+    // reported route is the app's own rendering of the same pop.
+    if (mode === "pop" && existing && !existing.minimized && existing.navStack.length > 0) {
+      const outcome = this.manager.popWindowRoute(existing.id);
+      this.startRouteReconciliation(pending, { windowId: existing.id, ...outcome });
       return;
     }
     this.startRouteReconciliation(
@@ -313,6 +365,7 @@ export class RoutingCoordinator {
         app: app.id,
         instanceKey: instanceKey ?? undefined,
         route,
+        ...(mode === "push" ? { navigateMode: "push" as const } : {}),
       })
     );
   }
@@ -341,5 +394,6 @@ export class RoutingCoordinator {
   private invalidateRouteReconciliation(): void {
     this.nextReconciliationToken += 1;
     this.routeReconciliation = null;
+    this.pendingNavigateMode = null;
   }
 }

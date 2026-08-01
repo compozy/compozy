@@ -925,6 +925,32 @@ func TestManagerSessionHealthTaskLeaseIsolation(t *testing.T) {
 }
 
 func TestManagerSessionHealthPromptPermissionBoundary(t *testing.T) {
+	t.Run("Should project a pending runtime permission as session-scoped attention", func(t *testing.T) {
+		t.Parallel()
+
+		pending := true
+		session := &Session{
+			ID:    "sess-pending-permission",
+			State: StateActive,
+			process: NewAgentProcess(AgentProcessOptions{
+				PendingPermission: func() bool { return pending },
+			}),
+		}
+
+		info := session.Info()
+		if !info.PendingPermission {
+			t.Fatal("session info pending permission = false, want true")
+		}
+		if got := BadgeForInfo(info); got != BadgeWaitingForAuth {
+			t.Fatalf("BadgeForInfo(pending permission) = %q, want %q", got, BadgeWaitingForAuth)
+		}
+
+		pending = false
+		if got := BadgeForInfo(session.Info()); got != BadgeIdle {
+			t.Fatalf("BadgeForInfo(resolved permission) = %q, want %q", got, BadgeIdle)
+		}
+	})
+
 	t.Run("Should keep prompt permission routing independent from health presence updates", func(t *testing.T) {
 		ctx := testutil.Context(t)
 		h := newHarness(t)

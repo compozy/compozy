@@ -19,15 +19,21 @@ import (
 )
 
 const (
-	statusApplyStateCurrent = "current"
-	statusStateAvailable    = "available"
-	statusStateConfigured   = "configured"
-	statusStateDegraded     = "degraded"
-	statusStateOK           = "ok"
-	statusStateRunning      = "running"
-	statusStateWarn         = "warn"
-	statusStateError        = "error"
+	statusApplyStateCurrent        = "current"
+	statusApplyStatePendingRestart = "pending_restart"
+	statusApplyStateUnavailable    = "unavailable"
+	statusStateAvailable           = "available"
+	statusStateConfigured          = "configured"
+	statusStateDegraded            = "degraded"
+	statusStateOK                  = "ok"
+	statusStateRunning             = "running"
+	statusStateWarn                = "warn"
+	statusStateError               = "error"
 )
+
+type pendingConfigRestartReader interface {
+	HasPendingConfigRestart(ctx context.Context) (bool, error)
+}
 
 // GetDoctor returns the hard-cut diagnostic probe payload shared by HTTP and UDS.
 func (h *BaseHandlers) GetDoctor(c *gin.Context) {
@@ -97,6 +103,7 @@ func (h *BaseHandlers) statusPayload(
 	if err != nil {
 		return contract.StatusPayload{}, fmt.Errorf("api: collect skill runtime status: %w", err)
 	}
+	configStatus := h.configRuntimeStatusPayload(ctx)
 
 	return contract.StatusPayload{
 		SchemaVersion:    contract.StatusSchemaVersion,
@@ -112,7 +119,7 @@ func (h *BaseHandlers) statusPayload(
 		Providers:        providers,
 		MCPServers:       mcpServers,
 		Skills:           skillStatus,
-		Config:           h.configRuntimeStatusPayload(),
+		Config:           configStatus,
 		LogTail:          h.logTailStatusPayload(ctx),
 	}, nil
 }
@@ -206,7 +213,7 @@ func (h *BaseHandlers) providerStatusPayloads(ctx context.Context) ([]contract.P
 	return payloads, nil
 }
 
-func (h *BaseHandlers) configRuntimeStatusPayload() contract.ConfigRuntimeStatusPayload {
+func (h *BaseHandlers) configRuntimeStatusPayload(ctx context.Context) contract.ConfigRuntimeStatusPayload {
 	cfg := h.Config
 	payload := contract.ConfigRuntimeStatusPayload{
 		Status:          statusStateOK,
@@ -220,6 +227,22 @@ func (h *BaseHandlers) configRuntimeStatusPayload() contract.ConfigRuntimeStatus
 		payload.Status = statusStateError
 		payload.Validated = false
 		payload.ValidationError = diagnostics.RedactAndBound(err.Error(), maxDiagnosticPayloadBytes)
+		return payload
+	}
+	reader, ok := h.Settings.(pendingConfigRestartReader)
+	if !ok {
+		return payload
+	}
+	pendingRestart, err := reader.HasPendingConfigRestart(ctx)
+	if err != nil {
+		payload.Status = statusStateError
+		payload.ApplyState = statusApplyStateUnavailable
+		return payload
+	}
+	if pendingRestart {
+		payload.Status = statusStateWarn
+		payload.RestartRequired = true
+		payload.ApplyState = statusApplyStatePendingRestart
 	}
 	return payload
 }

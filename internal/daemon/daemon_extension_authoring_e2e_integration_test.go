@@ -19,14 +19,16 @@ import (
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
 	toolspkg "github.com/compozy/compozy/internal/tools"
-	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"golang.org/x/sys/execabs"
 )
 
 const extensionAuthoringE2EName = "authoring-dev-e2e"
 
 func TestDaemonE2EExtensionAuthoringShouldCompleteTheDevelopmentLoopWithoutTrustPrompts(t *testing.T) {
-	t.Run("Should complete the development loop without trust prompts", testDaemonE2EExtensionAuthoringShouldCompleteTheDevelopmentLoopWithoutTrustPrompts)
+	t.Run(
+		"Should complete the development loop without trust prompts",
+		testDaemonE2EExtensionAuthoringShouldCompleteTheDevelopmentLoopWithoutTrustPrompts,
+	)
 }
 
 func testDaemonE2EExtensionAuthoringShouldCompleteTheDevelopmentLoopWithoutTrustPrompts(t *testing.T) {
@@ -41,10 +43,6 @@ func testDaemonE2EExtensionAuthoringShouldCompleteTheDevelopmentLoopWithoutTrust
 		BinaryPath:   binaryPath,
 		StartTimeout: 30 * time.Second,
 	})
-	identity, err := workspacepkg.EnsureIdentity(ctx, harness.WorkspaceRoot)
-	if err != nil {
-		t.Fatalf("EnsureIdentity() error = %v", err)
-	}
 	sourceDir := filepath.Join(harness.WorkspaceRoot, extensionAuthoringE2EName)
 
 	var scaffold extensionpkg.ScaffoldResult
@@ -84,7 +82,7 @@ func testDaemonE2EExtensionAuthoringShouldCompleteTheDevelopmentLoopWithoutTrust
 		"--workspace", harness.WorkspaceRoot,
 		"-o", "json",
 	)
-	if !linked.Dev || linked.WorkspaceID != identity.WorkspaceID || linked.GenerationHash != firstBuild.GenerationHash {
+	if !linked.Dev || linked.WorkspaceID != harness.WorkspaceID || linked.GenerationHash != firstBuild.GenerationHash {
 		t.Fatalf("extension dev result = %#v, want workspace dev generation %q", linked, firstBuild.GenerationHash)
 	}
 	assertExtensionAuthoringInvocation(t, ctx, harness, "generation-one:alpha")
@@ -139,7 +137,10 @@ const (
 )
 
 func TestDaemonE2EExtensionQuickstartReplayEndsWithAnInvocableExtension(t *testing.T) {
-	t.Run("Should replay the quickstart and invoke the installed extension", testDaemonE2EExtensionQuickstartReplayEndsWithAnInvocableExtension)
+	t.Run(
+		"Should replay the quickstart and invoke the installed extension",
+		testDaemonE2EExtensionQuickstartReplayEndsWithAnInvocableExtension,
+	)
 }
 
 func testDaemonE2EExtensionQuickstartReplayEndsWithAnInvocableExtension(t *testing.T) {
@@ -155,10 +156,6 @@ func testDaemonE2EExtensionQuickstartReplayEndsWithAnInvocableExtension(t *testi
 		BinaryPath:   binaryPath,
 		StartTimeout: 30 * time.Second,
 	})
-	if _, err := workspacepkg.EnsureIdentity(ctx, harness.WorkspaceRoot); err != nil {
-		t.Fatalf("EnsureIdentity() error = %v", err)
-	}
-
 	lastStdout := ""
 	for _, command := range commands {
 		stdout, stderr, err := harness.CLI.RunInDir(ctx, harness.WorkspaceRoot, command...)

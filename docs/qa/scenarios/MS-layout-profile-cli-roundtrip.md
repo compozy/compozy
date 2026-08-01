@@ -11,11 +11,14 @@ bug_ids:
 fix_status:
 retest_status: pass
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-ms-wave2-current-20260730-061842-796290-lab/qa-artifacts/qa
-last_report: docs/qa/reports/2026-07-28-untested-full.md
+evidence: docs/qa/evidence/2026-08-01-window-tabs/agent-02-layouts-applies-now.png; docs/qa/reports/2026-08-01-window-tabs.md
+last_report: docs/qa/reports/2026-08-01-window-tabs.md
 overlaps: MS-configure-window-manager; ET-window-manager-public-parity
 ---
 
 story: As an agent or an operator at a terminal, I can manage saved layouts without opening the web UI.
 
 qa-impact: 2026-07-24 new surface. The routes already existed on HTTP and UDS; only the CLI verbs are new, so the scope filter and CAS semantics are the daemon's existing ones. Flag only; the next QA cycle owns live testing.
+
+qa-impact: 2026-07-31 v2 layout profiles are rejected under the v3 tab topology contract. Reset to
+verify the version boundary and current round trip.

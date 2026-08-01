@@ -8,11 +8,20 @@ import type {
 /** Daemon floor for adjacent split weights (`reducer_layout_resize.go`). */
 const MIN_SPLIT_WEIGHT = 0.01;
 
-export interface SeamPreview {
+export interface SplitSeamPreview {
+  readonly kind: "split";
   readonly splitId: string;
   readonly boundaryIndex: number;
   readonly deltaPx: number;
 }
+
+export interface FrameSeamPreview {
+  readonly kind: "frame";
+  readonly seamId: string;
+  readonly deltaPx: number;
+}
+
+export type SeamPreview = SplitSeamPreview | FrameSeamPreview;
 
 /**
  * Converts a seam drag in pixels to the weight-space delta `layout.resize`

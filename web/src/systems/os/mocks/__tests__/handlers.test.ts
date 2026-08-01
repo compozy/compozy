@@ -67,12 +67,12 @@ describe("OS window-manager MSW handlers", () => {
       workspace_id: "workspace-custom",
       desktops: [
         {
-          groups: [{ root: { kind: "leaf", window_id: "app:tasks" } }],
+          groups: [{ root: { kind: "leaf", window_id: "w-story-tasks" } }],
         },
       ],
       windows: {
-        "app:tasks": {
-          id: "app:tasks",
+        "w-story-tasks": {
+          id: "w-story-tasks",
           app: "tasks",
           route: { pathname: "/tasks", search: { view: "cards" } },
         },
@@ -82,12 +82,12 @@ describe("OS window-manager MSW handlers", () => {
     const registration = await register("client:route-story");
     expect(registration.status).toBe(201);
     await expect(registration.json()).resolves.toMatchObject({
-      focused_window_id: "app:tasks",
+      focused_window_id: "w-story-tasks",
     });
 
     const commandResponse = await command(
       commandBody("client:route-story", "window.close", {
-        window_id: "app:tasks",
+        window_id: "w-story-tasks",
         minimize: true,
       })
     );
@@ -95,7 +95,7 @@ describe("OS window-manager MSW handlers", () => {
     await expect(commandResponse.json()).resolves.toMatchObject({
       snapshot: {
         windows: {
-          "app:tasks": {
+          "w-story-tasks": {
             minimized: true,
             route: { pathname: "/tasks", search: { view: "cards" } },
           },

@@ -27,7 +27,7 @@ import type {
 } from "../../lib/window-manager-layout-types";
 
 const DOCUMENT: WindowManagerLayoutDocument = {
-  version: 2,
+  version: 3,
   workspaceId: "workspace-a",
   desktops: [],
   windows: {},

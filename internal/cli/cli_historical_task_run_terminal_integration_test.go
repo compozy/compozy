@@ -187,7 +187,12 @@ func TestCLIHistoricalChannelTaskRunTerminalAfterDaemonRestartIntegration(t *tes
 				}
 				if terminalLease.Status != tt.wantRunStatus || terminalLease.RunID != enqueued.ID ||
 					terminalLease.SessionID != worker.ID {
-					t.Fatalf("terminal lease = %#v, want status %q for worker %q", terminalLease, tt.wantRunStatus, worker.ID)
+					t.Fatalf(
+						"terminal lease = %#v, want status %q for worker %q",
+						terminalLease,
+						tt.wantRunStatus,
+						worker.ID,
+					)
 				}
 				if resolvedParticipationChannelID(terminalLease.ResolvedNetworkParticipation) != tt.channel {
 					t.Fatalf("terminal lease = %#v, want preserved historical channel", terminalLease)
@@ -198,7 +203,12 @@ func TestCLIHistoricalChannelTaskRunTerminalAfterDaemonRestartIntegration(t *tes
 					t.Fatalf("json.Unmarshal(terminal run) error = %v", err)
 				}
 				if terminalRun.Status != tt.wantRunStatus || terminalRun.SessionID != worker.ID {
-					t.Fatalf("terminalRun = %#v, want status %q for worker %q", terminalRun, tt.wantRunStatus, worker.ID)
+					t.Fatalf(
+						"terminalRun = %#v, want status %q for worker %q",
+						terminalRun,
+						tt.wantRunStatus,
+						worker.ID,
+					)
 				}
 				if resolvedParticipationChannelID(terminalRun.ResolvedNetworkParticipation) != tt.channel {
 					t.Fatalf("terminalRun = %#v, want preserved historical channel", terminalRun)

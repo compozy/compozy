@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-administer-window-manager
 expected: Settings › Layouts exposes every supported `[window_manager]` value through direct manipulation — a desktop canvas, a 1:1 gap box, a snap-zone map, a repeat-width track, and a chord recorder — with no number field bound to a geometry value; out-of-range gaps, snap thresholds, history limit, duplicate repeat widths, and duplicate shortcut chords each name the exact value at fault and block the save while preserving the active known-good configuration; one floating save bar covers the global config and the workspace layout reviews inside its own card; a valid save hot-applies to the next command without restarting; workspace layout overrides remain isolated.
 entry_points: Settings › Layouts; global config.toml; compozy config get|set|apply; compozy layout-profile list|get|put|delete
-qa_status: blocked-verify
-bug_ids:
-fix_status:
-retest_status:
-fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-ms-wave2-current-20260730-061842-796290-lab/qa-artifacts/qa
-last_report: docs/qa/reports/2026-07-28-untested-full.md
+qa_status: pass
+bug_ids: BUG-20260801-window-manager-live-config-drift
+fix_status: fixed
+retest_status: pass
+fix_commits: d196f3a7
+evidence: /Users/pedronauck/dev/qa-labs/compozy-window-tabs-live-apply-status-retest-20260801-115716-306628-lab/qa-artifacts/qa/evidence/status-pending-restart.json; /Users/pedronauck/dev/qa-labs/compozy-window-tabs-live-apply-status-retest-20260801-115716-306628-lab/qa-artifacts/qa/evidence/config-apply-history.json; /Users/pedronauck/dev/qa-labs/compozy-window-tabs-live-apply-status-retest-20260801-115716-306628-lab/qa-artifacts/qa/evidence/nav-stack-limit.json
+last_report: docs/qa/reports/2026-08-01-window-tabs.md
 overlaps: ET-window-manager-layout-recovery; ET-window-manager-layout-gestures
 ---
 
@@ -27,3 +27,6 @@ cycle owns direct-manipulation and import/export retesting.
 QA impact 2026-07-26: layout-profile save/delete now mints and settles operation identities in the
 store, preserves stale-version errors, and blocks delete confirmation dismissal while a write is
 accepted. Status remains untested; no QA replay ran.
+
+QA impact 2026-07-31: `nav_stack_limit`, `closed_entry_limit`, and tab shortcut actions joined the
+live window-manager config contract. Reset for the window-tabs targeted cycle.

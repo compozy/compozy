@@ -88,7 +88,13 @@ func TestParseGoTestShard(t *testing.T) {
 			got, enabled, err := parseGoTestShard(tt.indexRaw, tt.totalRaw)
 			if tt.wantError != "" {
 				if err == nil || !strings.Contains(err.Error(), tt.wantError) {
-					t.Fatalf("parseGoTestShard(%q, %q) error = %v, want containing %q", tt.indexRaw, tt.totalRaw, err, tt.wantError)
+					t.Fatalf(
+						"parseGoTestShard(%q, %q) error = %v, want containing %q",
+						tt.indexRaw,
+						tt.totalRaw,
+						err,
+						tt.wantError,
+					)
 				}
 				return
 			}

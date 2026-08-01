@@ -93,6 +93,8 @@ export function useLayoutSeam(
     dragging,
     handlePointerDown: event => {
       if (event.button !== 0) return;
+      // Suppresses the browser's native drag-select under the moving pointer.
+      event.preventDefault();
       event.currentTarget.setPointerCapture(event.pointerId);
       drag.current = {
         pointerId: event.pointerId,

@@ -95,7 +95,7 @@ func (r *nativeToolPolicyResolver) Resolve(ctx context.Context, scope toolspkg.S
 		return toolspkg.PolicyInputs{}, err
 	}
 	if resolvedWorkspace != nil {
-		if err := r.applyDevelopmentExtensionTrust(&inputs, resolvedWorkspace.WorkspaceID); err != nil {
+		if err := r.applyDevelopmentExtensionTrust(&inputs, resolvedWorkspace.ID); err != nil {
 			return toolspkg.PolicyInputs{}, err
 		}
 	}

@@ -6,6 +6,7 @@
         "arrange",
         "balance",
         "export",
+        "frame-resize",
         "get",
         "preview",
         "redo",

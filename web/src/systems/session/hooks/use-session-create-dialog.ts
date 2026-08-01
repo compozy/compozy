@@ -18,10 +18,7 @@ import {
   useWorkspaces,
 } from "@/systems/workspace";
 
-import {
-  resolveSessionWorkspacePath,
-  type SessionCreateDialogDraft,
-} from "../lib/session-create-draft";
+import type { SessionCreateDialogDraft } from "../lib/session-create-draft";
 import { activateCreatedSessionWorkspace } from "../lib/session-create-navigation";
 import { sessionCreateStoreLogic, type SessionCreateStore } from "../stores/session-create-store";
 import { useCreateSession } from "./use-session-actions";
@@ -33,13 +30,13 @@ interface SessionCreateDialogContext {
 
 export interface SessionCreateDialogState {
   open: boolean;
+  restoreFocusOnClose: boolean;
   mode: EntityMode;
   agents: AgentPayload[];
   workspace: WorkspacePayload | undefined;
   workspaces: WorkspaceCommandSelectOption[];
   workspaceId: string | null;
   sessionName: string;
-  workspacePath: string;
   selectedAgentName: string;
   isSubmitting: boolean;
   submitError: string | null;
@@ -54,7 +51,6 @@ export interface SessionCreateDialogApi extends SessionCreateDialogState {
   onAgentChange: (agentName: string) => void;
   onWorkspaceChange: (workspaceId: string) => void;
   onSessionNameChange: (next: string) => void;
-  onWorkspacePathChange: (next: string) => void;
   onNetworkParticipationChange: (next: NetworkParticipationDraft) => void;
   networkParticipation: NetworkParticipationDraft;
   submit: () => void;
@@ -83,16 +79,17 @@ export function useSessionCreateDialogViewModel(
   const pendingAgentName = flow.operation.status === "submitting" ? flow.operation.agentName : null;
   const pendingWorkspaceId =
     flow.operation.status === "submitting" ? flow.operation.workspaceId : null;
+  const activeWorkspaceId = activeWorkspace?.id ?? null;
 
-  const workspaceId = draft.workspaceId || (activeWorkspace?.id ?? "");
+  const workspaceId = draft.workspaceId || (activeWorkspaceId ?? "");
   const workspaceAgentsQuery = useAgents(workspaceId, { enabled: workspaceId.length > 0 });
   const workspacesQuery = useWorkspaces();
   const workspaceOptions = toWorkspaceCommandSelectOptions(workspacesQuery.data ?? []);
   const targetWorkspace =
     (workspacesQuery.data ?? []).find(candidate => candidate.id === workspaceId) ??
-    (activeWorkspace?.id === workspaceId ? activeWorkspace : undefined);
+    (activeWorkspaceId === workspaceId ? activeWorkspace : undefined);
   const agentList =
-    workspaceAgentsQuery.data ?? (workspaceId === activeWorkspace?.id ? (agents ?? []) : []);
+    workspaceAgentsQuery.data ?? (workspaceId === activeWorkspaceId ? (agents ?? []) : []);
   const selectedAgentName = draft.agentName;
 
   useEffect(() => {
@@ -101,14 +98,14 @@ export function useSessionCreateDialogViewModel(
     store.trigger.navigationRequested({
       attempt,
       execute: async () => {
-        activateCreatedSessionWorkspace(session);
+        activateCreatedSessionWorkspace(session, activeWorkspaceId);
         await navigate({
           to: "/agents/$name/sessions/$id",
           params: { name: session.agent_name, id: session.id },
         });
       },
     });
-  }, [navigate, navigationTarget, store]);
+  }, [activeWorkspaceId, navigate, navigationTarget, store]);
 
   const submit = () => {
     if (!targetWorkspace || isSubmitting) return;
@@ -131,27 +128,15 @@ export function useSessionCreateDialogViewModel(
       return;
     }
 
-    const workspacePathResolution = resolveSessionWorkspacePath(
-      targetWorkspace.root_dir,
-      draft.workspacePath
-    );
-    if ("error" in workspacePathResolution) {
-      store.trigger.validationFailed({ message: workspacePathResolution.error });
-      return;
-    }
-
     const sessionName = draft.sessionName.trim();
-    const workspacePath = workspacePathResolution.workspacePath;
     store.trigger.submissionRequested({
       agentName,
       workspaceId: targetWorkspace.id,
       execute: () =>
         createSession.mutateAsync({
           agent_name: agentName,
+          workspace: targetWorkspace.id,
           ...(sessionName.length > 0 ? { name: sessionName } : {}),
-          ...(workspacePath.length > 0
-            ? { workspace_path: workspacePath }
-            : { workspace: targetWorkspace.id }),
           network_participation: serializeNetworkParticipation(networkParticipation),
         }),
     });
@@ -159,13 +144,13 @@ export function useSessionCreateDialogViewModel(
 
   return {
     open: flow.open,
+    restoreFocusOnClose: flow.restoreFocusOnClose,
     mode: flow.mode,
     agents: agentList,
     workspace: targetWorkspace,
     workspaces: workspaceOptions,
     workspaceId: workspaceId.length > 0 ? workspaceId : null,
     sessionName: draft.sessionName,
-    workspacePath: draft.workspacePath,
     selectedAgentName,
     isSubmitting,
     submitError: flow.submitError,
@@ -178,7 +163,6 @@ export function useSessionCreateDialogViewModel(
     onWorkspaceChange: nextWorkspaceId =>
       store.trigger.workspaceSelected({ workspaceId: nextWorkspaceId }),
     onSessionNameChange: sessionName => store.trigger.sessionNameChanged({ sessionName }),
-    onWorkspacePathChange: workspacePath => store.trigger.workspacePathChanged({ workspacePath }),
     onNetworkParticipationChange: next =>
       store.trigger.networkParticipationSelected({
         networkParticipationMode: next.mode,

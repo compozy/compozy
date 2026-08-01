@@ -239,7 +239,12 @@ func waitForReviewLoop(
 				return last
 			}
 			if loopRunStatusTerminal(last.Run.Status) {
-				t.Fatalf("wait review loop %s reached unexpected terminal status %q; last=%#v", want, last.Run.Status, last)
+				t.Fatalf(
+					"wait review loop %s reached unexpected terminal status %q; last=%#v",
+					want,
+					last.Run.Status,
+					last,
+				)
 			}
 		}
 		select {
@@ -325,7 +330,11 @@ func assertReviewAndFixRunContract(t testing.TB, detail contract.LoopRunResponse
 		"review", "has_issues", "write_artifacts", "fix_batches", "fix_batch", "collect_fixes", "finalize_round",
 	}
 	if len(detail.ExecutedDefinition.Graph.Nodes) != len(wantNodes) {
-		t.Fatalf("review-and-fix executed nodes = %#v, want exactly %#v", detail.ExecutedDefinition.Graph.Nodes, wantNodes)
+		t.Fatalf(
+			"review-and-fix executed nodes = %#v, want exactly %#v",
+			detail.ExecutedDefinition.Graph.Nodes,
+			wantNodes,
+		)
 	}
 	for index, wantNode := range wantNodes {
 		if got := detail.ExecutedDefinition.Graph.Nodes[index].ID; got != wantNode {
@@ -449,7 +458,11 @@ func assertReviewWriterContainment(
 		}
 		if strings.Contains(string(encoded), string(toolspkg.ErrorCodeNotFound)) ||
 			strings.Contains(string(encoded), "tool_not_found") {
-			t.Fatalf("writer containment task %q payload=%s, want boundary rejection instead of missing tool", taskName, encoded)
+			t.Fatalf(
+				"writer containment task %q payload=%s, want boundary rejection instead of missing tool",
+				taskName,
+				encoded,
+			)
 		}
 	}
 	entries, err := os.ReadDir(outside)
@@ -475,7 +488,16 @@ func reviewGoldenPath(t testing.TB, name string) string {
 	if !ok {
 		t.Fatal("runtime.Caller(0) failed")
 	}
-	return filepath.Join(filepath.Dir(file), "..", "..", "extensions", "dev-cycle", "testdata", "review_artifacts", name)
+	return filepath.Join(
+		filepath.Dir(file),
+		"..",
+		"..",
+		"extensions",
+		"dev-cycle",
+		"testdata",
+		"review_artifacts",
+		name,
+	)
 }
 
 func reviewFrontmatterValue(t testing.TB, content string, key string) string {

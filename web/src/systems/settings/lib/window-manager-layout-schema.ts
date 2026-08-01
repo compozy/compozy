@@ -34,6 +34,11 @@ const normalizedRectSchema = z
     })
   );
 
+const routeSchema = z.strictObject({
+  pathname: z.string().trim().startsWith("/"),
+  search: z.record(z.string(), z.unknown()),
+});
+
 const layoutNodeSchema: z.ZodType<WindowManagerLayoutNode> = z.lazy(() =>
   z.union([
     z
@@ -80,6 +85,25 @@ const layoutNodeSchema: z.ZodType<WindowManagerLayoutNode> = z.lazy(() =>
   ])
 );
 
+const floatingStackSchema = z
+  .strictObject({
+    id: identifierSchema,
+    window_ids: z.array(identifierSchema).min(1),
+    active_id: identifierSchema.optional(),
+    rect: normalizedRectSchema,
+    minimized: z.boolean(),
+  })
+  .refine(stack => stack.active_id === undefined || stack.window_ids.includes(stack.active_id), {
+    message: "active_id must name one floating stack window",
+  })
+  .transform(stack => ({
+    id: stack.id,
+    windowIds: stack.window_ids,
+    activeId: stack.active_id ?? null,
+    rect: stack.rect,
+    minimized: stack.minimized,
+  }));
+
 const desktopSchema = z
   .strictObject({
     id: identifierSchema,
@@ -97,6 +121,7 @@ const desktopSchema = z
         .transform(group => ({ id: group.id, frame: group.frame, root: group.root }))
     ),
     floating: z.array(identifierSchema),
+    floating_stacks: z.array(floatingStackSchema),
   })
   .transform(desktop => ({
     id: desktop.id,
@@ -106,6 +131,7 @@ const desktopSchema = z
     focusOwner: desktop.focus_owner ?? null,
     groups: desktop.groups,
     floating: desktop.floating,
+    floatingStacks: desktop.floating_stacks,
   }));
 
 const layoutWindowSchema = z
@@ -113,10 +139,9 @@ const layoutWindowSchema = z
     id: identifierSchema,
     app: identifierSchema,
     instance_key: z.string().optional(),
-    route: z.strictObject({
-      pathname: z.string().trim().startsWith("/"),
-      search: z.record(z.string(), z.unknown()),
-    }),
+    route: routeSchema,
+    nav_stack: z.array(routeSchema),
+    pinned: z.boolean(),
     placement: z.enum(["tiled", "stacked", "floating"]),
     desktop_id: identifierSchema,
     floating_rect: normalizedRectSchema,
@@ -129,6 +154,8 @@ const layoutWindowSchema = z
       app: window.app,
       instanceKey: window.instance_key ?? null,
       route: window.route,
+      navStack: window.nav_stack,
+      pinned: window.pinned,
       placement: window.placement,
       desktopId: window.desktop_id,
       floatingRect: window.floating_rect,
@@ -139,7 +166,7 @@ const layoutWindowSchema = z
 
 export const windowManagerLayoutDocumentSchema = z
   .strictObject({
-    version: z.number().int().positive(),
+    version: z.literal(3),
     workspace_id: z.string(),
     desktops: z.array(desktopSchema).min(1),
     windows: z.record(z.string(), layoutWindowSchema),
@@ -176,6 +203,8 @@ const changesSchema = z
     group_ids: z.array(identifierSchema).optional(),
     node_ids: z.array(identifierSchema).optional(),
     client_ids: z.array(identifierSchema).optional(),
+    stack_grouped: z.array(identifierSchema).optional(),
+    stack_ungrouped: z.array(identifierSchema).optional(),
   })
   .transform(
     (changes): WindowManagerLayoutChanges => ({
@@ -184,6 +213,8 @@ const changesSchema = z
       groupIds: changes.group_ids ?? [],
       nodeIds: changes.node_ids ?? [],
       clientIds: changes.client_ids ?? [],
+      stackGrouped: changes.stack_grouped ?? [],
+      stackUngrouped: changes.stack_ungrouped ?? [],
     })
   );
 
@@ -342,6 +373,13 @@ export function windowManagerLayoutDocumentToWire(
         root: nodeToWire(group.root),
       })),
       floating: desktop.floating,
+      floating_stacks: desktop.floatingStacks.map(stack => ({
+        id: stack.id,
+        window_ids: stack.windowIds,
+        ...(stack.activeId ? { active_id: stack.activeId } : {}),
+        rect: rectToWire(stack.rect),
+        minimized: stack.minimized,
+      })),
     })),
     windows: Object.fromEntries(
       Object.entries(document.windows).map(([id, window]) => [
@@ -351,6 +389,8 @@ export function windowManagerLayoutDocumentToWire(
           app: window.app,
           ...(window.instanceKey ? { instance_key: window.instanceKey } : {}),
           route: window.route,
+          nav_stack: window.navStack,
+          pinned: window.pinned,
           placement: window.placement,
           desktop_id: window.desktopId,
           floating_rect: rectToWire(window.floatingRect),

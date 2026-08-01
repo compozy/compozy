@@ -11,6 +11,7 @@ import (
 
 	"github.com/compozy/compozy/internal/network/participation"
 	toolspkg "github.com/compozy/compozy/internal/tools"
+	"github.com/compozy/compozy/internal/windowmanager"
 	"github.com/santhosh-tekuri/jsonschema/v6"
 )
 
@@ -1165,8 +1166,14 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			toolspkg.ToolIDWindowOpen:     {toolspkg.RiskMutating, false, false, windowManagerWriteCapability},
 			toolspkg.ToolIDWindowNavigate: {toolspkg.RiskMutating, false, false, windowManagerWriteCapability},
 			toolspkg.ToolIDWindowClose:    {toolspkg.RiskDestructive, false, true, windowManagerWriteCapability},
+			toolspkg.ToolIDWindowGroup:    {toolspkg.RiskMutating, false, false, windowManagerWriteCapability},
+			toolspkg.ToolIDWindowReorder:  {toolspkg.RiskMutating, false, false, windowManagerWriteCapability},
+			toolspkg.ToolIDWindowActivate: {toolspkg.RiskMutating, false, false, windowManagerWriteCapability},
+			toolspkg.ToolIDWindowPin:      {toolspkg.RiskMutating, false, false, windowManagerWriteCapability},
+			toolspkg.ToolIDWindowReopen:   {toolspkg.RiskMutating, false, false, windowManagerWriteCapability},
 			toolspkg.ToolIDWindowFocus:    {toolspkg.RiskMutating, false, false, windowManagerWriteCapability},
 			toolspkg.ToolIDWindowMove:     {toolspkg.RiskMutating, false, false, windowManagerWriteCapability},
+			toolspkg.ToolIDWindowResize:   {toolspkg.RiskMutating, false, false, windowManagerWriteCapability},
 			toolspkg.ToolIDWindowSwap:     {toolspkg.RiskMutating, false, false, windowManagerWriteCapability},
 			toolspkg.ToolIDWindowFloat:    {toolspkg.RiskMutating, false, false, windowManagerWriteCapability},
 			toolspkg.ToolIDWindowZoom:     {toolspkg.RiskMutating, false, false, windowManagerWriteCapability},
@@ -1174,6 +1181,12 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			toolspkg.ToolIDLayoutPreview:  {toolspkg.RiskRead, true, false, windowManagerReadCapability},
 			toolspkg.ToolIDLayoutArrange:  {toolspkg.RiskMutating, false, false, windowManagerWriteCapability},
 			toolspkg.ToolIDLayoutResize:   {toolspkg.RiskMutating, false, false, windowManagerWriteCapability},
+			toolspkg.ToolIDLayoutFrameResize: {
+				toolspkg.RiskMutating,
+				false,
+				false,
+				windowManagerWriteCapability,
+			},
 			toolspkg.ToolIDLayoutBalance:  {toolspkg.RiskMutating, false, false, windowManagerWriteCapability},
 			toolspkg.ToolIDLayoutUndo:     {toolspkg.RiskMutating, false, false, windowManagerWriteCapability},
 			toolspkg.ToolIDLayoutRedo:     {toolspkg.RiskMutating, false, false, windowManagerWriteCapability},
@@ -1223,6 +1236,11 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			t,
 			descriptors[toolspkg.ToolIDDesktopCreate].OutputSchema,
 			descriptors[toolspkg.ToolIDLayoutPreview].OutputSchema,
+		)
+		assertWindowManagerLayoutDocumentSchemas(
+			t,
+			descriptors[toolspkg.ToolIDLayoutValidate].InputSchema,
+			descriptors[toolspkg.ToolIDLayoutApply].InputSchema,
 		)
 	})
 
@@ -1576,19 +1594,24 @@ func assertWindowManagerMoveSchema(t *testing.T, raw json.RawMessage) {
 				`"destination_desktop_id":"desktop-b"}`,
 		},
 		{
-			name: "Should reject group relocation with a target",
-			payload: `{"expected_revision":1,"window_id":"window-a",` +
-				`"destination_desktop_id":"desktop-b","move_group":true,"target_window_id":"window-b"}`,
-		},
-		{
-			name: "Should reject group relocation with placement",
-			payload: `{"expected_revision":1,"window_id":"window-a",` +
-				`"destination_desktop_id":"desktop-b","move_group":true,"placement":"right"}`,
-		},
-		{
-			name: "Should reject group relocation with a floating rectangle",
+			name: "Should accept structural group relocation onto a target",
 			payload: `{"expected_revision":1,"window_id":"window-a",` +
 				`"destination_desktop_id":"desktop-b","move_group":true,` +
+				`"target_window_id":"window-b","placement":"right"}`,
+			valid: true,
+		},
+		{
+			name: "Should accept a frame relocation with a floating rectangle",
+			payload: `{"expected_revision":1,"window_id":"window-a",` +
+				`"destination_desktop_id":"desktop-b","move_group":true,` +
+				`"floating_rect":{"x":0,"y":0,"width":0.5,"height":0.5}}`,
+			valid: true,
+		},
+		{
+			name: "Should reject a structural group relocation with a floating rectangle",
+			payload: `{"expected_revision":1,"window_id":"window-a",` +
+				`"destination_desktop_id":"desktop-b","move_group":true,` +
+				`"target_window_id":"window-b",` +
 				`"floating_rect":{"x":0,"y":0,"width":0.5,"height":0.5}}`,
 		},
 	}
@@ -1641,6 +1664,11 @@ func assertWindowManagerPreviewSchema(t *testing.T, raw json.RawMessage) {
 		{name: "Should reject a client-local desktop switch without a client", commandID: "desktop.switch"},
 		{name: "Should reject a client-local window focus without a client", commandID: "window.focus"},
 		{name: "Should reject a client-local window zoom without a client", commandID: "window.zoom"},
+		{name: "Should accept window stack group", commandID: "window.stack.group", valid: true},
+		{name: "Should accept window stack reorder", commandID: "window.stack.reorder", valid: true},
+		{name: "Should accept window stack activation", commandID: "window.stack.set_active", valid: true},
+		{name: "Should accept window pin", commandID: "window.pin", valid: true},
+		{name: "Should accept window reopen", commandID: "window.reopen", valid: true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1685,6 +1713,7 @@ func assertWindowManagerResultSchemas(t *testing.T, commandRaw, previewRaw json.
 	assertSchemaFields(t, "window manager command output", command, []string{
 		"applied", "changes", "client", "command_id", "diagnostics", "rebased_from", "revision", "workspace_id",
 	}, []string{"applied", "changes", "command_id", "diagnostics", "revision", "workspace_id"})
+	assertWindowManagerChangesSchema(t, "window manager command output", command.Properties["changes"])
 
 	var preview resultSchema
 	if err := json.Unmarshal(previewRaw, &preview); err != nil {
@@ -1693,6 +1722,48 @@ func assertWindowManagerResultSchemas(t *testing.T, commandRaw, previewRaw json.
 	assertSchemaFields(t, "window manager preview output", preview, []string{
 		"changed", "changes", "client", "command_id", "diagnostics", "revision", "snapshot", "workspace_id",
 	}, []string{"changed", "changes", "command_id", "diagnostics", "revision", "snapshot", "workspace_id"})
+	assertWindowManagerChangesSchema(t, "window manager preview output", preview.Properties["changes"])
+}
+
+func assertWindowManagerChangesSchema(t *testing.T, owner string, raw json.RawMessage) {
+	t.Helper()
+	var changes struct {
+		Properties map[string]json.RawMessage `json:"properties"`
+		Required   []string                   `json:"required"`
+	}
+	if err := json.Unmarshal(raw, &changes); err != nil {
+		t.Fatalf("%s changes schema unmarshal error = %v", owner, err)
+	}
+	assertSchemaFields(t, owner+" changes", changes, []string{
+		"client_ids", "desktop_ids", "group_ids", "node_ids", "stack_grouped", "stack_ungrouped", "window_ids",
+	}, nil)
+}
+
+func assertWindowManagerLayoutDocumentSchemas(t *testing.T, schemas ...json.RawMessage) {
+	t.Helper()
+	for _, raw := range schemas {
+		var input struct {
+			Properties map[string]json.RawMessage `json:"properties"`
+		}
+		if err := json.Unmarshal(raw, &input); err != nil {
+			t.Fatalf("window manager layout input schema unmarshal error = %v", err)
+		}
+		var document struct {
+			Properties map[string]json.RawMessage `json:"properties"`
+		}
+		if err := json.Unmarshal(input.Properties["document"], &document); err != nil {
+			t.Fatalf("window manager layout document schema unmarshal error = %v", err)
+		}
+		var version struct {
+			Const int `json:"const"`
+		}
+		if err := json.Unmarshal(document.Properties["version"], &version); err != nil {
+			t.Fatalf("window manager layout version schema unmarshal error = %v", err)
+		}
+		if version.Const != int(windowmanager.SnapshotVersion) {
+			t.Fatalf("window manager layout version const = %d, want %d", version.Const, windowmanager.SnapshotVersion)
+		}
+	}
 }
 
 func assertSchemaFields(
@@ -2185,19 +2256,26 @@ func windowManagerExpectedToolIDs() []toolspkg.ToolID {
 		toolspkg.ToolIDLayoutArrange,
 		toolspkg.ToolIDLayoutBalance,
 		toolspkg.ToolIDLayoutExport,
+		toolspkg.ToolIDLayoutFrameResize,
 		toolspkg.ToolIDLayoutGet,
 		toolspkg.ToolIDLayoutPreview,
 		toolspkg.ToolIDLayoutRedo,
 		toolspkg.ToolIDLayoutResize,
 		toolspkg.ToolIDLayoutUndo,
 		toolspkg.ToolIDLayoutValidate,
+		toolspkg.ToolIDWindowActivate,
 		toolspkg.ToolIDWindowClose,
 		toolspkg.ToolIDWindowFloat,
 		toolspkg.ToolIDWindowFocus,
+		toolspkg.ToolIDWindowGroup,
 		toolspkg.ToolIDWindowList,
 		toolspkg.ToolIDWindowMove,
 		toolspkg.ToolIDWindowNavigate,
 		toolspkg.ToolIDWindowOpen,
+		toolspkg.ToolIDWindowPin,
+		toolspkg.ToolIDWindowReopen,
+		toolspkg.ToolIDWindowReorder,
+		toolspkg.ToolIDWindowResize,
 		toolspkg.ToolIDWindowSwap,
 		toolspkg.ToolIDWindowZoom,
 	}

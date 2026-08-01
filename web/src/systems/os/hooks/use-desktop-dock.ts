@@ -5,7 +5,8 @@ import { DockIcons, type DockIconId } from "../components/os-dock-icons";
 import type { OsDockEntry } from "../components/os-dock-types";
 import type { OsAttentionBadges } from "../lib/attention-model";
 import { dockApps, OS_APPS } from "../lib/app-registry";
-import { osWindowId, type OsAppId, type OsPresentation } from "../lib/os-types";
+import { activationTarget, appRunState, type OsAppRunState } from "../lib/window-instance-lookup";
+import type { OsAppId, OsPresentation } from "../lib/os-types";
 import { useDesktop } from "./use-desktop";
 import { useOsShell } from "./use-os-shell";
 
@@ -31,21 +32,19 @@ export function useDesktopDock(
   badges: OsAttentionBadges,
   { sessionsOpen, onToggleSessions }: UseDesktopDockOptions
 ): DesktopDockModel {
-  const { coordinator } = useOsShell();
+  const { manager, coordinator } = useOsShell();
   const presentation = useDesktop(state => state.presentation);
   // Magnification composes every gate the prototype applies (os-v2.js): the
   // appearance toggle here, the system reduced-motion preference inside
   // `useDockMagnify`, and compact presentation via the tab-bar branch.
   const magnify = useDesktop(state => state.dockMagnify && !state.reduceMotion);
+  // Dock state aggregates every instance of an app (ADR-010 §3): the icon
+  // lights while any window of that app is live, whatever its instance key.
   const windowStates = useDesktop(state => {
-    const byApp: Record<string, "open" | "focused" | "minimized"> = {};
-    for (const win of Object.values(state.windows)) {
-      if (win.instanceKey !== null) continue;
-      byApp[win.app] = win.minimized
-        ? "minimized"
-        : state.focusedId === win.id
-          ? "focused"
-          : "open";
+    const byApp: Record<string, OsAppRunState> = {};
+    for (const app of Object.keys(OS_APPS) as OsAppId[]) {
+      const runState = appRunState(state.windows, state.focusedId, app);
+      if (runState !== "closed") byApp[app] = runState;
     }
     return byApp;
   }, shallowEqual);
@@ -83,12 +82,27 @@ export function useDesktopDock(
       onToggleSessions();
       return;
     }
-    // Tab-bar semantics (compact): tap = switch to, never minimize.
-    if (windowStates[appId] === "focused" && presentation === "floating") {
-      void coordinator.userMinimize(osWindowId(appId));
+    const state = manager.getState();
+    // Repeat activation cycles the app's instances (ADR-002); minimizing the
+    // focused one only makes sense when it is the app's sole instance.
+    const target = activationTarget(
+      state.windows,
+      state.client?.focusOrder ?? [],
+      state.focusedId,
+      {
+        app: appId,
+      }
+    );
+    if (target === null) {
+      void coordinator.userOpen({ app: appId });
       return;
     }
-    void coordinator.userOpen({ app: appId });
+    // Tab-bar semantics (compact): tap = switch to, never minimize.
+    if (target.id === state.focusedId && presentation === "floating") {
+      void coordinator.userMinimize(target.id);
+      return;
+    }
+    void coordinator.userActivateWindow(target.id);
   };
 
   return { entries, presentation, magnify, handleSelect };

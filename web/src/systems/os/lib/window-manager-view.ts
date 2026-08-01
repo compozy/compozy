@@ -1,14 +1,27 @@
 import { getOsApp, getOsAppMinimum, OS_APPS, OS_WINDOW_CONSERVATIVE_MINIMUM } from "./app-registry";
+import { applyFrameSeamPreviewToDesktop } from "./frame-seams";
+import { buildDesktopFrames, type OsWindowFrameModel } from "./group-projection";
 import { projectLayout } from "./layout-projection";
 import { applySeamPreviewToDesktop, type SeamPreview } from "./seam-preview";
 import type { SnapTargetConfig } from "./snap-targets";
-import type { OsAppId, OsRect, OsWindow, OsWindowRoute } from "./os-types";
+import { OS_COMPACT_BREAKPOINT } from "./os-types";
 import type {
+  OsAppId,
+  OsDesktopRuntimeStore,
+  OsRect,
+  OsWallpaper,
+  OsWindow,
+  OsWindowRoute,
+} from "./os-types";
+import { effectiveWindowManagerConfig } from "./window-manager-config";
+import type {
+  DesktopId,
   LayoutProjection,
   NormalizedRect,
   PixelRect,
   WindowManagerClientView,
   WindowManagerConfig,
+  WindowManagerConnectionStatus,
   WindowManagerSnapshot,
   WindowMinimums,
 } from "./window-manager-types";
@@ -76,6 +89,14 @@ function projectDesktopWithSeamPreview(
 ): LayoutProjection {
   const projection = projectLayout(input);
   if (seamPreview === null) return projection;
+  if (seamPreview.kind === "frame") {
+    const frameSeam = projection.frameSeams.find(candidate => candidate.id === seamPreview.seamId);
+    if (frameSeam === undefined) return projection;
+    return projectLayout({
+      ...input,
+      desktop: applyFrameSeamPreviewToDesktop(input.desktop, frameSeam, seamPreview.deltaPx),
+    });
+  }
   const seam = projection.seams.find(
     candidate =>
       candidate.splitId === seamPreview.splitId &&
@@ -107,6 +128,7 @@ export function buildWindowManagerProjections(
         gaps: config.gaps,
         minimums,
         focusedWindowId: client?.activeDesktopId === desktop.id ? client.focusedWindowId : null,
+        stackActive: client?.stackActive ?? {},
       },
       seamPreview
     );
@@ -146,35 +168,117 @@ function osAppId(value: string): OsAppId | null {
   return Object.hasOwn(OS_APPS, value) ? (value as OsAppId) : null;
 }
 
+export interface OsDesktopRuntimeViewInput {
+  snapshot: WindowManagerSnapshot | null;
+  globalConfig: WindowManagerConfig | null;
+  client: WindowManagerClientView | null;
+  workArea: PixelRect;
+  workAreaOrigin: { x: number; y: number };
+  seamPreview: SeamPreview | null;
+  routeIntents: Readonly<Record<string, { route: OsWindowRoute }>>;
+  connectionStatus: WindowManagerConnectionStatus;
+  loadError: Error | null;
+  railCollapsedAgentIds: readonly string[];
+  wallpaper: OsWallpaper;
+  reduceMotion: boolean;
+  dockMagnify: boolean;
+}
+
+/** Assembles the selector store the shell renders: projections → frames → windows. */
+export function buildOsDesktopRuntimeView(input: OsDesktopRuntimeViewInput): OsDesktopRuntimeStore {
+  const { snapshot, globalConfig, client, workArea } = input;
+  const config =
+    snapshot && globalConfig
+      ? effectiveWindowManagerConfig(globalConfig, snapshot.overrides)
+      : null;
+  const projections = buildWindowManagerProjections(
+    snapshot,
+    client,
+    workArea,
+    config,
+    input.seamPreview
+  );
+  const frames = buildDesktopFrames({
+    snapshot: config ? snapshot : null,
+    client,
+    projections,
+    workArea,
+    raiseOnFocus: config?.raiseOnFocus ?? false,
+  });
+  const windows = buildWindowManagerWindows({
+    snapshot: config ? snapshot : null,
+    client,
+    workArea,
+    projections,
+    frames,
+    routeIntents: input.routeIntents,
+  });
+  const hydration =
+    snapshot !== null && config !== null
+      ? input.loadError
+        ? "degraded"
+        : "live"
+      : input.loadError
+        ? "degraded"
+        : "pending";
+  const viewportRejected =
+    workArea.w < OS_COMPACT_BREAKPOINT && config?.smallViewportPolicy === "reject";
+  return {
+    snapshot,
+    windowManagerConfig: config,
+    client,
+    desktops: snapshot?.desktops ?? [],
+    projections,
+    frames,
+    windows,
+    activeDesktopId: client?.activeDesktopId ?? snapshot?.desktops[0]?.id ?? null,
+    focusedId: client?.focusedWindowId ?? null,
+    railCollapsedAgentIds: input.railCollapsedAgentIds,
+    wallpaper: input.wallpaper,
+    reduceMotion: input.reduceMotion,
+    dockMagnify: input.dockMagnify,
+    presentation:
+      workArea.w < OS_COMPACT_BREAKPOINT && config?.smallViewportPolicy === "stack"
+        ? "compact"
+        : "floating",
+    viewportState: viewportRejected ? "rejected" : "ready",
+    hydration,
+    connectionStatus: input.connectionStatus,
+    desktopBounds: {
+      width: workArea.w,
+      height: workArea.h,
+      origin: input.workAreaOrigin,
+    },
+  };
+}
+
 export function buildWindowManagerWindows(input: {
   snapshot: WindowManagerSnapshot | null;
   client: WindowManagerClientView | null;
   workArea: PixelRect;
   projections: Readonly<Record<string, LayoutProjection>>;
-  raiseOnFocus: boolean;
+  frames: Readonly<Record<DesktopId, readonly OsWindowFrameModel[]>>;
   routeIntents?: Readonly<Record<string, { route: OsWindowRoute }>>;
 }): Readonly<Record<string, OsWindow>> {
   if (input.snapshot === null) return {};
   const windows: Record<string, OsWindow> = {};
-  const focusLayerBase = Object.keys(input.snapshot.windows).length + 1;
   const projectionMaps = new Map(
     Object.entries(input.projections).map(([desktopId, projection]) => [
       desktopId,
       new Map(projection.windows.map(window => [window.windowId, window])),
     ])
   );
-  const stableFloatingLayers = new Map<string, number>();
-  for (const desktop of input.snapshot.desktops) {
-    desktop.floating.forEach((windowId, index) => stableFloatingLayers.set(windowId, index));
+  const frameByMember = new Map<string, OsWindowFrameModel>();
+  for (const desktopFrames of Object.values(input.frames)) {
+    for (const frame of desktopFrames) {
+      for (const member of frame.members) frameByMember.set(member, frame);
+    }
   }
   for (const authoritative of Object.values(input.snapshot.windows)) {
     const resolvedApp = osAppId(authoritative.app);
     if (resolvedApp === null) continue;
     const projected = projectionMaps.get(authoritative.desktopId)?.get(authoritative.id);
-    const focusIndex = input.raiseOnFocus
-      ? (input.client?.focusOrder.indexOf(authoritative.id) ?? -1)
-      : -1;
-    const stableLayer = stableFloatingLayers.get(authoritative.id) ?? -1;
+    const frame = frameByMember.get(authoritative.id);
     const route = input.routeIntents?.[authoritative.id]?.route ?? authoritative.route;
     windows[authoritative.id] = {
       id: authoritative.id,
@@ -184,16 +288,20 @@ export function buildWindowManagerWindows(input: {
         pathname: route.pathname,
         search: { ...route.search },
       },
+      navStack: authoritative.navStack.map(entry => ({
+        pathname: entry.pathname,
+        search: { ...entry.search },
+      })),
+      pinned: authoritative.pinned,
       desktopId: authoritative.desktopId,
       placement: authoritative.placement,
-      rect: projected?.rect ?? normalizedRectToPixels(authoritative.floatingRect, input.workArea),
-      layer:
-        focusIndex >= 0 ? Math.max(1, focusLayerBase - focusIndex) : Math.max(1, stableLayer + 1),
-      minimized: authoritative.minimized,
+      rect: frame?.rect ?? normalizedRectToPixels(authoritative.floatingRect, input.workArea),
+      layer: frame?.layer ?? 1,
+      minimized: authoritative.minimized || (frame?.minimized ?? false),
       groupId: projected?.groupId ?? null,
       nodeId: projected?.nodeId ?? null,
-      stackId: projected?.stackId ?? null,
-      stackActive: projected?.active ?? true,
+      stackId: frame?.stackId ?? null,
+      stackActive: frame === undefined || frame.activeWindowId === authoritative.id,
       parentAxis: projected?.parentAxis ?? null,
     };
   }

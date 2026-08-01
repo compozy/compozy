@@ -7,17 +7,21 @@ import type {
   LayoutDesktop,
   LayoutNodeId,
   LayoutProjection,
+  NormalizedRect,
   WindowPlacement,
   WindowManagerClientView,
   WindowManagerConfig,
   WindowManagerConnectionStatus,
   WindowManagerSnapshot,
 } from "./window-manager-types";
+import type { GroupFrameEditInput } from "./frame-seams";
+import type { OsWindowFrameModel } from "./group-projection";
 import type { SnapCorner, SnapSide, SnapTarget } from "./snap-targets";
 
 /** The app surfaces rendered inside daemon-managed logical windows. */
 export type OsAppId =
   | "dashboard"
+  | "new-tab"
   | "session"
   | "tasks"
   | "agents"
@@ -50,6 +54,9 @@ export interface OsWindow {
   app: OsAppId;
   instanceKey: string | null;
   route: OsWindowRoute;
+  /** Durable navigation ancestors, oldest first; `route` stays the leaf (ADR-011). */
+  navStack: readonly OsWindowRoute[];
+  pinned: boolean;
   desktopId: DesktopId;
   placement: WindowPlacement;
   rect: OsRect;
@@ -72,7 +79,19 @@ export interface OsOpenTarget {
   app: OsAppId;
   instanceKey?: string;
   route?: OsWindowRoute;
+  /** Join this window's frame as a tab instead of opening standalone (ADR-005). */
+  stackTargetWindowId?: string;
+  /** Skip focus-first resolution and always create another instance (ADR-002). */
+  forceNewInstance?: boolean;
+  /** Classified navigation intent when the target resolves to a live window (ADR-011). */
+  navigateMode?: OsNavigateMode;
 }
+
+/** Navigation intent, classified where it is known rather than inferred (ADR-011). */
+export type OsNavigateMode = "replace" | "push" | "pop";
+
+/** `window.close` breadth; the frame's traffic light closes the whole group. */
+export type OsCloseScope = "tab" | "group" | "others" | "right";
 
 export interface OsDesktopBounds {
   width: number;
@@ -115,6 +134,7 @@ export interface OsDesktopRuntimeStore {
   client: WindowManagerClientView | null;
   desktops: readonly LayoutDesktop[];
   projections: Readonly<Record<DesktopId, LayoutProjection>>;
+  frames: Readonly<Record<DesktopId, readonly OsWindowFrameModel[]>>;
   windows: Readonly<Record<string, OsWindow>>;
   activeDesktopId: DesktopId | null;
   focusedId: string | null;
@@ -147,15 +167,40 @@ export interface WindowManagerController extends OsDesktopRuntime {
   closeWindow(id: string): Promise<boolean>;
   focusWindow(id: string): WindowManagerCommandOutcome;
   minimizeWindow(id: string): Promise<boolean>;
-  restoreWindow(id: string): void;
+  restoreWindow(id: string): WindowManagerCommandOutcome;
   zoomWindow(id: string): WindowManagerCommandOutcome;
-  toggleFloating(id: string): void;
+  toggleFloating(id: string, floatingRect?: OsRect): WindowManagerCommandOutcome;
   moveWindow(id: string, input: MoveWindowInput): WindowManagerCommandOutcome;
   arrangeLayout(anchorId: string, preset: OsArrangePreset): void;
-  commitFloatingRect(id: string, rect: OsRect, drop?: OsFloatingDrop): WindowManagerCommandOutcome;
+  commitFloatingRect(
+    id: string,
+    rect: OsRect,
+    drop?: OsFloatingDrop,
+    moveGroup?: boolean
+  ): WindowManagerCommandOutcome;
   resizeLayout(splitId: string, boundaryIndex: number, delta: number): WindowManagerCommandOutcome;
+  resizeWindowFrame(windowId: string, frame: NormalizedRect): WindowManagerCommandOutcome;
+  resizeGroupFrames(
+    desktopId: string,
+    edits: readonly GroupFrameEditInput[]
+  ): WindowManagerCommandOutcome;
   balanceLayout(groupId?: string, splitId?: string): void;
-  navigateWindow(id: string, route: OsWindowRoute): WindowManagerCommandOutcome;
+  navigateWindow(
+    id: string,
+    route: OsWindowRoute,
+    mode?: OsNavigateMode
+  ): WindowManagerCommandOutcome;
+  popWindowRoute(id: string): WindowManagerCommandOutcome;
+  groupWindows(
+    targetWindowId: string,
+    windowIds: readonly string[],
+    insertIndex?: number
+  ): WindowManagerCommandOutcome;
+  reorderStackMember(windowId: string, index: number): WindowManagerCommandOutcome;
+  activateStackMember(windowId: string): WindowManagerCommandOutcome;
+  pinWindow(windowId: string, pinned: boolean): WindowManagerCommandOutcome;
+  reopenWindow(): WindowManagerCommandOutcome;
+  closeWindowScoped(windowId: string, scope: OsCloseScope): Promise<boolean>;
   toggleRailGroup(agentId: string): void;
   setWallpaper(wallpaper: OsWallpaper): void;
   setDockMagnify(on: boolean): void;
@@ -185,7 +230,3 @@ export interface WindowManagerController extends OsDesktopRuntime {
 export const OS_COMPACT_BREAKPOINT = 960;
 export const OS_WINDOW_MIN_WIDTH = 280;
 export const OS_WINDOW_MIN_HEIGHT = 180;
-
-export function osWindowId(app: OsAppId, instanceKey?: string | null): string {
-  return app === "session" && instanceKey ? `session:${instanceKey}` : `app:${app}`;
-}

@@ -63,6 +63,7 @@ def dump(state: dict, path: Path) -> None:
         "iteration",
         "goal_signature",
         "frontend_agent",
+        "stacked",
     ):
         out.append(f"{key}: {_scalar(state.get(key))}")
 

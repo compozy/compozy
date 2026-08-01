@@ -15,25 +15,28 @@ import {
   TopbarSlotContext,
   TopbarSlotSettersContext,
   type TopbarCrumb,
+  type TopbarSlotStore,
   type TopbarSlotValue,
-  useTopbarSlot,
   useTopbarSlotValue,
 } from "./hooks/use-topbar-slot";
 
-export interface TopbarSlotProviderProps {
+interface TopbarSlotProviderProps {
   children: React.ReactNode;
+  /** External store handle so a shell can read this surface's slot (deck labels). */
+  store?: TopbarSlotStore;
 }
 
-function TopbarSlotProvider({ children }: TopbarSlotProviderProps) {
-  const [store] = React.useState(createTopbarSlotStore);
+function TopbarSlotProvider({ children, store }: TopbarSlotProviderProps) {
+  const [fallback] = React.useState(createTopbarSlotStore);
+  const active = store ?? fallback;
   return (
-    <TopbarSlotSettersContext.Provider value={store}>
-      <TopbarSlotContext.Provider value={store}>{children}</TopbarSlotContext.Provider>
+    <TopbarSlotSettersContext.Provider value={active}>
+      <TopbarSlotContext.Provider value={active}>{children}</TopbarSlotContext.Provider>
     </TopbarSlotSettersContext.Provider>
   );
 }
 
-export interface TopbarProps extends Omit<React.ComponentProps<"header">, "title"> {
+interface TopbarProps extends Omit<React.ComponentProps<"header">, "title"> {
   /**
    * Optional leading zone content anchored at the start edge (e.g. OS window
    * controls). When present the head uses the unified OS anatomy (left-aligned
@@ -222,11 +225,6 @@ function Topbar({ leading, title, titleRef, glyph, className, ...props }: Topbar
         </div>
       ) : null}
       <TopbarIdentity title={title} titleRef={titleRef} glyph={glyph} slot={slot} />
-      {slot?.nav ? (
-        <div data-slot="topbar-nav" className="no-scrollbar min-w-0 shrink-0 overflow-x-auto">
-          {slot.nav}
-        </div>
-      ) : null}
       <div data-slot="topbar-flex" className="min-h-full min-w-2 flex-1 self-stretch" />
       {hasTrail ? (
         <div
@@ -267,5 +265,5 @@ function Topbar({ leading, title, titleRef, glyph, className, ...props }: Topbar
 
 const TopbarOverflowIcon = MoreHorizontal;
 
-export { Topbar, TopbarOverflowIcon, TopbarSlotProvider, useTopbarSlot, useTopbarSlotValue };
-export type { TopbarCrumb, TopbarSlotValue };
+export { Topbar, TopbarOverflowIcon, TopbarSlotProvider };
+export type { TopbarProps, TopbarSlotProviderProps };

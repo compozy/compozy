@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/windowmanager"
 	"github.com/getkin/kin-openapi/openapi3"
 )
 
@@ -80,6 +81,15 @@ func TestWindowManagerOpenAPIContract(t *testing.T) {
 			{contract.WindowManagerCommandWindowOpen, "WindowManagerOpenWindowPayload", false},
 			{contract.WindowManagerCommandWindowNavigate, "WindowManagerNavigateWindowPayload", false},
 			{contract.WindowManagerCommandWindowClose, "WindowManagerCloseWindowPayload", false},
+			{contract.WindowManagerCommandWindowStackGroup, "WindowManagerGroupWindowsPayload", false},
+			{contract.WindowManagerCommandWindowStackReorder, "WindowManagerReorderStackPayload", false},
+			{
+				contract.WindowManagerCommandWindowStackSetActive,
+				"WindowManagerSetStackActivePayload",
+				false,
+			},
+			{contract.WindowManagerCommandWindowPin, "WindowManagerPinWindowPayload", false},
+			{contract.WindowManagerCommandWindowReopen, "WindowManagerReopenWindowPayload", false},
 			{contract.WindowManagerCommandWindowFocus, "WindowManagerFocusWindowPayload", true},
 			{contract.WindowManagerCommandWindowMove, "WindowManagerMoveWindowPayload", false},
 			{contract.WindowManagerCommandWindowSwap, "WindowManagerSwapWindowsPayload", false},
@@ -161,7 +171,9 @@ func TestWindowManagerOpenAPIContract(t *testing.T) {
 		}
 
 		navigate := componentSchema(t, document, "WindowManagerNavigateWindowPayload")
-		assertRequired(t, navigate, "window_id", "route")
+		assertRequired(t, navigate, "window_id")
+		assertNotRequired(t, navigate, "route")
+		assertNotRequired(t, navigate, "mode")
 		route := propertySchema(t, navigate, "route")
 		assertRequired(t, route, "pathname", "search")
 		assertSchemaHasAdditionalProperties(t, route, false)
@@ -169,6 +181,86 @@ func TestWindowManagerOpenAPIContract(t *testing.T) {
 		search := propertySchema(t, route, "search")
 		assertSchemaIncludesType(t, search, openapi3.TypeObject)
 		assertSchemaHasAdditionalProperties(t, search, true)
+		assertEnumValues(
+			t,
+			propertySchema(t, navigate, "mode"),
+			"replace",
+			string(windowmanager.NavigatePush),
+			string(windowmanager.NavigatePop),
+		)
+		if len(navigate.OneOf) != 2 {
+			t.Fatalf("navigate oneOf branches = %d, want 2", len(navigate.OneOf))
+		}
+		var popBranch, routedBranch *openapi3.Schema
+		for _, branchRef := range navigate.OneOf {
+			if branchRef == nil || branchRef.Value == nil {
+				t.Fatalf("navigate oneOf branch = %#v", branchRef)
+			}
+			branch := branchRef.Value
+			mode := propertySchema(t, branch, "mode")
+			if slices.ContainsFunc(mode.Enum, func(value any) bool {
+				return value == string(windowmanager.NavigatePop)
+			}) {
+				popBranch = branch
+			} else {
+				routedBranch = branch
+			}
+		}
+		if popBranch == nil || routedBranch == nil {
+			t.Fatalf("navigate oneOf branches = %#v", navigate.OneOf)
+		}
+		assertRequired(t, popBranch, "mode")
+		assertNotRequired(t, popBranch, "route")
+		assertEnumValues(
+			t,
+			propertySchema(t, popBranch, "mode"),
+			string(windowmanager.NavigatePop),
+		)
+		assertRequired(t, routedBranch, "route")
+		assertNotRequired(t, routedBranch, "mode")
+		assertEnumValues(
+			t,
+			propertySchema(t, routedBranch, "mode"),
+			"replace",
+			string(windowmanager.NavigatePush),
+		)
+		if err := navigate.VisitJSON(map[string]any{
+			"window_id": "window-a",
+			"mode":      string(windowmanager.NavigatePop),
+			"route": map[string]any{
+				"pathname": "/tasks",
+				"search":   map[string]any{},
+			},
+		}); err == nil {
+			t.Fatal("navigate pop payload with route validated successfully")
+		}
+		if err := navigate.VisitJSON(map[string]any{
+			"window_id": "window-a",
+			"mode":      string(windowmanager.NavigatePop),
+		}); err != nil {
+			t.Fatalf("navigate pop payload validation error = %v", err)
+		}
+		if err := navigate.VisitJSON(map[string]any{
+			"window_id": "window-a",
+			"route": map[string]any{
+				"pathname": "/tasks",
+				"search":   map[string]any{},
+			},
+		}); err != nil {
+			t.Fatalf("navigate routed payload validation error = %v", err)
+		}
+		closePayload := componentSchema(t, document, "WindowManagerCloseWindowPayload")
+		assertEnumValues(
+			t,
+			propertySchema(t, closePayload, "scope"),
+			"tab",
+			string(windowmanager.CloseScopeGroup),
+			string(windowmanager.CloseScopeOthers),
+			string(windowmanager.CloseScopeRight),
+		)
+		openPayload := componentSchema(t, document, "WindowManagerOpenWindowPayload")
+		windowSpec := propertySchema(t, openPayload, "window")
+		assertNotRequired(t, windowSpec, "stack_target_window_id")
 
 		for _, target := range []struct {
 			path   string
@@ -293,12 +385,24 @@ func TestWindowManagerOpenAPIContract(t *testing.T) {
 			t.Fatalf("Document() error = %v", err)
 		}
 		snapshot := componentSchema(t, document, "WindowManagerSnapshot")
+		if _, ok := snapshot.Properties["history"]; ok {
+			t.Fatalf("WindowManagerSnapshot schema includes internal history")
+		}
+		assertRequired(t, snapshot, "closed_entry_count")
+		desktops := propertySchema(t, snapshot, "desktops")
+		if desktops.Items == nil || desktops.Items.Value == nil {
+			t.Fatalf("WindowManagerSnapshot desktops are unresolved: %#v", desktops.Items)
+		}
+		assertRequired(t, desktops.Items.Value, "floating_stacks")
+		clientView := componentSchema(t, document, "WindowManagerClientView")
+		assertRequired(t, clientView, "stack_active")
 		windows := propertySchema(t, snapshot, "windows")
 		windowRef := windows.AdditionalProperties.Schema
 		if windowRef == nil || windowRef.Value == nil {
 			t.Fatalf("window map value schema is unresolved: %#v", windows.AdditionalProperties)
 		}
 		returnAnchor := propertySchema(t, windowRef.Value, "return_anchor")
+		assertRequired(t, windowRef.Value, "nav_stack", "pinned")
 		assertNotRequired(t, returnAnchor, "source_group")
 		sourceGroup := propertySchema(t, returnAnchor, "source_group")
 		assertSchemaIncludesType(t, sourceGroup, openapi3.TypeObject)

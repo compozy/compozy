@@ -120,7 +120,7 @@ Web-specific dispatch: `web/CLAUDE.md`. Site-specific: `packages/site/CLAUDE.md`
 
 `make verify` is the only gate that exercises the entire monorepo — `codegen-check → installer-check → Bun lint → Bun typecheck → Bun test → web build → Go fmt → Go lint → Go test → Go build → boundaries`. Run gates through the evidence-cached wrapper, never by hand:
 
-- **Iteration** → `make gate`: classifies the diff vs merge-base and runs only affected lanes (Go → `go-lint` + scoped `go test -race`; web/ui/site → `turbo --filter`; docs/instructions-only → no-op). Schema/SQL, contracts/openapi, `internal/config`, tokens, dependency/build/tooling files, and unclassified paths escalate to full automatically.
+- **Iteration** → `make gate`: classifies the diff vs merge-base and runs only affected lanes (Go → scoped `go-lint` + `go test -race`; web/ui/site → `turbo --filter`; docs/instructions-only → no-op). Schema/SQL, contracts/openapi, `internal/config`, tokens, dependency/build/tooling files, and unclassified paths escalate to full automatically.
 - **Workstream close (final completion/commit batch/PR)** → `make gate-full`: the full `make verify`, exactly once, after the last mutation. Intermediate tasks in a multi-task loop close on `make gate`; the full gate runs once at the loop's end.
 - Gates record `{fingerprint, result, log}` in `.cache/gate/`, keyed by tree content — commits keep records valid, any edit goes stale. A gate whose record is current no-ops; cite `make gate-status` as completion evidence instead of re-running (`cy-final-verify` accepts a current full-gate record as fresh evidence).
 

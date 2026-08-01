@@ -16,6 +16,8 @@ export function effectiveWindowManagerConfig(
     groupMoveModifier: workspace.groupMoveModifier ?? global.groupMoveModifier,
     swapModifier: workspace.swapModifier ?? global.swapModifier,
     historyLimit: workspace.historyLimit ?? global.historyLimit,
+    navStackLimit: workspace.navStackLimit ?? global.navStackLimit,
+    closedEntryLimit: workspace.closedEntryLimit ?? global.closedEntryLimit,
     desktopTransition: workspace.desktopTransition ?? global.desktopTransition,
     gaps: { ...(workspace.gaps ?? global.gaps) },
     snap: {

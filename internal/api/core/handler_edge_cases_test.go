@@ -561,6 +561,9 @@ func TestBaseHandlersWorkspaceFilteringAndDefaults(t *testing.T) {
 		},
 	}
 	fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, workspaces, nil, nil)
+	fixture.Handlers.Settings = &stubSettingsService{
+		PendingRestartFn: func(context.Context) (bool, error) { return true, nil },
+	}
 
 	resp := performRequest(t, fixture.Engine, http.MethodGet, "/sessions?workspace=alpha", nil)
 	if resp.Code != http.StatusOK {
@@ -573,11 +576,16 @@ func TestBaseHandlersWorkspaceFilteringAndDefaults(t *testing.T) {
 		t.Fatalf("daemon status = %d, want %d", recorder.Code, http.StatusOK)
 	}
 	var payload struct {
-		Daemon contract.DaemonStatusPayload `json:"daemon"`
+		Daemon contract.DaemonStatusPayload        `json:"daemon"`
+		Config contract.ConfigRuntimeStatusPayload `json:"config"`
 	}
 	testutil.DecodeJSONResponse(t, recorder, &payload)
 	if payload.Daemon.HTTPPort != 4321 {
 		t.Fatalf("daemon http port = %d, want 4321", payload.Daemon.HTTPPort)
+	}
+	if !payload.Config.RestartRequired || payload.Config.ApplyState != "pending_restart" ||
+		payload.Config.Status != "warn" {
+		t.Fatalf("config status = %#v, want pending restart warning", payload.Config)
 	}
 	resolvedUserHomeDir, err := compozyconfig.ResolvePath(os.Getenv("HOME"))
 	if err != nil {
@@ -586,6 +594,35 @@ func TestBaseHandlersWorkspaceFilteringAndDefaults(t *testing.T) {
 	if payload.Daemon.UserHomeDir != resolvedUserHomeDir {
 		t.Fatalf("daemon user home dir = %q, want %q", payload.Daemon.UserHomeDir, resolvedUserHomeDir)
 	}
+
+	t.Run("Should expose unavailable config apply state when drift inspection fails", func(t *testing.T) {
+		t.Parallel()
+
+		errorFixture := newHandlerFixture(
+			t,
+			manager,
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+			nil,
+			nil,
+		)
+		errorFixture.Handlers.Settings = &stubSettingsService{
+			PendingRestartFn: func(context.Context) (bool, error) {
+				return false, errors.New("active config state unavailable")
+			},
+		}
+		errorRecorder := performRequest(t, errorFixture.Engine, http.MethodGet, "/status", nil)
+		if errorRecorder.Code != http.StatusOK {
+			t.Fatalf("status code = %d, want %d", errorRecorder.Code, http.StatusOK)
+		}
+		var errorPayload struct {
+			Config contract.ConfigRuntimeStatusPayload `json:"config"`
+		}
+		testutil.DecodeJSONResponse(t, errorRecorder, &errorPayload)
+		if errorPayload.Config.Status != "error" || errorPayload.Config.ApplyState != "unavailable" {
+			t.Fatalf("config status = %#v, want unavailable error", errorPayload.Config)
+		}
+	})
 
 	handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{})
 	if handlers.TransportName != "" {

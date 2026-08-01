@@ -101,6 +101,30 @@ func TestApplyHostedToolsAddsAnthropicMetadata(t *testing.T) {
 	})
 }
 
+func TestReconcileHostedTools(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should retain an unchanged descriptor without re-registering the tool", func(t *testing.T) {
+		t.Parallel()
+
+		view := hostedToolView("compozy__hosted_echo")
+		registry := &countingHostedToolRegistry{}
+		client := &hostedProxyClientStub{}
+		first := reconcileHostedTools(registry, client, "bind-1", nil, []tools.ToolView{view})
+		second := reconcileHostedTools(registry, client, "bind-1", first, []tools.ToolView{view})
+
+		if got, want := registry.addCalls, 1; got != want {
+			t.Fatalf("AddTool calls = %d, want %d after unchanged projection", got, want)
+		}
+		if got := registry.removeCalls; len(got) != 0 {
+			t.Fatalf("RemoveTools calls = %#v, want none after unchanged projection", got)
+		}
+		if !reflect.DeepEqual(second, first) {
+			t.Fatalf("retained fingerprints = %#v, want %#v", second, first)
+		}
+	})
+}
+
 func TestRunHostedProxyUsesPrivateTTLCacheForProjectionChanges(t *testing.T) {
 	t.Parallel()
 
@@ -487,6 +511,19 @@ func TestHostedProxyHelpers(t *testing.T) {
 
 type hostedToolResponseError struct {
 	response contract.ToolErrorResponse
+}
+
+type countingHostedToolRegistry struct {
+	addCalls    int
+	removeCalls [][]string
+}
+
+func (r *countingHostedToolRegistry) AddTool(_ *sdkmcp.Tool, _ sdkmcp.ToolHandler) {
+	r.addCalls++
+}
+
+func (r *countingHostedToolRegistry) RemoveTools(names ...string) {
+	r.removeCalls = append(r.removeCalls, append([]string(nil), names...))
 }
 
 func (e hostedToolResponseError) Error() string {

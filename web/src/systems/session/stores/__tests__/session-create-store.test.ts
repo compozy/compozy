@@ -13,7 +13,6 @@ describe("session-create store", () => {
     store.trigger.dialogOpened({ agentName: "claude-agent", workspaceId: "ws_alpha" });
     store.trigger.modeSelected({ mode: "advanced" });
     store.trigger.sessionNameChanged({ sessionName: "Keep this" });
-    store.trigger.workspacePathChanged({ workspacePath: "services/checkout" });
     store.trigger.networkParticipationSelected({
       networkParticipationMode: "live",
       networkChannelId: "release-room",

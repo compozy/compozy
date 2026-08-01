@@ -19,6 +19,8 @@ Flags (multiple may combine in one call):
     --task-completed <stem>          mode=tasks: move stem from pending to completed
     --task-current <stem|->          set tasks.current; '-' clears it
     --reconcile-tasks                rebuild mode/tasks.* from task_*.md frontmatter
+    --disable-frontend               switch future frontend tasks to the local lane
+    --disable-stacked                switch future checkpoints to one-branch mode
     --add-progress "<text>"          mode=free: append checklist entry status=in_progress
     --complete-progress "<text>"     mode=free: flip checklist entry to completed
     --deliverables-complete          mode=free: set progress.deliverables_complete=true
@@ -86,6 +88,8 @@ def _parse_args() -> argparse.Namespace:
     ap.add_argument("--task-completed")
     ap.add_argument("--task-current")
     ap.add_argument("--reconcile-tasks", action="store_true")
+    ap.add_argument("--disable-frontend", action="store_true")
+    ap.add_argument("--disable-stacked", action="store_true")
     ap.add_argument("--add-progress")
     ap.add_argument("--complete-progress")
     ap.add_argument("--deliverables-complete", action="store_true")
@@ -147,6 +151,12 @@ def _reconcile_tasks(state: dict, slug_dir: Path) -> None:
 
 
 def _apply(state: dict, args: argparse.Namespace, slug_dir: Path) -> None:
+    if args.disable_frontend:
+        state["frontend_agent"] = None
+
+    if args.disable_stacked:
+        state["stacked"] = False
+
     if args.reconcile_tasks:
         _reconcile_tasks(state, slug_dir)
 
@@ -237,6 +247,8 @@ def _has_observation(args: argparse.Namespace) -> bool:
             args.verify_pass,
             args.verify_fail,
             args.reconcile_tasks,
+            args.disable_frontend,
+            args.disable_stacked,
         ]
     )
 

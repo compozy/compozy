@@ -5,6 +5,8 @@ import (
 	"errors"
 	"strings"
 	"sync"
+
+	"github.com/compozy/compozy/internal/acp"
 )
 
 const sessionCatalogSubscriberBuffer = 64
@@ -115,6 +117,13 @@ func (m *Manager) publishSessionCatalogEvent(event CatalogEvent) {
 	if broadcaster != nil {
 		broadcaster.publish(event)
 	}
+}
+
+func (m *Manager) publishSessionCatalogWakeForEvent(session *Session, event acp.AgentEvent) {
+	if event.Type != acp.EventTypePermission || session == nil {
+		return
+	}
+	m.publishSessionCatalogEvent(sessionCatalogEventFromInfo(CatalogEventUpserted, session.Info()))
 }
 
 func sessionCatalogEventFromInfo(kind CatalogEventKind, info *Info) CatalogEvent {

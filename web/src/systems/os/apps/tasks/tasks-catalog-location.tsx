@@ -97,23 +97,28 @@ export function TasksCatalogLocation({ search }: { search: TasksRouteSearch }) {
         New task
       </Button>
     ),
-    nav: modeNav,
-    toolbar:
-      mode === "list" && page.hasActiveTaskScope ? (
-        <TasksListToolbar
-          onOwnerChange={page.handleOwnerChange}
-          onPriorityChange={page.handlePriorityChange}
-          onSearchQueryChange={page.setSearchQuery}
-          onSortChange={page.handleSortChange}
-          onStatusChange={page.handleStatusChange}
-          ownerFilter={page.ownerFilter}
-          ownerOptions={page.ownerOptions}
-          priorityFilter={page.priorityFilter}
-          searchQuery={page.searchQuery}
-          sortBy={page.sortBy}
-          statusFilter={page.statusFilter}
-        />
-      ) : undefined,
+    // Route views lead the strip on every route (ADR-007/D3): the head stays
+    // two-element, strip order views · filters · spacer · display-mode.
+    toolbar: (
+      <>
+        {modeNav}
+        {mode === "list" && page.hasActiveTaskScope ? (
+          <TasksListToolbar
+            onOwnerChange={page.handleOwnerChange}
+            onPriorityChange={page.handlePriorityChange}
+            onSearchQueryChange={page.setSearchQuery}
+            onSortChange={page.handleSortChange}
+            onStatusChange={page.handleStatusChange}
+            ownerFilter={page.ownerFilter}
+            ownerOptions={page.ownerOptions}
+            priorityFilter={page.priorityFilter}
+            searchQuery={page.searchQuery}
+            sortBy={page.sortBy}
+            statusFilter={page.statusFilter}
+          />
+        ) : null}
+      </>
+    ),
   });
 
   return (

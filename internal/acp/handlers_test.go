@@ -458,6 +458,9 @@ func TestHandleInboundPermissionRequest(t *testing.T) {
 	if initialEvents[0].RequestID == "" {
 		t.Fatal("initial permission request_id = empty, want non-empty")
 	}
+	if !proc.HasPendingPermission() {
+		t.Fatal("HasPendingPermission() = false while an interactive permission is waiting")
+	}
 
 	raw := decodePermissionEventRaw(t, initialEvents[0].Raw)
 	if raw.RequestID != initialEvents[0].RequestID {
@@ -475,6 +478,9 @@ func TestHandleInboundPermissionRequest(t *testing.T) {
 		Decision:  string(decisionAllowAlways),
 	}); err != nil {
 		t.Fatalf("ResolvePermission() error = %v", err)
+	}
+	if proc.HasPendingPermission() {
+		t.Fatal("HasPendingPermission() = true after resolving the interactive permission")
 	}
 
 	select {

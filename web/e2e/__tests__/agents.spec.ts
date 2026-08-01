@@ -1,7 +1,7 @@
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
-import { openAppWindow } from "../fixtures/os-navigation";
+import { appWindow, openAppWindow } from "../fixtures/os-navigation";
 import { sessionLifecycleSelectors } from "../fixtures/selectors";
 import { expect, test } from "../fixtures/test";
 import { ensureGlobalWorkspace, useGlobalWorkspaceIfPrompted } from "../fixtures/workspace";
@@ -33,7 +33,7 @@ test("agent navigation renders the managed default agent after first-run setup",
   await appPage.goto(runtime.url("/agents"), { waitUntil: "domcontentloaded" });
   await useGlobalWorkspaceIfPrompted(ui);
 
-  const agentsWin = appPage.getByTestId("os-window-app:agents");
+  const agentsWin = appWindow(appPage, "agents");
   await expect(agentsWin).toBeVisible();
   const fleet = sessionLifecycleSelectors(agentsWin);
   await expect(agentsWin.getByTestId("agent-fleet-empty")).toHaveCount(0);

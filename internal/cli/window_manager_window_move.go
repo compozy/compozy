@@ -92,21 +92,58 @@ func windowMovePayload(
 	}, nil
 }
 
+// windowMoveGroupPlacement validates the frame-level combinations: a floating
+// rect without a target moves the frame, a structural placement with a target
+// splices or folds the whole frame beside it.
+func windowMoveGroupPlacement(
+	cmd *cobra.Command,
+	values windowMoveFlagValues,
+) (*windowmanager.WindowID, windowmanager.DropPlacement, *windowmanager.NormalizedRect, error) {
+	placement := windowmanager.DropPlacement(strings.TrimSpace(values.placement))
+	if !isWindowManagerDropPlacement(placement) {
+		return nil, "", nil, fmt.Errorf("cli: unsupported --placement %q", values.placement)
+	}
+	target, err := optionalWindowManagerID[windowmanager.WindowID](cmd, automationTargetKey, values.targetID)
+	if err != nil {
+		return nil, "", nil, err
+	}
+	if target == nil {
+		if cmd.Flags().Changed("placement") && placement != windowmanager.DropFloating {
+			return nil, "", nil, newWindowManagerCLIValidationError(
+				windowManagerCLIValidationRequired,
+				automationTargetKey,
+				errors.New("cli: --group with structural --placement requires --target"),
+			)
+		}
+		rect, rectErr := optionalWindowManagerRect(cmd, values.rectRaw)
+		if rectErr != nil {
+			return nil, "", nil, rectErr
+		}
+		return nil, placement, rect, nil
+	}
+	if placement == windowmanager.DropFloating {
+		return nil, "", nil, newWindowManagerCLIValidationError(
+			windowManagerCLIValidationRequired,
+			windowManagerGroupFlag,
+			errors.New("cli: --group with --target requires a structural --placement"),
+		)
+	}
+	if cmd.Flags().Changed(windowManagerRectFlag) {
+		return nil, "", nil, newWindowManagerCLIValidationError(
+			windowManagerCLIValidationConflicting,
+			windowManagerGroupFlag,
+			fmt.Errorf("cli: --group with --target cannot be combined with --%s", windowManagerRectFlag),
+		)
+	}
+	return target, placement, nil, nil
+}
+
 func windowMovePlacement(
 	cmd *cobra.Command,
 	values windowMoveFlagValues,
 ) (*windowmanager.WindowID, windowmanager.DropPlacement, *windowmanager.NormalizedRect, error) {
 	if values.moveGroup {
-		for _, flagName := range []string{automationTargetKey, "placement", windowManagerRectFlag} {
-			if cmd.Flags().Changed(flagName) {
-				return nil, "", nil, newWindowManagerCLIValidationError(
-					windowManagerCLIValidationConflicting,
-					windowManagerGroupFlag,
-					fmt.Errorf("cli: --group cannot be combined with --%s", flagName),
-				)
-			}
-		}
-		return nil, "", nil, nil
+		return windowMoveGroupPlacement(cmd, values)
 	}
 	placement := windowmanager.DropPlacement(strings.TrimSpace(values.placement))
 	if !isWindowManagerDropPlacement(placement) {

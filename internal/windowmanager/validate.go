@@ -7,6 +7,11 @@ import (
 	"strings"
 )
 
+const (
+	topologyUnsupportedVersionCode = "topology.unsupported_version"
+	topologyWorkspaceMismatchCode  = "topology.workspace_mismatch"
+)
+
 // ValidateSnapshot checks every committed aggregate invariant without repairing input.
 func ValidateSnapshot(snapshot Snapshot) error {
 	validator := newSnapshotValidator(snapshot)
@@ -42,6 +47,7 @@ func (v *snapshotValidator) validate() {
 	v.validateHeader()
 	v.validateDesktopIdentities()
 	v.validateWindowRecords()
+	v.validateClosedEntries()
 	for index := range v.snapshot.Desktops {
 		v.validateDesktop(index)
 	}
@@ -50,7 +56,7 @@ func (v *snapshotValidator) validate() {
 
 func (v *snapshotValidator) validateHeader() {
 	if v.snapshot.Version != SnapshotVersion {
-		v.add("topology.unsupported_version", "version", "document version must be 2")
+		v.add(topologyUnsupportedVersionCode, "version", "document version must be 3")
 	}
 	if strings.TrimSpace(string(v.snapshot.WorkspaceID)) == "" {
 		v.add("topology.workspace_required", "workspace_id", "workspace ID is required")
@@ -94,6 +100,7 @@ func (v *snapshotValidator) validateWindowRecords() {
 		} else if !routeIntentsEqual(window.Route, canonicalRoute) {
 			v.add("topology.window_route_canonical", path+".route", "window route must be canonical")
 		}
+		v.validateNavStack(window.NavStack, path+".nav_stack")
 		if _, exists := v.desktops[window.DesktopID]; !exists {
 			v.add("topology.window_desktop_unknown", path+".desktop_id", "window desktop does not exist")
 		}
@@ -123,6 +130,13 @@ func (v *snapshotValidator) validateMembershipCompleteness() {
 func (v *snapshotValidator) validateDesktop(index int) {
 	desktop := v.snapshot.Desktops[index]
 	path := fmt.Sprintf("desktops[%d]", index)
+	v.validateDesktopGroups(desktop, path)
+	v.validateDesktopFloatingStacks(desktop, path)
+	v.validateDesktopFloatingWindows(desktop, path)
+	v.validateDesktopFocusOwner(desktop, path)
+}
+
+func (v *snapshotValidator) validateDesktopGroups(desktop Desktop, path string) {
 	for left := range desktop.Groups {
 		group := desktop.Groups[left]
 		groupPath := fmt.Sprintf("%s.groups[%d]", path, left)
@@ -142,6 +156,34 @@ func (v *snapshotValidator) validateDesktop(index int) {
 		}
 		v.validateNode(group.Root, desktop.ID, groupPath+".root")
 	}
+}
+
+func (v *snapshotValidator) validateDesktopFloatingStacks(desktop Desktop, path string) {
+	for stackIndex, stack := range desktop.FloatingStacks {
+		stackPath := fmt.Sprintf("%s.floating_stacks[%d]", path, stackIndex)
+		v.validateNodeIdentity(LayoutNode{ID: stack.ID}, stackPath)
+		if !validRect(stack.Rect) {
+			v.add("topology.floating_stack_rect", stackPath+".rect", "floating stack rectangle must be normalized")
+		}
+		if len(stack.WindowIDs) < 2 {
+			v.add("topology.stack_size", stackPath+".window_ids", "stack requires at least two windows")
+		}
+		for memberIndex, windowID := range stack.WindowIDs {
+			v.validateNodeWindow(
+				windowID,
+				desktop.ID,
+				WindowPlacementStacked,
+				fmt.Sprintf("%s.window_ids[%d]", stackPath, memberIndex),
+			)
+		}
+		if stack.ActiveID == nil || !containsWindowID(stack.WindowIDs, valueOrZero(stack.ActiveID)) {
+			v.add("topology.stack_active", stackPath+".active_id", "stack active window must be a member")
+		}
+		v.validatePinnedPrefix(stack.WindowIDs, stackPath+".window_ids")
+	}
+}
+
+func (v *snapshotValidator) validateDesktopFloatingWindows(desktop Desktop, path string) {
 	for floatingIndex, windowID := range desktop.Floating {
 		memberPath := fmt.Sprintf("%s.floating[%d]", path, floatingIndex)
 		window, exists := v.snapshot.Windows[windowID]
@@ -157,6 +199,9 @@ func (v *snapshotValidator) validateDesktop(index int) {
 			v.add("topology.window_placement", memberPath, "floating membership and placement disagree")
 		}
 	}
+}
+
+func (v *snapshotValidator) validateDesktopFocusOwner(desktop Desktop, path string) {
 	if desktop.Purpose == DesktopPurposeFocus {
 		if desktop.FocusOwner == nil {
 			v.add("topology.focus_owner_required", path+".focus_owner", "focus desktop requires an owner")
@@ -224,6 +269,71 @@ func (v *snapshotValidator) validateStackNode(node LayoutNode, desktopID Desktop
 	}
 	if node.ActiveID == nil || !containsWindowID(node.WindowIDs, valueOrZero(node.ActiveID)) {
 		v.add("topology.stack_active", path+".active_id", "stack active window must be a member")
+	}
+	v.validatePinnedPrefix(node.WindowIDs, path+".window_ids")
+}
+
+func (v *snapshotValidator) validatePinnedPrefix(windowIDs []WindowID, path string) {
+	seenUnpinned := false
+	for index, windowID := range windowIDs {
+		window, exists := v.snapshot.Windows[windowID]
+		if !exists {
+			continue
+		}
+		if !window.Pinned {
+			seenUnpinned = true
+			continue
+		}
+		if seenUnpinned {
+			v.add(
+				"topology.stack_pinned_prefix",
+				fmt.Sprintf("%s[%d]", path, index),
+				"pinned windows must form a contiguous prefix",
+			)
+		}
+	}
+}
+
+func (v *snapshotValidator) validateNavStack(routes []RouteIntent, path string) {
+	if len(routes) > absoluteNavStackLimit {
+		v.add("topology.nav_stack_limit", path, "navigation stack exceeds the absolute maximum")
+	}
+	for index, route := range routes {
+		canonical, err := CanonicalRouteIntent(route)
+		routePath := fmt.Sprintf("%s[%d]", path, index)
+		if err != nil {
+			v.add("topology.window_route", routePath, err.Error())
+		} else if !routeIntentsEqual(route, canonical) {
+			v.add("topology.window_route_canonical", routePath, "navigation route must be canonical")
+		}
+	}
+}
+
+func (v *snapshotValidator) validateClosedEntries() {
+	if len(v.snapshot.ClosedEntries) > absoluteClosedEntryLimit {
+		v.add("topology.closed_entry_limit", "closed_entries", "closed entries exceed the absolute maximum")
+	}
+	for entryIndex, entry := range v.snapshot.ClosedEntries {
+		path := fmt.Sprintf("closed_entries[%d]", entryIndex)
+		if len(entry.Windows) == 0 {
+			v.add("topology.closed_entry_empty", path+".windows", "closed entry requires at least one window")
+		}
+		if !validRect(entry.Rect) {
+			v.add("topology.closed_entry_rect", path+".rect", "closed entry rectangle must be normalized")
+		}
+		for windowIndex, window := range entry.Windows {
+			windowPath := fmt.Sprintf("%s.windows[%d]", path, windowIndex)
+			if strings.TrimSpace(string(window.ID)) == "" || strings.TrimSpace(window.App) == "" {
+				v.add("topology.closed_window_identity", windowPath, "closed window identity and app are required")
+			}
+			canonical, err := CanonicalRouteIntent(window.Route)
+			if err != nil {
+				v.add("topology.window_route", windowPath+".route", err.Error())
+			} else if !routeIntentsEqual(window.Route, canonical) {
+				v.add("topology.window_route_canonical", windowPath+".route", "window route must be canonical")
+			}
+			v.validateNavStack(window.NavStack, windowPath+".nav_stack")
+		}
 	}
 }
 

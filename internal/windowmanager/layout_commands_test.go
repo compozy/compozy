@@ -8,6 +8,7 @@ package windowmanager
 import (
 	"errors"
 	"math"
+	"slices"
 	"testing"
 )
 
@@ -307,6 +308,94 @@ func TestSwapWindows(t *testing.T) {
 		}
 		requireValidSnapshot(t, swapped.Snapshot)
 	})
+
+	t.Run("Should swap a tiled tab frame with a tiled window as whole units", func(t *testing.T) {
+		t.Parallel()
+		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		for _, windowID := range []WindowID{"w1", "w2", "board"} {
+			openTestWindow(t, environment.manager, "workspace-a", nil, windowID, "desktop-default")
+		}
+		executeTestCommand(t, environment.manager, "workspace-a", nil, GroupWindowsCommand{
+			TargetWindowID: "w1", WindowIDs: []WindowID{"w2"},
+		})
+		executeTestCommand(t, environment.manager, "workspace-a", nil, ArrangeLayoutCommand{
+			DesktopID: "desktop-default", WindowIDs: []WindowID{"board"},
+			Arrangement: ArrangementHorizontal, Frame: fullRect(), GroupID: "group-board",
+		})
+		executeTestCommand(t, environment.manager, "workspace-a", nil, MoveWindowCommand{
+			WindowID: "w2", DestinationDesktopID: "desktop-default",
+			TargetWindowID: new(WindowID("board")), Placement: DropRight, MoveGroup: true,
+		})
+		swapped := executeTestCommand(t, environment.manager, "workspace-a", nil, SwapWindowsCommand{
+			FirstWindowID: "w2", SecondWindowID: "board",
+		})
+		root := swapped.Snapshot.Desktops[0].Groups[0].Root
+		if root.Kind != NodeKindSplit || len(root.Children) != 2 {
+			t.Fatalf("split root = %+v", root)
+		}
+		if root.Children[0].Kind != NodeKindStack ||
+			!slices.Equal(root.Children[0].WindowIDs, []WindowID{"w1", "w2"}) {
+			t.Fatalf("leading child = %+v", root.Children[0])
+		}
+		if root.Children[1].Kind != NodeKindLeaf || valueOrZero(root.Children[1].WindowID) != "board" {
+			t.Fatalf("trailing child = %+v", root.Children[1])
+		}
+		for _, windowID := range []WindowID{"w1", "w2"} {
+			if swapped.Snapshot.Windows[windowID].Placement != WindowPlacementStacked {
+				t.Fatalf("member %q placement = %+v", windowID, swapped.Snapshot.Windows[windowID])
+			}
+		}
+		requireValidSnapshot(t, swapped.Snapshot)
+	})
+
+	t.Run("Should swap a floating tab frame into a tiled slot and float the tiled window back", func(t *testing.T) {
+		t.Parallel()
+		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		for _, windowID := range []WindowID{"w1", "w2", "board"} {
+			openTestWindow(t, environment.manager, "workspace-a", nil, windowID, "desktop-default")
+		}
+		grouped := executeTestCommand(t, environment.manager, "workspace-a", nil, GroupWindowsCommand{
+			TargetWindowID: "w1", WindowIDs: []WindowID{"w2"},
+		})
+		executeTestCommand(t, environment.manager, "workspace-a", nil, ArrangeLayoutCommand{
+			DesktopID: "desktop-default", WindowIDs: []WindowID{"board"},
+			Arrangement: ArrangementHorizontal, Frame: fullRect(), GroupID: "group-board",
+		})
+		stackRect := grouped.Snapshot.Desktops[0].FloatingStacks[0].Rect
+		swapped := executeTestCommand(t, environment.manager, "workspace-a", nil, SwapWindowsCommand{
+			FirstWindowID: "w2", SecondWindowID: "board",
+		})
+		desktop := swapped.Snapshot.Desktops[0]
+		if len(desktop.FloatingStacks) != 0 {
+			t.Fatalf("floating stack survived the swap: %+v", desktop.FloatingStacks)
+		}
+		root := desktop.Groups[0].Root
+		if root.Kind != NodeKindStack || !slices.Equal(root.WindowIDs, []WindowID{"w1", "w2"}) {
+			t.Fatalf("tiled slot = %+v", root)
+		}
+		board := swapped.Snapshot.Windows["board"]
+		if board.Placement != WindowPlacementFloating || board.FloatingRect != stackRect ||
+			!slices.Contains(desktop.Floating, WindowID("board")) {
+			t.Fatalf("board = %+v, floating = %v", board, desktop.Floating)
+		}
+		requireValidSnapshot(t, swapped.Snapshot)
+	})
+
+	t.Run("Should not apply a swap between two members of one tab frame", func(t *testing.T) {
+		t.Parallel()
+		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		openTestWindow(t, environment.manager, "workspace-a", nil, "w1", "desktop-default")
+		openTestWindow(t, environment.manager, "workspace-a", nil, "w2", "desktop-default")
+		executeTestCommand(t, environment.manager, "workspace-a", nil, GroupWindowsCommand{
+			TargetWindowID: "w1", WindowIDs: []WindowID{"w2"},
+		})
+		noOp := executeTestCommand(t, environment.manager, "workspace-a", nil, SwapWindowsCommand{
+			FirstWindowID: "w1", SecondWindowID: "w2",
+		})
+		if noOp.Applied {
+			t.Fatal("same-frame swap was applied")
+		}
+	})
 }
 
 func TestBalanceAndResize(t *testing.T) {
@@ -446,6 +535,341 @@ func TestBalanceAndResize(t *testing.T) {
 		}
 		if len(environment.repository.Commits("workspace-a")) != 1 {
 			t.Fatalf("rejected commands wrote commits = %d", len(environment.repository.Commits("workspace-a")))
+		}
+	})
+}
+
+func TestFrameResize(t *testing.T) {
+	t.Run("Should move a shared island boundary atomically across both frames", func(t *testing.T) {
+		t.Parallel()
+		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		openTestWindow(t, environment.manager, "workspace-a", nil, "w1", "desktop-default")
+		openTestWindow(t, environment.manager, "workspace-a", nil, "w2", "desktop-default")
+		executeTestCommand(t, environment.manager, "workspace-a", nil, ArrangeLayoutCommand{
+			DesktopID: "desktop-default", WindowIDs: []WindowID{"w1"},
+			Arrangement: ArrangementHorizontal, Frame: NormalizedRect{X: 0, Y: 0, Width: 0.5, Height: 1},
+			GroupID: "group-left",
+		})
+		executeTestCommand(t, environment.manager, "workspace-a", nil, ArrangeLayoutCommand{
+			DesktopID: "desktop-default", WindowIDs: []WindowID{"w2"},
+			Arrangement: ArrangementHorizontal, Frame: NormalizedRect{X: 0.5, Y: 0, Width: 0.5, Height: 1},
+			GroupID: "group-right",
+		})
+		result := executeTestCommand(t, environment.manager, "workspace-a", nil, FrameResizeLayoutCommand{
+			DesktopID: "desktop-default",
+			Edits: []GroupFrameEdit{
+				{GroupID: "group-left", Frame: NormalizedRect{X: 0, Y: 0, Width: 0.6, Height: 1}},
+				{GroupID: "group-right", Frame: NormalizedRect{X: 0.6, Y: 0, Width: 0.4, Height: 1}},
+			},
+		})
+		if !result.Applied {
+			t.Fatal("frame resize was not applied")
+		}
+		rects := projectedRects(result.Snapshot, "desktop-default")
+		if !rectsAlmostEqual(rects["w1"], NormalizedRect{X: 0, Y: 0, Width: 0.6, Height: 1}) ||
+			!rectsAlmostEqual(rects["w2"], NormalizedRect{X: 0.6, Y: 0, Width: 0.4, Height: 1}) {
+			t.Fatalf("frame resize rects = %+v", rects)
+		}
+		if !slices.Contains(result.Changes.GroupIDs, GroupID("group-left")) ||
+			!slices.Contains(result.Changes.GroupIDs, GroupID("group-right")) {
+			t.Fatalf("frame resize changes = %+v", result.Changes)
+		}
+		noOp := executeTestCommand(t, environment.manager, "workspace-a", nil, FrameResizeLayoutCommand{
+			DesktopID: "desktop-default",
+			Edits: []GroupFrameEdit{
+				{GroupID: "group-left", Frame: NormalizedRect{X: 0, Y: 0, Width: 0.6, Height: 1}},
+			},
+		})
+		if noOp.Applied {
+			t.Fatal("identical frame edit was applied")
+		}
+		requireValidSnapshot(t, result.Snapshot)
+	})
+
+	t.Run("Should reject overlapping, duplicate, missing, and empty edits without committing", func(t *testing.T) {
+		t.Parallel()
+		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		openTestWindow(t, environment.manager, "workspace-a", nil, "w1", "desktop-default")
+		openTestWindow(t, environment.manager, "workspace-a", nil, "w2", "desktop-default")
+		executeTestCommand(t, environment.manager, "workspace-a", nil, ArrangeLayoutCommand{
+			DesktopID: "desktop-default", WindowIDs: []WindowID{"w1"},
+			Arrangement: ArrangementHorizontal, Frame: NormalizedRect{X: 0, Y: 0, Width: 0.5, Height: 1},
+			GroupID: "group-left",
+		})
+		executeTestCommand(t, environment.manager, "workspace-a", nil, ArrangeLayoutCommand{
+			DesktopID: "desktop-default", WindowIDs: []WindowID{"w2"},
+			Arrangement: ArrangementHorizontal, Frame: NormalizedRect{X: 0.5, Y: 0, Width: 0.5, Height: 1},
+			GroupID: "group-right",
+		})
+		committed := len(environment.repository.Commits("workspace-a"))
+		revision := executeTestCommand(t, environment.manager, "workspace-a", nil, FrameResizeLayoutCommand{
+			DesktopID: "desktop-default",
+			Edits: []GroupFrameEdit{
+				{GroupID: "group-left", Frame: NormalizedRect{X: 0, Y: 0, Width: 0.5, Height: 1}},
+			},
+		}).Snapshot.Revision
+		requests := []Command{
+			FrameResizeLayoutCommand{DesktopID: "desktop-default"},
+			FrameResizeLayoutCommand{DesktopID: "missing", Edits: []GroupFrameEdit{
+				{GroupID: "group-left", Frame: NormalizedRect{X: 0, Y: 0, Width: 0.5, Height: 1}},
+			}},
+			FrameResizeLayoutCommand{DesktopID: "desktop-default", Edits: []GroupFrameEdit{
+				{GroupID: "ghost", Frame: NormalizedRect{X: 0, Y: 0, Width: 0.5, Height: 1}},
+			}},
+			FrameResizeLayoutCommand{DesktopID: "desktop-default", Edits: []GroupFrameEdit{
+				{GroupID: "group-left", Frame: NormalizedRect{X: 0, Y: 0, Width: 0.4, Height: 1}},
+				{GroupID: "group-left", Frame: NormalizedRect{X: 0, Y: 0, Width: 0.3, Height: 1}},
+			}},
+			FrameResizeLayoutCommand{DesktopID: "desktop-default", Edits: []GroupFrameEdit{
+				{GroupID: "group-left", Frame: NormalizedRect{X: 0, Y: 0, Width: 0.7, Height: 1}},
+			}},
+			FrameResizeLayoutCommand{DesktopID: "desktop-default", Edits: []GroupFrameEdit{
+				{GroupID: "group-left", Frame: NormalizedRect{X: 0, Y: 0, Width: 0, Height: 1}},
+			}},
+		}
+		for _, command := range requests {
+			_, err := environment.manager.Execute(t.Context(), CommandRequest{
+				WorkspaceID:      "workspace-a",
+				ExpectedRevision: revision,
+				Payload:          command,
+			})
+			if !errors.Is(err, ErrInvalidCommand) && !errors.Is(err, ErrDesktopNotFound) {
+				t.Fatalf("Execute(%+v) error = %v", command, err)
+			}
+		}
+		if len(environment.repository.Commits("workspace-a")) != committed {
+			t.Fatalf("rejected frame edits wrote commits = %d", len(environment.repository.Commits("workspace-a")))
+		}
+	})
+}
+
+func TestWindowResize(t *testing.T) {
+	t.Run("Should resize floating windows and floating stacks by their frame unit", func(t *testing.T) {
+		t.Parallel()
+		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		w1, w2, w3 := WindowID("w1"), WindowID("w2"), WindowID("w3")
+		snapshot := validThreeWindowSnapshot()
+		snapshot.Desktops[0].Groups = nil
+		snapshot.Desktops[0].Floating = []WindowID{w1}
+		snapshot.Desktops[0].FloatingStacks = []FloatingStack{
+			{
+				ID:        "stack-1",
+				WindowIDs: []WindowID{w2, w3},
+				ActiveID:  &w2,
+				Rect:      NormalizedRect{X: 0.1, Y: 0.1, Width: 0.5, Height: 0.5},
+			},
+		}
+		document := LayoutDocument{
+			Version: SnapshotVersion, WorkspaceID: "workspace-a",
+			Desktops: snapshot.Desktops, Windows: snapshot.Windows,
+		}
+		if _, err := environment.manager.ReplaceLayout(t.Context(), ReplaceLayoutRequest{
+			WorkspaceID: "workspace-a", ExpectedRevision: 0, Document: document,
+		}); err != nil {
+			t.Fatalf("ReplaceLayout() error = %v", err)
+		}
+		floated := executeTestCommand(t, environment.manager, "workspace-a", nil, ResizeWindowCommand{
+			WindowID: w1, Frame: NormalizedRect{X: 0.2, Y: 0.2, Width: 0.4, Height: 0.4},
+		})
+		floatedRect := floated.Snapshot.Windows[w1].FloatingRect
+		if !rectsAlmostEqual(floatedRect, NormalizedRect{X: 0.2, Y: 0.2, Width: 0.4, Height: 0.4}) {
+			t.Fatalf("floating rect = %+v", floatedRect)
+		}
+		stacked := executeTestCommand(t, environment.manager, "workspace-a", nil, ResizeWindowCommand{
+			WindowID: w3, Frame: NormalizedRect{X: 0.3, Y: 0.3, Width: 0.6, Height: 0.6},
+		})
+		stack := stacked.Snapshot.Desktops[0].FloatingStacks[0]
+		if !rectsAlmostEqual(stack.Rect, NormalizedRect{X: 0.3, Y: 0.3, Width: 0.6, Height: 0.6}) ||
+			len(stack.WindowIDs) != 2 || valueOrZero(stack.ActiveID) != w2 {
+			t.Fatalf("floating stack after resize = %+v", stack)
+		}
+		for _, memberID := range stack.WindowIDs {
+			if !rectsAlmostEqual(stacked.Snapshot.Windows[memberID].FloatingRect, stack.Rect) {
+				t.Fatalf(
+					"stack member %q fallback rect = %+v, want %+v",
+					memberID,
+					stacked.Snapshot.Windows[memberID].FloatingRect,
+					stack.Rect,
+				)
+			}
+		}
+		requireValidSnapshot(t, stacked.Snapshot)
+	})
+
+	t.Run("Should resize a solo island frame in place without restructuring", func(t *testing.T) {
+		t.Parallel()
+		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		openTestWindow(t, environment.manager, "workspace-a", nil, "w1", "desktop-default")
+		executeTestCommand(t, environment.manager, "workspace-a", nil, ArrangeLayoutCommand{
+			DesktopID: "desktop-default", WindowIDs: []WindowID{"w1"},
+			Arrangement: ArrangementHorizontal, Frame: NormalizedRect{X: 0, Y: 0, Width: 0.5, Height: 1},
+			GroupID: "group-solo",
+		})
+		result := executeTestCommand(t, environment.manager, "workspace-a", nil, ResizeWindowCommand{
+			WindowID: "w1", Frame: NormalizedRect{X: 0, Y: 0, Width: 0.4, Height: 0.8},
+		})
+		groups := result.Snapshot.Desktops[0].Groups
+		if len(groups) != 1 || groups[0].ID != "group-solo" || groups[0].Root.Kind != NodeKindLeaf {
+			t.Fatalf("solo island after resize = %+v", groups)
+		}
+		if !rectsAlmostEqual(groups[0].Frame, NormalizedRect{X: 0, Y: 0, Width: 0.4, Height: 0.8}) {
+			t.Fatalf("solo island frame = %+v", groups[0].Frame)
+		}
+		if result.Snapshot.Windows["w1"].Placement != WindowPlacementTiled {
+			t.Fatalf("solo window placement = %q", result.Snapshot.Windows["w1"].Placement)
+		}
+		requireValidSnapshot(t, result.Snapshot)
+	})
+
+	t.Run("Should detach a split member into its own island while siblings keep their zones", func(t *testing.T) {
+		t.Parallel()
+		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		snapshot := validThreeWindowSnapshot()
+		document := LayoutDocument{
+			Version: SnapshotVersion, WorkspaceID: "workspace-a",
+			Desktops: snapshot.Desktops, Windows: snapshot.Windows,
+		}
+		if _, err := environment.manager.ReplaceLayout(t.Context(), ReplaceLayoutRequest{
+			WorkspaceID: "workspace-a", ExpectedRevision: 0, Document: document,
+		}); err != nil {
+			t.Fatalf("ReplaceLayout() error = %v", err)
+		}
+		result := executeTestCommand(t, environment.manager, "workspace-a", nil, ResizeWindowCommand{
+			WindowID: "w1", Frame: NormalizedRect{X: 0, Y: 0, Width: 0.5, Height: 0.6},
+		})
+		groups := result.Snapshot.Desktops[0].Groups
+		if len(groups) != 2 {
+			t.Fatalf("islands after detach = %+v", groups)
+		}
+		if groups[0].ID != "group-1" || groups[0].Root.ID != "right" ||
+			!rectsAlmostEqual(groups[0].Frame, NormalizedRect{X: 0.5, Y: 0, Width: 0.5, Height: 1}) {
+			t.Fatalf("remainder island = %+v", groups[0])
+		}
+		if groups[1].Root.ID != "leaf-1" ||
+			!rectsAlmostEqual(groups[1].Frame, NormalizedRect{X: 0, Y: 0, Width: 0.5, Height: 0.6}) {
+			t.Fatalf("detached island = %+v", groups[1])
+		}
+		rects := projectedRects(result.Snapshot, "desktop-default")
+		if !rectsAlmostEqual(rects["w2"], NormalizedRect{X: 0.5, Y: 0, Width: 0.5, Height: 0.5}) ||
+			!rectsAlmostEqual(rects["w3"], NormalizedRect{X: 0.5, Y: 0.5, Width: 0.5, Height: 0.5}) {
+			t.Fatalf("sibling zones after detach = %+v", rects)
+		}
+		requireValidSnapshot(t, result.Snapshot)
+	})
+
+	t.Run("Should split the remainder into islands when a middle member detaches", func(t *testing.T) {
+		t.Parallel()
+		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		for _, windowID := range []WindowID{"w1", "w2", "w3"} {
+			openTestWindow(t, environment.manager, "workspace-a", nil, windowID, "desktop-default")
+		}
+		executeTestCommand(t, environment.manager, "workspace-a", nil, ArrangeLayoutCommand{
+			DesktopID: "desktop-default", WindowIDs: []WindowID{"w1", "w2", "w3"},
+			Arrangement: ArrangementHorizontal, GroupID: "group-main",
+		})
+		third := 1.0 / 3
+		result := executeTestCommand(t, environment.manager, "workspace-a", nil, ResizeWindowCommand{
+			WindowID: "w2", Frame: NormalizedRect{X: third, Y: 0, Width: third, Height: 0.5},
+		})
+		if groups := result.Snapshot.Desktops[0].Groups; len(groups) != 3 {
+			t.Fatalf("islands after middle detach = %+v", groups)
+		}
+		rects := projectedRects(result.Snapshot, "desktop-default")
+		if !rectsAlmostEqual(rects["w1"], NormalizedRect{X: 0, Y: 0, Width: third, Height: 1}) ||
+			!rectsAlmostEqual(rects["w3"], NormalizedRect{X: 2 * third, Y: 0, Width: third, Height: 1}) ||
+			!rectsAlmostEqual(rects["w2"], NormalizedRect{X: third, Y: 0, Width: third, Height: 0.5}) {
+			t.Fatalf("zones after middle detach = %+v", rects)
+		}
+		requireValidSnapshot(t, result.Snapshot)
+	})
+
+	t.Run("Should detach a tiled stack as one frame unit with order and active tab intact", func(t *testing.T) {
+		t.Parallel()
+		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		w1, w2, w3 := WindowID("w1"), WindowID("w2"), WindowID("w3")
+		horizontal := AxisHorizontal
+		snapshot := validThreeWindowSnapshot()
+		snapshot.Desktops[0].Groups[0].Root = LayoutNode{
+			ID: "root", Kind: NodeKindSplit, Axis: &horizontal, Weights: []float64{0.5, 0.5},
+			Children: []LayoutNode{
+				{ID: "leaf-1", Kind: NodeKindLeaf, WindowID: &w1},
+				{ID: "stack-1", Kind: NodeKindStack, WindowIDs: []WindowID{w2, w3}, ActiveID: &w2},
+			},
+		}
+		document := LayoutDocument{
+			Version: SnapshotVersion, WorkspaceID: "workspace-a",
+			Desktops: snapshot.Desktops, Windows: snapshot.Windows,
+		}
+		if _, err := environment.manager.ReplaceLayout(t.Context(), ReplaceLayoutRequest{
+			WorkspaceID: "workspace-a", ExpectedRevision: 0, Document: document,
+		}); err != nil {
+			t.Fatalf("ReplaceLayout() error = %v", err)
+		}
+		result := executeTestCommand(t, environment.manager, "workspace-a", nil, ResizeWindowCommand{
+			WindowID: w3, Frame: NormalizedRect{X: 0.5, Y: 0, Width: 0.5, Height: 0.5},
+		})
+		groups := result.Snapshot.Desktops[0].Groups
+		if len(groups) != 2 || groups[0].Root.ID != "leaf-1" {
+			t.Fatalf("islands after stack detach = %+v", groups)
+		}
+		detached := groups[1]
+		if detached.Root.Kind != NodeKindStack || !slices.Equal(detached.Root.WindowIDs, []WindowID{w2, w3}) ||
+			valueOrZero(detached.Root.ActiveID) != w2 ||
+			!rectsAlmostEqual(detached.Frame, NormalizedRect{X: 0.5, Y: 0, Width: 0.5, Height: 0.5}) {
+			t.Fatalf("detached stack island = %+v", detached)
+		}
+		requireValidSnapshot(t, result.Snapshot)
+	})
+
+	t.Run("Should reject overlapping and invalid frames without committing", func(t *testing.T) {
+		t.Parallel()
+		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		openTestWindow(t, environment.manager, "workspace-a", nil, "w1", "desktop-default")
+		openTestWindow(t, environment.manager, "workspace-a", nil, "w2", "desktop-default")
+		executeTestCommand(t, environment.manager, "workspace-a", nil, ArrangeLayoutCommand{
+			DesktopID: "desktop-default", WindowIDs: []WindowID{"w1"},
+			Arrangement: ArrangementHorizontal, Frame: NormalizedRect{X: 0, Y: 0, Width: 0.5, Height: 1},
+			GroupID: "group-left",
+		})
+		revision := executeTestCommand(t, environment.manager, "workspace-a", nil, ArrangeLayoutCommand{
+			DesktopID: "desktop-default", WindowIDs: []WindowID{"w2"},
+			Arrangement: ArrangementHorizontal, Frame: NormalizedRect{X: 0.5, Y: 0, Width: 0.5, Height: 1},
+			GroupID: "group-right",
+		}).Snapshot.Revision
+		committed := len(environment.repository.Commits("workspace-a"))
+		attempts := []struct {
+			command Command
+			target  error
+		}{
+			{
+				ResizeWindowCommand{WindowID: "ghost", Frame: NormalizedRect{X: 0, Y: 0, Width: 0.5, Height: 1}},
+				ErrWindowNotFound,
+			},
+			{
+				ResizeWindowCommand{WindowID: "w1", Frame: NormalizedRect{X: 0, Y: 0, Width: 0.7, Height: 1}},
+				ErrInvalidCommand,
+			},
+			{
+				ResizeWindowCommand{WindowID: "w1", Frame: NormalizedRect{X: 0, Y: 0, Width: 0, Height: 1}},
+				ErrInvalidCommand,
+			},
+			{
+				ResizeWindowCommand{WindowID: "w1", Frame: NormalizedRect{X: 0.6, Y: 0, Width: 0.6, Height: 1}},
+				ErrInvalidCommand,
+			},
+		}
+		for _, attempt := range attempts {
+			_, err := environment.manager.Execute(t.Context(), CommandRequest{
+				WorkspaceID:      "workspace-a",
+				ExpectedRevision: revision,
+				Payload:          attempt.command,
+			})
+			if !errors.Is(err, attempt.target) {
+				t.Fatalf("Execute(%+v) error = %v, want %v", attempt.command, err, attempt.target)
+			}
+		}
+		if len(environment.repository.Commits("workspace-a")) != committed {
+			t.Fatalf("rejected resizes wrote commits = %d", len(environment.repository.Commits("workspace-a")))
 		}
 	})
 }

@@ -1,21 +1,45 @@
 // Suite: OS window runtime component
-// Invariant: the live OsWindow mounts safely in StrictMode and remains mounted across minimized/compact presentation.
-// Owning layer: the current OsWindow + react-rnd integration.
-import { fireEvent, render, screen } from "@testing-library/react";
+// Invariant: the live OsWindow frame mounts safely in StrictMode, keeps every member mounted
+// across minimize/compact/tab switches, and hosts the deck only at ≥2 members.
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { createRef, StrictMode, useState } from "react";
 import type { Rnd } from "react-rnd";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useDesktop } from "../../hooks/use-desktop";
 import { useOsWindow, type OsWindowModel } from "../../hooks/use-os-window";
+import type { OsWindowFrameModel } from "../../lib/group-projection";
 import type { OsDesktopRuntimeStore, OsWindow as OsWindowState } from "../../lib/os-types";
 import { OsWindow } from "../os-window";
 
 vi.mock("../../hooks/use-desktop", () => ({ useDesktop: vi.fn() }));
+vi.mock("../../hooks/use-os-shell", () => ({
+  useOsShell: () => ({ coordinator: { noteNavigateMode: vi.fn() } }),
+}));
 vi.mock("../../hooks/use-os-window", () => ({
   OS_WINDOW_DRAG_CANCEL_SELECTOR: "[data-slot='test-cancel']",
   OS_WINDOW_DRAG_HANDLE_CLASS: "test-drag-handle",
   useOsWindow: vi.fn(),
+}));
+vi.mock("../../hooks/use-os-window-deck", () => ({
+  useOsWindowDeck: vi.fn(() => ({
+    sessionById: new Map(),
+    tabDrag: null,
+    dropIndex: null,
+    otherWindowCount: 0,
+    tabsRef: { current: null },
+    registerTab: vi.fn(),
+    handleTabPointerDown: vi.fn(),
+    wasDragged: () => false,
+    activateTab: vi.fn(),
+    closeTab: vi.fn(),
+    closeOthers: vi.fn(),
+    closeRight: vi.fn(),
+    pinTab: vi.fn(),
+    moveToNewWindow: vi.fn(),
+    mergeAllWindows: vi.fn(),
+    openNewTab: () => deckOpenNewTab(),
+  })),
 }));
 
 function TasksController() {
@@ -25,9 +49,26 @@ function TasksController() {
   );
 }
 
+const pendingController = new Promise<never>(() => undefined);
+
+function PendingController(): never {
+  throw pendingController;
+}
+
+let pendingJobsController = false;
+let deckOpenNewTab = vi.fn();
+
 vi.mock("../../lib/app-registry", () => ({
-  getOsApp: () => ({ title: "Tasks", Controller: TasksController }),
+  OS_APPS: {},
+  getOsApp: (app: string) => ({
+    title: app === "jobs" ? "Jobs" : "Tasks",
+    icon: () => null,
+    Controller: pendingJobsController && app === "jobs" ? PendingController : TasksController,
+  }),
   getOsAppMinimum: () => ({ width: 280, height: 180 }),
+  resolveAppForPath: () => null,
+  matchSessionInstance: () => null,
+  dockApps: () => [],
 }));
 vi.mock("../os-zoom-menu", () => ({
   OsZoomMenu: ({ children }: { children: React.ReactNode }) => children,
@@ -39,6 +80,8 @@ function windowState(overrides: Partial<OsWindowState> = {}): OsWindowState {
     app: "tasks",
     instanceKey: null,
     route: { pathname: "/tasks", search: {} },
+    navStack: [],
+    pinned: false,
     desktopId: "desktop:main",
     placement: "floating",
     rect: { x: 40, y: 50, w: 720, h: 480 },
@@ -53,15 +96,30 @@ function windowState(overrides: Partial<OsWindowState> = {}): OsWindowState {
   };
 }
 
-function windowModel(win: OsWindowState): OsWindowModel {
+function frameModel(overrides: Partial<OsWindowFrameModel> = {}): OsWindowFrameModel {
   return {
-    win,
+    id: "window:tasks",
+    desktopId: "desktop:main",
+    kind: "floating",
+    rect: { x: 40, y: 50, w: 720, h: 480 },
+    members: ["window:tasks"],
+    activeWindowId: "window:tasks",
+    stackId: null,
+    minimized: false,
+    adapted: false,
+    layer: 2,
+    zone: null,
+    resizableEdges: { left: true, right: true, top: true, bottom: true },
+    ...overrides,
+  };
+}
+
+function hookModel(frame: OsWindowFrameModel): OsWindowModel {
+  return {
     focused: true,
     keepMounted: true,
-    rect: win.rect,
+    rect: frame.rect,
     rndRef: createRef<Rnd>(),
-    overlayHost: null,
-    setOverlayHost: vi.fn(),
     handleTrafficLight: vi.fn(),
     handlePointerEnter: vi.fn(),
     handlePointerDownCapture: vi.fn(),
@@ -69,27 +127,33 @@ function windowModel(win: OsWindowState): OsWindowModel {
     handleDragStart: vi.fn(),
     handleDrag: vi.fn(),
     handleDragStop: vi.fn(),
+    handleResizeStart: vi.fn(),
     handleResizeStop: vi.fn(),
+    resizeMax: null,
   };
 }
 
 let presentation: OsDesktopRuntimeStore["presentation"];
+let windows: Record<string, OsWindowState>;
 let model: OsWindowModel;
 
 beforeEach(() => {
   presentation = "floating";
-  model = windowModel(windowState());
+  windows = { "window:tasks": windowState() };
+  model = hookModel(frameModel());
+  pendingJobsController = false;
+  deckOpenNewTab = vi.fn();
   vi.mocked(useOsWindow).mockImplementation(() => model);
   vi.mocked(useDesktop).mockImplementation(selector =>
-    selector({ presentation } as OsDesktopRuntimeStore)
+    selector({ presentation, windows } as unknown as OsDesktopRuntimeStore)
   );
 });
 
 describe("OsWindow", () => {
-  it("Should mount the react-rnd window under StrictMode", () => {
+  it("Should mount the react-rnd frame under StrictMode", () => {
     render(
       <StrictMode>
-        <OsWindow windowId="window:tasks" />
+        <OsWindow frame={frameModel()} />
       </StrictMode>
     );
 
@@ -100,36 +164,111 @@ describe("OsWindow", () => {
     );
   });
 
-  it("Should keep minimized windows mounted while hiding floating and compact presentations", () => {
-    model = windowModel(windowState({ minimized: true }));
-    const view = render(<OsWindow windowId="window:tasks" />);
+  it("Should keep minimized frames mounted while hiding floating and compact presentations", () => {
+    windows = { "window:tasks": windowState({ minimized: true }) };
+    const minimizedFrame = frameModel({ minimized: true });
+    const view = render(<OsWindow frame={minimizedFrame} />);
 
-    let window = screen.getByTestId("os-window-window:tasks");
-    expect(window.parentElement).toHaveStyle({ display: "none" });
+    let frameHost = screen.getByTestId("os-window-frame-window:tasks");
+    expect(frameHost.parentElement).toHaveStyle({ display: "none" });
 
     presentation = "compact";
-    view.rerender(<OsWindow windowId="window:tasks" />);
+    view.rerender(<OsWindow frame={minimizedFrame} />);
 
-    window = screen.getByTestId("os-window-window:tasks");
-    expect(window.parentElement).toHaveStyle({ display: "none" });
-    expect(window).toHaveAttribute("data-minimized");
+    frameHost = screen.getByTestId("os-window-frame-window:tasks");
+    expect(frameHost.parentElement).toHaveStyle({ display: "none" });
+    expect(screen.getByTestId("os-window-window:tasks")).toHaveAttribute("data-minimized");
   });
 
   it("Should preserve controller state across floating and compact presentations", () => {
-    model = { ...windowModel(windowState()), overlayHost: document.createElement("div") };
-    const view = render(<OsWindow windowId="window:tasks" />);
+    const frame = frameModel();
+    const view = render(<OsWindow frame={frame} />);
     const draft = screen.getByRole("textbox", { name: "Task draft" });
 
     fireEvent.change(draft, { target: { value: "Keep this task context" } });
 
     presentation = "compact";
-    view.rerender(<OsWindow windowId="window:tasks" />);
+    view.rerender(<OsWindow frame={frame} />);
     expect(screen.getByRole("textbox", { name: "Task draft" })).toBe(draft);
     expect(draft).toHaveValue("Keep this task context");
 
     presentation = "floating";
-    view.rerender(<OsWindow windowId="window:tasks" />);
+    view.rerender(<OsWindow frame={frame} />);
     expect(screen.getByRole("textbox", { name: "Task draft" })).toBe(draft);
     expect(draft).toHaveValue("Keep this task context");
+  });
+
+  it("Should mount and unmount the deck exactly as a frame crosses the second-member boundary (UT-070, UT-071)", () => {
+    windows = {
+      "window:tasks": windowState(),
+      "window:jobs": windowState({ id: "window:jobs", app: "jobs", layer: 3 }),
+    };
+    const group = frameModel({
+      id: "stack:main",
+      members: ["window:tasks", "window:jobs"],
+      activeWindowId: "window:tasks",
+      stackId: "stack:main",
+    });
+    const view = render(<OsWindow frame={group} />);
+
+    expect(screen.getByTestId("os-window-deck-stack:main")).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Close window" })).toHaveLength(1);
+
+    const solo = frameModel();
+    view.rerender(<OsWindow frame={solo} />);
+    expect(screen.queryByTestId("os-window-deck-stack:main")).toBeNull();
+    expect(screen.getAllByRole("button", { name: "Close window" })).toHaveLength(1);
+  });
+
+  it("Should keep both member bodies mounted while only the active surface is exposed (UT-073)", () => {
+    windows = {
+      "window:tasks": windowState(),
+      "window:jobs": windowState({ id: "window:jobs", app: "jobs", layer: 3 }),
+    };
+    const group = frameModel({
+      id: "stack:main",
+      members: ["window:tasks", "window:jobs"],
+      activeWindowId: "window:tasks",
+      stackId: "stack:main",
+    });
+    const view = render(<OsWindow frame={group} />);
+
+    const tasksBody = screen.getByTestId("os-window-window:tasks");
+    const jobsBody = screen.getByTestId("os-window-window:jobs");
+    expect(tasksBody).not.toHaveAttribute("hidden");
+    expect(jobsBody).toHaveAttribute("hidden");
+
+    view.rerender(<OsWindow frame={group} />);
+    expect(screen.getByTestId("os-window-window:tasks")).toBe(tasksBody);
+    expect(screen.getByTestId("os-window-window:jobs")).toBe(jobsBody);
+  });
+
+  it("Should keep a sole pinned member in the normal one-window composition (UT-072)", () => {
+    windows = { "window:tasks": windowState({ pinned: true }) };
+    render(<OsWindow frame={frameModel()} />);
+
+    expect(screen.queryByTestId("os-window-deck-window:tasks")).toBeNull();
+    expect(screen.getByRole("button", { name: "Close window" })).toBeInTheDocument();
+  });
+
+  it("Should expose a loading body immediately for a suspense-pending active tab without freezing the deck (UT-074)", () => {
+    pendingJobsController = true;
+    windows = {
+      "window:tasks": windowState(),
+      "window:jobs": windowState({ id: "window:jobs", app: "jobs", layer: 3 }),
+    };
+    const group = frameModel({
+      id: "stack:main",
+      members: ["window:tasks", "window:jobs"],
+      activeWindowId: "window:jobs",
+      stackId: "stack:main",
+    });
+    render(<OsWindow frame={group} />);
+
+    expect(
+      within(screen.getByTestId("os-window-window:jobs")).getByRole("status", { name: "Loading" })
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "New tab (⌘T)" }));
+    expect(deckOpenNewTab).toHaveBeenCalledOnce();
   });
 });

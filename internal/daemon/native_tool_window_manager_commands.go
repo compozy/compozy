@@ -10,6 +10,8 @@ import (
 	"github.com/compozy/compozy/internal/windowmanager"
 )
 
+const windowManagerNavigateModeReplace = "replace"
+
 func (n *daemonNativeTools) windowManagerCommandRequest(
 	ctx context.Context,
 	scope toolspkg.Scope,
@@ -89,30 +91,79 @@ func (payload windowManagerWindowOpenPayload) command() windowmanager.Command {
 	}
 	return windowmanager.OpenWindowCommand{
 		Window: windowmanager.WindowSpec{
-			ID:           windowmanager.WindowID(strings.TrimSpace(payload.WindowID)),
-			App:          strings.TrimSpace(payload.App),
-			InstanceKey:  windowManagerOptionalString[string](payload.InstanceKey),
-			Route:        route,
-			DesktopID:    windowmanager.DesktopID(strings.TrimSpace(payload.DesktopID)),
-			FloatingRect: rect,
-			InsertTiled:  payload.InsertTiled,
+			ID:                  windowmanager.WindowID(strings.TrimSpace(payload.WindowID)),
+			App:                 strings.TrimSpace(payload.App),
+			InstanceKey:         windowManagerOptionalString[string](payload.InstanceKey),
+			Route:               route,
+			DesktopID:           windowmanager.DesktopID(strings.TrimSpace(payload.DesktopID)),
+			FloatingRect:        rect,
+			InsertTiled:         payload.InsertTiled,
+			StackTargetWindowID: windowManagerOptionalString[windowmanager.WindowID](payload.StackTargetWindowID),
 		},
 		RestoreWindowID: windowManagerOptionalString[windowmanager.WindowID](payload.RestoreWindowID),
 	}
 }
 
 func (payload windowManagerWindowNavigatePayload) command() windowmanager.Command {
+	var route windowmanager.RouteIntent
+	if payload.Route != nil {
+		route = *payload.Route
+	}
+	normalizedMode := strings.TrimSpace(payload.Mode)
+	mode := windowmanager.NavigateMode(normalizedMode)
+	if normalizedMode == windowManagerNavigateModeReplace {
+		mode = windowmanager.NavigateReplace
+	}
 	return windowmanager.NavigateWindowCommand{
 		WindowID: windowmanager.WindowID(strings.TrimSpace(payload.WindowID)),
-		Route:    payload.Route,
+		Route:    route,
+		Mode:     mode,
 	}
 }
 
 func (payload windowManagerWindowClosePayload) command() windowmanager.Command {
+	normalizedScope := strings.TrimSpace(payload.Scope)
+	scope := windowmanager.CloseScope(normalizedScope)
+	if normalizedScope == "tab" {
+		scope = windowmanager.CloseScopeTab
+	}
 	return windowmanager.CloseWindowCommand{
 		WindowID: windowmanager.WindowID(strings.TrimSpace(payload.WindowID)),
 		Minimize: payload.Minimize,
+		Scope:    scope,
 	}
+}
+
+func (payload windowManagerWindowGroupPayload) command() windowmanager.Command {
+	return windowmanager.GroupWindowsCommand{
+		TargetWindowID: windowmanager.WindowID(strings.TrimSpace(payload.TargetWindowID)),
+		WindowIDs:      windowManagerStringIDs[windowmanager.WindowID](payload.WindowIDs),
+		InsertIndex:    payload.InsertIndex,
+	}
+}
+
+func (payload windowManagerWindowReorderPayload) command() windowmanager.Command {
+	return windowmanager.ReorderStackCommand{
+		WindowID: windowmanager.WindowID(strings.TrimSpace(payload.WindowID)),
+		Index:    payload.Index,
+	}
+}
+
+func (payload windowManagerWindowActivatePayload) command() windowmanager.Command {
+	return windowmanager.SetStackActiveCommand{
+		WindowID: windowmanager.WindowID(strings.TrimSpace(payload.WindowID)),
+	}
+}
+
+func (payload windowManagerWindowPinPayload) command() windowmanager.Command {
+	return windowmanager.PinWindowCommand{
+		WindowID: windowmanager.WindowID(strings.TrimSpace(payload.WindowID)),
+		Pinned:   payload.Pinned,
+	}
+}
+
+func (windowManagerWindowReopenPayload) command() windowmanager.Command {
+	return windowmanager.ReopenCommand{}
 }
 
 func (payload windowManagerWindowFocusPayload) command() windowmanager.Command {
@@ -130,6 +181,13 @@ func (payload windowManagerWindowMovePayload) command() windowmanager.Command {
 		Placement:            windowmanager.DropPlacement(strings.TrimSpace(payload.Placement)),
 		FloatingRect:         payload.FloatingRect,
 		MoveGroup:            payload.MoveGroup,
+	}
+}
+
+func (payload windowManagerWindowResizePayload) command() windowmanager.Command {
+	return windowmanager.ResizeWindowCommand{
+		WindowID: windowmanager.WindowID(strings.TrimSpace(payload.WindowID)),
+		Frame:    payload.Frame,
 	}
 }
 
@@ -174,6 +232,20 @@ func (payload windowManagerLayoutResizePayload) command() windowmanager.Command 
 	}
 }
 
+func (payload windowManagerLayoutFrameResizePayload) command() windowmanager.Command {
+	edits := make([]windowmanager.GroupFrameEdit, 0, len(payload.Edits))
+	for _, edit := range payload.Edits {
+		edits = append(edits, windowmanager.GroupFrameEdit{
+			GroupID: windowmanager.GroupID(strings.TrimSpace(edit.GroupID)),
+			Frame:   edit.Frame,
+		})
+	}
+	return windowmanager.FrameResizeLayoutCommand{
+		DesktopID: windowmanager.DesktopID(strings.TrimSpace(payload.DesktopID)),
+		Edits:     edits,
+	}
+}
+
 func (payload windowManagerLayoutBalancePayload) command() windowmanager.Command {
 	return windowmanager.BalanceLayoutCommand{
 		GroupID: windowManagerOptionalString[windowmanager.GroupID](payload.GroupID),
@@ -198,12 +270,19 @@ func decodeWindowManagerPreviewCommand(
 		windowmanager.CommandWindowClose,
 		windowmanager.CommandWindowFocus,
 		windowmanager.CommandWindowMove,
+		windowmanager.CommandWindowResize,
 		windowmanager.CommandWindowSwap,
 		windowmanager.CommandWindowToggleFloating,
-		windowmanager.CommandWindowZoom:
+		windowmanager.CommandWindowZoom,
+		windowmanager.CommandWindowStackGroup,
+		windowmanager.CommandWindowStackReorder,
+		windowmanager.CommandWindowStackSetActive,
+		windowmanager.CommandWindowPin,
+		windowmanager.CommandWindowReopen:
 		return decodeWindowManagerWindowPreviewCommand(id, commandID, raw)
 	case windowmanager.CommandLayoutArrange,
 		windowmanager.CommandLayoutResize,
+		windowmanager.CommandLayoutFrameResize,
 		windowmanager.CommandLayoutBalance,
 		windowmanager.CommandLayoutUndo,
 		windowmanager.CommandLayoutRedo:
@@ -250,12 +329,24 @@ func decodeWindowManagerWindowPreviewCommand(
 		return decodeWindowManagerPreviewPayload(id, raw, windowManagerWindowFocusPayload.command)
 	case windowmanager.CommandWindowMove:
 		return decodeWindowManagerPreviewPayload(id, raw, windowManagerWindowMovePayload.command)
+	case windowmanager.CommandWindowResize:
+		return decodeWindowManagerPreviewPayload(id, raw, windowManagerWindowResizePayload.command)
 	case windowmanager.CommandWindowSwap:
 		return decodeWindowManagerPreviewPayload(id, raw, windowManagerWindowSwapPayload.command)
 	case windowmanager.CommandWindowToggleFloating:
 		return decodeWindowManagerPreviewPayload(id, raw, windowManagerWindowFloatPayload.command)
 	case windowmanager.CommandWindowZoom:
 		return decodeWindowManagerPreviewPayload(id, raw, windowManagerWindowZoomPayload.command)
+	case windowmanager.CommandWindowStackGroup:
+		return decodeWindowManagerPreviewPayload(id, raw, windowManagerWindowGroupPayload.command)
+	case windowmanager.CommandWindowStackReorder:
+		return decodeWindowManagerPreviewPayload(id, raw, windowManagerWindowReorderPayload.command)
+	case windowmanager.CommandWindowStackSetActive:
+		return decodeWindowManagerPreviewPayload(id, raw, windowManagerWindowActivatePayload.command)
+	case windowmanager.CommandWindowPin:
+		return decodeWindowManagerPreviewPayload(id, raw, windowManagerWindowPinPayload.command)
+	case windowmanager.CommandWindowReopen:
+		return decodeWindowManagerPreviewPayload(id, raw, windowManagerWindowReopenPayload.command)
 	default:
 		return unsupportedWindowManagerPreviewCommand(id, commandID)
 	}
@@ -271,6 +362,8 @@ func decodeWindowManagerLayoutPreviewCommand(
 		return decodeWindowManagerPreviewPayload(id, raw, windowManagerLayoutArrangePayload.command)
 	case windowmanager.CommandLayoutResize:
 		return decodeWindowManagerPreviewPayload(id, raw, windowManagerLayoutResizePayload.command)
+	case windowmanager.CommandLayoutFrameResize:
+		return decodeWindowManagerPreviewPayload(id, raw, windowManagerLayoutFrameResizePayload.command)
 	case windowmanager.CommandLayoutBalance:
 		return decodeWindowManagerPreviewPayload(id, raw, windowManagerLayoutBalancePayload.command)
 	case windowmanager.CommandLayoutUndo:

@@ -288,7 +288,12 @@ func TestNativeExtensionToolsIntegrationLifecycleParity(t *testing.T) {
 			t.Fatal("Registry.Call(global extensions_logs as agent) error = nil, want denial")
 		}
 		if reason, ok := toolspkg.ReasonOf(err); !ok || reason != toolspkg.ReasonExtensionSourceForbidden {
-			t.Fatalf("ReasonOf(global agent logs error) = %q/%t, want %q", reason, ok, toolspkg.ReasonExtensionSourceForbidden)
+			t.Fatalf(
+				"ReasonOf(global agent logs error) = %q/%t, want %q",
+				reason,
+				ok,
+				toolspkg.ReasonExtensionSourceForbidden,
+			)
 		}
 
 		_, err = registry.Call(t.Context(), scope, toolspkg.CallRequest{

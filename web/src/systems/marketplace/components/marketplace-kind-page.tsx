@@ -101,109 +101,111 @@ function MarketplaceKindPageBody({ kind, page, searchInputRef }: MarketplaceKind
         Refresh
       </Button>
     ),
-    nav: (
-      <RouteNav aria-label="Marketplace sections" data-testid="marketplace-kind-navigation">
-        {MARKETPLACE_NAV_ITEMS.map(item => (
-          <RouteNav.Link
-            aria-current={item.kind === kind ? "page" : undefined}
-            key={item.routeKind}
-            render={<Link to={item.to} />}
-          >
-            {item.label}
-          </RouteNav.Link>
-        ))}
-      </RouteNav>
-    ),
+    // Route views lead the strip on every route (ADR-007/D3): the head stays
+    // two-element, strip order views · filters · spacer · display-mode.
     toolbar: (
-      <ListingToolbar>
-        <ListingToolbar.Leading>
-          <ListingToolbar.Search
-            aria-label={`Search ${config.label.toLowerCase()}`}
-            containerClassName="w-full max-w-105"
-            data-testid={`marketplace-kind-search-${kind}`}
-            onChange={page.setDraftQuery}
-            placeholder={config.searchPlaceholder}
-            ref={searchInputRef}
-            value={page.draftQuery}
-          />
-        </ListingToolbar.Leading>
-        <ListingToolbar.Trailing>
-          <div className="flex flex-wrap items-center gap-2">
-            {kind === "mcp" && page.scope === "installed" ? (
+      <>
+        <RouteNav aria-label="Marketplace sections" data-testid="marketplace-kind-navigation">
+          {MARKETPLACE_NAV_ITEMS.map(item => (
+            <RouteNav.Link
+              aria-current={item.kind === kind ? "page" : undefined}
+              key={item.routeKind}
+              render={<Link to={item.to} />}
+            >
+              {item.label}
+            </RouteNav.Link>
+          ))}
+        </RouteNav>
+        <ListingToolbar>
+          <ListingToolbar.Leading>
+            <ListingToolbar.Search
+              aria-label={`Search ${config.label.toLowerCase()}`}
+              containerClassName="w-full max-w-105"
+              data-testid={`marketplace-kind-search-${kind}`}
+              onChange={page.setDraftQuery}
+              placeholder={config.searchPlaceholder}
+              ref={searchInputRef}
+              value={page.draftQuery}
+            />
+          </ListingToolbar.Leading>
+          <ListingToolbar.Trailing>
+            <div className="flex flex-wrap items-center gap-2">
+              {kind === "mcp" && page.scope === "installed" ? (
+                <PillGroup
+                  aria-label="New MCP server scope"
+                  data-testid="marketplace-mcp-config-scope"
+                  items={[
+                    {
+                      value: "workspace" as const,
+                      label: "Workspace",
+                      testId: "marketplace-mcp-config-scope-workspace",
+                    },
+                    {
+                      value: "global" as const,
+                      label: "Global",
+                      testId: "marketplace-mcp-config-scope-global",
+                    },
+                  ]}
+                  onChange={page.setMCPConfigScope}
+                  value={page.mcpConfigScope}
+                />
+              ) : null}
               <PillGroup
-                aria-label="New MCP server scope"
-                data-testid="marketplace-mcp-config-scope"
+                aria-label="Marketplace scope"
+                data-testid={`marketplace-scope-${kind}`}
                 items={[
                   {
-                    value: "workspace" as const,
-                    label: "Workspace",
-                    testId: "marketplace-mcp-config-scope-workspace",
+                    value: "installed" as const,
+                    testId: `marketplace-scope-installed-${kind}`,
+                    badge: page.installedCount,
+                    label: (
+                      <>
+                        <ScopeInstalledIcon aria-hidden="true" />
+                        Installed
+                      </>
+                    ),
                   },
                   {
-                    value: "global" as const,
-                    label: "Global",
-                    testId: "marketplace-mcp-config-scope-global",
+                    value: "market" as const,
+                    testId: `marketplace-scope-market-${kind}`,
+                    label: (
+                      <>
+                        <ScopeMarketIcon aria-hidden="true" />
+                        Marketplace
+                      </>
+                    ),
                   },
                 ]}
-                onChange={page.setMCPConfigScope}
-                value={page.mcpConfigScope}
+                onChange={page.setScope}
+                value={page.scope}
               />
-            ) : null}
-            <PillGroup
-              aria-label="Marketplace scope"
-              data-testid={`marketplace-scope-${kind}`}
-              items={[
-                {
-                  value: "installed" as const,
-                  testId: `marketplace-scope-installed-${kind}`,
-                  badge: page.installedCount,
-                  label: (
-                    <>
-                      <ScopeInstalledIcon aria-hidden="true" />
-                      Installed
-                    </>
-                  ),
-                },
-                {
-                  value: "market" as const,
-                  testId: `marketplace-scope-market-${kind}`,
-                  label: (
-                    <>
-                      <ScopeMarketIcon aria-hidden="true" />
-                      Marketplace
-                    </>
-                  ),
-                },
-              ]}
-              onChange={page.setScope}
-              value={page.scope}
-            />
-            {kind === "extension" ? (
-              <Button
-                data-testid="marketplace-extension-install"
-                onClick={extensionInstall.open}
-                size="sm"
-                type="button"
-              >
-                <Plus aria-hidden="true" className="size-3" />
-                Install extension
-              </Button>
-            ) : null}
-            {kind === "mcp" && page.scope === "installed" ? (
-              <Button
-                data-testid="marketplace-mcp-add"
-                disabled={page.mcpConfigScope === "workspace" && !page.workspaceId}
-                onClick={mcpEditor.openCreate}
-                size="sm"
-                type="button"
-              >
-                <Plus aria-hidden="true" className="size-3" />
-                Add MCP server
-              </Button>
-            ) : null}
-          </div>
-        </ListingToolbar.Trailing>
-      </ListingToolbar>
+              {kind === "extension" ? (
+                <Button
+                  data-testid="marketplace-extension-install"
+                  onClick={extensionInstall.open}
+                  size="sm"
+                  type="button"
+                >
+                  <Plus aria-hidden="true" className="size-3" />
+                  Install extension
+                </Button>
+              ) : null}
+              {kind === "mcp" && page.scope === "installed" ? (
+                <Button
+                  data-testid="marketplace-mcp-add"
+                  disabled={page.mcpConfigScope === "workspace" && !page.workspaceId}
+                  onClick={mcpEditor.openCreate}
+                  size="sm"
+                  type="button"
+                >
+                  <Plus aria-hidden="true" className="size-3" />
+                  Add MCP server
+                </Button>
+              ) : null}
+            </div>
+          </ListingToolbar.Trailing>
+        </ListingToolbar>
+      </>
     ),
   });
 

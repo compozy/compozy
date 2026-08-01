@@ -50,6 +50,26 @@ export interface WindowRouteIntent {
   readonly route: OsWindowRoute;
 }
 
+/**
+ * Shell-palette request raised from inside a window (new-tab picker, deck `+`).
+ * The palette consumes it as a destination scope for that window (US-005).
+ */
+export interface WindowPaletteIntent {
+  readonly kind: "destination";
+  readonly windowId: string;
+}
+
+/**
+ * A deck advertising itself as the drop target of the active window drag
+ * (US-014): the insertion affordance is visible, and releasing commits ONE
+ * `window.stack.group{insert_index}` — anywhere else cancels.
+ */
+export interface DeckDropTarget {
+  readonly frameId: string;
+  readonly targetWindowId: string;
+  readonly insertIndex: number;
+}
+
 export interface WindowPlacementCycle {
   readonly edge: SnapSide | SnapCorner;
   readonly nextStep: number;
@@ -96,6 +116,8 @@ export interface WindowManagerStoreState {
   readonly overviewSegmentRequest: DesktopOverviewSegmentRequest | null;
   readonly transitionIntent: DesktopTransitionIntent | null;
   readonly routeIntents: Readonly<Record<string, WindowRouteIntent>>;
+  readonly paletteIntent: WindowPaletteIntent | null;
+  readonly deckDropTarget: DeckDropTarget | null;
   readonly placementCycles: Readonly<Record<string, WindowPlacementCycle>>;
   readonly gesture: LayoutGestureSession | null;
   readonly seamPreview: SeamPreview | null;
@@ -118,6 +140,10 @@ export type WindowManagerStoreEvents = {
   transitionIntentRejected: { binding: WindowManagerBinding; toDesktopId: string };
   routeIntentSet: { intent: WindowRouteIntent };
   routeIntentCleared: { windowId: string; intentId: string };
+  paletteIntentRequested: { intent: WindowPaletteIntent };
+  paletteIntentCleared: {};
+  deckDropTargeted: { target: DeckDropTarget };
+  deckDropCleared: { frameId?: string };
   placementCycleAdvanced: { windowId: string; edge: SnapSide | SnapCorner };
   placementTargetTracked: { windowId: string; edge: SnapSide | SnapCorner | null };
   seamPreviewSet: { preview: SeamPreview };

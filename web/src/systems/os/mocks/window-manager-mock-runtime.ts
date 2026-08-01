@@ -202,6 +202,8 @@ export class StorybookWindowManagerMockRuntime {
       app: window.app,
       ...(window.instanceKey === undefined ? {} : { instance_key: window.instanceKey }),
       route: window.route,
+      nav_stack: [],
+      pinned: false,
       placement: "floating",
       desktop_id: window.desktopId,
       floating_rect: window.floatingRect,

@@ -16,6 +16,7 @@ const DESKTOP: LayoutDesktop = {
   purpose: "standard",
   focusOwner: null,
   floating: [],
+  floatingStacks: [],
   groups: [
     {
       id: "group:main",
@@ -107,6 +108,7 @@ describe("projectLayout", () => {
         purpose: "standard",
         focusOwner: null,
         floating: [],
+        floatingStacks: [],
         groups: [
           {
             id: "group:left",
@@ -161,6 +163,7 @@ describe("projectLayout", () => {
         purpose: "standard",
         focusOwner: null,
         floating: [],
+        floatingStacks: [],
         groups: [
           {
             id: "group:stack",
@@ -184,6 +187,7 @@ describe("projectLayout", () => {
         windowIds: ["window:a", "window:b"],
         activeWindowId: "window:b",
         rect: { x: 21, y: 27, w: 977, h: 677 },
+        zone: { x: 0, y: 0, w: 1, h: 1 },
       },
     ]);
     expect(
@@ -199,6 +203,7 @@ describe("projectLayout", () => {
       purpose: "standard",
       focusOwner: null,
       floating: [],
+      floatingStacks: [],
       groups: [
         {
           id: "group:small",
@@ -259,6 +264,7 @@ describe("projectLayout", () => {
       purpose: "standard",
       focusOwner: null,
       floating: [],
+      floatingStacks: [],
       groups: [
         {
           id: "group:weighted",

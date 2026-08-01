@@ -5241,6 +5241,8 @@ func testWindowManagerConfig() compozyconfig.WindowManagerConfig {
 		GroupMoveModifier:   "control",
 		SwapModifier:        "meta",
 		HistoryLimit:        77,
+		NavStackLimit:       66,
+		ClosedEntryLimit:    18,
 		DesktopTransition:   compozyconfig.WindowDesktopTransitionCrossfade,
 		Gaps: compozyconfig.WindowManagerGapsConfig{
 			Inner:  12,

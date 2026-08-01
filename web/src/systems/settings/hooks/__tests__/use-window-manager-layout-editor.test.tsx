@@ -21,7 +21,7 @@ import type {
 
 function documentWith(desktopName: string): WindowManagerLayoutDocument {
   return {
-    version: 2,
+    version: 3,
     workspaceId: "workspace-a",
     desktops: [
       {
@@ -31,6 +31,7 @@ function documentWith(desktopName: string): WindowManagerLayoutDocument {
         purpose: "standard",
         focusOwner: null,
         floating: [],
+        floatingStacks: [],
         groups: [
           {
             id: "group-main",
@@ -46,6 +47,8 @@ function documentWith(desktopName: string): WindowManagerLayoutDocument {
         app: "tasks",
         instanceKey: null,
         route: { pathname: "/tasks", search: {} },
+        navStack: [],
+        pinned: false,
         placement: "tiled",
         desktopId: "desktop-one",
         floatingRect: { x: 0.2, y: 0.2, w: 0.4, h: 0.4 },

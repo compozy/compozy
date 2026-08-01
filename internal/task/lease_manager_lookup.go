@@ -26,6 +26,7 @@ func (m *Service) FailRunLease(
 	if err != nil {
 		return nil, err
 	}
+	defer m.restoreTaskRunNetworkBestEffort(ctx, run.SessionID, run.ID)
 	if run.IsNetworkWake() {
 		m.dispatchTaskRunFailed(ctx, run, Task{}, actor)
 		return &run, nil

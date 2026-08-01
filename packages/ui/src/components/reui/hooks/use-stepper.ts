@@ -17,7 +17,7 @@ export interface StepperContextValue {
   setActiveStep: (step: number) => void;
   stepsCount: number;
   orientation: StepperOrientation;
-  triggerNodesRef: RefObject<Map<number, HTMLButtonElement>>;
+  triggerNodesRef: RefObject<Map<number, HTMLButtonElement> | null>;
   focusNext: (currentStep: number) => void;
   focusPrev: (currentStep: number) => void;
   focusFirst: () => void;
@@ -65,7 +65,7 @@ export function useStepperState({
   children,
 }: UseStepperStateOptions): StepperContextValue {
   const [activeStep, setActiveStep] = useState(defaultValue);
-  const triggerNodesRef = useRef(new Map<number, HTMLButtonElement>());
+  const triggerNodesRef = useRef<Map<number, HTMLButtonElement>>(null);
 
   const handleSetActiveStep = (step: number) => {
     if (value === undefined) {
@@ -76,7 +76,7 @@ export function useStepperState({
 
   const currentStep = value ?? activeStep;
   const orderedTriggers = () =>
-    [...triggerNodesRef.current.entries()].sort(([left], [right]) => left - right);
+    [...(triggerNodesRef.current?.entries() ?? [])].sort(([left], [right]) => left - right);
   const focusTrigger = (index: number) => {
     orderedTriggers()[index]?.[1].focus();
   };
@@ -93,7 +93,7 @@ export function useStepperState({
     }
   };
   const focusFirst = () => focusTrigger(0);
-  const focusLast = () => focusTrigger(triggerNodesRef.current.size - 1);
+  const focusLast = () => focusTrigger((triggerNodesRef.current?.size ?? 0) - 1);
   const stepsCount = Children.toArray(children).filter(
     (child): child is ReactElement =>
       isValidElement(child) &&
@@ -133,7 +133,8 @@ export function useStepperTrigger() {
   useEffect(() => {
     const node = buttonRef.current;
     if (!node) return;
-    const triggerNodes = triggerNodesRef.current;
+    const triggerNodes = triggerNodesRef.current ?? new Map<number, HTMLButtonElement>();
+    triggerNodesRef.current = triggerNodes;
     triggerNodes.set(step, node);
     return () => {
       if (triggerNodes.get(step) === node) {

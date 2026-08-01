@@ -4,13 +4,23 @@ import "github.com/compozy/compozy/internal/windowmanager"
 
 // WindowManagerDesktop is one ordered workspace desktop in the stable wire contract.
 type WindowManagerDesktop struct {
-	ID         windowmanager.DesktopID      `json:"id"`
-	Name       string                       `json:"name"`
-	Order      int                          `json:"order"`
-	Purpose    windowmanager.DesktopPurpose `json:"purpose"`
-	FocusOwner *windowmanager.WindowID      `json:"focus_owner,omitempty"`
-	Groups     []WindowManagerLayoutGroup   `json:"groups"`
-	Floating   []windowmanager.WindowID     `json:"floating"`
+	ID             windowmanager.DesktopID      `json:"id"`
+	Name           string                       `json:"name"`
+	Order          int                          `json:"order"`
+	Purpose        windowmanager.DesktopPurpose `json:"purpose"`
+	FocusOwner     *windowmanager.WindowID      `json:"focus_owner,omitempty"`
+	Groups         []WindowManagerLayoutGroup   `json:"groups"`
+	Floating       []windowmanager.WindowID     `json:"floating"`
+	FloatingStacks []WindowManagerFloatingStack `json:"floating_stacks"`
+}
+
+// WindowManagerFloatingStack is one ordered tab frame outside the tiled tree.
+type WindowManagerFloatingStack struct {
+	ID        windowmanager.NodeID         `json:"id"`
+	WindowIDs []windowmanager.WindowID     `json:"window_ids"`
+	ActiveID  *windowmanager.WindowID      `json:"active_id,omitempty"`
+	Rect      windowmanager.NormalizedRect `json:"rect"`
+	Minimized bool                         `json:"minimized"`
 }
 
 // WindowManagerLayoutGroup is one independent tiled island in a desktop.
@@ -42,7 +52,19 @@ func windowManagerDesktopsFromDomain(desktops []windowmanager.Desktop) []WindowM
 		result = append(result, WindowManagerDesktop{
 			ID: desktop.ID, Name: desktop.Name, Order: desktop.Order, Purpose: desktop.Purpose,
 			FocusOwner: cloneWindowManagerPointer(desktop.FocusOwner), Groups: groups,
-			Floating: append([]windowmanager.WindowID{}, desktop.Floating...),
+			Floating:       append([]windowmanager.WindowID{}, desktop.Floating...),
+			FloatingStacks: windowManagerFloatingStacksFromDomain(desktop.FloatingStacks),
+		})
+	}
+	return result
+}
+
+func windowManagerFloatingStacksFromDomain(stacks []windowmanager.FloatingStack) []WindowManagerFloatingStack {
+	result := make([]WindowManagerFloatingStack, 0, len(stacks))
+	for _, stack := range stacks {
+		result = append(result, WindowManagerFloatingStack{
+			ID: stack.ID, WindowIDs: append([]windowmanager.WindowID(nil), stack.WindowIDs...),
+			ActiveID: cloneWindowManagerPointer(stack.ActiveID), Rect: stack.Rect, Minimized: stack.Minimized,
 		})
 	}
 	return result
@@ -88,7 +110,19 @@ func windowManagerDesktopsToDomain(desktops []WindowManagerDesktop) []windowmana
 		result = append(result, windowmanager.Desktop{
 			ID: desktop.ID, Name: desktop.Name, Order: desktop.Order, Purpose: desktop.Purpose,
 			FocusOwner: cloneWindowManagerPointer(desktop.FocusOwner), Groups: groups,
-			Floating: append([]windowmanager.WindowID(nil), desktop.Floating...),
+			Floating:       append([]windowmanager.WindowID(nil), desktop.Floating...),
+			FloatingStacks: windowManagerFloatingStacksToDomain(desktop.FloatingStacks),
+		})
+	}
+	return result
+}
+
+func windowManagerFloatingStacksToDomain(stacks []WindowManagerFloatingStack) []windowmanager.FloatingStack {
+	result := make([]windowmanager.FloatingStack, 0, len(stacks))
+	for _, stack := range stacks {
+		result = append(result, windowmanager.FloatingStack{
+			ID: stack.ID, WindowIDs: append([]windowmanager.WindowID(nil), stack.WindowIDs...),
+			ActiveID: cloneWindowManagerPointer(stack.ActiveID), Rect: stack.Rect, Minimized: stack.Minimized,
 		})
 	}
 	return result

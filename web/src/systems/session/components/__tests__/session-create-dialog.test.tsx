@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -55,6 +55,7 @@ function getDialogBackdrop(): HTMLElement {
 function makeProps(overrides: Partial<SessionCreateDialogProps> = {}): SessionCreateDialogProps {
   return {
     open: true,
+    restoreFocusOnClose: true,
     onOpenChange: vi.fn(),
     mode: "simple",
     onModeChange: vi.fn(),
@@ -66,8 +67,6 @@ function makeProps(overrides: Partial<SessionCreateDialogProps> = {}): SessionCr
     onWorkspaceChange: vi.fn(),
     sessionName: "",
     onSessionNameChange: vi.fn(),
-    workspacePath: "",
-    onWorkspacePathChange: vi.fn(),
     selectedAgentName: "claude-agent",
     networkParticipation: { mode: "local", channelId: "", channelStrategy: "" },
     onAgentChange: vi.fn(),
@@ -87,6 +86,31 @@ function renderDialog(overrides: Partial<SessionCreateDialogProps> = {}) {
   );
 }
 
+async function closeDialogFromFocusedLauncher(restoreFocusOnClose: boolean) {
+  const renderSurface = (open: boolean) => (
+    <UIProvider reducedMotion="never" skipAnimations>
+      <button data-testid="session-create-launcher" type="button">
+        New session
+      </button>
+      <SessionCreateDialog {...makeProps({ open, restoreFocusOnClose })} />
+    </UIProvider>
+  );
+  const view = render(renderSurface(false));
+  const launcher = screen.getByTestId("session-create-launcher");
+  launcher.focus();
+  view.rerender(renderSurface(true));
+  await waitFor(() => {
+    expect(screen.getByTestId("session-create-dialog")).toContainElement(
+      document.activeElement as HTMLElement
+    );
+  });
+  view.rerender(renderSurface(false));
+  await waitFor(() =>
+    expect(screen.queryByTestId("session-create-dialog")).not.toBeInTheDocument()
+  );
+  return { launcher, unmount: view.unmount };
+}
+
 describe("SessionCreateDialog", () => {
   it("Should show only the Agent field in Simple mode", () => {
     renderDialog();
@@ -94,7 +118,6 @@ describe("SessionCreateDialog", () => {
     expect(screen.getByTestId("session-create-agent-select")).toBeInTheDocument();
     expect(screen.queryByTestId("session-create-workspace-select")).not.toBeInTheDocument();
     expect(screen.queryByTestId("session-create-name-input")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("session-create-workspace-path-input")).not.toBeInTheDocument();
     expect(screen.queryByTestId("session-create-participation-mode")).not.toBeInTheDocument();
     expect(screen.queryByTestId("session-create-composer")).not.toBeInTheDocument();
     expect(screen.queryByTestId("session-create-runtime-select")).not.toBeInTheDocument();
@@ -106,7 +129,6 @@ describe("SessionCreateDialog", () => {
     expect(screen.getByTestId("session-create-agent-select")).toBeInTheDocument();
     expect(screen.getByTestId("session-create-workspace-select")).toBeInTheDocument();
     expect(screen.getByTestId("session-create-name-input")).toBeInTheDocument();
-    expect(screen.getByTestId("session-create-workspace-path-input")).toBeInTheDocument();
     expect(screen.getByTestId("session-create-participation-mode")).toBeInTheDocument();
   });
 
@@ -199,5 +221,14 @@ describe("SessionCreateDialog", () => {
       "Server rejected the session"
     );
     expect(screen.getByTestId("session-create-dialog")).toBeInTheDocument();
+  });
+
+  it("Should restore launcher focus only for a normal dismissal", async () => {
+    const dismissed = await closeDialogFromFocusedLauncher(true);
+    expect(dismissed.launcher).toHaveFocus();
+    dismissed.unmount();
+
+    const handedOff = await closeDialogFromFocusedLauncher(false);
+    expect(handedOff.launcher).not.toHaveFocus();
   });
 });

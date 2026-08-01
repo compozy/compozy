@@ -40,7 +40,7 @@ func (d *Daemon) bootDefaultWorkspaceAndWindowManager(
 		return fmt.Errorf("daemon: open window-manager store: %w", err)
 	}
 	cleanup.add(func(context.Context) error { return engine.Close() })
-	repository, err := newWindowManagerRepository(engine)
+	repository, err := newWindowManagerRepository(engine, withWindowManagerRepositoryLogger(state.logger))
 	if err != nil {
 		return err
 	}
@@ -52,6 +52,7 @@ func (d *Daemon) bootDefaultWorkspaceAndWindowManager(
 		windowManagerWorkspaceAuthorizer{resolver: resolver},
 		newWindowManagerLayoutRegistry(state.windowLayoutCatalog),
 		windowManagerDefaults(state.cfg.WindowManager),
+		windowmanager.WithLifecycleContext(ctx),
 		windowmanager.WithEventObserver(newWindowManagerHookObserver(state)),
 		windowmanager.WithWorkspaceConfigResolver(
 			windowManagerWorkspaceConfigResolver{resolver: state.workspaceResolver},
@@ -137,6 +138,8 @@ func windowManagerDefaults(cfg compozyconfig.WindowManagerConfig) windowmanager.
 		GroupMoveModifier:   cfg.GroupMoveModifier,
 		SwapModifier:        cfg.SwapModifier,
 		HistoryLimit:        cfg.HistoryLimit,
+		NavStackLimit:       cfg.NavStackLimit,
+		ClosedEntryLimit:    cfg.ClosedEntryLimit,
 		DesktopTransition:   windowmanager.DesktopTransition(cfg.DesktopTransition),
 		Gaps: windowmanager.GapsConfig{
 			Inner: float64(cfg.Gaps.Inner), Top: float64(cfg.Gaps.Top),
@@ -197,6 +200,8 @@ func windowManagerConfig(defaults windowmanager.Config) (compozyconfig.WindowMan
 		GroupMoveModifier:   defaults.GroupMoveModifier,
 		SwapModifier:        defaults.SwapModifier,
 		HistoryLimit:        defaults.HistoryLimit,
+		NavStackLimit:       defaults.NavStackLimit,
+		ClosedEntryLimit:    defaults.ClosedEntryLimit,
 		DesktopTransition:   string(defaults.DesktopTransition),
 		Gaps: compozyconfig.WindowManagerGapsConfig{
 			Inner: inner, Top: top, Right: right, Bottom: bottom, Left: left,

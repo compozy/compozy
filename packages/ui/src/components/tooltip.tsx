@@ -83,7 +83,7 @@ function TooltipContent({
             alignOffset={alignOffset}
             side={side}
             sideOffset={sideOffset}
-            className="isolate z-50"
+            className="pointer-events-none isolate z-50"
           >
             <TooltipPrimitive.Popup
               data-slot="tooltip-content"
@@ -96,7 +96,7 @@ function TooltipContent({
                 />
               }
               className={cn(
-                "z-50 inline-flex w-fit max-w-xs origin-(--transform-origin) items-center gap-1.5 rounded-md bg-canvas-soft px-3 py-1.5 text-form-label text-fg-strong shadow-hairline has-data-[slot=kbd]:pr-1.5 **:data-[slot=kbd]:relative **:data-[slot=kbd]:isolate **:data-[slot=kbd]:z-50 **:data-[slot=kbd]:rounded-xs",
+                "pointer-events-none z-50 inline-flex w-fit max-w-xs origin-(--transform-origin) items-center gap-1.5 rounded-md bg-canvas-soft px-3 py-1.5 text-form-label text-fg-strong shadow-hairline has-data-[slot=kbd]:pr-1.5 **:data-[slot=kbd]:relative **:data-[slot=kbd]:isolate **:data-[slot=kbd]:z-50 **:data-[slot=kbd]:rounded-xs",
                 className
               )}
               {...props}

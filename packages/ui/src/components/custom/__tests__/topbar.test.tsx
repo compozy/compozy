@@ -2,13 +2,8 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import { LayoutDashboard } from "lucide-react";
 import { describe, expect, it, vi } from "vitest";
 
-import {
-  Topbar,
-  TopbarSlotProvider,
-  type TopbarSlotValue,
-  useTopbarSlot,
-  useTopbarSlotValue,
-} from "../topbar";
+import { Topbar, TopbarSlotProvider } from "../topbar";
+import { useTopbarSlot, useTopbarSlotValue, type TopbarSlotValue } from "../hooks/use-topbar-slot";
 
 function ProbeSlot({ slot, label }: { slot: TopbarSlotValue | null; label: string }) {
   useTopbarSlot(slot);
@@ -22,7 +17,7 @@ function SlotInspector({ probeId }: { probeId: string }) {
       actions:{slot?.actions ? "yes" : "no"} overflow:{slot?.overflow ? "yes" : "no"} crumb:
       {slot?.crumb ? "yes" : "no"} crumb-value:
       {typeof slot?.crumb === "string" ? slot.crumb : "no"} toolbar:
-      {slot?.toolbar ? "yes" : "no"} nav:{slot?.nav ? "yes" : "no"} status:
+      {slot?.toolbar ? "yes" : "no"} status:
       {slot?.status ? "yes" : "no"}
     </span>
   );
@@ -96,10 +91,13 @@ describe("Topbar", () => {
     expect(screen.getByTestId("status-chip")).toBeInTheDocument();
   });
 
-  it("Should render peer route nav after identity and before the flex gutter", () => {
+  it("Should keep the head two-element: no nav zone even when legacy nav content is forced [UT-171]", () => {
     function Setup() {
+      // Type-level: `nav` no longer exists on TopbarSlotValue (ADR-007/D3).
+      // Runtime: even a forced legacy publication renders no head nav zone.
       useTopbarSlot({
-        nav: <nav data-testid="route-tabs">List · Kanban</nav>,
+        ...({ nav: <nav data-testid="route-tabs">List · Kanban</nav> } as Record<string, unknown>),
+        toolbar: <nav data-testid="strip-views">List · Kanban</nav>,
       });
       return null;
     }
@@ -109,20 +107,11 @@ describe("Topbar", () => {
         <Topbar title="Tasks" />
       </TopbarSlotProvider>
     );
-    const head = document.querySelector("[data-slot='topbar']");
-    const identity = document.querySelector("[data-slot='topbar-identity']");
-    const nav = document.querySelector("[data-slot='topbar-nav']");
-    const flex = document.querySelector("[data-slot='topbar-flex']");
-    expect(head).not.toBeNull();
-    expect(identity).not.toBeNull();
-    expect(nav).not.toBeNull();
-    expect(flex).not.toBeNull();
-    expect(nav).toContainElement(screen.getByTestId("route-tabs"));
-    expect(identity!.compareDocumentPosition(nav!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(nav!.compareDocumentPosition(flex!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(document.querySelector("[data-slot='topbar-nav']")).toBeNull();
+    expect(screen.queryByTestId("route-tabs")).not.toBeInTheDocument();
   });
 
-  it("Should omit topbar-nav when the publisher does not supply nav (drill-in)", () => {
+  it("Should omit any nav zone on drill-in heads", () => {
     function Setup() {
       useTopbarSlot({
         onBack: () => undefined,
@@ -296,7 +285,6 @@ describe("Topbar", () => {
                 crumb: "loop-a",
                 actions: <span data-testid="a" />,
                 overflow: <span data-testid="o" />,
-                nav: <span data-testid="nv" />,
                 toolbar: <span data-testid="tb" />,
               }}
               label="a"
@@ -314,7 +302,6 @@ describe("Topbar", () => {
     expect(screen.getByTestId("inspector")).toHaveTextContent("actions:yes");
     expect(screen.getByTestId("inspector")).toHaveTextContent("overflow:yes");
     expect(screen.getByTestId("inspector")).toHaveTextContent("crumb:yes");
-    expect(screen.getByTestId("inspector")).toHaveTextContent("nav:yes");
     expect(screen.getByTestId("inspector")).toHaveTextContent("toolbar:yes");
 
     act(() => {
@@ -328,7 +315,6 @@ describe("Topbar", () => {
     expect(screen.getByTestId("inspector")).toHaveTextContent("actions:no");
     expect(screen.getByTestId("inspector")).toHaveTextContent("overflow:no");
     expect(screen.getByTestId("inspector")).toHaveTextContent("crumb:no");
-    expect(screen.getByTestId("inspector")).toHaveTextContent("nav:no");
     expect(screen.getByTestId("inspector")).toHaveTextContent("toolbar:no");
   });
 

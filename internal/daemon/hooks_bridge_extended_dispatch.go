@@ -223,7 +223,7 @@ func (n *hooksNotifier) OnAgentEvent(ctx context.Context, sessionID string, even
 }
 
 func (n *hooksNotifier) OnAgentEventForSession(ctx context.Context, sess *session.Session, event any) {
-	n.dispatchAgentEvent(ctx, hookSessionContext(sess), event)
+	n.dispatchAgentEvent(ctx, sess, event)
 }
 
 func (n *hooksNotifier) OnSandboxLifecycleEvent(ctx context.Context, event session.SandboxLifecycleEvent) {

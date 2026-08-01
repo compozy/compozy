@@ -187,8 +187,9 @@ test("operator can create a provider/model override session and attach without l
     createdSession.session.id,
     overrideProvider
   );
-  await agentsWin.getByRole("button", { name: "Close window" }).click();
-  await expect(agentsWin).toBeHidden();
+  const focusedAgentsWin = await openAppWindow(appPage, "Agents", "agents");
+  await focusedAgentsWin.getByRole("button", { name: "Close window" }).click();
+  await expect(focusedAgentsWin).toBeHidden();
 
   await writeWorkspaceConfig({
     rootDir: workspaceRoot,
@@ -292,14 +293,18 @@ test("operator persists an advertised model and non-empty reasoning effort on th
     },
   });
 
-  const rehydrated = await runtime.requestJSON<SessionEnvelope>(
-    sessionAPIPath(created.session.workspace_id, created.session.id)
-  );
-  expect(rehydrated.session.runtime.effective).toMatchObject({
-    provider: mockAgentProvider,
-    model: catalogModel,
-    reasoning_effort: "high",
-  });
+  await expect
+    .poll(async () => {
+      const rehydrated = await runtime.requestJSON<SessionEnvelope>(
+        sessionAPIPath(created.session.workspace_id, created.session.id)
+      );
+      return rehydrated.session.runtime.effective;
+    })
+    .toMatchObject({
+      provider: mockAgentProvider,
+      model: catalogModel,
+      reasoning_effort: "high",
+    });
 });
 
 async function assertSessionParity(

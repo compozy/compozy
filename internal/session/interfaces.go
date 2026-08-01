@@ -143,6 +143,7 @@ type AgentProcess struct {
 	stderrFn            func() string
 	healthStateFn       func() subprocess.HealthState
 	capsSnapshotFn      func() acp.Caps
+	pendingPermissionFn func() bool
 	approvePermissionFn func(context.Context, acp.ApproveRequest) error
 	requestPermissionFn func(context.Context, acp.RequestPermissionRequest) (acp.RequestPermissionResponse, error)
 	configureRuntimeFn  func(func() TurnSource)
@@ -167,6 +168,7 @@ type AgentProcessOptions struct {
 	Wait              func() error
 	Stderr            func() string
 	HealthState       func() subprocess.HealthState
+	PendingPermission func() bool
 	ApprovePermission func(context.Context, acp.ApproveRequest) error
 	RequestPermission func(context.Context, acp.RequestPermissionRequest) (acp.RequestPermissionResponse, error)
 	CapsSnapshot      func() acp.Caps
@@ -210,6 +212,7 @@ func NewAgentProcess(opts AgentProcessOptions) *AgentProcess {
 		stderrFn:            stderrFn,
 		healthStateFn:       opts.HealthState,
 		capsSnapshotFn:      opts.CapsSnapshot,
+		pendingPermissionFn: opts.PendingPermission,
 		approvePermissionFn: opts.ApprovePermission,
 		requestPermissionFn: opts.RequestPermission,
 		configureRuntimeFn:  opts.ConfigureRuntime,
@@ -257,6 +260,12 @@ func (p *AgentProcess) CapsSnapshot() acp.Caps {
 		return acp.CloneCaps(p.capsSnapshotFn())
 	}
 	return acp.CloneCaps(p.Caps)
+}
+
+// HasPendingPermission reports whether the runtime is waiting for an
+// interactive permission decision.
+func (p *AgentProcess) HasPendingPermission() bool {
+	return p != nil && p.pendingPermissionFn != nil && p.pendingPermissionFn()
 }
 
 // ToolHost returns the sandbox-owned tool host when the process exposes one.
@@ -311,19 +320,20 @@ func wrapACPProcess(proc *acp.AgentProcess) *AgentProcess {
 	}
 
 	return &AgentProcess{
-		PID:            proc.PID,
-		AgentName:      proc.AgentName,
-		Command:        proc.Command,
-		Args:           append([]string(nil), proc.Args...),
-		Cwd:            proc.Cwd,
-		SessionID:      proc.SessionID,
-		Caps:           proc.CapsSnapshot(),
-		StartedAt:      proc.StartedAt,
-		done:           proc.Done(),
-		waitFn:         proc.Wait,
-		stderrFn:       proc.Stderr,
-		healthStateFn:  proc.HealthState,
-		capsSnapshotFn: proc.CapsSnapshot,
+		PID:                 proc.PID,
+		AgentName:           proc.AgentName,
+		Command:             proc.Command,
+		Args:                append([]string(nil), proc.Args...),
+		Cwd:                 proc.Cwd,
+		SessionID:           proc.SessionID,
+		Caps:                proc.CapsSnapshot(),
+		StartedAt:           proc.StartedAt,
+		done:                proc.Done(),
+		waitFn:              proc.Wait,
+		stderrFn:            proc.Stderr,
+		healthStateFn:       proc.HealthState,
+		capsSnapshotFn:      proc.CapsSnapshot,
+		pendingPermissionFn: proc.HasPendingPermission,
 		approvePermissionFn: func(ctx context.Context, req acp.ApproveRequest) error {
 			if err := ctx.Err(); err != nil {
 				return err

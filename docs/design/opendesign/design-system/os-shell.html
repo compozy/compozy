@@ -114,10 +114,11 @@ body{background:var(--canvas);overflow-y:auto}
   <section class="sec" id="window" data-od-id="sec-window">
     <div class="sec__head"><span class="sec__num">02</span><h2>Window — the unified 44px head</h2></div>
     <p><b>Identity renders once.</b> One 44px head: controls (12px dots: close→accent, min→muted,
-    zoom→success on hover) · quiet 22px glyph + 13px/600 title · optional route tabs · drag flex ·
+    zoom→success on hover) · quiet 22px glyph + 13px/600 title · drag flex ·
     status chip (color = state) + at most <b>two actions</b> (one primary + one ··· overflow).
-    An optional 38px context strip below carries tools only. Two bars maximum — a route that wants a
-    third bar has an IA problem.</p>
+    The head stays two-element (ADR-007/D3): route views live on the optional 38px strip below as
+    its leading pill-group — order: views · filters · spacer · display-mode. Chrome is head + strip,
+    plus the 37px deck while the window holds ≥2 tabs (<code class="mono">window-tabs-variations.html</code>).</p>
 
     <div class="demo" data-od-id="demo-window-root">
       <!-- root window with route tabs + context strip -->
@@ -129,10 +130,6 @@ body{background:var(--canvas);overflow-y:auto}
             <span class="w2-title">Tasks</span>
             <span class="w2-count mono">6</span>
           </div>
-          <div class="w2-tabs" role="tablist" aria-label="Task views">
-            <button class="w2-tab is-on" role="tab" aria-selected="true">List</button>
-            <button class="w2-tab" role="tab" aria-selected="false">Kanban</button>
-          </div>
           <span class="w2-flex" aria-hidden="true"></span>
           <div class="win-trail">
             <span class="w2-status" data-tone="run"><span class="d d--run d--pulse"></span>2 running</span>
@@ -142,6 +139,10 @@ body{background:var(--canvas);overflow-y:auto}
         </header>
         <div class="win-toolbar">
           <div class="app-toolbar">
+            <div class="w2-tabs" role="tablist" aria-label="Task views">
+              <button class="w2-tab is-on" role="tab" aria-selected="true">List</button>
+              <button class="w2-tab" role="tab" aria-selected="false">Kanban</button>
+            </div>
             <div class="pill-group" role="group" aria-label="Task filter">
               <button class="pill-group__item is-on">All <span class="mono">6</span></button>
               <button class="pill-group__item">Running <span class="mono">2</span></button>
@@ -157,7 +158,7 @@ body{background:var(--canvas);overflow-y:auto}
         <div class="win-body" style="height:120px;display:grid;place-items:center;color:var(--faint);font-size:11px">route content · production scale</div>
       </section>
     </div>
-    <p class="demo-note">root state — glyph + title + count, peer tabs after title (left), tools hoisted into the 38px strip</p>
+    <p class="demo-note">root state — glyph + title + count in the head; route views lead the 38px strip before filters (ADR-007/D3)</p>
 
     <div class="demo" data-od-id="demo-window-drill" style="margin-top:14px">
       <!-- drilled-in window: breadcrumb owns identity -->
@@ -212,9 +213,9 @@ body{background:var(--canvas);overflow-y:auto}
       <tr><td>Head</td><td>44px · padding 0 12 · gap 10 · grab cursor on the flex gutter · scrolled state adds hairline shadow</td></tr>
       <tr><td>Controls</td><td>3 dots 12px, radius 4, colored on window hover (accent / muted / success)</td></tr>
       <tr><td>Identity</td><td>glyph 22 (neutral well, svg 13) + title 13/600 + count 10 mono · max-width 55%</td></tr>
-      <tr><td>Route tabs</td><td><code>.w2-tabs</code> immediately after title · segments 24px · hidden at drill-in depth · absent when the route has no peers</td></tr>
+      <tr><td>Route views</td><td>leading pill-group of the strip (ADR-007/D3) · segments 24px · hidden at drill-in depth · absent when the route has no peers · never in the head</td></tr>
       <tr><td>Trail</td><td>status 10.5/600 (tone = state) · 1×14 vsep · ≤2 actions (26px buttons)</td></tr>
-      <tr><td>Context strip</td><td>38px min · tools only (filters / search / Rows|Cards) · rendered only when needed</td></tr>
+      <tr><td>Context strip</td><td>38px min · views · filters · spacer · display-mode · rendered only when needed</td></tr>
       <tr><td>Minimize</td><td>genie .3s spring into the app's dock icon — dimmed glyph + hollow dot; click restores. No tray, ever.</td></tr>
     </table>
   </section>
@@ -290,8 +291,8 @@ body{background:var(--canvas);overflow-y:auto}
     <div class="sec__head"><span class="sec__num">07</span><h2>Shell rules</h2></div>
     <div class="rule-list">
       <div class="rule"><i>S1</i><span><b>Identity renders once per window.</b> Never breadcrumb + accent tile + H1 stacks; the route PageHead is absorbed by the 44px head.</span></div>
-      <div class="rule"><i>S2</i><span><b>Two bars maximum</b> — 44px head + optional 38px strip. The strip is tools only; route tabs never live there.</span></div>
-      <div class="rule"><i>S3</i><span><b>Route tabs sit after the title</b>, left in the head; hidden on drill-in; absent without peers.</span></div>
+      <div class="rule"><i>S2</i><span><b>Head + strip, plus the deck while the window holds ≥2 tabs</b> (ADR-007/D4) — 44px head + optional 38px strip + 37px deck; up to 119px of chrome fully loaded. A single-tab window renders head + strip only.</span></div>
+      <div class="rule"><i>S3</i><span><b>Route views live on the strip</b> as its leading pill-group — order: views · filters · spacer · display-mode (ADR-007/D3, single-tab included). The head stays two-element; views hide on drill-in and are absent without peers.</span></div>
       <div class="rule"><i>S4</i><span><b>Depth grows a breadcrumb, never a new window.</b> The trail is window-local (menu bar owns workspace, dock owns routes); status, actions and strip swap per level.</span></div>
       <div class="rule"><i>S5</i><span><b>Document windows self-title</b> with a pulsing state dot and never breadcrumb.</span></div>
       <div class="rule"><i>S6</i><span><b>Sessions is a normal OS window</b> — first dock icon, same WindowFrame as everything; no rail, no dock slide.</span></div>

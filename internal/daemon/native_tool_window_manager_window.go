@@ -97,6 +97,18 @@ func (n *daemonNativeTools) windowMove(
 	return n.executeWindowManagerCommand(ctx, scope, req, input.windowManagerMutationInput, input.command())
 }
 
+func (n *daemonNativeTools) windowResize(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	req toolspkg.CallRequest,
+) (toolspkg.ToolResult, error) {
+	var input windowManagerWindowResizeInput
+	if err := decodeWindowManagerInput(req, &input); err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	return n.executeWindowManagerCommand(ctx, scope, req, input.windowManagerMutationInput, input.command())
+}
+
 func (n *daemonNativeTools) windowSwap(
 	ctx context.Context,
 	scope toolspkg.Scope,

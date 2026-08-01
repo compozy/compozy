@@ -18,7 +18,7 @@ function secretSlotSummary(slots: BridgeProvider["secretSlots"]): string {
   return `${slots.total} ${noun} · ${slots.required} required`;
 }
 
-export function MarketplaceBridgeCard({ provider }: { provider: BridgeProvider }) {
+function MarketplaceBridgeCard({ provider }: { provider: BridgeProvider }) {
   return (
     <CatalogCard id={provider.platform} actionable className="scroll-mt-24 border border-line">
       <div className="flex min-w-0 items-center gap-2.5">

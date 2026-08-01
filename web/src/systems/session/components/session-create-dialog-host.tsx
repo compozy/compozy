@@ -33,15 +33,14 @@ export function SessionCreateDialogHost({
       onSessionNameChange={sessionCreate.onSessionNameChange}
       onSubmit={sessionCreate.submit}
       onWorkspaceChange={sessionCreate.onWorkspaceChange}
-      onWorkspacePathChange={sessionCreate.onWorkspacePathChange}
       open={sessionCreate.open}
+      restoreFocusOnClose={sessionCreate.restoreFocusOnClose}
       selectedAgentName={sessionCreate.selectedAgentName}
       sessionName={sessionCreate.sessionName}
       submitError={sessionCreate.submitError}
       userHomeDir={sessionCreate.userHomeDir}
       workspace={sessionCreate.workspace}
       workspaceId={sessionCreate.workspaceId}
-      workspacePath={sessionCreate.workspacePath}
       workspaces={sessionCreate.workspaces}
     />
   );

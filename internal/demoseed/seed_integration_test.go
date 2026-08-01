@@ -227,7 +227,13 @@ func assertLaunchTranscript(t *testing.T, ctx context.Context, paths config.Home
 
 func assertLoopDefinition(t *testing.T, workspaceRoot string) {
 	t.Helper()
-	path := filepath.Join(workspaceRoot, config.DirName, config.LoopsDirName, launchLoopName, looppkg.DefinitionFileName)
+	path := filepath.Join(
+		workspaceRoot,
+		config.DirName,
+		config.LoopsDirName,
+		launchLoopName,
+		looppkg.DefinitionFileName,
+	)
 	data, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("ReadFile(Loop) error = %v", err)

@@ -12,7 +12,6 @@ import (
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/store"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
@@ -129,29 +128,13 @@ func (m *Manager) joinNetworkPeer(ctx context.Context, session *Session, capabil
 		return nil
 	}
 
-	info := session.Info()
-	if info == nil || info.NetworkParticipation.Mode != participation.ModeLive {
-		return nil
-	}
-	channelID := strings.TrimSpace(info.NetworkParticipation.ChannelID)
-
-	lifecycle := m.currentNetworkPeerLifecycle()
-	if lifecycle == nil {
-		return nil
-	}
-
-	return lifecycle.JoinChannel(
+	return m.joinNetworkPeerWithBinding(
 		ctx,
-		newNetworkPeerJoin(
-			info.ID,
-			networkPeerID(info.AgentName, info.ID),
-			info.WorkspaceID,
-			firstNonEmpty(strings.TrimSpace(info.Name), strings.TrimSpace(info.AgentName)),
-			channelID,
-			info.NetworkOwnerKey,
-			info.NetworkParticipation,
-			capabilities,
-		),
+		session,
+		session.Info().NetworkParticipation,
+		session.Info().NetworkOwnerKey,
+		capabilities,
+		false,
 	)
 }
 
@@ -163,17 +146,14 @@ func (m *Manager) leaveNetworkPeer(ctx context.Context, session *Session) error 
 		return nil
 	}
 
-	info := session.Info()
-	if info == nil || info.NetworkParticipation.Mode != participation.ModeLive {
-		return nil
-	}
-
 	lifecycle := m.currentNetworkPeerLifecycle()
 	if lifecycle == nil {
 		return nil
 	}
 
-	return lifecycle.LeaveChannel(ctx, info.ID)
+	session.networkPeerMu.Lock()
+	defer session.networkPeerMu.Unlock()
+	return lifecycle.LeaveChannel(ctx, session.ID)
 }
 
 func (m *Manager) rollbackActivation(session *Session, proc *AgentProcess, now time.Time) error {

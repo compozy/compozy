@@ -9,7 +9,7 @@ import { promisify } from "node:util";
 import type { Page } from "@playwright/test";
 
 import { automationOperatorSelectors, sessionWindowSelectors } from "../fixtures/selectors";
-import { sessionWindow, windowTitle } from "../fixtures/os-navigation";
+import { appWindow, sessionWindow, windowTitle } from "../fixtures/os-navigation";
 import type { BrowserRuntime } from "../fixtures/runtime";
 import { browserAutomationOperatorFlowScenario } from "../fixtures/runtime";
 import { expect, test } from "../fixtures/test";
@@ -160,7 +160,7 @@ test("operator creates updates fires disables re-enables and deletes a webhook t
   browserArtifacts,
   runtime,
 }) => {
-  const triggersWin = appPage.getByTestId("os-window-app:triggers");
+  const triggersWin = appWindow(appPage, "triggers");
   const ui = automationOperatorSelectors(triggersWin, appPage);
   const shellUI = automationOperatorSelectors(appPage);
   const triggerStatus = triggersWin.locator('[data-slot="topbar-status"]');
@@ -423,7 +423,7 @@ test("failed webhook trigger run is diagnosable with retry evidence and no secre
   browserArtifacts,
   runtime,
 }) => {
-  const triggersWin = appPage.getByTestId("os-window-app:triggers");
+  const triggersWin = appWindow(appPage, "triggers");
   const ui = automationOperatorSelectors(triggersWin, appPage);
   const shellUI = automationOperatorSelectors(appPage);
   const trigger = await createTrigger(
@@ -507,7 +507,7 @@ test("operator sees fire-limit rejection across browser and runtime surfaces", a
   browserArtifacts,
   runtime,
 }) => {
-  const triggersWin = appPage.getByTestId("os-window-app:triggers");
+  const triggersWin = appWindow(appPage, "triggers");
   const ui = automationOperatorSelectors(triggersWin, appPage);
   const shellUI = automationOperatorSelectors(appPage);
   const trigger = await createTrigger(
@@ -926,7 +926,7 @@ async function assertTriggersViewportMatrix(
   runtime: BrowserRuntime,
   triggerID: string
 ): Promise<void> {
-  const triggersWin = appPage.getByTestId("os-window-app:triggers");
+  const triggersWin = appWindow(appPage, "triggers");
   const ui = automationOperatorSelectors(triggersWin, appPage);
   for (const width of [375, 768, 1280]) {
     await appPage.setViewportSize({ width, height: 820 });
@@ -961,7 +961,7 @@ async function assertTriggerRunViewportMatrix(
   runID: string,
   prefix: string
 ): Promise<void> {
-  const triggersWin = appPage.getByTestId("os-window-app:triggers");
+  const triggersWin = appWindow(appPage, "triggers");
   const ui = automationOperatorSelectors(triggersWin, appPage);
   for (const width of [375, 768, 1280]) {
     await appPage.setViewportSize({ width, height: 820 });

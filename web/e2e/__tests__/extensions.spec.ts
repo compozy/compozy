@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { appWindow } from "../fixtures/os-navigation";
 import { marketplaceOperatorSelectors } from "../fixtures/selectors";
 import type { BrowserRuntime, RuntimePaths } from "../fixtures/runtime";
 import { runBrowserRuntimeCLIJSON } from "../fixtures/scenario-contracts";
@@ -63,7 +64,7 @@ test.describe("Extension dev overlay and source-union install", () => {
     await appPage.goto(runtime.url(`/marketplace/extension/${extensionName}`), {
       waitUntil: "domcontentloaded",
     });
-    const marketplaceWin = appPage.getByTestId("os-window-app:marketplace");
+    const marketplaceWin = appWindow(appPage, "marketplace");
     await expect(marketplaceWin).toBeVisible();
     const marketplace = marketplaceOperatorSelectors(marketplaceWin);
     await expect(marketplace.detail).toBeVisible({ timeout: 20_000 });

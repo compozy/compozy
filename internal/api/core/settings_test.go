@@ -52,6 +52,7 @@ type stubSettingsService struct {
 	ApplyDeleteFn        func(context.Context, settingspkg.CollectionItemDeleteRequest) (settingspkg.ApplyResult, error)
 	ReloadFn             func(context.Context) (settingspkg.ApplyResult, error)
 	ListApplyRecordsFn   func(context.Context, settingspkg.ApplyRecordFilter) ([]settingspkg.ApplyRecord, error)
+	PendingRestartFn     func(context.Context) (bool, error)
 
 	LastGetSectionRequest     settingspkg.SectionRequest
 	LastUpdateSectionRequest  settingspkg.SectionUpdateRequest
@@ -305,6 +306,13 @@ func (s *stubSettingsService) ListApplyRecords(
 		return s.ListApplyRecordsFn(ctx, filter)
 	}
 	return nil, nil
+}
+
+func (s *stubSettingsService) HasPendingConfigRestart(ctx context.Context) (bool, error) {
+	if s.PendingRestartFn != nil {
+		return s.PendingRestartFn(ctx)
+	}
+	return false, nil
 }
 
 func defaultApplyResult(section settingspkg.SectionName) settingspkg.ApplyResult {
@@ -1306,6 +1314,8 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 					GroupMoveModifier:   "control",
 					SwapModifier:        "meta",
 					HistoryLimit:        77,
+					NavStackLimit:       66,
+					ClosedEntryLimit:    18,
 					DesktopTransition:   compozyconfig.WindowDesktopTransitionCrossfade,
 					Gaps: compozyconfig.WindowManagerGapsConfig{
 						Inner: 12, Top: 18, Right: 14, Bottom: 16, Left: 20,
@@ -1444,6 +1454,8 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 				GroupMoveModifier:   contract.SettingsWindowDragModifierControl,
 				SwapModifier:        contract.SettingsWindowDragModifierMeta,
 				HistoryLimit:        77,
+				NavStackLimit:       66,
+				ClosedEntryLimit:    18,
 				DesktopTransition:   contract.SettingsWindowDesktopTransitionCrossfade,
 				Gaps: contract.SettingsWindowManagerGapsPayload{
 					Inner: 12, Top: 18, Right: 14, Bottom: 16, Left: 20,
@@ -2023,6 +2035,8 @@ func TestUpdateSettingsSectionHandlersDelegateValidPayloads(t *testing.T) {
 				t.Helper()
 				if req.WindowManager == nil ||
 					req.WindowManager.HistoryLimit != 77 ||
+					req.WindowManager.NavStackLimit != 66 ||
+					req.WindowManager.ClosedEntryLimit != 18 ||
 					!reflect.DeepEqual(req.WindowManager.Snap.RepeatRatios, []float64{0.4, 0.7, 0.3}) ||
 					req.WindowManager.Shortcuts["desktop.switch.next"] != "Meta+ArrowRight" {
 					t.Fatalf("req.WindowManager = %#v, want complete window-manager config", req.WindowManager)
@@ -2129,6 +2143,8 @@ func validSettingsWindowManagerConfigPayload() contract.SettingsWindowManagerCon
 		GroupMoveModifier:   contract.SettingsWindowDragModifierControl,
 		SwapModifier:        contract.SettingsWindowDragModifierMeta,
 		HistoryLimit:        77,
+		NavStackLimit:       66,
+		ClosedEntryLimit:    18,
 		DesktopTransition:   contract.SettingsWindowDesktopTransitionCrossfade,
 		Gaps: contract.SettingsWindowManagerGapsPayload{
 			Inner:  12,

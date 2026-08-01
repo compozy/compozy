@@ -62,6 +62,23 @@ export function selectWindowManagerGestureActive(
   return state.gesture?.status === "active" && state.gesture.source.windowId === windowId;
 }
 
+/**
+ * True only once the pointer has left the press point: rnd begins the gesture
+ * on pointer-down, and drag styling on a plain press would flash the chrome.
+ */
+export function selectWindowManagerGestureDragging(
+  state: WindowManagerStoreState,
+  windowId: string
+): boolean {
+  const gesture = state.gesture;
+  return (
+    gesture?.status === "active" &&
+    gesture.source.windowId === windowId &&
+    (gesture.currentPoint.x !== gesture.startPoint.x ||
+      gesture.currentPoint.y !== gesture.startPoint.y)
+  );
+}
+
 export function selectWindowManagerGesturePreview(
   state: WindowManagerStoreState
 ): SnapTarget | null {

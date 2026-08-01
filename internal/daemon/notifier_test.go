@@ -238,6 +238,9 @@ func TestHooksNotifierDispatchesLifecycleAgentAndStreamEvents(t *testing.T) {
 		if got, want := agentEvents.events, []string{"agent"}; !testutil.EqualStringSlices(got, want) {
 			t.Fatalf("agent event notifier events = %#v, want %#v", got, want)
 		}
+		if got := agentEvents.eventSessions; len(got) != 1 || got[0] != sess {
+			t.Fatalf("agent event sessions = %#v, want full runtime session", got)
+		}
 	})
 }
 

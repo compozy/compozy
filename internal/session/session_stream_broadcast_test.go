@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/sessiondb"
@@ -118,6 +119,44 @@ func TestSessionEventBroadcaster(t *testing.T) {
 
 func TestSessionCatalogBroadcaster(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should wake the owning workspace catalog for permission state changes", func(t *testing.T) {
+		t.Parallel()
+
+		manager, err := NewManager(WithHomePaths(testHomePaths(t)))
+		if err != nil {
+			t.Fatalf("NewManager() error = %v", err)
+		}
+		events, cancel, err := manager.SubscribeSessionCatalogEvents(testutil.Context(t))
+		if err != nil {
+			t.Fatalf("SubscribeSessionCatalogEvents() error = %v", err)
+		}
+		defer cancel()
+
+		session := &Session{ID: "sess-attention", WorkspaceID: "ws-attention"}
+		manager.publishSessionCatalogWakeForEvent(session, acp.AgentEvent{Type: acp.EventTypePermission})
+
+		select {
+		case event := <-events:
+			want := CatalogEvent{
+				Kind:        CatalogEventUpserted,
+				WorkspaceID: "ws-attention",
+				SessionID:   "sess-attention",
+			}
+			if event != want {
+				t.Fatalf("catalog event = %#v, want %#v", event, want)
+			}
+		default:
+			t.Fatal("permission state change did not wake the session catalog")
+		}
+
+		manager.publishSessionCatalogWakeForEvent(session, acp.AgentEvent{Type: acp.EventTypeAgentMessage})
+		select {
+		case event := <-events:
+			t.Fatalf("non-permission event woke the catalog: %#v", event)
+		default:
+		}
+	})
 
 	t.Run("Should broadcast workspace-identified events to one global subscriber", func(t *testing.T) {
 		t.Parallel()

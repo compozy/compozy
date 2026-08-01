@@ -1,11 +1,4 @@
-import {
-  Field,
-  FieldContent,
-  FieldDescription,
-  FieldLabel,
-  FormSection,
-  RequiredMark,
-} from "@compozy/ui";
+import { Field, FieldContent, FieldDescription, FieldLabel, RequiredMark } from "@compozy/ui";
 
 import { AgentCommandSelect, type AgentPayload } from "@/systems/agent";
 
@@ -38,33 +31,26 @@ function SessionCreateSimpleSection({
       : "No agents available";
 
   return (
-    <FormSection
-      description="The agent brings its configured instructions and tools."
-      title="Agent"
-    >
-      <div className="flex flex-col gap-4">
-        <Field>
-          <FieldContent>
-            <FieldLabel htmlFor="session-create-agent">
-              Agent
-              <RequiredMark />
-            </FieldLabel>
-            <FieldDescription>
-              The agent owns the instructions and tools for this session.
-            </FieldDescription>
-          </FieldContent>
-          <AgentCommandSelect
-            agents={agents}
-            disabled={!workspaceSelected || !hasAgents || isSubmitting}
-            onChange={next => onAgentChange(next ?? "")}
-            placeholder={agentPlaceholder}
-            triggerId="session-create-agent"
-            triggerTestId="session-create-agent-select"
-            value={workspaceSelected ? trimmedSelectedAgentName || null : null}
-          />
-        </Field>
-      </div>
-    </FormSection>
+    <Field>
+      <FieldContent>
+        <FieldLabel htmlFor="session-create-agent">
+          Agent
+          <RequiredMark />
+        </FieldLabel>
+        <FieldDescription>
+          The agent owns the instructions and tools for this session.
+        </FieldDescription>
+      </FieldContent>
+      <AgentCommandSelect
+        agents={agents}
+        disabled={!workspaceSelected || !hasAgents || isSubmitting}
+        onChange={next => onAgentChange(next ?? "")}
+        placeholder={agentPlaceholder}
+        triggerId="session-create-agent"
+        triggerTestId="session-create-agent-select"
+        value={workspaceSelected ? trimmedSelectedAgentName || null : null}
+      />
+    </Field>
   );
 }
 

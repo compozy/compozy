@@ -39,6 +39,7 @@ const (
 	windowManagerNavigateKey      = "navigate"
 	windowManagerFocusKey         = "focus"
 	windowManagerMoveKey          = "move"
+	windowManagerResizeKey        = "resize"
 	windowManagerArrangeKey       = "arrange"
 	windowManagerArrangementFlag  = "arrangement"
 	windowManagerFrameFlag        = "frame"
@@ -358,28 +359,39 @@ func optionalWindowManagerNormalizedRect(
 	if !cmd.Flags().Changed(flagName) {
 		return nil, nil
 	}
+	rect, err := parseWindowManagerRectValue(flagName, raw)
+	if err != nil {
+		return nil, err
+	}
+	return &rect, nil
+}
+
+func parseWindowManagerRectValue(flagName, raw string) (windowmanager.NormalizedRect, error) {
 	parts := strings.Split(raw, ",")
 	if len(parts) != 4 {
-		return nil, fmt.Errorf("cli: --%s must be x,y,width,height in normalized coordinates", flagName)
+		return windowmanager.NormalizedRect{}, fmt.Errorf(
+			"cli: --%s must be x,y,width,height in normalized coordinates",
+			flagName,
+		)
 	}
 	values := make([]float64, 4)
 	for index, part := range parts {
 		value, err := strconv.ParseFloat(strings.TrimSpace(part), 64)
 		if err != nil || math.IsNaN(value) || math.IsInf(value, 0) {
-			return nil, fmt.Errorf("cli: --%s coordinate %q is invalid", flagName, part)
+			return windowmanager.NormalizedRect{}, fmt.Errorf("cli: --%s coordinate %q is invalid", flagName, part)
 		}
 		values[index] = value
 	}
 	rect := windowmanager.NormalizedRect{X: values[0], Y: values[1], Width: values[2], Height: values[3]}
 	if rect.X < 0 || rect.Y < 0 || rect.Width <= 0 || rect.Height <= 0 ||
 		rect.X+rect.Width > 1 || rect.Y+rect.Height > 1 {
-		return nil, newWindowManagerCLIValidationError(
+		return windowmanager.NormalizedRect{}, newWindowManagerCLIValidationError(
 			windowManagerCLIValidationOutOfBounds,
 			flagName,
 			fmt.Errorf("cli: --%s must be positive and contained in the normalized unit square", flagName),
 		)
 	}
-	return &rect, nil
+	return rect, nil
 }
 
 func requiredWindowManagerIDs(values []string, flagName string) ([]windowmanager.WindowID, error) {

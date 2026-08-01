@@ -99,11 +99,12 @@ func (p *daemonExtensionToolProvider) canonicalWorkspaceScope(
 			err,
 		)
 	}
-	workspaceID := strings.TrimSpace(resolved.WorkspaceID)
-	if workspaceID == "" {
+	workspaceID, err := nativeResolvedRegistryWorkspaceID(&resolved)
+	if err != nil {
 		return toolspkg.Scope{}, fmt.Errorf(
-			"daemon: resolved extension tool workspace %q has no stable identity",
+			"daemon: resolved extension tool workspace %q has no registered runtime id: %w",
 			workspaceRef,
+			err,
 		)
 	}
 	scope.WorkspaceID = workspaceID
@@ -250,9 +251,13 @@ func (h *daemonExtensionToolHandle) attachTrustedWorkspace(
 			toolspkg.ErrToolInvalidInput,
 		)
 	}
-	req.WorkspaceID = strings.TrimSpace(resolved.WorkspaceID)
-	if req.WorkspaceID == "" {
-		req.WorkspaceID = strings.TrimSpace(resolved.ID)
+	req.WorkspaceID, err = nativeResolvedRegistryWorkspaceID(&resolved)
+	if err != nil {
+		return toolspkg.CallRequest{}, extensionWorkspaceScopeError(
+			req.ToolID,
+			fmt.Sprintf("tool %q workspace %q has no registered runtime id", req.ToolID, workspaceID),
+			err,
+		)
 	}
 	req.TrustedWorkspaceRoot = root
 	return req, nil

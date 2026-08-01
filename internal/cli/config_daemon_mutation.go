@@ -32,24 +32,36 @@ func maybeApplyConfigSetViaDaemon(
 		return nil, nil
 	}
 
-	disabledSkills, ok := value.([]string)
-	if !ok {
-		return nil, fmt.Errorf(
-			"cli: config set %q expects a string slice payload, got %T",
-			strings.Join(path, "."),
-			value,
-		)
-	}
-
 	cfg, err := deps.loadConfig()
 	if err != nil {
 		return nil, fmt.Errorf("cli: load current config for daemon-backed config set: %w", err)
 	}
-	cfg.Skills.DisabledSkills = append([]string(nil), disabledSkills...)
 
-	result, err := client.UpdateSettingsSkills(ctx, UpdateSettingsSkillsRequest{
-		Config: settingsSkillsPayloadFromConfig(cfg.Skills),
-	})
+	var result SettingsMutationRecord
+	switch path[0] {
+	case configSkillsKey:
+		disabledSkills, ok := value.([]string)
+		if !ok {
+			return nil, fmt.Errorf(
+				"cli: config set %q expects a string slice payload, got %T",
+				strings.Join(path, "."),
+				value,
+			)
+		}
+		cfg.Skills.DisabledSkills = append([]string(nil), disabledSkills...)
+		result, err = client.UpdateSettingsSkills(ctx, UpdateSettingsSkillsRequest{
+			Config: settingsSkillsPayloadFromConfig(cfg.Skills),
+		})
+	case configWindowManagerKey:
+		if applyErr := applyWindowManagerConfigValue(&cfg.WindowManager, path, value); applyErr != nil {
+			return nil, applyErr
+		}
+		result, err = client.UpdateSettingsWindowManager(ctx, UpdateSettingsWindowManagerRequest{
+			Config: settingsWindowManagerPayloadFromConfig(cfg.WindowManager),
+		})
+	default:
+		return nil, fmt.Errorf("cli: config set %q is not daemon-managed", strings.Join(path, "."))
+	}
 	if err != nil {
 		return nil, fmt.Errorf("cli: apply %q via daemon settings surface: %w", strings.Join(path, "."), err)
 	}
@@ -107,10 +119,13 @@ func maybeReloadConfigAfterLocalWrite(
 }
 
 func supportsDaemonManagedConfigSet(path []string, target compozyconfig.WriteTarget) bool {
-	return target.Scope() == compozyconfig.WriteScopeGlobal &&
-		len(path) == 2 &&
-		path[0] == configSkillsKey &&
-		path[1] == agentDisabledSkillsKey
+	if target.Scope() != compozyconfig.WriteScopeGlobal {
+		return false
+	}
+	if len(path) == 2 && path[0] == configSkillsKey && path[1] == agentDisabledSkillsKey {
+		return true
+	}
+	return len(path) >= 2 && path[0] == configWindowManagerKey
 }
 
 func settingsSkillsPayloadFromConfig(cfg compozyconfig.SkillsConfig) contract.SettingsSkillsConfigPayload {
@@ -132,7 +147,8 @@ func configMutationPath(raw string) ([]string, configSetValueKind, bool, error) 
 	if err != nil {
 		return nil, configSetString, false, err
 	}
-	if len(segments) > 3 && segments[0] == configWindowManagerKey && segments[1] == "shortcuts" {
+	if len(segments) > 3 && segments[0] == configWindowManagerKey &&
+		segments[1] == configWindowManagerShortcutsKey {
 		segments = []string{segments[0], segments[1], strings.Join(segments[2:], ".")}
 	}
 	kind, redacted, err := classifyConfigMutationPath(segments)

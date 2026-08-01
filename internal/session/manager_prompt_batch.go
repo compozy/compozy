@@ -136,6 +136,7 @@ func (m *Manager) dispatchPersistedRecordedEvent(
 	m.dispatchEventPostRecord(ctx, session, event, persisted.Content, persisted.Sequence)
 	m.dispatchSessionMessagePersisted(ctx, session, event, persisted, persisted.Content)
 	m.publishSessionEvent(ctx, session, persisted)
+	m.publishSessionCatalogWakeForEvent(session, event)
 }
 
 type persistedSessionEventBatchRecorder interface {

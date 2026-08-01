@@ -20,9 +20,9 @@ func (m *Manager) resolveDevGeneration(
 	if err != nil {
 		return nil, fmt.Errorf("extension: resolve development workspace %q: %w", key.WorkspaceID, err)
 	}
-	resolvedID := strings.TrimSpace(workspace.WorkspaceID)
+	resolvedID := strings.TrimSpace(workspace.ID)
 	if resolvedID == "" {
-		resolvedID = strings.TrimSpace(workspace.ID)
+		return nil, errors.New("extension: resolved workspace registration id is required")
 	}
 	if resolvedID != key.WorkspaceID {
 		return nil, fmt.Errorf("%w: resolved workspace %q", ErrExtensionWorkspaceDenied, resolvedID)

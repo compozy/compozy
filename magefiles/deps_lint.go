@@ -10,10 +10,18 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/magefile/mage/sh"
+)
+
+const (
+	goLintScopesEnvVar         = "COMPOZY_GO_LINT_SCOPES"
+	goLintConcurrencyEnvVar    = "COMPOZY_GO_LINT_CONCURRENCY"
+	golangciLintMaxConcurrency = 8
 )
 
 func Deps() error {
@@ -104,8 +112,10 @@ func runGolangCILint() error {
 		"--allow-parallel-runners",
 		"--timeout",
 		golangciLintTimeout,
-		"./...",
+		"--concurrency",
+		golangciLintConcurrency(),
 	}
+	args = append(args, golangciLintScopes(os.Getenv(goLintScopesEnvVar))...)
 	if hasPinnedTool("golangci-lint", golangciLintVersion, "version") {
 		return sh.RunWithV(env, "golangci-lint", args...)
 	}
@@ -114,6 +124,39 @@ func runGolangCILint() error {
 		args...,
 	)
 	return sh.RunWithV(env, "go", goRunArgs...)
+}
+
+// golangciLintScopes returns the package patterns to lint: explicit
+// space-separated scopes, or the whole module when unset.
+func golangciLintScopes(raw string) []string {
+	scopes := strings.Fields(raw)
+	if len(scopes) == 0 {
+		return []string{"./..."}
+	}
+	return scopes
+}
+
+func golangciLintConcurrency() string {
+	if raw := strings.TrimSpace(os.Getenv(goLintConcurrencyEnvVar)); raw != "" {
+		if value, err := strconv.Atoi(raw); err == nil && value > 0 {
+			return strconv.Itoa(value)
+		}
+		fmt.Printf("Warning: ignoring invalid %s=%q; using derived cap\n", goLintConcurrencyEnvVar, raw)
+	}
+	return strconv.Itoa(golangciLintConcurrencyFor(runtime.GOMAXPROCS(0)))
+}
+
+// golangciLintConcurrencyFor keeps small machines at full width and caps larger
+// hosts: a full-width run pins every core, and past the performance cores Apple
+// Silicon runs slower, not faster.
+func golangciLintConcurrencyFor(effectiveCPU int) int {
+	if effectiveCPU < 1 {
+		return 1
+	}
+	if effectiveCPU <= golangciLintMaxConcurrency {
+		return effectiveCPU
+	}
+	return golangciLintMaxConcurrency
 }
 
 func golangCILintCacheDir(explicit, projectRoot string) (string, error) {

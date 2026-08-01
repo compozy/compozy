@@ -139,6 +139,7 @@ const windowManagerWindowOpenInputSchema = `{
 		"route":` + windowManagerRouteSchema + `,
 		"floating_rect":` + windowManagerRectSchema + `,
 		"insert_tiled":{"type":"boolean"},
+		"stack_target_window_id":{"type":"string","minLength":1},
 		"restore_window_id":{"type":"string","minLength":1},
 		"rebase":` + windowManagerRebaseSchema + `,
 		` + windowManagerOriginSchema + `
@@ -155,10 +156,14 @@ const windowManagerWindowNavigateInputSchema = `{
 		` + windowManagerClientSchema + `,
 		"window_id":{"type":"string","minLength":1},
 		"route":` + windowManagerRouteSchema + `,
+		"mode":{"type":"string","enum":["replace","push","pop"]},
 		"rebase":` + windowManagerRebaseSchema + `,
 		` + windowManagerOriginSchema + `
 	},
-	"required":["expected_revision","window_id","route"],
+	"required":["expected_revision","window_id"],
+	"if":{"properties":{"mode":{"const":"pop"}},"required":["mode"]},
+	"then":{"not":{"required":["route"]}},
+	"else":{"required":["route"]},
 	"additionalProperties":false
 }`
 
@@ -169,10 +174,13 @@ const windowManagerWindowCloseInputSchema = `{
 		` + windowManagerRevisionSchema + `,
 		"window_id":{"type":"string","minLength":1},
 		"minimize":{"type":"boolean"},
+		"scope":{"type":"string","enum":["tab","group","others","right"]},
 		"rebase":` + windowManagerRebaseSchema + `,
 		` + windowManagerOriginSchema + `
 	},
 	"required":["expected_revision","window_id"],
+	"if":{"properties":{"minimize":{"const":true}},"required":["minimize"]},
+	"then":{"not":{"required":["scope"]}},
 	"additionalProperties":false
 }`
 
@@ -211,13 +219,26 @@ const windowManagerWindowMoveInputSchema = `{
 		"required":["move_group"]
 	},
 	"then":{
-		"not":{"anyOf":[
+		"not":{"allOf":[
 			{"required":["target_window_id"]},
-			{"required":["placement"]},
 			{"required":["floating_rect"]}
 		]}
 	},
 	"else":{"required":["placement"]},
+	"additionalProperties":false
+}`
+
+const windowManagerWindowResizeInputSchema = `{
+	"type":"object",
+	"properties":{
+		` + windowManagerWorkspaceSchema + `,
+		` + windowManagerRevisionSchema + `,
+		"window_id":{"type":"string","minLength":1},
+		"frame":` + windowManagerRectSchema + `,
+		"rebase":` + windowManagerRebaseSchema + `,
+		` + windowManagerOriginSchema + `
+	},
+	"required":["expected_revision","window_id","frame"],
 	"additionalProperties":false
 }`
 
@@ -271,8 +292,10 @@ const windowManagerLayoutPreviewInputSchema = `{
 		` + windowManagerClientSchema + `,
 		"command_id":{"type":"string","enum":[
 			"desktop.create","desktop.update","desktop.reorder","desktop.switch","desktop.delete",
-			"window.open","window.navigate","window.close","window.focus","window.move","window.swap","window.toggle_floating",
-			"window.zoom","layout.arrange","layout.resize","layout.balance","layout.undo","layout.redo"
+			"window.open","window.navigate","window.close","window.focus","window.move","window.resize",
+			"window.swap","window.toggle_floating",
+			"window.zoom","window.stack.group","window.stack.reorder","window.stack.set_active","window.pin","window.reopen",
+			"layout.arrange","layout.resize","layout.frame_resize","layout.balance","layout.undo","layout.redo"
 		]},
 		"payload":{"type":"object"},
 		"rebase":` + windowManagerRebaseSchema + `,
@@ -320,6 +343,30 @@ const windowManagerLayoutResizeInputSchema = `{
 	"additionalProperties":false
 }`
 
+const windowManagerGroupFrameEditSchema = `{
+	"type":"object",
+	"properties":{
+		"group_id":{"type":"string","minLength":1},
+		"frame":` + windowManagerRectSchema + `
+	},
+	"required":["group_id","frame"],
+	"additionalProperties":false
+}`
+
+const windowManagerLayoutFrameResizeInputSchema = `{
+	"type":"object",
+	"properties":{
+		` + windowManagerWorkspaceSchema + `,
+		` + windowManagerRevisionSchema + `,
+		"desktop_id":{"type":"string","minLength":1},
+		"edits":{"type":"array","minItems":1,"items":` + windowManagerGroupFrameEditSchema + `},
+		"rebase":` + windowManagerRebaseSchema + `,
+		` + windowManagerOriginSchema + `
+	},
+	"required":["expected_revision","desktop_id","edits"],
+	"additionalProperties":false
+}`
+
 const windowManagerLayoutBalanceInputSchema = `{
 	"type":"object",
 	"properties":{
@@ -348,7 +395,7 @@ const windowManagerLayoutHistoryInputSchema = `{
 const windowManagerLayoutDocumentSchema = `{
 	"type":"object",
 	"properties":{
-		"version":{"type":"integer","const":2},
+		"version":{"type":"integer","const":3},
 		"workspace_id":{"type":"string","minLength":1},
 		"desktops":{"type":"array","minItems":1,"items":{"type":"object"}},
 		"windows":{"type":"object"},
@@ -378,80 +425,5 @@ const windowManagerLayoutApplyInputSchema = `{
 		` + windowManagerOriginSchema + `
 	},
 	"required":["expected_revision","document"],
-	"additionalProperties":false
-}`
-
-const windowManagerChangesSchema = `{
-	"type":"object",
-	"properties":{
-		"desktop_ids":{"type":"array","items":{"type":"string"}},
-		"window_ids":{"type":"array","items":{"type":"string"}},
-		"group_ids":{"type":"array","items":{"type":"string"}},
-		"node_ids":{"type":"array","items":{"type":"string"}},
-		"client_ids":{"type":"array","items":{"type":"string"}}
-	},
-	"additionalProperties":false
-}`
-
-const windowManagerDiagnosticsSchema = `{
-	"type":"array",
-	"items":{
-		"type":"object",
-		"properties":{
-			"code":{"type":"string"},
-			"path":{"type":"string"},
-			"message":{"type":"string"}
-		},
-		"required":["code","message"],
-		"additionalProperties":false
-	}
-}`
-
-const windowManagerReadOutputSchema = `{
-	"type":"object",
-	"properties":{
-		"workspace_id":{"type":"string"},
-		"revision":{"type":"integer","minimum":0},
-		"desktops":{"type":"array"},
-		"windows":{"type":"array"},
-		"clients":{"type":"array"},
-		"snapshot":{"type":"object"},
-		"document":{"type":"object"},
-		"valid":{"type":"boolean"},
-		"diagnostics":` + windowManagerDiagnosticsSchema + `
-	},
-	"required":["workspace_id","revision"],
-	"additionalProperties":false
-}`
-
-const windowManagerCommandOutputSchema = `{
-	"type":"object",
-	"properties":{
-		"workspace_id":{"type":"string"},
-		"command_id":{"type":"string"},
-		"revision":{"type":"integer","minimum":0},
-		"applied":{"type":"boolean"},
-		"changes":` + windowManagerChangesSchema + `,
-		"diagnostics":` + windowManagerDiagnosticsSchema + `,
-		"client":{"type":"object"},
-		"rebased_from":{"type":"integer","minimum":0}
-	},
-	"required":["workspace_id","command_id","revision","applied","changes","diagnostics"],
-	"additionalProperties":false
-}`
-
-const windowManagerPreviewOutputSchema = `{
-	"type":"object",
-	"properties":{
-		"workspace_id":{"type":"string"},
-		"command_id":{"type":"string"},
-		"revision":{"type":"integer","minimum":0},
-		"changed":{"type":"boolean"},
-		"changes":` + windowManagerChangesSchema + `,
-		"diagnostics":` + windowManagerDiagnosticsSchema + `,
-		"client":{"type":"object"},
-		"snapshot":{"type":"object"}
-	},
-	"required":["workspace_id","command_id","revision","changed","changes","diagnostics","snapshot"],
 	"additionalProperties":false
 }`

@@ -127,7 +127,7 @@ describe("OsWindowFrame", () => {
     expect(document.querySelectorAll('[data-slot="page-head"]')).toHaveLength(0);
   });
 
-  it("Should show and clear the optional 38px toolbar strip (UT-091)", () => {
+  it("Should show and clear the optional 38px toolbar strip (UT-091, UT-131)", () => {
     function Harness({ withToolbar }: { withToolbar: boolean }) {
       return (
         <OsWindowFrame title="Tasks">

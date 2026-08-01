@@ -7,17 +7,20 @@ import {
   type PointerEvent,
   type RefObject,
 } from "react";
-import type { Rnd, RndDragCallback, RndResizeCallback } from "react-rnd";
+import type { Rnd, RndDragCallback, RndResizeCallback, RndResizeStartCallback } from "react-rnd";
 
 import type { OsTrafficLightAction } from "../components/os-traffic-lights";
 import { bindLayoutGestureCancellation } from "../lib/layout-gesture-cancellation";
+import { clampFloatingRect } from "../lib/layout-projection";
+import type { OsWindowFrameModel } from "../lib/group-projection";
 import { resolveSnapTarget, type OccupiedSnapCandidate } from "../lib/snap-targets";
-import type { OsRect, OsWindow, WindowManagerCommandOutcome } from "../lib/os-types";
+import type { OsRect, WindowManagerCommandOutcome } from "../lib/os-types";
 import { snapTargetConfigFromConfig } from "../lib/window-manager-view";
 import { windowManagerStore } from "../stores/window-manager-store";
 import { finishWindowManagerGesture } from "../stores/window-manager-store-commands";
 import { useDesktop } from "./use-desktop";
 import { useOsShell } from "./use-os-shell";
+import { useOsWindowResize } from "./use-os-window-resize";
 import {
   useWindowManagerGestureActive,
   useWindowManagerWorkArea,
@@ -33,21 +36,21 @@ function applyAuthoritativeRndRect(rnd: Rnd | null, rect: OsRect) {
 export const OS_WINDOW_DRAG_HANDLE_CLASS = "os-window-drag-handle";
 export const OS_WINDOW_DRAG_CANCEL_SELECTOR = [
   '[data-slot="os-traffic-lights"]',
+  '[data-slot="os-window-tab"]',
+  '[data-slot="os-window-tab-add"]',
   '[data-slot="topbar-back"]',
   '[data-slot="topbar-crumb"]',
   '[data-slot="topbar-crumb-more"]',
-  '[data-slot="topbar-nav"]',
   '[data-slot="topbar-trailing"]',
 ].join(", ");
 
 export interface OsWindowModel {
-  win: OsWindow | undefined;
   focused: boolean;
   keepMounted: boolean;
-  rect: OsRect | null;
+  rect: OsRect;
   rndRef: RefObject<Rnd | null>;
-  setOverlayHost: (element: HTMLDivElement | null) => void;
-  overlayHost: HTMLDivElement | null;
+  /** Live pixel ceiling for the active tiled edge drag; null when unconstrained. */
+  resizeMax: { width: number; height: number } | null;
   handleTrafficLight: (action: OsTrafficLightAction) => void;
   handlePointerEnter: () => void;
   handlePointerDownCapture: (event: PointerEvent<HTMLElement>) => void;
@@ -55,6 +58,7 @@ export interface OsWindowModel {
   handleDragStart: RndDragCallback;
   handleDrag: RndDragCallback;
   handleDragStop: RndDragCallback;
+  handleResizeStart: RndResizeStartCallback;
   handleResizeStop: RndResizeCallback;
 }
 
@@ -99,20 +103,35 @@ function modifierActive(
   }
 }
 
-/** Semantic window gestures; pixels remain preview-only until one command commits. */
-export function useOsWindow(windowId: string): OsWindowModel {
+/**
+ * Semantic frame gestures; pixels remain preview-only until one command
+ * commits. The gesture source is the frame's active member: a real tab frame
+ * (floating or tiled) moves as one unit (`move_group`) because the deck bar is
+ * its only drag handle — the browser contract where the strip drags the whole
+ * window and only a tab drags alone. Solo windows and adaptive viewport
+ * stacks keep the established drag-away/snap semantics. Group moves resolve
+ * the same zones as solo windows — tiles arrange a tiled stack, sides splice
+ * the frame in as one node, occupied centers swap whole units, and zoom lifts
+ * the whole frame.
+ */
+export function useOsWindow(frame: OsWindowFrameModel): OsWindowModel {
   const { manager, coordinator } = useOsShell();
-  const gestureActive = useWindowManagerGestureActive(windowId);
+  const activeId = frame.activeWindowId;
+  const memberIds = new Set(frame.members);
+  const gestureActive = useWindowManagerGestureActive(activeId);
   const workArea = useWindowManagerWorkArea();
-  const win = useDesktop(state => state.windows[windowId]);
   const activeDesktopId = useDesktop(state => state.activeDesktopId);
-  const focused = useDesktop(state => state.focusedId === windowId);
-  const visibleNow = Boolean(
-    win && win.desktopId === activeDesktopId && !win.minimized && win.stackActive
-  );
+  const focused = useDesktop(state => state.focusedId !== null && memberIds.has(state.focusedId));
+  // Adaptive viewport stacks (stackId null) are squeezed panes, not tab
+  // groups — their members still drag away individually.
+  const movesAsUnit = frame.stackId !== null && frame.members.length > 1;
+  const visibleNow = frame.desktopId === activeDesktopId && !frame.minimized;
   const [hasBeenVisible, setHasBeenVisible] = useState(visibleNow);
-  const [overlayHost, setOverlayHost] = useState<HTMLDivElement | null>(null);
   const [rollbackEpoch, setRollbackEpoch] = useState(0);
+  // Drop commits round-trip to the daemon before the snapshot moves; holding
+  // the dropped rect until the command settles keeps the controlled rnd from
+  // flashing the stale authoritative rect between release and reconcile.
+  const [pendingRect, setPendingRect] = useState<OsRect | null>(null);
   const rndRef = useRef<Rnd | null>(null);
   const gestureAttemptRef = useRef(0);
   const rollbackAttemptRef = useRef<number | null>(null);
@@ -130,12 +149,12 @@ export function useOsWindow(windowId: string): OsWindowModel {
       });
     });
   }, [gestureActive]);
+
   const candidates = (): OccupiedSnapCandidate[] => {
     const state = manager.getState();
-    if (!win) return [];
     return Object.values(state.windows).flatMap(window =>
-      window.id === windowId ||
-      window.desktopId !== win.desktopId ||
+      memberIds.has(window.id) ||
+      window.desktopId !== frame.desktopId ||
       window.minimized ||
       window.nodeId === null
         ? []
@@ -174,7 +193,7 @@ export function useOsWindow(windowId: string): OsWindowModel {
   };
 
   const snapBackToAuthoritative = () => {
-    const authoritative = manager.getState().windows[windowId];
+    const authoritative = manager.getState().windows[activeId];
     if (authoritative) {
       applyAuthoritativeRndRect(rndRef.current, authoritative.rect);
     }
@@ -189,10 +208,25 @@ export function useOsWindow(windowId: string): OsWindowModel {
     const gestureAttempt = rollbackAttemptRef.current;
     if (gestureAttempt === null || gestureAttemptRef.current !== gestureAttempt) return;
     rollbackAttemptRef.current = null;
-    const authoritative = manager.getState().windows[windowId];
+    setPendingRect(null);
+    const authoritative = manager.getState().windows[activeId];
     if (!authoritative) return;
     applyAuthoritativeRndRect(rndRef.current, authoritative.rect);
-  }, [manager, rollbackEpoch, windowId]);
+  }, [manager, rollbackEpoch, activeId]);
+
+  // Holds the released rect while the commit is in flight; the settled
+  // authoritative rect replaces it, and rollbacks clear it explicitly.
+  const holdRectWhileInFlight = (
+    rect: OsRect,
+    outcome: WindowManagerCommandOutcome,
+    gestureAttempt: number
+  ) => {
+    if (!outcome.accepted) return;
+    setPendingRect(rect);
+    void outcome.completion.finally(() => {
+      if (gestureAttemptRef.current === gestureAttempt) setPendingRect(null);
+    });
+  };
 
   const reconcileGestureOutcome = (
     outcome: WindowManagerCommandOutcome,
@@ -212,7 +246,7 @@ export function useOsWindow(windowId: string): OsWindowModel {
   // Escape cancelled the gesture: snap back to the source rect instead of tracking the pointer.
   const snapBackCancelled = (): boolean => {
     const gesture = windowManagerStore.getSnapshot().context.gesture;
-    if (gesture?.status !== "cancelled" || gesture.source.windowId !== windowId) return false;
+    if (gesture?.status !== "cancelled" || gesture.source.windowId !== activeId) return false;
     snapBackToAuthoritative();
     return true;
   };
@@ -225,32 +259,37 @@ export function useOsWindow(windowId: string): OsWindowModel {
 
   const settleCancelledDrag = (): boolean => {
     const gesture = windowManagerStore.getSnapshot().context.gesture;
-    if (gesture?.status !== "cancelled" || gesture.source.windowId !== windowId) return false;
+    if (gesture?.status !== "cancelled" || gesture.source.windowId !== activeId) return false;
     settleUncommittedDrag();
     return true;
   };
 
   const activate = (target: EventTarget | null) => {
+    const state = manager.getState();
+    const win = state.windows[activeId];
     if (!win || (focused && !win.minimized)) return;
     const element = target instanceof Element ? target : null;
-    void coordinator.userFocus(windowId, { viaLink: Boolean(element?.closest("a[href]")) });
+    void coordinator.userFocus(activeId, { viaLink: Boolean(element?.closest("a[href]")) });
   };
 
   const handleDragStart: RndDragCallback = (event, _data) => {
     const point = layerPoint(event);
     const state = manager.getState();
     const config = state.windowManagerConfig;
+    const win = state.windows[activeId];
     if (!point || !workArea || !win || !state.snapshot || config === null) return;
     gestureAttemptRef.current += 1;
     const moveGroup =
-      config.dragAwayPolicy === "group" || modifierActive(event, config.groupMoveModifier);
+      movesAsUnit ||
+      config.dragAwayPolicy === "group" ||
+      modifierActive(event, config.groupMoveModifier);
     windowManagerStore.trigger.gestureBegan({
       pointerId: 0,
       point,
       workArea: workArea.rect,
       layoutRevision: state.snapshot.revision,
       source: {
-        windowId,
+        windowId: activeId,
         nodeId: win.nodeId,
         groupId: win.groupId,
         moveMode: moveGroup ? "group" : "window",
@@ -264,9 +303,12 @@ export function useOsWindow(windowId: string): OsWindowModel {
     const gesture = windowManagerStore.getSnapshot().context.gesture;
     const currentWorkArea = windowManagerStore.getSnapshot().context.workArea?.rect;
     if (!point || gesture?.status !== "active" || !currentWorkArea) return;
+    // A deck or head advertising the merge drop owns the affordance; a snap
+    // preview under it would promise a different commit than the release.
+    const mergeTargeted = windowManagerStore.getSnapshot().context.deckDropTarget !== null;
     windowManagerStore.trigger.gesturePreviewed({
       point,
-      preview: targetAt(point, gesture.workArea, swapModifierHeld(event)),
+      preview: mergeTargeted ? null : targetAt(point, gesture.workArea, swapModifierHeld(event)),
       currentWorkArea,
     });
   };
@@ -277,8 +319,25 @@ export function useOsWindow(windowId: string): OsWindowModel {
     const state = manager.getState();
     const currentGesture = windowManagerStore.getSnapshot().context.gesture;
     const currentWorkArea = windowManagerStore.getSnapshot().context.workArea?.rect;
+    const win = state.windows[activeId];
     if (!win || !state.snapshot || currentGesture?.status !== "active" || !currentWorkArea) {
       settleUncommittedDrag();
+      return;
+    }
+    // A deck advertising itself as the drop target wins over snap targets:
+    // the release commits ONE `window.stack.group{insert_index}` folding every
+    // member of the dragged frame in order (US-001.EC-1, US-014).
+    const dropTarget = windowManagerStore.getSnapshot().context.deckDropTarget;
+    if (dropTarget !== null) {
+      const gestureAttempt = gestureAttemptRef.current;
+      windowManagerStore.trigger.gestureCleared();
+      const outcome = manager.groupWindows(
+        dropTarget.targetWindowId,
+        frame.members,
+        dropTarget.insertIndex
+      );
+      holdRectWhileInFlight({ ...win.rect, x: data.x, y: data.y }, outcome, gestureAttempt);
+      reconcileGestureOutcome(outcome, gestureAttempt);
       return;
     }
     const target = targetAt(point, currentGesture.workArea, swapModifierHeld(event));
@@ -292,10 +351,11 @@ export function useOsWindow(windowId: string): OsWindowModel {
     if (decision?.kind === "commit") {
       const gestureAttempt = gestureAttemptRef.current;
       const outcome = manager.applySnapTarget(
-        windowId,
+        activeId,
         decision.command.target,
         decision.command.source.moveMode === "group"
       );
+      holdRectWhileInFlight(decision.command.target.rect, outcome, gestureAttempt);
       reconcileGestureOutcome(outcome, gestureAttempt);
       return;
     }
@@ -305,52 +365,52 @@ export function useOsWindow(windowId: string): OsWindowModel {
     }
     if (decision?.reason === "no-target") {
       const gestureAttempt = gestureAttemptRef.current;
-      const outcome = manager.commitFloatingRect(
-        windowId,
-        { ...win.rect, x: data.x, y: data.y },
-        {
-          pointer: point,
-          grabOffset: {
-            x: Math.max(0, point.x - data.x),
-            y: Math.max(0, point.y - data.y),
-          },
-        }
-      );
+      const dropped = clampFloatingRect({
+        proposedRect: { ...win.rect, x: data.x, y: data.y },
+        workArea: currentWorkArea,
+        pointer: point,
+        grabOffset: {
+          x: Math.max(0, point.x - data.x),
+          y: Math.max(0, point.y - data.y),
+        },
+      });
+      const outcome = manager.commitFloatingRect(activeId, dropped, undefined, movesAsUnit);
+      holdRectWhileInFlight(dropped, outcome, gestureAttempt);
       reconcileGestureOutcome(outcome, gestureAttempt);
     }
     windowManagerStore.trigger.gestureCleared();
   };
 
-  const handleResizeStop: RndResizeCallback = (_event, _direction, element, _delta, position) => {
-    if (!win || win.placement !== "floating") return;
-    const gestureAttempt = gestureAttemptRef.current + 1;
-    gestureAttemptRef.current = gestureAttempt;
-    const outcome = manager.commitFloatingRect(windowId, {
-      x: position.x,
-      y: position.y,
-      w: element.offsetWidth,
-      h: element.offsetHeight,
-    });
-    reconcileGestureOutcome(outcome, gestureAttempt);
-  };
+  const resize = useOsWindowResize(frame, {
+    manager,
+    activeId,
+    movesAsUnit,
+    nextGestureAttempt: () => {
+      gestureAttemptRef.current += 1;
+      return gestureAttemptRef.current;
+    },
+    holdRectWhileInFlight,
+    reconcileGestureOutcome,
+    scheduleAuthoritativeRollback,
+  });
 
   return {
-    win,
     focused,
     keepMounted: hasBeenVisible || visibleNow,
-    rect: win?.rect ?? null,
+    rect: pendingRect ?? frame.rect,
     rndRef,
-    overlayHost,
-    setOverlayHost,
+    resizeMax: resize.resizeMax,
     handleTrafficLight: action => {
-      if (action === "close") void coordinator.userClose(windowId);
-      else if (action === "minimize") void coordinator.userMinimize(windowId);
-      else void coordinator.userZoom(windowId);
+      if (action === "close") {
+        if (frame.members.length > 1) void manager.closeWindowScoped(activeId, "group");
+        else void coordinator.userClose(activeId);
+      } else if (action === "minimize") void coordinator.userMinimize(activeId);
+      else void coordinator.userZoom(activeId);
     },
     handlePointerEnter: () => {
       const state = manager.getState();
       if (state.windowManagerConfig?.focusFollowsPointer) {
-        void coordinator.userFocus(windowId);
+        void coordinator.userFocus(activeId);
       }
     },
     handlePointerDownCapture: event => {
@@ -362,7 +422,8 @@ export function useOsWindow(windowId: string): OsWindowModel {
     handleDragStart,
     handleDrag,
     handleDragStop,
-    handleResizeStop,
+    handleResizeStart: resize.handleResizeStart,
+    handleResizeStop: resize.handleResizeStop,
   };
 }
 

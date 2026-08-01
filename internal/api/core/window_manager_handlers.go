@@ -78,7 +78,7 @@ func (h *BaseHandlers) handleWindowManagerCommand(c *gin.Context, previewOnly bo
 		h.respondWindowManagerError(c, workspaceID, err)
 		return
 	}
-	payload, err := contract.WindowManagerResultFromDomain(result)
+	payload, err := contract.WindowManagerResultFromDomain(&result)
 	if err != nil {
 		h.respondWindowManagerError(c, workspaceID, fmt.Errorf("encode command result: %w", err))
 		return

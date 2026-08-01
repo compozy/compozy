@@ -132,9 +132,11 @@ function DesktopShellBody({
     manager,
     managerSurfaces,
     onResize,
+    onFrameResize,
     onDesktopManagerOpenChange,
     onOpenDesktopOverview,
     onSeamPreview,
+    onFrameSeamPreview,
     onSeamPreviewEnd,
     onTransitionComplete,
     overlays,
@@ -190,7 +192,9 @@ function DesktopShellBody({
           preview={gesturePreview}
           onTransitionComplete={onTransitionComplete}
           onResize={onResize}
+          onFrameResize={onFrameResize}
           onSeamPreview={onSeamPreview}
+          onFrameSeamPreview={onFrameSeamPreview}
           onSeamPreviewEnd={onSeamPreviewEnd}
         />
         <DesktopManagerSurfaces
@@ -220,6 +224,7 @@ function DesktopShellBody({
           onNewSession={openNewSession}
           badges={attention.badges}
           sessionsOpen={overlays.activeOverlay === "sessions"}
+          contextMenusEnabled={overlays.activeOverlay === null}
           onToggleSessions={() => overlays.toggleOverlay("sessions")}
           pager={
             <DesktopPagerSurface

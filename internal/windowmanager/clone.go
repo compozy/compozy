@@ -5,6 +5,7 @@ import "maps"
 func cloneSnapshot(snapshot Snapshot) Snapshot {
 	snapshot.Desktops = cloneDesktops(snapshot.Desktops)
 	snapshot.Windows = cloneWindows(snapshot.Windows)
+	snapshot.ClosedEntries = cloneClosedEntries(snapshot.ClosedEntries)
 	snapshot.History = cloneHistory(snapshot.History)
 	snapshot.Overrides = cloneWorkspaceConfig(snapshot.Overrides)
 	return snapshot
@@ -26,6 +27,7 @@ func cloneDesktop(desktop Desktop) Desktop {
 		desktop.Groups[index] = cloneLayoutGroup(group)
 	}
 	desktop.Floating = append([]WindowID(nil), desktop.Floating...)
+	desktop.FloatingStacks = cloneFloatingStacks(desktop.FloatingStacks)
 	return desktop
 }
 
@@ -51,10 +53,51 @@ func cloneNode(node LayoutNode) LayoutNode {
 func cloneWindows(windows map[WindowID]Window) map[WindowID]Window {
 	cloned := make(map[WindowID]Window, len(windows))
 	for id, window := range windows {
-		window.InstanceKey = clonePointer(window.InstanceKey)
-		window.Route = cloneRouteIntent(window.Route)
-		window.ReturnAnchor = cloneReturnAnchor(window.ReturnAnchor)
-		cloned[id] = window
+		cloned[id] = cloneWindow(window)
+	}
+	return cloned
+}
+
+func cloneWindow(window Window) Window {
+	window.InstanceKey = clonePointer(window.InstanceKey)
+	window.Route = cloneRouteIntent(window.Route)
+	window.NavStack = cloneRouteIntents(window.NavStack)
+	window.ReturnAnchor = cloneReturnAnchor(window.ReturnAnchor)
+	return window
+}
+
+func cloneRouteIntents(routes []RouteIntent) []RouteIntent {
+	cloned := make([]RouteIntent, len(routes))
+	for index, route := range routes {
+		cloned[index] = cloneRouteIntent(route)
+	}
+	return cloned
+}
+
+func cloneFloatingStack(stack FloatingStack) FloatingStack {
+	stack.WindowIDs = append([]WindowID(nil), stack.WindowIDs...)
+	stack.ActiveID = clonePointer(stack.ActiveID)
+	return stack
+}
+
+func cloneFloatingStacks(stacks []FloatingStack) []FloatingStack {
+	cloned := make([]FloatingStack, len(stacks))
+	for index, stack := range stacks {
+		cloned[index] = cloneFloatingStack(stack)
+	}
+	return cloned
+}
+
+func cloneClosedEntries(entries []ClosedEntry) []ClosedEntry {
+	cloned := make([]ClosedEntry, len(entries))
+	for index, entry := range entries {
+		entry.Windows = make([]Window, len(entries[index].Windows))
+		for windowIndex, window := range entries[index].Windows {
+			entry.Windows[windowIndex] = cloneWindow(window)
+		}
+		entry.ActiveID = clonePointer(entry.ActiveID)
+		entry.StackID = clonePointer(entry.StackID)
+		cloned[index] = entry
 	}
 	return cloned
 }
@@ -89,13 +132,27 @@ func cloneReturnAnchor(anchor *ReturnAnchor) *ReturnAnchor {
 		sourceGroup := cloneLayoutGroup(*anchor.SourceGroup)
 		cloned.SourceGroup = &sourceGroup
 	}
+	if anchor.SourceStack != nil {
+		sourceStack := cloneFloatingStack(*anchor.SourceStack)
+		cloned.SourceStack = &sourceStack
+	}
 	return &cloned
 }
 
 func cloneClientView(view ClientView) ClientView {
 	view.FocusedWindowID = clonePointer(view.FocusedWindowID)
 	view.FocusOrder = append([]WindowID(nil), view.FocusOrder...)
+	view.StackActive = cloneStackActive(view.StackActive)
 	return view
+}
+
+func cloneStackActive(values map[NodeID]WindowID) map[NodeID]WindowID {
+	if values == nil {
+		return nil
+	}
+	cloned := make(map[NodeID]WindowID, len(values))
+	maps.Copy(cloned, values)
+	return cloned
 }
 
 func cloneHistory(history History) History {
@@ -136,6 +193,8 @@ func cloneWorkspaceConfig(config WorkspaceConfig) WorkspaceConfig {
 	config.GroupMoveModifier = clonePointer(config.GroupMoveModifier)
 	config.SwapModifier = clonePointer(config.SwapModifier)
 	config.HistoryLimit = clonePointer(config.HistoryLimit)
+	config.NavStackLimit = clonePointer(config.NavStackLimit)
+	config.ClosedEntryLimit = clonePointer(config.ClosedEntryLimit)
 	config.DesktopTransition = clonePointer(config.DesktopTransition)
 	config.Gaps = clonePointer(config.Gaps)
 	if config.Snap != nil {
@@ -173,6 +232,8 @@ func cloneChangeSet(changes ChangeSet) ChangeSet {
 	changes.GroupIDs = append([]GroupID(nil), changes.GroupIDs...)
 	changes.NodeIDs = append([]NodeID(nil), changes.NodeIDs...)
 	changes.ClientIDs = append([]ClientID(nil), changes.ClientIDs...)
+	changes.StackGrouped = append([]NodeID(nil), changes.StackGrouped...)
+	changes.StackUngrouped = append([]NodeID(nil), changes.StackUngrouped...)
 	return changes
 }
 

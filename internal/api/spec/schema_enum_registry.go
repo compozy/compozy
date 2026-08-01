@@ -95,6 +95,17 @@ var schemaEnumValues = withSettingsWindowManagerSchemaEnumValues(
 			string(windowmanager.WindowPlacementStacked),
 			string(windowmanager.WindowPlacementFloating),
 		},
+		reflect.TypeFor[windowmanager.NavigateMode](): {
+			"replace",
+			string(windowmanager.NavigatePush),
+			string(windowmanager.NavigatePop),
+		},
+		reflect.TypeFor[windowmanager.CloseScope](): {
+			"tab",
+			string(windowmanager.CloseScopeGroup),
+			string(windowmanager.CloseScopeOthers),
+			string(windowmanager.CloseScopeRight),
+		},
 		reflect.TypeFor[windowmanager.FocusDirection](): {
 			string(windowmanager.FocusLeft),
 			string(windowmanager.FocusRight),

@@ -143,6 +143,17 @@ func (c *unixSocketClient) UpdateSettingsSkills(
 	return response, nil
 }
 
+func (c *unixSocketClient) UpdateSettingsWindowManager(
+	ctx context.Context,
+	request UpdateSettingsWindowManagerRequest,
+) (SettingsMutationRecord, error) {
+	var response SettingsMutationRecord
+	if err := c.doJSON(ctx, http.MethodPatch, "/api/settings/window-manager", nil, request, &response); err != nil {
+		return SettingsMutationRecord{}, err
+	}
+	return response, nil
+}
+
 func (c *unixSocketClient) ReloadSettings(ctx context.Context) (SettingsMutationRecord, error) {
 	var response SettingsMutationRecord
 	if err := c.doJSON(ctx, http.MethodPost, "/api/settings/reload", nil, nil, &response); err != nil {

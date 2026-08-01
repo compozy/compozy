@@ -352,6 +352,17 @@ cost_reasoning_per_million = 30
 			RuntimeApplier: applier,
 			ApplyRecords:   NewConfigApplyRecordRepository(db.DB(), nil),
 		})
+		initialActive, err := service.ActiveConfig(ctx)
+		if err != nil {
+			t.Fatalf("ActiveConfig(initial) error = %v", err)
+		}
+		pendingRestartConfig := strings.Replace(
+			baseSettingsConfig(),
+			`provider = "codex"`,
+			`provider = "claude"`,
+			1,
+		)
+		writeFile(t, homePaths.ConfigFile, pendingRestartConfig)
 		desired := testWindowManagerConfig()
 
 		result, err := service.ApplySection(ctx, SectionUpdateRequest{
@@ -373,6 +384,13 @@ cost_reasoning_per_million = 30
 		if got, want := result.Record.Generation, int64(1); got != want {
 			t.Fatalf("Generation = %d, want %d", got, want)
 		}
+		if result.Record.DesiredHash == result.Record.ActiveHash {
+			t.Fatalf(
+				"window-manager hashes = desired %q active %q, want pending restart drift",
+				result.Record.DesiredHash,
+				result.Record.ActiveHash,
+			)
+		}
 		if got, want := applier.calls, 1; got != want {
 			t.Fatalf("ApplyActiveConfig() calls = %d, want %d", got, want)
 		}
@@ -381,6 +399,9 @@ cost_reasoning_per_million = 30
 		}
 		if got := applier.snapshots[0].WindowManager; !reflect.DeepEqual(got, desired) {
 			t.Fatalf("runtime WindowManager = %#v, want %#v", got, desired)
+		}
+		if got, want := applier.snapshots[0].Defaults.Provider, initialActive.Defaults.Provider; got != want {
+			t.Fatalf("runtime defaults.provider = %q, want pending restart value %q excluded", got, want)
 		}
 
 		desired.Snap.RepeatRatios[0] = 0.9
@@ -400,6 +421,16 @@ cost_reasoning_per_million = 30
 		}
 		if got, want := second.WindowManager.Shortcuts["desktop.switch.next"], "Meta+ArrowRight"; got != want {
 			t.Fatalf("active desktop.switch.next shortcut = %q, want %q", got, want)
+		}
+		if got, want := second.Defaults.Provider, initialActive.Defaults.Provider; got != want {
+			t.Fatalf("active defaults.provider = %q, want pending restart value %q excluded", got, want)
+		}
+		pendingRestart, err := service.HasPendingConfigRestart(ctx)
+		if err != nil {
+			t.Fatalf("HasPendingConfigRestart() error = %v", err)
+		}
+		if !pendingRestart {
+			t.Fatal("HasPendingConfigRestart() = false, want pending provider drift")
 		}
 	})
 
@@ -1147,8 +1178,14 @@ func TestReloadChangedPaths(t *testing.T) {
 		current := &compozyconfig.Config{WindowManager: compozyconfig.DefaultWindowManagerConfig()}
 		desired := *current
 		desired.WindowManager.HistoryLimit++
+		desired.WindowManager.NavStackLimit++
+		desired.WindowManager.ClosedEntryLimit++
 
-		want := []string{"window_manager.history_limit"}
+		want := []string{
+			"window_manager.history_limit",
+			"window_manager.nav_stack_limit",
+			"window_manager.closed_entry_limit",
+		}
 		if got := reloadChangedPaths(current, &desired); !slices.Equal(got, want) {
 			t.Fatalf("reloadChangedPaths() = %#v, want %#v", got, want)
 		}

@@ -1,42 +1,10 @@
-import type {
-  MoveWindowInput,
-  OsArrangePreset,
-  OsOpenTarget,
-  OsWindow,
-  OsWindowRoute,
-} from "./os-types";
+import type { MoveWindowInput, OsArrangePreset, OsWindow, OsWindowRoute } from "./os-types";
 import type {
   PixelRect,
   WindowManagerCommandInput,
   WindowManagerWindow,
 } from "./window-manager-types";
-import {
-  DEFAULT_WINDOW_MANAGER_FLOATING_RECT,
-  defaultOsWindowRoute,
-  normalizedRectToWire,
-  pixelRectToNormalized,
-} from "./window-manager-view";
-
-export function openWindowCommand(
-  target: OsOpenTarget,
-  id: string,
-  desktopId: string
-): WindowManagerCommandInput {
-  return {
-    commandId: "window.open",
-    payload: {
-      window: {
-        id,
-        app: target.app,
-        ...(target.instanceKey ? { instance_key: target.instanceKey } : {}),
-        route: target.route ?? defaultOsWindowRoute(target.app),
-        desktop_id: desktopId,
-        floating_rect: normalizedRectToWire(DEFAULT_WINDOW_MANAGER_FLOATING_RECT),
-        insert_tiled: false,
-      },
-    },
-  };
-}
+import { normalizedRectToWire, pixelRectToNormalized } from "./window-manager-view";
 
 export function restoreWindowCommand(
   window: WindowManagerWindow,

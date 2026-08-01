@@ -75,6 +75,7 @@ export abstract class WindowManagerRuntimeCore {
   private unsubscribePresentation: (() => void) | null = null;
   private runtimeProjection: WindowManagerProjectionAtom | null = null;
   private initialView: OsDesktopRuntimeStore | null = null;
+  private projectionDeferred = false;
   private readonly snapshotRefresher = new WindowManagerSnapshotRefresher();
   protected readonly queryClient: QueryClient;
   protected binding: WindowManagerRuntimeBinding | null = null;
@@ -292,6 +293,7 @@ export abstract class WindowManagerRuntimeCore {
   }
 
   protected publish(): void {
+    if (this.projectionDeferred) return;
     this.runtimeProjection?.set(this.buildView());
   }
 
@@ -395,11 +397,17 @@ export abstract class WindowManagerRuntimeCore {
       command
     )
       .then(result => {
-        this.queryClient.setQueryData<WindowManagerSnapshot>(
-          windowManagerKeys.snapshot(binding.workspaceId),
-          current => reconcileWindowManagerSnapshot(current, result.snapshot)
-        );
-        if (result.client !== null) this.setClient(result.client);
+        this.projectionDeferred = true;
+        try {
+          this.queryClient.setQueryData<WindowManagerSnapshot>(
+            windowManagerKeys.snapshot(binding.workspaceId),
+            current => reconcileWindowManagerSnapshot(current, result.snapshot)
+          );
+          if (result.client !== null) this.setClient(result.client);
+        } finally {
+          this.projectionDeferred = false;
+          this.publish();
+        }
         const firstDiagnostic = result.diagnostics[0];
         windowManagerStore.trigger.commandCompleted({
           commandId: requestId,

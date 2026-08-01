@@ -3,11 +3,7 @@ import path from "node:path";
 
 import { openAppWindow, sessionWindow } from "../fixtures/os-navigation";
 import { waitForSeedSessionActive } from "../fixtures/runtime";
-import {
-  SESSION_CREATE_FIRST_MESSAGE,
-  sessionLifecycleSelectors,
-  sessionWindowSelectors,
-} from "../fixtures/selectors";
+import { sessionLifecycleSelectors, sessionWindowSelectors } from "../fixtures/selectors";
 import { expect, test } from "../fixtures/test";
 import { useGlobalWorkspaceIfPrompted } from "../fixtures/workspace";
 
@@ -73,24 +69,10 @@ test("operator can onboard, create a session, submit work, approve a permission 
     browserLifecycleAgent
   );
 
-  // Open the unified runtime selector and enter a custom model id for this session.
-  // The mock adapter fails loud on an unadvertised model (task_01 §7.4), so use a
-  // model it actually accepts — the selector emits the exact canonical id.
-  const runtimeTrigger = appPage.getByTestId("session-create-runtime-select");
-  await runtimeTrigger.click();
-  await expect(appPage.getByTestId("runtime-selector-search")).toBeVisible();
-  await appPage.getByTestId("runtime-selector-search").fill("qa-browser-model");
-  await appPage.getByTestId("runtime-selector-custom").click();
-  // The single popup drives all three axes; close it to return to the dialog.
-  await appPage.keyboard.press("Escape");
-  await expect(appPage.getByTestId("runtime-selector-popup")).toHaveCount(0);
-  await expect(runtimeTrigger).toContainText("qa-browser-model");
-
   const createResponsePromise = appPage.waitForResponse(
     response => response.request().method() === "POST" && response.url().endsWith("/api/sessions")
   );
-  await appPage.getByTestId("session-create-prompt").fill(SESSION_CREATE_FIRST_MESSAGE);
-  await appPage.getByTestId("session-create-send").click();
+  await appPage.getByTestId("session-create-submit").click();
   const createResponse = await createResponsePromise;
   expect(createResponse.ok()).toBeTruthy();
   const createPayload = (await createResponse.json()) as {
@@ -100,8 +82,6 @@ test("operator can onboard, create a session, submit work, approve a permission 
   const workspaceId = createPayload.session?.workspace_id ?? "";
   expect(sessionId).not.toBe("");
   expect(workspaceId).not.toBe("");
-  await waitForSeedSessionActive(runtime, sessionId);
-
   await expect
     .poll(() => new URL(appPage.url()).pathname)
     .toBe(browserLifecycleSessionPath(browserLifecycleAgent, sessionId));
@@ -110,8 +90,20 @@ test("operator can onboard, create a session, submit work, approve a permission 
   await expect(sessionWin).toBeVisible();
   await expect(sessionUi.composerTextarea).toBeVisible();
 
+  // Runtime selection belongs to the first-message composer after the durable,
+  // unbound session has been accepted.
+  const runtimeTrigger = sessionWin.getByTestId("session-prompt-runtime-select");
+  await runtimeTrigger.click();
+  await expect(appPage.getByTestId("runtime-selector-search")).toBeVisible();
+  await appPage.getByTestId("runtime-selector-search").fill("qa-browser-model");
+  await appPage.getByTestId("runtime-selector-custom").click();
+  await appPage.keyboard.press("Escape");
+  await expect(appPage.getByTestId("runtime-selector-popup")).toHaveCount(0);
+  await expect(runtimeTrigger).toContainText("qa-browser-model");
+
   await sessionUi.composerTextarea.fill(browserLifecyclePrompt);
   await sessionUi.composerTextarea.press("Enter");
+  await waitForSeedSessionActive(runtime, sessionId);
 
   await expect(sessionUi.permissionPrompt).toBeVisible();
   await expect(sessionWin.getByTestId("permission-reject-once")).toBeVisible();

@@ -23,6 +23,8 @@ export interface OsDockProps extends Omit<React.ComponentProps<"nav">, "onSelect
   items: OsDockEntry[];
   /** Item activation. Omit to render items as presentation. */
   onSelect?: (id: string) => void;
+  /** Wraps each interactive item with its destination context menu (US-006). */
+  renderItemMenu?: (item: OsDockItemData, children: React.ReactNode) => React.ReactNode;
   /**
    * OpenDesign proximity magnification. Default on; DesktopDock turns this
    * off in compact presentation. Reduced-motion also disables the effect.
@@ -59,7 +61,15 @@ function DockTip({ label }: { label: string }) {
   );
 }
 
-function DockItem({ item, onSelect }: { item: OsDockItemData; onSelect?: (id: string) => void }) {
+function DockItem({
+  item,
+  onSelect,
+  renderItemMenu,
+}: {
+  item: OsDockItemData;
+  onSelect?: (id: string) => void;
+  renderItemMenu?: OsDockProps["renderItemMenu"];
+}) {
   const state = item.minimized ? "minimized" : item.running ? "running" : "closed";
   const body = (
     <>
@@ -118,7 +128,7 @@ function DockItem({ item, onSelect }: { item: OsDockItemData; onSelect?: (id: st
       </Tooltip>
     );
   }
-  return (
+  const interactiveItem = (
     <Tooltip>
       <TooltipTrigger
         render={
@@ -138,12 +148,20 @@ function DockItem({ item, onSelect }: { item: OsDockItemData; onSelect?: (id: st
       <DockTip label={item.name} />
     </Tooltip>
   );
+  return renderItemMenu ? <>{renderItemMenu(item, interactiveItem)}</> : interactiveItem;
 }
 
 const DOCK_SEG =
   "flex items-end gap-dock-gap rounded-dock border border-line bg-shell-glass p-dock-pad shadow-dock backdrop-blur-shell";
 
-export function OsDock({ items, onSelect, magnify = true, className, ...props }: OsDockProps) {
+export function OsDock({
+  items,
+  onSelect,
+  renderItemMenu,
+  magnify = true,
+  className,
+  ...props
+}: OsDockProps) {
   const rootRef = useRef<HTMLElement>(null);
   useDockMagnify(rootRef, magnify);
 
@@ -164,7 +182,12 @@ export function OsDock({ items, onSelect, magnify = true, className, ...props }:
             className="mb-dock-pad h-8 w-px shrink-0 self-end bg-line-strong"
           />
         ) : (
-          <DockItem key={entry.id} item={entry} onSelect={onSelect} />
+          <DockItem
+            key={entry.id}
+            item={entry}
+            onSelect={onSelect}
+            renderItemMenu={renderItemMenu}
+          />
         )
       )}
     </nav>
@@ -238,6 +261,7 @@ export function OsDockZone({
   items,
   leading,
   onSelect,
+  renderItemMenu,
   onNewSession,
   magnify = true,
   className,
@@ -247,6 +271,7 @@ export function OsDockZone({
   items: OsDockEntry[];
   leading?: React.ReactNode;
   onSelect?: (id: string) => void;
+  renderItemMenu?: OsDockProps["renderItemMenu"];
   onNewSession?: () => void;
   magnify?: boolean;
   className?: string;
@@ -273,6 +298,7 @@ export function OsDockZone({
         <OsDock
           items={items}
           onSelect={onSelect}
+          renderItemMenu={renderItemMenu}
           magnify={magnify}
           className="pointer-events-auto"
         />

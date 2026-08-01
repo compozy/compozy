@@ -10,10 +10,26 @@ export const sessionLifecycleTestIds = {
   workspaceUseGlobal: "workspace-use-global",
 } as const;
 
+/**
+ * Stable selectors for the daemon-backed desktop shell. Window and frame IDs
+ * are authoritative opaque IDs, so callers must obtain them from the snapshot
+ * rather than reconstructing an ID from an app name.
+ */
+export const osShellSelectors = (page: Page) => ({
+  desktop: page.getByTestId(sessionLifecycleTestIds.osDesktop),
+  deck: (frameId: string) => page.getByTestId(`os-window-deck-${frameId}`),
+  frame: (frameId: string) => page.getByTestId(`os-window-frame-${frameId}`),
+  tab: (windowId: string) => page.getByTestId(`os-window-tab-${windowId}`),
+  tabButton: (windowId: string) =>
+    page.getByTestId(`os-window-tab-${windowId}`).locator('[data-slot="os-window-tab-activate"]'),
+  tabMenu: (windowId: string) => page.getByTestId(`os-window-tab-menu-${windowId}`),
+  window: (windowId: string) => page.getByTestId(`os-window-${windowId}`),
+});
+
 export const SESSION_CREATE_FIRST_MESSAGE = "e2e first message";
 
-// Session-window surfaces. Every one of these renders inside an owning
-// `os-window-session:<sessionId>` window and must be scoped to it — a page-level
+// Session-window surfaces. Every one of these renders inside an owning window
+// selected by the session `instance_key` and must be scoped to it — a page-level
 // match would resolve to a second session window (strict-mode violation).
 export const sessionWindowTestIds = {
   chatView: "chat-view",
@@ -959,9 +975,9 @@ export function sessionLifecycleSelectors(
 
 /**
  * Controls that live inside one session window. `win` is REQUIRED — pass the
- * owning `os-window-session:<sessionId>` locator (`sessionWindow(page, id)` from
- * `./os-navigation`) so every locator resolves within that window and never
- * matches a second session window at page scope.
+ * owning instance locator (`sessionWindow(page, id)` from `./os-navigation`) so
+ * every locator resolves within that window and never matches a second session
+ * window at page scope.
  */
 export function sessionWindowSelectors(
   win: Locator,

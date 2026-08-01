@@ -46,6 +46,13 @@ function projectDocument(snapshot: WindowManagerSnapshot): WindowManagerLayoutDo
         root: projectNode(group.root),
       })),
       floating: [...desktop.floating],
+      floatingStacks: desktop.floatingStacks.map(stack => ({
+        id: stack.id,
+        windowIds: [...stack.windowIds],
+        activeId: stack.activeId,
+        rect: { ...stack.rect },
+        minimized: stack.minimized,
+      })),
     })),
     windows: Object.fromEntries(
       Object.entries(snapshot.windows).map(([id, window]) => [
@@ -63,6 +70,13 @@ function projectDocument(snapshot: WindowManagerSnapshot): WindowManagerLayoutDo
               ])
             ),
           },
+          navStack: window.navStack.map(route => ({
+            pathname: route.pathname,
+            search: Object.fromEntries(
+              Object.entries(route.search).map(([key, value]) => [key, structuredClone(value)])
+            ),
+          })),
+          pinned: window.pinned,
           placement: window.placement,
           desktopId: window.desktopId,
           floatingRect: { ...window.floatingRect },

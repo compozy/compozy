@@ -6,8 +6,6 @@ function previewLabel(kind: SnapTarget["kind"]): string {
       return "Tile";
     case "zoom":
       return "Zoom";
-    case "stack":
-      return "Add to stack";
     case "insert":
       return "Insert";
     case "split":

@@ -6,6 +6,7 @@ import { promisify } from "node:util";
 
 import type { Page } from "@playwright/test";
 
+import { appWindow } from "../fixtures/os-navigation";
 import { sessionLifecycleSelectors } from "../fixtures/selectors";
 import type { BrowserRuntime, RuntimePaths } from "../fixtures/runtime";
 import { expect, test } from "../fixtures/test";
@@ -377,7 +378,7 @@ async function captureSettingsViewportMatrix(
   for (const width of [375, 768, 1280]) {
     await appPage.setViewportSize({ width, height: 820 });
     await appPage.goto(runtime.url(pathname), { waitUntil: "domcontentloaded" });
-    const settingsWin = appPage.getByTestId("os-window-app:settings");
+    const settingsWin = appWindow(appPage, "settings");
     await expect(settingsWin.getByTestId("settings-shell")).toBeVisible();
     await expect(settingsWin.getByTestId("settings-section-nav")).toBeVisible();
     await browserArtifacts.captureScreenshot(`settings-viewport-${width}`, appPage);

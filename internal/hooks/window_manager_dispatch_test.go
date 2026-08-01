@@ -15,6 +15,11 @@ func TestDispatchWindowManagerHooksUseAsyncDurablePayloads(t *testing.T) {
 		HookWindowManagerDesktopCreated,
 		HookWindowManagerDesktopDeleted,
 		HookWindowManagerWindowMoved,
+		HookWindowManagerWindowOpened,
+		HookWindowManagerWindowClosed,
+		HookWindowManagerStackGrouped,
+		HookWindowManagerStackUngrouped,
+		HookWindowManagerStackActivated,
 	}
 	seen := make(chan WindowManagerPayload, len(events))
 	decls := make([]HookDecl, 0, len(events))
@@ -70,6 +75,7 @@ func TestDispatchWindowManagerHooksUseAsyncDurablePayloads(t *testing.T) {
 					got.Changes.WindowIDs[0] != "window-a" {
 					t.Fatalf("async window-manager payload = %#v", got)
 				}
+				assertWindowManagerEventChanges(t, event, got.Changes)
 			case <-time.After(time.Second):
 				t.Fatalf("timed out waiting for async window-manager hook %q", event)
 			}
@@ -78,7 +84,7 @@ func TestDispatchWindowManagerHooksUseAsyncDurablePayloads(t *testing.T) {
 }
 
 func windowManagerDispatchTestPayload(event HookEvent) WindowManagerPayload {
-	return WindowManagerPayload{
+	payload := WindowManagerPayload{
 		PayloadBase: PayloadBase{
 			Event:     event,
 			Timestamp: time.Date(2026, time.July, 23, 12, 0, 0, 0, time.UTC),
@@ -95,6 +101,38 @@ func windowManagerDispatchTestPayload(event HookEvent) WindowManagerPayload {
 		},
 		Actor:  WindowManagerActor{Kind: "agent", ID: "agent-a"},
 		Origin: "native:compozy__window_manager_layout_arrange",
+	}
+	switch event {
+	case HookWindowManagerStackGrouped:
+		payload.Changes.StackGrouped = []string{"stack-grouped"}
+	case HookWindowManagerStackUngrouped:
+		payload.Changes.StackUngrouped = []string{"stack-ungrouped"}
+	}
+	return payload
+}
+
+func assertWindowManagerEventChanges(t *testing.T, event HookEvent, changes WindowManagerChanges) {
+	t.Helper()
+	switch event {
+	case HookWindowManagerStackGrouped:
+		if len(changes.StackGrouped) != 1 || changes.StackGrouped[0] != "stack-grouped" ||
+			len(changes.StackUngrouped) != 0 {
+			t.Fatalf("grouped stack changes = %#v", changes)
+		}
+	case HookWindowManagerStackUngrouped:
+		if len(changes.StackUngrouped) != 1 || changes.StackUngrouped[0] != "stack-ungrouped" ||
+			len(changes.StackGrouped) != 0 {
+			t.Fatalf("ungrouped stack changes = %#v", changes)
+		}
+	case HookWindowManagerStackActivated:
+		if len(changes.NodeIDs) != 1 || changes.NodeIDs[0] != "node-a" ||
+			len(changes.StackGrouped) != 0 || len(changes.StackUngrouped) != 0 {
+			t.Fatalf("activated stack changes = %#v", changes)
+		}
+	default:
+		if len(changes.StackGrouped) != 0 || len(changes.StackUngrouped) != 0 {
+			t.Fatalf("non-stack changes = %#v", changes)
+		}
 	}
 }
 
@@ -116,6 +154,21 @@ func dispatchWindowManagerTestPayload(
 		return err
 	case HookWindowManagerWindowMoved:
 		_, err := hooks.DispatchWindowManagerWindowMoved(ctx, payload)
+		return err
+	case HookWindowManagerWindowOpened:
+		_, err := hooks.DispatchWindowManagerWindowOpened(ctx, payload)
+		return err
+	case HookWindowManagerWindowClosed:
+		_, err := hooks.DispatchWindowManagerWindowClosed(ctx, payload)
+		return err
+	case HookWindowManagerStackGrouped:
+		_, err := hooks.DispatchWindowManagerStackGrouped(ctx, payload)
+		return err
+	case HookWindowManagerStackUngrouped:
+		_, err := hooks.DispatchWindowManagerStackUngrouped(ctx, payload)
+		return err
+	case HookWindowManagerStackActivated:
+		_, err := hooks.DispatchWindowManagerStackActivated(ctx, payload)
 		return err
 	default:
 		return fmt.Errorf("unexpected window-manager event %q", event)

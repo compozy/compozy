@@ -7,6 +7,7 @@ import (
 
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/sandbox"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/transcript"
 )
@@ -57,9 +58,25 @@ func TestCreateAcceptedLogicalRuntimeLifecycle(t *testing.T) {
 	t.Run("Should bind the selected runtime before dispatching the first prompt", func(t *testing.T) {
 		t.Parallel()
 
-		h := newHarness(t)
+		provider := &recordingSandboxProvider{}
+		h := newHarness(t, WithSandboxRegistry(newRegistryForProvider(t, provider)))
+		resolved, err := h.resolver.Resolve(testutil.Context(t), h.workspaceID)
+		if err != nil {
+			t.Fatalf("Resolve(%q) error = %v", h.workspaceID, err)
+		}
+		resolved.Config.Sandboxes["task-ref"] = compozyconfig.SandboxProfile{
+			Backend:     string(sandbox.BackendLocal),
+			SyncMode:    string(sandbox.SyncModeNone),
+			Persistence: string(sandbox.PersistenceReuse),
+		}
+		h.resolver.upsert(&resolved)
+
 		created, err := h.manager.CreateAccepted(testutil.Context(t), CreateAcceptedOpts{
-			Session: CreateOpts{AgentName: "coder", Workspace: h.workspaceID},
+			Session: CreateOpts{
+				AgentName:  "coder",
+				Workspace:  h.workspaceID,
+				SandboxRef: "task-ref",
+			},
 		})
 		if err != nil {
 			t.Fatalf("CreateAccepted() error = %v", err)
@@ -81,6 +98,12 @@ func TestCreateAcceptedLogicalRuntimeLifecycle(t *testing.T) {
 		}
 		if got := len(h.driver.startCalls); got != 1 {
 			t.Fatalf("driver start calls = %d, want 1", got)
+		}
+		if got := len(provider.prepareRequests); got != 1 {
+			t.Fatalf("sandbox prepare calls = %d, want 1", got)
+		}
+		if got, want := provider.prepareRequests[0].Sandbox.Profile, "task-ref"; got != want {
+			t.Fatalf("sandbox profile = %q, want %q", got, want)
 		}
 		status, err := h.manager.Status(testutil.Context(t), created.ID)
 		if err != nil {

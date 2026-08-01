@@ -20,7 +20,9 @@ import (
 	acpsdk "github.com/coder/acp-go-sdk"
 	compozycontract "github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/memory"
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/kballard/go-shellquote"
@@ -32,13 +34,40 @@ type runtimeMigrationExpectation struct {
 	stream       string
 	version      int64
 	appliedCount int
+	sumDigest    string
 }
 
-func runtimeMigrationExpectations() []runtimeMigrationExpectation {
-	return []runtimeMigrationExpectation{
-		{stream: "global", version: 28, appliedCount: 28},
-		{stream: "memory", version: 1, appliedCount: 1},
+func runtimeMigrationExpectations(
+	ctx context.Context,
+	t testing.TB,
+	databasePath string,
+) []runtimeMigrationExpectation {
+	t.Helper()
+	db, err := sql.Open("sqlite", databasePath)
+	if err != nil {
+		t.Fatalf("sql.Open(runtime database) error = %v", err)
 	}
+	defer func() {
+		if err := db.Close(); err != nil {
+			t.Fatalf("Close(runtime database) error = %v", err)
+		}
+	}()
+
+	streams := []store.MigrationStream{globaldb.MigrationStream(), memory.MigrationStream()}
+	expectations := make([]runtimeMigrationExpectation, 0, len(streams))
+	for _, stream := range streams {
+		status, err := store.Status(ctx, db, stream)
+		if err != nil {
+			t.Fatalf("store.Status(%q) error = %v", stream.Name, err)
+		}
+		expectations = append(expectations, runtimeMigrationExpectation{
+			stream:       status.Stream,
+			version:      status.Version,
+			appliedCount: status.AppliedCount,
+			sumDigest:    status.SumDigest,
+		})
+	}
+	return expectations
 }
 
 type e2eACPAgent struct {
@@ -64,6 +93,7 @@ func TestStartRuntimeHarnessBootsRealDaemonAndExposesClients(t *testing.T) {
 	harness := StartRuntimeHarness(t, &RuntimeHarnessOptions{})
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+	migrationExpectations := runtimeMigrationExpectations(ctx, t, harness.HomePaths.DatabaseFile)
 
 	databaseInfo, err := os.Stat(harness.HomePaths.DatabaseFile)
 	if err != nil {
@@ -94,7 +124,7 @@ func TestStartRuntimeHarnessBootsRealDaemonAndExposesClients(t *testing.T) {
 	if got, want := httpStatus.Daemon.Status, "running"; got != want {
 		t.Fatalf("httpStatus.Daemon.Status = %q, want %q", got, want)
 	}
-	assertSchemaStreamStatuses(t, httpStatus.Daemon.SchemaStreams)
+	assertSchemaStreamStatuses(t, httpStatus.Daemon.SchemaStreams, migrationExpectations)
 
 	var udsStatus compozycontract.StatusPayload
 	if err := harness.UDSJSON(ctx, "GET", "/api/status", nil, &udsStatus); err != nil {
@@ -151,7 +181,7 @@ func TestStartRuntimeHarnessBootsRealDaemonAndExposesClients(t *testing.T) {
 	if err != nil {
 		t.Fatalf("readProcessLog() error = %v", err)
 	}
-	assertMigrationAppliedLogs(t, processLog)
+	assertMigrationAppliedLogs(t, processLog, migrationExpectations)
 	if _, err := os.Stat(harness.HomePaths.DaemonInfo); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("daemon info stat error = %v, want os.ErrNotExist", err)
 	}
@@ -160,9 +190,12 @@ func TestStartRuntimeHarnessBootsRealDaemonAndExposesClients(t *testing.T) {
 	}
 }
 
-func assertSchemaStreamStatuses(t *testing.T, statuses []compozycontract.SchemaStreamStatus) {
+func assertSchemaStreamStatuses(
+	t *testing.T,
+	statuses []compozycontract.SchemaStreamStatus,
+	expectations []runtimeMigrationExpectation,
+) {
 	t.Helper()
-	expectations := runtimeMigrationExpectations()
 	if len(statuses) != len(expectations) {
 		t.Fatalf("schema streams = %#v, want global and memory", statuses)
 	}
@@ -170,20 +203,25 @@ func assertSchemaStreamStatuses(t *testing.T, statuses []compozycontract.SchemaS
 		status := statuses[index]
 		if status.Stream != expectation.stream || status.Version != expectation.version ||
 			status.AppliedCount != expectation.appliedCount ||
-			strings.TrimSpace(status.SumDigest) == "" {
+			status.SumDigest != expectation.sumDigest {
 			t.Fatalf(
-				"schema stream[%d] = %#v, want stream=%q version=%d applied_count=%d and digest",
+				"schema stream[%d] = %#v, want stream=%q version=%d applied_count=%d digest=%q",
 				index,
 				status,
 				expectation.stream,
 				expectation.version,
 				expectation.appliedCount,
+				expectation.sumDigest,
 			)
 		}
 	}
 }
 
-func assertMigrationAppliedLogs(t *testing.T, processLog string) {
+func assertMigrationAppliedLogs(
+	t *testing.T,
+	processLog string,
+	expectations []runtimeMigrationExpectation,
+) {
 	t.Helper()
 	type migrationLog struct {
 		Message      string `json:"msg"`
@@ -203,7 +241,7 @@ func assertMigrationAppliedLogs(t *testing.T, processLog string) {
 			}
 			continue
 		}
-		for _, expectation := range runtimeMigrationExpectations() {
+		for _, expectation := range expectations {
 			needle := fmt.Sprintf(
 				"store.migrations.applied stream=%s version=%d applied_count=%d",
 				expectation.stream,
@@ -220,7 +258,7 @@ func assertMigrationAppliedLogs(t *testing.T, processLog string) {
 			}
 		}
 	}
-	for _, expectation := range runtimeMigrationExpectations() {
+	for _, expectation := range expectations {
 		record, ok := found[expectation.stream]
 		if !ok || record.Version != expectation.version || record.AppliedCount != expectation.appliedCount {
 			t.Fatalf(

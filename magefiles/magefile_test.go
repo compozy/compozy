@@ -90,7 +90,12 @@ func TestFilesImporting(t *testing.T) {
 		t.Parallel()
 
 		root := t.TempDir()
-		writeTestFile(t, root, "exact.go", "package fixture\nimport _ \"github.com/compozy/compozy/internal/session\"\n")
+		writeTestFile(
+			t,
+			root,
+			"exact.go",
+			"package fixture\nimport _ \"github.com/compozy/compozy/internal/session\"\n",
+		)
 		writeTestFile(
 			t,
 			root,
@@ -210,7 +215,11 @@ func TestProductionSourceLineLimit(t *testing.T) {
 			{name: "Should include Storybook source", path: "web/src/system.stories.tsx", want: true},
 			{name: "Should exclude Go tests", path: "internal/store/sqlite_test.go", want: false},
 			{name: "Should exclude Web tests", path: "web/src/__tests__/view.test.tsx", want: false},
-			{name: "Should exclude generated contracts", path: "sdk/typescript/src/generated/contracts.ts", want: false},
+			{
+				name: "Should exclude generated contracts",
+				path: "sdk/typescript/src/generated/contracts.ts",
+				want: false,
+			},
 			{name: "Should exclude sqlc output", path: "internal/store/sqlcgen/query.sql.go", want: false},
 			{name: "Should exclude fixtures", path: "web/src/system/fixtures/data.ts", want: false},
 			{name: "Should exclude reference slides", path: "packages/slides/slides/demo/index.tsx", want: false},
@@ -234,7 +243,12 @@ func TestProductionSourceLineLimit(t *testing.T) {
 		root := t.TempDir()
 		oversized := strings.Repeat("package fixture\n", maxProductionSourceLines+1)
 		writeTestFile(t, root, "internal/runtime/oversized.go", oversized)
-		writeTestFile(t, root, "packages/site/app/oversized.css", strings.Repeat(".fixture {}\n", maxProductionSourceLines+1))
+		writeTestFile(
+			t,
+			root,
+			"packages/site/app/oversized.css",
+			strings.Repeat(".fixture {}\n", maxProductionSourceLines+1),
+		)
 		writeTestFile(
 			t,
 			root,

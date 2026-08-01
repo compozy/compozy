@@ -1,11 +1,24 @@
 package windowmanager
 
-import "fmt"
-
 func (r *reducer) replace(snapshot *Snapshot, command ReplaceLayoutCommand) (bool, error) {
 	document := command.Document
-	if document.Version != SnapshotVersion || document.WorkspaceID != snapshot.WorkspaceID {
-		return false, fmt.Errorf("layout document identity: %w", ErrInvalidTopology)
+	diagnostics := make([]Diagnostic, 0, 2)
+	if document.Version != SnapshotVersion {
+		diagnostics = append(diagnostics, Diagnostic{
+			Code:    topologyUnsupportedVersionCode,
+			Path:    "version",
+			Message: "document version must be 3",
+		})
+	}
+	if document.WorkspaceID != snapshot.WorkspaceID {
+		diagnostics = append(diagnostics, Diagnostic{
+			Code:    topologyWorkspaceMismatchCode,
+			Path:    "workspace_id",
+			Message: "layout workspace does not match request",
+		})
+	}
+	if len(diagnostics) > 0 {
+		return false, &TopologyError{Diagnostics: diagnostics}
 	}
 	candidate := Snapshot{
 		Version:     document.Version,

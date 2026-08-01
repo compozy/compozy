@@ -18,16 +18,16 @@ import {
 // Invariant: creation submits only durable session identity and launch context, then hands off
 // to the canonical session route. Owning layer: session-create view model. Canonical suite: this hook test.
 const {
-  mockActivateWorkspace,
   mockMutateAsync,
   mockNavigate,
+  mockSetActiveWorkspaceId,
   mockUseAgents,
   mockUserHomeDir,
   mockWorkspaceListRef,
 } = vi.hoisted(() => ({
-  mockActivateWorkspace: vi.fn(),
   mockMutateAsync: vi.fn<(input: unknown) => Promise<SessionPayload>>(),
   mockNavigate: vi.fn<(input: unknown) => Promise<void>>(),
+  mockSetActiveWorkspaceId: vi.fn<(workspaceId: string | null) => void>(),
   mockUseAgents: vi.fn(),
   mockUserHomeDir: { current: undefined as string | undefined },
   mockWorkspaceListRef: { current: [] as WorkspacePayload[] },
@@ -48,6 +48,7 @@ vi.mock("@/systems/workspace", async () => {
   const actual = await vi.importActual<typeof import("@/systems/workspace")>("@/systems/workspace");
   return {
     ...actual,
+    setActiveWorkspaceId: mockSetActiveWorkspaceId,
     useUserHomeDir: () => mockUserHomeDir.current,
     useWorkspaces: () => ({ data: mockWorkspaceListRef.current, error: null, isLoading: false }),
   };
@@ -55,10 +56,6 @@ vi.mock("@/systems/workspace", async () => {
 
 vi.mock("../use-session-actions", () => ({
   useCreateSession: () => ({ mutateAsync: mockMutateAsync, isPending: false }),
-}));
-
-vi.mock("../../lib/session-create-navigation", () => ({
-  activateCreatedSessionWorkspace: mockActivateWorkspace,
 }));
 
 const activeWorkspace: WorkspacePayload = {
@@ -142,11 +139,11 @@ function useSessionCreateControllerPair() {
 
 describe("useSessionCreateDialog", () => {
   beforeEach(() => {
-    mockActivateWorkspace.mockReset();
     mockMutateAsync.mockReset();
     mockMutateAsync.mockResolvedValue(createdSession);
     mockNavigate.mockReset();
     mockNavigate.mockResolvedValue(undefined);
+    mockSetActiveWorkspaceId.mockReset();
     mockUseAgents.mockReset();
     mockUseAgents.mockReturnValue({ data: undefined });
     mockUserHomeDir.current = undefined;
@@ -202,7 +199,25 @@ describe("useSessionCreateDialog", () => {
         params: { name: "codex-agent", id: "sess-new" },
       })
     );
-    expect(mockActivateWorkspace).toHaveBeenCalledWith(createdSession);
+    expect(mockSetActiveWorkspaceId).not.toHaveBeenCalled();
+    expect(result.current.restoreFocusOnClose).toBe(false);
+  });
+
+  it("Should restore focus after dismissal but not after handing off to the created session", async () => {
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useSessionCreateDialog({ agents, activeWorkspace }), {
+      wrapper,
+    });
+
+    act(() => result.current.openDialog("codex-agent"));
+    expect(result.current.restoreFocusOnClose).toBe(true);
+
+    act(() => result.current.onOpenChange(false));
+    expect(result.current.restoreFocusOnClose).toBe(true);
+
+    act(() => result.current.openDialog("codex-agent"));
+    await act(async () => result.current.submit());
+    await waitFor(() => expect(result.current.restoreFocusOnClose).toBe(false));
   });
 
   it("Should activate a selected workspace before navigating to its created session", async () => {
@@ -241,8 +256,8 @@ describe("useSessionCreateDialog", () => {
         params: { name: betaAgent.name, id: sessionInOtherWorkspace.id },
       });
     });
-    expect(mockActivateWorkspace).toHaveBeenCalledWith(sessionInOtherWorkspace);
-    expect(mockActivateWorkspace.mock.invocationCallOrder[0]).toBeLessThan(
+    expect(mockSetActiveWorkspaceId).toHaveBeenCalledWith(otherWorkspace.id);
+    expect(mockSetActiveWorkspaceId.mock.invocationCallOrder[0]).toBeLessThan(
       mockNavigate.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY
     );
   });
@@ -259,38 +274,5 @@ describe("useSessionCreateDialog", () => {
 
     expect(mockMutateAsync).not.toHaveBeenCalled();
     expect(result.current.submitError).toBe("Select an agent before starting the session.");
-  });
-
-  it("Should resolve a relative working path only when Advanced supplies one", async () => {
-    const { wrapper } = createWrapper();
-    const { result } = renderHook(() => useSessionCreateDialog({ agents, activeWorkspace }), {
-      wrapper,
-    });
-
-    act(() => result.current.openDialog("claude-agent"));
-    act(() => result.current.onWorkspacePathChange("  services/checkout  "));
-    await act(async () => result.current.submit());
-
-    expect(mockMutateAsync).toHaveBeenCalledWith({
-      agent_name: "claude-agent",
-      workspace_path: "/workspace/alpha/services/checkout",
-      network_participation: { mode: "local" },
-    });
-  });
-
-  it("Should retain validation when a working path escapes the workspace", async () => {
-    const { wrapper } = createWrapper();
-    const { result } = renderHook(() => useSessionCreateDialog({ agents, activeWorkspace }), {
-      wrapper,
-    });
-
-    act(() => result.current.openDialog("claude-agent"));
-    act(() => result.current.onWorkspacePathChange("../other-workspace"));
-    await act(async () => result.current.submit());
-
-    expect(mockMutateAsync).not.toHaveBeenCalled();
-    expect(result.current.submitError).toBe(
-      "Working path must stay within the selected workspace."
-    );
   });
 });

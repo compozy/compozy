@@ -26,6 +26,8 @@ func TestEffectiveConfig(t *testing.T) {
 		groupMoveModifier := dragModifierMeta
 		swapModifier := dragModifierControl
 		historyLimit := 7
+		navStackLimit := 8
+		closedEntryLimit := 9
 		desktopTransition := DesktopTransitionInstant
 		gaps := GapsConfig{Inner: 1, Top: 2, Right: 3, Bottom: 4, Left: 5}
 		snap := SnapConfig{EdgeBand: 24, CornerReach: 120, ExitSlack: 12, RepeatRatios: []float64{0.4, 0.6}}
@@ -38,8 +40,9 @@ func TestEffectiveConfig(t *testing.T) {
 			FocusFollowsPointer: &focusFollowsPointer, RaiseOnFocus: &raiseOnFocus,
 			DragAwayPolicy: &dragAwayPolicy, GroupMoveModifier: &groupMoveModifier,
 			SwapModifier: &swapModifier,
-			HistoryLimit: &historyLimit, DesktopTransition: &desktopTransition,
-			Gaps: &gaps, Snap: &snap,
+			HistoryLimit: &historyLimit, NavStackLimit: &navStackLimit, ClosedEntryLimit: &closedEntryLimit,
+			DesktopTransition: &desktopTransition,
+			Gaps:              &gaps, Snap: &snap,
 			Bindings: &bindings, Shortcuts: shortcuts,
 		})
 		if err != nil {
@@ -52,7 +55,8 @@ func TestEffectiveConfig(t *testing.T) {
 			effective.DragAwayPolicy != DragAwayGroup ||
 			effective.GroupMoveModifier != dragModifierMeta ||
 			effective.SwapModifier != dragModifierControl ||
-			effective.HistoryLimit != 7 || effective.DesktopTransition != DesktopTransitionInstant {
+			effective.HistoryLimit != 7 || effective.NavStackLimit != 8 || effective.ClosedEntryLimit != 9 ||
+			effective.DesktopTransition != DesktopTransitionInstant {
 			t.Fatalf("effective behavioral config = %+v", effective)
 		}
 		if effective.Gaps != gaps || effective.Bindings != bindings || len(effective.Snap.RepeatRatios) != 2 ||
@@ -72,6 +76,70 @@ func TestEffectiveConfig(t *testing.T) {
 }
 
 func TestCanonicalShortcuts(t *testing.T) {
+	t.Run(
+		"Should accept tab actions through jump eight and reject jump nine or collisions [UT-143]",
+		func(t *testing.T) {
+			t.Parallel()
+			actions := []string{
+				shortcutWindowTabNewAction,
+				"window.tab.next",
+				"window.tab.previous",
+				"window.tab.last",
+				shortcutWindowTabReopenAction,
+				"window.tab.jump.1",
+				"window.tab.jump.2",
+				"window.tab.jump.3",
+				"window.tab.jump.4",
+				"window.tab.jump.5",
+				"window.tab.jump.6",
+				"window.tab.jump.7",
+				"window.tab.jump.8",
+			}
+			shortcuts := make(map[string]string, len(actions))
+			codes := []string{
+				"KeyA",
+				"KeyB",
+				"KeyC",
+				"KeyD",
+				"KeyE",
+				"Digit1",
+				"Digit2",
+				"Digit3",
+				"Digit4",
+				"Digit5",
+				"Digit6",
+				"Digit7",
+				"Digit8",
+			}
+			for index, action := range actions {
+				shortcuts[action] = "meta+" + codes[index]
+			}
+			canonical, err := CanonicalShortcuts(shortcuts)
+			if err != nil || len(canonical) != len(actions) {
+				t.Fatalf("CanonicalShortcuts(tab actions) = %#v, error = %v", canonical, err)
+			}
+			if _, err := CanonicalShortcuts(
+				map[string]string{"window.tab.jump.9": "meta+Digit9"},
+			); !errors.Is(
+				err,
+				ErrInvalidCommand,
+			) {
+				t.Fatalf("CanonicalShortcuts(jump.9) error = %v", err)
+			}
+			if _, err := CanonicalShortcuts(
+				map[string]string{
+					shortcutWindowTabNewAction:    "meta+KeyT",
+					shortcutWindowTabReopenAction: "META + KeyT",
+				},
+			); !errors.Is(
+				err,
+				ErrInvalidCommand,
+			) {
+				t.Fatalf("CanonicalShortcuts(tab collision) error = %v", err)
+			}
+		},
+	)
+
 	t.Run("Should accept every action and canonicalize modifier order before conflict checks", func(t *testing.T) {
 		t.Parallel()
 		actions := []string{

@@ -295,3 +295,10 @@ type SessionExecutor interface {
 	RequestTaskStop(ctx context.Context, sessionID string, reason StopReason) error
 	ForceTaskStop(ctx context.Context, sessionID string, reason StopReason) error
 }
+
+// RunNetworkSessionBinder is the optional task-session bridge that moves a
+// claimant into the run-owned coordination channel for the lease lifetime.
+type RunNetworkSessionBinder interface {
+	BindTaskRunNetwork(ctx context.Context, sessionID string, run Run) error
+	RestoreTaskRunNetwork(ctx context.Context, sessionID string) error
+}

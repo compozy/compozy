@@ -17,7 +17,7 @@ func diffWindowManagerSettings(
 	current compozyconfig.WindowManagerConfig,
 	desired compozyconfig.WindowManagerConfig,
 ) []string {
-	changed := make([]string, 0, 23)
+	changed := make([]string, 0, 25)
 	appendChange := func(path string, differs bool) {
 		if differs {
 			changed = append(changed, path)
@@ -43,6 +43,8 @@ func diffWindowManagerSettings(
 	)
 	appendChange("window_manager.swap_modifier", current.SwapModifier != desired.SwapModifier)
 	appendChange("window_manager.history_limit", current.HistoryLimit != desired.HistoryLimit)
+	appendChange("window_manager.nav_stack_limit", current.NavStackLimit != desired.NavStackLimit)
+	appendChange("window_manager.closed_entry_limit", current.ClosedEntryLimit != desired.ClosedEntryLimit)
 	appendChange(
 		"window_manager.desktop_transition",
 		current.DesktopTransition != desired.DesktopTransition,
@@ -95,6 +97,8 @@ func applyWindowManagerSettings(
 		{path: root("group_move_modifier"), value: settings.GroupMoveModifier},
 		{path: root("swap_modifier"), value: settings.SwapModifier},
 		{path: root("history_limit"), value: settings.HistoryLimit},
+		{path: root("nav_stack_limit"), value: settings.NavStackLimit},
+		{path: root("closed_entry_limit"), value: settings.ClosedEntryLimit},
 		{path: root("desktop_transition"), value: settings.DesktopTransition},
 		{path: root("gaps", "inner"), value: settings.Gaps.Inner},
 		{path: root("gaps", "top"), value: settings.Gaps.Top},

@@ -2,11 +2,13 @@ package mcp
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log/slog"
+	"maps"
 	"strings"
 	"sync"
 
@@ -20,7 +22,12 @@ const (
 	hostedProxyTextKey  = "text"
 )
 
-var hostedServerToolNames sync.Map
+var hostedServerToolFingerprints sync.Map
+
+type hostedToolRegistry interface {
+	AddTool(tool *sdkmcp.Tool, handler sdkmcp.ToolHandler)
+	RemoveTools(names ...string)
+}
 
 // HostedProjectionHandler receives projection snapshots from the daemon stream.
 type HostedProjectionHandler func(HostedProjectionResponse) error
@@ -99,7 +106,7 @@ func RunHostedProxy(ctx context.Context, client HostedProxyClient, opts HostedPr
 			Capabilities: &sdkmcp.ServerCapabilities{Tools: &sdkmcp.ToolCapabilities{}},
 		},
 	)
-	defer hostedServerToolNames.Delete(mcpServer)
+	defer hostedServerToolFingerprints.Delete(mcpServer)
 	mcpServer.AddReceivingMiddleware(privateToolListCacheMiddleware())
 	mcpServer.AddReceivingMiddleware(hostedProviderProtocolVersionMiddleware())
 	applyHostedTools(mcpServer, client, bind.BindID, bind.Tools)
@@ -159,28 +166,29 @@ func applyHostedTools(
 	if mcpServer == nil {
 		return
 	}
-	previous := hostedToolNames(mcpServer)
-	mcpServer.RemoveTools(previous...)
+	previous := hostedToolFingerprints(mcpServer)
+	next := reconcileHostedTools(mcpServer, client, bindID, previous, views)
+	setHostedToolFingerprints(mcpServer, next)
+}
+
+func reconcileHostedTools(
+	registry hostedToolRegistry,
+	client HostedProxyClient,
+	bindID string,
+	previous map[string]string,
+	views []tools.ToolView,
+) map[string]string {
+	next := make(map[string]string, len(views))
 	for i := range views {
 		view := views[i]
-		readOnly := view.Descriptor.ReadOnly
-		destructive := view.Descriptor.Destructive
-		openWorld := view.Descriptor.OpenWorld
-		tool := sdkmcp.Tool{
-			Name:         view.Descriptor.ID.String(),
-			Title:        view.Descriptor.DisplayTitle,
-			Description:  hostedToolDescription(view.Descriptor),
-			InputSchema:  cloneRaw(view.Descriptor.InputSchema),
-			OutputSchema: cloneRaw(view.Descriptor.OutputSchema),
-			Annotations: &sdkmcp.ToolAnnotations{
-				Title:           view.Descriptor.DisplayTitle,
-				ReadOnlyHint:    readOnly,
-				DestructiveHint: &destructive,
-				OpenWorldHint:   &openWorld,
-			},
-			Meta: hostedToolMeta(view.Descriptor),
+		name := view.Descriptor.ID.String()
+		tool := hostedMCPTool(view.Descriptor)
+		fingerprint := hostedToolFingerprint(&tool)
+		next[name] = fingerprint
+		if fingerprint != "" && previous[name] == fingerprint {
+			continue
 		}
-		mcpServer.AddTool(
+		registry.AddTool(
 			&tool,
 			func(
 				ctx context.Context,
@@ -190,7 +198,48 @@ func applyHostedTools(
 			},
 		)
 	}
-	setHostedToolNames(mcpServer, views)
+	stale := make([]string, 0, len(previous))
+	for name := range previous {
+		if _, retained := next[name]; !retained {
+			stale = append(stale, name)
+		}
+	}
+	if len(stale) > 0 {
+		registry.RemoveTools(stale...)
+	}
+	return next
+}
+
+func hostedMCPTool(descriptor tools.Descriptor) sdkmcp.Tool {
+	name := descriptor.ID.String()
+	readOnly := descriptor.ReadOnly
+	destructive := descriptor.Destructive
+	openWorld := descriptor.OpenWorld
+	return sdkmcp.Tool{
+		Name:         name,
+		Title:        descriptor.DisplayTitle,
+		Description:  hostedToolDescription(descriptor),
+		InputSchema:  cloneRaw(descriptor.InputSchema),
+		OutputSchema: cloneRaw(descriptor.OutputSchema),
+		Annotations: &sdkmcp.ToolAnnotations{
+			Title:           descriptor.DisplayTitle,
+			ReadOnlyHint:    readOnly,
+			DestructiveHint: &destructive,
+			OpenWorldHint:   &openWorld,
+		},
+		Meta: hostedToolMeta(descriptor),
+	}
+}
+
+func hostedToolFingerprint(tool *sdkmcp.Tool) string {
+	payload, err := json.Marshal(tool)
+	if err != nil {
+		// Invalid raw schema JSON cannot be fingerprinted safely. An empty
+		// fingerprint conservatively re-registers the tool on the next projection.
+		return ""
+	}
+	digest := sha256.Sum256(payload)
+	return fmt.Sprintf("%x", digest)
 }
 
 func callHostedTool(
@@ -347,25 +396,21 @@ func hostedToolCallID(req *sdkmcp.CallToolRequest) string {
 	return ""
 }
 
-func hostedToolNames(server *sdkmcp.Server) []string {
+func hostedToolFingerprints(server *sdkmcp.Server) map[string]string {
 	if server == nil {
 		return nil
 	}
-	value, ok := hostedServerToolNames.Load(server)
+	value, ok := hostedServerToolFingerprints.Load(server)
 	if !ok {
 		return nil
 	}
-	names, ok := value.([]string)
+	fingerprints, ok := value.(map[string]string)
 	if !ok {
 		return nil
 	}
-	return append([]string(nil), names...)
+	return maps.Clone(fingerprints)
 }
 
-func setHostedToolNames(server *sdkmcp.Server, views []tools.ToolView) {
-	names := make([]string, 0, len(views))
-	for index := range views {
-		names = append(names, views[index].Descriptor.ID.String())
-	}
-	hostedServerToolNames.Store(server, names)
+func setHostedToolFingerprints(server *sdkmcp.Server, fingerprints map[string]string) {
+	hostedServerToolFingerprints.Store(server, maps.Clone(fingerprints))
 }

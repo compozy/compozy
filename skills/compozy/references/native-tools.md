@@ -112,9 +112,20 @@ for mutations. Resolve descriptors, pass the workspace, and use the current revi
 - Windows: `compozy__window_list`, `compozy__window_open`, `compozy__window_close`, `compozy__window_focus`,
   `compozy__window_move`, `compozy__window_swap`, `compozy__window_float`, `compozy__window_zoom`,
   `compozy__window_navigate`.
+- Tabs: `compozy__window_group`, `compozy__window_reorder`, `compozy__window_activate`,
+  `compozy__window_pin`, `compozy__window_reopen`.
 - Layouts: `compozy__layout_get`, `compozy__layout_preview`, `compozy__layout_arrange`,
   `compozy__layout_resize`, `compozy__layout_balance`, `compozy__layout_undo`, `compozy__layout_redo`,
   `compozy__layout_export`, `compozy__layout_validate`, `compozy__layout_apply`.
+
+Every tab tool mutates and needs `window_manager.write`. `window_group` takes `target_window_id` plus
+a `window_ids` array and an optional `insert_index`; `window_reorder` moves one member inside its own
+stack with a clamped `index`; `window_activate` sets the stack's durable active member and is the
+public name of the internal `window.stack.set_active` command; `window_pin` takes a required `pinned`
+boolean; `window_reopen` needs only the revision. Three existing tools carry tab inputs:
+`window_open` accepts `stack_target_window_id`, `window_navigate` accepts `mode`
+(`replace`/`push`/`pop`, and `pop` forbids `route`), and `window_close` accepts `scope`
+(`tab`/`group`/`others`/`right`, rejected together with `minimize`).
 
 `desktop_switch`, `window_focus`, and `window_zoom` require a connected `client_id`.
 `window_navigate` changes presentation only when given one. Preview/validate never write;

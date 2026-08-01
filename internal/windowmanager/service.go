@@ -25,9 +25,16 @@ type Manager struct {
 
 	mu             sync.Mutex
 	closed         bool
-	workspaceLocks map[WorkspaceID]*sync.Mutex
+	workspaceLocks map[WorkspaceID]*workspaceLock
 	clients        map[WorkspaceID]map[ClientID]ClientView
 	hubs           map[WorkspaceID]*subscriptionHub
+	coalescer      *activeCoalescer
+}
+
+type workspaceLock struct {
+	sync.Mutex
+	references int
+	retired    bool
 }
 
 // UpdateDefaults atomically replaces validated runtime defaults for future commands.
@@ -80,7 +87,7 @@ func NewService(
 	if err != nil {
 		return nil, err
 	}
-	return &Manager{
+	manager := &Manager{
 		repository:         repository,
 		workspaces:         workspaces,
 		layouts:            layouts,
@@ -90,10 +97,12 @@ func NewService(
 		subscriptionBuffer: resolved.subscriptionBuffer,
 		eventObserver:      resolved.eventObserver,
 		workspaceConfig:    resolved.workspaceConfig,
-		workspaceLocks:     make(map[WorkspaceID]*sync.Mutex),
+		workspaceLocks:     make(map[WorkspaceID]*workspaceLock),
 		clients:            make(map[WorkspaceID]map[ClientID]ClientView),
 		hubs:               make(map[WorkspaceID]*subscriptionHub),
-	}, nil
+	}
+	manager.coalescer = newActiveCoalescer(resolved.lifecycleContext, manager)
+	return manager, nil
 }
 
 // Snapshot returns a validated workspace aggregate.
@@ -106,7 +115,7 @@ func (m *Manager) Snapshot(ctx context.Context, workspaceID WorkspaceID) (Snapsh
 		return Snapshot{}, err
 	}
 	lock.Lock()
-	defer lock.Unlock()
+	defer m.releaseWorkspaceLock(workspaceID, lock)
 	return m.loadSnapshot(ctx, workspaceID)
 }
 
@@ -125,9 +134,22 @@ func (m *Manager) Execute(ctx context.Context, request CommandRequest) (Result, 
 	}
 	lock.Lock()
 	result, executeErr := func() (Result, error) {
+		hadPending := commandID != CommandDesktopSwitch && commandID != CommandWindowFocus &&
+			m.coalescer.hasPending(request.WorkspaceID)
+		flush := stackActiveFlushResult{}
+		if hadPending {
+			var flushErr error
+			flush, flushErr = m.flushStackActiveLocked(ctx, request.WorkspaceID)
+			if flushErr != nil {
+				return Result{}, fmt.Errorf("flush stack activation before %q: %w", commandID, flushErr)
+			}
+		}
 		snapshot, loadErr := m.loadSnapshot(ctx, request.WorkspaceID)
 		if loadErr != nil {
 			return Result{}, loadErr
+		}
+		if flush.Applied && request.ExpectedRevision == flush.From {
+			request.ExpectedRevision = flush.To
 		}
 		rebasedFrom, revisionErr := resolveExpectedRevision(&snapshot, request)
 		if revisionErr != nil {
@@ -138,7 +160,7 @@ func (m *Manager) Execute(ctx context.Context, request CommandRequest) (Result, 
 		}
 		return m.executeDurable(ctx, snapshot, request, commandID, rebasedFrom)
 	}()
-	lock.Unlock()
+	m.releaseWorkspaceLock(request.WorkspaceID, lock)
 	if executeErr != nil {
 		return Result{}, executeErr
 	}
@@ -165,7 +187,15 @@ func (m *Manager) Preview(ctx context.Context, request CommandRequest) (Preview,
 		return Preview{}, err
 	}
 	lock.Lock()
-	defer lock.Unlock()
+	defer m.releaseWorkspaceLock(request.WorkspaceID, lock)
+	return m.previewLocked(ctx, request, commandID)
+}
+
+func (m *Manager) previewLocked(
+	ctx context.Context,
+	request CommandRequest,
+	commandID CommandID,
+) (Preview, error) {
 	snapshot, err := m.loadSnapshot(ctx, request.WorkspaceID)
 	if err != nil {
 		return Preview{}, err
@@ -199,10 +229,18 @@ func (m *Manager) Preview(ctx context.Context, request CommandRequest) (Preview,
 	}
 	working := cloneSnapshot(snapshot)
 	var focused *WindowID
+	var activeDesktop *DesktopID
 	if client != nil {
 		focused = clonePointer(client.FocusedWindowID)
+		activeDesktop = new(client.ActiveDesktopID)
 	}
-	reduced, err := (&reducer{generate: m.generate, config: config, focusedWindow: focused}).reduce(
+	previewGenerate, err := newPreviewIDGenerator(snapshot, commandID, payload)
+	if err != nil {
+		return Preview{}, err
+	}
+	reduced, err := (&reducer{
+		generate: previewGenerate, config: config, focusedWindow: focused, activeDesktop: activeDesktop, now: m.now,
+	}).reduce(
 		&working,
 		payload,
 	)

@@ -8,11 +8,89 @@ package windowmanager
 import (
 	"context"
 	"errors"
+	"fmt"
+	"reflect"
+	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 )
 
 func TestCommandTransaction(t *testing.T) {
+	t.Run("Should generate preview window IDs with the durable window ID shape", func(t *testing.T) {
+		t.Parallel()
+		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		preview, err := environment.manager.Preview(t.Context(), CommandRequest{
+			WorkspaceID:      "workspace-a",
+			ExpectedRevision: 0,
+			Payload: OpenWindowCommand{Window: WindowSpec{
+				App:          "Preview",
+				Route:        testRoute("/preview"),
+				FloatingRect: fullRect(),
+			}},
+		})
+		if err != nil {
+			t.Fatalf("Preview(open) error = %v", err)
+		}
+		if len(preview.Snapshot.Windows) != 1 {
+			t.Fatalf("Preview(open) windows = %+v", preview.Snapshot.Windows)
+		}
+		for windowID := range preview.Snapshot.Windows {
+			if !strings.HasPrefix(string(windowID), "w-") || len(windowID) != 28 {
+				t.Fatalf("preview window ID = %q, want w- plus 26 hex characters", windowID)
+			}
+		}
+	})
+
+	t.Run("Should keep repeated previews deterministic without consuming durable IDs", func(t *testing.T) {
+		t.Parallel()
+		var generated atomic.Int64
+		environment := newTestEnvironmentWithOptions(
+			t,
+			DefaultConfig(),
+			[]WorkspaceID{"workspace-a"},
+			WithIDGenerator(func(kind string) (string, error) {
+				return fmt.Sprintf("%s-durable-%d", kind, generated.Add(1)), nil
+			}),
+		)
+		openTestWindow(t, environment.manager, "workspace-a", nil, "window-a", "desktop-default")
+		openTestWindow(t, environment.manager, "workspace-a", nil, "window-b", "desktop-default")
+		snapshot, err := environment.manager.Snapshot(t.Context(), "workspace-a")
+		if err != nil {
+			t.Fatalf("Snapshot() error = %v", err)
+		}
+		request := CommandRequest{
+			WorkspaceID:      "workspace-a",
+			ExpectedRevision: snapshot.Revision,
+			Payload: GroupWindowsCommand{
+				TargetWindowID: "window-a",
+				WindowIDs:      []WindowID{"window-b"},
+			},
+		}
+
+		first, err := environment.manager.Preview(t.Context(), request)
+		if err != nil {
+			t.Fatalf("Preview(first) error = %v", err)
+		}
+		second, err := environment.manager.Preview(t.Context(), request)
+		if err != nil {
+			t.Fatalf("Preview(second) error = %v", err)
+		}
+		if !reflect.DeepEqual(first, second) {
+			t.Fatalf("repeated previews differ:\nfirst=%+v\nsecond=%+v", first, second)
+		}
+		if calls := generated.Load(); calls != 0 {
+			t.Fatalf("durable ID generator calls after previews = %d, want 0", calls)
+		}
+
+		if _, err := environment.manager.Execute(t.Context(), request); err != nil {
+			t.Fatalf("Execute(group) error = %v", err)
+		}
+		if calls := generated.Load(); calls != 1 {
+			t.Fatalf("durable ID generator calls after commit = %d, want 1", calls)
+		}
+	})
+
 	t.Run(
 		"Should commit one revision and history entry while preview, no-op, and rejection write nothing",
 		func(t *testing.T) {
@@ -140,7 +218,7 @@ func TestCommandTransaction(t *testing.T) {
 
 	t.Run("Should observe only selected durable commits with isolated event values", func(t *testing.T) {
 		t.Parallel()
-		observed := make([]Event, 0, 5)
+		observed := make([]Event, 0, 12)
 		environment := newTestEnvironmentWithOptions(
 			t,
 			DefaultConfig(),
@@ -231,9 +309,40 @@ func TestCommandTransaction(t *testing.T) {
 			&clientID,
 			FocusWindowCommand{WindowID: &windowID},
 		)
-		if len(observed) != 1 {
-			t.Fatalf("non-observable commands produced %d observations, want 1", len(observed))
+		if len(observed) != 2 {
+			t.Fatalf("presentation commands changed observation count to %d, want 2", len(observed))
 		}
+
+		openTestWindow(t, environment.manager, "workspace-a", &clientID, "w2", "desktop-default")
+		executeTestCommand(
+			t,
+			environment.manager,
+			"workspace-a",
+			&clientID,
+			GroupWindowsCommand{TargetWindowID: "w1", WindowIDs: []WindowID{"w2"}},
+		)
+		executeTestCommand(
+			t,
+			environment.manager,
+			"workspace-a",
+			&clientID,
+			SetStackActiveCommand{WindowID: "w1"},
+		)
+		executeTestCommand(
+			t,
+			environment.manager,
+			"workspace-a",
+			&clientID,
+			CloseWindowCommand{WindowID: "w2"},
+		)
+		executeTestCommand(t, environment.manager, "workspace-a", &clientID, ReopenCommand{})
+		executeTestCommand(
+			t,
+			environment.manager,
+			"workspace-a",
+			&clientID,
+			ToggleFloatingCommand{WindowID: "w2"},
+		)
 
 		executeTestCommand(
 			t,
@@ -282,6 +391,13 @@ func TestCommandTransaction(t *testing.T) {
 
 		wantCommands := []CommandID{
 			CommandDesktopCreate,
+			CommandWindowOpen,
+			CommandWindowOpen,
+			CommandWindowStackGroup,
+			CommandWindowStackSetActive,
+			CommandWindowClose,
+			CommandWindowReopen,
+			CommandWindowToggleFloating,
 			CommandWindowMove,
 			CommandLayoutArrange,
 			CommandLayoutReplace,
@@ -474,7 +590,7 @@ func TestHistory(t *testing.T) {
 		},
 	)
 
-	t.Run("Should preserve current routes across undo and redo without changing redo history", func(t *testing.T) {
+	t.Run("Should preserve current routes and navigation stacks across undo and redo [UT-034]", func(t *testing.T) {
 		t.Parallel()
 		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
 		openTestWindow(t, environment.manager, "workspace-a", nil, "w1", "desktop-default")
@@ -494,7 +610,7 @@ func TestHistory(t *testing.T) {
 			environment.manager,
 			"workspace-a",
 			nil,
-			NavigateWindowCommand{WindowID: "w1", Route: testRoute("/after-arrange")},
+			NavigateWindowCommand{WindowID: "w1", Route: testRoute("/after-arrange"), Mode: NavigatePush},
 		)
 		if len(navigated.Snapshot.History.Undo) != len(arranged.Snapshot.History.Undo) ||
 			len(navigated.Snapshot.History.Redo) != len(arranged.Snapshot.History.Redo) {
@@ -502,6 +618,7 @@ func TestHistory(t *testing.T) {
 		}
 		undone := executeTestCommand(t, environment.manager, "workspace-a", nil, UndoLayoutCommand{})
 		if undone.Snapshot.Windows["w1"].Route.Pathname != "/after-arrange" ||
+			len(undone.Snapshot.Windows["w1"].NavStack) != 1 ||
 			len(undone.Snapshot.History.Redo) != 1 {
 			t.Fatalf("undo route/history = %+v / %+v", undone.Snapshot.Windows["w1"].Route, undone.Snapshot.History)
 		}
@@ -510,17 +627,654 @@ func TestHistory(t *testing.T) {
 			environment.manager,
 			"workspace-a",
 			nil,
-			NavigateWindowCommand{WindowID: "w1", Route: testRoute("/before-redo")},
+			NavigateWindowCommand{WindowID: "w1", Route: testRoute("/before-redo"), Mode: NavigatePush},
 		)
 		if len(renavigated.Snapshot.History.Redo) != 1 {
 			t.Fatalf("navigation cleared redo = %+v", renavigated.Snapshot.History)
 		}
 		redone := executeTestCommand(t, environment.manager, "workspace-a", nil, RedoLayoutCommand{})
-		if redone.Snapshot.Windows["w1"].Route.Pathname != "/before-redo" {
+		if redone.Snapshot.Windows["w1"].Route.Pathname != "/before-redo" ||
+			len(redone.Snapshot.Windows["w1"].NavStack) != 2 {
 			t.Fatalf("redo route = %+v", redone.Snapshot.Windows["w1"].Route)
 		}
 	})
 }
+
+func TestWindowTabHistoryV3(t *testing.T) {
+	t.Run("Should undo and redo grouping while set-active stays outside history [UT-036]", func(t *testing.T) {
+		t.Parallel()
+		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		grouped := createFloatingStack(t, environment.manager, []WindowID{"w1", "w2"})
+		historyLength := len(grouped.Snapshot.History.Undo)
+		activated := executeTestCommand(
+			t,
+			environment.manager,
+			"workspace-a",
+			nil,
+			SetStackActiveCommand{WindowID: "w1"},
+		)
+		if len(activated.Snapshot.History.Undo) != historyLength {
+			t.Fatalf("set-active history = %+v", activated.Snapshot.History)
+		}
+		undone := executeTestCommand(t, environment.manager, "workspace-a", nil, UndoLayoutCommand{})
+		if _, stacked := findStackByWindow(&undone.Snapshot, "w1"); stacked {
+			t.Fatalf("undo retained stack = %+v", undone.Snapshot)
+		}
+		redone := executeTestCommand(t, environment.manager, "workspace-a", nil, RedoLayoutCommand{})
+		if members := stackMembersForWindow(
+			t,
+			redone.Snapshot,
+			"w1",
+		); !reflect.DeepEqual(
+			members,
+			[]WindowID{"w1", "w2"},
+		) {
+			t.Fatalf("redo members = %v", members)
+		}
+	})
+
+	t.Run("Should reopen only dead members from an entry containing a live ID [UT-174]", func(t *testing.T) {
+		t.Parallel()
+		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		snapshot := initialSnapshot("workspace-a")
+		w1 := Window{
+			ID:           "w1",
+			App:          "One",
+			Route:        testRoute("/one"),
+			DesktopID:    "desktop-default",
+			Placement:    WindowPlacementFloating,
+			FloatingRect: fullRect(),
+		}
+		w2 := Window{
+			ID:           "w2",
+			App:          "Two",
+			Route:        testRoute("/two"),
+			DesktopID:    "desktop-default",
+			Placement:    WindowPlacementFloating,
+			FloatingRect: fullRect(),
+		}
+		snapshot.Windows["w1"] = w1
+		snapshot.Desktops[0].Floating = []WindowID{"w1"}
+		snapshot.ClosedEntries = []ClosedEntry{
+			{Windows: []Window{w1, w2}, DesktopID: "desktop-default", Rect: fullRect()},
+		}
+		environment.repository.mu.Lock()
+		environment.repository.snapshots["workspace-a"] = cloneSnapshot(snapshot)
+		environment.repository.mu.Unlock()
+		result := executeTestCommand(t, environment.manager, "workspace-a", nil, ReopenCommand{})
+		if len(result.Snapshot.Windows) != 2 || result.Snapshot.Windows["w1"].App != "One" ||
+			result.Snapshot.Windows["w2"].App != "Two" ||
+			len(result.Snapshot.ClosedEntries) != 0 {
+			t.Fatalf("mixed reopen = %+v", result.Snapshot)
+		}
+		liveSnapshot := cloneSnapshot(result.Snapshot)
+		liveSnapshot.ClosedEntries = []ClosedEntry{
+			{Windows: []Window{w1, w2}, DesktopID: "desktop-default", Rect: fullRect()},
+		}
+		historyLength := len(liveSnapshot.History.Undo)
+		environment.repository.mu.Lock()
+		environment.repository.snapshots["workspace-a"] = liveSnapshot
+		environment.repository.mu.Unlock()
+		allLive := executeTestCommand(t, environment.manager, "workspace-a", nil, ReopenCommand{})
+		if allLive.Applied || len(allLive.Snapshot.ClosedEntries) != 0 {
+			t.Fatalf("all-live reopen = %+v", allLive)
+		}
+		if len(allLive.Snapshot.History.Undo) != historyLength {
+			t.Fatalf("all-live reopen history = %+v", allLive.Snapshot.History)
+		}
+	})
+
+	t.Run(
+		"Should preserve entries through close undo redo and keep reopen consumption outside history [UT-175]",
+		func(t *testing.T) {
+			t.Parallel()
+			environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+			openTestWindow(t, environment.manager, "workspace-a", nil, "w1", "desktop-default")
+			closed := executeTestCommand(t, environment.manager, "workspace-a", nil, CloseWindowCommand{WindowID: "w1"})
+			wantEntries := cloneClosedEntries(closed.Snapshot.ClosedEntries)
+			undone := executeTestCommand(t, environment.manager, "workspace-a", nil, UndoLayoutCommand{})
+			if _, live := undone.Snapshot.Windows["w1"]; !live ||
+				!reflect.DeepEqual(undone.Snapshot.ClosedEntries, wantEntries) {
+				t.Fatalf("undo close = %+v", undone.Snapshot)
+			}
+			redone := executeTestCommand(t, environment.manager, "workspace-a", nil, RedoLayoutCommand{})
+			if _, live := redone.Snapshot.Windows["w1"]; live ||
+				!reflect.DeepEqual(redone.Snapshot.ClosedEntries, wantEntries) {
+				t.Fatalf("redo close = %+v", redone.Snapshot)
+			}
+			reopened := executeTestCommand(t, environment.manager, "workspace-a", nil, ReopenCommand{})
+			if len(reopened.Snapshot.ClosedEntries) != 0 {
+				t.Fatalf("reopen did not consume entry = %+v", reopened.Snapshot.ClosedEntries)
+			}
+			undoReopen := executeTestCommand(t, environment.manager, "workspace-a", nil, UndoLayoutCommand{})
+			if len(undoReopen.Snapshot.ClosedEntries) != 0 {
+				t.Fatalf("undo reopen resurrected entries = %+v", undoReopen.Snapshot.ClosedEntries)
+			}
+		},
+	)
+}
+
+func TestWindowTabCASAndRestartV3(t *testing.T) {
+	t.Run("Should serialize same-revision groups and allow an explicitly guarded rebase [UT-060]", func(t *testing.T) {
+		t.Parallel()
+		repository := NewMemoryRepository()
+		resolver := NewMemoryWorkspaceResolver("workspace-a")
+		managerA := newWindowTabTestManager(t, repository, resolver)
+		managerB := newWindowTabTestManager(t, repository, resolver)
+		for _, windowID := range []WindowID{"w1", "w2", "w3", "w4"} {
+			openTestWindow(t, managerA, "workspace-a", nil, windowID, "desktop-default")
+		}
+		base := mustSnapshot(t, managerA, "workspace-a")
+		first, err := managerA.Execute(
+			t.Context(),
+			CommandRequest{
+				WorkspaceID:      "workspace-a",
+				ExpectedRevision: base.Revision,
+				Payload:          GroupWindowsCommand{TargetWindowID: "w1", WindowIDs: []WindowID{"w2"}},
+			},
+		)
+		if err != nil {
+			t.Fatalf("Execute(first group) error = %v", err)
+		}
+		_, err = managerB.Execute(
+			t.Context(),
+			CommandRequest{
+				WorkspaceID:      "workspace-a",
+				ExpectedRevision: base.Revision,
+				Payload:          GroupWindowsCommand{TargetWindowID: "w1", WindowIDs: []WindowID{"w2"}},
+			},
+		)
+		if !errors.Is(err, ErrRevisionConflict) {
+			t.Fatalf("Execute(conflicting group) error = %v", err)
+		}
+		w3 := WindowID("w3")
+		rebased, err := managerB.Execute(
+			t.Context(),
+			CommandRequest{
+				WorkspaceID:      "workspace-a",
+				ExpectedRevision: base.Revision,
+				Rebase:           &RebaseGuard{WindowID: &w3},
+				Payload:          GroupWindowsCommand{TargetWindowID: "w3", WindowIDs: []WindowID{"w4"}},
+			},
+		)
+		if err != nil || rebased.RebasedFrom == nil || *rebased.RebasedFrom != base.Revision ||
+			rebased.Snapshot.Revision != first.Snapshot.Revision+1 {
+			t.Fatalf("rebased group = %+v, error = %v", rebased, err)
+		}
+	})
+
+	t.Run("Should restore v3 topology and seed a new client from durable active state [UT-061]", func(t *testing.T) {
+		t.Parallel()
+		repository := NewMemoryRepository()
+		resolver := NewMemoryWorkspaceResolver("workspace-a")
+		managerA := newWindowTabTestManager(t, repository, resolver)
+		createFloatingStack(t, managerA, []WindowID{"w1", "w2"})
+		executeTestCommand(t, managerA, "workspace-a", nil, SetStackActiveCommand{WindowID: "w1"})
+		persisted := mustSnapshot(t, managerA, "workspace-a")
+		location, found := findStackByWindow(&persisted, "w1")
+		if !found {
+			t.Fatal("persisted stack not found")
+		}
+		managerB := newWindowTabTestManager(t, repository, resolver)
+		view, err := managerB.RegisterClient(
+			t.Context(),
+			ClientRegistration{WorkspaceID: "workspace-a", ClientID: "client-b"},
+		)
+		if err != nil || view.StackActive[location.id()] != "w1" {
+			t.Fatalf("RegisterClient(restart) = %+v, error = %v", view, err)
+		}
+	})
+}
+
+func TestWindowTabClientActivationV3(t *testing.T) {
+	t.Run("Should activate an open-as-tab destination only for the issuing client", func(t *testing.T) {
+		t.Parallel()
+		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		createFloatingStack(t, environment.manager, []WindowID{"w1", "w2"})
+		clientA, clientB := ClientID("client-a"), ClientID("client-b")
+		registerTestClient(t, environment.manager, "workspace-a", clientA)
+		registerTestClient(t, environment.manager, "workspace-a", clientB)
+		executeTestCommand(
+			t,
+			environment.manager,
+			"workspace-a",
+			&clientA,
+			FocusWindowCommand{WindowID: new(WindowID("w1"))},
+		)
+		targetID := WindowID("w1")
+		opened := executeTestCommand(
+			t,
+			environment.manager,
+			"workspace-a",
+			&clientA,
+			OpenWindowCommand{Window: WindowSpec{
+				ID:                  "w3",
+				App:                 "Test",
+				Route:               testRoute("/test"),
+				FloatingRect:        fullRect(),
+				StackTargetWindowID: &targetID,
+			}},
+		)
+		location, found := findStackByWindow(&opened.Snapshot, "w3")
+		if !found {
+			t.Fatal("open-as-tab stack not found")
+		}
+		views, err := environment.manager.Clients(t.Context(), "workspace-a")
+		if err != nil {
+			t.Fatalf("Clients(after open-as-tab) error = %v", err)
+		}
+		for _, view := range views {
+			switch view.ClientID {
+			case clientA:
+				if view.StackActive[location.id()] != "w3" ||
+					valueOrZero(view.FocusedWindowID) != "w3" {
+					t.Fatalf("issuing client view = %+v", view)
+				}
+			case clientB:
+				if view.StackActive[location.id()] != "w2" {
+					t.Fatalf("peer client view = %+v", view)
+				}
+			}
+		}
+	})
+
+	t.Run("Should activate the last grouped window only for the issuing client", func(t *testing.T) {
+		t.Parallel()
+		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		for _, windowID := range []WindowID{"w1", "w2", "w3"} {
+			openTestWindow(t, environment.manager, "workspace-a", nil, windowID, "desktop-default")
+		}
+		clientA, clientB := ClientID("client-a"), ClientID("client-b")
+		registerTestClient(t, environment.manager, "workspace-a", clientA)
+		registerTestClient(t, environment.manager, "workspace-a", clientB)
+		executeTestCommand(
+			t,
+			environment.manager,
+			"workspace-a",
+			nil,
+			GroupWindowsCommand{TargetWindowID: "w1", WindowIDs: []WindowID{"w2"}},
+		)
+		executeTestCommand(
+			t,
+			environment.manager,
+			"workspace-a",
+			&clientA,
+			FocusWindowCommand{WindowID: new(WindowID("w1"))},
+		)
+		grouped := executeTestCommand(
+			t,
+			environment.manager,
+			"workspace-a",
+			&clientA,
+			GroupWindowsCommand{TargetWindowID: "w1", WindowIDs: []WindowID{"w3"}},
+		)
+		location, found := findStackByWindow(&grouped.Snapshot, "w1")
+		if !found {
+			t.Fatal("grouped stack not found")
+		}
+		views, err := environment.manager.Clients(t.Context(), "workspace-a")
+		if err != nil {
+			t.Fatalf("Clients(after group) error = %v", err)
+		}
+		for _, view := range views {
+			switch view.ClientID {
+			case clientA:
+				if view.StackActive[location.id()] != "w3" ||
+					valueOrZero(view.FocusedWindowID) != "w3" {
+					t.Fatalf("issuing client view = %+v", view)
+				}
+			case clientB:
+				if view.StackActive[location.id()] != "w2" {
+					t.Fatalf("peer client view = %+v", view)
+				}
+			}
+		}
+	})
+
+	t.Run(
+		"Should isolate client active tabs repair peers and seed re-registrations [UT-063][UT-064][IT-007]",
+		func(t *testing.T) {
+			t.Parallel()
+			environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+			created := createFloatingStack(t, environment.manager, []WindowID{"w1", "w2", "w3"})
+			location, found := findStackByWindow(&created.Snapshot, "w1")
+			if !found {
+				t.Fatal("created stack not found")
+			}
+			clientA, clientB := ClientID("client-a"), ClientID("client-b")
+			registerTestClient(t, environment.manager, "workspace-a", clientA)
+			registerTestClient(t, environment.manager, "workspace-a", clientB)
+			executeTestCommand(
+				t,
+				environment.manager,
+				"workspace-a",
+				&clientA,
+				FocusWindowCommand{WindowID: new(WindowID("w1"))},
+			)
+			views, err := environment.manager.Clients(t.Context(), "workspace-a")
+			if err != nil {
+				t.Fatalf("Clients() error = %v", err)
+			}
+			activeByClient := make(map[ClientID]WindowID)
+			for _, view := range views {
+				activeByClient[view.ClientID] = view.StackActive[location.id()]
+			}
+			if activeByClient[clientA] != "w1" || activeByClient[clientB] != "w3" {
+				t.Fatalf("client active tabs = %v", activeByClient)
+			}
+			closed := executeTestCommand(t, environment.manager, "workspace-a", nil, CloseWindowCommand{WindowID: "w3"})
+			views, err = environment.manager.Clients(t.Context(), "workspace-a")
+			if err != nil {
+				t.Fatalf("Clients(after close) error = %v", err)
+			}
+			for _, view := range views {
+				if view.StackActive[location.id()] != "w1" {
+					t.Fatalf("repaired view = %+v, close = %+v", view, closed)
+				}
+			}
+			if err := environment.manager.UnregisterClient(t.Context(), "workspace-a", clientB); err != nil {
+				t.Fatalf("UnregisterClient() error = %v", err)
+			}
+			reregistered, err := environment.manager.RegisterClient(
+				t.Context(),
+				ClientRegistration{WorkspaceID: "workspace-a", ClientID: clientB},
+			)
+			if err != nil || reregistered.StackActive[location.id()] != "w1" {
+				t.Fatalf("RegisterClient(after close) = %+v, error = %v", reregistered, err)
+			}
+		},
+	)
+}
+
+func TestActiveCoalescerV3(t *testing.T) {
+	t.Run("Should preserve pending activation when workspace deletion fails", func(t *testing.T) {
+		t.Parallel()
+		base := NewMemoryRepository()
+		repository := &failingWindowManagerRepository{MemoryRepository: base}
+		manager := newWindowTabTestManager(t, repository, NewMemoryWorkspaceResolver("workspace-a"))
+		createFloatingStack(t, manager, []WindowID{"w1", "w2"})
+		clientID := ClientID("client-a")
+		registerTestClient(t, manager, "workspace-a", clientID)
+		executeTestCommand(
+			t,
+			manager,
+			"workspace-a",
+			&clientID,
+			FocusWindowCommand{WindowID: new(WindowID("w1"))},
+		)
+		beforeDelete := mustSnapshot(t, manager, "workspace-a")
+
+		repository.failDeleteNext.Store(true)
+		if err := manager.DeleteWorkspace(t.Context(), "workspace-a"); err == nil {
+			t.Fatal("DeleteWorkspace() error = nil, want injected failure")
+		}
+		afterFailure := mustSnapshot(t, manager, "workspace-a")
+		if !reflect.DeepEqual(afterFailure, beforeDelete) {
+			t.Fatalf("snapshot after failed deletion = %+v, want unchanged %+v", afterFailure, beforeDelete)
+		}
+		if !manager.coalescer.hasPending("workspace-a") {
+			t.Fatal("failed deletion discarded pending activation")
+		}
+		lock, err := manager.lockFor("workspace-a")
+		if err != nil {
+			t.Fatalf("lockFor() error = %v", err)
+		}
+		lock.Lock()
+		_, err = manager.flushStackActiveLocked(t.Context(), "workspace-a")
+		manager.releaseWorkspaceLock("workspace-a", lock)
+		if err != nil {
+			t.Fatalf("flushStackActiveLocked() error = %v", err)
+		}
+		persisted := mustSnapshot(t, manager, "workspace-a")
+		location, found := findStackByWindow(&persisted, "w1")
+		if !found || valueOrZero(location.activeID()) != "w1" {
+			t.Fatalf("persisted active window = %+v, found = %v", location, found)
+		}
+	})
+
+	t.Run("Should not attribute a concurrent matching activation commit to its own flush", func(t *testing.T) {
+		t.Parallel()
+		repository := NewMemoryRepository()
+		resolver := NewMemoryWorkspaceResolver("workspace-a")
+		managerA := newWindowTabTestManager(t, repository, resolver)
+		managerB := newWindowTabTestManager(t, repository, resolver)
+		created := createFloatingStack(t, managerA, []WindowID{"w1", "w2"})
+		clientID := ClientID("client-a")
+		registerTestClient(t, managerA, "workspace-a", clientID)
+		executeTestCommand(
+			t,
+			managerA,
+			"workspace-a",
+			&clientID,
+			FocusWindowCommand{WindowID: new(WindowID("w1"))},
+		)
+		concurrent := executeTestCommand(
+			t,
+			managerB,
+			"workspace-a",
+			nil,
+			SetStackActiveCommand{WindowID: "w1"},
+		)
+		_, err := managerA.Execute(t.Context(), CommandRequest{
+			WorkspaceID:      "workspace-a",
+			ExpectedRevision: created.Snapshot.Revision,
+			Payload:          PinWindowCommand{WindowID: "w2", Pinned: true},
+		})
+		if !errors.Is(err, ErrRevisionConflict) {
+			t.Fatalf("Execute(after concurrent activation) error = %v, want ErrRevisionConflict", err)
+		}
+		persisted := mustSnapshot(t, managerA, "workspace-a")
+		if persisted.Revision != concurrent.Snapshot.Revision || persisted.Windows["w2"].Pinned {
+			t.Fatalf("snapshot after rejected command = %+v", persisted)
+		}
+	})
+
+	t.Run(
+		"Should flush before a structural reducer without deadlock or stale active state [UT-065]",
+		func(t *testing.T) {
+			t.Parallel()
+			environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+			created := createFloatingStack(t, environment.manager, []WindowID{"w1", "w2"})
+			clientID := ClientID("client-a")
+			registerTestClient(t, environment.manager, "workspace-a", clientID)
+			executeTestCommand(
+				t,
+				environment.manager,
+				"workspace-a",
+				&clientID,
+				FocusWindowCommand{WindowID: new(WindowID("w1"))},
+			)
+			result := executeTestCommand(
+				t,
+				environment.manager,
+				"workspace-a",
+				nil,
+				PinWindowCommand{WindowID: "w2", Pinned: true},
+			)
+			location, found := findStackByWindow(&result.Snapshot, "w1")
+			if !found || valueOrZero(location.activeID()) != "w1" {
+				t.Fatalf("post-flush stack = %+v, found = %v", location, found)
+			}
+			commits := environment.repository.Commits("workspace-a")
+			if len(commits) < 2 || commits[len(commits)-2].Event.CommandID != CommandWindowStackSetActive ||
+				commits[len(commits)-1].Event.CommandID != CommandWindowPin ||
+				result.Snapshot.Revision != created.Snapshot.Revision+2 {
+				t.Fatalf("coalesced commits = %+v", commits)
+			}
+		},
+	)
+
+	t.Run("Should flush once on unregister and shutdown without history [UT-066]", func(t *testing.T) {
+		t.Parallel()
+		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		created := createFloatingStack(t, environment.manager, []WindowID{"w1", "w2"})
+		clientID := ClientID("client-a")
+		registerTestClient(t, environment.manager, "workspace-a", clientID)
+		executeTestCommand(
+			t,
+			environment.manager,
+			"workspace-a",
+			&clientID,
+			FocusWindowCommand{WindowID: new(WindowID("w1"))},
+		)
+		if err := environment.manager.UnregisterClient(t.Context(), "workspace-a", clientID); err != nil {
+			t.Fatalf("UnregisterClient() error = %v", err)
+		}
+		commits := environment.repository.Commits("workspace-a")
+		if len(commits) == 0 || commits[len(commits)-1].Event.CommandID != CommandWindowStackSetActive ||
+			len(commits[len(commits)-1].Snapshot.History.Undo) != len(created.Snapshot.History.Undo) {
+			t.Fatalf("unregister flush commits = %+v", commits)
+		}
+		count := len(commits)
+		if err := environment.manager.Close(); err != nil {
+			t.Fatalf("Manager.Close() error = %v", err)
+		}
+		if got := len(environment.repository.Commits("workspace-a")); got != count {
+			t.Fatalf("shutdown duplicate commits = %d, want %d", got, count)
+		}
+	})
+
+	t.Run("Should retain failed pending values and isolate concurrent workspace retries [UT-176]", func(t *testing.T) {
+		t.Parallel()
+		base := NewMemoryRepository()
+		repository := &failingWindowManagerRepository{MemoryRepository: base}
+		resolver := NewMemoryWorkspaceResolver("workspace-a", "workspace-b")
+		manager, err := NewService(
+			repository,
+			resolver,
+			nil,
+			DefaultConfig(),
+			WithIDGenerator(func(kind string) (string, error) {
+				return fmt.Sprintf(
+					"%s-%d",
+					kind,
+					len(base.Commits("workspace-a"))+len(base.Commits("workspace-b"))+1,
+				), nil
+			}),
+		)
+		if err != nil {
+			t.Fatalf("NewService() error = %v", err)
+		}
+		for _, workspaceID := range []WorkspaceID{"workspace-a", "workspace-b"} {
+			openTestWindow(t, manager, workspaceID, nil, WindowID(workspaceID+"-1"), "desktop-default")
+			openTestWindow(t, manager, workspaceID, nil, WindowID(workspaceID+"-2"), "desktop-default")
+			executeTestCommand(
+				t,
+				manager,
+				workspaceID,
+				nil,
+				GroupWindowsCommand{
+					TargetWindowID: WindowID(workspaceID + "-1"),
+					WindowIDs:      []WindowID{WindowID(workspaceID + "-2")},
+				},
+			)
+			clientID := ClientID(workspaceID + "-client")
+			registerTestClient(t, manager, workspaceID, clientID)
+			executeTestCommand(
+				t,
+				manager,
+				workspaceID,
+				&clientID,
+				FocusWindowCommand{WindowID: new(WindowID(workspaceID + "-1"))},
+			)
+		}
+		repository.failNext.Store(true)
+		lockA, lockErr := manager.lockFor("workspace-a")
+		if lockErr != nil {
+			t.Fatalf("lockFor(A) error = %v", lockErr)
+		}
+		lockA.Lock()
+		_, flushErr := manager.flushStackActiveLocked(t.Context(), "workspace-a")
+		manager.releaseWorkspaceLock("workspace-a", lockA)
+		if flushErr == nil || !manager.coalescer.hasPending("workspace-a") {
+			t.Fatalf("failed flush error = %v pending = %v", flushErr, manager.coalescer.hasPending("workspace-a"))
+		}
+		var wait sync.WaitGroup
+		errorsByWorkspace := make(chan error, 2)
+		for _, workspaceID := range []WorkspaceID{"workspace-a", "workspace-b"} {
+			wait.Go(func() {
+				lock, lockErr := manager.lockFor(workspaceID)
+				if lockErr != nil {
+					errorsByWorkspace <- lockErr
+					return
+				}
+				lock.Lock()
+				_, err := manager.flushStackActiveLocked(t.Context(), workspaceID)
+				manager.releaseWorkspaceLock(workspaceID, lock)
+				errorsByWorkspace <- err
+			})
+		}
+		wait.Wait()
+		close(errorsByWorkspace)
+		for flushErr := range errorsByWorkspace {
+			if flushErr != nil {
+				t.Fatalf("retry flush error = %v", flushErr)
+			}
+		}
+		for _, workspaceID := range []WorkspaceID{"workspace-a", "workspace-b"} {
+			snapshot, loadErr := base.Load(t.Context(), workspaceID)
+			if loadErr != nil {
+				t.Fatalf("Load(%s) error = %v", workspaceID, loadErr)
+			}
+			windowID := WindowID(workspaceID + "-1")
+			location, found := findStackByWindow(&snapshot, windowID)
+			if !found || valueOrZero(location.activeID()) != windowID {
+				t.Fatalf("workspace %s active = %+v", workspaceID, location)
+			}
+		}
+		if err := manager.Close(); err != nil {
+			t.Fatalf("Manager.Close() error = %v", err)
+		}
+	})
+}
+
+type failingWindowManagerRepository struct {
+	*MemoryRepository
+	failNext       atomic.Bool
+	failDeleteNext atomic.Bool
+}
+
+func (r *failingWindowManagerRepository) Commit(ctx context.Context, commit *Commit) error {
+	if r.failNext.Swap(false) {
+		return errors.New("injected commit failure")
+	}
+	return r.MemoryRepository.Commit(ctx, commit)
+}
+
+func (r *failingWindowManagerRepository) DeleteWorkspace(ctx context.Context, workspaceID WorkspaceID) error {
+	if r.failDeleteNext.Swap(false) {
+		return errors.New("injected delete failure")
+	}
+	return r.MemoryRepository.DeleteWorkspace(ctx, workspaceID)
+}
+
+func newWindowTabTestManager(
+	t *testing.T,
+	repository Repository,
+	resolver WorkspaceResolver,
+) *Manager {
+	t.Helper()
+	manager, err := NewService(
+		repository,
+		resolver,
+		nil,
+		DefaultConfig(),
+		WithIDGenerator(func(kind string) (string, error) {
+			return fmt.Sprintf("%s-%d", kind, windowTabManagerIDSequence.Add(1)), nil
+		}),
+	)
+	if err != nil {
+		t.Fatalf("NewService() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if closeErr := manager.Close(); closeErr != nil {
+			t.Errorf("Manager.Close() error = %v", closeErr)
+		}
+	})
+	return manager
+}
+
+var windowTabManagerIDSequence atomic.Int64
 
 func TestRevisionRebase(t *testing.T) {
 	t.Run(
@@ -1017,6 +1771,12 @@ func TestSubscription(t *testing.T) {
 		}
 		environment.manager.ForgetWorkspace("workspace-a")
 		environment.manager.ForgetWorkspace("workspace-a")
+		environment.manager.mu.Lock()
+		_, lockRetained := environment.manager.workspaceLocks["workspace-a"]
+		environment.manager.mu.Unlock()
+		if lockRetained {
+			t.Fatal("ForgetWorkspace retained an idle workspace lock")
+		}
 		_, open := <-subscription.Updates()
 		if open || !errors.Is(subscription.Err(), ErrWorkspaceNotFound) {
 			t.Fatalf("subscription open=%v error=%v", open, subscription.Err())

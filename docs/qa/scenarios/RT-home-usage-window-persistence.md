@@ -9,10 +9,10 @@ entry_points: web `/` Usage & cost zone + System row; `GET /api/observe/overview
 qa_status: pass
 bug_ids:
 fix_status:
-retest_status:
+retest_status: pass
 fix_commits:
-evidence: web/src/systems/dashboard/hooks/use-home-prefs-store.ts; web/src/systems/dashboard/components/home-usage-chart.tsx; internal/observe/overview_usage.go; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-021949-664736-lab/qa-artifacts/qa/evidence/037-home-dashboard
-last_report: docs/qa/reports/2026-07-28-untested-full.md
+evidence: docs/qa/evidence/2026-08-01-window-tabs/home-usage-30d-system-expanded.png
+last_report: docs/qa/reports/2026-08-01-window-tabs.md
 overlaps:
 ---
 
@@ -27,3 +27,6 @@ the chart label. With seven retained days, 7d omitted the truncation note while 
 the exact retention boundary. `cost_status=unknown` produced no numeric cost. A full reload preserved
 90d plus the expanded System panel through `compozy:home-prefs:v2`; the browser-local key was restored
 to its original absent state after the run.
+
+QA impact 2026-07-31: session-tab attention and observability now refresh provider/model facts from
+the authoritative session event. Reset as the adjacent Home usage canary.

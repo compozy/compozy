@@ -35,6 +35,7 @@ type settingsRuntimeSurface struct {
 	mcpAuthStore      mcpauth.TokenStore
 	mcpAuthManager    *mcpauth.Manager
 	mcpAuthGeneration *mcpauth.MutationGeneration
+	mcpStatusTimeout  time.Duration
 	secretResolver    mcpauth.SecretRefResolver
 	secretRefs        interface {
 		ResolveRef(context.Context, string) (string, error)
