@@ -61,7 +61,13 @@ conventional_commits = true
 filter_unconventional = true
 split_commits = false
 
-commit_preprocessors = [{ pattern = '  +', replace = " " }]
+commit_preprocessors = [
+  # GitHub squash messages can append later conventional commit titles after a
+  # BREAKING CHANGE footer. Remove that generated tail before it is parsed as
+  # part of the breaking description and leaked into release surfaces.
+  { pattern = '(?s)(BREAKING(?: CHANGE|-CHANGE):[^\n]*(?:\n[^\n]+)*)\n\n\* (?:build|ci|docs|feat|feature|fix|bugfix|perf|refactor|test|security|deps|style|chore|revert)(?:\([^)]*\))?!?: .*\z', replace = "$1" },
+  { pattern = '  +', replace = " " },
+]
 
 commit_parsers = [
   # v0.3 is a hard product-line cut. These commits remain owned by
