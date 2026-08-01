@@ -123,6 +123,7 @@ describe("session prompt chat transport", () => {
 
     const first = JSON.parse(String(fetch.mock.calls[0]?.[1]?.body)) as Record<string, unknown>;
     const retry = JSON.parse(String(fetch.mock.calls[1]?.[1]?.body)) as Record<string, unknown>;
+    expect(first.idempotency_key).toEqual(expect.stringMatching(/\S/));
     expect(retry.idempotency_key).toBe(first.idempotency_key);
   });
 

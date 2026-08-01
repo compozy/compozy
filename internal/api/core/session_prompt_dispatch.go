@@ -98,6 +98,7 @@ func (h *BaseHandlers) RespondPromptV1(c *gin.Context, dispatch *PromptDispatch)
 	}
 	encoder := NewPromptStreamEncoder(h.Now)
 	if err := encoder.Start(writer, turnID); err != nil {
+		h.Logger.Debug("api: prompt stream start failed", "transport", h.transportName(), "error", err)
 		return
 	}
 	DeliverPromptEventStream(
@@ -143,6 +144,7 @@ func (h *BaseHandlers) RespondPromptRaw(c *gin.Context, dispatch *PromptDispatch
 func (h *BaseHandlers) DispatchSessionSteer(c *gin.Context) (session.SendPromptResult, bool) {
 	var request contract.SteerPromptRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
+		h.Logger.Debug("api: decode steer request failed", "transport", h.transportName(), "error", err)
 		h.respondError(c, http.StatusBadRequest, invalidPromptRequestError{cause: err})
 		return session.SendPromptResult{}, false
 	}
