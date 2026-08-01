@@ -2,8 +2,10 @@
 
 - **Scope:** Metric ratchet, rejected-gate succession, repair context, generation provenance, breaker semantics, Loop config files, and persisted run-detail truth across CLI, HTTP, UDS, native tools, SSE, Web, docs, and the official skill.
 - **Cadence tier:** targeted, with adjacent safety checks, one destructive Loop CRUD canary, and one rotated Northstar Pay real-scenario observation.
-- **Build:** Task 07 committed at 746fd06; the post-task deep-review remediation is in the working tree.
-- **Environment:** fresh isolated northstar-pay-20260801-135009-390014 lab; daemon target http://127.0.0.1:60717.
+- **Build:** final post-rebase branch content, including the completed deep-review remediation and
+  runtime E2E reconciliation.
+- **Environment:** fresh isolated northstar-pay-20260801-135009-390014 lab plus the post-rebase
+  `/tmp/compozy-loops-postrebase.N1iPVr` runtime; daemon targets 60717 and 61336 respectively.
 - **Started:** 2026-08-01T13:49:19Z · **Status:** PASS — QA walks, evidence indexing, full verification, and teardown complete.
 
 ## Personas
@@ -39,7 +41,9 @@
 | 10 | CH-loop-goal-delete | LP-toggle-loop-goal | Bruno | Feature Tour | Skipped | The planned single adjacent canary used the destructive delete branch. | |
 | 11 | CH-loop-goal-delete | LP-delete-custom-loop | Bruno | Feature Tour | Pass | | |
 | 12 | northstar-pay behavioral charter | Autonomous launch coordination | Sofia Mendes | Scenario playbook | Blocked (human decision) | BUG-20260719-autonomous-progress-unobservable remains open; runtime work itself progressed. | |
-| 13 | CLI config-file regression | LP-loop-config-file-snake-case | Bruno | Feature Tour | Fixed | BUG-20260801-loop-config-file-snake-case | pending Task 07 commit |
+| 13 | CLI config-file regression | LP-loop-config-file-snake-case | Bruno | Feature Tour | Fixed | BUG-20260801-loop-config-file-snake-case | 38b2d40 |
+| 14 | CH-untested-013-13-bruno | TA-071 | Bruno | Network Tour | Pass | | |
+| 15 | CH-extension-dev-link-invoke | ET-extension-dev-reload-loop | Bruno | Feature Tour | Fixed | BUG-20260801-extension-cli-workspace-reads | 98feabf |
 
 Status legend: Pass | Fixed | Skipped | Blocked (needs human verify) | Blocked (human decision)
 
@@ -102,6 +106,36 @@ Evidence:
 - /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260801-135009-390014-lab/qa-artifacts/qa/loop/delete-canary-result.json
 - /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260801-135009-390014-lab/qa-artifacts/qa/loop/delete-canary-confirmation.png
 
+### Gate-verdict SSE redaction and reconnect
+
+The public run `looprun-1acce5b114ce72d5` intentionally failed its definition-of-done command.
+Its retained verdict and `output_ref` carried `compozy_claim_[REDACTED]`, while the raw claim token
+was absent. Reconnecting with `after_sequence=1` returned the ordered retained events with the same
+gate identity and sanitized diagnostic, proving that the new useful output survives both
+persistence and resume without weakening the redaction boundary.
+
+Evidence:
+- `docs/qa/scenarios/TA-071.md`
+- `/tmp/compozy-loops-postrebase.N1iPVr/teardown.json`
+
+### Workspace extension development loop
+
+Bruno linked `post-rebase-probe` to workspace `ws_44d9a2ed896b6e2e`. The first public CLI pass
+exposed a missing management surface: `extension list/status` could not select the workspace dev
+overlay even though HTTP/UDS already supported the scope. BUG-20260801-extension-cli-workspace-reads
+was fixed in `98feabf` with command and transport regressions.
+
+The fresh post-fix walk then listed and inspected the active overlay by stable workspace ID, invoked
+its tool, edited the source, reloaded generation `c9f43a2e…`, and received `Final reload result for
+workspace overlay` from the next invocation. Logs remained readable. Removal unlinked the overlay;
+a new scoped list omitted it and scoped status returned not found. No model was invoked.
+
+Evidence:
+- `docs/qa/bugs/BUG-20260801-extension-cli-workspace-reads.md`
+- `internal/cli/extension_test.go`
+- `internal/cli/client_test.go`
+- `/tmp/compozy-loops-postrebase.N1iPVr/teardown.json`
+
 ### Northstar Pay one-kickoff observation
 
 Exactly one kickoff was posted to PM session sess-8c62d4db9addb6b6. All 12 declared tasks received
@@ -142,11 +176,15 @@ Evidence:
 - /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260801-135009-390014-lab/qa-artifacts/qa/loop/config-file-json-run-status-v6.json
 - /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260801-135009-390014-lab/qa-artifacts/qa/loop/config-file-yaml-configure-v6.json
 
-Task 07 also hardened the shipped E2E fixtures and production paths for sandbox binding, exact tool
-approvals, extension author identity, provider negotiation diagnostics, Dream route config, fixture
-confidence, migration-34 harnesses, MCP timeout/default/editor behavior, clarification races, OAuth
-callbacks, cost provenance, session focus suppression, workspace session windows, and provider
-override envelopes. Both official E2E lanes passed after those fixes.
+Earlier task checkpoints also hardened the shipped E2E fixtures and production paths for sandbox
+binding, exact tool approvals, extension author identity, provider negotiation diagnostics, Dream
+route config, fixture confidence, migration-34 harnesses, MCP timeout/default/editor behavior,
+clarification races, OAuth callbacks, cost provenance, session focus suppression, workspace session
+windows, and provider override envelopes. Both official E2E lanes passed after those fixes.
+
+The MCP manual-auth timeout found during Task 01 is recorded separately in
+`docs/qa/reports/2026-08-01-loops-paper-task01-mcp-manual-timeout.md`; its verified fix is part of
+`38b2d40`.
 
 ### Post-task deep-review remediation
 
@@ -167,6 +205,18 @@ Evidence:
 - docs/qa/evidence/2026-08-01-loops-paper-adoption/loop-detail-desktop.png
 - docs/qa/evidence/2026-08-01-loops-paper-adoption/session-create-dialog-narrow.png
 - docs/qa/evidence/2026-08-01-loops-paper-adoption/session-create-dialog-desktop.png
+
+The final rebase exposed three integration regressions before delivery. Build metadata now ignores
+module tags and derives releases only from root `v*` tags. Workspace-scoped extension development now
+keys instances by the public workspace registration ID, while retaining the independent local identity
+for workspace storage. Loop `gate_verdict` SSE criterion notes now project already-sanitized command
+stdout/stderr from the canonical verdict record, so useful diagnostics survive without leaking claim
+tokens. The focused regressions and both complete E2E lanes passed after these fixes.
+
+Public QA then found a fourth integration gap: workspace-scoped extension reads existed in HTTP/UDS
+but not in the CLI. `extension list/status --workspace` now resolve aliases and paths to the stable
+registration ID before using that scoped contract. The canonical CLI command and transport tests,
+generated CLI reference, development guide, and official Compozy skill shipped with the fix.
 
 ## Paper Cuts
 
@@ -200,11 +250,21 @@ Evidence:
 
 ## Experiential Lens Pass
 
+| Journey | Usability | Accessibility | Perceived performance | Compatibility | Error recoverability | Production parity |
+|---|---|---|---|---|---|---|
+| J-improve-loop-with-feedback | Pass | Pass | Pass | Pass | Pass | Pass |
+| J-extension-dev-lifecycle | Pass | Pass | Pass | Pass | Pass | Pass |
+
 - Bruno could identify why the run stopped, the retained best result, elapsed time, round cap, and
-  immutable run identity from one screen.
-- Cora's deep link remained truthful across workspace isolation and did not silently switch context.
-- Ada's structured views exposed typed origins, parent generations, scores, recovery reasons, and
-  exact ownership outcomes without requiring database access.
+  immutable run identity from one screen. Structured CLI/HTTP/SSE outputs retained stable names,
+  bounded diagnostics, and a typed terminal cause without requiring database access.
+- The extension loop used the shipped CLI and daemon contracts from link through unlink. Structured
+  JSON remained readable, actions returned immediate typed results, failure after removal was a
+  specific not-found response, and the same workspace identity survived CLI, HTTP/UDS, reload, logs,
+  and invocation. No mock service or model was used.
+- Compatibility here covers the CLI/HTTP/UDS contracts on the local release artifact. No Web layout
+  changed in this post-rebase replay, so browser/viewport coverage remains owned by the already-passed
+  Web E2E and deterministic captures above.
 
 ## Learnings
 
@@ -221,33 +281,46 @@ Evidence:
 - **Native tools:** compozy__loop_status and compozy__loop_runs descriptors, structured outputs,
   schema digests, availability, and read-only risk flags were checked. The owner-workspace output
   matched CLI/HTTP/UDS exactly; the foreign workspace could not invoke or read the run.
+  compozy__extensions_list and compozy__extensions_info already used the workspace-scoped daemon
+  contract and served as parity references; their IDs, descriptors, schemas, digests, risk flags,
+  capability gates, and availability diagnostics did not change.
 - **Extensibility and hooks:** loop.gate.post, loop.generation.pre, extension scorer contracts,
   generation origins, and SSE projections were exercised by the official runtime lane and manual
-  replay. Post-review codegen now carries the closed seven-value generation-origin vocabulary into
-  both SDKs; bridge, MCP-sidecar, bundle, and config lifecycle contracts remain unchanged.
+  replay. Workspace extension overlays were reverified against the registration ID across dev,
+  CLI list/status, reload, logs, invoke, and remove. The CLI flags and official skill now expose the
+  existing scoped read; extension hooks, bundles, bridge SDKs, MCP sidecars, and config lifecycle are
+  unchanged. Post-review codegen carries the closed seven-value generation-origin vocabulary into
+  both SDKs.
 - **Workspace data isolation:** Loop definitions and runs are workspace-scoped. workspace_id was
   verified through CLI, HTTP, UDS, native-tool, SSE, and Web reads. Foreign HTTP/UDS/CLI reads
   returned not found and exposed no run body. Snapshot restore now validates the stored Loop
-  identity against the requested workspace before reconstruction.
-- **Official Compozy skill:** the bundled Loop reference now documents the closed generation-origin
-  vocabulary and `gate_verdict.item_index`; the config-file field names remain the documented public
-  snake_case vocabulary.
+  identity against the requested workspace before reconstruction. Extension dev instances use the
+  resolved registry ID as their ownership key and do not conflate it with the local workspace marker.
+  CLI aliases and paths are resolved to that stable ID before the existing HTTP/UDS scoped list/status
+  reads; manager and daemon integration suites retain the published/global instance independently.
+- **Official Compozy skill:** the bundled Loop reference documents the closed generation-origin
+  vocabulary and `gate_verdict.item_index`; the capability/bundle reference now documents scoped
+  extension list/status. Config-file field names remain the documented public snake_case vocabulary.
 
 ## Final Status
 
 - **Verdict:** PASS.
-- **Official E2E lanes:** make test-e2e-runtime passed; make test-e2e-web passed again after the
-  deep-review remediation.
+- **Official E2E lanes:** make test-e2e-runtime and make test-e2e-web passed on the final post-rebase
+  working tree after the deep-review and integration remediation.
 - **Targeted regressions:** CLI JSON/YAML config files and adjacent safety checks passed under race.
-- **Strict QA evidence audit:** PASS after the full verification evidence was indexed.
+- **Strict QA evidence audit:** PASS — the scenario tracker materialized 717 valid rows, the matrix
+  has no pending entry, both fixed rows link verified bug records and real SHAs, and teardown records
+  are clean.
 - **Teardown:** PASS — /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260801-135009-390014-lab/qa-artifacts/qa/teardown.json records clean: true with zero survivors.
-- **Final make verify evidence:** /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260801-135009-390014-lab/qa-artifacts/qa/final-make-verify.log.
-- **Exit gate:** the current-tree full-gate fingerprint and log are owned by `make gate-status` after
-  final source freeze; C14 indexes that same log in the QA evidence directory.
-- **Issues:** 1 QA-discovered config fix and 21/21 deep-review defects fixed; 1 pre-existing open
+- **Exit gate:** PASS — `make gate-full` completed the current-tree `make verify`; its fingerprint
+  and log are owned by `.cache/gate/` and reported by `make gate-status`.
+- **Issues:** 3 QA-discovered fixes and 21/21 deep-review defects fixed; 1 pre-existing open
   Blocks-Completion observer issue remains a separate human prioritization.
-- **Coverage:** 5/5 minted/reset Loop scenarios passed; 1/1 new config regression passed; 4 adjacent
+- **User-impact totals:** 2 Blocks-Completion fixed; 1 Friction fixed; 0 Data-Loss; 0 Trust-Damage;
+  0 Cosmetic. The separate pre-existing queue retains 1 open Blocks-Completion observer bug.
+- **Coverage:** 6/6 minted/reset Loop and SSE scenarios passed; 1/1 extension-dev scenario passed
+  after its QA fix; 1/1 new config regression passed; 1/1 MCP timeout scenario passed; 4 adjacent
   safety/CRUD scenarios passed; 1 planned goal-toggle branch skipped in favor of the single required
   delete canary; Northstar runtime completed with the observer decision blocked.
 - **Verdict:** QA behavior, post-review remediation, current Web/session re-walks, visual evidence,
-  and cleanup are complete. Delivery uses the final current-tree full-gate and C14 evidence records.
+  and cleanup are complete. Delivery uses the final current-tree full-gate evidence record.

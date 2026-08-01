@@ -53,7 +53,7 @@ requested timeout.
   poller, interrupts it with a read deadline, closes the owned duplicate, and restores the borrowed
   descriptor's original flags. Expected poller timeout errors collapse into the canonical public
   authorization-timeout error.
-- **Fix commit:** pending Task 01 checkpoint
+- **Fix commit:** 38b2d40
 - **Regression owner:** `internal/cli/mcp_auth_test.go`,
   `TestMCPAuthLoginManualHonorsTimeout/Should interrupt pending manual input at the authorization deadline`.
 

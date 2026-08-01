@@ -1,7 +1,7 @@
 # BUG-20260801-loop-config-file-snake-case: Loop config files reject documented snake_case fields
 
 - **Status:** verified
-- **Impact (user-side):** Blocked
+- **Impact (user-side):** Blocks-Completion
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Bruno
 - **Journey Step:** Configure or start a Loop with reusable file-based overrides
@@ -42,7 +42,7 @@ unknown-field rejection.
   JSON, which YAML accepts as input syntax.
 - **Fix:** Add matching YAML tags to every public LoopConfig field so JSON/YAML file decoding and
   the HTTP JSON contract share one field vocabulary.
-- **Fix commit:** pending Task 07 commit
+- **Fix commit:** 38b2d40
 - **Regression test:** The canonical internal/cli/loop_test.go command suite covers JSON and YAML
   through both CLI verbs and retains the existing unknown-field invariant.
 

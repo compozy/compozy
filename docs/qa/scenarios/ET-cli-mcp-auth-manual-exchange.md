@@ -10,7 +10,7 @@ qa_status: pass
 bug_ids: BUG-20260715-mcp-oauth-name-segment; BUG-20260715-mcp-manual-tty-echo; BUG-20260729-mcp-manual-exchange-timeout; BUG-20260801-mcp-manual-input-timeout
 fix_status: fixed
 retest_status: pass
-fix_commits: 8eeb8a38;351f3535
+fix_commits: 8eeb8a38;351f3535;38b2d40
 evidence: /Users/pedronauck/dev/qa-labs/compozy-marketplace-northstar-20260715-20260715-114240-757254-lab/qa-artifacts/qa/notes/mcp-guided-oauth-workspace-isolation.json; /Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/mcp-manual-tty-redaction.json; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-021949-664736-lab/qa-artifacts/qa/evidence/024-mcp-oauth-endpoints; /Users/pedronauck/dev/qa-labs/compozy-loops-paper-task01-mcp-manual-timeout-20260801-075922-632496-lab/qa-artifacts/qa/notes/manual-input-timeout-public.json
 last_report: docs/qa/reports/2026-08-01-loops-paper-task01-mcp-manual-timeout.md
 overlaps: ET-047; ET-cli-mcp-authorize; ET-api-mcp-oauth-endpoints; ET-web-mcp-authorize-manual

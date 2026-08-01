@@ -19,7 +19,7 @@
 
 | # | Charter | Journey / Scenario | Persona | Tour | Status | Issue | Fix commit |
 |---|---|---|---|---|---|---|---|
-| 1 | CH-remote-operator-manual-auth | J-mcp-authorize-repair / ET-cli-mcp-auth-manual-exchange | Iris | Paste Tour | Fixed | BUG-20260801-mcp-manual-input-timeout | pending Task 01 checkpoint |
+| 1 | CH-remote-operator-manual-auth | J-mcp-authorize-repair / ET-cli-mcp-auth-manual-exchange | Iris | Paste Tour | Fixed | BUG-20260801-mcp-manual-input-timeout | 38b2d40 |
 
 Status legend: `Pending | Pass | Fixed | Skipped | Blocked (needs human verify) | Blocked (human decision)`
 
