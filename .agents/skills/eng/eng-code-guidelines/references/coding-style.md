@@ -1,13 +1,7 @@
 # Compozy Coding Style — Canonical Rules
 
-Verbatim canonical rules. Reviewers will quote these.
-
-## Errors
-
-- Wrap with context using `%w`: `fmt.Errorf("operation: %w", err)`.
-- Match with `errors.Is` and `errors.As`. **`strings.Contains(err.Error(), …)` is forbidden.**
-- Never ignore an error with `_`. Every error is handled or has a written justification on the line.
-- No `panic()` or `log.Fatal()` in production paths — only for unrecoverable startup failures inside `main`.
+Verbatim canonical rules — the Compozy delta. `golang-master` owns the generic Go floor
+(errors, context, types, safety, style); reviewers quote both.
 
 ## Cleanup
 
@@ -19,17 +13,9 @@ Verbatim canonical rules. Reviewers will quote these.
 - `log/slog` for structured logging. `log.Printf`, `fmt.Println`, `fmt.Printf` are forbidden in operational paths.
 - Include correlation keys when relevant: `workspace_id`, `session_id`, `parent_session_id`, `root_session_id`, `agent_name`, `task_id`, `run_id`, `claim_token_hash`, `lease_until`, `workflow_id`, `coordinator_session_id`, `scheduler_reason`, `hook_event`, `hook_name`, `spawn_depth`, `actor_kind`, `actor_id`, `release_reason`.
 
-## Context
-
-- `context.Context` is the first argument of any function that crosses a runtime boundary.
-- `context.Background()` is forbidden outside `main` and focused tests.
-- Detached execution (work that outlives the request) uses `context.WithoutCancel(ctx)`. `WithoutCancel` does NOT preserve deadlines — re-attach with `WithDeadline` if needed.
-
 ## Types and Interfaces
 
-- New exported types implementing an interface get `var _ Interface = (*Type)(nil)` adjacent to the type. **Mandatory.**
-- No `interface{}` / `any` when a concrete type is known.
-- No reflection without a written performance justification.
+- No reflection without a written performance justification adjacent to the call. Lint exception requires `//nolint:` with a reason.
 - No defensive `if x == nil` checks after `make(...)`. Lint flags this as unreachable.
 
 ## Configuration

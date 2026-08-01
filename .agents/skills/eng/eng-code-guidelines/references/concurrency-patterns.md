@@ -1,19 +1,14 @@
 # Compozy Concurrency Patterns — Canonical Rules
 
-Verbatim canonical rules. Reviewers will quote these. Companion skills cover deeper analysis: `systematic-debugging` for race/deadlock investigation, `eng-cleanup-failure-paths` for error-path cancellation discipline.
+Verbatim canonical rules — the Compozy delta. `golang-master` (`concurrency.md`, `context.md`)
+owns generic goroutine, channel, and sync law; reviewers quote both. Companion skills:
+`systematic-debugging` for race/deadlock investigation, `eng-cleanup-failure-paths` for
+error-path cancellation discipline.
 
 ## Goroutine Ownership
 
-- Every goroutine has explicit ownership and shutdown via `context.Context` cancellation.
-- No fire-and-forget goroutines. Track with `sync.WaitGroup` or equivalent owner-side primitive and join on shutdown.
-- Long-running loops use `select { case <-ctx.Done(): return; case ... }`. Never busy-wait.
 - Goroutines spawned by `internal/session/manager_*.go` MUST be tracked by a Manager-owned WaitGroup and joined in Manager shutdown.
 - Never put goroutine-owned channels in a struct field that another goroutine mutates — use a per-run handle.
-
-## Synchronization
-
-- Prefer channels over shared memory with mutexes when practical.
-- `sync.RWMutex` for read-heavy shared state, `sync.Mutex` for write-heavy.
 - No `time.Sleep()` in orchestration. Use timers, tickers, or context deadlines.
 
 ## Detached Execution
@@ -42,10 +37,3 @@ Verbatim canonical rules. Reviewers will quote these. Companion skills cover dee
 - Wake / observe / sweep are allowed; claim / own is not.
 - The mechanical scheduler does NOT call `ClaimNextRun` directly in MVP.
 - Hooks dispatch at the call site that owns the state transition. Never tail event/log tables to fire hooks.
-
-## Common Failure Modes
-
-- Goroutine leak on error path: every error return that ran above a `go func()` spawn must signal that goroutine to exit (via `cancel()` or close of an owner-controlled channel).
-- Deadlock on shutdown: a goroutine reading from a channel that the owner stopped writing to without closing — close channels you own when shutting down.
-- Race on map / slice mutation: take the appropriate mutex, or use `sync.Map` for genuinely concurrent maps. Concurrent slice append without sync is always a bug.
-- Lost cancellation: storing `context.Background()` instead of caller-supplied `ctx` breaks deadline propagation. Always thread `ctx` through.

@@ -18,7 +18,7 @@ application order; its references own the rules.
 **Step 1: Route the Change**
 
 1. Confirm the target is a production Go file (`cmd/**` or `internal/**`, not `*_test.go`).
-2. Activate `golang-pro`. Also activate the matching narrow skill for tests, cleanup paths, schema migrations, API contracts, or `internal/network` work.
+2. Activate `golang-master`. Also activate the matching narrow skill for tests, cleanup paths, schema migrations, API contracts, or `internal/network` work.
 3. Read `.agents/skills/eng/eng-code-guidelines/references/coding-style.md` in full. Also read `.agents/skills/eng/eng-code-guidelines/references/concurrency-patterns.md` in full when the change touches goroutines, shared state, detached lifetime, subprocesses, shutdown, timers, mutexes, or channels.
 
 *Done when:* the edit surface and every matching companion domain are named, and every applicable canonical reference is loaded.

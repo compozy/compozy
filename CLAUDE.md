@@ -79,21 +79,21 @@ Compozy Impact Audit:
 
 | Domain                                            | Required Skills                                                                          | Conditional Skills                    |
 | ------------------------------------------------- | ---------------------------------------------------------------------------------------- | ------------------------------------- |
-| Go / Runtime                                      | `eng-code-guidelines` + `golang-pro`                                                     | `context7`                            |
-| Config / Logging                                  | `eng-code-guidelines` + `golang-pro`                                                     |                                       |
-| TUI / CLI Bubbletea                               | `bubbletea` + `eng-code-guidelines` + `golang-pro`                                       |                                       |
+| Go / Runtime                                      | `eng-code-guidelines` + `golang-master`                                                  | `context7`                            |
+| Config / Logging                                  | `eng-code-guidelines` + `golang-master`                                                  |                                       |
+| TUI / CLI Bubbletea                               | `bubbletea` + `eng-code-guidelines` + `golang-master`                                    |                                       |
 | Bug fix                                           | `systematic-debugging` + `no-workarounds`                                                | `testing-boss`                        |
-| Writing Go tests                                  | `eng-test-conventions` + `testing-boss` + `golang-pro`                                   | `vitest` (only for test tooling docs) |
+| Writing Go tests                                  | `eng-test-conventions` + `testing-boss` + `golang-master`                                | `vitest` (only for test tooling docs) |
 | Test placement / consolidation                    | `eng-consolidate-test-suites`                                                            | `testing-boss`                        |
-| Cleanup / failure paths                           | `eng-cleanup-failure-paths` + `eng-code-guidelines` + `golang-pro`                       |                                       |
-| Schema / migration changes                        | `eng-schema-migration` + `golang-pro`                                                    |                                       |
+| Cleanup / failure paths                           | `eng-cleanup-failure-paths` + `eng-code-guidelines` + `golang-master`                    |                                       |
+| Schema / migration changes                        | `eng-schema-migration` + `golang-master`                                                 |                                       |
 | Contract / OpenAPI changes                        | `eng-contract-codegen-coship`                                                            |                                       |
 | Task completion                                   | `deslop` + `cy-final-verify`                                                             |                                       |
 | Lessons learned                                   | `lesson-learned`                                                                         |                                       |
 | Architecture audit                                | `architectural-analysis`                                                                 | `refactoring-analysis`                |
-| Concurrency / races                               | `golang-pro` + `systematic-debugging`                                                    | `eng-code-guidelines`                 |
-| Compozy Network (`internal/network` only)         | `eng-code-guidelines` + `golang-pro`                                                     | `systematic-debugging`                |
-| Performance / hot paths                           | `extreme-software-optimization` + `golang-pro`                                           |                                       |
+| Concurrency / races                               | `golang-master` + `systematic-debugging`                                                 | `eng-code-guidelines`                 |
+| Compozy Network (`internal/network` only)         | `eng-code-guidelines` + `golang-master`                                                  | `systematic-debugging`                |
+| Performance / hot paths                           | `extreme-software-optimization` + `golang-master`                                        |                                       |
 | Security review                                   | `security-review`                                                                        |                                       |
 | Creative / new features                           | `grill-me`                                                                               |                                       |
 | PRD creation                                      | `cy-spec-preflight` + `cy-create-prd`                                                    | `grill-me`                            |

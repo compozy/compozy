@@ -122,10 +122,11 @@
             "skillPath": "skills/mine/git-rebase/SKILL.md",
             "computedHash": "e9597a749af2703293cce2221aa58026ad7066e50e1a407422586866b94f25ec"
         },
-        "golang-pro": {
+        "golang-master": {
             "source": "pedronauck/skills",
             "sourceType": "github",
-            "computedHash": "c90a0798a12ea2d9191508439ec3191dd96713310615260ebe82ec5a09a4a434"
+            "skillPath": "skills/mine/golang-master/SKILL.md",
+            "computedHash": "7bdf30bec77f8d3bad02d0672320c31a543a3cb0ff1fc60475dc387d999d3932"
         },
         "grill-me": {
             "source": "mattpocock/skills",
