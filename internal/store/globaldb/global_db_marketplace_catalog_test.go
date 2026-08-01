@@ -93,14 +93,23 @@ func TestMarketplaceCatalogManifestV2Migration(t *testing.T) {
 		if err != nil {
 			t.Fatalf("OpenGlobalDB(v2 migration) error = %v", err)
 		}
+		if err := upgraded.Close(ctx); err != nil {
+			t.Fatalf("Close(upgraded) error = %v", err)
+		}
+
+		reopenCtx := testutil.Context(t)
+		reopened, err := OpenGlobalDB(reopenCtx, path)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB(reopen v2 migration) error = %v", err)
+		}
 		t.Cleanup(func() {
-			if err := upgraded.Close(ctx); err != nil {
-				t.Errorf("Close(upgraded) error = %v", err)
+			if err := reopened.Close(reopenCtx); err != nil {
+				t.Errorf("Close(reopened) error = %v", err)
 			}
 		})
 		for _, table := range []string{"marketplace_catalog_entries", "marketplace_catalog_state"} {
 			var count int
-			if err := upgraded.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM "+table).Scan(&count); err != nil {
+			if err := reopened.db.QueryRowContext(reopenCtx, "SELECT COUNT(*) FROM "+table).Scan(&count); err != nil {
 				t.Fatalf("count %s after v2 migration error = %v", table, err)
 			}
 			if count != 0 {
