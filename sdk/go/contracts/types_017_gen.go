@@ -4,6 +4,12 @@ package contracts
 
 import "time"
 
+type RetryConfig struct {
+	Strategy   RetryStrategy `json:"strategy"`
+	MaxRetries int           `json:"max_retries"`
+	BaseDelay  string        `json:"base_delay"`
+}
+
 type RetryStrategy string
 
 type RiskClass string
@@ -209,5 +215,3 @@ type SandboxSummary struct {
 	State      string `json:"state"`
 	SyncState  string `json:"sync_state,omitempty"`
 }
-
-type SandboxSyncAfterPatch struct{}

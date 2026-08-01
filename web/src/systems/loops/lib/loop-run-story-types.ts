@@ -50,6 +50,13 @@ export interface LoopStoryRow {
   /** Source node id when the row belongs to one node (Turns disclosure anchor). */
   nodeId?: string;
   generation?: number;
+  /** Persisted metric score associated with this generation, when configured. */
+  score?: number;
+  /** True only when the daemon projects this row's generation as the best. */
+  isBest?: boolean;
+  /** Persisted generation origin rendered as an informational chip. */
+  originLabel?: string;
+  originTone?: PillTone;
 }
 
 export interface LoopStoryNow {
@@ -77,4 +84,5 @@ export interface LoopRunStoryContext {
   reattemptStrategy?: string;
   graph: LoopGraph | null;
   generations?: readonly LoopRunGeneration[];
+  bestGeneration?: number | null;
 }

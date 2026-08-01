@@ -35,6 +35,7 @@ func (g *TaskRepo) applyCoordinatorBudgetExceededBoundaryWithExecutor(
 				snapshot,
 				postReserveSnapshot,
 				finalizer,
+				loopRun,
 				result,
 			)
 		}

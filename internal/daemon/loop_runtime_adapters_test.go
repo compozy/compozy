@@ -382,7 +382,7 @@ func TestLoopGateJudgeRunnerShouldApplyPolicyGate(t *testing.T) {
 				},
 				{
 					Type: acp.EventTypeAgentMessage,
-					Text: `{"verdict":"pass","blocking_issues":[],"confidence":1.0,"evidence":{"checked":true}}`,
+					Text: `{"verdict":"pass","blocking_issues":[],"evidence":{"checked":true}}`,
 				},
 			},
 		}
@@ -401,7 +401,7 @@ func TestLoopGateJudgeRunnerShouldApplyPolicyGate(t *testing.T) {
 	t.Run("Should use only the final agent message as verdict authority", func(t *testing.T) {
 		t.Parallel()
 
-		const verdict = `{"verdict":"pass","blocking_issues":[],"confidence":1.0,"evidence":{"candidate_text":"GREEN"}}`
+		const verdict = `{"verdict":"pass","blocking_issues":[],"evidence":{"candidate_text":"GREEN"}}`
 		sessions := &loopActionBinderSessionManager{
 			sessionID: "sess-loop-judge-reasoning",
 			events: []acp.AgentEvent{
@@ -428,7 +428,7 @@ func TestLoopGateJudgeRunnerShouldApplyPolicyGate(t *testing.T) {
 	t.Run("Should concatenate streamed verdict chunks without inventing separators", func(t *testing.T) {
 		t.Parallel()
 
-		const verdict = `{"verdict":"pass","blocking_issues":[],"confidence":1.0,"evidence":{"candidate_text":"GREEN","exact_match":true}}`
+		const verdict = `{"verdict":"pass","blocking_issues":[],"evidence":{"candidate_text":"GREEN","exact_match":true}}`
 		sessions := &loopActionBinderSessionManager{
 			sessionID: "sess-loop-judge-chunked-verdict",
 			events: []acp.AgentEvent{

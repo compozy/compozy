@@ -23,7 +23,7 @@ WITH requested_names(loop_name) AS (
   )
   FROM requested_names AS requested
 )
-SELECT lr.id, lr.loop_name, lr.status, lr.created_at
+SELECT lr.id, lr.loop_name, lr.status, lr.best_generation, lr.best_score, lr.created_at
 FROM loop_runs AS lr JOIN latest_ids ON latest_ids.id = lr.id;
 
 -- name: OldestQueuedLoopRunReadyForPromotion :one
@@ -121,6 +121,60 @@ WHERE output.loop_run_id = sqlc.arg(loop_run_id)
   AND output.task_run_id = sqlc.arg(task_run_id)
   AND run.workspace_id = sqlc.arg(workspace_id)
 ORDER BY output.generation DESC LIMIT 1;
+
+-- name: InsertLoopGeneration :exec
+INSERT INTO loop_generations (
+  loop_run_id, generation, parent_generation, origin, created_at
+) VALUES (
+  sqlc.arg(loop_run_id), sqlc.arg(generation), sqlc.arg(parent_generation),
+  sqlc.arg(origin), sqlc.arg(created_at)
+);
+
+-- name: ListLoopGenerations :many
+SELECT generation.generation, generation.parent_generation, generation.origin, generation.created_at
+FROM loop_generations AS generation
+JOIN loop_runs AS run ON run.id = generation.loop_run_id
+WHERE generation.loop_run_id = sqlc.arg(loop_run_id)
+  AND run.workspace_id = sqlc.arg(workspace_id)
+ORDER BY generation.generation ASC;
+
+-- name: InsertLoopGateVerdict :exec
+INSERT INTO loop_gate_verdicts (
+  loop_run_id, generation, gate_id, item_index, outcome, score, route_cause_rank,
+  blocking_issues_json, criteria_json, decided_at
+) VALUES (
+  sqlc.arg(loop_run_id), sqlc.arg(generation), sqlc.arg(gate_id), sqlc.arg(item_index), sqlc.arg(outcome),
+  sqlc.narg(score), sqlc.narg(route_cause_rank), sqlc.arg(blocking_issues_json),
+  sqlc.arg(criteria_json), sqlc.arg(decided_at)
+);
+
+-- name: ListLoopGateVerdicts :many
+SELECT verdict.gate_id, verdict.item_index, verdict.outcome, verdict.score, verdict.route_cause_rank,
+       verdict.blocking_issues_json, verdict.criteria_json, verdict.decided_at
+FROM loop_gate_verdicts AS verdict
+JOIN loop_runs AS run ON run.id = verdict.loop_run_id
+WHERE verdict.loop_run_id = sqlc.arg(loop_run_id)
+  AND verdict.generation = sqlc.arg(generation)
+  AND run.workspace_id = sqlc.arg(workspace_id)
+ORDER BY verdict.gate_id ASC, verdict.item_index ASC;
+
+-- name: ListRouteCausingLoopGateVerdicts :many
+SELECT verdict.gate_id, verdict.item_index, verdict.outcome, verdict.score, verdict.route_cause_rank,
+       verdict.blocking_issues_json, verdict.criteria_json, verdict.decided_at
+FROM loop_gate_verdicts AS verdict
+JOIN loop_runs AS run ON run.id = verdict.loop_run_id
+WHERE verdict.loop_run_id = sqlc.arg(loop_run_id)
+  AND verdict.generation = sqlc.arg(generation)
+  AND verdict.route_cause_rank IS NOT NULL
+  AND run.workspace_id = sqlc.arg(workspace_id)
+ORDER BY verdict.route_cause_rank ASC;
+
+-- name: UpdateLoopRunBest :execrows
+UPDATE loop_runs
+SET best_generation = sqlc.narg(best_generation),
+    best_score = sqlc.narg(best_score)
+WHERE id = sqlc.arg(loop_run_id)
+  AND workspace_id = sqlc.arg(workspace_id);
 
 -- name: GetLoopOutputBlob :one
 SELECT payload_json FROM loop_output_blobs WHERE output_ref = sqlc.arg(output_ref);

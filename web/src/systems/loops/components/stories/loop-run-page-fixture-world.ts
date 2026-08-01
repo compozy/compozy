@@ -130,6 +130,53 @@ export const genericWatchDefinition: LoopDefinition = {
   start: [{ kind: "manual" }],
 };
 
+/** Metric-bearing Loop used only by the score/best/provenance visual states. */
+export const metricRatchetDefinition: LoopDefinition = {
+  apiVersion: "compozy.loop/v1",
+  kind: "Loop",
+  meta: {
+    name: "quality-ratchet",
+    version: 1,
+    description: "Improve one candidate while preserving the strongest generation.",
+    catalog: { category: "Testing" },
+  },
+  concurrency: "allow",
+  inputs: { candidate: { type: "string", required: true } },
+  contract: {
+    goal: "Improve the candidate until its quality score reaches 0.95.",
+    definition_of_done: "The quality metric reaches 0.95.",
+    stop_when: "best.score >= 0.95",
+    iteration_cap: 3,
+    budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: "halt" },
+    no_progress: { window: 5, hash_fields: ["delivery_artifact"] },
+    terminal_states: ["done", "blocked", "failed", "exhausted", "stalled"],
+  },
+  graph: {
+    nodes: [
+      { id: "draft", class: "action", kind: "run-agent" },
+      {
+        id: "quality",
+        class: "control",
+        kind: "gate",
+        criteria: [
+          {
+            id: "quality_score",
+            type: "agent-judge",
+            agent: "quality-judge",
+            rubric: "Score the completed candidate.",
+            metric: { direction: "maximize" },
+          },
+        ],
+        verdict_policy: "fixed_passes",
+        on_result: { fail: "revise" },
+        max_revisions: 10,
+      },
+    ],
+    edges: [{ from: "draft", to: "quality" }],
+  } as unknown as LoopDefinitionGraph,
+  start: [{ kind: "manual" }, { kind: "cli" }, { kind: "http" }, { kind: "uds" }],
+};
+
 export function reviewAndFixRun(overrides: Partial<LoopRunRecord> = {}): LoopRunRecord {
   return {
     id: "r-7c4e19",
@@ -180,6 +227,18 @@ export function genericWatchRun(overrides: Partial<LoopRunRecord> = {}): LoopRun
   };
 }
 
+export function metricRatchetRun(overrides: Partial<LoopRunRecord> = {}): LoopRunRecord {
+  return {
+    ...reviewAndFixRun(),
+    loop_name: "quality-ratchet",
+    definition_digest: "sha256:metric-ratchet",
+    iteration_cap: 3,
+    reattempt_strategy: "full_body",
+    inputs: { candidate: "release-candidate" },
+    ...overrides,
+  };
+}
+
 type FrameBuilder = (
   kind: LoopRunEventFrame["kind"],
   minutes: number,
@@ -190,7 +249,7 @@ export function createFrameFactory(runID = "r-7c4e19"): FrameBuilder {
   let seq = 0;
   return (kind, minutes, payload) => {
     seq += 1;
-    return {
+    const frame = {
       id: `loopevt_${seq}`,
       seq,
       kind,
@@ -199,6 +258,9 @@ export function createFrameFactory(runID = "r-7c4e19"): FrameBuilder {
       at: minutesAgo(minutes),
       payload,
     };
+    // Story fixtures deliberately assemble every event kind through one builder;
+    // each call site below owns the matching kind-specific payload.
+    return frame as LoopRunEventFrame;
   };
 }
 
@@ -215,6 +277,8 @@ export function roundOneFrames(frame: FrameBuilder, offset = 0): LoopRunEventFra
   return [
     frame("generation_started", offset + 22, {
       generation: 1,
+      parent_generation: 0,
+      origin: "initial",
       reattempt_strategy: "failed_only",
     }),
     frame(
@@ -263,6 +327,9 @@ export function generationsFor(
   return [
     {
       generation: 2,
+      parent_generation: 1,
+      origin: "gate_revise",
+      verdicts: [],
       outputs: [
         { node_id: "review", status: "reused", generation: 2 },
         { node_id: "has_issues", status: "reused", generation: 2 },

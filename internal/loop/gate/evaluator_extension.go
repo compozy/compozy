@@ -83,11 +83,14 @@ func parseExtensionResult(criterion dsl.GateCriterion, result tools.ToolResult) 
 		}}
 		return criterionResult
 	}
-	parsed, warnings, err := parseStructuredVerdict(result.Structured, false, false)
+	metricRequired := criterion.Metric != nil
+	parsed, warnings, err := parseStructuredVerdict(result.Structured, false, false, metricRequired)
 	if err == nil {
 		criterionResult.Outcome = parsed.Outcome
 		criterionResult.Passed = parsed.Outcome == VerdictOutcomeApproved
-		criterionResult.Confidence = parsed.Confidence
+		if metricRequired {
+			criterionResult.Score = parsed.Score
+		}
 		criterionResult.Evidence = parsed.Evidence
 		criterionResult.BlockingIssues = parsed.BlockingIssues
 		criterionResult.Warnings = warnings
@@ -98,6 +101,9 @@ func parseExtensionResult(criterion dsl.GateCriterion, result tools.ToolResult) 
 			}}
 		}
 		return criterionResult
+	}
+	if metricRequired {
+		return invalidMetricScoreResult(criterion.ID, criterion.Type, err.Error())
 	}
 	exitResult, exitErr := parseExtensionExit(result.Structured)
 	if exitErr == nil {

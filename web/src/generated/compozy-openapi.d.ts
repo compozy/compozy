@@ -5722,10 +5722,16 @@ export interface components {
         criteria?: ({
           agent?: string;
           check?: string;
+          contains?: string;
           expect?: string;
           id: string;
           inputs?: {
             [key: string]: unknown;
+          };
+          metric?: {
+            /** @enum {string} */
+            direction: "maximize" | "minimize";
+            min_delta?: number;
           };
           prompt?: string;
           rubric?: string;
@@ -82567,6 +82573,10 @@ export interface operations {
             };
             runs: {
               active_gate_id?: string;
+              /** Format: int64 */
+              best_generation?: number | null;
+              /** Format: double */
+              best_score?: number | null;
               budget_approval_seq?: number;
               /** @enum {string} */
               budget_on_exceeded: "halt" | "escalate";
@@ -82811,11 +82821,18 @@ export interface operations {
                 verification?: {
                   agent?: string;
                   check?: string;
+                  contains?: string;
                   expect?: string;
                   id: string;
                   inputs?: {
                     [key: string]: unknown;
                   };
+                  metric?: {
+                    /** @enum {string} */
+                    direction: "maximize" | "minimize";
+                    /** Format: double */
+                    min_delta?: number | null;
+                  } | null;
                   prompt?: string;
                   rubric?: string;
                   runtime?: {
@@ -82849,10 +82866,16 @@ export interface operations {
                   criteria?: ({
                     agent?: string;
                     check?: string;
+                    contains?: string;
                     expect?: string;
                     id: string;
                     inputs?: {
                       [key: string]: unknown;
+                    };
+                    metric?: {
+                      /** @enum {string} */
+                      direction: "maximize" | "minimize";
+                      min_delta?: number;
                     };
                     prompt?: string;
                     rubric?: string;
@@ -83018,6 +83041,15 @@ export interface operations {
             } | null;
             generations?: {
               generation: number;
+              /** @enum {string} */
+              origin:
+                | "initial"
+                | "stop_when"
+                | "reattempt"
+                | "gate_revise"
+                | "gate_next_generation"
+                | "dod_retry"
+                | "ratchet_restore";
               outputs: {
                 child_loop_run_id?: string;
                 generation?: number;
@@ -83037,9 +83069,30 @@ export interface operations {
                 status: string;
                 task_run_id?: string;
               }[];
+              /** Format: int64 */
+              parent_generation: number;
+              verdicts: {
+                gate_id: string;
+                /** @enum {string} */
+                outcome:
+                  | "approved"
+                  | "rejected"
+                  | "awaiting_approval"
+                  | "blocked"
+                  | "error"
+                  | "timeout"
+                  | "invalid_output";
+                route_cause_rank?: number | null;
+                /** Format: double */
+                score?: number | null;
+              }[];
             }[];
             run: {
               active_gate_id?: string;
+              /** Format: int64 */
+              best_generation?: number | null;
+              /** Format: double */
+              best_score?: number | null;
               budget_approval_seq?: number;
               /** @enum {string} */
               budget_on_exceeded: "halt" | "escalate";
@@ -83486,31 +83539,94 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "text/event-stream": {
-            /** Format: date-time */
-            at: string;
-            id: string;
-            /** @enum {string} */
-            kind:
-              | "node_running"
-              | "node_succeeded"
-              | "node_failed"
-              | "gate_verdict"
-              | "generation_started"
-              | "channel_msg"
-              | "token_tick"
-              | "needs_approval"
-              | "status_changed"
-              | "goal_turn_started"
-              | "goal_turn_completed"
-              | "goal_status_changed"
-              | "runtime_applied";
-            loop_run_id: string;
-            payload: unknown;
-            /** Format: int64 */
-            seq: number;
-            workspace_id: string;
-          };
+          "text/event-stream":
+            | {
+                /** Format: date-time */
+                at: string;
+                id: string;
+                /** @enum {string} */
+                kind: "generation_started";
+                loop_run_id: string;
+                payload: {
+                  generation: number;
+                  loop_name: string;
+                  /** @enum {string} */
+                  origin:
+                    | "initial"
+                    | "stop_when"
+                    | "reattempt"
+                    | "gate_revise"
+                    | "gate_next_generation"
+                    | "dod_retry"
+                    | "ratchet_restore";
+                  /** Format: int64 */
+                  parent_generation: number;
+                  /** @enum {string} */
+                  reattempt_strategy: "failed_only" | "full_body";
+                };
+                /** Format: int64 */
+                seq: number;
+                workspace_id: string;
+              }
+            | {
+                /** Format: date-time */
+                at: string;
+                id: string;
+                /** @enum {string} */
+                kind: "gate_verdict";
+                loop_run_id: string;
+                payload: {
+                  /** Format: int64 */
+                  best_generation?: number | null;
+                  blocking_issues: {
+                    id: string;
+                    note: string;
+                  }[];
+                  criteria: {
+                    id: string;
+                    note: string;
+                    /** Format: double */
+                    score?: number | null;
+                    status: string;
+                    type: string;
+                  }[];
+                  gate_id: string;
+                  generation: number;
+                  item_index: number;
+                  node_id: string;
+                  reason: string;
+                  route: string;
+                  /** Format: double */
+                  score?: number | null;
+                  verdict: string;
+                };
+                /** Format: int64 */
+                seq: number;
+                workspace_id: string;
+              }
+            | {
+                /** Format: date-time */
+                at: string;
+                id: string;
+                /** @enum {string} */
+                kind:
+                  | "node_running"
+                  | "node_succeeded"
+                  | "node_failed"
+                  | "channel_msg"
+                  | "token_tick"
+                  | "needs_approval"
+                  | "status_changed"
+                  | "goal_turn_started"
+                  | "goal_turn_completed"
+                  | "goal_status_changed"
+                  | "runtime_applied";
+                loop_run_id: string;
+                payload: unknown;
+                /** Format: int64 */
+                seq: number;
+                workspace_id: string;
+              };
         };
       };
       /** @description Invalid Loop request */
@@ -84647,11 +84763,18 @@ export interface operations {
                 verification?: {
                   agent?: string;
                   check?: string;
+                  contains?: string;
                   expect?: string;
                   id: string;
                   inputs?: {
                     [key: string]: unknown;
                   };
+                  metric?: {
+                    /** @enum {string} */
+                    direction: "maximize" | "minimize";
+                    /** Format: double */
+                    min_delta?: number | null;
+                  } | null;
                   prompt?: string;
                   rubric?: string;
                   runtime?: {
@@ -84676,6 +84799,10 @@ export interface operations {
                 };
               };
               last_run?: {
+                /** Format: int64 */
+                best_generation?: number | null;
+                /** Format: double */
+                best_score?: number | null;
                 /** Format: date-time */
                 created_at: string;
                 id: string;
@@ -84907,11 +85034,18 @@ export interface operations {
               verification?: {
                 agent?: string;
                 check?: string;
+                contains?: string;
                 expect?: string;
                 id: string;
                 inputs?: {
                   [key: string]: unknown;
                 };
+                metric?: {
+                  /** @enum {string} */
+                  direction: "maximize" | "minimize";
+                  /** Format: double */
+                  min_delta?: number | null;
+                } | null;
                 prompt?: string;
                 rubric?: string;
                 runtime?: {
@@ -84945,10 +85079,16 @@ export interface operations {
                 criteria?: ({
                   agent?: string;
                   check?: string;
+                  contains?: string;
                   expect?: string;
                   id: string;
                   inputs?: {
                     [key: string]: unknown;
+                  };
+                  metric?: {
+                    /** @enum {string} */
+                    direction: "maximize" | "minimize";
+                    min_delta?: number;
                   };
                   prompt?: string;
                   rubric?: string;
@@ -85178,11 +85318,18 @@ export interface operations {
                   verification?: {
                     agent?: string;
                     check?: string;
+                    contains?: string;
                     expect?: string;
                     id: string;
                     inputs?: {
                       [key: string]: unknown;
                     };
+                    metric?: {
+                      /** @enum {string} */
+                      direction: "maximize" | "minimize";
+                      /** Format: double */
+                      min_delta?: number | null;
+                    } | null;
                     prompt?: string;
                     rubric?: string;
                     runtime?: {
@@ -85216,10 +85363,16 @@ export interface operations {
                     criteria?: ({
                       agent?: string;
                       check?: string;
+                      contains?: string;
                       expect?: string;
                       id: string;
                       inputs?: {
                         [key: string]: unknown;
+                      };
+                      metric?: {
+                        /** @enum {string} */
+                        direction: "maximize" | "minimize";
+                        min_delta?: number;
                       };
                       prompt?: string;
                       rubric?: string;
@@ -85623,11 +85776,18 @@ export interface operations {
                   verification?: {
                     agent?: string;
                     check?: string;
+                    contains?: string;
                     expect?: string;
                     id: string;
                     inputs?: {
                       [key: string]: unknown;
                     };
+                    metric?: {
+                      /** @enum {string} */
+                      direction: "maximize" | "minimize";
+                      /** Format: double */
+                      min_delta?: number | null;
+                    } | null;
                     prompt?: string;
                     rubric?: string;
                     runtime?: {
@@ -85661,10 +85821,16 @@ export interface operations {
                     criteria?: ({
                       agent?: string;
                       check?: string;
+                      contains?: string;
                       expect?: string;
                       id: string;
                       inputs?: {
                         [key: string]: unknown;
+                      };
+                      metric?: {
+                        /** @enum {string} */
+                        direction: "maximize" | "minimize";
+                        min_delta?: number;
                       };
                       prompt?: string;
                       rubric?: string;
@@ -86151,11 +86317,18 @@ export interface operations {
               verification?: {
                 agent?: string;
                 check?: string;
+                contains?: string;
                 expect?: string;
                 id: string;
                 inputs?: {
                   [key: string]: unknown;
                 };
+                metric?: {
+                  /** @enum {string} */
+                  direction: "maximize" | "minimize";
+                  /** Format: double */
+                  min_delta?: number | null;
+                } | null;
                 prompt?: string;
                 rubric?: string;
                 runtime?: {
@@ -86189,10 +86362,16 @@ export interface operations {
                 criteria?: ({
                   agent?: string;
                   check?: string;
+                  contains?: string;
                   expect?: string;
                   id: string;
                   inputs?: {
                     [key: string]: unknown;
+                  };
+                  metric?: {
+                    /** @enum {string} */
+                    direction: "maximize" | "minimize";
+                    min_delta?: number;
                   };
                   prompt?: string;
                   rubric?: string;
@@ -86422,11 +86601,18 @@ export interface operations {
                   verification?: {
                     agent?: string;
                     check?: string;
+                    contains?: string;
                     expect?: string;
                     id: string;
                     inputs?: {
                       [key: string]: unknown;
                     };
+                    metric?: {
+                      /** @enum {string} */
+                      direction: "maximize" | "minimize";
+                      /** Format: double */
+                      min_delta?: number | null;
+                    } | null;
                     prompt?: string;
                     rubric?: string;
                     runtime?: {
@@ -86460,10 +86646,16 @@ export interface operations {
                     criteria?: ({
                       agent?: string;
                       check?: string;
+                      contains?: string;
                       expect?: string;
                       id: string;
                       inputs?: {
                         [key: string]: unknown;
+                      };
+                      metric?: {
+                        /** @enum {string} */
+                        direction: "maximize" | "minimize";
+                        min_delta?: number;
                       };
                       prompt?: string;
                       rubric?: string;
@@ -88545,11 +88737,18 @@ export interface operations {
                 verification?: {
                   agent?: string;
                   check?: string;
+                  contains?: string;
                   expect?: string;
                   id: string;
                   inputs?: {
                     [key: string]: unknown;
                   };
+                  metric?: {
+                    /** @enum {string} */
+                    direction: "maximize" | "minimize";
+                    /** Format: double */
+                    min_delta?: number | null;
+                  } | null;
                   prompt?: string;
                   rubric?: string;
                   runtime?: {
@@ -88676,6 +88875,10 @@ export interface operations {
             } | null;
             run?: {
               active_gate_id?: string;
+              /** Format: int64 */
+              best_generation?: number | null;
+              /** Format: double */
+              best_score?: number | null;
               budget_approval_seq?: number;
               /** @enum {string} */
               budget_on_exceeded: "halt" | "escalate";
@@ -88828,11 +89031,18 @@ export interface operations {
                 verification?: {
                   agent?: string;
                   check?: string;
+                  contains?: string;
                   expect?: string;
                   id: string;
                   inputs?: {
                     [key: string]: unknown;
                   };
+                  metric?: {
+                    /** @enum {string} */
+                    direction: "maximize" | "minimize";
+                    /** Format: double */
+                    min_delta?: number | null;
+                  } | null;
                   prompt?: string;
                   rubric?: string;
                   runtime?: {
@@ -88959,6 +89169,10 @@ export interface operations {
             } | null;
             run?: {
               active_gate_id?: string;
+              /** Format: int64 */
+              best_generation?: number | null;
+              /** Format: double */
+              best_score?: number | null;
               budget_approval_seq?: number;
               /** @enum {string} */
               budget_on_exceeded: "halt" | "escalate";
@@ -89299,11 +89513,18 @@ export interface operations {
               verification?: {
                 agent?: string;
                 check?: string;
+                contains?: string;
                 expect?: string;
                 id: string;
                 inputs?: {
                   [key: string]: unknown;
                 };
+                metric?: {
+                  /** @enum {string} */
+                  direction: "maximize" | "minimize";
+                  /** Format: double */
+                  min_delta?: number | null;
+                } | null;
                 prompt?: string;
                 rubric?: string;
                 runtime?: {
@@ -89337,10 +89558,16 @@ export interface operations {
                 criteria?: ({
                   agent?: string;
                   check?: string;
+                  contains?: string;
                   expect?: string;
                   id: string;
                   inputs?: {
                     [key: string]: unknown;
+                  };
+                  metric?: {
+                    /** @enum {string} */
+                    direction: "maximize" | "minimize";
+                    min_delta?: number;
                   };
                   prompt?: string;
                   rubric?: string;

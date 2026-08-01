@@ -50,7 +50,7 @@ function storyRow(overrides: Partial<LoopStoryRow> = {}): LoopStoryRow {
     tone: "warning",
     icon: "check-warn",
     title: "Check: not clean yet",
-    sub: "Verdict revise · confidence 0.91.",
+    sub: "Verdict revise.",
     issues: [{ id: "issue_022", note: "no decision" }],
     micro: "gate_verdict · revise",
     ...overrides,
@@ -66,6 +66,9 @@ describe("LoopRunProgressPanel", () => {
       [
         {
           generation: 2,
+          parent_generation: 1,
+          origin: "gate_revise",
+          verdicts: [],
           outputs: [
             { node_id: "fix", status: "succeeded", generation: 2, item_index: 1 },
             { node_id: "fix", status: "succeeded", generation: 2, item_index: 2 },
@@ -133,6 +136,31 @@ describe("LoopRunStoryTimeline", () => {
     expect(rows[0]).toHaveTextContent("gate_verdict · revise");
     expect(screen.getByTestId("loop-story-issues")).toHaveTextContent("issue_022 — no decision");
     expect(rows[1]).toHaveTextContent("node_succeeded · fix_batches[1–2]");
+  });
+
+  it("Should render score, best, and restored provenance from a generation row", () => {
+    render(
+      <LoopRunStoryTimeline
+        rows={[
+          storyRow({
+            kind: "generation_started",
+            generation: 3,
+            score: 0.7,
+            isBest: true,
+            originLabel: "Restored from gen 1",
+          }),
+        ]}
+        isLive={false}
+        goalNodeIds={EMPTY_GOAL_IDS}
+        goalTurns={[]}
+      />
+    );
+
+    const row = screen.getByTestId("loop-story-row");
+    expect(row).toHaveAttribute("id", "loop-generation-3");
+    expect(row).toHaveTextContent("score 0.70");
+    expect(row).toHaveTextContent("Best");
+    expect(row).toHaveTextContent("Restored from gen 1");
   });
 
   it("Should stay quiet before any frame arrives", () => {
@@ -276,6 +304,31 @@ describe("LoopRunOutcomeCard", () => {
     expect(screen.getByTestId("loop-run-outcome-title")).toHaveTextContent("Round cap reached");
     fireEvent.click(screen.getByTestId("loop-run-start-new"));
     expect(onStartNewRun).toHaveBeenCalledTimes(1);
+  });
+
+  it("Should point an exhausted run to its persisted best generation", () => {
+    render(
+      <LoopRunOutcomeCard
+        run={run({
+          status: "exhausted",
+          generation: 3,
+          iteration_cap: 3,
+          best_generation: 1,
+          best_score: 0.7,
+        })}
+        failure={null}
+        repeatedIssueIds={[]}
+        onStartNewRun={vi.fn()}
+      />
+    );
+
+    expect(screen.getByTestId("loop-run-best-pointer").querySelector("a")).toHaveAttribute(
+      "href",
+      "#loop-generation-1"
+    );
+    expect(screen.getByTestId("loop-run-best-pointer")).toHaveTextContent(
+      "Best result · Gen 1 · 0.70"
+    );
   });
 
   it("Should not invent a Time limit when the terminal frame lands before the wall budget", () => {
@@ -433,6 +486,9 @@ describe("LoopRunResolvedRuntimes", () => {
         generations={[
           {
             generation: 2,
+            parent_generation: 1,
+            origin: "gate_revise",
+            verdicts: [],
             outputs: [
               {
                 node_id: "execute_task",

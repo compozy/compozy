@@ -501,6 +501,27 @@ type LoopGateDecision struct {
 	DecidedAt   string `json:"decided_at"`
 }
 
+type LoopGateVerdict struct {
+	LoopRunID          string          `json:"loop_run_id"`
+	Generation         int64           `json:"generation"`
+	GateID             string          `json:"gate_id"`
+	ItemIndex          int64           `json:"item_index"`
+	Outcome            string          `json:"outcome"`
+	Score              sql.NullFloat64 `json:"score"`
+	RouteCauseRank     sql.NullInt64   `json:"route_cause_rank"`
+	BlockingIssuesJson string          `json:"blocking_issues_json"`
+	CriteriaJson       string          `json:"criteria_json"`
+	DecidedAt          time.Time       `json:"decided_at"`
+}
+
+type LoopGeneration struct {
+	LoopRunID        string    `json:"loop_run_id"`
+	Generation       int64     `json:"generation"`
+	ParentGeneration int64     `json:"parent_generation"`
+	Origin           string    `json:"origin"`
+	CreatedAt        time.Time `json:"created_at"`
+}
+
 type LoopGenerationOutput struct {
 	LoopRunID           string         `json:"loop_run_id"`
 	Generation          int64          `json:"generation"`
@@ -653,48 +674,50 @@ type LoopOutputBlob struct {
 }
 
 type LoopRun struct {
-	ID                       string         `json:"id"`
-	WorkspaceID              string         `json:"workspace_id"`
-	LoopName                 string         `json:"loop_name"`
-	Status                   string         `json:"status"`
-	Generation               int64          `json:"generation"`
-	ReattemptStrategy        string         `json:"reattempt_strategy"`
-	LastProgressAt           time.Time      `json:"last_progress_at"`
-	BudgetTokens             int64          `json:"budget_tokens"`
-	BudgetWallSec            int64          `json:"budget_wall_sec"`
-	BudgetOnExceeded         string         `json:"budget_on_exceeded"`
-	TokensUsed               int64          `json:"tokens_used"`
-	ParentLoopRunID          sql.NullString `json:"parent_loop_run_id"`
-	PauseRequested           int64          `json:"pause_requested"`
-	InputsJson               string         `json:"inputs_json"`
-	CreatedAt                string         `json:"created_at"`
-	IterationCap             int64          `json:"iteration_cap"`
-	StartedByKind            string         `json:"started_by_kind"`
-	StartedByRef             string         `json:"started_by_ref"`
-	StartedOriginKind        string         `json:"started_origin_kind"`
-	StartedOriginRef         string         `json:"started_origin_ref"`
-	StartedAt                string         `json:"started_at"`
-	DefinitionVersion        int64          `json:"definition_version"`
-	DefinitionDigest         string         `json:"definition_digest"`
-	ActiveGateID             string         `json:"active_gate_id"`
-	ActiveHumanCriteriaJson  string         `json:"active_human_criteria_json"`
-	BudgetApprovalSeq        int64          `json:"budget_approval_seq"`
-	StartMetadataJson        string         `json:"start_metadata_json"`
-	OriginKind               string         `json:"origin_kind"`
-	OriginSessionID          sql.NullString `json:"origin_session_id"`
-	GoalClearedAt            sql.NullTime   `json:"goal_cleared_at"`
-	BudgetVersion            int64          `json:"budget_version"`
-	GoalContextNudgeRatio    float64        `json:"goal_context_nudge_ratio"`
-	ControlActorKind         sql.NullString `json:"control_actor_kind"`
-	ControlActorID           sql.NullString `json:"control_actor_id"`
-	ControlRequestedAt       sql.NullTime   `json:"control_requested_at"`
-	OriginCreationProfileRef sql.NullString `json:"origin_creation_profile_ref"`
-	OriginPolicySpecDigest   sql.NullString `json:"origin_policy_spec_digest"`
-	OriginCreationDigest     sql.NullString `json:"origin_creation_digest"`
-	NetworkSpecJson          string         `json:"network_spec_json"`
-	NetworkMode              string         `json:"network_mode"`
-	NetworkChannel           sql.NullString `json:"network_channel"`
-	NetworkSource            string         `json:"network_source"`
+	ID                       string          `json:"id"`
+	WorkspaceID              string          `json:"workspace_id"`
+	LoopName                 string          `json:"loop_name"`
+	Status                   string          `json:"status"`
+	Generation               int64           `json:"generation"`
+	ReattemptStrategy        string          `json:"reattempt_strategy"`
+	LastProgressAt           time.Time       `json:"last_progress_at"`
+	BudgetTokens             int64           `json:"budget_tokens"`
+	BudgetWallSec            int64           `json:"budget_wall_sec"`
+	BudgetOnExceeded         string          `json:"budget_on_exceeded"`
+	TokensUsed               int64           `json:"tokens_used"`
+	ParentLoopRunID          sql.NullString  `json:"parent_loop_run_id"`
+	PauseRequested           int64           `json:"pause_requested"`
+	InputsJson               string          `json:"inputs_json"`
+	CreatedAt                string          `json:"created_at"`
+	IterationCap             int64           `json:"iteration_cap"`
+	StartedByKind            string          `json:"started_by_kind"`
+	StartedByRef             string          `json:"started_by_ref"`
+	StartedOriginKind        string          `json:"started_origin_kind"`
+	StartedOriginRef         string          `json:"started_origin_ref"`
+	StartedAt                string          `json:"started_at"`
+	DefinitionVersion        int64           `json:"definition_version"`
+	DefinitionDigest         string          `json:"definition_digest"`
+	ActiveGateID             string          `json:"active_gate_id"`
+	ActiveHumanCriteriaJson  string          `json:"active_human_criteria_json"`
+	BudgetApprovalSeq        int64           `json:"budget_approval_seq"`
+	StartMetadataJson        string          `json:"start_metadata_json"`
+	OriginKind               string          `json:"origin_kind"`
+	OriginSessionID          sql.NullString  `json:"origin_session_id"`
+	GoalClearedAt            sql.NullTime    `json:"goal_cleared_at"`
+	BudgetVersion            int64           `json:"budget_version"`
+	GoalContextNudgeRatio    float64         `json:"goal_context_nudge_ratio"`
+	ControlActorKind         sql.NullString  `json:"control_actor_kind"`
+	ControlActorID           sql.NullString  `json:"control_actor_id"`
+	ControlRequestedAt       sql.NullTime    `json:"control_requested_at"`
+	OriginCreationProfileRef sql.NullString  `json:"origin_creation_profile_ref"`
+	OriginPolicySpecDigest   sql.NullString  `json:"origin_policy_spec_digest"`
+	OriginCreationDigest     sql.NullString  `json:"origin_creation_digest"`
+	NetworkSpecJson          string          `json:"network_spec_json"`
+	NetworkMode              string          `json:"network_mode"`
+	NetworkChannel           sql.NullString  `json:"network_channel"`
+	NetworkSource            string          `json:"network_source"`
+	BestGeneration           sql.NullInt64   `json:"best_generation"`
+	BestScore                sql.NullFloat64 `json:"best_score"`
 }
 
 type LoopRunEvent struct {

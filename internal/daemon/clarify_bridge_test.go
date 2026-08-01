@@ -167,7 +167,7 @@ func TestClarifyBridgeFailurePaths(t *testing.T) {
 		}
 	})
 
-	t.Run("Should keep an unpersisted registration exclusive but non-interactive", func(t *testing.T) {
+	t.Run("Should make a publication-woken reader wait for the durable request", func(t *testing.T) {
 		t.Parallel()
 
 		publisher := newBlockingClarifyPublisher()
@@ -176,25 +176,17 @@ func TestClarifyBridgeFailurePaths(t *testing.T) {
 		result := askClarification(t, bridge, scope, toolspkg.ClarifyQuestion{Question: "Continue?"})
 		publisher.awaitPendingPublish(t)
 
-		_, err := bridge.Ask(testutil.Context(t), scope, toolspkg.ClarifyQuestion{Question: "Second?"})
-		if !errors.Is(err, toolspkg.ErrClarifyPending) {
-			t.Fatalf("Ask(second) error = %v, want %v", err, toolspkg.ErrClarifyPending)
-		}
-		pending, err := bridge.Pending(testutil.Context(t), scope)
-		if err != nil {
-			t.Fatalf("Pending() error = %v", err)
-		}
-		if len(pending) != 0 {
-			t.Fatalf("Pending() = %#v, want unpersisted request hidden", pending)
-		}
-		_, err = bridge.Answer(
-			testutil.Context(t),
-			scope,
-			"clarify-request",
-			toolspkg.ClarifyAnswerRequest{Text: "yes"},
-		)
-		if !errors.Is(err, toolspkg.ErrClarifyNotFound) {
-			t.Fatalf("Answer() error = %v, want %v", err, toolspkg.ErrClarifyNotFound)
+		pendingResult := make(chan []toolspkg.ClarifyPending, 1)
+		pendingErr := make(chan error, 1)
+		go func() {
+			pending, err := bridge.Pending(testutil.Context(t), scope)
+			pendingResult <- pending
+			pendingErr <- err
+		}()
+		select {
+		case pending := <-pendingResult:
+			t.Fatalf("Pending() returned before publication completed: %#v", pending)
+		case <-time.After(25 * time.Millisecond):
 		}
 
 		publisher.releasePendingPublish()
@@ -202,10 +194,53 @@ func TestClarifyBridgeFailurePaths(t *testing.T) {
 		if pendingEvent.Status != toolspkg.ClarifyStatusPending {
 			t.Fatalf("pending event status = %q, want %q", pendingEvent.Status, toolspkg.ClarifyStatusPending)
 		}
-		awaitPendingClarification(t, bridge, scope)
+		pending := <-pendingResult
+		if err := <-pendingErr; err != nil {
+			t.Fatalf("Pending() error = %v", err)
+		}
+		if len(pending) != 1 || pending[0].RequestID != "clarify-request" {
+			t.Fatalf("Pending() = %#v, want the durably published request", pending)
+		}
 		bridge.CancelSession(scope.SessionID)
 		if got := awaitClarifyResult(t, result); !errors.Is(got.err, toolspkg.ErrClarifyCanceled) {
 			t.Fatalf("Ask() error = %v, want %v", got.err, toolspkg.ErrClarifyCanceled)
+		}
+	})
+
+	t.Run("Should make a publication-woken answer wait for the durable request", func(t *testing.T) {
+		t.Parallel()
+
+		publisher := newBlockingClarifyPublisher()
+		bridge := newTestClarifyBridge(t, 5*time.Second, publisher)
+		scope := testClarifyScope()
+		result := askClarification(t, bridge, scope, toolspkg.ClarifyQuestion{Question: "Continue?"})
+		publisher.awaitPendingPublish(t)
+
+		answerResult := make(chan clarifyResult, 1)
+		go func() {
+			answer, err := bridge.Answer(
+				testutil.Context(t),
+				scope,
+				"clarify-request",
+				toolspkg.ClarifyAnswerRequest{Text: "yes"},
+			)
+			answerResult <- clarifyResult{answer: answer, err: err}
+		}()
+		select {
+		case answer := <-answerResult:
+			t.Fatalf("Answer() returned before publication completed: %#v", answer)
+		case <-time.After(25 * time.Millisecond):
+		}
+
+		publisher.releasePendingPublish()
+		if event := publisher.delegate.await(t); event.Status != toolspkg.ClarifyStatusPending {
+			t.Fatalf("pending event status = %q, want %q", event.Status, toolspkg.ClarifyStatusPending)
+		}
+		if answer := awaitClarifyResult(t, answerResult); answer.err != nil || answer.answer.Text != "yes" {
+			t.Fatalf("Answer() result = %#v, want yes", answer)
+		}
+		if got := awaitClarifyResult(t, result); got.err != nil || got.answer.Text != "yes" {
+			t.Fatalf("Ask() result = %#v, want yes", got)
 		}
 	})
 

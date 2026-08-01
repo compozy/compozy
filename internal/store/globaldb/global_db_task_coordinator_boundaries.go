@@ -104,16 +104,6 @@ func applyCoordinatorTerminalBoundary(
 	); err != nil {
 		return err
 	}
-	if err := appendLoopGateVerdictEventWithExecutor(
-		ctx,
-		exec,
-		loopRun,
-		snapshot.Generation,
-		*completion.Plan.Terminal,
-		completion.Now,
-	); err != nil {
-		return err
-	}
 	if terminalStatus == looppkg.StatusNeedsApproval {
 		gateID := looppkg.NodeID(strings.TrimSpace(completion.Plan.Terminal.GateID))
 		if gateID == "" {

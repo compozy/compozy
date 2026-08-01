@@ -2,6 +2,7 @@ package globaldb
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -14,6 +15,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
+	"github.com/compozy/compozy/internal/loop/gate"
 	storepkg "github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
@@ -269,6 +271,17 @@ func TestGlobalDBLoopRunCreateShouldSeedInitialCoordinator(t *testing.T) {
 		if persisted.GoalContextNudgeRatio != 0.37 {
 			t.Fatalf("GoalContextNudgeRatio = %v, want pinned 0.37", persisted.GoalContextNudgeRatio)
 		}
+		generations, err := globalDB.ListGenerations(ctx, string(run.WorkspaceID), string(run.ID))
+		if err != nil {
+			t.Fatalf("ListGenerations() error = %v", err)
+		}
+		if got, want := len(generations), 1; got != want {
+			t.Fatalf("initial generations = %d, want %d", got, want)
+		}
+		initial := generations[0]
+		if initial.Generation != 1 || initial.ParentGeneration != 0 || initial.Origin != looppkg.OriginInitial {
+			t.Fatalf("initial generation = %#v, want generation 1 from initial origin", initial)
+		}
 
 		queued, err := globalDB.ListTaskRunsByStatus(ctx, []taskpkg.RunStatus{taskpkg.TaskRunStatusQueued})
 		if err != nil {
@@ -330,6 +343,22 @@ func TestGlobalDBLoopRunCreateShouldSeedInitialCoordinator(t *testing.T) {
 		}
 		if got := countCoordinatorTaskRunsForLoop(ctx, t, globalDB, queuedRun.ID); got != 0 {
 			t.Fatalf("queued loop coordinator task runs = %d, want 0", got)
+		}
+	})
+
+	t.Run("Should reject a nonzero creation cursor", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openLoopTestGlobalDB(t)
+		run := testLoopRun(
+			"looprun-nonzero-create-cursor",
+			time.Date(2026, 7, 7, 9, 7, 0, 0, time.UTC),
+			looppkg.StatusRunning,
+		)
+		run.Generation = 1
+		_, err := globalDB.CreateLoopRunForStart(testutil.Context(t), run, dsl.ConcurrencyAllow)
+		if !errors.Is(err, looppkg.ErrValidation) || !strings.Contains(err.Error(), "cursor must be zero") {
+			t.Fatalf("CreateLoopRunForStart() error = %v, want zero-cursor validation", err)
 		}
 	})
 
@@ -422,6 +451,282 @@ func TestGlobalDBLoopRunCreateShouldSeedInitialCoordinator(t *testing.T) {
 		}
 		if got, want := afterBudget.Attempt, int32(taskpkg.DefaultTaskMaxAttempts+1); got != want {
 			t.Fatalf("after-budget attempt = %d, want %d", got, want)
+		}
+	})
+}
+
+func TestGlobalDBLoopHistoryShouldPersistMachineFacts(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should scope deterministic generation and verdict history to its workspace", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openLoopTestGlobalDB(t, "ws-1", "ws-2")
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 8, 1, 12, 0, 0, 0, time.UTC)
+		run := testLoopRun("looprun-history", now, looppkg.StatusRunning)
+		created, err := globalDB.CreateLoopRunForStart(ctx, run, dsl.ConcurrencyAllow)
+		if err != nil {
+			t.Fatalf("CreateLoopRunForStart() error = %v", err)
+		}
+		if err := insertLoopGenerationWithExecutor(ctx, globalDB.db, created.ID, looppkg.GenerationIntent{
+			Generation: 2, ParentGeneration: 1, Origin: looppkg.OriginReattempt,
+		}, now.Add(time.Minute)); err != nil {
+			t.Fatalf("insertLoopGenerationWithExecutor() error = %v", err)
+		}
+		for generation, outputRef := range map[int]string{
+			1: `{"draft":"initial"}`,
+			2: `{"draft":"revised"}`,
+		} {
+			if err := looppkg.NewStoreFinalizer().WriteGenerationSnapshot(
+				ctx,
+				globalDB.db,
+				taskpkg.GenerationSnapshot{
+					LoopRunID: string(created.ID), Generation: generation,
+					Payload: looppkg.GenerationSnapshotPayload{Outputs: []looppkg.GenerationOutput{{
+						Generation: generation, NodeID: "draft", Status: "succeeded", OutputRef: outputRef,
+					}}},
+				},
+			); err != nil {
+				t.Fatalf("WriteGenerationSnapshot(generation %d) error = %v", generation, err)
+			}
+		}
+		routeRankZero := 0
+		routeRankOne := 1
+		for _, verdict := range []struct {
+			intent    gate.VerdictIntent
+			decidedAt time.Time
+		}{
+			{
+				intent: gate.VerdictIntent{
+					GateID: "gate-a", Outcome: gate.VerdictOutcomeApproved, RouteCauseRank: &routeRankOne,
+					BlockingIssues: json.RawMessage(`[]`), Criteria: json.RawMessage(`[]`),
+				},
+				decidedAt: now.Add(time.Minute),
+			},
+			{
+				intent: gate.VerdictIntent{
+					GateID: "gate-b", Outcome: gate.VerdictOutcomeRejected, RouteCauseRank: &routeRankZero,
+					BlockingIssues: json.RawMessage(`[]`), Criteria: json.RawMessage(`[]`),
+				},
+				decidedAt: now.Add(2 * time.Minute),
+			},
+			{
+				intent: gate.VerdictIntent{
+					GateID:         "gate-c",
+					Outcome:        gate.VerdictOutcomeBlocked,
+					BlockingIssues: json.RawMessage(`[]`),
+					Criteria:       json.RawMessage(`[]`),
+				},
+				decidedAt: now.Add(3 * time.Minute),
+			},
+		} {
+			if err := insertLoopGateVerdictWithExecutor(
+				ctx,
+				globalDB.db,
+				created.ID,
+				2,
+				verdict.intent,
+				verdict.decidedAt,
+			); err != nil {
+				t.Fatalf("insertLoopGateVerdictWithExecutor(%q) error = %v", verdict.intent.GateID, err)
+			}
+		}
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			`UPDATE loop_runs SET generation = 2 WHERE id = ?`,
+			string(created.ID),
+		); err != nil {
+			t.Fatalf("advance loop generation fixture error = %v", err)
+		}
+		bestGeneration := int64(2)
+		bestScore := 0.9
+		if err := updateLoopRunBestWithExecutor(
+			ctx,
+			globalDB.db,
+			created.WorkspaceID,
+			created.ID,
+			&bestGeneration,
+			&bestScore,
+		); err != nil {
+			t.Fatalf("updateLoopRunBestWithExecutor() error = %v", err)
+		}
+
+		generations, err := globalDB.ListGenerations(ctx, "ws-1", string(created.ID))
+		if err != nil {
+			t.Fatalf("ListGenerations() error = %v", err)
+		}
+		if got, want := len(generations), 2; got != want {
+			t.Fatalf("generation count = %d, want %d", got, want)
+		}
+		if generations[0].Generation != 1 || generations[1].Generation != 2 || generations[1].ParentGeneration != 1 ||
+			generations[1].Origin != looppkg.OriginReattempt {
+			t.Fatalf("generations = %#v, want ordered initial and reattempt lineage", generations)
+		}
+		verdicts, err := globalDB.ListGateVerdicts(ctx, "ws-1", string(created.ID), 2)
+		if err != nil {
+			t.Fatalf("ListGateVerdicts() error = %v", err)
+		}
+		if got, want := len(
+			verdicts,
+		), 3; got != want || verdicts[0].GateID != "gate-a" || verdicts[1].GateID != "gate-b" ||
+			verdicts[2].GateID != "gate-c" {
+			t.Fatalf("verdicts = %#v, want gate-id order", verdicts)
+		}
+		routeCauses, err := globalDB.ListRouteCausingVerdicts(ctx, "ws-1", string(created.ID), 2)
+		if err != nil {
+			t.Fatalf("ListRouteCausingVerdicts() error = %v", err)
+		}
+		if got, want := len(routeCauses), 2; got != want ||
+			routeCauses[0].GateID != "gate-b" || routeCauses[0].RouteCauseRank == nil || *routeCauses[0].RouteCauseRank != 0 ||
+			routeCauses[1].GateID != "gate-a" || routeCauses[1].RouteCauseRank == nil || *routeCauses[1].RouteCauseRank != 1 {
+			t.Fatalf("route-causing verdicts = %#v, want route rank order without unranked verdicts", routeCauses)
+		}
+		persisted, err := globalDB.GetLoopRun(ctx, created.WorkspaceID, created.ID)
+		if err != nil {
+			t.Fatalf("GetLoopRun() error = %v", err)
+		}
+		if persisted.BestGeneration == nil || persisted.BestScore == nil ||
+			*persisted.BestGeneration != bestGeneration ||
+			*persisted.BestScore != bestScore {
+			t.Fatalf(
+				"best state = (%#v, %#v), want (%d, %v)",
+				persisted.BestGeneration,
+				persisted.BestScore,
+				bestGeneration,
+				bestScore,
+			)
+		}
+		history, err := looppkg.ReadGenerationHistory(ctx, globalDB, persisted, 3)
+		if err != nil {
+			t.Fatalf("ReadGenerationHistory() error = %v", err)
+		}
+		if history.Previous == nil || history.Previous.Generation != 2 ||
+			len(history.Previous.Verdicts) != 3 || len(history.Previous.RouteCauses) != 2 {
+			t.Fatalf("previous history = %#v, want generation 2 with verdicts and route causes", history.Previous)
+		}
+		previousDraft, ok := history.Previous.Nodes["draft"][0].Output.(map[string]any)
+		if !ok || previousDraft["draft"] != "revised" {
+			t.Fatalf("previous draft output = %#v, want revised", history.Previous.Nodes["draft"][0].Output)
+		}
+		if history.Best == nil {
+			t.Fatal("best history = nil, want generation 2")
+		}
+		bestDraft := history.Best.Nodes["draft"][0].Output.(map[string]any)
+		if history.Best.Generation != 2 || history.Best.Score != bestScore || bestDraft["draft"] != "revised" {
+			t.Fatalf("best history = %#v, want generation 2 score %.1f", history.Best, bestScore)
+		}
+		if foreign, err := globalDB.ListGenerations(ctx, "ws-2", string(created.ID)); err != nil || len(foreign) != 0 {
+			t.Fatalf("ListGenerations(other workspace) = %#v, %v; want empty, nil", foreign, err)
+		}
+		if foreign, err := globalDB.ListGateVerdicts(
+			ctx,
+			"ws-2",
+			string(created.ID),
+			2,
+		); err != nil ||
+			len(foreign) != 0 {
+			t.Fatalf("ListGateVerdicts(other workspace) = %#v, %v; want empty, nil", foreign, err)
+		}
+		var humanDecisionCount int
+		if err := globalDB.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM loop_gate_decisions WHERE loop_run_id = ?`, string(created.ID)).
+			Scan(&humanDecisionCount); err != nil {
+			t.Fatalf("count human decisions error = %v", err)
+		}
+		if humanDecisionCount != 0 {
+			t.Fatalf("human decisions = %d, want machine verdicts to leave them untouched", humanDecisionCount)
+		}
+	})
+
+	t.Run("Should persist each fan-out gate item independently", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openLoopTestGlobalDB(t, "ws-1")
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 8, 1, 12, 0, 0, 0, time.UTC)
+		created, err := globalDB.CreateLoopRunForStart(
+			ctx,
+			testLoopRun("looprun-fanout-verdicts", now, looppkg.StatusRunning),
+			dsl.ConcurrencyAllow,
+		)
+		if err != nil {
+			t.Fatalf("CreateLoopRunForStart() error = %v", err)
+		}
+		for itemIndex, outcome := range []gate.VerdictOutcome{
+			gate.VerdictOutcomeRejected,
+			gate.VerdictOutcomeApproved,
+		} {
+			intent := gate.VerdictIntent{
+				GateID: "quality", ItemIndex: itemIndex, Outcome: outcome,
+				BlockingIssues: json.RawMessage(`[]`), Criteria: json.RawMessage(`[]`),
+			}
+			if err := insertLoopGateVerdictWithExecutor(
+				ctx,
+				globalDB.db,
+				created.ID,
+				1,
+				intent,
+				now,
+			); err != nil {
+				t.Fatalf("insertLoopGateVerdictWithExecutor(item %d) error = %v", itemIndex, err)
+			}
+		}
+		verdicts, err := globalDB.ListGateVerdicts(ctx, "ws-1", string(created.ID), 1)
+		if err != nil {
+			t.Fatalf("ListGateVerdicts() error = %v", err)
+		}
+		if len(verdicts) != 2 || verdicts[0].ItemIndex != 0 || verdicts[1].ItemIndex != 1 ||
+			verdicts[0].Outcome != gate.VerdictOutcomeRejected ||
+			verdicts[1].Outcome != gate.VerdictOutcomeApproved {
+			t.Fatalf("fan-out verdicts = %#v, want two ordered gate instances", verdicts)
+		}
+	})
+
+	t.Run("Should persist human approvals outside the machine verdict history", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openLoopTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 8, 1, 13, 0, 0, 0, time.UTC)
+		created, err := globalDB.CreateLoopRunForStart(
+			ctx,
+			testLoopRun("looprun-human-decision", now, looppkg.StatusRunning),
+			dsl.ConcurrencyAllow,
+		)
+		if err != nil {
+			t.Fatalf("CreateLoopRunForStart() error = %v", err)
+		}
+		actor, err := taskpkg.DeriveHumanActorContext("operator", taskpkg.OriginKindCLI, "loop approve")
+		if err != nil {
+			t.Fatalf("DeriveHumanActorContext() error = %v", err)
+		}
+		if err := globalDB.RecordLoopGateDecisions(ctx, []looppkg.GateDecisionRecord{{
+			WorkspaceID: created.WorkspaceID,
+			RunID:       created.ID,
+			Generation:  0,
+			GateID:      "human-review",
+			CriterionID: "operator-approval",
+			Decision:    looppkg.GateDecisionApprove,
+			Actor:       actor,
+			DecidedAt:   now,
+		}}); err != nil {
+			t.Fatalf("RecordLoopGateDecisions() error = %v", err)
+		}
+		decisions, err := globalDB.ListLoopGateDecisions(ctx, created.WorkspaceID, created.ID, 0, "human-review")
+		if err != nil {
+			t.Fatalf("ListLoopGateDecisions() error = %v", err)
+		}
+		decision, ok := decisions["operator-approval"]
+		if !ok || decision.Decision != gate.HumanDecisionApprove {
+			t.Fatalf("human decisions = %#v, want stored operator approval", decisions)
+		}
+		var machineVerdictCount int
+		if err := globalDB.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM loop_gate_verdicts WHERE loop_run_id = ?`, string(created.ID)).
+			Scan(&machineVerdictCount); err != nil {
+			t.Fatalf("count machine verdicts error = %v", err)
+		}
+		if machineVerdictCount != 0 {
+			t.Fatalf("machine verdicts = %d, want human decision writer to leave them untouched", machineVerdictCount)
 		}
 	})
 }

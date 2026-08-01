@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/store"
 )
 
 func (m *Manager) notifyAgentEvent(ctx context.Context, session *Session, event any) {
@@ -32,9 +33,12 @@ func notificationSessionFromInfo(info *Info) *Session {
 		ID:               info.ID,
 		Name:             info.Name,
 		AgentName:        info.AgentName,
+		Provider:         info.Provider,
+		Model:            info.Model,
 		WorkspaceID:      info.WorkspaceID,
 		Workspace:        info.Workspace,
 		Type:             info.Type,
+		Lineage:          store.CloneSessionLineage(info.Lineage),
 		State:            info.State,
 		ACPSessionID:     info.ACPSessionID,
 		SoulSnapshotID:   info.SoulSnapshotID,

@@ -3,6 +3,7 @@ import { ChevronRight } from "lucide-react";
 
 import { formatRelativeTime } from "@compozy/ui";
 
+import { loopRunBestLabel } from "../../lib/loop-generation-presentation";
 import { formatRunInputs, loopBudgetBar, runGenerationLabel } from "../../lib/loop-runs-view";
 import type { LoopRun } from "../../types";
 import { LoopStatusPill } from "../loop-status-pill";
@@ -13,7 +14,7 @@ interface LoopRunRowProps {
 }
 
 export const LOOP_RUNS_ROW_GRID =
-  "grid-cols-[128px_minmax(0,1.4fr)_minmax(0,1fr)_84px_112px_128px_16px]";
+  "grid-cols-[128px_minmax(0,1.4fr)_minmax(0,1fr)_84px_112px_112px_128px_16px]";
 
 /** Trigger line for a run (`schedule`, `cli`). */
 function triggerLabel(run: LoopRun): string {
@@ -30,6 +31,7 @@ function triggerLabel(run: LoopRun): string {
  */
 export function LoopRunRow({ run }: LoopRunRowProps) {
   const inputs = formatRunInputs(run.inputs);
+  const best = loopRunBestLabel(run);
   return (
     <Link
       to="/loop-runs/$runId"
@@ -50,6 +52,12 @@ export function LoopRunRow({ run }: LoopRunRowProps) {
       </span>
       <span className="font-mono text-mono-id tabular-nums text-muted max-[1140px]:hidden">
         {runGenerationLabel(run)}
+      </span>
+      <span
+        className="font-mono text-mono-id tabular-nums text-muted max-[1140px]:hidden"
+        data-testid="loop-run-best"
+      >
+        {best ?? "—"}
       </span>
       <span className="text-xs tabular-nums text-muted max-[1140px]:text-right">
         {formatRelativeTime(run.created_at)}

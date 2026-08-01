@@ -1,9 +1,11 @@
 import type { LoopRunEventFrame } from "../types";
+import { loopGenerationScore } from "./loop-generation-presentation";
 import { isTerminalLoopStatus } from "./loop-formatters";
 import { goalNodeIds } from "./loop-graph";
 import {
   asRecord,
   branchKey,
+  durableGenerationStartedRow,
   finalizeSuccessRow,
   gateVerdictRow,
   generationStartedRow,
@@ -37,6 +39,34 @@ interface RunningEntry {
   taskRunId?: string;
 }
 
+interface StreamedBestProjection {
+  bestGeneration: number;
+  generation: number;
+  gateId: string;
+  seq: number;
+}
+
+function latestStreamedBestProjection(
+  frames: readonly LoopRunEventFrame[]
+): StreamedBestProjection | null {
+  let latest: StreamedBestProjection | null = null;
+  for (const frame of frames) {
+    if (str(frame.kind) !== "gate_verdict") continue;
+    const payload = asRecord(frame.payload);
+    const bestGeneration = num(payload?.best_generation);
+    const generation = num(payload?.generation);
+    if (bestGeneration === undefined || generation === undefined) continue;
+    const projection = {
+      bestGeneration,
+      generation,
+      gateId: str(payload?.gate_id, str(payload?.node_id)),
+      seq: num(frame.seq) ?? 0,
+    };
+    if (!latest || projection.seq >= latest.seq) latest = projection;
+  }
+  return latest;
+}
+
 /**
  * Builds the story timeline + "Happening now" from the retained frames. Frames
  * arrive in seq order; rows return newest-first. Consecutive branch successes of
@@ -50,9 +80,38 @@ export function buildRunStory(
   const live = !isTerminalLoopStatus(context.status);
   const failedOnlyLive = live && context.reattemptStrategy === "failed_only";
   const goalIds = context.graph ? goalNodeIds(context.graph) : new Set<string>();
-  const rows: MutableStoryRow[] = [];
   const running = new Map<string, RunningEntry>();
   const branches = new Map<string, Set<number>>();
+  const generationByNumber = new Map(
+    context.generations?.map(generation => [generation.generation, generation] as const)
+  );
+  const streamedBest = latestStreamedBestProjection(frames);
+  const streamedVerdictIsPersisted = streamedBest
+    ? (generationByNumber
+        .get(streamedBest.generation)
+        ?.verdicts.some(
+          verdict => streamedBest.gateId === "" || verdict.gate_id === streamedBest.gateId
+        ) ?? false)
+    : false;
+  const bestGeneration =
+    streamedBest && !streamedVerdictIsPersisted
+      ? streamedBest.bestGeneration
+      : (context.bestGeneration ?? streamedBest?.bestGeneration);
+  const eventStartedGenerations = new Set<number>();
+  for (const frame of frames) {
+    if (str(frame.kind) !== "generation_started") continue;
+    const generation = num(asRecord(frame.payload)?.generation);
+    if (generation !== undefined) eventStartedGenerations.add(generation);
+  }
+  // A missing generation_started frame means it fell outside retained SSE history.
+  // Durable generation rows precede the retained tail and keep score/provenance anchors alive.
+  const rows: MutableStoryRow[] = [...generationByNumber.values()]
+    .filter(generation => !eventStartedGenerations.has(generation.generation))
+    .sort((left, right) => left.generation - right.generation)
+    .map(generation =>
+      durableGenerationStartedRow(generation, context.reattemptStrategy, bestGeneration)
+    );
+  const startedGenerations = new Set(rows.map(row => row.generation ?? 0));
 
   const trackBranch = (generation: number, nodeId: string, itemIndex: number | undefined) => {
     if (itemIndex === undefined) return;
@@ -67,9 +126,21 @@ export function buildRunStory(
     const payload = asRecord(frame.payload);
     if (!payload) continue;
     switch (kind) {
-      case "generation_started":
-        rows.push(generationStartedRow(frame, payload, context.reattemptStrategy));
+      case "generation_started": {
+        const generation = num(payload.generation) ?? 0;
+        if (startedGenerations.has(generation)) break;
+        startedGenerations.add(generation);
+        rows.push(
+          generationStartedRow(
+            frame,
+            payload,
+            context.reattemptStrategy,
+            loopGenerationScore(generationByNumber.get(generation)),
+            bestGeneration
+          )
+        );
         break;
+      }
       case "gate_verdict":
         rows.push(gateVerdictRow(frame, payload));
         break;
@@ -152,6 +223,34 @@ export function buildRunStory(
       default:
         break;
     }
+  }
+
+  // The persisted generation marker owns score/best once its detail projection
+  // is available. Keep the SSE verdict metadata only as a live fallback while
+  // the detail query catches up; otherwise adjacent rows would repeat the same
+  // score and preserve a historical "best" after a later generation wins.
+  const generationRows = new Map<number, MutableStoryRow>();
+  for (const row of rows) {
+    if (row.kind === "generation_started" && row.generation !== undefined) {
+      generationRows.set(row.generation, row);
+    }
+  }
+  for (const row of rows) {
+    if (row.kind !== "gate_verdict" || row.generation === undefined) continue;
+    const generationRow = generationRows.get(row.generation);
+    if (generationRow?.score !== undefined) row.score = undefined;
+    // Without a polled projection, each verdict retains its historical "best at
+    // this point" meaning. Once detail supplies a best, reconcile every row to
+    // the freshest stream-or-detail projection selected above.
+    if (
+      context.bestGeneration !== null &&
+      context.bestGeneration !== undefined &&
+      bestGeneration !== null &&
+      bestGeneration !== undefined
+    ) {
+      row.isBest = row.generation === bestGeneration;
+    }
+    if (generationRow?.isBest) row.isBest = false;
   }
 
   // The latest round marker is the live one — accent while the run works,

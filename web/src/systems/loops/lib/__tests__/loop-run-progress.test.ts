@@ -12,6 +12,9 @@ function run(overrides: Partial<LoopRunRecord> = {}): LoopRunRecord {
 function fanOutGeneration(statuses: string[], generation = 2): LoopRunGeneration {
   return {
     generation,
+    parent_generation: generation > 1 ? generation - 1 : 0,
+    origin: generation > 1 ? "gate_revise" : "initial",
+    verdicts: [],
     outputs: statuses.map((status, index) => ({
       node_id: "fix_batches",
       status,
@@ -57,6 +60,9 @@ describe("buildRunProgress", () => {
       [
         {
           generation: 3,
+          parent_generation: 2,
+          origin: "reattempt",
+          verdicts: [],
           outputs: [{ node_id: "remediate", status: "succeeded", generation: 3 }],
         },
       ],
@@ -73,6 +79,7 @@ describe("latestGateVerdict", () => {
     const verdicts: Record<string, LoopGateVerdict> = {
       check_all: {
         nodeId: "check_all",
+        gateId: "check_all",
         generation: 2,
         verdict: "revise",
         criteria: [],
@@ -80,6 +87,7 @@ describe("latestGateVerdict", () => {
       },
       final_gate: {
         nodeId: "final_gate",
+        gateId: "final_gate",
         generation: 3,
         verdict: "pass",
         criteria: [],

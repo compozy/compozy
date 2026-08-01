@@ -219,6 +219,9 @@
                       "check": {
                         "type": "string"
                       },
+                      "contains": {
+                        "type": "string"
+                      },
                       "expect": {
                         "type": "string"
                       },
@@ -227,6 +230,25 @@
                       },
                       "inputs": {
                         "additionalProperties": {},
+                        "type": "object"
+                      },
+                      "metric": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "direction": {
+                            "enum": [
+                              "maximize",
+                              "minimize"
+                            ],
+                            "type": "string"
+                          },
+                          "min_delta": {
+                            "type": "number"
+                          }
+                        },
+                        "required": [
+                          "direction"
+                        ],
                         "type": "object"
                       },
                       "prompt": {
@@ -204239,6 +204261,16 @@
                           "active_gate_id": {
                             "type": "string"
                           },
+                          "best_generation": {
+                            "format": "int64",
+                            "nullable": true,
+                            "type": "integer"
+                          },
+                          "best_score": {
+                            "format": "double",
+                            "nullable": true,
+                            "type": "number"
+                          },
                           "budget_approval_seq": {
                             "type": "integer"
                           },
@@ -204911,6 +204943,9 @@
                                   "check": {
                                     "type": "string"
                                   },
+                                  "contains": {
+                                    "type": "string"
+                                  },
                                   "expect": {
                                     "type": "string"
                                   },
@@ -204919,6 +204954,27 @@
                                   },
                                   "inputs": {
                                     "additionalProperties": {},
+                                    "type": "object"
+                                  },
+                                  "metric": {
+                                    "nullable": true,
+                                    "properties": {
+                                      "direction": {
+                                        "enum": [
+                                          "maximize",
+                                          "minimize"
+                                        ],
+                                        "type": "string"
+                                      },
+                                      "min_delta": {
+                                        "format": "double",
+                                        "nullable": true,
+                                        "type": "number"
+                                      }
+                                    },
+                                    "required": [
+                                      "direction"
+                                    ],
                                     "type": "object"
                                   },
                                   "prompt": {
@@ -205027,6 +205083,9 @@
                                         "check": {
                                           "type": "string"
                                         },
+                                        "contains": {
+                                          "type": "string"
+                                        },
                                         "expect": {
                                           "type": "string"
                                         },
@@ -205035,6 +205094,25 @@
                                         },
                                         "inputs": {
                                           "additionalProperties": {},
+                                          "type": "object"
+                                        },
+                                        "metric": {
+                                          "additionalProperties": false,
+                                          "properties": {
+                                            "direction": {
+                                              "enum": [
+                                                "maximize",
+                                                "minimize"
+                                              ],
+                                              "type": "string"
+                                            },
+                                            "min_delta": {
+                                              "type": "number"
+                                            }
+                                          },
+                                          "required": [
+                                            "direction"
+                                          ],
                                           "type": "object"
                                         },
                                         "prompt": {
@@ -205490,6 +205568,18 @@
                           "generation": {
                             "type": "integer"
                           },
+                          "origin": {
+                            "enum": [
+                              "initial",
+                              "stop_when",
+                              "reattempt",
+                              "gate_revise",
+                              "gate_next_generation",
+                              "dod_retry",
+                              "ratchet_restore"
+                            ],
+                            "type": "string"
+                          },
                           "outputs": {
                             "items": {
                               "properties": {
@@ -205554,11 +205644,54 @@
                               "type": "object"
                             },
                             "type": "array"
+                          },
+                          "parent_generation": {
+                            "format": "int64",
+                            "type": "integer"
+                          },
+                          "verdicts": {
+                            "items": {
+                              "properties": {
+                                "gate_id": {
+                                  "type": "string"
+                                },
+                                "outcome": {
+                                  "enum": [
+                                    "approved",
+                                    "rejected",
+                                    "awaiting_approval",
+                                    "blocked",
+                                    "error",
+                                    "timeout",
+                                    "invalid_output"
+                                  ],
+                                  "type": "string"
+                                },
+                                "route_cause_rank": {
+                                  "nullable": true,
+                                  "type": "integer"
+                                },
+                                "score": {
+                                  "format": "double",
+                                  "nullable": true,
+                                  "type": "number"
+                                }
+                              },
+                              "required": [
+                                "gate_id",
+                                "outcome"
+                              ],
+                              "type": "object"
+                            },
+                            "type": "array"
                           }
                         },
                         "required": [
                           "generation",
-                          "outputs"
+                          "origin",
+                          "outputs",
+                          "parent_generation",
+                          "verdicts"
                         ],
                         "type": "object"
                       },
@@ -205568,6 +205701,16 @@
                       "properties": {
                         "active_gate_id": {
                           "type": "string"
+                        },
+                        "best_generation": {
+                          "format": "int64",
+                          "nullable": true,
+                          "type": "integer"
+                        },
+                        "best_score": {
+                          "format": "double",
+                          "nullable": true,
+                          "type": "number"
                         },
                         "budget_approval_seq": {
                           "type": "integer"
@@ -206676,54 +206819,267 @@
             "content": {
               "text/event-stream": {
                 "schema": {
-                  "properties": {
-                    "at": {
-                      "format": "date-time",
-                      "type": "string"
-                    },
-                    "id": {
-                      "type": "string"
-                    },
-                    "kind": {
-                      "enum": [
-                        "node_running",
-                        "node_succeeded",
-                        "node_failed",
-                        "gate_verdict",
-                        "generation_started",
-                        "channel_msg",
-                        "token_tick",
-                        "needs_approval",
-                        "status_changed",
-                        "goal_turn_started",
-                        "goal_turn_completed",
-                        "goal_status_changed",
-                        "runtime_applied"
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "at": {
+                          "format": "date-time",
+                          "type": "string"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "kind": {
+                          "enum": [
+                            "generation_started"
+                          ],
+                          "type": "string"
+                        },
+                        "loop_run_id": {
+                          "type": "string"
+                        },
+                        "payload": {
+                          "properties": {
+                            "generation": {
+                              "type": "integer"
+                            },
+                            "loop_name": {
+                              "type": "string"
+                            },
+                            "origin": {
+                              "enum": [
+                                "initial",
+                                "stop_when",
+                                "reattempt",
+                                "gate_revise",
+                                "gate_next_generation",
+                                "dod_retry",
+                                "ratchet_restore"
+                              ],
+                              "type": "string"
+                            },
+                            "parent_generation": {
+                              "format": "int64",
+                              "type": "integer"
+                            },
+                            "reattempt_strategy": {
+                              "enum": [
+                                "failed_only",
+                                "full_body"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "generation",
+                            "loop_name",
+                            "origin",
+                            "parent_generation",
+                            "reattempt_strategy"
+                          ],
+                          "type": "object"
+                        },
+                        "seq": {
+                          "format": "int64",
+                          "type": "integer"
+                        },
+                        "workspace_id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "at",
+                        "id",
+                        "kind",
+                        "loop_run_id",
+                        "payload",
+                        "seq",
+                        "workspace_id"
                       ],
-                      "type": "string"
+                      "type": "object"
                     },
-                    "loop_run_id": {
-                      "type": "string"
+                    {
+                      "properties": {
+                        "at": {
+                          "format": "date-time",
+                          "type": "string"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "kind": {
+                          "enum": [
+                            "gate_verdict"
+                          ],
+                          "type": "string"
+                        },
+                        "loop_run_id": {
+                          "type": "string"
+                        },
+                        "payload": {
+                          "properties": {
+                            "best_generation": {
+                              "format": "int64",
+                              "nullable": true,
+                              "type": "integer"
+                            },
+                            "blocking_issues": {
+                              "items": {
+                                "properties": {
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "note": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "id",
+                                  "note"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            },
+                            "criteria": {
+                              "items": {
+                                "properties": {
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "note": {
+                                    "type": "string"
+                                  },
+                                  "score": {
+                                    "format": "double",
+                                    "nullable": true,
+                                    "type": "number"
+                                  },
+                                  "status": {
+                                    "type": "string"
+                                  },
+                                  "type": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "id",
+                                  "note",
+                                  "status",
+                                  "type"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            },
+                            "gate_id": {
+                              "type": "string"
+                            },
+                            "generation": {
+                              "type": "integer"
+                            },
+                            "item_index": {
+                              "type": "integer"
+                            },
+                            "node_id": {
+                              "type": "string"
+                            },
+                            "reason": {
+                              "type": "string"
+                            },
+                            "route": {
+                              "type": "string"
+                            },
+                            "score": {
+                              "format": "double",
+                              "nullable": true,
+                              "type": "number"
+                            },
+                            "verdict": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "blocking_issues",
+                            "criteria",
+                            "gate_id",
+                            "generation",
+                            "item_index",
+                            "node_id",
+                            "reason",
+                            "route",
+                            "verdict"
+                          ],
+                          "type": "object"
+                        },
+                        "seq": {
+                          "format": "int64",
+                          "type": "integer"
+                        },
+                        "workspace_id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "at",
+                        "id",
+                        "kind",
+                        "loop_run_id",
+                        "payload",
+                        "seq",
+                        "workspace_id"
+                      ],
+                      "type": "object"
                     },
-                    "payload": {},
-                    "seq": {
-                      "format": "int64",
-                      "type": "integer"
-                    },
-                    "workspace_id": {
-                      "type": "string"
+                    {
+                      "properties": {
+                        "at": {
+                          "format": "date-time",
+                          "type": "string"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "kind": {
+                          "enum": [
+                            "node_running",
+                            "node_succeeded",
+                            "node_failed",
+                            "channel_msg",
+                            "token_tick",
+                            "needs_approval",
+                            "status_changed",
+                            "goal_turn_started",
+                            "goal_turn_completed",
+                            "goal_status_changed",
+                            "runtime_applied"
+                          ],
+                          "type": "string"
+                        },
+                        "loop_run_id": {
+                          "type": "string"
+                        },
+                        "payload": {},
+                        "seq": {
+                          "format": "int64",
+                          "type": "integer"
+                        },
+                        "workspace_id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "at",
+                        "id",
+                        "kind",
+                        "loop_run_id",
+                        "payload",
+                        "seq",
+                        "workspace_id"
+                      ],
+                      "type": "object"
                     }
-                  },
-                  "required": [
-                    "at",
-                    "id",
-                    "kind",
-                    "loop_run_id",
-                    "payload",
-                    "seq",
-                    "workspace_id"
-                  ],
-                  "type": "object"
+                  ]
                 }
               }
             },
@@ -209457,6 +209813,9 @@
                                     "check": {
                                       "type": "string"
                                     },
+                                    "contains": {
+                                      "type": "string"
+                                    },
                                     "expect": {
                                       "type": "string"
                                     },
@@ -209465,6 +209824,27 @@
                                     },
                                     "inputs": {
                                       "additionalProperties": {},
+                                      "type": "object"
+                                    },
+                                    "metric": {
+                                      "nullable": true,
+                                      "properties": {
+                                        "direction": {
+                                          "enum": [
+                                            "maximize",
+                                            "minimize"
+                                          ],
+                                          "type": "string"
+                                        },
+                                        "min_delta": {
+                                          "format": "double",
+                                          "nullable": true,
+                                          "type": "number"
+                                        }
+                                      },
+                                      "required": [
+                                        "direction"
+                                      ],
                                       "type": "object"
                                     },
                                     "prompt": {
@@ -209551,6 +209931,16 @@
                           "last_run": {
                             "nullable": true,
                             "properties": {
+                              "best_generation": {
+                                "format": "int64",
+                                "nullable": true,
+                                "type": "integer"
+                              },
+                              "best_score": {
+                                "format": "double",
+                                "nullable": true,
+                                "type": "number"
+                              },
                               "created_at": {
                                 "format": "date-time",
                                 "type": "string"
@@ -210184,6 +210574,9 @@
                                 "check": {
                                   "type": "string"
                                 },
+                                "contains": {
+                                  "type": "string"
+                                },
                                 "expect": {
                                   "type": "string"
                                 },
@@ -210192,6 +210585,27 @@
                                 },
                                 "inputs": {
                                   "additionalProperties": {},
+                                  "type": "object"
+                                },
+                                "metric": {
+                                  "nullable": true,
+                                  "properties": {
+                                    "direction": {
+                                      "enum": [
+                                        "maximize",
+                                        "minimize"
+                                      ],
+                                      "type": "string"
+                                    },
+                                    "min_delta": {
+                                      "format": "double",
+                                      "nullable": true,
+                                      "type": "number"
+                                    }
+                                  },
+                                  "required": [
+                                    "direction"
+                                  ],
                                   "type": "object"
                                 },
                                 "prompt": {
@@ -210300,6 +210714,9 @@
                                       "check": {
                                         "type": "string"
                                       },
+                                      "contains": {
+                                        "type": "string"
+                                      },
                                       "expect": {
                                         "type": "string"
                                       },
@@ -210308,6 +210725,25 @@
                                       },
                                       "inputs": {
                                         "additionalProperties": {},
+                                        "type": "object"
+                                      },
+                                      "metric": {
+                                        "additionalProperties": false,
+                                        "properties": {
+                                          "direction": {
+                                            "enum": [
+                                              "maximize",
+                                              "minimize"
+                                            ],
+                                            "type": "string"
+                                          },
+                                          "min_delta": {
+                                            "type": "number"
+                                          }
+                                        },
+                                        "required": [
+                                          "direction"
+                                        ],
                                         "type": "object"
                                       },
                                       "prompt": {
@@ -210955,6 +211391,9 @@
                                       "check": {
                                         "type": "string"
                                       },
+                                      "contains": {
+                                        "type": "string"
+                                      },
                                       "expect": {
                                         "type": "string"
                                       },
@@ -210963,6 +211402,27 @@
                                       },
                                       "inputs": {
                                         "additionalProperties": {},
+                                        "type": "object"
+                                      },
+                                      "metric": {
+                                        "nullable": true,
+                                        "properties": {
+                                          "direction": {
+                                            "enum": [
+                                              "maximize",
+                                              "minimize"
+                                            ],
+                                            "type": "string"
+                                          },
+                                          "min_delta": {
+                                            "format": "double",
+                                            "nullable": true,
+                                            "type": "number"
+                                          }
+                                        },
+                                        "required": [
+                                          "direction"
+                                        ],
                                         "type": "object"
                                       },
                                       "prompt": {
@@ -211071,6 +211531,9 @@
                                             "check": {
                                               "type": "string"
                                             },
+                                            "contains": {
+                                              "type": "string"
+                                            },
                                             "expect": {
                                               "type": "string"
                                             },
@@ -211079,6 +211542,25 @@
                                             },
                                             "inputs": {
                                               "additionalProperties": {},
+                                              "type": "object"
+                                            },
+                                            "metric": {
+                                              "additionalProperties": false,
+                                              "properties": {
+                                                "direction": {
+                                                  "enum": [
+                                                    "maximize",
+                                                    "minimize"
+                                                  ],
+                                                  "type": "string"
+                                                },
+                                                "min_delta": {
+                                                  "type": "number"
+                                                }
+                                              },
+                                              "required": [
+                                                "direction"
+                                              ],
                                               "type": "object"
                                             },
                                             "prompt": {
@@ -212555,6 +213037,9 @@
                                       "check": {
                                         "type": "string"
                                       },
+                                      "contains": {
+                                        "type": "string"
+                                      },
                                       "expect": {
                                         "type": "string"
                                       },
@@ -212563,6 +213048,27 @@
                                       },
                                       "inputs": {
                                         "additionalProperties": {},
+                                        "type": "object"
+                                      },
+                                      "metric": {
+                                        "nullable": true,
+                                        "properties": {
+                                          "direction": {
+                                            "enum": [
+                                              "maximize",
+                                              "minimize"
+                                            ],
+                                            "type": "string"
+                                          },
+                                          "min_delta": {
+                                            "format": "double",
+                                            "nullable": true,
+                                            "type": "number"
+                                          }
+                                        },
+                                        "required": [
+                                          "direction"
+                                        ],
                                         "type": "object"
                                       },
                                       "prompt": {
@@ -212671,6 +213177,9 @@
                                             "check": {
                                               "type": "string"
                                             },
+                                            "contains": {
+                                              "type": "string"
+                                            },
                                             "expect": {
                                               "type": "string"
                                             },
@@ -212679,6 +213188,25 @@
                                             },
                                             "inputs": {
                                               "additionalProperties": {},
+                                              "type": "object"
+                                            },
+                                            "metric": {
+                                              "additionalProperties": false,
+                                              "properties": {
+                                                "direction": {
+                                                  "enum": [
+                                                    "maximize",
+                                                    "minimize"
+                                                  ],
+                                                  "type": "string"
+                                                },
+                                                "min_delta": {
+                                                  "type": "number"
+                                                }
+                                              },
+                                              "required": [
+                                                "direction"
+                                              ],
                                               "type": "object"
                                             },
                                             "prompt": {
@@ -213621,6 +214149,9 @@
                                 "check": {
                                   "type": "string"
                                 },
+                                "contains": {
+                                  "type": "string"
+                                },
                                 "expect": {
                                   "type": "string"
                                 },
@@ -213629,6 +214160,27 @@
                                 },
                                 "inputs": {
                                   "additionalProperties": {},
+                                  "type": "object"
+                                },
+                                "metric": {
+                                  "nullable": true,
+                                  "properties": {
+                                    "direction": {
+                                      "enum": [
+                                        "maximize",
+                                        "minimize"
+                                      ],
+                                      "type": "string"
+                                    },
+                                    "min_delta": {
+                                      "format": "double",
+                                      "nullable": true,
+                                      "type": "number"
+                                    }
+                                  },
+                                  "required": [
+                                    "direction"
+                                  ],
                                   "type": "object"
                                 },
                                 "prompt": {
@@ -213737,6 +214289,9 @@
                                       "check": {
                                         "type": "string"
                                       },
+                                      "contains": {
+                                        "type": "string"
+                                      },
                                       "expect": {
                                         "type": "string"
                                       },
@@ -213745,6 +214300,25 @@
                                       },
                                       "inputs": {
                                         "additionalProperties": {},
+                                        "type": "object"
+                                      },
+                                      "metric": {
+                                        "additionalProperties": false,
+                                        "properties": {
+                                          "direction": {
+                                            "enum": [
+                                              "maximize",
+                                              "minimize"
+                                            ],
+                                            "type": "string"
+                                          },
+                                          "min_delta": {
+                                            "type": "number"
+                                          }
+                                        },
+                                        "required": [
+                                          "direction"
+                                        ],
                                         "type": "object"
                                       },
                                       "prompt": {
@@ -214396,6 +214970,9 @@
                                       "check": {
                                         "type": "string"
                                       },
+                                      "contains": {
+                                        "type": "string"
+                                      },
                                       "expect": {
                                         "type": "string"
                                       },
@@ -214404,6 +214981,27 @@
                                       },
                                       "inputs": {
                                         "additionalProperties": {},
+                                        "type": "object"
+                                      },
+                                      "metric": {
+                                        "nullable": true,
+                                        "properties": {
+                                          "direction": {
+                                            "enum": [
+                                              "maximize",
+                                              "minimize"
+                                            ],
+                                            "type": "string"
+                                          },
+                                          "min_delta": {
+                                            "format": "double",
+                                            "nullable": true,
+                                            "type": "number"
+                                          }
+                                        },
+                                        "required": [
+                                          "direction"
+                                        ],
                                         "type": "object"
                                       },
                                       "prompt": {
@@ -214512,6 +215110,9 @@
                                             "check": {
                                               "type": "string"
                                             },
+                                            "contains": {
+                                              "type": "string"
+                                            },
                                             "expect": {
                                               "type": "string"
                                             },
@@ -214520,6 +215121,25 @@
                                             },
                                             "inputs": {
                                               "additionalProperties": {},
+                                              "type": "object"
+                                            },
+                                            "metric": {
+                                              "additionalProperties": false,
+                                              "properties": {
+                                                "direction": {
+                                                  "enum": [
+                                                    "maximize",
+                                                    "minimize"
+                                                  ],
+                                                  "type": "string"
+                                                },
+                                                "min_delta": {
+                                                  "type": "number"
+                                                }
+                                              },
+                                              "required": [
+                                                "direction"
+                                              ],
                                               "type": "object"
                                             },
                                             "prompt": {
@@ -220043,6 +220663,9 @@
                                   "check": {
                                     "type": "string"
                                   },
+                                  "contains": {
+                                    "type": "string"
+                                  },
                                   "expect": {
                                     "type": "string"
                                   },
@@ -220051,6 +220674,27 @@
                                   },
                                   "inputs": {
                                     "additionalProperties": {},
+                                    "type": "object"
+                                  },
+                                  "metric": {
+                                    "nullable": true,
+                                    "properties": {
+                                      "direction": {
+                                        "enum": [
+                                          "maximize",
+                                          "minimize"
+                                        ],
+                                        "type": "string"
+                                      },
+                                      "min_delta": {
+                                        "format": "double",
+                                        "nullable": true,
+                                        "type": "number"
+                                      }
+                                    },
+                                    "required": [
+                                      "direction"
+                                    ],
                                     "type": "object"
                                   },
                                   "prompt": {
@@ -220473,6 +221117,16 @@
                       "properties": {
                         "active_gate_id": {
                           "type": "string"
+                        },
+                        "best_generation": {
+                          "format": "int64",
+                          "nullable": true,
+                          "type": "integer"
+                        },
+                        "best_score": {
+                          "format": "double",
+                          "nullable": true,
+                          "type": "number"
                         },
                         "budget_approval_seq": {
                           "type": "integer"
@@ -220910,6 +221564,9 @@
                                   "check": {
                                     "type": "string"
                                   },
+                                  "contains": {
+                                    "type": "string"
+                                  },
                                   "expect": {
                                     "type": "string"
                                   },
@@ -220918,6 +221575,27 @@
                                   },
                                   "inputs": {
                                     "additionalProperties": {},
+                                    "type": "object"
+                                  },
+                                  "metric": {
+                                    "nullable": true,
+                                    "properties": {
+                                      "direction": {
+                                        "enum": [
+                                          "maximize",
+                                          "minimize"
+                                        ],
+                                        "type": "string"
+                                      },
+                                      "min_delta": {
+                                        "format": "double",
+                                        "nullable": true,
+                                        "type": "number"
+                                      }
+                                    },
+                                    "required": [
+                                      "direction"
+                                    ],
                                     "type": "object"
                                   },
                                   "prompt": {
@@ -221340,6 +222018,16 @@
                       "properties": {
                         "active_gate_id": {
                           "type": "string"
+                        },
+                        "best_generation": {
+                          "format": "int64",
+                          "nullable": true,
+                          "type": "integer"
+                        },
+                        "best_score": {
+                          "format": "double",
+                          "nullable": true,
+                          "type": "number"
                         },
                         "budget_approval_seq": {
                           "type": "integer"
@@ -222264,6 +222952,9 @@
                                 "check": {
                                   "type": "string"
                                 },
+                                "contains": {
+                                  "type": "string"
+                                },
                                 "expect": {
                                   "type": "string"
                                 },
@@ -222272,6 +222963,27 @@
                                 },
                                 "inputs": {
                                   "additionalProperties": {},
+                                  "type": "object"
+                                },
+                                "metric": {
+                                  "nullable": true,
+                                  "properties": {
+                                    "direction": {
+                                      "enum": [
+                                        "maximize",
+                                        "minimize"
+                                      ],
+                                      "type": "string"
+                                    },
+                                    "min_delta": {
+                                      "format": "double",
+                                      "nullable": true,
+                                      "type": "number"
+                                    }
+                                  },
+                                  "required": [
+                                    "direction"
+                                  ],
                                   "type": "object"
                                 },
                                 "prompt": {
@@ -222380,6 +223092,9 @@
                                       "check": {
                                         "type": "string"
                                       },
+                                      "contains": {
+                                        "type": "string"
+                                      },
                                       "expect": {
                                         "type": "string"
                                       },
@@ -222388,6 +223103,25 @@
                                       },
                                       "inputs": {
                                         "additionalProperties": {},
+                                        "type": "object"
+                                      },
+                                      "metric": {
+                                        "additionalProperties": false,
+                                        "properties": {
+                                          "direction": {
+                                            "enum": [
+                                              "maximize",
+                                              "minimize"
+                                            ],
+                                            "type": "string"
+                                          },
+                                          "min_delta": {
+                                            "type": "number"
+                                          }
+                                        },
+                                        "required": [
+                                          "direction"
+                                        ],
                                         "type": "object"
                                       },
                                       "prompt": {

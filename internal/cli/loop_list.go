@@ -44,31 +44,20 @@ func loopListBundle(response contract.LoopsResponse) outputBundle {
 		response,
 		response.Loops,
 		"Loops",
-		[]string{bundleNameValue, bundleKindValue, "Category", "Last Run", "Runs 30d", "Success 30d"},
+		loopListHumanHeaders(),
 		"loops",
-		[]string{automationNameKey, bundleKindKey, "category", "last_run_status", "runs_30d", "success_rate_30d"},
-		func(item contract.LoopCatalogEntryPayload) []string {
-			return []string{
-				item.Name,
-				string(loopListKind(item)),
-				stringOrDash(item.Catalog.Category),
-				stringOrDash(loopListLastStatus(item)),
-				strconv.Itoa(item.Aggregate30d.Runs),
-				strconv.FormatFloat(item.SuccessRate30*100, 'f', 1, 64) + "%",
-			}
-		},
-		func(item contract.LoopCatalogEntryPayload) []string {
-			return []string{
-				item.Name,
-				string(loopListKind(item)),
-				item.Catalog.Category,
-				loopListLastStatus(item),
-				strconv.Itoa(item.Aggregate30d.Runs),
-				strconv.FormatFloat(item.SuccessRate30, 'f', -1, 64),
-			}
-		},
+		loopListToonFields(),
+		loopListHumanRow,
+		loopListToonRow,
 	)
-	bundle.jsonl = func(cmd *cobra.Command) error {
+	bundle.jsonl = loopListJSONLRenderer(response)
+	bundle.human = loopListHumanRenderer(bundle.human, response.Page)
+	bundle.toon = loopListToonRenderer(bundle.toon, response)
+	return bundle
+}
+
+func loopListJSONLRenderer(response contract.LoopsResponse) func(*cobra.Command) error {
+	return func(cmd *cobra.Command) error {
 		for _, item := range response.Loops {
 			if err := writeJSONLine(cmd, item); err != nil {
 				return err
@@ -80,16 +69,26 @@ func loopListBundle(response contract.LoopsResponse) outputBundle {
 			Facets contract.LoopCatalogFacetsPayload `json:"facets"`
 		}{Type: listPageRecordType, Page: response.Page, Facets: response.Facets})
 	}
-	baseHuman := bundle.human
-	bundle.human = func() (string, error) {
+}
+
+func loopListHumanRenderer(
+	baseHuman func() (string, error),
+	page contract.CountedCursorPagePayload,
+) func() (string, error) {
+	return func() (string, error) {
 		table, err := baseHuman()
 		if err != nil {
 			return "", err
 		}
-		return renderHumanBlocks(table, loopCatalogPageHuman(response.Page)), nil
+		return renderHumanBlocks(table, loopCatalogPageHuman(page)), nil
 	}
-	baseToon := bundle.toon
-	bundle.toon = func() (string, error) {
+}
+
+func loopListToonRenderer(
+	baseToon func() (string, error),
+	response contract.LoopsResponse,
+) func() (string, error) {
+	return func() (string, error) {
 		items, err := baseToon()
 		if err != nil {
 			return "", err
@@ -113,7 +112,58 @@ func loopListBundle(response contract.LoopsResponse) outputBundle {
 		)
 		return items + "\n" + page, nil
 	}
-	return bundle
+}
+
+func loopListHumanHeaders() []string {
+	return []string{
+		bundleNameValue,
+		bundleKindValue,
+		"Category",
+		"Last Run",
+		"Best Gen",
+		"Best Score",
+		"Runs 30d",
+		"Success 30d",
+	}
+}
+
+func loopListToonFields() []string {
+	return []string{
+		automationNameKey,
+		bundleKindKey,
+		"category",
+		"last_run_status",
+		"best_generation",
+		"best_score",
+		"runs_30d",
+		"success_rate_30d",
+	}
+}
+
+func loopListHumanRow(item contract.LoopCatalogEntryPayload) []string {
+	return []string{
+		item.Name,
+		string(loopListKind(item)),
+		stringOrDash(item.Catalog.Category),
+		stringOrDash(loopListLastStatus(item)),
+		formatOptionalInt64(loopListBestGeneration(item)),
+		formatOptionalFloat64(loopListBestScore(item)),
+		strconv.Itoa(item.Aggregate30d.Runs),
+		strconv.FormatFloat(item.SuccessRate30*100, 'f', 1, 64) + "%",
+	}
+}
+
+func loopListToonRow(item contract.LoopCatalogEntryPayload) []string {
+	return []string{
+		item.Name,
+		string(loopListKind(item)),
+		item.Catalog.Category,
+		loopListLastStatus(item),
+		formatOptionalInt64(loopListBestGeneration(item)),
+		formatOptionalFloat64(loopListBestScore(item)),
+		strconv.Itoa(item.Aggregate30d.Runs),
+		strconv.FormatFloat(item.SuccessRate30, 'f', -1, 64),
+	}
 }
 
 func loopCatalogPageHuman(page contract.CountedCursorPagePayload) string {
@@ -137,4 +187,18 @@ func loopListLastStatus(item contract.LoopCatalogEntryPayload) string {
 		return ""
 	}
 	return strings.TrimSpace(string(item.LastRun.Status))
+}
+
+func loopListBestGeneration(item contract.LoopCatalogEntryPayload) *int64 {
+	if item.LastRun == nil {
+		return nil
+	}
+	return item.LastRun.BestGeneration
+}
+
+func loopListBestScore(item contract.LoopCatalogEntryPayload) *float64 {
+	if item.LastRun == nil {
+		return nil
+	}
+	return item.LastRun.BestScore
 }

@@ -10,6 +10,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
+	"github.com/compozy/compozy/internal/loop/gate"
 	"github.com/compozy/compozy/internal/task"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
@@ -85,6 +86,56 @@ func TestDaemonLoopAPIServiceShouldResolveRunWebEndpointBeforeStarting(t *testin
 	}
 	if startCalled {
 		t.Fatal("RunLoop() called Start before resolving the run web endpoint")
+	}
+}
+
+func TestDaemonLoopAPIServiceShouldAssembleGenerationDetailFromLineage(t *testing.T) {
+	t.Parallel()
+
+	score := 0.72
+	rank := 0
+	persistence := &loopRunHistoryPersistenceStub{
+		lineage: []looppkg.LoopGeneration{
+			{RunID: "run-lineage", Generation: 1, ParentGeneration: 0, Origin: looppkg.OriginInitial},
+			{RunID: "run-lineage", Generation: 3, ParentGeneration: 1, Origin: looppkg.OriginRatchetRestore},
+		},
+		outputs: map[int][]looppkg.GenerationOutput{
+			1: {{Generation: 1, NodeID: "draft", Status: "succeeded", OutputRef: `{"value":"best"}`}},
+			3: {{Generation: 3, NodeID: "draft", Status: "pending"}},
+		},
+		verdicts: map[int64][]gate.VerdictRecord{
+			3: {{
+				RunID: "run-lineage", Generation: 3, GateID: "quality",
+				Outcome: gate.VerdictOutcomeRejected, Score: &score, RouteCauseRank: &rank,
+			}},
+		},
+	}
+	service := &daemonLoopAPIService{persistence: persistence}
+	run := looppkg.Run{ID: "run-lineage", WorkspaceID: "ws-lineage", Generation: 3}
+
+	generations, err := service.loopGenerations(t.Context(), run)
+	if err != nil {
+		t.Fatalf("loopGenerations() error = %v", err)
+	}
+	if len(generations) != 2 || generations[0].Generation != 1 || generations[1].Generation != 3 {
+		t.Fatalf("loopGenerations() = %#v, want exact lineage rows 1 and 3", generations)
+	}
+	if generations[1].ParentGeneration != 1 ||
+		generations[1].Origin != contract.LoopGenerationOriginRatchetRestore {
+		t.Fatalf("generation 3 provenance = %#v, want ratchet restore from 1", generations[1])
+	}
+	if len(generations[1].Verdicts) != 1 || generations[1].Verdicts[0].GateID != "quality" ||
+		generations[1].Verdicts[0].Score == nil || *generations[1].Verdicts[0].Score != score ||
+		generations[1].Verdicts[0].RouteCauseRank == nil || *generations[1].Verdicts[0].RouteCauseRank != rank {
+		t.Fatalf("generation 3 verdicts = %#v, want exact score/rank", generations[1].Verdicts)
+	}
+	if len(persistence.outputCalls) != 2 || persistence.outputCalls[0] != 1 || persistence.outputCalls[1] != 3 {
+		t.Fatalf("ListGenerationOutputs calls = %#v, want lineage generations only", persistence.outputCalls)
+	}
+	for _, workspaceID := range persistence.workspaceCalls {
+		if workspaceID != "ws-lineage" {
+			t.Fatalf("workspace-scoped history call = %q, want ws-lineage", workspaceID)
+		}
 	}
 }
 
@@ -344,6 +395,45 @@ func mustLoopApprovalActor(t *testing.T, sessionID string) task.ActorContext {
 		t.Fatalf("DeriveAgentSessionActorContextForOrigin() error = %v", err)
 	}
 	return actor
+}
+
+type loopRunHistoryPersistenceStub struct {
+	loopAPIPersistence
+	lineage        []looppkg.LoopGeneration
+	outputs        map[int][]looppkg.GenerationOutput
+	verdicts       map[int64][]gate.VerdictRecord
+	outputCalls    []int
+	workspaceCalls []string
+}
+
+func (s *loopRunHistoryPersistenceStub) ListGenerations(
+	_ context.Context,
+	workspaceID string,
+	_ string,
+) ([]looppkg.LoopGeneration, error) {
+	s.workspaceCalls = append(s.workspaceCalls, workspaceID)
+	return append([]looppkg.LoopGeneration(nil), s.lineage...), nil
+}
+
+func (s *loopRunHistoryPersistenceStub) ListGenerationOutputs(
+	_ context.Context,
+	workspaceID looppkg.WorkspaceID,
+	_ looppkg.RunID,
+	generation int,
+) ([]looppkg.GenerationOutput, error) {
+	s.workspaceCalls = append(s.workspaceCalls, string(workspaceID))
+	s.outputCalls = append(s.outputCalls, generation)
+	return append([]looppkg.GenerationOutput(nil), s.outputs[generation]...), nil
+}
+
+func (s *loopRunHistoryPersistenceStub) ListGateVerdicts(
+	_ context.Context,
+	workspaceID string,
+	_ string,
+	generation int64,
+) ([]gate.VerdictRecord, error) {
+	s.workspaceCalls = append(s.workspaceCalls, workspaceID)
+	return append([]gate.VerdictRecord(nil), s.verdicts[generation]...), nil
 }
 
 type loopApprovalAggregateStub struct {

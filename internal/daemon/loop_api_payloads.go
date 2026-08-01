@@ -46,9 +46,11 @@ func loopCatalogEntryPayload(
 	var lastRun *contract.LoopCatalogLastRunPayload
 	if summary.LastRun != nil {
 		lastRun = &contract.LoopCatalogLastRunPayload{
-			ID:        string(summary.LastRun.ID),
-			Status:    contract.LoopRunStatus(summary.LastRun.Status),
-			CreatedAt: summary.LastRun.CreatedAt,
+			ID:             string(summary.LastRun.ID),
+			Status:         contract.LoopRunStatus(summary.LastRun.Status),
+			BestGeneration: cloneOptional(summary.LastRun.BestGeneration),
+			BestScore:      cloneOptional(summary.LastRun.BestScore),
+			CreatedAt:      summary.LastRun.CreatedAt,
 		}
 	}
 	return contract.LoopCatalogEntryPayload{
@@ -90,7 +92,7 @@ func loopRunPayload(run looppkg.Run) (contract.LoopRunPayload, error) {
 	if err != nil {
 		return contract.LoopRunPayload{}, err
 	}
-	return contract.LoopRunPayload{
+	payload := contract.LoopRunPayload{
 		ID:                           string(run.ID),
 		WorkspaceID:                  string(run.WorkspaceID),
 		LoopName:                     run.LoopName,
@@ -118,7 +120,17 @@ func loopRunPayload(run looppkg.Run) (contract.LoopRunPayload, error) {
 		PauseRequested:               run.PauseRequested,
 		Inputs:                       inputs,
 		ResolvedNetworkParticipation: participation.CloneSpec(run.NetworkSpecSnapshot()),
-	}, nil
+	}
+	payload.BestGeneration = cloneOptional(run.BestGeneration)
+	payload.BestScore = cloneOptional(run.BestScore)
+	return payload, nil
+}
+
+func cloneOptional[T any](value *T) *T {
+	if value == nil {
+		return nil
+	}
+	return new(*value)
 }
 
 func loopRunsAggregate(runs []looppkg.Run) contract.LoopRunsAggregatePayload {

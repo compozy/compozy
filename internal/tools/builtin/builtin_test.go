@@ -1107,6 +1107,39 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		}
 	})
 
+	t.Run("Should validate exact Loop read-model output schemas", func(t *testing.T) {
+		t.Parallel()
+
+		descriptors := descriptorMap(NativeDescriptors())
+		status := descriptors[toolspkg.ToolIDLoopStatus]
+		runs := descriptors[toolspkg.ToolIDLoopRuns]
+		assertNativeOutputSchemaAccepts(t, status, `{
+			"run":{"id":"run-1","best_generation":2,"best_score":0.91},
+			"generations":[{
+				"generation":2,"parent_generation":1,"origin":"gate_revise",
+				"verdicts":[{"gate_id":"quality","outcome":"rejected","score":0.7,"route_cause_rank":0}],
+				"outputs":[]
+			}]
+		}`)
+		assertNativeOutputSchemaAccepts(t, runs, `{
+			"runs":[{"id":"run-1","best_generation":2,"best_score":0.91}],
+			"aggregates":{"total":1,"live":0,"terminal":1,"succeeded":1,"failed":0}
+		}`)
+		assertNativeOutputSchemaRejects(t, runs, `{
+			"runs":[{"id":"run-1","generations":[]}],
+			"aggregates":{"total":1,"live":0,"terminal":1,"succeeded":1,"failed":0}
+		}`)
+		for _, descriptor := range []toolspkg.Descriptor{status, runs} {
+			if strings.Contains(string(descriptor.OutputSchema), "confidence") {
+				t.Fatalf(
+					"%s output schema contains deleted confidence field: %s",
+					descriptor.ID,
+					descriptor.OutputSchema,
+				)
+			}
+		}
+	})
+
 	t.Run("Should publish native schema digests and capability roster", func(t *testing.T) {
 		t.Parallel()
 
@@ -1313,6 +1346,48 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			t.Fatal("NativeDescriptors() reused input schema bytes")
 		}
 	})
+}
+
+func assertNativeOutputSchemaAccepts(t *testing.T, descriptor toolspkg.Descriptor, payload string) {
+	t.Helper()
+	compiled := compileNativeOutputSchema(t, descriptor)
+	instance, err := jsonschema.UnmarshalJSON(strings.NewReader(payload))
+	if err != nil {
+		t.Fatalf("%s valid output parse error = %v", descriptor.ID, err)
+	}
+	if err := compiled.Validate(instance); err != nil {
+		t.Fatalf("%s output schema rejected %s: %v", descriptor.ID, payload, err)
+	}
+}
+
+func assertNativeOutputSchemaRejects(t *testing.T, descriptor toolspkg.Descriptor, payload string) {
+	t.Helper()
+	compiled := compileNativeOutputSchema(t, descriptor)
+	instance, err := jsonschema.UnmarshalJSON(strings.NewReader(payload))
+	if err != nil {
+		t.Fatalf("%s invalid output parse error = %v", descriptor.ID, err)
+	}
+	if err := compiled.Validate(instance); err == nil {
+		t.Fatalf("%s output schema accepted forbidden payload %s", descriptor.ID, payload)
+	}
+}
+
+func compileNativeOutputSchema(t *testing.T, descriptor toolspkg.Descriptor) *jsonschema.Schema {
+	t.Helper()
+	schemaValue, err := jsonschema.UnmarshalJSON(bytes.NewReader(descriptor.OutputSchema))
+	if err != nil {
+		t.Fatalf("%s output schema parse error = %v", descriptor.ID, err)
+	}
+	compiler := jsonschema.NewCompiler()
+	resource := descriptor.ID.String() + "-output.json"
+	if err := compiler.AddResource(resource, schemaValue); err != nil {
+		t.Fatalf("%s output schema add error = %v", descriptor.ID, err)
+	}
+	compiled, err := compiler.Compile(resource)
+	if err != nil {
+		t.Fatalf("%s output schema compile error = %v", descriptor.ID, err)
+	}
+	return compiled
 }
 
 type nativeObjectSchema struct {

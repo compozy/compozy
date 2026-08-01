@@ -21,16 +21,18 @@ func evaluateFileImportNode(
 	generation int,
 	resolved *ResolvedDefinition,
 	topology controlTopology,
+	history GenerationHistory,
 	output GenerationOutput,
 	node dsl.Node,
 	outputs []GenerationOutput,
 ) (GenerationOutput, error) {
-	namespace, err := runtimeNamespace(
+	namespace, err := runtimeNamespaceWithHistory(
 		run,
 		generation,
 		resolved.Definition.Graph,
 		topology,
 		outputs,
+		history,
 		node.ID,
 		output.ItemIndex,
 	)

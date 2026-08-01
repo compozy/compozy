@@ -82,7 +82,7 @@ func (e *Evaluator) evaluateAgentJudge(
 			}},
 		}
 	}
-	result := ParseJudgeVerdict(criterion.ID, criterion.Type, response.Raw)
+	result := parseJudgeVerdict(criterion.ID, criterion.Type, response.Raw, criterion.Metric != nil)
 	result.judgeTokensUsed = response.TokensUsed
 	result.judgeTokensReported = response.TokensReported
 	return result

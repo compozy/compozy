@@ -114,7 +114,7 @@ function createWrapper(queryClient: QueryClient) {
 }
 
 function buildFrame(overrides: Partial<LoopRunEventFrame> = {}): LoopRunEventFrame {
-  return {
+  const frame = {
     id: "loopevt_1",
     seq: 42,
     kind: "status_changed",
@@ -124,6 +124,7 @@ function buildFrame(overrides: Partial<LoopRunEventFrame> = {}): LoopRunEventFra
     payload: { from: "running", to: "paused", cause: "operator_pause" },
     ...overrides,
   };
+  return frame as LoopRunEventFrame;
 }
 
 describe("useLoopStream", () => {

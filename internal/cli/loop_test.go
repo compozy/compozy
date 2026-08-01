@@ -334,6 +334,100 @@ func TestLoopCommandShouldMapCLIVerbsToClient(t *testing.T) {
 		}
 	})
 
+	for _, testCase := range []struct {
+		name     string
+		fileName string
+		body     string
+	}{
+		{
+			name:     "JSON",
+			fileName: "loop-config.json",
+			body:     `{"iteration_cap":9,"no_progress_window":4,"gate_max_revisions":2}`,
+		},
+		{
+			name:     "YAML",
+			fileName: "loop-config.yaml",
+			body:     "iteration_cap: 9\nno_progress_window: 4\ngate_max_revisions: 2\n",
+		},
+	} {
+		t.Run("Should load snake case loop config from "+testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			configPath := filepath.Join(t.TempDir(), testCase.fileName)
+			if err := os.WriteFile(configPath, []byte(testCase.body), 0o600); err != nil {
+				t.Fatalf("os.WriteFile(loop config) error = %v", err)
+			}
+
+			var capturedRun contract.RunLoopRequest
+			var capturedPut contract.PutLoopConfigRequest
+			deps := newTestDeps(t, &stubClient{
+				getWorkspaceFn: resolveTestLoopWorkspace(t),
+				runLoopFn: func(
+					_ context.Context,
+					_ string,
+					_ string,
+					request contract.RunLoopRequest,
+					_ bool,
+					_ agentidentity.Credentials,
+				) (contract.RunLoopResponse, error) {
+					capturedRun = request
+					return contract.RunLoopResponse{Run: &contract.LoopRunPayload{ID: "run-1"}}, nil
+				},
+				putLoopConfigFn: func(
+					_ context.Context,
+					_ string,
+					_ string,
+					request contract.PutLoopConfigRequest,
+					_ agentidentity.Credentials,
+				) (contract.LoopConfigResponse, error) {
+					capturedPut = request
+					return contract.LoopConfigResponse{Config: &request.Config}, nil
+				},
+			})
+
+			if _, _, err := executeRootCommand(
+				t,
+				deps,
+				"loop", "run",
+				"--workspace", "alpha",
+				"--name", "release",
+				"--config-file", configPath,
+				"-o", "json",
+			); err != nil {
+				t.Fatalf("executeRootCommand(loop run --config-file) error = %v", err)
+			}
+			if _, _, err := executeRootCommand(
+				t,
+				deps,
+				"loop", "configure",
+				"--workspace", "alpha",
+				"--name", "release",
+				"--file", configPath,
+				"-o", "json",
+			); err != nil {
+				t.Fatalf("executeRootCommand(loop configure --file) error = %v", err)
+			}
+
+			assertConfig := func(label string, cfg *contract.LoopConfig) {
+				t.Helper()
+				if cfg == nil {
+					t.Fatalf("%s config = nil", label)
+				}
+				if cfg.IterationCap == nil || *cfg.IterationCap != 9 {
+					t.Fatalf("%s IterationCap = %#v, want 9", label, cfg.IterationCap)
+				}
+				if cfg.NoProgressWindow == nil || *cfg.NoProgressWindow != 4 {
+					t.Fatalf("%s NoProgressWindow = %#v, want 4", label, cfg.NoProgressWindow)
+				}
+				if cfg.GateMaxRevisions == nil || *cfg.GateMaxRevisions != 2 {
+					t.Fatalf("%s GateMaxRevisions = %#v, want 2", label, cfg.GateMaxRevisions)
+				}
+			}
+			assertConfig("run", capturedRun.ConfigOverrides)
+			assertConfig("configure", &capturedPut.Config)
+		})
+	}
+
 	t.Run("Should reject unknown configuration fields before daemon mutation", func(t *testing.T) {
 		t.Parallel()
 
@@ -459,6 +553,140 @@ func TestLoopCommandShouldMapCLIVerbsToClient(t *testing.T) {
 		values := loopRunValues(captured)
 		if values.Get("origin") != "session" || values.Get("origin_session") != "session-origin" {
 			t.Fatalf("loopRunValues() = %v", values)
+		}
+	})
+
+	t.Run("Should render Loop status detail with best and generation history fields", func(t *testing.T) {
+		t.Parallel()
+
+		bestGeneration := int64(2)
+		bestScore := 0.87
+		verdictScore := 0.87
+		rank := 0
+		response := contract.LoopRunResponse{
+			Run: contract.LoopRunPayload{
+				ID:             "run-detail",
+				WorkspaceID:    "ws-alpha",
+				LoopName:       "release",
+				Status:         contract.LoopRunStatusRunning,
+				Generation:     2,
+				BestGeneration: &bestGeneration,
+				BestScore:      &bestScore,
+			},
+			Generations: []contract.LoopGenerationPayload{{
+				Generation:       2,
+				ParentGeneration: 1,
+				Origin:           contract.LoopGenerationOriginGateRevise,
+				Verdicts: []contract.LoopGateVerdictPayload{{
+					GateID:         "quality",
+					Outcome:        contract.LoopGateVerdictRejected,
+					Score:          &verdictScore,
+					RouteCauseRank: &rank,
+				}},
+				Outputs: []contract.LoopGenerationOutput{},
+			}},
+		}
+		deps := newTestDeps(t, &stubClient{
+			getWorkspaceFn: resolveTestLoopWorkspace(t),
+			getLoopRunFn: func(context.Context, string, string) (contract.LoopRunResponse, error) {
+				return response, nil
+			},
+		})
+
+		stdout, _, err := executeRootCommand(
+			t,
+			deps,
+			"loop", "status", "--workspace", "alpha", "--run-id", "run-detail", "-o", "json",
+		)
+		if err != nil {
+			t.Fatalf("executeRootCommand(loop status json) error = %v", err)
+		}
+		var decoded contract.LoopRunResponse
+		if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
+			t.Fatalf("json.Unmarshal(loop status) error = %v", err)
+		}
+		if decoded.Run.BestGeneration == nil || *decoded.Run.BestGeneration != bestGeneration ||
+			decoded.Run.BestScore == nil || *decoded.Run.BestScore != bestScore {
+			t.Fatalf(
+				"loop status best = %#v/%#v, want %d/%.2f",
+				decoded.Run.BestGeneration,
+				decoded.Run.BestScore,
+				bestGeneration,
+				bestScore,
+			)
+		}
+		if len(decoded.Generations) != 1 || decoded.Generations[0].ParentGeneration != 1 ||
+			decoded.Generations[0].Origin != contract.LoopGenerationOriginGateRevise ||
+			len(decoded.Generations[0].Verdicts) != 1 {
+			t.Fatalf("loop status generations = %#v, want provenance and verdict detail", decoded.Generations)
+		}
+
+		response.Run.BestGeneration = nil
+		response.Run.BestScore = nil
+		stdout, _, err = executeRootCommand(
+			t,
+			deps,
+			"loop", "status", "--workspace", "alpha", "--run-id", "run-unset", "-o", "json",
+		)
+		if err != nil {
+			t.Fatalf("executeRootCommand(loop status unset json) error = %v", err)
+		}
+		var raw struct {
+			Run map[string]any `json:"run"`
+		}
+		if err := json.Unmarshal([]byte(stdout), &raw); err != nil {
+			t.Fatalf("json.Unmarshal(loop status unset) error = %v", err)
+		}
+		if _, exists := raw.Run["best_generation"]; exists {
+			t.Fatalf("loop status unset best_generation = %#v, want omitted", raw.Run)
+		}
+		if _, exists := raw.Run["best_score"]; exists {
+			t.Fatalf("loop status unset best_score = %#v, want omitted", raw.Run)
+		}
+	})
+
+	t.Run("Should render one summary-only Loop run per JSONL row", func(t *testing.T) {
+		t.Parallel()
+
+		bestGeneration := int64(3)
+		bestScore := 0.93
+		deps := newTestDeps(t, &stubClient{
+			getWorkspaceFn: resolveTestLoopWorkspace(t),
+			listLoopRunsFn: func(context.Context, string, LoopRunListQuery) (contract.LoopRunsResponse, error) {
+				return contract.LoopRunsResponse{Runs: []contract.LoopRunPayload{{
+					ID:             "run-summary",
+					WorkspaceID:    "ws-alpha",
+					LoopName:       "release",
+					Status:         contract.LoopRunStatusDone,
+					Generation:     3,
+					BestGeneration: &bestGeneration,
+					BestScore:      &bestScore,
+				}}}, nil
+			},
+		})
+		stdout, _, err := executeRootCommand(
+			t,
+			deps,
+			"loop", "runs", "--workspace", "alpha", "-o", "jsonl",
+		)
+		if err != nil {
+			t.Fatalf("executeRootCommand(loop runs jsonl) error = %v", err)
+		}
+		lines := strings.Split(strings.TrimSpace(stdout), "\n")
+		if len(lines) != 1 {
+			t.Fatalf("loop runs JSONL lines = %d, want one summary; output=%q", len(lines), stdout)
+		}
+		var row map[string]any
+		if err := json.Unmarshal([]byte(lines[0]), &row); err != nil {
+			t.Fatalf("json.Unmarshal(loop runs JSONL) error = %v", err)
+		}
+		if row["best_generation"] != float64(bestGeneration) || row["best_score"] != bestScore {
+			t.Fatalf("loop runs JSONL best = %#v, want generation %d score %.2f", row, bestGeneration, bestScore)
+		}
+		for _, forbidden := range []string{"generations", "runs", "aggregates"} {
+			if _, exists := row[forbidden]; exists {
+				t.Fatalf("loop runs JSONL row contains %q: %#v", forbidden, row)
+			}
 		}
 	})
 

@@ -3,7 +3,6 @@ package contract
 import (
 	"encoding/json"
 	"fmt"
-	"time"
 
 	"github.com/compozy/compozy/internal/network/participation"
 )
@@ -67,6 +66,14 @@ const (
 	LoopGateDecisionApprove        LoopGateDecision = "approve"
 	LoopGateDecisionRequestChanges LoopGateDecision = "request_changes"
 	LoopGateDecisionReject         LoopGateDecision = "reject"
+)
+
+// LoopMetricDirection determines whether a gate metric should increase or decrease.
+type LoopMetricDirection string
+
+const (
+	LoopMetricMaximize LoopMetricDirection = "maximize"
+	LoopMetricMinimize LoopMetricDirection = "minimize"
 )
 
 // LoopLintSeverity classifies a lint diagnostic.
@@ -247,96 +254,6 @@ type PutLoopAnnotationsRequest struct {
 	Annotations []LoopAnnotationPayload `json:"annotations"`
 }
 
-// LoopRunPayload is the public loop_run aggregate projection.
-type LoopRunPayload struct {
-	ID                           string                `json:"id"`
-	WorkspaceID                  string                `json:"workspace_id"`
-	LoopName                     string                `json:"loop_name"`
-	Status                       LoopRunStatus         `json:"status"`
-	Generation                   int                   `json:"generation"`
-	ReattemptStrategy            LoopReattemptStrategy `json:"reattempt_strategy"`
-	CreatedAt                    time.Time             `json:"created_at"`
-	StartedAt                    time.Time             `json:"started_at"`
-	LastProgressAt               time.Time             `json:"last_progress_at"`
-	StartedByKind                string                `json:"started_by_kind,omitempty"`
-	StartedByRef                 string                `json:"started_by_ref,omitempty"`
-	StartedOriginKind            string                `json:"started_origin_kind,omitempty"`
-	StartedOriginRef             string                `json:"started_origin_ref,omitempty"`
-	DefinitionVersion            int                   `json:"definition_version"`
-	DefinitionDigest             string                `json:"definition_digest,omitempty"`
-	ActiveGateID                 string                `json:"active_gate_id,omitempty"`
-	BudgetApprovalSeq            int                   `json:"budget_approval_seq,omitempty"`
-	StartMetadata                map[string]any        `json:"start_metadata,omitempty"`
-	IterationCap                 int                   `json:"iteration_cap"`
-	BudgetTokens                 int                   `json:"budget_tokens"`
-	BudgetWallSec                int                   `json:"budget_wall_sec"`
-	BudgetOnExceeded             LoopBudgetExceeded    `json:"budget_on_exceeded"`
-	TokensUsed                   int64                 `json:"tokens_used"`
-	ParentLoopRunID              string                `json:"parent_loop_run_id,omitempty"`
-	PauseRequested               bool                  `json:"pause_requested"`
-	Inputs                       map[string]any        `json:"inputs,omitempty"`
-	ResolvedNetworkParticipation *participation.Spec   `json:"resolved_network_participation"`
-}
-
-// LoopRunsResponse lists workspace-scoped loop runs.
-type LoopRunsResponse struct {
-	Runs       []LoopRunPayload         `json:"runs"`
-	Aggregates LoopRunsAggregatePayload `json:"aggregates"`
-}
-
-// LoopRunsAggregatePayload summarizes the returned run set.
-type LoopRunsAggregatePayload struct {
-	Total     int `json:"total"`
-	Live      int `json:"live"`
-	Terminal  int `json:"terminal"`
-	Succeeded int `json:"succeeded"`
-	Failed    int `json:"failed"`
-}
-
-// LoopRunResponse returns one run with generation detail.
-type LoopRunResponse struct {
-	Run                LoopRunPayload          `json:"run"`
-	ExecutedDefinition *LoopDefinitionDocument `json:"executed_definition,omitempty"`
-	Generations        []LoopGenerationPayload `json:"generations,omitempty"`
-	// WatchEvents is the parked watch-events read-model (present only while dormant).
-	WatchEvents *LoopWatchEventsState `json:"watch_events,omitempty"`
-}
-
-// LoopGenerationPayload groups node state by generation.
-type LoopGenerationPayload struct {
-	Generation int                    `json:"generation"`
-	Outputs    []LoopGenerationOutput `json:"outputs"`
-}
-
-// LoopGenerationOutput is one public generation output row.
-type LoopGenerationOutput struct {
-	Generation      int                  `json:"generation,omitempty"`
-	NodeID          string               `json:"node_id"`
-	ItemIndex       int                  `json:"item_index,omitempty"`
-	Status          string               `json:"status"`
-	OutputRef       string               `json:"output_ref,omitempty"`
-	TaskRunID       string               `json:"task_run_id,omitempty"`
-	ChildLoopRunID  string               `json:"child_loop_run_id,omitempty"`
-	ResolvedRuntime *LoopResolvedRuntime `json:"resolved_runtime,omitempty"`
-}
-
-// LoopRunEventPayload is one SSE/audit event for a loop run.
-type LoopRunEventPayload struct {
-	ID          string           `json:"id"`
-	LoopRunID   string           `json:"loop_run_id"`
-	WorkspaceID string           `json:"workspace_id"`
-	Seq         int64            `json:"seq"`
-	Kind        LoopRunEventKind `json:"kind"`
-	Payload     json.RawMessage  `json:"payload"`
-	At          time.Time        `json:"at"`
-}
-
-// ApproveLoopRunRequest applies a human-gate decision.
-type ApproveLoopRunRequest struct {
-	GateID   string           `json:"gate_id"`
-	Decision LoopGateDecision `json:"decision"`
-}
-
 // LoopDefinitionDocument is the public compozy.loop/v1 authoring document.
 type LoopDefinitionDocument struct {
 	APIVersion           string                 `json:"apiVersion"`
@@ -450,17 +367,25 @@ type LoopGraphNode struct {
 }
 
 type LoopGateCriterion struct {
-	ID     string `json:"id"`
-	Type   string `json:"type"`
-	Check  string `json:"check,omitempty"`
-	Expect string `json:"expect,omitempty"`
-	Agent  string `json:"agent,omitempty"`
+	ID       string `json:"id"`
+	Type     string `json:"type"`
+	Check    string `json:"check,omitempty"`
+	Expect   string `json:"expect,omitempty"`
+	Contains string `json:"contains,omitempty"`
+	Agent    string `json:"agent,omitempty"`
 	//nolint:modernize // OpenAPI requires omitempty; JSON uses omitzero.
 	Runtime LoopRuntimeSpec `json:"runtime,omitempty,omitzero"`
 	Rubric  string          `json:"rubric,omitempty"`
 	Prompt  string          `json:"prompt,omitempty"`
 	Tool    string          `json:"tool,omitempty"`
 	Inputs  map[string]any  `json:"inputs,omitempty"`
+	Metric  *LoopMetricSpec `json:"metric,omitempty"`
+}
+
+// LoopMetricSpec declares the score contract for one machine criterion.
+type LoopMetricSpec struct {
+	Direction LoopMetricDirection `json:"direction"`
+	MinDelta  *float64            `json:"min_delta,omitempty"`
 }
 
 type LoopGraphEdge struct {

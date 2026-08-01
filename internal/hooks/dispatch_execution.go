@@ -48,7 +48,7 @@ func executeDispatch[P any, R any](
 		hooks:        func(P) []*ResolvedHook { return syncHooks },
 		apply:        cfg.apply,
 		encode:       encodeJSON[P],
-		decode:       decodeJSON[R],
+		decode:       decodeJSONStrict[R],
 		denied:       cfg.denied,
 		guard:        cfg.guard,
 		enter:        h.enterDispatch,

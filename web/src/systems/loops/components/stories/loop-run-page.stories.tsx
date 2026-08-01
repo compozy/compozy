@@ -13,7 +13,9 @@ import {
   needsApprovalScenario,
   noOpScenario,
   pausedScenario,
+  ratchetRestoreScenario,
   runningScenario,
+  scoredBestScenario,
   watchingScenario,
   type LoopRunStoryScenario,
 } from "./loop-run-page-fixtures";
@@ -118,6 +120,26 @@ export const Failed: Story = {
 };
 
 export const Exhausted: Story = {
+  args: {},
+  render: () => <LoopRunPageStory scenario={exhaustedScenario()} />,
+};
+
+export const ScoredBestGeneration: Story = {
+  args: {},
+  render: () => <LoopRunPageStory scenario={scoredBestScenario()} />,
+};
+
+export const RatchetRestore: Story = {
+  args: {},
+  render: () => <LoopRunPageStory scenario={ratchetRestoreScenario()} />,
+};
+
+export const NoMetric: Story = {
+  args: {},
+  render: () => <LoopRunPageStory scenario={runningScenario()} />,
+};
+
+export const ExhaustedBestGeneration: Story = {
   args: {},
   render: () => <LoopRunPageStory scenario={exhaustedScenario()} />,
 };

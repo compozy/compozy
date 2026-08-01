@@ -11,8 +11,8 @@ bug_ids:
 fix_status:
 retest_status: pass
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-et-current-source-20260730-061655-910372-lab/qa-artifacts/qa;docs/qa/evidence/2026-07-30-session-runtime-selector/09-agent-detail-sessions.png;docs/qa/evidence/2026-07-30-session-runtime-selector/runtime-selector-proof.md
-last_report: docs/qa/reports/2026-07-30-session-runtime-selector.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-et-current-source-20260730-061655-910372-lab/qa-artifacts/qa;docs/qa/evidence/2026-07-30-session-runtime-selector/09-agent-detail-sessions.png;docs/qa/evidence/2026-07-30-session-runtime-selector/runtime-selector-proof.md;docs/qa/evidence/2026-08-01-loops-paper-adoption/session-create-dialog-narrow.png;docs/qa/evidence/2026-08-01-loops-paper-adoption/session-create-dialog-desktop.png
+last_report: docs/qa/reports/2026-08-01-loops-paper-adoption.md
 overlaps: RT-agent-overview-canonical-metrics;RT-076
 ---
 
@@ -28,3 +28,9 @@ Status remains untested; no QA replay ran.
 
 QA impact 2026-07-22: the live runtime selector moved from the detail topbar into Overview Runtime
 as the Model category above Command/Permissions. Status remains untested; no QA replay ran.
+
+QA impact 2026-08-01: session-create focus and workspace ownership changed during adjacent Loop QA.
+The scenario was reset to untested, then re-walked through the official Web E2E lane: same-workspace
+creation navigated to its composer, and E2E-022 created a session in a second workspace and opened
+that workspace/session route. Narrow and desktop Storybook captures verified the workspace selector,
+runtime deferral notice, and reachable Start session action. Status returned to pass.

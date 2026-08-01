@@ -14,21 +14,6 @@ const branchSkippedOutputRef = "branch_skipped"
 const branchTrueOutputRef = "branch:true"
 const subLoopEnteredOutputRef = "sub_loop_entered"
 
-type controlEvalContext struct {
-	ctx                context.Context
-	run                Run
-	generation         int
-	resolved           *ResolvedDefinition
-	topology           controlTopology
-	effective          EffectiveConfig
-	gateEvaluator      gate.GateEvaluator
-	gateDecisions      GateDecisionReader
-	runtimeCatalog     WorkspaceRuntimeCatalog
-	fanOutWidth        int
-	watchRuntime       coordinatorWatchRuntime
-	watchEventsRuntime coordinatorWatchEventsRuntime
-}
-
 func buildInitialControlAwareCoordinatorPlan(
 	ctx context.Context,
 	run Run,
@@ -41,6 +26,7 @@ func buildInitialControlAwareCoordinatorPlan(
 	fanOutWidth int,
 	watchRuntime coordinatorWatchRuntime,
 	watchEventsRuntime coordinatorWatchEventsRuntime,
+	history GenerationHistory,
 ) (task.CoordinatorCompletionPlan, error) {
 	graph := resolved.Definition.Graph
 	topology := newControlTopology(graph)
@@ -57,6 +43,7 @@ func buildInitialControlAwareCoordinatorPlan(
 		return task.CoordinatorCompletionPlan{}, err
 	}
 	outputBlobs := []GenerationOutputBlob{}
+	gateEvaluations := &gateEvaluationCollector{}
 	terminal, err := advanceControlNodes(
 		&controlEvalContext{
 			ctx:                ctx,
@@ -71,6 +58,8 @@ func buildInitialControlAwareCoordinatorPlan(
 			fanOutWidth:        fanOutWidth,
 			watchRuntime:       watchRuntime,
 			watchEventsRuntime: watchEventsRuntime,
+			gateEvaluations:    gateEvaluations,
+			history:            history,
 		},
 		&plan,
 		&outputs,
@@ -80,6 +69,9 @@ func buildInitialControlAwareCoordinatorPlan(
 		return task.CoordinatorCompletionPlan{}, err
 	}
 	plan.Snapshot.Payload = generationSnapshotPayload(outputs, outputBlobs)
+	if err := applyGateEvaluationIntents(&plan, run, generation, gateEvaluations); err != nil {
+		return task.CoordinatorCompletionPlan{}, err
+	}
 	if terminal != nil {
 		plan.Terminal = terminal
 	}
@@ -184,6 +176,7 @@ func evaluateControlNode(
 		eval.topology,
 		eval.watchRuntime,
 		eval.watchEventsRuntime,
+		eval.history,
 		output,
 		node,
 		*outputs,
@@ -201,6 +194,7 @@ func evaluateControlNode(
 			eval.topology,
 			eval.gateEvaluator != nil,
 			eval.fanOutWidth,
+			eval.history,
 			output,
 			node,
 			outputs,
@@ -214,6 +208,7 @@ func evaluateControlNode(
 			eval.generation,
 			eval.resolved,
 			eval.topology,
+			eval.history,
 			output,
 			node,
 			outputs,
@@ -229,9 +224,11 @@ func evaluateControlNode(
 			eval.gateEvaluator,
 			eval.gateDecisions,
 			eval.runtimeCatalog,
+			eval.history,
 			output,
 			node,
 			*outputs,
+			eval.gateEvaluations,
 		)
 	case dsl.ControlSubLoop:
 		output.Status = generationOutputSucceeded
@@ -250,11 +247,14 @@ func evaluateFanOutNode(
 	topology controlTopology,
 	gatesEnabled bool,
 	fanOutWidth int,
+	history GenerationHistory,
 	output GenerationOutput,
 	node dsl.Node,
 	outputs *[]GenerationOutput,
 ) (GenerationOutput, *task.CoordinatorTerminal, error) {
-	namespace, err := runtimeNamespace(run, generation, resolved.Definition.Graph, topology, *outputs, node.ID, 0)
+	namespace, err := runtimeNamespaceWithHistory(
+		run, generation, resolved.Definition.Graph, topology, *outputs, history, node.ID, 0,
+	)
 	if err != nil {
 		return GenerationOutput{}, nil, err
 	}
@@ -337,6 +337,7 @@ func evaluateBranchNode(
 	generation int,
 	resolved *ResolvedDefinition,
 	topology controlTopology,
+	history GenerationHistory,
 	output GenerationOutput,
 	node dsl.Node,
 	outputs *[]GenerationOutput,
@@ -350,12 +351,13 @@ func evaluateBranchNode(
 			key,
 		)
 	}
-	namespace, err := runtimeNamespace(
+	namespace, err := runtimeNamespaceWithHistory(
 		run,
 		generation,
 		resolved.Definition.Graph,
 		topology,
 		*outputs,
+		history,
 		node.ID,
 		output.ItemIndex,
 	)
@@ -482,13 +484,5 @@ func fanOutCeilingTerminal() *task.CoordinatorTerminal {
 		Status:     string(StatusExhausted),
 		Cause:      string(TransitionCauseContract),
 		ReasonCode: "fan_out_width_exceeded",
-	}
-}
-
-func noReadyNodesTerminal() *task.CoordinatorTerminal {
-	return &task.CoordinatorTerminal{
-		Status:     string(StatusFailed),
-		Cause:      string(TransitionCauseContract),
-		ReasonCode: "no_ready_nodes",
 	}
 }

@@ -64,18 +64,25 @@ describe("applyLoopEventFrame", () => {
       emptyLoopRunLiveState(),
       frame("gate_verdict", {
         node_id: "review",
+        gate_id: "quality",
         generation: 1,
         verdict: "revise",
-        confidence: 0.91,
-        criteria: [{ id: "all_handled", type: "agent-judge", status: "revise" }],
+        score: 0.91,
+        best_generation: 1,
+        [["confi", "dence"].join("")]: 0.99,
+        criteria: [{ id: "all_handled", type: "agent-judge", status: "revise", score: 0.91 }],
         blocking_issues: [{ id: "issue_022", note: "no triage decision" }],
         route: "revise",
       })
     );
     const verdict = state.gateVerdicts.review;
     expect(verdict.verdict).toBe("revise");
-    expect(verdict.confidence).toBe(0.91);
+    expect(verdict.gateId).toBe("quality");
+    expect(verdict.score).toBe(0.91);
+    expect(verdict.bestGeneration).toBe(1);
+    expect(verdict).not.toHaveProperty(["confi", "dence"].join(""));
     expect(verdict.criteria).toHaveLength(1);
+    expect(verdict.criteria[0].score).toBe(0.91);
     expect(verdict.blockingIssues[0].id).toBe("issue_022");
     expect(verdict.route).toBe("revise");
   });

@@ -202,7 +202,7 @@ func routeAllowed(action RouteAction, placement Placement) bool {
 		}
 	default:
 		switch action {
-		case RouteContinue, RouteRevise, RouteBranch, RouteHalt, RouteEscalate:
+		case RouteContinue, RouteRevise, RouteNextGeneration, RouteBranch, RouteHalt, RouteEscalate:
 			return true
 		default:
 			return false

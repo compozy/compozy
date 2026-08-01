@@ -165,7 +165,7 @@ func newHooksRunsCommand(deps commandDeps) *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:   "runs",
+		Use:   cliRunsKey,
 		Short: "Show persisted hook execution history",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, err := clientFromDeps(deps)
@@ -396,7 +396,7 @@ func hookRunsBundle(runs []HookRunRecord) outputBundle {
 		runs,
 		"Hook Runs",
 		[]string{"Hook", hooksEventValue, taskOutcomeValue, cliDurationValue, hooksErrorValue},
-		"runs",
+		cliRunsKey,
 		[]string{
 			"hook_name",
 			hooksEventKey,

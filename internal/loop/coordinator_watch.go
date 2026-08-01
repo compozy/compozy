@@ -51,6 +51,7 @@ func evaluateWatchSourceNode(
 	generation int,
 	resolved *ResolvedDefinition,
 	topology controlTopology,
+	history GenerationHistory,
 	output GenerationOutput,
 	node dsl.Node,
 	outputs []GenerationOutput,
@@ -59,41 +60,21 @@ func evaluateWatchSourceNode(
 	if runtime.poller == nil {
 		return output, watchBlockedTerminal(watchSourcePollerReason), nil
 	}
-	namespace, err := runtimeNamespace(
+	result, terminal, err := pollWatchSource(
+		ctx,
 		run,
 		generation,
-		resolved.Definition.Graph,
+		resolved,
 		topology,
+		history,
+		output,
+		node,
 		outputs,
-		node.ID,
-		output.ItemIndex,
+		runtime,
 	)
-	if err != nil {
-		return GenerationOutput{}, nil, err
-	}
-	spec, terminal, err := watchSpecRaw(node, namespace)
 	if err != nil || terminal != nil {
 		return output, terminal, err
 	}
-	expectedDigest, err := watchpkg.ExpectedStateDigestFromOutputRef(output.OutputRef)
-	if err != nil {
-		return GenerationOutput{}, nil, err
-	}
-	adapter, err := watchpkg.NewAdapter(runtime.poller)
-	if err != nil {
-		return GenerationOutput{}, nil, err
-	}
-	result, err := adapter.Tick(ctx, watchpkg.TickRequest{
-		Spec:                spec,
-		ExpectedStateDigest: expectedDigest,
-		LastProgressAt:      run.LastProgressAt,
-		SilenceWindow:       runtime.silenceWindow,
-		Now:                 runtime.now().UTC(),
-	})
-	if err != nil {
-		return GenerationOutput{}, nil, newWatchPollFailureError(err)
-	}
-	logWatchTransitions(runtime, run, node, result.Transitions)
 	switch result.Outcome {
 	case watchpkg.OutcomeReady:
 		ref, err := watchpkg.ConfirmedOutputRef(result.Response)
@@ -124,6 +105,57 @@ func evaluateWatchSourceNode(
 	default:
 		return GenerationOutput{}, nil, fmt.Errorf("%w: unknown watch outcome %q", ErrValidation, result.Outcome)
 	}
+}
+
+func pollWatchSource(
+	ctx context.Context,
+	run Run,
+	generation int,
+	resolved *ResolvedDefinition,
+	topology controlTopology,
+	history GenerationHistory,
+	output GenerationOutput,
+	node dsl.Node,
+	outputs []GenerationOutput,
+	runtime coordinatorWatchRuntime,
+) (watchpkg.TickResult, *task.CoordinatorTerminal, error) {
+	namespace, err := runtimeNamespaceWithHistory(
+		run,
+		generation,
+		resolved.Definition.Graph,
+		topology,
+		outputs,
+		history,
+		node.ID,
+		output.ItemIndex,
+	)
+	if err != nil {
+		return watchpkg.TickResult{}, nil, err
+	}
+	spec, terminal, err := watchSpecRaw(node, namespace)
+	if err != nil || terminal != nil {
+		return watchpkg.TickResult{}, terminal, err
+	}
+	expectedDigest, err := watchpkg.ExpectedStateDigestFromOutputRef(output.OutputRef)
+	if err != nil {
+		return watchpkg.TickResult{}, nil, err
+	}
+	adapter, err := watchpkg.NewAdapter(runtime.poller)
+	if err != nil {
+		return watchpkg.TickResult{}, nil, err
+	}
+	result, err := adapter.Tick(ctx, watchpkg.TickRequest{
+		Spec:                spec,
+		ExpectedStateDigest: expectedDigest,
+		LastProgressAt:      run.LastProgressAt,
+		SilenceWindow:       runtime.silenceWindow,
+		Now:                 runtime.now().UTC(),
+	})
+	if err != nil {
+		return watchpkg.TickResult{}, nil, newWatchPollFailureError(err)
+	}
+	logWatchTransitions(runtime, run, node, result.Transitions)
+	return result, nil, nil
 }
 
 func logWatchTransitions(

@@ -23,7 +23,7 @@ func buildReattemptCoordinatorPlan(
 	if err != nil {
 		return task.CoordinatorCompletionPlan{}, err
 	}
-	nextOutputs := reattemptGenerationOutputs(run.ReattemptStrategy, graph, currentOutputs, rerun, nextGeneration)
+	nextOutputs := reattemptGenerationOutputs(graph, currentOutputs, rerun, nextGeneration)
 	return buildNextGenerationCoordinatorPlan(
 		taskRun,
 		run,
@@ -200,7 +200,6 @@ func dependentOutputKeys(
 }
 
 func reattemptGenerationOutputs(
-	strategy ReattemptStrategy,
 	graph dsl.Graph,
 	currentOutputs []GenerationOutput,
 	rerun map[generationOutputKey]struct{},
@@ -214,7 +213,7 @@ func reattemptGenerationOutputs(
 		}
 		key := generationOutputKey{nodeID: current.NodeID, itemIndex: current.ItemIndex}
 		if _, shouldRerun := rerun[key]; shouldRerun {
-			next = append(next, reattemptPendingOutput(strategy, node, current, nextGeneration))
+			next = append(next, reattemptPendingOutput(node, current, nextGeneration))
 			continue
 		}
 		carry := current
@@ -232,26 +231,14 @@ func reattemptGenerationOutputs(
 }
 
 func reattemptPendingOutput(
-	strategy ReattemptStrategy,
 	node dsl.Node,
 	current GenerationOutput,
 	nextGeneration int,
 ) GenerationOutput {
-	next := GenerationOutput{
+	return GenerationOutput{
 		Generation: nextGeneration,
 		NodeID:     string(node.ID),
 		ItemIndex:  current.ItemIndex,
 		Status:     generationOutputPending,
 	}
-	if normalizeReattemptStrategy(strategy) == ReattemptFailedOnly &&
-		strings.TrimSpace(current.ChildLoopRunID) != "" &&
-		nodeOwnsChildLoop(node) {
-		next.Status = generationOutputAwaitingChild
-		next.ChildLoopRunID = strings.TrimSpace(current.ChildLoopRunID)
-	}
-	return next
-}
-
-func nodeOwnsChildLoop(node dsl.Node) bool {
-	return node.Class == dsl.NodeClassAction && dsl.ActionKind(node.Kind) == dsl.ActionRunLoop
 }

@@ -5,6 +5,15 @@ owns and runs. Use this reference when you author, configure, run, observe, appr
 from inside Compozy. Prefer the native `compozy__loop_*` tools; fall back to `compozy loop` CLI or HTTP with
 structured output. Never guess a schema — resolve `compozy__tool_info` for the exact descriptor first.
 
+## Contents
+
+- Native tools, catalog reads, and authoring loop
+- Run history, best state, and Goal commands
+- Terminal outcomes, approvals, and succession semantics
+- Reference grammar, metric criteria, and runtime selection
+- Hooks, SSE, watch sources, and watch events
+- Agent-authored review/fix and channel-result harvesting
+
 ## The Tool Set And CLI Verbs
 
 Toolset `compozy__loops` — 16 native tools. Thirteen definition/run controls have matching `compozy loop`
@@ -41,9 +50,24 @@ Use `compozy loop list --workspace <ref> -o json`, HTTP/UDS `GET /api/workspaces
 
 The response is `loops`, exact self-filtered `facets` (`kinds`, `categories`, `statuses`), and counted `page` (`total`, normalized `limit`, `has_more`, `next_cursor`). Self-filtered means each facet omits its own active filter while respecting search and every other filter. Pages default to 50 and cap at 200.
 
-Opaque cursors bind workspace, search, kind, category, status, and sort; limit may change. Stable order is read-only before workspace, then normalized name and ID. Compozy computes the cut from lean records and loads definition YAML only for selected rows. `last_run` is the all-time latest run; only `aggregate_30d` and `success_rate_30d` use the 30-day window.
+Opaque cursors bind workspace, search, kind, category, status, and sort; limit may change. Stable order is read-only before workspace, then normalized name and ID. Compozy computes the cut from lean records and loads definition YAML only for selected rows. `last_run` is the all-time latest run and includes `best_generation`/`best_score` when the run has a scored best candidate; only `aggregate_30d` and `success_rate_30d` use the 30-day window.
 
 `compozy loop runs` / `compozy__loop_runs` is a different, non-cursor contract: it returns `runs` plus aggregates, defaults to 100 rows, caps at 500, and does not expose `has_more` or `next_cursor`.
+Each run summary exposes `best_generation`/`best_score` but never embeds generation history.
+
+## Run History And Best State
+
+Use `compozy loop status` / `compozy__loop_status` for detail. The run carries its current
+`generation` plus optional `best_generation`/`best_score`; `generations[]` carries durable
+`parent_generation`, `origin`, `verdicts[]`, and outputs. Origins are `initial`, `stop_when`,
+`reattempt`, `gate_revise`, `gate_next_generation`, `dod_retry`, and `ratchet_restore`. Each verdict
+has `gate_id`, machine `outcome`, optional `score`, and optional `route_cause_rank`. The list surfaces
+remain summaries; use status when an agent needs the lineage or gate decisions.
+
+Best fields are absent until an approved finite metric score establishes a baseline. A
+`ratchet_restore` generation may point `parent_generation` at an older best while `previous.*`
+still describes generation `N-1`. On `exhausted` or `stalled`, inspect `best_generation` rather than
+assuming the last generation is the best candidate.
 
 ## The Authoring Loop
 
@@ -158,6 +182,25 @@ watch tick), `needs-approval` (parked on a human gate — a live pause, not term
 Native control rejections are `tool_invalid_input`: `invalid_status_transition` for an unsupported
 live state, or `terminal_loop_run` after termination. `schema_invalid` is reserved for malformed input.
 
+## Re-attempt And Succession Semantics
+
+Node failure and gate rejection use different controls:
+
+| Cause                            | Next generation                                                                   | Origin                 |
+| -------------------------------- | --------------------------------------------------------------------------------- | ---------------------- |
+| Node failure, `failed_only`      | Failed/pending nodes plus transitive dependents rerun; unrelated successes carry. | `reattempt`            |
+| Node failure, `full_body`        | Every body node reruns.                                                           | `reattempt`            |
+| In-body gate `revise`            | Producers of every route-causing gate, those gates, and dependents rerun.         | `gate_revise`          |
+| Metric-gate `revise` with a best | The producer-scoped repair carries unrelated outputs from the best baseline.      | `ratchet_restore`      |
+| In-body gate `next_generation`   | A fresh full-body generation starts.                                              | `gate_next_generation` |
+| DoD gate `next_generation`       | A fresh full-body generation starts instead of terminating.                       | `dod_retry`            |
+
+Both `next_generation` surfaces preserve the rejecting verdicts in `previous.verdicts.*` and their
+ordered gate IDs in `previous.route_causes`. `revise` is targeted repair; `next_generation` is a
+fresh pass. Bounds still apply. For evidence-sensitive work, put the acceptance rule in a typed gate
+and route a weak verdict through `revise`, `next_generation`, or `halt`; do not hide the transition
+inside prompt prose.
+
 ## The Approve Capability Gate
 
 `compozy__loop_approve` requires the `loops.approve` capability, and **an agent can never approve a run
@@ -180,14 +223,44 @@ Definitions reference data over one namespace with two surfaces, chosen by the f
 
 Namespace roots: `inputs.<name>`, `nodes.<id>.output.<path>`, `nodes.<id>.status`, `item`/`index`
 (fan-out scope only), `trigger.<path>` (trigger/webhook starts only), `event.<path>` (`watch-events`
-`events[].filter` scope only), `generation`. Node IDs match `^[a-z][a-z0-9_]*$` (lowercase
-snake_case) so the same ID is valid in both surfaces.
+`events[].filter` scope only), `generation`, plus these read-only history roots:
+
+- `previous.generation`, `previous.nodes.<id>.{status,output}`,
+  `previous.verdicts.<gate_id>.{outcome,score,blocking_issues,criteria}`, and ordered
+  `previous.route_causes`.
+- `best.generation`, `best.score`, and `best.nodes.<id>.output`; best status and verdicts are not
+  projected.
+
+`previous` is empty on generation 1; `best` is empty until one metric candidate becomes eligible.
+Guard history-dependent templates with `{{ with .previous }}` or `{{ with .best }}`. Node IDs match
+`^[a-z][a-z0-9_]*$` (lowercase snake_case) so the same ID is valid in templates and CEL.
 
 Node classes: `action` (open), `control` (closed), `source` (closed). Reserved **action** kinds are
 `goal`, `run-agent`, `run-loop`, `transform`; every other action kind is a literal tool ID
 (`compozy__*`/`ext__*`/`mcp__*`). Control kinds: `fan-out`, `collect`, `branch`, `gate`, `sub-loop`.
 Source kinds: `input`, `file-import`, `watch-source`, `watch-events`. A gate's
-`verdict_policy: revise_until_clean` requires an `agent-judge` or `human` criterion.
+`verdict_policy: revise_until_clean` requires an `agent-judge` or `human` criterion. For a command
+criterion with `expect: stdout_contains`, set the typed `contains` field to the required stdout
+substring.
+
+### Metric Criteria
+
+One `command`, `agent-judge`, or `extension` criterion per definition may declare
+`metric: {direction: maximize|minimize, min_delta?: <finite non-negative number>}`. `human` cannot.
+Unset `min_delta` means `0`, but improvement remains strict. A candidate advances
+`best_generation`/`best_score` only when its finite score improves in the declared direction and
+the aggregate gate verdict is approved. Missing or non-finite required scores become
+`invalid_output`; rejected candidates never establish or advance best.
+
+Score contracts are criterion-specific:
+
+- command standard output is exactly one score-only JSON object, e.g. `{"score":0.72}`;
+- the agent-judge verdict object includes numeric `score` with its verdict, evidence, and blockers;
+- extension structured output includes numeric `score` with `verdict` (and may include evidence and
+  blockers).
+
+A rejected metric candidate routed through `revise` restores from an existing best; with no best it
+repairs from the last generation. A distinct `next_generation` route starts a fresh full body.
 
 Runtime routing belongs to the Loop runtime. Worker fields resolve independently in this order:
 per-run rules, imported task frontmatter, configured runtime rules, `params.runtime`,
@@ -250,7 +323,10 @@ hook does not fail a run.
 - `loop.gate.pre` — sync-eligible; a denial ends the run `blocked`.
 
 Every payload carries the loop context (`loop_run_id`, `workspace_id`, `loop_name`, `generation`,
-`node_id`, and more). Manage them with `compozy__hooks_*`.
+`node_id`, and more). Generation payloads expose `parent_generation` plus the closed `origin`
+vocabulary: `initial`, `stop_when`, `reattempt`, `gate_revise`, `gate_next_generation`, `dod_retry`,
+or `ratchet_restore`. Gate payloads expose `outcome`, optional `score`, and optional
+`best_generation`. Manage hooks with `compozy__hooks_*`.
 
 ## Loop Run Event Stream
 
@@ -260,6 +336,11 @@ streams the same enumerated event kinds the web run page consumes: `status_chang
 `node_succeeded`, `node_failed`, `generation_started`, `gate_verdict`, `runtime_applied`,
 `channel_msg`, `token_tick`, and `needs_approval`. Payloads are redacted/bounded before storage, and
 reads are scoped to the run's workspace.
+
+`generation_started` carries `generation`, `parent_generation`, `origin`, `reattempt_strategy`, and
+`loop_name`. `gate_verdict` carries the sanitized `node_id`, `generation`, `gate_id`, `item_index`,
+`verdict`, `reason`, `route`, `blocking_issues`, `criteria`, optional `score`, and optional
+`best_generation`. The retired `confidence` field is not part of either payload.
 
 ## Watch-Source Behavior
 

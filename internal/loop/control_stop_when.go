@@ -16,6 +16,7 @@ func evaluateContractStopWhen(
 	resolved *ResolvedDefinition,
 	topology controlTopology,
 	outputs []GenerationOutput,
+	history GenerationHistory,
 ) (bool, bool, error) {
 	if resolved == nil {
 		return false, false, nil
@@ -24,12 +25,13 @@ func evaluateContractStopWhen(
 	if condition == nil {
 		return false, false, nil
 	}
-	namespace, err := runtimeNamespace(
+	namespace, err := runtimeNamespaceWithHistory(
 		run,
 		generation,
 		resolved.Definition.Graph,
 		topology,
 		outputs,
+		history,
 		dsl.NodeID(""),
 		0,
 	)

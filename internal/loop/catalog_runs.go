@@ -12,10 +12,12 @@ type CatalogRunQuery struct {
 }
 
 type CatalogRunHead struct {
-	ID        RunID
-	LoopName  string
-	Status    Status
-	CreatedAt time.Time
+	ID             RunID
+	LoopName       string
+	Status         Status
+	BestGeneration *int64
+	BestScore      *float64
+	CreatedAt      time.Time
 }
 
 type CatalogRunReader interface {

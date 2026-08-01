@@ -6,13 +6,13 @@ persona: Ada
 journey: J-bound-runaway-work
 expected: A two-node Loop with one repeatedly failing node and one healthy sibling stalls with circuit_breaker at the per-node limit regardless of terminal order; an unbounded failing watch also stalls, while a healthy watch remains watching.
 entry_points: `compozy loop runs show <run-id> -o json`; `compozy__loop_status`; Loop run events over HTTP/SSE
-qa_status: blocked-verify
+qa_status: pass
 bug_ids:
 fix_status:
-retest_status:
+retest_status: pass
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-ta-replay-20260730-062156-531636-lab/qa-artifacts/qa
-last_report: docs/qa/reports/2026-07-28-untested-full.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-ta-replay-20260730-062156-531636-lab/qa-artifacts/qa; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260801-135009-390014-lab/qa-artifacts/qa/loop/adjacent-safety-tests.json
+last_report: docs/qa/reports/2026-08-01-loops-paper-adoption.md
 overlaps: LP-029; LP-031; LP-038; TA-action-run-liveness
 ---
 
@@ -31,3 +31,7 @@ Forensic evidence contract (SD-006) — each item cites timestamp, exact command
   terminal orders.
 - The hard-backstop termination record for the unbounded failing watch, and the healthy-loop
   control run that never trips.
+
+QA impact 2026-08-01: reset to `untested` because node failure and gate rejection now use distinct
+reattempt/succession semantics. Re-walk both node strategies plus revise and fresh-next-generation
+controls before relying on the earlier breaker verdict; historical evidence remains cited above.

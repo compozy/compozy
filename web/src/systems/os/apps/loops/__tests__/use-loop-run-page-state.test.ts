@@ -9,7 +9,7 @@ function frame(
   seq: number,
   scope: { runId: string; workspaceId: string } = { runId: "run-a", workspaceId: "workspace-a" }
 ): LoopRunEventFrame {
-  return {
+  const event = {
     at: "2026-07-25T12:00:00Z",
     id: `event-${seq}`,
     kind,
@@ -18,6 +18,7 @@ function frame(
     seq,
     workspace_id: scope.workspaceId,
   };
+  return event as LoopRunEventFrame;
 }
 
 describe("loopRunPageLogic", () => {

@@ -23,8 +23,23 @@ const loopRuntimeFixture = path.resolve(
   "loop_runtime_provenance_fixture.json"
 );
 
+const loopFeedbackFixture = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "..",
+  "..",
+  "internal",
+  "testutil",
+  "acpmock",
+  "testdata",
+  "loop_generation_feedback_fixture.json"
+);
+
 const loopRuntimeAgent = "loop-runtime-agent";
 const loopRuntimeName = "runtime-provenance-e2e";
+const loopFeedbackWorker = "loop-feedback-worker";
+const loopFeedbackJudge = "loop-feedback-exhaust-judge";
+const loopFeedbackName = "feedback-best-on-exhaustion-web";
 
 const loopRuntimeDefinition: LoopDefinition = {
   apiVersion: "compozy.loop/v1",
@@ -117,6 +132,66 @@ const loopRuntimeDefinition: LoopDefinition = {
   start: [{ kind: "http" }],
 };
 
+const loopFeedbackDefinition: LoopDefinition = {
+  apiVersion: "compozy.loop/v1",
+  kind: "Loop",
+  meta: {
+    name: loopFeedbackName,
+    description: "Exercise metric regression, ratchet restore, and best-on-exhaustion UI.",
+    catalog: { category: "Testing" },
+  },
+  concurrency: "allow",
+  contract: {
+    goal: "Converge through deterministic generation feedback.",
+    definition_of_done: "The deterministic feedback gate approves.",
+    stop_when: "best.score >= 0.95",
+    iteration_cap: 3,
+    no_progress: { window: 5, hash_fields: ["delivery_artifact"] },
+    budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: "halt" },
+    terminal_states: ["done", "failed", "blocked", "exhausted", "stalled"],
+  },
+  graph: {
+    nodes: [
+      {
+        id: "draft",
+        class: "action",
+        kind: "run-agent",
+        params: {
+          agent: loopFeedbackWorker,
+          prompt: "exhaustion generation {{ .generation }}",
+          output_schema: {
+            type: "object",
+            required: ["summary", "value"],
+            properties: {
+              summary: { type: "string" },
+              value: { type: "string" },
+            },
+          },
+        },
+      },
+      {
+        id: "quality",
+        class: "control",
+        kind: "gate",
+        criteria: [
+          {
+            id: "exhaust_score",
+            type: "agent-judge",
+            agent: loopFeedbackJudge,
+            rubric: "Score the completed candidate deterministically.",
+            metric: { direction: "maximize" },
+          },
+        ],
+        verdict_policy: "fixed_passes",
+        on_result: { fail: "revise" },
+        max_revisions: 10,
+      },
+    ],
+    edges: [],
+  } as LoopDefinition["graph"],
+  start: [{ kind: "http" }],
+};
+
 test.use({
   runtimeOptions: {
     seed: {
@@ -125,6 +200,16 @@ test.use({
           fixturePath: loopRuntimeFixture,
           fixtureAgent: "loop_runtime_provenance",
           agentName: loopRuntimeAgent,
+        },
+        {
+          fixturePath: loopFeedbackFixture,
+          fixtureAgent: "feedback_worker",
+          agentName: loopFeedbackWorker,
+        },
+        {
+          fixturePath: loopFeedbackFixture,
+          fixtureAgent: "exhaustion_judge",
+          agentName: loopFeedbackJudge,
         },
       ],
     },
@@ -252,4 +337,70 @@ test("Compozy migration E2E-004: loop run renders API runtime provenance without
     0
   );
   await browserArtifacts.captureScreenshot("loop-run-runtime-provenance", appPage);
+});
+
+test("Compozy migration E2E-006: exhausted run renders score, best, restore, and best link", async ({
+  appPage,
+  browserArtifacts,
+  runtime,
+}) => {
+  if (!runtime.paths) {
+    throw new Error("Loop feedback browser test requires launch-mode runtime paths");
+  }
+
+  const workspace = await runtime.resolveWorkspace(runtime.paths.homeDir);
+  await useGlobalWorkspaceIfPrompted(appPage);
+  const workspacePath = `/api/workspaces/${encodeURIComponent(workspace.id)}`;
+  await runtime.requestJSON(`${workspacePath}/loops`, {
+    method: "POST",
+    body: JSON.stringify({ definition: loopFeedbackDefinition }),
+  });
+
+  const started = await runtime.requestJSON<RunLoopResult>(
+    `${workspacePath}/loops/${encodeURIComponent(loopFeedbackName)}/run`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        config_overrides: {
+          iteration_cap: 3,
+          no_progress_window: 10,
+          gate_max_revisions: 10,
+        },
+      }),
+    }
+  );
+  if (!started.run) throw new Error("Loop feedback browser seed did not create a run");
+
+  const runPath = `${workspacePath}/loop-runs/${encodeURIComponent(started.run.id)}`;
+  await expect
+    .poll(async () => (await runtime.requestJSON<LoopRunDetail>(runPath)).run.status, {
+      timeout: 30_000,
+    })
+    .toBe("exhausted");
+
+  const detail = await runtime.requestJSON<LoopRunDetail>(runPath);
+  expect(detail.run.best_generation).toBe(1);
+  expect(detail.run.best_score).toBe(0.7);
+  expect(detail.generations?.[2]).toMatchObject({
+    generation: 3,
+    parent_generation: 1,
+    origin: "ratchet_restore",
+  });
+
+  await appPage.goto(runtime.url(`/loop-runs/${encodeURIComponent(started.run.id)}`), {
+    waitUntil: "domcontentloaded",
+  });
+  await expect(appPage.getByTestId("loop-run-detail-content")).toBeVisible();
+
+  const bestGeneration = appPage.locator("#loop-generation-1");
+  await expect(bestGeneration).toContainText("score 0.70");
+  await expect(bestGeneration.getByText("Best", { exact: true })).toBeVisible();
+
+  const restoredGeneration = appPage.locator("#loop-generation-3");
+  await expect(restoredGeneration.getByText("Restored from gen 1", { exact: true })).toBeVisible();
+  await expect(restoredGeneration).toContainText("score 0.50");
+
+  const bestLink = appPage.getByRole("link", { name: "Best result · Gen 1 · 0.70" });
+  await expect(bestLink).toHaveAttribute("href", "#loop-generation-1");
+  await browserArtifacts.captureScreenshot("loop-run-best-on-exhaustion", appPage);
 });

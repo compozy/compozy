@@ -49,6 +49,8 @@ type loopRunScanValues struct {
 	networkMode       string
 	networkChannel    sql.NullString
 	networkSource     string
+	bestGeneration    sql.NullInt64
+	bestScore         sql.NullFloat64
 }
 
 func scanLoopRun(row loopRunScanner) (looppkg.Run, error) {
@@ -104,6 +106,8 @@ func (v *loopRunScanValues) scan(row loopRunScanner) error {
 		&v.networkMode,
 		&v.networkChannel,
 		&v.networkSource,
+		&v.bestGeneration,
+		&v.bestScore,
 	)
 }
 
@@ -181,6 +185,9 @@ func (v *loopRunScanValues) toRun() (looppkg.Run, error) {
 		return looppkg.Run{}, err
 	}
 	run.SetNetworkSpec(networkSpec)
+	if err := applyLoopRunBest(&run, v.bestGeneration, v.bestScore); err != nil {
+		return looppkg.Run{}, err
+	}
 	return run, nil
 }
 

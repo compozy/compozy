@@ -4,97 +4,96 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"time"
 )
 
-type manualMCPAuthReadResult struct {
-	value string
-	err   error
-}
-
 func readManualMCPAuthFileContext(
 	ctx context.Context,
 	file *os.File,
-	readInput func() (string, error),
-) (value string, resultErr error) {
-	readDeadline := time.Time{}
-	if deadline, ok := ctx.Deadline(); ok {
-		readDeadline = deadline
+	readInput func(io.Reader) (string, error),
+) (string, error) {
+	if err := file.SetReadDeadline(time.Time{}); err != nil {
+		if !errors.Is(err, os.ErrNoDeadline) {
+			return "", fmt.Errorf("cli: prepare MCP authorization input deadline: %w", err)
+		}
+		info, statErr := file.Stat()
+		if statErr != nil {
+			return "", errors.Join(
+				fmt.Errorf("cli: inspect MCP authorization input: %w", statErr),
+				fmt.Errorf("cli: prepare MCP authorization input deadline: %w", err),
+			)
+		}
+		if info.Mode().IsRegular() {
+			value, readErr := readInput(file)
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				return "", errors.Join(mcpAuthorizationTimeoutError(ctxErr), readErr)
+			}
+			return value, readErr
+		}
+		cancellableFile, cleanup, prepareErr := prepareCancellableMCPAuthInput(file)
+		if prepareErr != nil {
+			return "", errors.Join(
+				fmt.Errorf("cli: prepare cancellable MCP authorization input: %w", prepareErr),
+				fmt.Errorf("cli: prepare MCP authorization input deadline: %w", err),
+			)
+		}
+		value, readErr := readManualMCPAuthDeadlineFileContext(ctx, cancellableFile, readInput)
+		cleanupErr := cleanup()
+		return value, errors.Join(readErr, wrapMCPAuthInputDeadlineError("cleanup", cleanupErr))
 	}
-	if err := file.SetReadDeadline(readDeadline); err != nil {
-		return readManualMCPAuthFileWithoutDeadline(ctx, readInput, err)
-	}
-	defer func() {
-		if err := file.SetReadDeadline(time.Time{}); err != nil && !errors.Is(err, os.ErrClosed) {
-			resetErr := fmt.Errorf("cli: clear MCP authorization input deadline: %w", err)
-			resultErr = errors.Join(resultErr, resetErr)
+	return readManualMCPAuthDeadlineFileContext(ctx, file, readInput)
+}
+
+func readManualMCPAuthDeadlineFileContext(
+	ctx context.Context,
+	file *os.File,
+	readInput func(io.Reader) (string, error),
+) (string, error) {
+	readComplete := make(chan struct{})
+	interruptResult := make(chan error, 1)
+	go func() {
+		select {
+		case <-ctx.Done():
+			interruptResult <- file.SetReadDeadline(time.Now())
+		case <-readComplete:
+			interruptResult <- nil
 		}
 	}()
 
-	results := make(chan manualMCPAuthReadResult, 1)
-	go func() {
-		readValue, err := readInput()
-		results <- manualMCPAuthReadResult{value: readValue, err: err}
-	}()
-	select {
-	case result := <-results:
-		return manualMCPAuthReadResultValue(ctx, result)
-	case <-ctx.Done():
-		return "", interruptManualMCPAuthFileRead(ctx, file, results)
-	}
-}
-
-func readManualMCPAuthFileWithoutDeadline(
-	ctx context.Context,
-	readInput func() (string, error),
-	deadlineErr error,
-) (string, error) {
-	if !errors.Is(deadlineErr, os.ErrNoDeadline) {
-		return "", fmt.Errorf("cli: set MCP authorization input deadline: %w", deadlineErr)
-	}
+	value, readErr := readInput(file)
+	close(readComplete)
+	interruptErr := wrapMCPAuthInputDeadlineError("interrupt", <-interruptResult)
+	resetErr := wrapMCPAuthInputDeadlineError("reset", file.SetReadDeadline(time.Time{}))
 	if ctxErr := ctx.Err(); ctxErr != nil {
-		return "", mcpAuthorizationTimeoutError(ctxErr)
-	}
-	// Interrupting input without deadline support would require closing caller-owned input.
-	value, err := readInput()
-	if err != nil {
-		return "", err
-	}
-	if ctxErr := ctx.Err(); ctxErr != nil {
-		return "", mcpAuthorizationTimeoutError(ctxErr)
-	}
-	return value, nil
-}
-
-func manualMCPAuthReadResultValue(
-	ctx context.Context,
-	result manualMCPAuthReadResult,
-) (string, error) {
-	if ctxErr := ctx.Err(); ctxErr != nil {
-		return "", mcpAuthorizationTimeoutError(ctxErr)
-	}
-	if errors.Is(result.err, os.ErrDeadlineExceeded) {
-		return "", mcpAuthorizationTimeoutError(context.DeadlineExceeded)
-	}
-	return result.value, result.err
-}
-
-func interruptManualMCPAuthFileRead(
-	ctx context.Context,
-	file *os.File,
-	results <-chan manualMCPAuthReadResult,
-) error {
-	timeoutErr := mcpAuthorizationTimeoutError(ctx.Err())
-	if err := file.SetReadDeadline(time.Now()); err != nil {
-		return errors.Join(
-			timeoutErr,
-			fmt.Errorf("cli: interrupt MCP authorization input: %w", err),
+		return "", errors.Join(
+			mcpAuthorizationTimeoutError(ctxErr),
+			unexpectedMCPAuthInputReadError(readErr),
+			interruptErr,
+			resetErr,
 		)
 	}
-	result := <-results
-	if result.err != nil && !errors.Is(result.err, os.ErrDeadlineExceeded) {
-		return errors.Join(timeoutErr, result.err)
+	if errors.Is(readErr, os.ErrDeadlineExceeded) {
+		return "", errors.Join(
+			mcpAuthorizationTimeoutError(context.DeadlineExceeded),
+			interruptErr,
+			resetErr,
+		)
 	}
-	return timeoutErr
+	return value, errors.Join(readErr, interruptErr, resetErr)
+}
+
+func unexpectedMCPAuthInputReadError(err error) error {
+	if errors.Is(err, os.ErrDeadlineExceeded) {
+		return nil
+	}
+	return err
+}
+
+func wrapMCPAuthInputDeadlineError(action string, err error) error {
+	if err == nil {
+		return nil
+	}
+	return fmt.Errorf("cli: %s MCP authorization input deadline: %w", action, err)
 }

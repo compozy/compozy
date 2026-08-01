@@ -16,6 +16,38 @@ import (
 func TestSessionEventBroadcaster(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should preserve runtime identity in stream subscription diagnostics", func(t *testing.T) {
+		t.Parallel()
+
+		notifier := &streamIdentityNotifier{}
+		manager, err := NewManager(WithHomePaths(testHomePaths(t)), WithNotifier(notifier))
+		if err != nil {
+			t.Fatalf("NewManager() error = %v", err)
+		}
+		sess := &Session{
+			ID: "sess-stream-child", AgentName: "worker", Provider: "claude", Model: "claude-sonnet",
+			WorkspaceID: "ws-1", State: StateActive,
+			Lineage: &store.SessionLineage{
+				ParentSessionID: "sess-parent", RootSessionID: "sess-root", SpawnDepth: 2,
+			},
+		}
+		manager.mu.Lock()
+		manager.sessions[sess.ID] = sess
+		manager.mu.Unlock()
+
+		_, cancel, err := manager.SubscribeSessionEvents(testutil.Context(t), sess.ID, 0)
+		if err != nil {
+			t.Fatalf("SubscribeSessionEvents() error = %v", err)
+		}
+		defer cancel()
+		got := notifier.last
+		if got == nil || got.Provider != sess.Provider || got.Model != sess.Model || got.Lineage == nil ||
+			got.Lineage.ParentSessionID != "sess-parent" || got.Lineage.RootSessionID != "sess-root" ||
+			got.Lineage.SpawnDepth != 2 {
+			t.Fatalf("stream diagnostic session identity = %#v, want full spawned runtime identity", got)
+		}
+	})
+
 	t.Run("Should deliver persisted events after cursor and ignore older sequences", func(t *testing.T) {
 		t.Parallel()
 
@@ -115,6 +147,20 @@ func TestSessionEventBroadcaster(t *testing.T) {
 			t.Fatal("events channel remains open after overflow")
 		}
 	})
+}
+
+type streamIdentityNotifier struct {
+	last *Info
+}
+
+func (n *streamIdentityNotifier) OnSessionCreated(context.Context, *Session) {}
+
+func (n *streamIdentityNotifier) OnSessionStopped(context.Context, *Session) {}
+
+func (n *streamIdentityNotifier) OnAgentEvent(context.Context, string, any) {}
+
+func (n *streamIdentityNotifier) OnAgentEventForSession(_ context.Context, sess *Session, _ any) {
+	n.last = sess.Info()
 }
 
 func TestSessionCatalogBroadcaster(t *testing.T) {

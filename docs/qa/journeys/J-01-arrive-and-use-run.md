@@ -21,7 +21,7 @@ flowchart TD
     F -->|Advanced overrides| G[6 limit fields show default/ceiling, clamp at ceiling; NO cost-cap input]
     F -->|yes, Run loop| H[Side effect: loop_run created 201, run page opens]
     H --> H2[CLI returns the persisted run id and effective-port Web deep link]
-    H2 --> I[run-detail: Running pill + contract header + applied runtime provenance + 5 meters + generation timeline live via SSE]
+    H2 --> I[run-detail: Running pill + contract header + applied runtime provenance + 5 meters + score, best, and origin when present + live SSE timeline]
     I --> J{Verification gate}
     J -->|pass| K[True end: terminal banner done — goal verified, meters final, outcome NOT coerced]
     J -->|fail| L[Self-correction: revise failing tasks under guardrails, next generation]
@@ -67,7 +67,7 @@ journey:
   goal:
     observable: "Terminal banner reads done with the goal verified; applied runtime provenance and Attempts/Tokens/Wall/Cost/Breadth meters show final truth"
     side_effects: [loop_run-created, task_runs-executed, generation-timeline-events-streamed]
-  true_end_state: "Restart the daemon and reload the CLI, HTTP/UDS, native status, SSE-backed run page, and printed deep link: the run is still done, every surface agrees on the persisted applied runtime, the outcome is not coerced, and another workspace cannot observe it."
+  true_end_state: "Restart the daemon and reload the CLI, HTTP/UDS, native status, SSE-backed run page, and printed deep link: the run is still done, every surface agrees on persisted runtime plus optional score/best/provenance, the outcome is not coerced, and another workspace cannot observe it."
   exit:
     natural: "User lands on the terminal run page; can open the merged result / recent-runs history."
   abandonment:
@@ -77,7 +77,7 @@ journey:
     - at_step: 4
       how: "Closes the browser tab while the run is still running."
       resume: "Run continues server-side; user re-finds it via global Runs (runs.html) and resumes observing — state and meters intact."
-  crosses: [catalog-projection, run-form-schema, runtime-resolver, daemon-binder, CLI, HTTP, UDS, native-tools, coordinator/task_runs, SQLite-provenance, SSE-stream, web-run-inspect, global-runs-index]
+  crosses: [catalog-projection, run-form-schema, runtime-resolver, daemon-binder, CLI, HTTP, UDS, native-tools, coordinator/task_runs, SQLite-provenance, generation-history, SSE-stream, web-run-inspect, global-runs-index]
 
 design_reference:
   screens:
@@ -111,3 +111,9 @@ e2e_backbone:
     - "LP-runtime-provenance-observation — prove restart durability and workspace containment across every read surface."
     - "LP-loop-run-deep-link — open the effective-port URL and confirm dry-run emits none."
 ```
+
+Taxonomy note (2026-08-01): the end-to-end run owns journey and functional coverage; validation,
+terminal bounds, workspace denial, and close/resume own error and continuity coverage; the Web
+run-detail charter owns experiential truth; CLI/HTTP/UDS/native/SSE parity owns cross-cutting
+consistency. The editor remains desktop-only, while the supported run-detail viewport is covered
+without claiming mobile authoring support.

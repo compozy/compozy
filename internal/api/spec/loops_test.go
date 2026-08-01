@@ -319,6 +319,92 @@ func TestLoopOpenAPIContract(t *testing.T) {
 		propertySchema(t, subscription, "filter")
 	})
 
+	t.Run("Should expose metric graph criteria through the custom schema", func(t *testing.T) {
+		t.Parallel()
+
+		doc, err := Document()
+		if err != nil {
+			t.Fatalf("Document() error = %v", err)
+		}
+		validate := operationFor(
+			t,
+			doc,
+			"/api/workspaces/{workspace_id}/loops/{name}/validate",
+			"POST",
+		)
+		definition := propertySchema(t, jsonRequestSchema(t, validate), "definition")
+		graph := propertySchema(t, definition, "graph")
+		nodes := propertySchema(t, graph, "nodes")
+		if nodes.Items == nil || nodes.Items.Value == nil {
+			t.Fatal("Loop graph nodes have no item schema")
+		}
+		criteria := propertySchema(t, nodes.Items.Value, "criteria")
+		if criteria.Items == nil || criteria.Items.Value == nil {
+			t.Fatal("Loop graph criteria have no item schema")
+		}
+		criterion := criteria.Items.Value
+		propertySchema(t, criterion, "contains")
+		metric := propertySchema(t, criterion, "metric")
+		assertRequired(t, metric, "direction")
+		assertNotRequired(t, metric, "min_delta")
+		assertEnumValues(
+			t,
+			propertySchema(t, metric, "direction"),
+			contract.LoopMetricDirectionValues()...,
+		)
+		propertySchema(t, metric, "min_delta")
+	})
+
+	t.Run("Should expose typed generation and gate verdict SSE payloads", func(t *testing.T) {
+		t.Parallel()
+
+		doc, err := Document()
+		if err != nil {
+			t.Fatalf("Document() error = %v", err)
+		}
+		operation := operationFor(
+			t,
+			doc,
+			"/api/workspaces/{workspace_id}/loop-runs/{run_id}/events",
+			"GET",
+		)
+		stream := responseSchema(t, operation, 200, "text/event-stream")
+		if len(stream.OneOf) != 3 {
+			t.Fatalf("Loop SSE response oneOf = %#v, want three disjoint event envelopes", stream.OneOf)
+		}
+
+		generation := loopEventVariantSchema(t, stream, string(contract.LoopRunEventGenerationStarted))
+		assertEnumValues(
+			t,
+			propertySchema(t, generation, "kind"),
+			string(contract.LoopRunEventGenerationStarted),
+		)
+		generationPayload := propertySchema(t, generation, "payload")
+		assertRequired(t, generationPayload, "generation", "parent_generation", "origin")
+
+		verdict := loopEventVariantSchema(t, stream, string(contract.LoopRunEventGateVerdict))
+		assertEnumValues(
+			t,
+			propertySchema(t, verdict, "kind"),
+			string(contract.LoopRunEventGateVerdict),
+		)
+		verdictPayload := propertySchema(t, verdict, "payload")
+		assertRequired(t, verdictPayload, "generation", "gate_id", "verdict")
+		propertySchema(t, verdictPayload, "score")
+		propertySchema(t, verdictPayload, "best_generation")
+
+		other := loopOtherEventVariantSchema(t, stream)
+		otherKinds := propertySchema(t, other, "kind")
+		for _, migrated := range []string{
+			string(contract.LoopRunEventGenerationStarted),
+			string(contract.LoopRunEventGateVerdict),
+		} {
+			if slices.ContainsFunc(otherKinds.Enum, func(value any) bool { return value == migrated }) {
+				t.Fatalf("generic Loop SSE event kind includes typed variant %q", migrated)
+			}
+		}
+	})
+
 	t.Run("Should describe Goal prompt outcomes inside the durable prompt envelope", func(t *testing.T) {
 		t.Parallel()
 
@@ -393,6 +479,37 @@ func TestLoopOpenAPIContract(t *testing.T) {
 			"end_turn", "max_tokens", "max_turn_requests", "refusal",
 			string(contract.ACPStopReasonCancelled))
 	})
+}
+
+func loopEventVariantSchema(t *testing.T, response *openapi3.Schema, kind string) *openapi3.Schema {
+	t.Helper()
+	for _, candidate := range response.OneOf {
+		if candidate == nil || candidate.Value == nil {
+			continue
+		}
+		kindRef := candidate.Value.Properties["kind"]
+		if kindRef != nil && kindRef.Value != nil &&
+			slices.Equal(kindRef.Value.Enum, []any{kind}) {
+			return candidate.Value
+		}
+	}
+	t.Fatalf("Loop SSE response has no resolved %q variant: %#v", kind, response.OneOf)
+	return nil
+}
+
+func loopOtherEventVariantSchema(t *testing.T, response *openapi3.Schema) *openapi3.Schema {
+	t.Helper()
+	for _, candidate := range response.OneOf {
+		if candidate == nil || candidate.Value == nil {
+			continue
+		}
+		kindRef := candidate.Value.Properties["kind"]
+		if kindRef != nil && kindRef.Value != nil && len(kindRef.Value.Enum) > 1 {
+			return candidate.Value
+		}
+	}
+	t.Fatalf("Loop SSE response has no resolved generic event variant: %#v", response.OneOf)
+	return nil
 }
 
 func promptGoalResultSchema(t *testing.T, response *openapi3.Schema) *openapi3.Schema {

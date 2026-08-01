@@ -14,6 +14,12 @@ func normalizeLoopRunForCreate(run looppkg.Run) (looppkg.Run, error) {
 	if err := normalizeLoopRunIdentity(&run); err != nil {
 		return looppkg.Run{}, err
 	}
+	if run.Generation != 0 {
+		return looppkg.Run{}, fmt.Errorf(
+			"%w: new loop run generation cursor must be zero",
+			looppkg.ErrValidation,
+		)
+	}
 	run.DefinitionDigest = strings.TrimSpace(run.DefinitionDigest)
 	if run.DefinitionDigest == "" {
 		return looppkg.Run{}, fmt.Errorf("%w: definition_digest is required", looppkg.ErrValidation)

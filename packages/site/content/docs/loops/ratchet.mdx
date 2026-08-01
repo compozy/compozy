@@ -1,0 +1,107 @@
+---
+title: Ratchets
+description: Keep the best scored generation, reject regressions, and restore the accepted baseline before the next targeted repair.
+---
+
+A ratchet helps you improve one measurable quality without building on a regression. Add a metric
+to one machine gate criterion; Compozy records each finite score, keeps the best eligible
+generation, and uses that baseline when a rejected candidate routes to targeted repair.
+
+Use a ratchet when one scalar has a clear direction: increase an evaluation score, reduce latency,
+or reduce artifact size. A definition may have only one metric criterion in `compozy.loop/v1`, so
+do not collapse several competing goals into an unexplained composite number.
+
+## Declare the metric
+
+This gate maximizes a judge score. A passing candidate must improve the current best by at least
+`0.05`; `stop_when` ends the run after an accepted best reaches `0.9`.
+
+```yaml
+contract:
+  stop_when: "best.score >= 0.9"
+
+graph:
+  nodes:
+    - id: improve
+      class: action
+      kind: run-agent
+      params:
+        agent: "{{ .inputs.worker }}"
+        prompt: |
+          Improve the candidate against the definition of done.
+          {{ with .previous }}
+          Repair these prior issues: {{ .verdicts.quality.blocking_issues }}
+          {{ end }}
+          {{ with .best }}
+          Preserve the useful parts of best generation {{ .generation }}, score {{ .score }}.
+          {{ end }}
+
+    - id: quality
+      class: control
+      kind: gate
+      criteria:
+        - id: score
+          type: agent-judge
+          agent: reviewer
+          rubric: >
+            Score the candidate from 0 to 1 against the definition of done. Approve only when
+            the cited evidence supports every required outcome.
+          metric:
+            direction: maximize
+            min_delta: 0.05
+      verdict_policy: revise_until_clean
+      on_result:
+        fail: revise
+      max_revisions: 8
+
+  edges:
+    - { from: improve, to: quality }
+```
+
+An approved score updates `best` before Compozy evaluates `stop_when`. While the condition is
+false, Compozy starts a fresh full-body generation with `origin: stop_when`; when the accepted best
+reaches `0.9`, the run ends `done`. A rejected regression takes the explicit `revise` route instead.
+
+`minimize` uses the same contract with the comparison reversed. Without `min_delta`, the default is
+`0`: equality still fails because improvement is always strict.
+
+## Best eligibility
+
+A candidate becomes the best generation only when every condition is true:
+
+1. The declared metric produced a finite numeric score.
+2. The aggregate gate verdict is `approved`; a passing score cannot hide a failed sibling
+   criterion.
+3. The score strictly improves the current best in the declared direction by at least
+   `min_delta`.
+
+The first approved finite score establishes the baseline. A rejected, blocked, or invalid first
+score does not create a best. Missing, non-numeric, `NaN`, and infinite required scores produce
+`invalid_output`; they never advance the ratchet.
+
+## Restore from best
+
+When a metric candidate regresses and `fail` routes to `revise`, Compozy starts a targeted repair:
+
+- producers of the route-causing gate, the gate, and their dependents re-run;
+- carried outputs seed from the best generation, not the rejected generation;
+- the new generation records `origin: ratchet_restore` and points `parent_generation` at that best;
+- `previous.*` still describes the immediately rejected generation, so the repair keeps its
+  diagnosis even though its baseline comes from somewhere older.
+
+If no eligible best exists yet, revision seeds from the previous generation and records
+`gate_revise`; Compozy never invents a baseline. If the gate maps failure to `next_generation`
+instead, the distinct route starts a fresh full-body pass with `gate_next_generation` (or
+`dod_retry` for definition-of-done verification), so it carries no prior output seed.
+
+## Exhaustion still points to the best
+
+Iteration caps, budgets, revision limits, stalling, and the failure circuit breaker continue to
+bound a ratchet. If a run ends `exhausted` or `stalled` after recording a best candidate, the run
+keeps `best_generation` and `best_score`. The web outcome view points back to that generation, and
+`compozy loop status -o json` exposes the same durable fields. Inspect the best instead of treating
+the last attempt as the winner.
+
+For the response shapes and origin history, see [Running and observing](/docs/loops/running). For
+score contracts on command, judge, and extension criteria, see the
+[DSL reference](/docs/loops/dsl-reference#metric-criteria).

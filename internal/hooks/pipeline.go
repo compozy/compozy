@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 	"time"
 )
@@ -338,12 +339,19 @@ func encodeJSON[T any](payload T) ([]byte, error) {
 	return json.Marshal(payload)
 }
 
-func decodeJSON[T any](payload []byte) (T, error) {
+func decodeJSONStrict[T any](payload []byte) (T, error) {
 	var decoded T
 	if len(bytes.TrimSpace(payload)) == 0 {
 		return decoded, nil
 	}
-	if err := json.Unmarshal(payload, &decoded); err != nil {
+	decoder := json.NewDecoder(bytes.NewReader(payload))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&decoded); err != nil {
+		return decoded, err
+	}
+	if err := decoder.Decode(&struct{}{}); err == nil {
+		return decoded, errors.New("hooks: patch must contain one JSON value")
+	} else if !errors.Is(err, io.EOF) {
 		return decoded, err
 	}
 	return decoded, nil

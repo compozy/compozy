@@ -8,14 +8,19 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/compozy/internal/loop/gate"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/task"
 )
 
 // GenerationSnapshotPayload is the loop-owned payload carried by task.GenerationSnapshot.
 type GenerationSnapshotPayload struct {
-	Outputs     []GenerationOutput     `json:"outputs,omitempty"`
-	OutputBlobs []GenerationOutputBlob `json:"output_blobs,omitempty"`
+	Outputs              []GenerationOutput               `json:"outputs,omitempty"`
+	OutputBlobs          []GenerationOutputBlob           `json:"output_blobs,omitempty"`
+	Verdicts             []gate.VerdictIntent             `json:"verdicts,omitempty"`
+	BestUpdate           *gate.BestUpdateIntent           `json:"best_update,omitempty"`
+	GenerationProvenance *GenerationIntent                `json:"generation_provenance,omitempty"`
+	Events               []GenerationLifecycleEventIntent `json:"events,omitempty"`
 }
 
 // GenerationOutput is one loop_generation_outputs row mutation.
@@ -64,7 +69,7 @@ func (f *StoreFinalizer) WriteGenerationSnapshot(
 	if snap.Generation <= 0 {
 		return fmt.Errorf("%w: generation snapshot generation must be positive", ErrValidation)
 	}
-	payload, err := normalizeGenerationSnapshotPayload(snap.Payload)
+	payload, err := GenerationSnapshotPayloadFrom(snap.Payload)
 	if err != nil {
 		return err
 	}
@@ -172,19 +177,19 @@ func resolvedRuntimeSQLValue(runtime *ResolvedRuntime) (any, error) {
 	return string(data), nil
 }
 
-func normalizeGenerationSnapshotPayload(value any) (GenerationSnapshotPayload, error) {
+// GenerationSnapshotPayloadFrom normalizes the loop-owned payload of a generation snapshot.
+func GenerationSnapshotPayloadFrom(value any) (GenerationSnapshotPayload, error) {
+	var payload GenerationSnapshotPayload
 	switch typed := value.(type) {
 	case nil:
-		return GenerationSnapshotPayload{}, nil
+		return payload, nil
 	case GenerationSnapshotPayload:
-		return typed, nil
+		payload = typed
 	case *GenerationSnapshotPayload:
 		if typed == nil {
-			return GenerationSnapshotPayload{}, nil
+			return payload, nil
 		}
-		return *typed, nil
-	case []GenerationOutput:
-		return GenerationSnapshotPayload{Outputs: typed}, nil
+		payload = *typed
 	default:
 		return GenerationSnapshotPayload{}, fmt.Errorf(
 			"%w: unsupported generation snapshot payload %T",
@@ -192,6 +197,7 @@ func normalizeGenerationSnapshotPayload(value any) (GenerationSnapshotPayload, e
 			value,
 		)
 	}
+	return normalizeGenerationSnapshotIntents(payload)
 }
 
 func (o GenerationOutput) validate() error {

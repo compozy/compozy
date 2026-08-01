@@ -111,6 +111,22 @@ async function closeDialogFromFocusedLauncher(restoreFocusOnClose: boolean) {
   return { launcher, unmount: view.unmount };
 }
 
+function renderDialogWithFocusSource(overrides: Partial<SessionCreateDialogProps> = {}) {
+  const renderTree = (nextOverrides: Partial<SessionCreateDialogProps>) => (
+    <UIProvider reducedMotion="never" skipAnimations>
+      <button data-testid="session-create-focus-source" type="button">
+        New session
+      </button>
+      <SessionCreateDialog {...makeProps(nextOverrides)} />
+    </UIProvider>
+  );
+  const view = render(renderTree(overrides));
+  return {
+    ...view,
+    rerenderDialog: (nextOverrides: Partial<SessionCreateDialogProps>) =>
+      view.rerender(renderTree(nextOverrides)),
+  };
+}
 describe("SessionCreateDialog", () => {
   it("Should show only the Agent field in Simple mode", () => {
     renderDialog();
@@ -212,6 +228,34 @@ describe("SessionCreateDialog", () => {
     expect(screen.getByTestId("session-create-submit")).toBeDisabled();
     fireEvent.click(getDialogBackdrop());
     expect(onOpenChange).not.toHaveBeenCalled();
+  });
+
+  it("Should not restore focus into the source window after successful creation", async () => {
+    const view = renderDialogWithFocusSource({ open: false });
+    const sourceWindowFocusTarget = screen.getByTestId("session-create-focus-source");
+    sourceWindowFocusTarget.focus();
+    expect(sourceWindowFocusTarget).toHaveFocus();
+
+    view.rerenderDialog({ isSubmitting: true, open: true });
+    await waitFor(() => expect(sourceWindowFocusTarget).not.toHaveFocus());
+
+    view.rerenderDialog({ open: false });
+    await waitFor(() =>
+      expect(screen.queryByTestId("session-create-dialog")).not.toBeInTheDocument()
+    );
+    expect(sourceWindowFocusTarget).not.toHaveFocus();
+  });
+
+  it("Should restore focus into the source window after ordinary dismissal", async () => {
+    const view = renderDialogWithFocusSource({ open: false });
+    const focusSource = screen.getByTestId("session-create-focus-source");
+    focusSource.focus();
+
+    view.rerenderDialog({ open: true });
+    await waitFor(() => expect(focusSource).not.toHaveFocus());
+
+    view.rerenderDialog({ open: false });
+    await waitFor(() => expect(focusSource).toHaveFocus());
   });
 
   it("Should associate a create failure with the form without closing the dialog", () => {

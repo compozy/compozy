@@ -21,11 +21,35 @@ func runtimeNamespace(
 	nodeID dsl.NodeID,
 	itemIndex int,
 ) (map[string]any, error) {
+	return runtimeNamespaceWithHistory(
+		run,
+		generation,
+		graph,
+		topology,
+		outputs,
+		GenerationHistory{},
+		nodeID,
+		itemIndex,
+	)
+}
+
+func runtimeNamespaceWithHistory(
+	run Run,
+	generation int,
+	graph dsl.Graph,
+	topology controlTopology,
+	outputs []GenerationOutput,
+	history GenerationHistory,
+	nodeID dsl.NodeID,
+	itemIndex int,
+) (map[string]any, error) {
 	nodes := map[string]any{}
 	namespace := map[string]any{
 		namespaceInputsKey:    cloneAnyMap(run.Inputs),
 		namespaceNodesKey:     nodes,
 		metadataGenerationKey: int64(max(1, generation)),
+		namespacePreviousKey:  history.previousNamespace(topology, nodeID, itemIndex),
+		namespaceBestKey:      history.bestNamespace(topology, nodeID, itemIndex),
 	}
 	if fanOutID, ok := topology.inFanOutBody(nodeID); ok {
 		item, exists, err := fanOutItem(outputs, fanOutID, itemIndex)
@@ -44,7 +68,7 @@ func runtimeNamespace(
 		entry := map[string]any{}
 		if ok {
 			entry["status"] = output.Status
-			entry["output"] = outputValue(output.OutputRef)
+			entry[namespaceOutputKey] = outputValue(output.OutputRef)
 		}
 		nodes[string(node.ID)] = entry
 		if alias, ok := subLoopLocalNodeAlias(nodeID, node.ID); ok {
@@ -52,6 +76,85 @@ func runtimeNamespace(
 		}
 	}
 	return namespace, nil
+}
+
+func (h GenerationHistory) previousNamespace(
+	topology controlTopology,
+	current dsl.NodeID,
+	itemIndex int,
+) map[string]any {
+	if h.Previous == nil {
+		return map[string]any{}
+	}
+	nodes := make(map[string]any, len(h.Previous.Nodes))
+	for nodeID, items := range h.Previous.Nodes {
+		node, ok := items[historyProjectionItemIndex(topology, current, dsl.NodeID(nodeID), itemIndex)]
+		if !ok {
+			continue
+		}
+		nodes[nodeID] = map[string]any{reasonMetaStatus: node.Status, namespaceOutputKey: node.Output}
+	}
+	verdicts := make(map[string]any, len(h.Previous.Verdicts))
+	for gateID, items := range h.Previous.Verdicts {
+		verdict, ok := items[historyProjectionItemIndex(topology, current, dsl.NodeID(gateID), itemIndex)]
+		if !ok {
+			continue
+		}
+		verdicts[gateID] = map[string]any{
+			"outcome":         verdict.Outcome,
+			namespaceScoreKey: cloneFloat64(verdict.Score),
+			"blocking_issues": verdict.BlockingIssues,
+			"criteria":        verdict.Criteria,
+		}
+	}
+	routeCauses := make([]string, 0, len(h.Previous.RouteCauses))
+	for _, cause := range h.Previous.RouteCauses {
+		if topology.sameFanOutBody(current, dsl.NodeID(cause.GateID)) && cause.ItemIndex != itemIndex {
+			continue
+		}
+		routeCauses = append(routeCauses, cause.GateID)
+	}
+	return map[string]any{
+		metadataGenerationKey: h.Previous.Generation,
+		namespaceNodesKey:     nodes,
+		"verdicts":            verdicts,
+		"route_causes":        routeCauses,
+	}
+}
+
+func (h GenerationHistory) bestNamespace(
+	topology controlTopology,
+	current dsl.NodeID,
+	itemIndex int,
+) map[string]any {
+	if h.Best == nil {
+		return map[string]any{}
+	}
+	nodes := make(map[string]any, len(h.Best.Nodes))
+	for nodeID, items := range h.Best.Nodes {
+		node, ok := items[historyProjectionItemIndex(topology, current, dsl.NodeID(nodeID), itemIndex)]
+		if !ok {
+			continue
+		}
+		nodes[nodeID] = map[string]any{namespaceOutputKey: node.Output}
+	}
+	return map[string]any{
+		metadataGenerationKey: h.Best.Generation,
+		namespaceScoreKey:     h.Best.Score,
+		namespaceNodesKey:     nodes,
+	}
+}
+
+func historyProjectionItemIndex(
+	topology controlTopology,
+	current dsl.NodeID,
+	target dsl.NodeID,
+	itemIndex int,
+) int {
+	if topology.sameFanOutBody(current, target) {
+		return itemIndex
+	}
+	return 0
 }
 
 func subLoopLocalNodeAlias(current dsl.NodeID, candidate dsl.NodeID) (string, bool) {

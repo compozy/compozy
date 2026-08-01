@@ -2,7 +2,6 @@ package globaldb
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -90,53 +89,15 @@ func (g *TaskRepo) completeCoordinatorAndEnqueueNextWithExecutor(
 	if err != nil {
 		return taskpkg.CoordinatorCompletionResult{}, err
 	}
-	if err := g.ensureCoordinatorPlanTasksWithExecutor(
+	state, err := g.finalizeCoordinatorGenerationWithExecutor(
 		ctx,
 		exec,
-		completion.Plan,
+		completion,
 		current,
-		completion.Actor.Origin,
-		completion.Now,
-	); err != nil {
-		return taskpkg.CoordinatorCompletionResult{}, err
-	}
-	if err := completeCoordinatorRunWithExecutor(ctx, exec, current, completion.Now); err != nil {
-		return taskpkg.CoordinatorCompletionResult{}, err
-	}
-	if err := clearTaskCurrentRunProjection(ctx, exec, current.TaskID, current.ID); err != nil {
-		return taskpkg.CoordinatorCompletionResult{}, err
-	}
-	if err := resetTaskBlockRecurrencesWithExecutor(ctx, exec, current.TaskID); err != nil {
-		return taskpkg.CoordinatorCompletionResult{}, err
-	}
-
-	snapshot := completion.Plan.Snapshot
-	if strings.TrimSpace(snapshot.LoopRunID) == "" {
-		snapshot.LoopRunID = loopRunID
-	}
-	postReserveSnapshot := normalizePostReserveSnapshot(completion.Plan.PostReserveSnapshot, snapshot, loopRunID)
-	if err := finalizer.WriteGenerationSnapshot(ctx, exec, snapshot); err != nil {
-		return taskpkg.CoordinatorCompletionResult{}, err
-	}
-	if err := applyCoordinatorRunStopsWithExecutor(ctx, exec, completion.Plan.RunStops, completion.Now); err != nil {
-		return taskpkg.CoordinatorCompletionResult{}, err
-	}
-
-	tokensUsed, err := refreshLoopTokensUsedWithExecutor(ctx, exec, loopRunID)
+		loopRunID,
+		finalizer,
+	)
 	if err != nil {
-		return taskpkg.CoordinatorCompletionResult{}, err
-	}
-	loopRun, err := getLoopRunByIDWithExecutor(ctx, exec, loop.RunID(loopRunID))
-	if err != nil {
-		return taskpkg.CoordinatorCompletionResult{}, err
-	}
-	if err := appendLoopGenerationStartedEventWithExecutor(
-		ctx,
-		exec,
-		loopRun,
-		snapshot.Generation,
-		completion.Now,
-	); err != nil {
 		return taskpkg.CoordinatorCompletionResult{}, err
 	}
 
@@ -145,11 +106,8 @@ func (g *TaskRepo) completeCoordinatorAndEnqueueNextWithExecutor(
 		exec,
 		&completion,
 		&current,
-		snapshot,
-		postReserveSnapshot,
+		&state,
 		finalizer,
-		loopRun,
-		tokensUsed,
 	)
 	if err != nil {
 		return taskpkg.CoordinatorCompletionResult{}, err
@@ -163,22 +121,84 @@ func (g *TaskRepo) completeCoordinatorAndEnqueueNextWithExecutor(
 	return g.attachTerminalCoordinatorSettlementWithExecutor(ctx, exec, completion, &result, updated)
 }
 
-func normalizePostReserveSnapshot(
-	postReserveSnapshot *taskpkg.GenerationSnapshot,
-	base taskpkg.GenerationSnapshot,
+type coordinatorBoundaryState struct {
+	snapshot            taskpkg.GenerationSnapshot
+	postReserveSnapshot *taskpkg.GenerationSnapshot
+	loopRun             loop.Run
+	tokensUsed          int64
+}
+
+func (g *TaskRepo) finalizeCoordinatorGenerationWithExecutor(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	completion taskpkg.CoordinatorCompletion,
+	current taskpkg.Run,
 	loopRunID string,
-) *taskpkg.GenerationSnapshot {
-	if postReserveSnapshot == nil {
-		return nil
+	finalizer taskpkg.GenerationStateFinalizer,
+) (coordinatorBoundaryState, error) {
+	if err := validateCoordinatorSnapshotLoopIdentity(completion.Plan, loopRunID); err != nil {
+		return coordinatorBoundaryState{}, err
 	}
-	snapshot := *postReserveSnapshot
+	if err := g.ensureCoordinatorPlanTasksWithExecutor(
+		ctx,
+		exec,
+		completion.Plan,
+		current,
+		completion.Actor.Origin,
+		completion.Now,
+	); err != nil {
+		return coordinatorBoundaryState{}, err
+	}
+	if err := completeCoordinatorRunWithExecutor(ctx, exec, current, completion.Now); err != nil {
+		return coordinatorBoundaryState{}, err
+	}
+	if err := clearTaskCurrentRunProjection(ctx, exec, current.TaskID, current.ID); err != nil {
+		return coordinatorBoundaryState{}, err
+	}
+	if err := resetTaskBlockRecurrencesWithExecutor(ctx, exec, current.TaskID); err != nil {
+		return coordinatorBoundaryState{}, err
+	}
+
+	snapshot := completion.Plan.Snapshot
 	if strings.TrimSpace(snapshot.LoopRunID) == "" {
 		snapshot.LoopRunID = loopRunID
 	}
-	if snapshot.Generation <= 0 {
-		snapshot.Generation = base.Generation
+	postReserve := normalizePostReserveSnapshot(completion.Plan.PostReserveSnapshot, snapshot, loopRunID)
+	if err := finalizer.WriteGenerationSnapshot(ctx, exec, snapshot); err != nil {
+		return coordinatorBoundaryState{}, err
 	}
-	return &snapshot
+	if err := applyCoordinatorRunStopsWithExecutor(ctx, exec, completion.Plan.RunStops, completion.Now); err != nil {
+		return coordinatorBoundaryState{}, err
+	}
+
+	tokensUsed, err := refreshLoopTokensUsedWithExecutor(ctx, exec, loopRunID)
+	if err != nil {
+		return coordinatorBoundaryState{}, err
+	}
+	loopRun, err := getLoopRunByIDWithExecutor(ctx, exec, loop.RunID(loopRunID))
+	if err != nil {
+		return coordinatorBoundaryState{}, err
+	}
+	if snapshot.Generation > loopRun.Generation {
+		if err := updateLoopGenerationWithExecutor(ctx, exec, loopRunID, snapshot.Generation); err != nil {
+			return coordinatorBoundaryState{}, err
+		}
+	}
+	if err := applyCoordinatorGenerationSnapshotIntentsWithExecutor(
+		ctx,
+		exec,
+		loopRun,
+		snapshot,
+		completion.Now,
+	); err != nil {
+		return coordinatorBoundaryState{}, err
+	}
+	return coordinatorBoundaryState{
+		snapshot:            snapshot,
+		postReserveSnapshot: postReserve,
+		loopRun:             loopRun,
+		tokensUsed:          tokensUsed,
+	}, nil
 }
 
 func (g *TaskRepo) prepareCoordinatorCompletionWithExecutor(
@@ -221,12 +241,12 @@ func (g *TaskRepo) applyCoordinatorBoundaryWithExecutor(
 	exec taskSQLExecutor,
 	completion *taskpkg.CoordinatorCompletion,
 	current *taskpkg.Run,
-	snapshot taskpkg.GenerationSnapshot,
-	postReserveSnapshot *taskpkg.GenerationSnapshot,
+	state *coordinatorBoundaryState,
 	finalizer taskpkg.GenerationStateFinalizer,
-	loopRun loop.Run,
-	tokensUsed int64,
 ) (taskpkg.CoordinatorCompletionResult, error) {
+	snapshot := state.snapshot
+	postReserveSnapshot := state.postReserveSnapshot
+	loopRun := state.loopRun
 	contextPayload, err := coordinatorResultContext(loopRun, loopRun.Generation, loopRun.Status)
 	if err != nil {
 		return taskpkg.CoordinatorCompletionResult{}, err
@@ -234,9 +254,9 @@ func (g *TaskRepo) applyCoordinatorBoundaryWithExecutor(
 	result := taskpkg.CoordinatorCompletionResult{
 		LoopRunID:  strings.TrimSpace(snapshot.LoopRunID),
 		Context:    contextPayload,
-		TokensUsed: tokensUsed,
+		TokensUsed: state.tokensUsed,
 	}
-	budgetExceeded := loopBudgetExceeded(loopRun, tokensUsed, completion.Now)
+	budgetExceeded := loopBudgetExceeded(loopRun, state.tokensUsed, completion.Now)
 	switch {
 	case loopRun.Status == loop.StatusWatching && completion.Plan.Terminal != nil:
 		err := applyCoordinatorTerminalBoundary(ctx, exec, completion, snapshot, loopRun, &result)
@@ -291,6 +311,7 @@ func (g *TaskRepo) applyCoordinatorBoundaryWithExecutor(
 			snapshot,
 			postReserveSnapshot,
 			finalizer,
+			loopRun,
 			&result,
 		)
 		return result, err
@@ -317,58 +338,6 @@ func shouldDeferCoordinatorBoundary(
 		return false
 	}
 	return plan.Terminal != nil || budgetExceeded || loopRun.PauseRequested
-}
-
-type coordinatorResultContextPayload struct {
-	WorkspaceID string `json:"workspace_id,omitempty"`
-	Name        string `json:"loop_name,omitempty"`
-	ParentRunID string `json:"parent_loop_run_id,omitempty"`
-	Generation  int    `json:"generation,omitempty"`
-	Status      string `json:"status,omitempty"`
-}
-
-func coordinatorResultContext(
-	run loop.Run,
-	generation int,
-	status loop.Status,
-) (json.RawMessage, error) {
-	payload := coordinatorResultContextPayload{
-		WorkspaceID: string(run.WorkspaceID),
-		Name:        strings.TrimSpace(run.LoopName),
-		ParentRunID: string(run.ParentLoopRunID),
-		Generation:  generation,
-		Status:      string(status),
-	}
-	data, err := json.Marshal(payload)
-	if err != nil {
-		return nil, fmt.Errorf("store: marshal coordinator context: %w", err)
-	}
-	return data, nil
-}
-
-func updateCoordinatorResultContext(
-	result *taskpkg.CoordinatorCompletionResult,
-	generation int,
-	status loop.Status,
-) error {
-	var payload coordinatorResultContextPayload
-	if len(result.Context) > 0 {
-		if err := json.Unmarshal(result.Context, &payload); err != nil {
-			return fmt.Errorf("store: decode coordinator context: %w", err)
-		}
-	}
-	if generation > 0 {
-		payload.Generation = generation
-	}
-	if strings.TrimSpace(string(status)) != "" {
-		payload.Status = string(status)
-	}
-	data, err := json.Marshal(payload)
-	if err != nil {
-		return fmt.Errorf("store: marshal coordinator context: %w", err)
-	}
-	result.Context = data
-	return nil
 }
 
 func applyCoordinatorYieldBoundary(
@@ -422,6 +391,7 @@ func (g *TaskRepo) applyCoordinatorContinueBoundaryWithExecutor(
 	snapshot taskpkg.GenerationSnapshot,
 	postReserveSnapshot *taskpkg.GenerationSnapshot,
 	finalizer taskpkg.GenerationStateFinalizer,
+	loopRun loop.Run,
 	result *taskpkg.CoordinatorCompletionResult,
 ) error {
 	enqueued, err := g.reserveCoordinatorPlanRunsWithExecutor(
@@ -437,6 +407,15 @@ func (g *TaskRepo) applyCoordinatorContinueBoundaryWithExecutor(
 	}
 	if postReserveSnapshot != nil {
 		if err := finalizer.WriteGenerationSnapshot(ctx, exec, *postReserveSnapshot); err != nil {
+			return err
+		}
+		if err := applyCoordinatorGenerationSnapshotIntentsWithExecutor(
+			ctx,
+			exec,
+			loopRun,
+			*postReserveSnapshot,
+			completion.Now,
+		); err != nil {
 			return err
 		}
 		snapshot = *postReserveSnapshot
@@ -478,6 +457,7 @@ func (g *TaskRepo) applyCoordinatorWatchReadyBoundaryWithExecutor(
 		snapshot,
 		postReserveSnapshot,
 		finalizer,
+		loopRun,
 		result,
 	)
 }

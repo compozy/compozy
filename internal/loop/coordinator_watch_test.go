@@ -843,6 +843,7 @@ func BenchmarkFilterWatchEventsRows(b *testing.B) {
 				1,
 				resolved,
 				topology,
+				GenerationHistory{},
 				output,
 				node,
 				outputs,

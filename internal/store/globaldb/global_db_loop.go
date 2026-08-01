@@ -26,7 +26,7 @@ const loopRunSelectColumnsSQL = `
 	started_by_kind, started_by_ref, started_origin_kind, started_origin_ref,
 	goal_context_nudge_ratio, origin_kind, origin_session_id,
 	origin_creation_profile_ref, origin_policy_spec_digest, origin_creation_digest,
-	network_spec_json, network_mode, network_channel, network_source`
+	network_spec_json, network_mode, network_channel, network_source, best_generation, best_score`
 
 // CreateLoopRunForStart atomically applies the loop concurrency policy and persists a new run.
 func (g *LoopRepo) CreateLoopRunForStart(
@@ -79,6 +79,15 @@ func (g *LoopRepo) persistStartedLoopRunWithExecutor(
 	if err := insertLoopRun(ctx, exec, run, inputsJSON, startMetadataJSON); err != nil {
 		return err
 	}
+	if err := insertLoopGenerationWithExecutor(
+		ctx,
+		exec,
+		run.ID,
+		looppkg.GenerationIntent{Generation: 1, Origin: looppkg.OriginInitial},
+		run.CreatedAt,
+	); err != nil {
+		return err
+	}
 	if run.Status != looppkg.StatusRunning {
 		return nil
 	}
@@ -88,8 +97,8 @@ func (g *LoopRepo) persistStartedLoopRunWithExecutor(
 		run,
 		loopCoordinatorStartOrigin(),
 		run.CreatedAt,
-		loopCoordinatorRunID(run.ID, run.Generation+1),
-		loopCoordinatorIdempotencyKey(run.ID, run.Generation+1),
+		loopCoordinatorRunID(run.ID, 1),
+		loopCoordinatorIdempotencyKey(run.ID, 1),
 	)
 	return err
 }

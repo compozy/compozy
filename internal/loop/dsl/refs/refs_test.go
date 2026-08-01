@@ -215,6 +215,85 @@ func TestReferencesShouldUseSameNamespaceForTemplateAndCEL(t *testing.T) {
 	})
 }
 
+func TestHistoryReferencesShouldUseIdenticalGrammarForPathsTemplatesAndCEL(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		path     []string
+		wantCode string
+	}{
+		{name: "Should accept the previous generation", path: []string{"previous", "generation"}},
+		{
+			name: "Should accept previous node output",
+			path: []string{"previous", "nodes", "load", "output", "tasks", "title"},
+		},
+		{
+			name: "Should accept keyed previous verdict diagnostics",
+			path: []string{"previous", "verdicts", "quality", "blocking_issues"},
+		},
+		{name: "Should accept the best score", path: []string{"best", "score"}},
+		{name: "Should accept best node output", path: []string{"best", "nodes", "load", "output", "tasks", "title"}},
+		{
+			name:     "Should reject a singular previous verdict",
+			path:     []string{"previous", "verdict"},
+			wantCode: refs.CodeUnknownReference,
+		},
+		{
+			name:     "Should reject the best verdict",
+			path:     []string{"best", "verdict"},
+			wantCode: refs.CodeUnknownReference,
+		},
+		{
+			name:     "Should reject status below the best projection",
+			path:     []string{"best", "nodes", "load", "status"},
+			wantCode: refs.CodeUnknownReference,
+		},
+		{
+			name:     "Should reject a child below previous node status",
+			path:     []string{"previous", "nodes", "load", "status", "code"},
+			wantCode: refs.CodeUnresolvablePath,
+		},
+		{
+			name:     "Should reject a child below previous verdict outcome",
+			path:     []string{"previous", "verdicts", "quality", "outcome", "code"},
+			wantCode: refs.CodeUnresolvablePath,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			namespace := namespace(false)
+			assertHistoryReferenceCode(t, namespace.ValidatePath(tt.path), tt.wantCode)
+			template, err := refs.CompileTemplate("history", "{{ ."+pathString(tt.path)+" }}", namespace)
+			if tt.wantCode == "" {
+				if err != nil {
+					t.Fatalf("CompileTemplate() error = %v", err)
+				}
+				if len(template.References) != 1 {
+					t.Fatalf("CompileTemplate() references = %#v, want one path", template.References)
+				}
+			} else {
+				requireRefCode(t, err, tt.wantCode)
+			}
+			compiler, err := refs.NewConditionCompiler(namespace)
+			if err != nil {
+				t.Fatalf("NewConditionCompiler() error = %v", err)
+			}
+			_, err = compiler.Compile(pathString(tt.path) + " != null")
+			if tt.wantCode == "" {
+				if err != nil {
+					t.Fatalf("Compile() error = %v", err)
+				}
+			} else {
+				requireRefCode(t, err, tt.wantCode)
+			}
+		})
+	}
+}
+
 func TestTemplateShouldExecuteCuratedFunctionsAndStructuredActions(t *testing.T) {
 	t.Parallel()
 
@@ -460,6 +539,22 @@ func requireRefCode(t *testing.T, err error, code string) {
 	}
 	if refErr.Code != code {
 		t.Fatalf("error code = %s, want %s", refErr.Code, code)
+	}
+}
+
+func assertHistoryReferenceCode(t *testing.T, err *refs.Error, wantCode string) {
+	t.Helper()
+	if wantCode == "" {
+		if err != nil {
+			t.Fatalf("ValidatePath() error = %v", err)
+		}
+		return
+	}
+	if err == nil {
+		t.Fatalf("ValidatePath() error = nil, want code %s", wantCode)
+	}
+	if err.Code != wantCode {
+		t.Fatalf("ValidatePath() code = %s, want %s", err.Code, wantCode)
 	}
 }
 

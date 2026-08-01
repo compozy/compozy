@@ -7,6 +7,11 @@ import (
 	"time"
 )
 
+type TaskRunNetworkPayload struct {
+	Conversation TaskRunConversationRefPayload `json:"conversation"`
+	Usage        NetworkUsageResponse          `json:"usage"`
+}
+
 type TaskRunObservationPatch struct {
 	Labels map[string]string `json:"labels,omitempty"`
 }
@@ -304,29 +309,4 @@ type TaskTriageStatePayload struct {
 	Dismissed          bool          `json:"dismissed"`
 	LastSeenActivityAt *time.Time    `json:"last_seen_activity_at,omitempty"`
 	UpdatedAt          time.Time     `json:"updated_at"`
-}
-
-type TaskUnblockedPayload struct {
-	Event                        HookEvent       `json:"event"`
-	Timestamp                    time.Time       `json:"timestamp"`
-	TaskID                       string          `json:"task_id,omitempty"`
-	ParentTaskID                 string          `json:"parent_task_id,omitempty"`
-	WorkspaceID                  string          `json:"workspace_id,omitempty"`
-	WorkflowID                   string          `json:"workflow_id,omitempty"`
-	ResolvedNetworkParticipation *Spec           `json:"resolved_network_participation,omitempty"`
-	AgentName                    string          `json:"agent_name,omitempty"`
-	ActorKind                    string          `json:"actor_kind,omitempty"`
-	ActorID                      string          `json:"actor_id,omitempty"`
-	OriginKind                   string          `json:"origin_kind,omitempty"`
-	OriginRef                    string          `json:"origin_ref,omitempty"`
-	TaskStatus                   string          `json:"task_status,omitempty"`
-	RunID                        string          `json:"run_id,omitempty"`
-	ReleaseReason                string          `json:"release_reason,omitempty"`
-	ClaimTokenHash               string          `json:"claim_token_hash,omitempty"`
-	BlockID                      string          `json:"block_id,omitempty"`
-	Kind                         string          `json:"kind,omitempty"`
-	Reason                       string          `json:"reason,omitempty"`
-	Details                      json.RawMessage `json:"details,omitempty"`
-	ClearedAt                    time.Time       `json:"cleared_at,omitzero"`
-	ClearNote                    string          `json:"clear_note,omitempty"`
 }

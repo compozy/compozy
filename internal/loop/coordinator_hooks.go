@@ -13,7 +13,7 @@ func (r *CoordinatorRunner) dispatchGenerationPre(
 	ctx context.Context,
 	taskRun task.Run,
 	run Run,
-	generation int,
+	intent GenerationIntent,
 ) (bool, task.CoordinatorCompletionPlan) {
 	if r.hooks == nil {
 		return false, task.CoordinatorCompletionPlan{}
@@ -23,19 +23,23 @@ func (r *CoordinatorRunner) dispatchGenerationPre(
 			Event:     hookspkg.HookLoopGenerationPre,
 			Timestamp: r.now().UTC(),
 		},
-		LoopContext: coordinatorLoopContext(taskRun, run, generation),
-		Status:      string(run.Status),
+		LoopContext:      coordinatorLoopContext(taskRun, run, int(intent.Generation)),
+		Origin:           hookspkg.LoopGenerationOrigin(intent.Origin),
+		ParentGeneration: intent.ParentGeneration,
+		Status:           string(run.Status),
 	}
 	result, err := r.hooks.DispatchLoopGenerationPre(loopHookContext(ctx), payload)
 	if result.Denied {
-		return true, deniedGenerationPlan(run, generation, StatusFailed, result.DenyReason)
+		return true, deniedGenerationPlan(run, int(intent.Generation), StatusFailed, result.DenyReason)
 	}
 	if err != nil {
 		r.logger.Warn(
 			"loop: generation pre hook failed open",
 			"loop_run_id", run.ID,
 			"loop_name", run.LoopName,
-			"generation", generation,
+			"generation", intent.Generation,
+			"origin", intent.Origin,
+			"parent_generation", intent.ParentGeneration,
 			"error", err,
 		)
 	}
@@ -46,7 +50,7 @@ func (r *CoordinatorRunner) dispatchGenerationPost(
 	ctx context.Context,
 	taskRun task.Run,
 	run Run,
-	plan task.CoordinatorCompletionPlan,
+	intent GenerationIntent,
 ) {
 	if r.hooks == nil {
 		return
@@ -56,15 +60,19 @@ func (r *CoordinatorRunner) dispatchGenerationPost(
 			Event:     hookspkg.HookLoopGenerationPost,
 			Timestamp: r.now().UTC(),
 		},
-		LoopContext: coordinatorLoopContext(taskRun, run, plan.Snapshot.Generation),
-		Status:      "planned",
+		LoopContext:      coordinatorLoopContext(taskRun, run, int(intent.Generation)),
+		Origin:           hookspkg.LoopGenerationOrigin(intent.Origin),
+		ParentGeneration: intent.ParentGeneration,
+		Status:           "planned",
 	}
 	if _, err := r.hooks.DispatchLoopGenerationPost(loopHookContext(ctx), payload); err != nil {
 		r.logger.Warn(
 			"loop: generation post hook failed open",
 			"loop_run_id", run.ID,
 			"loop_name", run.LoopName,
-			"generation", plan.Snapshot.Generation,
+			"generation", intent.Generation,
+			"origin", intent.Origin,
+			"parent_generation", intent.ParentGeneration,
 			"error", err,
 		)
 	}
@@ -76,50 +84,108 @@ func (r *CoordinatorRunner) dispatchGateHooks(
 	run Run,
 	plan task.CoordinatorCompletionPlan,
 ) task.CoordinatorCompletionPlan {
-	if r.hooks == nil || plan.Terminal == nil {
+	if r.hooks == nil {
 		return plan
 	}
-	generation := plan.Snapshot.Generation
-	pre := hookspkg.LoopGatePrePayload{
-		PayloadBase: hookspkg.PayloadBase{
-			Event:     hookspkg.HookLoopGatePre,
-			Timestamp: r.now().UTC(),
-		},
-		LoopContext: coordinatorLoopContext(taskRun, run, generation),
-		Status:      plan.Terminal.Status,
-		ReasonCode:  plan.Terminal.ReasonCode,
-	}
-	result, err := r.hooks.DispatchLoopGatePre(loopHookContext(ctx), pre)
-	if result.Denied {
-		plan.Terminal = deniedCoordinatorTerminal(StatusBlocked, result.DenyReason)
-	} else if err != nil {
+	payload, err := GenerationSnapshotPayloadFrom(plan.Snapshot.Payload)
+	if err != nil {
 		r.logger.Warn(
-			"loop: gate pre hook failed open",
+			"loop: decode gate hook payload failed open",
 			"loop_run_id", run.ID,
 			"loop_name", run.LoopName,
-			"generation", generation,
+			"generation", plan.Snapshot.Generation,
 			"error", err,
 		)
+		return plan
 	}
-	post := hookspkg.LoopGatePostPayload{
-		PayloadBase: hookspkg.PayloadBase{
-			Event:     hookspkg.HookLoopGatePost,
-			Timestamp: r.now().UTC(),
-		},
-		LoopContext: coordinatorLoopContext(taskRun, run, generation),
-		Status:      plan.Terminal.Status,
-		ReasonCode:  plan.Terminal.ReasonCode,
+	if len(payload.Verdicts) == 0 {
+		return plan
 	}
-	if _, err := r.hooks.DispatchLoopGatePost(loopHookContext(ctx), post); err != nil {
-		r.logger.Warn(
-			"loop: gate post hook failed open",
-			"loop_run_id", run.ID,
-			"loop_name", run.LoopName,
-			"generation", generation,
-			"error", err,
+	bestGeneration := cloneInt64(run.BestGeneration)
+	if payload.BestUpdate != nil {
+		bestGeneration = new(payload.BestUpdate.Generation)
+	}
+	hookCtx := loopHookContext(ctx)
+	for _, verdict := range payload.Verdicts {
+		pre := r.loopGateHookPayload(
+			taskRun,
+			run,
+			plan,
+			hookspkg.HookLoopGatePre,
+			verdict.GateID,
+			string(verdict.Outcome),
+			verdict.Score,
+			bestGeneration,
 		)
+		result, dispatchErr := r.hooks.DispatchLoopGatePre(hookCtx, pre)
+		if result.Denied {
+			plan.Terminal = deniedCoordinatorTerminal(StatusBlocked, result.DenyReason)
+		} else if dispatchErr != nil {
+			r.logGateHookFailure(run, plan.Snapshot.Generation, verdict.GateID, "pre", dispatchErr)
+		}
+		post := r.loopGateHookPayload(
+			taskRun,
+			run,
+			plan,
+			hookspkg.HookLoopGatePost,
+			verdict.GateID,
+			string(verdict.Outcome),
+			verdict.Score,
+			bestGeneration,
+		)
+		if _, dispatchErr := r.hooks.DispatchLoopGatePost(hookCtx, post); dispatchErr != nil {
+			r.logGateHookFailure(run, plan.Snapshot.Generation, verdict.GateID, "post", dispatchErr)
+		}
 	}
 	return plan
+}
+
+func (r *CoordinatorRunner) loopGateHookPayload(
+	taskRun task.Run,
+	run Run,
+	plan task.CoordinatorCompletionPlan,
+	event hookspkg.HookEvent,
+	gateID string,
+	outcome string,
+	score *float64,
+	bestGeneration *int64,
+) hookspkg.LoopGatePayload {
+	status, reasonCode := loopGateHookPlanState(plan)
+	return hookspkg.LoopGatePayload{
+		PayloadBase:    hookspkg.PayloadBase{Event: event, Timestamp: r.now().UTC()},
+		LoopContext:    coordinatorLoopContext(taskRun, run, plan.Snapshot.Generation),
+		GateID:         gateID,
+		Outcome:        outcome,
+		Score:          cloneFloat64(score),
+		BestGeneration: cloneInt64(bestGeneration),
+		Status:         status,
+		ReasonCode:     reasonCode,
+	}
+}
+
+func loopGateHookPlanState(plan task.CoordinatorCompletionPlan) (string, string) {
+	if plan.Terminal == nil {
+		return coordinatorPhaseEvaluated, ""
+	}
+	return plan.Terminal.Status, plan.Terminal.ReasonCode
+}
+
+func (r *CoordinatorRunner) logGateHookFailure(
+	run Run,
+	generation int,
+	gateID string,
+	phase string,
+	err error,
+) {
+	r.logger.Warn(
+		"loop: gate hook failed open",
+		"loop_run_id", run.ID,
+		"loop_name", run.LoopName,
+		"generation", generation,
+		"gate_id", gateID,
+		"phase", phase,
+		"error", err,
+	)
 }
 
 func deniedGenerationPlan(

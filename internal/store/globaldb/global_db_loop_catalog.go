@@ -14,7 +14,7 @@ import (
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
 
-const loopCatalogLatestRunHeadColumnsSQL = `lr.id, lr.loop_name, lr.status, lr.created_at`
+const loopCatalogLatestRunHeadColumnsSQL = `lr.id, lr.loop_name, lr.status, lr.best_generation, lr.best_score, lr.created_at`
 
 const loopCatalogLatestRunsSQL = `WITH requested_names(loop_name) AS (
 		SELECT DISTINCT CAST(value AS TEXT) FROM json_each(?)
@@ -149,11 +149,17 @@ func readLoopCatalogLatestRuns(
 		if parseErr != nil {
 			return fmt.Errorf("store: parse loop catalog latest run created_at: %w", parseErr)
 		}
+		bestGeneration, bestScore, bestErr := loopBestValues(row.BestGeneration, row.BestScore)
+		if bestErr != nil {
+			return fmt.Errorf("store: map loop catalog latest run best: %w", bestErr)
+		}
 		run := looppkg.CatalogRunHead{
-			ID:        looppkg.RunID(row.ID),
-			LoopName:  row.LoopName,
-			Status:    runStatus,
-			CreatedAt: createdAt,
+			ID:             looppkg.RunID(row.ID),
+			LoopName:       row.LoopName,
+			Status:         runStatus,
+			BestGeneration: bestGeneration,
+			BestScore:      bestScore,
+			CreatedAt:      createdAt,
 		}
 		summary := summaries[row.LoopName]
 		summary.LoopName = row.LoopName

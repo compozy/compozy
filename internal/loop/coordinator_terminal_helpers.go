@@ -13,6 +13,14 @@ import (
 
 const circuitBreakerReasonCode = "circuit_breaker"
 
+func noReadyNodesTerminal() *task.CoordinatorTerminal {
+	return &task.CoordinatorTerminal{
+		Status:     string(StatusFailed),
+		Cause:      string(TransitionCauseContract),
+		ReasonCode: "no_ready_nodes",
+	}
+}
+
 func (r *CoordinatorRunner) terminalForFailedGeneration(
 	ctx context.Context,
 	run Run,

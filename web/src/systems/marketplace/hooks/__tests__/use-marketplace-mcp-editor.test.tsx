@@ -1,5 +1,6 @@
 // Suite: marketplace MCP editor hook
-// Invariant: an editor dismissal rejected while a save is pending preserves that save's feedback.
+// Invariant: accepted saves close the editor, while dismissal rejected during a pending save
+// preserves that save's feedback.
 // Boundary IN: editor lifecycle, mutation reset ownership, and XState save state.
 // Boundary OUT: settings and Vault HTTP adapters.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -64,6 +65,32 @@ describe("useMarketplaceMCPEditor", () => {
   beforeEach(() => {
     mocks.mutateAsync.mockReset();
     mocks.reset.mockReset();
+  });
+
+  it("Should close the editor after an accepted save settles", async () => {
+    mocks.mutateAsync.mockResolvedValue(undefined);
+    const { result } = renderHook(
+      () =>
+        useMarketplaceMCPEditor({
+          enabled: true,
+          scope: "global",
+          servers: [],
+        }),
+      { wrapper }
+    );
+
+    act(() => result.current.openCreate());
+    act(() =>
+      result.current.editorProps?.onChange(draft => ({
+        ...draft,
+        command: "npx",
+        name: "github",
+      }))
+    );
+    act(() => result.current.editorProps?.onSave());
+
+    await waitFor(() => expect(result.current.editorProps).toBeNull());
+    expect(mocks.mutateAsync).toHaveBeenCalledOnce();
   });
 
   it("Should retain mutation feedback when a pending save rejects editor dismissal", async () => {

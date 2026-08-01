@@ -57,6 +57,7 @@ func evaluateWatchEventsNode(
 	generation int,
 	resolved *ResolvedDefinition,
 	topology controlTopology,
+	history GenerationHistory,
 	output GenerationOutput,
 	node dsl.Node,
 	outputs []GenerationOutput,
@@ -90,6 +91,7 @@ func evaluateWatchEventsNode(
 		generation,
 		resolved,
 		topology,
+		history,
 		output,
 		node,
 		outputs,
@@ -134,6 +136,7 @@ func filterWatchEventsRows(
 	generation int,
 	resolved *ResolvedDefinition,
 	topology controlTopology,
+	history GenerationHistory,
 	output GenerationOutput,
 	node dsl.Node,
 	outputs []GenerationOutput,
@@ -143,12 +146,13 @@ func filterWatchEventsRows(
 	var namespace map[string]any
 	if watchEventsSubscriptionsHaveFilters(state.Subscriptions) && len(rows) > 0 {
 		var err error
-		namespace, err = runtimeNamespace(
+		namespace, err = runtimeNamespaceWithHistory(
 			run,
 			generation,
 			resolved.Definition.Graph,
 			topology,
 			outputs,
+			history,
 			node.ID,
 			output.ItemIndex,
 		)

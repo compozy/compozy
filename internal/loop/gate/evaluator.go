@@ -36,6 +36,7 @@ func (e *Evaluator) Evaluate(ctx context.Context, gate Gate, in GateInput) (Verd
 		result := e.evaluateCriterion(ctx, gate, criterion, in)
 		results = append(results, result)
 	}
+	results = applyMetricBaseline(gate.Criteria, results, in.BestScore)
 	if err := reportAggregateJudgeUsage(in.JudgeUsageReporter, results); err != nil {
 		return Verdict{}, err
 	}
@@ -325,21 +326,6 @@ func extensionToolID(criterion dsl.GateCriterion) string {
 		return strings.TrimSpace(criterion.Tool)
 	}
 	return strings.TrimSpace(criterion.Check)
-}
-
-func criterionStringExtra(criterion dsl.GateCriterion, key string) string {
-	if criterion.Extra == nil {
-		return ""
-	}
-	value, ok := criterion.Extra[key]
-	if !ok {
-		return ""
-	}
-	text, ok := value.(string)
-	if !ok {
-		return ""
-	}
-	return strings.TrimSpace(text)
 }
 
 func cloneRawMessage(raw json.RawMessage) json.RawMessage {

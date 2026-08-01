@@ -34,7 +34,7 @@ func (e *Evaluator) evaluateCommand(
 		CriterionID: criterion.ID,
 		Command:     criterion.Check,
 		Expect:      expect,
-		Contains:    criterionStringExtra(criterion, "contains"),
+		Contains:    strings.TrimSpace(criterion.Contains),
 	}
 	result, err := e.commands.RunCommand(ctx, req)
 	if err != nil {
@@ -55,6 +55,13 @@ func (e *Evaluator) evaluateCommand(
 		ExitCode: &exitCode,
 		Stdout:   result.Stdout,
 		Stderr:   result.Stderr,
+	}
+	if criterion.Metric != nil {
+		score, scoreErr := ParseCommandMetricScore(result.Stdout)
+		if scoreErr != nil {
+			return invalidMetricScoreResult(criterion.ID, criterion.Type, scoreErr.Error())
+		}
+		criterionResult.Score = score
 	}
 	passed, warning := commandExpectationPassed(req, result)
 	if passed {

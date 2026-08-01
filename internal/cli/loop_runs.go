@@ -27,8 +27,7 @@ func newLoopStatusCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			message := fmt.Sprintf("Loop run %s is %s", id, response.Run.Status)
-			return writeCommandOutput(cmd, loopOutputBundle(response, message))
+			return writeCommandOutput(cmd, loopStatusOutputBundle(response))
 		},
 	}
 	addLoopRunIDFlags(cmd, &workspaceRef, &runID)
@@ -39,7 +38,7 @@ func newLoopRunsCommand(deps commandDeps) *cobra.Command {
 	var workspaceRef, loopName, status, origin, originSession string
 	var limit int
 	cmd := &cobra.Command{
-		Use:   loopRunsKey,
+		Use:   cliRunsKey,
 		Short: "List workspace Loop runs",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -57,8 +56,7 @@ func newLoopRunsCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			message := fmt.Sprintf("%d loop runs", len(response.Runs))
-			return writeCommandOutput(cmd, loopOutputBundle(response, message))
+			return writeCommandOutput(cmd, loopRunsOutputBundle(response))
 		},
 	}
 	cmd.Flags().StringVar(&workspaceRef, loopWorkspaceKey, "", "Override workspace (ID, name, or path)")

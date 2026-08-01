@@ -44,6 +44,20 @@ func WithCoordinatorGateEvaluator(evaluator gate.GateEvaluator) CoordinatorRunne
 	}
 }
 
+// WithCoordinatorVerdictReader injects persisted machine-verdict history.
+func WithCoordinatorVerdictReader(reader gate.VerdictReader) CoordinatorRunnerOption {
+	return func(r *CoordinatorRunner) {
+		r.verdicts = reader
+	}
+}
+
+// WithCoordinatorGenerationLineageReader injects immutable generation provenance history.
+func WithCoordinatorGenerationLineageReader(reader GenerationLineageReader) CoordinatorRunnerOption {
+	return func(r *CoordinatorRunner) {
+		r.lineage = reader
+	}
+}
+
 // WithCoordinatorActionRegistry injects runtime action execution for worker node runs.
 func WithCoordinatorActionRegistry(registry *ActionRegistry) CoordinatorRunnerOption {
 	return func(r *CoordinatorRunner) {

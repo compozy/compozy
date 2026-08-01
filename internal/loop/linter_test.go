@@ -3,6 +3,7 @@ package loop_test
 import (
 	"bytes"
 	"encoding/json"
+	"math"
 	"slices"
 	"strings"
 	"testing"
@@ -74,6 +75,239 @@ func TestLinterShouldValidateDefinitionNetworkParticipation(t *testing.T) {
 			}
 			requireLintCodes(t, errs, tc.wantCode)
 			requireLintMessageContains(t, errs, tc.wantCode, tc.wantMessage)
+		})
+	}
+}
+
+func TestMetricShouldParseAndLintGateCriteria(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should parse a metric direction with an unset minimum delta", func(t *testing.T) {
+		t.Parallel()
+
+		definition, err := dsl.Parse([]byte(`
+apiVersion: compozy.loop/v1
+kind: Loop
+contract:
+  verification:
+    - id: quality
+      type: agent-judge
+      metric:
+        direction: maximize
+`))
+		if err != nil {
+			t.Fatalf("Parse() error = %v", err)
+		}
+		metric := definition.Contract.Verification[0].Metric
+		if metric == nil {
+			t.Fatal("metric = nil, want parsed metric")
+		}
+		if metric.Direction != dsl.MetricMaximize {
+			t.Fatalf("metric direction = %q, want %q", metric.Direction, dsl.MetricMaximize)
+		}
+		if metric.MinDelta != nil {
+			t.Fatalf("metric min_delta = %v, want nil", *metric.MinDelta)
+		}
+	})
+
+	t.Run("Should preserve an explicit zero minimum delta", func(t *testing.T) {
+		t.Parallel()
+
+		definition, err := dsl.Parse([]byte(`
+apiVersion: compozy.loop/v1
+kind: Loop
+contract:
+  verification:
+    - id: quality
+      type: command
+      metric:
+        direction: minimize
+        min_delta: 0
+`))
+		if err != nil {
+			t.Fatalf("Parse() error = %v", err)
+		}
+		metric := definition.Contract.Verification[0].Metric
+		if metric == nil || metric.MinDelta == nil {
+			t.Fatal("metric min_delta = nil, want explicit zero")
+		}
+		if *metric.MinDelta != 0 {
+			t.Fatalf("metric min_delta = %v, want 0", *metric.MinDelta)
+		}
+	})
+
+	for _, rawDelta := range []string{".nan", ".inf"} {
+		t.Run("Should reject a parsed non-finite minimum delta "+rawDelta, func(t *testing.T) {
+			t.Parallel()
+
+			definition, err := dsl.Parse([]byte(`
+apiVersion: compozy.loop/v1
+kind: Loop
+contract:
+  verification:
+    - id: quality
+      type: command
+      metric:
+        direction: maximize
+        min_delta: ` + rawDelta))
+			if err != nil {
+				t.Fatalf("Parse() error = %v", err)
+			}
+			metric := definition.Contract.Verification[0].Metric
+			if metric == nil || metric.MinDelta == nil {
+				t.Fatal("metric min_delta = nil, want parsed non-finite value")
+			}
+			valid := validDefinition()
+			appendMetricGate(&valid, dsl.CriterionCommand, metric)
+			requireLintCodes(t, loop.NewLinter().Lint(valid), loop.CodeMetricMinDeltaInvalid)
+		})
+	}
+
+	tests := []struct {
+		name      string
+		mutate    func(*dsl.Definition)
+		wantCode  string
+		wantInMsg string
+	}{
+		{
+			name: "Should reject a metric on a human criterion",
+			mutate: func(def *dsl.Definition) {
+				appendMetricGate(def, dsl.CriterionHuman, &dsl.MetricSpec{Direction: dsl.MetricMaximize})
+			},
+			wantCode: loop.CodeMetricMachineCriterionRequired,
+		},
+		{
+			name: "Should reject multiple metrics across contract and graph criteria",
+			mutate: func(def *dsl.Definition) {
+				def.Contract.Verification = []dsl.GateCriterion{{
+					ID:     "contract_quality",
+					Type:   dsl.CriterionCommand,
+					Check:  "make verify",
+					Metric: &dsl.MetricSpec{Direction: dsl.MetricMaximize},
+				}}
+				appendMetricGate(def, dsl.CriterionCommand, &dsl.MetricSpec{Direction: dsl.MetricMaximize})
+			},
+			wantCode: loop.CodeMetricSingle,
+		},
+		{
+			name: "Should reject a metric without a direction",
+			mutate: func(def *dsl.Definition) {
+				appendMetricGate(def, dsl.CriterionCommand, &dsl.MetricSpec{MinDelta: new(0.1)})
+			},
+			wantCode: loop.CodeMetricDirectionRequired,
+		},
+		{
+			name: "Should reject an unknown metric direction",
+			mutate: func(def *dsl.Definition) {
+				appendMetricGate(def, dsl.CriterionExtension, &dsl.MetricSpec{Direction: "sideways"})
+			},
+			wantCode:  loop.CodeMetricDirectionInvalid,
+			wantInMsg: "sideways",
+		},
+		{
+			name: "Should reject a negative metric minimum delta",
+			mutate: func(def *dsl.Definition) {
+				appendMetricGate(def, dsl.CriterionCommand, &dsl.MetricSpec{
+					Direction: dsl.MetricMaximize,
+					MinDelta:  new(-0.1),
+				})
+			},
+			wantCode: loop.CodeMetricMinDeltaInvalid,
+		},
+		{
+			name: "Should reject a non-finite metric minimum delta",
+			mutate: func(def *dsl.Definition) {
+				appendMetricGate(def, dsl.CriterionCommand, &dsl.MetricSpec{
+					Direction: dsl.MetricMaximize,
+					MinDelta:  new(math.NaN()),
+				})
+			},
+			wantCode: loop.CodeMetricMinDeltaInvalid,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			definition := validDefinition()
+			tt.mutate(&definition)
+			errs := loop.NewLinter().Lint(definition)
+			requireLintCodes(t, errs, tt.wantCode)
+			if tt.wantInMsg != "" {
+				requireLintMessageContains(t, errs, tt.wantCode, tt.wantInMsg)
+			}
+		})
+	}
+
+	t.Run("Should exclude Goal turn judges from the definition metric limit", func(t *testing.T) {
+		t.Parallel()
+
+		definition := validGoalDefinition()
+		requireNode(t, &definition, "converge").Params["judge"] = []any{
+			map[string]any{
+				"id":     "turn_one",
+				"type":   "command",
+				"check":  "make verify",
+				"metric": map[string]any{"direction": "maximize"},
+			},
+			map[string]any{
+				"id":     "turn_two",
+				"type":   "command",
+				"check":  "make test",
+				"metric": map[string]any{"direction": "minimize"},
+			},
+		}
+		requireLintCodes(t, loop.NewLinter().Lint(definition))
+	})
+}
+
+func TestLinterShouldValidateGenerationHistoryReferences(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should accept previous and best history references", func(t *testing.T) {
+		t.Parallel()
+
+		definition := validDefinition()
+		definition.Contract.StopWhen = "previous.generation >= 1 && best.score >= 0"
+		requireNode(t, &definition, "agent").Params["prompt"] =
+			"Repair {{ .previous.verdicts.quality.blocking_issues }} from {{ .best.nodes.agent.output.summary }}"
+		requireLintCodes(t, loop.NewLinter().Lint(definition))
+	})
+
+	t.Run("Should reject the lossy singular previous verdict reference", func(t *testing.T) {
+		t.Parallel()
+
+		definition := validDefinition()
+		requireNode(t, &definition, "agent").Params["prompt"] = "{{ .previous.verdict.blocking_issues }}"
+		requireLintCodes(t, loop.NewLinter().Lint(definition), refs.CodeUnknownReference)
+	})
+
+	for _, reference := range []struct {
+		name        string
+		path        string
+		asCondition bool
+	}{
+		{
+			name: "Should reject a child below previous node status",
+			path: "previous.nodes.agent.status.code",
+		},
+		{
+			name:        "Should reject a child below previous verdict outcome",
+			path:        "previous.verdicts.quality.outcome.code",
+			asCondition: true,
+		},
+	} {
+		t.Run(reference.name, func(t *testing.T) {
+			t.Parallel()
+
+			definition := validDefinition()
+			if reference.asCondition {
+				definition.Contract.StopWhen = reference.path + " != null"
+			} else {
+				requireNode(t, &definition, "agent").Params["prompt"] = "{{ ." + reference.path + " }}"
+			}
+			requireLintCodes(t, loop.NewLinter().Lint(definition), refs.CodeUnresolvablePath)
 		})
 	}
 }
@@ -599,6 +833,15 @@ func TestLinterShouldRejectClosedEnumAndReservedSchemaViolations(t *testing.T) {
 			name: "Should reject synthetic budget gate node id",
 			def: singleNodeDefinition(dsl.Node{
 				ID:    loop.BudgetGateID,
+				Class: dsl.NodeClassControl,
+				Kind:  string(dsl.ControlGate),
+			}),
+			wantCodes: []string{loop.CodeNodeIDInvalid},
+		},
+		{
+			name: "Should reject synthetic contract gate node id",
+			def: singleNodeDefinition(dsl.Node{
+				ID:    "contract",
 				Class: dsl.NodeClassControl,
 				Kind:  string(dsl.ControlGate),
 			}),
@@ -1331,6 +1574,24 @@ func watchEventsNodeForTest(events []dsl.EventSubscription) dsl.Node {
 func appendGate(def *dsl.Definition, node dsl.Node) {
 	def.Graph.Nodes = append(def.Graph.Nodes, node)
 	def.Graph.Edges = append(def.Graph.Edges, dsl.Edge{From: "agent", To: node.ID})
+}
+
+func appendMetricGate(def *dsl.Definition, criterionType dsl.CriterionType, metric *dsl.MetricSpec) {
+	criterion := dsl.GateCriterion{ID: "metric", Type: criterionType, Metric: metric}
+	switch criterionType {
+	case dsl.CriterionCommand:
+		criterion.Check = "make verify"
+	case dsl.CriterionAgentJudge:
+		criterion.Rubric = "Check the result"
+	case dsl.CriterionExtension:
+		criterion.Tool = "ext__quality__score"
+	}
+	appendGate(def, dsl.Node{
+		ID:       "metric_gate",
+		Class:    dsl.NodeClassControl,
+		Kind:     string(dsl.ControlGate),
+		Criteria: []dsl.GateCriterion{criterion},
+	})
 }
 
 func requireNode(t *testing.T, def *dsl.Definition, id dsl.NodeID) *dsl.Node {

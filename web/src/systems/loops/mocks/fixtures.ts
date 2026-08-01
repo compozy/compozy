@@ -9,9 +9,9 @@ import type {
   LoopEffectiveConfig,
   LoopRun,
   LoopRunAggregates,
-  LoopRunDetail,
 } from "../types";
 import { buildLocalNetworkParticipationFixture } from "@/test/network-participation-fixtures";
+import { buildLoopRunDetailFixtures } from "./fixture-run-details";
 
 export const MOCK_WORKSPACE_ID = "ws_default";
 
@@ -166,6 +166,8 @@ export const loopRunFixtures: LoopRun[] = [
     loop_name: "software-delivery",
     status: "running",
     generation: 2,
+    best_generation: 2,
+    best_score: 0.82,
     tokens_used: 412_000,
     budget_tokens: 2_000_000,
     started_origin_kind: "schedule",
@@ -283,6 +285,8 @@ export const loopRunFixtures: LoopRun[] = [
     loop_name: "software-delivery",
     status: "exhausted",
     generation: 50,
+    best_generation: 12,
+    best_score: 0.88,
     iteration_cap: 50,
     tokens_used: 1_900_000,
     budget_tokens: 2_000_000,
@@ -304,6 +308,8 @@ export const loopRunFixtures: LoopRun[] = [
     loop_name: "software-delivery",
     status: "stalled",
     generation: 4,
+    best_generation: 2,
+    best_score: 0.76,
     tokens_used: 610_000,
     budget_tokens: 2_000_000,
     started_origin_kind: "cli",
@@ -331,6 +337,12 @@ export const loopRunAggregatesFixture: LoopRunAggregates = {
   failed: 1,
 };
 
+function loopRunFixture(id: string): LoopRun {
+  const run = loopRunFixtures.find(candidate => candidate.id === id);
+  if (!run) throw new Error(`Missing Loop run fixture ${id}`);
+  return run;
+}
+
 export const loopCatalogFixtures: LoopCatalogEntry[] = [
   {
     name: "software-delivery",
@@ -356,11 +368,7 @@ export const loopCatalogFixtures: LoopCatalogEntry[] = [
       { kind: "native_tool" },
       { kind: "schedule" },
     ],
-    last_run: buildRun({
-      id: "looprun_running",
-      loop_name: "software-delivery",
-      status: "running",
-    }),
+    last_run: loopRunFixture("looprun_running"),
     aggregate_30d: { runs: 42, succeeded: 38, failed: 4 },
     success_rate_30d: 0.9,
   },
@@ -392,17 +400,7 @@ export const loopCatalogFixtures: LoopCatalogEntry[] = [
       { kind: "trigger" },
       { kind: "webhook" },
     ],
-    last_run: buildRun({
-      id: "looprun_review_running",
-      loop_name: "review-and-fix",
-      status: "running",
-      iteration_cap: 3,
-      budget_tokens: 0,
-      budget_wall_sec: 0,
-      budget_on_exceeded: "escalate",
-      tokens_used: 68_000,
-      generation: 2,
-    }),
+    last_run: loopRunFixture("looprun_review_running"),
     aggregate_30d: { runs: 9, succeeded: 9, failed: 0 },
     success_rate_30d: 1,
   },
@@ -436,115 +434,7 @@ export const loopDetailFixtures: LoopDetail[] = loopCatalogFixtures.map(entry =>
 
 export const loopDetailByName = new Map(loopDetailFixtures.map(detail => [detail.name, detail]));
 
-// Generations aligned to `deliveryGraph`'s node ids so the run-page timeline resolves
-// each node's real class/kind. G1 fans `execute_task` over 3 tasks (one failed) and the
-// `review` gate returns revise; G2 carries the two succeeded tasks forward read-only
-// (`reused`), re-runs the failed one, and parks a `run-loop` child (`awaiting_child`).
-function deliveryGenerations(run: LoopRun): LoopRunDetail["generations"] {
-  const live = run.status === "running" || run.status === "needs-approval";
-  const g1 = {
-    generation: 1,
-    outputs: [
-      { node_id: "slug", status: "succeeded", generation: 1 },
-      { node_id: "load_tasks", status: "succeeded", generation: 1 },
-      {
-        node_id: "execute_task",
-        status: "succeeded",
-        generation: 1,
-        item_index: 0,
-        task_run_id: "tr_1",
-      },
-      {
-        node_id: "execute_task",
-        status: "succeeded",
-        generation: 1,
-        item_index: 1,
-        task_run_id: "tr_2",
-      },
-      {
-        node_id: "execute_task",
-        status: "failed",
-        generation: 1,
-        item_index: 2,
-        task_run_id: "tr_3",
-        resolved_runtime: {
-          provider: "openai",
-          model: "gpt-5.4",
-          reasoning: "high",
-          source: { provider: "run", model: "frontmatter", reasoning: "config" },
-        },
-      },
-      { node_id: "collect", status: "succeeded", generation: 1 },
-      { node_id: "review", status: "failed", generation: 1 },
-    ],
-  };
-  const g2 = {
-    generation: 2,
-    outputs: [
-      { node_id: "execute_task", status: "reused", generation: 2, item_index: 0 },
-      { node_id: "execute_task", status: "reused", generation: 2, item_index: 1 },
-      {
-        node_id: "execute_task",
-        status: live ? "running" : "succeeded",
-        generation: 2,
-        item_index: 2,
-        resolved_runtime: {
-          provider: "openai",
-          model: "gpt-5.4",
-          reasoning: "high",
-          source: { provider: "run", model: "frontmatter", reasoning: "config" },
-        },
-      },
-      {
-        node_id: "child_delivery",
-        status: "awaiting_child",
-        generation: 2,
-        child_loop_run_id: "looprun_child",
-      },
-      { node_id: "collect", status: live ? "pending" : "succeeded", generation: 2 },
-      { node_id: "review", status: live ? "pending" : "succeeded", generation: 2 },
-      { node_id: "verify", status: live ? "pending" : "succeeded", generation: 2 },
-      { node_id: "approve", status: live ? "pending" : "succeeded", generation: 2 },
-    ],
-  };
-  return run.generation >= 2 ? [g1, g2] : [g1];
-}
-
-function reviewGenerations(run: LoopRun): LoopRunDetail["generations"] {
-  const active = run.status === "running";
-  const waiting = active || run.status === "paused";
-  const remainingStatus = waiting ? "pending" : "succeeded";
-  return [
-    {
-      generation: Math.max(1, run.generation),
-      outputs: [
-        { node_id: "review", status: "succeeded", generation: run.generation },
-        { node_id: "has_issues", status: "succeeded", generation: run.generation },
-        { node_id: "write_artifacts", status: "succeeded", generation: run.generation },
-        {
-          node_id: "fix_batch",
-          status: active ? "running" : remainingStatus,
-          generation: run.generation,
-          item_index: 0,
-        },
-        { node_id: "collect_fixes", status: remainingStatus, generation: run.generation },
-        { node_id: "finalize_round", status: remainingStatus, generation: run.generation },
-      ],
-    },
-  ];
-}
-
-export const loopRunDetailFixtures: LoopRunDetail[] = loopRunFixtures.map(run => ({
-  run: {
-    ...run,
-    started_by_kind: "user",
-    started_by_ref: "operator",
-    started_origin_kind: run.started_origin_kind ?? "cli",
-  },
-  executed_definition: loopDetailByName.get(run.loop_name)!.definition,
-  generations:
-    run.loop_name === "review-and-fix" ? reviewGenerations(run) : deliveryGenerations(run),
-}));
+export const loopRunDetailFixtures = buildLoopRunDetailFixtures(loopRunFixtures, loopDetailByName);
 
 export const loopRunDetailByRunId = new Map(
   loopRunDetailFixtures.map(detail => [detail.run.id, detail])

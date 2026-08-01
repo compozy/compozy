@@ -232,12 +232,12 @@ while the Loop is dormant on events.
 A `gate` node (and the contract's `verification`) is a list of typed **criteria**. Each criterion
 is a typed object, never a bare string — push vague checks toward a `command` where you can.
 
-| Criterion `type` | Fields                                                   | Verdict source? |
-| ---------------- | -------------------------------------------------------- | --------------- |
-| `command`        | `check` (command), `expect` (e.g. `exit_zero`)           | no              |
-| `agent-judge`    | `agent`, `rubric` (`{{ }}` template), optional `runtime` | yes             |
-| `human`          | `prompt`                                                 | yes             |
-| `extension`      | `tool` (tool ID), `inputs`                               | no              |
+| Criterion `type` | Fields                                                                | Verdict source? |
+| ---------------- | --------------------------------------------------------------------- | --------------- |
+| `command`        | `check` (command), `expect` (e.g. `exit_zero`), optional `metric`     | no              |
+| `agent-judge`    | `agent`, `rubric` (`{{ }}` template), optional `runtime` and `metric` | yes             |
+| `human`          | `prompt`; `metric` is not allowed                                     | yes             |
+| `extension`      | `tool` (tool ID), `inputs`, optional `metric`                         | no              |
 
 `verdict_policy` selects how the gate decides:
 
@@ -254,6 +254,54 @@ revision, never a silent pass. `on_result` maps a verdict (`pass`, `fail`, `bloc
 fails.
 An `agent-judge.runtime` value overrides `runtime_defaults.judge` field by field for that criterion
 only. Task runtime rules never apply to judges.
+
+### Metric criteria
+
+Add `metric` to one machine criterion when a Loop must improve one scalar score without accepting a
+regression. The block requires `direction`; `min_delta` is optional and defaults to `0`, which still
+requires a strict improvement.
+
+```yaml
+- id: quality
+  class: control
+  kind: gate
+  criteria:
+    - id: acceptance_score
+      type: agent-judge
+      agent: reviewer
+      rubric: >
+        Score the candidate from 0 to 1 against the definition of done. Approve only when the
+        cited evidence supports every required outcome.
+      metric:
+        direction: maximize
+        min_delta: 0.05
+  verdict_policy: revise_until_clean
+  on_result:
+    fail: revise
+  max_revisions: 8
+```
+
+The grammar is deliberately narrow:
+
+- `direction` is `maximize` or `minimize`.
+- `min_delta` must be finite and non-negative.
+- A definition may contain at most one metric criterion. Multi-objective ratchets are not part of
+  `compozy.loop/v1`.
+- `command`, `agent-judge`, and `extension` criteria may declare a metric; `human` may not.
+- A missing or non-finite required score produces `invalid_output`. It never passes and never
+  advances the best generation.
+
+Each scorer has a typed response contract:
+
+| Criterion     | Score contract                                                                                                                                                  |
+| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `command`     | Standard output must be exactly one JSON object with no extra fields, for example `{"score":0.72}`. The configured command expectation still decides pass/fail. |
+| `agent-judge` | The required verdict object gains numeric `score`; it still includes `verdict`, `blocking_issues`, and non-empty `evidence` for a pass.                         |
+| `extension`   | Structured tool output gains numeric `score` alongside `verdict`; `blocking_issues` and `evidence` remain available.                                            |
+
+The score participates in the [ratchet](/docs/loops/ratchet). A candidate becomes best only when
+the aggregate gate verdict is approved and the finite score improves the current baseline in the
+declared direction by at least `min_delta`.
 
 ## Runtime validation and provenance
 

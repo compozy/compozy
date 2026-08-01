@@ -1,9 +1,17 @@
 import type { ComponentType, ReactNode } from "react";
 import { Activity, Bell, Check, Eye, Pause, Play, Square, TriangleAlert, X } from "lucide-react";
 
-import { cn, Empty, formatAbsoluteTime, formatRelativeTime, type PillTone } from "@compozy/ui";
+import {
+  cn,
+  Empty,
+  formatAbsoluteTime,
+  formatRelativeTime,
+  Pill,
+  type PillTone,
+} from "@compozy/ui";
 
 import type { GoalTurnTimelineItem } from "../../hooks/use-goal-turns";
+import { formatLoopScore } from "../../lib/loop-generation-presentation";
 import type { LoopStoryIcon, LoopStoryRow } from "../../lib/loop-run-story";
 import { LoopRunSection } from "./loop-run-section";
 import { LoopRunTurnsDisclosure } from "./loop-run-turns-disclosure";
@@ -63,6 +71,11 @@ function StoryIssues({ row }: { row: LoopStoryRow }) {
 
 function StoryRow({ row, turnsSlot }: { row: LoopStoryRow; turnsSlot: ReactNode }) {
   const Icon = ICONS[row.icon];
+  const score = formatLoopScore(row.score);
+  const anchorId =
+    row.kind === "generation_started" && row.generation !== undefined
+      ? `loop-generation-${row.generation}`
+      : undefined;
   return (
     <div
       className={cn(
@@ -72,6 +85,7 @@ function StoryRow({ row, turnsSlot }: { row: LoopStoryRow; turnsSlot: ReactNode 
       )}
       data-kind={row.kind}
       data-testid="loop-story-row"
+      id={anchorId}
     >
       <span
         aria-hidden="true"
@@ -85,6 +99,28 @@ function StoryRow({ row, turnsSlot }: { row: LoopStoryRow; turnsSlot: ReactNode 
           <div className="mt-0.5 max-w-[60ch] text-small-body leading-normal text-muted">
             {row.sub}
             <StoryIssues row={row} />
+          </div>
+        ) : null}
+        {row.originLabel || score || row.isBest ? (
+          <div
+            className="mt-1.5 flex flex-wrap items-center gap-1.5"
+            data-testid="loop-story-metadata"
+          >
+            {row.originLabel ? (
+              <Pill size="xs" tone={row.originTone}>
+                {row.originLabel}
+              </Pill>
+            ) : null}
+            {score ? (
+              <Pill mono size="xs" tone="neutral">
+                score {score}
+              </Pill>
+            ) : null}
+            {row.isBest ? (
+              <Pill size="xs" tone="success">
+                Best
+              </Pill>
+            ) : null}
           </div>
         ) : null}
         {turnsSlot}

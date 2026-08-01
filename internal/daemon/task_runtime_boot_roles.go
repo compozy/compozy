@@ -206,8 +206,26 @@ func newLoopCoordinatorRunner(
 		}
 		return nil, nil
 	}
+	verdicts, ok := store.(gate.VerdictReader)
+	if !ok {
+		if logger != nil {
+			logger.Warn("daemon: loop coordinator disabled because registry does not implement verdict reader")
+		}
+		return nil, nil
+	}
+	lineage, ok := store.(looppkg.GenerationLineageReader)
+	if !ok {
+		if logger != nil {
+			logger.Warn(
+				"daemon: loop coordinator disabled because registry does not implement generation lineage reader",
+			)
+		}
+		return nil, nil
+	}
 	options := []looppkg.CoordinatorRunnerOption{
 		looppkg.WithCoordinatorHookDispatcher(hooks),
+		looppkg.WithCoordinatorVerdictReader(verdicts),
+		looppkg.WithCoordinatorGenerationLineageReader(lineage),
 	}
 	if watchPoller != nil {
 		options = append(options, looppkg.WithCoordinatorWatchPoller(watchPoller))

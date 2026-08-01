@@ -2,8 +2,8 @@ package loop
 
 import (
 	"context"
+	"fmt"
 
-	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/loop/gate"
 	"github.com/compozy/compozy/internal/task"
 )
@@ -53,6 +53,7 @@ func (r *CoordinatorRunner) buildGenerationFinisherPlan(
 			*failed,
 			live,
 			loopStops,
+			nil,
 		)
 	}
 	return r.buildLiveGenerationPlan(
@@ -128,8 +129,13 @@ func (r *CoordinatorRunner) buildLiveGenerationPlan(
 	normalized []GenerationOutput,
 	live bool,
 ) (task.CoordinatorCompletionPlan, error) {
+	history, err := r.readGenerationHistory(ctx, run, generation)
+	if err != nil {
+		return task.CoordinatorCompletionPlan{}, err
+	}
 	advancedOutputs := cloneGenerationOutputs(normalized)
 	outputBlobs := []GenerationOutputBlob{}
+	gateEvaluations := &gateEvaluationCollector{}
 	terminal, err := advanceControlNodes(
 		&controlEvalContext{
 			ctx:                ctx,
@@ -144,6 +150,8 @@ func (r *CoordinatorRunner) buildLiveGenerationPlan(
 			fanOutWidth:        fanOutWidth,
 			watchRuntime:       watchRuntime,
 			watchEventsRuntime: watchEventsRuntime,
+			gateEvaluations:    gateEvaluations,
+			history:            history,
 		},
 		&plan,
 		&advancedOutputs,
@@ -156,6 +164,9 @@ func (r *CoordinatorRunner) buildLiveGenerationPlan(
 		sortedGenerationOutputs(advancedOutputs),
 		outputBlobs,
 	)
+	if err := applyGateEvaluationIntents(&plan, run, generation, gateEvaluations); err != nil {
+		return task.CoordinatorCompletionPlan{}, err
+	}
 	if terminal != nil {
 		plan.Terminal = terminal
 	}
@@ -175,6 +186,8 @@ func (r *CoordinatorRunner) buildLiveGenerationPlan(
 		advancedOutputs,
 		outputBlobs,
 		live,
+		gateEvaluations,
+		history,
 	)
 }
 
@@ -191,6 +204,8 @@ func (r *CoordinatorRunner) finishLiveGenerationPlan(
 	advancedOutputs []GenerationOutput,
 	outputBlobs []GenerationOutputBlob,
 	live bool,
+	gateEvaluations *gateEvaluationCollector,
+	history GenerationHistory,
 ) (task.CoordinatorCompletionPlan, error) {
 	graph := resolved.Definition.Graph
 	hasReadyRuns, err := appendReadyNodeRunsToPlan(
@@ -213,6 +228,29 @@ func (r *CoordinatorRunner) finishLiveGenerationPlan(
 		plan.Yield = true
 		return plan, nil
 	}
+	if causes := gateEvaluations.routeCauses(); routeActionForCauses(causes) != "" {
+		failed, ok := firstFailedGenerationOutput(advancedOutputs)
+		if !ok {
+			return task.CoordinatorCompletionPlan{}, fmt.Errorf(
+				"%w: route-causing gate did not produce a failed output",
+				ErrValidation,
+			)
+		}
+		return r.buildFailedGenerationPlan(
+			ctx,
+			taskRun,
+			run,
+			generation,
+			resolved.Definition,
+			effective,
+			plan,
+			advancedOutputs,
+			failed,
+			false,
+			plan.RunStops,
+			gateEvaluations,
+		)
+	}
 	if allGenerationOutputsSucceededControlAware(graph, topology, advancedOutputs) {
 		return r.finishSucceededGenerationPlan(
 			ctx,
@@ -225,100 +263,11 @@ func (r *CoordinatorRunner) finishLiveGenerationPlan(
 			gateEvaluator,
 			plan,
 			advancedOutputs,
+			history,
 		)
 	}
 	plan.Terminal = noReadyNodesTerminal()
 	return plan, nil
-}
-
-func (r *CoordinatorRunner) finishSucceededGenerationPlan(
-	ctx context.Context,
-	taskRun task.Run,
-	run Run,
-	generation int,
-	resolved *ResolvedDefinition,
-	effective EffectiveConfig,
-	topology controlTopology,
-	gateEvaluator gate.GateEvaluator,
-	plan task.CoordinatorCompletionPlan,
-	advancedOutputs []GenerationOutput,
-) (task.CoordinatorCompletionPlan, error) {
-	stopWhen, hasStopWhen, err := evaluateContractStopWhen(
-		ctx,
-		run,
-		generation,
-		resolved,
-		topology,
-		advancedOutputs,
-	)
-	if err != nil {
-		return task.CoordinatorCompletionPlan{}, err
-	}
-	if hasStopWhen && !stopWhen {
-		return r.buildStopWhenNextGenerationPlan(
-			ctx,
-			taskRun,
-			run,
-			generation,
-			resolved.Definition.Graph,
-			gateEvaluator != nil,
-			plan,
-			advancedOutputs,
-		)
-	}
-	terminal, err := definitionOfDoneTerminal(
-		ctx,
-		run,
-		generation,
-		resolved,
-		effective,
-		topology,
-		gateEvaluator,
-		r.store,
-		r.runtimeCatalog,
-		advancedOutputs,
-	)
-	if err != nil {
-		return task.CoordinatorCompletionPlan{}, err
-	}
-	plan.Terminal = terminal
-	return plan, nil
-}
-
-func (r *CoordinatorRunner) buildStopWhenNextGenerationPlan(
-	ctx context.Context,
-	taskRun task.Run,
-	run Run,
-	generation int,
-	graph dsl.Graph,
-	gatesEnabled bool,
-	plan task.CoordinatorCompletionPlan,
-	advancedOutputs []GenerationOutput,
-) (task.CoordinatorCompletionPlan, error) {
-	nextGeneration := generation + 1
-	if terminal := iterationCapTerminal(run, nextGeneration); terminal != nil {
-		plan.Terminal = terminal
-		return plan, nil
-	}
-	if denied, deniedPlan := r.dispatchGenerationPre(ctx, taskRun, run, nextGeneration); denied {
-		deniedPlan.Snapshot = plan.Snapshot
-		return deniedPlan, nil
-	}
-	nextPlan, err := buildFreshGenerationCoordinatorPlan(
-		taskRun,
-		run,
-		generation,
-		nextGeneration,
-		graph,
-		gatesEnabled,
-		advancedOutputs,
-		plan.RunStops,
-	)
-	if err != nil {
-		return task.CoordinatorCompletionPlan{}, err
-	}
-	r.dispatchGenerationPost(ctx, taskRun, run, nextPlan)
-	return nextPlan, nil
 }
 
 func appendReadyNodeRunsToPlan(
@@ -353,60 +302,6 @@ func appendReadyNodeRunsToPlan(
 		outputBlobs,
 	)
 	return true, nil
-}
-
-func (r *CoordinatorRunner) buildFailedGenerationPlan(
-	ctx context.Context,
-	taskRun task.Run,
-	run Run,
-	generation int,
-	def dsl.Definition,
-	effective EffectiveConfig,
-	plan task.CoordinatorCompletionPlan,
-	normalized []GenerationOutput,
-	failed GenerationOutput,
-	live bool,
-	loopStops []task.CoordinatorStopSpec,
-) (task.CoordinatorCompletionPlan, error) {
-	terminal, terminalErr := r.terminalForFailedGeneration(
-		ctx,
-		run,
-		generation,
-		effective.NoProgressWindow,
-		def.Graph,
-		normalized,
-		failed,
-	)
-	if terminalErr != nil {
-		return task.CoordinatorCompletionPlan{}, terminalErr
-	}
-	if live || terminal.Status != string(StatusFailed) {
-		plan.Terminal = terminal
-		return plan, nil
-	}
-	nextGeneration := generation + 1
-	if terminal := iterationCapTerminal(run, nextGeneration); terminal != nil {
-		plan.Terminal = terminal
-		return plan, nil
-	}
-	if denied, deniedPlan := r.dispatchGenerationPre(ctx, taskRun, run, nextGeneration); denied {
-		deniedPlan.Snapshot = plan.Snapshot
-		return deniedPlan, nil
-	}
-	reattemptPlan, err := buildReattemptCoordinatorPlan(
-		taskRun,
-		run,
-		generation,
-		nextGeneration,
-		def.Graph,
-		normalized,
-		loopStops,
-	)
-	if err != nil {
-		return task.CoordinatorCompletionPlan{}, err
-	}
-	r.dispatchGenerationPost(ctx, taskRun, run, reattemptPlan)
-	return reattemptPlan, nil
 }
 
 func iterationCapTerminal(run Run, generation int) *task.CoordinatorTerminal {

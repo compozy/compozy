@@ -5,6 +5,10 @@ const (
 	metadataGenerationKey = "generation"
 	namespaceInputsKey    = "inputs"
 	namespaceNodesKey     = "nodes"
+	namespaceOutputKey    = "output"
+	namespaceScoreKey     = "score"
+	namespacePreviousKey  = "previous"
+	namespaceBestKey      = "best"
 	jsonSchemaItemsKey    = "items"
 	transformValueKey     = "value"
 )

@@ -160,7 +160,16 @@ func (payload LoopGenerationPayload) cloneForAsync() LoopGenerationPayload {
 func (payload LoopGatePayload) cloneForAsync() LoopGatePayload {
 	payload.LoopContext = cloneLoopContext(payload.LoopContext)
 	payload.Details = cloneRawJSON(payload.Details)
+	payload.Score = clonePointer(payload.Score)
+	payload.BestGeneration = clonePointer(payload.BestGeneration)
 	return payload
+}
+
+func clonePointer[T any](value *T) *T {
+	if value == nil {
+		return nil
+	}
+	return new(*value)
 }
 
 func (payload LoopNodeTerminalPayload) cloneForAsync() LoopNodeTerminalPayload {

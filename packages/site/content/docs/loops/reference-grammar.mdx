@@ -30,22 +30,63 @@ condition: "nodes.review.output.decision == 'ship'"
 Both surfaces resolve the same roots. Every dotted path is validated at lint and publish time
 against the declared input and output schemas — there is no silent empty-string resolution.
 
-| Root                       | Resolves to                                                     | Available where                       |
-| -------------------------- | --------------------------------------------------------------- | ------------------------------------- |
-| `inputs.<name>`            | A declared typed input                                          | everywhere                            |
-| `nodes.<id>.output.<path>` | A prior node's harvested, typed output                          | everywhere (after the node)           |
-| `nodes.<id>.status`        | A prior node's terminal status                                  | everywhere                            |
-| `item`                     | The fanned unit (element, or array slice when `batch_size > 1`) | inside a `fan-out` branch only        |
-| `index`                    | The fanned index                                                | inside a `fan-out` branch only        |
-| `trigger.<path>`           | The activation payload                                          | `trigger` and `webhook` starts only   |
-| `event.<path>`             | The matched internal event (correlation fields + `payload`)     | `watch-events` `events[].filter` only |
-| `generation`               | The current generation number                                   | everywhere                            |
+| Root                                  | Resolves to                                                                     | Available where                       |
+| ------------------------------------- | ------------------------------------------------------------------------------- | ------------------------------------- |
+| `inputs.<name>`                       | A declared typed input                                                          | everywhere                            |
+| `nodes.<id>.output.<path>`            | A current-generation node's harvested, typed output                             | everywhere (after the node)           |
+| `nodes.<id>.status`                   | A current-generation node's terminal status                                     | everywhere                            |
+| `previous.generation`                 | The immediately preceding generation number                                     | generations 2 and later               |
+| `previous.nodes.<id>.status`          | A previous-generation node's terminal status                                    | generations 2 and later               |
+| `previous.nodes.<id>.output.<path>`   | A previous-generation node's typed output                                       | generations 2 and later               |
+| `previous.verdicts.<gate_id>.<field>` | One prior machine verdict: `outcome`, `score`, `blocking_issues`, or `criteria` | generations 2 and later               |
+| `previous.route_causes`               | Ordered gate IDs whose prior verdicts caused succession                         | generations 2 and later               |
+| `best.generation` / `best.score`      | The accepted metric baseline                                                    | after a best candidate exists         |
+| `best.nodes.<id>.output.<path>`       | Output from that best generation; status and verdicts are not projected         | after a best candidate exists         |
+| `item`                                | The fanned unit (element, or array slice when `batch_size > 1`)                 | inside a `fan-out` branch only        |
+| `index`                               | The fanned index                                                                | inside a `fan-out` branch only        |
+| `trigger.<path>`                      | The activation payload                                                          | `trigger` and `webhook` starts only   |
+| `event.<path>`                        | The matched internal event (correlation fields + `payload`)                     | `watch-events` `events[].filter` only |
+| `generation`                          | The current generation number                                                   | everywhere                            |
 
 `nodes.<id>.output.*` only validates against a schema the referenced node declares — set
 `produces` (or a `run-agent` `output_schema`) on the source node so its output paths are known.
 
 In `{{ }}`, roots take a leading dot (`{{ .inputs.slug }}`, `{{ .item.title }}`); in CEL they do
 not (`inputs.slug`, `item.title`). Node IDs are identical in both.
+
+## Cross-generation repair context
+
+`previous` and `best` are read-only projections. `previous` always means generation `N-1`, even
+when generation `N` was restored from an older best candidate. `best` names that accepted metric
+baseline. On generation 1, `previous` is an empty object; before a metric candidate becomes
+eligible, `best` is an empty object.
+
+Use `with` to keep a value template valid before history exists, and read only the fields the next
+attempt needs:
+
+```yaml
+prompt: |
+  Improve the current candidate.
+  {{ with .previous }}
+  The prior quality gate returned {{ .verdicts.quality.outcome }}.
+  Blocking issues: {{ .verdicts.quality.blocking_issues }}
+  {{ end }}
+  {{ with .best }}
+  Preserve the useful parts of generation {{ .generation }}, scored {{ .score }}.
+  {{ end }}
+```
+
+For several rejecting gates, `previous.verdicts` remains lossless because it is keyed by gate ID.
+`previous.route_causes` gives the persisted causal order; there is no singular
+`previous.verdict`. Prefer field-level references over interpolating a whole history object, which
+adds prompt payload without sharpening the repair.
+
+Conditions use the same roots without the leading dot. For example, a metric Loop can stop after
+an accepted best update:
+
+```yaml
+stop_when: "best.score >= 0.9"
+```
 
 ## Resolution errors
 

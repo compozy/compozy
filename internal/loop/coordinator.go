@@ -63,6 +63,8 @@ type CoordinatorRunner struct {
 	taskRuns           CoordinatorTaskRunReader
 	store              Store
 	outputs            GenerationOutputReader
+	verdicts           gate.VerdictReader
+	lineage            GenerationLineageReader
 	hooks              HookDispatcher
 	gateEvaluator      gate.GateEvaluator
 	actionRegistry     *ActionRegistry
@@ -103,6 +105,12 @@ func NewCoordinatorRunner(
 		logger:             logger,
 		now:                time.Now,
 		watchSilenceWindow: DefaultWatchSilenceWindow,
+	}
+	if verdicts, ok := outputs.(gate.VerdictReader); ok {
+		runner.verdicts = verdicts
+	}
+	if lineage, ok := outputs.(GenerationLineageReader); ok {
+		runner.lineage = lineage
 	}
 	for _, opt := range opts {
 		opt(runner)
@@ -220,8 +228,17 @@ func (r *CoordinatorRunner) buildCoordinatorPlan(
 		plan := terminalCoordinatorPlan(run, terminal)
 		return r.dispatchGateHooks(ctx, taskRun, run, plan), nil
 	}
-	if denied, plan := r.dispatchGenerationPre(ctx, taskRun, run, generation); denied {
+	intent := GenerationIntent{
+		Generation:       int64(generation),
+		ParentGeneration: 0,
+		Origin:           OriginInitial,
+	}
+	if denied, plan := r.dispatchGenerationPre(ctx, taskRun, run, intent); denied {
 		return plan, nil
+	}
+	history, err := r.readGenerationHistory(ctx, run, generation)
+	if err != nil {
+		return task.CoordinatorCompletionPlan{}, err
 	}
 	plan, err := buildInitialControlAwareCoordinatorPlan(
 		ctx,
@@ -235,10 +252,11 @@ func (r *CoordinatorRunner) buildCoordinatorPlan(
 		fanOutWidth,
 		r.watchRuntime(),
 		r.watchEventsRuntime(),
+		history,
 	)
 	if err != nil {
 		return task.CoordinatorCompletionPlan{}, err
 	}
-	r.dispatchGenerationPost(ctx, taskRun, run, plan)
+	r.dispatchGenerationPost(ctx, taskRun, run, intent)
 	return r.dispatchGateHooks(ctx, taskRun, run, plan), nil
 }

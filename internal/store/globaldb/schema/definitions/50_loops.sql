@@ -43,6 +43,35 @@ CREATE TABLE loop_gate_decisions (
 			PRIMARY KEY (loop_run_id, generation, gate_id, criterion_id)
 		);
 
+CREATE TABLE loop_gate_verdicts (
+			loop_run_id          TEXT NOT NULL REFERENCES loop_runs(id) ON DELETE CASCADE,
+			generation           INTEGER NOT NULL CHECK (generation >= 1),
+			gate_id              TEXT NOT NULL,
+			item_index           INTEGER NOT NULL DEFAULT 0 CHECK (item_index >= 0),
+			outcome              TEXT NOT NULL CHECK (outcome IN (
+				'approved','rejected','awaiting_approval','blocked','error','timeout','invalid_output'
+			)),
+			score                REAL,
+			route_cause_rank     INTEGER,
+			blocking_issues_json TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(blocking_issues_json)),
+			criteria_json        TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(criteria_json)),
+			decided_at           TIMESTAMP NOT NULL,
+			PRIMARY KEY (loop_run_id, generation, gate_id, item_index)
+		);
+
+CREATE TABLE loop_generations (
+			loop_run_id       TEXT NOT NULL REFERENCES loop_runs(id) ON DELETE CASCADE,
+			generation        INTEGER NOT NULL CHECK (generation >= 1),
+			parent_generation INTEGER NOT NULL DEFAULT 0
+				CHECK (parent_generation >= 0 AND parent_generation < generation),
+			origin            TEXT NOT NULL CHECK (origin IN (
+				'initial','stop_when','reattempt','gate_revise','gate_next_generation',
+				'dod_retry','ratchet_restore'
+			)),
+			created_at        TIMESTAMP NOT NULL,
+			PRIMARY KEY (loop_run_id, generation)
+		);
+
 CREATE TABLE loop_generation_outputs (
 			loop_run_id       TEXT NOT NULL REFERENCES loop_runs(id) ON DELETE CASCADE,
 			generation        INTEGER NOT NULL,
@@ -307,10 +336,15 @@ CREATE TABLE loop_runs (
 				CHECK (origin_creation_digest IS NULL OR length(trim(origin_creation_digest)) > 0), network_spec_json TEXT NOT NULL DEFAULT '{"version":"network-participation/v1","mode":"local","source":"built_in_local"}'
 				CHECK (json_valid(network_spec_json)), network_mode TEXT NOT NULL DEFAULT 'local'
 				CHECK (network_mode IN ('local', 'live')), network_channel TEXT, network_source TEXT NOT NULL DEFAULT 'built_in_local'
-				CHECK (network_source IN (
-					'explicit_request', 'task_profile', 'workspace_coordination',
-					'loop_definition', 'automation_job', 'built_in_local'
-				)));
+					CHECK (network_source IN (
+						'explicit_request', 'task_profile', 'workspace_coordination',
+						'loop_definition', 'automation_job', 'built_in_local'
+					)), best_generation INTEGER, best_score REAL,
+					CHECK (
+						(best_generation IS NULL AND best_score IS NULL)
+						OR (best_generation IS NOT NULL AND best_score IS NOT NULL
+							AND best_generation >= 1 AND best_generation <= generation)
+					));
 
 CREATE TABLE loop_session_bindings (
 	loop_run_id       TEXT NOT NULL REFERENCES loop_runs(id) ON DELETE CASCADE,
@@ -357,6 +391,10 @@ CREATE TABLE loop_ui_annotations (
 
 CREATE INDEX idx_loop_gate_decisions_workspace_run
 			ON loop_gate_decisions(workspace_id, loop_run_id, generation, gate_id);
+
+CREATE INDEX idx_loop_gate_verdicts_route_cause
+			ON loop_gate_verdicts(loop_run_id, generation, route_cause_rank)
+			WHERE route_cause_rank IS NOT NULL;
 
 CREATE INDEX idx_loop_generation_outputs_output_ref
 			ON loop_generation_outputs(output_ref);

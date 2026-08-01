@@ -7,6 +7,10 @@ import (
 	"time"
 )
 
+type TaskObservationPatch struct {
+	Labels map[string]string `json:"labels,omitempty"`
+}
+
 type TaskOwnerTotal struct {
 	OwnerKind OwnerKind `json:"owner_kind"`
 	OwnerRef  string    `json:"owner_ref"`
@@ -405,9 +409,4 @@ type TaskRunLeaseRecoveredPayload struct {
 	PreviousSessionID            string    `json:"previous_session_id,omitempty"`
 	RecoveryAction               string    `json:"recovery_action,omitempty"`
 	RecoveryReason               string    `json:"recovery_reason,omitempty"`
-}
-
-type TaskRunNetworkPayload struct {
-	Conversation TaskRunConversationRefPayload `json:"conversation"`
-	Usage        NetworkUsageResponse          `json:"usage"`
 }

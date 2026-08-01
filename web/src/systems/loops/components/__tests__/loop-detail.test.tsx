@@ -81,6 +81,7 @@ describe("LoopDetailView", () => {
     expect(screen.getByTestId("loop-contract")).toBeInTheDocument();
     expect(screen.getByTestId("loop-dag")).toBeInTheDocument();
     expect(screen.getByTestId("loop-recent-runs")).toBeInTheDocument();
+    expect(screen.getAllByTestId("loop-recent-run-best")[0]).toHaveTextContent("Gen 2 · 0.82");
     expect(screen.getByTestId("loop-declared-inputs")).toBeInTheDocument();
     expect(screen.getByTestId("loop-start-bindings")).toBeInTheDocument();
     expect(screen.getByTestId("loop-limits")).toBeInTheDocument();

@@ -23,7 +23,7 @@ func newAutomationRunsCommand(deps commandDeps) *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:   "runs",
+		Use:   cliRunsKey,
 		Short: "Inspect automation run history",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {

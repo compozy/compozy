@@ -1,6 +1,10 @@
 package builtin
 
-import toolspkg "github.com/compozy/compozy/internal/tools"
+import (
+	"encoding/json"
+
+	toolspkg "github.com/compozy/compozy/internal/tools"
+)
 
 const (
 	loopKey = "loop"
@@ -222,6 +226,12 @@ func nativeLoopDescriptor(
 		id, nativeName, title, description, inputSchema, risk, readOnly, destructive, false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDLoops}, tags, searchHints,
 	)
+	switch id {
+	case toolspkg.ToolIDLoopStatus:
+		descriptor.OutputSchema = json.RawMessage(loopStatusOutputSchema)
+	case toolspkg.ToolIDLoopRuns:
+		descriptor.OutputSchema = json.RawMessage(loopRunsOutputSchema)
+	}
 	if id == toolspkg.ToolIDLoopApprove {
 		return withRequiredCapabilities(descriptor, "loops.approve")
 	}

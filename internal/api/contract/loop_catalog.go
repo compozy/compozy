@@ -19,9 +19,11 @@ type LoopCatalogEntryPayload struct {
 
 // LoopCatalogLastRunPayload identifies the latest run shown in a catalog entry.
 type LoopCatalogLastRunPayload struct {
-	ID        string        `json:"id"`
-	Status    LoopRunStatus `json:"status"`
-	CreatedAt time.Time     `json:"created_at"`
+	ID             string        `json:"id"`
+	Status         LoopRunStatus `json:"status"`
+	BestGeneration *int64        `json:"best_generation,omitempty"`
+	BestScore      *float64      `json:"best_score,omitempty"`
+	CreatedAt      time.Time     `json:"created_at"`
 }
 
 // LoopCatalogResourceSpec is the public catalog metadata projection.
