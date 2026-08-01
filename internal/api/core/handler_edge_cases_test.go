@@ -196,7 +196,7 @@ func TestConversionAndStatusHelpers(t *testing.T) {
 
 	usageValue := int64(10)
 	goalTurn := 2
-	clientMessageID := "client-message-1"
+	messageID := "client-message-1"
 	event := acp.AgentEvent{
 		Type:      acp.EventTypePermission,
 		SessionID: "sess-1",
@@ -216,13 +216,13 @@ func TestConversionAndStatusHelpers(t *testing.T) {
 			ItemIndex: 1, Turn: &goalTurn, PromptAttempt: 2, PromptID: "goal-prompt-2",
 		},
 		Raw: []byte(`{"ok":true}`),
-	}.WithClientMessageID(clientMessageID)
+	}.WithMessageID(messageID)
 	agentEvent := core.AgentEventPayloadFromEvent(event)
 	if agentEvent.Type != acp.EventTypePermission || agentEvent.Usage == nil || agentEvent.Usage.InputTokens == nil {
 		t.Fatalf("agent event payload = %#v", agentEvent)
 	}
-	if got, want := agentEvent.ClientMessageID, "client-message-1"; got != want {
-		t.Fatalf("agent event client_message_id = %q, want %q", got, want)
+	if got, want := agentEvent.MessageID, "client-message-1"; got != want {
+		t.Fatalf("agent event message_id = %q, want %q", got, want)
 	}
 	if agentEvent.Failure == nil || agentEvent.Failure.Kind != store.FailurePermission {
 		t.Fatalf("agent event failure = %#v", agentEvent.Failure)
@@ -324,6 +324,7 @@ func TestPromptResponseFromSessionShouldEnforceClosedGoalOutcomeMatrix(t *testin
 	tests := []struct {
 		name       string
 		result     *session.GoalCommandResult
+		replayed   bool
 		wantStatus int
 		wantError  bool
 		wantErrMsg string
@@ -355,6 +356,12 @@ func TestPromptResponseFromSessionShouldEnforceClosedGoalOutcomeMatrix(t *testin
 		{
 			name:       "Should map not active to not found",
 			result:     &session.GoalCommandResult{Outcome: session.GoalOutcomeError, ReasonCode: &notActive},
+			wantStatus: http.StatusNotFound,
+		},
+		{
+			name:       "Should preserve not found for replayed Goal error",
+			result:     &session.GoalCommandResult{Outcome: session.GoalOutcomeError, ReasonCode: &notActive},
+			replayed:   true,
 			wantStatus: http.StatusNotFound,
 		},
 		{
@@ -417,7 +424,7 @@ func TestPromptResponseFromSessionShouldEnforceClosedGoalOutcomeMatrix(t *testin
 			t.Parallel()
 
 			status, body, err := core.PromptResponseFromSession(
-				session.SendPromptResult{Status: "goal", Goal: tt.result},
+				session.SendPromptResult{Status: "goal", Goal: tt.result, Replayed: tt.replayed},
 			)
 			if tt.wantError {
 				if err == nil {
@@ -434,10 +441,14 @@ func TestPromptResponseFromSessionShouldEnforceClosedGoalOutcomeMatrix(t *testin
 			if status != tt.wantStatus {
 				t.Fatalf("status = %d, want %d", status, tt.wantStatus)
 			}
-			result, ok := body.(contract.GoalCommandResult)
+			response, ok := body.(contract.SendPromptResultResponse)
 			if !ok {
-				t.Fatalf("body type = %T, want contract.GoalCommandResult", body)
+				t.Fatalf("body type = %T, want contract.SendPromptResultResponse", body)
 			}
+			if response.Prompt.Goal == nil {
+				t.Fatal("body prompt goal = nil")
+			}
+			result := *response.Prompt.Goal
 			if result.Outcome != contract.GoalCommandOutcome(tt.result.Outcome) {
 				t.Fatalf("body outcome = %q, want %q", result.Outcome, tt.result.Outcome)
 			}
@@ -451,6 +462,83 @@ func TestPromptResponseFromSessionShouldEnforceClosedGoalOutcomeMatrix(t *testin
 			}
 		})
 	}
+}
+
+func TestCorePromptDispatchShouldBuildOneCanonicalSessionCommand(t *testing.T) {
+	t.Parallel()
+	t.Run("Should preserve canonical prompt admission semantics", func(t *testing.T) {
+		t.Parallel()
+
+		events := make(chan acp.AgentEvent)
+		close(events)
+		executionContexts := make(chan context.Context, 1)
+		deliveryContexts := make(chan context.Context, 1)
+		var gotOpts session.SendPromptOpts
+		manager := testutil.StubSessionManager{
+			StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+				return &session.Info{ID: id, WorkspaceID: "ws-workspace"}, nil
+			},
+			SendPromptFn: func(ctx context.Context, id string, opts session.SendPromptOpts) (session.SendPromptResult, error) {
+				if id != "sess-123" {
+					t.Fatalf("SendPrompt() session id = %q, want sess-123", id)
+				}
+				executionContexts <- ctx
+				deliveryContexts <- opts.DeliveryContext
+				gotOpts = opts
+				return session.SendPromptResult{Status: "accepted", Events: events, NewTurnID: "turn-123"}, nil
+			},
+		}
+		fixture := newHandlerFixture(
+			t,
+			manager,
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+			nil,
+			nil,
+		)
+		fixture.Engine.POST("/workspaces/:workspace_id/sessions/:session_id/prompt", func(c *gin.Context) {
+			dispatch, ok := fixture.Handlers.DispatchSessionPrompt(c)
+			if !ok {
+				return
+			}
+			fixture.Handlers.RespondPromptV1(c, dispatch)
+		})
+
+		recorder := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPost,
+			"/workspaces/ws-workspace/sessions/sess-123/prompt",
+			[]byte(`{"message":"inspect the release","message_id":"msg-core-dispatch",`+
+				`"idempotency_key":"idem-core-dispatch","runtime":{"provider":"codex","model":"gpt-5.6-sol",`+
+				`"reasoning_effort":"high","speed":"fast"}}`),
+		)
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
+		}
+		if !strings.Contains(recorder.Body.String(), `"type":"start","messageId":"turn-123"`) {
+			t.Fatalf("body = %q, want accepted stream start", recorder.Body.String())
+		}
+		if gotOpts.Message != "inspect the release" || gotOpts.MessageID != "msg-core-dispatch" ||
+			gotOpts.IdempotencyKey != "idem-core-dispatch" || !gotOpts.AllowGoalCommands {
+			t.Fatalf("SendPrompt() opts = %#v, want canonical prompt metadata", gotOpts)
+		}
+		if gotOpts.Runtime == nil || gotOpts.Runtime.Provider != "codex" || gotOpts.Runtime.Model != "gpt-5.6-sol" ||
+			gotOpts.Runtime.ReasoningEffort != "high" || gotOpts.Runtime.Speed != contract.SpeedFast {
+			t.Fatalf("SendPrompt() runtime = %#v, want selected codex runtime", gotOpts.Runtime)
+		}
+		if gotOpts.Caller.Kind != "human" || gotOpts.Caller.ID != "local-user" || gotOpts.Caller.Source != "http" {
+			t.Fatalf("SendPrompt() caller = %#v, want authenticated HTTP human", gotOpts.Caller)
+		}
+		executionContext := <-executionContexts
+		if err := executionContext.Err(); err != nil {
+			t.Fatalf("execution context err = %v, want nil", err)
+		}
+		deliveryContext := <-deliveryContexts
+		if !errors.Is(deliveryContext.Err(), context.Canceled) {
+			t.Fatalf("delivery context err = %v, want context.Canceled after response", deliveryContext.Err())
+		}
+	})
 }
 
 func TestBaseHandlersWorkspaceFilteringAndDefaults(t *testing.T) {

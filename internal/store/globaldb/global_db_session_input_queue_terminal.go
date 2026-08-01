@@ -43,17 +43,23 @@ func (g *SessionRepo) ReleaseSessionInput(ctx context.Context, sessionID string,
 		now = g.now()
 	}
 	nowRaw := store.FormatTimestamp(now.UTC())
-	affected, err := g.queries.ReleaseSessionInput(ctx, sqlcgen.ReleaseSessionInputParams{
-		QueuedStatus: store.SessionInputQueueStatusQueued, UpdatedAt: nowRaw,
-		ID: entryID, SessionID: target, DispatchingStatus: store.SessionInputQueueStatusDispatching,
+	return g.withImmediateTransaction(ctx, "release session input", func(exec globalSQLExecutor) error {
+		entry, getErr := getSessionInputQueueEntry(ctx, exec, target, entryID)
+		if getErr != nil {
+			return getErr
+		}
+		affected, releaseErr := sqlcgen.New(exec).ReleaseSessionInput(ctx, sqlcgen.ReleaseSessionInputParams{
+			QueuedStatus: store.SessionInputQueueStatusQueued, UpdatedAt: nowRaw,
+			ID: entryID, SessionID: target, DispatchingStatus: store.SessionInputQueueStatusDispatching,
+		})
+		if releaseErr != nil {
+			return fmt.Errorf("store: release session input: %w", releaseErr)
+		}
+		if affected != 1 {
+			return fmt.Errorf("%w: %s", store.ErrSessionInputQueueEntryNotFound, entryID)
+		}
+		return completeQueuedPromptAdmissionDispatch(ctx, exec, &entry, nowRaw)
 	})
-	if err != nil {
-		return fmt.Errorf("store: release session input: %w", err)
-	}
-	if affected == 0 {
-		return fmt.Errorf("%w: %s", store.ErrSessionInputQueueEntryNotFound, entryID)
-	}
-	return nil
 }
 
 // MarkSessionInputFailed records a dispatch failure for one queue entry.
@@ -96,27 +102,36 @@ func (g *SessionRepo) updateSessionInputTerminal(
 		now = g.now()
 	}
 	nowRaw := store.FormatTimestamp(now.UTC())
-	var affected int64
-	var err error
-	if status == store.SessionInputQueueStatusFailed {
-		affected, err = g.queries.MarkSessionInputFailed(ctx, sqlcgen.MarkSessionInputFailedParams{
-			FailedStatus: status, Now: nullableSessionTime(now), FailureSummary: strings.TrimSpace(summary),
-			UpdatedAt: nowRaw, ID: entryID, SessionID: target,
-			DispatchingStatus: store.SessionInputQueueStatusDispatching,
-		})
-	} else {
-		affected, err = g.queries.MarkSessionInputSent(ctx, sqlcgen.MarkSessionInputSentParams{
-			SentStatus: status, Now: nullableSessionTime(now), UpdatedAt: nowRaw,
-			ID: entryID, SessionID: target, DispatchingStatus: store.SessionInputQueueStatusDispatching,
-		})
-	}
-	if err != nil {
-		return fmt.Errorf("store: %s: %w", action, err)
-	}
-	if affected == 0 {
-		return fmt.Errorf("%w: %s", store.ErrSessionInputQueueEntryNotFound, entryID)
-	}
-	return nil
+	return g.withImmediateTransaction(ctx, action, func(exec globalSQLExecutor) error {
+		entry, getErr := getSessionInputQueueEntry(ctx, exec, target, entryID)
+		if getErr != nil {
+			return getErr
+		}
+		var affected int64
+		var updateErr error
+		if status == store.SessionInputQueueStatusFailed {
+			affected, updateErr = sqlcgen.New(exec).MarkSessionInputFailed(ctx, sqlcgen.MarkSessionInputFailedParams{
+				FailedStatus: status, Now: nullableSessionTime(now), FailureSummary: strings.TrimSpace(summary),
+				UpdatedAt: nowRaw, ID: entryID, SessionID: target,
+				DispatchingStatus: store.SessionInputQueueStatusDispatching,
+			})
+		} else {
+			affected, updateErr = sqlcgen.New(exec).MarkSessionInputSent(ctx, sqlcgen.MarkSessionInputSentParams{
+				SentStatus: status, Now: nullableSessionTime(now), UpdatedAt: nowRaw,
+				ID: entryID, SessionID: target, DispatchingStatus: store.SessionInputQueueStatusDispatching,
+			})
+		}
+		if updateErr != nil {
+			return fmt.Errorf("store: %s: %w", action, updateErr)
+		}
+		if affected != 1 {
+			return fmt.Errorf("%w: %s", store.ErrSessionInputQueueEntryNotFound, entryID)
+		}
+		if status == store.SessionInputQueueStatusFailed {
+			return markQueuedPromptAdmissionIndeterminate(ctx, exec, &entry, strings.TrimSpace(summary), nowRaw)
+		}
+		return completeQueuedPromptAdmissionDispatch(ctx, exec, &entry, nowRaw)
+	})
 }
 
 // CancelSessionInput cancels one pending queue entry.

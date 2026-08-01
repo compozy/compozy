@@ -40,10 +40,24 @@ type SessionInputRuntime struct {
 	Speed           string
 }
 
+// Normalize returns the canonical persisted runtime selection.
+func (r SessionInputRuntime) Normalize() SessionInputRuntime {
+	r.Provider = strings.TrimSpace(r.Provider)
+	r.Model = strings.TrimSpace(r.Model)
+	r.ReasoningEffort = strings.TrimSpace(r.ReasoningEffort)
+	r.Speed = strings.TrimSpace(r.Speed)
+	return r
+}
+
 // SessionInputQueueEntry is one persisted busy-input item.
 type SessionInputQueueEntry struct {
 	ID                       string
 	SessionID                string
+	PromptAdmissionID        string
+	MessageID                string
+	IdempotencyKey           string
+	TurnID                   string
+	EventID                  string
 	Status                   string
 	Mode                     string
 	Text                     string
@@ -99,6 +113,11 @@ type SessionInputQueueSummary struct {
 type SessionInputQueueInsert struct {
 	ID                string
 	SessionID         string
+	PromptAdmissionID string
+	MessageID         string
+	IdempotencyKey    string
+	TurnID            string
+	EventID           string
 	Mode              string
 	Text              string
 	Runtime           SessionInputRuntime
@@ -114,8 +133,14 @@ func (r SessionInputQueueInsert) Normalize() SessionInputQueueInsert {
 	normalized := r
 	normalized.ID = strings.TrimSpace(normalized.ID)
 	normalized.SessionID = strings.TrimSpace(normalized.SessionID)
+	normalized.PromptAdmissionID = strings.TrimSpace(normalized.PromptAdmissionID)
+	normalized.MessageID = strings.TrimSpace(normalized.MessageID)
+	normalized.IdempotencyKey = strings.TrimSpace(normalized.IdempotencyKey)
+	normalized.TurnID = strings.TrimSpace(normalized.TurnID)
+	normalized.EventID = strings.TrimSpace(normalized.EventID)
 	normalized.Mode = strings.TrimSpace(normalized.Mode)
 	normalized.Text = strings.TrimSpace(normalized.Text)
+	normalized.Runtime = normalized.Runtime.Normalize()
 	normalized.TaskRunID = strings.TrimSpace(normalized.TaskRunID)
 	if normalized.Now.IsZero() {
 		normalized.Now = time.Now().UTC()

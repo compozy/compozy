@@ -56,12 +56,9 @@ func TestMarketplaceCatalogReopenAfterRestart(t *testing.T) {
 }
 
 func TestMarketplaceCatalogManifestV2Migration(t *testing.T) {
-	t.Parallel()
-
+	// Keep this full-history fixture serial: migration helpers share a process-wide
+	// lock, and parallel suite contention previously exhausted its operation context.
 	t.Run("Should discard every cached v1 catalog projection before the v2 reader opens", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t)
 		path := filepath.Join(t.TempDir(), store.GlobalDatabaseName)
 		legacy, err := sql.Open(sqliteDriverName, path)
 		if err != nil {
@@ -72,6 +69,7 @@ func TestMarketplaceCatalogManifestV2Migration(t *testing.T) {
 			closeErr := legacy.Close()
 			t.Fatalf("Apply(global through v31) error = %v; close error = %v", err, closeErr)
 		}
+		ctx := testutil.Context(t)
 		if _, err := legacy.ExecContext(
 			ctx,
 			`INSERT INTO marketplace_catalog_state (kind, manifest_version, generated_at, fetched_at, stale, last_error)
@@ -93,18 +91,27 @@ func TestMarketplaceCatalogManifestV2Migration(t *testing.T) {
 			t.Fatalf("Close(legacy) error = %v", err)
 		}
 
-		upgraded, err := OpenGlobalDB(ctx, path)
+		upgraded, err := openGlobalMigrationUpgrade(t, path)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB(v2 migration) error = %v", err)
 		}
+		if err := upgraded.Close(ctx); err != nil {
+			t.Fatalf("Close(upgraded) error = %v", err)
+		}
+
+		reopenCtx := testutil.Context(t)
+		reopened, err := OpenGlobalDB(reopenCtx, path)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB(reopen v2 migration) error = %v", err)
+		}
 		t.Cleanup(func() {
-			if err := upgraded.Close(ctx); err != nil {
-				t.Errorf("Close(upgraded) error = %v", err)
+			if err := reopened.Close(reopenCtx); err != nil {
+				t.Errorf("Close(reopened) error = %v", err)
 			}
 		})
 		for _, table := range []string{"marketplace_catalog_entries", "marketplace_catalog_state"} {
 			var count int
-			if err := upgraded.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM "+table).Scan(&count); err != nil {
+			if err := reopened.db.QueryRowContext(reopenCtx, "SELECT COUNT(*) FROM "+table).Scan(&count); err != nil {
 				t.Fatalf("count %s after v2 migration error = %v", table, err)
 			}
 			if count != 0 {

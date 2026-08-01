@@ -173,11 +173,16 @@ type SteerInput struct {
 	Text            string
 	QueueEntryID    string
 	QueueGeneration int64
+	MessageID       string
+	TurnID          string
+	EventID         string
 }
 
 // SteerSource is the ACP-side consumption boundary for staged steer input.
 type SteerSource interface {
 	ConsumeSteer(ctx context.Context, sessionID string) (SteerInput, bool, error)
+	CompleteSteer(ctx context.Context, sessionID string, queueEntryID string) error
+	FailSteer(ctx context.Context, sessionID string, queueEntryID string, summary string) error
 }
 
 // Caps captures the usable capabilities exposed by an ACP agent.

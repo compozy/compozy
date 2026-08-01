@@ -25,6 +25,7 @@ import {
   repairSession,
   resumeSession,
   sendSessionPrompt,
+  steerSessionPrompt,
   stopSession,
 } from "../session-api";
 
@@ -385,24 +386,64 @@ describe("cancelSessionPrompt", () => {
 });
 
 describe("sendSessionPrompt", () => {
-  it("returns a direct Goal result without requiring a prompt envelope", async () => {
+  it("unwraps the Goal result from the durable prompt envelope", async () => {
     const goalResult = {
       outcome: "cleared" as const,
       reason_code: null,
       replaced_run_id: null,
       snapshot: null,
     };
-    mockJsonResponse(goalResult);
+    mockJsonResponse({ prompt: { goal: goalResult, status: "accepted" } });
 
     const result = await sendSessionPrompt(WORKSPACE_ID, "sess-001", {
-      message: "/goal clear",
+      idempotency_key: "idempotency-001",
+      message_id: "message-001",
+      messages: [
+        {
+          id: "message-001",
+          parts: [{ text: "/goal clear", type: "text" }],
+          role: "user",
+        },
+      ],
     });
 
     expect(result).toEqual(goalResult);
     await expectFetchRequest({
-      body: { message: "/goal clear" },
+      body: {
+        idempotency_key: "idempotency-001",
+        message_id: "message-001",
+        messages: [
+          {
+            id: "message-001",
+            parts: [{ text: "/goal clear", type: "text" }],
+            role: "user",
+          },
+        ],
+      },
       method: "POST",
       path: "/api/workspaces/ws_alpha/sessions/sess-001/prompt",
+    });
+  });
+});
+
+describe("steerSessionPrompt", () => {
+  it("sends the required durable prompt identities with steering text", async () => {
+    mockJsonResponse({ prompt: { status: "staged" } }, { status: 202 });
+
+    await steerSessionPrompt(WORKSPACE_ID, "sess-001", {
+      idempotency_key: "idempotency-002",
+      message_id: "message-002",
+      text: "Focus on the failing test.",
+    });
+
+    await expectFetchRequest({
+      body: {
+        idempotency_key: "idempotency-002",
+        message_id: "message-002",
+        text: "Focus on the failing test.",
+      },
+      method: "POST",
+      path: "/api/workspaces/ws_alpha/sessions/sess-001/steer",
     });
   });
 });

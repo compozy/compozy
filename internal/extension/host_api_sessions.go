@@ -114,6 +114,12 @@ func (h *HostAPIHandler) handleSessionsPrompt(ctx context.Context, raw json.RawM
 	if strings.TrimSpace(params.Message) == "" {
 		return nil, invalidParamsRPCError(errors.New("message is required"))
 	}
+	if strings.TrimSpace(params.MessageID) == "" {
+		return nil, invalidParamsRPCError(errors.New("message_id is required"))
+	}
+	if strings.TrimSpace(params.IdempotencyKey) == "" {
+		return nil, invalidParamsRPCError(errors.New("idempotency_key is required"))
+	}
 	if _, err := h.requireHostAPISessionWorkspace(ctx, params.WorkspaceID, params.SessionID); err != nil {
 		return nil, err
 	}
@@ -122,6 +128,8 @@ func (h *HostAPIHandler) handleSessionsPrompt(ctx context.Context, raw json.RawM
 		ctx,
 		params.SessionID,
 		params.Message,
+		params.MessageID,
+		params.IdempotencyKey,
 		hostAPIPromptRuntimeSelection(params.Runtime),
 	)
 	if err != nil {
@@ -149,6 +157,9 @@ func hostAPISessionPromptResultFromSubmission(
 	result := hostAPISessionPromptResult{
 		Status:                     strings.TrimSpace(admission.Status),
 		Mode:                       admission.Mode,
+		MessageID:                  admission.MessageID,
+		IdempotencyKey:             admission.IdempotencyKey,
+		Replayed:                   admission.Replayed,
 		TurnID:                     turnID,
 		QueueEntryID:               strings.TrimSpace(admission.QueueEntryID),
 		QueuePosition:              admission.QueuePosition,

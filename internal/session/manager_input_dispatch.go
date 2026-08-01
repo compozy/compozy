@@ -11,6 +11,11 @@ import (
 
 type humanQueuedInput struct {
 	id                string
+	promptAdmissionID string
+	messageID         string
+	idempotencyKey    string
+	turnID            string
+	eventID           string
 	mode              string
 	status            string
 	text              string
@@ -48,6 +53,11 @@ func (m *Manager) startNextQueuedInputPrompt(sessionID string) {
 	}
 	m.dispatchHumanQueuedInput(target, session, humanQueuedInput{
 		id:                entry.ID,
+		promptAdmissionID: entry.PromptAdmissionID,
+		messageID:         entry.MessageID,
+		idempotencyKey:    entry.IdempotencyKey,
+		turnID:            entry.TurnID,
+		eventID:           entry.EventID,
 		mode:              entry.Mode,
 		status:            entry.Status,
 		text:              entry.Text,
@@ -113,11 +123,18 @@ func (m *Manager) newQueuedInputPromptRequest(
 	target string,
 	entry humanQueuedInput,
 ) promptRequest {
+	turnID := strings.TrimSpace(entry.turnID)
+	if turnID == "" {
+		turnID = m.newPromptTurnID()
+	}
 	return promptRequest{
-		turnID:          m.newPromptTurnID(),
+		turnID:          turnID,
 		target:          target,
 		message:         entry.text,
 		authoredMessage: entry.text,
+		messageID:       entry.messageID,
+		idempotencyKey:  entry.idempotencyKey,
+		eventID:         entry.eventID,
 		turnSource:      TurnSourceUser,
 		meta:            acp.PromptMeta{TurnSource: string(TurnSourceUser)},
 		runtime:         runtimeSelectionFromStore(entry.runtime),

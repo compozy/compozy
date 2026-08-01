@@ -143,30 +143,7 @@ func readManualMCPAuthInputContextWithTerminal(
 		}
 		return value, nil
 	}
-
-	type readResult struct {
-		value string
-		err   error
-	}
-	results := make(chan readResult, 1)
-	go func() {
-		value, err := readInput()
-		results <- readResult{value: value, err: err}
-	}()
-	select {
-	case result := <-results:
-		if err := ctx.Err(); err != nil {
-			return "", mcpAuthorizationTimeoutError(err)
-		}
-		return result.value, result.err
-	case <-ctx.Done():
-		timeoutErr := mcpAuthorizationTimeoutError(ctx.Err())
-		if err := file.Close(); err != nil {
-			return "", errors.Join(timeoutErr, fmt.Errorf("cli: cancel MCP authorization input: %w", err))
-		}
-		<-results
-		return "", timeoutErr
-	}
+	return readManualMCPAuthFileContext(ctx, file, readInput)
 }
 
 func mcpAuthorizationTimeoutError(err error) error {

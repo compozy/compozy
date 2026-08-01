@@ -1454,6 +1454,16 @@ func TestHandleSessionUpdateVariants(t *testing.T) {
 		defer proc.endPrompt(active)
 
 		title := "permission"
+		userEcho := mustMarshalJSON(wireSessionNotification{
+			SessionID: "sess-direct",
+			Update: mustMarshalJSON(map[string]any{
+				"sessionUpdate": "user_message_chunk",
+				"content":       map[string]any{"type": "text", "text": "authored prompt echo"},
+			}),
+		})
+		if err := proc.handleSessionUpdate(userEcho); err != nil {
+			t.Fatalf("handleSessionUpdate(user_message_chunk) error = %v", err)
+		}
 		agentMessage := mustMarshalJSON(wireSessionNotification{
 			SessionID: "sess-direct",
 			Update: mustMarshalJSON(map[string]any{
@@ -1535,6 +1545,11 @@ func TestHandleSessionUpdateVariants(t *testing.T) {
 		if events[4].Type != EventTypeToolResult || !events[4].ToolError() {
 			t.Fatalf("failed tool result event = %#v, want typed failure", events[4])
 		}
+		select {
+		case extra := <-active.events:
+			t.Fatalf("provider user-message echo emitted an extra event: %#v", extra)
+		default:
+		}
 		assertConfigOption(t, proc.CapsSnapshot().ConfigOptions, "mode", "code", "agent", "plan", "ask")
 	})
 }
@@ -1581,6 +1596,43 @@ func TestHandleSessionUpdateAvailableCommands(t *testing.T) {
 			Input:       &store.SessionAdvertisedCommandInput{Hint: "optional focus"},
 		}}; !slices.EqualFunc(got, want, store.SessionAdvertisedCommandsEqual) {
 			t.Fatalf("available commands = %#v, want %#v", got, want)
+		}
+	})
+}
+
+func TestSteeredUserEvent(t *testing.T) {
+	t.Run("Should preserve the durable admission identity", func(t *testing.T) {
+		t.Parallel()
+
+		event := steeredUserEvent(" session-steer ", " turn-steer ", SteerInput{
+			Text:            " steer this turn ",
+			QueueEntryID:    " queue-steer ",
+			QueueGeneration: 7,
+			MessageID:       " message-steer ",
+			TurnID:          " turn-steer ",
+			EventID:         " event-steer ",
+		})
+
+		if got, want := event.Type, EventTypeUserMessage; got != want {
+			t.Fatalf("event type = %q, want %q", got, want)
+		}
+		if got, want := event.SessionID, "session-steer"; got != want {
+			t.Fatalf("session id = %q, want %q", got, want)
+		}
+		if got, want := event.TurnID, "turn-steer"; got != want {
+			t.Fatalf("turn id = %q, want %q", got, want)
+		}
+		if got, want := event.MessageIDValue(), "message-steer"; got != want {
+			t.Fatalf("message id = %q, want %q", got, want)
+		}
+		if got, want := event.EventIDValue(), "event-steer"; got != want {
+			t.Fatalf("event id = %q, want %q", got, want)
+		}
+		if got, want := event.RequestID, "queue-steer"; got != want {
+			t.Fatalf("queue entry id = %q, want %q", got, want)
+		}
+		if got, want := event.Decision, "7"; got != want {
+			t.Fatalf("queue generation = %q, want %q", got, want)
 		}
 	})
 }

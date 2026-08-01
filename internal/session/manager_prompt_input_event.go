@@ -15,7 +15,9 @@ type promptRequest struct {
 	target                 string
 	message                string
 	authoredMessage        string
-	clientMessageID        string
+	messageID              string
+	idempotencyKey         string
+	eventID                string
 	runtime                *RuntimeSelection
 	turnSource             TurnSource
 	meta                   acp.PromptMeta
@@ -23,6 +25,7 @@ type promptRequest struct {
 	prepareDelivery        PromptDeliveryPreparer
 	inputRecorded          bool
 	releaseSlotBeforeHooks bool
+	commitDispatch         func(context.Context) error
 }
 
 func (m *Manager) recordPromptInputEvent(
@@ -49,8 +52,8 @@ func (m *Manager) recordPromptInputEvent(
 		Text:      req.message,
 	}
 	event = event.WithPromptRuntime(promptRuntimeFromSelectionPointer(req.runtime))
-	if clientMessageID := strings.TrimSpace(req.clientMessageID); clientMessageID != "" {
-		event = event.WithClientMessageID(clientMessageID)
+	if messageID := strings.TrimSpace(req.messageID); messageID != "" {
+		event = event.WithMessageID(messageID)
 	}
 	if req.turnSource == TurnSourceSynthetic {
 		event.Type = acp.EventTypeSyntheticReentry
@@ -61,7 +64,13 @@ func (m *Manager) recordPromptInputEvent(
 	}
 	event = m.normalizeEvent(session, req.turnID, event)
 	if session != nil {
-		if err := m.recordEventWithAuthoredText(ctx, session, event, req.authoredMessage); err == nil {
+		if err := m.recordPromptInputWithAuthoredText(
+			ctx,
+			session,
+			event,
+			req.authoredMessage,
+			req.eventID,
+		); err == nil {
 			m.notifyAgentEvent(ctx, session, event)
 			req.inputRecorded = true
 			return nil
@@ -69,7 +78,7 @@ func (m *Manager) recordPromptInputEvent(
 			return fmt.Errorf("session: persist prompt message for %q: %w", req.target, err)
 		}
 	}
-	if err := m.recordInactivePromptInputEvent(ctx, req.target, event, req.authoredMessage); err != nil {
+	if err := m.recordInactivePromptInputEvent(ctx, req.target, event, req.authoredMessage, req.eventID); err != nil {
 		return fmt.Errorf("session: persist prompt message for %q: %w", req.target, err)
 	}
 	req.inputRecorded = true
@@ -81,6 +90,7 @@ func (m *Manager) recordInactivePromptInputEvent(
 	sessionID string,
 	event acp.AgentEvent,
 	authoredText string,
+	eventID string,
 ) error {
 	meta, err := m.readMetaWithContext(ctx, sessionID)
 	if err != nil {
@@ -92,7 +102,7 @@ func (m *Manager) recordInactivePromptInputEvent(
 		return err
 	}
 	persisted, err := m.appendDurableSessionEvent(ctx, sessionID, store.SessionEvent{
-		ID:        store.NewID("ev"),
+		ID:        promptInputEventID(eventID),
 		SessionID: sessionID,
 		TurnID:    event.TurnID,
 		Type:      event.Type,
@@ -106,6 +116,13 @@ func (m *Manager) recordInactivePromptInputEvent(
 	m.publishSessionEventByID(ctx, sessionID, persisted)
 	m.notifyAgentEventFromInfo(ctx, m.sessionInfoFromMeta(ctx, meta), event)
 	return nil
+}
+
+func promptInputEventID(eventID string) string {
+	if normalized := strings.TrimSpace(eventID); normalized != "" {
+		return normalized
+	}
+	return store.NewID("ev")
 }
 
 func clonePromptSyntheticMeta(meta *acp.PromptSyntheticMeta) *acp.PromptSyntheticMeta {

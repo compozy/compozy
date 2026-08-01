@@ -28,7 +28,7 @@ func marshalAgentEvent(event acp.AgentEvent, authoredText string) (string, error
 		Type:              event.Type,
 		SessionID:         event.SessionID,
 		TurnID:            event.TurnID,
-		ClientMessageID:   event.ClientMessageIDValue(),
+		MessageID:         event.MessageIDValue(),
 		RequestID:         event.RequestID,
 		EventCorrelation:  event.Normalize(),
 		Timestamp:         event.Timestamp,
@@ -140,8 +140,8 @@ func UnmarshalAgentEvent(payload string) (acp.AgentEvent, error) {
 		Raw:              acp.CloneRawMessage(decoded.Raw),
 	}
 	event = event.WithPromptRuntime(decoded.PromptRuntime)
-	if clientMessageID := strings.TrimSpace(decoded.ClientMessageID); clientMessageID != "" {
-		event = event.WithClientMessageID(clientMessageID)
+	if messageID := strings.TrimSpace(decoded.MessageID); messageID != "" {
+		event = event.WithMessageID(messageID)
 	}
 	toolErrorDetail := ""
 	if event.Type == acp.EventTypeToolResult && decoded.ToolResult != nil {

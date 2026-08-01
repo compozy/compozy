@@ -622,7 +622,10 @@ func TestExtractPromptMessageCoversContentFallbacks(t *testing.T) {
 	t.Parallel()
 
 	message, err := extractPromptMessage(promptRequest{
+		MessageID:      "msg-content",
+		IdempotencyKey: "idem-content",
 		Messages: []uiMessageEnvelope{{
+			ID:      "msg-content",
 			Role:    "user",
 			Content: "content path",
 		}},
@@ -632,9 +635,12 @@ func TestExtractPromptMessageCoversContentFallbacks(t *testing.T) {
 	}
 
 	message, err = extractPromptMessage(promptRequest{
+		MessageID:      "msg-parts",
+		IdempotencyKey: "idem-parts",
 		Messages: []uiMessageEnvelope{{
 			Role: "assistant",
 		}, {
+			ID:   "msg-parts",
 			Role: "user",
 			Parts: []uiMessageTextPart{
 				{Type: "tool-call", Text: "ignored"},

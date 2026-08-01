@@ -143,33 +143,57 @@ func statusForSessionError(err error) int {
 		return statusClientClosedRequest
 	case errors.Is(err, admission.ErrDraining):
 		return http.StatusServiceUnavailable
+	}
+	if status, ok := statusForSessionLookupError(err); ok {
+		return status
+	}
+	if status, ok := statusForSessionValidationError(err); ok {
+		return status
+	}
+	if status, ok := statusForSessionConflictError(err); ok {
+		return status
+	}
+	if status, ok := statusForSessionAvailabilityError(err); ok {
+		return status
+	}
+	return http.StatusInternalServerError
+}
+
+func statusForSessionLookupError(err error) (int, bool) {
+	switch {
 	case errors.Is(err, session.ErrSessionNotFound),
 		errors.Is(err, store.ErrSessionNotFound),
 		errors.Is(err, store.ErrSessionInputQueueEntryNotFound),
-		errors.Is(err, os.ErrNotExist):
-		return http.StatusNotFound
-	case errors.Is(err, workspacepkg.ErrWorkspaceNotFound):
-		return http.StatusNotFound
+		errors.Is(err, os.ErrNotExist),
+		errors.Is(err, workspacepkg.ErrWorkspaceNotFound):
+		return http.StatusNotFound, true
 	case errors.Is(err, workspacepkg.ErrWorkspaceRootMissing):
-		return http.StatusGone
-	case errors.Is(err, workspacepkg.ErrAgentNotAvailable):
-		return http.StatusBadRequest
-	case errors.Is(err, compozyconfig.ErrSandboxProfileNotFound):
-		return http.StatusBadRequest
-	case errors.Is(err, compozyconfig.ErrProviderUnavailable):
-		return http.StatusBadRequest
-	case isProviderNegotiationFailure(err):
-		return http.StatusUnprocessableEntity
-	case isProviderAuthFailure(err):
-		return http.StatusUnprocessableEntity
-	case isReasoningEffortUnsupportedFailure(err):
-		return http.StatusUnprocessableEntity
-	case errors.Is(err, session.ErrInvalidRuntimeOverride):
-		return http.StatusBadRequest
-	case errors.Is(err, session.ErrInvalidPermissionDecision):
-		return http.StatusBadRequest
-	case errors.Is(err, session.ErrSessionNotActive):
-		return http.StatusBadRequest
+		return http.StatusGone, true
+	default:
+		return 0, false
+	}
+}
+
+func statusForSessionValidationError(err error) (int, bool) {
+	switch {
+	case errors.Is(err, workspacepkg.ErrAgentNotAvailable),
+		errors.Is(err, compozyconfig.ErrSandboxProfileNotFound),
+		errors.Is(err, compozyconfig.ErrProviderUnavailable),
+		errors.Is(err, session.ErrInvalidRuntimeOverride),
+		errors.Is(err, session.ErrInvalidPermissionDecision),
+		errors.Is(err, session.ErrSessionNotActive):
+		return http.StatusBadRequest, true
+	case isProviderNegotiationFailure(err),
+		isProviderAuthFailure(err),
+		isReasoningEffortUnsupportedFailure(err):
+		return http.StatusUnprocessableEntity, true
+	default:
+		return 0, false
+	}
+}
+
+func statusForSessionConflictError(err error) (int, bool) {
+	switch {
 	case errors.Is(err, session.ErrPromptInProgress),
 		errors.Is(err, session.ErrPromptNotInProgress),
 		errors.Is(err, session.ErrPendingPermissionNotFound),
@@ -177,16 +201,27 @@ func statusForSessionError(err error) int {
 		errors.Is(err, store.ErrSessionAttachLocked),
 		errors.Is(err, store.ErrSessionNotAttachable),
 		errors.Is(err, workspacepkg.ErrWorkspaceNameTaken),
-		errors.Is(err, workspacepkg.ErrWorkspacePathTaken):
-		return http.StatusConflict
-	case errors.Is(err, store.ErrSessionInputQueueFull):
-		return http.StatusRequestEntityTooLarge
-	case errors.Is(err, transcript.ErrProjectionIncompatible):
-		return http.StatusServiceUnavailable
-	case errors.Is(err, transcript.ErrProjectionCorrupt):
-		return http.StatusInternalServerError
+		errors.Is(err, workspacepkg.ErrWorkspacePathTaken),
+		errors.Is(err, store.ErrSessionPromptAdmissionInProgress),
+		errors.Is(err, store.ErrSessionPromptIdempotencyConflict),
+		errors.Is(err, store.ErrSessionPromptMessageConflict),
+		errors.Is(err, store.ErrSessionPromptDispatchIndeterminate):
+		return http.StatusConflict, true
 	default:
-		return http.StatusInternalServerError
+		return 0, false
+	}
+}
+
+func statusForSessionAvailabilityError(err error) (int, bool) {
+	switch {
+	case errors.Is(err, store.ErrSessionInputQueueFull):
+		return http.StatusRequestEntityTooLarge, true
+	case errors.Is(err, transcript.ErrProjectionIncompatible):
+		return http.StatusServiceUnavailable, true
+	case errors.Is(err, transcript.ErrProjectionCorrupt):
+		return http.StatusInternalServerError, true
+	default:
+		return 0, false
 	}
 }
 

@@ -32,7 +32,6 @@ const (
 	runtimeHarnessDoneKey       = "done"
 	runtimeHarnessEventKey      = "event"
 	runtimeHarnessHTTPUnixPath  = "http://unix"
-	runtimeHarnessMessageKey    = "message"
 	runtimeHarnessPermissionKey = "permission"
 )
 

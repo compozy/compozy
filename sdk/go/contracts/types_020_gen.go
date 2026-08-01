@@ -15,10 +15,12 @@ type SessionsListParams struct {
 }
 
 type SessionsPromptParams struct {
-	WorkspaceID string                         `json:"workspace_id"`
-	SessionID   string                         `json:"session_id"`
-	Message     string                         `json:"message"`
-	Runtime     *PromptRuntimeSelectionPayload `json:"runtime,omitempty"`
+	WorkspaceID    string                         `json:"workspace_id"`
+	SessionID      string                         `json:"session_id"`
+	Message        string                         `json:"message"`
+	MessageID      string                         `json:"message_id"`
+	IdempotencyKey string                         `json:"idempotency_key"`
+	Runtime        *PromptRuntimeSelectionPayload `json:"runtime,omitempty"`
 }
 
 type ShutdownRequest struct {

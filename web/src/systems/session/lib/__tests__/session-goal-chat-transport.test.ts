@@ -15,6 +15,22 @@ function result(
   };
 }
 
+function promptEnvelope(goal: unknown) {
+  return {
+    prompt: {
+      goal,
+    },
+  };
+}
+
+function requestBody(text: string) {
+  return JSON.stringify({
+    idempotency_key: "idempotency-001",
+    message_id: "message-001",
+    messages: [{ id: "message-001", role: "user", parts: [{ type: "text", text }] }],
+  });
+}
+
 describe("createGoalAwareFetch", () => {
   it("Should announce a later send before transport work without changing typed result ownership", async () => {
     const order: string[] = [];
@@ -23,7 +39,7 @@ describe("createGoalAwareFetch", () => {
     const goalFetch = createGoalAwareFetch({
       fetch: vi.fn(async () => {
         order.push("fetch");
-        return new Response(JSON.stringify(payload), {
+        return new Response(JSON.stringify(promptEnvelope(payload)), {
           status: 422,
           headers: { "content-type": "application/json" },
         });
@@ -32,7 +48,7 @@ describe("createGoalAwareFetch", () => {
       onResult,
     });
 
-    await goalFetch("/prompt", { method: "POST", body: JSON.stringify({ message: "/goal" }) });
+    await goalFetch("/prompt", { method: "POST", body: requestBody("/goal") });
 
     expect(order).toEqual(["request", "fetch", "result"]);
     expect(onResult).toHaveBeenCalledWith(payload, "/goal");
@@ -54,7 +70,7 @@ describe("createGoalAwareFetch", () => {
       const payload = result(outcome, reason);
       const source = vi.fn(
         async () =>
-          new Response(JSON.stringify(payload), {
+          new Response(JSON.stringify(promptEnvelope(payload)), {
             status: outcome === "error" ? 409 : outcome === "started" ? 202 : 200,
             headers: { "content-type": "application/json; charset=utf-8" },
           })
@@ -64,9 +80,7 @@ describe("createGoalAwareFetch", () => {
 
       const response = await goalFetch("/prompt", {
         method: "POST",
-        body: JSON.stringify({
-          messages: [{ role: "user", parts: [{ type: "text", text: "/goal ship it" }] }],
-        }),
+        body: requestBody("/goal ship it"),
       });
 
       expect(onResult).toHaveBeenCalledWith(payload, "/goal ship it");
@@ -92,7 +106,7 @@ describe("createGoalAwareFetch", () => {
     const goalFetch = createGoalAwareFetch({
       fetch: vi.fn(
         async () =>
-          new Response(JSON.stringify(payload), {
+          new Response(JSON.stringify(promptEnvelope(payload)), {
             headers: { "content-type": "application/problem+json" },
           })
       ),
@@ -101,7 +115,7 @@ describe("createGoalAwareFetch", () => {
 
     await goalFetch("/prompt", {
       method: "POST",
-      body: JSON.stringify({ message: "/goal replace run_1 ship it" }),
+      body: requestBody("/goal replace run_1 ship it"),
     });
     expect(onResult).toHaveBeenCalledWith(payload, "/goal replace run_1 ship it");
   });
@@ -114,7 +128,7 @@ describe("createGoalAwareFetch", () => {
     const goalFetch = createGoalAwareFetch({
       fetch: vi.fn(
         async () =>
-          new Response(JSON.stringify(payload), {
+          new Response(JSON.stringify(promptEnvelope(payload)), {
             status: 409,
             headers: { "content-type": "application/json" },
           })
@@ -135,7 +149,7 @@ describe("createGoalAwareFetch", () => {
     const goalFetch = createGoalAwareFetch({
       fetch: vi.fn(
         async () =>
-          new Response(JSON.stringify(payload), {
+          new Response(JSON.stringify(promptEnvelope(payload)), {
             status: 422,
             headers: { "content-type": "application/json" },
           })
@@ -145,7 +159,7 @@ describe("createGoalAwareFetch", () => {
 
     const response = await goalFetch("/prompt", {
       method: "POST",
-      body: JSON.stringify({ message: "/goal ship the verified release" }),
+      body: requestBody("/goal ship the verified release"),
     });
 
     expect(onResult).toHaveBeenCalledWith(payload, "/goal ship the verified release");
@@ -169,7 +183,7 @@ describe("createGoalAwareFetch", () => {
     await expect(
       goalFetch("/prompt", {
         method: "POST",
-        body: JSON.stringify({ message: "/goal draft expand this" }),
+        body: requestBody("/goal draft expand this"),
       })
     ).resolves.toBe(draft);
     expect(onResult).not.toHaveBeenCalled();
@@ -186,6 +200,85 @@ describe("createGoalAwareFetch", () => {
       response
     );
     expect(onResult).not.toHaveBeenCalled();
+  });
+
+  it("Should convert a replayed prompt receipt into an empty stream for its accepted turn", async () => {
+    const goalFetch = createGoalAwareFetch({
+      fetch: vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              prompt: {
+                idempotency_key: "idempotency-001",
+                message_id: "message-001",
+                new_turn_id: "turn-replayed-001",
+                replayed: true,
+                status: "accepted",
+              },
+            }),
+            { status: 202, headers: { "content-type": "application/json" } }
+          )
+      ),
+      onResult: vi.fn(),
+    });
+
+    const response = await goalFetch("/prompt", { method: "POST", body: requestBody("Retry") });
+
+    expect(response.headers.get("content-type")).toBe("text/event-stream");
+    await expect(response.text()).resolves.toContain('"messageId":"turn-replayed-001"');
+  });
+
+  it("Should use a deterministic synthetic turn when a replay receipt omits the accepted turn", async () => {
+    const goalFetch = createGoalAwareFetch({
+      fetch: vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              prompt: {
+                idempotency_key: "idempotency-001",
+                message_id: "authored-user-message-001",
+                replayed: true,
+                status: "accepted",
+              },
+            }),
+            { status: 202, headers: { "content-type": "application/json" } }
+          )
+      ),
+      onResult: vi.fn(),
+    });
+
+    const response = await goalFetch("/prompt", { method: "POST", body: requestBody("Retry") });
+
+    const stream = await response.text();
+    expect(stream).toContain('"messageId":"synthetic-replay-turn-0"');
+    expect(stream).not.toContain("authored-user-message-001");
+  });
+
+  it("Should preserve Goal failure guidance when a replay receipt is not accepted", async () => {
+    const payload = result("error", "goal_objective_required");
+    const onResult = vi.fn();
+    const goalFetch = createGoalAwareFetch({
+      fetch: vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              prompt: {
+                goal: payload,
+                replayed: true,
+              },
+            }),
+            { status: 422, headers: { "content-type": "application/json" } }
+          )
+      ),
+      onResult,
+    });
+
+    const response = await goalFetch("/prompt", { method: "POST", body: requestBody("/goal") });
+
+    expect(onResult).toHaveBeenCalledWith(payload, "/goal");
+    expect(response.status).toBe(422);
+    expect(response.headers.get("content-type")).toContain("text/plain");
+    await expect(response.text()).resolves.toBe("Add an objective after /goal, then try again.");
   });
 
   it("Should preserve a malformed JSON response without consuming its body", async () => {

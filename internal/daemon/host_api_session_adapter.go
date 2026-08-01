@@ -14,6 +14,10 @@ type sandboxExecSessionManager interface {
 	ExecSandbox(context.Context, session.SandboxExecRequest) (session.SandboxExecResult, error)
 }
 
+type hostAPISessionAcceptanceManager interface {
+	CreateAccepted(context.Context, session.CreateAcceptedOpts) (*session.Info, error)
+}
+
 type hostAPIExtensionSessionManager interface {
 	SessionManager
 	ExecSandbox(context.Context, session.SandboxExecRequest) (session.SandboxExecResult, error)
@@ -39,7 +43,8 @@ type hostAPIPromptOptsSessionManager interface {
 
 type hostAPISessionManagerAdapter struct {
 	core.SessionManager
-	exec sandboxExecSessionManager
+	exec       sandboxExecSessionManager
+	acceptance hostAPISessionAcceptanceManager
 }
 
 type hostAPINetworkSessionManagerAdapter struct {
@@ -48,6 +53,7 @@ type hostAPINetworkSessionManagerAdapter struct {
 }
 
 var (
+	_ hostAPISessionAcceptanceManager = (*hostAPISessionManagerAdapter)(nil)
 	_ hostAPIPromptOptsSessionManager = (*hostAPISessionManagerAdapter)(nil)
 	_ hostAPIPromptOptsSessionManager = (*hostAPINetworkSessionManagerAdapter)(nil)
 )
@@ -57,6 +63,9 @@ func newHostAPISessionManagerAdapter(sessions SessionManager) hostAPIExtensionSe
 	if exec, ok := sessions.(sandboxExecSessionManager); ok {
 		adapter.exec = exec
 	}
+	if acceptance, ok := sessions.(hostAPISessionAcceptanceManager); ok {
+		adapter.acceptance = acceptance
+	}
 	if bridgePrompts, ok := sessions.(hostAPIBridgePromptSessionManager); ok {
 		return hostAPINetworkSessionManagerAdapter{
 			hostAPISessionManagerAdapter: adapter,
@@ -64,6 +73,20 @@ func newHostAPISessionManagerAdapter(sessions SessionManager) hostAPIExtensionSe
 		}
 	}
 	return adapter
+}
+
+func (a hostAPISessionManagerAdapter) CreateAccepted(
+	ctx context.Context,
+	opts session.CreateAcceptedOpts,
+) (*session.Info, error) {
+	if a.acceptance == nil {
+		return nil, errors.New("daemon: session manager does not support durable acceptance")
+	}
+	info, err := a.acceptance.CreateAccepted(ctx, opts)
+	if err != nil {
+		return nil, fmt.Errorf("daemon: host api CreateAccepted: %w", err)
+	}
+	return info, nil
 }
 
 func (a hostAPISessionManagerAdapter) ExecSandbox(

@@ -23,6 +23,12 @@ func (m *Manager) submitPromptRequest(ctx context.Context, req promptRequest) (<
 			session.finishPromptSetup()
 		}
 	}()
+	if req.commitDispatch != nil {
+		if err := req.commitDispatch(ctx); err != nil {
+			return nil, err
+		}
+		req.commitDispatch = nil
+	}
 	proc, err = m.ensurePromptRuntime(ctx, session, req.runtime, proc)
 	if err != nil {
 		return nil, err

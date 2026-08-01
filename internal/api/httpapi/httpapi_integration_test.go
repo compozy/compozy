@@ -208,7 +208,7 @@ func TestHTTPFullRoundTripWithRealSessionManager(t *testing.T) {
 		runtime.client,
 		http.MethodPost,
 		mustURL(runtime.host, runtime.port, "/api/workspaces/ws-workspace/sessions/"+created.Session.ID+"/prompt"),
-		[]byte(`{"message":"hello"}`),
+		integrationPromptJSON(t, "hello"),
 		nil,
 	)
 	if promptResp.StatusCode != http.StatusOK {
@@ -261,7 +261,7 @@ func TestHTTPPromptPersistsTerminalEventsAfterClientDisconnect(t *testing.T) {
 		requestCtx,
 		http.MethodPost,
 		mustURL(runtime.host, runtime.port, "/api/workspaces/ws-workspace/sessions/"+sessionID+"/prompt"),
-		strings.NewReader(`{"message":"hello"}`),
+		strings.NewReader(string(integrationPromptJSON(t, "hello"))),
 	)
 	if err != nil {
 		t.Fatalf("http.NewRequestWithContext() error = %v", err)
@@ -374,7 +374,7 @@ func TestHTTPPromptRejectsConcurrentRequestWithConflictAndNoGhostInput(t *testin
 		req, err := http.NewRequest(
 			http.MethodPost,
 			mustURL(runtime.host, runtime.port, "/api/workspaces/ws-workspace/sessions/"+sessionID+"/prompt"),
-			strings.NewReader(`{"message":"first prompt"}`),
+			strings.NewReader(string(integrationPromptJSON(t, "first prompt"))),
 		)
 		if err != nil {
 			firstResultCh <- promptResult{err: err}
@@ -392,7 +392,7 @@ func TestHTTPPromptRejectsConcurrentRequestWithConflictAndNoGhostInput(t *testin
 		runtime.client,
 		http.MethodPost,
 		mustURL(runtime.host, runtime.port, "/api/workspaces/ws-workspace/sessions/"+sessionID+"/prompt"),
-		[]byte(`{"message":"second prompt"}`),
+		integrationPromptJSON(t, "second prompt"),
 		nil,
 	)
 	if secondResp.StatusCode != http.StatusConflict {
@@ -770,7 +770,7 @@ func exerciseHTTPSessionStreamReconnectPreservesCursorWhenNoNewEventsExistYet(t 
 		req, err := http.NewRequest(
 			http.MethodPost,
 			mustURL(runtime.host, runtime.port, "/api/workspaces/ws-workspace/sessions/"+sessionID+"/prompt"),
-			strings.NewReader(`{"message":"hello"}`),
+			strings.NewReader(string(integrationPromptJSON(t, "hello"))),
 		)
 		if err != nil {
 			promptResultCh <- promptRequestResult{err: err}
@@ -1160,7 +1160,7 @@ func TestHTTPApprovePermissionFullFlow(t *testing.T) {
 		runtime.client,
 		http.MethodPost,
 		mustURL(runtime.host, runtime.port, "/api/workspaces/ws-workspace/sessions/"+sessionID+"/prompt"),
-		[]byte(`{"message":"request permission"}`),
+		integrationPromptJSON(t, "request permission"),
 		nil,
 	)
 	if promptResp.StatusCode != http.StatusOK {
@@ -1229,7 +1229,7 @@ func TestHTTPApprovePermissionTimeout(t *testing.T) {
 		runtime.client,
 		http.MethodPost,
 		mustURL(runtime.host, runtime.port, "/api/workspaces/ws-workspace/sessions/"+sessionID+"/prompt"),
-		[]byte(`{"message":"request permission"}`),
+		integrationPromptJSON(t, "request permission"),
 		nil,
 	)
 	if promptResp.StatusCode != http.StatusOK {
@@ -3941,7 +3941,7 @@ func sendPrompt(t *testing.T, runtime integrationRuntime, sessionID string, mess
 		runtime.client,
 		http.MethodPost,
 		mustURL(runtime.host, runtime.port, "/api/workspaces/ws-workspace/sessions/"+sessionID+"/prompt"),
-		mustIntegrationJSON(map[string]any{"message": message}),
+		integrationPromptJSON(t, message),
 		nil,
 	)
 	if resp.StatusCode != http.StatusOK {
@@ -3953,6 +3953,17 @@ func sendPrompt(t *testing.T, runtime integrationRuntime, sessionID string, mess
 	_ = resp.Body.Close()
 }
 
+func integrationPromptJSON(t *testing.T, message string) []byte {
+	t.Helper()
+
+	identity := strings.NewReplacer("/", "-", " ", "-").Replace(t.Name() + "-" + message)
+	return mustIntegrationJSON(map[string]any{
+		"message":         message,
+		"message_id":      "msg-" + identity,
+		"idempotency_key": "idem-" + identity,
+	})
+}
+
 func bindIntegrationSessionRuntime(t *testing.T, runtime integrationRuntime, sessionID string) {
 	t.Helper()
 
@@ -3962,8 +3973,10 @@ func bindIntegrationSessionRuntime(t *testing.T, runtime integrationRuntime, ses
 		http.MethodPost,
 		mustURL(runtime.host, runtime.port, "/api/workspaces/ws-workspace/sessions/"+sessionID+"/prompt"),
 		mustIntegrationJSON(map[string]any{
-			"message": "bind runtime",
-			"runtime": map[string]any{"provider": "fake"},
+			"message":         "bind runtime",
+			"message_id":      "msg-bind-runtime",
+			"idempotency_key": "idem-bind-runtime",
+			"runtime":         map[string]any{"provider": "fake"},
 		}),
 		nil,
 	)

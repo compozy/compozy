@@ -13,11 +13,12 @@ const (
 
 // SendPromptRequest captures user-facing prompt input plus optional busy-input mode.
 type SendPromptRequest struct {
-	Message   string                         `json:"message,omitempty"`
-	Messages  []PromptUIMessage              `json:"messages,omitempty"`
-	MessageID string                         `json:"messageId,omitempty"`
-	Mode      PromptMode                     `json:"mode,omitempty"`
-	Runtime   *PromptRuntimeSelectionPayload `json:"runtime,omitempty"`
+	Message        string                         `json:"message,omitempty"`
+	Messages       []PromptUIMessage              `json:"messages,omitempty"`
+	MessageID      string                         `json:"message_id"`
+	IdempotencyKey string                         `json:"idempotency_key"`
+	Mode           PromptMode                     `json:"mode,omitempty"`
+	Runtime        *PromptRuntimeSelectionPayload `json:"runtime,omitempty"`
 }
 
 // PromptUIMessage carries Vercel AI SDK compatible message input.
@@ -36,13 +37,18 @@ type PromptUITextPart struct {
 
 // SteerPromptRequest captures staged steering guidance for an active session.
 type SteerPromptRequest struct {
-	Text string `json:"text"`
+	Text           string `json:"text"`
+	MessageID      string `json:"message_id"`
+	IdempotencyKey string `json:"idempotency_key"`
 }
 
 // SendPromptResultPayload reports non-streaming busy-input outcomes.
 type SendPromptResultPayload struct {
 	Status                     string             `json:"status"`
 	Mode                       PromptMode         `json:"mode,omitempty"`
+	MessageID                  string             `json:"message_id"`
+	IdempotencyKey             string             `json:"idempotency_key"`
+	Replayed                   bool               `json:"replayed"`
 	Queued                     bool               `json:"queued,omitempty"`
 	Staged                     bool               `json:"staged,omitempty"`
 	Interrupted                bool               `json:"interrupted,omitempty"`

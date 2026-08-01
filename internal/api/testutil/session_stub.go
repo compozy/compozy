@@ -43,7 +43,7 @@ type StubSessionManager struct {
 	) (<-chan acp.AgentEvent, error)
 	SendPromptFn   func(context.Context, string, session.SendPromptOpts) (session.SendPromptResult, error)
 	InterruptFn    func(context.Context, string) (session.SendPromptResult, error)
-	SteerFn        func(context.Context, string, string) (session.SendPromptResult, error)
+	SteerFn        func(context.Context, string, session.SteerPromptOpts) (session.SendPromptResult, error)
 	CancelQueuedFn func(context.Context, string, string) (session.SendPromptResult, error)
 	CancelPromptFn func(context.Context, string) error
 	ApproveFn      func(context.Context, string, acp.ApproveRequest) error
@@ -377,10 +377,10 @@ func (s StubSessionManager) InterruptPrompt(ctx context.Context, id string) (ses
 func (s StubSessionManager) SteerPrompt(
 	ctx context.Context,
 	id string,
-	msg string,
+	opts session.SteerPromptOpts,
 ) (session.SendPromptResult, error) {
 	if s.SteerFn != nil {
-		return s.SteerFn(ctx, id, msg)
+		return s.SteerFn(ctx, id, opts)
 	}
 	return session.SendPromptResult{Status: "staged", Staged: true}, nil
 }

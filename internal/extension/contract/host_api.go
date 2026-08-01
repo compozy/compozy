@@ -149,10 +149,12 @@ type SessionsCreateParams struct {
 
 // SessionsPromptParams submits one prompt to an existing session.
 type SessionsPromptParams struct {
-	WorkspaceID string                                     `json:"workspace_id"`
-	SessionID   string                                     `json:"session_id"`
-	Message     string                                     `json:"message"`
-	Runtime     *apicontract.PromptRuntimeSelectionPayload `json:"runtime,omitempty"`
+	WorkspaceID    string                                     `json:"workspace_id"`
+	SessionID      string                                     `json:"session_id"`
+	Message        string                                     `json:"message"`
+	MessageID      string                                     `json:"message_id"`
+	IdempotencyKey string                                     `json:"idempotency_key"`
+	Runtime        *apicontract.PromptRuntimeSelectionPayload `json:"runtime,omitempty"`
 }
 
 // SessionTargetParams identifies an existing session.

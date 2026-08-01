@@ -3,6 +3,7 @@ package session
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/store"
@@ -78,6 +79,7 @@ func (m *Manager) recordPromptEventBatch(
 		}
 		m.dispatchEventPreRecord(ctx, session, enriched, payload)
 		storeEvents = append(storeEvents, store.SessionEvent{
+			ID:        strings.TrimSpace(enriched.EventIDValue()),
 			TurnID:    enriched.TurnID,
 			Type:      enriched.Type,
 			AgentName: session.Info().AgentName,

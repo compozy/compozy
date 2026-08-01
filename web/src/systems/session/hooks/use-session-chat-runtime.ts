@@ -1,12 +1,13 @@
-import { startTransition } from "react";
+import { startTransition, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { AssistantChatTransport, useChatRuntime } from "@assistant-ui/react-ai-sdk";
+import { useChatRuntime } from "@assistant-ui/react-ai-sdk";
 
 import { loopsKeys } from "@/systems/loops";
 import type { SessionPromptDispatchStore } from "@/components/assistant-ui/session-prompt-dispatch-store";
 import { sessionKeys } from "../lib/query-keys";
 import { invalidateSessionMutationQueries } from "../lib/session-query-invalidation";
 import { createGoalAwareFetch } from "../lib/session-goal-chat-transport";
+import { createSessionPromptChatTransport } from "../lib/session-prompt-chat-transport";
 import { sessionStore } from "../stores/session-store";
 import type { SessionPromptRuntimeSnapshot } from "../contexts/session-prompt-runtime-context-value";
 import { getSessionPromptRuntimeSnapshot } from "./use-session-prompt-runtime";
@@ -19,7 +20,8 @@ function buildSessionRuntimeConfig(
   workspaceId: string,
   sessionId: string,
   promptDispatch: SessionPromptDispatchStore,
-  getRuntimeSnapshot?: () => SessionPromptRuntimeSnapshot | null
+  getRuntimeSnapshot?: () => SessionPromptRuntimeSnapshot | null,
+  idempotencyKeys?: Map<string, string>
 ) {
   const goalAwareFetch = createGoalAwareFetch({
     onRequest: () => {
@@ -65,17 +67,11 @@ function buildSessionRuntimeConfig(
     }
   };
   return {
-    transport: new AssistantChatTransport({
+    transport: createSessionPromptChatTransport({
       api: `/api/workspaces/${encodeURIComponent(workspaceId)}/sessions/${encodeURIComponent(sessionId)}/prompt`,
       fetch: trackedFetch,
-      ...(getRuntimeSnapshot
-        ? {
-            body: () => {
-              const runtime = getRuntimeSnapshot();
-              return runtime === null ? {} : { runtime };
-            },
-          }
-        : {}),
+      ...(getRuntimeSnapshot ? { getRuntimeSnapshot } : {}),
+      ...(idempotencyKeys ? { idempotencyKeys } : {}),
     }),
     onFinish: () => {
       startTransition(() => {
@@ -96,12 +92,14 @@ export function useSessionChatRuntime({
 }) {
   const queryClient = useQueryClient();
   const promptRuntime = useOptionalSessionPromptRuntimeContext();
+  const [idempotencyKeys] = useState(() => new Map<string, string>());
   const runtimeConfig = buildSessionRuntimeConfig(
     queryClient,
     workspaceId,
     sessionId,
     promptDispatch,
-    promptRuntime ? () => getSessionPromptRuntimeSnapshot(promptRuntime) : undefined
+    promptRuntime ? () => getSessionPromptRuntimeSnapshot(promptRuntime) : undefined,
+    idempotencyKeys
   );
 
   return useChatRuntime({

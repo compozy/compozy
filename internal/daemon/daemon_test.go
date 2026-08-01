@@ -67,6 +67,128 @@ import (
 	"go.uber.org/goleak"
 )
 
+type sessionSteerQueueStub struct {
+	store.SessionInputQueueStore
+	entry              store.SessionInputQueueEntry
+	found              bool
+	err                error
+	sessionID          string
+	consumedAt         time.Time
+	completedSessionID string
+	completedEntryID   string
+	sentAt             time.Time
+	failedSessionID    string
+	failedEntryID      string
+	failedAt           time.Time
+	failureSummary     string
+}
+
+func (s *sessionSteerQueueStub) MarkSessionInputSent(
+	_ context.Context,
+	sessionID string,
+	entryID string,
+	now time.Time,
+) error {
+	s.completedSessionID = sessionID
+	s.completedEntryID = entryID
+	s.sentAt = now
+	return nil
+}
+
+func (s *sessionSteerQueueStub) MarkSessionInputFailed(
+	_ context.Context,
+	sessionID string,
+	entryID string,
+	summary string,
+	now time.Time,
+) error {
+	s.failedSessionID = sessionID
+	s.failedEntryID = entryID
+	s.failedAt = now
+	s.failureSummary = summary
+	return nil
+}
+
+func (s *sessionSteerQueueStub) ConsumeSessionSteer(
+	_ context.Context,
+	sessionID string,
+	now time.Time,
+) (store.SessionInputQueueEntry, bool, error) {
+	s.sessionID = sessionID
+	s.consumedAt = now
+	return s.entry, s.found, s.err
+}
+
+func TestSessionSteerSource(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should preserve the durable admission identity", func(t *testing.T) {
+		t.Parallel()
+
+		want := store.SessionInputQueueEntry{
+			ID: "queue-steer", SessionID: "session-steer", Text: "steer this turn",
+			MessageID: "message-steer", IdempotencyKey: "idem-steer",
+			TurnID: "turn-steer", EventID: "event-steer", SessionGeneration: 4,
+		}
+		timestamp := time.Date(2026, 7, 31, 12, 0, 0, 0, time.UTC)
+		queue := &sessionSteerQueueStub{entry: want, found: true}
+		source := sessionSteerSource{queue: queue, now: func() time.Time {
+			return timestamp
+		}}
+
+		got, found, err := source.ConsumeSteer(testutil.Context(t), want.SessionID)
+		if err != nil {
+			t.Fatalf("ConsumeSteer() error = %v", err)
+		}
+		if !found {
+			t.Fatal("ConsumeSteer() found = false, want true")
+		}
+		if queue.sessionID != want.SessionID {
+			t.Fatalf("consumed session id = %q, want %q", queue.sessionID, want.SessionID)
+		}
+		if !queue.consumedAt.Equal(timestamp) {
+			t.Fatalf("ConsumeSteer() timestamp = %s, want %s", queue.consumedAt, timestamp)
+		}
+		if got.Text != want.Text || got.QueueEntryID != want.ID ||
+			got.QueueGeneration != want.SessionGeneration || got.MessageID != want.MessageID ||
+			got.TurnID != want.TurnID || got.EventID != want.EventID {
+			t.Fatalf("ConsumeSteer() = %#v, want identity from %#v", got, want)
+		}
+		if err := source.CompleteSteer(testutil.Context(t), want.SessionID, want.ID); err != nil {
+			t.Fatalf("CompleteSteer() error = %v", err)
+		}
+		if queue.completedSessionID != want.SessionID || queue.completedEntryID != want.ID {
+			t.Fatalf(
+				"CompleteSteer() target = %q/%q, want %q/%q",
+				queue.completedSessionID,
+				queue.completedEntryID,
+				want.SessionID,
+				want.ID,
+			)
+		}
+		if !queue.sentAt.Equal(timestamp) {
+			t.Fatalf("CompleteSteer() sent timestamp = %s, want %s", queue.sentAt, timestamp)
+		}
+		if err := source.FailSteer(testutil.Context(t), want.SessionID, want.ID, "provider failed"); err != nil {
+			t.Fatalf("FailSteer() error = %v", err)
+		}
+		if queue.failedSessionID != want.SessionID || queue.failedEntryID != want.ID ||
+			queue.failureSummary != "provider failed" {
+			t.Fatalf(
+				"FailSteer() target = %q/%q (%q), want %q/%q",
+				queue.failedSessionID,
+				queue.failedEntryID,
+				queue.failureSummary,
+				want.SessionID,
+				want.ID,
+			)
+		}
+		if !queue.failedAt.Equal(timestamp) {
+			t.Fatalf("FailSteer() timestamp = %s, want %s", queue.failedAt, timestamp)
+		}
+	})
+}
+
 func TestAcquireLockSucceedsWithoutExistingLock(t *testing.T) {
 	lockPath := filepath.Join(t.TempDir(), "daemon.lock")
 
@@ -1148,6 +1270,34 @@ func TestBootExtensionsPreservesDevCycleDisableEnableState(t *testing.T) {
 func TestNewHostAPISessionManagerAdapter(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should expose durable acceptance when source supports it", func(t *testing.T) {
+		t.Parallel()
+
+		want := &session.Info{ID: "sess-accepted", State: session.StateActive}
+		source := &acceptingHostAPISessionManager{
+			fakeSessionManager: &fakeSessionManager{},
+			accepted:           want,
+		}
+		adapter := newHostAPISessionManagerAdapter(source)
+		acceptance, ok := adapter.(hostAPISessionAcceptanceManager)
+		if !ok {
+			t.Fatalf("newHostAPISessionManagerAdapter() = %T, want durable acceptance", adapter)
+		}
+
+		got, err := acceptance.CreateAccepted(testutil.Context(t), session.CreateAcceptedOpts{
+			Session: session.CreateOpts{AgentName: "general", Workspace: "ws-accepted"},
+		})
+		if err != nil {
+			t.Fatalf("CreateAccepted() error = %v", err)
+		}
+		if got != want {
+			t.Fatalf("CreateAccepted() = %#v, want %#v", got, want)
+		}
+		if source.calls != 1 {
+			t.Fatalf("CreateAccepted() calls = %d, want 1", source.calls)
+		}
+	})
+
 	t.Run("ShouldExposeBridgePromptMethodsWhenSourceSupportsThem", func(t *testing.T) {
 		t.Parallel()
 
@@ -1220,6 +1370,20 @@ func TestNewHostAPISessionManagerAdapter(t *testing.T) {
 			t.Fatalf("PromptWithOpts() calls = %d, want %d", got, want)
 		}
 	})
+}
+
+type acceptingHostAPISessionManager struct {
+	*fakeSessionManager
+	accepted *session.Info
+	calls    int
+}
+
+func (m *acceptingHostAPISessionManager) CreateAccepted(
+	_ context.Context,
+	_ session.CreateAcceptedOpts,
+) (*session.Info, error) {
+	m.calls++
+	return m.accepted, nil
 }
 
 func TestBootExtensionsBuildsManagerDepsAndRebuildsHooks(t *testing.T) {
@@ -6308,7 +6472,7 @@ func (f *fakeSessionManager) InterruptPrompt(context.Context, string) (session.S
 func (f *fakeSessionManager) SteerPrompt(
 	_ context.Context,
 	_ string,
-	_ string,
+	_ session.SteerPromptOpts,
 ) (session.SendPromptResult, error) {
 	return session.SendPromptResult{
 		Status: "staged",

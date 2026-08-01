@@ -161,7 +161,7 @@ type stubClient struct {
 	) (ClarificationAnswerRecord, error)
 	promptSessionFn             func(context.Context, string, string) ([]AgentEventRecord, error)
 	sendSessionPromptFn         func(context.Context, string, SessionPromptRequest) (SessionPromptRecord, error)
-	steerSessionPromptFn        func(context.Context, string, string) (SessionPromptRecord, error)
+	steerSessionPromptFn        func(context.Context, string, contract.SteerPromptRequest) (SessionPromptRecord, error)
 	cancelQueuedSessionPromptFn func(context.Context, string, string) (SessionPromptRecord, error)
 	streamPromptSessionFn       func(context.Context, string, SessionPromptRequest, SSEHandler) error
 	sessionEventsFn             func(context.Context, string, SessionEventQuery) ([]SessionEventRecord, error)
@@ -1643,10 +1643,10 @@ func (s *stubClient) SendSessionPrompt(
 func (s *stubClient) SteerSessionPrompt(
 	ctx context.Context,
 	id string,
-	text string,
+	request contract.SteerPromptRequest,
 ) (SessionPromptRecord, error) {
 	if s.steerSessionPromptFn != nil {
-		return s.steerSessionPromptFn(ctx, id, text)
+		return s.steerSessionPromptFn(ctx, id, request)
 	}
 	return SessionPromptRecord{}, errors.New("unexpected SteerSessionPrompt call")
 }

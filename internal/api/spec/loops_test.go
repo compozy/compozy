@@ -4,7 +4,6 @@ import (
 	"slices"
 	"sort"
 	"strconv"
-	"strings"
 	"testing"
 
 	"github.com/compozy/compozy/internal/api/contract"
@@ -320,7 +319,7 @@ func TestLoopOpenAPIContract(t *testing.T) {
 		propertySchema(t, subscription, "filter")
 	})
 
-	t.Run("Should describe structured Goal prompt outcomes beside ordinary prompt results", func(t *testing.T) {
+	t.Run("Should describe Goal prompt outcomes inside the durable prompt envelope", func(t *testing.T) {
 		t.Parallel()
 
 		doc, err := Document()
@@ -338,14 +337,11 @@ func TestLoopOpenAPIContract(t *testing.T) {
 		})
 		for _, status := range []int{200, 202, 404, 409, 422} {
 			schema := jsonResponseSchema(t, operation, status)
-			if len(schema.OneOf) != 2 {
-				t.Fatalf("prompt response %d oneOf = %#v, want two contracts", status, schema.OneOf)
-			}
-			if !slices.ContainsFunc(schema.OneOf, func(ref *openapi3.SchemaRef) bool {
-				return strings.Contains(ref.Ref, "GoalCommandResult") ||
-					(ref.Value != nil && ref.Value.Properties["outcome"] != nil)
-			}) {
-				t.Fatalf("prompt response %d does not include GoalCommandResult: %#v", status, schema.OneOf)
+			if status == 200 || status == 202 {
+				assertRequired(t, schema, "prompt")
+				assertPropertyAbsent(t, schema, "outcome")
+			} else if len(schema.OneOf) != 2 {
+				t.Fatalf("prompt response %d oneOf = %#v, want error or prompt envelope", status, schema.OneOf)
 			}
 			goalResult := promptGoalResultSchema(t, schema)
 			if reasonCode := propertySchema(t, goalResult, "reason_code"); !reasonCode.Nullable {
@@ -401,13 +397,15 @@ func TestLoopOpenAPIContract(t *testing.T) {
 
 func promptGoalResultSchema(t *testing.T, response *openapi3.Schema) *openapi3.Schema {
 	t.Helper()
+	promptEnvelope := response
 	for _, candidate := range response.OneOf {
-		if candidate != nil && candidate.Value != nil && candidate.Value.Properties["outcome"] != nil {
-			return candidate.Value
+		if candidate != nil && candidate.Value != nil && candidate.Value.Properties["prompt"] != nil {
+			promptEnvelope = candidate.Value
+			break
 		}
 	}
-	t.Fatal("prompt response has no Goal command result schema")
-	return nil
+	prompt := propertySchema(t, promptEnvelope, "prompt")
+	return propertySchema(t, prompt, "goal")
 }
 
 func assertLoopResponseStatusesExactly(t *testing.T, operation *openapi3.Operation, statuses []int) {

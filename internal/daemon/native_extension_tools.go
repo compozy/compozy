@@ -339,6 +339,7 @@ func (n *daemonNativeTools) extensionService() *daemonExtensionService {
 		nil,
 		withDaemonExtensionMarketplace(n.deps.ExtensionConfig, n.deps.ExtensionSources),
 		withDaemonExtensionEventWriter(n.deps.ExtensionEvents),
+		withDaemonExtensionWorkspaceResolver(n.deps.WorkspaceResolver),
 	).(*daemonExtensionService)
 	if !ok {
 		return nil

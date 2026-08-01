@@ -48,13 +48,28 @@ export type TranscriptMarkerPayload = SessionRecapPayload["recent_markers"][numb
 export type SessionRepairResponse = OperationResponse<"repairSession", 200>;
 export type SessionRepairPayload = SessionRepairResponse["repair"];
 export type SessionRepairQuery = OperationQuery<"repairSession">;
-export type SessionPromptRequest = OperationRequestBody<"sendSessionPrompt">;
+export interface SessionPromptRequest {
+  idempotency_key: string;
+  message_id: string;
+  messages: Array<{
+    id: string;
+    parts: Array<{ text?: string; type: string }>;
+    role: "user";
+  }>;
+  mode?: "queue" | "interrupt";
+  runtime?: OperationRequestBody<"sendSessionPrompt">["runtime"];
+}
+export interface SessionSteerPromptRequest {
+  idempotency_key: string;
+  message_id: string;
+  text: string;
+}
 export type SessionPromptResponse =
   | OperationResponse<"sendSessionPrompt", 200>
   | OperationResponse<"sendSessionPrompt", 202>;
 type SessionPromptEnvelope = Extract<SessionPromptResponse, { prompt: unknown }>;
 export type SessionPromptPayload = SessionPromptEnvelope["prompt"];
-export type SessionGoalCommandResult = Extract<SessionPromptResponse, { outcome: unknown }>;
+export type SessionGoalCommandResult = NonNullable<SessionPromptPayload["goal"]>;
 export type SessionPromptResult = SessionPromptPayload | SessionGoalCommandResult;
 export type SessionGoalResponse = OperationResponse<"getSessionGoal", 200>;
 export type SessionGoalSnapshot = NonNullable<SessionGoalResponse["goal"]>;
@@ -160,7 +175,7 @@ export interface AgentEventPayload {
   type: string;
   session_id?: string;
   turn_id?: string;
-  client_message_id?: string;
+  message_id?: string;
   request_id?: string;
   timestamp?: string;
   text?: string;

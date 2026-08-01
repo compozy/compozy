@@ -390,7 +390,7 @@ func TestDaemonE2EAgentMemoryBatchIsRecalledByNextSession(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	createFixtureBackedSession(t, ctx, harness, "memory-batch-writer", "memory-batch-writer-session")
+	createBoundFixtureBackedSession(t, ctx, harness, "memory-batch-writer", "memory-batch-writer-session")
 	writerDiagnostics, err := acpmock.ReadDiagnostics(writerRegistration.DiagnosticsPath)
 	if err != nil {
 		t.Fatalf("ReadDiagnostics(memory-batch-writer) error = %v", err)
@@ -614,15 +614,20 @@ func runDaemonE2EDreamRoleRoutesBuiltinIdentityAndModel(t *testing.T) {
 	seedDreamEligibility(t, ctx, harness, "session-driver", diagnosticsPath)
 	triggerDreamEventually(t, ctx, harness, diagnosticsPath)
 
-	dreamRecord := requireDreamPromptDiagnostic(t, diagnosticsPath)
+	records, err := acpmock.ReadDiagnostics(diagnosticsPath)
+	if err != nil {
+		t.Fatalf("ReadDiagnostics(dream) error = %v", err)
+	}
+	dreamRecord := requireDreamPromptRecord(t, records)
 	dreamSession, err := harness.GetSession(ctx, dreamRecord.CompozySessionID)
 	if err != nil {
 		t.Fatalf("GetSession(dream) error = %v", err)
 	}
 	if dreamSession.AgentName != compozyconfig.BuiltinDreamingCuratorAgentName ||
-		dreamSession.Model != roleDreamModel || dreamSession.Type != "dream" {
+		dreamSession.Type != "dream" {
 		t.Fatalf("dream session = %#v, want builtin dreaming-curator routed to %s", dreamSession, roleDreamModel)
 	}
+	assertDreamModelDiagnostic(t, records, dreamRecord.CompozySessionID, roleDreamModel)
 	assertDreamHiddenFromFleet(t, ctx, harness, dreamSession.ID)
 }
 
@@ -684,9 +689,10 @@ enabled = false
 	if err != nil {
 		t.Fatalf("GetSession(workspace dream) error = %v", err)
 	}
-	if dreamSession.AgentName != "workspace-curator" || dreamSession.Model != roleDreamModel {
+	if dreamSession.AgentName != "workspace-curator" {
 		t.Fatalf("workspace dream session = %#v, want workspace-curator routed to %s", dreamSession, roleDreamModel)
 	}
+	assertDreamModelDiagnostic(t, records, dreamRecord.CompozySessionID, roleDreamModel)
 	if got := len(acpmock.PromptDiagnostics(records)); got != 2 {
 		t.Fatalf("prompt diagnostics = %#v, want one user turn plus one dream and no auto-title", records)
 	}
@@ -890,15 +896,6 @@ WHERE sig.promoted_at IS NULL AND e.injection = 1
 	)
 }
 
-func requireDreamPromptDiagnostic(t testing.TB, diagnosticsPath string) acpmock.DiagnosticsRecord {
-	t.Helper()
-	records, err := acpmock.ReadDiagnostics(diagnosticsPath)
-	if err != nil {
-		t.Fatalf("ReadDiagnostics(dream) error = %v", err)
-	}
-	return requireDreamPromptRecord(t, records)
-}
-
 func requireDreamPromptRecord(
 	t testing.TB,
 	records []acpmock.DiagnosticsRecord,
@@ -911,6 +908,27 @@ func requireDreamPromptRecord(
 	}
 	t.Fatalf("prompt diagnostics = %#v, want dream consolidation prompt", records)
 	return acpmock.DiagnosticsRecord{}
+}
+
+func assertDreamModelDiagnostic(
+	t testing.TB,
+	records []acpmock.DiagnosticsRecord,
+	sessionID string,
+	wantModel string,
+) {
+	t.Helper()
+	for _, record := range acpmock.DiagnosticsForCompozySession(records, sessionID) {
+		if record.ProtocolMethod == acpsdk.AgentMethodSessionSetConfigOption &&
+			record.ConfigOptionID == "model" && record.ConfigOptionValue == wantModel {
+			return
+		}
+	}
+	t.Fatalf(
+		"dream diagnostics for session %q = %#v, want model %q negotiation",
+		sessionID,
+		records,
+		wantModel,
+	)
 }
 
 func assertDreamHiddenFromFleet(

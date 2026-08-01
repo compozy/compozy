@@ -6,7 +6,8 @@ import (
 )
 
 type agentEventPayload struct {
-	clientMessageID string
+	eventID         string
+	messageID       string
 	toolName        string
 	toolKind        string
 	toolInput       json.RawMessage
@@ -27,27 +28,43 @@ func (e AgentEvent) clonePayload() *agentEventPayload {
 }
 
 func normalizeAgentEventPayload(payload *agentEventPayload) *agentEventPayload {
-	if payload == nil || payload.clientMessageID == "" && !payload.hasTool && payload.promptRuntime == nil {
+	if payload == nil || payload.eventID == "" && payload.messageID == "" &&
+		!payload.hasTool && payload.promptRuntime == nil {
 		return nil
 	}
 	return payload
 }
 
-// WithClientMessageID returns an event carrying the normalized authored-message identity.
-func (e AgentEvent) WithClientMessageID(clientMessageID string) AgentEvent {
+// WithEventID returns an event carrying its stable durable event identity.
+func (e AgentEvent) WithEventID(eventID string) AgentEvent {
 	payload := e.clonePayload()
-	payload.clientMessageID = strings.TrimSpace(clientMessageID)
+	payload.eventID = strings.TrimSpace(eventID)
 	e.payload = normalizeAgentEventPayload(payload)
 	return e
 }
 
-// ClientMessageIDValue returns the normalized client identity for an authored
-// user message, or an empty string when the event has no client identity.
-func (e *AgentEvent) ClientMessageIDValue() string {
+// EventIDValue returns the stable durable identity reserved for the event.
+func (e *AgentEvent) EventIDValue() string {
 	if e == nil || e.payload == nil {
 		return ""
 	}
-	return e.payload.clientMessageID
+	return e.payload.eventID
+}
+
+// WithMessageID returns an event carrying the normalized authored-message identity.
+func (e AgentEvent) WithMessageID(messageID string) AgentEvent {
+	payload := e.clonePayload()
+	payload.messageID = strings.TrimSpace(messageID)
+	e.payload = normalizeAgentEventPayload(payload)
+	return e
+}
+
+// MessageIDValue returns the normalized identity for an authored user message.
+func (e *AgentEvent) MessageIDValue() string {
+	if e == nil || e.payload == nil {
+		return ""
+	}
+	return e.payload.messageID
 }
 
 // WithTool returns an event carrying an isolated optional tool payload.

@@ -1403,8 +1403,17 @@ func assertSessionPromptMutationSchema(t *testing.T, descriptor toolspkg.Descrip
 		t.Fatalf("%s input schema unmarshal error = %v", descriptor.ID, err)
 	}
 	assertClosedObjectSchema(t, descriptor.ID.String()+" input", input, []string{
-		"message", "runtime", "session_id", "workspace",
+		"idempotency_key", "message", "message_id", "runtime", "session_id", "workspace",
 	})
+	if !slices.Equal(input.Required, []string{
+		"session_id", "message", "message_id", "idempotency_key",
+	}) {
+		t.Fatalf(
+			"%s input required = %#v, want session_id/message/message_id/idempotency_key",
+			descriptor.ID,
+			input.Required,
+		)
+	}
 	var runtime nativeObjectSchema
 	if err := json.Unmarshal(input.Properties["runtime"], &runtime); err != nil {
 		t.Fatalf("%s runtime schema unmarshal error = %v", descriptor.ID, err)
@@ -1415,7 +1424,40 @@ func assertSessionPromptMutationSchema(t *testing.T, descriptor toolspkg.Descrip
 	if !slices.Equal(runtime.Required, []string{"provider"}) {
 		t.Fatalf("%s runtime required = %#v, want [provider]", descriptor.ID, runtime.Required)
 	}
-	assertSessionMutationEnvelopeSchema(t, descriptor.ID.String()+" output", descriptor.OutputSchema, "prompt")
+	assertSessionPromptMutationOutputSchema(t, descriptor.ID.String()+" output", descriptor.OutputSchema)
+}
+
+func assertSessionPromptMutationOutputSchema(t *testing.T, owner string, raw json.RawMessage) {
+	t.Helper()
+	var envelope nativeObjectSchema
+	if err := json.Unmarshal(raw, &envelope); err != nil {
+		t.Fatalf("%s schema unmarshal error = %v", owner, err)
+	}
+	assertClosedObjectSchema(t, owner, envelope, []string{"prompt"})
+	var prompt nativeObjectSchema
+	if err := json.Unmarshal(envelope.Properties["prompt"], &prompt); err != nil {
+		t.Fatalf("%s prompt schema unmarshal error = %v", owner, err)
+	}
+	if prompt.Type != "object" {
+		t.Fatalf("%s prompt schema = %#v, want object", owner, prompt)
+	}
+	if !slices.Equal(prompt.Required, []string{"status", "message_id", "idempotency_key", "replayed"}) {
+		t.Fatalf("%s prompt required = %#v, want status/message_id/idempotency_key/replayed", owner, prompt.Required)
+	}
+	for _, field := range []string{"message_id", "idempotency_key"} {
+		var identity nativeObjectSchema
+		if err := json.Unmarshal(prompt.Properties[field], &identity); err != nil {
+			t.Fatalf("%s prompt.%s schema unmarshal error = %v", owner, field, err)
+		}
+		if identity.Type != "string" || identity.MinLength != 1 {
+			t.Fatalf(
+				"%s prompt.%s schema = %#v, want non-empty string",
+				owner,
+				field,
+				identity,
+			)
+		}
+	}
 }
 
 func assertSessionMutationEnvelopeSchema(

@@ -41,6 +41,11 @@ func toolInputReadyValue(input any) bool {
 }
 
 func inputMessageID(decoded *decodedStoredEvent, role string) string {
+	if decoded != nil {
+		if messageID := decoded.agent.MessageIDValue(); messageID != "" {
+			return messageID
+		}
+	}
 	suffix := role
 	if role == UIRoleSystem {
 		suffix = "system"

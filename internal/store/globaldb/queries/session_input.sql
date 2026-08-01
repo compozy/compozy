@@ -3,7 +3,7 @@ UPDATE session_input_queue
 SET status = sqlc.arg(canceled_status), canceled_at = sqlc.narg(canceled_at), updated_at = sqlc.arg(updated_at)
 WHERE session_id = sqlc.arg(session_id)
   AND mode = sqlc.arg(steer_mode)
-  AND status IN (sqlc.arg(queued_status), sqlc.arg(dispatching_status));
+  AND status = sqlc.arg(queued_status);
 
 -- name: GetQueuedSessionSteer :one
 SELECT * FROM session_input_queue
@@ -73,12 +73,15 @@ GROUP BY mode, status;
 
 -- name: InsertSessionInputQueueEntry :exec
 INSERT INTO session_input_queue (
-  id, session_id, status, mode, text,
+  id, session_id, prompt_admission_id, message_id, idempotency_key, turn_id, event_id,
+  status, mode, text,
   runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed,
   session_generation, task_run_id, run_generation,
   attempt_count, enqueued_at, updated_at
 ) VALUES (
-  sqlc.arg(id), sqlc.arg(session_id), sqlc.arg(status), sqlc.arg(mode), sqlc.arg(text),
+  sqlc.arg(id), sqlc.arg(session_id), sqlc.narg(prompt_admission_id),
+  sqlc.arg(message_id), sqlc.arg(idempotency_key), sqlc.arg(turn_id), sqlc.arg(event_id),
+  sqlc.arg(status), sqlc.arg(mode), sqlc.arg(text),
   sqlc.arg(runtime_provider), sqlc.arg(runtime_model),
   sqlc.arg(runtime_reasoning_effort), sqlc.arg(runtime_speed),
   sqlc.arg(session_generation), sqlc.arg(task_run_id), sqlc.narg(run_generation),

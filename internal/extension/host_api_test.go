@@ -435,9 +435,11 @@ func TestHostAPIHandlerSessionsPromptReturnsTurnIDAndPersistsEvents(t *testing.T
 
 	sess := env.createSession(t)
 	result, err := env.call(t, "ext-prompt", "sessions/prompt", map[string]string{
-		"workspace_id": env.workspaceID,
-		"session_id":   sess.ID,
-		"message":      "hello from extension",
+		"workspace_id":    env.workspaceID,
+		"session_id":      sess.ID,
+		"message":         "hello from extension",
+		"message_id":      "msg-extension",
+		"idempotency_key": "idem-extension",
 	})
 	if err != nil {
 		t.Fatalf("Handle(sessions/prompt) error = %v", err)
@@ -447,6 +449,9 @@ func TestHostAPIHandlerSessionsPromptReturnsTurnIDAndPersistsEvents(t *testing.T
 	decodeResult(t, result, &prompt)
 	if prompt.TurnID == "" {
 		t.Fatal("sessions/prompt turn_id = empty, want non-empty")
+	}
+	if prompt.MessageID != "msg-extension" || prompt.IdempotencyKey != "idem-extension" || prompt.Replayed {
+		t.Fatalf("sessions/prompt identity result = %#v", prompt)
 	}
 
 	events, err := env.sessions.Events(testutil.Context(t), sess.ID, store.EventQuery{TurnID: prompt.TurnID})
@@ -458,6 +463,41 @@ func TestHostAPIHandlerSessionsPromptReturnsTurnIDAndPersistsEvents(t *testing.T
 	}
 	if events[0].TurnID != prompt.TurnID {
 		t.Fatalf("events[0].TurnID = %q, want %q", events[0].TurnID, prompt.TurnID)
+	}
+}
+
+func TestHostAPIHandlerSessionsPromptRequiresDurableIdentity(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		params map[string]any
+		want   string
+	}{
+		{
+			name: "Should reject a missing message id",
+			params: map[string]any{
+				"workspace_id": "ws-1", "session_id": "sess-1", "message": "hello", "idempotency_key": "idem-1",
+			},
+			want: "message_id is required",
+		},
+		{
+			name: "Should reject a missing idempotency key",
+			params: map[string]any{
+				"workspace_id": "ws-1", "session_id": "sess-1", "message": "hello", "message_id": "msg-1",
+			},
+			want: "idempotency_key is required",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			handler := &HostAPIHandler{}
+			_, err := handler.handleSessionsPrompt(testutil.Context(t), mustMarshalRawMessage(t, tt.params))
+			assertRPCErrorCode(t, err, HostAPIInvalidParamsCode)
+			assertErrorContains(t, err, tt.want)
+		})
 	}
 }
 
@@ -613,6 +653,8 @@ func TestHostAPIHandlerSessionsPromptReturnsQueuedRuntimeAdmission(t *testing.T)
 				return session.SendPromptResult{
 					Status:          "queued",
 					Mode:            session.BusyInputModeQueue,
+					MessageID:       "msg-queued-runtime",
+					IdempotencyKey:  "idem-queued-runtime",
 					QueueEntryID:    "input-queued",
 					QueuePosition:   2,
 					QueueGeneration: 7,
@@ -623,9 +665,11 @@ func TestHostAPIHandlerSessionsPromptReturnsQueuedRuntimeAdmission(t *testing.T)
 		}}
 
 		result, err := handler.handleSessionsPrompt(testutil.Context(t), mustMarshalRawMessage(t, map[string]any{
-			"workspace_id": workspaceID,
-			"session_id":   "sess-queued-runtime",
-			"message":      "Continue with the queued runtime.",
+			"workspace_id":    workspaceID,
+			"session_id":      "sess-queued-runtime",
+			"message":         "Continue with the queued runtime.",
+			"message_id":      "msg-queued-runtime",
+			"idempotency_key": "idem-queued-runtime",
 			"runtime": map[string]string{
 				"provider":         "codex",
 				"model":            "gpt-5.6",
@@ -636,7 +680,8 @@ func TestHostAPIHandlerSessionsPromptReturnsQueuedRuntimeAdmission(t *testing.T)
 		if err != nil {
 			t.Fatalf("handleSessionsPrompt() error = %v", err)
 		}
-		if received.Runtime == nil || received.Runtime.Provider != "codex" ||
+		if received.MessageID != "msg-queued-runtime" || received.IdempotencyKey != "idem-queued-runtime" ||
+			received.Runtime == nil || received.Runtime.Provider != "codex" ||
 			received.Runtime.Model != "gpt-5.6" || received.Runtime.ReasoningEffort != "high" ||
 			received.Runtime.Speed != "fast" {
 			t.Fatalf("SendPrompt runtime = %#v, want requested runtime snapshot", received.Runtime)
@@ -2511,7 +2556,7 @@ func TestHostAPIHandlerSubmitPromptRejectsMissingSessionManager(t *testing.T) {
 	t.Parallel()
 
 	var handler HostAPIHandler
-	_, err := handler.submitPrompt(testutil.Context(t), "sess-1", "hello", nil)
+	_, err := handler.submitPrompt(testutil.Context(t), "sess-1", "hello", "msg-1", "idem-1", nil)
 	if err == nil {
 		t.Fatal("submitPrompt() error = nil, want missing session manager error")
 	}
@@ -2528,8 +2573,12 @@ func TestHostAPIHandlerSubmitPromptRejectsMissingBoundaryEvents(t *testing.T) {
 
 	handler := &HostAPIHandler{
 		sessions: promptSessionManagerStub{
-			promptFn: func(context.Context, string, string) (<-chan acp.AgentEvent, error) {
-				return promptEvents, nil
+			sendPromptFn: func(
+				_ context.Context,
+				_ string,
+				_ session.SendPromptOpts,
+			) (session.SendPromptResult, error) {
+				return session.SendPromptResult{Events: promptEvents}, nil
 			},
 			eventsFn: func(_ context.Context, _ string, query store.EventQuery) ([]store.SessionEvent, error) {
 				if query.Limit == 1 {
@@ -2548,7 +2597,7 @@ func TestHostAPIHandlerSubmitPromptRejectsMissingBoundaryEvents(t *testing.T) {
 		},
 	}
 
-	_, err := handler.submitPrompt(testutil.Context(t), "sess-1", "hello", nil)
+	_, err := handler.submitPrompt(testutil.Context(t), "sess-1", "hello", "msg-1", "idem-1", nil)
 	if err == nil {
 		t.Fatal("submitPrompt() error = nil, want missing boundary error")
 	}
@@ -2585,13 +2634,17 @@ func TestHostAPIHandlerSubmitPromptRejectsUnexpectedStubCalls(t *testing.T) {
 					}}, nil
 				},
 			},
-			wantErr: "unexpected prompt call",
+			wantErr: "unexpected send prompt call",
 		},
 		{
 			name: "ShouldRejectMissingEventsCallback",
 			sessions: promptSessionManagerStub{
-				promptFn: func(context.Context, string, string) (<-chan acp.AgentEvent, error) {
-					return closedPromptEvents(), nil
+				sendPromptFn: func(
+					_ context.Context,
+					_ string,
+					_ session.SendPromptOpts,
+				) (session.SendPromptResult, error) {
+					return session.SendPromptResult{Events: closedPromptEvents()}, nil
 				},
 			},
 			wantErr: "unexpected events call",
@@ -2603,7 +2656,7 @@ func TestHostAPIHandlerSubmitPromptRejectsUnexpectedStubCalls(t *testing.T) {
 			t.Parallel()
 
 			handler := &HostAPIHandler{sessions: tt.sessions}
-			_, err := handler.submitPrompt(testutil.Context(t), "sess-1", "hello", nil)
+			_, err := handler.submitPrompt(testutil.Context(t), "sess-1", "hello", "msg-1", "idem-1", nil)
 			if err == nil {
 				t.Fatalf("submitPrompt() error = nil, want %q", tt.wantErr)
 			}
@@ -5445,24 +5498,25 @@ func TestHostAPITaskRequestHelpersRejectInvalidPayloads(t *testing.T) {
 }
 
 type hostAPITestEnv struct {
-	nowMu       sync.RWMutex
-	now         time.Time
-	homePaths   compozyconfig.HomePaths
-	workspaceID string
-	workspace   workspacepkg.ResolvedWorkspace
-	registry    *globaldb.GlobalDB
-	bridges     *bridgepkg.Service
-	sessions    *session.Manager
-	automation  HostAPIAutomationManager
-	tasks       taskpkg.Manager
-	observer    *observepkg.Observer
-	memory      *memory.Store
-	skills      *skillspkg.Registry
-	workspaces  *hostAPIFakeWorkspaceResolver
-	driver      *hostAPIFakeDriver
-	resources   *resources.Kernel
-	checker     *CapabilityChecker
-	handler     *HostAPIHandler
+	nowMu          sync.RWMutex
+	now            time.Time
+	promptSequence atomic.Int64
+	homePaths      compozyconfig.HomePaths
+	workspaceID    string
+	workspace      workspacepkg.ResolvedWorkspace
+	registry       *globaldb.GlobalDB
+	bridges        *bridgepkg.Service
+	sessions       *session.Manager
+	automation     HostAPIAutomationManager
+	tasks          taskpkg.Manager
+	observer       *observepkg.Observer
+	memory         *memory.Store
+	skills         *skillspkg.Registry
+	workspaces     *hostAPIFakeWorkspaceResolver
+	driver         *hostAPIFakeDriver
+	resources      *resources.Kernel
+	checker        *CapabilityChecker
+	handler        *HostAPIHandler
 }
 
 func seedHostAPIRunClaimed(t *testing.T, env *hostAPITestEnv, runID string, extensionName string) taskpkg.Run {
@@ -5882,6 +5936,8 @@ Review the workspace changes carefully.
 		session.WithNotifier(observer),
 		session.WithWorkspaceResolver(workspaces),
 		session.WithStore(storeSessionDB),
+		session.WithSessionCatalog(registry),
+		session.WithSessionPromptAdmissionStore(registry),
 		session.WithSandboxRegistry(mustLocalSandboxRegistry(t)),
 		session.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
 		session.WithNow(func() time.Time { return env.currentTime() }),
@@ -6304,10 +6360,13 @@ func (e *hostAPITestEnv) submitPrompt(
 ) (hostAPISessionPromptResult, error) {
 	t.Helper()
 
+	sequence := e.promptSequence.Add(1)
 	result, err := e.call(t, extName, "sessions/prompt", map[string]string{
-		"workspace_id": e.workspaceID,
-		"session_id":   sessionID,
-		"message":      message,
+		"workspace_id":    e.workspaceID,
+		"session_id":      sessionID,
+		"message":         message,
+		"message_id":      fmt.Sprintf("msg-host-%d", sequence),
+		"idempotency_key": fmt.Sprintf("idem-host-%d", sequence),
 	})
 	if err != nil {
 		return hostAPISessionPromptResult{}, err
@@ -6392,6 +6451,8 @@ func (e *hostAPITestEnv) useSessionsWithoutObserver(t *testing.T) {
 		session.WithDriver(e.driver),
 		session.WithWorkspaceResolver(e.workspaces),
 		session.WithStore(storeSessionDB),
+		session.WithSessionCatalog(e.registry),
+		session.WithSessionPromptAdmissionStore(e.registry),
 		session.WithSandboxRegistry(mustLocalSandboxRegistry(t)),
 		session.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
 		session.WithNow(func() time.Time { return e.currentTime() }),
@@ -6786,7 +6847,6 @@ func mustStoredPromptEvent(t *testing.T, id string, sequence int64, event acp.Ag
 }
 
 type promptSessionManagerStub struct {
-	promptFn     func(context.Context, string, string) (<-chan acp.AgentEvent, error)
 	sendPromptFn func(context.Context, string, session.SendPromptOpts) (session.SendPromptResult, error)
 	eventsFn     func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error)
 	statusFn     func(context.Context, string) (*session.Info, error)
@@ -6826,11 +6886,8 @@ func (s promptSessionManagerStub) Stop(context.Context, string) error {
 	return errors.New("unexpected stop call")
 }
 
-func (s promptSessionManagerStub) Prompt(ctx context.Context, id string, msg string) (<-chan acp.AgentEvent, error) {
-	if s.promptFn == nil {
-		return nil, errors.New("unexpected prompt call")
-	}
-	return s.promptFn(ctx, id, msg)
+func (promptSessionManagerStub) Prompt(context.Context, string, string) (<-chan acp.AgentEvent, error) {
+	return nil, errors.New("unexpected prompt call")
 }
 
 func (s promptSessionManagerStub) SendPrompt(

@@ -1,6 +1,7 @@
 package session
 
 import (
+	"fmt"
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -49,6 +50,33 @@ func sessionStartSpecFromMeta(
 	if spec.creationProfile != nil {
 		spec.runtimeMode = spec.creationProfile.RuntimeMode
 		spec.allowedToolsOverride = append([]string(nil), spec.creationProfile.AllowedTools...)
+		if err := applyCreationProfileSandbox(&spec); err != nil {
+			return sessionStartSpec{}, err
+		}
 	}
 	return spec, nil
+}
+
+func applyCreationProfileSandbox(spec *sessionStartSpec) error {
+	profile := store.NormalizeSessionCreationProfile(*spec.creationProfile)
+	switch profile.SandboxMode {
+	case store.SessionCreationSandboxNone:
+		spec.sandboxDisabled = true
+		spec.workspace.SandboxRef = ""
+	case store.SessionCreationSandboxRef:
+		resolved, err := spec.workspace.Config.ResolveSandbox(profile.SandboxRef)
+		if err != nil {
+			return fmt.Errorf(
+				"session: resolve creation profile sandbox ref %q: %w",
+				profile.SandboxRef,
+				err,
+			)
+		}
+		spec.sandboxDisabled = false
+		spec.workspace.SandboxRef = profile.SandboxRef
+		spec.workspace.Sandbox = resolved
+	default:
+		return fmt.Errorf("session: invalid creation profile sandbox mode %q", profile.SandboxMode)
+	}
+	return nil
 }

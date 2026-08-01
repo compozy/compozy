@@ -78,7 +78,7 @@ func agentChannelMessagesBundle(messages []AgentChannelMessageRecord) outputBund
 		"Agent Channel Messages",
 		[]string{"ID", agentKernelChannelValue, bridgeKindValue, agentKernelFromValue, "Time"},
 		"agent_channel_messages",
-		[]string{"message_id", "channel_id", agentKernelKindKey, "from_session_id", networkTimestampKey},
+		[]string{messageIDKey, "channel_id", agentKernelKindKey, "from_session_id", networkTimestampKey},
 		func(message AgentChannelMessageRecord) []string {
 			return []string{
 				message.MessageID,
@@ -114,7 +114,7 @@ func agentChannelMessageBundle(message AgentChannelMessageRecord) outputBundle {
 		},
 		toon: func() (string, error) {
 			return renderToonObject("agent_channel_message", []string{
-				"message_id", "channel_id", agentKernelKindKey, taskTaskIDKey, agentKernelRunIDKey,
+				messageIDKey, "channel_id", agentKernelKindKey, taskTaskIDKey, agentKernelRunIDKey,
 			}, []string{
 				message.MessageID,
 				message.ChannelID,

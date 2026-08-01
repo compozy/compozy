@@ -29,6 +29,9 @@ func (g *SessionRepo) EnqueueSessionInput(
 	if err := normalized.Validate(); err != nil {
 		return store.SessionInputQueueEntry{}, 0, err
 	}
+	if err := validateCallerOwnedQueueIdentity(normalized); err != nil {
+		return store.SessionInputQueueEntry{}, 0, err
+	}
 
 	err = g.withImmediateTransaction(ctx, "enqueue session input", func(exec globalSQLExecutor) error {
 		count, countErr := countPendingSessionInputs(ctx, exec, normalized.SessionID)
@@ -70,14 +73,16 @@ func (g *SessionRepo) StageSessionSteer(
 	if err := normalized.Validate(); err != nil {
 		return store.SessionInputQueueEntry{}, err
 	}
+	if err := validateCallerOwnedQueueIdentity(normalized); err != nil {
+		return store.SessionInputQueueEntry{}, err
+	}
 
 	err = g.withImmediateTransaction(ctx, "stage session steer", func(exec globalSQLExecutor) error {
 		nowRaw := store.FormatTimestamp(normalized.Now)
 		if cancelErr := sqlcgen.New(exec).CancelPriorSessionSteers(ctx, sqlcgen.CancelPriorSessionSteersParams{
 			CanceledStatus: store.SessionInputQueueStatusCanceled, CanceledAt: nullableSessionTime(normalized.Now),
 			UpdatedAt: nowRaw, SessionID: normalized.SessionID, SteerMode: store.SessionInputQueueModeSteer,
-			QueuedStatus:      store.SessionInputQueueStatusQueued,
-			DispatchingStatus: store.SessionInputQueueStatusDispatching,
+			QueuedStatus: store.SessionInputQueueStatusQueued,
 		}); cancelErr != nil {
 			return fmt.Errorf("store: cancel prior session steer input: %w", cancelErr)
 		}
@@ -94,7 +99,15 @@ func (g *SessionRepo) StageSessionSteer(
 	return entry, nil
 }
 
-// ConsumeSessionSteer atomically marks the staged steer entry as sent and returns it once.
+func validateCallerOwnedQueueIdentity(req store.SessionInputQueueInsert) error {
+	if req.PromptAdmissionID != "" || req.MessageID != "" || req.IdempotencyKey != "" ||
+		req.TurnID != "" || req.EventID != "" {
+		return errors.New("store: prompt admission identity is reserved for admitted session input")
+	}
+	return nil
+}
+
+// ConsumeSessionSteer atomically leases the staged steer entry for one dispatch attempt.
 func (g *SessionRepo) ConsumeSessionSteer(
 	ctx context.Context,
 	sessionID string,
@@ -129,12 +142,19 @@ func (g *SessionRepo) ConsumeSessionSteer(
 			return scanErr
 		}
 		nowRaw := store.FormatTimestamp(now)
-		if _, updateErr := queries.ConsumeQueuedSessionSteer(ctx, sqlcgen.ConsumeQueuedSessionSteerParams{
-			SentStatus: store.SessionInputQueueStatusSent, Now: nullableSessionTime(now), UpdatedAt: nowRaw,
-			ID: staged.ID, SessionID: target, SteerMode: store.SessionInputQueueModeSteer,
-			QueuedStatus: store.SessionInputQueueStatusQueued,
-		}); updateErr != nil {
-			return fmt.Errorf("store: consume session steer: %w", updateErr)
+		if admissionErr := commitQueuedPromptAdmissionDispatch(ctx, exec, &staged, nowRaw); admissionErr != nil {
+			return admissionErr
+		}
+		affected, updateErr := queries.ClaimSessionInput(ctx, sqlcgen.ClaimSessionInputParams{
+			DispatchingStatus: store.SessionInputQueueStatusDispatching,
+			Now:               nullableSessionTime(now), UpdatedAt: nowRaw,
+			ID: staged.ID, SessionID: target, QueuedStatus: store.SessionInputQueueStatusQueued,
+		})
+		if updateErr != nil {
+			return fmt.Errorf("store: lease session steer: %w", updateErr)
+		}
+		if affected != 1 {
+			return goalControlStaleError("lease session steer lost compare-and-swap")
 		}
 		refreshed, getErr := getSessionInputQueueEntry(ctx, exec, target, staged.ID)
 		if getErr != nil {
@@ -187,6 +207,9 @@ func (g *SessionRepo) ClaimNextSessionInput(
 			return scanErr
 		}
 		nowRaw := store.FormatTimestamp(now)
+		if admissionErr := commitQueuedPromptAdmissionDispatch(ctx, exec, &claimed, nowRaw); admissionErr != nil {
+			return admissionErr
+		}
 		affected, updateErr := queries.ClaimSessionInput(ctx, sqlcgen.ClaimSessionInputParams{
 			DispatchingStatus: store.SessionInputQueueStatusDispatching,
 			Now:               nullableSessionTime(now), UpdatedAt: nowRaw, ID: claimed.ID, SessionID: target,
@@ -369,8 +392,15 @@ func insertSessionInputQueueEntry(
 		runGeneration = sql.NullInt64{Int64: *normalized.RunGeneration, Valid: true}
 	}
 	if err := sqlcgen.New(exec).InsertSessionInputQueueEntry(ctx, sqlcgen.InsertSessionInputQueueEntryParams{
-		ID: normalized.ID, SessionID: normalized.SessionID, Status: store.SessionInputQueueStatusQueued,
-		Mode: normalized.Mode, Text: normalized.Text,
+		ID: normalized.ID, SessionID: normalized.SessionID,
+		PromptAdmissionID: sql.NullString{
+			String: normalized.PromptAdmissionID,
+			Valid:  normalized.PromptAdmissionID != "",
+		},
+		MessageID: normalized.MessageID, IdempotencyKey: normalized.IdempotencyKey,
+		TurnID: normalized.TurnID, EventID: normalized.EventID,
+		Status: store.SessionInputQueueStatusQueued,
+		Mode:   normalized.Mode, Text: normalized.Text,
 		RuntimeProvider: normalized.Runtime.Provider, RuntimeModel: normalized.Runtime.Model,
 		RuntimeReasoningEffort: normalized.Runtime.ReasoningEffort, RuntimeSpeed: normalized.Runtime.Speed,
 		SessionGeneration: normalized.SessionGeneration,

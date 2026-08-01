@@ -123,6 +123,26 @@ input generation, drops stale queued entries, then applies the replacement promp
 after the current turn becomes idle. Inspect the prompt result's queue ID, queue position, and queue
 generation instead of assuming a busy input ran immediately.
 
+### Prompt identities and explicit retries
+
+Every prompt and steer submission carries a durable `message_id` and an `idempotency_key`. The CLI
+generates both for a new `compozy session prompt` command. To retry one uncertain submission, provide
+both original values together:
+
+    compozy session prompt <session-id> "<same message>" \
+      --message-id <original-message-id> \
+      --idempotency-key <original-idempotency-key>
+
+The same rule applies to `--queue`, `--interrupt`, and `--steer`. Do not supply either identity flag
+by itself. `--cancel` does not accept prompt identity flags.
+
+An exact retry returns the stored prompt result with `replayed: true` and does not create another
+prompt stream or repeat its accepted side effect. Treat the result's `message_id` as the durable
+transcript message identity. A `409` means the key or message ID conflicts with another request, or
+the earlier dispatch is indeterminate. For an indeterminate dispatch, inspect the session and obtain
+an operator decision before doing anything else; do not blindly retry, and use new identities only
+for an intentional new command after that decision.
+
 At a prompt boundary, a same-provider change uses live configuration when the provider supports it.
 If that is unavailable or fails, or the provider changes, Compozy replaces the ACP process and
 replays the canonical durable session context before sending the newly accepted prompt. A failed live

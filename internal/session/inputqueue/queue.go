@@ -114,6 +114,35 @@ func (s *Service) Enqueue(
 	return entry, position, nil
 }
 
+// EnqueueAdmitted atomically persists one external command receipt and its queue entry.
+func (s *Service) EnqueueAdmitted(
+	ctx context.Context,
+	admission store.SessionPromptAdmissionRequest,
+	generation int64,
+) (store.SessionPromptAdmission, store.SessionInputQueueEntry, int, bool, error) {
+	admissionStore, insert, err := s.prepareAdmittedEntry(
+		admission,
+		generation,
+		store.SessionInputQueueModeQueue,
+	)
+	if err != nil {
+		return store.SessionPromptAdmission{}, store.SessionInputQueueEntry{}, 0, false, err
+	}
+	receipt, entry, position, created, err := admissionStore.EnqueueAdmittedSessionInput(
+		ctx,
+		admission,
+		insert,
+	)
+	if err != nil {
+		if errors.Is(err, store.ErrSessionInputQueueFull) {
+			return store.SessionPromptAdmission{}, store.SessionInputQueueEntry{}, 0, false,
+				queueFullError(insert.SessionID, s.cfg.QueueCap, err)
+		}
+		return store.SessionPromptAdmission{}, store.SessionInputQueueEntry{}, 0, false, err
+	}
+	return receipt, entry, position, created, nil
+}
+
 // StageSteer stages replacement steering guidance while a turn is active.
 func (s *Service) StageSteer(
 	ctx context.Context,
@@ -127,6 +156,47 @@ func (s *Service) StageSteer(
 		return store.SessionInputQueueEntry{}, err
 	}
 	return s.store.StageSessionSteer(ctx, insert)
+}
+
+// StageAdmittedSteer atomically persists one external receipt and its staged steer entry.
+func (s *Service) StageAdmittedSteer(
+	ctx context.Context,
+	admission store.SessionPromptAdmissionRequest,
+	generation int64,
+) (store.SessionPromptAdmission, store.SessionInputQueueEntry, bool, error) {
+	admissionStore, insert, err := s.prepareAdmittedEntry(
+		admission,
+		generation,
+		store.SessionInputQueueModeSteer,
+	)
+	if err != nil {
+		return store.SessionPromptAdmission{}, store.SessionInputQueueEntry{}, false, err
+	}
+	return admissionStore.StageAdmittedSessionSteer(ctx, admission, insert)
+}
+
+func (s *Service) prepareAdmittedEntry(
+	admission store.SessionPromptAdmissionRequest,
+	generation int64,
+	mode string,
+) (store.SessionPromptAdmissionStore, store.SessionInputQueueInsert, error) {
+	admissionStore, ok := s.store.(store.SessionPromptAdmissionStore)
+	if !ok {
+		return nil, store.SessionInputQueueInsert{}, errors.New(
+			"inputqueue: prompt admission store is required",
+		)
+	}
+	insert, err := s.newInsert(
+		admission.SessionID,
+		admission.AuthoredText,
+		mode,
+		generation,
+		admission.Runtime,
+	)
+	if err != nil {
+		return nil, store.SessionInputQueueInsert{}, err
+	}
+	return admissionStore, insert, nil
 }
 
 // ConsumeSteer atomically consumes the current staged steer entry, if any.

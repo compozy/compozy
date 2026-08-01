@@ -11,21 +11,17 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// PromptResponseFromSession selects the direct Goal body or ordinary prompt wrapper and status.
+// PromptResponseFromSession wraps every non-streaming prompt outcome in one stable envelope.
 func PromptResponseFromSession(result session.SendPromptResult) (int, any, error) {
-	if result.Goal != nil {
-		payload, err := GoalCommandResultPayloadFromSession(result.Goal)
-		if err != nil {
-			return 0, nil, err
-		}
-		return GoalCommandHTTPStatus(payload), payload, nil
-	}
 	payload, err := PromptResultPayloadFromSession(result)
 	if err != nil {
 		return 0, nil, err
 	}
 	status := http.StatusOK
-	if result.Queued || result.Staged {
+	if result.Goal != nil {
+		status = GoalCommandHTTPStatus(*payload.Goal)
+	}
+	if result.Goal == nil && (result.Queued || result.Staged || result.Replayed) {
 		status = http.StatusAccepted
 	}
 	return status, contract.SendPromptResultResponse{Prompt: payload}, nil
@@ -47,6 +43,9 @@ func PromptResultPayloadFromSession(result session.SendPromptResult) (contract.S
 	payload := contract.SendPromptResultPayload{
 		Status:                strings.TrimSpace(result.Status),
 		Mode:                  contract.PromptMode(strings.TrimSpace(string(result.Mode))),
+		MessageID:             strings.TrimSpace(result.MessageID),
+		IdempotencyKey:        strings.TrimSpace(result.IdempotencyKey),
+		Replayed:              result.Replayed,
 		Queued:                result.Queued,
 		Staged:                result.Staged,
 		Interrupted:           result.Interrupted,

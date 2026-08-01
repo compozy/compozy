@@ -50,7 +50,7 @@ func testDaemonE2EToolApprovalGrantsPersistAcrossRestartAndMatchSurfaces(t *test
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
-	firstSession := createFixtureBackedSession(
+	firstSession := createBoundFixtureBackedSession(
 		t,
 		ctx,
 		first,
@@ -134,7 +134,7 @@ func testDaemonE2EToolApprovalGrantsPersistAcrossRestartAndMatchSurfaces(t *test
 	if got := second.WorkspaceID; got != workspaceID {
 		t.Fatalf("workspace after restart = %q, want %q", got, workspaceID)
 	}
-	secondSession := createFixtureBackedSession(
+	secondSession := createBoundFixtureBackedSession(
 		t,
 		ctx,
 		second,

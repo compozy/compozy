@@ -1281,6 +1281,11 @@ type SessionHealth struct {
 type SessionInputQueue struct {
 	ID                       string         `json:"id"`
 	SessionID                string         `json:"session_id"`
+	PromptAdmissionID        sql.NullString `json:"prompt_admission_id"`
+	MessageID                string         `json:"message_id"`
+	IdempotencyKey           string         `json:"idempotency_key"`
+	TurnID                   string         `json:"turn_id"`
+	EventID                  string         `json:"event_id"`
 	Status                   string         `json:"status"`
 	Mode                     string         `json:"mode"`
 	Text                     string         `json:"text"`
@@ -1323,6 +1328,32 @@ type SessionInputQueue struct {
 	TerminalTokensReported   int64          `json:"terminal_tokens_reported"`
 	TerminalTokensUsed       sql.NullInt64  `json:"terminal_tokens_used"`
 	TerminalAt               sql.NullTime   `json:"terminal_at"`
+}
+
+type SessionPromptAdmission struct {
+	ID                     string         `json:"id"`
+	WorkspaceID            string         `json:"workspace_id"`
+	SessionID              string         `json:"session_id"`
+	MessageID              string         `json:"message_id"`
+	IdempotencyKey         string         `json:"idempotency_key"`
+	Operation              string         `json:"operation"`
+	FingerprintVersion     string         `json:"fingerprint_version"`
+	RequestFingerprint     string         `json:"request_fingerprint"`
+	State                  string         `json:"state"`
+	Mode                   string         `json:"mode"`
+	AuthoredText           string         `json:"authored_text"`
+	RuntimeProvider        string         `json:"runtime_provider"`
+	RuntimeModel           string         `json:"runtime_model"`
+	RuntimeReasoningEffort string         `json:"runtime_reasoning_effort"`
+	RuntimeSpeed           string         `json:"runtime_speed"`
+	TurnID                 string         `json:"turn_id"`
+	EventID                string         `json:"event_id"`
+	ResultJson             sql.NullString `json:"result_json"`
+	IndeterminateReason    string         `json:"indeterminate_reason"`
+	CreatedAt              string         `json:"created_at"`
+	DispatchCommittedAt    sql.NullString `json:"dispatch_committed_at"`
+	CompletedAt            sql.NullString `json:"completed_at"`
+	UpdatedAt              string         `json:"updated_at"`
 }
 
 type Task struct {

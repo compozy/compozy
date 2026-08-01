@@ -122,6 +122,9 @@ const (
 	CodePresetNotFound                = "preset_not_found"
 	CodeProbeFailed                   = "probe_failed"
 	CodeProbeTimeout                  = "probe_timeout"
+	CodePromptDispatchIndeterminate   = "prompt_dispatch_indeterminate"
+	CodePromptIdempotencyConflict     = "prompt_idempotency_conflict"
+	CodePromptMessageIdentityConflict = "prompt_message_identity_conflict"
 	CodeProviderClassificationUnknown = "provider_classification_unknown"
 	CodeProviderCLIMissing            = "provider_cli_missing"
 	CodeProviderCredentialUnresolved  = "provider_credential_unresolved"
@@ -253,6 +256,9 @@ var diagnosticCodeSpecs = []DiagnosticCodeSpec{
 	{Code: CodePresetNotFound, Category: CategoryBridge},
 	{Code: CodeProbeFailed, Category: CategoryDaemon},
 	{Code: CodeProbeTimeout, Category: CategoryDaemon},
+	{Code: CodePromptDispatchIndeterminate, Category: CategorySession},
+	{Code: CodePromptIdempotencyConflict, Category: CategorySession},
+	{Code: CodePromptMessageIdentityConflict, Category: CategorySession},
 	{Code: CodeProviderClassificationUnknown, Category: CategoryProvider},
 	{Code: CodeProviderCLIMissing, Category: CategoryProvider},
 	{Code: CodeProviderCredentialUnresolved, Category: CategoryProvider},

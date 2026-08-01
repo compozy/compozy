@@ -195,7 +195,9 @@ export function useClearSessionConversation(options: UseSessionWorkspaceOptions 
 }
 
 export interface SessionPromptActionParams {
+  idempotencyKey?: string;
   id: string;
+  messageId?: string;
   message: string;
   runtime?: SessionPromptRuntimeSnapshot;
 }
@@ -209,18 +211,77 @@ export interface CancelQueuedSessionPromptParams {
   queueEntryId: string;
 }
 
+function createPromptIdentity(): { idempotencyKey: string; messageId: string } {
+  return {
+    idempotencyKey: globalThis.crypto.randomUUID(),
+    messageId: globalThis.crypto.randomUUID(),
+  };
+}
+
+const actionPromptIdentities = new WeakMap<
+  SessionPromptActionParams,
+  {
+    idempotencyKey: string;
+    messageId: string;
+  }
+>();
+
+function promptIdentityForAction(params: SessionPromptActionParams): {
+  idempotencyKey: string;
+  messageId: string;
+} {
+  if (params.messageId !== undefined || params.idempotencyKey !== undefined) {
+    if (
+      typeof params.messageId !== "string" ||
+      params.messageId.trim().length === 0 ||
+      typeof params.idempotencyKey !== "string" ||
+      params.idempotencyKey.trim().length === 0
+    ) {
+      throw new Error(
+        "A session prompt action requires both non-empty message_id and idempotency_key"
+      );
+    }
+    return { idempotencyKey: params.idempotencyKey, messageId: params.messageId };
+  }
+  const existing = actionPromptIdentities.get(params);
+  if (existing) return existing;
+  const identity = createPromptIdentity();
+  actionPromptIdentities.set(params, identity);
+  return identity;
+}
+
+function promptRequestFromAction(
+  params: SessionPromptActionParams,
+  mode?: SendSessionPromptParams["mode"]
+): SessionPromptRequest {
+  const identity = promptIdentityForAction(params);
+  return {
+    idempotency_key: identity.idempotencyKey,
+    message_id: identity.messageId,
+    messages: [
+      {
+        id: identity.messageId,
+        parts: [{ text: params.message, type: "text" }],
+        role: "user",
+      },
+    ],
+    ...(mode ? { mode } : {}),
+    ...(params.runtime ? { runtime: params.runtime } : {}),
+  };
+}
+
 export function useSendSessionPrompt(options: UseSessionWorkspaceOptions = {}) {
   const queryClient = useQueryClient();
   const { activeWorkspaceId } = useActiveWorkspace();
   const workspaceId = resolveWorkspaceId(options.workspaceId, activeWorkspaceId);
 
   return useMutation<SessionPromptResult, Error, SendSessionPromptParams>({
-    mutationFn: ({ id, message, mode, runtime }) =>
-      sendSessionPrompt(requireWorkspace(workspaceId), id, {
-        message,
-        mode,
-        ...(runtime ? { runtime } : {}),
-      }),
+    mutationFn: params =>
+      sendSessionPrompt(
+        requireWorkspace(workspaceId),
+        params.id,
+        promptRequestFromAction(params, params.mode)
+      ),
     onSettled: (_data, _error, params) => {
       if (workspaceId) void invalidateSessionMutationQueries(queryClient, workspaceId, params.id);
     },
@@ -233,12 +294,12 @@ export function useQueueSessionPrompt(options: UseSessionWorkspaceOptions = {}) 
   const workspaceId = resolveWorkspaceId(options.workspaceId, activeWorkspaceId);
 
   return useMutation<SessionPromptResult, Error, SessionPromptActionParams>({
-    mutationFn: ({ id, message, runtime }) =>
-      sendSessionPrompt(requireWorkspace(workspaceId), id, {
-        message,
-        mode: "queue",
-        ...(runtime ? { runtime } : {}),
-      }),
+    mutationFn: params =>
+      sendSessionPrompt(
+        requireWorkspace(workspaceId),
+        params.id,
+        promptRequestFromAction(params, "queue")
+      ),
     onSettled: (_data, _error, params) => {
       if (workspaceId) void invalidateSessionMutationQueries(queryClient, workspaceId, params.id);
     },
@@ -251,12 +312,12 @@ export function useInterruptSessionPrompt(options: UseSessionWorkspaceOptions = 
   const workspaceId = resolveWorkspaceId(options.workspaceId, activeWorkspaceId);
 
   return useMutation<SessionPromptResult, Error, SessionPromptActionParams>({
-    mutationFn: ({ id, message, runtime }) =>
-      sendSessionPrompt(requireWorkspace(workspaceId), id, {
-        message,
-        mode: "interrupt",
-        ...(runtime ? { runtime } : {}),
-      }),
+    mutationFn: params =>
+      sendSessionPrompt(
+        requireWorkspace(workspaceId),
+        params.id,
+        promptRequestFromAction(params, "interrupt")
+      ),
     onSettled: (_data, _error, params) => {
       if (workspaceId) void invalidateSessionMutationQueries(queryClient, workspaceId, params.id);
     },
@@ -269,7 +330,14 @@ export function useSteerSessionPrompt(options: UseSessionWorkspaceOptions = {}) 
   const workspaceId = resolveWorkspaceId(options.workspaceId, activeWorkspaceId);
 
   return useMutation<SessionPromptPayload, Error, SessionPromptActionParams>({
-    mutationFn: ({ id, message }) => steerSessionPrompt(requireWorkspace(workspaceId), id, message),
+    mutationFn: params => {
+      const identity = promptIdentityForAction(params);
+      return steerSessionPrompt(requireWorkspace(workspaceId), params.id, {
+        idempotency_key: identity.idempotencyKey,
+        message_id: identity.messageId,
+        text: params.message,
+      });
+    },
     onSettled: (_data, _error, params) => {
       if (workspaceId) void invalidateSessionMutationQueries(queryClient, workspaceId, params.id);
     },

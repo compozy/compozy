@@ -103,6 +103,7 @@ func (m *Manager) recordEventWithAuthoredText(
 	m.dispatchEventPreRecord(ctx, session, event, payload)
 
 	persisted, err := recordPersistedSessionEvent(ctx, recorder, store.SessionEvent{
+		ID:        strings.TrimSpace(event.EventIDValue()),
 		TurnID:    event.TurnID,
 		Type:      event.Type,
 		AgentName: session.Info().AgentName,
@@ -122,6 +123,40 @@ func (m *Manager) recordEventWithAuthoredText(
 	m.dispatchSessionMessagePersisted(ctx, session, event, persisted, payload)
 	m.publishSessionEvent(ctx, session, persisted)
 
+	return nil
+}
+
+func (m *Manager) recordPromptInputWithAuthoredText(
+	ctx context.Context,
+	session *Session,
+	event acp.AgentEvent,
+	authoredText string,
+	eventID string,
+) error {
+	recorder := session.recorderHandle()
+	if recorder == nil {
+		return errors.New("session: event recorder is not available")
+	}
+	event = m.enrichRecordedAgentEvent(session, event)
+	payload, err := marshalAgentEventPreservingAuthoredText(event, authoredText)
+	if err != nil {
+		return err
+	}
+	m.dispatchEventPreRecord(ctx, session, event, payload)
+	persisted, err := recordPersistedSessionEvent(ctx, recorder, store.SessionEvent{
+		ID: promptInputEventID(eventID), TurnID: event.TurnID, Type: event.Type,
+		AgentName: session.Info().AgentName, Content: payload, Timestamp: event.Timestamp,
+	})
+	if err != nil {
+		return err
+	}
+	m.recordPromptTokenUsageProjection(ctx, session, recorder, event)
+	if err := m.persistAdvertisedCommandsFromEvent(ctx, session, event); err != nil {
+		return err
+	}
+	m.dispatchEventPostRecord(ctx, session, event, payload, persisted.Sequence)
+	m.dispatchSessionMessagePersisted(ctx, session, event, persisted, payload)
+	m.publishSessionEvent(ctx, session, persisted)
 	return nil
 }
 

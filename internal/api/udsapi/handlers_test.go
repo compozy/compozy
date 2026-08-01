@@ -1873,7 +1873,7 @@ func TestPromptSessionHandlerReturnsSSEStream(t *testing.T) {
 			engine,
 			http.MethodPost,
 			"/api/workspaces/ws-workspace/sessions/sess-123/prompt",
-			[]byte(`{"message":"hello"}`),
+			[]byte(`{"message":"hello","message_id":"msg-uds-stream","idempotency_key":"idem-uds-stream"}`),
 		)
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
@@ -1934,7 +1934,9 @@ func TestPromptSessionHandlerRequiresAcceptedTurnIDForSSEStream(t *testing.T) {
 			engine,
 			http.MethodPost,
 			"/api/workspaces/ws-workspace/sessions/sess-123/prompt",
-			[]byte("{\"message\":\"hello\"}"),
+			[]byte(
+				`{"message":"hello","message_id":"msg-uds-accepted-turn","idempotency_key":"idem-uds-accepted-turn"}`,
+			),
 		)
 		if recorder.Code != http.StatusInternalServerError {
 			t.Fatalf(
@@ -1981,7 +1983,7 @@ func TestPromptSessionHandlerReturnsRawSSEStreamWhenRequested(t *testing.T) {
 			engine,
 			http.MethodPost,
 			"/api/workspaces/ws-workspace/sessions/sess-123/prompt?format=raw",
-			[]byte(`{"message":"hello"}`),
+			[]byte(`{"message":"hello","message_id":"msg-uds-raw","idempotency_key":"idem-uds-raw"}`),
 		)
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
@@ -2026,13 +2028,15 @@ func TestPromptSessionRawHandlerPreservesBusyInputMode(t *testing.T) {
 			http.MethodPost,
 			"/api/workspaces/ws-workspace/sessions/sess-123/prompt?format=raw",
 			[]byte(
-				`{"message":"replace","messageId":"client-replace-1","mode":"interrupt","runtime":{"provider":"codex","model":"gpt-5.4","reasoning_effort":"high","speed":"fast"}}`,
+				`{"message":"replace","message_id":"client-replace-1","idempotency_key":"idem-replace-1",`+
+					`"mode":"interrupt","runtime":{"provider":"codex","model":"gpt-5.4","reasoning_effort":"high","speed":"fast"}}`,
 			),
 		)
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
 		}
-		if gotOpts.Message != "replace" || gotOpts.ClientMessageID != "client-replace-1" ||
+		if gotOpts.Message != "replace" || gotOpts.MessageID != "client-replace-1" ||
+			gotOpts.IdempotencyKey != "idem-replace-1" ||
 			gotOpts.Mode != session.BusyInputModeInterrupt {
 			t.Fatalf("SendPrompt() opts = %#v, want interrupt replace", gotOpts)
 		}
@@ -2051,6 +2055,60 @@ func TestPromptSessionRawHandlerPreservesBusyInputMode(t *testing.T) {
 	})
 }
 
+func TestSteerSessionPromptHandlerPropagatesDurableIdentity(t *testing.T) {
+	t.Parallel()
+	t.Run("Should stage steering with canonical message identity", func(t *testing.T) {
+		t.Parallel()
+
+		var gotOpts session.SteerPromptOpts
+		manager := stubSessionManager{
+			SteerFn: func(ctx context.Context, id string, opts session.SteerPromptOpts) (session.SendPromptResult, error) {
+				if id != "sess-123" {
+					t.Fatalf("SteerPrompt() id = %q, want sess-123", id)
+				}
+				if err := ctx.Err(); err != nil {
+					t.Fatalf("SteerPrompt() context err = %v, want nil after request cancellation", err)
+				}
+				gotOpts = opts
+				return session.SendPromptResult{
+					Status:         "staged",
+					MessageID:      opts.MessageID,
+					IdempotencyKey: opts.IdempotencyKey,
+					Staged:         true,
+					QueueEntryID:   "inq-steer",
+				}, nil
+			},
+		}
+		engine := newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t)))
+		requestCtx, cancel := context.WithCancel(t.Context())
+		cancel()
+		req := httptest.NewRequestWithContext(
+			requestCtx,
+			http.MethodPost,
+			"/api/workspaces/ws-workspace/sessions/sess-123/steer",
+			strings.NewReader(`{"text":"focus on the race","message_id":"msg-steer","idempotency_key":"idem-steer"}`),
+		)
+		req.Header.Set("Content-Type", "application/json")
+		recorder := httptest.NewRecorder()
+		engine.ServeHTTP(recorder, req)
+		if recorder.Code != http.StatusAccepted {
+			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusAccepted, recorder.Body.String())
+		}
+		if gotOpts.Message != "focus on the race" || gotOpts.MessageID != "msg-steer" ||
+			gotOpts.IdempotencyKey != "idem-steer" {
+			t.Fatalf("SteerPrompt() opts = %#v, want canonical identity", gotOpts)
+		}
+		var decoded contract.SendPromptResultResponse
+		if err := json.Unmarshal(recorder.Body.Bytes(), &decoded); err != nil {
+			t.Fatalf("json.Unmarshal(steer result) error = %v; body=%s", err, recorder.Body.String())
+		}
+		if !decoded.Prompt.Staged || decoded.Prompt.MessageID != "msg-steer" ||
+			decoded.Prompt.IdempotencyKey != "idem-steer" || decoded.Prompt.QueueEntryID != "inq-steer" {
+			t.Fatalf("steer response = %#v", decoded.Prompt)
+		}
+	})
+}
+
 func TestPromptSessionHandlerReturnsStructuredGoalDecision(t *testing.T) {
 	t.Run("Should return the same direct authenticated Goal error body over UDS", func(t *testing.T) {
 		t.Parallel()
@@ -2064,9 +2122,14 @@ func TestPromptSessionHandlerReturnsStructuredGoalDecision(t *testing.T) {
 					t.Fatalf("SendPrompt() id = %q, want sess-123", id)
 				}
 				gotOpts = opts
-				return session.SendPromptResult{Status: "goal", Goal: &session.GoalCommandResult{
-					Outcome: session.GoalOutcomeError, ReasonCode: &reason,
-				}}, nil
+				return session.SendPromptResult{
+					Status:         "goal",
+					MessageID:      opts.MessageID,
+					IdempotencyKey: opts.IdempotencyKey,
+					Goal: &session.GoalCommandResult{
+						Outcome: session.GoalOutcomeError, ReasonCode: &reason,
+					},
+				}, nil
 			},
 		}
 		engine := newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, homePaths))
@@ -2075,7 +2138,7 @@ func TestPromptSessionHandlerReturnsStructuredGoalDecision(t *testing.T) {
 			engine,
 			http.MethodPost,
 			"/api/workspaces/ws-workspace/sessions/sess-123/prompt",
-			[]byte(`{"message":"/goal status"}`),
+			[]byte(`{"message":"/goal status","message_id":"msg-uds-goal","idempotency_key":"idem-uds-goal"}`),
 		)
 		if recorder.Code != http.StatusNotFound {
 			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusNotFound, recorder.Body.String())
@@ -2087,13 +2150,16 @@ func TestPromptSessionHandlerReturnsStructuredGoalDecision(t *testing.T) {
 			gotOpts.Caller.ID != "local-user" || gotOpts.Caller.Source != string(taskpkg.OriginKindUDS) {
 			t.Fatalf("SendPrompt() authenticated opts = %#v", gotOpts)
 		}
-		var decoded contract.GoalCommandResult
+		var decoded contract.SendPromptResultResponse
 		if err := json.Unmarshal(recorder.Body.Bytes(), &decoded); err != nil {
 			t.Fatalf("json.Unmarshal(Goal result) error = %v; body=%s", err, recorder.Body.String())
 		}
-		if decoded.Outcome != contract.GoalOutcomeError || decoded.ReasonCode == nil ||
-			*decoded.ReasonCode != contract.GoalReasonNotActive {
-			t.Fatalf("Goal result = %#v", decoded)
+		if decoded.Prompt.Goal == nil || decoded.Prompt.Goal.Outcome != contract.GoalOutcomeError ||
+			decoded.Prompt.Goal.ReasonCode == nil || *decoded.Prompt.Goal.ReasonCode != contract.GoalReasonNotActive {
+			t.Fatalf("prompt result = %#v", decoded)
+		}
+		if decoded.Prompt.MessageID != "msg-uds-goal" || decoded.Prompt.IdempotencyKey != "idem-uds-goal" {
+			t.Fatalf("prompt identity = %#v", decoded.Prompt)
 		}
 	})
 }
@@ -2120,7 +2186,10 @@ func TestPromptSessionHandlerSeparatesPromptExecutionFromDelivery(t *testing.T) 
 			requestCtx,
 			http.MethodPost,
 			"/api/workspaces/ws-workspace/sessions/sess-123/prompt",
-			strings.NewReader(`{"message":"hello"}`),
+			strings.NewReader(
+				`{"message":"hello","message_id":"msg-uds-delivery-cancel",`+
+					`"idempotency_key":"idem-uds-delivery-cancel"}`,
+			),
 		)
 		req.Header.Set("Content-Type", "application/json")
 
@@ -2190,7 +2259,10 @@ func TestPromptSessionHandlerSeparatesPromptExecutionFromDelivery(t *testing.T) 
 			requestCtx,
 			http.MethodPost,
 			"/api/workspaces/ws-workspace/sessions/sess-123/prompt",
-			strings.NewReader(`{"message":"hello"}`),
+			strings.NewReader(
+				`{"message":"hello","message_id":"msg-uds-delivery-shutdown",`+
+					`"idempotency_key":"idem-uds-delivery-shutdown"}`,
+			),
 		)
 		req.Header.Set("Content-Type", "application/json")
 

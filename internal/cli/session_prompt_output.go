@@ -8,11 +8,16 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const goalLiveKey = "live"
+const (
+	goalLiveKey            = "live"
+	idempotencyKeyField    = "idempotency_key"
+	idempotencyKeyLabel    = "Idempotency Key"
+	sessionPromptQueuedKey = "queued"
+)
 
 func sessionPromptBundle(record SessionPromptRecord) outputBundle {
 	if record.Goal != nil {
-		return goalCommandBundle(*record.Goal)
+		return goalCommandBundle(record.Prompt, *record.Goal)
 	}
 	if record.Prompt.Status == "" && len(record.Events) > 0 {
 		return agentEventsBundle(record.Events)
@@ -28,22 +33,33 @@ func sessionPromptBundle(record SessionPromptRecord) outputBundle {
 	}
 }
 
-func goalCommandBundle(result contract.GoalCommandResult) outputBundle {
+type goalCommandOutput struct {
+	contract.GoalCommandResult
+	MessageID      string `json:"message_id"`
+	IdempotencyKey string `json:"idempotency_key"`
+}
+
+func goalCommandBundle(prompt SessionPromptResultRecord, result contract.GoalCommandResult) outputBundle {
+	output := goalCommandOutput{
+		GoalCommandResult: result,
+		MessageID:         prompt.MessageID,
+		IdempotencyKey:    prompt.IdempotencyKey,
+	}
 	return outputBundle{
-		jsonValue: result,
+		jsonValue: output,
 		jsonl: func(cmd *cobra.Command) error {
-			return writeJSONLine(cmd, result)
+			return writeJSONLine(cmd, output)
 		},
 		human: func() (string, error) {
-			return renderHumanSectionResult("Goal", goalCommandRows(result))
+			return renderHumanSectionResult("Goal", goalCommandRows(prompt, result))
 		},
 		toon: func() (string, error) {
-			return renderToonObject("goal", goalCommandFields(), goalCommandValues(result)), nil
+			return renderToonObject("goal", goalCommandFields(), goalCommandValues(prompt, result)), nil
 		},
 	}
 }
 
-func goalCommandRows(result contract.GoalCommandResult) []keyValue {
+func goalCommandRows(prompt SessionPromptResultRecord, result contract.GoalCommandResult) []keyValue {
 	rows := []keyValue{{Label: taskOutcomeValue, Value: stringOrDash(string(result.Outcome))}}
 	if result.ReasonCode != nil {
 		rows = append(rows, keyValue{Label: "Reason", Value: string(*result.ReasonCode)})
@@ -62,17 +78,21 @@ func goalCommandRows(result contract.GoalCommandResult) []keyValue {
 			},
 		)
 	}
+	rows = append(rows,
+		keyValue{Label: "Message ID", Value: stringOrDash(prompt.MessageID)},
+		keyValue{Label: idempotencyKeyLabel, Value: stringOrDash(prompt.IdempotencyKey)},
+	)
 	return rows
 }
 
 func goalCommandFields() []string {
 	return []string{
 		"outcome", "reason_code", "replaced_run_id", agentKernelRunIDKey, sessionStatusKey,
-		"objective", "turns_used", "turn_limit", goalLiveKey,
+		"objective", "turns_used", "turn_limit", goalLiveKey, messageIDKey, idempotencyKeyField,
 	}
 }
 
-func goalCommandValues(result contract.GoalCommandResult) []string {
+func goalCommandValues(prompt SessionPromptResultRecord, result contract.GoalCommandResult) []string {
 	values := make([]string, len(goalCommandFields()))
 	values[0] = string(result.Outcome)
 	if result.ReasonCode != nil {
@@ -89,6 +109,8 @@ func goalCommandValues(result contract.GoalCommandResult) []string {
 		values[7] = strconv.Itoa(result.Snapshot.TurnLimit)
 		values[8] = strconv.FormatBool(result.Snapshot.Live)
 	}
+	values[9] = prompt.MessageID
+	values[10] = prompt.IdempotencyKey
 	return values
 }
 
@@ -132,7 +154,7 @@ func sessionPromptFields() []string {
 	return []string{
 		sessionStatusKey,
 		bridgeModeKey,
-		"queued",
+		sessionPromptQueuedKey,
 		"staged",
 		"interrupted",
 		"queue_entry_id",

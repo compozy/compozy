@@ -21,6 +21,9 @@ func (p *AgentProcess) handleSessionUpdateWithContext(ctx context.Context, param
 	if err := json.Unmarshal(raw.Update, &envelope); err != nil {
 		return fmt.Errorf("acp: decode session/update envelope: %w", err)
 	}
+	if envelope.SessionUpdate == "user_message_chunk" {
+		return nil
+	}
 
 	if envelope.SessionUpdate == "usage_update" {
 		var update wireUsageUpdate

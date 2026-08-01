@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
@@ -22,7 +23,7 @@ func (s *daemonExtensionService) Dev(
 	if err := validateExtensionWriteActor(actor); err != nil {
 		return contract.ExtensionPayload{}, err
 	}
-	workspaceID, err := developmentWorkspaceID(actor)
+	workspaceID, err := s.developmentWorkspaceID(ctx, actor)
 	if err != nil {
 		return contract.ExtensionPayload{}, err
 	}
@@ -75,10 +76,11 @@ func (s *daemonExtensionService) ReloadDev(
 		}
 		err = errors.Join(err, s.recordCanonicalExtensionLifecycleEvent(ctx, actor, event))
 	}()
-	workspaceID, err := developmentWorkspaceID(actor)
+	workspaceID, err := s.developmentWorkspaceID(ctx, actor)
 	if err != nil {
 		return contract.ExtensionPayload{}, err
 	}
+	event.WorkspaceID = workspaceID
 	runtime, err := s.devRuntime()
 	if err != nil {
 		return contract.ExtensionPayload{}, err
@@ -116,7 +118,10 @@ func (s *daemonExtensionService) ExtensionLogs(
 	if !actor.Authority.Read {
 		return nil, taskpkg.ErrPermissionDenied
 	}
-	workspaceID := strings.TrimSpace(actor.Scope.WorkspaceID)
+	workspaceID, err := s.scopedDevelopmentWorkspaceID(ctx, actor)
+	if err != nil {
+		return nil, err
+	}
 	if !actor.Scope.Operator && workspaceID == "" {
 		return nil, extensionpkg.ErrExtensionWorkspaceDenied
 	}
@@ -160,7 +165,10 @@ func (s *daemonExtensionService) ListScoped(
 	if err != nil {
 		return nil, err
 	}
-	workspaceID := strings.TrimSpace(actor.Scope.WorkspaceID)
+	workspaceID, err := s.scopedDevelopmentWorkspaceID(ctx, actor)
+	if err != nil {
+		return nil, err
+	}
 	infos := runtime.ListForWorkspace(workspaceID)
 	items := make([]contract.ExtensionPayload, 0, len(infos))
 	for _, info := range infos {
@@ -194,9 +202,13 @@ func (s *daemonExtensionService) StatusScoped(
 	if err != nil {
 		return contract.ExtensionPayload{}, err
 	}
+	workspaceID, err := s.scopedDevelopmentWorkspaceID(ctx, actor)
+	if err != nil {
+		return contract.ExtensionPayload{}, err
+	}
 	ext, err := runtime.GetForInstance(extensionpkg.InstanceKey{
 		Name:        name,
-		WorkspaceID: strings.TrimSpace(actor.Scope.WorkspaceID),
+		WorkspaceID: workspaceID,
 	})
 	if err != nil {
 		return contract.ExtensionPayload{}, err
@@ -212,9 +224,12 @@ func (s *daemonExtensionService) RemoveScoped(
 	if err := validateExtensionWriteActor(actor); err != nil {
 		return contract.ManagedExtensionRemovePayload{}, err
 	}
-	workspaceID := strings.TrimSpace(actor.Scope.WorkspaceID)
-	if workspaceID == "" {
+	if strings.TrimSpace(actor.Scope.WorkspaceID) == "" {
 		return s.Remove(ctx, name, actor)
+	}
+	workspaceID, err := s.developmentWorkspaceID(ctx, actor)
+	if err != nil {
+		return contract.ManagedExtensionRemovePayload{}, err
 	}
 	runtime, err := s.devRuntime()
 	if err != nil {
@@ -261,10 +276,38 @@ func (s *daemonExtensionService) devRuntime() (extensionDevRuntime, error) {
 	return runtime, nil
 }
 
-func developmentWorkspaceID(actor taskpkg.ActorContext) (string, error) {
-	workspaceID := strings.TrimSpace(actor.Scope.WorkspaceID)
+func (s *daemonExtensionService) developmentWorkspaceID(
+	ctx context.Context,
+	actor taskpkg.ActorContext,
+) (string, error) {
+	workspaceID, err := s.scopedDevelopmentWorkspaceID(ctx, actor)
+	if err != nil {
+		return "", err
+	}
 	if workspaceID == "" {
 		return "", errors.New("daemon: a trusted workspace scope is required")
+	}
+	return workspaceID, nil
+}
+
+func (s *daemonExtensionService) scopedDevelopmentWorkspaceID(
+	ctx context.Context,
+	actor taskpkg.ActorContext,
+) (string, error) {
+	workspaceRef := strings.TrimSpace(actor.Scope.WorkspaceID)
+	if workspaceRef == "" {
+		return "", nil
+	}
+	if s.workspaceResolver == nil {
+		return "", errors.New("daemon: workspace resolver is required for workspace-scoped extensions")
+	}
+	resolved, err := s.workspaceResolver.Resolve(ctx, workspaceRef)
+	if err != nil {
+		return "", fmt.Errorf("daemon: resolve extension workspace %q: %w", workspaceRef, err)
+	}
+	workspaceID := strings.TrimSpace(resolved.WorkspaceID)
+	if workspaceID == "" {
+		return "", fmt.Errorf("daemon: resolved extension workspace %q has no stable identity", workspaceRef)
 	}
 	return workspaceID, nil
 }

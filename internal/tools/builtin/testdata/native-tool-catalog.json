@@ -2301,8 +2301,8 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "c849c275dd883801752b7adee346dfe7e84ff5d1988841c98638eb433e3b1965",
-    "output_schema_digest": "7aed0603aea9c3d8813b5ccab3fd871821370cadce3ebf85b15a9a2625ea6d99"
+    "input_schema_digest": "906fe39bea0f4e798607011a1624bffee8bb1ca822cd3e96cc236587e894c006",
+    "output_schema_digest": "573f71101e07fdfedc63ee1c6e2e52d73334099f32ffc92f438370912f94a36a"
   },
   {
     "tool_id": "compozy__session_status",

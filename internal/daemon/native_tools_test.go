@@ -5583,7 +5583,7 @@ func TestDaemonNativeTools(t *testing.T) {
 				toolspkg.CallRequest{
 					ToolID: toolspkg.ToolIDSessionPrompt,
 					Input: json.RawMessage(
-						`{"workspace":"ws-stable","session_id":"sess-1","message":"review","runtime":{"provider":"codex","model":"gpt-5.6-sol","reasoning_effort":"high","speed":"fast"}}`,
+						`{"workspace":"ws-stable","session_id":"sess-1","message":"review","message_id":"msg-native","idempotency_key":"idem-native","runtime":{"provider":"codex","model":"gpt-5.6-sol","reasoning_effort":"high","speed":"fast"}}`,
 					),
 				},
 			)
@@ -5607,7 +5607,8 @@ func TestDaemonNativeTools(t *testing.T) {
 		if promptCallResult.err != nil {
 			t.Fatalf("Registry.Call(session_prompt) error = %v", promptCallResult.err)
 		}
-		if submittedPrompt.Message != "review" || submittedPrompt.Runtime == nil ||
+		if submittedPrompt.Message != "review" || submittedPrompt.MessageID != "msg-native" ||
+			submittedPrompt.IdempotencyKey != "idem-native" || submittedPrompt.Runtime == nil ||
 			submittedPrompt.Runtime.Provider != "codex" || submittedPrompt.Runtime.Model != "gpt-5.6-sol" ||
 			submittedPrompt.Runtime.ReasoningEffort != "high" || submittedPrompt.Runtime.Speed != "fast" {
 			t.Fatalf("session_prompt opts = %#v", submittedPrompt)
@@ -8983,7 +8984,7 @@ func openDaemonMemoryCatalog(t *testing.T, store *memorypkg.Store) {
 		t.Fatalf("MemoryStore.OpenCatalog() error = %v", err)
 	}
 	t.Cleanup(func() {
-		if err := store.CloseCatalog(ctx); err != nil {
+		if err := store.CloseCatalog(testutil.Context(t)); err != nil {
 			t.Errorf("MemoryStore.CloseCatalog() error = %v", err)
 		}
 	})

@@ -89,7 +89,7 @@ type SessionManager interface {
 	PromptSynthetic(ctx context.Context, id string, opts session.SyntheticPromptOpts) (<-chan acp.AgentEvent, error)
 	SendPrompt(ctx context.Context, id string, opts session.SendPromptOpts) (session.SendPromptResult, error)
 	InterruptPrompt(ctx context.Context, id string) (session.SendPromptResult, error)
-	SteerPrompt(ctx context.Context, id string, msg string) (session.SendPromptResult, error)
+	SteerPrompt(ctx context.Context, id string, opts session.SteerPromptOpts) (session.SendPromptResult, error)
 	CancelQueuedPrompt(ctx context.Context, id string, queueEntryID string) (session.SendPromptResult, error)
 	CancelPrompt(ctx context.Context, id string) error
 	ApprovePermission(ctx context.Context, id string, req acp.ApproveRequest) error

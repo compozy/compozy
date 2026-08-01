@@ -358,10 +358,39 @@ function ClearConversationButton() {
   );
 }
 
+function RetryLatestAssistantMessageButton() {
+  const aui = useAui();
+  const latestAssistantMessageId = useAuiState(state => {
+    for (let index = state.thread.messages.length - 1; index >= 0; index -= 1) {
+      const message = state.thread.messages[index];
+      if (message?.role === "assistant") {
+        return message.id;
+      }
+    }
+    return null;
+  });
+
+  if (latestAssistantMessageId === null) {
+    return null;
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={async () => {
+        await aui.thread().message({ id: latestAssistantMessageId }).reload();
+      }}
+    >
+      Retry latest assistant message
+    </button>
+  );
+}
+
 function renderSessionThread(
   options: {
     eventSourceFactory?: (url: string) => FakeSessionEventSource;
     includeClearAction?: boolean;
+    includeRuntimeRetryControl?: boolean;
     includeToaster?: boolean;
     queryClient?: QueryClient;
     includeTranscriptStateProbe?: boolean;
@@ -375,36 +404,44 @@ function renderSessionThread(
 ) {
   const queryClient = options.queryClient ?? createQueryClient();
 
-  const sessionRuntime = (
-    <QueryClientProvider client={queryClient}>
-      <SessionChatRuntimeProvider
-        sessionId={primarySessionFixture.id}
-        workspaceId={fixtureWorkspaceId()}
-        eventSourceFactory={options.eventSourceFactory}
-        liveTailEnabled={options.liveTailEnabled}
-      >
-        {options.onRuntimeTranscriptCommit ? (
-          <RuntimeTranscriptCoherenceProbe onCommit={options.onRuntimeTranscriptCommit} />
-        ) : null}
-        {options.includeTranscriptStateProbe ? <TranscriptStateProbe /> : null}
-        {options.includeClearAction ? <ClearConversationButton /> : null}
-        <SessionThread
+  const renderTree = () => {
+    const sessionRuntime = (
+      <QueryClientProvider client={queryClient}>
+        <SessionChatRuntimeProvider
           sessionId={primarySessionFixture.id}
-          agentName={primarySessionFixture.agent_name}
-          workspaceId={options.includeDecisionDock ? fixtureWorkspaceId() : undefined}
-          sessionState={options.includeDecisionDock ? "active" : undefined}
-          canPrompt
-          onCancelPrompt={options.onCancelPrompt ?? (() => {})}
-        />
-        {options.includeToaster ? <Toaster duration={500} /> : null}
-      </SessionChatRuntimeProvider>
-    </QueryClientProvider>
-  );
-  const tree = options.runtimeSnapshot
-    ? withRuntimeSnapshot(sessionRuntime, options.runtimeSnapshot)
-    : sessionRuntime;
-  const utils = render(options.strictMode ? <StrictMode>{tree}</StrictMode> : tree);
-  return { ...utils, queryClient };
+          workspaceId={fixtureWorkspaceId()}
+          eventSourceFactory={options.eventSourceFactory}
+          liveTailEnabled={options.liveTailEnabled}
+        >
+          {options.onRuntimeTranscriptCommit ? (
+            <RuntimeTranscriptCoherenceProbe onCommit={options.onRuntimeTranscriptCommit} />
+          ) : null}
+          {options.includeTranscriptStateProbe ? <TranscriptStateProbe /> : null}
+          {options.includeClearAction ? <ClearConversationButton /> : null}
+          {options.includeRuntimeRetryControl ? <RetryLatestAssistantMessageButton /> : null}
+          <SessionThread
+            sessionId={primarySessionFixture.id}
+            agentName={primarySessionFixture.agent_name}
+            workspaceId={options.includeDecisionDock ? fixtureWorkspaceId() : undefined}
+            sessionState={options.includeDecisionDock ? "active" : undefined}
+            canPrompt
+            onCancelPrompt={options.onCancelPrompt ?? (() => {})}
+          />
+          {options.includeToaster ? <Toaster duration={500} /> : null}
+        </SessionChatRuntimeProvider>
+      </QueryClientProvider>
+    );
+    const tree = options.runtimeSnapshot
+      ? withRuntimeSnapshot(sessionRuntime, options.runtimeSnapshot)
+      : sessionRuntime;
+    return options.strictMode ? <StrictMode>{tree}</StrictMode> : tree;
+  };
+  const utils = render(renderTree());
+  return {
+    ...utils,
+    queryClient,
+    rerenderSessionThread: () => utils.rerender(renderTree()),
+  };
 }
 
 function withRuntimeSnapshot(
@@ -608,7 +645,7 @@ describe("SessionChatRuntimeProvider", () => {
   let olderTranscriptMessages: TranscriptMessage[] = [];
   let goalCommandFailureReason: "goal_objective_required" | "goal_objective_too_large" | null =
     null;
-  let lastPromptClientMessageID = "";
+  let lastPromptMessageID = "";
   let fetchMock: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
@@ -627,7 +664,7 @@ describe("SessionChatRuntimeProvider", () => {
     transcriptNextBeforeSequence = undefined;
     olderTranscriptMessages = [];
     goalCommandFailureReason = null;
-    lastPromptClientMessageID = "";
+    lastPromptMessageID = "";
     fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const requestURL = getRequestURL(input);
       const pathname = requestURL.pathname;
@@ -697,17 +734,25 @@ describe("SessionChatRuntimeProvider", () => {
         pathname ===
         `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/${primarySessionFixture.id}/prompt`
       ) {
-        lastPromptClientMessageID = getLastUserMessageID(init);
+        lastPromptMessageID = getLastUserMessageID(init);
         if (promptResponsePromise) {
           return abortableResponse(promptResponsePromise, init?.signal);
         }
         if (goalCommandFailureReason) {
           return jsonResponse(
             {
-              outcome: "error",
-              reason_code: goalCommandFailureReason,
-              replaced_run_id: null,
-              snapshot: null,
+              prompt: {
+                goal: {
+                  outcome: "error",
+                  reason_code: goalCommandFailureReason,
+                  replaced_run_id: null,
+                  snapshot: null,
+                },
+                idempotency_key: "idempotency-goal-error",
+                message_id: lastPromptMessageID,
+                replayed: false,
+                status: "rejected",
+              },
             },
             { status: 422 }
           );
@@ -1006,6 +1051,49 @@ describe("SessionChatRuntimeProvider", () => {
     }
   });
 
+  // Invariant: retrying an existing user turn after a provider rerender keeps
+  // its original idempotency key. Owning layer: session chat runtime provider
+  // integration. Canonical suite: this provider suite.
+  it("retains the prompt idempotency key when a rerendered provider retries the response", async () => {
+    const user = userEvent.setup();
+    const { rerenderSessionThread } = renderSessionThread({ includeRuntimeRetryControl: true });
+
+    const composer = await screen.findByRole("textbox", { name: "Session prompt" });
+    await user.type(composer, "Retry this answer after the provider rerenders");
+    await user.click(screen.getByTestId("composer-send-button"));
+
+    await waitFor(() => expect(countPromptFetches(fetchMock)).toBe(1));
+    const firstPromptRequest = fetchMock.mock.calls.find(([input]) => {
+      return (
+        getPathname(input as RequestInfo | URL) ===
+        `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/${primarySessionFixture.id}/prompt`
+      );
+    });
+    const firstPromptBody = JSON.parse(String(firstPromptRequest?.[1]?.body)) as {
+      idempotency_key: string;
+      message_id: string;
+    };
+
+    rerenderSessionThread();
+    await user.click(await screen.findByRole("button", { name: "Retry latest assistant message" }));
+
+    await waitFor(() => expect(countPromptFetches(fetchMock)).toBe(2));
+    const promptRequests = fetchMock.mock.calls.filter(([input]) => {
+      return (
+        getPathname(input as RequestInfo | URL) ===
+        `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/${primarySessionFixture.id}/prompt`
+      );
+    });
+    const retryPromptRequest = promptRequests[1];
+    const retryPromptBody = JSON.parse(String(retryPromptRequest?.[1]?.body)) as {
+      idempotency_key: string;
+      message_id: string;
+    };
+
+    expect(retryPromptBody.message_id).toBe(firstPromptBody.message_id);
+    expect(retryPromptBody.idempotency_key).toBe(firstPromptBody.idempotency_key);
+  });
+
   it.each([
     ["goal_objective_required", "/goal", "Add an objective after /goal, then try again."],
     [
@@ -1068,14 +1156,13 @@ describe("SessionChatRuntimeProvider", () => {
         screen.getByText("Live runtime answer before transcript reconciliation.")
       ).toBeInTheDocument();
     });
-    expect(lastPromptClientMessageID).not.toBe("");
+    expect(lastPromptMessageID).not.toBe("");
 
     transcriptMessages = [
       ...sessionTranscriptFixture.slice(0, 2),
       {
-        id: "transcript_user_after_send_001",
+        id: lastPromptMessageID,
         role: "user",
-        metadata: { client_message_id: lastPromptClientMessageID },
         parts: [
           {
             type: "text",
@@ -1195,11 +1282,19 @@ describe("SessionChatRuntimeProvider", () => {
     });
     const init = promptCall?.[1] as RequestInit | undefined;
     const body = JSON.parse(String(init?.body)) as {
+      idempotency_key?: string;
+      message_id?: string;
+      message?: unknown;
+      messageId?: unknown;
       messages?: Array<{ role?: string }>;
       runtime?: unknown;
     };
     expect(body.runtime).toEqual(runtime);
     expect(body.messages?.at(-1)).toEqual(expect.objectContaining({ role: "user" }));
+    expect(body.message_id).toBe(getLastUserMessageID(init));
+    expect(typeof body.idempotency_key).toBe("string");
+    expect(body.message).toBeUndefined();
+    expect(body.messageId).toBeUndefined();
   });
 
   it("Should dock a live permission while the prompt stream remains open", async () => {
@@ -1259,7 +1354,7 @@ describe("SessionChatRuntimeProvider", () => {
     expect(screen.queryByText(prompt)).not.toBeInTheDocument();
   }, 10_000);
 
-  it("promotes an optimistic runtime message to the server identity without a duplicate row", () => {
+  it("keeps distinct runtime and durable message ids visible even when metadata matches", () => {
     const runtimeMessages = toReadonlyThreadMessages([
       {
         id: "client_temp_assistant_001",
@@ -1278,10 +1373,7 @@ describe("SessionChatRuntimeProvider", () => {
       {
         id: "server_assistant_001",
         role: "assistant",
-        metadata: {
-          turn_id: "turn_promote_001",
-          client_temp_id: "client_temp_assistant_001",
-        },
+        metadata: { turn_id: "turn_promote_001", message_id: "client_temp_assistant_001" },
         parts: [
           {
             type: "text",
@@ -1294,10 +1386,13 @@ describe("SessionChatRuntimeProvider", () => {
 
     const merged = mergeSessionThreadReadModel({ transcriptMessages, runtimeMessages });
 
-    expect(merged.map(message => message.id)).toEqual(["server_assistant_001"]);
+    expect(merged.map(message => message.id)).toEqual([
+      "server_assistant_001",
+      "client_temp_assistant_001",
+    ]);
   });
 
-  it("Should reconcile a user message by client identity without requiring a turn id", () => {
+  it("Should reconcile a user message only when its durable id exactly matches", () => {
     const runtimeMessages = toReadonlyThreadMessages([
       {
         id: "client_user_001",
@@ -1307,9 +1402,8 @@ describe("SessionChatRuntimeProvider", () => {
     ]);
     const transcriptMessages = toReadonlyThreadMessages([
       {
-        id: "server_user_001",
+        id: "client_user_001",
         role: "user",
-        metadata: { client_message_id: "client_user_001" },
         parts: [{ type: "text", text: "One authored prompt.", state: "done" }],
       } as TranscriptMessage,
       {
@@ -1321,7 +1415,7 @@ describe("SessionChatRuntimeProvider", () => {
 
     const merged = mergeSessionThreadReadModel({ transcriptMessages, runtimeMessages });
 
-    expect(merged.map(message => message.id)).toEqual(["server_user_001", "server_assistant_001"]);
+    expect(merged.map(message => message.id)).toEqual(["client_user_001", "server_assistant_001"]);
   });
 
   it("Should expose one focused and cancellable Goal draft without submitting the response", async () => {

@@ -52,6 +52,7 @@ func NewManager(opts ...Option) (*Manager, error) {
 		promptDrains:          make(map[chan struct{}]struct{}),
 		managedInputLeases:    make(map[string]managedInputLease),
 		interruptSalvages:     make(map[string]interruptedPromptSalvage),
+		promptAdmissionLocks:  make(map[string]*promptAdmissionLock),
 		compactions:           make(map[string]*sessionCompactionState),
 		startRuns:             make(map[string]*sessionStartRun),
 		syntheticQueues:       make(map[string][]queuedSyntheticPrompt),

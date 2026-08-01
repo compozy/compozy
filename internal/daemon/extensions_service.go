@@ -10,6 +10,7 @@ import (
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	marketplacepkg "github.com/compozy/compozy/internal/marketplace"
 	"github.com/compozy/compozy/internal/store"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 type daemonExtensionService struct {
@@ -30,6 +31,7 @@ type daemonExtensionService struct {
 	marketplaceLoader  extensionMarketplaceSourceLoader
 	marketplaceCatalog marketplacepkg.Service
 	eventWriter        store.EventSummaryStore
+	workspaceResolver  workspacepkg.RuntimeResolver
 }
 
 var _ udsapi.ExtensionService = (*daemonExtensionService)(nil)
@@ -55,6 +57,14 @@ func withDaemonExtensionCatalog(catalog marketplacepkg.Service) daemonExtensionS
 func withDaemonExtensionEventWriter(writer store.EventSummaryStore) daemonExtensionServiceOption {
 	return func(service *daemonExtensionService) {
 		service.eventWriter = writer
+	}
+}
+
+func withDaemonExtensionWorkspaceResolver(
+	resolver workspacepkg.RuntimeResolver,
+) daemonExtensionServiceOption {
+	return func(service *daemonExtensionService) {
+		service.workspaceResolver = resolver
 	}
 }
 

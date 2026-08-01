@@ -68,6 +68,7 @@ func testDaemonE2EAgentCompletesExtensionAuthoringThroughNativeTools(t *testing.
 		nil,
 		withDaemonExtensionMarketplace(deps.ExtensionConfig, deps.ExtensionSources),
 		withDaemonExtensionEventWriter(deps.ExtensionEvents),
+		withDaemonExtensionWorkspaceResolver(resolver),
 	).(*daemonExtensionService)
 	if !ok {
 		t.Fatal("newDaemonExtensionService() did not return daemon extension service")

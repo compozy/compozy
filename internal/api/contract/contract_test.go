@@ -642,7 +642,9 @@ func TestSendPromptRequestJSONShape(t *testing.T) {
 		t.Parallel()
 
 		req := contract.SendPromptRequest{
-			Message: "Review this change.",
+			Message:        "Review this change.",
+			MessageID:      "msg-prompt-json-shape",
+			IdempotencyKey: "idem-prompt-json-shape",
 			Runtime: &contract.PromptRuntimeSelectionPayload{
 				Provider:        "codex",
 				Model:           "gpt-5.4",
@@ -662,6 +664,25 @@ func TestSendPromptRequestJSONShape(t *testing.T) {
 			decoded.Runtime.Model != "gpt-5.4" || decoded.Runtime.ReasoningEffort != "high" ||
 			decoded.Runtime.Speed != contract.SpeedFast {
 			t.Fatalf("decoded runtime = %#v", decoded.Runtime)
+		}
+		if decoded.MessageID != "msg-prompt-json-shape" || decoded.IdempotencyKey != "idem-prompt-json-shape" {
+			t.Fatalf("decoded prompt identity = %#v", decoded)
+		}
+		var shape map[string]json.RawMessage
+		if err := json.Unmarshal(raw, &shape); err != nil {
+			t.Fatalf("json.Unmarshal(prompt shape) error = %v", err)
+		}
+		for field, want := range map[string]string{
+			"message_id":      "msg-prompt-json-shape",
+			"idempotency_key": "idem-prompt-json-shape",
+		} {
+			var got string
+			if err := json.Unmarshal(shape[field], &got); err != nil {
+				t.Fatalf("json.Unmarshal(prompt shape %q) error = %v", field, err)
+			}
+			if got != want {
+				t.Fatalf("prompt shape %q = %q, want %q", field, got, want)
+			}
 		}
 	})
 }

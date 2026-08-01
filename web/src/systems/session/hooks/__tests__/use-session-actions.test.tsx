@@ -8,6 +8,7 @@ import {
   useClearSessionConversation,
   useCreateSession,
   useDeleteSession,
+  useQueueSessionPrompt,
   useRepairSession,
 } from "../use-session-actions";
 import { sessionKeys } from "../../lib/query-keys";
@@ -21,6 +22,8 @@ vi.mock("../../adapters/session-api", () => ({
   repairSession: vi.fn(),
   stopSession: vi.fn(),
   resumeSession: vi.fn(),
+  sendSessionPrompt: vi.fn(),
+  steerSessionPrompt: vi.fn(),
 }));
 
 vi.mock("@/systems/workspace", () => ({
@@ -32,6 +35,7 @@ import {
   createSession,
   deleteSession,
   repairSession,
+  sendSessionPrompt,
 } from "../../adapters/session-api";
 
 const WORKSPACE_ID = "ws_alpha";
@@ -380,5 +384,70 @@ describe("session actions", () => {
     expect(invalidateSpy).toHaveBeenCalledWith({
       queryKey: sessionKeys.workspaceLists(WORKSPACE_ID),
     });
+  });
+
+  it("useQueueSessionPrompt builds the canonical durable request from an action identity", async () => {
+    vi.mocked(sendSessionPrompt).mockResolvedValue({
+      idempotency_key: "idempotency-001",
+      message_id: "message-001",
+      replayed: false,
+      status: "queued",
+    });
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const { result } = renderHook(() => useQueueSessionPrompt(), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    await act(async () => {
+      await result.current.mutateAsync({
+        id: createdSession.id,
+        idempotencyKey: "idempotency-001",
+        message: "Queue this durable input.",
+        messageId: "message-001",
+      });
+    });
+
+    expect(sendSessionPrompt).toHaveBeenCalledWith(WORKSPACE_ID, createdSession.id, {
+      idempotency_key: "idempotency-001",
+      message_id: "message-001",
+      messages: [
+        {
+          id: "message-001",
+          parts: [{ text: "Queue this durable input.", type: "text" }],
+          role: "user",
+        },
+      ],
+      mode: "queue",
+    });
+  });
+
+  it.each([
+    ["only a message id", { messageId: "message-001" }],
+    ["only an idempotency key", { idempotencyKey: "idempotency-001" }],
+    ["a blank message id", { idempotencyKey: "idempotency-001", messageId: "   " }],
+    ["a blank idempotency key", { idempotencyKey: "   ", messageId: "message-001" }],
+  ])("useQueueSessionPrompt rejects %s in an explicit action identity", async (_case, identity) => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const { result } = renderHook(() => useQueueSessionPrompt(), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    await act(async () => {
+      await expect(
+        result.current.mutateAsync({
+          id: createdSession.id,
+          message: "Queue this durable input.",
+          ...identity,
+        })
+      ).rejects.toThrow(
+        "A session prompt action requires both non-empty message_id and idempotency_key"
+      );
+    });
+
+    expect(sendSessionPrompt).not.toHaveBeenCalled();
   });
 });

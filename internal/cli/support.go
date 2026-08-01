@@ -148,11 +148,19 @@ func supportBundleInputIsTerminal(input io.Reader) bool {
 	if !ok {
 		return false
 	}
-	fd := file.Fd()
-	if fd > uintptr(math.MaxInt) {
+	rawConn, err := file.SyscallConn()
+	if err != nil {
 		return false
 	}
-	return term.IsTerminal(int(fd))
+	isTerminal := false
+	if err := rawConn.Control(func(fd uintptr) {
+		if fd <= uintptr(math.MaxInt) {
+			isTerminal = term.IsTerminal(int(fd))
+		}
+	}); err != nil {
+		return false
+	}
+	return isTerminal
 }
 
 func resolveInheritedOutputFormat(cmd *cobra.Command) (OutputFormat, error) {
