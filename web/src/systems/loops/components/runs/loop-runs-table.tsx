@@ -11,7 +11,15 @@ interface LoopRunsTableProps {
 
 // The run projection exposes only `created_at` (no `ended_at`), so the time column
 // is always the start time — never "Ended" (that would be untruthful).
-const COLUMNS: readonly string[] = ["Outcome", "Loop", "Inputs", "Gens", "Started", "Budget"];
+const COLUMNS: readonly string[] = [
+  "Outcome",
+  "Loop",
+  "Inputs",
+  "Gens",
+  "Best",
+  "Started",
+  "Budget",
+];
 
 /**
  * One runs table section (Active or Past) with a labeled header and run rows.

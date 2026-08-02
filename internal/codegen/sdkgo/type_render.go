@@ -11,10 +11,40 @@ type goField struct {
 	name     string
 	typeCode *jen.Statement
 	jsonTag  string
+	comment  string
+}
+
+var generatedFieldComments = map[string]map[string]string{
+	"LoopGenerationPrePayload": {
+		"OriginKind": "OriginKind identifies the actor or task source kind that started the loop.",
+		"OriginRef":  "OriginRef identifies the actor or task source reference that started the loop.",
+		"Origin":     "Origin is the closed loop-generation provenance value that explains why this generation exists.",
+	},
+	"LoopGenerationPostPayload": {
+		"OriginKind": "OriginKind identifies the actor or task source kind that started the loop.",
+		"OriginRef":  "OriginRef identifies the actor or task source reference that started the loop.",
+		"Origin":     "Origin is the closed loop-generation provenance value that explains why this generation exists.",
+	},
+	"LoopGatePrePayload": {
+		"Outcome":        "Outcome is the machine result already computed when the hook observes the gate.",
+		"Score":          "Score is the computed metric score, when the observed gate has a metric criterion.",
+		"BestGeneration": "BestGeneration is the durable best generation known when the hook observes the result.",
+	},
+	"LoopGatePostPayload": {
+		"Outcome":        "Outcome is the machine result already computed when the hook observes the gate.",
+		"Score":          "Score is the computed metric score, when the observed gate has a metric criterion.",
+		"BestGeneration": "BestGeneration is the durable best generation known when the hook observes the result.",
+	},
 }
 
 func (g *typeGenerator) renderDeclaration(name string, value reflect.Type) (*jen.Statement, error) {
-	underlying, err := g.goUnderlyingType(value)
+	var underlying *jen.Statement
+	var err error
+	if value.Kind() == reflect.Struct {
+		underlying, err = g.renderNamedStruct(name, value)
+	} else {
+		underlying, err = g.goUnderlyingType(value)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("render generated Go type %s: %w", name, err)
 	}
@@ -139,13 +169,20 @@ func primitiveGoType(kind reflect.Kind) *jen.Statement {
 }
 
 func (g *typeGenerator) renderStruct(value reflect.Type) (*jen.Statement, error) {
-	fields, err := g.structFields(value)
+	return g.renderNamedStruct("", value)
+}
+
+func (g *typeGenerator) renderNamedStruct(name string, value reflect.Type) (*jen.Statement, error) {
+	fields, err := g.structFields(value, name)
 	if err != nil {
 		return nil, err
 	}
 	statements := make([]jen.Code, 0, len(fields))
 	for _, field := range fields {
 		statement := jen.Id(field.name).Add(field.typeCode)
+		if field.comment != "" {
+			statement = jen.Comment(field.comment).Line().Add(statement)
+		}
 		if field.jsonTag != "" {
 			statement.Tag(map[string]string{"json": field.jsonTag})
 		}
@@ -154,7 +191,7 @@ func (g *typeGenerator) renderStruct(value reflect.Type) (*jen.Statement, error)
 	return jen.Struct(statements...), nil
 }
 
-func (g *typeGenerator) structFields(value reflect.Type) ([]goField, error) {
+func (g *typeGenerator) structFields(value reflect.Type, rootName string) ([]goField, error) {
 	fields := make([]goField, 0, value.NumField())
 	for field := range value.Fields() {
 		if !field.IsExported() {
@@ -167,7 +204,7 @@ func (g *typeGenerator) structFields(value reflect.Type) ([]goField, error) {
 		if field.Anonymous && jsonTag == "" {
 			embedded := declarationType(field.Type)
 			if embedded.Kind() == reflect.Struct {
-				embeddedFields, err := g.structFields(embedded)
+				embeddedFields, err := g.structFields(embedded, rootName)
 				if err != nil {
 					return nil, err
 				}
@@ -179,7 +216,13 @@ func (g *typeGenerator) structFields(value reflect.Type) ([]goField, error) {
 		if err != nil {
 			return nil, fmt.Errorf("resolve field %s.%s: %w", value.Name(), field.Name, err)
 		}
-		fields = append(fields, goField{name: field.Name, typeCode: typeCode, jsonTag: jsonTag})
+		comment := ""
+		if comments := generatedFieldComments[rootName]; comments != nil {
+			comment = comments[field.Name]
+		}
+		fields = append(fields, goField{
+			name: field.Name, typeCode: typeCode, jsonTag: jsonTag, comment: comment,
+		})
 	}
 	return fields, nil
 }

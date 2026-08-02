@@ -13,9 +13,22 @@ func cloneCriteria(criteria []dsl.GateCriterion) []dsl.GateCriterion {
 	copy(cloned, criteria)
 	for i := range cloned {
 		cloned[i].Inputs = cloneMapValues(cloned[i].Inputs)
+		cloned[i].Metric = cloneMetricSpec(cloned[i].Metric)
 		cloned[i].Extra = cloneMapValues(cloned[i].Extra)
 	}
 	return cloned
+}
+
+func cloneMetricSpec(metric *dsl.MetricSpec) *dsl.MetricSpec {
+	if metric == nil {
+		return nil
+	}
+	cloned := *metric
+	if metric.MinDelta != nil {
+		value := *metric.MinDelta
+		cloned.MinDelta = &value
+	}
+	return &cloned
 }
 
 func cloneMapValues(values map[string]any) map[string]any {

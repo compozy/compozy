@@ -11,7 +11,7 @@ export function loopEventFrame(
   seq = 1,
   overrides: Partial<LoopRunEventFrame> = {}
 ): LoopRunEventFrame {
-  return {
+  const frame = {
     id: `ev-${seq}`,
     seq,
     kind,
@@ -21,4 +21,5 @@ export function loopEventFrame(
     payload,
     ...overrides,
   };
+  return frame as LoopRunEventFrame;
 }

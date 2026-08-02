@@ -215,6 +215,74 @@ func (q *Queries) GetLoopRunPauseState(ctx context.Context, arg GetLoopRunPauseS
 	return i, err
 }
 
+const insertLoopGateVerdict = `-- name: InsertLoopGateVerdict :exec
+INSERT INTO loop_gate_verdicts (
+  loop_run_id, generation, gate_id, item_index, outcome, score, route_cause_rank,
+  blocking_issues_json, criteria_json, decided_at
+) VALUES (
+  ?1, ?2, ?3, ?4, ?5,
+  ?6, ?7, ?8,
+  ?9, ?10
+)
+`
+
+type InsertLoopGateVerdictParams struct {
+	LoopRunID          string          `json:"loop_run_id"`
+	Generation         int64           `json:"generation"`
+	GateID             string          `json:"gate_id"`
+	ItemIndex          int64           `json:"item_index"`
+	Outcome            string          `json:"outcome"`
+	Score              sql.NullFloat64 `json:"score"`
+	RouteCauseRank     sql.NullInt64   `json:"route_cause_rank"`
+	BlockingIssuesJson string          `json:"blocking_issues_json"`
+	CriteriaJson       string          `json:"criteria_json"`
+	DecidedAt          time.Time       `json:"decided_at"`
+}
+
+func (q *Queries) InsertLoopGateVerdict(ctx context.Context, arg InsertLoopGateVerdictParams) error {
+	_, err := q.db.ExecContext(ctx, insertLoopGateVerdict,
+		arg.LoopRunID,
+		arg.Generation,
+		arg.GateID,
+		arg.ItemIndex,
+		arg.Outcome,
+		arg.Score,
+		arg.RouteCauseRank,
+		arg.BlockingIssuesJson,
+		arg.CriteriaJson,
+		arg.DecidedAt,
+	)
+	return err
+}
+
+const insertLoopGeneration = `-- name: InsertLoopGeneration :exec
+INSERT INTO loop_generations (
+  loop_run_id, generation, parent_generation, origin, created_at
+) VALUES (
+  ?1, ?2, ?3,
+  ?4, ?5
+)
+`
+
+type InsertLoopGenerationParams struct {
+	LoopRunID        string    `json:"loop_run_id"`
+	Generation       int64     `json:"generation"`
+	ParentGeneration int64     `json:"parent_generation"`
+	Origin           string    `json:"origin"`
+	CreatedAt        time.Time `json:"created_at"`
+}
+
+func (q *Queries) InsertLoopGeneration(ctx context.Context, arg InsertLoopGenerationParams) error {
+	_, err := q.db.ExecContext(ctx, insertLoopGeneration,
+		arg.LoopRunID,
+		arg.Generation,
+		arg.ParentGeneration,
+		arg.Origin,
+		arg.CreatedAt,
+	)
+	return err
+}
+
 const listLoopCatalogAggregates = `-- name: ListLoopCatalogAggregates :many
 WITH requested_names(loop_name) AS (
   SELECT DISTINCT CAST(value AS TEXT) FROM json_each(?3)
@@ -282,7 +350,7 @@ WITH requested_names(loop_name) AS (
   )
   FROM requested_names AS requested
 )
-SELECT lr.id, lr.loop_name, lr.status, lr.created_at
+SELECT lr.id, lr.loop_name, lr.status, lr.best_generation, lr.best_score, lr.created_at
 FROM loop_runs AS lr JOIN latest_ids ON latest_ids.id = lr.id
 `
 
@@ -292,10 +360,12 @@ type ListLoopCatalogLatestRunsParams struct {
 }
 
 type ListLoopCatalogLatestRunsRow struct {
-	ID        string `json:"id"`
-	LoopName  string `json:"loop_name"`
-	Status    string `json:"status"`
-	CreatedAt string `json:"created_at"`
+	ID             string          `json:"id"`
+	LoopName       string          `json:"loop_name"`
+	Status         string          `json:"status"`
+	BestGeneration sql.NullInt64   `json:"best_generation"`
+	BestScore      sql.NullFloat64 `json:"best_score"`
+	CreatedAt      string          `json:"created_at"`
 }
 
 func (q *Queries) ListLoopCatalogLatestRuns(ctx context.Context, arg ListLoopCatalogLatestRunsParams) ([]ListLoopCatalogLatestRunsRow, error) {
@@ -311,6 +381,8 @@ func (q *Queries) ListLoopCatalogLatestRuns(ctx context.Context, arg ListLoopCat
 			&i.ID,
 			&i.LoopName,
 			&i.Status,
+			&i.BestGeneration,
+			&i.BestScore,
 			&i.CreatedAt,
 		); err != nil {
 			return nil, err
@@ -387,6 +459,66 @@ func (q *Queries) ListLoopGateDecisions(ctx context.Context, arg ListLoopGateDec
 	return items, nil
 }
 
+const listLoopGateVerdicts = `-- name: ListLoopGateVerdicts :many
+SELECT verdict.gate_id, verdict.item_index, verdict.outcome, verdict.score, verdict.route_cause_rank,
+       verdict.blocking_issues_json, verdict.criteria_json, verdict.decided_at
+FROM loop_gate_verdicts AS verdict
+JOIN loop_runs AS run ON run.id = verdict.loop_run_id
+WHERE verdict.loop_run_id = ?1
+  AND verdict.generation = ?2
+  AND run.workspace_id = ?3
+ORDER BY verdict.gate_id ASC, verdict.item_index ASC
+`
+
+type ListLoopGateVerdictsParams struct {
+	LoopRunID   string `json:"loop_run_id"`
+	Generation  int64  `json:"generation"`
+	WorkspaceID string `json:"workspace_id"`
+}
+
+type ListLoopGateVerdictsRow struct {
+	GateID             string          `json:"gate_id"`
+	ItemIndex          int64           `json:"item_index"`
+	Outcome            string          `json:"outcome"`
+	Score              sql.NullFloat64 `json:"score"`
+	RouteCauseRank     sql.NullInt64   `json:"route_cause_rank"`
+	BlockingIssuesJson string          `json:"blocking_issues_json"`
+	CriteriaJson       string          `json:"criteria_json"`
+	DecidedAt          time.Time       `json:"decided_at"`
+}
+
+func (q *Queries) ListLoopGateVerdicts(ctx context.Context, arg ListLoopGateVerdictsParams) ([]ListLoopGateVerdictsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listLoopGateVerdicts, arg.LoopRunID, arg.Generation, arg.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListLoopGateVerdictsRow{}
+	for rows.Next() {
+		var i ListLoopGateVerdictsRow
+		if err := rows.Scan(
+			&i.GateID,
+			&i.ItemIndex,
+			&i.Outcome,
+			&i.Score,
+			&i.RouteCauseRank,
+			&i.BlockingIssuesJson,
+			&i.CriteriaJson,
+			&i.DecidedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listLoopGenerationOutputs = `-- name: ListLoopGenerationOutputs :many
 SELECT output.generation, output.node_id, output.item_index, output.status, output.output_ref,
        output.task_run_id, output.child_loop_run_id, output.resolved_runtime_json
@@ -433,6 +565,55 @@ func (q *Queries) ListLoopGenerationOutputs(ctx context.Context, arg ListLoopGen
 			&i.TaskRunID,
 			&i.ChildLoopRunID,
 			&i.ResolvedRuntimeJson,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listLoopGenerations = `-- name: ListLoopGenerations :many
+SELECT generation.generation, generation.parent_generation, generation.origin, generation.created_at
+FROM loop_generations AS generation
+JOIN loop_runs AS run ON run.id = generation.loop_run_id
+WHERE generation.loop_run_id = ?1
+  AND run.workspace_id = ?2
+ORDER BY generation.generation ASC
+`
+
+type ListLoopGenerationsParams struct {
+	LoopRunID   string `json:"loop_run_id"`
+	WorkspaceID string `json:"workspace_id"`
+}
+
+type ListLoopGenerationsRow struct {
+	Generation       int64     `json:"generation"`
+	ParentGeneration int64     `json:"parent_generation"`
+	Origin           string    `json:"origin"`
+	CreatedAt        time.Time `json:"created_at"`
+}
+
+func (q *Queries) ListLoopGenerations(ctx context.Context, arg ListLoopGenerationsParams) ([]ListLoopGenerationsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listLoopGenerations, arg.LoopRunID, arg.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListLoopGenerationsRow{}
+	for rows.Next() {
+		var i ListLoopGenerationsRow
+		if err := rows.Scan(
+			&i.Generation,
+			&i.ParentGeneration,
+			&i.Origin,
+			&i.CreatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -526,6 +707,67 @@ func (q *Queries) ListQueuedLoopRunsReadyForPromotion(ctx context.Context) ([]Li
 			&i.WorkspaceID,
 			&i.LoopName,
 			&i.Generation,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listRouteCausingLoopGateVerdicts = `-- name: ListRouteCausingLoopGateVerdicts :many
+SELECT verdict.gate_id, verdict.item_index, verdict.outcome, verdict.score, verdict.route_cause_rank,
+       verdict.blocking_issues_json, verdict.criteria_json, verdict.decided_at
+FROM loop_gate_verdicts AS verdict
+JOIN loop_runs AS run ON run.id = verdict.loop_run_id
+WHERE verdict.loop_run_id = ?1
+  AND verdict.generation = ?2
+  AND verdict.route_cause_rank IS NOT NULL
+  AND run.workspace_id = ?3
+ORDER BY verdict.route_cause_rank ASC
+`
+
+type ListRouteCausingLoopGateVerdictsParams struct {
+	LoopRunID   string `json:"loop_run_id"`
+	Generation  int64  `json:"generation"`
+	WorkspaceID string `json:"workspace_id"`
+}
+
+type ListRouteCausingLoopGateVerdictsRow struct {
+	GateID             string          `json:"gate_id"`
+	ItemIndex          int64           `json:"item_index"`
+	Outcome            string          `json:"outcome"`
+	Score              sql.NullFloat64 `json:"score"`
+	RouteCauseRank     sql.NullInt64   `json:"route_cause_rank"`
+	BlockingIssuesJson string          `json:"blocking_issues_json"`
+	CriteriaJson       string          `json:"criteria_json"`
+	DecidedAt          time.Time       `json:"decided_at"`
+}
+
+func (q *Queries) ListRouteCausingLoopGateVerdicts(ctx context.Context, arg ListRouteCausingLoopGateVerdictsParams) ([]ListRouteCausingLoopGateVerdictsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listRouteCausingLoopGateVerdicts, arg.LoopRunID, arg.Generation, arg.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListRouteCausingLoopGateVerdictsRow{}
+	for rows.Next() {
+		var i ListRouteCausingLoopGateVerdictsRow
+		if err := rows.Scan(
+			&i.GateID,
+			&i.ItemIndex,
+			&i.Outcome,
+			&i.Score,
+			&i.RouteCauseRank,
+			&i.BlockingIssuesJson,
+			&i.CriteriaJson,
+			&i.DecidedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -712,6 +954,34 @@ AND NOT EXISTS (
 func (q *Queries) SweepOrphanedLoopOutputBlobs(ctx context.Context) error {
 	_, err := q.db.ExecContext(ctx, sweepOrphanedLoopOutputBlobs)
 	return err
+}
+
+const updateLoopRunBest = `-- name: UpdateLoopRunBest :execrows
+UPDATE loop_runs
+SET best_generation = ?1,
+    best_score = ?2
+WHERE id = ?3
+  AND workspace_id = ?4
+`
+
+type UpdateLoopRunBestParams struct {
+	BestGeneration sql.NullInt64   `json:"best_generation"`
+	BestScore      sql.NullFloat64 `json:"best_score"`
+	LoopRunID      string          `json:"loop_run_id"`
+	WorkspaceID    string          `json:"workspace_id"`
+}
+
+func (q *Queries) UpdateLoopRunBest(ctx context.Context, arg UpdateLoopRunBestParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateLoopRunBest,
+		arg.BestGeneration,
+		arg.BestScore,
+		arg.LoopRunID,
+		arg.WorkspaceID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const upsertLoopDefinitionSnapshot = `-- name: UpsertLoopDefinitionSnapshot :execrows

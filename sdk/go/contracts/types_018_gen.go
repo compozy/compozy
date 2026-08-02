@@ -4,6 +4,8 @@ package contracts
 
 import "time"
 
+type SandboxSyncAfterPatch struct{}
+
 type SandboxSyncAfterPayload struct {
 	Event            HookEvent `json:"event"`
 	Timestamp        time.Time `json:"timestamp"`
@@ -227,14 +229,4 @@ type SessionHealthUpdateAfterPayload struct {
 	LastActivityAt      time.Time `json:"last_activity_at"`
 	LastPresenceAt      time.Time `json:"last_presence_at"`
 	LastError           string    `json:"last_error,omitempty"`
-}
-
-type SessionInspectResponse struct {
-	SessionID    string                             `json:"session_id"`
-	Health       SessionHealthPayload               `json:"health"`
-	WakeState    *HeartbeatWakeStatePayload         `json:"wake_state,omitempty"`
-	WakeEvents   []HeartbeatWakeEventPayload        `json:"wake_events,omitempty"`
-	PolicyDigest string                             `json:"policy_digest,omitempty"`
-	ConfigDigest string                             `json:"config_digest,omitempty"`
-	Diagnostics  []AuthoredContextDiagnosticPayload `json:"diagnostics,omitempty"`
 }

@@ -29,7 +29,6 @@ const (
 	loopConfigureKey  = "configure"
 	loopRunKey        = "run"
 	loopStatusKey     = "status"
-	loopRunsKey       = "runs"
 	loopTurnsKey      = "turns"
 	loopStopKey       = "stop"
 	loopPauseKey      = "pause"

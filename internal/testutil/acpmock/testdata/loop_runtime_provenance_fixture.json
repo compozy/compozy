@@ -84,7 +84,7 @@
                     "steps": [
                         {
                             "kind": "assistant",
-                            "text": "{\"verdict\":\"approved\",\"confidence\":0.9,\"evidence\":{\"checked\":[\"criterion-runtime\"]}}"
+                            "text": "{\"verdict\":\"pass\",\"blocking_issues\":[],\"evidence\":{\"checked\":[\"criterion-runtime\"]}}"
                         }
                     ]
                 }

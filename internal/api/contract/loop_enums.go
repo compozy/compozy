@@ -78,6 +78,40 @@ func LoopRunEventKindValues() []string {
 	}
 }
 
+// LoopGenerationOriginValues returns the closed generation provenance vocabulary.
+func LoopGenerationOriginValues() []string {
+	return []string{
+		string(LoopGenerationOriginInitial),
+		string(LoopGenerationOriginStopWhen),
+		string(LoopGenerationOriginReattempt),
+		string(LoopGenerationOriginGateRevise),
+		string(LoopGenerationOriginGateNextGeneration),
+		string(LoopGenerationOriginDoDRetry),
+		string(LoopGenerationOriginRatchetRestore),
+	}
+}
+
+// LoopGateVerdictOutcomeValues returns the closed machine-verdict vocabulary.
+func LoopGateVerdictOutcomeValues() []string {
+	return []string{
+		string(LoopGateVerdictApproved),
+		string(LoopGateVerdictRejected),
+		string(LoopGateVerdictAwaitingApproval),
+		string(LoopGateVerdictBlocked),
+		string(LoopGateVerdictError),
+		string(LoopGateVerdictTimeout),
+		string(LoopGateVerdictInvalidOutput),
+	}
+}
+
+// LoopMetricDirectionValues returns the closed gate metric direction vocabulary.
+func LoopMetricDirectionValues() []string {
+	return []string{
+		string(LoopMetricMaximize),
+		string(LoopMetricMinimize),
+	}
+}
+
 // LoopRunLifecycleEventKindValues returns event kinds that mutate durable run state.
 func LoopRunLifecycleEventKindValues() []string {
 	return []string{

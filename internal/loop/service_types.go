@@ -135,18 +135,18 @@ const (
 //
 //nolint:revive // TechSpec "Core Interfaces" names this public type LoopConfig.
 type LoopConfig struct {
-	HumanGateEnabled  *bool               `json:"human_gate_enabled,omitempty"`
-	ReattemptStrategy *ReattemptStrategy  `json:"reattempt_strategy,omitempty"`
-	EnabledChecks     json.RawMessage     `json:"enabled_checks_json,omitempty"`
-	IterationCap      *int                `json:"iteration_cap,omitempty"`
-	BudgetTokens      *int                `json:"budget_tokens,omitempty"`
-	BudgetWallSec     *int                `json:"budget_wall_sec,omitempty"`
-	BudgetOnExceeded  *dsl.BudgetExceeded `json:"budget_on_exceeded,omitempty"`
-	NoProgressWindow  *int                `json:"no_progress_window,omitempty"`
-	FanOutWidth       *int                `json:"fan_out_width,omitempty"`
-	GateMaxRevisions  *int                `json:"gate_max_revisions,omitempty"`
-	RuntimeDefaults   *RuntimeDefaults    `json:"runtime_defaults,omitempty"`
-	RuntimeRules      []RuntimeRule       `json:"runtime_rules,omitempty"`
+	HumanGateEnabled  *bool               `json:"human_gate_enabled,omitempty"  yaml:"human_gate_enabled,omitempty"`
+	ReattemptStrategy *ReattemptStrategy  `json:"reattempt_strategy,omitempty"  yaml:"reattempt_strategy,omitempty"`
+	EnabledChecks     json.RawMessage     `json:"enabled_checks_json,omitempty" yaml:"enabled_checks_json,omitempty"`
+	IterationCap      *int                `json:"iteration_cap,omitempty"       yaml:"iteration_cap,omitempty"`
+	BudgetTokens      *int                `json:"budget_tokens,omitempty"       yaml:"budget_tokens,omitempty"`
+	BudgetWallSec     *int                `json:"budget_wall_sec,omitempty"     yaml:"budget_wall_sec,omitempty"`
+	BudgetOnExceeded  *dsl.BudgetExceeded `json:"budget_on_exceeded,omitempty"  yaml:"budget_on_exceeded,omitempty"`
+	NoProgressWindow  *int                `json:"no_progress_window,omitempty"  yaml:"no_progress_window,omitempty"`
+	FanOutWidth       *int                `json:"fan_out_width,omitempty"       yaml:"fan_out_width,omitempty"`
+	GateMaxRevisions  *int                `json:"gate_max_revisions,omitempty"  yaml:"gate_max_revisions,omitempty"`
+	RuntimeDefaults   *RuntimeDefaults    `json:"runtime_defaults,omitempty"    yaml:"runtime_defaults,omitempty"`
+	RuntimeRules      []RuntimeRule       `json:"runtime_rules,omitempty"       yaml:"runtime_rules,omitempty"`
 }
 
 // EffectiveConfig is the fully resolved non-null runtime config.
@@ -187,6 +187,8 @@ type Run struct {
 	LoopName              string
 	Status                Status
 	Generation            int
+	BestGeneration        *int64
+	BestScore             *float64
 	ReattemptStrategy     ReattemptStrategy
 	CreatedAt             time.Time
 	StartedAt             time.Time

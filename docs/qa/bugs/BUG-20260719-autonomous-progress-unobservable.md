@@ -71,6 +71,12 @@ declared tasks unstarted and six task-owning agents silent, while the independen
   all twelve declared tasks and runs are independently completed in
   `/Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-124649-419333-lab/qa-artifacts/qa/task-terminal-statuses.json`,
   while the journey log still contains no runtime-owned completion row.
+- Loops-paper-adoption reproduction (2026-08-01):
+  `/Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260801-135009-390014-lab/qa-artifacts/qa/observation-summary.json`;
+  the observer marked seven declared tasks unstarted and twelve runs without completion while the
+  public task catalog in the same lab showed all twelve received runs, ten completed, and two
+  explicitly blocked on typed dependencies:
+  `/Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260801-135009-390014-lab/qa-artifacts/qa/task-terminal-statuses.json`.
 
 ## Fix
 
@@ -104,3 +110,11 @@ declared tasks unstarted and six task-owning agents silent, while the independen
   `completed`, but the journey log still had no runtime-owned task/session/Network progress. A final
   short observer pass truthfully indexed the observer-owned CLI comparison without fabricating
   runtime completion rows. Exactly one provider kickoff was sent.
+- **Retested:** 2026-08-01 in fresh isolated lab
+  `northstar-pay-20260801-135009-390014`.
+- **Result:** Reproduced again. The 1,800-second observer set `stall_detected=true` at its five-minute
+  threshold and diagnosed seven declared tasks as unstarted plus all twelve runs as lacking
+  completion. Independent persisted reads at the end showed ten declared tasks completed and two
+  explicitly blocked after every declared run had started. Three disruption probes also reached
+  recorded recoveries. Exactly one provider kickoff was sent; no follow-up prompt concealed the
+  observer mismatch.

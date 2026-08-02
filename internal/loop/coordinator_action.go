@@ -67,6 +67,10 @@ func (r *CoordinatorRunner) ExecuteActionRun(
 	if err != nil {
 		return task.RunResult{}, err
 	}
+	history, err := r.readGenerationHistory(ctx, actionCtx.loopRun, actionCtx.meta.Generation)
+	if err != nil {
+		return task.RunResult{}, err
+	}
 	input, err := actionExecutionInput(
 		taskRun,
 		actor,
@@ -76,6 +80,7 @@ func (r *CoordinatorRunner) ExecuteActionRun(
 		actionCtx.node,
 		actionCtx.meta,
 		outputs,
+		history,
 	)
 	if err != nil {
 		return task.RunResult{}, err
@@ -236,14 +241,16 @@ func actionExecutionInput(
 	node dsl.Node,
 	meta coordinatorActionRunMetadata,
 	outputs []GenerationOutput,
+	history GenerationHistory,
 ) (ActionExecutionInput, error) {
 	topology := newControlTopology(resolved.Definition.Graph)
-	namespace, err := runtimeNamespace(
+	namespace, err := runtimeNamespaceWithHistory(
 		loopRun,
 		meta.Generation,
 		resolved.Definition.Graph,
 		topology,
 		outputs,
+		history,
 		node.ID,
 		meta.ItemIndex,
 	)

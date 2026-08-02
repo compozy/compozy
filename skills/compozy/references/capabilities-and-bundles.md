@@ -185,6 +185,12 @@ workspace is denied with `403` (`extension: workspace access denied`), and its l
 event projections filter by that workspace. Global-instance logs stay operator-transport-only; reach
 them with `compozy extension logs <name> --global`.
 
+CLI `list` and `status` read the published global instance by default. Pass
+`compozy extension list --workspace <workspace>` or
+`compozy extension status <name> --workspace <workspace>` to inspect the effective workspace instance,
+including a dev overlay. The CLI resolves names and paths to the stable workspace registration ID before
+calling the existing scoped HTTP/UDS read.
+
 ### Dev Overlay Versus Published Install
 
 A dev link is a side-table overlay, not an install. It never mutates or displaces the published row,

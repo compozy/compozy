@@ -358,6 +358,65 @@ func TestLoopDefinitionDocumentPreservesWatchEvents(t *testing.T) {
 	})
 }
 
+func TestLoopDefinitionDocumentPreservesGateMetrics(t *testing.T) {
+	t.Run("Should preserve metric direction and minimum delta across the public DTO boundary", func(t *testing.T) {
+		t.Parallel()
+
+		const raw = `{
+			"apiVersion": "compozy.loop/v1",
+			"kind": "Loop",
+			"meta": {"name": "metric-contract", "catalog": {}},
+			"contract": {
+				"goal": "Improve quality",
+				"definition_of_done": "Quality converges",
+				"iteration_cap": 3,
+				"no_progress": {"window": 2},
+				"budget": {"tokens": 0, "wall_clock_sec": 0}
+			},
+			"graph": {
+				"nodes": [{
+					"id": "quality",
+					"class": "control",
+					"kind": "gate",
+					"criteria": [{
+						"id": "score",
+						"type": "command",
+						"check": "score-quality",
+						"expect": "exit_zero",
+						"metric": {"direction": "maximize", "min_delta": 0.1}
+					}]
+				}],
+				"edges": []
+			}
+		}`
+
+		var document contract.LoopDefinitionDocument
+		if err := json.Unmarshal([]byte(raw), &document); err != nil {
+			t.Fatalf("json.Unmarshal() error = %v", err)
+		}
+		var definition dsl.Definition
+		if err := document.Decode(&definition); err != nil {
+			t.Fatalf("LoopDefinitionDocument.Decode() error = %v", err)
+		}
+		if len(definition.Graph.Nodes) != 1 {
+			t.Fatalf("decoded nodes = %d, want 1", len(definition.Graph.Nodes))
+		}
+		if len(definition.Graph.Nodes[0].Criteria) != 1 {
+			t.Fatalf("decoded criteria = %d, want 1", len(definition.Graph.Nodes[0].Criteria))
+		}
+		metric := definition.Graph.Nodes[0].Criteria[0].Metric
+		if metric == nil {
+			t.Fatal("decoded metric = nil, want metric")
+		}
+		if metric.Direction != dsl.MetricMaximize {
+			t.Fatalf("decoded direction = %q, want maximize", metric.Direction)
+		}
+		if metric.MinDelta == nil || *metric.MinDelta != 0.1 {
+			t.Fatalf("decoded min_delta = %#v, want 0.1", metric.MinDelta)
+		}
+	})
+}
+
 func TestLoopDefinitionDocumentPreservesNetworkParticipation(t *testing.T) {
 	t.Run("Should preserve definition participation across the public DTO boundary", func(t *testing.T) {
 		t.Parallel()

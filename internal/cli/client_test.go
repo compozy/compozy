@@ -2544,83 +2544,138 @@ func TestUnixSocketClientSkillMarketplaceLifecycleMethods(t *testing.T) {
 func TestUnixSocketClientExtensionMethods(t *testing.T) {
 	t.Parallel()
 
-	client := &unixSocketClient{
-		socketPath: "/tmp/compozy.sock",
-		httpClient: &http.Client{
-			Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
-				switch {
-				case req.Method == http.MethodGet && req.URL.Path == "/api/extensions":
-					return newHTTPResponse(
-						http.StatusOK,
-						`{"extensions":[{"name":"ext-a","version":"0.1.0","type":"resource","source":"user","enabled":true,"state":"active","daemon_running":true}]}`,
-					), nil
-				case req.Method == http.MethodPost && req.URL.Path == "/api/extensions":
-					body, err := io.ReadAll(req.Body)
-					if err != nil {
-						t.Fatalf("io.ReadAll(extension install body) error = %v", err)
+	newClient := func(t *testing.T) *unixSocketClient {
+		t.Helper()
+
+		return &unixSocketClient{
+			socketPath: "/tmp/compozy.sock",
+			httpClient: &http.Client{
+				Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+					switch {
+					case req.Method == http.MethodGet && req.URL.Path == "/api/extensions" &&
+						req.URL.Query().Get(extensionWorkspaceQueryKey) == "ws-alpha":
+						return newHTTPResponse(
+							http.StatusOK,
+							`{"extensions":[{"name":"ext-dev","workspace_id":"ws-alpha","version":"0.1.0","type":"resource","source":"workspace","enabled":true,"state":"active","dev":true,"daemon_running":true}]}`,
+						), nil
+					case req.Method == http.MethodGet && req.URL.Path == "/api/extensions":
+						return newHTTPResponse(
+							http.StatusOK,
+							`{"extensions":[{"name":"ext-a","version":"0.1.0","type":"resource","source":"user","enabled":true,"state":"active","daemon_running":true}]}`,
+						), nil
+					case req.Method == http.MethodPost && req.URL.Path == "/api/extensions":
+						body, err := io.ReadAll(req.Body)
+						if err != nil {
+							t.Fatalf("io.ReadAll(extension install body) error = %v", err)
+						}
+						var input contract.InstallExtensionRequest
+						if err := json.Unmarshal(body, &input); err != nil {
+							t.Fatalf("json.Unmarshal(extension install body) error = %v", err)
+						}
+						if input.Source != contract.InstallExtensionSourceLocalPath || input.Ref != "/tmp/ext-a" {
+							t.Fatalf("extension install body = %#v, want local_path ref", input)
+						}
+						return newHTTPResponse(
+							http.StatusCreated,
+							`{"extension":{"name":"ext-a","version":"0.1.0","type":"resource","source":"user","enabled":true,"state":"active","daemon_running":true}}`,
+						), nil
+					case req.Method == http.MethodPost && req.URL.Path == "/api/extensions/ext-a/enable":
+						return newHTTPResponse(
+							http.StatusOK,
+							`{"extension":{"name":"ext-a","version":"0.1.0","type":"resource","source":"user","enabled":true,"state":"active","daemon_running":true}}`,
+						), nil
+					case req.Method == http.MethodPost && req.URL.Path == "/api/extensions/ext-a/disable":
+						return newHTTPResponse(
+							http.StatusOK,
+							`{"extension":{"name":"ext-a","version":"0.1.0","type":"resource","source":"user","enabled":false,"state":"disabled","daemon_running":true}}`,
+						), nil
+					case req.Method == http.MethodGet && req.URL.Path == "/api/extensions/ext-a":
+						if got := req.URL.Query().Get(extensionWorkspaceQueryKey); got != "" {
+							t.Fatalf("global extension status workspace query = %q, want empty", got)
+						}
+						return newHTTPResponse(
+							http.StatusOK,
+							`{"extension":{"name":"ext-a","version":"0.1.0","type":"resource","source":"user","enabled":true,"state":"active","daemon_running":true}}`,
+						), nil
+					case req.Method == http.MethodGet && req.URL.Path == "/api/extensions/ext-dev" &&
+						req.URL.Query().Get(extensionWorkspaceQueryKey) == "ws-alpha":
+						return newHTTPResponse(
+							http.StatusOK,
+							`{"extension":{"name":"ext-dev","workspace_id":"ws-alpha","version":"0.1.0","type":"resource","source":"workspace","enabled":true,"state":"active","dev":true,"daemon_running":true}}`,
+						), nil
+					default:
+						return newHTTPResponse(http.StatusNotFound, `{"error":"missing"}`), nil
 					}
-					var input contract.InstallExtensionRequest
-					if err := json.Unmarshal(body, &input); err != nil {
-						t.Fatalf("json.Unmarshal(extension install body) error = %v", err)
-					}
-					if input.Source != contract.InstallExtensionSourceLocalPath || input.Ref != "/tmp/ext-a" {
-						t.Fatalf("extension install body = %#v, want local_path ref", input)
-					}
-					return newHTTPResponse(
-						http.StatusCreated,
-						`{"extension":{"name":"ext-a","version":"0.1.0","type":"resource","source":"user","enabled":true,"state":"active","daemon_running":true}}`,
-					), nil
-				case req.Method == http.MethodPost && req.URL.Path == "/api/extensions/ext-a/enable":
-					return newHTTPResponse(
-						http.StatusOK,
-						`{"extension":{"name":"ext-a","version":"0.1.0","type":"resource","source":"user","enabled":true,"state":"active","daemon_running":true}}`,
-					), nil
-				case req.Method == http.MethodPost && req.URL.Path == "/api/extensions/ext-a/disable":
-					return newHTTPResponse(
-						http.StatusOK,
-						`{"extension":{"name":"ext-a","version":"0.1.0","type":"resource","source":"user","enabled":false,"state":"disabled","daemon_running":true}}`,
-					), nil
-				case req.Method == http.MethodGet && req.URL.Path == "/api/extensions/ext-a":
-					return newHTTPResponse(
-						http.StatusOK,
-						`{"extension":{"name":"ext-a","version":"0.1.0","type":"resource","source":"user","enabled":true,"state":"active","daemon_running":true}}`,
-					), nil
-				default:
-					return newHTTPResponse(http.StatusNotFound, `{"error":"missing"}`), nil
-				}
-			}),
-		},
+				}),
+			},
+		}
 	}
 
-	ctx := context.Background()
+	t.Run("Should list global extensions", func(t *testing.T) {
+		t.Parallel()
 
-	listed, err := client.ListExtensions(ctx)
-	if err != nil || len(listed) != 1 || listed[0].Name != "ext-a" {
-		t.Fatalf("ListExtensions() = %#v, %v", listed, err)
-	}
-
-	installed, err := client.InstallExtension(ctx, InstallExtensionRequest{
-		Source: contract.InstallExtensionSourceLocalPath,
-		Ref:    "/tmp/ext-a",
+		listed, err := newClient(t).ListExtensions(t.Context())
+		if err != nil || len(listed) != 1 || listed[0].Name != "ext-a" {
+			t.Fatalf("ListExtensions() = %#v, %v", listed, err)
+		}
 	})
-	if err != nil || installed.Name != "ext-a" {
-		t.Fatalf("InstallExtension() = %#v, %v", installed, err)
-	}
 
-	enabled, err := client.EnableExtension(ctx, " ext-a ")
-	if err != nil || !enabled.Enabled {
-		t.Fatalf("EnableExtension() = %#v, %v", enabled, err)
-	}
+	t.Run("Should list workspace-scoped extensions", func(t *testing.T) {
+		t.Parallel()
 
-	disabled, err := client.DisableExtension(ctx, " ext-a ")
-	if err != nil || disabled.Enabled {
-		t.Fatalf("DisableExtension() = %#v, %v", disabled, err)
-	}
+		listed, err := newClient(t).ListExtensionsScoped(t.Context(), " ws-alpha ")
+		if err != nil || len(listed) != 1 || listed[0].Name != "ext-dev" || !listed[0].Dev {
+			t.Fatalf("ListExtensionsScoped() = %#v, %v", listed, err)
+		}
+	})
 
-	status, err := client.ExtensionStatus(ctx, "ext-a")
-	if err != nil || status.State != "active" {
-		t.Fatalf("ExtensionStatus() = %#v, %v", status, err)
-	}
+	t.Run("Should install an extension", func(t *testing.T) {
+		t.Parallel()
+
+		installed, err := newClient(t).InstallExtension(t.Context(), InstallExtensionRequest{
+			Source: contract.InstallExtensionSourceLocalPath,
+			Ref:    "/tmp/ext-a",
+		})
+		if err != nil || installed.Name != "ext-a" {
+			t.Fatalf("InstallExtension() = %#v, %v", installed, err)
+		}
+	})
+
+	t.Run("Should enable an extension", func(t *testing.T) {
+		t.Parallel()
+
+		enabled, err := newClient(t).EnableExtension(t.Context(), " ext-a ")
+		if err != nil || !enabled.Enabled {
+			t.Fatalf("EnableExtension() = %#v, %v", enabled, err)
+		}
+	})
+
+	t.Run("Should disable an extension", func(t *testing.T) {
+		t.Parallel()
+
+		disabled, err := newClient(t).DisableExtension(t.Context(), " ext-a ")
+		if err != nil || disabled.Enabled {
+			t.Fatalf("DisableExtension() = %#v, %v", disabled, err)
+		}
+	})
+
+	t.Run("Should read global extension status", func(t *testing.T) {
+		t.Parallel()
+
+		status, err := newClient(t).ExtensionStatus(t.Context(), "ext-a")
+		if err != nil || status.State != "active" {
+			t.Fatalf("ExtensionStatus() = %#v, %v", status, err)
+		}
+	})
+
+	t.Run("Should read workspace-scoped extension status", func(t *testing.T) {
+		t.Parallel()
+
+		status, err := newClient(t).ExtensionStatusScoped(t.Context(), " ws-alpha ", " ext-dev ")
+		if err != nil || status.Name != "ext-dev" || !status.Dev {
+			t.Fatalf("ExtensionStatusScoped() = %#v, %v", status, err)
+		}
+	})
 }
 
 func TestUnixSocketClientAutomationMethods(t *testing.T) {

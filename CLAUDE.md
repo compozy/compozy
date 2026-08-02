@@ -10,6 +10,7 @@ No production users. Never sacrifice quality for backward compatibility; never w
 
 ## Critical Rules
 
+- <critical>Write responses in plain language: prefer everyday words over technical jargon, and define any technical term you must keep in one short clause.</critical>
 - **`make gate-full` MUST pass before closing a workstream** — final completion, commit batch, PR, handoff (see Build Commands). Intermediate tasks inside a loop/batch close on `make gate` (affected lanes only). Zero warnings, zero errors. Exception: docs-only changes that don't affect test/lint/typecheck.
 - **`make lint` and `make bun-lint` are zero-tolerance** — any warning is a blocking failure.
 - **Check dependent package APIs** before writing integration code or tests.
@@ -19,7 +20,7 @@ No production users. Never sacrifice quality for backward compatibility; never w
 - <critical>**No god files — one responsibility per file, hard cap 500 lines for production source (tests excluded).** Never mix domain types + registry/wiring + multiple implementations + generic helpers in a single file: `internal/loop/action.go` landing at 1380 lines (4 executors + registry + schema validation + JSON extraction + template rendering) is the canonical violation. Decide the file split BEFORE writing: contract/types, registry/options, one implementation per file, cross-cutting helpers in their own named file. Creating a file over the cap — or growing one past it — is a blocking architecture failure: split it in the same change; "it's all related" is never a justification. Files already over the cap must not grow — extract into a new file instead of appending.</critical>
 - <critical>**Context-budget docs stay lean.** `CLAUDE.md`/`AGENTS.md` and `SKILL.md`s load into prompts — every line costs every turn. Before editing agent instruction files activate `writing-agents-md`; before editing skills activate `writing-skills`. Growing either with restated or redundant prose is a blocking failure.</critical>
 - **Test placement before test creation** (skill: `eng-consolidate-test-suites`). Name the invariant, owning layer, and canonical suite; edit the existing suite — don't create standalone/duplicate regressions. Static/prose/CSS/snapshot/generated/config tests are forbidden by default: allowed only when that artifact is the product contract and no stronger gate (`make verify`, `codegen-check`, build, link-check, Storybook capture) owns it.
-- **Subagents for exploration** (keeps your context clean): Use your native subagents tool to explore; Just use `agent-exploration` when required
+- **Subagents for exploration** (keeps your context clean): Use your native subagents tool to explore; Just use `agent-exploration` with `compozy exec` when required explicitly
 
 ## Workflow Rules
 

@@ -7,6 +7,11 @@ import (
 	"time"
 )
 
+type Origin struct {
+	Kind OriginKind `json:"kind"`
+	Ref  string     `json:"ref"`
+}
+
 type OriginKind string
 
 type OwnerKind string
@@ -225,8 +230,4 @@ type PromptRuntimeSelectionPayload struct {
 	Model           string `json:"model,omitempty"`
 	ReasoningEffort Effort `json:"reasoning_effort,omitempty"`
 	Speed           Speed  `json:"speed,omitempty"`
-}
-
-type ProviderModelListResponse struct {
-	Models []ProviderModelPayload `json:"models"`
 }

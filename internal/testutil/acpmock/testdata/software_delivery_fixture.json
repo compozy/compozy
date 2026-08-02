@@ -61,7 +61,7 @@
                     "steps": [
                         {
                             "kind": "assistant",
-                            "text": "{\"verdict\":\"approved\",\"confidence\":1,\"evidence\":{\"checked\":[\"three task outputs\"]}}"
+                            "text": "{\"verdict\":\"pass\",\"blocking_issues\":[],\"evidence\":{\"checked\":[\"three task outputs\"]}}"
                         }
                     ]
                 }

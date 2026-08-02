@@ -16,6 +16,7 @@ func evaluateSourceControlNode(
 	topology controlTopology,
 	watchRuntime coordinatorWatchRuntime,
 	watchEventsRuntime coordinatorWatchEventsRuntime,
+	history GenerationHistory,
 	output GenerationOutput,
 	node dsl.Node,
 	outputs []GenerationOutput,
@@ -31,6 +32,7 @@ func evaluateSourceControlNode(
 			generation,
 			resolved,
 			topology,
+			history,
 			output,
 			node,
 			outputs,
@@ -45,6 +47,7 @@ func evaluateSourceControlNode(
 			generation,
 			resolved,
 			topology,
+			history,
 			output,
 			node,
 			outputs,
@@ -54,17 +57,22 @@ func evaluateSourceControlNode(
 	}
 	if isWatchEventsNode(node) {
 		evaluated, terminal, err := evaluateWatchEventsNode(
-			ctx,
-			plan,
-			run,
-			generation,
-			resolved,
-			topology,
+			&watchEventsEvaluationContext{
+				control: controlEvalContext{
+					ctx:                ctx,
+					run:                run,
+					generation:         generation,
+					resolved:           resolved,
+					topology:           topology,
+					history:            history,
+					watchEventsRuntime: watchEventsRuntime,
+				},
+				plan:        plan,
+				outputs:     outputs,
+				outputBlobs: outputBlobs,
+			},
 			output,
 			node,
-			outputs,
-			outputBlobs,
-			watchEventsRuntime,
 		)
 		return evaluated, terminal, true, err
 	}

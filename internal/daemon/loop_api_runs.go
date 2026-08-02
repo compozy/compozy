@@ -300,27 +300,6 @@ func (s *daemonLoopAPIService) ListLoopRunEvents(
 	return payloads, nil
 }
 
-func (s *daemonLoopAPIService) loopGenerations(
-	ctx context.Context,
-	run looppkg.Run,
-) ([]contract.LoopGenerationPayload, error) {
-	if run.Generation <= 0 {
-		return nil, nil
-	}
-	generations := make([]contract.LoopGenerationPayload, 0, run.Generation)
-	for generation := 1; generation <= run.Generation; generation++ {
-		outputs, err := s.persistence.ListGenerationOutputs(ctx, run.WorkspaceID, run.ID, generation)
-		if err != nil {
-			return nil, err
-		}
-		generations = append(generations, contract.LoopGenerationPayload{
-			Generation: generation,
-			Outputs:    loopGenerationOutputsPayload(outputs),
-		})
-	}
-	return generations, nil
-}
-
 func loopPlanPayload(plan *looppkg.PlanPreview) (*contract.LoopPlanPayload, error) {
 	if plan == nil {
 		return nil, nil

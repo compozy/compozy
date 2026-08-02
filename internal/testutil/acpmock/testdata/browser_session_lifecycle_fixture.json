@@ -44,6 +44,19 @@
             ],
             "turns": [
                 {
+                    "name": "browser-session-created",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "e2e first message"
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "chunks": ["Session ready."]
+                        }
+                    ]
+                },
+                {
                     "name": "browser-session-lifecycle",
                     "match": {
                         "turn_source": "user",

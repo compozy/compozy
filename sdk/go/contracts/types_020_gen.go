@@ -4,6 +4,11 @@ package contracts
 
 import "time"
 
+type SessionTargetParams struct {
+	WorkspaceID string `json:"workspace_id"`
+	SessionID   string `json:"session_id"`
+}
+
 type SessionsCreateParams struct {
 	Agent                string   `json:"agent"`
 	Workspace            string   `json:"workspace,omitempty"`
@@ -277,5 +282,3 @@ type Spec struct {
 	Source          Source          `json:"source"`
 	Bounds          Bounds          `json:"bounds,omitzero"`
 }
-
-type Speed string

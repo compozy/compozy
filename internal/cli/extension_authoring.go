@@ -184,7 +184,7 @@ func extensionBuildBundle(result *extensionpkg.BuildResult) outputBundle {
 		"Extension bundle built",
 		[]keyValue{
 			{Label: automationNameValue, Value: result.Manifest.Name},
-			{Label: "Generation", Value: result.GenerationHash},
+			{Label: cliGenerationValue, Value: result.GenerationHash},
 			{Label: cliDirectoryValue, Value: result.GenerationDir},
 			{Label: "Manifest", Value: result.ManifestPath},
 		},

@@ -13,7 +13,7 @@ HTML prototypes and design handoffs for Compozy web surfaces. Organized by produ
 | Tasks | [`tasks/`](tasks/) | [`tasks/task-detail.html`](tasks/task-detail.html) |
 | Settings | [`settings/`](settings/) | [`settings/settings-general.html`](settings/settings-general.html) |
 | Network | [`network/`](network/) | [`network/network.html`](network/network.html) |
-| Loops (active) | [`loops/`](loops/) | [`loops/loop-run-detail.html`](loops/loop-run-detail.html) |
+| Loops (active) | [`loops/`](loops/) | [`loops/index.html`](loops/index.html) · final pages + labs |
 | Systems (vault/sandbox) | [`systems/`](systems/) | [`systems/vault.html`](systems/vault.html) |
 | Shipped archives | [`_done/`](_done/) | agents · loops · marketplace · shell |
 

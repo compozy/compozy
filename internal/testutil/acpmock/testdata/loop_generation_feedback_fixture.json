@@ -1,0 +1,451 @@
+{
+    "version": 2,
+    "agents": [
+        {
+            "name": "feedback_worker",
+            "provider": "acpmock",
+            "permissions": "approve-all",
+            "prompt": "You are a deterministic Loop feedback worker.",
+            "turns": [
+                {
+                    "name": "climb-1",
+                    "match": { "turn_source": "user", "user_text": "ratchet climb generation 1" },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "```json\n{\"summary\":\"climb one\",\"value\":\"climb-1\"}\n```"
+                        }
+                    ]
+                },
+                {
+                    "name": "climb-2",
+                    "match": { "turn_source": "user", "user_text": "ratchet climb generation 2" },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "```json\n{\"summary\":\"climb two\",\"value\":\"climb-2\"}\n```"
+                        }
+                    ]
+                },
+                {
+                    "name": "climb-3",
+                    "match": { "turn_source": "user", "user_text": "ratchet climb generation 3" },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "```json\n{\"summary\":\"climb three\",\"value\":\"climb-3\"}\n```"
+                        }
+                    ]
+                },
+                {
+                    "name": "restore-1",
+                    "match": { "turn_source": "user", "user_text": "ratchet restore generation 1" },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "```json\n{\"summary\":\"best baseline\",\"value\":\"best-generation-one\"}\n```"
+                        }
+                    ]
+                },
+                {
+                    "name": "restore-2",
+                    "match": { "turn_source": "user", "user_text": "ratchet restore generation 2" },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "```json\n{\"summary\":\"regressed candidate\",\"value\":\"regressed-generation-two\"}\n```"
+                        }
+                    ]
+                },
+                {
+                    "name": "contract-draft",
+                    "match": { "turn_source": "user", "user_text": "draft contract" },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "```json\n{\"summary\":\"draft needs repair\",\"value\":\"draft\"}\n```"
+                        }
+                    ]
+                },
+                {
+                    "name": "contract-repair",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text_contains": "repair_contract_issue"
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "```json\n{\"summary\":\"contract repaired\",\"value\":\"fixed\"}\n```"
+                        }
+                    ]
+                },
+                {
+                    "name": "revise-fix-1",
+                    "match": { "turn_source": "user", "user_text": "revise fix generation 1" },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "```json\n{\"summary\":\"first draft\",\"value\":\"fix-1\"}\n```"
+                        }
+                    ]
+                },
+                {
+                    "name": "revise-fix-2",
+                    "match": { "turn_source": "user", "user_text": "revise fix generation 2" },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "```json\n{\"summary\":\"second draft\",\"value\":\"fix-2\"}\n```"
+                        }
+                    ]
+                },
+                {
+                    "name": "revise-fix-3",
+                    "match": { "turn_source": "user", "user_text": "revise fix generation 3" },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "```json\n{\"summary\":\"fixed draft\",\"value\":\"fix-3\"}\n```"
+                        }
+                    ]
+                },
+                {
+                    "name": "revise-never",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text_contains": "revise never generation"
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "```json\n{\"summary\":\"still broken\",\"value\":\"never-fixed\"}\n```"
+                        }
+                    ]
+                },
+                {
+                    "name": "exhaustion-worker",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text_contains": "exhaustion generation"
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "```json\n{\"summary\":\"bounded attempt\",\"value\":\"exhaustion\"}\n```"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "redaction_worker",
+            "provider": "acpmock",
+            "permissions": "approve-all",
+            "prompt": "You are a deterministic Loop redaction worker.",
+            "turns": [
+                {
+                    "name": "redaction-draft",
+                    "match": { "turn_source": "user", "user_text": "redaction draft" },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "```json\n{\"summary\":\"redaction draft\",\"value\":\"safe\"}\n```"
+                        }
+                    ]
+                },
+                {
+                    "name": "redaction-repair",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text_contains": "compozy_claim_[REDACTED]"
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "```json\n{\"summary\":\"redacted repair context\",\"value\":\"safe\"}\n```"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "climb_judge",
+            "provider": "acpmock",
+            "permissions": "approve-all",
+            "turns": [
+                {
+                    "name": "score-1",
+                    "match": {
+                        "judge": {
+                            "role": "agent-judge",
+                            "attempt": 1,
+                            "criterion_id": "climb_score"
+                        }
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "{\"verdict\":\"pass\",\"blocking_issues\":[],\"evidence\":{\"generation\":1},\"score\":0.5}"
+                        }
+                    ]
+                },
+                {
+                    "name": "score-2",
+                    "match": {
+                        "judge": {
+                            "role": "agent-judge",
+                            "attempt": 2,
+                            "criterion_id": "climb_score"
+                        }
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "{\"verdict\":\"pass\",\"blocking_issues\":[],\"evidence\":{\"generation\":2},\"score\":0.7}"
+                        }
+                    ]
+                },
+                {
+                    "name": "score-3",
+                    "match": {
+                        "judge": {
+                            "role": "agent-judge",
+                            "attempt": 3,
+                            "criterion_id": "climb_score"
+                        }
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "{\"verdict\":\"pass\",\"blocking_issues\":[],\"evidence\":{\"generation\":3},\"score\":0.9}"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "restore_judge",
+            "provider": "acpmock",
+            "permissions": "approve-all",
+            "turns": [
+                {
+                    "name": "score-1",
+                    "match": {
+                        "judge": {
+                            "role": "agent-judge",
+                            "attempt": 1,
+                            "criterion_id": "restore_score"
+                        }
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "{\"verdict\":\"pass\",\"blocking_issues\":[],\"evidence\":{\"generation\":1},\"score\":0.8}"
+                        }
+                    ]
+                },
+                {
+                    "name": "score-2",
+                    "match": {
+                        "judge": {
+                            "role": "agent-judge",
+                            "attempt": 2,
+                            "criterion_id": "restore_score"
+                        }
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "{\"verdict\":\"pass\",\"blocking_issues\":[],\"evidence\":{\"generation\":2},\"score\":0.6}"
+                        }
+                    ]
+                },
+                {
+                    "name": "score-3",
+                    "match": {
+                        "judge": {
+                            "role": "agent-judge",
+                            "attempt": 3,
+                            "criterion_id": "restore_score"
+                        }
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "{\"verdict\":\"pass\",\"blocking_issues\":[],\"evidence\":{\"generation\":3},\"score\":0.9}"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "dod_judge",
+            "provider": "acpmock",
+            "permissions": "approve-all",
+            "turns": [
+                {
+                    "name": "reject",
+                    "match": {
+                        "judge": {
+                            "role": "agent-judge",
+                            "attempt": 1,
+                            "criterion_id": "contract_check"
+                        }
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "{\"verdict\":\"revise\",\"blocking_issues\":[{\"id\":\"repair_contract_issue\",\"note\":\"repair the contract output\"}],\"evidence\":{\"generation\":1}}"
+                        }
+                    ]
+                },
+                {
+                    "name": "approve",
+                    "match": {
+                        "judge": {
+                            "role": "agent-judge",
+                            "attempt": 2,
+                            "criterion_id": "contract_check"
+                        }
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "{\"verdict\":\"pass\",\"blocking_issues\":[],\"evidence\":{\"generation\":2}}"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "revise_fix_judge",
+            "provider": "acpmock",
+            "permissions": "approve-all",
+            "turns": [
+                {
+                    "name": "reject-1",
+                    "match": {
+                        "judge": {
+                            "role": "agent-judge",
+                            "attempt": 1,
+                            "criterion_id": "revise_fix_check"
+                        }
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "{\"verdict\":\"revise\",\"blocking_issues\":[{\"id\":\"still_broken\",\"note\":\"first repair\"}],\"evidence\":{\"generation\":1}}"
+                        }
+                    ]
+                },
+                {
+                    "name": "reject-2",
+                    "match": {
+                        "judge": {
+                            "role": "agent-judge",
+                            "attempt": 2,
+                            "criterion_id": "revise_fix_check"
+                        }
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "{\"verdict\":\"revise\",\"blocking_issues\":[{\"id\":\"still_broken\",\"note\":\"second repair\"}],\"evidence\":{\"generation\":2}}"
+                        }
+                    ]
+                },
+                {
+                    "name": "approve-3",
+                    "match": {
+                        "judge": {
+                            "role": "agent-judge",
+                            "attempt": 3,
+                            "criterion_id": "revise_fix_check"
+                        }
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "{\"verdict\":\"pass\",\"blocking_issues\":[],\"evidence\":{\"generation\":3}}"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "revise_never_judge",
+            "provider": "acpmock",
+            "permissions": "approve-all",
+            "turns": [
+                {
+                    "name": "reject",
+                    "match": {
+                        "judge": { "role": "agent-judge", "criterion_id": "revise_never_check" }
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "{\"verdict\":\"revise\",\"blocking_issues\":[{\"id\":\"never_fixed\",\"note\":\"keep repairing\"}],\"evidence\":{\"fixed\":false}}"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "exhaustion_judge",
+            "provider": "acpmock",
+            "permissions": "approve-all",
+            "turns": [
+                {
+                    "name": "score-1",
+                    "match": {
+                        "judge": {
+                            "role": "agent-judge",
+                            "attempt": 1,
+                            "criterion_id": "exhaust_score"
+                        }
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "{\"verdict\":\"pass\",\"blocking_issues\":[],\"evidence\":{\"generation\":1},\"score\":0.7}"
+                        }
+                    ]
+                },
+                {
+                    "name": "score-2",
+                    "match": {
+                        "judge": {
+                            "role": "agent-judge",
+                            "attempt": 2,
+                            "criterion_id": "exhaust_score"
+                        }
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "{\"verdict\":\"pass\",\"blocking_issues\":[],\"evidence\":{\"generation\":2},\"score\":0.6}"
+                        }
+                    ]
+                },
+                {
+                    "name": "score-3",
+                    "match": {
+                        "judge": {
+                            "role": "agent-judge",
+                            "attempt": 3,
+                            "criterion_id": "exhaust_score"
+                        }
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "{\"verdict\":\"pass\",\"blocking_issues\":[],\"evidence\":{\"generation\":3},\"score\":0.5}"
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

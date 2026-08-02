@@ -13,12 +13,20 @@ import type { LoopRunEventFrame, LoopRunEventKind } from "../types";
 
 export interface LoopGateVerdict {
   nodeId: string;
+  gateId: string;
   generation: number;
   verdict: "pass" | "revise";
-  confidence?: number;
+  score?: number;
+  bestGeneration?: number;
   reason?: string;
   route?: string;
-  criteria: { id: string; type: string; status: "pass" | "revise"; note?: string }[];
+  criteria: {
+    id: string;
+    type: string;
+    status: "pass" | "revise";
+    score?: number;
+    note?: string;
+  }[];
   blockingIssues: { id: string; note?: string }[];
 }
 
@@ -158,9 +166,11 @@ function applyGateVerdict(
     ...verdicts,
     [nodeId]: {
       nodeId,
+      gateId: str(payload.gate_id),
       generation: num(payload.generation) ?? 0,
       verdict: str(payload.verdict) === "pass" ? "pass" : "revise",
-      confidence: num(payload.confidence),
+      score: num(payload.score),
+      bestGeneration: num(payload.best_generation),
       reason: str(payload.reason) || undefined,
       route: str(payload.route) || undefined,
       criteria: rawCriteria.map(item => {
@@ -169,6 +179,7 @@ function applyGateVerdict(
           id: str(record?.id),
           type: str(record?.type),
           status: str(record?.status) === "pass" ? "pass" : "revise",
+          score: num(record?.score),
           note: str(record?.note) || undefined,
         };
       }),

@@ -12,6 +12,7 @@ import {
   loopSourceLabel,
   successRateLabel,
 } from "../../lib/loop-catalog";
+import { loopRunBestLabel } from "../../lib/loop-generation-presentation";
 import type { LoopCatalogEntry } from "../../types";
 import { LoopStatusPill } from "../loop-status-pill";
 import { LoopRunButton } from "./loop-run-button";
@@ -26,8 +27,13 @@ export function LoopCatalogRow({ entry, onRun }: LoopCatalogRowProps) {
   const inputCount = loopInputCount(entry);
   const unbounded = isUnboundedCap(entry);
   const sourceLabel = loopSourceLabel(entry);
+  const best = entry.last_run ? loopRunBestLabel(entry.last_run) : null;
   return (
-    <ListingRow data-testid="loop-catalog-row" data-loop={entry.name}>
+    <ListingRow
+      className="max-sm:grid-cols-[var(--size-icon-well-row)_minmax(0,1fr)]"
+      data-testid="loop-catalog-row"
+      data-loop={entry.name}
+    >
       <ListingRow.Link
         render={
           <Link to="/loops/$name" params={{ name: entry.name }} aria-label={`Open ${entry.name}`} />
@@ -65,14 +71,21 @@ export function LoopCatalogRow({ entry, onRun }: LoopCatalogRowProps) {
           </ListingRow.Meta>
         </ListingRow.Main>
       </ListingRow.Link>
-      <ListingRow.Trail className="gap-3">
+      <ListingRow.Trail className="col-span-2 justify-between gap-3 sm:col-auto sm:justify-self-auto">
         {category ? (
-          <Pill className="hidden sm:inline-flex" mono size="sm" tone="neutral">
+          <Pill className="hidden lg:inline-flex" mono size="sm" tone="neutral">
             {category}
           </Pill>
         ) : null}
-        {entry.last_run ? <LoopStatusPill status={entry.last_run.status} /> : null}
-        <ListingRow.Stat className="w-20">
+        {entry.last_run ? (
+          <LoopStatusPill className="hidden sm:inline-flex" status={entry.last_run.status} />
+        ) : null}
+        {best ? (
+          <Pill className="shrink-0" data-testid="loop-catalog-best" mono size="xs" tone="success">
+            best {best}
+          </Pill>
+        ) : null}
+        <ListingRow.Stat className="hidden w-20 xl:flex">
           <ListingRow.Stat.Value>{successRateLabel(entry.success_rate_30d)}</ListingRow.Stat.Value>
           <ListingRow.Stat.Label>{entry.aggregate_30d.runs} runs · 30d</ListingRow.Stat.Label>
         </ListingRow.Stat>

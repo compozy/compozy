@@ -365,6 +365,115 @@ func TestLoopControlHooksDenyAndFailOpen(t *testing.T) {
 	})
 }
 
+func TestLoopHooksExposeReadOnlyEvaluationFields(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should dispatch generation provenance and gate score fields", func(t *testing.T) {
+		t.Parallel()
+
+		bestGeneration := int64(2)
+		score := 0.91
+		var generationSeen LoopGenerationPrePayload
+		gateSeenCh := make(chan LoopGatePostPayload, 1)
+		hooks := newTestHooks(
+			t,
+			WithNativeDeclarations([]HookDecl{
+				{
+					Name:         "generation-observer",
+					Event:        HookLoopGenerationPre,
+					Mode:         HookModeSync,
+					ExecutorKind: HookExecutorNative,
+				},
+				{Name: "gate-observer", Event: HookLoopGatePost, Mode: HookModeAsync, ExecutorKind: HookExecutorNative},
+			}),
+			WithExecutorResolver(testExecutorResolver(map[string]Executor{
+				"generation-observer": NewTypedNativeExecutor(
+					func(
+						_ context.Context,
+						_ RegisteredHook,
+						payload LoopGenerationPrePayload,
+					) (LoopGenerationPrePatch, error) {
+						generationSeen = payload
+						return LoopGenerationPrePatch{}, nil
+					},
+				),
+				"gate-observer": NewTypedNativeExecutor(
+					func(
+						_ context.Context,
+						_ RegisteredHook,
+						payload LoopGatePostPayload,
+					) (LoopObservationPatch, error) {
+						gateSeenCh <- payload
+						return LoopObservationPatch{}, nil
+					},
+				),
+			})),
+		)
+		if err := hooks.Rebuild(t.Context()); err != nil {
+			t.Fatalf("Rebuild() error = %v", err)
+		}
+
+		generation := baseLoopGenerationPayload()
+		generation.Origin = "ratchet_restore"
+		generation.ParentGeneration = 2
+		if _, err := hooks.DispatchLoopGenerationPre(t.Context(), generation); err != nil {
+			t.Fatalf("DispatchLoopGenerationPre() error = %v", err)
+		}
+		gate := baseLoopGatePayload()
+		gate.Event = HookLoopGatePost
+		gate.Outcome = "rejected"
+		gate.Score = &score
+		gate.BestGeneration = &bestGeneration
+		if _, err := hooks.DispatchLoopGatePost(t.Context(), gate); err != nil {
+			t.Fatalf("DispatchLoopGatePost() error = %v", err)
+		}
+		var gateSeen LoopGatePostPayload
+		select {
+		case gateSeen = <-gateSeenCh:
+		case <-time.After(time.Second):
+			t.Fatal("timed out waiting for loop.gate.post observer")
+		}
+
+		if generationSeen.Origin != "ratchet_restore" || generationSeen.ParentGeneration != 2 {
+			t.Fatalf("generation hook payload = %#v, want ratchet provenance", generationSeen)
+		}
+		if gateSeen.Outcome != "rejected" || gateSeen.Score == nil || *gateSeen.Score != score ||
+			gateSeen.BestGeneration == nil || *gateSeen.BestGeneration != bestGeneration {
+			t.Fatalf("gate hook payload = %#v, want outcome/score/best", gateSeen)
+		}
+	})
+
+	t.Run("Should reject unknown verdict mutation fields in a pre-hook patch", func(t *testing.T) {
+		t.Parallel()
+
+		hooks := newTestHooks(
+			t,
+			WithNativeDeclarations([]HookDecl{{
+				Name:         "mutate-verdict",
+				Event:        HookLoopGenerationPre,
+				Mode:         HookModeSync,
+				Required:     true,
+				ExecutorKind: HookExecutorNative,
+			}}),
+			WithExecutorResolver(testExecutorResolver(map[string]Executor{
+				"mutate-verdict": NewNativeExecutor(
+					func(context.Context, RegisteredHook, []byte) ([]byte, error) {
+						return []byte(`{"outcome":"approved","score":1}`), nil
+					},
+				),
+			})),
+		)
+		if err := hooks.Rebuild(t.Context()); err != nil {
+			t.Fatalf("Rebuild() error = %v", err)
+		}
+
+		_, err := hooks.DispatchLoopGenerationPre(t.Context(), baseLoopGenerationPayload())
+		if err == nil || !strings.Contains(err.Error(), `unknown field "outcome"`) {
+			t.Fatalf("DispatchLoopGenerationPre(unknown verdict field) error = %v", err)
+		}
+	})
+}
+
 func TestSpawnPreCreatePatchRejectsPermissionWidening(t *testing.T) {
 	t.Parallel()
 

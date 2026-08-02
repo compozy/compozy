@@ -1,0 +1,489 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Quarantine entry · software-delivery · Loops · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<style>
+  /* ─────────────────────────────────────────────────────────────────────────
+     FOUNDATION — style block copied verbatim from loop-run-detail.html
+     (the approved base). Overlay-only additions follow in the second block.
+     ───────────────────────────────────────────────────────────────────────── */
+
+  /* tokens — verbatim from design-system/ds-core.css (packages/ui/src/tokens.css lineage) */
+  :root{
+    color-scheme: dark;
+    --rail:#0c0b0b; --canvas:#131211; --canvas-soft:#1a1918; --canvas-tint:#1c1b1a; --elevated:#232220;
+    --fg:#ececef; --fg-strong:#f6f6f8; --muted:#9a9a9f; --subtle:#76767c; --faint:#545458;
+    --line:rgba(255,255,255,.055); --line-soft:rgba(255,255,255,.03); --line-strong:rgba(255,255,255,.09);
+    --accent:#e8572a; --accent-hover:#d14e25; --accent-strong:#f6874f; --accent-ink:#17110f;
+    --accent-tint:rgba(232,87,42,.10); --accent-dim:rgba(232,87,42,.24);
+    --success:#5fbf85; --success-tint:rgba(95,191,133,.08);
+    --warning:#d6a647; --warning-tint:rgba(214,166,71,.08);
+    --danger:#e0635a;  --danger-tint:rgba(224,99,90,.09);
+    --info:#8e8eb5;    --info-tint:rgba(142,142,181,.12);
+    --neutral:#7a7a80; --neutral-tint:rgba(150,150,155,.06);
+    --row-hover:rgba(255,255,255,.022);
+    --input-fill:rgba(255,255,255,.025); --badge-fill:rgba(255,255,255,.05);
+    --btn-fill:rgba(255,255,255,.04); --btn-hover:rgba(255,255,255,.07);
+    --radius-xxs:3px; --radius-xs:4px; --radius-sm:5px; --radius:6px; --radius-md:8px; --radius-lg:10px; --radius-pill:9999px;
+    --font-sans:"Inter Variable","Inter",-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --font-mono:"JetBrains Mono Variable","JetBrains Mono","SF Mono",ui-monospace,Menlo,monospace;
+    --dur:140ms; --ease:cubic-bezier(.2,0,0,1);
+    --highlight:inset 0 1px 0 rgba(255,255,255,.035);
+    --focus-ring:0 0 0 2px rgba(255,255,255,.5);
+    --shadow-overlay:0 24px 48px -12px rgba(0,0,0,.65), 0 0 0 1px rgba(255,255,255,.045);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--canvas);color:var(--fg);font-family:var(--font-sans);font-size:13.5px;line-height:1.5;letter-spacing:-.006em;
+    font-feature-settings:"cv01","ss03";-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+  a{color:inherit;text-decoration:none}
+  button{font:inherit;letter-spacing:inherit;color:inherit;background:none;border:0;cursor:pointer}
+  svg{display:block}
+  code,.mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums;font-feature-settings:normal}
+  :is(button,a,[tabindex],summary):focus-visible{outline:none;box-shadow:var(--focus-ring)}
+
+  /* unified head · 44px */
+  .w2head{min-height:44px;display:flex;align-items:center;gap:10px;padding:0 16px;
+    background:var(--canvas);border-bottom:1px solid var(--line);min-width:0}
+  .w2-back{width:24px;height:24px;flex:none;display:grid;place-items:center;border-radius:var(--radius);color:var(--muted)}
+  .w2-back:hover{background:var(--btn-fill);color:var(--fg-strong)}
+  .w2-back svg{width:14px;height:14px}
+  .w2-crumbs{display:flex;align-items:center;gap:2px;min-width:0}
+  .w2-crumb{font-size:13px;font-weight:500;color:var(--subtle);white-space:nowrap;border-radius:var(--radius-sm);padding:1px 5px}
+  .w2-crumb:hover{color:var(--fg);background:var(--row-hover)}
+  .w2-sep{flex:none;font-size:12px;color:var(--faint)}
+  .w2-title{font-size:13px;font-weight:600;color:var(--fg-strong);white-space:nowrap;padding-left:3px}
+  .w2-flex{flex:1;min-width:8px}
+  .w2-status{display:inline-flex;align-items:center;gap:6px;flex:none;font-size:10.5px;font-weight:600;color:var(--muted)}
+  .w2-status .dot{width:7px;height:7px;border-radius:50%;background:currentColor;flex:none}
+  .w2-status[data-tone="run"]{color:var(--accent-strong)}
+  .w2-vsep{width:1px;height:14px;background:var(--line-strong);flex:none}
+  .w2-actions{position:relative;display:flex;align-items:center;gap:6px;flex:none}
+  .btn{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:var(--radius-md);font-size:12px;
+    font-weight:500;letter-spacing:-.005em;border:1px solid var(--line);background:var(--btn-fill);white-space:nowrap;
+    transition:background var(--dur) var(--ease),border-color var(--dur) var(--ease),color var(--dur) var(--ease)}
+  .btn svg{width:13px;height:13px}
+  .btn:hover{background:var(--btn-hover);border-color:var(--line-strong);color:var(--fg-strong)}
+  .btn--danger{color:var(--danger)}
+  .btn--danger:hover{background:var(--danger-tint);border-color:color-mix(in srgb,var(--danger) 24%,transparent);color:var(--danger)}
+  .btn--icon{width:26px;padding:0;justify-content:center}
+
+  .page{max-width:1240px;margin:0 auto;padding:24px 36px 72px}
+  .subhead{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:22px;padding-bottom:14px;
+    border-bottom:1px solid var(--line);font-size:12px;color:var(--subtle)}
+  .subhead b{font-weight:500;color:var(--muted)}
+  .subhead .mono{font-size:11px}
+  .dotsep{width:2px;height:2px;border-radius:50%;background:var(--faint);display:inline-block}
+
+  /* collapsible sections */
+  .sec{margin-bottom:24px;border:0}
+  .sec > summary{display:flex;align-items:center;gap:8px;padding:0 0 10px;cursor:pointer;list-style:none;user-select:none}
+  .sec > summary::-webkit-details-marker{display:none}
+  .sec > summary svg.si{width:14px;height:14px;color:var(--subtle);flex:none}
+  .sec > summary .st{font-size:10.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--subtle)}
+  .sec > summary .ssum{font-size:11.5px;color:var(--faint);margin-left:2px}
+  .sec > summary .spacer{flex:1}
+  .sec > summary svg.chev{width:14px;height:14px;color:var(--faint);flex:none;transition:transform var(--dur) var(--ease)}
+  .sec:not([open]) > summary svg.chev{transform:rotate(-90deg)}
+  .sec:not([open]) > summary{padding-bottom:0;margin-bottom:24px}
+  .panelbox{background:var(--canvas-soft);border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden}
+
+  /* pill vocabulary — Pill xs (17px), state only */
+  .pillxs{display:inline-flex;align-items:center;gap:5px;height:17px;padding:0 6px;border-radius:var(--radius-xs);
+    font-size:10.5px;font-weight:600;white-space:nowrap;background:var(--badge-fill);color:var(--muted)}
+  .pillxs.mono{font-family:var(--font-mono);font-weight:500}
+  .pillxs[data-tone="warning"]{background:var(--warning-tint);color:var(--warning)}
+  .pillxs[data-tone="info"]{background:var(--info-tint);color:var(--info)}
+  .pillxs[data-tone="danger"]{background:var(--danger-tint);color:var(--danger)}
+
+  /* needs you */
+  .needsrow{display:flex;align-items:flex-start;gap:12px;padding:14px 16px}
+  .needsrow svg.ni{width:15px;height:15px;flex:none;margin-top:2px;color:var(--warning)}
+  .needsrow__main{min-width:0;flex:1}
+  .needsrow__label{font-size:13px;font-weight:520;color:var(--fg-strong)}
+  .needsrow__sub{margin-top:3px;font-size:12.5px;line-height:1.55;color:var(--muted);max-width:62ch}
+  .needsrow__trail{display:flex;flex-direction:column;align-items:flex-end;gap:4px;padding-top:2px}
+  .needsrow__age{font-family:var(--font-mono);font-size:11px;color:var(--subtle);white-space:nowrap}
+  .needsrow__act{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:520;color:var(--muted);padding:2px 4px;border-radius:var(--radius-xs)}
+  .needsrow__act:hover{color:var(--fg-strong)}
+  .needsrow__act svg{width:12px;height:12px}
+
+  /* ── story timeline — packages/ui timeline.tsx + loop-run-story-timeline.tsx anatomy ──
+     row: grid 22px | 1fr | auto, gap 12, py 9; spine 1px line-strong at left 10.5;
+     dot: 22px ring (1.5px, tone color) on canvas, 11px lucide icon; trail: relative time + mono micro */
+  .tl{padding:6px 16px 10px}
+  .tlrow{position:relative;display:grid;grid-template-columns:22px minmax(0,1fr) auto;gap:12px;align-items:start;padding:9px 0}
+  .tlrow::before{content:"";position:absolute;left:10.5px;top:0;bottom:0;width:1px;background:var(--line-strong)}
+  .tlrow:first-child::before{top:14px}
+  .tlrow:last-child::before{bottom:auto;height:14px}
+  .tlrow__dot{position:relative;z-index:1;width:22px;height:22px;border-radius:50%;background:var(--canvas);
+    border:1.5px solid var(--tone,var(--faint));color:var(--tone,var(--faint));display:grid;place-items:center}
+  .tlrow__dot svg{width:11px;height:11px}
+  .tlrow__title{padding-top:2px;font-size:13px;font-weight:520;color:var(--fg-strong)}
+  .tlrow__sub{margin-top:2px;max-width:60ch;font-size:12.5px;line-height:1.5;color:var(--muted)}
+  .tlrow__meta{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:6px}
+  .tlrow__trail{display:flex;flex-direction:column;align-items:flex-end;gap:3px;padding-top:3px}
+  .tlrow__time{font-size:11.5px;color:var(--subtle);font-variant-numeric:tabular-nums;white-space:nowrap}
+  .tlrow__micro{font-family:var(--font-mono);font-size:9px;color:var(--faint);white-space:nowrap}
+
+  .quiet-note{display:flex;align-items:flex-start;gap:9px;padding:13px 15px;border-radius:var(--radius-md);
+    background:var(--canvas-soft);border:1px solid var(--line-soft);font-size:12.5px;line-height:1.55;color:var(--muted)}
+  .quiet-note svg{width:14px;height:14px;flex:none;margin-top:2px;color:var(--subtle)}
+  .quiet-note b{font-weight:520;color:var(--fg)}
+  .quiet-note .mono{font-size:11px}
+
+  @media (prefers-reduced-motion: reduce){*{animation:none!important;transition-duration:.01ms!important}}
+
+  /* ─────────────────────────────────────────────────────────────────────────
+     OVERLAY LAYER — additions this lab owns (sheet + confirm). Nothing above
+     this line is modified; tone hooks replace the base's inline `--tone`.
+     ───────────────────────────────────────────────────────────────────────── */
+  :root{
+    --scrim:rgba(0,0,0,.55);
+    --z-scrim:60; --z-sheet:61; --z-dialog:70;
+  }
+  body{overflow:hidden;height:100dvh}
+  .btn--primary{background:var(--accent);border-color:transparent;color:var(--accent-ink);box-shadow:var(--highlight)}
+  .btn--primary:hover{background:var(--accent-hover);color:var(--accent-ink)}
+
+  /* tone hooks — classes only, no inline style attributes */
+  .tlrow[data-tone="warning"]{--tone:var(--warning)}
+  .tlrow[data-tone="danger"]{--tone:var(--danger)}
+  .tlrow[data-tone="info"]{--tone:var(--info)}
+
+  /* backdrop — the run page, dimmed and inert */
+  .backdrop{position:fixed;inset:0;opacity:.5;filter:saturate(.85);pointer-events:none;overflow:hidden}
+  .backdrop .page{padding-top:20px}
+
+  /* sheet — loop-run-inspect-sheet.tsx pattern: fixed right, three-part flex */
+  .scrim{position:fixed;inset:0;background:var(--scrim);z-index:var(--z-scrim)}
+  .sheet{position:fixed;top:0;right:0;bottom:0;width:min(560px,calc(100vw - 24px));display:flex;flex-direction:column;
+    background:var(--canvas);border-left:1px solid var(--line);box-shadow:var(--shadow-overlay);z-index:var(--z-sheet)}
+  .sheet__head{position:relative;display:flex;align-items:flex-start;gap:12px;flex:none;padding:18px 20px 16px;border-bottom:1px solid var(--line)}
+  .sheet__well{display:grid;place-items:center;width:36px;height:36px;flex:none;border-radius:var(--radius-lg);
+    background:var(--danger-tint);color:var(--danger);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--danger) 24%,transparent)}
+  .sheet__well svg{width:16px;height:16px}
+  .sheet__copy{min-width:0;flex:1;padding-right:26px}
+  .sheet__eyebrow{font-family:var(--font-mono);font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--danger)}
+  .sheet__title{margin-top:2px;font-size:15px;font-weight:500;letter-spacing:-.014em;color:var(--fg-strong)}
+  .sheet__desc{margin-top:3px;font-size:13px;line-height:1.5;color:var(--muted)}
+  .sheet__desc .mono{font-size:11px;color:var(--subtle)}
+  .sheet__close{position:absolute;top:14px;right:14px;display:inline-grid;place-items:center;width:26px;height:26px;
+    border-radius:var(--radius-sm);color:var(--muted)}
+  .sheet__close:hover{background:var(--row-hover);color:var(--fg-strong)}
+  .sheet__close svg{width:14px;height:14px}
+  .sheet__body{flex:1;min-height:0;overflow-y:auto;padding:18px 20px 24px}
+  .sheet__body::-webkit-scrollbar{width:10px}
+  .sheet__body::-webkit-scrollbar-thumb{background:rgba(255,255,255,.06);border:3px solid transparent;border-radius:var(--radius-pill);background-clip:padding-box}
+  .sheet__body .sec{margin-bottom:20px}
+  .sheet__body .sec:last-of-type{margin-bottom:0}
+  .sheet__foot{display:flex;align-items:center;gap:8px;flex:none;padding:12px 20px;border-top:1px solid var(--line);background:var(--canvas-tint)}
+  .foot-note{display:flex;flex:1;min-width:0;align-items:center;gap:7px;font-size:11px;line-height:1.4;color:var(--muted)}
+  .foot-note svg{width:13px;height:13px;flex:none;color:var(--faint)}
+  .foot-note.mono{font-size:10px;color:var(--faint)}
+
+  /* remediation hint — leads the body */
+  .hintcard{display:flex;align-items:flex-start;gap:10px;margin-bottom:20px;padding:12px 14px;border-radius:var(--radius-md);
+    background:var(--warning-tint);border:1px solid color-mix(in srgb,var(--warning) 22%,transparent)}
+  .hintcard svg{width:14px;height:14px;flex:none;margin-top:2px;color:var(--warning)}
+  .hintcard__t{font-size:12.5px;font-weight:560;color:var(--warning)}
+  .hintcard__b{margin-top:2px;font-size:12.5px;line-height:1.5;color:var(--muted)}
+  .hintcard__b .mono{font-size:10.5px;color:var(--subtle)}
+
+  /* facts — production MetadataTile idiom */
+  .tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .tile{padding:10px 12px;border:1px solid var(--line-soft);background:var(--input-fill);border-radius:var(--radius-md)}
+  .tile--wide{grid-column:1/-1}
+  .tile__l{margin-bottom:5px;font-size:10.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--subtle)}
+  .tile__v{font-size:12.5px;font-weight:510;color:var(--fg)}
+  .tile__v.mono{font-size:11px;font-weight:500;color:var(--muted)}
+  .act{display:inline-flex;align-items:center;gap:4px;padding:2px 4px;border-radius:var(--radius-xs);
+    font-family:var(--font-sans);font-size:11px;font-weight:520;color:var(--muted)}
+  .act:hover{color:var(--fg-strong)}
+  .act svg{width:11px;height:11px}
+  .tile__v .act{margin-left:6px}
+
+  /* episode boundary inside the canonical timeline */
+  .tldiv{position:relative;display:grid;grid-template-columns:22px minmax(0,1fr);gap:12px;align-items:center;padding:5px 0}
+  .tldiv::before{content:"";position:absolute;left:10.5px;top:0;bottom:0;width:1px;background:var(--line-strong)}
+  .tldiv__mark{width:22px;height:1px;background:var(--line-strong)}
+  .tldiv__t{font-family:var(--font-mono);font-size:9.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--subtle)}
+
+  /* attempt ledger */
+  .ledger{border:1px solid var(--line-soft);border-radius:var(--radius-md);overflow:hidden}
+  .lrow{display:flex;align-items:baseline;gap:9px;padding:8px 11px;border-top:1px solid var(--line-soft);
+    font-family:var(--font-mono);font-size:10.5px;color:var(--muted)}
+  .lrow:first-child{border-top:0}
+  .lrow .n{flex:none;width:20px;font-weight:600;color:var(--fg)}
+  .lrow .cls{flex:none;width:118px}
+  .lrow .cls[data-tone="warning"]{color:var(--warning)}
+  .lrow .cls[data-tone="danger"]{color:var(--danger)}
+  .lrow .cause{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .lrow .t{color:var(--faint);white-space:nowrap}
+  .lrow--episode{background:var(--canvas-tint);color:var(--subtle);font-size:9.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase}
+
+  /* sanitized diagnostics */
+  .diag{padding:10px 12px;border:1px solid var(--line-soft);border-radius:var(--radius-md);background:var(--input-fill);
+    font-family:var(--font-mono);font-size:10.5px;line-height:1.65;color:var(--muted);white-space:pre-wrap;word-break:break-word}
+  .diag .redact{padding:0 3px;border-radius:var(--radius-xxs);background:var(--badge-fill);color:var(--subtle)}
+  .diag .trunc{display:inline-flex;align-items:center;gap:4px;margin-top:6px;
+    font-size:9.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--warning)}
+  .diag .trunc svg{width:10px;height:10px}
+
+  /* requeue confirm — MODAL-STANDARD chrome, above the sheet */
+  .confirm-scrim{position:fixed;inset:0;display:none;place-items:center;padding:28px;background:var(--scrim);z-index:var(--z-dialog)}
+  .confirm-scrim.is-open{display:grid}
+  .dialog{width:min(560px,100%);display:grid;grid-template-rows:auto minmax(0,1fr) auto;overflow:hidden;
+    border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--canvas-soft);box-shadow:var(--shadow-overlay)}
+  .dialog__head{display:flex;align-items:flex-start;gap:12px;padding:16px 20px;border-bottom:1px solid var(--line)}
+  .head-icon{display:grid;place-items:center;width:36px;height:36px;flex:none;border-radius:var(--radius-lg);
+    background:var(--danger-tint);color:var(--danger);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--danger) 24%,transparent)}
+  .head-icon svg{width:16px;height:16px}
+  .head-copy{min-width:0;flex:1}
+  .eyebrow{font-family:var(--font-mono);font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--danger)}
+  .head-copy h3{margin-top:2px;font-size:14px;font-weight:500;letter-spacing:-.012em;line-height:1.35;color:var(--fg-strong)}
+  .head-copy p{max-width:66ch;margin-top:4px;font-size:12.5px;line-height:1.45;color:var(--muted)}
+  .head-copy p b{font-weight:500;color:var(--fg)}
+  .dialog__body{min-height:0;overflow-y:auto;padding:16px 20px 18px}
+  .dialog__foot{display:flex;align-items:center;gap:8px;padding:12px 20px;border-top:1px solid var(--line);background:var(--canvas-tint)}
+  .staterow{display:flex;align-items:center;gap:8px;padding:9px 11px;border:1px solid var(--line-soft);border-radius:var(--radius-md);background:var(--input-fill)}
+  .staterow__dot{width:7px;height:7px;flex:none;border-radius:50%;background:var(--danger)}
+  .staterow__t{flex:1;min-width:0;font-size:12px;font-weight:510;color:var(--fg)}
+  .staterow__meta{font-family:var(--font-mono);font-size:10px;color:var(--faint);white-space:nowrap}
+  .hint{margin-top:10px;font-size:11.5px;line-height:1.5;color:var(--muted)}
+  .hint code{font-size:10.5px;color:var(--subtle)}
+  .hint b{font-weight:520;color:var(--fg)}
+
+  @media (max-width:700px){.sheet{width:100vw;border-left:0}}
+</style>
+</head>
+<body>
+
+<!-- backdrop — condensed transcription of loop-run-detail.html (production chrome) -->
+<div class="backdrop" aria-hidden="true" inert data-od-id="q-backdrop-run-page">
+  <header class="w2head" data-od-id="q-backdrop-head">
+    <a class="w2-back" href="loop-detail.html" aria-label="Back to loop"><i data-lucide="chevron-left"></i></a>
+    <nav class="w2-crumbs" aria-label="Breadcrumb">
+      <a class="w2-crumb" href="../_done/loops/loops-catalog.html">Loops</a>
+      <span class="w2-sep">/</span>
+      <a class="w2-crumb" href="loop-detail.html">software-delivery</a>
+      <span class="w2-sep">/</span>
+      <span class="w2-title">Run r-8f3a2b</span>
+    </nav>
+    <span class="w2-flex"></span>
+    <span class="w2-status" data-tone="run"><span class="dot" aria-hidden="true"></span>Running</span>
+    <span class="w2-vsep"></span>
+    <div class="w2-actions">
+      <button class="btn" type="button"><i data-lucide="pause"></i>Pause</button>
+      <button class="btn btn--danger" type="button"><i data-lucide="ban"></i>Cancel run</button>
+      <button class="btn btn--icon" type="button" aria-label="More"><i data-lucide="ellipsis"></i></button>
+    </div>
+  </header>
+
+  <div class="page">
+    <div class="subhead" data-od-id="q-backdrop-subhead">
+      <span class="mono">r-8f3a2b</span><span class="dotsep"></span>
+      <span>Started by <b>schedule · nightly</b></span><span class="dotsep"></span>
+      <span>Generation <b>2</b></span><span class="dotsep"></span>
+      <span class="mono">22m 41s</span>
+    </div>
+
+    <!-- launch context — the run page's "Needs you" row that opens this sheet.
+         authorized delta: the base row shows task_03 mid-retry; here the same row has
+         advanced to quarantined, which is the state this sheet documents. -->
+    <details class="sec" open data-od-id="q-backdrop-needs-you">
+      <summary><i class="si" data-lucide="bell"></i><span class="st">Needs you</span><span class="ssum">1 item</span><span class="spacer"></span><i class="chev" data-lucide="chevron-down"></i></summary>
+      <div class="panelbox">
+        <div class="needsrow" data-od-id="q-backdrop-needs-task03">
+          <i class="ni" data-lucide="shield-alert"></i>
+          <div class="needsrow__main">
+            <div class="needsrow__label">task_03 was set aside after 4 attempts</div>
+            <div class="needsrow__sub">GitHub rejected the credential twice in a row. The lane is quarantined and no longer spends attempts; the rest of the run keeps going. Open the entry to see what failed and requeue it once the credential is rotated.</div>
+          </div>
+          <div class="needsrow__trail">
+            <span class="needsrow__age">9m</span>
+            <a class="needsrow__act" href="#">Details <i data-lucide="arrow-right"></i></a>
+          </div>
+        </div>
+      </div>
+    </details>
+  </div>
+</div>
+
+<div class="scrim" data-od-id="q-scrim"></div>
+
+<!-- ══ quarantine entry sheet — production pattern web/src/systems/loops/components/loop-run-inspect-sheet.tsx (production) ══
+     entry payload: LoopRunResponse.node_controls[].quarantine_entry (sanitized) — spec; no dedicated read route
+     diagnosable without logs (PRD rule 29) -->
+<aside class="sheet" role="dialog" aria-modal="true" aria-labelledby="qTitle" data-od-id="q-sheet">
+  <header class="sheet__head" data-od-id="q-sheet-head">
+    <!-- authorized delta — production well is accent-tint; danger tint carries the quarantine state -->
+    <span class="sheet__well" aria-hidden="true"><i data-lucide="shield-alert"></i></span>
+    <div class="sheet__copy">
+      <div class="sheet__eyebrow">Quarantine entry</div>
+      <div class="sheet__title" id="qTitle">task_03 · api handler</div>
+      <div class="sheet__desc">Set aside after 4 attempts across 2 episodes · <span class="mono">execute_task · task_03 · gen 2 · r-8f3a2b</span></div>
+    </div>
+    <button class="sheet__close" type="button" aria-label="Close" data-od-id="q-sheet-close"><i data-lucide="x"></i></button>
+  </header>
+
+  <div class="sheet__body">
+
+    <!-- decision: the hint leads — it's what the reader does next (PRD rule 29) -->
+    <div class="hintcard" data-od-id="quarantine-hint">
+      <i data-lucide="lightbulb"></i>
+      <div>
+        <div class="hintcard__t">What to try</div>
+        <div class="hintcard__b">The last two attempts died on GitHub authentication. Rotate the <span class="mono">github-mcp</span> credential in Vault, then requeue this lane.</div>
+      </div>
+    </div>
+
+    <!-- facts per production MetadataTile idiom (packages/ui metadata-tile.tsx) — production -->
+    <details class="sec" open data-od-id="q-sec-facts">
+      <summary><i class="si" data-lucide="info"></i><span class="st">At a glance</span><span class="ssum">what the runtime recorded</span><span class="spacer"></span><i class="chev" data-lucide="chevron-down"></i></summary>
+      <div class="tiles" data-od-id="quarantine-facts">
+        <div class="tile"><div class="tile__l">Attempts</div><div class="tile__v mono">4 · across 2 episodes</div></div>
+        <div class="tile"><div class="tile__l">Episode</div><div class="tile__v mono">2 · after a failed requeue</div></div>
+        <div class="tile"><div class="tile__l">External target</div><div class="tile__v mono">toolcall:github-mcp</div></div>
+        <div class="tile"><div class="tile__l">Quarantined</div><div class="tile__v mono">14:52 · 9m ago</div></div>
+        <div class="tile tile--wide"><div class="tile__l">Input</div>
+          <div class="tile__v mono">.compozy/tasks/loops-paper/task_03.md
+            <button class="act" type="button" data-od-id="q-open-entry-input"><i data-lucide="arrow-up-right"></i>View input</button>
+          </div>
+        </div>
+      </div>
+    </details>
+
+    <!-- classified chain on the base's canonical timeline anatomy (.tl/.tlrow).
+         every step carries failure_class → disposition as micro mono, never a chip. -->
+    <details class="sec" open data-od-id="q-sec-chain">
+      <summary><i class="si" data-lucide="history"></i><span class="st">What failed, in order</span><span class="ssum">4 attempts · 2 episodes</span><span class="spacer"></span><i class="chev" data-lucide="chevron-down"></i></summary>
+      <div class="panelbox">
+        <ol class="tl" aria-label="Classified failure chain" data-od-id="quarantine-chain">
+          <li class="tlrow" data-tone="warning" data-od-id="q-chain-1">
+            <span class="tlrow__dot"><i data-lucide="unplug"></i></span>
+            <div>
+              <div class="tlrow__title">Push to GitHub timed out</div>
+              <div class="tlrow__sub">The fix landed locally but the push never completed.</div>
+            </div>
+            <div class="tlrow__trail"><time class="tlrow__time">attempt 1 · 14:32:10</time><span class="tlrow__micro">transport → retried</span></div>
+          </li>
+          <li class="tlrow" data-tone="warning" data-od-id="q-chain-2">
+            <span class="tlrow__dot"><i data-lucide="timer-off"></i></span>
+            <div>
+              <div class="tlrow__title">Attempt ran past its 5-minute deadline</div>
+              <div class="tlrow__sub">The retry hung on the same push and was cut at the node's own time limit.</div>
+            </div>
+            <div class="tlrow__trail"><time class="tlrow__time">attempt 2 · 14:38:44</time><span class="tlrow__micro">attempt_timeout → retried</span></div>
+          </li>
+          <li class="tlrow" data-tone="danger" data-od-id="q-chain-3">
+            <span class="tlrow__dot"><i data-lucide="key-round"></i></span>
+            <div>
+              <div class="tlrow__title">GitHub rejected the credential</div>
+              <div class="tlrow__sub">Authentication failed — this class never auto-retries, so the failure routed to the loop's <span class="mono">on_failed</span> path, which quarantined the lane (episode 1).</div>
+            </div>
+            <div class="tlrow__trail"><time class="tlrow__time">attempt 3 · 14:45:02</time><span class="tlrow__micro">payload_declared → routed</span></div>
+          </li>
+          <li class="tldiv" data-od-id="q-chain-episode-boundary">
+            <span class="tldiv__mark" aria-hidden="true"></span>
+            <span class="tldiv__t">episode 2 — requeued by pedro 14:48</span>
+          </li>
+          <li class="tlrow" data-tone="danger" data-od-id="q-chain-4">
+            <span class="tlrow__dot"><i data-lucide="key-round"></i></span>
+            <div>
+              <div class="tlrow__title">Same rejection — set aside again</div>
+              <div class="tlrow__sub">The first attempt of episode 2 hit the same wall; the loop quarantined the lane instead of burning more attempts.</div>
+            </div>
+            <div class="tlrow__trail"><time class="tlrow__time">attempt 4 · 14:52:31</time><span class="tlrow__micro">payload_declared → quarantined</span></div>
+          </li>
+        </ol>
+      </div>
+    </details>
+
+    <!-- repeated episodes append, never overwrite (PRD rule 29) -->
+    <details class="sec" open data-od-id="q-sec-ledger">
+      <summary><i class="si" data-lucide="list-ordered"></i><span class="st">Attempt ledger</span><span class="ssum">every attempt, both episodes</span><span class="spacer"></span><i class="chev" data-lucide="chevron-down"></i></summary>
+      <div class="ledger" data-od-id="quarantine-ledger">
+        <div class="lrow"><span class="n">#1</span><span class="cls" data-tone="warning">transport</span><span class="cause">push timed out after 30s</span><span class="t">14:32:10 → 14:32:41</span></div>
+        <div class="lrow"><span class="n">#2</span><span class="cls" data-tone="warning">attempt_timeout</span><span class="cause">deadline 5m exceeded</span><span class="t">14:33:41 → 14:38:44</span></div>
+        <div class="lrow"><span class="n">#3</span><span class="cls" data-tone="danger">payload_declared</span><span class="cause">github auth rejected (401)</span><span class="t">14:44:12 → 14:45:02</span></div>
+        <div class="lrow lrow--episode"><span>episode 2 — requeued by pedro 14:48, failed again</span></div>
+        <div class="lrow"><span class="n">#4</span><span class="cls" data-tone="danger">payload_declared</span><span class="cause">github auth rejected (401)</span><span class="t">14:51:58 → 14:52:31</span></div>
+      </div>
+    </details>
+
+    <!-- secrets redacted, truncation visibly marked (PRD rule 8) -->
+    <details class="sec" open data-od-id="q-sec-diagnostic">
+      <summary><i class="si" data-lucide="terminal"></i><span class="st">Last diagnostic</span><span class="ssum">sanitized before storage</span><span class="spacer"></span><i class="chev" data-lucide="chevron-down"></i></summary>
+      <div class="diag" data-od-id="quarantine-diagnostic">git push origin task/loops-paper-03
+remote: Invalid username or token.
+fatal: Authentication failed for 'https://github.com/compozy/compozy.git'
+token: <span class="redact">•••••••• redacted</span>
+<span class="trunc"><i data-lucide="scissors"></i>truncated at 4 KB — full output was bounded before storage</span></div>
+    </details>
+
+    <details class="sec" open data-od-id="q-sec-post-requeue">
+      <summary><i class="si" data-lucide="route"></i><span class="st">After a requeue</span><span class="ssum">what changes, what doesn't</span><span class="spacer"></span><i class="chev" data-lucide="chevron-down"></i></summary>
+      <div class="quiet-note" data-od-id="quarantine-post-requeue">
+        <i data-lucide="corner-down-right"></i>
+        <span>Requeue clears this entry with your name on it and sends the lane back through the normal queue — same limits, fresh attempt budget. It re-enters as <span class="mono">origin: requeue</span>; if it fails again, this entry grows an <b>episode 3</b> rather than starting over.</span>
+      </div>
+    </details>
+
+  </div>
+
+  <footer class="sheet__foot" data-od-id="quarantine-foot">
+    <span class="foot-note"><i data-lucide="info"></i>The run keeps working — quarantine never stops it by itself.</span>
+    <button class="btn" type="button" data-od-id="q-cancel-lane">Cancel lane</button>
+    <button class="btn btn--primary" type="button" id="requeueBtn" data-od-id="q-requeue-open">Requeue…</button>
+  </footer>
+</aside>
+
+<!-- requeue confirm — MODAL-STANDARD confirm chrome
+     POST /api/workspaces/:ws/loop-runs/:run_id/nodes/:node_id/requeue — spec -->
+<div class="confirm-scrim" id="confirmScrim" data-od-id="q-requeue-scrim">
+  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="rqTitle" data-od-id="q-requeue-confirm">
+    <div class="dialog__head">
+      <span class="head-icon" aria-hidden="true"><i data-lucide="rotate-ccw"></i></span>
+      <div class="head-copy">
+        <div class="eyebrow">Requeue node</div>
+        <h3 id="rqTitle">Send task_03 back to the queue?</h3>
+        <p>The lane leaves quarantine and runs again through the normal path, with all limits applying. If it fails again, it returns here as <b>episode 3</b>.</p>
+      </div>
+    </div>
+    <div class="dialog__body">
+      <div class="staterow" data-od-id="q-requeue-state">
+        <span class="staterow__dot" aria-hidden="true"></span>
+        <span class="staterow__t">task_03 is quarantined</span>
+        <span class="staterow__meta">4 attempts · episode 2 · quarantined 14:52</span>
+      </div>
+      <div class="hint" data-od-id="q-requeue-hint">The entry suggests rotating the <code>github-mcp</code> credential first — a requeue without the fix will likely repeat the chain.</div>
+    </div>
+    <div class="dialog__foot">
+      <span class="foot-note mono">node_requeued · origin requeue · with provenance</span>
+      <button class="btn" type="button" id="rqCancel" data-od-id="q-requeue-keep">Keep quarantined</button>
+      <button class="btn btn--primary" type="button" id="rqConfirm" data-od-id="q-requeue-commit">Requeue lane</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/lucide@latest"></script>
+<script>
+  (function(){
+    var confirmScrim = document.getElementById("confirmScrim");
+    function close(){ confirmScrim.classList.remove("is-open"); }
+    document.getElementById("requeueBtn").addEventListener("click", function(){ confirmScrim.classList.add("is-open"); });
+    document.getElementById("rqCancel").addEventListener("click", close);
+    document.getElementById("rqConfirm").addEventListener("click", close);
+    confirmScrim.addEventListener("click", function(e){ if(e.target === confirmScrim) close(); });
+    document.addEventListener("keydown", function(e){ if(e.key === "Escape") close(); });
+  })();
+  lucide.createIcons();
+</script>
+</body>
+</html>

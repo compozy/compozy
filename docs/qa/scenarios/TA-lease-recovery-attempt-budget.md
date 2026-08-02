@@ -6,13 +6,13 @@ persona: Ada
 journey: J-bound-runaway-work
 expected: A run claimed then abandoned repeatedly consumes the durable attempt/recovery budget on every lease-expiry requeue and terminalizes to needs_attention with lease_recovery_exhausted at max_attempts, carrying a forensic reason that distinguishes crash-loop from ordinary failure while the token-fenced snapshot CAS and normal release-requeue semantics stay intact.
 entry_points: compozy task next --wait -o json; POST /api/agent/tasks/claim-next; compozy task inspect <run-id> -o json; scheduler recovery sweep
-qa_status: blocked-verify
+qa_status: pass
 bug_ids:
 fix_status:
-retest_status:
+retest_status: pass
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-ta-replay-20260730-062156-531636-lab/qa-artifacts/qa
-last_report: docs/qa/reports/2026-07-28-untested-full.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-ta-replay-20260730-062156-531636-lab/qa-artifacts/qa; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260801-135009-390014-lab/qa-artifacts/qa/loop/adjacent-safety-tests.json
+last_report: docs/qa/reports/2026-08-01-loops-paper-adoption.md
 overlaps: TA-action-run-liveness; TA-workspace-run-capacity
 ---
 

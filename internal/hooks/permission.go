@@ -9,8 +9,9 @@ import (
 )
 
 const (
-	permissionBlockedKey = "blocked"
-	permissionRejectKey  = "reject"
+	permissionBlockedKey  = "blocked"
+	permissionRejectKey   = "reject"
+	permissionRejectedKey = "rejected"
 )
 
 var (
@@ -84,7 +85,7 @@ func permissionDecisionDenied(decision string) bool {
 		return false
 	case clean == "block", clean == permissionBlockedKey:
 		return true
-	case clean == permissionDecisionDeny, clean == "denied", clean == "rejected":
+	case clean == permissionDecisionDeny, clean == "denied", clean == permissionRejectedKey:
 		return true
 	case strings.HasPrefix(clean, "block-"):
 		return true

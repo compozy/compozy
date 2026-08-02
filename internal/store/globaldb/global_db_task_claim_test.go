@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/api/contract"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
@@ -2804,6 +2805,63 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldRollbackWhenFinalizerFai
 		t.Parallel()
 		testGlobalDBCompleteCoordinatorAndEnqueueNextShouldRollbackWhenFinalizerFails(t)
 	})
+
+	t.Run("Should reject snapshots for another loop before writing either workspace", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openLoopTestGlobalDB(t, "ws-a", "ws-b")
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 7, 4, 15, 0, 0, 0, time.UTC)
+		loopA := testLoopRun("looprun-snapshot-owner-a", now, looppkg.StatusRunning)
+		loopA.WorkspaceID = "ws-a"
+		loopB := testLoopRun("looprun-snapshot-owner-b", now.Add(time.Second), looppkg.StatusRunning)
+		loopB.WorkspaceID = "ws-b"
+		for _, run := range []looppkg.Run{loopA, loopB} {
+			if _, err := globalDB.CreateLoopRunForStart(ctx, run, dsl.ConcurrencyAllow); err != nil {
+				t.Fatalf("CreateLoopRunForStart(%s) error = %v", run.ID, err)
+			}
+		}
+		claim := claimCoordinatorRunForTest(
+			ctx,
+			t,
+			globalDB,
+			loopA.ID,
+			"run-coordinator-snapshot-owner-a",
+			now,
+		)
+		_, err := globalDB.CompleteCoordinatorAndEnqueueNext(ctx, taskpkg.CoordinatorCompletion{
+			RunID: claim.Run.ID, ClaimToken: claim.ClaimToken,
+			Actor: coordinatorActorContextForTest(),
+			Plan: taskpkg.CoordinatorCompletionPlan{
+				Snapshot: taskpkg.GenerationSnapshot{
+					LoopRunID: string(loopB.ID), Generation: 1,
+					Payload: looppkg.GenerationSnapshotPayload{Outputs: []looppkg.GenerationOutput{{
+						NodeID: "foreign", Status: "succeeded",
+					}}},
+				},
+				Terminal: &taskpkg.CoordinatorTerminal{
+					Status: string(looppkg.StatusNoOp), Cause: string(looppkg.TransitionCauseContract),
+				},
+			},
+			Now: now.Add(2 * time.Second),
+		}, looppkg.NewStoreFinalizer())
+		if !errors.Is(err, taskpkg.ErrValidation) || !strings.Contains(err.Error(), "does not match claimed loop") {
+			t.Fatalf("CompleteCoordinatorAndEnqueueNext() error = %v, want loop identity validation", err)
+		}
+		for _, loopID := range []looppkg.RunID{loopA.ID, loopB.ID} {
+			var count int
+			if err := globalDB.db.QueryRowContext(
+				ctx,
+				`SELECT COUNT(*) FROM loop_generation_outputs WHERE loop_run_id = ?`,
+				string(loopID),
+			).Scan(&count); err != nil {
+				t.Fatalf("count generation outputs for %s error = %v", loopID, err)
+			}
+			if count != 0 {
+				t.Fatalf("generation outputs for %s = %d, want 0", loopID, count)
+			}
+		}
+	})
 }
 
 func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldRollbackWhenFinalizerFails(t *testing.T) {
@@ -2870,6 +2928,1272 @@ func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldRollbackWhenFinalizerFai
 			storedLoop.Status,
 			looppkg.StatusRunning,
 		)
+	}
+}
+
+func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldLeaveIntentStateUntouchedForStaleToken(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	t.Run("Should leave generation intent state untouched for a stale claim token", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openLoopTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 7, 4, 15, 5, 0, 0, time.UTC)
+		loopRun, err := globalDB.CreateLoopRunForStart(
+			ctx,
+			testLoopRun("looprun-coordinator-stale-intents", now, looppkg.StatusRunning),
+			dsl.ConcurrencyAllow,
+		)
+		if err != nil {
+			t.Fatalf("CreateLoopRunForStart() error = %v", err)
+		}
+		claim := claimCoordinatorRunForTest(
+			ctx,
+			t,
+			globalDB,
+			loopRun.ID,
+			"run-coordinator-stale-intents",
+			now,
+		)
+		verdict, err := gate.NewVerdictIntent("quality", 0, gate.Verdict{
+			Outcome: gate.VerdictOutcomeApproved,
+			Criteria: []gate.CriterionResult{{
+				ID: "quality", Type: dsl.CriterionAgentJudge,
+				Outcome: gate.VerdictOutcomeApproved, Passed: true,
+			}},
+		}, nil)
+		if err != nil {
+			t.Fatalf("NewVerdictIntent() error = %v", err)
+		}
+		score := 0.93
+		_, err = globalDB.CompleteCoordinatorAndEnqueueNext(ctx, taskpkg.CoordinatorCompletion{
+			RunID:      claim.Run.ID,
+			ClaimToken: claim.ClaimToken + "-stale",
+			Actor:      coordinatorActorContextForTest(),
+			Plan: taskpkg.CoordinatorCompletionPlan{
+				NodeTasks: []taskpkg.CoordinatorTaskSpec{{
+					TaskID: "loop." + string(loopRun.ID) + ".g1.node.quality.0",
+					Title:  "Loop quality node",
+				}},
+				Snapshot: taskpkg.GenerationSnapshot{
+					LoopRunID:  string(loopRun.ID),
+					Generation: 1,
+					Payload: looppkg.GenerationSnapshotPayload{
+						Outputs:  []looppkg.GenerationOutput{{NodeID: "quality", Status: "succeeded"}},
+						Verdicts: []gate.VerdictIntent{verdict},
+						BestUpdate: &gate.BestUpdateIntent{
+							Generation: 1,
+							Score:      score,
+						},
+						Events: []looppkg.GenerationLifecycleEventIntent{{
+							Kind:   looppkg.GenerationLifecycleEventGateVerdict,
+							GateID: "quality",
+							Route:  gate.RouteContinue,
+						}},
+					},
+				},
+				Terminal: &taskpkg.CoordinatorTerminal{
+					Status: string(looppkg.StatusNoOp),
+					Cause:  string(looppkg.TransitionCauseContract),
+				},
+			},
+			Now: now.Add(time.Second),
+		}, looppkg.NewStoreFinalizer())
+		if !errors.Is(err, taskpkg.ErrInvalidClaimToken) {
+			t.Fatalf("CompleteCoordinatorAndEnqueueNext() error = %v, want %v", err, taskpkg.ErrInvalidClaimToken)
+		}
+		assertCoordinatorIntentRows(ctx, t, globalDB, loopRun.ID, 0, 0, 0)
+		storedLoop, err := globalDB.GetLoopRunByID(ctx, loopRun.ID)
+		if err != nil {
+			t.Fatalf("GetLoopRunByID() error = %v", err)
+		}
+		if storedLoop.BestGeneration != nil || storedLoop.BestScore != nil {
+			t.Fatalf("loop best = %#v/%#v, want nil after stale token", storedLoop.BestGeneration, storedLoop.BestScore)
+		}
+		if _, err := globalDB.GetTask(
+			ctx,
+			"loop."+string(loopRun.ID)+".g1.node.quality.0",
+		); !errors.Is(err, taskpkg.ErrTaskNotFound) {
+			t.Fatalf("GetTask(planned node) error = %v, want %v", err, taskpkg.ErrTaskNotFound)
+		}
+	})
+}
+
+func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldRollbackIntentWritesAfterBoundaryFailure(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	for _, boundary := range []string{"verdict", "best", "provenance"} {
+		t.Run("Should roll back after "+boundary+" when the next intent mutation fails", func(t *testing.T) {
+			t.Parallel()
+			testGlobalDBCoordinatorIntentRollbackAtBoundary(t, boundary)
+		})
+	}
+
+	t.Run("Should roll back after lifecycle event when a later boundary fails", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openLoopTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 7, 4, 15, 10, 0, 0, time.UTC)
+		loopRun, err := globalDB.CreateLoopRunForStart(
+			ctx,
+			testLoopRun("looprun-coordinator-intent-rollback", now, looppkg.StatusRunning),
+			dsl.ConcurrencyAllow,
+		)
+		if err != nil {
+			t.Fatalf("CreateLoopRunForStart() error = %v", err)
+		}
+		claim := claimCoordinatorRunForTest(
+			ctx,
+			t,
+			globalDB,
+			loopRun.ID,
+			"run-coordinator-intent-rollback",
+			now,
+		)
+		score := 0.97
+		verdict, err := gate.NewVerdictIntent("quality", 0, gate.Verdict{
+			Outcome: gate.VerdictOutcomeApproved,
+			Criteria: []gate.CriterionResult{{
+				ID: "quality", Type: dsl.CriterionAgentJudge,
+				Outcome: gate.VerdictOutcomeApproved, Passed: true, Score: &score,
+			}},
+		}, nil)
+		if err != nil {
+			t.Fatalf("NewVerdictIntent() error = %v", err)
+		}
+		blobPayload := json.RawMessage(`{"result":"durable"}`)
+		blobRef := looppkg.OutputRefForPayload(blobPayload)
+		_, err = globalDB.CompleteCoordinatorAndEnqueueNext(ctx, taskpkg.CoordinatorCompletion{
+			RunID:      claim.Run.ID,
+			ClaimToken: claim.ClaimToken,
+			Actor:      coordinatorActorContextForTest(),
+			Plan: taskpkg.CoordinatorCompletionPlan{
+				Snapshot: taskpkg.GenerationSnapshot{
+					LoopRunID:  string(loopRun.ID),
+					Generation: 1,
+					Payload: looppkg.GenerationSnapshotPayload{
+						Outputs: []looppkg.GenerationOutput{{
+							NodeID: "quality", Status: "succeeded", OutputRef: blobRef,
+						}},
+						OutputBlobs: []looppkg.GenerationOutputBlob{{
+							OutputRef: blobRef, Payload: blobPayload, At: now,
+						}},
+						Verdicts: []gate.VerdictIntent{verdict},
+						BestUpdate: &gate.BestUpdateIntent{
+							Generation: 1,
+							Score:      score,
+						},
+						Events: []looppkg.GenerationLifecycleEventIntent{{
+							Kind:   looppkg.GenerationLifecycleEventGateVerdict,
+							GateID: "quality",
+							Route:  gate.RouteContinue,
+						}},
+					},
+				},
+				Terminal: &taskpkg.CoordinatorTerminal{Status: "not-a-loop-status"},
+			},
+			Now: now.Add(time.Second),
+		}, looppkg.NewStoreFinalizer())
+		if err == nil {
+			t.Fatal("CompleteCoordinatorAndEnqueueNext() error = nil, want boundary validation failure")
+		}
+		if !strings.Contains(err.Error(), "coordinator terminal status is invalid") {
+			t.Fatalf("CompleteCoordinatorAndEnqueueNext() error = %v, want terminal status diagnostic", err)
+		}
+		assertCoordinatorIntentRows(ctx, t, globalDB, loopRun.ID, 0, 0, 0)
+		var blobCount int
+		if err := globalDB.db.QueryRowContext(
+			ctx,
+			`SELECT COUNT(*) FROM loop_output_blobs WHERE output_ref = ?`,
+			blobRef,
+		).Scan(&blobCount); err != nil {
+			t.Fatalf("count loop output blobs error = %v", err)
+		}
+		if blobCount != 0 {
+			t.Fatalf("loop output blob count = %d, want 0 after rollback", blobCount)
+		}
+		storedLoop, err := globalDB.GetLoopRunByID(ctx, loopRun.ID)
+		if err != nil {
+			t.Fatalf("GetLoopRunByID() error = %v", err)
+		}
+		if storedLoop.BestGeneration != nil || storedLoop.BestScore != nil {
+			t.Fatalf("loop best = %#v/%#v, want nil after rollback", storedLoop.BestGeneration, storedLoop.BestScore)
+		}
+	})
+}
+
+func testGlobalDBCoordinatorIntentRollbackAtBoundary(t *testing.T, boundary string) {
+	t.Helper()
+
+	globalDB := openLoopTestGlobalDB(t)
+	ctx := testutil.Context(t)
+	now := time.Date(2026, 7, 4, 15, 10, 0, 0, time.UTC)
+	loopRun, err := globalDB.CreateLoopRunForStart(
+		ctx,
+		testLoopRun("looprun-coordinator-rollback-"+boundary, now, looppkg.StatusRunning),
+		dsl.ConcurrencyAllow,
+	)
+	if err != nil {
+		t.Fatalf("CreateLoopRunForStart() error = %v", err)
+	}
+	claim := claimCoordinatorRunForTest(
+		ctx,
+		t,
+		globalDB,
+		loopRun.ID,
+		"run-coordinator-rollback-"+boundary,
+		now,
+	)
+	score := 0.91
+	verdict, err := gate.NewVerdictIntent("quality", 0, gate.Verdict{
+		Outcome: gate.VerdictOutcomeApproved,
+		Criteria: []gate.CriterionResult{{
+			ID: "quality", Type: dsl.CriterionCommand,
+			Outcome: gate.VerdictOutcomeApproved, Passed: true, Score: &score,
+		}},
+	}, nil)
+	if err != nil {
+		t.Fatalf("NewVerdictIntent() error = %v", err)
+	}
+	plan := taskpkg.CoordinatorCompletionPlan{
+		Snapshot: taskpkg.GenerationSnapshot{
+			LoopRunID: string(loopRun.ID), Generation: 1,
+			Payload: looppkg.GenerationSnapshotPayload{
+				Verdicts: []gate.VerdictIntent{verdict},
+				BestUpdate: &gate.BestUpdateIntent{
+					Generation: 1,
+					Score:      score,
+				},
+			},
+		},
+		Terminal: &taskpkg.CoordinatorTerminal{
+			Status: string(looppkg.StatusNoOp), Cause: string(looppkg.TransitionCauseContract),
+		},
+	}
+	var trigger string
+	switch boundary {
+	case "verdict":
+		trigger = `CREATE TRIGGER fail_after_verdict
+			BEFORE UPDATE OF best_generation ON loop_runs
+			WHEN NEW.id = '` + string(loopRun.ID) + `'
+			BEGIN SELECT RAISE(ABORT, 'fail after verdict'); END`
+	case "best":
+		plan.Snapshot.Payload = looppkg.GenerationSnapshotPayload{
+			Verdicts:   []gate.VerdictIntent{verdict},
+			BestUpdate: &gate.BestUpdateIntent{Generation: 1, Score: score},
+			Events: []looppkg.GenerationLifecycleEventIntent{{
+				Kind: looppkg.GenerationLifecycleEventGateVerdict, GateID: "quality", Route: gate.RouteContinue,
+			}},
+		}
+		trigger = `CREATE TRIGGER fail_after_best
+			BEFORE INSERT ON loop_run_events
+			WHEN NEW.kind = 'gate_verdict'
+			BEGIN SELECT RAISE(ABORT, 'fail after best'); END`
+	case "provenance":
+		provenance := looppkg.GenerationIntent{
+			Generation: 2, ParentGeneration: 1, Origin: looppkg.OriginGateNextGeneration,
+		}
+		plan.Snapshot.Payload = looppkg.GenerationSnapshotPayload{}
+		plan.Terminal = nil
+		plan.PostReserveSnapshot = &taskpkg.GenerationSnapshot{
+			LoopRunID: string(loopRun.ID), Generation: 2,
+			Payload: looppkg.GenerationSnapshotPayload{
+				GenerationProvenance: &provenance,
+				Events: []looppkg.GenerationLifecycleEventIntent{{
+					Kind: looppkg.GenerationLifecycleEventGenerationStarted,
+				}},
+			},
+		}
+		plan.NextCoordinator = &taskpkg.EnqueueSpec{
+			TaskID: claim.Run.TaskID, RunID: loopCoordinatorRunID(loopRun.ID, 2),
+			RunKind: taskpkg.RunKindCoordinator, LoopRunID: string(loopRun.ID),
+			IdempotencyKey: "coordinator-rollback-provenance-next",
+		}
+		trigger = `CREATE TRIGGER fail_after_provenance
+			BEFORE INSERT ON loop_run_events
+			WHEN NEW.kind = 'generation_started'
+			BEGIN SELECT RAISE(ABORT, 'fail after provenance'); END`
+	default:
+		t.Fatalf("unknown rollback boundary %q", boundary)
+	}
+	if _, err := globalDB.db.ExecContext(ctx, trigger); err != nil {
+		t.Fatalf("create %s rollback trigger error = %v", boundary, err)
+	}
+
+	_, err = globalDB.CompleteCoordinatorAndEnqueueNext(ctx, taskpkg.CoordinatorCompletion{
+		RunID: claim.Run.ID, ClaimToken: claim.ClaimToken,
+		Actor: coordinatorActorContextForTest(), Plan: plan, Now: now.Add(time.Second),
+	}, looppkg.NewStoreFinalizer())
+	if err == nil {
+		t.Fatalf("CompleteCoordinatorAndEnqueueNext(%s) error = nil, want injected failure", boundary)
+	}
+	wantDiagnostic := "fail after " + boundary
+	if !strings.Contains(err.Error(), wantDiagnostic) {
+		t.Fatalf(
+			"CompleteCoordinatorAndEnqueueNext(%s) error = %v, want %q",
+			boundary,
+			err,
+			wantDiagnostic,
+		)
+	}
+	assertCoordinatorIntentRows(ctx, t, globalDB, loopRun.ID, 0, 0, 0)
+	storedLoop, err := globalDB.GetLoopRunByID(ctx, loopRun.ID)
+	if err != nil {
+		t.Fatalf("GetLoopRunByID() error = %v", err)
+	}
+	if storedLoop.Generation != 0 || storedLoop.BestGeneration != nil || storedLoop.BestScore != nil {
+		t.Fatalf(
+			"loop state after %s rollback = generation %d best %#v/%#v",
+			boundary,
+			storedLoop.Generation,
+			storedLoop.BestGeneration,
+			storedLoop.BestScore,
+		)
+	}
+	if boundary == "provenance" {
+		if _, err := globalDB.GetTaskRun(
+			ctx,
+			loopCoordinatorRunID(loopRun.ID, 2),
+		); !errors.Is(err, taskpkg.ErrTaskRunNotFound) {
+			t.Fatalf("GetTaskRun(rolled-back successor) error = %v, want %v", err, taskpkg.ErrTaskRunNotFound)
+		}
+	}
+}
+
+func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldPersistEvaluatorMetricIntent(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should commit evaluator score verdict best and event in the fenced plan", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openLoopTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 7, 4, 15, 15, 0, 0, time.UTC)
+		loopRun, err := globalDB.CreateLoopRunForStart(
+			ctx,
+			testLoopRun("looprun-coordinator-metric-intent", now, looppkg.StatusRunning),
+			dsl.ConcurrencyAllow,
+		)
+		if err != nil {
+			t.Fatalf("CreateLoopRunForStart() error = %v", err)
+		}
+		claim := claimCoordinatorRunForTest(
+			ctx,
+			t,
+			globalDB,
+			loopRun.ID,
+			"run-coordinator-metric-intent",
+			now,
+		)
+		metricGate := gate.Gate{
+			ID: "quality", VerdictPolicy: dsl.VerdictPolicyFixedPasses,
+			Criteria: []dsl.GateCriterion{{
+				ID: "score", Type: dsl.CriterionCommand, Check: "score", Expect: "exit_zero",
+				Metric: &dsl.MetricSpec{Direction: dsl.MetricMaximize},
+			}},
+		}
+		verdict, err := gate.NewEvaluator(gate.WithCommandRunner(metricCommandRunnerFunc(
+			func(context.Context, gate.CommandRequest) (gate.CommandResult, error) {
+				return gate.CommandResult{ExitCode: 0, Stdout: `{"score":0.93}`}, nil
+			},
+		))).Evaluate(ctx, metricGate, gate.GateInput{Placement: gate.PlacementInBody})
+		if err != nil {
+			t.Fatalf("Evaluate() error = %v", err)
+		}
+		intent, err := gate.NewVerdictIntent(metricGate.ID, 0, verdict, nil)
+		if err != nil {
+			t.Fatalf("NewVerdictIntent() error = %v", err)
+		}
+		best, err := gate.BestUpdateForVerdict(metricGate, verdict, 1, nil)
+		if err != nil {
+			t.Fatalf("BestUpdateForVerdict() error = %v", err)
+		}
+		if best == nil {
+			t.Fatal("BestUpdateForVerdict() = nil, want first eligible score")
+		}
+		_, err = globalDB.CompleteCoordinatorAndEnqueueNext(ctx, taskpkg.CoordinatorCompletion{
+			RunID: claim.Run.ID, ClaimToken: claim.ClaimToken,
+			Actor: coordinatorActorContextForTest(),
+			Plan: taskpkg.CoordinatorCompletionPlan{
+				Snapshot: taskpkg.GenerationSnapshot{
+					LoopRunID: string(loopRun.ID), Generation: 1,
+					Payload: looppkg.GenerationSnapshotPayload{
+						Outputs:    []looppkg.GenerationOutput{{NodeID: "quality", Status: "succeeded"}},
+						Verdicts:   []gate.VerdictIntent{intent},
+						BestUpdate: best,
+						Events: []looppkg.GenerationLifecycleEventIntent{{
+							Kind: looppkg.GenerationLifecycleEventGateVerdict, GateID: "quality",
+							Route: verdict.Route.Action, Reason: verdict.Route.ReasonCode,
+							BestGeneration: new(int64(1)),
+						}},
+					},
+				},
+				Terminal: &taskpkg.CoordinatorTerminal{
+					Status: string(looppkg.StatusNoOp), Cause: string(looppkg.TransitionCauseContract),
+				},
+			},
+			Now: now.Add(time.Second),
+		}, looppkg.NewStoreFinalizer())
+		if err != nil {
+			t.Fatalf("CompleteCoordinatorAndEnqueueNext() error = %v", err)
+		}
+
+		verdicts, err := globalDB.ListGateVerdicts(ctx, string(loopRun.WorkspaceID), string(loopRun.ID), 1)
+		if err != nil {
+			t.Fatalf("ListGateVerdicts() error = %v", err)
+		}
+		if len(verdicts) != 1 || verdicts[0].Score == nil || *verdicts[0].Score != 0.93 {
+			t.Fatalf("persisted verdicts = %#v, want score 0.93", verdicts)
+		}
+		stored, err := globalDB.GetLoopRunByID(ctx, loopRun.ID)
+		if err != nil {
+			t.Fatalf("GetLoopRunByID() error = %v", err)
+		}
+		if stored.BestGeneration == nil || *stored.BestGeneration != 1 ||
+			stored.BestScore == nil || *stored.BestScore != 0.93 {
+			t.Fatalf("stored best = %#v/%#v, want generation 1 score 0.93", stored.BestGeneration, stored.BestScore)
+		}
+	})
+
+	t.Run("Should keep best and score empty when the metric command fails", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openLoopTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 7, 4, 15, 17, 0, 0, time.UTC)
+		loopRun, err := globalDB.CreateLoopRunForStart(
+			ctx,
+			testLoopRun("looprun-coordinator-rejected-metric", now, looppkg.StatusRunning),
+			dsl.ConcurrencyAllow,
+		)
+		if err != nil {
+			t.Fatalf("CreateLoopRunForStart() error = %v", err)
+		}
+		claim := claimCoordinatorRunForTest(
+			ctx,
+			t,
+			globalDB,
+			loopRun.ID,
+			"run-coordinator-rejected-metric",
+			now,
+		)
+		metricGate := gate.Gate{
+			ID: "quality", VerdictPolicy: dsl.VerdictPolicyFixedPasses,
+			Criteria: []dsl.GateCriterion{{
+				ID: "score", Type: dsl.CriterionCommand, Check: "score", Expect: "exit_zero",
+				Metric: &dsl.MetricSpec{Direction: dsl.MetricMaximize},
+			}},
+		}
+		verdict, err := gate.NewEvaluator(gate.WithCommandRunner(metricCommandRunnerFunc(
+			func(context.Context, gate.CommandRequest) (gate.CommandResult, error) {
+				return gate.CommandResult{ExitCode: 1, Stdout: `{"score":0.77}`}, nil
+			},
+		))).Evaluate(ctx, metricGate, gate.GateInput{Placement: gate.PlacementInBody})
+		if err != nil {
+			t.Fatalf("Evaluate() error = %v", err)
+		}
+		if verdict.Outcome != gate.VerdictOutcomeRejected {
+			t.Fatalf("verdict outcome = %q, want rejected", verdict.Outcome)
+		}
+		intent, err := gate.NewVerdictIntent(metricGate.ID, 0, verdict, nil)
+		if err != nil {
+			t.Fatalf("NewVerdictIntent() error = %v", err)
+		}
+		best, err := gate.BestUpdateForVerdict(metricGate, verdict, 1, nil)
+		if err != nil {
+			t.Fatalf("BestUpdateForVerdict() error = %v", err)
+		}
+		if best != nil {
+			t.Fatalf("BestUpdateForVerdict() = %#v, want nil", best)
+		}
+
+		_, err = globalDB.CompleteCoordinatorAndEnqueueNext(ctx, taskpkg.CoordinatorCompletion{
+			RunID: claim.Run.ID, ClaimToken: claim.ClaimToken,
+			Actor: coordinatorActorContextForTest(),
+			Plan: taskpkg.CoordinatorCompletionPlan{
+				Snapshot: taskpkg.GenerationSnapshot{
+					LoopRunID: string(loopRun.ID), Generation: 1,
+					Payload: looppkg.GenerationSnapshotPayload{
+						Verdicts: []gate.VerdictIntent{intent},
+						Events: []looppkg.GenerationLifecycleEventIntent{{
+							Kind: looppkg.GenerationLifecycleEventGateVerdict, GateID: metricGate.ID,
+							Route: verdict.Route.Action, Reason: verdict.Route.ReasonCode,
+						}},
+					},
+				},
+				Terminal: &taskpkg.CoordinatorTerminal{
+					Status: string(looppkg.StatusNoOp), Cause: string(looppkg.TransitionCauseContract),
+				},
+			},
+			Now: now.Add(time.Second),
+		}, looppkg.NewStoreFinalizer())
+		if err != nil {
+			t.Fatalf("CompleteCoordinatorAndEnqueueNext() error = %v", err)
+		}
+
+		verdicts, err := globalDB.ListGateVerdicts(ctx, string(loopRun.WorkspaceID), string(loopRun.ID), 1)
+		if err != nil {
+			t.Fatalf("ListGateVerdicts() error = %v", err)
+		}
+		if len(verdicts) != 1 || verdicts[0].Outcome != gate.VerdictOutcomeRejected ||
+			verdicts[0].Score != nil {
+			t.Fatalf("persisted verdicts = %#v, want rejected verdict without an untrusted score", verdicts)
+		}
+		stored, err := globalDB.GetLoopRunByID(ctx, loopRun.ID)
+		if err != nil {
+			t.Fatalf("GetLoopRunByID() error = %v", err)
+		}
+		if stored.BestGeneration != nil || stored.BestScore != nil {
+			t.Fatalf("stored best = %#v/%#v, want paired NULL", stored.BestGeneration, stored.BestScore)
+		}
+	})
+}
+
+func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldPersistPostReserveGenerationProvenance(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	t.Run("Should commit successor provenance and generation event after reserving its first node", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openLoopTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 7, 4, 15, 20, 0, 0, time.UTC)
+		loopRun, err := globalDB.CreateLoopRunForStart(
+			ctx,
+			testLoopRun("looprun-coordinator-successor-provenance", now, looppkg.StatusRunning),
+			dsl.ConcurrencyAllow,
+		)
+		if err != nil {
+			t.Fatalf("CreateLoopRunForStart() error = %v", err)
+		}
+		claim := claimCoordinatorRunForTest(
+			ctx,
+			t,
+			globalDB,
+			loopRun.ID,
+			"run-coordinator-successor-provenance",
+			now,
+		)
+		nodeTaskID := "loop." + string(loopRun.ID) + ".g2.node.finish.0"
+		nodeRunID := "run-coordinator-successor-provenance-node"
+		provenance := looppkg.GenerationIntent{
+			Generation:       2,
+			ParentGeneration: 1,
+			Origin:           looppkg.OriginGateNextGeneration,
+		}
+
+		_, err = globalDB.CompleteCoordinatorAndEnqueueNext(ctx, taskpkg.CoordinatorCompletion{
+			RunID: claim.Run.ID, ClaimToken: claim.ClaimToken,
+			Actor: coordinatorActorContextForTest(),
+			Plan: taskpkg.CoordinatorCompletionPlan{
+				NodeTasks: []taskpkg.CoordinatorTaskSpec{{
+					TaskID: nodeTaskID,
+					Title:  "Loop delivery node finish",
+				}},
+				NodeRuns: []taskpkg.EnqueueSpec{{
+					TaskID:         nodeTaskID,
+					RunID:          nodeRunID,
+					RunKind:        taskpkg.RunKindWorker,
+					LoopRunID:      string(loopRun.ID),
+					IdempotencyKey: "coordinator-successor-provenance-node",
+				}},
+				Snapshot: taskpkg.GenerationSnapshot{
+					LoopRunID: string(loopRun.ID), Generation: 1,
+					Payload: looppkg.GenerationSnapshotPayload{Outputs: []looppkg.GenerationOutput{{
+						NodeID: "finish", Status: "succeeded",
+					}}},
+				},
+				PostReserveSnapshot: &taskpkg.GenerationSnapshot{
+					LoopRunID: string(loopRun.ID), Generation: 2,
+					Payload: looppkg.GenerationSnapshotPayload{
+						Outputs: []looppkg.GenerationOutput{{
+							NodeID: "finish", Status: "enqueued", TaskRunID: nodeRunID,
+						}},
+						GenerationProvenance: &provenance,
+						Events: []looppkg.GenerationLifecycleEventIntent{{
+							Kind: looppkg.GenerationLifecycleEventGenerationStarted,
+						}},
+					},
+				},
+			},
+			Now: now.Add(time.Second),
+		}, looppkg.NewStoreFinalizer())
+		if err != nil {
+			t.Fatalf("CompleteCoordinatorAndEnqueueNext() error = %v", err)
+		}
+
+		generations, err := globalDB.ListGenerations(ctx, string(loopRun.WorkspaceID), string(loopRun.ID))
+		if err != nil {
+			t.Fatalf("ListGenerations() error = %v", err)
+		}
+		if len(generations) != 2 {
+			t.Fatalf("ListGenerations() len = %d, want 2", len(generations))
+		}
+		if got := generations[1]; got.Generation != provenance.Generation ||
+			got.ParentGeneration != provenance.ParentGeneration || got.Origin != provenance.Origin {
+			t.Fatalf("successor provenance = %#v, want %#v", got, provenance)
+		}
+
+		var payloadJSON []byte
+		if err := globalDB.db.QueryRowContext(
+			ctx,
+			`SELECT payload_json FROM loop_run_events
+			 WHERE loop_run_id = ? AND kind = ? AND json_extract(payload_json, '$.generation') = 2`,
+			string(loopRun.ID),
+			loopRunEventGenerationStarted,
+		).Scan(&payloadJSON); err != nil {
+			t.Fatalf("query successor generation_started event error = %v", err)
+		}
+		var payload struct {
+			Generation       int    `json:"generation"`
+			ParentGeneration int64  `json:"parent_generation"`
+			Origin           string `json:"origin"`
+		}
+		if err := json.Unmarshal(payloadJSON, &payload); err != nil {
+			t.Fatalf("decode successor generation_started event error = %v", err)
+		}
+		if payload.Generation != 2 || payload.ParentGeneration != 1 ||
+			payload.Origin != string(looppkg.OriginGateNextGeneration) {
+			t.Fatalf(
+				"successor generation_started payload = %#v, want generation 2 parent 1 origin %q",
+				payload,
+				looppkg.OriginGateNextGeneration,
+			)
+		}
+	})
+}
+
+func TestGlobalDBGenerationSuccessionObservabilityCoverageMatrix(t *testing.T) {
+	t.Parallel()
+
+	t.Run(
+		"Should persist exactly one provenance row and generation event for every successor origin",
+		func(t *testing.T) {
+			t.Parallel()
+
+			origins := []looppkg.GenerationOrigin{
+				looppkg.OriginStopWhen,
+				looppkg.OriginReattempt,
+				looppkg.OriginGateRevise,
+				looppkg.OriginGateNextGeneration,
+				looppkg.OriginDoDRetry,
+				looppkg.OriginRatchetRestore,
+			}
+			globalDB := openLoopTestGlobalDB(t)
+			ctx := testutil.Context(t)
+			now := time.Date(2026, 7, 4, 15, 25, 0, 0, time.UTC)
+			loopRun, err := globalDB.CreateLoopRunForStart(
+				ctx,
+				testLoopRun("looprun-generation-origin-matrix", now, looppkg.StatusRunning),
+				dsl.ConcurrencyAllow,
+			)
+			if err != nil {
+				t.Fatalf("CreateLoopRunForStart() error = %v", err)
+			}
+			claim := claimCoordinatorRunForTest(
+				ctx,
+				t,
+				globalDB,
+				loopRun.ID,
+				"run-generation-origin-matrix-g1",
+				now,
+			)
+
+			for index, origin := range origins {
+				generation := index + 1
+				nextGeneration := generation + 1
+				parentGeneration := int64(generation)
+				if origin == looppkg.OriginRatchetRestore {
+					parentGeneration = 2
+				}
+				provenance := looppkg.GenerationIntent{
+					Generation:       int64(nextGeneration),
+					ParentGeneration: parentGeneration,
+					Origin:           origin,
+				}
+				nextCoordinatorID := loopCoordinatorRunID(loopRun.ID, nextGeneration)
+				_, err := globalDB.CompleteCoordinatorAndEnqueueNext(ctx, taskpkg.CoordinatorCompletion{
+					RunID: claim.Run.ID, ClaimToken: claim.ClaimToken,
+					Actor: coordinatorActorContextForTest(),
+					Plan: taskpkg.CoordinatorCompletionPlan{
+						Snapshot: taskpkg.GenerationSnapshot{
+							LoopRunID: string(loopRun.ID), Generation: generation,
+						},
+						PostReserveSnapshot: &taskpkg.GenerationSnapshot{
+							LoopRunID: string(loopRun.ID), Generation: nextGeneration,
+							Payload: looppkg.GenerationSnapshotPayload{
+								GenerationProvenance: &provenance,
+								Events: []looppkg.GenerationLifecycleEventIntent{{
+									Kind: looppkg.GenerationLifecycleEventGenerationStarted,
+								}},
+							},
+						},
+						NextCoordinator: &taskpkg.EnqueueSpec{
+							TaskID: claim.Run.TaskID, RunID: nextCoordinatorID,
+							RunKind: taskpkg.RunKindCoordinator, LoopRunID: string(loopRun.ID),
+							IdempotencyKey: fmt.Sprintf("generation-origin-matrix-%d", nextGeneration),
+						},
+					},
+					Now: now.Add(time.Duration(nextGeneration) * time.Second),
+				}, looppkg.NewStoreFinalizer())
+				if err != nil {
+					t.Fatalf("CompleteCoordinatorAndEnqueueNext(%s) error = %v", origin, err)
+				}
+				if index == len(origins)-1 {
+					continue
+				}
+				claim, err = globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+					RunID: nextCoordinatorID, Scope: taskpkg.ScopeWorkspace,
+					WorkspaceID: string(loopRun.WorkspaceID), RunKind: taskpkg.RunKindCoordinator,
+					ClaimerSessionID: fmt.Sprintf("daemon-origin-matrix-%d", nextGeneration),
+					LeaseDuration:    time.Minute,
+					Now:              now.Add(time.Duration(nextGeneration)*time.Second + 500*time.Millisecond),
+				})
+				if err != nil {
+					t.Fatalf("ClaimNextRun(generation %d) error = %v", nextGeneration, err)
+				}
+			}
+
+			generations, err := globalDB.ListGenerations(ctx, string(loopRun.WorkspaceID), string(loopRun.ID))
+			if err != nil {
+				t.Fatalf("ListGenerations() error = %v", err)
+			}
+			if len(generations) != len(origins)+1 {
+				t.Fatalf("generation rows = %d, want %d", len(generations), len(origins)+1)
+			}
+			if generations[0].Origin != looppkg.OriginInitial {
+				t.Fatalf("initial origin = %q, want %q", generations[0].Origin, looppkg.OriginInitial)
+			}
+			for index, origin := range origins {
+				generation := generations[index+1]
+				wantParent := int64(index + 1)
+				if origin == looppkg.OriginRatchetRestore {
+					wantParent = 2
+				}
+				if generation.Generation != int64(index+2) ||
+					generation.ParentGeneration != wantParent || generation.Origin != origin {
+					t.Fatalf("generation[%d] = %#v, want origin %q", index+1, generation, origin)
+				}
+			}
+			stored, err := globalDB.GetLoopRunByID(ctx, loopRun.ID)
+			if err != nil {
+				t.Fatalf("GetLoopRunByID() error = %v", err)
+			}
+			if got, want := stored.Generation, len(generations); got != want {
+				t.Fatalf("loop generation cursor = %d, want row count %d", got, want)
+			}
+
+			events, err := globalDB.ListLoopRunEvents(ctx, looppkg.RunEventQuery{
+				WorkspaceID: loopRun.WorkspaceID,
+				RunID:       loopRun.ID,
+			})
+			if err != nil {
+				t.Fatalf("ListLoopRunEvents() error = %v", err)
+			}
+			started := make([]looppkg.RunEvent, 0, len(generations))
+			for _, event := range events {
+				if event.Kind == loopRunEventGenerationStarted {
+					started = append(started, event)
+				}
+			}
+			if len(started) != len(generations) {
+				t.Fatalf("generation_started events = %d, want %d", len(started), len(generations))
+			}
+			wantOrigins := append([]looppkg.GenerationOrigin{looppkg.OriginInitial}, origins...)
+			for index, event := range started {
+				var payload struct {
+					Generation       int    `json:"generation"`
+					ParentGeneration int64  `json:"parent_generation"`
+					Origin           string `json:"origin"`
+				}
+				if err := json.Unmarshal(event.Payload, &payload); err != nil {
+					t.Fatalf("decode generation_started[%d] error = %v", index, err)
+				}
+				wantParent := int64(index)
+				if wantOrigins[index] == looppkg.OriginRatchetRestore {
+					wantParent = 2
+				}
+				if payload.Generation != index+1 || payload.ParentGeneration != wantParent ||
+					payload.Origin != string(wantOrigins[index]) {
+					t.Fatalf("generation_started[%d] payload = %#v, want origin %q", index, payload, wantOrigins[index])
+				}
+			}
+		},
+	)
+}
+
+func TestGlobalDBCoordinatorSuccessionShouldConvergeAcrossRealClaims(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name       string
+		placement  gate.Placement
+		firstRoute gate.RouteAction
+		wantOrigin looppkg.GenerationOrigin
+	}{
+		{
+			name: "in-body revise", placement: gate.PlacementInBody,
+			firstRoute: gate.RouteRevise, wantOrigin: looppkg.OriginGateRevise,
+		},
+		{
+			name: "in-body next generation", placement: gate.PlacementInBody,
+			firstRoute: gate.RouteNextGeneration, wantOrigin: looppkg.OriginGateNextGeneration,
+		},
+		{
+			name: "definition of done retry", placement: gate.PlacementDefinitionOfDone,
+			firstRoute: gate.RouteNextGeneration, wantOrigin: looppkg.OriginDoDRetry,
+		},
+	}
+	for _, tc := range cases {
+		t.Run("Should converge after "+tc.name+" with previous verdict context", func(t *testing.T) {
+			t.Parallel()
+			testGlobalDBCoordinatorSuccessionConvergence(t, tc.placement, tc.firstRoute, tc.wantOrigin)
+		})
+	}
+}
+
+func testGlobalDBCoordinatorSuccessionConvergence(
+	t *testing.T,
+	placement gate.Placement,
+	firstRoute gate.RouteAction,
+	wantOrigin looppkg.GenerationOrigin,
+) {
+	t.Helper()
+
+	globalDB := openLoopTestGlobalDB(t)
+	ctx := testutil.Context(t)
+	now := time.Date(2026, 7, 4, 15, 30, 0, 0, time.UTC)
+	suffix := strings.ReplaceAll(string(placement)+"-"+string(firstRoute), "_", "-")
+	run := successionLoopRunForTest(t, "looprun-succession-"+suffix, now, placement)
+	created, err := globalDB.CreateLoopRunForStart(ctx, run, dsl.ConcurrencyAllow)
+	if err != nil {
+		t.Fatalf("CreateLoopRunForStart() error = %v", err)
+	}
+	initialClaim := claimCoordinatorRunForTest(
+		ctx,
+		t,
+		globalDB,
+		created.ID,
+		"run-succession-initial-"+suffix,
+		now,
+	)
+	initialOutputs := []looppkg.GenerationOutput{{
+		Generation: 1, NodeID: "work", Status: "succeeded", OutputRef: `{"draft":1}`,
+	}}
+	if placement == gate.PlacementInBody {
+		initialOutputs = append(initialOutputs, looppkg.GenerationOutput{
+			Generation: 1, NodeID: "quality", Status: "pending",
+		})
+	}
+	_, err = globalDB.CompleteCoordinatorAndEnqueueNext(ctx, taskpkg.CoordinatorCompletion{
+		RunID: initialClaim.Run.ID, ClaimToken: initialClaim.ClaimToken,
+		Actor: coordinatorActorContextForTest(),
+		Plan: taskpkg.CoordinatorCompletionPlan{
+			Snapshot: taskpkg.GenerationSnapshot{
+				LoopRunID: string(created.ID), Generation: 1,
+				Payload: looppkg.GenerationSnapshotPayload{Outputs: initialOutputs},
+			},
+			Yield: true,
+		},
+		Now: now.Add(time.Second),
+	}, looppkg.NewStoreFinalizer())
+	if err != nil {
+		t.Fatalf("CompleteCoordinatorAndEnqueueNext(seed generation) error = %v", err)
+	}
+
+	wake, added, err := globalDB.EnqueueLoopCoordinatorWake(
+		ctx,
+		string(created.ID),
+		"succession-evaluate-g1-"+suffix,
+		taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "loop"},
+		now.Add(2*time.Second),
+	)
+	if err != nil || !added {
+		t.Fatalf("EnqueueLoopCoordinatorWake(g1) = %#v, %v, want added", wake, err)
+	}
+	wakeClaim := claimExactLoopTaskRunForTest(
+		ctx, t, globalDB, created, wake.ID, taskpkg.RunKindCoordinator, now.Add(3*time.Second),
+	)
+	evaluator := &successionSequenceGateEvaluator{firstRoute: firstRoute}
+	runner, err := looppkg.NewCoordinatorRunner(
+		globalDB,
+		globalDB,
+		globalDB,
+		slog.Default(),
+		looppkg.WithCoordinatorGateEvaluator(evaluator),
+	)
+	if err != nil {
+		t.Fatalf("NewCoordinatorRunner() error = %v", err)
+	}
+	firstPlan, err := runner.Run(ctx, taskpkg.RunID(wakeClaim.Run.ID))
+	if err != nil {
+		t.Fatalf("CoordinatorRunner.Run(first rejection) error = %v", err)
+	}
+	if firstPlan.Terminal != nil || firstPlan.NextCoordinator == nil || firstPlan.PostReserveSnapshot == nil {
+		t.Fatalf("first succession plan = %#v, want generation successor", firstPlan)
+	}
+	postPayload, err := looppkg.GenerationSnapshotPayloadFrom(firstPlan.PostReserveSnapshot.Payload)
+	if err != nil {
+		t.Fatalf("GenerationSnapshotPayloadFrom(first successor) error = %v", err)
+	}
+	if postPayload.GenerationProvenance == nil || postPayload.GenerationProvenance.Origin != wantOrigin {
+		t.Fatalf("first successor provenance = %#v, want %q", postPayload.GenerationProvenance, wantOrigin)
+	}
+	_, err = globalDB.CompleteCoordinatorAndEnqueueNext(ctx, taskpkg.CoordinatorCompletion{
+		RunID: wakeClaim.Run.ID, ClaimToken: wakeClaim.ClaimToken,
+		Actor: coordinatorActorContextForTest(), Plan: firstPlan, Now: now.Add(4 * time.Second),
+	}, looppkg.NewStoreFinalizer())
+	if err != nil {
+		t.Fatalf("CompleteCoordinatorAndEnqueueNext(first rejection) error = %v", err)
+	}
+
+	successorClaim := claimExactLoopTaskRunForTest(
+		ctx,
+		t,
+		globalDB,
+		created,
+		firstPlan.NextCoordinator.RunID,
+		taskpkg.RunKindCoordinator,
+		now.Add(5*time.Second),
+	)
+	materializePlan, err := runner.Run(ctx, taskpkg.RunID(successorClaim.Run.ID))
+	if err != nil {
+		t.Fatalf("CoordinatorRunner.Run(materialize successor) error = %v", err)
+	}
+	if len(materializePlan.NodeRuns) != 1 || materializePlan.PostReserveSnapshot == nil {
+		t.Fatalf("materialize successor plan = %#v, want one worker", materializePlan)
+	}
+	_, err = globalDB.CompleteCoordinatorAndEnqueueNext(ctx, taskpkg.CoordinatorCompletion{
+		RunID: successorClaim.Run.ID, ClaimToken: successorClaim.ClaimToken,
+		Actor: coordinatorActorContextForTest(), Plan: materializePlan, Now: now.Add(6 * time.Second),
+	}, looppkg.NewStoreFinalizer())
+	if err != nil {
+		t.Fatalf("CompleteCoordinatorAndEnqueueNext(materialize successor) error = %v", err)
+	}
+
+	workerClaim := claimExactLoopTaskRunForTest(
+		ctx,
+		t,
+		globalDB,
+		created,
+		materializePlan.NodeRuns[0].RunID,
+		taskpkg.RunKindWorker,
+		now.Add(7*time.Second),
+	)
+	if _, err := globalDB.CompleteRunLease(ctx, taskpkg.LeaseCompletion{
+		Actor: coordinatorActorContextForTest(), RunID: workerClaim.Run.ID,
+		ClaimToken: workerClaim.ClaimToken,
+		Result:     taskpkg.RunResult{Value: json.RawMessage(`{"draft":2}`)},
+		Now:        now.Add(8 * time.Second),
+	}); err != nil {
+		t.Fatalf("CompleteRunLease(successor worker) error = %v", err)
+	}
+
+	finalWake, added, err := globalDB.EnqueueLoopCoordinatorWake(
+		ctx,
+		string(created.ID),
+		"succession-evaluate-g2-"+suffix,
+		taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "loop"},
+		now.Add(9*time.Second),
+	)
+	if err != nil || !added {
+		t.Fatalf("EnqueueLoopCoordinatorWake(g2) = %#v, %v, want added", finalWake, err)
+	}
+	finalClaim := claimExactLoopTaskRunForTest(
+		ctx, t, globalDB, created, finalWake.ID, taskpkg.RunKindCoordinator, now.Add(10*time.Second),
+	)
+	finalPlan, err := runner.Run(ctx, taskpkg.RunID(finalClaim.Run.ID))
+	if err != nil {
+		t.Fatalf("CoordinatorRunner.Run(final approval) error = %v", err)
+	}
+	if finalPlan.Terminal == nil || finalPlan.Terminal.Status != string(looppkg.StatusDone) ||
+		finalPlan.NextCoordinator != nil {
+		t.Fatalf("final plan = %#v, want done without successor", finalPlan)
+	}
+	_, err = globalDB.CompleteCoordinatorAndEnqueueNext(ctx, taskpkg.CoordinatorCompletion{
+		RunID: finalClaim.Run.ID, ClaimToken: finalClaim.ClaimToken,
+		Actor: coordinatorActorContextForTest(), Plan: finalPlan, Now: now.Add(11 * time.Second),
+	}, looppkg.NewStoreFinalizer())
+	if err != nil {
+		t.Fatalf("CompleteCoordinatorAndEnqueueNext(final approval) error = %v", err)
+	}
+
+	stored, err := globalDB.GetLoopRunByID(ctx, created.ID)
+	if err != nil {
+		t.Fatalf("GetLoopRunByID() error = %v", err)
+	}
+	if stored.Status != looppkg.StatusDone || stored.Generation != 2 {
+		t.Fatalf("stored loop = status %q generation %d, want done generation 2", stored.Status, stored.Generation)
+	}
+	if evaluator.calls != 2 || !evaluator.sawPreviousVerdict {
+		t.Fatalf("evaluator calls/history = %d/%t, want 2/true", evaluator.calls, evaluator.sawPreviousVerdict)
+	}
+	generations, err := globalDB.ListGenerations(ctx, string(created.WorkspaceID), string(created.ID))
+	if err != nil {
+		t.Fatalf("ListGenerations() error = %v", err)
+	}
+	if len(generations) != 2 || generations[1].Origin != wantOrigin {
+		t.Fatalf("generations = %#v, want exactly two with origin %q", generations, wantOrigin)
+	}
+	for generation := int64(1); generation <= 2; generation++ {
+		verdicts, err := globalDB.ListGateVerdicts(ctx, string(created.WorkspaceID), string(created.ID), generation)
+		if err != nil {
+			t.Fatalf("ListGateVerdicts(%d) error = %v", generation, err)
+		}
+		if len(verdicts) != 1 {
+			t.Fatalf("ListGateVerdicts(%d) len = %d, want 1", generation, len(verdicts))
+		}
+	}
+	assertLoopLifecycleEventCounts(ctx, t, globalDB, created.ID, 2, 2)
+}
+
+type successionSequenceGateEvaluator struct {
+	firstRoute         gate.RouteAction
+	calls              int
+	sawPreviousVerdict bool
+}
+
+func (e *successionSequenceGateEvaluator) Evaluate(
+	_ context.Context,
+	runtimeGate gate.Gate,
+	input gate.GateInput,
+) (gate.Verdict, error) {
+	e.calls++
+	if len(runtimeGate.Criteria) == 0 {
+		return gate.Verdict{}, errors.New("succession evaluator received a gate without criteria")
+	}
+	outcome := gate.VerdictOutcomeRejected
+	action := e.firstRoute
+	passed := false
+	blocking := []gate.BlockingIssue{{ID: "repair_required", Note: "repair the prior output"}}
+	if e.calls == 2 {
+		previous, ok := input.TemplateData["previous"].(map[string]any)
+		if !ok {
+			return gate.Verdict{}, errors.New("second gate evaluation did not receive previous namespace")
+		}
+		verdicts, ok := previous["verdicts"].(map[string]any)
+		if !ok {
+			return gate.Verdict{}, errors.New("second gate evaluation did not receive previous verdicts")
+		}
+		if _, ok := verdicts[runtimeGate.ID]; !ok {
+			return gate.Verdict{}, fmt.Errorf("second gate evaluation missing previous verdict %q", runtimeGate.ID)
+		}
+		e.sawPreviousVerdict = true
+		outcome = gate.VerdictOutcomeApproved
+		passed = true
+		blocking = nil
+		if input.Placement == gate.PlacementDefinitionOfDone {
+			action = gate.RouteDone
+		} else {
+			action = gate.RouteContinue
+		}
+	}
+	criterion := runtimeGate.Criteria[0]
+	return gate.Verdict{
+		Outcome: outcome,
+		Criteria: []gate.CriterionResult{{
+			ID: criterion.ID, Type: criterion.Type, Outcome: outcome,
+			Passed: passed, BlockingIssues: blocking,
+		}},
+		BlockingIssues: blocking,
+		Route: gate.RouteDecision{
+			Placement: input.Placement, Action: action,
+			ReasonCode: "succession_" + string(action),
+		},
+	}, nil
+}
+
+func successionLoopRunForTest(
+	t *testing.T,
+	id string,
+	at time.Time,
+	placement gate.Placement,
+) looppkg.Run {
+	t.Helper()
+
+	criterion := dsl.GateCriterion{
+		ID: "quality", Type: dsl.CriterionCommand, Check: "verify", Expect: "exit_zero",
+	}
+	definition := dsl.Definition{
+		Meta: dsl.Meta{Name: "delivery", Version: 1},
+		Contract: dsl.Contract{
+			Goal: "Repair until the quality contract passes", DefinitionOfDone: "Quality passes",
+			IterationCap: 3, NoProgress: dsl.NoProgress{Window: 3},
+			Budget: dsl.Budget{Tokens: 100_000, WallClockSec: 3_600, OnExceeded: dsl.BudgetExceededHalt},
+		},
+		Graph: dsl.Graph{Nodes: []dsl.Node{{
+			ID: "work", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunAgent),
+			Params: dsl.NodeParams{"agent": "codex", "prompt": "Repair the draft"},
+		}}},
+	}
+	if placement == gate.PlacementDefinitionOfDone {
+		definition.Contract.Verification = []dsl.GateCriterion{criterion}
+	} else {
+		definition.Graph.Nodes = append(definition.Graph.Nodes, dsl.Node{
+			ID: "quality", Class: dsl.NodeClassControl, Kind: string(dsl.ControlGate),
+			Criteria: []dsl.GateCriterion{criterion}, VerdictPolicy: dsl.VerdictPolicyFixedPasses,
+		})
+		definition.Graph.Edges = []dsl.Edge{{From: "work", To: "quality"}}
+	}
+	definition.Normalize()
+	resolved, err := looppkg.NewCompiler().Compile(definition)
+	if err != nil {
+		t.Fatalf("Compile(succession definition) error = %v", err)
+	}
+	effective, err := looppkg.ResolveEffectiveConfig(
+		resolved,
+		looppkg.DefaultLoopDefaults(),
+		nil,
+		looppkg.LoopConfig{},
+	)
+	if err != nil {
+		t.Fatalf("ResolveEffectiveConfig(succession definition) error = %v", err)
+	}
+	snapshot, digest, err := looppkg.BuildExecutedDefinitionSnapshot(resolved, effective)
+	if err != nil {
+		t.Fatalf("BuildExecutedDefinitionSnapshot(succession definition) error = %v", err)
+	}
+	run := testLoopRun(id, at, looppkg.StatusRunning)
+	run.DefinitionVersion = resolved.DefinitionVersion
+	run.DefinitionDigest = digest
+	run.DefinitionSnapshot = snapshot
+	run.IterationCap = 3
+	run.BudgetTokens = 100_000
+	run.BudgetWallSec = 3_600
+	return run
+}
+
+func claimExactLoopTaskRunForTest(
+	ctx context.Context,
+	t *testing.T,
+	globalDB *GlobalDB,
+	run looppkg.Run,
+	runID string,
+	runKind taskpkg.RunKind,
+	now time.Time,
+) taskpkg.ClaimResult {
+	t.Helper()
+
+	claim, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+		RunID: runID, Scope: taskpkg.ScopeWorkspace, WorkspaceID: string(run.WorkspaceID),
+		RunKind: runKind, ClaimerSessionID: "daemon-succession-" + runID,
+		LeaseDuration: time.Minute, Now: now,
+	})
+	if err != nil {
+		t.Fatalf("ClaimNextRun(%s) error = %v", runID, err)
+	}
+	return claim
+}
+
+func assertLoopLifecycleEventCounts(
+	ctx context.Context,
+	t *testing.T,
+	globalDB *GlobalDB,
+	runID looppkg.RunID,
+	wantGenerationStarted int,
+	wantGateVerdict int,
+) {
+	t.Helper()
+
+	var generationStarted int
+	var gateVerdicts int
+	if err := globalDB.db.QueryRowContext(
+		ctx,
+		`SELECT
+			SUM(CASE WHEN kind = ? THEN 1 ELSE 0 END),
+			SUM(CASE WHEN kind = ? THEN 1 ELSE 0 END)
+		 FROM loop_run_events WHERE loop_run_id = ?`,
+		loopRunEventGenerationStarted,
+		loopRunEventGateVerdict,
+		string(runID),
+	).Scan(&generationStarted, &gateVerdicts); err != nil {
+		t.Fatalf("count loop lifecycle events error = %v", err)
+	}
+	if generationStarted != wantGenerationStarted || gateVerdicts != wantGateVerdict {
+		t.Fatalf(
+			"lifecycle event counts = generation_started %d gate_verdict %d, want %d/%d",
+			generationStarted,
+			gateVerdicts,
+			wantGenerationStarted,
+			wantGateVerdict,
+		)
+	}
+}
+
+type metricCommandRunnerFunc func(context.Context, gate.CommandRequest) (gate.CommandResult, error)
+
+func (f metricCommandRunnerFunc) RunCommand(
+	ctx context.Context,
+	request gate.CommandRequest,
+) (gate.CommandResult, error) {
+	return f(ctx, request)
+}
+
+func assertCoordinatorIntentRows(
+	ctx context.Context,
+	t *testing.T,
+	globalDB *GlobalDB,
+	runID looppkg.RunID,
+	wantOutputs int,
+	wantVerdicts int,
+	wantEvents int,
+) {
+	t.Helper()
+
+	var outputs int
+	if err := globalDB.db.QueryRowContext(
+		ctx,
+		`SELECT COUNT(*) FROM loop_generation_outputs WHERE loop_run_id = ?`,
+		string(runID),
+	).Scan(&outputs); err != nil {
+		t.Fatalf("count generation outputs error = %v", err)
+	}
+	if outputs != wantOutputs {
+		t.Fatalf("generation outputs = %d, want %d", outputs, wantOutputs)
+	}
+	var verdicts int
+	if err := globalDB.db.QueryRowContext(
+		ctx,
+		`SELECT COUNT(*) FROM loop_gate_verdicts WHERE loop_run_id = ?`,
+		string(runID),
+	).Scan(&verdicts); err != nil {
+		t.Fatalf("count gate verdicts error = %v", err)
+	}
+	if verdicts != wantVerdicts {
+		t.Fatalf("gate verdicts = %d, want %d", verdicts, wantVerdicts)
+	}
+	var generations int
+	if err := globalDB.db.QueryRowContext(
+		ctx,
+		`SELECT COUNT(*) FROM loop_generations WHERE loop_run_id = ?`,
+		string(runID),
+	).Scan(&generations); err != nil {
+		t.Fatalf("count generation provenance rows error = %v", err)
+	}
+	if generations != 1 {
+		t.Fatalf("generation provenance rows = %d, want preserved initial row", generations)
+	}
+	var events int
+	if err := globalDB.db.QueryRowContext(
+		ctx,
+		`SELECT COUNT(*) FROM loop_run_events
+		 WHERE loop_run_id = ? AND kind IN (?, ?)`,
+		string(runID),
+		loopRunEventGenerationStarted,
+		loopRunEventGateVerdict,
+	).Scan(&events); err != nil {
+		t.Fatalf("count generation lifecycle events error = %v", err)
+	}
+	if events != wantEvents {
+		t.Fatalf("generation lifecycle events = %d, want %d", events, wantEvents)
 	}
 }
 
@@ -4758,7 +6082,7 @@ func TestGlobalDBCompleteRunLeaseShouldCommitCoordinatorControlWithoutNodeSucces
 			t.Fatalf("BuildExecutedDefinitionSnapshot() error = %v", err)
 		}
 		seed := testLoopRun("looprun-goal-control-pending", now, looppkg.StatusRunning)
-		seed.Generation = 1
+		seed.Generation = 0
 		seed.DefinitionVersion = resolvedDefinition.DefinitionVersion
 		seed.DefinitionDigest = digest
 		seed.DefinitionSnapshot = snapshot
@@ -4798,6 +6122,13 @@ func TestGlobalDBCompleteRunLeaseShouldCommitCoordinatorControlWithoutNodeSucces
 			runID,
 		); err != nil {
 			t.Fatalf("insert generation output error = %v", err)
+		}
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			`UPDATE loop_runs SET generation = 1 WHERE id = ?`,
+			string(loopRun.ID),
+		); err != nil {
+			t.Fatalf("advance loop generation fixture error = %v", err)
 		}
 		claim, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
 			Scope:            taskpkg.ScopeGlobal,
@@ -5080,46 +6411,74 @@ func TestGlobalDBHeartbeatRunLeaseShouldPersistCoalescedLoopTokenTicks(t *testin
 	}
 }
 
-func TestLoopGateVerdictEventPayloadShouldSurfaceCriterionConfidence(t *testing.T) {
+func TestLoopGateVerdictEventPayloadShouldSurfaceCriterionDiagnostics(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should keep confidence on each criterion and omit ambiguous summary", func(t *testing.T) {
+	t.Run("Should project only the sanitized command output into the criterion note", func(t *testing.T) {
 		t.Parallel()
 
-		firstConfidence := 0.91
-		secondConfidence := 0.42
-		raw := mustJSON(t, gate.Verdict{
+		const secret = "compozy_claim_LOOP_EVENT_SECRET_1234567890"
+		verdict, err := gate.NewVerdictIntent("definition_of_done", 0, gate.Verdict{
 			Outcome: gate.VerdictOutcomeRejected,
-			Criteria: []gate.CriterionResult{
+			Criteria: []gate.CriterionResult{{
+				ID:      "claim_guard",
+				Type:    dsl.CriterionCommand,
+				Outcome: gate.VerdictOutcomeRejected,
+				Stdout:  secret,
+			}},
+		}, nil)
+		if err != nil {
+			t.Fatalf("NewVerdictIntent() error = %v", err)
+		}
+		payload, err := loopGateVerdictEventPayload(1, verdict, nil)
+		if err != nil {
+			t.Fatalf("loopGateVerdictEventPayload() error = %v", err)
+		}
+		criteria, ok := payload["criteria"].([]map[string]any)
+		if !ok || len(criteria) != 1 {
+			t.Fatalf("payload criteria = %#v, want one criterion", payload["criteria"])
+		}
+		note, ok := criteria[0]["note"].(string)
+		if !ok {
+			t.Fatalf("criterion note = %#v, want string", criteria[0]["note"])
+		}
+		if strings.Contains(note, secret) || !strings.Contains(note, "compozy_claim_[REDACTED]") {
+			t.Fatalf("criterion note = %q, want redacted command output", note)
+		}
+	})
+
+	t.Run("Should keep score on each criterion and omit ambiguous summary", func(t *testing.T) {
+		t.Parallel()
+
+		firstScore := 0.91
+		secondScore := 0.42
+		verdict := gate.VerdictIntent{
+			GateID:         "definition_of_done",
+			Outcome:        gate.VerdictOutcomeRejected,
+			BlockingIssues: json.RawMessage(`[]`),
+			Criteria: mustJSON(t, []gate.CriterionResult{
 				{
-					ID:         "all_handled",
-					Type:       dsl.CriterionAgentJudge,
-					Outcome:    gate.VerdictOutcomeRejected,
-					Confidence: &firstConfidence,
+					ID:      "all_handled",
+					Type:    dsl.CriterionAgentJudge,
+					Outcome: gate.VerdictOutcomeRejected,
+					Score:   &firstScore,
 				},
 				{
-					ID:         "docs_current",
-					Type:       dsl.CriterionAgentJudge,
-					Outcome:    gate.VerdictOutcomeApproved,
-					Passed:     true,
-					Confidence: &secondConfidence,
+					ID:      "docs_current",
+					Type:    dsl.CriterionAgentJudge,
+					Outcome: gate.VerdictOutcomeApproved,
+					Passed:  true,
+					Score:   &secondScore,
 				},
-			},
-			Route: gate.RouteDecision{
-				Action:     gate.RouteRevise,
-				ReasonCode: "blocking_issues",
-			},
-		})
+			}),
+		}
+		payload, err := loopGateVerdictEventPayload(2, verdict, nil)
+		if err != nil {
+			t.Fatalf("loopGateVerdictEventPayload() error = %v", err)
+		}
 
-		payload := loopGateVerdictEventPayload(testutil.Context(t), 2, taskpkg.CoordinatorTerminal{
-			GateID:     "definition_of_done",
-			Status:     string(looppkg.StatusRunning),
-			ReasonCode: "blocking_issues",
-			Details:    raw,
-		})
-
-		if _, ok := payload[loopRunEventPayloadKeyConfidence]; ok {
-			t.Fatalf("payload confidence = %#v, want omitted for multiple confidence-bearing criteria", payload)
+		if _, ok := payload[loopRunEventPayloadKeyScore]; ok {
+			t.Fatalf("payload score = %#v, want omitted for multiple score-bearing criteria", payload)
 		}
 		criteria, ok := payload["criteria"].([]map[string]any)
 		if !ok {
@@ -5128,59 +6487,108 @@ func TestLoopGateVerdictEventPayloadShouldSurfaceCriterionConfidence(t *testing.
 		if got, want := len(criteria), 2; got != want {
 			t.Fatalf("criteria count = %d, want %d", got, want)
 		}
-		if got := criteria[0][loopRunEventPayloadKeyConfidence]; got != firstConfidence {
-			t.Fatalf("criteria[0].confidence = %#v, want %.2f", got, firstConfidence)
+		if got, want := payload["gate_id"], "definition_of_done"; got != want {
+			t.Fatalf("payload gate_id = %#v, want %q", got, want)
 		}
-		if got := criteria[1][loopRunEventPayloadKeyConfidence]; got != secondConfidence {
-			t.Fatalf("criteria[1].confidence = %#v, want %.2f", got, secondConfidence)
+		if got := criteria[0][loopRunEventPayloadKeyScore]; got != firstScore {
+			t.Fatalf("criteria[0].score = %#v, want %.2f", got, firstScore)
+		}
+		if got := criteria[1][loopRunEventPayloadKeyScore]; got != secondScore {
+			t.Fatalf("criteria[1].score = %#v, want %.2f", got, secondScore)
 		}
 	})
 
-	t.Run("Should keep summary confidence when only one criterion has confidence", func(t *testing.T) {
+	t.Run("Should keep summary score when only one criterion has score", func(t *testing.T) {
 		t.Parallel()
 
-		confidence := 0.88
-		raw := mustJSON(t, gate.Verdict{
+		score := 0.88
+		bestGeneration := int64(3)
+		verdict, err := gate.NewVerdictIntent("definition_of_done", 0, gate.Verdict{
 			Outcome: gate.VerdictOutcomeApproved,
 			Criteria: []gate.CriterionResult{
 				{ID: "compile", Type: dsl.CriterionCommand, Outcome: gate.VerdictOutcomeApproved, Passed: true},
 				{
-					ID:         "review",
-					Type:       dsl.CriterionAgentJudge,
-					Outcome:    gate.VerdictOutcomeApproved,
-					Passed:     true,
-					Confidence: &confidence,
+					ID:      "review",
+					Type:    dsl.CriterionAgentJudge,
+					Outcome: gate.VerdictOutcomeApproved,
+					Passed:  true,
+					Score:   &score,
 				},
 			},
 			Route: gate.RouteDecision{Action: gate.RouteContinue},
-		})
+		}, nil)
+		if err != nil {
+			t.Fatalf("NewVerdictIntent() error = %v", err)
+		}
+		lifecycleEvent := looppkg.GenerationLifecycleEventIntent{
+			Kind:           looppkg.GenerationLifecycleEventGateVerdict,
+			GateID:         "definition_of_done",
+			Route:          gate.RouteContinue,
+			Reason:         "quality_approved",
+			BestGeneration: &bestGeneration,
+		}
+		payload, err := loopGateVerdictEventPayload(3, verdict, &lifecycleEvent)
+		if err != nil {
+			t.Fatalf("loopGateVerdictEventPayload() error = %v", err)
+		}
 
-		payload := loopGateVerdictEventPayload(testutil.Context(t), 3, taskpkg.CoordinatorTerminal{
-			GateID:  "definition_of_done",
-			Status:  string(looppkg.StatusRunning),
-			Details: raw,
-		})
-
-		if got := payload[loopRunEventPayloadKeyConfidence]; got != confidence {
-			t.Fatalf("payload confidence = %#v, want %.2f", got, confidence)
+		if got := payload[loopRunEventPayloadKeyScore]; got != score {
+			t.Fatalf("payload score = %#v, want %.2f", got, score)
+		}
+		if got, want := payload["route"], string(gate.RouteContinue); got != want {
+			t.Fatalf("payload route = %#v, want %q", got, want)
+		}
+		if got, want := payload[loopRunEventPayloadKeyReason], "quality_approved"; got != want {
+			t.Fatalf("payload reason = %#v, want %q", got, want)
+		}
+		gotBestGeneration, ok := payload["best_generation"].(int64)
+		if !ok {
+			t.Fatalf("payload best_generation = %#v, want int64", payload["best_generation"])
+		}
+		if got, want := gotBestGeneration, bestGeneration; got != want {
+			t.Fatalf("payload best_generation = %d, want %d", got, want)
+		}
+		if got, want := len(payload), 11; got != want {
+			t.Fatalf("payload fields = %#v (%d), want exact migrated shape with %d fields", payload, got, want)
+		}
+		encoded, err := json.Marshal(payload)
+		if err != nil {
+			t.Fatalf("json.Marshal(gate verdict payload) error = %v", err)
+		}
+		if strings.Contains(string(encoded), "confidence") {
+			t.Fatalf("gate verdict payload contains deleted confidence key: %s", encoded)
+		}
+		var wireEvent contract.LoopGateVerdictEventPayload
+		if err := json.Unmarshal(encoded, &wireEvent); err != nil {
+			t.Fatalf("json.Unmarshal(gate verdict contract) error = %v", err)
+		}
+		if wireEvent.NodeID != "definition_of_done" || wireEvent.GateID != "definition_of_done" ||
+			wireEvent.Generation != 3 || wireEvent.ItemIndex != 0 || wireEvent.Verdict != "pass" ||
+			wireEvent.Reason != "quality_approved" ||
+			wireEvent.Route != string(gate.RouteContinue) || wireEvent.Score == nil || *wireEvent.Score != score ||
+			wireEvent.BestGeneration == nil || *wireEvent.BestGeneration != bestGeneration {
+			t.Fatalf("gate verdict contract payload = %#v, want exact migrated values", wireEvent)
+		}
+		if len(wireEvent.Criteria) != 2 || wireEvent.Criteria[0].Score != nil ||
+			wireEvent.Criteria[1].Score == nil || *wireEvent.Criteria[1].Score != score {
+			t.Fatalf("gate verdict criteria = %#v, want criterion-level score only", wireEvent.Criteria)
 		}
 	})
 
-	t.Run("Should degrade malformed verdict details to revise payload", func(t *testing.T) {
+	t.Run("Should reject malformed sanitized verdict diagnostics", func(t *testing.T) {
 		t.Parallel()
 
-		payload := loopGateVerdictEventPayload(testutil.Context(t), 4, taskpkg.CoordinatorTerminal{
-			GateID:     "definition_of_done",
-			Status:     string(looppkg.StatusRunning),
-			ReasonCode: "malformed_verdict",
-			Details:    json.RawMessage(`{"outcome":`),
-		})
-
-		if got, want := payload["verdict"], loopRunEventVerdictRevise; got != want {
-			t.Fatalf("payload verdict = %#v, want %q", got, want)
+		_, err := loopGateVerdictEventPayload(4, gate.VerdictIntent{
+			GateID:         "definition_of_done",
+			Outcome:        gate.VerdictOutcomeRejected,
+			BlockingIssues: json.RawMessage(`[]`),
+			Criteria:       json.RawMessage(`{"outcome":`),
+		}, nil)
+		if err == nil {
+			t.Fatal("loopGateVerdictEventPayload() error = nil, want malformed diagnostics rejection")
 		}
-		if got, want := payload[loopRunEventPayloadKeyReason], "malformed_verdict"; got != want {
-			t.Fatalf("payload reason = %#v, want %q", got, want)
+		if !strings.Contains(err.Error(), "decode sanitized gate verdict criteria") {
+			t.Fatalf("loopGateVerdictEventPayload() error = %v, want criteria decode error", err)
 		}
 	})
 }
@@ -5638,4 +7046,21 @@ func loopEventPayloadForKind(
 	}
 	t.Fatalf("loop event kind %q not found in %#v", kind, events)
 	return nil
+}
+
+func TestNormalizePostReserveSnapshot(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should trim the fallback loop run id", func(t *testing.T) {
+		t.Parallel()
+
+		snapshot := normalizePostReserveSnapshot(
+			&taskpkg.GenerationSnapshot{LoopRunID: " \t ", Generation: 2},
+			taskpkg.GenerationSnapshot{},
+			"  loop-run-1  ",
+		)
+		if snapshot == nil || snapshot.LoopRunID != "loop-run-1" {
+			t.Fatalf("normalizePostReserveSnapshot() = %#v, want trimmed loop_run_id", snapshot)
+		}
+	})
 }

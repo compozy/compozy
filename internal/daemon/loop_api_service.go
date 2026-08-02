@@ -14,6 +14,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
+	"github.com/compozy/compozy/internal/loop/gate"
 	goalpkg "github.com/compozy/compozy/internal/loop/goal"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
@@ -29,6 +30,8 @@ type loopAPIPersistence interface {
 	looppkg.CatalogRunReader
 	looppkg.AnnotationStore
 	looppkg.DefinitionStateStore
+	looppkg.GenerationLineageReader
+	gate.VerdictReader
 }
 
 type loopGoalAPIPersistence interface {

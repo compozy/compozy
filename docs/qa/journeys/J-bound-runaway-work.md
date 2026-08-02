@@ -14,7 +14,17 @@ flowchart TD
     B -->|yes| RQ[Requeue with incremented recovery budget — token-fenced snapshot CAS intact]
     RQ --> O1
     B -->|no| TX[Terminal: needs_attention with lease_recovery_exhausted — crash-loop distinguished from ordinary failure]
-    E2[Entry: two-node loop, A always fails, B always succeeds] --> GEN[Generations advance]
+    E2[Entry: two-node loop, A always fails, B always succeeds] --> CAUSE{Why did the generation continue?}
+    CAUSE -->|node failed: failed_only| PARTIAL[Re-run failed or pending nodes and dependents; carry unrelated success]
+    CAUSE -->|node failed: full_body| FRESH[Re-run the full body]
+    CAUSE -->|gate revise| REPAIR[Re-run every causing gate's producers with previous verdict context]
+    CAUSE -->|metric gate revise| RESTORE[Seed carried output from best; origin ratchet_restore]
+    CAUSE -->|gate next_generation| GNEXT[Fresh full body; origin gate_next_generation]
+    PARTIAL --> GEN[Generations advance]
+    FRESH --> GEN
+    REPAIR --> GEN
+    RESTORE --> GEN
+    GNEXT --> GEN
     GEN --> ST{A's per-node streak at limit?}
     ST -->|yes| STL[Loop trips Stalled at A's streak — never runs to the iteration cap; B's successes never reset A]
     ST -->|healthy loop| OKL[Breaker never trips]
@@ -54,7 +64,7 @@ journey:
       expected_observable: "Each recovery consumes the durable budget; the run terminalizes at max_attempts with lease_recovery_exhausted — distinguishable from ordinary failure"
     - step: 2
       verb: "Advance a loop with one failing and one succeeding node"
-      expected_observable: "The loop trips Stalled at the failing node's per-node streak regardless of terminal order; an unbounded failing watch hits the hard backstop; a healthy loop never false-stalls"
+      expected_observable: "Node failed_only/full_body and gate revise/next_generation choose their documented rerun sets without resetting the failing node's streak; the loop trips Stalled at the per-node limit regardless of terminal order, while a healthy loop never false-stalls"
     - step: 3
       verb: "Race two exact claims on the same queued run"
       expected_observable: "Exactly one claim succeeds; the other receives the typed no-claimable-run outcome; exact and next-work selection share one CAS"
@@ -71,7 +81,7 @@ journey:
     - at_step: 1
       how: "The operator is away while the worker crash-loops."
       resume: "The budget bounds the loop autonomously; the parked needs_attention row with its reason waits durably for deliberate recovery — no unbounded requeue ever ran."
-  crosses: [task-runs-queue, ClaimNextRun-CAS, lease-recovery, loop-coordinator, generation-outputs, scheduler-sweep, CLI, HTTP, UDS]
+  crosses: [task-runs-queue, ClaimNextRun-CAS, lease-recovery, loop-coordinator, generation-history, generation-outputs, scheduler-sweep, CLI, HTTP, UDS]
 ```
 
 Taxonomy note: structured kernel journey with no Web surface. Functional, failure, concurrency,

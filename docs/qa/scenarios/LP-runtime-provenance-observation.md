@@ -9,10 +9,10 @@ entry_points: web loop run Inspect; compozy loop status -o json; GET /api/worksp
 qa_status: pass
 bug_ids:
 fix_status:
-retest_status:
+retest_status: pass
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-compozy-migration-beta-20260727-135201-116083-lab/qa-artifacts/qa/loop-parity/cli-origin-dry-run.normalized.json; /Users/pedronauck/dev/qa-labs/compozy-compozy-migration-beta-20260727-135201-116083-lab/qa-artifacts/qa/loop-parity/http-origin-dry-run.normalized.json; /Users/pedronauck/dev/qa-labs/compozy-compozy-migration-beta-20260727-135201-116083-lab/qa-artifacts/qa/loop-parity/uds-origin-dry-run.normalized.json
-last_report: docs/qa/reports/2026-07-27-devtool-oss-launch.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-compozy-migration-beta-20260727-135201-116083-lab/qa-artifacts/qa/loop-parity/cli-origin-dry-run.normalized.json; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260801-135009-390014-lab/qa-artifacts/qa/loop/same-run-parity-v6.json; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260801-135009-390014-lab/qa-artifacts/qa/loop/workspace-isolation-v6.json
+last_report: docs/qa/reports/2026-08-01-loops-paper-adoption.md
 overlaps: LP-044; LP-003
 ---
 

@@ -1,0 +1,449 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Run r-8f3a2b · software-delivery · Loops · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<style>
+  /* tokens — verbatim from design-system/ds-core.css (packages/ui/src/tokens.css lineage) */
+  :root{
+    color-scheme: dark;
+    --rail:#0c0b0b; --canvas:#131211; --canvas-soft:#1a1918; --canvas-tint:#1c1b1a; --elevated:#232220;
+    --fg:#ececef; --fg-strong:#f6f6f8; --muted:#9a9a9f; --subtle:#76767c; --faint:#545458;
+    --line:rgba(255,255,255,.055); --line-soft:rgba(255,255,255,.03); --line-strong:rgba(255,255,255,.09);
+    --accent:#e8572a; --accent-hover:#d14e25; --accent-strong:#f6874f; --accent-ink:#17110f;
+    --accent-tint:rgba(232,87,42,.10); --accent-dim:rgba(232,87,42,.24);
+    --success:#5fbf85; --success-tint:rgba(95,191,133,.08);
+    --warning:#d6a647; --warning-tint:rgba(214,166,71,.08);
+    --danger:#e0635a;  --danger-tint:rgba(224,99,90,.09);
+    --info:#8e8eb5;    --info-tint:rgba(142,142,181,.12);
+    --neutral:#7a7a80; --neutral-tint:rgba(150,150,155,.06);
+    --row-hover:rgba(255,255,255,.022);
+    --input-fill:rgba(255,255,255,.025); --badge-fill:rgba(255,255,255,.05);
+    --btn-fill:rgba(255,255,255,.04); --btn-hover:rgba(255,255,255,.07);
+    --radius-xxs:3px; --radius-xs:4px; --radius-sm:5px; --radius:6px; --radius-md:8px; --radius-lg:10px; --radius-pill:9999px;
+    --font-sans:"Inter Variable","Inter",-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --font-mono:"JetBrains Mono Variable","JetBrains Mono","SF Mono",ui-monospace,Menlo,monospace;
+    --dur:140ms; --ease:cubic-bezier(.2,0,0,1);
+    --highlight:inset 0 1px 0 rgba(255,255,255,.035);
+    --focus-ring:0 0 0 2px rgba(255,255,255,.5);
+    --shadow-overlay:0 24px 48px -12px rgba(0,0,0,.65), 0 0 0 1px rgba(255,255,255,.045);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--canvas);color:var(--fg);font-family:var(--font-sans);font-size:13.5px;line-height:1.5;letter-spacing:-.006em;
+    font-feature-settings:"cv01","ss03";-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+  a{color:inherit;text-decoration:none}
+  button{font:inherit;letter-spacing:inherit;color:inherit;background:none;border:0;cursor:pointer}
+  svg{display:block}
+  code,.mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums;font-feature-settings:normal}
+  :is(button,a,[tabindex],summary):focus-visible{outline:none;box-shadow:var(--focus-ring)}
+
+  /* unified head · 44px */
+  .w2head{min-height:44px;display:flex;align-items:center;gap:10px;padding:0 16px;
+    background:var(--canvas);border-bottom:1px solid var(--line);min-width:0}
+  .w2-back{width:24px;height:24px;flex:none;display:grid;place-items:center;border-radius:var(--radius);color:var(--muted)}
+  .w2-back:hover{background:var(--btn-fill);color:var(--fg-strong)}
+  .w2-back svg{width:14px;height:14px}
+  .w2-crumbs{display:flex;align-items:center;gap:2px;min-width:0}
+  .w2-crumb{font-size:13px;font-weight:500;color:var(--subtle);white-space:nowrap;border-radius:var(--radius-sm);padding:1px 5px}
+  .w2-crumb:hover{color:var(--fg);background:var(--row-hover)}
+  .w2-sep{flex:none;font-size:12px;color:var(--faint)}
+  .w2-title{font-size:13px;font-weight:600;color:var(--fg-strong);white-space:nowrap;padding-left:3px}
+  .w2-flex{flex:1;min-width:8px}
+  .w2-status{display:inline-flex;align-items:center;gap:6px;flex:none;font-size:10.5px;font-weight:600;color:var(--muted)}
+  .w2-status .dot{width:7px;height:7px;border-radius:50%;background:currentColor;flex:none}
+  .w2-status[data-tone="run"]{color:var(--accent-strong)}
+  .w2-vsep{width:1px;height:14px;background:var(--line-strong);flex:none}
+  .w2-actions{position:relative;display:flex;align-items:center;gap:6px;flex:none}
+  .btn{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:var(--radius-md);font-size:12px;
+    font-weight:500;letter-spacing:-.005em;border:1px solid var(--line);background:var(--btn-fill);white-space:nowrap;
+    transition:background var(--dur) var(--ease),border-color var(--dur) var(--ease),color var(--dur) var(--ease)}
+  .btn svg{width:13px;height:13px}
+  .btn:hover{background:var(--btn-hover);border-color:var(--line-strong);color:var(--fg-strong)}
+  .btn--danger{color:var(--danger)}
+  .btn--danger:hover{background:var(--danger-tint);border-color:color-mix(in srgb,var(--danger) 24%,transparent);color:var(--danger)}
+  .btn--icon{width:26px;padding:0;justify-content:center}
+  .menu{position:absolute;top:32px;right:0;min-width:190px;padding:5px;border-radius:var(--radius-md);background:var(--elevated);
+    border:1px solid var(--line-strong);box-shadow:var(--shadow-overlay);z-index:40;display:none}
+  .menu.is-open{display:block}
+  .menu__item{display:flex;align-items:center;gap:9px;width:100%;height:28px;padding:0 9px;border-radius:var(--radius-sm);font-size:12.5px;color:var(--fg);text-align:left}
+  .menu__item:hover{background:var(--row-hover);color:var(--fg-strong)}
+  .menu__item svg{width:13px;height:13px;color:var(--muted);flex:none}
+  .menu__item[data-tone="danger"]{color:var(--danger)}
+  .menu__item[data-tone="danger"] svg{color:var(--danger)}
+  .menu__item[data-tone="danger"]:hover{background:var(--danger-tint)}
+  .menu__sep{height:1px;margin:5px 4px;background:var(--line)}
+
+  .page{max-width:1240px;margin:0 auto;padding:24px 36px 72px}
+  .subhead{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:22px;padding-bottom:14px;
+    border-bottom:1px solid var(--line);font-size:12px;color:var(--subtle)}
+  .subhead b{font-weight:500;color:var(--muted)}
+  .subhead .mono{font-size:11px}
+  .dotsep{width:2px;height:2px;border-radius:50%;background:var(--faint);display:inline-block}
+
+  .layout{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:32px;align-items:start}
+
+  /* collapsible sections */
+  .sec{margin-bottom:24px;border:0}
+  .sec > summary{display:flex;align-items:center;gap:8px;padding:0 0 10px;cursor:pointer;list-style:none;user-select:none}
+  .sec > summary::-webkit-details-marker{display:none}
+  .sec > summary svg.si{width:14px;height:14px;color:var(--subtle);flex:none}
+  .sec > summary .st{font-size:10.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--subtle)}
+  .sec > summary .ssum{font-size:11.5px;color:var(--faint);margin-left:2px}
+  .sec > summary .spacer{flex:1}
+  .sec > summary svg.chev{width:14px;height:14px;color:var(--faint);flex:none;transition:transform var(--dur) var(--ease)}
+  .sec:not([open]) > summary svg.chev{transform:rotate(-90deg)}
+  .sec:not([open]) > summary{padding-bottom:0;margin-bottom:24px}
+  .panelbox{background:var(--canvas-soft);border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden}
+
+  /* pill vocabulary — Pill xs (17px), state only */
+  .pillxs{display:inline-flex;align-items:center;gap:5px;height:17px;padding:0 6px;border-radius:var(--radius-xs);
+    font-size:10.5px;font-weight:600;white-space:nowrap;background:var(--badge-fill);color:var(--muted)}
+  .pillxs.mono{font-family:var(--font-mono);font-weight:500}
+  .pillxs[data-tone="warning"]{background:var(--warning-tint);color:var(--warning)}
+  .pillxs[data-tone="info"]{background:var(--info-tint);color:var(--info)}
+
+  /* needs you */
+  .needsrow{display:flex;align-items:flex-start;gap:12px;padding:14px 16px}
+  .needsrow svg.ni{width:15px;height:15px;flex:none;margin-top:2px;color:var(--warning)}
+  .needsrow__main{min-width:0;flex:1}
+  .needsrow__label{font-size:13px;font-weight:520;color:var(--fg-strong)}
+  .needsrow__sub{margin-top:3px;font-size:12.5px;line-height:1.55;color:var(--muted);max-width:62ch}
+  .needsrow__trail{display:flex;flex-direction:column;align-items:flex-end;gap:4px;padding-top:2px}
+  .needsrow__age{font-family:var(--font-mono);font-size:11px;color:var(--subtle);white-space:nowrap}
+  .needsrow__act{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:520;color:var(--muted);padding:2px 4px;border-radius:var(--radius-xs)}
+  .needsrow__act:hover{color:var(--fg-strong)}
+  .needsrow__act svg{width:12px;height:12px}
+
+  /* progress */
+  .goalbox{padding:16px 18px 17px}
+  .goal-title{font-size:15px;font-weight:560;letter-spacing:-.014em;color:var(--fg-strong);text-wrap:pretty}
+  .pbar{display:flex;gap:3px;height:6px;margin-top:14px}
+  .pbar__seg{flex:1;border-radius:var(--radius-pill);background:var(--badge-fill)}
+  .pbar__seg[data-state="clean"]{background:var(--success)}
+  .pbar__seg[data-state="active"]{background:var(--accent-dim)}
+  .pbar-meta{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-top:9px;font-size:12px;color:var(--muted)}
+  .pbar-meta b{font-weight:560;color:var(--fg)}
+  .pbar-meta .r{color:var(--subtle);white-space:nowrap}
+
+  /* happening now */
+  .nowrow{display:flex;align-items:flex-start;gap:12px;padding:14px 16px}
+  .nowrow__dot{width:8px;height:8px;border-radius:50%;background:var(--accent);flex:none;margin-top:6px}
+  .nowrow__main{min-width:0;flex:1}
+  .nowrow__label{font-size:13.5px;font-weight:560;color:var(--fg-strong)}
+  .nowrow__sub{margin-top:3px;font-size:12.5px;line-height:1.55;color:var(--muted);max-width:62ch}
+  .nowrow__meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  .nowrow__time{font-family:var(--font-mono);font-size:11.5px;color:var(--subtle);white-space:nowrap;padding-top:3px}
+  .dot--pulse{animation:pulse 1.8s var(--ease) infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 color-mix(in srgb,currentColor 40%,transparent)}70%{box-shadow:0 0 0 5px transparent}100%{box-shadow:0 0 0 0 transparent}}
+
+  /* ── story timeline — packages/ui timeline.tsx + loop-run-story-timeline.tsx anatomy ──
+     row: grid 22px | 1fr | auto, gap 12, py 9; spine 1px line-strong at left 10.5;
+     dot: 22px ring (1.5px, tone color) on canvas, 11px lucide icon; trail: relative time + mono micro */
+  .tl{padding:6px 16px 10px}
+  .tlrow{position:relative;display:grid;grid-template-columns:22px minmax(0,1fr) auto;gap:12px;align-items:start;padding:9px 0}
+  .tlrow::before{content:"";position:absolute;left:10.5px;top:0;bottom:0;width:1px;background:var(--line-strong)}
+  .tlrow:first-child::before{top:14px}
+  .tlrow:last-child::before{bottom:auto;height:14px}
+  .tlrow__dot{position:relative;z-index:1;width:22px;height:22px;border-radius:50%;background:var(--canvas);
+    border:1.5px solid var(--tone,var(--faint));color:var(--tone,var(--faint));display:grid;place-items:center}
+  .tlrow__dot svg{width:11px;height:11px}
+  .tlrow__title{padding-top:2px;font-size:13px;font-weight:520;color:var(--fg-strong)}
+  .tlrow__sub{margin-top:2px;max-width:60ch;font-size:12.5px;line-height:1.5;color:var(--muted)}
+  .tlrow__meta{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:6px}
+  .tlrow__trail{display:flex;flex-direction:column;align-items:flex-end;gap:3px;padding-top:3px}
+  .tlrow__time{font-size:11.5px;color:var(--subtle);font-variant-numeric:tabular-nums;white-space:nowrap}
+  .tlrow__micro{font-family:var(--font-mono);font-size:9px;color:var(--faint);white-space:nowrap}
+
+  /* earlier-generation disclosure */
+  .genfold{border-top:1px solid var(--line-soft)}
+  .genfold > summary{display:flex;align-items:center;gap:8px;padding:11px 16px;cursor:pointer;list-style:none;font-size:12px;color:var(--subtle)}
+  .genfold > summary::-webkit-details-marker{display:none}
+  .genfold > summary:hover{color:var(--fg);background:var(--row-hover)}
+  .genfold > summary svg{width:13px;height:13px;transition:transform var(--dur) var(--ease)}
+  .genfold[open] > summary svg{transform:rotate(90deg)}
+
+  .quiet-note{display:flex;align-items:flex-start;gap:9px;padding:13px 15px;border-radius:var(--radius-md);
+    background:var(--canvas-soft);border:1px solid var(--line-soft);font-size:12.5px;line-height:1.55;color:var(--muted)}
+  .quiet-note svg{width:14px;height:14px;flex:none;margin-top:2px;color:var(--subtle)}
+  .quiet-note b{font-weight:520;color:var(--fg)}
+  .quiet-note .mono{font-size:11px}
+
+  /* rail — one card (production run rail) */
+  .railbox{background:var(--canvas-soft);border:1px solid var(--line);border-radius:var(--radius-lg)}
+  .rail-sec{padding:15px 16px;border-top:1px solid var(--line-soft)}
+  .rail-sec:first-child{border-top:0}
+  .rail-sec__t{display:flex;align-items:center;gap:7px;font-size:10.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--subtle);margin-bottom:9px}
+  .rail-sec__t svg{width:13px;height:13px;color:var(--faint)}
+  .prow{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:4px 0;min-height:25px}
+  .prow__k{font-size:12px;color:var(--subtle);flex:none}
+  .prow__v{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:510;color:var(--fg);min-width:0}
+  .prow__v.mono{font-size:11px;font-weight:500;color:var(--muted)}
+  .prow__v .max{color:var(--faint)}
+  .prow__v span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .prow__v a{color:var(--warning)}
+  .prow__v a:hover{filter:brightness(1.15)}
+  .rail-note{margin-top:8px;font-size:11px;line-height:1.5;color:var(--faint)}
+  .copybtn{display:inline-grid;place-items:center;width:18px;height:18px;color:var(--faint);border-radius:var(--radius-xxs)}
+  .copybtn:hover{color:var(--fg);background:var(--row-hover)}
+  .copybtn svg{width:11px;height:11px}
+  .rail-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;border-top:1px solid var(--line-soft);padding:8px 12px}
+  .rail-foot__btn{display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 8px;border-radius:var(--radius-md);color:var(--muted);font-size:11px;font-weight:500}
+  .rail-foot__btn:hover{background:var(--row-hover);color:var(--fg-strong)}
+  .rail-foot__btn svg{width:12px;height:12px}
+  .rail-foot .digest{font-family:var(--font-mono);font-size:9px;color:var(--faint)}
+
+  @media (max-width:1080px){.layout{grid-template-columns:1fr}.page{padding:20px 20px 56px}}
+  @media (prefers-reduced-motion: reduce){*{animation:none!important;transition-duration:.01ms!important}}
+</style>
+</head>
+<body>
+
+<header class="w2head" data-od-id="loop-run-head">
+  <a class="w2-back" href="loop-detail.html" aria-label="Back to loop"><i data-lucide="chevron-left"></i></a>
+  <nav class="w2-crumbs" aria-label="Breadcrumb">
+    <a class="w2-crumb" href="../_done/loops/loops-catalog.html">Loops</a>
+    <span class="w2-sep">/</span>
+    <a class="w2-crumb" href="loop-detail.html">software-delivery</a>
+    <span class="w2-sep">/</span>
+    <span class="w2-title">Run r-8f3a2b</span>
+  </nav>
+  <span class="w2-flex"></span>
+  <span class="w2-status" data-tone="run"><span class="dot dot--pulse" aria-hidden="true"></span>Running</span>
+  <span class="w2-vsep"></span>
+  <div class="w2-actions">
+    <!-- verbs per TechSpec routes: Pause only while status=running; Cancel (cooperative) on any live
+         status; Kill is the destructive escape in overflow. `stop` is deleted from the contract. -->
+    <button class="btn" type="button" data-od-id="loop-run-pause"><i data-lucide="pause"></i>Pause</button>
+    <button class="btn btn--danger" type="button" data-od-id="loop-run-cancel"><i data-lucide="ban"></i>Cancel run</button>
+    <button class="btn btn--icon" type="button" id="moreBtn" aria-label="More" aria-haspopup="menu" aria-expanded="false"><i data-lucide="ellipsis"></i></button>
+    <div class="menu" id="moreMenu" role="menu" data-od-id="loop-run-more-menu">
+      <a class="menu__item" role="menuitem" href="loop-editor.html"><i data-lucide="workflow"></i>View definition</a>
+      <div class="menu__sep"></div>
+      <button class="menu__item" type="button" role="menuitem" data-tone="danger" data-od-id="loop-run-kill"><i data-lucide="zap"></i>Kill run…</button>
+    </div>
+  </div>
+</header>
+
+<div class="page">
+  <div class="subhead" data-od-id="loop-run-subhead">
+    <span class="mono">r-8f3a2b</span><span class="dotsep"></span>
+    <span>Started by <b>schedule · nightly</b></span><span class="dotsep"></span>
+    <span>Generation <b>2</b></span><span class="dotsep"></span>
+    <span class="mono js-elapsed">14m 08s</span>
+  </div>
+
+  <div class="layout">
+    <main>
+
+      <!-- NEEDS YOU — only nonzero flags render (R4); the row itself carries the state -->
+      <details class="sec" open data-od-id="loop-run-needs-you">
+        <summary><i class="si" data-lucide="bell"></i><span class="st">Needs you</span><span class="ssum">1 item</span><span class="spacer"></span><i class="chev" data-lucide="chevron-down"></i></summary>
+        <div class="panelbox">
+          <div class="needsrow" data-od-id="needs-attention-task03">
+            <i class="ni" data-lucide="triangle-alert"></i>
+            <div class="needsrow__main">
+              <div class="needsrow__label">task_03 keeps hitting an unavailable service</div>
+              <div class="needsrow__sub">GitHub MCP refused two connections, so calls are paused until it recovers. If the last retry fails too, the step is set aside in quarantine. Nothing to do yet: this clears itself when the service returns.</div>
+            </div>
+            <div class="needsrow__trail">
+              <span class="needsrow__age">4m</span>
+              <a class="needsrow__act" href="loop-quarantine-sheet.html">Details <i data-lucide="arrow-right"></i></a>
+            </div>
+          </div>
+        </div>
+      </details>
+
+      <!-- PROGRESS — parked steps leave the denominator (PRD rule 27) -->
+      <details class="sec" open data-od-id="loop-run-progress">
+        <summary><i class="si" data-lucide="gauge"></i><span class="st">Progress</span><span class="spacer"></span><i class="chev" data-lucide="chevron-down"></i></summary>
+        <div class="panelbox">
+          <div class="goalbox">
+            <div class="goal-title">Ship every authored task under .compozy/tasks/loops-paper</div>
+            <div class="pbar" aria-label="4 tasks: 2 done, 1 retrying, 1 pending">
+              <span class="pbar__seg" data-state="clean" title="task_01 · schema migration · done"></span>
+              <span class="pbar__seg" data-state="clean" title="task_02 · store method · done"></span>
+              <span class="pbar__seg" data-state="active" title="task_03 · api handler · retrying"></span>
+              <span class="pbar__seg" title="task_04 · contract test · waits for task_03"></span>
+            </div>
+            <div class="pbar-meta">
+              <span><b>2 of 4</b> tasks done · task_03 retrying, task_04 queued behind it</span>
+              <span class="r">generation 2 of 50</span>
+            </div>
+          </div>
+        </div>
+      </details>
+
+      <!-- HAPPENING NOW — attempt truth on the row that owns it (US-008) -->
+      <details class="sec" open data-od-id="loop-run-now">
+        <summary><i class="si" data-lucide="activity"></i><span class="st">Happening now</span><span class="spacer"></span><i class="chev" data-lucide="chevron-down"></i></summary>
+        <div class="panelbox">
+          <div class="nowrow" data-od-id="now-task03">
+            <span class="nowrow__dot dot--pulse"></span>
+            <div class="nowrow__main">
+              <div class="nowrow__label">Implementing task_03 · api handler</div>
+              <div class="nowrow__sub">The last try couldn't reach GitHub MCP. The run waits out the backoff and tries again on its own; other steps keep running.</div>
+              <div class="nowrow__meta">
+                <span class="pillxs mono" data-tone="warning" data-od-id="attempt-chip">attempt 2 of 3 · next in <span class="js-count">0:38</span></span>
+              </div>
+            </div>
+            <span class="nowrow__time js-nowage">2m 10s</span>
+          </div>
+        </div>
+      </details>
+
+      <!-- WHAT HAPPENED — production Timeline anatomy, newest first; micro = the event kind -->
+      <details class="sec" open data-od-id="loop-run-story">
+        <summary><i class="si" data-lucide="history"></i><span class="st">What happened</span><span class="spacer"></span><i class="chev" data-lucide="chevron-down"></i></summary>
+        <div class="panelbox">
+          <ol class="tl" aria-label="Run story">
+            <li class="tlrow" style="--tone:var(--warning)" data-od-id="ev-retry-scheduled">
+              <span class="tlrow__dot"><i data-lucide="rotate-ccw"></i></span>
+              <div>
+                <div class="tlrow__title">task_03 will retry in 40s</div>
+                <div class="tlrow__sub">Couldn't reach GitHub MCP, classified as a service problem. It retries on its own with a growing pause.</div>
+              </div>
+              <div class="tlrow__trail"><time class="tlrow__time">2m ago</time><span class="tlrow__micro">node_retry_scheduled</span></div>
+            </li>
+            <li class="tlrow" style="--tone:var(--warning)" data-od-id="ev-breaker">
+              <span class="tlrow__dot"><i data-lucide="zap-off"></i></span>
+              <div>
+                <div class="tlrow__title">Paused calls to github-mcp</div>
+                <div class="tlrow__sub">Two connection failures opened its circuit. Calls hold until a probe succeeds; other services are not affected.</div>
+              </div>
+              <div class="tlrow__trail"><time class="tlrow__time">2m ago</time><span class="tlrow__micro">target_breaker_transition</span></div>
+            </li>
+            <li class="tlrow" data-od-id="ev-effect-results">
+              <span class="tlrow__dot"><i data-lucide="send"></i></span>
+              <div>
+                <div class="tlrow__title">A reaction couldn't post to #ops</div>
+                <div class="tlrow__sub">The retry notice failed to send. Recorded here and nothing else: reactions never touch the step itself.</div>
+              </div>
+              <div class="tlrow__trail"><time class="tlrow__time">2m ago</time><span class="tlrow__micro">effect_results</span></div>
+            </li>
+            <li class="tlrow" data-od-id="ev-custom">
+              <span class="tlrow__dot"><i data-lucide="radio"></i></span>
+              <div>
+                <div class="tlrow__title">task_retrying</div>
+                <div class="tlrow__sub">Custom event emitted by task_03's on_retry reaction.</div>
+              </div>
+              <div class="tlrow__trail"><time class="tlrow__time">2m ago</time><span class="tlrow__micro">custom_event</span></div>
+            </li>
+            <li class="tlrow" style="--tone:var(--info)" data-od-id="ev-death-resume">
+              <span class="tlrow__dot"><i data-lucide="history"></i></span>
+              <div>
+                <div class="tlrow__title">Picked up from checkpoint after a restart</div>
+                <div class="tlrow__sub">The worker died when the host restarted; the run continued from its last checkpoint. <b style="color:var(--fg);font-weight:520">Resumed, not retried</b>: no attempt was spent.</div>
+                <div class="tlrow__meta"><span class="pillxs mono" data-tone="info">episode 2 · resumed</span></div>
+              </div>
+              <div class="tlrow__trail"><time class="tlrow__time">6m ago</time><span class="tlrow__micro">disposition: resumed</span></div>
+            </li>
+            <li class="tlrow" style="--tone:var(--accent-strong)" data-od-id="ev-gen2">
+              <span class="tlrow__dot"><i data-lucide="play"></i></span>
+              <div>
+                <div class="tlrow__title">Generation 2 started</div>
+                <div class="tlrow__sub">Re-running only what failed: task_03. Finished work carries forward read-only.</div>
+              </div>
+              <div class="tlrow__trail"><time class="tlrow__time">9m ago</time><span class="tlrow__micro">generation_started</span></div>
+            </li>
+            <li class="tlrow" data-od-id="ev-duplicate">
+              <span class="tlrow__dot"><i data-lucide="copy-x"></i></span>
+              <div>
+                <div class="tlrow__title">A duplicate start was ignored</div>
+                <div class="tlrow__sub">The nightly schedule fired again while this run already held the claim. Nothing ran twice.</div>
+              </div>
+              <div class="tlrow__trail"><time class="tlrow__time">11m ago</time><span class="tlrow__micro">duplicate_suppressed</span></div>
+            </li>
+          </ol>
+
+          <!-- earlier generation, folded so the default view stays calm -->
+          <details class="genfold" data-od-id="story-gen1-fold">
+            <summary><i data-lucide="chevron-right"></i>Generation 1 · tasks 01–02 done, task_03 failed on review · 12 events</summary>
+            <ol class="tl">
+              <li class="tlrow" style="--tone:var(--success)">
+                <span class="tlrow__dot"><i data-lucide="check"></i></span>
+                <div>
+                  <div class="tlrow__title">task_01 and task_02 finished and passed review</div>
+                  <div class="tlrow__sub">Schema migration and store method, accepted by the judge with evidence.</div>
+                </div>
+                <div class="tlrow__trail"><time class="tlrow__time">28m ago</time><span class="tlrow__micro">node_done</span></div>
+              </li>
+              <li class="tlrow" style="--tone:var(--danger)">
+                <span class="tlrow__dot"><i data-lucide="x"></i></span>
+                <div>
+                  <div class="tlrow__title">task_03 failed its first pass</div>
+                  <div class="tlrow__sub">Couldn't fetch issue context from GitHub MCP. Review sent it to a new generation instead of failing the run.</div>
+                </div>
+                <div class="tlrow__trail"><time class="tlrow__time">12m ago</time><span class="tlrow__micro">node_failed</span></div>
+              </li>
+            </ol>
+          </details>
+        </div>
+      </details>
+
+      <!-- WHAT HAPPENS NEXT -->
+      <div class="quiet-note" data-od-id="loop-run-next">
+        <i data-lucide="route"></i>
+        <span><b>What happens next.</b> When task_03 lands, task_04 runs, then review and your project's checks. The run ends by asking your approval to ship into <span class="mono">main</span>.</span>
+      </div>
+
+    </main>
+
+    <!-- RAIL — one card: Usage · Attention · About · Inspect foot (production run rail) -->
+    <aside class="railbox" data-od-id="loop-run-rail">
+      <div class="rail-sec">
+        <div class="rail-sec__t"><i data-lucide="coins"></i>Usage</div>
+        <div class="prow"><span class="prow__k">Elapsed</span><span class="prow__v mono"><span class="js-elapsed">14m 08s</span></span></div>
+        <div class="prow"><span class="prow__k">Generations</span><span class="prow__v mono"><span>2 <span class="max">/ 50</span></span></span></div>
+        <div class="prow"><span class="prow__k">Tokens</span><span class="prow__v mono"><span>412k <span class="max">· no budget</span></span></span></div>
+        <div class="prow"><span class="prow__k">Cost</span><span class="prow__v mono"><span>$3.84 <span class="max">· display only</span></span></span></div>
+        <div class="rail-note">Retries and waits do not spend generations. A parked step suspends its clock; tokens keep counting.</div>
+      </div>
+      <div class="rail-sec">
+        <div class="rail-sec__t"><i data-lucide="inbox"></i>Waits &amp; attention</div>
+        <div class="prow"><span class="prow__k">Waiting on you</span><span class="prow__v mono"><span>0</span></span></div>
+        <div class="prow"><span class="prow__k">Needs attention</span><span class="prow__v mono"><a href="loop-inventories.html#attention">1 · task_03</a></span></div>
+        <div class="prow"><span class="prow__k">Quarantined</span><span class="prow__v mono"><span>0</span></span></div>
+      </div>
+      <div class="rail-sec">
+        <div class="rail-sec__t"><i data-lucide="info"></i>About this run</div>
+        <div class="prow"><span class="prow__k">Loop</span><span class="prow__v"><a href="loop-detail.html">software-delivery <span class="max">v4</span></a></span></div>
+        <div class="prow"><span class="prow__k">Started by</span><span class="prow__v mono"><span>schedule · nightly</span></span></div>
+        <div class="prow"><span class="prow__k">Run id</span><span class="prow__v mono"><span>r-8f3a2b</span><button class="copybtn" aria-label="Copy run id"><i data-lucide="copy"></i></button></span></div>
+        <div class="prow"><span class="prow__k">Inputs</span><span class="prow__v mono"><span>slug: loops-paper</span></span></div>
+      </div>
+      <div class="rail-foot" data-od-id="loop-run-rail-foot">
+        <button class="rail-foot__btn" type="button"><i data-lucide="search"></i>Inspect</button>
+        <span class="digest">digest 8f3a2b1</span>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<script src="https://unpkg.com/lucide@latest"></script>
+<script>
+  lucide.createIcons();
+  (function(){
+    var moreBtn = document.getElementById("moreBtn"), moreMenu = document.getElementById("moreMenu");
+    moreBtn.addEventListener("click", function(e){ e.stopPropagation(); var open = moreMenu.classList.toggle("is-open"); moreBtn.setAttribute("aria-expanded", open); });
+    document.addEventListener("click", function(){ moreMenu.classList.remove("is-open"); moreBtn.setAttribute("aria-expanded","false"); });
+    document.addEventListener("keydown", function(e){ if(e.key==="Escape"){ moreMenu.classList.remove("is-open"); moreBtn.setAttribute("aria-expanded","false"); } });
+
+    // live tickers — content updates only; pulse animation is CSS + reduced-motion guarded
+    var elapsed = 848, nowage = 130, count = 38;
+    function fmt(s){ var m = Math.floor(s/60), r = s%60; return m+"m "+String(r).padStart(2,"0")+"s"; }
+    function fmtc(s){ var m = Math.floor(s/60), r = s%60; return m+":"+String(r).padStart(2,"0"); }
+    setInterval(function(){
+      elapsed++; nowage++;
+      document.querySelectorAll(".js-elapsed").forEach(function(el){ el.textContent = fmt(elapsed); });
+      var na = document.querySelector(".js-nowage"); if(na) na.textContent = fmt(nowage);
+      if(count > 0){ count--; document.querySelectorAll(".js-count").forEach(function(el){ el.textContent = fmtc(count); }); }
+    }, 1000);
+  })();
+</script>
+</body>
+</html>

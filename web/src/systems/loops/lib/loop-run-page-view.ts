@@ -134,6 +134,7 @@ export function projectLoopRunPageView(input: LoopRunPageViewInput): LoopRunPage
     reattemptStrategy: run.reattempt_strategy,
     graph,
     generations,
+    bestGeneration: run.best_generation,
   });
 
   const elapsedSeconds = runElapsedSeconds(run, nowMs);

@@ -21,11 +21,13 @@ const (
 	JudgeTransportFailureIssueID = "judge_transport_failure"
 	// JudgeRubricInvalidIssueID is the canonical blocker for template/render failures.
 	JudgeRubricInvalidIssueID = "judge_rubric_invalid"
+	// MetricScoreInvalidIssueID is the canonical blocker and warning for an unusable metric score.
+	MetricScoreInvalidIssueID = "metric_score_invalid"
 )
 
 type structuredVerdict struct {
 	Outcome        VerdictOutcome
-	Confidence     *float64
+	Score          *float64
 	Evidence       json.RawMessage
 	BlockingIssues []BlockingIssue
 }
@@ -33,7 +35,7 @@ type structuredVerdict struct {
 type rawStructuredVerdict struct {
 	Verdict        string          `json:"verdict"`
 	BlockingIssues []BlockingIssue `json:"blocking_issues"`
-	Confidence     *float64        `json:"confidence"`
+	Score          *float64        `json:"score"`
 	Evidence       json.RawMessage `json:"evidence"`
 }
 
@@ -97,8 +99,15 @@ func RenderAgentJudgeRubric(
 	builder.WriteString("\n\nReturn exactly one JSON object with this schema:\n")
 	builder.WriteString(
 		`{"verdict":"pass|revise","blocking_issues":[{"id":"stable_snake_case","note":"..."}],` +
-			`"confidence":0.0,"evidence":{}}`,
+			`"evidence":{}`,
 	)
+	if criterion.Metric != nil {
+		builder.WriteString(`,"score":0.0`)
+	}
+	builder.WriteString("}")
+	if criterion.Metric != nil {
+		builder.WriteString("\nEvery metric verdict must include a finite numeric score in the score field.")
+	}
 	builder.WriteString("\nA passing verdict must include non-empty evidence tied to the contract. ")
 	builder.WriteString(
 		"If evidence is empty or missing, the evaluator will reject the verdict without treating the judge as broken.\n",
@@ -122,6 +131,15 @@ func renderJudgeTemplate(source string, data map[string]any) (string, error) {
 
 // ParseJudgeVerdict maps raw judge output into the ADR-022 criterion result.
 func ParseJudgeVerdict(criterionID string, criterionType dsl.CriterionType, raw string) CriterionResult {
+	return parseJudgeVerdict(criterionID, criterionType, raw, false)
+}
+
+func parseJudgeVerdict(
+	criterionID string,
+	criterionType dsl.CriterionType,
+	raw string,
+	requireScore bool,
+) CriterionResult {
 	payload, ok := exactJSONObject(raw)
 	if !ok {
 		return malformedJudgeResult(
@@ -130,8 +148,15 @@ func ParseJudgeVerdict(criterionID string, criterionType dsl.CriterionType, raw 
 			"judge response must be exactly one JSON object",
 		)
 	}
-	parsed, warnings, err := parseStructuredVerdict(payload, true, true)
+	parsed, warnings, err := parseStructuredVerdict(payload, structuredVerdictOptions{
+		requireEvidence: true,
+		judgeContract:   true,
+		requireScore:    requireScore,
+	})
 	if err != nil {
+		if requireScore {
+			return invalidMetricScoreResult(criterionID, criterionType, err.Error())
+		}
 		return malformedJudgeResult(criterionID, criterionType, err.Error())
 	}
 	result := CriterionResult{
@@ -139,11 +164,13 @@ func ParseJudgeVerdict(criterionID string, criterionType dsl.CriterionType, raw 
 		Type:           criterionType,
 		Outcome:        parsed.Outcome,
 		Passed:         parsed.Outcome == VerdictOutcomeApproved,
-		Confidence:     parsed.Confidence,
 		Evidence:       parsed.Evidence,
 		BlockingIssues: parsed.BlockingIssues,
 		Warnings:       warnings,
 		Payload:        cloneRawMessage(payload),
+	}
+	if requireScore {
+		result.Score = parsed.Score
 	}
 	if result.Outcome != VerdictOutcomeApproved && len(result.BlockingIssues) == 0 {
 		result.BlockingIssues = []BlockingIssue{{
@@ -154,14 +181,19 @@ func ParseJudgeVerdict(criterionID string, criterionType dsl.CriterionType, raw 
 	return result
 }
 
+type structuredVerdictOptions struct {
+	requireEvidence bool
+	judgeContract   bool
+	requireScore    bool
+}
+
 func parseStructuredVerdict(
 	raw json.RawMessage,
-	requireEvidence bool,
-	judgeContract bool,
+	options structuredVerdictOptions,
 ) (structuredVerdict, []DiagnosticWarning, error) {
 	var decoded rawStructuredVerdict
 	decoder := json.NewDecoder(bytes.NewReader(raw))
-	if judgeContract {
+	if options.judgeContract {
 		decoder.DisallowUnknownFields()
 	}
 	if err := decoder.Decode(&decoded); err != nil {
@@ -171,18 +203,18 @@ func parseStructuredVerdict(
 	if verdict == "" {
 		return structuredVerdict{}, nil, errors.New("structured verdict missing verdict")
 	}
-	outcome, err := mapStructuredOutcome(verdict, judgeContract)
+	outcome, err := mapStructuredOutcome(verdict, options.judgeContract)
 	if err != nil {
 		return structuredVerdict{}, nil, err
 	}
 	result := structuredVerdict{
 		Outcome:        outcome,
-		Confidence:     decoded.Confidence,
+		Score:          decoded.Score,
 		Evidence:       cloneRawMessage(decoded.Evidence),
 		BlockingIssues: normalizeBlockingIssues(decoded.BlockingIssues),
 	}
 	var warnings []DiagnosticWarning
-	if requireEvidence && outcome == VerdictOutcomeApproved && evidenceEmpty(decoded.Evidence) {
+	if options.requireEvidence && outcome == VerdictOutcomeApproved && evidenceEmpty(decoded.Evidence) {
 		result.Outcome = VerdictOutcomeRejected
 		result.BlockingIssues = []BlockingIssue{{
 			ID:   JudgeEvidenceRequiredIssueID,
@@ -193,7 +225,32 @@ func parseStructuredVerdict(
 			Message: "approved judge verdict requires non-empty evidence",
 		})
 	}
+	if options.requireScore {
+		if err := validateFiniteScore(decoded.Score); err != nil {
+			return structuredVerdict{}, nil, err
+		}
+	}
 	return result, warnings, nil
+}
+
+func invalidMetricScoreResult(
+	criterionID string,
+	criterionType dsl.CriterionType,
+	note string,
+) CriterionResult {
+	return CriterionResult{
+		ID:      criterionID,
+		Type:    criterionType,
+		Outcome: VerdictOutcomeInvalidOutput,
+		BlockingIssues: []BlockingIssue{{
+			ID:   MetricScoreInvalidIssueID,
+			Note: note,
+		}},
+		Warnings: []DiagnosticWarning{{
+			Code:    MetricScoreInvalidIssueID,
+			Message: note,
+		}},
+	}
 }
 
 func mapStructuredOutcome(verdict string, judgeContract bool) (VerdictOutcome, error) {

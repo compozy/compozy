@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "loops/loop-quarantine-sheet.html",
+  "entry": "loops/loop-quarantine-sheet.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-08-02T00:25:01.867Z",
+  "updatedAt": "2026-08-02T00:25:01.867Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

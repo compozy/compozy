@@ -18,6 +18,8 @@ import {
   generationsFor,
   genericWatchDefinition,
   genericWatchRun,
+  metricRatchetDefinition,
+  metricRatchetRun,
   minutesAgo,
   nodePayload,
   reviewAndFixDefinition,
@@ -44,7 +46,12 @@ export function runningScenario(): LoopRunStoryScenario {
   const frame = createFrameFactory();
   const frames = [
     ...roundOneFrames(frame),
-    frame("generation_started", 4, { generation: 2, reattempt_strategy: "failed_only" }),
+    frame("generation_started", 4, {
+      generation: 2,
+      parent_generation: 1,
+      origin: "gate_revise",
+      reattempt_strategy: "failed_only",
+    }),
     frame(
       "node_running",
       4,
@@ -68,7 +75,12 @@ export function needsApprovalScenario(): LoopRunStoryScenario {
   const frame = createFrameFactory();
   const frames = [
     ...roundOneFrames(frame, 20),
-    frame("generation_started", 6, { generation: 3, reattempt_strategy: "failed_only" }),
+    frame("generation_started", 6, {
+      generation: 3,
+      parent_generation: 2,
+      origin: "gate_revise",
+      reattempt_strategy: "failed_only",
+    }),
     frame("needs_approval", 2, {
       gate_id: "tool_policy",
       title: "Approve writing review artifacts?",
@@ -105,7 +117,12 @@ export function needsApprovalScenario(): LoopRunStoryScenario {
 export function watchingScenario(): LoopRunStoryScenario {
   const frame = createFrameFactory("r-watch-01");
   const frames = [
-    frame("generation_started", 20, { generation: 4, reattempt_strategy: "failed_only" }),
+    frame("generation_started", 20, {
+      generation: 4,
+      parent_generation: 3,
+      origin: "reattempt",
+      reattempt_strategy: "failed_only",
+    }),
     frame("node_succeeded", 19, nodePayload("watch_inbox", 4)),
     frame("node_succeeded", 18, nodePayload("handle_event", 4)),
     frame("status_changed", 16, {
@@ -126,6 +143,9 @@ export function watchingScenario(): LoopRunStoryScenario {
     generations: [
       {
         generation: 4,
+        parent_generation: 3,
+        origin: "reattempt",
+        verdicts: [],
         outputs: [
           { node_id: "watch_inbox", status: "succeeded", generation: 4 },
           { node_id: "handle_event", status: "succeeded", generation: 4 },
@@ -144,7 +164,12 @@ export function pausedScenario(): LoopRunStoryScenario {
   const frame = createFrameFactory();
   const frames = [
     ...roundOneFrames(frame, 5),
-    frame("generation_started", 8, { generation: 2, reattempt_strategy: "failed_only" }),
+    frame("generation_started", 8, {
+      generation: 2,
+      parent_generation: 1,
+      origin: "gate_revise",
+      reattempt_strategy: "failed_only",
+    }),
     frame("status_changed", 3, {
       from: "running",
       to: "paused",
@@ -170,7 +195,12 @@ export function failedScenario(): LoopRunStoryScenario {
   const frame = createFrameFactory();
   const frames = [
     ...roundOneFrames(frame, 61),
-    frame("generation_started", 62, { generation: 2, reattempt_strategy: "failed_only" }),
+    frame("generation_started", 62, {
+      generation: 2,
+      parent_generation: 1,
+      origin: "gate_revise",
+      reattempt_strategy: "failed_only",
+    }),
     frame(
       "node_running",
       61,
@@ -203,10 +233,156 @@ export function failedScenario(): LoopRunStoryScenario {
   };
 }
 
+function metricGeneration(
+  generation: number,
+  parentGeneration: number,
+  origin: LoopRunGeneration["origin"],
+  score?: number
+): LoopRunGeneration {
+  return {
+    generation,
+    parent_generation: parentGeneration,
+    origin,
+    verdicts:
+      score === undefined
+        ? []
+        : [
+            {
+              gate_id: "quality",
+              item_index: 0,
+              outcome: "approved",
+              score,
+              route_cause_rank: 0,
+              criteria: [],
+              blocking_issues: [],
+            },
+          ],
+    outputs: [{ node_id: "draft", status: "succeeded", generation }],
+  };
+}
+
+function metricVerdictPayload(generation: number, score: number, bestGeneration: number) {
+  return {
+    node_id: "quality",
+    gate_id: "quality",
+    generation,
+    verdict: "pass",
+    score,
+    best_generation: bestGeneration,
+    criteria: [{ id: "quality_score", type: "agent-judge", status: "pass", score }],
+    blocking_issues: [],
+    route: "next_generation",
+  };
+}
+
+export function scoredBestScenario(): LoopRunStoryScenario {
+  const frame = createFrameFactory("r-score-best");
+  const frames = [
+    frame("generation_started", 12, {
+      generation: 1,
+      parent_generation: 0,
+      origin: "initial",
+      reattempt_strategy: "full_body",
+    }),
+    frame("gate_verdict", 10, metricVerdictPayload(1, 0.72, 1)),
+    frame("generation_started", 8, {
+      generation: 2,
+      parent_generation: 1,
+      origin: "gate_next_generation",
+      reattempt_strategy: "full_body",
+    }),
+    frame("gate_verdict", 5, metricVerdictPayload(2, 0.96, 2)),
+    frame("status_changed", 4, {
+      from: "running",
+      to: "done",
+      status: "done",
+      cause: "stop_when",
+    }),
+  ];
+  return {
+    run: metricRatchetRun({
+      id: "r-score-best",
+      status: "done",
+      generation: 2,
+      best_generation: 2,
+      best_score: 0.96,
+    }),
+    definition: metricRatchetDefinition,
+    frames,
+    generations: [
+      metricGeneration(1, 0, "initial", 0.72),
+      metricGeneration(2, 1, "gate_next_generation", 0.96),
+    ],
+  };
+}
+
+export function ratchetRestoreScenario(): LoopRunStoryScenario {
+  const frame = createFrameFactory("r-ratchet-restore");
+  const frames = [
+    frame("generation_started", 18, {
+      generation: 1,
+      parent_generation: 0,
+      origin: "initial",
+      reattempt_strategy: "full_body",
+    }),
+    frame("gate_verdict", 16, metricVerdictPayload(1, 0.8, 1)),
+    frame("generation_started", 13, {
+      generation: 2,
+      parent_generation: 1,
+      origin: "gate_next_generation",
+      reattempt_strategy: "full_body",
+    }),
+    frame("gate_verdict", 10, metricVerdictPayload(2, 0.6, 1)),
+    frame("generation_started", 7, {
+      generation: 3,
+      parent_generation: 1,
+      origin: "ratchet_restore",
+      reattempt_strategy: "full_body",
+    }),
+    frame("node_running", 6, nodePayload("draft", 3)),
+  ];
+  return {
+    run: metricRatchetRun({
+      id: "r-ratchet-restore",
+      status: "running",
+      generation: 3,
+      best_generation: 1,
+      best_score: 0.8,
+    }),
+    definition: metricRatchetDefinition,
+    frames,
+    generations: [
+      metricGeneration(1, 0, "initial", 0.8),
+      metricGeneration(2, 1, "gate_next_generation", 0.6),
+      metricGeneration(3, 1, "ratchet_restore"),
+    ],
+  };
+}
+
 export function exhaustedScenario(): LoopRunStoryScenario {
   const frame = createFrameFactory();
   const frames = [
-    ...roundOneFrames(frame, 26),
+    frame("generation_started", 50, {
+      generation: 1,
+      parent_generation: 0,
+      origin: "initial",
+      reattempt_strategy: "full_body",
+    }),
+    frame("gate_verdict", 44, metricVerdictPayload(1, 0.7, 1)),
+    frame("generation_started", 40, {
+      generation: 2,
+      parent_generation: 1,
+      origin: "gate_next_generation",
+      reattempt_strategy: "full_body",
+    }),
+    frame("gate_verdict", 36, metricVerdictPayload(2, 0.6, 1)),
+    frame("generation_started", 34, {
+      generation: 3,
+      parent_generation: 1,
+      origin: "ratchet_restore",
+      reattempt_strategy: "full_body",
+    }),
+    frame("gate_verdict", 31, metricVerdictPayload(3, 0.5, 1)),
     frame("status_changed", 30, {
       from: "running",
       to: "exhausted",
@@ -215,17 +391,24 @@ export function exhaustedScenario(): LoopRunStoryScenario {
     }),
   ];
   return {
-    run: reviewAndFixRun({
+    run: metricRatchetRun({
+      id: "r-best-exhausted",
       status: "exhausted",
       generation: 3,
+      best_generation: 1,
+      best_score: 0.7,
       tokens_used: 144_000,
       created_at: minutesAgo(80),
       started_at: minutesAgo(80),
       last_progress_at: minutesAgo(30),
     }),
-    definition: reviewAndFixDefinition,
+    definition: metricRatchetDefinition,
     frames,
-    generations: generationsFor("pending"),
+    generations: [
+      metricGeneration(1, 0, "initial", 0.7),
+      metricGeneration(2, 1, "gate_next_generation", 0.6),
+      metricGeneration(3, 1, "ratchet_restore", 0.5),
+    ],
   };
 }
 

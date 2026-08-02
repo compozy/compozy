@@ -71,6 +71,54 @@ parked until its child Loop terminates.
 A separate failure **circuit breaker** ends the run `stalled` after consecutive node failures
 reach the daemon limit, so a Loop that only ever fails cannot burn its whole iteration cap.
 
+## Re-attempt and rejection semantics
+
+Every new generation records why it exists. Node failures use the configured re-attempt strategy;
+gate rejection uses the gate's explicit route. They are separate controls.
+
+| Cause                                                    | What runs next                                                                                                               | Origin                 |
+| -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | ---------------------- |
+| Node failure with `failed_only` (default)                | Failed or pending nodes and their transitive dependents re-run; unrelated successful outputs carry forward.                  | `reattempt`            |
+| Node failure with `full_body`                            | The whole body re-runs.                                                                                                      | `reattempt`            |
+| In-body gate rejection routed to `revise`                | Producers of every route-causing gate, those gates, and their dependents re-run; unrelated successful outputs carry forward. | `gate_revise`          |
+| Metric gate `revise` with an existing best               | The same producer-scoped repair runs, but carried outputs seed from the best generation.                                     | `ratchet_restore`      |
+| In-body gate rejection routed to `next_generation`       | A fresh full-body generation starts.                                                                                         | `gate_next_generation` |
+| Definition-of-done rejection routed to `next_generation` | A fresh full-body generation starts instead of terminating the run.                                                          | `dod_retry`            |
+
+`revise` is targeted repair; `next_generation` is a fresh pass. Both carry the prior verdicts in
+`previous.verdicts.*` and their ordered causes in `previous.route_causes`, so the next attempt can
+act on typed failure context. Iteration caps, budgets, gate revision limits, no-progress detection,
+and the failure circuit breaker apply to every row in the table.
+
+### Weak evidence is a route, not a hidden prompt instruction
+
+If evidence quality decides whether work may continue, encode that decision as a gate. A prompt
+that says “improve this if the evidence feels weak” leaves the transition inside model prose; the
+runtime cannot audit, bound, or reproduce it. A typed criterion plus `on_result` makes the same
+decision visible and deterministic:
+
+```yaml
+- id: evidence
+  class: control
+  kind: gate
+  criteria:
+    - id: source_quality
+      type: agent-judge
+      agent: evidence_reviewer
+      rubric: >
+        Approve only when every material claim cites a primary source and the cited evidence
+        directly supports it. Return stable blocking issue ids for missing or weak support.
+  verdict_policy: revise_until_clean
+  on_result:
+    fail: revise
+  max_revisions: 4
+```
+
+The next producer can read `previous.verdicts.evidence.blocking_issues` under a guarded
+`{{ with .previous }}` block. Choose `revise` when the evidence-producing branch should be repaired,
+`next_generation` when the entire body needs a fresh pass, or `halt` when weak evidence must stop
+the run. The gate owns the decision; the prompt consumes its recorded evidence.
+
 ## Limits, budgets, and ceilings
 
 Every stop limit has a **per-Loop default** (the definition, seeded by

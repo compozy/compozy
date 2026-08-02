@@ -1,7 +1,12 @@
 import type { PillTone } from "@compozy/ui";
 
-import type { LoopRunEventFrame } from "../types";
+import type { LoopRunEventFrame, LoopRunGeneration } from "../types";
 import { parseLoopActionFailure } from "./action-failure";
+import {
+  isLoopGenerationOrigin,
+  loopGenerationOriginLabel,
+  loopGenerationScore,
+} from "./loop-generation-presentation";
 import type {
   LoopStoryIcon,
   LoopStoryIssue,
@@ -38,10 +43,6 @@ function sentenceCase(value: string): string {
   return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
-function confidenceClause(confidence: number | undefined): string {
-  return confidence === undefined ? "" : ` · confidence ${confidence.toFixed(2)}`;
-}
-
 export interface MutableStoryRow extends LoopStoryRow {
   /** Consecutive same-node success grouping accumulator (§5.3). */
   group?: { nodeId: string; generation: number; count: number; indexes: number[] };
@@ -64,11 +65,18 @@ export function taskLink(payload: Record<string, unknown>): LoopStoryTaskLink | 
 export function generationStartedRow(
   frame: LoopRunEventFrame,
   payload: Record<string, unknown>,
-  fallbackStrategy: string | undefined
+  fallbackStrategy: string | undefined,
+  score: number | undefined,
+  bestGeneration: number | null | undefined
 ): MutableStoryRow {
   const generation = num(payload.generation) ?? 0;
   const strategy = str(payload.reattempt_strategy, fallbackStrategy ?? "");
   const failedOnly = strategy === "failed_only" && generation > 1;
+  const origin = str(payload.origin);
+  const parentGeneration = num(payload.parent_generation) ?? 0;
+  const originLabel = isLoopGenerationOrigin(origin)
+    ? loopGenerationOriginLabel(origin, parentGeneration)
+    : undefined;
   return {
     key: `f-${frame.seq}`,
     kind: "generation_started",
@@ -82,6 +90,37 @@ export function generationStartedRow(
       : undefined,
     micro: `generation_started · gen ${generation}`,
     generation,
+    score,
+    isBest: generation === bestGeneration,
+    originLabel,
+    originTone: origin === "ratchet_restore" ? "info" : "neutral",
+  };
+}
+
+/** Builds the same story marker from the durable generation projection. */
+export function durableGenerationStartedRow(
+  generation: LoopRunGeneration,
+  fallbackStrategy: string | undefined,
+  bestGeneration: number | null | undefined
+): MutableStoryRow {
+  const failedOnly = fallbackStrategy === "failed_only" && generation.generation > 1;
+  return {
+    key: `g-${generation.generation}`,
+    kind: "generation_started",
+    seq: 0,
+    at: "",
+    tone: "neutral",
+    icon: "round",
+    title: `Round ${generation.generation} started${failedOnly ? " — redoing the failed group(s)" : ""}`,
+    sub: failedOnly
+      ? "Failed-only re-attempt: clean groups carry over untouched; only the failed groups run again."
+      : undefined,
+    micro: `generation_started · gen ${generation.generation}`,
+    generation: generation.generation,
+    score: loopGenerationScore(generation),
+    isBest: generation.generation === bestGeneration,
+    originLabel: loopGenerationOriginLabel(generation.origin, generation.parent_generation),
+    originTone: generation.origin === "ratchet_restore" ? "info" : "neutral",
   };
 }
 
@@ -90,7 +129,9 @@ export function gateVerdictRow(
   payload: Record<string, unknown>
 ): MutableStoryRow {
   const passed = str(payload.verdict) === "pass";
-  const confidence = num(payload.confidence);
+  const score = num(payload.score);
+  const generation = num(payload.generation);
+  const bestGeneration = num(payload.best_generation);
   const rawIssues = Array.isArray(payload.blocking_issues) ? payload.blocking_issues : [];
   const issues: LoopStoryIssue[] = [];
   for (const item of rawIssues) {
@@ -106,11 +147,13 @@ export function gateVerdictRow(
     tone: passed ? "success" : "warning",
     icon: passed ? "check-pass" : "check-warn",
     title: passed ? "Check passed — everything handled" : "Check: not clean yet",
-    sub: `Verdict ${passed ? "pass" : "revise"}${confidenceClause(confidence)}${passed ? "" : "."}`,
+    sub: `Verdict ${passed ? "pass" : "revise"}${passed ? "" : "."}`,
     issues: passed ? undefined : issues,
     micro: `gate_verdict · ${passed ? "pass" : "revise"}`,
     nodeId: str(payload.node_id) || undefined,
-    generation: num(payload.generation),
+    generation,
+    score,
+    isBest: generation !== undefined && generation === bestGeneration,
   };
 }
 

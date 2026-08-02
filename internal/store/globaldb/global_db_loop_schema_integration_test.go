@@ -4,8 +4,12 @@ package globaldb
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 
+	looppkg "github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/testutil"
 )
 
@@ -37,6 +41,68 @@ func TestOpenGlobalDBBootstrapsLoopSchemaIntegration(t *testing.T) {
 		})
 		assertLoopRunStateSchema(t, second)
 	})
+
+	t.Run("Should enforce immutable lineage and paired best-state constraints", func(t *testing.T) {
+		t.Parallel()
+
+		const (
+			originConstraint = "origin IN"
+			parentConstraint = "parent_generation >= 0 AND parent_generation < generation"
+			bestConstraint   = "best_generation IS NULL AND best_score IS NULL"
+		)
+		cases := []struct {
+			name              string
+			query             string
+			expectedErrorPart string
+			includeCreatedAt  bool
+		}{
+			{
+				name:              "Should reject an unknown generation origin",
+				query:             `INSERT INTO loop_generations (loop_run_id, generation, parent_generation, origin, created_at) VALUES (?, 2, 1, 'unknown', ?)`,
+				expectedErrorPart: originConstraint,
+				includeCreatedAt:  true,
+			},
+			{
+				name:              "Should reject a non-predecessor generation parent",
+				query:             `INSERT INTO loop_generations (loop_run_id, generation, parent_generation, origin, created_at) VALUES (?, 2, 2, 'reattempt', ?)`,
+				expectedErrorPart: parentConstraint,
+				includeCreatedAt:  true,
+			},
+			{
+				name:              "Should reject a half-set best state",
+				query:             `UPDATE loop_runs SET best_generation = 1, best_score = NULL WHERE id = ?`,
+				expectedErrorPart: bestConstraint,
+			},
+			{
+				name:              "Should reject an out-of-range best generation",
+				query:             `UPDATE loop_runs SET best_generation = 2, best_score = 0.9 WHERE id = ?`,
+				expectedErrorPart: bestConstraint,
+			},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				globalDB := openLoopTestGlobalDB(t)
+				ctx := testutil.Context(t)
+				now := time.Date(2026, 8, 1, 12, 0, 0, 0, time.UTC)
+				run := testLoopRun("looprun-schema-constraints", now, looppkg.StatusRunning)
+				created, err := globalDB.CreateLoopRunForStart(ctx, run, dsl.ConcurrencyAllow)
+				if err != nil {
+					t.Fatalf("CreateLoopRunForStart() error = %v", err)
+				}
+				args := []any{string(created.ID)}
+				if tc.includeCreatedAt {
+					args = append(args, now)
+				}
+				if _, err := globalDB.db.ExecContext(ctx, tc.query, args...); err == nil {
+					t.Fatal("invalid schema state accepted, want constraint error")
+				} else if !strings.Contains(err.Error(), tc.expectedErrorPart) {
+					t.Fatalf("constraint error = %v, want substring %q", err, tc.expectedErrorPart)
+				}
+			})
+		}
+	})
 }
 
 func assertLoopRunStateSchema(t *testing.T, globalDB *GlobalDB) {
@@ -51,6 +117,8 @@ func assertLoopRunStateSchema(t *testing.T, globalDB *GlobalDB) {
 		"loop_run_events",
 		"loop_definition_snapshots",
 		"loop_gate_decisions",
+		"loop_gate_verdicts",
+		"loop_generations",
 		"loop_ui_annotations",
 		"loop_config",
 	)
@@ -97,6 +165,8 @@ func assertLoopRunStateSchema(t *testing.T, globalDB *GlobalDB) {
 		"network_mode",
 		"network_channel",
 		"network_source",
+		"best_generation",
+		"best_score",
 	})
 	assertTableExcludesColumns(t, globalDB.db, "loop_runs", []string{"consecutive_failures"})
 	assertTableColumns(t, globalDB.db, "loop_generation_outputs", []string{
@@ -152,6 +222,25 @@ func assertLoopRunStateSchema(t *testing.T, globalDB *GlobalDB) {
 		"note",
 		"decided_at",
 	})
+	assertTableColumns(t, globalDB.db, "loop_gate_verdicts", []string{
+		"loop_run_id",
+		"generation",
+		"gate_id",
+		"item_index",
+		"outcome",
+		"score",
+		"route_cause_rank",
+		"blocking_issues_json",
+		"criteria_json",
+		"decided_at",
+	})
+	assertTableColumns(t, globalDB.db, "loop_generations", []string{
+		"loop_run_id",
+		"generation",
+		"parent_generation",
+		"origin",
+		"created_at",
+	})
 	assertTableColumns(t, globalDB.db, "loop_ui_annotations", []string{
 		"workspace_id",
 		"loop_name",
@@ -181,6 +270,13 @@ func assertLoopRunStateSchema(t *testing.T, globalDB *GlobalDB) {
 	assertIndexesPresent(t, globalDB.db, "loop_run_events", "idx_loop_run_events_run_seq")
 	assertIndexSQLContains(t, globalDB.db, "idx_loop_run_events_run_seq", "ON loop_run_events(loop_run_id, seq)")
 	assertIndexesPresent(t, globalDB.db, "loop_gate_decisions", "idx_loop_gate_decisions_workspace_run")
+	assertIndexesPresent(t, globalDB.db, "loop_gate_verdicts", "idx_loop_gate_verdicts_route_cause")
+	assertIndexSQLContains(
+		t,
+		globalDB.db,
+		"idx_loop_gate_verdicts_route_cause",
+		"ON loop_gate_verdicts(loop_run_id, generation, route_cause_rank)",
+	)
 	assertIndexSQLContains(
 		t,
 		globalDB.db,
@@ -242,6 +338,22 @@ func assertLoopRunStateSchema(t *testing.T, globalDB *GlobalDB) {
 		"loop_gate_decisions",
 		"REFERENCES loop_runs(id) ON DELETE CASCADE",
 	)
+	assertTableSQLContains(t, globalDB.db, "loop_gate_verdicts", "REFERENCES loop_runs(id) ON DELETE CASCADE")
+	assertTableSQLContains(
+		t,
+		globalDB.db,
+		"loop_gate_verdicts",
+		"PRIMARY KEY (loop_run_id, generation, gate_id, item_index)",
+	)
+	assertTableSQLContains(t, globalDB.db, "loop_generations", "REFERENCES loop_runs(id) ON DELETE CASCADE")
+	assertTableSQLContains(t, globalDB.db, "loop_generations", "PRIMARY KEY (loop_run_id, generation)")
+	assertTableSQLContains(
+		t,
+		globalDB.db,
+		"loop_generations",
+		"parent_generation >= 0 AND parent_generation < generation",
+	)
+	assertTableSQLContains(t, globalDB.db, "loop_runs", "best_generation IS NULL AND best_score IS NULL")
 	assertTableSQLContains(t, globalDB.db, "loop_ui_annotations", "PRIMARY KEY (workspace_id, loop_name, node_id)")
 	assertTableSQLContains(t, globalDB.db, "loop_config", "PRIMARY KEY (workspace_id, loop_name)")
 	assertGoalDurableStateSchema(t, globalDB)

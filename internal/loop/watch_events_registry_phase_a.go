@@ -99,7 +99,7 @@ var phaseAWatchEvents = []WatchEventsContract{
 		LedgerTypes: []string{loopRunEventLedgerNodeSucceeded, loopRunEventLedgerNodeFailed},
 		PayloadFields: []string{
 			"node_id",
-			"generation",
+			metadataGenerationKey,
 			"item_index",
 			"task_id",
 			"task_run_id",

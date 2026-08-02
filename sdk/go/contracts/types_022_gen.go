@@ -7,6 +7,16 @@ import (
 	"time"
 )
 
+type TaskDashboardInProgressCardPayload struct {
+	Tasks        int    `json:"tasks"`
+	ActiveRuns   int    `json:"active_runs"`
+	RunningRuns  int    `json:"running_runs"`
+	StartingRuns int    `json:"starting_runs"`
+	ClaimedRuns  int    `json:"claimed_runs"`
+	QueuedRuns   int    `json:"queued_runs"`
+	HealthStatus string `json:"health_status"`
+}
+
 type TaskDashboardLatencyCardPayload struct {
 	ClaimLatencyMillis TaskLatencyMetricPayload `json:"claim_latency_ms"`
 	StartLatencyMillis TaskLatencyMetricPayload `json:"start_latency_ms"`
@@ -223,8 +233,4 @@ type TaskNeedsAttentionPayload struct {
 	Reason                       string    `json:"reason,omitempty"`
 	Note                         string    `json:"note,omitempty"`
 	At                           time.Time `json:"at,omitzero"`
-}
-
-type TaskObservationPatch struct {
-	Labels map[string]string `json:"labels,omitempty"`
 }

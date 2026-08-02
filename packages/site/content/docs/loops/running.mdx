@@ -55,6 +55,12 @@ fan-out renders as batch branches; a gate renders as a flat verdict card (`pass`
 a channel conversation, the [converse](/docs/loops/converse-and-decide) exchange is embedded
 inline. A right rail streams the live event feed and the run facts.
 
+Each generation also shows its durable `origin` and `parent_generation`. Most generations point to
+`N-1`; a `ratchet_restore` points to the older best generation it was seeded from. Scored verdicts
+show `score`, and the accepted baseline carries the Best marker. The run header keeps
+`best_generation` and `best_score` separate from the current generation, so a later regression or
+an exhausted run does not make the last attempt look like the winner.
+
 ### Approval gates
 
 A `human` gate parks the run in `needs-approval` — a **live pause**, never a terminal outcome. The
@@ -81,6 +87,42 @@ strip surfaces "Active now," "Awaiting you" (the `needs-approval` queue), "Done 
 look." An outcome filter spans the full status spectrum, rendering a segment for each status present
 in the window, plus Loop and date filters. Active and Past runs list in tables with an outcome pill,
 the Loop and run id, the goal, the generation count, timing, and a budget mini-bar.
+
+## Status detail versus run summaries
+
+Use the detail surface when you need provenance or gate decisions. List surfaces stay deliberately
+small.
+
+| Surface                                        | Shape                                                                                                                                      |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `compozy loop status` / `compozy__loop_status` | `run` includes optional `best_generation`/`best_score`; `generations[]` includes `parent_generation`, `origin`, `verdicts[]`, and outputs. |
+| `compozy loop runs` / `compozy__loop_runs`     | Each run summary includes optional `best_generation`/`best_score`; it never embeds generation history.                                     |
+| Loop catalog list                              | `last_run` includes optional `best_generation`/`best_score`; it never embeds generation history.                                           |
+
+The best fields are omitted until an approved finite score establishes a baseline. A detailed JSON
+response can therefore look like this:
+
+```json
+{
+  "run": {
+    "generation": 3,
+    "best_generation": 1,
+    "best_score": 0.82
+  },
+  "generations": [
+    {
+      "generation": 3,
+      "parent_generation": 1,
+      "origin": "ratchet_restore",
+      "verdicts": [{ "gate_id": "quality", "outcome": "rejected", "score": 0.61 }]
+    }
+  ]
+}
+```
+
+Origins use the closed runtime vocabulary: `initial`, `stop_when`, `reattempt`, `gate_revise`,
+`gate_next_generation`, `dod_retry`, and `ratchet_restore`. See [Ratchets](/docs/loops/ratchet) for
+how a scored best changes succession.
 
 ## Every surface, not just the UI
 

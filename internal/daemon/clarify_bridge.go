@@ -37,6 +37,7 @@ type clarifyHandle struct {
 	completionMu sync.Mutex
 	pending      toolspkg.ClarifyPending
 	result       chan clarifyResult
+	published    chan struct{}
 	ready        atomic.Bool
 	terminal     bool
 }
@@ -126,7 +127,8 @@ func (b *clarifyBridge) Ask(
 			AskedAt:     now,
 			Deadline:    now.Add(b.timeout),
 		},
-		result: make(chan clarifyResult, 1),
+		result:    make(chan clarifyResult, 1),
+		published: make(chan struct{}),
 	}
 	if handle.pending.RequestID == "" {
 		return toolspkg.ClarifyAnswer{}, errors.New("daemon: clarification request ID is required")
@@ -141,10 +143,12 @@ func (b *clarifyBridge) Ask(
 	if err := b.publish(ctx, handle, toolspkg.ClarifyStatusPending, nil, true); err != nil {
 		handle.terminal = true
 		b.rollback(handle)
+		close(handle.published)
 		handle.completionMu.Unlock()
 		return toolspkg.ClarifyAnswer{}, fmt.Errorf("daemon: persist pending clarification: %w", err)
 	}
 	handle.ready.Store(true)
+	close(handle.published)
 	handle.completionMu.Unlock()
 
 	timer := time.NewTimer(time.Until(handle.pending.Deadline))
@@ -184,7 +188,15 @@ func (b *clarifyBridge) Pending(
 	b.mu.Lock()
 	handle := b.pending[normalized.SessionID]
 	b.mu.Unlock()
-	if handle == nil || !handle.ready.Load() || !clarifyScopeMatches(normalized, handle.pending) {
+	if handle == nil {
+		return []toolspkg.ClarifyPending{}, nil
+	}
+	if err := waitForClarifyPublication(ctx, handle); err != nil {
+		return nil, err
+	}
+	handle.completionMu.Lock()
+	defer handle.completionMu.Unlock()
+	if handle.terminal || !handle.ready.Load() || !clarifyScopeMatches(normalized, handle.pending) {
 		return []toolspkg.ClarifyPending{}, nil
 	}
 	return []toolspkg.ClarifyPending{handle.pending.Clone()}, nil
@@ -210,16 +222,26 @@ func (b *clarifyBridge) Answer(
 	b.mu.Lock()
 	handle := b.pending[normalized.SessionID]
 	b.mu.Unlock()
-	if handle == nil ||
+	if handle == nil {
+		return toolspkg.ClarifyAnswer{}, fmt.Errorf("%w: %s", toolspkg.ErrClarifyNotFound, target)
+	}
+	if err := waitForClarifyPublication(ctx, handle); err != nil {
+		return toolspkg.ClarifyAnswer{}, err
+	}
+	handle.completionMu.Lock()
+	if handle.terminal ||
 		!handle.ready.Load() ||
 		handle.pending.RequestID != target ||
 		!clarifyScopeMatches(normalized, handle.pending) {
+		handle.completionMu.Unlock()
 		return toolspkg.ClarifyAnswer{}, fmt.Errorf("%w: %s", toolspkg.ErrClarifyNotFound, target)
 	}
-	answer, err := request.Normalize(toolspkg.ClarifyQuestion{
+	question := toolspkg.ClarifyQuestion{
 		Question: handle.pending.Question,
-		Choices:  handle.pending.Choices,
-	})
+		Choices:  append([]string(nil), handle.pending.Choices...),
+	}
+	handle.completionMu.Unlock()
+	answer, err := request.Normalize(question)
 	if err != nil {
 		return toolspkg.ClarifyAnswer{}, err
 	}
@@ -227,6 +249,15 @@ func (b *clarifyBridge) Answer(
 		return toolspkg.ClarifyAnswer{}, err
 	}
 	return answer, nil
+}
+
+func waitForClarifyPublication(ctx context.Context, handle *clarifyHandle) error {
+	select {
+	case <-handle.published:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 func (b *clarifyBridge) register(handle *clarifyHandle) error {

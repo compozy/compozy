@@ -51,6 +51,34 @@ export const LOOP_RUN_EVENT_KINDS = [
 
 export type LoopRunEventKindValue = (typeof LOOP_RUN_EVENT_KINDS)[number];
 
+export const LOOP_GENERATION_ORIGINS = [
+  "initial",
+  "stop_when",
+  "reattempt",
+  "gate_revise",
+  "gate_next_generation",
+  "dod_retry",
+  "ratchet_restore",
+] as const;
+
+export type LoopGenerationOriginValue = (typeof LOOP_GENERATION_ORIGINS)[number];
+
+export const LOOP_GATE_VERDICT_OUTCOMES = [
+  "approved",
+  "rejected",
+  "awaiting_approval",
+  "blocked",
+  "error",
+  "timeout",
+  "invalid_output",
+] as const;
+
+export type LoopGateVerdictOutcomeValue = (typeof LOOP_GATE_VERDICT_OUTCOMES)[number];
+
+export const LOOP_METRIC_DIRECTIONS = ["maximize", "minimize"] as const;
+
+export type LoopMetricDirectionValue = (typeof LOOP_METRIC_DIRECTIONS)[number];
+
 export const LOOP_RUN_LIFECYCLE_EVENT_KINDS = [
   "status_changed",
   "node_running",

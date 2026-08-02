@@ -1,0 +1,732 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Node controls · software-delivery · Loops · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<style>
+  /* ═══ FOUNDATION — copied verbatim from loop-run-detail.html (approved base) ═══ */
+
+  /* tokens — verbatim from design-system/ds-core.css (packages/ui/src/tokens.css lineage) */
+  :root{
+    color-scheme: dark;
+    --rail:#0c0b0b; --canvas:#131211; --canvas-soft:#1a1918; --canvas-tint:#1c1b1a; --elevated:#232220;
+    --fg:#ececef; --fg-strong:#f6f6f8; --muted:#9a9a9f; --subtle:#76767c; --faint:#545458;
+    --line:rgba(255,255,255,.055); --line-soft:rgba(255,255,255,.03); --line-strong:rgba(255,255,255,.09);
+    --accent:#e8572a; --accent-hover:#d14e25; --accent-strong:#f6874f; --accent-ink:#17110f;
+    --accent-tint:rgba(232,87,42,.10); --accent-dim:rgba(232,87,42,.24);
+    --success:#5fbf85; --success-tint:rgba(95,191,133,.08);
+    --warning:#d6a647; --warning-tint:rgba(214,166,71,.08);
+    --danger:#e0635a;  --danger-tint:rgba(224,99,90,.09);
+    --info:#8e8eb5;    --info-tint:rgba(142,142,181,.12);
+    --neutral:#7a7a80; --neutral-tint:rgba(150,150,155,.06);
+    --row-hover:rgba(255,255,255,.022);
+    --input-fill:rgba(255,255,255,.025); --badge-fill:rgba(255,255,255,.05);
+    --btn-fill:rgba(255,255,255,.04); --btn-hover:rgba(255,255,255,.07);
+    --radius-xxs:3px; --radius-xs:4px; --radius-sm:5px; --radius:6px; --radius-md:8px; --radius-lg:10px; --radius-pill:9999px;
+    --font-sans:"Inter Variable","Inter",-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --font-mono:"JetBrains Mono Variable","JetBrains Mono","SF Mono",ui-monospace,Menlo,monospace;
+    --dur:140ms; --ease:cubic-bezier(.2,0,0,1);
+    --highlight:inset 0 1px 0 rgba(255,255,255,.035);
+    --focus-ring:0 0 0 2px rgba(255,255,255,.5);
+    --shadow-overlay:0 24px 48px -12px rgba(0,0,0,.65), 0 0 0 1px rgba(255,255,255,.045);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--canvas);color:var(--fg);font-family:var(--font-sans);font-size:13.5px;line-height:1.5;letter-spacing:-.006em;
+    font-feature-settings:"cv01","ss03";-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+  a{color:inherit;text-decoration:none}
+  button{font:inherit;letter-spacing:inherit;color:inherit;background:none;border:0;cursor:pointer}
+  svg{display:block}
+  code,.mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums;font-feature-settings:normal}
+  :is(button,a,[tabindex],summary):focus-visible{outline:none;box-shadow:var(--focus-ring)}
+
+  /* unified head · 44px */
+  .w2head{min-height:44px;display:flex;align-items:center;gap:10px;padding:0 16px;
+    background:var(--canvas);border-bottom:1px solid var(--line);min-width:0}
+  .w2-back{width:24px;height:24px;flex:none;display:grid;place-items:center;border-radius:var(--radius);color:var(--muted)}
+  .w2-back:hover{background:var(--btn-fill);color:var(--fg-strong)}
+  .w2-back svg{width:14px;height:14px}
+  .w2-crumbs{display:flex;align-items:center;gap:2px;min-width:0}
+  .w2-crumb{font-size:13px;font-weight:500;color:var(--subtle);white-space:nowrap;border-radius:var(--radius-sm);padding:1px 5px}
+  .w2-crumb:hover{color:var(--fg);background:var(--row-hover)}
+  .w2-sep{flex:none;font-size:12px;color:var(--faint)}
+  .w2-title{font-size:13px;font-weight:600;color:var(--fg-strong);white-space:nowrap;padding-left:3px}
+  .w2-flex{flex:1;min-width:8px}
+  .w2-status{display:inline-flex;align-items:center;gap:6px;flex:none;font-size:10.5px;font-weight:600;color:var(--muted)}
+  .w2-status .dot{width:7px;height:7px;border-radius:50%;background:currentColor;flex:none}
+  .w2-status[data-tone="run"]{color:var(--accent-strong)}
+  .w2-vsep{width:1px;height:14px;background:var(--line-strong);flex:none}
+  .w2-actions{position:relative;display:flex;align-items:center;gap:6px;flex:none}
+  .btn{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:var(--radius-md);font-size:12px;
+    font-weight:500;letter-spacing:-.005em;border:1px solid var(--line);background:var(--btn-fill);white-space:nowrap;
+    transition:background var(--dur) var(--ease),border-color var(--dur) var(--ease),color var(--dur) var(--ease)}
+  .btn svg{width:13px;height:13px}
+  .btn:hover{background:var(--btn-hover);border-color:var(--line-strong);color:var(--fg-strong)}
+  .btn--danger{color:var(--danger)}
+  .btn--danger:hover{background:var(--danger-tint);border-color:color-mix(in srgb,var(--danger) 24%,transparent);color:var(--danger)}
+  .btn--icon{width:26px;padding:0;justify-content:center}
+  .menu{position:absolute;top:32px;right:0;min-width:190px;padding:5px;border-radius:var(--radius-md);background:var(--elevated);
+    border:1px solid var(--line-strong);box-shadow:var(--shadow-overlay);z-index:40;display:none}
+  .menu.is-open{display:block}
+  .menu__item{display:flex;align-items:center;gap:9px;width:100%;height:28px;padding:0 9px;border-radius:var(--radius-sm);font-size:12.5px;color:var(--fg);text-align:left}
+  .menu__item:hover{background:var(--row-hover);color:var(--fg-strong)}
+  .menu__item svg{width:13px;height:13px;color:var(--muted);flex:none}
+  .menu__item[data-tone="danger"]{color:var(--danger)}
+  .menu__item[data-tone="danger"] svg{color:var(--danger)}
+  .menu__item[data-tone="danger"]:hover{background:var(--danger-tint)}
+  .menu__sep{height:1px;margin:5px 4px;background:var(--line)}
+
+  .page{max-width:1240px;margin:0 auto;padding:24px 36px 72px}
+  .subhead{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:22px;padding-bottom:14px;
+    border-bottom:1px solid var(--line);font-size:12px;color:var(--subtle)}
+  .subhead b{font-weight:500;color:var(--muted)}
+  .subhead .mono{font-size:11px}
+  .dotsep{width:2px;height:2px;border-radius:50%;background:var(--faint);display:inline-block}
+
+  /* collapsible sections */
+  .sec{margin-bottom:24px;border:0}
+  .sec > summary{display:flex;align-items:center;gap:8px;padding:0 0 10px;cursor:pointer;list-style:none;user-select:none}
+  .sec > summary::-webkit-details-marker{display:none}
+  .sec > summary svg.si{width:14px;height:14px;color:var(--subtle);flex:none}
+  .sec > summary .st{font-size:10.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--subtle)}
+  .sec > summary .ssum{font-size:11.5px;color:var(--faint);margin-left:2px}
+  .sec > summary .spacer{flex:1}
+  .sec > summary svg.chev{width:14px;height:14px;color:var(--faint);flex:none;transition:transform var(--dur) var(--ease)}
+  .sec:not([open]) > summary svg.chev{transform:rotate(-90deg)}
+  .sec:not([open]) > summary{padding-bottom:0;margin-bottom:24px}
+  .panelbox{background:var(--canvas-soft);border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden}
+
+  /* pill vocabulary — Pill xs (17px), state only */
+  .pillxs{display:inline-flex;align-items:center;gap:5px;height:17px;padding:0 6px;border-radius:var(--radius-xs);
+    font-size:10.5px;font-weight:600;white-space:nowrap;background:var(--badge-fill);color:var(--muted)}
+  .pillxs.mono{font-family:var(--font-mono);font-weight:500}
+  .pillxs[data-tone="warning"]{background:var(--warning-tint);color:var(--warning)}
+  .pillxs[data-tone="info"]{background:var(--info-tint);color:var(--info)}
+
+  .quiet-note{display:flex;align-items:flex-start;gap:9px;padding:13px 15px;border-radius:var(--radius-md);
+    background:var(--canvas-soft);border:1px solid var(--line-soft);font-size:12.5px;line-height:1.55;color:var(--muted)}
+  .quiet-note svg{width:14px;height:14px;flex:none;margin-top:2px;color:var(--subtle)}
+  .quiet-note b{font-weight:520;color:var(--fg)}
+  .quiet-note .mono{font-size:11px}
+
+  /* ═══ LAB EXTENSIONS — only what the base does not already own ═══ */
+
+  :root{
+    /* modal overlay tokens — MODAL-STANDARD.md, bare names per design-system GUIDE */
+    --scrim:rgba(0,0,0,.55); --overlay-blur:3px;
+    --surface-glaze:rgba(255,255,255,.04);
+    --width-modal-sm:560px;   /* ConfirmDialog width */
+    --radius-icon-well:10px;
+  }
+  :is(input,textarea):focus-visible{outline:none;box-shadow:var(--focus-ring)}
+
+  /* mono anchor nav */
+  .gnav{position:sticky;top:0;z-index:10;display:flex;flex-wrap:wrap;align-items:center;gap:10px;
+    padding:10px 24px;border-bottom:1px solid var(--line);background:var(--rail)}
+  .gnav a{font-family:var(--font-mono);font-size:10.5px;color:var(--subtle);padding:2px 6px;border-radius:var(--radius-xs)}
+  .gnav a:hover{color:var(--fg);background:var(--row-hover)}
+
+  /* stages hold the demos the way the base panelbox holds run content */
+  .stage{display:flex;flex-wrap:wrap;align-items:flex-start;gap:20px;padding:24px;
+    border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--canvas-soft)}
+  .stage--grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(268px,1fr));align-items:start}
+  .stage--pair{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));align-items:start}
+  .demo{min-width:0}
+  .demo__cap{font-family:var(--font-mono);font-size:10px;color:var(--faint);margin-bottom:9px}
+  .demo__cap b{color:var(--subtle);font-weight:600}
+  .micro{font-family:var(--font-mono);font-size:10px;color:var(--faint);margin-top:9px}
+
+  /* state dot — shared by node rows and dialog state strips */
+  .tdot{width:7px;height:7px;border-radius:50%;flex:none;background:var(--faint)}
+  .tdot[data-tone="accent"]{background:var(--accent)}
+  .tdot[data-tone="warning"]{background:var(--warning)}
+  .tdot[data-tone="danger"]{background:var(--danger)}
+  .tdot[data-tone="info"]{background:var(--info)}
+  .tdot[data-tone="info-ring"]{background:transparent;box-shadow:inset 0 0 0 1.5px var(--info)}
+
+  /* node row + statically-open menu (base .menu anatomy, un-anchored for the lab) */
+  .noderow{display:flex;align-items:center;gap:9px;padding:8px 10px;border:1px solid var(--line);
+    border-radius:var(--radius-md);background:var(--canvas-tint)}
+  .noderow__t{min-width:0;font-size:12.5px;font-weight:520;color:var(--fg-strong);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .noderow__meta{margin-left:auto;font-family:var(--font-mono);font-size:10px;color:var(--faint);white-space:nowrap}
+  .menu--static{position:static;display:block;min-width:0;width:100%;margin-top:8px}
+  .menu__item .k{margin-left:auto;font-family:var(--font-mono);font-size:9.5px;color:var(--faint)}
+
+  /* ── modal chrome — MODAL-STANDARD.md geometry, bare token names ──
+     authority: production task-editor-modal.tsx via MODAL-STANDARD */
+  /* production overlay geometry, transcribed for the record; this lab renders dialogs inline in stages */
+  .scrim{position:fixed;inset:0;display:grid;place-items:center;padding:28px;
+    background:var(--scrim);backdrop-filter:blur(var(--overlay-blur))}
+  .dialog{width:min(var(--width-modal-sm),100%);display:grid;grid-template-rows:auto minmax(0,1fr) auto;
+    border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--canvas-soft);
+    box-shadow:var(--shadow-overlay);overflow:hidden}
+  .dialog__head{display:flex;align-items:flex-start;gap:12px;padding:16px 20px;border-bottom:1px solid var(--line)}
+  .head-icon{display:grid;width:36px;height:36px;flex:none;place-items:center;border-radius:var(--radius-icon-well);
+    background:var(--accent-tint);color:var(--accent-strong);box-shadow:inset 0 0 0 1px var(--accent-dim)}
+  /* authority: authorized delta from the accent well — destructive dialogs carry the danger ring */
+  .head-icon--danger{background:var(--danger-tint);color:var(--danger);
+    box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--danger) 24%,transparent)}
+  .head-icon--neutral{background:var(--canvas-tint);color:var(--muted);box-shadow:inset 0 0 0 1px var(--line)}
+  .head-icon svg{width:16px;height:16px}
+  .head-copy{min-width:0;flex:1}
+  .eyebrow{font-family:var(--font-mono);font-size:10px;font-weight:600;letter-spacing:.05em;
+    text-transform:uppercase;color:var(--accent-strong)}
+  .dialog__head[data-tone="danger"] .eyebrow{color:var(--danger)}
+  .head-copy h3{margin-top:2px;color:var(--fg-strong);font-size:15px;font-weight:500;letter-spacing:-.01em;line-height:1.35}
+  .head-copy p{max-width:66ch;margin-top:4px;color:var(--muted);font-size:13px;line-height:1.45}
+  .head-copy p b{color:var(--fg);font-weight:500}
+  .dialog__body{min-height:0;overflow-y:auto;padding:20px 20px 24px}
+  .dialog__foot{display:flex;align-items:center;gap:8px;padding:12px 20px;border-top:1px solid var(--line);background:var(--canvas-tint)}
+  .foot-note{display:flex;min-width:0;flex:1;align-items:center;gap:7px;color:var(--muted);font-size:11px;line-height:1.4}
+  .foot-note svg{width:13px;height:13px;flex:none;color:var(--faint)}
+  .foot-note .mono{font-size:10.5px}
+  .dialog .btn svg{width:14px;height:14px}
+  .btn--primary{background:var(--accent);border-color:transparent;color:var(--accent-ink);box-shadow:var(--highlight)}
+  .btn--primary:hover{background:var(--accent-hover);border-color:transparent;color:var(--accent-ink)}
+  .btn--danger-solid{background:var(--danger);border-color:transparent;color:var(--accent-ink)}
+  .btn--danger-solid:hover{background:color-mix(in srgb,var(--danger) 88%,black);border-color:transparent;color:var(--accent-ink)}
+  .btn[disabled]{opacity:.5;pointer-events:none}
+
+  /* current-state strip — a confirm always states the state it acts on */
+  .staterow{display:flex;align-items:center;gap:8px;padding:9px 11px;border:1px solid var(--line-soft);
+    border-radius:var(--radius-md);background:var(--input-fill);margin-bottom:12px}
+  .staterow__t{flex:1;min-width:0;font-size:12px;font-weight:510;color:var(--fg)}
+  .staterow__meta{font-family:var(--font-mono);font-size:10px;color:var(--faint);white-space:nowrap}
+
+  /* choice cards — pause drain|cancel */
+  .tpl-grid{display:grid;gap:8px}
+  .tpl{position:relative;display:flex;flex-direction:column;padding:11px 12px;text-align:left;
+    border:1px solid var(--line-soft);border-radius:var(--radius);background:var(--canvas-tint);
+    transition:background var(--dur) var(--ease),border-color var(--dur) var(--ease),box-shadow var(--dur) var(--ease)}
+  .tpl:hover{border-color:var(--line);background:var(--elevated)}
+  .tpl[aria-checked="true"]{border-color:transparent;background:var(--surface-glaze);box-shadow:inset 0 0 0 1px var(--line-strong)}
+  .tpl:focus-visible{outline:none;box-shadow:var(--focus-ring)}
+  .tpl__top{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+  .tpl__name{flex:1;min-width:0;color:var(--fg);font-size:12.5px;font-weight:500}
+  .tpl[aria-checked="true"] .tpl__name{color:var(--fg-strong)}
+  .tpl svg.tpl__check{width:14px;height:14px;flex:none;color:var(--fg-strong);opacity:0}
+  .tpl[aria-checked="true"] svg.tpl__check{opacity:1}
+  .tpl__desc{color:var(--muted);font-size:11.5px;line-height:1.45}
+
+  /* form field */
+  .field--spaced{margin-top:14px}
+  .label{display:flex;align-items:center;gap:7px;margin-bottom:7px;color:var(--fg-strong);font-size:12px;font-weight:500}
+  .label .opt{color:var(--muted);font-size:11px;font-weight:400}
+  .textarea{width:100%;min-height:84px;padding:8px 10px;border:1px solid var(--line);border-radius:var(--radius-md);
+    background:var(--elevated);color:var(--fg);font-family:var(--font-mono);font-size:11.5px;line-height:1.55;resize:vertical}
+  .textarea--prose{min-height:56px;font-family:var(--font-sans);font-size:12.5px}
+  .textarea::placeholder{color:var(--subtle)}
+  .textarea:focus{outline:none;border-color:var(--line-strong)}
+  .field[data-invalid="true"] .textarea{border-color:var(--danger)}
+  .error{display:none;margin-top:7px;font-size:11px;line-height:1.45;color:var(--danger)}
+  .field[data-invalid="true"] .error{display:block}
+  .hint{margin-top:7px;font-size:11px;line-height:1.45;color:var(--muted)}
+  .hint code{font-size:10px;color:var(--subtle)}
+
+  /* deterministic answers — informative panels, never toasts */
+  .answer{display:flex;align-items:flex-start;gap:10px;padding:11px 13px;border-radius:var(--radius-md);
+    border:1px solid var(--line);background:var(--canvas-tint)}
+  .answer svg{width:14px;height:14px;flex:none;margin-top:2px;color:var(--info)}
+  .answer__main{min-width:0;flex:1}
+  .answer__t{font-size:12.5px;font-weight:520;color:var(--fg-strong)}
+  .answer__sub{margin-top:2px;font-size:12px;line-height:1.5;color:var(--muted)}
+  .answer__sub b{color:var(--fg);font-weight:520}
+  .answer__micro{margin-top:7px;font-family:var(--font-mono);font-size:10px;color:var(--faint)}
+
+  @media (max-width:900px){.page{padding:20px 20px 56px}.stage{padding:16px}}
+  @media (prefers-reduced-motion: reduce){*{animation:none!important;transition-duration:.01ms!important}}
+</style>
+</head>
+<body>
+
+<header class="w2head" data-od-id="node-controls-head">
+  <a class="w2-back" href="loop-run-detail.html" aria-label="Back to run"><i data-lucide="chevron-left"></i></a>
+  <nav class="w2-crumbs" aria-label="Breadcrumb">
+    <a class="w2-crumb" href="../_done/loops/loops-catalog.html">Loops</a>
+    <span class="w2-sep">/</span>
+    <a class="w2-crumb" href="loop-detail.html">software-delivery</a>
+    <span class="w2-sep">/</span>
+    <a class="w2-crumb" href="loop-run-detail.html">Run r-8f3a2b</a>
+    <span class="w2-sep">/</span>
+    <span class="w2-title">Node controls</span>
+  </nav>
+  <span class="w2-flex"></span>
+  <span class="w2-status" data-tone="run"><span class="dot" aria-hidden="true"></span>Running</span>
+</header>
+
+<nav class="gnav" aria-label="Sections" data-od-id="node-controls-nav">
+  <a href="#node-menus">node menus</a>
+  <a href="#pause-choice">pause choice</a>
+  <a href="#resume-menu">resume modes</a>
+  <a href="#run-cancel-kill">run cancel vs kill</a>
+  <a href="#confirms">destructive confirms</a>
+  <a href="#wait-resume">wait resume</a>
+  <a href="#answers">deterministic answers</a>
+</nav>
+
+<div class="page">
+  <div class="subhead" data-od-id="node-controls-subhead">
+    <span class="mono">r-8f3a2b</span><span class="dotsep"></span>
+    <span>Loop <b>software-delivery v4</b></span><span class="dotsep"></span>
+    <span>Generation <b>2 of 50</b></span><span class="dotsep"></span>
+    <span>Operator <b>pedro</b></span><span class="dotsep"></span>
+    <span class="mono">execute_task · task_03 · gen 2</span>
+  </div>
+
+  <!-- ═════════ 01 · node row menus, gated on daemon truth ═════════ -->
+  <!-- each row is an independent moment of the same run; verbs group recover · act · destroy;
+       a state only lists what its payload allows (R3, node_controls/waits — spec) -->
+  <details class="sec" open id="node-menus" data-od-id="lab-node-menus">
+    <summary>
+      <i class="si" data-lucide="mouse-pointer-click"></i>
+      <span class="st">01 · Node row menu</span>
+      <span class="ssum">the verb set is whatever the node's payload allows — nothing more</span>
+      <span class="spacer"></span><i class="chev" data-lucide="chevron-down"></i>
+    </summary>
+    <div class="stage stage--grid">
+
+      <div class="demo" data-od-id="menu-running">
+        <div class="demo__cap"><b>running</b> — pause/cancel/kill; no resume, no requeue</div>
+        <div class="noderow">
+          <span class="tdot" data-tone="accent"></span>
+          <span class="noderow__t">task_04 · contract test</span>
+          <span class="noderow__meta">running · 2m 44s</span>
+        </div>
+        <!-- verbs → routes · authority: spec (loop-node-lifecycle TechSpec)
+             Pause…  POST /api/workspaces/:ws/loop-runs/:run_id/nodes/:node_id/pause  {drain|cancel, reason?}
+             Cancel  POST /api/workspaces/:ws/loop-runs/:run_id/nodes/:node_id/cancel
+             Kill…   POST /api/workspaces/:ws/loop-runs/:run_id/nodes/:node_id/kill -->
+        <div class="menu menu--static" role="menu">
+          <button class="menu__item" type="button" role="menuitem"><i data-lucide="pause"></i>Pause…</button>
+          <div class="menu__sep"></div>
+          <button class="menu__item" type="button" role="menuitem"><i data-lucide="ban"></i>Cancel</button>
+          <button class="menu__item" type="button" role="menuitem" data-tone="danger"><i data-lucide="zap"></i>Kill…</button>
+        </div>
+        <div class="micro">execute_task · task_04 · gen 2</div>
+      </div>
+
+      <div class="demo" data-od-id="menu-retrying">
+        <div class="demo__cap"><b>retrying</b> — retry now skips the pending backoff</div>
+        <div class="noderow">
+          <span class="tdot" data-tone="warning"></span>
+          <span class="noderow__t">task_03 · api handler</span>
+          <span class="noderow__meta">retrying · attempt 2/3</span>
+        </div>
+        <!-- verbs → routes · authority: spec
+             Retry now  POST /api/workspaces/:ws/loop-runs/:run_id/nodes/:node_id/resume  {mode: immediate}
+             Pause…     POST /api/workspaces/:ws/loop-runs/:run_id/nodes/:node_id/pause   {drain|cancel, reason?}
+             Cancel     POST /api/workspaces/:ws/loop-runs/:run_id/nodes/:node_id/cancel
+             Kill…      POST /api/workspaces/:ws/loop-runs/:run_id/nodes/:node_id/kill -->
+        <div class="menu menu--static" role="menu">
+          <button class="menu__item" type="button" role="menuitem"><i data-lucide="play"></i>Retry now<span class="k">immediate</span></button>
+          <button class="menu__item" type="button" role="menuitem"><i data-lucide="pause"></i>Pause…</button>
+          <div class="menu__sep"></div>
+          <button class="menu__item" type="button" role="menuitem"><i data-lucide="ban"></i>Cancel</button>
+          <button class="menu__item" type="button" role="menuitem" data-tone="danger"><i data-lucide="zap"></i>Kill…</button>
+        </div>
+        <div class="micro">execute_task · task_03 · gen 2 · next 14:41:03</div>
+      </div>
+
+      <div class="demo" data-od-id="menu-paused">
+        <div class="demo__cap"><b>paused</b> — the three resume modes; requeue still absent</div>
+        <div class="noderow">
+          <span class="tdot" data-tone="info-ring"></span>
+          <span class="noderow__t">task_03 · api handler</span>
+          <span class="noderow__meta">paused · manual · 6m</span>
+        </div>
+        <!-- verbs → routes · authority: spec
+             Resume / Resume, reset attempts… / Resume now
+                     POST /api/workspaces/:ws/loop-runs/:run_id/nodes/:node_id/resume  {mode: plain|reset_attempts|immediate, payload?}
+             Cancel  POST /api/workspaces/:ws/loop-runs/:run_id/nodes/:node_id/cancel
+             Kill…   POST /api/workspaces/:ws/loop-runs/:run_id/nodes/:node_id/kill -->
+        <div class="menu menu--static" role="menu">
+          <button class="menu__item" type="button" role="menuitem"><i data-lucide="play"></i>Resume<span class="k">plain</span></button>
+          <button class="menu__item" type="button" role="menuitem"><i data-lucide="rotate-ccw"></i>Resume, reset attempts…<span class="k">reset_attempts</span></button>
+          <button class="menu__item" type="button" role="menuitem"><i data-lucide="fast-forward"></i>Resume now<span class="k">immediate</span></button>
+          <div class="menu__sep"></div>
+          <button class="menu__item" type="button" role="menuitem"><i data-lucide="ban"></i>Cancel</button>
+          <button class="menu__item" type="button" role="menuitem" data-tone="danger"><i data-lucide="zap"></i>Kill…</button>
+        </div>
+        <div class="micro">execute_task · task_03 · gen 2 · paused_by pedro</div>
+      </div>
+
+      <div class="demo" data-od-id="menu-quarantined">
+        <div class="demo__cap"><b>quarantined</b> — requeue is the recovery verb; resume is not offered</div>
+        <div class="noderow">
+          <span class="tdot" data-tone="danger"></span>
+          <span class="noderow__t">task_03 · api handler</span>
+          <span class="noderow__meta">quarantined · episode 2</span>
+        </div>
+        <!-- verbs → routes · authority: spec
+             Open quarantine entry  reads LoopRunResponse.node_controls[].quarantine_entry — no dedicated route
+             Requeue…               POST /api/workspaces/:ws/loop-runs/:run_id/nodes/:node_id/requeue
+             Cancel                 POST /api/workspaces/:ws/loop-runs/:run_id/nodes/:node_id/cancel
+             Kill…                  POST /api/workspaces/:ws/loop-runs/:run_id/nodes/:node_id/kill -->
+        <div class="menu menu--static" role="menu">
+          <a class="menu__item" role="menuitem" href="loop-quarantine-sheet.html"><i data-lucide="search"></i>Open quarantine entry</a>
+          <button class="menu__item" type="button" role="menuitem"><i data-lucide="rotate-ccw"></i>Requeue…</button>
+          <div class="menu__sep"></div>
+          <button class="menu__item" type="button" role="menuitem"><i data-lucide="ban"></i>Cancel</button>
+          <button class="menu__item" type="button" role="menuitem" data-tone="danger"><i data-lucide="zap"></i>Kill…</button>
+        </div>
+        <div class="micro">execute_task · task_03 · gen 2 · quarantined 14:52</div>
+      </div>
+
+      <div class="demo" data-od-id="menu-waiting">
+        <div class="demo__cap"><b>waiting</b> — resume takes a payload validated against the wait</div>
+        <div class="noderow">
+          <span class="tdot" data-tone="info"></span>
+          <span class="noderow__t">task_04 · contract test</span>
+          <span class="noderow__meta">waiting · event · 18m</span>
+        </div>
+        <!-- verbs → routes · authority: spec
+             Resume with payload…  POST /api/workspaces/:ws/loop-runs/:run_id/nodes/:node_id/resume  {mode: plain, payload}
+             Cancel                POST /api/workspaces/:ws/loop-runs/:run_id/nodes/:node_id/cancel
+             Kill…                 POST /api/workspaces/:ws/loop-runs/:run_id/nodes/:node_id/kill -->
+        <div class="menu menu--static" role="menu">
+          <button class="menu__item" type="button" role="menuitem"><i data-lucide="play"></i>Resume with payload…</button>
+          <div class="menu__sep"></div>
+          <button class="menu__item" type="button" role="menuitem"><i data-lucide="ban"></i>Cancel</button>
+          <button class="menu__item" type="button" role="menuitem" data-tone="danger"><i data-lucide="zap"></i>Kill…</button>
+        </div>
+        <div class="micro">execute_task · task_04 · gen 2 · expects deploy.finished</div>
+      </div>
+
+    </div>
+  </details>
+
+  <!-- ═════════ 02 · pause choice: drain | cancel in-flight ═════════ -->
+  <details class="sec" open id="pause-choice" data-od-id="lab-pause-choice">
+    <summary>
+      <i class="si" data-lucide="pause"></i>
+      <span class="st">02 · Pause a node</span>
+      <span class="ssum">you choose what happens to the attempt already in flight</span>
+      <span class="spacer"></span><i class="chev" data-lucide="chevron-down"></i>
+    </summary>
+    <div class="stage">
+      <!-- route · authority: spec
+           POST /api/workspaces/:ws/loop-runs/:run_id/nodes/:node_id/pause  {drain|cancel, reason?} -->
+      <div class="dialog" role="dialog" aria-labelledby="pauseTitle" data-od-id="dialog-pause">
+        <div class="dialog__head">
+          <span class="head-icon head-icon--neutral" aria-hidden="true"><i data-lucide="pause"></i></span>
+          <div class="head-copy">
+            <div class="eyebrow">Pause node</div>
+            <h3 id="pauseTitle">Pause task_04?</h3>
+            <p>The lane parks until you resume it. The rest of the run keeps working.</p>
+          </div>
+        </div>
+        <div class="dialog__body">
+          <div class="staterow">
+            <span class="tdot" data-tone="accent"></span>
+            <span class="staterow__t">task_04 is running</span>
+            <span class="staterow__meta">attempt 1 · 2m 44s in</span>
+          </div>
+          <div class="tpl-grid" role="radiogroup" aria-label="What happens to the in-flight attempt">
+            <button class="tpl" type="button" role="radio" aria-checked="true">
+              <span class="tpl__top"><span class="tpl__name">Let it finish, then pause</span><i class="tpl__check" data-lucide="check"></i></span>
+              <span class="tpl__desc">The current attempt drains cleanly and its result is kept. Safest — nothing is interrupted.</span>
+            </button>
+            <button class="tpl" type="button" role="radio" aria-checked="false">
+              <span class="tpl__top"><span class="tpl__name">Cancel it and pause now</span><i class="tpl__check" data-lucide="check"></i></span>
+              <span class="tpl__desc">The in-flight attempt is canceled first. Use when the attempt itself is the problem.</span>
+            </button>
+          </div>
+          <div class="field field--spaced">
+            <label class="label" for="pauseReason">Reason <span class="opt">optional — shown as provenance</span></label>
+            <textarea class="textarea textarea--prose" id="pauseReason" placeholder="hold this one until the schema lands"></textarea>
+          </div>
+        </div>
+        <div class="dialog__foot">
+          <span class="foot-note"><i data-lucide="info"></i>Paused time doesn't count against the run's clock.</span>
+          <button class="btn" type="button">Cancel</button>
+          <button class="btn btn--primary" type="button">Pause lane</button>
+        </div>
+      </div>
+    </div>
+  </details>
+
+  <!-- ═════════ 03 · resume modes ═════════ -->
+  <details class="sec" open id="resume-menu" data-od-id="lab-resume-modes">
+    <summary>
+      <i class="si" data-lucide="play"></i>
+      <span class="st">03 · Resume a node</span>
+      <span class="ssum">plain continues; resetting the attempt budget asks first</span>
+      <span class="spacer"></span><i class="chev" data-lucide="chevron-down"></i>
+    </summary>
+    <div class="stage">
+      <!-- route · authority: spec
+           POST /api/workspaces/:ws/loop-runs/:run_id/nodes/:node_id/resume  {mode: plain|reset_attempts|immediate, payload?}
+           reset_attempts confirms because it rewrites the retry ledger -->
+      <div class="dialog" role="dialog" aria-labelledby="resetTitle" data-od-id="dialog-reset-attempts">
+        <div class="dialog__head">
+          <span class="head-icon" aria-hidden="true"><i data-lucide="rotate-ccw"></i></span>
+          <div class="head-copy">
+            <div class="eyebrow">Resume node</div>
+            <h3 id="resetTitle">Resume task_03 with a fresh attempt budget?</h3>
+            <p>The attempt count goes back to <b>0 of 3</b>. Its history stays in the ledger — only the budget resets.</p>
+          </div>
+        </div>
+        <div class="dialog__body">
+          <div class="staterow">
+            <span class="tdot" data-tone="info-ring"></span>
+            <span class="staterow__t">task_03 is paused</span>
+            <span class="staterow__meta">2 of 3 attempts used · paused by you 14:39</span>
+          </div>
+          <div class="hint">Plain resume continues with 2 of 3 attempts used. Resetting is for when you fixed the underlying cause and want the lane judged fresh.</div>
+        </div>
+        <div class="dialog__foot">
+          <span class="foot-note"><i data-lucide="info"></i><span class="mono">mode: reset_attempts</span></span>
+          <button class="btn" type="button">Cancel</button>
+          <button class="btn btn--primary" type="button">Reset &amp; resume</button>
+        </div>
+      </div>
+    </div>
+  </details>
+
+  <!-- ═════════ 04 · run cancel vs kill ═════════ -->
+  <details class="sec" open id="run-cancel-kill" data-od-id="lab-run-cancel-kill">
+    <summary>
+      <i class="si" data-lucide="ban"></i>
+      <span class="st">04 · Run cancel vs kill</span>
+      <span class="ssum">cooperative wind-down vs immediate interrupt — never a silent escalation</span>
+      <span class="spacer"></span><i class="chev" data-lucide="chevron-down"></i>
+    </summary>
+    <div class="stage stage--pair">
+      <!-- routes · authority: spec — these replace the deleted /stop endpoint (hard cut, no alias)
+           POST /api/workspaces/:ws/loop-runs/:run_id/cancel   cooperative; idempotent
+           POST /api/workspaces/:ws/loop-runs/:run_id/kill     immediate; no node-trigger effects
+           production today ships only run-level pause/resume/stop/approve -->
+      <div class="dialog" role="dialog" aria-labelledby="cancelRunTitle" data-od-id="dialog-run-cancel">
+        <div class="dialog__head">
+          <span class="head-icon head-icon--neutral" aria-hidden="true"><i data-lucide="ban"></i></span>
+          <div class="head-copy">
+            <div class="eyebrow">Cancel run</div>
+            <h3 id="cancelRunTitle">Cancel run r-8f3a2b?</h3>
+            <p>The run winds down cleanly: in-flight lanes drain, their cleanup reactions run, finished work is kept. The run closes as <b>Canceled</b>.</p>
+          </div>
+        </div>
+        <div class="dialog__body">
+          <div class="staterow">
+            <span class="tdot" data-tone="accent"></span>
+            <span class="staterow__t">Running — 2 lanes in flight, 1 waiting on you</span>
+            <span class="staterow__meta">gen 2 · 22m in</span>
+          </div>
+          <div class="hint">Waits are released and pending retries are dropped. This can take a moment while in-flight work drains — kill is the immediate path.</div>
+        </div>
+        <div class="dialog__foot">
+          <span class="foot-note"><i data-lucide="info"></i><span class="mono">cause: operator_cancel</span></span>
+          <button class="btn" type="button">Keep running</button>
+          <button class="btn btn--danger" type="button">Cancel run</button>
+        </div>
+      </div>
+
+      <div class="dialog" role="dialog" aria-labelledby="killRunTitle" data-od-id="dialog-run-kill">
+        <div class="dialog__head" data-tone="danger">
+          <span class="head-icon head-icon--danger" aria-hidden="true"><i data-lucide="zap"></i></span>
+          <div class="head-copy">
+            <div class="eyebrow">Kill run</div>
+            <h3 id="killRunTitle">Kill run r-8f3a2b?</h3>
+            <p>Everything stops <b>immediately</b>: in-flight work is interrupted mid-step and its cleanup reactions are skipped. Finished work is kept.</p>
+          </div>
+        </div>
+        <div class="dialog__body">
+          <div class="staterow">
+            <span class="tdot" data-tone="accent"></span>
+            <span class="staterow__t">Running — 2 lanes in flight, 1 waiting on you</span>
+            <span class="staterow__meta">gen 2 · 22m in</span>
+          </div>
+          <div class="hint">Use kill when the run is misbehaving and can't be trusted to wind down. If a clean stop is enough, cancel instead.</div>
+        </div>
+        <div class="dialog__foot">
+          <span class="foot-note"><i data-lucide="triangle-alert"></i><span class="mono">cause: operator_kill · reactions skipped</span></span>
+          <button class="btn" type="button">Keep running</button>
+          <button class="btn btn--danger-solid" type="button">Kill run</button>
+        </div>
+      </div>
+    </div>
+  </details>
+
+  <!-- ═════════ 05 · destructive confirms (node kill · requeue) ═════════ -->
+  <details class="sec" open id="confirms" data-od-id="lab-confirms">
+    <summary>
+      <i class="si" data-lucide="triangle-alert"></i>
+      <span class="st">05 · Destructive confirms</span>
+      <span class="ssum">every confirm states the node state it is about to act on</span>
+      <span class="spacer"></span><i class="chev" data-lucide="chevron-down"></i>
+    </summary>
+    <div class="stage stage--pair">
+      <!-- route · authority: spec
+           POST /api/workspaces/:ws/loop-runs/:run_id/nodes/:node_id/kill -->
+      <div class="dialog" role="dialog" aria-labelledby="killNodeTitle" data-od-id="dialog-node-kill">
+        <div class="dialog__head" data-tone="danger">
+          <span class="head-icon head-icon--danger" aria-hidden="true"><i data-lucide="zap"></i></span>
+          <div class="head-copy">
+            <div class="eyebrow">Kill node</div>
+            <h3 id="killNodeTitle">Kill task_04?</h3>
+            <p>The lane stops <b>immediately</b> — no drain, no cleanup reactions. Its work so far is kept but the lane ends as canceled.</p>
+          </div>
+        </div>
+        <div class="dialog__body">
+          <div class="staterow">
+            <span class="tdot" data-tone="warning"></span>
+            <span class="staterow__t">task_04 is flagged: silent for 31m</span>
+            <span class="staterow__meta">attempt 1 · last evidence 14:21</span>
+          </div>
+          <div class="hint">The agent may still be working without reporting. If you just want it out of the way safely, pause or cancel drain first.</div>
+        </div>
+        <div class="dialog__foot">
+          <span class="foot-note"><i data-lucide="triangle-alert"></i><span class="mono">node_killed · no on_* reactions</span></span>
+          <button class="btn" type="button">Keep it</button>
+          <button class="btn btn--danger-solid" type="button">Kill lane</button>
+        </div>
+      </div>
+
+      <!-- route · authority: spec
+           POST /api/workspaces/:ws/loop-runs/:run_id/nodes/:node_id/requeue -->
+      <div class="dialog" role="dialog" aria-labelledby="requeueTitle" data-od-id="dialog-requeue">
+        <div class="dialog__head">
+          <span class="head-icon" aria-hidden="true"><i data-lucide="rotate-ccw"></i></span>
+          <div class="head-copy">
+            <div class="eyebrow">Requeue node</div>
+            <h3 id="requeueTitle">Send task_03 back to the queue?</h3>
+            <p>The lane leaves quarantine and runs again through the normal path, with all limits applying. If it fails again, it returns here as <b>episode 3</b>.</p>
+          </div>
+        </div>
+        <div class="dialog__body">
+          <div class="staterow">
+            <span class="tdot" data-tone="danger"></span>
+            <span class="staterow__t">task_03 is quarantined</span>
+            <span class="staterow__meta">4 attempts · episode 2 · quarantined 14:52</span>
+          </div>
+          <div class="hint">The quarantine entry suggests rotating the <code>github-mcp</code> credential first — a requeue without the fix will likely repeat the chain.</div>
+        </div>
+        <div class="dialog__foot">
+          <span class="foot-note"><i data-lucide="info"></i><span class="mono">node_requeued · origin requeue · with provenance</span></span>
+          <button class="btn" type="button">Keep quarantined</button>
+          <button class="btn btn--primary" type="button">Requeue lane</button>
+        </div>
+      </div>
+    </div>
+  </details>
+
+  <!-- ═════════ 06 · wait resume with payload ═════════ -->
+  <details class="sec" open id="wait-resume" data-od-id="lab-wait-resume">
+    <summary>
+      <i class="si" data-lucide="hourglass"></i>
+      <span class="st">06 · Resume a wait by hand</span>
+      <span class="ssum">the payload is checked against the wait, and only one resume wins</span>
+      <span class="spacer"></span><i class="chev" data-lucide="chevron-down"></i>
+    </summary>
+    <div class="stage">
+      <!-- route · authority: spec
+           POST /api/workspaces/:ws/loop-runs/:run_id/nodes/:node_id/resume  {payload}
+           payload validated against the wait's expect · single claim (US-022) -->
+      <div class="dialog" role="dialog" aria-labelledby="waitResumeTitle" data-od-id="dialog-wait-resume">
+        <div class="dialog__head">
+          <span class="head-icon" aria-hidden="true"><i data-lucide="play"></i></span>
+          <div class="head-copy">
+            <div class="eyebrow">Resume wait</div>
+            <h3 id="waitResumeTitle">Resume task_04 by hand?</h3>
+            <p>This lane is waiting for <b>deploy.finished</b>. Resuming by hand stands in for that event — the payload must match what the wait expects.</p>
+          </div>
+        </div>
+        <div class="dialog__body">
+          <div class="staterow">
+            <span class="tdot" data-tone="info"></span>
+            <span class="staterow__t">task_04 is waiting · event</span>
+            <span class="staterow__meta">gen 2 · waiting 18m</span>
+          </div>
+          <div class="field" data-invalid="true">
+            <label class="label" for="waitPayload">Payload <span class="opt">validated against the wait's expectation</span></label>
+            <textarea class="textarea" id="waitPayload">{ "environment": "staging" }</textarea>
+            <span class="error">Doesn't match what the wait expects: required key <code>env</code> is missing (found <code>environment</code>). The wait stays open — fix the payload and try again.</span>
+            <span class="hint">Expected shape: <code>{env: "staging"}</code></span>
+          </div>
+        </div>
+        <div class="dialog__foot">
+          <span class="foot-note"><i data-lucide="info"></i>One resume wins — a concurrent event claim answers with the winner.</span>
+          <button class="btn" type="button">Cancel</button>
+          <button class="btn btn--primary" type="button" disabled>Resume lane</button>
+        </div>
+      </div>
+    </div>
+  </details>
+
+  <!-- ═════════ 07 · deterministic answers, rendered informative ═════════ -->
+  <details class="sec" open id="answers" data-od-id="lab-answers">
+    <summary>
+      <i class="si" data-lucide="info"></i>
+      <span class="st">07 · Deterministic answers</span>
+      <span class="ssum">a verb that no longer applies reads as information, never as a failure</span>
+      <span class="spacer"></span><i class="chev" data-lucide="chevron-down"></i>
+    </summary>
+    <!-- ReasonErrors name the actual state and what's allowed (US-026 EC-1) · authority: spec
+         node_not_paused · node_not_quarantined · run_terminal · already_decided{winner}
+         concurrent verbs resolve by CAS; the loser sees the winner's provenance -->
+    <div class="stage stage--grid">
+
+      <div class="demo" data-od-id="answer-not-paused">
+        <div class="demo__cap"><b>node_not_paused</b> — resume on a node that isn't paused</div>
+        <div class="answer">
+          <i data-lucide="info"></i>
+          <div class="answer__main">
+            <div class="answer__t">Nothing to resume</div>
+            <div class="answer__sub">task_04 isn't paused — it's <b>running</b>. From here you can pause, cancel or kill it.</div>
+            <div class="answer__micro">node_not_paused · state running</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="demo" data-od-id="answer-not-quarantined">
+        <div class="demo__cap"><b>node_not_quarantined</b> — requeue after the node already left quarantine</div>
+        <div class="answer">
+          <i data-lucide="info"></i>
+          <div class="answer__main">
+            <div class="answer__t">Already out of quarantine</div>
+            <div class="answer__sub">task_03 was requeued and is <b>enqueued</b> — nothing left to requeue.</div>
+            <div class="answer__micro">node_not_quarantined · state enqueued</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="demo" data-od-id="answer-run-terminal">
+        <div class="demo__cap"><b>run_terminal</b> — any node verb after the run closed</div>
+        <div class="answer">
+          <i data-lucide="info"></i>
+          <div class="answer__main">
+            <div class="answer__t">This run is closed</div>
+            <div class="answer__sub">r-8f3a2b ended as <b>Canceled</b> 20 minutes ago — node controls no longer apply. Starting again is a new run.</div>
+            <div class="answer__micro">run_terminal · status canceled</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="demo" data-od-id="answer-already-decided">
+        <div class="demo__cap"><b>already_decided</b> — the loser of a concurrent verb race sees the winner</div>
+        <div class="answer">
+          <i data-lucide="check"></i>
+          <div class="answer__main">
+            <div class="answer__t">Already handled</div>
+            <div class="answer__sub">Someone got there first: <b>ana</b> resumed this lane 4 seconds ago (mode: plain). Nothing was done twice.</div>
+            <div class="answer__micro">already_decided · winner ana · resume plain · 14:58:12</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </details>
+
+  <div class="quiet-note" data-od-id="node-controls-authority">
+    <i data-lucide="route"></i>
+    <span><b>Where these controls come from.</b> Production ships only run-level pause, resume, stop and approve today. Every node verb on this page — plus run <span class="mono">cancel</span> and <span class="mono">kill</span> — comes from the loop-node-lifecycle TechSpec, which deletes <span class="mono">/stop</span> outright rather than keeping it alongside.</span>
+  </div>
+</div>
+
+<script src="https://unpkg.com/lucide@latest"></script>
+<script>lucide.createIcons();</script>
+</body>
+</html>

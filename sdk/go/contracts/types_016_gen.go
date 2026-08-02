@@ -7,6 +7,10 @@ import (
 	"time"
 )
 
+type ProviderModelListResponse struct {
+	Models []ProviderModelPayload `json:"models"`
+}
+
 type ProviderModelPayload struct {
 	ProviderID             string                         `json:"provider_id"`
 	ModelID                string                         `json:"model_id"`
@@ -139,10 +143,4 @@ type RetentionHealth struct {
 	DeletedTokenStats        int64      `json:"deleted_token_stats"`
 	DeletedTokenUsageDaily   int64      `json:"deleted_token_usage_daily"`
 	DeletedPermissionLogRows int64      `json:"deleted_permission_log_rows"`
-}
-
-type RetryConfig struct {
-	Strategy   RetryStrategy `json:"strategy"`
-	MaxRetries int           `json:"max_retries"`
-	BaseDelay  string        `json:"base_delay"`
 }

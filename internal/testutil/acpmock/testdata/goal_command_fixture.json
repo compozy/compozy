@@ -46,7 +46,7 @@
                     "steps": [
                         {
                             "kind": "assistant",
-                            "text": "{\"verdict\":\"revise\",\"blocking_issues\":[{\"id\":\"attempt_1\",\"note\":\"Objective needs another turn.\"}],\"confidence\":0.9,\"evidence\":{\"attempt\":1}}"
+                            "text": "{\"verdict\":\"revise\",\"blocking_issues\":[{\"id\":\"attempt_1\",\"note\":\"Objective needs another turn.\"}],\"evidence\":{\"attempt\":1}}"
                         }
                     ]
                 },
@@ -59,7 +59,7 @@
                     "steps": [
                         {
                             "kind": "assistant",
-                            "text": "{\"verdict\":\"revise\",\"blocking_issues\":[{\"id\":\"attempt_2\",\"note\":\"Objective needs another turn.\"}],\"confidence\":0.9,\"evidence\":{\"attempt\":2}}"
+                            "text": "{\"verdict\":\"revise\",\"blocking_issues\":[{\"id\":\"attempt_2\",\"note\":\"Objective needs another turn.\"}],\"evidence\":{\"attempt\":2}}"
                         }
                     ]
                 },
@@ -72,7 +72,7 @@
                     "steps": [
                         {
                             "kind": "assistant",
-                            "text": "{\"verdict\":\"pass\",\"blocking_issues\":[],\"confidence\":1.0,\"evidence\":{\"attempt\":3}}"
+                            "text": "{\"verdict\":\"pass\",\"blocking_issues\":[],\"evidence\":{\"attempt\":3}}"
                         }
                     ]
                 }
@@ -127,7 +127,7 @@
                     "steps": [
                         {
                             "kind": "assistant",
-                            "text": "{\"verdict\":\"pass\",\"blocking_issues\":[],\"confidence\":1.0,\"evidence\":{\"mode\":\"constrained\"}}"
+                            "text": "{\"verdict\":\"pass\",\"blocking_issues\":[],\"evidence\":{\"mode\":\"constrained\"}}"
                         }
                     ]
                 }
@@ -172,7 +172,7 @@
                     "steps": [
                         {
                             "kind": "assistant",
-                            "text": "{\"verdict\":\"pass\",\"blocking_issues\":[],\"confidence\":1.0,\"evidence\":{\"mode\":\"constrained\"}}"
+                            "text": "{\"verdict\":\"pass\",\"blocking_issues\":[],\"evidence\":{\"mode\":\"constrained\"}}"
                         }
                     ]
                 }

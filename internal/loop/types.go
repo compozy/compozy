@@ -60,6 +60,16 @@ const (
 	CodeNodeIDInvalid = "node_id_invalid"
 	// CodeVerdictPolicyRequiresJudge reports revise_until_clean without a judge/human source.
 	CodeVerdictPolicyRequiresJudge = "verdict_policy_requires_judge"
+	// CodeMetricSingle reports multiple metric criteria in one definition.
+	CodeMetricSingle = "metric_single"
+	// CodeMetricMachineCriterionRequired reports a metric on a non-machine criterion.
+	CodeMetricMachineCriterionRequired = "metric_machine_criterion_required"
+	// CodeMetricDirectionRequired reports a metric without a direction.
+	CodeMetricDirectionRequired = "metric_direction_required"
+	// CodeMetricDirectionInvalid reports a direction outside the closed metric enum.
+	CodeMetricDirectionInvalid = "metric_direction_invalid"
+	// CodeMetricMinDeltaInvalid reports a negative or non-finite metric delta.
+	CodeMetricMinDeltaInvalid = "metric_min_delta_invalid"
 	// CodeInvalidHarvest reports an unsupported or malformed harvest policy.
 	CodeInvalidHarvest = "invalid_harvest"
 	// CodeUnknownActionKind reports action kinds that are neither reserved nor resolvable ToolIDs.

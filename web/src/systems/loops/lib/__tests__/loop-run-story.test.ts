@@ -117,7 +117,17 @@ describe("buildRunStory", () => {
     expect(parked.rows.map(row => row.tone)).toEqual(["neutral", "neutral"]);
   });
 
-  it("Should render verdict rows with confidence and mono blocking issues", () => {
+  it("Should render one round marker when the runtime re-emits a generation start", () => {
+    const frames = [
+      frame("generation_started", { generation: 1, parent_generation: 0, origin: "initial" }, 1),
+      frame("generation_started", { generation: 1, parent_generation: 0, origin: "initial" }, 2),
+    ];
+
+    const story = buildRunStory(frames, { status: "running", graph: null });
+    expect(story.rows.filter(row => row.kind === "generation_started")).toHaveLength(1);
+  });
+
+  it("Should render verdict rows with scores, best state, and mono blocking issues", () => {
     const frames = [
       frame(
         "gate_verdict",
@@ -125,7 +135,8 @@ describe("buildRunStory", () => {
           node_id: "check_all",
           generation: 2,
           verdict: "revise",
-          confidence: 0.91,
+          score: 0.91,
+          best_generation: 2,
           blocking_issues: [
             { id: "issue_022", note: "no decision" },
             { id: "issue_024", note: "fix missing" },
@@ -135,20 +146,206 @@ describe("buildRunStory", () => {
       ),
       frame(
         "gate_verdict",
-        { node_id: "check_all", generation: 3, verdict: "pass", confidence: 0.94 },
+        {
+          node_id: "check_all",
+          generation: 3,
+          verdict: "pass",
+          score: 0.94,
+          best_generation: 3,
+        },
         2
       ),
     ];
     const story = buildRunStory(frames, { status: "running", graph: watchGraph() });
     const [pass, revise] = story.rows;
     expect(revise.title).toBe("Check: not clean yet");
-    expect(revise.sub).toBe("Verdict revise · confidence 0.91.");
+    expect(revise.sub).toBe("Verdict revise.");
+    expect(revise.score).toBe(0.91);
+    expect(revise.isBest).toBe(true);
     expect(revise.issues).toEqual([
       { id: "issue_022", note: "no decision" },
       { id: "issue_024", note: "fix missing" },
     ]);
     expect(pass.title).toBe("Check passed — everything handled");
-    expect(pass.sub).toBe("Verdict pass · confidence 0.94");
+    expect(pass.sub).toBe("Verdict pass");
+    expect(pass.score).toBe(0.94);
+    expect(pass.isBest).toBe(true);
+  });
+
+  it("Should project persisted score, best, and restore provenance onto a generation", () => {
+    const story = buildRunStory(
+      [
+        frame(
+          "generation_started",
+          {
+            generation: 3,
+            parent_generation: 1,
+            origin: "ratchet_restore",
+            reattempt_strategy: "all",
+          },
+          1
+        ),
+        frame(
+          "gate_verdict",
+          {
+            node_id: "quality",
+            gate_id: "quality",
+            generation: 3,
+            verdict: "revise",
+            score: 0.7,
+            best_generation: 3,
+          },
+          2
+        ),
+      ],
+      {
+        status: "exhausted",
+        graph: null,
+        bestGeneration: 3,
+        generations: [
+          {
+            generation: 3,
+            parent_generation: 1,
+            origin: "ratchet_restore",
+            verdicts: [
+              {
+                gate_id: "quality",
+                item_index: 0,
+                outcome: "rejected",
+                score: 0.7,
+                criteria: [],
+                blocking_issues: [],
+              },
+            ],
+            outputs: [],
+          },
+        ],
+      }
+    );
+
+    expect(story.rows[0]).toMatchObject({
+      kind: "gate_verdict",
+      score: undefined,
+      isBest: false,
+    });
+    expect(story.rows[1]).toMatchObject({
+      generation: 3,
+      score: 0.7,
+      isBest: true,
+      originLabel: "Restored from gen 1",
+    });
+  });
+
+  it("Should keep durable generation markers when their start events were pruned", () => {
+    const story = buildRunStory([], {
+      status: "exhausted",
+      graph: null,
+      bestGeneration: 2,
+      generations: [
+        {
+          generation: 1,
+          parent_generation: 0,
+          origin: "initial",
+          verdicts: [
+            {
+              gate_id: "quality",
+              item_index: 0,
+              outcome: "rejected",
+              score: 0.7,
+              criteria: [],
+              blocking_issues: [],
+            },
+          ],
+          outputs: [],
+        },
+        {
+          generation: 2,
+          parent_generation: 1,
+          origin: "ratchet_restore",
+          verdicts: [
+            {
+              gate_id: "quality",
+              item_index: 0,
+              outcome: "rejected",
+              score: 0.8,
+              criteria: [],
+              blocking_issues: [],
+            },
+          ],
+          outputs: [],
+        },
+      ],
+    });
+
+    expect(story.rows).toMatchObject([
+      {
+        kind: "generation_started",
+        generation: 2,
+        score: 0.8,
+        isBest: true,
+        originLabel: "Restored from gen 1",
+      },
+      {
+        kind: "generation_started",
+        generation: 1,
+        score: 0.7,
+        isBest: false,
+        originLabel: "Initial generation",
+      },
+    ]);
+  });
+
+  it("Should prefer a streamed best generation until the durable detail catches up", () => {
+    const story = buildRunStory(
+      [
+        frame(
+          "gate_verdict",
+          {
+            node_id: "quality",
+            gate_id: "quality",
+            generation: 2,
+            verdict: "pass",
+            score: 0.9,
+            best_generation: 2,
+          },
+          10
+        ),
+      ],
+      {
+        status: "running",
+        graph: null,
+        bestGeneration: 1,
+        generations: [
+          {
+            generation: 1,
+            parent_generation: 0,
+            origin: "initial",
+            verdicts: [
+              {
+                gate_id: "quality",
+                item_index: 0,
+                outcome: "rejected",
+                score: 0.7,
+                criteria: [],
+                blocking_issues: [],
+              },
+            ],
+            outputs: [],
+          },
+        ],
+      }
+    );
+
+    expect(story.rows[0]).toMatchObject({
+      kind: "gate_verdict",
+      generation: 2,
+      isBest: true,
+    });
+    expect(story.rows[1]).toMatchObject({
+      kind: "generation_started",
+      generation: 1,
+      isBest: false,
+    });
   });
 
   it("Should feed Happening now from node_running with the task link, never a story row", () => {
@@ -203,6 +400,9 @@ describe("buildRunStory", () => {
       generations: [
         {
           generation: 2,
+          parent_generation: 1,
+          origin: "gate_revise",
+          verdicts: [],
           outputs: [
             {
               node_id: "child_delivery",
@@ -252,6 +452,9 @@ describe("buildNextNote", () => {
     const note = buildNextNote(watchGraph(), [
       {
         generation: 2,
+        parent_generation: 1,
+        origin: "gate_revise",
+        verdicts: [],
         outputs: [
           { node_id: "inspect_events", status: "succeeded" },
           { node_id: "fix_batches", status: "running", item_index: 1 },
@@ -278,7 +481,13 @@ describe("buildNextNote", () => {
       },
     } as unknown as Pick<LoopDefinition, "graph">);
     const note = buildNextNote(graph, [
-      { generation: 1, outputs: [{ node_id: "implement", status: "succeeded" }] },
+      {
+        generation: 1,
+        parent_generation: 0,
+        origin: "initial",
+        verdicts: [],
+        outputs: [{ node_id: "implement", status: "succeeded" }],
+      },
     ]);
     expect(note).toBe(
       "Still ahead this round: review. When every step is done, a final check decides: clean " +

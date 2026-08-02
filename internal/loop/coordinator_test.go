@@ -5,6 +5,8 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -172,6 +174,7 @@ func TestCoordinatorActionExecutionInputShouldCarryPinnedGoalPolicy(t *testing.T
 			node,
 			coordinatorActionRunMetadata{Generation: 1, GoalSegmentEpoch: 1},
 			nil,
+			GenerationHistory{},
 		)
 		if err != nil {
 			t.Fatalf("actionExecutionInput() error = %v", err)
@@ -699,11 +702,11 @@ func TestCoordinatorRunnerShouldRetryAwaitingChildLoopOnTimeout(t *testing.T) {
 			t.Fatalf("output ref = %q, want %q", got, want)
 		}
 		next := coordinatorPostReservePayloadForTest(t, plan)
-		if got, want := next.Outputs[0].Status, generationOutputAwaitingChild; got != want {
+		if got, want := next.Outputs[0].Status, generationOutputPending; got != want {
 			t.Fatalf("next output status = %q, want %q", got, want)
 		}
-		if got, want := next.Outputs[0].ChildLoopRunID, string(childRun.ID); got != want {
-			t.Fatalf("next child_loop_run_id = %q, want %q", got, want)
+		if got := next.Outputs[0].ChildLoopRunID; got != "" {
+			t.Fatalf("next child_loop_run_id = %q, want cleared rerun ownership", got)
 		}
 		if plan.NextCoordinator == nil {
 			t.Fatal("NextCoordinator = nil, want retry coordinator")
@@ -755,6 +758,119 @@ func TestCoordinatorRunnerShouldTerminalizeDoneWhenGenerationSucceeded(t *testin
 }
 
 func TestCoordinatorRunnerShouldRespectContractStopWhen(t *testing.T) {
+	t.Run("Should expose a same-transaction metric best update to stop-when", func(t *testing.T) {
+		t.Parallel()
+
+		score := 0.9
+		conditionRun, conditionHistory, err := pendingBestConditionContext(
+			Run{ID: "looprun-pending-best", WorkspaceID: "ws-1"},
+			GenerationHistory{},
+			[]GenerationOutput{{
+				Generation: 1, NodeID: "quality", Status: generationOutputSucceeded,
+				OutputRef: `{"outcome":"approved"}`,
+			}},
+			task.GenerationSnapshot{Generation: 1, Payload: GenerationSnapshotPayload{
+				BestUpdate: &gate.BestUpdateIntent{Generation: 1, Score: score},
+			}},
+		)
+		if err != nil {
+			t.Fatalf("pendingBestConditionContext() error = %v", err)
+		}
+		if conditionRun.BestGeneration == nil || *conditionRun.BestGeneration != 1 ||
+			conditionRun.BestScore == nil || *conditionRun.BestScore != score {
+			t.Fatalf(
+				"condition run best = %#v/%#v, want generation 1 score %.1f",
+				conditionRun.BestGeneration,
+				conditionRun.BestScore,
+				score,
+			)
+		}
+		if conditionHistory.Best == nil || conditionHistory.Best.Score != score ||
+			conditionHistory.Best.Generation != 1 {
+			t.Fatalf("condition history best = %#v, want generation 1 score %.1f", conditionHistory.Best, score)
+		}
+	})
+
+	t.Run("Should expose a same-transaction metric best update to definition of done", func(t *testing.T) {
+		t.Parallel()
+
+		score := 0.9
+		graph := dsl.Graph{
+			Nodes: []dsl.Node{
+				{ID: "draft", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunAgent)},
+				testMetricRouteGateNode("quality"),
+			},
+			Edges: []dsl.Edge{{From: "draft", To: "quality"}},
+		}
+		run := Run{
+			ID: "looprun-dod-pending-best", WorkspaceID: "ws-1", LoopName: "delivery",
+			Status: StatusRunning, Generation: 1, IterationCap: 2,
+		}
+		coordinatorRun := task.Run{
+			ID: "run-coordinator-dod-pending-best", TaskID: "task-coordinator-dod-pending-best",
+			RunKind: task.RunKindCoordinator, LoopRunID: string(run.ID), Status: task.TaskRunStatusClaimed,
+		}
+		runner := newCoordinatorRunnerForTestWithDefinition(
+			t,
+			run,
+			coordinatorRun,
+			nil,
+			coordinatorRunnerOutputs{outputs: map[int][]GenerationOutput{
+				1: {
+					{Generation: 1, NodeID: "draft", Status: generationOutputSucceeded, OutputRef: `{"draft":"best"}`},
+				},
+				2: {
+					{Generation: 2, NodeID: "draft", Status: generationOutputSucceeded, OutputRef: `{"draft":2}`},
+					{Generation: 2, NodeID: "quality", Status: generationOutputPending},
+				},
+			}},
+			dsl.Definition{
+				Graph:    graph,
+				Contract: dsl.Contract{Verification: []dsl.GateCriterion{testRouteCriterion()}},
+			},
+			WithCoordinatorGateEvaluator(gateEvaluatorFunc(
+				func(_ context.Context, _ gate.Gate, input gate.GateInput) (gate.Verdict, error) {
+					if input.Placement == gate.PlacementDefinitionOfDone {
+						if input.BestScore == nil || *input.BestScore != score {
+							t.Fatalf("definition-of-done best score = %#v, want %.1f", input.BestScore, score)
+						}
+						best := input.TemplateData[namespaceBestKey].(map[string]any)
+						if got, want := best["score"], score; got != want {
+							t.Fatalf("definition-of-done namespace best score = %#v, want %.1f", got, want)
+						}
+						return gate.Verdict{
+							Outcome: gate.VerdictOutcomeApproved,
+							Criteria: []gate.CriterionResult{{
+								ID: "check", Type: dsl.CriterionCommand,
+								Outcome: gate.VerdictOutcomeApproved, Passed: true,
+							}},
+							Route: gate.RouteDecision{
+								Placement: gate.PlacementDefinitionOfDone,
+								Action:    gate.RouteDone,
+							},
+						}, nil
+					}
+					return gate.Verdict{
+						Outcome: gate.VerdictOutcomeApproved,
+						Criteria: []gate.CriterionResult{{
+							ID: "check", Type: dsl.CriterionCommand, Score: &score,
+							Outcome: gate.VerdictOutcomeApproved, Passed: true,
+						}},
+						Route: gate.RouteDecision{Placement: gate.PlacementInBody, Action: gate.RouteContinue},
+					}, nil
+				},
+			)),
+		)
+
+		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		if err != nil {
+			t.Fatalf("Run() error = %v", err)
+		}
+		if plan.Terminal == nil || plan.Terminal.Status != string(StatusDone) {
+			t.Fatalf("terminal = %#v, want done", plan.Terminal)
+		}
+	})
+
 	t.Run("Should start next generation while stop_when is false", func(t *testing.T) {
 		t.Parallel()
 
@@ -1122,6 +1238,668 @@ func TestCoordinatorRunnerShouldRetryUnstructuredNodeFailure(t *testing.T) {
 	})
 }
 
+func TestCoordinatorRunnerShouldUnionRouteCausingGateProducers(t *testing.T) {
+	t.Run("Should rerun the deterministic producer union and carry unrelated work", func(t *testing.T) {
+		t.Parallel()
+
+		graph := dsl.Graph{
+			Nodes: []dsl.Node{
+				{ID: "a", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunLoop)},
+				{ID: "b", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunAgent)},
+				{ID: "e", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunAgent)},
+				{ID: "d", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunLoop)},
+				testRouteGateNode("g1"),
+				testRouteGateNode("g2"),
+				{ID: "c", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunLoop)},
+			},
+			Edges: []dsl.Edge{
+				{From: "a", To: "g1"},
+				{From: "b", To: "g1"},
+				{From: "b", To: "g2"},
+				{From: "e", To: "g2"},
+				{From: "g1", To: "c"},
+				{From: "g2", To: "c"},
+			},
+		}
+		run := Run{
+			ID:                "looprun-route-union",
+			WorkspaceID:       "ws-1",
+			LoopName:          "delivery",
+			Status:            StatusRunning,
+			Generation:        1,
+			IterationCap:      3,
+			ReattemptStrategy: ReattemptFailedOnly,
+		}
+		coordinatorRun := task.Run{
+			ID:        "run-coordinator-route-union",
+			TaskID:    "task-coordinator-route-union",
+			RunKind:   task.RunKindCoordinator,
+			LoopRunID: string(run.ID),
+			Status:    task.TaskRunStatusClaimed,
+		}
+		current := []GenerationOutput{
+			{
+				Generation:     1,
+				NodeID:         "a",
+				Status:         generationOutputSucceeded,
+				OutputRef:      `{"value":"a"}`,
+				ChildLoopRunID: "child-a",
+			},
+			{
+				Generation: 1,
+				NodeID:     "b",
+				Status:     generationOutputSucceeded,
+				OutputRef:  `{"value":"b"}`,
+			},
+			{Generation: 1, NodeID: "c", Status: generationOutputPending, ChildLoopRunID: "child-c"},
+			{
+				Generation:     1,
+				NodeID:         "d",
+				Status:         generationOutputSucceeded,
+				OutputRef:      `{"value":"carry"}`,
+				TaskRunID:      "run-d",
+				ChildLoopRunID: "child-d",
+			},
+			{
+				Generation: 1,
+				NodeID:     "e",
+				Status:     generationOutputSucceeded,
+				OutputRef:  `{"value":"e"}`,
+			},
+			{Generation: 1, NodeID: "g1", Status: generationOutputPending},
+			{Generation: 1, NodeID: "g2", Status: generationOutputPending},
+		}
+		runner := newCoordinatorRunnerForTestWithDefinition(
+			t,
+			run,
+			coordinatorRun,
+			nil,
+			coordinatorRunnerOutputs{outputs: map[int][]GenerationOutput{1: current}},
+			dsl.Definition{Graph: graph},
+			WithCoordinatorGateEvaluator(testRouteEvaluator(gate.RouteRevise)),
+		)
+
+		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		if err != nil {
+			t.Fatalf("Run() error = %v", err)
+		}
+		if plan.Terminal != nil || plan.NextCoordinator == nil {
+			t.Fatalf("terminal/next = %#v/%#v, want successor", plan.Terminal, plan.NextCoordinator)
+		}
+		currentPayload := coordinatorSnapshotPayloadForTest(t, plan)
+		if got, want := len(currentPayload.Verdicts), 2; got != want {
+			t.Fatalf("verdict intents = %d, want %d", got, want)
+		}
+		for rank, verdict := range currentPayload.Verdicts {
+			if verdict.RouteCauseRank == nil || *verdict.RouteCauseRank != rank {
+				t.Fatalf("verdict %q rank = %#v, want %d", verdict.GateID, verdict.RouteCauseRank, rank)
+			}
+		}
+		nextPayload := coordinatorPostReservePayloadForTest(t, plan)
+		next := outputsByNodeForTest(nextPayload.Outputs)
+		for _, nodeID := range []string{"a", "b", "e", "g1", "g2", "c"} {
+			got := next[nodeID]
+			if got.Status != generationOutputPending || got.OutputRef != "" || got.ChildLoopRunID != "" {
+				t.Fatalf("rerun output %q = %#v, want blank pending", nodeID, got)
+			}
+		}
+		if got := next["d"]; got.Status != generationOutputSucceeded ||
+			got.OutputRef != `{"value":"carry"}` || got.ChildLoopRunID != "child-d" {
+			t.Fatalf("carried output d = %#v", got)
+		}
+		if nextPayload.GenerationProvenance == nil ||
+			nextPayload.GenerationProvenance.Origin != OriginGateRevise {
+			t.Fatalf("generation provenance = %#v, want gate_revise", nextPayload.GenerationProvenance)
+		}
+	})
+
+	t.Run("Should retain route-causing fan-out gate instances", func(t *testing.T) {
+		t.Parallel()
+
+		runtimeGate := gate.Gate{ID: "quality", Criteria: []dsl.GateCriterion{testRouteCriterion()}}
+		collector := &gateEvaluationCollector{}
+		collector.record(runtimeGate, 0, testRouteVerdict(gate.RouteRevise))
+		collector.record(runtimeGate, 1, gate.Verdict{
+			Outcome: gate.VerdictOutcomeApproved,
+			Route:   gate.RouteDecision{Placement: gate.PlacementInBody, Action: gate.RouteContinue},
+		})
+		if got, want := len(collector.ordered()), 2; got != want {
+			t.Fatalf("gate evaluations = %d, want %d", got, want)
+		}
+		causes := collector.routeCauses()
+		if len(causes) != 1 || causes[0].itemIndex != 0 {
+			t.Fatalf("route causes = %#v, want only item 0", causes)
+		}
+		intents, _, err := collector.intents(Run{}, 1)
+		if err != nil {
+			t.Fatalf("intents() error = %v", err)
+		}
+		if len(intents) != 2 || intents[0].ItemIndex != 0 || intents[1].ItemIndex != 1 {
+			t.Fatalf("verdict intents = %#v, want both gate items", intents)
+		}
+	})
+
+	t.Run("Should rematerialize fan-out body instead of carrying stale item slots", func(t *testing.T) {
+		t.Parallel()
+
+		graph := dsl.Graph{
+			Nodes: []dsl.Node{
+				{ID: "fan", Class: dsl.NodeClassControl, Kind: string(dsl.ControlFanOut)},
+				{ID: "work", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunAgent)},
+				testRouteGateNode("quality"),
+				{ID: "collect", Class: dsl.NodeClassControl, Kind: string(dsl.ControlCollect)},
+			},
+			Edges: []dsl.Edge{
+				{From: "fan", To: "work"},
+				{From: "work", To: "quality"},
+				{From: "quality", To: "collect"},
+			},
+		}
+		current := []GenerationOutput{
+			{Generation: 1, NodeID: "fan", Status: generationOutputSucceeded},
+			{Generation: 1, NodeID: "collect", Status: generationOutputPending},
+		}
+		rerun := map[generationOutputKey]struct{}{
+			{nodeID: "fan", itemIndex: 0}:     {},
+			{nodeID: "collect", itemIndex: 0}: {},
+		}
+		for itemIndex := range 3 {
+			current = append(
+				current,
+				GenerationOutput{
+					Generation: 1, NodeID: "work", ItemIndex: itemIndex,
+					Status: generationOutputSucceeded,
+				},
+				GenerationOutput{
+					Generation: 1, NodeID: "quality", ItemIndex: itemIndex,
+					Status: generationOutputFailed,
+				},
+			)
+			rerun[generationOutputKey{nodeID: "work", itemIndex: itemIndex}] = struct{}{}
+			rerun[generationOutputKey{nodeID: "quality", itemIndex: itemIndex}] = struct{}{}
+		}
+		next := successionGenerationOutputs(graph, current, current, rerun, 2)
+		for _, output := range next {
+			if output.NodeID == "work" || output.NodeID == "quality" {
+				t.Fatalf("successor retained stale fan-out body output %#v", output)
+			}
+		}
+	})
+}
+
+func TestCoordinatorRunnerShouldStartFreshGenerationForBothNextGenerationSurfaces(t *testing.T) {
+	cases := []struct {
+		name       string
+		fixtureID  string
+		definition dsl.Definition
+		outputs    []GenerationOutput
+		wantOrigin GenerationOrigin
+	}{
+		{
+			name:      "in-body gate",
+			fixtureID: "in-body-gate",
+			definition: dsl.Definition{Graph: dsl.Graph{
+				Nodes: []dsl.Node{
+					{ID: "draft", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunAgent)},
+					testRouteGateNode("quality"),
+				},
+				Edges: []dsl.Edge{{From: "draft", To: "quality"}},
+			}},
+			outputs: []GenerationOutput{
+				{Generation: 1, NodeID: "draft", Status: generationOutputSucceeded, OutputRef: `{"draft":1}`},
+				{Generation: 1, NodeID: "quality", Status: generationOutputPending},
+			},
+			wantOrigin: OriginGateNextGeneration,
+		},
+		{
+			name:      "definition of done",
+			fixtureID: "definition-of-done",
+			definition: dsl.Definition{
+				Contract: dsl.Contract{Verification: []dsl.GateCriterion{testRouteCriterion()}},
+				Graph: dsl.Graph{Nodes: []dsl.Node{
+					{ID: "draft", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunAgent)},
+				}},
+			},
+			outputs: []GenerationOutput{
+				{Generation: 1, NodeID: "draft", Status: generationOutputSucceeded, OutputRef: `{"draft":1}`},
+			},
+			wantOrigin: OriginDoDRetry,
+		},
+	}
+	for _, tc := range cases {
+		t.Run("Should schedule a fresh generation for "+tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			run := Run{
+				ID:           RunID("looprun-next-" + tc.fixtureID),
+				WorkspaceID:  "ws-1",
+				LoopName:     "delivery",
+				Status:       StatusRunning,
+				Generation:   1,
+				IterationCap: 2,
+			}
+			coordinatorRun := task.Run{
+				ID:        "run-coordinator-next-" + tc.fixtureID,
+				TaskID:    "task-coordinator-next-" + tc.fixtureID,
+				RunKind:   task.RunKindCoordinator,
+				LoopRunID: string(run.ID),
+				Status:    task.TaskRunStatusClaimed,
+			}
+			runner := newCoordinatorRunnerForTestWithDefinition(
+				t,
+				run,
+				coordinatorRun,
+				nil,
+				coordinatorRunnerOutputs{outputs: map[int][]GenerationOutput{1: tc.outputs}},
+				tc.definition,
+				WithCoordinatorGateEvaluator(testRouteEvaluator(gate.RouteNextGeneration)),
+			)
+
+			plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+			if err != nil {
+				t.Fatalf("Run() error = %v", err)
+			}
+			if plan.Terminal != nil || plan.NextCoordinator == nil {
+				t.Fatalf("terminal/next = %#v/%#v, want fresh successor", plan.Terminal, plan.NextCoordinator)
+			}
+			next := coordinatorPostReservePayloadForTest(t, plan)
+			for _, output := range next.Outputs {
+				if output.Status != generationOutputPending || output.OutputRef != "" {
+					t.Fatalf("fresh output = %#v, want blank pending", output)
+				}
+			}
+			if next.GenerationProvenance == nil || next.GenerationProvenance.Origin != tc.wantOrigin {
+				t.Fatalf("provenance = %#v, want %q", next.GenerationProvenance, tc.wantOrigin)
+			}
+			if got := coordinatorSnapshotPayloadForTest(t, plan).Verdicts; len(got) != 1 {
+				t.Fatalf("verdict intents = %#v, want one", got)
+			}
+
+			cappedRun := run
+			cappedRun.ID = RunID(string(run.ID) + "-capped")
+			cappedRun.IterationCap = 1
+			cappedCoordinator := coordinatorRun
+			cappedCoordinator.ID += "-capped"
+			cappedCoordinator.TaskID += "-capped"
+			cappedCoordinator.LoopRunID = string(cappedRun.ID)
+			cappedRunner := newCoordinatorRunnerForTestWithDefinition(
+				t,
+				cappedRun,
+				cappedCoordinator,
+				nil,
+				coordinatorRunnerOutputs{outputs: map[int][]GenerationOutput{1: tc.outputs}},
+				tc.definition,
+				WithCoordinatorGateEvaluator(testRouteEvaluator(gate.RouteNextGeneration)),
+			)
+			cappedPlan, err := cappedRunner.Run(context.Background(), task.RunID(cappedCoordinator.ID))
+			if err != nil {
+				t.Fatalf("Run(capped) error = %v", err)
+			}
+			if cappedPlan.Terminal == nil || cappedPlan.Terminal.Status != string(StatusExhausted) ||
+				cappedPlan.NextCoordinator != nil || cappedPlan.PostReserveSnapshot != nil {
+				t.Fatalf("capped plan = %#v, want exhausted without successor", cappedPlan)
+			}
+		})
+	}
+}
+
+func TestCoordinatorRunnerShouldSeedMetricRevisionFromBest(t *testing.T) {
+	bestGeneration := int64(1)
+	currentBestGeneration := int64(2)
+	bestScore := 0.9
+	cases := []struct {
+		name           string
+		bestGeneration *int64
+		bestScore      *float64
+		wantRef        string
+		wantOrigin     GenerationOrigin
+		wantParent     int64
+	}{
+		{
+			name: "with baseline", bestGeneration: &bestGeneration, bestScore: &bestScore,
+			wantRef: `{"value":"best"}`, wantOrigin: OriginRatchetRestore, wantParent: 1,
+		},
+		{
+			name: "without baseline", wantRef: `{"value":"latest"}`,
+			wantOrigin: OriginGateRevise, wantParent: 2,
+		},
+		{
+			name: "with inconsistent current baseline", bestGeneration: &currentBestGeneration, bestScore: &bestScore,
+			wantRef: `{"value":"latest"}`, wantOrigin: OriginGateRevise, wantParent: 2,
+		},
+	}
+	for _, tc := range cases {
+		t.Run("Should seed a metric rejection "+tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			graph := dsl.Graph{
+				Nodes: []dsl.Node{
+					{ID: "producer", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunAgent)},
+					{ID: "stable", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunAgent)},
+					testMetricRouteGateNode("quality"),
+				},
+				Edges: []dsl.Edge{{From: "producer", To: "quality"}},
+			}
+			run := Run{
+				ID: RunID("looprun-ratchet-" + tc.name), WorkspaceID: "ws-1", LoopName: "delivery",
+				Status: StatusRunning, Generation: 2, IterationCap: 3,
+				BestGeneration: tc.bestGeneration, BestScore: tc.bestScore,
+			}
+			coordinatorRun := task.Run{
+				ID: "run-coordinator-ratchet-" + tc.name, TaskID: "task-coordinator-ratchet-" + tc.name,
+				RunKind: task.RunKindCoordinator, LoopRunID: string(run.ID), Status: task.TaskRunStatusClaimed,
+			}
+			outputs := coordinatorRunnerOutputs{outputs: map[int][]GenerationOutput{
+				1: {
+					{
+						Generation: 1,
+						NodeID:     "producer",
+						Status:     generationOutputSucceeded,
+						OutputRef:  `{"value":"best-producer"}`,
+					},
+					{
+						Generation: 1,
+						NodeID:     "stable",
+						Status:     generationOutputSucceeded,
+						OutputRef:  `{"value":"best"}`,
+					},
+					{
+						Generation: 1,
+						NodeID:     "quality",
+						Status:     generationOutputSucceeded,
+						OutputRef:  `{"outcome":"approved"}`,
+					},
+				},
+				2: {
+					{
+						Generation: 2,
+						NodeID:     "producer",
+						Status:     generationOutputSucceeded,
+						OutputRef:  `{"value":"regressed"}`,
+					},
+					{
+						Generation: 2,
+						NodeID:     "stable",
+						Status:     generationOutputSucceeded,
+						OutputRef:  `{"value":"latest"}`,
+					},
+					{Generation: 2, NodeID: "quality", Status: generationOutputPending},
+				},
+			}}
+			runner := newCoordinatorRunnerForTestWithDefinition(
+				t,
+				run,
+				coordinatorRun,
+				nil,
+				outputs,
+				dsl.Definition{Graph: graph},
+				WithCoordinatorGateEvaluator(gateEvaluatorFunc(
+					func(context.Context, gate.Gate, gate.GateInput) (gate.Verdict, error) {
+						verdict := testRouteVerdict(gate.RouteRevise)
+						score := 0.7
+						verdict.Criteria[0].Score = &score
+						return verdict, nil
+					},
+				)),
+			)
+
+			plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+			if err != nil {
+				t.Fatalf("Run() error = %v", err)
+			}
+			next := coordinatorPostReservePayloadForTest(t, plan)
+			if got := outputsByNodeForTest(next.Outputs)["stable"].OutputRef; got != tc.wantRef {
+				t.Fatalf("stable output_ref = %q, want %q", got, tc.wantRef)
+			}
+			if next.GenerationProvenance == nil || next.GenerationProvenance.Origin != tc.wantOrigin ||
+				next.GenerationProvenance.ParentGeneration != tc.wantParent {
+				t.Fatalf("provenance = %#v, want %q parent %d", next.GenerationProvenance, tc.wantOrigin, tc.wantParent)
+			}
+		})
+	}
+}
+
+func TestCoordinatorRunnerShouldValidatePersistedRouteCauseOutputs(t *testing.T) {
+	t.Parallel()
+
+	runner := &CoordinatorRunner{verdicts: generationHistoryReaderStub{routeCauses: map[int][]gate.VerdictRecord{
+		1: {{GateID: "quality"}},
+	}}}
+	graph := dsl.Graph{Nodes: []dsl.Node{testRouteGateNode("quality")}}
+	t.Run("Should load a rejected gate persisted as failed", func(t *testing.T) {
+		t.Parallel()
+
+		ref, err := gateVerdictOutputRef(testRouteVerdict(gate.RouteRevise))
+		if err != nil {
+			t.Fatalf("gateVerdictOutputRef() error = %v", err)
+		}
+		collector, err := runner.loadPersistedRouteCauses(
+			t.Context(),
+			Run{ID: "run-1", WorkspaceID: "ws-1"},
+			1,
+			graph,
+			[]GenerationOutput{{NodeID: "quality", Status: generationOutputFailed, OutputRef: ref}},
+		)
+		if err != nil {
+			t.Fatalf("loadPersistedRouteCauses() error = %v", err)
+		}
+		if causes := collector.routeCauses(); len(causes) != 1 || causes[0].verdict.Route.Action != gate.RouteRevise {
+			t.Fatalf("route causes = %#v, want one revise verdict", causes)
+		}
+	})
+	tests := []struct {
+		name       string
+		output     GenerationOutput
+		wantDetail string
+	}{
+		{
+			name: "Should reject a pending persisted route cause",
+			output: GenerationOutput{
+				NodeID: "quality", Status: generationOutputPending, OutputRef: `{"outcome":"rejected"}`,
+			},
+			wantDetail: `gate "quality" output status is "pending"`,
+		},
+		{
+			name: "Should reject a successful persisted route cause without output",
+			output: GenerationOutput{
+				NodeID: "quality", Status: generationOutputSucceeded,
+			},
+			wantDetail: `gate "quality" finished without an output reference`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := runner.loadPersistedRouteCauses(
+				t.Context(),
+				Run{ID: "run-1", WorkspaceID: "ws-1"},
+				1,
+				graph,
+				[]GenerationOutput{tt.output},
+			)
+			if !errors.Is(err, ErrValidation) || !strings.Contains(err.Error(), tt.wantDetail) {
+				t.Fatalf("loadPersistedRouteCauses() error = %v, want validation detail %q", err, tt.wantDetail)
+			}
+		})
+	}
+}
+
+func TestCoordinatorRunnerVerdictHistory(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should signal an unavailable verdict reader", func(t *testing.T) {
+		t.Parallel()
+
+		runner := &CoordinatorRunner{outputs: coordinatorRunnerOutputs{}}
+		_, err := runner.readGenerationHistory(
+			t.Context(),
+			Run{ID: "run-1", WorkspaceID: "ws-1"},
+			2,
+		)
+		if !errors.Is(err, ErrValidation) || !strings.Contains(err.Error(), "verdict history is unavailable") {
+			t.Fatalf("readGenerationHistory() error = %v, want explicit unavailable-history validation", err)
+		}
+	})
+}
+
+func TestCoordinatorRunnerShouldExposePreviousHistoryToRerunGate(t *testing.T) {
+	t.Run("Should evaluate a rejected gate with the prior durable generation namespace", func(t *testing.T) {
+		t.Parallel()
+
+		graph := dsl.Graph{
+			Nodes: []dsl.Node{
+				{ID: "draft", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunAgent)},
+				testRouteGateNode("quality"),
+			},
+			Edges: []dsl.Edge{{From: "draft", To: "quality"}},
+		}
+		run := Run{
+			ID: "looprun-previous-history", WorkspaceID: "ws-1", LoopName: "delivery",
+			Status: StatusRunning, Generation: 2, IterationCap: 3,
+		}
+		coordinatorRun := task.Run{
+			ID: "run-coordinator-previous-history", TaskID: "task-coordinator-previous-history",
+			RunKind: task.RunKindCoordinator, LoopRunID: string(run.ID), Status: task.TaskRunStatusClaimed,
+		}
+		outputs := coordinatorRunnerOutputs{outputs: map[int][]GenerationOutput{
+			1: {{Generation: 1, NodeID: "draft", Status: generationOutputSucceeded, OutputRef: `{"text":"previous"}`}},
+			2: {
+				{Generation: 2, NodeID: "draft", Status: generationOutputSucceeded, OutputRef: `{"text":"current"}`},
+				{Generation: 2, NodeID: "quality", Status: generationOutputPending},
+			},
+		}}
+		runner := newCoordinatorRunnerForTestWithDefinition(
+			t,
+			run,
+			coordinatorRun,
+			nil,
+			outputs,
+			dsl.Definition{Graph: graph},
+			WithCoordinatorGateEvaluator(gateEvaluatorFunc(
+				func(_ context.Context, _ gate.Gate, input gate.GateInput) (gate.Verdict, error) {
+					previous := input.TemplateData["previous"].(map[string]any)
+					nodes := previous["nodes"].(map[string]any)
+					draft := nodes["draft"].(map[string]any)
+					value := draft["output"].(map[string]any)
+					if got, want := value["text"], "previous"; got != want {
+						t.Fatalf("previous draft = %v, want %q", got, want)
+					}
+					return testRouteVerdict(gate.RouteRevise), nil
+				},
+			)),
+		)
+
+		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		if err != nil {
+			t.Fatalf("Run() error = %v", err)
+		}
+		if plan.NextCoordinator == nil {
+			t.Fatal("NextCoordinator = nil, want repaired successor")
+		}
+	})
+}
+
+func TestCoordinatorRunnerShouldPersistEveryGateVerdictInSucceededGeneration(t *testing.T) {
+	t.Run("Should retain in-body and definition-of-done verdict intents together", func(t *testing.T) {
+		t.Parallel()
+
+		graph := dsl.Graph{
+			Nodes: []dsl.Node{
+				{ID: "draft", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunAgent)},
+				testRouteGateNode("quality"),
+			},
+			Edges: []dsl.Edge{{From: "draft", To: "quality"}},
+		}
+		run := Run{
+			ID: "looprun-all-verdicts", WorkspaceID: "ws-1", LoopName: "delivery",
+			Status: StatusRunning, Generation: 1, IterationCap: 2,
+		}
+		coordinatorRun := task.Run{
+			ID: "run-coordinator-all-verdicts", TaskID: "task-coordinator-all-verdicts",
+			RunKind: task.RunKindCoordinator, LoopRunID: string(run.ID), Status: task.TaskRunStatusClaimed,
+		}
+		runner := newCoordinatorRunnerForTestWithDefinition(
+			t,
+			run,
+			coordinatorRun,
+			nil,
+			coordinatorRunnerOutputs{outputs: map[int][]GenerationOutput{1: {
+				{Generation: 1, NodeID: "draft", Status: generationOutputSucceeded, OutputRef: `{"draft":1}`},
+				{Generation: 1, NodeID: "quality", Status: generationOutputPending},
+			}}},
+			dsl.Definition{
+				Graph:    graph,
+				Contract: dsl.Contract{Verification: []dsl.GateCriterion{testRouteCriterion()}},
+			},
+			WithCoordinatorGateEvaluator(gateEvaluatorFunc(
+				func(_ context.Context, _ gate.Gate, input gate.GateInput) (gate.Verdict, error) {
+					if input.Placement == gate.PlacementDefinitionOfDone {
+						verdict := testRouteVerdict(gate.RouteNextGeneration)
+						verdict.Route.Placement = gate.PlacementDefinitionOfDone
+						return verdict, nil
+					}
+					return gate.Verdict{
+						Outcome: gate.VerdictOutcomeApproved,
+						Criteria: []gate.CriterionResult{{
+							ID: "check", Type: dsl.CriterionCommand,
+							Outcome: gate.VerdictOutcomeApproved, Passed: true,
+						}},
+						Route: gate.RouteDecision{
+							Placement: gate.PlacementInBody, Action: gate.RouteContinue,
+						},
+					}, nil
+				},
+			)),
+		)
+
+		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		if err != nil {
+			t.Fatalf("Run() error = %v", err)
+		}
+		verdicts := coordinatorSnapshotPayloadForTest(t, plan).Verdicts
+		if len(verdicts) != 2 || verdicts[0].GateID != "quality" ||
+			verdicts[1].GateID != definitionOfDoneGateID {
+			t.Fatalf("verdict intents = %#v, want quality and definition of done", verdicts)
+		}
+	})
+}
+
+func testRouteGateNode(id dsl.NodeID) dsl.Node {
+	return dsl.Node{
+		ID: id, Class: dsl.NodeClassControl, Kind: string(dsl.ControlGate),
+		Criteria:      []dsl.GateCriterion{testRouteCriterion()},
+		VerdictPolicy: dsl.VerdictPolicyFixedPasses,
+	}
+}
+
+func testMetricRouteGateNode(id dsl.NodeID) dsl.Node {
+	node := testRouteGateNode(id)
+	node.Criteria[0].Metric = &dsl.MetricSpec{Direction: dsl.MetricMaximize}
+	return node
+}
+
+func testRouteCriterion() dsl.GateCriterion {
+	return dsl.GateCriterion{ID: "check", Type: dsl.CriterionCommand, Check: "true", Expect: "exit_zero"}
+}
+
+func testRouteEvaluator(action gate.RouteAction) gate.GateEvaluator {
+	return gateEvaluatorFunc(func(context.Context, gate.Gate, gate.GateInput) (gate.Verdict, error) {
+		return testRouteVerdict(action), nil
+	})
+}
+
+func testRouteVerdict(action gate.RouteAction) gate.Verdict {
+	return gate.Verdict{
+		Outcome: gate.VerdictOutcomeRejected,
+		Criteria: []gate.CriterionResult{{
+			ID: "check", Type: dsl.CriterionCommand, Outcome: gate.VerdictOutcomeRejected,
+		}},
+		BlockingIssues: []gate.BlockingIssue{{ID: "needs_revision", Note: "repair the output"}},
+		Route:          gate.RouteDecision{Placement: gate.PlacementInBody, Action: action},
+	}
+}
+
 func TestCoordinatorRunnerShouldPlanReattemptStrategy(t *testing.T) {
 	cases := []struct {
 		name             string
@@ -1324,8 +2102,8 @@ func TestCoordinatorRunnerShouldPlanReattemptStrategy(t *testing.T) {
 	}
 }
 
-func TestCoordinatorRunnerShouldResumeSubLoopChildOnFailedOnlyRetry(t *testing.T) {
-	t.Run("Should keep the child loop run for failed-only sub-loop retry", func(t *testing.T) {
+func TestCoordinatorRunnerShouldClearSubLoopChildOnFailedOnlyRetry(t *testing.T) {
+	t.Run("Should clear child ownership for a rerun root and its dependents", func(t *testing.T) {
 		t.Parallel()
 
 		loopRun := Run{
@@ -1378,11 +2156,11 @@ func TestCoordinatorRunnerShouldResumeSubLoopChildOnFailedOnlyRetry(t *testing.T
 		}
 		nextOutputs := outputsByNodeForTest(coordinatorPostReservePayloadForTest(t, plan).Outputs)
 		child := nextOutputs["child"]
-		if got, want := child.Status, generationOutputAwaitingChild; got != want {
+		if got, want := child.Status, generationOutputPending; got != want {
 			t.Fatalf("child status = %q, want %q", got, want)
 		}
-		if got, want := child.ChildLoopRunID, "looprun-child-existing"; got != want {
-			t.Fatalf("child_loop_run_id = %q, want %q", got, want)
+		if got := child.ChildLoopRunID; got != "" {
+			t.Fatalf("child_loop_run_id = %q, want cleared for rerun", got)
 		}
 		if child.TaskRunID != "" || child.OutputRef != "" {
 			t.Fatalf("child retry kept task/output refs: %#v", child)
@@ -1841,34 +2619,49 @@ func TestCoordinatorRunnerShouldApplyLoopControlHooks(t *testing.T) {
 			LoopRunID: string(loopRun.ID),
 			Status:    task.TaskRunStatusClaimed,
 		}
-		hooks := &coordinatorHookDispatcher{
-			gatePre: func(
-				context.Context,
-				hookspkg.LoopGatePrePayload,
-			) (hookspkg.LoopGatePrePayload, error) {
-				return hookspkg.LoopGatePrePayload{
-					Denied:     true,
-					DenyReason: "human_gate",
-				}, nil
-			},
+		hooks := &coordinatorHookDispatcher{}
+		preStatuses := make([]string, 0, 2)
+		postStatuses := make([]string, 0, 2)
+		hooks.gatePre = func(
+			_ context.Context,
+			payload hookspkg.LoopGatePrePayload,
+		) (hookspkg.LoopGatePrePayload, error) {
+			preStatuses = append(preStatuses, payload.Status)
+			reason := "later_denial"
+			if payload.GateID == "quality" {
+				reason = "human_gate"
+			}
+			return hookspkg.LoopGatePrePayload{Denied: true, DenyReason: reason}, nil
 		}
-		runner := newCoordinatorRunnerForTest(t, loopRun, coordinatorRun, nil, coordinatorRunnerOutputs{
-			outputs: map[int][]GenerationOutput{1: {{
-				Generation: 1,
-				NodeID:     "load",
-				Status:     generationOutputSucceeded,
-			}, {
-				Generation: 1,
-				NodeID:     "agent",
-				Status:     generationOutputSucceeded,
-			}}},
-		})
+		hooks.gatePost = func(
+			_ context.Context,
+			payload hookspkg.LoopGatePostPayload,
+		) (hookspkg.LoopGatePostPayload, error) {
+			postStatuses = append(postStatuses, payload.Status)
+			return payload, nil
+		}
+		runner := newCoordinatorRunnerForTest(t, loopRun, coordinatorRun, nil, coordinatorRunnerOutputs{})
 		runner.hooks = hooks
-
-		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
-		if err != nil {
-			t.Fatalf("Run() error = %v", err)
-		}
+		plan := runner.dispatchGateHooks(t.Context(), coordinatorRun, loopRun, task.CoordinatorCompletionPlan{
+			Snapshot: task.GenerationSnapshot{
+				LoopRunID:  string(loopRun.ID),
+				Generation: 1,
+				Payload: GenerationSnapshotPayload{Verdicts: []gate.VerdictIntent{
+					{
+						GateID:         "quality",
+						Outcome:        gate.VerdictOutcomeApproved,
+						BlockingIssues: []byte("[]"),
+						Criteria:       []byte("[]"),
+					},
+					{
+						GateID:         "security",
+						Outcome:        gate.VerdictOutcomeApproved,
+						BlockingIssues: []byte("[]"),
+						Criteria:       []byte("[]"),
+					},
+				}},
+			},
+		})
 		if plan.Terminal == nil {
 			t.Fatal("Terminal = nil, want blocked gate")
 		}
@@ -1878,15 +2671,98 @@ func TestCoordinatorRunnerShouldApplyLoopControlHooks(t *testing.T) {
 		if got, want := plan.Terminal.ReasonCode, "human_gate"; got != want {
 			t.Fatalf("reason_code = %q, want %q", got, want)
 		}
-		if hooks.gatePreCalls != 1 || hooks.gatePostCalls != 1 {
+		if hooks.gatePreCalls != 2 || hooks.gatePostCalls != 2 {
 			t.Fatalf(
-				"gate hook calls = pre:%d post:%d, want pre:1 post:1",
+				"gate hook calls = pre:%d post:%d, want pre:2 post:2",
 				hooks.gatePreCalls,
 				hooks.gatePostCalls,
 			)
 		}
 		if got, want := hooks.lastGatePostStatus, string(StatusBlocked); got != want {
 			t.Fatalf("gate post status = %q, want %q", got, want)
+		}
+		if got, want := preStatuses, []string{
+			coordinatorPhaseEvaluated,
+			coordinatorPhaseEvaluated,
+		}; !reflect.DeepEqual(got, want) {
+			t.Fatalf("gate pre statuses = %#v, want stable %#v", got, want)
+		}
+		if got, want := postStatuses, []string{
+			string(StatusBlocked),
+			string(StatusBlocked),
+		}; !reflect.DeepEqual(got, want) {
+			t.Fatalf("gate post statuses = %#v, want stable %#v", got, want)
+		}
+	})
+
+	t.Run("Should expose real gate verdict and successor provenance to hooks", func(t *testing.T) {
+		t.Parallel()
+
+		bestGeneration := int64(1)
+		bestScore := 0.8
+		verdictScore := 0.7
+		loopRun := Run{
+			ID: "looprun-hook-verdict", WorkspaceID: "ws-1", LoopName: "delivery",
+			Status: StatusRunning, Generation: 2, IterationCap: 3,
+			BestGeneration: &bestGeneration, BestScore: &bestScore,
+		}
+		coordinatorRun := task.Run{
+			ID: "run-coordinator-hook-verdict", TaskID: "task-coordinator-hook-verdict",
+			RunKind: task.RunKindCoordinator, LoopRunID: string(loopRun.ID), Status: task.TaskRunStatusClaimed,
+		}
+		graph := dsl.Graph{
+			Nodes: []dsl.Node{
+				{ID: "draft", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunAgent)},
+				testMetricRouteGateNode("quality"),
+			},
+			Edges: []dsl.Edge{{From: "draft", To: "quality"}},
+		}
+		runner := newCoordinatorRunnerForTestWithDefinition(
+			t,
+			loopRun,
+			coordinatorRun,
+			nil,
+			coordinatorRunnerOutputs{outputs: map[int][]GenerationOutput{
+				1: {
+					{Generation: 1, NodeID: "draft", Status: generationOutputSucceeded, OutputRef: `{"draft":"best"}`},
+				},
+				2: {
+					{Generation: 2, NodeID: "draft", Status: generationOutputSucceeded, OutputRef: `{"draft":2}`},
+					{Generation: 2, NodeID: "quality", Status: generationOutputPending},
+				},
+			}},
+			dsl.Definition{Graph: graph},
+			WithCoordinatorGateEvaluator(gateEvaluatorFunc(
+				func(context.Context, gate.Gate, gate.GateInput) (gate.Verdict, error) {
+					verdict := testRouteVerdict(gate.RouteRevise)
+					verdict.Criteria[0].Score = &verdictScore
+					return verdict, nil
+				},
+			)),
+		)
+		hooks := &coordinatorHookDispatcher{}
+		runner.hooks = hooks
+
+		plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
+		if err != nil {
+			t.Fatalf("Run() error = %v", err)
+		}
+		if plan.PostReserveSnapshot == nil {
+			t.Fatal("PostReserveSnapshot = nil, want ratchet successor")
+		}
+		if hooks.lastGenerationPre.Origin != hookspkg.LoopGenerationOriginRatchetRestore ||
+			hooks.lastGenerationPre.ParentGeneration != bestGeneration {
+			t.Fatalf(
+				"generation pre payload = %#v, want ratchet restore from %d",
+				hooks.lastGenerationPre,
+				bestGeneration,
+			)
+		}
+		post := hooks.lastGatePost
+		if post.GateID != "quality" || post.Outcome != string(gate.VerdictOutcomeRejected) ||
+			post.Score == nil || *post.Score != verdictScore ||
+			post.BestGeneration == nil || *post.BestGeneration != bestGeneration {
+			t.Fatalf("gate post payload = %#v, want rejected score %.2f best %d", post, verdictScore, bestGeneration)
 		}
 	})
 
@@ -2345,6 +3221,8 @@ type coordinatorHookDispatcher struct {
 	gatePreCalls        int
 	gatePostCalls       int
 	lastGatePostStatus  string
+	lastGenerationPre   hookspkg.LoopGenerationPrePayload
+	lastGatePost        hookspkg.LoopGatePostPayload
 }
 
 func (d *coordinatorHookDispatcher) DispatchLoopStarted(
@@ -2359,6 +3237,7 @@ func (d *coordinatorHookDispatcher) DispatchLoopGenerationPre(
 	payload hookspkg.LoopGenerationPrePayload,
 ) (hookspkg.LoopGenerationPrePayload, error) {
 	d.generationPreCalls++
+	d.lastGenerationPre = payload
 	if d.generationPre != nil {
 		return d.generationPre(ctx, payload)
 	}
@@ -2393,6 +3272,7 @@ func (d *coordinatorHookDispatcher) DispatchLoopGatePost(
 ) (hookspkg.LoopGatePostPayload, error) {
 	d.gatePostCalls++
 	d.lastGatePostStatus = payload.Status
+	d.lastGatePost = payload
 	if d.gatePost != nil {
 		return d.gatePost(ctx, payload)
 	}
@@ -2434,6 +3314,24 @@ func (r *coordinatorRunnerTaskRunReader) GetTaskRun(
 
 type coordinatorRunnerOutputs struct {
 	outputs map[int][]GenerationOutput
+}
+
+func (r coordinatorRunnerOutputs) ListGateVerdicts(
+	context.Context,
+	string,
+	string,
+	int64,
+) ([]gate.VerdictRecord, error) {
+	return []gate.VerdictRecord{}, nil
+}
+
+func (r coordinatorRunnerOutputs) ListRouteCausingVerdicts(
+	context.Context,
+	string,
+	string,
+	int64,
+) ([]gate.VerdictRecord, error) {
+	return []gate.VerdictRecord{}, nil
 }
 
 func (r coordinatorRunnerOutputs) ListGenerationOutputs(

@@ -346,7 +346,7 @@ func assertReviewAndFixRunContract(t testing.TB, detail contract.LoopRunResponse
 func requireReviewGenerationOutput(
 	t testing.TB,
 	detail contract.LoopRunResponse,
-	generation int,
+	generation int64,
 	nodeID string,
 ) contract.LoopGenerationOutput {
 	t.Helper()

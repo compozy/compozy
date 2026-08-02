@@ -351,12 +351,12 @@ func TestOpenGlobalDBReopenPreservesRowsAndStatus(t *testing.T) {
 		}
 	})
 
-	t.Run("Should apply the destructive participation cut once and retain canonical Local history", func(t *testing.T) {
+	t.Run("Should apply destructive cuts once and remove pre-lineage loop history", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t)
 		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
-		createPreCutNetworkParticipationFixture(ctx, t, path)
+		createHistoricalGlobalSchemaFixture(ctx, t, path)
 
 		first, err := OpenGlobalDB(ctx, path)
 		if err != nil {
@@ -371,7 +371,7 @@ func TestOpenGlobalDBReopenPreservesRowsAndStatus(t *testing.T) {
 				t.Fatalf("Close(first post-cut cleanup) error = %v", err)
 			}
 		})
-		assertPostCutNetworkParticipationFixture(t, first)
+		assertPostCutHistoricalGlobalSchemaFixture(t, first)
 		firstStatus, err := store.Status(ctx, first.db, MigrationStream())
 		if err != nil {
 			t.Fatalf("Status(first post-cut) error = %v", err)
@@ -391,7 +391,7 @@ func TestOpenGlobalDBReopenPreservesRowsAndStatus(t *testing.T) {
 				t.Fatalf("Close(second post-cut) error = %v", err)
 			}
 		})
-		assertPostCutNetworkParticipationFixture(t, second)
+		assertPostCutHistoricalGlobalSchemaFixture(t, second)
 		secondStatus, err := store.Status(ctx, second.db, MigrationStream())
 		if err != nil {
 			t.Fatalf("Status(second post-cut) error = %v", err)
@@ -437,7 +437,7 @@ func assertCompleteMigrationStream(t *testing.T, status store.StreamStatus, stre
 	}
 }
 
-func createPreCutNetworkParticipationFixture(ctx context.Context, t *testing.T, path string) {
+func createHistoricalGlobalSchemaFixture(ctx context.Context, t *testing.T, path string) {
 	t.Helper()
 
 	legacyDB, err := sql.Open(sqliteDriverName, path)
@@ -508,10 +508,39 @@ func createPreCutNetworkParticipationFixture(ctx context.Context, t *testing.T, 
 			name: "task run",
 			sql: `INSERT INTO task_runs (
 				id, task_id, status, attempt, origin_kind, origin_ref,
-				network_channel, coordination_channel_id, queued_at
+				network_channel, coordination_channel_id, loop_run_id, queued_at
 			) VALUES (
 				'run-precut', 'task-precut', 'completed', 1, 'daemon', 'scheduler',
-				'coord-run-precut', 'coord-run-precut', '2026-07-13T10:05:00Z'
+				'coord-run-precut', 'coord-run-precut', 'loop-precut', '2026-07-13T10:05:00Z'
+			)`,
+		},
+		{
+			name: "queued loop worker",
+			sql: `INSERT INTO task_runs (
+				id, task_id, status, attempt, origin_kind, origin_ref, run_kind,
+				loop_run_id, metadata_json, queued_at
+			) VALUES (
+				'run-precut-loop-worker', 'task-precut', 'queued', 1, 'daemon', 'loop', 'worker',
+				'loop-precut', '{"generation":1,"node_id":"work","item_index":0}',
+				'2026-07-13T10:05:00Z'
+			)`,
+		},
+		{
+			name: "queued loop coordinator",
+			sql: `INSERT INTO task_runs (
+				id, task_id, status, attempt, origin_kind, origin_ref, run_kind,
+				loop_run_id, queued_at
+			) VALUES (
+				'run-precut-loop-coordinator', 'task-precut', 'queued', 1, 'daemon', 'loop', 'coordinator',
+				'loop-precut', '2026-07-13T10:05:00Z'
+			)`,
+		},
+		{
+			name: "delegated loop automation run",
+			sql: `INSERT INTO automation_runs (
+				id, status, attempt, loop_run_id, metadata_json
+			) VALUES (
+				'automation-precut-loop', 'delegated', 1, 'loop-precut', '{}'
 			)`,
 		},
 		{
@@ -521,6 +550,115 @@ func createPreCutNetworkParticipationFixture(ctx context.Context, t *testing.T, 
 			) VALUES (
 				'loop-precut', 'ws-precut', 'precut-loop', 'done',
 				'2026-07-13T10:06:00Z', '{}'
+			)`,
+		},
+		{
+			name: "loop definition snapshot",
+			sql: `INSERT INTO loop_definition_snapshots (
+				workspace_id, definition_digest, definition_version, definition_json, byte_size, created_at, last_used_at
+			) VALUES (
+				'ws-precut', 'digest-precut', 1, '{"kind":"loop"}', 15,
+				'2026-07-13T10:06:00Z', '2026-07-13T10:06:00Z'
+			)`,
+		},
+		{
+			name: "loop configuration",
+			sql: `INSERT INTO loop_config (workspace_id, loop_name, enabled_checks_json)
+				VALUES ('ws-precut', 'precut-loop', '{"input-default":true}')`,
+		},
+		{
+			name: "loop output blob",
+			sql: `INSERT INTO loop_output_blobs (output_ref, payload_json, byte_size, created_at, last_used_at)
+				VALUES ('blob-precut', '{"result":"old"}', 16, '2026-07-13T10:06:00Z', '2026-07-13T10:06:00Z')`,
+		},
+		{
+			name: "loop generation output",
+			sql: `INSERT INTO loop_generation_outputs (
+				loop_run_id, generation, node_id, item_index, status, output_ref
+			) VALUES ('loop-precut', 1, 'node-precut', 0, 'succeeded', 'blob-precut')`,
+		},
+		{
+			name: "loop gate decision",
+			sql: `INSERT INTO loop_gate_decisions (
+				workspace_id, loop_run_id, generation, gate_id, criterion_id, decision,
+				actor_kind, actor_ref, origin_kind, origin_ref, decided_at
+			) VALUES (
+				'ws-precut', 'loop-precut', 1, 'gate-precut', 'criterion-precut', 'approve',
+				'human', 'operator', 'cli', 'loop approve', '2026-07-13T10:06:00Z'
+			)`,
+		},
+		{
+			name: "loop run event",
+			sql: `INSERT INTO loop_run_events (id, loop_run_id, workspace_id, seq, kind, payload_json, at)
+				VALUES ('event-precut', 'loop-precut', 'ws-precut', 1, 'status_changed', '{}', '2026-07-13T10:06:00Z')`,
+		},
+		{
+			name: "loop goal checkpoint",
+			sql: `INSERT INTO loop_goal_checkpoints (
+				loop_run_id, generation, node_id, phase, goal_status, turn_limit, context_nudge_ratio, updated_at
+			) VALUES ('loop-precut', 1, 'node-precut', 'idle', 'active', 1, 0.8, '2026-07-13T10:06:00Z')`,
+		},
+		{
+			name: "loop goal turn",
+			sql: `INSERT INTO loop_goal_turns (
+				loop_run_id, seq, generation, node_id, item_index, turn, session_id, binding_handle,
+				binding_epoch, prompt_id, actor_kind, actor_id, started_at
+			) VALUES (
+				'loop-precut', 1, 1, 'node-precut', 0, 1, 'sess-precut', 'handle-precut',
+				1, 'prompt-precut', 'daemon', 'loop', '2026-07-13T10:06:00Z'
+			)`,
+		},
+		{
+			name: "loop session binding",
+			sql: `INSERT INTO loop_session_bindings (
+				loop_run_id, handle, binding_epoch, binding_attempt_id, session_id, workspace_id,
+				creation_profile_ref, policy_spec_digest, creation_digest, ownership, state, created_at, activated_at
+			) VALUES (
+				'loop-precut', 'handle-precut', 1, 'binding-attempt-precut', 'sess-precut', 'ws-precut',
+				'profile-precut', 'policy-precut', 'creation-precut', 'run-owned', 'active',
+				'2026-07-13T10:06:00Z', '2026-07-13T10:06:00Z'
+			)`,
+		},
+		{
+			name: "loop session cleanup",
+			sql: `INSERT INTO loop_goal_session_cleanup (
+				cleanup_id, workspace_id, loop_run_id, handle, binding_epoch, session_id, cause, created_at
+			) VALUES (
+				'cleanup-precut', 'ws-precut', 'loop-precut', 'handle-precut', 1, 'sess-precut', 'terminal',
+				'2026-07-13T10:06:00Z'
+			)`,
+		},
+		{
+			name: "loop goal outbox",
+			sql: `INSERT INTO loop_goal_session_outbox (
+				event_id, workspace_id, origin_session_id, loop_run_id, cause, created_at
+			) VALUES ('outbox-precut', 'ws-precut', 'sess-precut', 'loop-precut', 'start', '2026-07-13T10:06:00Z')`,
+		},
+		{
+			name: "loop goal judge attempt",
+			sql: `INSERT INTO loop_goal_judge_attempts (
+				attempt_id, loop_run_id, generation, node_id, item_index, turn, judge_digest, status, started_at
+			) VALUES (
+				'judge-precut', 'loop-precut', 1, 'node-precut', 0, 1, 'judge-digest-precut', 'running',
+				'2026-07-13T10:06:00Z'
+			)`,
+		},
+		{
+			name: "loop binding retry witness",
+			sql: `INSERT INTO loop_goal_binding_retry_witnesses (
+				loop_run_id, handle, failed_binding_epoch, request_digest, created_at
+			) VALUES (
+				'loop-precut', 'handle-precut', 1,
+				'0000000000000000000000000000000000000000000000000000000000000000', '2026-07-13T10:06:00Z'
+			)`,
+		},
+		{
+			name: "loop-owned input queue entry",
+			sql: `INSERT INTO session_input_queue (
+				id, session_id, status, mode, text, enqueued_at, updated_at, loop_run_id
+			) VALUES (
+				'input-precut', 'sess-precut', 'queued', 'queue', 'obsolete loop input',
+				'2026-07-13T10:06:00Z', '2026-07-13T10:06:00Z', 'loop-precut'
 			)`,
 		},
 		{
@@ -594,12 +732,96 @@ func createPreCutNetworkParticipationFixture(ctx context.Context, t *testing.T, 
 	legacyClosed = true
 }
 
-func assertPostCutNetworkParticipationFixture(t *testing.T, globalDB *GlobalDB) {
+func assertPostCutHistoricalGlobalSchemaFixture(t *testing.T, globalDB *GlobalDB) {
 	t.Helper()
 
 	ctx := testutil.Context(t)
-	for _, table := range []string{"sessions", "task_runs", "loop_runs"} {
+	for _, table := range []string{"sessions", "task_runs"} {
 		assertOwnerTableCanonicalLocal(t, globalDB.db, table)
+	}
+	var loopRunCount int
+	if err := globalDB.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM loop_runs`).Scan(&loopRunCount); err != nil {
+		t.Fatalf("count loop_runs after lineage cut error = %v", err)
+	}
+	if loopRunCount != 0 {
+		t.Fatalf("loop_runs row count after lineage cut = %d, want 0", loopRunCount)
+	}
+	for _, table := range []string{
+		"loop_generation_outputs",
+		"loop_gate_decisions",
+		"loop_run_events",
+		"loop_goal_session_outbox",
+		"loop_goal_session_cleanup",
+		"loop_goal_judge_attempts",
+		"loop_goal_turns",
+		"loop_goal_checkpoints",
+		"loop_goal_binding_retry_witnesses",
+		"loop_session_bindings",
+		"loop_output_blobs",
+		"session_input_queue",
+	} {
+		var count int
+		if err := globalDB.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM `+table).Scan(&count); err != nil {
+			t.Fatalf("count %s after lineage cut error = %v", table, err)
+		}
+		if count != 0 {
+			t.Fatalf("%s row count after lineage cut = %d, want 0", table, count)
+		}
+	}
+	var loopRunID sql.NullString
+	if err := globalDB.db.QueryRowContext(
+		ctx,
+		`SELECT loop_run_id FROM task_runs WHERE id = 'run-precut'`,
+	).Scan(&loopRunID); err != nil {
+		t.Fatalf("read task run loop link after lineage cut error = %v", err)
+	}
+	if loopRunID.Valid {
+		t.Fatalf("task run loop_run_id after lineage cut = %q, want NULL", loopRunID.String)
+	}
+	for _, orphanID := range []string{"run-precut-loop-worker", "run-precut-loop-coordinator"} {
+		var count int
+		if err := globalDB.db.QueryRowContext(
+			ctx,
+			`SELECT COUNT(*) FROM task_runs WHERE id = ?`,
+			orphanID,
+		).Scan(&count); err != nil {
+			t.Fatalf("count obsolete loop task run %q error = %v", orphanID, err)
+		}
+		if count != 0 {
+			t.Fatalf("obsolete loop task run %q count = %d, want 0", orphanID, count)
+		}
+	}
+	var delegatedOrphanCount int
+	if err := globalDB.db.QueryRowContext(
+		ctx,
+		`SELECT COUNT(*) FROM automation_runs WHERE id = 'automation-precut-loop'`,
+	).Scan(&delegatedOrphanCount); err != nil {
+		t.Fatalf("count obsolete delegated loop automation run error = %v", err)
+	}
+	if delegatedOrphanCount != 0 {
+		t.Fatalf("obsolete delegated loop automation run count = %d, want 0", delegatedOrphanCount)
+	}
+	var definitionJSON string
+	if err := globalDB.db.QueryRowContext(
+		ctx,
+		`SELECT definition_json FROM loop_definition_snapshots
+		 WHERE workspace_id = 'ws-precut' AND definition_digest = 'digest-precut'`,
+	).Scan(&definitionJSON); err != nil {
+		t.Fatalf("read preserved loop definition snapshot error = %v", err)
+	}
+	if definitionJSON != `{"kind":"loop"}` {
+		t.Fatalf("preserved definition snapshot = %q, want loop definition", definitionJSON)
+	}
+	var loopConfig string
+	if err := globalDB.db.QueryRowContext(
+		ctx,
+		`SELECT enabled_checks_json FROM loop_config
+		 WHERE workspace_id = 'ws-precut' AND loop_name = 'precut-loop'`,
+	).Scan(&loopConfig); err != nil {
+		t.Fatalf("read preserved loop configuration error = %v", err)
+	}
+	if loopConfig != `{"input-default":true}` {
+		t.Fatalf("preserved loop configuration = %q, want configured checks", loopConfig)
 	}
 	assertTableExcludesColumns(t, globalDB.db, "sessions", []string{"channel"})
 	assertTableExcludesColumns(t, globalDB.db, "tasks", []string{"network_channel"})
@@ -658,12 +880,15 @@ func assertPostCutNetworkParticipationFixture(t *testing.T, globalDB *GlobalDB) 
 	if !reflect.DeepEqual(taskRun.NetworkSpec, participation.LocalSpec()) {
 		t.Fatalf("GetTaskRun(pre-cut history).NetworkSpec = %#v, want canonical Local", taskRun.NetworkSpec)
 	}
-	loopRun, err := globalDB.GetLoopRun(ctx, looppkg.WorkspaceID("ws-precut"), looppkg.RunID("loop-precut"))
-	if err != nil {
-		t.Fatalf("GetLoopRun(pre-cut history) error = %v", err)
-	}
-	if !reflect.DeepEqual(loopRun.NetworkSpec, participation.LocalSpec()) {
-		t.Fatalf("GetLoopRun(pre-cut history).NetworkSpec = %#v, want canonical Local", loopRun.NetworkSpec)
+	if _, err := globalDB.GetLoopRun(
+		ctx,
+		looppkg.WorkspaceID("ws-precut"),
+		looppkg.RunID("loop-precut"),
+	); !errors.Is(
+		err,
+		looppkg.ErrRunNotFound,
+	) {
+		t.Fatalf("GetLoopRun(pre-lineage history) error = %v, want ErrRunNotFound", err)
 	}
 }
 

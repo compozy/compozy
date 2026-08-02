@@ -1,9 +1,10 @@
 import { Check, RotateCcw } from "lucide-react";
 import { useState } from "react";
 
-import { Button, StatusCard, type StatusCardTone } from "@compozy/ui";
+import { Button, Pill, StatusCard, type StatusCardTone } from "@compozy/ui";
 
 import type { LoopCoordinatorFailure } from "../../lib/loop-events";
+import { loopRunBestLabel } from "../../lib/loop-generation-presentation";
 import { formatClockDuration, terminalRunElapsedSeconds } from "../../lib/loop-run-usage";
 import type { LoopRunRecord } from "../../types";
 import { LoopRunQuietNote } from "./loop-run-quiet-note";
@@ -134,6 +135,8 @@ export function LoopRunOutcomeCard(props: LoopRunOutcomeCardProps) {
   const durationLabel = formatClockDuration(elapsedSeconds);
   const view = outcomeView(props, elapsedSeconds, durationLabel);
   if (!view) return null;
+  const best = loopRunBestLabel(run);
+  const showBestPointer = (run.status === "exhausted" || run.status === "stalled") && best;
   const micro = [
     `status_changed · ${fromStatus ?? "?"} → ${run.status}`,
     failure ? `cause ${failure.code}` : null,
@@ -163,6 +166,13 @@ export function LoopRunOutcomeCard(props: LoopRunOutcomeCardProps) {
               {id}
             </span>
           ))}
+        </div>
+      ) : null}
+      {showBestPointer ? (
+        <div className="mt-3" data-testid="loop-run-best-pointer">
+          <Pill.Link href={`#loop-generation-${run.best_generation}`} size="sm" tone="success">
+            Best result · {best}
+          </Pill.Link>
         </div>
       ) : null}
       {view.showStartNewRun ? (

@@ -294,32 +294,40 @@ func loopRuntimeOperations() []OperationSpec {
 				internalError(),
 			},
 		),
-		loopOperation(
-			httpMethodGet,
-			loopRunPath()+"/events",
-			"streamLoopRunEvents",
-			"Stream Loop run events",
-			nil,
-			[]ParameterSpec{
-				workspaceIDParam(),
-				loopRunIDParam(),
-				queryParam("after_sequence", "Resume after this sequence", false),
-				optionalHeaderParam("Last-Event-ID", "Last received event sequence"),
-			},
-			[]ResponseSpec{
-				{
-					Status:      200,
-					Description: "SSE stream",
-					Body:        contract.LoopRunEventPayload{},
-					ContentType: specContentTypeEventStream,
-				},
-				badRequest(),
-				notFound(specLoopRunNotFound),
-				loopUnavailable(),
-				internalError(),
-			},
-		),
+		loopRunEventsOperation(),
 	}
+}
+
+func loopRunEventsOperation() OperationSpec {
+	return loopOperation(
+		httpMethodGet,
+		loopRunPath()+"/events",
+		"streamLoopRunEvents",
+		"Stream Loop run events",
+		nil,
+		[]ParameterSpec{
+			workspaceIDParam(),
+			loopRunIDParam(),
+			queryParam("after_sequence", "Resume after this sequence", false),
+			optionalHeaderParam("Last-Event-ID", "Last received event sequence"),
+		},
+		[]ResponseSpec{
+			{
+				Status:      200,
+				Description: "SSE stream",
+				Bodies: []any{
+					contract.LoopGenerationStartedRunEventPayload{},
+					contract.LoopGateVerdictRunEventPayload{},
+					contract.LoopRunEventPayload{},
+				},
+				ContentType: specContentTypeEventStream,
+			},
+			badRequest(),
+			notFound(specLoopRunNotFound),
+			loopUnavailable(),
+			internalError(),
+		},
+	)
 }
 
 func applyLoopAutomationContract(ops []OperationSpec) []OperationSpec {

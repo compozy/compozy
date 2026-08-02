@@ -23,9 +23,11 @@ func evaluateGateNode(
 	evaluator gate.GateEvaluator,
 	decisions GateDecisionReader,
 	runtimeCatalog WorkspaceRuntimeCatalog,
+	history GenerationHistory,
 	output GenerationOutput,
 	node dsl.Node,
 	outputs []GenerationOutput,
+	evaluations *gateEvaluationCollector,
 ) (GenerationOutput, *task.CoordinatorTerminal, error) {
 	if evaluator == nil {
 		return GenerationOutput{}, nil, fmt.Errorf(
@@ -34,12 +36,13 @@ func evaluateGateNode(
 			node.ID,
 		)
 	}
-	namespace, err := runtimeNamespace(
+	namespace, err := runtimeNamespaceWithHistory(
 		run,
 		generation,
 		resolved.Definition.Graph,
 		topology,
 		outputs,
+		history,
 		node.ID,
 		output.ItemIndex,
 	)
@@ -81,6 +84,13 @@ func evaluateGateNode(
 	))
 	if err != nil {
 		return GenerationOutput{}, nil, err
+	}
+	verdict, err = gate.SanitizeVerdict(verdict)
+	if err != nil {
+		return GenerationOutput{}, nil, err
+	}
+	if evaluations != nil {
+		evaluations.record(runtimeGate, output.ItemIndex, verdict)
 	}
 	return gateOutputFromVerdict(output, node.ID, verdict)
 }
@@ -132,6 +142,7 @@ func runtimeGateInput(
 		Contract:             new(resolved.Definition.Contract),
 		TemplateData:         namespace,
 		Revision:             max(0, generation-1),
+		BestScore:            cloneFloat64(run.BestScore),
 		HumanDecisions:       humanDecisions,
 		JudgeRuntime:         effective.RuntimeDefaults.Judge,
 		NetworkParticipation: new(run.NetworkSpecSnapshot()),
@@ -215,6 +226,9 @@ func renderGateCriterion(
 	var err error
 	prefix := fmt.Sprintf("nodes.%s.criteria.%s", nodeID, criterion.ID)
 	if criterion.Check, err = renderGateString(prefix+".check", criterion.Check, namespace); err != nil {
+		return dsl.GateCriterion{}, err
+	}
+	if criterion.Contains, err = renderGateString(prefix+".contains", criterion.Contains, namespace); err != nil {
 		return dsl.GateCriterion{}, err
 	}
 	if criterion.Agent, err = renderGateString(prefix+".agent", criterion.Agent, namespace); err != nil {

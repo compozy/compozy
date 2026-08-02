@@ -59,6 +59,8 @@ func NewConditionCompiler(
 		cel.Variable("trigger", cel.MapType(cel.StringType, cel.DynType)),
 		cel.Variable("generation", cel.IntType),
 		cel.Variable("event", cel.MapType(cel.StringType, cel.DynType)),
+		cel.Variable("previous", cel.MapType(cel.StringType, cel.DynType)),
+		cel.Variable("best", cel.MapType(cel.StringType, cel.DynType)),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("create loop CEL environment: %w", err)
@@ -325,7 +327,7 @@ func isEmptyExpr(expression celast.Expr) bool {
 func isDottedNamespaceRoot(name string) bool {
 	switch name {
 	case namespaceInputs, namespaceNodes, namespaceTrigger, namespaceItem, namespaceIndex,
-		namespaceGeneration, namespaceEvent:
+		namespaceGeneration, namespaceEvent, namespacePrevious, namespaceBest:
 		return true
 	default:
 		return false

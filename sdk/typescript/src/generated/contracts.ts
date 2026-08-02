@@ -2410,7 +2410,9 @@ export interface LoopGatePostPayload {
   origin_kind?: string;
   origin_ref?: string;
   gate_id?: string;
-  decision?: string;
+  outcome?: string;
+  score?: number;
+  best_generation?: number;
   status?: string;
   reason_code?: string;
   details?: JSONValue;
@@ -2444,13 +2446,24 @@ export interface LoopGatePrePayload {
   origin_kind?: string;
   origin_ref?: string;
   gate_id?: string;
-  decision?: string;
+  outcome?: string;
+  score?: number;
+  best_generation?: number;
   status?: string;
   reason_code?: string;
   details?: JSONValue;
   denied?: boolean;
   deny_reason?: string;
 }
+
+export type LoopGenerationOrigin =
+  | "initial"
+  | "stop_when"
+  | "reattempt"
+  | "gate_revise"
+  | "gate_next_generation"
+  | "dod_retry"
+  | "ratchet_restore";
 
 export interface LoopGenerationPostPayload {
   event: HookEvent;
@@ -2472,6 +2485,8 @@ export interface LoopGenerationPostPayload {
   actor_id?: string;
   origin_kind?: string;
   origin_ref?: string;
+  origin: LoopGenerationOrigin;
+  parent_generation: number;
   status?: string;
   reason_code?: string;
   details?: JSONValue;
@@ -2504,6 +2519,8 @@ export interface LoopGenerationPrePayload {
   actor_id?: string;
   origin_kind?: string;
   origin_ref?: string;
+  origin: LoopGenerationOrigin;
+  parent_generation: number;
   status?: string;
   reason_code?: string;
   details?: JSONValue;

@@ -104,7 +104,7 @@ function SessionCreateDialog({
       <DialogContent
         className={`grid-rows-[auto_auto_minmax(0,1fr)_auto] text-fg ${dialogShellClass("sm")}`}
         data-testid="session-create-dialog"
-        finalFocus={() => restoreFocusOnCloseRef.current}
+        finalFocus={isSubmitting ? false : () => restoreFocusOnCloseRef.current}
         showCloseButton={false}
         unframed
       >

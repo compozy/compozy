@@ -305,9 +305,9 @@ func (s *daemonExtensionService) scopedDevelopmentWorkspaceID(
 	if err != nil {
 		return "", fmt.Errorf("daemon: resolve extension workspace %q: %w", workspaceRef, err)
 	}
-	workspaceID := strings.TrimSpace(resolved.WorkspaceID)
+	workspaceID := strings.TrimSpace(resolved.ID)
 	if workspaceID == "" {
-		return "", fmt.Errorf("daemon: resolved extension workspace %q has no stable identity", workspaceRef)
+		return "", fmt.Errorf("daemon: resolved extension workspace %q has no stable registration ID", workspaceRef)
 	}
 	return workspaceID, nil
 }

@@ -34,7 +34,7 @@ func (e *Evaluator) evaluateCommand(
 		CriterionID: criterion.ID,
 		Command:     criterion.Check,
 		Expect:      expect,
-		Contains:    criterionStringExtra(criterion, "contains"),
+		Contains:    strings.TrimSpace(criterion.Contains),
 	}
 	result, err := e.commands.RunCommand(ctx, req)
 	if err != nil {
@@ -57,19 +57,26 @@ func (e *Evaluator) evaluateCommand(
 		Stderr:   result.Stderr,
 	}
 	passed, warning := commandExpectationPassed(req, result)
-	if passed {
-		criterionResult.Outcome = VerdictOutcomeApproved
-		criterionResult.Passed = true
+	if !passed {
+		criterionResult.Outcome = VerdictOutcomeRejected
+		if warning != nil {
+			criterionResult.Warnings = []DiagnosticWarning{*warning}
+		}
+		criterionResult.BlockingIssues = []BlockingIssue{{
+			ID:   blockerCommandExpectation,
+			Note: commandFailureNote(req, result),
+		}}
 		return criterionResult
 	}
-	criterionResult.Outcome = VerdictOutcomeRejected
-	if warning != nil {
-		criterionResult.Warnings = []DiagnosticWarning{*warning}
+	if criterion.Metric != nil {
+		score, scoreErr := ParseCommandMetricScore(result.Stdout)
+		if scoreErr != nil {
+			return invalidMetricScoreResult(criterion.ID, criterion.Type, scoreErr.Error())
+		}
+		criterionResult.Score = score
 	}
-	criterionResult.BlockingIssues = []BlockingIssue{{
-		ID:   blockerCommandExpectation,
-		Note: commandFailureNote(req, result),
-	}}
+	criterionResult.Outcome = VerdictOutcomeApproved
+	criterionResult.Passed = true
 	return criterionResult
 }
 

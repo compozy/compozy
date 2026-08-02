@@ -107,15 +107,44 @@ type LoopStartedPayload = LoopLifecyclePayload
 // LoopTerminalPayload is delivered after a loop_run reaches a terminal state.
 type LoopTerminalPayload = LoopLifecyclePayload
 
+// LoopGenerationOrigin is the closed provenance vocabulary for generation boundary hooks.
+type LoopGenerationOrigin string
+
+const (
+	LoopGenerationOriginInitial            LoopGenerationOrigin = "initial"
+	LoopGenerationOriginStopWhen           LoopGenerationOrigin = "stop_when"
+	LoopGenerationOriginReattempt          LoopGenerationOrigin = "reattempt"
+	LoopGenerationOriginGateRevise         LoopGenerationOrigin = "gate_revise"
+	LoopGenerationOriginGateNextGeneration LoopGenerationOrigin = "gate_next_generation"
+	LoopGenerationOriginDoDRetry           LoopGenerationOrigin = "dod_retry"
+	LoopGenerationOriginRatchetRestore     LoopGenerationOrigin = "ratchet_restore"
+)
+
+// LoopGenerationOriginValues returns the closed wire vocabulary in declaration order.
+func LoopGenerationOriginValues() []string {
+	return []string{
+		string(LoopGenerationOriginInitial),
+		string(LoopGenerationOriginStopWhen),
+		string(LoopGenerationOriginReattempt),
+		string(LoopGenerationOriginGateRevise),
+		string(LoopGenerationOriginGateNextGeneration),
+		string(LoopGenerationOriginDoDRetry),
+		string(LoopGenerationOriginRatchetRestore),
+	}
+}
+
 // LoopGenerationPayload is shared by generation boundary hooks.
 type LoopGenerationPayload struct {
 	PayloadBase
 	LoopContext
-	Status     string          `json:"status,omitempty"`
-	ReasonCode string          `json:"reason_code,omitempty"`
-	Details    json.RawMessage `json:"details,omitempty"`
-	Denied     bool            `json:"denied,omitempty"`
-	DenyReason string          `json:"deny_reason,omitempty"`
+	// Origin is the closed loop-generation provenance value that explains why this generation exists.
+	Origin           LoopGenerationOrigin `json:"origin"`
+	ParentGeneration int64                `json:"parent_generation"`
+	Status           string               `json:"status,omitempty"`
+	ReasonCode       string               `json:"reason_code,omitempty"`
+	Details          json.RawMessage      `json:"details,omitempty"`
+	Denied           bool                 `json:"denied,omitempty"`
+	DenyReason       string               `json:"deny_reason,omitempty"`
 }
 
 // LoopGenerationPrePayload is delivered before a loop generation is planned.
@@ -128,13 +157,18 @@ type LoopGenerationPostPayload = LoopGenerationPayload
 type LoopGatePayload struct {
 	PayloadBase
 	LoopContext
-	GateID     string          `json:"gate_id,omitempty"`
-	Decision   string          `json:"decision,omitempty"`
-	Status     string          `json:"status,omitempty"`
-	ReasonCode string          `json:"reason_code,omitempty"`
-	Details    json.RawMessage `json:"details,omitempty"`
-	Denied     bool            `json:"denied,omitempty"`
-	DenyReason string          `json:"deny_reason,omitempty"`
+	GateID string `json:"gate_id,omitempty"`
+	// Outcome is the machine result already computed when the hook observes the gate.
+	Outcome string `json:"outcome,omitempty"`
+	// Score is the computed metric score, when the observed gate has a metric criterion.
+	Score *float64 `json:"score,omitempty"`
+	// BestGeneration is the durable best generation known when the hook observes the result.
+	BestGeneration *int64          `json:"best_generation,omitempty"`
+	Status         string          `json:"status,omitempty"`
+	ReasonCode     string          `json:"reason_code,omitempty"`
+	Details        json.RawMessage `json:"details,omitempty"`
+	Denied         bool            `json:"denied,omitempty"`
+	DenyReason     string          `json:"deny_reason,omitempty"`
 }
 
 // LoopGatePrePayload is delivered before a loop gate decision is committed.

@@ -63,6 +63,7 @@ describe("LoopCatalog", () => {
     expect(screen.getByText("90%")).toBeInTheDocument();
     expect(screen.getByText("100%")).toBeInTheDocument();
     expect(screen.getAllByText("Running")).toHaveLength(2);
+    expect(screen.getByTestId("loop-catalog-best")).toHaveTextContent("best Gen 2 · 0.82");
   });
 
   it("Should not claim sampled catalog-wide automation bindings", () => {

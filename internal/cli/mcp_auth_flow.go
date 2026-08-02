@@ -113,16 +113,16 @@ func readManualMCPAuthInputContextWithTerminal(
 	readPassword func(int) ([]byte, error),
 ) (string, error) {
 	inputIsTerminal := isTerminal(input)
-	readInput := func() (string, error) {
+	readInput := func(reader io.Reader) (string, error) {
 		return readManualMCPAuthInputWithTerminal(
-			input,
+			reader,
 			output,
 			func(io.Reader) bool { return inputIsTerminal },
 			readPassword,
 		)
 	}
 	if inputIsTerminal {
-		value, err := readInput()
+		value, err := readInput(input)
 		if err != nil {
 			return "", err
 		}
@@ -134,7 +134,7 @@ func readManualMCPAuthInputContextWithTerminal(
 
 	file, ok := input.(*os.File)
 	if !ok {
-		value, err := readInput()
+		value, err := readInput(input)
 		if err != nil {
 			return "", err
 		}

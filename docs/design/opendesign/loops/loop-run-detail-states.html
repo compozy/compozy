@@ -1,0 +1,1305 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Run states · software-delivery · Loops · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<style>
+  /* tokens — verbatim from design-system/ds-core.css (packages/ui/src/tokens.css lineage) */
+  :root{
+    color-scheme: dark;
+    --rail:#0c0b0b; --canvas:#131211; --canvas-soft:#1a1918; --canvas-tint:#1c1b1a; --elevated:#232220;
+    --fg:#ececef; --fg-strong:#f6f6f8; --muted:#9a9a9f; --subtle:#76767c; --faint:#545458;
+    --line:rgba(255,255,255,.055); --line-soft:rgba(255,255,255,.03); --line-strong:rgba(255,255,255,.09);
+    --accent:#e8572a; --accent-hover:#d14e25; --accent-strong:#f6874f; --accent-ink:#17110f;
+    --accent-tint:rgba(232,87,42,.10); --accent-dim:rgba(232,87,42,.24);
+    --success:#5fbf85; --success-tint:rgba(95,191,133,.08);
+    --warning:#d6a647; --warning-tint:rgba(214,166,71,.08);
+    --danger:#e0635a;  --danger-tint:rgba(224,99,90,.09);
+    --info:#8e8eb5;    --info-tint:rgba(142,142,181,.12);
+    --neutral:#7a7a80; --neutral-tint:rgba(150,150,155,.06);
+    --row-hover:rgba(255,255,255,.022);
+    --input-fill:rgba(255,255,255,.025); --badge-fill:rgba(255,255,255,.05);
+    --btn-fill:rgba(255,255,255,.04); --btn-hover:rgba(255,255,255,.07);
+    --radius-xxs:3px; --radius-xs:4px; --radius-sm:5px; --radius:6px; --radius-md:8px; --radius-lg:10px; --radius-pill:9999px;
+    --font-sans:"Inter Variable","Inter",-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --font-mono:"JetBrains Mono Variable","JetBrains Mono","SF Mono",ui-monospace,Menlo,monospace;
+    --dur:140ms; --ease:cubic-bezier(.2,0,0,1);
+    --highlight:inset 0 1px 0 rgba(255,255,255,.035);
+    --focus-ring:0 0 0 2px rgba(255,255,255,.5);
+    --shadow-overlay:0 24px 48px -12px rgba(0,0,0,.65), 0 0 0 1px rgba(255,255,255,.045);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--canvas);color:var(--fg);font-family:var(--font-sans);font-size:13.5px;line-height:1.5;letter-spacing:-.006em;
+    font-feature-settings:"cv01","ss03";-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+  a{color:inherit;text-decoration:none}
+  button{font:inherit;letter-spacing:inherit;color:inherit;background:none;border:0;cursor:pointer}
+  svg{display:block}
+  code,.mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums;font-feature-settings:normal}
+  :is(button,a,[tabindex],summary):focus-visible{outline:none;box-shadow:var(--focus-ring)}
+
+  /* unified head · 44px */
+  .w2head{min-height:44px;display:flex;align-items:center;gap:10px;padding:0 16px;
+    background:var(--canvas);border-bottom:1px solid var(--line);min-width:0}
+  .w2-back{width:24px;height:24px;flex:none;display:grid;place-items:center;border-radius:var(--radius);color:var(--muted)}
+  .w2-back:hover{background:var(--btn-fill);color:var(--fg-strong)}
+  .w2-back svg{width:14px;height:14px}
+  .w2-crumbs{display:flex;align-items:center;gap:2px;min-width:0}
+  .w2-crumb{font-size:13px;font-weight:500;color:var(--subtle);white-space:nowrap;border-radius:var(--radius-sm);padding:1px 5px}
+  .w2-crumb:hover{color:var(--fg);background:var(--row-hover)}
+  .w2-sep{flex:none;font-size:12px;color:var(--faint)}
+  .w2-title{font-size:13px;font-weight:600;color:var(--fg-strong);white-space:nowrap;padding-left:3px}
+  .w2-flex{flex:1;min-width:8px}
+  .w2-status{display:inline-flex;align-items:center;gap:6px;flex:none;font-size:10.5px;font-weight:600;color:var(--muted)}
+  .w2-status .dot{width:7px;height:7px;border-radius:50%;background:currentColor;flex:none}
+  .w2-status[data-tone="run"]{color:var(--accent-strong)}
+  .w2-vsep{width:1px;height:14px;background:var(--line-strong);flex:none}
+  .w2-actions{position:relative;display:flex;align-items:center;gap:6px;flex:none}
+  .btn{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:var(--radius-md);font-size:12px;
+    font-weight:500;letter-spacing:-.005em;border:1px solid var(--line);background:var(--btn-fill);white-space:nowrap;
+    transition:background var(--dur) var(--ease),border-color var(--dur) var(--ease),color var(--dur) var(--ease)}
+  .btn svg{width:13px;height:13px}
+  .btn:hover{background:var(--btn-hover);border-color:var(--line-strong);color:var(--fg-strong)}
+  .btn--danger{color:var(--danger)}
+  .btn--danger:hover{background:var(--danger-tint);border-color:color-mix(in srgb,var(--danger) 24%,transparent);color:var(--danger)}
+  .btn--icon{width:26px;padding:0;justify-content:center}
+  .menu{position:absolute;top:32px;right:0;min-width:190px;padding:5px;border-radius:var(--radius-md);background:var(--elevated);
+    border:1px solid var(--line-strong);box-shadow:var(--shadow-overlay);z-index:40;display:none}
+  .menu.is-open{display:block}
+  .menu__item{display:flex;align-items:center;gap:9px;width:100%;height:28px;padding:0 9px;border-radius:var(--radius-sm);font-size:12.5px;color:var(--fg);text-align:left}
+  .menu__item:hover{background:var(--row-hover);color:var(--fg-strong)}
+  .menu__item svg{width:13px;height:13px;color:var(--muted);flex:none}
+  .menu__item[data-tone="danger"]{color:var(--danger)}
+  .menu__item[data-tone="danger"] svg{color:var(--danger)}
+  .menu__item[data-tone="danger"]:hover{background:var(--danger-tint)}
+  .menu__sep{height:1px;margin:5px 4px;background:var(--line)}
+
+  .page{max-width:1240px;margin:0 auto;padding:24px 36px 72px}
+  .subhead{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:22px;padding-bottom:14px;
+    border-bottom:1px solid var(--line);font-size:12px;color:var(--subtle)}
+  .subhead b{font-weight:500;color:var(--muted)}
+  .subhead .mono{font-size:11px}
+  .dotsep{width:2px;height:2px;border-radius:50%;background:var(--faint);display:inline-block}
+
+  .layout{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:32px;align-items:start}
+
+  /* collapsible sections */
+  .sec{margin-bottom:24px;border:0}
+  .sec > summary{display:flex;align-items:center;gap:8px;padding:0 0 10px;cursor:pointer;list-style:none;user-select:none}
+  .sec > summary::-webkit-details-marker{display:none}
+  .sec > summary svg.si{width:14px;height:14px;color:var(--subtle);flex:none}
+  .sec > summary .st{font-size:10.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--subtle)}
+  .sec > summary .ssum{font-size:11.5px;color:var(--faint);margin-left:2px}
+  .sec > summary .spacer{flex:1}
+  .sec > summary svg.chev{width:14px;height:14px;color:var(--faint);flex:none;transition:transform var(--dur) var(--ease)}
+  .sec:not([open]) > summary svg.chev{transform:rotate(-90deg)}
+  .sec:not([open]) > summary{padding-bottom:0;margin-bottom:24px}
+  .panelbox{background:var(--canvas-soft);border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden}
+
+  /* pill vocabulary — Pill xs (17px), state only */
+  .pillxs{display:inline-flex;align-items:center;gap:5px;height:17px;padding:0 6px;border-radius:var(--radius-xs);
+    font-size:10.5px;font-weight:600;white-space:nowrap;background:var(--badge-fill);color:var(--muted)}
+  .pillxs.mono{font-family:var(--font-mono);font-weight:500}
+  .pillxs[data-tone="warning"]{background:var(--warning-tint);color:var(--warning)}
+  .pillxs[data-tone="info"]{background:var(--info-tint);color:var(--info)}
+
+  /* needs you */
+  .needsrow{display:flex;align-items:flex-start;gap:12px;padding:14px 16px}
+  .needsrow svg.ni{width:15px;height:15px;flex:none;margin-top:2px;color:var(--warning)}
+  .needsrow__main{min-width:0;flex:1}
+  .needsrow__label{font-size:13px;font-weight:520;color:var(--fg-strong)}
+  .needsrow__sub{margin-top:3px;font-size:12.5px;line-height:1.55;color:var(--muted);max-width:62ch}
+  .needsrow__trail{display:flex;flex-direction:column;align-items:flex-end;gap:4px;padding-top:2px}
+  .needsrow__age{font-family:var(--font-mono);font-size:11px;color:var(--subtle);white-space:nowrap}
+  .needsrow__act{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:520;color:var(--muted);padding:2px 4px;border-radius:var(--radius-xs)}
+  .needsrow__act:hover{color:var(--fg-strong)}
+  .needsrow__act svg{width:12px;height:12px}
+
+  /* progress */
+  .goalbox{padding:16px 18px 17px}
+  .goal-title{font-size:15px;font-weight:560;letter-spacing:-.014em;color:var(--fg-strong);text-wrap:pretty}
+  .pbar{display:flex;gap:3px;height:6px;margin-top:14px}
+  .pbar__seg{flex:1;border-radius:var(--radius-pill);background:var(--badge-fill)}
+  .pbar__seg[data-state="clean"]{background:var(--success)}
+  .pbar__seg[data-state="active"]{background:var(--accent-dim)}
+  .pbar-meta{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-top:9px;font-size:12px;color:var(--muted)}
+  .pbar-meta b{font-weight:560;color:var(--fg)}
+  .pbar-meta .r{color:var(--subtle);white-space:nowrap}
+
+  /* happening now */
+  .nowrow{display:flex;align-items:flex-start;gap:12px;padding:14px 16px}
+  .nowrow__dot{width:8px;height:8px;border-radius:50%;background:var(--accent);flex:none;margin-top:6px}
+  .nowrow__main{min-width:0;flex:1}
+  .nowrow__label{font-size:13.5px;font-weight:560;color:var(--fg-strong)}
+  .nowrow__sub{margin-top:3px;font-size:12.5px;line-height:1.55;color:var(--muted);max-width:62ch}
+  .nowrow__meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  .nowrow__time{font-family:var(--font-mono);font-size:11.5px;color:var(--subtle);white-space:nowrap;padding-top:3px}
+  .dot--pulse{animation:pulse 1.8s var(--ease) infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 color-mix(in srgb,currentColor 40%,transparent)}70%{box-shadow:0 0 0 5px transparent}100%{box-shadow:0 0 0 0 transparent}}
+
+  /* ── story timeline — packages/ui timeline.tsx + loop-run-story-timeline.tsx anatomy ──
+     row: grid 22px | 1fr | auto, gap 12, py 9; spine 1px line-strong at left 10.5;
+     dot: 22px ring (1.5px, tone color) on canvas, 11px lucide icon; trail: relative time + mono micro */
+  .tl{padding:6px 16px 10px}
+  .tlrow{position:relative;display:grid;grid-template-columns:22px minmax(0,1fr) auto;gap:12px;align-items:start;padding:9px 0}
+  .tlrow::before{content:"";position:absolute;left:10.5px;top:0;bottom:0;width:1px;background:var(--line-strong)}
+  .tlrow:first-child::before{top:14px}
+  .tlrow:last-child::before{bottom:auto;height:14px}
+  .tlrow__dot{position:relative;z-index:1;width:22px;height:22px;border-radius:50%;background:var(--canvas);
+    border:1.5px solid var(--tone,var(--faint));color:var(--tone,var(--faint));display:grid;place-items:center}
+  .tlrow__dot svg{width:11px;height:11px}
+  .tlrow__title{padding-top:2px;font-size:13px;font-weight:520;color:var(--fg-strong)}
+  .tlrow__sub{margin-top:2px;max-width:60ch;font-size:12.5px;line-height:1.5;color:var(--muted)}
+  .tlrow__meta{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:6px}
+  .tlrow__trail{display:flex;flex-direction:column;align-items:flex-end;gap:3px;padding-top:3px}
+  .tlrow__time{font-size:11.5px;color:var(--subtle);font-variant-numeric:tabular-nums;white-space:nowrap}
+  .tlrow__micro{font-family:var(--font-mono);font-size:9px;color:var(--faint);white-space:nowrap}
+
+  /* earlier-generation disclosure — copied from loop-run-detail.html */
+  .genfold{border-top:1px solid var(--line-soft)}
+  .genfold > summary{display:flex;align-items:center;gap:8px;padding:11px 16px;cursor:pointer;list-style:none;font-size:12px;color:var(--subtle)}
+  .genfold > summary::-webkit-details-marker{display:none}
+  .genfold > summary:hover{color:var(--fg);background:var(--row-hover)}
+  .genfold > summary svg{width:13px;height:13px;transition:transform var(--dur) var(--ease)}
+  .genfold[open] > summary svg{transform:rotate(90deg)}
+
+  .quiet-note{display:flex;align-items:flex-start;gap:9px;padding:13px 15px;border-radius:var(--radius-md);
+    background:var(--canvas-soft);border:1px solid var(--line-soft);font-size:12.5px;line-height:1.55;color:var(--muted)}
+  .quiet-note svg{width:14px;height:14px;flex:none;margin-top:2px;color:var(--subtle)}
+  .quiet-note b{font-weight:520;color:var(--fg)}
+  .quiet-note .mono{font-size:11px}
+
+  /* rail — one card (production run rail) */
+  .railbox{background:var(--canvas-soft);border:1px solid var(--line);border-radius:var(--radius-lg)}
+  .rail-sec{padding:15px 16px;border-top:1px solid var(--line-soft)}
+  .rail-sec:first-child{border-top:0}
+  .rail-sec__t{display:flex;align-items:center;gap:7px;font-size:10.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--subtle);margin-bottom:9px}
+  .rail-sec__t svg{width:13px;height:13px;color:var(--faint)}
+  .prow{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:4px 0;min-height:25px}
+  .prow__k{font-size:12px;color:var(--subtle);flex:none}
+  .prow__v{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:510;color:var(--fg);min-width:0}
+  .prow__v.mono{font-size:11px;font-weight:500;color:var(--muted)}
+  .prow__v .max{color:var(--faint)}
+  .prow__v span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .prow__v a{color:var(--warning)}
+  .prow__v a:hover{filter:brightness(1.15)}
+  .rail-note{margin-top:8px;font-size:11px;line-height:1.5;color:var(--faint)}
+  .copybtn{display:inline-grid;place-items:center;width:18px;height:18px;color:var(--faint);border-radius:var(--radius-xxs)}
+  .copybtn:hover{color:var(--fg);background:var(--row-hover)}
+  .copybtn svg{width:11px;height:11px}
+  .rail-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;border-top:1px solid var(--line-soft);padding:8px 12px}
+  .rail-foot__btn{display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 8px;border-radius:var(--radius-md);color:var(--muted);font-size:11px;font-weight:500}
+  .rail-foot__btn:hover{background:var(--row-hover);color:var(--fg-strong)}
+  .rail-foot__btn svg{width:12px;height:12px}
+  .rail-foot .digest{font-family:var(--font-mono);font-size:9px;color:var(--faint)}
+
+  /* ══ states-lab additions on the approved base ══════════════════════════════ */
+  .gnav{position:sticky;top:0;z-index:30;display:flex;flex-wrap:wrap;align-items:center;gap:8px;
+    padding:9px 24px;border-bottom:1px solid var(--line);background:var(--rail)}
+  .gnav a{font-family:var(--font-mono);font-size:10.5px;color:var(--subtle);padding:2px 6px;border-radius:var(--radius-xs)}
+  .gnav a:hover{color:var(--fg);background:var(--row-hover)}
+  .state{border-bottom:1px solid var(--line)}
+  .state:last-child{border-bottom:0}
+  .layout--solo{grid-template-columns:minmax(0,1fr)}
+  .w2-status[data-tone="neutral"]{color:var(--muted)}
+
+  /* pill scale — AUTHORIZED DELTA on the base warning/info pills: danger/success/neutral
+     built with the identical `*-tint` formula. Used only where a state demands it:
+     quarantine (danger), a self-cleared attention flag (success), a terminal run (neutral). */
+  .pillxs[data-tone="danger"]{background:var(--danger-tint);color:var(--danger)}
+  .pillxs[data-tone="success"]{background:var(--success-tint);color:var(--success)}
+  .pillxs[data-tone="neutral"]{background:var(--neutral-tint);color:var(--neutral)}
+
+  /* section gist link — renders as a text link, never a filled badge (badge budget: state pills only) */
+  .chiplink{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:500;color:var(--info);padding:1px 5px;border-radius:var(--radius-xs)}
+  .chiplink svg{width:11px;height:11px}
+  .chiplink:hover{background:var(--row-hover);filter:brightness(1.14)}
+
+  /* machine truth — demoted to 9px micro mono, never removed */
+  .micro{margin-top:9px;font-family:var(--font-mono);font-size:9px;line-height:1.55;color:var(--faint)}
+  .provline{margin-top:7px;font-family:var(--font-mono);font-size:10px;color:var(--faint)}
+  .provline b{font-weight:600;color:var(--subtle)}
+
+  /* multi-lane node panels */
+  .nowrow + .nowrow{border-top:1px solid var(--line-soft)}
+  .nowrow__dot--warn{background:var(--warning)}
+  .nowrow__dot--wait{background:var(--info)}
+  .nowrow__dot--ring{background:transparent;border:1.5px solid var(--info)}
+  .nowrow__acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:11px}
+  .btn--sm{height:22px;padding:0 8px;font-size:11.5px}
+  .btn--sm svg{width:12px;height:12px}
+  .btn--primary{background:var(--accent);border-color:transparent;color:var(--accent-ink);box-shadow:var(--highlight)}
+  .btn--primary:hover{background:var(--accent-hover);color:var(--accent-ink)}
+  .act{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:520;color:var(--muted);padding:2px 4px;border-radius:var(--radius-xs)}
+  .act:hover{color:var(--fg-strong)}
+  .act svg{width:12px;height:12px}
+
+  /* needs-you / outcome cards */
+  .scard{padding:14px 16px;border-radius:var(--radius-md);border:1px solid var(--line);background:var(--canvas-tint)}
+  .scard[data-tone="warning"]{background:var(--warning-tint);border-color:color-mix(in srgb,var(--warning) 24%,transparent)}
+  .scard[data-tone="warning"] .scard__title{color:var(--warning)}
+  .scard[data-tone="danger"]{background:var(--danger-tint);border-color:color-mix(in srgb,var(--danger) 24%,transparent)}
+  .scard[data-tone="danger"] .scard__title{color:var(--danger)}
+  .scard__title{font-size:13px;font-weight:560;color:var(--fg-strong)}
+  .scard__body{margin-top:4px;font-size:12.5px;line-height:1.55;color:var(--muted);max-width:62ch}
+  .scard__body .mono{font-size:10.5px;color:var(--subtle)}
+  .scard__acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+  .cardpair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+
+  /* attempt ledger disclosure */
+  details.attempts{margin-top:11px}
+  details.attempts > summary{list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:5px;
+    font-size:11px;font-weight:520;color:var(--muted);padding:2px 4px;border-radius:var(--radius-xs)}
+  details.attempts > summary::-webkit-details-marker{display:none}
+  details.attempts > summary:hover{color:var(--fg-strong)}
+  details.attempts > summary svg{width:11px;height:11px;transition:transform var(--dur) var(--ease)}
+  details.attempts[open] > summary svg{transform:rotate(90deg)}
+  .attempts__list{margin-top:8px;border:1px solid var(--line-soft);border-radius:var(--radius-md);overflow:hidden}
+  .attempt-row{display:flex;align-items:baseline;gap:10px;padding:7px 10px;border-top:1px solid var(--line-soft);font-family:var(--font-mono);font-size:10.5px;color:var(--muted)}
+  .attempt-row:first-child{border-top:0}
+  .attempt-row .n{color:var(--fg);font-weight:600;flex:none}
+  .attempt-row .cls{color:var(--warning)}
+  .attempt-row .disp{color:var(--subtle)}
+  .attempt-row .t{margin-left:auto;color:var(--faint);white-space:nowrap}
+
+  /* escalation ladder (approval waits) */
+  .ladder{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:9px;font-family:var(--font-mono);font-size:10px;color:var(--faint)}
+  .ladder__step{display:inline-flex;align-items:center;gap:4px;padding:2px 6px;border-radius:var(--radius-xs);background:var(--badge-fill);color:var(--subtle)}
+  .ladder__step[data-state="done"]{background:var(--success-tint);color:var(--success)}
+  .ladder__step[data-state="next"]{background:var(--info-tint);color:var(--info)}
+
+  /* pbar seg enum: clean | active | failed | parked | quarantined */
+  .pbar__seg[data-state="failed"]{background:var(--danger)}
+  .pbar__seg[data-state="parked"]{background:var(--info-tint);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--info) 36%,transparent)}
+  .pbar__seg[data-state="quarantined"]{background:var(--danger-tint);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--danger) 36%,transparent)}
+
+  @media (max-width:1080px){.layout{grid-template-columns:1fr}.page{padding:20px 20px 56px}}
+  @media (max-width:900px){.cardpair{grid-template-columns:1fr}}
+  @media (prefers-reduced-motion: reduce){*{animation:none!important;transition-duration:.01ms!important}}
+</style>
+</head>
+<body>
+
+<nav class="gnav" aria-label="States in this gallery" data-od-id="loop-run-states-nav">
+  <a href="#state-retrying">retrying</a>
+  <a href="#state-paused-manual">paused-manual</a>
+  <a href="#state-paused-rule">paused-rule</a>
+  <a href="#state-waiting">waiting</a>
+  <a href="#state-quarantined">quarantined</a>
+  <a href="#state-needs-attention">needs-attention</a>
+  <a href="#state-canceled">canceled</a>
+  <a href="#state-parked-progress">parked-progress</a>
+</nav>
+
+<!-- ═══════════════════════════════════════════════════ STATE 1 · RETRYING (warning)
+     One node mid-backoff: attempt N of cap, next_attempt_at, failure_class, attempt ledger. -->
+<section class="state" id="state-retrying" data-od-id="state-retrying">
+  <header class="w2head" data-od-id="retrying-head">
+    <a class="w2-back" href="loop-run-detail.html" aria-label="Back to run"><i data-lucide="chevron-left"></i></a>
+    <nav class="w2-crumbs" aria-label="Breadcrumb"><a class="w2-crumb" href="../_done/loops/loops-catalog.html">Loops</a><span class="w2-sep">/</span><a class="w2-crumb" href="loop-detail.html">software-delivery</a><span class="w2-sep">/</span><a class="w2-crumb" href="loop-run-detail.html">Run r-8f3a2b</a><span class="w2-sep">/</span>
+      <span class="w2-title">Retrying</span>
+    </nav>
+    <span class="w2-flex"></span>
+    <span class="w2-status" data-tone="run"><span class="dot dot--pulse" aria-hidden="true"></span>Running</span>
+    <span class="w2-vsep"></span>
+    <div class="w2-actions">
+      <!-- head controls, cited once for every live-status artboard (S1–S6, S8):
+           Pause — production ADR-017/N-003: offered only while status=running; while
+             pause_requested is set it renders disabled with the label "Pausing…".
+           Cancel run — spec: cooperative cancel on any live status; it replaces the deleted /stop.
+           Kill run — spec: destructive escape, overflow only, never a top-level control. -->
+      <button class="btn" type="button" data-od-id="retrying-pause"><i data-lucide="pause"></i>Pause</button>
+      <button class="btn btn--danger" type="button" data-od-id="retrying-cancel"><i data-lucide="ban"></i>Cancel run</button>
+      <button class="btn btn--icon" type="button" data-menu-btn aria-label="More" aria-haspopup="menu" aria-expanded="false"><i data-lucide="ellipsis"></i></button>
+      <div class="menu" role="menu" data-od-id="retrying-more-menu">
+        <a class="menu__item" role="menuitem" href="loop-editor.html"><i data-lucide="workflow"></i>View definition</a>
+        <div class="menu__sep"></div>
+        <button class="menu__item" type="button" role="menuitem" data-tone="danger"><i data-lucide="zap"></i>Kill run…</button>
+      </div>
+    </div>
+  </header>
+  <div class="page">
+    <div class="subhead" data-od-id="retrying-subhead">
+      <span class="mono">r-8f3a2b</span><span class="dotsep"></span><span>Started by <b>schedule · nightly</b></span><span class="dotsep"></span><span>Generation <b>2 of 50</b></span><span class="dotsep"></span>
+      <span class="mono">14m 08s active</span>
+    </div>
+    <div class="layout layout--solo">
+      <main>
+        <!-- unaffected panels — identical to loop-run-detail.html (this state IS the final page's moment) -->
+        <details class="sec" open data-od-id="retrying-needs-you">
+          <summary><i class="si" data-lucide="bell"></i><span class="st">Needs you</span><span class="ssum">1 item</span><span class="spacer"></span><i class="chev" data-lucide="chevron-down"></i></summary>
+          <div class="panelbox">
+            <div class="needsrow">
+              <i class="ni" data-lucide="triangle-alert"></i>
+              <div class="needsrow__main">
+                <div class="needsrow__label">task_03 keeps hitting an unavailable service</div>
+                <div class="needsrow__sub">GitHub MCP refused two connections, so calls are paused until it recovers. If the last retry fails too, the step is set aside in quarantine. Nothing to do yet: this clears itself when the service returns.</div>
+              </div>
+              <div class="needsrow__trail">
+                <span class="needsrow__age">4m</span>
+                <a class="needsrow__act" href="loop-quarantine-sheet.html">Details <i data-lucide="arrow-right"></i></a>
+              </div>
+            </div>
+          </div>
+        </details>
+        <details class="sec" open data-od-id="retrying-progress">
+          <summary><i class="si" data-lucide="gauge"></i><span class="st">Progress</span><span class="spacer"></span><i class="chev" data-lucide="chevron-down"></i></summary>
+          <div class="panelbox">
+            <div class="goalbox">
+              <div class="goal-title">Ship every authored task under .compozy/tasks/loops-paper</div>
+              <div class="pbar" aria-label="4 tasks: 2 done, 1 retrying, 1 pending">
+                <span class="pbar__seg" data-state="clean" title="task_01 · schema migration · done"></span>
+                <span class="pbar__seg" data-state="clean" title="task_02 · store method · done"></span>
+                <span class="pbar__seg" data-state="active" title="task_03 · api handler · retrying"></span>
+                <span class="pbar__seg" title="task_04 · contract test · waits for task_03"></span>
+              </div>
+              <div class="pbar-meta">
+                <span><b>2 of 4</b> tasks done · task_03 retrying, task_04 queued behind it</span>
+                <span class="r">generation 2 of 50</span>
+              </div>
+            </div>
+          </div>
+        </details>
+
+        <details class="sec" open data-od-id="retrying-now">
+          <summary><i class="si" data-lucide="activity"></i><span class="st">Happening now</span><span class="spacer"></span><i class="chev" data-lucide="chevron-down"></i></summary>
+          <div class="panelbox">
+            <div class="nowrow" data-od-id="retrying-task03">
+              <span class="nowrow__dot nowrow__dot--warn" aria-hidden="true"></span>
+              <div class="nowrow__main">
+                <div class="nowrow__label">task_03 is retrying — attempt 2 of 3</div>
+                <div class="nowrow__sub">The push to GitHub failed in transit. Nothing to do: the retry runs by itself at 14:41:03. If it keeps failing, check the <span class="mono">github-mcp</span> target.</div>
+                <div class="nowrow__meta">
+                  <span class="pillxs mono" data-tone="warning" data-od-id="retrying-attempt-pill">attempt 2 of 3 · next in 38s</span>
+                </div>
+                <!-- failure_class is an enum, so it stays plain micro mono — never a chip -->
+                <div class="micro">failure_class transport · backoff 2m · execute_task · task_03 · gen 2</div>
+                <!-- attempt ledger from loop_node_attempts (PK run·gen·node·item·attempt) -->
+                <details class="attempts" data-od-id="rt-attempt-history">
+                  <summary><i data-lucide="chevron-right"></i>Attempt history</summary>
+                  <div class="attempts__list">
+                    <div class="attempt-row"><span class="n">#1</span><span class="cls">transport</span><span class="disp">retried</span><span>push timed out after 30s</span><span class="t">14:32:10 → 14:32:41</span></div>
+                    <div class="attempt-row"><span class="n">#2</span><span class="cls">—</span><span class="disp">scheduled</span><span>backoff 2m · runs at 14:41:03</span><span class="t">next_attempt_at 14:41:03</span></div>
+                  </div>
+                </details>
+              </div>
+              <span class="nowrow__time">retrying</span>
+            </div>
+          </div>
+        </details>
+
+        <details class="sec" open data-od-id="retrying-story">
+          <summary><i class="si" data-lucide="history"></i><span class="st">What happened</span><span class="spacer"></span><i class="chev" data-lucide="chevron-down"></i></summary>
+          <div class="panelbox">
+            <ol class="tl" aria-label="Run story">
+              <li class="tlrow" style="--tone:var(--warning)" data-od-id="ev-node-retry-scheduled">
+                <span class="tlrow__dot"><i data-lucide="rotate-ccw"></i></span>
+                <div><div class="tlrow__title">Retry scheduled for task_03</div>
+                  <div class="tlrow__sub">Attempt 2 of 3 runs at 14:41:03. Only network-style failures retry on their own — everything else asks or parks.</div>
+                </div><div class="tlrow__trail"><time class="tlrow__time">40s ago</time><span class="tlrow__micro">node_retry_scheduled</span></div>
+              </li>
+              <li class="tlrow" style="--tone:var(--danger)" data-od-id="ev-node-failed">
+                <span class="tlrow__dot"><i data-lucide="x"></i></span>
+                <div><div class="tlrow__title">Push failed in transit</div>
+                  <div class="tlrow__sub">GitHub could not be reached. The work itself is safe — only the push failed.</div>
+                </div><div class="tlrow__trail"><time class="tlrow__time">2m ago</time><span class="tlrow__micro">node_failed · execute_task · task_03 · gen 2</span></div>
+              </li>
+            </ol>
+          </div>
+        </details>
+      </main>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════ STATE 2 · PAUSED · MANUAL (info)
+     Contract: node_controls: paused=true, pause_provenance{actor operator, reason, manual} (spec).
+     The pause holds one lane; siblings keep working. -->
+<section class="state" id="state-paused-manual" data-od-id="state-paused-manual">
+  <header class="w2head" data-od-id="paused-manual-head">
+    <a class="w2-back" href="loop-run-detail.html" aria-label="Back to run"><i data-lucide="chevron-left"></i></a>
+    <nav class="w2-crumbs" aria-label="Breadcrumb"><a class="w2-crumb" href="../_done/loops/loops-catalog.html">Loops</a><span class="w2-sep">/</span><a class="w2-crumb" href="loop-detail.html">software-delivery</a><span class="w2-sep">/</span><a class="w2-crumb" href="loop-run-detail.html">Run r-8f3a2b</a><span class="w2-sep">/</span>
+      <span class="w2-title">Paused · manual</span>
+    </nav>
+    <span class="w2-flex"></span>
+    <span class="w2-status" data-tone="run"><span class="dot dot--pulse" aria-hidden="true"></span>Running</span>
+    <span class="w2-vsep"></span>
+    <div class="w2-actions"><!-- head controls identical to S1; authority cited there -->
+      <button class="btn" type="button"><i data-lucide="pause"></i>Pause</button>
+      <button class="btn btn--danger" type="button"><i data-lucide="ban"></i>Cancel run</button>
+      <button class="btn btn--icon" type="button" data-menu-btn aria-label="More" aria-haspopup="menu" aria-expanded="false"><i data-lucide="ellipsis"></i></button>
+      <div class="menu" role="menu"><a class="menu__item" role="menuitem" href="loop-editor.html"><i data-lucide="workflow"></i>View definition</a><div class="menu__sep"></div><button class="menu__item" type="button" role="menuitem" data-tone="danger"><i data-lucide="zap"></i>Kill run…</button></div>
+    </div>
+  </header>
+  <div class="page">
+    <div class="subhead" data-od-id="paused-manual-subhead">
+      <span class="mono">r-8f3a2b</span><span class="dotsep"></span><span>Started by <b>schedule · nightly</b></span><span class="dotsep"></span><span>Generation <b>2 of 50</b></span><span class="dotsep"></span>
+      <span class="mono">26m 10s active</span>
+    </div>
+    <div class="layout layout--solo">
+      <main>
+        <!-- NEEDS YOU renders nothing in this state — the pause is your own deliberate act; zero flags render nothing (R4) -->
+        <details class="sec" open data-od-id="paused-manual-progress">
+          <summary><i class="si" data-lucide="gauge"></i><span class="st">Progress</span><span class="spacer"></span><i class="chev" data-lucide="chevron-down"></i></summary>
+          <div class="panelbox">
+            <!-- parked steps leave the denominator (PRD rule 27) — the paused lane is excluded -->
+            <div class="goalbox">
+              <div class="goal-title">Ship every authored task under .compozy/tasks/loops-paper</div>
+              <div class="pbar" aria-label="4 tasks: 2 done, 1 paused excluded, 1 running">
+                <span class="pbar__seg" data-state="clean" title="task_01 · schema migration · done"></span>
+                <span class="pbar__seg" data-state="clean" title="task_02 · store method · done"></span>
+                <span class="pbar__seg" data-state="parked" title="task_03 · api handler · paused — excluded from the denominator"></span>
+                <span class="pbar__seg" data-state="active" title="task_04 · contract test · running"></span>
+              </div>
+              <div class="pbar-meta">
+                <span><b>2 of 3</b> counted tasks done · task_04 running · 1 paused excluded</span>
+                <span class="r">generation 2 of 50</span>
+              </div>
+            </div>
+          </div>
+        </details>
+
+        <details class="sec" open data-od-id="paused-manual-now">
+          <summary><i class="si" data-lucide="activity"></i><span class="st">Happening now</span><span class="spacer"></span><i class="chev" data-lucide="chevron-down"></i></summary>
+          <div class="panelbox">
+            <div class="nowrow" data-od-id="paused-manual-task03">
+              <span class="nowrow__dot nowrow__dot--ring" aria-hidden="true"></span>
+              <div class="nowrow__main">
+                <div class="nowrow__label">task_03 is paused</div>
+                <div class="nowrow__sub">Paused by you at a safe point — its in-flight attempt drained before parking. The rest of the run keeps working.</div>
+                <div class="provline"><b>paused by</b> you (pedro) · <b>reason</b> "hold this one until the schema lands" · <b>at</b> 14:39</div>
+                <div class="micro">node_controls.paused true · pause_provenance actor operator · manual · execute_task · task_03 · gen 2</div>
+                <!-- Resume is gated on paused=true; Resume options… routes to the resume-mode menu -->
+                <div class="nowrow__acts">
+                  <button class="btn btn--sm" type="button" data-od-id="paused-manual-resume"><i data-lucide="play"></i>Resume</button>
+                  <a class="act" href="loop-node-controls.html#resume-menu">Resume options…<i data-lucide="arrow-right"></i></a>
+                </div>
+              </div>
+              <span class="nowrow__time">paused 6m</span>
+            </div>
+            <div class="nowrow" data-od-id="paused-manual-sibling">
+              <span class="nowrow__dot dot--pulse" aria-hidden="true"></span>
+              <div class="nowrow__main">
+                <div class="nowrow__label">Working on task_04 · contract test</div>
+                <div class="nowrow__sub">The pause holds only task_03; every other lane proceeds.</div>
+                <div class="micro">execute_task · task_04 · gen 2</div>
+              </div>
+              <span class="nowrow__time">2m 44s</span>
+            </div>
+          </div>
+        </details>
+
+        <details class="sec" open data-od-id="paused-manual-story">
+          <summary><i class="si" data-lucide="history"></i><span class="st">What happened</span><span class="spacer"></span><i class="chev" data-lucide="chevron-down"></i></summary>
+          <div class="panelbox">
+            <ol class="tl" aria-label="Run story">
+              <li class="tlrow" style="--tone:var(--info)" data-od-id="ev-node-paused-manual">
+                <span class="tlrow__dot"><i data-lucide="pause"></i></span>
+                <div><div class="tlrow__title">task_03 paused</div>
+                  <div class="tlrow__sub">By you, drain-first: the in-flight attempt finished cleanly before parking.</div>
+                </div><div class="tlrow__trail"><time class="tlrow__time">6m ago</time><span class="tlrow__micro">node_paused · manual · drain</span></div>
+              </li>
+            </ol>
+          </div>
+        </details>
+      </main>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════ STATE 3 · PAUSED · RULE (info)
+     Same contract as S2, but pause_provenance carries rule_id — visibly not a person. -->
+<section class="state" id="state-paused-rule" data-od-id="state-paused-rule">
+  <header class="w2head" data-od-id="paused-rule-head">
+    <a class="w2-back" href="loop-run-detail.html" aria-label="Back to run"><i data-lucide="chevron-left"></i></a>
+    <nav class="w2-crumbs" aria-label="Breadcrumb"><a class="w2-crumb" href="../_done/loops/loops-catalog.html">Loops</a><span class="w2-sep">/</span><a class="w2-crumb" href="loop-detail.html">software-delivery</a><span class="w2-sep">/</span><a class="w2-crumb" href="loop-run-detail.html">Run r-8f3a2b</a><span class="w2-sep">/</span>
+      <span class="w2-title">Paused · rule</span>
+    </nav>
+    <span class="w2-flex"></span>
+    <span class="w2-status" data-tone="run"><span class="dot dot--pulse" aria-hidden="true"></span>Running</span>
+    <span class="w2-vsep"></span>
+    <div class="w2-actions"><!-- head controls identical to S1; authority cited there -->
+      <button class="btn" type="button"><i data-lucide="pause"></i>Pause</button>
+      <button class="btn btn--danger" type="button"><i data-lucide="ban"></i>Cancel run</button>
+      <button class="btn btn--icon" type="button" data-menu-btn aria-label="More" aria-haspopup="menu" aria-expanded="false"><i data-lucide="ellipsis"></i></button>
+      <div class="menu" role="menu"><a class="menu__item" role="menuitem" href="loop-editor.html"><i data-lucide="workflow"></i>View definition</a><div class="menu__sep"></div><button class="menu__item" type="button" role="menuitem" data-tone="danger"><i data-lucide="zap"></i>Kill run…</button></div>
+    </div>
+  </header>
+  <div class="page">
+    <div class="subhead" data-od-id="paused-rule-subhead">
+      <span class="mono">r-8f3a2b</span><span class="dotsep"></span><span>Started by <b>schedule · nightly</b></span><span class="dotsep"></span><span>Generation <b>2 of 50</b></span><span class="dotsep"></span>
+      <span class="mono">31m 40s active</span>
+    </div>
+    <div class="layout layout--solo">
+      <main>
+        <!-- NEEDS YOU renders nothing in this state — the rule paused it and resuming is optional; zero flags render nothing (R4) -->
+        <details class="sec" open data-od-id="paused-rule-progress">
+          <summary><i class="si" data-lucide="gauge"></i><span class="st">Progress</span><span class="spacer"></span><i class="chev" data-lucide="chevron-down"></i></summary>
+          <div class="panelbox">
+            <!-- parked steps leave the denominator (PRD rule 27) — the rule-paused lane is excluded -->
+            <div class="goalbox">
+              <div class="goal-title">Ship every authored task under .compozy/tasks/loops-paper</div>
+              <div class="pbar" aria-label="4 tasks: 2 done, 1 running, 1 paused excluded">
+                <span class="pbar__seg" data-state="clean" title="task_01 · schema migration · done"></span>
+                <span class="pbar__seg" data-state="clean" title="task_02 · store method · done"></span>
+                <span class="pbar__seg" data-state="active" title="task_03 · api handler · running"></span>
+                <span class="pbar__seg" data-state="parked" title="task_04 · contract test · paused by rule — excluded from the denominator"></span>
+              </div>
+              <div class="pbar-meta">
+                <span><b>2 of 3</b> counted tasks done · task_03 running · 1 paused excluded</span>
+                <span class="r">generation 2 of 50</span>
+              </div>
+            </div>
+          </div>
+        </details>
+
+        <details class="sec" open data-od-id="paused-rule-now">
+          <summary><i class="si" data-lucide="activity"></i><span class="st">Happening now</span><span class="spacer"></span><i class="chev" data-lucide="chevron-down"></i></summary>
+          <div class="panelbox">
+            <div class="nowrow" data-od-id="paused-rule-task04">
+              <span class="nowrow__dot nowrow__dot--ring" aria-hidden="true"></span>
+              <div class="nowrow__main">
+                <div class="nowrow__label">task_04 was paused by a rule</div>
+                <div class="nowrow__sub">The loop's own guard paused this lane — not a person. Resuming is still yours to do.</div>
+                <div class="provline"><b>paused by</b> rule <b>guard.max-diff-size</b> · <b>reason</b> "diff exceeds 4 000 lines" · <b>at</b> 14:46</div>
+                <div class="micro">node_paused · rule · rule_id guard.max-diff-size · execute_task · task_04 · gen 2</div>
+                <div class="nowrow__acts">
+                  <button class="btn btn--sm" type="button" data-od-id="paused-rule-resume"><i data-lucide="play"></i>Resume</button>
+                  <a class="act" href="loop-node-controls.html#resume-menu">Resume options…<i data-lucide="arrow-right"></i></a>
+                </div>
+              </div>
+              <span class="nowrow__time">paused 3m</span>
+            </div>
+            <div class="nowrow" data-od-id="paused-rule-sibling">
+              <span class="nowrow__dot dot--pulse" aria-hidden="true"></span>
+              <div class="nowrow__main">
+                <div class="nowrow__label">Working on task_03 · api handler</div>
+                <div class="nowrow__sub">The rule holds only task_04; the rest of the generation proceeds.</div>
+                <div class="micro">execute_task · task_03 · gen 2</div>
+              </div>
+              <span class="nowrow__time">1m 12s</span>
+            </div>
+          </div>
+        </details>
+
+        <details class="sec" open data-od-id="paused-rule-story">
+          <summary><i class="si" data-lucide="history"></i><span class="st">What happened</span><span class="spacer"></span><i class="chev" data-lucide="chevron-down"></i></summary>
+          <div class="panelbox">
+            <ol class="tl" aria-label="Run story">
+              <li class="tlrow" style="--tone:var(--info)" data-od-id="ev-node-paused-rule">
+                <span class="tlrow__dot"><i data-lucide="pause"></i></span>
+                <div><div class="tlrow__title">task_04 paused by rule</div>
+                  <div class="tlrow__sub">Guard <span class="mono">guard.max-diff-size</span> tripped: the lane's diff crossed 4 000 lines.</div>
+                </div><div class="tlrow__trail"><time class="tlrow__time">3m ago</time><span class="tlrow__micro">node_paused · rule guard.max-diff-size</span></div>
+              </li>
+            </ol>
+          </div>
+        </details>
+      </main>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════ STATE 4 · WAITING (info)
+     Three durable wait kinds with age: timer, event, approval + escalation ladder (US-022).
+     Lane identity is iteration-scoped (run·gen·node·item), so waits never collide. -->
+<section class="state" id="state-waiting" data-od-id="state-waiting">
+  <header class="w2head" data-od-id="waiting-head">
+    <a class="w2-back" href="loop-run-detail.html" aria-label="Back to run"><i data-lucide="chevron-left"></i></a>
+    <nav class="w2-crumbs" aria-label="Breadcrumb"><a class="w2-crumb" href="../_done/loops/loops-catalog.html">Loops</a><span class="w2-sep">/</span><a class="w2-crumb" href="loop-detail.html">software-delivery</a><span class="w2-sep">/</span><a class="w2-crumb" href="loop-run-detail.html">Run r-8f3a2b</a><span class="w2-sep">/</span>
+      <span class="w2-title">Waiting</span>
+    </nav>
+    <span class="w2-flex"></span>
+    <span class="w2-status" data-tone="run"><span class="dot dot--pulse" aria-hidden="true"></span>Running</span>
+    <span class="w2-vsep"></span>
+    <div class="w2-actions"><!-- head controls identical to S1; authority cited there -->
+      <button class="btn" type="button"><i data-lucide="pause"></i>Pause</button>
+      <button class="btn btn--danger" type="button"><i data-lucide="ban"></i>Cancel run</button>
+      <button class="btn btn--icon" type="button" data-menu-btn aria-label="More" aria-haspopup="menu" aria-expanded="false"><i data-lucide="ellipsis"></i></button>
+      <div class="menu" role="menu"><a class="menu__item" role="menuitem" href="loop-editor.html"><i data-lucide="workflow"></i>View definition</a><div class="menu__sep"></div><button class="menu__item" type="button" role="menuitem" data-tone="danger"><i data-lucide="zap"></i>Kill run…</button></div>
+    </div>
+  </header>
+  <div class="page">
+    <div class="subhead" data-od-id="waiting-subhead">
+      <span class="mono">r-8f3a2b</span><span class="dotsep"></span><span>Started by <b>schedule · nightly</b></span><span class="dotsep"></span><span>Generation <b>2 of 50</b></span><span class="dotsep"></span>
+      <span class="mono">28m 03s active</span>
+    </div>
+    <div class="layout layout--solo">
+      <main>
+        <!-- NEEDS YOU — the approval wait is the one item waiting on you (R4: only nonzero flags render) -->
+        <details class="sec" open data-od-id="waiting-needs-you">
+          <summary><i class="si" data-lucide="bell"></i><span class="st">Needs you</span><span class="ssum">1 item</span><span class="spacer"></span><i class="chev" data-lucide="chevron-down"></i></summary>
+          <div class="panelbox">
+            <div class="needsrow">
+              <i class="ni" data-lucide="inbox"></i>
+              <div class="needsrow__main">
+                <div class="needsrow__label">The approve gate is waiting on your decision</div>
+                <div class="needsrow__sub">The ship-to-main gate asked before pushing. The escalation ladder below shows where the ask stands — deciding at any point resolves it.</div>
+              </div>
+              <div class="needsrow__trail">
+                <span class="needsrow__age">22m</span>
+                <a class="needsrow__act" href="#wt-approval">Decide <i data-lucide="arrow-right"></i></a>
+              </div>
+            </div>
+          </div>
+        </details>
+        <details class="sec" open data-od-id="waiting-progress">
+          <summary><i class="si" data-lucide="gauge"></i><span class="st">Progress</span><span class="spacer"></span><i class="chev" data-lucide="chevron-down"></i></summary>
+          <div class="panelbox">
+            <!-- parked steps leave the denominator (PRD rule 27) — both waiting lanes are excluded -->
+            <div class="goalbox">
+              <div class="goal-title">Ship every authored task under .compozy/tasks/loops-paper</div>
+              <div class="pbar" aria-label="4 tasks: 2 done, 2 waiting excluded">
+                <span class="pbar__seg" data-state="clean" title="task_01 · schema migration · done"></span>
+                <span class="pbar__seg" data-state="clean" title="task_02 · store method · done"></span>
+                <span class="pbar__seg" data-state="parked" title="task_03 · api handler · waiting on a timer — excluded from the denominator"></span>
+                <span class="pbar__seg" data-state="parked" title="task_04 · contract test · waiting for an event — excluded from the denominator"></span>
+              </div>
+              <div class="pbar-meta">
+                <span><b>2 of 2</b> counted tasks done · 2 waiting excluded</span>
+                <span class="r">generation 2 of 50</span>
+              </div>
+            </div>
+          </div>
+        </details>
+
+        <details class="sec" open data-od-id="waiting-waits">
+          <summary>
+            <i class="si" data-lucide="hourglass"></i><span class="st">Waiting</span><span class="spacer"></span>
+            <a class="chiplink" href="loop-inventories.html#waiting">3 waits<i data-lucide="arrow-right"></i></a>
+            <i class="chev" data-lucide="chevron-down"></i>
+          </summary>
+          <div class="panelbox">
+            <div class="nowrow" data-od-id="wt-timer">
+              <span class="nowrow__dot nowrow__dot--wait" aria-hidden="true"></span>
+              <div class="nowrow__main">
+                <div class="nowrow__label">task_03 is waiting on a timer</div>
+                <div class="nowrow__sub">Sleeping until the CI quiet-period ends — it resumes by itself at 15:10.</div>
+                <div class="micro">timer · resumes 15:10 (in 24m) · execute_task · task_03 · gen 2</div>
+              </div>
+              <span class="nowrow__time" title="age since node_wait_started">waiting 6m</span>
+            </div>
+            <div class="nowrow" data-od-id="wt-event">
+              <span class="nowrow__dot nowrow__dot--wait" aria-hidden="true"></span>
+              <div class="nowrow__main">
+                <div class="nowrow__label">task_04 is waiting for an event</div>
+                <div class="nowrow__sub">Waiting for <span class="mono">deploy.finished</span>, and only a payload matching <span class="mono">{env: "staging"}</span> wakes it. A lane's wait is its own — task_03's timer never collides with this one.</div>
+                <div class="micro">event · deploy.finished · payload {env: "staging"} · execute_task · task_04 · gen 2</div>
+              </div>
+              <span class="nowrow__time" title="age since node_wait_started">waiting 18m</span>
+            </div>
+            <div class="nowrow" data-od-id="wt-approval">
+              <span class="nowrow__dot nowrow__dot--wait" aria-hidden="true"></span>
+              <div class="nowrow__main">
+                <div class="nowrow__label">Waiting for your approval</div>
+                <div class="nowrow__sub">The ship-to-main gate asked before pushing. The ladder walks its steps until you decide; a decision at any point wins and cancels the rest.</div>
+                <div class="ladder" data-od-id="wt-ladder" aria-label="Escalation ladder position">
+                  <span class="ladder__step" data-state="done">re-notified · 14:52</span><span aria-hidden="true">→</span>
+                  <span class="ladder__step" data-state="next">escalate #ops · 15:02</span><span aria-hidden="true">→</span>
+                  <span class="ladder__step">route timeout path</span>
+                </div>
+                <div class="micro">approve · human gate · ship branch main · gen 2</div>
+                <!-- Decide… is gated on an open approval wait; Resume with payload… on wait kind=event|approval -->
+                <div class="nowrow__acts">
+                  <button class="btn btn--sm btn--primary" type="button" data-od-id="wt-decide"><i data-lucide="gavel"></i>Decide…</button>
+                  <a class="act" href="loop-node-controls.html#wait-resume">Resume with payload…<i data-lucide="arrow-right"></i></a>
+                </div>
+              </div>
+              <span class="nowrow__time" title="age since node_wait_started">waiting 22m</span>
+            </div>
+          </div>
+        </details>
+
+        <details class="sec" open data-od-id="waiting-story">
+          <summary><i class="si" data-lucide="history"></i><span class="st">What happened</span><span class="spacer"></span><i class="chev" data-lucide="chevron-down"></i></summary>
+          <div class="panelbox">
+            <!-- newest first: the wait events, then the same history as loop-run-detail.html -->
+            <ol class="tl" aria-label="Run story">
+              <li class="tlrow" style="--tone:var(--info)">
+                <span class="tlrow__dot"><i data-lucide="clock"></i></span>
+                <div>
+                  <div class="tlrow__title">task_03 began waiting on the CI quiet-period</div>
+                  <div class="tlrow__sub">Sleeping until 15:10, then it resumes by itself. Waits are durable and cost nothing while parked.</div>
+                </div>
+                <div class="tlrow__trail"><time class="tlrow__time">6m ago</time><span class="tlrow__micro">node_wait_started</span></div>
+              </li>
+              <li class="tlrow" style="--tone:var(--info)">
+                <span class="tlrow__dot"><i data-lucide="radio"></i></span>
+                <div>
+                  <div class="tlrow__title">task_04 began waiting for deploy.finished</div>
+                  <div class="tlrow__sub">Resumes when a matching event arrives — it expects <span class="mono">{env: "staging"}</span>.</div>
+                </div>
+                <div class="tlrow__trail"><time class="tlrow__time">18m ago</time><span class="tlrow__micro">node_wait_started</span></div>
+              </li>
+              <li class="tlrow" style="--tone:var(--warning)">
+                <span class="tlrow__dot"><i data-lucide="rotate-ccw"></i></span>
+                <div>
+                  <div class="tlrow__title">task_03 retried and recovered</div>
+                  <div class="tlrow__sub">The earlier transport failure cleared on attempt 2; the lane moved on to its quiet-period wait.</div>
+                </div>
+                <div class="tlrow__trail"><time class="tlrow__time">14m ago</time><span class="tlrow__micro">node_retry_scheduled</span></div>
+              </li>
+              <li class="tlrow" style="--tone:var(--accent-strong)">
+                <span class="tlrow__dot"><i data-lucide="play"></i></span>
+                <div>
+                  <div class="tlrow__title">Generation 2 started</div>
+                  <div class="tlrow__sub">Re-running only what failed: task_03. Finished work carries forward read-only.</div>
+                </div>
+                <div class="tlrow__trail"><time class="tlrow__time">21m ago</time><span class="tlrow__micro">generation_started</span></div>
+              </li>
+            </ol>
+            <details class="genfold">
+              <summary><i data-lucide="chevron-right"></i>Generation 1 · tasks 01–02 done, task_03 failed on review · 12 events</summary>
+              <ol class="tl">
+                <li class="tlrow" style="--tone:var(--success)">
+                  <span class="tlrow__dot"><i data-lucide="check"></i></span>
+                  <div>
+                    <div class="tlrow__title">task_01 and task_02 finished and passed review</div>
+                    <div class="tlrow__sub">Schema migration and store method, accepted by the judge with evidence.</div>
+                  </div>
+                  <div class="tlrow__trail"><time class="tlrow__time">42m ago</time><span class="tlrow__micro">node_done</span></div>
+                </li>
+                <li class="tlrow" style="--tone:var(--danger)">
+                  <span class="tlrow__dot"><i data-lucide="x"></i></span>
+                  <div>
+                    <div class="tlrow__title">task_03 failed its first pass</div>
+                    <div class="tlrow__sub">Couldn't fetch issue context from GitHub MCP. Review sent it to a new generation instead of failing the run.</div>
+                  </div>
+                  <div class="tlrow__trail"><time class="tlrow__time">26m ago</time><span class="tlrow__micro">node_failed</span></div>
+                </li>
+              </ol>
+            </details>
+          </div>
+        </details>
+
+        <!-- point of use: the one sanctioned prose block on this artboard -->
+        <div class="quiet-note" data-od-id="waiting-note">
+          <i data-lucide="route"></i>
+          <span>Waits are <b>durable</b>: they survive a restart and cost nothing while parked. The timer fires on its own, the event wait resumes when a matching <span class="mono">deploy.finished</span> arrives, and the approval resumes the moment you decide.</span>
+        </div>
+      </main>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════ STATE 5 · QUARANTINED (danger)
+     node_controls: quarantined=true + quarantine_entry. The run continues on other lanes;
+     the quarantined lane leaves the progress denominator (PRD rule 27). -->
+<section class="state" id="state-quarantined" data-od-id="state-quarantined">
+  <header class="w2head" data-od-id="quarantined-head">
+    <a class="w2-back" href="loop-run-detail.html" aria-label="Back to run"><i data-lucide="chevron-left"></i></a>
+    <nav class="w2-crumbs" aria-label="Breadcrumb"><a class="w2-crumb" href="../_done/loops/loops-catalog.html">Loops</a><span class="w2-sep">/</span><a class="w2-crumb" href="loop-detail.html">software-delivery</a><span class="w2-sep">/</span><a class="w2-crumb" href="loop-run-detail.html">Run r-8f3a2b</a><span class="w2-sep">/</span>
+      <span class="w2-title">Quarantined</span>
+    </nav>
+    <span class="w2-flex"></span>
+    <span class="w2-status" data-tone="run"><span class="dot dot--pulse" aria-hidden="true"></span>Running</span>
+    <span class="w2-vsep"></span>
+    <div class="w2-actions"><!-- head controls identical to S1; authority cited there -->
+      <button class="btn" type="button"><i data-lucide="pause"></i>Pause</button>
+      <button class="btn btn--danger" type="button"><i data-lucide="ban"></i>Cancel run</button>
+      <button class="btn btn--icon" type="button" data-menu-btn aria-label="More" aria-haspopup="menu" aria-expanded="false"><i data-lucide="ellipsis"></i></button>
+      <div class="menu" role="menu"><a class="menu__item" role="menuitem" href="loop-editor.html"><i data-lucide="workflow"></i>View definition</a><div class="menu__sep"></div><button class="menu__item" type="button" role="menuitem" data-tone="danger"><i data-lucide="zap"></i>Kill run…</button></div>
+    </div>
+  </header>
+  <div class="page">
+    <div class="subhead" data-od-id="quarantined-subhead">
+      <span class="mono">r-8f3a2b</span><span class="dotsep"></span><span>Started by <b>schedule · nightly</b></span><span class="dotsep"></span><span>Generation <b>2 of 50</b></span><span class="dotsep"></span>
+      <span class="mono">33m 17s active</span>
+    </div>
+    <div class="layout layout--solo">
+      <main>
+        <details class="sec" open data-od-id="quarantined-needs-you">
+          <summary><i class="si" data-lucide="bell"></i><span class="st">Needs you</span><span class="spacer"></span><i class="chev" data-lucide="chevron-down"></i></summary>
+          <div class="scard" data-tone="danger" data-od-id="q-entry-card">
+            <div class="scard__title">task_03 was quarantined</div>
+            <div class="scard__body">Three attempts, three different failures — the loop set this lane aside instead of burning the retry budget. The rest of the run keeps working; the entry has the full story.</div>
+            <!-- both controls gated on quarantined=true (spec: requeue is the only way back in) -->
+            <div class="scard__acts">
+              <a class="btn btn--sm" href="loop-quarantine-sheet.html" data-od-id="q-open-entry"><i data-lucide="search"></i>Open quarantine entry</a>
+              <button class="btn btn--sm" type="button" data-od-id="q-requeue"><i data-lucide="rotate-ccw"></i>Requeue…</button>
+            </div>
+            <div class="micro">node_quarantined · execute_task · task_03 · attempts 3 · episode 1</div>
+          </div>
+        </details>
+
+        <details class="sec" open data-od-id="quarantined-progress">
+          <summary><i class="si" data-lucide="gauge"></i><span class="st">Progress</span><span class="spacer"></span><i class="chev" data-lucide="chevron-down"></i></summary>
+          <div class="panelbox">
+            <div class="goalbox">
+              <div class="goal-title">Ship every authored task under .compozy/tasks/loops-paper</div>
+              <div class="pbar" role="img" aria-label="4 tasks: 2 clean, 1 active, 1 quarantined and excluded">
+                <span class="pbar__seg" data-state="clean" title="task_01 · schema migration · clean"></span>
+                <span class="pbar__seg" data-state="clean" title="task_02 · store method · clean"></span>
+                <span class="pbar__seg" data-state="quarantined" title="task_03 · quarantined — excluded from the denominator"></span>
+                <span class="pbar__seg" data-state="active" title="task_04 · contract test · active"></span>
+              </div>
+              <div class="pbar-meta">
+                <span><b>2 of 3</b> tasks clean — 1 in progress</span>
+                <span class="r">1 quarantined excluded</span>
+              </div>
+            </div>
+          </div>
+        </details>
+
+        <details class="sec" open data-od-id="quarantined-now">
+          <summary><i class="si" data-lucide="activity"></i><span class="st">Happening now</span><span class="spacer"></span><i class="chev" data-lucide="chevron-down"></i></summary>
+          <div class="panelbox">
+            <div class="nowrow">
+              <span class="nowrow__dot dot--pulse"></span>
+              <div class="nowrow__main">
+                <div class="nowrow__label">Implementing task_04 · contract test</div>
+                <div class="nowrow__sub">The only active lane — task_03 sits in quarantine while the run continues on independent branches.</div>
+              </div>
+              <span class="nowrow__time">4m 12s</span>
+            </div>
+          </div>
+        </details>
+
+        <details class="sec" open data-od-id="quarantined-story">
+          <summary><i class="si" data-lucide="history"></i><span class="st">What happened</span><span class="spacer"></span><i class="chev" data-lucide="chevron-down"></i></summary>
+          <div class="panelbox">
+            <ol class="tl" aria-label="Run story">
+              <li class="tlrow" style="--tone:var(--danger)" data-od-id="ev-node-quarantined">
+                <span class="tlrow__dot"><i data-lucide="shield-alert"></i></span>
+                <div><div class="tlrow__title">task_03 quarantined</div>
+                  <div class="tlrow__sub">Retries exhausted with mixed causes. The run continues on independent lanes — quarantine never stops the run by itself.</div>
+                  <div class="tlrow__meta"><span class="pillxs mono" data-tone="danger">episode 1 · quarantined</span></div>
+                </div><div class="tlrow__trail"><time class="tlrow__time">4m ago</time><span class="tlrow__micro">node_quarantined · execute_task · task_03</span></div>
+              </li>
+              <li class="tlrow" style="--tone:var(--success)" data-od-id="ev-node-succeeded">
+                <span class="tlrow__dot"><i data-lucide="check"></i></span>
+                <div><div class="tlrow__title">task_02 finished clean</div>
+                  <div class="tlrow__sub">The store method shipped while task_03 sits in quarantine.</div>
+                </div><div class="tlrow__trail"><time class="tlrow__time">2m ago</time><span class="tlrow__micro">node_succeeded · execute_task · task_02</span></div>
+              </li>
+            </ol>
+          </div>
+        </details>
+      </main>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════ STATE 6 · NEEDS ATTENTION (warning)
+     Two flavors side by side: prolonged silence (US-017, self-clearing, nothing was stopped)
+     and forward-progress-blocked naming the parked producer (PRD rule 30). -->
+<section class="state" id="state-needs-attention" data-od-id="state-needs-attention">
+  <header class="w2head" data-od-id="attention-head">
+    <a class="w2-back" href="loop-run-detail.html" aria-label="Back to run"><i data-lucide="chevron-left"></i></a>
+    <nav class="w2-crumbs" aria-label="Breadcrumb"><a class="w2-crumb" href="../_done/loops/loops-catalog.html">Loops</a><span class="w2-sep">/</span><a class="w2-crumb" href="loop-detail.html">software-delivery</a><span class="w2-sep">/</span><a class="w2-crumb" href="loop-run-detail.html">Run r-8f3a2b</a><span class="w2-sep">/</span>
+      <span class="w2-title">Needs attention</span>
+    </nav>
+    <span class="w2-flex"></span>
+    <span class="w2-status" data-tone="run"><span class="dot dot--pulse" aria-hidden="true"></span>Running</span>
+    <span class="w2-vsep"></span>
+    <div class="w2-actions"><!-- head controls identical to S1; authority cited there -->
+      <button class="btn" type="button"><i data-lucide="pause"></i>Pause</button>
+      <button class="btn btn--danger" type="button"><i data-lucide="ban"></i>Cancel run</button>
+      <button class="btn btn--icon" type="button" data-menu-btn aria-label="More" aria-haspopup="menu" aria-expanded="false"><i data-lucide="ellipsis"></i></button>
+      <div class="menu" role="menu"><a class="menu__item" role="menuitem" href="loop-editor.html"><i data-lucide="workflow"></i>View definition</a><div class="menu__sep"></div><button class="menu__item" type="button" role="menuitem" data-tone="danger"><i data-lucide="zap"></i>Kill run…</button></div>
+    </div>
+  </header>
+  <div class="page">
+    <div class="subhead" data-od-id="attention-subhead">
+      <span class="mono">r-8f3a2b</span><span class="dotsep"></span><span>Started by <b>schedule · nightly</b></span><span class="dotsep"></span><span>Generation <b>2 of 50</b></span><span class="dotsep"></span>
+      <span class="mono">38m 22s active</span>
+    </div>
+    <div class="layout layout--solo">
+      <main>
+        <details class="sec" open data-od-id="attention-flags">
+          <summary>
+            <i class="si" data-lucide="triangle-alert"></i><span class="st">Needs attention</span><span class="spacer"></span>
+            <a class="chiplink" href="loop-inventories.html#attention">2 flagged<i data-lucide="arrow-right"></i></a>
+            <i class="chev" data-lucide="chevron-down"></i>
+          </summary>
+          <div class="cardpair">
+            <div class="scard" data-tone="warning" data-od-id="at-silence">
+              <div class="scard__title">task_04 has gone quiet</div>
+              <div class="scard__body">No output, no tool call, no heartbeat for 31 minutes, and no confirmed death either. Watch flag only: it clears itself on any evidence of life.</div>
+              <div class="provline"><b>last evidence</b> 14:21 (tool call) · <b>window</b> 30m</div>
+              <!-- live-lane controls: Pause/Cancel per node status; Kill stays the destructive escape -->
+              <div class="scard__acts">
+                <button class="btn btn--sm" type="button"><i data-lucide="pause"></i>Pause</button>
+                <button class="btn btn--sm" type="button"><i data-lucide="ban"></i>Cancel</button>
+                <button class="btn btn--sm btn--danger" type="button"><i data-lucide="zap"></i>Kill…</button>
+              </div>
+              <div class="micro">node_attention_flagged · silence · self-clearing · execute_task · task_04 · gen 2</div>
+            </div>
+            <div class="scard" data-tone="warning" data-od-id="at-blocked">
+              <div class="scard__title">The collect gate can't move forward</div>
+              <div class="scard__body">The join needs the output of <b>task_03</b>, which is quarantined. The run parks here and says so — it never waits silently or fails without a reason.</div>
+              <div class="provline"><b>blocked on</b> execute_task · task_03 · <b>state</b> quarantined</div>
+              <div class="scard__acts">
+                <a class="btn btn--sm" href="loop-quarantine-sheet.html"><i data-lucide="search"></i>Open quarantine entry</a>
+                <button class="btn btn--sm" type="button"><i data-lucide="rotate-ccw"></i>Requeue task_03…</button>
+              </div>
+              <div class="micro">node_attention_flagged · dependency_quarantined · names the producer</div>
+            </div>
+          </div>
+        </details>
+
+        <details class="sec" open data-od-id="attention-progress">
+          <summary><i class="si" data-lucide="gauge"></i><span class="st">Progress</span><span class="spacer"></span><i class="chev" data-lucide="chevron-down"></i></summary>
+          <div class="panelbox">
+            <!-- the blocked flavor's producer (task_03) is quarantined — excluded from the denominator (PRD rule 27) -->
+            <div class="goalbox">
+              <div class="goal-title">Ship every authored task under .compozy/tasks/loops-paper</div>
+              <div class="pbar" aria-label="4 tasks: 2 done, 1 quarantined excluded, 1 running">
+                <span class="pbar__seg" data-state="clean" title="task_01 · schema migration · done"></span>
+                <span class="pbar__seg" data-state="clean" title="task_02 · store method · done"></span>
+                <span class="pbar__seg" data-state="quarantined" title="task_03 · api handler · quarantined — excluded from the denominator"></span>
+                <span class="pbar__seg" data-state="active" title="task_04 · contract test · running, flagged silent"></span>
+              </div>
+              <div class="pbar-meta">
+                <span><b>2 of 3</b> counted tasks done · task_04 running · 1 quarantined excluded</span>
+                <span class="r">generation 2 of 50</span>
+              </div>
+            </div>
+          </div>
+        </details>
+        <details class="sec" open data-od-id="attention-now">
+          <summary><i class="si" data-lucide="activity"></i><span class="st">Happening now</span><span class="spacer"></span><i class="chev" data-lucide="chevron-down"></i></summary>
+          <div class="panelbox">
+            <div class="nowrow">
+              <span class="nowrow__dot dot--pulse"></span>
+              <div class="nowrow__main">
+                <div class="nowrow__label">Implementing task_04 · contract test</div>
+                <div class="nowrow__sub">Still marked running — but no output for 31 minutes. The silence flag above watches it; nothing was stopped.</div>
+              </div>
+              <span class="nowrow__time">31m 04s</span>
+            </div>
+          </div>
+        </details>
+
+        <details class="sec" open data-od-id="attention-story">
+          <summary><i class="si" data-lucide="history"></i><span class="st">What happened</span><span class="spacer"></span><i class="chev" data-lucide="chevron-down"></i></summary>
+          <div class="panelbox">
+            <ol class="tl" aria-label="Run story">
+              <li class="tlrow" style="--tone:var(--warning)" data-od-id="ev-attention-blocked">
+                <span class="tlrow__dot"><i data-lucide="triangle-alert"></i></span>
+                <div><div class="tlrow__title">Flagged: the collect gate is blocked on task_03</div>
+                  <div class="tlrow__sub">Forward progress needs a quarantined producer — parked as needs-attention, naming the dependency.</div>
+                </div><div class="tlrow__trail"><time class="tlrow__time">2m ago</time><span class="tlrow__micro">node_attention_flagged · dependency_quarantined</span></div>
+              </li>
+              <li class="tlrow" style="--tone:var(--warning)" data-od-id="ev-attention-silence">
+                <span class="tlrow__dot"><i data-lucide="clock"></i></span>
+                <div><div class="tlrow__title">Flagged: task_04 silent for 31m</div>
+                  <div class="tlrow__sub">Watch flag only — it clears itself on any evidence of life.</div>
+                </div><div class="tlrow__trail"><time class="tlrow__time">8m ago</time><span class="tlrow__micro">node_attention_flagged · silence</span></div>
+              </li>
+              <li class="tlrow" style="--tone:var(--success)" data-od-id="ev-attention-cleared">
+                <span class="tlrow__dot"><i data-lucide="check"></i></span>
+                <div><div class="tlrow__title">Flag cleared: task_03 showed life</div>
+                  <div class="tlrow__sub">A tool call arrived; no one had to touch it.</div>
+                  <div class="tlrow__meta"><span class="pillxs mono" data-tone="success">silence · self-cleared</span></div>
+                </div><div class="tlrow__trail"><time class="tlrow__time">14m ago</time><span class="tlrow__micro">node_attention_cleared · silence</span></div>
+              </li>
+            </ol>
+          </div>
+        </details>
+      </main>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════ STATE 7 · CANCELED (neutral, terminal)
+     One terminal, two causes: operator_cancel winds down, operator_kill stops immediately. -->
+<section class="state" id="state-canceled" data-od-id="state-canceled">
+  <header class="w2head" data-od-id="canceled-head">
+    <a class="w2-back" href="loop-run-detail.html" aria-label="Back to run"><i data-lucide="chevron-left"></i></a>
+    <nav class="w2-crumbs" aria-label="Breadcrumb"><a class="w2-crumb" href="../_done/loops/loops-catalog.html">Loops</a><span class="w2-sep">/</span><a class="w2-crumb" href="loop-detail.html">software-delivery</a><span class="w2-sep">/</span><a class="w2-crumb" href="loop-run-detail.html">Run r-8f3a2b</a><span class="w2-sep">/</span>
+      <span class="w2-title">Canceled</span>
+    </nav>
+    <span class="w2-flex"></span>
+    <!-- terminal status: neutral tone, no pulse -->
+    <span class="w2-status" data-tone="neutral"><span class="dot" aria-hidden="true"></span>Canceled</span>
+    <span class="w2-vsep"></span>
+    <div class="w2-actions">
+      <!-- terminal: no run controls; starting again is a new run -->
+      <button class="btn btn--icon" type="button" data-menu-btn aria-label="More" aria-haspopup="menu" aria-expanded="false"><i data-lucide="ellipsis"></i></button>
+      <div class="menu" role="menu">
+        <a class="menu__item" role="menuitem" href="loop-editor.html"><i data-lucide="workflow"></i>View definition</a>
+      </div>
+    </div>
+  </header>
+  <div class="page">
+    <div class="subhead" data-od-id="canceled-subhead">
+      <span class="mono">r-8f3a2b</span><span class="dotsep"></span>
+      <span>Started by <b>schedule · nightly</b></span><span class="dotsep"></span>
+      <span>Ended at generation <b>2 of 50</b></span><span class="dotsep"></span>
+      <span class="mono">29m 08s active</span>
+    </div>
+    <div class="layout layout--solo">
+      <main>
+        <details class="sec" open data-od-id="canceled-outcome">
+          <summary><i class="si" data-lucide="circle-slash"></i><span class="st">Why it stopped</span><span class="spacer"></span><i class="chev" data-lucide="chevron-down"></i></summary>
+          <div class="cardpair">
+            <div class="scard" data-od-id="c-cancel-card">
+              <div class="scard__title">Canceled by you</div>
+              <div class="scard__body">You asked the run to stop and it wound down cleanly: in-flight lanes drained, their cleanup reactions ran, and finished work is kept — task_01 and task_02 stay shipped on <span class="mono">main</span>.</div>
+              <div class="scard__acts">
+                <span class="pillxs mono" data-tone="neutral">terminal</span>
+                <a class="btn btn--sm btn--primary" href="loop-run-detail.html"><i data-lucide="play"></i>Start a new run</a>
+              </div>
+              <div class="micro">status_changed · running → canceled · cause operator_cancel</div>
+            </div>
+            <div class="scard" data-od-id="c-kill-card">
+              <div class="scard__title">Killed by you</div>
+              <div class="scard__body">Stopped immediately: in-flight work was interrupted mid-step and its reactions were skipped. Finished work is still kept. Use kill when a run is misbehaving and can't be trusted to wind down.</div>
+              <div class="scard__acts">
+                <span class="pillxs mono" data-tone="neutral">terminal</span>
+                <a class="btn btn--sm btn--primary" href="loop-run-detail.html"><i data-lucide="play"></i>Start a new run</a>
+              </div>
+              <div class="micro">status_changed · running → canceled · cause operator_kill</div>
+            </div>
+          </div>
+        </details>
+
+        <details class="sec" open data-od-id="canceled-progress">
+          <summary><i class="si" data-lucide="gauge"></i><span class="st">Progress</span><span class="spacer"></span><i class="chev" data-lucide="chevron-down"></i></summary>
+          <div class="panelbox">
+            <!-- terminal reading: finished work is kept; the two open lanes closed with the run -->
+            <div class="goalbox">
+              <div class="goal-title">Ship every authored task under .compozy/tasks/loops-paper</div>
+              <div class="pbar" aria-label="4 tasks: 2 done, 2 canceled with the run">
+                <span class="pbar__seg" data-state="clean" title="task_01 · schema migration · done — kept"></span>
+                <span class="pbar__seg" data-state="clean" title="task_02 · store method · done — kept"></span>
+                <span class="pbar__seg" title="task_03 · api handler · canceled with the run"></span>
+                <span class="pbar__seg" title="task_04 · contract test · canceled with the run"></span>
+              </div>
+              <div class="pbar-meta">
+                <span><b>2 of 4</b> tasks done when the run closed · finished work is kept</span>
+                <span class="r">generation 2 of 50</span>
+              </div>
+            </div>
+          </div>
+        </details>
+        <!-- "Happening now" does not render on a terminal run: there is no active lane to describe -->
+
+        <details class="sec" open data-od-id="canceled-story">
+          <summary><i class="si" data-lucide="history"></i><span class="st">What happened</span><span class="spacer"></span><i class="chev" data-lucide="chevron-down"></i></summary>
+          <div class="panelbox">
+            <ol class="tl" aria-label="Run story">
+              <li class="tlrow" data-od-id="ev-status-changed">
+                <span class="tlrow__dot"><i data-lucide="circle-slash"></i></span>
+                <div><div class="tlrow__title">Run canceled</div>
+                  <div class="tlrow__sub">Requested by you; every in-flight lane drained before the run closed.</div>
+                </div><div class="tlrow__trail"><time class="tlrow__time">20m ago</time><span class="tlrow__micro">status_changed · running → canceled</span></div>
+              </li>
+              <li class="tlrow" data-od-id="ev-node-canceled">
+                <span class="tlrow__dot"><i data-lucide="ban"></i></span>
+                <div><div class="tlrow__title">task_04 canceled</div>
+                  <div class="tlrow__sub">Walked its cancel steps: requested → delivering → draining → canceled.</div>
+                </div><div class="tlrow__trail"><time class="tlrow__time">21m ago</time><span class="tlrow__micro">node_canceled · execute_task · task_04</span></div>
+              </li>
+              <li class="tlrow" style="--tone:var(--success)" data-od-id="ev-node-succeeded-kept">
+                <span class="tlrow__dot"><i data-lucide="check"></i></span>
+                <div><div class="tlrow__title">task_01 and task_02 shipped</div>
+                  <div class="tlrow__sub">Schema migration and store method landed on <span class="mono">main</span> before the cancel and are kept.</div>
+                </div><div class="tlrow__trail"><time class="tlrow__time">31m ago</time><span class="tlrow__micro">node_succeeded · task_01–02</span></div>
+              </li>
+            </ol>
+          </div>
+        </details>
+      </main>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════ STATE 8 · PARKED PROGRESS (PRD rule 27)
+     Progress and stall arithmetic with parked lanes: parked leaves the denominator, the
+     wall clock suspends, token spend keeps counting. Only artboard that keeps the rail. -->
+<section class="state" id="state-parked-progress" data-od-id="state-parked-progress">
+  <header class="w2head" data-od-id="parked-head">
+    <a class="w2-back" href="loop-run-detail.html" aria-label="Back to run"><i data-lucide="chevron-left"></i></a>
+    <nav class="w2-crumbs" aria-label="Breadcrumb"><a class="w2-crumb" href="../_done/loops/loops-catalog.html">Loops</a><span class="w2-sep">/</span><a class="w2-crumb" href="loop-detail.html">software-delivery</a><span class="w2-sep">/</span><a class="w2-crumb" href="loop-run-detail.html">Run r-8f3a2b</a><span class="w2-sep">/</span>
+      <span class="w2-title">Parked progress</span>
+    </nav>
+    <span class="w2-flex"></span>
+    <span class="w2-status" data-tone="run"><span class="dot dot--pulse" aria-hidden="true"></span>Running</span>
+    <span class="w2-vsep"></span>
+    <div class="w2-actions"><!-- head controls identical to S1; authority cited there -->
+      <button class="btn" type="button"><i data-lucide="pause"></i>Pause</button>
+      <button class="btn btn--danger" type="button"><i data-lucide="ban"></i>Cancel run</button>
+      <button class="btn btn--icon" type="button" data-menu-btn aria-label="More" aria-haspopup="menu" aria-expanded="false"><i data-lucide="ellipsis"></i></button>
+      <div class="menu" role="menu"><a class="menu__item" role="menuitem" href="loop-editor.html"><i data-lucide="workflow"></i>View definition</a><div class="menu__sep"></div><button class="menu__item" type="button" role="menuitem" data-tone="danger"><i data-lucide="zap"></i>Kill run…</button></div>
+    </div>
+  </header>
+  <div class="page">
+    <div class="subhead" data-od-id="parked-subhead">
+      <span class="mono">r-8f3a2b</span><span class="dotsep"></span><span>Started by <b>schedule · nightly</b></span><span class="dotsep"></span><span>Generation <b>2 of 50</b></span><span class="dotsep"></span>
+      <span class="mono">31m 12s active</span>
+    </div>
+    <div class="layout">
+      <main>
+        <!-- NEEDS YOU — the quarantined lane is the one item waiting on you (R4: only nonzero flags render) -->
+        <details class="sec" open data-od-id="parked-needs-you">
+          <summary><i class="si" data-lucide="bell"></i><span class="st">Needs you</span><span class="ssum">1 item</span><span class="spacer"></span><i class="chev" data-lucide="chevron-down"></i></summary>
+          <div class="panelbox">
+            <div class="needsrow">
+              <i class="ni" data-lucide="shield-alert"></i>
+              <div class="needsrow__main">
+                <div class="needsrow__label">task_03 was quarantined</div>
+                <div class="needsrow__sub">Four attempts across two episodes — set aside with its full story. The run keeps working; requeue once the github-mcp credential is fixed.</div>
+              </div>
+              <div class="needsrow__trail">
+                <span class="needsrow__age">9m</span>
+                <a class="needsrow__act" href="loop-quarantine-sheet.html">Open entry <i data-lucide="arrow-right"></i></a>
+              </div>
+            </div>
+          </div>
+        </details>
+
+        <details class="sec" open data-od-id="parked-progress">
+          <summary><i class="si" data-lucide="gauge"></i><span class="st">Progress</span><span class="spacer"></span><i class="chev" data-lucide="chevron-down"></i></summary>
+          <div class="panelbox">
+            <div class="goalbox">
+              <div class="goal-title">Ship every authored task under .compozy/tasks/loops-paper</div>
+              <div class="pbar" role="img" aria-label="4 tasks: 1 clean and counted; 1 waiting, 1 quarantined and 1 paused excluded">
+                <span class="pbar__seg" data-state="clean" title="task_01 · schema migration · clean"></span>
+                <span class="pbar__seg" data-state="parked" title="task_02 · waiting — excluded from the denominator"></span>
+                <span class="pbar__seg" data-state="quarantined" title="task_03 · quarantined — excluded from the denominator"></span>
+                <span class="pbar__seg" data-state="parked" title="task_04 · paused — excluded from the denominator"></span>
+              </div>
+              <div class="pbar-meta">
+                <span><b>1 of 1</b> counted task clean</span>
+                <span class="r">3 parked excluded (1 paused · 1 waiting · 1 quarantined)</span>
+              </div>
+            </div>
+          </div>
+        </details>
+
+        <!-- point of use: the arithmetic the pbar above just performed -->
+        <div class="quiet-note" data-od-id="parked-arithmetic" style="margin-bottom:24px">
+          <i data-lucide="clock"></i>
+          <span><b>How parked time counts.</b> Parked lanes are <b>out of the math</b>: no progress, no stall detector, and their clock is suspended. <b>Tokens always count</b> — a parked lane that already spent 40K tokens keeps them on the bill.</span>
+        </div>
+
+        <details class="sec" open data-od-id="parked-now">
+          <summary><i class="si" data-lucide="activity"></i><span class="st">Happening now</span><span class="spacer"></span><i class="chev" data-lucide="chevron-down"></i></summary>
+          <div class="panelbox">
+            <div class="nowrow" data-od-id="parked-verify">
+              <span class="nowrow__dot dot--pulse" aria-hidden="true"></span>
+              <div class="nowrow__main">
+                <div class="nowrow__label">Running the verify gate</div>
+                <div class="nowrow__sub">Command checks on task_01's output — the only active lane; three task lanes sit parked.</div>
+                <div class="micro">verify · command gate · gen 2</div>
+              </div>
+              <span class="nowrow__time">6m 51s</span>
+            </div>
+          </div>
+        </details>
+
+        <details class="sec" open data-od-id="parked-story">
+          <summary><i class="si" data-lucide="history"></i><span class="st">What happened</span><span class="spacer"></span><i class="chev" data-lucide="chevron-down"></i></summary>
+          <div class="panelbox">
+            <!-- newest first: the three parking events, then the same history as loop-run-detail.html -->
+            <ol class="tl" aria-label="Run story">
+              <li class="tlrow" style="--tone:var(--info)">
+                <span class="tlrow__dot"><i data-lucide="pause"></i></span>
+                <div>
+                  <div class="tlrow__title">task_04 paused by you</div>
+                  <div class="tlrow__sub">Drain-first: the in-flight attempt finished cleanly before parking. Its clock is suspended.</div>
+                </div>
+                <div class="tlrow__trail"><time class="tlrow__time">4m ago</time><span class="tlrow__micro">node_paused</span></div>
+              </li>
+              <li class="tlrow" style="--tone:var(--info)">
+                <span class="tlrow__dot"><i data-lucide="radio"></i></span>
+                <div>
+                  <div class="tlrow__title">task_02 began waiting for deploy.finished</div>
+                  <div class="tlrow__sub">Resumes when a matching event arrives. Durable — it survives restarts and costs nothing while parked.</div>
+                </div>
+                <div class="tlrow__trail"><time class="tlrow__time">7m ago</time><span class="tlrow__micro">node_wait_started</span></div>
+              </li>
+              <li class="tlrow" style="--tone:var(--danger)">
+                <span class="tlrow__dot"><i data-lucide="shield-alert"></i></span>
+                <div>
+                  <div class="tlrow__title">task_03 was quarantined</div>
+                  <div class="tlrow__sub">Retries exhausted on GitHub authentication. The run continues on independent branches — quarantine never stops it by itself.</div>
+                </div>
+                <div class="tlrow__trail"><time class="tlrow__time">11m ago</time><span class="tlrow__micro">node_quarantined</span></div>
+              </li>
+              <li class="tlrow" style="--tone:var(--accent-strong)">
+                <span class="tlrow__dot"><i data-lucide="play"></i></span>
+                <div>
+                  <div class="tlrow__title">Generation 2 started</div>
+                  <div class="tlrow__sub">Re-running only what failed: task_03. Finished work carries forward read-only.</div>
+                </div>
+                <div class="tlrow__trail"><time class="tlrow__time">24m ago</time><span class="tlrow__micro">generation_started</span></div>
+              </li>
+            </ol>
+            <details class="genfold">
+              <summary><i data-lucide="chevron-right"></i>Generation 1 · tasks 01–02 done, task_03 failed on review · 12 events</summary>
+              <ol class="tl">
+                <li class="tlrow" style="--tone:var(--success)">
+                  <span class="tlrow__dot"><i data-lucide="check"></i></span>
+                  <div>
+                    <div class="tlrow__title">task_01 and task_02 finished and passed review</div>
+                    <div class="tlrow__sub">Schema migration and store method, accepted by the judge with evidence.</div>
+                  </div>
+                  <div class="tlrow__trail"><time class="tlrow__time">45m ago</time><span class="tlrow__micro">node_done</span></div>
+                </li>
+                <li class="tlrow" style="--tone:var(--danger)">
+                  <span class="tlrow__dot"><i data-lucide="x"></i></span>
+                  <div>
+                    <div class="tlrow__title">task_03 failed its first pass</div>
+                    <div class="tlrow__sub">Couldn't fetch issue context from GitHub MCP. Review sent it to a new generation instead of failing the run.</div>
+                  </div>
+                  <div class="tlrow__trail"><time class="tlrow__time">29m ago</time><span class="tlrow__micro">node_failed</span></div>
+                </li>
+              </ol>
+            </details>
+          </div>
+        </details>
+      </main>
+
+      <!-- RAIL — base anatomy, kept only here because this is where the arithmetic lands -->
+      <aside class="railbox" data-od-id="parked-rail">
+        <div class="rail-sec">
+          <div class="rail-sec__t"><i data-lucide="coins"></i>Usage</div>
+          <!-- wall clock is suspended while lanes are parked: Elapsed counts active time only -->
+          <div class="prow"><span class="prow__k">Elapsed</span><span class="prow__v mono"><span>31m 12s <span class="max">active</span></span></span></div>
+          <div class="prow"><span class="prow__k">Generations</span><span class="prow__v mono"><span>2 <span class="max">/ 50</span></span></span></div>
+          <div class="prow"><span class="prow__k">Tokens</span><span class="prow__v mono"><span style="color:var(--warning)">1.38M <span class="max">/ 1.5M</span></span></span></div>
+          <div class="prow"><span class="prow__k">Cost</span><span class="prow__v mono"><span>~$5.75 <span class="max">· display only</span></span></span></div>
+          <div class="rail-note">The clock only runs while lanes work — 27 minutes of parked time isn't on it. Tokens never pause.</div>
+        </div>
+        <div class="rail-foot" data-od-id="parked-rail-foot">
+          <button class="rail-foot__btn" type="button"><i data-lucide="search"></i>Inspect</button>
+          <span class="digest">digest 8f3a2b1</span>
+        </div>
+      </aside>
+    </div>
+  </div>
+</section>
+
+<script src="https://unpkg.com/lucide@latest"></script>
+<script>
+  lucide.createIcons();
+  (function(){
+    var pairs = [];
+    document.querySelectorAll("[data-menu-btn]").forEach(function(btn){
+      var menu = btn.nextElementSibling;
+      if(!menu) return;
+      pairs.push([btn, menu]);
+      btn.addEventListener("click", function(e){
+        e.stopPropagation();
+        var open = !menu.classList.contains("is-open");
+        closeAll();
+        menu.classList.toggle("is-open", open);
+        btn.setAttribute("aria-expanded", String(open));
+      });
+    });
+    function closeAll(){
+      pairs.forEach(function(p){ p[1].classList.remove("is-open"); p[0].setAttribute("aria-expanded","false"); });
+    }
+    document.addEventListener("click", closeAll);
+    document.addEventListener("keydown", function(e){ if(e.key === "Escape") closeAll(); });
+  })();
+</script>
+</body>
+</html>

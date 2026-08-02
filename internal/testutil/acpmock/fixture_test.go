@@ -171,6 +171,38 @@ func TestLoadFixtureParsesMultipleAgentsAndScenarioPrimitives(t *testing.T) {
 			t.Fatalf("turn.Name = %q, want second-work", turn.Name)
 		}
 	})
+
+	t.Run("Should select by a canonical user-text fragment", func(t *testing.T) {
+		t.Parallel()
+
+		fixture, err := ParseFixture([]byte(
+			`{"version":2,"agents":[{"name":"repair","provider":"claude","turns":[` +
+				`{"name":"with-verdict","match":{"user_text_contains":"previous verdict: quality rejected"},` +
+				`"steps":[{"kind":"assistant","text":"repair"}]}]}]}`,
+		))
+		if err != nil {
+			t.Fatalf("ParseFixture(fragment matcher) error = %v", err)
+		}
+		agent, err := fixture.Agent("repair")
+		if err != nil {
+			t.Fatalf("fixture.Agent(repair) error = %v", err)
+		}
+		turn, err := agent.SelectTurn(
+			"<compozy-situation-context>runtime</compozy-situation-context>\n" +
+				"Use this repair context: previous verdict: quality rejected; score=0.4",
+		)
+		if err != nil {
+			t.Fatalf("agent.SelectTurn(fragment) error = %v", err)
+		}
+		if turn.Name != "with-verdict" {
+			t.Fatalf("turn.Name = %q, want with-verdict", turn.Name)
+		}
+		if _, err := agent.SelectTurn("previous verdict: quality approved"); err == nil {
+			t.Fatal("agent.SelectTurn(nonmatching fragment) error = nil, want no-match")
+		} else if !strings.Contains(err.Error(), "no turn matched") {
+			t.Fatalf("agent.SelectTurn(nonmatching fragment) error = %v, want no turn matched", err)
+		}
+	})
 }
 
 func TestRegisterRendersValidatedAgentDefinition(t *testing.T) {

@@ -91,6 +91,7 @@ type GateInput struct {
 	Revision                 int
 	BrokenJudgeStreak        int
 	BrokenJudgeStreakLimit   int
+	BestScore                *float64
 	HumanDecisions           map[string]HumanDecision
 	ToolScope                tools.Scope
 	ToolCallCorrelationID    string
@@ -146,6 +147,22 @@ const (
 	VerdictOutcomeInvalidOutput VerdictOutcome = "invalid_output"
 )
 
+// Valid reports whether the outcome belongs to the closed gate verdict vocabulary.
+func (o VerdictOutcome) Valid() bool {
+	switch o {
+	case VerdictOutcomeApproved,
+		VerdictOutcomeRejected,
+		VerdictOutcomeAwaitingApproval,
+		VerdictOutcomeBlocked,
+		VerdictOutcomeError,
+		VerdictOutcomeTimeout,
+		VerdictOutcomeInvalidOutput:
+		return true
+	default:
+		return false
+	}
+}
+
 // CriterionResult is the observable per-criterion outcome for SSE/UI consumers.
 type CriterionResult struct {
 	ID                  string              `json:"id"`
@@ -156,7 +173,7 @@ type CriterionResult struct {
 	ExitCode            *int                `json:"exit_code,omitempty"`
 	Stdout              string              `json:"stdout,omitempty"`
 	Stderr              string              `json:"stderr,omitempty"`
-	Confidence          *float64            `json:"confidence,omitempty"`
+	Score               *float64            `json:"score,omitempty"`
 	Evidence            json.RawMessage     `json:"evidence,omitempty"`
 	BlockingIssues      []BlockingIssue     `json:"blocking_issues,omitempty"`
 	Warnings            []DiagnosticWarning `json:"warnings,omitempty"`

@@ -74,13 +74,27 @@ func loopGateCriterionSchema() *openapi3.Schema {
 		WithProperty("type", openapi3.NewStringSchema()).
 		WithProperty("check", openapi3.NewStringSchema()).
 		WithProperty("expect", openapi3.NewStringSchema()).
+		WithProperty("contains", openapi3.NewStringSchema()).
 		WithProperty("agent", openapi3.NewStringSchema()).
 		WithProperty("rubric", openapi3.NewStringSchema()).
 		WithProperty("prompt", openapi3.NewStringSchema()).
 		WithProperty("tool", openapi3.NewStringSchema()).
 		WithProperty("inputs", loopFreeformObjectSchema()).
+		WithProperty("metric", loopMetricSchema()).
 		WithAdditionalProperties(openapi3.NewSchema())
 	schema.Required = []string{"type"}
+	return schema
+}
+
+func loopMetricSchema() *openapi3.Schema {
+	schema := openapi3.NewObjectSchema().
+		WithProperty(
+			"direction",
+			openapi3.NewStringSchema().WithEnum(enumAsAny(contract.LoopMetricDirectionValues())...),
+		).
+		WithProperty("min_delta", openapi3.NewFloat64Schema()).
+		WithoutAdditionalProperties()
+	schema.Required = []string{"direction"}
 	return schema
 }
 

@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "loops/loop-inventories.html",
+  "entry": "loops/loop-inventories.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-08-02T00:28:24.025Z",
+  "updatedAt": "2026-08-02T00:28:24.025Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

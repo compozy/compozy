@@ -9,9 +9,20 @@ import (
 	"github.com/compozy/compozy/internal/task"
 )
 
-const definitionOfDoneGateID = "definition_of_done"
+// definitionOfDoneGateID is reserved by the linter for the synthetic contract gate.
+const definitionOfDoneGateID = "contract"
 
-func definitionOfDoneTerminal(
+type definitionOfDoneEvaluation struct {
+	terminal *task.CoordinatorTerminal
+	gate     *definitionOfDoneGateEvaluation
+}
+
+type definitionOfDoneGateEvaluation struct {
+	runtime gate.Gate
+	verdict gate.Verdict
+}
+
+func evaluateDefinitionOfDone(
 	ctx context.Context,
 	run Run,
 	generation int,
@@ -22,24 +33,26 @@ func definitionOfDoneTerminal(
 	decisions GateDecisionReader,
 	runtimeCatalog WorkspaceRuntimeCatalog,
 	outputs []GenerationOutput,
-) (*task.CoordinatorTerminal, error) {
+	history GenerationHistory,
+) (definitionOfDoneEvaluation, error) {
 	terminal := &task.CoordinatorTerminal{
 		Status: string(StatusDone),
 		Cause:  string(TransitionCauseContract),
 	}
 	if evaluator == nil || resolved == nil || len(resolved.Definition.Contract.Verification) == 0 {
-		return terminal, nil
+		return definitionOfDoneEvaluation{terminal: terminal}, nil
 	}
-	namespace, err := definitionOfDoneNamespace(run, generation, resolved, topology, outputs)
+	namespace, err := definitionOfDoneNamespace(run, generation, resolved, topology, outputs, history)
 	if err != nil {
-		return nil, err
+		return definitionOfDoneEvaluation{}, err
 	}
 	runtimeGate, empty, err := runtimeDefinitionOfDoneGate(resolved, effective, namespace)
 	if err != nil {
-		return nil, err
+		return definitionOfDoneEvaluation{}, err
 	}
 	if empty {
-		return approvedDefinitionOfDoneTerminal(terminal)
+		approved, approveErr := approvedDefinitionOfDoneTerminal(terminal)
+		return definitionOfDoneEvaluation{terminal: approved}, approveErr
 	}
 	if err := validateJudgeGateRuntimes(
 		ctx,
@@ -48,11 +61,11 @@ func definitionOfDoneTerminal(
 		effective.RuntimeDefaults.Judge,
 		runtimeGate.Criteria,
 	); err != nil {
-		return nil, err
+		return definitionOfDoneEvaluation{}, err
 	}
 	humanDecisions, err := loadGateDecisions(ctx, decisions, run, generation, dsl.NodeID(runtimeGate.ID))
 	if err != nil {
-		return nil, err
+		return definitionOfDoneEvaluation{}, err
 	}
 	verdict, err := evaluator.Evaluate(ctx, runtimeGate, runtimeGateInput(
 		run,
@@ -64,9 +77,20 @@ func definitionOfDoneTerminal(
 		humanDecisions,
 	))
 	if err != nil {
-		return nil, err
+		return definitionOfDoneEvaluation{}, err
 	}
-	return terminalFromDefinitionOfDoneVerdict(terminal, verdict)
+	verdict, err = gate.SanitizeVerdict(verdict)
+	if err != nil {
+		return definitionOfDoneEvaluation{}, err
+	}
+	result, err := terminalFromDefinitionOfDoneVerdict(terminal, verdict)
+	if err != nil {
+		return definitionOfDoneEvaluation{}, err
+	}
+	return definitionOfDoneEvaluation{
+		terminal: result,
+		gate:     &definitionOfDoneGateEvaluation{runtime: runtimeGate, verdict: verdict},
+	}, nil
 }
 
 func definitionOfDoneNamespace(
@@ -75,8 +99,11 @@ func definitionOfDoneNamespace(
 	resolved *ResolvedDefinition,
 	topology controlTopology,
 	outputs []GenerationOutput,
+	history GenerationHistory,
 ) (map[string]any, error) {
-	return runtimeNamespace(run, generation, resolved.Definition.Graph, topology, outputs, "", 0)
+	return runtimeNamespaceWithHistory(
+		run, generation, resolved.Definition.Graph, topology, outputs, history, "", 0,
+	)
 }
 
 func runtimeDefinitionOfDoneGate(
@@ -125,12 +152,7 @@ func terminalFromDefinitionOfDoneVerdict(
 	case gate.RouteEscalate, gate.RouteHalt:
 		return gateRouteTerminal(definitionOfDoneGateID, verdict.Route, ref), nil
 	case gate.RouteNextGeneration:
-		return &task.CoordinatorTerminal{
-			Status:     string(StatusFailed),
-			Cause:      string(TransitionCauseContract),
-			ReasonCode: verdict.Route.ReasonCode,
-			Details:    []byte(ref),
-		}, nil
+		return nil, nil
 	default:
 		return nil, fmt.Errorf(
 			"%w: definition-of-done gate returned unsupported route action %q",

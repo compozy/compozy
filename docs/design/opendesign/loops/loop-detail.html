@@ -1,0 +1,421 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>software-delivery · Loop · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<style>
+  /* tokens — verbatim from design-system/ds-core.css (packages/ui/src/tokens.css lineage) */
+  :root{
+    color-scheme: dark;
+    --rail:#0c0b0b; --canvas:#131211; --canvas-soft:#1a1918; --canvas-tint:#1c1b1a; --elevated:#232220;
+    --fg:#ececef; --fg-strong:#f6f6f8; --muted:#9a9a9f; --subtle:#76767c; --faint:#545458;
+    --line:rgba(255,255,255,.055); --line-soft:rgba(255,255,255,.03); --line-strong:rgba(255,255,255,.09);
+    --accent:#e8572a; --accent-hover:#d14e25; --accent-strong:#f6874f; --accent-ink:#17110f; --accent-tint:rgba(232,87,42,.10);
+    --success:#5fbf85; --success-tint:rgba(95,191,133,.08);
+    --warning:#d6a647; --warning-tint:rgba(214,166,71,.08);
+    --danger:#e0635a;  --danger-tint:rgba(224,99,90,.09);
+    --info:#8e8eb5;    --info-tint:rgba(142,142,181,.12);
+    --neutral:#7a7a80; --neutral-tint:rgba(150,150,155,.06);
+    --row-hover:rgba(255,255,255,.022); --input-fill:rgba(255,255,255,.025); --badge-fill:rgba(255,255,255,.05); --btn-fill:rgba(255,255,255,.04); --btn-hover:rgba(255,255,255,.07);
+    --radius-xs:4px; --radius-sm:5px; --radius:6px; --radius-md:8px; --radius-lg:10px; --radius-pill:9999px;
+    --font-sans:"Inter Variable","Inter",-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --font-mono:"JetBrains Mono Variable","JetBrains Mono","SF Mono",ui-monospace,Menlo,monospace;
+    --dur:140ms; --ease:cubic-bezier(.2,0,0,1); --highlight:inset 0 1px 0 rgba(255,255,255,.035);
+    --focus-ring:0 0 0 2px rgba(255,255,255,.5);
+    --shadow-overlay:0 24px 48px -12px rgba(0,0,0,.65), 0 0 0 1px rgba(255,255,255,.045);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{background:var(--canvas);color:var(--fg);font-family:var(--font-sans);font-feature-settings:"cv01","ss03";
+    font-size:13.5px;line-height:1.5;letter-spacing:-.006em;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+  a{color:inherit;text-decoration:none}
+  button{font:inherit;letter-spacing:inherit;color:inherit;background:none;border:0;cursor:pointer}
+  ::selection{background:var(--accent-tint)}
+  :is(button,a,[tabindex],summary):focus-visible{outline:none;box-shadow:var(--focus-ring)}
+  .mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+  .shell{height:100vh}
+  .main{display:flex;flex-direction:column;min-width:0;height:100vh;overflow:hidden}
+
+  /* unified head · 44px */
+  .w2head{min-height:44px;display:flex;align-items:center;gap:10px;padding:0 16px;flex:none;
+    background:var(--canvas);border-bottom:1px solid var(--line);min-width:0}
+  .w2-back{width:24px;height:24px;flex:none;display:grid;place-items:center;border-radius:var(--radius);color:var(--muted)}
+  .w2-back:hover{background:var(--btn-fill);color:var(--fg-strong)}
+  .w2-back svg{width:14px;height:14px}
+  .w2-crumbs{display:flex;align-items:center;gap:2px;min-width:0}
+  .w2-crumb{font-size:13px;font-weight:500;color:var(--subtle);white-space:nowrap;border-radius:var(--radius-sm);padding:1px 5px}
+  .w2-crumb:hover{color:var(--fg);background:var(--row-hover)}
+  .w2-sep{flex:none;font-size:12px;color:var(--faint)}
+  .w2-title{font-size:13px;font-weight:600;color:var(--fg-strong);white-space:nowrap;padding-left:3px}
+  .w2-flex{flex:1;min-width:8px}
+  .w2-actions{position:relative;display:flex;align-items:center;gap:6px;flex:none}
+  .btn{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 11px;border-radius:var(--radius);font-size:12.5px;font-weight:520;
+    border:1px solid var(--line);background:var(--btn-fill);white-space:nowrap;transition:background var(--dur) var(--ease),border-color var(--dur) var(--ease)}
+  .btn svg{width:14px;height:14px}
+  .btn:hover{background:var(--btn-hover);border-color:var(--line-strong);color:var(--fg-strong)}
+  .btn--primary{background:var(--accent);border-color:transparent;color:var(--accent-ink);box-shadow:var(--highlight)}
+  .btn--primary:hover{background:var(--accent-hover);color:var(--accent-ink)}
+  .btn--icon{width:26px;padding:0;justify-content:center}
+  .menu{position:absolute;top:32px;right:0;min-width:190px;padding:5px;border-radius:var(--radius-md);background:var(--elevated);
+    border:1px solid var(--line-strong);box-shadow:var(--shadow-overlay);z-index:40;display:none}
+  .menu.is-open{display:block}
+  .menu__item{display:flex;align-items:center;gap:9px;width:100%;height:28px;padding:0 9px;border-radius:var(--radius-sm);font-size:12.5px;color:var(--fg);text-align:left}
+  .menu__item:hover{background:var(--row-hover);color:var(--fg-strong)}
+  .menu__item svg{width:13px;height:13px;color:var(--muted);flex:none}
+  .menu__item[data-tone="danger"]{color:var(--danger)}
+  .menu__item[data-tone="danger"] svg{color:var(--danger)}
+  .menu__item[data-tone="danger"]:hover{background:var(--danger-tint)}
+  .menu__sep{height:1px;margin:5px 4px;background:var(--line)}
+
+  .scroll{flex:1;min-height:0;overflow-y:auto}
+  .page{max-width:1240px;margin:0 auto;padding:24px 36px 80px}
+
+  /* lede */
+  .dh{padding-bottom:20px;border-bottom:1px solid var(--line);margin-bottom:24px}
+  .dh__namerow{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+  .dh__name{font-size:22px;font-weight:560;letter-spacing:-.028em;color:var(--fg-strong)}
+  .tag{font-family:var(--font-mono);font-size:9px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;padding:2px 6px;border-radius:var(--radius-xs);background:var(--badge-fill);color:var(--subtle)}
+  .dh__meta{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:8px;font-size:12px;color:var(--subtle)}
+  .dh__meta .mono{font-size:11px;color:var(--muted)}
+  .dotsep{width:2px;height:2px;border-radius:50%;background:var(--faint);display:inline-block}
+  .dh__lede{margin-top:10px;font-size:13px;line-height:1.6;color:var(--muted);max-width:70ch}
+
+  .layout{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:32px;align-items:start}
+
+  /* collapsible sections — one calm pattern everywhere */
+  .sec{margin-bottom:22px;border:0}
+  .sec > summary{display:flex;align-items:center;gap:8px;padding:0 0 10px;cursor:pointer;list-style:none;user-select:none}
+  .sec > summary::-webkit-details-marker{display:none}
+  .sec > summary svg.si{width:14px;height:14px;color:var(--subtle);flex:none}
+  .sec > summary .st{font-size:10.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--subtle)}
+  .sec > summary .ssum{font-size:11.5px;color:var(--faint);margin-left:2px}
+  .sec > summary .spacer{flex:1}
+  .sec > summary .act{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:520;color:var(--muted);padding:2px 4px;border-radius:var(--radius-xs)}
+  .sec > summary .act:hover{color:var(--fg-strong)}
+  .sec > summary .act svg{width:12px;height:12px}
+  .sec > summary svg.chev{width:14px;height:14px;color:var(--faint);flex:none;transition:transform var(--dur) var(--ease)}
+  .sec:not([open]) > summary svg.chev{transform:rotate(-90deg)}
+  .sec:not([open]) > summary{padding-bottom:0;margin-bottom:22px}
+  .panelbox{background:var(--canvas-soft);border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden}
+
+  /* contract */
+  .kv__row{padding:13px 16px;border-top:1px solid var(--line-soft)}
+  .kv__row:first-child{border-top:0}
+  .kv__row .k{font-size:11px;font-weight:600;letter-spacing:.02em;text-transform:uppercase;color:var(--faint);margin-bottom:5px}
+  .kv__row .v{font-size:13px;line-height:1.55;color:var(--fg)}
+  .kv__row .v code{font-family:var(--font-mono);font-size:12px;background:var(--input-fill);border:1px solid var(--line-soft);border-radius:var(--radius-xs);padding:1px 6px}
+  .kv__row .v.mono{font-size:11.5px;color:var(--muted)}
+  .vrow{display:flex;align-items:center;gap:10px;padding:6px 0}
+  .vrow svg{width:14px;height:14px;color:var(--subtle);flex:none}
+  .vrow b{font-size:12.5px;font-weight:520;color:var(--fg-strong)}
+  .vrow span{font-size:12px;color:var(--muted)}
+
+  /* reliability — 2×2 quiet tiles, plain language */
+  .relgrid{display:grid;grid-template-columns:1fr 1fr}
+  .reltile{display:flex;flex-direction:column;gap:6px;padding:14px 16px;border-top:1px solid var(--line-soft)}
+  .reltile:nth-child(-n+2){border-top:0}
+  .reltile:nth-child(odd){border-right:1px solid var(--line-soft)}
+  .reltile__h{display:flex;align-items:center;gap:8px}
+  .reltile__h svg{width:14px;height:14px;color:var(--subtle);flex:none}
+  .reltile__h b{font-size:12.5px;font-weight:560;color:var(--fg-strong)}
+  .reltile p{font-size:12px;line-height:1.55;color:var(--muted)}
+  .reltile p code{font-family:var(--font-mono);font-size:10.5px;color:var(--subtle)}
+
+  /* read-only DAG */
+  .graph{display:flex;align-items:stretch;overflow-x:auto;padding:16px;scrollbar-width:thin}
+  .gnode{display:flex;flex-direction:column;gap:4px;min-width:118px;padding:10px 12px;border:1px solid var(--line);border-radius:var(--radius-md);background:var(--canvas-tint);flex:none}
+  .gnode__h{display:flex;align-items:center;gap:6px}
+  .gnode__h svg{width:12px;height:12px;color:var(--muted);flex:none}
+  .gnode .gl{font-size:12.5px;font-weight:520;color:var(--fg-strong);letter-spacing:-.01em}
+  .gnode .gk{font-family:var(--font-mono);font-size:9.5px;color:var(--subtle)}
+  .garrow{display:flex;align-items:center;color:var(--faint);flex:none;padding:0 3px;align-self:center}
+  .garrow svg{width:16px;height:16px}
+  .graph-note{font-size:11.5px;color:var(--subtle);line-height:1.5;padding:0 16px 14px}
+
+  /* recent runs */
+  .runrow{display:grid;grid-template-columns:112px 92px 1fr 80px 20px;gap:12px;align-items:center;padding:11px 16px;border-top:1px solid var(--line-soft);transition:background var(--dur) var(--ease)}
+  .runrow:first-child{border-top:0}
+  .runrow:hover{background:var(--row-hover)}
+  .rid{font-family:var(--font-mono);font-size:11.5px;color:var(--fg)}
+  .rmeta{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--subtle);min-width:0}
+  .rmeta svg{width:12px;height:12px;color:var(--faint);flex:none}
+  .rmeta span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .rcell{font-size:11.5px;color:var(--muted);font-variant-numeric:tabular-nums;text-align:right}
+  .rchev{color:var(--faint);justify-self:end}
+  .rchev svg{width:14px;height:14px}
+  .pill{display:inline-flex;align-items:center;gap:6px;height:20px;padding:0 8px;border-radius:var(--radius-xs);font-size:11px;font-weight:520;width:max-content}
+  .pill .dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex:none}
+  .pill--running{background:var(--accent-tint);color:var(--accent-strong)}
+  .pill--done{background:var(--success-tint);color:var(--success)}
+  .pill--canceled{background:var(--neutral-tint);color:var(--muted)}
+  .pill .dot--pulse{animation:pulse 1.8s var(--ease) infinite}
+  @keyframes pulse{0%,100%{box-shadow:0 0 0 0 color-mix(in srgb,currentColor 34%,transparent)}55%{box-shadow:0 0 0 4px transparent}}
+
+  /* rail — collapsible cards, summary carries the gist */
+  .rsec{border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--canvas-soft);margin-bottom:12px;overflow:hidden}
+  .rsec > summary{display:flex;align-items:center;gap:9px;padding:11px 14px;cursor:pointer;list-style:none;user-select:none}
+  .rsec > summary::-webkit-details-marker{display:none}
+  .rsec > summary:hover{background:var(--row-hover)}
+  .rsec > summary svg.si{width:14px;height:14px;color:var(--subtle);flex:none}
+  .rsec > summary .rt{font-size:12px;font-weight:560;color:var(--fg-strong);flex:none}
+  .rsec > summary .rsum{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:right;font-size:11px;color:var(--faint)}
+  .rsec > summary svg.chev{width:13px;height:13px;color:var(--faint);flex:none;transition:transform var(--dur) var(--ease)}
+  .rsec:not([open]) > summary svg.chev{transform:rotate(-90deg)}
+  .rsec__body{border-top:1px solid var(--line-soft)}
+  .inprow{padding:10px 14px;border-top:1px solid var(--line-soft)}
+  .inprow:first-child{border-top:0}
+  .inprow__top{display:flex;align-items:baseline;gap:7px}
+  .inprow__name{font-family:var(--font-mono);font-size:12px;color:var(--fg-strong)}
+  .inprow__typ{font-family:var(--font-mono);font-size:10px;color:var(--faint)}
+  .inprow__desc{font-size:11.5px;color:var(--subtle);margin-top:3px;line-height:1.45}
+  .limrow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 14px;border-top:1px solid var(--line-soft)}
+  .limrow:first-child{border-top:0}
+  .limrow .lk{font-size:12px;color:var(--subtle)}
+  .limrow .lv{font-family:var(--font-mono);font-size:11.5px;color:var(--fg);font-variant-numeric:tabular-nums}
+  .limrow .lv .ceil{color:var(--faint)}
+  .rnote{font-size:11px;color:var(--faint);line-height:1.5;padding:10px 14px;border-top:1px solid var(--line-soft)}
+  .bindrow{display:flex;align-items:center;gap:8px;padding:10px 14px;border-top:1px solid var(--line-soft)}
+  .bindrow:first-child{border-top:0}
+  .bindrow svg{width:13px;height:13px;color:var(--subtle);flex:none}
+  .bindrow .bn{font-family:var(--font-mono);font-size:11.5px;color:var(--fg-strong);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .bindrow .bm{margin-left:auto;font-family:var(--font-mono);font-size:10px;color:var(--faint);white-space:nowrap}
+  .bindrow .bdot{width:6px;height:6px;border-radius:50%;background:var(--success);flex:none}
+  .verrow{display:flex;align-items:center;gap:10px;padding:8px 14px;border-top:1px solid var(--line-soft);font-size:12.5px}
+  .verrow:first-child{border-top:0}
+  .verrow .vn{font-family:var(--font-mono);font-size:11.5px;color:var(--fg-strong)}
+  .verrow .vcur{font-size:9px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--success);background:var(--success-tint);border-radius:var(--radius-xs);padding:2px 6px}
+  .verrow .vd{margin-left:auto;font-size:11px;color:var(--faint)}
+  .stat4{display:grid;grid-template-columns:1fr 1fr}
+  .st{padding:12px 14px;border-top:1px solid var(--line-soft)}
+  .st:nth-child(-n+2){border-top:0}
+  .st:nth-child(odd){border-right:1px solid var(--line-soft)}
+  .st__v{font-size:18px;font-weight:560;color:var(--fg-strong);letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+  .st__l{font-size:10.5px;color:var(--faint);margin-top:2px}
+
+  @media(max-width:1080px){.layout{grid-template-columns:1fr}}
+  @media(prefers-reduced-motion:reduce){*{transition-duration:.01ms!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="shell">
+  <div class="main">
+    <header class="w2head" data-od-id="loop-detail-head">
+      <a class="w2-back" href="../_done/loops/loops-catalog.html" aria-label="Back to loops"><i data-lucide="chevron-left"></i></a>
+      <nav class="w2-crumbs" aria-label="Breadcrumb">
+        <a class="w2-crumb" href="../_done/loops/loops-catalog.html">Loops</a>
+        <span class="w2-sep">/</span>
+        <span class="w2-title">software-delivery</span>
+      </nav>
+      <span class="w2-flex"></span>
+      <!-- production loop-detail.tsx topbar: Run loop primary + overflow (Edit / Fork / Configure / Delete) -->
+      <div class="w2-actions">
+        <a class="btn btn--primary" href="../_done/loops/loop-run-form.html"><i data-lucide="play"></i>Run loop</a>
+        <button class="btn btn--icon" id="moreBtn" aria-label="More" aria-haspopup="menu" aria-expanded="false"><i data-lucide="ellipsis"></i></button>
+        <div class="menu" id="moreMenu" role="menu">
+          <a class="menu__item" role="menuitem" href="loop-editor.html"><i data-lucide="pencil"></i>Edit</a>
+          <a class="menu__item" role="menuitem" href="loop-editor.html"><i data-lucide="git-fork"></i>Fork &amp; edit</a>
+          <a class="menu__item" role="menuitem" href="../_done/loops/loop-configure.html"><i data-lucide="sliders-horizontal"></i>Configure</a>
+          <div class="menu__sep"></div>
+          <button class="menu__item" role="menuitem" data-tone="danger" type="button"><i data-lucide="trash-2"></i>Delete loop…</button>
+        </div>
+      </div>
+    </header>
+
+    <div class="scroll">
+      <div class="page">
+
+        <!-- LEDE — identity once; short plain-language description -->
+        <div class="dh" data-od-id="loop-detail-lede">
+          <div class="dh__namerow">
+            <span class="dh__name">software-delivery</span>
+            <span class="tag">Built-in</span>
+            <span class="tag">v4</span>
+          </div>
+          <div class="dh__meta">
+            <span class="mono">compozy.loop/v1</span><span class="dotsep"></span>
+            <span>Engineering</span><span class="dotsep"></span>
+            <span>8 nodes</span><span class="dotsep"></span>
+            <span>edited 5d ago · Pedro</span>
+          </div>
+          <p class="dh__lede">Takes the tasks you already wrote, implements them one by one, reviews the work, and asks you before shipping.</p>
+        </div>
+
+        <div class="layout">
+          <!-- MAIN -->
+          <div>
+            <!-- CONTRACT -->
+            <details class="sec" open data-od-id="loop-detail-contract">
+              <summary><i class="si" data-lucide="scroll-text"></i><span class="st">Contract</span><span class="spacer"></span><i class="chev" data-lucide="chevron-down"></i></summary>
+              <div class="panelbox">
+                <div class="kv__row"><div class="k">Goal</div><div class="v">Ship every authored task under <code>.compozy/tasks/{{ .inputs.slug }}</code>, implemented, reviewed to acceptance, and verified by the project's own checks.</div></div>
+                <div class="kv__row"><div class="k">Done means</div><div class="v">All tasks finished, the review judge approved with evidence, and the project verification passed.</div></div>
+                <div class="kv__row"><div class="k">Verified by</div><div class="v">
+                  <div class="vrow"><i data-lucide="bot"></i><b>Acceptance review</b><span>an agent judge checks the work against each task, until clean</span></div>
+                  <div class="vrow"><i data-lucide="terminal"></i><b>Project check</b><span>your own command, <code style="font-family:var(--font-mono);font-size:11px">{{ .inputs.verify_command }}</code></span></div>
+                  <div class="vrow"><i data-lucide="user-check"></i><b>Your approval</b><span>a human decision before anything ships</span></div>
+                </div></div>
+                <div class="kv__row"><div class="k">Possible endings</div><div class="v mono">done · no_op · blocked · failed · exhausted · stalled · canceled</div></div>
+              </div>
+            </details>
+
+            <!-- RELIABILITY — loop-node-lifecycle spec, in plain language (2×2 tiles) -->
+            <details class="sec" open data-od-id="loop-detail-reliability">
+              <summary><i class="si" data-lucide="shield-check"></i><span class="st">When something goes wrong</span><span class="spacer"></span><i class="chev" data-lucide="chevron-down"></i></summary>
+              <div class="panelbox relgrid">
+                <div class="reltile">
+                  <div class="reltile__h"><i data-lucide="rotate-ccw"></i><b>Steps retry on their own</b></div>
+                  <p>Up to 3 tries with growing pauses. Steps that keep failing are set aside in quarantine, never lost. <code>retry · backoff</code></p>
+                </div>
+                <div class="reltile">
+                  <div class="reltile__h"><i data-lucide="timer"></i><b>Every step has a time budget</b></div>
+                  <p>One attempt stops at 45m; the whole step at 2h. Nothing hangs silently. <code>timeout · deadline</code></p>
+                </div>
+                <div class="reltile">
+                  <div class="reltile__h"><i data-lucide="hourglass"></i><b>Waits stay visible</b></div>
+                  <p>Waiting steps show their age, can remind the channel, and expire onto a fallback instead of waiting forever. <code>wait · expires</code></p>
+                </div>
+                <div class="reltile">
+                  <div class="reltile__h"><i data-lucide="hand"></i><b>You stay in control</b></div>
+                  <p>Pause, resume, cancel or requeue any step from the run page. Cancel finishes in-flight work; Kill stops it now. <code>cancel · kill</code></p>
+                </div>
+              </div>
+            </details>
+
+            <!-- BODY · DAG -->
+            <details class="sec" open data-od-id="loop-detail-steps">
+              <summary><i class="si" data-lucide="workflow"></i><span class="st">Body · DAG</span><span class="spacer"></span><a class="act" href="loop-editor.html">Open in builder <i data-lucide="arrow-right"></i></a><i class="chev" data-lucide="chevron-down"></i></summary>
+              <div class="panelbox">
+                <div class="graph">
+                  <div class="gnode"><div class="gnode__h"><i data-lucide="log-in"></i><span class="gl">slug</span></div><span class="gk">input</span></div>
+                  <span class="garrow"><i data-lucide="arrow-right"></i></span>
+                  <div class="gnode"><div class="gnode__h"><i data-lucide="file-down"></i><span class="gl">load_tasks</span></div><span class="gk">file-import</span></div>
+                  <span class="garrow"><i data-lucide="arrow-right"></i></span>
+                  <div class="gnode"><div class="gnode__h"><i data-lucide="split"></i><span class="gl">implement</span></div><span class="gk">fan-out · batch 1</span></div>
+                  <span class="garrow"><i data-lucide="arrow-right"></i></span>
+                  <div class="gnode"><div class="gnode__h"><i data-lucide="bot"></i><span class="gl">execute_task</span></div><span class="gk">run-agent</span></div>
+                  <span class="garrow"><i data-lucide="arrow-right"></i></span>
+                  <div class="gnode"><div class="gnode__h"><i data-lucide="git-merge"></i><span class="gl">collect</span></div><span class="gk">join</span></div>
+                  <span class="garrow"><i data-lucide="arrow-right"></i></span>
+                  <div class="gnode"><div class="gnode__h"><i data-lucide="check-check"></i><span class="gl">review</span></div><span class="gk">gate · judge</span></div>
+                  <span class="garrow"><i data-lucide="arrow-right"></i></span>
+                  <div class="gnode"><div class="gnode__h"><i data-lucide="terminal"></i><span class="gl">verify</span></div><span class="gk">gate · command</span></div>
+                  <span class="garrow"><i data-lucide="arrow-right"></i></span>
+                  <div class="gnode"><div class="gnode__h"><i data-lucide="user-check"></i><span class="gl">approve</span></div><span class="gk">gate · human</span></div>
+                </div>
+                <div class="graph-note">Read-only view. Each task runs through <b style="color:var(--fg);font-weight:520">execute_task</b> in dependency order; a failed review spins a new generation that re-runs only what failed.</div>
+              </div>
+            </details>
+
+            <!-- RECENT RUNS -->
+            <details class="sec" open data-od-id="loop-detail-recent-runs">
+              <summary><i class="si" data-lucide="history"></i><span class="st">Recent runs</span><span class="spacer"></span><a class="act" href="../_done/loops/runs.html">All runs <i data-lucide="arrow-right"></i></a><i class="chev" data-lucide="chevron-down"></i></summary>
+              <div class="panelbox">
+                <a class="runrow" href="loop-run-detail.html">
+                  <span class="pill pill--running"><span class="dot dot--pulse"></span>running</span>
+                  <span class="rid">r-8f3a2b</span>
+                  <span class="rmeta"><i data-lucide="calendar-clock"></i><span>nightly · 0 3 * * *</span></span>
+                  <span class="rcell">14m</span>
+                  <span class="rchev"><i data-lucide="chevron-right"></i></span>
+                </a>
+                <a class="runrow" href="loop-run-detail.html">
+                  <span class="pill pill--done"><span class="dot"></span>done</span>
+                  <span class="rid">r-7c1d44</span>
+                  <span class="rmeta"><i data-lucide="terminal"></i><span>cli · Pedro</span></span>
+                  <span class="rcell">6m 02s</span>
+                  <span class="rchev"><i data-lucide="chevron-right"></i></span>
+                </a>
+                <a class="runrow" href="loop-run-detail.html" title="Closed by cancel: in-flight work finished, then the run closed">
+                  <span class="pill pill--canceled"><span class="dot"></span>canceled</span>
+                  <span class="rid">r-6b9e10</span>
+                  <span class="rmeta"><i data-lucide="hand"></i><span>manual · Pedro · cancel</span></span>
+                  <span class="rcell">18m</span>
+                  <span class="rchev"><i data-lucide="chevron-right"></i></span>
+                </a>
+                <a class="runrow" href="loop-run-detail.html">
+                  <span class="pill pill--done"><span class="dot"></span>done</span>
+                  <span class="rid">r-5a2f8c</span>
+                  <span class="rmeta"><i data-lucide="globe"></i><span>http · Pedro</span></span>
+                  <span class="rcell">11m 40s</span>
+                  <span class="rchev"><i data-lucide="chevron-right"></i></span>
+                </a>
+              </div>
+            </details>
+          </div>
+
+          <!-- RAIL — collapsible cards; the summary line already tells the story -->
+          <aside data-od-id="loop-detail-rail">
+            <details class="rsec" open>
+              <summary><i class="si" data-lucide="text-cursor-input"></i><span class="rt">Inputs</span><span class="rsum">1 required · 4 optional</span><i class="chev" data-lucide="chevron-down"></i></summary>
+              <div class="rsec__body">
+                <div class="inprow"><div class="inprow__top"><span class="inprow__name">slug</span><span class="inprow__typ">string · required</span></div><div class="inprow__desc">Which task folder to ship.</div></div>
+                <div class="inprow"><div class="inprow__top"><span class="inprow__name">implementer</span><span class="inprow__typ">agent · code_implementer</span></div><div class="inprow__desc">Agent that implements each task.</div></div>
+                <div class="inprow"><div class="inprow__top"><span class="inprow__name">verify_command</span><span class="inprow__typ">string · empty = off</span></div><div class="inprow__desc">Your project's own check.</div></div>
+                <div class="inprow"><div class="inprow__top"><span class="inprow__name">auto_commit</span><span class="inprow__typ">boolean · false</span></div><div class="inprow__desc">Commit each task after it verifies.</div></div>
+                <div class="inprow"><div class="inprow__top"><span class="inprow__name">target_branch</span><span class="inprow__typ">string · main</span></div><div class="inprow__desc">Branch the approved work targets.</div></div>
+              </div>
+            </details>
+
+            <details class="rsec">
+              <summary><i class="si" data-lucide="zap"></i><span class="rt">Start</span><span class="rsum">6 ways · nightly schedule on</span><i class="chev" data-lucide="chevron-down"></i></summary>
+              <div class="rsec__body">
+                <div class="bindrow"><span class="bdot" title="Enabled"></span><i data-lucide="calendar-clock"></i><span class="bn">nightly · 0 3 * * *</span><span class="bm">next in 6h</span></div>
+                <div class="rnote">Also starts from: manual, cli, http, uds, native_tool. Declared in <span class="mono">start[]</span>.</div>
+                <div class="bindrow" style="border-top:1px solid var(--line-soft)"><button class="btn" style="height:24px;font-size:11.5px"><i data-lucide="plus"></i>Add schedule</button></div>
+              </div>
+            </details>
+
+            <details class="rsec">
+              <summary><i class="si" data-lucide="gauge"></i><span class="rt">Limits</span><span class="rsum">50 generations · no budgets set</span><i class="chev" data-lucide="chevron-down"></i></summary>
+              <div class="rsec__body">
+                <div class="limrow"><span class="lk">Generations</span><span class="lv">50 <span class="ceil">/ 100</span></span></div>
+                <div class="limrow"><span class="lk">Token budget</span><span class="lv">off</span></div>
+                <div class="limrow"><span class="lk">Wall clock</span><span class="lv">off</span></div>
+                <div class="limrow"><span class="lk">No-progress window</span><span class="lv">3 <span class="ceil">/ 10</span></span></div>
+                <div class="limrow"><span class="lk">Parallel tasks</span><span class="lv">≤ 64</span></div>
+                <div class="limrow"><span class="lk">Concurrency</span><span class="lv">one run at a time</span></div>
+                <div class="rnote">Right values are daemon ceilings, hard backstops. A set budget is enforced: on exceeded the run halts as exhausted (or escalates to you).</div>
+              </div>
+            </details>
+
+            <details class="rsec">
+              <summary><i class="si" data-lucide="layers"></i><span class="rt">Versions</span><span class="rsum">v4 current</span><i class="chev" data-lucide="chevron-down"></i></summary>
+              <div class="rsec__body">
+                <div class="verrow"><span class="vn">v4</span><span class="vcur">current</span><span class="vd">5d ago · Pedro</span></div>
+                <div class="verrow"><span class="vn">v3</span><span class="vd">3w ago · Pedro</span></div>
+                <div class="verrow"><span class="vn">v2</span><span class="vd">2mo ago · system</span></div>
+                <div class="verrow"><span class="vn">v1</span><span class="vd">shipped built-in</span></div>
+              </div>
+            </details>
+
+            <details class="rsec">
+              <summary><i class="si" data-lucide="trending-up"></i><span class="rt">Last 30 days</span><span class="rsum">92% success · 48 runs</span><i class="chev" data-lucide="chevron-down"></i></summary>
+              <div class="rsec__body stat4">
+                <div class="st"><div class="st__v">92%</div><div class="st__l">Success rate</div></div>
+                <div class="st"><div class="st__v">48</div><div class="st__l">Total runs</div></div>
+                <div class="st"><div class="st__v">1.9</div><div class="st__l">Avg generations</div></div>
+                <div class="st"><div class="st__v">8m</div><div class="st__l">Median duration</div></div>
+              </div>
+            </details>
+          </aside>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script src="https://unpkg.com/lucide@latest"></script>
+<script>
+  lucide.createIcons();
+  (function(){
+    var btn = document.getElementById("moreBtn"), menu = document.getElementById("moreMenu");
+    btn.addEventListener("click", function(e){ e.stopPropagation(); var open = menu.classList.toggle("is-open"); btn.setAttribute("aria-expanded", open); });
+    document.addEventListener("click", function(){ menu.classList.remove("is-open"); btn.setAttribute("aria-expanded","false"); });
+    document.addEventListener("keydown", function(e){ if(e.key==="Escape"){ menu.classList.remove("is-open"); btn.setAttribute("aria-expanded","false"); } });
+  })();
+</script>
+</body>
+</html>

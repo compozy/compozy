@@ -165,7 +165,7 @@ func configApplyHistoryBundle(record SettingsApplyHistoryRecord) outputBundle {
 				"ID",
 				configStatusValue,
 				cliLifecycleValue,
-				"Generation",
+				cliGenerationValue,
 				"Actor",
 				cliNextActionValue,
 				"Updated",

@@ -25,6 +25,9 @@ const (
 	namespaceTrigger    = "trigger"
 	namespaceGeneration = "generation"
 	namespaceEvent      = "event"
+	namespacePrevious   = "previous"
+	namespaceBest       = "best"
+	namespaceOutput     = "output"
 )
 
 // Schema is a permissive JSON-schema-compatible shape used for path validation.
@@ -104,6 +107,10 @@ func (n Namespace) ValidatePath(path []string) *Error {
 			return newPathError(CodeUnknownReference, path, "event payload is not available here")
 		}
 		return nil
+	case namespacePrevious:
+		return n.validatePreviousPath(path)
+	case namespaceBest:
+		return n.validateBestPath(path)
 	default:
 		return newPathError(CodeUnknownReference, path, "unknown reference root %q", path[0])
 	}
@@ -134,7 +141,7 @@ func (n Namespace) validateNodePath(path []string) *Error {
 			return newPathError(CodeUnresolvablePath, path, "node status is a scalar")
 		}
 		return nil
-	case "output":
+	case namespaceOutput:
 		if !node.HasOutput {
 			return nil
 		}

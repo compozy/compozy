@@ -188,26 +188,25 @@ func newLoopCoordinatorRunner(
 	runtimeCatalog looppkg.WorkspaceRuntimeCatalog,
 	logger *slog.Logger,
 ) (*looppkg.CoordinatorRunner, error) {
-	loopStore, ok := store.(looppkg.Store)
+	loopStore, ok := requireStoreCapability[looppkg.Store](store, logger, "loop store")
 	if !ok {
-		if logger != nil {
-			logger.Warn(
-				"daemon: loop coordinator disabled because registry does not implement loop store",
-			)
-		}
 		return nil, nil
 	}
-	outputs, ok := store.(looppkg.GenerationOutputReader)
+	outputs, ok := requireStoreCapability[looppkg.GenerationOutputReader](
+		store,
+		logger,
+		"generation output reader",
+	)
 	if !ok {
-		if logger != nil {
-			logger.Warn(
-				"daemon: loop coordinator disabled because registry does not implement generation output reader",
-			)
-		}
+		return nil, nil
+	}
+	verdicts, ok := requireStoreCapability[gate.VerdictReader](store, logger, "verdict reader")
+	if !ok {
 		return nil, nil
 	}
 	options := []looppkg.CoordinatorRunnerOption{
 		looppkg.WithCoordinatorHookDispatcher(hooks),
+		looppkg.WithCoordinatorVerdictReader(verdicts),
 	}
 	if watchPoller != nil {
 		options = append(options, looppkg.WithCoordinatorWatchPoller(watchPoller))
@@ -233,6 +232,18 @@ func newLoopCoordinatorRunner(
 		logger,
 		options...,
 	)
+}
+
+func requireStoreCapability[T any](
+	store taskStore,
+	logger *slog.Logger,
+	capability string,
+) (T, bool) {
+	value, ok := any(store).(T)
+	if !ok && logger != nil {
+		logger.Warn("daemon: loop coordinator disabled because registry does not implement " + capability)
+	}
+	return value, ok
 }
 
 func newBootLoopCoordinatorRunner(

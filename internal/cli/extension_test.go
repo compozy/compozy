@@ -288,6 +288,116 @@ func TestExtensionEnableUnknownReturnsNotFound(t *testing.T) {
 	}
 }
 
+func TestExtensionScopedReadsResolveStableWorkspaceID(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should list the resolved workspace extension overlay", func(t *testing.T) {
+		t.Parallel()
+
+		client := &stubClient{
+			getWorkspaceFn: func(_ context.Context, ref string) (WorkspaceDetailRecord, error) {
+				if got, want := ref, "workspace-alias"; got != want {
+					t.Fatalf("GetWorkspace() ref = %q, want %q", got, want)
+				}
+				return WorkspaceDetailRecord{Workspace: WorkspaceRecord{
+					ID: "workspace-stable", Name: "workspace-alias", RootDir: t.TempDir(),
+				}}, nil
+			},
+			listExtensionsScopedFn: func(_ context.Context, workspaceRef string) ([]ExtensionRecord, error) {
+				if got, want := workspaceRef, "workspace-stable"; got != want {
+					t.Fatalf("ListExtensionsScoped() workspace = %q, want %q", got, want)
+				}
+				return []ExtensionRecord{{
+					Name: "dev-extension", WorkspaceID: workspaceRef, Source: "workspace", Dev: true,
+				}}, nil
+			},
+		}
+		deps, _ := newExtensionLocalDeps(t, client)
+		deps.readDaemonInfo = func(string) (compozydaemon.Info, error) {
+			return compozydaemon.Info{PID: 101, StartedAt: fixedTestNow}, nil
+		}
+		deps.processAlive = func(int) bool { return true }
+
+		stdout, _, err := executeRootCommand(
+			t,
+			deps,
+			"extension",
+			"list",
+			"--workspace",
+			"workspace-alias",
+			"-o",
+			"json",
+		)
+		if err != nil {
+			t.Fatalf("extension list --workspace error = %v", err)
+		}
+		var items []ExtensionRecord
+		if err := json.Unmarshal([]byte(stdout), &items); err != nil {
+			t.Fatalf("json.Unmarshal(scoped list) error = %v", err)
+		}
+		if len(items) != 1 || items[0].Name != "dev-extension" || !items[0].Dev {
+			t.Fatalf("scoped list = %#v, want dev extension overlay", items)
+		}
+	})
+
+	t.Run("Should read status from the resolved workspace extension overlay", func(t *testing.T) {
+		t.Parallel()
+
+		client := &stubClient{
+			getWorkspaceFn: func(_ context.Context, ref string) (WorkspaceDetailRecord, error) {
+				if got, want := ref, "workspace-alias"; got != want {
+					t.Fatalf("GetWorkspace() ref = %q, want %q", got, want)
+				}
+				return WorkspaceDetailRecord{Workspace: WorkspaceRecord{
+					ID: "workspace-stable", Name: "workspace-alias", RootDir: t.TempDir(),
+				}}, nil
+			},
+			extensionStatusScopedFn: func(
+				_ context.Context,
+				workspaceRef string,
+				name string,
+			) (ExtensionRecord, error) {
+				if got, want := workspaceRef, "workspace-stable"; got != want {
+					t.Fatalf("ExtensionStatusScoped() workspace = %q, want %q", got, want)
+				}
+				if got, want := name, "dev-extension"; got != want {
+					t.Fatalf("ExtensionStatusScoped() name = %q, want %q", got, want)
+				}
+				return ExtensionRecord{
+					Name: name, WorkspaceID: workspaceRef, Source: "workspace", Dev: true, State: "active",
+				}, nil
+			},
+		}
+		deps, _ := newExtensionLocalDeps(t, client)
+		deps.readDaemonInfo = func(string) (compozydaemon.Info, error) {
+			return compozydaemon.Info{PID: 101, StartedAt: fixedTestNow}, nil
+		}
+		deps.processAlive = func(int) bool { return true }
+
+		stdout, _, err := executeRootCommand(
+			t,
+			deps,
+			"extension",
+			"status",
+			"dev-extension",
+			"--workspace",
+			"workspace-alias",
+			"-o",
+			"json",
+		)
+		if err != nil {
+			t.Fatalf("extension status --workspace error = %v", err)
+		}
+		var item ExtensionRecord
+		if err := json.Unmarshal([]byte(stdout), &item); err != nil {
+			t.Fatalf("json.Unmarshal(scoped status) error = %v", err)
+		}
+		if item.Name != "dev-extension" || !item.Dev || item.State != "active" {
+			t.Fatalf("scoped status = %#v, want active dev extension overlay", item)
+		}
+	})
+}
+
 func TestExtensionStatusOnlineUsesDaemonClient(t *testing.T) {
 	t.Parallel()
 

@@ -4,6 +4,12 @@ package contracts
 
 import "time"
 
+type TurnPatch struct {
+	Deny       bool              `json:"deny,omitempty"`
+	DenyReason string            `json:"deny_reason,omitempty"`
+	Labels     map[string]string `json:"labels,omitempty"`
+}
+
 type TurnPayload struct {
 	Event          HookEvent `json:"event"`
 	Timestamp      time.Time `json:"timestamp"`

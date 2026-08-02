@@ -228,28 +228,21 @@ func TestMCPAuthLoginManualHonorsTimeout(t *testing.T) {
 	t.Run("Should interrupt pending manual input at the authorization deadline", func(t *testing.T) {
 		t.Parallel()
 
-		input, writer, err := os.Pipe()
-		if err != nil {
-			t.Fatalf("os.Pipe() error = %v", err)
-		}
-		t.Cleanup(func() {
-			if err := input.Close(); err != nil && !errors.Is(err, os.ErrClosed) {
-				t.Errorf("manual input close error = %v", err)
-			}
-		})
-		t.Cleanup(func() {
-			if err := writer.Close(); err != nil {
-				t.Errorf("manual input writer close error = %v", err)
-			}
-		})
+		input, writer := newInheritedMCPAuthInput(t)
+		assertMCPAuthInputBlocking(t, input, writer)
 		client := newClient(nil)
 		cmd := newRootCommand(newWorkspaceTestDeps(t, client))
 		cmd.SetIn(input)
 		cmd.SetArgs([]string{"mcp", "auth", "login", "linear", "--manual", "--timeout", "20ms"})
-		err = cmd.ExecuteContext(t.Context())
-		if err == nil || !strings.Contains(err.Error(), "authorization timed out") {
-			t.Fatalf("mcp auth login error = %v, want authorization timeout", err)
+		err := cmd.ExecuteContext(t.Context())
+		const expectedError = "cli: MCP authorization timed out: context deadline exceeded"
+		if err == nil || err.Error() != expectedError {
+			t.Fatalf("mcp auth login error = %v, want %q", err, expectedError)
 		}
+		if _, err := input.Stat(); err != nil {
+			t.Fatalf("borrowed manual input was closed: %v", err)
+		}
+		assertMCPAuthInputBlocking(t, input, writer)
 	})
 
 	t.Run("Should carry the authorization deadline through manual exchange", func(t *testing.T) {
@@ -447,10 +440,10 @@ func TestReadManualMCPAuthFileContext(t *testing.T) {
 		readStarted := make(chan struct{})
 		results := make(chan error, 1)
 		go func() {
-			_, readErr := readManualMCPAuthFileContext(ctx, input, func() (string, error) {
+			_, readErr := readManualMCPAuthFileContext(ctx, input, func(reader io.Reader) (string, error) {
 				close(readStarted)
 				buffer := make([]byte, 1)
-				_, inputErr := input.Read(buffer)
+				_, inputErr := reader.Read(buffer)
 				return string(buffer), inputErr
 			})
 			results <- readErr
@@ -501,12 +494,12 @@ func TestReadManualMCPAuthFileContext(t *testing.T) {
 			}
 		})
 
-		_, err = readManualMCPAuthFileContext(t.Context(), input, func() (string, error) {
+		_, err = readManualMCPAuthFileContext(t.Context(), input, func(reader io.Reader) (string, error) {
 			if deadlineErr := input.SetReadDeadline(time.Now().Add(-time.Second)); deadlineErr != nil {
 				return "", fmt.Errorf("set file deadline: %w", deadlineErr)
 			}
 			buffer := make([]byte, 1)
-			_, inputErr := input.Read(buffer)
+			_, inputErr := reader.Read(buffer)
 			return string(buffer), inputErr
 		})
 		if !errors.Is(err, context.DeadlineExceeded) {
@@ -522,24 +515,6 @@ func TestReadManualMCPAuthFileContext(t *testing.T) {
 		}
 		if got := string(buffer); got != "r" {
 			t.Fatalf("input after deadline = %q, want %q", got, "r")
-		}
-	})
-
-	t.Run("Should not start a no-deadline read after cancellation", func(t *testing.T) {
-		t.Parallel()
-
-		ctx, cancel := context.WithCancel(t.Context())
-		cancel()
-		readCalled := false
-		_, err := readManualMCPAuthFileWithoutDeadline(ctx, func() (string, error) {
-			readCalled = true
-			return "", nil
-		}, os.ErrNoDeadline)
-		if !errors.Is(err, context.Canceled) {
-			t.Fatalf("readManualMCPAuthFileWithoutDeadline() error = %v, want context cancellation", err)
-		}
-		if readCalled {
-			t.Fatal("readManualMCPAuthFileWithoutDeadline() called readInput after cancellation")
 		}
 	})
 }

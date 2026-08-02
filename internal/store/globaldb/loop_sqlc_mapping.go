@@ -93,7 +93,14 @@ func loopRunFromGenerated(row *sqlcgen.LoopRun) (looppkg.Run, error) {
 		networkSpecJSON: row.NetworkSpecJson, networkMode: row.NetworkMode,
 		networkChannel: row.NetworkChannel, networkSource: row.NetworkSource,
 	}
-	return values.toRun()
+	run, err := values.toRun()
+	if err != nil {
+		return looppkg.Run{}, err
+	}
+	if err := applyLoopRunBest(&run, row.BestGeneration, row.BestScore); err != nil {
+		return looppkg.Run{}, err
+	}
+	return run, nil
 }
 
 func loopRunEventFromGenerated(row sqlcgen.LoopRunEvent) looppkg.RunEvent {

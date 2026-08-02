@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "loops/loop-node-controls.html",
+  "entry": "loops/loop-node-controls.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-08-02T00:23:10.409Z",
+  "updatedAt": "2026-08-02T00:23:10.409Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

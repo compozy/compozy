@@ -7,6 +7,8 @@ import (
 	"time"
 )
 
+type Speed string
+
 type State string
 
 type Status string
@@ -278,14 +280,4 @@ type TaskDashboardHealthPayload struct {
 	StuckRuns        int    `json:"stuck_runs"`
 	ActiveOrphanRuns int    `json:"active_orphan_runs"`
 	QueueBacklog     bool   `json:"queue_backlog"`
-}
-
-type TaskDashboardInProgressCardPayload struct {
-	Tasks        int    `json:"tasks"`
-	ActiveRuns   int    `json:"active_runs"`
-	RunningRuns  int    `json:"running_runs"`
-	StartingRuns int    `json:"starting_runs"`
-	ClaimedRuns  int    `json:"claimed_runs"`
-	QueuedRuns   int    `json:"queued_runs"`
-	HealthStatus string `json:"health_status"`
 }

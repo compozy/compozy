@@ -1,35 +1,37 @@
 package globaldb
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
-	"log/slog"
+	"fmt"
 	"strings"
 	"time"
 
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/gate"
-	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 const (
 	loopRunEventPayloadKeyBlockingIssues = "blocking_issues"
-	loopRunEventPayloadKeyConfidence     = "confidence"
+	loopRunEventPayloadKeyScore          = "score"
+	loopRunEventVerdictPass              = "pass"
 )
 
 func appendLoopGenerationStartedEventWithExecutor(
 	ctx context.Context,
 	exec taskSQLExecutor,
 	run looppkg.Run,
-	generation int,
+	provenance looppkg.GenerationIntent,
 	at time.Time,
 ) error {
+	generation := int(provenance.Generation)
 	if generation <= 0 || generation <= run.Generation {
 		return nil
 	}
 	payload := map[string]any{
 		loopRunEventPayloadKeyGeneration: generation,
+		"parent_generation":              provenance.ParentGeneration,
+		"origin":                         string(provenance.Origin),
 		"reattempt_strategy":             string(run.ReattemptStrategy),
 		columnLoopName:                   run.LoopName,
 	}
@@ -49,107 +51,110 @@ func appendLoopGateVerdictEventWithExecutor(
 	exec taskSQLExecutor,
 	run looppkg.Run,
 	generation int,
-	terminal taskpkg.CoordinatorTerminal,
+	verdict gate.VerdictIntent,
+	event looppkg.GenerationLifecycleEventIntent,
 	at time.Time,
 ) error {
-	if len(bytes.TrimSpace(terminal.Details)) == 0 {
-		return nil
+	payload, err := loopGateVerdictEventPayload(generation, verdict, &event)
+	if err != nil {
+		return err
 	}
-	payload := loopGateVerdictEventPayload(ctx, generation, terminal)
 	return appendLoopRunEventWithExecutor(ctx, exec, run.ID, run.WorkspaceID, loopRunEventGateVerdict, payload, at)
 }
 
 func loopGateVerdictEventPayload(
-	ctx context.Context,
 	generation int,
-	terminal taskpkg.CoordinatorTerminal,
-) map[string]any {
-	gateID := strings.TrimSpace(terminal.GateID)
-	var verdict gate.Verdict
-	if err := json.Unmarshal(terminal.Details, &verdict); err != nil {
-		slog.Default().DebugContext(
-			ctx,
-			"store: decode loop gate verdict payload",
-			loopRunEventPayloadKeyNodeID,
-			gateID,
-			loopRunEventPayloadKeyGeneration,
-			generation,
-			loopRunEventPayloadKeyStatus,
-			strings.TrimSpace(terminal.Status),
-			loopRunEventPayloadKeyReason,
-			strings.TrimSpace(terminal.ReasonCode),
-			"error",
-			err,
-		)
-		return map[string]any{
-			loopRunEventPayloadKeyNodeID:     gateID,
-			loopRunEventPayloadKeyGeneration: generation,
-			loopRunEventPayloadKeyVerdict:    loopRunEventVerdictRevise,
-			loopRunEventPayloadKeyReason:     strings.TrimSpace(terminal.ReasonCode),
-			"route":                          strings.TrimSpace(terminal.Status),
-			"details":                        cloneLoopEventRawJSON(terminal.Details),
-		}
+	verdict gate.VerdictIntent,
+	event *looppkg.GenerationLifecycleEventIntent,
+) (map[string]any, error) {
+	gateID := strings.TrimSpace(verdict.GateID)
+	if gateID == "" {
+		return nil, fmt.Errorf("%w: gate verdict event gate_id is required", looppkg.ErrValidation)
+	}
+	var criteriaInput []gate.CriterionResult
+	if err := json.Unmarshal(verdict.Criteria, &criteriaInput); err != nil {
+		return nil, fmt.Errorf("store: decode sanitized gate verdict criteria: %w", err)
+	}
+	var blockingInput []gate.BlockingIssue
+	if err := json.Unmarshal(verdict.BlockingIssues, &blockingInput); err != nil {
+		return nil, fmt.Errorf("store: decode sanitized gate verdict blockers: %w", err)
 	}
 	verdictLabel := loopRunEventVerdictRevise
 	if verdict.Outcome == gate.VerdictOutcomeApproved {
-		verdictLabel = "pass"
+		verdictLabel = loopRunEventVerdictPass
 	}
-	criteria := make([]map[string]any, 0, len(verdict.Criteria))
-	for _, criterion := range verdict.Criteria {
+	criteria := make([]map[string]any, 0, len(criteriaInput))
+	for _, criterion := range criteriaInput {
 		status := loopRunEventVerdictRevise
 		if criterion.Passed {
-			status = "pass"
+			status = loopRunEventVerdictPass
 		}
 		criterionPayload := map[string]any{
 			"id":                         strings.TrimSpace(criterion.ID),
 			loopRunEventPayloadKeyType:   string(criterion.Type),
 			loopRunEventPayloadKeyStatus: status,
-			"note":                       string(criterion.Outcome),
+			"note":                       loopGateCriterionEventNote(criterion),
 		}
-		if criterion.Confidence != nil {
-			criterionPayload[loopRunEventPayloadKeyConfidence] = *criterion.Confidence
+		if criterion.Score != nil {
+			criterionPayload[loopRunEventPayloadKeyScore] = *criterion.Score
 		}
 		criteria = append(criteria, criterionPayload)
 	}
-	issues := make([]map[string]any, 0, len(verdict.BlockingIssues))
-	for _, issue := range verdict.BlockingIssues {
+	issues := make([]map[string]any, 0, len(blockingInput))
+	for _, issue := range blockingInput {
 		issues = append(issues, map[string]any{
 			"id":   strings.TrimSpace(issue.ID),
 			"note": strings.TrimSpace(issue.Note),
 		})
 	}
 	payload := map[string]any{
-		loopRunEventPayloadKeyNodeID:     firstNonEmptyString(gateID, "definition_of_done"),
-		loopRunEventPayloadKeyGeneration: generation,
-		loopRunEventPayloadKeyVerdict:    verdictLabel,
-		loopRunEventPayloadKeyReason: firstNonEmptyString(
-			verdict.Route.ReasonCode,
-			string(verdict.Outcome),
-		),
-		"route":                              string(verdict.Route.Action),
+		loopRunEventPayloadKeyNodeID:         gateID,
+		"gate_id":                            gateID,
+		loopRunEventPayloadKeyItemIndex:      verdict.ItemIndex,
+		loopRunEventPayloadKeyGeneration:     generation,
+		loopRunEventPayloadKeyVerdict:        verdictLabel,
+		loopRunEventPayloadKeyReason:         string(verdict.Outcome),
 		"criteria":                           criteria,
 		loopRunEventPayloadKeyBlockingIssues: issues,
 	}
-	if confidence, ok := loopGateVerdictSummaryConfidence(verdict.Criteria); ok {
-		payload[loopRunEventPayloadKeyConfidence] = confidence
+	if event != nil {
+		payload["route"] = string(event.Route)
+		payload[loopRunEventPayloadKeyReason] = firstNonEmptyString(event.Reason, string(verdict.Outcome))
+		if event.BestGeneration != nil {
+			payload["best_generation"] = *event.BestGeneration
+		}
 	}
-	return payload
+	if score, ok := loopGateVerdictSummaryScore(criteriaInput); ok {
+		payload[loopRunEventPayloadKeyScore] = score
+	}
+	return payload, nil
 }
 
-func loopGateVerdictSummaryConfidence(criteria []gate.CriterionResult) (float64, bool) {
-	var confidence float64
+func loopGateCriterionEventNote(criterion gate.CriterionResult) string {
+	parts := []string{string(criterion.Outcome)}
+	if stdout := strings.TrimSpace(criterion.Stdout); stdout != "" {
+		parts = append(parts, "stdout: "+stdout)
+	}
+	if stderr := strings.TrimSpace(criterion.Stderr); stderr != "" {
+		parts = append(parts, "stderr: "+stderr)
+	}
+	return strings.Join(parts, "; ")
+}
+
+func loopGateVerdictSummaryScore(criteria []gate.CriterionResult) (float64, bool) {
+	var score float64
 	found := false
 	for _, criterion := range criteria {
-		if criterion.Confidence == nil {
+		if criterion.Score == nil {
 			continue
 		}
 		if found {
 			return 0, false
 		}
-		confidence = *criterion.Confidence
+		score = *criterion.Score
 		found = true
 	}
-	return confidence, found
+	return score, found
 }
 
 func appendLoopNeedsApprovalEventWithExecutor(

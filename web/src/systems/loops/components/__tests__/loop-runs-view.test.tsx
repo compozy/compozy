@@ -56,6 +56,7 @@ describe("LoopRunsView", () => {
     const rows = screen.getAllByTestId("loop-run-row");
     expect(rows[0]).toHaveAttribute("href");
     expect(rows[0].getAttribute("data-params")).toContain("looprun_");
+    expect(within(rows[0]).getByTestId("loop-run-best")).toHaveTextContent("Gen 2 · 0.82");
   });
 
   it("Should label a session-origin Run with its exact origin session", () => {

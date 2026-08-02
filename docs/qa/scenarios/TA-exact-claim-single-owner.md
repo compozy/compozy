@@ -6,13 +6,13 @@ persona: Ada
 journey: J-bound-runaway-work
 expected: Two concurrent exact ClaimNextRun calls naming the same queued RunID converge to exactly one owner; the loser receives the typed no-claimable-run outcome, never a false success, and an exact claim on an already-claimed or running run returns a typed error without overwriting ownership.
 entry_points: POST /api/agent/tasks/claim-next; compozy task next --wait -o json; compozy__task_run_claim_next
-qa_status: blocked-verify
+qa_status: pass
 bug_ids: BUG-20260729-provider-worker-native-claim-guidance
 fix_status:
-retest_status:
+retest_status: pass
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-ta-replay-20260730-062156-531636-lab/qa-artifacts/qa
-last_report: docs/qa/reports/2026-07-28-untested-full.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-ta-replay-20260730-062156-531636-lab/qa-artifacts/qa; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260801-135009-390014-lab/qa-artifacts/qa/loop/adjacent-safety-tests.json
+last_report: docs/qa/reports/2026-08-01-loops-paper-adoption.md
 overlaps: TA-workspace-run-capacity; TA-action-run-liveness
 ---
 

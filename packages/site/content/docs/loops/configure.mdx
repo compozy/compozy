@@ -64,6 +64,28 @@ final binder-applied provider, model, reasoning, and provenance on each generati
 current web sheet edits checks, gates, re-attempt strategy, and stop limits. Use the structured
 CLI, HTTP, or native-tool config surface to write runtime defaults or rules.
 
+## Use a config file
+
+The two CLI write paths accept the same strict Loop config object as YAML or JSON. Field names use
+`snake_case` in both formats:
+
+```yaml title="loop-config.yaml"
+iteration_cap: 3
+no_progress_window: 10
+gate_max_revisions: 10
+```
+
+Store the file as the Loop's workspace default with `--file`, or apply it only to one run with
+`--config-file`:
+
+```bash
+compozy loop configure --name reviews-watch --file loop-config.yaml --workspace .
+compozy loop run --name reviews-watch --config-file loop-config.yaml --workspace .
+```
+
+Unknown fields fail before the CLI calls the daemon, so a misspelled key cannot create a partial
+override. JSON files use the same field names.
+
 <OperatorNote label="No cost cap">
   There is no USD field in Configure. Cost is
   [display-only](/docs/loops/guardrails#cost-is-a-meter-not-a-cap); spend is bounded by the token
