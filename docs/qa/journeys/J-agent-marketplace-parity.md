@@ -19,6 +19,7 @@ flowchart TD
   F -->|next_step authorize| G[compozy mcp auth login — J-mcp-authorize-repair via CLI lane]
   B --> G2[extension inventory and preview]
   G2 --> G3[CLI, HTTP, UDS, and native reads agree; preview writes nothing]
+  B -->|kind bundle| BX[Deterministic unsupported-kind error; no retired tool or route fallback]
   B --> H[compozy marketplace refresh -o json: exactly mcp/extension/skill outcomes]
   H --> I[Parity check: each operation agrees field-for-field across the planes that expose it]
   I --> J[Cross-check installed joins: skill/extension global, MCP scoped by workspace_id]
@@ -68,7 +69,7 @@ journey:
       expected_observable: Inventory and preview are read-only and agree across CLI, HTTP, UDS, and native tools
     - step: 6
       verb: Refresh feeds and read status
-      expected_observable: Per-kind structured outcomes for exactly MCP, extension, and skill; unsupported kinds reject deterministically; stale state is reported honestly
+      expected_observable: Per-kind structured outcomes for exactly MCP, extension, and skill; bundle rejects deterministically without an old route or tool fallback; stale state is reported honestly
     - step: 7
       verb: Compare planes
       expected_observable: CLI structured output equals HTTP and UDS payloads for search, browse, detail, install result, auth status, and extension kit reads on one daemon state; native output matches its exposed reads

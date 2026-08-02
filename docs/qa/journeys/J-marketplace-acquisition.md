@@ -23,6 +23,7 @@ flowchart TD
   G3 --> G4
   G2 -.->|operator is not the policy owner| X2[Abandon: nothing written; policy change is J-extension-policy-admin]
   E -->|MCP| I[Guided install: entry-locked template, required values typed or Vault-referenced]
+  E -->|retired Bundle kind or route| X3[Reject cleanly; Extension is the only kit unit]
   I -->|missing required value / bad ref| I2[Validation blocks; nothing written]
   I2 --> I
   I --> I3[Structurally born-valid server written; daemon next_step announced]
@@ -80,6 +81,9 @@ journey:
     - at_step: 3
       how: Trust policy blocks acquisition
       resume: Policy changes happen in J-extension-policy-admin
+    - at_step: 2
+      how: A stale link requests the retired Bundle kind
+      resume: No state is written; the current navigation offers Extension, Skill, and MCP only
   crosses: [web, marketplace-api, curated-feeds, vault, settings, skills, extensions, mcp, docs]
 ```
 

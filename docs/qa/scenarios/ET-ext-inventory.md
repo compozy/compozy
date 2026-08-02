@@ -3,9 +3,9 @@ id: ET-ext-inventory
 area: ET
 title: Inspect shipped and live extension resources
 persona: Ada
-journey: J-agent-marketplace-parity
+journey: J-extension-kit-lifecycle
 expected: Inventory returns the full extension envelope with shipped and live resources per kind, bound environment key names, and no secret values or cross-workspace state.
-entry_points: compozy extension inventory; GET /api/extensions/:name/inventory over HTTP and UDS; compozy__extensions_inventory
+entry_points: compozy extension inventory <name> -o json|jsonl|toon; GET /api/extensions/:name/inventory over HTTP and UDS; compozy__extensions_inventory
 qa_status: untested
 bug_ids:
 fix_status:

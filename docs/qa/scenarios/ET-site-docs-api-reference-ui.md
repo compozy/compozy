@@ -4,8 +4,8 @@ area: ET
 title: API Reference pages render styled OpenAPI components with full sidebar icon coverage
 persona: Dora
 journey: J-evaluate-compozy-beta
-expected: On /docs/api/* every sidebar entry (all OpenAPI tags — including Marketplace, Notifications, Diagnostics, Filesystem, Logs, Support, Providers, Openai, Roles) shows a Lucide icon; operation pages render the fumadocs-openapi two-column layout (content left, sticky cURL/JavaScript/Go/Python usage tabs + response examples right at wide widths), serif operation titles with breathing room above the method/route card, hairline dividers between operations, 15px reference body, compact media-type chips in response accordions, method labels in signal-token colors (GET success, POST info, PUT/PATCH warning, DELETE danger), schema property names in fg (not accent), and fit-content enum "Value in" panels. Unlike prose docs (56.25rem cap), the API article scales with the main column up to 90rem and centers once the cap binds; containers ≥72rem widen the example column to 26rem.
-entry_points: compozy.com /docs/api/marketplace; /docs/api/sessions; /docs/api/settings
+expected: On /docs/api/* every surviving OpenAPI tag shows a Lucide icon and styled two-column operations; Extension inventory, preview, secrets, and digest-confirm fields render, while the Bundle tag and operations are absent with no broken sidebar entry.
+entry_points: compozy.com /docs/api/extensions; /docs/api/marketplace; /docs/api/sessions; /docs/api/settings; retired /docs/api/bundles
 qa_status: untested
 bug_ids:
 fix_status:

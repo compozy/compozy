@@ -3,9 +3,9 @@ id: ET-web-extension-kit-inventory
 area: ET
 title: Inspect an extension kit in Marketplace
 persona: Bruno
-journey: J-marketplace-acquisition
+journey: J-extension-kit-lifecycle
 expected: Extension detail shows shipped and live resource counts by kind, live badges, bound environment key names, and Network confirmation state from daemon responses without inventing controls or leaking secrets.
-entry_points: /marketplace/extension/$entryId?installed_name=$name; Marketplace Extensions Installed Manage
+entry_points: /marketplace/extension/$entryId?installed_name=$name; /marketplace/extensions?tab=installed; browser extension detail and confirmation dialog
 qa_status: untested
 bug_ids:
 fix_status:

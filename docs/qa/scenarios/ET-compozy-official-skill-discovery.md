@@ -4,9 +4,9 @@ area: ET
 title: Discover the official Compozy runtime skill
 persona: Ada
 journey: J-validate-compozy-hard-cut
-expected: A fresh runtime discovers the bundled skill only as `compozy`; HTTP, UDS, CLI, native-tool, and Web reads agree on its declaration and activation state; metadata.compozy gates are enforced while foreign metadata is ignored; no retired skill alias or duplicate catalog entry exists.
+expected: A fresh runtime discovers the bundled skill only as `compozy`; every read plane agrees, the router teaches the extension-only kit lifecycle within budget, and no retired Bundle tool, capability, reference, alias, or duplicate catalog entry remains.
 entry_points: bundled skills/compozy/SKILL.md; GET /api/skills; compozy skill list|inspect|view -o json; compozy__skill_list|view; Web /skills
-qa_status: skipped
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status: pass
@@ -25,3 +25,6 @@ QA impact 2026-07-29 (ext-improvs Phase G): the bundled skill gained
 `references/extension-authoring.md` and a new router row for writing extension code. Resource
 discovery, the reference inventory, and router coverage changed; reset to untested for the next
 cycle.
+
+QA impact 2026-08-02: the official skill removed Bundle product teaching and gained kit resources,
+secrets, inventory, preview, and digest confirmation guidance. Reset for a real agent read.

@@ -6,7 +6,7 @@ persona: Bruno
 journey: J-marketplace-acquisition
 expected: The Marketplace sidebar entry and `/marketplace` route land on the Skills kind page, where the shared kind template exposes truthful Marketplace and Installed scopes and remains keyboard operable at desktop and mobile widths.
 entry_points: /marketplace; /marketplace/skills; Marketplace sidebar item
-qa_status: pass
+qa_status: untested
 bug_ids: BUG-20260714-keyboard-focus-invisible
 fix_status: fixed
 retest_status: pass
@@ -38,3 +38,6 @@ the route-chrome topbar; identity/count live in PageHead. Flag only — next QA 
 QA impact 2026-07-18: the grouped landing was removed. This scenario now owns entry through the
 sidebar or index redirect and the default Skills kind browse surface; cross-kind navigation is
 tracked by ET-web-marketplace-kind-navigation.
+
+QA impact 2026-08-02: the shared Marketplace shell now exposes exactly three kinds. Reset for the
+adjacent acquisition canary.

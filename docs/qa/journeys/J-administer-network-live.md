@@ -1,6 +1,6 @@
 # Administer Network availability and Live policy without enrollment
 
-An administrator changes availability and finite Live defaults/limits, observes a safe disable/re-enable transition, and activates Network-aware extension resources only after explicit confirmation. The true end is a fresh restart where every structured and visual surface agrees, preserved data remains readable, and an ordinary execution is still Local.
+An administrator changes availability and finite Live defaults/limits, observes a safe disable/re-enable transition, and enables Network-aware extension resources only after explicit confirmation. The true end is a fresh restart where every structured and visual surface agrees, preserved data remains readable, and an ordinary execution is still Local.
 
 ```mermaid
 flowchart TD
@@ -19,7 +19,7 @@ flowchart TD
     L --> M[Preview an extension with a Live requirement]
     M --> N{Current requirement explicitly confirmed?}
     N -->|no| O[Activation/update fails visibly; no partial resource or enrollment]
-    N -->|yes| P[Activation persists digest, confirmer, and timestamp; declared channels remain inventory]
+    N -->|yes| P[Enable persists digest, confirmer, and timestamp; the manifest requirement remains consent-only]
     P --> Q[Change requirement digest]
     Q --> R[Prior confirmation clears; reconfirmation is required]
     R --> S[Start an ordinary execution with participation omitted]
@@ -49,7 +49,7 @@ journey:
       expected_observable: "New Live requests fail clearly, in-flight provider work cancels and settles truthfully, Local work continues, preserved data stays readable, and re-enable does not replay old sources"
     - step: 3
       verb: "Preview and enable a Network-aware extension"
-      expected_observable: "A current Live requirement needs explicit confirmation; decline or stale digest fails visibly without partial activation, while declared channels never select participation"
+      expected_observable: "A current Live requirement needs explicit confirmation; decline or stale digest fails visibly without partial enable or update, while the manifest declaration never selects participation"
     - step: 4
       verb: "Compare all status and persistence surfaces after restart"
       expected_observable: "Availability epoch, disabled/ready/active state, settings, confirmation evidence, and usage agree; an omitted participation request still resolves Local"
