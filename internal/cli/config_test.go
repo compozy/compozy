@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -171,6 +172,76 @@ func TestConfigCommandsMutateValidateAndInspectTempHome(t *testing.T) {
 		}
 		if got := configured.Roles.MemoryController; got.TopK != 7 || got.MaxTokensOut != 512 {
 			t.Fatalf("Roles.MemoryController = %#v, want top_k=7 max_tokens_out=512", got)
+		}
+	})
+}
+
+func TestConfigSetShouldManageLoopLifecycleDefaults(t *testing.T) {
+	t.Parallel()
+	t.Run("Should persist every agent mutable loop lifecycle path", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newWorkspaceTestDeps(t, &stubClient{})
+		values := []struct {
+			path  string
+			value string
+		}{
+			{path: "loops.defaults.delivery.retry.max_attempts", value: "4"},
+			{path: "loops.defaults.delivery.retry.backoff_base", value: "2s"},
+			{path: "loops.defaults.delivery.retry.backoff_max", value: "45s"},
+			{path: "loops.defaults.delivery.liveness.silence_window", value: "20m"},
+			{path: "loops.defaults.delivery.resume.death_streak_limit", value: "4"},
+			{path: "loops.defaults.delivery.predicates.cost_limit", value: "12000"},
+			{path: "loops.defaults.delivery.waits.admission_attempts", value: "4"},
+			{path: "loops.defaults.delivery.waits.admission_retry_interval", value: "75s"},
+			{path: "loops.defaults.delivery.admission.tombstone_horizon", value: "240h"},
+			{path: "loops.defaults.watch.retry.max_attempts", value: "2"},
+			{path: "loops.defaults.watch.retry.backoff_base", value: "3s"},
+			{path: "loops.defaults.watch.retry.backoff_max", value: "20s"},
+			{path: "loops.defaults.watch.liveness.silence_window", value: "0s"},
+			{path: "loops.defaults.watch.resume.death_streak_limit", value: "5"},
+			{path: "loops.defaults.watch.predicates.cost_limit", value: "9000"},
+			{path: "loops.defaults.watch.waits.admission_attempts", value: "2"},
+			{path: "loops.defaults.watch.waits.admission_retry_interval", value: "30s"},
+			{path: "loops.defaults.watch.admission.tombstone_horizon", value: "96h"},
+			{path: "loops.breaker.threshold", value: "7"},
+			{path: "loops.breaker.probe_interval", value: "90s"},
+		}
+
+		for _, value := range values {
+			setOut, _, err := executeRootCommand(
+				t,
+				deps,
+				"config",
+				"set",
+				value.path,
+				value.value,
+				"-o",
+				"json",
+			)
+			if err != nil {
+				t.Fatalf("config set %s error = %v", value.path, err)
+			}
+
+			var setRecord configSetRecord
+			if err := json.Unmarshal([]byte(setOut), &setRecord); err != nil {
+				t.Fatalf("json.Unmarshal(config set %s) error = %v", value.path, err)
+			}
+			if setRecord.Path != value.path {
+				t.Fatalf("config set record path = %q, want %q", setRecord.Path, value.path)
+			}
+
+			getOut, _, err := executeRootCommand(t, deps, "config", "get", value.path, "-o", "json")
+			if err != nil {
+				t.Fatalf("config get %s error = %v", value.path, err)
+			}
+			var valueRecord configValueRecord
+			if err := json.Unmarshal([]byte(getOut), &valueRecord); err != nil {
+				t.Fatalf("json.Unmarshal(config get %s) error = %v", value.path, err)
+			}
+			if got := fmt.Sprint(valueRecord.Value); got != value.value {
+				t.Fatalf("config get %s value = %q, want %q", value.path, got, value.value)
+			}
 		}
 	})
 }

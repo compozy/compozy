@@ -66,9 +66,11 @@ type SessionSpec struct {
 
 // RetrySpec configures node retry policy.
 type RetrySpec struct {
-	MaxAttempts int            `json:"max_attempts,omitempty" yaml:"max_attempts,omitempty"`
-	OnFailure   string         `json:"on_failure,omitempty"   yaml:"on_failure,omitempty"`
-	Extra       map[string]any `json:"-"                      yaml:",inline"`
+	MaxAttempts  int            `json:"max_attempts,omitempty"  yaml:"max_attempts,omitempty"`
+	OnFailure    string         `json:"on_failure,omitempty"    yaml:"on_failure,omitempty"`
+	Backoff      *BackoffSpec   `json:"backoff,omitempty"       yaml:"backoff,omitempty"`
+	NonRetryable []string       `json:"non_retryable,omitempty" yaml:"non_retryable,omitempty"`
+	Extra        map[string]any `json:"-"                       yaml:",inline"`
 }
 
 // HarvestSpec configures action output harvest semantics.

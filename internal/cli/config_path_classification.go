@@ -37,8 +37,43 @@ func classifyConfigMutationPath(path []string) (configSetValueKind, bool, error)
 	if kind, ok := classifyWindowManagerMutationPath(path); ok {
 		return kind, false, nil
 	}
+	if kind, redacted, ok := classifyAgentMutableConfigPath(path); ok {
+		return kind, redacted, nil
+	}
 
 	return configSetString, false, fmt.Errorf("cli: config path %q is not supported by config set", joined)
+}
+
+func classifyAgentMutableConfigPath(path []string) (configSetValueKind, bool, bool) {
+	policy, err := compozyconfig.ClassifyToolConfigPath(path)
+	if err != nil || policy.Denial != compozyconfig.ConfigPathAllowed {
+		return configSetString, false, false
+	}
+
+	var kind configSetValueKind
+	switch policy.Kind {
+	case compozyconfig.ConfigValueString:
+		kind = configSetString
+	case compozyconfig.ConfigValueBool:
+		kind = configSetBool
+	case compozyconfig.ConfigValueInt:
+		kind = configSetInt
+	case compozyconfig.ConfigValueInt64:
+		kind = configSetInt64
+	case compozyconfig.ConfigValueFloat:
+		kind = configSetFloat
+	case compozyconfig.ConfigValueDuration:
+		kind = configSetDuration
+	case compozyconfig.ConfigValueStringSlice:
+		kind = configSetStringSlice
+	case compozyconfig.ConfigValueTable:
+		kind = configSetTable
+	case compozyconfig.ConfigValueScalar:
+		kind = configSetScalar
+	default:
+		return configSetString, false, false
+	}
+	return kind, policy.Redacted, true
 }
 
 func classifyWindowManagerMutationPath(path []string) (configSetValueKind, bool) {

@@ -22,6 +22,78 @@ import (
 	"github.com/compozy/compozy/internal/task"
 )
 
+func TestNodeLifecycleConfigShouldResolveAndPinAdmissionValues(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should resolve node then loop config then shipped defaults", func(t *testing.T) {
+		t.Parallel()
+
+		loopAttempts := 5
+		loopBase := 2 * time.Second
+		loopConfig := loop.LifecycleConfig{
+			RetryMaxAttempts: new(loopAttempts),
+			RetryBackoffBase: new(loopBase),
+		}
+		node := dsl.Node{
+			NodeLifecycleState: &dsl.NodeLifecycleState{Deadline: "5m"},
+			Retry: &dsl.RetrySpec{
+				MaxAttempts: 7,
+				Backoff:     &dsl.BackoffSpec{Max: "12s"},
+				NonRetryable: []string{
+					string(loop.FailurePayloadDeclared),
+				},
+			},
+		}
+
+		resolved, err := loop.ResolveNodeLifecycleConfig(node, &loopConfig, loop.DefaultLifecycleConfig())
+		if err != nil {
+			t.Fatalf("ResolveNodeLifecycleConfig() error = %v", err)
+		}
+		if resolved.RetryMaxAttempts != 7 || resolved.RetryBackoffBase != 2*time.Second ||
+			resolved.RetryBackoffMax != 12*time.Second || resolved.LivenessSilenceWindow != 30*time.Minute {
+			t.Fatalf("resolved lifecycle = %#v, want node > loop config > defaults", resolved)
+		}
+		if resolved.Deadline == nil || *resolved.Deadline != 5*time.Minute {
+			t.Fatalf("resolved deadline = %v, want 5m", resolved.Deadline)
+		}
+		if resolved.Sources["retry.max_attempts"] != loop.LifecycleSourceNode ||
+			resolved.Sources["retry.backoff_base"] != loop.LifecycleSourceLoopConfig ||
+			resolved.Sources["liveness.silence_window"] != loop.LifecycleSourceDefault {
+			t.Fatalf("resolved sources = %#v, want node/loop/default provenance", resolved.Sources)
+		}
+
+		loopConfig.RetryMaxAttempts = new(1)
+		loopConfig.RetryBackoffBase = new(9 * time.Second)
+		node.Retry.MaxAttempts = 2
+		node.Retry.NonRetryable[0] = string(loop.FailureTransport)
+		if resolved.RetryMaxAttempts != 7 || resolved.RetryBackoffBase != 2*time.Second ||
+			resolved.RetryNonRetryable[0] != string(loop.FailurePayloadDeclared) {
+			t.Fatalf("pinned lifecycle changed after source mutation: %#v", resolved)
+		}
+	})
+
+	t.Run("Should resolve removed overrides to shipped defaults and breaker globally", func(t *testing.T) {
+		t.Parallel()
+
+		resolved, err := loop.ResolveNodeLifecycleConfig(dsl.Node{}, nil, loop.DefaultLifecycleConfig())
+		if err != nil {
+			t.Fatalf("ResolveNodeLifecycleConfig() error = %v", err)
+		}
+		if resolved.RetryMaxAttempts != 3 || resolved.WaitAdmissionAttempts != 3 ||
+			resolved.AdmissionHorizon != 168*time.Hour {
+			t.Fatalf("resolved lifecycle = %#v, want shipped non-empty defaults", resolved)
+		}
+		breaker, err := loop.ResolveGlobalBreakerPolicy(5, time.Minute)
+		if err != nil {
+			t.Fatalf("ResolveGlobalBreakerPolicy() error = %v", err)
+		}
+		if breaker.Source != loop.BreakerGlobalSource || breaker.Threshold != 5 ||
+			breaker.ProbeInterval != time.Minute {
+			t.Fatalf("breaker = %#v, want reload-scoped global policy", breaker)
+		}
+	})
+}
+
 func TestServiceParticipationShouldResolvePersistAndValidateLoopOwnership(t *testing.T) {
 	t.Parallel()
 
