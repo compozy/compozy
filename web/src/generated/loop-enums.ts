@@ -47,6 +47,9 @@ export const LOOP_RUN_EVENT_KINDS = [
   "goal_turn_completed",
   "goal_status_changed",
   "runtime_applied",
+  "node_retry_scheduled",
+  "stale_schedule_dropped",
+  "late_arrival",
 ] as const;
 
 export type LoopRunEventKindValue = (typeof LOOP_RUN_EVENT_KINDS)[number];
@@ -89,6 +92,7 @@ export const LOOP_RUN_LIFECYCLE_EVENT_KINDS = [
   "needs_approval",
   "goal_status_changed",
   "runtime_applied",
+  "node_retry_scheduled",
 ] as const;
 
 export const LOOP_WATCH_EVENT_KINDS = [

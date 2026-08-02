@@ -1,4 +1,4 @@
-h1:mCr2xewQktN/9bZxl0cOX87F1iBlqr02qrqKU6dGgiE=
+h1:Gwuf30HfAcLT3AR+F1M+VycalPKRdyCznmCwUSnEpHM=
 00001_baseline.sql h1:S/Hl9w8PyqMpsW5NP7g/7u/VnQI84pVFJZUUBi0MMy0=
 00002_schema.sql h1:PBK6FCjEVDmfxcoY4whqvHExe4llHojr9bZjNymgtHw=
 00003_schema.sql h1:x8VmofWOLCS5ARICKEemtVqBU1zUxT7fJSwOeC8yV18=
@@ -41,4 +41,5 @@ h1:mCr2xewQktN/9bZxl0cOX87F1iBlqr02qrqKU6dGgiE=
 00040_schema.sql h1:TUScClyKvxcihbhZwUK9EizN61U1rgVmivZt7XH1DmQ=
 00041_extension_env_workspace_cleanup.sql h1:XwJqyRAKkXSgLzs7b5+Eowwlj761n83lZIvrT3zV3wY=
 00042_schema.sql h1:RhQXQE5fKNikQow3DvMVcS5PDun1WcS0Fa4/qpcykAU=
-00043_schema.sql h1:q0/B7uFbyVMWEavG52UHB1JpzlM38I6xIcAa5sayJG8=
+00043_schema.sql h1:Khn8txFsRyv45hcPRplpFjcQ2kK4opoJpw/35hQEVLg=
+00044_schema.sql h1:mxl3nkcffiJfilljGe7/3jAv8gwIUmgg0Yc2sVTPrfE=

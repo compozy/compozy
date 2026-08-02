@@ -26,6 +26,8 @@ var (
 	ErrConcurrencyConflict = errors.New("loop: concurrency conflict")
 	// ErrAncestryRejected reports an invalid run-loop ancestry chain.
 	ErrAncestryRejected = errors.New("loop: ancestry rejected")
+	// ErrStaleGenerationOutput reports an output write fenced by a newer cell epoch.
+	ErrStaleGenerationOutput = errors.New("loop: stale generation output")
 )
 
 // ReasonCode is the deterministic machine-readable failure code surfaced to agents.

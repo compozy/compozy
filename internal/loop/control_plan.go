@@ -3,6 +3,7 @@ package loop
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/loop/gate"
@@ -27,6 +28,7 @@ func buildInitialControlAwareCoordinatorPlan(
 	watchRuntime coordinatorWatchRuntime,
 	watchEventsRuntime coordinatorWatchEventsRuntime,
 	history GenerationHistory,
+	scheduledAt time.Time,
 ) (task.CoordinatorCompletionPlan, error) {
 	graph := resolved.Definition.Graph
 	topology := newControlTopology(graph)
@@ -87,6 +89,7 @@ func buildInitialControlAwareCoordinatorPlan(
 		gateEvaluator,
 		outputs,
 		outputBlobs,
+		scheduledAt,
 	)
 }
 
@@ -105,6 +108,7 @@ func initialGenerationOutputs(
 			NodeID:     string(node.ID),
 			ItemIndex:  0,
 			Status:     generationOutputPending,
+			Attempt:    1,
 		})
 	}
 	return outputs
@@ -315,6 +319,7 @@ func materializeFanOutBody(
 				NodeID:     string(node.ID),
 				ItemIndex:  itemIndex,
 				Status:     generationOutputPending,
+				Attempt:    1,
 			})
 		}
 	}

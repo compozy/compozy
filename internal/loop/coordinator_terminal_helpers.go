@@ -74,10 +74,11 @@ func failedOutputTerminal(output GenerationOutput) task.CoordinatorTerminal {
 	status := StatusFailed
 	cause := TransitionCauseContract
 	reasonCode := "node_failed"
-	if explicitDependencyBlocker(output.OutputRef) {
+	failure := classifyGenerationOutputFailure(output, task.Run{})
+	if failure.Class == FailureTargetUnavailable {
 		status = StatusBlocked
 		cause = TransitionCauseContract
-		reasonCode = output.OutputRef
+		reasonCode = failure.Code
 	}
 	return task.CoordinatorTerminal{
 		Status:     string(status),
@@ -284,21 +285,6 @@ func sameStringSet(left []string, right []string) bool {
 	return true
 }
 
-func explicitDependencyBlocker(value string) bool {
-	const (
-		dependencyMissing   = "dependency_missing"
-		credentialMissing   = "credential_missing" // #nosec G101 -- public reason code, not a credential.
-		resourceUnreachable = "resource_unreachable"
-	)
-
-	switch strings.TrimSpace(value) {
-	case dependencyMissing, credentialMissing, resourceUnreachable:
-		return true
-	default:
-		return false
-	}
-}
-
 func failureReasonCode(value string) string {
 	var payload struct {
 		ReasonCode string `json:"reason_code"`
@@ -363,6 +349,20 @@ func coordinatorNodeRunID(
 	return fmt.Sprintf("run.loop.%s.g%d.node.%s.%d", loopRunID, generation, nodeID, itemIndex)
 }
 
+func coordinatorNodeAttemptRunID(
+	loopRunID RunID,
+	generation int,
+	nodeID dsl.NodeID,
+	itemIndex int,
+	attempt int,
+) string {
+	base := coordinatorNodeRunID(loopRunID, generation, nodeID, itemIndex)
+	if attempt <= 1 {
+		return base
+	}
+	return fmt.Sprintf("%s.a%d", base, attempt)
+}
+
 func coordinatorNodeIdempotencyKey(
 	loopRunID RunID,
 	generation int,
@@ -370,4 +370,18 @@ func coordinatorNodeIdempotencyKey(
 	itemIndex int,
 ) string {
 	return fmt.Sprintf("loop.node.%s.%d.%s.%d", loopRunID, generation, nodeID, itemIndex)
+}
+
+func coordinatorNodeAttemptIdempotencyKey(
+	loopRunID RunID,
+	generation int,
+	nodeID dsl.NodeID,
+	itemIndex int,
+	attempt int,
+) string {
+	base := coordinatorNodeIdempotencyKey(loopRunID, generation, nodeID, itemIndex)
+	if attempt <= 1 {
+		return base
+	}
+	return fmt.Sprintf("%s.a%d", base, attempt)
 }

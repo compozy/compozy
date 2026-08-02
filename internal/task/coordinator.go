@@ -37,10 +37,11 @@ type CoordinatorCompletionPlan struct {
 	// GenerationInFlight means at least one current-generation node is still live.
 	GenerationInFlight bool
 	// NextCoordinator is emitted by the gate/carry-forward planner; the task_05 reconciler does not yet populate it.
-	NextCoordinator *EnqueueSpec
-	Terminal        *CoordinatorTerminal
-	Yield           bool
-	PostCommitWakes []CoordinatorWakeSpec
+	NextCoordinator  *EnqueueSpec
+	Terminal         *CoordinatorTerminal
+	Yield            bool
+	PostCommitWakes  []CoordinatorWakeSpec
+	PostCommitTimers []CoordinatorTimerSpec
 }
 
 // CoordinatorTaskSpec describes a node task that must exist before node runs are queued.
@@ -169,6 +170,9 @@ func (p CoordinatorCompletionPlan) Validate(path string) error {
 	if err := validateCoordinatorWakeSpecs(p.PostCommitWakes, path); err != nil {
 		return err
 	}
+	if err := validateCoordinatorTimerSpecs(p.PostCommitTimers, path); err != nil {
+		return err
+	}
 	if p.NextCoordinator != nil {
 		if err := p.NextCoordinator.Validate(nestedPath(path, "next_coordinator")); err != nil {
 			return err
@@ -262,6 +266,9 @@ func (p CoordinatorCompletionPlan) Normalize() CoordinatorCompletionPlan {
 	}
 	for idx := range normalized.PostCommitWakes {
 		normalized.PostCommitWakes[idx] = normalized.PostCommitWakes[idx].Normalize()
+	}
+	for idx := range normalized.PostCommitTimers {
+		normalized.PostCommitTimers[idx] = normalized.PostCommitTimers[idx].Normalize()
 	}
 	if normalized.NextCoordinator != nil {
 		next := normalized.NextCoordinator.Normalize()

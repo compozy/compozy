@@ -168,6 +168,7 @@ func newSchedulerRuntime(
 			manager:             manager,
 			store:               store,
 			watchEventsGapScan:  newLoopWatchEventsGapScanState(),
+			loopRetryDueScan:    newLoopRetryDueScanState(),
 			coordinatorBackstop: tasks.coordinatorBackstop,
 		},
 		schedulerSessionSource{sessions: sessions, situation: situation, logger: logger},

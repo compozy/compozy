@@ -93,6 +93,10 @@ CREATE TABLE loop_generation_outputs (
 			PRIMARY KEY (loop_run_id, generation, node_id, item_index)
 		);
 
+CREATE INDEX idx_loop_generation_outputs_retry_due
+	ON loop_generation_outputs(next_attempt_at, loop_run_id, generation, node_id, item_index)
+	WHERE status = 'retrying' AND next_attempt_at IS NOT NULL;
+
 CREATE TABLE loop_node_controls (
 	loop_run_id           TEXT NOT NULL REFERENCES loop_runs(id) ON DELETE CASCADE,
 	node_id               TEXT NOT NULL,

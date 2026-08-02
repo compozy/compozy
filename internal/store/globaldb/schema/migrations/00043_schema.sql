@@ -26,6 +26,9 @@ DROP TABLE `loop_generation_outputs`;
 ALTER TABLE `new_loop_generation_outputs` RENAME TO `loop_generation_outputs`;
 -- create index "idx_loop_generation_outputs_output_ref" to table: "loop_generation_outputs"
 CREATE INDEX `idx_loop_generation_outputs_output_ref` ON `loop_generation_outputs` (`output_ref`);
+-- suspend triggers that read loop_runs while the table is rebuilt
+DROP TRIGGER `automation_watch_events_after_insert`;
+DROP TRIGGER `automation_watch_events_after_terminal_update`;
 -- create "new_loop_runs" table
 CREATE TABLE `new_loop_runs` (`id` text NULL, `workspace_id` text NOT NULL, `loop_name` text NOT NULL, `status` text NOT NULL, `generation` integer NOT NULL DEFAULT 0, `reattempt_strategy` text NOT NULL DEFAULT 'failed_only', `last_progress_at` timestamp NOT NULL, `budget_tokens` integer NOT NULL DEFAULT 0, `budget_wall_sec` integer NOT NULL DEFAULT 0, `budget_on_exceeded` text NOT NULL DEFAULT 'halt', `tokens_used` integer NOT NULL DEFAULT 0, `parent_loop_run_id` text NULL, `pause_requested` integer NOT NULL DEFAULT 0, `inputs_json` text NOT NULL, `created_at` text NOT NULL DEFAULT '1970-01-01T00:00:00.000000000Z', `iteration_cap` integer NOT NULL DEFAULT 0, `started_by_kind` text NOT NULL DEFAULT '', `started_by_ref` text NOT NULL DEFAULT '', `started_origin_kind` text NOT NULL DEFAULT '', `started_origin_ref` text NOT NULL DEFAULT '', `started_at` text NOT NULL DEFAULT '1970-01-01T00:00:00.000000000Z', `definition_version` integer NOT NULL DEFAULT 0, `definition_digest` text NOT NULL DEFAULT '', `active_gate_id` text NOT NULL DEFAULT '', `active_human_criteria_json` text NOT NULL DEFAULT '[]', `budget_approval_seq` integer NOT NULL DEFAULT 0, `start_metadata_json` text NOT NULL DEFAULT '{}', `origin_kind` text NOT NULL DEFAULT 'catalog', `origin_session_id` text NULL, `goal_cleared_at` timestamp NULL, `budget_version` integer NOT NULL DEFAULT 0, `goal_context_nudge_ratio` real NOT NULL DEFAULT 0.8, `control_actor_kind` text NULL, `control_actor_id` text NULL, `control_requested_at` timestamp NULL, `origin_creation_profile_ref` text NULL, `origin_policy_spec_digest` text NULL, `origin_creation_digest` text NULL, `network_spec_json` text NOT NULL DEFAULT '{"version":"network-participation/v1","mode":"local","source":"built_in_local"}', `network_mode` text NOT NULL DEFAULT 'local', `network_channel` text NULL, `network_source` text NOT NULL DEFAULT 'built_in_local', `best_generation` integer NULL, `best_score` real NULL, `cancel_requested` integer NOT NULL DEFAULT 0, `cancel_kind` text NOT NULL DEFAULT '', PRIMARY KEY (`id`), CHECK (budget_version >= 0), CHECK (goal_context_nudge_ratio >= 0.0 AND goal_context_nudge_ratio <= 1.0), CHECK (origin_creation_profile_ref IS NULL OR length(trim(origin_creation_profile_ref)) > 0), CHECK (origin_policy_spec_digest IS NULL OR length(trim(origin_policy_spec_digest)) > 0), CHECK (origin_creation_digest IS NULL OR length(trim(origin_creation_digest)) > 0), CHECK (json_valid(network_spec_json)), CHECK (network_mode IN ('local', 'live')), CHECK (network_source IN (
 						'explicit_request', 'task_profile', 'workspace_coordination',
@@ -48,6 +51,84 @@ CREATE INDEX `idx_loop_runs_queue_order` ON `loop_runs` (`workspace_id`, `loop_n
 -- create index "uq_loop_runs_active_session_goal" to table: "loop_runs"
 CREATE UNIQUE INDEX `uq_loop_runs_active_session_goal` ON `loop_runs` (`origin_session_id`) WHERE origin_kind='session'
 			  AND status IN ('queued','running','watching','needs-approval','paused');
+-- +goose StatementBegin
+CREATE TRIGGER automation_watch_events_after_insert
+AFTER INSERT ON automation_runs
+WHEN NEW.status IN ('completed', 'failed')
+BEGIN
+	INSERT INTO automation_watch_events (
+		run_id, job_id, trigger_id, session_id, status, attempt,
+		started_at, ended_at, error, agent_name, workspace_id, retry_json
+	) VALUES (
+		NEW.id,
+		COALESCE(NEW.job_id, ''),
+		COALESCE(NEW.trigger_id, ''),
+		COALESCE(NEW.session_id, ''),
+		NEW.status,
+		NEW.attempt,
+		NEW.started_at,
+		NEW.ended_at,
+		COALESCE(NEW.error, ''),
+		COALESCE(
+			(SELECT agent_name FROM automation_jobs WHERE id = NEW.job_id),
+			(SELECT agent_name FROM automation_triggers WHERE id = NEW.trigger_id),
+			''
+		),
+		COALESCE(
+			NULLIF((SELECT workspace_id FROM automation_jobs WHERE id = NEW.job_id), ''),
+			NULLIF((SELECT workspace_id FROM automation_triggers WHERE id = NEW.trigger_id), ''),
+			NULLIF((SELECT workspace_id FROM loop_runs WHERE id = NEW.loop_run_id), ''),
+			NULLIF((SELECT loop_workspace_id FROM automation_jobs WHERE id = NEW.job_id), ''),
+			NULLIF((SELECT loop_workspace_id FROM automation_triggers WHERE id = NEW.trigger_id), ''),
+			''
+		),
+		COALESCE(
+			(SELECT retry FROM automation_jobs WHERE id = NEW.job_id),
+			(SELECT retry FROM automation_triggers WHERE id = NEW.trigger_id),
+			''
+		)
+	);
+END;
+-- +goose StatementEnd
+-- +goose StatementBegin
+CREATE TRIGGER automation_watch_events_after_terminal_update
+AFTER UPDATE OF status ON automation_runs
+WHEN NEW.status IN ('completed', 'failed') AND OLD.status NOT IN ('completed', 'failed')
+BEGIN
+	INSERT INTO automation_watch_events (
+		run_id, job_id, trigger_id, session_id, status, attempt,
+		started_at, ended_at, error, agent_name, workspace_id, retry_json
+	) VALUES (
+		NEW.id,
+		COALESCE(NEW.job_id, ''),
+		COALESCE(NEW.trigger_id, ''),
+		COALESCE(NEW.session_id, ''),
+		NEW.status,
+		NEW.attempt,
+		NEW.started_at,
+		NEW.ended_at,
+		COALESCE(NEW.error, ''),
+		COALESCE(
+			(SELECT agent_name FROM automation_jobs WHERE id = NEW.job_id),
+			(SELECT agent_name FROM automation_triggers WHERE id = NEW.trigger_id),
+			''
+		),
+		COALESCE(
+			NULLIF((SELECT workspace_id FROM automation_jobs WHERE id = NEW.job_id), ''),
+			NULLIF((SELECT workspace_id FROM automation_triggers WHERE id = NEW.trigger_id), ''),
+			NULLIF((SELECT workspace_id FROM loop_runs WHERE id = NEW.loop_run_id), ''),
+			NULLIF((SELECT loop_workspace_id FROM automation_jobs WHERE id = NEW.job_id), ''),
+			NULLIF((SELECT loop_workspace_id FROM automation_triggers WHERE id = NEW.trigger_id), ''),
+			''
+		),
+		COALESCE(
+			(SELECT retry FROM automation_jobs WHERE id = NEW.job_id),
+			(SELECT retry FROM automation_triggers WHERE id = NEW.trigger_id),
+			''
+		)
+	);
+END;
+-- +goose StatementEnd
 -- create "new_loop_generations" table
 CREATE TABLE `new_loop_generations` (`loop_run_id` text NOT NULL, `generation` integer NOT NULL, `parent_generation` integer NOT NULL DEFAULT 0, `origin` text NOT NULL, `created_at` timestamp NOT NULL, PRIMARY KEY (`loop_run_id`, `generation`), CONSTRAINT `0` FOREIGN KEY (`loop_run_id`) REFERENCES `loop_runs` (`id`) ON UPDATE NO ACTION ON DELETE CASCADE, CHECK (generation >= 1), CHECK (parent_generation >= 0 AND parent_generation < generation), CHECK (origin IN (
 				'initial','stop_when','reattempt','gate_revise','gate_next_generation',
