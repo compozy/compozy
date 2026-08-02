@@ -49,12 +49,14 @@ func buildSessionGoalDefinition(
 			RuntimeDefaults:  runtimeDefaults,
 			Constraints:      append([]string(nil), contract.Constraints...),
 			Verification:     []dsl.GateCriterion{},
-			TerminalStates: []dsl.TerminalState{
-				dsl.TerminalDone,
-				dsl.TerminalBlocked,
-				dsl.TerminalFailed,
-				dsl.TerminalExhausted,
-				dsl.TerminalStalled,
+			ContractLifecycleState: &dsl.ContractLifecycleState{
+				TerminalStates: []dsl.TerminalState{
+					dsl.TerminalDone,
+					dsl.TerminalBlocked,
+					dsl.TerminalFailed,
+					dsl.TerminalExhausted,
+					dsl.TerminalStalled,
+				},
 			},
 			IterationCap: 1,
 			NoProgress: dsl.NoProgress{

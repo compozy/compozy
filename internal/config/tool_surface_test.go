@@ -432,6 +432,126 @@ func TestToolConfigPathPolicy(t *testing.T) {
 			denial: ConfigPathTrustForbidden,
 		},
 		{
+			name: "Should allow delivery retry attempts",
+			path: "loops.defaults.delivery.retry.max_attempts",
+			kind: ConfigValueInt,
+		},
+		{
+			name: "Should allow delivery retry base",
+			path: "loops.defaults.delivery.retry.backoff_base",
+			kind: ConfigValueDuration,
+		},
+		{
+			name: "Should allow delivery retry maximum",
+			path: "loops.defaults.delivery.retry.backoff_max",
+			kind: ConfigValueDuration,
+		},
+		{
+			name: "Should allow delivery liveness window",
+			path: "loops.defaults.delivery.liveness.silence_window",
+			kind: ConfigValueDuration,
+		},
+		{
+			name: "Should allow delivery resume streak",
+			path: "loops.defaults.delivery.resume.death_streak_limit",
+			kind: ConfigValueInt,
+		},
+		{
+			name: "Should allow delivery predicate cost",
+			path: "loops.defaults.delivery.predicates.cost_limit",
+			kind: ConfigValueInt,
+		},
+		{
+			name: "Should allow delivery wait attempts",
+			path: "loops.defaults.delivery.waits.admission_attempts",
+			kind: ConfigValueInt,
+		},
+		{
+			name: "Should allow delivery wait retry interval",
+			path: "loops.defaults.delivery.waits.admission_retry_interval",
+			kind: ConfigValueDuration,
+		},
+		{
+			name: "Should allow delivery admission horizon",
+			path: "loops.defaults.delivery.admission.tombstone_horizon",
+			kind: ConfigValueDuration,
+		},
+		{
+			name: "Should allow watch retry attempts",
+			path: "loops.defaults.watch.retry.max_attempts",
+			kind: ConfigValueInt,
+		},
+		{
+			name: "Should allow watch retry base",
+			path: "loops.defaults.watch.retry.backoff_base",
+			kind: ConfigValueDuration,
+		},
+		{
+			name: "Should allow watch retry maximum",
+			path: "loops.defaults.watch.retry.backoff_max",
+			kind: ConfigValueDuration,
+		},
+		{
+			name: "Should allow watch liveness window",
+			path: "loops.defaults.watch.liveness.silence_window",
+			kind: ConfigValueDuration,
+		},
+		{
+			name: "Should allow watch resume streak",
+			path: "loops.defaults.watch.resume.death_streak_limit",
+			kind: ConfigValueInt,
+		},
+		{
+			name: "Should allow watch predicate cost",
+			path: "loops.defaults.watch.predicates.cost_limit",
+			kind: ConfigValueInt,
+		},
+		{
+			name: "Should allow watch wait attempts",
+			path: "loops.defaults.watch.waits.admission_attempts",
+			kind: ConfigValueInt,
+		},
+		{
+			name: "Should allow watch wait retry interval",
+			path: "loops.defaults.watch.waits.admission_retry_interval",
+			kind: ConfigValueDuration,
+		},
+		{
+			name: "Should allow watch admission horizon",
+			path: "loops.defaults.watch.admission.tombstone_horizon",
+			kind: ConfigValueDuration,
+		},
+		{
+			name: "Should allow global loop breaker threshold",
+			path: "loops.breaker.threshold",
+			kind: ConfigValueInt,
+		},
+		{
+			name: "Should allow global loop breaker probe interval",
+			path: "loops.breaker.probe_interval",
+			kind: ConfigValueDuration,
+		},
+		{
+			name:   "Should reject delivery autopause mutation",
+			path:   "loops.defaults.delivery.autopause",
+			denial: ConfigPathForbidden,
+		},
+		{
+			name:   "Should reject watch autopause mutation",
+			path:   "loops.defaults.watch.autopause",
+			denial: ConfigPathForbidden,
+		},
+		{
+			name:   "Should reject per-kind breaker threshold",
+			path:   "loops.defaults.delivery.breaker.threshold",
+			denial: ConfigPathForbidden,
+		},
+		{
+			name:   "Should reject per-kind breaker probe interval",
+			path:   "loops.defaults.watch.breaker.probe_interval",
+			denial: ConfigPathForbidden,
+		},
+		{
 			name:   "Should reject unknown mutable path",
 			path:   "unknown.value",
 			denial: ConfigPathForbidden,

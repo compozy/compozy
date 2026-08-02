@@ -93,7 +93,8 @@ WHERE id = sqlc.arg(id);
 
 -- name: ListLoopGenerationOutputs :many
 SELECT output.generation, output.node_id, output.item_index, output.status, output.output_ref,
-       output.task_run_id, output.child_loop_run_id, output.resolved_runtime_json
+       output.task_run_id, output.child_loop_run_id, output.resolved_runtime_json,
+       output.attempt, output.next_attempt_at, output.first_scheduled_at, output.epoch
 FROM loop_generation_outputs AS output
 JOIN loop_runs AS run ON run.id = output.loop_run_id
 WHERE output.loop_run_id = sqlc.arg(loop_run_id)

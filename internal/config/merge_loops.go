@@ -4,6 +4,7 @@ import "github.com/compozy/compozy/internal/loop/dsl"
 
 type loopsOverlay struct {
 	Defaults loopsDefaultsOverlay `toml:"defaults"`
+	Breaker  loopBreakerOverlay   `toml:"breaker"`
 	Inputs   LoopInputDefaults    `toml:"inputs"`
 }
 
@@ -20,6 +21,45 @@ type loopDefaultOverlay struct {
 	RuntimeDefaults loopRuntimeDefaultsOverlay   `toml:"runtime_defaults"`
 	RuntimeRules    []dsl.RuntimeRule            `toml:"runtime_rules"`
 	FanOutWidth     *int                         `toml:"fan_out_width"`
+	Retry           loopRetryDefaultOverlay      `toml:"retry"`
+	Liveness        loopLivenessDefaultOverlay   `toml:"liveness"`
+	Resume          loopResumeDefaultOverlay     `toml:"resume"`
+	Predicates      loopPredicateDefaultOverlay  `toml:"predicates"`
+	Waits           loopWaitDefaultOverlay       `toml:"waits"`
+	Admission       loopAdmissionDefaultOverlay  `toml:"admission"`
+	Autopause       []LoopAutopauseRule          `toml:"autopause"`
+}
+
+type loopRetryDefaultOverlay struct {
+	MaxAttempts *int    `toml:"max_attempts"`
+	BackoffBase *string `toml:"backoff_base"`
+	BackoffMax  *string `toml:"backoff_max"`
+}
+
+type loopLivenessDefaultOverlay struct {
+	SilenceWindow *string `toml:"silence_window"`
+}
+
+type loopResumeDefaultOverlay struct {
+	DeathStreakLimit *int `toml:"death_streak_limit"`
+}
+
+type loopPredicateDefaultOverlay struct {
+	CostLimit *uint64 `toml:"cost_limit"`
+}
+
+type loopWaitDefaultOverlay struct {
+	AdmissionAttempts      *int    `toml:"admission_attempts"`
+	AdmissionRetryInterval *string `toml:"admission_retry_interval"`
+}
+
+type loopAdmissionDefaultOverlay struct {
+	TombstoneHorizon *string `toml:"tombstone_horizon"`
+}
+
+type loopBreakerOverlay struct {
+	Threshold     *int    `toml:"threshold"`
+	ProbeInterval *string `toml:"probe_interval"`
 }
 
 type loopNoProgressDefaultOverlay struct {
@@ -49,6 +89,7 @@ type loopRuntimeSpecOverlay struct {
 
 func (o loopsOverlay) Apply(dst *LoopsConfig) {
 	o.Defaults.Apply(&dst.Defaults)
+	o.Breaker.Apply(&dst.Breaker)
 	if dst.Inputs == nil {
 		dst.Inputs = LoopInputDefaults{}
 	}
@@ -94,6 +135,69 @@ func (o loopDefaultOverlay) Apply(dst *LoopDefaultConfig) {
 	}
 	if o.FanOutWidth != nil {
 		dst.FanOutWidth = *o.FanOutWidth
+	}
+	o.Retry.Apply(&dst.Retry)
+	o.Liveness.Apply(&dst.Liveness)
+	o.Resume.Apply(&dst.Resume)
+	o.Predicates.Apply(&dst.Predicates)
+	o.Waits.Apply(&dst.Waits)
+	o.Admission.Apply(&dst.Admission)
+	if len(o.Autopause) > 0 {
+		dst.Autopause = append(dst.Autopause, o.Autopause...)
+	}
+}
+
+func (o loopRetryDefaultOverlay) Apply(dst *LoopRetryDefaultConfig) {
+	if o.MaxAttempts != nil {
+		dst.MaxAttempts = *o.MaxAttempts
+	}
+	if o.BackoffBase != nil {
+		dst.BackoffBase = *o.BackoffBase
+	}
+	if o.BackoffMax != nil {
+		dst.BackoffMax = *o.BackoffMax
+	}
+}
+
+func (o loopLivenessDefaultOverlay) Apply(dst *LoopLivenessDefaultConfig) {
+	if o.SilenceWindow != nil {
+		dst.SilenceWindow = *o.SilenceWindow
+	}
+}
+
+func (o loopResumeDefaultOverlay) Apply(dst *LoopResumeDefaultConfig) {
+	if o.DeathStreakLimit != nil {
+		dst.DeathStreakLimit = *o.DeathStreakLimit
+	}
+}
+
+func (o loopPredicateDefaultOverlay) Apply(dst *LoopPredicateDefaultConfig) {
+	if o.CostLimit != nil {
+		dst.CostLimit = *o.CostLimit
+	}
+}
+
+func (o loopWaitDefaultOverlay) Apply(dst *LoopWaitDefaultConfig) {
+	if o.AdmissionAttempts != nil {
+		dst.AdmissionAttempts = *o.AdmissionAttempts
+	}
+	if o.AdmissionRetryInterval != nil {
+		dst.AdmissionRetryInterval = *o.AdmissionRetryInterval
+	}
+}
+
+func (o loopAdmissionDefaultOverlay) Apply(dst *LoopAdmissionDefaultConfig) {
+	if o.TombstoneHorizon != nil {
+		dst.TombstoneHorizon = *o.TombstoneHorizon
+	}
+}
+
+func (o loopBreakerOverlay) Apply(dst *LoopBreakerConfig) {
+	if o.Threshold != nil {
+		dst.Threshold = *o.Threshold
+	}
+	if o.ProbeInterval != nil {
+		dst.ProbeInterval = *o.ProbeInterval
 	}
 }
 

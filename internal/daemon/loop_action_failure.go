@@ -5,14 +5,12 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/compozy/compozy/internal/diagnostics"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 const (
-	loopActionFailureCode      = "loop_action_failed"
-	loopActionFailureTextLimit = 2 * 1024
+	loopActionFailureCode = "loop_action_failed"
 )
 
 type loopActionFailureMetadata struct {
@@ -47,8 +45,7 @@ func operatorSafeActionFailure(cause error) looppkg.ActionFailure {
 
 	if provider, ok := errors.AsType[looppkg.SafeActionFailureProvider](cause); ok {
 		failure := provider.SafeActionFailure()
-		if strings.TrimSpace(failure.Code) != "" && strings.TrimSpace(failure.Cause) != "" &&
-			strings.TrimSpace(failure.Recovery) != "" {
+		if strings.TrimSpace(failure.Code) != "" && strings.TrimSpace(failure.Cause) != "" {
 			code = failure.Code
 			message = failure.Cause
 			recovery = failure.Recovery
@@ -69,8 +66,8 @@ func operatorSafeActionFailure(cause error) looppkg.ActionFailure {
 
 	return looppkg.NewActionFailure(
 		code,
-		diagnostics.RedactAndBound(message, loopActionFailureTextLimit),
-		diagnostics.RedactAndBound(recovery, loopActionFailureTextLimit),
+		message,
+		recovery,
 	)
 }
 

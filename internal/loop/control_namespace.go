@@ -84,7 +84,15 @@ func (h GenerationHistory) previousNamespace(
 	itemIndex int,
 ) map[string]any {
 	if h.Previous == nil {
-		return map[string]any{}
+		nodes := make(map[string]any, len(topology.dependencies))
+		for nodeID := range topology.dependencies {
+			nodes[string(nodeID)] = map[string]any{}
+		}
+		return map[string]any{
+			namespaceNodesKey:       nodes,
+			namespaceVerdictsKey:    map[string]any{},
+			namespaceRouteCausesKey: []string{},
+		}
 	}
 	nodes := make(map[string]any, len(h.Previous.Nodes))
 	for nodeID, items := range h.Previous.Nodes {
@@ -223,7 +231,7 @@ func valueAtPath(namespace map[string]any, path []string) (any, bool) {
 
 func outputValue(ref string) any {
 	trimmed := strings.TrimSpace(ref)
-	if trimmed == "" {
+	if trimmed == "" || trimmed == branchSkippedOutputRef {
 		return nil
 	}
 	var value any

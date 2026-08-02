@@ -27,6 +27,10 @@ func TestGenerationHistoryProjection(t *testing.T) {
 	t.Run("Should reject invalid best-generation state", testGenerationHistoryBestValidation)
 	t.Run("Should project scalar best output", testGenerationHistoryScalarBestOutput)
 	t.Run("Should include the contract verdict in route causes", testGenerationHistoryContractVerdict)
+	t.Run(
+		"Should preserve terminal node output or absence without authoring errors",
+		testGenerationHistoryTerminalNodes,
+	)
 	t.Run("Should reject a non-positive generation", testGenerationHistoryNonPositiveGeneration)
 }
 
@@ -56,14 +60,17 @@ func testGenerationHistoryInitialGeneration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("runtimeNamespaceWithHistory() error = %v", err)
 	}
-	for _, key := range []string{"previous", "best"} {
-		value, ok := namespace[key].(map[string]any)
-		if !ok {
-			t.Fatalf("namespace[%q] = %#v, want empty object", key, namespace[key])
-		}
-		if len(value) != 0 {
-			t.Fatalf("namespace[%q] = %#v, want empty object", key, value)
-		}
+	previous, ok := namespace["previous"].(map[string]any)
+	if !ok {
+		t.Fatalf("namespace[previous] = %#v, want absent-data object", namespace["previous"])
+	}
+	previousNodes, ok := previous["nodes"].(map[string]any)
+	if !ok || len(previousNodes) != 0 {
+		t.Fatalf("namespace[previous].nodes = %#v, want empty node map", previous["nodes"])
+	}
+	best, ok := namespace["best"].(map[string]any)
+	if !ok || len(best) != 0 {
+		t.Fatalf("namespace[best] = %#v, want empty object", namespace["best"])
 	}
 }
 
@@ -374,6 +381,32 @@ func testGenerationHistoryNonPositiveGeneration(t *testing.T) {
 	_, err := ReadGenerationHistory(context.Background(), generationHistoryReaderStub{}, Run{}, 0)
 	if !errors.Is(err, ErrValidation) {
 		t.Fatalf("ReadGenerationHistory() error = %v, want ErrValidation", err)
+	}
+}
+
+func testGenerationHistoryTerminalNodes(t *testing.T) {
+	t.Parallel()
+
+	history, err := ProjectGenerationHistory(
+		2,
+		Run{},
+		[]GenerationOutput{
+			{NodeID: "quarantined", Status: "quarantined", OutputRef: `{"last":"known"}`},
+			{NodeID: "canceled", Status: "canceled"},
+		},
+		nil,
+		nil,
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("ProjectGenerationHistory() error = %v", err)
+	}
+	quarantined, ok := history.Previous.Nodes["quarantined"][0].Output.(map[string]any)
+	if !ok || quarantined["last"] != "known" {
+		t.Fatalf("quarantined output = %#v, want last recorded output", history.Previous.Nodes["quarantined"][0])
+	}
+	if got := history.Previous.Nodes["canceled"][0].Output; got != nil {
+		t.Fatalf("canceled output = %#v, want absent", got)
 	}
 }
 
