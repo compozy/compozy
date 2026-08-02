@@ -25,19 +25,22 @@ func TestLoopRunEventKindValidShouldMatchPublicContract(t *testing.T) {
 	t.Parallel()
 
 	localKinds := map[string]struct{}{
-		loopRunEventNodeRunning:       {},
-		loopRunEventNodeSucceeded:     {},
-		loopRunEventNodeFailed:        {},
-		loopRunEventGateVerdict:       {},
-		loopRunEventGenerationStarted: {},
-		loopRunEventChannelMsg:        {},
-		loopRunEventTokenTick:         {},
-		loopRunEventNeedsApproval:     {},
-		loopRunEventStatusChanged:     {},
-		loopRunEventGoalTurnStarted:   {},
-		loopRunEventGoalTurnCompleted: {},
-		loopRunEventGoalStatusChanged: {},
-		loopRunEventRuntimeApplied:    {},
+		loopRunEventNodeRunning:          {},
+		loopRunEventNodeSucceeded:        {},
+		loopRunEventNodeFailed:           {},
+		loopRunEventGateVerdict:          {},
+		loopRunEventGenerationStarted:    {},
+		loopRunEventChannelMsg:           {},
+		loopRunEventTokenTick:            {},
+		loopRunEventNeedsApproval:        {},
+		loopRunEventStatusChanged:        {},
+		loopRunEventGoalTurnStarted:      {},
+		loopRunEventGoalTurnCompleted:    {},
+		loopRunEventGoalStatusChanged:    {},
+		loopRunEventRuntimeApplied:       {},
+		loopRunEventNodeRetryScheduled:   {},
+		loopRunEventStaleScheduleDropped: {},
+		loopRunEventLateArrival:          {},
 	}
 	for _, kind := range contract.LoopRunEventKindValues() {
 		t.Run("Should accept public kind "+kind, func(t *testing.T) {
@@ -736,6 +739,181 @@ func TestGlobalDBLoopHistoryShouldPersistMachineFacts(t *testing.T) {
 			t.Fatalf("machine verdicts = %d, want human decision writer to leave them untouched", machineVerdictCount)
 		}
 	})
+}
+
+func TestGlobalDBLoopRetryDueShouldFenceAndPageSchedules(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should select only due live unparked cells with a stable cursor", func(t *testing.T) {
+		t.Parallel()
+		globalDB := openLoopTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 8, 2, 14, 0, 0, 0, time.UTC)
+		seedLoopRetryDueCell(t, globalDB, "looprun-retry-due-a", now, now.Add(-2*time.Second), false, false)
+		seedLoopRetryDueCell(t, globalDB, "looprun-retry-due-b", now, now.Add(-time.Second), false, false)
+		seedLoopRetryDueCell(t, globalDB, "looprun-retry-future", now, now.Add(time.Minute), false, false)
+		seedLoopRetryDueCell(t, globalDB, "looprun-retry-paused", now, now.Add(-time.Second), true, false)
+		seedLoopRetryDueCell(t, globalDB, "looprun-retry-terminal", now, now.Add(-time.Second), false, true)
+
+		first, cursor, err := globalDB.ListDueLoopRetries(ctx, now, looppkg.RetryDueCursor{}, 1)
+		if err != nil {
+			t.Fatalf("ListDueLoopRetries(first) error = %v", err)
+		}
+		if len(first) != 1 || first[0].LoopRunID != "looprun-retry-due-a" || cursor.Empty() {
+			t.Fatalf("first due page = %#v cursor=%#v, want due-a and continuation", first, cursor)
+		}
+		second, cursor, err := globalDB.ListDueLoopRetries(ctx, now, cursor, 1)
+		if err != nil {
+			t.Fatalf("ListDueLoopRetries(second) error = %v", err)
+		}
+		if len(second) != 1 || second[0].LoopRunID != "looprun-retry-due-b" || cursor.Empty() {
+			t.Fatalf("second due page = %#v cursor=%#v, want due-b and continuation", second, cursor)
+		}
+		last, cursor, err := globalDB.ListDueLoopRetries(ctx, now, cursor, 1)
+		if err != nil {
+			t.Fatalf("ListDueLoopRetries(last) error = %v", err)
+		}
+		if len(last) != 0 || !cursor.Empty() {
+			t.Fatalf("last due page = %#v cursor=%#v, want empty reset", last, cursor)
+		}
+	})
+
+	t.Run("Should converge timer and due scan on one epoch-fenced wake", func(t *testing.T) {
+		t.Parallel()
+		globalDB := openLoopTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 8, 2, 14, 30, 0, 0, time.UTC)
+		cell := seedLoopRetryDueCell(
+			t, globalDB, "looprun-retry-converged", now, now.Add(-time.Second), false, false,
+		)
+		actor := coordinatorActorContextForTest()
+		timerRun, added, current, err := globalDB.EnqueueLoopRetryWakeIfCurrent(ctx, actor.Origin, cell, now)
+		if err != nil {
+			t.Fatalf("EnqueueLoopRetryWakeIfCurrent(timer) error = %v", err)
+		}
+		if !added || !current || timerRun.IdempotencyKey != looppkg.RetryWakeIdempotencyKey(cell) {
+			t.Fatalf("timer wake = %#v added=%v current=%v", timerRun, added, current)
+		}
+		secondDueAt := cell.NextAttemptAt
+		firstScheduledAt := now.Add(-time.Minute)
+		if err := looppkg.NewStoreFinalizer().WriteGenerationSnapshot(
+			ctx,
+			globalDB.db,
+			taskpkg.GenerationSnapshot{
+				LoopRunID: string(cell.LoopRunID), Generation: 1,
+				Payload: looppkg.GenerationSnapshotPayload{Outputs: []looppkg.GenerationOutput{{
+					Generation: 1, NodeID: "second_retry", Status: "retrying", Attempt: 1, Epoch: 1,
+					NextAttemptAt: &secondDueAt, FirstScheduledAt: &firstScheduledAt,
+				}}},
+			},
+		); err != nil {
+			t.Fatalf("WriteGenerationSnapshot(second due cell) error = %v", err)
+		}
+		runs, _, err := globalDB.EnqueueDueLoopRetryWakesPage(
+			ctx, actor.Origin, now, looppkg.RetryDueCursor{}, 10,
+		)
+		if err != nil {
+			t.Fatalf("EnqueueDueLoopRetryWakesPage() error = %v", err)
+		}
+		if len(runs) != 0 {
+			t.Fatalf("due-scan duplicate wakes = %#v, want none", runs)
+		}
+
+		stale := cell
+		stale.Epoch--
+		_, added, current, err = globalDB.EnqueueLoopRetryWakeIfCurrent(ctx, actor.Origin, stale, now)
+		if err != nil {
+			t.Fatalf("EnqueueLoopRetryWakeIfCurrent(stale) error = %v", err)
+		}
+		if added || current {
+			t.Fatalf("stale wake added=%v current=%v, want false/false", added, current)
+		}
+		var diagnostics int
+		if err := globalDB.db.QueryRowContext(
+			ctx,
+			`SELECT COUNT(*) FROM loop_run_events WHERE loop_run_id = ? AND kind = ?`,
+			cell.LoopRunID,
+			loopRunEventStaleScheduleDropped,
+		).Scan(&diagnostics); err != nil {
+			t.Fatalf("count stale schedule diagnostics error = %v", err)
+		}
+		if diagnostics != 1 {
+			t.Fatalf("stale schedule diagnostics = %d, want 1", diagnostics)
+		}
+	})
+}
+
+func seedLoopRetryDueCell(
+	t *testing.T,
+	globalDB *GlobalDB,
+	runID string,
+	createdAt time.Time,
+	nextAttemptAt time.Time,
+	paused bool,
+	terminal bool,
+) looppkg.RetryDueCell {
+	t.Helper()
+	ctx := testutil.Context(t)
+	created, err := globalDB.CreateLoopRunForStart(
+		ctx,
+		testLoopRun(runID, createdAt, looppkg.StatusRunning),
+		dsl.ConcurrencyAllow,
+	)
+	if err != nil {
+		t.Fatalf("CreateLoopRunForStart(%s) error = %v", runID, err)
+	}
+	firstScheduledAt := createdAt.UTC()
+	claim := claimCoordinatorRunForTest(
+		ctx,
+		t,
+		globalDB,
+		created.ID,
+		"run-retry-due-seed-"+runID,
+		createdAt.Add(time.Millisecond),
+	)
+	if _, err := globalDB.CompleteCoordinatorAndEnqueueNext(
+		ctx,
+		taskpkg.CoordinatorCompletion{
+			RunID: claim.Run.ID, ClaimToken: claim.ClaimToken,
+			Actor: coordinatorActorContextForTest(), Now: createdAt.Add(2 * time.Millisecond),
+			Plan: taskpkg.CoordinatorCompletionPlan{Yield: true, Snapshot: taskpkg.GenerationSnapshot{
+				LoopRunID:  string(created.ID),
+				Generation: 1,
+				Payload: looppkg.GenerationSnapshotPayload{Outputs: []looppkg.GenerationOutput{{
+					Generation: 1, NodeID: "retry_node", Status: "retrying", Attempt: 2,
+					NextAttemptAt: &nextAttemptAt, FirstScheduledAt: &firstScheduledAt, Epoch: 3,
+				}}},
+			}},
+		},
+		looppkg.NewStoreFinalizer(),
+	); err != nil {
+		t.Fatalf("CompleteCoordinatorAndEnqueueNext(%s) error = %v", runID, err)
+	}
+	if paused {
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			`INSERT INTO loop_node_controls (loop_run_id, node_id, paused, updated_at) VALUES (?, ?, 1, ?)`,
+			created.ID,
+			"retry_node",
+			createdAt,
+		); err != nil {
+			t.Fatalf("insert paused retry control error = %v", err)
+		}
+	}
+	if terminal {
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			`UPDATE loop_runs SET status = 'done' WHERE id = ?`,
+			created.ID,
+		); err != nil {
+			t.Fatalf("terminalize retry loop error = %v", err)
+		}
+	}
+	return looppkg.RetryDueCell{
+		WorkspaceID: created.WorkspaceID, LoopRunID: created.ID, Generation: 1,
+		NodeID: "retry_node", ItemIndex: 0, Attempt: 2, Epoch: 3,
+		NextAttemptAt: nextAttemptAt.UTC(),
+	}
 }
 
 func TestGlobalDBLoopRunShouldPreserveGoalPolicyAcrossReopen(t *testing.T) {

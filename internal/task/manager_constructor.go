@@ -12,6 +12,7 @@ func newService(options managerOptions) *Service {
 		taskHooks:             defaultTaskRunHooks(options.taskHooks),
 		coordinatorRunner:     options.coordinatorRunner,
 		generationFinalizer:   options.generationFinalizer,
+		coordinatorTimerArmer: options.coordinatorTimerArmer,
 		wakeNotifier:          defaultWakeNotifier(options.wakeNotifier),
 		participationResolver: options.participationResolver,
 		taskAuthorizer:        taskAuthorizer,

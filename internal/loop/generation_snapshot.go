@@ -16,6 +16,7 @@ import (
 // GenerationSnapshotPayload is the loop-owned payload carried by task.GenerationSnapshot.
 type GenerationSnapshotPayload struct {
 	Outputs              []GenerationOutput               `json:"outputs,omitempty"`
+	Attempts             []NodeAttempt                    `json:"attempts,omitempty"`
 	OutputBlobs          []GenerationOutputBlob           `json:"output_blobs,omitempty"`
 	Verdicts             []gate.VerdictIntent             `json:"verdicts,omitempty"`
 	BestUpdate           *gate.BestUpdateIntent           `json:"best_update,omitempty"`
@@ -37,6 +38,9 @@ type GenerationOutput struct {
 	NextAttemptAt    *time.Time       `json:"next_attempt_at,omitempty"`
 	FirstScheduledAt *time.Time       `json:"first_scheduled_at,omitempty"`
 	Epoch            int64            `json:"epoch,omitempty"`
+	// ExpectedEpoch is the cell epoch observed by the planner. It is used only
+	// for compare-and-swap and is never stored as domain state.
+	ExpectedEpoch *int64 `json:"expected_epoch,omitempty"`
 }
 
 // GenerationOutputBlob is one content-addressed loop output payload required by
@@ -95,39 +99,84 @@ func (f *StoreFinalizer) WriteGenerationSnapshot(
 		if err != nil {
 			return err
 		}
-		_, err = tx.ExecContext(
-			ctx,
-			`INSERT INTO loop_generation_outputs (
-				loop_run_id, generation, node_id, item_index, status, output_ref, task_run_id,
-				child_loop_run_id, resolved_runtime_json
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-			ON CONFLICT(loop_run_id, generation, node_id, item_index) DO UPDATE SET
-				status = excluded.status,
-				output_ref = excluded.output_ref,
-				task_run_id = excluded.task_run_id,
-				child_loop_run_id = excluded.child_loop_run_id,
-				resolved_runtime_json = COALESCE(
-					excluded.resolved_runtime_json,
-					loop_generation_outputs.resolved_runtime_json
-				)`,
-			loopRunID,
-			snap.Generation,
+		if err := writeGenerationOutput(ctx, tx, loopRunID, snap.Generation, output, resolvedRuntime); err != nil {
+			return err
+		}
+	}
+	for _, attempt := range payload.Attempts {
+		if err := writeGenerationAttempt(ctx, tx, loopRunID, snap.Generation, attempt); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func writeGenerationOutput(
+	ctx context.Context,
+	tx task.Tx,
+	loopRunID string,
+	generation int,
+	output GenerationOutput,
+	resolvedRuntime any,
+) error {
+	expectedEpoch := output.Epoch
+	if output.ExpectedEpoch != nil {
+		expectedEpoch = *output.ExpectedEpoch
+	}
+	result, err := tx.ExecContext(
+		ctx,
+		`INSERT INTO loop_generation_outputs (
+			loop_run_id, generation, node_id, item_index, status, output_ref, task_run_id,
+			child_loop_run_id, resolved_runtime_json, attempt, next_attempt_at,
+			first_scheduled_at, epoch
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(loop_run_id, generation, node_id, item_index) DO UPDATE SET
+			status = excluded.status,
+			output_ref = excluded.output_ref,
+			task_run_id = excluded.task_run_id,
+			child_loop_run_id = excluded.child_loop_run_id,
+			resolved_runtime_json = COALESCE(
+				excluded.resolved_runtime_json,
+				loop_generation_outputs.resolved_runtime_json
+			),
+			attempt = excluded.attempt,
+			next_attempt_at = excluded.next_attempt_at,
+			first_scheduled_at = COALESCE(
+				loop_generation_outputs.first_scheduled_at,
+				excluded.first_scheduled_at
+			),
+			epoch = excluded.epoch
+		WHERE loop_generation_outputs.epoch = ?`,
+		loopRunID,
+		generation,
+		output.NodeID,
+		output.ItemIndex,
+		output.Status,
+		sqlNullString(output.OutputRef),
+		sqlNullString(output.TaskRunID),
+		sqlNullString(output.ChildLoopRunID),
+		resolvedRuntime,
+		output.Attempt,
+		output.NextAttemptAt,
+		output.FirstScheduledAt,
+		output.Epoch,
+		expectedEpoch,
+	)
+	if err != nil {
+		return fmt.Errorf("loop: write generation output %s/%d: %w", output.NodeID, output.ItemIndex, err)
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("loop: inspect generation output %s/%d write: %w", output.NodeID, output.ItemIndex, err)
+	}
+	if affected == 0 {
+		return fmt.Errorf(
+			"%w: output %s/%d expected epoch %d",
+			ErrStaleGenerationOutput,
 			output.NodeID,
 			output.ItemIndex,
-			output.Status,
-			sqlNullString(output.OutputRef),
-			sqlNullString(output.TaskRunID),
-			sqlNullString(output.ChildLoopRunID),
-			resolvedRuntime,
+			expectedEpoch,
 		)
-		if err != nil {
-			return fmt.Errorf(
-				"loop: write generation output %s/%d: %w",
-				output.NodeID,
-				output.ItemIndex,
-				err,
-			)
-		}
 	}
 	return nil
 }
@@ -166,6 +215,21 @@ func (o GenerationOutput) normalized() GenerationOutput {
 	if o.ResolvedRuntime != nil {
 		normalized := normalizeResolvedRuntime(*o.ResolvedRuntime)
 		o.ResolvedRuntime = &normalized
+	}
+	if o.Attempt == 0 {
+		o.Attempt = 1
+	}
+	if o.NextAttemptAt != nil {
+		value := o.NextAttemptAt.UTC()
+		o.NextAttemptAt = &value
+	}
+	if o.FirstScheduledAt != nil {
+		value := o.FirstScheduledAt.UTC()
+		o.FirstScheduledAt = &value
+	}
+	if o.ExpectedEpoch != nil {
+		value := *o.ExpectedEpoch
+		o.ExpectedEpoch = &value
 	}
 	return o
 }
@@ -214,15 +278,32 @@ func (o GenerationOutput) validate() error {
 			ErrValidation,
 		)
 	}
+	if o.Attempt < 1 {
+		return fmt.Errorf("%w: generation output attempt must be positive", ErrValidation)
+	}
+	if o.Epoch < 0 {
+		return fmt.Errorf("%w: generation output epoch must be non-negative", ErrValidation)
+	}
+	if o.ExpectedEpoch != nil && *o.ExpectedEpoch < 0 {
+		return fmt.Errorf("%w: generation output expected_epoch must be non-negative", ErrValidation)
+	}
+	if o.Status == generationOutputRetrying && o.NextAttemptAt == nil {
+		return fmt.Errorf("%w: retrying generation output requires next_attempt_at", ErrValidation)
+	}
 	switch strings.TrimSpace(o.Status) {
 	case generationOutputPending,
 		generationOutputEnqueued,
 		generationOutputRunning,
+		generationOutputRetrying,
+		generationOutputWaiting,
+		generationOutputPaused,
 		generationOutputAwaitingChild,
 		generationOutputControlPending,
 		generationOutputAwaitingGoal,
 		generationOutputSucceeded,
-		generationOutputFailed:
+		generationOutputFailed,
+		generationOutputCanceled,
+		generationOutputQuarantined:
 		return nil
 	default:
 		return fmt.Errorf("%w: generation output status is invalid: %q", ErrValidation, o.Status)

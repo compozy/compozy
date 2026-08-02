@@ -63,6 +63,27 @@ func TestLoopActionFailureMetadataShouldPreserveSafeOperatorDetail(t *testing.T)
 			t.Fatalf("failure metadata = %#v, want domain-owned safe detail", envelope.Failure)
 		}
 	})
+
+	t.Run("Should preserve the classified attempt timeout code", func(t *testing.T) {
+		t.Parallel()
+
+		cause := &looppkg.ReasonError{
+			Code: looppkg.ReasonCodeActionTimeout,
+			Err:  looppkg.ErrActionTimeout,
+		}
+		metadata, err := marshalLoopActionFailureMetadata("loop_action", cause)
+		if err != nil {
+			t.Fatalf("marshalLoopActionFailureMetadata() error = %v", err)
+		}
+		var envelope loopActionFailureMetadata
+		if err := json.Unmarshal(metadata, &envelope); err != nil {
+			t.Fatalf("Unmarshal(loop action failure metadata) error = %v", err)
+		}
+		if envelope.ReasonCode != string(looppkg.ReasonCodeActionTimeout) ||
+			envelope.Failure.Code != string(looppkg.ReasonCodeActionTimeout) {
+			t.Fatalf("failure metadata = %#v, want attempt timeout classification", envelope)
+		}
+	})
 }
 
 type safeActionFailureTestError struct{}

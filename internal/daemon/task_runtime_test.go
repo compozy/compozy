@@ -151,6 +151,29 @@ func TestLoopActionRuntimeEnforcesActionLiveness(t *testing.T) {
 		assertLoopActionLivenessFailure(t, manager, err, loopActionReasonNodeTimeout, 17)
 	})
 
+	t.Run("Should let an authored timeout win over the generic no-progress watchdog", func(t *testing.T) {
+		t.Parallel()
+
+		manager, taskRecord, run := newLoopActionLivenessTestFixture()
+		runner := &loopActionLivenessTestRunner{timeout: 40 * time.Millisecond, hasTimeout: true}
+		runtime, err := newLoopActionRuntime(
+			manager,
+			&loopActionCapacityTestStore{taskRecord: taskRecord, run: run},
+			runner,
+			nil,
+			discardLogger(),
+			nil,
+			200*time.Millisecond,
+		)
+		if err != nil {
+			t.Fatalf("newLoopActionRuntime() error = %v", err)
+		}
+		runtime.livenessPollInterval = func(time.Duration) time.Duration { return time.Millisecond }
+
+		err = runtime.executeQueuedRun(context.Background(), taskRecord, run, loopActionRuntimeReasonEnqueued)
+		assertLoopActionLivenessFailure(t, manager, err, loopActionReasonNodeTimeout, 0)
+	})
+
 	t.Run("Should fail on no progress even while lease heartbeats succeed", func(t *testing.T) {
 		t.Parallel()
 

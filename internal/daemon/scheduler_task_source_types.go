@@ -16,5 +16,6 @@ type schedulerTaskSource struct {
 	manager             *taskpkg.Service
 	store               taskStore
 	watchEventsGapScan  *loopWatchEventsGapScanState
+	loopRetryDueScan    *loopRetryDueScanState
 	coordinatorBackstop loopCoordinatorBackstopRunner
 }

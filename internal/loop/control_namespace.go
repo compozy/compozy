@@ -100,7 +100,12 @@ func (h GenerationHistory) previousNamespace(
 		if !ok {
 			continue
 		}
-		nodes[nodeID] = map[string]any{namespaceStatusKey: node.Status, namespaceOutputKey: node.Output}
+		entry := map[string]any{namespaceStatusKey: node.Status, namespaceOutputKey: node.Output}
+		if node.Failure != nil {
+			entry[namespaceFailureKey] = *node.Failure
+			entry[namespaceDispositionKey] = node.Disposition
+		}
+		nodes[nodeID] = entry
 	}
 	verdicts := make(map[string]any, len(h.Previous.Verdicts))
 	for gateID, items := range h.Previous.Verdicts {
@@ -231,7 +236,7 @@ func valueAtPath(namespace map[string]any, path []string) (any, bool) {
 
 func outputValue(ref string) any {
 	trimmed := strings.TrimSpace(ref)
-	if trimmed == "" || trimmed == branchSkippedOutputRef {
+	if trimmed == "" || outputRefRepresentsAbsentValue(trimmed) {
 		return nil
 	}
 	var value any

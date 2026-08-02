@@ -704,7 +704,13 @@ func assertLoopRunStateSchema(t *testing.T, globalDB *GlobalDB) {
 		"ON loop_runs(workspace_id, loop_name, created_at DESC, id DESC, status)",
 	)
 	assertIndexesPresent(t, globalDB.db, "task_runs", "uq_task_runs_active_loop_coordinator")
-	assertIndexesPresent(t, globalDB.db, "loop_generation_outputs", "idx_loop_generation_outputs_output_ref")
+	assertIndexesPresent(
+		t,
+		globalDB.db,
+		"loop_generation_outputs",
+		"idx_loop_generation_outputs_output_ref",
+		"idx_loop_generation_outputs_retry_due",
+	)
 	assertIndexSQLContains(
 		t,
 		globalDB.db,
@@ -717,6 +723,12 @@ func assertLoopRunStateSchema(t *testing.T, globalDB *GlobalDB) {
 		globalDB.db,
 		"idx_loop_generation_outputs_output_ref",
 		"ON loop_generation_outputs(output_ref)",
+	)
+	assertIndexSQLContains(
+		t,
+		globalDB.db,
+		"idx_loop_generation_outputs_retry_due",
+		"WHERE status = 'retrying' AND next_attempt_at IS NOT NULL",
 	)
 	assertIndexSQLContains(
 		t,

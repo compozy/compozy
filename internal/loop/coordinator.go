@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"math/rand"
 	"strings"
 	"time"
 
@@ -15,11 +16,16 @@ const (
 	generationOutputPending        = "pending"
 	generationOutputEnqueued       = "enqueued"
 	generationOutputRunning        = "running"
+	generationOutputRetrying       = "retrying"
+	generationOutputWaiting        = "waiting"
+	generationOutputPaused         = "paused"
 	generationOutputAwaitingChild  = "awaiting_child"
 	generationOutputControlPending = GenerationOutputStatusControlPending
 	generationOutputAwaitingGoal   = GenerationOutputStatusAwaitingGoal
 	generationOutputSucceeded      = "succeeded"
 	generationOutputFailed         = "failed"
+	generationOutputCanceled       = "canceled"
+	generationOutputQuarantined    = "quarantined"
 
 	childLoopTimeoutReason     = "child_loop_timeout"
 	blockingIssuesRepeatedCode = "blocking_issues_repeated"
@@ -31,6 +37,20 @@ const (
 	// GenerationOutputStatusAwaitingGoal identifies a settled pause or approval gate awaiting re-entry.
 	GenerationOutputStatusAwaitingGoal = "awaiting_goal"
 )
+
+// GenerationOutputStatusParked reports whether a cell is deliberately excluded
+// from scheduling, rerun, and no-progress arithmetic.
+func GenerationOutputStatusParked(status string) bool {
+	switch strings.TrimSpace(status) {
+	case generationOutputPaused,
+		generationOutputWaiting,
+		generationOutputAwaitingGoal,
+		generationOutputQuarantined:
+		return true
+	default:
+		return false
+	}
+}
 
 // CoordinatorTaskRunReader is the task-run read seam required by the loop coordinator.
 type CoordinatorTaskRunReader interface {
@@ -45,6 +65,15 @@ type GenerationOutputReader interface {
 		runID RunID,
 		generation int,
 	) ([]GenerationOutput, error)
+}
+
+// NodeAttemptReader reads the immutable attempt ledger for lifecycle planning and repair context.
+type NodeAttemptReader interface {
+	ListNodeAttempts(
+		ctx context.Context,
+		workspaceID WorkspaceID,
+		runID RunID,
+	) ([]NodeAttempt, error)
 }
 
 // GateDecisionReader reads persisted human decisions for coordinator gate re-evaluation.
@@ -63,6 +92,7 @@ type CoordinatorRunner struct {
 	taskRuns           CoordinatorTaskRunReader
 	store              Store
 	outputs            GenerationOutputReader
+	attempts           NodeAttemptReader
 	verdicts           gate.VerdictReader
 	hooks              HookDispatcher
 	gateEvaluator      gate.GateEvaluator
@@ -70,6 +100,7 @@ type CoordinatorRunner struct {
 	runtimeCatalog     WorkspaceRuntimeCatalog
 	logger             *slog.Logger
 	now                func() time.Time
+	retryRand          func() float64
 	watchPoller        WatchPoller
 	watchEventsLedger  WatchEventsLedger
 	watchSilenceWindow time.Duration
@@ -103,10 +134,14 @@ func NewCoordinatorRunner(
 		outputs:            outputs,
 		logger:             logger,
 		now:                time.Now,
+		retryRand:          rand.Float64,
 		watchSilenceWindow: DefaultWatchSilenceWindow,
 	}
 	if verdicts, ok := outputs.(gate.VerdictReader); ok {
 		runner.verdicts = verdicts
+	}
+	if attempts, ok := outputs.(NodeAttemptReader); ok {
+		runner.attempts = attempts
 	}
 	for _, opt := range opts {
 		opt(runner)
@@ -197,27 +232,12 @@ func (r *CoordinatorRunner) buildCoordinatorPlan(
 		plan := noOpCoordinatorPlan(run)
 		return r.dispatchGateHooks(ctx, taskRun, run, plan), nil
 	}
-	if run.Generation > 0 {
-		outputs, err := r.outputs.ListGenerationOutputs(ctx, run.WorkspaceID, run.ID, run.Generation)
-		if err != nil {
-			return task.CoordinatorCompletionPlan{}, err
-		}
-		if len(outputs) > 0 {
-			plan, err := r.buildGenerationFinisherPlan(
-				ctx,
-				taskRun,
-				run,
-				run.Generation,
-				resolved,
-				effective,
-				fanOutWidth,
-				outputs,
-			)
-			if err != nil {
-				return task.CoordinatorCompletionPlan{}, err
-			}
-			return r.dispatchGateHooks(ctx, taskRun, run, plan), nil
-		}
+	if plan, found, err := r.buildExistingGenerationPlan(
+		ctx, taskRun, run, resolved, effective, fanOutWidth,
+	); err != nil {
+		return task.CoordinatorCompletionPlan{}, err
+	} else if found {
+		return r.dispatchGateHooks(ctx, taskRun, run, plan), nil
 	}
 	generation := run.Generation + 1
 	if terminal := iterationCapTerminal(run, generation); terminal != nil {
@@ -249,10 +269,35 @@ func (r *CoordinatorRunner) buildCoordinatorPlan(
 		r.watchRuntime(),
 		r.watchEventsRuntime(),
 		history,
+		r.now().UTC(),
 	)
 	if err != nil {
 		return task.CoordinatorCompletionPlan{}, err
 	}
 	r.dispatchGenerationPost(ctx, taskRun, run, intent)
 	return r.dispatchGateHooks(ctx, taskRun, run, plan), nil
+}
+
+func (r *CoordinatorRunner) buildExistingGenerationPlan(
+	ctx context.Context,
+	taskRun task.Run,
+	run Run,
+	resolved *ResolvedDefinition,
+	effective EffectiveConfig,
+	fanOutWidth int,
+) (task.CoordinatorCompletionPlan, bool, error) {
+	if run.Generation <= 0 {
+		return task.CoordinatorCompletionPlan{}, false, nil
+	}
+	outputs, err := r.outputs.ListGenerationOutputs(ctx, run.WorkspaceID, run.ID, run.Generation)
+	if err != nil {
+		return task.CoordinatorCompletionPlan{}, false, err
+	}
+	if len(outputs) == 0 {
+		return task.CoordinatorCompletionPlan{}, false, nil
+	}
+	plan, err := r.buildGenerationFinisherPlan(
+		ctx, taskRun, run, run.Generation, resolved, effective, fanOutWidth, outputs,
+	)
+	return plan, true, err
 }

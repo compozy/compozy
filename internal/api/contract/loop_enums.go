@@ -4,19 +4,22 @@ package contract
 type LoopRunEventKind string
 
 const (
-	LoopRunEventNodeRunning       LoopRunEventKind = "node_running"
-	LoopRunEventNodeSucceeded     LoopRunEventKind = "node_succeeded"
-	LoopRunEventNodeFailed        LoopRunEventKind = "node_failed"
-	LoopRunEventGateVerdict       LoopRunEventKind = "gate_verdict"
-	LoopRunEventGenerationStarted LoopRunEventKind = "generation_started"
-	LoopRunEventChannelMsg        LoopRunEventKind = "channel_msg"
-	LoopRunEventTokenTick         LoopRunEventKind = "token_tick"
-	LoopRunEventNeedsApproval     LoopRunEventKind = "needs_approval"
-	LoopRunEventStatusChanged     LoopRunEventKind = "status_changed"
-	LoopRunEventGoalTurnStarted   LoopRunEventKind = "goal_turn_started"
-	LoopRunEventGoalTurnCompleted LoopRunEventKind = "goal_turn_completed"
-	LoopRunEventGoalStatusChanged LoopRunEventKind = "goal_status_changed"
-	LoopRunEventRuntimeApplied    LoopRunEventKind = "runtime_applied"
+	LoopRunEventNodeRunning          LoopRunEventKind = "node_running"
+	LoopRunEventNodeSucceeded        LoopRunEventKind = "node_succeeded"
+	LoopRunEventNodeFailed           LoopRunEventKind = "node_failed"
+	LoopRunEventGateVerdict          LoopRunEventKind = "gate_verdict"
+	LoopRunEventGenerationStarted    LoopRunEventKind = "generation_started"
+	LoopRunEventChannelMsg           LoopRunEventKind = "channel_msg"
+	LoopRunEventTokenTick            LoopRunEventKind = "token_tick"
+	LoopRunEventNeedsApproval        LoopRunEventKind = "needs_approval"
+	LoopRunEventStatusChanged        LoopRunEventKind = "status_changed"
+	LoopRunEventGoalTurnStarted      LoopRunEventKind = "goal_turn_started"
+	LoopRunEventGoalTurnCompleted    LoopRunEventKind = "goal_turn_completed"
+	LoopRunEventGoalStatusChanged    LoopRunEventKind = "goal_status_changed"
+	LoopRunEventRuntimeApplied       LoopRunEventKind = "runtime_applied"
+	LoopRunEventNodeRetryScheduled   LoopRunEventKind = "node_retry_scheduled"
+	LoopRunEventStaleScheduleDropped LoopRunEventKind = "stale_schedule_dropped"
+	LoopRunEventLateArrival          LoopRunEventKind = "late_arrival"
 )
 
 // LoopRunStatusValues returns the closed public loop run status vocabulary.
@@ -75,6 +78,9 @@ func LoopRunEventKindValues() []string {
 		string(LoopRunEventGoalTurnCompleted),
 		string(LoopRunEventGoalStatusChanged),
 		string(LoopRunEventRuntimeApplied),
+		string(LoopRunEventNodeRetryScheduled),
+		string(LoopRunEventStaleScheduleDropped),
+		string(LoopRunEventLateArrival),
 	}
 }
 
@@ -124,5 +130,6 @@ func LoopRunLifecycleEventKindValues() []string {
 		string(LoopRunEventNeedsApproval),
 		string(LoopRunEventGoalStatusChanged),
 		string(LoopRunEventRuntimeApplied),
+		string(LoopRunEventNodeRetryScheduled),
 	}
 }

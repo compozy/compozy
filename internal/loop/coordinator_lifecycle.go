@@ -1,0 +1,360 @@
+package loop
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/compozy/compozy/internal/loop/dsl"
+	"github.com/compozy/compozy/internal/task"
+	"github.com/compozy/compozy/internal/tools"
+)
+
+const (
+	errorRoutedOutputRefPrefix = "error_routed:"
+	failureAbsorbedOutputRef   = "failure_absorbed"
+)
+
+type nodeLifecycleResult struct {
+	attempt NodeAttempt
+	handled bool
+	live    bool
+}
+
+func (r *CoordinatorRunner) applyNodeLifecyclePrecedence(
+	ctx context.Context,
+	run Run,
+	generation int,
+	resolved *ResolvedDefinition,
+	effective EffectiveConfig,
+	outputs []GenerationOutput,
+) ([]GenerationOutput, []NodeAttempt, bool, error) {
+	attempts, err := r.listNodeAttempts(ctx, run)
+	if err != nil {
+		return nil, nil, false, err
+	}
+	advanced := cloneGenerationOutputs(outputs)
+	newAttempts := make([]NodeAttempt, 0)
+	graph := resolved.Definition.Graph
+	topology := newControlTopology(graph)
+	live := false
+	for index := range advanced {
+		if advanced[index].Status == generationOutputRetrying {
+			live = true
+			continue
+		}
+		result, applyErr := r.applyTerminalNodeLifecycle(
+			ctx, run, generation, effective, graph, topology, advanced, index, attempts,
+		)
+		if applyErr != nil {
+			return nil, nil, false, applyErr
+		}
+		if !result.handled {
+			continue
+		}
+		newAttempts = append(newAttempts, result.attempt)
+		attempts = append(attempts, result.attempt)
+		live = live || result.live
+	}
+	return advanced, newAttempts, live, nil
+}
+
+func (r *CoordinatorRunner) applyTerminalNodeLifecycle(
+	ctx context.Context,
+	run Run,
+	generation int,
+	effective EffectiveConfig,
+	graph dsl.Graph,
+	topology controlTopology,
+	advanced []GenerationOutput,
+	index int,
+	attempts []NodeAttempt,
+) (nodeLifecycleResult, error) {
+	output := advanced[index]
+	node, found := lifecycleActionNode(graph, output, generation, attempts)
+	if !found {
+		return nodeLifecycleResult{}, nil
+	}
+	taskRun, err := r.taskRuns.GetTaskRun(ctx, output.TaskRunID)
+	if err != nil {
+		return nodeLifecycleResult{}, fmt.Errorf(
+			"loop: read task run %q for node lifecycle: %w",
+			output.TaskRunID,
+			err,
+		)
+	}
+	attempt := nodeAttemptForTaskRun(run, generation, output, taskRun, r.now().UTC())
+	if output.Status == generationOutputSucceeded {
+		attempt.Disposition = AttemptSucceeded
+		if errorPolicy := nodeErrorPolicy(node); errorPolicy != nil && errorPolicy.Route != "" {
+			skipErrorRouteOnSuccess(graph, topology, node, output, &advanced)
+		}
+		return nodeLifecycleResult{attempt: attempt, handled: true}, nil
+	}
+	return r.applyFailedNodeLifecycle(effective, graph, topology, advanced, index, attempts, node, taskRun, attempt)
+}
+
+func lifecycleActionNode(
+	graph dsl.Graph,
+	output GenerationOutput,
+	generation int,
+	attempts []NodeAttempt,
+) (dsl.Node, bool) {
+	node, found := graphNode(graph, dsl.NodeID(output.NodeID))
+	terminal := output.Status == generationOutputSucceeded || output.Status == generationOutputFailed
+	if !found || !terminal || output.TaskRunID == "" || node.Class != dsl.NodeClassAction {
+		return dsl.Node{}, false
+	}
+	if dsl.ActionKind(node.Kind) == dsl.ActionGoal || output.FirstScheduledAt == nil {
+		return dsl.Node{}, false
+	}
+	return node, !nodeAttemptRecorded(attempts, generation, output)
+}
+
+func (r *CoordinatorRunner) applyFailedNodeLifecycle(
+	effective EffectiveConfig,
+	graph dsl.Graph,
+	topology controlTopology,
+	advanced []GenerationOutput,
+	index int,
+	attempts []NodeAttempt,
+	node dsl.Node,
+	taskRun task.Run,
+	attempt NodeAttempt,
+) (nodeLifecycleResult, error) {
+	output := advanced[index]
+	failure := classifyGenerationOutputFailure(output, taskRun)
+	retryPlan, err := planNodeRetry(&nodeRetryPlanInput{
+		node:        node,
+		effective:   effective,
+		output:      output,
+		failure:     failure,
+		attempts:    attemptsForOutput(attempts, attempt.Generation, output),
+		now:         r.now().UTC(),
+		randFloat64: r.retryRand,
+	})
+	if err != nil {
+		return nodeLifecycleResult{}, err
+	}
+	failure = retryPlan.failure
+	applyFailureToAttempt(&attempt, failure)
+	if retryPlan.retry {
+		attempt.Disposition = AttemptRetried
+		attempt.NextAttemptAt = cloneTimePointer(retryPlan.nextAttemptAt)
+		output.Status = generationOutputRetrying
+		output.NextAttemptAt = cloneTimePointer(retryPlan.nextAttemptAt)
+		output.Epoch++
+		if err := validateRetrySchedule(output); err != nil {
+			return nodeLifecycleResult{}, err
+		}
+		advanced[index] = output
+		return nodeLifecycleResult{attempt: attempt, handled: true, live: true}, nil
+	}
+	attempt.Disposition = applyNodeFailureDisposition(graph, topology, node, output, advanced, index, failure)
+	return nodeLifecycleResult{attempt: attempt, handled: true}, nil
+}
+
+func applyNodeFailureDisposition(
+	graph dsl.Graph,
+	topology controlTopology,
+	node dsl.Node,
+	output GenerationOutput,
+	advanced []GenerationOutput,
+	index int,
+	failure ClassifiedFailure,
+) AttemptDisposition {
+	errorPolicy := nodeErrorPolicy(node)
+	switch {
+	case errorPolicy != nil && errorPolicy.Route != "":
+		output.Status = generationOutputSucceeded
+		output.OutputRef = errorRoutedOutputRefPrefix + string(errorPolicy.Route)
+		output.NextAttemptAt = nil
+		output.Epoch++
+		advanced[index] = output
+		skipErrorRouteSuccessPath(graph, topology, node, output, &advanced)
+		return AttemptRouted
+	case errorPolicy != nil && errorPolicy.AllowFail:
+		output.Status = generationOutputSucceeded
+		output.OutputRef = failureAbsorbedOutputRef
+		output.NextAttemptAt = nil
+		output.Epoch++
+		advanced[index] = output
+		return AttemptAbsorbed
+	default:
+		if failureRef, ok := ActionFailureOutputRef(NewActionFailure(failure.Code, failure.Cause, failure.Hint)); ok {
+			output.OutputRef = failureRef
+		}
+		advanced[index] = output
+		return AttemptEscalated
+	}
+}
+
+func nodeErrorPolicy(node dsl.Node) *dsl.ErrorPolicy {
+	if node.NodeLifecycleState == nil {
+		return nil
+	}
+	return node.OnError
+}
+
+func (r *CoordinatorRunner) listNodeAttempts(ctx context.Context, run Run) ([]NodeAttempt, error) {
+	if r.attempts == nil {
+		return nil, nil
+	}
+	attempts, err := r.attempts.ListNodeAttempts(ctx, run.WorkspaceID, run.ID)
+	if err != nil {
+		return nil, fmt.Errorf("loop: list node attempts: %w", err)
+	}
+	return attempts, nil
+}
+
+func nodeAttemptRecorded(attempts []NodeAttempt, generation int, output GenerationOutput) bool {
+	for _, attempt := range attempts {
+		if attempt.Generation == generation && attempt.NodeID == NodeID(output.NodeID) &&
+			attempt.ItemIndex == output.ItemIndex && attempt.Attempt == output.Attempt {
+			return true
+		}
+	}
+	return false
+}
+
+func attemptsForOutput(
+	attempts []NodeAttempt,
+	generation int,
+	output GenerationOutput,
+) []NodeAttempt {
+	filtered := make([]NodeAttempt, 0)
+	for _, attempt := range attempts {
+		if attempt.Generation == generation && attempt.NodeID == NodeID(output.NodeID) &&
+			attempt.ItemIndex == output.ItemIndex {
+			filtered = append(filtered, attempt)
+		}
+	}
+	return filtered
+}
+
+func nodeAttemptForTaskRun(
+	run Run,
+	generation int,
+	output GenerationOutput,
+	taskRun task.Run,
+	now time.Time,
+) NodeAttempt {
+	startedAt := taskRun.StartedAt
+	if startedAt.IsZero() {
+		startedAt = taskRun.ClaimedAt
+	}
+	if startedAt.IsZero() {
+		startedAt = taskRun.QueuedAt
+	}
+	if startedAt.IsZero() && output.FirstScheduledAt != nil {
+		startedAt = *output.FirstScheduledAt
+	}
+	if startedAt.IsZero() {
+		startedAt = now
+	}
+	endedAt := taskRun.EndedAt
+	if endedAt.IsZero() {
+		endedAt = now
+	}
+	return NodeAttempt{
+		LoopRunID:  run.ID,
+		Generation: generation,
+		NodeID:     NodeID(output.NodeID),
+		ItemIndex:  output.ItemIndex,
+		Attempt:    output.Attempt,
+		StartedAt:  startedAt.UTC(),
+		EndedAt:    new(endedAt.UTC()),
+	}
+}
+
+func applyFailureToAttempt(attempt *NodeAttempt, failure ClassifiedFailure) {
+	if attempt == nil {
+		return
+	}
+	failureClass := failure.Class
+	attempt.FailureClass = &failureClass
+	attempt.FailureCode = failure.Code
+	attempt.Cause = failure.Cause
+	attempt.Hint = failure.Hint
+	attempt.Target = failure.Target
+}
+
+func classifyGenerationOutputFailure(output GenerationOutput, taskRun task.Run) ClassifiedFailure {
+	failure := actionFailureFromOutputRef(output.OutputRef)
+	if failure.Code == "" {
+		failure = NewActionFailure(
+			firstNonEmpty(strings.TrimSpace(output.OutputRef), string(FailurePayloadDeclared)),
+			firstNonEmpty(strings.TrimSpace(taskRun.Error), "node execution failed"),
+			"",
+		)
+	}
+	evidence := FailureEvidence{
+		Code:   failure.Code,
+		Cause:  failure.Cause,
+		Hint:   failure.Recovery,
+		Target: failureTarget(failure.Code),
+	}
+	if targetUnavailableFailureCode(failure.Code) {
+		evidence.TargetUnavailable = true
+		return ClassifyNodeFailure(evidence)
+	}
+	switch failure.Code {
+	case string(FailureCancellation), string(tools.ErrorCodeCanceled):
+		evidence.CancelRequested = true
+	case string(ReasonCodeActionTimeout), childLoopTimeoutReason:
+		evidence.AttemptTimedOut = true
+	case string(FailureBudgetExhausted):
+		evidence.BudgetExhausted = true
+	case string(tools.ErrorCodeUnavailable), string(tools.ErrorCodeBackendFailed),
+		string(tools.ErrorCodeTimedOut), "child_loop_status:failed":
+		evidence.Transport = true
+	case string(ReasonCodeUnknownActionKind), string(ReasonCodeActionDependencyMissing),
+		string(ReasonCodeActionSchemaInvalid), string(ReasonCodeActionContractStale):
+		evidence.Authoring = true
+	default:
+		evidence.PayloadFailure = &failure
+	}
+	return ClassifyNodeFailure(evidence)
+}
+
+func actionFailureFromOutputRef(outputRef string) ActionFailure {
+	var failure ActionFailure
+	if err := json.Unmarshal([]byte(strings.TrimSpace(outputRef)), &failure); err != nil {
+		return ActionFailure{}
+	}
+	failure.Kind = strings.TrimSpace(failure.Kind)
+	failure.Code = strings.TrimSpace(failure.Code)
+	failure.Cause = strings.TrimSpace(failure.Cause)
+	failure.Recovery = strings.TrimSpace(failure.Recovery)
+	if failure.Kind != actionFailureKind || failure.Code == "" || failure.Cause == "" {
+		return ActionFailure{}
+	}
+	return failure
+}
+
+func failureTarget(code string) string {
+	if targetUnavailableFailureCode(code) {
+		return strings.TrimSpace(code)
+	}
+	return ""
+}
+
+func targetUnavailableFailureCode(code string) bool {
+	switch strings.TrimSpace(code) {
+	case "dependency_missing", "credential_missing", "resource_unreachable",
+		string(FailureTargetUnavailable):
+		return true
+	default:
+		return false
+	}
+}
+
+func cloneTimePointer(value *time.Time) *time.Time {
+	if value == nil {
+		return nil
+	}
+	cloned := value.UTC()
+	return &cloned
+}

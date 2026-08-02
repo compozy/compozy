@@ -87,6 +87,7 @@ type managerOptions struct {
 	taskHooks             RunHookDispatcher
 	coordinatorRunner     CoordinatorRunner
 	generationFinalizer   GenerationStateFinalizer
+	coordinatorTimerArmer CoordinatorTimerArmer
 	wakeNotifier          WakeNotifier
 	participationResolver participation.Resolver
 	coordinatorStatusOK   func(string) bool
@@ -115,6 +116,7 @@ type Service struct {
 	taskHooks             RunHookDispatcher
 	coordinatorRunner     CoordinatorRunner
 	generationFinalizer   GenerationStateFinalizer
+	coordinatorTimerArmer CoordinatorTimerArmer
 	wakeNotifier          WakeNotifier
 	participationResolver participation.Resolver
 	taskAuthorizer        ResourceAuthorizer
@@ -204,6 +206,13 @@ func WithCoordinatorRunner(runner CoordinatorRunner) Option {
 func WithGenerationStateFinalizer(finalizer GenerationStateFinalizer) Option {
 	return func(opts *managerOptions) {
 		opts.generationFinalizer = finalizer
+	}
+}
+
+// WithCoordinatorTimerArmer injects the daemon-owned retry timer fast path.
+func WithCoordinatorTimerArmer(armer CoordinatorTimerArmer) Option {
+	return func(opts *managerOptions) {
+		opts.coordinatorTimerArmer = armer
 	}
 }
 

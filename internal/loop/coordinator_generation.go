@@ -3,10 +3,20 @@ package loop
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/compozy/compozy/internal/loop/gate"
 	"github.com/compozy/compozy/internal/task"
 )
+
+type generationFinisherState struct {
+	outputs         []GenerationOutput
+	attempts        []NodeAttempt
+	topology        controlTopology
+	controlTerminal *task.CoordinatorTerminal
+	loopStops       []task.CoordinatorStopSpec
+	live            bool
+}
 
 func (r *CoordinatorRunner) buildGenerationFinisherPlan(
 	ctx context.Context,
@@ -19,25 +29,23 @@ func (r *CoordinatorRunner) buildGenerationFinisherPlan(
 	outputs []GenerationOutput,
 ) (task.CoordinatorCompletionPlan, error) {
 	def := resolved.Definition
-	graph := def.Graph
-	topology := newControlTopology(graph)
-	normalized, failed, controlTerminal, live, loopStops, err := r.refreshGenerationOutputs(
-		ctx,
-		run,
-		generation,
-		graph,
-		topology,
-		outputs,
-	)
+	state, err := r.prepareGenerationFinisherState(ctx, run, generation, resolved, effective, outputs)
 	if err != nil {
 		return task.CoordinatorCompletionPlan{}, err
 	}
-	plan := coordinatorFinisherPlan(run, generation, normalized, loopStops)
-	plan.GenerationInFlight = live
-	if controlTerminal != nil {
+	failed := selectFailedOutput(state.outputs)
+	plan := coordinatorFinisherPlan(run, generation, state.outputs, state.loopStops)
+	if err := appendAttemptsToGenerationSnapshot(&plan.Snapshot, state.attempts); err != nil {
+		return task.CoordinatorCompletionPlan{}, err
+	}
+	if err := appendRetryScheduleIntents(&plan, state.outputs, state.attempts); err != nil {
+		return task.CoordinatorCompletionPlan{}, err
+	}
+	plan.GenerationInFlight = state.live
+	if state.controlTerminal != nil {
 		return r.buildGoalControlFinisherPlan(
-			ctx, taskRun, run, generation, resolved, effective, topology,
-			fanOutWidth, plan, normalized, live, controlTerminal,
+			ctx, taskRun, run, generation, resolved, effective, state.topology,
+			fanOutWidth, plan, state.outputs, state.live, state.controlTerminal,
 		)
 	}
 	if failed != nil {
@@ -49,10 +57,10 @@ func (r *CoordinatorRunner) buildGenerationFinisherPlan(
 			def,
 			effective,
 			plan,
-			normalized,
+			state.outputs,
 			*failed,
-			live,
-			loopStops,
+			state.live,
+			state.loopStops,
 			nil,
 		)
 	}
@@ -63,15 +71,105 @@ func (r *CoordinatorRunner) buildGenerationFinisherPlan(
 		generation,
 		resolved,
 		effective,
-		topology,
+		state.topology,
 		r.gateEvaluator,
 		fanOutWidth,
 		r.watchRuntime(),
 		r.watchEventsRuntime(),
 		plan,
-		normalized,
-		live,
+		state.outputs,
+		state.live,
 	)
+}
+
+func (r *CoordinatorRunner) prepareGenerationFinisherState(
+	ctx context.Context,
+	run Run,
+	generation int,
+	resolved *ResolvedDefinition,
+	effective EffectiveConfig,
+	outputs []GenerationOutput,
+) (generationFinisherState, error) {
+	topology := newControlTopology(resolved.Definition.Graph)
+	normalized, _, controlTerminal, live, loopStops, err := r.refreshGenerationOutputs(
+		ctx, run, generation, resolved.Definition.Graph, topology, outputs,
+	)
+	if err != nil {
+		return generationFinisherState{}, err
+	}
+	normalized, attempts, lifecycleLive, err := r.applyNodeLifecyclePrecedence(
+		ctx, run, generation, resolved, effective, normalized,
+	)
+	if err != nil {
+		return generationFinisherState{}, err
+	}
+	return generationFinisherState{
+		outputs: normalized, attempts: attempts, topology: topology,
+		controlTerminal: controlTerminal, loopStops: loopStops, live: live || lifecycleLive,
+	}, nil
+}
+
+func appendRetryScheduleIntents(
+	plan *task.CoordinatorCompletionPlan,
+	outputs []GenerationOutput,
+	attempts []NodeAttempt,
+) error {
+	if plan == nil {
+		return nil
+	}
+	payload, err := GenerationSnapshotPayloadFrom(plan.Snapshot.Payload)
+	if err != nil {
+		return err
+	}
+	for _, attempt := range attempts {
+		if attempt.Disposition != AttemptRetried || attempt.NextAttemptAt == nil || attempt.FailureClass == nil {
+			continue
+		}
+		output, found := generationOutputByAttempt(outputs, attempt)
+		if !found {
+			return fmt.Errorf(
+				"%w: retry output %s/%d/a%d is missing",
+				ErrValidation,
+				attempt.NodeID,
+				attempt.ItemIndex,
+				attempt.Attempt,
+			)
+		}
+		cell := RetryDueCell{
+			LoopRunID: planRetryRunID(plan), Generation: plan.Snapshot.Generation,
+			NodeID: attempt.NodeID, ItemIndex: attempt.ItemIndex, Attempt: attempt.Attempt,
+			Epoch: output.Epoch, NextAttemptAt: attempt.NextAttemptAt.UTC(),
+		}
+		payload.Events = append(payload.Events, GenerationLifecycleEventIntent{
+			Kind: GenerationLifecycleEventNodeRetryScheduled, NodeID: string(attempt.NodeID),
+			ItemIndex: attempt.ItemIndex, Attempt: attempt.Attempt + 1, IssuedEpoch: output.Epoch,
+			NextAttemptAt: cloneTimePointer(attempt.NextAttemptAt), FailureClass: *attempt.FailureClass,
+		})
+		plan.PostCommitTimers = append(plan.PostCommitTimers, task.CoordinatorTimerSpec{
+			LoopRunID: string(cell.LoopRunID), Generation: cell.Generation, NodeID: string(cell.NodeID),
+			ItemIndex: cell.ItemIndex, Attempt: cell.Attempt, IssuedEpoch: cell.Epoch,
+			FireAt: cell.NextAttemptAt, IdempotencyKey: RetryWakeIdempotencyKey(cell),
+		})
+	}
+	plan.Snapshot.Payload = payload
+	return nil
+}
+
+func generationOutputByAttempt(outputs []GenerationOutput, attempt NodeAttempt) (GenerationOutput, bool) {
+	for _, output := range outputs {
+		sameCell := output.NodeID == string(attempt.NodeID) && output.ItemIndex == attempt.ItemIndex
+		if sameCell && output.Attempt == attempt.Attempt {
+			return output, true
+		}
+	}
+	return GenerationOutput{}, false
+}
+
+func planRetryRunID(plan *task.CoordinatorCompletionPlan) RunID {
+	if plan == nil {
+		return ""
+	}
+	return RunID(plan.Snapshot.LoopRunID)
 }
 
 func (r *CoordinatorRunner) buildGoalControlFinisherPlan(
@@ -160,10 +258,15 @@ func (r *CoordinatorRunner) buildLiveGenerationPlan(
 	if err != nil {
 		return task.CoordinatorCompletionPlan{}, err
 	}
-	plan.Snapshot.Payload = generationSnapshotPayload(
+	payload, err := generationSnapshotPayloadPreservingIntents(
+		plan.Snapshot.Payload,
 		sortedGenerationOutputs(advancedOutputs),
 		outputBlobs,
 	)
+	if err != nil {
+		return task.CoordinatorCompletionPlan{}, err
+	}
+	plan.Snapshot.Payload = payload
 	if err := applyGateEvaluationIntents(&plan, run, generation, gateEvaluations); err != nil {
 		return task.CoordinatorCompletionPlan{}, err
 	}
@@ -217,6 +320,7 @@ func (r *CoordinatorRunner) finishLiveGenerationPlan(
 		gateEvaluator,
 		advancedOutputs,
 		outputBlobs,
+		r.now().UTC(),
 	)
 	if err != nil {
 		return task.CoordinatorCompletionPlan{}, err
@@ -279,6 +383,7 @@ func appendReadyNodeRunsToPlan(
 	gateEvaluator gate.GateEvaluator,
 	advancedOutputs []GenerationOutput,
 	outputBlobs []GenerationOutputBlob,
+	scheduledAt time.Time,
 ) (bool, error) {
 	postReserveOutputs := cloneGenerationOutputs(sortedGenerationOutputs(advancedOutputs))
 	if err := appendReadyNodeRunsControlAware(
@@ -289,12 +394,14 @@ func appendReadyNodeRunsToPlan(
 		topology,
 		gateEvaluator != nil,
 		postReserveOutputs,
+		scheduledAt,
 	); err != nil {
 		return false, err
 	}
 	if len(plan.NodeRuns) == 0 {
 		return false, nil
 	}
+	postReserveOutputs = generationOutputsExpectCurrentEpoch(postReserveOutputs)
 	plan.PostReserveSnapshot = generationSnapshotWithOutputs(
 		run.ID,
 		generation,
@@ -302,6 +409,22 @@ func appendReadyNodeRunsToPlan(
 		outputBlobs,
 	)
 	return true, nil
+}
+
+func appendAttemptsToGenerationSnapshot(
+	snapshot *task.GenerationSnapshot,
+	attempts []NodeAttempt,
+) error {
+	if snapshot == nil || len(attempts) == 0 {
+		return nil
+	}
+	payload, err := GenerationSnapshotPayloadFrom(snapshot.Payload)
+	if err != nil {
+		return err
+	}
+	payload.Attempts = append(payload.Attempts, attempts...)
+	snapshot.Payload = payload
+	return nil
 }
 
 func iterationCapTerminal(run Run, generation int) *task.CoordinatorTerminal {

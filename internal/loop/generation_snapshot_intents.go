@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"strings"
+	"time"
 
 	"github.com/compozy/compozy/internal/loop/gate"
 )
@@ -18,6 +19,8 @@ const (
 	GenerationLifecycleEventGenerationStarted GenerationLifecycleEventKind = "generation_started"
 	// GenerationLifecycleEventGateVerdict records a sanitized gate verdict.
 	GenerationLifecycleEventGateVerdict GenerationLifecycleEventKind = "gate_verdict"
+	// GenerationLifecycleEventNodeRetryScheduled records one durable retry schedule.
+	GenerationLifecycleEventNodeRetryScheduled GenerationLifecycleEventKind = "node_retry_scheduled"
 )
 
 // GenerationLifecycleEventIntent requests one durable generation lifecycle event.
@@ -28,6 +31,11 @@ type GenerationLifecycleEventIntent struct {
 	Route          gate.RouteAction             `json:"route,omitempty"`
 	Reason         string                       `json:"reason,omitempty"`
 	BestGeneration *int64                       `json:"best_generation,omitempty"`
+	NodeID         string                       `json:"node_id,omitempty"`
+	Attempt        int                          `json:"attempt,omitempty"`
+	IssuedEpoch    int64                        `json:"issued_epoch,omitempty"`
+	NextAttemptAt  *time.Time                   `json:"next_attempt_at,omitempty"`
+	FailureClass   FailureClass                 `json:"failure_class,omitempty"`
 }
 
 func (i GenerationLifecycleEventIntent) normalized() GenerationLifecycleEventIntent {
@@ -35,6 +43,11 @@ func (i GenerationLifecycleEventIntent) normalized() GenerationLifecycleEventInt
 	i.GateID = strings.TrimSpace(i.GateID)
 	i.Route = gate.RouteAction(strings.TrimSpace(string(i.Route)))
 	i.Reason = strings.TrimSpace(i.Reason)
+	i.NodeID = strings.TrimSpace(i.NodeID)
+	if i.NextAttemptAt != nil {
+		value := i.NextAttemptAt.UTC()
+		i.NextAttemptAt = &value
+	}
 	if i.BestGeneration != nil {
 		value := *i.BestGeneration
 		i.BestGeneration = &value
@@ -63,6 +76,11 @@ func (i GenerationLifecycleEventIntent) validate() error {
 		}
 		if i.BestGeneration != nil && *i.BestGeneration < 1 {
 			return fmt.Errorf("%w: gate_verdict event best_generation must be positive", ErrValidation)
+		}
+	case GenerationLifecycleEventNodeRetryScheduled:
+		if i.NodeID == "" || i.ItemIndex < 0 || i.Attempt < 1 || i.IssuedEpoch < 1 ||
+			i.NextAttemptAt == nil || !IsKnownFailureClass(i.FailureClass) {
+			return fmt.Errorf("%w: node_retry_scheduled event has incomplete retry identity", ErrValidation)
 		}
 	default:
 		return fmt.Errorf("%w: generation lifecycle event kind is invalid: %q", ErrValidation, i.Kind)

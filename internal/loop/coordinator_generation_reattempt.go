@@ -240,5 +240,6 @@ func reattemptPendingOutput(
 		NodeID:     string(node.ID),
 		ItemIndex:  current.ItemIndex,
 		Status:     generationOutputPending,
+		Attempt:    1,
 	}
 }

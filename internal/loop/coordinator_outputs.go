@@ -2,6 +2,7 @@ package loop
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
@@ -20,6 +21,16 @@ func (r *CoordinatorRunner) refreshGenerationOutputs(
 	existing []GenerationOutput,
 ) ([]GenerationOutput, *GenerationOutput, *task.CoordinatorTerminal, bool, []task.CoordinatorStopSpec, error) {
 	outputs := generationOutputMap(existing)
+	for key, output := range outputs {
+		if output.Attempt == 0 {
+			output.Attempt = 1
+		}
+		if output.ExpectedEpoch == nil {
+			expectedEpoch := output.Epoch
+			output.ExpectedEpoch = &expectedEpoch
+		}
+		outputs[key] = output
+	}
 	for _, node := range graph.Nodes {
 		if _, inFanOut := topology.inFanOutBody(node.ID); inFanOut {
 			continue
@@ -32,6 +43,7 @@ func (r *CoordinatorRunner) refreshGenerationOutputs(
 				NodeID:     string(node.ID),
 				ItemIndex:  0,
 				Status:     generationOutputPending,
+				Attempt:    1,
 			}
 		}
 		output.Generation = generation
@@ -102,7 +114,7 @@ func selectFailedOutput(outputs []GenerationOutput) *GenerationOutput {
 		if output.Status != generationOutputFailed {
 			continue
 		}
-		if explicitDependencyBlocker(output.OutputRef) {
+		if classifyGenerationOutputFailure(output, task.Run{}).Class == FailureTargetUnavailable {
 			selected := output
 			return &selected
 		}
@@ -121,10 +133,13 @@ func (r *CoordinatorRunner) refreshGenerationOutputFromTaskRun(
 	output GenerationOutput,
 ) (GenerationOutput, bool, []task.CoordinatorStopSpec, *task.CoordinatorTerminal, error) {
 	switch output.Status {
+	case generationOutputRetrying:
+		return r.refreshRetryingGenerationOutput(graph, output)
 	case generationOutputAwaitingChild:
 		refreshed, live, stops, err := r.refreshAwaitingChildOutput(ctx, parent, graph, output)
 		return refreshed, live, stops, nil, err
-	case generationOutputSucceeded, generationOutputFailed, generationOutputPending:
+	}
+	if generationOutputSettledWithoutTaskRun(output) {
 		return output, false, nil, nil, nil
 	}
 	taskRunID := strings.TrimSpace(output.TaskRunID)
@@ -139,14 +154,70 @@ func (r *CoordinatorRunner) refreshGenerationOutputFromTaskRun(
 	if err != nil {
 		return GenerationOutput{}, false, nil, nil, err
 	}
+	return refreshGenerationOutputFromTaskStatus(parent, graph, output, run)
+}
+
+func (r *CoordinatorRunner) refreshRetryingGenerationOutput(
+	graph dsl.Graph,
+	output GenerationOutput,
+) (GenerationOutput, bool, []task.CoordinatorStopSpec, *task.CoordinatorTerminal, error) {
+	if output.NextAttemptAt == nil {
+		return GenerationOutput{}, false, nil, nil, fmt.Errorf(
+			"%w: retrying output %s/%d has no next_attempt_at",
+			ErrValidation,
+			output.NodeID,
+			output.ItemIndex,
+		)
+	}
+	now := r.now().UTC()
+	if now.Before(output.NextAttemptAt.UTC()) {
+		return output, true, nil, nil, nil
+	}
+	node, found := graphNode(graph, dsl.NodeID(output.NodeID))
+	if found && nodeDeadlineExceededAt(node, output, now) {
+		failure := NewActionFailure(
+			string(FailureBudgetExhausted),
+			"node deadline elapsed before its retry became runnable",
+			"Review the node deadline and retry policy before re-running the loop.",
+		)
+		output.Status = generationOutputFailed
+		output.NextAttemptAt = nil
+		if failureRef, ok := ActionFailureOutputRef(failure); ok {
+			output.OutputRef = failureRef
+		}
+		return output, false, nil, nil, nil
+	}
+	output.Status = generationOutputPending
+	output.Attempt++
+	output.NextAttemptAt = nil
+	output.TaskRunID = ""
+	output.OutputRef = ""
+	return output, false, nil, nil, nil
+}
+
+func generationOutputSettledWithoutTaskRun(output GenerationOutput) bool {
+	if output.Status == generationOutputSucceeded {
+		return output.FirstScheduledAt == nil || strings.TrimSpace(output.TaskRunID) == "" ||
+			outputRefRepresentsAbsentValue(output.OutputRef)
+	}
+	switch output.Status {
+	case generationOutputFailed, generationOutputCanceled, generationOutputQuarantined,
+		generationOutputWaiting, generationOutputPaused, generationOutputPending:
+		return true
+	default:
+		return false
+	}
+}
+
+func refreshGenerationOutputFromTaskStatus(
+	parent Run,
+	graph dsl.Graph,
+	output GenerationOutput,
+	run task.Run,
+) (GenerationOutput, bool, []task.CoordinatorStopSpec, *task.CoordinatorTerminal, error) {
 	switch run.Status.Normalize() {
 	case task.TaskRunStatusCompleted:
-		if output.Status == generationOutputControlPending || output.Status == generationOutputAwaitingGoal {
-			refreshed, terminal, controlErr := resolveGoalActionControl(parent, output, run)
-			return refreshed, false, nil, terminal, controlErr
-		}
-		output.Status = generationOutputSucceeded
-		return output, false, nil, nil, nil
+		return refreshCompletedTaskRunOutput(parent, graph, output, run)
 	case task.TaskRunStatusFailed, task.TaskRunStatusCanceled:
 		output.Status = generationOutputFailed
 		if output.OutputRef == "" {
@@ -163,6 +234,57 @@ func (r *CoordinatorRunner) refreshGenerationOutputFromTaskRun(
 		output.Status = generationOutputRunning
 		return output, true, nil, nil, nil
 	}
+}
+
+func refreshCompletedTaskRunOutput(
+	parent Run,
+	graph dsl.Graph,
+	output GenerationOutput,
+	run task.Run,
+) (GenerationOutput, bool, []task.CoordinatorStopSpec, *task.CoordinatorTerminal, error) {
+	if output.Status == generationOutputControlPending || output.Status == generationOutputAwaitingGoal {
+		refreshed, terminal, err := resolveGoalActionControl(parent, output, run)
+		return refreshed, false, nil, terminal, err
+	}
+	payload := run.Result
+	if len(payload) == 0 && output.OutputRef != "" && !OutputRefLooksContentAddressed(output.OutputRef) {
+		payload = json.RawMessage(output.OutputRef)
+	}
+	node, found := graphNode(graph, dsl.NodeID(output.NodeID))
+	if found {
+		inspection := InspectPayloadFailure(payload, nodeResultContract(node))
+		if inspection.Failure != nil {
+			output.Status = generationOutputFailed
+			if failureRef, ok := ActionFailureOutputRef(*inspection.Failure); ok {
+				output.OutputRef = failureRef
+			}
+			return output, false, nil, nil, nil
+		}
+	}
+	output.Status = generationOutputSucceeded
+	return output, false, nil, nil, nil
+}
+
+func nodeDeadlineExceededAt(node dsl.Node, output GenerationOutput, now time.Time) bool {
+	deadlineSpec := ""
+	if node.NodeLifecycleState != nil {
+		deadlineSpec = node.Deadline
+	}
+	if output.FirstScheduledAt == nil || strings.TrimSpace(deadlineSpec) == "" {
+		return false
+	}
+	deadline, err := time.ParseDuration(strings.TrimSpace(deadlineSpec))
+	if err != nil || deadline <= 0 {
+		return false
+	}
+	return !now.UTC().Before(output.FirstScheduledAt.UTC().Add(deadline))
+}
+
+func nodeResultContract(node dsl.Node) *dsl.ResultContract {
+	if node.NodeLifecycleState == nil {
+		return nil
+	}
+	return node.ResultContract
 }
 
 func (r *CoordinatorRunner) refreshAwaitingChildOutput(

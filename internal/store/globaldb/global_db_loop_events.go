@@ -13,50 +13,58 @@ import (
 )
 
 const (
-	loopRunEventNodeRunning       = "node_running"
-	loopRunEventNodeSucceeded     = "node_succeeded"
-	loopRunEventNodeFailed        = "node_failed"
-	loopRunEventGateVerdict       = "gate_verdict"
-	loopRunEventGenerationStarted = "generation_started"
-	loopRunEventChannelMsg        = "channel_msg"
-	loopRunEventTokenTick         = "token_tick"
-	loopRunEventNeedsApproval     = "needs_approval"
-	loopRunEventStatusChanged     = "status_changed"
-	loopRunEventGoalTurnStarted   = "goal_turn_started"
-	loopRunEventGoalTurnCompleted = "goal_turn_completed"
-	loopRunEventGoalStatusChanged = "goal_status_changed"
-	loopRunEventRuntimeApplied    = "runtime_applied"
+	loopRunEventNodeRunning          = "node_running"
+	loopRunEventNodeSucceeded        = "node_succeeded"
+	loopRunEventNodeFailed           = "node_failed"
+	loopRunEventGateVerdict          = "gate_verdict"
+	loopRunEventGenerationStarted    = "generation_started"
+	loopRunEventChannelMsg           = "channel_msg"
+	loopRunEventTokenTick            = "token_tick"
+	loopRunEventNeedsApproval        = "needs_approval"
+	loopRunEventStatusChanged        = "status_changed"
+	loopRunEventGoalTurnStarted      = "goal_turn_started"
+	loopRunEventGoalTurnCompleted    = "goal_turn_completed"
+	loopRunEventGoalStatusChanged    = "goal_status_changed"
+	loopRunEventRuntimeApplied       = "runtime_applied"
+	loopRunEventNodeRetryScheduled   = "node_retry_scheduled"
+	loopRunEventStaleScheduleDropped = "stale_schedule_dropped"
+	loopRunEventLateArrival          = "late_arrival"
 
 	maxLoopRunEventPayloadBytes = 16 * 1024
 	loopTokenTickMinDelta       = 2000
 	loopTokenTickMinInterval    = 5 * time.Second
 
-	loopRunEventPayloadKeyGeneration = "generation"
-	loopRunEventPayloadKeyFrom       = "from"
-	loopRunEventPayloadKeyFailure    = "failure"
-	loopRunEventPayloadKeyTo         = "to"
-	loopRunEventPayloadKeyCause      = "cause"
-	loopRunEventPayloadKeyActorKind  = "actor_kind"
-	loopRunEventPayloadKeyActorID    = "actor_id"
-	loopRunEventPayloadKeyItemIndex  = "item_index"
-	loopRunEventPayloadKeyNodeID     = "node_id"
-	loopRunEventPayloadKeyPromptID   = "prompt_id"
-	loopRunEventPayloadKeyReason     = "reason"
-	loopRunEventPayloadKeyRole       = "role"
-	loopRunEventPayloadKeyStopReason = "stop_reason"
-	loopRunEventPayloadKeySummary    = "summary"
-	loopRunEventPayloadKeyStatus     = "status"
-	loopRunEventPayloadKeyTaskID     = "task_id"
-	loopRunEventPayloadKeyTaskRunID  = "task_run_id"
-	loopRunEventPayloadKeyTerminal   = "terminal"
-	loopRunEventPayloadKeyText       = "text"
-	loopRunEventPayloadKeyTitle      = "title"
-	loopRunEventPayloadKeyType       = "type"
-	loopRunEventPayloadKeyValue      = "value"
-	loopRunEventPayloadKeyVerdict    = "verdict"
-	loopRunEventVerdictRevise        = "revise"
-	loopRunApprovalFactLabelKey      = "label"
-	loopRunNodeOutputRunning         = "running"
+	loopRunEventPayloadKeyGeneration   = "generation"
+	loopRunEventPayloadKeyFrom         = "from"
+	loopRunEventPayloadKeyFailure      = "failure"
+	loopRunEventPayloadKeyTo           = "to"
+	loopRunEventPayloadKeyCause        = "cause"
+	loopRunEventPayloadKeyActorKind    = "actor_kind"
+	loopRunEventPayloadKeyActorID      = "actor_id"
+	loopRunEventPayloadKeyItemIndex    = "item_index"
+	loopRunEventPayloadKeyNodeID       = "node_id"
+	loopRunEventPayloadKeyPromptID     = "prompt_id"
+	loopRunEventPayloadKeyReason       = "reason"
+	loopRunEventPayloadKeyRole         = "role"
+	loopRunEventPayloadKeyStopReason   = "stop_reason"
+	loopRunEventPayloadKeySummary      = "summary"
+	loopRunEventPayloadKeyStatus       = "status"
+	loopRunEventPayloadKeyTaskID       = "task_id"
+	loopRunEventPayloadKeyTaskRunID    = "task_run_id"
+	loopRunEventPayloadKeyTerminal     = "terminal"
+	loopRunEventPayloadKeyText         = "text"
+	loopRunEventPayloadKeyTitle        = "title"
+	loopRunEventPayloadKeyType         = "type"
+	loopRunEventPayloadKeyValue        = "value"
+	loopRunEventPayloadKeyVerdict      = "verdict"
+	loopRunEventPayloadKeyIssuedEpoch  = "issued_epoch"
+	loopRunEventPayloadKeyCurrentEpoch = "current_epoch"
+	loopRunEventPayloadKeyScheduleKind = "schedule_kind"
+	loopRunEventVerdictRevise          = "revise"
+	loopRunApprovalFactLabelKey        = "label"
+	loopRunNodeOutputRunning           = "running"
+	loopRetryScheduleKind              = "retry"
+	loopGenerationOutputRetrying       = "retrying"
 )
 
 func appendLoopRunStatusEvent(
@@ -179,7 +187,10 @@ func loopRunEventKindValid(kind string) bool {
 		loopRunEventGoalTurnStarted,
 		loopRunEventGoalTurnCompleted,
 		loopRunEventGoalStatusChanged,
-		loopRunEventRuntimeApplied:
+		loopRunEventRuntimeApplied,
+		loopRunEventNodeRetryScheduled,
+		loopRunEventStaleScheduleDropped,
+		loopRunEventLateArrival:
 		return true
 	default:
 		return false
