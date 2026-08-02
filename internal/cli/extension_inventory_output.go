@@ -21,7 +21,7 @@ func extensionInventoryBundle(payload ExtensionInventoryRecord) outputBundle {
 				}),
 				renderHumanTable(
 					"Resources",
-					[]string{bundleKindValue, bundleNameValue, "ID", cliLiveValue},
+					[]string{cliKindValue, cliNameValue, "ID", cliLiveValue},
 					extensionKitItemRows(payload.Items),
 				),
 			), nil
@@ -35,7 +35,7 @@ func extensionInventoryBundle(payload ExtensionInventoryRecord) outputBundle {
 				),
 				renderToonArray(
 					cliItemsKey,
-					[]string{bundleKindKey, automationNameKey, "id", cliLiveKey},
+					[]string{cliKindKey, automationNameKey, "id", cliLiveKey},
 					extensionKitItemRows(payload.Items),
 				),
 			), nil
@@ -60,7 +60,7 @@ func extensionEnablePreviewBundle(payload ExtensionEnablePreviewRecord) outputBu
 			})}
 			blocks = append(blocks, renderHumanTable(
 				"Would publish",
-				[]string{bundleKindValue, bundleNameValue, "ID", cliLiveValue},
+				[]string{cliKindValue, cliNameValue, "ID", cliLiveValue},
 				extensionKitItemRows(payload.WouldPublish),
 			))
 			return renderHumanBlocks(blocks...), nil
@@ -84,7 +84,7 @@ func extensionEnablePreviewBundle(payload ExtensionEnablePreviewRecord) outputBu
 				),
 				renderToonArray(
 					"would_publish",
-					[]string{bundleKindKey, automationNameKey, "id", cliLiveKey},
+					[]string{cliKindKey, automationNameKey, "id", cliLiveKey},
 					extensionKitItemRows(payload.WouldPublish),
 				),
 			), nil

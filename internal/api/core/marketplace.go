@@ -31,7 +31,6 @@ var marketplaceKindOrder = []string{
 	contract.MarketplaceKindMCP,
 	contract.MarketplaceKindExtension,
 	contract.MarketplaceKindSkill,
-	contract.MarketplaceKindBundle,
 }
 
 type marketplaceReadScope struct {
@@ -318,8 +317,6 @@ func parseRefreshMarketplaceKind(raw string) (marketplacepkg.Kind, error) {
 		return marketplacepkg.KindExtension, nil
 	case contract.MarketplaceKindSkill:
 		return marketplacepkg.KindSkill, nil
-	case contract.MarketplaceKindBundle:
-		return "", marketplaceValidationf("bundle catalog is derived and cannot be refreshed")
 	default:
 		return "", marketplaceValidationf("unsupported refresh kind %q", strings.TrimSpace(raw))
 	}

@@ -177,7 +177,7 @@ func TestKernelPutRawStampsDaemonOwnerOverride(t *testing.T) {
 	kernel, _ := openTestKernel(t)
 	ctx := testutil.Context(t)
 	actor := testDaemonActor()
-	actor.Owner = ResourceOwner{Kind: ResourceOwnerKind("bundle.activation"), ID: "act-owner"}
+	actor.Owner = ResourceOwner{Kind: ResourceOwnerKind("fixture.owner"), ID: "fixture-owner"}
 
 	record, err := kernel.PutRaw(ctx, actor, RawDraft{
 		Kind:            testResourceKind,
@@ -204,7 +204,7 @@ func TestKernelPutRawRejectsExtensionOwnerOverride(t *testing.T) {
 		t.Fatalf("ActivateSourceSession() error = %v", err)
 	}
 	actor := testExtensionActor("session-owned", source.ID, "nonce-owned")
-	actor.Owner = ResourceOwner{Kind: ResourceOwnerKind("bundle.activation"), ID: "act-owner"}
+	actor.Owner = ResourceOwner{Kind: ResourceOwnerKind("fixture.owner"), ID: "fixture-owner"}
 
 	err := kernel.ApplySourceSnapshotRaw(ctx, actor, SourceSnapshot{
 		SourceVersion: 1,

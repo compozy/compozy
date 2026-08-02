@@ -38,7 +38,7 @@ func validateStaticResourcePaths(rootDir string, resources ResourcesConfig) erro
 		{label: "layout resource", paths: resources.Layouts},
 	} {
 		for _, path := range group.paths {
-			if _, err := resolveBundlePathWithinRoot(rootDir, path, group.label); err != nil {
+			if _, err := resolveResourcePathWithinRoot(rootDir, path, group.label); err != nil {
 				return fmt.Errorf("extension: validate declared %s: %w", group.label, err)
 			}
 		}

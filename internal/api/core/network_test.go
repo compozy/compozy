@@ -2,9 +2,7 @@ package core_test
 
 import (
 	"context"
-	"crypto/sha256"
 	"database/sql"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -21,15 +19,12 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/api/testutil"
-	bundlepkg "github.com/compozy/compozy/internal/bundles"
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/memory"
 	"github.com/compozy/compozy/internal/network"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
-	"github.com/compozy/compozy/internal/windowmanager"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
@@ -688,134 +683,6 @@ func networkTestSessionManager(
 			}, nil
 		},
 	}
-}
-
-func TestBundleActivationPayloadUsesMaterializedStableIDs(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should use materialized stable IDs", func(t *testing.T) {
-		t.Parallel()
-
-		preview := bundlepkg.ActivationPreview{
-			Activation: bundlepkg.Activation{
-				ID:            "act_marketing",
-				ExtensionName: "marketing-team",
-				BundleName:    "marketing",
-				ProfileName:   "default",
-				Scope:         bundlepkg.ScopeGlobal,
-			},
-			Bundle: extensionpkg.BundleSpec{
-				Name: "marketing",
-			},
-			Profile: extensionpkg.BundleProfile{
-				Name: "default",
-				Layouts: []extensionpkg.BundleLayout{{
-					Path: "layouts/two-up.json",
-					Layout: windowmanager.LayoutResource{
-						ID:               "two-up",
-						DisplayName:      "Two up",
-						AspectVariant:    windowmanager.LayoutAspectLandscape,
-						ParticipantSlots: []windowmanager.WindowID{"primary", "secondary"},
-						OverflowPolicy:   windowmanager.LayoutOverflowStack,
-					},
-				}},
-				Agents: []extensionpkg.BundleAgent{{
-					Path: "agents/planner",
-					Agent: compozyconfig.AgentDef{
-						Name:   "planner",
-						Model:  "sonnet",
-						Prompt: "Plan campaign work.",
-					},
-					Soul: &extensionpkg.BundleAgentSidecar{
-						SourcePath: "agents/planner/SOUL.md",
-						Body:       "Lead planning.",
-					},
-				}},
-				Jobs: []extensionpkg.BundleJob{{
-					Name:      "daily-sync",
-					AgentName: "planner",
-				}},
-				Triggers: []extensionpkg.BundleTrigger{{
-					Name:      "session-opened",
-					AgentName: "planner",
-					Event:     "session.created",
-				}},
-				Bridges: []extensionpkg.BundleBridgePreset{{
-					Name:        "telegram-main",
-					DisplayName: "Marketing Telegram",
-				}},
-			},
-		}
-
-		payload := core.BundleActivationPayload(preview)
-		if got, want := payload.Layouts[0].ID, bundleStableIDForTest(
-			"lay",
-			preview.Activation.ID,
-			"two-up",
-		); got != want {
-			t.Fatalf("payload.Layouts[0].ID = %q, want %q", got, want)
-		}
-		if got, want := payload.Layouts[0].ParticipantSlots,
-			[]string{"primary", "secondary"}; !slices.Equal(got, want) {
-			t.Fatalf("payload.Layouts[0].ParticipantSlots = %#v, want %#v", got, want)
-		}
-		if got, want := payload.Agents[0].ID, bundleStableIDForTest(
-			"agt",
-			preview.Activation.ID,
-			"planner",
-		); got != want {
-			t.Fatalf("payload.Agents[0].ID = %q, want %q", got, want)
-		}
-		if !payload.Agents[0].HasSoul || payload.Agents[0].HasHeartbeat {
-			t.Fatalf("payload.Agents[0] sidecar flags = %#v", payload.Agents[0])
-		}
-		if got, want := payload.Jobs[0].ID, bundleStableIDForTest(
-			"job",
-			preview.Activation.ID,
-			"daily-sync",
-		); got != want {
-			t.Fatalf("payload.Jobs[0].ID = %q, want %q", got, want)
-		}
-		if got, want := payload.Triggers[0].ID, bundleStableIDForTest(
-			"trg",
-			preview.Activation.ID,
-			"session-opened",
-		); got != want {
-			t.Fatalf("payload.Triggers[0].ID = %q, want %q", got, want)
-		}
-		if got, want := payload.Bridges[0].ID, bundleStableIDForTest(
-			"bri",
-			preview.Activation.ID,
-			"telegram-main",
-		); got != want {
-			t.Fatalf("payload.Bridges[0].ID = %q, want %q", got, want)
-		}
-	})
-}
-
-func TestStatusForBundleErrorDefaultsToInternalServerError(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should map known bundle errors and default unknown errors", func(t *testing.T) {
-		t.Parallel()
-
-		if got, want := core.StatusForBundleError(errors.New("store failed")),
-			http.StatusInternalServerError; got != want {
-			t.Fatalf("StatusForBundleError(unknown) = %d, want %d", got, want)
-		}
-		if got, want := core.StatusForBundleError(bundlepkg.ErrActivationNotFound), http.StatusNotFound; got != want {
-			t.Fatalf("StatusForBundleError(ErrActivationNotFound) = %d, want %d", got, want)
-		}
-	})
-}
-
-func bundleStableIDForTest(prefix string, parts ...string) string {
-	normalized := make([]string, 0, len(parts))
-	for _, part := range parts {
-		normalized = append(normalized, strings.TrimSpace(part))
-	}
-	sum := sha256.Sum256([]byte(strings.Join(normalized, "\n")))
-	return prefix + "_" + hex.EncodeToString(sum[:8])
 }
 
 func TestBaseHandlersNetworkConversationReadPaths(t *testing.T) {
@@ -4269,14 +4136,11 @@ func TestBaseHandlersNetworkErrorsAndDisabledMode(t *testing.T) {
 			"local_peers", "channels", "messages_sent", "messages_received", "messages_rejected",
 			"messages_delivered", "workflow_tagged_events", "handoff_tagged_events", "open_threads",
 			"open_direct_rooms", "open_work_items", "conversation_messages", "work_transitions",
-			"direct_resolves", "declared_channels", "kind_metrics",
+			"direct_resolves", "kind_metrics",
 		} {
 			if _, ok := rawPayload.Network[field]; !ok {
 				t.Fatalf("disabled status missing %q: %s", field, disabledResp.Body.String())
 			}
-		}
-		if got := string(rawPayload.Network["declared_channels"]); got != "[]" {
-			t.Fatalf("declared_channels = %s, want []", got)
 		}
 		if got := string(rawPayload.Network["kind_metrics"]); got != "[]" {
 			t.Fatalf("kind_metrics = %s, want []", got)

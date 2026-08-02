@@ -20,17 +20,6 @@ type CursorPagePayload struct {
 	Limit      int    `json:"limit"`
 }
 
-type DeclaredNetworkChannelPayload struct {
-	ActivationID  string `json:"activation_id,omitempty"`
-	ExtensionName string `json:"extension_name,omitempty"`
-	BundleName    string `json:"bundle_name,omitempty"`
-	ProfileName   string `json:"profile_name,omitempty"`
-	WorkspaceID   string `json:"workspace_id,omitempty"`
-	Name          string `json:"name"`
-	Description   string `json:"description,omitempty"`
-	Primary       bool   `json:"primary,omitempty"`
-}
-
 type DeliveryAck struct {
 	DeliveryID             string               `json:"delivery_id"`
 	Seq                    int64                `json:"seq"`
@@ -179,4 +168,8 @@ type EventPostRecordPayload struct {
 	RecordType     string          `json:"record_type,omitempty"`
 	Sequence       int64           `json:"sequence,omitempty"`
 	Content        json.RawMessage `json:"content,omitempty"`
+}
+
+type EventPreRecordPatch struct {
+	Labels map[string]string `json:"labels,omitempty"`
 }

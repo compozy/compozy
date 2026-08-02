@@ -1,8 +1,6 @@
 package extensionpkg
 
 import (
-	"context"
-
 	"errors"
 	"fmt"
 
@@ -148,7 +146,7 @@ func (m *Manager) loadAutomationResources(
 		resolvedJobs = append(resolvedJobs, automationpkg.Job{
 			ID:    "extension/" + extensionName + "/automation.job/" + job.Name,
 			Scope: automationpkg.AutomationScopeGlobal, Name: name, AgentName: job.Agent,
-			Prompt: job.Prompt, Schedule: &job.Schedule, Task: cloneBundleTaskConfig(job.Task),
+			Prompt: job.Prompt, Schedule: &job.Schedule, Task: cloneAutomationTaskConfig(job.Task),
 			Enabled: *job.Enabled, Retry: job.Retry, FireLimit: job.FireLimit,
 			Source: automationpkg.JobSourcePackage,
 		})
@@ -189,13 +187,6 @@ func (m *Manager) loadHookResources(ext *managedExtension) ([]hookspkg.HookDecl,
 		decls = append(decls, decl)
 	}
 	return decls, nil
-}
-
-func (m *Manager) loadBundleResources(ctx context.Context, ext *managedExtension) ([]BundleSpec, error) {
-	if ext == nil || ext.manifest == nil {
-		return nil, nil
-	}
-	return LoadBundleSpecs(ctx, ext.rootDir, ext.manifest)
 }
 
 func (m *Manager) hookConfigToDecl(ext *managedExtension, cfg *HookConfig) (hookspkg.HookDecl, error) {

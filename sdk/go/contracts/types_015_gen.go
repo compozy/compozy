@@ -7,23 +7,6 @@ import (
 	"time"
 )
 
-type ObserveHealth struct {
-	Status             string                  `json:"status"`
-	UptimeSeconds      int64                   `json:"uptime_seconds"`
-	ActiveSessions     int                     `json:"active_sessions"`
-	ActiveAgents       int                     `json:"active_agents"`
-	GlobalDBSizeBytes  int64                   `json:"global_db_size_bytes"`
-	SessionDBSizeBytes int64                   `json:"session_db_size_bytes"`
-	Persistence        PersistenceHealth       `json:"persistence"`
-	Retention          RetentionHealth         `json:"retention"`
-	Failures           FailureHealth           `json:"failures"`
-	AgentProbes        []ProbeResult           `json:"agent_probes,omitempty"`
-	Bridges            BridgeAggregateHealth   `json:"bridges"`
-	Tasks              TaskHealth              `json:"tasks"`
-	Activities         []SessionActivityHealth `json:"activities,omitempty"`
-	Version            string                  `json:"version"`
-}
-
 type Origin struct {
 	Kind OriginKind `json:"kind"`
 	Ref  string     `json:"ref"`
@@ -240,4 +223,11 @@ type PromptPayload struct {
 	InputClass     string         `json:"input_class,omitempty"`
 	Prompt         string         `json:"prompt,omitempty"`
 	ContextBlocks  []ContextBlock `json:"context_blocks,omitempty"`
+}
+
+type PromptRuntimeSelectionPayload struct {
+	Provider        string `json:"provider"`
+	Model           string `json:"model,omitempty"`
+	ReasoningEffort Effort `json:"reasoning_effort,omitempty"`
+	Speed           Speed  `json:"speed,omitempty"`
 }

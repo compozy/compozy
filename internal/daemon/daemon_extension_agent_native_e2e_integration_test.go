@@ -65,7 +65,6 @@ func testDaemonE2EAgentCompletesExtensionAuthoringThroughNativeTools(t *testing.
 		nil,
 		nil,
 		nil,
-		nil,
 		deps.HomePaths,
 		nil,
 		nil,

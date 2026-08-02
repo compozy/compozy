@@ -148,11 +148,6 @@ func (m *Manager) registerExtension(ctx context.Context, ext *managedExtension) 
 		m.setFailure(ext, ExtensionPhaseRegister, err)
 		return phaseError(ext.info.Name, ExtensionPhaseRegister, err)
 	}
-	bundles, err := m.loadBundleResources(ctx, ext)
-	if err != nil {
-		m.setFailure(ext, ExtensionPhaseRegister, err)
-		return phaseError(ext.info.Name, ExtensionPhaseRegister, err)
-	}
 	m.mu.Lock()
 	ext.skills = skills
 	ext.staticAgents = agents
@@ -164,7 +159,6 @@ func (m *Manager) registerExtension(ctx context.Context, ext *managedExtension) 
 	ext.automationTriggers = automationTriggers
 	ext.layouts = layouts
 	ext.hooks = hooks
-	ext.bundles = bundles
 	ext.registered = true
 	ext.loops = loops
 	ext.phase = ExtensionPhaseRegister

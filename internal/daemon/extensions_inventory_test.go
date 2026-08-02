@@ -74,7 +74,6 @@ func TestExtensionInventoryAndEnablePreview(t *testing.T) {
 			nil,
 			nil,
 			nil,
-			nil,
 			testHomePaths(t),
 			discardLogger(),
 			func() time.Time { return time.Date(2026, 8, 2, 14, 0, 0, 0, time.UTC) },
@@ -189,7 +188,6 @@ func TestExtensionInventoryAndEnablePreview(t *testing.T) {
 		service, ok := newDaemonExtensionService(
 			extensionpkg.NewRegistry(db.DB()),
 			runtime,
-			nil,
 			nil,
 			nil,
 			nil,

@@ -88,7 +88,6 @@ func testExtensionSecretBindingRetirement(t *testing.T) {
 		nil,
 		nil,
 		nil,
-		nil,
 		homePaths,
 		discardLogger(),
 		time.Now,
@@ -139,7 +138,7 @@ func testExtensionSecretBindingRetirement(t *testing.T) {
 		t.Context(),
 		extensionName,
 		contract.SetExtensionSecretsRequest{Secrets: map[string]contract.ExtensionSecretInput{
-			"BOUND_SECRET": {Value: secretString(ownedGlobal)},
+			"BOUND_SECRET": {Value: extensionSecretInputValue(ownedGlobal)},
 			"OTHER_SECRET": {VaultRef: &foreignRef},
 		}},
 		globalActor,
@@ -185,7 +184,7 @@ func testExtensionSecretBindingRetirement(t *testing.T) {
 		t.Context(),
 		extensionName,
 		contract.SetExtensionSecretsRequest{Secrets: map[string]contract.ExtensionSecretInput{
-			"BOUND_SECRET": {Value: secretString(ownedDev)},
+			"BOUND_SECRET": {Value: extensionSecretInputValue(ownedDev)},
 			"OTHER_SECRET": {VaultRef: &devForeignRef},
 		}},
 		devActor,
@@ -322,7 +321,6 @@ func testExtensionSecretDevBindingIsolation(t *testing.T) {
 	service, ok := newDaemonExtensionService(
 		registry,
 		manager,
-		nil,
 		nil,
 		nil,
 		nil,
@@ -521,7 +519,6 @@ func testExtensionSecretTransportRollback(t *testing.T) {
 		nil,
 		nil,
 		nil,
-		nil,
 		homePaths,
 		discardLogger(),
 		time.Now,
@@ -697,7 +694,6 @@ func testExtensionSecretBindingEnableInjection(t *testing.T) {
 		nil,
 		nil,
 		nil,
-		nil,
 		homePaths,
 		discardLogger(),
 		time.Now,
@@ -844,7 +840,6 @@ func testExtensionSecretTransportAbsence(t *testing.T) {
 	service, ok := newDaemonExtensionService(
 		extensionRegistry,
 		manager,
-		nil,
 		nil,
 		nil,
 		nil,
@@ -1069,6 +1064,10 @@ func writeSecretExtensionFixture(t *testing.T, root, name, version string) strin
 		t.Fatalf("os.WriteFile(extension.toml) error = %v", err)
 	}
 	return dir
+}
+
+func extensionSecretInputValue(value string) *string {
+	return &value
 }
 
 func writeBoundSecretExtensionFixture(t *testing.T, root, name string) string {

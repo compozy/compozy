@@ -318,6 +318,9 @@ func extensionLoopDeclarationProvider(
 	logger *slog.Logger,
 ) loopDeclarationProvider {
 	return func(ctx context.Context) ([]loopPublicationInput, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		if registry == nil || runtime == nil {
 			return nil, nil
 		}
@@ -339,7 +342,7 @@ func extensionLoopDeclarationProvider(
 			if !info.Enabled {
 				continue
 			}
-			ext, err := loadExtensionSnapshot(ctx, registry, manager, logger, info.Name)
+			ext, err := loadExtensionSnapshot(registry, manager, logger, info.Name)
 			if err != nil {
 				return nil, fmt.Errorf("daemon: load extension %q for loop sync: %w", info.Name, err)
 			}

@@ -167,7 +167,6 @@ type Extension struct {
 	Hooks                 []hookspkg.HookDecl
 	Agents                []compozyconfig.AgentDef
 	StaticAgents          []StaticAgent
-	Bundles               []BundleSpec
 	Skills                []*skillspkg.Skill
 	Loops                 []looppkg.ResourceSpec
 	AutomationJobs        []automationpkg.Job
@@ -191,7 +190,6 @@ type managedExtension struct {
 	hooks                 []hookspkg.HookDecl
 	agents                []compozyconfig.AgentDef
 	staticAgents          []StaticAgent
-	bundles               []BundleSpec
 	skills                []*skillspkg.Skill
 	loops                 []looppkg.ResourceSpec
 	automationJobs        []automationpkg.Job

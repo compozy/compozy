@@ -220,11 +220,6 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			toolspkg.ToolIDExtensionsRemove,
 			toolspkg.ToolIDExtensionsEnable,
 			toolspkg.ToolIDExtensionsDisable,
-			toolspkg.ToolIDBundlesList,
-			toolspkg.ToolIDBundlesInfo,
-			toolspkg.ToolIDBundlesActivate,
-			toolspkg.ToolIDBundlesDeactivate,
-			toolspkg.ToolIDBundlesStatus,
 			toolspkg.ToolIDResourcesList,
 			toolspkg.ToolIDResourcesInfo,
 			toolspkg.ToolIDResourcesSnapshot,
@@ -1037,34 +1032,6 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			false,
 			false,
 		)
-		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDBundlesList], toolspkg.RiskRead, true, false, false)
-		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDBundlesInfo], toolspkg.RiskRead, true, false, false)
-		requireDescriptorRisk(
-			t,
-			descriptors[toolspkg.ToolIDBundlesActivate],
-			toolspkg.RiskMutating,
-			false,
-			false,
-			false,
-		)
-		if !strings.Contains(
-			string(descriptors[toolspkg.ToolIDBundlesActivate].InputSchema),
-			`"confirm_network_requirement":{"type":"boolean"}`,
-		) {
-			t.Fatalf(
-				"bundles_activate schema = %s, want operator confirmation input",
-				descriptors[toolspkg.ToolIDBundlesActivate].InputSchema,
-			)
-		}
-		requireDescriptorRisk(
-			t,
-			descriptors[toolspkg.ToolIDBundlesDeactivate],
-			toolspkg.RiskDestructive,
-			false,
-			true,
-			false,
-		)
-		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDBundlesStatus], toolspkg.RiskRead, true, false, false)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDResourcesList], toolspkg.RiskRead, true, false, false)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDResourcesInfo], toolspkg.RiskRead, true, false, false)
 		requireDescriptorRisk(
@@ -1160,8 +1127,6 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			id         toolspkg.ToolID
 			capability string
 		}{
-			{id: toolspkg.ToolIDBundlesList, capability: "bundles.read"},
-			{id: toolspkg.ToolIDBundlesActivate, capability: "bundles.write"},
 			{id: toolspkg.ToolIDResourcesList, capability: "resources.read"},
 			{id: toolspkg.ToolIDResourcesSnapshot, capability: "resources.read"},
 			{id: toolspkg.ToolIDProviderModelsCurate, capability: "providers.models.write"},
@@ -2275,15 +2240,6 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 		}
 		if !slices.Equal(marketplace, []toolspkg.ToolID{toolspkg.ToolIDMarketplaceSearch}) {
 			t.Fatalf("marketplace toolset expansion = %#v, want marketplace search", marketplace)
-		}
-
-		bundles, err := catalog.Expand(toolspkg.ToolsetIDBundles, universe)
-		if err != nil {
-			t.Fatalf("Expand(bundles) error = %v", err)
-		}
-		if !slices.Contains(bundles, toolspkg.ToolIDBundlesActivate) ||
-			!slices.Contains(bundles, toolspkg.ToolIDBundlesStatus) {
-			t.Fatalf("bundles toolset expansion = %#v, want bundle lifecycle tools", bundles)
 		}
 
 		resourceTools, err := catalog.Expand(toolspkg.ToolsetIDResources, universe)

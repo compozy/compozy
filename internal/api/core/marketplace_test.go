@@ -15,7 +15,6 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/api/testutil"
-	bundlepkg "github.com/compozy/compozy/internal/bundles"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	marketplacepkg "github.com/compozy/compozy/internal/marketplace"
 	registrypkg "github.com/compozy/compozy/internal/registry"
@@ -112,54 +111,6 @@ func (s installedSkillMarketplaceStub) ListInstalled(context.Context) ([]skillma
 	return s.items, s.err
 }
 
-type marketplaceBundleServiceStub struct {
-	catalog     []bundlepkg.CatalogEntry
-	activations []bundlepkg.ActivationPreview
-	catalogErr  error
-}
-
-func (s marketplaceBundleServiceStub) Catalog(context.Context) ([]bundlepkg.CatalogEntry, error) {
-	return s.catalog, s.catalogErr
-}
-
-func (marketplaceBundleServiceStub) PreviewActivation(
-	context.Context,
-	bundlepkg.ActivateRequest,
-) (bundlepkg.ActivationPreview, error) {
-	return bundlepkg.ActivationPreview{}, nil
-}
-
-func (marketplaceBundleServiceStub) Activate(
-	context.Context,
-	bundlepkg.ActivateRequest,
-) (bundlepkg.ActivationPreview, error) {
-	return bundlepkg.ActivationPreview{}, nil
-}
-
-func (s marketplaceBundleServiceStub) ListActivations(context.Context) ([]bundlepkg.ActivationPreview, error) {
-	return s.activations, nil
-}
-
-func (marketplaceBundleServiceStub) GetActivation(
-	context.Context,
-	string,
-) (bundlepkg.ActivationPreview, error) {
-	return bundlepkg.ActivationPreview{}, nil
-}
-
-func (marketplaceBundleServiceStub) UpdateActivation(
-	context.Context,
-	bundlepkg.UpdateActivationRequest,
-) (bundlepkg.ActivationPreview, error) {
-	return bundlepkg.ActivationPreview{}, nil
-}
-
-func (marketplaceBundleServiceStub) Deactivate(context.Context, string) error { return nil }
-
-func (marketplaceBundleServiceStub) NetworkSettings(context.Context) (bundlepkg.NetworkSettings, error) {
-	return bundlepkg.NetworkSettings{}, nil
-}
-
 func TestMarketplaceSearchPreservesKindIsolationAndInstalledTruth(t *testing.T) {
 	t.Parallel()
 
@@ -172,7 +123,6 @@ func TestMarketplaceSearchPreservesKindIsolationAndInstalledTruth(t *testing.T) 
 				remoteSearchCalls++
 				return nil, nil
 			},
-			bundleError: errors.New("bundle catalog unavailable"),
 		})
 		engine := gin.New()
 		engine.GET("/marketplace/search", handlers.SearchMarketplace)
@@ -188,7 +138,7 @@ func TestMarketplaceSearchPreservesKindIsolationAndInstalledTruth(t *testing.T) 
 		if remoteSearchCalls != 0 {
 			t.Fatalf("remote skill search calls = %d, want 0 for idle browse", remoteSearchCalls)
 		}
-		wantKinds := []string{"mcp", "extension", "skill", "bundle"}
+		wantKinds := []string{"mcp", "extension", "skill"}
 		if len(payload.Kinds) != len(wantKinds) {
 			t.Fatalf("len(kinds) = %d, want %d", len(payload.Kinds), len(wantKinds))
 		}
@@ -196,9 +146,6 @@ func TestMarketplaceSearchPreservesKindIsolationAndInstalledTruth(t *testing.T) 
 			if payload.Kinds[index].Kind != want {
 				t.Fatalf("kinds[%d].kind = %q, want %q", index, payload.Kinds[index].Kind, want)
 			}
-		}
-		if got := payload.Kinds[3].Error; got != "bundle catalog unavailable" {
-			t.Fatalf("bundle error = %q, want %q", got, "bundle catalog unavailable")
 		}
 		if len(payload.Kinds[0].Items) != 1 || !payload.Kinds[0].Items[0].Installed {
 			t.Fatalf("MCP items = %#v, want installed catalog provenance join", payload.Kinds[0].Items)
@@ -232,22 +179,6 @@ func TestMarketplaceSearchPreservesKindIsolationAndInstalledTruth(t *testing.T) 
 			if !strings.Contains(response.Body.String(), want) {
 				t.Fatalf("response body = %s, want canonical installed identity %s", response.Body.String(), want)
 			}
-		}
-	})
-
-	t.Run("Should mask isolated kind failures when internal error masking is enabled", func(t *testing.T) {
-		t.Parallel()
-
-		handlers := marketplaceHandlersForTest(t, marketplaceHandlerFixture{
-			bundleError: errors.New("database path /private/catalog.db unavailable"),
-		})
-		handlers.MaskInternalErrors = true
-		response, err := handlers.MarketplaceSearch(t.Context(), core.MarketplaceSearchRequest{})
-		if err != nil {
-			t.Fatalf("MarketplaceSearch() error = %v", err)
-		}
-		if got := response.Kinds[3].Error; got != http.StatusText(http.StatusInternalServerError) {
-			t.Fatalf("masked bundle error = %q, want %q", got, http.StatusText(http.StatusInternalServerError))
 		}
 	})
 
@@ -649,37 +580,6 @@ func TestMarketplaceContinuationRejectsChangedProjection(t *testing.T) {
 			t.Fatalf("Search() requests mismatch (-want +got):\n%s", diff)
 		}
 	})
-
-	t.Run("Should reject a bundle continuation when the catalog projection changes", func(t *testing.T) {
-		t.Parallel()
-
-		catalog := []bundlepkg.CatalogEntry{
-			{ExtensionName: "acme", Bundle: extensionpkg.BundleSpec{Name: "Alpha"}},
-			{ExtensionName: "acme", Bundle: extensionpkg.BundleSpec{Name: "Beta"}},
-		}
-		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
-			Bundles: marketplaceBundleServiceStub{catalog: catalog},
-			Logger:  testutil.DiscardLogger(),
-		})
-
-		first, err := handlers.MarketplaceKind(t.Context(), core.MarketplaceKindRequest{
-			Kind: "bundle", Limit: 1,
-		})
-		if err != nil {
-			t.Fatalf("MarketplaceKind(first) error = %v", err)
-		}
-		if first.NextCursor == "" {
-			t.Fatal("MarketplaceKind(first) next_cursor = empty, want continuation")
-		}
-
-		catalog[0].Bundle.Description = "Changed"
-		_, err = handlers.MarketplaceKind(t.Context(), core.MarketplaceKindRequest{
-			Kind: "bundle", Cursor: first.NextCursor, Limit: 1,
-		})
-		if !errors.Is(err, core.ErrMarketplaceValidation) {
-			t.Fatalf("MarketplaceKind(changed bundle projection) error = %v, want validation", err)
-		}
-	})
 }
 
 func TestMarketplaceSearchUsesRemoteSkillsOnlyForQueries(t *testing.T) {
@@ -846,10 +746,10 @@ func TestMarketplaceNormalizesSourceErrors(t *testing.T) {
 	})
 }
 
-func TestMarketplaceWorkspaceScopeDoesNotLeakBundleOrMCPInstallations(t *testing.T) {
+func TestMarketplaceWorkspaceScopeDoesNotLeakMCPInstallations(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should isolate workspace-owned MCP and bundle installation state", func(t *testing.T) {
+	t.Run("Should isolate workspace-owned MCP installation state", func(t *testing.T) {
 		t.Parallel()
 
 		settingsRequests := make([]settingspkg.CollectionRequest, 0, 2)
@@ -898,13 +798,6 @@ func TestMarketplaceWorkspaceScopeDoesNotLeakBundleOrMCPInstallations(t *testing
 				"/marketplace/mcps?tab=installed",
 			)
 		}
-		if !payloadA.Kinds[3].Items[0].Installed || payloadB.Kinds[3].Items[0].Installed {
-			t.Fatalf(
-				"bundle installed A/B = %v/%v, want true/false",
-				payloadA.Kinds[3].Items[0].Installed,
-				payloadB.Kinds[3].Items[0].Installed,
-			)
-		}
 		if len(settingsRequests) != 2 ||
 			settingsRequests[0].WorkspaceID != "ws-a" ||
 			settingsRequests[1].WorkspaceID != "ws-b" {
@@ -950,72 +843,12 @@ func TestMarketplaceDetailAndRefreshValidateStableIdentityAndKind(t *testing.T) 
 	t.Run("Should resolve stable IDs and reject unknown entries and refresh kinds", func(t *testing.T) {
 		t.Parallel()
 
-		workspaceActivationID := "workspace/activation?1"
-		handlers := marketplaceHandlersForTest(t, marketplaceHandlerFixture{
-			bundleActivations: []bundlepkg.ActivationPreview{
-				{Activation: bundlepkg.Activation{
-					ID: "a-global", ExtensionName: "acme-extension", BundleName: "team",
-					Scope: bundlepkg.ScopeGlobal,
-				}},
-				{Activation: bundlepkg.Activation{
-					ID: workspaceActivationID, ExtensionName: "acme-extension", BundleName: "team",
-					Scope: bundlepkg.ScopeWorkspace, WorkspaceID: "ws-a",
-				}, SpecDrift: true},
-			},
-		})
+		handlers := marketplaceHandlersForTest(t, marketplaceHandlerFixture{})
 		engine := gin.New()
 		engine.GET("/marketplace/:kind", handlers.BrowseMarketplaceKind)
 		engine.GET("/marketplace/:kind/:entry_id", handlers.GetMarketplaceEntry)
 		engine.POST("/marketplace/refresh", handlers.RefreshMarketplaceCatalog)
 
-		browse := performRequest(
-			t,
-			engine,
-			http.MethodGet,
-			"/marketplace/bundle?scope=workspace&workspace_id=ws-a",
-			nil,
-		)
-		if browse.Code != http.StatusOK {
-			t.Fatalf("browse status = %d, want %d; body=%s", browse.Code, http.StatusOK, browse.Body.String())
-		}
-		var kind contract.MarketplaceKindResponse
-		if err := json.Unmarshal(browse.Body.Bytes(), &kind); err != nil {
-			t.Fatalf("json.Unmarshal(browse) error = %v", err)
-		}
-		if kind.Total == nil || *kind.Total != 1 || len(kind.Items) != 1 {
-			t.Fatalf("bundle browse = %#v, want exact total and one row", kind)
-		}
-		if !kind.Items[0].Installed || !kind.Items[0].UpdateAvailable {
-			t.Fatalf("bundle browse row = %#v, want installed drift projection", kind.Items[0])
-		}
-		wantBrowseManagePath := "/marketplace/bundles/activations/workspace%2Factivation%3F1"
-		if kind.Items[0].ManagePath != wantBrowseManagePath {
-			t.Fatalf("bundle browse manage path = %q, want %q", kind.Items[0].ManagePath, wantBrowseManagePath)
-		}
-		detail := performRequest(
-			t,
-			engine,
-			http.MethodGet,
-			"/marketplace/bundle/"+kind.Items[0].EntryID+"?scope=workspace&workspace_id=ws-a",
-			nil,
-		)
-		if detail.Code != http.StatusOK {
-			t.Fatalf("detail status = %d, want %d; body=%s", detail.Code, http.StatusOK, detail.Body.String())
-		}
-		var entry contract.MarketplaceEntryResponse
-		if err := json.Unmarshal(detail.Body.Bytes(), &entry); err != nil {
-			t.Fatalf("json.Unmarshal(detail) error = %v", err)
-		}
-		if !entry.Entry.Installed || !entry.Entry.UpdateAvailable {
-			t.Fatalf("bundle detail row = %#v, want installed drift projection", entry.Entry)
-		}
-		wantDetailManagePath := "/marketplace/bundles/activations/workspace%2Factivation%3F1"
-		if entry.Entry.ManagePath != wantDetailManagePath {
-			t.Fatalf("bundle detail manage path = %q, want %q", entry.Entry.ManagePath, wantDetailManagePath)
-		}
-		if entry.Bundle == nil || len(entry.Bundle.Profiles) != 1 || entry.Bundle.Profiles[0].Layouts != 1 {
-			t.Fatalf("bundle detail profiles = %#v, want one window layout", entry.Bundle)
-		}
 		missing := performRequest(t, engine, http.MethodGet, "/marketplace/mcp/missing", nil)
 		if missing.Code != http.StatusNotFound {
 			t.Fatalf("missing status = %d, want %d; body=%s", missing.Code, http.StatusNotFound, missing.Body.String())
@@ -1029,10 +862,10 @@ func TestMarketplaceDetailAndRefreshValidateStableIdentityAndKind(t *testing.T) 
 				unknownKind.Body.String(),
 			)
 		}
-		refresh := performRequest(t, engine, http.MethodPost, "/marketplace/refresh?kind=bundle", nil)
+		refresh := performRequest(t, engine, http.MethodPost, "/marketplace/refresh?kind=unknown", nil)
 		if refresh.Code != http.StatusBadRequest {
 			t.Fatalf(
-				"bundle refresh status = %d, want %d; body=%s",
+				"unknown refresh status = %d, want %d; body=%s",
 				refresh.Code,
 				http.StatusBadRequest,
 				refresh.Body.String(),
@@ -1378,14 +1211,11 @@ type marketplaceHandlerFixture struct {
 	remoteInfo              func(context.Context, string) (*registrypkg.Detail, error)
 	catalogDetail           func(context.Context, marketplacepkg.Kind, string) (*marketplacepkg.Entry, error)
 	settingsList            func(context.Context, settingspkg.CollectionRequest) (settingspkg.CollectionEnvelope, error)
-	bundleError             error
-	bundleSpecDrift         bool
 	skillCatalogVersion     string
 	installedSkillVersion   string
 	extensionTier           string
 	extensionCatalogEntryID string
 	extensionInstalledSlug  string
-	bundleActivations       []bundlepkg.ActivationPreview
 	extensionTrust          func(
 		context.Context,
 		extensionpkg.MarketplaceTrustEvidence,
@@ -1452,37 +1282,9 @@ func marketplaceHandlersForTest(t *testing.T, fixture marketplaceHandlerFixture)
 	}
 	homePaths := testutil.NewTestHomePaths(t)
 	config := testConfigWithDisabledNetwork(homePaths)
-	activations := fixture.bundleActivations
-	if activations == nil {
-		activations = []bundlepkg.ActivationPreview{{
-			Activation: bundlepkg.Activation{
-				ID:            "activation-ws-a",
-				ExtensionName: "acme-extension",
-				BundleName:    "team",
-				Scope:         bundlepkg.ScopeWorkspace,
-				WorkspaceID:   "ws-a",
-			},
-			SpecDrift: fixture.bundleSpecDrift,
-		}}
-	}
 	installedSlug := fixture.extensionInstalledSlug
 	if installedSlug == "" && fixture.extensionCatalogEntryID == "" {
 		installedSlug = "acme/extension"
-	}
-	bundles := marketplaceBundleServiceStub{
-		catalogErr: fixture.bundleError,
-		catalog: []bundlepkg.CatalogEntry{{
-			ExtensionName: "acme-extension",
-			Bundle: extensionpkg.BundleSpec{
-				Name:        "team",
-				Description: "Team bundle",
-				Profiles: []extensionpkg.BundleProfile{{
-					Name:    "default",
-					Layouts: []extensionpkg.BundleLayout{{Path: "layouts/team.json"}},
-				}},
-			},
-		}},
-		activations: activations,
 	}
 	return core.NewBaseHandlers(&core.BaseHandlerConfig{
 		MarketplaceCatalog: catalog,
@@ -1499,7 +1301,6 @@ func marketplaceHandlersForTest(t *testing.T, fixture marketplaceHandlerFixture)
 		InstalledSkillMarketplace: installedSkillMarketplaceStub{items: []skillmarketplace.InstalledSkill{{
 			Name: "skill", Provenance: skills.Provenance{Slug: "@acme/skill", Version: installedSkillVersion},
 		}}},
-		Bundles:   bundles,
 		HomePaths: homePaths,
 		Config:    config,
 		Logger:    testutil.DiscardLogger(),

@@ -557,7 +557,6 @@ func TestExtensionStatusCodeMapsDomainErrors(t *testing.T) {
 		{name: "Should map bridge authoring rejection to bad request", err: &extensionpkg.ManifestValidationError{Field: "capabilities.provides", Value: "bridge.adapter", Message: "external bridge authoring is a planned follow-up"}, want: http.StatusBadRequest},
 		{name: "Should map incompatible manifests to bad request", err: extensionpkg.ErrManifestIncompatible, want: http.StatusBadRequest},
 		{name: "Should map missing manifests to bad request", err: extensionpkg.ErrManifestNotFound, want: http.StatusBadRequest},
-		{name: "Should map active bundle ownership to conflict", err: extensionpkg.ErrExtensionHasActiveBundles, want: http.StatusConflict},
 		{name: "Should map a missing development origin to conflict", err: extensionpkg.ErrExtensionDevOriginMissing, want: http.StatusConflict},
 		{name: "Should map a missing development link to conflict", err: extensionpkg.ErrExtensionNotDevLinked, want: http.StatusConflict},
 		{name: "Should map an invalid generation to bad request", err: extensionpkg.ErrExtensionGenerationInvalid, want: http.StatusBadRequest},

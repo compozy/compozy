@@ -140,18 +140,6 @@ type DaemonClient interface {
 	ExtensionProvenance(ctx context.Context, name string) (ExtensionProvenanceRecord, error)
 	ExtensionInventory(ctx context.Context, name string) (ExtensionInventoryRecord, error)
 	PreviewExtensionEnable(ctx context.Context, name string) (ExtensionEnablePreviewRecord, error)
-	ListBundleCatalog(ctx context.Context) ([]BundleCatalogRecord, error)
-	PreviewBundleActivation(ctx context.Context, request ActivateBundleRequest) (BundleActivationRecord, error)
-	ActivateBundle(ctx context.Context, request ActivateBundleRequest) (BundleActivationRecord, error)
-	ListBundleActivations(ctx context.Context) ([]BundleActivationRecord, error)
-	GetBundleActivation(ctx context.Context, id string) (BundleActivationRecord, error)
-	UpdateBundleActivation(
-		ctx context.Context,
-		id string,
-		request UpdateBundleActivationRequest,
-	) (BundleActivationRecord, error)
-	DeactivateBundle(ctx context.Context, id string) error
-	BundleNetworkSettings(ctx context.Context) (BundleNetworkSettingsRecord, error)
 	bridgeClientAPI
 	ListNotificationPresets(ctx context.Context, query NotificationPresetQuery) (NotificationPresetListRecord, error)
 	GetNotificationPreset(ctx context.Context, name string) (NotificationPresetRecord, error)

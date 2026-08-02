@@ -58,7 +58,7 @@ func collectBuildResourceDeclarations(
 			if cleaned == "." {
 				return fmt.Errorf("%w: %s path must name a resource below the package root", ErrManifestInvalid, label)
 			}
-			resolved, err := resolveBundlePathWithinRoot(sourceDir, cleaned, label)
+			resolved, err := resolveResourcePathWithinRoot(sourceDir, cleaned, label)
 			if err != nil {
 				return err
 			}

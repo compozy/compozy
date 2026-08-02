@@ -14,19 +14,6 @@ import (
 	"github.com/compozy/compozy/internal/store"
 )
 
-func sqliteTableExists(db *sql.DB, tableName string) (bool, error) {
-	var count int
-	err := db.QueryRowContext(
-		registryContext(),
-		`SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?`,
-		strings.TrimSpace(tableName),
-	).Scan(&count)
-	if err != nil {
-		return false, fmt.Errorf("extension: query sqlite table %q: %w", tableName, err)
-	}
-	return count > 0, nil
-}
-
 func scanExtensionInfo(scanner interface{ Scan(dest ...any) error }) (*ExtensionInfo, error) {
 	var row extensionInfoRow
 	if err := row.scan(scanner); err != nil {

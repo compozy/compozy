@@ -80,7 +80,6 @@ const (
 	CodeDaemonStatusOK                = "daemon_status_ok"
 	CodeDaemonUnavailable             = "daemon_unavailable"
 	CodeDiskWriteFailed               = "disk_write_failed"
-	CodeExtensionBlockedByBundle      = "extension_blocked_by_bundle"
 	CodeExtensionChecksumUnverified   = "extension_checksum_unverified"
 	CodeExtensionGitUnavailable       = "extension_git_unavailable"
 	CodeExtensionInstallFailed        = "extension_install_failed"
@@ -216,7 +215,6 @@ var diagnosticCodeSpecs = []DiagnosticCodeSpec{
 	{Code: CodeDaemonStatusOK, Category: CategoryDaemon},
 	{Code: CodeDaemonUnavailable, Category: CategoryDaemon},
 	{Code: CodeDiskWriteFailed, Category: CategoryDaemon},
-	{Code: CodeExtensionBlockedByBundle, Category: CategoryExtension},
 	{Code: CodeExtensionArchiveDigestMismatch, Category: CategoryExtension},
 	{Code: CodeExtensionAgentConflict, Category: CategoryExtension},
 	{Code: CodeExtensionChecksumUnverified, Category: CategoryExtension},

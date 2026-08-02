@@ -10,7 +10,6 @@ import (
 type GlobalDB struct {
 	*WorkspaceRepo
 	*AppMetadataRepo
-	*BundleRepo
 	*PermissionRepo
 	*SessionRepo
 	*TaskRepo

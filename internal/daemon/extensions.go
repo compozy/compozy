@@ -67,7 +67,7 @@ func (s *daemonExtensionService) Status(ctx context.Context, name string) (contr
 		return contract.ExtensionPayload{}, err
 	}
 
-	ext, err := s.lookup(ctx, name)
+	ext, err := s.lookup(name)
 	if err != nil {
 		return contract.ExtensionPayload{}, err
 	}
@@ -94,9 +94,6 @@ func (s *daemonExtensionService) syncExtensionConsumers(ctx context.Context) err
 	if s.toolMCP != nil {
 		syncErr = errors.Join(syncErr, s.toolMCP.Sync(ctx))
 	}
-	if s.bundles != nil {
-		syncErr = errors.Join(syncErr, s.bundles.Sync(ctx))
-	}
 	if s.loops != nil {
 		syncErr = errors.Join(syncErr, s.loops.Sync(ctx))
 	}
@@ -106,12 +103,11 @@ func (s *daemonExtensionService) syncExtensionConsumers(ctx context.Context) err
 	return syncErr
 }
 
-func (s *daemonExtensionService) lookup(ctx context.Context, name string) (*extensionpkg.Extension, error) {
-	return loadExtensionSnapshot(ctx, s.registry, s.runtime, s.logger, name)
+func (s *daemonExtensionService) lookup(name string) (*extensionpkg.Extension, error) {
+	return loadExtensionSnapshot(s.registry, s.runtime, s.logger, name)
 }
 
 func loadExtensionSnapshot(
-	ctx context.Context,
 	registry *extensionpkg.Registry,
 	runtime extensionRuntime,
 	logger *slog.Logger,
@@ -129,7 +125,7 @@ func loadExtensionSnapshot(
 	if runtime != nil {
 		ext, err := runtime.Get(trimmed)
 		if err == nil {
-			populateExtensionManifest(ctx, logger, ext)
+			populateExtensionManifest(logger, ext)
 			return ext, nil
 		}
 		if !errors.Is(err, extensionpkg.ErrExtensionNotFound) {
@@ -151,11 +147,11 @@ func loadExtensionSnapshot(
 			Enabled: info.Enabled,
 		},
 	}
-	populateExtensionManifest(ctx, logger, ext)
+	populateExtensionManifest(logger, ext)
 	return ext, nil
 }
 
-func populateExtensionManifest(ctx context.Context, logger *slog.Logger, ext *extensionpkg.Extension) {
+func populateExtensionManifest(logger *slog.Logger, ext *extensionpkg.Extension) {
 	if ext == nil || ext.Manifest != nil || strings.TrimSpace(ext.Info.ManifestPath) == "" {
 		return
 	}
@@ -174,11 +170,6 @@ func populateExtensionManifest(ctx context.Context, logger *slog.Logger, ext *ex
 		return
 	}
 	ext.Manifest = manifest
-	if bundles, err := extensionpkg.LoadBundleSpecs(ctx, filepath.Dir(ext.Info.ManifestPath), manifest); err == nil {
-		ext.Bundles = bundles
-	} else if logger != nil {
-		logger.Debug("daemon: load extension bundles for status failed", "path", ext.Info.ManifestPath, "error", err)
-	}
 }
 
 func (s *daemonExtensionService) payloadFromExtension(

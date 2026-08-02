@@ -3,6 +3,7 @@
 package daemon
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -21,6 +22,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	eventspkg "github.com/compozy/compozy/internal/events"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
+	registrypkg "github.com/compozy/compozy/internal/registry"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	toolspkg "github.com/compozy/compozy/internal/tools"
@@ -28,11 +30,32 @@ import (
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
+func nativeNetworkExtensionDownloadResult(
+	t *testing.T,
+	version string,
+	channelScope string,
+) *registrypkg.DownloadResult {
+	t.Helper()
+
+	return &registrypkg.DownloadResult{
+		Reader:      io.NopCloser(bytes.NewReader(nativeExtensionTarGzWithNetwork(t, version, channelScope))),
+		Slug:        "acme/tool-ext",
+		Version:     version,
+		ContentSize: -1,
+		ContentType: "application/gzip",
+	}
+}
+
 func TestNativeExtensionToolsIntegrationLifecycleParity(t *testing.T) {
 	t.Run("Should match lifecycle parity through native extension tools", func(t *testing.T) {
 		t.Parallel()
 
 		deps, extRegistry, source, runtime := newNativeExtensionToolDeps(t)
+		inspectionRuntime := &nativeExtensionInspectionRuntime{
+			fakeExtensionRuntime: runtime,
+			manager:              extensionpkg.NewManager(extRegistry),
+		}
+		deps.ExtensionRuntime = func() extensionRuntime { return inspectionRuntime }
 		source.downloads["1.0.0"] = nativeNetworkExtensionDownloadResult(t, "1.0.0", "builders")
 		source.downloads["2.0.0"] = nativeNetworkExtensionDownloadResult(t, "2.0.0", "reviewers")
 		source.latestVersion = "1.0.0"
@@ -62,8 +85,19 @@ func TestNativeExtensionToolsIntegrationLifecycleParity(t *testing.T) {
 		if installed.Enabled {
 			t.Fatal("installed extension enabled = true, want inert install")
 		}
+		inspected, err := inspectionRuntime.InspectPackageResources(t.Context(), "tool-ext")
+		if err != nil {
+			t.Fatalf("InspectPackageResources(tool-ext) error = %v", err)
+		}
+		if len(inspected.Skills) != 1 {
+			t.Fatalf(
+				"inspected extension skills = %#v from manifest %#v, want one shipped skill",
+				inspected.Skills,
+				inspected.Manifest.Resources.Skills,
+			)
+		}
 		service, ok := newDaemonExtensionService(
-			extRegistry, runtime, nil, nil, nil, nil, nil, deps.HomePaths, nil, nil,
+			extRegistry, inspectionRuntime, nil, nil, nil, nil, deps.HomePaths, nil, nil,
 			withDaemonExtensionMarketplace(deps.ExtensionConfig, deps.ExtensionSources),
 			withDaemonExtensionEventWriter(deps.ExtensionEvents),
 		).(*daemonExtensionService)
@@ -379,6 +413,18 @@ func TestNativeExtensionToolsIntegrationLifecycleParity(t *testing.T) {
 		assertNativeExtensionLifecycleEvents(t, deps.ExtensionEvents, workspaceRegistrationID)
 		assertNativeExtensionAuthoringRisk(t)
 	})
+}
+
+type nativeExtensionInspectionRuntime struct {
+	*fakeExtensionRuntime
+	manager *extensionpkg.Manager
+}
+
+func (r *nativeExtensionInspectionRuntime) InspectPackageResources(
+	ctx context.Context,
+	name string,
+) (*extensionpkg.Extension, error) {
+	return r.manager.InspectPackageResources(ctx, name)
 }
 
 func assertNativeExtensionInventoryPreviewParity(

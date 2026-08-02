@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
-	bundlepkg "github.com/compozy/compozy/internal/bundles"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/heartbeat"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
@@ -288,13 +287,13 @@ func TestResourceAgentCatalogResolveAgentValidation(t *testing.T) {
 	}
 }
 
-func TestResourceAgentCatalogResolvesPackageOwnedArtifactsAndHeartbeatPolicy(t *testing.T) {
+func TestResourceAgentCatalogResolvesExtensionOwnedArtifactsAndHeartbeatPolicy(t *testing.T) {
 	t.Parallel()
 
 	scope := resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "ws-1"}
 	owner := resources.ResourceOwner{
-		Kind: bundlepkg.BundleActivationOwnerKind,
-		ID:   "act-marketing",
+		Kind: extensionResourceOwnerKind,
+		ID:   "marketing-kit",
 	}
 	agentCatalog := newResourceCatalog(cloneAgentDef)
 	agentCatalog.Replace(1, []resources.Record[compozyconfig.AgentDef]{
@@ -307,7 +306,7 @@ func TestResourceAgentCatalogResolvesPackageOwnedArtifactsAndHeartbeatPolicy(t *
 			ID:    "agt-marketer",
 			Scope: scope,
 			Owner: owner,
-			Spec:  compozyconfig.AgentDef{Name: "marketer", Prompt: "bundled marketer"},
+			Spec:  compozyconfig.AgentDef{Name: "marketer", Prompt: "extension marketer"},
 		},
 	})
 	soulCatalog := newResourceCatalog(cloneSoulResourceSpec)
@@ -319,7 +318,7 @@ func TestResourceAgentCatalogResolvesPackageOwnedArtifactsAndHeartbeatPolicy(t *
 			Spec: soul.ResourceSpec{
 				AgentName:       "marketer",
 				AgentResourceID: "agt-marketer",
-				SourcePath:      ".compozy/bundles/act-marketing/agents/marketer/SOUL.md",
+				SourcePath:      ".compozy/extensions/marketing-kit/agents/marketer/SOUL.md",
 				Body:            "Lead with campaign context.",
 			},
 		},
@@ -330,7 +329,7 @@ func TestResourceAgentCatalogResolvesPackageOwnedArtifactsAndHeartbeatPolicy(t *
 			Spec: soul.ResourceSpec{
 				AgentName:       "marketer",
 				AgentResourceID: "agt-global",
-				SourcePath:      ".compozy/bundles/act-marketing/agents/marketer/SOUL.md",
+				SourcePath:      ".compozy/extensions/marketing-kit/agents/marketer/SOUL.md",
 				Body:            "Do not attach this global sidecar.",
 			},
 		},
@@ -343,7 +342,7 @@ func TestResourceAgentCatalogResolvesPackageOwnedArtifactsAndHeartbeatPolicy(t *
 		Spec: heartbeat.ResourceSpec{
 			AgentName:       "marketer",
 			AgentResourceID: "agt-marketer",
-			SourcePath:      ".compozy/bundles/act-marketing/agents/marketer/HEARTBEAT.md",
+			SourcePath:      ".compozy/extensions/marketing-kit/agents/marketer/HEARTBEAT.md",
 			Body:            "Inspect campaign status and use Compozy task APIs.",
 		},
 	}})
@@ -360,7 +359,7 @@ func TestResourceAgentCatalogResolvesPackageOwnedArtifactsAndHeartbeatPolicy(t *
 	if !artifacts.PackageOwned {
 		t.Fatal("artifacts.PackageOwned = false, want true")
 	}
-	if got, want := artifacts.Agent.Prompt, "bundled marketer"; got != want {
+	if got, want := artifacts.Agent.Prompt, "extension marketer"; got != want {
 		t.Fatalf("artifacts.Agent.Prompt = %q, want %q", got, want)
 	}
 	if got, want := artifacts.SoulBody, "Lead with campaign context."; got != want {

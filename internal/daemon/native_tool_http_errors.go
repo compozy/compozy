@@ -7,17 +7,6 @@ import (
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
-func nativeBundleConfirmationDenied(id toolspkg.ToolID) error {
-	const message = "network requirement confirmation requires operator scope"
-	return toolspkg.NewToolError(
-		toolspkg.ErrorCodeDenied,
-		id,
-		message,
-		fmt.Errorf("%w: %s", toolspkg.ErrToolDenied, message),
-		toolspkg.ReasonPolicyDenied,
-	)
-}
-
 func nativeHTTPStatusToolError(id toolspkg.ToolID, err error, status int) error {
 	code := toolspkg.ErrorCodeBackendFailed
 	cause := toolspkg.ErrToolBackendFailed

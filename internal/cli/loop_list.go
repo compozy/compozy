@@ -116,8 +116,8 @@ func loopListToonRenderer(
 
 func loopListHumanHeaders() []string {
 	return []string{
-		bundleNameValue,
-		bundleKindValue,
+		cliNameValue,
+		cliKindValue,
 		"Category",
 		"Last Run",
 		"Best Gen",
@@ -130,7 +130,7 @@ func loopListHumanHeaders() []string {
 func loopListToonFields() []string {
 	return []string{
 		automationNameKey,
-		bundleKindKey,
+		cliKindKey,
 		"category",
 		"last_run_status",
 		"best_generation",

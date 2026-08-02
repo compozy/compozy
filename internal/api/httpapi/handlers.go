@@ -38,7 +38,6 @@ type handlerConfig struct {
 	loops              core.LoopService
 	bridges            core.BridgeService
 	notifications      core.NotificationPresetService
-	bundles            core.BundleService
 	supportBundles     core.SupportBundleService
 	tools              core.ToolRegistry
 	toolArtifacts      toolspkg.ToolArtifactStore
@@ -148,7 +147,6 @@ func coreHandlerConfig(cfg *handlerConfig, boundHost string) *core.BaseHandlerCo
 		Loops:                        cfg.loops,
 		Bridges:                      cfg.bridges,
 		Notifications:                cfg.notifications,
-		Bundles:                      cfg.bundles,
 		SupportBundles:               cfg.supportBundles,
 		Tools:                        cfg.tools,
 		ToolArtifacts:                cfg.toolArtifacts,

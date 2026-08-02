@@ -7,16 +7,6 @@ import (
 	"time"
 )
 
-type Spec struct {
-	Version         string          `json:"version"`
-	Mode            Mode            `json:"mode"`
-	WorkspaceID     string          `json:"workspace_id,omitempty"`
-	ChannelStrategy ChannelStrategy `json:"channel_strategy,omitempty"`
-	ChannelID       string          `json:"channel_id,omitempty"`
-	Source          Source          `json:"source"`
-	Bounds          Bounds          `json:"bounds,omitzero"`
-}
-
 type Speed string
 
 type State string
@@ -283,4 +273,11 @@ type TaskDashboardFreshnessPayload struct {
 	HasLiveWork      bool      `json:"has_live_work"`
 	Status           string    `json:"status"`
 	Stale            bool      `json:"stale"`
+}
+
+type TaskDashboardHealthPayload struct {
+	Status           string `json:"status"`
+	StuckRuns        int    `json:"stuck_runs"`
+	ActiveOrphanRuns int    `json:"active_orphan_runs"`
+	QueueBacklog     bool   `json:"queue_backlog"`
 }

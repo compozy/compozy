@@ -4,16 +4,6 @@ package contracts
 
 import "time"
 
-type SandboxSummary struct {
-	SessionID  string `json:"session_id"`
-	SandboxID  string `json:"sandbox_id"`
-	Backend    string `json:"backend"`
-	Profile    string `json:"profile,omitempty"`
-	InstanceID string `json:"instance_id,omitempty"`
-	State      string `json:"state"`
-	SyncState  string `json:"sync_state,omitempty"`
-}
-
 type SandboxSyncAfterPatch struct{}
 
 type SandboxSyncAfterPayload struct {
@@ -215,3 +205,28 @@ type SessionHealthResponse struct {
 type SessionHealthState string
 
 type SessionHealthStatus string
+
+type SessionHealthUpdateAfterPayload struct {
+	Event               HookEvent `json:"event"`
+	Timestamp           time.Time `json:"timestamp"`
+	SessionID           string    `json:"session_id,omitempty"`
+	SessionName         string    `json:"session_name,omitempty"`
+	SessionType         string    `json:"session_type,omitempty"`
+	AgentName           string    `json:"agent_name,omitempty"`
+	WorkspaceID         string    `json:"workspace_id,omitempty"`
+	Workspace           string    `json:"workspace,omitempty"`
+	ACPSessionID        string    `json:"acp_session_id,omitempty"`
+	State               string    `json:"state,omitempty"`
+	SoulSnapshotID      string    `json:"soul_snapshot_id,omitempty"`
+	SoulDigest          string    `json:"soul_digest,omitempty"`
+	CreatedAt           time.Time `json:"created_at"`
+	UpdatedAt           time.Time `json:"updated_at"`
+	Health              string    `json:"health,omitempty"`
+	ActivePrompt        bool      `json:"active_prompt,omitempty"`
+	Attachable          bool      `json:"attachable,omitempty"`
+	EligibleForWake     bool      `json:"eligible_for_wake,omitempty"`
+	IneligibilityReason string    `json:"ineligibility_reason,omitempty"`
+	LastActivityAt      time.Time `json:"last_activity_at"`
+	LastPresenceAt      time.Time `json:"last_presence_at"`
+	LastError           string    `json:"last_error,omitempty"`
+}

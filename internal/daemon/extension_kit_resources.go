@@ -172,7 +172,7 @@ func (s *extensionKitSourceSyncer) desired(
 		if !info.Enabled {
 			continue
 		}
-		ext, err := loadExtensionSnapshot(ctx, s.registry, s.runtime(), s.logger, info.Name)
+		ext, err := loadExtensionSnapshot(s.registry, s.runtime(), s.logger, info.Name)
 		if err != nil {
 			return nil, nil, nil, fmt.Errorf("daemon: load extension %q for kit sync: %w", info.Name, err)
 		}

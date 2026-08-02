@@ -220,7 +220,7 @@ func collectDeclaredResourceFiles(rootDir string, paths []string, extension, lab
 	files := make([]string, 0)
 	seen := make(map[string]struct{})
 	for _, declared := range paths {
-		resolved, err := resolveBundlePathWithinRoot(rootDir, declared, label)
+		resolved, err := resolveResourcePathWithinRoot(rootDir, declared, label)
 		if err != nil {
 			return nil, err
 		}
@@ -258,7 +258,7 @@ func collectDeclaredResourceFiles(rootDir string, paths []string, extension, lab
 			if err != nil {
 				return err
 			}
-			securePath, err := resolveBundlePathWithinRoot(rootDir, relative, label)
+			securePath, err := resolveResourcePathWithinRoot(rootDir, relative, label)
 			if err != nil {
 				return err
 			}

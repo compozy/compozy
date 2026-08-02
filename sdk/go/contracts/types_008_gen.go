@@ -7,10 +7,6 @@ import (
 	"time"
 )
 
-type EventPreRecordPatch struct {
-	Labels map[string]string `json:"labels,omitempty"`
-}
-
 type EventPreRecordPayload struct {
 	Event          HookEvent       `json:"event"`
 	Timestamp      time.Time       `json:"timestamp"`
@@ -186,4 +182,11 @@ type HeartbeatFrontmatterPreferencesPayload struct {
 	MinInterval  string                       `json:"min_interval,omitempty"`
 	ActiveHours  []HeartbeatTimeWindowPayload `json:"active_hours,omitempty"`
 	QuietWindows []HeartbeatTimeWindowPayload `json:"quiet_windows,omitempty"`
+}
+
+type HeartbeatHistoryRequest struct {
+	WorkspaceID string `json:"workspace_id,omitempty"`
+	AgentName   string `json:"agent_name"`
+	Limit       int    `json:"limit,omitempty"`
+	Cursor      string `json:"cursor,omitempty"`
 }

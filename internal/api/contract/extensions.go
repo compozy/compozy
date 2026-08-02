@@ -208,13 +208,6 @@ type ExtensionEnablePreviewPayload struct {
 	NetworkConfirmationRequired bool                      `json:"network_confirmation_required"`
 }
 
-// ExtensionBundleSummaryPayload describes an installed bundle exposed with extension status.
-type ExtensionBundleSummaryPayload struct {
-	Name        string   `json:"name"`
-	Description string   `json:"description,omitempty"`
-	Profiles    []string `json:"profiles,omitempty"`
-}
-
 // ExtensionCommandPayload is one executable command leaf projected from an active extension tool.
 type ExtensionCommandPayload struct {
 	Extension        string                 `json:"extension"`

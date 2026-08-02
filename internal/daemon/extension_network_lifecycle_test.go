@@ -29,7 +29,6 @@ func TestExtensionEnableNetworkConsentLifecycle(t *testing.T) {
 		nil,
 		nil,
 		nil,
-		nil,
 		testHomePaths(t),
 		discardLogger(),
 		func() time.Time { return time.Date(2026, 8, 2, 19, 0, 0, 0, time.UTC) },

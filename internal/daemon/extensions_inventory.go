@@ -109,7 +109,7 @@ func (s *daemonExtensionService) desiredExtensionKit(
 	if ok && inspector != nil {
 		ext, err = inspector.InspectPackageResources(ctx, strings.TrimSpace(name))
 	} else {
-		ext, err = loadExtensionSnapshot(ctx, s.registry, s.runtime, s.logger, name)
+		ext, err = loadExtensionSnapshot(s.registry, s.runtime, s.logger, name)
 	}
 	if err != nil {
 		return nil, nil, err

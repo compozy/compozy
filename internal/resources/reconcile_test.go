@@ -11,6 +11,11 @@ import (
 	"github.com/compozy/compozy/internal/testutil"
 )
 
+const (
+	parentFixtureKind    = ResourceKind("fixture.parent")
+	dependentFixtureKind = ResourceKind("fixture.dependent")
+)
+
 type recordingReconcileEventSink struct {
 	mu     sync.Mutex
 	events []ReconcileEvent
@@ -540,17 +545,17 @@ func TestReconcileDriverSchedulesReverseDependenciesAfterWritesOnly(t *testing.T
 			kernel,
 			testDaemonActor(),
 			[]ProjectorRegistration{
-				newTestProjectorRegistration(bundleKind, nil,
+				newTestProjectorRegistration(parentFixtureKind, nil,
 					func(context.Context, projectionInput) (ProjectionPlan, error) {
-						recordOrder(bundleKind)
-						return testPlan{kind: bundleKind, revision: 1, operations: 1}, nil
+						recordOrder(parentFixtureKind)
+						return testPlan{kind: parentFixtureKind, revision: 1, operations: 1}, nil
 					},
 					func(context.Context, ProjectionPlan) error { return nil },
 				),
-				newTestProjectorRegistration(bundleActivationKind, []ResourceKind{bundleKind},
+				newTestProjectorRegistration(dependentFixtureKind, []ResourceKind{parentFixtureKind},
 					func(context.Context, projectionInput) (ProjectionPlan, error) {
-						recordOrder(bundleActivationKind)
-						return testPlan{kind: bundleActivationKind, revision: 1, operations: 1}, nil
+						recordOrder(dependentFixtureKind)
+						return testPlan{kind: dependentFixtureKind, revision: 1, operations: 1}, nil
 					},
 					func(context.Context, ProjectionPlan) error { return nil },
 				),
@@ -574,7 +579,7 @@ func TestReconcileDriverSchedulesReverseDependenciesAfterWritesOnly(t *testing.T
 			}
 		})
 
-		if err := driver.Trigger(ctx, bundleKind, ReconcileReasonWrite); err != nil {
+		if err := driver.Trigger(ctx, parentFixtureKind, ReconcileReasonWrite); err != nil {
 			t.Fatalf("Trigger(bundle) error = %v", err)
 		}
 
@@ -587,7 +592,7 @@ func TestReconcileDriverSchedulesReverseDependenciesAfterWritesOnly(t *testing.T
 		mu.Lock()
 		gotOrder := append([]ResourceKind(nil), order...)
 		mu.Unlock()
-		wantOrder := []ResourceKind{bundleKind, bundleActivationKind}
+		wantOrder := []ResourceKind{parentFixtureKind, dependentFixtureKind}
 		if len(gotOrder) != len(wantOrder) {
 			t.Fatalf("order = %#v, want %#v", gotOrder, wantOrder)
 		}
@@ -616,17 +621,17 @@ func TestReconcileDriverSchedulesReverseDependenciesAfterWritesOnly(t *testing.T
 			kernel,
 			testDaemonActor(),
 			[]ProjectorRegistration{
-				newTestProjectorRegistration(bundleKind, nil,
+				newTestProjectorRegistration(parentFixtureKind, nil,
 					func(context.Context, projectionInput) (ProjectionPlan, error) {
-						recordOrder(bundleKind)
-						return testPlan{kind: bundleKind, revision: 1, operations: 1}, nil
+						recordOrder(parentFixtureKind)
+						return testPlan{kind: parentFixtureKind, revision: 1, operations: 1}, nil
 					},
 					func(context.Context, ProjectionPlan) error { return nil },
 				),
-				newTestProjectorRegistration(bundleActivationKind, []ResourceKind{bundleKind},
+				newTestProjectorRegistration(dependentFixtureKind, []ResourceKind{parentFixtureKind},
 					func(context.Context, projectionInput) (ProjectionPlan, error) {
-						recordOrder(bundleActivationKind)
-						return testPlan{kind: bundleActivationKind, revision: 1, operations: 1}, nil
+						recordOrder(dependentFixtureKind)
+						return testPlan{kind: dependentFixtureKind, revision: 1, operations: 1}, nil
 					},
 					func(context.Context, ProjectionPlan) error { return nil },
 				),
@@ -643,8 +648,8 @@ func TestReconcileDriverSchedulesReverseDependenciesAfterWritesOnly(t *testing.T
 			}
 		})
 
-		if err := driver.Trigger(ctx, bundleActivationKind, ReconcileReasonWrite); err != nil {
-			t.Fatalf("Trigger(bundle.activation) error = %v", err)
+		if err := driver.Trigger(ctx, dependentFixtureKind, ReconcileReasonWrite); err != nil {
+			t.Fatalf("Trigger(fixture.dependent) error = %v", err)
 		}
 
 		waitForCondition(t, time.Second, func() bool {
@@ -656,8 +661,8 @@ func TestReconcileDriverSchedulesReverseDependenciesAfterWritesOnly(t *testing.T
 		mu.Lock()
 		gotOrder := append([]ResourceKind(nil), order...)
 		mu.Unlock()
-		if len(gotOrder) != 1 || gotOrder[0] != bundleActivationKind {
-			t.Fatalf("order = %#v, want only %q", gotOrder, bundleActivationKind)
+		if len(gotOrder) != 1 || gotOrder[0] != dependentFixtureKind {
+			t.Fatalf("order = %#v, want only %q", gotOrder, dependentFixtureKind)
 		}
 	})
 
@@ -672,14 +677,14 @@ func TestReconcileDriverSchedulesReverseDependenciesAfterWritesOnly(t *testing.T
 			kernel,
 			testDaemonActor(),
 			[]ProjectorRegistration{
-				newTestProjectorRegistration(bundleActivationKind, []ResourceKind{bundleKind},
+				newTestProjectorRegistration(dependentFixtureKind, []ResourceKind{parentFixtureKind},
 					func(_ context.Context, input projectionInput) (ProjectionPlan, error) {
-						if _, ok := input.dependencies[bundleKind]; !ok {
-							buildResult <- errors.New("bundle dependency records were not loaded")
-							return nil, errors.New("bundle dependency records were not loaded")
+						if _, ok := input.dependencies[parentFixtureKind]; !ok {
+							buildResult <- errors.New("parent fixture dependency records were not loaded")
+							return nil, errors.New("parent fixture dependency records were not loaded")
 						}
 						buildResult <- nil
-						return testPlan{kind: bundleActivationKind, revision: 1, operations: 1}, nil
+						return testPlan{kind: dependentFixtureKind, revision: 1, operations: 1}, nil
 					},
 					func(context.Context, ProjectionPlan) error { return nil },
 				),
@@ -696,7 +701,7 @@ func TestReconcileDriverSchedulesReverseDependenciesAfterWritesOnly(t *testing.T
 			}
 		})
 
-		if err := driver.Trigger(ctx, bundleKind, ReconcileReasonWrite); err != nil {
+		if err := driver.Trigger(ctx, parentFixtureKind, ReconcileReasonWrite); err != nil {
 			t.Fatalf("Trigger(bundle dependency-only write) error = %v", err)
 		}
 

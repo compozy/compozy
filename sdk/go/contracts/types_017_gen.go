@@ -4,20 +4,6 @@ package contracts
 
 import "time"
 
-type RetentionHealth struct {
-	Enabled                  bool       `json:"enabled"`
-	RetentionDays            int        `json:"retention_days"`
-	SweepIntervalSeconds     int64      `json:"sweep_interval_seconds"`
-	LastSweepStatus          string     `json:"last_sweep_status"`
-	LastSweepAt              *time.Time `json:"last_sweep_at,omitempty"`
-	LastCutoffAt             *time.Time `json:"last_cutoff_at,omitempty"`
-	LastSweepError           string     `json:"last_sweep_error,omitempty"`
-	DeletedEventSummaries    int64      `json:"deleted_event_summaries"`
-	DeletedTokenStats        int64      `json:"deleted_token_stats"`
-	DeletedTokenUsageDaily   int64      `json:"deleted_token_usage_daily"`
-	DeletedPermissionLogRows int64      `json:"deleted_permission_log_rows"`
-}
-
 type RetryConfig struct {
 	Strategy   RetryStrategy `json:"strategy"`
 	MaxRetries int           `json:"max_retries"`
@@ -218,4 +204,14 @@ type SandboxStopPayload struct {
 	WillDestroy    bool      `json:"will_destroy,omitempty"`
 	Denied         bool      `json:"denied,omitempty"`
 	DenyReason     string    `json:"deny_reason,omitempty"`
+}
+
+type SandboxSummary struct {
+	SessionID  string `json:"session_id"`
+	SandboxID  string `json:"sandbox_id"`
+	Backend    string `json:"backend"`
+	Profile    string `json:"profile,omitempty"`
+	InstanceID string `json:"instance_id,omitempty"`
+	State      string `json:"state"`
+	SyncState  string `json:"sync_state,omitempty"`
 }

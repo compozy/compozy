@@ -114,7 +114,7 @@ func verifyDevGeneration(originPath, generationHash string) (*verifiedDevGenerat
 		OriginPath:               originPath,
 		GenerationDir:            canonicalDir,
 		GenerationHash:           hash,
-		ManifestPath:             bundleManifestPath(canonicalDir),
+		ManifestPath:             extensionManifestPath(canonicalDir),
 		Manifest:                 manifest,
 		NetworkRequirementDigest: networkDigest,
 	}, nil

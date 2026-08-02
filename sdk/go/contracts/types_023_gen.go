@@ -7,28 +7,6 @@ import (
 	"time"
 )
 
-type TaskNeedsAttentionPayload struct {
-	Event                        HookEvent `json:"event"`
-	Timestamp                    time.Time `json:"timestamp"`
-	TaskID                       string    `json:"task_id,omitempty"`
-	ParentTaskID                 string    `json:"parent_task_id,omitempty"`
-	WorkspaceID                  string    `json:"workspace_id,omitempty"`
-	WorkflowID                   string    `json:"workflow_id,omitempty"`
-	ResolvedNetworkParticipation *Spec     `json:"resolved_network_participation,omitempty"`
-	AgentName                    string    `json:"agent_name,omitempty"`
-	ActorKind                    string    `json:"actor_kind,omitempty"`
-	ActorID                      string    `json:"actor_id,omitempty"`
-	OriginKind                   string    `json:"origin_kind,omitempty"`
-	OriginRef                    string    `json:"origin_ref,omitempty"`
-	TaskStatus                   string    `json:"task_status,omitempty"`
-	RunID                        string    `json:"run_id,omitempty"`
-	ReleaseReason                string    `json:"release_reason,omitempty"`
-	ClaimTokenHash               string    `json:"claim_token_hash,omitempty"`
-	Reason                       string    `json:"reason,omitempty"`
-	Note                         string    `json:"note,omitempty"`
-	At                           time.Time `json:"at,omitzero"`
-}
-
 type TaskObservationPatch struct {
 	Labels map[string]string `json:"labels,omitempty"`
 }
@@ -368,6 +346,39 @@ type TaskRunLeaseExtendedPayload struct {
 }
 
 type TaskRunLeasePayload struct {
+	Event                        HookEvent `json:"event"`
+	Timestamp                    time.Time `json:"timestamp"`
+	TaskID                       string    `json:"task_id,omitempty"`
+	RunID                        string    `json:"run_id,omitempty"`
+	RunKind                      *string   `json:"run_kind,omitempty"`
+	WakeID                       string    `json:"wake_id,omitempty"`
+	OwnerKey                     string    `json:"owner_key,omitempty"`
+	TargetSessionID              string    `json:"target_session_id,omitempty"`
+	LoopRunID                    string    `json:"loop_run_id,omitempty"`
+	WorkspaceID                  string    `json:"workspace_id,omitempty"`
+	WorkflowID                   string    `json:"workflow_id,omitempty"`
+	ResolvedNetworkParticipation *Spec     `json:"resolved_network_participation"`
+	AgentName                    string    `json:"agent_name,omitempty"`
+	SessionID                    string    `json:"session_id,omitempty"`
+	ActorKind                    string    `json:"actor_kind,omitempty"`
+	ActorID                      string    `json:"actor_id,omitempty"`
+	OriginKind                   string    `json:"origin_kind,omitempty"`
+	OriginRef                    string    `json:"origin_ref,omitempty"`
+	TaskStatus                   string    `json:"task_status,omitempty"`
+	RunStatus                    string    `json:"run_status,omitempty"`
+	SoulSnapshotID               string    `json:"soul_snapshot_id,omitempty"`
+	SoulDigest                   string    `json:"soul_digest,omitempty"`
+	Attempt                      int       `json:"attempt,omitempty"`
+	LeaseUntil                   time.Time `json:"lease_until"`
+	ReleaseReason                string    `json:"release_reason,omitempty"`
+	Error                        string    `json:"error,omitempty"`
+	PreviousRunStatus            string    `json:"previous_run_status,omitempty"`
+	PreviousSessionID            string    `json:"previous_session_id,omitempty"`
+	RecoveryAction               string    `json:"recovery_action,omitempty"`
+	RecoveryReason               string    `json:"recovery_reason,omitempty"`
+}
+
+type TaskRunLeaseRecoveredPayload struct {
 	Event                        HookEvent `json:"event"`
 	Timestamp                    time.Time `json:"timestamp"`
 	TaskID                       string    `json:"task_id,omitempty"`

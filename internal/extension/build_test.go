@@ -132,7 +132,7 @@ expr = "0 * * * *"
 		if err := os.MkdirAll(filepath.Join(dir, "layouts"), 0o755); err != nil {
 			t.Fatalf("os.MkdirAll(layouts) error = %v", err)
 		}
-		writeJSONFile(t, filepath.Join(dir, "layouts", "two-up.json"), testBundleLayoutResource("two-up"))
+		writeLayoutJSONFile(t, filepath.Join(dir, "layouts", "two-up.json"), testLayoutResource("two-up"))
 		payload := validDescribePayload()
 		payload.Resources.Agents = []string{"agents"}
 		payload.Resources.Skills = []string{"skills"}

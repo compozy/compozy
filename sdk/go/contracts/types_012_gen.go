@@ -7,13 +7,6 @@ import (
 	"time"
 )
 
-type MemoryRecallParams struct {
-	Query     string      `json:"query"`
-	Limit     int         `json:"limit,omitempty"`
-	Scope     MemoryScope `json:"scope,omitempty"`
-	Workspace string      `json:"workspace,omitempty"`
-}
-
 type MemoryScope string
 
 type MemoryStoreParams struct {
@@ -249,4 +242,14 @@ type ModelsRefreshParams struct {
 
 type ModelsStatusParams struct {
 	ProviderID string `json:"provider_id,omitempty"`
+}
+
+type NetworkBudgetUsagePayload struct {
+	ParticipationStatus ParticipationStatus `json:"participation_status"`
+	WakesUsed           int                 `json:"wakes_used"`
+	WallTimeUsed        string              `json:"wall_time_used"`
+	InputTokensUsed     int64               `json:"input_tokens_used"`
+	OutputTokensUsed    int64               `json:"output_tokens_used"`
+	ExhaustedReason     string              `json:"exhausted_reason,omitempty"`
+	UpdatedAt           time.Time           `json:"updated_at"`
 }

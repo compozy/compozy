@@ -16,7 +16,6 @@ import (
 	core "github.com/compozy/compozy/internal/api/core"
 
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
-	bundlepkg "github.com/compozy/compozy/internal/bundles"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/heartbeat"
@@ -159,7 +158,6 @@ type resourceReconcileDriverDeps struct {
 	SkillsRegistry      *skills.Registry
 	Automation          automationResourceProjectorTarget
 	Bridges             bridgeResourceProjectorTarget
-	Bundles             resources.BundleActivationProjector[bundlepkg.ActivationResourceSpec, bundlepkg.BundleResourceSpec]
 }
 
 type extensionRuntime interface {

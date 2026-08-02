@@ -89,7 +89,7 @@ func TestRegisterRoutesExposesResourceSurfaceWhenOperatorAuthPresent(t *testing.
 		t,
 		engine,
 		http.MethodPut,
-		"/api/resources/bundle.activation/demo",
+		"/api/resources/fixture.resource/demo",
 		[]byte(`{"scope":{"kind":"global"},"spec":{"enabled":true}}`),
 	)
 	if resp.Code != http.StatusCreated {
@@ -98,7 +98,7 @@ func TestRegisterRoutesExposesResourceSurfaceWhenOperatorAuthPresent(t *testing.
 	if authCalls != 1 {
 		t.Fatalf("authCalls = %d, want 1", authCalls)
 	}
-	if gotDraft.Kind != resources.ResourceKind("bundle.activation") || gotDraft.ID != "demo" {
+	if gotDraft.Kind != resources.ResourceKind("fixture.resource") || gotDraft.ID != "demo" {
 		t.Fatalf("gotDraft identity = %#v", gotDraft)
 	}
 
@@ -138,7 +138,7 @@ func TestResourceMutationRoutesRemainUnavailableWithoutOperatorAuth(t *testing.T
 		t,
 		engine,
 		http.MethodPut,
-		"/api/resources/bundle.activation/demo",
+		"/api/resources/fixture.resource/demo",
 		[]byte(`{"scope":{"kind":"global"},"spec":{"enabled":true}}`),
 	)
 	if putResp.Code != http.StatusNotFound {
@@ -149,7 +149,7 @@ func TestResourceMutationRoutesRemainUnavailableWithoutOperatorAuth(t *testing.T
 		t,
 		engine,
 		http.MethodDelete,
-		"/api/resources/bundle.activation/demo",
+		"/api/resources/fixture.resource/demo",
 		[]byte(`{"expected_version":1}`),
 	)
 	if deleteResp.Code != http.StatusNotFound {

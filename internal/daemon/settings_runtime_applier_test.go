@@ -281,7 +281,6 @@ func TestDaemonSettingsRuntimeApplier(t *testing.T) {
 			nil,
 			nil,
 			nil,
-			nil,
 			nativeDeps.HomePaths,
 			nil,
 			nil,

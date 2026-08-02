@@ -43,10 +43,10 @@ func TestReconcileDriverRunBootTopologyIntegration(t *testing.T) {
 				},
 				func(context.Context, ProjectionPlan) error { return nil },
 			),
-			newTestProjectorRegistration(ResourceKind("bundle.activation"), []ResourceKind{ResourceKind("agent")},
+			newTestProjectorRegistration(ResourceKind("fixture.dependent"), []ResourceKind{ResourceKind("agent")},
 				func(context.Context, projectionInput) (ProjectionPlan, error) {
-					recordOrder(ResourceKind("bundle.activation"))
-					return testPlan{kind: ResourceKind("bundle.activation"), revision: 1, operations: 1}, nil
+					recordOrder(ResourceKind("fixture.dependent"))
+					return testPlan{kind: ResourceKind("fixture.dependent"), revision: 1, operations: 1}, nil
 				},
 				func(context.Context, ProjectionPlan) error { return nil },
 			),
@@ -70,7 +70,7 @@ func TestReconcileDriverRunBootTopologyIntegration(t *testing.T) {
 	mu.Lock()
 	gotOrder := append([]ResourceKind(nil), order...)
 	mu.Unlock()
-	wantOrder := []ResourceKind{ResourceKind("tool"), ResourceKind("agent"), ResourceKind("bundle.activation")}
+	wantOrder := []ResourceKind{ResourceKind("tool"), ResourceKind("agent"), ResourceKind("fixture.dependent")}
 	if len(gotOrder) != len(wantOrder) {
 		t.Fatalf("boot order = %#v, want %#v", gotOrder, wantOrder)
 	}

@@ -26,7 +26,6 @@ type daemonExtensionService struct {
 	hookBinds          hookBindingPublisher
 	agentSkill         agentSkillPublisher
 	toolMCP            toolMCPPublisher
-	bundles            bundleResourcePublisher
 	loops              loopResourcePublisher
 	extensionKit       extensionKitResourcePublisher
 	homePaths          compozyconfig.HomePaths
@@ -137,7 +136,6 @@ func newDaemonExtensionService(
 	hookBinds hookBindingPublisher,
 	agentSkill agentSkillPublisher,
 	toolMCP toolMCPPublisher,
-	bundles bundleResourcePublisher,
 	loops loopResourcePublisher,
 	homePaths compozyconfig.HomePaths,
 	logger *slog.Logger,
@@ -161,7 +159,6 @@ func newDaemonExtensionService(
 		hookBinds:  hookBinds,
 		agentSkill: agentSkill,
 		toolMCP:    toolMCP,
-		bundles:    bundles,
 		loops:      loops,
 		homePaths:  homePaths,
 		logger:     logger,

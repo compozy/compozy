@@ -9,8 +9,6 @@ import (
 
 	automationpkg "github.com/compozy/compozy/internal/automation"
 
-	bundlepkg "github.com/compozy/compozy/internal/bundles"
-
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 
 	"github.com/compozy/compozy/internal/resources"
@@ -87,50 +85,6 @@ func (d *Daemon) bootAutomation(ctx context.Context, state *bootState, cleanup *
 	return nil
 }
 
-func (d *Daemon) bootBundles(_ context.Context, state *bootState) error {
-	if state == nil {
-		return errors.New("daemon: boot bundle state is required")
-	}
-
-	dbSource, ok := state.registry.(interface {
-		extensionDBSource
-	})
-	if !ok {
-		return nil
-	}
-
-	extRegistry := extensionpkg.NewRegistry(dbSource.DB())
-	resourceStore, err := newBundleResourceStore(state, d.now)
-	if err != nil {
-		return err
-	}
-	if resourceStore == nil {
-		return nil
-	}
-	service := bundlepkg.NewService(
-		resourceStore,
-		extRegistry,
-		func(ctx context.Context, name string) (*extensionpkg.Extension, error) {
-			return loadExtensionSnapshot(
-				ctx,
-				extRegistry,
-				state.currentExtensionRuntime(),
-				state.logger,
-				name,
-			)
-		},
-		bundlepkg.WithWorkspaceResolver(state.workspaceResolver),
-		bundlepkg.WithLogger(state.logger),
-		bundlepkg.WithNow(d.now),
-	)
-	if service == nil {
-		return nil
-	}
-	state.bundles = service
-	state.deps.Bundles = service
-	return nil
-}
-
 func (d *Daemon) bootExtensions(ctx context.Context, state *bootState, cleanup *bootCleanup) error {
 	if state == nil || state.registry == nil {
 		return nil
@@ -203,11 +157,6 @@ func (d *Daemon) configureExtensionResourcePublishers(
 		return err
 	}
 	state.toolMCPResources = toolMCPResources
-	bundleResources, err := d.newBundlePublisher(state, extRegistry)
-	if err != nil {
-		return err
-	}
-	state.bundleResources = bundleResources
 	loopResources, err := d.newLoopPublisher(state, extRegistry)
 	if err != nil {
 		return err
@@ -234,11 +183,6 @@ func syncExtensionResourcePublishers(ctx context.Context, state *bootState) erro
 	}
 	if state.toolMCPResources != nil {
 		if err := state.toolMCPResources.Sync(ctx); err != nil {
-			return err
-		}
-	}
-	if state.bundleResources != nil {
-		if err := state.bundleResources.Sync(ctx); err != nil {
 			return err
 		}
 	}

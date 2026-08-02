@@ -283,7 +283,7 @@ func bridgeSecretBindingBundle(item BridgeSecretBindingRecord) outputBundle {
 					taskBridgeInstanceIDKey,
 					bridgeBindingNameKey,
 					"secret_ref",
-					bundleKindKey,
+					cliKindKey,
 					bridgeCreatedAtKey,
 					bridgeUpdatedAtKey,
 				},

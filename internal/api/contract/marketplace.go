@@ -6,7 +6,6 @@ const (
 	MarketplaceKindMCP       = "mcp"
 	MarketplaceKindExtension = "extension"
 	MarketplaceKindSkill     = "skill"
-	MarketplaceKindBundle    = "bundle"
 
 	MarketplaceScopeGlobal    = "global"
 	MarketplaceScopeWorkspace = "workspace"
@@ -124,31 +123,12 @@ type MarketplaceSkillDetailPayload struct {
 	Versions    []string `json:"versions,omitempty"`
 }
 
-// MarketplaceBundleProfilePayload summarizes one activatable bundle profile.
-type MarketplaceBundleProfilePayload struct {
-	Name        string `json:"name"`
-	Description string `json:"description,omitempty"`
-	Layouts     int    `json:"layouts"`
-	Agents      int    `json:"agents"`
-	Jobs        int    `json:"jobs"`
-	Triggers    int    `json:"triggers"`
-	Bridges     int    `json:"bridges"`
-	Channels    int    `json:"channels"`
-}
-
-// MarketplaceBundleDetailPayload contains the derived bundle catalog detail.
-type MarketplaceBundleDetailPayload struct {
-	ExtensionName string                            `json:"extension_name"`
-	Profiles      []MarketplaceBundleProfilePayload `json:"profiles"`
-}
-
 // MarketplaceEntryResponse is one exact detail resolved by entry_id.
 type MarketplaceEntryResponse struct {
 	Entry     MarketplaceListingPayload          `json:"entry"`
 	MCP       *MarketplaceMCPDetailPayload       `json:"mcp,omitempty"`
 	Extension *MarketplaceExtensionDetailPayload `json:"extension,omitempty"`
 	Skill     *MarketplaceSkillDetailPayload     `json:"skill,omitempty"`
-	Bundle    *MarketplaceBundleDetailPayload    `json:"bundle,omitempty"`
 }
 
 // MarketplaceRefreshKindPayload reports one feed-backed refresh outcome.

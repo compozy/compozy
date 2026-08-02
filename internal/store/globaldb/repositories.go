@@ -48,7 +48,6 @@ func (r *repoBase) checkReady(ctx context.Context, action string) error {
 
 type WorkspaceRepo struct{ *repoBase }
 type AppMetadataRepo struct{ *repoBase }
-type BundleRepo struct{ *repoBase }
 type PermissionRepo struct{ *repoBase }
 type SessionRepo struct{ *repoBase }
 type TaskRepo struct {
@@ -93,7 +92,6 @@ func (g *GlobalDB) initializeRepositories(config openConfig) {
 	base.path = g.path
 	g.WorkspaceRepo = &WorkspaceRepo{repoBase: base}
 	g.AppMetadataRepo = &AppMetadataRepo{repoBase: base}
-	g.BundleRepo = &BundleRepo{repoBase: base}
 	g.PermissionRepo = &PermissionRepo{repoBase: base}
 	g.SessionRepo = &SessionRepo{repoBase: base}
 	base.sessions = g.SessionRepo

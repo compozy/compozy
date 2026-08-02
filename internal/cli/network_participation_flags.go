@@ -90,12 +90,3 @@ func (f networkParticipationFlags) namedRequest() (*participation.Request, error
 	}
 	return request, nil
 }
-
-func bindConfirmNetworkRequirementFlag(cmd *cobra.Command, confirmed *bool) {
-	cmd.Flags().BoolVar(
-		confirmed,
-		"confirm-network-requirement",
-		false,
-		"Confirm the extension Live network participation requirement digest",
-	)
-}

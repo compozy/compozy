@@ -14,23 +14,23 @@ import (
 	extensioncontract "github.com/compozy/compozy/internal/extension/contract"
 )
 
-// IssueSeverity classifies one bundle validation issue.
+// IssueSeverity classifies one extension validation issue.
 type IssueSeverity = extensioncontract.IssueSeverity
 
 const (
-	// IssueSeverityError blocks bundle use.
+	// IssueSeverityError blocks extension use.
 	IssueSeverityError = extensioncontract.IssueSeverityError
 	// IssueSeverityWarning reports non-blocking authoring guidance.
 	IssueSeverityWarning = extensioncontract.IssueSeverityWarning
 )
 
-// ValidationIssue is one positioned bundle validation diagnostic.
+// ValidationIssue is one positioned extension validation diagnostic.
 type ValidationIssue = extensioncontract.ValidationIssue
 
 // ValidationReport is the structured daemon-free result shared by CLI and native authoring surfaces.
 type ValidationReport = apicontract.ExtensionValidatePayload
 
-// ValidateBundle validates a built or resource-only bundle without executing extension code.
+// ValidateBundle validates a built or resource-only extension archive without executing extension code.
 func ValidateBundle(dir string) (*Manifest, []ValidationIssue, error) {
 	manifest, err := LoadManifest(dir)
 	if err == nil {
@@ -44,7 +44,7 @@ func ValidateBundle(dir string) (*Manifest, []ValidationIssue, error) {
 			}
 			return nil, nil, err
 		}
-		return manifest, commandAmbiguityWarnings(manifest, bundleManifestPath(dir)), nil
+		return manifest, commandAmbiguityWarnings(manifest, extensionManifestPath(dir)), nil
 	}
 	issue, handled, issueErr := validationIssueForError(dir, err)
 	if issueErr != nil {
@@ -89,7 +89,7 @@ func ValidateBundleReport(dir string) (*ValidationReport, error) {
 }
 
 func validationIssueForError(dir string, err error) (ValidationIssue, bool, error) {
-	path := bundleManifestPath(dir)
+	path := extensionManifestPath(dir)
 	issue := ValidationIssue{
 		Path:     path,
 		Message:  err.Error(),
@@ -148,7 +148,7 @@ func validationIssueForError(dir string, err error) (ValidationIssue, bool, erro
 	return ValidationIssue{}, false, nil
 }
 
-func bundleManifestPath(dir string) string {
+func extensionManifestPath(dir string) string {
 	root := strings.TrimSpace(dir)
 	tomlPath := filepath.Join(root, manifestTOMLFileName)
 	if info, err := os.Stat(tomlPath); err == nil && info.Mode().IsRegular() {

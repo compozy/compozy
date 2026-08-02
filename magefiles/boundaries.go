@@ -153,7 +153,6 @@ func Boundaries() error {
 		{"internal/marketplace", "internal/cli"},
 		{"internal/marketplace", "internal/skills"},
 		{"internal/marketplace", "internal/extension"},
-		{"internal/marketplace", "internal/bundles"},
 		{"internal/marketplace", "internal/settings"},
 		{"internal/marketplace", "internal/mcp"},
 		{"internal/memory/contract", "internal/memory/controller"},

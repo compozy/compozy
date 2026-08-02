@@ -239,7 +239,7 @@ func (s *daemonExtensionService) extensionSecretTarget(
 		return nil, errors.New("daemon: extension secret storage is unavailable")
 	}
 	if key.IsGlobal() {
-		return s.lookup(ctx, key.Name)
+		return s.lookup(key.Name)
 	}
 	runtime, err := s.devRuntime()
 	if err != nil {

@@ -327,7 +327,7 @@ func TestSQLiteStoreRejectsInvalidInputsBeforeMutation(t *testing.T) {
 		wantErr  string
 	}{
 		{
-			name: "Should reject an unsupported kind", kind: Kind("bundle"),
+			name: "Should reject an unsupported kind", kind: Kind("artifact"),
 			document: testDocument(now), wantErr: "unsupported kind",
 		},
 		{name: "Should reject a missing document", kind: KindSkill, wantErr: "document is required"},
@@ -419,7 +419,7 @@ func TestSQLiteStoreRejectsInvalidInputsBeforeMutation(t *testing.T) {
 		t.Parallel()
 
 		store := openMarketplaceTestStore(t)
-		err := store.MarkKindStale(testutil.Context(t), Kind("bundle"), "validation", "bad kind")
+		err := store.MarkKindStale(testutil.Context(t), Kind("artifact"), "validation", "bad kind")
 		if err == nil || !strings.Contains(err.Error(), "unsupported kind") {
 			t.Fatalf("MarkKindStale(unsupported kind) error = %v, want kind validation", err)
 		}

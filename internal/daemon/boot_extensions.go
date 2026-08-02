@@ -32,7 +32,6 @@ func (d *Daemon) newBootExtensionService(
 		state.hookBindings,
 		state.agentSkillResources,
 		state.toolMCPResources,
-		state.bundleResources,
 		state.loopResources,
 		d.homePaths,
 		state.logger,
@@ -79,15 +78,6 @@ func (d *Daemon) syncExtensionRuntimeConsumers(ctx context.Context, state *bootS
 	if state.extensionKitResources != nil {
 		if err := state.extensionKitResources.Sync(ctx); err != nil {
 			state.logger.Error("daemon: sync extension kit resources after extension boot failed", "error", err)
-		}
-	}
-	if state.bundleResources != nil {
-		if err := state.bundleResources.Sync(ctx); err != nil {
-			state.logger.Error(
-				"daemon: sync bundle resources after extension boot failed",
-				"error",
-				err,
-			)
 		}
 	}
 	if state.loopResources != nil {

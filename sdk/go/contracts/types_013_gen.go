@@ -7,16 +7,6 @@ import (
 	"time"
 )
 
-type NetworkBudgetUsagePayload struct {
-	ParticipationStatus ParticipationStatus `json:"participation_status"`
-	WakesUsed           int                 `json:"wakes_used"`
-	WallTimeUsed        string              `json:"wall_time_used"`
-	InputTokensUsed     int64               `json:"input_tokens_used"`
-	OutputTokensUsed    int64               `json:"output_tokens_used"`
-	ExhaustedReason     string              `json:"exhausted_reason,omitempty"`
-	UpdatedAt           time.Time           `json:"updated_at"`
-}
-
 type NetworkCapabilityBriefPayload struct {
 	ID      string `json:"id"`
 	Summary string `json:"summary"`
@@ -252,4 +242,14 @@ type NetworkPayload struct {
 	LastSeenAt  *time.Time `json:"last_seen_at,omitempty"`
 	TraceID     string     `json:"trace_id,omitempty"`
 	CausationID string     `json:"causation_id,omitempty"`
+}
+
+type NetworkPeerCardPayload struct {
+	PeerID              string                          `json:"peer_id"`
+	DisplayName         *string                         `json:"display_name,omitempty"`
+	ProfilesSupported   []string                        `json:"profiles_supported"`
+	Capabilities        []NetworkCapabilityBriefPayload `json:"capabilities"`
+	ArtifactsSupported  []string                        `json:"artifacts_supported"`
+	TrustModesSupported []string                        `json:"trust_modes_supported"`
+	Ext                 map[string]json.RawMessage      `json:"ext,omitempty"`
 }

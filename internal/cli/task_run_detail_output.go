@@ -85,7 +85,7 @@ func taskRunDetailSessionBlock(detail *TaskRunDetailRecord) string {
 	return renderHumanSection(taskSessionValue, []keyValue{
 		{Label: "ID", Value: stringOrDash(detail.Session.SessionID)},
 		{Label: taskWorkspaceValue, Value: stringOrDash(detail.Session.WorkspaceID)},
-		{Label: bundleAgentValue, Value: stringOrDash(detail.Session.AgentName)},
+		{Label: automationAgentValue, Value: stringOrDash(detail.Session.AgentName)},
 		{Label: providerNameValue, Value: stringOrDash(detail.Session.Name)},
 		{Label: taskStatusValue, Value: stringOrDash(detail.Session.State)},
 		{Label: taskCreatedValue, Value: stringOrDash(formatTime(detail.Session.CreatedAt))},

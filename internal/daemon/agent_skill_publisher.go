@@ -204,6 +204,9 @@ func extensionAgentSkillDeclarationProvider(
 	logger *slog.Logger,
 ) agentSkillDeclarationProvider {
 	return func(ctx context.Context) (agentSkillDesiredResources, error) {
+		if err := ctx.Err(); err != nil {
+			return agentSkillDesiredResources{}, err
+		}
 		if registry == nil || runtime == nil {
 			return agentSkillDesiredResources{}, nil
 		}
@@ -226,7 +229,7 @@ func extensionAgentSkillDeclarationProvider(
 			if !info.Enabled {
 				continue
 			}
-			ext, err := loadExtensionSnapshot(ctx, registry, manager, logger, info.Name)
+			ext, err := loadExtensionSnapshot(registry, manager, logger, info.Name)
 			if err != nil {
 				return agentSkillDesiredResources{}, fmt.Errorf(
 					"daemon: load extension %q for agent/skill sync: %w",

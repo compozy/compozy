@@ -74,8 +74,7 @@ func nativeExtensionToolError(id toolspkg.ToolID, err error) error {
 		errors.Is(err, extensionpkg.ErrExtensionEnvBindingUndeclared),
 		errors.Is(err, extensionpkg.ErrExtensionEnvBindingDangling):
 		return nativeHTTPStatusToolError(id, err, core.ExtensionStatusCode(err))
-	case errors.Is(err, extensionpkg.ErrExtensionHasActiveBundles),
-		errors.Is(err, extensionpkg.ErrExtensionDevOriginMissing),
+	case errors.Is(err, extensionpkg.ErrExtensionDevOriginMissing),
 		errors.Is(err, extensionpkg.ErrExtensionNotDevLinked):
 		return toolspkg.NewToolError(
 			toolspkg.ErrorCodeConflict,

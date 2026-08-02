@@ -8,7 +8,6 @@ import (
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/api/contract"
 	automationpkg "github.com/compozy/compozy/internal/automation"
-	bundlepkg "github.com/compozy/compozy/internal/bundles"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/heartbeat"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
@@ -159,19 +158,6 @@ type NotificationPresetService interface {
 	Create(ctx context.Context, req presetspkg.CreateRequest) (presetspkg.Preset, error)
 	Update(ctx context.Context, name string, req presetspkg.UpdateRequest) (presetspkg.Preset, error)
 	Delete(ctx context.Context, name string) error
-}
-
-// BundleService exposes extension bundle catalog, activation, and declared
-// network channels to API transports.
-type BundleService interface {
-	Catalog(ctx context.Context) ([]bundlepkg.CatalogEntry, error)
-	PreviewActivation(ctx context.Context, req bundlepkg.ActivateRequest) (bundlepkg.ActivationPreview, error)
-	Activate(ctx context.Context, req bundlepkg.ActivateRequest) (bundlepkg.ActivationPreview, error)
-	ListActivations(ctx context.Context) ([]bundlepkg.ActivationPreview, error)
-	GetActivation(ctx context.Context, id string) (bundlepkg.ActivationPreview, error)
-	UpdateActivation(ctx context.Context, req bundlepkg.UpdateActivationRequest) (bundlepkg.ActivationPreview, error)
-	Deactivate(ctx context.Context, id string) error
-	NetworkSettings(ctx context.Context) (bundlepkg.NetworkSettings, error)
 }
 
 // NetworkService is the runtime network surface exposed to daemon transports.

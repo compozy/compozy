@@ -3227,17 +3227,6 @@ export interface NetworkSendPayload {
   ext?: Record<string, JSONValue>;
 }
 
-export interface DeclaredNetworkChannelPayload {
-  activation_id?: string;
-  extension_name?: string;
-  bundle_name?: string;
-  profile_name?: string;
-  workspace_id?: string;
-  name: string;
-  description?: string;
-  primary?: boolean;
-}
-
 export interface NetworkKindMetricPayload {
   kind: string;
   sent: number;
@@ -3263,7 +3252,6 @@ export interface NetworkStatusPayload {
   conversation_messages: number;
   work_transitions: number;
   direct_resolves: number;
-  declared_channels: DeclaredNetworkChannelPayload[];
   kind_metrics: NetworkKindMetricPayload[];
 }
 

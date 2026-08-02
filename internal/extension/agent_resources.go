@@ -31,7 +31,7 @@ type StaticAgent struct {
 func LoadAgentResources(rootDir string, paths []string) ([]StaticAgent, error) {
 	loaded := make(map[string]StaticAgent)
 	for _, resourcePath := range paths {
-		entryRoot, err := resolveBundlePathWithinRoot(rootDir, resourcePath, "agent resource")
+		entryRoot, err := resolveResourcePathWithinRoot(rootDir, resourcePath, "agent resource")
 		if err != nil {
 			return nil, err
 		}
@@ -84,7 +84,7 @@ func loadAgentResourceEntry(rootDir, entryRoot string) ([]StaticAgent, error) {
 			if err != nil {
 				return nil, fmt.Errorf("extension: resolve agent resource %q: %w", entryPath, err)
 			}
-			if _, err := resolveBundlePathWithinRoot(rootDir, relative, "agent resource"); err != nil {
+			if _, err := resolveResourcePathWithinRoot(rootDir, relative, "agent resource"); err != nil {
 				return nil, err
 			}
 			return nil, fmt.Errorf("%w: agent resource %q must not be a symlink", ErrManifestInvalid, entryPath)
@@ -104,7 +104,7 @@ func loadAgentResourceEntry(rootDir, entryRoot string) ([]StaticAgent, error) {
 		if err != nil {
 			return nil, err
 		}
-		agentDir, err := resolveBundlePathWithinRoot(rootDir, agentRelativePath, "agent resource")
+		agentDir, err := resolveResourcePathWithinRoot(rootDir, agentRelativePath, "agent resource")
 		if err != nil {
 			return nil, err
 		}

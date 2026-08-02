@@ -7,31 +7,6 @@ import (
 	"time"
 )
 
-type SessionHealthUpdateAfterPayload struct {
-	Event               HookEvent `json:"event"`
-	Timestamp           time.Time `json:"timestamp"`
-	SessionID           string    `json:"session_id,omitempty"`
-	SessionName         string    `json:"session_name,omitempty"`
-	SessionType         string    `json:"session_type,omitempty"`
-	AgentName           string    `json:"agent_name,omitempty"`
-	WorkspaceID         string    `json:"workspace_id,omitempty"`
-	Workspace           string    `json:"workspace,omitempty"`
-	ACPSessionID        string    `json:"acp_session_id,omitempty"`
-	State               string    `json:"state,omitempty"`
-	SoulSnapshotID      string    `json:"soul_snapshot_id,omitempty"`
-	SoulDigest          string    `json:"soul_digest,omitempty"`
-	CreatedAt           time.Time `json:"created_at"`
-	UpdatedAt           time.Time `json:"updated_at"`
-	Health              string    `json:"health,omitempty"`
-	ActivePrompt        bool      `json:"active_prompt,omitempty"`
-	Attachable          bool      `json:"attachable,omitempty"`
-	EligibleForWake     bool      `json:"eligible_for_wake,omitempty"`
-	IneligibilityReason string    `json:"ineligibility_reason,omitempty"`
-	LastActivityAt      time.Time `json:"last_activity_at"`
-	LastPresenceAt      time.Time `json:"last_presence_at"`
-	LastError           string    `json:"last_error,omitempty"`
-}
-
 type SessionInspectResponse struct {
 	SessionID    string                             `json:"session_id"`
 	Health       SessionHealthPayload               `json:"health"`
@@ -314,4 +289,14 @@ type SessionStatusResponse struct {
 	IneligibilityReason SessionHealthIneligibilityReason `json:"ineligibility_reason,omitempty"`
 	WakeState           *HeartbeatWakeStatePayload       `json:"wake_state,omitempty"`
 	UpdatedAt           time.Time                        `json:"updated_at"`
+}
+
+type SessionSummary struct {
+	ID        string                `json:"id"`
+	Name      string                `json:"name,omitempty"`
+	Agent     string                `json:"agent"`
+	Runtime   SessionRuntimePayload `json:"runtime"`
+	Workspace string                `json:"workspace,omitempty"`
+	State     State                 `json:"state"`
+	CreatedAt time.Time             `json:"created_at"`
 }

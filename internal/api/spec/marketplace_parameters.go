@@ -8,7 +8,6 @@ func marketplaceKindPathParam() ParameterSpec {
 		contract.MarketplaceKindMCP,
 		contract.MarketplaceKindExtension,
 		contract.MarketplaceKindSkill,
-		contract.MarketplaceKindBundle,
 	}
 	return parameter
 }

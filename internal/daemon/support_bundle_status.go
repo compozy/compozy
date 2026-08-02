@@ -14,7 +14,6 @@ func (d *Daemon) supportBundleSnapshotHandlers(state *bootState) *core.BaseHandl
 		Resources:           state.deps.Resources,
 		Automation:          state.deps.Automation,
 		Bridges:             state.deps.Bridges,
-		Bundles:             state.deps.Bundles,
 		Settings:            state.deps.Settings,
 		SettingsRestart:     state.deps.SettingsRestart,
 		SettingsUpdate:      state.deps.SettingsUpdate,

@@ -14,27 +14,38 @@ import (
 const (
 	manifestMustBeASemanticVersionValue = "must be a semantic version"
 	manifestArgsKey                     = "args"
+	manifestAgentsKey                   = "agents"
+	manifestAutomationKey               = "automation"
 	manifestBackendKey                  = "backend"
 	manifestCommandKey                  = "command"
+	manifestCommandGroupsKey            = "command_groups"
 	manifestDescriptionKey              = "description"
 	manifestEnvKey                      = "env"
 	manifestEventKey                    = "event"
 	manifestExecutorKey                 = "executor"
 	manifestExtensionKey                = "extension"
 	manifestHandlerKey                  = "handler"
+	manifestHooksKey                    = "hooks"
 	manifestInputSchemaKey              = "input_schema"
 	manifestKindKey                     = "kind"
+	manifestLayoutsKey                  = "layouts"
+	manifestLoopsKey                    = "loops"
 	manifestMinCompozyVersionKey        = "min_compozy_version"
+	manifestMCPServersKey               = "mcp_servers"
 	manifestModeKey                     = "mode"
 	manifestNameKey                     = "name"
 	manifestNullKey                     = "null"
 	manifestOutputSchemaKey             = "output_schema"
 	manifestPathKey                     = "path"
+	manifestPublishKey                  = "publish"
 	manifestReadOnlyKey                 = "read_only"
+	manifestResourcesKey                = "resources"
 	manifestResourcesPublishPath        = "resources.publish"
 	manifestRiskKey                     = "risk"
 	manifestSubprocessKey               = "subprocess"
 	manifestSummaryKey                  = "summary"
+	manifestSkillsKey                   = "skills"
+	manifestToolsKey                    = "tools"
 	manifestVersionKey                  = "version"
 	manifestVisibilityKey               = "visibility"
 )
@@ -75,12 +86,11 @@ type Manifest struct {
 	Bridge               BridgeConfig                `toml:"bridge"                          json:"bridge"`
 }
 
-// ResourcesConfig declares static assets bundled with an extension.
+// ResourcesConfig declares static assets packaged with an extension.
 type ResourcesConfig struct {
 	Skills        []string                   `toml:"skills,omitempty"         json:"skills,omitempty"`
 	Loops         []string                   `toml:"loops,omitempty"          json:"loops,omitempty"`
 	Agents        []string                   `toml:"agents,omitempty"         json:"agents,omitempty"`
-	Bundles       []string                   `toml:"-"                        json:"-"`
 	Automation    []string                   `toml:"automation,omitempty"     json:"automation,omitempty"`
 	Layouts       []string                   `toml:"layouts,omitempty"        json:"layouts,omitempty"`
 	Hooks         []HookConfig               `toml:"hooks,omitempty"          json:"hooks,omitempty"`
@@ -174,7 +184,7 @@ type HookMatcherConfig struct {
 	CompactionStrategy string `toml:"compaction_strategy,omitempty" json:"compaction_strategy,omitempty"`
 }
 
-// MCPServerConfig declares one MCP server bundled by the extension.
+// MCPServerConfig declares one MCP server packaged with the extension.
 type MCPServerConfig struct {
 	Command   string            `toml:"command"              json:"command"`
 	Args      []string          `toml:"args,omitempty"       json:"args,omitempty"`
@@ -182,7 +192,7 @@ type MCPServerConfig struct {
 	SecretEnv map[string]string `toml:"secret_env,omitempty" json:"secret_env,omitempty"`
 }
 
-// ToolConfig declares one static tool bundled by the extension.
+// ToolConfig declares one static tool packaged with the extension.
 type ToolConfig struct {
 	ID                   string            `toml:"id,omitempty"                    json:"id,omitempty"`
 	DisplayTitle         string            `toml:"display_title,omitempty"         json:"display_title,omitempty"`

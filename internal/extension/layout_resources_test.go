@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/compozy/compozy/internal/windowmanager"
 )
 
 func TestLoadLayoutResources(t *testing.T) {
@@ -19,7 +21,7 @@ func TestLoadLayoutResources(t *testing.T) {
 		if err := os.MkdirAll(filepath.Join(rootDir, "layouts"), 0o755); err != nil {
 			t.Fatalf("os.MkdirAll(layouts) error = %v", err)
 		}
-		writeJSONFile(t, filepath.Join(rootDir, "layouts", "two-up.json"), testBundleLayoutResource("two-up"))
+		writeLayoutJSONFile(t, filepath.Join(rootDir, "layouts", "two-up.json"), testLayoutResource("two-up"))
 		layouts, err := LoadLayoutResources(rootDir, []string{"layouts/two-up.json"})
 		if err != nil {
 			t.Fatalf("LoadLayoutResources() error = %v", err)
@@ -31,6 +33,37 @@ func TestLoadLayoutResources(t *testing.T) {
 			t.Fatalf("Document.WorkspaceID = %q, want global scope", layouts[0].Document.WorkspaceID)
 		}
 	})
+}
+
+func writeLayoutJSONFile(t *testing.T, path string, value any) {
+	t.Helper()
+	raw, err := json.Marshal(value)
+	if err != nil {
+		t.Fatalf("json.Marshal() error = %v", err)
+	}
+	if err := os.WriteFile(path, raw, 0o644); err != nil {
+		t.Fatalf("os.WriteFile(%s) error = %v", path, err)
+	}
+}
+
+func testLayoutResource(id string) windowmanager.LayoutResource {
+	return windowmanager.LayoutResource{
+		Version:          windowmanager.LayoutResourceVersion,
+		ID:               id,
+		DisplayName:      "Two up",
+		ParticipantSlots: []windowmanager.WindowID{"primary", "secondary"},
+		Document: windowmanager.LayoutDocument{
+			Version: windowmanager.SnapshotVersion,
+			Desktops: []windowmanager.Desktop{{
+				ID:       "desktop-default",
+				Name:     "Desktop 1",
+				Purpose:  windowmanager.DesktopPurposeStandard,
+				Groups:   []windowmanager.LayoutGroup{},
+				Floating: []windowmanager.WindowID{},
+			}},
+			Windows: map[windowmanager.WindowID]windowmanager.Window{},
+		},
+	}
 }
 
 func TestLoadLayoutResourcesRejectsInvalidInputs(t *testing.T) {
@@ -74,7 +107,7 @@ func TestLoadLayoutResourcesRejectsInvalidInputs(t *testing.T) {
 				if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 					t.Fatalf("os.MkdirAll(layouts) error = %v", err)
 				}
-				layout := testBundleLayoutResource("two-up")
+				layout := testLayoutResource("two-up")
 				layout.ID = ""
 				body, err := json.Marshal(layout)
 				if err != nil {

@@ -139,7 +139,6 @@ func newRootCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newBridgeCommand(deps))
 	cmd.AddCommand(newNotificationsCommand(deps))
 	cmd.AddCommand(newMarketplaceCommand(deps))
-	cmd.AddCommand(newBundleCommand(deps))
 	cmd.AddCommand(newWorkspaceCommand(deps))
 	cmd.AddCommand(newDesktopCommand(deps))
 	cmd.AddCommand(newWindowCommand(deps))

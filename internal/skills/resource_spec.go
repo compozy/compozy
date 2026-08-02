@@ -34,7 +34,6 @@ type SkillResourceSpec struct {
 	Hooks                  []hookspkg.HookDecl `json:"hooks,omitempty"`
 	Provenance             *Provenance         `json:"provenance,omitempty"`
 	InstalledFrom          string              `json:"installed_from,omitempty"`
-	InstalledFromBundle    string              `json:"installed_from_bundle,omitempty"`
 	InstalledFromExtension string              `json:"installed_from_extension,omitempty"`
 }
 
@@ -62,7 +61,6 @@ func SkillToResourceSpec(skill *Skill) SkillResourceSpec {
 		Hooks:                  cloneSkillHookDecls(skill.Hooks),
 		Provenance:             cloneProvenance(skill.Provenance),
 		InstalledFrom:          strings.TrimSpace(skill.InstalledFrom),
-		InstalledFromBundle:    strings.TrimSpace(skill.InstalledFromBundle),
 		InstalledFromExtension: strings.TrimSpace(skill.InstalledFromExtension),
 	}
 }
@@ -90,7 +88,6 @@ func SkillFromResourceSpec(spec SkillResourceSpec) (*Skill, error) {
 		Hooks:                  cloneSkillHookDecls(spec.Hooks),
 		Provenance:             cloneProvenance(spec.Provenance),
 		InstalledFrom:          strings.TrimSpace(spec.InstalledFrom),
-		InstalledFromBundle:    strings.TrimSpace(spec.InstalledFromBundle),
 		InstalledFromExtension: strings.TrimSpace(spec.InstalledFromExtension),
 	}
 	refreshSkillHookDecls(skill)
@@ -125,7 +122,6 @@ func validateSkillResourceSpec(
 		Hooks:                  cloneSkillHookDecls(spec.Hooks),
 		Provenance:             cloneProvenance(spec.Provenance),
 		InstalledFrom:          strings.TrimSpace(spec.InstalledFrom),
-		InstalledFromBundle:    strings.TrimSpace(spec.InstalledFromBundle),
 		InstalledFromExtension: strings.TrimSpace(spec.InstalledFromExtension),
 	}
 	if normalized.Name == "" {

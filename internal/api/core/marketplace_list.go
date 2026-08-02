@@ -33,8 +33,6 @@ func (h *BaseHandlers) marketplaceKindResult(
 			return h.curatedMarketplaceKind(ctx, marketplacepkg.KindSkill, "", offset, limit, scope)
 		}
 		return h.remoteSkillMarketplaceKind(ctx, query, offset, limit, scope)
-	case contract.MarketplaceKindBundle:
-		return h.bundleMarketplaceKind(ctx, query, offset, limit, scope)
 	default:
 		return marketplaceKindPage{}, errors.Join(
 			ErrMarketplaceNotFound, fmt.Errorf("unknown marketplace kind %q", kind),

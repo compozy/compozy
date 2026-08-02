@@ -80,11 +80,6 @@ func applySkillResourceOrigin(record resources.Record[SkillResourceSpec], skill 
 		strings.TrimSpace(skill.InstalledFromExtension) == "" {
 		skill.InstalledFromExtension = strings.TrimSpace(source.ID)
 	}
-	owner := record.Owner.Normalize()
-	if owner.Kind == resources.ResourceOwnerKind("bundle.activation") &&
-		strings.TrimSpace(skill.InstalledFromBundle) == "" {
-		skill.InstalledFromBundle = strings.TrimSpace(owner.ID)
-	}
 }
 
 func mergeDisabledSkills(base []string, extra []string) []string {

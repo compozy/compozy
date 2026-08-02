@@ -30,7 +30,6 @@ func SkillPayloadFromSkill(skill *skills.Skill) contract.SkillPayload {
 		Diagnostics: SkillDiagnosticPayloadsFromDiagnostics(skills.DiagnosticsForSkill(skill)),
 	}
 	payload.Provenance = &contract.ProvenancePayload{
-		InstalledFromBundle:    strings.TrimSpace(skill.InstalledFromBundle),
 		InstalledFromExtension: strings.TrimSpace(skill.InstalledFromExtension),
 		PrecedenceTier:         skills.SkillPrecedenceTierName(skill.Source),
 		ShadowedBy:             SkillShadowEntryPayloadsFromRefs(skill.Diagnostics.ShadowedDefinitions),

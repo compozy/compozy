@@ -63,11 +63,11 @@ func subprocessTOMLTable(process SubprocessConfig) map[string]any {
 
 func resourcesTOMLTable(resources ResourcesConfig) (map[string]any, error) {
 	table := make(map[string]any)
-	putNonEmptyStrings(table, "skills", resources.Skills)
-	putNonEmptyStrings(table, "loops", resources.Loops)
-	putNonEmptyStrings(table, "agents", resources.Agents)
-	putNonEmptyStrings(table, "automation", resources.Automation)
-	putNonEmptyStrings(table, "layouts", resources.Layouts)
+	putNonEmptyStrings(table, manifestSkillsKey, resources.Skills)
+	putNonEmptyStrings(table, manifestLoopsKey, resources.Loops)
+	putNonEmptyStrings(table, manifestAgentsKey, resources.Agents)
+	putNonEmptyStrings(table, manifestAutomationKey, resources.Automation)
+	putNonEmptyStrings(table, manifestLayoutsKey, resources.Layouts)
 	if len(resources.Tools) > 0 {
 		tools := make(map[string]any, len(resources.Tools))
 		for name, config := range resources.Tools {
@@ -77,14 +77,14 @@ func resourcesTOMLTable(resources ResourcesConfig) (map[string]any, error) {
 			}
 			tools[name] = encoded
 		}
-		table["tools"] = tools
+		table[manifestToolsKey] = tools
 	}
 	if len(resources.Hooks) > 0 {
 		hooks := make([]map[string]any, 0, len(resources.Hooks))
 		for index := range resources.Hooks {
 			hooks = append(hooks, hookTOMLTable(&resources.Hooks[index]))
 		}
-		table["hooks"] = hooks
+		table[manifestHooksKey] = hooks
 	}
 	if len(resources.CommandGroups) > 0 {
 		groups := make([]map[string]any, 0, len(resources.CommandGroups))
@@ -94,7 +94,7 @@ func resourcesTOMLTable(resources ResourcesConfig) (map[string]any, error) {
 				manifestSummaryKey: group.Summary,
 			})
 		}
-		table["command_groups"] = groups
+		table[manifestCommandGroupsKey] = groups
 	}
 	return table, nil
 }

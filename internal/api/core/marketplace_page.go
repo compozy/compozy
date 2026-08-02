@@ -48,24 +48,6 @@ func marketplaceRemoteSkillFence(listings []registrypkg.Listing) string {
 	return marketplaceStringFence(parts)
 }
 
-func marketplaceBundleFence(items []contract.MarketplaceListingPayload) string {
-	parts := make([]string, 1, 1+len(items)*7)
-	parts[0] = "bundle"
-	for _, item := range items {
-		parts = append(
-			parts,
-			item.EntryID,
-			item.Name,
-			item.Description,
-			item.Source,
-			strconv.FormatBool(item.Installed),
-			strconv.FormatBool(item.UpdateAvailable),
-			item.ManagePath,
-		)
-	}
-	return marketplaceStringFence(parts)
-}
-
 func marketplaceStringFence(parts []string) string {
 	payload := make([]byte, 0, len(parts)*16)
 	for _, part := range parts {

@@ -64,7 +64,7 @@ type BridgeInstanceSource string
 const (
 	// BridgeInstanceSourceDynamic identifies a regular operator-created bridge instance.
 	BridgeInstanceSourceDynamic BridgeInstanceSource = BridgeInstanceSource(bridgecontract.BridgeInstanceSourceDynamic)
-	// BridgeInstanceSourcePackage identifies an extension bundle-managed bridge instance.
+	// BridgeInstanceSourcePackage identifies a bridge instance managed by an extension package.
 	BridgeInstanceSourcePackage BridgeInstanceSource = BridgeInstanceSource(bridgecontract.BridgeInstanceSourcePackage)
 )
 

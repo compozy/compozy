@@ -64,7 +64,6 @@ func TestDevelopmentExtensionNetworkConsentLifecycle(t *testing.T) {
 		nil,
 		nil,
 		nil,
-		nil,
 		testHomePaths(t),
 		discardLogger(),
 		func() time.Time { return confirmedAt },
@@ -244,7 +243,6 @@ func TestDevelopmentExtensionNetworkConsentLifecycle(t *testing.T) {
 		nil,
 		nil,
 		nil,
-		nil,
 		testHomePaths(t),
 		discardLogger(),
 		func() time.Time { return confirmedAt.Add(2 * time.Minute) },
@@ -363,7 +361,6 @@ func TestInstalledExtensionNetworkConsentTransportLifecycle(t *testing.T) {
 			service, ok := newDaemonExtensionService(
 				registry,
 				runtime,
-				nil,
 				nil,
 				nil,
 				nil,

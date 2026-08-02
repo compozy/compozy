@@ -101,8 +101,8 @@ func TestAllAndPublishableKindsReturnClonedStaticRegistry(t *testing.T) {
 	}
 
 	publishable := PublishableKinds()
-	if len(publishable) != 9 {
-		t.Fatalf("PublishableKinds() len = %d, want 9", len(publishable))
+	if len(publishable) != 8 {
+		t.Fatalf("PublishableKinds() len = %d, want 8", len(publishable))
 	}
 }
 

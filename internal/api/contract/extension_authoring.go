@@ -1,10 +1,10 @@
 package contract
 
-// IssueSeverity classifies one bundle validation issue.
+// IssueSeverity classifies one extension-package validation issue.
 type IssueSeverity string
 
 const (
-	// IssueSeverityError blocks bundle use.
+	// IssueSeverityError blocks extension-package use.
 	IssueSeverityError IssueSeverity = "error"
 	// IssueSeverityWarning reports non-blocking authoring guidance.
 	IssueSeverityWarning IssueSeverity = "warning"
@@ -15,7 +15,7 @@ func IssueSeverityValues() []string {
 	return []string{string(IssueSeverityError), string(IssueSeverityWarning)}
 }
 
-// ValidationIssue is one positioned bundle validation diagnostic.
+// ValidationIssue is one positioned extension-package validation diagnostic.
 type ValidationIssue struct {
 	Path     string        `json:"path"`
 	Line     int           `json:"line,omitempty"`
@@ -41,7 +41,7 @@ type ExtensionManifestSummary struct {
 	Permissions       []string `json:"permissions"`
 }
 
-// ExtensionValidatePayload is the shared result for bundle validation surfaces.
+// ExtensionValidatePayload is the shared result for extension-package validation surfaces.
 type ExtensionValidatePayload struct {
 	Manifest     *ExtensionManifestSummary `json:"manifest,omitempty"`
 	Issues       []ValidationIssue         `json:"issues"`

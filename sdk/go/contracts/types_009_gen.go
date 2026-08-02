@@ -4,13 +4,6 @@ package contracts
 
 import "time"
 
-type HeartbeatHistoryRequest struct {
-	WorkspaceID string `json:"workspace_id,omitempty"`
-	AgentName   string `json:"agent_name"`
-	Limit       int    `json:"limit,omitempty"`
-	Cursor      string `json:"cursor,omitempty"`
-}
-
 type HeartbeatHistoryResponse struct {
 	Revisions  []HeartbeatRevisionPayload `json:"revisions"`
 	NextCursor string                     `json:"next_cursor,omitempty"`
@@ -213,3 +206,5 @@ type HookDecl struct {
 }
 
 type HookEventFamily string
+
+type HookExecutorKind string

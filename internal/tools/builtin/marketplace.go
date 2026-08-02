@@ -7,14 +7,14 @@ var marketplaceTools = []toolspkg.Descriptor{
 		toolspkg.ToolIDMarketplaceSearch,
 		"marketplace_search",
 		"Marketplace Search",
-		"Search or browse MCP servers, extensions, skills, and bundles through the shared marketplace.",
+		"Search or browse MCP servers, extensions, and skills through the shared marketplace.",
 		marketplaceSearchInputSchema,
 		toolspkg.RiskRead,
 		true,
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDMarketplace},
-		[]string{"marketplace", "catalog", "mcp", "extensions", "skills", "bundles"},
+		[]string{"marketplace", "catalog", "mcp", "extensions", "skills"},
 		[]string{"marketplace search", "discover capabilities", "find extensions", "find skills"},
 	),
 }
@@ -27,7 +27,7 @@ const marketplaceSearchInputSchema = `{
 	"type":"object",
 	"properties":{
 		"query":{"type":"string"},
-		"kind":{"type":"string","enum":["mcp","extension","skill","bundle"]},
+		"kind":{"type":"string","enum":["mcp","extension","skill"]},
 		"limit":{"type":"integer","minimum":1,"maximum":100},
 		"cursor":{"type":"string","description":"Opaque continuation cursor; requires kind"}
 	},

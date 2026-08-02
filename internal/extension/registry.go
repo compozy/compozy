@@ -17,9 +17,6 @@ var (
 	// ErrExtensionChecksumMismatch reports that the provided checksum does not
 	// match the on-disk extension artifact.
 	ErrExtensionChecksumMismatch = errors.New("extension: checksum mismatch")
-	// ErrExtensionHasActiveBundles reports that the extension lifecycle is
-	// blocked by one or more active bundle activations.
-	ErrExtensionHasActiveBundles = errors.New("extension: extension has active bundle activations")
 )
 
 const (
@@ -103,10 +100,6 @@ func (r *Registry) Uninstall(name string) error {
 	if err != nil {
 		return err
 	}
-	if err := r.ensureNoActiveBundles(trimmedName); err != nil {
-		return err
-	}
-
 	result, err := r.db.ExecContext(registryContext(), `DELETE FROM extensions WHERE name = ?`, trimmedName)
 	if err != nil {
 		return fmt.Errorf("extension: uninstall %q: %w", trimmedName, err)

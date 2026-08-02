@@ -47,7 +47,6 @@ func isExtensionNotFoundError(err error) bool {
 
 func isExtensionConflictError(err error) bool {
 	return errors.Is(err, extensionpkg.ErrExtensionExists) ||
-		errors.Is(err, extensionpkg.ErrExtensionHasActiveBundles) ||
 		errors.Is(err, extensionpkg.ErrExtensionNotDevLinked) ||
 		errors.Is(err, extensionpkg.ErrExtensionDevOriginMissing) ||
 		errors.Is(err, extensionpkg.ErrExtensionNetworkConfirmationRequired) ||

@@ -71,7 +71,7 @@ func newMarketplaceSearchCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, marketplaceKindBundle(response))
 		},
 	}
-	cmd.Flags().StringVar(&kind, "kind", "", "Limit results to mcp, extension, skill, or bundle")
+	cmd.Flags().StringVar(&kind, "kind", "", "Limit results to mcp, extension, or skill")
 	cmd.Flags().StringVar(&cursor, "cursor", "", "Continue a single-kind search from an opaque cursor")
 	cmd.Flags().IntVar(&limit, "limit", marketplaceDefaultLimit, "Maximum results per marketplace kind")
 	addMarketplaceReadFlags(cmd, &readScope)
@@ -197,7 +197,7 @@ func marketplaceListingsBundle(jsonValue any, items []MarketplaceListingRecord) 
 		items,
 		"Marketplace Results",
 		[]string{
-			bundleKindValue,
+			cliKindValue,
 			"Entry ID",
 			automationNameValue,
 			versionValue,
@@ -285,7 +285,7 @@ func marketplaceKindBundle(response MarketplaceKindRecord) outputBundle {
 
 func marketplaceKindPageHuman(page marketplaceKindPageRecord) string {
 	return renderHumanSection("Page", []keyValue{
-		{Label: bundleKindValue, Value: page.Kind},
+		{Label: cliKindValue, Value: page.Kind},
 		{Label: "Returned", Value: strconv.Itoa(page.Returned)},
 		{Label: listTotalLabel, Value: optionalMarketplaceTotal(page.Total)},
 		{Label: listNextCursorLabel, Value: stringOrDash(page.NextCursor)},
@@ -328,7 +328,7 @@ func marketplaceEntryBundle(response MarketplaceEntryRecord) outputBundle {
 		},
 		human: func() (string, error) {
 			return renderHumanSection("Marketplace Entry", []keyValue{
-				{Label: bundleKindValue, Value: entry.Kind},
+				{Label: cliKindValue, Value: entry.Kind},
 				{Label: "Entry ID", Value: entry.EntryID},
 				{Label: automationNameValue, Value: entry.Name},
 				{Label: "Description", Value: entry.Description},
@@ -368,7 +368,7 @@ func marketplaceRefreshBundle(response MarketplaceRefreshRecord) outputBundle {
 		response,
 		response.Kinds,
 		"Marketplace Refresh",
-		[]string{bundleKindValue, "Outcome", "Entries", outputStaleValue, "Error Class"},
+		[]string{cliKindValue, "Outcome", "Entries", outputStaleValue, "Error Class"},
 		"marketplace_refresh",
 		[]string{networkKindKey, "outcome", "entry_count", outputStaleKey, "error_class"},
 		func(item contract.MarketplaceRefreshKindPayload) []string {

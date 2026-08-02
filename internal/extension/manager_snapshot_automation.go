@@ -13,7 +13,7 @@ func cloneExtensionAutomationJobs(values []automationpkg.Job) []automationpkg.Jo
 			schedule := *value.Schedule
 			clone.Schedule = &schedule
 		}
-		clone.Task = cloneBundleTaskConfig(value.Task)
+		clone.Task = cloneAutomationTaskConfig(value.Task)
 		result = append(result, clone)
 	}
 	return result

@@ -29,7 +29,6 @@ const (
 const (
 	specAPIAutomationJobsIDPath                              = "/api/automation/jobs/{id}"
 	specAPIAutomationTriggersIDPath                          = "/api/automation/triggers/{id}"
-	specAPIBundlesActivationsIDPath                          = "/api/bundles/activations/{id}"
 	specAPIExtensionsPath                                    = "/api/extensions"
 	specAPIExtensionsCommandsPath                            = specAPIExtensionsPath + "/commands"
 	specAPIExtensionsNamePath                                = "/api/extensions/{name}"
@@ -98,7 +97,6 @@ const (
 	specAutomationTriggerNotFoundDescription                 = "Automation trigger not found"
 	specBridgeInstanceNotFoundDescription                    = "Bridge instance not found"
 	specBridgeServiceIsNotConfiguredDescription              = "Bridge service is not configured"
-	specBundleServiceIsNotConfiguredDescription              = "Bundle service is not configured"
 	specConflictingSettingsChangeDescription                 = "Conflicting settings change"
 	specCreatedDescription                                   = "Created"
 	specExtensionNotFoundDescription                         = "Extension not found"
@@ -149,7 +147,6 @@ const (
 	specAgentsKey                                            = "agents"
 	specAutomationKey                                        = "automation"
 	specBridgesKey                                           = "bridges"
-	specBundlesKey                                           = "bundles"
 	specDiagnosticsKey                                       = "diagnostics"
 	specOnboardingKey                                        = "onboarding"
 	specFilesystemKey                                        = "filesystem"
@@ -248,7 +245,6 @@ func Document() (*openapi3.T, error) {
 			{Name: specAgentsKey},
 			{Name: specAutomationKey},
 			{Name: specBridgesKey},
-			{Name: specBundlesKey},
 			{Name: specDiagnosticsKey},
 			{Name: specOnboardingKey},
 			{Name: specFilesystemKey},

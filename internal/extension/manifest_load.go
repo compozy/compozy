@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-
+	"sort"
 	"strings"
 	"time"
 
@@ -15,11 +15,6 @@ import (
 	"github.com/compozy/compozy/internal/extension/surfaces"
 	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
 	"github.com/compozy/compozy/internal/modelcatalog"
-)
-
-const (
-	extensionResourcesTableKey = "resources"
-	bundleResourcesKey         = "bundles"
 )
 
 // LoadManifest reads one extension manifest from dir, preferring TOML over JSON.
@@ -246,7 +241,7 @@ func loadManifestTOML(path string) (*Manifest, error) {
 	if err != nil {
 		return nil, fmt.Errorf("extension: decode manifest %q: %w", path, err)
 	}
-	if err := rejectLegacyManifestTOML(meta.Undecoded()); err != nil {
+	if err := rejectUnsupportedManifestTOML(meta.Undecoded()); err != nil {
 		return nil, err
 	}
 
@@ -270,6 +265,9 @@ func loadManifestJSON(path string) (*Manifest, error) {
 	if err := rejectLegacyManifestJSON(data); err != nil {
 		return nil, err
 	}
+	if err := rejectUnknownManifestResourcesJSON(data); err != nil {
+		return nil, err
+	}
 	if err := json.Unmarshal(data, &doc); err != nil {
 		return nil, fmt.Errorf("extension: decode manifest %q: %w", path, err)
 	}
@@ -284,17 +282,53 @@ func loadManifestJSON(path string) (*Manifest, error) {
 	return &manifest, nil
 }
 
-func rejectLegacyManifestTOML(keys []toml.Key) error {
+func rejectUnsupportedManifestTOML(keys []toml.Key) error {
 	for _, key := range keys {
-		if len(key) >= 2 && key[0] == extensionResourcesTableKey && key[1] == bundleResourcesKey {
-			return removedManifestBundlesError()
-		}
-		if len(key) == 0 || (key[0] != legacyManifestActionsKey && key[0] != legacyManifestSecurityKey) {
+		if len(key) == 0 {
 			continue
 		}
-		return legacyManifestSectionError(key[0])
+		if key[0] == legacyManifestActionsKey || key[0] == legacyManifestSecurityKey {
+			return legacyManifestSectionError(key[0])
+		}
+		if key[0] == manifestResourcesKey {
+			return unknownManifestFieldError(key.String())
+		}
 	}
 	return nil
+}
+
+func rejectUnknownManifestResourcesJSON(data []byte) error {
+	var root map[string]json.RawMessage
+	if err := json.Unmarshal(data, &root); err != nil {
+		return nil
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(root[manifestResourcesKey], &fields); err != nil {
+		return nil
+	}
+	allowed := map[string]struct{}{
+		manifestSkillsKey: {}, manifestLoopsKey: {}, manifestAgentsKey: {}, manifestAutomationKey: {},
+		manifestLayoutsKey: {}, manifestHooksKey: {}, manifestToolsKey: {}, manifestCommandGroupsKey: {},
+		manifestMCPServersKey: {}, manifestPublishKey: {},
+	}
+	unknown := make([]string, 0)
+	for field := range fields {
+		if _, ok := allowed[field]; !ok {
+			unknown = append(unknown, field)
+		}
+	}
+	if len(unknown) == 0 {
+		return nil
+	}
+	sort.Strings(unknown)
+	return unknownManifestFieldError(manifestResourcesKey + "." + unknown[0])
+}
+
+func unknownManifestFieldError(field string) error {
+	return &ManifestValidationError{
+		Field:   field,
+		Message: fmt.Sprintf("unknown manifest field %q", field),
+	}
 }
 
 func rejectLegacyManifestJSON(data []byte) error {
@@ -307,22 +341,7 @@ func rejectLegacyManifestJSON(data []byte) error {
 			return legacyManifestSectionError(section)
 		}
 	}
-	if rawResources, ok := root["resources"]; ok {
-		var resources map[string]json.RawMessage
-		if err := json.Unmarshal(rawResources, &resources); err == nil {
-			if _, ok := resources[bundleResourcesKey]; ok {
-				return removedManifestBundlesError()
-			}
-		}
-	}
 	return nil
-}
-
-func removedManifestBundlesError() error {
-	return &ManifestValidationError{
-		Field:   "resources.bundles",
-		Message: "bundles is not a supported extension resource; declare the kit resources directly",
-	}
 }
 
 const (

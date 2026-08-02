@@ -123,12 +123,6 @@ func buildResourceProjectorRegistrations(
 			return nil, err
 		}
 	}
-	if deps.Bundles != nil {
-		registrations, err = appendBundleProjectorRegistrations(registrations, deps)
-		if err != nil {
-			return nil, err
-		}
-	}
 	return registrations, nil
 }
 

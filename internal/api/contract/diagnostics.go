@@ -67,7 +67,6 @@ const (
 	CodeDaemonStatusOK                  = diagnosticcontract.CodeDaemonStatusOK
 	CodeDaemonUnavailable               = diagnosticcontract.CodeDaemonUnavailable
 	CodeDiskWriteFailed                 = diagnosticcontract.CodeDiskWriteFailed
-	CodeExtensionBlockedByBundle        = diagnosticcontract.CodeExtensionBlockedByBundle
 	CodeExtensionChecksumUnverified     = diagnosticcontract.CodeExtensionChecksumUnverified
 	CodeExtensionAgentConflict          = diagnosticcontract.CodeExtensionAgentConflict
 	CodeExtensionEnvBindingDangling     = diagnosticcontract.CodeExtensionEnvBindingDangling

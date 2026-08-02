@@ -82,9 +82,7 @@ type daemonNativeToolsDeps struct {
 	MCPAuth                    func() toolspkg.MCPAuthStatusProvider
 	ApprovalGrants             toolspkg.ApprovalGrantStore
 	Clarify                    func() toolspkg.ClarifyBroker
-	BundleResources            bundleResourcePublisher
 	LoopResources              loopResourcePublisher
-	BundleService              func() core.BundleService
 	Loops                      func() core.LoopService
 	Resources                  core.ResourceService
 	WindowManager              windowmanager.Service

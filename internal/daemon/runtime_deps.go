@@ -76,7 +76,6 @@ type RuntimeDeps struct {
 	SupportBundles      core.SupportBundleService
 	Vault               core.VaultService
 	Extensions          udsapi.ExtensionService
-	Bundles             core.BundleService
 	Resources           core.ResourceService
 	WindowManager       windowmanager.Service
 	StartedAt           time.Time

@@ -176,9 +176,6 @@ func TestDaemonE2EDevCycleEnrollmentShouldPublishAndToggleLoops(t *testing.T) {
 
 		state := newDevCycleLoopE2EState(t, d, db, cfg)
 		cleanup := &bootCleanup{}
-		if err := d.bootBundles(ctx, state); err != nil {
-			t.Fatalf("bootBundles() error = %v", err)
-		}
 		if err := d.bootResourceReconcile(ctx, state, cleanup); err != nil {
 			t.Fatalf("bootResourceReconcile() error = %v", err)
 		}

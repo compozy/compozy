@@ -30,7 +30,6 @@ type Skill struct {
 	Hooks                  []hookspkg.HookDecl
 	Provenance             *Provenance
 	InstalledFrom          string
-	InstalledFromBundle    string
 	InstalledFromExtension string
 	Diagnostics            SkillDiagnostics
 }

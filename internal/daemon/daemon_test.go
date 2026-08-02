@@ -1751,7 +1751,6 @@ func TestNewDaemonExtensionServiceHandlesNilRegistryAndDefaults(t *testing.T) {
 		nil,
 		nil,
 		nil,
-		nil,
 		compozyconfig.HomePaths{},
 		nil,
 		nil,
@@ -1763,7 +1762,6 @@ func TestNewDaemonExtensionServiceHandlesNilRegistryAndDefaults(t *testing.T) {
 	registry := extensionpkg.NewRegistry(db.DB())
 	if svc := newDaemonExtensionService(
 		registry,
-		nil,
 		nil,
 		nil,
 		nil,
@@ -2271,7 +2269,6 @@ func TestDaemonExtensionServiceInstallStatusEnableAndDisable(t *testing.T) {
 		nil,
 		nil,
 		nil,
-		nil,
 		homePaths,
 		discardLogger(),
 		func() time.Time { return fixedNow },
@@ -2563,7 +2560,6 @@ func newDaemonDistributionInstallService(
 		nil,
 		nil,
 		nil,
-		nil,
 		homePaths,
 		discardLogger(),
 		time.Now,
@@ -2782,7 +2778,6 @@ func TestDaemonExtensionServiceRollsBackFailedEnableReload(t *testing.T) {
 			fakeHookBindingPublisher(func(context.Context) error {
 				return nil
 			}),
-			nil,
 			nil,
 			nil,
 			nil,

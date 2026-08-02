@@ -457,7 +457,6 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 			nil,
 			nil,
 			nil,
-			nil,
 			deps.HomePaths,
 			nil,
 			nil,
@@ -530,7 +529,7 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 			),
 		}}
 		service := newDaemonExtensionService(
-			extRegistry, runtime, nil, nil, nil, nil, nil, deps.HomePaths, nil, nil,
+			extRegistry, runtime, nil, nil, nil, nil, deps.HomePaths, nil, nil,
 			withDaemonExtensionMarketplace(
 				validNativeExtensionConfig(true),
 				deps.ExtensionSources,
@@ -702,6 +701,24 @@ func nativeExtensionDownloadResult(t *testing.T, version string) *registrypkg.Do
 
 func nativeExtensionTarGz(t *testing.T, version string) []byte {
 	t.Helper()
+	return nativeExtensionTarGzWithNetwork(t, version, "")
+}
+
+func nativeExtensionTarGzWithNetwork(t *testing.T, version string, channelScope string) []byte {
+	t.Helper()
+
+	integrationManifestSections := ""
+	if strings.TrimSpace(channelScope) != "" {
+		integrationManifestSections = fmt.Sprintf(`
+[resources]
+skills = ["skills/"]
+
+[network_participation]
+required = true
+mode = "live"
+channel_scopes = [%q]
+`, channelScope)
+	}
 
 	files := map[string]string{
 		filepath.Join("tool-ext", "extension.toml"): fmt.Sprintf(`[extension]
@@ -715,8 +732,17 @@ provides = ["memory.backend"]
 
 [permissions]
 requires = ["sessions/list"]
-`, version),
+%s`, version, integrationManifestSections),
 		filepath.Join("tool-ext", "VERSION.txt"): version + "\n",
+	}
+	if strings.TrimSpace(channelScope) != "" {
+		files[filepath.Join("tool-ext", "skills", "native-tool", "SKILL.md")] = `---
+name: native-tool
+description: Native tool integration skill
+---
+
+Use the native tool integration fixture.
+`
 	}
 
 	var buffer bytes.Buffer

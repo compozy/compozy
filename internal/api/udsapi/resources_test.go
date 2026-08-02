@@ -28,7 +28,7 @@ func TestListResourcesHandlerPreservesFilterSemantics(t *testing.T) {
 					gotFilter = filter
 					return []resources.RawRecord{
 						{
-							Kind:    resources.ResourceKind("bundle.activation"),
+							Kind:    resources.ResourceKind("fixture.resource"),
 							ID:      "bundle-1",
 							Version: 3,
 							Scope: resources.ResourceScope{
@@ -58,14 +58,14 @@ func TestListResourcesHandlerPreservesFilterSemantics(t *testing.T) {
 		t,
 		engine,
 		http.MethodGet,
-		"/api/resources/bundle.activation?scope_kind=workspace&scope_id=ws-alpha&owner_kind=daemon&owner_id=daemon-control&source_kind=daemon&source_id=system&limit=7",
+		"/api/resources/fixture.resource?scope_kind=workspace&scope_id=ws-alpha&owner_kind=daemon&owner_id=daemon-control&source_kind=daemon&source_id=system&limit=7",
 		nil,
 	)
 	if resp.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
 	}
 
-	if gotFilter.Kind != resources.ResourceKind("bundle.activation") || gotFilter.Limit != 7 {
+	if gotFilter.Kind != resources.ResourceKind("fixture.resource") || gotFilter.Limit != 7 {
 		t.Fatalf("gotFilter = %#v", gotFilter)
 	}
 	if gotFilter.Scope == nil || gotFilter.Scope.Kind != resources.ResourceScopeKindWorkspace ||
@@ -202,11 +202,11 @@ func TestPutResourceHandlerPreservesExpectedVersionAndStatusSemantics(t *testing
 				),
 			)
 
-			resp := performRequest(t, engine, http.MethodPut, "/api/resources/bundle.activation/demo", tt.body)
+			resp := performRequest(t, engine, http.MethodPut, "/api/resources/fixture.resource/demo", tt.body)
 			if resp.Code != tt.wantStatus {
 				t.Fatalf("status = %d, want %d; body=%s", resp.Code, tt.wantStatus, resp.Body.String())
 			}
-			if gotDraft.Kind != resources.ResourceKind("bundle.activation") || gotDraft.ID != "demo" {
+			if gotDraft.Kind != resources.ResourceKind("fixture.resource") || gotDraft.ID != "demo" {
 				t.Fatalf("gotDraft identity = %#v", gotDraft)
 			}
 			if gotDraft.Scope.Kind != tt.wantScopeKind || gotDraft.Scope.ID != tt.wantScopeID {
@@ -273,7 +273,7 @@ func TestPutResourceHandlerMapsResourceErrors(t *testing.T) {
 				t,
 				engine,
 				http.MethodPut,
-				"/api/resources/bundle.activation/demo",
+				"/api/resources/fixture.resource/demo",
 				[]byte(`{"scope":{"kind":"global"},"spec":{"enabled":true}}`),
 			)
 			if resp.Code != tt.want {
@@ -312,13 +312,13 @@ func TestDeleteResourceHandlerPreservesExpectedVersionAndMapsConflict(t *testing
 		t,
 		engine,
 		http.MethodDelete,
-		"/api/resources/bundle.activation/demo",
+		"/api/resources/fixture.resource/demo",
 		[]byte(`{"expected_version":2}`),
 	)
 	if resp.Code != http.StatusConflict {
 		t.Fatalf("status = %d, want %d; body=%s", resp.Code, http.StatusConflict, resp.Body.String())
 	}
-	if gotKind != resources.ResourceKind("bundle.activation") || gotID != "demo" || gotExpectedVersion != 2 {
+	if gotKind != resources.ResourceKind("fixture.resource") || gotID != "demo" || gotExpectedVersion != 2 {
 		t.Fatalf("Delete() arguments = kind:%q id:%q expected_version:%d", gotKind, gotID, gotExpectedVersion)
 	}
 }
