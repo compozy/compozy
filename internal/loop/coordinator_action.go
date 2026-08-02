@@ -109,6 +109,9 @@ func (r *CoordinatorRunner) ExecuteActionRun(
 	if err != nil {
 		return task.RunResult{}, err
 	}
+	if err := r.admitActionTarget(ctx, taskRun.ID, actionCtx.node, input); err != nil {
+		return task.RunResult{}, err
+	}
 	return executeActionTaskRun(ctx, executor, actionCtx.node, input)
 }
 

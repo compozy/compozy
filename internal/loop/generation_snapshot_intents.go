@@ -25,24 +25,32 @@ const (
 	GenerationLifecycleEventNodeSucceeded GenerationLifecycleEventKind = "node_succeeded"
 	// GenerationLifecycleEventNodeFailed records an effect-bearing handled or terminal node failure.
 	GenerationLifecycleEventNodeFailed GenerationLifecycleEventKind = "node_failed"
+	// GenerationLifecycleEventNodeQuarantined records one durable quarantine episode.
+	GenerationLifecycleEventNodeQuarantined GenerationLifecycleEventKind = "node_quarantined"
+	// GenerationLifecycleEventTargetBreakerTransition records a loop-target breaker state change.
+	GenerationLifecycleEventTargetBreakerTransition GenerationLifecycleEventKind = "target_breaker_transition"
 )
 
 // GenerationLifecycleEventIntent requests one durable generation lifecycle event.
 type GenerationLifecycleEventIntent struct {
-	Kind           GenerationLifecycleEventKind `json:"kind"`
-	GateID         string                       `json:"gate_id,omitempty"`
-	ItemIndex      int                          `json:"item_index,omitempty"`
-	Route          gate.RouteAction             `json:"route,omitempty"`
-	Reason         string                       `json:"reason,omitempty"`
-	BestGeneration *int64                       `json:"best_generation,omitempty"`
-	NodeID         string                       `json:"node_id,omitempty"`
-	Attempt        int                          `json:"attempt,omitempty"`
-	IssuedEpoch    int64                        `json:"issued_epoch,omitempty"`
-	NextAttemptAt  *time.Time                   `json:"next_attempt_at,omitempty"`
-	FailureClass   FailureClass                 `json:"failure_class,omitempty"`
-	Failure        *ClassifiedFailure           `json:"failure,omitempty"`
-	Disposition    AttemptDisposition           `json:"disposition,omitempty"`
-	Effects        []RenderedEffectIntent       `json:"effects,omitempty"`
+	Kind            GenerationLifecycleEventKind `json:"kind"`
+	GateID          string                       `json:"gate_id,omitempty"`
+	ItemIndex       int                          `json:"item_index,omitempty"`
+	Route           gate.RouteAction             `json:"route,omitempty"`
+	Reason          string                       `json:"reason,omitempty"`
+	BestGeneration  *int64                       `json:"best_generation,omitempty"`
+	NodeID          string                       `json:"node_id,omitempty"`
+	Attempt         int                          `json:"attempt,omitempty"`
+	IssuedEpoch     int64                        `json:"issued_epoch,omitempty"`
+	NextAttemptAt   *time.Time                   `json:"next_attempt_at,omitempty"`
+	FailureClass    FailureClass                 `json:"failure_class,omitempty"`
+	Failure         *ClassifiedFailure           `json:"failure,omitempty"`
+	Disposition     AttemptDisposition           `json:"disposition,omitempty"`
+	QuarantineEntry json.RawMessage              `json:"quarantine_entry,omitempty"`
+	TargetFamily    string                       `json:"target_family,omitempty"`
+	Target          string                       `json:"target,omitempty"`
+	BreakerState    string                       `json:"breaker_state,omitempty"`
+	Effects         []RenderedEffectIntent       `json:"effects,omitempty"`
 }
 
 func (i GenerationLifecycleEventIntent) normalized() GenerationLifecycleEventIntent {
@@ -51,6 +59,12 @@ func (i GenerationLifecycleEventIntent) normalized() GenerationLifecycleEventInt
 	i.Route = gate.RouteAction(strings.TrimSpace(string(i.Route)))
 	i.Reason = strings.TrimSpace(i.Reason)
 	i.NodeID = strings.TrimSpace(i.NodeID)
+	i.TargetFamily = strings.TrimSpace(i.TargetFamily)
+	i.Target = strings.TrimSpace(i.Target)
+	i.BreakerState = strings.TrimSpace(i.BreakerState)
+	if len(i.QuarantineEntry) > 0 {
+		i.QuarantineEntry = append(json.RawMessage(nil), i.QuarantineEntry...)
+	}
 	if i.NextAttemptAt != nil {
 		value := i.NextAttemptAt.UTC()
 		i.NextAttemptAt = &value
@@ -82,6 +96,10 @@ func (i GenerationLifecycleEventIntent) validate() error {
 		err = i.validateNodeSucceeded()
 	case GenerationLifecycleEventNodeFailed:
 		err = i.validateNodeFailed()
+	case GenerationLifecycleEventNodeQuarantined:
+		err = i.validateNodeQuarantined()
+	case GenerationLifecycleEventTargetBreakerTransition:
+		err = i.validateTargetBreakerTransition()
 	default:
 		return fmt.Errorf("%w: generation lifecycle event kind is invalid: %q", ErrValidation, i.Kind)
 	}
@@ -145,6 +163,24 @@ func (i GenerationLifecycleEventIntent) validateNodeFailed() error {
 	return fmt.Errorf("%w: node_failed effect event has incomplete failure identity", ErrValidation)
 }
 
+func (i GenerationLifecycleEventIntent) validateNodeQuarantined() error {
+	if i.NodeID != "" && i.ItemIndex >= 0 && i.Attempt >= 1 && i.Failure != nil &&
+		i.Disposition == AttemptQuarantined && len(i.QuarantineEntry) > 0 && json.Valid(i.QuarantineEntry) {
+		return nil
+	}
+	return fmt.Errorf("%w: node_quarantined event has incomplete quarantine identity", ErrValidation)
+}
+
+func (i GenerationLifecycleEventIntent) validateTargetBreakerTransition() error {
+	stateValid := i.BreakerState == targetBreakerStateOpen ||
+		i.BreakerState == targetBreakerStateHalfOpen ||
+		i.BreakerState == targetBreakerStateClosed
+	if i.TargetFamily != "" && i.Target != "" && stateValid {
+		return nil
+	}
+	return fmt.Errorf("%w: target_breaker_transition event is incomplete", ErrValidation)
+}
+
 func generationLifecycleRouteValid(route gate.RouteAction) bool {
 	switch route {
 	case gate.RouteContinue,
@@ -161,6 +197,11 @@ func generationLifecycleRouteValid(route gate.RouteAction) bool {
 }
 
 func normalizeGenerationSnapshotIntents(payload GenerationSnapshotPayload) (GenerationSnapshotPayload, error) {
+	controls, err := normalizeNodeControlMutations(payload.Controls)
+	if err != nil {
+		return GenerationSnapshotPayload{}, err
+	}
+	payload.Controls = controls
 	if payload.GenerationProvenance != nil {
 		provenance := *payload.GenerationProvenance
 		if err := provenance.Validate(); err != nil {
@@ -220,6 +261,21 @@ func normalizeGenerationSnapshotIntents(payload GenerationSnapshotPayload) (Gene
 		payload.BoundaryEffects = boundaryEffects
 	}
 	return payload, nil
+}
+
+func normalizeNodeControlMutations(controls []NodeControlMutation) ([]NodeControlMutation, error) {
+	if len(controls) == 0 {
+		return controls, nil
+	}
+	normalizedControls := make([]NodeControlMutation, len(controls))
+	for index, control := range controls {
+		normalized := control.normalized()
+		if err := normalized.validate(); err != nil {
+			return nil, err
+		}
+		normalizedControls[index] = normalized
+	}
+	return normalizedControls, nil
 }
 
 func normalizeGenerationVerdictIntent(intent gate.VerdictIntent) (gate.VerdictIntent, error) {

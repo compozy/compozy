@@ -58,6 +58,13 @@ func WithCoordinatorNodeAttemptReader(reader NodeAttemptReader) CoordinatorRunne
 	}
 }
 
+// WithCoordinatorNodeControlReader injects cross-generation node control reads.
+func WithCoordinatorNodeControlReader(reader NodeControlReader) CoordinatorRunnerOption {
+	return func(r *CoordinatorRunner) {
+		r.controls = reader
+	}
+}
+
 // WithCoordinatorRetryRand injects the retry jitter source.
 func WithCoordinatorRetryRand(randFloat64 func() float64) CoordinatorRunnerOption {
 	return func(r *CoordinatorRunner) {
@@ -78,6 +85,13 @@ func WithCoordinatorActionRegistry(registry *ActionRegistry) CoordinatorRunnerOp
 func WithCoordinatorRuntimeCatalog(catalog WorkspaceRuntimeCatalog) CoordinatorRunnerOption {
 	return func(r *CoordinatorRunner) {
 		r.runtimeCatalog = catalog
+	}
+}
+
+// WithCoordinatorTargetHealth injects daemon-global loop-target admission and accounting.
+func WithCoordinatorTargetHealth(health TargetHealth) CoordinatorRunnerOption {
+	return func(r *CoordinatorRunner) {
+		r.targetHealth = health
 	}
 }
 

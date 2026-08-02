@@ -22,7 +22,7 @@ func coordinatorNodeMetadataWithFanOutItem(
 		"loop_name":           run.LoopName,
 		"workspace_id":        string(run.WorkspaceID),
 		metadataGenerationKey: generation,
-		"node_id":             string(node.ID),
+		metadataNodeIDKey:     string(node.ID),
 		"node_class":          string(node.Class),
 		"node_kind":           node.Kind,
 		metadataItemIndexKey:  itemIndex,

@@ -188,6 +188,54 @@ func TestCoordinatorEffectsShouldAttachNodeAndTerminalTriggers(t *testing.T) {
 	if terminal.Emit == nil || terminal.Emit.Payload["scope"] != "loop" {
 		t.Fatalf("terminal effect = %#v, want distinct loop scope", terminal)
 	}
+
+	quarantineEntry := json.RawMessage(`{
+		"node_id":"fetch",
+		"input_ref":"loop-run:run-effect:node:fetch:input",
+		"episodes":[{"generation":2,"quarantined_at":"2026-08-02T12:01:00Z","attempts":[]}]
+	}`)
+	quarantinePlan := task.CoordinatorCompletionPlan{
+		Snapshot: task.GenerationSnapshot{LoopRunID: "run-effect", Generation: 2, Payload: GenerationSnapshotPayload{
+			Attempts: []NodeAttempt{{
+				LoopRunID: "run-effect", Generation: 2, NodeID: "fetch", Attempt: 3,
+				Disposition: AttemptQuarantined, FailureClass: &failureClass,
+				FailureCode: "network", Cause: "down", StartedAt: nextAttemptAt,
+			}},
+			Events: []GenerationLifecycleEventIntent{{
+				Kind: GenerationLifecycleEventNodeQuarantined, NodeID: "fetch", Attempt: 3,
+				Failure:     &ClassifiedFailure{Class: FailureTransport, Code: "network", Cause: "down"},
+				Disposition: AttemptQuarantined, QuarantineEntry: quarantineEntry,
+			}},
+		}},
+	}
+	quarantineDefinition := dsl.Definition{Graph: dsl.Graph{Nodes: []dsl.Node{{
+		ID: "fetch", Class: dsl.NodeClassAction, Kind: "known__fetch",
+		NodeLifecycleState: &dsl.NodeLifecycleState{TriggerEffects: dsl.TriggerEffects{
+			OnQuarantine: []dsl.EffectSpec{{Emit: &dsl.EmitSpec{
+				Kind:    "fetch_quarantined",
+				Payload: map[string]any{"node_id": "{{ .effect.quarantine.node_id }}"},
+			}}},
+		}},
+	}}}}
+	if err := attachCoordinatorEffectIntents(
+		effectTestRun(),
+		&ResolvedDefinition{Definition: quarantineDefinition},
+		&quarantinePlan,
+	); err != nil {
+		t.Fatalf("attachCoordinatorEffectIntents(quarantine) error = %v", err)
+	}
+	quarantinePayload, err := GenerationSnapshotPayloadFrom(quarantinePlan.Snapshot.Payload)
+	if err != nil {
+		t.Fatalf("GenerationSnapshotPayloadFrom(quarantine) error = %v", err)
+	}
+	if len(quarantinePayload.Events) != 1 || len(quarantinePayload.Events[0].Effects) != 1 ||
+		quarantinePayload.Events[0].Effects[0].Trigger != EffectTriggerOnQuarantine {
+		t.Fatalf("quarantine event = %#v, want one on_quarantine effect", quarantinePayload.Events)
+	}
+	quarantineEffect := decodeRenderedEffectForTest(t, quarantinePayload.Events[0].Effects[0].Entry)
+	if quarantineEffect.Emit == nil || quarantineEffect.Emit.Payload["node_id"] != "fetch" {
+		t.Fatalf("quarantine effect = %#v, want entry context", quarantineEffect)
+	}
 }
 
 func TestCoordinatorEffectsShouldAttachEveryDeclaredTerminalOutcome(t *testing.T) {

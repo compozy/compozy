@@ -77,6 +77,7 @@ type bootState struct {
 	notifier               *hooksNotifier
 	registry               Registry
 	deadEntities           *deadentity.Service
+	loopTargetHealth       *loopTargetHealthSlot
 	processRegistry        *toolruntime.Registry
 	sandboxRegistry        *sandbox.Registry
 	workspaceResolver      *workspacepkg.Resolver
