@@ -23,6 +23,8 @@ type sshSession struct {
 	closeOnce sync.Once
 	done      chan struct{}
 	waitErr   error
+	exitCode  int
+	exited    bool
 	cancel    context.CancelFunc
 }
 
@@ -46,7 +48,9 @@ func newSSHSession(
 	}
 	go remote.keepAlive(ctx, keepAlive)
 	go func() {
-		remote.waitErr = normalizeSSHWaitErr(session.Wait(), stderr)
+		waitErr := session.Wait()
+		remote.exitCode, remote.exited = sshExitCode(waitErr)
+		remote.waitErr = normalizeSSHWaitErr(waitErr, stderr)
 		cancel()
 		close(remote.done)
 	}()
@@ -105,6 +109,15 @@ func (s *sshSession) Stderr() string {
 		return ""
 	}
 	return s.stderr.String()
+}
+
+func (s *sshSession) ExitCode() (int, bool) {
+	select {
+	case <-s.done:
+		return s.exitCode, s.exited
+	default:
+		return 0, false
+	}
 }
 
 func (s *sshSession) keepAlive(ctx context.Context, interval time.Duration) {

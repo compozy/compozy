@@ -425,20 +425,12 @@ func TestCoordinatorRuntimePreventsDuplicateCoordinatorsUnderConcurrentEnqueue(t
 	store := newCoordinatorRuntimeStore(coordinatorRuntimeTask(), coordinatorRuntimeRun())
 	createStarted := make(chan struct{}, attempts)
 	releaseCreate := make(chan struct{})
-	var releaseCreateOnce sync.Once
-	t.Cleanup(func() {
-		releaseCreateOnce.Do(func() {
-			close(releaseCreate)
-		})
-	})
+	releaseCreateOnce := sync.OnceFunc(func() { close(releaseCreate) })
+	t.Cleanup(releaseCreateOnce)
 	promptStarted := make(chan struct{}, 1)
 	releasePrompt := make(chan struct{})
-	var releaseOnce sync.Once
-	t.Cleanup(func() {
-		releaseOnce.Do(func() {
-			close(releasePrompt)
-		})
-	})
+	releasePromptOnce := sync.OnceFunc(func() { close(releasePrompt) })
+	t.Cleanup(releasePromptOnce)
 	sessions := &coordinatorRuntimeSessions{
 		createStarted: createStarted,
 		createRelease: releaseCreate,
@@ -473,9 +465,7 @@ func TestCoordinatorRuntimePreventsDuplicateCoordinatorsUnderConcurrentEnqueue(t
 			t.Fatal("timed out waiting for concurrent coordinator creates")
 		}
 	}
-	releaseCreateOnce.Do(func() {
-		close(releaseCreate)
-	})
+	releaseCreateOnce()
 	select {
 	case <-promptStarted:
 	case <-time.After(2 * time.Second):
@@ -515,9 +505,7 @@ func TestCoordinatorRuntimePreventsDuplicateCoordinatorsUnderConcurrentEnqueue(t
 		prompt.opts.Metadata.Reason != coordinator.ReasonRunEnqueued {
 		t.Fatalf("PromptSynthetic metadata = %#v, want task/run/coordinator/reason", prompt.opts.Metadata)
 	}
-	releaseOnce.Do(func() {
-		close(releasePrompt)
-	})
+	releasePromptOnce()
 	select {
 	case err := <-errs:
 		if err != nil {
@@ -558,6 +546,20 @@ func TestCoordinatorRuntimeShutdownStopsPromptEventDrains(t *testing.T) {
 	defer cancel()
 	if err := runtime.shutdown(shutdownCtx); err != nil {
 		t.Fatalf("shutdown() error = %v", err)
+	}
+	if err := runtime.shutdown(context.Background()); err != nil {
+		t.Fatalf("shutdown(retry) error = %v", err)
+	}
+	if err := runtime.promptCoordinator(
+		context.Background(),
+		&session.Info{ID: "coord-drain"},
+		coordinator.Decision{TaskID: "task-1", RunID: "run-2"},
+		coordinator.ReasonRunEnqueued,
+	); err == nil {
+		t.Fatal("promptCoordinator(after shutdown) error = nil, want admission failure")
+	}
+	if got, want := sessions.promptCount(), 1; got != want {
+		t.Fatalf("PromptSynthetic count = %d, want %d", got, want)
 	}
 }
 

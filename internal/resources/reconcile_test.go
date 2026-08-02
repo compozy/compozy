@@ -56,6 +56,33 @@ type recordingReconcileHealthSink struct {
 	updates []ReconcileHealth
 }
 
+type reconcileContextObservation struct {
+	err         error
+	deadline    time.Time
+	hasDeadline bool
+}
+
+type contextRecordingReconcileSink struct {
+	events chan reconcileContextObservation
+	health chan reconcileContextObservation
+}
+
+func (s *contextRecordingReconcileSink) ObserveReconcileEvent(ctx context.Context, event ReconcileEvent) {
+	if event.Type != ReconcileEventApplied {
+		return
+	}
+	deadline, hasDeadline := ctx.Deadline()
+	s.events <- reconcileContextObservation{err: ctx.Err(), deadline: deadline, hasDeadline: hasDeadline}
+}
+
+func (s *contextRecordingReconcileSink) ReportReconcileHealth(ctx context.Context, health ReconcileHealth) {
+	if health.Status != ReconcileHealthStatusHealthy {
+		return
+	}
+	deadline, hasDeadline := ctx.Deadline()
+	s.health <- reconcileContextObservation{err: ctx.Err(), deadline: deadline, hasDeadline: hasDeadline}
+}
+
 func (s *recordingReconcileHealthSink) ReportReconcileHealth(_ context.Context, health ReconcileHealth) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -378,6 +405,68 @@ func TestReconcileDriverPropagatesTimeoutToProjectorContexts(t *testing.T) {
 		}
 		if got, want := rawStore.listCalls.Load(), int32(1); got != want {
 			t.Fatalf("ListRaw() calls = %d, want %d", got, want)
+		}
+	})
+
+	t.Run("Should bind asynchronous event and health sinks to the worker timeout", func(t *testing.T) {
+		t.Parallel()
+
+		kernel, _ := openTestKernel(t)
+		timeout := 250 * time.Millisecond
+		sink := &contextRecordingReconcileSink{
+			events: make(chan reconcileContextObservation, 1),
+			health: make(chan reconcileContextObservation, 1),
+		}
+		driver, err := NewReconcileDriver(
+			kernel,
+			testDaemonActor(),
+			[]ProjectorRegistration{
+				newTestProjectorRegistration(
+					testResourceKind,
+					nil,
+					func(context.Context, projectionInput) (ProjectionPlan, error) {
+						return testPlan{kind: testResourceKind, revision: 1, operations: 1}, nil
+					},
+					func(context.Context, ProjectionPlan) error { return nil },
+				),
+			},
+			WithReconcileTimeout(timeout),
+			WithReconcileEventSink(sink),
+			WithReconcileHealthSink(sink),
+		)
+		if err != nil {
+			t.Fatalf("NewReconcileDriver() error = %v", err)
+		}
+		t.Cleanup(func() {
+			closeCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+			defer cancel()
+			if closeErr := driver.Close(closeCtx); closeErr != nil {
+				t.Fatalf("Close() error = %v", closeErr)
+			}
+		})
+
+		if err := driver.Trigger(testutil.Context(t), testResourceKind, ReconcileReasonWrite); err != nil {
+			t.Fatalf("Trigger() error = %v", err)
+		}
+		for name, observations := range map[string]<-chan reconcileContextObservation{
+			"event":  sink.events,
+			"health": sink.health,
+		} {
+			select {
+			case observation := <-observations:
+				if observation.err != nil {
+					t.Fatalf("%s sink context error = %v, want active worker context", name, observation.err)
+				}
+				if !observation.hasDeadline {
+					t.Fatalf("%s sink context has no deadline", name)
+				}
+				remaining := time.Until(observation.deadline)
+				if remaining <= 0 || remaining > timeout {
+					t.Fatalf("%s sink deadline remaining = %s, want within (0,%s]", name, remaining, timeout)
+				}
+			case <-t.Context().Done():
+				t.Fatalf("%s sink was not called: %v", name, t.Context().Err())
+			}
 		}
 	})
 }

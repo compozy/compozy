@@ -4,15 +4,14 @@ package providerauth
 import (
 	"errors"
 	"fmt"
-	"os"
 	"os/exec"
+	pathpkg "path"
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/procutil"
 	"github.com/compozy/compozy/internal/providerenv"
-	"github.com/kballard/go-shellquote"
 )
 
 const (
@@ -63,23 +62,20 @@ func NativeCLIStatusForCommand(
 	if command == "" {
 		return nil, errors.New("provider auth: native CLI command is required")
 	}
-	argv, err := shellquote.Split(command)
+	parsed, err := ParseCommand(command)
 	if err != nil {
 		return nil, fmt.Errorf("provider auth: parse native CLI command: %w", err)
-	}
-	if len(argv) == 0 {
-		return nil, errors.New("provider auth: native CLI command is empty")
 	}
 	if lookPath == nil {
 		lookPath = exec.LookPath
 	}
 	status := &NativeCLIStatus{
-		Command: argv[0],
+		Command: parsed.Executable,
 		Source:  source,
 	}
-	path, err := lookPath(argv[0])
+	path, err := lookPath(parsed.Executable)
 	if err != nil {
-		if errors.Is(err, exec.ErrNotFound) || errors.Is(err, os.ErrNotExist) {
+		if errors.Is(err, exec.ErrNotFound) {
 			return status, nil
 		}
 		status.Error = diagnostics.RedactAndBound(err.Error(), 1024)
@@ -93,74 +89,24 @@ func NativeCLIStatusForCommand(
 // NativeCLIMissingMessage explains how to recover when the configured native CLI is unavailable.
 func NativeCLIMissingMessage(
 	providerName string,
-	provider compozyconfig.ProviderConfig,
 	nativeCLI *NativeCLIStatus,
 ) string {
 	if nativeCLI == nil || nativeCLI.Command == "" {
 		return "Provider native CLI command is not configured."
 	}
-	if loginCommand := strings.TrimSpace(provider.AuthLoginCmd); loginCommand != "" {
-		return fmt.Sprintf(
-			"Native CLI %q was not found on PATH; install it, then run %q.",
-			nativeCLI.Command,
-			loginCommand,
-		)
-	}
 	return fmt.Sprintf(
 		"Native CLI %q was not found on PATH; install it or update providers.%s.command.",
-		nativeCLI.Command,
+		nativeCLIExecutableBase(nativeCLI.Command),
 		providerName,
 	)
 }
 
-// NativeCLIReadyMessage explains the provider-owned login boundary when the CLI is present.
-func NativeCLIReadyMessage(
-	providerName string,
-	provider compozyconfig.ProviderConfig,
-	nativeCLI *NativeCLIStatus,
-) string {
-	if nativeCLI == nil || nativeCLI.Command == "" {
-		return "Provider owns authentication through its native CLI login state."
+func nativeCLIExecutableBase(executable string) string {
+	normalized := strings.ReplaceAll(strings.TrimSpace(executable), `\`, "/")
+	if normalized == "" {
+		return "provider"
 	}
-	if loginCommand := strings.TrimSpace(provider.AuthLoginCmd); loginCommand != "" {
-		return fmt.Sprintf(
-			"Native CLI %q is present; Compozy does not manage this login state. Run %q if authentication is required.",
-			nativeCLI.Command,
-			loginCommand,
-		)
-	}
-	return fmt.Sprintf(
-		"Native CLI %q is present; Compozy does not manage this login state. "+
-			"Use the provider's own login command if authentication is required, "+
-			"or set providers.%s.auth_login_command.",
-		nativeCLI.Command,
-		providerName,
-	)
-}
-
-// NativeCLIAuthProblemMessage explains how to recover from a failed native auth status probe.
-func NativeCLIAuthProblemMessage(provider compozyconfig.ProviderConfig) string {
-	if loginCommand := strings.TrimSpace(provider.AuthLoginCmd); loginCommand != "" {
-		return fmt.Sprintf("Provider status command reported an auth problem; run %q.", loginCommand)
-	}
-	return "Provider status command reported an auth problem; " +
-		"use the provider's native login command or set auth_login_command."
-}
-
-// NativeCLILoginCommandMessage explains that Compozy prints native login commands instead of running them.
-func NativeCLILoginCommandMessage(providerName string, operatorCommand string) string {
-	if operatorCommand != "" {
-		return fmt.Sprintf(
-			"Compozy does not execute native provider login flows. Run %q in an interactive terminal.",
-			operatorCommand,
-		)
-	}
-	return fmt.Sprintf(
-		"Compozy does not manage provider %q login state. Use the provider's native login command, "+
-			"or set providers.%s.auth_login_command.",
-		providerName,
-		providerName,
-	)
+	return pathpkg.Base(normalized)
 }
 
 // CommandEnv returns the provider-auth command environment used by CLI probes and settings diagnostics.
@@ -169,6 +115,26 @@ func CommandEnv(
 	providerName string,
 	provider compozyconfig.ProviderConfig,
 	environ []string,
+) ([]string, error) {
+	return providerCommandEnv(homePaths, providerName, provider, environ, true)
+}
+
+// DiagnosticCommandEnv returns the provider auth environment without creating provider state.
+func DiagnosticCommandEnv(
+	homePaths compozyconfig.HomePaths,
+	providerName string,
+	provider compozyconfig.ProviderConfig,
+	environ []string,
+) ([]string, error) {
+	return providerCommandEnv(homePaths, providerName, provider, environ, false)
+}
+
+func providerCommandEnv(
+	homePaths compozyconfig.HomePaths,
+	providerName string,
+	provider compozyconfig.ProviderConfig,
+	environ []string,
+	createProviderState bool,
 ) ([]string, error) {
 	env := procutil.FilteredDaemonEnv(environ)
 	if provider.EffectiveEnvPolicy() == compozyconfig.ProviderEnvPolicyIsolated {
@@ -180,7 +146,11 @@ func CommandEnv(
 	env = providerenv.SetEnvValue(env, "COMPOZY_PROVIDER_ENV_POLICY", string(provider.EffectiveEnvPolicy()))
 	env = providerenv.SetEnvValue(env, "COMPOZY_PROVIDER_HOME_POLICY", string(provider.EffectiveHomePolicy()))
 	var err error
-	env, err = providerenv.ApplyHomePolicy(homePaths, providerName, provider.EffectiveHomePolicy(), env)
+	if createProviderState {
+		env, err = providerenv.ApplyHomePolicy(homePaths, providerName, provider.EffectiveHomePolicy(), env)
+	} else {
+		env, err = providerenv.ResolveHomeEnv(homePaths, providerName, provider.EffectiveHomePolicy(), env)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -188,7 +158,10 @@ func CommandEnv(
 		provider.EffectiveAuthMode() != compozyconfig.ProviderAuthModeNativeCLI {
 		return env, nil
 	}
-	return providerenv.ApplyPiAgentDirPolicy(homePaths, providerName, provider.EffectiveHomePolicy(), env)
+	if createProviderState {
+		return providerenv.ApplyPiAgentDirPolicy(homePaths, providerName, provider.EffectiveHomePolicy(), env)
+	}
+	return providerenv.ResolvePiAgentDirEnv(homePaths, providerName, provider.EffectiveHomePolicy(), env)
 }
 
 // NativeCLILoginEnv returns only the env assignments operators need for native CLI login commands.
@@ -255,27 +228,4 @@ func envValue(env []string, key string) (string, bool) {
 		}
 	}
 	return "", false
-}
-
-// OperatorLoginCommand prefixes a native login command with required env assignments.
-func OperatorLoginCommand(command string, loginEnv []string) (string, error) {
-	command = strings.TrimSpace(command)
-	if command == "" {
-		return "", errors.New("provider auth: native login command is required")
-	}
-	if len(loginEnv) == 0 {
-		return command, nil
-	}
-	argv, err := shellquote.Split(command)
-	if err != nil {
-		return "", fmt.Errorf("provider auth: parse native login command: %w", err)
-	}
-	if len(argv) == 0 {
-		return "", errors.New("provider auth: native login command is empty")
-	}
-	parts := make([]string, 0, 1+len(loginEnv)+len(argv))
-	parts = append(parts, "env")
-	parts = append(parts, loginEnv...)
-	parts = append(parts, argv...)
-	return shellquote.Join(parts...), nil
 }

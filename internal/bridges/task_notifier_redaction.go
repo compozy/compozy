@@ -2,7 +2,6 @@ package bridges
 
 import (
 	"bytes"
-
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/diagnostics"
-
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
@@ -24,13 +22,17 @@ func terminalTaskNotificationEnvelope(
 	if err != nil {
 		return TerminalTaskNotification{}, err
 	}
+	deliveryID, err := terminalTaskNotificationDeliveryID(subscription, record.Sequence)
+	if err != nil {
+		return TerminalTaskNotification{}, err
+	}
 	return TerminalTaskNotification{
-		DeliveryID:     terminalTaskNotificationDeliveryID(subscription.SubscriptionID, record.Sequence),
+		DeliveryID:     deliveryID,
 		EventType:      record.Event.EventType,
 		Final:          true,
 		Seq:            record.Sequence,
 		TaskID:         subscription.TaskID,
-		RunID:          strings.TrimSpace(record.Event.RunID),
+		RunID:          record.Event.RunID,
 		Status:         eventStatus,
 		Error:          redactTerminalTaskNotificationText(strings.TrimSpace(run.Error)),
 		Payload:        payload,

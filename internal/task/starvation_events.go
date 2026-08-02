@@ -2,7 +2,6 @@ package task
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -68,14 +67,25 @@ func (m *Service) MarkRunNeedsAttention(
 	diagnostic string,
 	actor ActorContext,
 ) (Run, error) {
-	run, err := m.store.GetTaskRun(ctx, strings.TrimSpace(runID))
+	if err := requireWriteAuthority(actor); err != nil {
+		return Run{}, err
+	}
+	diagnostic = strings.TrimSpace(diagnostic)
+	if redactpkg.ContainsRawClaimToken(diagnostic) {
+		return Run{}, fmt.Errorf("task: needs_attention diagnostic must not embed a claim token")
+	}
+	if err := ValidateDiagnosticSize(diagnostic, "task_run.needs_attention.diagnostic"); err != nil {
+		return Run{}, err
+	}
+
+	run, _, err := m.loadAuthorizedRunWithTask(ctx, runID, actor)
 	if err != nil {
 		return Run{}, err
 	}
-	if run.Status.Normalize() == TaskRunStatusNeedsAttention {
+	previousStatus := run.Status.Normalize()
+	if previousStatus == TaskRunStatusNeedsAttention {
 		return run, nil
 	}
-	previousStatus := run.Status.Normalize()
 	if !runStatusAllowsNeedsAttention(previousStatus) {
 		return Run{}, fmt.Errorf(
 			"%w: run %q is %s; only nonterminal runs can be marked needs_attention",
@@ -84,41 +94,50 @@ func (m *Service) MarkRunNeedsAttention(
 			previousStatus,
 		)
 	}
-	diagnostic = strings.TrimSpace(diagnostic)
-	if redactpkg.ContainsRawClaimToken(diagnostic) {
-		return Run{}, fmt.Errorf("task: needs_attention diagnostic must not embed a claim token")
+	payload := RunNeedsAttentionEventPayload{
+		PreviousStatus:               previousStatus,
+		Status:                       TaskRunStatusNeedsAttention,
+		SessionID:                    run.SessionID,
+		Diagnostic:                   diagnostic,
+		QueuedAt:                     run.QueuedAt,
+		ResolvedNetworkParticipation: participation.CloneSpec(run.NetworkSpecSnapshot()),
 	}
-	updated, err := m.store.MarkTaskRunNeedsAttention(ctx, run.ID, diagnostic)
-	if err != nil {
-		if errors.Is(err, ErrInvalidStatusTransition) {
-			current, getErr := m.store.GetTaskRun(ctx, run.ID)
-			if getErr != nil {
-				return Run{}, errors.Join(err, getErr)
-			}
-			if current.Status.Normalize() == TaskRunStatusNeedsAttention {
-				return current, nil
-			}
-		}
-		return Run{}, err
-	}
-	if err := m.recordTaskEvent(
-		ctx,
-		updated.TaskID,
-		updated.ID,
+	if err := m.preflightTaskEvent(
+		run.TaskID,
+		run.ID,
 		taskEventRunNeedsAttention,
 		actor,
-		RunNeedsAttentionEventPayload{
-			PreviousStatus:               previousStatus,
-			Status:                       updated.Status.Normalize(),
-			SessionID:                    updated.SessionID,
-			Diagnostic:                   diagnostic,
-			QueuedAt:                     updated.QueuedAt,
-			ResolvedNetworkParticipation: participation.CloneSpec(updated.NetworkSpecSnapshot()),
-		},
+		payload,
 	); err != nil {
 		return Run{}, err
 	}
-	return updated, nil
+	commandID, err := m.newID("terminal-command")
+	if err != nil {
+		return Run{}, fmt.Errorf("task: generate terminal command id: %w", err)
+	}
+	eventIDs, err := m.reserveTaskEventIDs(1)
+	if err != nil {
+		return Run{}, err
+	}
+	command, err := newNeedsAttentionTerminalRunCommand(
+		commandID,
+		eventIDs,
+		run,
+		diagnostic,
+		actor,
+		m.now().UTC(),
+	)
+	if err != nil {
+		return Run{}, err
+	}
+	settlement, err := m.executeTerminalRunCommand(ctx, command)
+	if err != nil {
+		return Run{}, err
+	}
+	if err := m.publishTerminalRunCommandSettlement(ctx, &settlement); err != nil {
+		return settlement.run, err
+	}
+	return settlement.run, nil
 }
 
 func runStatusAllowsNeedsAttention(status RunStatus) bool {

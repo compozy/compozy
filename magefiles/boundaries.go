@@ -270,8 +270,9 @@ func Boundaries() error {
 		{
 			importer: "internal/registry/gitsrc",
 			allowed: map[string]struct{}{
-				"github.com/compozy/compozy/internal/fileutil": {},
-				"github.com/compozy/compozy/internal/registry": {},
+				"github.com/compozy/compozy/internal/fileutil":       {},
+				"github.com/compozy/compozy/internal/outboundpolicy": {},
+				"github.com/compozy/compozy/internal/registry":       {},
 			},
 		},
 		{

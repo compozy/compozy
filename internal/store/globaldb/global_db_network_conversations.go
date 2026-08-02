@@ -107,6 +107,10 @@ func persistNetworkConversationMessageWithExecutor(
 		return result, sequence, err
 	}
 	message.Sequence = sequence
+	auditEntry, err := auditEntryForConversationMessage(message)
+	if err != nil {
+		return store.NetworkConversationWriteResult{}, 0, err
+	}
 
 	result.ConversationOpened, err = ensureNetworkConversationContainer(ctx, exec, message)
 	if err != nil {
@@ -130,7 +134,7 @@ func persistNetworkConversationMessageWithExecutor(
 	if err := refreshNetworkConversationSummary(ctx, exec, message); err != nil {
 		return store.NetworkConversationWriteResult{}, 0, err
 	}
-	if err := insertNetworkAuditWithExecutor(ctx, exec, auditEntryForConversationMessage(message)); err != nil {
+	if err := insertNetworkAuditWithExecutor(ctx, exec, auditEntry); err != nil {
 		return store.NetworkConversationWriteResult{}, 0, err
 	}
 	result.LastActivityAt = message.Timestamp

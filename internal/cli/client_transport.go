@@ -71,10 +71,7 @@ func (c *unixSocketClient) decodeJSONResponse(
 	if responseBody == nil {
 		return drainResponseBody(method, path, response.Body)
 	}
-	if err := json.NewDecoder(response.Body).Decode(responseBody); err != nil {
-		return fmt.Errorf("cli: decode %s %s response: %w", method, path, err)
-	}
-	return nil
+	return decodeJSONResponseBody(method, path, response.Body, responseBody)
 }
 
 func (c *unixSocketClient) doSSE(
@@ -221,14 +218,20 @@ func (c *unixSocketClient) doRequestWithCredentialsAndClient(
 }
 
 func newDaemonUnavailableError(socketPath string, method string, path string, err error) error {
-	item := diagnosticspkg.NewItem(
-		"cli.daemon_unavailable",
-		contract.CodeDaemonUnavailable,
-		contract.CategoryDaemon,
-		"Daemon unavailable",
-		fmt.Sprintf("Compozy daemon is not reachable at %s while requesting %s %s.", socketPath, method, path),
-		contract.SeverityError,
-		contract.FreshnessOffline,
+	item := diagnosticspkg.NewItem(diagnosticspkg.ItemSpec{
+		ID:       "cli.daemon_unavailable",
+		Code:     contract.CodeDaemonUnavailable,
+		Category: contract.CategoryDaemon,
+		Title:    "Daemon unavailable",
+		Message: fmt.Sprintf(
+			"Compozy daemon is not reachable at %s while requesting %s %s.",
+			socketPath,
+			method,
+			path,
+		),
+		Severity:      contract.SeverityError,
+		DataFreshness: contract.FreshnessOffline,
+	},
 		diagnosticspkg.WithSuggestedCommand("compozy daemon start"),
 		diagnosticspkg.WithEvidence(map[string]any{
 			"socket_path": socketPath,
@@ -267,6 +270,6 @@ func setAgentIdentityHeaders(req *http.Request, credentials agentidentity.Creden
 	}
 }
 
-func decodeSSE(ctx context.Context, body io.ReadCloser, handler SSEHandler) error {
-	return sse.Decode(ctx, body, handler)
+func decodeSSE(ctx context.Context, reader io.Reader, handler SSEHandler) error {
+	return sse.Decode(ctx, reader, handler)
 }

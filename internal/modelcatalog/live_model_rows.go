@@ -163,15 +163,19 @@ func liveModelRow(providerID string, raw *liveRawModel, now time.Time) (ModelRow
 }
 
 func parseLineModelRows(providerID string, stdout string, now time.Time) []ModelRow {
-	lines := strings.Split(stdout, "\n")
-	rows := make([]ModelRow, 0, len(lines))
-	seen := make(map[string]struct{}, len(lines))
-	for _, rawLine := range lines {
+	lineCount := strings.Count(stdout, "\n") + 1
+	rows := make([]ModelRow, 0, lineCount)
+	seen := make(map[string]struct{}, lineCount)
+	for rawLine := range strings.SplitSeq(stdout, "\n") {
 		line := strings.TrimSpace(rawLine)
 		if line == "" {
 			continue
 		}
-		firstToken := strings.Fields(line)[0]
+		firstToken := ""
+		for field := range strings.FieldsSeq(line) {
+			firstToken = field
+			break
+		}
 		if strings.EqualFold(firstToken, "id") || strings.EqualFold(firstToken, "model") {
 			continue
 		}

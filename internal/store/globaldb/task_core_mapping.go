@@ -318,60 +318,6 @@ func taskRunParams(run taskpkg.Run) (sqlcgen.InsertTaskRunParams, error) {
 	}, nil
 }
 
-func updateTaskRunParams(run taskpkg.Run) (sqlcgen.UpdateTaskRunParams, error) {
-	insert, err := taskRunParams(run)
-	if err != nil {
-		return sqlcgen.UpdateTaskRunParams{}, err
-	}
-	return sqlcgen.UpdateTaskRunParams{
-		TaskID:                 insert.TaskID,
-		WorkspaceID:            insert.WorkspaceID,
-		RunKind:                insert.RunKind,
-		LoopRunID:              insert.LoopRunID,
-		Status:                 insert.Status,
-		Attempt:                insert.Attempt,
-		RecoveryCount:          insert.RecoveryCount,
-		PreviousRunID:          insert.PreviousRunID,
-		FailureKind:            insert.FailureKind,
-		ClaimedByKind:          insert.ClaimedByKind,
-		ClaimedByRef:           insert.ClaimedByRef,
-		SessionID:              insert.SessionID,
-		OriginKind:             insert.OriginKind,
-		OriginRef:              insert.OriginRef,
-		IdempotencyKey:         insert.IdempotencyKey,
-		NetworkSpecJson:        insert.NetworkSpecJson,
-		NetworkMode:            insert.NetworkMode,
-		NetworkChannel:         insert.NetworkChannel,
-		NetworkSource:          insert.NetworkSource,
-		DesignationGroupID:     insert.DesignationGroupID,
-		ClaimTokenHash:         insert.ClaimTokenHash,
-		LeaseUntil:             insert.LeaseUntil,
-		HeartbeatAt:            insert.HeartbeatAt,
-		QueuedAt:               insert.QueuedAt,
-		ClaimedAt:              insert.ClaimedAt,
-		StartedAt:              insert.StartedAt,
-		EndedAt:                insert.EndedAt,
-		TokensUsed:             insert.TokensUsed,
-		Error:                  insert.Error,
-		MetadataJson:           insert.MetadataJson,
-		ResultJson:             insert.ResultJson,
-		ReviewRequired:         insert.ReviewRequired,
-		ReviewRequestRound:     insert.ReviewRequestRound,
-		ReviewPolicySnapshot:   insert.ReviewPolicySnapshot,
-		ReviewRequestID:        insert.ReviewRequestID,
-		ParentRunID:            insert.ParentRunID,
-		ReviewID:               insert.ReviewID,
-		ReviewRound:            insert.ReviewRound,
-		ContinuationReason:     insert.ContinuationReason,
-		MissingWorkJson:        insert.MissingWorkJson,
-		NextRoundGuidance:      insert.NextRoundGuidance,
-		NetworkWakeID:          insert.NetworkWakeID,
-		NetworkTargetSessionID: insert.NetworkTargetSessionID,
-		NetworkOwnerKey:        insert.NetworkOwnerKey,
-		ID:                     run.ID,
-	}, nil
-}
-
 func nullableTaskString(value string) sql.NullString {
 	value = strings.TrimSpace(value)
 	return sql.NullString{String: value, Valid: value != ""}

@@ -92,7 +92,10 @@ func (p Patch) Validate(path string) error {
 
 // Validate reports whether the task-cancellation request is internally consistent.
 func (r CancelTask) Validate(path string) error {
-	return ValidatePayloadSize(r.Metadata, nestedPath(path, "metadata"))
+	if err := ValidateReasonSize(r.Reason, nestedPath(path, "reason")); err != nil {
+		return err
+	}
+	return ValidateMetadataSize(r.Metadata, nestedPath(path, "metadata"))
 }
 
 // Validate reports whether the dependency-create request is internally consistent.
@@ -148,7 +151,10 @@ func (r StartRun) Validate(path string) error {
 
 // Validate reports whether the cancel-run request is internally consistent.
 func (r CancelRun) Validate(path string) error {
-	return ValidatePayloadSize(r.Metadata, nestedPath(path, "metadata"))
+	if err := ValidateReasonSize(r.Reason, nestedPath(path, "reason")); err != nil {
+		return err
+	}
+	return ValidateMetadataSize(r.Metadata, nestedPath(path, "metadata"))
 }
 
 // Validate reports whether the run failure contains a message and bounded metadata.
@@ -156,7 +162,10 @@ func (r RunFailure) Validate(path string) error {
 	if strings.TrimSpace(r.Error) == "" {
 		return fmt.Errorf("%w: %s is required", ErrValidation, nestedPath(path, "error"))
 	}
-	if err := ValidatePayloadSize(r.Metadata, nestedPath(path, "metadata")); err != nil {
+	if err := ValidateDiagnosticSize(r.Error, nestedPath(path, "error")); err != nil {
+		return err
+	}
+	if err := ValidateMetadataSize(r.Metadata, nestedPath(path, "metadata")); err != nil {
 		return err
 	}
 	if hasRawClaimTokenField(r.Metadata) {

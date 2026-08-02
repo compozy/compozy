@@ -3,6 +3,7 @@ package compozysdk
 import (
 	"context"
 	"encoding/json"
+	"time"
 )
 
 func (e *Extension) handleHealthCheck(
@@ -42,11 +43,20 @@ func (e *Extension) handleShutdown(
 	if shutdown.DeadlineMS <= 0 {
 		return ShutdownResponse{}, NewInvalidParamsError("deadline_ms must be greater than zero", nil)
 	}
+	deadline, ok := millisecondsDuration(shutdown.DeadlineMS)
+	if !ok {
+		return ShutdownResponse{}, NewInvalidParamsError("deadline_ms exceeds the supported duration", nil)
+	}
 	e.mu.Lock()
 	e.shutdownStarted = true
 	e.shutdownDeadlineMS = shutdown.DeadlineMS
+	e.shutdownDeadlineAt = time.Now().Add(deadline)
 	handler := e.handlers[shutdownMethod]
+	readyLifecycle := e.readyLifecycle
 	e.mu.Unlock()
+	if readyLifecycle != nil {
+		readyLifecycle.stop()
+	}
 	if handler == nil {
 		return ShutdownResponse{Acknowledged: true}, nil
 	}

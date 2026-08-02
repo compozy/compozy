@@ -65,6 +65,10 @@ func recoverTaskRunsOnBoot(
 	sessions taskBridgeSessionManager,
 	actor taskpkg.ActorContext,
 ) (taskRecoveryStats, error) {
+	terminalSettled, err := recoverPendingTerminalRunCommandsOnBoot(ctx, manager, sessions, actor)
+	if err != nil {
+		return taskRecoveryStats{}, err
+	}
 	expired, err := manager.RecoverExpiredRunLeases(ctx, taskpkg.ExpiredLeaseRecovery{
 		Reason: taskRecoveryReasonBoot,
 	}, actor)
@@ -84,7 +88,7 @@ func recoverTaskRunsOnBoot(
 		return taskRecoveryStats{}, fmt.Errorf("daemon: list task runs for boot recovery: %w", err)
 	}
 
-	stats := taskRecoveryStats{requeued: len(expired)}
+	stats := taskRecoveryStats{terminalSettled: terminalSettled, requeued: len(expired)}
 	for _, run := range runs {
 		recovery, err := planTaskRunRecovery(ctx, sessions, run)
 		if err != nil {
@@ -115,6 +119,63 @@ func recoverTaskRunsOnBoot(
 	}
 
 	return stats, nil
+}
+
+func recoverPendingTerminalRunCommandsOnBoot(
+	ctx context.Context,
+	manager *taskpkg.Service,
+	sessions taskBridgeSessionManager,
+	actor taskpkg.ActorContext,
+) (int, error) {
+	pending, err := manager.ListPendingTerminalRunCommands(ctx, actor)
+	if err != nil {
+		return 0, fmt.Errorf("daemon: list pending terminal run commands on boot: %w", err)
+	}
+	settled := 0
+	for _, command := range pending {
+		evidence := taskpkg.TerminalRunRecoveryEvidence{
+			RunID: command.RunID, SessionID: command.SessionID,
+			Disposition: taskpkg.TerminalRunRecoveryStopObserved,
+		}
+		if command.StopRequired && command.Phase != taskpkg.TerminalRunCommandPhaseStopConfirmed {
+			if sessions == nil {
+				return 0, errors.New("daemon: terminal task recovery requires a session manager")
+			}
+			observed, inspectErr := inspectTaskSessionRecovery(ctx, sessions, command.SessionID)
+			if inspectErr != nil {
+				return 0, fmt.Errorf(
+					"daemon: inspect session for terminal task run %q: %w",
+					command.RunID,
+					inspectErr,
+				)
+			}
+			evidence.State = observed.state
+			evidence.Disposition = terminalRunRecoveryDisposition(observed)
+		}
+		if _, recoverErr := manager.RecoverTerminalRunCommandOnBoot(ctx, evidence, actor); recoverErr != nil {
+			return 0, fmt.Errorf(
+				"daemon: recover terminal task run %q on boot: %w",
+				command.RunID,
+				recoverErr,
+			)
+		}
+		settled++
+	}
+	return settled, nil
+}
+
+func terminalRunRecoveryDisposition(
+	evidence taskSessionRecoveryEvidence,
+) taskpkg.TerminalRunRecoveryDisposition {
+	if evidence.live || evidence.stopRequired {
+		return taskpkg.TerminalRunRecoveryResumeStop
+	}
+	switch strings.TrimSpace(evidence.state) {
+	case taskRecoverySessionMissing, string(session.StateStopped):
+		return taskpkg.TerminalRunRecoveryStopObserved
+	default:
+		return taskpkg.TerminalRunRecoveryAmbiguous
+	}
 }
 
 func planTaskRunRecovery(
@@ -192,6 +253,7 @@ func taskRunRecoveryFromEvidence(
 		SessionState:   evidence.state,
 		Classification: evidence.classification,
 		Detail:         evidence.detail,
+		StopRequired:   action == taskpkg.RunBootRecoveryFail && evidence.stopRequired,
 	}
 }
 
@@ -262,6 +324,7 @@ func inspectTaskSessionRecovery(
 	}
 
 	evidence.classification, evidence.detail = classifyRecoveredTaskSession(info, time.Now().UTC())
+	evidence.stopRequired = taskSessionMatchesRecordedSubprocess(info.Liveness)
 	return evidence, nil
 }
 

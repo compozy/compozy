@@ -141,7 +141,8 @@ func (m *Service) observeCommittedRunParticipation(
 	if m == nil || observation == nil {
 		return
 	}
-	observationCtx := context.WithoutCancel(ctx)
+	observationCtx, cancel := taskPostCommitContext(ctx)
+	defer cancel()
 	if err := participation.ObserveResolved(
 		observationCtx,
 		m.participationResolver,

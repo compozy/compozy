@@ -38,7 +38,9 @@ func InstallWithRegistry(
 	if err != nil {
 		return InstallResult{}, fmt.Errorf("create temporary install directory: %w", err)
 	}
-	defer joinRemoveAll(&err, tempRoot, "remove temporary install directory")
+	defer func() {
+		finalizeMarketplaceStagingCleanup(&item, &err, tempRoot)
+	}()
 
 	installer := registrypkg.NewInstaller(registry)
 	result, err := installer.Install(ctx, normalizedSlug, registrypkg.DownloadOpts{
@@ -123,18 +125,25 @@ func finalizeMarketplaceInstall(
 		return InstallResult{}, err
 	}
 
-	if err := registrypkg.MoveInstalledDir(result.InstallPath, targetDir, true); err != nil {
+	moveResult, err := registrypkg.MoveInstalledDir(result.InstallPath, targetDir, true)
+	if err != nil {
 		return InstallResult{}, err
 	}
+	cleanupDiagnostics := cleanupDiagnosticsFromRegistry(result.CleanupDiagnostics)
+	cleanupDiagnostics = appendCleanupDiagnosticsFromRegistry(
+		cleanupDiagnostics,
+		moveResult.CleanupDiagnostics,
+	)
 
 	return InstallResult{
-		Name:     localName,
-		Slug:     normalizedSlug,
-		Version:  resolvedVersion,
-		Registry: registryName,
-		Path:     targetDir,
-		Hash:     hash,
-		Status:   "installed",
+		Name:               localName,
+		Slug:               normalizedSlug,
+		Version:            resolvedVersion,
+		Registry:           registryName,
+		Path:               targetDir,
+		Hash:               hash,
+		Status:             marketplaceInstallStatusInstalled,
+		CleanupDiagnostics: cleanupDiagnostics,
 	}, nil
 }
 

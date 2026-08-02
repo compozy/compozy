@@ -153,6 +153,7 @@ type BlockReader interface {
 // BlockStore is the persistence surface for task-block lifecycle mutations.
 type BlockStore interface {
 	BlockReader
+	ListExpiredTaskBlockTargets(ctx context.Context, now time.Time) ([]BlockExpiryTarget, error)
 	CreateTaskBlock(ctx context.Context, mutation CreateTaskBlockMutation) (BlockMutationResult, error)
 	ClearTaskBlock(ctx context.Context, mutation ClearTaskBlockMutation) (TaskBlock, error)
 	ClearTaskNeedsAttention(
@@ -168,33 +169,37 @@ type BlockStore interface {
 
 // RunStore is the persistence surface for durable task-run records.
 type RunStore interface {
-	CreateTaskRun(ctx context.Context, run Run) error
-	UpdateTaskRun(ctx context.Context, run Run) error
-	CompleteRunSettlement(ctx context.Context, run Run, actor ActorContext) (CompletedRunSettlement, error)
+	UpdateTaskRunMetadata(ctx context.Context, mutation RunMetadataMutation) (Run, error)
 	GetTaskRun(ctx context.Context, id string) (Run, error)
 	ListTaskRuns(ctx context.Context, query RunQuery) ([]Run, error)
 	ListTaskRunsByStatus(ctx context.Context, statuses []RunStatus) ([]Run, error)
 	CountActiveSessionBindings(ctx context.Context, sessionID string) (int, error)
-	ClaimNextRun(ctx context.Context, criteria ClaimCriteria) (ClaimResult, error)
-	HeartbeatRunLease(ctx context.Context, heartbeat LeaseHeartbeat) (Run, error)
-	ReleaseRunLease(ctx context.Context, release LeaseRelease) (Run, error)
-	CompleteRunLease(ctx context.Context, completion LeaseCompletion) (Run, error)
 	CompleteRunLeaseSettlement(ctx context.Context, completion LeaseCompletion) (CompletedRunSettlement, error)
-	FailRunLease(ctx context.Context, failure LeaseFailure) (Run, error)
 	SettleNetworkWake(ctx context.Context, settlement NetworkWakeSettlement) (NetworkWakeSettlementResult, error)
 	CompleteCoordinatorAndEnqueueNext(
 		ctx context.Context,
 		completion CoordinatorCompletion,
 		finalizer GenerationStateFinalizer,
 	) (CoordinatorCompletionResult, error)
-	ForceReleaseTaskRun(ctx context.Context, release ForceReleaseRunMutation) (ForceRunMutationResult, error)
-	ForceFailTaskRun(ctx context.Context, failure ForceFailRunMutation) (ForceRunMutationResult, error)
-	RetryTaskRun(ctx context.Context, retry RetryRunMutation) (RetryRunResult, error)
-	RecoverTaskRun(ctx context.Context, mutation RecoverRunMutation) (RetryRunResult, error)
-	MarkTaskRunNeedsAttention(ctx context.Context, runID string, diagnostic string) (Run, error)
 	// RecoverExpiredRunLeases commits each run mutation with its canonical recovery events.
 	RecoverExpiredRunLeases(ctx context.Context, recovery ExpiredLeaseRecovery) ([]ExpiredLeaseRecoveryResult, error)
-	ReserveQueuedRun(ctx context.Context, reservation QueueRunReservation) (Task, Run, bool, error)
+}
+
+// TerminalRunCommandStore owns the short durable transactions around one
+// external session-stop effect. The command receipt never crosses public APIs.
+type TerminalRunCommandStore interface {
+	ReserveTerminalRunCommand(
+		ctx context.Context,
+		command TerminalRunCommand,
+	) (authoritative TerminalRunCommand, inserted bool, err error)
+	AdvanceTerminalRunCommandPhase(
+		ctx context.Context,
+		command TerminalRunCommand,
+		next TerminalRunCommandPhase,
+		updatedAt time.Time,
+	) (TerminalRunCommand, error)
+	ReleaseTerminalRunCommand(ctx context.Context, command TerminalRunCommand) error
+	ListTerminalRunCommands(ctx context.Context) ([]TerminalRunCommand, error)
 }
 
 // EventStore is the persistence surface for immutable task audit events.
@@ -244,6 +249,97 @@ type ExecutionTransactionStore interface {
 	) error
 }
 
+// LeaseSettlementMutationStore exposes the persistence operations that one
+// claim, heartbeat, release, or failure settlement may use inside one transaction.
+type LeaseSettlementMutationStore interface {
+	DeleteTaskMutationStore
+	CreateTaskEvent(ctx context.Context, event Event) error
+	ClaimNextRun(ctx context.Context, criteria ClaimCriteria) (ClaimResult, error)
+	HeartbeatRunLease(ctx context.Context, heartbeat LeaseHeartbeat) (Run, error)
+	ReleaseRunLease(ctx context.Context, release LeaseRelease) (Run, error)
+	ListActiveSessionRunLeases(ctx context.Context, sessionID string) ([]Run, error)
+	ReleaseSessionRunLease(
+		ctx context.Context,
+		previous Run,
+		release SessionLeaseRelease,
+		actor ActorContext,
+	) (Run, error)
+	FailRunLeaseMutation(ctx context.Context, failure LeaseFailure) (FailedRunLeaseMutation, error)
+	GetTaskRun(ctx context.Context, id string) (Run, error)
+}
+
+// LeaseSettlementTransactionStore owns the atomic lease-settlement boundary.
+type LeaseSettlementTransactionStore interface {
+	WithLeaseSettlementTransaction(
+		ctx context.Context,
+		action string,
+		fn func(LeaseSettlementMutationStore) error,
+	) error
+}
+
+// runMutationStore exposes the durable operations available only to a sealed
+// task-domain mutation while its owning writer transaction is active.
+type runMutationStore interface {
+	DeleteTaskMutationStore
+	CreateTaskEvent(ctx context.Context, event Event) error
+	AdmitRunDirectExecution(
+		ctx context.Context,
+		mutation RunDirectExecutionAdmissionMutation,
+	) (NominalRunMutationResult, error)
+	TransitionRunStarting(ctx context.Context, mutation RunStartingMutation) (NominalRunMutationResult, error)
+	BindRunSession(ctx context.Context, mutation RunSessionBindingMutation) (NominalRunMutationResult, error)
+	TransitionRunRunning(ctx context.Context, mutation RunRunningMutation) (NominalRunMutationResult, error)
+	RecoverTaskRunOnBoot(
+		ctx context.Context,
+		mutation RunBootRecoveryMutation,
+	) (NominalRunMutationResult, error)
+	RecoverNetworkWakeOnBoot(
+		ctx context.Context,
+		mutation NetworkWakeBootRecoveryMutation,
+	) (NominalRunMutationResult, error)
+	ConsumeTerminalRunCommand(
+		ctx context.Context,
+		command TerminalRunCommand,
+		expectedPhase TerminalRunCommandPhase,
+	) (TerminalRunCommand, error)
+	TransitionTerminalRun(ctx context.Context, mutation TerminalRunMutation) (Run, error)
+	SettleCompletedTaskHierarchy(
+		ctx context.Context,
+		completedTaskID string,
+		actor ActorContext,
+		settledAt time.Time,
+	) (CompletedRunSettlement, error)
+	GetTaskRun(ctx context.Context, id string) (Run, error)
+	MarkRunNeedsAttentionMutation(
+		ctx context.Context,
+		command RunNeedsAttentionCommand,
+	) (RunNeedsAttentionMutation, error)
+	ForceReleaseTaskRun(ctx context.Context, release ForceReleaseRunMutation) (ForceRunMutationResult, error)
+	ForceFailTaskRun(ctx context.Context, failure ForceFailRunMutation) (ForceRunMutationResult, error)
+	RetryTaskRun(ctx context.Context, retry RetryRunMutation) (RetryRunResult, error)
+	RecoverTaskRun(ctx context.Context, mutation RecoverRunMutation) (RetryRunResult, error)
+	InvalidateForceRunInputs(
+		ctx context.Context,
+		sessionID string,
+		now time.Time,
+	) (ForceRunInputInvalidation, error)
+}
+
+// RunMutation is an opaque task-domain capability executed by the owning
+// store transaction. Its private store parameter prevents other packages from
+// constructing arbitrary lifecycle transactions.
+type RunMutation func(runMutationStore) error
+
+// RunMutationTransactionStore owns the atomic boundary between an
+// authoritative task mutation and its durable audit record.
+type RunMutationTransactionStore interface {
+	WithTaskMutationTransaction(
+		ctx context.Context,
+		action string,
+		mutation RunMutation,
+	) error
+}
+
 // TriageStore is the persistence surface for durable actor-scoped task triage state.
 type TriageStore interface {
 	GetTaskTriageState(ctx context.Context, taskID string, actor ActorIdentity) (TriageState, error)
@@ -286,6 +382,10 @@ type Store interface {
 	TriageStore
 	ExecutionProfileStore
 	RunReviewStore
+	TerminalRunCommandStore
+	ExecutionTransactionStore
+	LeaseSettlementTransactionStore
+	RunMutationTransactionStore
 }
 
 // SessionExecutor is the injected runtime bridge used to start, attach, and stop task sessions.

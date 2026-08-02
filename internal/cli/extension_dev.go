@@ -18,7 +18,7 @@ import (
 )
 
 type extensionDevClient interface {
-	DaemonClient
+	workspaceLookupClient
 	DevExtension(context.Context, string, DevLinkExtensionRequest) (ExtensionRecord, error)
 	ReloadDevExtension(context.Context, string, string, ReloadExtensionRequest) (ExtensionRecord, error)
 	ExtensionLogs(context.Context, string, string, int64) ([]ExtensionLogRecord, error)

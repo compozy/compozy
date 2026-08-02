@@ -74,7 +74,7 @@ func (h *BaseHandlers) memoryHealthSnapshot(
 		return payload, nil
 	}
 
-	globalCount, err := h.MemoryStore.SourceHeaderCount(memcontract.ScopeGlobal)
+	globalCount, err := h.MemoryStore.SourceHeaderCount(ctx, memcontract.ScopeGlobal)
 	if err != nil {
 		payload.Status = memoryHealthStatusUnavailable
 		payload.Reason = err.Error()
@@ -92,7 +92,7 @@ func (h *BaseHandlers) memoryHealthSnapshot(
 	payload.WorkspaceCount = len(workspaces)
 	for _, workspace := range workspaces {
 		store := h.MemoryStore.ForWorkspace(workspace)
-		count, err := store.SourceHeaderCount(memcontract.ScopeWorkspace)
+		count, err := store.SourceHeaderCount(ctx, memcontract.ScopeWorkspace)
 		if err != nil {
 			payload.Status = memoryHealthStatusDegraded
 			payload.Reason = err.Error()

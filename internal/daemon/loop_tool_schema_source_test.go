@@ -96,6 +96,10 @@ func TestLoopToolSchemaSource(t *testing.T) {
 	t.Run("Should disable schema source when registry is unavailable", func(t *testing.T) {
 		t.Parallel()
 
+		var missingContext context.Context
+		if source := newLoopToolSchemaSource(missingContext, loopToolSchemaRegistry{}); source != nil {
+			t.Fatalf("newLoopToolSchemaSource(nil context) = %T, want nil", source)
+		}
 		if source := newLoopToolSchemaSource(context.Background(), nil); source != nil {
 			t.Fatalf("newLoopToolSchemaSource(nil) = %T, want nil", source)
 		}

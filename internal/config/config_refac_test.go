@@ -1,7 +1,6 @@
 package config
 
 import (
-	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -284,30 +283,30 @@ Original prompt.
 func TestConfigSidecarReadsRejectSymlinks(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should reject dot env symlink without reading target", func(t *testing.T) {
+	t.Run("Should reject config overlay through a symlinked parent without reading the target", func(t *testing.T) {
 		t.Parallel()
 		if runtime.GOOS == "windows" {
 			t.Skip("symlink permissions vary on Windows")
 		}
 
 		dir := t.TempDir()
-		targetPath := filepath.Join(dir, "actual.env")
-		if err := os.WriteFile(targetPath, []byte("LEAKED_DOTENV_VALUE=secret\n"), 0o600); err != nil {
-			t.Fatalf("os.WriteFile(target .env) error = %v", err)
-		}
-		if err := os.Symlink(targetPath, filepath.Join(dir, ".env")); err != nil {
-			t.Fatalf("os.Symlink(.env) error = %v", err)
+		targetDir := filepath.Join(dir, "actual-config")
+		writeFile(t, filepath.Join(targetDir, ConfigName), "LEAKED_CONFIG_SECRET = \"secret\"\n")
+		linkDir := filepath.Join(dir, "linked-config")
+		if err := os.Symlink(targetDir, linkDir); err != nil {
+			t.Fatalf("os.Symlink(config parent) error = %v", err)
 		}
 
-		_, err := loadDotEnvLookup(dir)
+		cfg := Config{}
+		err := ApplyConfigOverlayFile(filepath.Join(linkDir, ConfigName), &cfg)
 		if err == nil {
-			t.Fatal("loadDotEnvLookup() error = nil, want symlink rejection")
+			t.Fatal("ApplyConfigOverlayFile(symlinked parent) error = nil, want symlink rejection")
 		}
-		if !errors.Is(err, ErrDotEnvUnsupported) {
-			t.Fatalf("loadDotEnvLookup() error = %v, want ErrDotEnvUnsupported", err)
+		if !strings.Contains(err.Error(), "symlink") {
+			t.Fatalf("ApplyConfigOverlayFile(symlinked parent) error = %v, want symlink context", err)
 		}
-		if strings.Contains(err.Error(), "LEAKED_DOTENV_VALUE") {
-			t.Fatalf("loadDotEnvLookup() error leaked target content: %v", err)
+		if strings.Contains(err.Error(), "LEAKED_CONFIG_SECRET") {
+			t.Fatalf("ApplyConfigOverlayFile(symlinked parent) error leaked target content: %v", err)
 		}
 	})
 
@@ -340,34 +339,37 @@ func TestConfigSidecarReadsRejectSymlinks(t *testing.T) {
 		}
 	})
 
-	t.Run("Should reject capability catalog symlink without reading target", func(t *testing.T) {
+	t.Run("Should reject agent definition through a symlinked parent without reading the target", func(t *testing.T) {
 		t.Parallel()
 		if runtime.GOOS == "windows" {
 			t.Skip("symlink permissions vary on Windows")
 		}
 
-		agentDir := t.TempDir()
-		targetPath := filepath.Join(agentDir, "actual-capabilities.toml")
-		writeFile(t, targetPath, `
-[[capabilities]]
-id = "leaked-capability"
-summary = "secret summary"
-outcome = "secret outcome"
+		dir := t.TempDir()
+		targetDir := filepath.Join(dir, "actual-agent")
+		writeFile(t, filepath.Join(targetDir, agentDefName), `
+---
+name: coder
+provider: claude
+model: sonnet
+---
+
+LEAKED_AGENT_PROMPT_SECRET
 `)
-		linkPath := filepath.Join(agentDir, capabilityCatalogTOMLName)
-		if err := os.Symlink(targetPath, linkPath); err != nil {
-			t.Fatalf("os.Symlink(capabilities.toml) error = %v", err)
+		linkDir := filepath.Join(dir, "linked-agent")
+		if err := os.Symlink(targetDir, linkDir); err != nil {
+			t.Fatalf("os.Symlink(agent parent) error = %v", err)
 		}
 
-		_, err := LoadAgentCapabilities(agentDir)
+		_, err := LoadAgentDefFile(filepath.Join(linkDir, agentDefName))
 		if err == nil {
-			t.Fatal("LoadAgentCapabilities() error = nil, want symlink rejection")
+			t.Fatal("LoadAgentDefFile(symlinked parent) error = nil, want symlink rejection")
 		}
-		if !strings.Contains(err.Error(), "not a symlink") {
-			t.Fatalf("LoadAgentCapabilities() error = %v, want symlink context", err)
+		if !strings.Contains(err.Error(), "symlink") {
+			t.Fatalf("LoadAgentDefFile(symlinked parent) error = %v, want symlink context", err)
 		}
-		if strings.Contains(err.Error(), "secret summary") {
-			t.Fatalf("LoadAgentCapabilities() error leaked target content: %v", err)
+		if strings.Contains(err.Error(), "LEAKED_AGENT_PROMPT_SECRET") {
+			t.Fatalf("LoadAgentDefFile(symlinked parent) error leaked target content: %v", err)
 		}
 	})
 }

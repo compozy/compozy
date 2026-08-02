@@ -46,13 +46,36 @@ func TestSidecarSessionCleanupContract(t *testing.T) {
 			t.Fatalf("endpoint close count = %d, want 1", got)
 		}
 	})
+
+	t.Run("Should retain a nonzero server exit code after Wait", func(t *testing.T) {
+		t.Parallel()
+
+		session, closeCount := newContractSidecarSessionWithExit(t, 23)
+		if err := session.Wait(); err == nil {
+			t.Fatal("Wait() error = nil, want nonzero exit error")
+		}
+		if got, ok := session.ExitCode(); !ok || got != 23 {
+			t.Fatalf("ExitCode() = %d, %v, want 23, true", got, ok)
+		}
+		if got := closeCount.Load(); got != 1 {
+			t.Fatalf("endpoint close count = %d, want 1", got)
+		}
+	})
 }
 
 func newContractSidecarSession(t *testing.T) (*sidecarSession, *atomic.Int32) {
 	t.Helper()
+	return newContractSidecarSessionWithExit(t, 0)
+}
+
+func newContractSidecarSessionWithExit(
+	t *testing.T,
+	exitCode int,
+) (*sidecarSession, *atomic.Int32) {
+	t.Helper()
 
 	var closeCount atomic.Int32
-	server := newContractSidecarServer(t)
+	server := newContractSidecarServer(t, exitCode)
 	endpoint := newContractSidecarEndpoint(t, server, &closeCount)
 	conn, response, err := websocket.DefaultDialer.Dial(
 		endpoint.wsURL(sidecarSessionStreamBasePath, "session-1", "stream"),
@@ -148,7 +171,7 @@ func newContractSidecarEndpoint(
 	}
 }
 
-func newContractSidecarServer(t *testing.T) *httptest.Server {
+func newContractSidecarServer(t *testing.T, exitCode int) *httptest.Server {
 	t.Helper()
 
 	upgrader := websocket.Upgrader{}
@@ -162,7 +185,7 @@ func newContractSidecarServer(t *testing.T) *httptest.Server {
 				t.Errorf("websocket Upgrade() error = %v", err)
 				return
 			}
-			payload, err := json.Marshal(sidecarExitPayload{ExitCode: 0})
+			payload, err := json.Marshal(sidecarExitPayload{ExitCode: exitCode})
 			if err != nil {
 				t.Errorf("json.Marshal(exit) error = %v", err)
 				return

@@ -56,7 +56,11 @@ func (v *snapshotValidator) validate() {
 
 func (v *snapshotValidator) validateHeader() {
 	if v.snapshot.Version != SnapshotVersion {
-		v.add(topologyUnsupportedVersionCode, "version", "document version must be 3")
+		v.add(
+			topologyUnsupportedVersionCode,
+			"version",
+			fmt.Sprintf("document version must be %d", SnapshotVersion),
+		)
 	}
 	if strings.TrimSpace(string(v.snapshot.WorkspaceID)) == "" {
 		v.add("topology.workspace_required", "workspace_id", "workspace ID is required")

@@ -25,12 +25,12 @@ func validateRunReviewSelectors(review *RunReview) error {
 
 func validateRunReviewSelectorFields(values map[string]string, path string) error {
 	for field, value := range values {
-		if len(value) > maxRunReviewSelectorFieldBytes {
+		if len(value) > MaxReferenceBytes {
 			return fmt.Errorf(
 				"%w: %s exceeds %d bytes",
 				ErrValidation,
 				nestedPath(path, field),
-				maxRunReviewSelectorFieldBytes,
+				MaxReferenceBytes,
 			)
 		}
 	}

@@ -28,8 +28,11 @@ func TestBridgeTaskSubscriptionValidation(t *testing.T) {
 		if err := subscription.Validate(); err != nil {
 			t.Fatalf("Validate() error = %v", err)
 		}
-		if got, want := subscription.CursorKey().ConsumerID, "bridge_task_subscription:sub-1"; got != want {
+		if got, want := subscription.CursorKey().ConsumerID, "sub-1"; got != want {
 			t.Fatalf("CursorKey().ConsumerID = %q, want %q", got, want)
+		}
+		if got, want := subscription.CursorKey().Scope, (notifications.ScopeRef{Kind: notifications.ScopeKindGlobal}); got != want {
+			t.Fatalf("CursorKey().Scope = %#v, want %#v", got, want)
 		}
 		if got, want := subscription.CursorKey().StreamName, "task_events"; got != want {
 			t.Fatalf("CursorKey().StreamName = %q, want %q", got, want)
@@ -39,6 +42,47 @@ func TestBridgeTaskSubscriptionValidation(t *testing.T) {
 		}
 		if got, want := subscription.DeliveryTarget().PeerID, "peer-1"; got != want {
 			t.Fatalf("DeliveryTarget().PeerID = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should preserve every opaque subscription identity component", func(t *testing.T) {
+		t.Parallel()
+
+		subscription := bridgeTaskSubscriptionForNotifierTest()
+		subscription.SubscriptionID = " sub-1 "
+		subscription.TaskID = " task-1 "
+		subscription.BridgeInstanceID = " brg-1 "
+		subscription.Scope = ScopeWorkspace
+		subscription.WorkspaceID = " workspace-1 "
+		subscription.PeerID = " peer-1 "
+		subscription.ThreadID = " thread-1 "
+		subscription.GroupID = " group-1 "
+		subscription.CreatedBy.Ref = " actor-1 "
+
+		if err := subscription.Validate(); err != nil {
+			t.Fatalf("Validate() error = %v", err)
+		}
+		normalized := subscription.Normalize()
+		if got, want := normalized, subscription; got != want {
+			t.Fatalf("Normalize() = %#v, want byte-exact opaque identities %#v", got, want)
+		}
+		if got, want := normalized.CursorKey(), (notifications.CursorKey{
+			Scope:      notifications.ScopeRef{Kind: notifications.ScopeKindWorkspace, WorkspaceID: " workspace-1 "},
+			ConsumerID: " sub-1 ",
+			StreamName: BridgeTaskNotificationStream,
+			SubjectID:  " task-1 ",
+		}); got != want {
+			t.Fatalf("CursorKey() = %#v, want %#v", got, want)
+		}
+		if got, want := normalized.RoutingKey(), (RoutingKey{
+			Scope:            ScopeWorkspace,
+			WorkspaceID:      " workspace-1 ",
+			BridgeInstanceID: " brg-1 ",
+			PeerID:           " peer-1 ",
+			ThreadID:         " thread-1 ",
+			GroupID:          " group-1 ",
+		}); got != want {
+			t.Fatalf("RoutingKey() = %#v, want %#v", got, want)
 		}
 	})
 }
@@ -88,8 +132,12 @@ func TestTerminalTaskNotifierDeliverDue(t *testing.T) {
 			t.Fatalf("extensionName = %q, want %q", got, want)
 		}
 		event := calls[0].request.Event
-		if got, want := event.DeliveryID, "notif:sub-1:7"; got != want {
+		expectedDeliveryID := terminalTaskDeliveryIDForTest(t, subscription, 7)
+		if got, want := event.DeliveryID, expectedDeliveryID; got != want {
 			t.Fatalf("DeliveryID = %q, want %q", got, want)
+		}
+		if strings.Contains(event.DeliveryID, ":") {
+			t.Fatalf("DeliveryID = %q, want opaque delimiter-free identity", event.DeliveryID)
 		}
 		if got, want := event.EventType, DeliveryEventTypeFinal; got != want {
 			t.Fatalf("delivery event type = %q, want %q", got, want)
@@ -110,7 +158,7 @@ func TestTerminalTaskNotifierDeliverDue(t *testing.T) {
 		if err != nil {
 			t.Fatalf("GetCursor() error = %v", err)
 		}
-		if cursor.LastSequence != 7 || cursor.LastDeliveryID != "notif:sub-1:7" {
+		if cursor.LastSequence != 7 || cursor.LastDeliveryID != expectedDeliveryID {
 			t.Fatalf("cursor = %#v, want delivered sequence 7", cursor)
 		}
 		if cursor.LastError != "" {
@@ -165,7 +213,8 @@ func TestTerminalTaskNotifierDeliverDue(t *testing.T) {
 		if cursorErr != nil {
 			t.Fatalf("GetCursor(after suppression) error = %v", cursorErr)
 		}
-		if cursor.LastSequence != 7 || cursor.LastDeliveryID != "notif:sub-1:7" {
+		expectedSkippedDeliveryID := terminalTaskSkippedDeliveryIDForTest(t, subscription, 7, "suppressed")
+		if cursor.LastSequence != 7 || cursor.LastDeliveryID != expectedSkippedDeliveryID {
 			t.Fatalf("cursor = %#v, want suppressed sequence 7", cursor)
 		}
 		if cursor.LastError != "" {
@@ -584,7 +633,8 @@ func TestTerminalTaskNotifierDeliverDue(t *testing.T) {
 		if err != nil {
 			t.Fatalf("GetCursor() error = %v", err)
 		}
-		if cursor.LastSequence != 9 || cursor.LastDeliveryID != "notif:sub-1:9" {
+		expectedDeliveryID := terminalTaskDeliveryIDForTest(t, subscription, 9)
+		if cursor.LastSequence != 9 || cursor.LastDeliveryID != expectedDeliveryID {
 			t.Fatalf("cursor = %#v, want final sequence 9", cursor)
 		}
 		if cursor.LastError != "" {
@@ -604,7 +654,7 @@ func TestTerminalTaskNotifierDeliverDue(t *testing.T) {
 		if _, err := cursorStore.AdvanceCursor(ctx, notifications.AdvanceCursor{
 			Key:          subscription.CursorKey(),
 			LastSequence: 7,
-			DeliveryID:   "notif:sub-1:7",
+			DeliveryID:   terminalTaskDeliveryIDForTest(t, subscription, 7),
 			Now:          terminalTaskNotifierTestTime(),
 		}); err != nil {
 			t.Fatalf("AdvanceCursor(seed) error = %v", err)
@@ -642,28 +692,10 @@ func TestTerminalTaskNotifierDeliverDue(t *testing.T) {
 	})
 }
 
-func TestTruncateTerminalTaskCursorError(t *testing.T) {
+func TestTerminalTaskNotifierRedactsCursorDiagnostics(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should preserve UTF-8 rune boundaries at the byte limit", func(t *testing.T) {
-		t.Parallel()
-
-		input := strings.Repeat("a", maxTerminalTaskCursorErrorBytes-1) + "界 trailing"
-
-		got := truncateTerminalTaskCursorError(input)
-
-		if len(got) > maxTerminalTaskCursorErrorBytes {
-			t.Fatalf("len(truncated) = %d, want <= %d", len(got), maxTerminalTaskCursorErrorBytes)
-		}
-		if !utf8.ValidString(got) {
-			t.Fatalf("truncateTerminalTaskCursorError() returned invalid UTF-8: %q", got)
-		}
-		if got != strings.Repeat("a", maxTerminalTaskCursorErrorBytes-1) {
-			t.Fatalf("truncateTerminalTaskCursorError() = %q, want safe cut before multi-byte rune", got)
-		}
-	})
-
-	t.Run("Should redact cursor diagnostics before persisting them", func(t *testing.T) {
+	t.Run("Should reuse one safe diagnostic for cursor and returned error", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t)
@@ -715,6 +747,15 @@ func TestTruncateTerminalTaskCursorError(t *testing.T) {
 		}
 		if !strings.Contains(cursor.LastError, "[REDACTED]") {
 			t.Fatalf("cursor.LastError = %q, want redacted diagnostic marker", cursor.LastError)
+		}
+		if !utf8.ValidString(cursor.LastError) {
+			t.Fatalf("cursor.LastError = %q, want valid UTF-8", cursor.LastError)
+		}
+		if len(cursor.LastError) > 2048 {
+			t.Fatalf("cursor.LastError has %d bytes, want at most 2048", len(cursor.LastError))
+		}
+		if got, want := err.Error(), cursor.LastError; got != want {
+			t.Fatalf("DeliverDue() error = %q, want cursor diagnostic %q", got, want)
 		}
 	})
 }
@@ -843,6 +884,35 @@ func terminalTaskNotifierTestTime() time.Time {
 	return time.Date(2026, 5, 5, 17, 0, 0, 0, time.UTC)
 }
 
+func terminalTaskDeliveryIDForTest(
+	t *testing.T,
+	subscription BridgeTaskSubscription,
+	sequence int64,
+) string {
+	t.Helper()
+
+	deliveryID, err := terminalTaskNotificationDeliveryID(subscription, sequence)
+	if err != nil {
+		t.Fatalf("terminalTaskNotificationDeliveryID() error = %v", err)
+	}
+	return deliveryID
+}
+
+func terminalTaskSkippedDeliveryIDForTest(
+	t *testing.T,
+	subscription BridgeTaskSubscription,
+	sequence int64,
+	reason string,
+) string {
+	t.Helper()
+
+	deliveryID, err := terminalTaskNotificationSkippedDeliveryID(subscription, sequence, reason)
+	if err != nil {
+		t.Fatalf("terminalTaskNotificationSkippedDeliveryID() error = %v", err)
+	}
+	return deliveryID
+}
+
 type fakeBridgeTaskSubscriptionStore struct {
 	subscriptions []BridgeTaskSubscription
 }
@@ -952,11 +1022,11 @@ func (r *fakeBridgeInstanceReader) GetBridgeInstance(_ context.Context, id strin
 
 type memoryCursorStore struct {
 	mu      sync.Mutex
-	cursors map[string]notifications.Cursor
+	cursors map[notifications.CursorKey]notifications.Cursor
 }
 
 func newMemoryCursorStore() *memoryCursorStore {
-	return &memoryCursorStore{cursors: make(map[string]notifications.Cursor)}
+	return &memoryCursorStore{cursors: make(map[notifications.CursorKey]notifications.Cursor)}
 }
 
 func (s *memoryCursorStore) GetCursor(
@@ -969,7 +1039,7 @@ func (s *memoryCursorStore) GetCursor(
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	cursor, ok := s.cursors[memoryCursorStoreKey(normalized)]
+	cursor, ok := s.cursors[normalized]
 	if !ok {
 		return notifications.Cursor{}, notifications.ErrCursorNotFound
 	}
@@ -980,11 +1050,17 @@ func (s *memoryCursorStore) ListCursors(
 	_ context.Context,
 	query notifications.CursorQuery,
 ) ([]notifications.Cursor, error) {
-	normalized := query.Normalize()
+	normalized, err := query.Normalize()
+	if err != nil {
+		return nil, err
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	cursors := make([]notifications.Cursor, 0, len(s.cursors))
 	for _, cursor := range s.cursors {
+		if normalized.Scope.Kind != "" && cursor.Key.Scope != normalized.Scope {
+			continue
+		}
 		if normalized.ConsumerID != "" && cursor.Key.ConsumerID != normalized.ConsumerID {
 			continue
 		}
@@ -1021,7 +1097,7 @@ func (s *memoryCursorStore) AdvanceCursor(
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	key := memoryCursorStoreKey(normalized.Key)
+	key := normalized.Key
 	current, ok := s.cursors[key]
 	if ok {
 		if normalized.LastSequence < current.LastSequence ||
@@ -1061,7 +1137,7 @@ func (s *memoryCursorStore) ResetCursor(
 		LastError:       normalized.Reason,
 		UpdatedAt:       normalized.Now,
 	}
-	s.cursors[memoryCursorStoreKey(normalized.Key)] = cursor
+	s.cursors[normalized.Key] = cursor
 	return cursor, nil
 }
 
@@ -1075,15 +1151,11 @@ func (s *memoryCursorStore) RecordCursorError(
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	key := memoryCursorStoreKey(normalized.Key)
+	key := normalized.Key
 	cursor := s.cursors[key]
 	cursor.Key = normalized.Key
 	cursor.LastError = normalized.LastError
 	cursor.UpdatedAt = normalized.Now
 	s.cursors[key] = cursor
 	return cursor, nil
-}
-
-func memoryCursorStoreKey(key notifications.CursorKey) string {
-	return key.ConsumerID + "\x00" + key.StreamName + "\x00" + key.SubjectID
 }

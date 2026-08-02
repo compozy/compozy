@@ -45,14 +45,14 @@ func newBridgeSendTestCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "send-test <id>",
 		Short: "Send one real message through a bridge provider",
-		Args:  exactOneNonBlankArg(),
+		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			trimmedMessage := strings.TrimSpace(message)
 			if trimmedMessage == "" {
 				return errors.New("cli: --message is required")
 			}
-			mode := bridgepkg.DeliveryMode(strings.TrimSpace(modeRaw)).Normalize()
-			if mode != "" {
+			mode := bridgepkg.DeliveryMode(modeRaw)
+			if cmd.Flags().Changed(bridgeModeKey) {
 				if err := mode.Validate(); err != nil {
 					return err
 				}
@@ -65,9 +65,9 @@ func newBridgeSendTestCommand(deps commandDeps) *cobra.Command {
 			result, err := client.SendBridgeTest(cmd.Context(), args[0], BridgeSendTestRequest{
 				Message: trimmedMessage,
 				Target: BridgeDeliveryTargetInput{
-					PeerID:   strings.TrimSpace(peerID),
-					ThreadID: strings.TrimSpace(threadID),
-					GroupID:  strings.TrimSpace(groupID),
+					PeerID:   peerID,
+					ThreadID: threadID,
+					GroupID:  groupID,
 					Mode:     mode,
 				},
 			})

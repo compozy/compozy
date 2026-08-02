@@ -32,11 +32,12 @@ func taskSummaryPayloadFromSummary(record *taskpkg.Summary) apicontract.TaskSumm
 		CreatedAt:                    record.CreatedAt,
 		UpdatedAt:                    record.UpdatedAt,
 		ClosedAt:                     optionalTime(record.ClosedAt),
-		ChildCount:                   int(record.ChildCount),
-		DependencyCount:              int(record.DependencyCount),
-		Dependencies:                 taskDependencyReferencePayloadsFromReferences(record.Dependencies),
-		ActiveRun:                    taskRunSummaryPayloadFromSummary(record.ActiveRun),
-		LastActivityAt:               optionalTime(record.LastActivityAt),
+		// Summary counts are int32, which converts exactly to int on every Go architecture.
+		ChildCount:      int(record.ChildCount),
+		DependencyCount: int(record.DependencyCount),
+		Dependencies:    taskDependencyReferencePayloadsFromReferences(record.Dependencies),
+		ActiveRun:       taskRunSummaryPayloadFromSummary(record.ActiveRun),
+		LastActivityAt:  optionalTime(record.LastActivityAt),
 	}
 }
 
@@ -89,9 +90,10 @@ func taskRunPayloadFromRun(run *taskpkg.Run) apicontract.TaskRunPayload {
 	}
 
 	return apicontract.TaskRunPayload{
-		ID:                           run.ID,
-		TaskID:                       run.TaskID,
-		Status:                       run.Status,
+		ID:     run.ID,
+		TaskID: run.TaskID,
+		Status: run.Status,
+		// Run attempts are int32, which converts exactly to int on every Go architecture.
 		Attempt:                      int(run.Attempt),
 		ClaimedBy:                    cloneActorIdentity(run.ClaimedBy),
 		SessionID:                    run.SessionID,

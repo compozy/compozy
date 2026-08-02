@@ -10,8 +10,11 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/compozy/compozy/internal/mcp/securehttp"
 	"github.com/modelcontextprotocol/go-sdk/oauthex"
 )
+
+const maxDynamicRegistrationResponseBytes = int64(1 << 20)
 
 func (s *Service) dynamicClientRegistration(
 	ctx context.Context,
@@ -208,15 +211,26 @@ func (s *Service) registerClient(
 			resp.StatusCode,
 		)
 	}
-	body, err := io.ReadAll(resp.Body)
+	return decodeDynamicRegistrationResponse(resp.Body, endpoint)
+}
+
+func decodeDynamicRegistrationResponse(body io.Reader, endpoint string) (dynamicRegistrationResponse, error) {
+	payload, err := io.ReadAll(io.LimitReader(body, maxDynamicRegistrationResponseBytes+1))
 	if err != nil {
 		return dynamicRegistrationResponse{}, fmt.Errorf(
 			"mcp auth: read dynamic registration response: %w",
 			err,
 		)
 	}
+	if int64(len(payload)) > maxDynamicRegistrationResponseBytes {
+		return dynamicRegistrationResponse{}, fmt.Errorf(
+			"mcp auth: read dynamic registration response: %w: limit=%d",
+			securehttp.ErrResponseBodyTooLarge,
+			maxDynamicRegistrationResponseBytes,
+		)
+	}
 	var registration oauthex.ClientRegistrationResponse
-	if err := json.Unmarshal(body, &registration); err != nil {
+	if err := json.Unmarshal(payload, &registration); err != nil {
 		return dynamicRegistrationResponse{}, fmt.Errorf(
 			"mcp auth: decode dynamic registration response: %w",
 			err,
@@ -226,7 +240,7 @@ func (s *Service) registerClient(
 		RegistrationAccessToken string `json:"registration_access_token"`
 		RegistrationClientURI   string `json:"registration_client_uri"`
 	}
-	if err := json.Unmarshal(body, &extension); err != nil {
+	if err := json.Unmarshal(payload, &extension); err != nil {
 		return dynamicRegistrationResponse{}, fmt.Errorf(
 			"mcp auth: decode dynamic registration extension: %w",
 			err,

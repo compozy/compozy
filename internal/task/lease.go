@@ -16,10 +16,12 @@ import (
 )
 
 const (
-	leaseHandoffKey   = "handoff"
-	leaseStatusKey    = "status"
-	runEvidenceIDKey  = "run_id"
-	taskEvidenceIDKey = "task_id"
+	leaseHandoffKey      = "handoff"
+	leaseStatusKey       = "status"
+	reviewEvidenceIDKey  = "review_id"
+	runEvidenceIDKey     = "run_id"
+	sessionEvidenceIDKey = "session_id"
+	taskEvidenceIDKey    = "task_id"
 )
 
 const (
@@ -272,7 +274,7 @@ func (r LeaseRelease) Normalize(defaultNow time.Time) (LeaseRelease, error) {
 	normalized := r
 	normalized.RunID = strings.TrimSpace(normalized.RunID)
 	normalized.ClaimToken = strings.TrimSpace(normalized.ClaimToken)
-	normalized.Reason = strings.TrimSpace(normalized.Reason)
+	normalized.Reason = RedactClaimTokens(strings.TrimSpace(normalized.Reason))
 	normalized.Now = normalizeLeaseNow(normalized.Now, defaultNow)
 	if err := normalized.Validate("lease_release"); err != nil {
 		return LeaseRelease{}, err
@@ -282,14 +284,17 @@ func (r LeaseRelease) Normalize(defaultNow time.Time) (LeaseRelease, error) {
 
 // Validate reports whether the release request is internally consistent.
 func (r LeaseRelease) Validate(path string) error {
-	return validateLeaseRunToken(r.RunID, r.ClaimToken, path)
+	if err := validateLeaseRunToken(r.RunID, r.ClaimToken, path); err != nil {
+		return err
+	}
+	return ValidateReasonSize(r.Reason, nestedPath(path, "reason"))
 }
 
 // Normalize returns a validated structural session lease release request.
 func (r SessionLeaseRelease) Normalize(defaultNow time.Time) (SessionLeaseRelease, error) {
 	normalized := r
 	normalized.SessionID = strings.TrimSpace(normalized.SessionID)
-	normalized.Reason = strings.TrimSpace(normalized.Reason)
+	normalized.Reason = RedactClaimTokens(strings.TrimSpace(normalized.Reason))
 	normalized.Now = normalizeLeaseNow(normalized.Now, defaultNow)
 	if err := normalized.Validate("session_lease_release"); err != nil {
 		return SessionLeaseRelease{}, err
@@ -300,7 +305,13 @@ func (r SessionLeaseRelease) Normalize(defaultNow time.Time) (SessionLeaseReleas
 // Validate reports whether the structural session lease release is internally consistent.
 func (r SessionLeaseRelease) Validate(path string) error {
 	if strings.TrimSpace(r.SessionID) == "" {
-		return fmt.Errorf("%w: %s is required", ErrValidation, nestedPath(path, "session_id"))
+		return fmt.Errorf("%w: %s is required", ErrValidation, nestedPath(path, sessionEvidenceIDKey))
+	}
+	if err := ValidateReferenceSize(r.SessionID, nestedPath(path, sessionEvidenceIDKey)); err != nil {
+		return err
+	}
+	if err := ValidateReasonSize(r.Reason, nestedPath(path, "reason")); err != nil {
+		return err
 	}
 	if r.Now.IsZero() {
 		return fmt.Errorf("%w: %s is required", ErrValidation, nestedPath(path, "now"))
@@ -331,6 +342,12 @@ func (c LeaseCompletion) Validate(path string) error {
 	if err := validateLeaseRunToken(c.RunID, c.ClaimToken, path); err != nil {
 		return err
 	}
+	if err := validateAuditCollectionSize(
+		len(c.CreatedTaskIDs),
+		nestedPath(path, "created_task_ids"),
+	); err != nil {
+		return err
+	}
 	for idx, taskID := range c.CreatedTaskIDs {
 		if strings.TrimSpace(taskID) == "" {
 			return fmt.Errorf(
@@ -338,6 +355,12 @@ func (c LeaseCompletion) Validate(path string) error {
 				ErrValidation,
 				nestedPath(path, fmt.Sprintf("created_task_ids[%d]", idx)),
 			)
+		}
+		if err := ValidateReferenceSize(
+			taskID,
+			nestedPath(path, fmt.Sprintf("created_task_ids[%d]", idx)),
+		); err != nil {
+			return err
 		}
 	}
 	if c.TokensUsed < 0 {
@@ -357,6 +380,11 @@ func (f LeaseFailure) Normalize(defaultNow time.Time) (LeaseFailure, error) {
 	normalized.RunID = strings.TrimSpace(normalized.RunID)
 	normalized.ClaimToken = strings.TrimSpace(normalized.ClaimToken)
 	normalized.Now = normalizeLeaseNow(normalized.Now, defaultNow)
+	failure, err := normalizeRunFailure(normalized.Failure)
+	if err != nil {
+		return LeaseFailure{}, err
+	}
+	normalized.Failure = failure
 	if err := normalized.Validate("lease_failure"); err != nil {
 		return LeaseFailure{}, err
 	}
@@ -383,7 +411,7 @@ func (f LeaseFailure) Validate(path string) error {
 func (r ExpiredLeaseRecovery) Normalize(defaultNow time.Time) (ExpiredLeaseRecovery, error) {
 	normalized := r
 	normalized.Now = normalizeLeaseNow(normalized.Now, defaultNow)
-	normalized.Reason = strings.TrimSpace(normalized.Reason)
+	normalized.Reason = RedactClaimTokens(strings.TrimSpace(normalized.Reason))
 	if err := normalized.Validate("expired_lease_recovery"); err != nil {
 		return ExpiredLeaseRecovery{}, err
 	}
@@ -402,6 +430,9 @@ func (r ExpiredLeaseRecovery) Validate(path string) error {
 			nestedPath(path, "limit"),
 			r.Limit,
 		)
+	}
+	if err := ValidateReasonSize(r.Reason, nestedPath(path, "reason")); err != nil {
+		return err
 	}
 	return nil
 }

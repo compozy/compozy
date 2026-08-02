@@ -5,11 +5,14 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/deadentity"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/windowmanager"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -217,6 +220,17 @@ func TestWindowManagerWorkspaceDeletionGate(t *testing.T) {
 	t.Run("Should purge topology clients and subscriptions before same-id recreation", func(t *testing.T) {
 		t.Parallel()
 		fixture := newDaemonWindowManagerFixture(t)
+		ctx := testutil.Context(t)
+		deadEntities := deadentity.New(fixture.database, deadentity.WithPermanentFailureThreshold(1))
+		mcpRetirer := &windowManagerMCPStateRetirer{}
+		deadKey := store.DeadEntityKey{
+			WorkspaceID: fixture.workspace.ID,
+			Kind:        store.DeadEntityKindMCPSidecar,
+			EntityID:    "github",
+		}
+		if err := deadEntities.RecordFailure(ctx, deadKey, deadentity.FailurePermanent, "invalid config"); err != nil {
+			t.Fatalf("RecordFailure() error = %v", err)
+		}
 		sessionPreparation := &windowManagerSessionRemovalPreparation{}
 		sessions := &windowManagerRemovalSessionManager{
 			fakeSessionManager: &fakeSessionManager{},
@@ -231,12 +245,13 @@ func TestWindowManagerWorkspaceDeletionGate(t *testing.T) {
 				windowManager:              fixture.manager,
 			},
 			workspaceResolver: fixture.resolver,
+			deadEntities:      deadEntities,
+			mcpToolProvider:   mcpRetirer,
 		}
 		if err := installWorkspaceRemovalPreparer(state, sessions); err != nil {
 			t.Fatalf("installWorkspaceRemovalPreparer() error = %v", err)
 		}
 
-		ctx := testutil.Context(t)
 		workspaceID := windowmanager.WorkspaceID(fixture.workspace.ID)
 		clientID := windowmanager.ClientID("browser-a")
 		if _, err := fixture.manager.RegisterClient(ctx, windowmanager.ClientRegistration{
@@ -295,6 +310,16 @@ func TestWindowManagerWorkspaceDeletionGate(t *testing.T) {
 			t.Fatalf("InsertWorkspace(same id) error = %v", err)
 		}
 		fixture.resolver.Invalidate(fixture.workspace.ID)
+		deadStatus, err := deadEntities.Status(ctx, deadKey)
+		if err != nil {
+			t.Fatalf("deadEntities.Status(recreated) error = %v", err)
+		}
+		if deadStatus.Dead {
+			t.Fatalf("deadEntities.Status(recreated) = %#v, want no retired workspace cache", deadStatus)
+		}
+		if got := mcpRetirer.WorkspaceIDs(); len(got) != 1 || got[0] != fixture.workspace.ID {
+			t.Fatalf("MCP workspace retirements = %#v, want %q", got, fixture.workspace.ID)
+		}
 		snapshot, err := fixture.manager.Snapshot(ctx, workspaceID)
 		if err != nil {
 			t.Fatalf("Snapshot(recreated) error = %v", err)
@@ -454,6 +479,25 @@ func (m *windowManagerRemovalSessionManager) PrepareWorkspaceRemoval(
 type windowManagerSessionRemovalPreparation struct {
 	commits   int
 	rollbacks int
+}
+
+type windowManagerMCPStateRetirer struct {
+	mu           sync.Mutex
+	workspaceIDs []string
+}
+
+func (*windowManagerMCPStateRetirer) ForgetMCPServer(string, string) {}
+
+func (r *windowManagerMCPStateRetirer) ForgetWorkspace(workspaceID string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.workspaceIDs = append(r.workspaceIDs, workspaceID)
+}
+
+func (r *windowManagerMCPStateRetirer) WorkspaceIDs() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]string(nil), r.workspaceIDs...)
 }
 
 func (*windowManagerSessionRemovalPreparation) BeforeDelete(context.Context) error {

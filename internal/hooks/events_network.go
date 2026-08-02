@@ -1,7 +1,5 @@
 package hooks
 
-import "maps"
-
 const (
 	HookNetworkThreadOpened            HookEvent = "network.thread.opened"
 	HookNetworkDirectRoomOpened        HookEvent = "network.direct_room.opened"
@@ -15,72 +13,47 @@ const (
 	HookNetworkParticipationResolved   HookEvent = "network.participation.resolved"
 )
 
-func networkHookEventSpecs() map[HookEvent]hookEventSpec {
-	return map[HookEvent]hookEventSpec{
-		HookNetworkThreadOpened: {
+func networkHookEventDefinitions() []hookEventDefinition {
+	return []hookEventDefinition{
+		{event: HookNetworkThreadOpened,
 			family:       HookEventFamilyNetwork,
 			syncEligible: false,
 		},
-		HookNetworkDirectRoomOpened: {
+		{event: HookNetworkDirectRoomOpened,
 			family:       HookEventFamilyNetwork,
 			syncEligible: false,
 		},
-		HookNetworkMessagePersisted: {
+		{event: HookNetworkMessagePersisted,
 			family:       HookEventFamilyNetwork,
 			syncEligible: false,
 		},
-		HookNetworkWorkOpened: {
+		{event: HookNetworkWorkOpened,
 			family:       HookEventFamilyNetwork,
 			syncEligible: false,
 		},
-		HookNetworkWorkTransitioned: {
+		{event: HookNetworkWorkTransitioned,
 			family:       HookEventFamilyNetwork,
 			syncEligible: false,
 		},
-		HookNetworkWorkClosed: {
+		{event: HookNetworkWorkClosed,
 			family:       HookEventFamilyNetwork,
 			syncEligible: false,
 		},
-		HookNetworkPeerJoined: {
+		{event: HookNetworkPeerJoined,
 			family:       HookEventFamilyNetwork,
 			syncEligible: false,
 		},
-		HookNetworkPeerLeft: {
+		{event: HookNetworkPeerLeft,
 			family:       HookEventFamilyNetwork,
 			syncEligible: false,
 		},
-		HookNetworkParticipationPreResolve: {
+		{event: HookNetworkParticipationPreResolve,
 			family:       HookEventFamilyNetwork,
 			syncEligible: true,
 		},
-		HookNetworkParticipationResolved: {
+		{event: HookNetworkParticipationResolved,
 			family:       HookEventFamilyNetwork,
 			syncEligible: false,
 		},
 	}
-}
-
-func networkHookEvents() []HookEvent {
-	return []HookEvent{
-		HookNetworkThreadOpened,
-		HookNetworkDirectRoomOpened,
-		HookNetworkMessagePersisted,
-		HookNetworkWorkOpened,
-		HookNetworkWorkTransitioned,
-		HookNetworkWorkClosed,
-		HookNetworkPeerJoined,
-		HookNetworkPeerLeft,
-		HookNetworkParticipationPreResolve,
-		HookNetworkParticipationResolved,
-	}
-}
-
-func mergeHookEventSpecs(
-	base map[HookEvent]hookEventSpec,
-	overlays ...map[HookEvent]hookEventSpec,
-) map[HookEvent]hookEventSpec {
-	for _, overlay := range overlays {
-		maps.Copy(base, overlay)
-	}
-	return base
 }

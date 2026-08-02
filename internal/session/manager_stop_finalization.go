@@ -32,7 +32,7 @@ func (m *Manager) finalizeStoppedOwned(
 	waitErr error,
 ) (err error) {
 	if ctx == nil {
-		ctx = context.Background()
+		return errors.New("session: stopped finalization context is required")
 	}
 	if session == nil {
 		return nil

@@ -3,22 +3,30 @@ package acp
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	acpsdk "github.com/coder/acp-go-sdk"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	diagcontract "github.com/compozy/compozy/internal/diagnosticcontract"
+	diagnosticspkg "github.com/compozy/compozy/internal/diagnostics"
+	"github.com/compozy/compozy/internal/providers"
 	"github.com/compozy/compozy/internal/sandbox"
+	"github.com/compozy/compozy/internal/subprocess"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/toolruntime"
+	shellquote "github.com/kballard/go-shellquote"
 )
 
 func TestLocalLauncherLaunchProvidesWorkingPipes(t *testing.T) {
@@ -77,6 +85,10 @@ func TestLocalConstructorsReturnInterfaceImplementations(t *testing.T) {
 	if launcher := NewLocalLauncher(nil, 0); launcher == nil {
 		t.Fatal("NewLocalLauncher() = nil, want launcher")
 	}
+	var missingContext context.Context
+	if _, err := NewLocalToolHost(missingContext, t.TempDir(), "", nil); err == nil {
+		t.Fatal("NewLocalToolHost(nil context) error = nil, want context validation failure")
+	}
 
 	host, err := NewLocalToolHost(context.Background(), t.TempDir(), "", nil)
 	if err != nil {
@@ -108,16 +120,134 @@ func TestLocalLauncherLaunchHonorsCanceledContext(t *testing.T) {
 	t.Parallel()
 
 	launcher := newLocalLauncher(testDiscardLogger(), time.Second)
+	spec := sandbox.LaunchSpec{Command: "sh -c 'sleep 1'", Cwd: t.TempDir()}
+	var missingContext context.Context
+	if _, err := launcher.PrepareLaunch(missingContext, spec); err == nil {
+		t.Fatal("PrepareLaunch(nil) error = nil, want context validation failure")
+	}
+	if _, err := launcher.Launch(missingContext, spec); err == nil {
+		t.Fatal("Launch(nil) error = nil, want context validation failure")
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	_, err := launcher.Launch(ctx, sandbox.LaunchSpec{
-		Command: "sh -c 'sleep 1'",
-		Cwd:     t.TempDir(),
-	})
+	_, err := launcher.Launch(ctx, spec)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("Launch(canceled context) error = %v, want context canceled", err)
 	}
+}
+
+func TestDriverStartUsesFinalEnvironmentForProviderExecutable(t *testing.T) {
+	t.Parallel()
+	t.Run("Should probe and launch the provider executable from the final PATH", func(t *testing.T) {
+		t.Parallel()
+		if runtime.GOOS == "windows" {
+			t.Skip("Unix executable fixture; Windows environment semantics are covered separately")
+		}
+
+		providerBin := t.TempDir()
+		commandName := "sh"
+		daemonCommand, err := exec.LookPath(commandName)
+		if err != nil {
+			t.Fatalf("exec.LookPath(%s) error = %v", commandName, err)
+		}
+
+		testBinary, err := os.Executable()
+		if err != nil {
+			t.Fatalf("os.Executable() error = %v", err)
+		}
+		providerCommand := filepath.Join(providerBin, commandName)
+		if err := os.Symlink(testBinary, providerCommand); err != nil {
+			t.Fatalf("os.Symlink(provider PATH command) error = %v", err)
+		}
+		if filepath.Clean(daemonCommand) == filepath.Clean(providerCommand) {
+			t.Fatalf("daemon and final PATH both resolved %q; fixture requires distinct executables", commandName)
+		}
+
+		finalEnv := helperEnv("echo_prompt", "")
+		finalEnv = append(finalEnv, "PATH="+providerBin)
+		probeEnv := &providers.ProbeEnv{
+			ProviderName: "provider-a",
+			PreStartScope: providers.PreStartScope{
+				WorkspaceID:    "workspace-a",
+				HomeIdentity:   t.TempDir(),
+				SandboxID:      "sandbox-a",
+				SandboxBackend: "local",
+				SandboxProfile: "default",
+			},
+			LookPath: func(command string) (string, error) {
+				candidate := filepath.Join(providerBin, command)
+				info, statErr := os.Stat(candidate)
+				if statErr != nil || info.IsDir() || info.Mode().Perm()&0o111 == 0 {
+					return "", exec.ErrNotFound
+				}
+				return candidate, nil
+			},
+			CommandEnv: finalEnv,
+		}
+		preStarter := &recordingProviderPreStarter{delegate: providers.NewPreStarter()}
+		driver := New(
+			WithLogger(testDiscardLogger()),
+			WithProviderPreStarter(preStarter),
+		)
+		command := shellquote.Join(commandName, "-test.run=TestACPHelperProcess")
+		finalCwd := t.TempDir()
+		process, err := driver.Start(testutil.Context(t), StartOpts{
+			AgentName:    "provider-path-helper",
+			Command:      command,
+			Cwd:          finalCwd,
+			Env:          finalEnv,
+			Permissions:  compozyconfig.PermissionModeApproveAll,
+			ProviderName: "provider-a",
+			ProviderConfig: &compozyconfig.ProviderConfig{
+				Command:  command,
+				AuthMode: compozyconfig.ProviderAuthModeNativeCLI,
+			},
+			ProviderAuthEnv: probeEnv,
+		})
+		if err != nil {
+			t.Fatalf("Start(final provider PATH helper) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if stopErr := driver.Stop(testutil.Context(t), process); stopErr != nil {
+				t.Errorf("Stop(final provider PATH helper) error = %v", stopErr)
+			}
+		})
+		if got := process.Command; got != providerCommand {
+			t.Fatalf("AgentProcess.Command = %q, want final PATH executable %q", got, providerCommand)
+		}
+		if preStarter.env == nil {
+			t.Fatal("PreStart ProbeEnv = nil, want terminal launch identity")
+		}
+		launchStatus, err := providers.LaunchCommandStatus(
+			testutil.Context(t),
+			preStarter.provider,
+			preStarter.env,
+		)
+		if err != nil {
+			t.Fatalf("LaunchCommandStatus() error = %v", err)
+		}
+		if launchStatus == nil || launchStatus.Path != providerCommand {
+			t.Fatalf("LaunchCommandStatus() = %#v, want path %q", launchStatus, providerCommand)
+		}
+		canonicalFinalCwd := mustCanonicalDir(t, finalCwd)
+		if preStarter.env.CommandDir != canonicalFinalCwd {
+			t.Fatalf(
+				"PreStart CommandDir = %q, want final cwd %q",
+				preStarter.env.CommandDir,
+				canonicalFinalCwd,
+			)
+		}
+		wantEffectiveCommand := effectiveCommandString(providerCommand, []string{"-test.run=TestACPHelperProcess"})
+		if preStarter.provider.Command != wantEffectiveCommand {
+			t.Fatalf(
+				"PreStart provider command = %q, want effective command %q",
+				preStarter.provider.Command,
+				wantEffectiveCommand,
+			)
+		}
+	})
 }
 
 func TestLocalProcessHandleStopTerminatesProcess(t *testing.T) {
@@ -327,6 +457,19 @@ func TestLocalToolHostCreateTerminalUsesResolvedCwd(t *testing.T) {
 	if err := os.MkdirAll(cwd, 0o755); err != nil {
 		t.Fatalf("os.MkdirAll(%q) error = %v", cwd, err)
 	}
+	var missingContext context.Context
+	if _, err := host.CreateTerminal(missingContext, acpsdk.CreateTerminalRequest{
+		SessionId: "sess-invalid",
+		Command:   "pwd",
+	}); err == nil {
+		t.Fatal("CreateTerminal(nil context) error = nil, want context validation failure")
+	}
+	host.terminals.mu.RLock()
+	terminalCount := len(host.terminals.terminals)
+	host.terminals.mu.RUnlock()
+	if terminalCount != 0 {
+		t.Fatalf("terminal count after rejected create = %d, want 0", terminalCount)
+	}
 
 	response, err := host.CreateTerminal(testutil.Context(t), acpsdk.CreateTerminalRequest{
 		SessionId: "sess-terminal",
@@ -527,10 +670,15 @@ func TestDriverUsesInjectedLauncherAndToolHostOptions(t *testing.T) {
 func TestDriverStartUsesInjectedLauncher(t *testing.T) {
 	t.Parallel()
 
+	type processContextKey struct{}
+	parentCtx, cancelParent := context.WithCancel(
+		context.WithValue(testutil.Context(t), processContextKey{}, "process-value"),
+	)
+	t.Cleanup(cancelParent)
 	handle := newFakeHandle(t.TempDir())
 	launcher := &recordingLauncher{handle: handle}
 	driver := New(WithLogger(testDiscardLogger()), WithLauncher(launcher))
-	proc, err := driver.launchAgentProcess(testutil.Context(t), StartOpts{
+	proc, err := driver.launchAgentProcess(parentCtx, StartOpts{
 		AgentName:   "helper",
 		Command:     "sh -c 'cat'",
 		Cwd:         t.TempDir(),
@@ -538,6 +686,13 @@ func TestDriverStartUsesInjectedLauncher(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatalf("launchAgentProcess() error = %v", err)
+	}
+	if got := proc.processCtx.Value(processContextKey{}); got != "process-value" {
+		t.Fatalf("process context value = %v, want process-value", got)
+	}
+	cancelParent()
+	if err := proc.processCtx.Err(); err != nil {
+		t.Fatalf("process context after parent cancellation = %v, want detached lifetime", err)
 	}
 	if err := handle.finish(); err != nil {
 		t.Fatalf("finish fake handle: %v", err)
@@ -554,6 +709,277 @@ func TestDriverStartUsesInjectedLauncher(t *testing.T) {
 	}
 	if spec.Command != "sh -c 'cat'" {
 		t.Fatalf("launcher command = %q, want %q", spec.Command, "sh -c 'cat'")
+	}
+}
+
+func TestDriverStartUsesInjectedProviderPreStarter(t *testing.T) {
+	t.Parallel()
+	t.Run("Should use the injected provider pre-starter before launch", testDriverStartUsesInjectedProviderPreStarter)
+	t.Run("Should transport the terminal launch result into provider pre-start", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name         string
+			prepareErr   error
+			wantCode     string
+			wantErrorIs  error
+			secretMarker string
+		}{
+			{
+				name:       "normalized not found",
+				prepareErr: fmt.Errorf("first launch lookup: %w", exec.ErrNotFound),
+				wantCode:   diagcontract.CodeProviderCLIMissing,
+			},
+			{
+				name:         "operational sentinel",
+				prepareErr:   fmt.Errorf("launch metadata token=launch-resolution-secret: %w", os.ErrNotExist),
+				wantCode:     diagcontract.CodeProviderClassificationUnknown,
+				wantErrorIs:  os.ErrNotExist,
+				secretMarker: "launch-resolution-secret",
+			},
+			{
+				name:        "canceled resolver",
+				prepareErr:  context.Canceled,
+				wantCode:    diagcontract.CodeProviderClassificationUnknown,
+				wantErrorIs: context.Canceled,
+			},
+			{
+				name:        "deadline resolver",
+				prepareErr:  context.DeadlineExceeded,
+				wantCode:    diagcontract.CodeProviderClassificationUnknown,
+				wantErrorIs: context.DeadlineExceeded,
+			},
+		}
+		for _, tt := range tests {
+			t.Run("Should preserve "+tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				launcher := &terminalPreparingLauncher{prepareErr: tt.prepareErr}
+				var fallbackCalls atomic.Int32
+				probe := &providers.ProbeEnv{
+					ProviderName: "provider-a",
+					ResolveCommand: func(context.Context, string, []string, string) (string, error) {
+						fallbackCalls.Add(1)
+						return "/later/bin/provider-launch", nil
+					},
+				}
+				driver := New(
+					WithProviderPreStarter(providers.NewPreStarter()),
+					WithLauncher(launcher),
+				)
+				_, err := driver.Start(testutil.Context(t), StartOpts{
+					AgentName:       "helper",
+					Command:         "provider-launch acp",
+					Cwd:             t.TempDir(),
+					Env:             []string{"PATH=/final/bin"},
+					Permissions:     compozyconfig.PermissionModeApproveAll,
+					ProviderName:    "provider-a",
+					ProviderConfig:  &compozyconfig.ProviderConfig{AuthMode: compozyconfig.ProviderAuthModeNativeCLI},
+					ProviderAuthEnv: probe,
+				})
+				if err == nil {
+					t.Fatal("Start() error = nil, want terminal launch failure")
+				}
+				structured, structuredMatched := errors.AsType[*diagnosticspkg.StructuredError](err)
+				if !structuredMatched || structured == nil {
+					t.Fatalf("Start() error = %v, want structured provider diagnostic", err)
+				}
+				if got := structured.Item.Code; got != tt.wantCode {
+					t.Fatalf("Start() diagnostic code = %q, want %q", got, tt.wantCode)
+				}
+				if tt.wantErrorIs != nil && !errors.Is(err, tt.wantErrorIs) {
+					t.Fatalf("Start() error = %v, want wrapped %v", err, tt.wantErrorIs)
+				}
+				if tt.secretMarker != "" && strings.Contains(err.Error(), tt.secretMarker) {
+					t.Fatalf("Start() error = %v, leaked terminal cause", err)
+				}
+				if got := fallbackCalls.Load(); got != 0 {
+					t.Fatalf("fallback resolver calls = %d, want 0", got)
+				}
+				if launcher.prepareCalls != 1 {
+					t.Fatalf("PrepareLaunch calls = %d, want 1", launcher.prepareCalls)
+				}
+				if launcher.launchCalls != 0 {
+					t.Fatalf("Launch calls = %d, want 0", launcher.launchCalls)
+				}
+			})
+		}
+	})
+	t.Run("Should preserve an injected pre-start cause", func(t *testing.T) {
+		t.Parallel()
+
+		causes := []error{context.Canceled, context.DeadlineExceeded, errors.New("provider probe sentinel")}
+		for _, cause := range causes {
+			t.Run(cause.Error(), func(t *testing.T) {
+				t.Parallel()
+
+				item := providers.DiagnosticItem("provider-a", providers.Classification{
+					State:   providers.ProviderAuthStateUnknown,
+					Message: "Provider auth status is unknown.",
+				})
+				preStarter := &recordingProviderPreStarter{report: providers.PreStartReport{
+					Item:  &item,
+					Cause: cause,
+				}}
+				driver := New(WithProviderPreStarter(preStarter), WithLauncher(&recordingLauncher{}))
+				_, err := driver.Start(testutil.Context(t), StartOpts{
+					AgentName:       "helper",
+					Command:         "helper",
+					Cwd:             t.TempDir(),
+					Permissions:     compozyconfig.PermissionModeApproveAll,
+					ProviderName:    "provider-a",
+					ProviderConfig:  &compozyconfig.ProviderConfig{AuthMode: compozyconfig.ProviderAuthModeNativeCLI},
+					ProviderAuthEnv: &providers.ProbeEnv{ProviderName: "provider-a"},
+				})
+				if !errors.Is(err, cause) {
+					t.Fatalf("Start() error = %v, want wrapped %v", err, cause)
+				}
+			})
+		}
+	})
+	t.Run("Should preserve a concrete auth status resolver cause", func(t *testing.T) {
+		t.Parallel()
+
+		resolverSentinel := errors.New("provider status resolver sentinel")
+		resolveCalls := 0
+		preStarter := &recordingProviderPreStarter{delegate: providers.NewPreStarter()}
+		launcher := &recordingLauncher{err: errors.New("provider launcher must not run")}
+		driver := New(WithProviderPreStarter(preStarter), WithLauncher(launcher))
+		provider := compozyconfig.ProviderConfig{
+			Command:       "/final/bin/provider-launch acp",
+			AuthMode:      compozyconfig.ProviderAuthModeNativeCLI,
+			AuthStatusCmd: "provider-status auth status",
+		}
+		cwd := t.TempDir()
+		probeEnv := providers.ProbeEnv{
+			ProviderName: "provider-a",
+			ResolveCommand: func(
+				_ context.Context,
+				command string,
+				_ []string,
+				_ string,
+			) (string, error) {
+				resolveCalls++
+				if command != "provider-status" {
+					t.Fatalf("LookPath(%q), want provider-status", command)
+				}
+				if resolveCalls == 1 {
+					return "", fmt.Errorf("resolver failed token=acp-resolution-secret: %w", resolverSentinel)
+				}
+				return "/later/bin/provider-status", nil
+			},
+			RunCommand: func(
+				_ context.Context,
+				spec providers.ProviderAuthCommandSpec,
+			) (providers.ProviderAuthCommandResult, error) {
+				t.Fatalf("RunCommand(%q) called after resolver failure", spec.Command)
+				return providers.ProviderAuthCommandResult{}, nil
+			},
+		}
+		probeEnv = probeEnv.WithLaunchExecutableResolution(subprocess.NewExecutableResolution(
+			provider.Command,
+			nil,
+			mustCanonicalDir(t, cwd),
+			"/final/bin/provider-launch",
+			nil,
+		))
+		_, err := driver.Start(testutil.Context(t), StartOpts{
+			AgentName:       "helper",
+			Command:         provider.Command,
+			Cwd:             cwd,
+			Permissions:     compozyconfig.PermissionModeApproveAll,
+			ProviderName:    "provider-a",
+			ProviderConfig:  &provider,
+			ProviderAuthEnv: &probeEnv,
+		})
+		if !errors.Is(err, resolverSentinel) {
+			t.Fatalf("Start() error = %v, want wrapped resolver sentinel", err)
+		}
+		if got, want := resolveCalls, 1; got != want {
+			t.Fatalf("status resolver calls = %d, want %d", got, want)
+		}
+		if strings.Contains(err.Error(), "acp-resolution-secret") {
+			t.Fatalf("Start() error = %v, leaked resolver secret", err)
+		}
+		if !strings.Contains(err.Error(), "[REDACTED]") {
+			t.Fatalf("Start() error = %v, want redaction marker", err)
+		}
+		if _, called := launcher.lastSpec(); called {
+			t.Fatal("provider launcher was called after resolver failure")
+		}
+	})
+}
+
+func testDriverStartUsesInjectedProviderPreStarter(t *testing.T) {
+	t.Helper()
+
+	item := providers.DiagnosticItem("provider-a", providers.Classification{
+		State:   providers.ProviderAuthStateMissingCLI,
+		Code:    diagcontract.CodeProviderCLIMissing,
+		Message: "Provider CLI is not installed or not available on PATH.",
+		Kind:    providers.ProviderFailureCLIMissing,
+		Action:  providers.ProviderFailureActionInstallCLI,
+	})
+	preStarter := &recordingProviderPreStarter{report: providers.PreStartReport{Item: &item}}
+	launcher := &recordingLauncher{err: errors.New("provider launcher must not run")}
+	driver := New(WithProviderPreStarter(preStarter), WithLauncher(launcher))
+	probeEnv := &providers.ProbeEnv{ProviderName: "provider-a"}
+	cwd := t.TempDir()
+	_, err := driver.Start(testutil.Context(t), StartOpts{
+		AgentName:       "helper",
+		Command:         "helper",
+		Cwd:             cwd,
+		Permissions:     compozyconfig.PermissionModeApproveAll,
+		ProviderName:    "provider-a",
+		ProviderConfig:  &compozyconfig.ProviderConfig{AuthMode: compozyconfig.ProviderAuthModeNativeCLI},
+		ProviderAuthEnv: probeEnv,
+	})
+	if err == nil {
+		t.Fatal("Start() error = nil, want injected pre-start diagnostic failure")
+	}
+	if preStarter.calls != 1 {
+		t.Fatalf("PreStarter calls = %d, want 1", preStarter.calls)
+	}
+	if preStarter.env == nil {
+		t.Fatal("PreStarter ProbeEnv = nil, want finalized injected probe")
+	}
+	if got := preStarter.env.ProviderName; got != probeEnv.ProviderName {
+		t.Fatalf("PreStarter ProviderName = %q, want %q", got, probeEnv.ProviderName)
+	}
+	canonicalCwd := mustCanonicalDir(t, cwd)
+	if got := preStarter.env.CommandDir; got != canonicalCwd {
+		t.Fatalf("PreStarter CommandDir = %q, want %q", got, canonicalCwd)
+	}
+	if _, called := launcher.lastSpec(); called {
+		t.Fatal("provider launcher was called after injected pre-start failure")
+	}
+}
+
+func TestDriverStartRejectsProviderWithoutInjectedPreStarter(t *testing.T) {
+	t.Parallel()
+	t.Run(
+		"Should reject provider launch without an injected pre-starter",
+		testDriverStartRejectsProviderWithoutInjectedPreStarter,
+	)
+}
+
+func testDriverStartRejectsProviderWithoutInjectedPreStarter(t *testing.T) {
+	t.Helper()
+
+	launcher := &recordingLauncher{err: errors.New("provider launcher must not run")}
+	driver := New(WithLauncher(launcher))
+	_, err := driver.Start(testutil.Context(t), StartOpts{
+		AgentName:    "helper",
+		Command:      "helper",
+		Cwd:          t.TempDir(),
+		Permissions:  compozyconfig.PermissionModeApproveAll,
+		ProviderName: "provider-a",
+	})
+	if err == nil || !strings.Contains(err.Error(), "provider pre-starter is required") {
+		t.Fatalf("Start() error = %v, want missing injected pre-starter", err)
+	}
+	if _, called := launcher.lastSpec(); called {
+		t.Fatal("provider launcher was called without an injected pre-starter")
 	}
 }
 
@@ -587,6 +1013,50 @@ type recordingLauncher struct {
 	mu     sync.Mutex
 	called bool
 	spec   sandbox.LaunchSpec
+}
+
+type terminalPreparingLauncher struct {
+	prepareErr   error
+	prepareCalls int
+	launchCalls  int
+}
+
+func (l *terminalPreparingLauncher) PrepareLaunch(
+	_ context.Context,
+	spec sandbox.LaunchSpec,
+) (sandbox.LaunchSpec, error) {
+	l.prepareCalls++
+	return spec, l.prepareErr
+}
+
+func (l *terminalPreparingLauncher) Launch(
+	context.Context,
+	sandbox.LaunchSpec,
+) (sandbox.Handle, error) {
+	l.launchCalls++
+	return nil, errors.New("terminalPreparingLauncher: Launch must not run after prepare failure")
+}
+
+type recordingProviderPreStarter struct {
+	calls    int
+	provider compozyconfig.ProviderConfig
+	env      *providers.ProbeEnv
+	report   providers.PreStartReport
+	delegate ProviderPreStarter
+}
+
+func (s *recordingProviderPreStarter) PreStart(
+	ctx context.Context,
+	provider compozyconfig.ProviderConfig,
+	env *providers.ProbeEnv,
+) providers.PreStartReport {
+	s.calls++
+	s.provider = provider
+	s.env = env
+	if s.delegate != nil {
+		return s.delegate.PreStart(ctx, provider, env)
+	}
+	return s.report
 }
 
 func (l *recordingLauncher) Launch(

@@ -38,4 +38,12 @@ Forensic evidence contract (SD-006) — each item cites timestamp, exact command
 - The revive capture: one due probe success auto-clears the mark without daemon restart; a
   transient-timeout run that never marks dead.
 
+QA impact 2026-08-03: the restarted Go audit hardened the shared dead-entity coordinator so durable
+mark/clear transitions for one entity publish in commit-revision order even when event I/O overlaps
+or an intermediate publisher is canceled. Re-walk the mark/recovery path while holding the first
+transition sink long enough for the clear to commit; public event replay must still show marked then
+cleared, later attempts must not stall, and a workspace cache retirement must not clear durable state
+or let a stale in-flight load repopulate the replacement generation. The scenario remains
+`blocked-verify`; no prior verdict was promoted.
+
 src: .compozy/tasks/hermes-comparison/_user_stories.md#us-011-only-runnable-skills-are-offered-dead-sidecars-self-recover

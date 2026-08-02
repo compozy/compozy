@@ -218,7 +218,6 @@ var configScalarMutationKinds = mergeConfigSetValueKinds(map[string]configSetVal
 	"memory.recall.freshness.banner_after_days":         configSetInt,
 	"memory.recall.signals.queue_capacity":              configSetInt,
 	"memory.recall.signals.worker_retry_max":            configSetInt,
-	"memory.recall.signals.metrics_enabled":             configSetBool,
 	"memory.decisions.prune_after_applied_days":         configSetInt,
 	"memory.decisions.keep_audit_summary":               configSetBool,
 	"memory.decisions.max_post_content_bytes":           configSetInt64,

@@ -21,36 +21,51 @@ func (m *Service) startCoordinatorRun(
 	}
 
 	lifecycleCtx := taskRunLifecycleContext(ctx)
-	run.Status = TaskRunStatusStarting
-	if err := m.store.UpdateTaskRun(lifecycleCtx, run); err != nil {
+	if err := m.preflightCoordinatorRunStarting(run, actor); err != nil {
 		return nil, err
 	}
-	startingTask, err := m.reconcileTaskCascade(lifecycleCtx, run.TaskID, actor)
+	startingAt := m.now().UTC()
+	startingSettlement, err := m.commitNominalRunSettlement(
+		lifecycleCtx,
+		"transition coordinator run starting",
+		taskEventRunStarting,
+		actor,
+		startingAt,
+		func(store runMutationStore) (NominalRunMutationResult, error) {
+			return store.TransitionRunStarting(
+				lifecycleCtx,
+				NewRunStartingMutation(run),
+			)
+		},
+		transitionRunPayload,
+	)
 	if err != nil {
 		return nil, err
 	}
-	if err := m.recordTaskEvent(lifecycleCtx, run.TaskID, run.ID, taskEventRunStarting, actor, runTransitionPayload{
-		Status:     run.Status,
-		TaskStatus: startingTask.Status,
-	}); err != nil {
-		return nil, err
-	}
+	run = startingSettlement.mutation.Run
 
-	run.Status = TaskRunStatusRunning
-	run.StartedAt = m.now().UTC()
-	if err := m.store.UpdateTaskRun(lifecycleCtx, run); err != nil {
+	if err := m.preflightCoordinatorRunStarted(run, actor); err != nil {
 		return nil, err
 	}
-	runningTask, err := m.reconcileTaskCascade(lifecycleCtx, run.TaskID, actor)
+	runningAt := m.now().UTC()
+	runningSettlement, err := m.commitNominalRunSettlement(
+		lifecycleCtx,
+		"transition coordinator run running",
+		taskEventRunStarted,
+		actor,
+		runningAt,
+		func(store runMutationStore) (NominalRunMutationResult, error) {
+			return store.TransitionRunRunning(
+				lifecycleCtx,
+				NewRunRunningMutation(run, runningAt),
+			)
+		},
+		transitionRunPayload,
+	)
 	if err != nil {
 		return nil, err
 	}
-	if err := m.recordTaskEvent(lifecycleCtx, run.TaskID, run.ID, taskEventRunStarted, actor, runTransitionPayload{
-		Status:     run.Status,
-		TaskStatus: runningTask.Status,
-	}); err != nil {
-		return nil, err
-	}
+	run = runningSettlement.mutation.Run
 
 	plan, err := m.coordinatorRunner.Run(lifecycleCtx, RunID(run.ID))
 	if err != nil {
@@ -69,38 +84,7 @@ func (m *Service) startCoordinatorRun(
 	if err := m.validateCoordinatorPlan(plan, "coordinator_completion.plan"); err != nil {
 		return nil, err
 	}
-
-	result, completionErr := m.store.CompleteCoordinatorAndEnqueueNext(lifecycleCtx, CoordinatorCompletion{
-		RunID:      run.ID,
-		ClaimToken: req.ClaimToken,
-		Plan:       plan,
-		Actor:      actor,
-		Now:        m.now().UTC(),
-	}, m.generationFinalizer)
-	return m.finishCoordinatorRun(lifecycleCtx, &result, plan, actor, completionErr)
-}
-
-func (m *Service) finishCoordinatorRun(
-	ctx context.Context,
-	result *CoordinatorCompletionResult,
-	plan CoordinatorCompletionPlan,
-	actor ActorContext,
-	completionErr error,
-) (*Run, error) {
-	if strings.TrimSpace(result.Run.ID) == "" {
-		return nil, completionErr
-	}
-	var postCommitErr error
-	if !result.PlanSuperseded {
-		postCommitErr = m.applyCoordinatorPostCommit(ctx, plan.ParentCloses, actor)
-	}
-	var timerErr error
-	if !result.PlanSuperseded {
-		timerErr = m.armCoordinatorTimers(ctx, plan.PostCommitTimers, actor)
-	}
-	eventErr := m.recordCoordinatorCompletionEvents(ctx, result, actor)
-	m.dispatchCoordinatorTerminal(ctx, result, actor)
-	return &result.Run, errorsJoin(completionErr, postCommitErr, timerErr, eventErr)
+	return m.completeCoordinatorRun(lifecycleCtx, run, req.ClaimToken, plan, actor)
 }
 
 func (m *Service) applyCoordinatorPostCommit(
@@ -165,6 +149,7 @@ func (m *Service) validateCoordinatorRuntime(runID string, req StartRun) error {
 func (m *Service) recordCoordinatorCompletionEvents(
 	ctx context.Context,
 	result *CoordinatorCompletionResult,
+	enqueuedEventIDs []string,
 	actor ActorContext,
 ) error {
 	if result == nil {
@@ -174,13 +159,14 @@ func (m *Service) recordCoordinatorCompletionEvents(
 	defer publicationCancel()
 
 	var publicationErrs []error
-	var completedTask Task
-	var err error
-	if result.Settlement != nil {
-		completedTask, err = m.publishCompletedRunSettlement(publicationCtx, result.Settlement, actor)
-	} else {
-		completedTask, err = m.reconcileTaskCascade(publicationCtx, result.Run.TaskID, actor)
+	if result.Settlement == nil {
+		return fmt.Errorf("%w: coordinator completion settlement is required", ErrValidation)
 	}
+	if strings.TrimSpace(result.CompletionEvent.ID) == "" {
+		return fmt.Errorf("%w: coordinator completion event is required", ErrValidation)
+	}
+	m.publishTaskEventsAfterCommand(publicationCtx, []Event{result.CompletionEvent})
+	completedTask, err := m.publishCompletedRunSettlement(publicationCtx, result.Settlement, actor)
 	if err != nil {
 		publicationErrs = append(publicationErrs, err)
 	}
@@ -194,23 +180,13 @@ func (m *Service) recordCoordinatorCompletionEvents(
 			))
 		}
 	}
-	if err := m.recordTaskEvent(
-		publicationCtx,
-		result.Run.TaskID,
-		result.Run.ID,
-		taskEventRunCompleted,
-		actor,
-		completedRunPayload{
-			Status:         result.Run.Status,
-			TaskStatus:     completedTask.Status,
-			Result:         cloneRawJSON(result.Run.Result),
-			ClaimTokenHash: result.Run.ClaimTokenHash,
-		},
-	); err != nil {
-		publicationErrs = append(publicationErrs, err)
-	}
 	m.dispatchTaskRunCompleted(publicationCtx, result.Run, completedTask, actor)
-	if err := m.publishCoordinatorEnqueuedRuns(publicationCtx, result.EnqueuedRuns, actor); err != nil {
+	if err := m.publishCoordinatorEnqueuedRuns(
+		publicationCtx,
+		result.EnqueuedRuns,
+		enqueuedEventIDs,
+		actor,
+	); err != nil {
 		publicationErrs = append(publicationErrs, err)
 	}
 	return errorsJoin(publicationErrs...)

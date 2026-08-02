@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 
 	"github.com/compozy/compozy/internal/agentidentity"
@@ -268,12 +269,12 @@ func resolveContextualCommandWorkspace(
 }
 
 func workspaceResolutionAllowsGlobalFallback(err error) bool {
-	var pathErr *workspacePathNotRegisteredError
-	if errors.As(err, &pathErr) {
+	pathErr, ok := errors.AsType[*workspacePathNotRegisteredError](err)
+	if ok && pathErr != nil {
 		return true
 	}
-	var apiErr *daemonAPIError
-	return errors.As(err, &apiErr) && apiErr.statusCode == 404
+	apiErr, ok := errors.AsType[*daemonAPIError](err)
+	return ok && apiErr.statusCode == http.StatusNotFound
 }
 
 func resolveCommandWorkspaceRoot(

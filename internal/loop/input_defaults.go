@@ -59,11 +59,7 @@ func (e *InputDefaultError) Unwrap() error {
 
 // AsInputDefaultError extracts the structured input-default diagnostic.
 func AsInputDefaultError(err error) (*InputDefaultError, bool) {
-	var target *InputDefaultError
-	if !errors.As(err, &target) {
-		return nil, false
-	}
-	return target, true
+	return errors.AsType[*InputDefaultError](err)
 }
 
 // InputDefaultLayers carries source-preserving configured values for one named Loop.

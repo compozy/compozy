@@ -2,13 +2,37 @@ package heartbeat
 
 import (
 	"context"
-
 	"errors"
 	"fmt"
 	"strings"
-
 	"time"
 )
+
+type wakeDispatchIDs struct {
+	wakeEventID       string
+	syntheticPromptID string
+	correctionEventID string
+}
+
+func (s *ManagedWakeService) reserveWakeDispatchIDs() (wakeDispatchIDs, error) {
+	wakeEventID, err := s.newID("hwe")
+	if err != nil {
+		return wakeDispatchIDs{}, fmt.Errorf("heartbeat: generate wake event id: %w", err)
+	}
+	syntheticPromptID, err := s.newID("turn")
+	if err != nil {
+		return wakeDispatchIDs{}, fmt.Errorf("heartbeat: generate synthetic prompt id: %w", err)
+	}
+	correctionEventID, err := s.newID("hwe")
+	if err != nil {
+		return wakeDispatchIDs{}, fmt.Errorf("heartbeat: generate corrective wake event id: %w", err)
+	}
+	return wakeDispatchIDs{
+		wakeEventID:       wakeEventID,
+		syntheticPromptID: syntheticPromptID,
+		correctionEventID: correctionEventID,
+	}, nil
+}
 
 func (s *ManagedWakeService) currentWakeState(ctx context.Context, req WakeRequest) (WakeState, error) {
 	state, err := s.store.GetHeartbeatWakeState(ctx, req.WorkspaceID, req.AgentName, req.SessionID)
@@ -52,10 +76,18 @@ func (s *ManagedWakeService) recordDecision(
 		return dryRunDecision(decision), nil
 	}
 	if strings.TrimSpace(decision.WakeEventID) == "" {
-		decision.WakeEventID = s.newID("hwe")
+		wakeEventID, err := s.newID("hwe")
+		if err != nil {
+			return WakeDecision{}, fmt.Errorf("heartbeat: generate wake event id: %w", err)
+		}
+		decision.WakeEventID = wakeEventID
 	}
 	if decision.Result == WakeResultSent && strings.TrimSpace(decision.SyntheticPromptID) == "" {
-		decision.SyntheticPromptID = s.newID("turn")
+		promptID, err := s.newID("turn")
+		if err != nil {
+			return WakeDecision{}, fmt.Errorf("heartbeat: generate synthetic prompt id: %w", err)
+		}
+		decision.SyntheticPromptID = promptID
 	}
 	event := wakeEventFromDecision(req, decision, now, s.config.WakeEventRetention)
 	state := nextWakeState(req, decision, previous, now, s.config.WakeCooldown)
@@ -72,10 +104,18 @@ func (s *ManagedWakeService) appendDecisionEvent(
 	now time.Time,
 ) (WakeDecision, error) {
 	if strings.TrimSpace(decision.WakeEventID) == "" {
-		decision.WakeEventID = s.newID("hwe")
+		wakeEventID, err := s.newID("hwe")
+		if err != nil {
+			return WakeDecision{}, fmt.Errorf("heartbeat: generate wake event id: %w", err)
+		}
+		decision.WakeEventID = wakeEventID
 	}
 	if decision.Result == WakeResultSent && strings.TrimSpace(decision.SyntheticPromptID) == "" {
-		decision.SyntheticPromptID = s.newID("turn")
+		promptID, err := s.newID("turn")
+		if err != nil {
+			return WakeDecision{}, fmt.Errorf("heartbeat: generate synthetic prompt id: %w", err)
+		}
+		decision.SyntheticPromptID = promptID
 	}
 	event := wakeEventFromDecision(req, decision, now, s.config.WakeEventRetention)
 	if _, err := s.store.AppendHeartbeatWakeEvent(ctx, event); err != nil {
@@ -140,16 +180,12 @@ func (s *ManagedWakeService) newDecision(
 	configDigest string,
 ) WakeDecision {
 	decision := WakeDecision{
-		WakeEventID:      s.newID("hwe"),
 		Result:           result,
 		Reason:           reason,
 		PolicySnapshotID: strings.TrimSpace(snapshotID),
 		PolicyDigest:     strings.TrimSpace(policyDigest),
 		ConfigDigest:     strings.TrimSpace(configDigest),
 		Diagnostics:      nil,
-	}
-	if result == WakeResultSent {
-		decision.SyntheticPromptID = s.newID("turn")
 	}
 	return decision
 }

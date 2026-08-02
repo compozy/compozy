@@ -149,7 +149,11 @@ func (g *LoopRepo) reserveCoordinatorRun(
 ) (taskpkg.Run, bool, error) {
 	reservedRunID := strings.TrimSpace(runID)
 	if reservedRunID == "" {
-		reservedRunID = store.NewID("run")
+		generatedID, err := store.NewID("run")
+		if err != nil {
+			return taskpkg.Run{}, false, fmt.Errorf("store: generate loop coordinator run id: %w", err)
+		}
+		reservedRunID = generatedID
 	}
 	loopRun, err := getLoopRunByIDWithExecutor(ctx, exec, loop.RunID(strings.TrimSpace(loopRunID)))
 	if err != nil {

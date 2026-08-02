@@ -2,7 +2,6 @@ package cli
 
 import (
 	"strconv"
-	"strings"
 )
 
 func taskBridgeNotificationSubscriptionBundle(
@@ -37,6 +36,8 @@ func taskBridgeNotificationSubscriptionListBundle(
 			taskPeerValue,
 			taskGroupValue,
 			taskModeValue,
+			"Cursor Scope",
+			"Cursor Workspace",
 			"Cursor Seq",
 			"Cursor Error",
 			"Cursor Updated",
@@ -51,6 +52,8 @@ func taskBridgeNotificationSubscriptionListBundle(
 			taskPeerIDKey,
 			taskGroupIDKey,
 			"delivery_mode",
+			"cursor_scope",
+			"cursor_workspace_id",
 			"cursor_last_sequence",
 			"cursor_last_error",
 			"cursor_updated_at",
@@ -65,6 +68,8 @@ func taskBridgeNotificationSubscriptionListBundle(
 				stringOrDash(item.PeerID),
 				stringOrDash(item.GroupID),
 				stringOrDash(string(item.DeliveryMode)),
+				stringOrDash(string(item.Cursor.Scope.Kind)),
+				stringOrDash(item.Cursor.Scope.WorkspaceID),
 				int64OrDash(item.Cursor.LastSequence),
 				stringOrDash(item.Cursor.LastError),
 				stringOrDash(formatTimePtr(item.Cursor.UpdatedAt)),
@@ -80,6 +85,8 @@ func taskBridgeNotificationSubscriptionListBundle(
 				item.PeerID,
 				item.GroupID,
 				string(item.DeliveryMode),
+				string(item.Cursor.Scope.Kind),
+				item.Cursor.Scope.WorkspaceID,
 				strconv.FormatInt(item.Cursor.LastSequence, 10),
 				item.Cursor.LastError,
 				formatTimePtr(item.Cursor.UpdatedAt),
@@ -100,6 +107,8 @@ func taskBridgeNotificationRows(subscription *TaskBridgeNotificationSubscription
 		{Label: taskThreadValue, Value: stringOrDash(subscription.ThreadID)},
 		{Label: taskGroupValue, Value: stringOrDash(subscription.GroupID)},
 		{Label: taskModeValue, Value: stringOrDash(string(subscription.DeliveryMode))},
+		{Label: "Cursor Scope", Value: stringOrDash(string(subscription.Cursor.Scope.Kind))},
+		{Label: "Cursor Workspace", Value: stringOrDash(subscription.Cursor.Scope.WorkspaceID)},
 		{Label: "Cursor Consumer", Value: stringOrDash(subscription.Cursor.ConsumerID)},
 		{Label: "Cursor Stream", Value: stringOrDash(subscription.Cursor.StreamName)},
 		{Label: "Cursor Subject", Value: stringOrDash(subscription.Cursor.SubjectID)},
@@ -128,8 +137,8 @@ func taskBridgeNotificationSubscriptionDeleteBundle(
 		SubscriptionID string `json:"subscription_id"`
 		Status         string `json:"status"`
 	}{
-		TaskID:         strings.TrimSpace(taskID),
-		SubscriptionID: strings.TrimSpace(subscriptionID),
+		TaskID:         taskID,
+		SubscriptionID: subscriptionID,
 		Status:         taskDeletedKey,
 	}
 	return outputBundle{

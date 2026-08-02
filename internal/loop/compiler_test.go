@@ -151,8 +151,9 @@ func TestCompilerShouldReturnLintFailedErrorWhenDefinitionIsInvalid(t *testing.T
 		if err == nil {
 			t.Fatal("Compile() error = nil, want lint failure")
 		}
-		var lintErr *loop.LintFailedError
-		if !errors.As(err, &lintErr) {
+
+		lintErr, lintErrMatched := errors.AsType[*loop.LintFailedError](err)
+		if !lintErrMatched {
 			t.Fatalf("Compile() error = %T %v, want *loop.LintFailedError", err, err)
 		}
 		if err.Error() == "" {
@@ -334,8 +335,9 @@ func TestCompilerShouldRejectInvalidWatchEventsFilterAtPublish(t *testing.T) {
 		if err == nil {
 			t.Fatal("Compile() error = nil, want lint failure")
 		}
-		var lintErr *loop.LintFailedError
-		if !errors.As(err, &lintErr) {
+
+		lintErr, lintErrMatched := errors.AsType[*loop.LintFailedError](err)
+		if !lintErrMatched {
 			t.Fatalf("Compile() error = %T %v, want *loop.LintFailedError", err, err)
 		}
 		requireLintCodes(t, lintErr.Errors, loop.CodeWatchEventsFilterInvalid)

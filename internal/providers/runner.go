@@ -8,11 +8,13 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/compozy/compozy/internal/diagnostics"
-	"github.com/kballard/go-shellquote"
+	"github.com/compozy/compozy/internal/providerauth"
+	"github.com/compozy/compozy/internal/subprocess"
 	"golang.org/x/term"
 )
 
@@ -23,10 +25,13 @@ type ProviderAuthCommandRunner func(context.Context, ProviderAuthCommandSpec) (P
 
 // ProviderAuthCommandSpec describes one provider-owned auth command execution.
 type ProviderAuthCommandSpec struct {
-	Command string
-	Env     []string
-	Timeout time.Duration
-	NoTTY   bool
+	Command    string
+	Executable string
+	Args       []string
+	Dir        string
+	Env        []string
+	Timeout    time.Duration
+	NoTTY      bool
 }
 
 // ProviderAuthCommandResult is a redacted provider auth command result.
@@ -128,21 +133,68 @@ func DefaultProviderAuthLoginRunner(
 }
 
 func commandContext(ctx context.Context, spec ProviderAuthCommandSpec) (*exec.Cmd, error) {
-	command := strings.TrimSpace(spec.Command)
-	if command == "" {
-		return nil, errors.New("provider auth command is required")
+	environment := append([]string(nil), spec.Env...)
+	if len(environment) == 0 {
+		environment = os.Environ()
 	}
-	argv, err := shellquote.Split(command)
+	spec.Env = environment
+	prepared, err := resolveProviderAuthCommandSpec(
+		spec,
+		subprocess.ResolveExecutable,
+	)
 	if err != nil {
-		return nil, fmt.Errorf("parse provider auth command: %w", err)
-	}
-	if len(argv) == 0 {
-		return nil, errors.New("provider auth command is empty")
+		return nil, err
 	}
 	// #nosec G204 -- Provider auth commands are explicit operator config.
-	execCmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
-	execCmd.Env = append([]string(nil), spec.Env...)
+	execCmd := exec.CommandContext(ctx, prepared.Executable, prepared.Args...)
+	execCmd.Dir = prepared.Dir
+	execCmd.Env = prepared.Env
 	return execCmd, nil
+}
+
+func resolveProviderAuthCommandSpec(
+	spec ProviderAuthCommandSpec,
+	resolveExecutable func(string, []string, string) (string, error),
+) (ProviderAuthCommandSpec, error) {
+	command := strings.TrimSpace(spec.Command)
+	if command == "" {
+		return ProviderAuthCommandSpec{}, errors.New("provider auth command is required")
+	}
+	parsed, err := providerauth.ParseCommand(command)
+	if err != nil {
+		return ProviderAuthCommandSpec{}, fmt.Errorf("parse provider auth command: %w", err)
+	}
+	environment := parsed.ApplyEnvironment(spec.Env)
+
+	resolved := spec.Executable
+	args := append([]string(nil), spec.Args...)
+	if resolved == "" {
+		if resolveExecutable == nil {
+			return ProviderAuthCommandSpec{}, errors.New("provider auth executable resolver is required")
+		}
+		resolved, err = resolveExecutable(parsed.Executable, environment, spec.Dir)
+		if err != nil {
+			return ProviderAuthCommandSpec{}, fmt.Errorf(
+				"resolve provider auth executable %q: %w",
+				parsed.Executable,
+				err,
+			)
+		}
+		args = append([]string(nil), parsed.Args...)
+	}
+	if !filepath.IsAbs(resolved) {
+		return ProviderAuthCommandSpec{}, fmt.Errorf(
+			"provider auth executable %q must resolve to an absolute path",
+			resolved,
+		)
+	}
+
+	prepared := spec
+	prepared.Command = command
+	prepared.Executable = resolved
+	prepared.Args = args
+	prepared.Env = environment
+	return prepared, nil
 }
 
 func exitCodeFromError(err error) int {

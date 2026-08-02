@@ -68,6 +68,8 @@ func (s *sidecarSession) exitError(payload []byte) error {
 		s.stderr.WriteString(exit.Stderr)
 		s.stderrMu.Unlock()
 	}
+	s.exitCode = exit.ExitCode
+	s.exited = true
 	if exit.ExitCode == 0 {
 		return nil
 	}

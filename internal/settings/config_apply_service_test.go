@@ -1681,15 +1681,15 @@ func TestConfigApplyServiceRecordsRuntimeReconcileFailures(t *testing.T) {
 		applier := &fakeConfigRuntimeApplier{
 			failures: []ApplyFailure{{
 				Subsystem: "mcp",
-				Diagnostic: diagnostics.NewItem(
-					"config.apply.test_failure",
-					diagnosticcontract.CodeConfigPartialFailure,
-					diagnosticcontract.CategoryMCP,
-					"Test runtime reconcile failed",
-					"runtime reconcile failed",
-					diagnosticcontract.SeverityError,
-					diagnosticcontract.FreshnessLive,
-				),
+				Diagnostic: diagnostics.NewItem(diagnostics.ItemSpec{
+					ID:            "config.apply.test_failure",
+					Code:          diagnosticcontract.CodeConfigPartialFailure,
+					Category:      diagnosticcontract.CategoryMCP,
+					Title:         "Test runtime reconcile failed",
+					Message:       "runtime reconcile failed",
+					Severity:      diagnosticcontract.SeverityError,
+					DataFreshness: diagnosticcontract.FreshnessLive,
+				}),
 			}},
 		}
 		service := testService(t, homePaths, Dependencies{
@@ -1850,15 +1850,15 @@ func (a *providerModelCurationRuntimeApplier) fail(err error) []ApplyFailure {
 	a.err = err
 	return []ApplyFailure{{
 		Subsystem: "model_catalog",
-		Diagnostic: diagnostics.NewItem(
-			"config.apply.model_catalog_sync_failed",
-			diagnosticcontract.CodeConfigPartialFailure,
-			diagnosticcontract.CategoryConfig,
-			"Model catalog sync failed",
-			err.Error(),
-			diagnosticcontract.SeverityError,
-			diagnosticcontract.FreshnessLive,
-		),
+		Diagnostic: diagnostics.NewItem(diagnostics.ItemSpec{
+			ID:            "config.apply.model_catalog_sync_failed",
+			Code:          diagnosticcontract.CodeConfigPartialFailure,
+			Category:      diagnosticcontract.CategoryConfig,
+			Title:         "Model catalog sync failed",
+			Message:       err.Error(),
+			Severity:      diagnosticcontract.SeverityError,
+			DataFreshness: diagnosticcontract.FreshnessLive,
+		}),
 	}}
 }
 

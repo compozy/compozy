@@ -18,7 +18,23 @@ type SettingsProviderSettingsPayload struct {
 	EnvPolicy       string                                  `json:"env_policy,omitempty"`
 	HomePolicy      string                                  `json:"home_policy,omitempty"`
 	AuthStatusCmd   string                                  `json:"auth_status_command,omitempty"`
-	AuthLoginCmd    string                                  `json:"auth_login_command,omitempty"`
+	CredentialSlots []SettingsProviderCredentialSlotPayload `json:"credential_slots,omitempty"`
+}
+
+// SettingsProviderWritePayload accepts auth_login_command without exposing it on reads.
+type SettingsProviderWritePayload struct {
+	Command         string                                  `json:"command,omitempty"`
+	DisplayName     string                                  `json:"display_name,omitempty"`
+	Models          *SettingsProviderModelsPayload          `json:"models,omitempty"`
+	Harness         string                                  `json:"harness,omitempty"`
+	RuntimeProvider string                                  `json:"runtime_provider,omitempty"`
+	Transport       string                                  `json:"transport,omitempty"`
+	BaseURL         string                                  `json:"base_url,omitempty"`
+	AuthMode        string                                  `json:"auth_mode,omitempty"`
+	EnvPolicy       string                                  `json:"env_policy,omitempty"`
+	HomePolicy      string                                  `json:"home_policy,omitempty"`
+	AuthStatusCmd   string                                  `json:"auth_status_command,omitempty"`
+	AuthLoginCmd    *string                                 `json:"auth_login_command,omitempty"`
 	CredentialSlots []SettingsProviderCredentialSlotPayload `json:"credential_slots,omitempty"`
 }
 
@@ -40,25 +56,15 @@ type SettingsProviderCredentialStatusPayload struct {
 	Source    string `json:"source,omitempty"`
 }
 
-type SettingsProviderNativeCLIStatusPayload struct {
-	Command string `json:"command,omitempty"`
-	Present bool   `json:"present"`
-	Path    string `json:"path,omitempty"`
-	Source  string `json:"source,omitempty"`
-	Error   string `json:"error,omitempty"`
-}
-
 type SettingsProviderAuthStatusPayload struct {
-	Mode       string                                  `json:"mode"`
-	EnvPolicy  string                                  `json:"env_policy"`
-	HomePolicy string                                  `json:"home_policy"`
-	State      string                                  `json:"state"`
-	Code       string                                  `json:"code,omitempty"`
-	Message    string                                  `json:"message,omitempty"`
-	StatusCmd  string                                  `json:"status_command,omitempty"`
-	LoginCmd   string                                  `json:"login_command,omitempty"`
-	LoginEnv   []string                                `json:"login_env,omitempty"`
-	NativeCLI  *SettingsProviderNativeCLIStatusPayload `json:"native_cli,omitempty"`
+	Mode       string                         `json:"mode"`
+	EnvPolicy  string                         `json:"env_policy"`
+	HomePolicy string                         `json:"home_policy"`
+	State      string                         `json:"state"`
+	Code       string                         `json:"code,omitempty"`
+	Message    string                         `json:"message,omitempty"`
+	StatusCmd  string                         `json:"status_command,omitempty"`
+	Login      ProviderLoginDescriptorPayload `json:"login"`
 }
 
 type SettingsProviderSecretWritePayload struct {

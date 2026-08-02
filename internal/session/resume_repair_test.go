@@ -313,29 +313,6 @@ func TestRepairRejectsNilContext(t *testing.T) {
 			},
 			want: errResumeRepairContextRequired,
 		},
-		{
-			name: "Should reject nil context in RepairLegacyProvider",
-			call: func(t *testing.T) error {
-				t.Helper()
-
-				h := newHarness(t)
-				meta := validResumeMeta(h, "sess-nil-legacy-repair")
-				var nilCtx context.Context
-				_, err := RepairLegacyProvider(
-					nilCtx,
-					filepath.Join(t.TempDir(), "meta.json"),
-					meta,
-					LegacyProviderRepairOptions{
-						Now:               h.manager.now,
-						Logger:            h.manager.logger,
-						WorkspaceResolver: h.resolver,
-						AgentResolver:     h.manager.agentResolver,
-					},
-				)
-				return err
-			},
-			want: errLegacyProviderRepairContextNeeded,
-		},
 	}
 
 	for _, tc := range tests {

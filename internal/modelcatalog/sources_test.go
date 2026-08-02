@@ -179,8 +179,9 @@ func TestProviderConfigSources(t *testing.T) {
 					testutil.Context(t),
 					ListOptions{ProviderID: "codex", Now: testTime(0)},
 				)
-				var invalid *InvalidReasoningEffortError
-				if !errors.As(err, &invalid) {
+
+				invalid, invalidMatched := errors.AsType[*InvalidReasoningEffortError](err)
+				if !invalidMatched {
 					t.Fatalf("ListModels() error = %T %v, want *InvalidReasoningEffortError", err, err)
 				}
 				if invalid.ProviderID != "codex" || invalid.ModelID != "configured-model" ||

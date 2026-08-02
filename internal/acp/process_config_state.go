@@ -14,9 +14,9 @@ func (p *AgentProcess) setConfigOptionCurrent(optionID string, current string) {
 
 	p.capsMu.Lock()
 	defer p.capsMu.Unlock()
-	for index := range p.Caps.ConfigOptions {
-		if strings.TrimSpace(p.Caps.ConfigOptions[index].ID) == id {
-			p.Caps.ConfigOptions[index].Current = value
+	for index := range p.caps.ConfigOptions {
+		if strings.TrimSpace(p.caps.ConfigOptions[index].ID) == id {
+			p.caps.ConfigOptions[index].Current = value
 			return
 		}
 	}

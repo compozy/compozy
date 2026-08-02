@@ -100,12 +100,6 @@ func (d *Dispatcher) reserveRun(ctx context.Context, req DispatchRequest, attemp
 	}
 
 	now := d.now()
-	if fireLimitErr, err := d.evaluateFireLimit(ctx, req, "", now); err != nil {
-		return nil, err
-	} else if fireLimitErr != nil {
-		return nil, fireLimitErr
-	}
-
 	run := Run{
 		Status:               RunScheduled,
 		Attempt:              attempt,
@@ -118,11 +112,14 @@ func (d *Dispatcher) reserveRun(ctx context.Context, req DispatchRequest, attemp
 		run.TriggerID = req.Trigger.ID
 	}
 
-	created, err := d.runs.CreateRun(ctx, run)
+	result, window, err := d.reserveWithinFireLimit(ctx, req, run, "", "", 0, now)
 	if err != nil {
-		return nil, fmt.Errorf("automation: create scheduled run: %w", err)
+		return nil, err
 	}
-	return &created, nil
+	if !result.Reserved {
+		return nil, fireLimitErrorFromReservation(result, req.fireLimitConfig().Max, window)
+	}
+	return cloneRun(&result.Run), nil
 }
 
 func (d *Dispatcher) reserveExistingRun(ctx context.Context, req DispatchRequest, attempt int) (*Run, error) {
@@ -133,6 +130,8 @@ func (d *Dispatcher) reserveExistingRun(ctx context.Context, req DispatchRequest
 	if strings.TrimSpace(reserved.ID) == "" {
 		return nil, errors.New("automation: reserved run id is required")
 	}
+	expectedStatus := reserved.Status
+	expectedAttempt := reserved.Attempt
 	if reserved.Attempt < attempt {
 		reserved.Attempt = attempt
 	}
@@ -148,14 +147,23 @@ func (d *Dispatcher) reserveExistingRun(ctx context.Context, req DispatchRequest
 	}
 
 	now := d.now()
-	fireLimitErr, err := d.evaluateFireLimit(ctx, req, reserved.ID, now)
+	result, window, err := d.reserveWithinFireLimit(
+		ctx,
+		req,
+		*reserved,
+		reserved.ID,
+		expectedStatus,
+		expectedAttempt,
+		now,
+	)
 	if err != nil {
 		return reserved, err
 	}
-	if fireLimitErr != nil {
+	if !result.Reserved {
+		fireLimitErr := fireLimitErrorFromReservation(result, req.fireLimitConfig().Max, window)
 		return d.finishRun(ctx, reserved, fireLimitRunStatus(req.Kind), fireLimitErr)
 	}
-	return reserved, nil
+	return cloneRun(&result.Run), nil
 }
 
 func fireLimitRunStatus(kind DispatchKind) RunStatus {
@@ -165,72 +173,57 @@ func fireLimitRunStatus(kind DispatchKind) RunStatus {
 	return RunFailed
 }
 
-func (d *Dispatcher) evaluateFireLimit(
+func (d *Dispatcher) reserveWithinFireLimit(
 	ctx context.Context,
 	req DispatchRequest,
-	excludeID string,
+	run Run,
+	existingRunID string,
+	expectedStatus RunStatus,
+	expectedAttempt int,
 	now time.Time,
-) (*FireLimitError, error) {
+) (RunReservationResult, time.Duration, error) {
 	fireLimit := req.fireLimitConfig()
 	window, err := time.ParseDuration(fireLimit.Window)
 	if err != nil {
-		return nil, fmt.Errorf("automation: parse fire-limit window: %w", err)
+		return RunReservationResult{}, 0, fmt.Errorf("automation: parse fire-limit window: %w", err)
 	}
 
-	query := RunQuery{
-		Since:     now.Add(-window),
-		Until:     now,
-		ExcludeID: strings.TrimSpace(excludeID),
-	}
-	if req.Job != nil {
-		query.JobID = req.Job.ID
-	} else {
-		query.TriggerID = req.Trigger.ID
-	}
-
-	d.fireLimitMu.Lock()
-	defer d.fireLimitMu.Unlock()
-
-	runs, err := d.runs.ListRuns(ctx, query)
+	result, err := d.runs.ReserveRun(ctx, RunReservation{
+		Run:             run,
+		ExistingRunID:   strings.TrimSpace(existingRunID),
+		ExpectedStatus:  expectedStatus,
+		ExpectedAttempt: expectedAttempt,
+		Since:           now.Add(-window),
+		Until:           now,
+		Window:          window,
+		Limit:           fireLimit.Max,
+		CountedStatuses: fireLimitCountedStatuses(),
+	})
 	if err != nil {
-		return nil, fmt.Errorf("automation: evaluate fire limit: %w", err)
+		return RunReservationResult{}, 0, fmt.Errorf("automation: reserve scheduled run: %w", err)
 	}
-
-	var (
-		count   int64
-		retryAt time.Time
-	)
-	for _, run := range runs {
-		if !countsTowardFireLimit(run) {
-			continue
-		}
-		count++
-		if run.StartedAt == nil || run.StartedAt.IsZero() {
-			continue
-		}
-		candidate := run.StartedAt.Add(window)
-		if retryAt.IsZero() || candidate.Before(retryAt) {
-			retryAt = candidate
-		}
-	}
-	if count < int64(fireLimit.Max) {
-		return nil, nil
-	}
-	if retryAt.IsZero() {
-		retryAt = now
-	}
-	if retryAt.Before(now) {
-		retryAt = now
-	}
-
-	return &FireLimitError{
-		Count:   count,
-		Limit:   fireLimit.Max,
-		Window:  window,
-		RetryAt: retryAt,
-	}, nil
+	return result, window, nil
 }
 
-func countsTowardFireLimit(run Run) bool {
-	return run.Status != RunCancelled
+func fireLimitErrorFromReservation(
+	result RunReservationResult,
+	limit int,
+	window time.Duration,
+) *FireLimitError {
+	return &FireLimitError{
+		Count:   result.Count,
+		Limit:   limit,
+		Window:  window,
+		RetryAt: result.RetryAt,
+	}
+}
+
+func fireLimitCountedStatuses() []RunStatus {
+	return []RunStatus{
+		RunScheduled,
+		RunRunning,
+		RunDelegated,
+		RunCompleted,
+		RunFailed,
+	}
 }

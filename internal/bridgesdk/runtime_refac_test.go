@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -40,7 +41,7 @@ func TestRuntimeRefacs(t *testing.T) {
 		if err != nil {
 			t.Fatalf("NewRuntime() error = %v", err)
 		}
-		runtime.peer = NewPeer(io.Reader(nil), io.Discard)
+		runtime.peer = mustNewPeer(t, io.NopCloser(strings.NewReader("")), io.Discard)
 
 		raw, err := json.Marshal(testInitializeRequest())
 		if err != nil {
@@ -167,8 +168,9 @@ func TestRuntimeRefacs(t *testing.T) {
 			}
 
 			_, err = runtime.handleShutdown(t.Context(), json.RawMessage(`{"reason":"second"}`))
-			var rpcErr *subprocess.RPCError
-			if !errors.As(err, &rpcErr) {
+
+			rpcErr, rpcErrMatched := errors.AsType[*subprocess.RPCError](err)
+			if !rpcErrMatched {
 				t.Fatalf("second handleShutdown() error = %v, want *subprocess.RPCError", err)
 			}
 			if rpcErr.Code != bridgeSDKRPCCodeShutdownRunning {
@@ -181,7 +183,8 @@ func TestRuntimeRefacs(t *testing.T) {
 				t.Fatalf("shutdownCalls during concurrent shutdown = %d, want %d", got, want)
 			}
 			_, err = runtime.handleHealthCheck(t.Context(), nil)
-			if !errors.As(err, &rpcErr) {
+			rpcErr, rpcErrMatched = errors.AsType[*subprocess.RPCError](err)
+			if !rpcErrMatched {
 				t.Fatalf("handleHealthCheck() during shutdown error = %v, want *subprocess.RPCError", err)
 			}
 			if rpcErr.Code != bridgeSDKRPCCodeShutdownRunning {
@@ -243,7 +246,7 @@ func TestRuntimeRefacs(t *testing.T) {
 		if err != nil {
 			t.Fatalf("NewRuntime() error = %v", err)
 		}
-		runtime.peer = NewPeer(io.Reader(nil), io.Discard)
+		runtime.peer = mustNewPeer(t, io.NopCloser(strings.NewReader("")), io.Discard)
 
 		raw, err := json.Marshal(testInitializeRequest())
 		if err != nil {

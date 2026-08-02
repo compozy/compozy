@@ -72,8 +72,7 @@ func FailureFromError(err error, fallback store.FailureKind) (*store.SessionFail
 	if err == nil {
 		return nil, false
 	}
-	var failureErr *FailureError
-	if errors.As(err, &failureErr) && failureErr != nil {
+	if failureErr, ok := errors.AsType[*FailureError](err); ok && failureErr != nil {
 		kind := failureErr.Kind
 		if !store.ValidFailureKind(kind) {
 			kind = store.FailureUnknown
@@ -83,7 +82,7 @@ func FailureFromError(err error, fallback store.FailureKind) (*store.SessionFail
 			Summary: diagnostics.RedactAndBound(
 				providerFailureDiagnosticSummary(
 					err,
-					firstNonEmptyFailureText(failureErr.Summary, err.Error()),
+					firstTrimmedNonEmpty(failureErr.Summary, err.Error()),
 				),
 				maxFailureSummaryBytes,
 			),
@@ -202,7 +201,7 @@ func requestErrorRaw(err error) json.RawMessage {
 	return payload
 }
 
-func firstNonEmptyFailureText(values ...string) string {
+func firstTrimmedNonEmpty(values ...string) string {
 	for _, value := range values {
 		if trimmed := strings.TrimSpace(value); trimmed != "" {
 			return trimmed

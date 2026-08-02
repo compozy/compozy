@@ -39,11 +39,15 @@ var _ io.Closer = (*Engine)(nil)
 
 // Open constructs a client-state engine over path.
 func Open(
+	ctx context.Context,
 	path string,
 	resolver WorkspaceResolver,
 	limits Limits,
 	options ...Option,
 ) (*Engine, error) {
+	if err := contextError(ctx); err != nil {
+		return nil, err
+	}
 	if resolver == nil {
 		return nil, errors.New("clientstate: workspace resolver is required")
 	}
@@ -75,7 +79,7 @@ func Open(
 			"format_version", stateStoreFormatVersion,
 		)
 	}
-	if err := engine.recoverWorkspacePurges(context.Background()); err != nil {
+	if err := engine.recoverWorkspacePurges(ctx); err != nil {
 		closeErr := store.close()
 		return nil, errors.Join(err, closeErr)
 	}

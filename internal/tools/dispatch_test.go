@@ -442,8 +442,8 @@ func TestRuntimeRegistryDispatchApprovalBridge(t *testing.T) {
 		if called {
 			t.Fatal("provider handle was called without approval bridge")
 		}
-		var toolErr *ToolError
-		if !errors.As(err, &toolErr) || !slices.Contains(toolErr.ReasonCodes, ReasonApprovalUnreachable) {
+		toolErr, toolErrMatched := errors.AsType[*ToolError](err)
+		if !toolErrMatched || !slices.Contains(toolErr.ReasonCodes, ReasonApprovalUnreachable) {
 			t.Fatalf("approval error = %#v, want approval_unreachable", err)
 		}
 		if got, want := events.kinds(), []ToolCallEventKind{ToolCallStarted, ToolCallDenied}; !slices.Equal(got, want) {
@@ -493,8 +493,8 @@ func TestRuntimeRegistryDispatchApprovalBridge(t *testing.T) {
 				if called {
 					t.Fatal("provider handle was called after approval denial")
 				}
-				var toolErr *ToolError
-				if !errors.As(err, &toolErr) || !slices.Contains(toolErr.ReasonCodes, tc.want) {
+				toolErr, toolErrMatched := errors.AsType[*ToolError](err)
+				if !toolErrMatched || !slices.Contains(toolErr.ReasonCodes, tc.want) {
 					t.Fatalf("approval error = %#v, want reason %q", err, tc.want)
 				}
 			})
@@ -1216,8 +1216,8 @@ func TestRuntimeRegistryDispatchResultLimitingAndRedaction(t *testing.T) {
 			postErrorCalled := false
 			hooks := &recordingHookRunner{postError: func(_ context.Context, _ CallRequest, err error) error {
 				postErrorCalled = true
-				var toolErr *ToolError
-				if !errors.As(err, &toolErr) || toolErr.PartialResult == nil {
+				toolErr, toolErrMatched := errors.AsType[*ToolError](err)
+				if !toolErrMatched || toolErr.PartialResult == nil {
 					t.Fatalf("PostError error = %T %[1]v, want typed partial result", err)
 				}
 				if strings.Contains(toolErr.PartialResult.Preview, "secret") {
@@ -1247,8 +1247,8 @@ func TestRuntimeRegistryDispatchResultLimitingAndRedaction(t *testing.T) {
 			if !result.Truncated || result.Preview == "" || len(result.Artifacts) != 0 {
 				t.Fatalf("partial result = %#v, want preview without artifact reference", result)
 			}
-			var toolErr *ToolError
-			if !errors.As(err, &toolErr) || toolErr.Code != ErrorCodeResultPersistenceFailed ||
+			toolErr, toolErrMatched := errors.AsType[*ToolError](err)
+			if !toolErrMatched || toolErr.Code != ErrorCodeResultPersistenceFailed ||
 				toolErr.PartialResult == nil {
 				t.Fatalf("RuntimeRegistry.Call() error = %#v, want persistence code and partial result", toolErr)
 			}
@@ -1321,8 +1321,9 @@ func TestRuntimeRegistryDispatchResultLimitingAndRedaction(t *testing.T) {
 						data,
 					)
 				}
-				var toolErr *ToolError
-				if !errors.As(err, &toolErr) {
+
+				toolErr, toolErrMatched := errors.AsType[*ToolError](err)
+				if !toolErrMatched {
 					t.Fatalf("RuntimeRegistry.Call() error = %T %[1]v, want ToolError", err)
 				}
 				if !slices.Contains(toolErr.ReasonCodes, ReasonSchemaInvalid) {

@@ -295,8 +295,9 @@ func TestIdentityErrorDiagnosticItem(t *testing.T) {
 			"agent token=identity-secret is required",
 			"export COMPOZY_SESSION_ID",
 		)
-		var identityErr *Error
-		if !errors.As(err, &identityErr) {
+
+		identityErr, identityErrMatched := errors.AsType[*Error](err)
+		if !identityErrMatched {
 			t.Fatal("errors.As() = false, want *Error")
 		}
 		item := identityErr.ToDiagnosticItem()
@@ -607,15 +608,15 @@ func TestErrorPayloadFallbacksAndExitCodes(t *testing.T) {
 		},
 		{
 			name: "Should map config invalid diagnostic to config invalid exit",
-			err: diagnostics.NewStructuredError(diagnostics.NewItem(
-				"config.parse",
-				contract.CodeConfigInvalid,
-				contract.CategoryConfig,
-				"Config invalid",
-				"config token=secret failed",
-				contract.SeverityCritical,
-				contract.FreshnessLive,
-			), errors.New("parse failed")),
+			err: diagnostics.NewStructuredError(diagnostics.NewItem(diagnostics.ItemSpec{
+				ID:            "config.parse",
+				Code:          contract.CodeConfigInvalid,
+				Category:      contract.CategoryConfig,
+				Title:         "Config invalid",
+				Message:       "config token=secret failed",
+				Severity:      contract.SeverityCritical,
+				DataFreshness: contract.FreshnessLive,
+			}), errors.New("parse failed")),
 			wantCode:   "agent_error",
 			wantMsg:    agentCommandFailedMessage,
 			wantAction: "inspect the daemon error and retry",

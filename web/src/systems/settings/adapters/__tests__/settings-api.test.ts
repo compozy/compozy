@@ -325,7 +325,6 @@ describe("collection endpoints", () => {
             env_policy: "filtered",
             home_policy: "operator",
             auth_status_command: "codex auth status",
-            auth_login_command: "codex login",
             credential_slots: [
               {
                 name: "api_key",
@@ -346,6 +345,13 @@ describe("collection endpoints", () => {
             home_policy: "operator",
             state: "unknown",
             code: "provider_classification_unknown",
+            login: {
+              configured: true,
+              executable: "codex",
+              presence: "unknown",
+              recommended_action: "inspect",
+              source: "auth_login_command",
+            },
           },
         },
       ],
@@ -358,6 +364,14 @@ describe("collection endpoints", () => {
     expect(result.providers[0]?.source_metadata.effective_source.kind).toBe("global-config");
     expect(result.providers[0]?.settings.auth_mode).toBe("native_cli");
     expect(result.providers[0]?.auth_status?.state).toBe("unknown");
+    expect(result.providers[0]?.settings).not.toHaveProperty("auth_login_command");
+    expect(result.providers[0]?.auth_status?.login).toEqual({
+      configured: true,
+      executable: "codex",
+      presence: "unknown",
+      recommended_action: "inspect",
+      source: "auth_login_command",
+    });
     await expectFetchRequest({ path: "/api/settings/providers" });
   });
 
@@ -374,6 +388,7 @@ describe("collection endpoints", () => {
         auth_mode: "native_cli",
         env_policy: "filtered",
         home_policy: "operator",
+        auth_login_command: "codex login",
       },
     });
 
@@ -389,6 +404,7 @@ describe("collection endpoints", () => {
           auth_mode: "native_cli",
           env_policy: "filtered",
           home_policy: "operator",
+          auth_login_command: "codex login",
         },
       },
       method: "PUT",

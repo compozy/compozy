@@ -240,7 +240,7 @@ func TestProviderSystemPromptBlock(t *testing.T) {
 		if err := store.EnsureDirs(); err != nil {
 			t.Fatalf("Store.EnsureDirs() error = %v", err)
 		}
-		if err := store.Write(memcontract.ScopeGlobal, "project_auth.md", memoryPayload(t, memoryPayloadMeta{
+		if err := store.Write(ctx, memcontract.ScopeGlobal, "project_auth.md", memoryPayload(t, memoryPayloadMeta{
 			Name:        "Auth Runtime",
 			Description: "Auth session rules",
 			Type:        memcontract.TypeProject,
@@ -310,7 +310,7 @@ func TestProviderRecall(t *testing.T) {
 		if err := store.EnsureDirs(); err != nil {
 			t.Fatalf("Store.EnsureDirs() error = %v", err)
 		}
-		if err := store.Write(memcontract.ScopeWorkspace, "project_auth.md", memoryPayload(t, memoryPayloadMeta{
+		if err := store.Write(ctx, memcontract.ScopeWorkspace, "project_auth.md", memoryPayload(t, memoryPayloadMeta{
 			Name:        "Workspace Auth",
 			Description: "Workspace auth migration",
 			Type:        memcontract.TypeProject,
@@ -380,7 +380,7 @@ func TestProviderOnMemoryWrite(t *testing.T) {
 		if err := provider.OnMemoryWrite(ctx, memcontract.WriteRecord{Decision: decision}); err != nil {
 			t.Fatalf("OnMemoryWrite() error = %v", err)
 		}
-		got, err := store.Read(memcontract.ScopeGlobal, "project_provider_write.md")
+		got, err := store.Read(ctx, memcontract.ScopeGlobal, "project_provider_write.md")
 		if err != nil {
 			t.Fatalf("Store.Read() error = %v", err)
 		}
@@ -704,7 +704,7 @@ func TestProviderAgentSnapshot(t *testing.T) {
 		if err := agentStore.EnsureDirs(); err != nil {
 			t.Fatalf("agentStore.EnsureDirs() error = %v", err)
 		}
-		if err := agentStore.Write(memcontract.ScopeAgent, "feedback_style.md", agentPayload(t)); err != nil {
+		if err := agentStore.Write(ctx, memcontract.ScopeAgent, "feedback_style.md", agentPayload(t)); err != nil {
 			t.Fatalf("agentStore.Write() error = %v", err)
 		}
 
@@ -777,7 +777,8 @@ func (b *stubBackend) EnsureDirs() error {
 }
 
 func (b *stubBackend) LoadPromptIndex(
-	memcontract.Scope,
+	_ context.Context,
+	_ memcontract.Scope,
 ) (content string, truncated bool, err error) {
 	if b.loadErr != nil {
 		return "", false, b.loadErr
@@ -785,7 +786,7 @@ func (b *stubBackend) LoadPromptIndex(
 	return b.prompt, false, nil
 }
 
-func (b *stubBackend) List(memcontract.Scope) ([]memcontract.Header, error) {
+func (b *stubBackend) List(_ context.Context, _ memcontract.Scope) ([]memcontract.Header, error) {
 	if b.listErr != nil {
 		return nil, b.listErr
 	}

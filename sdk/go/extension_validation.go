@@ -3,8 +3,9 @@ package compozysdk
 import (
 	"encoding/json"
 	"errors"
-
+	"math"
 	"strings"
+	"time"
 )
 
 func validateInitializeRequest(request InitializeRequest) error {
@@ -29,10 +30,20 @@ func validateInitializeRequest(request InitializeRequest) error {
 	if request.Runtime.ShutdownTimeoutMS <= 0 {
 		return NewInvalidParamsError("shutdown_timeout_ms must be greater than zero", nil)
 	}
+	if _, ok := millisecondsDuration(request.Runtime.ShutdownTimeoutMS); !ok {
+		return NewInvalidParamsError("shutdown_timeout_ms exceeds the supported duration", nil)
+	}
 	if request.Runtime.DefaultHookTimeoutMS <= 0 {
 		return NewInvalidParamsError("default_hook_timeout_ms must be greater than zero", nil)
 	}
 	return nil
+}
+
+func millisecondsDuration(milliseconds int64) (time.Duration, bool) {
+	if milliseconds <= 0 || milliseconds > math.MaxInt64/int64(time.Millisecond) {
+		return 0, false
+	}
+	return time.Duration(milliseconds) * time.Millisecond, true
 }
 
 func normalizeHostMethods(values []HostAPIMethod) []HostAPIMethod {

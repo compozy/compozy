@@ -102,7 +102,7 @@ func templateJoin(separator string, value any) (string, error) {
 		reflected := reflect.ValueOf(value)
 		if reflected.IsValid() && reflected.Kind() == reflect.Slice {
 			parts := make([]string, 0, reflected.Len())
-			for i := 0; i < reflected.Len(); i++ {
+			for i := range reflected.Len() {
 				parts = append(parts, fmt.Sprint(reflected.Index(i).Interface()))
 			}
 			return strings.Join(parts, separator), nil

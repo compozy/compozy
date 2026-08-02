@@ -6,6 +6,7 @@ import (
 	"time"
 
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	"github.com/compozy/compozy/internal/notifications"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
@@ -173,23 +174,24 @@ type CreateTaskBridgeNotificationSubscriptionRequest struct {
 func (r BridgeTestDeliveryRequest) ToResolveDeliveryTargetRequest(
 	bridgeInstanceID string,
 ) (bridgepkg.ResolveDeliveryTargetRequest, error) {
+	if err := (bridgepkg.ResolveDeliveryTargetRequest{BridgeInstanceID: bridgeInstanceID}).Validate(); err != nil {
+		return bridgepkg.ResolveDeliveryTargetRequest{}, err
+	}
 	req := bridgepkg.ResolveDeliveryTargetRequest{
-		BridgeInstanceID: strings.TrimSpace(r.Target.BridgeInstanceID),
-		PeerID:           strings.TrimSpace(r.Target.PeerID),
-		ThreadID:         strings.TrimSpace(r.Target.ThreadID),
-		GroupID:          strings.TrimSpace(r.Target.GroupID),
-		Mode:             r.Target.Mode.Normalize(),
+		BridgeInstanceID: r.Target.BridgeInstanceID,
+		PeerID:           r.Target.PeerID,
+		ThreadID:         r.Target.ThreadID,
+		GroupID:          r.Target.GroupID,
+		Mode:             r.Target.Mode,
 	}
-	req.BridgeInstanceID = strings.TrimSpace(req.BridgeInstanceID)
-	trimmedID := strings.TrimSpace(bridgeInstanceID)
 	if req.BridgeInstanceID == "" {
-		req.BridgeInstanceID = trimmedID
-	}
-	if req.BridgeInstanceID != trimmedID {
-		return bridgepkg.ResolveDeliveryTargetRequest{}, ErrBridgeInstanceMismatch
+		req.BridgeInstanceID = bridgeInstanceID
 	}
 	if err := req.Validate(); err != nil {
 		return bridgepkg.ResolveDeliveryTargetRequest{}, err
+	}
+	if req.BridgeInstanceID != bridgeInstanceID {
+		return bridgepkg.ResolveDeliveryTargetRequest{}, ErrBridgeInstanceMismatch
 	}
 	return req, nil
 }
@@ -250,14 +252,15 @@ type BridgeResolveTargetResponse struct {
 // TaskBridgeNotificationCursorPayload exposes the durable cursor identity and
 // latest diagnostic state for one bridge terminal notification subscription.
 type TaskBridgeNotificationCursorPayload struct {
-	ConsumerID      string     `json:"consumer_id"`
-	StreamName      string     `json:"stream_name"`
-	SubjectID       string     `json:"subject_id"`
-	LastSequence    int64      `json:"last_sequence"`
-	LastDeliveryID  string     `json:"last_delivery_id,omitempty"`
-	LastDeliveredAt *time.Time `json:"last_delivered_at,omitempty"`
-	LastError       string     `json:"last_error,omitempty"`
-	UpdatedAt       *time.Time `json:"updated_at,omitempty"`
+	Scope           notifications.ScopeRef `json:"scope"`
+	ConsumerID      string                 `json:"consumer_id"`
+	StreamName      string                 `json:"stream_name"`
+	SubjectID       string                 `json:"subject_id"`
+	LastSequence    int64                  `json:"last_sequence"`
+	LastDeliveryID  string                 `json:"last_delivery_id,omitempty"`
+	LastDeliveredAt *time.Time             `json:"last_delivered_at,omitempty"`
+	LastError       string                 `json:"last_error,omitempty"`
+	UpdatedAt       *time.Time             `json:"updated_at,omitempty"`
 }
 
 // TaskBridgeNotificationSubscriptionPayload exposes one bridge terminal

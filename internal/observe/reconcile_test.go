@@ -393,162 +393,10 @@ func TestReconciliationMarksMissingDirectoryAsOrphaned(t *testing.T) {
 	})
 }
 
-func TestReconciliationLegacyProviderRepair(t *testing.T) {
+func TestReconciliationSkipsSessionMetadataWithoutProvider(t *testing.T) {
 	t.Parallel()
 
-	testCases := []struct {
-		name   string
-		setup  func(t *testing.T, h *harness) map[string]string
-		assert func(t *testing.T, h *harness, result store.ReconcileResult, paths map[string]string)
-	}{
-		{
-			name: "Should repair the legacy provider before indexing the session",
-			setup: func(t *testing.T, h *harness) map[string]string {
-				t.Helper()
-
-				sessionDir := filepath.Join(h.home.SessionsDir, "sess-repair")
-				metaPath := store.SessionMetaFile(sessionDir)
-				now := h.now.Add(40 * time.Minute)
-
-				if err := store.WriteSessionMeta(metaPath, store.SessionMeta{
-					ID:                   "sess-repair",
-					Name:                 "Repair",
-					AgentName:            "coder",
-					WorkspaceID:          h.workspaceID,
-					NetworkParticipation: participation.CloneSpec(participation.LocalSpec()),
-					State:                "stopped",
-					RuntimeStatus:        store.SessionRuntimeUnbound,
-					CreatedAt:            now,
-					UpdatedAt:            now,
-				}); err != nil {
-					t.Fatalf("WriteSessionMeta() error = %v", err)
-				}
-
-				return map[string]string{"repair": metaPath}
-			},
-			assert: func(t *testing.T, h *harness, result store.ReconcileResult, paths map[string]string) {
-				t.Helper()
-
-				if got, want := result.Indexed, []string{"sess-repair"}; !testutil.EqualStringSlices(got, want) {
-					t.Fatalf("Indexed = %#v, want %#v", got, want)
-				}
-
-				sessions, err := h.observer.registry.ListSessions(testutil.Context(t), store.SessionListQuery{})
-				if err != nil {
-					t.Fatalf("ListSessions() error = %v", err)
-				}
-				if got, want := len(sessions), 1; got != want {
-					t.Fatalf("len(sessions) = %d, want %d", got, want)
-				}
-				if got, want := sessions[0].Provider, "claude"; got != want {
-					t.Fatalf("sessions[0].Provider = %q, want %q", got, want)
-				}
-
-				meta, err := store.ReadSessionMeta(paths["repair"])
-				if err != nil {
-					t.Fatalf("ReadSessionMeta() error = %v", err)
-				}
-				if got, want := meta.Provider, "claude"; got != want {
-					t.Fatalf("meta.Provider = %q, want %q", got, want)
-				}
-			},
-		},
-		{
-			name: "Should skip an unrecoverable legacy provider and continue indexing valid sessions",
-			setup: func(t *testing.T, h *harness) map[string]string {
-				t.Helper()
-
-				validDir := filepath.Join(h.home.SessionsDir, "sess-valid-after-bad-repair")
-				validMetaPath := store.SessionMetaFile(validDir)
-				badDir := filepath.Join(h.home.SessionsDir, "sess-bad-repair")
-				badMetaPath := store.SessionMetaFile(badDir)
-				now := h.now.Add(50 * time.Minute)
-
-				if err := store.WriteSessionMeta(validMetaPath, store.SessionMeta{
-					ID:                   "sess-valid-after-bad-repair",
-					Name:                 "Valid",
-					AgentName:            "coder",
-					Provider:             "claude",
-					WorkspaceID:          h.workspaceID,
-					NetworkParticipation: participation.CloneSpec(participation.LocalSpec()),
-					State:                "active",
-					RuntimeStatus:        store.SessionRuntimeUnbound,
-					CreatedAt:            now,
-					UpdatedAt:            now,
-				}); err != nil {
-					t.Fatalf("WriteSessionMeta(valid) error = %v", err)
-				}
-				if err := store.WriteSessionMeta(badMetaPath, store.SessionMeta{
-					ID:                   "sess-bad-repair",
-					Name:                 "Bad Repair",
-					AgentName:            "missing-agent",
-					WorkspaceID:          h.workspaceID,
-					NetworkParticipation: participation.CloneSpec(participation.LocalSpec()),
-					State:                "stopped",
-					RuntimeStatus:        store.SessionRuntimeUnbound,
-					CreatedAt:            now,
-					UpdatedAt:            now,
-				}); err != nil {
-					t.Fatalf("WriteSessionMeta(bad) error = %v", err)
-				}
-
-				return map[string]string{"bad": badMetaPath}
-			},
-			assert: func(t *testing.T, h *harness, result store.ReconcileResult, paths map[string]string) {
-				t.Helper()
-
-				if got, want := result.Indexed, []string{
-					"sess-valid-after-bad-repair",
-				}; !testutil.EqualStringSlices(
-					got,
-					want,
-				) {
-					t.Fatalf("Indexed = %#v, want %#v", got, want)
-				}
-
-				sessions, err := h.observer.registry.ListSessions(testutil.Context(t), store.SessionListQuery{})
-				if err != nil {
-					t.Fatalf("ListSessions() error = %v", err)
-				}
-				if got, want := len(sessions), 1; got != want {
-					t.Fatalf("len(sessions) = %d, want %d", got, want)
-				}
-				if got, want := sessions[0].ID, "sess-valid-after-bad-repair"; got != want {
-					t.Fatalf("sessions[0].ID = %q, want %q", got, want)
-				}
-
-				meta, err := store.ReadSessionMeta(paths["bad"])
-				if err != nil {
-					t.Fatalf("ReadSessionMeta() error = %v", err)
-				}
-				if got := meta.Provider; got != "" {
-					t.Fatalf("bad meta.Provider = %q, want empty after skipped repair", got)
-				}
-			},
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			h := newHarness(t)
-			paths := tc.setup(t, h)
-
-			result, err := h.observer.Reconcile(testutil.Context(t))
-			if err != nil {
-				t.Fatalf("Reconcile() error = %v", err)
-			}
-			sort.Strings(result.Indexed)
-			tc.assert(t, h, result, paths)
-		})
-	}
-}
-
-func TestReconciliationSkipsLegacyStoppedSessionMetadata(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should skip legacy stopped metadata that cannot be normalized", func(t *testing.T) {
+	t.Run("Should skip invalid metadata without mutating it and continue indexing valid sessions", func(t *testing.T) {
 		t.Parallel()
 
 		h := newHarness(t)
@@ -571,22 +419,23 @@ func TestReconciliationSkipsLegacyStoppedSessionMetadata(t *testing.T) {
 			t.Fatalf("WriteSessionMeta(valid) error = %v", err)
 		}
 
-		legacyDir := filepath.Join(h.home.SessionsDir, "sess-legacy")
-		if err := os.MkdirAll(legacyDir, 0o755); err != nil {
-			t.Fatalf("MkdirAll(legacyDir) error = %v", err)
+		invalidMetaPath := store.SessionMetaFile(filepath.Join(h.home.SessionsDir, "sess-without-provider"))
+		if err := store.WriteSessionMeta(invalidMetaPath, store.SessionMeta{
+			ID:                   "sess-without-provider",
+			Name:                 "Missing Provider",
+			AgentName:            "coder",
+			WorkspaceID:          h.workspaceID,
+			NetworkParticipation: participation.CloneSpec(participation.LocalSpec()),
+			State:                "stopped",
+			RuntimeStatus:        store.SessionRuntimeUnbound,
+			CreatedAt:            now,
+			UpdatedAt:            now,
+		}); err != nil {
+			t.Fatalf("WriteSessionMeta(invalid) error = %v", err)
 		}
-		legacyMeta := `{
-  "id": "sess-legacy",
-  "name": "legacy-session",
-  "goal": "Legacy prompt",
-  "workspace": "` + h.workspace + `",
-  "state": "stopped",
-  "created_at": "2026-04-01T03:57:38.428414Z",
-  "stopped_at": "2026-04-01T03:58:00.212132Z"
-}
-`
-		if err := os.WriteFile(store.SessionMetaFile(legacyDir), []byte(legacyMeta), 0o644); err != nil {
-			t.Fatalf("WriteFile(legacy meta) error = %v", err)
+		before, err := os.ReadFile(invalidMetaPath)
+		if err != nil {
+			t.Fatalf("ReadFile(invalid metadata before reconcile) error = %v", err)
 		}
 
 		result, err := h.observer.Reconcile(testutil.Context(t))
@@ -607,6 +456,13 @@ func TestReconciliationSkipsLegacyStoppedSessionMetadata(t *testing.T) {
 		}
 		if sessions[0].ID != "sess-valid" {
 			t.Fatalf("sessions[0].ID = %q, want %q", sessions[0].ID, "sess-valid")
+		}
+		after, err := os.ReadFile(invalidMetaPath)
+		if err != nil {
+			t.Fatalf("ReadFile(invalid metadata after reconcile) error = %v", err)
+		}
+		if !bytes.Equal(after, before) {
+			t.Fatalf("invalid metadata changed during reconcile:\n before: %s\n after: %s", before, after)
 		}
 	})
 }

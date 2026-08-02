@@ -88,9 +88,18 @@ func isExpectedStdioServerTermination(err error) bool {
 		errors.Is(err, mcpgo.ErrConnectionClosed) {
 		return true
 	}
+	return isSDKServerClosingEOF(err)
+}
+
+func isSDKServerClosingEOF(err error) bool {
+	if err == nil || err.Error() != "server is closing: EOF" {
+		return false
+	}
 	// The SDK's JSON-RPC transport currently formats a normal stdin EOF as
-	// "server is closing: EOF" without retaining EOF in its error chain.
-	return strings.HasPrefix(err.Error(), "server is closing:") && strings.HasSuffix(err.Error(), ": EOF")
+	// "server is closing: EOF". It retains its private server-closing sentinel,
+	// but formats the underlying EOF with %v, so EOF itself is not in the chain.
+	closing := errors.Unwrap(err)
+	return closing != nil && closing.Error() == "server is closing"
 }
 
 func newHostAPIMCPServer(

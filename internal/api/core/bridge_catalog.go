@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
@@ -162,10 +161,10 @@ func bridgeCatalogHealthFromObserver(
 	}
 	requested := make(map[string]struct{}, len(instances))
 	for _, instance := range instances {
-		requested[strings.TrimSpace(instance.ID)] = struct{}{}
+		requested[instance.ID] = struct{}{}
 	}
 	for _, item := range observed {
-		id := strings.TrimSpace(item.BridgeInstanceID)
+		id := item.BridgeInstanceID
 		if _, ok := requested[id]; ok {
 			health[id] = BridgeHealthPayloadFromObserve(item)
 		}
@@ -186,7 +185,7 @@ func (h *BaseHandlers) enrichBridgeCatalogHealth(
 	bindingMap, bindingsAvailable := h.bridgeCatalogSecretBindings(ctx, bridges, items, providerCatalog)
 	for _, item := range items {
 		instance := item.Instance
-		id := strings.TrimSpace(instance.ID)
+		id := instance.ID
 		current := health[id]
 		current.Status = item.EffectiveStatus
 		current = bridgeBaseHealthPayload(instance, current)
@@ -245,7 +244,7 @@ func (h *BaseHandlers) bridgeCatalogSecretBindings(
 	for _, item := range items {
 		provider, _ := providerCatalog.providerForInstance(item.Instance)
 		if provider != nil && bridgeProviderHasRequiredSecretSlots(*provider) {
-			ids = append(ids, strings.TrimSpace(item.Instance.ID))
+			ids = append(ids, item.Instance.ID)
 		}
 	}
 	if len(ids) == 0 {

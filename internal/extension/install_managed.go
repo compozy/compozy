@@ -3,6 +3,7 @@ package extensionpkg
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 
 	"os"
 	"path/filepath"
@@ -161,9 +162,11 @@ func InstallLocalManaged(
 		return err
 	}
 
-	if err := registrypkg.MoveInstalledDir(stagingDir, finalDir, false); err != nil {
+	moveResult, err := registrypkg.MoveInstalledDir(stagingDir, finalDir, false)
+	if err != nil {
 		return fmt.Errorf("extension: move local extension %q into managed install path: %w", manifest.Name, err)
 	}
+	logLocalInstallCleanupDiagnostics(moveResult.CleanupDiagnostics)
 	cleanupStaging = false
 
 	installedChecksum, err := ComputeDirectoryChecksum(finalDir)
@@ -186,6 +189,16 @@ func InstallLocalManaged(
 	}
 
 	return nil
+}
+
+func logLocalInstallCleanupDiagnostics(diagnostics []registrypkg.CleanupDiagnostic) {
+	for _, diagnostic := range diagnostics {
+		slog.Warn(
+			"managed extension install cleanup degraded",
+			"operation", diagnostic.Operation,
+			"install_source", "local",
+		)
+	}
 }
 
 func validateManagedInstallInput(

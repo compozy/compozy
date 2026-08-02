@@ -14,12 +14,16 @@ function normalizeOptionalText(value?: string | null): string | undefined {
   return normalized === "" ? undefined : normalized;
 }
 
+function optionalOpaqueIdentity(value?: string | null): string | undefined {
+  return typeof value === "string" && value !== "" ? value : undefined;
+}
+
 export function normalizeBridgeCatalogFilter(
   filters: BridgeCatalogFilter = {}
 ): BridgeCatalogFilter {
   return {
     scope: filters.scope,
-    workspace_id: normalizeOptionalText(filters.workspace_id),
+    workspace_id: optionalOpaqueIdentity(filters.workspace_id),
     workspace: normalizeOptionalText(filters.workspace),
     q: normalizeOptionalText(filters.q),
     platform: normalizeOptionalText(filters.platform),

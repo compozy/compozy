@@ -14,6 +14,7 @@ import (
 	"github.com/compozy/compozy/internal/session/inputqueue"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/sessiondb"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/compozy/compozy/internal/workspaceaccess"
@@ -63,16 +64,20 @@ type CreateAcceptedOpts struct {
 	Session CreateOpts
 }
 
-// StoreOpener opens the per-session events store for a session directory.
-type StoreOpener func(ctx context.Context, sessionID string, path string) (EventRecorder, error)
+// StoreOpener opens the per-session events store for the exact immutable owner.
+// Implementations must forward both owner fields unchanged to the storage boundary.
+type StoreOpener func(ctx context.Context, owner store.SessionDBOwner, path string) (EventRecorder, error)
 
-// QueryStoreOpener opens a read-only per-session events store for query paths.
-type QueryStoreOpener func(ctx context.Context, sessionID string, path string) (EventReadCloser, error)
+// QueryStoreOpener opens the read-only per-session events store for the exact
+// immutable owner. Implementations must forward both owner fields unchanged.
+type QueryStoreOpener func(ctx context.Context, owner store.SessionDBOwner, path string) (EventReadCloser, error)
+
+type sessionDBFamilyLeaseAcquirer func(context.Context, string) (*sessiondb.FamilyLease, error)
 
 type sessionMetaReader func(path string) (store.SessionMeta, error)
 
-// IDGenerator returns unique identifiers for sessions and prompt turns.
-type IDGenerator func() string
+// IDGenerator returns a unique identifier or the entropy failure that prevented allocation.
+type IDGenerator func() (string, error)
 
 // HostedMCPLauncher mints and releases session-bound hosted MCP launch records.
 type HostedMCPLauncher interface {
@@ -113,36 +118,25 @@ type sessionResumeRun struct {
 
 // Manager owns active session lifecycle and runtime orchestration.
 type Manager struct {
-	mu                   sync.RWMutex
-	lifecycleMu          sync.Mutex
-	sessions             map[string]*Session
-	pending              map[string]sessionReservation
-	finalizing           map[string]*sessionFinalization
-	promptDrains         map[chan struct{}]struct{}
-	spawnMu              sync.Mutex
-	managedInputMu       sync.Mutex
-	managedInputLeases   map[string]managedInputLease
-	goalCommandMu        sync.RWMutex
-	promptAdmissionMu    sync.Mutex
-	promptAdmissionLocks map[string]*promptAdmissionLock
-	resumeReplayMu       sync.Mutex
-	resumeReplays        map[string]string
-	compactionMu         sync.Mutex
-	compactions          map[string]*sessionCompactionState
-	compactionWG         sync.WaitGroup
-	compactionClosing    bool
-	startMu              sync.Mutex
-	startRuns            map[string]*sessionStartRun
-	startWG              sync.WaitGroup
-	startClosing         bool
-	resumeMu             sync.Mutex
-	resumeRuns           map[string]*sessionResumeRun
-	resumeClosing        bool
-	processWatchMu       sync.Mutex
-	processWatchWG       sync.WaitGroup
-	processWatchCtx      context.Context
-	processWatchCancel   context.CancelFunc
-	processWatchClosing  bool
+	mu                    sync.RWMutex
+	lifecycleMu           sync.Mutex
+	sessions              map[string]*Session
+	pending               map[string]sessionReservation
+	finalizing            map[string]*sessionFinalization
+	clearFinalizing       map[string]chan struct{}
+	promptDrains          map[chan struct{}]struct{}
+	spawnMu               sync.Mutex
+	managedInputMu        sync.Mutex
+	managedInputLeases    map[string]managedInputLease
+	goalCommandMu         sync.RWMutex
+	promptAdmissionMu     sync.Mutex
+	promptAdmissionLocks  map[string]*promptAdmissionLock
+	resumeReplayMu        sync.Mutex
+	resumeReplays         map[string]string
+	compactionLifecycle   sessionCompactionLifecycle
+	startLifecycle        sessionStartLifecycle
+	resumeLifecycle       sessionResumeLifecycle
+	processWatchLifecycle sessionProcessWatchLifecycle
 
 	syntheticMu           sync.Mutex
 	syntheticQueues       map[string][]queuedSyntheticPrompt
@@ -205,7 +199,8 @@ type Manager struct {
 	newSessionID                 IDGenerator
 	newSandboxID                 IDGenerator
 	newTurnID                    IDGenerator
-	renamePath                   func(oldPath string, newPath string) error
+	newRepairEventID             IDGenerator
+	acquireSessionDBFamilyLease  sessionDBFamilyLeaseAcquirer
 	removeAllPath                func(path string) error
 	promptBufSize                int
 	soulRefreshTimeout           time.Duration

@@ -2,15 +2,15 @@ package extensionpkg
 
 import (
 	"context"
-
 	"errors"
-	"fmt"
-
 	"time"
 
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	"github.com/compozy/compozy/internal/diagnostics"
 	eventspkg "github.com/compozy/compozy/internal/events"
 )
+
+const maxExtensionFailureLogBytes = 1024
 
 func (m *Manager) setFailure(ext *managedExtension, phase ExtensionPhase, err error) {
 	if ext == nil || err == nil {
@@ -24,7 +24,15 @@ func (m *Manager) setFailure(ext *managedExtension, phase ExtensionPhase, err er
 	name := ext.info.Name
 	m.mu.Unlock()
 
-	m.logger.Error("extension.lifecycle.failed", managerExtensionKey, name, "phase", phase, "error", err)
+	m.logger.Error(
+		"extension.lifecycle.failed",
+		managerExtensionKey,
+		name,
+		"phase",
+		phase,
+		"error",
+		diagnostics.RedactAndBound(err.Error(), maxExtensionFailureLogBytes),
+	)
 }
 
 func (m *Manager) lookupManaged(name string) (*managedExtension, bool) {
@@ -75,13 +83,13 @@ func (m *Manager) recordOwnedInstanceFailure(
 	owner *managedExtension,
 	expectedProcess processHandle,
 	reason error,
-) (time.Duration, bool, bool) {
+) (time.Duration, *managedInstanceIdentity, bool) {
 	m.mu.Lock()
 	ext := m.instanceLocked(key)
 	if ext == nil || m.stopping || ext.supervisionStopped || owner != nil && ext != owner ||
 		expectedProcess != nil && ext.process != expectedProcess {
 		m.mu.Unlock()
-		return 0, false, false
+		return 0, nil, false
 	}
 
 	ext.process = nil
@@ -93,11 +101,22 @@ func (m *Manager) recordOwnedInstanceFailure(
 	ext.consecutiveFailures++
 	cleanups := ext.redactionCleanups
 	ext.redactionCleanups = nil
+	capabilityGrantID := ext.capabilityGrantID
+	ext.capabilityGrantID = ""
 	instanceIDs := managedBridgeInstanceIDs(ext)
 	failures := ext.consecutiveFailures
 	name := key.runtimeID()
 	if ext.consecutiveFailures >= m.restartFailureThreshold {
+		identity := managedInstanceIdentity{
+			key:          key.Normalize(),
+			owner:        ext,
+			generation:   ext.generation,
+			sessionNonce: ext.sessionNonce,
+		}
 		m.mu.Unlock()
+		if capabilityGrantID != "" {
+			m.capChecker.Unregister(capabilityGrantID)
+		}
 		runExtensionRedactionCleanups(cleanups)
 		m.reportBridgeRuntimeIssues(instanceIDs, bridgepkg.BridgeStatusError, reason)
 		m.logger.Error(
@@ -111,12 +130,15 @@ func (m *Manager) recordOwnedInstanceFailure(
 			"consecutive_failures",
 			failures,
 		)
-		return 0, true, true
+		return 0, &identity, true
 	}
 
 	ext.restartBackoff = restartBackoff(ext.consecutiveFailures, m.restartBackoffMax)
 	backoff := ext.restartBackoff
 	m.mu.Unlock()
+	if capabilityGrantID != "" {
+		m.capChecker.Unregister(capabilityGrantID)
+	}
 	runExtensionRedactionCleanups(cleanups)
 	m.reportBridgeRuntimeIssues(instanceIDs, bridgepkg.BridgeStatusDegraded, reason)
 	if eventErr := recordExtensionLifecycleEvent(m.lifecycleContext(), m.lifecycleEventSink, LifecycleEvent{
@@ -134,7 +156,7 @@ func (m *Manager) recordOwnedInstanceFailure(
 		"consecutive_failures", failures,
 		"restart_backoff_ms", backoff.Milliseconds(),
 	)
-	return backoff, false, true
+	return backoff, nil, true
 }
 
 func (m *Manager) disableExtension(name string, reason error) {
@@ -142,28 +164,73 @@ func (m *Manager) disableExtension(name string, reason error) {
 }
 
 func (m *Manager) disableInstance(key InstanceKey, reason error) {
-	ext, ok := m.lookupInstance(key)
-	if !ok {
+	m.mu.RLock()
+	ext := m.instanceLocked(key)
+	if ext == nil {
+		m.mu.RUnlock()
 		return
 	}
-	instanceIDs := managedBridgeInstanceIDs(ext)
-	if err := m.unregisterResources(m.lifecycleContext(), ext); err != nil {
-		reason = errors.Join(reason, err)
+	identity := managedInstanceIdentity{
+		key:          key.Normalize(),
+		owner:        ext,
+		generation:   ext.generation,
+		sessionNonce: ext.sessionNonce,
 	}
+	m.mu.RUnlock()
+	m.disableOwnedInstance(identity, reason)
+}
 
-	if key.IsGlobal() {
-		if err := m.registry.Disable(key.Name); err != nil {
+type managedInstanceIdentity struct {
+	key          InstanceKey
+	owner        *managedExtension
+	generation   int64
+	sessionNonce string
+}
+
+func (m *Manager) disableOwnedInstance(identity managedInstanceIdentity, reason error) {
+	m.mu.RLock()
+	if !m.matchesInstanceIdentityLocked(identity) {
+		m.mu.RUnlock()
+		return
+	}
+	ext := identity.owner
+	capabilityGrantID := ext.capabilityGrantID
+	instanceIDs := managedBridgeInstanceIDs(ext)
+	m.mu.RUnlock()
+
+	if capabilityGrantID != "" {
+		m.capChecker.Unregister(capabilityGrantID)
+	}
+	if identity.sessionNonce != "" {
+		if err := m.resetExtensionResourceSourceOrRetain(
+			m.lifecycleContext(),
+			identity.key,
+			extensionResourceSource(identity.key),
+			identity.sessionNonce,
+		); err != nil {
+			reason = errors.Join(reason, err)
+		}
+	}
+	if identity.key.IsGlobal() && m.registry != nil {
+		if err := m.registry.Disable(identity.key.Name); err != nil {
 			reason = errors.Join(reason, err)
 		}
 	}
 
 	m.mu.Lock()
+	if !m.matchesInstanceIdentityLocked(identity) {
+		m.mu.Unlock()
+		return
+	}
 	ext.info.Enabled = false
 	ext.phase = ExtensionPhaseRecover
 	ext.lastError = reason.Error()
 	ext.active = false
 	ext.process = nil
 	ext.awaitingStability = false
+	ext.registered = false
+	ext.sessionNonce = ""
+	ext.capabilityGrantID = ""
 	cleanups := ext.redactionCleanups
 	ext.redactionCleanups = nil
 	m.mu.Unlock()
@@ -172,37 +239,34 @@ func (m *Manager) disableInstance(key InstanceKey, reason error) {
 	m.reportBridgeRuntimeIssues(instanceIDs, bridgepkg.BridgeStatusError, reason)
 }
 
+func (m *Manager) matchesInstanceIdentityLocked(identity managedInstanceIdentity) bool {
+	ext := m.instanceLocked(identity.key)
+	return ext == identity.owner && ext != nil && ext.generation == identity.generation &&
+		ext.sessionNonce == identity.sessionNonce
+}
+
 func (m *Manager) unregisterResources(ctx context.Context, ext *managedExtension) error {
 	if ext == nil {
 		return nil
 	}
-	key := ext.instanceKey()
-	m.capChecker.Unregister(key.runtimeID())
-
-	if err := m.resetExtensionSource(ctx, key); err != nil {
-		return err
-	}
-
 	m.mu.Lock()
-	ext.registered = false
+	key := ext.instanceKey()
+	capabilityGrantID := ext.capabilityGrantID
+	ext.capabilityGrantID = ""
+	sessionNonce := ext.sessionNonce
 	ext.sessionNonce = ""
+	ext.registered = false
 	m.mu.Unlock()
-	return nil
-}
-
-func (m *Manager) resetExtensionSource(ctx context.Context, key InstanceKey) error {
-	if m == nil || m.sourceSessions == nil {
-		return nil
-	}
-	if ctx == nil {
-		return ErrContextRequired
+	if capabilityGrantID != "" {
+		m.capChecker.Unregister(capabilityGrantID)
 	}
 
-	source := extensionResourceSource(key)
-	if err := m.sourceSessions.ResetSource(ctx, extensionManagerResourceActor(), source); err != nil {
-		return fmt.Errorf("extension: reset source session for %q: %w", source.ID, err)
-	}
-	return nil
+	return m.resetExtensionResourceSourceOrRetain(
+		ctx,
+		key,
+		extensionResourceSource(key),
+		sessionNonce,
+	)
 }
 
 func (m *Manager) markStable(name string, generation int64) {

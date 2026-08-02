@@ -38,27 +38,12 @@ func (g *AutomationRepo) CreateRun(ctx context.Context, run automation.Run) (aut
 		return automation.Run{}, err
 	}
 
-	normalized, err := g.normalizeRunForCreate(run)
-	if err != nil {
-		return automation.Run{}, err
-	}
-	metadataJSON, err := encodeAutomationRunMetadata(normalized.Metadata)
-	if err != nil {
-		return automation.Run{}, err
-	}
-	networkParticipation, err := encodeOptionalAutomationParticipation(
-		normalized.NetworkParticipation,
-		normalized.NetworkParticipation == nil,
-		"run.network_participation",
-	)
+	normalized, params, err := g.prepareAutomationRunInsert(run)
 	if err != nil {
 		return automation.Run{}, err
 	}
 
-	if err := g.queries.InsertAutomationRun(
-		ctx,
-		automationRunParams(normalized, networkParticipation, metadataJSON),
-	); err != nil {
+	if err := g.queries.InsertAutomationRun(ctx, params); err != nil {
 		return automation.Run{}, fmt.Errorf(
 			"store: create automation run %q: %w",
 			normalized.ID,

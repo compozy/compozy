@@ -4,16 +4,16 @@ import (
 	"errors"
 	"fmt"
 
-	"strings"
-
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
 
 	"github.com/spf13/cobra"
 )
 
+const taskNotificationCommandName = "notification"
+
 func newTaskNotificationCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "notification",
+		Use:   taskNotificationCommandName,
 		Short: "Manage task terminal notifications",
 	}
 	cmd.AddCommand(newTaskNotificationSubscribeCommand(deps))
@@ -174,18 +174,18 @@ func newTaskNotificationDeleteCommand(deps commandDeps) *cobra.Command {
 func buildTaskBridgeNotificationSubscriptionRequest(
 	cmd *cobra.Command,
 	deps commandDeps,
-	client DaemonClient,
+	client workspaceLookupClient,
 	input taskNotificationSubscribeInput,
 ) (*TaskBridgeNotificationSubscriptionRequest, error) {
-	scope := bridgepkg.Scope(strings.TrimSpace(input.ScopeRaw)).Normalize()
+	scope := bridgepkg.Scope(input.ScopeRaw).Normalize()
 	if err := scope.Validate(); err != nil {
 		return nil, fmt.Errorf("cli: invalid notification scope: %w", err)
 	}
-	mode := bridgepkg.DeliveryMode(input.DeliveryModeRaw).Normalize()
+	mode := bridgepkg.DeliveryMode(input.DeliveryModeRaw)
 	if err := mode.Validate(); err != nil {
 		return nil, fmt.Errorf("cli: invalid delivery mode: %w", err)
 	}
-	workspaceID := strings.TrimSpace(input.WorkspaceID)
+	workspaceID := input.WorkspaceID
 	if scope == bridgepkg.ScopeWorkspace {
 		resolution, err := resolveCommandWorkspace(
 			cmd.Context(),
@@ -200,19 +200,19 @@ func buildTaskBridgeNotificationSubscriptionRequest(
 		workspaceID = resolution.ID
 	}
 	request := TaskBridgeNotificationSubscriptionRequest{
-		SubscriptionID:   strings.TrimSpace(input.SubscriptionID),
-		BridgeInstanceID: strings.TrimSpace(input.BridgeInstanceID),
+		SubscriptionID:   input.SubscriptionID,
+		BridgeInstanceID: input.BridgeInstanceID,
 		Scope:            scope,
 		WorkspaceID:      workspaceID,
-		PeerID:           strings.TrimSpace(input.PeerID),
-		ThreadID:         strings.TrimSpace(input.ThreadID),
-		GroupID:          strings.TrimSpace(input.GroupID),
+		PeerID:           input.PeerID,
+		ThreadID:         input.ThreadID,
+		GroupID:          input.GroupID,
 		DeliveryMode:     mode,
 	}
 	if err := bridgepkg.ValidateScopeWorkspaceID(request.Scope, request.WorkspaceID); err != nil {
 		return nil, fmt.Errorf("cli: invalid notification scope: %w", err)
 	}
-	if strings.TrimSpace(request.PeerID) == "" && strings.TrimSpace(request.GroupID) == "" {
+	if request.PeerID == "" && request.GroupID == "" {
 		return nil, errors.New("cli: notification subscription requires --peer or --group")
 	}
 	return &request, nil
@@ -230,12 +230,12 @@ func buildTaskBridgeNotificationSubscriptionListQuery(
 		)
 	}
 	query := TaskBridgeNotificationSubscriptionQuery{
-		BridgeInstanceID: strings.TrimSpace(bridgeInstanceID),
-		WorkspaceID:      strings.TrimSpace(workspaceID),
+		BridgeInstanceID: bridgeInstanceID,
+		WorkspaceID:      workspaceID,
 		Limit:            last,
 	}
-	if trimmed := strings.TrimSpace(scopeRaw); trimmed != "" {
-		scope := bridgepkg.Scope(trimmed).Normalize()
+	if scopeRaw != "" {
+		scope := bridgepkg.Scope(scopeRaw).Normalize()
 		if err := scope.Validate(); err != nil {
 			return TaskBridgeNotificationSubscriptionQuery{}, fmt.Errorf(
 				"cli: invalid notification scope: %w",

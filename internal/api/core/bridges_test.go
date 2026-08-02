@@ -731,7 +731,7 @@ func TestBridgeHandlersHealthStreamFiltersActiveWorkspaceScope(t *testing.T) {
 		cfg.HTTP.Port = 2123
 		instances := []bridgepkg.BridgeInstance{
 			{
-				ID:            "brg-global",
+				ID:            " brg-global ",
 				Scope:         bridgepkg.ScopeGlobal,
 				Platform:      "telegram",
 				ExtensionName: "ext-telegram",
@@ -741,9 +741,9 @@ func TestBridgeHandlersHealthStreamFiltersActiveWorkspaceScope(t *testing.T) {
 				RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
 			},
 			{
-				ID:            "brg-alpha",
+				ID:            "brg,alpha",
 				Scope:         bridgepkg.ScopeWorkspace,
-				WorkspaceID:   "ws-alpha",
+				WorkspaceID:   " ws-alpha ",
 				Platform:      "telegram",
 				ExtensionName: "ext-telegram",
 				DisplayName:   "Alpha",
@@ -787,7 +787,7 @@ func TestBridgeHandlersHealthStreamFiltersActiveWorkspaceScope(t *testing.T) {
 					for _, instance := range visible {
 						healthIDs = append(healthIDs, instance.ID)
 						routeCount := 1
-						if instance.ID == "brg-alpha" {
+						if instance.ID == "brg,alpha" {
 							routeCount = 2
 						}
 						health = append(health, observe.BridgeInstanceHealth{
@@ -834,7 +834,7 @@ func TestBridgeHandlersHealthStreamFiltersActiveWorkspaceScope(t *testing.T) {
 		request := httptest.NewRequestWithContext(
 			t.Context(),
 			http.MethodGet,
-			"/bridges/health/stream?scope=all&workspace_id=ws-alpha&bridge_ids=brg-global,brg-alpha,brg-beta",
+			"/bridges/health/stream?scope=all&workspace_id=+ws-alpha+&bridge_ids=+brg-global+&bridge_ids=brg,alpha&bridge_ids=brg-beta",
 			http.NoBody,
 		)
 		engine.ServeHTTP(recorder, request)
@@ -848,17 +848,17 @@ func TestBridgeHandlersHealthStreamFiltersActiveWorkspaceScope(t *testing.T) {
 		}
 		var payload contract.BridgeHealthStreamPayload
 		testutil.DecodeSSEData(t, records[0], &payload)
-		if _, ok := payload.BridgeHealth["brg-global"]; !ok {
+		if _, ok := payload.BridgeHealth[" brg-global "]; !ok {
 			t.Fatalf("stream bridge_health missing global bridge: %#v", payload.BridgeHealth)
 		}
-		if _, ok := payload.BridgeHealth["brg-alpha"]; !ok {
+		if _, ok := payload.BridgeHealth["brg,alpha"]; !ok {
 			t.Fatalf("stream bridge_health missing active workspace bridge: %#v", payload.BridgeHealth)
 		}
 		if _, ok := payload.BridgeHealth["brg-beta"]; ok {
 			t.Fatalf("stream bridge_health leaked inactive workspace bridge: %#v", payload.BridgeHealth)
 		}
-		if batchCalls != 1 || strings.Join(batchIDs, ",") != "brg-global,brg-alpha,brg-beta" ||
-			healthCalls != 1 || strings.Join(healthIDs, ",") != "brg-global,brg-alpha" {
+		if batchCalls != 1 || !slices.Equal(batchIDs, []string{" brg-global ", "brg,alpha", "brg-beta"}) ||
+			healthCalls != 1 || !slices.Equal(healthIDs, []string{" brg-global ", "brg,alpha"}) {
 			t.Fatalf(
 				"stream calls = batch:%d batch_ids:%#v health:%d ids:%#v, want one bounded lookup then authorized health",
 				batchCalls,
@@ -980,7 +980,11 @@ func TestBridgeHandlersHealthStreamFiltersActiveWorkspaceScope(t *testing.T) {
 		query string
 	}{
 		{name: "missing bridge ids", query: ""},
-		{name: "too many bridge ids", query: "?bridge_ids=" + strings.Repeat("bridge-id,", bridgepkg.MaxBridgeCatalogLimit) + "overflow"},
+		{
+			name: "too many bridge ids",
+			query: "?" + strings.Repeat("bridge_ids=bridge-id&", bridgepkg.MaxBridgeCatalogLimit) +
+				"bridge_ids=overflow",
+		},
 	} {
 		t.Run("Should reject "+test.name+" before opening the stream", func(t *testing.T) {
 			t.Parallel()
@@ -1786,6 +1790,89 @@ func TestBridgeHandlersRequestDecodeAndServiceErrorPaths(t *testing.T) {
 				http.StatusBadRequest,
 				resp.Body.String(),
 			)
+		}
+	})
+
+	t.Run("Should reject lossy target input before either delivery service call", func(t *testing.T) {
+		t.Parallel()
+
+		invalidUTF8 := []byte(`{"target":{"peer_id":"`)
+		invalidUTF8 = append(invalidUTF8, 0xff)
+		invalidUTF8 = append(invalidUTF8, []byte(`","mode":"reply"}}`)...)
+		tests := []struct {
+			name      string
+			path      string
+			body      []byte
+			wantError string
+		}{
+			{
+				name:      "Should reject an explicitly empty dry-run mode",
+				path:      "/bridges/brg-core/test-delivery",
+				body:      []byte(`{"target":{"peer_id":"peer-1","mode":""}}`),
+				wantError: "delivery target mode is required",
+			},
+			{
+				name:      "Should reject an explicitly null real-send mode",
+				path:      "/bridges/brg-core/send-test",
+				body:      []byte(`{"message":"hello","target":{"peer_id":"peer-1","mode":null}}`),
+				wantError: "delivery target mode is required",
+			},
+			{
+				name:      "Should reject raw invalid UTF-8",
+				path:      "/bridges/brg-core/test-delivery",
+				body:      invalidUTF8,
+				wantError: "valid UTF-8",
+			},
+			{
+				name:      "Should reject an unpaired surrogate",
+				path:      "/bridges/brg-core/send-test",
+				body:      []byte(`{"message":"hello","target":{"peer_id":"\ud800","mode":"reply"}}`),
+				wantError: "valid Unicode",
+			},
+			{
+				name:      "Should reject an overwritten null mode",
+				path:      "/bridges/brg-core/send-test",
+				body:      []byte(`{"message":"hello","target":{"peer_id":"peer-1","mode":null,"mode":"reply"}}`),
+				wantError: "delivery target mode is required",
+			},
+			{
+				name:      "Should reject an overwritten invalid surrogate",
+				path:      "/bridges/brg-core/test-delivery",
+				body:      []byte(`{"target":{"peer_id":"\ud800","peer_id":"peer-1","mode":"reply"}}`),
+				wantError: "valid Unicode",
+			},
+		}
+		for _, test := range tests {
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
+				service := testutil.StubBridgeService{
+					ResolveDeliveryTargetFn: func(
+						context.Context,
+						bridgepkg.ResolveDeliveryTargetRequest,
+					) (*bridgepkg.DeliveryTarget, error) {
+						t.Fatal("ResolveDeliveryTarget() should not be called for invalid target input")
+						return nil, nil
+					},
+					GetInstanceFn: func(context.Context, string) (*bridgepkg.BridgeInstance, error) {
+						t.Fatal("GetInstance() should not be called for invalid target input")
+						return nil, nil
+					},
+				}
+				var engine *gin.Engine
+				if strings.HasSuffix(test.path, "/send-test") {
+					_, engine = newBridgeControlHandlerFixture(t, service)
+				} else {
+					_, engine = newBridgeHandlerFixture(t, service)
+				}
+
+				response := performRequest(t, engine, http.MethodPost, test.path, test.body)
+				if got, want := response.Code, http.StatusBadRequest; got != want {
+					t.Fatalf("response status = %d, want %d; body=%s", got, want, response.Body.String())
+				}
+				if !strings.Contains(response.Body.String(), test.wantError) {
+					t.Fatalf("response body = %s, want %q", response.Body.String(), test.wantError)
+				}
+			})
 		}
 	})
 

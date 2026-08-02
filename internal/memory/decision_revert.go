@@ -46,7 +46,7 @@ func (s *Store) RevertDecision(ctx context.Context, id string) (DecisionRevertRe
 		if strings.TrimSpace(decision.PriorContent) == "" {
 			return DecisionRevertResult{}, fmt.Errorf("memory: decision %q has no prior_content", decision.ID)
 		}
-		if err := target.ensureTargetAbsentForRevert(decision); err != nil {
+		if err := target.ensureTargetAbsentForRevert(ctx, decision); err != nil {
 			return DecisionRevertResult{}, err
 		}
 		if err := target.writeRaw(

@@ -21,6 +21,9 @@ func Codegen() error {
 	if err := DaytonaSidecars(); err != nil {
 		return err
 	}
+	if err := runCommandInDir(context.Background(), ".", "go", "run", "./cmd/compozy-codegen", "host-api"); err != nil {
+		return err
+	}
 	if err := runCommandInDir(context.Background(), ".", "go", "run", "./cmd/compozy-codegen", "all"); err != nil {
 		return err
 	}
@@ -51,6 +54,17 @@ func CodegenCheck() error {
 		return err
 	}
 	if err := daytonaSidecarsCheckStamped(); err != nil {
+		return err
+	}
+	if err := runCommandInDir(
+		context.Background(),
+		".",
+		"go",
+		"run",
+		"./cmd/compozy-codegen",
+		"host-api",
+		"--check",
+	); err != nil {
 		return err
 	}
 	if err := runCommandInDir(context.Background(), ".", "go", "run", "./cmd/compozy-codegen", "check"); err != nil {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 
 	exec "os/exec"
 
@@ -20,6 +21,7 @@ func runSubprocessCommand(
 	hook RegisteredHook,
 	payload []byte,
 	registry *toolruntime.Registry,
+	registryTimeout time.Duration,
 ) error {
 	if err := cmd.Start(); err != nil {
 		return err
@@ -40,38 +42,43 @@ func runSubprocessCommand(
 
 	select {
 	case err := <-waitCh:
-		return errors.Join(err, completeSubprocessHook(context.Background(), record, cmd, err))
+		return errors.Join(err, completeSubprocessHookDetached(ctx, registryTimeout, record, cmd, err))
 	case <-ctx.Done():
-		checkpointErr := checkpointSubprocessHook(
-			context.Background(),
+		checkpointErr := checkpointSubprocessHookDetached(
+			ctx,
+			registryTimeout,
 			record,
 			toolruntime.ProcessStateInterrupting,
 			ctx.Err().Error(),
 		)
-		terminateErr := terminateSubprocessCommand(cmd)
-		timer := time.NewTimer(subprocessShutdownGrace)
-		defer timer.Stop()
-
-		select {
-		case err := <-waitCh:
-			groupErr := forceSubprocessCommandExit(cmd, subprocessProcessGroupWait)
-			completeErr := completeSubprocessHook(context.Background(), record, cmd, errors.Join(err, groupErr))
-			return errors.Join(checkpointErr, terminateErr, err, groupErr, completeErr)
-		case <-timer.C:
-			killErr := killSubprocessCommand(cmd)
-			waitErr := <-waitCh
-			groupErr := forceSubprocessCommandExit(cmd, subprocessProcessGroupWait)
-			completeErr := completeSubprocessHook(context.Background(), record, cmd, errors.Join(waitErr, groupErr))
-			return errors.Join(
-				checkpointErr,
-				terminateErr,
-				killErr,
-				waitErr,
-				groupErr,
-				completeErr,
-			)
-		}
+		shutdownErr := shutdownSubprocessCommand(cmd, waitCh)
+		completeErr := completeSubprocessHookDetached(ctx, registryTimeout, record, cmd, shutdownErr)
+		return errors.Join(checkpointErr, shutdownErr, completeErr)
 	}
+}
+
+func checkpointSubprocessHookDetached(
+	ctx context.Context,
+	timeout time.Duration,
+	record *toolruntime.Handle,
+	state toolruntime.ProcessState,
+	reason string,
+) error {
+	registryCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), timeout)
+	defer cancel()
+	return checkpointSubprocessHook(registryCtx, record, state, reason)
+}
+
+func completeSubprocessHookDetached(
+	ctx context.Context,
+	timeout time.Duration,
+	record *toolruntime.Handle,
+	cmd *exec.Cmd,
+	err error,
+) error {
+	registryCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), timeout)
+	defer cancel()
+	return completeSubprocessHook(registryCtx, record, cmd, err)
 }
 
 func cleanupStartedSubprocessCommand(cmd *exec.Cmd) error {
@@ -83,21 +90,38 @@ func cleanupStartedSubprocessCommand(cmd *exec.Cmd) error {
 		waitCh <- cmd.Wait()
 	}()
 
+	return shutdownSubprocessCommand(cmd, waitCh)
+}
+
+func shutdownSubprocessCommand(cmd *exec.Cmd, waitCh <-chan error) error {
 	terminateErr := terminateSubprocessCommand(cmd)
 	timer := time.NewTimer(subprocessShutdownGrace)
 	defer timer.Stop()
-
 	select {
 	case waitErr := <-waitCh:
 		return errors.Join(terminateErr, waitErr, forceSubprocessCommandExit(cmd, subprocessProcessGroupWait))
 	case <-timer.C:
-		killErr := killSubprocessCommand(cmd)
-		waitErr := <-waitCh
+		groupErr := forceSubprocessCommandExit(cmd, subprocessProcessGroupWait)
+		waitErr := waitForSubprocessCommand(waitCh, subprocessProcessGroupWait)
 		return errors.Join(
 			terminateErr,
-			killErr,
+			groupErr,
 			waitErr,
-			forceSubprocessCommandExit(cmd, subprocessProcessGroupWait),
+		)
+	}
+}
+
+func waitForSubprocessCommand(waitCh <-chan error, timeout time.Duration) error {
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+
+	select {
+	case waitErr := <-waitCh:
+		return waitErr
+	case <-timer.C:
+		return fmt.Errorf(
+			"hooks: wait for subprocess exit after force kill: %w",
+			context.DeadlineExceeded,
 		)
 	}
 }

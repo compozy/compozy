@@ -22,7 +22,8 @@ func (c *bootCleanup) run(ctx context.Context, err *error) {
 		return
 	}
 	if ctx == nil {
-		ctx = context.WithoutCancel(context.TODO())
+		*err = errors.Join(*err, errors.New("daemon: boot cleanup context is required"))
+		return
 	}
 	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultShutdownTimeout)
 	defer cancel()

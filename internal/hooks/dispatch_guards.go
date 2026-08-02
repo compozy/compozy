@@ -2,10 +2,36 @@ package hooks
 
 import (
 	"context"
-
 	"fmt"
 	"strings"
 )
+
+func guardImmutableSessionWorkspacePatch(
+	_ context.Context,
+	hook RegisteredHook,
+	payload SessionLifecyclePayload,
+	patch SessionCreatePatch,
+) error {
+	if patch.WorkspaceID != nil && *patch.WorkspaceID != payload.WorkspaceID {
+		return fmt.Errorf(
+			"%w: hook %q cannot change immutable session workspace_id from %q to %q",
+			ErrHookPatchRejected,
+			hook.Name,
+			payload.WorkspaceID,
+			*patch.WorkspaceID,
+		)
+	}
+	if patch.Workspace != nil && *patch.Workspace != payload.Workspace {
+		return fmt.Errorf(
+			"%w: hook %q cannot change immutable session workspace from %q to %q",
+			ErrHookPatchRejected,
+			hook.Name,
+			payload.Workspace,
+			*patch.Workspace,
+		)
+	}
+	return nil
+}
 
 func guardTaskRunPreClaimPatch(
 	_ context.Context,

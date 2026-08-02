@@ -19,6 +19,8 @@ const (
 	promptResultEventName  = "prompt_result"
 )
 
+var errSessionPromptBodyTooLarge = errors.New("session prompt response exceeds size limit")
+
 type goalCommandAPIError struct {
 	statusCode int
 	status     string
@@ -58,11 +60,7 @@ func (c *unixSocketClient) doSessionPrompt(
 	if err != nil {
 		return SessionPromptRecord{}, err
 	}
-	defer func() {
-		if closeErr := response.Body.Close(); closeErr != nil {
-			err = errors.Join(err, fmt.Errorf("cli: close %s response: %w", path, closeErr))
-		}
-	}()
+	defer mergeResponseBodyCloseError(&err, response, method, path)
 
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		return SessionPromptRecord{}, readSessionPromptError(response)
@@ -121,11 +119,7 @@ func (c *unixSocketClient) StreamPromptSession(
 	if err != nil {
 		return err
 	}
-	defer func() {
-		if closeErr := response.Body.Close(); closeErr != nil {
-			err = errors.Join(err, fmt.Errorf("cli: close %s response: %w", path, closeErr))
-		}
-	}()
+	defer mergeResponseBodyCloseError(&err, response, http.MethodPost, path)
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		return readSessionPromptError(response)
 	}
@@ -171,9 +165,26 @@ func readSessionPromptError(response *http.Response) error {
 }
 
 func readSessionPromptBody(body io.Reader) ([]byte, error) {
-	payload, err := io.ReadAll(io.LimitReader(body, sessionPromptBodyLimit))
-	if err != nil {
-		return nil, fmt.Errorf("cli: read session prompt response: %w", err)
+	payload, readErr := io.ReadAll(io.LimitReader(body, sessionPromptBodyLimit+1))
+	drainErr := discardResponseBodyBounded(body)
+	if drainErr != nil {
+		drainErr = fmt.Errorf("cli: drain session prompt response: %w", drainErr)
+	}
+	if readErr != nil {
+		return nil, errors.Join(fmt.Errorf("cli: read session prompt response: %w", readErr), drainErr)
+	}
+	if len(payload) > sessionPromptBodyLimit {
+		return nil, errors.Join(
+			fmt.Errorf(
+				"cli: session prompt response exceeds %d bytes: %w",
+				sessionPromptBodyLimit,
+				errSessionPromptBodyTooLarge,
+			),
+			drainErr,
+		)
+	}
+	if drainErr != nil {
+		return nil, drainErr
 	}
 	return payload, nil
 }

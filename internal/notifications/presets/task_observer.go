@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/compozy/compozy/internal/notifications"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
@@ -36,10 +37,10 @@ func (o *taskEventObserver) OnTaskEvent(ctx context.Context, record taskpkg.Even
 		return
 	}
 	event := Event{
-		ID:        strings.TrimSpace(record.Event.ID),
-		Type:      strings.TrimSpace(record.Event.EventType),
-		TaskID:    strings.TrimSpace(record.Event.TaskID),
-		RunID:     strings.TrimSpace(record.Event.RunID),
+		ID:        record.Event.ID,
+		Type:      record.Event.EventType,
+		TaskID:    record.Event.TaskID,
+		RunID:     record.Event.RunID,
 		AgentName: strings.TrimSpace(record.Event.Actor.Ref),
 		Sequence:  record.Sequence,
 		Payload:   record.Event.Payload,
@@ -48,7 +49,10 @@ func (o *taskEventObserver) OnTaskEvent(ctx context.Context, record taskpkg.Even
 	if o.tasks != nil && event.TaskID != "" {
 		taskRecord, err := o.tasks.GetTask(ctx, event.TaskID)
 		if err == nil {
-			event.WorkspaceID = strings.TrimSpace(taskRecord.WorkspaceID)
+			event.Scope = notifications.ScopeRef{
+				Kind:        notifications.ScopeKind(taskRecord.Scope.Normalize()),
+				WorkspaceID: taskRecord.WorkspaceID,
+			}
 			event.Summary = strings.TrimSpace(taskRecord.Title)
 		} else if o.logger != nil {
 			o.logger.Debug(

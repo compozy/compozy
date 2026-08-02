@@ -8,7 +8,6 @@ import (
 	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	"github.com/compozy/compozy/internal/diagnostics"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
@@ -170,7 +169,7 @@ func (e *CallExecutor) authorizationHeader(ctx context.Context, resolved Resolve
 	if !strings.EqualFold(tokenType, executorBearerValue) {
 		return ""
 	}
-	diagnostics.RegisterDynamicSecret(token.AccessToken)
+	registerMCPRequestSecret(ctx, token.AccessToken)
 	return "Bearer " + strings.TrimSpace(token.AccessToken)
 }
 

@@ -75,8 +75,8 @@ func newAgentLocalLoadError(code string, path string, detail string, err error) 
 }
 
 func agentLocalLoadErrorDetails(err error) (path string, code string, detail string) {
-	typed := &agentLocalLoadError{}
-	if !errors.As(err, &typed) || typed == nil {
+	typed, ok := errors.AsType[*agentLocalLoadError](err)
+	if !ok || typed == nil {
 		return "", "validation", strings.TrimSpace(err.Error())
 	}
 	return strings.TrimSpace(typed.path), strings.TrimSpace(typed.code), strings.TrimSpace(typed.detail)
@@ -230,9 +230,6 @@ func (r *Registry) emitEventSummaries(ctx context.Context, summaries []store.Eve
 	if r == nil || r.events == nil || len(summaries) == 0 {
 		return
 	}
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	for _, summary := range summaries {
 		if err := r.events.WriteEventSummary(ctx, summary); err != nil {
 			r.logger.Warn("skills: write observe event failed", "type", summary.Type, "error", err)
@@ -258,9 +255,6 @@ func (r *Registry) emitSkillsLoadFailed(ctx context.Context, workspaceID string,
 		return
 	}
 
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	if writeErr := r.events.WriteEventSummary(ctx, store.EventSummary{
 		WorkspaceID: strings.TrimSpace(workspaceID),
 		AgentName:   strings.TrimSpace(agentName),

@@ -214,7 +214,10 @@ func appendLoopRunEventWithIdentity(
 	if err != nil {
 		return "", 0, err
 	}
-	eventID := store.NewID("loopevt")
+	eventID, err := store.NewID("loopevt")
+	if err != nil {
+		return "", 0, fmt.Errorf("store: generate loop run event id: %w", err)
+	}
 	err = sqlcgen.New(exec).InsertLoopRunEvent(ctx, sqlcgen.InsertLoopRunEventParams{
 		ID: eventID, LoopRunID: string(runID), WorkspaceID: string(ws),
 		Seq: seq, Kind: kind, PayloadJson: string(payloadJSON), At: at.UTC(),

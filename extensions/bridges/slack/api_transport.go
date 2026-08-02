@@ -32,7 +32,7 @@ func (c *slackBotClient) callSlack(
 	commitPolicy bridgesdk.HTTPResponseCommitPolicy,
 ) (err error) {
 	if ctx == nil {
-		ctx = context.Background()
+		return errors.New("slack: api context is required")
 	}
 	if c == nil {
 		return errors.New("slack: api client is required")

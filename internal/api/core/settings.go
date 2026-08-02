@@ -382,7 +382,16 @@ func (h *BaseHandlers) StreamSettingsObservabilityLogTail(c *gin.Context) {
 		h.respondError(c, http.StatusInternalServerError, err)
 		return
 	}
-	defer file.Close()
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil && h.Logger != nil {
+			h.Logger.WarnContext(
+				c.Request.Context(),
+				"api: close settings log tail file failed",
+				"path", logPath,
+				"error", closeErr,
+			)
+		}
+	}()
 
 	writer, err := PrepareSSE(c)
 	if err != nil {

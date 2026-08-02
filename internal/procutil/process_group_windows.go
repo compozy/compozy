@@ -5,6 +5,7 @@ package procutil
 import (
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"sync"
 	"syscall"
@@ -13,6 +14,14 @@ import (
 
 	"golang.org/x/sys/windows"
 )
+
+type windowsProcessJob struct {
+	mu      sync.Mutex
+	command *exec.Cmd
+	pid     int
+	handle  windows.Handle
+	closed  bool
+}
 
 var windowsProcessJobs sync.Map
 
@@ -60,13 +69,12 @@ func RegisterCommandProcessGroup(cmd *exec.Cmd) error {
 	if err := closeWindowsHandle(process, fmt.Sprintf("process %d handle", pid)); err != nil {
 		return errors.Join(err, closeWindowsHandle(job, fmt.Sprintf("job for process %d", pid)))
 	}
-	if previous, loaded := windowsProcessJobs.LoadOrStore(pid, job); loaded {
-		if err := closeWindowsHandle(job, fmt.Sprintf("duplicate job for process %d", pid)); err != nil {
-			return err
-		}
-		if handle, ok := previous.(windows.Handle); ok && handle != 0 {
-			return nil
-		}
+	registration := &windowsProcessJob{command: cmd, pid: pid, handle: job}
+	if _, loaded := windowsProcessJobs.LoadOrStore(pid, registration); loaded {
+		return errors.Join(
+			fmt.Errorf("procutil: process group already registered for pid %d", pid),
+			registration.close(),
+		)
 	}
 	return nil
 }
@@ -76,7 +84,13 @@ func SignalCommandProcessGroup(cmd *exec.Cmd, sig syscall.Signal) error {
 	if cmd == nil || cmd.Process == nil || cmd.Process.Pid <= 0 {
 		return nil
 	}
-	return SignalProcessGroupID(cmd.Process.Pid, sig)
+	if sig == 0 {
+		return signalZeroWindowsCommandProcess(cmd)
+	}
+	if job, ok := windowsJobForCommand(cmd); ok {
+		return job.signal(sig)
+	}
+	return killWindowsCommandProcess(cmd)
 }
 
 // SignalProcessGroupID terminates the Windows job object identified by pgid.
@@ -88,10 +102,7 @@ func SignalProcessGroupID(pgid int, sig syscall.Signal) error {
 		return Signal(pgid, sig)
 	}
 	if job, ok := windowsJobForPID(pgid); ok {
-		if err := windows.TerminateJobObject(job, 1); err != nil {
-			return fmt.Errorf("terminate windows job (pid %d, sig %v): %w", pgid, sig, err)
-		}
-		return nil
+		return job.signal(sig)
 	}
 	return Signal(pgid, sig)
 }
@@ -101,7 +112,10 @@ func WaitForCommandProcessGroupExit(cmd *exec.Cmd, timeout time.Duration) error 
 	if cmd == nil || cmd.Process == nil || cmd.Process.Pid <= 0 {
 		return nil
 	}
-	return WaitForProcessGroupIDExit(cmd.Process.Pid, timeout)
+	if job, ok := windowsJobForCommand(cmd); ok {
+		return job.wait(timeout)
+	}
+	return nil
 }
 
 // WaitForProcessGroupIDExit blocks until the Windows job object exits.
@@ -110,7 +124,7 @@ func WaitForProcessGroupIDExit(pgid int, timeout time.Duration) error {
 		return fmt.Errorf("procutil: invalid process group id %d", pgid)
 	}
 	if job, ok := windowsJobForPID(pgid); ok {
-		return waitForWindowsJobExit(pgid, job, windowsWaitTimeout(timeout))
+		return job.wait(timeout)
 	}
 	return waitForWindowsRootProcessExit(pgid, timeout)
 }
@@ -120,7 +134,10 @@ func KillCommandProcessGroupAndWait(cmd *exec.Cmd, timeout time.Duration) error 
 	if cmd == nil || cmd.Process == nil || cmd.Process.Pid <= 0 {
 		return nil
 	}
-	return KillProcessGroupIDAndWait(cmd.Process.Pid, timeout)
+	if job, ok := windowsJobForCommand(cmd); ok {
+		return job.killAndWait(timeout)
+	}
+	return killWindowsCommandProcess(cmd)
 }
 
 // KillProcessGroupIDAndWait forcefully terminates the Windows job object and waits for exit.
@@ -130,11 +147,7 @@ func KillProcessGroupIDAndWait(pgid int, timeout time.Duration) error {
 	}
 	var signalErr error
 	if job, ok := windowsJobForPID(pgid); ok {
-		if err := windows.TerminateJobObject(job, 1); err != nil {
-			signalErr = fmt.Errorf("terminate windows job (pid %d): %w", pgid, err)
-		}
-		waitErr := waitForWindowsJobExit(pgid, job, windowsWaitTimeout(timeout))
-		return errors.Join(signalErr, waitErr)
+		return job.killAndWait(timeout)
 	}
 	if err := Signal(pgid, syscall.SIGKILL); err != nil {
 		signalErr = err
@@ -164,25 +177,50 @@ func createKillOnCloseJob(pid int) (windows.Handle, error) {
 	return job, nil
 }
 
-func windowsJobForPID(pid int) (windows.Handle, bool) {
+func windowsJobForPID(pid int) (*windowsProcessJob, bool) {
 	value, ok := windowsProcessJobs.Load(pid)
 	if !ok {
-		return 0, false
+		return nil, false
 	}
-	job, ok := value.(windows.Handle)
-	return job, ok && job != 0
+	job, ok := value.(*windowsProcessJob)
+	return job, ok && job != nil
 }
 
-func closeWindowsJob(pid int) error {
-	value, ok := windowsProcessJobs.LoadAndDelete(pid)
-	if !ok {
+func windowsJobForCommand(cmd *exec.Cmd) (*windowsProcessJob, bool) {
+	if cmd == nil || cmd.Process == nil || cmd.Process.Pid <= 0 {
+		return nil, false
+	}
+	job, ok := windowsJobForPID(cmd.Process.Pid)
+	if !ok || job.command != cmd {
+		return nil, false
+	}
+	return job, true
+}
+
+func killWindowsCommandProcess(cmd *exec.Cmd) error {
+	if cmd == nil || cmd.Process == nil {
 		return nil
 	}
-	job, ok := value.(windows.Handle)
-	if !ok || job == 0 {
-		return nil
+	if err := cmd.Process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
+		return err
 	}
-	return closeWindowsHandle(job, fmt.Sprintf("job for process %d", pid))
+	return nil
+}
+
+func signalZeroWindowsCommandProcess(cmd *exec.Cmd) error {
+	var probeErr error
+	handleErr := cmd.Process.WithHandle(func(handle uintptr) {
+		event, err := windows.WaitForSingleObject(windows.Handle(handle), 0)
+		if err != nil {
+			probeErr = fmt.Errorf("procutil: probe process %d: %w", cmd.Process.Pid, err)
+			return
+		}
+		if event == uint32(syscall.WAIT_TIMEOUT) {
+			return
+		}
+		probeErr = fmt.Errorf("procutil: probe process %d: %w", cmd.Process.Pid, os.ErrProcessDone)
+	})
+	return errors.Join(handleErr, probeErr)
 }
 
 func closeWindowsHandle(handle windows.Handle, name string) error {
@@ -195,23 +233,79 @@ func closeWindowsHandle(handle windows.Handle, name string) error {
 	return nil
 }
 
-func waitForWindowsJobExit(pid int, job windows.Handle, timeout uint32) error {
-	event, err := windows.WaitForSingleObject(job, timeout)
+func (j *windowsProcessJob) signal(sig syscall.Signal) error {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	if j.closed || j.handle == 0 {
+		return nil
+	}
+	if sig == 0 {
+		return nil
+	}
+	if err := windows.TerminateJobObject(j.handle, 1); err != nil {
+		return fmt.Errorf("terminate windows job (pid %d, sig %v): %w", j.pid, sig, err)
+	}
+	return nil
+}
+
+func (j *windowsProcessJob) wait(timeout time.Duration) error {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	if j.closed || j.handle == 0 {
+		return nil
+	}
+	return j.waitLocked(windowsWaitTimeout(timeout))
+}
+
+func (j *windowsProcessJob) killAndWait(timeout time.Duration) error {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	if j.closed || j.handle == 0 {
+		return nil
+	}
+	var signalErr error
+	if err := windows.TerminateJobObject(j.handle, 1); err != nil {
+		signalErr = fmt.Errorf("terminate windows job (pid %d): %w", j.pid, err)
+	}
+	return errors.Join(signalErr, j.waitLocked(windowsWaitTimeout(timeout)))
+}
+
+func (j *windowsProcessJob) waitLocked(timeout uint32) error {
+	event, err := windows.WaitForSingleObject(j.handle, timeout)
 	if err != nil {
-		return fmt.Errorf("wait for windows job exit (pid %d): %w", pid, err)
+		return fmt.Errorf("wait for windows job exit (pid %d): %w", j.pid, err)
 	}
 	switch event {
 	case windows.WAIT_OBJECT_0:
-		return closeWindowsJob(pid)
+		return j.closeLocked()
 	case uint32(syscall.WAIT_TIMEOUT):
 		return fmt.Errorf(
 			"wait for process group exit (pid %d): deadline exceeded after %s",
-			pid,
+			j.pid,
 			windowsTimeoutText(timeout),
 		)
 	default:
-		return fmt.Errorf("wait for windows job exit (pid %d): unexpected wait status %d", pid, event)
+		return fmt.Errorf("wait for windows job exit (pid %d): unexpected wait status %d", j.pid, event)
 	}
+}
+
+func (j *windowsProcessJob) close() error {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	return j.closeLocked()
+}
+
+func (j *windowsProcessJob) closeLocked() error {
+	if j.closed || j.handle == 0 {
+		return nil
+	}
+	if err := closeWindowsHandle(j.handle, fmt.Sprintf("job for process %d", j.pid)); err != nil {
+		return err
+	}
+	j.handle = 0
+	j.closed = true
+	windowsProcessJobs.CompareAndDelete(j.pid, j)
+	return nil
 }
 
 func waitForWindowsRootProcessExit(pid int, timeout time.Duration) error {

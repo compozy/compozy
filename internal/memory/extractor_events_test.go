@@ -44,7 +44,7 @@ func TestStoreExtractorControllerFlow(t *testing.T) {
 		if decision.Op != memcontract.OpAdd {
 			t.Fatalf("decision op = %s, want add", decision.Op.String())
 		}
-		content, err := store.Read(memcontract.ScopeGlobal, decision.TargetFilename)
+		content, err := store.Read(t.Context(), memcontract.ScopeGlobal, decision.TargetFilename)
 		if err != nil {
 			t.Fatalf("Read(%q) error = %v", decision.TargetFilename, err)
 		}

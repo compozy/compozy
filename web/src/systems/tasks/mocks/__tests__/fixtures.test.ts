@@ -360,8 +360,8 @@ describe("orchestration fixtures satisfy generated contract shape", () => {
   });
 
   it("Should expose bridge subscription fixtures with cursor diagnostics", () => {
-    expect(taskBridgeNotificationSubscriptionFixture.cursor.consumer_id).toContain(
-      "bridge_task_subscription:"
+    expect(taskBridgeNotificationSubscriptionFixture.cursor.consumer_id).toBe(
+      taskBridgeNotificationSubscriptionFixture.subscription_id
     );
     expect(taskBridgeNotificationSubscriptionFixture.cursor.stream_name).toBe("task_events");
     expect(taskBridgeNotificationSubscriptionFixture.cursor.last_sequence).toBeGreaterThanOrEqual(
@@ -375,7 +375,7 @@ describe("orchestration fixtures satisfy generated contract shape", () => {
     const customSub = buildTaskBridgeNotificationSubscriptionFixture({
       subscription_id: "bsub_custom",
     });
-    expect(customSub.cursor.consumer_id).toBe("bridge_task_subscription:bsub_custom");
+    expect(customSub.cursor.consumer_id).toBe(customSub.subscription_id);
   });
 
   it("Should expose task context bundle with latest_event_seq and execution profile", () => {

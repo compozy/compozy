@@ -25,12 +25,3 @@ func joinInstallerError(base error, extra error) error {
 	}
 	return errors.Join(base, extra)
 }
-
-func (r *countingReader) Read(p []byte) (int, error) {
-	if r == nil {
-		return 0, errors.New("registry: counting reader is required")
-	}
-	n, err := r.reader.Read(p)
-	r.total += int64(n)
-	return n, err
-}

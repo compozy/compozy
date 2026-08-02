@@ -433,7 +433,7 @@ Evidence was recorded at catalog or documentation level, not as a full technical
 | Code | Source | Verified fact used here |
 | --- | --- | --- |
 | V:Compozy | [Extension manifest](../../internal/extension/manifest.go), [extension grants](../../internal/extension/capability.go), and [dev-cycle reference extension](../../extensions/dev-cycle/extension.json) | Current resource fields, subprocess lifecycle, provider contracts, Host API grants, and tool/watch-source precedent. |
-| V:Compozy | [Extension development guide](../../packages/site/content/docs/extensions/develop.mdx), [install and trust guide](../../packages/site/content/docs/extensions/install.mdx), and [capabilities reference](../../skills/compozy/references/capabilities.md) | Publicly documented extension lifecycle, kit publication, stricter Marketplace grants, and agent manageability. |
+| V:Compozy | [Extension development guide](../../packages/site/content/docs/extensions/develop.mdx), [install and trust guide](../../packages/site/content/docs/extensions/install.mdx), and [extensions reference](../../skills/compozy/references/extensions.md) | Publicly documented extension lifecycle, kit publication, stricter Marketplace grants, and agent manageability. |
 | V:Compozy | [Bridge provider baseline](../../extensions/bridges/README.md) | Eight production in-tree providers and the explicit build/install process; released artifacts do not include or auto-install their executables. |
 
 ### Primary ecosystem sources
@@ -483,7 +483,7 @@ This is a catalog-shape audit, not provider conformance or market validation. No
 - **Native tools:** no runtime impact. This document adds no compozy__ tool IDs, descriptors, schemas, digests, risk flags, availability diagnostics, capability gates, or fallbacks.
 - **Extensibility and hooks:** no runtime impact. The current manifest, provider contracts, typed hooks, registries, MCP packaging, extension kit lifecycle, trust model, and config lifecycle were reviewed; no runtime behavior changes.
 - **Workspace data isolation:** no runtime datum is added. Every future connector must classify credential and data scope and prove workspace identity through CLI, HTTP/UDS, core, store, cache, events, and delivery paths.
-- **Official Compozy skill:** aligned with the canonical `capabilities.md` reference; this catalog introduces no additional public behavior or agent guidance.
+- **Official Compozy skill:** aligned with the canonical `extensions.md` reference; this catalog introduces no additional public behavior or agent guidance.
 
 ## Web, docs, config, and QA impact
 

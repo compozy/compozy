@@ -131,8 +131,9 @@ func TestDaemonNativeToolApprovalGrants(t *testing.T) {
 		if !errors.Is(err, toolspkg.ErrToolDenied) {
 			t.Fatalf("Registry.Call(workspace override) error = %v, want ErrToolDenied", err)
 		}
-		var toolErr *toolspkg.ToolError
-		if !errors.As(err, &toolErr) {
+
+		toolErr, toolErrMatched := errors.AsType[*toolspkg.ToolError](err)
+		if !toolErrMatched {
 			t.Fatalf("Registry.Call(workspace override) error = %T, want *ToolError", err)
 		}
 		if !slices.Contains(toolErr.ReasonCodes, toolspkg.ReasonWorkspaceAccessDenied) {
@@ -158,8 +159,8 @@ func TestDaemonNativeToolApprovalGrants(t *testing.T) {
 		if !errors.Is(err, toolspkg.ErrToolNotFound) {
 			t.Fatalf("Registry.Call(missing revoke) error = %v, want ErrToolNotFound", err)
 		}
-		var toolErr *toolspkg.ToolError
-		if !errors.As(err, &toolErr) || toolErr.Code != toolspkg.ErrorCodeNotFound {
+		toolErr, toolErrMatched := errors.AsType[*toolspkg.ToolError](err)
+		if !toolErrMatched || toolErr.Code != toolspkg.ErrorCodeNotFound {
 			t.Fatalf("missing revoke error = %#v, want tool_not_found envelope", err)
 		}
 	})

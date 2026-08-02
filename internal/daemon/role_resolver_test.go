@@ -173,15 +173,15 @@ func TestRoleResolver(t *testing.T) {
 		resolver := newRoleResolver(&cfg, nil, roleAgentResolverStub{})
 
 		_, err := resolver.Resolve(t.Context(), "", compozyconfig.RoleDream)
-		var resolutionErr *RoleResolutionError
-		if !errors.As(err, &resolutionErr) || resolutionErr.Code != roleErrorAgentNotFound ||
+		resolutionErr, resolutionErrMatched := errors.AsType[*RoleResolutionError](err)
+		if !resolutionErrMatched || resolutionErr.Code != roleErrorAgentNotFound ||
 			resolutionErr.Agent != "ghost" {
 			t.Fatalf("Resolve(ghost) error = %v, want role_agent_not_found naming ghost", err)
 		}
 
 		_, err = resolver.Resolve(t.Context(), "", compozyconfig.RoleName("unknown"))
-		resolutionErr = nil
-		if !errors.As(err, &resolutionErr) || resolutionErr.Code != roleErrorUnknown {
+		resolutionErr, resolutionErrMatched = errors.AsType[*RoleResolutionError](err)
+		if !resolutionErrMatched || resolutionErr.Code != roleErrorUnknown {
 			t.Fatalf("Resolve(unknown) error = %v, want role_unknown", err)
 		}
 	})

@@ -380,8 +380,8 @@ func TestLoopGoalManagedLifecycleShouldClassifyClaimCommitEvidence(t *testing.T)
 		lifecycle := &loopGoalManagedInputLifecycle{store: storeStub, now: time.Now}
 
 		_, err := lifecycle.BeginSubmission(testutil.Context(t), session.ManagedInputClaim{Owner: owner})
-		var effectErr *session.ManagedInputEffectError
-		if !errors.As(err, &effectErr) || effectErr.Certainty != session.EffectKnownFalse ||
+		effectErr, effectErrMatched := errors.AsType[*session.ManagedInputEffectError](err)
+		if !effectErrMatched || effectErr.Certainty != session.EffectKnownFalse ||
 			effectErr.Finalized || !errors.Is(err, claimErr) {
 			t.Fatalf("BeginSubmission() error = %#v, want non-final known-false claim", err)
 		}
@@ -399,8 +399,8 @@ func TestLoopGoalManagedLifecycleShouldClassifyClaimCommitEvidence(t *testing.T)
 		lifecycle := &loopGoalManagedInputLifecycle{store: storeStub, now: time.Now}
 
 		_, err := lifecycle.BeginSubmission(testutil.Context(t), session.ManagedInputClaim{Owner: owner})
-		var effectErr *session.ManagedInputEffectError
-		if !errors.As(err, &effectErr) || effectErr.Certainty != session.EffectUnknown ||
+		effectErr, effectErrMatched := errors.AsType[*session.ManagedInputEffectError](err)
+		if !effectErrMatched || effectErr.Certainty != session.EffectUnknown ||
 			effectErr.Finalized || !errors.Is(err, claimErr) || !errors.Is(err, lookupErr) {
 			t.Fatalf("BeginSubmission() error = %#v, want non-final effect-unknown claim", err)
 		}
@@ -417,8 +417,8 @@ func TestLoopGoalManagedLifecycleShouldClassifyClaimCommitEvidence(t *testing.T)
 		lifecycle := &loopGoalManagedInputLifecycle{store: storeStub, now: time.Now}
 
 		_, err := lifecycle.BeginSubmission(testutil.Context(t), session.ManagedInputClaim{Owner: owner})
-		var effectErr *session.ManagedInputEffectError
-		if !errors.As(err, &effectErr) || effectErr.Certainty != session.EffectUnknown ||
+		effectErr, effectErrMatched := errors.AsType[*session.ManagedInputEffectError](err)
+		if !effectErrMatched || effectErr.Certainty != session.EffectUnknown ||
 			!effectErr.Finalized || storeStub.ambiguousCalls != 1 || !errors.Is(err, claimErr) {
 			t.Fatalf(
 				"BeginSubmission() error = %#v ambiguous calls = %d, want finalized effect-unknown",
@@ -559,13 +559,13 @@ func newManagedLifecycleClaimStore() (*managedLifecycleClaimStore, session.Manag
 	bindingEpoch := int64(3)
 	owner := session.ManagedInputOwner{
 		QueueEntryID: "goalq-claim", SessionID: "session-claim", OwnerKind: "goal",
-		LoopRunID: "looprun-claim", TaskRunID: "taskrun-claim", RunGeneration: int(runGeneration),
+		LoopRunID: "looprun-claim", TaskRunID: "taskrun-claim", RunGeneration: runGeneration,
 		PromptAttempt: 0, ControlEpoch: controlEpoch, BindingEpoch: bindingEpoch,
 		PromptID: "goal-prompt-claim", PromptKind: "work",
 	}
 	key := goalpkg.TurnKey{
 		WorkspaceID: "workspace-claim", LoopRunID: looppkg.RunID(owner.LoopRunID),
-		Generation: owner.RunGeneration, NodeID: "converge", ItemIndex: 0,
+		Generation: 1, NodeID: "converge", ItemIndex: 0,
 	}
 	return &managedLifecycleClaimStore{
 		entry: store.SessionInputQueueEntry{

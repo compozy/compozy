@@ -85,4 +85,5 @@ type RunBootRecovery struct {
 	SessionState   string                `json:"session_state,omitempty"`
 	Classification string                `json:"classification,omitempty"`
 	Detail         string                `json:"detail,omitempty"`
+	StopRequired   bool                  `json:"stop_required,omitempty"`
 }

@@ -50,8 +50,8 @@ func TestSDKRuntimeContracts(t *testing.T) {
 
 		select {
 		case err := <-callErr:
-			var rpcErr *compozysdk.RPCError
-			if !errors.As(err, &rpcErr) || rpcErr.Code != -32600 {
+			rpcErr, rpcErrMatched := errors.AsType[*compozysdk.RPCError](err)
+			if !rpcErrMatched || rpcErr.Code != -32600 {
 				t.Fatalf("Call() error = %v, want invalid request RPC error", err)
 			}
 		case <-time.After(time.Second):

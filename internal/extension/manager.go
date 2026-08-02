@@ -199,6 +199,8 @@ type managedExtension struct {
 	grantedSecurity       []string
 	grantedResourceKinds  []resources.ResourceKind
 	grantedResourceScopes []resources.ResourceScopeKind
+	pendingGrant          EffectiveGrant
+	capabilityGrantID     string
 	initialize            *subprocess.InitializeResponse
 	process               processHandle
 	runtime               subprocess.InitializeRuntime
@@ -222,6 +224,7 @@ type managedExtension struct {
 	logRing             *ExtensionLogRing
 	deferSupervision    bool
 	supervisionStopped  bool
+	startup             *preparedExtensionStartup
 }
 
 type launchedRuntime struct {
@@ -230,6 +233,7 @@ type launchedRuntime struct {
 	runtime           subprocess.InitializeRuntime
 	healthInterval    time.Duration
 	sessionNonce      string
+	capabilityGrantID string
 	redactionCleanups []func()
 }
 
@@ -277,10 +281,14 @@ type Manager struct {
 	started      bool
 	stopping     bool
 
+	devOperations     int
+	devOperationsDone chan struct{}
+
 	extensions      map[string]*managedExtension
 	devExtensions   map[InstanceKey]*managedExtension
 	devCoordinators map[InstanceKey]*sync.Mutex
 	devLogs         map[InstanceKey]*ExtensionLogRing
+	pendingCleanups []pendingExtensionCleanup
 }
 
 // NewManager constructs an extension manager with sensible defaults.

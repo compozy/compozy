@@ -1,7 +1,6 @@
 package compozysdk
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -248,7 +247,7 @@ func (t *StdioTransport) start(ctx context.Context) error {
 }
 
 func (t *StdioTransport) readLoop(ctx context.Context) {
-	reader := bufio.NewReaderSize(t.input, 64*1024)
+	reader := newTransportReader(t.input, t.maxMessageBytes)
 	for {
 		select {
 		case <-ctx.Done():
@@ -256,16 +255,12 @@ func (t *StdioTransport) readLoop(ctx context.Context) {
 			return
 		default:
 		}
-		line, err := reader.ReadBytes('\n')
+		line, err := readBoundedTransportLine(reader, t.maxMessageBytes)
 		if err != nil {
 			if len(line) > 0 {
 				t.processLine(ctx, line)
 			}
 			t.fail(err)
-			return
-		}
-		if len(line) > t.maxMessageBytes+1 {
-			t.fail(fmt.Errorf("message exceeds %d bytes", t.maxMessageBytes))
 			return
 		}
 		t.processLine(ctx, line)

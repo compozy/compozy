@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
-	"sync"
 
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/session"
@@ -20,10 +19,9 @@ type taskWakeSessionManager interface {
 type taskWakeBridge struct {
 	// drainCtx anchors detached synthetic wake event drainers to the daemon lifetime.
 	drainCtx context.Context
-	cancel   context.CancelFunc
 	sessions taskWakeSessionManager
 	logger   *slog.Logger
-	wg       sync.WaitGroup
+	workers  *ownedWorkerGroup
 }
 
 var _ taskpkg.WakeNotifier = (*taskWakeBridge)(nil)
@@ -37,7 +35,7 @@ func newTaskWakeBridge(
 		return nil, errors.New("daemon: task wake bridge requires sessions")
 	}
 	if ctx == nil {
-		ctx = context.Background()
+		return nil, errors.New("daemon: task wake bridge context is required")
 	}
 	if logger == nil {
 		logger = slog.Default()
@@ -45,9 +43,9 @@ func newTaskWakeBridge(
 	drainCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
 	return &taskWakeBridge{
 		drainCtx: drainCtx,
-		cancel:   cancel,
 		sessions: sessions,
 		logger:   logger,
+		workers:  newOwnedWorkerGroup(cancel),
 	}, nil
 }
 
@@ -66,6 +64,10 @@ func (b *taskWakeBridge) WakeCreator(ctx context.Context, creatorSessionID strin
 	if err := event.Validate(); err != nil {
 		return err
 	}
+	complete, admitted := b.workers.Begin()
+	if !admitted {
+		return errors.New("daemon: task wake bridge is stopping")
+	}
 	events, err := b.sessions.PromptSynthetic(ctx, sessionID, session.SyntheticPromptOpts{
 		Message: taskWakePromptMessage(event),
 		Metadata: acp.PromptSyntheticMeta{
@@ -79,12 +81,13 @@ func (b *taskWakeBridge) WakeCreator(ctx context.Context, creatorSessionID strin
 		InterruptIfAgentWaiting: false,
 	})
 	if err != nil {
+		complete()
 		if errors.Is(err, session.ErrSessionNotFound) || errors.Is(err, session.ErrSessionNotActive) {
 			return fmt.Errorf("%w: %s", taskpkg.ErrSessionNotLive, sessionID)
 		}
 		return err
 	}
-	b.drainWakeEvents(sessionID, event, events)
+	b.drainWakeEvents(sessionID, event, events, complete)
 	return nil
 }
 
@@ -104,18 +107,23 @@ func taskWakePromptMessage(ev taskpkg.WakeEvent) string {
 	return strings.TrimSpace(strings.Join(lines, "\n"))
 }
 
-func (b *taskWakeBridge) drainWakeEvents(sessionID string, ev taskpkg.WakeEvent, events <-chan acp.AgentEvent) {
+func (b *taskWakeBridge) drainWakeEvents(
+	sessionID string,
+	ev taskpkg.WakeEvent,
+	events <-chan acp.AgentEvent,
+	complete func(),
+) {
 	if b == nil {
+		complete()
 		return
 	}
 	if events == nil {
+		complete()
 		return
 	}
-	drainCtx := context.Background()
-	if b != nil && b.drainCtx != nil {
-		drainCtx = b.drainCtx
-	}
-	b.wg.Go(func() {
+	drainCtx := b.drainCtx
+	go func() {
+		defer complete()
 		for {
 			select {
 			case <-drainCtx.Done():
@@ -136,7 +144,7 @@ func (b *taskWakeBridge) drainWakeEvents(sessionID string, ev taskpkg.WakeEvent,
 				}
 			}
 		}
-	})
+	}()
 }
 
 func (b *taskWakeBridge) shutdown(ctx context.Context) error {
@@ -146,14 +154,7 @@ func (b *taskWakeBridge) shutdown(ctx context.Context) error {
 	if ctx == nil {
 		return errors.New("daemon: task wake bridge shutdown context is required")
 	}
-	if b.cancel != nil {
-		b.cancel()
-	}
-	done := make(chan struct{})
-	go func() {
-		b.wg.Wait()
-		close(done)
-	}()
+	done := b.workers.Stop()
 	select {
 	case <-done:
 		return nil

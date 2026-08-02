@@ -235,6 +235,7 @@ describe("installSkillMarketplace", () => {
   it("calls POST /api/skills/marketplace/install with the slug body", async () => {
     mockJsonResponse({
       skill: {
+        cleanup_diagnostics: [{ operation: "close_download_stream" }],
         name: "demo",
         slug: "@compozy/demo",
         status: "installed",
@@ -246,6 +247,7 @@ describe("installSkillMarketplace", () => {
     });
 
     const result = await installSkillMarketplace({ slug: "@compozy/demo" });
+    expect(result.cleanup_diagnostics).toEqual([{ operation: "close_download_stream" }]);
     expect(result.status).toBe("installed");
     await expectFetchRequest({
       method: "POST",
@@ -265,6 +267,7 @@ describe("updateSkillMarketplace", () => {
     mockJsonResponse({
       skills: [
         {
+          cleanup_diagnostics: [{ operation: "remove_replaced_backup" }],
           name: "demo",
           slug: "@compozy/demo",
           status: "updated",
@@ -277,6 +280,7 @@ describe("updateSkillMarketplace", () => {
 
     const result = await updateSkillMarketplace({ name: "demo" });
     expect(result).toHaveLength(1);
+    expect(result[0]?.cleanup_diagnostics).toEqual([{ operation: "remove_replaced_backup" }]);
     await expectFetchRequest({
       method: "POST",
       path: "/api/skills/marketplace/update",

@@ -13,6 +13,11 @@ import (
 	diagnosticspkg "github.com/compozy/compozy/internal/diagnostics"
 )
 
+const (
+	apiErrorBodyLimit      int64 = 1 << 20
+	responseBodyDrainLimit int64 = 64 << 10
+)
+
 type daemonAPIError struct {
 	statusCode int
 	status     string
@@ -127,11 +132,15 @@ func (e *daemonAPIError) errorPayload() contract.ErrorPayload {
 }
 
 func readAPIError(response *http.Response) error {
-	body, err := io.ReadAll(io.LimitReader(response.Body, 1<<20))
-	if err != nil {
-		return fmt.Errorf("cli: read api error response: %w", err)
+	body, readErr := io.ReadAll(io.LimitReader(response.Body, apiErrorBodyLimit))
+	drainErr := discardResponseBodyBounded(response.Body)
+	if drainErr != nil {
+		drainErr = fmt.Errorf("cli: drain api error response: %w", drainErr)
 	}
-	return readAPIErrorBody(response.StatusCode, response.Status, body)
+	if readErr != nil {
+		return errors.Join(fmt.Errorf("cli: read api error response: %w", readErr), drainErr)
+	}
+	return errors.Join(readAPIErrorBody(response.StatusCode, response.Status, body), drainErr)
 }
 
 func readAPIErrorBody(statusCode int, status string, body []byte) error {
@@ -233,8 +242,26 @@ func parseToolAPIError(statusCode int, status string, body []byte) (bool, error)
 }
 
 func drainResponseBody(method string, path string, body io.Reader) error {
-	if _, err := io.Copy(io.Discard, body); err != nil {
+	if err := discardResponseBodyBounded(body); err != nil {
 		return fmt.Errorf("cli: drain %s %s response: %w", method, path, err)
 	}
 	return nil
+}
+
+func decodeJSONResponseBody(method string, path string, body io.Reader, target any) error {
+	decoder := json.NewDecoder(body)
+	decodeErr := decoder.Decode(target)
+	drainErr := drainResponseBody(method, path, io.MultiReader(decoder.Buffered(), body))
+	if decodeErr != nil {
+		decodeErr = fmt.Errorf("cli: decode %s %s response: %w", method, path, decodeErr)
+	}
+	return errors.Join(decodeErr, drainErr)
+}
+
+func discardResponseBodyBounded(body io.Reader) error {
+	if body == nil {
+		return nil
+	}
+	_, err := io.Copy(io.Discard, io.LimitReader(body, responseBodyDrainLimit))
+	return err
 }

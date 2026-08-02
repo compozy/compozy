@@ -156,7 +156,7 @@ func parseUpdateSettingsMemoryRequest(c *gin.Context) (settingspkg.SectionUpdate
 	var body struct {
 		Config *contract.SettingsMemoryConfigPayload `json:"config"`
 	}
-	if err := c.ShouldBindJSON(&body); err != nil {
+	if err := decodeStrictJSONBody(c, &body); err != nil {
 		return settingspkg.SectionUpdateRequest{}, NewSettingsValidationError(
 			fmt.Errorf("decode memory settings request: %w", err),
 		)

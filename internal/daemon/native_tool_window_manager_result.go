@@ -203,8 +203,7 @@ func windowManagerToolError(id toolspkg.ToolID, err error) error {
 		code, cause, reason = toolspkg.ErrorCodeUnavailable, toolspkg.ErrToolUnavailable, toolspkg.ReasonDependencyMissing
 	}
 	message := fmt.Sprintf("tool %q window-manager call failed: %v", id, err)
-	var topology *windowmanager.TopologyError
-	if errors.As(err, &topology) && len(topology.Diagnostics) > 0 {
+	if topology, ok := errors.AsType[*windowmanager.TopologyError](err); ok && len(topology.Diagnostics) > 0 {
 		message = fmt.Sprintf("%s (%s at %s)", message, topology.Diagnostics[0].Code, topology.Diagnostics[0].Path)
 	}
 	return toolspkg.NewToolError(code, id, message, fmt.Errorf("%w: %w", cause, err), reason)

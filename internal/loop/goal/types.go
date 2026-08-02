@@ -18,12 +18,14 @@ var (
 	errBudgetRequired   = errors.New("goal executor budget guard is required")
 	errContextRequired  = errors.New("goal executor context health is required")
 	errRecoveryRequired = errors.New("goal executor prompt recovery is required")
+	errRecoveryTimeout  = errors.New("goal executor prompt recovery timed out")
 )
 
 const (
 	brokenJudgeStreakLimit   = 3
 	defaultCompactionTimeout = 30 * time.Second
 	defaultCompactionDrain   = 5 * time.Second
+	defaultRecoveryTimeout   = 30 * time.Second
 )
 
 // Dependencies contains the child-package ports supplied by daemon composition.
@@ -37,6 +39,7 @@ type Dependencies struct {
 	Now               func() time.Time
 	CompactionTimeout time.Duration
 	CompactionDrain   time.Duration
+	RecoveryTimeout   time.Duration
 }
 
 // Executor advances one serialized Goal worker segment until its first control boundary.
@@ -50,6 +53,7 @@ type Executor struct {
 	now               func() time.Time
 	compactionTimeout time.Duration
 	compactionDrain   time.Duration
+	recoveryTimeout   time.Duration
 }
 
 var _ loop.ActionExecutor = (*Executor)(nil)
@@ -84,6 +88,10 @@ func NewExecutor(deps Dependencies) (*Executor, error) {
 	if compactionDrain <= 0 {
 		compactionDrain = defaultCompactionDrain
 	}
+	recoveryTimeout := deps.RecoveryTimeout
+	if recoveryTimeout <= 0 {
+		recoveryTimeout = defaultRecoveryTimeout
+	}
 	return &Executor{
 		store:             deps.Store,
 		binder:            deps.Binder,
@@ -94,6 +102,7 @@ func NewExecutor(deps Dependencies) (*Executor, error) {
 		now:               now,
 		compactionTimeout: compactionTimeout,
 		compactionDrain:   compactionDrain,
+		recoveryTimeout:   recoveryTimeout,
 	}, nil
 }
 

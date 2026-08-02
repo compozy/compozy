@@ -321,7 +321,7 @@ func filterFieldValue(event Event, field string) string {
 	case filterFieldSeverity:
 		return string(event.Outcome)
 	case filterFieldWorkspace:
-		return event.WorkspaceID
+		return event.Scope.WorkspaceID
 	case filterFieldAgent:
 		return event.AgentName
 	case filterFieldProvider:

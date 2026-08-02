@@ -267,7 +267,7 @@ func (s *loopSourceSyncer) sameLoop(
 
 func daemonLoopDeclarationProvider(
 	homePaths compozyconfig.HomePaths,
-	registry Registry,
+	registry workspaceRegistryReader,
 	workspaceResolver workspacepkg.RuntimeResolver,
 	logger *slog.Logger,
 ) loopDeclarationProvider {

@@ -49,6 +49,8 @@ For web operators, task detail has **Overview**, **Runs**, and **Activity** view
 
 Forced recovery is authority-gated and rate-limited for agent actors. Treat denial, conflict, or rate-limit diagnostics as authoritative. Do not retry blindly and never ask another agent to reveal a raw claim token.
 
+For a non-leased run with an active session, direct `task run complete`, `task run fail`, and `task run cancel` actions are durable before Compozy stops the session. Final run state, task reconciliation, and the canonical event commit only after the stop succeeds. A `409` means a terminal action is already underway: inspect the run and wait instead of switching actions or retrying blindly. If the daemon restarts, it resumes the recorded action before ordinary run recovery. Session-bound leased runs continue to use the native autonomy tools or their token-fenced CLI equivalents.
+
 When the scheduler's convergence backstop cannot get a claimable run picked up, it parks the run as `needs_attention` — a non-claimable run status — and emits `task.run_needs_attention`. `compozy task run recover <run-id> [--reason <reason>] -o json` is the operator/agent recovery path: it terminalizes the parked run and queues a fresh linked child (`previous_run_id`, next attempt) for re-dispatch. Recover applies only to `needs_attention` runs; a still-queued or failed run returns a deterministic `task_run_not_recoverable` diagnostic (use `compozy task retry` for a failed run). This run-level recovery is distinct from task-level `compozy task recover <task-id>`, which clears a task escalated by the unblock-loop breaker (see Task Blocks And Escalation).
 
 ## Task Blocks And Escalation
@@ -71,7 +73,7 @@ A parent task stays nonterminal while any direct child is not completed. The suc
 
 `compozy scheduler status -o json` reports pause state, active claims, queued runs, and paused-task pressure. `compozy scheduler pause --reason <reason>` stops new dispatch while active claims continue. `compozy scheduler resume` reopens dispatch.
 
-`compozy scheduler drain` pauses dispatch and waits for active claims to finish; its default timeout is `60s`, and `--timeout 0s` returns immediately after pausing. `compozy scheduler backlog --last 50 -o json` lists queued runs visible to dispatch; `--include-paused` includes runs blocked by task pause.
+`compozy scheduler drain` pauses dispatch and waits for active claims to finish. Its default timeout is `60s`; `--timeout` accepts whole-second durations from `0s` through `9223372036s`, and `0s` returns immediately after pausing. `compozy scheduler backlog --last 50 -o json` lists queued runs visible to dispatch; `--include-paused` includes runs blocked by task pause.
 
 Scheduler controls affect dispatch, not task truth. They do not complete work, approve reviews, or transfer ownership.
 

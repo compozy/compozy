@@ -142,9 +142,5 @@ func NewRuntimeValidationError(items ...RuntimeValidationItem) error {
 
 // AsRuntimeValidationError extracts structured runtime diagnostics.
 func AsRuntimeValidationError(err error) (*RuntimeValidationError, bool) {
-	var target *RuntimeValidationError
-	if !errors.As(err, &target) {
-		return nil, false
-	}
-	return target, true
+	return errors.AsType[*RuntimeValidationError](err)
 }

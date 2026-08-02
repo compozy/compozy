@@ -1,6 +1,7 @@
 package memory
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -39,8 +40,8 @@ type checkpointCoverageRange struct {
 	ToSequence   int64  `json:"to_sequence"`
 }
 
-func loadCheckpointSummaryState(store *Store) (checkpointSummaryState, error) {
-	content, err := store.Read(memcontract.ScopeWorkspace, CheckpointSummaryFilename)
+func loadCheckpointSummaryState(ctx context.Context, store *Store) (checkpointSummaryState, error) {
+	content, err := store.Read(ctx, memcontract.ScopeWorkspace, CheckpointSummaryFilename)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return checkpointSummaryState{}, nil

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"strings"
 	"sync"
@@ -14,7 +15,10 @@ import (
 	"github.com/compozy/compozy/internal/subprocess"
 )
 
-const providerInitializeTimeout = 15 * time.Second
+const (
+	defaultProviderInitializeTimeout = 15 * time.Second
+	defaultProviderShutdownTimeout   = 15 * time.Second
+)
 
 // ProviderInitialState is one resolved instance state emitted after reconciliation.
 type ProviderInitialState struct {
@@ -39,11 +43,15 @@ type ProviderLifecycleConfig struct {
 	OnStop             func()
 	ShutdownResources  func(context.Context) error
 	HealthCheck        func() error
+	InitializeTimeout  time.Duration
+	ShutdownTimeout    time.Duration
 }
 
 // ProviderLifecycle owns provider session, initialization work, stop state, and health error.
 type ProviderLifecycle struct {
 	config ProviderLifecycleConfig
+	ctx    context.Context
+	cancel context.CancelFunc
 
 	mu         sync.RWMutex
 	session    *Session
@@ -57,7 +65,9 @@ type ProviderLifecycle struct {
 	routesReady chan struct{}
 	routesOnce  sync.Once
 	taskMu      sync.Mutex
-	wg          sync.WaitGroup
+	activeTask  int
+	done        chan struct{}
+	doneOnce    sync.Once
 }
 
 // NewProviderLifecycle creates one shared provider lifecycle.
@@ -69,11 +79,21 @@ func NewProviderLifecycle(config ProviderLifecycleConfig) (*ProviderLifecycle, e
 	if config.Markers == nil {
 		config.Markers = NewAdapterMarkers(config.ProviderName, io.Discard)
 	}
+	if config.InitializeTimeout <= 0 {
+		config.InitializeTimeout = defaultProviderInitializeTimeout
+	}
+	if config.ShutdownTimeout <= 0 {
+		config.ShutdownTimeout = defaultProviderShutdownTimeout
+	}
+	lifecycleCtx, lifecycleCancel := context.WithCancel(context.Background())
 	lifecycle := &ProviderLifecycle{
 		config:      config,
+		ctx:         lifecycleCtx,
+		cancel:      lifecycleCancel,
 		stopCh:      make(chan struct{}),
 		initDone:    make(chan struct{}),
 		routesReady: make(chan struct{}),
+		done:        make(chan struct{}),
 	}
 	if lifecycle.config.Host == nil {
 		lifecycle.config.Host = NewProviderHost(lifecycle.stopCh, lifecycle.config.Markers)
@@ -96,11 +116,14 @@ func (l *ProviderLifecycle) Serve(
 }
 
 // Initialize stores the negotiated session and starts ownership reconciliation.
-func (l *ProviderLifecycle) Initialize(_ context.Context, session *Session) error {
+func (l *ProviderLifecycle) Initialize(ctx context.Context, session *Session) error {
 	if l == nil || session == nil {
 		return errors.New("bridgesdk: provider lifecycle session is required")
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), providerInitializeTimeout)
+	if ctx == nil {
+		return errors.New("bridgesdk: provider lifecycle initialize context is required")
+	}
+	ctx, cancel := context.WithTimeout(ctx, l.config.InitializeTimeout)
 	l.mu.Lock()
 	l.session = session
 	l.lastError = nil
@@ -229,23 +252,20 @@ func (l *ProviderLifecycle) reportInitialStates(
 
 // Shutdown stops provider resources, joins lifecycle work, and records shutdown.
 func (l *ProviderLifecycle) Shutdown(
-	_ context.Context,
+	ctx context.Context,
 	_ *Session,
 	request subprocess.ShutdownRequest,
 ) error {
 	if l == nil {
 		return nil
 	}
-	l.Stop()
-	shutdownCtx := context.Background()
-	if request.DeadlineMS > 0 {
-		var cancel context.CancelFunc
-		shutdownCtx, cancel = context.WithTimeout(
-			context.Background(),
-			time.Duration(request.DeadlineMS)*time.Millisecond,
-		)
-		defer cancel()
+	if ctx == nil {
+		return errors.New("bridgesdk: provider lifecycle shutdown context is required")
 	}
+	l.Stop()
+	shutdownTimeout := minimumProviderShutdownTimeout(l.config.ShutdownTimeout, request.DeadlineMS)
+	shutdownCtx, cancel := context.WithTimeout(ctx, shutdownTimeout)
+	defer cancel()
 	var shutdownErr error
 	if l.config.ShutdownResources != nil {
 		shutdownErr = l.config.ShutdownResources(shutdownCtx)
@@ -263,6 +283,10 @@ func (l *ProviderLifecycle) Stop() {
 	l.stopOnce.Do(func() {
 		l.taskMu.Lock()
 		close(l.stopCh)
+		l.cancel()
+		if l.activeTask == 0 {
+			l.doneOnce.Do(func() { close(l.done) })
+		}
 		l.taskMu.Unlock()
 		l.mu.RLock()
 		cancelInitialize := l.initCancel
@@ -276,7 +300,18 @@ func (l *ProviderLifecycle) Stop() {
 	})
 }
 
+// Context returns a lifecycle-owned context canceled when provider shutdown begins.
+func (l *ProviderLifecycle) Context() context.Context {
+	if l == nil || l.ctx == nil {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		return ctx
+	}
+	return l.ctx
+}
+
 // Go starts one lifecycle-owned goroutine unless shutdown already began.
+// Panics in provider callbacks are recovered and exposed through Health.
 func (l *ProviderLifecycle) Go(run func()) bool {
 	if l == nil || run == nil {
 		return false
@@ -286,11 +321,27 @@ func (l *ProviderLifecycle) Go(run func()) bool {
 	if l.Stopped() {
 		return false
 	}
-	l.wg.Go(run)
+	l.activeTask++
+	go l.runTask(run)
 	return true
 }
 
-// Wait joins lifecycle-owned work until completion or context cancellation.
+func (l *ProviderLifecycle) runTask(run func()) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			l.SetError(fmt.Errorf("bridgesdk: provider lifecycle task panicked: %v", recovered))
+		}
+		l.taskMu.Lock()
+		l.activeTask--
+		if l.activeTask == 0 && l.Stopped() {
+			l.doneOnce.Do(func() { close(l.done) })
+		}
+		l.taskMu.Unlock()
+	}()
+	run()
+}
+
+// Wait joins lifecycle-owned work after Stop closes task admission.
 func (l *ProviderLifecycle) Wait(ctx context.Context) error {
 	if l == nil {
 		return nil
@@ -298,17 +349,19 @@ func (l *ProviderLifecycle) Wait(ctx context.Context) error {
 	if ctx == nil {
 		return errors.New("bridgesdk: provider lifecycle wait context is required")
 	}
-	done := make(chan struct{})
-	go func() {
-		l.wg.Wait()
-		close(done)
-	}()
 	select {
-	case <-done:
+	case <-l.done:
 		return nil
 	case <-ctx.Done():
 		return ctx.Err()
 	}
+}
+
+func minimumProviderShutdownTimeout(configured time.Duration, deadlineMS int64) time.Duration {
+	if deadlineMS <= 0 || deadlineMS > math.MaxInt64/int64(time.Millisecond) {
+		return configured
+	}
+	return min(configured, time.Duration(deadlineMS)*time.Millisecond)
 }
 
 // Session returns the negotiated provider session.

@@ -784,6 +784,48 @@ func TestToolCommandsRenderStructuredErrors(t *testing.T) {
 		})
 	}
 
+	t.Run("Should preserve only operator-authored remediation details", func(t *testing.T) {
+		t.Parallel()
+
+		payload := toolErrorResponse(
+			toolspkg.ErrorCodeUnavailable,
+			toolspkg.ReasonExtensionGitVersionUnsupported,
+			"tool unavailable",
+			"availability",
+		)
+		payload.Error.Details = map[string]json.RawMessage{
+			contract.ToolOperatorCauseDetailKey:    json.RawMessage(`"Git is too old"`),
+			contract.ToolOperatorRecoveryDetailKey: json.RawMessage(`"Install Git 2.37 or newer. Run git --version."`),
+			"internal":                             json.RawMessage(`"token=super-secret"`),
+		}
+		client := &stubClient{
+			invokeToolFn: func(context.Context, string, ToolInvokeRequest) (ToolInvokeResponseRecord, error) {
+				return ToolInvokeResponseRecord{}, newToolAPIError(503, "Service Unavailable", payload)
+			},
+		}
+		stdout, _, err := executeRootCommand(
+			t,
+			newWorkspaceTestDeps(t, client),
+			"tool",
+			"invoke",
+			toolspkg.ToolIDExtensionsInstall.String(),
+			"-o",
+			"json",
+		)
+		if err == nil {
+			t.Fatal("tool invoke error = nil, want structured error")
+		}
+		var got ToolErrorResponseRecord
+		decodeJSONOutput(t, stdout, &got)
+		if string(got.Error.Details[contract.ToolOperatorCauseDetailKey]) != `"Git is too old"` ||
+			!strings.Contains(string(got.Error.Details[contract.ToolOperatorRecoveryDetailKey]), "git --version") {
+			t.Fatalf("operator remediation details = %#v", got.Error.Details)
+		}
+		if _, ok := got.Error.Details["internal"]; ok || strings.Contains(stdout, "super-secret") {
+			t.Fatalf("structured error leaked untrusted detail: %s", stdout)
+		}
+	})
+
 	t.Run("Should preserve a safe partial result when artifact persistence fails", func(t *testing.T) {
 		t.Parallel()
 

@@ -1,18 +1,27 @@
 package cli
 
-import "github.com/spf13/cobra"
+import (
+	"context"
+
+	"github.com/spf13/cobra"
+)
 
 const (
 	drainCommandKey   = "drain"
 	undrainCommandKey = "undrain"
 )
 
+type drainClient interface {
+	Drain(context.Context) (DrainStatusRecord, error)
+	Undrain(context.Context) (DrainStatusRecord, error)
+}
+
 func newDrainCommand(deps commandDeps) *cobra.Command {
 	return newDrainStateCommand(
 		drainCommandKey,
 		"Stop admitting new work while in-flight work completes",
 		deps,
-		func(client DaemonClient, cmd *cobra.Command) (DrainStatusRecord, error) {
+		func(client drainClient, cmd *cobra.Command) (DrainStatusRecord, error) {
 			return client.Drain(cmd.Context())
 		},
 	)
@@ -23,7 +32,7 @@ func newUndrainCommand(deps commandDeps) *cobra.Command {
 		undrainCommandKey,
 		"Resume admission of new work",
 		deps,
-		func(client DaemonClient, cmd *cobra.Command) (DrainStatusRecord, error) {
+		func(client drainClient, cmd *cobra.Command) (DrainStatusRecord, error) {
 			return client.Undrain(cmd.Context())
 		},
 	)
@@ -33,7 +42,7 @@ func newDrainStateCommand(
 	use string,
 	short string,
 	deps commandDeps,
-	update func(DaemonClient, *cobra.Command) (DrainStatusRecord, error),
+	update func(drainClient, *cobra.Command) (DrainStatusRecord, error),
 ) *cobra.Command {
 	return &cobra.Command{
 		Use:   use,

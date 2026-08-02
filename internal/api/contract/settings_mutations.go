@@ -35,7 +35,7 @@ type UpdateSettingsHooksExtensionsRequest struct {
 }
 
 type PutSettingsProviderRequest struct {
-	Settings      SettingsProviderSettingsPayload      `json:"settings"`
+	Settings      SettingsProviderWritePayload         `json:"settings"`
 	ModelCuration *ProviderModelCurationRequest        `json:"model_curation,omitempty"`
 	Secrets       []SettingsProviderSecretWritePayload `json:"secrets,omitempty"`
 }

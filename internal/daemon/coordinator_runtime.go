@@ -73,7 +73,7 @@ type coordinatorRuntime struct {
 	logger         *slog.Logger
 	now            func() time.Time
 	wakeInFlight   map[string]struct{}
-	wg             sync.WaitGroup
+	workers        *ownedWorkerGroup
 }
 
 var _ taskRunEnqueuedObserver = (*coordinatorRuntime)(nil)
@@ -136,6 +136,7 @@ func newCoordinatorRuntime(
 		logger:       logger,
 		now:          now,
 		wakeInFlight: make(map[string]struct{}),
+		workers:      newOwnedWorkerGroup(cancel),
 	}
 	for _, option := range options {
 		if option != nil {
@@ -208,7 +209,7 @@ func (d *Daemon) bootCoordinator(ctx context.Context, state *bootState, cleanup 
 
 func (r *coordinatorRuntime) OnTaskRunEnqueued(ctx context.Context, payload hookspkg.TaskRunEnqueuedPayload) {
 	if ctx == nil {
-		ctx = context.Background()
+		return
 	}
 	runID := strings.TrimSpace(payload.RunID)
 	if runID == "" {
@@ -241,7 +242,7 @@ func (r *coordinatorRuntime) OnSessionStopped(ctx context.Context, sess *session
 		return
 	}
 	if ctx == nil {
-		ctx = context.Background()
+		return
 	}
 	info := sess.Info()
 	if info == nil || info.Type != session.SessionTypeCoordinator {
@@ -260,7 +261,7 @@ func (r *coordinatorRuntime) recoverWorkspace(ctx context.Context, workspaceID s
 		return
 	}
 	if ctx == nil {
-		ctx = context.Background()
+		return
 	}
 	runs, err := r.store.ListTaskRunsByStatus(ctx, coordinator.ExecutableRunStatuses())
 	if err != nil {

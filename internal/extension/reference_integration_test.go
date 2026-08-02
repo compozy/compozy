@@ -20,7 +20,6 @@ import (
 	"slices"
 	"strings"
 	"sync"
-	"syscall"
 	"testing"
 	"time"
 
@@ -132,172 +131,178 @@ func TestReferenceExtensionACPHelperProcess(t *testing.T) {
 }
 
 func TestReferenceExtensionsEndToEnd(t *testing.T) {
-	// not parallel: the reference extensions read process environment marker paths.
-	if runtime.GOOS == "windows" {
-		t.Skip("reference extension integration uses Unix domain sockets and shell command quoting")
-	}
-
-	repoRoot := referenceRepoRoot(t)
-	clarifyToolInstallSource := buildReferenceArtifacts(t, repoRoot)
-
-	harness := newReferenceHarness(t, repoRoot)
-	promptEnhancerInstallSource := referencePromptEnhancerInstallSource(t, repoRoot)
-
-	secret := harness.installExtension(t, "internal/extension/testdata/secret-guard")
-	if secret.Name != "secret-guard" {
-		t.Fatalf("secret install name = %q, want secret-guard", secret.Name)
-	}
-	if secret.State != "active" || secret.Health != "healthy" {
-		t.Fatalf("secret install status = %#v, want active/healthy", secret)
-	}
-
-	promptEnhancer := harness.installExtension(t, promptEnhancerInstallSource)
-	if promptEnhancer.Name != "prompt-enhancer" {
-		t.Fatalf("prompt install name = %q, want prompt-enhancer", promptEnhancer.Name)
-	}
-	if promptEnhancer.State != "active" || promptEnhancer.Health != "healthy" {
-		t.Fatalf("prompt install status = %#v, want active/healthy", promptEnhancer)
-	}
-
-	clarifyTool := harness.installExtension(t, clarifyToolInstallSource)
-	if clarifyTool.Name != "clarify-tool" {
-		t.Fatalf("clarify install name = %q, want clarify-tool", clarifyTool.Name)
-	}
-	if clarifyTool.State != "active" || clarifyTool.Health != "healthy" {
-		t.Fatalf("clarify install status = %#v, want active/healthy", clarifyTool)
-	}
-
-	secretPID := waitForStartedPID(t, harness.secretStartsPath, 2, 10*time.Second)
-	secretHandshake := waitForHandshakeMarker(t, harness.secretHandshakePath, secretPID, 10*time.Second)
-	if secretHandshake.Request.ProtocolVersion != "1" {
-		t.Fatalf("secret handshake protocol = %q, want 1", secretHandshake.Request.ProtocolVersion)
-	}
-	if secretHandshake.PID <= 0 {
-		t.Fatalf("secret handshake pid = %d, want > 0", secretHandshake.PID)
-	}
-	if got := secretHandshake.Request.Capabilities.GrantedPermissions; len(got) != 1 || got[0] != "sessions/list" {
-		t.Fatalf("secret granted permissions = %#v, want sessions/list", got)
-	}
-	if got := secretHandshake.Response.SupportedHookEvents; len(got) != 1 ||
-		got[0] != string(hookspkg.HookInputPreSubmit) {
-		t.Fatalf("secret supported hook events = %#v, want input.pre_submit", got)
-	}
-
-	promptHandshake := waitForJSONFile[referenceHandshakeMarker](t, harness.promptHandshakePath, 10*time.Second)
-	if promptHandshake.Request.ProtocolVersion != "1" {
-		t.Fatalf("prompt handshake protocol = %q, want 1", promptHandshake.Request.ProtocolVersion)
-	}
-	if promptHandshake.PID <= 0 {
-		t.Fatalf("prompt handshake pid = %d, want > 0", promptHandshake.PID)
-	}
-	if got := promptHandshake.Request.Capabilities.GrantedPermissions; len(got) != 1 || got[0] != "sessions/list" {
-		t.Fatalf("prompt granted permissions = %#v, want sessions/list", got)
-	}
-	if got := promptHandshake.Response.SupportedHookEvents; len(got) != 1 ||
-		got[0] != string(hookspkg.HookPromptPostAssemble) {
-		t.Fatalf("prompt supported hook events = %#v, want prompt.post_assemble", got)
-	}
-
-	secretHostCall := waitForHostCallMarker(t, harness.secretHostCallPath, secretPID, 10*time.Second)
-	if secretHostCall.Error != "" {
-		t.Fatalf("secret host call error = %q, want empty", secretHostCall.Error)
-	}
-
-	promptHostCall := waitForHostCallMarker(t, harness.promptHostCallPath, promptHandshake.PID, 10*time.Second)
-	if promptHostCall.Error != "" {
-		t.Fatalf("prompt host call error = %q, want empty", promptHostCall.Error)
-	}
-
-	capabilityMarker := waitForJSONFile[referenceCapabilityMarker](t, harness.promptCapabilityPath, 10*time.Second)
-	if !capabilityMarker.Denied {
-		t.Fatalf("capability marker = %#v, want denied=true", capabilityMarker)
-	}
-	if capabilityMarker.Code != -32001 {
-		t.Fatalf("capability code = %d, want -32001", capabilityMarker.Code)
-	}
-	if got := strings.TrimSpace(fmt.Sprint(capabilityMarker.Data["method"])); got != "sessions/create" {
-		t.Fatalf("capability denied method = %q, want sessions/create", got)
-	}
-
-	hooks := harness.hookCatalog(t)
-	if !hookCatalogContains(hooks, "secret-guard-hook", string(hookspkg.HookInputPreSubmit)) {
-		t.Fatalf("hook catalog = %#v, want secret-guard input hook", hooks)
-	}
-	if !hookCatalogContains(hooks, "workspace-context", string(hookspkg.HookPromptPostAssemble)) {
-		t.Fatalf("hook catalog = %#v, want prompt-enhancer prompt hook", hooks)
-	}
-
-	session := harness.createSession(t)
-	if session.WorkspaceID == "" {
-		t.Fatal("create session workspace id = empty, want resolved workspace")
-	}
-
-	harness.assertClarificationRoundTrip(t, session)
-
-	if _, err := harness.promptSession(t, session.ID, "Summarize the current workspace."); err != nil {
-		t.Fatalf("safe PromptSession() error = %v", err)
-	}
-
-	promptEntries := harness.waitForPromptEntries(t, 1)
-	firstPrompt := promptEntries[0].Text
-	if !containsFragmentsInOrder(
-		firstPrompt,
-		"[Workspace: "+harness.workspace.RootDir+"]",
-		"You are a coding assistant.",
-		"User request:",
-		"Summarize the current workspace.",
-	) {
-		t.Fatalf("first prompt = %q, want workspace prefix plus user request", firstPrompt)
-	}
-
-	if _, err := harness.promptSession(t, session.ID, "please keep sk-abc123 safe"); err == nil {
-		t.Fatal("secret PromptSession() error = nil, want denied hook error")
-	} else if !strings.Contains(err.Error(), "input.pre_submit") && !strings.Contains(strings.ToLower(err.Error()), "denied") {
-		t.Fatalf("secret PromptSession() error = %v, want hook denial", err)
-	}
-
-	harness.ensurePromptEntryCount(t, 1, 500*time.Millisecond)
-
-	runs := harness.hookRuns(t, session.ID, 32)
-	if !hookRunContains(runs, string(hookspkg.HookInputPreSubmit), "denied", "sk-") {
-		t.Fatalf("hook runs = %#v, want denied input.pre_submit patch", runs)
-	}
-
-	secretBefore, err := harness.extensionStatus("secret-guard")
-	if err != nil {
-		t.Fatalf("ExtensionStatus(secret-guard) error = %v", err)
-	}
-	if secretBefore.PID <= 0 {
-		t.Fatalf("secret-guard pid = %d, want active process pid", secretBefore.PID)
-	}
-	startsBefore := len(waitForNonEmptyFileLines(t, harness.secretStartsPath, 10*time.Second))
-	if err := syscall.Kill(secretBefore.PID, syscall.SIGKILL); err != nil {
-		t.Fatalf("syscall.Kill(%d, SIGKILL) error = %v", secretBefore.PID, err)
-	}
-	waitForCondition(t, 15*time.Second, "secret-guard restart after crash", func() bool {
-		lines, err := readFileLines(harness.secretStartsPath)
-		if err != nil {
-			return false
+	t.Run("Should exercise reference extensions through their complete runtime lifecycle", func(t *testing.T) {
+		// not parallel: the reference extensions read process environment marker paths.
+		if runtime.GOOS == "windows" {
+			t.Skip("reference extension integration uses Unix domain sockets and shell command quoting")
 		}
-		status, statusErr := harness.extensionStatus("secret-guard")
-		return statusErr == nil &&
-			status.State == "active" &&
-			status.Health == "healthy" &&
-			status.PID > 0 &&
-			status.PID != secretBefore.PID &&
-			len(lines) >= startsBefore+1
+
+		repoRoot := referenceRepoRoot(t)
+		clarifyToolInstallSource := buildReferenceArtifacts(t, repoRoot)
+
+		harness := newReferenceHarness(t, repoRoot)
+		promptEnhancerInstallSource := referencePromptEnhancerInstallSource(t, repoRoot)
+
+		secret := harness.installExtension(t, "internal/extension/testdata/secret-guard")
+		if secret.Name != "secret-guard" {
+			t.Fatalf("secret install name = %q, want secret-guard", secret.Name)
+		}
+		if secret.State != "active" || secret.Health != "healthy" {
+			t.Fatalf("secret install status = %#v, want active/healthy", secret)
+		}
+
+		promptEnhancer := harness.installExtension(t, promptEnhancerInstallSource)
+		if promptEnhancer.Name != "prompt-enhancer" {
+			t.Fatalf("prompt install name = %q, want prompt-enhancer", promptEnhancer.Name)
+		}
+		if promptEnhancer.State != "active" || promptEnhancer.Health != "healthy" {
+			t.Fatalf("prompt install status = %#v, want active/healthy", promptEnhancer)
+		}
+
+		clarifyTool := harness.installExtension(t, clarifyToolInstallSource)
+		if clarifyTool.Name != "clarify-tool" {
+			t.Fatalf("clarify install name = %q, want clarify-tool", clarifyTool.Name)
+		}
+		if clarifyTool.State != "active" || clarifyTool.Health != "healthy" {
+			t.Fatalf("clarify install status = %#v, want active/healthy", clarifyTool)
+		}
+
+		secretPID := waitForStartedPID(t, harness.secretStartsPath, 2, 10*time.Second)
+		secretHandshake := waitForHandshakeMarker(t, harness.secretHandshakePath, secretPID, 10*time.Second)
+		if secretHandshake.Request.ProtocolVersion != "1" {
+			t.Fatalf("secret handshake protocol = %q, want 1", secretHandshake.Request.ProtocolVersion)
+		}
+		if secretHandshake.PID <= 0 {
+			t.Fatalf("secret handshake pid = %d, want > 0", secretHandshake.PID)
+		}
+		if got := secretHandshake.Request.Capabilities.GrantedPermissions; len(got) != 1 || got[0] != "sessions/list" {
+			t.Fatalf("secret granted permissions = %#v, want sessions/list", got)
+		}
+		if got := secretHandshake.Response.SupportedHookEvents; len(got) != 1 ||
+			got[0] != string(hookspkg.HookInputPreSubmit) {
+			t.Fatalf("secret supported hook events = %#v, want input.pre_submit", got)
+		}
+
+		promptHandshake := waitForJSONFile[referenceHandshakeMarker](t, harness.promptHandshakePath, 10*time.Second)
+		if promptHandshake.Request.ProtocolVersion != "1" {
+			t.Fatalf("prompt handshake protocol = %q, want 1", promptHandshake.Request.ProtocolVersion)
+		}
+		if promptHandshake.PID <= 0 {
+			t.Fatalf("prompt handshake pid = %d, want > 0", promptHandshake.PID)
+		}
+		if got := promptHandshake.Request.Capabilities.GrantedPermissions; len(got) != 1 || got[0] != "sessions/list" {
+			t.Fatalf("prompt granted permissions = %#v, want sessions/list", got)
+		}
+		if got := promptHandshake.Response.SupportedHookEvents; len(got) != 1 ||
+			got[0] != string(hookspkg.HookPromptPostAssemble) {
+			t.Fatalf("prompt supported hook events = %#v, want prompt.post_assemble", got)
+		}
+
+		secretHostCall := waitForHostCallMarker(t, harness.secretHostCallPath, secretPID, 10*time.Second)
+		if secretHostCall.Error != "" {
+			t.Fatalf("secret host call error = %q, want empty", secretHostCall.Error)
+		}
+
+		promptHostCall := waitForHostCallMarker(t, harness.promptHostCallPath, promptHandshake.PID, 10*time.Second)
+		if promptHostCall.Error != "" {
+			t.Fatalf("prompt host call error = %q, want empty", promptHostCall.Error)
+		}
+
+		capabilityMarker := waitForJSONFile[referenceCapabilityMarker](t, harness.promptCapabilityPath, 10*time.Second)
+		if !capabilityMarker.Denied {
+			t.Fatalf("capability marker = %#v, want denied=true", capabilityMarker)
+		}
+		if capabilityMarker.Code != -32001 {
+			t.Fatalf("capability code = %d, want -32001", capabilityMarker.Code)
+		}
+		if got := strings.TrimSpace(fmt.Sprint(capabilityMarker.Data["method"])); got != "sessions/create" {
+			t.Fatalf("capability denied method = %q, want sessions/create", got)
+		}
+
+		hooks := harness.hookCatalog(t)
+		if !hookCatalogContains(hooks, "secret-guard-hook", string(hookspkg.HookInputPreSubmit)) {
+			t.Fatalf("hook catalog = %#v, want secret-guard input hook", hooks)
+		}
+		if !hookCatalogContains(hooks, "workspace-context", string(hookspkg.HookPromptPostAssemble)) {
+			t.Fatalf("hook catalog = %#v, want prompt-enhancer prompt hook", hooks)
+		}
+
+		session := harness.createSession(t)
+		if session.WorkspaceID == "" {
+			t.Fatal("create session workspace id = empty, want resolved workspace")
+		}
+
+		harness.assertClarificationRoundTrip(t, session)
+
+		if _, err := harness.promptSession(t, session.ID, "Summarize the current workspace."); err != nil {
+			t.Fatalf("safe PromptSession() error = %v", err)
+		}
+
+		promptEntries := harness.waitForPromptEntries(t, 1)
+		firstPrompt := promptEntries[0].Text
+		if !containsFragmentsInOrder(
+			firstPrompt,
+			"[Workspace: "+harness.workspace.RootDir+"]",
+			"You are a coding assistant.",
+			"User request:",
+			"Summarize the current workspace.",
+		) {
+			t.Fatalf("first prompt = %q, want workspace prefix plus user request", firstPrompt)
+		}
+
+		if _, err := harness.promptSession(t, session.ID, "please keep sk-abc123 safe"); err == nil {
+			t.Fatal("secret PromptSession() error = nil, want denied hook error")
+		} else if !strings.Contains(err.Error(), "input.pre_submit") && !strings.Contains(strings.ToLower(err.Error()), "denied") {
+			t.Fatalf("secret PromptSession() error = %v, want hook denial", err)
+		}
+
+		harness.ensurePromptEntryCount(t, 1, 500*time.Millisecond)
+
+		runs := harness.hookRuns(t, session.ID, 32)
+		if !hookRunContains(runs, string(hookspkg.HookInputPreSubmit), "denied", "sk-") {
+			t.Fatalf("hook runs = %#v, want denied input.pre_submit patch", runs)
+		}
+
+		secretBefore, err := harness.extensionStatus("secret-guard")
+		if err != nil {
+			t.Fatalf("ExtensionStatus(secret-guard) error = %v", err)
+		}
+		if secretBefore.PID <= 0 {
+			t.Fatalf("secret-guard pid = %d, want active process pid", secretBefore.PID)
+		}
+		startsBefore := len(waitForNonEmptyFileLines(t, harness.secretStartsPath, 10*time.Second))
+		secretProcess, err := os.FindProcess(secretBefore.PID)
+		if err != nil {
+			t.Fatalf("os.FindProcess(%d) error = %v", secretBefore.PID, err)
+		}
+		if err := errors.Join(secretProcess.Kill(), secretProcess.Release()); err != nil {
+			t.Fatalf("kill and release process %d: %v", secretBefore.PID, err)
+		}
+		waitForCondition(t, 15*time.Second, "secret-guard restart after crash", func() bool {
+			lines, err := readFileLines(harness.secretStartsPath)
+			if err != nil {
+				return false
+			}
+			status, statusErr := harness.extensionStatus("secret-guard")
+			return statusErr == nil &&
+				status.State == "active" &&
+				status.Health == "healthy" &&
+				status.PID > 0 &&
+				status.PID != secretBefore.PID &&
+				len(lines) >= startsBefore+1
+		})
+
+		harness.shutdown(t)
+
+		secretShutdownLines := waitForNonEmptyFileLines(t, harness.secretShutdownPath, 10*time.Second)
+		if len(secretShutdownLines) == 0 {
+			t.Fatal("secret shutdown marker = empty, want at least one shutdown line")
+		}
+		promptShutdownLines := waitForNonEmptyFileLines(t, harness.promptShutdownPath, 10*time.Second)
+		if len(promptShutdownLines) == 0 {
+			t.Fatal("prompt shutdown marker = empty, want at least one shutdown line")
+		}
 	})
-
-	harness.shutdown(t)
-
-	secretShutdownLines := waitForNonEmptyFileLines(t, harness.secretShutdownPath, 10*time.Second)
-	if len(secretShutdownLines) == 0 {
-		t.Fatal("secret shutdown marker = empty, want at least one shutdown line")
-	}
-	promptShutdownLines := waitForNonEmptyFileLines(t, harness.promptShutdownPath, 10*time.Second)
-	if len(promptShutdownLines) == 0 {
-		t.Fatal("prompt shutdown marker = empty, want at least one shutdown line")
-	}
 }
 
 func newReferenceHarness(t *testing.T, repoRoot string) *referenceHarness {
@@ -442,17 +447,48 @@ func (h *referenceHarness) installExtension(t *testing.T, relativePath string) c
 	if err != nil {
 		t.Fatalf("InstallExtension(%q) error = %v", relativePath, err)
 	}
-
-	waitForCondition(t, 10*time.Second, "extension active "+record.Name, func() bool {
-		status, statusErr := h.extensionStatus(record.Name)
-		return statusErr == nil && status.State == "active" && status.Health == "healthy"
-	})
-
-	status, err := h.extensionStatus(record.Name)
-	if err != nil {
-		t.Fatalf("ExtensionStatus(%q) error = %v", record.Name, err)
+	if record.Enabled {
+		t.Fatalf("InstallExtension(%q).Enabled = true, want inert install before enable", relativePath)
 	}
-	return status
+	enabled, err := h.client.EnableExtension(ctx, record.Name, cli.EnableExtensionRequest{})
+	if err != nil {
+		t.Fatalf("EnableExtension(%q) error = %v", record.Name, err)
+	}
+	if !enabled.Extension.Enabled {
+		t.Fatalf("EnableExtension(%q).Enabled = false, want true", record.Name)
+	}
+
+	return h.waitForExtensionActive(t, record.Name)
+}
+
+func (h *referenceHarness) waitForExtensionActive(t *testing.T, name string) cli.ExtensionRecord {
+	t.Helper()
+
+	timeout := time.NewTimer(10 * time.Second)
+	defer timeout.Stop()
+	ticker := time.NewTicker(20 * time.Millisecond)
+	defer ticker.Stop()
+
+	var lastStatus cli.ExtensionRecord
+	var lastErr error
+	for {
+		select {
+		case <-timeout.C:
+			t.Fatalf(
+				"timed out waiting for extension active %s after 10s: last status=%#v error=%v",
+				name,
+				lastStatus,
+				lastErr,
+			)
+		case <-ticker.C:
+			status, err := h.extensionStatus(name)
+			lastStatus = status
+			lastErr = err
+			if err == nil && status.State == "active" && status.Health == "healthy" {
+				return status
+			}
+		}
+	}
 }
 
 func (h *referenceHarness) extensionStatus(name string) (cli.ExtensionRecord, error) {

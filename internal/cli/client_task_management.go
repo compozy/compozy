@@ -264,11 +264,11 @@ func (c *unixSocketClient) DeleteTaskBridgeNotificationSubscription(
 }
 
 func taskBridgeNotificationSubscriptionsPath(taskID string) string {
-	return "/api/tasks/" + url.PathEscape(strings.TrimSpace(taskID)) + "/notifications/bridges"
+	return "/api/tasks/" + url.PathEscape(taskID) + "/notifications/bridges"
 }
 
 func taskBridgeNotificationSubscriptionPath(taskID string, subscriptionID string) string {
-	return taskBridgeNotificationSubscriptionsPath(taskID) + "/" + url.PathEscape(strings.TrimSpace(subscriptionID))
+	return taskBridgeNotificationSubscriptionsPath(taskID) + "/" + url.PathEscape(subscriptionID)
 }
 
 func (c *unixSocketClient) RequestTaskRunReview(

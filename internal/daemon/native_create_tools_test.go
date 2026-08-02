@@ -480,8 +480,8 @@ func TestNativeAgentCreate(t *testing.T) {
 			t.Fatalf("Registry.Call(agent_create reserved) error = %v, want ErrAgentNameReserved", err)
 		}
 		requireToolReason(t, err, toolspkg.ErrToolInvalidInput, toolspkg.ReasonSchemaInvalid)
-		var toolErr *toolspkg.ToolError
-		if !errors.As(err, &toolErr) || toolErr.Code != toolspkg.ErrorCodeAgentNameReserved {
+		toolErr, toolErrMatched := errors.AsType[*toolspkg.ToolError](err)
+		if !toolErrMatched || toolErr.Code != toolspkg.ErrorCodeAgentNameReserved {
 			t.Fatalf("Registry.Call(agent_create reserved) error = %#v, want agent_name_reserved", err)
 		}
 		path := filepath.Join(homePaths.AgentsDir, "coordinator")

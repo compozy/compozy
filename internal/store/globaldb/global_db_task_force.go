@@ -7,12 +7,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 type retryTaskRunArgs struct {
 	sourceRunID string
+	sourceFence taskpkg.RunMutationFence
 	newRunID    string
 	origin      taskpkg.Origin
 	metadata    json.RawMessage
@@ -20,147 +20,122 @@ type retryTaskRunArgs struct {
 	reason      string
 }
 
-// ForceReleaseTaskRun requeues one claimed run with snapshot fencing.
-func (g *TaskRunRepo) ForceReleaseTaskRun(
+func (g *TaskRunRepo) forceReleaseTaskRunWithExecutor(
 	ctx context.Context,
+	exec taskSQLExecutor,
 	release taskpkg.ForceReleaseRunMutation,
 ) (taskpkg.ForceRunMutationResult, error) {
-	if err := g.checkReady(ctx, "force release task run"); err != nil {
-		return taskpkg.ForceRunMutationResult{}, err
-	}
-	runID, err := requireTaskValue(release.RunID, "task run id")
+	fence := release.Fence()
+	runID, err := requireTaskValue(fence.RunID(), "task run id")
 	if err != nil {
 		return taskpkg.ForceRunMutationResult{}, err
 	}
-
-	var result taskpkg.ForceRunMutationResult
-	if err := g.tasks.withTaskImmediateTransaction(ctx, "force release task run", func(exec taskSQLExecutor) error {
-		previous, err := g.tasks.getTaskRunWithExecutor(ctx, exec, runID)
-		if err != nil {
-			return err
-		}
-		if previous.Status.Normalize() != taskpkg.TaskRunStatusClaimed {
-			return fmt.Errorf(
-				"%w: task run %q is %s; only claimed runs can be force released",
-				taskpkg.ErrInvalidStatusTransition,
-				previous.ID,
-				previous.Status.Normalize(),
-			)
-		}
-		next := forceReleasedTaskRun(previous)
-		if err := updateTaskRunRecordWithSnapshotCAS(ctx, exec, previous, next); err != nil {
-			return err
-		}
-		if err := updateTaskCurrentRunProjectionForRunUpdate(ctx, exec, previous, next); err != nil {
-			return err
-		}
-		result = taskpkg.ForceRunMutationResult{Previous: previous, Run: next}
-		return nil
-	}); err != nil {
+	previous, err := g.tasks.getTaskRunWithExecutor(ctx, exec, runID)
+	if err != nil {
 		return taskpkg.ForceRunMutationResult{}, err
 	}
-	return result, nil
+	if !fence.Matches(previous) {
+		return taskpkg.ForceRunMutationResult{}, fmt.Errorf(
+			"%w: task run %q changed before force release",
+			taskpkg.ErrInvalidStatusTransition,
+			previous.ID,
+		)
+	}
+	if previous.Status.Normalize() != taskpkg.TaskRunStatusClaimed {
+		return taskpkg.ForceRunMutationResult{}, fmt.Errorf(
+			"%w: task run %q is %s; only claimed runs can be force released",
+			taskpkg.ErrInvalidStatusTransition,
+			previous.ID,
+			previous.Status.Normalize(),
+		)
+	}
+	next, err := forceReleaseClaimedTaskRunWithExecutor(ctx, exec, previous, fence)
+	if err != nil {
+		return taskpkg.ForceRunMutationResult{}, err
+	}
+	if err := updateTaskCurrentRunProjectionForRunUpdate(ctx, exec, previous, next); err != nil {
+		return taskpkg.ForceRunMutationResult{}, err
+	}
+	return taskpkg.ForceRunMutationResult{Previous: previous, Run: next}, nil
 }
 
-// ForceFailTaskRun marks one queued or claimed run as operator-forced failed with snapshot fencing.
-func (g *TaskRunRepo) ForceFailTaskRun(
+func (g *TaskRunRepo) forceFailTaskRunWithExecutor(
 	ctx context.Context,
+	exec taskSQLExecutor,
 	failure taskpkg.ForceFailRunMutation,
 ) (taskpkg.ForceRunMutationResult, error) {
-	if err := g.checkReady(ctx, "force fail task run"); err != nil {
-		return taskpkg.ForceRunMutationResult{}, err
-	}
-	runID, err := requireTaskValue(failure.RunID, "task run id")
+	fence := failure.Fence()
+	runID, err := requireTaskValue(fence.RunID(), "task run id")
 	if err != nil {
 		return taskpkg.ForceRunMutationResult{}, err
 	}
-	reason := strings.TrimSpace(failure.Reason)
+	reason := taskpkg.RedactClaimTokens(strings.TrimSpace(failure.Reason()))
 	if reason == "" {
 		return taskpkg.ForceRunMutationResult{}, fmt.Errorf("%w: force fail reason is required", taskpkg.ErrValidation)
 	}
-	now := normalizedForceRunTime(failure.Now, g.now)
-
-	var result taskpkg.ForceRunMutationResult
-	if err := g.tasks.withTaskImmediateTransaction(ctx, "force fail task run", func(exec taskSQLExecutor) error {
-		previous, err := g.tasks.getTaskRunWithExecutor(ctx, exec, runID)
-		if err != nil {
-			return err
-		}
-		if !forceFailTaskRunStatusAllowed(previous.Status) {
-			return fmt.Errorf(
-				"%w: task run %q is %s; only queued or claimed runs can be force failed",
-				taskpkg.ErrInvalidStatusTransition,
-				previous.ID,
-				previous.Status.Normalize(),
-			)
-		}
-		next := forceFailedTaskRun(previous, reason, now)
-		if err := updateTaskRunRecordWithSnapshotCAS(ctx, exec, previous, next); err != nil {
-			return err
-		}
-		if err := updateTaskCurrentRunProjectionForRunUpdate(ctx, exec, previous, next); err != nil {
-			return err
-		}
-		result = taskpkg.ForceRunMutationResult{Previous: previous, Run: next}
-		return nil
-	}); err != nil {
+	if err := taskpkg.ValidateReasonSize(reason, "force_fail.reason"); err != nil {
 		return taskpkg.ForceRunMutationResult{}, err
 	}
-	return result, nil
-}
+	now := normalizedForceRunTime(failure.Now(), g.now)
 
-// RetryTaskRun creates one queued retry run linked to a failed source run.
-func (g *TaskRunRepo) RetryTaskRun(
-	ctx context.Context,
-	retry taskpkg.RetryRunMutation,
-) (taskpkg.RetryRunResult, error) {
-	if err := g.checkReady(ctx, "retry task run"); err != nil {
-		return taskpkg.RetryRunResult{}, err
-	}
-	args, err := normalizeRetryTaskRunArgs(retry, g.now)
+	previous, err := g.tasks.getTaskRunWithExecutor(ctx, exec, runID)
 	if err != nil {
-		return taskpkg.RetryRunResult{}, err
+		return taskpkg.ForceRunMutationResult{}, err
 	}
-
-	var result taskpkg.RetryRunResult
-	if err := g.tasks.withTaskImmediateTransaction(ctx, "retry task run", func(exec taskSQLExecutor) error {
-		created, err := g.retryTaskRunWithExecutor(ctx, exec, args)
-		if err == nil {
-			result = created
-		}
-		return err
-	}); err != nil {
-		return taskpkg.RetryRunResult{}, err
+	if !fence.Matches(previous) {
+		return taskpkg.ForceRunMutationResult{}, fmt.Errorf(
+			"%w: task run %q changed before force failure",
+			taskpkg.ErrInvalidStatusTransition,
+			previous.ID,
+		)
 	}
-	return result, nil
+	if !forceFailTaskRunStatusAllowed(previous.Status) {
+		return taskpkg.ForceRunMutationResult{}, fmt.Errorf(
+			"%w: task run %q is %s; only queued or claimed runs can be force failed",
+			taskpkg.ErrInvalidStatusTransition,
+			previous.ID,
+			previous.Status.Normalize(),
+		)
+	}
+	next, err := forceFailEligibleTaskRunWithExecutor(ctx, exec, previous, fence, reason, now)
+	if err != nil {
+		return taskpkg.ForceRunMutationResult{}, err
+	}
+	if err := updateTaskCurrentRunProjectionForRunUpdate(ctx, exec, previous, next); err != nil {
+		return taskpkg.ForceRunMutationResult{}, err
+	}
+	return taskpkg.ForceRunMutationResult{Previous: previous, Run: next}, nil
 }
 
 func normalizeRetryTaskRunArgs(
 	retry taskpkg.RetryRunMutation,
 	now func() time.Time,
 ) (retryTaskRunArgs, error) {
-	sourceRunID, err := requireTaskValue(retry.SourceRunID, "source task run id")
+	fence := retry.Fence()
+	sourceRunID, err := requireTaskValue(fence.RunID(), "source task run id")
 	if err != nil {
 		return retryTaskRunArgs{}, err
 	}
-	newRunID, err := requireTaskValue(retry.NewRunID, "new task run id")
+	newRunID, err := requireTaskValue(retry.NewRunID(), "new task run id")
 	if err != nil {
 		return retryTaskRunArgs{}, err
 	}
-	origin := taskpkg.Origin{Kind: retry.Origin.Kind.Normalize(), Ref: strings.TrimSpace(retry.Origin.Ref)}
+	retryOrigin := retry.Origin()
+	origin := taskpkg.Origin{Kind: retryOrigin.Kind.Normalize(), Ref: strings.TrimSpace(retryOrigin.Ref)}
 	if err := origin.Validate("retry_run.origin"); err != nil {
 		return retryTaskRunArgs{}, err
 	}
-	metadata := normalizeTaskJSON(retry.Metadata)
+	metadata := normalizeTaskJSON(retry.Metadata())
 	if err := taskpkg.ValidateMetadataSize(metadata, "retry_run.metadata"); err != nil {
 		return retryTaskRunArgs{}, err
 	}
 	return retryTaskRunArgs{
 		sourceRunID: sourceRunID,
+		sourceFence: fence,
 		newRunID:    newRunID,
 		origin:      origin,
 		metadata:    metadata,
-		queuedAt:    normalizedForceRunTime(retry.QueuedAt, now),
+		queuedAt:    normalizedForceRunTime(retry.QueuedAt(), now),
 	}, nil
 }
 
@@ -169,7 +144,7 @@ func (g *TaskRunRepo) retryTaskRunWithExecutor(
 	exec taskSQLExecutor,
 	args retryTaskRunArgs,
 ) (taskpkg.RetryRunResult, error) {
-	source, err := g.retryTaskRunSource(ctx, exec, args.sourceRunID)
+	source, err := g.retryTaskRunSource(ctx, exec, args.sourceFence)
 	if err != nil {
 		return taskpkg.RetryRunResult{}, err
 	}
@@ -187,11 +162,18 @@ func (g *TaskRunRepo) retryTaskRunWithExecutor(
 func (g *TaskRunRepo) retryTaskRunSource(
 	ctx context.Context,
 	exec taskSQLExecutor,
-	sourceRunID string,
+	fence taskpkg.RunMutationFence,
 ) (taskpkg.Run, error) {
-	source, err := g.tasks.getTaskRunWithExecutor(ctx, exec, sourceRunID)
+	source, err := g.tasks.getTaskRunWithExecutor(ctx, exec, fence.RunID())
 	if err != nil {
 		return taskpkg.Run{}, err
+	}
+	if !fence.Matches(source) {
+		return taskpkg.Run{}, fmt.Errorf(
+			"%w: task run %q changed before retry",
+			taskpkg.ErrInvalidStatusTransition,
+			source.ID,
+		)
 	}
 	if source.Status.Normalize() != taskpkg.TaskRunStatusFailed {
 		return taskpkg.Run{}, fmt.Errorf(
@@ -265,66 +247,50 @@ func (g *TaskRunRepo) insertRetryTaskRun(
 	if err != nil {
 		return taskpkg.RetryRunResult{}, err
 	}
+	normalizedRun.Metadata = taskpkg.RedactClaimTokenJSON(normalizedRun.Metadata)
+	if err := taskpkg.ValidateMetadataSize(normalizedRun.Metadata, "task_run.metadata"); err != nil {
+		return taskpkg.RetryRunResult{}, err
+	}
 	if err := insertQueuedTaskRun(ctx, exec, normalizedRun); err != nil {
 		return taskpkg.RetryRunResult{}, err
 	}
 	return taskpkg.RetryRunResult{PreviousRun: source, Run: normalizedRun}, nil
 }
 
-// RecoverTaskRun terminalizes a needs_attention run as failed and queues one fresh child in
-// the same transaction, so the source leaves the open-run set before the requeue reservation.
-func (g *TaskRunRepo) RecoverTaskRun(
-	ctx context.Context,
-	mutation taskpkg.RecoverRunMutation,
-) (taskpkg.RetryRunResult, error) {
-	if err := g.checkReady(ctx, "recover task run"); err != nil {
-		return taskpkg.RetryRunResult{}, err
-	}
-	args, err := normalizeRecoverTaskRunArgs(mutation, g.now)
-	if err != nil {
-		return taskpkg.RetryRunResult{}, err
-	}
-
-	var result taskpkg.RetryRunResult
-	if err := g.tasks.withTaskImmediateTransaction(ctx, "recover task run", func(exec taskSQLExecutor) error {
-		created, err := g.recoverTaskRunWithExecutor(ctx, exec, args)
-		if err == nil {
-			result = created
-		}
-		return err
-	}); err != nil {
-		return taskpkg.RetryRunResult{}, err
-	}
-	return result, nil
-}
-
 func normalizeRecoverTaskRunArgs(
 	mutation taskpkg.RecoverRunMutation,
 	now func() time.Time,
 ) (retryTaskRunArgs, error) {
-	sourceRunID, err := requireTaskValue(mutation.SourceRunID, "source task run id")
+	fence := mutation.Fence()
+	sourceRunID, err := requireTaskValue(fence.RunID(), "source task run id")
 	if err != nil {
 		return retryTaskRunArgs{}, err
 	}
-	newRunID, err := requireTaskValue(mutation.NewRunID, "new task run id")
+	newRunID, err := requireTaskValue(mutation.NewRunID(), "new task run id")
 	if err != nil {
 		return retryTaskRunArgs{}, err
 	}
-	origin := taskpkg.Origin{Kind: mutation.Origin.Kind.Normalize(), Ref: strings.TrimSpace(mutation.Origin.Ref)}
+	mutationOrigin := mutation.Origin()
+	origin := taskpkg.Origin{Kind: mutationOrigin.Kind.Normalize(), Ref: strings.TrimSpace(mutationOrigin.Ref)}
 	if err := origin.Validate("recover_run.origin"); err != nil {
 		return retryTaskRunArgs{}, err
 	}
-	metadata := normalizeTaskJSON(mutation.Metadata)
+	metadata := normalizeTaskJSON(mutation.Metadata())
 	if err := taskpkg.ValidateMetadataSize(metadata, "recover_run.metadata"); err != nil {
+		return retryTaskRunArgs{}, err
+	}
+	reason := taskpkg.RedactClaimTokens(strings.TrimSpace(mutation.Reason()))
+	if err := taskpkg.ValidateReasonSize(reason, "recover_run.reason"); err != nil {
 		return retryTaskRunArgs{}, err
 	}
 	return retryTaskRunArgs{
 		sourceRunID: sourceRunID,
+		sourceFence: fence,
 		newRunID:    newRunID,
 		origin:      origin,
 		metadata:    metadata,
-		queuedAt:    normalizedForceRunTime(mutation.QueuedAt, now),
-		reason:      strings.TrimSpace(mutation.Reason),
+		queuedAt:    normalizedForceRunTime(mutation.QueuedAt(), now),
+		reason:      reason,
 	}, nil
 }
 
@@ -336,6 +302,13 @@ func (g *TaskRunRepo) recoverTaskRunWithExecutor(
 	source, err := g.tasks.getTaskRunWithExecutor(ctx, exec, args.sourceRunID)
 	if err != nil {
 		return taskpkg.RetryRunResult{}, err
+	}
+	if !args.sourceFence.Matches(source) {
+		return taskpkg.RetryRunResult{}, fmt.Errorf(
+			"%w: task run %q changed before recovery",
+			taskpkg.ErrInvalidStatusTransition,
+			source.ID,
+		)
 	}
 	if source.Status.Normalize() != taskpkg.TaskRunStatusNeedsAttention {
 		return taskpkg.RetryRunResult{}, fmt.Errorf(
@@ -351,8 +324,15 @@ func (g *TaskRunRepo) recoverTaskRunWithExecutor(
 	if err := requireNoRetryChildWithExecutor(ctx, exec, source.ID); err != nil {
 		return taskpkg.RetryRunResult{}, err
 	}
-	failed := forceFailedTaskRun(source, args.reason, args.queuedAt)
-	if err := updateTaskRunRecordWithSnapshotCAS(ctx, exec, source, failed); err != nil {
+	failed, err := failNeedsAttentionTaskRunForRecoveryWithExecutor(
+		ctx,
+		exec,
+		source,
+		args.sourceFence,
+		args.reason,
+		args.queuedAt,
+	)
+	if err != nil {
 		return taskpkg.RetryRunResult{}, err
 	}
 	taskRecord, err := g.retryTaskRunTask(ctx, exec, failed.TaskID)
@@ -364,53 +344,4 @@ func (g *TaskRunRepo) recoverTaskRunWithExecutor(
 		return taskpkg.RetryRunResult{}, err
 	}
 	return g.insertRetryTaskRun(ctx, exec, args, failed, taskRecord, nextAttempt)
-}
-
-// MarkTaskRunNeedsAttention transitions one nonterminal run to needs_attention via a status CAS.
-func (g *TaskRunRepo) MarkTaskRunNeedsAttention(
-	ctx context.Context,
-	runID string,
-	diagnostic string,
-) (taskpkg.Run, error) {
-	if err := g.checkReady(ctx, "mark task run needs attention"); err != nil {
-		return taskpkg.Run{}, err
-	}
-	id, err := requireTaskValue(runID, "task run id")
-	if err != nil {
-		return taskpkg.Run{}, err
-	}
-	var run taskpkg.Run
-	if err := g.tasks.withTaskImmediateTransaction(
-		ctx,
-		"mark task run needs attention",
-		func(exec taskSQLExecutor) error {
-			affected, err := sqlcgen.New(exec).MarkTaskRunNeedsAttention(
-				ctx,
-				sqlcgen.MarkTaskRunNeedsAttentionParams{
-					NeedsAttentionStatus: taskpkg.TaskRunStatusNeedsAttention.String(),
-					Error:                nullableTaskString(strings.TrimSpace(diagnostic)),
-					ID:                   id,
-					QueuedStatus:         taskpkg.TaskRunStatusQueued.String(),
-					ClaimedStatus:        taskpkg.TaskRunStatusClaimed.String(),
-					StartingStatus:       taskpkg.TaskRunStatusStarting.String(),
-					RunningStatus:        taskpkg.TaskRunStatusRunning.String(),
-				},
-			)
-			if err != nil {
-				return fmt.Errorf("store: mark task run needs attention: %w", err)
-			}
-			if affected == 0 {
-				return fmt.Errorf("%w: task run %q is not nonterminal", taskpkg.ErrInvalidStatusTransition, id)
-			}
-			updated, err := g.tasks.getTaskRunWithExecutor(ctx, exec, id)
-			if err != nil {
-				return err
-			}
-			run = updated
-			return nil
-		},
-	); err != nil {
-		return taskpkg.Run{}, err
-	}
-	return run, nil
 }

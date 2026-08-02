@@ -333,9 +333,10 @@ func recoverBootTaskRuns(
 	if err != nil {
 		return err
 	}
-	if stats.requeued+stats.markedRunning+stats.failed > 0 {
+	if stats.terminalSettled+stats.requeued+stats.markedRunning+stats.failed > 0 {
 		state.logger.Info(
 			"daemon: task boot recovery complete",
+			"settled_terminal_commands", stats.terminalSettled,
 			"requeued_runs", stats.requeued,
 			"resumed_running_runs", stats.markedRunning,
 			"failed_runs", stats.failed,

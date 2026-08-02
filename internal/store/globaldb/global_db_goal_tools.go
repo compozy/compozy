@@ -207,8 +207,8 @@ func goalToolReportTargetEqual(left goal.ToolReportTarget, right goal.ToolReport
 }
 
 func normalizeGoalToolReportError(err error) error {
-	var reasonErr *looppkg.ReasonError
-	if !errors.As(err, &reasonErr) {
+	reasonErr, ok := errors.AsType[*looppkg.ReasonError](err)
+	if !ok || reasonErr == nil {
 		return err
 	}
 	switch reasonErr.Code {

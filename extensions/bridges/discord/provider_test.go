@@ -1201,6 +1201,23 @@ func TestHandleInteractionWebhookAcknowledgesImmediately(t *testing.T) {
 func TestDiscordBotClientRoutesRequestsAndClassifiesFailures(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should reject a nil request context", func(t *testing.T) {
+		t.Parallel()
+
+		client := &discordBotClient{}
+		var nilCtx context.Context
+		if err := client.callJSON(
+			nilCtx,
+			http.MethodGet,
+			"/users/@me",
+			nil,
+			nil,
+			bridgesdk.HTTPResponseNoCommit,
+		); err == nil {
+			t.Fatal("callJSON(nil context) error = nil, want context validation failure")
+		}
+	})
+
 	t.Run("Should preserve rate-limit classification when the error body read fails", func(t *testing.T) {
 		t.Parallel()
 
@@ -1231,8 +1248,8 @@ func TestDiscordBotClientRoutesRequestsAndClassifiesFailures(t *testing.T) {
 		if !errors.Is(err, readErr) {
 			t.Fatalf("PostMessage() error = %v, want response body read failure", err)
 		}
-		var httpErr *bridgesdk.HTTPError
-		if !errors.As(err, &httpErr) || httpErr.StatusCode != http.StatusTooManyRequests {
+		httpErr, httpErrMatched := errors.AsType[*bridgesdk.HTTPError](err)
+		if !httpErrMatched || httpErr.StatusCode != http.StatusTooManyRequests {
 			t.Fatalf("PostMessage() error = %v, want HTTP 429 classification", err)
 		}
 		classified := bridgesdk.ClassifyError(err)
@@ -1431,8 +1448,8 @@ func TestDiscordBotClientRoutesRequestsAndClassifiesFailures(t *testing.T) {
 				ChannelID: "thread-redirect",
 				Content:   "hello",
 			})
-			var httpErr *bridgesdk.HTTPError
-			if !errors.As(err, &httpErr) || httpErr.StatusCode != testCase.statusCode {
+			httpErr, httpErrMatched := errors.AsType[*bridgesdk.HTTPError](err)
+			if !httpErrMatched || httpErr.StatusCode != testCase.statusCode {
 				t.Fatalf(
 					"PostMessage(%d) error = %T %v, want first-response HTTPError",
 					testCase.statusCode,
@@ -2354,8 +2371,8 @@ func TestDiscordWebhookAndHelperErrorBranches(t *testing.T) {
 		Body:       []byte("{"),
 		ReceivedAt: time.Now().UTC(),
 	})
-	var httpErr *bridgesdk.HTTPError
-	if !errors.As(err, &httpErr) || httpErr.StatusCode != http.StatusBadRequest {
+	httpErr, httpErrMatched := errors.AsType[*bridgesdk.HTTPError](err)
+	if !httpErrMatched || httpErr.StatusCode != http.StatusBadRequest {
 		t.Fatalf("handleWebhookRequest(invalid json) error = %v, want bad request http error", err)
 	}
 
@@ -2365,7 +2382,8 @@ func TestDiscordWebhookAndHelperErrorBranches(t *testing.T) {
 		Type:  999,
 		Token: "ixn-token-1",
 	}, time.Now().UTC()))
-	if !errors.As(err, &httpErr) || httpErr.StatusCode != http.StatusBadRequest {
+	httpErr, httpErrMatched = errors.AsType[*bridgesdk.HTTPError](err)
+	if !httpErrMatched || httpErr.StatusCode != http.StatusBadRequest {
 		t.Fatalf("handleInteractionWebhook(unsupported) error = %v, want bad request http error", err)
 	}
 
@@ -2490,8 +2508,8 @@ func TestHandleDiscordEventWebhookUsesRequestContext(t *testing.T) {
 		&cfg,
 		bridgepkgToWebhookRequest(t, payload, now),
 	)
-	var httpErr *bridgesdk.HTTPError
-	if !errors.As(err, &httpErr) || httpErr.StatusCode != http.StatusInternalServerError {
+	httpErr, httpErrMatched := errors.AsType[*bridgesdk.HTTPError](err)
+	if !httpErrMatched || httpErr.StatusCode != http.StatusInternalServerError {
 		t.Fatalf("handleEventWebhook(canceled context) error = %v, want HTTP 500", err)
 	}
 }

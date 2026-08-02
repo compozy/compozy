@@ -46,9 +46,9 @@ func (m *Manager) SetCompactionHandler(handler CompactionHandler) {
 	if m == nil {
 		return
 	}
-	m.compactionMu.Lock()
+	m.compactionLifecycle.mu.Lock()
 	m.compactionHandler = handler
-	m.compactionMu.Unlock()
+	m.compactionLifecycle.mu.Unlock()
 }
 
 func (m *Manager) scheduleCompactionFromUsage(session *Session, event acp.AgentEvent) {
@@ -75,15 +75,15 @@ func (m *Manager) maybeCompact(session *Session, usage acp.TokenUsage) error {
 		return errors.New("session: compaction usage turn id is required")
 	}
 
-	m.compactionMu.Lock()
-	defer m.compactionMu.Unlock()
-	if m.compactionClosing || m.compactionHandler == nil {
+	m.compactionLifecycle.mu.Lock()
+	defer m.compactionLifecycle.mu.Unlock()
+	if m.compactionLifecycle.closing || m.compactionHandler == nil {
 		return nil
 	}
-	state := m.compactions[session.ID]
+	state := m.compactionLifecycle.runs[session.ID]
 	if state == nil {
 		state = &sessionCompactionState{}
-		m.compactions[session.ID] = state
+		m.compactionLifecycle.runs[session.ID] = state
 	}
 	if state.inFlight || m.now().Before(state.cooldownUntil) {
 		return nil
@@ -111,7 +111,6 @@ func (m *Manager) maybeCompact(session *Session, usage acp.TokenUsage) error {
 		},
 		handler: m.compactionHandler,
 	}
-	m.compactionWG.Add(1)
 	go m.runPressureCompaction(workCtx, request)
 	return nil
 }

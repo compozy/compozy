@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"reflect"
 	"strconv"
 	"strings"
 	"sync"
@@ -50,34 +51,51 @@ type rpcResult struct {
 // Peer is the bridge-sdk JSON-RPC transport used by provider runtimes to
 // receive daemon requests and issue Host API calls over the same stdio stream.
 type Peer struct {
+	stdin   io.ReadCloser
 	scanner *bufio.Scanner
 	stdout  io.Writer
 
 	handlersMu sync.RWMutex
 	handlers   map[string]RPCHandler
 
-	pendingMu sync.Mutex
-	pending   map[string]chan rpcResult
+	stateMu      sync.Mutex
+	phase        peerPhase
+	serveStarted bool
+	terminalDone chan struct{}
+	terminalErr  error
+	pending      map[string]chan rpcResult
 
 	writeMu sync.Mutex
 	wg      sync.WaitGroup
 	nextID  atomic.Int64
-
-	errMu        sync.Mutex
-	transportErr error
 }
 
 // NewPeer constructs a JSON-RPC peer bound to the provided reader and writer.
-func NewPeer(stdin io.Reader, stdout io.Writer) *Peer {
-	scanner := bufio.NewScanner(stdin)
+// Stdin must implement io.ReadCloser. The peer owns it after construction and
+// closes it to interrupt reads when serving terminates.
+func NewPeer(stdin io.Reader, stdout io.Writer) (*Peer, error) {
+	if isNilPeerIO(stdin) {
+		return nil, errors.New("bridgesdk: peer input is required")
+	}
+	readCloser, ok := stdin.(io.ReadCloser)
+	if !ok || isNilPeerIO(readCloser) {
+		return nil, errors.New("bridgesdk: peer input must be closable")
+	}
+	if isNilPeerIO(stdout) {
+		return nil, errors.New("bridgesdk: peer output is required")
+	}
+
+	scanner := bufio.NewScanner(readCloser)
 	scanner.Buffer(make([]byte, 0, 64*1024), 10*1024*1024)
 
 	return &Peer{
-		scanner:  scanner,
-		stdout:   stdout,
-		handlers: make(map[string]RPCHandler),
-		pending:  make(map[string]chan rpcResult),
-	}
+		stdin:        readCloser,
+		scanner:      scanner,
+		stdout:       stdout,
+		handlers:     make(map[string]RPCHandler),
+		terminalDone: make(chan struct{}),
+		pending:      make(map[string]chan rpcResult),
+	}, nil
 }
 
 // Handle registers one inbound method handler.
@@ -120,10 +138,9 @@ func (p *Peer) Call(ctx context.Context, method string, params any, result any) 
 
 	requestID := strconv.FormatInt(p.nextID.Add(1), 10)
 	responseCh := make(chan rpcResult, 1)
-
-	p.pendingMu.Lock()
-	p.pending[requestID] = responseCh
-	p.pendingMu.Unlock()
+	if err := p.admitCall(ctx, requestID, responseCh); err != nil {
+		return err
+	}
 
 	if err := p.writeFrame(rpcEnvelope{
 		JSONRPC: bridgeSDKJSONRPCVersion,
@@ -131,24 +148,19 @@ func (p *Peer) Call(ctx context.Context, method string, params any, result any) 
 		Method:  strings.TrimSpace(method),
 		Params:  paramsRaw,
 	}); err != nil {
-		p.pendingMu.Lock()
-		delete(p.pending, requestID)
-		p.pendingMu.Unlock()
-		return err
+		return p.terminate(err)
 	}
 
 	select {
 	case <-ctx.Done():
-		p.pendingMu.Lock()
-		delete(p.pending, requestID)
-		p.pendingMu.Unlock()
+		if terminalDone := p.cancelPendingCall(requestID); terminalDone != nil {
+			<-terminalDone
+			return p.currentTerminalError()
+		}
 		return ctx.Err()
 	case response, ok := <-responseCh:
 		if !ok {
-			if transportErr := p.currentTransportError(); transportErr != nil {
-				return transportErr
-			}
-			return errors.New("bridgesdk: peer closed before response")
+			return p.currentTerminalError()
 		}
 		if response.err != nil {
 			return response.err
@@ -163,7 +175,8 @@ func (p *Peer) Call(ctx context.Context, method string, params any, result any) 
 	}
 }
 
-// Serve runs the peer read loop until EOF or a transport error occurs.
+// Serve owns the peer's sole read loop. On cancellation, EOF, or a transport
+// failure it closes the input, cancels inbound handlers, and joins their work.
 func (p *Peer) Serve(ctx context.Context) error {
 	if p == nil {
 		return errors.New("bridgesdk: peer is required")
@@ -171,14 +184,29 @@ func (p *Peer) Serve(ctx context.Context) error {
 	if ctx == nil {
 		return errors.New("bridgesdk: serve context is required")
 	}
+	if err := p.beginServe(ctx); err != nil {
+		return err
+	}
+
+	handlerCtx, cancelHandlers := context.WithCancel(ctx)
+	defer cancelHandlers()
+	cancelDone := make(chan struct{})
+	stopCancel := context.AfterFunc(ctx, func() {
+		defer close(cancelDone)
+		p.publishTerminal(ctx.Err())
+	})
+	defer func() {
+		if !stopCancel() {
+			<-cancelDone
+		}
+	}()
+
+	var terminalErr error
 
 	for p.scanner.Scan() {
-		select {
-		case <-ctx.Done():
-			p.closePending()
-			p.wg.Wait()
-			return ctx.Err()
-		default:
+		if err := ctx.Err(); err != nil {
+			terminalErr = p.terminate(err)
+			break
 		}
 
 		line := bytes.TrimSpace(p.scanner.Bytes())
@@ -188,37 +216,43 @@ func (p *Peer) Serve(ctx context.Context) error {
 
 		var envelope rpcEnvelope
 		if err := json.Unmarshal(line, &envelope); err != nil {
-			p.closePending()
-			p.wg.Wait()
-			return fmt.Errorf("bridgesdk: decode rpc frame: %w", err)
+			terminalErr = p.terminate(fmt.Errorf("bridgesdk: decode rpc frame: %w", err))
+			break
 		}
 		if envelope.JSONRPC != bridgeSDKJSONRPCVersion {
-			p.closePending()
-			p.wg.Wait()
-			return fmt.Errorf("bridgesdk: unsupported jsonrpc version %q", envelope.JSONRPC)
+			terminalErr = p.terminate(fmt.Errorf(
+				"bridgesdk: unsupported jsonrpc version %q",
+				envelope.JSONRPC,
+			))
+			break
 		}
 
 		if strings.TrimSpace(envelope.Method) != "" {
-			p.wg.Add(1)
-			go func(env rpcEnvelope) {
-				defer p.wg.Done()
-				p.dispatchRequest(ctx, env)
-			}(envelope)
+			if !p.startDispatch(handlerCtx, envelope) {
+				terminalErr = p.terminate(ErrPeerClosed)
+				break
+			}
 			continue
 		}
 
 		p.handleResponse(envelope)
 	}
 
-	p.closePending()
+	if terminalErr == nil {
+		cause := ErrPeerClosed
+		if err := ctx.Err(); err != nil {
+			cause = err
+		} else if err := p.scanner.Err(); err != nil && !errors.Is(err, io.EOF) {
+			cause = fmt.Errorf("bridgesdk: read rpc frame: %w", err)
+		}
+		terminalErr = p.terminate(cause)
+	}
+	cancelHandlers()
 	p.wg.Wait()
-	if err := p.currentTransportError(); err != nil {
-		return err
+	if terminalErr == ErrPeerClosed {
+		return nil
 	}
-	if err := p.scanner.Err(); err != nil && !errors.Is(err, io.EOF) {
-		return fmt.Errorf("bridgesdk: read rpc frame: %w", err)
-	}
-	return nil
+	return terminalErr
 }
 
 func (p *Peer) dispatchRequest(ctx context.Context, envelope rpcEnvelope) {
@@ -237,16 +271,27 @@ func (p *Peer) dispatchRequest(ctx context.Context, envelope rpcEnvelope) {
 			"Method not found",
 			map[string]string{"method": method},
 		)); err != nil {
-			p.failTransport(fmt.Errorf("bridgesdk: send method-not-found error: %w", err))
+			p.failTransport(ctx, fmt.Errorf("bridgesdk: send method-not-found error: %w", err))
 		}
 		return
 	}
 
-	result, err := handler(ctx, envelope.Params)
+	result, err := invokeRPCHandler(ctx, handler, envelope.Params)
 	if err != nil {
+		if panicErr, ok := errors.AsType[*rpcHandlerPanicError](err); ok {
+			recordRPCHandlerPanic(ctx, method, panicErr)
+			if sendErr := p.sendError(envelope.ID, subprocess.NewRPCError(
+				bridgeSDKRPCCodeInternal,
+				"Internal error",
+				map[string]string{peerErrorKey: "handler panicked"},
+			)); sendErr != nil {
+				p.failTransport(ctx, fmt.Errorf("bridgesdk: send handler-panic error: %w", sendErr))
+			}
+			return
+		}
 		if rpcErr, ok := errors.AsType[*subprocess.RPCError](err); ok {
 			if sendErr := p.sendError(envelope.ID, rpcErr); sendErr != nil {
-				p.failTransport(fmt.Errorf("bridgesdk: send rpc error: %w", sendErr))
+				p.failTransport(ctx, fmt.Errorf("bridgesdk: send rpc error: %w", sendErr))
 			}
 			return
 		}
@@ -255,13 +300,13 @@ func (p *Peer) dispatchRequest(ctx context.Context, envelope rpcEnvelope) {
 			"Internal error",
 			map[string]string{peerErrorKey: err.Error()},
 		)); sendErr != nil {
-			p.failTransport(fmt.Errorf("bridgesdk: send internal error: %w", sendErr))
+			p.failTransport(ctx, fmt.Errorf("bridgesdk: send internal error: %w", sendErr))
 		}
 		return
 	}
 
 	if sendErr := p.sendResult(envelope.ID, result); sendErr != nil {
-		p.failTransport(fmt.Errorf("bridgesdk: send result: %w", sendErr))
+		p.failTransport(ctx, fmt.Errorf("bridgesdk: send result: %w", sendErr))
 	}
 }
 
@@ -271,12 +316,12 @@ func (p *Peer) handleResponse(envelope rpcEnvelope) {
 		return
 	}
 
-	p.pendingMu.Lock()
+	p.stateMu.Lock()
 	responseCh, ok := p.pending[idKey]
 	if ok {
 		delete(p.pending, idKey)
 	}
-	p.pendingMu.Unlock()
+	p.stateMu.Unlock()
 	if !ok {
 		return
 	}
@@ -330,32 +375,6 @@ func (p *Peer) writeFrame(frame rpcEnvelope) error {
 	return nil
 }
 
-func (p *Peer) closePending() {
-	p.pendingMu.Lock()
-	defer p.pendingMu.Unlock()
-	for key, ch := range p.pending {
-		delete(p.pending, key)
-		close(ch)
-	}
-}
-
-func (p *Peer) failTransport(err error) {
-	p.errMu.Lock()
-	if p.transportErr == nil {
-		p.transportErr = err
-	} else {
-		p.transportErr = errors.Join(p.transportErr, err)
-	}
-	p.errMu.Unlock()
-	p.closePending()
-}
-
-func (p *Peer) currentTransportError() error {
-	p.errMu.Lock()
-	defer p.errMu.Unlock()
-	return p.transportErr
-}
-
 func rpcIDKey(raw json.RawMessage) string {
 	trimmed := strings.TrimSpace(string(bytes.TrimSpace(raw)))
 	if trimmed == "" {
@@ -382,4 +401,18 @@ func marshalParams(value any) (json.RawMessage, error) {
 		return nil, err
 	}
 	return payload, nil
+}
+
+func isNilPeerIO(value any) bool {
+	if value == nil {
+		return true
+	}
+
+	reflected := reflect.ValueOf(value)
+	switch reflected.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		return reflected.IsNil()
+	default:
+		return false
+	}
 }

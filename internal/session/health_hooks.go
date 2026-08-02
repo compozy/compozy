@@ -88,11 +88,8 @@ func (m *Manager) shouldDispatchSessionHealthHook(current heartbeat.SessionHealt
 
 func (m *Manager) detachedSessionHealthContext(ctx context.Context) (context.Context, context.CancelFunc) {
 	base := ctx
-	if base == nil && m != nil {
-		base = m.lifecycleCtx
-	}
 	if base == nil {
-		base = context.TODO()
+		base = m.fallbackLifecycleContext()
 	}
 	return context.WithTimeout(context.WithoutCancel(base), defaultLifecycleTimeout)
 }

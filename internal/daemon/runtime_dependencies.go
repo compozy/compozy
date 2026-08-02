@@ -13,6 +13,7 @@ func (d *Daemon) runtimeDeps(
 ) RuntimeDeps {
 	d.initializeDreamRuntime(state, sessions)
 	authoredContext := authoredContextRuntimeDeps(ctx, state, sessions)
+	state.runtimeWorkers.authoredHeartbeatWake = authoredContext.wakePrompter
 	var memoryProviders core.MemoryProviderService
 	if state.memoryProviderRegistry != nil {
 		memoryProviders = daemonMemoryProviderService{registry: state.memoryProviderRegistry}

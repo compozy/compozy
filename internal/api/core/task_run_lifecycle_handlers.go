@@ -97,7 +97,15 @@ func (h *BaseHandlers) FanOutTaskRuns(c *gin.Context) {
 		h.respondError(c, StatusForTaskError(err), err)
 		return
 	}
-	groupID := store.NewID("tdg")
+	groupID, err := store.NewID("tdg")
+	if err != nil {
+		h.respondError(
+			c,
+			http.StatusInternalServerError,
+			fmt.Errorf("api: generate task designation group id: %w", err),
+		)
+		return
+	}
 	runs, err := enqueueFanOutTaskRuns(c.Request.Context(), manager, actor, taskID, groupID, req, prepared)
 	if err != nil {
 		h.respondError(c, StatusForTaskError(err), err)

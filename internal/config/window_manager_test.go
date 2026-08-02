@@ -237,8 +237,9 @@ func assertWindowManagerValidationPath(t *testing.T, err error, want string) {
 	if err == nil {
 		t.Fatalf("Validate() error = nil, want path %q", want)
 	}
-	var validationError ValidationError
-	if !errors.As(err, &validationError) {
+
+	validationError, validationErrorMatched := errors.AsType[ValidationError](err)
+	if !validationErrorMatched {
 		t.Fatalf("Validate() error = %T %v, want ValidationError", err, err)
 	}
 	if validationError.Path != want || !strings.Contains(err.Error(), want) {

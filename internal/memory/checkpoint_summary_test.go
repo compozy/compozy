@@ -81,21 +81,21 @@ func TestCheckpointSummaryServiceUpdate(t *testing.T) {
 		}
 
 		workspaceStore := env.store.ForWorkspace(env.workspaceRoot)
-		headers, err := workspaceStore.List(memcontract.ScopeWorkspace)
+		headers, err := workspaceStore.List(t.Context(), memcontract.ScopeWorkspace)
 		if err != nil {
 			t.Fatalf("List(workspace) error = %v", err)
 		}
 		if got := checkpointHeaderCount(headers); got != 1 {
 			t.Fatalf("checkpoint summary headers = %d, want 1", got)
 		}
-		content, err := workspaceStore.Read(memcontract.ScopeWorkspace, CheckpointSummaryFilename)
+		content, err := workspaceStore.Read(t.Context(), memcontract.ScopeWorkspace, CheckpointSummaryFilename)
 		if err != nil {
 			t.Fatalf("Read(checkpoint) error = %v", err)
 		}
 		if !strings.Contains(string(content), "added WAL mode") {
 			t.Fatalf("checkpoint content = %q, want second-session fact", content)
 		}
-		_, header, err := loadCheckpointSummary(workspaceStore)
+		_, header, err := loadCheckpointSummary(t.Context(), workspaceStore)
 		if err != nil {
 			t.Fatalf("loadCheckpointSummary() error = %v", err)
 		}
@@ -169,10 +169,10 @@ func TestCheckpointSummaryServiceUpdate(t *testing.T) {
 		if !reverted.Reverted {
 			t.Fatal("RevertDecision().Reverted = false, want true")
 		}
-		content, err := env.store.ForWorkspace(env.workspaceRoot).Read(
+		content, err := env.store.ForWorkspace(env.workspaceRoot).Read(t.Context(),
 			memcontract.ScopeWorkspace,
-			CheckpointSummaryFilename,
-		)
+			CheckpointSummaryFilename)
+
 		if err != nil {
 			t.Fatalf("Read(reverted checkpoint) error = %v", err)
 		}
@@ -196,7 +196,7 @@ func TestCheckpointSummaryServiceUpdate(t *testing.T) {
 			t.Fatalf("Update(first) error = %v", err)
 		}
 		workspaceStore := env.store.ForWorkspace(env.workspaceRoot)
-		before, err := workspaceStore.Read(memcontract.ScopeWorkspace, CheckpointSummaryFilename)
+		before, err := workspaceStore.Read(t.Context(), memcontract.ScopeWorkspace, CheckpointSummaryFilename)
 		if err != nil {
 			t.Fatalf("Read(before failure) error = %v", err)
 		}
@@ -207,7 +207,7 @@ func TestCheckpointSummaryServiceUpdate(t *testing.T) {
 		); !errors.Is(err, providerErr) {
 			t.Fatalf("Update(provider failure) error = %v, want %v", err, providerErr)
 		}
-		after, err := workspaceStore.Read(memcontract.ScopeWorkspace, CheckpointSummaryFilename)
+		after, err := workspaceStore.Read(t.Context(), memcontract.ScopeWorkspace, CheckpointSummaryFilename)
 		if err != nil {
 			t.Fatalf("Read(after failure) error = %v", err)
 		}
@@ -261,7 +261,7 @@ func TestCheckpointSummaryServiceUpdate(t *testing.T) {
 					t.Fatalf("Update(first) error = %v", err)
 				}
 				workspaceStore := env.store.ForWorkspace(env.workspaceRoot)
-				before, err := workspaceStore.Read(memcontract.ScopeWorkspace, CheckpointSummaryFilename)
+				before, err := workspaceStore.Read(t.Context(), memcontract.ScopeWorkspace, CheckpointSummaryFilename)
 				if err != nil {
 					t.Fatalf("Read(before rejection) error = %v", err)
 				}
@@ -271,7 +271,7 @@ func TestCheckpointSummaryServiceUpdate(t *testing.T) {
 				); err == nil || !strings.Contains(err.Error(), tc.wantErr) {
 					t.Fatalf("Update(rejected output) error = %v, want %q", err, tc.wantErr)
 				}
-				after, err := workspaceStore.Read(memcontract.ScopeWorkspace, CheckpointSummaryFilename)
+				after, err := workspaceStore.Read(t.Context(), memcontract.ScopeWorkspace, CheckpointSummaryFilename)
 				if err != nil {
 					t.Fatalf("Read(after rejection) error = %v", err)
 				}
@@ -304,7 +304,7 @@ func TestCheckpointSummaryServiceCompactionCoverage(t *testing.T) {
 			t.Fatalf("Update(prior) error = %v", err)
 		}
 		workspaceStore := env.store.ForWorkspace(env.workspaceRoot)
-		before, err := workspaceStore.Read(memcontract.ScopeWorkspace, CheckpointSummaryFilename)
+		before, err := workspaceStore.Read(t.Context(), memcontract.ScopeWorkspace, CheckpointSummaryFilename)
 		if err != nil {
 			t.Fatalf("Read(before disabled compaction) error = %v", err)
 		}
@@ -324,7 +324,7 @@ func TestCheckpointSummaryServiceCompactionCoverage(t *testing.T) {
 		if result.Decision.Applied || !strings.Contains(result.Hint.Markdown, "Stable checkpoint fact.") {
 			t.Fatalf("Compact(disabled role) = %#v, want prior hint and no decision", result)
 		}
-		after, err := workspaceStore.Read(memcontract.ScopeWorkspace, CheckpointSummaryFilename)
+		after, err := workspaceStore.Read(t.Context(), memcontract.ScopeWorkspace, CheckpointSummaryFilename)
 		if err != nil {
 			t.Fatalf("Read(after disabled compaction) error = %v", err)
 		}
@@ -352,11 +352,11 @@ func TestCheckpointSummaryServiceCompactionCoverage(t *testing.T) {
 			t.Fatalf("Compact(first).Hint.Markdown = %q, want compacted fact", first.Hint.Markdown)
 		}
 		workspaceStore := env.store.ForWorkspace(env.workspaceRoot)
-		beforeRetry, err := workspaceStore.Read(memcontract.ScopeWorkspace, CheckpointSummaryFilename)
+		beforeRetry, err := workspaceStore.Read(t.Context(), memcontract.ScopeWorkspace, CheckpointSummaryFilename)
 		if err != nil {
 			t.Fatalf("Read(first coverage) error = %v", err)
 		}
-		state, err := loadCheckpointSummaryState(workspaceStore)
+		state, err := loadCheckpointSummaryState(t.Context(), workspaceStore)
 		if err != nil {
 			t.Fatalf("loadCheckpointSummaryState(first) error = %v", err)
 		}
@@ -375,7 +375,7 @@ func TestCheckpointSummaryServiceCompactionCoverage(t *testing.T) {
 				len(summarizer.requests),
 			)
 		}
-		afterRetry, err := workspaceStore.Read(memcontract.ScopeWorkspace, CheckpointSummaryFilename)
+		afterRetry, err := workspaceStore.Read(t.Context(), memcontract.ScopeWorkspace, CheckpointSummaryFilename)
 		if err != nil {
 			t.Fatalf("Read(repeated coverage) error = %v", err)
 		}
@@ -397,7 +397,7 @@ func TestCheckpointSummaryServiceCompactionCoverage(t *testing.T) {
 				len(summarizer.requests),
 			)
 		}
-		state, err = loadCheckpointSummaryState(workspaceStore)
+		state, err = loadCheckpointSummaryState(t.Context(), workspaceStore)
 		if err != nil {
 			t.Fatalf("loadCheckpointSummaryState(adjacent) error = %v", err)
 		}
@@ -438,7 +438,7 @@ func TestCheckpointSummaryServiceCompactionCoverage(t *testing.T) {
 		if !reverted.Reverted {
 			t.Fatal("RevertDecision(compaction).Reverted = false, want true")
 		}
-		state, err := loadCheckpointSummaryState(env.store.ForWorkspace(env.workspaceRoot))
+		state, err := loadCheckpointSummaryState(t.Context(), env.store.ForWorkspace(env.workspaceRoot))
 		if err != nil {
 			t.Fatalf("loadCheckpointSummaryState(reverted) error = %v", err)
 		}

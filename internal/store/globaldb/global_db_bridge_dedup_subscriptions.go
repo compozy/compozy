@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/compozy/compozy/internal/bridges"
 	"github.com/compozy/compozy/internal/store"
@@ -110,8 +111,10 @@ func (g *BridgeRepo) PutBridgeTaskSubscription(
 	if err := g.queries.UpsertBridgeTaskSubscription(ctx, sqlcgen.UpsertBridgeTaskSubscriptionParams{
 		SubscriptionID: normalized.SubscriptionID, TaskID: normalized.TaskID,
 		BridgeInstanceID: normalized.BridgeInstanceID, Scope: string(normalized.Scope),
-		WorkspaceID: nullableBridgeString(normalized.WorkspaceID), PeerID: nullableBridgeString(normalized.PeerID),
-		ThreadID: nullableBridgeString(normalized.ThreadID), GroupID: nullableBridgeString(normalized.GroupID),
+		WorkspaceID:  nullableOpaqueBridgeString(normalized.WorkspaceID),
+		PeerID:       nullableOpaqueBridgeString(normalized.PeerID),
+		ThreadID:     nullableOpaqueBridgeString(normalized.ThreadID),
+		GroupID:      nullableOpaqueBridgeString(normalized.GroupID),
 		DeliveryMode: string(normalized.DeliveryMode), CreatedByKind: string(normalized.CreatedBy.Kind),
 		CreatedByRef: normalized.CreatedBy.Ref, CreatedAt: store.FormatTimestamp(normalized.CreatedAt),
 		UpdatedAt: store.FormatTimestamp(normalized.UpdatedAt),
@@ -133,12 +136,14 @@ func (g *BridgeRepo) GetBridgeTaskSubscription(
 	if err := g.checkReady(ctx, "get bridge task subscription"); err != nil {
 		return bridges.BridgeTaskSubscription{}, err
 	}
-	trimmedID := strings.TrimSpace(subscriptionID)
-	if trimmedID == "" {
+	if subscriptionID == "" {
 		return bridges.BridgeTaskSubscription{}, errors.New("store: bridge task subscription id is required")
 	}
+	if !utf8.ValidString(subscriptionID) {
+		return bridges.BridgeTaskSubscription{}, errors.New("store: bridge task subscription id must be valid UTF-8")
+	}
 
-	row, err := g.queries.GetBridgeTaskSubscription(ctx, trimmedID)
+	row, err := g.queries.GetBridgeTaskSubscription(ctx, subscriptionID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return bridges.BridgeTaskSubscription{}, bridges.ErrBridgeTaskSubscriptionNotFound
@@ -157,6 +162,9 @@ func (g *BridgeRepo) ListBridgeTaskSubscriptions(
 		return nil, err
 	}
 	normalized := query.Normalize()
+	if err := normalized.Validate(); err != nil {
+		return nil, err
+	}
 	// dynamic-sql: optional task/bridge/scope/workspace filters and caller limit change the statement shape.
 	sqlQuery := `SELECT
 			subscription_id, task_id, bridge_instance_id, scope, workspace_id,
@@ -164,10 +172,10 @@ func (g *BridgeRepo) ListBridgeTaskSubscriptions(
 			created_by_ref, created_at, updated_at
 		FROM bridge_task_subscriptions`
 	where, args := store.BuildClauses(
-		store.StringClause("task_id", normalized.TaskID),
-		store.StringClause("bridge_instance_id", normalized.BridgeInstanceID),
+		store.OpaqueStringClause("task_id", normalized.TaskID),
+		store.OpaqueStringClause("bridge_instance_id", normalized.BridgeInstanceID),
 		store.StringClause("scope", string(normalized.Scope)),
-		store.StringClause("workspace_id", normalized.WorkspaceID),
+		store.OpaqueStringClause("workspace_id", normalized.WorkspaceID),
 	)
 	sqlQuery = store.AppendWhere(sqlQuery, where)
 	sqlQuery += " ORDER BY task_id ASC, updated_at DESC, subscription_id ASC"
@@ -202,18 +210,20 @@ func (g *BridgeRepo) DeleteBridgeTaskSubscription(ctx context.Context, subscript
 	if err := g.checkReady(ctx, "delete bridge task subscription"); err != nil {
 		return err
 	}
-	trimmedID := strings.TrimSpace(subscriptionID)
-	if trimmedID == "" {
+	if subscriptionID == "" {
 		return errors.New("store: bridge task subscription id is required")
 	}
-	affected, err := g.queries.DeleteBridgeTaskSubscription(ctx, trimmedID)
+	if !utf8.ValidString(subscriptionID) {
+		return errors.New("store: bridge task subscription id must be valid UTF-8")
+	}
+	affected, err := g.queries.DeleteBridgeTaskSubscription(ctx, subscriptionID)
 	if err != nil {
-		return fmt.Errorf("store: delete bridge task subscription %q: %w", trimmedID, err)
+		return fmt.Errorf("store: delete bridge task subscription %q: %w", subscriptionID, err)
 	}
 	if affected == 0 {
 		return fmt.Errorf(
 			"store: bridge task subscription %q: %w",
-			trimmedID,
+			subscriptionID,
 			bridges.ErrBridgeTaskSubscriptionNotFound,
 		)
 	}

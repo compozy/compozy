@@ -207,12 +207,6 @@ func readErrorMessage(body io.Reader) string {
 	return trimmed
 }
 
-func closeResponseBody(body io.Closer, context string) error {
-	if body == nil {
-		return nil
-	}
-	if err := body.Close(); err != nil {
-		return fmt.Errorf("github: close %s: %w", context, err)
-	}
-	return nil
+func closeResponseBody(body io.ReadCloser, context string) error {
+	return drainAndCloseResponseBody(body, context)
 }

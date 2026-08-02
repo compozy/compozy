@@ -5,12 +5,14 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"sync"
 	"testing"
 
 	"github.com/BurntSushi/toml"
+	"github.com/compozy/compozy/internal/fileutil"
 	"github.com/compozy/compozy/internal/frontmatter"
 	"github.com/compozy/compozy/internal/reasoning"
 	"github.com/goccy/go-yaml"
@@ -257,8 +259,8 @@ func TestAgentDefinitionLifecycleHelpers(t *testing.T) {
 		writeFile(t, parentFile, "not a directory")
 		parentDefinitionPath := filepath.Join(parentFile, AgentDefinitionFileName)
 		if _, err := CreateAgentDefFile(parentDefinitionPath, validDraft, false); err == nil ||
-			!strings.Contains(err.Error(), "inspect agent definition") {
-			t.Fatalf("CreateAgentDefFile(non-directory parent) error = %v, want inspect path error", err)
+			!strings.Contains(err.Error(), "open config parent directory") {
+			t.Fatalf("CreateAgentDefFile(non-directory parent) error = %v, want parent-open error", err)
 		}
 		if origin, workspace := AgentOriginFor(HomePaths{}, "not-an-agent.md"); origin != "" || workspace != "" {
 			t.Fatalf("AgentOriginFor(invalid path) = (%q, %q), want empty classification", origin, workspace)
@@ -429,6 +431,137 @@ func TestAgentDefinitionLifecycleHelpers(t *testing.T) {
 		if string(soulBody) != "soul\n" {
 			t.Fatalf("target SOUL.md = %q, want complete sibling copy", soulBody)
 		}
+	})
+}
+
+func TestDuplicateAgentDefinitionWritesThroughTheHeldTargetParentAfterPathReplacement(t *testing.T) {
+	t.Parallel()
+	t.Run("Should duplicate only below the opened target parent", func(t *testing.T) {
+		t.Parallel()
+		if runtime.GOOS == "windows" {
+			t.Skip("symlink permissions vary on Windows")
+		}
+
+		root := t.TempDir()
+		sourcePath := filepath.Join(root, "source", AgentDefinitionFileName)
+		source, err := CreateAgentDefFile(sourcePath, AgentDefinitionDraft{
+			Name: "source", Provider: "codex", Prompt: "Source.",
+		}, false)
+		if err != nil {
+			t.Fatalf("CreateAgentDefFile(source) error = %v", err)
+		}
+		writeFile(t, filepath.Join(filepath.Dir(sourcePath), "SOUL.md"), "source soul\n")
+
+		liveParent := filepath.Join(root, "live")
+		archivedParent := filepath.Join(root, "archived")
+		externalParent := filepath.Join(root, "external")
+		if err := os.MkdirAll(liveParent, 0o700); err != nil {
+			t.Fatalf("os.MkdirAll(live parent) error = %v", err)
+		}
+		if err := os.MkdirAll(externalParent, 0o700); err != nil {
+			t.Fatalf("os.MkdirAll(external parent) error = %v", err)
+		}
+		sentinelPath := filepath.Join(externalParent, "target", AgentDefinitionFileName)
+		writeFile(t, sentinelPath, "external sentinel\n")
+
+		sourceDirectory, err := fileutil.OpenDirectory(filepath.Dir(source.SourcePath))
+		if err != nil {
+			t.Fatalf("fileutil.OpenDirectory(source) error = %v", err)
+		}
+		defer func() {
+			if closeErr := sourceDirectory.Close(); closeErr != nil {
+				t.Errorf("source Directory.Close() error = %v", closeErr)
+			}
+		}()
+		targetParent, err := fileutil.OpenDirectory(liveParent)
+		if err != nil {
+			t.Fatalf("fileutil.OpenDirectory(target parent) error = %v", err)
+		}
+		defer func() {
+			if closeErr := targetParent.Close(); closeErr != nil {
+				t.Errorf("target Directory.Close() error = %v", closeErr)
+			}
+		}()
+		if err := os.Rename(liveParent, archivedParent); err != nil {
+			t.Fatalf("os.Rename(live parent) error = %v", err)
+		}
+		if err := os.Symlink(externalParent, liveParent); err != nil {
+			t.Fatalf("os.Symlink(external parent) error = %v", err)
+		}
+
+		draft := AgentDefinitionDraftFromDef(source)
+		draft.Name = "target"
+		contents, _, err := RenderAgentDefinition(draft)
+		if err != nil {
+			t.Fatalf("RenderAgentDefinition(target) error = %v", err)
+		}
+		if err := duplicateAgentDefinitionInDirectories(
+			sourceDirectory,
+			targetParent,
+			"target",
+			filepath.Join(liveParent, "target"),
+			contents,
+		); err != nil {
+			t.Fatalf("duplicateAgentDefinitionInDirectories() error = %v", err)
+		}
+		assertConfigSentinelUnchanged(t, sentinelPath, "external sentinel\n")
+		if _, err := os.Stat(filepath.Join(archivedParent, "target", AgentDefinitionFileName)); err != nil {
+			t.Fatalf("os.Stat(archived duplicate definition) error = %v", err)
+		}
+		if got, err := os.ReadFile(
+			filepath.Join(archivedParent, "target", "SOUL.md"),
+		); err != nil ||
+			string(got) != "source soul\n" {
+			t.Fatalf("archived duplicate SOUL.md = %q, error = %v", got, err)
+		}
+	})
+}
+
+func TestDeleteAgentDefinitionRemovesThroughTheHeldRootAfterPathReplacement(t *testing.T) {
+	t.Parallel()
+	t.Run("Should remove only below the opened agents root", func(t *testing.T) {
+		t.Parallel()
+		if runtime.GOOS == "windows" {
+			t.Skip("symlink permissions vary on Windows")
+		}
+
+		root := t.TempDir()
+		agentsRoot := filepath.Join(root, AgentsDirName)
+		archivedRoot := filepath.Join(root, "archived-agents")
+		externalRoot := filepath.Join(root, "external-agents")
+		definitionPath := filepath.Join(agentsRoot, "coder", AgentDefinitionFileName)
+		writeFile(t, definitionPath, "definition\n")
+		writeFile(t, filepath.Join(agentsRoot, "coder", "SOUL.md"), "remove\n")
+		externalSentinel := filepath.Join(externalRoot, "coder", "sentinel")
+		writeFile(t, externalSentinel, "external sentinel\n")
+		target, err := resolveAgentDeleteTarget(agentsRoot, definitionPath)
+		if err != nil {
+			t.Fatalf("resolveAgentDeleteTarget() error = %v", err)
+		}
+
+		directory, err := fileutil.OpenDirectory(agentsRoot)
+		if err != nil {
+			t.Fatalf("fileutil.OpenDirectory(agents root) error = %v", err)
+		}
+		defer func() {
+			if closeErr := directory.Close(); closeErr != nil {
+				t.Errorf("agents Directory.Close() error = %v", closeErr)
+			}
+		}()
+		if err := os.Rename(agentsRoot, archivedRoot); err != nil {
+			t.Fatalf("os.Rename(agents root) error = %v", err)
+		}
+		if err := os.Symlink(externalRoot, agentsRoot); err != nil {
+			t.Fatalf("os.Symlink(external agents root) error = %v", err)
+		}
+
+		if err := deleteAgentDefinitionFromRoot(directory, target); err != nil {
+			t.Fatalf("deleteAgentDefinitionFromRoot() error = %v", err)
+		}
+		if _, err := os.Stat(filepath.Join(archivedRoot, "coder")); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("os.Stat(archived definition) error = %v, want %v", err, os.ErrNotExist)
+		}
+		assertConfigSentinelUnchanged(t, externalSentinel, "external sentinel\n")
 	})
 }
 
@@ -715,8 +848,9 @@ reasoning_effort: ultra
 ---
 
 prompt`))
-		var invalid *reasoning.InvalidEffortError
-		if !errors.As(err, &invalid) {
+
+		invalid, invalidMatched := errors.AsType[*reasoning.InvalidEffortError](err)
+		if !invalidMatched {
 			t.Fatalf("ParseAgentDef() error = %T %v, want *reasoning.InvalidEffortError", err, err)
 		}
 		if invalid.Path != "agent.reasoning_effort" || invalid.Value != "ultra" {

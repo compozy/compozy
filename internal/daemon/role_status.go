@@ -104,8 +104,8 @@ func (r *roleResolver) projectRoleIdentity(
 	if err == nil {
 		return mode, &agentName, []contract.RoleDiagnostic{}, nil
 	}
-	var resolutionErr *RoleResolutionError
-	if errors.As(err, &resolutionErr) && resolutionErr.Code == roleErrorAgentNotFound {
+	if resolutionErr, ok := errors.AsType[*RoleResolutionError](err); ok &&
+		resolutionErr.Code == roleErrorAgentNotFound {
 		return mode, &agentName, []contract.RoleDiagnostic{{
 			Code:    contract.CodeRoleAgentNotFound,
 			Message: fmt.Sprintf("Agent %q is not available", agentName),

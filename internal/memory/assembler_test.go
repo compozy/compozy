@@ -216,11 +216,10 @@ func TestAssemblerCheckpointSummaryIsolation(t *testing.T) {
 		if err != nil {
 			t.Fatalf("renderCheckpointSummaryDocument() error = %v", err)
 		}
-		if err := env.store.ForWorkspace(workspaceA).Write(
+		if err := env.store.ForWorkspace(workspaceA).Write(t.Context(),
 			memcontract.ScopeWorkspace,
 			CheckpointSummaryFilename,
-			document,
-		); err != nil {
+			document); err != nil {
 			t.Fatalf("Write(workspace A checkpoint) error = %v", err)
 		}
 
@@ -312,15 +311,14 @@ func TestSnapshotServiceCapture(t *testing.T) {
 			hashes = append(hashes, hashText(snapshot.Section))
 		}
 
-		if err := env.store.Write(
+		if err := env.store.Write(t.Context(),
 			memcontract.ScopeGlobal,
 			"user_prefix_change.md",
 			mustMemoryContent(t, testMemoryMeta{
 				Name:        "Prefix Change",
 				Description: "Committed memory revision",
 				Type:        memcontract.TypeUser,
-			}, "Remember the committed prefix transition.\n"),
-		); err != nil {
+			}, "Remember the committed prefix transition.\n")); err != nil {
 			t.Fatalf("Store.Write(prefix mutation) error = %v", err)
 		}
 

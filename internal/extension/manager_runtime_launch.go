@@ -22,58 +22,62 @@ import (
 	"github.com/compozy/compozy/internal/version"
 )
 
-func (m *Manager) launchRuntime(
+func (m *Manager) launchStartupRuntime(
 	ctx context.Context,
 	ext *managedExtension,
-) (launchedRuntime, error) {
+	grant EffectiveGrant,
+	transaction *extensionStartupTransaction,
+) (launchedRuntime, *hostAPIResourceSession, error) {
 	launchCfg, runtime, healthInterval, cleanups, err := m.launchConfigFor(ctx, ext)
 	if err != nil {
-		return launchedRuntime{}, err
+		return launchedRuntime{}, nil, err
 	}
+	ownership := m.newStartupRuntimeOwnership(ext.instanceKey(), nil, cleanups)
+	transaction.add("redaction cleanup", func(context.Context) error {
+		return ownership.releaseRedaction()
+	})
 
 	process, err := m.launch(ctx, launchCfg)
 	if err != nil {
-		runExtensionRedactionCleanups(cleanups)
-		return launchedRuntime{}, fmt.Errorf(
+		return launchedRuntime{}, nil, fmt.Errorf(
 			"launch subprocess: %w",
 			err,
 		)
 	}
+	ownership.process = process
+	transaction.add("subprocess", ownership.stop)
 
-	resourceSession, err := m.prepareExtensionResourceSession(ctx, ext)
+	resourceSession, err := m.newHostAPIResourceSessionWithGrant(ctx, ext, grant)
 	if err != nil {
-		return launchedRuntime{}, m.cleanupLaunchedProcess(
-			ctx,
-			process,
-			cleanups,
-			err,
-		)
+		return launchedRuntime{}, nil, err
 	}
+	capabilityGrantID := extensionCapabilityGrantID(ext.instanceKey(), resourceSession.Actor.SessionNonce)
+	registeredGrant, err := m.capChecker.RegisterForSession(
+		capabilityGrantID,
+		ext.info.Source,
+		ext.manifest,
+		ext.maxResourceScope(),
+	)
+	if err != nil {
+		return launchedRuntime{}, nil, fmt.Errorf("register candidate capability grant: %w", err)
+	}
+	transaction.add("capability grant", func(context.Context) error {
+		m.capChecker.Unregister(capabilityGrantID)
+		return nil
+	})
+	resourceSession.Actor.ID = capabilityGrantID
+	resourceSession.Actor.GrantedKinds = slices.Clone(registeredGrant.ResourceKinds)
+	resourceSession.Actor.GrantedScopes = slices.Clone(registeredGrant.ResourceScopes)
 	if err := m.registerRuntimeHostMethods(process, ext, runtime, resourceSession); err != nil {
-		return launchedRuntime{}, m.cleanupLaunchedProcess(
-			ctx,
-			process,
-			cleanups,
-			err,
-		)
+		return launchedRuntime{}, nil, err
 	}
 
-	response, err := m.initializeRuntimeProcess(ctx, process, ext, runtime, resourceSession)
+	response, err := m.initializeRuntimeProcess(ctx, process, ext, registeredGrant, runtime, resourceSession)
 	if err != nil {
-		return launchedRuntime{}, m.cleanupLaunchedProcess(
-			ctx,
-			process,
-			cleanups,
-			err,
-		)
+		return launchedRuntime{}, nil, err
 	}
 	if err := validateSupportedHookEvents(response.SupportedHookEvents); err != nil {
-		return launchedRuntime{}, m.cleanupLaunchedProcess(
-			ctx,
-			process,
-			cleanups,
-			err,
-		)
+		return launchedRuntime{}, nil, err
 	}
 
 	return launchedRuntime{
@@ -82,38 +86,9 @@ func (m *Manager) launchRuntime(
 		runtime:           runtime,
 		healthInterval:    healthInterval,
 		sessionNonce:      resourceSession.Actor.SessionNonce,
-		redactionCleanups: cleanups,
-	}, nil
-}
-
-func (m *Manager) cleanupLaunchedProcess(
-	ctx context.Context,
-	process processHandle,
-	cleanups []func(),
-	err error,
-) error {
-	defer runExtensionRedactionCleanups(cleanups)
-	if process == nil {
-		return err
-	}
-	if shutdownErr := shutdownProcessWithTimeout(ctx, process, m.defaultShutdownTimeout); shutdownErr != nil {
-		return errors.Join(err, shutdownErr)
-	}
-	return err
-}
-
-func (m *Manager) prepareExtensionResourceSession(
-	ctx context.Context,
-	ext *managedExtension,
-) (*hostAPIResourceSession, error) {
-	resourceSession, err := m.newHostAPIResourceSession(ctx, ext)
-	if err != nil {
-		return nil, err
-	}
-	if err := m.activateExtensionSourceSession(ctx, resourceSession.Actor); err != nil {
-		return nil, err
-	}
-	return resourceSession, nil
+		capabilityGrantID: capabilityGrantID,
+		redactionCleanups: ownership.redactionCleanups,
+	}, resourceSession, nil
 }
 
 func (m *Manager) registerRuntimeHostMethods(
@@ -125,7 +100,13 @@ func (m *Manager) registerRuntimeHostMethods(
 	for method, handler := range m.hostMethods {
 		if err := process.HandleMethod(
 			method,
-			m.wrapHostHandler(ext.instanceKey(), method, runtime.Bridge, resourceSession, handler),
+			m.wrapHostHandler(
+				ext.instanceKey(),
+				method,
+				runtime.Bridge,
+				resourceSession,
+				handler,
+			),
 		); err != nil {
 			return fmt.Errorf("register host method %q: %w", method, err)
 		}
@@ -137,13 +118,14 @@ func (m *Manager) initializeRuntimeProcess(
 	ctx context.Context,
 	process processHandle,
 	ext *managedExtension,
+	grant EffectiveGrant,
 	runtime subprocess.InitializeRuntime,
 	resourceSession *hostAPIResourceSession,
 ) (subprocess.InitializeResponse, error) {
 	initCtx, cancel := context.WithTimeout(ctx, m.initializeTimeout)
 	defer cancel()
 
-	response, err := process.Initialize(initCtx, m.initializeRuntimeRequest(ext, runtime, resourceSession))
+	response, err := process.Initialize(initCtx, m.initializeRuntimeRequest(ext, grant, runtime, resourceSession))
 	if err != nil {
 		return subprocess.InitializeResponse{}, fmt.Errorf("initialize subprocess: %w", err)
 	}
@@ -152,6 +134,7 @@ func (m *Manager) initializeRuntimeProcess(
 
 func (m *Manager) initializeRuntimeRequest(
 	ext *managedExtension,
+	grant EffectiveGrant,
 	runtime subprocess.InitializeRuntime,
 	resourceSession *hostAPIResourceSession,
 ) subprocess.InitializeRequest {
@@ -167,9 +150,9 @@ func (m *Manager) initializeRuntimeRequest(
 		},
 		Capabilities: subprocess.InitializeCapabilities{
 			Provides:              append([]string{}, normalizeUniqueStrings(ext.manifest.Capabilities.Provides)...),
-			GrantedPermissions:    hostAPIMethodsFromStrings(ext.grantedPermissions),
-			GrantedResourceKinds:  resourceKindStrings(ext.grantedResourceKinds),
-			GrantedResourceScopes: resourceScopeStrings(ext.grantedResourceScopes),
+			GrantedPermissions:    hostAPIMethodsFromStrings(grant.Permissions),
+			GrantedResourceKinds:  resourceKindStrings(grant.ResourceKinds),
+			GrantedResourceScopes: resourceScopeStrings(grant.ResourceScopes),
 		},
 		Methods: subprocess.InitializeMethods{
 			DaemonRequests:    daemonRequestMethods(),
@@ -254,12 +237,17 @@ func (m *Manager) wrapHostHandler(
 	handler subprocess.HandlerFunc,
 ) subprocess.HandlerFunc {
 	key := instanceKeyFromAny(instance)
+	capabilityGrantID := key.runtimeID()
+	if resourceSession != nil && resourceSession.Actor.ID != "" {
+		capabilityGrantID = resourceSession.Actor.ID
+	}
 	return func(ctx context.Context, params json.RawMessage) (any, error) {
-		if err := m.capChecker.CheckHostAPI(key.runtimeID(), method); err != nil {
+		if err := m.capChecker.CheckHostAPI(capabilityGrantID, method); err != nil {
 			return nil, rpcCapabilityDenied(err)
 		}
 
 		hostCtx := withHostAPIExtensionName(ctx, key.Name)
+		hostCtx = withHostAPICapabilityGrantID(hostCtx, capabilityGrantID)
 		if bridgeRuntime != nil {
 			hostCtx = withHostAPIBridgeRuntime(hostCtx, bridgeRuntime)
 		}
@@ -273,6 +261,14 @@ func (m *Manager) wrapHostHandler(
 func (m *Manager) newHostAPIResourceSession(
 	ctx context.Context,
 	ext *managedExtension,
+) (*hostAPIResourceSession, error) {
+	return m.newHostAPIResourceSessionWithGrant(ctx, ext, ext.pendingGrant)
+}
+
+func (m *Manager) newHostAPIResourceSessionWithGrant(
+	ctx context.Context,
+	ext *managedExtension,
+	grant EffectiveGrant,
 ) (*hostAPIResourceSession, error) {
 	if ext == nil {
 		return nil, errors.New("extension: managed extension is required")
@@ -297,11 +293,11 @@ func (m *Manager) newHostAPIResourceSession(
 			MaxScope:     maxScope,
 			GrantedKinds: append(
 				[]resources.ResourceKind(nil),
-				ext.grantedResourceKinds...,
+				grant.ResourceKinds...,
 			),
 			GrantedScopes: append(
 				[]resources.ResourceScopeKind(nil),
-				ext.grantedResourceScopes...,
+				grant.ResourceScopes...,
 			),
 		},
 	}, nil
@@ -359,22 +355,6 @@ func (m *Manager) extensionWorkspaceScope(
 			ext.info.Source,
 		)
 	}
-}
-
-func (m *Manager) activateExtensionSourceSession(ctx context.Context, actor resources.MutationActor) error {
-	if m == nil || m.sourceSessions == nil {
-		return nil
-	}
-
-	if err := m.sourceSessions.ActivateSourceSession(
-		ctx,
-		extensionManagerResourceActor(),
-		actor.Source,
-		actor.SessionNonce,
-	); err != nil {
-		return fmt.Errorf("extension: activate source session for %q: %w", actor.Source.ID, err)
-	}
-	return nil
 }
 
 func extensionManagerResourceActor() resources.MutationActor {

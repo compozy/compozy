@@ -35,66 +35,78 @@ func (d *hostAPIFakeDriver) promptCalls() []acp.PromptRequest {
 }
 
 func TestHostAPIIntegrationSessionLifecycleThroughHostAPI(t *testing.T) {
-	env := newHostAPITestEnv(t)
-	env.grant(
-		"ext-integration",
-		[]string{"sessions/create", "sessions/prompt", "sessions/status", "sessions/events"},
-		[]string{"session.write", "session.read"},
-	)
+	t.Run("Should project the prompt-selected runtime through session status", func(t *testing.T) {
+		env := newHostAPITestEnv(t)
+		env.grant(
+			"ext-integration",
+			[]string{"sessions/create", "sessions/prompt", "sessions/status", "sessions/events"},
+			[]string{"session.write", "session.read"},
+		)
 
-	createResult, err := env.call(t, "ext-integration", "sessions/create", map[string]string{
-		"agent":     "coder",
-		"workspace": env.workspaceID,
+		createResult, err := env.call(t, "ext-integration", "sessions/create", map[string]string{
+			"agent":     "coder",
+			"workspace": env.workspaceID,
+		})
+		if err != nil {
+			t.Fatalf("Handle(sessions/create) error = %v", err)
+		}
+
+		var created hostAPISessionCreateResult
+		decodeResult(t, createResult, &created)
+		if created.SessionID == "" {
+			t.Fatal("sessions/create session_id = empty, want non-empty")
+		}
+		prompt, err := env.submitPromptWithRuntime(
+			t,
+			"ext-integration",
+			created.SessionID,
+			"integration prompt",
+			&apicontract.PromptRuntimeSelectionPayload{Provider: "fake-alt"},
+		)
+		if err != nil {
+			t.Fatalf("submitPrompt() error = %v", err)
+		}
+		if prompt.TurnID == "" {
+			t.Fatal("sessions/prompt turn_id = empty, want non-empty")
+		}
+
+		statusResult, err := env.call(t, "ext-integration", "sessions/status", map[string]string{
+			"workspace_id": env.workspaceID,
+			"session_id":   created.SessionID,
+		})
+		if err != nil {
+			t.Fatalf("Handle(sessions/status) error = %v", err)
+		}
+
+		var status hostAPISessionStatus
+		decodeResult(t, statusResult, &status)
+		if status.State == "" {
+			t.Fatal("sessions/status state = empty, want non-empty")
+		}
+		if status.Runtime.Effective == nil || status.Runtime.Effective.Provider != "fake-alt" {
+			t.Fatalf(
+				"sessions/status runtime = %#v effective = %#v, want effective fake-alt provider",
+				status.Runtime,
+				status.Runtime.Effective,
+			)
+		}
+
+		eventsResult, err := env.call(t, "ext-integration", "sessions/events", map[string]any{
+			"workspace_id": env.workspaceID,
+			"session_id":   created.SessionID,
+			"turn_id":      prompt.TurnID,
+			"limit":        10,
+		})
+		if err != nil {
+			t.Fatalf("Handle(sessions/events) error = %v", err)
+		}
+
+		var events []hostAPISessionEvent
+		decodeResult(t, eventsResult, &events)
+		if len(events) == 0 {
+			t.Fatal("sessions/events len = 0, want prompt events")
+		}
 	})
-	if err != nil {
-		t.Fatalf("Handle(sessions/create) error = %v", err)
-	}
-
-	var created hostAPISessionCreateResult
-	decodeResult(t, createResult, &created)
-	if created.SessionID == "" {
-		t.Fatal("sessions/create session_id = empty, want non-empty")
-	}
-	prompt, err := env.submitPrompt(t, "ext-integration", created.SessionID, "integration prompt")
-	if err != nil {
-		t.Fatalf("submitPrompt() error = %v", err)
-	}
-	if prompt.TurnID == "" {
-		t.Fatal("sessions/prompt turn_id = empty, want non-empty")
-	}
-
-	statusResult, err := env.call(t, "ext-integration", "sessions/status", map[string]string{
-		"workspace_id": env.workspaceID,
-		"session_id":   created.SessionID,
-	})
-	if err != nil {
-		t.Fatalf("Handle(sessions/status) error = %v", err)
-	}
-
-	var status hostAPISessionStatus
-	decodeResult(t, statusResult, &status)
-	if status.State == "" {
-		t.Fatal("sessions/status state = empty, want non-empty")
-	}
-	if status.Runtime.Effective == nil || status.Runtime.Effective.Provider != "fake-alt" {
-		t.Fatalf("sessions/status runtime = %#v, want effective fake-alt provider", status.Runtime)
-	}
-
-	eventsResult, err := env.call(t, "ext-integration", "sessions/events", map[string]any{
-		"workspace_id": env.workspaceID,
-		"session_id":   created.SessionID,
-		"turn_id":      prompt.TurnID,
-		"limit":        10,
-	})
-	if err != nil {
-		t.Fatalf("Handle(sessions/events) error = %v", err)
-	}
-
-	var events []hostAPISessionEvent
-	decodeResult(t, eventsResult, &events)
-	if len(events) == 0 {
-		t.Fatal("sessions/events len = 0, want prompt events")
-	}
 }
 
 func TestHostAPIIntegrationStoresAndRecallsMemory(t *testing.T) {
@@ -480,8 +492,6 @@ func TestHostAPIIntegrationStartRunAllocatesDedicatedSession(t *testing.T) {
 	var queued apicontract.TaskRunPayload
 	decodeResult(t, enqueueResult, &queued)
 
-	seedHostAPIRunClaimed(t, env, queued.ID, "ext-tasks")
-
 	startResult, err := env.callFromWorkspace(t, "ext-tasks", "tasks/runs/start", map[string]any{
 		"id":              queued.ID,
 		"idempotency_key": "start-start-int",
@@ -574,7 +584,6 @@ func TestHostAPIIntegrationTaskReadAndAggregateSurfaces(t *testing.T) {
 	if err != nil {
 		t.Fatalf("tasks.EnqueueRun() error = %v", err)
 	}
-	seedHostAPIRunClaimed(t, env, queued.ID, "ext-reader")
 	started, err := env.tasks.StartRun(testutil.Context(t), queued.ID, taskpkg.StartRun{
 		IdempotencyKey: "integration-read-start",
 	}, actor)

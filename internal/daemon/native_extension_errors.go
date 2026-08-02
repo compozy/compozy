@@ -23,16 +23,17 @@ func nativeExtensionUpdateToolError(
 	items []contract.ManagedExtensionUpdatePayload,
 	err error,
 ) error {
-	var batchErr *extensionpkg.MarketplaceUpdateBatchError
-	if !errors.As(err, &batchErr) {
+	batchErr, ok := errors.AsType[*extensionpkg.MarketplaceUpdateBatchError](err)
+	if !ok {
 		return nativeExtensionToolError(id, err)
 	}
 
 	mappedErr := nativeExtensionToolError(id, err)
-	var toolErr *toolspkg.ToolError
-	if !errors.As(mappedErr, &toolErr) {
+	toolErr, ok := errors.AsType[*toolspkg.ToolError](mappedErr)
+	if !ok || toolErr == nil {
 		mappedErr = nativeHTTPStatusToolError(id, err, core.ExtensionStatusCode(err))
-		if !errors.As(mappedErr, &toolErr) {
+		toolErr, ok = errors.AsType[*toolspkg.ToolError](mappedErr)
+		if !ok || toolErr == nil {
 			return mappedErr
 		}
 	}
@@ -91,13 +92,38 @@ func nativeExtensionToolError(id toolspkg.ToolID, err error) error {
 			fmt.Errorf("%w: %w", toolspkg.ErrToolDenied, err),
 			toolspkg.ReasonExtensionSourceForbidden,
 		)
-	case errors.Is(err, registrygit.ErrGitUnavailable):
-		return nativeHTTPStatusToolError(id, err, core.ExtensionStatusCode(err))
+	case errors.Is(err, registrygit.ErrGitUnavailable),
+		errors.Is(err, registrygit.ErrGitVersionUnsupported):
+		return nativeExtensionGitDependencyError(id, err)
 	case isExtensionSourceError(err):
 		return nativeExtensionSourceError(id, err)
 	default:
 		return err
 	}
+}
+
+func nativeExtensionGitDependencyError(id toolspkg.ToolID, err error) error {
+	diagnostic, ok := core.ExtensionGitDependencyDiagnostic(err)
+	if !ok {
+		return nativeHTTPStatusToolError(id, err, core.ExtensionStatusCode(err))
+	}
+	reason := toolspkg.ReasonExtensionGitUnavailable
+	if errors.Is(err, registrygit.ErrGitVersionUnsupported) {
+		reason = toolspkg.ReasonExtensionGitVersionUnsupported
+	}
+	recovery := diagnostic.Message
+	if diagnostic.SuggestedCommand != "" {
+		recovery += " Run `" + diagnostic.SuggestedCommand + "`."
+	}
+	return toolspkg.NewOperatorToolError(
+		toolspkg.ErrorCodeUnavailable,
+		id,
+		diagnostic.Title,
+		fmt.Errorf("%w: %w", toolspkg.ErrToolUnavailable, err),
+		diagnostic.Title,
+		recovery,
+		reason,
+	)
 }
 
 func nativeExtensionValidationError(id toolspkg.ToolID, err error) error {
@@ -128,6 +154,7 @@ func isExtensionValidationError(err error) bool {
 		errors.Is(err, extensionpkg.ErrManifestInvalid) ||
 		errors.Is(err, extensionpkg.ErrManifestIncompatible) ||
 		errors.Is(err, extensionpkg.ErrManifestNotFound) ||
+		errors.Is(err, registrygit.ErrInvalidRepositoryRef) ||
 		errors.Is(err, os.ErrNotExist)
 }
 
@@ -135,6 +162,7 @@ func isExtensionSourceError(err error) bool {
 	return errors.Is(err, extensionpkg.ErrMarketplaceSourceUnavailable) ||
 		errors.Is(err, extensionpkg.ErrExtensionChecksumUnverified) ||
 		errors.Is(err, extensionpkg.ErrExtensionUnverifiedPolicyBlocked) ||
+		errors.Is(err, registrygit.ErrRepositoryDestinationBlocked) ||
 		errors.Is(err, errExtensionMarketplaceNotConfigured) ||
 		errors.Is(err, errExtensionRegistryUnsupported)
 }

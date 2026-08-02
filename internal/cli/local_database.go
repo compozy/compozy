@@ -56,14 +56,15 @@ func (e *localDatabaseOpenError) errorPayload() contract.ErrorPayload {
 	if e.Err != nil {
 		message = e.Err.Error()
 	}
-	item := diagnostics.NewItem(
-		"migrations."+code,
-		code,
-		category,
-		title,
-		message,
-		diagnosticcontract.SeverityError,
-		diagnosticcontract.FreshnessLive,
+	item := diagnostics.NewItem(diagnostics.ItemSpec{
+		ID:            "migrations." + code,
+		Code:          code,
+		Category:      category,
+		Title:         title,
+		Message:       message,
+		Severity:      diagnosticcontract.SeverityError,
+		DataFreshness: diagnosticcontract.FreshnessLive,
+	},
 		diagnostics.WithEvidence(map[string]any{
 			"surface":        e.Surface,
 			"offending_path": e.Path,

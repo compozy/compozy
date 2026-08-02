@@ -286,6 +286,29 @@ func TestPayloadSizeGuards(t *testing.T) {
 			},
 			wantErr: ErrValidation,
 		},
+		{
+			name: "coordinator enqueue reference over limit",
+			run: func() error {
+				return (CoordinatorCompletionPlan{
+					NodeRuns: []EnqueueSpec{{
+						TaskID: strings.Repeat("r", MaxReferenceBytes+1),
+					}},
+				}).Validate("coordinator_completion.plan")
+			},
+			wantErr: ErrValidation,
+		},
+		{
+			name: "coordinator enqueue idempotency key over limit",
+			run: func() error {
+				return (CoordinatorCompletionPlan{
+					NodeRuns: []EnqueueSpec{{
+						TaskID:         "task-1",
+						IdempotencyKey: strings.Repeat("i", MaxReferenceBytes+1),
+					}},
+				}).Validate("coordinator_completion.plan")
+			},
+			wantErr: ErrValidation,
+		},
 	}
 
 	for _, tt := range tests {
@@ -681,6 +704,40 @@ func TestDomainValidationHelpers(t *testing.T) {
 		}
 	})
 
+	t.Run("Should reject oversized task event envelope references", func(t *testing.T) {
+		t.Parallel()
+
+		testCases := []struct {
+			name   string
+			mutate func(*Event)
+		}{
+			{name: "Should reject an oversized event ID", mutate: func(event *Event) {
+				event.ID = strings.Repeat("e", MaxReferenceBytes+1)
+			}},
+			{name: "Should reject an oversized task ID", mutate: func(event *Event) {
+				event.TaskID = strings.Repeat("t", MaxReferenceBytes+1)
+			}},
+			{name: "Should reject an oversized run ID", mutate: func(event *Event) {
+				event.RunID = strings.Repeat("r", MaxReferenceBytes+1)
+			}},
+			{name: "Should reject an oversized event type", mutate: func(event *Event) {
+				event.EventType = strings.Repeat("k", MaxReferenceBytes+1)
+			}},
+		}
+
+		for _, testCase := range testCases {
+			t.Run(testCase.name, func(t *testing.T) {
+				t.Parallel()
+
+				event := validEvent()
+				testCase.mutate(&event)
+				if err := event.Validate(); !errors.Is(err, ErrValidation) {
+					t.Fatalf("Event.Validate() error = %v, want %v", err, ErrValidation)
+				}
+			})
+		}
+	})
+
 	t.Run("Should task patch requires mutable field", func(t *testing.T) {
 		t.Parallel()
 		err := (Patch{}).Validate("patch")
@@ -901,6 +958,205 @@ func validActorContext() ActorContext {
 	}
 }
 
+func TestRestoreTerminalRunCommandValidatesDurableIntent(t *testing.T) {
+	t.Parallel()
+
+	// Invariant: a reopened terminal command carries exactly one validated,
+	// credential-free intent and a valid full lifecycle fence.
+	// Owning layer: task domain validation. Canonical suite: validate_test.go.
+	actorJSON, err := json.Marshal(validActorContext())
+	if err != nil {
+		t.Fatalf("json.Marshal(actor) error = %v", err)
+	}
+	commandAt := time.Date(2026, 8, 2, 12, 0, 0, 0, time.UTC)
+	validRecord := TerminalRunCommandRecord{
+		CommandID:        "terminal-command-1",
+		RunID:            "run-1",
+		TaskID:           "task-1",
+		WorkspaceID:      "workspace-1",
+		Kind:             TerminalRunCommandCompleted,
+		Phase:            TerminalRunCommandPhaseAdmitted,
+		SourceStatus:     TaskRunStatusRunning,
+		SourceSession:    "session-1",
+		SourceClaimHash:  "claim-hash-1",
+		SourceLeaseUntil: commandAt.Add(time.Minute),
+		IntentJSON: json.RawMessage(
+			`{"version":2,"event_ids":["evt-1"],"result":{"ok":true},` +
+				`"stop_required":true,"stop_reason":"completed"}`,
+		),
+		ActorJSON:  actorJSON,
+		CommandAt:  commandAt,
+		AdmittedAt: commandAt,
+		UpdatedAt:  commandAt,
+	}
+
+	tests := []struct {
+		name   string
+		mutate func(*TerminalRunCommandRecord)
+	}{
+		{
+			name: "Should reject payload fields owned by another terminal kind",
+			mutate: func(record *TerminalRunCommandRecord) {
+				record.IntentJSON = json.RawMessage(
+					`{"version":2,"event_ids":["evt-1"],"result":{"ok":true},` +
+						`"failure":{"error":"ignored"},` +
+						`"stop_required":true,"stop_reason":"completed"}`,
+				)
+			},
+		},
+		{
+			name: "Should reject unknown fields in the versioned durable intent",
+			mutate: func(record *TerminalRunCommandRecord) {
+				record.IntentJSON = json.RawMessage(
+					`{"version":2,"event_ids":["evt-1"],"result":{"ok":true},"stop_required":true,` +
+						`"stop_reason":"completed","claim_token":"compozy_claim_secret-value"}`,
+				)
+			},
+		},
+		{
+			name: "Should reject a raw claim token in a recovered failure audit",
+			mutate: func(record *TerminalRunCommandRecord) {
+				record.Kind = TerminalRunCommandFailed
+				record.IntentJSON = json.RawMessage(
+					`{"version":2,"event_ids":["evt-1","evt-2"],"failure":{"error":"boom"},` +
+						`"stop_required":true,` +
+						`"stop_reason":"failed","recovery_audit":{"recovery":{"action":"fail",` +
+						`"detail":"compozy_claim_secret-value"},"previous_status":"running",` +
+						`"previous_session_id":"session-1"}}`,
+				)
+			},
+		},
+		{
+			name: "Should reject raw claim material in a completion result value",
+			mutate: func(record *TerminalRunCommandRecord) {
+				record.IntentJSON = json.RawMessage(
+					`{"version":2,"event_ids":["evt-1"],` +
+						`"result":{"note":"compozy_claim_secret-value"},` +
+						`"stop_required":true,"stop_reason":"completed"}`,
+				)
+			},
+		},
+		{
+			name: "Should reject raw claim material in a failure metadata key",
+			mutate: func(record *TerminalRunCommandRecord) {
+				record.Kind = TerminalRunCommandFailed
+				record.IntentJSON = json.RawMessage(
+					`{"version":2,"event_ids":["evt-1"],` +
+						`"failure":{"error":"boom","metadata":` +
+						`{"compozy_claim_secret-value":"hidden"}},` +
+						`"stop_required":true,"stop_reason":"failed"}`,
+				)
+			},
+		},
+		{
+			name: "Should reject raw claim material nested in cancellation metadata",
+			mutate: func(record *TerminalRunCommandRecord) {
+				record.Kind = TerminalRunCommandCanceled
+				record.IntentJSON = json.RawMessage(
+					`{"version":2,"event_ids":["evt-1","evt-2"],` +
+						`"cancellation":{"request":{"reason":"stop",` +
+						`"metadata":{"values":["compozy_claim_secret-value"]}},` +
+						`"reconcile_task":true},"stop_required":true,"stop_reason":"cancellation"}`,
+				)
+			},
+		},
+		{
+			name: "Should reject raw claim material in a reserved event id",
+			mutate: func(record *TerminalRunCommandRecord) {
+				record.IntentJSON = json.RawMessage(
+					`{"version":2,"event_ids":["compozy_claim_secret-value"],` +
+						`"result":{"ok":true},"stop_required":true,"stop_reason":"completed"}`,
+				)
+			},
+		},
+		{
+			name: "Should reject an invalid source lifecycle fence",
+			mutate: func(record *TerminalRunCommandRecord) {
+				record.SourceStatus = ParseRunStatus("paused")
+			},
+		},
+		{
+			name: "Should reject raw claim material disguised as a source hash",
+			mutate: func(record *TerminalRunCommandRecord) {
+				record.SourceClaimHash = "compozy_claim_secret-value"
+			},
+		},
+		{
+			name: "Should reject a stop requirement that contradicts the source session",
+			mutate: func(record *TerminalRunCommandRecord) {
+				record.IntentJSON = json.RawMessage(
+					`{"version":2,"event_ids":["evt-1"],"result":{"ok":true},` +
+						`"stop_required":false,"stop_reason":"completed"}`,
+				)
+			},
+		},
+		{
+			name: "Should reject a terminal kind that cannot transition from the source status",
+			mutate: func(record *TerminalRunCommandRecord) {
+				record.SourceStatus = TaskRunStatusStarting
+			},
+		},
+		{
+			name: "Should reject a noncanonical stop reason",
+			mutate: func(record *TerminalRunCommandRecord) {
+				record.IntentJSON = json.RawMessage(
+					`{"version":2,"event_ids":["evt-1"],"result":{"ok":true},` +
+						`"stop_required":true,"stop_reason":" Completed "}`,
+				)
+			},
+		},
+		{
+			name: "Should reject a recovery audit for a non-failure action",
+			mutate: func(record *TerminalRunCommandRecord) {
+				record.Kind = TerminalRunCommandFailed
+				record.IntentJSON = json.RawMessage(
+					`{"version":2,"event_ids":["evt-1","evt-2"],"failure":{"error":"boom"},` +
+						`"stop_required":false,` +
+						`"stop_reason":"failed","recovery_audit":{"recovery":{"action":"requeue"},` +
+						`"previous_status":"running","previous_session_id":"session-1"}}`,
+				)
+			},
+		},
+		{
+			name: "Should reject a recovery audit that contradicts the source fence",
+			mutate: func(record *TerminalRunCommandRecord) {
+				record.Kind = TerminalRunCommandFailed
+				record.IntentJSON = json.RawMessage(
+					`{"version":2,"event_ids":["evt-1","evt-2"],"failure":{"error":"boom"},` +
+						`"stop_required":false,` +
+						`"stop_reason":"failed","recovery_audit":{"recovery":{"action":"fail"},` +
+						`"previous_status":"starting","previous_session_id":"session-1"}}`,
+				)
+			},
+		},
+		{
+			name: "Should reject a stop phase for a command without a stop",
+			mutate: func(record *TerminalRunCommandRecord) {
+				record.Kind = TerminalRunCommandNeedsAttention
+				record.Phase = TerminalRunCommandPhaseStopRequested
+				record.IntentJSON = json.RawMessage(
+					`{"version":2,"event_ids":["evt-1"],"diagnostic":"operator review",` +
+						`"stop_required":false}`,
+				)
+			},
+		},
+	}
+
+	if _, err := RestoreTerminalRunCommand(validRecord); err != nil {
+		t.Fatalf("RestoreTerminalRunCommand(valid) error = %v", err)
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			record := validRecord
+			tt.mutate(&record)
+			if _, err := RestoreTerminalRunCommand(record); !errors.Is(err, ErrValidation) {
+				t.Fatalf("RestoreTerminalRunCommand() error = %v, want %v", err, ErrValidation)
+			}
+		})
+	}
+}
+
 func jsonBlob(targetSize int) json.RawMessage {
 	if targetSize <= 2 {
 		return json.RawMessage(`""`)
@@ -1006,10 +1262,30 @@ func TestEnumAndIdentityValidation(t *testing.T) {
 			run:     func() error { return ActorIdentity{Kind: ActorKindHuman}.Validate("actor") },
 			wantErr: ErrValidation,
 		},
+		{
+			name: "actor identity oversized reference",
+			run: func() error {
+				return ActorIdentity{
+					Kind: ActorKindHuman,
+					Ref:  strings.Repeat("a", MaxReferenceBytes+1),
+				}.Validate("actor")
+			},
+			wantErr: ErrValidation,
+		},
 		{name: "origin valid", run: func() error { return validTask().Origin.Validate("origin") }},
 		{
 			name:    "origin invalid",
 			run:     func() error { return Origin{Kind: OriginKindCLI}.Validate("origin") },
+			wantErr: ErrValidation,
+		},
+		{
+			name: "origin oversized reference",
+			run: func() error {
+				return Origin{
+					Kind: OriginKindCLI,
+					Ref:  strings.Repeat("o", MaxReferenceBytes+1),
+				}.Validate("origin")
+			},
 			wantErr: ErrValidation,
 		},
 		{name: "authority valid", run: func() error { return validActorContext().Authority.Validate("authority") }},
@@ -1022,9 +1298,38 @@ func TestEnumAndIdentityValidation(t *testing.T) {
 			ctx.Actor.Ref = ""
 			return ctx.Validate()
 		}, wantErr: ErrValidation},
+		{name: "actor context oversized workspace scope", run: func() error {
+			ctx := validActorContext()
+			ctx.Scope.WorkspaceID = strings.Repeat("w", MaxReferenceBytes+1)
+			return ctx.Validate()
+		}, wantErr: ErrValidation},
 		{name: "run boot recovery valid", run: func() error {
 			return RunBootRecovery{Action: RunBootRecoveryFail}.Validate("recovery")
 		}},
+		{name: "run boot recovery oversized reason", run: func() error {
+			return RunBootRecovery{
+				Action: RunBootRecoveryFail,
+				Reason: strings.Repeat("r", MaxReasonBytes+1),
+			}.Validate("recovery")
+		}, wantErr: ErrPayloadTooLarge},
+		{name: "run boot recovery oversized session state", run: func() error {
+			return RunBootRecovery{
+				Action:       RunBootRecoveryFail,
+				SessionState: strings.Repeat("s", MaxReferenceBytes+1),
+			}.Validate("recovery")
+		}, wantErr: ErrValidation},
+		{name: "run boot recovery oversized classification", run: func() error {
+			return RunBootRecovery{
+				Action:         RunBootRecoveryFail,
+				Classification: strings.Repeat("c", MaxReferenceBytes+1),
+			}.Validate("recovery")
+		}, wantErr: ErrValidation},
+		{name: "run boot recovery oversized detail", run: func() error {
+			return RunBootRecovery{
+				Action: RunBootRecoveryFail,
+				Detail: strings.Repeat("d", MaxDiagnosticBytes+1),
+			}.Validate("recovery")
+		}, wantErr: ErrPayloadTooLarge},
 		{name: "run boot recovery invalid", run: func() error {
 			return RunBootRecovery{}.Validate("recovery")
 		}, wantErr: ErrValidation},
@@ -1162,6 +1467,28 @@ func TestRequestAndQueryValidation(t *testing.T) {
 			run: func() error {
 				return AddDependency{
 					TaskID:          "task-1",
+					DependsOnTaskID: "task-1",
+					Kind:            DependencyKindBlocks,
+				}.Validate("dependency")
+			},
+			wantErr: ErrValidation,
+		},
+		{
+			name: "Should reject oversized dependency references",
+			run: func() error {
+				return AddDependency{
+					TaskID:          "task-1",
+					DependsOnTaskID: strings.Repeat("d", MaxReferenceBytes+1),
+					Kind:            DependencyKindBlocks,
+				}.Validate("dependency")
+			},
+			wantErr: ErrValidation,
+		},
+		{
+			name: "Should reject oversized dependency task IDs",
+			run: func() error {
+				return AddDependency{
+					TaskID:          strings.Repeat("d", MaxReferenceBytes+1),
 					DependsOnTaskID: "task-1",
 					Kind:            DependencyKindBlocks,
 				}.Validate("dependency")

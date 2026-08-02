@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -21,6 +22,50 @@ import (
 type fakeProviderSecretResolver struct {
 	values map[string]string
 	errs   map[string]error
+}
+
+func TestProviderRuntimeEnvironmentLookupUsesPlatformSemantics(t *testing.T) {
+	t.Parallel()
+	t.Run("Should use platform key rules for provider home and credential lookups", func(t *testing.T) {
+		t.Parallel()
+
+		env := []string{
+			"HOME=/exact/home",
+			"home=/mixed/home",
+			"USERPROFILE=C:\\exact-home",
+			"UserProfile=C:\\mixed-home",
+			"PROVIDER_TOKEN=exact-secret",
+			"Provider_Token=mixed-secret",
+		}
+		lookup := providerLookupEnv(env)
+		wantHome := "/exact/home"
+		wantToken := "exact-secret"
+		if runtime.GOOS == "windows" {
+			wantHome = "/mixed/home"
+			wantToken = "mixed-secret"
+		}
+		if got, ok := lookup("HOME"); !ok || got != wantHome {
+			t.Fatalf("provider LookupEnv(HOME) = %q, %t; want %q, true", got, ok, wantHome)
+		}
+		if got, ok := lookup("PROVIDER_TOKEN"); !ok || got != wantToken {
+			t.Fatalf("provider LookupEnv(PROVIDER_TOKEN) = %q, %t; want %q, true", got, ok, wantToken)
+		}
+		if got := providerHomeIdentity(env); got != wantHome {
+			t.Fatalf("providerHomeIdentity() = %q, want %q", got, wantHome)
+		}
+
+		userProfileEnv := []string{
+			"USERPROFILE=C:\\exact-home",
+			"UserProfile=C:\\mixed-home",
+		}
+		wantUserProfile := "C:\\exact-home"
+		if runtime.GOOS == "windows" {
+			wantUserProfile = "C:\\mixed-home"
+		}
+		if got := providerHomeIdentity(userProfileEnv); got != wantUserProfile {
+			t.Fatalf("providerHomeIdentity(USERPROFILE) = %q, want %q", got, wantUserProfile)
+		}
+	})
 }
 
 func (r fakeProviderSecretResolver) ResolveRef(ctx context.Context, ref string) (string, error) {
@@ -512,8 +557,8 @@ func TestPrepareProviderForStartInjectsSecretsAndMaterializesPiRuntime(t *testin
 					"prepareProviderForStart(missing required secret) error = nil, want provider auth failure",
 				)
 			}
-			var failure *acp.FailureError
-			if !errors.As(err, &failure) || failure == nil {
+			failure, failureMatched := errors.AsType[*acp.FailureError](err)
+			if !failureMatched || failure == nil {
 				t.Fatalf(
 					"prepareProviderForStart(missing required secret) error = %v, want FailureError",
 					err,

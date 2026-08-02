@@ -2,8 +2,6 @@ package cli
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -139,23 +137,19 @@ func (c *unixSocketClient) ValidateLoop(
 	if err != nil {
 		return contract.LoopValidationResponse{}, err
 	}
-	defer func() {
-		if closeErr := response.Body.Close(); closeErr != nil && err == nil {
-			err = fmt.Errorf("cli: close %s response: %w", path, closeErr)
-		}
-	}()
+	defer mergeResponseBodyCloseError(&err, response, http.MethodPost, path)
 
 	if response.StatusCode == http.StatusUnprocessableEntity {
-		if err := json.NewDecoder(response.Body).Decode(&payload); err != nil {
-			return contract.LoopValidationResponse{}, fmt.Errorf("cli: decode %s response: %w", path, err)
+		if err := decodeJSONResponseBody(http.MethodPost, path, response.Body, &payload); err != nil {
+			return contract.LoopValidationResponse{}, err
 		}
 		return payload, nil
 	}
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		return contract.LoopValidationResponse{}, readAPIError(response)
 	}
-	if err := json.NewDecoder(response.Body).Decode(&payload); err != nil {
-		return contract.LoopValidationResponse{}, fmt.Errorf("cli: decode %s response: %w", path, err)
+	if err := decodeJSONResponseBody(http.MethodPost, path, response.Body, &payload); err != nil {
+		return contract.LoopValidationResponse{}, err
 	}
 	return payload, nil
 }

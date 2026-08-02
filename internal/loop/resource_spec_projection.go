@@ -1,6 +1,7 @@
 package loop
 
 import (
+	"maps"
 	"slices"
 	"strings"
 
@@ -110,9 +111,5 @@ func normalizeStringSlice(values []string) []string {
 }
 
 func sortedMapKeys[V any](values map[string]V) []string {
-	keys := make([]string, 0, len(values))
-	for key := range values {
-		keys = append(keys, key)
-	}
-	return normalizeStringSlice(keys)
+	return normalizeStringSlice(slices.Collect(maps.Keys(values)))
 }

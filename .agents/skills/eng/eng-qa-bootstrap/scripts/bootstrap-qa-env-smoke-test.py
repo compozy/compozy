@@ -97,6 +97,29 @@ def main() -> None:
     if playbook.get("playbook_ref") != "northstar-pay":
         raise AssertionError("load_playbook_via_helper() returned the wrong playbook")
 
+    targeted_contract = module.build_scenario_contract(
+        repo_root,
+        "vault-extension-targeted",
+        requested_profile="targeted",
+        required_surfaces=["cli", "runtime", "cli"],
+    )
+    if targeted_contract.get("release_grade") != "targeted":
+        raise AssertionError("targeted profile did not retain its explicit release grade")
+    targeted_minimums = targeted_contract.get("minimums", {})
+    if targeted_minimums.get("surfaces_required") != ["cli", "runtime"]:
+        raise AssertionError("targeted profile did not retain unique required surfaces in order")
+    for key in (
+        "agents",
+        "differentiated_roles",
+        "channels",
+        "provider_backed_sessions",
+        "cross_surface_objects",
+        "disruption_probes",
+        "artifacts_used_later",
+    ):
+        if targeted_minimums.get(key) != 0:
+            raise AssertionError(f"targeted profile {key} minimum must be zero")
+
     with tempfile.TemporaryDirectory() as raw_dir:
         workspace_path = Path(raw_dir)
         summary = module.seed_playbook_workspace(repo_root, workspace_path, "northstar-pay")

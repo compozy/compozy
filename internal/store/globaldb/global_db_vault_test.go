@@ -2,6 +2,7 @@ package globaldb
 
 import (
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -22,14 +23,14 @@ func TestGlobalDBVaultSecretsCRUD(t *testing.T) {
 			{
 				Ref:            "vault:providers/openrouter/api-key",
 				Kind:           "api_key",
-				EncryptedValue: "aes-gcm:openrouter-ciphertext",
+				EncryptedValue: "aes-gcm-v1:openrouter-ciphertext",
 				CreatedAt:      now,
 				UpdatedAt:      now,
 			},
 			{
 				Ref:            "vault:providers/zai/api-key",
 				Kind:           "api_key",
-				EncryptedValue: "aes-gcm:zai-ciphertext",
+				EncryptedValue: "aes-gcm-v1:zai-ciphertext",
 				CreatedAt:      now.Add(time.Minute),
 				UpdatedAt:      now.Add(time.Minute),
 			},
@@ -45,7 +46,7 @@ func TestGlobalDBVaultSecretsCRUD(t *testing.T) {
 		if err != nil {
 			t.Fatalf("GetVaultSecret(openrouter) error = %v", err)
 		}
-		if got.EncryptedValue != "aes-gcm:openrouter-ciphertext" || got.Kind != "api_key" {
+		if got.EncryptedValue != "aes-gcm-v1:openrouter-ciphertext" || got.Kind != "api_key" {
 			t.Fatalf("GetVaultSecret(openrouter) = %#v, want encrypted record", got)
 		}
 
@@ -66,6 +67,82 @@ func TestGlobalDBVaultSecretsCRUD(t *testing.T) {
 	})
 }
 
+func TestGlobalDBVaultCiphertextIdentityEnforcement(t *testing.T) {
+	t.Parallel()
+
+	const plaintext = "identity-bound-secret-value"
+	tests := []struct {
+		name       string
+		resolveRef string
+		tamper     func(vault.Record) vault.Record
+	}{
+		{
+			name:       "Should reject ciphertext copied to another ref",
+			resolveRef: "vault:providers/copied/api-key",
+			tamper: func(record vault.Record) vault.Record {
+				record.Ref = "vault:providers/copied/api-key"
+				return record
+			},
+		},
+		{
+			name:       "Should reject ciphertext associated with another kind",
+			resolveRef: "vault:providers/source/api-key",
+			tamper: func(record vault.Record) vault.Record {
+				record.Kind = "refresh_token"
+				return record
+			},
+		},
+		{
+			name:       "Should reject obsolete ciphertext",
+			resolveRef: "vault:providers/source/api-key",
+			tamper: func(record vault.Record) vault.Record {
+				record.EncryptedValue = "aes-gcm:obsolete"
+				return record
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t)
+			globalDB := openTestGlobalDB(t)
+			service, err := globalDB.vaultService()
+			if err != nil {
+				t.Fatalf("vaultService() error = %v", err)
+			}
+			sourceRef := "vault:providers/source/api-key"
+			if _, err := service.PutSecret(ctx, sourceRef, "api_key", plaintext); err != nil {
+				t.Fatalf("PutSecret() error = %v", err)
+			}
+			resolved, err := service.ResolveRef(ctx, sourceRef)
+			if err != nil {
+				t.Fatalf("ResolveRef(source) error = %v", err)
+			}
+			if resolved != plaintext {
+				t.Fatalf("ResolveRef(source) = %q, want original plaintext", resolved)
+			}
+
+			record, err := globalDB.GetVaultSecret(ctx, sourceRef)
+			if err != nil {
+				t.Fatalf("GetVaultSecret(source) error = %v", err)
+			}
+			if err := globalDB.PutVaultSecret(ctx, tc.tamper(record)); err != nil {
+				t.Fatalf("PutVaultSecret(tampered) error = %v", err)
+			}
+
+			value, err := service.ResolveRef(ctx, tc.resolveRef)
+			if err == nil {
+				t.Fatalf("ResolveRef(tampered) = %q, want authentication failure", value)
+			}
+			if strings.Contains(err.Error(), plaintext) {
+				t.Fatalf("ResolveRef(tampered) error leaked plaintext: %v", err)
+			}
+		})
+	}
+}
+
 func TestGlobalDBVaultSecretValidation(t *testing.T) {
 	t.Parallel()
 
@@ -73,10 +150,10 @@ func TestGlobalDBVaultSecretValidation(t *testing.T) {
 		name   string
 		record vault.Record
 	}{
-		{name: "Should reject empty secret ref", record: vault.Record{EncryptedValue: "aes-gcm:ciphertext"}},
+		{name: "Should reject empty secret ref", record: vault.Record{EncryptedValue: "aes-gcm-v1:ciphertext"}},
 		{
 			name:   "Should reject non secret ref",
-			record: vault.Record{Ref: "env:OPENROUTER_API_KEY", EncryptedValue: "aes-gcm:ciphertext"},
+			record: vault.Record{Ref: "env:OPENROUTER_API_KEY", EncryptedValue: "aes-gcm-v1:ciphertext"},
 		},
 		{name: "Should reject empty encrypted value", record: vault.Record{Ref: "vault:providers/openrouter/api-key"}},
 	}
@@ -106,7 +183,7 @@ func TestGlobalDBVaultSecretUpsert(t *testing.T) {
 		first := vault.Record{
 			Ref:            ref,
 			Kind:           "api_key",
-			EncryptedValue: "aes-gcm:first-ciphertext",
+			EncryptedValue: "aes-gcm-v1:first-ciphertext",
 			CreatedAt:      createdAt,
 			UpdatedAt:      createdAt,
 		}
@@ -117,7 +194,7 @@ func TestGlobalDBVaultSecretUpsert(t *testing.T) {
 		second := vault.Record{
 			Ref:            ref,
 			Kind:           "api_key",
-			EncryptedValue: "aes-gcm:second-ciphertext",
+			EncryptedValue: "aes-gcm-v1:second-ciphertext",
 			CreatedAt:      createdAt.Add(-time.Hour),
 			UpdatedAt:      updatedAt,
 		}
@@ -148,14 +225,14 @@ func TestGlobalDBVaultSecretPrefixFiltering(t *testing.T) {
 			{
 				Ref:            "vault:sessions/sess-1/github-token",
 				Kind:           "token",
-				EncryptedValue: "aes-gcm:sess-1",
+				EncryptedValue: "aes-gcm-v1:sess-1",
 				CreatedAt:      now,
 				UpdatedAt:      now,
 			},
 			{
 				Ref:            "vault:sessions/sess-10/github-token",
 				Kind:           "token",
-				EncryptedValue: "aes-gcm:sess-10",
+				EncryptedValue: "aes-gcm-v1:sess-10",
 				CreatedAt:      now,
 				UpdatedAt:      now,
 			},

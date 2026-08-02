@@ -95,6 +95,9 @@ func (d commandDeps) withRuntimeDefaults() commandDeps {
 	if d.lookPath == nil {
 		d.lookPath = exec.LookPath
 	}
+	if d.removeFile == nil {
+		d.removeFile = os.Remove
+	}
 	if d.inputIsTerminal == nil {
 		d.inputIsTerminal = supportBundleInputIsTerminal
 	}

@@ -198,14 +198,15 @@ func providerModelNotFoundError(providerID string, modelID string) error {
 		strings.TrimSpace(providerID),
 		strings.TrimSpace(modelID),
 	)
-	item := diagnostics.NewItem(
-		"provider.models.model_not_found",
-		diagnosticcontract.CodeModelNotFound,
-		diagnosticcontract.CategoryProvider,
-		"Provider model not found",
-		cause.Error(),
-		diagnosticcontract.SeverityError,
-		diagnosticcontract.FreshnessLive,
+	item := diagnostics.NewItem(diagnostics.ItemSpec{
+		ID:            "provider.models.model_not_found",
+		Code:          diagnosticcontract.CodeModelNotFound,
+		Category:      diagnosticcontract.CategoryProvider,
+		Title:         "Provider model not found",
+		Message:       cause.Error(),
+		Severity:      diagnosticcontract.SeverityError,
+		DataFreshness: diagnosticcontract.FreshnessLive,
+	},
 		diagnostics.WithEvidence(map[string]any{
 			"provider_id": strings.TrimSpace(providerID),
 			"model_id":    strings.TrimSpace(modelID),
@@ -226,14 +227,15 @@ func providerModelEffortUnsupportedError(model modelcatalog.Model, effort string
 		model.ProviderID,
 		model.ModelID,
 	)
-	item := diagnostics.NewItem(
-		"provider.models.reasoning_effort_unsupported",
-		diagnosticcontract.CodeReasoningEffortUnsupported,
-		diagnosticcontract.CategoryProvider,
-		"Reasoning effort is unsupported",
-		cause.Error(),
-		diagnosticcontract.SeverityError,
-		diagnosticcontract.FreshnessLive,
+	item := diagnostics.NewItem(diagnostics.ItemSpec{
+		ID:            "provider.models.reasoning_effort_unsupported",
+		Code:          diagnosticcontract.CodeReasoningEffortUnsupported,
+		Category:      diagnosticcontract.CategoryProvider,
+		Title:         "Reasoning effort is unsupported",
+		Message:       cause.Error(),
+		Severity:      diagnosticcontract.SeverityError,
+		DataFreshness: diagnosticcontract.FreshnessLive,
+	},
 		diagnostics.WithEvidence(map[string]any{
 			"provider_id":   model.ProviderID,
 			"model_id":      model.ModelID,

@@ -9,7 +9,7 @@ type GoalPromptLease struct {
 	OwnerKind      string
 	LoopRunID      string
 	TaskRunID      string
-	RunGeneration  int
+	RunGeneration  int64
 	PromptAttempt  int
 	ControlEpoch   int64
 	BindingEpoch   int64

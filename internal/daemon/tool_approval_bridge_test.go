@@ -528,8 +528,8 @@ func TestToolApprovalBridgePersistsDurableOutcomes(t *testing.T) {
 		if !errors.Is(err, toolspkg.ErrToolBackendFailed) {
 			t.Fatalf("RequestToolApproval() error = %v, want ErrToolBackendFailed", err)
 		}
-		var toolErr *toolspkg.ToolError
-		if !errors.As(err, &toolErr) || toolErr.Code != toolspkg.ErrorCodeBackendFailed {
+		toolErr, toolErrMatched := errors.AsType[*toolspkg.ToolError](err)
+		if !toolErrMatched || toolErr.Code != toolspkg.ErrorCodeBackendFailed {
 			t.Fatalf("RequestToolApproval() error = %#v, want backend failure envelope", err)
 		}
 	})
@@ -541,8 +541,8 @@ func requireToolApprovalReason(t *testing.T, err error, want toolspkg.ReasonCode
 	if !errors.Is(err, toolspkg.ErrToolApprovalRequired) {
 		t.Fatalf("RequestToolApproval() error = %v, want ErrToolApprovalRequired", err)
 	}
-	var toolErr *toolspkg.ToolError
-	if !errors.As(err, &toolErr) || !slices.Contains(toolErr.ReasonCodes, want) {
+	toolErr, toolErrMatched := errors.AsType[*toolspkg.ToolError](err)
+	if !toolErrMatched || !slices.Contains(toolErr.ReasonCodes, want) {
 		t.Fatalf("approval error = %#v, want reason %q", err, want)
 	}
 }

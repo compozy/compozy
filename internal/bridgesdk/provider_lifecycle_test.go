@@ -234,33 +234,15 @@ func TestProviderLifecycleReconcilesOwnershipAndStopsCleanly(t *testing.T) {
 		default:
 			t.Fatal("StopChannel() remained open after shutdown")
 		}
+		if !errors.Is(lifecycle.Context().Err(), context.Canceled) {
+			t.Fatalf("Context() error = %v, want context.Canceled", lifecycle.Context().Err())
+		}
 	})
 
 	t.Run("Should initialize a negotiated session and publish readiness signals", func(t *testing.T) {
 		t.Parallel()
 
-		request := testInitializeRequest()
-		host := NewHostAPIClientFromCall(func(_ context.Context, method string, params any, result any) error {
-			switch method {
-			case "bridges/instances/list":
-				instances := result.(*[]bridgepkg.BridgeInstance)
-				*instances = []bridgepkg.BridgeInstance{request.Runtime.Bridge.ManagedInstances[0].Instance}
-				return nil
-			case "bridges/instances/get":
-				_ = params
-				instance := result.(*bridgepkg.BridgeInstance)
-				*instance = request.Runtime.Bridge.ManagedInstances[0].Instance
-				return nil
-			default:
-				return fmt.Errorf("unexpected Host API method %q", method)
-			}
-		})
-		session := &Session{
-			request:  request,
-			response: subprocess.InitializeResponse{ProtocolVersion: "1"},
-			host:     host,
-			cache:    NewInstanceCache(request.Runtime.Bridge),
-		}
+		session := newProviderLifecycleTestSession(t)
 		lifecycle, err := NewProviderLifecycle(ProviderLifecycleConfig{
 			ProviderName: "test",
 			Reconcile: func(
@@ -295,27 +277,7 @@ func TestProviderLifecycleReconcilesOwnershipAndStopsCleanly(t *testing.T) {
 	t.Run("Should cancel and join initialization before shutdown returns", func(t *testing.T) {
 		t.Parallel()
 
-		request := testInitializeRequest()
-		host := NewHostAPIClientFromCall(func(_ context.Context, method string, _ any, result any) error {
-			switch method {
-			case "bridges/instances/list":
-				instances := result.(*[]bridgepkg.BridgeInstance)
-				*instances = []bridgepkg.BridgeInstance{request.Runtime.Bridge.ManagedInstances[0].Instance}
-				return nil
-			case "bridges/instances/get":
-				instance := result.(*bridgepkg.BridgeInstance)
-				*instance = request.Runtime.Bridge.ManagedInstances[0].Instance
-				return nil
-			default:
-				return fmt.Errorf("unexpected Host API method %q", method)
-			}
-		})
-		session := &Session{
-			request:  request,
-			response: subprocess.InitializeResponse{ProtocolVersion: "1"},
-			host:     host,
-			cache:    NewInstanceCache(request.Runtime.Bridge),
-		}
+		session := newProviderLifecycleTestSession(t)
 		reconcileStarted := make(chan struct{})
 		reconcileExited := make(chan struct{})
 		lifecycle, err := NewProviderLifecycle(ProviderLifecycleConfig{
@@ -347,4 +309,150 @@ func TestProviderLifecycleReconcilesOwnershipAndStopsCleanly(t *testing.T) {
 			t.Fatal("Shutdown() returned before initialization exited")
 		}
 	})
+
+	t.Run("Should honor initialize caller cancellation under the configured ceiling", func(t *testing.T) {
+		t.Parallel()
+
+		session := newProviderLifecycleTestSession(t)
+		finalized := make(chan error, 1)
+		lifecycle, err := NewProviderLifecycle(ProviderLifecycleConfig{
+			ProviderName: "test",
+			Reconcile: func(ctx context.Context, _ []subprocess.InitializeBridgeManagedInstance) ([]ProviderInitialState, error) {
+				<-ctx.Done()
+				return nil, ctx.Err()
+			},
+			FinalizeInitialize: func(err error) { finalized <- err },
+		})
+		if err != nil {
+			t.Fatalf("NewProviderLifecycle() error = %v", err)
+		}
+		initializeCtx, cancelInitialize := context.WithCancel(t.Context())
+		if err := lifecycle.Initialize(initializeCtx, session); err != nil {
+			cancelInitialize()
+			t.Fatalf("Initialize() error = %v", err)
+		}
+		cancelInitialize()
+		if err := <-finalized; !errors.Is(err, context.Canceled) {
+			t.Fatalf("FinalizeInitialize() error = %v, want context.Canceled", err)
+		}
+		lifecycle.Stop()
+		if err := lifecycle.Wait(t.Context()); err != nil {
+			t.Fatalf("Wait() error = %v", err)
+		}
+	})
+
+	t.Run("Should bound shutdown when the request omits a deadline", func(t *testing.T) {
+		t.Parallel()
+
+		lifecycle, err := NewProviderLifecycle(ProviderLifecycleConfig{
+			ProviderName:    "test",
+			ShutdownTimeout: 20 * time.Millisecond,
+			ShutdownResources: func(ctx context.Context) error {
+				<-ctx.Done()
+				return ctx.Err()
+			},
+		})
+		if err != nil {
+			t.Fatalf("NewProviderLifecycle() error = %v", err)
+		}
+		err = lifecycle.Shutdown(t.Context(), nil, subprocess.ShutdownRequest{})
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("Shutdown() error = %v, want context.DeadlineExceeded", err)
+		}
+	})
+
+	t.Run("Should keep repeated waits pending until Stop closes admission", func(t *testing.T) {
+		t.Parallel()
+
+		lifecycle, err := NewProviderLifecycle(ProviderLifecycleConfig{ProviderName: "test"})
+		if err != nil {
+			t.Fatalf("NewProviderLifecycle() error = %v", err)
+		}
+		for range 3 {
+			waitCtx, cancelWait := context.WithCancel(t.Context())
+			cancelWait()
+			if err := lifecycle.Wait(waitCtx); !errors.Is(err, context.Canceled) {
+				t.Fatalf("Wait() before Stop error = %v, want context.Canceled", err)
+			}
+		}
+		lifecycle.Stop()
+		for range 3 {
+			if err := lifecycle.Wait(t.Context()); err != nil {
+				t.Fatalf("Wait() after Stop error = %v", err)
+			}
+		}
+	})
+
+	t.Run("Should return the shutdown deadline while owned work ignores cancellation", func(t *testing.T) {
+		t.Parallel()
+
+		lifecycle, err := NewProviderLifecycle(ProviderLifecycleConfig{
+			ProviderName:    "test",
+			ShutdownTimeout: 20 * time.Millisecond,
+		})
+		if err != nil {
+			t.Fatalf("NewProviderLifecycle() error = %v", err)
+		}
+		started := make(chan struct{})
+		release := make(chan struct{})
+		if !lifecycle.Go(func() {
+			close(started)
+			<-release
+		}) {
+			t.Fatal("Go() = false before shutdown")
+		}
+		<-started
+		err = lifecycle.Shutdown(t.Context(), nil, subprocess.ShutdownRequest{})
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("Shutdown() error = %v, want context.DeadlineExceeded", err)
+		}
+		close(release)
+		if err := lifecycle.Wait(t.Context()); err != nil {
+			t.Fatalf("Wait() after release error = %v", err)
+		}
+	})
+
+	t.Run("Should recover provider task panics into lifecycle health", func(t *testing.T) {
+		t.Parallel()
+
+		lifecycle, err := NewProviderLifecycle(ProviderLifecycleConfig{ProviderName: "test"})
+		if err != nil {
+			t.Fatalf("NewProviderLifecycle() error = %v", err)
+		}
+		if !lifecycle.Go(func() { panic("provider boom") }) {
+			t.Fatal("Go() = false before shutdown")
+		}
+		lifecycle.Stop()
+		if err := lifecycle.Wait(t.Context()); err != nil {
+			t.Fatalf("Wait() error = %v", err)
+		}
+		if err := lifecycle.Health(); err == nil || !strings.Contains(err.Error(), "provider boom") {
+			t.Fatalf("Health() error = %v, want recovered panic", err)
+		}
+	})
+}
+
+func newProviderLifecycleTestSession(t *testing.T) *Session {
+	t.Helper()
+	request := testInitializeRequest()
+	host := NewHostAPIClientFromCall(func(_ context.Context, method string, _ any, result any) error {
+		switch method {
+		case "bridges/instances/list":
+			instances := result.(*[]bridgepkg.BridgeInstance)
+			*instances = []bridgepkg.BridgeInstance{request.Runtime.Bridge.ManagedInstances[0].Instance}
+			return nil
+		case "bridges/instances/get":
+			instance := result.(*bridgepkg.BridgeInstance)
+			*instance = request.Runtime.Bridge.ManagedInstances[0].Instance
+			return nil
+		default:
+			return fmt.Errorf("unexpected Host API method %q", method)
+		}
+	})
+	return &Session{
+		request:  request,
+		response: subprocess.InitializeResponse{ProtocolVersion: "1"},
+		host:     host,
+		cache:    NewInstanceCache(request.Runtime.Bridge),
+	}
 }

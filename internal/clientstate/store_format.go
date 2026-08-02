@@ -31,11 +31,10 @@ func initializeStoreFormat(db *bolt.DB) (storeFormatInitialization, error) {
 			case version == stateStoreFormatVersion:
 				return nil
 			case version > stateStoreFormatVersion:
-				return fmt.Errorf(
-					"clientstate: store format version %d is newer than supported version %d",
-					version,
-					stateStoreFormatVersion,
-				)
+				return &StoreFormatTooNewError{
+					Version:          version,
+					SupportedVersion: stateStoreFormatVersion,
+				}
 			}
 		}
 

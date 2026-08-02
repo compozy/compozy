@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -173,28 +174,58 @@ func (s *SQLiteStore) KindState(ctx context.Context, kind Kind) (*KindState, err
 	if err != nil {
 		return nil, fmt.Errorf("marketplace catalog: read %q state: %w", kind, err)
 	}
+	state, err := marketplaceKindStateFromRow(row)
+	if err != nil {
+		return nil, err
+	}
+	return &state, nil
+}
+
+func marketplaceKindStateFromRow(row storepkg.MarketplaceCatalogState) (KindState, error) {
+	manifestVersion, err := storedCatalogInt(row.ManifestVersion, "manifest_version")
+	if err != nil {
+		return KindState{}, err
+	}
+	entryCount, err := storedCatalogInt(row.EntryCount, "entry_count")
+	if err != nil {
+		return KindState{}, err
+	}
 	state := KindState{
 		Kind:            Kind(row.Kind),
-		ManifestVersion: int(row.ManifestVersion),
+		ManifestVersion: manifestVersion,
 		Stale:           row.Stale,
-		EntryCount:      int(row.EntryCount),
+		EntryCount:      entryCount,
 	}
 	if strings.TrimSpace(row.GeneratedAt) != "" {
 		parsed, err := storepkg.ParseTimestamp(row.GeneratedAt)
 		if err != nil {
-			return nil, fmt.Errorf("marketplace catalog: parse %q generated_at: %w", kind, err)
+			return KindState{}, fmt.Errorf("marketplace catalog: parse %q generated_at: %w", row.Kind, err)
 		}
 		state.GeneratedAt = parsed
 	}
 	if strings.TrimSpace(row.FetchedAt) != "" {
 		parsed, err := storepkg.ParseTimestamp(row.FetchedAt)
 		if err != nil {
-			return nil, fmt.Errorf("marketplace catalog: parse %q fetched_at: %w", kind, err)
+			return KindState{}, fmt.Errorf("marketplace catalog: parse %q fetched_at: %w", row.Kind, err)
 		}
 		state.FetchedAt = parsed
 	}
 	state.ErrorClass, state.LastError = decodeStoredError(row.LastError)
-	return &state, nil
+	return state, nil
+}
+
+func storedCatalogInt(value int64, field string) (int, error) {
+	return storedCatalogIntForSize(value, field, strconv.IntSize)
+}
+
+func storedCatalogIntForSize(value int64, field string, intSize int) (int, error) {
+	if value < 0 {
+		return 0, fmt.Errorf("marketplace catalog: stored %s is negative: %d", field, value)
+	}
+	if intSize == 32 && value > int64(^uint32(0)>>1) {
+		return 0, fmt.Errorf("marketplace catalog: stored %s exceeds int%d: %d", field, intSize, value)
+	}
+	return int(value), nil
 }
 
 func (s *SQLiteStore) checkReady(ctx context.Context) error {

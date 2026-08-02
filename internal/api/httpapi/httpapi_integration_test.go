@@ -25,6 +25,7 @@ import (
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	eventspkg "github.com/compozy/compozy/internal/events"
 	"github.com/compozy/compozy/internal/memory"
 	memcontract "github.com/compozy/compozy/internal/memory/contract"
 	"github.com/compozy/compozy/internal/network/participation"
@@ -46,12 +47,11 @@ func TestHTTPFullRoundTripWithRealSessionManager(t *testing.T) {
 
 	indexResp := mustHTTPRequest(t, runtime.client, http.MethodGet, mustURL(runtime.host, runtime.port, "/"), nil, nil)
 	if indexResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(indexResp.Body)
-		_ = indexResp.Body.Close()
+		body := readAndCloseHTTPBody(t, indexResp)
 		t.Fatalf("root status = %d, want %d; body=%s", indexResp.StatusCode, http.StatusOK, string(body))
 	}
 	indexBody, err := io.ReadAll(indexResp.Body)
-	_ = indexResp.Body.Close()
+	closeHTTPBody(t, indexResp.Body)
 	if err != nil {
 		t.Fatalf("io.ReadAll(root) error = %v", err)
 	}
@@ -68,12 +68,11 @@ func TestHTTPFullRoundTripWithRealSessionManager(t *testing.T) {
 		nil,
 	)
 	if deepLinkResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(deepLinkResp.Body)
-		_ = deepLinkResp.Body.Close()
+		body := readAndCloseHTTPBody(t, deepLinkResp)
 		t.Fatalf("deep link status = %d, want %d; body=%s", deepLinkResp.StatusCode, http.StatusOK, string(body))
 	}
 	deepLinkBody, err := io.ReadAll(deepLinkResp.Body)
-	_ = deepLinkResp.Body.Close()
+	closeHTTPBody(t, deepLinkResp.Body)
 	if err != nil {
 		t.Fatalf("io.ReadAll(deep link) error = %v", err)
 	}
@@ -115,8 +114,7 @@ func TestHTTPFullRoundTripWithRealSessionManager(t *testing.T) {
 		map[string]string{"Origin": origin},
 	)
 	if createResp.StatusCode != http.StatusCreated {
-		body, _ := io.ReadAll(createResp.Body)
-		_ = createResp.Body.Close()
+		body := readAndCloseHTTPBody(t, createResp)
 		t.Fatalf(
 			"create session status = %d, want %d; body=%s",
 			createResp.StatusCode,
@@ -212,15 +210,14 @@ func TestHTTPFullRoundTripWithRealSessionManager(t *testing.T) {
 		nil,
 	)
 	if promptResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(promptResp.Body)
-		_ = promptResp.Body.Close()
+		body := readAndCloseHTTPBody(t, promptResp)
 		t.Fatalf("prompt status = %d, want %d; body=%s", promptResp.StatusCode, http.StatusOK, string(body))
 	}
 	if got := promptResp.Header.Get("x-vercel-ai-ui-message-stream"); got != "v1" {
 		t.Fatalf("x-vercel-ai-ui-message-stream = %q, want v1", got)
 	}
 	promptBody, err := io.ReadAll(promptResp.Body)
-	_ = promptResp.Body.Close()
+	closeHTTPBody(t, promptResp.Body)
 	if err != nil {
 		t.Fatalf("io.ReadAll(prompt SSE) error = %v", err)
 	}
@@ -256,7 +253,8 @@ func TestHTTPPromptPersistsTerminalEventsAfterClientDisconnect(t *testing.T) {
 	runtime := newIntegrationRuntime(t)
 	sessionID := createIntegrationSession(t, runtime)
 
-	requestCtx, cancel := context.WithCancel(context.Background())
+	requestCtx, cancel := context.WithCancel(t.Context())
+	t.Cleanup(cancel)
 	req, err := http.NewRequestWithContext(
 		requestCtx,
 		http.MethodPost,
@@ -272,11 +270,24 @@ func TestHTTPPromptPersistsTerminalEventsAfterClientDisconnect(t *testing.T) {
 	if err != nil {
 		t.Fatalf("client.Do() error = %v", err)
 	}
-	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
+		body := readAndCloseHTTPBody(t, resp)
 		t.Fatalf("prompt status = %d, want %d; body=%s", resp.StatusCode, http.StatusOK, string(body))
 	}
+	promptBodyClosed := false
+	disconnectPrompt := func() error {
+		cancel()
+		if promptBodyClosed {
+			return nil
+		}
+		promptBodyClosed = true
+		return resp.Body.Close()
+	}
+	t.Cleanup(func() {
+		if err := disconnectPrompt(); err != nil {
+			t.Errorf("disconnect prompt response body during cleanup: %v", err)
+		}
+	})
 
 	scanner := bufio.NewScanner(resp.Body)
 	seenToolStart := false
@@ -309,23 +320,23 @@ func TestHTTPPromptPersistsTerminalEventsAfterClientDisconnect(t *testing.T) {
 		t.Fatal("tool-input-start was not observed before client disconnect")
 	}
 
-	cancel()
-	_ = resp.Body.Close()
-
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		events, err := runtime.manager.Events(context.Background(), sessionID, store.EventQuery{})
-		if err == nil && integrationPromptEventsContainTerminalToolEvents(events) {
-			return
-		}
-		time.Sleep(10 * time.Millisecond)
+	terminalEvents, cancelTerminalEvents, err := runtime.manager.SubscribeSessionEvents(t.Context(), sessionID, 0)
+	if err != nil {
+		t.Fatalf("SubscribeSessionEvents(%q) error = %v", sessionID, err)
 	}
+	defer cancelTerminalEvents()
+	if err := disconnectPrompt(); err != nil {
+		t.Fatalf("disconnect prompt response body: %v", err)
+	}
+	waitForIntegrationTerminalToolEvents(t, terminalEvents)
 
 	events, err := runtime.manager.Events(context.Background(), sessionID, store.EventQuery{})
 	if err != nil {
 		t.Fatalf("Events() error after disconnect = %v", err)
 	}
-	t.Fatalf("persisted events after disconnect = %#v, want tool_result and done", events)
+	if !integrationPromptEventsContainTerminalToolEvents(events) {
+		t.Fatalf("persisted events after disconnect = %#v, want tool_result and done", events)
+	}
 }
 
 func TestHTTPPromptRejectsConcurrentRequestWithConflictAndNoGhostInput(t *testing.T) {
@@ -334,8 +345,15 @@ func TestHTTPPromptRejectsConcurrentRequestWithConflictAndNoGhostInput(t *testin
 
 	firstPromptEntered := make(chan struct{})
 	releaseFirstPrompt := make(chan struct{})
+	var releaseFirstPromptOnce sync.Once
+	releaseFirstPromptWorker := func() {
+		releaseFirstPromptOnce.Do(func() {
+			close(releaseFirstPrompt)
+		})
+	}
+	t.Cleanup(releaseFirstPromptWorker)
 	runtime.driver.promptHook = func(proc *session.AgentProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
-		events := make(chan acp.AgentEvent)
+		events := make(chan acp.AgentEvent, 2)
 		go func() {
 			defer close(events)
 			if req.Message != "first prompt" {
@@ -369,23 +387,53 @@ func TestHTTPPromptRejectsConcurrentRequestWithConflictAndNoGhostInput(t *testin
 		resp *http.Response
 		err  error
 	}
+	firstRequestCtx, cancelFirstRequest := context.WithCancel(t.Context())
+	t.Cleanup(cancelFirstRequest)
+	firstRequest, err := http.NewRequestWithContext(
+		firstRequestCtx,
+		http.MethodPost,
+		mustURL(runtime.host, runtime.port, "/api/workspaces/ws-workspace/sessions/"+sessionID+"/prompt"),
+		strings.NewReader(string(integrationPromptJSON(t, "first prompt"))),
+	)
+	if err != nil {
+		t.Fatalf("http.NewRequestWithContext(first prompt) error = %v", err)
+	}
+	firstRequest.Header.Set("Content-Type", "application/json")
+
 	firstResultCh := make(chan promptResult, 1)
-	go func() {
-		req, err := http.NewRequest(
-			http.MethodPost,
-			mustURL(runtime.host, runtime.port, "/api/workspaces/ws-workspace/sessions/"+sessionID+"/prompt"),
-			strings.NewReader(string(integrationPromptJSON(t, "first prompt"))),
-		)
-		if err != nil {
-			firstResultCh <- promptResult{err: err}
+	firstResultJoined := false
+	t.Cleanup(func() {
+		if firstResultJoined {
 			return
 		}
-		req.Header.Set("Content-Type", "application/json")
-		resp, err := runtime.client.Do(req)
+		releaseFirstPromptWorker()
+		cancelFirstRequest()
+		joinCtx, cancelJoin := context.WithTimeout(context.WithoutCancel(t.Context()), 2*time.Second)
+		defer cancelJoin()
+		select {
+		case result := <-firstResultCh:
+			firstResultJoined = true
+			if result.resp != nil && result.resp.Body != nil {
+				if closeErr := result.resp.Body.Close(); closeErr != nil {
+					t.Errorf("close first prompt response during cleanup: %v", closeErr)
+				}
+			}
+		case <-joinCtx.Done():
+			t.Errorf("first prompt request did not terminate during cleanup: %v", joinCtx.Err())
+		}
+	})
+	go func() {
+		resp, err := runtime.client.Do(firstRequest)
 		firstResultCh <- promptResult{resp: resp, err: err}
 	}()
 
-	<-firstPromptEntered
+	firstPromptCtx, cancelFirstPrompt := context.WithTimeout(t.Context(), 2*time.Second)
+	defer cancelFirstPrompt()
+	select {
+	case <-firstPromptEntered:
+	case <-firstPromptCtx.Done():
+		t.Fatalf("wait for first prompt admission: %v", firstPromptCtx.Err())
+	}
 
 	secondResp := mustHTTPRequest(
 		t,
@@ -396,8 +444,7 @@ func TestHTTPPromptRejectsConcurrentRequestWithConflictAndNoGhostInput(t *testin
 		nil,
 	)
 	if secondResp.StatusCode != http.StatusConflict {
-		body, _ := io.ReadAll(secondResp.Body)
-		_ = secondResp.Body.Close()
+		body := readAndCloseHTTPBody(t, secondResp)
 		t.Fatalf(
 			"second prompt status = %d, want %d; body=%s",
 			secondResp.StatusCode,
@@ -419,9 +466,17 @@ func TestHTTPPromptRejectsConcurrentRequestWithConflictAndNoGhostInput(t *testin
 		t.Fatalf("countSessionEventsByType(user_message) while busy = %d, want %d", got, want)
 	}
 
-	close(releaseFirstPrompt)
+	releaseFirstPromptWorker()
 
-	firstResult := <-firstResultCh
+	firstResultCtx, cancelFirstResult := context.WithTimeout(t.Context(), 2*time.Second)
+	defer cancelFirstResult()
+	var firstResult promptResult
+	select {
+	case firstResult = <-firstResultCh:
+		firstResultJoined = true
+	case <-firstResultCtx.Done():
+		t.Fatalf("wait for first prompt response: %v", firstResultCtx.Err())
+	}
 	if firstResult.err != nil {
 		t.Fatalf("first prompt request error = %v", firstResult.err)
 	}
@@ -429,12 +484,11 @@ func TestHTTPPromptRejectsConcurrentRequestWithConflictAndNoGhostInput(t *testin
 		t.Fatal("first prompt response = nil")
 	}
 	if firstResult.resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(firstResult.resp.Body)
-		_ = firstResult.resp.Body.Close()
+		body := readAndCloseHTTPBody(t, firstResult.resp)
 		t.Fatalf("first prompt status = %d, want %d; body=%s", firstResult.resp.StatusCode, http.StatusOK, string(body))
 	}
 	firstBody, err := io.ReadAll(firstResult.resp.Body)
-	_ = firstResult.resp.Body.Close()
+	closeHTTPBody(t, firstResult.resp.Body)
 	if err != nil {
 		t.Fatalf("io.ReadAll(first prompt) error = %v", err)
 	}
@@ -578,8 +632,7 @@ func TestHTTPSessionTranscriptEndpointIncludesSyntheticTurns(t *testing.T) {
 		nil,
 	)
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		_ = resp.Body.Close()
+		body := readAndCloseHTTPBody(t, resp)
 		t.Fatalf("transcript status = %d, want %d; body=%s", resp.StatusCode, http.StatusOK, string(body))
 	}
 
@@ -635,9 +688,9 @@ func TestHTTPResourceMutationRoutesRemainUnavailableWithoutOperatorAuth(t *testi
 		[]byte(`{"scope":{"kind":"global"},"spec":{"enabled":true}}`),
 		nil,
 	)
-	defer func() { _ = putResp.Body.Close() }()
+	defer func() { closeHTTPBody(t, putResp.Body) }()
 	if putResp.StatusCode != http.StatusNotFound {
-		body, _ := io.ReadAll(putResp.Body)
+		body := readHTTPBody(t, putResp.Body)
 		t.Fatalf("PUT status = %d, want %d; body=%s", putResp.StatusCode, http.StatusNotFound, string(body))
 	}
 
@@ -649,9 +702,9 @@ func TestHTTPResourceMutationRoutesRemainUnavailableWithoutOperatorAuth(t *testi
 		[]byte(`{"expected_version":1}`),
 		nil,
 	)
-	defer func() { _ = deleteResp.Body.Close() }()
+	defer func() { closeHTTPBody(t, deleteResp.Body) }()
 	if deleteResp.StatusCode != http.StatusNotFound {
-		body, _ := io.ReadAll(deleteResp.Body)
+		body := readHTTPBody(t, deleteResp.Body)
 		t.Fatalf("DELETE status = %d, want %d; body=%s", deleteResp.StatusCode, http.StatusNotFound, string(body))
 	}
 }
@@ -671,12 +724,10 @@ func TestHTTPSessionStreamReconnectsWithLastEventID(t *testing.T) {
 		nil,
 	)
 	if streamResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(streamResp.Body)
-		_ = streamResp.Body.Close()
+		body := readAndCloseHTTPBody(t, streamResp)
 		t.Fatalf("session stream status = %d, want %d; body=%s", streamResp.StatusCode, http.StatusOK, string(body))
 	}
 	initial := collectLiveSSE(t, streamResp.Body, 6, 2*time.Second)
-	_ = streamResp.Body.Close()
 	if len(initial) < 6 {
 		t.Fatalf("initial stream events = %d, want 6", len(initial))
 	}
@@ -694,12 +745,10 @@ func TestHTTPSessionStreamReconnectsWithLastEventID(t *testing.T) {
 		headers,
 	)
 	if replayResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(replayResp.Body)
-		_ = replayResp.Body.Close()
+		body := readAndCloseHTTPBody(t, replayResp)
 		t.Fatalf("replay stream status = %d, want %d; body=%s", replayResp.StatusCode, http.StatusOK, string(body))
 	}
 	replayed := collectLiveSSE(t, replayResp.Body, 5, 2*time.Second)
-	_ = replayResp.Body.Close()
 	if len(replayed) < 5 {
 		t.Fatalf("replayed events = %d, want 5", len(replayed))
 	}
@@ -765,23 +814,152 @@ func exerciseHTTPSessionStreamReconnectPreservesCursorWhenNoNewEventsExistYet(t 
 		resp *http.Response
 		err  error
 	}
+	promptRequestCtx, cancelPromptRequest := context.WithCancel(t.Context())
+	defer cancelPromptRequest()
+	promptReq, err := http.NewRequestWithContext(
+		promptRequestCtx,
+		http.MethodPost,
+		mustURL(runtime.host, runtime.port, "/api/workspaces/ws-workspace/sessions/"+sessionID+"/prompt"),
+		strings.NewReader(string(integrationPromptJSON(t, "hello"))),
+	)
+	if err != nil {
+		t.Fatalf("http.NewRequestWithContext(prompt) error = %v", err)
+	}
+	promptReq.Header.Set("Content-Type", "application/json")
+
 	promptResultCh := make(chan promptRequestResult, 1)
-	go func() {
-		req, err := http.NewRequest(
-			http.MethodPost,
-			mustURL(runtime.host, runtime.port, "/api/workspaces/ws-workspace/sessions/"+sessionID+"/prompt"),
-			strings.NewReader(string(integrationPromptJSON(t, "hello"))),
-		)
-		if err != nil {
-			promptResultCh <- promptRequestResult{err: err}
+	go func(results chan<- promptRequestResult) {
+		resp, requestErr := runtime.client.Do(promptReq)
+		results <- promptRequestResult{resp: resp, err: requestErr}
+	}(promptResultCh)
+
+	remainingReleased := false
+	releaseRemainingEvents := func() {
+		if remainingReleased {
 			return
 		}
-		req.Header.Set("Content-Type", "application/json")
-		resp, err := runtime.client.Do(req)
-		promptResultCh <- promptRequestResult{resp: resp, err: err}
-	}()
+		close(releaseRemaining)
+		remainingReleased = true
+	}
+	t.Cleanup(releaseRemainingEvents)
 
-	<-firstEventDelivered
+	var promptRequest promptRequestResult
+	var promptRequestReady bool
+	var promptWorkerJoined bool
+	var promptResponseBody io.ReadCloser
+	t.Cleanup(func() {
+		if promptResponseBody != nil {
+			closeHTTPBody(t, promptResponseBody)
+		}
+	})
+	closePromptRequestResult := func(result promptRequestResult) error {
+		var terminalErr error
+		if result.err != nil {
+			terminalErr = fmt.Errorf("prompt request: %w", result.err)
+		}
+		if result.resp == nil {
+			if result.err == nil {
+				terminalErr = errors.Join(terminalErr, errors.New("prompt response is nil"))
+			}
+			return terminalErr
+		}
+		if result.resp.StatusCode != http.StatusOK {
+			terminalErr = errors.Join(
+				terminalErr,
+				fmt.Errorf("prompt status = %d, want %d", result.resp.StatusCode, http.StatusOK),
+			)
+		}
+		if result.resp.Body != nil {
+			if closeErr := result.resp.Body.Close(); closeErr != nil {
+				terminalErr = errors.Join(terminalErr, fmt.Errorf("close prompt response body: %w", closeErr))
+			}
+		}
+		return terminalErr
+	}
+	t.Cleanup(func() {
+		cancelPromptRequest()
+		releaseRemainingEvents()
+		if promptWorkerJoined {
+			return
+		}
+		terminalCtx, cancelTerminal := context.WithTimeout(
+			context.WithoutCancel(t.Context()),
+			2*time.Second,
+		)
+		defer cancelTerminal()
+		select {
+		case result := <-promptResultCh:
+			promptWorkerJoined = true
+			if terminalErr := closePromptRequestResult(result); terminalErr != nil {
+				t.Errorf("prompt request cleanup error = %v", terminalErr)
+			}
+		case <-terminalCtx.Done():
+			t.Errorf("prompt request worker did not terminate during cleanup: %v", terminalCtx.Err())
+		}
+	})
+	joinPromptRequest := func(primaryErr error) error {
+		cancelPromptRequest()
+		releaseRemainingEvents()
+		if promptRequestReady {
+			if promptResponseBody == nil {
+				return errors.Join(primaryErr, errors.New("prompt response body is nil"))
+			}
+			closeErr := promptResponseBody.Close()
+			promptResponseBody = nil
+			if closeErr != nil {
+				closeErr = fmt.Errorf("close prompt response body: %w", closeErr)
+			}
+			return errors.Join(primaryErr, closeErr)
+		}
+
+		terminalCtx, cancelTerminal := context.WithTimeout(
+			context.WithoutCancel(t.Context()),
+			2*time.Second,
+		)
+		defer cancelTerminal()
+		select {
+		case result := <-promptResultCh:
+			promptWorkerJoined = true
+			return errors.Join(primaryErr, closePromptRequestResult(result))
+		case <-terminalCtx.Done():
+			return errors.Join(
+				primaryErr,
+				fmt.Errorf("prompt request worker did not terminate: %w", terminalCtx.Err()),
+			)
+		}
+	}
+	requirePromptRequest := func(result promptRequestResult) {
+		promptWorkerJoined = true
+		if result.err != nil {
+			t.Fatalf("prompt request error = %v", closePromptRequestResult(result))
+		}
+		if result.resp == nil {
+			t.Fatal("prompt response = nil")
+		}
+		if result.resp.StatusCode != http.StatusOK {
+			body := readAndCloseHTTPBody(t, result.resp)
+			t.Fatalf("prompt status = %d, want %d; body=%s", result.resp.StatusCode, http.StatusOK, string(body))
+		}
+		promptRequest = result
+		promptRequestReady = true
+		promptResponseBody = result.resp.Body
+	}
+
+	firstEventCtx, cancelFirstEvent := context.WithTimeout(t.Context(), 2*time.Second)
+	defer cancelFirstEvent()
+	firstEventObserved := false
+	for !firstEventObserved {
+		select {
+		case <-firstEventDelivered:
+			firstEventObserved = true
+		case result := <-promptResultCh:
+			requirePromptRequest(result)
+			promptResultCh = nil
+		case <-firstEventCtx.Done():
+			primaryErr := fmt.Errorf("wait for first prompt event: %w", firstEventCtx.Err())
+			t.Fatalf("prompt request failed: %v", joinPromptRequest(primaryErr))
+		}
+	}
 
 	streamResp := mustHTTPRequest(
 		t,
@@ -792,12 +970,10 @@ func exerciseHTTPSessionStreamReconnectPreservesCursorWhenNoNewEventsExistYet(t 
 		nil,
 	)
 	if streamResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(streamResp.Body)
-		_ = streamResp.Body.Close()
+		body := readAndCloseHTTPBody(t, streamResp)
 		t.Fatalf("session stream status = %d, want %d; body=%s", streamResp.StatusCode, http.StatusOK, string(body))
 	}
 	initial := collectLiveSSE(t, streamResp.Body, 2, 2*time.Second)
-	_ = streamResp.Body.Close()
 	if len(initial) != 2 {
 		t.Fatalf("initial stream events = %d, want 2", len(initial))
 	}
@@ -806,6 +982,7 @@ func exerciseHTTPSessionStreamReconnectPreservesCursorWhenNoNewEventsExistYet(t 
 		t.Fatal("initial last event id is empty")
 	}
 
+	streamSubscriptions := runtime.streamSubscriptions.count(sessionID)
 	replayResp := mustHTTPRequest(
 		t,
 		runtime.client,
@@ -815,16 +992,14 @@ func exerciseHTTPSessionStreamReconnectPreservesCursorWhenNoNewEventsExistYet(t 
 		map[string]string{"Last-Event-ID": lastEventID},
 	)
 	if replayResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(replayResp.Body)
-		_ = replayResp.Body.Close()
+		body := readAndCloseHTTPBody(t, replayResp)
 		t.Fatalf("replay stream status = %d, want %d; body=%s", replayResp.StatusCode, http.StatusOK, string(body))
 	}
 
-	time.Sleep(100 * time.Millisecond)
-	close(releaseRemaining)
+	runtime.streamSubscriptions.waitFor(t, sessionID, streamSubscriptions)
+	releaseRemainingEvents()
 
 	replayed := collectLiveSSE(t, replayResp.Body, 2, 2*time.Second)
-	_ = replayResp.Body.Close()
 	if len(replayed) != 2 {
 		t.Fatalf("replayed events = %d, want 2", len(replayed))
 	}
@@ -837,15 +1012,20 @@ func exerciseHTTPSessionStreamReconnectPreservesCursorWhenNoNewEventsExistYet(t 
 		t.Fatalf("replayed first sequence = %d, want > 2", got)
 	}
 
-	promptRequest := <-promptResultCh
-	if promptRequest.err != nil {
-		t.Fatalf("prompt request error = %v", promptRequest.err)
-	}
-	if promptRequest.resp == nil {
-		t.Fatal("prompt response = nil")
+	if !promptRequestReady {
+		promptResultCtx, cancelPromptResult := context.WithTimeout(t.Context(), 2*time.Second)
+		defer cancelPromptResult()
+		select {
+		case result := <-promptResultCh:
+			requirePromptRequest(result)
+		case <-promptResultCtx.Done():
+			primaryErr := fmt.Errorf("wait for prompt response: %w", promptResultCtx.Err())
+			t.Fatalf("prompt request failed: %v", joinPromptRequest(primaryErr))
+		}
 	}
 	body, err := io.ReadAll(promptRequest.resp.Body)
-	_ = promptRequest.resp.Body.Close()
+	closeHTTPBody(t, promptResponseBody)
+	promptResponseBody = nil
 	if err != nil {
 		t.Fatalf("io.ReadAll(prompt SSE) error = %v", err)
 	}
@@ -898,8 +1078,7 @@ func exerciseHTTPSessionStopReasonPropagatesToGlobalDBAndAPI(t *testing.T) {
 		nil,
 	)
 	if listResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(listResp.Body)
-		_ = listResp.Body.Close()
+		body := readAndCloseHTTPBody(t, listResp)
 		t.Fatalf("list sessions status = %d, want %d; body=%s", listResp.StatusCode, http.StatusOK, string(body))
 	}
 	var listed struct {
@@ -922,8 +1101,7 @@ func exerciseHTTPSessionStopReasonPropagatesToGlobalDBAndAPI(t *testing.T) {
 		nil,
 	)
 	if statusResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(statusResp.Body)
-		_ = statusResp.Body.Close()
+		body := readAndCloseHTTPBody(t, statusResp)
 		t.Fatalf("status session response = %d, want %d; body=%s", statusResp.StatusCode, http.StatusOK, string(body))
 	}
 	var detail struct {
@@ -953,8 +1131,7 @@ func TestHTTPSessionParticipationRoundTrip(t *testing.T) {
 		nil,
 	)
 	if createResp.StatusCode != http.StatusCreated {
-		body, _ := io.ReadAll(createResp.Body)
-		_ = createResp.Body.Close()
+		body := readAndCloseHTTPBody(t, createResp)
 		t.Fatalf(
 			"create session status = %d, want %d; body=%s",
 			createResp.StatusCode,
@@ -984,8 +1161,7 @@ func TestHTTPSessionParticipationRoundTrip(t *testing.T) {
 		nil,
 	)
 	if listResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(listResp.Body)
-		_ = listResp.Body.Close()
+		body := readAndCloseHTTPBody(t, listResp)
 		t.Fatalf("list sessions status = %d, want %d; body=%s", listResp.StatusCode, http.StatusOK, string(body))
 	}
 	var listed struct {
@@ -1014,8 +1190,7 @@ func TestHTTPSessionParticipationRoundTrip(t *testing.T) {
 		nil,
 	)
 	if statusResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(statusResp.Body)
-		_ = statusResp.Body.Close()
+		body := readAndCloseHTTPBody(t, statusResp)
 		t.Fatalf("status after stop = %d, want %d; body=%s", statusResp.StatusCode, http.StatusOK, string(body))
 	}
 	var stopped struct {
@@ -1058,8 +1233,7 @@ func TestHTTPSessionParticipationRoundTrip(t *testing.T) {
 		nil,
 	)
 	if resumeResp.StatusCode != http.StatusConflict {
-		body, _ := io.ReadAll(resumeResp.Body)
-		_ = resumeResp.Body.Close()
+		body := readAndCloseHTTPBody(t, resumeResp)
 		t.Fatalf(
 			"attach stopped session status = %d, want %d; body=%s",
 			resumeResp.StatusCode,
@@ -1114,8 +1288,7 @@ func exerciseHTTPSessionCrashStopReasonPropagatesToGlobalDBAndAPI(t *testing.T) 
 		nil,
 	)
 	if listResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(listResp.Body)
-		_ = listResp.Body.Close()
+		body := readAndCloseHTTPBody(t, listResp)
 		t.Fatalf("list sessions status = %d, want %d; body=%s", listResp.StatusCode, http.StatusOK, string(body))
 	}
 	var listed struct {
@@ -1138,8 +1311,7 @@ func exerciseHTTPSessionCrashStopReasonPropagatesToGlobalDBAndAPI(t *testing.T) 
 		nil,
 	)
 	if statusResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(statusResp.Body)
-		_ = statusResp.Body.Close()
+		body := readAndCloseHTTPBody(t, statusResp)
 		t.Fatalf("status session response = %d, want %d; body=%s", statusResp.StatusCode, http.StatusOK, string(body))
 	}
 	var detail struct {
@@ -1152,7 +1324,7 @@ func exerciseHTTPSessionCrashStopReasonPropagatesToGlobalDBAndAPI(t *testing.T) 
 }
 
 func TestHTTPApprovePermissionFullFlow(t *testing.T) {
-	runtime := newIntegrationRuntimeWithPermissionWait(t, 250*time.Millisecond)
+	runtime := newIntegrationRuntimeWithPermissionWait(t, 0)
 	sessionID := createIntegrationSession(t, runtime)
 
 	promptResp := mustHTTPRequest(
@@ -1164,46 +1336,77 @@ func TestHTTPApprovePermissionFullFlow(t *testing.T) {
 		nil,
 	)
 	if promptResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(promptResp.Body)
-		_ = promptResp.Body.Close()
+		body := readAndCloseHTTPBody(t, promptResp)
 		t.Fatalf("prompt status = %d, want %d; body=%s", promptResp.StatusCode, http.StatusOK, string(body))
 	}
 
-	requestIDCh := make(chan string, 1)
-	resultCh := make(chan []sseRecord, 1)
-	go streamPermissionPrompt(t, promptResp.Body, requestIDCh, resultCh)
+	stream := startPermissionPromptStream(t.Context(), promptResp.Body)
+	streamTerminalConsumed := false
+	t.Cleanup(func() {
+		stream.cancel()
+		if streamTerminalConsumed {
+			return
+		}
+		cleanupCtx, cancelCleanup := context.WithTimeout(
+			context.WithoutCancel(t.Context()),
+			permissionPromptStreamJoinTimeout,
+		)
+		defer cancelCleanup()
+		_, consumed, cleanupErr := waitForPermissionPromptStreamResult(cleanupCtx, stream, nil)
+		streamTerminalConsumed = consumed
+		if cleanupErr != nil {
+			t.Errorf("permission prompt stream cleanup error = %v", cleanupErr)
+		}
+	})
 
 	var requestID string
+	requestIDCtx := t.Context()
 	select {
-	case requestID = <-requestIDCh:
-	case <-time.After(2 * time.Second):
-		t.Fatal("timed out waiting for permission request id from SSE stream")
+	case requestID = <-stream.requestID:
+	case <-requestIDCtx.Done():
+		primaryErr := fmt.Errorf("wait for permission request id: %w", requestIDCtx.Err())
+		streamResult, consumed, streamErr := waitForPermissionPromptStreamResult(
+			requestIDCtx,
+			stream,
+			primaryErr,
+		)
+		streamTerminalConsumed = consumed
+		t.Fatalf(
+			"timed out waiting for permission request id: %v; records=%#v",
+			streamErr,
+			streamResult.records,
+		)
 	}
 	if requestID == "" {
-		t.Fatal("permission request_id = empty, want non-empty")
+		streamResult, consumed, streamErr := waitForPermissionPromptStreamResult(
+			t.Context(),
+			stream,
+			errors.New("permission request id was not emitted"),
+		)
+		streamTerminalConsumed = consumed
+		t.Fatalf(
+			"permission request id failure = %v; records=%#v",
+			streamErr,
+			streamResult.records,
+		)
 	}
 
-	approveResp := mustHTTPRequest(
-		t,
-		runtime.client,
-		http.MethodPost,
-		mustURL(runtime.host, runtime.port, "/api/workspaces/ws-workspace/sessions/"+sessionID+"/approve"),
-		[]byte(fmt.Sprintf(`{"request_id":"%s","decision":"allow-always"}`, requestID)),
-		nil,
-	)
-	if approveResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(approveResp.Body)
-		_ = approveResp.Body.Close()
-		t.Fatalf("approve status = %d, want %d; body=%s", approveResp.StatusCode, http.StatusOK, string(body))
+	if primaryErr := approvePermissionForIntegration(t.Context(), runtime, sessionID, requestID); primaryErr != nil {
+		streamResult, consumed, streamErr := waitForPermissionPromptStreamResult(
+			t.Context(),
+			stream,
+			primaryErr,
+		)
+		streamTerminalConsumed = consumed
+		t.Fatalf("permission approval failed: %v; records=%#v", streamErr, streamResult.records)
 	}
-	_ = approveResp.Body.Close()
 
-	var records []sseRecord
-	select {
-	case records = <-resultCh:
-	case <-time.After(2 * time.Second):
-		t.Fatal("timed out waiting for completed SSE stream")
+	streamResult, consumed, streamErr := waitForPermissionPromptStreamResult(t.Context(), stream, nil)
+	streamTerminalConsumed = consumed
+	if streamErr != nil {
+		t.Fatalf("streamPermissionPrompt() error = %v", streamErr)
 	}
+	records := streamResult.records
 
 	permissionPayloads := extractPermissionPayloads(t, records)
 	if len(permissionPayloads) < 2 {
@@ -1233,27 +1436,67 @@ func TestHTTPApprovePermissionTimeout(t *testing.T) {
 		nil,
 	)
 	if promptResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(promptResp.Body)
-		_ = promptResp.Body.Close()
+		body := readAndCloseHTTPBody(t, promptResp)
 		t.Fatalf("prompt status = %d, want %d; body=%s", promptResp.StatusCode, http.StatusOK, string(body))
 	}
 
-	requestIDCh := make(chan string, 1)
-	resultCh := make(chan []sseRecord, 1)
-	go streamPermissionPrompt(t, promptResp.Body, requestIDCh, resultCh)
+	stream := startPermissionPromptStream(t.Context(), promptResp.Body)
+	streamTerminalConsumed := false
+	t.Cleanup(func() {
+		stream.cancel()
+		if streamTerminalConsumed {
+			return
+		}
+		cleanupCtx, cancelCleanup := context.WithTimeout(
+			context.WithoutCancel(t.Context()),
+			permissionPromptStreamJoinTimeout,
+		)
+		defer cancelCleanup()
+		_, consumed, cleanupErr := waitForPermissionPromptStreamResult(cleanupCtx, stream, nil)
+		streamTerminalConsumed = consumed
+		if cleanupErr != nil {
+			t.Errorf("permission prompt stream cleanup error = %v", cleanupErr)
+		}
+	})
 
+	requestIDCtx := t.Context()
+	var requestID string
 	select {
-	case <-requestIDCh:
-	case <-time.After(2 * time.Second):
-		t.Fatal("timed out waiting for permission request id from SSE stream")
+	case requestID = <-stream.requestID:
+	case <-requestIDCtx.Done():
+		primaryErr := fmt.Errorf("wait for permission request id: %w", requestIDCtx.Err())
+		streamResult, consumed, streamErr := waitForPermissionPromptStreamResult(
+			requestIDCtx,
+			stream,
+			primaryErr,
+		)
+		streamTerminalConsumed = consumed
+		t.Fatalf(
+			"timed out waiting for permission request id: %v; records=%#v",
+			streamErr,
+			streamResult.records,
+		)
+	}
+	if requestID == "" {
+		streamResult, consumed, streamErr := waitForPermissionPromptStreamResult(
+			t.Context(),
+			stream,
+			errors.New("permission request id was not emitted"),
+		)
+		streamTerminalConsumed = consumed
+		t.Fatalf(
+			"permission request id failure = %v; records=%#v",
+			streamErr,
+			streamResult.records,
+		)
 	}
 
-	var records []sseRecord
-	select {
-	case records = <-resultCh:
-	case <-time.After(2 * time.Second):
-		t.Fatal("timed out waiting for completed SSE stream")
+	streamResult, consumed, streamErr := waitForPermissionPromptStreamResult(t.Context(), stream, nil)
+	streamTerminalConsumed = consumed
+	if streamErr != nil {
+		t.Fatalf("streamPermissionPrompt() error = %v", streamErr)
 	}
+	records := streamResult.records
 
 	permissionPayloads := extractPermissionPayloads(t, records)
 	if len(permissionPayloads) < 2 {
@@ -1281,8 +1524,7 @@ func TestHTTPMemoryRoundTripAndDelete(t *testing.T) {
 		nil,
 	)
 	if writeResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(writeResp.Body)
-		_ = writeResp.Body.Close()
+		body := readAndCloseHTTPBody(t, writeResp)
 		t.Fatalf("write status = %d, want %d; body=%s", writeResp.StatusCode, http.StatusOK, string(body))
 	}
 	var writePayload memoryMutationDecisionResponse
@@ -1301,8 +1543,7 @@ func TestHTTPMemoryRoundTripAndDelete(t *testing.T) {
 		nil,
 	)
 	if readResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(readResp.Body)
-		_ = readResp.Body.Close()
+		body := readAndCloseHTTPBody(t, readResp)
 		t.Fatalf("read status = %d, want %d; body=%s", readResp.StatusCode, http.StatusOK, string(body))
 	}
 	var readPayload memoryEntryResponse
@@ -1320,8 +1561,7 @@ func TestHTTPMemoryRoundTripAndDelete(t *testing.T) {
 		nil,
 	)
 	if listResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(listResp.Body)
-		_ = listResp.Body.Close()
+		body := readAndCloseHTTPBody(t, listResp)
 		t.Fatalf("list status = %d, want %d; body=%s", listResp.StatusCode, http.StatusOK, string(body))
 	}
 	var listPayload memoryListResponse
@@ -1339,11 +1579,10 @@ func TestHTTPMemoryRoundTripAndDelete(t *testing.T) {
 		nil,
 	)
 	if deleteResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(deleteResp.Body)
-		_ = deleteResp.Body.Close()
+		body := readAndCloseHTTPBody(t, deleteResp)
 		t.Fatalf("delete status = %d, want %d; body=%s", deleteResp.StatusCode, http.StatusOK, string(body))
 	}
-	_ = deleteResp.Body.Close()
+	closeHTTPBody(t, deleteResp.Body)
 
 	emptyList := mustHTTPRequest(
 		t,
@@ -1377,8 +1616,7 @@ func TestHTTPMemoryDreamTriggerIntegration(t *testing.T) {
 		nil,
 	)
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		_ = resp.Body.Close()
+		body := readAndCloseHTTPBody(t, resp)
 		t.Fatalf("dream trigger status = %d, want %d; body=%s", resp.StatusCode, http.StatusOK, string(body))
 	}
 
@@ -1412,8 +1650,7 @@ func TestHTTPAutomationJobsRoundTrip(t *testing.T) {
 		nil,
 	)
 	if createResp.StatusCode != http.StatusCreated {
-		body, _ := io.ReadAll(createResp.Body)
-		_ = createResp.Body.Close()
+		body := readAndCloseHTTPBody(t, createResp)
 		t.Fatalf("create job status = %d, want %d; body=%s", createResp.StatusCode, http.StatusCreated, string(body))
 	}
 	var created contract.JobResponse
@@ -1434,8 +1671,7 @@ func TestHTTPAutomationJobsRoundTrip(t *testing.T) {
 		nil,
 	)
 	if getResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(getResp.Body)
-		_ = getResp.Body.Close()
+		body := readAndCloseHTTPBody(t, getResp)
 		t.Fatalf("get job status = %d, want %d; body=%s", getResp.StatusCode, http.StatusOK, string(body))
 	}
 	var fetched contract.JobResponse
@@ -1453,8 +1689,7 @@ func TestHTTPAutomationJobsRoundTrip(t *testing.T) {
 		nil,
 	)
 	if listResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(listResp.Body)
-		_ = listResp.Body.Close()
+		body := readAndCloseHTTPBody(t, listResp)
 		t.Fatalf("list jobs status = %d, want %d; body=%s", listResp.StatusCode, http.StatusOK, string(body))
 	}
 	var listed contract.JobsResponse
@@ -1472,8 +1707,7 @@ func TestHTTPAutomationJobsRoundTrip(t *testing.T) {
 		nil,
 	)
 	if updateResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(updateResp.Body)
-		_ = updateResp.Body.Close()
+		body := readAndCloseHTTPBody(t, updateResp)
 		t.Fatalf("update job status = %d, want %d; body=%s", updateResp.StatusCode, http.StatusOK, string(body))
 	}
 	var updated contract.JobResponse
@@ -1491,8 +1725,7 @@ func TestHTTPAutomationJobsRoundTrip(t *testing.T) {
 		nil,
 	)
 	if triggerResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(triggerResp.Body)
-		_ = triggerResp.Body.Close()
+		body := readAndCloseHTTPBody(t, triggerResp)
 		t.Fatalf("trigger job status = %d, want %d; body=%s", triggerResp.StatusCode, http.StatusOK, string(body))
 	}
 	var run contract.RunResponse
@@ -1510,8 +1743,7 @@ func TestHTTPAutomationJobsRoundTrip(t *testing.T) {
 		nil,
 	)
 	if jobRunsResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(jobRunsResp.Body)
-		_ = jobRunsResp.Body.Close()
+		body := readAndCloseHTTPBody(t, jobRunsResp)
 		t.Fatalf("job runs status = %d, want %d; body=%s", jobRunsResp.StatusCode, http.StatusOK, string(body))
 	}
 	var jobRuns contract.RunsResponse
@@ -1529,8 +1761,7 @@ func TestHTTPAutomationJobsRoundTrip(t *testing.T) {
 		nil,
 	)
 	if runsResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(runsResp.Body)
-		_ = runsResp.Body.Close()
+		body := readAndCloseHTTPBody(t, runsResp)
 		t.Fatalf("list runs status = %d, want %d; body=%s", runsResp.StatusCode, http.StatusOK, string(body))
 	}
 	var runs contract.RunsResponse
@@ -1548,8 +1779,7 @@ func TestHTTPAutomationJobsRoundTrip(t *testing.T) {
 		nil,
 	)
 	if runResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(runResp.Body)
-		_ = runResp.Body.Close()
+		body := readAndCloseHTTPBody(t, runResp)
 		t.Fatalf("get run status = %d, want %d; body=%s", runResp.StatusCode, http.StatusOK, string(body))
 	}
 	var fetchedRun contract.RunResponse
@@ -1567,11 +1797,10 @@ func TestHTTPAutomationJobsRoundTrip(t *testing.T) {
 		nil,
 	)
 	if deleteResp.StatusCode != http.StatusNoContent {
-		body, _ := io.ReadAll(deleteResp.Body)
-		_ = deleteResp.Body.Close()
+		body := readAndCloseHTTPBody(t, deleteResp)
 		t.Fatalf("delete job status = %d, want %d; body=%s", deleteResp.StatusCode, http.StatusNoContent, string(body))
 	}
-	_ = deleteResp.Body.Close()
+	closeHTTPBody(t, deleteResp.Body)
 
 	emptyResp := mustHTTPRequest(
 		t,
@@ -1582,8 +1811,7 @@ func TestHTTPAutomationJobsRoundTrip(t *testing.T) {
 		nil,
 	)
 	if emptyResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(emptyResp.Body)
-		_ = emptyResp.Body.Close()
+		body := readAndCloseHTTPBody(t, emptyResp)
 		t.Fatalf("final list jobs status = %d, want %d; body=%s", emptyResp.StatusCode, http.StatusOK, string(body))
 	}
 	var empty contract.JobsResponse
@@ -1607,8 +1835,7 @@ func TestHTTPAutomationTriggersWebhookAndHealth(t *testing.T) {
 		nil,
 	)
 	if createResp.StatusCode != http.StatusCreated {
-		body, _ := io.ReadAll(createResp.Body)
-		_ = createResp.Body.Close()
+		body := readAndCloseHTTPBody(t, createResp)
 		t.Fatalf(
 			"create trigger status = %d, want %d; body=%s",
 			createResp.StatusCode,
@@ -1617,7 +1844,7 @@ func TestHTTPAutomationTriggersWebhookAndHealth(t *testing.T) {
 		)
 	}
 	createBody, err := io.ReadAll(createResp.Body)
-	_ = createResp.Body.Close()
+	closeHTTPBody(t, createResp.Body)
 	if err != nil {
 		t.Fatalf("io.ReadAll(create trigger response) error = %v", err)
 	}
@@ -1646,12 +1873,11 @@ func TestHTTPAutomationTriggersWebhookAndHealth(t *testing.T) {
 		nil,
 	)
 	if getResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(getResp.Body)
-		_ = getResp.Body.Close()
+		body := readAndCloseHTTPBody(t, getResp)
 		t.Fatalf("get trigger status = %d, want %d; body=%s", getResp.StatusCode, http.StatusOK, string(body))
 	}
 	getBody, err := io.ReadAll(getResp.Body)
-	_ = getResp.Body.Close()
+	closeHTTPBody(t, getResp.Body)
 	if err != nil {
 		t.Fatalf("io.ReadAll(get trigger response) error = %v", err)
 	}
@@ -1675,12 +1901,11 @@ func TestHTTPAutomationTriggersWebhookAndHealth(t *testing.T) {
 		nil,
 	)
 	if updateResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(updateResp.Body)
-		_ = updateResp.Body.Close()
+		body := readAndCloseHTTPBody(t, updateResp)
 		t.Fatalf("update trigger status = %d, want %d; body=%s", updateResp.StatusCode, http.StatusOK, string(body))
 	}
 	updateBody, err := io.ReadAll(updateResp.Body)
-	_ = updateResp.Body.Close()
+	closeHTTPBody(t, updateResp.Body)
 	if err != nil {
 		t.Fatalf("io.ReadAll(update trigger response) error = %v", err)
 	}
@@ -1710,8 +1935,7 @@ func TestHTTPAutomationTriggersWebhookAndHealth(t *testing.T) {
 		},
 	)
 	if invalidResp.StatusCode != http.StatusUnauthorized {
-		body, _ := io.ReadAll(invalidResp.Body)
-		_ = invalidResp.Body.Close()
+		body := readAndCloseHTTPBody(t, invalidResp)
 		t.Fatalf(
 			"invalid webhook status = %d, want %d; body=%s",
 			invalidResp.StatusCode,
@@ -1742,8 +1966,7 @@ func TestHTTPAutomationTriggersWebhookAndHealth(t *testing.T) {
 		},
 	)
 	if validResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(validResp.Body)
-		_ = validResp.Body.Close()
+		body := readAndCloseHTTPBody(t, validResp)
 		t.Fatalf("valid webhook status = %d, want %d; body=%s", validResp.StatusCode, http.StatusOK, string(body))
 	}
 	var delivery contract.WebhookDeliveryResponse
@@ -1762,8 +1985,7 @@ func TestHTTPAutomationTriggersWebhookAndHealth(t *testing.T) {
 		nil,
 	)
 	if triggerRunsResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(triggerRunsResp.Body)
-		_ = triggerRunsResp.Body.Close()
+		body := readAndCloseHTTPBody(t, triggerRunsResp)
 		t.Fatalf("trigger runs status = %d, want %d; body=%s", triggerRunsResp.StatusCode, http.StatusOK, string(body))
 	}
 	var triggerRuns contract.RunsResponse
@@ -1781,8 +2003,7 @@ func TestHTTPAutomationTriggersWebhookAndHealth(t *testing.T) {
 		nil,
 	)
 	if runResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(runResp.Body)
-		_ = runResp.Body.Close()
+		body := readAndCloseHTTPBody(t, runResp)
 		t.Fatalf("get trigger run status = %d, want %d; body=%s", runResp.StatusCode, http.StatusOK, string(body))
 	}
 	var run contract.RunResponse
@@ -1800,8 +2021,7 @@ func TestHTTPAutomationTriggersWebhookAndHealth(t *testing.T) {
 		nil,
 	)
 	if healthResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(healthResp.Body)
-		_ = healthResp.Body.Close()
+		body := readAndCloseHTTPBody(t, healthResp)
 		t.Fatalf("health status = %d, want %d; body=%s", healthResp.StatusCode, http.StatusOK, string(body))
 	}
 	var health contract.StatusPayload
@@ -1822,8 +2042,7 @@ func TestHTTPAutomationTriggersWebhookAndHealth(t *testing.T) {
 		nil,
 	)
 	if deleteResp.StatusCode != http.StatusNoContent {
-		body, _ := io.ReadAll(deleteResp.Body)
-		_ = deleteResp.Body.Close()
+		body := readAndCloseHTTPBody(t, deleteResp)
 		t.Fatalf(
 			"delete trigger status = %d, want %d; body=%s",
 			deleteResp.StatusCode,
@@ -1831,7 +2050,7 @@ func TestHTTPAutomationTriggersWebhookAndHealth(t *testing.T) {
 			string(body),
 		)
 	}
-	_ = deleteResp.Body.Close()
+	closeHTTPBody(t, deleteResp.Body)
 }
 
 func TestHTTPShutdownWaitsForInflightRequests(t *testing.T) {
@@ -1872,7 +2091,9 @@ func TestHTTPShutdownWaitsForInflightRequests(t *testing.T) {
 		if !released {
 			close(release)
 		}
-		_ = server.Shutdown(context.Background())
+		if err := server.Shutdown(context.Background()); err != nil {
+			t.Errorf("server.Shutdown() error = %v", err)
+		}
 	}()
 
 	client := &http.Client{}
@@ -1894,16 +2115,17 @@ func TestHTTPShutdownWaitsForInflightRequests(t *testing.T) {
 	}
 
 	shutdownDone := make(chan error, 1)
+	shutdownStarted := registerServerShutdownSignal(t, server)
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
 		shutdownDone <- server.Shutdown(ctx)
 	}()
-
+	waitForServerSignal(t, shutdownStarted, "HTTP shutdown to start draining")
 	select {
 	case err := <-shutdownDone:
 		t.Fatalf("Shutdown() returned early: %v", err)
-	case <-time.After(100 * time.Millisecond):
+	default:
 	}
 
 	close(release)
@@ -1923,11 +2145,10 @@ func TestHTTPShutdownWaitsForInflightRequests(t *testing.T) {
 		t.Fatalf("request error = %v", err)
 	case resp := <-respCh:
 		if resp.StatusCode != http.StatusOK {
-			body, _ := io.ReadAll(resp.Body)
-			_ = resp.Body.Close()
+			body := readAndCloseHTTPBody(t, resp)
 			t.Fatalf("request status = %d, want %d; body=%s", resp.StatusCode, http.StatusOK, string(body))
 		}
-		_ = resp.Body.Close()
+		closeHTTPBody(t, resp.Body)
 	case <-time.After(2 * time.Second):
 		t.Fatal("timed out waiting for request response")
 	}
@@ -1988,6 +2209,7 @@ func TestHTTPShutdownCancelsPersistentStreams(t *testing.T) {
 			t.Fatalf("stream status = %d, want %d; body=%s", streamResponse.StatusCode, http.StatusOK, body)
 		}
 		if contentType := streamResponse.Header.Get("Content-Type"); contentType != "text/event-stream" {
+			closeHTTPBody(t, streamResponse.Body)
 			t.Fatalf("stream content type = %q, want text/event-stream", contentType)
 		}
 
@@ -2062,8 +2284,7 @@ func TestHTTPTaskRoutesRoundTrip(t *testing.T) {
 		nil,
 	)
 	if listResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(listResp.Body)
-		_ = listResp.Body.Close()
+		body := readAndCloseHTTPBody(t, listResp)
 		t.Fatalf("list tasks status = %d, want %d; body=%s", listResp.StatusCode, http.StatusOK, string(body))
 	}
 	var listed contract.TasksResponse
@@ -2081,8 +2302,7 @@ func TestHTTPTaskRoutesRoundTrip(t *testing.T) {
 		nil,
 	)
 	if getResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(getResp.Body)
-		_ = getResp.Body.Close()
+		body := readAndCloseHTTPBody(t, getResp)
 		t.Fatalf("get task status = %d, want %d; body=%s", getResp.StatusCode, http.StatusOK, string(body))
 	}
 	var detail contract.TaskDetailResponse
@@ -2107,8 +2327,7 @@ func TestHTTPTaskRoutesRoundTrip(t *testing.T) {
 		nil,
 	)
 	if updateResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(updateResp.Body)
-		_ = updateResp.Body.Close()
+		body := readAndCloseHTTPBody(t, updateResp)
 		t.Fatalf("update task status = %d, want %d; body=%s", updateResp.StatusCode, http.StatusOK, string(body))
 	}
 	var updated contract.TaskResponse
@@ -2138,8 +2357,7 @@ func TestHTTPTaskRoutesRoundTrip(t *testing.T) {
 		nil,
 	)
 	if updatedListResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(updatedListResp.Body)
-		_ = updatedListResp.Body.Close()
+		body := readAndCloseHTTPBody(t, updatedListResp)
 		t.Fatalf(
 			"updated list tasks status = %d, want %d; body=%s",
 			updatedListResp.StatusCode,
@@ -2174,8 +2392,7 @@ func TestHTTPTaskRunLifecycleRoutesRoundTrip(t *testing.T) {
 			nil,
 		)
 		if enqueueResp.StatusCode != http.StatusCreated {
-			body, _ := io.ReadAll(enqueueResp.Body)
-			_ = enqueueResp.Body.Close()
+			body := readAndCloseHTTPBody(t, enqueueResp)
 			t.Fatalf(
 				"enqueue run status = %d, want %d; body=%s",
 				enqueueResp.StatusCode,
@@ -2199,8 +2416,7 @@ func TestHTTPTaskRunLifecycleRoutesRoundTrip(t *testing.T) {
 			nil,
 		)
 		if listQueuedResp.StatusCode != http.StatusOK {
-			body, _ := io.ReadAll(listQueuedResp.Body)
-			_ = listQueuedResp.Body.Close()
+			body := readAndCloseHTTPBody(t, listQueuedResp)
 			t.Fatalf(
 				"list queued runs status = %d, want %d; body=%s",
 				listQueuedResp.StatusCode,
@@ -2214,19 +2430,6 @@ func TestHTTPTaskRunLifecycleRoutesRoundTrip(t *testing.T) {
 			t.Fatalf("queued runs = %#v, want queued run", queuedList.Runs)
 		}
 
-		seedIntegrationTaskRunClaimed(t, runtime, queued.Run.ID)
-		claimedRun, err := runtime.registry.GetTaskRun(context.Background(), queued.Run.ID)
-		if err != nil {
-			t.Fatalf("GetTaskRun(%q) error = %v", queued.Run.ID, err)
-		}
-		claimed := core.TaskRunPayloadFromRun(&claimedRun)
-		if claimed.Status != taskpkg.TaskRunStatusClaimed {
-			t.Fatalf("claimed status = %q, want %q", claimed.Status, taskpkg.TaskRunStatusClaimed)
-		}
-		if claimed.ClaimedBy == nil || claimed.ClaimedBy.Ref != "local-user" {
-			t.Fatalf("claimed claimed_by = %#v, want local-user", claimed.ClaimedBy)
-		}
-
 		startResp := mustHTTPRequest(
 			t,
 			runtime.client,
@@ -2236,8 +2439,7 @@ func TestHTTPTaskRunLifecycleRoutesRoundTrip(t *testing.T) {
 			nil,
 		)
 		if startResp.StatusCode != http.StatusOK {
-			body, _ := io.ReadAll(startResp.Body)
-			_ = startResp.Body.Close()
+			body := readAndCloseHTTPBody(t, startResp)
 			t.Fatalf("start run status = %d, want %d; body=%s", startResp.StatusCode, http.StatusOK, string(body))
 		}
 		var started contract.TaskRunResponse
@@ -2258,8 +2460,7 @@ func TestHTTPTaskRunLifecycleRoutesRoundTrip(t *testing.T) {
 			nil,
 		)
 		if completeResp.StatusCode != http.StatusOK {
-			body, _ := io.ReadAll(completeResp.Body)
-			_ = completeResp.Body.Close()
+			body := readAndCloseHTTPBody(t, completeResp)
 			t.Fatalf("complete run status = %d, want %d; body=%s", completeResp.StatusCode, http.StatusOK, string(body))
 		}
 		var completed contract.TaskRunResponse
@@ -2279,8 +2480,6 @@ func TestHTTPTaskRunLifecycleRoutesRoundTrip(t *testing.T) {
 			[]byte(`{"scope":"workspace","workspace":"ws-workspace","title":"Run task routes"}`),
 		)
 		run := enqueueIntegrationTaskRun(t, runtime, created.ID, `{"idempotency_key":"enqueue-2"}`)
-		seedIntegrationTaskRunClaimed(t, runtime, run.ID)
-
 		attachResp := mustHTTPRequest(
 			t,
 			runtime.client,
@@ -2290,8 +2489,7 @@ func TestHTTPTaskRunLifecycleRoutesRoundTrip(t *testing.T) {
 			nil,
 		)
 		if attachResp.StatusCode != http.StatusOK {
-			body, _ := io.ReadAll(attachResp.Body)
-			_ = attachResp.Body.Close()
+			body := readAndCloseHTTPBody(t, attachResp)
 			t.Fatalf(
 				"attach run session status = %d, want %d; body=%s",
 				attachResp.StatusCode,
@@ -2317,8 +2515,7 @@ func TestHTTPTaskRunLifecycleRoutesRoundTrip(t *testing.T) {
 			nil,
 		)
 		if failResp.StatusCode != http.StatusOK {
-			body, _ := io.ReadAll(failResp.Body)
-			_ = failResp.Body.Close()
+			body := readAndCloseHTTPBody(t, failResp)
 			t.Fatalf("fail run status = %d, want %d; body=%s", failResp.StatusCode, http.StatusOK, string(body))
 		}
 		var failed contract.TaskRunResponse
@@ -2348,8 +2545,7 @@ func TestHTTPTaskRunLifecycleRoutesRoundTrip(t *testing.T) {
 			nil,
 		)
 		if cancelResp.StatusCode != http.StatusOK {
-			body, _ := io.ReadAll(cancelResp.Body)
-			_ = cancelResp.Body.Close()
+			body := readAndCloseHTTPBody(t, cancelResp)
 			t.Fatalf("cancel run status = %d, want %d; body=%s", cancelResp.StatusCode, http.StatusOK, string(body))
 		}
 		var cancelled contract.TaskRunResponse
@@ -2367,8 +2563,7 @@ func TestHTTPTaskRunLifecycleRoutesRoundTrip(t *testing.T) {
 			nil,
 		)
 		if finalRunsResp.StatusCode != http.StatusOK {
-			body, _ := io.ReadAll(finalRunsResp.Body)
-			_ = finalRunsResp.Body.Close()
+			body := readAndCloseHTTPBody(t, finalRunsResp)
 			t.Fatalf(
 				"final list runs status = %d, want %d; body=%s",
 				finalRunsResp.StatusCode,
@@ -2405,8 +2600,7 @@ func TestHTTPTaskPublishRunDetailAndLiveRoutesRoundTrip(t *testing.T) {
 		nil,
 	)
 	if publishResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(publishResp.Body)
-		_ = publishResp.Body.Close()
+		body := readAndCloseHTTPBody(t, publishResp)
 		t.Fatalf("publish task status = %d, want %d; body=%s", publishResp.StatusCode, http.StatusOK, string(body))
 	}
 	var published contract.TaskExecutionResponse
@@ -2419,8 +2613,6 @@ func TestHTTPTaskPublishRunDetailAndLiveRoutesRoundTrip(t *testing.T) {
 	}
 
 	run := published.Run
-	seedIntegrationTaskRunClaimed(t, runtime, run.ID)
-
 	startResp := mustHTTPRequest(
 		t,
 		runtime.client,
@@ -2430,8 +2622,7 @@ func TestHTTPTaskPublishRunDetailAndLiveRoutesRoundTrip(t *testing.T) {
 		nil,
 	)
 	if startResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(startResp.Body)
-		_ = startResp.Body.Close()
+		body := readAndCloseHTTPBody(t, startResp)
 		t.Fatalf("start run status = %d, want %d; body=%s", startResp.StatusCode, http.StatusOK, string(body))
 	}
 	var started contract.TaskRunResponse
@@ -2449,8 +2640,7 @@ func TestHTTPTaskPublishRunDetailAndLiveRoutesRoundTrip(t *testing.T) {
 		nil,
 	)
 	if runDetailResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(runDetailResp.Body)
-		_ = runDetailResp.Body.Close()
+		body := readAndCloseHTTPBody(t, runDetailResp)
 		t.Fatalf("run detail status = %d, want %d; body=%s", runDetailResp.StatusCode, http.StatusOK, string(body))
 	}
 	var runDetail contract.TaskRunDetailResponse
@@ -2471,8 +2661,7 @@ func TestHTTPTaskPublishRunDetailAndLiveRoutesRoundTrip(t *testing.T) {
 		nil,
 	)
 	if timelineResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(timelineResp.Body)
-		_ = timelineResp.Body.Close()
+		body := readAndCloseHTTPBody(t, timelineResp)
 		t.Fatalf("timeline status = %d, want %d; body=%s", timelineResp.StatusCode, http.StatusOK, string(body))
 	}
 	var timeline contract.TaskTimelineResponse
@@ -2502,8 +2691,7 @@ func TestHTTPTaskPublishRunDetailAndLiveRoutesRoundTrip(t *testing.T) {
 		nil,
 	)
 	if treeResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(treeResp.Body)
-		_ = treeResp.Body.Close()
+		body := readAndCloseHTTPBody(t, treeResp)
 		t.Fatalf("tree status = %d, want %d; body=%s", treeResp.StatusCode, http.StatusOK, string(body))
 	}
 	var tree contract.TaskTreeResponse
@@ -2521,15 +2709,14 @@ func TestHTTPTaskPublishRunDetailAndLiveRoutesRoundTrip(t *testing.T) {
 		nil,
 	)
 	if streamResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(streamResp.Body)
-		_ = streamResp.Body.Close()
+		body := readAndCloseHTTPBody(t, streamResp)
 		t.Fatalf("task stream status = %d, want %d; body=%s", streamResp.StatusCode, http.StatusOK, string(body))
 	}
 	if got := streamResp.Header.Get("Content-Type"); !strings.HasPrefix(got, "text/event-stream") {
+		closeHTTPBody(t, streamResp.Body)
 		t.Fatalf("task stream content-type = %q, want text/event-stream", got)
 	}
 	records := collectLiveSSE(t, streamResp.Body, 1, 2*time.Second)
-	_ = streamResp.Body.Close()
 	if len(records) == 0 {
 		t.Fatal("task stream records = 0, want at least one SSE event")
 	}
@@ -2583,8 +2770,7 @@ func TestHTTPTaskDashboardInboxApprovalAndTriageRoutesRoundTrip(t *testing.T) {
 		nil,
 	)
 	if dashboardResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(dashboardResp.Body)
-		_ = dashboardResp.Body.Close()
+		body := readAndCloseHTTPBody(t, dashboardResp)
 		t.Fatalf("dashboard status = %d, want %d; body=%s", dashboardResp.StatusCode, http.StatusOK, string(body))
 	}
 	var dashboard contract.TaskDashboardResponse
@@ -2608,8 +2794,7 @@ func TestHTTPTaskDashboardInboxApprovalAndTriageRoutesRoundTrip(t *testing.T) {
 		nil,
 	)
 	if inboxResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(inboxResp.Body)
-		_ = inboxResp.Body.Close()
+		body := readAndCloseHTTPBody(t, inboxResp)
 		t.Fatalf("inbox approvals status = %d, want %d; body=%s", inboxResp.StatusCode, http.StatusOK, string(body))
 	}
 	var inbox contract.TaskInboxResponse
@@ -2633,8 +2818,7 @@ func TestHTTPTaskDashboardInboxApprovalAndTriageRoutesRoundTrip(t *testing.T) {
 		nil,
 	)
 	if approveResp.StatusCode != http.StatusCreated {
-		body, _ := io.ReadAll(approveResp.Body)
-		_ = approveResp.Body.Close()
+		body := readAndCloseHTTPBody(t, approveResp)
 		t.Fatalf("approve status = %d, want %d; body=%s", approveResp.StatusCode, http.StatusCreated, string(body))
 	}
 	var approved contract.TaskExecutionResponse
@@ -2655,8 +2839,7 @@ func TestHTTPTaskDashboardInboxApprovalAndTriageRoutesRoundTrip(t *testing.T) {
 		nil,
 	)
 	if approveAgainResp.StatusCode != http.StatusCreated {
-		body, _ := io.ReadAll(approveAgainResp.Body)
-		_ = approveAgainResp.Body.Close()
+		body := readAndCloseHTTPBody(t, approveAgainResp)
 		t.Fatalf(
 			"approve again status = %d, want %d; body=%s",
 			approveAgainResp.StatusCode,
@@ -2679,8 +2862,7 @@ func TestHTTPTaskDashboardInboxApprovalAndTriageRoutesRoundTrip(t *testing.T) {
 		nil,
 	)
 	if rejectResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(rejectResp.Body)
-		_ = rejectResp.Body.Close()
+		body := readAndCloseHTTPBody(t, rejectResp)
 		t.Fatalf("reject status = %d, want %d; body=%s", rejectResp.StatusCode, http.StatusOK, string(body))
 	}
 	var rejected contract.TaskResponse
@@ -2698,8 +2880,7 @@ func TestHTTPTaskDashboardInboxApprovalAndTriageRoutesRoundTrip(t *testing.T) {
 		nil,
 	)
 	if readResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(readResp.Body)
-		_ = readResp.Body.Close()
+		body := readAndCloseHTTPBody(t, readResp)
 		t.Fatalf("triage read status = %d, want %d; body=%s", readResp.StatusCode, http.StatusOK, string(body))
 	}
 	var readState contract.TaskTriageStateResponse
@@ -2717,8 +2898,7 @@ func TestHTTPTaskDashboardInboxApprovalAndTriageRoutesRoundTrip(t *testing.T) {
 		nil,
 	)
 	if archiveResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(archiveResp.Body)
-		_ = archiveResp.Body.Close()
+		body := readAndCloseHTTPBody(t, archiveResp)
 		t.Fatalf("triage archive status = %d, want %d; body=%s", archiveResp.StatusCode, http.StatusOK, string(body))
 	}
 	var archived contract.TaskTriageStateResponse
@@ -2736,8 +2916,7 @@ func TestHTTPTaskDashboardInboxApprovalAndTriageRoutesRoundTrip(t *testing.T) {
 		nil,
 	)
 	if dismissResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(dismissResp.Body)
-		_ = dismissResp.Body.Close()
+		body := readAndCloseHTTPBody(t, dismissResp)
 		t.Fatalf("triage dismiss status = %d, want %d; body=%s", dismissResp.StatusCode, http.StatusOK, string(body))
 	}
 	var dismissed contract.TaskTriageStateResponse
@@ -2755,8 +2934,7 @@ func TestHTTPTaskDashboardInboxApprovalAndTriageRoutesRoundTrip(t *testing.T) {
 		nil,
 	)
 	if readMissingResp.StatusCode != http.StatusNotFound {
-		body, _ := io.ReadAll(readMissingResp.Body)
-		_ = readMissingResp.Body.Close()
+		body := readAndCloseHTTPBody(t, readMissingResp)
 		t.Fatalf(
 			"triage read missing status = %d, want %d; body=%s",
 			readMissingResp.StatusCode,
@@ -2764,7 +2942,7 @@ func TestHTTPTaskDashboardInboxApprovalAndTriageRoutesRoundTrip(t *testing.T) {
 			string(body),
 		)
 	}
-	_ = readMissingResp.Body.Close()
+	closeHTTPBody(t, readMissingResp.Body)
 
 	inboxAfterResp := mustHTTPRequest(
 		t,
@@ -2775,8 +2953,7 @@ func TestHTTPTaskDashboardInboxApprovalAndTriageRoutesRoundTrip(t *testing.T) {
 		nil,
 	)
 	if inboxAfterResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(inboxAfterResp.Body)
-		_ = inboxAfterResp.Body.Close()
+		body := readAndCloseHTTPBody(t, inboxAfterResp)
 		t.Fatalf(
 			"inbox approvals after actions status = %d, want %d; body=%s",
 			inboxAfterResp.StatusCode,
@@ -2799,8 +2976,7 @@ func TestHTTPTaskDashboardInboxApprovalAndTriageRoutesRoundTrip(t *testing.T) {
 		nil,
 	)
 	if archivedInboxResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(archivedInboxResp.Body)
-		_ = archivedInboxResp.Body.Close()
+		body := readAndCloseHTTPBody(t, archivedInboxResp)
 		t.Fatalf(
 			"inbox archived status = %d, want %d; body=%s",
 			archivedInboxResp.StatusCode,
@@ -2819,19 +2995,20 @@ func TestHTTPTaskDashboardInboxApprovalAndTriageRoutesRoundTrip(t *testing.T) {
 }
 
 type integrationRuntime struct {
-	client    *http.Client
-	server    *Server
-	manager   *session.Manager
-	tasks     *taskpkg.Service
-	driver    *integrationDriver
-	observer  *observe.Observer
-	registry  *globaldb.GlobalDB
-	bridges   *integrationBridgeService
-	memory    *memory.Store
-	dream     *integrationDreamTrigger
-	host      string
-	port      int
-	workspace string
+	client              *http.Client
+	server              *Server
+	manager             *session.Manager
+	tasks               *taskpkg.Service
+	driver              *integrationDriver
+	observer            *observe.Observer
+	registry            *globaldb.GlobalDB
+	bridges             *integrationBridgeService
+	memory              *memory.Store
+	dream               *integrationDreamTrigger
+	streamSubscriptions *integrationStreamSubscriptionRecorder
+	host                string
+	port                int
+	workspace           string
 }
 
 type integrationTaskSessionExecutor struct {
@@ -3165,6 +3342,72 @@ type integrationNotifierFanout struct {
 	notifiers []session.Notifier
 }
 
+type integrationStreamSubscriptionRecorder struct {
+	mu      sync.Mutex
+	counts  map[string]uint64
+	changed chan struct{}
+}
+
+func newIntegrationStreamSubscriptionRecorder() *integrationStreamSubscriptionRecorder {
+	return &integrationStreamSubscriptionRecorder{
+		counts:  make(map[string]uint64),
+		changed: make(chan struct{}),
+	}
+}
+
+func (*integrationStreamSubscriptionRecorder) OnSessionCreated(context.Context, *session.Session) {}
+
+func (*integrationStreamSubscriptionRecorder) OnSessionStopped(context.Context, *session.Session) {}
+
+func (r *integrationStreamSubscriptionRecorder) OnAgentEvent(
+	_ context.Context,
+	sessionID string,
+	payload any,
+) {
+	event, ok := payload.(acp.AgentEvent)
+	if !ok || event.Type != eventspkg.SessionStreamSubscribed {
+		return
+	}
+
+	r.mu.Lock()
+	r.counts[sessionID]++
+	close(r.changed)
+	r.changed = make(chan struct{})
+	r.mu.Unlock()
+}
+
+func (r *integrationStreamSubscriptionRecorder) count(sessionID string) uint64 {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.counts[sessionID]
+}
+
+func (r *integrationStreamSubscriptionRecorder) waitFor(t *testing.T, sessionID string, after uint64) {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
+	defer cancel()
+	for {
+		r.mu.Lock()
+		count := r.counts[sessionID]
+		changed := r.changed
+		r.mu.Unlock()
+		if count > after {
+			return
+		}
+		select {
+		case <-changed:
+		case <-ctx.Done():
+			t.Fatalf(
+				"timed out waiting for stream subscription for session %q after %d subscriptions: %v",
+				sessionID,
+				after,
+				ctx.Err(),
+			)
+		}
+	}
+}
+
 func (f *integrationNotifierFanout) OnSessionCreated(ctx context.Context, sess *session.Session) {
 	for _, notifier := range f.notifiers {
 		notifier.OnSessionCreated(ctx, sess)
@@ -3196,9 +3439,6 @@ type integrationDriver struct {
 }
 
 func newIntegrationDriver(permissionWait time.Duration) *integrationDriver {
-	if permissionWait <= 0 {
-		permissionWait = 100 * time.Millisecond
-	}
 	return &integrationDriver{
 		nextPID:        2000,
 		nextSess:       1,
@@ -3268,7 +3508,7 @@ func (d *integrationDriver) Start(_ context.Context, opts acp.StartOpts) (*sessi
 }
 
 func (d *integrationDriver) Prompt(
-	_ context.Context,
+	ctx context.Context,
 	proc *session.AgentProcess,
 	req acp.PromptRequest,
 ) (<-chan acp.AgentEvent, error) {
@@ -3311,11 +3551,21 @@ func (d *integrationDriver) Prompt(
 				Raw:        raw,
 			}
 
+			var permissionTimeout <-chan time.Time
+			var permissionTimer *time.Timer
+			if d.permissionWait > 0 {
+				permissionTimer = time.NewTimer(d.permissionWait)
+				permissionTimeout = permissionTimer.C
+				defer permissionTimer.Stop()
+			}
+
 			finalDecision := "reject-once"
 			select {
 			case approval := <-approvalCh:
 				finalDecision = approval.Decision
-			case <-time.After(d.permissionWait):
+			case <-permissionTimeout:
+			case <-ctx.Done():
+				return
 			}
 
 			ts = time.Now().UTC()
@@ -3463,11 +3713,12 @@ func newIntegrationRuntimeWithPermissionWait(t *testing.T, permissionWait time.D
 	}
 	t.Cleanup(func() {
 		if err := registry.Close(context.Background()); err != nil {
-			t.Fatalf("registry.Close() error = %v", err)
+			t.Errorf("registry.Close() error = %v", err)
 		}
 	})
 
-	fanout := &integrationNotifierFanout{}
+	streamSubscriptions := newIntegrationStreamSubscriptionRecorder()
+	fanout := &integrationNotifierFanout{notifiers: []session.Notifier{streamSubscriptions}}
 	resolver, err := workspacepkg.NewResolver(
 		registry,
 		workspacepkg.WithHomePaths(homePaths),
@@ -3497,11 +3748,19 @@ func newIntegrationRuntimeWithPermissionWait(t *testing.T, permissionWait time.D
 		session.WithNotifier(fanout),
 		session.WithSandboxRegistry(sandboxRegistry),
 		session.WithSessionCatalog(registry),
+		session.WithSessionPromptAdmissionStore(registry),
 		session.WithParticipationResolver(participationResolver),
 	)
 	if err != nil {
 		t.Fatalf("session.NewManager() error = %v", err)
 	}
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.WithoutCancel(t.Context()), 2*time.Second)
+		defer cancel()
+		if err := manager.Shutdown(ctx); err != nil {
+			t.Errorf("manager.Shutdown() error = %v", err)
+		}
+	})
 	bridgeService := newIntegrationBridgeService(registry)
 	t.Cleanup(func() {
 		if broker := bridgeService.Broker(); broker != nil {
@@ -3534,7 +3793,7 @@ func newIntegrationRuntimeWithPermissionWait(t *testing.T, permissionWait time.D
 	}
 	t.Cleanup(func() {
 		if err := memoryStore.CloseCatalog(context.Background()); err != nil {
-			t.Fatalf("memoryStore.CloseCatalog() error = %v", err)
+			t.Errorf("memoryStore.CloseCatalog() error = %v", err)
 		}
 	})
 	dreamTrigger := &integrationDreamTrigger{
@@ -3575,7 +3834,7 @@ func newIntegrationRuntimeWithPermissionWait(t *testing.T, permissionWait time.D
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
 		if err := automationManager.Shutdown(ctx); err != nil {
-			t.Fatalf("automationManager.Shutdown() error = %v", err)
+			t.Errorf("automationManager.Shutdown() error = %v", err)
 		}
 	})
 
@@ -3627,24 +3886,25 @@ func newIntegrationRuntimeWithPermissionWait(t *testing.T, permissionWait time.D
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
 		if err := server.Shutdown(ctx); err != nil {
-			t.Fatalf("server.Shutdown() error = %v", err)
+			t.Errorf("server.Shutdown() error = %v", err)
 		}
 	})
 
 	return integrationRuntime{
-		client:    &http.Client{},
-		server:    server,
-		manager:   manager,
-		tasks:     taskManager,
-		driver:    driver,
-		observer:  observer,
-		registry:  registry,
-		bridges:   bridgeService,
-		memory:    memoryStore,
-		dream:     dreamTrigger,
-		host:      cfg.HTTP.Host,
-		port:      server.Port(),
-		workspace: workspace,
+		client:              &http.Client{},
+		server:              server,
+		manager:             manager,
+		tasks:               taskManager,
+		driver:              driver,
+		observer:            observer,
+		registry:            registry,
+		bridges:             bridgeService,
+		memory:              memoryStore,
+		dream:               dreamTrigger,
+		streamSubscriptions: streamSubscriptions,
+		host:                cfg.HTTP.Host,
+		port:                server.Port(),
+		workspace:           workspace,
 	}
 }
 
@@ -3653,11 +3913,45 @@ type permissionStreamPayload struct {
 	Decision  string `json:"decision,omitempty"`
 }
 
-func streamPermissionPrompt(t *testing.T, body io.ReadCloser, requestIDCh chan<- string, resultCh chan<- []sseRecord) {
-	t.Helper()
-	defer func() {
-		_ = body.Close()
-	}()
+type permissionPromptStreamResult struct {
+	records []sseRecord
+	err     error
+}
+
+const permissionPromptStreamJoinTimeout = 2 * time.Second
+
+type permissionPromptStream struct {
+	cancel    context.CancelFunc
+	requestID <-chan string
+	result    <-chan permissionPromptStreamResult
+}
+
+func startPermissionPromptStream(ctx context.Context, body io.ReadCloser) permissionPromptStream {
+	streamCtx, cancel := context.WithCancel(ctx)
+	requestIDCh := make(chan string, 1)
+	resultCh := make(chan permissionPromptStreamResult, 1)
+	go streamPermissionPrompt(streamCtx, body, requestIDCh, resultCh)
+	return permissionPromptStream{
+		cancel:    cancel,
+		requestID: requestIDCh,
+		result:    resultCh,
+	}
+}
+
+func streamPermissionPrompt(
+	ctx context.Context,
+	body io.ReadCloser,
+	requestIDCh chan<- string,
+	resultCh chan<- permissionPromptStreamResult,
+) {
+	var closeOnce sync.Once
+	var closeErr error
+	closeBody := func() {
+		closeOnce.Do(func() {
+			closeErr = body.Close()
+		})
+	}
+	stopCloseOnCancel := context.AfterFunc(ctx, closeBody)
 
 	scanner := bufio.NewScanner(body)
 	records := make([]sseRecord, 0, 8)
@@ -3697,10 +3991,96 @@ func streamPermissionPrompt(t *testing.T, body io.ReadCloser, requestIDCh chan<-
 	if !requestIDSent {
 		requestIDCh <- ""
 	}
-	if err := scanner.Err(); err != nil {
-		t.Fatalf("scan prompt SSE error = %v", err)
+	stopCloseOnCancel()
+	closeBody()
+	resultCh <- permissionPromptStreamResult{
+		records: records,
+		err:     errors.Join(scanner.Err(), closeErr),
 	}
-	resultCh <- records
+}
+
+func waitForPermissionPromptStreamResult(
+	ctx context.Context,
+	stream permissionPromptStream,
+	primaryErr error,
+) (permissionPromptStreamResult, bool, error) {
+	if primaryErr == nil {
+		select {
+		case result := <-stream.result:
+			stream.cancel()
+			return result, true, result.err
+		case <-ctx.Done():
+			primaryErr = fmt.Errorf("wait for permission prompt stream: %w", ctx.Err())
+		}
+	}
+	stream.cancel()
+
+	terminalCtx, cancelTerminal := context.WithTimeout(
+		context.WithoutCancel(ctx),
+		permissionPromptStreamJoinTimeout,
+	)
+	defer cancelTerminal()
+	select {
+	case result := <-stream.result:
+		return result, true, errors.Join(primaryErr, result.err)
+	case <-terminalCtx.Done():
+		return permissionPromptStreamResult{}, false, errors.Join(
+			primaryErr,
+			fmt.Errorf("permission prompt stream did not terminate: %w", terminalCtx.Err()),
+		)
+	}
+}
+
+func approvePermissionForIntegration(
+	ctx context.Context,
+	runtime integrationRuntime,
+	sessionID string,
+	requestID string,
+) error {
+	payload := strings.NewReader(fmt.Sprintf(`{"request_id":"%s","decision":"allow-always"}`, requestID))
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodPost,
+		mustURL(runtime.host, runtime.port, "/api/workspaces/ws-workspace/sessions/"+sessionID+"/approve"),
+		payload,
+	)
+	if err != nil {
+		return fmt.Errorf("create permission approval request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := runtime.client.Do(req)
+	if err != nil {
+		var closeErr error
+		if resp != nil && resp.Body != nil {
+			if bodyErr := resp.Body.Close(); bodyErr != nil {
+				closeErr = fmt.Errorf("close failed permission approval response body: %w", bodyErr)
+			}
+		}
+		return errors.Join(fmt.Errorf("send permission approval request: %w", err), closeErr)
+	}
+	if resp == nil {
+		return errors.New("permission approval response is nil")
+	}
+
+	body, readErr := io.ReadAll(resp.Body)
+	closeErr := resp.Body.Close()
+	var statusErr error
+	if resp.StatusCode != http.StatusOK {
+		statusErr = fmt.Errorf(
+			"approve status = %d, want %d; body=%s",
+			resp.StatusCode,
+			http.StatusOK,
+			string(body),
+		)
+	}
+	if readErr != nil {
+		readErr = fmt.Errorf("read permission approval response body: %w", readErr)
+	}
+	if closeErr != nil {
+		closeErr = fmt.Errorf("close permission approval response body: %w", closeErr)
+	}
+	return errors.Join(statusErr, readErr, closeErr)
 }
 
 func extractPermissionPayloads(t *testing.T, records []sseRecord) []permissionStreamPayload {
@@ -3815,8 +4195,7 @@ func createIntegrationSessionFromRequest(
 		nil,
 	)
 	if resp.StatusCode != http.StatusCreated {
-		body, _ := io.ReadAll(resp.Body)
-		_ = resp.Body.Close()
+		body := readAndCloseHTTPBody(t, resp)
 		t.Fatalf("create session status = %d, want %d; body=%s", resp.StatusCode, http.StatusCreated, string(body))
 	}
 	var created struct {
@@ -3830,19 +4209,51 @@ func createIntegrationSessionFromRequest(
 func waitForIntegrationSessionActive(t *testing.T, manager *session.Manager, sessionID string) {
 	t.Helper()
 
-	deadline := time.Now().Add(5 * time.Second)
-	var (
-		lastInfo *session.Info
-		lastErr  error
-	)
-	for time.Now().Before(deadline) {
-		lastInfo, lastErr = manager.Status(context.Background(), sessionID)
-		if lastErr == nil && lastInfo != nil && lastInfo.State == session.StateActive {
-			return
-		}
-		time.Sleep(10 * time.Millisecond)
+	info, err := manager.Status(context.Background(), sessionID)
+	if err != nil {
+		t.Fatalf("Status(%q) error = %v", sessionID, err)
 	}
-	t.Fatalf("session %q did not become active: info=%#v error=%v", sessionID, lastInfo, lastErr)
+	if info != nil && info.State == session.StateActive {
+		return
+	}
+
+	catalogEvents, cancel, err := manager.SubscribeSessionCatalogEvents(t.Context())
+	if err != nil {
+		t.Fatalf("SubscribeSessionCatalogEvents() error = %v", err)
+	}
+	defer cancel()
+
+	info, err = manager.Status(context.Background(), sessionID)
+	if err != nil {
+		t.Fatalf("Status(%q) after catalog subscription error = %v", sessionID, err)
+	}
+	if info != nil && info.State == session.StateActive {
+		return
+	}
+
+	ctx, cancelTimeout := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancelTimeout()
+	for {
+		select {
+		case event, ok := <-catalogEvents:
+			if !ok {
+				t.Fatalf("session catalog stream closed while waiting for session %q to become active", sessionID)
+			}
+			if event.Kind != session.CatalogEventUpserted || event.SessionID != sessionID {
+				continue
+			}
+
+			info, err = manager.Status(context.Background(), sessionID)
+			if err != nil {
+				t.Fatalf("Status(%q) after catalog event error = %v", sessionID, err)
+			}
+			if info != nil && info.State == session.StateActive {
+				return
+			}
+		case <-ctx.Done():
+			t.Fatalf("session %q did not become active: info=%#v: %v", sessionID, info, ctx.Err())
+		}
+	}
 }
 
 func createIntegrationTask(t *testing.T, runtime integrationRuntime, body []byte) contract.TaskPayload {
@@ -3857,8 +4268,7 @@ func createIntegrationTask(t *testing.T, runtime integrationRuntime, body []byte
 		nil,
 	)
 	if resp.StatusCode != http.StatusCreated {
-		body, _ := io.ReadAll(resp.Body)
-		_ = resp.Body.Close()
+		body := readAndCloseHTTPBody(t, resp)
 		t.Fatalf("create task status = %d, want %d; body=%s", resp.StatusCode, http.StatusCreated, string(body))
 	}
 	var created contract.TaskResponse
@@ -3883,29 +4293,12 @@ func enqueueIntegrationTaskRun(
 		nil,
 	)
 	if resp.StatusCode != http.StatusCreated {
-		payload, _ := io.ReadAll(resp.Body)
-		_ = resp.Body.Close()
+		payload := readAndCloseHTTPBody(t, resp)
 		t.Fatalf("enqueue run status = %d, want %d; body=%s", resp.StatusCode, http.StatusCreated, string(payload))
 	}
 	var created contract.TaskRunResponse
 	decodeHTTPJSON(t, resp, &created)
 	return created.Run
-}
-
-func seedIntegrationTaskRunClaimed(t *testing.T, runtime integrationRuntime, runID string) {
-	t.Helper()
-
-	ctx := context.Background()
-	run, err := runtime.registry.GetTaskRun(ctx, runID)
-	if err != nil {
-		t.Fatalf("GetTaskRun(%q) error = %v", runID, err)
-	}
-	run.Status = taskpkg.TaskRunStatusClaimed
-	run.ClaimedBy = &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "local-user"}
-	run.ClaimedAt = time.Now().UTC()
-	if err := runtime.registry.UpdateTaskRun(ctx, run); err != nil {
-		t.Fatalf("UpdateTaskRun(%q) error = %v", runID, err)
-	}
 }
 
 func requireHTTPInboxGroup(
@@ -3945,12 +4338,10 @@ func sendPrompt(t *testing.T, runtime integrationRuntime, sessionID string, mess
 		nil,
 	)
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		_ = resp.Body.Close()
+		body := readAndCloseHTTPBody(t, resp)
 		t.Fatalf("prompt status = %d, want %d; body=%s", resp.StatusCode, http.StatusOK, string(body))
 	}
-	_, _ = io.ReadAll(resp.Body)
-	_ = resp.Body.Close()
+	readAndCloseHTTPBody(t, resp)
 }
 
 func integrationPromptJSON(t *testing.T, message string) []byte {
@@ -4052,11 +4443,10 @@ func stopIntegrationSession(t *testing.T, runtime integrationRuntime, sessionID 
 		nil,
 	)
 	if resp.StatusCode != http.StatusNoContent {
-		body, _ := io.ReadAll(resp.Body)
-		_ = resp.Body.Close()
+		body := readAndCloseHTTPBody(t, resp)
 		t.Fatalf("stop status = %d, want %d; body=%s", resp.StatusCode, http.StatusNoContent, string(body))
 	}
-	_ = resp.Body.Close()
+	closeHTTPBody(t, resp.Body)
 }
 
 func containsAutomationRun(runs []contract.RunPayload, id string) bool {
@@ -4084,20 +4474,87 @@ func integrationPromptEventsContainTerminalToolEvents(events []store.SessionEven
 	return hasToolResult && hasDone
 }
 
+func waitForIntegrationTerminalToolEvents(t *testing.T, events <-chan store.SessionEvent) {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
+	defer cancel()
+	var hasToolResult bool
+	var hasDone bool
+	for !hasToolResult || !hasDone {
+		select {
+		case event, ok := <-events:
+			if !ok {
+				t.Fatalf("session event subscription closed before terminal tool events")
+			}
+			switch event.Type {
+			case acp.EventTypeToolResult:
+				hasToolResult = true
+			case acp.EventTypeDone:
+				hasDone = true
+			}
+		case <-ctx.Done():
+			t.Fatalf(
+				"timed out waiting for terminal tool events: tool_result=%t done=%t: %v",
+				hasToolResult,
+				hasDone,
+				ctx.Err(),
+			)
+		}
+	}
+}
+
 func waitForRegistryStopReason(t *testing.T, runtime integrationRuntime, sessionID string, want store.StopReason) {
 	t.Helper()
 
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		sessions, err := runtime.registry.ListSessions(context.Background(), store.SessionListQuery{State: "stopped"})
-		if err == nil {
-			for _, item := range sessions {
-				if item.ID == sessionID && item.StopReason == want {
-					return
-				}
-			}
-		}
-		time.Sleep(10 * time.Millisecond)
+	if integrationRegistryHasStopReason(t, runtime, sessionID, want) {
+		return
 	}
-	t.Fatalf("timed out waiting for stopped session %q with stop reason %q", sessionID, want)
+
+	catalogEvents, cancel, err := runtime.manager.SubscribeSessionCatalogEvents(t.Context())
+	if err != nil {
+		t.Fatalf("SubscribeSessionCatalogEvents() error = %v", err)
+	}
+	defer cancel()
+
+	if integrationRegistryHasStopReason(t, runtime, sessionID, want) {
+		return
+	}
+
+	ctx, cancelTimeout := context.WithTimeout(t.Context(), 2*time.Second)
+	defer cancelTimeout()
+	for {
+		select {
+		case event, ok := <-catalogEvents:
+			if !ok {
+				t.Fatalf("session catalog stream closed while waiting for stopped session %q", sessionID)
+			}
+			if event.Kind == session.CatalogEventUpserted && event.SessionID == sessionID &&
+				integrationRegistryHasStopReason(t, runtime, sessionID, want) {
+				return
+			}
+		case <-ctx.Done():
+			t.Fatalf("timed out waiting for stopped session %q with stop reason %q: %v", sessionID, want, ctx.Err())
+		}
+	}
+}
+
+func integrationRegistryHasStopReason(
+	t *testing.T,
+	runtime integrationRuntime,
+	sessionID string,
+	want store.StopReason,
+) bool {
+	t.Helper()
+
+	sessions, err := runtime.registry.ListSessions(context.Background(), store.SessionListQuery{State: "stopped"})
+	if err != nil {
+		t.Fatalf("ListSessions(stopped) error = %v", err)
+	}
+	for _, item := range sessions {
+		if item.ID == sessionID && item.StopReason == want {
+			return true
+		}
+	}
+	return false
 }

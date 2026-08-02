@@ -3,10 +3,7 @@ package transcript
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
-
 	"strings"
-	"time"
 
 	"github.com/compozy/compozy/internal/acp"
 )
@@ -72,36 +69,4 @@ func rawToolResultObject(raw json.RawMessage) map[string]any {
 		return nil
 	}
 	return mapped
-}
-
-func canonicalPayload(
-	eventType string,
-	turnID string,
-	timestamp time.Time,
-	text string,
-	toolName string,
-	toolCallID string,
-	toolInput json.RawMessage,
-	toolResult *ToolResult,
-	toolError bool,
-) ([]byte, error) {
-	payload := canonicalEventPayload{
-		Schema:     CanonicalSchema,
-		Type:       strings.TrimSpace(eventType),
-		TurnID:     strings.TrimSpace(turnID),
-		Timestamp:  timestamp.UTC(),
-		Text:       text,
-		ToolName:   toolName,
-		ToolCallID: strings.TrimSpace(toolCallID),
-		ToolInput:  acp.CloneRawMessage(toolInput),
-		ToolResult: cloneToolResult(toolResult),
-		ToolError:  toolError,
-	}
-	redactCanonicalPayload(&payload)
-
-	data, err := json.Marshal(payload)
-	if err != nil {
-		return nil, fmt.Errorf("transcript: marshal canonical payload: %w", err)
-	}
-	return data, nil
 }

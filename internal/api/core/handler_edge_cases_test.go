@@ -665,8 +665,8 @@ func TestMemoryWrapperExports(t *testing.T) {
 	if err := store.EnsureDirs(); err != nil {
 		t.Fatalf("EnsureDirs() error = %v", err)
 	}
-	if err := store.ForWorkspace(workspace).
-		Write(memcontract.ScopeWorkspace, "note.md", []byte("---\nname: note\ndescription: desc\ntype: project\n---\n\nbody")); err != nil {
+	if err := store.ForWorkspace(workspace).Write(t.Context(),
+		memcontract.ScopeWorkspace, "note.md", []byte("---\nname: note\ndescription: desc\ntype: project\n---\n\nbody")); err != nil {
 		t.Fatalf("Write() error = %v", err)
 	}
 	manager := testutil.StubSessionManager{

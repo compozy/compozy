@@ -12,6 +12,7 @@ import (
 
 func (s *ManagedHeartbeatAuthoringService) appendRevision(
 	ctx context.Context,
+	revisionID string,
 	target resolvedAuthoringTarget,
 	operation RevisionOperation,
 	previousDigest string,
@@ -22,7 +23,7 @@ func (s *ManagedHeartbeatAuthoringService) appendRevision(
 ) (Revision, error) {
 	actorKind, actorRef := normalizeAuthoringActor(actor)
 	revision := Revision{
-		ID:             s.newID("hrev"),
+		ID:             revisionID,
 		WorkspaceID:    target.workspaceID,
 		AgentName:      target.agentName,
 		SourcePath:     target.sourcePath,

@@ -2,9 +2,7 @@ package task
 
 import (
 	"context"
-
 	"fmt"
-
 	"sort"
 	"strings"
 	"time"
@@ -39,6 +37,10 @@ func (m *Service) ClearTaskBlock(
 	if err := m.requireAgentSessionTaskLease(ctx, normalizedTaskID, actor); err != nil {
 		return TaskBlock{}, err
 	}
+	eventID, err := m.reserveTaskEventID()
+	if err != nil {
+		return TaskBlock{}, err
+	}
 
 	cleared, err := m.store.ClearTaskBlock(ctx, ClearTaskBlockMutation{
 		TaskID:    normalizedTaskID,
@@ -55,7 +57,7 @@ func (m *Service) ClearTaskBlock(
 	if err != nil {
 		return TaskBlock{}, err
 	}
-	m.recordTaskBlockCleared(ctx, cleared, reconciled, actor)
+	m.recordTaskBlockCleared(ctx, eventID, cleared, reconciled, actor)
 	m.dispatchTaskUnblocked(ctx, cleared, reconciled, actor)
 	m.autoEnqueueReadyTaskDetached(ctx, cleared.TaskID, autoEnqueueTrigger{
 		Kind: autoEnqueueTriggerBlockClear,
@@ -124,9 +126,22 @@ func (m *Service) ExpireTaskBlocks(
 	if expireAt.IsZero() {
 		expireAt = m.now().UTC()
 	}
+	targets, err := m.store.ListExpiredTaskBlockTargets(ctx, expireAt)
+	if err != nil {
+		return ExpireTaskBlocksResult{}, err
+	}
+	eventIDs, err := m.reserveTaskEventIDs(len(targets))
+	if err != nil {
+		return ExpireTaskBlocksResult{}, err
+	}
+	eventIDsByTarget := make(map[string]string, len(targets))
+	for index, target := range targets {
+		eventIDsByTarget[target.TaskID+"\x00"+target.BlockID] = eventIDs[index]
+	}
 	result, err := m.store.ExpireTaskBlocks(ctx, ExpireTaskBlocksMutation{
 		Now:       expireAt,
 		ClearedBy: actor.Actor,
+		Targets:   targets,
 	})
 	if err != nil {
 		return ExpireTaskBlocksResult{}, err
@@ -146,7 +161,8 @@ func (m *Service) ExpireTaskBlocks(
 			return ExpireTaskBlocksResult{}, reconcileErr
 		}
 		for _, block := range blocks {
-			m.recordTaskBlockExpired(ctx, block, reconciled, actor)
+			eventID := eventIDsByTarget[block.TaskID+"\x00"+block.ID]
+			m.recordTaskBlockExpired(ctx, eventID, block, reconciled, actor)
 			m.dispatchTaskUnblocked(ctx, block, reconciled, actor)
 		}
 		m.autoEnqueueReadyTaskDetached(ctx, taskID, autoEnqueueTrigger{

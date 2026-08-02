@@ -67,6 +67,58 @@ CREATE TABLE transcript_tool_routes (
 		entry_key TEXT NOT NULL
 	);
 
+CREATE TABLE session_db_owner (
+		singleton INTEGER PRIMARY KEY CHECK(singleton = 1),
+		session_id TEXT NOT NULL CHECK(length(trim(session_id)) > 0),
+		workspace_id TEXT NOT NULL CHECK(length(trim(workspace_id)) > 0)
+	);
+
+CREATE TABLE session_db_identity (
+		singleton INTEGER PRIMARY KEY CHECK(singleton = 1),
+		database_id TEXT NOT NULL CHECK(
+			length(database_id) = 32
+			AND database_id NOT GLOB '*[^0-9a-f]*'
+		)
+	);
+
+CREATE TRIGGER session_db_owner_immutable_update
+		BEFORE UPDATE ON session_db_owner
+		BEGIN
+			SELECT RAISE(ABORT, 'session database owner is immutable');
+		END;
+
+CREATE TRIGGER session_db_owner_immutable_delete
+		BEFORE DELETE ON session_db_owner
+		BEGIN
+			SELECT RAISE(ABORT, 'session database owner is immutable');
+		END;
+
+CREATE TRIGGER session_db_owner_immutable_insert
+		BEFORE INSERT ON session_db_owner
+		WHEN EXISTS (SELECT 1 FROM session_db_owner)
+		BEGIN
+			SELECT RAISE(ABORT, 'session database owner is immutable');
+		END;
+
+CREATE TRIGGER session_db_identity_immutable_update
+		BEFORE UPDATE ON session_db_identity
+		BEGIN
+			SELECT RAISE(ABORT, 'session database identity is immutable');
+		END;
+
+CREATE TRIGGER session_db_identity_immutable_delete
+		BEFORE DELETE ON session_db_identity
+		BEGIN
+			SELECT RAISE(ABORT, 'session database identity is immutable');
+		END;
+
+CREATE TRIGGER session_db_identity_immutable_insert
+		BEFORE INSERT ON session_db_identity
+		WHEN EXISTS (SELECT 1 FROM session_db_identity)
+		BEGIN
+			SELECT RAISE(ABORT, 'session database identity is immutable');
+		END;
+
 CREATE UNIQUE INDEX idx_events_sequence ON events(sequence);
 
 CREATE INDEX idx_events_timestamp ON events(timestamp);

@@ -22,11 +22,14 @@ func TestReferenceAdapterControlCheckIsExplicit(t *testing.T) {
 	t.Run("Should reject a missing control session", func(t *testing.T) {
 		t.Parallel()
 
-		runtime := &telegramReferenceRuntime{}
-		if err := runtime.healthCheck(); err != nil {
-			t.Fatalf("healthCheck(empty) error = %v", err)
+		runtime, err := newTelegramReferenceRuntime(nil)
+		if err != nil {
+			t.Fatalf("newTelegramReferenceRuntime() error = %v", err)
 		}
-		_, err := runtime.handleBridgeCheck(
+		if err := runtime.lifecycle.Health(); err != nil {
+			t.Fatalf("ProviderLifecycle.Health() error = %v", err)
+		}
+		_, err = runtime.handleBridgeCheck(
 			context.Background(),
 			nil,
 			bridgepkg.BridgeCheckRequest{BridgeInstanceID: "brg-reference"},

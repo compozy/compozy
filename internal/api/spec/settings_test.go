@@ -4,6 +4,7 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/getkin/kin-openapi/openapi3"
 )
 
@@ -699,19 +700,32 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 		assertEnumValues(t, propertySchema(t, providersSchema, "scope"), "global")
 		providerItemSchema := propertySchema(t, providersSchema, "providers").Items.Value
 		authStatusSchema := propertySchema(t, providerItemSchema, "auth_status")
-		assertRequired(t, authStatusSchema, "mode", "env_policy", "home_policy", "state")
+		assertRequired(t, authStatusSchema, "mode", "env_policy", "home_policy", "state", "login")
 		assertNotRequired(
 			t,
 			authStatusSchema,
+			"code",
 			"message",
 			"status_command",
-			"login_command",
-			"login_env",
-			"native_cli",
 		)
-		nativeCLISchema := propertySchema(t, authStatusSchema, "native_cli")
-		assertRequired(t, nativeCLISchema, "present")
-		assertNotRequired(t, nativeCLISchema, "command", "path", "source", "error")
+		assertPropertyAbsent(t, authStatusSchema, "login_command")
+		assertPropertyAbsent(t, authStatusSchema, "login_env")
+		assertPropertyAbsent(t, authStatusSchema, "native_cli")
+		loginSchema := propertySchema(t, authStatusSchema, "login")
+		assertRequired(t, loginSchema, "configured", "presence")
+		assertNotRequired(t, loginSchema, "source", "executable", "recommended_action")
+		assertEnumValues(
+			t,
+			propertySchema(t, loginSchema, "source"),
+			string(contract.ProviderLoginSourceAuthLoginCommand),
+		)
+		assertEnumValues(
+			t,
+			propertySchema(t, loginSchema, "presence"),
+			string(contract.ProviderLoginPresencePresent),
+			string(contract.ProviderLoginPresenceMissing),
+			string(contract.ProviderLoginPresenceUnknown),
+		)
 
 		logTail := operationFor(t, doc, "/api/settings/observability/log-tail", "GET")
 		response := logTail.Responses.Status(200)

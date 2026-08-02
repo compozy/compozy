@@ -59,8 +59,8 @@ func TestAutoTitleRuntime(t *testing.T) {
 
 			started := make(chan struct{})
 			release := make(chan struct{})
-			var releaseOnce sync.Once
-			t.Cleanup(func() { releaseOnce.Do(func() { close(release) }) })
+			releaseOnce := sync.OnceFunc(func() { close(release) })
+			t.Cleanup(releaseOnce)
 			generator := &autoTitleGeneratorStub{
 				generate: func(_ context.Context, request autoTitleRequest) (string, error) {
 					close(started)
@@ -107,7 +107,7 @@ func TestAutoTitleRuntime(t *testing.T) {
 				t.Fatalf("Shutdown() returned before generator release: %v", err)
 			case <-time.After(100 * time.Millisecond):
 			}
-			releaseOnce.Do(func() { close(release) })
+			releaseOnce()
 			if err := <-shutdownErr; err != nil {
 				t.Fatalf("Shutdown() error = %v", err)
 			}
@@ -131,8 +131,8 @@ func TestAutoTitleRuntime(t *testing.T) {
 
 		started := make(chan struct{})
 		release := make(chan struct{})
-		var releaseOnce sync.Once
-		t.Cleanup(func() { releaseOnce.Do(func() { close(release) }) })
+		releaseOnce := sync.OnceFunc(func() { close(release) })
+		t.Cleanup(releaseOnce)
 		generator := &autoTitleGeneratorStub{
 			generate: func(_ context.Context, _ autoTitleRequest) (string, error) {
 				close(started)
@@ -150,7 +150,7 @@ func TestAutoTitleRuntime(t *testing.T) {
 			t.Fatalf("Start() error = %v", err)
 		}
 		t.Cleanup(func() {
-			releaseOnce.Do(func() { close(release) })
+			releaseOnce()
 			shutdownCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 			defer cancel()
 			if err := runtime.Shutdown(shutdownCtx); err != nil {

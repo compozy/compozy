@@ -126,22 +126,26 @@ func (o *Observer) loadRecoveredSession(ctx context.Context, entryName string) (
 	}
 
 	sessionID := strings.TrimSpace(meta.ID)
-	meta, err = session.RepairLegacyProvider(ctx, metaPath, meta, session.LegacyProviderRepairOptions{
-		Now:               o.now,
-		Logger:            o.logger,
-		WorkspaceResolver: o.workspaceResolver,
-	})
+	if strings.TrimSpace(meta.Provider) == "" {
+		o.logger.Warn(
+			"observe: skipping invalid session metadata",
+			"session_id", sessionID,
+			"path", metaPath,
+			"error", "session provider is required",
+		)
+		return recoveredSession{}, false
+	}
+	ownerAuthoritative, err := o.verifyRecoveredSessionOwner(ctx, entryName, meta)
 	if err != nil {
 		o.logger.Warn(
-			"observe: skipping session with unrecoverable legacy provider metadata",
+			"observe: skipping session with unverified durable owner",
 			"session_id", sessionID,
 			"path", metaPath,
 			"error", err,
 		)
 		return recoveredSession{}, false
 	}
-
-	return recoveredSessionFromMeta(o.normalizeRecoveredMeta(metaPath, meta)), true
+	return recoveredSessionFromMeta(o.normalizeRecoveredMeta(metaPath, meta, ownerAuthoritative)), true
 }
 
 func recoveredSessionFromMeta(meta store.SessionMeta) recoveredSession {
@@ -191,9 +195,13 @@ func recoveredSessionFromMeta(meta store.SessionMeta) recoveredSession {
 	return recovered
 }
 
-func (o *Observer) normalizeRecoveredMeta(path string, meta store.SessionMeta) store.SessionMeta {
+func (o *Observer) normalizeRecoveredMeta(
+	path string,
+	meta store.SessionMeta,
+	ownerAuthoritative bool,
+) store.SessionMeta {
 	normalized, changed := session.ClassifyInactiveMetaForRecovery(o.now(), meta)
-	if !changed {
+	if !changed || !ownerAuthoritative {
 		return normalized
 	}
 

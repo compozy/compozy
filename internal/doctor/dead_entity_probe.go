@@ -133,14 +133,18 @@ func deadEntityDiagnosticItem(
 	if !entity.MarkedAt.IsZero() {
 		markedAt = entity.MarkedAt.UTC().Format(time.RFC3339Nano)
 	}
-	return diagnostics.NewItem(
-		"doctor.dead_entity."+spec.id+"."+diagnosticIDPart(workspace.ID)+"."+diagnosticIDPart(entity.EntityID),
-		spec.code,
-		spec.category,
-		spec.title,
-		"Compozy is suppressing ordinary attempts and will admit a bounded recovery probe when the retry window opens.",
-		contract.SeverityError,
-		contract.FreshnessLive,
+	diagnosticID := "doctor.dead_entity." + spec.id + "." +
+		diagnosticIDPart(workspace.ID) + "." + diagnosticIDPart(entity.EntityID)
+	return diagnostics.NewItem(diagnostics.ItemSpec{
+		ID:       diagnosticID,
+		Code:     spec.code,
+		Category: spec.category,
+		Title:    spec.title,
+		Message: "Compozy is suppressing ordinary attempts and will admit a bounded recovery probe " +
+			"when the retry window opens.",
+		Severity:      contract.SeverityError,
+		DataFreshness: contract.FreshnessLive,
+	},
 		diagnostics.WithEvidence(map[string]any{
 			"workspace_id":   strings.TrimSpace(workspace.ID),
 			"workspace_name": strings.TrimSpace(workspace.Name),

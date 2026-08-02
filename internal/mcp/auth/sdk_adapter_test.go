@@ -444,6 +444,32 @@ func TestRegisterClientReportsRejectionStatus(t *testing.T) {
 			t.Fatalf("registerClient(rejected) leaked response body: %v", err)
 		}
 	})
+
+	t.Run("Should bound a successful dynamic registration response", func(t *testing.T) {
+		t.Parallel()
+		server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+			writer.Header().Set("Content-Type", "application/json")
+			writer.WriteHeader(http.StatusCreated)
+			oversized := strings.Repeat("x", int(maxDynamicRegistrationResponseBytes)+1)
+			if _, err := writer.Write([]byte(oversized)); err != nil {
+				t.Errorf("write oversized DCR response: %v", err)
+			}
+		}))
+		defer server.Close()
+		service, err := NewService(&adapterTestStore{}, withHTTPClientForTest(server.Client()))
+		if err != nil {
+			t.Fatalf("NewService() error = %v", err)
+		}
+		_, err = service.registerClient(
+			t.Context(),
+			ServerConfig{},
+			server.URL,
+			&oauthex.ClientRegistrationMetadata{},
+		)
+		if !errors.Is(err, securehttp.ErrResponseBodyTooLarge) {
+			t.Fatalf("registerClient(oversized) error = %v, want ErrResponseBodyTooLarge", err)
+		}
+	})
 }
 
 func TestAuthorizationMetadataErrorsRedactRedirectSecrets(t *testing.T) {

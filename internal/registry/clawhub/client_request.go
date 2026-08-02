@@ -8,10 +8,10 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-
 	"strings"
 
 	"github.com/compozy/compozy/internal/registry"
+	"github.com/compozy/compozy/internal/retry"
 )
 
 func (c *Client) doRequest(
@@ -29,89 +29,76 @@ func (c *Client) doRequest(
 	if err != nil {
 		return nil, fmt.Errorf("clawhub: build %s request URL: %w", operation, err)
 	}
-
-	backoff := c.initialBackoff
-	var lastErr error
-
-	for attempt := 0; attempt <= c.maxRetries; attempt++ {
-		request, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, http.NoBody)
-		if err != nil {
-			return nil, fmt.Errorf("clawhub: create %s request: %w", operation, err)
-		}
-		request.Header.Set("Accept", "application/json, application/gzip, application/octet-stream")
-
-		response, err := c.httpClient.Do(request)
-		if err != nil {
-			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) || ctx.Err() != nil {
-				return nil, fmt.Errorf("clawhub: %s request failed: %w", operation, err)
-			}
-
-			lastErr = fmt.Errorf("clawhub: %s request failed: %w", operation, err)
-			if attempt == c.maxRetries {
-				return nil, lastErr
-			}
-
-			if err := c.sleep(ctx, backoff); err != nil {
-				return nil, fmt.Errorf("clawhub: %s retry wait aborted: %w", operation, err)
-			}
-			backoff = nextBackoff(backoff, c.maxBackoff)
-			continue
-		}
-
-		if response.StatusCode >= http.StatusOK && response.StatusCode < http.StatusMultipleChoices {
-			return response, nil
-		}
-
-		lastErr = responseError(response, operation, slug)
-		retryable := response.StatusCode >= http.StatusInternalServerError
-		if attempt == c.maxRetries || !retryable {
-			return nil, lastErr
-		}
-
-		if err := c.sleep(ctx, backoff); err != nil {
-			return nil, fmt.Errorf("clawhub: %s retry wait aborted: %w", operation, err)
-		}
-		backoff = nextBackoff(backoff, c.maxBackoff)
+	if c.networkErr != nil {
+		return nil, c.networkErr
 	}
 
-	if lastErr == nil {
-		lastErr = fmt.Errorf("clawhub: %s request failed", operation)
-	}
+	response, err := retry.DoValue(
+		ctx,
+		c.requestRetryPolicy(operation),
+		retryClawHubRequest,
+		func(ctx context.Context) (*http.Response, error) {
+			request, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, http.NoBody)
+			if err != nil {
+				return nil, &clawHubRequestAttemptError{
+					cause: fmt.Errorf("clawhub: create %s request: %w", operation, err),
+				}
+			}
+			request.Header.Set("Accept", "application/json, application/gzip, application/octet-stream")
 
-	return nil, lastErr
+			response, err := c.httpClient.Do(request)
+			if err != nil {
+				return nil, newClawHubTransportAttemptError(ctx, operation, err)
+			}
+			if response.StatusCode >= http.StatusOK && response.StatusCode < http.StatusMultipleChoices {
+				return response, nil
+			}
+
+			return nil, &clawHubRequestAttemptError{
+				cause:     responseError(response, operation, slug),
+				retryable: response.StatusCode >= http.StatusInternalServerError,
+			}
+		},
+	)
+	if err != nil {
+		return nil, finishClawHubRequest(ctx, operation, err)
+	}
+	return response, nil
 }
 
 func responseError(response *http.Response, operation string, slug string) error {
-	message := readErrorMessage(response.Body)
+	message, readErr := readErrorMessage(response.Body)
+	cleanupErr := drainAndCloseResponseBody(response.Body, operation+" error response")
 
-	if response.StatusCode == http.StatusNotFound && slug != "" {
+	var requestErr error
+	switch {
+	case response.StatusCode == http.StatusNotFound && slug != "":
 		notFound := registry.NewPackageNotFoundError(slug)
 		if message == "" {
-			return fmt.Errorf("clawhub: skill not found: %w", notFound)
+			requestErr = fmt.Errorf("clawhub: skill not found: %w", notFound)
+		} else {
+			requestErr = fmt.Errorf("clawhub: skill not found: %w: %s", notFound, message)
 		}
-		return fmt.Errorf("clawhub: skill not found: %w: %s", notFound, message)
+	case message == "":
+		requestErr = fmt.Errorf("clawhub: %s request failed: %s", operation, response.Status)
+	default:
+		requestErr = fmt.Errorf("clawhub: %s request failed: %s: %s", operation, response.Status, message)
 	}
-
-	if message == "" {
-		return fmt.Errorf("clawhub: %s request failed: %s", operation, response.Status)
+	if readErr != nil {
+		readErr = fmt.Errorf("clawhub: read %s error response: %w", operation, readErr)
 	}
-
-	return fmt.Errorf("clawhub: %s request failed: %s: %s", operation, response.Status, message)
+	return errors.Join(requestErr, readErr, cleanupErr)
 }
 
-func readErrorMessage(body io.ReadCloser) string {
+func readErrorMessage(body io.Reader) (string, error) {
 	payload, err := io.ReadAll(io.LimitReader(body, maxErrorBodyBytes))
-	closeErr := body.Close()
 	if err != nil {
-		return ""
-	}
-	if closeErr != nil {
-		return ""
+		return "", err
 	}
 
 	trimmed := strings.TrimSpace(string(payload))
 	if trimmed == "" {
-		return ""
+		return "", nil
 	}
 
 	var envelope struct {
@@ -122,17 +109,17 @@ func readErrorMessage(body io.ReadCloser) string {
 	if err := json.Unmarshal(payload, &envelope); err == nil {
 		for _, candidate := range []string{envelope.Error, envelope.Message, envelope.Detail} {
 			if candidate = strings.TrimSpace(candidate); candidate != "" {
-				return candidate
+				return candidate, nil
 			}
 		}
 	}
 
-	return trimmed
+	return trimmed, nil
 }
 
 func readLimitedBody(body io.Reader, maxBytes int64) ([]byte, error) {
 	if maxBytes <= 0 {
-		return io.ReadAll(body)
+		maxBytes = maxJSONResponseBytes
 	}
 
 	payload, err := io.ReadAll(io.LimitReader(body, maxBytes+1))

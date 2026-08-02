@@ -3,6 +3,7 @@ package task
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sort"
 	"strings"
 	"sync"
@@ -372,6 +373,7 @@ func TestTaskManagerRunReviews(t *testing.T) {
 
 		store := reviewManagerStoreForTest(TaskRunStatusFailed)
 		manager := newTaskManagerForTest(t, store)
+		reviewerSessionID := strings.Repeat("s", MaxReferenceBytes)
 		review, _, err := manager.RequestRunReview(
 			context.Background(),
 			RunReviewRequest{TaskID: "task-1", RunID: "run-1", Policy: ReviewPolicyOnFailure},
@@ -385,7 +387,7 @@ func TestTaskManagerRunReviews(t *testing.T) {
 			context.Background(),
 			BindRunReviewSessionRequest{
 				ReviewID:          review.ReviewID,
-				SessionID:         "sess-reviewer",
+				SessionID:         reviewerSessionID,
 				ReviewerAgentName: "reviewer",
 				ReviewerChannelID: "review-channel",
 			},
@@ -394,11 +396,11 @@ func TestTaskManagerRunReviews(t *testing.T) {
 		if err != nil {
 			t.Fatalf("BindRunReviewSession() error = %v", err)
 		}
-		if got, want := binding.SessionID, "sess-reviewer"; got != want {
+		if got, want := binding.SessionID, reviewerSessionID; got != want {
 			t.Fatalf("binding.SessionID = %q, want %q", got, want)
 		}
 
-		lookup, err := manager.LookupRunReviewForSession(context.Background(), "sess-reviewer", validActorContext())
+		lookup, err := manager.LookupRunReviewForSession(context.Background(), reviewerSessionID, validActorContext())
 		if err != nil {
 			t.Fatalf("LookupRunReviewForSession() error = %v", err)
 		}
@@ -407,7 +409,7 @@ func TestTaskManagerRunReviews(t *testing.T) {
 		}
 		listed, err := manager.ListRunReviews(
 			context.Background(),
-			RunReviewQuery{Status: RunReviewStatusInReview, ReviewerSessionID: "sess-reviewer"},
+			RunReviewQuery{Status: RunReviewStatusInReview, ReviewerSessionID: reviewerSessionID},
 			validActorContext(),
 		)
 		if err != nil {
@@ -418,6 +420,47 @@ func TestTaskManagerRunReviews(t *testing.T) {
 		}
 		if !containsEventType(store.events, taskEventRunReviewBound) {
 			t.Fatalf("events = %#v, want %q", sortedEventTypes(store.events), taskEventRunReviewBound)
+		}
+	})
+
+	t.Run("Should reject reviewer session identifiers above the reference limit before binding", func(t *testing.T) {
+		t.Parallel()
+
+		store := reviewManagerStoreForTest(TaskRunStatusFailed)
+		manager := newTaskManagerForTest(t, store)
+		review, _, err := manager.RequestRunReview(
+			context.Background(),
+			RunReviewRequest{TaskID: "task-1", RunID: "run-1", Policy: ReviewPolicyOnFailure},
+			validActorContext(),
+		)
+		if err != nil {
+			t.Fatalf("RequestRunReview() error = %v", err)
+		}
+
+		_, err = manager.BindRunReviewSession(
+			context.Background(),
+			BindRunReviewSessionRequest{
+				ReviewID:  review.ReviewID,
+				SessionID: strings.Repeat("s", MaxReferenceBytes+1),
+			},
+			validActorContext(),
+		)
+		if !errors.Is(err, ErrValidation) {
+			t.Fatalf("BindRunReviewSession() error = %v, want %v", err, ErrValidation)
+		}
+
+		stored, ok := store.reviews[review.ReviewID]
+		if !ok {
+			t.Fatalf("review %q was removed", review.ReviewID)
+		}
+		if got, want := stored.Status, RunReviewStatusRequested; got != want {
+			t.Fatalf("stored review status = %q, want %q", got, want)
+		}
+		if got := stored.ReviewerSessionID; got != "" {
+			t.Fatalf("stored reviewer session id = %q, want empty", got)
+		}
+		if got := countEventType(store.events, taskEventRunReviewBound); got != 0 {
+			t.Fatalf("review bound event count = %d, want 0", got)
 		}
 	})
 
@@ -436,19 +479,20 @@ func TestTaskManagerRunReviews(t *testing.T) {
 		}
 
 		confidence := 0.91
+		recordRequest := RecordRunReviewRequest{
+			ReviewID: review.ReviewID,
+			RunID:    review.RunID,
+			Verdict: RunReviewVerdict{
+				Outcome:     RunReviewOutcomeApproved,
+				Confidence:  &confidence,
+				Reason:      "run satisfies the requested outcome",
+				DeliveryID:  "delivery-approved",
+				MissingWork: []byte(`[]`),
+			},
+		}
 		result, err := manager.RecordRunReview(
 			context.Background(),
-			RecordRunReviewRequest{
-				ReviewID: review.ReviewID,
-				RunID:    review.RunID,
-				Verdict: RunReviewVerdict{
-					Outcome:     RunReviewOutcomeApproved,
-					Confidence:  &confidence,
-					Reason:      "run satisfies the requested outcome",
-					DeliveryID:  "delivery-approved",
-					MissingWork: []byte(`[]`),
-				},
-			},
+			recordRequest,
 			validActorContext(),
 		)
 		if err != nil {
@@ -463,6 +507,15 @@ func TestTaskManagerRunReviews(t *testing.T) {
 		if !containsEventType(store.events, taskEventRunReviewRecorded) ||
 			!containsEventType(store.events, taskEventRunReviewApproved) {
 			t.Fatalf("events = %#v, want recorded and approved", sortedEventTypes(store.events))
+		}
+		if _, err := manager.RecordRunReview(context.Background(), recordRequest, validActorContext()); err != nil {
+			t.Fatalf("RecordRunReview(replay) error = %v", err)
+		}
+		if got := countEventType(store.events, taskEventRunReviewRecorded); got != 1 {
+			t.Fatalf("review recorded event count = %d, want 1", got)
+		}
+		if got := countEventType(store.events, taskEventRunReviewApproved); got != 1 {
+			t.Fatalf("review approved event count = %d, want 1", got)
 		}
 	})
 
@@ -518,6 +571,69 @@ func TestTaskManagerRunReviews(t *testing.T) {
 		}
 	})
 
+	t.Run("Should reject a verdict before persistence when a later audit event ID fails", func(t *testing.T) {
+		t.Parallel()
+
+		store := reviewManagerStoreForTest(TaskRunStatusCompleted)
+		manager := newTaskManagerForTest(t, store)
+		review, _, err := manager.RequestRunReview(
+			context.Background(),
+			RunReviewRequest{TaskID: "task-1", RunID: "run-1", Policy: ReviewPolicyAlways},
+			validActorContext(),
+		)
+		if err != nil {
+			t.Fatalf("RequestRunReview() error = %v", err)
+		}
+		eventsBefore := len(store.events)
+		runsBefore := len(store.runs)
+		entropyErr := errors.New("second review event entropy unavailable")
+		idCalls := 0
+		manager.newID = func(prefix string) (string, error) {
+			idCalls++
+			if idCalls == 3 {
+				return "", entropyErr
+			}
+			return fmt.Sprintf("%s-review-entropy-%d", prefix, idCalls), nil
+		}
+		confidence := 0.73
+
+		result, err := manager.RecordRunReview(
+			context.Background(),
+			RecordRunReviewRequest{
+				ReviewID: review.ReviewID,
+				RunID:    review.RunID,
+				Verdict: RunReviewVerdict{
+					Outcome:           RunReviewOutcomeRejected,
+					Confidence:        &confidence,
+					Reason:            "missing regression coverage",
+					DeliveryID:        "delivery-entropy",
+					MissingWork:       []byte(`["add regression tests"]`),
+					NextRoundGuidance: "Add the missing tests and rerun verification.",
+				},
+			},
+			validActorContext(),
+		)
+		if !errors.Is(err, entropyErr) {
+			t.Fatalf("RecordRunReview() error = %v, want errors.Is(entropyErr)", err)
+		}
+		if result.Review.ReviewID != "" || result.ContinuationRun != nil {
+			t.Fatalf("RecordRunReview() result = %#v, want zero", result)
+		}
+		if got, want := idCalls, 3; got != want {
+			t.Fatalf("ID generation calls = %d, want %d", got, want)
+		}
+		stored := store.reviews[review.ReviewID]
+		if got, want := stored.Status, RunReviewStatusRequested; got != want {
+			t.Fatalf("stored review status = %q, want %q", got, want)
+		}
+		if got := len(store.events); got != eventsBefore {
+			t.Fatalf("event count after entropy failure = %d, want %d", got, eventsBefore)
+		}
+		if got := len(store.runs); got != runsBefore {
+			t.Fatalf("run count after entropy failure = %d, want %d", got, runsBefore)
+		}
+	})
+
 	t.Run("Should reject rejected-review continuation when max attempts are exhausted", func(t *testing.T) {
 		t.Parallel()
 
@@ -537,7 +653,7 @@ func TestTaskManagerRunReviews(t *testing.T) {
 		if err != nil {
 			t.Fatalf("EnqueueRun() error = %v", err)
 		}
-		run, err = seedNonLeasedClaimedRunForTest(context.Background(), manager, run.ID, actor)
+		run, err = admitRunDirectlyForTest(context.Background(), manager, run.ID, actor)
 		if err != nil {
 			t.Fatalf("claimExactRunForTest() error = %v", err)
 		}

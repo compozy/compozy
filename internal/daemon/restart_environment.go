@@ -34,9 +34,6 @@ func withRestartOperationEnv(sandbox []string, operationID string) []string {
 }
 
 func withTimeoutCap(ctx context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	if timeout <= 0 {
 		return ctx, func() {}
 	}

@@ -11,6 +11,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
+type sessionWorkspaceClient interface {
+	workspaceLookupClient
+	agentSessionClient
+}
+
 func sessionEventsBundle(events []SessionEventRecord) outputBundle {
 	return listBundle(
 		events,
@@ -122,7 +127,7 @@ func displaySessionWorkspace(info SessionRecord) string {
 func resolveSessionCreateWorkspace(
 	cmd *cobra.Command,
 	deps commandDeps,
-	client DaemonClient,
+	client sessionWorkspaceClient,
 	workspaceRef string,
 	cwd string,
 ) (string, string, error) {
@@ -174,8 +179,8 @@ func resolveSessionCreateWorkspace(
 	if err == nil {
 		return resolution.ID, "", nil
 	}
-	var discoveryErr *workspaceResolutionError
-	if !errors.As(err, &discoveryErr) || strings.TrimSpace(discoveryErr.CWD) == "" {
+	discoveryErr, ok := errors.AsType[*workspaceResolutionError](err)
+	if !ok || strings.TrimSpace(discoveryErr.CWD) == "" {
 		return "", "", err
 	}
 	recordWorkspaceResolution(cmd, workspaceResolution{

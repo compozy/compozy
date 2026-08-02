@@ -3,9 +3,8 @@ package bridges
 import (
 	"context"
 	"encoding/json"
-
+	"errors"
 	"fmt"
-
 	"strings"
 
 	"github.com/compozy/compozy/internal/notifications"
@@ -46,7 +45,7 @@ func (n *TerminalTaskNotifier) resolveTerminalTaskNotification(
 	}
 
 	var run taskpkg.Run
-	if strings.TrimSpace(record.Event.RunID) != "" {
+	if record.Event.RunID != "" {
 		run, err = n.taskEvents.GetTaskRun(ctx, record.Event.RunID)
 		if err != nil {
 			return terminalTaskNotificationResolution{}, fmt.Errorf(
@@ -55,7 +54,7 @@ func (n *TerminalTaskNotifier) resolveTerminalTaskNotification(
 				err,
 			)
 		}
-		if strings.TrimSpace(run.TaskID) != subscription.TaskID {
+		if run.TaskID != subscription.TaskID {
 			return terminalTaskNotificationResolution{}, fmt.Errorf(
 				"bridges: terminal event run %q belongs to task %q, want %q",
 				run.ID,
@@ -193,13 +192,38 @@ func (n *TerminalTaskNotifier) recordCursorError(
 	key notifications.CursorKey,
 	cause error,
 ) error {
-	lastError := redactTerminalTaskNotificationText(cause.Error())
-	if _, err := n.cursors.RecordError(ctx, notifications.CursorError{
+	report, err := (notifications.CursorError{
 		Key:       key,
-		LastError: truncateTerminalTaskCursorError(lastError),
+		LastError: cause.Error(),
 		Now:       n.now(),
-	}); err != nil {
-		return fmt.Errorf("bridges: record terminal task notification cursor error: %w", err)
+	}).Normalize(n.now())
+	if err != nil {
+		return &terminalTaskNotificationDiagnosticError{
+			cause:      errors.Join(cause, err),
+			diagnostic: "terminal task notification failure",
+		}
 	}
-	return nil
+	safeErr := &terminalTaskNotificationDiagnosticError{
+		cause:      cause,
+		diagnostic: report.LastError,
+	}
+	if _, err := n.cursorStore.RecordCursorError(ctx, report); err != nil {
+		safeErr.cause = errors.Join(cause, err)
+	}
+	return safeErr
+}
+
+// terminalTaskNotificationDiagnosticError exposes one sanitized diagnostic while
+// retaining the original cause for errors.Is and errors.As.
+type terminalTaskNotificationDiagnosticError struct {
+	cause      error
+	diagnostic string
+}
+
+func (e *terminalTaskNotificationDiagnosticError) Error() string {
+	return e.diagnostic
+}
+
+func (e *terminalTaskNotificationDiagnosticError) Unwrap() error {
+	return e.cause
 }

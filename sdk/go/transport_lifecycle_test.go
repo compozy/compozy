@@ -2,6 +2,7 @@ package compozysdk
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -25,7 +26,7 @@ func TestStdioTransportLifecycle(t *testing.T) {
 		})
 		t.Cleanup(func() {
 			if err := transport.Close(); err != nil {
-				t.Fatalf("transport.Close() error = %v", err)
+				t.Errorf("transport.Close() error = %v", err)
 			}
 			input.Close()
 			closeTestPipe(t, outputReader)
@@ -87,6 +88,62 @@ func TestStdioTransportLifecycle(t *testing.T) {
 			}
 		case <-time.After(time.Second):
 			t.Fatal("second Call() did not return")
+		}
+	})
+
+	t.Run("Should reject an oversized unterminated frame when it crosses the limit", func(t *testing.T) {
+		t.Parallel()
+
+		inputReader, inputWriter := io.Pipe()
+		transport := NewStdioTransport(StdioTransportOptions{
+			Input:           inputReader,
+			Output:          io.Discard,
+			MaxMessageBytes: 64,
+		})
+		t.Cleanup(func() {
+			closeTestPipe(t, inputWriter)
+			closeTestPipe(t, inputReader)
+		})
+
+		runErr := make(chan error, 1)
+		go func() {
+			runErr <- transport.Run(context.Background())
+		}()
+		writeErr := make(chan error, 1)
+		go func() {
+			_, err := inputWriter.Write(bytes.Repeat([]byte("x"), 65))
+			writeErr <- err
+		}()
+
+		select {
+		case err := <-writeErr:
+			if err != nil {
+				t.Fatalf("write oversized frame error = %v", err)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("oversized frame writer remained blocked")
+		}
+
+		select {
+		case err := <-runErr:
+			if err == nil || err.Error() != "message exceeds 64 bytes" {
+				t.Fatalf("Run() error = %v, want message size error", err)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("Run() did not reject oversized frame before newline or EOF")
+		}
+	})
+
+	t.Run("Should preserve a final partial frame at EOF", func(t *testing.T) {
+		t.Parallel()
+
+		reader := newTransportReader(bytes.NewBufferString("partial"), 64)
+		line, err := readBoundedTransportLine(reader, 64)
+		if !errors.Is(err, io.EOF) {
+			t.Fatalf("readBoundedTransportLine() error = %v, want io.EOF", err)
+		}
+		if got, want := string(line), "partial"; got != want {
+			t.Fatalf("readBoundedTransportLine() = %q, want %q", got, want)
 		}
 	})
 }
@@ -165,6 +222,6 @@ func closeTestPipe(t *testing.T, pipe interface{ Close() error }) {
 	t.Helper()
 
 	if err := pipe.Close(); err != nil && !errors.Is(err, io.ErrClosedPipe) {
-		t.Fatalf("pipe.Close() error = %v", err)
+		t.Errorf("pipe.Close() error = %v", err)
 	}
 }

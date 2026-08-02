@@ -21,12 +21,15 @@ func seedTasks(ctx context.Context, db *globaldb.GlobalDB, workspaceID string, s
 		if story.RunID == "" {
 			continue
 		}
-		if err := db.CreateTaskRun(ctx, completedTaskRun(workspaceID, story)); err != nil {
-			return fmt.Errorf("demo seed: create run %q: %w", story.RunID, err)
+		command, err := task.NewCompletedRunHistoryImport(
+			completedTaskRun(workspaceID, story),
+			actor,
+		)
+		if err != nil {
+			return fmt.Errorf("demo seed: prepare completed run %q: %w", story.RunID, err)
 		}
-		record.CurrentRunID = story.RunID
-		if err := db.UpdateTask(ctx, record, actor); err != nil {
-			return fmt.Errorf("demo seed: attach run %q to task %q: %w", story.RunID, story.ID, err)
+		if err := db.ImportCompletedRunHistory(ctx, &command); err != nil {
+			return fmt.Errorf("demo seed: create run %q: %w", story.RunID, err)
 		}
 	}
 	for _, story := range stories {

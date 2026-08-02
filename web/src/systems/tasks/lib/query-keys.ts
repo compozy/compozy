@@ -155,9 +155,9 @@ export const tasksKeys = {
     [
       ...tasksKeys.bridgeNotificationsRoot(),
       taskId,
-      normalizeText(filters.bridge_instance_id),
+      filters.bridge_instance_id ?? null,
       normalizeText(filters.scope),
-      normalizeText(filters.workspace_id),
+      filters.workspace_id ?? null,
       normalizeNumber(filters.limit),
     ] as const,
   bridgeNotification: (taskId: string, subscriptionId: string) =>

@@ -161,8 +161,8 @@ esac
 		}
 
 		err = awaitCommand.Wait()
-		var exitError *exec.ExitError
-		if !errors.As(err, &exitError) || exitError.ExitCode() != 37 {
+		exitError, exitErrorMatched := errors.AsType[*exec.ExitError](err)
+		if !exitErrorMatched || exitError.ExitCode() != 37 {
 			t.Fatalf("readiness waiter error = %v, want exit status 37; stderr=%s", err, awaitErrorOutput.String())
 		}
 	})
@@ -304,8 +304,8 @@ read -r _ < "$COMPOZY_TEST_HOLD_FIFO"
 				err = awaitProcessExit(commandDone, 2*time.Second)
 			}
 			if err != nil {
-				var exitError *exec.ExitError
-				if !errors.As(err, &exitError) || exitError.ExitCode() != 143 {
+				exitError, exitErrorMatched := errors.AsType[*exec.ExitError](err)
+				if !exitErrorMatched || exitError.ExitCode() != 143 {
 					t.Errorf("wait for dev supervisor during cleanup: %v; output=%s", err, commandOutput.String())
 				}
 			}
@@ -346,8 +346,8 @@ read -r _ < "$COMPOZY_TEST_HOLD_FIFO"
 		}
 		err = awaitProcessExit(commandDone, 2*time.Second)
 		commandWaited = true
-		var exitError *exec.ExitError
-		if !errors.As(err, &exitError) || exitError.ExitCode() != 143 {
+		exitError, exitErrorMatched := errors.AsType[*exec.ExitError](err)
+		if !exitErrorMatched || exitError.ExitCode() != 143 {
 			t.Fatalf("dev supervisor exit = %v, want status 143; output=%s", err, commandOutput.String())
 		}
 	})

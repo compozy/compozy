@@ -67,8 +67,8 @@ func TestGlobalDBInlineGoalStartAndReplaceIntegration(t *testing.T) {
 				successes++
 				continue
 			}
-			var reason *looppkg.ReasonError
-			if errors.As(result.err, &reason) && reason.Code == looppkg.ReasonCodeGoalReplaceRequired {
+			reason, reasonMatched := errors.AsType[*looppkg.ReasonError](result.err)
+			if reasonMatched && reason.Code == looppkg.ReasonCodeGoalReplaceRequired {
 				conflicts++
 				continue
 			}
@@ -130,8 +130,8 @@ func TestGlobalDBInlineGoalStartAndReplaceIntegration(t *testing.T) {
 				winnerID = result.result.Run.ID
 				continue
 			}
-			var reason *looppkg.ReasonError
-			if errors.As(result.err, &reason) && reason.Code == looppkg.ReasonCodeGoalReplaceStale {
+			reason, reasonMatched := errors.AsType[*looppkg.ReasonError](result.err)
+			if reasonMatched && reason.Code == looppkg.ReasonCodeGoalReplaceStale {
 				stale++
 				continue
 			}
@@ -682,8 +682,8 @@ func requireInlineGoalReason(t *testing.T, err error, want looppkg.ReasonCode) {
 	if err == nil {
 		t.Fatalf("error = nil, want reason code %q", want)
 	}
-	var reason *looppkg.ReasonError
-	if !errors.As(err, &reason) || reason.Code != want {
+	reason, reasonMatched := errors.AsType[*looppkg.ReasonError](err)
+	if !reasonMatched || reason.Code != want {
 		t.Fatalf("error = %v, want reason code %q", err, want)
 	}
 }

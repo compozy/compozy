@@ -165,8 +165,8 @@ func TestRuntimeControlModeValidatesHandlerResponses(t *testing.T) {
 }
 
 func rpcErrorDataContains(err error, want string) bool {
-	var rpcErr *subprocess.RPCError
-	return errors.As(err, &rpcErr) && strings.Contains(string(rpcErr.Data), want)
+	rpcErr, rpcErrMatched := errors.AsType[*subprocess.RPCError](err)
+	return rpcErrMatched && strings.Contains(string(rpcErr.Data), want)
 }
 
 func TestRuntimeControlModeRegistersWebhookOnlyWhenExplicitlyAllowed(t *testing.T) {

@@ -10,9 +10,12 @@ import (
 
 	"os"
 	"path/filepath"
+	"strings"
 
 	"time"
 )
+
+const statusArtifactPath = "status.json"
 
 type bundleFile struct {
 	fileName string
@@ -22,38 +25,51 @@ type bundleFile struct {
 }
 
 func (b *Builder) Build(ctx context.Context, operationID string, req CreateRequest) (operation Operation, err error) {
-	if ctx == nil {
-		ctx = context.Background()
+	if err := buildContextError(ctx); err != nil {
+		return Operation{}, fmt.Errorf("support: build bundle: %w", err)
 	}
 	now := b.nowUTC()
 	bundle, err := b.openBundleFile(now)
 	if err != nil {
 		return Operation{}, err
 	}
+	gzipWriter := gzip.NewWriter(bundle.file)
+	tarWriter := tar.NewWriter(gzipWriter)
+	closed := false
 	committed := false
 	defer func() {
+		if !closed {
+			err = errors.Join(err, closeBundleWriters(tarWriter, gzipWriter, bundle.file))
+		}
 		if !committed {
-			if removeErr := os.Remove(bundle.tmpPath); removeErr != nil && !errors.Is(removeErr, os.ErrNotExist) {
-				removeErr = fmt.Errorf("support: remove temporary bundle %q: %w", bundle.tmpPath, removeErr)
-				if err == nil {
-					err = removeErr
-				} else {
-					err = errors.Join(err, removeErr)
-				}
-			}
+			err = errors.Join(err, removeTemporaryBundle(bundle.tmpPath))
 		}
 	}()
 
-	gzipWriter := gzip.NewWriter(bundle.file)
-	tarWriter := tar.NewWriter(gzipWriter)
 	writer := bundleArchiveWriter{tar: tarWriter, maxBytes: b.bundleMaxBytes(), now: now}
 	manifest := b.newManifest(operationID, now)
-	b.addArtifacts(ctx, &writer, &manifest, req)
+	if err := b.addArtifacts(ctx, &writer, &manifest, req); err != nil {
+		return Operation{}, fmt.Errorf("support: build bundle: %w", err)
+	}
+	if err := buildContextError(ctx); err != nil {
+		return Operation{}, fmt.Errorf("support: build bundle: %w", err)
+	}
 	if err := writer.addManifestJSON(&manifest, b.artifactMaxBytes()); err != nil {
 		return Operation{}, err
 	}
+	if err := buildContextError(ctx); err != nil {
+		return Operation{}, fmt.Errorf("support: build bundle: %w", err)
+	}
 
-	size, err := b.closeAndCommitBundle(bundle, tarWriter, gzipWriter)
+	if closeErr := closeBundleWriters(tarWriter, gzipWriter, bundle.file); closeErr != nil {
+		closed = true
+		return Operation{}, closeErr
+	}
+	closed = true
+	if err := buildContextError(ctx); err != nil {
+		return Operation{}, fmt.Errorf("support: build bundle: %w", err)
+	}
+	size, err := b.commitBundle(bundle)
 	if err != nil {
 		return Operation{}, err
 	}
@@ -77,13 +93,14 @@ func (b *Builder) openBundleFile(now time.Time) (bundleFile, error) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return bundleFile{}, fmt.Errorf("support: create bundle directory: %w", err)
 	}
-	fileName := fmt.Sprintf("compozy-support-bundle-%s.tar.gz", now.Format("20060102T150405Z"))
-	path := filepath.Join(dir, fileName)
-	tmpPath := path + ".tmp"
-	file, err := os.OpenFile(tmpPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o600)
+	prefix := fmt.Sprintf(".compozy-support-bundle-%s-", now.Format("20060102T150405Z"))
+	file, err := os.CreateTemp(dir, prefix)
 	if err != nil {
 		return bundleFile{}, fmt.Errorf("support: create bundle file: %w", err)
 	}
+	tmpPath := file.Name()
+	fileName := strings.TrimPrefix(filepath.Base(tmpPath), ".") + ".tar.gz"
+	path := filepath.Join(dir, fileName)
 	return bundleFile{fileName: fileName, path: path, tmpPath: tmpPath, file: file}, nil
 }
 
@@ -106,80 +123,139 @@ func (b *Builder) addArtifacts(
 	writer *bundleArchiveWriter,
 	manifest *Manifest,
 	req CreateRequest,
-) {
-	artifactMax := b.artifactMaxBytes()
-	b.addSnapshotArtifact(ctx, writer, manifest, "status.json", req.IncludeStatus, b.Sources.Status, artifactMax)
-	b.addSnapshotArtifact(ctx, writer, manifest, "doctor.json", true, b.Sources.Doctor, artifactMax)
-	b.addSnapshotArtifact(ctx, writer, manifest, "providers.json", true, b.Sources.Providers, artifactMax)
-	b.addSnapshotArtifact(
-		ctx,
-		writer,
-		manifest,
-		"config-apply-records.json",
-		true,
-		b.Sources.ConfigApplyRecords,
-		artifactMax,
-	)
-	b.addSnapshotArtifact(
-		ctx,
-		writer,
-		manifest,
-		"event-summaries.json",
-		true,
-		b.Sources.EventSummaries,
-		b.eventSummaryMaxBytes(),
-	)
-	b.addSnapshotArtifact(ctx, writer, manifest, "sessions.json", true, b.Sources.Sessions, artifactMax)
-	b.addConfigArtifact(ctx, writer, manifest)
-	b.addLogTailArtifact(writer, manifest)
-	b.addVersionsArtifact(writer, manifest)
-	b.addHomeTreeArtifact(writer, manifest)
+) error {
+	if err := b.addSnapshotArtifacts(ctx, writer, manifest, req); err != nil {
+		return err
+	}
+	if err := b.addConfigArtifact(ctx, writer, manifest); err != nil {
+		return err
+	}
+	if err := b.addLogTailArtifact(ctx, writer, manifest); err != nil {
+		return err
+	}
+	if err := b.addVersionsArtifact(ctx, writer, manifest); err != nil {
+		return err
+	}
+	if err := b.addHomeTreeArtifact(ctx, writer, manifest); err != nil {
+		return err
+	}
+	return nil
 }
 
-func (b *Builder) closeAndCommitBundle(
-	bundle bundleFile,
-	tarWriter *tar.Writer,
-	gzipWriter *gzip.Writer,
-) (int64, error) {
-	if err := tarWriter.Close(); err != nil {
-		return 0, closeBundleFileAfterWriterError(bundle.file, "tar", err)
+type snapshotArtifactSpec struct {
+	path     string
+	enabled  bool
+	snapshot SnapshotFunc
+	maxBytes int64
+}
+
+func (b *Builder) addSnapshotArtifacts(
+	ctx context.Context,
+	writer *bundleArchiveWriter,
+	manifest *Manifest,
+	req CreateRequest,
+) error {
+	artifactMax := b.artifactMaxBytes()
+	specs := []snapshotArtifactSpec{
+		{path: statusArtifactPath, enabled: req.IncludeStatus, snapshot: b.Sources.Status, maxBytes: artifactMax},
+		{path: "doctor.json", enabled: true, snapshot: b.Sources.Doctor, maxBytes: artifactMax},
+		{path: "providers.json", enabled: true, snapshot: b.Sources.Providers, maxBytes: artifactMax},
+		{
+			path:     "config-apply-records.json",
+			enabled:  true,
+			snapshot: b.Sources.ConfigApplyRecords,
+			maxBytes: artifactMax,
+		},
+		{
+			path:     "event-summaries.json",
+			enabled:  true,
+			snapshot: b.Sources.EventSummaries,
+			maxBytes: b.eventSummaryMaxBytes(),
+		},
+		{path: "sessions.json", enabled: true, snapshot: b.Sources.Sessions, maxBytes: artifactMax},
 	}
-	if err := gzipWriter.Close(); err != nil {
-		return 0, closeBundleFileAfterWriterError(bundle.file, "gzip", err)
+	for _, spec := range specs {
+		if err := b.addSnapshotArtifact(
+			ctx,
+			writer,
+			manifest,
+			spec.path,
+			spec.enabled,
+			spec.snapshot,
+			spec.maxBytes,
+		); err != nil {
+			return err
+		}
 	}
-	if err := bundle.file.Close(); err != nil {
-		return 0, fmt.Errorf("support: close bundle file: %w", err)
-	}
+	return nil
+}
+
+func (b *Builder) commitBundle(bundle bundleFile) (size int64, err error) {
+	defer func() {
+		if err != nil {
+			err = errors.Join(err, removeTemporaryBundle(bundle.tmpPath))
+		}
+	}()
+
 	info, err := os.Stat(bundle.tmpPath)
 	if err != nil {
 		return 0, fmt.Errorf("support: stat bundle file: %w", err)
 	}
-	size := info.Size()
+	size = info.Size()
 	if size > b.bundleMaxBytes() {
 		return 0, fmt.Errorf("support: bundle size %d exceeds cap %d", size, b.bundleMaxBytes())
 	}
-	if err := os.Rename(bundle.tmpPath, bundle.path); err != nil {
+	if err := publishBundleNoReplace(bundle.tmpPath, bundle.path); err != nil {
 		return 0, fmt.Errorf("support: finalize bundle file: %w", err)
 	}
 	return size, nil
 }
 
-func closeBundleFileAfterWriterError(file *os.File, stage string, err error) error {
-	if closeErr := file.Close(); closeErr != nil {
-		err = errors.Join(err, fmt.Errorf("support: close bundle file after %s error: %w", stage, closeErr))
+// publishBundleNoReplace publishes a completed staging file without replacing an existing bundle.
+func publishBundleNoReplace(stagingPath string, finalPath string) error {
+	if err := os.Link(stagingPath, finalPath); err != nil {
+		return err
 	}
-	return fmt.Errorf("support: close %s writer: %w", stage, err)
+	if err := os.Remove(stagingPath); err != nil {
+		return fmt.Errorf("remove published bundle staging file %q: %w", stagingPath, err)
+	}
+	return nil
+}
+
+func closeBundleWriters(tarWriter *tar.Writer, gzipWriter *gzip.Writer, file *os.File) error {
+	var err error
+	if closeErr := tarWriter.Close(); closeErr != nil {
+		err = errors.Join(err, fmt.Errorf("support: close tar writer: %w", closeErr))
+	}
+	if closeErr := gzipWriter.Close(); closeErr != nil {
+		err = errors.Join(err, fmt.Errorf("support: close gzip writer: %w", closeErr))
+	}
+	if closeErr := file.Close(); closeErr != nil {
+		err = errors.Join(err, fmt.Errorf("support: close bundle file: %w", closeErr))
+	}
+	return err
+}
+
+func removeTemporaryBundle(path string) error {
+	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("support: remove temporary bundle %q: %w", path, err)
+	}
+	return nil
 }
 
 func detachedContext(ctx context.Context) (context.Context, context.CancelFunc) {
-	if ctx == nil {
-		return context.Background(), func() {}
-	}
 	detached := context.WithoutCancel(ctx)
 	if deadline, ok := ctx.Deadline(); ok {
 		return context.WithDeadline(detached, deadline)
 	}
-	return detached, func() {}
+	return context.WithCancel(detached)
+}
+
+func buildContextError(ctx context.Context) error {
+	if ctx == nil {
+		return errors.New("support: context is required")
+	}
+	return ctx.Err()
 }
 
 func (b *Builder) nowUTC() time.Time {

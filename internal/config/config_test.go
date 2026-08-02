@@ -1869,7 +1869,7 @@ func TestLoadRejectsTimeoutOnSessionBackedRoles(t *testing.T) {
 	}
 }
 
-func TestLoadRejectsRemovedRoleConfigKeys(t *testing.T) {
+func TestLoadRejectsRemovedConfigKeys(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
@@ -1906,6 +1906,11 @@ func TestLoadRejectsRemovedRoleConfigKeys(t *testing.T) {
 			name:    "Should reject the memory controller LLM table",
 			config:  "[memory.controller.llm]\nenabled = true\n",
 			wantKey: "memory.controller.llm",
+		},
+		{
+			name:    "Should reject the recall signal metrics flag",
+			config:  "[memory.recall.signals]\nmetrics_enabled = true\n",
+			wantKey: "memory.recall.signals.metrics_enabled",
 		},
 		{
 			name:    "Should reject the session auto title flag",

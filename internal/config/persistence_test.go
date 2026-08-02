@@ -268,7 +268,10 @@ port = 4317
 	}
 	for _, update := range updates {
 		if err := editor.SetValue(update.path, update.value); err != nil {
-			rendered, _ := editor.Bytes()
+			rendered, renderErr := editor.Bytes()
+			if renderErr != nil {
+				t.Fatalf("editor.SetValue(%v) error = %v; editor.Bytes() error = %v", update.path, err, renderErr)
+			}
 			t.Fatalf("editor.SetValue(%v) error = %v\n%s", update.path, err, rendered)
 		}
 	}

@@ -2,12 +2,10 @@ package soul
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"path/filepath"
 	"strings"
 
-	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/managedsidecar"
 )
 
 // WorkspaceRef identifies the workspace scope that owns managed authoring history.
@@ -51,29 +49,9 @@ func (s *ManagedSoulAuthoringService) PurgeAgentHistory(
 }
 
 func soulRevisionSourcePath(agentDefinitionPath string) (string, error) {
-	return authoredSidecarRevisionSourcePath(agentDefinitionPath, FileName)
-}
-
-func authoredSidecarRevisionSourcePath(agentDefinitionPath string, sidecarName string) (string, error) {
-	cleaned := filepath.Clean(strings.TrimSpace(agentDefinitionPath))
-	if cleaned == "." || !strings.EqualFold(filepath.Base(cleaned), compozyconfig.AgentDefinitionFileName) {
-		return "", fmt.Errorf("soul: purge agent history requires an AGENT.md source path")
-	}
-	agentDir := filepath.Dir(cleaned)
-	agentsDir := filepath.Dir(agentDir)
-	if filepath.Base(agentsDir) != compozyconfig.AgentsDirName {
-		return "", fmt.Errorf("soul: purge agent history source path is outside an agents root")
-	}
-	root := filepath.Dir(agentsDir)
-	if filepath.Base(root) == compozyconfig.DirName {
-		root = filepath.Dir(root)
-	}
-	relative, err := filepath.Rel(root, filepath.Join(agentDir, sidecarName))
+	path, err := managedsidecar.RevisionSourcePath(agentDefinitionPath, FileName)
 	if err != nil {
-		return "", fmt.Errorf("soul: derive purge history source path: %w", err)
+		return "", fmt.Errorf("soul: %w", err)
 	}
-	if relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) || filepath.IsAbs(relative) {
-		return "", errors.New("soul: purge history source path escapes its authored root")
-	}
-	return filepath.ToSlash(relative), nil
+	return path, nil
 }

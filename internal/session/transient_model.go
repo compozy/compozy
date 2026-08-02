@@ -89,6 +89,7 @@ func (m *Manager) InvokeTransientModel(
 		}
 		return result, err
 	}
+	startOpts = m.finalizeProviderProbeEnvForStart(nil, resolved, startOpts)
 	defer func() {
 		operationErr = errors.Join(operationErr, cleanup())
 	}()
@@ -105,12 +106,9 @@ func (m *Manager) InvokeTransientModel(
 		}
 	}()
 
-	events, err := m.driver.Prompt(ctx, process, acp.PromptRequest{
-		TurnID:  newID("turn"),
-		Message: call.Prompt,
-	})
+	events, err := m.promptTransientModel(ctx, process, call.Prompt)
 	if err != nil {
-		return result, fmt.Errorf("session: prompt transient model: %w", err)
+		return result, err
 	}
 	result.Accepted = true
 	result.Output, err = collectTransientModelOutput(ctx, events, call.MaxOutputBytes)
@@ -118,6 +116,25 @@ func (m *Manager) InvokeTransientModel(
 		return result, err
 	}
 	return result, nil
+}
+
+func (m *Manager) promptTransientModel(
+	ctx context.Context,
+	process *AgentProcess,
+	message string,
+) (<-chan acp.AgentEvent, error) {
+	turnID, err := m.newPromptTurnID()
+	if err != nil {
+		return nil, err
+	}
+	events, err := m.driver.Prompt(ctx, process, acp.PromptRequest{
+		TurnID:  turnID,
+		Message: message,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("session: prompt transient model: %w", err)
+	}
+	return events, nil
 }
 
 func (m *Manager) prepareTransientModelProvider(

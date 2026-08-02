@@ -3,6 +3,7 @@ package update
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 
 	goselfupdate "github.com/creativeprojects/go-selfupdate/update"
@@ -20,21 +21,22 @@ func (selfBinaryApplier) ApplyBinary(
 	if err != nil {
 		return fmt.Errorf("update: open replacement binary %q: %w", sourcePath, err)
 	}
-	defer func() {
-		_ = reader.Close()
-	}()
 
 	if mode == 0 {
 		mode = 0o755
 	}
-	if err := goselfupdate.Apply(reader, goselfupdate.Options{
-		TargetPath:  targetPath,
-		OldSavePath: backupPath,
-		TargetMode:  mode,
-	}); err != nil {
-		return wrapSelfUpdateError("apply binary", "apply binary rollback failed", err)
-	}
-	return nil
+	return applySelfUpdate(
+		reader,
+		sourcePath,
+		"replacement binary",
+		"apply binary",
+		"apply binary rollback failed",
+		goselfupdate.Options{
+			TargetPath:  targetPath,
+			OldSavePath: backupPath,
+			TargetMode:  mode,
+		},
+	)
 }
 
 func (selfBinaryApplier) RestoreBinary(
@@ -46,18 +48,42 @@ func (selfBinaryApplier) RestoreBinary(
 	if err != nil {
 		return fmt.Errorf("update: open backup binary %q: %w", backupPath, err)
 	}
-	defer func() {
-		_ = reader.Close()
-	}()
 
 	if mode == 0 {
 		mode = 0o755
 	}
-	if err := goselfupdate.Apply(reader, goselfupdate.Options{
-		TargetPath: targetPath,
-		TargetMode: mode,
-	}); err != nil {
-		return wrapSelfUpdateError("restore backup binary", "restore rollback failed", err)
+	return applySelfUpdate(
+		reader,
+		backupPath,
+		"backup binary",
+		"restore backup binary",
+		"restore rollback failed",
+		goselfupdate.Options{
+			TargetPath: targetPath,
+			TargetMode: mode,
+		},
+	)
+}
+
+func applySelfUpdate(
+	source io.ReadCloser,
+	sourcePath string,
+	sourceKind string,
+	action string,
+	rollbackAction string,
+	options goselfupdate.Options,
+) (err error) {
+	defer func() {
+		if closeErr := source.Close(); closeErr != nil {
+			err = errors.Join(
+				err,
+				fmt.Errorf("update: close %s %q: %w", sourceKind, sourcePath, closeErr),
+			)
+		}
+	}()
+
+	if applyErr := goselfupdate.Apply(source, options); applyErr != nil {
+		return wrapSelfUpdateError(action, rollbackAction, applyErr)
 	}
 	return nil
 }

@@ -62,18 +62,11 @@ func normalizeArchiveSizeLimit(limit int64) int64 {
 	return registry.DefaultMaxArchiveSize
 }
 
-func wrapSearchCloseError(err error) error {
+func wrapSpooledDownloadCleanupError(slug string, err error) error {
 	if err == nil {
 		return nil
 	}
-	return fmt.Errorf("clawhub: close search response: %w", err)
-}
-
-func wrapCloseError(slug string, err error) error {
-	if err == nil {
-		return nil
-	}
-	return fmt.Errorf("clawhub: close download response for %q: %w", slug, err)
+	return fmt.Errorf("clean up spooled download for %q: %w", slug, err)
 }
 
 func firstPositiveInt64(values ...int64) int64 {

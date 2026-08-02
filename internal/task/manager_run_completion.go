@@ -2,10 +2,8 @@ package task
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
-	"time"
 )
 
 // CompleteRun marks one running task run as completed and reconciles task state.
@@ -18,13 +16,15 @@ func (m *Service) CompleteRun(
 	if err := requireWriteAuthority(actor); err != nil {
 		return nil, err
 	}
-
 	normalizedResult, err := normalizeRunResult(result)
 	if err != nil {
 		return nil, err
 	}
-
-	run, _, err := m.loadAuthorizedRunWithTask(ctx, runID, actor)
+	storedResult, err := normalizedResult.StoredValue()
+	if err != nil {
+		return nil, err
+	}
+	run, taskRecord, err := m.loadAuthorizedRunWithTask(ctx, runID, actor)
 	if err != nil {
 		return nil, err
 	}
@@ -38,36 +38,42 @@ func (m *Service) CompleteRun(
 	if err := requireRunTransition(run, TaskRunStatusCompleted); err != nil {
 		return nil, err
 	}
-	storedResult, err := normalizedResult.StoredValue()
+	if err := m.preflightTaskEvent(
+		run.TaskID,
+		run.ID,
+		taskEventRunCompleted,
+		actor,
+		completedRunPayload{
+			Status: TaskRunStatusCompleted, TaskStatus: taskRecord.Status, Result: cloneRawJSON(storedResult),
+		},
+	); err != nil {
+		return nil, err
+	}
+	commandID, err := m.newID("terminal-command")
+	if err != nil {
+		return nil, fmt.Errorf("task: generate terminal command id: %w", err)
+	}
+	eventIDs, err := m.reserveTaskEventIDs(1)
 	if err != nil {
 		return nil, err
 	}
-
-	run.Status = TaskRunStatusCompleted
-	run.Result = storedResult
-	run.Error = ""
-	run.LeaseUntil = time.Time{}
-	run.HeartbeatAt = time.Time{}
-	run.EndedAt = m.now().UTC()
-	if err := m.stopTerminalRunSession(ctx, run, StopReasonCompleted); err != nil {
-		return nil, err
-	}
-	settlement, err := m.store.CompleteRunSettlement(ctx, run, actor)
+	command, err := newCompletionTerminalRunCommand(
+		commandID,
+		eventIDs,
+		run,
+		storedResult,
+		actor,
+		m.now().UTC(),
+	)
 	if err != nil {
 		return nil, err
 	}
-
-	publicationCtx, publicationCancel := completedSettlementPublicationContext(ctx)
-	defer publicationCancel()
-	reconciledTask, publicationErr := m.publishCompletedRunSettlement(publicationCtx, &settlement, actor)
-	eventErr := m.recordTaskEvent(publicationCtx, run.TaskID, run.ID, taskEventRunCompleted, actor, completedRunPayload{
-		Status:     run.Status,
-		TaskStatus: reconciledTask.Status,
-		Result:     cloneRawJSON(run.Result),
-	})
-	m.dispatchTerminalWake(publicationCtx, reconciledTask, run, actor)
-
-	return &run, errors.Join(publicationErr, eventErr)
+	settlement, err := m.executeTerminalRunCommand(ctx, command)
+	if err != nil {
+		return nil, err
+	}
+	publicationErr := m.publishTerminalRunCommandSettlement(ctx, &settlement)
+	return &settlement.run, publicationErr
 }
 
 // FailRun marks one starting or running task run as failed and reconciles task state.
@@ -80,12 +86,10 @@ func (m *Service) FailRun(
 	if err := requireWriteAuthority(actor); err != nil {
 		return nil, err
 	}
-
 	normalizedFailure, err := normalizeRunFailure(failure)
 	if err != nil {
 		return nil, err
 	}
-
 	run, taskRecord, err := m.loadAuthorizedRunWithTask(ctx, runID, actor)
 	if err != nil {
 		return nil, err
@@ -97,7 +101,14 @@ func (m *Service) FailRun(
 			run.ID,
 		)
 	}
-	return m.failRunRecord(ctx, taskRecord, run, normalizedFailure, actor)
+	return m.failRunRecordWithOptions(
+		ctx,
+		taskRecord,
+		run,
+		normalizedFailure,
+		actor,
+		failRunRecordOptions{stopTerminalSession: true},
+	)
 }
 
 // CancelRun cancels one non-terminal task run under manager authority.
@@ -110,19 +121,22 @@ func (m *Service) CancelRun(
 	if err := requireWriteAuthority(actor); err != nil {
 		return nil, err
 	}
-
 	normalizedReq, err := normalizeCancelRun(req)
 	if err != nil {
 		return nil, err
 	}
-
 	run, taskRecord, err := m.loadAuthorizedRunWithTask(ctx, runID, actor)
 	if err != nil {
 		return nil, err
 	}
-	return m.cancelRunRecord(ctx, taskRecord, run, normalizedReq, actor, cancelRunOptions{
-		reconcileTask: true,
-	})
+	return m.cancelRunRecord(
+		ctx,
+		taskRecord,
+		run,
+		normalizedReq,
+		actor,
+		cancelRunOptions{reconcileTask: true},
+	)
 }
 
 // RecoverRunOnBoot applies one daemon-owned recovery decision to a non-terminal
@@ -135,6 +149,9 @@ func (m *Service) RecoverRunOnBoot(
 ) (*Run, error) {
 	if err := requireWriteAuthority(actor); err != nil {
 		return nil, err
+	}
+	if actor.Actor.Kind.Normalize() != ActorKindDaemon {
+		return nil, ErrPermissionDenied
 	}
 
 	normalizedRecovery, err := normalizeRunBootRecovery(recovery)
@@ -151,6 +168,9 @@ func (m *Service) RecoverRunOnBoot(
 	}
 	taskRecord, err := m.store.GetTask(ctx, run.TaskID)
 	if err != nil {
+		return nil, err
+	}
+	if err := m.authorizeTaskResource(ctx, actor, taskRecord); err != nil {
 		return nil, err
 	}
 

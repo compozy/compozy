@@ -13,9 +13,12 @@ func (m *Manager) StageDevelopmentLink(
 	originPath string,
 	generationHash string,
 ) (*DevLink, error) {
-	if err := m.checkDevOperation(ctx, key); err != nil {
+	operation, err := m.beginDevOperation(ctx, key)
+	if err != nil {
 		return nil, err
 	}
+	defer operation.close()
+	ctx = operation.ctx
 	key = key.Normalize()
 	coordinator := m.coordinatorFor(key)
 	coordinator.Lock()
@@ -25,14 +28,20 @@ func (m *Manager) StageDevelopmentLink(
 	if err != nil {
 		return nil, err
 	}
+	if err := operation.ensureActive(); err != nil {
+		return nil, err
+	}
 	return m.stageDevelopmentLinkLocked(key, verified)
 }
 
 // ActivateDevelopmentLink starts only a staged generation whose network requirement is already confirmed.
 func (m *Manager) ActivateDevelopmentLink(ctx context.Context, key InstanceKey) (*Extension, error) {
-	if err := m.checkDevOperation(ctx, key); err != nil {
+	operation, err := m.beginDevOperation(ctx, key)
+	if err != nil {
 		return nil, err
 	}
+	defer operation.close()
+	ctx = operation.ctx
 	key = key.Normalize()
 	coordinator := m.coordinatorFor(key)
 	coordinator.Lock()
@@ -44,6 +53,9 @@ func (m *Manager) ActivateDevelopmentLink(ctx context.Context, key InstanceKey) 
 	}
 	verified, err := m.resolveDevGeneration(ctx, key, link.OriginPath, link.BundleGeneration)
 	if err != nil {
+		return nil, err
+	}
+	if err := operation.ensureActive(); err != nil {
 		return nil, err
 	}
 	return m.activateDevelopmentLinkLocked(ctx, key, link, verified)
@@ -71,17 +83,16 @@ func (m *Manager) activateDevelopmentLinkLocked(
 	if developmentLinkRequiresConfirmation(link, verified.NetworkRequirementDigest) {
 		return nil, &NetworkConfirmationRequiredError{CurrentDigest: verified.NetworkRequirementDigest}
 	}
-	current, _ := m.lookupInstance(key)
 	candidate, err := m.startVerifiedDevCandidate(ctx, key, verified)
 	if err != nil {
 		return nil, err
 	}
 	candidate.lastGoodGeneration = verified.GenerationHash
-	m.swapDevInstance(key, candidate)
-	m.startInstanceSupervisor(candidate)
-	if current != nil {
-		m.stopReplacedDevProcess(ctx, current)
+	previous, err := m.activateAndPublishDevCandidate(ctx, key, candidate)
+	if err != nil {
+		return nil, err
 	}
+	m.stopReplacedDevProcess(ctx, previous)
 	snapshot := m.cloneExtension(candidate)
 	snapshot.DevLink = link
 	_, publishedErr := m.registry.Get(key.Name)

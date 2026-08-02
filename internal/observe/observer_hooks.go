@@ -48,13 +48,33 @@ func (o *Observer) openHookRunStore(ctx context.Context, sessionID string) (Hook
 		}
 		return nil, nil, fmt.Errorf("observe: stat hook database for %q: %w", target, err)
 	}
+	meta, err := store.ReadSessionMeta(store.SessionMetaFile(filepath.Dir(dbPath)))
+	if err != nil {
+		return nil, nil, fmt.Errorf("observe: read session owner for %q: %w", target, err)
+	}
+	catalogOwner, err := store.LookupSessionDBOwner(ctx, o.registry, target)
+	if err != nil {
+		return nil, nil, fmt.Errorf("observe: resolve catalog owner for %q: %w", target, err)
+	}
+	metadataOwner, err := (store.SessionDBOwner{SessionID: target, WorkspaceID: meta.WorkspaceID}).Normalize()
+	if err != nil {
+		return nil, nil, fmt.Errorf("observe: normalize metadata owner for %q: %w", target, err)
+	}
+	if catalogOwner != metadataOwner {
+		return nil, nil, fmt.Errorf(
+			"observe: %w: metadata owner %+v does not match catalog owner %+v",
+			store.ErrSessionWorkspaceMismatch,
+			metadataOwner,
+			catalogOwner,
+		)
+	}
 
 	openStore := o.openHookStore
 	if openStore == nil {
 		return nil, nil, errors.New("observe: hook store opener is required")
 	}
 
-	storeHandle, err := openStore(ctx, target, dbPath)
+	storeHandle, err := openStore(ctx, catalogOwner, dbPath)
 	if err != nil {
 		return nil, nil, fmt.Errorf("observe: open hook database for %q: %w", target, err)
 	}

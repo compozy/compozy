@@ -1,14 +1,18 @@
 package store
 
 import (
+	"context"
 	"crypto/sha256"
 	"database/sql"
+	"database/sql/driver"
 	"embed"
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"testing/fstest"
 
@@ -437,6 +441,196 @@ func TestMigrationDirectoryValidation(t *testing.T) {
 			t.Fatalf("Status() = %#v, want no applied migration", status)
 		}
 	})
+}
+
+func TestApplyMigrationBootstrapRollbackErrors(t *testing.T) {
+	t.Run("Should roll back declarative schema when instance initialization fails", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		db := openEngineTestDB(t, "bootstrap-initializer-rollback.db")
+		initializerErr := errors.New("instance initializer failed")
+		err := applyMigrationBootstrap(
+			ctx,
+			db,
+			"goose_db_version_bootstrap_initializer",
+			[]int64{1},
+			[]migrationFile{{
+				path:     "schema.sql",
+				contents: []byte(`CREATE TABLE bootstrap_owner (id TEXT PRIMARY KEY)`),
+			}},
+			nil,
+			func(ctx context.Context, tx *sql.Tx) error {
+				if _, err := tx.ExecContext(ctx, `INSERT INTO bootstrap_owner (id) VALUES ('owner')`); err != nil {
+					return err
+				}
+				return initializerErr
+			},
+		)
+		if !errors.Is(err, initializerErr) {
+			t.Fatalf("applyMigrationBootstrap() error = %v, want initializer failure", err)
+		}
+		if tableExistsForTest(t, db, "bootstrap_owner") ||
+			tableExistsForTest(t, db, "goose_db_version_bootstrap_initializer") {
+			t.Fatal("failed bootstrap initializer committed schema or version state")
+		}
+	})
+
+	tests := []struct {
+		name                    string
+		dataSource              string
+		wantPrimaryError        error
+		wantRollbackError       error
+		wantRollbackErrorInText bool
+	}{
+		{
+			name:             "Should suppress an already-finished transaction rollback",
+			dataSource:       "finished",
+			wantPrimaryError: errMigrationBootstrapCommit,
+		},
+		{
+			name:                    "Should retain and contextualize a real rollback failure",
+			dataSource:              "failed",
+			wantPrimaryError:        errMigrationBootstrapPrimary,
+			wantRollbackError:       errMigrationBootstrapRollback,
+			wantRollbackErrorInText: true,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			db := openMigrationBootstrapRollbackDB(t, test.dataSource)
+			err := applyMigrationBootstrap(
+				testutil.Context(t),
+				db,
+				"goose_db_version_bootstrap",
+				nil,
+				nil,
+				nil,
+				nil,
+			)
+			if !errors.Is(err, test.wantPrimaryError) {
+				t.Fatalf("applyMigrationBootstrap() error = %v, want primary error", err)
+			}
+			if errors.Is(err, sql.ErrTxDone) {
+				t.Fatalf("applyMigrationBootstrap() error = %v, must suppress sql.ErrTxDone", err)
+			}
+			if test.wantRollbackError != nil && !errors.Is(err, test.wantRollbackError) {
+				t.Fatalf(
+					"applyMigrationBootstrap() error = %v, rollback error match = false, want true",
+					err,
+				)
+			}
+			if test.wantRollbackErrorInText && !strings.Contains(err.Error(), "rollback migration bootstrap") {
+				t.Fatalf(
+					"applyMigrationBootstrap() error = %q, want rollback migration bootstrap context",
+					err,
+				)
+			}
+		})
+	}
+}
+
+var (
+	errMigrationBootstrapPrimary                 = errors.New("bootstrap SQL execution failed")
+	errMigrationBootstrapCommit                  = errors.New("bootstrap commit failed")
+	errMigrationBootstrapRollback                = errors.New("bootstrap rollback failed")
+	migrationBootstrapRollbackDriverRegistration sync.Once
+)
+
+const migrationBootstrapRollbackDriverName = "compozy-migration-bootstrap-rollback"
+
+type migrationBootstrapRollbackDriver struct{}
+
+func (migrationBootstrapRollbackDriver) Open(name string) (driver.Conn, error) {
+	switch name {
+	case "finished":
+		return migrationBootstrapRollbackConn{commitErr: errMigrationBootstrapCommit}, nil
+	case "failed":
+		return migrationBootstrapRollbackConn{
+			execErr:     errMigrationBootstrapPrimary,
+			rollbackErr: errMigrationBootstrapRollback,
+		}, nil
+	default:
+		return nil, fmt.Errorf("migration bootstrap rollback driver: unsupported data source %q", name)
+	}
+}
+
+type migrationBootstrapRollbackConn struct {
+	execErr     error
+	commitErr   error
+	rollbackErr error
+}
+
+func (c migrationBootstrapRollbackConn) Prepare(string) (driver.Stmt, error) {
+	return nil, errors.New("migration bootstrap rollback driver does not prepare statements")
+}
+
+func (migrationBootstrapRollbackConn) Close() error {
+	return nil
+}
+
+func (c migrationBootstrapRollbackConn) Begin() (driver.Tx, error) {
+	return migrationBootstrapRollbackTx{
+		commitErr:   c.commitErr,
+		rollbackErr: c.rollbackErr,
+	}, nil
+}
+
+func (c migrationBootstrapRollbackConn) BeginTx(
+	ctx context.Context,
+	_ driver.TxOptions,
+) (driver.Tx, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return c.Begin()
+}
+
+func (c migrationBootstrapRollbackConn) ExecContext(
+	ctx context.Context,
+	_ string,
+	_ []driver.NamedValue,
+) (driver.Result, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if c.execErr != nil {
+		return nil, c.execErr
+	}
+	return driver.RowsAffected(1), nil
+}
+
+type migrationBootstrapRollbackTx struct {
+	commitErr   error
+	rollbackErr error
+}
+
+func (tx migrationBootstrapRollbackTx) Commit() error {
+	return tx.commitErr
+}
+
+func (tx migrationBootstrapRollbackTx) Rollback() error {
+	return tx.rollbackErr
+}
+
+func openMigrationBootstrapRollbackDB(t *testing.T, dataSource string) *sql.DB {
+	t.Helper()
+
+	migrationBootstrapRollbackDriverRegistration.Do(func() {
+		sql.Register(migrationBootstrapRollbackDriverName, migrationBootstrapRollbackDriver{})
+	})
+	db, err := sql.Open(migrationBootstrapRollbackDriverName, dataSource)
+	if err != nil {
+		t.Fatalf("sql.Open(%s) error = %v", migrationBootstrapRollbackDriverName, err)
+	}
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Errorf("close migration bootstrap rollback database: %v", err)
+		}
+	})
+	return db
 }
 
 func fixtureMigrationStream(versionTable, directory string) MigrationStream {

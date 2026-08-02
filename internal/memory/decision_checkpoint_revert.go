@@ -9,7 +9,7 @@ import (
 )
 
 func (s *Store) revertAddDecision(ctx context.Context, decision storedDecision) error {
-	if err := s.ensureCurrentHashRequired(decision); err != nil {
+	if err := s.ensureCurrentHashRequired(ctx, decision); err != nil {
 		return err
 	}
 	handled, err := s.revertCheckpointAdd(ctx, decision)
@@ -31,10 +31,10 @@ func (s *Store) revertUpdateDecision(ctx context.Context, decision storedDecisio
 	if strings.TrimSpace(decision.PriorContent) == "" {
 		return fmt.Errorf("memory: decision %q has no prior_content", decision.ID)
 	}
-	if err := s.ensureCurrentHashRequired(decision); err != nil {
+	if err := s.ensureCurrentHashRequired(ctx, decision); err != nil {
 		return err
 	}
-	content, err := s.checkpointUpdateRevertContent(decision)
+	content, err := s.checkpointUpdateRevertContent(ctx, decision)
 	if err != nil {
 		return err
 	}
@@ -51,7 +51,7 @@ func (s *Store) revertCheckpointAdd(ctx context.Context, decision storedDecision
 	if strings.TrimSpace(decision.TargetFilename) != CheckpointSummaryFilename {
 		return false, nil
 	}
-	content, err := s.Read(decisionScope(decision.Decision), decision.TargetFilename)
+	content, err := s.Read(ctx, decisionScope(decision.Decision), decision.TargetFilename)
 	if err != nil {
 		return false, err
 	}
@@ -79,12 +79,12 @@ func (s *Store) revertCheckpointAdd(ctx context.Context, decision storedDecision
 	return true, nil
 }
 
-func (s *Store) checkpointUpdateRevertContent(decision storedDecision) ([]byte, error) {
+func (s *Store) checkpointUpdateRevertContent(ctx context.Context, decision storedDecision) ([]byte, error) {
 	prior := []byte(decision.PriorContent)
 	if strings.TrimSpace(decision.TargetFilename) != CheckpointSummaryFilename {
 		return prior, nil
 	}
-	content, err := s.Read(decisionScope(decision.Decision), decision.TargetFilename)
+	content, err := s.Read(ctx, decisionScope(decision.Decision), decision.TargetFilename)
 	if err != nil {
 		return nil, err
 	}

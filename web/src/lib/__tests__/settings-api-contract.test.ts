@@ -193,24 +193,28 @@ describe("settings openapi contract", () => {
       ListSettingsProvidersResponse["providers"][number]["settings"]["auth_status_command"]
     >().toEqualTypeOf<string | undefined>();
     expectTypeOf<
-      ListSettingsProvidersResponse["providers"][number]["settings"]["auth_login_command"]
-    >().toEqualTypeOf<string | undefined>();
+      keyof ListSettingsProvidersResponse["providers"][number]["settings"]
+    >().not.toMatchTypeOf<"auth_login_command">();
     expectTypeOf<ListSettingsProvidersResponse["providers"][number]["auth_status"]>().toEqualTypeOf<
       | {
           code?: string;
           env_policy: string;
           home_policy: string;
-          login_command?: string;
-          login_env?: string[];
+          login: {
+            configured: boolean;
+            executable?: string;
+            presence: "present" | "missing" | "unknown";
+            recommended_action?:
+              | "install_cli"
+              | "login"
+              | "bind_secret"
+              | "retry"
+              | "inspect"
+              | "no_retry";
+            source?: "auth_login_command";
+          };
           message?: string;
           mode: string;
-          native_cli?: {
-            command?: string;
-            error?: string;
-            path?: string;
-            present: boolean;
-            source?: string;
-          } | null;
           state: string;
           status_command?: string;
         }
@@ -225,6 +229,9 @@ describe("settings openapi contract", () => {
     >();
     expectTypeOf<PutSettingsProviderBody["settings"]["home_policy"]>().toEqualTypeOf<
       string | undefined
+    >();
+    expectTypeOf<PutSettingsProviderBody["settings"]["auth_login_command"]>().toEqualTypeOf<
+      string | null | undefined
     >();
 
     expectTypeOf<

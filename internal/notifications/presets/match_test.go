@@ -2,15 +2,19 @@ package presets
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"sync"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	"github.com/compozy/compozy/internal/diagnostics"
 	eventspkg "github.com/compozy/compozy/internal/events"
 	"github.com/compozy/compozy/internal/notifications"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 )
 
@@ -45,26 +49,35 @@ func TestNotificationPresetMatchingAndFilters(t *testing.T) {
 			t.Fatalf("CompileFilter() error = %v", err)
 		}
 		if !filter.Eval(Event{
-			Type:        eventspkg.ProviderPermissionDenied,
-			Outcome:     eventspkg.OutcomeFailure,
-			WorkspaceID: "ws-alpha",
-			Provider:    "claude",
+			Type:    eventspkg.ProviderPermissionDenied,
+			Outcome: eventspkg.OutcomeFailure,
+			Scope: notifications.ScopeRef{
+				Kind:        notifications.ScopeKindWorkspace,
+				WorkspaceID: "ws-alpha",
+			},
+			Provider: "claude",
 		}) {
 			t.Fatal("filter.Eval(failure ws-alpha) = false, want match")
 		}
 		if !filter.Eval(Event{
-			Type:        eventspkg.ProviderRateLimited,
-			Outcome:     eventspkg.OutcomeInfo,
-			WorkspaceID: "ws-beta",
-			Provider:    "codex",
+			Type:    eventspkg.ProviderRateLimited,
+			Outcome: eventspkg.OutcomeInfo,
+			Scope: notifications.ScopeRef{
+				Kind:        notifications.ScopeKindWorkspace,
+				WorkspaceID: "ws-beta",
+			},
+			Provider: "codex",
 		}) {
 			t.Fatal("filter.Eval(provider codex) = false, want OR match")
 		}
 		if filter.Eval(Event{
-			Type:        eventspkg.TaskRunCompleted,
-			Outcome:     eventspkg.OutcomeSuccess,
-			WorkspaceID: "ws-beta",
-			Provider:    "claude",
+			Type:    eventspkg.TaskRunCompleted,
+			Outcome: eventspkg.OutcomeSuccess,
+			Scope: notifications.ScopeRef{
+				Kind:        notifications.ScopeKindWorkspace,
+				WorkspaceID: "ws-beta",
+			},
+			Provider: "claude",
 		}) {
 			t.Fatal("filter.Eval(success ws-beta) = true, want no match")
 		}
@@ -121,6 +134,23 @@ func TestNotificationPresetBuiltIns(t *testing.T) {
 	})
 }
 
+func TestNotificationPresetTargetValidation(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject noncanonical delivery modes instead of merging identities", func(t *testing.T) {
+		t.Parallel()
+
+		err := (Target{
+			BridgeID:       "brg-1",
+			CanonicalRoute: "#ops",
+			DeliveryMode:   " direct-send ",
+		}).Validate()
+		if !errors.Is(err, ErrInvalidPreset) {
+			t.Fatalf("Target.Validate() error = %v, want ErrInvalidPreset", err)
+		}
+	})
+}
+
 func TestNotificationPresetDispatch(t *testing.T) {
 	t.Parallel()
 
@@ -155,11 +185,11 @@ func TestNotificationPresetDispatch(t *testing.T) {
 		})
 
 		result, err := service.Dispatch(ctx, Event{
-			ID:          "evt-1",
-			Type:        eventspkg.TaskRunCompleted,
-			WorkspaceID: "ws-alpha",
-			Sequence:    7,
-			Summary:     "Build finished",
+			ID:       "evt-1",
+			Type:     eventspkg.TaskRunCompleted,
+			Scope:    notifications.ScopeRef{Kind: notifications.ScopeKindWorkspace, WorkspaceID: "ws-alpha"},
+			Sequence: 7,
+			Summary:  "Build finished",
 		})
 		if err != nil {
 			t.Fatalf("Dispatch() error = %v", err)
@@ -178,23 +208,367 @@ func TestNotificationPresetDispatch(t *testing.T) {
 		if len(stored) != 1 {
 			t.Fatalf("len(cursors) = %d, want 1", len(stored))
 		}
-		if stored[0].LastSequence != 7 ||
-			!strings.Contains(stored[0].LastDeliveryID, ":skip:suppressed") {
+		if stored[0].LastSequence != 7 || stored[0].LastDeliveryID == "" ||
+			strings.Contains(stored[0].LastDeliveryID, ":") {
 			t.Fatalf("cursor = %#v, want suppressed skip at sequence 7", stored[0])
+		}
+		if stored[0].Key.StreamName != string(eventspkg.TaskRunCompleted) ||
+			stored[0].Key.SubjectID != "evt-1" {
+			t.Fatalf("cursor key = %#v, want exact event type and id", stored[0].Key)
 		}
 
 		replay, err := service.Dispatch(ctx, Event{
-			ID:          "evt-1",
-			Type:        eventspkg.TaskRunCompleted,
-			WorkspaceID: "ws-alpha",
-			Sequence:    7,
-			Summary:     "Build finished",
+			ID:       "evt-1",
+			Type:     eventspkg.TaskRunCompleted,
+			Scope:    notifications.ScopeRef{Kind: notifications.ScopeKindWorkspace, WorkspaceID: "ws-alpha"},
+			Sequence: 7,
+			Summary:  "Build finished",
 		})
 		if err != nil {
 			t.Fatalf("Dispatch(replay) error = %v", err)
 		}
 		if replay.Skipped != 1 || replay.Suppressed != 0 || replay.Delivered != 0 {
 			t.Fatalf("Dispatch(replay) result = %#v, want cursor skip", replay)
+		}
+	})
+
+	t.Run("Should isolate global and workspace-global cursors with colon-bearing identities", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		store := newPresetMemoryStore([]Preset{{
+			Name:    "task_terminal",
+			Events:  []string{"task.run_*"},
+			Targets: []Target{{BridgeID: "brg-1", CanonicalRoute: "#ops:incident"}},
+			Enabled: true,
+		}})
+		cursors := newPresetMemoryCursorStore()
+		bridges := &presetFakeBridgeRuntime{instance: bridgepkg.BridgeInstance{
+			ID:            "brg-1",
+			Scope:         bridgepkg.ScopeGlobal,
+			Platform:      "slack",
+			ExtensionName: "slack-extension",
+			DisplayName:   "Slack",
+			Enabled:       true,
+			Status:        bridgepkg.BridgeStatusReady,
+		}}
+		service := NewService(Config{
+			Store:   store,
+			Cursors: cursors,
+			Bridges: bridges,
+			Now:     presetTestNow,
+		})
+
+		globalResult, err := service.Dispatch(ctx, Event{
+			ID:       "evt:terminal",
+			Type:     eventspkg.TaskRunCompleted,
+			Scope:    notifications.ScopeRef{Kind: notifications.ScopeKindGlobal},
+			Sequence: 7,
+			Summary:  "Global task finished",
+		})
+		if err != nil {
+			t.Fatalf("Dispatch(global) error = %v", err)
+		}
+		workspaceResult, err := service.Dispatch(ctx, Event{
+			ID:       "evt:terminal",
+			Type:     eventspkg.TaskRunCompleted,
+			Scope:    notifications.ScopeRef{Kind: notifications.ScopeKindWorkspace, WorkspaceID: "global"},
+			Sequence: 7,
+			Summary:  "Workspace task finished",
+		})
+		if err != nil {
+			t.Fatalf("Dispatch(workspace global) error = %v", err)
+		}
+		if globalResult.Delivered != 1 || workspaceResult.Delivered != 1 {
+			t.Fatalf(
+				"dispatch results = %#v, %#v, want one delivery from each distinct scope",
+				globalResult,
+				workspaceResult,
+			)
+		}
+
+		stored, err := cursors.ListCursors(ctx, notifications.CursorQuery{})
+		if err != nil {
+			t.Fatalf("ListCursors() error = %v", err)
+		}
+		if len(stored) != 2 {
+			t.Fatalf("len(cursors) = %d, want 2 independent cursor rows", len(stored))
+		}
+		seenScopes := make(map[notifications.ScopeRef]bool, len(stored))
+		seenDeliveryIDs := make(map[string]bool, len(stored))
+		for _, cursor := range stored {
+			seenScopes[cursor.Key.Scope] = true
+			if cursor.Key.SubjectID != "evt:terminal" {
+				t.Fatalf("cursor subject = %q, want event ID without scope concatenation", cursor.Key.SubjectID)
+			}
+			if cursor.LastDeliveryID == "" || strings.Contains(cursor.LastDeliveryID, ":") {
+				t.Fatalf("cursor delivery ID = %q, want opaque base64url identity", cursor.LastDeliveryID)
+			}
+			if seenDeliveryIDs[cursor.LastDeliveryID] {
+				t.Fatalf("duplicate delivery ID %q across distinct scope identities", cursor.LastDeliveryID)
+			}
+			seenDeliveryIDs[cursor.LastDeliveryID] = true
+		}
+		for _, scope := range []notifications.ScopeRef{
+			{Kind: notifications.ScopeKindGlobal},
+			{Kind: notifications.ScopeKindWorkspace, WorkspaceID: "global"},
+		} {
+			if !seenScopes[scope] {
+				t.Fatalf("cursor scopes = %#v, missing %#v", seenScopes, scope)
+			}
+		}
+		if got := bridges.deliveries; got != 2 {
+			t.Fatalf("bridge deliveries = %d, want 2 independent deliveries", got)
+		}
+	})
+
+	t.Run("Should retain distinct opaque target identities that differ by whitespace", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		store := newPresetMemoryStore([]Preset{{
+			Name:   "task_terminal",
+			Events: []string{"task.run_*"},
+			Targets: []Target{
+				{BridgeID: "brg-1", CanonicalRoute: "#ops"},
+				{BridgeID: "brg-1", CanonicalRoute: " #ops"},
+			},
+			Enabled: true,
+		}})
+		cursors := newPresetMemoryCursorStore()
+		bridges := &presetFakeBridgeRuntime{instance: bridgepkg.BridgeInstance{
+			ID:            "brg-1",
+			Scope:         bridgepkg.ScopeGlobal,
+			Platform:      "slack",
+			ExtensionName: "slack-extension",
+			DisplayName:   "Slack",
+			Enabled:       true,
+			Status:        bridgepkg.BridgeStatusReady,
+		}}
+		service := NewService(Config{
+			Store:   store,
+			Cursors: cursors,
+			Bridges: bridges,
+			Now:     presetTestNow,
+		})
+
+		result, err := service.Dispatch(ctx, Event{
+			ID:       "evt-opaque-target",
+			Type:     eventspkg.TaskRunCompleted,
+			Scope:    notifications.ScopeRef{Kind: notifications.ScopeKindWorkspace, WorkspaceID: "ws-alpha"},
+			Sequence: 7,
+		})
+		if err != nil {
+			t.Fatalf("Dispatch() error = %v", err)
+		}
+		if got, want := result.Delivered, 2; got != want {
+			t.Fatalf("Dispatch() delivered = %d, want %d distinct opaque targets", got, want)
+		}
+		if got, want := bridges.deliveries, 2; got != want {
+			t.Fatalf("bridge deliveries = %d, want %d", got, want)
+		}
+		stored, err := cursors.ListCursors(ctx, notifications.CursorQuery{})
+		if err != nil {
+			t.Fatalf("ListCursors() error = %v", err)
+		}
+		if got, want := len(stored), 2; got != want {
+			t.Fatalf("stored cursor rows = %d, want %d", got, want)
+		}
+		if stored[0].Key.ConsumerID == stored[1].Key.ConsumerID {
+			t.Fatalf(
+				"consumer identities = %q and %q, want distinct opaque identities",
+				stored[0].Key.ConsumerID,
+				stored[1].Key.ConsumerID,
+			)
+		}
+	})
+
+	t.Run("Should deliver every repeated target occurrence independently", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		const route = "#ops"
+		store := newPresetMemoryStore([]Preset{{
+			Name:    "task_terminal",
+			Events:  []string{"task.run_*"},
+			Targets: []Target{{BridgeID: "brg-1", CanonicalRoute: route}, {BridgeID: "brg-1", CanonicalRoute: route}},
+			Enabled: true,
+		}})
+		cursors := newPresetMemoryCursorStore()
+		bridges := &presetFakeBridgeRuntime{instance: bridgepkg.BridgeInstance{
+			ID:            "brg-1",
+			Scope:         bridgepkg.ScopeGlobal,
+			Platform:      "slack",
+			ExtensionName: "slack-extension",
+			DisplayName:   "Slack",
+			Enabled:       true,
+			Status:        bridgepkg.BridgeStatusReady,
+		}}
+		service := NewService(Config{
+			Store:   store,
+			Cursors: cursors,
+			Bridges: bridges,
+			Now:     presetTestNow,
+		})
+
+		result, err := service.Dispatch(ctx, Event{
+			ID:       "evt-repeated-target",
+			Type:     eventspkg.TaskRunCompleted,
+			Scope:    notifications.ScopeRef{Kind: notifications.ScopeKindWorkspace, WorkspaceID: "ws-alpha"},
+			Sequence: 7,
+		})
+		if err != nil {
+			t.Fatalf("Dispatch() error = %v", err)
+		}
+		if got, want := result.Delivered, 2; got != want {
+			t.Fatalf("Dispatch() delivered = %d, want %d", got, want)
+		}
+		if got, want := bridges.deliveries, 2; got != want {
+			t.Fatalf("bridge deliveries = %d, want %d", got, want)
+		}
+		if got, want := len(bridges.requests), 2; got != want {
+			t.Fatalf("bridge delivery requests = %d, want %d", got, want)
+		}
+		if bridges.requests[0].Event.DeliveryID == bridges.requests[1].Event.DeliveryID {
+			t.Fatalf(
+				"delivery IDs = %q and %q, want independent occurrences",
+				bridges.requests[0].Event.DeliveryID,
+				bridges.requests[1].Event.DeliveryID,
+			)
+		}
+
+		stored, err := cursors.ListCursors(ctx, notifications.CursorQuery{})
+		if err != nil {
+			t.Fatalf("ListCursors() error = %v", err)
+		}
+		if got, want := len(stored), 2; got != want {
+			t.Fatalf("stored cursor rows = %d, want %d", got, want)
+		}
+		if stored[0].Key.ConsumerID == stored[1].Key.ConsumerID {
+			t.Fatalf(
+				"cursor consumers = %q and %q, want independent occurrences",
+				stored[0].Key.ConsumerID,
+				stored[1].Key.ConsumerID,
+			)
+		}
+		if stored[0].LastDeliveryID == stored[1].LastDeliveryID {
+			t.Fatalf(
+				"cursor delivery IDs = %q and %q, want independent occurrences",
+				stored[0].LastDeliveryID,
+				stored[1].LastDeliveryID,
+			)
+		}
+	})
+}
+
+func TestNotificationPresetDispatchRedactsCursorDiagnostics(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reuse one safe diagnostic for cursor, event, and returned error", func(t *testing.T) {
+		t.Parallel()
+
+		const dynamicSecret = "runtime-preset-dispatch-secret"
+
+		release := diagnostics.RegisterDynamicSecret(dynamicSecret)
+		t.Cleanup(release)
+
+		ctx := testutil.Context(t)
+		cursors := newPresetMemoryCursorStore()
+		events := &presetMemoryEventSummaryStore{}
+		bridges := &presetFakeBridgeRuntime{
+			instance: bridgepkg.BridgeInstance{
+				ID:            "brg-1",
+				Scope:         bridgepkg.ScopeGlobal,
+				Platform:      "slack",
+				ExtensionName: "slack-extension",
+				DisplayName:   "Slack",
+				Enabled:       true,
+				Status:        bridgepkg.BridgeStatusReady,
+			},
+			deliverErr: errors.New(strings.Join([]string{
+				"dynamic=" + dynamicSecret,
+				"authorization=Bearer bearer-preset-secret",
+				"claim=compozy_claim_preset-secret",
+				"oauth_code=oauth-preset-secret",
+				"code_verifier=pkce-preset-secret",
+			}, " ")),
+		}
+		service := NewService(Config{
+			Store: newPresetMemoryStore([]Preset{{
+				Name:    "task_terminal",
+				Events:  []string{"task.run_*"},
+				Targets: []Target{{BridgeID: "brg-1", CanonicalRoute: "#ops"}},
+				Enabled: true,
+			}}),
+			Cursors: cursors,
+			Bridges: bridges,
+			Events:  events,
+			Now:     presetTestNow,
+		})
+
+		result, err := service.Dispatch(ctx, Event{
+			ID:       "evt-redacted-diagnostic",
+			Type:     eventspkg.TaskRunCompleted,
+			Scope:    notifications.ScopeRef{Kind: notifications.ScopeKindWorkspace, WorkspaceID: "ws-alpha"},
+			Sequence: 7,
+		})
+		if err == nil {
+			t.Fatal("Dispatch() error = nil, want delivery failure")
+		}
+		if got, want := result.Failed, 1; got != want {
+			t.Fatalf("Dispatch() failed = %d, want %d", got, want)
+		}
+
+		for _, secret := range []string{
+			dynamicSecret,
+			"bearer-preset-secret",
+			"compozy_claim_preset-secret",
+			"oauth-preset-secret",
+			"pkce-preset-secret",
+		} {
+			if strings.Contains(err.Error(), secret) {
+				t.Fatalf("Dispatch() error = %q, leaked %q", err, secret)
+			}
+		}
+
+		stored, listErr := cursors.ListCursors(ctx, notifications.CursorQuery{})
+		if listErr != nil {
+			t.Fatalf("ListCursors() error = %v", listErr)
+		}
+		if got, want := len(stored), 1; got != want {
+			t.Fatalf("stored cursor rows = %d, want %d", got, want)
+		}
+		if !utf8.ValidString(stored[0].LastError) {
+			t.Fatalf("stored cursor last_error = %q, want valid UTF-8", stored[0].LastError)
+		}
+		if got, limit := len(stored[0].LastError), 2048; got > limit {
+			t.Fatalf("stored cursor last_error bytes = %d, want <= %d", got, limit)
+		}
+		if got, want := len(events.items), 1; got != want {
+			t.Fatalf("dispatch failure event count = %d, want %d", got, want)
+		}
+		for _, secret := range []string{
+			dynamicSecret,
+			"bearer-preset-secret",
+			"compozy_claim_preset-secret",
+			"oauth-preset-secret",
+			"pkce-preset-secret",
+		} {
+			if strings.Contains(string(events.items[0].Content), secret) {
+				t.Fatalf("dispatch failure event = %s, leaked %q", events.items[0].Content, secret)
+			}
+		}
+		if got, want := err.Error(), stored[0].LastError; got != want {
+			t.Fatalf("Dispatch() error = %q, want stored cursor diagnostic %q", got, want)
+		}
+		var payload struct {
+			LastError string `json:"last_error"`
+		}
+		if err := json.Unmarshal(events.items[0].Content, &payload); err != nil {
+			t.Fatalf("decode dispatch failure event = %v", err)
+		}
+		if got, want := payload.LastError, stored[0].LastError; got != want {
+			t.Fatalf("dispatch failure event last_error = %q, want cursor diagnostic %q", got, want)
 		}
 	})
 }
@@ -309,7 +683,9 @@ func (s *presetMemoryStore) EnsureBuiltInPresets(_ context.Context, defaults []P
 
 type presetFakeBridgeRuntime struct {
 	instance   bridgepkg.BridgeInstance
+	deliverErr error
 	deliveries int
+	requests   []bridgepkg.DeliveryRequest
 }
 
 func (r *presetFakeBridgeRuntime) GetBridgeInstance(
@@ -323,14 +699,14 @@ func (r *presetFakeBridgeRuntime) GetBridgeInstance(
 }
 
 func (r *presetFakeBridgeRuntime) ResolveBridgeTarget(
-	context.Context,
-	string,
-	string,
+	_ context.Context,
+	bridgeID string,
+	canonicalRoute string,
 ) (bridgepkg.ResolveBridgeTargetResult, error) {
 	return bridgepkg.ResolveBridgeTargetResult{
 		Match: &bridgepkg.BridgeTarget{
-			BridgeID:       r.instance.ID,
-			CanonicalRoute: "#ops",
+			BridgeID:       strings.TrimSpace(bridgeID),
+			CanonicalRoute: strings.TrimSpace(canonicalRoute),
 			DisplayName:    "ops",
 			TargetType:     bridgepkg.BridgeTargetTypeChannel,
 		},
@@ -338,21 +714,44 @@ func (r *presetFakeBridgeRuntime) ResolveBridgeTarget(
 }
 
 func (r *presetFakeBridgeRuntime) DeliverBridge(
-	context.Context,
-	string,
-	bridgepkg.DeliveryRequest,
+	_ context.Context,
+	_ string,
+	request bridgepkg.DeliveryRequest,
 ) (bridgepkg.DeliveryAck, error) {
 	r.deliveries++
-	return bridgepkg.DeliveryAck{}, errors.New("unexpected delivery")
+	r.requests = append(r.requests, request)
+	if r.deliverErr != nil {
+		return bridgepkg.DeliveryAck{}, r.deliverErr
+	}
+	return bridgepkg.DeliveryAck{DeliveryID: request.Event.DeliveryID, Seq: request.Event.Seq}, nil
+}
+
+type presetMemoryEventSummaryStore struct {
+	items []store.EventSummary
+}
+
+func (s *presetMemoryEventSummaryStore) WriteEventSummary(
+	_ context.Context,
+	summary store.EventSummary,
+) error {
+	s.items = append(s.items, summary)
+	return nil
+}
+
+func (s *presetMemoryEventSummaryStore) ListEventSummaries(
+	_ context.Context,
+	_ store.EventSummaryQuery,
+) ([]store.EventSummary, error) {
+	return append([]store.EventSummary(nil), s.items...), nil
 }
 
 type presetMemoryCursorStore struct {
 	mu      sync.Mutex
-	cursors map[string]notifications.Cursor
+	cursors map[notifications.CursorKey]notifications.Cursor
 }
 
 func newPresetMemoryCursorStore() *presetMemoryCursorStore {
-	return &presetMemoryCursorStore{cursors: make(map[string]notifications.Cursor)}
+	return &presetMemoryCursorStore{cursors: make(map[notifications.CursorKey]notifications.Cursor)}
 }
 
 func (s *presetMemoryCursorStore) GetCursor(
@@ -365,7 +764,7 @@ func (s *presetMemoryCursorStore) GetCursor(
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	cursor, ok := s.cursors[presetCursorKey(normalized)]
+	cursor, ok := s.cursors[normalized]
 	if !ok {
 		return notifications.Cursor{}, notifications.ErrCursorNotFound
 	}
@@ -376,11 +775,17 @@ func (s *presetMemoryCursorStore) ListCursors(
 	_ context.Context,
 	query notifications.CursorQuery,
 ) ([]notifications.Cursor, error) {
-	q := query.Normalize()
+	q, err := query.Normalize()
+	if err != nil {
+		return nil, err
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	cursors := make([]notifications.Cursor, 0, len(s.cursors))
 	for _, cursor := range s.cursors {
+		if q.Scope.Kind != "" && cursor.Key.Scope != q.Scope {
+			continue
+		}
 		if q.ConsumerID != "" && cursor.Key.ConsumerID != q.ConsumerID {
 			continue
 		}
@@ -405,7 +810,7 @@ func (s *presetMemoryCursorStore) AdvanceCursor(
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	key := presetCursorKey(normalized.Key)
+	key := normalized.Key
 	current, exists := s.cursors[key]
 	if exists {
 		if normalized.LastSequence < current.LastSequence ||
@@ -445,7 +850,7 @@ func (s *presetMemoryCursorStore) ResetCursor(
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.cursors[presetCursorKey(normalized.Key)] = cursor
+	s.cursors[normalized.Key] = cursor
 	return cursor, nil
 }
 
@@ -459,14 +864,10 @@ func (s *presetMemoryCursorStore) RecordCursorError(
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	cursor := s.cursors[presetCursorKey(normalized.Key)]
+	cursor := s.cursors[normalized.Key]
 	cursor.Key = normalized.Key
 	cursor.LastError = normalized.LastError
 	cursor.UpdatedAt = normalized.Now
-	s.cursors[presetCursorKey(normalized.Key)] = cursor
+	s.cursors[normalized.Key] = cursor
 	return cursor, nil
-}
-
-func presetCursorKey(key notifications.CursorKey) string {
-	return key.ConsumerID + "\x00" + key.StreamName + "\x00" + key.SubjectID
 }

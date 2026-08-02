@@ -147,7 +147,7 @@ func (c *googleX509KeyCache) fetch(ctx context.Context, certsURL string) (map[st
 		return nil, errors.New("gchat: certs url is required")
 	}
 	if ctx == nil {
-		ctx = context.Background()
+		return nil, errors.New("gchat: certificate fetch context is required")
 	}
 
 	c.mu.Lock()

@@ -183,7 +183,7 @@ func TestDriverAdvertisesAndSupportsLoadSession(t *testing.T) {
 	if err != nil {
 		t.Fatalf("driver.Start() error = %v", err)
 	}
-	if !proc.Caps.SupportsLoadSession {
+	if !proc.CapsSnapshot().SupportsLoadSession {
 		t.Fatal("driver.Start() SupportsLoadSession = false, want true")
 	}
 
@@ -202,7 +202,7 @@ func TestDriverAdvertisesAndSupportsLoadSession(t *testing.T) {
 	}
 	defer stopDriverProcess(t, driver, resumed)
 
-	if !resumed.Caps.SupportsLoadSession {
+	if !resumed.CapsSnapshot().SupportsLoadSession {
 		t.Fatal("driver.Start(resume) SupportsLoadSession = false, want true")
 	}
 	if got := resumed.SessionID; got != originalSessionID {
@@ -711,16 +711,16 @@ func TestDriverCancelNotification(t *testing.T) {
 			t.Fatalf("driver.Prompt() error = %v", err)
 		}
 
-		var cancelOnce sync.Once
+		cancelOnce := sync.OnceFunc(func() {
+			if err := driver.Cancel(testutil.Context(t), proc); err != nil {
+				t.Fatalf("driver.Cancel() error = %v", err)
+			}
+		})
 		events := collectPromptEvents(t, eventsCh, func(event acp.AgentEvent) {
 			if event.Type != acp.EventTypeAgentMessage {
 				return
 			}
-			cancelOnce.Do(func() {
-				if err := driver.Cancel(testutil.Context(t), proc); err != nil {
-					t.Fatalf("driver.Cancel() error = %v", err)
-				}
-			})
+			cancelOnce()
 		})
 		normalized := normalizeEvents(events)
 		if !containsNormalizedEvent(normalized, map[string]string{
@@ -969,7 +969,9 @@ func stopDriverProcess(t testing.TB, driver *acp.Driver, proc *acp.AgentProcess)
 	}
 	select {
 	case <-proc.Done():
-		_ = proc.Wait()
+		if err := proc.Wait(); err != nil {
+			t.Logf("process exited before cleanup: %v", err)
+		}
 		return
 	default:
 	}
@@ -977,7 +979,9 @@ func stopDriverProcess(t testing.TB, driver *acp.Driver, proc *acp.AgentProcess)
 	defer timer.Stop()
 	select {
 	case <-proc.Done():
-		_ = proc.Wait()
+		if err := proc.Wait(); err != nil {
+			t.Logf("process exited while cleanup waited: %v", err)
+		}
 		return
 	case <-timer.C:
 	}

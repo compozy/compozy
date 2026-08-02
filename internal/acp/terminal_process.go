@@ -112,10 +112,6 @@ func (t *managedTerminal) appendOutput(p []byte) {
 }
 
 func withoutCancelPreservingDeadline(ctx context.Context) (context.Context, context.CancelFunc) {
-	if ctx == nil {
-		return context.Background(), func() {}
-	}
-
 	detached := context.WithoutCancel(ctx)
 	deadline, ok := ctx.Deadline()
 	if !ok {
@@ -154,9 +150,6 @@ func (t *managedTerminal) checkpointInterrupting(ctx context.Context, reason str
 	if t == nil || t.processRecord == nil {
 		return
 	}
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	if err := t.processRecord.Checkpoint(ctx, toolruntime.ProcessCheckpoint{
 		State: toolruntime.ProcessStateInterrupting,
 		Error: reason,
@@ -173,9 +166,6 @@ func (t *managedTerminal) completeProcess(
 ) {
 	if t == nil || t.processRecord == nil {
 		return
-	}
-	if ctx == nil {
-		ctx = context.Background()
 	}
 	completion := toolruntime.ProcessCompletion{}
 	if exitStatus != nil && exitStatus.ExitCode != nil {

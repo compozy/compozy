@@ -483,7 +483,7 @@ func postDiscordSignedJSON(
 		t.Fatalf("http.Do() error = %v", err)
 	}
 	defer func() {
-		_ = resp.Body.Close()
+		closeProviderIntegrationBody(t, resp.Body)
 	}()
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {

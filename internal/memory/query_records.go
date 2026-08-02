@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log/slog"
 	"os"
 	"strings"
 	"time"
@@ -181,7 +180,7 @@ func (c *catalog) clearDerivedScope(
 	return returnCount, nil
 }
 
-func (c *catalog) listDreamRuns(ctx context.Context, query DreamRunListQuery) ([]DreamRunRecord, error) {
+func (c *catalog) listDreamRuns(ctx context.Context, query DreamRunListQuery) (records []DreamRunRecord, err error) {
 	db, err := c.ensureDB(ctx)
 	if err != nil {
 		return nil, err
@@ -208,8 +207,8 @@ func (c *catalog) listDreamRuns(ctx context.Context, query DreamRunListQuery) ([
 	if err != nil {
 		return nil, fmt.Errorf("memory: list dream runs: %w", err)
 	}
-	defer closeRows(rows, "memory: close dream run rows failed")
-	records := make([]DreamRunRecord, 0)
+	defer closeCatalogRows(rows, "dream run", &err)
+	records = make([]DreamRunRecord, 0)
 	for rows.Next() {
 		record, scanErr := scanDreamRunRecord(rows)
 		if scanErr != nil {
@@ -325,7 +324,7 @@ func scanDreamRunRecord(scanner interface{ Scan(dest ...any) error }) (DreamRunR
 	return record, nil
 }
 
-func (c *catalog) listDailyLogs(ctx context.Context, query DailyLogListQuery) ([]DailyLogRecord, error) {
+func (c *catalog) listDailyLogs(ctx context.Context, query DailyLogListQuery) (records []DailyLogRecord, err error) {
 	db, err := c.ensureDB(ctx)
 	if err != nil {
 		return nil, err
@@ -353,8 +352,8 @@ func (c *catalog) listDailyLogs(ctx context.Context, query DailyLogListQuery) ([
 	if err != nil {
 		return nil, fmt.Errorf("memory: list daily logs: %w", err)
 	}
-	defer closeRows(rows, "memory: close daily log rows failed")
-	records := make([]DailyLogRecord, 0)
+	defer closeCatalogRows(rows, "daily log", &err)
+	records = make([]DailyLogRecord, 0)
 	for rows.Next() {
 		var record DailyLogRecord
 		var scopeRaw string
@@ -419,13 +418,4 @@ func clampMemoryQueryLimit(limit int) int {
 		return 200
 	}
 	return limit
-}
-
-func closeRows(rows *sql.Rows, message string) {
-	if rows == nil {
-		return
-	}
-	if err := rows.Close(); err != nil {
-		slog.Default().Warn(message, "error", err)
-	}
 }

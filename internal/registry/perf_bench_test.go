@@ -11,6 +11,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/compozy/compozy/internal/fileutil"
 )
 
 func BenchmarkMultiRegistrySearch(b *testing.B) {
@@ -105,8 +107,21 @@ func BenchmarkExtractArchive(b *testing.B) {
 
 	for i := 0; b.Loop(); i++ {
 		destRoot := filepath.Join(baseRoot, strconv.Itoa(i))
-		if err := ExtractArchive(bytes.NewReader(archive), destRoot); err != nil {
+		if err := os.Mkdir(destRoot, 0o700); err != nil {
+			b.Fatalf("Mkdir(%q) error = %v", destRoot, err)
+		}
+		root, err := fileutil.OpenDirectory(destRoot)
+		if err != nil {
+			b.Fatalf("OpenDirectory(%q) error = %v", destRoot, err)
+		}
+		if err := extractArchive(bytes.NewReader(archive), root, extractLimits{}); err != nil {
+			if closeErr := root.Close(); closeErr != nil {
+				b.Fatalf("ExtractArchive() error = %v; Directory.Close() error = %v", err, closeErr)
+			}
 			b.Fatalf("ExtractArchive() error = %v", err)
+		}
+		if err := root.Close(); err != nil {
+			b.Fatalf("Directory.Close(%q) error = %v", destRoot, err)
 		}
 	}
 }
@@ -117,12 +132,21 @@ func BenchmarkComputeInstallChecksum(b *testing.B) {
 	root := benchmarkChecksumTree(b)
 
 	for b.Loop() {
-		checksum, err := computeInstallChecksum(root)
+		directory, err := fileutil.OpenDirectory(root)
 		if err != nil {
-			b.Fatalf("computeInstallChecksum() error = %v", err)
+			b.Fatalf("OpenDirectory(%q) error = %v", root, err)
+		}
+		checksum, checksumErr := computeInstallChecksumDirectory(directory)
+		closeErr := directory.Close()
+		if checksumErr != nil || closeErr != nil {
+			b.Fatalf(
+				"computeInstallChecksumDirectory() error = %v; Directory.Close() error = %v",
+				checksumErr,
+				closeErr,
+			)
 		}
 		if checksum == "" {
-			b.Fatal("computeInstallChecksum() returned empty checksum")
+			b.Fatal("computeInstallChecksumDirectory() returned empty checksum")
 		}
 	}
 }
@@ -180,9 +204,6 @@ func benchmarkChecksumTree(b *testing.B) string {
 				b.Fatalf("WriteFile(%q) error = %v", path, err)
 			}
 		}
-	}
-	if err := os.Symlink("pkg-00/file-00.txt", filepath.Join(root, "current")); err != nil {
-		b.Fatalf("Symlink() error = %v", err)
 	}
 	return root
 }

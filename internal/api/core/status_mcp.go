@@ -91,14 +91,15 @@ func mcpServerDiagnosticItem(status contract.MCPServerStatusPayload) contract.Di
 	if strings.TrimSpace(status.Diagnostic) != "" {
 		message = status.Diagnostic
 	}
-	return diagnostics.NewItem(
-		"doctor.mcp."+status.Name,
-		code,
-		contract.CategoryMCP,
-		title,
-		message,
-		severity,
-		contract.FreshnessLive,
+	return diagnostics.NewItem(diagnostics.ItemSpec{
+		ID:            "doctor.mcp." + status.Name,
+		Code:          code,
+		Category:      contract.CategoryMCP,
+		Title:         title,
+		Message:       message,
+		Severity:      severity,
+		DataFreshness: contract.FreshnessLive,
+	},
 		diagnostics.WithEvidence(map[string]any{
 			"server": status.Name,
 			"state":  status.State,

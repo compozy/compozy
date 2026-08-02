@@ -1328,8 +1328,8 @@ func TestRevisionRebase(t *testing.T) {
 					Payload:          ToggleFloatingCommand{WindowID: "w1"},
 				},
 			)
-			var conflict *RevisionConflictError
-			if !errors.As(err, &conflict) || len(conflict.Details) == 0 {
+			conflict, conflictMatched := errors.AsType[*RevisionConflictError](err)
+			if !conflictMatched || len(conflict.Details) == 0 {
 				t.Fatalf("ambiguous rebase error=%v", err)
 			}
 		},

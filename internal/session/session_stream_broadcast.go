@@ -80,13 +80,10 @@ func (b *sessionEventBroadcaster) subscribe(
 	subs[sub] = struct{}{}
 	b.mu.Unlock()
 
-	var once sync.Once
-	unsubscribe := func() {
-		once.Do(func() {
-			cancel()
-			b.remove(sub, true)
-		})
-	}
+	unsubscribe := sync.OnceFunc(func() {
+		cancel()
+		b.remove(sub, true)
+	})
 
 	go func() {
 		<-subCtx.Done()

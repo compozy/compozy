@@ -208,6 +208,12 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 		if !errors.Is(refreshErr, context.Canceled) {
 			t.Fatalf("Refresh(shutdown) error = %v, want context.Canceled", refreshErr)
 		}
+		if err := runtime.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatalf("Shutdown(retry) error = %v", err)
+		}
+		if _, err := runtime.Refresh(testutil.Context(t), modelcatalog.RefreshOptions{Force: true}); err == nil {
+			t.Fatal("Refresh(after shutdown) error = nil, want admission failure")
+		}
 	})
 
 	t.Run("Should apply runtime timeout to detached refresh work", func(t *testing.T) {
@@ -326,6 +332,10 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 		}
 		if err := runtime.Shutdown(context.Background()); err != nil {
 			t.Fatalf("Shutdown(context.Background()) error = %v", err)
+		}
+		var missingContext context.Context
+		if err := runtime.Shutdown(missingContext); err == nil {
+			t.Fatal("Shutdown(nil context) error = nil, want validation error")
 		}
 		var nilRuntime *modelCatalogRuntime
 		if err := nilRuntime.Shutdown(context.Background()); err != nil {

@@ -21,14 +21,15 @@ func ValidateReasoningEffort(value string) error {
 		ErrInvalidRuntimeOverride,
 		strings.Join(validChoices, ", "),
 	)
-	item := diagnostics.NewItem(
-		"provider.negotiation."+diagnosticcontract.CodeReasoningEffortUnsupported,
-		diagnosticcontract.CodeReasoningEffortUnsupported,
-		diagnosticcontract.CategoryProvider,
-		"Reasoning effort is unsupported",
-		cause.Error(),
-		diagnosticcontract.SeverityError,
-		diagnosticcontract.FreshnessLive,
+	item := diagnostics.NewItem(diagnostics.ItemSpec{
+		ID:            "provider.negotiation." + diagnosticcontract.CodeReasoningEffortUnsupported,
+		Code:          diagnosticcontract.CodeReasoningEffortUnsupported,
+		Category:      diagnosticcontract.CategoryProvider,
+		Title:         "Reasoning effort is unsupported",
+		Message:       cause.Error(),
+		Severity:      diagnosticcontract.SeverityError,
+		DataFreshness: diagnosticcontract.FreshnessLive,
+	},
 		diagnostics.WithEvidence(map[string]any{
 			"requested":     trimmed,
 			"valid_choices": validChoices,

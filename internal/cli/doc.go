@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -25,14 +26,18 @@ func newDocCommand() *cobra.Command {
 		Short:  "Generate CLI reference documentation",
 		Hidden: true,
 		Args:   cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, _ []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) (runErr error) {
 			root := cmd.Root()
 
 			tmpDir, err := os.MkdirTemp("", "compozy-cli-docs-*")
 			if err != nil {
 				return fmt.Errorf("doc: create temp dir: %w", err)
 			}
-			defer os.RemoveAll(tmpDir)
+			defer func() {
+				if cleanupErr := os.RemoveAll(tmpDir); cleanupErr != nil {
+					runErr = errors.Join(runErr, fmt.Errorf("doc: remove temp dir: %w", cleanupErr))
+				}
+			}()
 
 			if err := doc.GenMarkdownTree(root, tmpDir); err != nil {
 				return fmt.Errorf("doc: generate markdown: %w", err)

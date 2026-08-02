@@ -23,7 +23,7 @@ func releaseTrackForVersion(raw string) (releaseTrack, *semver.Version, error) {
 	if prerelease == "" {
 		return releaseTrackStable, parsed, nil
 	}
-	if strings.Split(prerelease, ".")[0] == string(releaseTrackBeta) {
+	if prereleaseTrack(prerelease) == releaseTrackBeta {
 		return releaseTrackBeta, parsed, nil
 	}
 	return "", nil, fmt.Errorf("unsupported prerelease track %q", prerelease)
@@ -35,7 +35,12 @@ func isBetaVersionForLine(candidate *semver.Version, current *semver.Version) bo
 	}
 	prerelease := candidate.Prerelease()
 	return prerelease != "" &&
-		strings.Split(prerelease, ".")[0] == string(releaseTrackBeta) &&
+		prereleaseTrack(prerelease) == releaseTrackBeta &&
 		candidate.Major() == current.Major() &&
 		candidate.Minor() == current.Minor()
+}
+
+func prereleaseTrack(prerelease string) releaseTrack {
+	track, _, _ := strings.Cut(prerelease, ".")
+	return releaseTrack(track)
 }

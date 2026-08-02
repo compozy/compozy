@@ -30,7 +30,9 @@ func (b *Broker) CompleteDeliveryReconciliation() {
 		return
 	}
 	b.mu.Lock()
-	b.registrationsReady = true
+	if b.phase == brokerPhaseRunning {
+		b.registrationsReady = true
+	}
 	b.mu.Unlock()
 }
 
@@ -47,6 +49,9 @@ func (b *Broker) CheckPromptDeliveryAdmission(ctx context.Context) error {
 	}
 	b.mu.Lock()
 	defer b.mu.Unlock()
+	if b.phase != brokerPhaseRunning {
+		return ErrBrokerClosed
+	}
 	if !b.registrationsReady {
 		return ErrDeliveryReconciliationPending
 	}

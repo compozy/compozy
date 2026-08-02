@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -142,6 +143,13 @@ func TestBootMarketplaceLifecycle(t *testing.T) {
 		notifier := &daemonMarketplaceNotifier{
 			writer:       blockingMarketplaceEventWriter{writeErrors: writeErrors},
 			writeTimeout: 20 * time.Millisecond,
+		}
+		var missingContext context.Context
+		if err := notifier.NotifyCatalogRefresh(missingContext, marketplace.RefreshOutcome{
+			Kind:    marketplace.KindSkill,
+			Outcome: marketplace.RefreshOutcomeSucceeded,
+		}); err == nil || !strings.Contains(err.Error(), "context is required") {
+			t.Fatalf("NotifyCatalogRefresh(nil context) error = %v", err)
 		}
 		parent, cancel := context.WithCancel(testutil.Context(t))
 		cancel()

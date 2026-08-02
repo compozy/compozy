@@ -687,7 +687,7 @@ export const handlers: HttpHandler[] = [
         group_id: body.group_id,
         thread_id: body.thread_id,
         cursor: buildBridgeNotificationCursorFixture({
-          consumer_id: `bridge_task_subscription:${subscriptionId}`,
+          consumer_id: subscriptionId,
           subject_id: taskId,
           last_sequence: 0,
           last_delivery_id: undefined,

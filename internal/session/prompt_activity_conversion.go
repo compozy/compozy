@@ -44,14 +44,14 @@ func activityFromEvent(
 	case acp.EventTypeRuntimeProgress, acp.EventTypeRuntimeWarning:
 		return "", "", "", "", false
 	case acp.EventTypeToolCall:
-		detail = firstNonEmpty(event.Title, event.Text, event.ToolCallID)
-		currentTool = firstNonEmpty(event.Title, event.Resource)
+		detail = firstTrimmedNonEmpty(event.Title, event.Text, event.ToolCallID)
+		currentTool = firstTrimmedNonEmpty(event.Title, event.Resource)
 		toolCallID = event.ToolCallID
 	case acp.EventTypeToolResult:
-		detail = firstNonEmpty(event.Title, event.Text, event.ToolCallID)
+		detail = firstTrimmedNonEmpty(event.Title, event.Text, event.ToolCallID)
 		clearTool = true
 	default:
-		detail = firstNonEmpty(event.Title, event.Text, event.Error, event.Action, event.Resource)
+		detail = firstTrimmedNonEmpty(event.Title, event.Text, event.Error, event.Action, event.Resource)
 	}
 	return kind, detail, currentTool, toolCallID, clearTool
 }
@@ -75,15 +75,6 @@ func storeActivityFromRuntime(activity acp.RuntimeActivity) *store.SessionActivi
 		return nil
 	}
 	return meta
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		if trimmed := strings.TrimSpace(value); trimmed != "" {
-			return trimmed
-		}
-	}
-	return ""
 }
 
 func timePtr(value time.Time) *time.Time {

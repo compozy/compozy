@@ -172,7 +172,9 @@ func (m *Manager) abortPromptBeforePump(
 	cancelPromptExecution()
 	activity.stop()
 	activity.finish(m.now())
-	go drainPromptSource(source)
+	m.startTrackedPromptTask(func() {
+		drainPromptSource(source)
+	})
 }
 
 func (m *Manager) startPromptPump(
@@ -185,9 +187,7 @@ func (m *Manager) startPromptPump(
 	cancelPromptExecution context.CancelFunc,
 ) <-chan acp.AgentEvent {
 	out := make(chan acp.AgentEvent, m.promptBufSize)
-	finishDrain := m.trackPromptDrain()
-	go func() {
-		defer finishDrain()
+	m.startTrackedPromptTask(func() {
 		m.pumpPrompt(
 			lifecycleCtx,
 			callerCtx,
@@ -199,7 +199,7 @@ func (m *Manager) startPromptPump(
 			activity,
 			cancelPromptExecution,
 		)
-	}()
+	})
 	return out
 }
 

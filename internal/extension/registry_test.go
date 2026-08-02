@@ -161,8 +161,8 @@ func TestRegistryInstallRejectsDuplicateName(t *testing.T) {
 		t.Fatalf("Install(duplicate) error = %v, want ErrExtensionExists", err)
 	}
 
-	var existsErr *ExtensionExistsError
-	if !errors.As(err, &existsErr) {
+	existsErr, existsErrMatched := errors.AsType[*ExtensionExistsError](err)
+	if !existsErrMatched {
 		t.Fatalf("Install(duplicate) error type = %T, want *ExtensionExistsError", err)
 	}
 	if existsErr.Name != manifest.Name {
@@ -222,8 +222,8 @@ func TestRegistryInstallRejectsChecksumMismatch(t *testing.T) {
 		t.Fatalf("Install(checksum mismatch) error = %v, want ErrExtensionChecksumMismatch", err)
 	}
 
-	var mismatchErr *ExtensionChecksumMismatchError
-	if !errors.As(err, &mismatchErr) {
+	mismatchErr, mismatchErrMatched := errors.AsType[*ExtensionChecksumMismatchError](err)
+	if !mismatchErrMatched {
 		t.Fatalf("Install(checksum mismatch) error type = %T, want *ExtensionChecksumMismatchError", err)
 	}
 	if mismatchErr.ExpectedChecksum != strings.Repeat("0", 64) {
@@ -250,8 +250,8 @@ func TestRegistryGetReturnsNotFound(t *testing.T) {
 		t.Fatalf("Get(missing) error = %v, want ErrExtensionNotFound", err)
 	}
 
-	var notFoundErr *ExtensionNotFoundError
-	if !errors.As(err, &notFoundErr) {
+	notFoundErr, notFoundErrMatched := errors.AsType[*ExtensionNotFoundError](err)
+	if !notFoundErrMatched {
 		t.Fatalf("Get(missing) error type = %T, want *ExtensionNotFoundError", err)
 	}
 	if notFoundErr.Name != "missing" {
@@ -1256,8 +1256,8 @@ func TestRegistryNetworkConfirmationTracksCurrentArtifactDigest(t *testing.T) {
 		) {
 			t.Fatalf("ConfirmNetworkRequirement(stale) error = %v", staleConfirmationErr)
 		}
-		var staleErr *NetworkConfirmationRequiredError
-		if !errors.As(staleConfirmationErr, &staleErr) ||
+		staleErr, staleErrMatched := errors.AsType[*NetworkConfirmationRequiredError](staleConfirmationErr)
+		if !staleErrMatched ||
 			staleErr.CurrentDigest != digest {
 			t.Fatalf("stale confirmation error = %#v, want current digest %q", staleErr, digest)
 		}

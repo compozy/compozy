@@ -11,6 +11,7 @@ type activePromptState struct {
 	turnID   string
 	events   chan AgentEvent
 	activity chan struct{}
+	detached chan struct{}
 	cancel   context.CancelFunc
 
 	sendMu sync.Mutex
@@ -47,6 +48,7 @@ func (p *AgentProcess) beginPrompt(
 		turnID:               turnID,
 		events:               make(chan AgentEvent, bufferSize),
 		activity:             make(chan struct{}, 1),
+		detached:             make(chan struct{}),
 		cancel:               cancel,
 		seenToolCalls:        make(map[string]struct{}),
 		pendingToolResultIDs: make(map[string]struct{}),
@@ -60,11 +62,16 @@ func (p *AgentProcess) endPrompt(active *activePromptState) {
 		return
 	}
 
+	detached := false
 	p.promptMu.Lock()
 	if p.activePrompt == active {
 		p.activePrompt = nil
+		detached = true
 	}
 	p.promptMu.Unlock()
+	if detached {
+		close(active.detached)
+	}
 
 	active.sendMu.Lock()
 	defer active.sendMu.Unlock()

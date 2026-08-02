@@ -28,11 +28,17 @@ func canonicalTaskIDTokens(raw json.RawMessage) []string {
 	seen := make(map[string]struct{}, len(matches))
 	tokens := make([]string, 0, len(matches))
 	for _, match := range matches {
+		if len(match) > MaxReferenceBytes {
+			continue
+		}
 		if _, ok := seen[match]; ok {
 			continue
 		}
 		seen[match] = struct{}{}
 		tokens = append(tokens, match)
+		if len(tokens) == MaxAuditCollectionItems {
+			break
+		}
 	}
 	return tokens
 }

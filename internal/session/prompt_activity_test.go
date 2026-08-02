@@ -25,7 +25,7 @@ func TestPromptActivitySupervisorReportPersistsHeartbeatWithoutEvent(t *testing.
 	h := newHarness(t, WithNow(func() time.Time { return now }))
 	session := createSession(t, h)
 	t.Cleanup(func() {
-		_ = h.manager.Stop(testutil.Context(t), session.ID)
+		reportSessionStop(t, h, session.ID)
 	})
 
 	supervisor := newPromptActivitySupervisor(
@@ -159,7 +159,7 @@ func TestPromptActivitySupervisorWarningEmitsOnce(t *testing.T) {
 	h := newHarness(t, WithNow(func() time.Time { return now }))
 	session := createSession(t, h)
 	t.Cleanup(func() {
-		_ = h.manager.Stop(testutil.Context(t), session.ID)
+		reportSessionStop(t, h, session.ID)
 	})
 
 	config := testSupervisionConfig()
@@ -197,7 +197,7 @@ func TestPromptActivityRuntimeEventDoesNotClearStallState(t *testing.T) {
 	h := newHarness(t, WithNow(func() time.Time { return now }))
 	session := createSession(t, h)
 	t.Cleanup(func() {
-		_ = h.manager.Stop(testutil.Context(t), session.ID)
+		reportSessionStop(t, h, session.ID)
 	})
 
 	supervisor := newPromptActivitySupervisor(
@@ -238,7 +238,7 @@ func TestPromptActivitySupervisorMarksUnhealthyProcessAsStalled(t *testing.T) {
 	)
 	session := createSession(t, h)
 	t.Cleanup(func() {
-		_ = h.manager.Stop(testutil.Context(t), session.ID)
+		reportSessionStop(t, h, session.ID)
 	})
 
 	supervisor := newPromptActivitySupervisor(
@@ -306,7 +306,7 @@ func TestPromptActivitySupervisorIgnoresSyntheticHeartbeatWhenProcessIsUnhealthy
 	)
 	session := createSession(t, h)
 	t.Cleanup(func() {
-		_ = h.manager.Stop(testutil.Context(t), session.ID)
+		reportSessionStop(t, h, session.ID)
 	})
 
 	supervisor := newPromptActivitySupervisor(
@@ -368,7 +368,7 @@ func TestPromptActivitySupervisorIgnoresUnknownProcessHealthSnapshot(t *testing.
 	h := newHarness(t, WithNow(func() time.Time { return now }))
 	session := createSession(t, h)
 	t.Cleanup(func() {
-		_ = h.manager.Stop(testutil.Context(t), session.ID)
+		reportSessionStop(t, h, session.ID)
 	})
 
 	supervisor := newPromptActivitySupervisor(

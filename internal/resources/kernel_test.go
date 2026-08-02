@@ -492,6 +492,56 @@ func TestKernelActivateSessionNoOpSnapshotAndReset(t *testing.T) {
 	}
 }
 
+func TestKernelResetSourceIfActiveSessionFencesNewerGeneration(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should preserve a newer source generation when an older session resets", func(t *testing.T) {
+		t.Parallel()
+
+		kernel, _ := openTestKernel(t)
+		ctx := testutil.Context(t)
+		source := ResourceSource{Kind: ResourceSourceKind("extension"), ID: "fenced-reset"}
+		if err := kernel.ActivateSourceSession(ctx, testDaemonActor(), source, "candidate-a"); err != nil {
+			t.Fatalf("ActivateSourceSession(candidate A) error = %v", err)
+		}
+		if err := kernel.ActivateSourceSession(ctx, testDaemonActor(), source, "candidate-b"); err != nil {
+			t.Fatalf("ActivateSourceSession(candidate B) error = %v", err)
+		}
+		if err := kernel.ApplySourceSnapshotRaw(
+			ctx,
+			testExtensionActor("candidate-b", source.ID, "candidate-b"),
+			SourceSnapshot{
+				SourceVersion: 1,
+				Records: []RawDraft{{
+					Kind:            testResourceKind,
+					ID:              "winner-tool",
+					Scope:           ResourceScope{Kind: ResourceScopeKindGlobal},
+					ExpectedVersion: 0,
+					SpecJSON:        []byte(`{"name":"candidate-b"}`),
+				}},
+			},
+		); err != nil {
+			t.Fatalf("ApplySourceSnapshotRaw(candidate B) error = %v", err)
+		}
+
+		reset, err := kernel.ResetSourceIfActiveSession(ctx, testDaemonActor(), source, "candidate-a")
+		if err != nil {
+			t.Fatalf("ResetSourceIfActiveSession(candidate A) error = %v", err)
+		}
+		if reset {
+			t.Fatal("ResetSourceIfActiveSession(candidate A) reset newer candidate B source, want false")
+		}
+
+		records, err := kernel.ListRaw(ctx, testDaemonActor(), ResourceFilter{Source: &source})
+		if err != nil {
+			t.Fatalf("ListRaw(candidate B source) error = %v", err)
+		}
+		if len(records) != 1 || records[0].ID != "winner-tool" {
+			t.Fatalf("candidate B source records = %#v, want winner-tool retained", records)
+		}
+	})
+}
+
 func TestKernelGetAndListEnforceSourceAndScope(t *testing.T) {
 	t.Parallel()
 
@@ -1048,13 +1098,6 @@ func TestKernelHelperPathsAndMissingState(t *testing.T) {
 	if found {
 		t.Fatalf("lookupSourceState(missing) found = true, state = %#v, want false", state)
 	}
-
-	if err := rollbackTx(nil); err != nil {
-		t.Fatalf("rollbackTx(nil) error = %v", err)
-	}
-	if err := rollbackImmediate(ctx, nil); err != nil {
-		t.Fatalf("rollbackImmediate(nil) error = %v", err)
-	}
 }
 
 func TestKernelLockSourceReleasesIdleEntries(t *testing.T) {
@@ -1200,25 +1243,6 @@ func TestKernelAdditionalValidationBranches(t *testing.T) {
 
 		if err := kernel.ResetSource(ctx, testDaemonActor(), ResourceSource{}); !errors.Is(err, ErrValidation) {
 			t.Fatalf("ResetSource(invalid source) error = %v, want ErrValidation", err)
-		}
-	})
-
-	t.Run("Should join cleanup error combines errors", func(t *testing.T) {
-		t.Parallel()
-
-		cleanupErr := errors.New("cleanup")
-
-		var err error
-		joinCleanupError(&err, cleanupErr)
-		if !errors.Is(err, cleanupErr) {
-			t.Fatalf("joinCleanupError(nil target) error = %v, want cleanup error", err)
-		}
-
-		primaryErr := errors.New("primary")
-		err = primaryErr
-		joinCleanupError(&err, cleanupErr)
-		if !errors.Is(err, primaryErr) || !errors.Is(err, cleanupErr) {
-			t.Fatalf("joinCleanupError(joined) error = %v, want both primary and cleanup errors", err)
 		}
 	})
 }

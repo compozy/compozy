@@ -773,6 +773,58 @@ func (q *Queries) ListTaskRunsByStatus(ctx context.Context, statuses []string) (
 	return items, nil
 }
 
+const transitionTerminalTaskRun = `-- name: TransitionTerminalTaskRun :execrows
+UPDATE task_runs
+SET status = ?1,
+    claim_token = NULL,
+    lease_until = NULL,
+    heartbeat_at = NULL,
+    ended_at = ?2,
+    error = ?3,
+    result_json = ?4
+WHERE id = ?5
+	AND COALESCE(task_id, '') = COALESCE(?6, '')
+	AND COALESCE(workspace_id, '') = COALESCE(?7, '')
+  AND status = ?8
+  AND COALESCE(session_id, '') = COALESCE(?9, '')
+  AND COALESCE(claim_token_hash, '') = COALESCE(?10, '')
+  AND COALESCE(lease_until, '') = COALESCE(?11, '')
+`
+
+type TransitionTerminalTaskRunParams struct {
+	Status                 string         `json:"status"`
+	EndedAt                sql.NullString `json:"ended_at"`
+	Error                  sql.NullString `json:"error"`
+	ResultJson             sql.NullString `json:"result_json"`
+	ID                     string         `json:"id"`
+	ExpectedTaskID         sql.NullString `json:"expected_task_id"`
+	ExpectedWorkspaceID    sql.NullString `json:"expected_workspace_id"`
+	ExpectedStatus         string         `json:"expected_status"`
+	ExpectedSessionID      sql.NullString `json:"expected_session_id"`
+	ExpectedClaimTokenHash sql.NullString `json:"expected_claim_token_hash"`
+	ExpectedLeaseUntil     sql.NullString `json:"expected_lease_until"`
+}
+
+func (q *Queries) TransitionTerminalTaskRun(ctx context.Context, arg TransitionTerminalTaskRunParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, transitionTerminalTaskRun,
+		arg.Status,
+		arg.EndedAt,
+		arg.Error,
+		arg.ResultJson,
+		arg.ID,
+		arg.ExpectedTaskID,
+		arg.ExpectedWorkspaceID,
+		arg.ExpectedStatus,
+		arg.ExpectedSessionID,
+		arg.ExpectedClaimTokenHash,
+		arg.ExpectedLeaseUntil,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const updateTask = `-- name: UpdateTask :execrows
 UPDATE tasks
 SET identifier = ?1,
@@ -882,152 +934,21 @@ func (q *Queries) UpdateTask(ctx context.Context, arg UpdateTaskParams) (int64, 
 	return result.RowsAffected()
 }
 
-const updateTaskRun = `-- name: UpdateTaskRun :execrows
+const updateTaskRunMetadata = `-- name: UpdateTaskRunMetadata :execrows
 UPDATE task_runs
-SET task_id = ?1,
-    workspace_id = ?2,
-    run_kind = ?3,
-    loop_run_id = ?4,
-    status = ?5,
-    attempt = ?6,
-    recovery_count = ?7,
-    previous_run_id = ?8,
-    failure_kind = ?9,
-    claimed_by_kind = ?10,
-    claimed_by_ref = ?11,
-    session_id = ?12,
-    origin_kind = ?13,
-    origin_ref = ?14,
-    idempotency_key = ?15,
-    network_spec_json = ?16,
-    network_mode = ?17,
-    network_channel = ?18,
-    network_source = ?19,
-    designation_group_id = ?20,
-    claim_token = CASE WHEN ?21 IS NOT NULL AND claim_token_hash = ?21 THEN claim_token ELSE NULL END,
-    claim_token_hash = ?21,
-    lease_until = ?22,
-    heartbeat_at = ?23,
-    queued_at = ?24,
-    claimed_at = ?25,
-    started_at = ?26,
-    ended_at = ?27,
-    tokens_used = ?28,
-    error = ?29,
-    metadata_json = ?30,
-    result_json = ?31,
-    review_required = ?32,
-    review_request_round = ?33,
-    review_policy_snapshot = ?34,
-    review_request_id = ?35,
-    parent_run_id = ?36,
-    review_id = ?37,
-    review_round = ?38,
-    continuation_reason = ?39,
-    missing_work_json = ?40,
-    next_round_guidance = ?41,
-    network_wake_id = ?42,
-    network_target_session_id = ?43,
-    network_owner_key = ?44
-WHERE id = ?45
+SET metadata_json = ?1
+WHERE id = ?2
+  AND COALESCE(metadata_json, '') = COALESCE(?3, '')
 `
 
-type UpdateTaskRunParams struct {
-	TaskID                 sql.NullString `json:"task_id"`
-	WorkspaceID            sql.NullString `json:"workspace_id"`
-	RunKind                string         `json:"run_kind"`
-	LoopRunID              sql.NullString `json:"loop_run_id"`
-	Status                 string         `json:"status"`
-	Attempt                int64          `json:"attempt"`
-	RecoveryCount          int64          `json:"recovery_count"`
-	PreviousRunID          sql.NullString `json:"previous_run_id"`
-	FailureKind            string         `json:"failure_kind"`
-	ClaimedByKind          sql.NullString `json:"claimed_by_kind"`
-	ClaimedByRef           sql.NullString `json:"claimed_by_ref"`
-	SessionID              sql.NullString `json:"session_id"`
-	OriginKind             string         `json:"origin_kind"`
-	OriginRef              string         `json:"origin_ref"`
-	IdempotencyKey         sql.NullString `json:"idempotency_key"`
-	NetworkSpecJson        string         `json:"network_spec_json"`
-	NetworkMode            string         `json:"network_mode"`
-	NetworkChannel         sql.NullString `json:"network_channel"`
-	NetworkSource          string         `json:"network_source"`
-	DesignationGroupID     string         `json:"designation_group_id"`
-	ClaimTokenHash         sql.NullString `json:"claim_token_hash"`
-	LeaseUntil             sql.NullString `json:"lease_until"`
-	HeartbeatAt            sql.NullString `json:"heartbeat_at"`
-	QueuedAt               string         `json:"queued_at"`
-	ClaimedAt              sql.NullString `json:"claimed_at"`
-	StartedAt              sql.NullString `json:"started_at"`
-	EndedAt                sql.NullString `json:"ended_at"`
-	TokensUsed             int64          `json:"tokens_used"`
-	Error                  sql.NullString `json:"error"`
-	MetadataJson           sql.NullString `json:"metadata_json"`
-	ResultJson             sql.NullString `json:"result_json"`
-	ReviewRequired         bool           `json:"review_required"`
-	ReviewRequestRound     int64          `json:"review_request_round"`
-	ReviewPolicySnapshot   string         `json:"review_policy_snapshot"`
-	ReviewRequestID        sql.NullString `json:"review_request_id"`
-	ParentRunID            sql.NullString `json:"parent_run_id"`
-	ReviewID               sql.NullString `json:"review_id"`
-	ReviewRound            int64          `json:"review_round"`
-	ContinuationReason     string         `json:"continuation_reason"`
-	MissingWorkJson        string         `json:"missing_work_json"`
-	NextRoundGuidance      string         `json:"next_round_guidance"`
-	NetworkWakeID          sql.NullString `json:"network_wake_id"`
-	NetworkTargetSessionID sql.NullString `json:"network_target_session_id"`
-	NetworkOwnerKey        sql.NullString `json:"network_owner_key"`
-	ID                     string         `json:"id"`
+type UpdateTaskRunMetadataParams struct {
+	MetadataJson         sql.NullString `json:"metadata_json"`
+	ID                   string         `json:"id"`
+	ExpectedMetadataJson sql.NullString `json:"expected_metadata_json"`
 }
 
-func (q *Queries) UpdateTaskRun(ctx context.Context, arg UpdateTaskRunParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, updateTaskRun,
-		arg.TaskID,
-		arg.WorkspaceID,
-		arg.RunKind,
-		arg.LoopRunID,
-		arg.Status,
-		arg.Attempt,
-		arg.RecoveryCount,
-		arg.PreviousRunID,
-		arg.FailureKind,
-		arg.ClaimedByKind,
-		arg.ClaimedByRef,
-		arg.SessionID,
-		arg.OriginKind,
-		arg.OriginRef,
-		arg.IdempotencyKey,
-		arg.NetworkSpecJson,
-		arg.NetworkMode,
-		arg.NetworkChannel,
-		arg.NetworkSource,
-		arg.DesignationGroupID,
-		arg.ClaimTokenHash,
-		arg.LeaseUntil,
-		arg.HeartbeatAt,
-		arg.QueuedAt,
-		arg.ClaimedAt,
-		arg.StartedAt,
-		arg.EndedAt,
-		arg.TokensUsed,
-		arg.Error,
-		arg.MetadataJson,
-		arg.ResultJson,
-		arg.ReviewRequired,
-		arg.ReviewRequestRound,
-		arg.ReviewPolicySnapshot,
-		arg.ReviewRequestID,
-		arg.ParentRunID,
-		arg.ReviewID,
-		arg.ReviewRound,
-		arg.ContinuationReason,
-		arg.MissingWorkJson,
-		arg.NextRoundGuidance,
-		arg.NetworkWakeID,
-		arg.NetworkTargetSessionID,
-		arg.NetworkOwnerKey,
-		arg.ID,
-	)
+func (q *Queries) UpdateTaskRunMetadata(ctx context.Context, arg UpdateTaskRunMetadataParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateTaskRunMetadata, arg.MetadataJson, arg.ID, arg.ExpectedMetadataJson)
 	if err != nil {
 		return 0, err
 	}

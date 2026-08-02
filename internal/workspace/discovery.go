@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/compozy/compozy/internal/fileutil"
 )
 
 func (r *Resolver) lookupWorkspaceByEnclosingRoot(
@@ -85,11 +87,8 @@ func SelectNearestEnclosingRoot(
 }
 
 func pathIsWithinRoot(path string, root string) bool {
-	relative, err := filepath.Rel(root, path)
-	if err == nil && (relative == "." ||
-		(relative != ".." &&
-			!strings.HasPrefix(relative, ".."+string(filepath.Separator)) &&
-			!filepath.IsAbs(relative))) {
+	contained, err := fileutil.PathWithinRoot(root, path)
+	if err == nil && contained {
 		return true
 	}
 

@@ -3,10 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"io"
-	"net"
-	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -14,6 +11,7 @@ import (
 	bridgepkg "github.com/compozy/compozy/internal/bridges/contract"
 	"github.com/compozy/compozy/internal/bridgesdk"
 	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
+	"github.com/compozy/compozy/internal/extensiontest"
 	"github.com/compozy/compozy/internal/subprocess"
 )
 
@@ -68,42 +66,15 @@ func TestGitHubRuntimeProgressDeliveryAcknowledgesWithoutPlatformSideEffects(t *
 func newGitHubRuntimePeerPair(t *testing.T) (*githubProvider, *bridgesdk.Peer, func()) {
 	t.Helper()
 
-	hostConn, runtimeConn := net.Pipe()
 	provider, err := newGitHubProvider(io.Discard)
 	if err != nil {
 		t.Fatalf("newGitHubProvider() error = %v", err)
 	}
-	hostPeer := bridgesdk.NewPeer(hostConn, hostConn)
-	ctx, cancel := context.WithCancel(context.Background())
-	errCh := make(chan error, 2)
-	go func() { errCh <- provider.serve(runtimeConn, runtimeConn) }()
-	go func() { errCh <- hostPeer.Serve(ctx) }()
-
-	cleanup := func() {
-		cancel()
-		provider.lifecycle.Stop()
-		if err := hostConn.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
-			t.Errorf("hostConn.Close() error = %v", err)
-		}
-		if err := runtimeConn.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
-			t.Errorf("runtimeConn.Close() error = %v", err)
-		}
-		for range 2 {
-			err := <-errCh
-			if err == nil || errors.Is(err, context.Canceled) || errors.Is(err, net.ErrClosed) {
-				continue
-			}
-			if strings.Contains(err.Error(), "closed") {
-				continue
-			}
-			t.Errorf("runtime peer serve error = %v", err)
-		}
-		waitCtx, waitCancel := context.WithTimeout(context.Background(), time.Second)
-		defer waitCancel()
-		if err := provider.lifecycle.Wait(waitCtx); err != nil {
-			t.Errorf("provider lifecycle wait error = %v", err)
-		}
-	}
+	hostPeer, cleanup := extensiontest.NewRuntimePeerPair(t, extensiontest.RuntimePeerPairConfig{
+		ServeRuntime: provider.serve,
+		Stop:         provider.lifecycle.Stop,
+		Wait:         provider.lifecycle.Wait,
+	})
 	return provider, hostPeer, cleanup
 }
 

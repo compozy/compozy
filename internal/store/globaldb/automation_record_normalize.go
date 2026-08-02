@@ -15,7 +15,11 @@ func (g *AutomationRepo) normalizeJobForCreate(job automation.Job) (automation.J
 		normalized.Source = automation.JobSourceDynamic
 	}
 	if strings.TrimSpace(normalized.ID) == "" {
-		normalized.ID = store.NewID("job")
+		generatedID, err := store.NewID("job")
+		if err != nil {
+			return automation.Job{}, fmt.Errorf("store: generate automation job id: %w", err)
+		}
+		normalized.ID = generatedID
 	}
 	if normalized.CreatedAt.IsZero() {
 		normalized.CreatedAt = g.now()
@@ -49,7 +53,11 @@ func (g *AutomationRepo) normalizeTriggerForCreate(trigger automation.Trigger) (
 		normalized.Source = automation.JobSourceDynamic
 	}
 	if strings.TrimSpace(normalized.ID) == "" {
-		normalized.ID = store.NewID("trg")
+		generatedID, err := store.NewID("trg")
+		if err != nil {
+			return automation.Trigger{}, fmt.Errorf("store: generate automation trigger id: %w", err)
+		}
+		normalized.ID = generatedID
 	}
 	if normalized.CreatedAt.IsZero() {
 		normalized.CreatedAt = g.now()
@@ -80,7 +88,11 @@ func (g *AutomationRepo) normalizeTriggerForUpdate(trigger automation.Trigger) (
 func (g *AutomationRepo) normalizeRunForCreate(run automation.Run) (automation.Run, error) {
 	normalized := normalizeAutomationRun(run)
 	if strings.TrimSpace(normalized.ID) == "" {
-		normalized.ID = store.NewID("run")
+		generatedID, err := store.NewID("run")
+		if err != nil {
+			return automation.Run{}, fmt.Errorf("store: generate automation run id: %w", err)
+		}
+		normalized.ID = generatedID
 	}
 	if normalized.Attempt == 0 {
 		normalized.Attempt = 1

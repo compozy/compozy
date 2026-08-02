@@ -233,7 +233,6 @@ export const CreateNativeCli: Story = {
           name: "codex",
           display_name: "Codex",
           command: "codex",
-          auth_login_command: "codex login",
           auth_status_command: "codex auth status",
         }),
       }}

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"maps"
 	"reflect"
+	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/config/lifecycle"
@@ -50,8 +51,8 @@ func (s *service) classifyProviderWrite(
 		return providerWriteClassification{}, nil
 	}
 
-	currentNormalized := providerConfigFromSettings(providerSettingsBaseFromConfig(name, currentProvider))
-	nextNormalized := providerConfigFromSettings(providerSettingsBaseFromConfig(name, nextProvider))
+	currentNormalized := providerConfigFromSettings(providerWriteSettingsFromConfig(name, currentProvider))
+	nextNormalized := providerConfigFromSettings(providerWriteSettingsFromConfig(name, nextProvider))
 	currentModels := currentNormalized.Models
 	nextModels := nextNormalized.Models
 	currentNormalized.Models = compozyconfig.ProviderModelsConfig{}
@@ -66,6 +67,16 @@ func (s *service) classifyProviderWrite(
 	nextRawCurated := providerModelConfigsFromSettings(settings.Models.Curated)
 	classification.noOp = reflect.DeepEqual(currentRawCurated, nextRawCurated)
 	return classification, nil
+}
+
+func providerWriteSettingsFromConfig(
+	name string,
+	provider compozyconfig.ProviderConfig,
+) ProviderSettings {
+	settings := providerSettingsBaseFromConfig(name, provider)
+	settings.AuthLoginCmd = strings.TrimSpace(provider.AuthLoginCmd)
+	settings.AuthLoginCmdSet = true
+	return settings
 }
 
 func mutationResultForProvider(target WriteTargetKind, modelOnly bool) MutationResult {

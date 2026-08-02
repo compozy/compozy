@@ -2,25 +2,47 @@ package support
 
 import (
 	"errors"
-
 	"os"
-
 	"strings"
 	"sync"
 	"time"
 )
 
 type operationStore struct {
-	mu  sync.RWMutex
-	now func() time.Time
-	ops map[string]Operation
+	mu         sync.RWMutex
+	now        func() time.Time
+	removeFile func(string) error
+	ops        map[string]Operation
+}
+
+type expiredOperationArtifact struct {
+	operationID string
+	filePath    string
+	completedAt time.Time
+}
+
+type expiredArtifactCleanupFailure struct {
+	operationID string
+	cause       error
+}
+
+func (f expiredArtifactCleanupFailure) Error() string {
+	return "support: remove expired bundle artifact"
+}
+
+func (f expiredArtifactCleanupFailure) Unwrap() error {
+	return f.cause
 }
 
 func newOperationStore(now func() time.Time) *operationStore {
 	if now == nil {
 		now = func() time.Time { return time.Now().UTC() }
 	}
-	return &operationStore{now: now, ops: make(map[string]Operation)}
+	return &operationStore{
+		now:        now,
+		removeFile: os.Remove,
+		ops:        make(map[string]Operation),
+	}
 }
 
 func (s *operationStore) create(operationID string) Operation {
@@ -71,24 +93,58 @@ func (s *operationStore) update(operationID string, fn func(*Operation, time.Tim
 	s.ops[operationID] = op
 }
 
-func (s *operationStore) cleanup(retention time.Duration) {
+func (s *operationStore) cleanup(retention time.Duration) []expiredArtifactCleanupFailure {
 	if retention <= 0 {
-		return
+		return nil
 	}
 	cutoff := s.now().UTC().Add(-retention)
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	candidates := s.expiredArtifacts(cutoff)
+	failures := make([]expiredArtifactCleanupFailure, 0)
+	for _, candidate := range candidates {
+		if strings.TrimSpace(candidate.filePath) != "" {
+			if err := s.removeFile(candidate.filePath); err != nil && !errors.Is(err, os.ErrNotExist) {
+				failures = append(failures, expiredArtifactCleanupFailure{
+					operationID: candidate.operationID,
+					cause:       err,
+				})
+				continue
+			}
+		}
+		s.deleteIfUnchanged(candidate, cutoff)
+	}
+	return failures
+}
+
+func (s *operationStore) expiredArtifacts(cutoff time.Time) []expiredOperationArtifact {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	artifacts := make([]expiredOperationArtifact, 0)
 	for id, op := range s.ops {
 		if op.CompletedAt == nil || op.CompletedAt.After(cutoff) {
 			continue
 		}
-		if strings.TrimSpace(op.FilePath) != "" {
-			if removeErr := os.Remove(op.FilePath); removeErr != nil && !errors.Is(removeErr, os.ErrNotExist) {
-				continue
-			}
-		}
-		delete(s.ops, id)
+		artifacts = append(artifacts, expiredOperationArtifact{
+			operationID: id,
+			filePath:    op.FilePath,
+			completedAt: *op.CompletedAt,
+		})
 	}
+	return artifacts
+}
+
+func (s *operationStore) deleteIfUnchanged(candidate expiredOperationArtifact, cutoff time.Time) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	op, ok := s.ops[candidate.operationID]
+	if !ok || op.CompletedAt == nil || op.CompletedAt.After(cutoff) {
+		return
+	}
+	if op.FilePath != candidate.filePath || !op.CompletedAt.Equal(candidate.completedAt) {
+		return
+	}
+	delete(s.ops, candidate.operationID)
 }
 
 func cloneOperation(op Operation) Operation {

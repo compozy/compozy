@@ -237,6 +237,8 @@ func newOutputTestCommand(t *testing.T, mode OutputFormat) (*cobra.Command, *byt
 	output := &bytes.Buffer{}
 	cmd.SetOut(output)
 	cmd.Flags().String(outputFlagName, string(OutputHuman), "output format")
-	_ = cmd.Flags().Set(outputFlagName, string(mode))
+	if err := cmd.Flags().Set(outputFlagName, string(mode)); err != nil {
+		t.Fatalf("Flags().Set(%s) error = %v", outputFlagName, err)
+	}
 	return cmd, output
 }

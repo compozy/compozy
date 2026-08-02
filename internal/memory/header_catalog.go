@@ -30,7 +30,7 @@ func (s *Store) CatalogHeaders(ctx context.Context, scope memcontract.Scope) ([]
 	)
 
 	if s.catalog == nil {
-		headers, err := s.scan(normalizedScope, 0)
+		headers, err := s.scan(ctx, normalizedScope, 0)
 		if err != nil {
 			return nil, err
 		}

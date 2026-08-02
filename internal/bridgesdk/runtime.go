@@ -1,11 +1,8 @@
 package bridgesdk
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"strings"
 	"sync"
@@ -137,7 +134,10 @@ func (r *Runtime) Serve(ctx context.Context, stdin io.Reader, stdout io.Writer) 
 		return errors.New("bridgesdk: runtime context is required")
 	}
 
-	peer := NewPeer(stdin, stdout)
+	peer, err := NewPeer(stdin, stdout)
+	if err != nil {
+		return err
+	}
 	if err := peer.Handle("initialize", r.handleInitialize); err != nil {
 		return err
 	}
@@ -279,203 +279,4 @@ func (s *Session) ReportClassifiedError(
 		return nil, recovery, err
 	}
 	return updated, recovery, nil
-}
-
-func (r *Runtime) handleInitialize(ctx context.Context, raw json.RawMessage) (any, error) {
-	if r == nil {
-		return nil, errors.New("bridgesdk: runtime is required")
-	}
-
-	var request subprocess.InitializeRequest
-	if err := decodeParams(raw, &request); err != nil {
-		return nil, err
-	}
-	if err := request.Validate(); err != nil {
-		return nil, subprocess.NewRPCError(bridgeSDKRPCCodeInvalidParams, "Invalid params", map[string]string{
-			runtimeErrorKey: err.Error(),
-		})
-	}
-	if request.Runtime.Bridge == nil {
-		return nil, subprocess.NewRPCError(bridgeSDKRPCCodeInvalidParams, "Invalid params", map[string]string{
-			runtimeErrorKey: "initialize bridge runtime is required",
-		})
-	}
-
-	r.mu.Lock()
-	if r.session != nil || r.initializing {
-		r.mu.Unlock()
-		return nil, subprocess.NewRPCError(bridgeSDKRPCCodeInternal, "Internal error", map[string]string{
-			runtimeErrorKey: "provider runtime already initialized",
-		})
-	}
-	peer := r.peer
-	r.initializing = true
-	r.mu.Unlock()
-
-	control := request.Runtime.Bridge.Purpose == subprocess.BridgeRuntimePurposeControl
-	if control {
-		if err := r.validateControlHandler(request.Runtime.Bridge); err != nil {
-			r.mu.Lock()
-			r.initializing = false
-			r.mu.Unlock()
-			return nil, err
-		}
-	}
-	var host *HostAPIClient
-	if !control {
-		host = NewHostAPIClient(peer)
-	}
-	cache := NewInstanceCache(request.Runtime.Bridge)
-	response := r.initializeResponse(request)
-	session := &Session{
-		request:  request,
-		response: response,
-		host:     host,
-		cache:    cache,
-		now:      r.config.Now,
-	}
-
-	if !control && r.config.Initialize != nil {
-		if err := r.config.Initialize(ctx, session); err != nil {
-			r.mu.Lock()
-			r.initializing = false
-			r.mu.Unlock()
-			return nil, err
-		}
-	}
-
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if err := ctx.Err(); err != nil {
-		r.initializing = false
-		return nil, err
-	}
-	r.session = session
-	r.initializing = false
-	return response, nil
-}
-
-func (r *Runtime) handleTargetSnapshots(ctx context.Context, raw json.RawMessage) (any, error) {
-	session, err := r.requireServiceSession("bridge target snapshots")
-	if err != nil {
-		return nil, err
-	}
-
-	var request bridgepkg.BridgeTargetSnapshotRequest
-	if err := decodeParams(raw, &request); err != nil {
-		return nil, err
-	}
-	if err := request.Validate(); err != nil {
-		return nil, subprocess.NewRPCError(bridgeSDKRPCCodeInvalidParams, "Invalid params", map[string]string{
-			runtimeErrorKey: err.Error(),
-		})
-	}
-
-	targets, err := r.config.TargetSnapshots(ctx, session, request)
-	if err != nil {
-		return nil, err
-	}
-	response := bridgepkg.BridgeTargetSnapshotResponse{Targets: targets}
-	for index, target := range response.Targets {
-		if err := target.Validate(); err != nil {
-			return nil, subprocess.NewRPCError(bridgeSDKRPCCodeInvalidParams, "Invalid params", map[string]string{
-				runtimeErrorKey: fmt.Sprintf("target %d: %s", index, err.Error()),
-			})
-		}
-	}
-	return response, nil
-}
-
-func (r *Runtime) handleHealthCheck(ctx context.Context, _ json.RawMessage) (any, error) {
-	session, err := r.requireServiceSession("health check")
-	if err != nil {
-		return nil, err
-	}
-	if r.config.HealthCheck != nil {
-		if err := r.config.HealthCheck(ctx, session); err != nil {
-			return nil, err
-		}
-	}
-	return subprocess.HealthCheckResponse{Healthy: true}, nil
-}
-
-func (r *Runtime) handleShutdown(ctx context.Context, raw json.RawMessage) (any, error) {
-	session, err := r.requireSession()
-	if err != nil {
-		return nil, err
-	}
-
-	var request subprocess.ShutdownRequest
-	trimmedRaw := bytes.TrimSpace(raw)
-	if len(trimmedRaw) > 0 && !bytes.Equal(trimmedRaw, []byte("null")) {
-		if err := decodeParams(raw, &request); err != nil {
-			return nil, err
-		}
-	}
-
-	shouldRun, err := r.beginShutdown()
-	if err != nil {
-		return nil, err
-	}
-	if shouldRun {
-		var shutdownErr error
-		if !sessionIsControl(session) && r.config.Shutdown != nil {
-			shutdownErr = r.config.Shutdown(ctx, session, request)
-		}
-		r.completeShutdown(shutdownErr)
-		if shutdownErr != nil {
-			return nil, shutdownErr
-		}
-	}
-
-	return subprocess.ShutdownResponse{Acknowledged: true}, nil
-}
-
-func (r *Runtime) beginShutdown() (bool, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	switch r.shutdownState {
-	case runtimeShutdownSucceeded:
-		return false, nil
-	case runtimeShutdownRunning:
-		return false, subprocess.NewRPCError(bridgeSDKRPCCodeShutdownRunning, "Shutdown running", nil)
-	default:
-		r.shutdownState = runtimeShutdownRunning
-		return true, nil
-	}
-}
-
-func (r *Runtime) completeShutdown(err error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if err != nil {
-		r.shutdownState = runtimeShutdownIdle
-		return
-	}
-	r.shutdownState = runtimeShutdownSucceeded
-}
-
-func (r *Runtime) requireSession() (*Session, error) {
-	if r == nil {
-		return nil, errors.New("bridgesdk: runtime is required")
-	}
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	if r.session == nil {
-		return nil, subprocess.NewRPCError(bridgeSDKRPCCodeNotInitialized, "Not initialized", nil)
-	}
-	return r.session, nil
-}
-
-func decodeParams(raw json.RawMessage, dest any) error {
-	trimmed := bytes.TrimSpace(raw)
-	if len(trimmed) == 0 || bytes.Equal(trimmed, []byte("null")) {
-		raw = json.RawMessage("{}")
-	}
-	if err := json.Unmarshal(raw, dest); err != nil {
-		return subprocess.NewRPCError(bridgeSDKRPCCodeInvalidParams, "Invalid params", map[string]string{
-			runtimeErrorKey: err.Error(),
-		})
-	}
-	return nil
 }

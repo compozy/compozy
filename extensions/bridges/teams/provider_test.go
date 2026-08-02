@@ -25,6 +25,7 @@ import (
 	bridgepkg "github.com/compozy/compozy/internal/bridges/contract"
 	"github.com/compozy/compozy/internal/bridgesdk"
 	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
+	"github.com/compozy/compozy/internal/extensiontest"
 	"github.com/compozy/compozy/internal/subprocess"
 )
 
@@ -1687,8 +1688,8 @@ func TestTeamsCredentialedRequestsRejectRedirects(t *testing.T) {
 		if !errors.Is(err, readErr) {
 			t.Fatalf("callJSON() error = %v, want response body read failure", err)
 		}
-		var rateLimitErr *bridgesdk.RateLimitError
-		if !errors.As(err, &rateLimitErr) || rateLimitErr.RetryAfter != 3*time.Second {
+		rateLimitErr, rateLimitErrMatched := errors.AsType[*bridgesdk.RateLimitError](err)
+		if !rateLimitErrMatched || rateLimitErr.RetryAfter != 3*time.Second {
 			t.Fatalf("callJSON() error = %v, want rate limit with three-second retry", err)
 		}
 		if got, want := bridgesdk.ClassifyError(err).Class, bridgesdk.ErrorClassRateLimit; got != want {
@@ -1724,8 +1725,8 @@ func TestTeamsCredentialedRequestsRejectRedirects(t *testing.T) {
 		defer trusted.Close()
 
 		_, err := fetchTeamsOpenIDMetadata(context.Background(), trusted.URL)
-		var httpErr *bridgesdk.HTTPError
-		if !errors.As(err, &httpErr) || httpErr.StatusCode != http.StatusTemporaryRedirect {
+		httpErr, httpErrMatched := errors.AsType[*bridgesdk.HTTPError](err)
+		if !httpErrMatched || httpErr.StatusCode != http.StatusTemporaryRedirect {
 			t.Fatalf(
 				"fetchTeamsOpenIDMetadata(redirect) error = %v, want blocked redirect HTTP 307",
 				err,
@@ -1759,8 +1760,8 @@ func TestTeamsCredentialedRequestsRejectRedirects(t *testing.T) {
 		defer trusted.Close()
 
 		_, err := fetchTeamsJWKS(context.Background(), trusted.URL)
-		var httpErr *bridgesdk.HTTPError
-		if !errors.As(err, &httpErr) || httpErr.StatusCode != http.StatusTemporaryRedirect {
+		httpErr, httpErrMatched := errors.AsType[*bridgesdk.HTTPError](err)
+		if !httpErrMatched || httpErr.StatusCode != http.StatusTemporaryRedirect {
 			t.Fatalf("fetchTeamsJWKS(redirect) error = %v, want blocked redirect HTTP 307", err)
 		}
 
@@ -1799,8 +1800,8 @@ func TestTeamsCredentialedRequestsRejectRedirects(t *testing.T) {
 			httpClient: http.DefaultClient,
 		}
 		_, err := client.accessToken(context.Background())
-		var httpErr *bridgesdk.HTTPError
-		if !errors.As(err, &httpErr) || httpErr.StatusCode != http.StatusTemporaryRedirect {
+		httpErr, httpErrMatched := errors.AsType[*bridgesdk.HTTPError](err)
+		if !httpErrMatched || httpErr.StatusCode != http.StatusTemporaryRedirect {
 			t.Fatalf("accessToken(redirect) error = %v, want blocked redirect HTTP 307", err)
 		}
 
@@ -1854,8 +1855,8 @@ func TestTeamsCredentialedRequestsRejectRedirects(t *testing.T) {
 				"",
 				teamsOutboundActivity{Type: "message", Text: "hello"},
 			)
-			var httpErr *bridgesdk.HTTPError
-			if !errors.As(err, &httpErr) || httpErr.StatusCode != testCase.statusCode {
+			httpErr, httpErrMatched := errors.AsType[*bridgesdk.HTTPError](err)
+			if !httpErrMatched || httpErr.StatusCode != testCase.statusCode {
 				t.Fatalf(
 					"SendActivity(%d) error = %T %v, want first-response HTTPError",
 					testCase.statusCode,
@@ -1972,8 +1973,9 @@ func TestRuntimeDeliveriesCallTeamsAPI(t *testing.T) {
 
 func TestClassifyTeamsHTTPErrorAndHelpers(t *testing.T) {
 	rate := classifyTeamsHTTPError(http.StatusTooManyRequests, "5", "slow down")
-	var rateErr *bridgesdk.RateLimitError
-	if !errors.As(rate, &rateErr) {
+
+	rateErr, rateErrMatched := errors.AsType[*bridgesdk.RateLimitError](rate)
+	if !rateErrMatched {
 		t.Fatalf("classifyTeamsHTTPError(rate) = %T, want *RateLimitError", rate)
 	}
 	if got, want := rateErr.RetryAfter, 5*time.Second; got != want {
@@ -2755,10 +2757,10 @@ func TestWebhookRejectsDuplicateSharedPath(t *testing.T) {
 func TestRunServeCoverage(t *testing.T) {
 	t.Parallel()
 
-	if err := runServe(strings.NewReader(""), io.Discard, io.Discard); err != nil {
+	if err := runServe(io.NopCloser(strings.NewReader("")), io.Discard, io.Discard); err != nil {
 		t.Fatalf("runServe(empty stdin) error = %v", err)
 	}
-	if err := run(nil, strings.NewReader(""), io.Discard, io.Discard); err != nil {
+	if err := run(nil, io.NopCloser(strings.NewReader("")), io.Discard, io.Discard); err != nil {
 		t.Fatalf("run(default serve) error = %v", err)
 	}
 }
@@ -2781,8 +2783,8 @@ func TestHandleWebhookRequestCoverage(t *testing.T) {
 		Body:       []byte("{"),
 		ReceivedAt: time.Now().UTC(),
 	})
-	var httpErr *bridgesdk.HTTPError
-	if !errors.As(err, &httpErr) || httpErr.StatusCode != http.StatusBadRequest {
+	httpErr, httpErrMatched := errors.AsType[*bridgesdk.HTTPError](err)
+	if !httpErrMatched || httpErr.StatusCode != http.StatusBadRequest {
 		t.Fatalf("handleWebhookRequest(invalid json) error = %v, want bad request http error", err)
 	}
 
@@ -3275,49 +3277,16 @@ func teamsReactionWebhook(serviceURL string) string {
 func newRuntimePeerPair(t *testing.T) (*teamsProvider, *bridgesdk.Peer, func()) {
 	t.Helper()
 
-	hostConn, runtimeConn := net.Pipe()
 	runtime, err := newTeamsProvider(io.Discard)
 	if err != nil {
 		t.Fatalf("newTeamsProvider() error = %v", err)
 	}
-
-	hostPeer := bridgesdk.NewPeer(hostConn, hostConn)
-	ctx, cancel := context.WithCancel(context.Background())
-	errCh := make(chan error, 2)
-	go func() { errCh <- runtime.serve(runtimeConn, runtimeConn) }()
-	go func() { errCh <- hostPeer.Serve(ctx) }()
-
-	var once sync.Once
-	cleanup := func() {
-		once.Do(func() {
-			cancel()
-			runtime.lifecycle.Stop()
-			shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 2*time.Second)
-			if err := runtime.http.Shutdown(shutdownCtx); err != nil {
-				t.Fatalf("provider HTTP shutdown error = %v", err)
-			}
-			shutdownCancel()
-			if err := hostConn.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
-				t.Errorf("host connection close error = %v", err)
-			}
-			if err := runtimeConn.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
-				t.Errorf("runtime connection close error = %v", err)
-			}
-			for range 2 {
-				err := <-errCh
-				if err == nil || errors.Is(err, context.Canceled) || errors.Is(err, net.ErrClosed) {
-					continue
-				}
-				if strings.Contains(err.Error(), "closed") {
-					continue
-				}
-				t.Fatalf("runtime peer serve error = %v", err)
-			}
-			if err := runtime.lifecycle.Wait(context.Background()); err != nil {
-				t.Fatalf("provider lifecycle wait error = %v", err)
-			}
-		})
-	}
+	hostPeer, cleanup := extensiontest.NewRuntimePeerPair(t, extensiontest.RuntimePeerPairConfig{
+		ServeRuntime: runtime.serve,
+		Stop:         runtime.lifecycle.Stop,
+		Shutdown:     runtime.http.Shutdown,
+		Wait:         runtime.lifecycle.Wait,
+	})
 	return runtime, hostPeer, cleanup
 }
 

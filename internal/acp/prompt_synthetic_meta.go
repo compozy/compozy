@@ -1,7 +1,6 @@
 package acp
 
 import (
-	"errors"
 	"strings"
 )
 
@@ -52,7 +51,7 @@ func (m PromptSyntheticMeta) IsZero() bool {
 func (m PromptSyntheticMeta) Validate() error {
 	normalized := m.Normalize()
 	if normalized.Reason == "" {
-		return errors.New("acp: synthetic prompt metadata requires a reason")
+		return invalidPromptMetadata("acp: synthetic prompt metadata requires a reason")
 	}
 	if normalized.Goal != nil {
 		return normalized.Goal.Validate()

@@ -3,6 +3,7 @@ package ledger
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -34,8 +35,13 @@ var (
 	ErrInvalidRecord = errors.New("sessions/ledger: invalid session ledger record")
 )
 
-// EventStoreOpener opens the live session event database for read-only projection.
-type EventStoreOpener func(ctx context.Context, sessionID string, path string) (store.EventReadCloser, error)
+// EventStoreOpener opens the live session event database for the exact immutable
+// owner. Implementations must forward both owner fields unchanged.
+type EventStoreOpener func(
+	ctx context.Context,
+	owner store.SessionDBOwner,
+	path string,
+) (store.EventReadCloser, error)
 
 // Config controls forensic ledger materialization.
 type Config struct {
@@ -88,6 +94,7 @@ type ledgerEventLine struct {
 
 type ledgerTarget struct {
 	path        string
+	sessionID   string
 	workspaceID string
 }
 
@@ -158,7 +165,10 @@ func (m *Materializer) Materialize(ctx context.Context, record store.SessionLedg
 	if eventsDBPath == "" {
 		return Result{}, fmt.Errorf("%w: events db path is required", ErrInvalidRecord)
 	}
-	recorder, err := m.openEventStore(ctx, strings.TrimSpace(record.SessionID), eventsDBPath)
+	recorder, err := m.openEventStore(ctx, store.SessionDBOwner{
+		SessionID:   target.sessionID,
+		WorkspaceID: target.workspaceID,
+	}, eventsDBPath)
 	if err != nil {
 		return Result{}, fmt.Errorf("sessions/ledger: open event store for %q: %w", record.SessionID, err)
 	}
@@ -233,15 +243,20 @@ func (m *Materializer) target(record store.SessionLedgerRecord) (ledgerTarget, e
 	}
 	return ledgerTarget{
 		path:        filepath.Join(m.rootDir, partition, sessionID, ledgerFileName),
+		sessionID:   sessionID,
 		workspaceID: partition,
 	}, nil
 }
 
-func openReadOnlyEventStore(ctx context.Context, sessionID string, path string) (store.EventReadCloser, error) {
+func openReadOnlyEventStore(
+	ctx context.Context,
+	owner store.SessionDBOwner,
+	path string,
+) (store.EventReadCloser, error) {
 	if strings.TrimSpace(path) == "" {
 		return nil, fmt.Errorf("%w: events db path is required", ErrInvalidRecord)
 	}
-	return sessiondb.OpenSessionDBReadOnly(ctx, sessionID, path)
+	return sessiondb.OpenSessionDBReadOnly(ctx, owner, path)
 }
 
 func renderLedger(record store.SessionLedgerRecord, workspaceID string, events []store.SessionEvent) ([]byte, error) {
@@ -268,7 +283,7 @@ func renderLedger(record store.SessionLedgerRecord, workspaceID string, events [
 		line := ledgerEventLine{
 			Type:      "session_event",
 			Version:   ledgerVersion,
-			SessionID: strings.TrimSpace(firstNonEmpty(event.SessionID, record.SessionID)),
+			SessionID: cmp.Or(strings.TrimSpace(event.SessionID), strings.TrimSpace(record.SessionID)),
 			Sequence:  event.Sequence,
 			EventID:   strings.TrimSpace(event.ID),
 			TurnID:    strings.TrimSpace(event.TurnID),
@@ -355,14 +370,4 @@ func formatLedgerTime(value time.Time) string {
 		return ""
 	}
 	return value.UTC().Format(time.RFC3339Nano)
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		trimmed := strings.TrimSpace(value)
-		if trimmed != "" {
-			return trimmed
-		}
-	}
-	return ""
 }

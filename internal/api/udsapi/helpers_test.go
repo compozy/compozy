@@ -649,7 +649,12 @@ func newUnixClient(t *testing.T, socketPath string) *http.Client {
 
 	transport := &http.Transport{
 		DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
-			return (&net.Dialer{}).DialContext(ctx, "unix", socketPath)
+			return (&net.Dialer{}).DialUnix(
+				ctx,
+				"unix",
+				nil,
+				&net.UnixAddr{Name: socketPath, Net: "unix"},
+			)
 		},
 	}
 	t.Cleanup(transport.CloseIdleConnections)

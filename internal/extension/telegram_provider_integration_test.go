@@ -385,7 +385,7 @@ func postTelegramProviderWebhook(t *testing.T, url string, secret string, payloa
 			continue
 		}
 		payload, readErr := io.ReadAll(resp.Body)
-		_ = resp.Body.Close()
+		closeProviderIntegrationBody(t, resp.Body)
 		if readErr != nil {
 			t.Fatalf("io.ReadAll(response body) error = %v", readErr)
 		}
@@ -441,7 +441,10 @@ func newTelegramProviderAPIServer(t *testing.T) *telegramProviderAPIServer {
 		method := filepath.Base(r.URL.Path)
 		body := map[string]any{}
 		if r.Body != nil {
-			_ = json.NewDecoder(r.Body).Decode(&body)
+			if !decodeProviderIntegrationJSON(t, r.Body, &body) {
+				http.Error(w, "invalid JSON request", http.StatusBadRequest)
+				return
+			}
 		}
 
 		srv.mu.Lock()
@@ -461,7 +464,7 @@ func newTelegramProviderAPIServer(t *testing.T) *telegramProviderAPIServer {
 			writeTelegramProviderAPIResponse(t, w, true)
 		default:
 			w.WriteHeader(http.StatusNotFound)
-			_ = json.NewEncoder(w).Encode(map[string]any{
+			writeProviderIntegrationJSON(t, w, map[string]any{
 				"ok":          false,
 				"error_code":  http.StatusNotFound,
 				"description": "unknown method",
@@ -499,10 +502,8 @@ func writeTelegramProviderAPIResponse(t *testing.T, w http.ResponseWriter, resul
 	t.Helper()
 
 	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(map[string]any{
+	writeProviderIntegrationJSON(t, w, map[string]any{
 		"ok":     true,
 		"result": result,
-	}); err != nil {
-		t.Fatalf("json.NewEncoder().Encode() error = %v", err)
-	}
+	})
 }

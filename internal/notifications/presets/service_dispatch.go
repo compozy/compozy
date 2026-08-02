@@ -2,12 +2,10 @@ package presets
 
 import (
 	"context"
-
 	"errors"
 	"fmt"
 
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
-
 	"github.com/compozy/compozy/internal/notifications"
 )
 
@@ -18,22 +16,40 @@ func (s *Service) dispatchPreset(
 ) (DispatchResult, error) {
 	compiled, err := CompileFilter(preset.Filter)
 	if err != nil {
-		key := cursorKeyForTarget(preset, Target{}, event)
+		key, keyErr := cursorKeyForTarget(preset, Target{}, 0, event)
+		if keyErr != nil {
+			return DispatchResult{Failed: 1}, keyErr
+		}
 		return DispatchResult{Failed: 1}, s.recordDispatchError(ctx, key, preset, event, err)
 	}
 	if !compiled.Eval(event) {
 		return s.skipPresetTargets(ctx, preset, event, "filter")
 	}
 	if len(preset.Targets) == 0 {
-		key := cursorKeyForTarget(preset, Target{}, event)
-		_, advanceErr := s.advance(ctx, key, event, skipDeliveryID(preset, event, "no_targets"))
-		return DispatchResult{Skipped: 1}, advanceErr
+		return s.skipPresetTargets(ctx, preset, event, "no_targets")
 	}
 
+	result, joined := s.dispatchPresetTargets(ctx, preset, event)
+	if joined != nil {
+		return result, joined
+	}
+	return result, nil
+}
+
+func (s *Service) dispatchPresetTargets(
+	ctx context.Context,
+	preset Preset,
+	event Event,
+) (DispatchResult, error) {
 	result := DispatchResult{}
 	var joined error
 	for index, target := range preset.Targets {
-		cursorKey := cursorKeyForTarget(preset, target, event)
+		cursorKey, keyErr := cursorKeyForTarget(preset, target, index, event)
+		if keyErr != nil {
+			result.Failed++
+			joined = errors.Join(joined, keyErr)
+			continue
+		}
 		cursor, cursorErr := s.cursors.Get(ctx, cursorKey)
 		if cursorErr != nil && !errors.Is(cursorErr, notifications.ErrCursorNotFound) {
 			result.Failed++
@@ -44,7 +60,18 @@ func (s *Service) dispatchPreset(
 			result.Skipped++
 			continue
 		}
-		deliveryID := deliveryIDForTarget(preset, event, index)
+		deliveryID, deliveryIDErr := deliveryIDForTarget(
+			cursorKey,
+			preset,
+			target,
+			index,
+			event.Sequence,
+		)
+		if deliveryIDErr != nil {
+			result.Failed++
+			joined = errors.Join(joined, deliveryIDErr)
+			continue
+		}
 		err := s.deliverTarget(ctx, preset, event, target, deliveryID)
 		switch {
 		case err == nil:
@@ -55,11 +82,24 @@ func (s *Service) dispatchPreset(
 			}
 		case errors.Is(err, bridgepkg.ErrBridgeNotificationSuppressed):
 			result.Suppressed++
+			skippedID, skippedIDErr := skippedDeliveryID(
+				cursorKey,
+				preset,
+				target,
+				index,
+				event.Sequence,
+				"suppressed",
+			)
+			if skippedIDErr != nil {
+				result.Failed++
+				joined = errors.Join(joined, skippedIDErr)
+				continue
+			}
 			if _, advanceErr := s.advance(
 				ctx,
 				cursorKey,
 				event,
-				skipDeliveryID(preset, event, "suppressed"),
+				skippedID,
 			); advanceErr != nil {
 				result.Failed++
 				joined = errors.Join(joined, advanceErr)
@@ -69,10 +109,7 @@ func (s *Service) dispatchPreset(
 			joined = errors.Join(joined, s.recordDispatchError(ctx, cursorKey, preset, event, err))
 		}
 	}
-	if joined != nil {
-		return result, joined
-	}
-	return result, nil
+	return result, joined
 }
 
 func (s *Service) skipPresetTargets(
@@ -82,14 +119,33 @@ func (s *Service) skipPresetTargets(
 	reason string,
 ) (DispatchResult, error) {
 	if len(preset.Targets) == 0 {
-		key := cursorKeyForTarget(preset, Target{}, event)
-		_, err := s.advance(ctx, key, event, skipDeliveryID(preset, event, reason))
+		key, keyErr := cursorKeyForTarget(preset, Target{}, 0, event)
+		if keyErr != nil {
+			return DispatchResult{Failed: 1}, keyErr
+		}
+		deliveryID, deliveryIDErr := skippedDeliveryID(
+			key,
+			preset,
+			Target{},
+			0,
+			event.Sequence,
+			reason,
+		)
+		if deliveryIDErr != nil {
+			return DispatchResult{Failed: 1}, deliveryIDErr
+		}
+		_, err := s.advance(ctx, key, event, deliveryID)
 		return DispatchResult{Skipped: 1}, err
 	}
 	result := DispatchResult{}
 	var joined error
-	for _, target := range preset.Targets {
-		key := cursorKeyForTarget(preset, target, event)
+	for index, target := range preset.Targets {
+		key, keyErr := cursorKeyForTarget(preset, target, index, event)
+		if keyErr != nil {
+			result.Failed++
+			joined = errors.Join(joined, keyErr)
+			continue
+		}
 		cursor, cursorErr := s.cursors.Get(ctx, key)
 		if cursorErr != nil && !errors.Is(cursorErr, notifications.ErrCursorNotFound) {
 			result.Failed++
@@ -100,7 +156,20 @@ func (s *Service) skipPresetTargets(
 			result.Skipped++
 			continue
 		}
-		if _, err := s.advance(ctx, key, event, skipDeliveryID(preset, event, reason)); err != nil {
+		deliveryID, deliveryIDErr := skippedDeliveryID(
+			key,
+			preset,
+			target,
+			index,
+			event.Sequence,
+			reason,
+		)
+		if deliveryIDErr != nil {
+			result.Failed++
+			joined = errors.Join(joined, deliveryIDErr)
+			continue
+		}
+		if _, err := s.advance(ctx, key, event, deliveryID); err != nil {
 			result.Failed++
 			joined = errors.Join(joined, err)
 			continue

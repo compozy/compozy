@@ -66,7 +66,7 @@ func (s *SessionDB) scanSessionEvent(scanner rowScanner) (store.SessionEvent, er
 		return store.SessionEvent{}, err
 	}
 	event.Timestamp = parsed
-	event.SessionID = s.sessionID
+	event.SessionID = s.owner.SessionID
 	return event, nil
 }
 

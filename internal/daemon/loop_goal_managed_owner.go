@@ -19,7 +19,7 @@ func managedGoalTaskMatchesOwner(
 	owner session.ManagedInputOwner,
 ) bool {
 	return run.LoopRunID == owner.LoopRunID &&
-		metadata.Generation == owner.RunGeneration &&
+		int64(metadata.Generation) == owner.RunGeneration &&
 		metadata.GoalSegmentEpoch == owner.ControlEpoch
 }
 
@@ -44,7 +44,7 @@ func operationOwner(operation *managedGoalOperation) session.ManagedInputOwner {
 		OwnerKind:     operation.entry.OwnerKind,
 		LoopRunID:     operation.entry.LoopRunID,
 		TaskRunID:     operation.entry.TaskRunID,
-		RunGeneration: int(*operation.entry.RunGeneration),
+		RunGeneration: *operation.entry.RunGeneration,
 		PromptAttempt: operation.entry.PromptAttempt,
 		ControlEpoch:  *operation.entry.OwnerEpoch,
 		BindingEpoch:  *operation.entry.BindingEpoch,
@@ -63,7 +63,7 @@ func managedInputOwnerFromQueueEntry(entry *store.SessionInputQueueEntry) (sessi
 		OwnerKind:     entry.OwnerKind,
 		LoopRunID:     entry.LoopRunID,
 		TaskRunID:     entry.TaskRunID,
-		RunGeneration: int(*entry.RunGeneration),
+		RunGeneration: *entry.RunGeneration,
 		PromptAttempt: entry.PromptAttempt,
 		ControlEpoch:  *entry.OwnerEpoch,
 		BindingEpoch:  *entry.BindingEpoch,

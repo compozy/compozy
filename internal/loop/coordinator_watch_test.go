@@ -981,7 +981,7 @@ func BenchmarkFilterWatchEventsRows(b *testing.B) {
 
 		b.ReportAllocs()
 		b.ResetTimer()
-		for range b.N {
+		for b.Loop() {
 			if _, _, _, err := filterWatchEventsRows(
 				&watchEventsEvaluationContext{
 					control: controlEvalContext{

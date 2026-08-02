@@ -80,6 +80,6 @@ func executeExtensionInstallPlan(
 }
 
 func extensionInstallFallbackAllowed(err error) bool {
-	var apiErr *daemonAPIError
-	return errors.As(err, &apiErr) && apiErr.statusCode == http.StatusNotFound
+	apiErr, ok := errors.AsType[*daemonAPIError](err)
+	return ok && apiErr.statusCode == http.StatusNotFound
 }

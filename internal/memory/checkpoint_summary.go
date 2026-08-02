@@ -202,8 +202,8 @@ func RenderCheckpointSummaryPrompt(request CheckpointSummaryRequest) (string, er
 	return rendered.String(), nil
 }
 
-func loadCheckpointSummary(store *Store) (string, *memcontract.Header, error) {
-	state, err := loadCheckpointSummaryState(store)
+func loadCheckpointSummary(ctx context.Context, store *Store) (string, *memcontract.Header, error) {
+	state, err := loadCheckpointSummaryState(ctx, store)
 	return state.body, state.header, err
 }
 

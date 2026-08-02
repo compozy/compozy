@@ -43,6 +43,7 @@ func cloneResponseSpecs(specs []ResponseSpec) []ResponseSpec {
 	for index, spec := range specs {
 		cloned[index] = spec
 		cloned[index].Body = cloneSpecValue(spec.Body)
+		cloned[index].Bodies = spec.Bodies.clone()
 	}
 	return cloned
 }

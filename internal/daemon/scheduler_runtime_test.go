@@ -157,38 +157,35 @@ func TestSchedulerTaskSourcePendingRunsShouldExposeOnlyTaskAnchoredGenericWorker
 		if _, err := db.CreateLoopRunForStart(ctx, seedRun, loopdsl.ConcurrencyAllow); err != nil {
 			t.Fatalf("CreateLoopRunForStart() error = %v", err)
 		}
-		if _, _, _, err := db.ReserveQueuedRun(ctx, taskpkg.QueueRunReservation{
-			TaskID:         normalTask.ID,
-			RunID:          "run-normal-worker",
-			RunKind:        taskpkg.RunKindWorker,
-			IdempotencyKey: "scheduler.normal",
-			Origin:         taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "scheduler-test"},
-			QueuedAt:       now,
-		}); err != nil {
-			t.Fatalf("ReserveQueuedRun(normal) error = %v", err)
-		}
-		if _, _, _, err := db.ReserveQueuedRun(ctx, taskpkg.QueueRunReservation{
-			TaskID:         loopTask.ID,
-			RunID:          "run-loop-action",
-			RunKind:        taskpkg.RunKindWorker,
-			LoopRunID:      "looprun-scheduler-hidden",
-			IdempotencyKey: "scheduler.loop-action",
-			Origin:         taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "loop"},
-			QueuedAt:       now,
-		}); err != nil {
-			t.Fatalf("ReserveQueuedRun(loop) error = %v", err)
-		}
-		wake := taskpkg.Run{
-			ID: "run-network-wake", RunKind: taskpkg.RunKindNetworkWake,
-			WorkspaceID: "ws-scheduler",
-			Status:      taskpkg.TaskRunStatusQueued, Attempt: 1,
-			Origin:   taskpkg.Origin{Kind: taskpkg.OriginKindNetwork, Ref: "network.accept"},
-			QueuedAt: now,
-		}
-		wake.SetNetworkState(daemonTestLiveParticipation("ws-scheduler", "operations"), "wake-1", "sess-1", "owner-1")
-		if err := db.CreateTaskRun(ctx, wake); err != nil {
-			t.Fatalf("CreateTaskRun(network wake) error = %v", err)
-		}
+		enqueueSchedulerRunForTest(
+			t,
+			db,
+			now,
+			normalTask.ID,
+			"run-normal-worker",
+			taskpkg.RunKindWorker,
+			"",
+			"scheduler.normal",
+		)
+		enqueueSchedulerRunForTest(
+			t,
+			db,
+			now,
+			loopTask.ID,
+			"run-loop-action",
+			taskpkg.RunKindWorker,
+			"looprun-scheduler-hidden",
+			"scheduler.loop-action",
+		)
+		seedSchedulerNetworkWakeForTest(
+			t,
+			db,
+			now,
+			"ws-scheduler",
+			"run-network-wake",
+			"wake-1",
+			"sess-1",
+		)
 
 		pending, err := (schedulerTaskSource{store: db}).PendingRuns(ctx)
 		if err != nil {
@@ -201,23 +198,32 @@ func TestSchedulerTaskSourcePendingRunsShouldExposeOnlyTaskAnchoredGenericWorker
 			t.Fatalf("PendingRuns()[0].Run.ID = %q, want %q", got, want)
 		}
 
-		activeWake := taskpkg.Run{
-			ID: "run-network-wake-active", RunKind: taskpkg.RunKindNetworkWake,
-			WorkspaceID: "ws-scheduler", Status: taskpkg.TaskRunStatusClaimed, Attempt: 1,
-			Origin:   taskpkg.Origin{Kind: taskpkg.OriginKindNetwork, Ref: "network.accept"},
-			QueuedAt: now, ClaimedAt: now, HeartbeatAt: now, LeaseUntil: now.Add(time.Minute),
-			SessionID:      "sess-1",
-			ClaimTokenHash: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		if err := db.RegisterSession(ctx, store.SessionInfo{
+			ID: "sess-active", AgentName: "coder", Provider: "test",
+			WorkspaceID: "ws-scheduler", State: "active", CreatedAt: now, UpdatedAt: now,
+			RuntimeStatus: store.SessionRuntimeUnbound,
+		}); err != nil {
+			t.Fatalf("RegisterSession(active network wake target) error = %v", err)
 		}
-		activeWake.SetNetworkState(
-			daemonTestLiveParticipation("ws-scheduler", "operations"),
+		seedSchedulerNetworkWakeForTest(
+			t,
+			db,
+			now,
+			"ws-scheduler",
+			"run-network-wake-active",
 			"wake-active",
-			"sess-1",
-			"owner-active",
+			"sess-active",
 		)
-		if err := db.CreateTaskRun(ctx, activeWake); err != nil {
-			t.Fatalf("CreateTaskRun(active network wake) error = %v", err)
-		}
+		activeClaim := claimSchedulerRunForTest(t, db, now, taskpkg.ClaimCriteria{
+			RunID:            "run-network-wake-active",
+			Scope:            taskpkg.ScopeWorkspace,
+			WorkspaceID:      "ws-scheduler",
+			RunKind:          taskpkg.RunKindNetworkWake,
+			TargetSessionID:  "sess-active",
+			ClaimerSessionID: "sess-active",
+			LeaseDuration:    time.Minute,
+		})
+		activeWake := activeClaim.Run
 		active, err := (schedulerTaskSource{store: db}).ActiveRuns(ctx)
 		if err != nil {
 			t.Fatalf("ActiveRuns() error = %v", err)
@@ -310,29 +316,24 @@ func TestSchedulerTaskSourceLoopCoordinatorBackstopShouldDeferAtWorkspaceCapacit
 	if err := db.CreateTask(ctx, activeTask); err != nil {
 		t.Fatalf("CreateTask(active) error = %v", err)
 	}
-	if err := db.CreateTaskRun(ctx, taskpkg.Run{
-		ID:          "run-backstop-capacity-active",
-		TaskID:      activeTask.ID,
-		WorkspaceID: workspaceID,
-		RunKind:     taskpkg.RunKindWorker,
-		Status:      taskpkg.TaskRunStatusQueued,
-		Attempt:     1,
-		Origin:      activeTask.Origin,
-		QueuedAt:    now,
-	}); err != nil {
-		t.Fatalf("CreateTaskRun(active) error = %v", err)
-	}
-	if _, err := db.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+	enqueueSchedulerRunForTest(
+		t,
+		db,
+		now,
+		activeTask.ID,
+		"run-backstop-capacity-active",
+		taskpkg.RunKindWorker,
+		"",
+		"scheduler.capacity.active",
+	)
+	claimSchedulerRunForTest(t, db, now, taskpkg.ClaimCriteria{
 		RunID:            "run-backstop-capacity-active",
 		Scope:            taskpkg.ScopeWorkspace,
 		WorkspaceID:      workspaceID,
 		RunKind:          taskpkg.RunKindWorker,
 		ClaimerSessionID: "sess-backstop-capacity",
 		LeaseDuration:    time.Minute,
-		Now:              now,
-	}); err != nil {
-		t.Fatalf("ClaimNextRun(active) error = %v", err)
-	}
+	})
 	seedCoordinatorBackstopRun(t, db, now, "capacity", 0, workspaceID)
 	manager, err := taskpkg.NewManager(
 		taskpkg.WithStore(db),
@@ -384,16 +385,6 @@ func TestSchedulerTaskSourceLoopCoordinatorBackstopShouldDeferWhileConsumerLease
 		}
 		seedCoordinatorBackstopRun(t, db, now, "active-consumer", 0, workspaceID)
 		seedCoordinatorBackstopRun(t, db, now, "active-consumer", 1, workspaceID)
-		if _, err := db.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
-			Scope:            taskpkg.ScopeWorkspace,
-			WorkspaceID:      workspaceID,
-			RunKind:          taskpkg.RunKindCoordinator,
-			ClaimerSessionID: loopCoordinatorSessionID,
-			LeaseDuration:    taskpkg.DefaultRunLeaseDuration,
-			Now:              now,
-		}); err != nil {
-			t.Fatalf("ClaimNextRun(active coordinator) error = %v", err)
-		}
 		manager, err := taskpkg.NewManager(
 			taskpkg.WithStore(db),
 			taskpkg.WithManagerNow(func() time.Time { return now }),
@@ -404,6 +395,16 @@ func TestSchedulerTaskSourceLoopCoordinatorBackstopShouldDeferWhileConsumerLease
 		actor, err := taskpkg.DeriveDaemonActorContext("scheduler", "daemon.scheduler")
 		if err != nil {
 			t.Fatalf("DeriveDaemonActorContext() error = %v", err)
+		}
+		if _, err := manager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			Scope:            taskpkg.ScopeWorkspace,
+			WorkspaceID:      workspaceID,
+			RunKind:          taskpkg.RunKindCoordinator,
+			ClaimerSessionID: loopCoordinatorSessionID,
+			LeaseDuration:    taskpkg.DefaultRunLeaseDuration,
+			Now:              now,
+		}, actor); err != nil {
+			t.Fatalf("ClaimNextRun(active coordinator) error = %v", err)
 		}
 
 		started, err := (schedulerTaskSource{manager: manager, store: db}).RunLoopCoordinatorBackstop(ctx, now, actor)
@@ -761,12 +762,27 @@ func TestSchedulerTaskSourceLoopRetryDueRecovery(t *testing.T) {
 			t.Fatalf("CreateLoopRunForStart() error = %v", err)
 		}
 		actor := schedulerCoordinatorActorContextForTest(t)
-		claim, err := db.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+		manager, err := taskpkg.NewManager(
+			taskpkg.WithStore(db),
+			taskpkg.WithCoordinatorRunner(schedulerBackstopCoordinatorRunner{}),
+			taskpkg.WithGenerationStateFinalizer(schedulerBackstopGenerationFinalizer{}),
+			taskpkg.WithCoordinatorTerminalStatusValidator(func(status string) bool {
+				return looppkg.Status(strings.TrimSpace(status)).Valid()
+			}),
+			taskpkg.WithCoordinatorTerminalHookStatusValidator(func(status string) bool {
+				return looppkg.Status(strings.TrimSpace(status)).Terminal()
+			}),
+			taskpkg.WithManagerNow(func() time.Time { return now }),
+		)
+		if err != nil {
+			t.Fatalf("task.NewManager() error = %v", err)
+		}
+		claim, err := manager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
 			Scope: taskpkg.ScopeWorkspace, WorkspaceID: workspaceID, RunKind: taskpkg.RunKindCoordinator,
 			ClaimerSessionID: "daemon-loop-retry-seed",
 			ClaimedBy:        &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: "loop-coordinator"},
 			LeaseDuration:    time.Minute, Now: now.Add(time.Millisecond),
-		})
+		}, actor)
 		if err != nil {
 			t.Fatalf("ClaimNextRun(seed) error = %v", err)
 		}
@@ -785,21 +801,6 @@ func TestSchedulerTaskSourceLoopRetryDueRecovery(t *testing.T) {
 			t.Fatalf("CompleteCoordinatorAndEnqueueNext(seed) error = %v", err)
 		}
 
-		manager, err := taskpkg.NewManager(
-			taskpkg.WithStore(db),
-			taskpkg.WithCoordinatorRunner(schedulerBackstopCoordinatorRunner{}),
-			taskpkg.WithGenerationStateFinalizer(schedulerBackstopGenerationFinalizer{}),
-			taskpkg.WithCoordinatorTerminalStatusValidator(func(status string) bool {
-				return looppkg.Status(strings.TrimSpace(status)).Valid()
-			}),
-			taskpkg.WithCoordinatorTerminalHookStatusValidator(func(status string) bool {
-				return looppkg.Status(strings.TrimSpace(status)).Terminal()
-			}),
-			taskpkg.WithManagerNow(func() time.Time { return now }),
-		)
-		if err != nil {
-			t.Fatalf("task.NewManager() error = %v", err)
-		}
 		started, err := (schedulerTaskSource{
 			manager: manager, store: db, loopRetryDueScan: newLoopRetryDueScanState(),
 		}).RunLoopCoordinatorBackstop(ctx, now, actor)
@@ -921,6 +922,146 @@ func (s retryDueErrorTaskStore) EnqueueDueLoopRetryWakesPage(
 	return nil, s.next, s.err
 }
 
+func enqueueSchedulerRunForTest(
+	t *testing.T,
+	db *globaldb.GlobalDB,
+	now time.Time,
+	taskID string,
+	runID string,
+	runKind taskpkg.RunKind,
+	loopRunID string,
+	idempotencyKey string,
+) taskpkg.Run {
+	t.Helper()
+
+	sequence := 0
+	manager, err := taskpkg.NewManager(
+		taskpkg.WithStore(db),
+		taskpkg.WithManagerNow(func() time.Time { return now }),
+		taskpkg.WithIDGenerator(func(prefix string) (string, error) {
+			if prefix == "run" {
+				return runID, nil
+			}
+			sequence++
+			return prefix + "-" + runID + "-" + strconv.Itoa(sequence), nil
+		}),
+	)
+	if err != nil {
+		t.Fatalf("task.NewManager(enqueue %q) error = %v", runID, err)
+	}
+	actor, err := taskpkg.DeriveDaemonActorContext("scheduler", "daemon.scheduler")
+	if err != nil {
+		t.Fatalf("DeriveDaemonActorContext(enqueue %q) error = %v", runID, err)
+	}
+	run, err := manager.EnqueueRun(testutil.Context(t), taskpkg.EnqueueRun{
+		TaskID:         taskID,
+		RunKind:        runKind,
+		LoopRunID:      loopRunID,
+		IdempotencyKey: idempotencyKey,
+	}, actor)
+	if err != nil {
+		t.Fatalf("EnqueueRun(%q) error = %v", runID, err)
+	}
+	if run.ID != runID {
+		t.Fatalf("EnqueueRun(%q).ID = %q", runID, run.ID)
+	}
+	return *run
+}
+
+func claimSchedulerRunForTest(
+	t *testing.T,
+	db *globaldb.GlobalDB,
+	now time.Time,
+	criteria taskpkg.ClaimCriteria,
+) taskpkg.ClaimResult {
+	t.Helper()
+
+	manager, err := taskpkg.NewManager(
+		taskpkg.WithStore(db),
+		taskpkg.WithManagerNow(func() time.Time { return now }),
+	)
+	if err != nil {
+		t.Fatalf("task.NewManager(claim) error = %v", err)
+	}
+	actor, err := taskpkg.DeriveDaemonActorContext("scheduler", "daemon.scheduler")
+	if err != nil {
+		t.Fatalf("DeriveDaemonActorContext(claim) error = %v", err)
+	}
+	criteria.Now = now
+	claim, err := manager.ClaimNextRun(testutil.Context(t), criteria, actor)
+	if err != nil {
+		t.Fatalf("ClaimNextRun(%q) error = %v", criteria.RunID, err)
+	}
+	return *claim
+}
+
+func seedSchedulerNetworkWakeForTest(
+	t *testing.T,
+	db *globaldb.GlobalDB,
+	now time.Time,
+	workspaceID string,
+	runID string,
+	wakeID string,
+	targetSessionID string,
+) taskpkg.Run {
+	t.Helper()
+
+	senderSessionID := "sender-" + runID
+	if err := db.RegisterSession(testutil.Context(t), store.SessionInfo{
+		ID: senderSessionID, AgentName: "coder", Provider: "test",
+		WorkspaceID: workspaceID, State: "active", CreatedAt: now, UpdatedAt: now,
+		RuntimeStatus: store.SessionRuntimeUnbound,
+	}); err != nil {
+		t.Fatalf("RegisterSession(%q) error = %v", senderSessionID, err)
+	}
+	directID, _, _, err := store.NetworkDirectRoomIdentity(
+		workspaceID,
+		"operations",
+		senderSessionID,
+		targetSessionID,
+	)
+	if err != nil {
+		t.Fatalf("NetworkDirectRoomIdentity(%q) error = %v", runID, err)
+	}
+	result, err := db.AcceptNetworkMessage(testutil.Context(t), store.AcceptNetworkMessageRequest{
+		Message: store.NetworkConversationMessage{
+			MessageID: "message-" + runID, SessionID: senderSessionID,
+			WorkspaceID: workspaceID, Channel: "operations",
+			Surface: store.NetworkSurfaceDirect, DirectID: directID,
+			Direction: "sent", PeerFrom: senderSessionID, PeerTo: targetSessionID,
+			Kind: store.NetworkKindSay, Text: "scheduler wake", PreviewText: "scheduler wake",
+			Body: []byte(`{"text":"scheduler wake"}`), Timestamp: now,
+		},
+		Dispositions: []store.NetworkMessageDisposition{{
+			RecipientSessionID: targetSessionID,
+			Decision:           store.NetworkDispositionDeliver,
+		}},
+		Admissions: []store.NetworkWakeAdmissionInput{{
+			WorkspaceID:        workspaceID,
+			RecipientSessionID: targetSessionID,
+			OwnerKey:           "session:" + targetSessionID,
+			Spec:               daemonTestLiveParticipation(workspaceID, "operations"),
+			Trigger:            store.NetworkWakeTriggerDirect,
+			Eligible:           true,
+			Addressed:          true,
+			RootID:             "message-" + runID,
+			WakeID:             wakeID,
+			TaskRunID:          runID,
+		}},
+	})
+	if err != nil {
+		t.Fatalf("AcceptNetworkMessage(%q) error = %v", runID, err)
+	}
+	if len(result.Admitted) != 1 || result.Admitted[0].TaskRunID != runID {
+		t.Fatalf("AcceptNetworkMessage(%q).Admitted = %#v", runID, result.Admitted)
+	}
+	run, err := db.GetTaskRun(testutil.Context(t), runID)
+	if err != nil {
+		t.Fatalf("GetTaskRun(%q) error = %v", runID, err)
+	}
+	return run
+}
+
 func seedCoordinatorBackstopRun(
 	t *testing.T,
 	db *globaldb.GlobalDB,
@@ -983,18 +1124,14 @@ func parkSchedulerWatchEventsLoopForTest(
 	}
 	runner := newSchedulerWatchEventsCoordinatorForTest(t, db, targetTask.ID, resolved)
 	actor := schedulerCoordinatorActorContextForTest(t)
-	claim, err := db.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+	claim := claimSchedulerRunForTest(t, db, now, taskpkg.ClaimCriteria{
 		Scope:            taskpkg.ScopeWorkspace,
 		WorkspaceID:      workspaceID,
 		RunKind:          taskpkg.RunKindCoordinator,
 		ClaimerSessionID: loopCoordinatorSessionID,
 		ClaimedBy:        &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: "loop-coordinator"},
 		LeaseDuration:    time.Minute,
-		Now:              now,
 	})
-	if err != nil {
-		t.Fatalf("ClaimNextRun(initial coordinator) error = %v", err)
-	}
 	plan, err := runner.Run(ctx, taskpkg.RunID(claim.Run.ID))
 	if err != nil {
 		t.Fatalf("Run(initial coordinator) error = %v", err)

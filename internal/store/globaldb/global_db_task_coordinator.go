@@ -33,8 +33,8 @@ func (g *TaskRepo) CompleteCoordinatorAndEnqueueNext(
 	if err != nil {
 		return taskpkg.CoordinatorCompletionResult{}, err
 	}
-
 	var result taskpkg.CoordinatorCompletionResult
+	var postCommitWakes []reservedCoordinatorWake
 	committed := normalized
 	if err := g.withTaskImmediateTransaction(
 		ctx,
@@ -50,36 +50,27 @@ func (g *TaskRepo) CompleteCoordinatorAndEnqueueNext(
 			if applyErr != nil {
 				return applyErr
 			}
+			reserved, reserveErr := g.reserveCoordinatorPostCommitWakes(attempt.Plan.PostCommitWakes)
+			if reserveErr != nil {
+				return reserveErr
+			}
 			result = applied
 			committed = attempt
+			postCommitWakes = reserved
 			return nil
 		},
 	); err != nil {
 		return taskpkg.CoordinatorCompletionResult{}, err
 	}
-	if err := g.enqueueCoordinatorPostCommitWakes(ctx, committed); err != nil {
+	if err := g.enqueueCoordinatorPostCommitWakes(
+		ctx,
+		postCommitWakes,
+		committed.Actor.Origin,
+		committed.Now,
+	); err != nil {
 		return result, err
 	}
 	return result, nil
-}
-
-func (g *TaskRepo) enqueueCoordinatorPostCommitWakes(
-	ctx context.Context,
-	completion taskpkg.CoordinatorCompletion,
-) error {
-	for _, wake := range completion.Plan.PostCommitWakes {
-		normalized := wake.Normalize()
-		if _, _, err := g.enqueueLoopCoordinatorWake(
-			ctx,
-			normalized.LoopRunID,
-			normalized.IdempotencyKey,
-			completion.Actor.Origin,
-			completion.Now,
-		); err != nil {
-			return fmt.Errorf("store: enqueue coordinator post-commit wake %q: %w", normalized.LoopRunID, err)
-		}
-	}
-	return nil
 }
 
 func (g *TaskRepo) completeCoordinatorAndEnqueueNextWithExecutor(
@@ -88,6 +79,13 @@ func (g *TaskRepo) completeCoordinatorAndEnqueueNextWithExecutor(
 	completion *taskpkg.CoordinatorCompletion,
 	finalizer taskpkg.GenerationStateFinalizer,
 ) (taskpkg.CoordinatorCompletionResult, error) {
+	completionEventID, err := g.newID("evt")
+	if err != nil {
+		return taskpkg.CoordinatorCompletionResult{}, fmt.Errorf(
+			"store: generate coordinator completion event id: %w",
+			err,
+		)
+	}
 	current, loopRunID, err := g.prepareCoordinatorCompletionWithExecutor(ctx, exec, *completion)
 	if err != nil {
 		return taskpkg.CoordinatorCompletionResult{}, err
@@ -132,7 +130,40 @@ func (g *TaskRepo) completeCoordinatorAndEnqueueNextWithExecutor(
 		return taskpkg.CoordinatorCompletionResult{}, err
 	}
 	result.Run = updated
-	return g.attachTerminalCoordinatorSettlementWithExecutor(ctx, exec, *completion, &result, updated)
+	result, err = g.attachTerminalCoordinatorSettlementWithExecutor(ctx, exec, *completion, &result, updated)
+	if err != nil {
+		return taskpkg.CoordinatorCompletionResult{}, err
+	}
+	if result.Settlement == nil {
+		return taskpkg.CoordinatorCompletionResult{}, fmt.Errorf(
+			"%w: coordinator completion settlement is required",
+			taskpkg.ErrValidation,
+		)
+	}
+	completionEvent, err := taskpkg.NewCoordinatorRunCompletedEvent(
+		completionEventID,
+		result.Run,
+		result.Settlement.Task,
+		completion.Actor,
+		completion.Now,
+	)
+	if err != nil {
+		return taskpkg.CoordinatorCompletionResult{}, err
+	}
+	if err := appendTaskEventWithExecutor(ctx, exec, EventRecordInsert{
+		ID:        completionEvent.ID,
+		TaskID:    completionEvent.TaskID,
+		RunID:     completionEvent.RunID,
+		EventType: completionEvent.EventType,
+		Actor:     completionEvent.Actor,
+		Origin:    completionEvent.Origin,
+		Payload:   completionEvent.Payload,
+		Timestamp: completionEvent.Timestamp,
+	}); err != nil {
+		return taskpkg.CoordinatorCompletionResult{}, err
+	}
+	result.CompletionEvent = completionEvent
+	return result, nil
 }
 
 type coordinatorBoundaryState struct {
@@ -342,28 +373,6 @@ func (g *TaskRepo) dispatchCoordinatorBoundaryWithExecutor(
 			result,
 		)
 	}
-}
-
-func shouldApplyCoordinatorBudgetExceededBoundary(
-	plan taskpkg.CoordinatorCompletionPlan,
-	budgetExceeded bool,
-) bool {
-	return !plan.Yield && plan.Terminal == nil && budgetExceeded
-}
-
-func coordinatorPlanHasContinuation(plan taskpkg.CoordinatorCompletionPlan) bool {
-	return len(plan.NodeRuns) > 0 || plan.NextCoordinator != nil
-}
-
-func shouldDeferCoordinatorBoundary(
-	plan taskpkg.CoordinatorCompletionPlan,
-	loopRun loop.Run,
-	budgetExceeded bool,
-) bool {
-	if !plan.GenerationInFlight {
-		return false
-	}
-	return plan.Terminal != nil || budgetExceeded || loopRun.PauseRequested
 }
 
 func applyCoordinatorYieldBoundary(

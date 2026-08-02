@@ -2,8 +2,8 @@ package marketplace
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
+	"fmt"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -187,8 +187,8 @@ func TestCatalogServiceDetailStatusAndSelection(t *testing.T) {
 		if !errors.Is(err, refreshErr) || !errors.Is(err, ErrEntryNotFound) {
 			t.Fatalf("ResolveExtensionInstall() error = %v, want refresh and missing-entry identities", err)
 		}
-		var resolutionErr *ExtensionInstallResolutionError
-		if !errors.As(err, &resolutionErr) || resolutionErr.RefreshErr == nil || resolutionErr.LookupErr == nil {
+		resolutionErr, resolutionErrMatched := errors.AsType[*ExtensionInstallResolutionError](err)
+		if !resolutionErrMatched || resolutionErr.RefreshErr == nil || resolutionErr.LookupErr == nil {
 			t.Fatalf("ResolveExtensionInstall() error = %#v, want combined resolution error", err)
 		}
 	})
@@ -269,8 +269,16 @@ func TestCatalogServiceRefreshErrorClasses(t *testing.T) {
 			wantClass: "manifest_version",
 		},
 		{name: "Should classify HTTP status", fetchErr: &httpStatusError{status: 503}, wantClass: "http_status"},
-		{name: "Should classify JSON decode", fetchErr: &json.SyntaxError{Offset: 1}, wantClass: "decode"},
-		{name: "Should classify validation", fetchErr: errors.New("name is required"), wantClass: "validation"},
+		{
+			name:      "Should classify JSON decode",
+			fetchErr:  fmt.Errorf("fixture decode failure: %w", ErrCatalogDecode),
+			wantClass: "decode",
+		},
+		{
+			name:      "Should classify validation",
+			fetchErr:  fmt.Errorf("fixture validation failure: %w", ErrCatalogValidation),
+			wantClass: "validation",
+		},
 		{
 			name:      "Should classify URL transport failure",
 			fetchErr:  &url.Error{Op: "Get", URL: "https://catalog.example.test", Err: errors.New("offline")},
@@ -520,6 +528,49 @@ func TestCatalogServiceRefreshLifecycle(t *testing.T) {
 		}
 	})
 
+	t.Run("Should bound and join refresh notification during close", func(t *testing.T) {
+		t.Parallel()
+
+		store := openMarketplaceTestStore(t)
+		now := time.Date(2026, time.August, 2, 12, 0, 0, 0, time.UTC)
+		notifier := newBlockingRefreshNotifier()
+		source := &recordingSource{kind: KindSkill, fetch: func(context.Context) (*Document, error) {
+			return testDocument(now, testEntry(KindSkill, "notified", "Notified", "Joined notification")), nil
+		}}
+		service := newMarketplaceTestService(t, store, source, now, notifier)
+		t.Cleanup(func() {
+			notifier.releaseNotification()
+			cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(t.Context()), time.Second)
+			defer cancel()
+			if err := service.Close(cleanupCtx); err != nil {
+				t.Errorf("cleanup Close() error = %v", err)
+			}
+		})
+
+		refreshResult := make(chan error, 1)
+		go func() {
+			_, err := service.Refresh(t.Context(), KindSkill)
+			refreshResult <- err
+		}()
+
+		if hasDeadline := <-notifier.started; !hasDeadline {
+			t.Fatal("NotifyCatalogRefresh() context has no deadline")
+		}
+		closeCtx, cancelClose := context.WithTimeout(t.Context(), time.Second)
+		defer cancelClose()
+		if err := service.Close(closeCtx); err != nil {
+			t.Fatalf("Close() error = %v, want joined notification", err)
+		}
+		select {
+		case <-notifier.stopped:
+		default:
+			t.Fatal("Close() returned before the refresh notification stopped")
+		}
+		if err := <-refreshResult; !errors.Is(err, ErrServiceClosed) || !errors.Is(err, context.Canceled) {
+			t.Fatalf("Refresh() error = %v, want ErrServiceClosed and context.Canceled", err)
+		}
+	})
+
 	t.Run("Should persist stale state after the service refresh deadline expires", func(t *testing.T) {
 		t.Parallel()
 
@@ -692,6 +743,41 @@ type recordingRefreshNotifier struct {
 	mu       sync.Mutex
 	outcomes []RefreshOutcome
 	err      error
+}
+
+type blockingRefreshNotifier struct {
+	started     chan bool
+	stopped     chan struct{}
+	release     chan struct{}
+	releaseOnce sync.Once
+}
+
+func newBlockingRefreshNotifier() *blockingRefreshNotifier {
+	return &blockingRefreshNotifier{
+		started: make(chan bool, 1),
+		stopped: make(chan struct{}),
+		release: make(chan struct{}),
+	}
+}
+
+func (n *blockingRefreshNotifier) NotifyCatalogRefresh(ctx context.Context, _ RefreshOutcome) error {
+	_, hasDeadline := ctx.Deadline()
+	n.started <- hasDeadline
+	defer close(n.stopped)
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-n.release:
+		return nil
+	}
+}
+
+func (n *blockingRefreshNotifier) NotifyInstall(context.Context, InstallOutcome) error { return nil }
+
+func (n *blockingRefreshNotifier) releaseNotification() {
+	n.releaseOnce.Do(func() {
+		close(n.release)
+	})
 }
 
 func (n *recordingRefreshNotifier) NotifyCatalogRefresh(_ context.Context, outcome RefreshOutcome) error {

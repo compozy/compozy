@@ -19,6 +19,10 @@ function read(path: string): string {
   return readFileSync(path, "utf8");
 }
 
+function collapseWhitespace(source: string): string {
+  return source.replace(/\s+/g, " ").trim();
+}
+
 function nonHardCutMatches(source: string, pattern: RegExp): string[] {
   return source.split(/\r?\n/).flatMap(line => {
     if (
@@ -136,8 +140,9 @@ describe("provider model catalog docs", () => {
     expect(source).toContain("out of scope");
   });
 
-  it("documents provider auth none and local login constraints", () => {
+  it("documents provider auth none and write-only local login constraints", () => {
     const providerSource = read(providersDoc);
+    const providerText = collapseWhitespace(providerSource);
     const configSource = read(configTomlDoc);
 
     for (const source of [providerSource, configSource]) {
@@ -152,10 +157,12 @@ describe("provider model catalog docs", () => {
       expect(source).toContain("name only");
     }
 
-    expect(providerSource).toContain("executes the configured login command locally");
-    expect(providerSource).toContain("--print-command");
+    expect(providerText).toContain("executes the configured login command locally");
+    expect(providerSource).toContain("write-only configuration input");
+    expect(providerSource).toContain("safe login descriptor");
+    expect(providerSource).not.toContain("--print-command");
     expect(providerSource).toContain("--no-tty");
     expect(providerSource).toContain("--timeout");
-    expect(providerSource).toContain("Remote HTTP/UDS surfaces never run login commands");
+    expect(providerSource).toContain("never execute login commands");
   });
 });

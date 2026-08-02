@@ -38,6 +38,7 @@ func (d *Daemon) bootSettings(ctx context.Context, state *bootState) error {
 		MCPRuntime:               surface,
 		MCPCatalog:               settingsMarketplaceCatalogDependency(state.marketplace),
 		MarketplaceInstallEvents: state.marketplaceNotifier,
+		MCPDefinitionRetirer:     state.mcpToolProvider,
 		ModelCatalog:             state.modelCatalog,
 		RuntimeApplier: daemonSettingsRuntimeApplier{
 			daemon:              d,
@@ -65,7 +66,9 @@ func (d *Daemon) bootSettings(ctx context.Context, state *bootState) error {
 	if err != nil {
 		return fmt.Errorf("daemon: create settings update manager: %w", err)
 	}
-	updateManager.PrimeInstallDetection(ctx)
+	if err := updateManager.PrimeInstallDetection(ctx); err != nil {
+		return fmt.Errorf("daemon: detect settings update install method: %w", err)
+	}
 
 	state.deps.Settings = service
 	state.deps.SettingsRestart = settingsRestartController{daemon: d}

@@ -18,41 +18,66 @@ import (
 )
 
 func TestDaemonSettingsRuntimeApplier(t *testing.T) {
-	// not parallel: this test mutates the provider pre-start process-wide cache.
-	t.Run("Should invalidate provider prestart cache after active config apply", func(t *testing.T) {
-		providers.InvalidatePreStartCache()
-		t.Cleanup(providers.InvalidatePreStartCache)
+	t.Run("Should invalidate only the owning provider prestart cache after active config apply", func(t *testing.T) {
+		t.Parallel()
 
-		calls := 0
-		env := &providers.ProbeEnv{
-			ProviderName: "config-apply-cache",
-			LookPath: func(string) (string, error) {
-				calls++
-				return "", exec.ErrNotFound
-			},
-		}
+		ownerCalls := 0
+		otherCalls := 0
+		ownerStarter := providers.NewPreStarter()
+		otherStarter := providers.NewPreStarter()
 		provider := compozyconfig.ProviderConfig{
 			Command:  "config-apply-cache acp",
 			AuthMode: compozyconfig.ProviderAuthModeNativeCLI,
 		}
-		assertMissingCLIReport(t, "first", providers.PreStart(t.Context(), provider, env))
-		assertMissingCLIReport(t, "cached", providers.PreStart(t.Context(), provider, env))
-		if calls != 1 {
-			t.Fatalf("PreStart LookPath calls before apply = %d, want 1", calls)
+		ownerEnv := &providers.ProbeEnv{
+			ProviderName: "config-apply-cache",
+			PreStartScope: providers.PreStartScope{
+				WorkspaceID:    "workspace-owner",
+				HomeIdentity:   "/provider-home-owner",
+				SandboxID:      "sandbox-owner",
+				SandboxBackend: "local",
+				SandboxProfile: "local",
+			},
+			LookPath: func(string) (string, error) {
+				ownerCalls++
+				return "", exec.ErrNotFound
+			},
+		}
+		otherEnv := &providers.ProbeEnv{
+			ProviderName: "config-apply-cache",
+			PreStartScope: providers.PreStartScope{
+				WorkspaceID:    "workspace-other",
+				HomeIdentity:   "/provider-home-other",
+				SandboxID:      "sandbox-other",
+				SandboxBackend: "local",
+				SandboxProfile: "local",
+			},
+			LookPath: func(string) (string, error) {
+				otherCalls++
+				return "", exec.ErrNotFound
+			},
+		}
+		assertMissingCLIReport(t, "first", ownerStarter.PreStart(t.Context(), provider, ownerEnv))
+		assertMissingCLIReport(t, "cached", ownerStarter.PreStart(t.Context(), provider, ownerEnv))
+		assertMissingCLIReport(t, "other first", otherStarter.PreStart(t.Context(), provider, otherEnv))
+		assertMissingCLIReport(t, "other cached", otherStarter.PreStart(t.Context(), provider, otherEnv))
+		if ownerCalls != 1 || otherCalls != 1 {
+			t.Fatalf("PreStart LookPath calls before apply = %d/%d, want 1/1", ownerCalls, otherCalls)
 		}
 
 		cfg := compozyconfig.Config{}
 		failures := daemonSettingsRuntimeApplier{
-			daemon: &Daemon{},
+			daemon: &Daemon{providerPreStarter: ownerStarter},
 			state:  &bootState{cfg: cfg},
 		}.ApplyActiveConfig(t.Context(), &cfg)
 		if len(failures) != 0 {
 			t.Fatalf("ApplyActiveConfig() failures = %#v, want none", failures)
 		}
 
-		assertMissingCLIReport(t, "after apply", providers.PreStart(t.Context(), provider, env))
-		if calls != 2 {
-			t.Fatalf("PreStart LookPath calls after apply = %d, want 2", calls)
+		assertMissingCLIReport(t, "owner after apply", ownerStarter.PreStart(t.Context(), provider, ownerEnv))
+		assertMissingCLIReport(t, "other after apply", otherStarter.PreStart(t.Context(), provider, otherEnv))
+		if ownerCalls != 2 || otherCalls != 1 {
+			t.Fatalf("PreStart LookPath calls after apply = %d/%d, want 2/1", ownerCalls, otherCalls)
 		}
 	})
 
@@ -412,6 +437,26 @@ func TestDaemonSettingsRuntimeApplier(t *testing.T) {
 		}
 		assertMarketplaceRuntimeEntry(t, runtime, "rollback-first")
 	})
+}
+
+func TestDaemonAppliesIsolatedProviderPreStarterDefaults(t *testing.T) {
+	t.Parallel()
+	t.Run("Should allocate one pre-starter per daemon", testDaemonAppliesIsolatedProviderPreStarterDefaults)
+}
+
+func testDaemonAppliesIsolatedProviderPreStarterDefaults(t *testing.T) {
+	t.Helper()
+
+	first := &Daemon{}
+	second := &Daemon{}
+	first.applyCoreDefaults()
+	second.applyCoreDefaults()
+	if first.providerPreStarter == nil || second.providerPreStarter == nil {
+		t.Fatal("Daemon provider pre-starter = nil, want a daemon-owned instance")
+	}
+	if first.providerPreStarter == second.providerPreStarter {
+		t.Fatal("Daemons share a provider pre-starter, want isolated cache ownership")
+	}
 }
 
 type recordingToolMCPPublisher struct {

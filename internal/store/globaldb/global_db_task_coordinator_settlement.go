@@ -26,6 +26,17 @@ func (g *TaskRepo) attachTerminalCoordinatorSettlementWithExecutor(
 		}
 		settlement.Run = updated
 		result.Settlement = &settlement
+		return *result, nil
 	}
+
+	currentTask, err := g.getTaskWithExecutor(ctx, exec, updated.TaskID)
+	if err != nil {
+		return taskpkg.CoordinatorCompletionResult{}, err
+	}
+	settlement := taskpkg.CompletedRunSettlement{
+		Run:  updated,
+		Task: currentTask,
+	}
+	result.Settlement = &settlement
 	return *result, nil
 }

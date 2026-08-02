@@ -32,6 +32,8 @@ type sidecarSession struct {
 	stderrMu     sync.Mutex
 	stderr       strings.Builder
 	waitErr      error
+	exitCode     int
+	exited       bool
 }
 
 func newSidecarSession(
@@ -82,6 +84,11 @@ func (s *sidecarSession) CloseWrite() error {
 }
 
 func (s *sidecarSession) Close() error {
+	select {
+	case <-s.done:
+		return s.closeLocalResources()
+	default:
+	}
 	stopCtx, cancel := context.WithTimeout(context.Background(), s.closeTimeout)
 	defer cancel()
 	return errors.Join(s.requestStop(stopCtx), s.closeLocalResources())
@@ -128,6 +135,15 @@ func (s *sidecarSession) Stderr() string {
 	s.stderrMu.Lock()
 	defer s.stderrMu.Unlock()
 	return s.stderr.String()
+}
+
+func (s *sidecarSession) ExitCode() (int, bool) {
+	select {
+	case <-s.done:
+		return s.exitCode, s.exited
+	default:
+		return 0, false
+	}
 }
 
 func (s *sidecarSession) writeFrame(payload []byte) error {

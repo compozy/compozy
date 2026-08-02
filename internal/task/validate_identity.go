@@ -15,7 +15,7 @@ func (a ActorIdentity) Validate(path string) error {
 	if strings.TrimSpace(a.Ref) == "" {
 		return fmt.Errorf("%w: %s is required", ErrValidation, nestedPath(path, "ref"))
 	}
-	return nil
+	return ValidateReferenceSize(a.Ref, nestedPath(path, "ref"))
 }
 
 // IsZero reports whether the actor identity is empty.
@@ -31,7 +31,7 @@ func (o Ownership) Validate(path string) error {
 	if strings.TrimSpace(o.Ref) == "" {
 		return fmt.Errorf("%w: %s is required", ErrValidation, nestedPath(path, "ref"))
 	}
-	return nil
+	return ValidateReferenceSize(o.Ref, nestedPath(path, "ref"))
 }
 
 // IsZero reports whether the ownership value is empty.
@@ -47,7 +47,7 @@ func (o Origin) Validate(path string) error {
 	if strings.TrimSpace(o.Ref) == "" {
 		return fmt.Errorf("%w: %s is required", ErrValidation, nestedPath(path, "ref"))
 	}
-	return nil
+	return ValidateReferenceSize(o.Ref, nestedPath(path, "ref"))
 }
 
 // Validate reports whether the authority flags are internally consistent.
@@ -67,6 +67,12 @@ func (s CallerScope) Validate(actor ActorIdentity) error {
 	}
 	if workspaceID != s.WorkspaceID {
 		return fmt.Errorf("%w: scope.workspace_id must be canonical", ErrValidation)
+	}
+	if err := ValidateReferenceSize(sessionID, "scope.session_id"); err != nil {
+		return err
+	}
+	if err := ValidateReferenceSize(workspaceID, "scope.workspace_id"); err != nil {
+		return err
 	}
 
 	switch actor.Kind.Normalize() {
@@ -204,8 +210,14 @@ func (d Dependency) Validate() error {
 	if strings.TrimSpace(d.TaskID) == "" {
 		return fmt.Errorf("%w: task_dependency.task_id is required", ErrValidation)
 	}
+	if err := ValidateReferenceSize(d.TaskID, "task_dependency.task_id"); err != nil {
+		return err
+	}
 	if strings.TrimSpace(d.DependsOnTaskID) == "" {
 		return fmt.Errorf("%w: task_dependency.depends_on_task_id is required", ErrValidation)
+	}
+	if err := ValidateReferenceSize(d.DependsOnTaskID, "task_dependency.depends_on_task_id"); err != nil {
+		return err
 	}
 	if strings.TrimSpace(d.TaskID) == strings.TrimSpace(d.DependsOnTaskID) {
 		return fmt.Errorf("%w: task_dependency cannot depend on itself", ErrValidation)

@@ -44,7 +44,7 @@ type service struct {
 	runtimeCatalog        WorkspaceRuntimeCatalog
 	logger                *slog.Logger
 	now                   func() time.Time
-	newRunID              func() RunID
+	newRunID              func() (RunID, error)
 }
 
 // NewService creates the loop aggregate service.
@@ -70,8 +70,9 @@ func NewService(
 		defaults:   DefaultLoopDefaults(),
 		logger:     slog.Default(),
 		now:        func() time.Time { return time.Now().UTC() },
-		newRunID: func() RunID {
-			return RunID(storepkg.NewID("looprun"))
+		newRunID: func() (RunID, error) {
+			id, err := storepkg.NewID("looprun")
+			return RunID(id), err
 		},
 	}
 	for _, opt := range opts {
@@ -104,7 +105,10 @@ func (s *service) DryRun(
 	if err != nil {
 		return nil, err
 	}
-	previewRunID := s.newRunID()
+	previewRunID, err := s.newRunID()
+	if err != nil {
+		return nil, fmt.Errorf("loop: generate preview run id: %w", err)
+	}
 	networkSpec, err := s.resolveRunParticipation(
 		ctx,
 		ws,

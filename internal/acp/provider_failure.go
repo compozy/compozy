@@ -116,7 +116,7 @@ func providerAuthFailureDiagnosticFromError(err error) (ProviderFailureDiagnosti
 		&authproviders.ProbeEnv{
 			ProviderName: "provider",
 			LookPath: func(string) (string, error) {
-				return "", execpkg.ErrNotFound
+				return "/provider", nil
 			},
 		},
 	)

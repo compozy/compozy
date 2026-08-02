@@ -4,10 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
-	"io/fs"
 	"log/slog"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -77,7 +74,7 @@ func installMarketplaceSkillForCommand(
 	deps commandDeps,
 	slug string,
 	version string,
-) (_ skillInstallItem, err error) {
+) (item skillInstallItem, err error) {
 	client, running, err := daemonClientIfRunning(ctx, deps)
 	if err != nil {
 		return skillInstallItem{}, err
@@ -98,10 +95,26 @@ func installMarketplaceSkillForCommand(
 		return skillInstallItem{}, err
 	}
 	defer func() {
-		err = errors.Join(err, registry.Close())
+		closeErr := registry.Close()
+		if closeErr == nil {
+			return
+		}
+		if err != nil {
+			err = errors.Join(err, closeErr)
+			return
+		}
+		item.CleanupDiagnostics = appendSkillCleanupDiagnostic(
+			item.CleanupDiagnostics,
+			skillmarketplace.CleanupOperationRegistrySource,
+		)
+		slog.Warn(
+			"skills marketplace cleanup degraded",
+			"operation", skillmarketplace.CleanupOperationRegistrySource,
+		)
 	}()
 
-	return installMarketplaceSkill(ctx, runtime, registry, slug, version, "", deps.now)
+	item, err = installMarketplaceSkill(ctx, runtime, registry, slug, version, "", deps.now)
+	return item, err
 }
 
 func installMarketplaceSkill(
@@ -129,13 +142,14 @@ func installMarketplaceSkill(
 		return skillInstallItem{}, err
 	}
 	return skillInstallItem{
-		Name:     result.Name,
-		Slug:     result.Slug,
-		Version:  result.Version,
-		Registry: result.Registry,
-		Path:     result.Path,
-		Hash:     result.Hash,
-		Status:   result.Status,
+		Name:               result.Name,
+		Slug:               result.Slug,
+		Version:            result.Version,
+		Registry:           result.Registry,
+		Path:               result.Path,
+		Hash:               result.Hash,
+		Status:             result.Status,
+		CleanupDiagnostics: skillCleanupDiagnosticsFromDomain(result.CleanupDiagnostics),
 	}, nil
 }
 
@@ -206,12 +220,13 @@ func updateMarketplaceSkills(
 	items := make([]skillUpdateItem, 0, len(results))
 	for _, result := range results {
 		items = append(items, skillUpdateItem{
-			Name:           result.Name,
-			Slug:           result.Slug,
-			CurrentVersion: result.CurrentVersion,
-			LatestVersion:  result.LatestVersion,
-			Path:           result.Path,
-			Status:         result.Status,
+			Name:               result.Name,
+			Slug:               result.Slug,
+			CurrentVersion:     result.CurrentVersion,
+			LatestVersion:      result.LatestVersion,
+			Path:               result.Path,
+			Status:             result.Status,
+			CleanupDiagnostics: skillCleanupDiagnosticsFromDomain(result.CleanupDiagnostics),
 		})
 	}
 	return items, nil
@@ -223,7 +238,7 @@ func updateMarketplaceSkillsForCommand(
 	args []string,
 	updateAll bool,
 	checkOnly bool,
-) (_ []skillUpdateItem, err error) {
+) (items []skillUpdateItem, err error) {
 	client, running, err := daemonClientIfRunning(ctx, deps)
 	if err != nil {
 		return nil, err
@@ -249,10 +264,27 @@ func updateMarketplaceSkillsForCommand(
 		return nil, err
 	}
 	defer func() {
-		err = errors.Join(err, registry.Close())
+		closeErr := registry.Close()
+		if closeErr == nil {
+			return
+		}
+		if err != nil || len(items) == 0 {
+			err = errors.Join(err, closeErr)
+			return
+		}
+		for index := range items {
+			items[index].CleanupDiagnostics = appendSkillCleanupDiagnostic(
+				items[index].CleanupDiagnostics,
+				skillmarketplace.CleanupOperationRegistrySource,
+			)
+		}
+		slog.Warn(
+			"skills marketplace cleanup degraded",
+			"operation", skillmarketplace.CleanupOperationRegistrySource,
+		)
 	}()
 
-	return updateMarketplaceSkills(
+	items, err = updateMarketplaceSkills(
 		ctx,
 		runtime,
 		registry,
@@ -261,6 +293,7 @@ func updateMarketplaceSkillsForCommand(
 		checkOnly,
 		deps.now,
 	)
+	return items, err
 }
 
 func updateMarketplaceSkill(
@@ -283,12 +316,13 @@ func updateMarketplaceSkill(
 		return skillUpdateItem{}, err
 	}
 	return skillUpdateItem{
-		Name:           result.Name,
-		Slug:           result.Slug,
-		CurrentVersion: result.CurrentVersion,
-		LatestVersion:  result.LatestVersion,
-		Path:           result.Path,
-		Status:         result.Status,
+		Name:               result.Name,
+		Slug:               result.Slug,
+		CurrentVersion:     result.CurrentVersion,
+		LatestVersion:      result.LatestVersion,
+		Path:               result.Path,
+		Status:             result.Status,
+		CleanupDiagnostics: skillCleanupDiagnosticsFromDomain(result.CleanupDiagnostics),
 	}, nil
 }
 
@@ -386,95 +420,4 @@ func findInstalledMarketplaceSkill(
 
 func listInstalledMarketplaceSkills(skillsDir string) ([]installedMarketplaceSkill, error) {
 	return skillmarketplace.ListInstalledSkills(skillsDir)
-}
-
-func skillInstallItemFromRecord(item SkillMarketplaceInstallRecord) skillInstallItem {
-	return skillInstallItem{
-		Name:     item.Name,
-		Slug:     item.Slug,
-		Version:  item.Version,
-		Registry: item.Registry,
-		Path:     item.Path,
-		Hash:     item.Hash,
-		Status:   item.Status,
-	}
-}
-
-func skillUpdateItemsFromRecords(items []SkillMarketplaceUpdateRecord) []skillUpdateItem {
-	updates := make([]skillUpdateItem, 0, len(items))
-	for _, item := range items {
-		updates = append(updates, skillUpdateItem{
-			Name:           item.Name,
-			Slug:           item.Slug,
-			CurrentVersion: item.CurrentVersion,
-			LatestVersion:  item.LatestVersion,
-			Path:           item.Path,
-			Status:         item.Status,
-		})
-	}
-	return updates
-}
-
-func skillRemoveItemFromRecord(item SkillMarketplaceRemoveRecord) skillRemoveItem {
-	return skillRemoveItem{
-		Name:   item.Name,
-		Slug:   item.Slug,
-		Path:   item.Path,
-		Status: item.Status,
-	}
-}
-
-func extractMarketplaceArchive(reader io.Reader, destRoot string) error {
-	return registrypkg.ExtractArchive(reader, destRoot)
-}
-
-func locateExtractedSkillFile(root string) (string, error) {
-	var matches []string
-
-	err := filepath.WalkDir(root, func(current string, entry fs.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-		if entry.IsDir() {
-			return nil
-		}
-		if entry.Name() != skillMarkdownFileName {
-			return nil
-		}
-		matches = append(matches, current)
-		if len(matches) > 1 {
-			return errors.New("multiple SKILL.md files found in archive")
-		}
-		return nil
-	})
-	if err != nil {
-		return "", err
-	}
-	if len(matches) == 0 {
-		return "", errors.New("archive did not contain SKILL.md")
-	}
-	return matches[0], nil
-}
-
-func moveInstalledSkillDir(extractedDir string, targetDir string, replaceExisting bool) error {
-	return registrypkg.MoveInstalledDir(extractedDir, targetDir, replaceExisting)
-}
-
-func cleanArchiveEntryPath(entry string) (string, error) {
-	return registrypkg.CleanArchiveEntryPath(entry)
-}
-
-func pathWithinRoot(root string, child string) (string, error) {
-	return registrypkg.PathWithinRoot(root, child)
-}
-
-func criticalWarnings(warnings []skills.Warning) []string {
-	items := make([]string, 0, len(warnings))
-	for _, warning := range warnings {
-		if warning.Severity != skills.SeverityCritical {
-			continue
-		}
-		items = append(items, firstNonEmpty(warning.Message, warning.Pattern))
-	}
-	return items
 }

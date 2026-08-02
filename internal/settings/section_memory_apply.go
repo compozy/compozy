@@ -114,10 +114,6 @@ func memoryRecallSettingsUpdates(settings *compozyconfig.MemoryConfig) []struct 
 			value: settings.Recall.Signals.WorkerRetryMax,
 		},
 		{
-			path:  []string{string(SectionMemory), sectionsRecallKey, sectionsSignalsKey, "metrics_enabled"},
-			value: settings.Recall.Signals.MetricsEnabled,
-		},
-		{
 			path:  []string{string(SectionMemory), sectionsDecisionsKey, "prune_after_applied_days"},
 			value: settings.Decisions.PruneAfterAppliedDays,
 		},

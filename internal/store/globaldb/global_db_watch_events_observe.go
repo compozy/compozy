@@ -73,8 +73,6 @@ func (g *WatchEventsRepo) readObserveWatchEvents(
 	if err != nil {
 		return nil, fmt.Errorf("store: read observe watch-events: %w", err)
 	}
-	defer rows.Close()
-
 	events := make([]looppkg.WatchEvent, 0)
 	for rows.Next() {
 		event, scanErr := scanObserveWatchEvent(rows)

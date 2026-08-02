@@ -74,14 +74,14 @@ func (m *Manager) configurePromptRuntime(
 	}
 	if err := m.persistSessionLifecycleState(ctx, session, false); err != nil {
 		session.restoreRuntimeBinding(snapshot, err.Error(), m.now())
-		cleanupCtx, cancel := m.runtimeCleanupContext()
+		cleanupCtx, cancel := m.lifecycleCleanupContext()
 		defer cancel()
 		return errors.Join(err, m.persistSessionLifecycleState(cleanupCtx, session, false))
 	}
 
 	err := configurator.ConfigureRuntime(ctx, snapshot.process, runtimeConfigForSelection(selection))
 	if err != nil {
-		cleanupCtx, cancel := m.runtimeCleanupContext()
+		cleanupCtx, cancel := m.lifecycleCleanupContext()
 		defer cancel()
 		rollbackErr := configurator.ConfigureRuntime(
 			cleanupCtx,
@@ -100,7 +100,7 @@ func (m *Manager) configurePromptRuntime(
 		m.now(),
 	)
 	if err := m.persistSessionLifecycleState(ctx, session, false); err != nil {
-		cleanupCtx, cancel := m.runtimeCleanupContext()
+		cleanupCtx, cancel := m.lifecycleCleanupContext()
 		defer cancel()
 		rollbackErr := configurator.ConfigureRuntime(
 			cleanupCtx,
@@ -152,7 +152,7 @@ func (m *Manager) replacePromptRuntime(
 	session.setAgentDefinition(runtime.agentDef)
 	if err := m.persistSessionLifecycleState(ctx, session, false); err != nil {
 		session.restoreRuntimeBinding(snapshot, err.Error(), m.now())
-		cleanupCtx, cancel := m.runtimeCleanupContext()
+		cleanupCtx, cancel := m.lifecycleCleanupContext()
 		defer cancel()
 		restoreErr := m.persistSessionLifecycleState(cleanupCtx, session, false)
 		stopErr := m.stopReplacedRuntime(session, candidate, false)
@@ -178,18 +178,10 @@ func (m *Manager) restorePromptRuntime(
 	cause error,
 ) error {
 	session.restoreRuntimeBinding(snapshot, cause.Error(), m.now())
-	cleanupCtx, cancel := m.runtimeCleanupContext()
+	cleanupCtx, cancel := m.lifecycleCleanupContext()
 	defer cancel()
 	persistErr := m.persistSessionLifecycleState(cleanupCtx, session, false)
 	return errors.Join(cause, persistErr)
-}
-
-func (m *Manager) runtimeCleanupContext() (context.Context, context.CancelFunc) {
-	base := m.lifecycleCtx
-	if base == nil {
-		base = context.Background()
-	}
-	return context.WithTimeout(context.WithoutCancel(base), defaultLifecycleTimeout)
 }
 
 func runtimeConfigForSelection(selection RuntimeSelection) acp.RuntimeConfig {
@@ -204,7 +196,7 @@ func (m *Manager) stopReplacedRuntime(session *Session, proc *AgentProcess, emit
 	if proc == nil {
 		return nil
 	}
-	stopCtx, cancel := m.runtimeCleanupContext()
+	stopCtx, cancel := m.lifecycleCleanupContext()
 	defer cancel()
 	if err := m.driver.Stop(stopCtx, proc); err != nil {
 		return err

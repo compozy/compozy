@@ -300,6 +300,17 @@ func TestRequestRestartPersistsHelperLaunchFailure(t *testing.T) {
 	d.startDetached = func(context.Context, detachedStartRequest) (restartProcess, error) {
 		return nil, errors.New("helper exploded")
 	}
+	var missingContext context.Context
+	if _, err := d.RequestRestart(missingContext); err == nil || !strings.Contains(err.Error(), "context is required") {
+		t.Fatalf("RequestRestart(nil context) error = %v", err)
+	}
+	entries, readErr := os.ReadDir(homePaths.RestartsDir)
+	if readErr != nil && !errors.Is(readErr, os.ErrNotExist) {
+		t.Fatalf("os.ReadDir(restarts after rejected request) error = %v", readErr)
+	}
+	if len(entries) != 0 {
+		t.Fatalf("restart artifacts after rejected request = %d, want 0", len(entries))
+	}
 
 	operation, err := d.RequestRestart(testutil.Context(t))
 	if err == nil || !strings.Contains(err.Error(), "spawn relaunch helper") {
@@ -501,7 +512,9 @@ func TestRelaunchHelperWaitsForReleaseBeforeLaunchingReplacement(t *testing.T) {
 		t.Fatalf("AcquireLock() error = %v", err)
 	}
 	t.Cleanup(func() {
-		_ = lock.Release()
+		if releaseErr := lock.Release(); releaseErr != nil {
+			t.Errorf("lock.Release() cleanup error = %v", releaseErr)
+		}
 	})
 	if err := WriteInfo(homePaths.DaemonInfo, Info{
 		PID:       operation.OldPID,
@@ -632,6 +645,10 @@ func TestRelaunchHelperReturnsWithoutWorkForTerminalFailure(t *testing.T) {
 	helper.startDetached = func(context.Context, detachedStartRequest) (restartProcess, error) {
 		t.Fatal("helper.startDetached() was called for an already-terminal operation")
 		return nil, nil
+	}
+	var missingContext context.Context
+	if err := helper.run(missingContext); err == nil || !strings.Contains(err.Error(), "context is required") {
+		t.Fatalf("helper.run(nil context) error = %v", err)
 	}
 
 	if err := helper.run(testutil.Context(t)); err != nil {
@@ -1107,6 +1124,15 @@ func TestWaitForReadyPreservesCancellationCause(t *testing.T) {
 		ReadyTimeout:  time.Second,
 		ExitDrainWait: 50 * time.Millisecond,
 	})
+	var missingContext context.Context
+	if err := helper.waitForReady(missingContext, store, operation.OperationID, restartProcessStub{
+		pid: 9393,
+		wait: func() error {
+			return errors.New("replacement should not be observed without context")
+		},
+	}); err == nil || !strings.Contains(err.Error(), "context is required") {
+		t.Fatalf("waitForReady(nil context) error = %v", err)
+	}
 	ctx, cancel := context.WithCancelCause(testutil.Context(t))
 	cancel(errors.New("operator canceled restart"))
 

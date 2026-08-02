@@ -12,57 +12,43 @@ const (
 	HookWindowManagerStackActivated HookEvent = "window_manager.stack.activated"
 )
 
-func windowManagerHookEventSpecs() map[HookEvent]hookEventSpec {
-	return map[HookEvent]hookEventSpec{
-		HookWindowManagerLayoutApplied: {
+func windowManagerHookEventDefinitions() []hookEventDefinition {
+	return []hookEventDefinition{
+		{event: HookWindowManagerLayoutApplied,
 			family:       HookEventFamilyWindowManager,
 			syncEligible: false,
 		},
-		HookWindowManagerDesktopCreated: {
+		{event: HookWindowManagerDesktopCreated,
 			family:       HookEventFamilyWindowManager,
 			syncEligible: false,
 		},
-		HookWindowManagerDesktopDeleted: {
+		{event: HookWindowManagerDesktopDeleted,
 			family:       HookEventFamilyWindowManager,
 			syncEligible: false,
 		},
-		HookWindowManagerWindowMoved: {
+		{event: HookWindowManagerWindowMoved,
 			family:       HookEventFamilyWindowManager,
 			syncEligible: false,
 		},
-		HookWindowManagerWindowOpened: {
+		{event: HookWindowManagerWindowOpened,
 			family:       HookEventFamilyWindowManager,
 			syncEligible: false,
 		},
-		HookWindowManagerWindowClosed: {
+		{event: HookWindowManagerWindowClosed,
 			family:       HookEventFamilyWindowManager,
 			syncEligible: false,
 		},
-		HookWindowManagerStackGrouped: {
+		{event: HookWindowManagerStackGrouped,
 			family:       HookEventFamilyWindowManager,
 			syncEligible: false,
 		},
-		HookWindowManagerStackUngrouped: {
+		{event: HookWindowManagerStackUngrouped,
 			family:       HookEventFamilyWindowManager,
 			syncEligible: false,
 		},
-		HookWindowManagerStackActivated: {
+		{event: HookWindowManagerStackActivated,
 			family:       HookEventFamilyWindowManager,
 			syncEligible: false,
 		},
-	}
-}
-
-func windowManagerHookEvents() []HookEvent {
-	return []HookEvent{
-		HookWindowManagerLayoutApplied,
-		HookWindowManagerDesktopCreated,
-		HookWindowManagerDesktopDeleted,
-		HookWindowManagerWindowMoved,
-		HookWindowManagerWindowOpened,
-		HookWindowManagerWindowClosed,
-		HookWindowManagerStackGrouped,
-		HookWindowManagerStackUngrouped,
-		HookWindowManagerStackActivated,
 	}
 }

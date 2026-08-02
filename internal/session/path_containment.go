@@ -2,9 +2,10 @@ package session
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/compozy/compozy/internal/fileutil"
 )
 
 func resolveContainedDirectory(root string, requested string) (string, error) {
@@ -29,7 +30,7 @@ func resolveContainedDirectory(root string, requested string) (string, error) {
 		return "", fmt.Errorf("canonicalize target %q: %w", targetPath, err)
 	}
 
-	contained, err := directoryContains(canonicalRoot, canonicalTarget)
+	contained, err := fileutil.PathWithinRoot(canonicalRoot, canonicalTarget)
 	if err != nil {
 		return "", fmt.Errorf("compare root and target: %w", err)
 	}
@@ -39,29 +40,10 @@ func resolveContainedDirectory(root string, requested string) (string, error) {
 	return canonicalTarget, nil
 }
 
-func directoryContains(root string, target string) (bool, error) {
-	relative, err := filepath.Rel(root, target)
-	if err != nil {
-		return false, err
-	}
-	return relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator)), nil
-}
-
 func canonicalDirectory(path string) (string, error) {
-	absolute, err := filepath.Abs(filepath.Clean(path))
+	canonical, err := fileutil.CanonicalExistingDirectory(path)
 	if err != nil {
-		return "", fmt.Errorf("resolve absolute path: %w", err)
-	}
-	canonical, err := filepath.EvalSymlinks(absolute)
-	if err != nil {
-		return "", fmt.Errorf("resolve symlinks: %w", err)
-	}
-	info, err := os.Stat(canonical)
-	if err != nil {
-		return "", fmt.Errorf("inspect directory: %w", err)
-	}
-	if !info.IsDir() {
-		return "", fmt.Errorf("path %q is not a directory", canonical)
+		return "", err
 	}
 	return canonical, nil
 }

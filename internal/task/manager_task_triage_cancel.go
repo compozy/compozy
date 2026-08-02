@@ -163,41 +163,6 @@ func (m *Service) ensureTaskCancelable(ctx context.Context, root Task) error {
 	return nil
 }
 
-func (m *Service) cancelTaskTreeRecord(
-	ctx context.Context,
-	rootTaskID string,
-	idx int,
-	record Task,
-	req CancelTask,
-	actor ActorContext,
-) (Task, error) {
-	runs, status, err := m.loadTaskRuntimeState(ctx, record)
-	if err != nil {
-		return Task{}, err
-	}
-	record.Status = status
-	if idx > 0 && isTerminalTaskStatus(status) {
-		return record, nil
-	}
-
-	propagatedFromTaskID := cancellationPropagationRoot(rootTaskID, idx)
-	cancelledRunIDs, err := m.cancelOpenTaskRuns(
-		ctx,
-		record,
-		runs,
-		req,
-		actor,
-		propagatedFromTaskID,
-	)
-	if err != nil {
-		return Task{}, err
-	}
-	if status.Normalize() == TaskStatusCanceled && len(cancelledRunIDs) == 0 {
-		return record, nil
-	}
-	return m.persistCancelledTask(ctx, record, req, actor, propagatedFromTaskID, cancelledRunIDs)
-}
-
 func (m *Service) loadTaskRuntimeState(
 	ctx context.Context,
 	record Task,
@@ -224,38 +189,6 @@ func cancellationPropagationRoot(rootTaskID string, idx int) string {
 	return rootTaskID
 }
 
-func (m *Service) cancelOpenTaskRuns(
-	ctx context.Context,
-	record Task,
-	runs []Run,
-	req CancelTask,
-	actor ActorContext,
-	propagatedFromTaskID string,
-) ([]string, error) {
-	cancelledRunIDs := make([]string, 0)
-	for _, run := range runs {
-		if isTerminalRunStatus(run.Status) {
-			continue
-		}
-		cancelledRun, err := m.cancelRunRecord(
-			ctx,
-			record,
-			run,
-			CancelRun(req),
-			actor,
-			cancelRunOptions{
-				propagatedFromTaskID: propagatedFromTaskID,
-				reconcileTask:        false,
-			},
-		)
-		if err != nil {
-			return nil, err
-		}
-		cancelledRunIDs = append(cancelledRunIDs, cancelledRun.ID)
-	}
-	return cancelledRunIDs, nil
-}
-
 func (m *Service) persistCancelledTask(
 	ctx context.Context,
 	record Task,
@@ -263,6 +196,7 @@ func (m *Service) persistCancelledTask(
 	actor ActorContext,
 	propagatedFromTaskID string,
 	cancelledRunIDs []string,
+	eventID string,
 ) (Task, error) {
 	previousStatus := record.Status
 	record.Status = TaskStatusCanceled
@@ -272,7 +206,7 @@ func (m *Service) persistCancelledTask(
 		return Task{}, err
 	}
 	m.dispatchTaskStatusChangedAfterWrite(ctx, record, previousStatus, record.Status, actor)
-	if err := m.recordTaskEvent(ctx, record.ID, "", taskEventCanceled, actor, cancelledTaskPayload{
+	if err := m.recordTaskEventWithID(ctx, eventID, record.ID, "", taskEventCanceled, actor, cancelledTaskPayload{
 		Reason:               req.Reason,
 		Metadata:             cloneRawJSON(req.Metadata),
 		Status:               record.Status,

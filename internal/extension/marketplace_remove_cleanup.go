@@ -26,14 +26,15 @@ func marketplaceRemoveCleanupWarning(
 	path string,
 	err error,
 ) diagnosticcontract.DiagnosticItem {
-	return diagnostics.NewItem(
-		"extension.remove.cleanup_failed",
-		diagnosticcontract.CodeExtensionRemoveCleanupFailed,
-		diagnosticcontract.CategoryExtension,
-		"Extension removed; cleanup incomplete",
-		diagnostics.RedactAndBound(err.Error(), 1024),
-		diagnosticcontract.SeverityWarn,
-		diagnosticcontract.FreshnessLive,
+	return diagnostics.NewItem(diagnostics.ItemSpec{
+		ID:            "extension.remove.cleanup_failed",
+		Code:          diagnosticcontract.CodeExtensionRemoveCleanupFailed,
+		Category:      diagnosticcontract.CategoryExtension,
+		Title:         "Extension removed; cleanup incomplete",
+		Message:       diagnostics.RedactAndBound(err.Error(), 1024),
+		Severity:      diagnosticcontract.SeverityWarn,
+		DataFreshness: diagnosticcontract.FreshnessLive,
+	},
 		diagnostics.WithEvidence(map[string]any{
 			managerExtensionKey: extensionName,
 			"cleanup_target":    marketplaceUpdateCleanupBackup,

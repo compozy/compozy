@@ -12,7 +12,7 @@ import (
 )
 
 func (d *Driver) launchAgentProcess(ctx context.Context, normalized StartOpts) (*AgentProcess, error) {
-	command, args, err := parseCommandString(normalized.Command)
+	normalized, command, args, err := d.resolvedAgentLaunch(ctx, normalized)
 	if err != nil {
 		return nil, err
 	}
@@ -22,19 +22,16 @@ func (d *Driver) launchAgentProcess(ctx context.Context, normalized StartOpts) (
 		return nil, err
 	}
 
-	launcher := normalized.Launcher
-	if launcher == nil {
-		launcher = d.launcher
-	}
-	if launcher == nil {
-		launcher = newLocalLauncher(d.logger, d.stopTimeout)
-	}
+	launcher := d.launcherForStart(normalized)
+	identity := startOptsPreparedLaunchIdentity(normalized)
 
 	handle, err := launcher.Launch(ctx, sandbox.LaunchSpec{
-		Command:        normalized.Command,
-		Cwd:            normalized.Cwd,
-		AdditionalDirs: append([]string(nil), normalized.AdditionalDirs...),
-		Env:            append([]string(nil), normalized.Env...),
+		Command:            normalized.Command,
+		ResolvedExecutable: identity.spec.ResolvedExecutable,
+		Args:               append([]string(nil), identity.spec.Args...),
+		Cwd:                normalized.Cwd,
+		AdditionalDirs:     append([]string(nil), normalized.AdditionalDirs...),
+		Env:                append([]string(nil), normalized.Env...),
 	})
 	if err != nil {
 		return nil, fmt.Errorf(
@@ -45,7 +42,7 @@ func (d *Driver) launchAgentProcess(ctx context.Context, normalized StartOpts) (
 			err,
 		)
 	}
-	procCtx, cancelProcess := context.WithCancel(context.Background())
+	procCtx, cancelProcess := context.WithCancel(context.WithoutCancel(ctx))
 
 	toolHost := normalized.ToolHost
 	if toolHost == nil {

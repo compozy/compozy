@@ -86,6 +86,184 @@ func TestCORSMiddlewareAllowsPatchPreflight(t *testing.T) {
 	})
 }
 
+func TestCORSMiddlewareRejectsReboundRequestHost(t *testing.T) {
+	t.Run("Should reject matching attacker controlled Host and Origin on a loopback bind", func(
+		t *testing.T,
+	) {
+		t.Parallel()
+
+		engine := gin.New()
+		engine.Use(corsMiddleware("127.0.0.1:2123"))
+		engine.GET("/api/status", func(c *gin.Context) { c.Status(http.StatusNoContent) })
+
+		recorder := httptest.NewRecorder()
+		request := httptest.NewRequestWithContext(
+			context.Background(),
+			http.MethodGet,
+			"http://evil.example:2123/api/status",
+			http.NoBody,
+		)
+		request.Host = "evil.example:2123"
+		request.Header.Set("Origin", "http://evil.example:2123")
+		engine.ServeHTTP(recorder, request)
+
+		if recorder.Code != http.StatusForbidden {
+			t.Fatalf(
+				"status = %d, want %d; body=%s",
+				recorder.Code,
+				http.StatusForbidden,
+				recorder.Body.String(),
+			)
+		}
+		var payload contract.ErrorPayload
+		decodeJSONResponse(t, recorder, &payload)
+		if payload.Error != errOriginNotAllowed.Error() {
+			t.Fatalf("error = %q, want %q", payload.Error, errOriginNotAllowed.Error())
+		}
+	})
+}
+
+func TestBrowserRequestProtectionRouteBoundary(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject cross-site unsafe requests on ordinary API routes", func(t *testing.T) {
+		t.Parallel()
+
+		engine := newTestRouter(
+			t,
+			newTestHandlers(t, stubSessionManager{}, stubObserver{}, newTestHomePaths(t)),
+		)
+		recorder := httptest.NewRecorder()
+		request := httptest.NewRequestWithContext(
+			context.Background(),
+			http.MethodPost,
+			"http://127.0.0.1/api/workspaces/resolve",
+			strings.NewReader(`{}`),
+		)
+		request.Host = "127.0.0.1"
+		request.Header.Set("Sec-Fetch-Site", "cross-site")
+		engine.ServeHTTP(recorder, request)
+		if recorder.Code != http.StatusForbidden {
+			t.Fatalf(
+				"status = %d, want %d; body=%s",
+				recorder.Code,
+				http.StatusForbidden,
+				recorder.Body.String(),
+			)
+		}
+	})
+
+	t.Run("Should reject same-site browser metadata for an unapproved request Host", func(
+		t *testing.T,
+	) {
+		t.Parallel()
+
+		handlers := newTestHandlers(t, stubSessionManager{}, stubObserver{}, newTestHomePaths(t))
+		engine := gin.New()
+		RegisterRoutes(engine, handlers)
+		recorder := httptest.NewRecorder()
+		request := httptest.NewRequestWithContext(
+			context.Background(),
+			http.MethodPost,
+			"http://evil.example/api/workspaces/resolve",
+			strings.NewReader(`{}`),
+		)
+		request.Host = "evil.example"
+		request.Header.Set("Sec-Fetch-Site", "same-origin")
+		engine.ServeHTTP(recorder, request)
+		if recorder.Code != http.StatusForbidden {
+			t.Fatalf(
+				"status = %d, want %d; body=%s",
+				recorder.Code,
+				http.StatusForbidden,
+				recorder.Body.String(),
+			)
+		}
+	})
+
+	t.Run("Should allow same-origin browser metadata for a loopback request Host", func(t *testing.T) {
+		t.Parallel()
+
+		handlers := newTestHandlers(t, stubSessionManager{}, stubObserver{}, newTestHomePaths(t))
+		engine := gin.New()
+		RegisterRoutes(engine, handlers)
+		recorder := httptest.NewRecorder()
+		request := httptest.NewRequestWithContext(
+			context.Background(),
+			http.MethodPost,
+			"http://127.0.0.1/api/workspaces/resolve",
+			strings.NewReader(`{}`),
+		)
+		request.Host = "127.0.0.1"
+		request.Header.Set("Sec-Fetch-Site", "same-origin")
+		engine.ServeHTTP(recorder, request)
+		if recorder.Code == http.StatusForbidden {
+			t.Fatalf(
+				"same-origin request status = %d, want route handler response; body=%s",
+				recorder.Code,
+				recorder.Body.String(),
+			)
+		}
+	})
+
+	t.Run("Should leave public webhooks outside browser CSRF middleware", func(t *testing.T) {
+		t.Parallel()
+
+		handlers := newTestHandlers(t, stubSessionManager{}, stubObserver{}, newTestHomePaths(t))
+		engine := gin.New()
+		RegisterRoutes(engine, handlers)
+		recorder := httptest.NewRecorder()
+		request := httptest.NewRequestWithContext(
+			context.Background(),
+			http.MethodPost,
+			"http://127.0.0.1/api/webhooks/global/missing",
+			http.NoBody,
+		)
+		request.Host = "127.0.0.1"
+		request.Header.Set("Sec-Fetch-Site", "cross-site")
+		engine.ServeHTTP(recorder, request)
+		if recorder.Code == http.StatusForbidden {
+			t.Fatalf(
+				"public webhook status = %d, want route handler response; body=%s",
+				recorder.Code,
+				recorder.Body.String(),
+			)
+		}
+	})
+
+	t.Run("Should preserve OpenAI compatible cross-origin errors", func(t *testing.T) {
+		t.Parallel()
+
+		engine := gin.New()
+		engine.Use(browserRequestProtectionMiddleware("127.0.0.1"))
+		engine.POST("/api/openai/v1/responses", func(c *gin.Context) { c.Status(http.StatusNoContent) })
+		recorder := httptest.NewRecorder()
+		request := httptest.NewRequestWithContext(
+			context.Background(),
+			http.MethodPost,
+			"http://127.0.0.1/api/openai/v1/responses",
+			http.NoBody,
+		)
+		request.Host = "127.0.0.1"
+		request.Header.Set("Sec-Fetch-Site", "cross-site")
+		engine.ServeHTTP(recorder, request)
+		if recorder.Code != http.StatusForbidden {
+			t.Fatalf(
+				"status = %d, want %d; body=%s",
+				recorder.Code,
+				http.StatusForbidden,
+				recorder.Body.String(),
+			)
+		}
+		var payload contract.OpenAIErrorResponse
+		decodeJSONResponse(t, recorder, &payload)
+		if payload.Error.Code != "forbidden" ||
+			payload.Error.Message != errCrossOriginNotAllowed.Error() {
+			t.Fatalf("OpenAI error = %#v, want cross-origin forbidden", payload.Error)
+		}
+	})
+}
+
 func TestLoopbackGuardsHandleBoundHostPorts(t *testing.T) {
 	tests := []struct {
 		name       string

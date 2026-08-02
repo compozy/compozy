@@ -1,6 +1,7 @@
 package core
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -79,7 +80,7 @@ func (h *BaseHandlers) SendBridgeTest(c *gin.Context) {
 		h.respondError(c, StatusForBridgeError(err), err)
 		return
 	}
-	instance, err := bridges.GetInstance(c.Request.Context(), strings.TrimSpace(c.Param("id")))
+	instance, err := bridges.GetInstance(c.Request.Context(), c.Param("id"))
 	if err != nil {
 		h.respondError(c, StatusForBridgeError(err), err)
 		return
@@ -93,7 +94,11 @@ func (h *BaseHandlers) SendBridgeTest(c *gin.Context) {
 		h.respondError(c, http.StatusBadRequest, err)
 		return
 	}
-	deliveryID := storepkg.NewID("del")
+	deliveryID, err := storepkg.NewID("del")
+	if err != nil {
+		h.respondError(c, http.StatusInternalServerError, fmt.Errorf("api: generate bridge delivery id: %w", err))
+		return
+	}
 	deliveryRequest := bridgepkg.DeliveryRequest{Event: bridgepkg.DeliveryEvent{
 		DeliveryID:       deliveryID,
 		BridgeInstanceID: instance.ID,
@@ -158,7 +163,7 @@ func (h *BaseHandlers) bridgeControlInstance(
 		h.respondError(c, http.StatusServiceUnavailable, errBridgeServiceUnavailable)
 		return nil, nil, false
 	}
-	instance, err := bridges.GetInstance(c.Request.Context(), strings.TrimSpace(c.Param("id")))
+	instance, err := bridges.GetInstance(c.Request.Context(), c.Param("id"))
 	if err != nil {
 		h.respondError(c, StatusForBridgeError(err), err)
 		return nil, nil, false

@@ -9,6 +9,7 @@ import (
 
 	"github.com/compozy/compozy/internal/clientstate"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/deadentity"
 	"github.com/compozy/compozy/internal/windowmanager"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
@@ -28,6 +29,7 @@ func (d *Daemon) bootDefaultWorkspaceAndWindowManager(
 		return err
 	}
 	engine, err := clientstate.Open(
+		ctx,
 		clientstate.DatabasePath(d.homePaths.HomeDir),
 		resolver,
 		clientstate.Limits{
@@ -100,6 +102,9 @@ func installWorkspaceRemovalPreparer(state *bootState, sessions SessionManager) 
 			return workspaceRemovalPreparation{
 				windowManager: windowPreparation,
 				session:       sessionPreparation,
+				deadEntities:  state.deadEntities,
+				mcpTools:      state.mcpToolProvider,
+				workspaceID:   workspace.ID,
 			}, nil
 		},
 	)
@@ -109,6 +114,13 @@ func installWorkspaceRemovalPreparer(state *bootState, sessions SessionManager) 
 type workspaceRemovalPreparation struct {
 	windowManager workspacepkg.UnregisterPreparation
 	session       workspacepkg.UnregisterPreparation
+	deadEntities  *deadentity.Service
+	mcpTools      workspaceMCPStateRetirer
+	workspaceID   string
+}
+
+type workspaceMCPStateRetirer interface {
+	ForgetWorkspace(workspaceID string)
 }
 
 func (p workspaceRemovalPreparation) BeforeDelete(ctx context.Context) error {
@@ -119,7 +131,15 @@ func (p workspaceRemovalPreparation) BeforeDelete(ctx context.Context) error {
 }
 
 func (p workspaceRemovalPreparation) Commit(ctx context.Context) error {
-	return errors.Join(p.windowManager.Commit(ctx), p.session.Commit(ctx))
+	windowManagerErr := p.windowManager.Commit(ctx)
+	sessionErr := p.session.Commit(ctx)
+	if p.deadEntities != nil {
+		p.deadEntities.ForgetWorkspace(p.workspaceID)
+	}
+	if p.mcpTools != nil {
+		p.mcpTools.ForgetWorkspace(p.workspaceID)
+	}
+	return errors.Join(windowManagerErr, sessionErr)
 }
 
 func (p workspaceRemovalPreparation) Rollback(ctx context.Context) error {

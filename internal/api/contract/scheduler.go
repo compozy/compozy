@@ -1,10 +1,14 @@
 package contract
 
 import (
+	"math"
 	"time"
 
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
+
+// SchedulerDrainTimeoutMaxSeconds is the largest whole-second timeout that can be represented by time.Duration.
+const SchedulerDrainTimeoutMaxSeconds int64 = math.MaxInt64 / int64(time.Second)
 
 // SchedulerStatusPayload exposes scheduler-wide pause state and queue pressure.
 type SchedulerStatusPayload struct {
@@ -38,7 +42,7 @@ type SchedulerResumeRequest struct {
 // SchedulerDrainRequest captures scheduler drain input.
 type SchedulerDrainRequest struct {
 	Reason         string `json:"reason,omitempty"`
-	TimeoutSeconds *int   `json:"timeout_seconds,omitempty"`
+	TimeoutSeconds *int64 `json:"timeout_seconds,omitempty"`
 }
 
 // SchedulerDrainResponse wraps the final drain result.

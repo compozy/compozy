@@ -159,7 +159,7 @@ func (m *Manager) discardAcceptedSessionStart(
 	sandboxErr := m.finalizeSandbox(ctx, session, sandboxSyncReasonForStop(session))
 	var staged *stagedSessionDelete
 	if accepted.spec.cleanupSessionDir {
-		entry, stageErr := m.stageSessionDirectoryDelete(ctx, session.Info())
+		entry, stageErr := m.stageSessionDirectoryDelete(ctx, session.ID, session.Info())
 		if stageErr != nil {
 			retainErr := m.retainAcceptedSessionAfterDiscardFailure(
 				ctx,
@@ -174,7 +174,7 @@ func (m *Manager) discardAcceptedSessionStart(
 		if catalogErr := m.sessionCatalog.DeleteSession(ctx, session.ID); catalogErr != nil {
 			var rollbackErr error
 			if staged != nil {
-				rollbackErr = m.rollbackStagedSessionDeletes([]stagedSessionDelete{*staged})
+				rollbackErr = m.rollbackStagedSessionDeletes(ctx, []stagedSessionDelete{*staged})
 			}
 			retainErr := m.retainAcceptedSessionAfterDiscardFailure(
 				ctx,
@@ -187,7 +187,7 @@ func (m *Manager) discardAcceptedSessionStart(
 	cleanupErr := m.cleanupFailedStart("", accepted.storage.recorder, accepted.proc)
 	var directoryErr error
 	if staged != nil {
-		directoryErr = m.commitStagedSessionDeletes([]stagedSessionDelete{*staged})
+		directoryErr = m.commitStagedSessionDeletes(ctx, []stagedSessionDelete{*staged})
 	} else {
 		m.remove(session.ID)
 	}

@@ -143,8 +143,12 @@ func appendTaskEventPayloadRecordWithExecutor(
 	if err != nil {
 		return taskpkg.EventRecord{}, fmt.Errorf("store: marshal task event %q payload: %w", eventType, err)
 	}
+	eventID, err := store.NewID("evt")
+	if err != nil {
+		return taskpkg.EventRecord{}, fmt.Errorf("store: generate task event id: %w", err)
+	}
 	return appendTaskEventRecordWithExecutor(ctx, exec, EventRecordInsert{
-		ID:        store.NewID("evt"),
+		ID:        eventID,
 		TaskID:    taskID,
 		RunID:     runID,
 		EventType: eventType,

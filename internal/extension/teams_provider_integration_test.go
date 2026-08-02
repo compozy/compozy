@@ -14,6 +14,7 @@ import (
 	"math/big"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -516,7 +517,7 @@ func postTeamsProviderWebhook(
 			continue
 		}
 		responseBody, readErr := io.ReadAll(resp.Body)
-		_ = resp.Body.Close()
+		closeProviderIntegrationBody(t, resp.Body)
 		if readErr != nil {
 			t.Fatalf("io.ReadAll(response body) error = %v", readErr)
 		}
@@ -598,13 +599,13 @@ func newTeamsProviderAPIServer(t *testing.T) *teamsProviderAPIServer {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/openid/.well-known/openidconfiguration":
-			_ = json.NewEncoder(w).Encode(map[string]any{
+			writeProviderIntegrationJSON(t, w, map[string]any{
 				"issuer":   "https://api.botframework.com",
 				"jwks_uri": serverURL + "/openid/keys",
 			})
 		case r.Method == http.MethodGet && r.URL.Path == "/openid/keys":
 			pub := privateKey.PublicKey
-			_ = json.NewEncoder(w).Encode(map[string]any{
+			writeProviderIntegrationJSON(t, w, map[string]any{
 				"keys": []map[string]any{{
 					"kty":          "RSA",
 					"kid":          srv.keyID,
@@ -615,33 +616,33 @@ func newTeamsProviderAPIServer(t *testing.T) *teamsProviderAPIServer {
 				}},
 			})
 		case r.Method == http.MethodPost && r.URL.Path == "/oauth2/v2.0/token":
-			srv.recordCall(r.Method, r.URL.Path, teamsProviderDecodeJSONBody(r.Body))
-			_ = json.NewEncoder(w).Encode(map[string]any{
+			srv.recordCall(r.Method, r.URL.Path, teamsProviderDecodeFormBody(t, r.Body))
+			writeProviderIntegrationJSON(t, w, map[string]any{
 				"token_type":   "Bearer",
 				"expires_in":   3600,
 				"access_token": "bot-access-token",
 			})
 		case r.Method == http.MethodPost && r.URL.Path == "/v3/conversations":
-			body := teamsProviderDecodeJSONBody(r.Body)
+			body := teamsProviderDecodeJSONBody(t, r.Body)
 			srv.recordCall(r.Method, r.URL.Path, body)
-			_ = json.NewEncoder(w).Encode(map[string]any{"id": "a:created-conversation"})
+			writeProviderIntegrationJSON(t, w, map[string]any{"id": "a:created-conversation"})
 		case r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/activities"):
-			body := teamsProviderDecodeJSONBody(r.Body)
+			body := teamsProviderDecodeJSONBody(t, r.Body)
 			srv.recordCall(r.Method, r.URL.Path, body)
 			srv.mu.Lock()
 			id := fmt.Sprintf("activity-%d", srv.nextID)
 			srv.nextID++
 			srv.mu.Unlock()
-			_ = json.NewEncoder(w).Encode(map[string]any{"id": id})
+			writeProviderIntegrationJSON(t, w, map[string]any{"id": id})
 		case r.Method == http.MethodPut && strings.Contains(r.URL.Path, "/activities/"):
-			srv.recordCall(r.Method, r.URL.Path, teamsProviderDecodeJSONBody(r.Body))
-			_ = json.NewEncoder(w).Encode(map[string]any{"id": "updated"})
+			srv.recordCall(r.Method, r.URL.Path, teamsProviderDecodeJSONBody(t, r.Body))
+			writeProviderIntegrationJSON(t, w, map[string]any{"id": "updated"})
 		case r.Method == http.MethodDelete && strings.Contains(r.URL.Path, "/activities/"):
 			srv.recordCall(r.Method, r.URL.Path, map[string]any{})
 			w.WriteHeader(http.StatusNoContent)
 		default:
 			w.WriteHeader(http.StatusNotFound)
-			_ = json.NewEncoder(w).Encode(map[string]any{"error": "unknown path"})
+			writeProviderIntegrationJSON(t, w, map[string]any{"error": "unknown path"})
 		}
 	}))
 	serverURL = server.URL
@@ -695,13 +696,35 @@ func (s *teamsProviderAPIServer) SignedToken(t *testing.T, appID string, service
 	return signed
 }
 
-func teamsProviderDecodeJSONBody(body io.ReadCloser) map[string]any {
-	defer func() { _ = body.Close() }()
+func teamsProviderDecodeJSONBody(t testing.TB, body io.ReadCloser) map[string]any {
+	t.Helper()
 	if body == nil {
 		return map[string]any{}
 	}
+	defer closeProviderIntegrationBody(t, body)
 	out := map[string]any{}
-	_ = json.NewDecoder(body).Decode(&out)
+	if !decodeProviderIntegrationJSON(t, body, &out) {
+		return map[string]any{}
+	}
+	return out
+}
+
+func teamsProviderDecodeFormBody(t testing.TB, body io.ReadCloser) map[string]any {
+	t.Helper()
+	if body == nil {
+		return map[string]any{}
+	}
+	defer closeProviderIntegrationBody(t, body)
+	raw := readProviderIntegrationBody(t, body)
+	values, err := url.ParseQuery(string(raw))
+	if err != nil {
+		t.Errorf("parse Teams OAuth form error = %v", err)
+		return map[string]any{}
+	}
+	out := make(map[string]any, len(values))
+	for key, items := range values {
+		out[key] = strings.Join(items, ",")
+	}
 	return out
 }
 
@@ -715,15 +738,6 @@ func teamsProviderBigEndianExponent(e int) []byte {
 		e >>= 8
 	}
 	return buf
-}
-
-func teamsProviderExpectedRemoteMessageID(conversationID string, serviceURL string, activityID string) string {
-	payload, _ := json.Marshal(map[string]string{
-		"conversation_id": strings.TrimSpace(conversationID),
-		"service_url":     strings.TrimRight(strings.TrimSpace(serviceURL), "/"),
-		"activity_id":     strings.TrimSpace(activityID),
-	})
-	return base64.RawURLEncoding.EncodeToString(payload)
 }
 
 func teamsProviderBigIntFromBytes(raw []byte) *big.Int {

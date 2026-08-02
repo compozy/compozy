@@ -87,23 +87,27 @@ func (h *RuntimeHarness) PromptSessionHTTPWithEvents(
 	sessionID string,
 	message string,
 	onEvent func(SSEEvent) error,
-) ([]SSEEvent, error) {
-	body := newE2EPromptRequest(message, nil)
+) (_ []SSEEvent, err error) {
+	body, err := newE2EPromptRequest(message, nil)
+	if err != nil {
+		return nil, err
+	}
 	path, err := h.sessionScopedAPIPath(sessionID, "/prompt")
 	if err != nil {
 		return nil, err
 	}
+	targetURL := h.HTTPURL(path)
 	response, err := doRequest(
 		ctx,
 		h.HTTPClient,
-		h.HTTPURL(path),
+		targetURL,
 		http.MethodPost,
 		body,
 	)
 	if err != nil {
 		return nil, err
 	}
-	defer func() { _ = response.Body.Close() }()
+	defer mergeHTTPResponseCloseError(&err, response, http.MethodPost, targetURL)
 
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		payload, readErr := io.ReadAll(response.Body)
@@ -123,26 +127,30 @@ func (h *RuntimeHarness) PromptSessionHTTPUntil(
 	sessionID string,
 	message string,
 	predicate func(SSEEvent) bool,
-) ([]SSEEvent, error) {
+) (_ []SSEEvent, err error) {
 	if err := validateSSEPredicate(predicate); err != nil {
 		return nil, err
 	}
-	body := newE2EPromptRequest(message, nil)
+	body, err := newE2EPromptRequest(message, nil)
+	if err != nil {
+		return nil, err
+	}
 	path, err := h.sessionScopedAPIPath(sessionID, "/prompt")
 	if err != nil {
 		return nil, err
 	}
+	targetURL := h.HTTPURL(path)
 	response, err := doRequest(
 		ctx,
 		h.HTTPClient,
-		h.HTTPURL(path),
+		targetURL,
 		http.MethodPost,
 		body,
 	)
 	if err != nil {
 		return nil, err
 	}
-	defer func() { _ = response.Body.Close() }()
+	defer mergeHTTPResponseCloseError(&err, response, http.MethodPost, targetURL)
 
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		payload, readErr := io.ReadAll(response.Body)
@@ -185,7 +193,7 @@ func (h *RuntimeHarness) streamSessionHTTPUntil(
 	sessionID string,
 	rawQuery string,
 	predicate func(SSEEvent) bool,
-) ([]SSEEvent, error) {
+) (_ []SSEEvent, err error) {
 	if err := validateSSEPredicate(predicate); err != nil {
 		return nil, err
 	}
@@ -196,17 +204,18 @@ func (h *RuntimeHarness) streamSessionHTTPUntil(
 	if rawQuery != "" {
 		path += "?" + rawQuery
 	}
+	targetURL := h.HTTPURL(path)
 	response, err := doRequest(
 		ctx,
 		h.HTTPClient,
-		h.HTTPURL(path),
+		targetURL,
 		http.MethodGet,
 		nil,
 	)
 	if err != nil {
 		return nil, err
 	}
-	defer func() { _ = response.Body.Close() }()
+	defer mergeHTTPResponseCloseError(&err, response, http.MethodGet, targetURL)
 
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		payload, readErr := io.ReadAll(response.Body)
@@ -224,22 +233,23 @@ func (h *RuntimeHarness) ApproveSessionPermission(
 	ctx context.Context,
 	sessionID string,
 	request compozycontract.ApproveSessionRequest,
-) error {
+) (err error) {
 	path, err := h.sessionScopedAPIPath(sessionID, "/approve")
 	if err != nil {
 		return err
 	}
+	targetURL := h.HTTPURL(path)
 	response, err := doRequest(
 		ctx,
 		h.HTTPClient,
-		h.HTTPURL(path),
+		targetURL,
 		http.MethodPost,
 		request,
 	)
 	if err != nil {
 		return err
 	}
-	defer func() { _ = response.Body.Close() }()
+	defer mergeHTTPResponseCloseError(&err, response, http.MethodPost, targetURL)
 
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		payload, readErr := io.ReadAll(response.Body)

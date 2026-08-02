@@ -1,8 +1,8 @@
 package situation
 
 import (
+	"cmp"
 	"encoding/json"
-
 	"fmt"
 	"slices"
 	"strings"
@@ -35,7 +35,7 @@ func selectTaskContextRun(taskRecord taskpkg.Task, runs []taskpkg.Run) (taskpkg.
 func sortRunsByAttemptAndActivity(runs []taskpkg.Run) {
 	slices.SortStableFunc(runs, func(left, right taskpkg.Run) int {
 		if left.Attempt != right.Attempt {
-			return int(right.Attempt - left.Attempt)
+			return cmp.Compare(right.Attempt, left.Attempt)
 		}
 		leftTime := runActivityTime(left)
 		rightTime := runActivityTime(right)

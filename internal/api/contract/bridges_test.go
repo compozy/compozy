@@ -280,7 +280,7 @@ func TestBridgeTestDeliveryRequestAcceptsExplicitMatchingInstanceID(t *testing.T
 			Target: contract.BridgeDeliveryTargetInput{
 				BridgeInstanceID: " brg-1 ",
 				PeerID:           " peer-1 ",
-				Mode:             "direct",
+				Mode:             bridgepkg.DeliveryModeDirectSend,
 			},
 		}
 
@@ -288,7 +288,7 @@ func TestBridgeTestDeliveryRequestAcceptsExplicitMatchingInstanceID(t *testing.T
 		if err != nil {
 			t.Fatalf("ToResolveDeliveryTargetRequest() error = %v", err)
 		}
-		if mapped.BridgeInstanceID != "brg-1" || mapped.PeerID != "peer-1" ||
+		if mapped.BridgeInstanceID != " brg-1 " || mapped.PeerID != " peer-1 " ||
 			mapped.Mode != bridgepkg.DeliveryModeDirectSend {
 			t.Fatalf("mapped target = %#v", mapped)
 		}
@@ -305,7 +305,7 @@ func TestBridgeTestDeliveryRequestRejectsBlankInstanceID(t *testing.T) {
 			Target: contract.BridgeDeliveryTargetInput{PeerID: "peer-1"},
 		}
 
-		if _, err := req.ToResolveDeliveryTargetRequest("   "); err == nil {
+		if _, err := req.ToResolveDeliveryTargetRequest(""); err == nil {
 			t.Fatal("ToResolveDeliveryTargetRequest() error = nil, want non-nil")
 		}
 	})
@@ -673,6 +673,12 @@ func TestBridgeJSONPayloadsRejectInvalidShapes(t *testing.T) {
 			wantErr: `bridge instance delivery defaults field "peer_id" must be a string`,
 		},
 		{
+			name:    "Should reject a noncanonical delivery mode",
+			target:  "delivery",
+			raw:     `{"peer_id":"peer-1","mode":" REPLY_SEND "}`,
+			wantErr: `unsupported delivery target mode " REPLY_SEND "`,
+		},
+		{
 			name:    "Should reject unsupported progress mode",
 			target:  "delivery",
 			raw:     `{"progress":{"tool_progress":"sometimes","grouping":"accumulate","typing":true,"reactions":true}}`,
@@ -740,7 +746,7 @@ func TestBridgeDeliveryDefaultsExposeTypedProgress(t *testing.T) {
 
 		var payload contract.BridgeDeliveryDefaultsPayload
 		if err := payload.UnmarshalJSON([]byte(
-			`{"peer_id":"peer-1","parse_mode":"MarkdownV2","mode":" REPLY_SEND ","progress":{"tool_progress":" ALL ","grouping":" Separate ","typing":true,"reactions":false}}`,
+			`{"peer_id":"peer-1","parse_mode":"MarkdownV2","mode":"reply","progress":{"tool_progress":" ALL ","grouping":" Separate ","typing":true,"reactions":false}}`,
 		)); err != nil {
 			t.Fatalf("UnmarshalJSON() error = %v", err)
 		}

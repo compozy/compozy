@@ -70,6 +70,8 @@ type StartOpts struct {
 	ProviderName         string
 	ProviderConfig       *compozyconfig.ProviderConfig
 	ProviderAuthEnv      *authproviders.ProbeEnv
+
+	launchIdentity *preparedLaunchIdentity
 }
 
 // SystemPromptDeliveryMode records how Compozy delivered startup system guidance to

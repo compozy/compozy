@@ -91,8 +91,7 @@ func skillVerificationFailedDiagnostic(
 
 func skillVerificationFailure(verifyErr error, warnings []Warning) *SkillVerificationFailure {
 	if verifyErr != nil {
-		var mismatch *HashMismatchError
-		if errors.As(verifyErr, &mismatch) && mismatch != nil {
+		if mismatch, ok := errors.AsType[*HashMismatchError](verifyErr); ok && mismatch != nil {
 			return &SkillVerificationFailure{
 				Code:         skillVerificationFailureHashMismatch,
 				Message:      strings.TrimSpace(mismatch.Error()),

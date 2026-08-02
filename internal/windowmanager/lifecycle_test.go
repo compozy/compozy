@@ -1487,8 +1487,8 @@ func TestRouteIntentValidation(t *testing.T) {
 		} {
 			var route RouteIntent
 			err := json.Unmarshal([]byte(raw), &route)
-			var typeError *json.UnmarshalTypeError
-			if !errors.As(err, &typeError) || typeError.Field != "search" {
+			typeError, typeErrorMatched := errors.AsType[*json.UnmarshalTypeError](err)
+			if !typeErrorMatched || typeError.Field != "search" {
 				t.Fatalf("json.Unmarshal(%s) error = %T %v, want search UnmarshalTypeError", raw, err, err)
 			}
 		}

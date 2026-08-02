@@ -706,7 +706,7 @@ func TestRegistryWorkspaceOverrideAudits(t *testing.T) {
 		logger := slog.New(slog.NewTextHandler(&logs, nil))
 		registry := newTestRegistry(t, RegistryConfig{}, WithLogger(logger))
 
-		if err := registry.ApplyResourceRecords(1, []resources.Record[SkillResourceSpec]{
+		if err := registry.ApplyResourceRecords(context.Background(), 1, []resources.Record[SkillResourceSpec]{
 			{
 				Kind: SkillResourceKind,
 				ID:   "global:cool-skill",
@@ -2287,7 +2287,7 @@ func TestRegistrySetEnabledPreservesDisabledOverlayDuringResourceRediscovery(t *
 		if err != nil {
 			t.Fatalf("DiscoverGlobal() error = %v", err)
 		}
-		if err := registry.ApplyResourceRecords(1, []resources.Record[SkillResourceSpec]{
+		if err := registry.ApplyResourceRecords(context.Background(), 1, []resources.Record[SkillResourceSpec]{
 			{
 				ID:    "skill.global-skill",
 				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
@@ -2350,7 +2350,7 @@ func TestRegistrySetEnabledPreservesDisabledOverlayDuringResourceRediscovery(t *
 		if err != nil {
 			t.Fatalf("DiscoverWorkspace() error = %v", err)
 		}
-		if err := registry.ApplyResourceRecords(1, []resources.Record[SkillResourceSpec]{
+		if err := registry.ApplyResourceRecords(context.Background(), 1, []resources.Record[SkillResourceSpec]{
 			{
 				ID: "skill.workspace-skill",
 				Scope: resources.ResourceScope{

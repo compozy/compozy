@@ -2,47 +2,61 @@ package config
 
 import (
 	"bytes"
-
 	"encoding/json"
-
+	"errors"
 	"fmt"
-
-	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 
 	"github.com/BurntSushi/toml"
+	"github.com/compozy/compozy/internal/fileutil"
 )
 
-func loadCapabilityCatalogDirectory(dir string) (*CapabilityCatalog, error) {
-	entries, err := os.ReadDir(dir)
+func loadCapabilityCatalogDirectoryFromDirectory(
+	directory *fileutil.Directory,
+	dir string,
+) (catalog *CapabilityCatalog, err error) {
+	defer func() {
+		if closeErr := directory.Close(); closeErr != nil {
+			catalog = nil
+			err = errors.Join(err, fmt.Errorf("config: close capability catalog directory %q: %w", dir, closeErr))
+		}
+	}()
+
+	entries, err := directory.ReadDir()
 	if err != nil {
 		return nil, fmt.Errorf("config: read capability catalog directory %q: %w", dir, err)
 	}
 
 	tomlFiles := make([]string, 0)
 	jsonFiles := make([]string, 0)
-	for _, entry := range entries {
-		name := entry.Name()
+	contentsByPath := make(map[string][]byte)
+	for _, name := range entries {
 		if strings.HasPrefix(name, ".") {
-			continue
-		}
-
-		info, err := entry.Info()
-		if err != nil {
-			return nil, fmt.Errorf("config: read capability catalog entry %q: %w", filepath.Join(dir, name), err)
-		}
-		if !info.Mode().IsRegular() {
 			continue
 		}
 
 		path := filepath.Join(dir, name)
 		switch filepath.Ext(name) {
 		case capabilityFileExtTOML:
-			tomlFiles = append(tomlFiles, path)
+			content, regular, readErr := readCapabilityCatalogEntry(directory, name, path)
+			if readErr != nil {
+				return nil, readErr
+			}
+			if regular {
+				tomlFiles = append(tomlFiles, path)
+				contentsByPath[path] = content
+			}
 		case capabilityFileExtJSON:
-			jsonFiles = append(jsonFiles, path)
+			content, regular, readErr := readCapabilityCatalogEntry(directory, name, path)
+			if readErr != nil {
+				return nil, readErr
+			}
+			if regular {
+				jsonFiles = append(jsonFiles, path)
+				contentsByPath[path] = content
+			}
 		}
 	}
 
@@ -66,9 +80,20 @@ func loadCapabilityCatalogDirectory(dir string) (*CapabilityCatalog, error) {
 		return &CapabilityCatalog{Capabilities: []CapabilityDef{}}, nil
 	}
 
-	records := make([]capabilityCatalogRecord, 0, len(selected))
-	for _, path := range selected {
-		capability, err := loadCapabilityDefFile(path)
+	records, err := loadCapabilityCatalogRecords(selected, contentsByPath)
+	if err != nil {
+		return nil, err
+	}
+	return normalizeCapabilityCatalogRecords(records, dir)
+}
+
+func loadCapabilityCatalogRecords(
+	paths []string,
+	contentsByPath map[string][]byte,
+) ([]capabilityCatalogRecord, error) {
+	records := make([]capabilityCatalogRecord, 0, len(paths))
+	for _, path := range paths {
+		capability, err := loadCapabilityDefBytes(contentsByPath[path], path)
 		if err != nil {
 			return nil, err
 		}
@@ -78,19 +103,21 @@ func loadCapabilityCatalogDirectory(dir string) (*CapabilityCatalog, error) {
 			capability: capability,
 		})
 	}
-
-	return normalizeCapabilityCatalogRecords(records, dir)
+	return records, nil
 }
 
-func loadCapabilityDefFile(path string) (CapabilityDef, error) {
-	content, exists, err := readOptionalRegularFile(path, "capability definition")
+func readCapabilityCatalogEntry(directory *fileutil.Directory, name string, path string) ([]byte, bool, error) {
+	content, _, err := directory.ReadRegularFile(name)
+	if errors.Is(err, fileutil.ErrDirectory) || errors.Is(err, fileutil.ErrNotRegular) {
+		return nil, false, nil
+	}
 	if err != nil {
-		return CapabilityDef{}, err
+		return nil, false, fmt.Errorf("config: read capability catalog entry %q: %w", path, err)
 	}
-	if !exists {
-		return CapabilityDef{}, fmt.Errorf("config: capability definition %q disappeared before read", path)
-	}
+	return content, true, nil
+}
 
+func loadCapabilityDefBytes(content []byte, path string) (CapabilityDef, error) {
 	switch filepath.Ext(path) {
 	case capabilityFileExtTOML:
 		return parseCapabilityDefTOML(content, path)

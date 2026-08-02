@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -13,6 +15,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"testing/iotest"
 	"time"
 )
 
@@ -821,12 +824,284 @@ func TestCatalogSourceFetch(t *testing.T) {
 			t.Fatalf("nil Fetch() error = %v, want source validation", err)
 		}
 	})
+
+	t.Run("Should enforce response bounds and close every acquired HTTP response", func(t *testing.T) {
+		t.Parallel()
+
+		const drainLimit int64 = 64 << 10
+		validDocument := validMCPDocumentJSON()
+		probeErr := errors.New("probe response")
+		tests := []struct {
+			name              string
+			statusCode        int
+			contentLength     int64
+			body              string
+			afterProbeBody    string
+			maxResponseBytes  int64
+			wantReadBytes     int64
+			wantPrimary       error
+			probeErr          error
+			wantHTTPStatus    int
+			closeErr          error
+			oneByteChunks     bool
+			wantDocument      bool
+			wantValidationErr bool
+		}{
+			{
+				name:           "Should drain a rejected HTTP status before closing",
+				statusCode:     http.StatusServiceUnavailable,
+				contentLength:  -1,
+				body:           strings.Repeat("x", int(drainLimit*2)),
+				wantReadBytes:  drainLimit,
+				wantHTTPStatus: http.StatusServiceUnavailable,
+			},
+			{
+				name:             "Should drain an advertised oversized response before closing",
+				statusCode:       http.StatusOK,
+				contentLength:    65,
+				body:             strings.Repeat("x", int(drainLimit*2)),
+				maxResponseBytes: 64,
+				wantReadBytes:    drainLimit,
+				wantPrimary:      ErrResponseTooLarge,
+			},
+			{
+				name:             "Should drain only a bounded remainder after discovering an oversized response",
+				statusCode:       http.StatusOK,
+				contentLength:    -1,
+				body:             strings.Repeat("x", 65+int(drainLimit)+1),
+				maxResponseBytes: 64,
+				wantReadBytes:    65 + drainLimit,
+				wantPrimary:      ErrResponseTooLarge,
+			},
+			{
+				name:             "Should preserve oversized and read error identities when the probe returns both",
+				statusCode:       http.StatusOK,
+				contentLength:    -1,
+				body:             validDocument,
+				afterProbeBody:   strings.Repeat("x", int(drainLimit)+1),
+				maxResponseBytes: int64(len(validDocument)),
+				wantReadBytes:    int64(len(validDocument)) + 1 + drainLimit,
+				wantPrimary:      ErrResponseTooLarge,
+				probeErr:         probeErr,
+			},
+			{
+				name:              "Should close after document validation fails",
+				statusCode:        http.StatusOK,
+				contentLength:     -1,
+				body:              "not JSON",
+				wantReadBytes:     int64(len("not JSON")),
+				wantValidationErr: true,
+			},
+			{
+				name:             "Should accept a small chunked response at the largest positive limit",
+				statusCode:       http.StatusOK,
+				contentLength:    -1,
+				body:             validDocument,
+				maxResponseBytes: math.MaxInt64,
+				wantReadBytes:    int64(len(validDocument)),
+				oneByteChunks:    true,
+				wantDocument:     true,
+			},
+			{
+				name:             "Should accept a document exactly at the configured limit",
+				statusCode:       http.StatusOK,
+				contentLength:    -1,
+				body:             validDocument,
+				maxResponseBytes: int64(len(validDocument)),
+				wantReadBytes:    int64(len(validDocument)),
+				oneByteChunks:    true,
+				wantDocument:     true,
+			},
+			{
+				name:          "Should close after a successful document fetch",
+				statusCode:    http.StatusOK,
+				contentLength: -1,
+				body:          validDocument,
+				wantReadBytes: int64(len(validDocument)),
+				wantDocument:  true,
+			},
+			{
+				name:          "Should preserve a close failure after a successful document fetch",
+				statusCode:    http.StatusOK,
+				contentLength: -1,
+				body:          validDocument,
+				wantReadBytes: int64(len(validDocument)),
+				closeErr:      errors.New("close successful response"),
+				wantDocument:  true,
+			},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				var bodyReader io.Reader = strings.NewReader(tt.body)
+				if tt.probeErr != nil {
+					bodyReader = io.MultiReader(bodyReader, &byteAndErrorReader{
+						err:       tt.probeErr,
+						remainder: strings.NewReader(tt.afterProbeBody),
+					})
+				}
+				if tt.oneByteChunks {
+					bodyReader = iotest.OneByteReader(bodyReader)
+				}
+				body := &responseBodyTracker{reader: bodyReader, closeErr: tt.closeErr}
+				response := &http.Response{
+					StatusCode:    tt.statusCode,
+					ContentLength: tt.contentLength,
+					Body:          body,
+				}
+				client := &http.Client{
+					Timeout: time.Second,
+					Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+						return response, nil
+					}),
+				}
+				source, err := NewHTTPSource(
+					KindMCP,
+					"https://example.test/catalog",
+					client,
+					WithMaxResponseBytes(tt.maxResponseBytes),
+				)
+				if err != nil {
+					t.Fatalf("NewHTTPSource() error = %v", err)
+				}
+				document, err := source.Fetch(t.Context())
+				if tt.wantPrimary != nil && !errors.Is(err, tt.wantPrimary) {
+					t.Fatalf("Fetch() error = %v, want primary %v", err, tt.wantPrimary)
+				}
+				if tt.probeErr != nil && !errors.Is(err, tt.probeErr) {
+					t.Fatalf("Fetch() error = %v, want probe read error identity", err)
+				}
+				if tt.wantHTTPStatus != 0 {
+					statusErr, statusErrMatched := errors.AsType[*httpStatusError](err)
+					if !statusErrMatched || statusErr.status != tt.wantHTTPStatus {
+						t.Fatalf("Fetch() error = %v, want HTTP %d status identity", err, tt.wantHTTPStatus)
+					}
+				}
+				if tt.closeErr != nil && !errors.Is(err, tt.closeErr) {
+					t.Fatalf("Fetch() error = %v, want close error identity", err)
+				}
+				if tt.wantValidationErr && err == nil {
+					t.Fatal("Fetch() error = nil, want document validation failure")
+				}
+				if tt.wantDocument && document == nil {
+					t.Fatal("Fetch() document = nil, want validated document")
+				}
+				if tt.wantDocument && tt.closeErr == nil && err != nil {
+					t.Fatalf("Fetch() error = %v, want successful document fetch", err)
+				}
+				if got, want := body.bytesRead, tt.wantReadBytes; got != want {
+					t.Fatalf("Fetch() body bytes read = %d, want %d", got, want)
+				}
+				if got, want := body.closeCount, 1; got != want {
+					t.Fatalf("Fetch() body close count = %d, want %d", got, want)
+				}
+			})
+		}
+	})
+
+	t.Run("Should preserve read drain and close errors from one response", func(t *testing.T) {
+		t.Parallel()
+
+		readErr := errors.New("read response")
+		drainErr := errors.New("drain response")
+		closeErr := errors.New("close response")
+		body := &errorSequenceReadCloser{
+			readErrors: []error{readErr, drainErr},
+			closeErr:   closeErr,
+		}
+		client := &http.Client{
+			Timeout: time.Second,
+			Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+				return &http.Response{StatusCode: http.StatusOK, ContentLength: -1, Body: body}, nil
+			}),
+		}
+		source, err := NewHTTPSource(KindMCP, "https://example.test/catalog", client)
+		if err != nil {
+			t.Fatalf("NewHTTPSource() error = %v", err)
+		}
+
+		_, err = source.Fetch(t.Context())
+		if !errors.Is(err, readErr) {
+			t.Fatalf("Fetch() error = %v, want read error identity", err)
+		}
+		if !errors.Is(err, drainErr) {
+			t.Fatalf("Fetch() error = %v, want drain error identity", err)
+		}
+		if !errors.Is(err, closeErr) {
+			t.Fatalf("Fetch() error = %v, want close error identity", err)
+		}
+		if got, want := body.closeCount, 1; got != want {
+			t.Fatalf("Fetch() body close count = %d, want %d", got, want)
+		}
+		if got, want := body.readCount, 2; got != want {
+			t.Fatalf("Fetch() body read count = %d, want %d", got, want)
+		}
+	})
 }
 
 type roundTripFunc func(*http.Request) (*http.Response, error)
 
 func (f roundTripFunc) RoundTrip(request *http.Request) (*http.Response, error) {
 	return f(request)
+}
+
+type responseBodyTracker struct {
+	reader     io.Reader
+	closeErr   error
+	bytesRead  int64
+	closeCount int
+}
+
+func (b *responseBodyTracker) Read(destination []byte) (int, error) {
+	read, err := b.reader.Read(destination)
+	b.bytesRead += int64(read)
+	return read, err
+}
+
+func (b *responseBodyTracker) Close() error {
+	b.closeCount++
+	return b.closeErr
+}
+
+type byteAndErrorReader struct {
+	err       error
+	remainder io.Reader
+	delivered bool
+}
+
+func (r *byteAndErrorReader) Read(destination []byte) (int, error) {
+	if !r.delivered {
+		if len(destination) == 0 {
+			return 0, nil
+		}
+		r.delivered = true
+		destination[0] = 'x'
+		return 1, r.err
+	}
+	return r.remainder.Read(destination)
+}
+
+type errorSequenceReadCloser struct {
+	readErrors []error
+	closeErr   error
+	readCount  int
+	closeCount int
+}
+
+func (b *errorSequenceReadCloser) Read([]byte) (int, error) {
+	b.readCount++
+	if len(b.readErrors) == 0 {
+		return 0, io.EOF
+	}
+	err := b.readErrors[0]
+	b.readErrors = b.readErrors[1:]
+	return 0, err
+}
+
+func (b *errorSequenceReadCloser) Close() error {
+	b.closeCount++
+	return b.closeErr
 }
 
 func TestDecodeRemoteMCPAndTimestamps(t *testing.T) {

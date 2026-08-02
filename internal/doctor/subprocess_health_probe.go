@@ -52,14 +52,15 @@ func (p *SubprocessHealthProbe) Run(
 		}
 	}
 	if len(failed) == 0 {
-		return []contract.DiagnosticItem{diagnostics.NewItem(
-			SubprocessHealthProbeID,
-			contract.CodeDaemonStatusOK,
-			contract.CategoryDaemon,
-			"Subprocess health is OK",
-			"No active subprocess reports a failed health verdict.",
-			contract.SeverityOK,
-			contract.FreshnessLive,
+		return []contract.DiagnosticItem{diagnostics.NewItem(diagnostics.ItemSpec{
+			ID:            SubprocessHealthProbeID,
+			Code:          contract.CodeDaemonStatusOK,
+			Category:      contract.CategoryDaemon,
+			Title:         "Subprocess health is OK",
+			Message:       "No active subprocess reports a failed health verdict.",
+			Severity:      contract.SeverityOK,
+			DataFreshness: contract.FreshnessLive,
+		},
 			diagnostics.WithEvidence(map[string]any{"monitored_count": len(snapshots)}),
 		)}, nil
 	}
@@ -72,14 +73,15 @@ func (p *SubprocessHealthProbe) Run(
 	if strings.TrimSpace(reason) == "" {
 		reason = "the subprocess reported an unhealthy verdict"
 	}
-	return []contract.DiagnosticItem{diagnostics.NewItem(
-		SubprocessHealthProbeID,
-		contract.CodeDaemonHealthUnavailable,
-		contract.CategoryDaemon,
-		"Subprocess health is degraded",
-		reason,
-		contract.SeverityWarn,
-		contract.FreshnessLive,
+	return []contract.DiagnosticItem{diagnostics.NewItem(diagnostics.ItemSpec{
+		ID:            SubprocessHealthProbeID,
+		Code:          contract.CodeDaemonHealthUnavailable,
+		Category:      contract.CategoryDaemon,
+		Title:         "Subprocess health is degraded",
+		Message:       reason,
+		Severity:      contract.SeverityWarn,
+		DataFreshness: contract.FreshnessLive,
+	},
 		diagnostics.WithEvidence(map[string]any{
 			"session_id":           strings.TrimSpace(first.SessionID),
 			"workspace_id":         strings.TrimSpace(first.WorkspaceID),
@@ -93,15 +95,15 @@ func (p *SubprocessHealthProbe) Run(
 }
 
 func subprocessHealthUnavailableItem() contract.DiagnosticItem {
-	return diagnostics.NewItem(
-		SubprocessHealthProbeID,
-		contract.CodeDaemonHealthUnavailable,
-		contract.CategoryDaemon,
-		"Subprocess health is unavailable",
-		"The session runtime does not expose subprocess health snapshots.",
-		contract.SeverityWarn,
-		contract.FreshnessLive,
-	)
+	return diagnostics.NewItem(diagnostics.ItemSpec{
+		ID:            SubprocessHealthProbeID,
+		Code:          contract.CodeDaemonHealthUnavailable,
+		Category:      contract.CategoryDaemon,
+		Title:         "Subprocess health is unavailable",
+		Message:       "The session runtime does not expose subprocess health snapshots.",
+		Severity:      contract.SeverityWarn,
+		DataFreshness: contract.FreshnessLive,
+	})
 }
 
 func subprocessHealthTimestamp(value time.Time) string {

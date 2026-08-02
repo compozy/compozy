@@ -109,7 +109,7 @@ func TestMCPAuthTokenStorePersistsAcrossReopenWithPrivatePermissions(t *testing.
 		}
 		t.Cleanup(func() {
 			if err := reopened.Close(ctx); err != nil {
-				t.Fatalf("Close(reopened) error = %v", err)
+				t.Errorf("Close(reopened) error = %v", err)
 			}
 		})
 
@@ -143,12 +143,32 @@ func TestMCPAuthTokenStorePersistsAcrossReopenWithPrivatePermissions(t *testing.
 		if replaced.AccessToken != replacement.AccessToken || replaced.RefreshToken != "" {
 			t.Fatalf("replaced token = %#v, want new access token without refresh token", replaced)
 		}
-		assertVaultRefPresence(ctx, t, reopened.db, rawRefreshToken, false)
+		if err := reopened.Close(ctx); err != nil {
+			t.Fatalf("Close(after rotation) error = %v", err)
+		}
 
-		if err := reopened.DeleteMCPAuthToken(ctx, globalMCPAuthTarget("linear")); err != nil {
+		reopenedAfterRotation, err := OpenGlobalDB(ctx, path)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB(after rotation) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := reopenedAfterRotation.Close(ctx); err != nil {
+				t.Errorf("Close(reopened after rotation) error = %v", err)
+			}
+		})
+		replaced, err = reopenedAfterRotation.GetMCPAuthToken(ctx, replacement.Target)
+		if err != nil {
+			t.Fatalf("GetMCPAuthToken(after rotation reopen) error = %v", err)
+		}
+		if replaced.AccessToken != replacement.AccessToken || replaced.RefreshToken != "" {
+			t.Fatalf("reopened rotated token = %#v, want new access token without refresh token", replaced)
+		}
+		assertVaultRefPresence(ctx, t, reopenedAfterRotation.db, rawRefreshToken, false)
+
+		if err := reopenedAfterRotation.DeleteMCPAuthToken(ctx, globalMCPAuthTarget("linear")); err != nil {
 			t.Fatalf("DeleteMCPAuthToken() error = %v", err)
 		}
-		if _, err := reopened.GetMCPAuthToken(
+		if _, err := reopenedAfterRotation.GetMCPAuthToken(
 			ctx,
 			globalMCPAuthTarget("linear"),
 		); !errors.Is(

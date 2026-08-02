@@ -15,11 +15,11 @@ import (
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
-func extensionEventSummaryStore(registry Registry) extensionLifecycleEventWriter {
-	if registry == nil {
+func extensionEventSummaryStore(writer extensionLifecycleEventWriter) extensionLifecycleEventWriter {
+	if writer == nil {
 		return nil
 	}
-	return registry
+	return writer
 }
 
 func (s *daemonExtensionService) List(ctx context.Context) ([]contract.ExtensionPayload, error) {

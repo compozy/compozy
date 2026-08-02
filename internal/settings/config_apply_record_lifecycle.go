@@ -69,14 +69,15 @@ func (s *service) recordFailedApply(
 	if hashErr != nil {
 		desiredHash = state.hash
 	}
-	diagnostic := diagnostics.NewItem(
-		"config.apply.failed",
-		diagnosticcontract.CodeConfigInvalid,
-		diagnosticcontract.CategoryConfig,
-		"Config apply failed",
-		cause.Error(),
-		diagnosticcontract.SeverityError,
-		diagnosticcontract.FreshnessLive,
+	diagnostic := diagnostics.NewItem(diagnostics.ItemSpec{
+		ID:            "config.apply.failed",
+		Code:          diagnosticcontract.CodeConfigInvalid,
+		Category:      diagnosticcontract.CategoryConfig,
+		Title:         "Config apply failed",
+		Message:       cause.Error(),
+		Severity:      diagnosticcontract.SeverityError,
+		DataFreshness: diagnosticcontract.FreshnessLive,
+	},
 		diagnostics.WithSuggestedCommand("compozy config validate"),
 	)
 	record, err := s.createTerminalApplyRecord(ctx, applyRecordInput{

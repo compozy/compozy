@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/compozy/compozy/internal/fileutil"
 )
 
 const (
@@ -17,6 +19,10 @@ const (
 	capabilityFileExtTOML     = ".toml"
 	capabilityFileExtJSON     = ".json"
 )
+
+type capabilityCatalogLayoutMode string
+
+const capabilityCatalogLayoutModeFile capabilityCatalogLayoutMode = "file"
 
 // CapabilityDef is one normalized, outcome-oriented capability declaration for an agent.
 type CapabilityDef struct {
@@ -42,20 +48,6 @@ type CapabilityCatalog struct {
 type CapabilityBrief struct {
 	ID      string `json:"id"      toml:"id"`
 	Summary string `json:"summary" toml:"summary"`
-}
-
-type capabilityCatalogLayoutMode string
-
-const (
-	capabilityCatalogLayoutModeNone      capabilityCatalogLayoutMode = ""
-	capabilityCatalogLayoutModeFile      capabilityCatalogLayoutMode = "file"
-	capabilityCatalogLayoutModeDirectory capabilityCatalogLayoutMode = "directory"
-)
-
-type capabilityCatalogLayout struct {
-	mode capabilityCatalogLayoutMode
-	file string
-	dir  string
 }
 
 type capabilityCatalogRecord struct {
@@ -95,32 +87,133 @@ func (c *CapabilityCatalog) Clone() *CapabilityCatalog {
 
 // LoadAgentCapabilities loads the optional capability catalog for one agent directory.
 // When no supported capability catalog exists, it returns nil without error.
-func LoadAgentCapabilities(agentDir string) (*CapabilityCatalog, error) {
+func LoadAgentCapabilities(agentDir string) (catalog *CapabilityCatalog, err error) {
 	trimmedDir := strings.TrimSpace(agentDir)
 	if trimmedDir == "" {
 		return nil, errors.New("config: agent directory is required")
 	}
 
-	layout, err := detectCapabilityCatalogLayout(trimmedDir)
+	directory, err := fileutil.OpenDirectory(trimmedDir)
+	if err != nil {
+		return nil, fmt.Errorf("config: open agent directory %q: %w", trimmedDir, err)
+	}
+	defer func() {
+		if closeErr := directory.Close(); closeErr != nil {
+			catalog = nil
+			err = errors.Join(err, fmt.Errorf("config: close agent directory %q: %w", trimmedDir, closeErr))
+		}
+	}()
+
+	return loadAgentCapabilitiesFromDirectory(directory, trimmedDir)
+}
+
+func loadAgentCapabilitiesFromDirectory(directory *fileutil.Directory, agentDir string) (*CapabilityCatalog, error) {
+	tomlPath := filepath.Join(agentDir, capabilityCatalogTOMLName)
+	jsonPath := filepath.Join(agentDir, capabilityCatalogJSONName)
+	dirPath := filepath.Join(agentDir, capabilityCatalogDirName)
+
+	tomlContent, tomlExists, err := readOptionalCapabilityCatalogFile(directory, capabilityCatalogTOMLName, tomlPath)
+	if err != nil {
+		return nil, err
+	}
+	jsonContent, jsonExists, err := readOptionalCapabilityCatalogFile(directory, capabilityCatalogJSONName, jsonPath)
+	if err != nil {
+		return nil, err
+	}
+	catalogDirectory, directoryExists, err := openOptionalCapabilityCatalogDirectory(directory, dirPath)
 	if err != nil {
 		return nil, err
 	}
 
-	switch layout.mode {
-	case capabilityCatalogLayoutModeNone:
-		return nil, nil
-	case capabilityCatalogLayoutModeFile:
-		return loadCapabilityCatalogFile(layout.file)
-	case capabilityCatalogLayoutModeDirectory:
-		return loadCapabilityCatalogDirectory(layout.dir)
-	default:
-		return nil, fmt.Errorf("config: unsupported capability catalog mode %q", layout.mode)
+	if directoryExists && (tomlExists || jsonExists) {
+		conflicts := make([]string, 0, 3)
+		if tomlExists {
+			conflicts = append(conflicts, tomlPath)
+		}
+		if jsonExists {
+			conflicts = append(conflicts, jsonPath)
+		}
+		conflicts = append(conflicts, dirPath)
+		validationErr := fmt.Errorf(
+			"config: validate capability catalog %q: mixed capability catalog layouts: %s",
+			agentDir,
+			joinQuotedPaths(conflicts),
+		)
+		if closeErr := catalogDirectory.Close(); closeErr != nil {
+			return nil, errors.Join(
+				validationErr,
+				fmt.Errorf("config: close capability catalog directory %q: %w", dirPath, closeErr),
+			)
+		}
+		return nil, validationErr
 	}
+
+	if tomlExists && jsonExists {
+		return nil, fmt.Errorf(
+			"config: validate capability catalog %q: multiple capability catalog files: %s",
+			agentDir,
+			joinQuotedPaths([]string{tomlPath, jsonPath}),
+		)
+	}
+	if tomlExists {
+		return parseCapabilityCatalogTOML(tomlContent, tomlPath)
+	}
+	if jsonExists {
+		return parseCapabilityCatalogJSON(jsonContent, jsonPath)
+	}
+	if directoryExists {
+		return loadCapabilityCatalogDirectoryFromDirectory(catalogDirectory, dirPath)
+	}
+
+	return nil, nil
+}
+
+func readOptionalCapabilityCatalogFile(directory *fileutil.Directory, name string, path string) ([]byte, bool, error) {
+	content, _, err := directory.ReadRegularFile(name)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, false, nil
+		}
+		if errors.Is(err, fileutil.ErrSymlink) {
+			return nil, false, fmt.Errorf("config: capability catalog file %q must be a file, not a symlink", path)
+		}
+		if errors.Is(err, fileutil.ErrDirectory) {
+			return nil, false, fmt.Errorf("config: capability catalog file %q must be a file", path)
+		}
+		if errors.Is(err, fileutil.ErrNotRegular) {
+			return nil, false, fmt.Errorf("config: capability catalog file %q must be a regular file", path)
+		}
+		return nil, false, fmt.Errorf("config: open capability catalog file %q: %w", path, err)
+	}
+	return content, true, nil
+}
+
+func openOptionalCapabilityCatalogDirectory(
+	parent *fileutil.Directory,
+	path string,
+) (*fileutil.Directory, bool, error) {
+	directory, err := parent.OpenDirectory(capabilityCatalogDirName)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, false, nil
+		}
+		if errors.Is(err, fileutil.ErrSymlink) {
+			return nil, false, fmt.Errorf(
+				"config: capability catalog directory %q must be a directory, not a symlink",
+				path,
+			)
+		}
+		if errors.Is(err, fileutil.ErrNotDirectory) {
+			return nil, false, fmt.Errorf("config: capability catalog directory %q must be a directory", path)
+		}
+		return nil, false, fmt.Errorf("config: open capability catalog directory %q: %w", path, err)
+	}
+	return directory, true, nil
 }
 
 // AgentCapabilityCatalogDependencyPaths returns the filesystem inputs that can
 // affect LoadAgentCapabilities for one agent directory.
-func AgentCapabilityCatalogDependencyPaths(agentDir string) ([]string, error) {
+func AgentCapabilityCatalogDependencyPaths(agentDir string) (paths []string, err error) {
 	trimmedDir := strings.TrimSpace(agentDir)
 	if trimmedDir == "" {
 		return nil, errors.New("config: agent directory is required")
@@ -129,158 +222,60 @@ func AgentCapabilityCatalogDependencyPaths(agentDir string) ([]string, error) {
 	tomlPath := filepath.Join(trimmedDir, capabilityCatalogTOMLName)
 	jsonPath := filepath.Join(trimmedDir, capabilityCatalogJSONName)
 	dirPath := filepath.Join(trimmedDir, capabilityCatalogDirName)
-	paths := []string{tomlPath, jsonPath, dirPath}
+	paths = []string{tomlPath, jsonPath, dirPath}
 
-	info, err := os.Lstat(dirPath)
+	directory, err := fileutil.OpenDirectory(dirPath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			sort.Strings(paths)
 			return paths, nil
 		}
-		return nil, fmt.Errorf("config: stat capability catalog directory %q: %w", dirPath, err)
+		if errors.Is(err, fileutil.ErrNotDirectory) {
+			sort.Strings(paths)
+			return paths, nil
+		}
+		return nil, fmt.Errorf("config: open capability catalog directory %q: %w", dirPath, err)
 	}
-	if info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
-		sort.Strings(paths)
-		return paths, nil
-	}
+	defer func() {
+		if closeErr := directory.Close(); closeErr != nil {
+			paths = nil
+			err = errors.Join(err, fmt.Errorf("config: close capability catalog directory %q: %w", dirPath, closeErr))
+		}
+	}()
 
-	entries, err := os.ReadDir(dirPath)
+	entries, err := directory.ReadDir()
 	if err != nil {
 		return nil, fmt.Errorf("config: read capability catalog directory %q: %w", dirPath, err)
 	}
-	for _, entry := range entries {
-		name := entry.Name()
-		if strings.HasPrefix(name, ".") || entry.IsDir() {
-			continue
-		}
 
-		info, err := entry.Info()
-		if err != nil {
-			return nil, fmt.Errorf("config: read capability catalog entry %q: %w", filepath.Join(dirPath, name), err)
-		}
-		if !info.Mode().IsRegular() {
+	for _, name := range entries {
+		if strings.HasPrefix(name, ".") {
 			continue
 		}
 		switch filepath.Ext(name) {
 		case capabilityFileExtTOML, capabilityFileExtJSON:
+			file, openErr := directory.OpenRegularFile(name)
+			if errors.Is(openErr, fileutil.ErrDirectory) || errors.Is(openErr, fileutil.ErrNotRegular) {
+				continue
+			}
+			if openErr != nil {
+				return nil, fmt.Errorf(
+					"config: read capability catalog entry %q: %w",
+					filepath.Join(dirPath, name),
+					openErr,
+				)
+			}
+			if closeErr := file.Close(); closeErr != nil {
+				return nil, fmt.Errorf(
+					"config: close capability catalog entry %q: %w",
+					filepath.Join(dirPath, name),
+					closeErr,
+				)
+			}
 			paths = append(paths, filepath.Join(dirPath, name))
 		}
 	}
 
 	sort.Strings(paths)
 	return paths, nil
-}
-
-func detectCapabilityCatalogLayout(agentDir string) (capabilityCatalogLayout, error) {
-	tomlPath := filepath.Join(agentDir, capabilityCatalogTOMLName)
-	jsonPath := filepath.Join(agentDir, capabilityCatalogJSONName)
-	dirPath := filepath.Join(agentDir, capabilityCatalogDirName)
-
-	tomlExists, err := existingCapabilityCatalogFile(tomlPath)
-	if err != nil {
-		return capabilityCatalogLayout{}, err
-	}
-	jsonExists, err := existingCapabilityCatalogFile(jsonPath)
-	if err != nil {
-		return capabilityCatalogLayout{}, err
-	}
-	dirExists, err := existingCapabilityCatalogDir(dirPath)
-	if err != nil {
-		return capabilityCatalogLayout{}, err
-	}
-
-	files := make([]string, 0, 2)
-	if tomlExists {
-		files = append(files, tomlPath)
-	}
-	if jsonExists {
-		files = append(files, jsonPath)
-	}
-
-	if dirExists && len(files) > 0 {
-		conflicts := append([]string(nil), files...)
-		conflicts = append(conflicts, dirPath)
-		return capabilityCatalogLayout{}, fmt.Errorf(
-			"config: validate capability catalog %q: mixed capability catalog layouts: %s",
-			agentDir,
-			joinQuotedPaths(conflicts),
-		)
-	}
-	if len(files) > 1 {
-		return capabilityCatalogLayout{}, fmt.Errorf(
-			"config: validate capability catalog %q: multiple capability catalog files: %s",
-			agentDir,
-			joinQuotedPaths(files),
-		)
-	}
-	if len(files) == 1 {
-		return capabilityCatalogLayout{
-			mode: capabilityCatalogLayoutModeFile,
-			file: files[0],
-		}, nil
-	}
-	if dirExists {
-		return capabilityCatalogLayout{
-			mode: capabilityCatalogLayoutModeDirectory,
-			dir:  dirPath,
-		}, nil
-	}
-
-	return capabilityCatalogLayout{}, nil
-}
-
-func existingCapabilityCatalogFile(path string) (bool, error) {
-	info, err := os.Lstat(path)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return false, nil
-		}
-		return false, fmt.Errorf("config: stat capability catalog file %q: %w", path, err)
-	}
-	if info.Mode()&os.ModeSymlink != 0 {
-		return false, fmt.Errorf("config: capability catalog file %q must be a file, not a symlink", path)
-	}
-	if info.IsDir() {
-		return false, fmt.Errorf("config: capability catalog file %q must be a file", path)
-	}
-	if !info.Mode().IsRegular() {
-		return false, fmt.Errorf("config: capability catalog file %q must be a regular file", path)
-	}
-	return true, nil
-}
-
-func existingCapabilityCatalogDir(path string) (bool, error) {
-	info, err := os.Lstat(path)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return false, nil
-		}
-		return false, fmt.Errorf("config: stat capability catalog directory %q: %w", path, err)
-	}
-	if info.Mode()&os.ModeSymlink != 0 {
-		return false, fmt.Errorf("config: capability catalog directory %q must be a directory, not a symlink", path)
-	}
-	if !info.IsDir() {
-		return false, fmt.Errorf("config: capability catalog directory %q must be a directory", path)
-	}
-	return true, nil
-}
-
-func loadCapabilityCatalogFile(path string) (*CapabilityCatalog, error) {
-	content, exists, err := readOptionalRegularFile(path, "capability catalog")
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		return nil, fmt.Errorf("config: capability catalog %q disappeared before read", path)
-	}
-
-	switch filepath.Ext(path) {
-	case capabilityFileExtTOML:
-		return parseCapabilityCatalogTOML(content, path)
-	case capabilityFileExtJSON:
-		return parseCapabilityCatalogJSON(content, path)
-	default:
-		return nil, fmt.Errorf("config: unsupported capability catalog file %q", path)
-	}
 }

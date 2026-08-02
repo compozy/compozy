@@ -69,13 +69,14 @@ type skillCreateItem struct {
 }
 
 type skillInstallItem struct {
-	Name     string `json:"name"`
-	Slug     string `json:"slug"`
-	Version  string `json:"version,omitempty"`
-	Registry string `json:"registry"`
-	Path     string `json:"path"`
-	Hash     string `json:"hash"`
-	Status   string `json:"status"`
+	Name               string                                              `json:"name"`
+	Slug               string                                              `json:"slug"`
+	Version            string                                              `json:"version,omitempty"`
+	Registry           string                                              `json:"registry"`
+	Path               string                                              `json:"path"`
+	Hash               string                                              `json:"hash"`
+	Status             string                                              `json:"status"`
+	CleanupDiagnostics []contract.SkillMarketplaceCleanupDiagnosticPayload `json:"cleanup_diagnostics,omitempty"`
 }
 
 type skillRemoveItem struct {
@@ -86,10 +87,11 @@ type skillRemoveItem struct {
 }
 
 type skillUpdateItem struct {
-	Name           string `json:"name"`
-	Slug           string `json:"slug"`
-	CurrentVersion string `json:"current_version,omitempty"`
-	LatestVersion  string `json:"latest_version,omitempty"`
-	Path           string `json:"path"`
-	Status         string `json:"status"`
+	Name               string                                              `json:"name"`
+	Slug               string                                              `json:"slug"`
+	CurrentVersion     string                                              `json:"current_version,omitempty"`
+	LatestVersion      string                                              `json:"latest_version,omitempty"`
+	Path               string                                              `json:"path"`
+	Status             string                                              `json:"status"`
+	CleanupDiagnostics []contract.SkillMarketplaceCleanupDiagnosticPayload `json:"cleanup_diagnostics,omitempty"`
 }

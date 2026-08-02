@@ -31,7 +31,10 @@ func (m *Manager) openSessionStartRecorder(
 	spec *sessionStartSpec,
 	storage sessionStartStorage,
 ) (sessionStartStorage, error) {
-	recorder, err := m.openStore(ctx, spec.sessionID, storage.dbPath)
+	recorder, err := m.openStore(ctx, store.SessionDBOwner{
+		SessionID:   spec.sessionID,
+		WorkspaceID: spec.workspace.ID,
+	}, storage.dbPath)
 	if err != nil {
 		return storage, fmt.Errorf("session: open session store %q: %w", storage.dbPath, err)
 	}

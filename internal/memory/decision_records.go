@@ -90,7 +90,7 @@ func (s *Store) ListTargets(ctx context.Context, candidate memcontract.Candidate
 	if err := scope.Validate(); err != nil {
 		return nil, wrapValidationError("resolve scope", string(candidate.Scope), err)
 	}
-	headers, err := s.scan(scope, 0)
+	headers, err := s.scan(ctx, scope, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -100,7 +100,7 @@ func (s *Store) ListTargets(ctx context.Context, candidate memcontract.Candidate
 	}
 	targets := make([]controller.Target, 0, len(headers))
 	for _, header := range headers {
-		raw, err := s.Read(scope, header.Filename)
+		raw, err := s.Read(ctx, scope, header.Filename)
 		if err != nil {
 			return nil, err
 		}
@@ -211,11 +211,11 @@ func (s *Store) storeForStoredDecision(ctx context.Context, decision storedDecis
 	}
 }
 
-func (s *Store) ensureCurrentHash(decision storedDecision) error {
+func (s *Store) ensureCurrentHash(ctx context.Context, decision storedDecision) error {
 	if strings.TrimSpace(decision.PostContentHash) == "" {
 		return nil
 	}
-	content, err := s.Read(decisionScope(decision.Decision), decision.TargetFilename)
+	content, err := s.Read(ctx, decisionScope(decision.Decision), decision.TargetFilename)
 	if err != nil {
 		return err
 	}
@@ -225,15 +225,15 @@ func (s *Store) ensureCurrentHash(decision storedDecision) error {
 	return nil
 }
 
-func (s *Store) ensureCurrentHashRequired(decision storedDecision) error {
+func (s *Store) ensureCurrentHashRequired(ctx context.Context, decision storedDecision) error {
 	if strings.TrimSpace(decision.PostContentHash) == "" {
 		return fmt.Errorf("memory: decision %q missing post_content_hash; refusing revert", decision.ID)
 	}
-	return s.ensureCurrentHash(decision)
+	return s.ensureCurrentHash(ctx, decision)
 }
 
-func (s *Store) ensureTargetAbsentForRevert(decision storedDecision) error {
-	_, err := s.Read(decisionScope(decision.Decision), decision.TargetFilename)
+func (s *Store) ensureTargetAbsentForRevert(ctx context.Context, decision storedDecision) error {
+	_, err := s.Read(ctx, decisionScope(decision.Decision), decision.TargetFilename)
 	if errors.Is(err, os.ErrNotExist) {
 		return nil
 	}

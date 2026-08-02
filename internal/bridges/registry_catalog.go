@@ -3,7 +3,6 @@ package bridges
 import (
 	"context"
 	"fmt"
-	"strings"
 )
 
 // ListInstances returns all persisted bridge instances.
@@ -68,7 +67,7 @@ func cloneRegistryBridgeInstances(instances []BridgeInstance) []BridgeInstance {
 func cloneBridgeInstancesByIDOrder(instances []BridgeInstance, ids []string) []BridgeInstance {
 	byID := make(map[string]BridgeInstance, len(instances))
 	for _, instance := range instances {
-		id := strings.TrimSpace(instance.ID)
+		id := instance.ID
 		if id != "" {
 			byID[id] = instance
 		}

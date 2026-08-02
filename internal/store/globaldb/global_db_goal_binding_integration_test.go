@@ -1171,8 +1171,8 @@ func requireSessionCreationIdentityMismatch(t *testing.T, err error) {
 
 func requireGoalReasonCode(t *testing.T, err error, want looppkg.ReasonCode) {
 	t.Helper()
-	var reason *looppkg.ReasonError
-	if !errors.As(err, &reason) || reason.Code != want {
+	reason, reasonMatched := errors.AsType[*looppkg.ReasonError](err)
+	if !reasonMatched || reason.Code != want {
 		t.Fatalf("error = %v, want reason code %q", err, want)
 	}
 }

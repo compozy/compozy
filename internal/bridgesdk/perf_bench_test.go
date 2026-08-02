@@ -71,8 +71,8 @@ func BenchmarkPeerCallRoundTrip(b *testing.B) {
 
 	leftConn, rightConn := net.Pipe()
 
-	left := NewPeer(leftConn, leftConn)
-	right := NewPeer(rightConn, rightConn)
+	left := mustNewPeer(b, leftConn, leftConn)
+	right := mustNewPeer(b, rightConn, rightConn)
 
 	if err := right.Handle("echo", func(_ context.Context, raw json.RawMessage) (any, error) {
 		var params echoParams

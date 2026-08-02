@@ -167,7 +167,7 @@ func (s *settingsRuntimeSurface) GeneralRuntimeStatus(
 	return status, nil
 }
 
-func (s *settingsRuntimeSurface) MemoryHealthStatus(context.Context) (settingspkg.MemoryHealthStatus, error) {
+func (s *settingsRuntimeSurface) MemoryHealthStatus(ctx context.Context) (settingspkg.MemoryHealthStatus, error) {
 	status := settingspkg.MemoryHealthStatus{
 		Available:    s.memoryStore != nil,
 		DreamEnabled: s.dreamTrigger != nil && s.dreamTrigger.Enabled(),
@@ -176,7 +176,7 @@ func (s *settingsRuntimeSurface) MemoryHealthStatus(context.Context) (settingspk
 		return status, nil
 	}
 
-	count, err := s.memoryStore.SourceHeaderCount(memcontract.ScopeGlobal)
+	count, err := s.memoryStore.SourceHeaderCount(ctx, memcontract.ScopeGlobal)
 	if err != nil {
 		return settingspkg.MemoryHealthStatus{}, fmt.Errorf("daemon: settings memory health scan: %w", err)
 	}

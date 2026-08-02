@@ -214,7 +214,7 @@ const taskNotificationSubscribeInputSchema = `{
 		"subscription_id":{"type":"string"},
 		"bridge_instance_id":{"type":"string"},
 		"scope":{"type":"string","enum":["","global","workspace"]},
-		"workspace":{"type":"string"},
+		"workspace_id":{"type":"string"},
 		"peer_id":{"type":"string"},
 		"thread_id":{"type":"string"},
 		"group_id":{"type":"string"},
@@ -230,7 +230,7 @@ const taskNotificationListInputSchema = `{
 		"task_id":{"type":"string"},
 		"bridge_instance_id":{"type":"string"},
 		"scope":{"type":"string","enum":["","global","workspace"]},
-		"workspace":{"type":"string"},
+		"workspace_id":{"type":"string"},
 		"limit":{"type":"integer"}
 	},
 	"additionalProperties":false

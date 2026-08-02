@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"maps"
 	"math"
+	"reflect"
 	"slices"
 	"sort"
 	"strconv"
@@ -42,6 +43,7 @@ type inMemoryManagerStore struct {
 	blockRecurrences          map[string]BlockRecurrence
 	dependencies              map[string]map[string]Dependency
 	runs                      map[string]Run
+	terminalCommands          map[string]TerminalRunCommand
 	claimTokens               map[string]string
 	triageStates              map[string]TriageState
 	profiles                  map[string]ExecutionProfile
@@ -267,6 +269,8 @@ type inMemoryManagerSnapshot struct {
 	blockRecurrences  map[string]BlockRecurrence
 	dependencies      map[string]map[string]Dependency
 	runs              map[string]Run
+	terminalCommands  map[string]TerminalRunCommand
+	claimTokens       map[string]string
 	triageStates      map[string]TriageState
 	profiles          map[string]ExecutionProfile
 	reviews           map[string]RunReview
@@ -274,6 +278,7 @@ type inMemoryManagerSnapshot struct {
 	eventSequenceByID map[string]int64
 	nextEventSequence int64
 	idempotencyByKey  map[string]RunIdempotency
+	lastClaimCriteria ClaimCriteria
 }
 
 type testSessionExecutor struct{}
@@ -400,10 +405,16 @@ type testRuntimeViewReader struct {
 type contextSensitiveEventStore struct {
 	*inMemoryManagerStore
 	getTaskEventRecordCanceled []bool
+	getTaskEventRecordDeadline []bool
 }
 
 type contextSensitiveRunStore struct {
 	*inMemoryManagerStore
+}
+
+type taskMutationDeadlineStore struct {
+	*inMemoryManagerStore
+	deadlines []bool
 }
 
 type adjacentRecoveredEventStore struct {
@@ -463,17 +474,29 @@ func (s *contextSensitiveEventStore) GetTaskEventRecord(
 		s.getTaskEventRecordCanceled,
 		ctx != nil && ctx.Err() != nil,
 	)
+	_, hasDeadline := ctx.Deadline()
+	s.getTaskEventRecordDeadline = append(s.getTaskEventRecordDeadline, hasDeadline)
 	if ctx != nil && ctx.Err() != nil {
 		return EventRecord{}, ctx.Err()
 	}
 	return s.inMemoryManagerStore.GetTaskEventRecord(ctx, eventID)
 }
 
-func (s *contextSensitiveRunStore) UpdateTaskRun(ctx context.Context, run Run) error {
+func (s *contextSensitiveRunStore) UpdateNonTerminalTaskRun(ctx context.Context, run Run) error {
 	if ctx != nil && ctx.Err() != nil {
 		return ctx.Err()
 	}
-	return s.inMemoryManagerStore.UpdateTaskRun(ctx, run)
+	return s.inMemoryManagerStore.UpdateNonTerminalTaskRun(ctx, run)
+}
+
+func (s *taskMutationDeadlineStore) WithTaskMutationTransaction(
+	ctx context.Context,
+	action string,
+	mutation RunMutation,
+) error {
+	_, hasDeadline := ctx.Deadline()
+	s.deadlines = append(s.deadlines, hasDeadline)
+	return s.inMemoryManagerStore.WithTaskMutationTransaction(ctx, action, mutation)
 }
 
 func (s *adjacentRecoveredEventStore) ClearTaskNeedsAttention(
@@ -642,6 +665,7 @@ func newInMemoryManagerStore() *inMemoryManagerStore {
 		blockRecurrences:  make(map[string]BlockRecurrence),
 		dependencies:      make(map[string]map[string]Dependency),
 		runs:              make(map[string]Run),
+		terminalCommands:  make(map[string]TerminalRunCommand),
 		claimTokens:       make(map[string]string),
 		triageStates:      make(map[string]TriageState),
 		profiles:          make(map[string]ExecutionProfile),
@@ -686,12 +710,87 @@ func (s *forceInputStore) CancelPendingSessionInputs(
 	return canceled, nil
 }
 
+func (s *forceInputStore) InvalidateForceRunInputs(
+	ctx context.Context,
+	sessionID string,
+	now time.Time,
+) (ForceRunInputInvalidation, error) {
+	generation, err := s.AdvanceSessionInputGeneration(ctx, sessionID, now)
+	if err != nil {
+		return ForceRunInputInvalidation{}, err
+	}
+	canceled, err := s.CancelPendingSessionInputs(ctx, sessionID, generation, now)
+	if err != nil {
+		return ForceRunInputInvalidation{}, err
+	}
+	return ForceRunInputInvalidation{QueueGeneration: generation, CanceledInputs: canceled}, nil
+}
+
+func (s *forceInputStore) WithTaskMutationTransaction(
+	_ context.Context,
+	_ string,
+	mutation RunMutation,
+) error {
+	storeSnapshot := s.snapshot()
+	advanceCalls := slices.Clone(s.advanceCalls)
+	cancelCalls := slices.Clone(s.cancelCalls)
+	nextGeneration := s.nextGeneration
+	pendingCancelCounts := maps.Clone(s.pendingCancelCounts)
+	if err := mutation(s); err != nil {
+		s.restore(storeSnapshot)
+		s.advanceCalls = advanceCalls
+		s.cancelCalls = cancelCalls
+		s.nextGeneration = nextGeneration
+		s.pendingCancelCounts = pendingCancelCounts
+		return err
+	}
+	return nil
+}
+
 func (s *inMemoryManagerStore) WithDeleteTaskTransaction(
 	_ context.Context,
 	fn func(DeleteTaskMutationStore) error,
 ) error {
 	snapshot := s.snapshot()
 	if err := fn(s); err != nil {
+		s.restore(snapshot)
+		return err
+	}
+	return nil
+}
+
+func (s *inMemoryManagerStore) WithLeaseSettlementTransaction(
+	_ context.Context,
+	_ string,
+	fn func(LeaseSettlementMutationStore) error,
+) error {
+	snapshot := s.snapshot()
+	if err := fn(s); err != nil {
+		s.restore(snapshot)
+		return err
+	}
+	return nil
+}
+
+func (s *inMemoryManagerStore) WithTaskExecutionTransaction(
+	_ context.Context,
+	fn func(ExecutionMutationStore) error,
+) error {
+	snapshot := s.snapshot()
+	if err := fn(s); err != nil {
+		s.restore(snapshot)
+		return err
+	}
+	return nil
+}
+
+func (s *inMemoryManagerStore) WithTaskMutationTransaction(
+	_ context.Context,
+	_ string,
+	mutation RunMutation,
+) error {
+	snapshot := s.snapshot()
+	if err := mutation(s); err != nil {
 		s.restore(snapshot)
 		return err
 	}
@@ -727,6 +826,8 @@ func (s *inMemoryManagerStore) snapshot() inMemoryManagerSnapshot {
 	for id, record := range s.runs {
 		runs[id] = cloneTaskRun(record)
 	}
+	terminalCommands := maps.Clone(s.terminalCommands)
+	claimTokens := maps.Clone(s.claimTokens)
 
 	triageStates := make(map[string]TriageState, len(s.triageStates))
 	for key, record := range s.triageStates {
@@ -762,6 +863,8 @@ func (s *inMemoryManagerStore) snapshot() inMemoryManagerSnapshot {
 		blockRecurrences:  blockRecurrences,
 		dependencies:      dependencies,
 		runs:              runs,
+		terminalCommands:  terminalCommands,
+		claimTokens:       claimTokens,
 		triageStates:      triageStates,
 		profiles:          profiles,
 		reviews:           reviews,
@@ -769,6 +872,7 @@ func (s *inMemoryManagerStore) snapshot() inMemoryManagerSnapshot {
 		eventSequenceByID: eventSequenceByID,
 		nextEventSequence: s.nextEventSequence,
 		idempotencyByKey:  idempotencyByKey,
+		lastClaimCriteria: s.lastClaimCriteria,
 	}
 }
 
@@ -778,6 +882,8 @@ func (s *inMemoryManagerStore) restore(snapshot inMemoryManagerSnapshot) {
 	s.blockRecurrences = snapshot.blockRecurrences
 	s.dependencies = snapshot.dependencies
 	s.runs = snapshot.runs
+	s.terminalCommands = snapshot.terminalCommands
+	s.claimTokens = snapshot.claimTokens
 	s.triageStates = snapshot.triageStates
 	s.profiles = snapshot.profiles
 	s.reviews = snapshot.reviews
@@ -785,6 +891,7 @@ func (s *inMemoryManagerStore) restore(snapshot inMemoryManagerSnapshot) {
 	s.eventSequenceByID = snapshot.eventSequenceByID
 	s.nextEventSequence = snapshot.nextEventSequence
 	s.idempotencyByKey = snapshot.idempotencyByKey
+	s.lastClaimCriteria = snapshot.lastClaimCriteria
 }
 
 func (s *inMemoryManagerStore) CreateTask(_ context.Context, taskRecord Task) error {
@@ -1245,35 +1352,46 @@ func (s *inMemoryManagerStore) ExpireTaskBlocks(
 	if now.IsZero() {
 		now = time.Date(2026, 4, 14, 15, 0, 0, 0, time.UTC)
 	}
-	expired := make([]TaskBlock, 0)
-	taskIDs := make([]string, 0, len(s.blocks))
-	for taskID := range s.blocks {
-		taskIDs = append(taskIDs, taskID)
-	}
-	sort.Strings(taskIDs)
-	for _, taskID := range taskIDs {
-		taskBlocks := s.blocks[taskID]
-		blockIDs := make([]string, 0, len(taskBlocks))
-		for blockID := range taskBlocks {
-			blockIDs = append(blockIDs, blockID)
+	expired := make([]TaskBlock, 0, len(mutation.Targets))
+	for _, target := range mutation.Targets {
+		taskBlocks := s.blocks[strings.TrimSpace(target.TaskID)]
+		blockID := strings.TrimSpace(target.BlockID)
+		block, ok := taskBlocks[blockID]
+		if !ok || !block.ClearedAt.IsZero() || block.ExpiresAt.IsZero() || block.ExpiresAt.After(now) {
+			continue
 		}
-		sort.Strings(blockIDs)
-		for _, blockID := range blockIDs {
-			block := taskBlocks[blockID]
-			if !block.ClearedAt.IsZero() || block.ExpiresAt.IsZero() || block.ExpiresAt.After(now) {
-				continue
-			}
-			block.ClearedAt = now
-			block.ClearedBy = ActorIdentity{
-				Kind: mutation.ClearedBy.Kind.Normalize(),
-				Ref:  strings.TrimSpace(mutation.ClearedBy.Ref),
-			}
-			block.ClearNote = ""
-			taskBlocks[blockID] = cloneTaskBlock(block)
-			expired = append(expired, cloneTaskBlock(block))
+		block.ClearedAt = now
+		block.ClearedBy = ActorIdentity{
+			Kind: mutation.ClearedBy.Kind.Normalize(),
+			Ref:  strings.TrimSpace(mutation.ClearedBy.Ref),
 		}
+		block.ClearNote = ""
+		taskBlocks[blockID] = cloneTaskBlock(block)
+		expired = append(expired, cloneTaskBlock(block))
 	}
 	return ExpireTaskBlocksResult{Blocks: expired}, nil
+}
+
+func (s *inMemoryManagerStore) ListExpiredTaskBlockTargets(
+	_ context.Context,
+	now time.Time,
+) ([]BlockExpiryTarget, error) {
+	cutoff := now.UTC()
+	targets := make([]BlockExpiryTarget, 0)
+	for taskID, taskBlocks := range s.blocks {
+		for blockID, block := range taskBlocks {
+			if block.ClearedAt.IsZero() && !block.ExpiresAt.IsZero() && !block.ExpiresAt.After(cutoff) {
+				targets = append(targets, BlockExpiryTarget{TaskID: taskID, BlockID: blockID})
+			}
+		}
+	}
+	sort.Slice(targets, func(i int, j int) bool {
+		if targets[i].TaskID != targets[j].TaskID {
+			return targets[i].TaskID < targets[j].TaskID
+		}
+		return targets[i].BlockID < targets[j].BlockID
+	})
+	return targets, nil
 }
 
 func (s *inMemoryManagerStore) BlockTaskAndReleaseRun(
@@ -1403,6 +1521,9 @@ func (s *inMemoryManagerStore) ListDependents(
 	_ context.Context,
 	dependsOnTaskID string,
 ) ([]Dependency, error) {
+	if s.coordinatorCompleted && s.coordinatorPublicationErr != nil {
+		return nil, s.coordinatorPublicationErr
+	}
 	dependents := make([]Dependency, 0)
 	for _, taskDeps := range s.dependencies {
 		if dependency, ok := taskDeps[strings.TrimSpace(dependsOnTaskID)]; ok {
@@ -1449,36 +1570,247 @@ func (s *inMemoryManagerStore) CreateTaskRun(_ context.Context, run Run) error {
 	return nil
 }
 
-func (s *inMemoryManagerStore) UpdateTaskRun(_ context.Context, run Run) error {
+func (s *inMemoryManagerStore) UpdateNonTerminalTaskRun(_ context.Context, run Run) error {
 	s.runs[run.ID] = cloneTaskRun(run)
 	return nil
 }
 
-func (s *inMemoryManagerStore) CompleteRunSettlement(
-	ctx context.Context,
-	run Run,
-	_ ActorContext,
+func (s *inMemoryManagerStore) SettleCompletedTaskHierarchy(
+	context.Context,
+	string,
+	ActorContext,
+	time.Time,
 ) (CompletedRunSettlement, error) {
-	if err := s.UpdateTaskRun(ctx, run); err != nil {
-		return CompletedRunSettlement{}, err
+	return CompletedRunSettlement{}, nil
+}
+
+func (s *inMemoryManagerStore) AdmitRunDirectExecution(
+	_ context.Context,
+	mutation RunDirectExecutionAdmissionMutation,
+) (NominalRunMutationResult, error) {
+	current, err := s.requireNominalRunFixture(mutation.Fence())
+	if err != nil {
+		return NominalRunMutationResult{}, err
 	}
-	taskRecord, ok := s.tasks[run.TaskID]
+	actor := mutation.Actor()
+	if err := actor.Validate(); err != nil {
+		return NominalRunMutationResult{}, err
+	}
+	if !current.IsTaskAnchored() || current.Status.Normalize() != TaskRunStatusQueued ||
+		current.RunKind.Normalize() != RunKindWorker || strings.TrimSpace(current.LoopRunID) != "" {
+		return NominalRunMutationResult{}, ErrInvalidStatusTransition
+	}
+	updated := cloneTaskRun(current)
+	updated.Status = TaskRunStatusClaimed
+	updated.ClaimedBy = cloneActorIdentity(&actor.Actor)
+	updated.ClaimedAt = mutation.ClaimedAt().UTC()
+	updated.ClaimTokenHash = ""
+	updated.LeaseUntil = time.Time{}
+	updated.HeartbeatAt = time.Time{}
+	s.runs[updated.ID] = cloneTaskRun(updated)
+	return NominalRunMutationResult{Previous: current, Run: updated}, nil
+}
+
+func (s *inMemoryManagerStore) TransitionRunStarting(
+	_ context.Context,
+	mutation RunStartingMutation,
+) (NominalRunMutationResult, error) {
+	current, err := s.requireNominalRunFixture(mutation.Fence())
+	if err != nil {
+		return NominalRunMutationResult{}, err
+	}
+	if current.Status.Normalize() != TaskRunStatusClaimed || !current.IsTaskAnchored() {
+		return NominalRunMutationResult{}, ErrInvalidStatusTransition
+	}
+	updated := cloneTaskRun(current)
+	updated.Status = TaskRunStatusStarting
+	s.runs[updated.ID] = cloneTaskRun(updated)
+	return NominalRunMutationResult{Previous: current, Run: updated}, nil
+}
+
+func (s *inMemoryManagerStore) BindRunSession(
+	_ context.Context,
+	mutation RunSessionBindingMutation,
+) (NominalRunMutationResult, error) {
+	current, err := s.requireNominalRunFixture(mutation.Fence())
+	if err != nil {
+		return NominalRunMutationResult{}, err
+	}
+	status := current.Status.Normalize()
+	if !current.IsTaskAnchored() || (status != TaskRunStatusClaimed && status != TaskRunStatusStarting) {
+		return NominalRunMutationResult{}, ErrInvalidStatusTransition
+	}
+	for id, run := range s.runs {
+		if id != current.ID && strings.TrimSpace(run.SessionID) == mutation.SessionID() &&
+			isNominalActiveRunFixture(run.Status) {
+			return NominalRunMutationResult{}, ErrSessionAlreadyBound
+		}
+	}
+	updated := cloneTaskRun(current)
+	updated.Status = TaskRunStatusStarting
+	updated.SessionID = mutation.SessionID()
+	s.runs[updated.ID] = cloneTaskRun(updated)
+	return NominalRunMutationResult{Previous: current, Run: updated}, nil
+}
+
+func (s *inMemoryManagerStore) TransitionRunRunning(
+	_ context.Context,
+	mutation RunRunningMutation,
+) (NominalRunMutationResult, error) {
+	current, err := s.requireNominalRunFixture(mutation.Fence())
+	if err != nil {
+		return NominalRunMutationResult{}, err
+	}
+	if !current.IsTaskAnchored() || current.Status.Normalize() != TaskRunStatusStarting {
+		return NominalRunMutationResult{}, ErrInvalidStatusTransition
+	}
+	updated := cloneTaskRun(current)
+	updated.Status = TaskRunStatusRunning
+	updated.StartedAt = mutation.StartedAt().UTC()
+	s.runs[updated.ID] = cloneTaskRun(updated)
+	return NominalRunMutationResult{Previous: current, Run: updated}, nil
+}
+
+func (s *inMemoryManagerStore) RecoverTaskRunOnBoot(
+	_ context.Context,
+	mutation RunBootRecoveryMutation,
+) (NominalRunMutationResult, error) {
+	current, err := s.requireNominalRunFixture(mutation.Fence())
+	if err != nil {
+		return NominalRunMutationResult{}, err
+	}
+	if !current.IsTaskAnchored() {
+		return NominalRunMutationResult{}, ErrInvalidStatusTransition
+	}
+	updated, err := applyBootRecoveryFixture(current, mutation.Action(), mutation.StartedAt())
+	if err != nil {
+		return NominalRunMutationResult{}, err
+	}
+	s.runs[updated.ID] = cloneTaskRun(updated)
+	return NominalRunMutationResult{Previous: current, Run: updated}, nil
+}
+
+func (s *inMemoryManagerStore) RecoverNetworkWakeOnBoot(
+	_ context.Context,
+	mutation NetworkWakeBootRecoveryMutation,
+) (NominalRunMutationResult, error) {
+	current, err := s.requireNominalRunFixture(mutation.Fence())
+	if err != nil {
+		return NominalRunMutationResult{}, err
+	}
+	if !current.IsNetworkWake() || mutation.Actor().Actor.Kind.Normalize() != ActorKindDaemon {
+		return NominalRunMutationResult{}, ErrPermissionDenied
+	}
+	updated := cloneTaskRun(current)
+	if mutation.Recovery().Action.Normalize() == RunBootRecoveryFail {
+		updated.Status = TaskRunStatusFailed
+		updated.Error = mutation.FailureText()
+		updated.EndedAt = mutation.Now().UTC()
+		updated.LeaseUntil = time.Time{}
+		updated.HeartbeatAt = time.Time{}
+	} else {
+		startedAt := updated.StartedAt
+		if startedAt.IsZero() {
+			startedAt = mutation.Now().UTC()
+		}
+		updated, err = applyBootRecoveryFixture(updated, mutation.Recovery().Action, startedAt)
+		if err != nil {
+			return NominalRunMutationResult{}, err
+		}
+	}
+	s.runs[updated.ID] = cloneTaskRun(updated)
+	return NominalRunMutationResult{Previous: current, Run: updated}, nil
+}
+
+func (s *inMemoryManagerStore) requireNominalRunFixture(fence RunMutationFence) (Run, error) {
+	current, ok := s.runs[fence.RunID()]
 	if !ok {
-		return CompletedRunSettlement{}, ErrTaskNotFound
+		return Run{}, ErrTaskRunNotFound
 	}
-	previousStatus := taskRecord.Status
-	taskRecord.Status = TaskStatusCompleted
-	taskRecord.UpdatedAt = run.EndedAt
-	taskRecord.ClosedAt = run.EndedAt
-	s.tasks[taskRecord.ID] = cloneTask(taskRecord)
-	return CompletedRunSettlement{
-		Run:  cloneTaskRun(run),
-		Task: cloneTask(taskRecord),
-		StatusTransitions: []StatusTransition{{
-			Task:           cloneTask(taskRecord),
-			PreviousStatus: previousStatus,
-		}},
-	}, nil
+	if !fence.Matches(current) {
+		return Run{}, ErrInvalidStatusTransition
+	}
+	return cloneTaskRun(current), nil
+}
+
+func applyBootRecoveryFixture(run Run, action RunBootRecoveryAction, startedAt time.Time) (Run, error) {
+	switch action.Normalize() {
+	case RunBootRecoveryRequeue:
+		return requeueSessionRunLease(run), nil
+	case RunBootRecoveryMarkRunning:
+		if strings.TrimSpace(run.SessionID) == "" {
+			return Run{}, ErrInvalidStatusTransition
+		}
+		run.Status = TaskRunStatusRunning
+		run.StartedAt = startedAt.UTC()
+		return run, nil
+	default:
+		return Run{}, ErrInvalidStatusTransition
+	}
+}
+
+func isNominalActiveRunFixture(status RunStatus) bool {
+	switch status.Normalize() {
+	case TaskRunStatusClaimed, TaskRunStatusStarting, TaskRunStatusRunning:
+		return true
+	default:
+		return false
+	}
+}
+
+func (s *inMemoryManagerStore) UpdateTaskRunMetadata(
+	_ context.Context,
+	mutation RunMetadataMutation,
+) (Run, error) {
+	run, ok := s.runs[strings.TrimSpace(mutation.RunID)]
+	if !ok {
+		return Run{}, ErrTaskRunNotFound
+	}
+	if !sameRawJSON(run.Metadata, mutation.ExpectedMetadata) {
+		return Run{}, ErrInvalidStatusTransition
+	}
+	run.Metadata = cloneRawJSON(mutation.Metadata)
+	if err := run.Validate(); err != nil {
+		return Run{}, err
+	}
+	s.runs[run.ID] = cloneTaskRun(run)
+	return cloneTaskRun(run), nil
+}
+
+func (s *inMemoryManagerStore) TransitionTerminalRun(
+	_ context.Context,
+	mutation TerminalRunMutation,
+) (Run, error) {
+	next := mutation.NextRun()
+	current, ok := s.runs[strings.TrimSpace(next.ID)]
+	if !ok {
+		return Run{}, ErrTaskRunNotFound
+	}
+	if !mutation.Fence().Matches(current) {
+		return Run{}, ErrInvalidStatusTransition
+	}
+	if !allowsRunTransition(current.Status, next.Status) {
+		return Run{}, ErrInvalidStatusTransition
+	}
+	if err := ValidateImmutableRunFields(current, next); err != nil {
+		return Run{}, err
+	}
+	updated := cloneTaskRun(next)
+	updated.LeaseUntil = time.Time{}
+	updated.HeartbeatAt = time.Time{}
+	s.runs[current.ID] = updated
+	return cloneTaskRun(updated), nil
+}
+
+func (s *inMemoryManagerStore) FailTasklessRunOnBoot(
+	ctx context.Context,
+	mutation TerminalRunMutation,
+) (Run, error) {
+	if !mutation.NextRun().IsNetworkWake() ||
+		mutation.NextRun().Status.Normalize() != TaskRunStatusFailed {
+		return Run{}, ErrInvalidStatusTransition
+	}
+	return s.TransitionTerminalRun(ctx, mutation)
 }
 
 func (s *inMemoryManagerStore) GetTaskRun(_ context.Context, id string) (Run, error) {
@@ -1911,6 +2243,54 @@ func (s *inMemoryManagerStore) ReleaseRunLease(
 	return cloneTaskRun(run), nil
 }
 
+func (s *inMemoryManagerStore) ListActiveSessionRunLeases(
+	_ context.Context,
+	sessionID string,
+) ([]Run, error) {
+	normalizedSessionID := strings.TrimSpace(sessionID)
+	if err := ValidateReferenceSize(normalizedSessionID, "session_lease_release.session_id"); err != nil {
+		return nil, err
+	}
+
+	runs := make([]Run, 0)
+	for _, run := range s.runs {
+		if strings.TrimSpace(run.SessionID) != normalizedSessionID || strings.TrimSpace(run.ClaimTokenHash) == "" {
+			continue
+		}
+		switch run.Status.Normalize() {
+		case TaskRunStatusClaimed, TaskRunStatusStarting, TaskRunStatusRunning:
+			runs = append(runs, cloneTaskRun(run))
+		}
+	}
+	sort.Slice(runs, func(i int, j int) bool {
+		return runs[i].ID < runs[j].ID
+	})
+	return runs, nil
+}
+
+func (s *inMemoryManagerStore) ReleaseSessionRunLease(
+	_ context.Context,
+	previous Run,
+	release SessionLeaseRelease,
+	actor ActorContext,
+) (Run, error) {
+	if err := actor.Validate(); err != nil {
+		return Run{}, err
+	}
+	if err := release.Validate("session_lease_release"); err != nil {
+		return Run{}, err
+	}
+	current, ok := s.runs[previous.ID]
+	if !ok || current.Status.Normalize() != previous.Status.Normalize() ||
+		current.SessionID != previous.SessionID || current.ClaimTokenHash != previous.ClaimTokenHash ||
+		!current.LeaseUntil.Equal(previous.LeaseUntil) {
+		return Run{}, ErrTaskRunNotFound
+	}
+	updated := requeueSessionRunLease(current)
+	s.runs[updated.ID] = cloneTaskRun(updated)
+	return cloneTaskRun(updated), nil
+}
+
 func (s *inMemoryManagerStore) CompleteRunLease(
 	_ context.Context,
 	completion LeaseCompletion,
@@ -2014,9 +2394,49 @@ func (s *inMemoryManagerStore) FailRunLease(_ context.Context, failure LeaseFail
 	if err != nil {
 		return Run{}, err
 	}
-	run, err := s.requireCurrentTestLease(normalized.RunID, normalized.ClaimToken, normalized.Now)
+	mutation, err := s.failRunLeaseMutation(normalized)
 	if err != nil {
 		return Run{}, err
+	}
+	if err := s.appendTaskEventForTest(
+		mutation.Run.TaskID,
+		mutation.Run.ID,
+		taskWatchEventRunFailed,
+		normalized.Actor,
+		NewRunLeaseFailedEventPayload(&mutation),
+		normalized.Now,
+	); err != nil {
+		return Run{}, err
+	}
+	return mutation.Run, nil
+}
+
+func (s *inMemoryManagerStore) FailRunLeaseMutation(
+	_ context.Context,
+	failure LeaseFailure,
+) (FailedRunLeaseMutation, error) {
+	normalized, err := failure.Normalize(time.Now().UTC())
+	if err != nil {
+		return FailedRunLeaseMutation{}, err
+	}
+	return s.failRunLeaseMutation(normalized)
+}
+
+func (s *inMemoryManagerStore) failRunLeaseMutation(
+	normalized LeaseFailure,
+) (FailedRunLeaseMutation, error) {
+	run, err := s.requireCurrentTestLease(normalized.RunID, normalized.ClaimToken, normalized.Now)
+	if err != nil {
+		return FailedRunLeaseMutation{}, err
+	}
+	if run.IsNetworkWake() {
+		return FailedRunLeaseMutation{}, fmt.Errorf(
+			"%w: network_wake runs must be failed through network settlement",
+			ErrValidation,
+		)
+	}
+	if run.RunKind.Normalize() == RunKindCoordinator {
+		normalized.Failure = CanonicalCoordinatorRunFailure(normalized.Failure)
 	}
 	run.Status = TaskRunStatusFailed
 	run.Error = normalized.Failure.Error
@@ -2026,17 +2446,11 @@ func (s *inMemoryManagerStore) FailRunLease(_ context.Context, failure LeaseFail
 	run.HeartbeatAt = time.Time{}
 	run.EndedAt = normalized.Now
 	s.runs[run.ID] = cloneTaskRun(run)
-	if err := s.appendTaskEventForTest(
-		run.TaskID,
-		run.ID,
-		taskWatchEventRunFailed,
-		normalized.Actor,
-		map[string]any{"status": run.Status, "error": run.Error},
-		normalized.Now,
-	); err != nil {
-		return Run{}, err
-	}
-	return cloneTaskRun(run), nil
+	delete(s.claimTokens, run.ID)
+	return FailedRunLeaseMutation{
+		Run:     cloneTaskRun(run),
+		Failure: normalized.Failure,
+	}, nil
 }
 
 func (s *inMemoryManagerStore) SettleNetworkWake(
@@ -2050,7 +2464,7 @@ func (s *inMemoryManagerStore) SettleNetworkWake(
 }
 
 func (s *inMemoryManagerStore) CompleteCoordinatorAndEnqueueNext(
-	_ context.Context,
+	ctx context.Context,
 	completion CoordinatorCompletion,
 	_ GenerationStateFinalizer,
 ) (CoordinatorCompletionResult, error) {
@@ -2064,13 +2478,47 @@ func (s *inMemoryManagerStore) CompleteCoordinatorAndEnqueueNext(
 	}
 	run.Status = TaskRunStatusCompleted
 	run.Error = ""
+	run.Result = CoordinatorCompletedRunResult()
 	run.LeaseUntil = time.Time{}
 	run.HeartbeatAt = time.Time{}
 	run.EndedAt = normalized.Now
 	s.runs[run.ID] = cloneTaskRun(run)
+	taskRecord, ok := s.tasks[run.TaskID]
+	if !ok {
+		return CoordinatorCompletionResult{}, ErrTaskNotFound
+	}
+	previousStatus := taskRecord.Status
+	taskRecord.Status = TaskStatusCompleted
+	taskRecord.CurrentRunID = ""
+	taskRecord.UpdatedAt = normalized.Now
+	taskRecord.ClosedAt = normalized.Now
+	s.tasks[taskRecord.ID] = taskRecord
+	settlement := CompletedRunSettlement{Run: cloneTaskRun(run), Task: taskRecord}
+	if previousStatus.Normalize() != taskRecord.Status.Normalize() {
+		settlement.StatusTransitions = []StatusTransition{{
+			Task:           taskRecord,
+			PreviousStatus: previousStatus,
+		}}
+	}
+	completionEvent, err := NewCoordinatorRunCompletedEvent(
+		fmt.Sprintf("evt-%d", s.nextEventSequence+1),
+		run,
+		taskRecord,
+		normalized.Actor,
+		normalized.Now,
+	)
+	if err != nil {
+		return CoordinatorCompletionResult{}, err
+	}
+	if err := s.CreateTaskEvent(ctx, completionEvent); err != nil {
+		return CoordinatorCompletionResult{}, err
+	}
 	result := CoordinatorCompletionResult{
-		Run: cloneTaskRun(run), LoopRunID: run.LoopRunID,
-		PlanSuperseded: s.coordinatorPlanSuperseded,
+		Run:             cloneTaskRun(run),
+		LoopRunID:       run.LoopRunID,
+		PlanSuperseded:  s.coordinatorPlanSuperseded,
+		Settlement:      &settlement,
+		CompletionEvent: completionEvent,
 	}
 	if normalized.Plan.Terminal != nil {
 		contextPayload, marshalErr := json.Marshal(coordinatorResultContext{
@@ -2093,9 +2541,13 @@ func (s *inMemoryManagerStore) ForceReleaseTaskRun(
 	_ context.Context,
 	release ForceReleaseRunMutation,
 ) (ForceRunMutationResult, error) {
-	run, ok := s.runs[strings.TrimSpace(release.RunID)]
+	fence := release.Fence()
+	run, ok := s.runs[strings.TrimSpace(fence.RunID())]
 	if !ok {
 		return ForceRunMutationResult{}, ErrTaskRunNotFound
+	}
+	if !fence.Matches(run) {
+		return ForceRunMutationResult{}, ErrInvalidStatusTransition
 	}
 	if run.Status.Normalize() != TaskRunStatusClaimed {
 		return ForceRunMutationResult{}, ErrInvalidStatusTransition
@@ -2110,9 +2562,13 @@ func (s *inMemoryManagerStore) ForceFailTaskRun(
 	_ context.Context,
 	failure ForceFailRunMutation,
 ) (ForceRunMutationResult, error) {
-	run, ok := s.runs[strings.TrimSpace(failure.RunID)]
+	fence := failure.Fence()
+	run, ok := s.runs[strings.TrimSpace(fence.RunID())]
 	if !ok {
 		return ForceRunMutationResult{}, ErrTaskRunNotFound
+	}
+	if !fence.Matches(run) {
+		return ForceRunMutationResult{}, ErrInvalidStatusTransition
 	}
 	switch run.Status.Normalize() {
 	case TaskRunStatusQueued, TaskRunStatusClaimed:
@@ -2121,13 +2577,13 @@ func (s *inMemoryManagerStore) ForceFailTaskRun(
 	}
 	previous := cloneTaskRun(run)
 	run.Status = TaskRunStatusFailed
-	run.Error = strings.TrimSpace(failure.Reason)
+	run.Error = strings.TrimSpace(failure.Reason())
 	run.FailureKind = FailureKindOperatorForced
 	run.Result = nil
 	run.ClaimTokenHash = ""
 	run.LeaseUntil = time.Time{}
 	run.HeartbeatAt = time.Time{}
-	run.EndedAt = failure.Now.UTC()
+	run.EndedAt = failure.Now().UTC()
 	if run.EndedAt.IsZero() {
 		run.EndedAt = time.Now().UTC()
 	}
@@ -2135,13 +2591,25 @@ func (s *inMemoryManagerStore) ForceFailTaskRun(
 	return ForceRunMutationResult{Previous: previous, Run: cloneTaskRun(run)}, nil
 }
 
+func (s *inMemoryManagerStore) InvalidateForceRunInputs(
+	context.Context,
+	string,
+	time.Time,
+) (ForceRunInputInvalidation, error) {
+	return ForceRunInputInvalidation{}, nil
+}
+
 func (s *inMemoryManagerStore) RetryTaskRun(
 	_ context.Context,
 	retry RetryRunMutation,
 ) (RetryRunResult, error) {
-	source, ok := s.runs[strings.TrimSpace(retry.SourceRunID)]
+	fence := retry.Fence()
+	source, ok := s.runs[strings.TrimSpace(fence.RunID())]
 	if !ok {
 		return RetryRunResult{}, ErrTaskRunNotFound
+	}
+	if !fence.Matches(source) {
+		return RetryRunResult{}, ErrInvalidStatusTransition
 	}
 	if source.Status.Normalize() != TaskRunStatusFailed {
 		return RetryRunResult{}, ErrInvalidStatusTransition
@@ -2164,19 +2632,19 @@ func (s *inMemoryManagerStore) RetryTaskRun(
 	if attempt > taskRecord.MaxAttempts {
 		return RetryRunResult{}, ErrInvalidStatusTransition
 	}
-	queuedAt := retry.QueuedAt.UTC()
+	queuedAt := retry.QueuedAt().UTC()
 	if queuedAt.IsZero() {
 		queuedAt = time.Now().UTC()
 	}
 	run := Run{
-		ID:              strings.TrimSpace(retry.NewRunID),
+		ID:              strings.TrimSpace(retry.NewRunID()),
 		TaskID:          source.TaskID,
 		Status:          TaskRunStatusQueued,
 		Attempt:         int32(attempt),
 		PreviousRunID:   source.ID,
-		Origin:          retry.Origin,
+		Origin:          retry.Origin(),
 		RunNetworkState: source.RunNetworkState,
-		Metadata:        cloneRawJSON(retry.Metadata),
+		Metadata:        cloneRawJSON(retry.Metadata()),
 		QueuedAt:        queuedAt,
 	}
 	s.runs[run.ID] = cloneTaskRun(run)
@@ -2187,9 +2655,13 @@ func (s *inMemoryManagerStore) RecoverTaskRun(
 	_ context.Context,
 	mutation RecoverRunMutation,
 ) (RetryRunResult, error) {
-	source, ok := s.runs[strings.TrimSpace(mutation.SourceRunID)]
+	fence := mutation.Fence()
+	source, ok := s.runs[strings.TrimSpace(fence.RunID())]
 	if !ok {
 		return RetryRunResult{}, ErrTaskRunNotFound
+	}
+	if !fence.Matches(source) {
+		return RetryRunResult{}, ErrInvalidStatusTransition
 	}
 	if source.Status.Normalize() != TaskRunStatusNeedsAttention {
 		return RetryRunResult{}, ErrInvalidStatusTransition
@@ -2212,47 +2684,57 @@ func (s *inMemoryManagerStore) RecoverTaskRun(
 	if attempt > taskRecord.MaxAttempts {
 		return RetryRunResult{}, ErrInvalidStatusTransition
 	}
-	queuedAt := mutation.QueuedAt.UTC()
+	queuedAt := mutation.QueuedAt().UTC()
 	if queuedAt.IsZero() {
 		queuedAt = time.Now().UTC()
 	}
 	failed := source
 	failed.Status = TaskRunStatusFailed
 	failed.FailureKind = FailureKindOperatorForced
-	failed.Error = strings.TrimSpace(mutation.Reason)
+	failed.Error = strings.TrimSpace(mutation.Reason())
 	failed.EndedAt = queuedAt
 	s.runs[failed.ID] = cloneTaskRun(failed)
 	run := Run{
-		ID:              strings.TrimSpace(mutation.NewRunID),
+		ID:              strings.TrimSpace(mutation.NewRunID()),
 		TaskID:          source.TaskID,
 		Status:          TaskRunStatusQueued,
 		Attempt:         int32(attempt),
 		PreviousRunID:   source.ID,
-		Origin:          mutation.Origin,
+		Origin:          mutation.Origin(),
 		RunNetworkState: source.RunNetworkState,
-		Metadata:        cloneRawJSON(mutation.Metadata),
+		Metadata:        cloneRawJSON(mutation.Metadata()),
 		QueuedAt:        queuedAt,
 	}
 	s.runs[run.ID] = cloneTaskRun(run)
 	return RetryRunResult{PreviousRun: cloneTaskRun(failed), Run: cloneTaskRun(run)}, nil
 }
 
-func (s *inMemoryManagerStore) MarkTaskRunNeedsAttention(
+func (s *inMemoryManagerStore) MarkRunNeedsAttentionMutation(
 	_ context.Context,
-	runID string,
-	diagnostic string,
-) (Run, error) {
-	run, ok := s.runs[strings.TrimSpace(runID)]
+	command RunNeedsAttentionCommand,
+) (RunNeedsAttentionMutation, error) {
+	run, ok := s.runs[command.Fence().RunID()]
 	if !ok {
-		return Run{}, ErrTaskRunNotFound
+		return RunNeedsAttentionMutation{}, ErrTaskRunNotFound
 	}
-	if !runStatusAllowsNeedsAttention(run.Status) {
-		return Run{}, ErrInvalidStatusTransition
+	previous := cloneTaskRun(run)
+	if !command.Fence().Matches(previous) {
+		return RunNeedsAttentionMutation{}, ErrInvalidStatusTransition
+	}
+	if previous.Status.Normalize() == TaskRunStatusNeedsAttention {
+		return RunNeedsAttentionMutation{Previous: previous, Run: previous}, nil
+	}
+	if !runStatusAllowsNeedsAttention(previous.Status) {
+		return RunNeedsAttentionMutation{}, ErrInvalidStatusTransition
 	}
 	run.Status = TaskRunStatusNeedsAttention
-	run.Error = strings.TrimSpace(diagnostic)
+	run.Error = command.Diagnostic()
 	s.runs[run.ID] = cloneTaskRun(run)
-	return cloneTaskRun(run), nil
+	return RunNeedsAttentionMutation{
+		Previous: previous,
+		Run:      cloneTaskRun(run),
+		Applied:  true,
+	}, nil
 }
 
 func (s *inMemoryManagerStore) RecoverExpiredRunLeases(
@@ -4992,7 +5474,7 @@ func TestManagerAttemptExhaustionBlocksFurtherRetries(t *testing.T) {
 	if err != nil {
 		t.Fatalf("EnqueueRun(first) error = %v", err)
 	}
-	firstRun, err = seedNonLeasedClaimedRunForTest(context.Background(), manager, firstRun.ID, actor)
+	firstRun, err = admitRunDirectlyForTest(context.Background(), manager, firstRun.ID, actor)
 	if err != nil {
 		t.Fatalf("ClaimNextRun(first) error = %v", err)
 	}
@@ -5017,7 +5499,7 @@ func TestManagerAttemptExhaustionBlocksFurtherRetries(t *testing.T) {
 	if err != nil {
 		t.Fatalf("EnqueueRun(second) error = %v", err)
 	}
-	secondRun, err = seedNonLeasedClaimedRunForTest(context.Background(), manager, secondRun.ID, actor)
+	secondRun, err = admitRunDirectlyForTest(context.Background(), manager, secondRun.ID, actor)
 	if err != nil {
 		t.Fatalf("ClaimNextRun(second) error = %v", err)
 	}
@@ -5062,7 +5544,7 @@ func TestManagerEnqueueRunRejectsConcurrentOpenRun(t *testing.T) {
 			name: "running",
 			openRun: func(ctx context.Context, t *testing.T, manager *Service, run Run, actor ActorContext) Run {
 				t.Helper()
-				claimed, err := seedNonLeasedClaimedRunForTest(ctx, manager, run.ID, actor)
+				claimed, err := admitRunDirectlyForTest(ctx, manager, run.ID, actor)
 				if err != nil {
 					t.Fatalf("ClaimNextRun() error = %v", err)
 				}
@@ -5367,6 +5849,17 @@ func TestManagerGlobalTaskWorkspaceIsolation(t *testing.T) {
 	); !errors.Is(err, ErrPermissionDenied) {
 		t.Fatalf("CancelRun(foreign run) error = %v, want %v", err, ErrPermissionDenied)
 	}
+	if _, err := manager.MarkRunNeedsAttention(
+		ctx,
+		foreignRun.ID,
+		"unauthorized escalation",
+		workspaceActor,
+	); !errors.Is(err, ErrPermissionDenied) {
+		t.Fatalf("MarkRunNeedsAttention(foreign run) error = %v, want %v", err, ErrPermissionDenied)
+	}
+	if got, want := store.runs[foreignRun.ID].Status.Normalize(), TaskRunStatusQueued; got != want {
+		t.Fatalf("foreign run status = %q, want authorization failure to preserve %q", got, want)
+	}
 
 	store.reviews["review-ws-b"] = RunReview{
 		ReviewID: "review-ws-b", TaskID: root.ID, RunID: foreignRun.ID,
@@ -5452,6 +5945,65 @@ func TestManagerAddAndRemoveDependencyReconcileStatusAndEvents(t *testing.T) {
 	if got, want := events[1].EventType, taskEventDependencyAdded; got != want {
 		t.Fatalf("events[1].EventType = %q, want %q", got, want)
 	}
+
+	t.Run("Should reject oversized dependency references before mutating", func(t *testing.T) {
+		t.Parallel()
+
+		oversizedID := strings.Repeat("d", MaxReferenceBytes+1)
+		eventsBefore, err := store.ListTaskEvents(context.Background(), EventQuery{TaskID: taskA.ID})
+		if err != nil {
+			t.Fatalf("ListTaskEvents(before) error = %v", err)
+		}
+
+		if err := manager.AddDependency(context.Background(), AddDependency{
+			TaskID:          taskA.ID,
+			DependsOnTaskID: oversizedID,
+			Kind:            DependencyKindBlocks,
+		}, actor); !errors.Is(err, ErrValidation) {
+			t.Fatalf("AddDependency() error = %v, want %v", err, ErrValidation)
+		}
+		if err := manager.AddDependency(context.Background(), AddDependency{
+			TaskID:          oversizedID,
+			DependsOnTaskID: taskB.ID,
+			Kind:            DependencyKindBlocks,
+		}, actor); !errors.Is(err, ErrValidation) {
+			t.Fatalf("AddDependency(oversized task id) error = %v, want %v", err, ErrValidation)
+		}
+		if err := manager.RemoveDependency(context.Background(), taskA.ID, oversizedID, actor); !errors.Is(
+			err,
+			ErrValidation,
+		) {
+			t.Fatalf("RemoveDependency() error = %v, want %v", err, ErrValidation)
+		}
+		if err := manager.RemoveDependency(context.Background(), oversizedID, taskB.ID, actor); !errors.Is(
+			err,
+			ErrValidation,
+		) {
+			t.Fatalf("RemoveDependency(oversized task id) error = %v, want %v", err, ErrValidation)
+		}
+
+		dependencies, err := store.ListDependencies(context.Background(), taskA.ID)
+		if err != nil {
+			t.Fatalf("ListDependencies() error = %v", err)
+		}
+		if len(dependencies) != 0 {
+			t.Fatalf("len(dependencies) = %d, want 0", len(dependencies))
+		}
+		stored, err := store.GetTask(context.Background(), taskA.ID)
+		if err != nil {
+			t.Fatalf("GetTask() error = %v", err)
+		}
+		if got, want := stored.Status, TaskStatusReady; got != want {
+			t.Fatalf("stored.Status = %q, want %q", got, want)
+		}
+		eventsAfter, err := store.ListTaskEvents(context.Background(), EventQuery{TaskID: taskA.ID})
+		if err != nil {
+			t.Fatalf("ListTaskEvents(after) error = %v", err)
+		}
+		if got, want := len(eventsAfter), len(eventsBefore); got != want {
+			t.Fatalf("len(events) = %d, want unchanged %d", got, want)
+		}
+	})
 }
 
 func TestManagerTaskBlockStatusDerivation(t *testing.T) {
@@ -6351,6 +6903,75 @@ func TestManagerExpireTaskBlocksDoesNotIncrementRecurrenceOnClear(t *testing.T) 
 			}
 		},
 	)
+
+	t.Run("Should reserve every expiry event ID before clearing any block", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 4, 14, 16, 0, 0, 0, time.UTC)
+		store := newInMemoryManagerStore()
+		manager := newTaskManagerForTestWithOptions(
+			t,
+			store,
+			WithManagerNow(func() time.Time { return now }),
+		)
+		actor := validActorContext()
+		blocks := make([]TaskBlock, 0, 2)
+		for index := range 2 {
+			taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+				Scope:       ScopeWorkspace,
+				WorkspaceID: fmt.Sprintf("ws-transient-expiry-entropy-%d", index),
+				Title:       fmt.Sprintf("Transient expiry entropy %d", index),
+			}, actor)
+			if err != nil {
+				t.Fatalf("CreateTask(%d) error = %v", index, err)
+			}
+			block, err := manager.BlockTask(context.Background(), BlockRequest{
+				TaskID:    taskRecord.ID,
+				Kind:      BlockKindTransient,
+				Reason:    fmt.Sprintf("temporary outage %d", index),
+				ExpiresAt: now.Add(time.Minute),
+			}, actor)
+			if err != nil {
+				t.Fatalf("BlockTask(%d) error = %v", index, err)
+			}
+			blocks = append(blocks, block)
+		}
+
+		eventsBefore := len(store.events)
+		entropyErr := errors.New("second expiry identity unavailable")
+		idCalls := 0
+		manager.newID = func(prefix string) (string, error) {
+			idCalls++
+			if idCalls == 2 {
+				return "", entropyErr
+			}
+			return fmt.Sprintf("%s-expiry-entropy-%d", prefix, idCalls), nil
+		}
+		daemon, err := DeriveDaemonActorContext("scheduler", "daemon.scheduler")
+		if err != nil {
+			t.Fatalf("DeriveDaemonActorContext() error = %v", err)
+		}
+
+		result, err := manager.ExpireTaskBlocks(context.Background(), now.Add(2*time.Minute), daemon)
+		if !errors.Is(err, entropyErr) {
+			t.Fatalf("ExpireTaskBlocks() error = %v, want errors.Is(entropyErr)", err)
+		}
+		if len(result.Blocks) != 0 {
+			t.Fatalf("ExpireTaskBlocks() blocks = %#v, want none", result.Blocks)
+		}
+		if got, want := idCalls, 2; got != want {
+			t.Fatalf("ID generation calls = %d, want %d", got, want)
+		}
+		if got := len(store.events); got != eventsBefore {
+			t.Fatalf("event count after entropy failure = %d, want %d", got, eventsBefore)
+		}
+		for _, block := range blocks {
+			stored := store.blocks[block.TaskID][block.ID]
+			if !stored.ClearedAt.IsZero() {
+				t.Fatalf("block %q cleared_at = %v, want zero", block.ID, stored.ClearedAt)
+			}
+		}
+	})
 }
 
 func TestManagerRecoverTaskClearsEscalationAndAutoEnqueuesReadyTask(t *testing.T) {
@@ -7358,7 +7979,7 @@ func TestManagerRunLifecycleRejectsInvalidTransitions(t *testing.T) {
 		t.Fatalf("CompleteRun(queued) error = %v, want %v", err, ErrInvalidStatusTransition)
 	}
 
-	claimedRun, err := seedNonLeasedClaimedRunForTest(context.Background(), manager, queuedRun.ID, actor)
+	claimedRun, err := claimExactRunForTest(context.Background(), manager, queuedRun.ID, actor)
 	if err != nil {
 		t.Fatalf("ClaimNextRun() error = %v", err)
 	}
@@ -7366,12 +7987,18 @@ func TestManagerRunLifecycleRejectsInvalidTransitions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("StartRun() error = %v", err)
 	}
+	if got, want := runningRun.SessionID, claimedRun.SessionID; got != want {
+		t.Fatalf("StartRun().SessionID = %q, want claimed binding %q", got, want)
+	}
+	if got := len(executor.startCalls); got != 0 {
+		t.Fatalf("StartTaskSession calls for pre-bound claim = %d, want 0", got)
+	}
 
 	if _, err := claimExactRunForTest(context.Background(), manager, runningRun.ID, actor); !errors.Is(
 		err,
-		ErrNoClaimableRun,
+		ErrActiveRunLease,
 	) {
-		t.Fatalf("exact claim of running run error = %v, want %v", err, ErrNoClaimableRun)
+		t.Fatalf("exact claim of leased running run error = %v, want %v", err, ErrActiveRunLease)
 	}
 }
 
@@ -7476,6 +8103,84 @@ func TestManagerTerminalRunStopsBackingSession(t *testing.T) {
 		}
 
 		assertSessionStopCalls(t, executor, runningRun.SessionID, StopReasonFailed)
+	})
+
+	t.Run("Should reject oversized failure diagnostics before stopping or mutating the run", func(t *testing.T) {
+		t.Parallel()
+
+		store := newInMemoryManagerStore()
+		executor := &recordingSessionExecutor{}
+		manager := newTaskManagerForTestWithOptions(
+			t,
+			store,
+			WithSessionExecutor(executor),
+			WithCancelGracePeriod(0),
+		)
+		actor := validActorContext()
+		runningRun := createRunningRunForTest(t, manager, actor)
+
+		_, err := manager.FailRun(context.Background(), runningRun.ID, RunFailure{
+			Error: strings.Repeat("x", MaxPayloadBytes),
+		}, actor)
+		if !errors.Is(err, ErrPayloadTooLarge) {
+			t.Fatalf("FailRun(oversized error) error = %v, want %v", err, ErrPayloadTooLarge)
+		}
+		stored := store.runs[runningRun.ID]
+		if got, want := stored.Status.Normalize(), TaskRunStatusRunning; got != want {
+			t.Fatalf("stored run status = %q, want %q after rejected failure", got, want)
+		}
+		if got := len(executor.requestStopCalls) + len(executor.forceStopCalls); got != 0 {
+			t.Fatalf("session stop call count = %d, want 0 after rejected failure", got)
+		}
+	})
+
+	// Invariant: an event payload rejected by the canonical event guard never
+	// reserves a terminal command or stops the backing session.
+	// Owning layer: task service terminal-command preflight.
+	// Canonical suite: TestManagerTerminalRunStopsBackingSession.
+	t.Run("Should reject an oversized completion event before stopping", func(t *testing.T) {
+		t.Parallel()
+
+		baseStore := newInMemoryManagerStore()
+		store := &taskMutationDeadlineStore{inMemoryManagerStore: baseStore}
+		executor := &recordingSessionExecutor{}
+		manager := newTaskManagerForTestWithOptions(
+			t,
+			store,
+			WithSessionExecutor(executor),
+			WithCancelGracePeriod(0),
+		)
+		actor := validActorContext()
+		runningRun := createRunningRunForTest(t, manager, actor)
+		store.deadlines = nil
+		storedResult := json.RawMessage(`"` + strings.Repeat("<", 12*1024) + `"`)
+		if err := ValidatePayloadSize(storedResult, "test.result"); err != nil {
+			t.Fatalf("ValidatePayloadSize(storage-valid result) error = %v", err)
+		}
+
+		_, err := manager.CompleteRun(context.Background(), runningRun.ID, RunResult{Value: storedResult}, actor)
+		if !errors.Is(err, ErrPayloadTooLarge) {
+			t.Fatalf("CompleteRun(oversized event) error = %v, want %v", err, ErrPayloadTooLarge)
+		}
+		stored := baseStore.runs[runningRun.ID]
+		if got, want := stored.Status.Normalize(), TaskRunStatusRunning; got != want {
+			t.Fatalf("stored run status = %q, want %q after preflight rejection", got, want)
+		}
+		if len(stored.Result) != 0 || !stored.EndedAt.IsZero() {
+			t.Fatalf("stored run terminal fields = result:%s ended_at:%s, want rollback", stored.Result, stored.EndedAt)
+		}
+		if stored.Error != "" {
+			t.Fatalf("stored run error = %q, want empty", stored.Error)
+		}
+		if got := len(executor.requestStopCalls) + len(executor.forceStopCalls); got != 0 {
+			t.Fatalf("session stop calls = %d, want 0", got)
+		}
+		if got, want := len(store.deadlines), 0; got != want {
+			t.Fatalf("task mutation transaction contexts = %d, want %d", got, want)
+		}
+		if got := len(baseStore.terminalCommands); got != 0 {
+			t.Fatalf("terminal commands = %d, want 0", got)
+		}
 	})
 
 	t.Run("Should keep run non-terminal when completed stop request fails", func(t *testing.T) {
@@ -7589,7 +8294,7 @@ func createRunningRunForTest(t *testing.T, manager *Service, actor ActorContext)
 	if err != nil {
 		t.Fatalf("EnqueueRun() error = %v", err)
 	}
-	claimedRun, err := seedNonLeasedClaimedRunForTest(context.Background(), manager, queuedRun.ID, actor)
+	claimedRun, err := admitRunDirectlyForTest(context.Background(), manager, queuedRun.ID, actor)
 	if err != nil {
 		t.Fatalf("ClaimNextRun() error = %v", err)
 	}
@@ -7727,7 +8432,7 @@ func TestManagerTaskReconciliationAcrossDependenciesAndRuns(t *testing.T) {
 	if err != nil {
 		t.Fatalf("EnqueueRun(blocker) error = %v", err)
 	}
-	blockerRun, err = seedNonLeasedClaimedRunForTest(context.Background(), manager, blockerRun.ID, actor)
+	blockerRun, err = admitRunDirectlyForTest(context.Background(), manager, blockerRun.ID, actor)
 	if err != nil {
 		t.Fatalf("ClaimNextRun(blocker) error = %v", err)
 	}
@@ -7751,7 +8456,7 @@ func TestManagerTaskReconciliationAcrossDependenciesAndRuns(t *testing.T) {
 	if err != nil {
 		t.Fatalf("EnqueueRun(target) error = %v", err)
 	}
-	targetRun, err = seedNonLeasedClaimedRunForTest(context.Background(), manager, targetRun.ID, actor)
+	targetRun, err = admitRunDirectlyForTest(context.Background(), manager, targetRun.ID, actor)
 	if err != nil {
 		t.Fatalf("ClaimNextRun(target) error = %v", err)
 	}
@@ -7787,7 +8492,7 @@ func TestManagerTaskReconciliationAcrossDependenciesAndRuns(t *testing.T) {
 	if err != nil {
 		t.Fatalf("EnqueueRun(failedTask) error = %v", err)
 	}
-	failedRun, err = seedNonLeasedClaimedRunForTest(context.Background(), manager, failedRun.ID, actor)
+	failedRun, err = admitRunDirectlyForTest(context.Background(), manager, failedRun.ID, actor)
 	if err != nil {
 		t.Fatalf("ClaimNextRun(failedTask) error = %v", err)
 	}
@@ -7819,7 +8524,7 @@ func TestManagerTaskReconciliationAcrossDependenciesAndRuns(t *testing.T) {
 	if err != nil {
 		t.Fatalf("EnqueueRun(cancelledTask) error = %v", err)
 	}
-	cancelledRun, err = seedNonLeasedClaimedRunForTest(context.Background(), manager, cancelledRun.ID, actor)
+	cancelledRun, err = admitRunDirectlyForTest(context.Background(), manager, cancelledRun.ID, actor)
 	if err != nil {
 		t.Fatalf("ClaimNextRun(cancelledTask) error = %v", err)
 	}
@@ -7839,6 +8544,112 @@ func TestManagerTaskReconciliationAcrossDependenciesAndRuns(t *testing.T) {
 
 func TestManagerCancelTaskPropagatesAcrossTree(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should cancel every nonterminal task and run in the tree", func(t *testing.T) {
+		t.Parallel()
+		testManagerCancelTaskPropagatesAcrossTree(t)
+	})
+
+	t.Run("Should reject the whole tree before mutation when a later ID fails", func(t *testing.T) {
+		t.Parallel()
+
+		store := newInMemoryManagerStore()
+		executor := &recordingSessionExecutor{}
+		manager := newTaskManagerForTestWithOptions(t, store, WithSessionExecutor(executor))
+		actor := validActorContext()
+		parent, err := manager.CreateTask(context.Background(), CreateTask{Scope: ScopeGlobal, Title: "Parent"}, actor)
+		if err != nil {
+			t.Fatalf("CreateTask(parent) error = %v", err)
+		}
+		firstChild, err := manager.CreateChildTask(
+			context.Background(),
+			parent.ID,
+			CreateTask{Scope: ScopeGlobal, Title: "First child"},
+			actor,
+		)
+		if err != nil {
+			t.Fatalf("CreateChildTask(first) error = %v", err)
+		}
+		secondChild, err := manager.CreateChildTask(
+			context.Background(),
+			parent.ID,
+			CreateTask{Scope: ScopeGlobal, Title: "Second child"},
+			actor,
+		)
+		if err != nil {
+			t.Fatalf("CreateChildTask(second) error = %v", err)
+		}
+		firstRun, err := manager.EnqueueRun(context.Background(), EnqueueRun{TaskID: firstChild.ID}, actor)
+		if err != nil {
+			t.Fatalf("EnqueueRun(first) error = %v", err)
+		}
+		secondRun, err := manager.EnqueueRun(context.Background(), EnqueueRun{TaskID: secondChild.ID}, actor)
+		if err != nil {
+			t.Fatalf("EnqueueRun(second) error = %v", err)
+		}
+		taskStatuses := map[string]Status{
+			parent.ID:      store.tasks[parent.ID].Status,
+			firstChild.ID:  store.tasks[firstChild.ID].Status,
+			secondChild.ID: store.tasks[secondChild.ID].Status,
+		}
+		runStatuses := map[string]RunStatus{
+			firstRun.ID:  store.runs[firstRun.ID].Status,
+			secondRun.ID: store.runs[secondRun.ID].Status,
+		}
+		eventsBefore := len(store.events)
+		entropyErr := errors.New("later cancellation identity unavailable")
+		idCalls := 0
+		manager.newID = func(prefix string) (string, error) {
+			idCalls++
+			if idCalls == 3 {
+				return "", entropyErr
+			}
+			return fmt.Sprintf("%s-cancel-entropy-%d", prefix, idCalls), nil
+		}
+
+		canceled, err := manager.CancelTask(
+			context.Background(),
+			parent.ID,
+			CancelTask{Reason: "cancel all"},
+			actor,
+		)
+		if !errors.Is(err, entropyErr) {
+			t.Fatalf("CancelTask() error = %v, want errors.Is(entropyErr)", err)
+		}
+		if canceled != nil {
+			t.Fatalf("CancelTask() = %#v, want nil", canceled)
+		}
+		if got, want := idCalls, 3; got != want {
+			t.Fatalf("ID generation calls = %d, want %d", got, want)
+		}
+		for taskID, want := range taskStatuses {
+			if got := store.tasks[taskID].Status; got != want {
+				t.Fatalf("task %q status after entropy failure = %q, want %q", taskID, got, want)
+			}
+		}
+		for runID, want := range runStatuses {
+			if got := store.runs[runID].Status; got != want {
+				t.Fatalf("run %q status after entropy failure = %q, want %q", runID, got, want)
+			}
+		}
+		if got := len(store.events); got != eventsBefore {
+			t.Fatalf("event count after entropy failure = %d, want %d", got, eventsBefore)
+		}
+		if got := len(store.terminalCommands); got != 0 {
+			t.Fatalf("terminal command count after entropy failure = %d, want 0", got)
+		}
+		if len(executor.requestStopCalls) != 0 || len(executor.forceStopCalls) != 0 {
+			t.Fatalf(
+				"session stop calls after entropy failure = request:%d force:%d, want zero",
+				len(executor.requestStopCalls),
+				len(executor.forceStopCalls),
+			)
+		}
+	})
+}
+
+func testManagerCancelTaskPropagatesAcrossTree(t *testing.T) {
+	t.Helper()
 
 	store := newInMemoryManagerStore()
 	executor := &recordingSessionExecutor{}
@@ -7888,7 +8699,7 @@ func TestManagerCancelTaskPropagatesAcrossTree(t *testing.T) {
 	if err != nil {
 		t.Fatalf("EnqueueRun(active child) error = %v", err)
 	}
-	activeRun, err = seedNonLeasedClaimedRunForTest(context.Background(), manager, activeRun.ID, actor)
+	activeRun, err = admitRunDirectlyForTest(context.Background(), manager, activeRun.ID, actor)
 	if err != nil {
 		t.Fatalf("ClaimNextRun(active child) error = %v", err)
 	}
@@ -7986,7 +8797,7 @@ func TestManagerAttachRunSessionAndRetryLatestRunOutcome(t *testing.T) {
 	if got, want := firstRun.NetworkSpecSnapshot().Source, participation.SourceBuiltInLocal; got != want {
 		t.Fatalf("firstRun.NetworkSpecSnapshot().Source = %q, want %q", got, want)
 	}
-	firstRun, err = seedNonLeasedClaimedRunForTest(context.Background(), manager, firstRun.ID, actor)
+	firstRun, err = admitRunDirectlyForTest(context.Background(), manager, firstRun.ID, actor)
 	if err != nil {
 		t.Fatalf("ClaimNextRun(first) error = %v", err)
 	}
@@ -8017,7 +8828,7 @@ func TestManagerAttachRunSessionAndRetryLatestRunOutcome(t *testing.T) {
 		t.Fatalf("task.Status after retry enqueue = %q, want %q", got, want)
 	}
 
-	retryRun, err = seedNonLeasedClaimedRunForTest(context.Background(), manager, retryRun.ID, actor)
+	retryRun, err = admitRunDirectlyForTest(context.Background(), manager, retryRun.ID, actor)
 	if err != nil {
 		t.Fatalf("ClaimNextRun(retry) error = %v", err)
 	}
@@ -8080,9 +8891,26 @@ func TestManagerForceRunOperations(t *testing.T) {
 		func(t *testing.T) {
 			t.Parallel()
 
+			const rawToken = "compozy_claim_force-release-secret"
+			metadata := json.RawMessage(
+				`{"safe":"release-audit","note":"worker returned ` + rawToken + `"}`,
+			)
 			store := newForceInputStore()
 			store.pendingCancelCounts["sess-force"] = 2
-			manager := newTaskManagerForTest(t, store)
+			var releasedHook hookspkg.TaskRunReleasedPayload
+			manager := newTaskManagerForTestWithOptions(
+				t,
+				store,
+				WithTaskRunHooks(recordingTaskRunHooks{
+					released: func(
+						_ context.Context,
+						payload hookspkg.TaskRunReleasedPayload,
+					) (hookspkg.TaskRunReleasedPayload, error) {
+						releasedHook = payload
+						return payload, nil
+					},
+				}),
+			)
 			actor := validActorContext()
 
 			taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
@@ -8109,7 +8937,8 @@ func TestManagerForceRunOperations(t *testing.T) {
 			store.runs[run.ID] = storedRun
 
 			released, err := manager.ForceReleaseRun(context.Background(), run.ID, ForceReleaseRun{
-				Reason: "handoff",
+				Reason:   "handoff " + rawToken,
+				Metadata: metadata,
 			}, actor)
 			if err != nil {
 				t.Fatalf("ForceReleaseRun() error = %v", err)
@@ -8120,6 +8949,9 @@ func TestManagerForceRunOperations(t *testing.T) {
 			if released.SessionID != "" || released.ClaimTokenHash != "" ||
 				!released.LeaseUntil.IsZero() {
 				t.Fatalf("released run retained claim fields: %#v", released)
+			}
+			if len(released.Metadata) != 0 {
+				t.Fatalf("released run metadata = %s, want operational metadata unchanged", released.Metadata)
 			}
 			if len(store.advanceCalls) != 1 || store.advanceCalls[0] != "sess-force" {
 				t.Fatalf("advanceCalls = %#v, want sess-force", store.advanceCalls)
@@ -8149,15 +8981,98 @@ func TestManagerForceRunOperations(t *testing.T) {
 			if err := json.Unmarshal(events[0].Payload, &payload); err != nil {
 				t.Fatalf("json.Unmarshal(release payload) error = %v", err)
 			}
-			if payload.Reason != "handoff" || payload.QueueGeneration != 1 ||
+			if payload.Reason != "handoff compozy_claim_[REDACTED]" || payload.QueueGeneration != 1 ||
 				payload.CanceledQueuedInputs != 2 {
 				t.Fatalf(
 					"release payload = %#v, want reason and input cancellation evidence",
 					payload,
 				)
 			}
+			if strings.Contains(string(events[0].Payload), rawToken) {
+				t.Fatalf("task.run.released payload leaked raw bearer: %s", events[0].Payload)
+			}
+			var audit struct {
+				Metadata json.RawMessage `json:"metadata"`
+			}
+			if err := json.Unmarshal(events[0].Payload, &audit); err != nil {
+				t.Fatalf("json.Unmarshal(release audit metadata) error = %v", err)
+			}
+			if !strings.Contains(string(audit.Metadata), `"safe":"release-audit"`) ||
+				strings.Contains(string(audit.Metadata), rawToken) {
+				t.Fatalf("release audit metadata = %s, want safe content without raw bearer", audit.Metadata)
+			}
+			if strings.Contains(releasedHook.RecoveryReason, rawToken) ||
+				strings.Contains(releasedHook.ReleaseReason, rawToken) {
+				t.Fatalf("task.run_released hook leaked raw bearer: %#v", releasedHook)
+			}
+			if got, want := releasedHook.RecoveryReason, "handoff compozy_claim_[REDACTED]"; got != want {
+				t.Fatalf("released hook RecoveryReason = %q, want %q", got, want)
+			}
 		},
 	)
+
+	t.Run("Should preserve sanitized release metadata through bulk audit events", func(t *testing.T) {
+		t.Parallel()
+
+		const rawToken = "compozy_claim_bulk-release-secret"
+		store := newForceInputStore()
+		manager := newTaskManagerForTest(t, store)
+		actor := validActorContext()
+		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+			Scope: ScopeGlobal,
+			Title: "Bulk force release",
+		}, actor)
+		if err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		run, err := manager.EnqueueRun(
+			context.Background(),
+			EnqueueRun{TaskID: taskRecord.ID},
+			actor,
+		)
+		if err != nil {
+			t.Fatalf("EnqueueRun() error = %v", err)
+		}
+		run, err = claimExactRunForTest(context.Background(), manager, run.ID, actor)
+		if err != nil {
+			t.Fatalf("ClaimNextRun() error = %v", err)
+		}
+
+		result, err := manager.BulkForceReleaseRuns(context.Background(), BulkForceRunRequest{
+			RunIDs: []string{run.ID},
+			Reason: "bulk handoff",
+			Metadata: json.RawMessage(
+				`{"safe":"bulk-release-audit","note":"worker returned ` + rawToken + `"}`,
+			),
+		}, actor)
+		if err != nil {
+			t.Fatalf("BulkForceReleaseRuns() error = %v", err)
+		}
+		if len(result.Items) != 1 || !result.Items[0].OK {
+			t.Fatalf("BulkForceReleaseRuns().Items = %#v, want one successful item", result.Items)
+		}
+		events, err := store.ListTaskEvents(context.Background(), EventQuery{
+			TaskID:    taskRecord.ID,
+			RunID:     run.ID,
+			EventType: taskEventRunReleased,
+		})
+		if err != nil {
+			t.Fatalf("ListTaskEvents(released) error = %v", err)
+		}
+		if got, want := len(events), 1; got != want {
+			t.Fatalf("released event count = %d, want %d", got, want)
+		}
+		var audit struct {
+			Metadata json.RawMessage `json:"metadata"`
+		}
+		if err := json.Unmarshal(events[0].Payload, &audit); err != nil {
+			t.Fatalf("json.Unmarshal(release audit metadata) error = %v", err)
+		}
+		if !strings.Contains(string(audit.Metadata), `"safe":"bulk-release-audit"`) ||
+			strings.Contains(string(audit.Metadata), rawToken) {
+			t.Fatalf("bulk release audit metadata = %s, want safe content without raw bearer", audit.Metadata)
+		}
+	})
 
 	t.Run("Should force fail require reason and record operator evidence", func(t *testing.T) {
 		t.Parallel()
@@ -8222,9 +9137,175 @@ func TestManagerForceRunOperations(t *testing.T) {
 		}
 	})
 
+	t.Run("Should redact raw claim bearers from forced failure state and audit", func(t *testing.T) {
+		t.Parallel()
+
+		const rawToken = "compozy_claim_force-fail-secret"
+		store := newInMemoryManagerStore()
+		manager := newTaskManagerForTest(t, store)
+		actor := validActorContext()
+		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+			Scope: ScopeGlobal,
+			Title: "Sanitized force fail",
+		}, actor)
+		if err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		run, err := manager.EnqueueRun(
+			context.Background(),
+			EnqueueRun{TaskID: taskRecord.ID},
+			actor,
+		)
+		if err != nil {
+			t.Fatalf("EnqueueRun() error = %v", err)
+		}
+
+		failed, err := manager.ForceFailRun(context.Background(), run.ID, ForceFailRun{
+			Reason: "operator observed " + rawToken,
+			Metadata: json.RawMessage(
+				`{"detail":"worker returned ` + rawToken + `","claim_token":"` + rawToken + `","safe":"preserved"}`,
+			),
+		}, actor)
+		if err != nil {
+			t.Fatalf("ForceFailRun() error = %v", err)
+		}
+		if strings.Contains(failed.Error, rawToken) {
+			t.Fatalf("ForceFailRun().Error = %q, want raw bearer redacted", failed.Error)
+		}
+		if got, want := failed.Error, "operator observed compozy_claim_[REDACTED]"; got != want {
+			t.Fatalf("ForceFailRun().Error = %q, want %q", got, want)
+		}
+
+		events, err := store.ListTaskEvents(context.Background(), EventQuery{
+			TaskID:    taskRecord.ID,
+			RunID:     run.ID,
+			EventType: taskEventRunOperatorForcedFail,
+		})
+		if err != nil {
+			t.Fatalf("ListTaskEvents(force fail) error = %v", err)
+		}
+		if got, want := len(events), 1; got != want {
+			t.Fatalf("force-fail event count = %d, want %d", got, want)
+		}
+		if strings.Contains(string(events[0].Payload), rawToken) {
+			t.Fatalf("force-fail payload leaked raw bearer: %s", events[0].Payload)
+		}
+		var payload operatorForcedFailPayload
+		if err := json.Unmarshal(events[0].Payload, &payload); err != nil {
+			t.Fatalf("json.Unmarshal(force fail payload) error = %v", err)
+		}
+		if got, want := payload.Reason, "operator observed compozy_claim_[REDACTED]"; got != want {
+			t.Fatalf("force-fail payload reason = %q, want %q", got, want)
+		}
+		if strings.Contains(string(payload.Metadata), `"claim_token"`) ||
+			!strings.Contains(string(payload.Metadata), `"safe":"preserved"`) {
+			t.Fatalf(
+				"force-fail payload metadata = %s, want secret field removed and safe content preserved",
+				payload.Metadata,
+			)
+		}
+	})
+
+	t.Run("Should reject expanded force fail metadata before mutating the run", func(t *testing.T) {
+		t.Parallel()
+
+		store := newInMemoryManagerStore()
+		manager := newTaskManagerForTest(t, store)
+		actor := validActorContext()
+		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+			Scope: ScopeGlobal,
+			Title: "Bounded force fail",
+		}, actor)
+		if err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		run, err := manager.EnqueueRun(
+			context.Background(),
+			EnqueueRun{TaskID: taskRecord.ID},
+			actor,
+		)
+		if err != nil {
+			t.Fatalf("EnqueueRun() error = %v", err)
+		}
+
+		expandingMetadata := json.RawMessage(
+			`{"note":"` + strings.Repeat("<", 11_000) +
+				`","secret":"compozy_claim_force-size-secret"}`,
+		)
+		if len(expandingMetadata) >= MaxMetadataBytes {
+			t.Fatalf("expanding metadata input = %d bytes, want below %d", len(expandingMetadata), MaxMetadataBytes)
+		}
+		_, err = manager.ForceFailRun(context.Background(), run.ID, ForceFailRun{
+			Reason:   "operator recovery",
+			Metadata: expandingMetadata,
+		}, actor)
+		if !errors.Is(err, ErrPayloadTooLarge) {
+			t.Fatalf("ForceFailRun(expanding metadata) error = %v, want %v", err, ErrPayloadTooLarge)
+		}
+		if got, want := store.runs[run.ID].Status.Normalize(), TaskRunStatusQueued; got != want {
+			t.Fatalf("stored run status = %q, want %q after rejected input", got, want)
+		}
+		events, listErr := store.ListTaskEvents(context.Background(), EventQuery{
+			TaskID:    taskRecord.ID,
+			RunID:     run.ID,
+			EventType: taskEventRunOperatorForcedFail,
+		})
+		if listErr != nil {
+			t.Fatalf("ListTaskEvents(force fail) error = %v", listErr)
+		}
+		if len(events) != 0 {
+			t.Fatalf("force-fail event count = %d, want 0 after rejected input", len(events))
+		}
+	})
+
+	t.Run("Should reject oversized force fail reason before mutating the run", func(t *testing.T) {
+		t.Parallel()
+
+		store := newInMemoryManagerStore()
+		manager := newTaskManagerForTest(t, store)
+		actor := validActorContext()
+		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+			Scope: ScopeGlobal,
+			Title: "Bounded force fail reason",
+		}, actor)
+		if err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		run, err := manager.EnqueueRun(
+			context.Background(),
+			EnqueueRun{TaskID: taskRecord.ID},
+			actor,
+		)
+		if err != nil {
+			t.Fatalf("EnqueueRun() error = %v", err)
+		}
+
+		_, err = manager.ForceFailRun(context.Background(), run.ID, ForceFailRun{
+			Reason: strings.Repeat("x", MaxPayloadBytes),
+		}, actor)
+		if !errors.Is(err, ErrPayloadTooLarge) {
+			t.Fatalf("ForceFailRun(oversized reason) error = %v, want %v", err, ErrPayloadTooLarge)
+		}
+		if got, want := store.runs[run.ID].Status.Normalize(), TaskRunStatusQueued; got != want {
+			t.Fatalf("stored run status = %q, want %q after rejected reason", got, want)
+		}
+		events, listErr := store.ListTaskEvents(context.Background(), EventQuery{
+			TaskID:    taskRecord.ID,
+			RunID:     run.ID,
+			EventType: taskEventRunOperatorForcedFail,
+		})
+		if listErr != nil {
+			t.Fatalf("ListTaskEvents(force fail) error = %v", listErr)
+		}
+		if len(events) != 0 {
+			t.Fatalf("force-fail event count = %d, want 0 after rejected reason", len(events))
+		}
+	})
+
 	t.Run("Should retry failed run once and link previous run id", func(t *testing.T) {
 		t.Parallel()
 
+		const rawToken = "compozy_claim_retry-secret"
 		store := newInMemoryManagerStore()
 		enqueuedPayloads := make([]hookspkg.TaskRunEnqueuedPayload, 0)
 		manager := newTaskManagerForTestWithOptions(
@@ -8267,7 +9348,11 @@ func TestManagerForceRunOperations(t *testing.T) {
 		enqueuedPayloads = enqueuedPayloads[:0]
 
 		retry, err := manager.RetryRun(context.Background(), failed.ID, RetryRunRequest{
-			Metadata: json.RawMessage("{\"source\":\"operator\"}"),
+			Metadata: json.RawMessage(
+				`{"source":"operator","agent_name":"` + rawToken + `","workflow_id":"` + rawToken +
+					`","soul":{"snapshot_id":"` + rawToken + `","digest":"` + rawToken +
+					`"},"claim_token":"` + rawToken + `"}`,
+			),
 		}, actor)
 		if err != nil {
 			t.Fatalf("RetryRun() error = %v", err)
@@ -8278,8 +9363,22 @@ func TestManagerForceRunOperations(t *testing.T) {
 		if retry.Run.PreviousRunID != failed.ID || retry.Run.Status != TaskRunStatusQueued {
 			t.Fatalf("RetryRun().Run = %#v, want queued run linked to previous", retry.Run)
 		}
+		if strings.Contains(string(retry.Run.Metadata), rawToken) ||
+			strings.Contains(string(retry.Run.Metadata), `"claim_token"`) {
+			t.Fatalf("RetryRun().Run.Metadata leaked raw bearer: %s", retry.Run.Metadata)
+		}
+		if !strings.Contains(string(retry.Run.Metadata), `"source":"operator"`) {
+			t.Fatalf("RetryRun().Run.Metadata = %s, want safe metadata preserved", retry.Run.Metadata)
+		}
 		if got, want := len(enqueuedPayloads), 1; got != want {
 			t.Fatalf("enqueued hook payload count = %d, want %d", got, want)
+		}
+		hookPayload, err := json.Marshal(enqueuedPayloads[0])
+		if err != nil {
+			t.Fatalf("json.Marshal(enqueued hook) error = %v", err)
+		}
+		if strings.Contains(string(hookPayload), rawToken) {
+			t.Fatalf("task.run_enqueued hook leaked raw bearer: %s", hookPayload)
 		}
 		assertTaskRunEnqueuedPayload(
 			t,
@@ -8312,7 +9411,9 @@ func TestManagerForceRunOperations(t *testing.T) {
 		func(t *testing.T) {
 			t.Parallel()
 
-			store := newInMemoryManagerStore()
+			const rawToken = "compozy_claim_recover-secret"
+			store := newForceInputStore()
+			store.pendingCancelCounts["sess-recover"] = 3
 			enqueuedPayloads := make([]hookspkg.TaskRunEnqueuedPayload, 0)
 			manager := newTaskManagerForTestWithOptions(
 				t,
@@ -8358,12 +9459,16 @@ func TestManagerForceRunOperations(t *testing.T) {
 			// A needs_attention run is produced by the scheduler convergence backstop; simulate it here.
 			escalated := store.runs[run.ID]
 			escalated.Status = TaskRunStatusNeedsAttention
+			escalated.SessionID = "sess-recover"
 			store.runs[run.ID] = escalated
 			enqueuedPayloads = enqueuedPayloads[:0]
 
 			recovered, err := manager.RecoverRun(context.Background(), run.ID, RecoverRunRequest{
-				Reason:   "operator unblocked",
-				Metadata: json.RawMessage("{\"source\":\"operator\"}"),
+				Reason: "operator unblocked " + rawToken,
+				Metadata: json.RawMessage(
+					`{"source":"operator","agent_name":"` + rawToken + `","workflow_id":"` + rawToken +
+						`","claim_token":"` + rawToken + `"}`,
+				),
 			}, actor)
 			if err != nil {
 				t.Fatalf("RecoverRun() error = %v", err)
@@ -8375,12 +9480,25 @@ func TestManagerForceRunOperations(t *testing.T) {
 					recovered.PreviousRun,
 				)
 			}
+			if strings.Contains(recovered.PreviousRun.Error, rawToken) {
+				t.Fatalf("RecoverRun().PreviousRun.Error leaked raw bearer: %q", recovered.PreviousRun.Error)
+			}
+			if got, want := recovered.PreviousRun.Error, "operator unblocked compozy_claim_[REDACTED]"; got != want {
+				t.Fatalf("RecoverRun().PreviousRun.Error = %q, want %q", got, want)
+			}
 			if recovered.Run.PreviousRunID != run.ID ||
 				recovered.Run.Status != TaskRunStatusQueued {
 				t.Fatalf(
 					"RecoverRun().Run = %#v, want queued child linked to source",
 					recovered.Run,
 				)
+			}
+			if strings.Contains(string(recovered.Run.Metadata), rawToken) ||
+				strings.Contains(string(recovered.Run.Metadata), `"claim_token"`) {
+				t.Fatalf("RecoverRun().Run.Metadata leaked raw bearer: %s", recovered.Run.Metadata)
+			}
+			if !strings.Contains(string(recovered.Run.Metadata), `"source":"operator"`) {
+				t.Fatalf("RecoverRun().Run.Metadata = %s, want safe metadata preserved", recovered.Run.Metadata)
 			}
 			if recovered.Run.Attempt != run.Attempt+1 {
 				t.Fatalf(
@@ -8389,8 +9507,24 @@ func TestManagerForceRunOperations(t *testing.T) {
 					run.Attempt+1,
 				)
 			}
+			if got, want := store.advanceCalls, []string{"sess-recover"}; !slices.Equal(got, want) {
+				t.Fatalf("advanceCalls = %#v, want %#v", got, want)
+			}
+			if len(store.cancelCalls) != 1 ||
+				store.cancelCalls[0].SessionID != "sess-recover" ||
+				store.cancelCalls[0].Generation != 1 ||
+				store.cancelCalls[0].CanceledInputs != 3 {
+				t.Fatalf("cancelCalls = %#v, want recovered-session invalidation", store.cancelCalls)
+			}
 			if got, want := len(enqueuedPayloads), 1; got != want {
 				t.Fatalf("enqueued hook payload count = %d, want %d", got, want)
+			}
+			hookPayload, err := json.Marshal(enqueuedPayloads[0])
+			if err != nil {
+				t.Fatalf("json.Marshal(enqueued hook) error = %v", err)
+			}
+			if strings.Contains(string(hookPayload), rawToken) {
+				t.Fatalf("task.run_enqueued hook leaked raw bearer: %s", hookPayload)
 			}
 			assertTaskRunEnqueuedPayload(
 				t,
@@ -8415,8 +9549,17 @@ func TestManagerForceRunOperations(t *testing.T) {
 				t.Fatalf("json.Unmarshal(recover payload) error = %v", err)
 			}
 			if payload.PreviousStatus != TaskRunStatusNeedsAttention ||
-				payload.SourceRunID != run.ID {
+				payload.SourceRunID != run.ID ||
+				payload.SessionID != "sess-recover" ||
+				payload.QueueGeneration != 1 ||
+				payload.CanceledQueuedInputs != 3 {
 				t.Fatalf("recover payload = %#v, want previous needs_attention + source", payload)
+			}
+			if strings.Contains(string(events[0].Payload), rawToken) {
+				t.Fatalf("task.run_recovered_from_attention payload leaked raw bearer: %s", events[0].Payload)
+			}
+			if got, want := payload.Reason, "operator unblocked compozy_claim_[REDACTED]"; got != want {
+				t.Fatalf("recover payload Reason = %q, want %q", got, want)
 			}
 		},
 	)
@@ -8512,6 +9655,49 @@ func TestManagerForceRunOperations(t *testing.T) {
 		},
 	)
 
+	t.Run("Should reject needs_attention without write authority", func(t *testing.T) {
+		t.Parallel()
+
+		store := newInMemoryManagerStore()
+		manager := newTaskManagerForTest(t, store)
+		writer := validActorContext()
+		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+			Scope: ScopeGlobal,
+			Title: "Read-only escalation",
+		}, writer)
+		if err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		run, err := manager.EnqueueRun(
+			context.Background(),
+			EnqueueRun{TaskID: taskRecord.ID},
+			writer,
+		)
+		if err != nil {
+			t.Fatalf("EnqueueRun() error = %v", err)
+		}
+		reader := writer
+		reader.Authority.Write = false
+		reader.Authority.CreateGlobal = false
+		reader.Authority.CreateWorkspace = false
+
+		_, err = manager.MarkRunNeedsAttention(
+			context.Background(),
+			run.ID,
+			"reader cannot escalate",
+			reader,
+		)
+		if !errors.Is(err, ErrPermissionDenied) {
+			t.Fatalf("MarkRunNeedsAttention(read-only) error = %v, want %v", err, ErrPermissionDenied)
+		}
+		if got, want := store.runs[run.ID].Status.Normalize(), TaskRunStatusQueued; got != want {
+			t.Fatalf("stored run status = %q, want %q", got, want)
+		}
+		if got := countTaskEventsByType(store.events, taskEventRunNeedsAttention); got != 0 {
+			t.Fatalf("needs_attention events = %d, want 0", got)
+		}
+	})
+
 	t.Run("Should reject uppercase claim tokens in needs_attention diagnostics", func(t *testing.T) {
 		t.Parallel()
 
@@ -8556,6 +9742,53 @@ func TestManagerForceRunOperations(t *testing.T) {
 		}
 		if len(events) != 0 {
 			t.Fatalf("needs_attention event count = %d, want 0", len(events))
+		}
+	})
+
+	t.Run("Should reject oversized needs_attention audit payloads before mutating the run", func(t *testing.T) {
+		t.Parallel()
+
+		store := newInMemoryManagerStore()
+		manager := newTaskManagerForTest(t, store)
+		actor := validActorContext()
+		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+			Scope: ScopeGlobal,
+			Title: "Bounded needs attention diagnostic",
+		}, actor)
+		if err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		run, err := manager.EnqueueRun(
+			context.Background(),
+			EnqueueRun{TaskID: taskRecord.ID},
+			actor,
+		)
+		if err != nil {
+			t.Fatalf("EnqueueRun() error = %v", err)
+		}
+
+		diagnostic := "worker output: " + strings.Repeat("<", 12*1024)
+		_, err = manager.MarkRunNeedsAttention(context.Background(), run.ID, diagnostic, actor)
+		if !errors.Is(err, ErrPayloadTooLarge) {
+			t.Fatalf(
+				"MarkRunNeedsAttention(oversized diagnostic) error = %v, want %v",
+				err,
+				ErrPayloadTooLarge,
+			)
+		}
+		if got, want := store.runs[run.ID].Status.Normalize(), TaskRunStatusQueued; got != want {
+			t.Fatalf("stored run status = %q, want %q after rejected diagnostic", got, want)
+		}
+		events, listErr := store.ListTaskEvents(context.Background(), EventQuery{
+			TaskID:    taskRecord.ID,
+			RunID:     run.ID,
+			EventType: taskEventRunNeedsAttention,
+		})
+		if listErr != nil {
+			t.Fatalf("ListTaskEvents(needs_attention) error = %v", listErr)
+		}
+		if len(events) != 0 {
+			t.Fatalf("needs_attention event count = %d, want 0 after rejected diagnostic", len(events))
 		}
 	})
 
@@ -8699,7 +9932,7 @@ func TestManagerNonHumanIdempotencyAndExecutionGuards(t *testing.T) {
 		t.Fatalf("EnqueueRun(taskTwo duplicate key) error = %v, want %v", err, ErrValidation)
 	}
 
-	claimedRun, err := seedNonLeasedClaimedRunForTest(context.Background(), manager, runOne.ID, automationActor)
+	claimedRun, err := admitRunDirectlyForTest(context.Background(), manager, runOne.ID, automationActor)
 	if err != nil {
 		t.Fatalf("claimExactRunForTest() error = %v", err)
 	}
@@ -8766,6 +9999,108 @@ func TestManagerStartRunShouldExecuteCoordinatorInDaemonWithoutSession(t *testin
 	t.Run("Should suppress post-commit effects when cancellation supersedes the plan", func(t *testing.T) {
 		t.Parallel()
 		testManagerStartRunShouldExecuteCoordinatorInDaemonWithoutSession(t, nil, nil, true)
+	})
+
+	t.Run("Should reserve every publication event ID before coordinator completion", func(t *testing.T) {
+		t.Parallel()
+
+		store := newInMemoryManagerStore()
+		now := time.Date(2026, 7, 4, 13, 0, 0, 0, time.UTC)
+		taskRecord := Task{
+			ID:             "task-loop-coordinator-entropy",
+			Scope:          ScopeGlobal,
+			Title:          "Loop coordinator entropy",
+			Priority:       PriorityMedium,
+			MaxAttempts:    DefaultTaskMaxAttempts,
+			Status:         TaskStatusReady,
+			ApprovalPolicy: ApprovalPolicyNone,
+			ApprovalState:  ApprovalStateNotRequired,
+			CreatedBy:      ActorIdentity{Kind: ActorKindDaemon, Ref: "loop"},
+			Origin:         Origin{Kind: OriginKindDaemon, Ref: "loop"},
+			CreatedAt:      now,
+			UpdatedAt:      now,
+		}
+		if err := store.CreateTask(context.Background(), taskRecord); err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		run := Run{
+			ID:             "run-loop-coordinator-entropy",
+			TaskID:         taskRecord.ID,
+			RunKind:        RunKindCoordinator,
+			LoopRunID:      "loop-run-entropy",
+			Status:         TaskRunStatusQueued,
+			Attempt:        1,
+			IdempotencyKey: "coordinator:entropy",
+			Origin:         Origin{Kind: OriginKindDaemon, Ref: "loop"},
+			QueuedAt:       now,
+		}
+		if err := store.CreateTaskRun(context.Background(), run); err != nil {
+			t.Fatalf("CreateTaskRun() error = %v", err)
+		}
+		manager := newTaskManagerForTestWithOptions(
+			t,
+			store,
+			WithGenerationStateFinalizer(noopLoopFinalizer{}),
+			WithManagerNow(func() time.Time { return now }),
+		)
+		actor, err := DeriveDaemonActorContext("loop", "daemon.loop")
+		if err != nil {
+			t.Fatalf("DeriveDaemonActorContext() error = %v", err)
+		}
+		claim, err := manager.ClaimNextRun(context.Background(), ClaimCriteria{
+			Scope:            ScopeGlobal,
+			ClaimerSessionID: "daemon-loop",
+			ClaimedBy:        &ActorIdentity{Kind: ActorKindDaemon, Ref: "loop"},
+			LeaseDuration:    time.Minute,
+			Now:              now,
+		}, actor)
+		if err != nil {
+			t.Fatalf("ClaimNextRun() error = %v", err)
+		}
+		eventsBefore := len(store.events)
+		taskBefore := store.tasks[taskRecord.ID]
+		runBefore := store.runs[run.ID]
+		entropyErr := errors.New("second coordinator publication identity unavailable")
+		idCalls := 0
+		manager.newID = func(prefix string) (string, error) {
+			idCalls++
+			if idCalls == 2 {
+				return "", entropyErr
+			}
+			return fmt.Sprintf("%s-coordinator-entropy-%d", prefix, idCalls), nil
+		}
+
+		completed, err := manager.completeCoordinatorRun(
+			context.Background(),
+			claim.Run,
+			claim.ClaimToken,
+			CoordinatorCompletionPlan{NodeRuns: []EnqueueSpec{
+				{TaskID: "task-node-one", RunID: "run-node-one"},
+				{TaskID: "task-node-two", RunID: "run-node-two"},
+			}},
+			actor,
+		)
+		if !errors.Is(err, entropyErr) {
+			t.Fatalf("completeCoordinatorRun() error = %v, want errors.Is(entropyErr)", err)
+		}
+		if completed != nil {
+			t.Fatalf("completeCoordinatorRun() = %#v, want nil", completed)
+		}
+		if got, want := idCalls, 2; got != want {
+			t.Fatalf("ID generation calls = %d, want %d", got, want)
+		}
+		if got := len(store.events); got != eventsBefore {
+			t.Fatalf("event count after entropy failure = %d, want %d", got, eventsBefore)
+		}
+		if got := store.tasks[taskRecord.ID]; !reflect.DeepEqual(got, taskBefore) {
+			t.Fatalf("task after entropy failure = %#v, want %#v", got, taskBefore)
+		}
+		if got := store.runs[run.ID]; !reflect.DeepEqual(got, runBefore) {
+			t.Fatalf("run after entropy failure = %#v, want %#v", got, runBefore)
+		}
+		if store.coordinatorCompleted {
+			t.Fatal("coordinator completion reached the store after entropy failure")
+		}
 	})
 }
 
@@ -8969,6 +10304,29 @@ func testManagerStartRunShouldExecuteCoordinatorInDaemonWithoutSession(
 	}
 	if started.Status != TaskRunStatusCompleted {
 		t.Fatalf("StartRun(coordinator).Status = %q, want %q", started.Status, TaskRunStatusCompleted)
+	}
+	if got, want := string(started.Result), string(CoordinatorCompletedRunResult()); got != want {
+		t.Fatalf("StartRun(coordinator).Result = %s, want %s", started.Result, CoordinatorCompletedRunResult())
+	}
+	if postCommitErr == nil && publicationErr == nil {
+		completedEvents, eventErr := store.ListTaskEvents(context.Background(), EventQuery{
+			TaskID:    taskRecord.ID,
+			RunID:     started.ID,
+			EventType: taskEventRunCompleted,
+		})
+		if eventErr != nil {
+			t.Fatalf("ListTaskEvents(completed) error = %v", eventErr)
+		}
+		if got, want := len(completedEvents), 1; got != want {
+			t.Fatalf("completed event count = %d, want %d", got, want)
+		}
+		var payload completedRunPayload
+		if err := json.Unmarshal(completedEvents[0].Payload, &payload); err != nil {
+			t.Fatalf("json.Unmarshal(completed event payload) error = %v", err)
+		}
+		if got, want := string(payload.Result), string(CoordinatorCompletedRunResult()); got != want {
+			t.Fatalf("completed event result = %s, want %s", payload.Result, CoordinatorCompletedRunResult())
+		}
 	}
 	if sessionExecutor.startCalls != 0 {
 		t.Fatalf("StartTaskSession calls = %d, want 0", sessionExecutor.startCalls)
@@ -9210,6 +10568,7 @@ func TestManagerRecordTaskEventPostCommitNotifications(t *testing.T) {
 		}
 		observer.records = nil
 		store.getTaskEventRecordCanceled = nil
+		store.getTaskEventRecordDeadline = nil
 
 		streamCtx := t.Context()
 
@@ -9257,6 +10616,9 @@ func TestManagerRecordTaskEventPostCommitNotifications(t *testing.T) {
 			t.Fatal(
 				"GetTaskEventRecord() observed a canceled context, want detached post-commit context",
 			)
+		}
+		if got, want := store.getTaskEventRecordDeadline, []bool{true}; !slices.Equal(got, want) {
+			t.Fatalf("GetTaskEventRecord() deadlines = %v, want %v", got, want)
 		}
 	})
 
@@ -9343,12 +10705,30 @@ func assertTaskRunEnqueuedPayload(
 	}
 	runKind := run.RunKind.Normalize().String()
 	wantParticipation := run.NetworkSpecSnapshot()
+	var metadata struct {
+		WorkflowID string `json:"workflow_id"`
+		AgentName  string `json:"agent_name"`
+		Soul       *struct {
+			SnapshotID string `json:"snapshot_id"`
+			Digest     string `json:"digest"`
+		} `json:"soul"`
+	}
+	if len(run.Metadata) > 0 {
+		if err := json.Unmarshal(run.Metadata, &metadata); err != nil {
+			t.Fatalf("json.Unmarshal(run metadata) error = %v", err)
+		}
+	}
+	agentName := strings.TrimSpace(metadata.AgentName)
+	if agentName == "" && actor.Actor.Kind.Normalize() == ActorKindAgentSession {
+		agentName = strings.TrimSpace(actor.Actor.Ref)
+	}
 	want := hookspkg.TaskRunContext{
 		TaskID:                       strings.TrimSpace(run.TaskID),
 		RunID:                        strings.TrimSpace(run.ID),
 		WorkspaceID:                  strings.TrimSpace(taskRecord.WorkspaceID),
+		WorkflowID:                   strings.TrimSpace(metadata.WorkflowID),
 		ResolvedNetworkParticipation: nil,
-		AgentName:                    "",
+		AgentName:                    agentName,
 		SessionID:                    strings.TrimSpace(run.SessionID),
 		ActorKind:                    string(actor.Actor.Kind.Normalize()),
 		ActorID:                      strings.TrimSpace(actor.Actor.Ref),
@@ -9359,6 +10739,10 @@ func assertTaskRunEnqueuedPayload(
 		Attempt:                      int(run.Attempt),
 		LeaseUntil:                   run.LeaseUntil,
 		Error:                        strings.TrimSpace(run.Error),
+	}
+	if metadata.Soul != nil {
+		want.SoulSnapshotID = strings.TrimSpace(metadata.Soul.SnapshotID)
+		want.SoulDigest = strings.TrimSpace(metadata.Soul.Digest)
 	}
 	if payload.RunKind == nil || *payload.RunKind != runKind {
 		t.Fatalf("enqueued hook run_kind = %#v, want %q", payload.RunKind, runKind)
@@ -9540,7 +10924,7 @@ func TestManagerStartRunPreservesResolvedParticipationSnapshot(t *testing.T) {
 	if err != nil {
 		t.Fatalf("EnqueueRun() error = %v", err)
 	}
-	run, err = seedNonLeasedClaimedRunForTest(context.Background(), bootstrap, run.ID, actor)
+	run, err = admitRunDirectlyForTest(context.Background(), bootstrap, run.ID, actor)
 	if err != nil {
 		t.Fatalf("ClaimNextRun() error = %v", err)
 	}
@@ -9631,7 +11015,7 @@ func TestManagerBlockedExecutionAndFailureGuardrails(t *testing.T) {
 	if err != nil {
 		t.Fatalf("EnqueueRun(failingTask) error = %v", err)
 	}
-	failingRun, err = seedNonLeasedClaimedRunForTest(context.Background(), manager, failingRun.ID, actor)
+	failingRun, err = admitRunDirectlyForTest(context.Background(), manager, failingRun.ID, actor)
 	if err != nil {
 		t.Fatalf("ClaimNextRun(failingTask) error = %v", err)
 	}
@@ -9661,7 +11045,7 @@ func TestManagerBlockedExecutionAndFailureGuardrails(t *testing.T) {
 	if err != nil {
 		t.Fatalf("EnqueueRun(completedTask) error = %v", err)
 	}
-	completedRun, err = seedNonLeasedClaimedRunForTest(context.Background(), manager, completedRun.ID, actor)
+	completedRun, err = admitRunDirectlyForTest(context.Background(), manager, completedRun.ID, actor)
 	if err != nil {
 		t.Fatalf("ClaimNextRun(completedTask) error = %v", err)
 	}
@@ -9863,6 +11247,56 @@ func TestNormalizeRawJSONAndSameRawJSONTrimWhitespace(t *testing.T) {
 	}
 }
 
+func TestNormalizeRunResultShouldRemoveRawClaimTokens(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should redact claim tokens from ordinary result JSON", func(t *testing.T) {
+		t.Parallel()
+
+		const rawToken = "compozy_claim_result-secret"
+		normalized, err := normalizeRunResult(RunResult{Value: json.RawMessage(
+			`{"keep":"safe","note":"` + rawToken + `","items":["` + rawToken + `"],"` + rawToken + `":"discard"}`,
+		)})
+		if err != nil {
+			t.Fatalf("normalizeRunResult() error = %v", err)
+		}
+		if got := string(normalized.Value); strings.Contains(got, rawToken) {
+			t.Fatalf("normalizeRunResult() value = %s, want raw claim token removed", got)
+		}
+		if got := string(normalized.Value); !strings.Contains(got, `"keep":"safe"`) {
+			t.Fatalf("normalizeRunResult() value = %s, want safe result preserved", got)
+		}
+	})
+
+	t.Run("Should redact claim tokens from coordinator payload JSON", func(t *testing.T) {
+		t.Parallel()
+
+		const rawToken = "compozy_claim_coordinator-secret"
+		normalized, err := normalizeRunResult(RunResult{CoordinatorControl: &CoordinatorControlResult{
+			Kind:    "continue",
+			Payload: json.RawMessage(`{"note":"` + rawToken + `"}`),
+		}})
+		if err != nil {
+			t.Fatalf("normalizeRunResult() error = %v", err)
+		}
+		if got := string(normalized.CoordinatorControl.Payload); strings.Contains(got, rawToken) {
+			t.Fatalf("normalizeRunResult() payload = %s, want raw claim token removed", got)
+		}
+	})
+
+	t.Run("Should reject a claim token in the coordinator discriminator", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := normalizeRunResult(RunResult{CoordinatorControl: &CoordinatorControlResult{
+			Kind:    "compozy_claim_kind-secret",
+			Payload: json.RawMessage(`{"ok":true}`),
+		}})
+		if !errors.Is(err, ErrValidation) {
+			t.Fatalf("normalizeRunResult() error = %v, want %v", err, ErrValidation)
+		}
+	})
+}
+
 func TestManagerStartRunPersistsDedicatedSessionAfterCallerCancellation(t *testing.T) {
 	t.Parallel()
 
@@ -9889,7 +11323,7 @@ func TestManagerStartRunPersistsDedicatedSessionAfterCallerCancellation(t *testi
 	if err != nil {
 		t.Fatalf("EnqueueRun() error = %v", err)
 	}
-	run, err = seedNonLeasedClaimedRunForTest(context.Background(), manager, run.ID, actor)
+	run, err = admitRunDirectlyForTest(context.Background(), manager, run.ID, actor)
 	if err != nil {
 		t.Fatalf("ClaimNextRun() error = %v", err)
 	}
@@ -9985,7 +11419,7 @@ func TestManagerStartRunExecutionProfile(t *testing.T) {
 			if err != nil {
 				t.Fatalf("EnqueueRun() error = %v", err)
 			}
-			run, err = seedNonLeasedClaimedRunForTest(context.Background(), manager, run.ID, actor)
+			run, err = admitRunDirectlyForTest(context.Background(), manager, run.ID, actor)
 			if err != nil {
 				t.Fatalf("ClaimNextRun() error = %v", err)
 			}
@@ -10041,7 +11475,7 @@ func TestManagerStartRunAndAttachErrorBranches(t *testing.T) {
 			if err != nil {
 				t.Fatalf("EnqueueRun() error = %v", err)
 			}
-			run, err = seedNonLeasedClaimedRunForTest(context.Background(), manager, run.ID, actor)
+			run, err = admitRunDirectlyForTest(context.Background(), manager, run.ID, actor)
 			if err != nil {
 				t.Fatalf("ClaimNextRun() error = %v", err)
 			}
@@ -10055,6 +11489,71 @@ func TestManagerStartRunAndAttachErrorBranches(t *testing.T) {
 			}
 		},
 	)
+
+	t.Run("Should redact claim bearers from session start failure records", func(t *testing.T) {
+		t.Parallel()
+
+		const rawToken = "compozy_claim_session-start-secret"
+		store := newInMemoryManagerStore()
+		startErr := errors.New("provider returned " + rawToken)
+		executor := &recordingSessionExecutor{
+			startErr: startErr,
+		}
+		manager := newTaskManagerForTestWithOptions(t, store, WithSessionExecutor(executor))
+		actor := validActorContext()
+		ctx := t.Context()
+
+		taskRecord, err := manager.CreateTask(ctx, CreateTask{
+			Scope: ScopeGlobal,
+			Title: "Sanitized start failure",
+		}, actor)
+		if err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		run, err := manager.EnqueueRun(ctx, EnqueueRun{TaskID: taskRecord.ID}, actor)
+		if err != nil {
+			t.Fatalf("EnqueueRun() error = %v", err)
+		}
+		run, err = admitRunDirectlyForTest(ctx, manager, run.ID, actor)
+		if err != nil {
+			t.Fatalf("ClaimNextRun() error = %v", err)
+		}
+
+		failedRun, err := manager.StartRun(ctx, run.ID, StartRun{}, actor)
+		if err == nil {
+			t.Fatal("StartRun() error = nil, want non-nil")
+		}
+		if strings.Contains(err.Error(), rawToken) {
+			t.Fatalf("StartRun() returned error leaked raw bearer: %q", err)
+		}
+		if !errors.Is(err, startErr) {
+			t.Fatalf("StartRun() error = %v, want to preserve session-start error identity", err)
+		}
+		if failedRun == nil || failedRun.Status != TaskRunStatusFailed {
+			t.Fatalf("StartRun() run = %#v, want failed run", failedRun)
+		}
+		if strings.Contains(failedRun.Error, rawToken) {
+			t.Fatalf("StartRun().Error = %q, want raw bearer redacted", failedRun.Error)
+		}
+		if got, want := failedRun.Error, "start task session: provider returned compozy_claim_[REDACTED]"; got != want {
+			t.Fatalf("StartRun().Error = %q, want %q", got, want)
+		}
+
+		events, err := store.ListTaskEvents(ctx, EventQuery{
+			TaskID:    taskRecord.ID,
+			RunID:     run.ID,
+			EventType: taskEventRunFailed,
+		})
+		if err != nil {
+			t.Fatalf("ListTaskEvents() error = %v", err)
+		}
+		if got, want := len(events), 1; got != want {
+			t.Fatalf("failed event count = %d, want %d", got, want)
+		}
+		if strings.Contains(string(events[0].Payload), rawToken) {
+			t.Fatalf("task.run.failed payload leaked raw bearer: %s", events[0].Payload)
+		}
+	})
 
 	t.Run("Should attach run rejects active session reuse", func(t *testing.T) {
 		t.Parallel()
@@ -10079,7 +11578,7 @@ func TestManagerStartRunAndAttachErrorBranches(t *testing.T) {
 		if err != nil {
 			t.Fatalf("EnqueueRun(runOne) error = %v", err)
 		}
-		runOne, err = seedNonLeasedClaimedRunForTest(context.Background(), manager, runOne.ID, actor)
+		runOne, err = admitRunDirectlyForTest(context.Background(), manager, runOne.ID, actor)
 		if err != nil {
 			t.Fatalf("ClaimNextRun(runOne) error = %v", err)
 		}
@@ -10102,7 +11601,7 @@ func TestManagerStartRunAndAttachErrorBranches(t *testing.T) {
 		if err != nil {
 			t.Fatalf("EnqueueRun(runTwo) error = %v", err)
 		}
-		runTwo, err = seedNonLeasedClaimedRunForTest(context.Background(), manager, runTwo.ID, actor)
+		runTwo, err = admitRunDirectlyForTest(context.Background(), manager, runTwo.ID, actor)
 		if err != nil {
 			t.Fatalf("ClaimNextRun(runTwo) error = %v", err)
 		}
@@ -10123,7 +11622,7 @@ func TestManagerStartRunAndAttachErrorBranches(t *testing.T) {
 		}
 	})
 
-	t.Run("Should attach run validates executor state and session id", func(t *testing.T) {
+	t.Run("Should validate executor and session id before admitting queued run", func(t *testing.T) {
 		t.Parallel()
 
 		store := newInMemoryManagerStore()
@@ -10145,7 +11644,7 @@ func TestManagerStartRunAndAttachErrorBranches(t *testing.T) {
 		if err != nil {
 			t.Fatalf("EnqueueRun() error = %v", err)
 		}
-		run, err = seedNonLeasedClaimedRunForTest(context.Background(), managerWithoutExecutor, run.ID, actor)
+		run, err = admitRunDirectlyForTest(context.Background(), managerWithoutExecutor, run.ID, actor)
 		if err != nil {
 			t.Fatalf("ClaimNextRun() error = %v", err)
 		}
@@ -10161,9 +11660,10 @@ func TestManagerStartRunAndAttachErrorBranches(t *testing.T) {
 			t.Fatalf("AttachRunSession(no executor) error = %v, want %v", err, ErrValidation)
 		}
 
+		executorStore := newInMemoryManagerStore()
 		managerWithExecutor := newTaskManagerForTestWithOptions(
 			t,
-			newInMemoryManagerStore(),
+			executorStore,
 			WithSessionExecutor(&recordingSessionExecutor{}),
 		)
 		taskRecord, err = managerWithExecutor.CreateTask(context.Background(), CreateTask{
@@ -10192,20 +11692,27 @@ func TestManagerStartRunAndAttachErrorBranches(t *testing.T) {
 		) {
 			t.Fatalf("AttachRunSession(empty session id) error = %v, want %v", err, ErrValidation)
 		}
-		if _, err := managerWithExecutor.AttachRunSession(
+		attached, err := managerWithExecutor.AttachRunSession(
 			context.Background(),
 			run.ID,
 			"sess-2",
 			actor,
-		); !errors.Is(
-			err,
-			ErrSessionAttachNotAllowed,
-		) {
-			t.Fatalf(
-				"AttachRunSession(queued run) error = %v, want %v",
-				err,
-				ErrSessionAttachNotAllowed,
-			)
+		)
+		if err != nil {
+			t.Fatalf("AttachRunSession(queued run) error = %v", err)
+		}
+		if got, want := attached.Status.Normalize(), TaskRunStatusStarting; got != want {
+			t.Fatalf("AttachRunSession(queued run).Status = %q, want %q", got, want)
+		}
+		if got, want := attached.SessionID, "sess-2"; got != want {
+			t.Fatalf("AttachRunSession(queued run).SessionID = %q, want %q", got, want)
+		}
+		stored := executorStore.runs[run.ID]
+		if got := stored.ClaimTokenHash; got != "" {
+			t.Fatalf("stored queued admission claim token hash = %q, want empty", got)
+		}
+		if !stored.LeaseUntil.IsZero() {
+			t.Fatalf("stored queued admission lease until = %s, want zero", stored.LeaseUntil)
 		}
 	})
 }
@@ -10240,7 +11747,7 @@ func TestManagerRecoverRunOnBoot(t *testing.T) {
 		if err != nil {
 			t.Fatalf("EnqueueRun() error = %v", err)
 		}
-		run, err = seedNonLeasedClaimedRunForTest(context.Background(), manager, run.ID, actor)
+		run, err = admitRunDirectlyForTest(context.Background(), manager, run.ID, actor)
 		if err != nil {
 			t.Fatalf("ClaimNextRun() error = %v", err)
 		}
@@ -10299,7 +11806,7 @@ func TestManagerRecoverRunOnBoot(t *testing.T) {
 		if err != nil {
 			t.Fatalf("EnqueueRun() error = %v", err)
 		}
-		run, err = seedNonLeasedClaimedRunForTest(context.Background(), manager, run.ID, actor)
+		run, err = admitRunDirectlyForTest(context.Background(), manager, run.ID, actor)
 		if err != nil {
 			t.Fatalf("ClaimNextRun() error = %v", err)
 		}
@@ -10349,7 +11856,7 @@ func TestManagerRecoverRunOnBoot(t *testing.T) {
 			if err != nil {
 				t.Fatalf("EnqueueRun() error = %v", err)
 			}
-			run, err = seedNonLeasedClaimedRunForTest(context.Background(), manager, run.ID, actor)
+			run, err = admitRunDirectlyForTest(context.Background(), manager, run.ID, actor)
 			if err != nil {
 				t.Fatalf("ClaimNextRun() error = %v", err)
 			}
@@ -10380,14 +11887,8 @@ func TestManagerRecoverRunOnBoot(t *testing.T) {
 			if got, want := len(executor.requestStopCalls), 0; got != want {
 				t.Fatalf("len(requestStopCalls) = %d, want %d", got, want)
 			}
-			if got, want := len(executor.forceStopCalls), 1; got != want {
+			if got, want := len(executor.forceStopCalls), 0; got != want {
 				t.Fatalf("len(forceStopCalls) = %d, want %d", got, want)
-			}
-			if got, want := executor.forceStopCalls[0].SessionID, run.SessionID; got != want {
-				t.Fatalf("forceStopCalls[0].SessionID = %q, want %q", got, want)
-			}
-			if got, want := executor.forceStopCalls[0].Reason, StopReasonFailed; got != want {
-				t.Fatalf("forceStopCalls[0].Reason = %q, want %q", got, want)
 			}
 
 			events, err := store.ListTaskEvents(
@@ -10433,7 +11934,7 @@ func TestManagerRecoverRunOnBoot(t *testing.T) {
 			if err != nil {
 				t.Fatalf("EnqueueRun() error = %v", err)
 			}
-			run, err = seedNonLeasedClaimedRunForTest(context.Background(), manager, run.ID, actor)
+			run, err = admitRunDirectlyForTest(context.Background(), manager, run.ID, actor)
 			if err != nil {
 				t.Fatalf("ClaimNextRun() error = %v", err)
 			}
@@ -10477,7 +11978,7 @@ func TestManagerRecoverRunOnBoot(t *testing.T) {
 			if err != nil {
 				t.Fatalf("EnqueueRun() error = %v", err)
 			}
-			run, err = seedNonLeasedClaimedRunForTest(context.Background(), manager, run.ID, actor)
+			run, err = admitRunDirectlyForTest(context.Background(), manager, run.ID, actor)
 			if err != nil {
 				t.Fatalf("ClaimNextRun() error = %v", err)
 			}
@@ -10547,7 +12048,7 @@ func TestManagerRecoverRunOnBoot(t *testing.T) {
 		if err != nil {
 			t.Fatalf("EnqueueRun() error = %v", err)
 		}
-		run, err = seedNonLeasedClaimedRunForTest(context.Background(), manager, run.ID, actor)
+		run, err = admitRunDirectlyForTest(context.Background(), manager, run.ID, actor)
 		if err != nil {
 			t.Fatalf("ClaimNextRun() error = %v", err)
 		}
@@ -10642,6 +12143,64 @@ func TestManagerGetTaskAndFailRunGuardrails(t *testing.T) {
 	}
 }
 
+func TestManagerTaskMutationTransactionRollsBackWhenAuditAppendFails(t *testing.T) {
+	t.Parallel()
+
+	// Invariant: an authoritative run mutation, its task projection, and its audit
+	// record share one rollback boundary. Owning layer: task service. Canonical
+	// suite: manager_test.go, with SQLite commit-boundary coverage in global_db_task_event_tx_test.go.
+	ctx := context.Background()
+	sentinel := errors.New("record task run completion audit")
+	base := newInMemoryManagerStore()
+	store := &failingTaskEventStore{Store: base, fail: true, err: sentinel}
+	manager := newTaskManagerForTest(t, store)
+	actor := validActorContext()
+
+	taskRecord := validTask()
+	taskRecord.Status = TaskStatusInProgress
+	taskRecord.CurrentRunID = "run-task-mutation-rollback"
+	if err := base.CreateTask(ctx, taskRecord); err != nil {
+		t.Fatalf("CreateTask() error = %v", err)
+	}
+	run := validRun()
+	run.ID = taskRecord.CurrentRunID
+	run.TaskID = taskRecord.ID
+	run.Status = TaskRunStatusRunning
+	run.StartedAt = run.QueuedAt.Add(time.Minute)
+	run.Result = nil
+	if err := base.CreateTaskRun(ctx, run); err != nil {
+		t.Fatalf("CreateTaskRun() error = %v", err)
+	}
+
+	_, err := manager.CompleteRun(ctx, run.ID, RunResult{Value: json.RawMessage(`{"ok":true}`)}, actor)
+	if !errors.Is(err, sentinel) {
+		t.Fatalf("CompleteRun() error = %v, want identity %v", err, sentinel)
+	}
+	storedRun, err := base.GetTaskRun(ctx, run.ID)
+	if err != nil {
+		t.Fatalf("GetTaskRun() error = %v", err)
+	}
+	if got, want := storedRun.Status, TaskRunStatusRunning; got != want {
+		t.Fatalf("stored run status = %q, want rollback to %q", got, want)
+	}
+	if storedRun.Result != nil || !storedRun.EndedAt.IsZero() {
+		t.Fatalf("stored completion fields = result %s ended_at %v, want rollback", storedRun.Result, storedRun.EndedAt)
+	}
+	storedTask, err := base.GetTask(ctx, taskRecord.ID)
+	if err != nil {
+		t.Fatalf("GetTask() error = %v", err)
+	}
+	if got, want := storedTask.Status, TaskStatusInProgress; got != want {
+		t.Fatalf("stored task status = %q, want rollback to %q", got, want)
+	}
+	if got, want := storedTask.CurrentRunID, run.ID; got != want {
+		t.Fatalf("stored task CurrentRunID = %q, want rollback to %q", got, want)
+	}
+	if got := len(base.events); got != 0 {
+		t.Fatalf("len(events) after rollback = %d, want 0", got)
+	}
+}
+
 func TestRunBootRecoveryHelpersAndWriteAuthority(t *testing.T) {
 	t.Parallel()
 
@@ -10673,7 +12232,7 @@ func TestRunBootRecoveryHelpersAndWriteAuthority(t *testing.T) {
 	t.Run("Should normalizes recovery metadata reason", func(t *testing.T) {
 		t.Parallel()
 
-		metadata := runBootRecoveryMetadata(Run{
+		metadata, err := runBootRecoveryMetadata(Run{
 			ID:        "run-meta",
 			Status:    TaskRunStatusStarting,
 			SessionID: "sess-meta",
@@ -10681,8 +12240,8 @@ func TestRunBootRecoveryHelpersAndWriteAuthority(t *testing.T) {
 			Reason:       "   ",
 			SessionState: "missing",
 		})
-		if metadata == nil {
-			t.Fatal("runBootRecoveryMetadata() = nil, want payload")
+		if err != nil {
+			t.Fatalf("runBootRecoveryMetadata() error = %v", err)
 		}
 
 		var payload map[string]string
@@ -10739,6 +12298,40 @@ func TestManagerAdditionalBranchCoverage(t *testing.T) {
 		}
 		if manager.sessions == nil {
 			t.Fatal("manager.sessions = nil, want non-nil")
+		}
+	})
+
+	t.Run("Should reject task creation before persistence when identifier generation fails", func(t *testing.T) {
+		t.Parallel()
+
+		store := newInMemoryManagerStore()
+		entropyErr := errors.New("entropy unavailable")
+		manager, err := NewManager(
+			WithStore(store),
+			WithIDGenerator(func(string) (string, error) {
+				return "", entropyErr
+			}),
+		)
+		if err != nil {
+			t.Fatalf("NewManager() error = %v", err)
+		}
+
+		created, err := manager.CreateTask(context.Background(), CreateTask{
+			Scope: ScopeGlobal,
+			Title: "Entropy failure",
+		}, validActorContext())
+		if !errors.Is(err, entropyErr) {
+			t.Fatalf("CreateTask() error = %v, want %v", err, entropyErr)
+		}
+		if created != nil {
+			t.Fatalf("CreateTask() = %#v, want nil", created)
+		}
+		if len(store.tasks) != 0 || len(store.events) != 0 {
+			t.Fatalf(
+				"store mutations after identifier failure = tasks:%d events:%d, want zero",
+				len(store.tasks),
+				len(store.events),
+			)
 		}
 	})
 
@@ -11479,7 +13072,7 @@ func createRunningRunForWakeTestWithMaxAttempts(
 	if err != nil {
 		t.Fatalf("EnqueueRun() error = %v", err)
 	}
-	claimedRun, err := seedNonLeasedClaimedRunForTest(context.Background(), manager, queuedRun.ID, worker)
+	claimedRun, err := admitRunDirectlyForTest(context.Background(), manager, queuedRun.ID, worker)
 	if err != nil {
 		t.Fatalf("claimExactRunForTest() error = %v", err)
 	}
@@ -11595,9 +13188,9 @@ func newTaskManagerForTestWithOptions(t *testing.T, store Store, extraOpts ...Op
 		WithCoordinatorTerminalStatusValidator(testCoordinatorTerminalStatusValidator),
 		WithCoordinatorTerminalHookStatusValidator(testCoordinatorTerminalHookStatusValidator),
 		WithManagerNow(func() time.Time { return now }),
-		WithIDGenerator(func(prefix string) string {
+		WithIDGenerator(func(prefix string) (string, error) {
 			counter++
-			return prefix + "-test-" + strconv.Itoa(counter)
+			return prefix + "-test-" + strconv.Itoa(counter), nil
 		}),
 	}
 	options = append(options, extraOpts...)

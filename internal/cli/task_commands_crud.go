@@ -143,7 +143,12 @@ func newTaskPublishCommand(deps commandDeps) *cobra.Command {
 		deps,
 		"publish <id>",
 		"Publish a draft task and enqueue its first run",
-		func(ctx context.Context, client DaemonClient, id string, request TaskExecutionRequest) (TaskExecutionRecord, error) {
+		func(
+			ctx context.Context,
+			client taskExecutionClient,
+			id string,
+			request TaskExecutionRequest,
+		) (TaskExecutionRecord, error) {
 			return client.PublishTask(ctx, id, request)
 		},
 	)
@@ -154,7 +159,12 @@ func newTaskStartCommand(deps commandDeps) *cobra.Command {
 		deps,
 		"start <id>",
 		"Enqueue a run for an executable task",
-		func(ctx context.Context, client DaemonClient, id string, request TaskExecutionRequest) (TaskExecutionRecord, error) {
+		func(
+			ctx context.Context,
+			client taskExecutionClient,
+			id string,
+			request TaskExecutionRequest,
+		) (TaskExecutionRecord, error) {
 			return client.StartTask(ctx, id, request)
 		},
 	)
@@ -165,7 +175,12 @@ func newTaskApproveCommand(deps commandDeps) *cobra.Command {
 		deps,
 		"approve <id>",
 		"Approve a task and enqueue its first run",
-		func(ctx context.Context, client DaemonClient, id string, request TaskExecutionRequest) (TaskExecutionRecord, error) {
+		func(
+			ctx context.Context,
+			client taskExecutionClient,
+			id string,
+			request TaskExecutionRequest,
+		) (TaskExecutionRecord, error) {
 			return client.ApproveTask(ctx, id, request)
 		},
 	)

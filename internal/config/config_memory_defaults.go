@@ -72,7 +72,6 @@ func defaultMemoryRecallConfig() MemoryRecallConfig {
 		Signals: MemoryRecallSignalsConfig{
 			QueueCapacity:  256,
 			WorkerRetryMax: 3,
-			MetricsEnabled: true,
 		},
 	}
 }

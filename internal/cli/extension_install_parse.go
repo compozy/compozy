@@ -3,13 +3,13 @@ package cli
 import (
 	"errors"
 	"fmt"
-	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	registrygit "github.com/compozy/compozy/internal/registry/gitsrc"
 )
 
 var windowsAbsoluteInstallPath = regexp.MustCompile(`^[A-Za-z]:[\\/]`)
@@ -123,14 +123,24 @@ func validateGitExtensionRef(value string) error {
 	if ref == "" {
 		return errors.New("cli: git repository URL is required")
 	}
-	if strings.HasPrefix(ref, "http://") || strings.HasPrefix(ref, "https://") {
-		parsed, err := url.Parse(ref)
-		if err != nil {
-			return fmt.Errorf("cli: parse git repository URL: %w", err)
-		}
-		if parsed.User != nil {
-			return errors.New("cli: git repository URL must not include credentials")
-		}
+	repository, _ := splitExtensionDistributionRef(ref)
+	if err := registrygit.ValidateRepositoryRef(repository); err != nil {
+		return fmt.Errorf("cli: invalid git repository URL: %w", err)
 	}
 	return nil
+}
+
+func splitExtensionDistributionRef(value string) (string, string) {
+	trimmed := strings.TrimSpace(value)
+	index := strings.LastIndex(trimmed, "@")
+	if index <= 0 || index == len(trimmed)-1 {
+		return trimmed, ""
+	}
+	if scheme := strings.Index(trimmed, "://"); scheme >= 0 {
+		hostEnd := strings.Index(trimmed[scheme+3:], "/")
+		if hostEnd < 0 || index < scheme+3+hostEnd {
+			return trimmed, ""
+		}
+	}
+	return strings.TrimSpace(trimmed[:index]), strings.TrimSpace(trimmed[index+1:])
 }

@@ -229,11 +229,16 @@ func TestRPCServerShouldValidateProviderIOAndToolResultMetadata(t *testing.T) {
 	t.Run("Should require provider streams", func(t *testing.T) {
 		t.Parallel()
 
+		var stdout bytes.Buffer
+		var nilCtx context.Context
+		if err := RunProvider(nilCtx, strings.NewReader(""), &stdout); err == nil ||
+			!strings.Contains(err.Error(), "context is required") {
+			t.Fatalf("RunProvider(nil context) error = %v", err)
+		}
 		if err := RunProvider(context.Background(), strings.NewReader(""), nil); err == nil ||
 			!strings.Contains(err.Error(), "stdout is required") {
 			t.Fatalf("RunProvider(nil stdout) error = %v", err)
 		}
-		var stdout bytes.Buffer
 		if err := RunProvider(context.Background(), nil, &stdout); err == nil ||
 			!strings.Contains(err.Error(), "stdin is required") {
 			t.Fatalf("RunProvider(nil stdin) error = %v", err)

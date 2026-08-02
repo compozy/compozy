@@ -1,5 +1,7 @@
 -- name: GetNotificationCursor :one
 SELECT
+  scope_kind,
+  workspace_id,
   consumer_id,
   stream_name,
   subject_id,
@@ -9,12 +11,16 @@ SELECT
   last_error,
   updated_at
 FROM notification_cursors
-WHERE consumer_id = sqlc.arg(consumer_id)
+WHERE scope_kind = sqlc.arg(scope_kind)
+  AND workspace_id = sqlc.arg(workspace_id)
+  AND consumer_id = sqlc.arg(consumer_id)
   AND stream_name = sqlc.arg(stream_name)
   AND subject_id = sqlc.arg(subject_id);
 
 -- name: InsertNotificationCursor :exec
 INSERT INTO notification_cursors (
+  scope_kind,
+  workspace_id,
   consumer_id,
   stream_name,
   subject_id,
@@ -24,6 +30,8 @@ INSERT INTO notification_cursors (
   last_error,
   updated_at
 ) VALUES (
+  sqlc.arg(scope_kind),
+  sqlc.arg(workspace_id),
   sqlc.arg(consumer_id),
   sqlc.arg(stream_name),
   sqlc.arg(subject_id),
@@ -42,11 +50,15 @@ SET last_sequence = sqlc.arg(last_sequence),
     last_error = '',
     updated_at = sqlc.arg(updated_at)
 WHERE consumer_id = sqlc.arg(consumer_id)
+  AND scope_kind = sqlc.arg(scope_kind)
+  AND workspace_id = sqlc.arg(workspace_id)
   AND stream_name = sqlc.arg(stream_name)
   AND subject_id = sqlc.arg(subject_id);
 
 -- name: ResetNotificationCursor :exec
 INSERT INTO notification_cursors (
+  scope_kind,
+  workspace_id,
   consumer_id,
   stream_name,
   subject_id,
@@ -56,6 +68,8 @@ INSERT INTO notification_cursors (
   last_error,
   updated_at
 ) VALUES (
+  sqlc.arg(scope_kind),
+  sqlc.arg(workspace_id),
   sqlc.arg(consumer_id),
   sqlc.arg(stream_name),
   sqlc.arg(subject_id),
@@ -65,7 +79,7 @@ INSERT INTO notification_cursors (
   '',
   sqlc.arg(updated_at)
 )
-ON CONFLICT(consumer_id, stream_name, subject_id) DO UPDATE SET
+ON CONFLICT(scope_kind, workspace_id, consumer_id, stream_name, subject_id) DO UPDATE SET
   last_sequence = excluded.last_sequence,
   last_delivery_id = excluded.last_delivery_id,
   last_delivered_at = excluded.last_delivered_at,
@@ -74,6 +88,8 @@ ON CONFLICT(consumer_id, stream_name, subject_id) DO UPDATE SET
 
 -- name: RecordNotificationCursorError :exec
 INSERT INTO notification_cursors (
+  scope_kind,
+  workspace_id,
   consumer_id,
   stream_name,
   subject_id,
@@ -83,6 +99,8 @@ INSERT INTO notification_cursors (
   last_error,
   updated_at
 ) VALUES (
+  sqlc.arg(scope_kind),
+  sqlc.arg(workspace_id),
   sqlc.arg(consumer_id),
   sqlc.arg(stream_name),
   sqlc.arg(subject_id),
@@ -92,7 +110,7 @@ INSERT INTO notification_cursors (
   sqlc.arg(last_error),
   sqlc.arg(updated_at)
 )
-ON CONFLICT(consumer_id, stream_name, subject_id) DO UPDATE SET
+ON CONFLICT(scope_kind, workspace_id, consumer_id, stream_name, subject_id) DO UPDATE SET
   last_error = excluded.last_error,
   updated_at = excluded.updated_at;
 

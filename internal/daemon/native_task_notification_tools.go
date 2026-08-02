@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
@@ -27,7 +27,7 @@ type taskNotificationSubscribeInput struct {
 	SubscriptionID   string `json:"subscription_id,omitempty"`
 	BridgeInstanceID string `json:"bridge_instance_id"`
 	Scope            string `json:"scope,omitempty"`
-	WorkspaceID      string `json:"workspace,omitempty"`
+	WorkspaceID      string `json:"workspace_id,omitempty"`
 	PeerID           string `json:"peer_id,omitempty"`
 	ThreadID         string `json:"thread_id,omitempty"`
 	GroupID          string `json:"group_id,omitempty"`
@@ -38,7 +38,7 @@ type taskNotificationListInput struct {
 	TaskID           string `json:"task_id"`
 	BridgeInstanceID string `json:"bridge_instance_id,omitempty"`
 	Scope            string `json:"scope,omitempty"`
-	WorkspaceID      string `json:"workspace,omitempty"`
+	WorkspaceID      string `json:"workspace_id,omitempty"`
 	Limit            int    `json:"limit,omitempty"`
 }
 
@@ -57,7 +57,7 @@ func (n *daemonNativeTools) taskNotificationSubscribe(
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
 	var input taskNotificationSubscribeInput
-	if err := decodeNativeInput(req, &input); err != nil {
+	if err := decodeNativeTaskNotificationInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
 	taskRecord, actor, err := n.authorizedTaskNotificationTask(ctx, scope, req.ToolID, input.TaskID)
@@ -82,7 +82,10 @@ func (n *daemonNativeTools) taskNotificationSubscribe(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeTaskNotificationToolError(req.ToolID, err)
 	}
-	payload := n.taskNotificationPayloadBestEffort(ctx, stored)
+	payload, err := n.taskNotificationPayloadBestEffort(ctx, stored)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeTaskNotificationToolError(req.ToolID, err)
+	}
 	return structuredResult(
 		contract.TaskBridgeNotificationSubscriptionResponse{Subscription: payload},
 		fmt.Sprintf("subscribed %s", payload.SubscriptionID),
@@ -95,14 +98,14 @@ func (n *daemonNativeTools) taskNotificationList(
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
 	var input taskNotificationListInput
-	if err := decodeNativeInput(req, &input); err != nil {
+	if err := decodeNativeTaskNotificationInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
 	taskRecord, _, err := n.authorizedTaskNotificationTask(ctx, scope, req.ToolID, input.TaskID)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	query, err := nativeTaskNotificationQuery(req.ToolID, strings.TrimSpace(taskRecord.ID), input)
+	query, err := nativeTaskNotificationQuery(req.ToolID, taskRecord.ID, input)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -126,7 +129,7 @@ func (n *daemonNativeTools) taskNotificationShow(
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
 	var input taskNotificationSubscriptionInput
-	if err := decodeNativeInput(req, &input); err != nil {
+	if err := decodeNativeTaskNotificationInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
 	taskRecord, _, err := n.authorizedTaskNotificationTask(ctx, scope, req.ToolID, input.TaskID)
@@ -153,7 +156,7 @@ func (n *daemonNativeTools) taskNotificationDelete(
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
 	var input taskNotificationSubscriptionInput
-	if err := decodeNativeInput(req, &input); err != nil {
+	if err := decodeNativeTaskNotificationInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
 	taskRecord, _, err := n.authorizedTaskNotificationTask(ctx, scope, req.ToolID, input.TaskID)
@@ -179,7 +182,7 @@ func (n *daemonNativeTools) authorizedTaskNotificationTask(
 	id toolspkg.ToolID,
 	taskID string,
 ) (taskpkg.Task, taskpkg.ActorContext, error) {
-	trimmedTaskID, err := requiredNativeString(id, "task_id", taskID)
+	validatedTaskID, err := requiredNativeOpaqueIdentity(id, "task_id", taskID)
 	if err != nil {
 		return taskpkg.Task{}, taskpkg.ActorContext{}, err
 	}
@@ -187,14 +190,14 @@ func (n *daemonNativeTools) authorizedTaskNotificationTask(
 	if err != nil {
 		return taskpkg.Task{}, taskpkg.ActorContext{}, err
 	}
-	view, err := n.deps.Tasks.GetTask(ctx, trimmedTaskID, actor)
+	view, err := n.deps.Tasks.GetTask(ctx, validatedTaskID, actor)
 	if err != nil {
 		return taskpkg.Task{}, taskpkg.ActorContext{}, nativeTaskNotificationToolError(id, err)
 	}
 	if view == nil {
 		return taskpkg.Task{}, taskpkg.ActorContext{}, nativeTaskNotificationToolError(
 			id,
-			fmt.Errorf("%w: %s", taskpkg.ErrTaskNotFound, trimmedTaskID),
+			fmt.Errorf("%w: %s", taskpkg.ErrTaskNotFound, validatedTaskID),
 		)
 	}
 	return view.Task, actor, nil
@@ -207,7 +210,7 @@ func nativeTaskNotificationSubscriptionFromInput(
 	input taskNotificationSubscribeInput,
 ) (bridgepkg.BridgeTaskSubscription, error) {
 	taskScope := bridgepkg.Scope(taskRecord.Scope.Normalize())
-	taskWorkspaceID := strings.TrimSpace(taskRecord.WorkspaceID)
+	taskWorkspaceID := taskRecord.WorkspaceID
 	requestScope := bridgepkg.Scope(input.Scope).Normalize()
 	switch {
 	case requestScope != "" && requestScope != taskScope:
@@ -216,26 +219,33 @@ func nativeTaskNotificationSubscriptionFromInput(
 			bridgepkg.ErrInvalidBridgeTaskSubscription,
 			taskScope,
 		)
-	case requestScope == bridgepkg.ScopeWorkspace && strings.TrimSpace(input.WorkspaceID) != taskWorkspaceID:
+	case requestScope == bridgepkg.ScopeWorkspace && input.WorkspaceID != taskWorkspaceID:
 		return bridgepkg.BridgeTaskSubscription{}, fmt.Errorf(
 			"%w: task bridge notification workspace must match task workspace %q",
 			bridgepkg.ErrInvalidBridgeTaskSubscription,
 			taskWorkspaceID,
 		)
 	}
-	subscriptionID := strings.TrimSpace(input.SubscriptionID)
+	subscriptionID := input.SubscriptionID
 	if subscriptionID == "" {
-		subscriptionID = store.NewID("bts")
+		generatedID, err := store.NewID("bts")
+		if err != nil {
+			return bridgepkg.BridgeTaskSubscription{}, fmt.Errorf(
+				"daemon: generate bridge task subscription id: %w",
+				err,
+			)
+		}
+		subscriptionID = generatedID
 	}
 	subscription := bridgepkg.BridgeTaskSubscription{
 		SubscriptionID:   subscriptionID,
-		TaskID:           strings.TrimSpace(taskRecord.ID),
-		BridgeInstanceID: strings.TrimSpace(input.BridgeInstanceID),
+		TaskID:           taskRecord.ID,
+		BridgeInstanceID: input.BridgeInstanceID,
 		Scope:            taskScope,
 		WorkspaceID:      taskWorkspaceID,
-		PeerID:           strings.TrimSpace(input.PeerID),
-		ThreadID:         strings.TrimSpace(input.ThreadID),
-		GroupID:          strings.TrimSpace(input.GroupID),
+		PeerID:           input.PeerID,
+		ThreadID:         input.ThreadID,
+		GroupID:          input.GroupID,
 		DeliveryMode:     bridgepkg.DeliveryMode(input.DeliveryMode),
 		CreatedBy:        actor,
 		CreatedAt:        now,
@@ -255,9 +265,9 @@ func nativeValidateTaskNotificationInstanceScope(
 		return bridgepkg.ErrBridgeInstanceNotFound
 	}
 	taskScope := bridgepkg.Scope(taskRecord.Scope.Normalize())
-	taskWorkspaceID := strings.TrimSpace(taskRecord.WorkspaceID)
+	taskWorkspaceID := taskRecord.WorkspaceID
 	instanceScope := instance.Scope.Normalize()
-	instanceWorkspaceID := strings.TrimSpace(instance.WorkspaceID)
+	instanceWorkspaceID := instance.WorkspaceID
 	if taskScope != instanceScope {
 		return fmt.Errorf(
 			"%w: bridge instance scope %q does not match task scope %q",
@@ -283,19 +293,14 @@ func nativeTaskNotificationQuery(
 	input taskNotificationListInput,
 ) (bridgepkg.BridgeTaskSubscriptionQuery, error) {
 	query := bridgepkg.BridgeTaskSubscriptionQuery{
-		TaskID:           strings.TrimSpace(taskID),
-		BridgeInstanceID: strings.TrimSpace(input.BridgeInstanceID),
+		TaskID:           taskID,
+		BridgeInstanceID: input.BridgeInstanceID,
 		Scope:            bridgepkg.Scope(input.Scope),
-		WorkspaceID:      strings.TrimSpace(input.WorkspaceID),
+		WorkspaceID:      input.WorkspaceID,
 		Limit:            input.Limit,
 	}
-	if query.Scope != "" {
-		if err := query.Scope.Validate(); err != nil {
-			return bridgepkg.BridgeTaskSubscriptionQuery{}, nativeTaskNotificationToolError(
-				id,
-				fmt.Errorf("%w: %w", bridgepkg.ErrInvalidBridgeTaskSubscription, err),
-			)
-		}
+	if err := query.Validate(); err != nil {
+		return bridgepkg.BridgeTaskSubscriptionQuery{}, nativeTaskNotificationToolError(id, err)
 	}
 	return query.Normalize(), nil
 }
@@ -306,21 +311,44 @@ func (n *daemonNativeTools) taskNotificationSubscriptionByID(
 	taskRecord taskpkg.Task,
 	subscriptionID string,
 ) (bridgepkg.BridgeTaskSubscription, error) {
-	trimmedID, err := requiredNativeString(id, "subscription_id", subscriptionID)
+	validatedID, err := requiredNativeOpaqueIdentity(id, "subscription_id", subscriptionID)
 	if err != nil {
 		return bridgepkg.BridgeTaskSubscription{}, err
 	}
-	subscription, err := n.deps.Bridges.GetBridgeTaskSubscription(ctx, trimmedID)
+	subscription, err := n.deps.Bridges.GetBridgeTaskSubscription(ctx, validatedID)
 	if err != nil {
 		return bridgepkg.BridgeTaskSubscription{}, nativeTaskNotificationToolError(id, err)
 	}
-	if subscription.TaskID != strings.TrimSpace(taskRecord.ID) {
+	if subscription.TaskID != taskRecord.ID {
 		return bridgepkg.BridgeTaskSubscription{}, nativeTaskNotificationToolError(
 			id,
 			bridgepkg.ErrBridgeTaskSubscriptionNotFound,
 		)
 	}
 	return subscription, nil
+}
+
+func decodeNativeTaskNotificationInput(req toolspkg.CallRequest, dst any) error {
+	if !utf8.Valid(req.Input) {
+		return nativeTaskNotificationToolError(
+			req.ToolID,
+			fmt.Errorf("%w: task notification input must be valid UTF-8", bridgepkg.ErrInvalidBridgeTaskSubscription),
+		)
+	}
+	return decodeNativeInput(req, dst)
+}
+
+func requiredNativeOpaqueIdentity(id toolspkg.ToolID, field string, value string) (string, error) {
+	if value == "" {
+		return "", nativeRequiredInputError(id, field)
+	}
+	if !utf8.ValidString(value) {
+		return "", nativeTaskNotificationToolError(
+			id,
+			fmt.Errorf("%w: %s must be valid UTF-8", bridgepkg.ErrInvalidBridgeTaskSubscription, field),
+		)
+	}
+	return value, nil
 }
 
 func (n *daemonNativeTools) taskNotificationPayloads(
@@ -341,10 +369,13 @@ func (n *daemonNativeTools) taskNotificationPayloads(
 func (n *daemonNativeTools) taskNotificationPayloadBestEffort(
 	ctx context.Context,
 	subscription bridgepkg.BridgeTaskSubscription,
-) contract.TaskBridgeNotificationSubscriptionPayload {
+) (contract.TaskBridgeNotificationSubscriptionPayload, error) {
 	payload, err := n.taskNotificationPayload(ctx, subscription)
 	if err == nil {
-		return payload
+		return payload, nil
+	}
+	if errors.Is(err, notifications.ErrInvalidCursor) {
+		return contract.TaskBridgeNotificationSubscriptionPayload{}, err
 	}
 	normalized := subscription.Normalize()
 	slog.Default().Warn(
@@ -354,7 +385,11 @@ func (n *daemonNativeTools) taskNotificationPayloadBestEffort(
 		"error",
 		err,
 	)
-	return core.TaskBridgeNotificationSubscriptionPayloadFromSubscription(normalized)
+	fallback, fallbackErr := core.TaskBridgeNotificationSubscriptionPayloadFromSubscription(normalized)
+	if fallbackErr != nil {
+		return contract.TaskBridgeNotificationSubscriptionPayload{}, errors.Join(err, fallbackErr)
+	}
+	return fallback, nil
 }
 
 func (n *daemonNativeTools) taskNotificationPayload(
@@ -362,7 +397,10 @@ func (n *daemonNativeTools) taskNotificationPayload(
 	subscription bridgepkg.BridgeTaskSubscription,
 ) (contract.TaskBridgeNotificationSubscriptionPayload, error) {
 	normalized := subscription.Normalize()
-	payload := core.TaskBridgeNotificationSubscriptionPayloadFromSubscription(normalized)
+	payload, err := core.TaskBridgeNotificationSubscriptionPayloadFromSubscription(normalized)
+	if err != nil {
+		return contract.TaskBridgeNotificationSubscriptionPayload{}, err
+	}
 	reader, ok := n.deps.Bridges.(nativeTaskNotificationCursorReader)
 	if !ok {
 		return payload, nil
@@ -378,7 +416,7 @@ func (n *daemonNativeTools) taskNotificationPayload(
 			err,
 		)
 	}
-	return core.TaskBridgeNotificationSubscriptionPayloadFromSubscriptionAndCursor(normalized, cursor), nil
+	return core.TaskBridgeNotificationSubscriptionPayloadFromSubscriptionAndCursor(normalized, cursor)
 }
 
 func nativeTaskNotificationToolError(id toolspkg.ToolID, err error) error {

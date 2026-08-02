@@ -66,7 +66,7 @@ func TestServicePutSecretReturnsPersistedMetadataAndPreservesKindOnRotation(t *t
 	t.Run("Should preserve created timestamp and kind when rotating without kind", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		store := newMemoryVaultStore()
 		current := time.Date(2026, 5, 2, 9, 0, 0, 0, time.UTC)
 		service, err := NewService(
@@ -98,6 +98,13 @@ func TestServicePutSecretReturnsPersistedMetadataAndPreservesKindOnRotation(t *t
 		}
 		if !rotated.UpdatedAt.Equal(current) {
 			t.Fatalf("rotated.UpdatedAt = %v, want %v", rotated.UpdatedAt, current)
+		}
+		resolved, err := service.ResolveRef(ctx, ref)
+		if err != nil {
+			t.Fatalf("ResolveRef(rotated) error = %v", err)
+		}
+		if resolved != "rotated-secret-value" {
+			t.Fatalf("ResolveRef(rotated) = %q, want rotated plaintext", resolved)
 		}
 	})
 }
@@ -182,6 +189,83 @@ func TestServiceStoresEncryptedSecretsAndResolvesRefs(t *testing.T) {
 		}
 		if _, err := service.ResolveRef(ctx, metadata.Ref); !errors.Is(err, ErrSecretNotFound) {
 			t.Fatalf("ResolveRef(deleted) error = %v, want ErrSecretNotFound", err)
+		}
+	})
+
+	t.Run("Should reject ciphertext moved to another ref or kind", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name       string
+			sourceRef  string
+			sourceKind string
+			tamper     func(Record) Record
+			resolveRef string
+		}{
+			{
+				name:       "Should reject another ref",
+				sourceRef:  "vault:providers/openrouter/api-key",
+				sourceKind: "api_key",
+				tamper: func(record Record) Record {
+					record.Ref = "vault:providers/other/api-key"
+					return record
+				},
+				resolveRef: "vault:providers/other/api-key",
+			},
+			{
+				name:       "Should reject another kind",
+				sourceRef:  "vault:providers/openrouter/api-key",
+				sourceKind: "api_key",
+				tamper: func(record Record) Record {
+					record.Kind = "refresh_token"
+					return record
+				},
+				resolveRef: "vault:providers/openrouter/api-key",
+			},
+			{
+				name:       "Should reject a ref and kind pair with ambiguous concatenation",
+				sourceRef:  "vault:providers/p/a",
+				sourceKind: "bc",
+				tamper: func(record Record) Record {
+					record.Ref = "vault:providers/p/ab"
+					record.Kind = "c"
+					return record
+				},
+				resolveRef: "vault:providers/p/ab",
+			},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				store := newMemoryVaultStore()
+				service, err := NewService(
+					store,
+					staticKeyProvider{key: []byte("01234567890123456789012345678901")},
+				)
+				if err != nil {
+					t.Fatalf("NewService() error = %v", err)
+				}
+				if _, err := service.PutSecret(
+					t.Context(),
+					tc.sourceRef,
+					tc.sourceKind,
+					"bound-secret-value",
+				); err != nil {
+					t.Fatalf("PutSecret() error = %v", err)
+				}
+				tampered := tc.tamper(store.records[tc.sourceRef])
+				store.records[tampered.Ref] = tampered
+
+				value, err := service.ResolveRef(t.Context(), tc.resolveRef)
+				if err == nil {
+					t.Fatalf("ResolveRef() = %q, want authentication failure", value)
+				}
+				if strings.Contains(err.Error(), "bound-secret-value") {
+					t.Fatalf("ResolveRef() error leaked plaintext: %v", err)
+				}
+			})
 		}
 	})
 }
@@ -489,12 +573,17 @@ func TestFileKeyProviderLoadsEnvAndCreatesKeyFile(t *testing.T) {
 
 func TestDecryptValueRejectsMalformedPayloads(t *testing.T) {
 	t.Parallel()
+	identity, err := newCiphertextIdentity("vault:providers/openrouter/api-key", "api_key")
+	if err != nil {
+		t.Fatalf("newCiphertextIdentity() error = %v", err)
+	}
 
 	tests := []struct {
 		name      string
 		encrypted string
 	}{
 		{name: "Should reject missing prefix", encrypted: "not-encrypted"},
+		{name: "Should reject unversioned ciphertext", encrypted: "aes-gcm:obsolete"},
 		{name: "Should reject invalid base64", encrypted: encryptedPrefix + "%%%"},
 		{
 			name:      "Should reject truncated ciphertext",
@@ -506,7 +595,11 @@ func TestDecryptValueRejectsMalformedPayloads(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			if _, err := decryptValue([]byte("01234567890123456789012345678901"), tc.encrypted); err == nil {
+			if _, err := decryptValue(
+				[]byte("01234567890123456789012345678901"),
+				tc.encrypted,
+				identity,
+			); err == nil {
 				t.Fatalf("decryptValue(%q) error = nil, want malformed payload failure", tc.encrypted)
 			}
 		})

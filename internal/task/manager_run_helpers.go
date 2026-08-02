@@ -46,19 +46,19 @@ func runBootRecoveryError(run Run, recovery RunBootRecovery) string {
 	}
 }
 
-func runBootRecoveryMetadata(run Run, recovery RunBootRecovery) json.RawMessage {
+func runBootRecoveryMetadata(run Run, recovery RunBootRecovery) (json.RawMessage, error) {
 	payload, err := marshalTaskEventPayload(map[string]string{
 		runBootRecoveryReasonKey: normalizedBootRecoveryReason(recovery.Reason),
 		"previous_status":        run.Status.Normalize().String(),
-		"session_id":             strings.TrimSpace(run.SessionID),
+		sessionEvidenceIDKey:     strings.TrimSpace(run.SessionID),
 		"session_state":          strings.TrimSpace(recovery.SessionState),
 		"classification":         strings.TrimSpace(recovery.Classification),
 		"detail":                 strings.TrimSpace(recovery.Detail),
 	})
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("task: marshal boot recovery metadata: %w", err)
 	}
-	return payload
+	return payload, nil
 }
 
 func normalizedBootRecoveryReason(reason string) string {

@@ -3,7 +3,6 @@ package session
 import (
 	"context"
 	"errors"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -162,36 +161,6 @@ func TestBundledBuiltinSessionFallback(t *testing.T) {
 			}
 		},
 	)
-
-	t.Run("Should repair a blank coordinator provider from the bundled fallback", func(t *testing.T) {
-		t.Parallel()
-
-		h := newHarness(t)
-		configureBundledBuiltinFallbackWorkspace(t, h)
-
-		meta := validResumeMeta(h, "sess-coordinator-repair")
-		meta.AgentName = compozyconfig.BuiltinCoordinatorAgentName
-		meta.Provider = ""
-		meta.SessionType = string(SessionTypeCoordinator)
-
-		repaired, err := RepairLegacyProvider(
-			testutil.Context(t),
-			filepath.Join(t.TempDir(), "meta.json"),
-			meta,
-			LegacyProviderRepairOptions{
-				Now:               h.manager.now,
-				Logger:            h.manager.logger,
-				WorkspaceResolver: h.resolver,
-				AgentResolver:     h.manager.agentResolver,
-			},
-		)
-		if err != nil {
-			t.Fatalf("RepairLegacyProvider() error = %v", err)
-		}
-		if got, want := repaired.Provider, "claude"; got != want {
-			t.Fatalf("RepairLegacyProvider().Provider = %q, want %q", got, want)
-		}
-	})
 }
 
 func createBundledCoordinatorSession(t *testing.T, h *harness) *Session {

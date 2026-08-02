@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	bridgecontract "github.com/compozy/compozy/internal/bridges/contract"
 	"github.com/compozy/compozy/internal/toolmeta"
@@ -22,6 +23,8 @@ var (
 	ErrDeliveryIDConflict = errors.New("bridges: delivery id conflict")
 	// ErrDeliveryTransportUnavailable reports that the broker has no usable extension delivery transport.
 	ErrDeliveryTransportUnavailable = errors.New("bridges: delivery transport unavailable")
+	// ErrBrokerClosed reports that the delivery broker no longer admits mutable work.
+	ErrBrokerClosed = errors.New("bridges: delivery broker closed")
 )
 
 // DeliveryEventType is one closed daemon-to-adapter delivery lifecycle event.
@@ -217,6 +220,9 @@ type PromptDeliveryRegistration struct {
 // project session output into a negotiated delivery stream.
 func (r PromptDeliveryRegistration) Validate() error {
 	normalized := r.normalize()
+	if normalized.DeliveryID != "" && !utf8.ValidString(normalized.DeliveryID) {
+		return errors.New("bridges: prompt delivery registration delivery id must be valid UTF-8")
+	}
 	if err := requireField(normalized.SessionID, "prompt delivery registration session id"); err != nil {
 		return err
 	}
@@ -325,9 +331,9 @@ func (r PromptDeliveryRegistration) normalize() PromptDeliveryRegistration {
 	normalized.SessionID = strings.TrimSpace(normalized.SessionID)
 	normalized.TurnID = strings.TrimSpace(normalized.TurnID)
 	normalized.ExtensionName = strings.TrimSpace(normalized.ExtensionName)
-	normalized.DeliveryID = strings.TrimSpace(normalized.DeliveryID)
+	// DeliveryID is an opaque token. Do not trim it before the broker reserves
+	// the key or a whitespace-distinct registration could overwrite another.
 	normalized.RoutingKey = normalized.RoutingKey.normalize()
-	normalized.DeliveryTarget = normalized.DeliveryTarget.normalize()
 	if normalized.Progress.ToolProgress == "" || normalized.Progress.Grouping == "" {
 		normalized.Progress = ResolveProgressConfig(nil, "")
 	} else {

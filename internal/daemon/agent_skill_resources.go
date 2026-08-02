@@ -232,5 +232,5 @@ func (p *skillResourceProjector) Apply(ctx context.Context, plan resources.Proje
 	if !ok {
 		return fmt.Errorf("daemon: skill resource projector plan has type %T", plan)
 	}
-	return p.registry.ApplyResourceRecords(typed.revision, typed.records)
+	return p.registry.ApplyResourceRecords(ctx, typed.revision, typed.records)
 }

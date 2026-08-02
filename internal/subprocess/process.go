@@ -6,13 +6,10 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"os"
 	exec "os/exec"
 
 	"sync"
 	"time"
-
-	"golang.org/x/sys/execabs"
 
 	"github.com/compozy/compozy/internal/toolruntime"
 )
@@ -49,9 +46,12 @@ const (
 // LaunchConfig configures a managed subprocess.
 type LaunchConfig struct {
 	Command string
-	Args    []string
-	Dir     string
-	Env     []string
+	// Executable carries a previously resolved absolute path so callers can bind
+	// validation and launch to one executable identity without a second PATH lookup.
+	Executable string
+	Args       []string
+	Dir        string
+	Env        []string
 
 	Logger *slog.Logger
 
@@ -108,6 +108,8 @@ type Process struct {
 
 	transportErrMu sync.RWMutex
 	transportErr   error
+	shutdownMu     sync.Mutex
+	shutdownOp     *processShutdownOperation
 
 	shutdownTimeout time.Duration
 	postSignalGrace time.Duration
@@ -184,10 +186,10 @@ func Launch(ctx context.Context, cfg LaunchConfig) (*Process, error) {
 		handle, err := cfg.ProcessRegistry.Register(ctx, recordCfg)
 		if err != nil {
 			cancelLifecycle()
-			if cleanupErr := cleanupStartedManagedCommand(cmd); cleanupErr != nil && runtime.logger != nil {
-				runtime.logger.Warn("subprocess: cleanup after process registry failure", "error", cleanupErr)
-			}
-			return nil, err
+			return nil, errors.Join(
+				fmt.Errorf("subprocess: register process record: %w", err),
+				cleanupStartedManagedCommand(cmd),
+			)
 		}
 		process.processRecord = handle
 	}
@@ -241,7 +243,14 @@ func resolveLaunchRuntime(cfg LaunchConfig) launchRuntimeConfig {
 func startManagedCommand(
 	cfg LaunchConfig,
 ) (*exec.Cmd, io.WriteCloser, io.ReadCloser, *boundedBuffer, *stderrPipeline, error) {
-	commandPath, commandArgs, err := resolvedCommand(cfg.Command, cfg.Args)
+	environment := effectiveEnvironment(cfg.Env)
+	commandPath, commandArgs, err := resolvedCommand(
+		cfg.Command,
+		cfg.Executable,
+		cfg.Args,
+		environment,
+		cfg.Dir,
+	)
 	if err != nil {
 		return nil, nil, nil, nil, nil, err
 	}
@@ -252,11 +261,7 @@ func startManagedCommand(
 	}
 	configureManagedCommand(cmd)
 	cmd.Dir = cfg.Dir
-	if len(cfg.Env) > 0 {
-		cmd.Env = append([]string(nil), cfg.Env...)
-	} else {
-		cmd.Env = os.Environ()
-	}
+	cmd.Env = environment
 
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
@@ -299,16 +304,4 @@ func cleanupStartedManagedCommand(cmd *exec.Cmd) error {
 		errs = append(errs, fmt.Errorf("subprocess: wait for process tree after start cleanup: %w", err))
 	}
 	return errors.Join(errs...)
-}
-
-func resolvedCommand(command string, args []string) (string, []string, error) {
-	resolvedPath, err := execabs.LookPath(command)
-	if err != nil {
-		return "", nil, fmt.Errorf("subprocess: resolve executable %q: %w", command, err)
-	}
-
-	commandArgs := make([]string, 0, len(args)+1)
-	commandArgs = append(commandArgs, resolvedPath)
-	commandArgs = append(commandArgs, args...)
-	return resolvedPath, commandArgs, nil
 }

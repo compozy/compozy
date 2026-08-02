@@ -23,7 +23,11 @@ func (m *Manager) createTriggerResource(
 		return Trigger{}, ErrDefinitionReadOnly
 	}
 	if strings.TrimSpace(next.ID) == "" {
-		next.ID = store.NewID("trg")
+		generatedID, err := store.NewID("trg")
+		if err != nil {
+			return Trigger{}, errors.Join(errors.New("automation: generate trigger resource id"), err)
+		}
+		next.ID = generatedID
 	}
 	if strings.EqualFold(strings.TrimSpace(next.Event), "webhook") &&
 		strings.TrimSpace(next.WebhookID) == "" {

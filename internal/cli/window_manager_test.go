@@ -1467,8 +1467,9 @@ func TestWindowManagerCommandsRejectInvalidInputBeforeTransport(t *testing.T) {
 			if err == nil {
 				t.Fatal("command error = nil, want validation error")
 			}
-			var validationErr *windowManagerCLIValidationError
-			if !errors.As(err, &validationErr) {
+
+			validationErr, validationErrMatched := errors.AsType[*windowManagerCLIValidationError](err)
+			if !validationErrMatched {
 				t.Fatalf("command error = %T, want *windowManagerCLIValidationError", err)
 			}
 			if validationErr.Kind != tt.wantKind || validationErr.Field != tt.wantField {

@@ -20,14 +20,14 @@ const (
 	ScopeWorkspace Scope = "workspace"
 )
 
-// Normalize returns the canonical scope.
+// Normalize preserves the canonical scope.
 func (s Scope) Normalize() Scope {
-	return Scope(strings.ToLower(strings.TrimSpace(string(s))))
+	return s
 }
 
 // Validate reports whether the scope is supported.
 func (s Scope) Validate() error {
-	switch s.Normalize() {
+	switch s {
 	case ScopeGlobal, ScopeWorkspace:
 		return nil
 	case "":
@@ -40,17 +40,19 @@ func (s Scope) Validate() error {
 // ValidateScopeWorkspaceID enforces the canonical scope and workspace invariant.
 func ValidateScopeWorkspaceID(scope Scope, workspaceID string) error {
 	normalizedScope := scope.Normalize()
-	trimmedWorkspaceID := strings.TrimSpace(workspaceID)
 	if err := normalizedScope.Validate(); err != nil {
+		return err
+	}
+	if err := validateOptionalOpaqueIdentity(workspaceID, "workspace id"); err != nil {
 		return err
 	}
 	switch normalizedScope {
 	case ScopeGlobal:
-		if trimmedWorkspaceID != "" {
+		if workspaceID != "" {
 			return errors.New("bridges: global scope cannot include workspace id")
 		}
 	case ScopeWorkspace:
-		if trimmedWorkspaceID == "" {
+		if workspaceID == "" {
 			return errors.New("bridges: workspace scope requires workspace id")
 		}
 	}
@@ -253,7 +255,7 @@ func ValidateBridgeInstanceLifecycle(enabled bool, status BridgeStatus) error {
 // Validate reports whether the bridge instance is complete and valid.
 func (i BridgeInstance) Validate() error {
 	normalized := i.normalize()
-	if err := requireField(normalized.ID, "bridge instance id"); err != nil {
+	if err := requireOpaqueIdentity(normalized.ID, "bridge instance id"); err != nil {
 		return err
 	}
 	if err := ValidateScopeWorkspaceID(normalized.Scope, normalized.WorkspaceID); err != nil {
@@ -304,9 +306,7 @@ func (i BridgeInstance) Validate() error {
 }
 
 func (i BridgeInstance) normalize() BridgeInstance {
-	i.ID = strings.TrimSpace(i.ID)
 	i.Scope = i.Scope.Normalize()
-	i.WorkspaceID = strings.TrimSpace(i.WorkspaceID)
 	i.Platform = strings.TrimSpace(i.Platform)
 	i.ExtensionName = strings.TrimSpace(i.ExtensionName)
 	i.DisplayName = strings.TrimSpace(i.DisplayName)

@@ -20,21 +20,30 @@ used by the web stream-resume surface.
 
 ## Cursor identity and store
 
-The cursor table (`notification_cursors`) is keyed by `(consumer_id, stream_name, subject_id)`.
-`subject_id = ""` represents an unscoped stream; SQLite never sees a nullable composite key.
-`last_sequence` is monotonic; the secondary index is
-`(stream_name, last_sequence DESC) WHERE last_sequence > 0` for stream-resume reads.
+The cursor table (`notification_cursors`) is keyed by
+`(scope_kind, workspace_id, consumer_id, stream_name, subject_id)`. Scope is a structured value:
+`{ "kind": "global" }` has no workspace ID, while
+`{ "kind": "workspace", "workspace_id": "<opaque workspace id>" }` has exactly one. The
+workspace ID is never fused into another field or inferred from a sentinel value.
 
-| Field               | Meaning                                                                                |
-| ------------------- | -------------------------------------------------------------------------------------- |
-| `consumer_id`       | Stable delivery consumer identity (e.g. `bridge_task_subscription:<subscription_id>`). |
-| `stream_name`       | Cursor stream — `task_events` for the bridge terminal notifier.                        |
-| `subject_id`        | Task/channel/thread/bridge scope. Bridge terminal cursors use the task id.             |
-| `last_sequence`     | Highest confirmed delivered sequence. `0` means no delivery yet.                       |
-| `last_delivery_id`  | Last confirmed delivery id, used for idempotent replay checks.                         |
-| `last_delivered_at` | Last confirmed delivery timestamp.                                                     |
-| `last_error`        | Bounded last delivery error summary; populated only on failure paths.                  |
-| `updated_at`        | Last store update timestamp.                                                           |
+All identity components — including `workspace_id`, `consumer_id`, `stream_name`, `subject_id`, and
+delivery IDs — are opaque, valid UTF-8 values. Required identities must be non-empty; clients must
+preserve their bytes exactly. Do not trim, case-fold, split, parse, or construct alternate textual
+forms before a list, read, acknowledge, reset, or delete call. `last_sequence` is monotonic; the
+secondary index is `(scope_kind, workspace_id, stream_name, last_sequence DESC) WHERE last_sequence > 0`
+for stream-resume reads.
+
+| Field               | Meaning                                                                                     |
+| ------------------- | ------------------------------------------------------------------------------------------- |
+| `scope`             | Structured global or workspace ownership for this cursor.                                   |
+| `consumer_id`       | Stable delivery consumer identity. Bridge terminal cursors use the exact `subscription_id`. |
+| `stream_name`       | Cursor stream — `task_events` for the bridge terminal notifier.                             |
+| `subject_id`        | Task/channel/thread/bridge scope. Bridge terminal cursors use the exact task id.            |
+| `last_sequence`     | Highest confirmed delivered sequence. `0` means no delivery yet.                            |
+| `last_delivery_id`  | Last confirmed delivery id, used for idempotent replay checks.                              |
+| `last_delivered_at` | Last confirmed delivery timestamp.                                                          |
+| `last_error`        | Bounded last delivery error summary; populated only on failure paths.                       |
+| `updated_at`        | Last store update timestamp.                                                                |
 
 Independent consumers must use distinct `consumer_id` values so one bridge or thread subscription
 cannot block another. The store enforces:
@@ -82,12 +91,15 @@ Optional filters support the documented comparison grammar over event fields suc
 `workspace`, `agent`, `provider`, and `event_type`; Compozy rejects arbitrary CEL or script
 expressions.
 
-Preset fanout uses one cursor per concrete target:
+Preset fanout uses one cursor per concrete target occurrence. The cursor is scoped by the event's
+structured scope; its subject is the event's exact ID. Repeating the same target twice is meaningful:
+each list occurrence has an independent opaque consumer identity, cursor, and delivery outcome.
 
 ```text
-consumer_id = preset:<name>:target:<stable_target_hash>
-stream_name = event_summaries
-subject_id = <preset name>
+scope       = event.scope
+consumer_id = opaque identity for one preset target occurrence
+stream_name = event.type
+subject_id  = event.id
 ```
 
 The dispatcher advances that cursor only after one of three terminal outcomes:
@@ -121,7 +133,8 @@ Every subscription read model exposes the cursor read-model fields (`consumer_id
 `subject_id`, `last_sequence`, `last_delivery_id`, `last_delivered_at`, `last_error`,
 `updated_at`). When no cursor row exists yet the API returns a deterministic zero-sequence
 identity (`last_sequence = 0`, no delivery id, no timestamps) so the operator can distinguish "no
-delivery yet" from "delivery stalled".
+delivery yet" from "delivery stalled". For bridge terminal subscriptions, `consumer_id` is the
+`subscription_id` byte for byte; there is no prefix or derived alternate identity.
 
 ## Terminal notifier states
 
@@ -163,15 +176,17 @@ duplicate delivery is detectable downstream:
 
 ```json
 {
-  "delivery_id": "notif:<subscription_id>:<event_seq>",
+  "delivery_id": "<opaque delivery token>",
   "event_type": "final",
   "final": true,
   "seq": 123
 }
 ```
 
-`seq` is the numeric `task_events.event_seq` from the replayed accepted-final event. The metadata
-envelope preserves the original task terminal event type (`task.run_completed`,
+`delivery_id` is transport identity, not a structured string: a provider must return the exact same
+non-empty UTF-8 value in its acknowledgment. It must not trim it, split it on a delimiter, or derive a
+replacement token. `seq` is the numeric `task_events.event_seq` from the replayed accepted-final
+event. The metadata envelope preserves the original task terminal event type (`task.run_completed`,
 `task.run_failed`, `task.run_review_approved`, etc.) so downstream consumers can correlate without
 re-parsing the wrapper `event_type`.
 
@@ -263,7 +278,11 @@ Managed agents use the same bridge subscription contract through the `compozy__t
 | `compozy__task_notification_delete`    | Remove the active subscription target.                  |
 
 `subscription_id` is optional on subscribe. When present, the daemon preserves it as the
-idempotency key; when omitted, Compozy generates the `bts-*` identifier.
+idempotency key; when omitted, Compozy generates the `bts-*` identifier. Subscribe and list accept
+the exact opaque workspace identity in `workspace_id`; the removed `workspace` input is not an
+alias. Native task-notification `task_id`, `subscription_id`, `bridge_instance_id`, `workspace_id`,
+`peer_id`, `group_id`, and `thread_id` values are valid UTF-8 identities and are never trimmed,
+case-folded, prefixed, or reconstructed.
 
 ## Manage subscriptions through HTTP and UDS
 

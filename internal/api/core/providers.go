@@ -60,26 +60,12 @@ func (h *BaseHandlers) ProbeProviderAuth(c *gin.Context) {
 			State:   authproviders.ProviderAuthStateNone,
 			Message: authproviders.ProviderAuthNoAuthRequiredMessage,
 		}
-		c.JSON(http.StatusOK, contract.ProviderAuthProbeResponse{
-			Provider:   providerName,
-			AuthStatus: providerAuthStatusPayload(provider, classification, h.nowUTC()),
-		})
+		h.respondProviderAuthStatus(c, providerName, provider, classification, nil)
 		return
 	}
 	statusCommand := strings.TrimSpace(provider.AuthStatusCmd)
 	if statusCommand == "" {
-		classification := authproviders.Classification{
-			State:   authproviders.ProviderAuthStateUnknown,
-			Code:    contract.CodeProviderClassificationUnknown,
-			Message: errProviderAuthStatusCommandRequired.Error(),
-			Kind:    authproviders.ProviderFailureUnknown,
-			Action:  authproviders.ProviderFailureActionInspect,
-		}
-		item := authproviders.DiagnosticItem(providerName, classification)
-		c.JSON(http.StatusUnprocessableEntity, contract.ErrorPayload{
-			Error:      diagnostics.Redact(item.Message),
-			Diagnostic: &item,
-		})
+		respondProviderAuthStatusCommandRequired(c, providerName)
 		return
 	}
 	env, err := h.providerProbeEnv(providerName, provider)
@@ -87,30 +73,87 @@ func (h *BaseHandlers) ProbeProviderAuth(c *gin.Context) {
 		RespondError(c, http.StatusInternalServerError, err, h.MaskInternalErrors)
 		return
 	}
-	result, err := h.ProviderAuthRunner(c.Request.Context(), authproviders.ProviderAuthCommandSpec{
-		Command: statusCommand,
-		Env:     env.CommandEnv,
-		Timeout: authproviders.DefaultProviderAuthCommandTimeout,
-		NoTTY:   true,
-	})
+	declared, err := authproviders.ClassifyDeclared(c.Request.Context(), provider, &env)
 	if err != nil {
 		RespondError(c, http.StatusInternalServerError, err, h.MaskInternalErrors)
 		return
 	}
-	classification := authproviders.ClassifyProbeResult(provider, authproviders.ProbeOutcome{
-		ExitCode: result.ExitCode,
-		Stdout:   result.Stdout,
-		Stderr:   result.Stderr,
-	}, &env)
+	if declared.State == authproviders.ProviderAuthStateMissingCLI {
+		h.respondProviderAuthStatus(c, providerName, provider, declared, &env)
+		return
+	}
+	commandSpec, err := authproviders.PrepareAuthStatusCommand(c.Request.Context(), provider, &env)
+	if err != nil {
+		classification := authproviders.ClassifyError(err)
+		h.respondProviderAuthStatus(c, providerName, provider, classification, &env)
+		return
+	}
+	result, err := env.Normalize().RunCommand(c.Request.Context(), commandSpec)
+	if err != nil {
+		RespondError(c, http.StatusInternalServerError, err, h.MaskInternalErrors)
+		return
+	}
+	classification := authproviders.ClassifyProbeResultContext(
+		c.Request.Context(),
+		provider,
+		authproviders.ProbeOutcome{
+			ExitCode: result.ExitCode,
+			Stdout:   result.Stdout,
+			Stderr:   result.Stderr,
+		},
+		&env,
+	)
+	authStatus, err := providerAuthStatusPayload(
+		c.Request.Context(), provider, classification, &env, h.nowUTC(),
+	)
+	if err != nil {
+		RespondError(c, http.StatusInternalServerError, err, h.MaskInternalErrors)
+		return
+	}
 	c.JSON(http.StatusOK, contract.ProviderAuthProbeResponse{
 		Provider:   providerName,
-		AuthStatus: providerAuthStatusPayload(provider, classification, h.nowUTC()),
+		AuthStatus: authStatus,
 		Probe: &contract.ProviderAuthProbeResult{
 			ExitCode:   result.ExitCode,
 			Stdout:     diagnostics.RedactAndBound(result.Stdout, maxDiagnosticPayloadBytes),
 			Stderr:     diagnostics.RedactAndBound(result.Stderr, maxDiagnosticPayloadBytes),
 			DurationMs: result.DurationMs,
 		},
+	})
+}
+
+func respondProviderAuthStatusCommandRequired(c *gin.Context, providerName string) {
+	classification := authproviders.Classification{
+		State:   authproviders.ProviderAuthStateUnknown,
+		Code:    contract.CodeProviderClassificationUnknown,
+		Message: errProviderAuthStatusCommandRequired.Error(),
+		Kind:    authproviders.ProviderFailureUnknown,
+		Action:  authproviders.ProviderFailureActionInspect,
+	}
+	item := authproviders.DiagnosticItem(providerName, classification)
+	c.JSON(http.StatusUnprocessableEntity, contract.ErrorPayload{
+		Error:      diagnostics.Redact(item.Message),
+		Diagnostic: &item,
+	})
+}
+
+func (h *BaseHandlers) respondProviderAuthStatus(
+	c *gin.Context,
+	providerName string,
+	provider compozyconfig.ProviderConfig,
+	classification authproviders.Classification,
+	env *authproviders.ProbeEnv,
+) {
+	authStatus, err := providerAuthStatusPayload(
+		c.Request.Context(), provider, classification, env, h.nowUTC(),
+	)
+	if err != nil {
+		RespondError(c, http.StatusInternalServerError, err, h.MaskInternalErrors)
+		return
+	}
+	c.JSON(http.StatusOK, contract.ProviderAuthProbeResponse{
+		Provider:   providerName,
+		AuthStatus: authStatus,
 	})
 }
 
@@ -144,11 +187,15 @@ func (h *BaseHandlers) providerSummaryPayload(
 	if err != nil {
 		return contract.ProviderSummaryPayload{}, err
 	}
+	authStatus, err := providerAuthStatusPayload(ctx, provider, classification, &env, timeZero())
+	if err != nil {
+		return contract.ProviderSummaryPayload{}, err
+	}
 	return contract.ProviderSummaryPayload{
 		Name:        providerName,
 		DisplayName: strings.TrimSpace(provider.DisplayName),
 		Default:     compozyconfig.CanonicalProviderName(h.Config.Defaults.Provider) == providerName,
-		AuthStatus:  providerAuthStatusPayload(provider, classification, timeZero()),
+		AuthStatus:  authStatus,
 	}, nil
 }
 
@@ -161,12 +208,13 @@ func (h *BaseHandlers) providerProbeEnv(
 		return authproviders.ProbeEnv{}, err
 	}
 	return authproviders.ProbeEnv{
-		ProviderName: providerName,
-		HomePaths:    h.HomePaths,
-		LookupEnv:    os.LookupEnv,
-		Vault:        h.Vault,
-		CommandEnv:   commandEnv,
-		RunCommand:   h.ProviderAuthRunner,
+		ProviderName:   providerName,
+		HomePaths:      h.HomePaths,
+		LookupEnv:      os.LookupEnv,
+		Vault:          h.Vault,
+		CommandEnv:     commandEnv,
+		ResolveCommand: h.ProviderAuthCommandResolver,
+		RunCommand:     h.ProviderAuthRunner,
 	}, nil
 }
 
@@ -247,21 +295,33 @@ func providerInventoryNames(cfg *compozyconfig.Config) []string {
 }
 
 func providerAuthStatusPayload(
+	ctx context.Context,
 	provider compozyconfig.ProviderConfig,
 	classification authproviders.Classification,
+	env *authproviders.ProbeEnv,
 	lastProbeAt time.Time,
-) contract.ProviderAuthStatusPayload {
-	return contract.ProviderAuthStatusPayload{
-		Mode:        string(provider.EffectiveAuthMode()),
-		EnvPolicy:   string(provider.EffectiveEnvPolicy()),
-		HomePolicy:  string(provider.EffectiveHomePolicy()),
-		State:       string(classification.State),
-		Code:        strings.TrimSpace(classification.Code),
-		Message:     diagnostics.Redact(strings.TrimSpace(classification.Message)),
-		StatusCmd:   strings.TrimSpace(provider.AuthStatusCmd),
-		LoginCmd:    strings.TrimSpace(provider.AuthLoginCmd),
-		LastProbeAt: optionalTime(lastProbeAt),
+) (contract.ProviderAuthStatusPayload, error) {
+	var nativeCLI *providerauth.NativeCLIStatus
+	if provider.EffectiveAuthMode() == compozyconfig.ProviderAuthModeNativeCLI {
+		var err error
+		nativeCLI, err = authproviders.NativeCLIStatus(ctx, provider, env)
+		if err != nil {
+			return contract.ProviderAuthStatusPayload{}, err
+		}
 	}
+	return contract.ProviderAuthStatusPayload{
+		Mode:       string(provider.EffectiveAuthMode()),
+		EnvPolicy:  string(provider.EffectiveEnvPolicy()),
+		HomePolicy: string(provider.EffectiveHomePolicy()),
+		State:      string(classification.State),
+		Code:       strings.TrimSpace(classification.Code),
+		Message:    diagnostics.Redact(strings.TrimSpace(classification.Message)),
+		StatusCmd:  strings.TrimSpace(provider.AuthStatusCmd),
+		Login: providerLoginDescriptorPayload(
+			authproviders.DescribeProviderLogin(provider, nativeCLI, classification),
+		),
+		LastProbeAt: optionalTime(lastProbeAt),
+	}, nil
 }
 
 func timeZero() time.Time {

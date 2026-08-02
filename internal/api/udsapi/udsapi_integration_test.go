@@ -11,7 +11,6 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -46,7 +45,7 @@ func TestUDSFullRoundTripWithRealSessionManager(t *testing.T) {
 	if statusResp.StatusCode != http.StatusOK {
 		t.Fatalf("daemon status = %d, want %d", statusResp.StatusCode, http.StatusOK)
 	}
-	_ = statusResp.Body.Close()
+	closeHTTPBody(t, statusResp.Body)
 
 	createResp := mustUnixRequest(
 		t,
@@ -57,8 +56,7 @@ func TestUDSFullRoundTripWithRealSessionManager(t *testing.T) {
 		nil,
 	)
 	if createResp.StatusCode != http.StatusCreated {
-		body, _ := io.ReadAll(createResp.Body)
-		_ = createResp.Body.Close()
+		body := readAndCloseHTTPBody(t, createResp)
 		t.Fatalf(
 			"create session status = %d, want %d; body=%s",
 			createResp.StatusCode,
@@ -121,15 +119,14 @@ func TestUDSFullRoundTripWithRealSessionManager(t *testing.T) {
 		nil,
 	)
 	if promptResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(promptResp.Body)
-		_ = promptResp.Body.Close()
+		body := readAndCloseHTTPBody(t, promptResp)
 		t.Fatalf("prompt status = %d, want %d; body=%s", promptResp.StatusCode, http.StatusOK, string(body))
 	}
 	if got := promptResp.Header.Get("x-vercel-ai-ui-message-stream"); got != "v1" {
 		t.Fatalf("x-vercel-ai-ui-message-stream = %q, want v1", got)
 	}
 	promptBody, err := io.ReadAll(promptResp.Body)
-	_ = promptResp.Body.Close()
+	closeHTTPBody(t, promptResp.Body)
 	if err != nil {
 		t.Fatalf("io.ReadAll(prompt SSE) error = %v", err)
 	}
@@ -195,11 +192,10 @@ func TestUDSFullRoundTripWithRealSessionManager(t *testing.T) {
 		nil,
 	)
 	if stopResp.StatusCode != http.StatusNoContent {
-		body, _ := io.ReadAll(stopResp.Body)
-		_ = stopResp.Body.Close()
+		body := readAndCloseHTTPBody(t, stopResp)
 		t.Fatalf("stop session status = %d, want %d; body=%s", stopResp.StatusCode, http.StatusNoContent, string(body))
 	}
-	_ = stopResp.Body.Close()
+	closeHTTPBody(t, stopResp.Body)
 }
 
 func TestUDSWindowManagerWebSocketStream(t *testing.T) {
@@ -211,7 +207,12 @@ func TestUDSWindowManagerWebSocketStream(t *testing.T) {
 		dialer := websocket.Dialer{
 			NetDialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
 				var netDialer net.Dialer
-				return netDialer.DialContext(ctx, "unix", runtime.socket)
+				return netDialer.DialUnix(
+					ctx,
+					"unix",
+					nil,
+					&net.UnixAddr{Name: runtime.socket, Net: "unix"},
+				)
 			},
 		}
 
@@ -366,8 +367,7 @@ func TestUDSSessionTranscriptEndpointIncludesSyntheticTurns(t *testing.T) {
 		nil,
 	)
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		_ = resp.Body.Close()
+		body := readAndCloseHTTPBody(t, resp)
 		t.Fatalf("transcript status = %d, want %d; body=%s", resp.StatusCode, http.StatusOK, string(body))
 	}
 
@@ -420,8 +420,7 @@ func TestUDSMemoryRoundTripAndConsolidate(t *testing.T) {
 		nil,
 	)
 	if writeResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(writeResp.Body)
-		_ = writeResp.Body.Close()
+		body := readAndCloseHTTPBody(t, writeResp)
 		t.Fatalf("write status = %d, want %d; body=%s", writeResp.StatusCode, http.StatusOK, string(body))
 	}
 	var writePayload memoryMutationDecisionResponse
@@ -440,8 +439,7 @@ func TestUDSMemoryRoundTripAndConsolidate(t *testing.T) {
 		nil,
 	)
 	if readResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(readResp.Body)
-		_ = readResp.Body.Close()
+		body := readAndCloseHTTPBody(t, readResp)
 		t.Fatalf("read status = %d, want %d; body=%s", readResp.StatusCode, http.StatusOK, string(body))
 	}
 	var readPayload memoryEntryResponse
@@ -459,11 +457,10 @@ func TestUDSMemoryRoundTripAndConsolidate(t *testing.T) {
 		nil,
 	)
 	if deleteResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(deleteResp.Body)
-		_ = deleteResp.Body.Close()
+		body := readAndCloseHTTPBody(t, deleteResp)
 		t.Fatalf("delete status = %d, want %d; body=%s", deleteResp.StatusCode, http.StatusOK, string(body))
 	}
-	_ = deleteResp.Body.Close()
+	closeHTTPBody(t, deleteResp.Body)
 
 	resp := mustUnixRequest(
 		t,
@@ -474,8 +471,7 @@ func TestUDSMemoryRoundTripAndConsolidate(t *testing.T) {
 		nil,
 	)
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		_ = resp.Body.Close()
+		body := readAndCloseHTTPBody(t, resp)
 		t.Fatalf("dream trigger status = %d, want %d; body=%s", resp.StatusCode, http.StatusOK, string(body))
 	}
 
@@ -498,8 +494,7 @@ func TestUDSResourceCRUDRoundTrip(t *testing.T) {
 		nil,
 	)
 	if createResp.StatusCode != http.StatusCreated {
-		body, _ := io.ReadAll(createResp.Body)
-		_ = createResp.Body.Close()
+		body := readAndCloseHTTPBody(t, createResp)
 		t.Fatalf(
 			"create resource status = %d, want %d; body=%s",
 			createResp.StatusCode,
@@ -530,8 +525,7 @@ func TestUDSResourceCRUDRoundTrip(t *testing.T) {
 		nil,
 	)
 	if updateResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(updateResp.Body)
-		_ = updateResp.Body.Close()
+		body := readAndCloseHTTPBody(t, updateResp)
 		t.Fatalf("update resource status = %d, want %d; body=%s", updateResp.StatusCode, http.StatusOK, string(body))
 	}
 	var updated contract.ResourceResponse
@@ -552,8 +546,7 @@ func TestUDSResourceCRUDRoundTrip(t *testing.T) {
 		nil,
 	)
 	if getResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(getResp.Body)
-		_ = getResp.Body.Close()
+		body := readAndCloseHTTPBody(t, getResp)
 		t.Fatalf("get resource status = %d, want %d; body=%s", getResp.StatusCode, http.StatusOK, string(body))
 	}
 	var fetched contract.ResourceResponse
@@ -571,8 +564,7 @@ func TestUDSResourceCRUDRoundTrip(t *testing.T) {
 		nil,
 	)
 	if listResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(listResp.Body)
-		_ = listResp.Body.Close()
+		body := readAndCloseHTTPBody(t, listResp)
 		t.Fatalf("list resources status = %d, want %d; body=%s", listResp.StatusCode, http.StatusOK, string(body))
 	}
 	var listed contract.ResourcesResponse
@@ -728,8 +720,7 @@ func TestUDSDeleteResourceRejectsStaleVersionAndRequiresCurrentVersion(t *testin
 		nil,
 	)
 	if createResp.StatusCode != http.StatusCreated {
-		body, _ := io.ReadAll(createResp.Body)
-		_ = createResp.Body.Close()
+		body := readAndCloseHTTPBody(t, createResp)
 		t.Fatalf(
 			"create resource status = %d, want %d; body=%s",
 			createResp.StatusCode,
@@ -754,8 +745,7 @@ func TestUDSDeleteResourceRejectsStaleVersionAndRequiresCurrentVersion(t *testin
 		nil,
 	)
 	if updateResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(updateResp.Body)
-		_ = updateResp.Body.Close()
+		body := readAndCloseHTTPBody(t, updateResp)
 		t.Fatalf("update resource status = %d, want %d; body=%s", updateResp.StatusCode, http.StatusOK, string(body))
 	}
 	var updated contract.ResourceResponse
@@ -770,8 +760,7 @@ func TestUDSDeleteResourceRejectsStaleVersionAndRequiresCurrentVersion(t *testin
 		nil,
 	)
 	if staleDelete.StatusCode != http.StatusConflict {
-		body, _ := io.ReadAll(staleDelete.Body)
-		_ = staleDelete.Body.Close()
+		body := readAndCloseHTTPBody(t, staleDelete)
 		t.Fatalf(
 			"stale delete status = %d, want %d; body=%s",
 			staleDelete.StatusCode,
@@ -779,7 +768,7 @@ func TestUDSDeleteResourceRejectsStaleVersionAndRequiresCurrentVersion(t *testin
 			string(body),
 		)
 	}
-	_ = staleDelete.Body.Close()
+	closeHTTPBody(t, staleDelete.Body)
 
 	deleteResp := mustUnixRequest(
 		t,
@@ -790,8 +779,7 @@ func TestUDSDeleteResourceRejectsStaleVersionAndRequiresCurrentVersion(t *testin
 		nil,
 	)
 	if deleteResp.StatusCode != http.StatusNoContent {
-		body, _ := io.ReadAll(deleteResp.Body)
-		_ = deleteResp.Body.Close()
+		body := readAndCloseHTTPBody(t, deleteResp)
 		t.Fatalf(
 			"delete resource status = %d, want %d; body=%s",
 			deleteResp.StatusCode,
@@ -799,7 +787,7 @@ func TestUDSDeleteResourceRejectsStaleVersionAndRequiresCurrentVersion(t *testin
 			string(body),
 		)
 	}
-	_ = deleteResp.Body.Close()
+	closeHTTPBody(t, deleteResp.Body)
 
 	getResp := mustUnixRequest(
 		t,
@@ -810,8 +798,7 @@ func TestUDSDeleteResourceRejectsStaleVersionAndRequiresCurrentVersion(t *testin
 		nil,
 	)
 	if getResp.StatusCode != http.StatusNotFound {
-		body, _ := io.ReadAll(getResp.Body)
-		_ = getResp.Body.Close()
+		body := readAndCloseHTTPBody(t, getResp)
 		t.Fatalf(
 			"get deleted resource status = %d, want %d; body=%s",
 			getResp.StatusCode,
@@ -835,8 +822,7 @@ func TestUDSAutomationJobsRoundTrip(t *testing.T) {
 		nil,
 	)
 	if createResp.StatusCode != http.StatusCreated {
-		body, _ := io.ReadAll(createResp.Body)
-		_ = createResp.Body.Close()
+		body := readAndCloseHTTPBody(t, createResp)
 		t.Fatalf("create job status = %d, want %d; body=%s", createResp.StatusCode, http.StatusCreated, string(body))
 	}
 	var created contract.JobResponse
@@ -854,8 +840,7 @@ func TestUDSAutomationJobsRoundTrip(t *testing.T) {
 		nil,
 	)
 	if updateResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(updateResp.Body)
-		_ = updateResp.Body.Close()
+		body := readAndCloseHTTPBody(t, updateResp)
 		t.Fatalf("update job status = %d, want %d; body=%s", updateResp.StatusCode, http.StatusOK, string(body))
 	}
 	var updated contract.JobResponse
@@ -873,8 +858,7 @@ func TestUDSAutomationJobsRoundTrip(t *testing.T) {
 		nil,
 	)
 	if triggerResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(triggerResp.Body)
-		_ = triggerResp.Body.Close()
+		body := readAndCloseHTTPBody(t, triggerResp)
 		t.Fatalf("trigger job status = %d, want %d; body=%s", triggerResp.StatusCode, http.StatusOK, string(body))
 	}
 	var run contract.RunResponse
@@ -892,8 +876,7 @@ func TestUDSAutomationJobsRoundTrip(t *testing.T) {
 		nil,
 	)
 	if runsResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(runsResp.Body)
-		_ = runsResp.Body.Close()
+		body := readAndCloseHTTPBody(t, runsResp)
 		t.Fatalf("job runs status = %d, want %d; body=%s", runsResp.StatusCode, http.StatusOK, string(body))
 	}
 	var runs contract.RunsResponse
@@ -911,17 +894,17 @@ func TestUDSAutomationJobsRoundTrip(t *testing.T) {
 		nil,
 	)
 	if deleteResp.StatusCode != http.StatusNoContent {
-		body, _ := io.ReadAll(deleteResp.Body)
-		_ = deleteResp.Body.Close()
+		body := readAndCloseHTTPBody(t, deleteResp)
 		t.Fatalf("delete job status = %d, want %d; body=%s", deleteResp.StatusCode, http.StatusNoContent, string(body))
 	}
-	_ = deleteResp.Body.Close()
+	closeHTTPBody(t, deleteResp.Body)
 }
 
 func TestUDSAutomationResourceWritesProjectJobsAndTriggers(t *testing.T) {
 	runtime := newIntegrationRuntime(t)
 
 	jobID := "resource-job"
+	jobApplies := runtime.reconcileEvents.count(automationpkg.JobResourceKind)
 	createJobResp := mustUnixRequest(
 		t,
 		runtime.client,
@@ -933,8 +916,7 @@ func TestUDSAutomationResourceWritesProjectJobsAndTriggers(t *testing.T) {
 		nil,
 	)
 	if createJobResp.StatusCode != http.StatusCreated {
-		body, _ := io.ReadAll(createJobResp.Body)
-		_ = createJobResp.Body.Close()
+		body := readAndCloseHTTPBody(t, createJobResp)
 		t.Fatalf(
 			"create automation.job resource status = %d, want %d; body=%s",
 			createJobResp.StatusCode,
@@ -944,7 +926,8 @@ func TestUDSAutomationResourceWritesProjectJobsAndTriggers(t *testing.T) {
 	}
 	var createdJobResource contract.ResourceResponse
 	decodeHTTPJSON(t, createJobResp, &createdJobResource)
-	projectedJob := waitForAutomationJobPrompt(t, runtime, jobID, "review from resource")
+	runtime.reconcileEvents.waitFor(t, automationpkg.JobResourceKind, jobApplies)
+	projectedJob := assertAutomationJobPrompt(t, runtime, jobID, "review from resource")
 	if projectedJob.Source != automationpkg.JobSourceDynamic {
 		t.Fatalf("projected job source = %q, want %q", projectedJob.Source, automationpkg.JobSourceDynamic)
 	}
@@ -958,8 +941,7 @@ func TestUDSAutomationResourceWritesProjectJobsAndTriggers(t *testing.T) {
 		nil,
 	)
 	if triggerRunResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(triggerRunResp.Body)
-		_ = triggerRunResp.Body.Close()
+		body := readAndCloseHTTPBody(t, triggerRunResp)
 		t.Fatalf(
 			"trigger resource job status = %d, want %d; body=%s",
 			triggerRunResp.StatusCode,
@@ -973,6 +955,7 @@ func TestUDSAutomationResourceWritesProjectJobsAndTriggers(t *testing.T) {
 		t.Fatalf("resource job run = %#v, want job_id %q", jobRun.Run, jobID)
 	}
 
+	jobApplies = runtime.reconcileEvents.count(automationpkg.JobResourceKind)
 	updateJobResp := mustUnixRequest(
 		t,
 		runtime.client,
@@ -985,8 +968,7 @@ func TestUDSAutomationResourceWritesProjectJobsAndTriggers(t *testing.T) {
 		nil,
 	)
 	if updateJobResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(updateJobResp.Body)
-		_ = updateJobResp.Body.Close()
+		body := readAndCloseHTTPBody(t, updateJobResp)
 		t.Fatalf(
 			"update automation.job resource status = %d, want %d; body=%s",
 			updateJobResp.StatusCode,
@@ -996,7 +978,8 @@ func TestUDSAutomationResourceWritesProjectJobsAndTriggers(t *testing.T) {
 	}
 	var updatedJobResource contract.ResourceResponse
 	decodeHTTPJSON(t, updateJobResp, &updatedJobResource)
-	waitForAutomationJobPrompt(t, runtime, jobID, "review after resource update")
+	runtime.reconcileEvents.waitFor(t, automationpkg.JobResourceKind, jobApplies)
+	assertAutomationJobPrompt(t, runtime, jobID, "review after resource update")
 
 	runResp := mustUnixRequest(
 		t,
@@ -1007,8 +990,7 @@ func TestUDSAutomationResourceWritesProjectJobsAndTriggers(t *testing.T) {
 		nil,
 	)
 	if runResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(runResp.Body)
-		_ = runResp.Body.Close()
+		body := readAndCloseHTTPBody(t, runResp)
 		t.Fatalf("get resource job run status = %d, want %d; body=%s", runResp.StatusCode, http.StatusOK, string(body))
 	}
 	var fetchedRun contract.RunResponse
@@ -1018,6 +1000,7 @@ func TestUDSAutomationResourceWritesProjectJobsAndTriggers(t *testing.T) {
 	}
 
 	triggerID := "resource-trigger"
+	triggerApplies := runtime.reconcileEvents.count(automationpkg.TriggerResourceKind)
 	createTriggerResp := mustUnixRequest(
 		t,
 		runtime.client,
@@ -1029,8 +1012,7 @@ func TestUDSAutomationResourceWritesProjectJobsAndTriggers(t *testing.T) {
 		nil,
 	)
 	if createTriggerResp.StatusCode != http.StatusCreated {
-		body, _ := io.ReadAll(createTriggerResp.Body)
-		_ = createTriggerResp.Body.Close()
+		body := readAndCloseHTTPBody(t, createTriggerResp)
 		t.Fatalf(
 			"create automation.trigger resource status = %d, want %d; body=%s",
 			createTriggerResp.StatusCode,
@@ -1040,11 +1022,13 @@ func TestUDSAutomationResourceWritesProjectJobsAndTriggers(t *testing.T) {
 	}
 	var createdTriggerResource contract.ResourceResponse
 	decodeHTTPJSON(t, createTriggerResp, &createdTriggerResource)
-	projectedTrigger := waitForAutomationTriggerPrompt(t, runtime, triggerID, `inspect {{ index .Data "session_id" }}`)
+	runtime.reconcileEvents.waitFor(t, automationpkg.TriggerResourceKind, triggerApplies)
+	projectedTrigger := assertAutomationTriggerPrompt(t, runtime, triggerID, `inspect {{ index .Data "session_id" }}`)
 	if projectedTrigger.Source != automationpkg.JobSourceDynamic {
 		t.Fatalf("projected trigger source = %q, want %q", projectedTrigger.Source, automationpkg.JobSourceDynamic)
 	}
 
+	triggerApplies = runtime.reconcileEvents.count(automationpkg.TriggerResourceKind)
 	updateTriggerResp := mustUnixRequest(
 		t,
 		runtime.client,
@@ -1057,8 +1041,7 @@ func TestUDSAutomationResourceWritesProjectJobsAndTriggers(t *testing.T) {
 		nil,
 	)
 	if updateTriggerResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(updateTriggerResp.Body)
-		_ = updateTriggerResp.Body.Close()
+		body := readAndCloseHTTPBody(t, updateTriggerResp)
 		t.Fatalf(
 			"update automation.trigger resource status = %d, want %d; body=%s",
 			updateTriggerResp.StatusCode,
@@ -1068,8 +1051,10 @@ func TestUDSAutomationResourceWritesProjectJobsAndTriggers(t *testing.T) {
 	}
 	var updatedTriggerResource contract.ResourceResponse
 	decodeHTTPJSON(t, updateTriggerResp, &updatedTriggerResource)
-	waitForAutomationTriggerPrompt(t, runtime, triggerID, `inspect resource {{ index .Data "session_id" }}`)
+	runtime.reconcileEvents.waitFor(t, automationpkg.TriggerResourceKind, triggerApplies)
+	assertAutomationTriggerPrompt(t, runtime, triggerID, `inspect resource {{ index .Data "session_id" }}`)
 
+	triggerApplies = runtime.reconcileEvents.count(automationpkg.TriggerResourceKind)
 	deleteTriggerResp := mustUnixRequest(
 		t,
 		runtime.client,
@@ -1079,8 +1064,7 @@ func TestUDSAutomationResourceWritesProjectJobsAndTriggers(t *testing.T) {
 		nil,
 	)
 	if deleteTriggerResp.StatusCode != http.StatusNoContent {
-		body, _ := io.ReadAll(deleteTriggerResp.Body)
-		_ = deleteTriggerResp.Body.Close()
+		body := readAndCloseHTTPBody(t, deleteTriggerResp)
 		t.Fatalf(
 			"delete automation.trigger resource status = %d, want %d; body=%s",
 			deleteTriggerResp.StatusCode,
@@ -1088,9 +1072,11 @@ func TestUDSAutomationResourceWritesProjectJobsAndTriggers(t *testing.T) {
 			string(body),
 		)
 	}
-	_ = deleteTriggerResp.Body.Close()
-	waitForAutomationTriggerMissing(t, runtime, triggerID)
+	closeHTTPBody(t, deleteTriggerResp.Body)
+	runtime.reconcileEvents.waitFor(t, automationpkg.TriggerResourceKind, triggerApplies)
+	assertAutomationTriggerMissing(t, runtime, triggerID)
 
+	jobApplies = runtime.reconcileEvents.count(automationpkg.JobResourceKind)
 	deleteJobResp := mustUnixRequest(
 		t,
 		runtime.client,
@@ -1100,8 +1086,7 @@ func TestUDSAutomationResourceWritesProjectJobsAndTriggers(t *testing.T) {
 		nil,
 	)
 	if deleteJobResp.StatusCode != http.StatusNoContent {
-		body, _ := io.ReadAll(deleteJobResp.Body)
-		_ = deleteJobResp.Body.Close()
+		body := readAndCloseHTTPBody(t, deleteJobResp)
 		t.Fatalf(
 			"delete automation.job resource status = %d, want %d; body=%s",
 			deleteJobResp.StatusCode,
@@ -1109,8 +1094,9 @@ func TestUDSAutomationResourceWritesProjectJobsAndTriggers(t *testing.T) {
 			string(body),
 		)
 	}
-	_ = deleteJobResp.Body.Close()
-	waitForAutomationJobMissing(t, runtime, jobID)
+	closeHTTPBody(t, deleteJobResp.Body)
+	runtime.reconcileEvents.waitFor(t, automationpkg.JobResourceKind, jobApplies)
+	assertAutomationJobMissing(t, runtime, jobID)
 
 	runAfterDeleteResp := mustUnixRequest(
 		t,
@@ -1121,8 +1107,7 @@ func TestUDSAutomationResourceWritesProjectJobsAndTriggers(t *testing.T) {
 		nil,
 	)
 	if runAfterDeleteResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(runAfterDeleteResp.Body)
-		_ = runAfterDeleteResp.Body.Close()
+		body := readAndCloseHTTPBody(t, runAfterDeleteResp)
 		t.Fatalf(
 			"get run after resource delete status = %d, want %d; body=%s",
 			runAfterDeleteResp.StatusCode,
@@ -1149,8 +1134,7 @@ func TestUDSAutomationTriggerRunsAndOmitsWebhookRoutes(t *testing.T) {
 		nil,
 	)
 	if resolveResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resolveResp.Body)
-		_ = resolveResp.Body.Close()
+		body := readAndCloseHTTPBody(t, resolveResp)
 		t.Fatalf("resolve workspace status = %d, want %d; body=%s", resolveResp.StatusCode, http.StatusOK, string(body))
 	}
 	var resolved contract.WorkspaceResponse
@@ -1178,8 +1162,7 @@ func TestUDSAutomationTriggerRunsAndOmitsWebhookRoutes(t *testing.T) {
 		nil,
 	)
 	if createResp.StatusCode != http.StatusCreated {
-		body, _ := io.ReadAll(createResp.Body)
-		_ = createResp.Body.Close()
+		body := readAndCloseHTTPBody(t, createResp)
 		t.Fatalf(
 			"create trigger status = %d, want %d; body=%s",
 			createResp.StatusCode,
@@ -1202,8 +1185,7 @@ func TestUDSAutomationTriggerRunsAndOmitsWebhookRoutes(t *testing.T) {
 		nil,
 	)
 	if updateResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(updateResp.Body)
-		_ = updateResp.Body.Close()
+		body := readAndCloseHTTPBody(t, updateResp)
 		t.Fatalf("update trigger status = %d, want %d; body=%s", updateResp.StatusCode, http.StatusOK, string(body))
 	}
 	var updated contract.TriggerResponse
@@ -1228,8 +1210,7 @@ func TestUDSAutomationTriggerRunsAndOmitsWebhookRoutes(t *testing.T) {
 			nil,
 		)
 		if runsResp.StatusCode != http.StatusOK {
-			body, _ := io.ReadAll(runsResp.Body)
-			_ = runsResp.Body.Close()
+			body := readAndCloseHTTPBody(t, runsResp)
 			t.Fatalf("trigger runs status = %d, want %d; body=%s", runsResp.StatusCode, http.StatusOK, string(body))
 		}
 
@@ -1249,8 +1230,7 @@ func TestUDSAutomationTriggerRunsAndOmitsWebhookRoutes(t *testing.T) {
 
 	runResp := mustUnixRequest(t, runtime.client, http.MethodGet, "http://unix/api/automation/runs/"+runID, nil, nil)
 	if runResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(runResp.Body)
-		_ = runResp.Body.Close()
+		body := readAndCloseHTTPBody(t, runResp)
 		t.Fatalf("get trigger run status = %d, want %d; body=%s", runResp.StatusCode, http.StatusOK, string(body))
 	}
 	var run contract.RunResponse
@@ -1268,8 +1248,7 @@ func TestUDSAutomationTriggerRunsAndOmitsWebhookRoutes(t *testing.T) {
 		nil,
 	)
 	if webhookResp.StatusCode != http.StatusNotFound {
-		body, _ := io.ReadAll(webhookResp.Body)
-		_ = webhookResp.Body.Close()
+		body := readAndCloseHTTPBody(t, webhookResp)
 		t.Fatalf(
 			"webhook route status = %d, want %d; body=%s",
 			webhookResp.StatusCode,
@@ -1277,7 +1256,7 @@ func TestUDSAutomationTriggerRunsAndOmitsWebhookRoutes(t *testing.T) {
 			string(body),
 		)
 	}
-	_ = webhookResp.Body.Close()
+	closeHTTPBody(t, webhookResp.Body)
 
 	deleteResp := mustUnixRequest(
 		t,
@@ -1288,8 +1267,7 @@ func TestUDSAutomationTriggerRunsAndOmitsWebhookRoutes(t *testing.T) {
 		nil,
 	)
 	if deleteResp.StatusCode != http.StatusNoContent {
-		body, _ := io.ReadAll(deleteResp.Body)
-		_ = deleteResp.Body.Close()
+		body := readAndCloseHTTPBody(t, deleteResp)
 		t.Fatalf(
 			"delete trigger status = %d, want %d; body=%s",
 			deleteResp.StatusCode,
@@ -1297,7 +1275,7 @@ func TestUDSAutomationTriggerRunsAndOmitsWebhookRoutes(t *testing.T) {
 			string(body),
 		)
 	}
-	_ = deleteResp.Body.Close()
+	closeHTTPBody(t, deleteResp.Body)
 }
 
 func TestUDSSessionStreamReconnectsWithLastEventID(t *testing.T) {
@@ -1316,12 +1294,10 @@ func TestUDSSessionStreamReconnectsWithLastEventID(t *testing.T) {
 		nil,
 	)
 	if streamResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(streamResp.Body)
-		_ = streamResp.Body.Close()
+		body := readAndCloseHTTPBody(t, streamResp)
 		t.Fatalf("session stream status = %d, want %d; body=%s", streamResp.StatusCode, http.StatusOK, string(body))
 	}
 	initial := collectLiveSSEUntilEvent(t, streamResp.Body, session.EventTypeSessionStopped, 2*time.Second)
-	_ = streamResp.Body.Close()
 	if len(initial) < 3 {
 		t.Fatalf("initial stream events = %d, want 3", len(initial))
 	}
@@ -1339,12 +1315,10 @@ func TestUDSSessionStreamReconnectsWithLastEventID(t *testing.T) {
 		headers,
 	)
 	if replayResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(replayResp.Body)
-		_ = replayResp.Body.Close()
+		body := readAndCloseHTTPBody(t, replayResp)
 		t.Fatalf("replay stream status = %d, want %d; body=%s", replayResp.StatusCode, http.StatusOK, string(body))
 	}
 	replayed := collectLiveSSE(t, replayResp.Body, 2, 2*time.Second)
-	_ = replayResp.Body.Close()
 	if len(replayed) < 2 {
 		t.Fatalf("replayed events = %d, want 2", len(replayed))
 	}
@@ -1393,7 +1367,9 @@ func TestUDSShutdownWaitsForInflightRequests(t *testing.T) {
 		if !released {
 			close(release)
 		}
-		_ = server.Shutdown(context.Background())
+		if err := server.Shutdown(context.Background()); err != nil {
+			t.Errorf("server.Shutdown() error = %v", err)
+		}
 	}()
 
 	client := newUnixClient(t, socketPath)
@@ -1415,16 +1391,17 @@ func TestUDSShutdownWaitsForInflightRequests(t *testing.T) {
 	}
 
 	shutdownDone := make(chan error, 1)
+	shutdownStarted := registerUDSServerShutdownSignal(t, server)
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
 		shutdownDone <- server.Shutdown(ctx)
 	}()
-
+	waitForUDSServerSignal(t, shutdownStarted, "UDS shutdown to start draining")
 	select {
 	case err := <-shutdownDone:
 		t.Fatalf("Shutdown() returned early: %v", err)
-	case <-time.After(100 * time.Millisecond):
+	default:
 	}
 
 	close(release)
@@ -1444,11 +1421,10 @@ func TestUDSShutdownWaitsForInflightRequests(t *testing.T) {
 		t.Fatalf("request error = %v", err)
 	case resp := <-respCh:
 		if resp.StatusCode != http.StatusOK {
-			body, _ := io.ReadAll(resp.Body)
-			_ = resp.Body.Close()
+			body := readAndCloseHTTPBody(t, resp)
 			t.Fatalf("request status = %d, want %d; body=%s", resp.StatusCode, http.StatusOK, string(body))
 		}
-		_ = resp.Body.Close()
+		closeHTTPBody(t, resp.Body)
 	case <-time.After(2 * time.Second):
 		t.Fatal("timed out waiting for request response")
 	}
@@ -1546,8 +1522,7 @@ func TestUDSSessionParticipationRoundTrip(t *testing.T) {
 		nil,
 	)
 	if createResp.StatusCode != http.StatusCreated {
-		body, _ := io.ReadAll(createResp.Body)
-		_ = createResp.Body.Close()
+		body := readAndCloseHTTPBody(t, createResp)
 		t.Fatalf(
 			"create session status = %d, want %d; body=%s",
 			createResp.StatusCode,
@@ -1573,8 +1548,7 @@ func TestUDSSessionParticipationRoundTrip(t *testing.T) {
 
 	listResp := mustUnixRequest(t, runtime.client, http.MethodGet, "http://unix/api/sessions", nil, nil)
 	if listResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(listResp.Body)
-		_ = listResp.Body.Close()
+		body := readAndCloseHTTPBody(t, listResp)
 		t.Fatalf("list sessions status = %d, want %d; body=%s", listResp.StatusCode, http.StatusOK, string(body))
 	}
 	var listed struct {
@@ -1603,8 +1577,7 @@ func TestUDSSessionParticipationRoundTrip(t *testing.T) {
 		nil,
 	)
 	if statusResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(statusResp.Body)
-		_ = statusResp.Body.Close()
+		body := readAndCloseHTTPBody(t, statusResp)
 		t.Fatalf("status after stop = %d, want %d; body=%s", statusResp.StatusCode, http.StatusOK, string(body))
 	}
 	var stopped struct {
@@ -1631,8 +1604,7 @@ func TestUDSSessionParticipationRoundTrip(t *testing.T) {
 		nil,
 	)
 	if resumeResp.StatusCode != http.StatusConflict {
-		body, _ := io.ReadAll(resumeResp.Body)
-		_ = resumeResp.Body.Close()
+		body := readAndCloseHTTPBody(t, resumeResp)
 		t.Fatalf(
 			"attach stopped session status = %d, want %d; body=%s",
 			resumeResp.StatusCode,
@@ -1686,8 +1658,7 @@ func TestUDSTaskRoutesRoundTrip(t *testing.T) {
 		nil,
 	)
 	if listResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(listResp.Body)
-		_ = listResp.Body.Close()
+		body := readAndCloseHTTPBody(t, listResp)
 		t.Fatalf("list tasks status = %d, want %d; body=%s", listResp.StatusCode, http.StatusOK, string(body))
 	}
 	var listed contract.TasksResponse
@@ -1698,8 +1669,7 @@ func TestUDSTaskRoutesRoundTrip(t *testing.T) {
 
 	getResp := mustUnixRequest(t, runtime.client, http.MethodGet, "http://unix/api/tasks/"+created.ID, nil, nil)
 	if getResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(getResp.Body)
-		_ = getResp.Body.Close()
+		body := readAndCloseHTTPBody(t, getResp)
 		t.Fatalf("get task status = %d, want %d; body=%s", getResp.StatusCode, http.StatusOK, string(body))
 	}
 	var detail contract.TaskDetailResponse
@@ -1717,8 +1687,7 @@ func TestUDSTaskRoutesRoundTrip(t *testing.T) {
 		"clear_owner":true
 	}`), nil)
 	if updateResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(updateResp.Body)
-		_ = updateResp.Body.Close()
+		body := readAndCloseHTTPBody(t, updateResp)
 		t.Fatalf("update task status = %d, want %d; body=%s", updateResp.StatusCode, http.StatusOK, string(body))
 	}
 	var updated contract.TaskResponse
@@ -1748,8 +1717,7 @@ func TestUDSTaskRoutesRoundTrip(t *testing.T) {
 		nil,
 	)
 	if updatedListResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(updatedListResp.Body)
-		_ = updatedListResp.Body.Close()
+		body := readAndCloseHTTPBody(t, updatedListResp)
 		t.Fatalf(
 			"updated list tasks status = %d, want %d; body=%s",
 			updatedListResp.StatusCode,
@@ -1976,8 +1944,7 @@ func TestUDSTaskRunLifecycleRoutesRoundTrip(t *testing.T) {
 		nil,
 	)
 	if listQueuedResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(listQueuedResp.Body)
-		_ = listQueuedResp.Body.Close()
+		body := readAndCloseHTTPBody(t, listQueuedResp)
 		t.Fatalf(
 			"list queued runs status = %d, want %d; body=%s",
 			listQueuedResp.StatusCode,
@@ -1991,19 +1958,6 @@ func TestUDSTaskRunLifecycleRoutesRoundTrip(t *testing.T) {
 		t.Fatalf("queued runs = %#v, want queued run", queuedList.Runs)
 	}
 
-	seedIntegrationTaskRunClaimed(t, runtime, queued.ID)
-	claimedRun, err := runtime.registry.GetTaskRun(context.Background(), queued.ID)
-	if err != nil {
-		t.Fatalf("GetTaskRun(%q) error = %v", queued.ID, err)
-	}
-	claimed := core.TaskRunPayloadFromRun(&claimedRun)
-	if claimed.Status != taskpkg.TaskRunStatusClaimed {
-		t.Fatalf("claimed status = %q, want %q", claimed.Status, taskpkg.TaskRunStatusClaimed)
-	}
-	if claimed.ClaimedBy == nil || claimed.ClaimedBy.Ref != "local-user" {
-		t.Fatalf("claimed claimed_by = %#v, want local-user", claimed.ClaimedBy)
-	}
-
 	startResp := mustUnixRequest(
 		t,
 		runtime.client,
@@ -2013,8 +1967,7 @@ func TestUDSTaskRunLifecycleRoutesRoundTrip(t *testing.T) {
 		nil,
 	)
 	if startResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(startResp.Body)
-		_ = startResp.Body.Close()
+		body := readAndCloseHTTPBody(t, startResp)
 		t.Fatalf("start run status = %d, want %d; body=%s", startResp.StatusCode, http.StatusOK, string(body))
 	}
 	var started contract.TaskRunResponse
@@ -2035,8 +1988,7 @@ func TestUDSTaskRunLifecycleRoutesRoundTrip(t *testing.T) {
 		nil,
 	)
 	if completeResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(completeResp.Body)
-		_ = completeResp.Body.Close()
+		body := readAndCloseHTTPBody(t, completeResp)
 		t.Fatalf("complete run status = %d, want %d; body=%s", completeResp.StatusCode, http.StatusOK, string(body))
 	}
 	var completed contract.TaskRunResponse
@@ -2046,7 +1998,6 @@ func TestUDSTaskRunLifecycleRoutesRoundTrip(t *testing.T) {
 	}
 
 	secondRun := enqueueIntegrationTaskRun(t, runtime, created.ID, `{"idempotency_key":"enqueue-2"}`)
-	seedIntegrationTaskRunClaimed(t, runtime, secondRun.ID)
 	attachResp := mustUnixRequest(
 		t,
 		runtime.client,
@@ -2056,8 +2007,7 @@ func TestUDSTaskRunLifecycleRoutesRoundTrip(t *testing.T) {
 		nil,
 	)
 	if attachResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(attachResp.Body)
-		_ = attachResp.Body.Close()
+		body := readAndCloseHTTPBody(t, attachResp)
 		t.Fatalf("attach run session status = %d, want %d; body=%s", attachResp.StatusCode, http.StatusOK, string(body))
 	}
 	var attached contract.TaskRunResponse
@@ -2078,8 +2028,7 @@ func TestUDSTaskRunLifecycleRoutesRoundTrip(t *testing.T) {
 		nil,
 	)
 	if failResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(failResp.Body)
-		_ = failResp.Body.Close()
+		body := readAndCloseHTTPBody(t, failResp)
 		t.Fatalf("fail run status = %d, want %d; body=%s", failResp.StatusCode, http.StatusOK, string(body))
 	}
 	var failed contract.TaskRunResponse
@@ -2098,8 +2047,7 @@ func TestUDSTaskRunLifecycleRoutesRoundTrip(t *testing.T) {
 		nil,
 	)
 	if cancelResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(cancelResp.Body)
-		_ = cancelResp.Body.Close()
+		body := readAndCloseHTTPBody(t, cancelResp)
 		t.Fatalf("cancel run status = %d, want %d; body=%s", cancelResp.StatusCode, http.StatusOK, string(body))
 	}
 	var cancelled contract.TaskRunResponse
@@ -2117,8 +2065,7 @@ func TestUDSTaskRunLifecycleRoutesRoundTrip(t *testing.T) {
 		nil,
 	)
 	if finalRunsResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(finalRunsResp.Body)
-		_ = finalRunsResp.Body.Close()
+		body := readAndCloseHTTPBody(t, finalRunsResp)
 		t.Fatalf("final list runs status = %d, want %d; body=%s", finalRunsResp.StatusCode, http.StatusOK, string(body))
 	}
 	var finalRuns contract.TaskRunsResponse
@@ -2158,8 +2105,7 @@ func TestUDSTaskPublishRunDetailAndLiveRoutesRoundTrip(t *testing.T) {
 		nil,
 	)
 	if publishResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(publishResp.Body)
-		_ = publishResp.Body.Close()
+		body := readAndCloseHTTPBody(t, publishResp)
 		t.Fatalf("publish task status = %d, want %d; body=%s", publishResp.StatusCode, http.StatusOK, string(body))
 	}
 	var published contract.TaskExecutionResponse
@@ -2172,8 +2118,6 @@ func TestUDSTaskPublishRunDetailAndLiveRoutesRoundTrip(t *testing.T) {
 	}
 
 	run := published.Run
-	seedIntegrationTaskRunClaimed(t, runtime, run.ID)
-
 	startResp := mustUnixRequest(
 		t,
 		runtime.client,
@@ -2183,8 +2127,7 @@ func TestUDSTaskPublishRunDetailAndLiveRoutesRoundTrip(t *testing.T) {
 		nil,
 	)
 	if startResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(startResp.Body)
-		_ = startResp.Body.Close()
+		body := readAndCloseHTTPBody(t, startResp)
 		t.Fatalf("start run status = %d, want %d; body=%s", startResp.StatusCode, http.StatusOK, string(body))
 	}
 	var started contract.TaskRunResponse
@@ -2195,8 +2138,7 @@ func TestUDSTaskPublishRunDetailAndLiveRoutesRoundTrip(t *testing.T) {
 
 	runDetailResp := mustUnixRequest(t, runtime.client, http.MethodGet, "http://unix/api/task-runs/"+run.ID, nil, nil)
 	if runDetailResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(runDetailResp.Body)
-		_ = runDetailResp.Body.Close()
+		body := readAndCloseHTTPBody(t, runDetailResp)
 		t.Fatalf("run detail status = %d, want %d; body=%s", runDetailResp.StatusCode, http.StatusOK, string(body))
 	}
 	var runDetail contract.TaskRunDetailResponse
@@ -2217,8 +2159,7 @@ func TestUDSTaskPublishRunDetailAndLiveRoutesRoundTrip(t *testing.T) {
 		nil,
 	)
 	if timelineResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(timelineResp.Body)
-		_ = timelineResp.Body.Close()
+		body := readAndCloseHTTPBody(t, timelineResp)
 		t.Fatalf("timeline status = %d, want %d; body=%s", timelineResp.StatusCode, http.StatusOK, string(body))
 	}
 	var timeline contract.TaskTimelineResponse
@@ -2241,8 +2182,7 @@ func TestUDSTaskPublishRunDetailAndLiveRoutesRoundTrip(t *testing.T) {
 
 	treeResp := mustUnixRequest(t, runtime.client, http.MethodGet, "http://unix/api/tasks/"+draft.ID+"/tree", nil, nil)
 	if treeResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(treeResp.Body)
-		_ = treeResp.Body.Close()
+		body := readAndCloseHTTPBody(t, treeResp)
 		t.Fatalf("tree status = %d, want %d; body=%s", treeResp.StatusCode, http.StatusOK, string(body))
 	}
 	var tree contract.TaskTreeResponse
@@ -2260,15 +2200,14 @@ func TestUDSTaskPublishRunDetailAndLiveRoutesRoundTrip(t *testing.T) {
 		nil,
 	)
 	if streamResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(streamResp.Body)
-		_ = streamResp.Body.Close()
+		body := readAndCloseHTTPBody(t, streamResp)
 		t.Fatalf("task stream status = %d, want %d; body=%s", streamResp.StatusCode, http.StatusOK, string(body))
 	}
 	if got := streamResp.Header.Get("Content-Type"); !strings.HasPrefix(got, "text/event-stream") {
+		closeHTTPBody(t, streamResp.Body)
 		t.Fatalf("task stream content-type = %q, want text/event-stream", got)
 	}
 	records := collectLiveSSE(t, streamResp.Body, 1, 2*time.Second)
-	_ = streamResp.Body.Close()
 	if len(records) == 0 {
 		t.Fatal("task stream records = 0, want at least one SSE event")
 	}
@@ -2322,8 +2261,7 @@ func TestUDSTaskDashboardInboxApprovalAndTriageRoutesRoundTrip(t *testing.T) {
 		nil,
 	)
 	if dashboardResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(dashboardResp.Body)
-		_ = dashboardResp.Body.Close()
+		body := readAndCloseHTTPBody(t, dashboardResp)
 		t.Fatalf("dashboard status = %d, want %d; body=%s", dashboardResp.StatusCode, http.StatusOK, string(body))
 	}
 	var dashboard contract.TaskDashboardResponse
@@ -2347,8 +2285,7 @@ func TestUDSTaskDashboardInboxApprovalAndTriageRoutesRoundTrip(t *testing.T) {
 		nil,
 	)
 	if inboxResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(inboxResp.Body)
-		_ = inboxResp.Body.Close()
+		body := readAndCloseHTTPBody(t, inboxResp)
 		t.Fatalf("inbox approvals status = %d, want %d; body=%s", inboxResp.StatusCode, http.StatusOK, string(body))
 	}
 	var inbox contract.TaskInboxResponse
@@ -2371,8 +2308,7 @@ func TestUDSTaskDashboardInboxApprovalAndTriageRoutesRoundTrip(t *testing.T) {
 		nil,
 	)
 	if approveResp.StatusCode != http.StatusCreated {
-		body, _ := io.ReadAll(approveResp.Body)
-		_ = approveResp.Body.Close()
+		body := readAndCloseHTTPBody(t, approveResp)
 		t.Fatalf("approve status = %d, want %d; body=%s", approveResp.StatusCode, http.StatusCreated, string(body))
 	}
 	var approved contract.TaskExecutionResponse
@@ -2393,8 +2329,7 @@ func TestUDSTaskDashboardInboxApprovalAndTriageRoutesRoundTrip(t *testing.T) {
 		nil,
 	)
 	if approveAgainResp.StatusCode != http.StatusCreated {
-		body, _ := io.ReadAll(approveAgainResp.Body)
-		_ = approveAgainResp.Body.Close()
+		body := readAndCloseHTTPBody(t, approveAgainResp)
 		t.Fatalf(
 			"approve again status = %d, want %d; body=%s",
 			approveAgainResp.StatusCode,
@@ -2417,8 +2352,7 @@ func TestUDSTaskDashboardInboxApprovalAndTriageRoutesRoundTrip(t *testing.T) {
 		nil,
 	)
 	if rejectResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(rejectResp.Body)
-		_ = rejectResp.Body.Close()
+		body := readAndCloseHTTPBody(t, rejectResp)
 		t.Fatalf("reject status = %d, want %d; body=%s", rejectResp.StatusCode, http.StatusOK, string(body))
 	}
 	var rejected contract.TaskResponse
@@ -2436,8 +2370,7 @@ func TestUDSTaskDashboardInboxApprovalAndTriageRoutesRoundTrip(t *testing.T) {
 		nil,
 	)
 	if readResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(readResp.Body)
-		_ = readResp.Body.Close()
+		body := readAndCloseHTTPBody(t, readResp)
 		t.Fatalf("triage read status = %d, want %d; body=%s", readResp.StatusCode, http.StatusOK, string(body))
 	}
 	var readState contract.TaskTriageStateResponse
@@ -2455,8 +2388,7 @@ func TestUDSTaskDashboardInboxApprovalAndTriageRoutesRoundTrip(t *testing.T) {
 		nil,
 	)
 	if archiveResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(archiveResp.Body)
-		_ = archiveResp.Body.Close()
+		body := readAndCloseHTTPBody(t, archiveResp)
 		t.Fatalf("triage archive status = %d, want %d; body=%s", archiveResp.StatusCode, http.StatusOK, string(body))
 	}
 	var archived contract.TaskTriageStateResponse
@@ -2474,8 +2406,7 @@ func TestUDSTaskDashboardInboxApprovalAndTriageRoutesRoundTrip(t *testing.T) {
 		nil,
 	)
 	if dismissResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(dismissResp.Body)
-		_ = dismissResp.Body.Close()
+		body := readAndCloseHTTPBody(t, dismissResp)
 		t.Fatalf("triage dismiss status = %d, want %d; body=%s", dismissResp.StatusCode, http.StatusOK, string(body))
 	}
 	var dismissed contract.TaskTriageStateResponse
@@ -2493,8 +2424,7 @@ func TestUDSTaskDashboardInboxApprovalAndTriageRoutesRoundTrip(t *testing.T) {
 		nil,
 	)
 	if readMissingResp.StatusCode != http.StatusNotFound {
-		body, _ := io.ReadAll(readMissingResp.Body)
-		_ = readMissingResp.Body.Close()
+		body := readAndCloseHTTPBody(t, readMissingResp)
 		t.Fatalf(
 			"triage read missing status = %d, want %d; body=%s",
 			readMissingResp.StatusCode,
@@ -2502,7 +2432,7 @@ func TestUDSTaskDashboardInboxApprovalAndTriageRoutesRoundTrip(t *testing.T) {
 			string(body),
 		)
 	}
-	_ = readMissingResp.Body.Close()
+	closeHTTPBody(t, readMissingResp.Body)
 
 	inboxAfterResp := mustUnixRequest(
 		t,
@@ -2513,8 +2443,7 @@ func TestUDSTaskDashboardInboxApprovalAndTriageRoutesRoundTrip(t *testing.T) {
 		nil,
 	)
 	if inboxAfterResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(inboxAfterResp.Body)
-		_ = inboxAfterResp.Body.Close()
+		body := readAndCloseHTTPBody(t, inboxAfterResp)
 		t.Fatalf(
 			"inbox approvals after actions status = %d, want %d; body=%s",
 			inboxAfterResp.StatusCode,
@@ -2537,8 +2466,7 @@ func TestUDSTaskDashboardInboxApprovalAndTriageRoutesRoundTrip(t *testing.T) {
 		nil,
 	)
 	if archivedInboxResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(archivedInboxResp.Body)
-		_ = archivedInboxResp.Body.Close()
+		body := readAndCloseHTTPBody(t, archivedInboxResp)
 		t.Fatalf(
 			"inbox archived status = %d, want %d; body=%s",
 			archivedInboxResp.StatusCode,
@@ -2557,25 +2485,80 @@ func TestUDSTaskDashboardInboxApprovalAndTriageRoutesRoundTrip(t *testing.T) {
 }
 
 type integrationRuntime struct {
-	client         *http.Client
-	server         *Server
-	manager        *session.Manager
-	tasks          *taskpkg.Service
-	observer       *observe.Observer
-	registry       *globaldb.GlobalDB
-	bridges        *integrationBridgeService
-	memory         *memory.Store
-	dream          *integrationDreamTrigger
-	resourceDriver resources.ReconcileDriver
-	toolCatalog    *integrationToolCatalog
-	socket         string
-	workspace      string
+	client          *http.Client
+	server          *Server
+	manager         *session.Manager
+	tasks           *taskpkg.Service
+	observer        *observe.Observer
+	registry        *globaldb.GlobalDB
+	bridges         *integrationBridgeService
+	memory          *memory.Store
+	dream           *integrationDreamTrigger
+	resourceDriver  resources.ReconcileDriver
+	reconcileEvents *integrationReconcileEventSink
+	toolCatalog     *integrationToolCatalog
+	socket          string
+	workspace       string
 }
 
 type integrationToolCatalog struct {
 	mu       sync.Mutex
 	revision int64
 	records  []resources.Record[toolspkg.Tool]
+	changed  chan struct{}
+}
+
+type integrationReconcileEventSink struct {
+	mu      sync.Mutex
+	counts  map[resources.ResourceKind]uint64
+	changed chan struct{}
+}
+
+func newIntegrationReconcileEventSink() *integrationReconcileEventSink {
+	return &integrationReconcileEventSink{
+		counts:  make(map[resources.ResourceKind]uint64),
+		changed: make(chan struct{}),
+	}
+}
+
+func (s *integrationReconcileEventSink) ObserveReconcileEvent(_ context.Context, event resources.ReconcileEvent) {
+	if event.Type != resources.ReconcileEventApplied {
+		return
+	}
+
+	s.mu.Lock()
+	s.counts[event.Kind.Normalize()]++
+	close(s.changed)
+	s.changed = make(chan struct{})
+	s.mu.Unlock()
+}
+
+func (s *integrationReconcileEventSink) count(kind resources.ResourceKind) uint64 {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.counts[kind.Normalize()]
+}
+
+func (s *integrationReconcileEventSink) waitFor(t *testing.T, kind resources.ResourceKind, after uint64) {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
+	defer cancel()
+	for {
+		s.mu.Lock()
+		count := s.counts[kind.Normalize()]
+		changed := s.changed
+		s.mu.Unlock()
+		if count > after {
+			return
+		}
+
+		select {
+		case <-changed:
+		case <-ctx.Done():
+			t.Fatalf("timed out waiting for reconcile apply of %q after %d events: %v", kind, after, ctx.Err())
+		}
+	}
 }
 
 type integrationToolPlan struct {
@@ -2676,11 +2659,17 @@ func (p *integrationAutomationTriggerProjector) Apply(ctx context.Context, plan 
 	return p.manager.ApplyTriggerResourceState(ctx, plan)
 }
 
+func newIntegrationToolCatalog() *integrationToolCatalog {
+	return &integrationToolCatalog{changed: make(chan struct{})}
+}
+
 func (c *integrationToolCatalog) replace(revision int64, records []resources.Record[toolspkg.Tool]) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.revision = revision
 	c.records = cloneIntegrationToolRecords(records)
+	close(c.changed)
+	c.changed = make(chan struct{})
 }
 
 func (c *integrationToolCatalog) snapshot() (int64, []resources.Record[toolspkg.Tool]) {
@@ -2711,7 +2700,7 @@ func cloneIntegrationTool(spec toolspkg.Tool) toolspkg.Tool {
 	return cloned
 }
 
-func waitForAutomationJobPrompt(
+func assertAutomationJobPrompt(
 	t *testing.T,
 	runtime integrationRuntime,
 	jobID string,
@@ -2719,53 +2708,43 @@ func waitForAutomationJobPrompt(
 ) contract.JobPayload {
 	t.Helper()
 
-	deadline := time.Now().Add(2 * time.Second)
-	var last contract.JobResponse
-	var lastStatus int
-	for time.Now().Before(deadline) {
-		resp := mustUnixRequest(t, runtime.client, http.MethodGet, "http://unix/api/automation/jobs/"+jobID, nil, nil)
-		lastStatus = resp.StatusCode
-		if resp.StatusCode == http.StatusOK {
-			last = contract.JobResponse{}
-			decodeHTTPJSON(t, resp, &last)
-			if last.Job.Prompt == wantPrompt {
-				return last.Job
-			}
-		} else {
-			_ = resp.Body.Close()
-		}
-		time.Sleep(20 * time.Millisecond)
+	resp := mustUnixRequest(t, runtime.client, http.MethodGet, "http://unix/api/automation/jobs/"+jobID, nil, nil)
+	if resp.StatusCode != http.StatusOK {
+		body := readAndCloseHTTPBody(t, resp)
+		t.Fatalf(
+			"get automation job %q status = %d, want %d; body=%s",
+			jobID,
+			resp.StatusCode,
+			http.StatusOK,
+			string(body),
+		)
 	}
-
-	t.Fatalf(
-		"timed out waiting for automation job %q prompt %q (status=%d, last=%#v)",
-		jobID,
-		wantPrompt,
-		lastStatus,
-		last.Job,
-	)
-	return contract.JobPayload{}
+	var payload contract.JobResponse
+	decodeHTTPJSON(t, resp, &payload)
+	if payload.Job.Prompt != wantPrompt {
+		t.Fatalf("automation job %q prompt = %q, want %q", jobID, payload.Job.Prompt, wantPrompt)
+	}
+	return payload.Job
 }
 
-func waitForAutomationJobMissing(t *testing.T, runtime integrationRuntime, jobID string) {
+func assertAutomationJobMissing(t *testing.T, runtime integrationRuntime, jobID string) {
 	t.Helper()
 
-	deadline := time.Now().Add(2 * time.Second)
-	var lastStatus int
-	for time.Now().Before(deadline) {
-		resp := mustUnixRequest(t, runtime.client, http.MethodGet, "http://unix/api/automation/jobs/"+jobID, nil, nil)
-		lastStatus = resp.StatusCode
-		_ = resp.Body.Close()
-		if resp.StatusCode == http.StatusNotFound {
-			return
-		}
-		time.Sleep(20 * time.Millisecond)
+	resp := mustUnixRequest(t, runtime.client, http.MethodGet, "http://unix/api/automation/jobs/"+jobID, nil, nil)
+	if resp.StatusCode != http.StatusNotFound {
+		body := readAndCloseHTTPBody(t, resp)
+		t.Fatalf(
+			"get deleted automation job %q status = %d, want %d; body=%s",
+			jobID,
+			resp.StatusCode,
+			http.StatusNotFound,
+			string(body),
+		)
 	}
-
-	t.Fatalf("timed out waiting for automation job %q to be deleted (last status=%d)", jobID, lastStatus)
+	closeHTTPBody(t, resp.Body)
 }
 
-func waitForAutomationTriggerPrompt(
+func assertAutomationTriggerPrompt(
 	t *testing.T,
 	runtime integrationRuntime,
 	triggerID string,
@@ -2773,79 +2752,82 @@ func waitForAutomationTriggerPrompt(
 ) contract.TriggerPayload {
 	t.Helper()
 
-	deadline := time.Now().Add(2 * time.Second)
-	var last contract.TriggerResponse
-	var lastStatus int
-	for time.Now().Before(deadline) {
-		resp := mustUnixRequest(
-			t,
-			runtime.client,
-			http.MethodGet,
-			"http://unix/api/automation/triggers/"+triggerID,
-			nil,
-			nil,
-		)
-		lastStatus = resp.StatusCode
-		if resp.StatusCode == http.StatusOK {
-			last = contract.TriggerResponse{}
-			decodeHTTPJSON(t, resp, &last)
-			if last.Trigger.Prompt == wantPrompt {
-				return last.Trigger
-			}
-		} else {
-			_ = resp.Body.Close()
-		}
-		time.Sleep(20 * time.Millisecond)
-	}
-
-	t.Fatalf(
-		"timed out waiting for automation trigger %q prompt %q (status=%d, last=%#v)",
-		triggerID,
-		wantPrompt,
-		lastStatus,
-		last.Trigger,
+	resp := mustUnixRequest(
+		t,
+		runtime.client,
+		http.MethodGet,
+		"http://unix/api/automation/triggers/"+triggerID,
+		nil,
+		nil,
 	)
-	return contract.TriggerPayload{}
+	if resp.StatusCode != http.StatusOK {
+		body := readAndCloseHTTPBody(t, resp)
+		t.Fatalf(
+			"get automation trigger %q status = %d, want %d; body=%s",
+			triggerID,
+			resp.StatusCode,
+			http.StatusOK,
+			string(body),
+		)
+	}
+	var payload contract.TriggerResponse
+	decodeHTTPJSON(t, resp, &payload)
+	if payload.Trigger.Prompt != wantPrompt {
+		t.Fatalf("automation trigger %q prompt = %q, want %q", triggerID, payload.Trigger.Prompt, wantPrompt)
+	}
+	return payload.Trigger
 }
 
-func waitForAutomationTriggerMissing(t *testing.T, runtime integrationRuntime, triggerID string) {
+func assertAutomationTriggerMissing(t *testing.T, runtime integrationRuntime, triggerID string) {
 	t.Helper()
 
-	deadline := time.Now().Add(2 * time.Second)
-	var lastStatus int
-	for time.Now().Before(deadline) {
-		resp := mustUnixRequest(
-			t,
-			runtime.client,
-			http.MethodGet,
-			"http://unix/api/automation/triggers/"+triggerID,
-			nil,
-			nil,
+	resp := mustUnixRequest(
+		t,
+		runtime.client,
+		http.MethodGet,
+		"http://unix/api/automation/triggers/"+triggerID,
+		nil,
+		nil,
+	)
+	if resp.StatusCode != http.StatusNotFound {
+		body := readAndCloseHTTPBody(t, resp)
+		t.Fatalf(
+			"get deleted automation trigger %q status = %d, want %d; body=%s",
+			triggerID,
+			resp.StatusCode,
+			http.StatusNotFound,
+			string(body),
 		)
-		lastStatus = resp.StatusCode
-		_ = resp.Body.Close()
-		if resp.StatusCode == http.StatusNotFound {
-			return
-		}
-		time.Sleep(20 * time.Millisecond)
 	}
-
-	t.Fatalf("timed out waiting for automation trigger %q to be deleted (last status=%d)", triggerID, lastStatus)
+	closeHTTPBody(t, resp.Body)
 }
 
 func waitForProjectedToolRevision(t *testing.T, runtime integrationRuntime, want int64) {
 	t.Helper()
 
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		revision, _ := runtime.toolCatalog.snapshot()
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
+	defer cancel()
+	for {
+		runtime.toolCatalog.mu.Lock()
+		revision := runtime.toolCatalog.revision
+		changed := runtime.toolCatalog.changed
+		runtime.toolCatalog.mu.Unlock()
 		if revision >= want {
 			return
 		}
-		time.Sleep(10 * time.Millisecond)
+		select {
+		case <-changed:
+		case <-ctx.Done():
+			revision, records := runtime.toolCatalog.snapshot()
+			t.Fatalf(
+				"timed out waiting for projected tool revision %d (got %d, records=%#v): %v",
+				want,
+				revision,
+				records,
+				ctx.Err(),
+			)
+		}
 	}
-	revision, records := runtime.toolCatalog.snapshot()
-	t.Fatalf("timed out waiting for projected tool revision %d (got %d, records=%#v)", want, revision, records)
 }
 
 type integrationTaskSessionExecutor struct {
@@ -3239,7 +3221,7 @@ func newIntegrationRuntime(t *testing.T) integrationRuntime {
 	}
 	t.Cleanup(func() {
 		if err := registry.Close(context.Background()); err != nil {
-			t.Fatalf("registry.Close() error = %v", err)
+			t.Errorf("registry.Close() error = %v", err)
 		}
 	})
 	resourceKernel, err := resources.NewKernel(registry.DB())
@@ -3321,11 +3303,19 @@ func newIntegrationRuntime(t *testing.T) integrationRuntime {
 		session.WithNotifier(fanout),
 		session.WithSandboxRegistry(sandboxRegistry),
 		session.WithSessionCatalog(registry),
+		session.WithSessionPromptAdmissionStore(registry),
 		session.WithParticipationResolver(participationResolver),
 	)
 	if err != nil {
 		t.Fatalf("session.NewManager() error = %v", err)
 	}
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.WithoutCancel(t.Context()), 2*time.Second)
+		defer cancel()
+		if err := manager.Shutdown(ctx); err != nil {
+			t.Errorf("manager.Shutdown() error = %v", err)
+		}
+	})
 	windowManager, err := windowmanager.NewService(
 		windowmanager.NewMemoryRepository(),
 		windowmanager.NewMemoryWorkspaceResolver("window-manager-workspace"),
@@ -3337,7 +3327,7 @@ func newIntegrationRuntime(t *testing.T) integrationRuntime {
 	}
 	t.Cleanup(func() {
 		if closeErr := windowManager.Close(); closeErr != nil {
-			t.Fatalf("windowManager.Close() error = %v", closeErr)
+			t.Errorf("windowManager.Close() error = %v", closeErr)
 		}
 	})
 
@@ -3365,7 +3355,7 @@ func newIntegrationRuntime(t *testing.T) integrationRuntime {
 	}
 	t.Cleanup(func() {
 		if err := memoryStore.CloseCatalog(context.Background()); err != nil {
-			t.Fatalf("memoryStore.CloseCatalog() error = %v", err)
+			t.Errorf("memoryStore.CloseCatalog() error = %v", err)
 		}
 	})
 	bridgeService := newIntegrationBridgeService(registry)
@@ -3395,7 +3385,7 @@ func newIntegrationRuntime(t *testing.T) integrationRuntime {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
 		if err := automationManager.Shutdown(ctx); err != nil {
-			t.Fatalf("automationManager.Shutdown() error = %v", err)
+			t.Errorf("automationManager.Shutdown() error = %v", err)
 		}
 	})
 
@@ -3409,7 +3399,8 @@ func newIntegrationRuntime(t *testing.T) integrationRuntime {
 		t.Fatalf("task.NewManager() error = %v", err)
 	}
 
-	toolCatalog := &integrationToolCatalog{}
+	toolCatalog := newIntegrationToolCatalog()
+	reconcileEvents := newIntegrationReconcileEventSink()
 	toolRegistration, err := resources.NewTypedProjectorRegistration(
 		toolCodec,
 		&integrationToolProjector{catalog: toolCatalog},
@@ -3436,13 +3427,14 @@ func newIntegrationRuntime(t *testing.T) integrationRuntime {
 		resourceActor,
 		[]resources.ProjectorRegistration{toolRegistration, jobRegistration, triggerRegistration},
 		resources.WithReconcileLogger(discardLogger()),
+		resources.WithReconcileEventSink(reconcileEvents),
 	)
 	if err != nil {
 		t.Fatalf("resources.NewReconcileDriver() error = %v", err)
 	}
 	t.Cleanup(func() {
 		if err := resourceDriver.Close(context.Background()); err != nil {
-			t.Fatalf("resourceDriver.Close() error = %v", err)
+			t.Errorf("resourceDriver.Close() error = %v", err)
 		}
 	})
 	resourceService, err := core.NewOperatorResourceService(&core.ResourceServiceConfig{
@@ -3482,24 +3474,25 @@ func newIntegrationRuntime(t *testing.T) integrationRuntime {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
 		if err := server.Shutdown(ctx); err != nil {
-			t.Fatalf("server.Shutdown() error = %v", err)
+			t.Errorf("server.Shutdown() error = %v", err)
 		}
 	})
 
 	return integrationRuntime{
-		client:         newUnixClient(t, socketPath),
-		server:         server,
-		manager:        manager,
-		tasks:          taskManager,
-		observer:       observer,
-		registry:       registry,
-		bridges:        bridgeService,
-		memory:         memoryStore,
-		dream:          dreamTrigger,
-		resourceDriver: resourceDriver,
-		toolCatalog:    toolCatalog,
-		socket:         socketPath,
-		workspace:      workspace,
+		client:          newUnixClient(t, socketPath),
+		server:          server,
+		manager:         manager,
+		tasks:           taskManager,
+		observer:        observer,
+		registry:        registry,
+		bridges:         bridgeService,
+		memory:          memoryStore,
+		dream:           dreamTrigger,
+		resourceDriver:  resourceDriver,
+		reconcileEvents: reconcileEvents,
+		toolCatalog:     toolCatalog,
+		socket:          socketPath,
+		workspace:       workspace,
 	}
 }
 
@@ -3551,8 +3544,7 @@ func createIntegrationSessionPayloadFromRequest(
 		nil,
 	)
 	if resp.StatusCode != http.StatusCreated {
-		body, _ := io.ReadAll(resp.Body)
-		_ = resp.Body.Close()
+		body := readAndCloseHTTPBody(t, resp)
 		t.Fatalf("create session status = %d, want %d; body=%s", resp.StatusCode, http.StatusCreated, string(body))
 	}
 	var created struct {
@@ -3572,19 +3564,51 @@ func createIntegrationSessionPayloadFromRequest(
 func waitForIntegrationSessionActive(t *testing.T, manager *session.Manager, sessionID string) {
 	t.Helper()
 
-	deadline := time.Now().Add(5 * time.Second)
-	var (
-		lastInfo *session.Info
-		lastErr  error
-	)
-	for time.Now().Before(deadline) {
-		lastInfo, lastErr = manager.Status(context.Background(), sessionID)
-		if lastErr == nil && lastInfo != nil && lastInfo.State == session.StateActive {
-			return
-		}
-		time.Sleep(10 * time.Millisecond)
+	info, err := manager.Status(context.Background(), sessionID)
+	if err != nil {
+		t.Fatalf("Status(%q) error = %v", sessionID, err)
 	}
-	t.Fatalf("session %q did not become active: info=%#v error=%v", sessionID, lastInfo, lastErr)
+	if info != nil && info.State == session.StateActive {
+		return
+	}
+
+	catalogEvents, cancel, err := manager.SubscribeSessionCatalogEvents(t.Context())
+	if err != nil {
+		t.Fatalf("SubscribeSessionCatalogEvents() error = %v", err)
+	}
+	defer cancel()
+
+	info, err = manager.Status(context.Background(), sessionID)
+	if err != nil {
+		t.Fatalf("Status(%q) after catalog subscription error = %v", sessionID, err)
+	}
+	if info != nil && info.State == session.StateActive {
+		return
+	}
+
+	ctx, cancelTimeout := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancelTimeout()
+	for {
+		select {
+		case event, ok := <-catalogEvents:
+			if !ok {
+				t.Fatalf("session catalog stream closed while waiting for session %q to become active", sessionID)
+			}
+			if event.Kind != session.CatalogEventUpserted || event.SessionID != sessionID {
+				continue
+			}
+
+			info, err = manager.Status(context.Background(), sessionID)
+			if err != nil {
+				t.Fatalf("Status(%q) after catalog event error = %v", sessionID, err)
+			}
+			if info != nil && info.State == session.StateActive {
+				return
+			}
+		case <-ctx.Done():
+			t.Fatalf("session %q did not become active: info=%#v: %v", sessionID, info, ctx.Err())
+		}
+	}
 }
 
 func createIntegrationTask(t *testing.T, runtime integrationRuntime, body []byte) contract.TaskPayload {
@@ -3592,8 +3616,7 @@ func createIntegrationTask(t *testing.T, runtime integrationRuntime, body []byte
 
 	resp := mustUnixRequest(t, runtime.client, http.MethodPost, "http://unix/api/tasks", body, nil)
 	if resp.StatusCode != http.StatusCreated {
-		payload, _ := io.ReadAll(resp.Body)
-		_ = resp.Body.Close()
+		payload := readAndCloseHTTPBody(t, resp)
 		t.Fatalf("create task status = %d, want %d; body=%s", resp.StatusCode, http.StatusCreated, string(payload))
 	}
 	var created contract.TaskResponse
@@ -3618,29 +3641,12 @@ func enqueueIntegrationTaskRun(
 		nil,
 	)
 	if resp.StatusCode != http.StatusCreated {
-		payload, _ := io.ReadAll(resp.Body)
-		_ = resp.Body.Close()
+		payload := readAndCloseHTTPBody(t, resp)
 		t.Fatalf("enqueue run status = %d, want %d; body=%s", resp.StatusCode, http.StatusCreated, string(payload))
 	}
 	var created contract.TaskRunResponse
 	decodeHTTPJSON(t, resp, &created)
 	return created.Run
-}
-
-func seedIntegrationTaskRunClaimed(t *testing.T, runtime integrationRuntime, runID string) {
-	t.Helper()
-
-	ctx := context.Background()
-	run, err := runtime.registry.GetTaskRun(ctx, runID)
-	if err != nil {
-		t.Fatalf("GetTaskRun(%q) error = %v", runID, err)
-	}
-	run.Status = taskpkg.TaskRunStatusClaimed
-	run.ClaimedBy = &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "local-user"}
-	run.ClaimedAt = time.Now().UTC()
-	if err := runtime.registry.UpdateTaskRun(ctx, run); err != nil {
-		t.Fatalf("UpdateTaskRun(%q) error = %v", runID, err)
-	}
 }
 
 func requireUDSInboxGroup(
@@ -3686,8 +3692,7 @@ func sendPrompt(t *testing.T, runtime integrationRuntime, workspaceID string, se
 		nil,
 	)
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		_ = resp.Body.Close()
+		body := readAndCloseHTTPBody(t, resp)
 		t.Fatalf("prompt status = %d, want %d; body=%s", resp.StatusCode, http.StatusOK, string(body))
 	}
 	if _, err := io.ReadAll(resp.Body); err != nil {
@@ -3765,11 +3770,10 @@ func stopIntegrationSession(t *testing.T, runtime integrationRuntime, workspaceI
 		nil,
 	)
 	if resp.StatusCode != http.StatusNoContent {
-		body, _ := io.ReadAll(resp.Body)
-		_ = resp.Body.Close()
+		body := readAndCloseHTTPBody(t, resp)
 		t.Fatalf("stop status = %d, want %d; body=%s", resp.StatusCode, http.StatusNoContent, string(body))
 	}
-	_ = resp.Body.Close()
+	closeHTTPBody(t, resp.Body)
 }
 
 func mustUnixRequest(
@@ -3834,7 +3838,7 @@ func closeHTTPBody(t *testing.T, body io.Closer) {
 	t.Helper()
 
 	if err := body.Close(); err != nil {
-		t.Fatalf("close HTTP response body: %v", err)
+		t.Errorf("close HTTP response body: %v", err)
 	}
 }
 
@@ -3847,115 +3851,198 @@ func containsAutomationRun(runs []contract.RunPayload, id string) bool {
 	return false
 }
 
+func registerUDSServerShutdownSignal(t *testing.T, server *Server) <-chan struct{} {
+	t.Helper()
+
+	server.mu.Lock()
+	httpServer := server.httpServer
+	server.mu.Unlock()
+	if httpServer == nil {
+		t.Fatal("UDS HTTP server was not initialized")
+	}
+	started := make(chan struct{})
+	var once sync.Once
+	httpServer.RegisterOnShutdown(func() {
+		once.Do(func() {
+			close(started)
+		})
+	})
+	return started
+}
+
+func waitForUDSServerSignal(t *testing.T, signal <-chan struct{}, name string) {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(t.Context()), 2*time.Second)
+	defer cancel()
+	select {
+	case <-signal:
+	case <-ctx.Done():
+		t.Fatalf("timed out waiting for %s: %v", name, ctx.Err())
+	}
+}
+
+const liveSSEJoinTimeout = 2 * time.Second
+
+type liveSSEStreamResult struct {
+	err error
+}
+
+type liveSSEStream struct {
+	cancel  context.CancelFunc
+	records <-chan sseRecord
+	result  <-chan liveSSEStreamResult
+}
+
 func collectLiveSSE(t *testing.T, body io.ReadCloser, want int, timeout time.Duration) []sseRecord {
 	t.Helper()
 
-	records := make([]sseRecord, 0, want)
-	recordCh := make(chan sseRecord, want+1)
-	errCh := make(chan error, 1)
-
-	go func() {
-		scanner := bufio.NewScanner(body)
-		current := sseRecord{}
-		for scanner.Scan() {
-			line := scanner.Text()
-			if line == "" {
-				recordCh <- current
-				current = sseRecord{}
-				continue
-			}
-			switch {
-			case strings.HasPrefix(line, "id: "):
-				current.ID = strings.TrimPrefix(line, "id: ")
-			case strings.HasPrefix(line, "event: "):
-				current.Event = strings.TrimPrefix(line, "event: ")
-			case strings.HasPrefix(line, "data: "):
-				current.Data = append(current.Data, []byte(strings.TrimPrefix(line, "data: "))...)
-			}
-		}
-		if current.Event != "" || current.ID != "" || len(current.Data) > 0 {
-			recordCh <- current
-		}
-		if err := scanner.Err(); err != nil && !errors.Is(err, os.ErrClosed) {
-			errCh <- err
-			return
-		}
-		close(recordCh)
-	}()
-
-	deadline := time.NewTimer(timeout)
-	defer deadline.Stop()
-
-	for len(records) < want {
-		select {
-		case record, ok := <-recordCh:
-			if !ok {
-				return records
-			}
-			records = append(records, record)
-		case err := <-errCh:
-			t.Fatalf("SSE scanner error = %v", err)
-		case <-deadline.C:
-			t.Fatalf("timed out waiting for %d SSE events; got %d", want, len(records))
-		}
-	}
-
-	return records
+	return collectLiveSSEMatching(
+		t,
+		body,
+		want+1,
+		timeout,
+		func(records []sseRecord) bool { return len(records) >= want },
+		fmt.Sprintf("%d SSE records", want),
+	)
 }
 
 func collectLiveSSEUntilEvent(t *testing.T, body io.ReadCloser, wantEvent string, timeout time.Duration) []sseRecord {
 	t.Helper()
 
-	records := make([]sseRecord, 0, 4)
-	recordCh := make(chan sseRecord, 8)
-	errCh := make(chan error, 1)
+	return collectLiveSSEMatching(
+		t,
+		body,
+		8,
+		timeout,
+		func(records []sseRecord) bool {
+			return len(records) > 0 && records[len(records)-1].Event == wantEvent
+		},
+		fmt.Sprintf("SSE event %q", wantEvent),
+	)
+}
 
-	go func() {
-		scanner := bufio.NewScanner(body)
-		current := sseRecord{}
-		for scanner.Scan() {
-			line := scanner.Text()
-			if line == "" {
-				recordCh <- current
-				current = sseRecord{}
-				continue
-			}
-			switch {
-			case strings.HasPrefix(line, "id: "):
-				current.ID = strings.TrimPrefix(line, "id: ")
-			case strings.HasPrefix(line, "event: "):
-				current.Event = strings.TrimPrefix(line, "event: ")
-			case strings.HasPrefix(line, "data: "):
-				current.Data = append(current.Data, []byte(strings.TrimPrefix(line, "data: "))...)
-			}
-		}
-		if current.Event != "" || current.ID != "" || len(current.Data) > 0 {
-			recordCh <- current
-		}
-		if err := scanner.Err(); err != nil && !errors.Is(err, os.ErrClosed) {
-			errCh <- err
-			return
-		}
-		close(recordCh)
-	}()
+func collectLiveSSEMatching(
+	t *testing.T,
+	body io.ReadCloser,
+	buffer int,
+	timeout time.Duration,
+	done func([]sseRecord) bool,
+	want string,
+) []sseRecord {
+	t.Helper()
 
+	stream := startLiveSSEStream(t.Context(), body, buffer)
 	deadline := time.NewTimer(timeout)
 	defer deadline.Stop()
 
-	for {
+	records := make([]sseRecord, 0, buffer)
+	var primaryErr error
+	var terminalResult *liveSSEStreamResult
+	for !done(records) && primaryErr == nil && terminalResult == nil {
 		select {
-		case record, ok := <-recordCh:
+		case record, ok := <-stream.records:
 			if !ok {
-				t.Fatalf("stream ended before event %q; got %d records", wantEvent, len(records))
+				continue
 			}
 			records = append(records, record)
-			if record.Event == wantEvent {
-				return records
+		case result := <-stream.result:
+			terminalResult = &result
+			for record := range stream.records {
+				records = append(records, record)
 			}
-		case err := <-errCh:
-			t.Fatalf("SSE scanner error = %v", err)
+			if !done(records) {
+				primaryErr = fmt.Errorf("live SSE ended after %d records before %s", len(records), want)
+			}
 		case <-deadline.C:
-			t.Fatalf("timed out waiting for SSE event %q; got %d records", wantEvent, len(records))
+			primaryErr = fmt.Errorf("timed out waiting for %s; got %d records", want, len(records))
 		}
 	}
+
+	stream.cancel()
+	if terminalResult == nil {
+		joinCtx, cancelJoin := context.WithTimeout(context.WithoutCancel(t.Context()), liveSSEJoinTimeout)
+		defer cancelJoin()
+		select {
+		case result := <-stream.result:
+			terminalResult = &result
+		case <-joinCtx.Done():
+			primaryErr = errors.Join(
+				primaryErr,
+				fmt.Errorf("live SSE reader did not terminate: %w", joinCtx.Err()),
+			)
+		}
+	}
+	if terminalResult != nil {
+		primaryErr = errors.Join(primaryErr, terminalResult.err)
+	}
+	if primaryErr != nil {
+		t.Fatalf("collect live SSE: %v", primaryErr)
+	}
+	return records
+}
+
+func startLiveSSEStream(ctx context.Context, body io.ReadCloser, buffer int) liveSSEStream {
+	streamCtx, cancel := context.WithCancel(ctx)
+	recordCh := make(chan sseRecord, buffer)
+	resultCh := make(chan liveSSEStreamResult, 1)
+	go readLiveSSEStream(streamCtx, body, recordCh, resultCh)
+	return liveSSEStream{cancel: cancel, records: recordCh, result: resultCh}
+}
+
+func readLiveSSEStream(
+	ctx context.Context,
+	body io.ReadCloser,
+	recordCh chan<- sseRecord,
+	resultCh chan<- liveSSEStreamResult,
+) {
+	defer close(recordCh)
+
+	var closeOnce sync.Once
+	var closeErr error
+	closeBody := func() {
+		closeOnce.Do(func() {
+			closeErr = body.Close()
+		})
+	}
+	stopCloseOnCancel := context.AfterFunc(ctx, closeBody)
+	emit := func(record sseRecord) bool {
+		select {
+		case recordCh <- record:
+			return true
+		case <-ctx.Done():
+			return false
+		}
+	}
+
+	scanner := bufio.NewScanner(body)
+	current := sseRecord{}
+	for scanner.Scan() {
+		line := scanner.Text()
+		if line == "" {
+			if !emit(current) {
+				break
+			}
+			current = sseRecord{}
+			continue
+		}
+		switch {
+		case strings.HasPrefix(line, "id: "):
+			current.ID = strings.TrimPrefix(line, "id: ")
+		case strings.HasPrefix(line, "event: "):
+			current.Event = strings.TrimPrefix(line, "event: ")
+		case strings.HasPrefix(line, "data: "):
+			current.Data = append(current.Data, []byte(strings.TrimPrefix(line, "data: "))...)
+		}
+	}
+	if ctx.Err() == nil && (current.Event != "" || current.ID != "" || len(current.Data) > 0) {
+		emit(current)
+	}
+	scanErr := scanner.Err()
+	if ctx.Err() != nil {
+		scanErr = nil
+	}
+	stopCloseOnCancel()
+	closeBody()
+	resultCh <- liveSSEStreamResult{err: errors.Join(scanErr, closeErr)}
 }

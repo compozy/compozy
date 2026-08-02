@@ -26,6 +26,10 @@ function normalizeText(value: unknown): string | undefined {
   return normalized === "" ? undefined : normalized;
 }
 
+function optionalOpaqueIdentity(value: unknown): string | undefined {
+  return typeof value === "string" && value !== "" ? value : undefined;
+}
+
 function normalizeBridgeProgressMode(value: unknown): BridgeProgressMode | undefined {
   switch (normalizeText(value)) {
     case "off":
@@ -139,10 +143,10 @@ export function normalizeBridgeDeliveryDefaults(value: unknown): BridgeDeliveryD
 
   const normalized: BridgeDeliveryDefaults = {
     ...providerBridgeDeliveryDefaults(candidate),
-    group_id: normalizeText(candidate.group_id),
+    group_id: optionalOpaqueIdentity(candidate.group_id),
     mode: mode === "direct-send" || mode === "reply" ? mode : undefined,
-    peer_id: normalizeText(candidate.peer_id),
-    thread_id: normalizeText(candidate.thread_id),
+    peer_id: optionalOpaqueIdentity(candidate.peer_id),
+    thread_id: optionalOpaqueIdentity(candidate.thread_id),
   };
   const progress = normalizeBridgeProgressConfig(candidate.progress);
   if (progress) {
@@ -157,10 +161,10 @@ export function compactBridgeDeliveryDefaults(
   const normalized: BridgeDeliveryDefaults = {
     ...providerBridgeDeliveryDefaults(value as Record<string, unknown>),
   };
-  const groupId = normalizeText(value.group_id);
-  const peerId = normalizeText(value.peer_id);
+  const groupId = optionalOpaqueIdentity(value.group_id);
+  const peerId = optionalOpaqueIdentity(value.peer_id);
   const progress = normalizeBridgeProgressConfig(value.progress);
-  const threadId = normalizeText(value.thread_id);
+  const threadId = optionalOpaqueIdentity(value.thread_id);
 
   if (groupId) normalized.group_id = groupId;
   if (value.mode) normalized.mode = value.mode;

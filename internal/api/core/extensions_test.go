@@ -554,6 +554,8 @@ func TestExtensionStatusCodeMapsDomainErrors(t *testing.T) {
 		{name: "Should map an archive digest mismatch to bad request", err: extensionpkg.ErrExtensionArchiveDigestMismatch, want: http.StatusBadRequest},
 		{name: "Should map missing unverified consent to unprocessable", err: extensionpkg.ErrExtensionChecksumUnverified, want: http.StatusUnprocessableEntity},
 		{name: "Should map blocked unverified policy to unprocessable", err: extensionpkg.ErrExtensionUnverifiedPolicyBlocked, want: http.StatusUnprocessableEntity},
+		{name: "Should map an invalid Git repository URL to bad request", err: registrygit.ErrInvalidRepositoryRef, want: http.StatusBadRequest},
+		{name: "Should map a blocked Git repository destination to forbidden", err: registrygit.ErrRepositoryDestinationBlocked, want: http.StatusForbidden},
 		{name: "Should map manifest validation to bad request", err: extensionpkg.ErrManifestInvalid, want: http.StatusBadRequest},
 		{name: "Should map bridge authoring rejection to bad request", err: &extensionpkg.ManifestValidationError{Field: "capabilities.provides", Value: "bridge.adapter", Message: "external bridge authoring is a planned follow-up"}, want: http.StatusBadRequest},
 		{name: "Should map incompatible manifests to bad request", err: extensionpkg.ErrManifestIncompatible, want: http.StatusBadRequest},
@@ -565,6 +567,7 @@ func TestExtensionStatusCodeMapsDomainErrors(t *testing.T) {
 		{name: "Should map denied extension writes to forbidden", err: taskpkg.ErrPermissionDenied, want: http.StatusForbidden},
 		{name: "Should map unavailable marketplace sources to unavailable", err: extensionpkg.ErrMarketplaceSourceUnavailable, want: http.StatusServiceUnavailable},
 		{name: "Should map an unavailable git binary to unavailable", err: registrygit.ErrGitUnavailable, want: http.StatusServiceUnavailable},
+		{name: "Should map an unsupported git version to unavailable", err: registrygit.ErrGitVersionUnsupported, want: http.StatusServiceUnavailable},
 		{name: "Should map invalid search cursors to bad request", err: extensionpkg.ErrExtensionSearchInvalid, want: http.StatusBadRequest},
 		{name: "Should map network confirmation to conflict", err: extensionpkg.ErrExtensionNetworkConfirmationRequired, want: http.StatusConflict},
 		{name: "Should map agent conflicts to conflict", err: extensionpkg.ErrExtensionAgentConflict, want: http.StatusConflict},
@@ -1056,6 +1059,24 @@ func TestDevelopmentExtensionHandlersBindTrustedWorkspace(t *testing.T) {
 func TestExtensionHandlersHaveHTTPUDSParity(t *testing.T) {
 	t.Parallel()
 
+	const (
+		apiWorkspaceRootCanary = "/private/API-WORKSPACE-ROOT-CANARY"
+		apiOriginCanary        = apiWorkspaceRootCanary + "/API-ORIGIN-CANARY"
+		apiRawCauseCanary      = "API-RAW-BOOT-CAUSE-CANARY"
+	)
+	safeBootFailure := extensionpkg.DescribeExtension(&extensionpkg.Extension{
+		Info: extensionpkg.ExtensionInfo{
+			Name: "boot-failure", Source: extensionpkg.SourceWorkspace, Enabled: true,
+		},
+		Status: extensionpkg.ExtensionStatus{
+			Name: "boot-failure", WorkspaceID: "workspace-a",
+			LastError: apiRawCauseCanary + " at " + apiOriginCanary, FailureCode: "missing_origin",
+		},
+		DevLink: &extensionpkg.DevLink{
+			ExtensionName: "boot-failure", WorkspaceID: "workspace-a", OriginPath: apiOriginCanary,
+		},
+	}, true, time.Date(2026, 8, 2, 12, 0, 0, 0, time.UTC))
+
 	actor, err := taskpkg.DeriveHumanActorContextForWorkspace(
 		"operator",
 		"workspace-a",
@@ -1067,6 +1088,9 @@ func TestExtensionHandlersHaveHTTPUDSParity(t *testing.T) {
 	}
 	minimum, maximum := float64(1), float64(10)
 	service := extensionServiceStub{
+		listFn: func(context.Context) ([]contract.ExtensionPayload, error) {
+			return []contract.ExtensionPayload{safeBootFailure}, nil
+		},
 		searchFn: func(
 			_ context.Context,
 			req contract.ExtensionSearchRequest,
@@ -1200,6 +1224,7 @@ func TestExtensionHandlersHaveHTTPUDSParity(t *testing.T) {
 		},
 		{method: http.MethodGet, path: "/extensions/parity/logs"},
 		{method: http.MethodGet, path: "/extensions/search?q=parity&sources=github&limit=1"},
+		{method: http.MethodGet, path: "/extensions"},
 		{method: http.MethodGet, path: "/extensions/commands?extension=parity&workspace=workspace-a"},
 		{method: http.MethodPost, path: "/extensions/update", body: []byte(`{"all":true}`)},
 		{method: http.MethodGet, path: "/extensions/parity/inventory"},
@@ -1231,6 +1256,7 @@ func TestExtensionHandlersHaveHTTPUDSParity(t *testing.T) {
 				engine.POST("/extensions/dev", handlers.DevExtension)
 				engine.POST("/extensions/:name/reload", handlers.ReloadDevExtension)
 				engine.POST("/extensions/update", handlers.UpdateExtensions)
+				engine.GET("/extensions", handlers.ListExtensions)
 				engine.GET("/extensions/:name/logs", handlers.ExtensionLogs)
 				engine.GET("/extensions/search", handlers.SearchExtensions)
 				engine.GET("/extensions/commands", handlers.ExtensionCommands)
@@ -1247,6 +1273,19 @@ func TestExtensionHandlersHaveHTTPUDSParity(t *testing.T) {
 			}
 			if !reflect.DeepEqual(responses["http"], responses["uds"]) {
 				t.Fatalf("transport responses differ: %#v", responses)
+			}
+			if request.path == "/extensions" {
+				body := responses["http"].body
+				for _, forbidden := range []string{apiWorkspaceRootCanary, apiOriginCanary, apiRawCauseCanary} {
+					if strings.Contains(body, forbidden) {
+						t.Fatalf("extension inventory body leaked %q: %s", forbidden, body)
+					}
+				}
+				if strings.Contains(body, `"origin_path"`) ||
+					!strings.Contains(body, `"failure_code":"missing_origin"`) ||
+					!strings.Contains(body, `"last_error":"extension development origin is unavailable"`) {
+					t.Fatalf("extension inventory body = %s, want safe boot-failure projection", body)
+				}
 			}
 			if strings.Contains(request.path, "/extensions/commands") {
 				var payload contract.ExtensionCommandsResponse
@@ -1399,50 +1438,71 @@ func TestInstallExtensionReturnsDiagnosticsOverHTTP(t *testing.T) {
 		}
 	})
 
-	t.Run("Should return the Git dependency diagnostic over HTTP", func(t *testing.T) {
-		t.Parallel()
+	for _, testCase := range []struct {
+		name        string
+		installErr  error
+		wantCode    string
+		wantMessage string
+	}{
+		{
+			name:        "Should return the missing Git dependency diagnostic over HTTP",
+			installErr:  registrygit.ErrGitUnavailable,
+			wantCode:    diagnosticcontract.CodeExtensionGitUnavailable,
+			wantMessage: "Install Git",
+		},
+		{
+			name:        "Should return the unsupported Git version diagnostic over HTTP",
+			installErr:  registrygit.ErrGitVersionUnsupported,
+			wantCode:    diagnosticcontract.CodeExtensionGitVersionUnsupported,
+			wantMessage: "Git 2.37 or newer",
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
 
-		homePaths := testutil.NewTestHomePaths(t)
-		cfg := testConfigWithDisabledNetwork(homePaths)
-		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
-			TransportName: "http",
-			Extensions: extensionServiceStub{installFn: func(
-				context.Context,
-				contract.InstallExtensionRequest,
-				taskpkg.ActorContext,
-			) (contract.ExtensionPayload, error) {
-				return contract.ExtensionPayload{}, fmt.Errorf("install extension: %w", registrygit.ErrGitUnavailable)
-			}},
-			HomePaths: homePaths,
-			Config:    cfg,
-			Logger:    testutil.DiscardLogger(),
-		})
-		engine := gin.New()
-		engine.POST("/extensions", handlers.InstallExtension)
+			homePaths := testutil.NewTestHomePaths(t)
+			cfg := testConfigWithDisabledNetwork(homePaths)
+			handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
+				TransportName: "http",
+				Extensions: extensionServiceStub{installFn: func(
+					context.Context,
+					contract.InstallExtensionRequest,
+					taskpkg.ActorContext,
+				) (contract.ExtensionPayload, error) {
+					return contract.ExtensionPayload{}, fmt.Errorf("install extension: %w", testCase.installErr)
+				}},
+				HomePaths: homePaths,
+				Config:    cfg,
+				Logger:    testutil.DiscardLogger(),
+			})
+			engine := gin.New()
+			engine.POST("/extensions", handlers.InstallExtension)
 
-		response := performRequest(
-			t,
-			engine,
-			http.MethodPost,
-			"/extensions",
-			[]byte(`{"source":"git","ref":"https://github.com/acme/example.git"}`),
-		)
-		if response.Code != http.StatusServiceUnavailable {
-			t.Fatalf(
-				"status = %d, want %d; body=%s",
-				response.Code,
-				http.StatusServiceUnavailable,
-				response.Body.String(),
+			response := performRequest(
+				t,
+				engine,
+				http.MethodPost,
+				"/extensions",
+				[]byte(`{"source":"git","ref":"https://github.com/acme/example.git"}`),
 			)
-		}
-		var payload contract.ErrorPayload
-		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
-			t.Fatalf("json.Unmarshal(response) error = %v", err)
-		}
-		if payload.Diagnostic == nil ||
-			payload.Diagnostic.Code != diagnosticcontract.CodeExtensionGitUnavailable ||
-			payload.Diagnostic.SuggestedCommand != "git --version" {
-			t.Fatalf("diagnostic = %#v, want registered Git recovery diagnostic", payload.Diagnostic)
-		}
-	})
+			if response.Code != http.StatusServiceUnavailable {
+				t.Fatalf(
+					"status = %d, want %d; body=%s",
+					response.Code,
+					http.StatusServiceUnavailable,
+					response.Body.String(),
+				)
+			}
+			var payload contract.ErrorPayload
+			if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+				t.Fatalf("json.Unmarshal(response) error = %v", err)
+			}
+			if payload.Diagnostic == nil ||
+				payload.Diagnostic.Code != testCase.wantCode ||
+				payload.Diagnostic.SuggestedCommand != "git --version" ||
+				!strings.Contains(payload.Diagnostic.Message, testCase.wantMessage) {
+				t.Fatalf("diagnostic = %#v, want registered Git recovery diagnostic", payload.Diagnostic)
+			}
+		})
+	}
 }

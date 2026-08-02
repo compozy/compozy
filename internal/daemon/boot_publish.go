@@ -8,68 +8,70 @@ func (d *Daemon) publishBootState(state *bootState) {
 	d.logger = state.logger
 	d.closeLogger = state.closeLogger
 	d.booting = false
-	d.lock = state.lock
-	d.harnessResolver = state.harnessResolver
-	d.registry = state.registry
-	d.memoryStore = state.memoryStore
-	d.memoryProviderRegistry = state.memoryProviderRegistry
-	d.memoryExtractor = state.memoryExtractor
-	d.runtimeWorkers = state.runtimeWorkers
-	d.localMemoryProvider = nil
+	var localMemoryProvider memoryProviderShutdowner
 	if state.localMemoryProvider != nil {
-		d.localMemoryProvider = checkpointMemoryShutdowner{
+		localMemoryProvider = checkpointMemoryShutdowner{
 			runtime:  state.checkpointRuntime,
 			provider: state.localMemoryProvider,
 		}
 	}
-	d.modelCatalog = state.modelCatalog
-	d.marketplace = state.marketplace
-	d.situationContext = state.situationContext
-	d.sessions = state.sessions
-	d.tasks = state.tasks
-	d.coordinator = state.coordinator
-	d.spawnReaper = state.spawnReaper
-	d.scheduler = state.scheduler
-	d.network = state.network
-	d.networkWakeRunner = state.networkWakeRunner
-	d.toolRegistry = state.toolRegistry
-	d.clarify = state.clarify
-	d.hooks = state.hooks
-	d.extensions = state.currentExtensionRuntime()
-	d.bridges = state.bridges
-	d.observer = state.observer
-	d.resourceReconcile = state.resourceReconcile
-	d.agentCatalog = state.agentCatalog
-	d.soulCatalog = state.soulCatalog
-	d.heartbeatCatalog = state.heartbeatCatalog
-	d.toolCatalog = state.toolCatalog
-	d.mcpServerCatalog = state.mcpServerCatalog
-	d.loopCatalog = state.loopCatalog
-	d.automation = state.automation
-	d.httpServer = state.httpServer
-	d.udsServer = state.udsServer
-	d.dreamRuntime = state.dreamRuntime
-	d.workspaceResolver = state.workspaceResolver
-	d.windowManagerStore = state.windowManagerStore
-	d.windowManager = state.windowManager
-	d.sandboxRegistry = state.sandboxRegistry
-	d.skillsRegistry = state.skillsRegistry
-	d.publishBootWorkerState(state)
-	d.startedAt = state.startedAt
-	d.info = state.info
+	d.daemonRuntimeState = daemonRuntimeState{
+		lock:                   state.lock,
+		harnessResolver:        state.harnessResolver,
+		registry:               state.registry,
+		memoryStore:            state.memoryStore,
+		memoryProviderRegistry: state.memoryProviderRegistry,
+		memoryExtractor:        state.memoryExtractor,
+		runtimeWorkers:         state.runtimeWorkers,
+		localMemoryProvider:    localMemoryProvider,
+		situationContext:       state.situationContext,
+		sessions:               state.sessions,
+		tasks:                  state.tasks,
+		coordinator:            state.coordinator,
+		spawnReaper:            state.spawnReaper,
+		scheduler:              state.scheduler,
+		network:                state.network,
+		networkWakeRunner:      state.networkWakeRunner,
+		toolRegistry:           state.toolRegistry,
+		clarify:                state.clarify,
+		hooks:                  state.hooks,
+		extensions:             state.currentExtensionRuntime(),
+		observer:               state.observer,
+		resourceReconcile:      state.resourceReconcile,
+		supportBundles:         state.supportBundles,
+		agentCatalog:           state.agentCatalog,
+		soulCatalog:            state.soulCatalog,
+		heartbeatCatalog:       state.heartbeatCatalog,
+		toolCatalog:            state.toolCatalog,
+		mcpServerCatalog:       state.mcpServerCatalog,
+		loopCatalog:            state.loopCatalog,
+		automation:             state.automation,
+		bridges:                state.bridges,
+		httpServer:             state.httpServer,
+		udsServer:              state.udsServer,
+		dreamRuntime:           state.dreamRuntime,
+		workspaceResolver:      state.workspaceResolver,
+		sandboxRegistry:        state.sandboxRegistry,
+		windowManagerRuntime: windowManagerRuntime{
+			windowManagerStore: state.windowManagerStore,
+			windowManager:      state.windowManager,
+		},
+		skillsRegistry:    state.skillsRegistry,
+		modelCatalog:      state.modelCatalog,
+		marketplace:       state.marketplace,
+		skillsCancel:      state.skillsCancel,
+		skillsDone:        state.skillsDone,
+		loopsCancel:       state.loopsCancel,
+		loopsDone:         state.loopsDone,
+		goalOutboxCancel:  state.goalOutboxCancel,
+		goalOutboxDone:    state.goalOutboxDone,
+		effectRelayCancel: state.effectRelayCancel,
+		effectRelayDone:   state.effectRelayDone,
+		startedAt:         state.startedAt,
+		info:              state.info,
+	}
 	if !d.readyClosed {
 		close(d.readyCh)
 		d.readyClosed = true
 	}
-}
-
-func (d *Daemon) publishBootWorkerState(state *bootState) {
-	d.skillsCancel = state.skillsCancel
-	d.skillsDone = state.skillsDone
-	d.loopsCancel = state.loopsCancel
-	d.loopsDone = state.loopsDone
-	d.goalOutboxCancel = state.goalOutboxCancel
-	d.goalOutboxDone = state.goalOutboxDone
-	d.effectRelayCancel = state.effectRelayCancel
-	d.effectRelayDone = state.effectRelayDone
 }

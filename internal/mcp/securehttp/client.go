@@ -11,6 +11,8 @@ import (
 	"net/netip"
 	"net/url"
 	"time"
+
+	"github.com/compozy/compozy/internal/outboundpolicy"
 )
 
 const (
@@ -21,11 +23,11 @@ const (
 
 var (
 	// ErrInvalidURL reports a URL that cannot be used as a remote HTTP destination.
-	ErrInvalidURL = errors.New("securehttp: invalid destination URL")
+	ErrInvalidURL = outboundpolicy.ErrInvalidURL
 	// ErrInsecureTransport reports HTTP used for a non-loopback destination.
-	ErrInsecureTransport = errors.New("securehttp: HTTPS is required for non-loopback destinations")
+	ErrInsecureTransport = outboundpolicy.ErrInsecureTransport
 	// ErrBlockedDestination reports an address outside the configured destination policy.
-	ErrBlockedDestination = errors.New("securehttp: destination is blocked by network policy")
+	ErrBlockedDestination = outboundpolicy.ErrBlockedDestination
 	// ErrTooManyRedirects reports a redirect chain beyond the client's configured limit.
 	ErrTooManyRedirects = errors.New("securehttp: too many redirects")
 	// ErrResponseBodyTooLarge reports a response body that exceeds the configured limit.
@@ -182,8 +184,8 @@ func RedactError(err error) error {
 	}
 	redacted := err
 	for {
-		var requestError *url.Error
-		if !errors.As(redacted, &requestError) {
+		requestError, ok := errors.AsType[*url.Error](redacted)
+		if !ok {
 			break
 		}
 		redacted = requestError.Err

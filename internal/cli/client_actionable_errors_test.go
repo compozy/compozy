@@ -76,8 +76,8 @@ func TestUnixSocketClientActionableDaemonErrors(t *testing.T) {
 func assertDaemonUnavailableDiagnostic(t *testing.T, err error, socketPath string) {
 	t.Helper()
 
-	var structured *StructuredError
-	if !errors.As(err, &structured) {
+	structured, structuredMatched := errors.AsType[*StructuredError](err)
+	if !structuredMatched {
 		t.Fatalf("DaemonStatus() error = %T, want *StructuredError", err)
 	}
 	if structured.Item.Code != contract.CodeDaemonUnavailable {

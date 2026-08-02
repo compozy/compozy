@@ -1,23 +1,29 @@
 package mcp
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"maps"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/diagnostics"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	"github.com/compozy/compozy/internal/testutil/mcpfixture"
 	toolspkg "github.com/compozy/compozy/internal/tools"
@@ -32,6 +38,12 @@ const (
 	stdioExplicitSecretEnv    = "COMPOZY_EXPLICIT_SECRET_TOKEN"
 	stdioExplicitSecretSource = "COMPOZY_EXPLICIT_SECRET_SOURCE"
 )
+
+type testMCPSecretError struct{ secret string }
+
+func (e *testMCPSecretError) Error() string {
+	return "mcp upstream leaked " + e.secret
+}
 
 func TestMCPCallExecutor(t *testing.T) {
 	t.Run("Should negotiate modern protocol and paginate tools", func(t *testing.T) {
@@ -93,8 +105,8 @@ func TestMCPCallExecutor(t *testing.T) {
 				Input:       json.RawMessage(`{}`),
 			},
 		)
-		var unsupported *UnsupportedCapabilityError
-		if !errors.As(err, &unsupported) || unsupported.Capability != "input_requests" {
+		unsupported, unsupportedMatched := errors.AsType[*UnsupportedCapabilityError](err)
+		if !unsupportedMatched || unsupported.Capability != "input_requests" {
 			t.Fatalf("CallTool(confirm) error = %v, want unsupported input_requests capability", err)
 		}
 	})
@@ -158,13 +170,56 @@ func TestMCPCallExecutor(t *testing.T) {
 			Owner:         "scope-challenge",
 			RawServerName: "scope-challenge",
 		})
-		var scopeErr *InsufficientScopeError
-		if !errors.As(err, &scopeErr) {
+
+		scopeErr, scopeErrMatched := errors.AsType[*InsufficientScopeError](err)
+		if !scopeErrMatched {
 			t.Fatalf("ListTools() error = %v, want insufficient scope challenge", err)
 		}
 		requireReason(t, err, toolspkg.ReasonMCPAuthRequired)
 		if got, want := scopeErr.Scopes, []string{"issues.read", "issues.write"}; !slices.Equal(got, want) {
 			t.Fatalf("challenge scopes = %#v, want %#v", got, want)
+		}
+	})
+
+	t.Run("Should preserve authorization challenge drain and close failures", func(t *testing.T) {
+		t.Parallel()
+
+		drainErr := errors.New("challenge drain failed")
+		closeErr := errors.New("challenge close failed")
+		body := &scriptedMCPResponseBody{readErr: drainErr, closeErr: closeErr}
+		transport := authorizationRoundTripper{
+			next: mcpRoundTripperFunc(func(request *http.Request) (*http.Response, error) {
+				return &http.Response{
+					StatusCode: http.StatusUnauthorized,
+					Status:     "401 Unauthorized",
+					Header:     make(http.Header),
+					Body:       body,
+					Request:    request,
+				}, nil
+			}),
+			header: func(context.Context) string { return "Bearer rejected" },
+		}
+		request, err := http.NewRequestWithContext(
+			t.Context(),
+			http.MethodPost,
+			"https://mcp.example.test",
+			http.NoBody,
+		)
+		if err != nil {
+			t.Fatalf("http.NewRequestWithContext() error = %v", err)
+		}
+		//nolint:bodyclose // The authorization-challenge path returns no response and owns body cleanup.
+		response, err := transport.RoundTrip(request)
+		if response != nil {
+			t.Fatalf("RoundTrip() response = %#v, want nil", response)
+		}
+		for _, want := range []error{ErrAuthorizationRequired, drainErr, closeErr} {
+			if !errors.Is(err, want) {
+				t.Fatalf("RoundTrip() error = %v, want %v", err, want)
+			}
+		}
+		if body.closeCalls != 1 {
+			t.Fatalf("response body close calls = %d, want 1", body.closeCalls)
 		}
 	})
 
@@ -674,6 +729,542 @@ func TestMCPCallExecutor(t *testing.T) {
 	})
 }
 
+func TestMCPRequestSecretLifecycle(t *testing.T) {
+	t.Run("Should scope HTTP bearer redaction to successful failed and canceled requests", func(t *testing.T) {
+		t.Parallel()
+
+		for _, test := range []struct {
+			name   string
+			mode   string
+			secret string
+		}{
+			{
+				name:   "Should redact a short bearer during a successful request",
+				mode:   "success",
+				secret: "abc",
+			},
+			{
+				name:   "Should redact a bearer during a failed request",
+				mode:   "failure",
+				secret: "mcp-lifecycle-credential-failure",
+			},
+			{
+				name:   "Should redact a bearer during a canceled request",
+				mode:   "canceled",
+				secret: "mcp-lifecycle-credential-canceled",
+			},
+		} {
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
+
+				secret := test.secret
+				if got := diagnostics.Redact("diagnostic " + secret); !strings.Contains(got, secret) {
+					t.Fatalf("diagnostic baseline = %q, want unregistered secret", got)
+				}
+
+				observedRedaction := make(chan string, 1)
+				sdkServer := newFakeSDKServer(nil)
+				releaseCanceledRequest := func() {}
+				if test.mode == "canceled" {
+					requestRelease := make(chan struct{})
+					var releaseOnce sync.Once
+					releaseCanceledRequest = func() {
+						releaseOnce.Do(func() {
+							close(requestRelease)
+						})
+					}
+					t.Cleanup(releaseCanceledRequest)
+					sdkServer.AddReceivingMiddleware(func(next mcpsdk.MethodHandler) mcpsdk.MethodHandler {
+						return func(
+							ctx context.Context,
+							method string,
+							request mcpsdk.Request,
+						) (mcpsdk.Result, error) {
+							if method != "tools/list" {
+								return next(ctx, method, request)
+							}
+							select {
+							case observedRedaction <- diagnostics.Redact("diagnostic " + secret):
+							default:
+							}
+							<-requestRelease
+							return nil, errors.New("test: released tools/list request")
+						}
+					})
+				}
+				mcpHandler := newTestMCPHandler(sdkServer)
+				server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+					if got, want := request.Header.Get("Authorization"), "Bearer "+secret; got != want {
+						http.Error(writer, "missing authorization header", http.StatusUnauthorized)
+						return
+					}
+					if test.mode != "canceled" {
+						select {
+						case observedRedaction <- diagnostics.Redact("diagnostic " + secret):
+						default:
+						}
+					}
+					switch test.mode {
+					case "failure":
+						http.Error(
+							writer,
+							"upstream failure "+base64.StdEncoding.EncodeToString([]byte(secret)),
+							http.StatusInternalServerError,
+						)
+					default:
+						mcpHandler.ServeHTTP(writer, request)
+					}
+				}))
+				t.Cleanup(server.Close)
+
+				configuredServer := authEnabledServer(
+					"lifecycle-"+strings.ReplaceAll(test.mode, "_", "-"),
+					compozyconfig.MCPServerTransportHTTP,
+					server.URL,
+				)
+				target := globalMCPExecutorTarget(configuredServer.Name)
+				store := newMemoryTokenStore()
+				if err := store.SaveMCPAuthToken(t.Context(), mcpauth.TokenRecord{
+					Target:                target,
+					DefinitionFingerprint: definitionFingerprint(t, target, configuredServer),
+					Issuer:                "https://issuer.example.test",
+					ClientID:              "client-id",
+					Scopes:                []string{"tools.read"},
+					AccessToken:           secret,
+					TokenType:             "Bearer",
+					ExpiresAt:             time.Now().Add(time.Hour),
+					UpdatedAt:             time.Now(),
+				}); err != nil {
+					t.Fatalf("SaveMCPAuthToken() error = %v", err)
+				}
+				executor := newTestMCPExecutor(t, configuredServer, WithTokenStore(store))
+				source := toolspkg.SourceRef{
+					Kind:          toolspkg.SourceMCP,
+					Owner:         configuredServer.Name,
+					RawServerName: configuredServer.Name,
+				}
+
+				var err error
+				switch test.mode {
+				case "canceled":
+					ctx, cancel := context.WithCancel(t.Context())
+					defer cancel()
+					result := make(chan error, 1)
+					go func() {
+						_, callErr := executor.ListTools(ctx, source)
+						result <- callErr
+					}()
+					select {
+					case redacted := <-observedRedaction:
+						if strings.Contains(redacted, secret) {
+							t.Fatalf("in-flight diagnostic = %q, leaked bearer", redacted)
+						}
+					case <-time.After(time.Second):
+						t.Fatal("server did not observe an in-flight bearer redaction")
+					}
+					cancel()
+					select {
+					case err = <-result:
+						releaseCanceledRequest()
+					case <-time.After(time.Second):
+						releaseCanceledRequest()
+						select {
+						case <-result:
+						case <-time.After(time.Second):
+							t.Fatal("ListTools() remained blocked after the server request was released")
+						}
+						t.Fatal("ListTools() did not return after cancellation")
+					}
+					requireReason(t, err, toolspkg.ReasonCallCanceled)
+				default:
+					_, err = executor.ListTools(t.Context(), source)
+					if test.mode == "success" && err != nil {
+						t.Fatalf("ListTools() error = %v", err)
+					}
+					if test.mode == "failure" && err == nil {
+						t.Fatal("ListTools() error = nil, want upstream failure")
+					}
+					select {
+					case redacted := <-observedRedaction:
+						if strings.Contains(redacted, secret) {
+							t.Fatalf("in-flight diagnostic = %q, leaked bearer", redacted)
+						}
+					case <-time.After(time.Second):
+						t.Fatal("server did not observe an in-flight bearer redaction")
+					}
+				}
+				if err != nil {
+					requireSecretAbsentFromReversibleString(t, "ListTools() error", err.Error(), secret)
+				}
+				if got := diagnostics.Redact("diagnostic " + secret); !strings.Contains(got, secret) {
+					t.Fatalf("post-request diagnostic = %q, retained bearer", got)
+				}
+			})
+		}
+	})
+
+	t.Run("Should sanitize a reflected short bearer before result cache and provider projection", func(t *testing.T) {
+		const secret = "a?c"
+		if got := diagnostics.Redact("diagnostic " + secret); !strings.Contains(got, secret) {
+			t.Fatalf("diagnostic baseline = %q, want unregistered bearer", got)
+		}
+
+		var listCalls atomic.Int32
+		sdkServer := newReflectingSDKServer(secret, &listCalls)
+		mcpHandler := newTestMCPHandler(sdkServer)
+		server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+			if got, want := request.Header.Get("Authorization"), "Bearer "+secret; got != want {
+				http.Error(writer, "missing authorization header", http.StatusUnauthorized)
+				return
+			}
+			mcpHandler.ServeHTTP(writer, request)
+		}))
+		t.Cleanup(server.Close)
+
+		configuredServer := authEnabledServer(
+			"reflection",
+			compozyconfig.MCPServerTransportHTTP,
+			server.URL,
+		)
+		target := globalMCPExecutorTarget(configuredServer.Name)
+		store := newMemoryTokenStore()
+		if err := store.SaveMCPAuthToken(t.Context(), mcpauth.TokenRecord{
+			Target:                target,
+			DefinitionFingerprint: definitionFingerprint(t, target, configuredServer),
+			Issuer:                "https://issuer.example.test",
+			ClientID:              "client-id",
+			Scopes:                []string{"tools.read"},
+			AccessToken:           secret,
+			TokenType:             "Bearer",
+			ExpiresAt:             time.Now().Add(time.Hour),
+			UpdatedAt:             time.Now(),
+		}); err != nil {
+			t.Fatalf("SaveMCPAuthToken() error = %v", err)
+		}
+		executor := newTestMCPExecutor(t, configuredServer, WithTokenStore(store))
+		source := toolspkg.SourceRef{
+			Kind:          toolspkg.SourceMCP,
+			Owner:         configuredServer.Name,
+			RawServerName: configuredServer.Name,
+		}
+
+		descriptors, err := executor.ListTools(t.Context(), source)
+		if err != nil {
+			t.Fatalf("ListTools() error = %v", err)
+		}
+		if got, want := len(descriptors), 1; got != want {
+			t.Fatalf("descriptor count = %d, want %d", got, want)
+		}
+		requireSecretAbsentFromJSON(t, "discovered descriptors", descriptors, secret)
+
+		cached, err := executor.ListTools(t.Context(), source)
+		if err != nil {
+			t.Fatalf("ListTools(cached) error = %v", err)
+		}
+		requireSecretAbsentFromJSON(t, "cached descriptors", cached, secret)
+		if got, want := listCalls.Load(), int32(1); got != want {
+			t.Fatalf("tools/list calls = %d, want %d after cache hit", got, want)
+		}
+
+		provider, err := toolspkg.NewMCPProvider(
+			toolspkg.MCPSourceListerFunc(func(context.Context) ([]toolspkg.SourceRef, error) {
+				return []toolspkg.SourceRef{source}, nil
+			}),
+			executor,
+			executor,
+		)
+		if err != nil {
+			t.Fatalf("NewMCPProvider() error = %v", err)
+		}
+		projected, err := provider.List(t.Context(), toolspkg.Scope{})
+		if err != nil {
+			t.Fatalf("MCPProvider.List() error = %v", err)
+		}
+		requireSecretAbsentFromJSON(t, "provider projection", projected, secret)
+		if got, want := listCalls.Load(), int32(1); got != want {
+			t.Fatalf("tools/list calls = %d, want %d after provider projection", got, want)
+		}
+
+		result, err := executor.CallTool(t.Context(), source, toolspkg.MCPToolCallRequest{
+			ToolID:      descriptors[0].ID,
+			RawToolName: descriptors[0].RawName,
+			Input:       json.RawMessage(`{}`),
+		})
+		if err != nil {
+			t.Fatalf("CallTool() error = %v", err)
+		}
+		requireSecretAbsentFromJSON(t, "tool result", result, secret)
+		requireMCPBinaryContentRedacted(t, result, secret)
+		requireMCPBinaryEnvelopesRedacted(t, result)
+		if len(result.Redactions) == 0 {
+			t.Fatal("CallTool() redactions = nil, want reflected-credential audit records")
+		}
+		if err := result.Validate(-1); err != nil {
+			t.Fatalf("ToolResult.Validate() error = %v", err)
+		}
+		if got := diagnostics.Redact("diagnostic " + secret); !strings.Contains(got, secret) {
+			t.Fatalf("post-request diagnostic = %q, retained reflected bearer", got)
+		}
+	})
+
+	t.Run("Should sanitize every exportable tool result field", func(t *testing.T) {
+		const secret = "secret?metadata"
+		ctx, releaseRedactions := withMCPRequestRedactions(t.Context())
+		t.Cleanup(releaseRedactions)
+		registerMCPRequestSecret(ctx, secret)
+		encodedSecret := base64.StdEncoding.EncodeToString([]byte(secret))
+		hexSecret := hex.EncodeToString([]byte(secret))
+		dataURISecret := "data:application/octet-stream;base64," + encodedSecret
+		percentSecret := url.PathEscape(secret)
+
+		secretJSON, err := json.Marshal(map[string]string{
+			encodedSecret:     "value " + hexSecret,
+			"data_uri":        dataURISecret,
+			"percent_encoded": "credential=" + percentSecret,
+			"percent_mixed":   "credential=" + percentSecret + " trailing=%",
+		})
+		if err != nil {
+			t.Fatalf("json.Marshal(secret object) error = %v", err)
+		}
+		secretValue, err := json.Marshal("value " + dataURISecret)
+		if err != nil {
+			t.Fatalf("json.Marshal(secret value) error = %v", err)
+		}
+		result, err := redactMCPToolResult(toolspkg.ToolResult{
+			Content: []toolspkg.ToolContent{{
+				Type:     "type/" + encodedSecret,
+				Text:     "text " + hexSecret,
+				Data:     secretJSON,
+				MIMEType: "mime/" + dataURISecret,
+				Metadata: map[string]json.RawMessage{encodedSecret: secretValue},
+			}},
+			Structured: secretJSON,
+			Preview:    "preview " + encodedSecret,
+			Artifacts: []toolspkg.ArtifactRef{{
+				URI:      "artifact://" + encodedSecret,
+				Name:     "name " + hexSecret,
+				MIMEType: "mime/" + dataURISecret,
+				SHA256:   "sha256-" + encodedSecret,
+			}},
+			Metadata: map[string]json.RawMessage{hexSecret: secretValue},
+			Redactions: []toolspkg.Redaction{{
+				Path:   "$." + dataURISecret,
+				Reason: toolspkg.ReasonCode(encodedSecret),
+				Bytes:  int64(len(secret)),
+			}},
+		})
+		if err != nil {
+			t.Fatalf("redactMCPToolResult() error = %v", err)
+		}
+		requireSecretAbsentFromJSON(t, "fully populated tool result", result, secret)
+		if err := result.Validate(-1); err != nil {
+			t.Fatalf("ToolResult.Validate() error = %v", err)
+		}
+
+		releaseRedactions()
+		if got := diagnostics.Redact("diagnostic " + secret); !strings.Contains(got, secret) {
+			t.Fatalf("post-result diagnostic = %q, retained result secret", got)
+		}
+	})
+
+	t.Run("Should release two required credentials once in LIFO order", func(t *testing.T) {
+		t.Parallel()
+
+		const firstSecret = "r1!"
+		const secondSecret = "s2?"
+		cleanupOrder := make([]string, 0, 2)
+		redactions := &mcpRequestRedactions{
+			registerSecret: func(value string) func() {
+				cleanup := diagnostics.RegisterRequiredSecret(value)
+				return func() {
+					cleanup()
+					cleanupOrder = append(cleanupOrder, value)
+				}
+			},
+		}
+		t.Cleanup(redactions.cleanup)
+
+		redactions.register(firstSecret)
+		redactions.register(secondSecret)
+		for _, secret := range []string{firstSecret, secondSecret} {
+			if got := diagnostics.Redact("diagnostic " + secret); strings.Contains(got, secret) {
+				t.Fatalf("in-flight diagnostic = %q, leaked required credential", got)
+			}
+		}
+
+		redactions.cleanup()
+		redactions.cleanup()
+		if want := []string{secondSecret, firstSecret}; !slices.Equal(cleanupOrder, want) {
+			t.Fatalf("cleanup order = %#v, want %#v", cleanupOrder, want)
+		}
+		for _, secret := range []string{firstSecret, secondSecret} {
+			if got := diagnostics.Redact("diagnostic " + secret); !strings.Contains(got, secret) {
+				t.Fatalf("post-cleanup diagnostic = %q, retained required credential", got)
+			}
+		}
+	})
+
+	t.Run("Should rebuild tool errors without retaining dynamically resolved causes", func(t *testing.T) {
+		t.Parallel()
+
+		const secret = "mcp?resolved-lifecycle-secret"
+		ctx, releaseRedactions := withMCPRequestRedactions(t.Context())
+		t.Cleanup(releaseRedactions)
+		executor := &CallExecutor{lookupSecret: func(string) string { return secret }}
+		for range 2 {
+			if _, err := executor.resolveSecretRef(ctx, "env:MCP_LIFECYCLE_SECRET"); err != nil {
+				t.Fatalf("resolveSecretRef() error = %v", err)
+			}
+		}
+		if got := diagnostics.Redact("diagnostic " + secret); strings.Contains(got, secret) {
+			t.Fatalf("in-flight diagnostic = %q, leaked resolved secret", got)
+		}
+		encodedSecret := base64.StdEncoding.EncodeToString([]byte(secret))
+		hexSecret := hex.EncodeToString([]byte(secret))
+		dataURISecret := "data:application/octet-stream;base64," + encodedSecret
+		percentSecret := url.PathEscape(secret)
+
+		original := toolspkg.NewToolError(
+			toolspkg.ErrorCodeTimedOut,
+			toolspkg.ToolID("mcp__fixture__"+encodedSecret),
+			"upstream leaked credential="+percentSecret,
+			fmt.Errorf("upstream leaked %s: %w", hexSecret, context.DeadlineExceeded),
+			toolspkg.ReasonCallTimedOut,
+		)
+		original.Operator = &toolspkg.OperatorFailure{
+			Cause:    "operator saw prefix " + dataURISecret + " suffix",
+			Recovery: "remove " + hexSecret,
+		}
+		original.PartialResult = &toolspkg.ToolResult{
+			Content: []toolspkg.ToolContent{{Type: "text", Text: encodedSecret}},
+		}
+		redacted := redactMCPError(original)
+
+		toolErr, toolErrMatched := errors.AsType[*toolspkg.ToolError](redacted)
+		if !toolErrMatched {
+			t.Fatalf("redactMCPError() error = %T, want *tools.ToolError", redacted)
+		}
+		if got, want := toolErr.Code, toolspkg.ErrorCodeTimedOut; got != want {
+			t.Fatalf("redacted tool error code = %q, want %q", got, want)
+		}
+		if toolErr.PartialResult != nil {
+			t.Fatalf("redacted tool error partial result = %#v, want omitted opaque result", toolErr.PartialResult)
+		}
+		if toolErr.Operator == nil {
+			t.Fatalf("redacted tool error operator = %#v, leaked secret", toolErr.Operator)
+		}
+		requireSecretAbsentFromReversibleString(t, "tool error operator cause", toolErr.Operator.Cause, secret)
+		requireSecretAbsentFromReversibleString(t, "tool error operator recovery", toolErr.Operator.Recovery, secret)
+		if !errors.Is(redacted, toolspkg.ErrToolTimedOut) {
+			t.Fatalf("redactMCPError() = %v, want timeout classification", redacted)
+		}
+		if !errors.Is(redacted, context.DeadlineExceeded) {
+			t.Fatalf("redactMCPError() = %v, want context deadline cause", redacted)
+		}
+		requireMCPErrorTreeRedacted(t, redacted, secret)
+
+		unknown := redactMCPError(&testMCPSecretError{secret: "credential=" + percentSecret})
+		if !errors.Is(unknown, toolspkg.ErrToolBackendFailed) {
+			t.Fatalf("opaque upstream error = %v, want backend failure classification", unknown)
+		}
+		originalType, originalTypeMatched := errors.AsType[*testMCPSecretError](unknown)
+		if originalTypeMatched {
+			t.Fatalf("opaque upstream error = %T, retained unsupported secret-bearing type", originalType)
+		}
+		requireMCPErrorTreeRedacted(t, unknown, secret)
+
+		releaseRedactions()
+		if got := diagnostics.Redact("diagnostic " + secret); !strings.Contains(got, secret) {
+			t.Fatalf("post-request diagnostic = %q, retained resolved secret", got)
+		}
+	})
+
+	t.Run("Should admit required secret registration before cleanup can return", func(t *testing.T) {
+		t.Parallel()
+
+		const secret = "mcp-registration-admission-secret"
+		registrationEntered := make(chan struct{})
+		allowRegistration := make(chan struct{})
+		registrationDone := make(chan struct{})
+		cleanupStarted := make(chan struct{})
+		cleanupDone := make(chan struct{})
+		unregistered := make(chan struct{})
+		redactions := &mcpRequestRedactions{
+			registerSecret: func(value string) func() {
+				close(registrationEntered)
+				<-allowRegistration
+				cleanup := diagnostics.RegisterRequiredSecret(value)
+				return func() {
+					cleanup()
+					close(unregistered)
+				}
+			},
+		}
+
+		go func() {
+			redactions.register(secret)
+			close(registrationDone)
+		}()
+		<-registrationEntered
+		go func() {
+			close(cleanupStarted)
+			redactions.cleanup()
+			close(cleanupDone)
+		}()
+		<-cleanupStarted
+		select {
+		case <-cleanupDone:
+			t.Fatal("cleanup returned while dynamic secret registration was still being admitted")
+		default:
+		}
+
+		close(allowRegistration)
+		select {
+		case <-registrationDone:
+		case <-time.After(time.Second):
+			t.Fatal("required secret registration did not complete")
+		}
+		select {
+		case <-cleanupDone:
+		case <-time.After(time.Second):
+			t.Fatal("dynamic secret cleanup did not complete")
+		}
+		select {
+		case <-unregistered:
+		case <-time.After(time.Second):
+			t.Fatal("required secret cleanup was not released")
+		}
+		if got := diagnostics.Redact("diagnostic " + secret); !strings.Contains(got, secret) {
+			t.Fatalf("post-cleanup diagnostic = %q, retained admitted secret", got)
+		}
+	})
+}
+
+func TestMCPClientCleanup(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should join one cleanup failure without losing the primary cause", func(t *testing.T) {
+		t.Parallel()
+
+		primary := errors.New("primary failure")
+		cleanupFailure := errors.New("cleanup failure")
+		cleanupCalls := 0
+		err := joinMCPClientCleanup(primary, &managedMCPClient{cleanup: func() error {
+			cleanupCalls++
+			return cleanupFailure
+		}})
+		if got, want := cleanupCalls, 1; got != want {
+			t.Fatalf("cleanup calls = %d, want %d", got, want)
+		}
+		if !errors.Is(err, primary) {
+			t.Fatalf("joined cleanup error = %v, want primary failure", err)
+		}
+		if !errors.Is(err, cleanupFailure) {
+			t.Fatalf("joined cleanup error = %v, want cleanup failure", err)
+		}
+	})
+}
+
 func TestMCPToolListCache(t *testing.T) {
 	t.Run("Should isolate cached descriptor schemas from caller mutation", func(t *testing.T) {
 		t.Parallel()
@@ -778,8 +1369,8 @@ func TestProtocolVersionMiddleware(t *testing.T) {
 		_, err := handler(t.Context(), "initialize", &mcpsdk.ServerRequest[*mcpsdk.InitializeParams]{
 			Params: &mcpsdk.InitializeParams{ProtocolVersion: "2025-06-18"},
 		})
-		var unsupported *UnsupportedProtocolVersionError
-		if !errors.As(err, &unsupported) || unsupported.Version != "2025-06-18" {
+		unsupported, unsupportedMatched := errors.AsType[*UnsupportedProtocolVersionError](err)
+		if !unsupportedMatched || unsupported.Version != "2025-06-18" {
 			t.Fatalf("initialize middleware error = %v, want unsupported 2025-06-18", err)
 		}
 		if nextCalled {
@@ -857,8 +1448,8 @@ func TestConnectClientRejectsUnsupportedNegotiatedProtocol(t *testing.T) {
 		}()
 
 		_, err := (&CallExecutor{}).connectClient(t.Context(), clientTransport)
-		var unsupported *UnsupportedProtocolVersionError
-		if !errors.As(err, &unsupported) || unsupported.Version != "2025-06-18" {
+		unsupported, unsupportedMatched := errors.AsType[*UnsupportedProtocolVersionError](err)
+		if !unsupportedMatched || unsupported.Version != "2025-06-18" {
 			t.Fatalf("connectClient() error = %v, want unsupported 2025-06-18", err)
 		}
 		cancelServer()
@@ -963,6 +1554,69 @@ func TestCallExecutorDescriptorFromToolPreservesPresentationMetadata(t *testing.
 		})
 		if err == nil {
 			t.Fatal("mcpToolPresentationMetadata() error = nil, want invalid type failure")
+		}
+	})
+
+	t.Run("Should reject credential material in descriptor identity fields", func(t *testing.T) {
+		t.Parallel()
+
+		const secret = "identity_z9"
+		cleanup := diagnostics.RegisterRequiredSecret(secret)
+		t.Cleanup(cleanup)
+		encodedSecret := base64.RawStdEncoding.EncodeToString([]byte(secret))
+
+		executor := &CallExecutor{}
+		_, err := executor.descriptorFromTool(
+			toolspkg.SourceRef{Kind: toolspkg.SourceMCP, Owner: "github"},
+			compozyconfig.MCPServer{Name: "github"},
+			mcpsdk.Tool{
+				Name:        "credential_" + encodedSecret,
+				InputSchema: json.RawMessage(`{"type":"object"}`),
+			},
+		)
+		requireReason(t, err, toolspkg.ReasonSecretMetadata)
+		requireSecretAbsentFromReversibleString(t, "descriptorFromTool() error", err.Error(), secret)
+
+		for _, test := range []struct {
+			name   string
+			mutate func(*toolspkg.MCPToolDescriptor)
+		}{
+			{
+				name: "Should reject hexadecimal source owner",
+				mutate: func(descriptor *toolspkg.MCPToolDescriptor) {
+					descriptor.Source.Owner = hex.EncodeToString([]byte(secret))
+				},
+			},
+			{
+				name: "Should reject data URI resource identity",
+				mutate: func(descriptor *toolspkg.MCPToolDescriptor) {
+					descriptor.Source.ResourceID = "data:application/octet-stream;base64," +
+						base64.StdEncoding.EncodeToString([]byte(secret))
+				},
+			},
+		} {
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
+
+				descriptor := safeMCPDescriptorForRedactionTest()
+				test.mutate(&descriptor)
+				_, redactErr := redactMCPToolDescriptor(descriptor)
+				requireReason(t, redactErr, toolspkg.ReasonSecretMetadata)
+				requireSecretAbsentFromReversibleString(t, "descriptor identity error", redactErr.Error(), secret)
+			})
+		}
+
+		collisionSchema, err := json.Marshal(map[string]bool{
+			base64.StdEncoding.EncodeToString([]byte(secret)): true,
+			"[REDACTED]": false,
+		})
+		if err != nil {
+			t.Fatalf("json.Marshal(collision schema) error = %v", err)
+		}
+		descriptor := safeMCPDescriptorForRedactionTest()
+		descriptor.InputSchema = collisionSchema
+		if _, err := redactMCPToolDescriptor(descriptor); err == nil {
+			t.Fatal("redactMCPToolDescriptor(collision schema) error = nil, want fail-closed collision")
 		}
 	})
 }
@@ -1074,7 +1728,11 @@ func TestMCPCallExecutorStdioEnvironmentBoundary(t *testing.T) {
 	})
 
 	t.Run("Should expose explicitly bound secret env to stdio MCP processes", func(t *testing.T) {
-		setMCPTestEnv(t, stdioExplicitSecretSource, "bound-secret")
+		const secret = "q7Z"
+		setMCPTestEnv(t, stdioExplicitSecretSource, secret)
+		if got := diagnostics.Redact("diagnostic " + secret); !strings.Contains(got, secret) {
+			t.Fatalf("diagnostic baseline = %q, want unregistered stdio secret", got)
+		}
 
 		executor := newTestMCPExecutor(
 			t,
@@ -1094,14 +1752,121 @@ func TestMCPCallExecutorStdioEnvironmentBoundary(t *testing.T) {
 		)
 
 		descriptor := requireMCPDescriptor(t, executor, "Local", "mcp__local__echo")
+		requireSecretAbsentFromJSON(t, "stdio discovered descriptor", descriptor, secret)
+		if got := diagnostics.Redact("diagnostic " + secret); !strings.Contains(got, secret) {
+			t.Fatalf("post-discovery diagnostic = %q, retained stdio secret", got)
+		}
+		source := toolspkg.SourceRef{
+			Kind:          toolspkg.SourceMCP,
+			Owner:         "Local",
+			RawServerName: "Local",
+		}
+		cached, err := executor.ListTools(t.Context(), source)
+		if err != nil {
+			t.Fatalf("ListTools(cached stdio) error = %v", err)
+		}
+		requireSecretAbsentFromJSON(t, "stdio cached descriptors", cached, secret)
+		provider, err := toolspkg.NewMCPProvider(
+			toolspkg.MCPSourceListerFunc(func(context.Context) ([]toolspkg.SourceRef, error) {
+				return []toolspkg.SourceRef{source}, nil
+			}),
+			executor,
+			executor,
+		)
+		if err != nil {
+			t.Fatalf("NewMCPProvider(stdio) error = %v", err)
+		}
+		projected, err := provider.List(t.Context(), toolspkg.Scope{})
+		if err != nil {
+			t.Fatalf("MCPProvider.List(stdio) error = %v", err)
+		}
+		requireSecretAbsentFromJSON(t, "stdio provider projection", projected, secret)
 		result := callMCPTool(
 			t,
 			executor,
 			descriptor,
 			json.RawMessage("{\"message\":\""+stdioExplicitSecretEnv+"\"}"),
 		)
-		if got, want := result.Preview, "env: bound-secret"; got != want {
+		if got, want := result.Preview, "env: [REDACTED]"; got != want {
 			t.Fatalf("result.Preview = %q, want %q", got, want)
+		}
+		requireSecretAbsentFromJSON(t, "stdio tool result", result, secret)
+		requireMCPBinaryContentRedacted(t, result, secret)
+		requireMCPEmbeddedBlobRedacted(t, result)
+		if len(result.Redactions) == 0 {
+			t.Fatal("stdio result redactions = nil, want reflected-credential audit records")
+		}
+		if got := diagnostics.Redact("diagnostic " + secret); !strings.Contains(got, secret) {
+			t.Fatalf("post-call diagnostic = %q, retained stdio secret", got)
+		}
+	})
+
+	t.Run("Should redact secret env values through client close and cleanup failures", func(t *testing.T) {
+		const secret = "m8#"
+		setMCPTestEnv(t, stdioExplicitSecretSource, secret)
+		encodedSecret := base64.StdEncoding.EncodeToString([]byte(secret))
+		hexSecret := hex.EncodeToString([]byte(secret))
+		dataURISecret := "data:application/octet-stream;base64," + encodedSecret
+
+		ctx, releaseRedactions := withMCPRequestRedactions(t.Context())
+		t.Cleanup(releaseRedactions)
+		server := compozyconfig.MCPServer{
+			Name:      "local-cleanup",
+			Transport: compozyconfig.MCPServerTransportStdio,
+			Command:   os.Args[0],
+			Args:      []string{"-test.run=TestMCPStdioHelperProcess"},
+			Env: map[string]string{
+				stdioEnvHelperEnv: "1",
+			},
+			SecretEnv: map[string]string{
+				stdioExplicitSecretEnv: "env:" + stdioExplicitSecretSource,
+			},
+		}
+		executor := newTestMCPExecutor(t, server, WithSecretLookup(os.Getenv))
+		resolved := ResolvedServer{Server: server, Target: globalMCPExecutorTarget(server.Name)}
+		client, err := executor.openClient(ctx, resolved)
+		if err != nil {
+			t.Fatalf("openClient() error = %v", err)
+		}
+		if got := diagnostics.Redact("diagnostic " + secret); strings.Contains(got, secret) {
+			t.Fatalf("in-flight diagnostic = %q, leaked short secret_env value", got)
+		}
+		clientClosed := false
+		t.Cleanup(func() {
+			if clientClosed {
+				return
+			}
+			if closeErr := closeMCPClient(client); closeErr != nil {
+				t.Errorf("closeMCPClient() error = %v", redactMCPError(closeErr))
+			}
+		})
+		cleanup := client.cleanup
+		client.cleanup = func() error {
+			return errors.Join(
+				fmt.Errorf("mcp stdio cleanup leaked %s", encodedSecret),
+				cleanup(),
+			)
+		}
+		primary := toolspkg.NewToolError(
+			toolspkg.ErrorCodeUnavailable,
+			toolspkg.ToolID("mcp__local_cleanup__"+encodedSecret),
+			"mcp call leaked "+hexSecret,
+			&testMCPSecretError{secret: dataURISecret},
+			toolspkg.ReasonMCPUnreachable,
+		)
+		redacted := redactMCPError(joinMCPClientCleanup(primary, client))
+		clientClosed = true
+		if !errors.Is(redacted, toolspkg.ErrToolUnavailable) {
+			t.Fatalf("joined client cleanup error = %v, want unavailable classification", redacted)
+		}
+		if !errors.Is(redacted, toolspkg.ErrToolBackendFailed) {
+			t.Fatalf("joined client cleanup error = %v, want cleanup backend classification", redacted)
+		}
+		requireMCPErrorTreeRedacted(t, redacted, secret)
+
+		releaseRedactions()
+		if got := diagnostics.Redact("diagnostic " + secret); !strings.Contains(got, secret) {
+			t.Fatalf("post-client-cleanup diagnostic = %q, retained stdio secret", got)
 		}
 	})
 }
@@ -1144,27 +1909,95 @@ func TestMCPStdioHelperProcess(t *testing.T) {
 			os.Exit(17)
 		}
 		if os.Getenv(stdioEnvHelperEnv) == "1" {
-			server := newFakeSDKServer(
-				func(
-					_ context.Context,
-					req *mcpsdk.CallToolRequest,
-				) (*mcpsdk.CallToolResult, error) {
-					var input struct {
-						Message string `json:"message"`
-					}
-					if err := json.Unmarshal(req.Params.Arguments, &input); err != nil {
-						return nil, fmt.Errorf("decode environment helper input: %w", err)
-					}
-					key := input.Message
-					value := os.Getenv(key)
-					return &mcpsdk.CallToolResult{
-						Content: []mcpsdk.Content{
-							&mcpsdk.TextContent{Text: "env: " + value},
+			handler := func(
+				_ context.Context,
+				req *mcpsdk.CallToolRequest,
+			) (*mcpsdk.CallToolResult, error) {
+				var input struct {
+					Message string `json:"message"`
+				}
+				if err := json.Unmarshal(req.Params.Arguments, &input); err != nil {
+					return nil, fmt.Errorf("decode environment helper input: %w", err)
+				}
+				key := input.Message
+				value := os.Getenv(key)
+				encodedValue := base64.StdEncoding.EncodeToString([]byte(value))
+				hexValue := hex.EncodeToString([]byte(value))
+				dataURIValue := "data:application/octet-stream;base64," + encodedValue
+				textValue := value
+				imageMIME := "image/png"
+				audioMIME := "audio/mpeg"
+				resourceURI := "memory://stdio-secret"
+				resourceMIME := "application/octet-stream"
+				if value != "" {
+					textValue = encodedValue
+					imageMIME = "image/" + hexValue
+					audioMIME = "audio/" + encodedValue
+					resourceURI = "memory://" + encodedValue
+					resourceMIME = "application/" + hexValue
+				}
+				return &mcpsdk.CallToolResult{
+					Content: []mcpsdk.Content{
+						&mcpsdk.TextContent{Text: "env: " + textValue},
+						&mcpsdk.ImageContent{Data: []byte(value), MIMEType: imageMIME},
+						&mcpsdk.AudioContent{Data: []byte(value), MIMEType: audioMIME},
+						&mcpsdk.EmbeddedResource{
+							Resource: &mcpsdk.ResourceContents{
+								URI:      resourceURI,
+								MIMEType: resourceMIME,
+								Blob:     []byte("prefix:" + value + ":suffix"),
+							},
+							Meta: mcpsdk.Meta{
+								"binary":      []byte(value),
+								"encoded_key": map[string]any{encodedValue: "visible"},
+							},
 						},
-						StructuredContent: map[string]string{"message": value},
-					}, nil
-				},
-			)
+					},
+					StructuredContent: map[string]any{
+						"binary": []byte(value),
+						"encoded_keys": []any{
+							map[string]any{encodedValue: "base64"},
+							map[string]any{hex.EncodeToString([]byte(value)): "hex"},
+							map[string]any{
+								dataURIValue: "data_uri",
+							},
+						},
+						"message": textValue,
+					},
+				}, nil
+			}
+			server := newFakeSDKServer(handler)
+			reflectedValue := os.Getenv(stdioExplicitSecretEnv)
+			if reflectedValue != "" {
+				encodedValue := base64.StdEncoding.EncodeToString([]byte(reflectedValue))
+				hexValue := hex.EncodeToString([]byte(reflectedValue))
+				dataURIValue := "data:application/octet-stream;base64," + encodedValue
+				server = newFakeSDKServerWithSchemas(
+					handler,
+					map[string]any{
+						"type":       "object",
+						"properties": map[string]any{"message": map[string]any{"type": "string"}},
+						"x-encoded-reflections": map[string]any{
+							"value": encodedValue,
+							"key":   map[string]any{encodedValue: "visible"},
+						},
+					},
+					map[string]any{
+						"type": "object",
+						"x-encoded-reflections": map[string]any{
+							"value": "output " + hexValue,
+							"key":   map[string]any{dataURIValue: "visible"},
+						},
+					},
+					"Echo "+encodedValue,
+					"Title "+hexValue,
+					mcpsdk.Meta{
+						mcpFriendlyVerbMetadataKey: "Reading " + encodedValue,
+						mcpPreviewMetadataKey:      "auto",
+					},
+				)
+			}
+			server.AddReceivingMiddleware(withTestMCPListTTL)
 			if err := server.Run(context.Background(), &mcpsdk.StdioTransport{}); err != nil {
 				if _, writeErr := fmt.Fprintln(os.Stderr, err); writeErr != nil {
 					os.Exit(3)
@@ -1552,6 +2385,24 @@ func TestMCPCallExecutorHelpers(t *testing.T) {
 }
 
 func newFakeSDKServer(handler mcpsdk.ToolHandler) *mcpsdk.Server {
+	return newFakeSDKServerWithSchemas(
+		handler,
+		json.RawMessage(`{"type":"object","properties":{"message":{"type":"string"}}}`),
+		json.RawMessage(`{"type":"object","properties":{"message":{"type":"string"}}}`),
+		"Echo message",
+		"",
+		nil,
+	)
+}
+
+func newFakeSDKServerWithSchemas(
+	handler mcpsdk.ToolHandler,
+	inputSchema any,
+	outputSchema any,
+	description string,
+	title string,
+	meta mcpsdk.Meta,
+) *mcpsdk.Server {
 	if handler == nil {
 		handler = func(_ context.Context, req *mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
 			var input struct {
@@ -1571,12 +2422,400 @@ func newFakeSDKServer(handler mcpsdk.ToolHandler) *mcpsdk.Server {
 	})
 	server.AddTool(&mcpsdk.Tool{
 		Name:         "echo",
-		Description:  "Echo message",
-		InputSchema:  json.RawMessage(`{"type":"object","properties":{"message":{"type":"string"}}}`),
-		OutputSchema: json.RawMessage(`{"type":"object","properties":{"message":{"type":"string"}}}`),
-		Annotations:  &mcpsdk.ToolAnnotations{ReadOnlyHint: true},
+		Description:  description,
+		InputSchema:  inputSchema,
+		OutputSchema: outputSchema,
+		Annotations:  &mcpsdk.ToolAnnotations{Title: title, ReadOnlyHint: true},
+		Meta:         meta,
 	}, handler)
 	return server
+}
+
+func safeMCPDescriptorForRedactionTest() toolspkg.MCPToolDescriptor {
+	return toolspkg.MCPToolDescriptor{
+		ID:           "mcp__github__lookup",
+		RawName:      "lookup",
+		FriendlyVerb: "Looking up",
+		Preview:      "auto",
+		InputSchema:  json.RawMessage(`{"type":"object"}`),
+		Source: toolspkg.SourceRef{
+			Kind:          toolspkg.SourceMCP,
+			Owner:         "github",
+			RawServerName: "github",
+			RawToolName:   "lookup",
+		},
+	}
+}
+
+func withTestMCPListTTL(next mcpsdk.MethodHandler) mcpsdk.MethodHandler {
+	return func(ctx context.Context, method string, request mcpsdk.Request) (mcpsdk.Result, error) {
+		result, err := next(ctx, method, request)
+		if err != nil || method != mcpToolsListMethod {
+			return result, err
+		}
+		listResult, ok := result.(*mcpsdk.ListToolsResult)
+		if !ok {
+			return nil, errors.New("test: tools/list returned an unexpected result type")
+		}
+		listResult.TTLMs = 60_000
+		return listResult, nil
+	}
+}
+
+func newReflectingSDKServer(secret string, listCalls *atomic.Int32) *mcpsdk.Server {
+	encodedSecret := base64.StdEncoding.EncodeToString([]byte(secret))
+	hexSecret := hex.EncodeToString([]byte(secret))
+	dataURISecret := "data:application/octet-stream;base64," + encodedSecret
+	percentSecret := url.PathEscape(secret)
+	server := mcpsdk.NewServer(&mcpsdk.Implementation{Name: "reflecting", Version: "1.0.0"}, &mcpsdk.ServerOptions{
+		Capabilities: &mcpsdk.ServerCapabilities{Tools: &mcpsdk.ToolCapabilities{}},
+	})
+	server.AddTool(&mcpsdk.Tool{
+		Name:        "reflect",
+		Description: "description credential=" + percentSecret,
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"visible": map[string]any{"type": "string"},
+			},
+			"x-encoded-reflections": map[string]any{
+				"value":   encodedSecret,
+				"key":     map[string]any{encodedSecret: "visible"},
+				"percent": map[string]any{"credential=" + percentSecret: "visible"},
+			},
+		},
+		OutputSchema: map[string]any{
+			"type": "object",
+			"x-encoded-reflections": map[string]any{
+				"value": "output " + hexSecret,
+				"key":   map[string]any{dataURISecret: "visible"},
+			},
+		},
+		Annotations: &mcpsdk.ToolAnnotations{
+			Title:        "title " + hexSecret,
+			ReadOnlyHint: true,
+		},
+		Meta: mcpsdk.Meta{
+			mcpFriendlyVerbMetadataKey: "Reading " + encodedSecret,
+			mcpPreviewMetadataKey:      "auto",
+		},
+	}, func(_ context.Context, _ *mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
+		return &mcpsdk.CallToolResult{
+			Content: []mcpsdk.Content{
+				&mcpsdk.TextContent{Text: "text " + encodedSecret},
+				&mcpsdk.ImageContent{Data: []byte(secret), MIMEType: "image/" + hexSecret},
+				&mcpsdk.AudioContent{Data: []byte(secret), MIMEType: "audio/" + encodedSecret},
+				&mcpsdk.EmbeddedResource{
+					Resource: &mcpsdk.ResourceContents{
+						URI:      "memory://" + encodedSecret,
+						MIMEType: "application/" + hexSecret,
+						Blob:     []byte("prefix:" + secret + ":suffix"),
+					},
+					Meta: mcpsdk.Meta{
+						"binary":      []byte(secret),
+						"encoded_key": map[string]any{encodedSecret: "visible"},
+					},
+				},
+				&mcpsdk.ResourceLink{
+					URI:         "memory://" + encodedSecret,
+					Name:        "name-" + hexSecret,
+					Title:       "title-" + encodedSecret,
+					Description: "description-" + hexSecret,
+					MIMEType:    "application/" + encodedSecret,
+					Icons: []mcpsdk.Icon{{
+						Source:   dataURISecret,
+						MIMEType: "application/" + hexSecret,
+					}},
+				},
+			},
+			StructuredContent: map[string]any{
+				encodedSecret:     encodedSecret,
+				"binary":          []byte(secret),
+				"data_uri":        dataURISecret,
+				"percent_encoded": "credential=" + percentSecret,
+				"encoded_keys": []any{
+					map[string]any{encodedSecret: "base64"},
+					map[string]any{hexSecret: "hex"},
+					map[string]any{
+						dataURISecret: "data_uri",
+					},
+				},
+				"hex":    hexSecret,
+				"nested": map[string]any{"value": "structured " + encodedSecret},
+			},
+		}, nil
+	})
+	server.AddReceivingMiddleware(func(next mcpsdk.MethodHandler) mcpsdk.MethodHandler {
+		return func(ctx context.Context, method string, request mcpsdk.Request) (mcpsdk.Result, error) {
+			result, err := next(ctx, method, request)
+			if err != nil || method != mcpToolsListMethod {
+				return result, err
+			}
+			listCalls.Add(1)
+			listResult, ok := result.(*mcpsdk.ListToolsResult)
+			if !ok {
+				return nil, errors.New("test: tools/list returned an unexpected result type")
+			}
+			listResult.TTLMs = 60_000
+			return listResult, nil
+		}
+	})
+	return server
+}
+
+func requireSecretAbsentFromJSON(t *testing.T, label string, value any, secret string) {
+	t.Helper()
+
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		t.Fatalf("json.Marshal(%s) error = %v", label, err)
+	}
+	if strings.Contains(string(encoded), secret) {
+		t.Fatalf("%s = %s, leaked credential %q", label, encoded, secret)
+	}
+	var decoded any
+	if err := json.Unmarshal(encoded, &decoded); err != nil {
+		t.Fatalf("json.Unmarshal(%s) error = %v", label, err)
+	}
+	requireSecretAbsentFromReversibleJSONValue(t, label, decoded, secret)
+	if !strings.Contains(string(encoded), "[REDACTED]") {
+		t.Fatalf("%s = %s, want redaction marker", label, encoded)
+	}
+}
+
+func requireSecretAbsentFromReversibleJSONValue(t *testing.T, label string, value any, secret string) {
+	t.Helper()
+
+	switch typed := value.(type) {
+	case string:
+		requireSecretAbsentFromReversibleString(t, label, typed, secret)
+	case []any:
+		for index := range typed {
+			requireSecretAbsentFromReversibleJSONValue(t, label, typed[index], secret)
+		}
+	case map[string]any:
+		for key, item := range typed {
+			requireSecretAbsentFromReversibleJSONValue(t, label+" JSON key", key, secret)
+			requireSecretAbsentFromReversibleJSONValue(t, label, item, secret)
+		}
+	}
+}
+
+func requireSecretAbsentFromReversibleString(t *testing.T, label string, value string, secret string) {
+	t.Helper()
+
+	if strings.Contains(value, secret) {
+		t.Fatalf("%s retained literal credential %q in %q", label, secret, value)
+	}
+	secretBytes := []byte(secret)
+	for _, encoding := range []*base64.Encoding{
+		base64.StdEncoding,
+		base64.RawStdEncoding,
+		base64.URLEncoding,
+		base64.RawURLEncoding,
+	} {
+		encodedSecret := encoding.EncodeToString(secretBytes)
+		if encodedSecret != "" && strings.Contains(value, encodedSecret) {
+			t.Fatalf("%s retained base64 credential %q in %q", label, encodedSecret, value)
+		}
+		decoded, err := encoding.DecodeString(value)
+		if err == nil && bytes.Contains(decoded, secretBytes) {
+			t.Fatalf("%s retained credential %q after base64 decode of %q", label, secret, value)
+		}
+	}
+	for _, encodedSecret := range []string{
+		hex.EncodeToString(secretBytes),
+		strings.ToUpper(hex.EncodeToString(secretBytes)),
+	} {
+		if encodedSecret != "" && strings.Contains(value, encodedSecret) {
+			t.Fatalf("%s retained hexadecimal credential %q in %q", label, encodedSecret, value)
+		}
+	}
+	decoded, err := hex.DecodeString(value)
+	if err == nil && bytes.Contains(decoded, secretBytes) {
+		t.Fatalf("%s retained credential %q after hex decode of %q", label, secret, value)
+	}
+	for _, candidate := range []string{value, escapeInvalidPercentsForTest(value)} {
+		decodedValue, decodeErr := url.PathUnescape(candidate)
+		if decodeErr == nil && decodedValue != value && strings.Contains(decodedValue, secret) {
+			t.Fatalf("%s retained credential %q after URL decode of %q", label, secret, value)
+		}
+		decodedValue, decodeErr = url.QueryUnescape(candidate)
+		if decodeErr == nil && decodedValue != value && strings.Contains(decodedValue, secret) {
+			t.Fatalf("%s retained credential %q after query decode of %q", label, secret, value)
+		}
+	}
+	if len(value) < len("data:") || !strings.EqualFold(value[:len("data:")], "data:") {
+		return
+	}
+	header, payload, found := strings.Cut(value, ",")
+	if !found {
+		return
+	}
+	if strings.Contains(strings.ToLower(header), ";base64") {
+		requireSecretAbsentFromReversibleString(t, label+" data URI", payload, secret)
+		return
+	}
+	decodedPayload, err := url.PathUnescape(payload)
+	if err == nil && strings.Contains(decodedPayload, secret) {
+		t.Fatalf("%s retained credential %q after data URI decode of %q", label, secret, value)
+	}
+}
+
+func escapeInvalidPercentsForTest(value string) string {
+	var escaped strings.Builder
+	escaped.Grow(len(value))
+	for index := 0; index < len(value); index++ {
+		validEscape := value[index] == '%' &&
+			index+2 < len(value) &&
+			isHexForTest(value[index+1]) &&
+			isHexForTest(value[index+2])
+		if !validEscape {
+			if value[index] == '%' {
+				escaped.WriteString("%25")
+			} else {
+				escaped.WriteByte(value[index])
+			}
+			continue
+		}
+		escaped.WriteString(value[index : index+3])
+		index += 2
+	}
+	return escaped.String()
+}
+
+func isHexForTest(value byte) bool {
+	return value >= '0' && value <= '9' || value >= 'a' && value <= 'f' || value >= 'A' && value <= 'F'
+}
+
+func requireMCPBinaryContentRedacted(t *testing.T, result toolspkg.ToolResult, secret string) {
+	t.Helper()
+
+	seen := map[string]bool{hostedProxyImageKey: false, hostedProxyAudioKey: false}
+	for index := range result.Content {
+		content := result.Content[index]
+		if _, tracked := seen[content.Type]; !tracked {
+			continue
+		}
+		var encoded string
+		if err := json.Unmarshal(content.Data, &encoded); err != nil {
+			t.Fatalf("content[%d].Data = %s: %v", index, content.Data, err)
+		}
+		decoded, err := base64.StdEncoding.DecodeString(encoded)
+		if err != nil {
+			t.Fatalf("content[%d].Data base64 decode error = %v", index, err)
+		}
+		if bytes.Contains(decoded, []byte(secret)) {
+			t.Fatalf("content[%d].Data decoded = %q, leaked credential", index, decoded)
+		}
+		if !bytes.Contains(decoded, []byte("[REDACTED]")) {
+			t.Fatalf("content[%d].Data decoded = %q, want redaction marker", index, decoded)
+		}
+		seen[content.Type] = true
+	}
+	for contentType, found := range seen {
+		if !found {
+			t.Fatalf("tool result content type %q not found", contentType)
+		}
+	}
+}
+
+func requireMCPBinaryEnvelopesRedacted(t *testing.T, result toolspkg.ToolResult) {
+	t.Helper()
+
+	var structured map[string]any
+	if err := json.Unmarshal(result.Structured, &structured); err != nil {
+		t.Fatalf("result.Structured = %s: %v", result.Structured, err)
+	}
+	for _, field := range []string{"binary", "data_uri", "hex"} {
+		if got, want := structured[field], any("[REDACTED]"); got != want {
+			t.Fatalf("result.Structured[%q] = %#v, want %#v", field, got, want)
+		}
+	}
+
+	seenResource := false
+	seenResourceLink := false
+	for index := range result.Content {
+		content := result.Content[index]
+		if content.Type != executorMCPKey {
+			continue
+		}
+		var envelope map[string]any
+		if err := json.Unmarshal(content.Data, &envelope); err != nil {
+			t.Fatalf("content[%d].Data = %s: %v", index, content.Data, err)
+		}
+		switch envelope["type"] {
+		case "resource":
+			seenResource = true
+			resource, ok := envelope["resource"].(map[string]any)
+			if !ok {
+				t.Fatalf("content[%d].Data resource = %#v, want object", index, envelope["resource"])
+			}
+			blob, ok := resource["blob"].(string)
+			if !ok {
+				t.Fatalf("content[%d].Data resource.blob = %#v, want string", index, resource["blob"])
+			}
+			decoded, err := base64.StdEncoding.DecodeString(blob)
+			if err != nil {
+				t.Fatalf("content[%d].Data resource.blob decode error = %v", index, err)
+			}
+			if !bytes.Contains(decoded, []byte("[REDACTED]")) {
+				t.Fatalf("content[%d].Data resource.blob decoded = %q, want marker", index, decoded)
+			}
+			metadata, ok := envelope["_meta"].(map[string]any)
+			if !ok || metadata["binary"] != "[REDACTED]" {
+				t.Fatalf("content[%d].Data _meta = %#v, want redacted binary", index, envelope["_meta"])
+			}
+		case "resource_link":
+			seenResourceLink = true
+			icons, ok := envelope["icons"].([]any)
+			if !ok || len(icons) != 1 {
+				t.Fatalf("content[%d].Data icons = %#v, want one icon", index, envelope["icons"])
+			}
+			icon, ok := icons[0].(map[string]any)
+			if !ok || icon["src"] != "[REDACTED]" {
+				t.Fatalf("content[%d].Data icon = %#v, want redacted data URI", index, icons[0])
+			}
+		}
+	}
+	if !seenResource || !seenResourceLink {
+		t.Fatalf("binary envelopes seen resource=%t resource_link=%t, want both", seenResource, seenResourceLink)
+	}
+}
+
+func requireMCPEmbeddedBlobRedacted(t *testing.T, result toolspkg.ToolResult) {
+	t.Helper()
+
+	for index := range result.Content {
+		content := result.Content[index]
+		if content.Type != executorMCPKey {
+			continue
+		}
+		var envelope map[string]any
+		if err := json.Unmarshal(content.Data, &envelope); err != nil {
+			t.Fatalf("content[%d].Data = %s: %v", index, content.Data, err)
+		}
+		if envelope["type"] != "resource" {
+			continue
+		}
+		resource, ok := envelope["resource"].(map[string]any)
+		if !ok {
+			t.Fatalf("content[%d].Data resource = %#v, want object", index, envelope["resource"])
+		}
+		blob, ok := resource["blob"].(string)
+		if !ok {
+			t.Fatalf("content[%d].Data resource.blob = %#v, want string", index, resource["blob"])
+		}
+		decoded, err := base64.StdEncoding.DecodeString(blob)
+		if err != nil {
+			t.Fatalf("content[%d].Data resource.blob decode error = %v", index, err)
+		}
+		if !bytes.Contains(decoded, []byte("[REDACTED]")) {
+			t.Fatalf("content[%d].Data resource.blob decoded = %q, want marker", index, decoded)
+		}
+		return
+	}
+	t.Fatal("tool result embedded resource not found")
 }
 
 func newTestMCPHandler(server *mcpsdk.Server) http.Handler {
@@ -1741,6 +2980,23 @@ func requireReason(t *testing.T, err error, want toolspkg.ReasonCode) {
 	}
 	if got != want {
 		t.Fatalf("ReasonOf(%v) = %q, want %q", err, got, want)
+	}
+}
+
+func requireMCPErrorTreeRedacted(t *testing.T, err error, secret string) {
+	t.Helper()
+
+	if err == nil {
+		t.Fatal("error tree = nil, want redacted error")
+	}
+	requireSecretAbsentFromReversibleString(t, "error tree message", err.Error(), secret)
+	switch wrapped := err.(type) {
+	case interface{ Unwrap() []error }:
+		for _, child := range wrapped.Unwrap() {
+			requireMCPErrorTreeRedacted(t, child, secret)
+		}
+	case interface{ Unwrap() error }:
+		requireMCPErrorTreeRedacted(t, wrapped.Unwrap(), secret)
 	}
 }
 
@@ -1993,6 +3249,27 @@ func cloneClientRegistration(registration mcpauth.ClientRegistration) mcpauth.Cl
 }
 
 type secretRefResolverFunc func(context.Context, string) (string, error)
+
+type mcpRoundTripperFunc func(*http.Request) (*http.Response, error)
+
+func (f mcpRoundTripperFunc) RoundTrip(request *http.Request) (*http.Response, error) {
+	return f(request)
+}
+
+type scriptedMCPResponseBody struct {
+	readErr    error
+	closeErr   error
+	closeCalls int
+}
+
+func (b *scriptedMCPResponseBody) Read([]byte) (int, error) {
+	return 0, b.readErr
+}
+
+func (b *scriptedMCPResponseBody) Close() error {
+	b.closeCalls++
+	return b.closeErr
+}
 
 func (f secretRefResolverFunc) ResolveRef(ctx context.Context, ref string) (string, error) {
 	return f(ctx, ref)

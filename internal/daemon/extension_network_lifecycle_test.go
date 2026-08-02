@@ -62,8 +62,8 @@ func TestExtensionEnableNetworkConsentLifecycle(t *testing.T) {
 			if !errors.Is(enableErr, extensionpkg.ErrExtensionNetworkConfirmationRequired) {
 				t.Fatalf("Enable(confirm=%q) error = %v, want confirmation required", testCase.supplied, enableErr)
 			}
-			var required *extensionpkg.NetworkConfirmationRequiredError
-			if !errors.As(enableErr, &required) || required.CurrentDigest != digest {
+			required, requiredMatched := errors.AsType[*extensionpkg.NetworkConfirmationRequiredError](enableErr)
+			if !requiredMatched || required.CurrentDigest != digest {
 				t.Fatalf(
 					"Enable(confirm=%q) error = %#v, want current digest %q",
 					testCase.supplied,
@@ -168,8 +168,8 @@ func TestExtensionEnableNetworkConsentLifecycle(t *testing.T) {
 			t.Fatalf("NetworkParticipationRequirementDigest(candidate) error = %v", err)
 		}
 		_, err = service.Enable(t.Context(), manifest.Name, contract.EnableExtensionRequest{}, operator)
-		var required *extensionpkg.NetworkConfirmationRequiredError
-		if !errors.As(err, &required) || required.CurrentDigest != candidateDigest {
+		required, requiredMatched := errors.AsType[*extensionpkg.NetworkConfirmationRequiredError](err)
+		if !requiredMatched || required.CurrentDigest != candidateDigest {
 			t.Fatalf(
 				"Enable(changed candidate) error = %#v, want confirmation for candidate digest %q",
 				err,

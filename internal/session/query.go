@@ -106,6 +106,11 @@ func (m *Manager) Status(ctx context.Context, id string) (*Info, error) {
 	if err != nil {
 		return nil, err
 	}
+	if !m.isPending(target) {
+		if err := requirePersistedProvider(meta); err != nil {
+			return nil, err
+		}
+	}
 	return m.sessionInfoFromMeta(ctx, meta), nil
 }
 

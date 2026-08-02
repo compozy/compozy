@@ -29,6 +29,18 @@ func StringClause(column string, value string) Clause {
 	return Clause{sql: fmt.Sprintf("%s = ?", column), arg: value, ok: true, hasArg: true}
 }
 
+// OpaqueStringClause builds an equality clause without rewriting the value.
+func OpaqueStringClause(column string, value string) Clause {
+	if value == "" {
+		return Clause{}
+	}
+	if _, err := NormalizeSQLiteIdentifier(column); err != nil {
+		return alwaysFalseClause()
+	}
+
+	return Clause{sql: fmt.Sprintf("%s = ?", column), arg: value, ok: true, hasArg: true}
+}
+
 // NotStringClause builds an inequality clause when the value is non-empty.
 func NotStringClause(column string, value string) Clause {
 	value = strings.TrimSpace(value)

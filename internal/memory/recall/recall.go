@@ -102,11 +102,16 @@ type Source interface {
 
 // Recaller implements deterministic Slice 1 recall.
 type Recaller struct {
-	source         Source
-	signalRecorder *SignalRecorder
-	now            func() time.Time
-	weights        Weights
-	logger         *slog.Logger
+	source                  Source
+	signalRecorder          signalSubmitter
+	signalRecordingDisabled bool
+	now                     func() time.Time
+	weights                 Weights
+	logger                  *slog.Logger
+}
+
+type signalSubmitter interface {
+	Submit(context.Context, memcontract.Query, []Signal) SignalRecorderSubmitResult
 }
 
 var _ memcontract.Recaller = (*Recaller)(nil)
@@ -140,9 +145,17 @@ func WithWeights(weights Weights) Option {
 }
 
 // WithSignalRecorder moves recall-signal writes onto a bounded async worker.
-func WithSignalRecorder(recorder *SignalRecorder) Option {
+func WithSignalRecorder(recorder signalSubmitter) Option {
 	return func(recaller *Recaller) {
 		recaller.signalRecorder = recorder
+	}
+}
+
+// WithoutSignalRecording suppresses signal persistence after its admission closes.
+func WithoutSignalRecording() Option {
+	return func(recaller *Recaller) {
+		recaller.signalRecorder = nil
+		recaller.signalRecordingDisabled = true
 	}
 }
 

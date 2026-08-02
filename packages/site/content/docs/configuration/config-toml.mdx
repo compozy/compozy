@@ -469,7 +469,6 @@ banner_after_days = 1
 [memory.recall.signals]
 queue_capacity = 256
 worker_retry_max = 3
-metrics_enabled = true
 
 [memory.decisions]
 prune_after_applied_days = 90
@@ -1248,24 +1247,33 @@ Provider keys override built-ins with the same name or create a custom provider.
 `goose`, `hermes`, `junie`, `kimi-cli`, `openclaw`, `openhands`, `qoder`, `qwen-code`, `pi`,
 `openrouter`, `zai`, `moonshot`, `vercel-ai-gateway`, `xai`, `minimax`, `mistral`, and `groq`.
 
-| Field                 | Type                        | Default                                                                           | Valid values                                               | Description                                                                                                                        |
-| --------------------- | --------------------------- | --------------------------------------------------------------------------------- | ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `command`             | string                      | Built-in command or empty for custom providers.                                   | Required after built-in plus override resolution.          | ACP launch command for this provider.                                                                                              |
-| `display_name`        | string                      | Built-in label or empty.                                                          | Any string.                                                | Operator-facing label shown in settings and provider pickers.                                                                      |
-| `models`              | table                       | Built-in defaults or empty.                                                       | Nested model config block (see below).                     | Pre-session model defaults, curated metadata, and optional discovery wiring.                                                       |
-| `harness`             | string                      | `acp` unless a built-in sets `pi_acp`.                                            | `acp`, `pi_acp`.                                           | Launch strategy. `pi_acp` routes the provider through Pi's ACP adapter.                                                            |
-| `runtime_provider`    | string                      | Provider key.                                                                     | Harness-specific provider id.                              | Downstream provider id used by Pi and other harnesses.                                                                             |
-| `transport`           | string                      | empty.                                                                            | Harness-specific string.                                   | Optional Pi models override transport/API family.                                                                                  |
-| `base_url`            | string                      | empty.                                                                            | URL string.                                                | Optional Pi models override base URL for custom gateways.                                                                          |
-| `auth_mode`           | string                      | `bound_secret` only when credential slots are configured; otherwise `native_cli`. | `native_cli`, `bound_secret`, `none`.                      | Declares whether auth belongs to the provider CLI, Compozy secret binding, or no auth.                                             |
-| `none_security`       | string                      | `local_transport`.                                                                | `local_transport`, `external_identity`, `public_readonly`. | Safety rationale required for `auth_mode = "none"`.                                                                                |
-| `env_policy`          | string                      | `filtered`.                                                                       | `filtered`, `isolated`.                                    | Controls which daemon environment variables the provider subprocess inherits.                                                      |
-| `home_policy`         | string                      | `operator`.                                                                       | `operator`, `isolated`.                                    | Controls whether native CLI state comes from the operator home or a Compozy provider home.                                         |
-| `auth_status_command` | string                      | empty.                                                                            | Shell-style command string.                                | Optional status probe run by `compozy provider auth status <provider>`.                                                            |
-| `auth_login_command`  | string                      | empty unless a built-in provider defines one.                                     | Shell-style command string.                                | Optional login command surfaced by `compozy provider auth login <provider>`; isolated homes print the required environment prefix. |
-| `session_mcp`         | boolean                     | `true` unless a provider disables it.                                             | `true`, `false`.                                           | Enables Compozy session MCP injection for providers that support it.                                                               |
-| `credential_slots`    | array                       | empty.                                                                            | See below.                                                 | Bound secret refs injected into provider subprocess environment variables at launch.                                               |
-| `mcp_servers`         | array of MCP server objects | empty.                                                                            | Same shape as `[[mcp_servers]]`.                           | Provider-specific MCP servers merged after top-level config and before agent MCP servers.                                          |
+| Field                 | Type                        | Default                                                                           | Valid values                                               | Description                                                                                                                         |
+| --------------------- | --------------------------- | --------------------------------------------------------------------------------- | ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `command`             | string                      | Built-in command or empty for custom providers.                                   | Required after built-in plus override resolution.          | ACP launch command for this provider.                                                                                               |
+| `display_name`        | string                      | Built-in label or empty.                                                          | Any string.                                                | Operator-facing label shown in settings and provider pickers.                                                                       |
+| `models`              | table                       | Built-in defaults or empty.                                                       | Nested model config block (see below).                     | Pre-session model defaults, curated metadata, and optional discovery wiring.                                                        |
+| `harness`             | string                      | `acp` unless a built-in sets `pi_acp`.                                            | `acp`, `pi_acp`.                                           | Launch strategy. `pi_acp` routes the provider through Pi's ACP adapter.                                                             |
+| `runtime_provider`    | string                      | Provider key.                                                                     | Harness-specific provider id.                              | Downstream provider id used by Pi and other harnesses.                                                                              |
+| `transport`           | string                      | empty.                                                                            | Harness-specific string.                                   | Optional Pi models override transport/API family.                                                                                   |
+| `base_url`            | string                      | empty.                                                                            | URL string.                                                | Optional Pi models override base URL for custom gateways.                                                                           |
+| `auth_mode`           | string                      | `bound_secret` only when credential slots are configured; otherwise `native_cli`. | `native_cli`, `bound_secret`, `none`.                      | Declares whether auth belongs to the provider CLI, Compozy secret binding, or no auth.                                              |
+| `none_security`       | string                      | `local_transport`.                                                                | `local_transport`, `external_identity`, `public_readonly`. | Safety rationale required for `auth_mode = "none"`.                                                                                 |
+| `env_policy`          | string                      | `filtered`.                                                                       | `filtered`, `isolated`.                                    | Controls which daemon environment variables the provider subprocess inherits.                                                       |
+| `home_policy`         | string                      | `operator`.                                                                       | `operator`, `isolated`.                                    | Controls whether native CLI state comes from the operator home or a Compozy provider home.                                          |
+| `auth_status_command` | string                      | empty.                                                                            | Shell-style command string.                                | Optional status probe run by `compozy provider auth status <provider>`.                                                             |
+| `auth_login_command`  | string                      | empty unless a built-in provider defines one.                                     | Shell-style command string.                                | Write-only login command executed locally by `compozy provider auth login <provider>`. Reads return only its safe login descriptor. |
+| `session_mcp`         | boolean                     | `true` unless a provider disables it.                                             | `true`, `false`.                                           | Enables Compozy session MCP injection for providers that support it.                                                                |
+| `credential_slots`    | array                       | empty.                                                                            | See below.                                                 | Bound secret refs injected into provider subprocess environment variables at launch.                                                |
+| `mcp_servers`         | array of MCP server objects | empty.                                                                            | Same shape as `[[mcp_servers]]`.                           | Provider-specific MCP servers merged after top-level config and before agent MCP servers.                                           |
+
+`auth_login_command` accepts writes in `config.toml`, through `compozy config set`, or through the
+`compozy__config_set` native tool. It is never a readable configuration value: the set response and
+`compozy config show`, `list`, `get`, and `diff` redact it. Provider status, doctor, Settings, HTTP,
+and UDS likewise never expose the command, its arguments, or its resolved path.
+
+Instead, they expose a safe `login` descriptor: `configured`, `source = "auth_login_command"`, an
+executable basename, `presence` (`present`, `missing`, or `unknown`), and a `recommended_action` when
+recovery is needed (`install_cli`, `login`, `bind_secret`, `retry`, `inspect`, or `no_retry`).
 
 The flat keys `default_model`, `supported_models`, and `supports_reasoning_effort` are no longer
 accepted. Config that still sets them is rejected with a deterministic hard-cut error citing the
@@ -1601,7 +1609,6 @@ Weights are blended into the recall score. Defaults sum to `1.0`.
 | ------------------ | ------- | ------- | ----------------- | ------------------------------------------------------------------------ |
 | `queue_capacity`   | integer | `256`   | Positive integer. | Bounded channel for recall-signal updates. Oldest drops on overflow.     |
 | `worker_retry_max` | integer | `3`     | Positive integer. | Per-update retries before emitting `memory.recall.signal_update_failed`. |
-| `metrics_enabled`  | boolean | `true`  | `true` or `false` | Emits recall-signal metrics for observability.                           |
 
 ## `[memory.decisions]`
 
@@ -1780,8 +1787,9 @@ and higher rate limits. An anonymous rate limit degrades search to cached-or-omi
 | --------- | ------- | ------- | ----------------- | --------------------------------------------------------------------- |
 | `enabled` | boolean | `true`  | `true` or `false` | Enables `git:` installs through a shallow clone at the requested ref. |
 
-Git installs require the `git` executable on the daemon host; a missing binary is the deterministic
-`extension_git_unavailable` diagnostic. Git sources do not support search.
+Git installs require Git 2.37 or newer on the daemon host. A missing binary reports
+`extension_git_unavailable`; an older version reports `extension_git_version_unsupported`. Git source
+URLs must use HTTPS and resolve only to public addresses. Git sources do not support search.
 
 ## `[extensions.dev]`
 

@@ -30,7 +30,9 @@ func (m *Service) dispatchTaskBlocked(
 		Reason:      redactTaskSecretText(strings.TrimSpace(block.Reason)),
 		Details:     redactTaskSecretJSON(cloneRawJSON(block.Details)),
 	}
-	_, err := m.taskHooks.DispatchTaskBlocked(taskRunObservationHookContext(ctx), payload)
+	hookCtx, cancel := taskRunObservationHookContext(ctx)
+	defer cancel()
+	_, err := m.taskHooks.DispatchTaskBlocked(hookCtx, payload)
 	m.reportTaskHookFailure(hookspkg.HookTaskBlocked, err, taskRecord)
 }
 
@@ -53,7 +55,9 @@ func (m *Service) dispatchTaskUnblocked(
 		ClearedAt:   block.ClearedAt,
 		ClearNote:   redactTaskSecretText(strings.TrimSpace(block.ClearNote)),
 	}
-	_, err := m.taskHooks.DispatchTaskUnblocked(taskRunObservationHookContext(ctx), payload)
+	hookCtx, cancel := taskRunObservationHookContext(ctx)
+	defer cancel()
+	_, err := m.taskHooks.DispatchTaskUnblocked(hookCtx, payload)
 	m.reportTaskHookFailure(hookspkg.HookTaskUnblocked, err, taskRecord)
 }
 
@@ -74,7 +78,9 @@ func (m *Service) dispatchTaskNeedsAttention(
 		Reason:      redactTaskSecretText(strings.TrimSpace(reason)),
 		At:          at,
 	}
-	_, err := m.taskHooks.DispatchTaskNeedsAttention(taskRunObservationHookContext(ctx), payload)
+	hookCtx, cancel := taskRunObservationHookContext(ctx)
+	defer cancel()
+	_, err := m.taskHooks.DispatchTaskNeedsAttention(hookCtx, payload)
 	m.reportTaskHookFailure(hookspkg.HookTaskNeedsAttention, err, taskRecord)
 }
 
@@ -94,7 +100,9 @@ func (m *Service) dispatchTaskRecovered(
 		Note:        redactTaskSecretText(strings.TrimSpace(note)),
 		At:          at,
 	}
-	_, err := m.taskHooks.DispatchTaskRecovered(taskRunObservationHookContext(ctx), payload)
+	hookCtx, cancel := taskRunObservationHookContext(ctx)
+	defer cancel()
+	_, err := m.taskHooks.DispatchTaskRecovered(hookCtx, payload)
 	m.reportTaskHookFailure(hookspkg.HookTaskRecovered, err, taskRecord)
 }
 

@@ -46,19 +46,3 @@ func TestAtomicRemoveFileRemovesFileAndRejectsUnsafeTargets(t *testing.T) {
 		}
 	})
 }
-
-func TestRemoveFileOnlyRejectsDirectories(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should reject directories without removing them", func(t *testing.T) {
-		t.Parallel()
-
-		dir := t.TempDir()
-		if err := removeFileOnly(dir); err == nil {
-			t.Fatal("removeFileOnly(directory) error = nil, want non-nil")
-		}
-		if _, err := os.Stat(dir); err != nil {
-			t.Fatalf("Stat(directory after removeFileOnly) error = %v, want directory to remain", err)
-		}
-	})
-}

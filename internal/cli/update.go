@@ -349,44 +349,41 @@ func writeUpdateFailure(cmd *cobra.Command, record updateRecord, cause error) er
 func waitForSettingsRestart(
 	ctx context.Context,
 	deps commandDeps,
-	client DaemonClient,
+	client settingsRestartStatusClient,
 	operationID string,
 ) (SettingsRestartStatusRecord, error) {
-	waitCtx := ctx
-	if waitCtx == nil {
-		waitCtx = context.Background()
+	if err := requirePollingContext(ctx); err != nil {
+		return SettingsRestartStatusRecord{}, err
 	}
-	if _, hasDeadline := waitCtx.Deadline(); !hasDeadline {
-		timeout := settingsRestartTimeout(deps)
-		var cancel context.CancelFunc
-		waitCtx, cancel = context.WithTimeout(waitCtx, timeout)
-		defer cancel()
-	}
-
-	ticker := time.NewTicker(deps.pollInterval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-waitCtx.Done():
-			return SettingsRestartStatusRecord{}, errors.New("cli: daemon restart did not complete before timeout")
-		case <-ticker.C:
-			status, err := client.GetSettingsRestartStatus(waitCtx, operationID)
+	return pollUntil(
+		ctx,
+		settingsRestartTimeout(deps),
+		deps.pollInterval,
+		nil,
+		"cli: daemon restart did not complete before timeout",
+		func(pollCtx context.Context, _ pollEvent) (SettingsRestartStatusRecord, bool, error) {
+			status, err := client.GetSettingsRestartStatus(pollCtx, operationID)
 			if err != nil {
-				continue
+				return SettingsRestartStatusRecord{}, false, nil
 			}
 			switch strings.TrimSpace(string(status.Status)) {
 			case restartStatusReady:
-				return status, nil
+				return status, true, nil
 			case restartStatusFailed:
 				reason := strings.TrimSpace(status.FailureReason)
 				if reason == "" {
 					reason = "daemon restart failed"
 				}
-				return status, errors.New("cli: " + reason)
+				return status, true, errors.New("cli: " + reason)
+			default:
+				return SettingsRestartStatusRecord{}, false, nil
 			}
-		}
-	}
+		},
+	)
+}
+
+type settingsRestartStatusClient interface {
+	GetSettingsRestartStatus(context.Context, string) (SettingsRestartStatusRecord, error)
 }
 
 func settingsRestartTimeout(deps commandDeps) time.Duration {

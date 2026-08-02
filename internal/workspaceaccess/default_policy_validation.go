@@ -2,7 +2,6 @@ package workspaceaccess
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -20,19 +19,22 @@ func normalizeRequest(req Request) Request {
 
 func validateRequest(ctx context.Context, req Request) error {
 	if ctx == nil {
-		return errors.New("workspace access: context is required")
+		return invalidRequest("workspace access: context is required")
 	}
 	if !validActorKind(req.Actor.Kind) {
-		return fmt.Errorf("workspace access: unknown actor kind %q", req.Actor.Kind)
+		return invalidRequest(fmt.Sprintf("workspace access: unknown actor kind %q", req.Actor.Kind))
 	}
 	if !workspaceIDPattern.MatchString(req.TargetWorkspaceID) {
-		return fmt.Errorf("workspace access: target workspace id %q is not canonical", req.TargetWorkspaceID)
+		return invalidRequest(fmt.Sprintf(
+			"workspace access: target workspace id %q is not canonical",
+			req.TargetWorkspaceID,
+		))
 	}
 	if !validSeam(req.Seam) {
-		return fmt.Errorf("workspace access: unknown seam %q", req.Seam)
+		return invalidRequest(fmt.Sprintf("workspace access: unknown seam %q", req.Seam))
 	}
 	if req.Actor.Kind == ActorAgentSession && req.Actor.SessionID == "" {
-		return errors.New("workspace access: agent session id is required")
+		return invalidRequest("workspace access: agent session id is required")
 	}
 	return nil
 }

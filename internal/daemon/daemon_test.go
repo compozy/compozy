@@ -15,7 +15,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"reflect"
@@ -51,7 +50,6 @@ import (
 	"github.com/compozy/compozy/internal/procutil"
 	registrypkg "github.com/compozy/compozy/internal/registry"
 	registrygithub "github.com/compozy/compozy/internal/registry/github"
-	registrygit "github.com/compozy/compozy/internal/registry/gitsrc"
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/skills"
@@ -1028,6 +1026,166 @@ func TestShutdownTearsDownInRequiredOrder(t *testing.T) {
 	if !testutil.EqualStringSlices(events, want) {
 		t.Fatalf("Shutdown() order = %#v, want %#v", events, want)
 	}
+}
+
+func TestDaemonShutdownOperation(t *testing.T) {
+	t.Run("Should retain one operation while callers wait with independent contexts", func(t *testing.T) {
+		t.Parallel()
+
+		d, err := New(WithHomePaths(testHomePaths(t)), WithLogger(discardLogger()))
+		if err != nil {
+			t.Fatalf("New() error = %v", err)
+		}
+		shutdownStarted := make(chan struct{})
+		releaseShutdown := make(chan struct{})
+		server := &fakeServer{
+			name: "http",
+			shutdownFn: func(ctx context.Context) error {
+				close(shutdownStarted)
+				select {
+				case <-releaseShutdown:
+					return nil
+				case <-ctx.Done():
+					return ctx.Err()
+				}
+			},
+		}
+		d.httpServer = server
+
+		testCtx := testutil.Context(t)
+		firstDone := make(chan error, 1)
+		go func() {
+			firstDone <- d.Shutdown(testCtx)
+		}()
+		select {
+		case <-shutdownStarted:
+		case <-testCtx.Done():
+			t.Fatalf("shutdown did not start: %v", testCtx.Err())
+		}
+
+		d.mu.Lock()
+		retainedServer := d.httpServer
+		d.mu.Unlock()
+		if retainedServer != server {
+			t.Fatalf("http server during shutdown = %p, want retained %p", retainedServer, server)
+		}
+		if err := d.beginBoot(); !errors.Is(err, errDaemonShutdownInProgress) {
+			t.Fatalf("beginBoot(during shutdown) error = %v, want shutdown in progress", err)
+		}
+
+		canceledWaiter, cancelWaiter := context.WithCancel(testCtx)
+		cancelWaiter()
+		if err := d.Shutdown(canceledWaiter); !errors.Is(err, context.Canceled) {
+			t.Fatalf("Shutdown(canceled waiter) error = %v, want context.Canceled", err)
+		}
+		if got := server.shutdownCallCount(); got != 1 {
+			t.Fatalf("server Shutdown() calls while joining = %d, want 1", got)
+		}
+
+		joinedDone := make(chan error, 1)
+		go func() {
+			joinedDone <- d.Shutdown(testCtx)
+		}()
+		close(releaseShutdown)
+		for name, result := range map[string]<-chan error{
+			"owner":  firstDone,
+			"joiner": joinedDone,
+		} {
+			select {
+			case err := <-result:
+				if err != nil {
+					t.Fatalf("%s Shutdown() error = %v", name, err)
+				}
+			case <-testCtx.Done():
+				t.Fatalf("%s Shutdown() did not finish: %v", name, testCtx.Err())
+			}
+		}
+
+		d.mu.Lock()
+		clearedServer := d.httpServer
+		d.mu.Unlock()
+		if clearedServer != nil {
+			t.Fatalf("http server after shutdown = %p, want nil", clearedServer)
+		}
+		if err := d.Shutdown(testCtx); err != nil {
+			t.Fatalf("Shutdown(repeated) error = %v", err)
+		}
+		if got := server.shutdownCallCount(); got != 1 {
+			t.Fatalf("server Shutdown() calls after repeated shutdown = %d, want 1", got)
+		}
+		if err := d.beginBoot(); err != nil {
+			t.Fatalf("beginBoot(after shutdown) error = %v", err)
+		}
+		d.mu.Lock()
+		d.booting = false
+		d.mu.Unlock()
+	})
+
+	t.Run("Should retain failed targets for a later retry", func(t *testing.T) {
+		t.Parallel()
+
+		d, err := New(WithHomePaths(testHomePaths(t)), WithLogger(discardLogger()))
+		if err != nil {
+			t.Fatalf("New() error = %v", err)
+		}
+		shutdownFailure := errors.New("server shutdown failed")
+		var server *fakeServer
+		server = &fakeServer{
+			name: "http",
+			shutdownFn: func(context.Context) error {
+				if server.shutdownCallCount() == 1 {
+					return shutdownFailure
+				}
+				return nil
+			},
+		}
+		d.httpServer = server
+
+		testCtx := testutil.Context(t)
+		if err := d.Shutdown(testCtx); !errors.Is(err, shutdownFailure) {
+			t.Fatalf("Shutdown(first) error = %v, want shutdown failure", err)
+		}
+		d.mu.Lock()
+		retainedServer := d.httpServer
+		d.mu.Unlock()
+		if retainedServer != server {
+			t.Fatalf("http server after failed shutdown = %p, want retained %p", retainedServer, server)
+		}
+		if err := d.beginBoot(); !errors.Is(err, shutdownFailure) {
+			t.Fatalf("beginBoot(after failed shutdown) error = %v, want shutdown failure", err)
+		}
+
+		if err := d.Shutdown(testCtx); err != nil {
+			t.Fatalf("Shutdown(retry) error = %v", err)
+		}
+		if got := server.shutdownCallCount(); got != 2 {
+			t.Fatalf("server Shutdown() calls after retry = %d, want 2", got)
+		}
+	})
+
+	t.Run("Should reject invalid ownership contexts", func(t *testing.T) {
+		t.Parallel()
+
+		var nilDaemon *Daemon
+		if err := nilDaemon.Shutdown(testutil.Context(t)); err == nil {
+			t.Fatal("Shutdown() on nil daemon error = nil, want error")
+		}
+		d, err := New(WithLogger(discardLogger()))
+		if err != nil {
+			t.Fatalf("New() error = %v", err)
+		}
+		if err := d.Shutdown(nil); err == nil { //nolint:staticcheck // Verifies the public nil-context contract.
+			t.Fatal("Shutdown(nil) error = nil, want error")
+		}
+		if err := d.beginBoot(); err != nil {
+			t.Fatalf("beginBoot() error = %v", err)
+		}
+		if err := d.Shutdown(testutil.Context(t)); !errors.Is(err, errDaemonBootInProgress) {
+			t.Fatalf("Shutdown(during boot) error = %v, want boot in progress", err)
+		}
+		bootErr := errors.New("abort test boot")
+		d.finishBoot(&bootErr)
+	})
 }
 
 func TestBootExtensionsBuildsManagerWhenNoExtensionsInstalled(t *testing.T) {
@@ -2484,45 +2642,26 @@ func TestDaemonExtensionServiceInstallsPublishedSources(t *testing.T) {
 		}
 	})
 
-	t.Run("Should install a tagged local git repository with git URL provenance", func(t *testing.T) {
+	t.Run("Should reject a local path before loading the published git source", func(t *testing.T) {
 		t.Parallel()
 
-		if _, err := exec.LookPath("git"); err != nil {
-			t.Fatalf("exec.LookPath(git) error = %v", err)
-		}
 		repository := t.TempDir()
-		manifestPath := filepath.Join(repository, "extension.toml")
-		if err := os.WriteFile(
-			manifestPath,
-			[]byte(daemonTestExtensionManifest("git-ext", daemonTestExtensionOptions{})),
-			0o644,
-		); err != nil {
-			t.Fatalf("os.WriteFile(%q) error = %v", manifestPath, err)
-		}
-		runDaemonGit(t, repository, "init", "-q")
-		runDaemonGit(t, repository, "config", "user.email", "extension-test@compozy.local")
-		runDaemonGit(t, repository, "config", "user.name", "Compozy Extension Test")
-		runDaemonGit(t, repository, "add", "extension.toml")
-		runDaemonGit(t, repository, "commit", "-q", "-m", "fixture")
-		runDaemonGit(t, repository, "tag", "v1.0.0")
-
+		loaderCalled := false
 		_, _, service, actor := newDaemonDistributionInstallService(
 			t,
 			func(context.Context, compozyconfig.ExtensionsConfig) ([]registrypkg.Source, error) {
-				return []registrypkg.Source{registrygit.NewClient()}, nil
+				loaderCalled = true
+				return nil, errors.New("unexpected marketplace source load")
 			},
 		)
-		installed, err := service.Install(t.Context(), contract.InstallExtensionRequest{
+		_, err := service.Install(t.Context(), contract.InstallExtensionRequest{
 			Source: contract.InstallExtensionSourceGit, Ref: repository, Version: "v1.0.0", AllowUnverified: true,
 		}, actor)
-		if err != nil {
-			t.Fatalf("service.Install(git) error = %v", err)
+		if err == nil || !strings.Contains(err.Error(), "must use HTTPS") {
+			t.Fatalf("service.Install(local git) error = %v, want HTTPS requirement", err)
 		}
-		if installed.Provenance == nil ||
-			installed.Provenance.InstalledFrom != extensionpkg.ExtensionInstalledFromGitURL ||
-			installed.Provenance.SourceURL != repository || installed.Provenance.ChecksumVerified ||
-			installed.Provenance.RegistryTier != extensionpkg.ExtensionRegistryTierUnverified {
-			t.Fatalf("git provenance = %#v, want truthful git URL provenance", installed.Provenance)
+		if loaderCalled {
+			t.Fatal("marketplace source loader ran for a rejected local git path")
 		}
 	})
 }
@@ -2612,16 +2751,6 @@ func writeDaemonTestJSON(writer http.ResponseWriter, value any) {
 	writer.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(writer).Encode(value); err != nil {
 		panic(err)
-	}
-}
-
-func runDaemonGit(t *testing.T, repository string, args ...string) {
-	t.Helper()
-	command := exec.CommandContext(t.Context(), "git", args...)
-	command.Dir = repository
-	output, err := command.CombinedOutput()
-	if err != nil {
-		t.Fatalf("git %s error = %v; output=%s", strings.Join(args, " "), err, string(output))
 	}
 }
 
@@ -2966,6 +3095,7 @@ func TestBootStateExtensionRuntimeAccessIsSynchronized(t *testing.T) {
 	provider := extensionDeclarationProvider(state.currentExtensionRuntime)
 
 	start := make(chan struct{})
+	providerErrors := make(chan error, 16*128)
 	var wg sync.WaitGroup
 	for i := range 16 {
 		wg.Add(2)
@@ -2986,13 +3116,19 @@ func TestBootStateExtensionRuntimeAccessIsSynchronized(t *testing.T) {
 			defer wg.Done()
 			<-start
 			for range 128 {
-				_, _ = provider(context.Background())
+				if _, err := provider(context.Background()); err != nil {
+					providerErrors <- err
+				}
 			}
 		}()
 	}
 
 	close(start)
 	wg.Wait()
+	close(providerErrors)
+	for err := range providerErrors {
+		t.Errorf("extension declaration provider error = %v", err)
+	}
 }
 
 func TestShutdownDrainsHooksBeforeClosingDatabase(t *testing.T) {
@@ -3148,6 +3284,68 @@ func TestBootFailureCleansUpStartedResourcesInReverseOrder(t *testing.T) {
 	if !testutil.EqualStringSlices(events, want) {
 		t.Fatalf("boot() cleanup order = %#v, want %#v", events, want)
 	}
+}
+
+func TestBootCleanupRequiresOwnedContext(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should detach cancellation while preserving boot values and a cleanup deadline", func(t *testing.T) {
+		t.Parallel()
+
+		type bootValueKey struct{}
+		const bootValue = "boot-owned"
+		bootCtx, cancelBoot := context.WithCancel(
+			context.WithValue(testutil.Context(t), bootValueKey{}, bootValue),
+		)
+		cancelBoot()
+
+		primaryErr := errors.New("boot failed")
+		cleanupErr := primaryErr
+		cleanup := &bootCleanup{}
+		cleanup.add(func(ctx context.Context) error {
+			if err := ctx.Err(); err != nil {
+				t.Fatalf("boot cleanup context error = %v, want detached cleanup", err)
+			}
+			if got := ctx.Value(bootValueKey{}); got != bootValue {
+				t.Fatalf("boot cleanup context value = %#v, want %q", got, bootValue)
+			}
+			if _, ok := ctx.Deadline(); !ok {
+				t.Fatal("boot cleanup context deadline = none, want bounded cleanup")
+			}
+			return nil
+		})
+
+		cleanup.run(bootCtx, &cleanupErr)
+
+		if !errors.Is(cleanupErr, primaryErr) {
+			t.Fatalf("boot cleanup error = %v, want primary error identity", cleanupErr)
+		}
+	})
+
+	t.Run("Should preserve the primary error without running cleanup when context is missing", func(t *testing.T) {
+		t.Parallel()
+
+		primaryErr := errors.New("boot failed")
+		cleanupErr := primaryErr
+		cleanupCalled := false
+		cleanup := &bootCleanup{}
+		cleanup.add(func(context.Context) error {
+			cleanupCalled = true
+			return nil
+		})
+
+		cleanup.run(nil, &cleanupErr) //nolint:staticcheck // Verifies the internal nil-context guard.
+
+		if cleanupCalled {
+			t.Fatal("boot cleanup ran without an owning context")
+		}
+		if !errors.Is(cleanupErr, primaryErr) {
+			t.Fatalf("boot cleanup error = %v, want primary error identity", cleanupErr)
+		}
+		if !strings.Contains(cleanupErr.Error(), "boot cleanup context is required") {
+			t.Fatalf("boot cleanup error = %v, want missing-context detail", cleanupErr)
+		}
+	})
 }
 
 func TestBootFailureWhenWritingDaemonInfoCleansUpAllServers(t *testing.T) {
@@ -3433,9 +3631,11 @@ func TestShutdownRuntimeWorkersDrainsCheckpointBeforeSessionManager(t *testing.T
 		d := &Daemon{}
 		var shutdownErrs []error
 
-		d.shutdownRuntimeWorkers(testutil.Context(t), shutdownTargets{
-			sessions:            manager,
-			localMemoryProvider: provider,
+		d.shutdownRuntimeWorkers(testutil.Context(t), &shutdownTargets{
+			daemonRuntimeState: daemonRuntimeState{
+				sessions:            manager,
+				localMemoryProvider: provider,
+			},
 		}, &shutdownErrs)
 
 		if err := errors.Join(shutdownErrs...); err != nil {
@@ -3446,6 +3646,32 @@ func TestShutdownRuntimeWorkersDrainsCheckpointBeforeSessionManager(t *testing.T
 			t.Fatalf("shutdown order = %v, want %v", order, want)
 		}
 	})
+}
+
+func TestShutdownServersAndHooksDrainsSupportAfterServers(t *testing.T) {
+	t.Parallel()
+
+	order := make([]string, 0, 3)
+	d := &Daemon{}
+	var shutdownErrs []error
+	d.shutdownServersAndHooks(testutil.Context(t), &shutdownTargets{
+		daemonRuntimeState: daemonRuntimeState{
+			httpServer: &fakeServer{name: "http", onShutdown: func() { order = append(order, "http") }},
+			udsServer:  &fakeServer{name: "uds", onShutdown: func() { order = append(order, "uds") }},
+			supportBundles: supportBundleShutdownerFunc(func(context.Context) error {
+				order = append(order, "support")
+				return nil
+			}),
+		},
+	}, &shutdownErrs)
+
+	if err := errors.Join(shutdownErrs...); err != nil {
+		t.Fatalf("shutdownServersAndHooks() error = %v", err)
+	}
+	want := []string{"http", "uds", "support"}
+	if !slices.Equal(order, want) {
+		t.Fatalf("shutdown order = %v, want %v", order, want)
+	}
 }
 
 func TestCleanupOrphansHandlesListAndSignalErrors(t *testing.T) {
@@ -3961,7 +4187,9 @@ func TestBoundariesUsesWorkingDirectoryWhenRootUnset(t *testing.T) {
 		t.Fatalf("os.Chdir(root) error = %v", err)
 	}
 	t.Cleanup(func() {
-		_ = os.Chdir(cwd)
+		if err := os.Chdir(cwd); err != nil {
+			t.Errorf("os.Chdir(%q) cleanup error = %v", cwd, err)
+		}
 	})
 
 	d, err := New(WithLogger(discardLogger()))
@@ -5147,7 +5375,9 @@ func shortSocketPath(t *testing.T) string {
 
 	path := filepath.Join(os.TempDir(), fmt.Sprintf("compozy-%d.sock", time.Now().UTC().UnixNano()))
 	t.Cleanup(func() {
-		_ = os.Remove(path)
+		if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+			t.Errorf("remove short socket path %q: %v", path, err)
+		}
 	})
 	return path
 }
@@ -5713,7 +5943,7 @@ func TestPromptInputCompositeEnforcesPerDescriptorBudgets(t *testing.T) {
 
 func seedDetachedHarnessRecoveryRunForTest(
 	t *testing.T,
-	db harnessReentryStore,
+	db *globaldb.GlobalDB,
 	actor taskpkg.ActorContext,
 	taskID string,
 	runID string,
@@ -5755,16 +5985,17 @@ func seedDetachedHarnessRecoveryRunForTest(
 		ID:        taskID,
 		Scope:     taskpkg.ScopeGlobal,
 		Title:     summary,
-		Status:    taskpkg.TaskStatusInProgress,
+		Status:    taskpkg.TaskStatusCompleted,
 		CreatedBy: actor.Actor,
 		Origin:    actor.Origin,
 		CreatedAt: completedAt.Add(-time.Minute),
-		UpdatedAt: completedAt.Add(-time.Minute),
+		UpdatedAt: completedAt,
+		ClosedAt:  completedAt,
 		Metadata:  taskMetadata,
 	}); err != nil {
 		t.Fatalf("CreateTask(%q) error = %v", taskID, err)
 	}
-	if err := db.CreateTaskRun(testutil.Context(t), taskpkg.Run{
+	command, err := taskpkg.NewCompletedRunHistoryImport(taskpkg.Run{
 		ID:              runID,
 		TaskID:          taskID,
 		Status:          taskpkg.TaskRunStatusCompleted,
@@ -5778,25 +6009,24 @@ func seedDetachedHarnessRecoveryRunForTest(
 		StartedAt:       completedAt.Add(-time.Minute),
 		EndedAt:         completedAt,
 		Result:          json.RawMessage(`{"ok":true}`),
-	}); err != nil {
-		t.Fatalf("CreateTaskRun(%q) error = %v", runID, err)
+	}, actor)
+	if err != nil {
+		t.Fatalf("NewCompletedRunHistoryImport(%q) error = %v", runID, err)
 	}
-	if err := db.CreateTaskEvent(testutil.Context(t), taskpkg.Event{
-		ID:        "evt-" + runID,
-		TaskID:    taskID,
-		RunID:     runID,
-		EventType: harnessTaskEventRunCompleted,
-		Actor:     actor.Actor,
-		Origin:    actor.Origin,
-		Timestamp: completedAt,
-	}); err != nil {
-		t.Fatalf("CreateTaskEvent(%q) error = %v", runID, err)
+	if err := db.ImportCompletedRunHistory(testutil.Context(t), &command); err != nil {
+		t.Fatalf("ImportCompletedRunHistory(%q) error = %v", runID, err)
 	}
 }
 
 type memoryProviderShutdownerFunc func(context.Context) error
 
 func (f memoryProviderShutdownerFunc) Shutdown(ctx context.Context) error {
+	return f(ctx)
+}
+
+type supportBundleShutdownerFunc func(context.Context) error
+
+func (f supportBundleShutdownerFunc) Shutdown(ctx context.Context) error {
 	return f(ctx)
 }
 
@@ -7223,19 +7453,36 @@ func (o *hookAwareTestObserver) AttachHooks(source observe.HookCatalogSource) {
 }
 
 type fakeServer struct {
-	name       string
-	onShutdown func()
+	mu            sync.Mutex
+	name          string
+	onShutdown    func()
+	shutdownFn    func(context.Context) error
+	shutdownCalls int
 }
 
 func (f *fakeServer) Start(context.Context) error {
 	return nil
 }
 
-func (f *fakeServer) Shutdown(context.Context) error {
-	if f.onShutdown != nil {
-		f.onShutdown()
+func (f *fakeServer) Shutdown(ctx context.Context) error {
+	f.mu.Lock()
+	f.shutdownCalls++
+	onShutdown := f.onShutdown
+	shutdownFn := f.shutdownFn
+	f.mu.Unlock()
+	if onShutdown != nil {
+		onShutdown()
+	}
+	if shutdownFn != nil {
+		return shutdownFn(ctx)
 	}
 	return nil
+}
+
+func (f *fakeServer) shutdownCallCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.shutdownCalls
 }
 
 type fakeResourceReconcileDriver struct {
@@ -7995,6 +8242,13 @@ func (r *recordingRegistry) ListTaskBlocks(context.Context, string, bool) ([]tas
 	return nil, nil
 }
 
+func (r *recordingRegistry) ListExpiredTaskBlockTargets(
+	context.Context,
+	time.Time,
+) ([]taskpkg.BlockExpiryTarget, error) {
+	return nil, nil
+}
+
 func (r *recordingRegistry) HasOpenTaskBlocks(context.Context, string) (bool, error) {
 	return false, nil
 }
@@ -8046,20 +8300,25 @@ func (r *recordingRegistry) HasDependencyPath(context.Context, string, string) (
 	return false, nil
 }
 
-func (r *recordingRegistry) CreateTaskRun(context.Context, taskpkg.Run) error {
-	return nil
-}
-
-func (r *recordingRegistry) UpdateTaskRun(context.Context, taskpkg.Run) error {
-	return nil
-}
-
-func (r *recordingRegistry) CompleteRunSettlement(
+func (r *recordingRegistry) UpdateTaskRunMetadata(
 	context.Context,
-	taskpkg.Run,
-	taskpkg.ActorContext,
-) (taskpkg.CompletedRunSettlement, error) {
-	return taskpkg.CompletedRunSettlement{}, taskpkg.ErrTaskRunNotFound
+	taskpkg.RunMetadataMutation,
+) (taskpkg.Run, error) {
+	return taskpkg.Run{}, nil
+}
+
+func (r *recordingRegistry) FailTasklessRunOnBoot(
+	context.Context,
+	taskpkg.TerminalRunMutation,
+) (taskpkg.Run, error) {
+	return taskpkg.Run{}, taskpkg.ErrTaskRunNotFound
+}
+
+func (r *recordingRegistry) TransitionTerminalRun(
+	context.Context,
+	taskpkg.TerminalRunMutation,
+) (taskpkg.Run, error) {
+	return taskpkg.Run{}, taskpkg.ErrTaskRunNotFound
 }
 
 func (r *recordingRegistry) GetTaskRun(context.Context, string) (taskpkg.Run, error) {
@@ -8158,6 +8417,124 @@ func (r *recordingRegistry) CountActiveSessionBindings(context.Context, string) 
 	return 0, nil
 }
 
+func (r *recordingRegistry) WithLeaseSettlementTransaction(
+	_ context.Context,
+	_ string,
+	fn func(taskpkg.LeaseSettlementMutationStore) error,
+) error {
+	return fn(r)
+}
+
+func (r *recordingRegistry) WithTaskExecutionTransaction(
+	_ context.Context,
+	fn func(taskpkg.ExecutionMutationStore) error,
+) error {
+	return fn(r)
+}
+
+func (r *recordingRegistry) WithTaskMutationTransaction(
+	_ context.Context,
+	_ string,
+	mutation taskpkg.RunMutation,
+) error {
+	return mutation(r)
+}
+
+func (r *recordingRegistry) ReserveTerminalRunCommand(
+	_ context.Context,
+	command taskpkg.TerminalRunCommand,
+) (taskpkg.TerminalRunCommand, bool, error) {
+	return command, true, nil
+}
+
+func (r *recordingRegistry) AdvanceTerminalRunCommandPhase(
+	_ context.Context,
+	command taskpkg.TerminalRunCommand,
+	_ taskpkg.TerminalRunCommandPhase,
+	_ time.Time,
+) (taskpkg.TerminalRunCommand, error) {
+	return command, nil
+}
+
+func (r *recordingRegistry) ReleaseTerminalRunCommand(
+	context.Context,
+	taskpkg.TerminalRunCommand,
+) error {
+	return nil
+}
+
+func (r *recordingRegistry) ListTerminalRunCommands(
+	context.Context,
+) ([]taskpkg.TerminalRunCommand, error) {
+	return nil, nil
+}
+
+func (r *recordingRegistry) ConsumeTerminalRunCommand(
+	_ context.Context,
+	command taskpkg.TerminalRunCommand,
+	_ taskpkg.TerminalRunCommandPhase,
+) (taskpkg.TerminalRunCommand, error) {
+	return command, nil
+}
+
+func (r *recordingRegistry) SettleCompletedTaskHierarchy(
+	context.Context,
+	string,
+	taskpkg.ActorContext,
+	time.Time,
+) (taskpkg.CompletedRunSettlement, error) {
+	return taskpkg.CompletedRunSettlement{}, nil
+}
+
+func (r *recordingRegistry) AdmitRunDirectExecution(
+	context.Context,
+	taskpkg.RunDirectExecutionAdmissionMutation,
+) (taskpkg.NominalRunMutationResult, error) {
+	return taskpkg.NominalRunMutationResult{}, taskpkg.ErrTaskRunNotFound
+}
+
+func (r *recordingRegistry) TransitionRunStarting(
+	context.Context,
+	taskpkg.RunStartingMutation,
+) (taskpkg.NominalRunMutationResult, error) {
+	return taskpkg.NominalRunMutationResult{}, taskpkg.ErrTaskRunNotFound
+}
+
+func (r *recordingRegistry) BindRunSession(
+	context.Context,
+	taskpkg.RunSessionBindingMutation,
+) (taskpkg.NominalRunMutationResult, error) {
+	return taskpkg.NominalRunMutationResult{}, taskpkg.ErrTaskRunNotFound
+}
+
+func (r *recordingRegistry) TransitionRunRunning(
+	context.Context,
+	taskpkg.RunRunningMutation,
+) (taskpkg.NominalRunMutationResult, error) {
+	return taskpkg.NominalRunMutationResult{}, taskpkg.ErrTaskRunNotFound
+}
+
+func (r *recordingRegistry) RecoverTaskRunOnBoot(
+	context.Context,
+	taskpkg.RunBootRecoveryMutation,
+) (taskpkg.NominalRunMutationResult, error) {
+	return taskpkg.NominalRunMutationResult{}, taskpkg.ErrTaskRunNotFound
+}
+
+func (r *recordingRegistry) RecoverNetworkWakeOnBoot(
+	context.Context,
+	taskpkg.NetworkWakeBootRecoveryMutation,
+) (taskpkg.NominalRunMutationResult, error) {
+	return taskpkg.NominalRunMutationResult{}, taskpkg.ErrTaskRunNotFound
+}
+
+func (r *recordingRegistry) MarkRunNeedsAttentionMutation(
+	context.Context,
+	taskpkg.RunNeedsAttentionCommand,
+) (taskpkg.RunNeedsAttentionMutation, error) {
+	return taskpkg.RunNeedsAttentionMutation{}, taskpkg.ErrTaskRunNotFound
+}
+
 func (r *recordingRegistry) ClaimNextRun(
 	context.Context,
 	taskpkg.ClaimCriteria,
@@ -8172,9 +8549,29 @@ func (r *recordingRegistry) HeartbeatRunLease(
 	return taskpkg.Run{}, taskpkg.ErrTaskRunNotFound
 }
 
+func (r *recordingRegistry) FailRunLeaseMutation(
+	context.Context,
+	taskpkg.LeaseFailure,
+) (taskpkg.FailedRunLeaseMutation, error) {
+	return taskpkg.FailedRunLeaseMutation{}, taskpkg.ErrTaskRunNotFound
+}
+
 func (r *recordingRegistry) ReleaseRunLease(
 	context.Context,
 	taskpkg.LeaseRelease,
+) (taskpkg.Run, error) {
+	return taskpkg.Run{}, taskpkg.ErrTaskRunNotFound
+}
+
+func (r *recordingRegistry) ListActiveSessionRunLeases(context.Context, string) ([]taskpkg.Run, error) {
+	return nil, nil
+}
+
+func (r *recordingRegistry) ReleaseSessionRunLease(
+	context.Context,
+	taskpkg.Run,
+	taskpkg.SessionLeaseRelease,
+	taskpkg.ActorContext,
 ) (taskpkg.Run, error) {
 	return taskpkg.Run{}, taskpkg.ErrTaskRunNotFound
 }
@@ -8207,12 +8604,12 @@ func (r *recordingRegistry) RecoverTaskRun(
 	return taskpkg.RetryRunResult{}, taskpkg.ErrTaskRunNotFound
 }
 
-func (r *recordingRegistry) MarkTaskRunNeedsAttention(
+func (r *recordingRegistry) InvalidateForceRunInputs(
 	context.Context,
 	string,
-	string,
-) (taskpkg.Run, error) {
-	return taskpkg.Run{}, taskpkg.ErrTaskRunNotFound
+	time.Time,
+) (taskpkg.ForceRunInputInvalidation, error) {
+	return taskpkg.ForceRunInputInvalidation{}, nil
 }
 
 func (r *recordingRegistry) CompleteRunLease(

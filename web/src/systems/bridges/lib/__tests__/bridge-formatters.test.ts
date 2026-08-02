@@ -17,7 +17,7 @@ import {
 } from "../bridge-formatters";
 
 describe("bridge-formatters", () => {
-  it("normalizes and compacts delivery defaults", () => {
+  it("preserves opaque delivery identities and compacts empty fields", () => {
     expect(
       normalizeBridgeDeliveryDefaults({
         group_id: "  group_123  ",
@@ -27,10 +27,10 @@ describe("bridge-formatters", () => {
         thread_id: "",
       })
     ).toEqual({
-      group_id: "group_123",
+      group_id: "  group_123  ",
       mode: "reply",
       parse_mode: " MarkdownV2 ",
-      peer_id: "peer_123",
+      peer_id: " peer_123 ",
       thread_id: undefined,
     });
 
@@ -42,7 +42,7 @@ describe("bridge-formatters", () => {
         thread_id: undefined,
       })
     ).toEqual({
-      group_id: undefined,
+      group_id: " ",
       mode: undefined,
       peer_id: "peer_123",
       thread_id: undefined,

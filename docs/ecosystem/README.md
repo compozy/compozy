@@ -123,11 +123,11 @@ ship real code and use the existing Vault and lifecycle contracts.
 - `internal/api/contract/`
 - `internal/tools/`
 - `packages/site/content/docs/extensions/`
-- `skills/compozy/references/capabilities.md`
+- `skills/compozy/references/extensions.md`
 
 ## Compozy Impact Audit
 
 - **Native tools:** editorial only; checked extension inventory/preview and resource discovery guidance. No descriptor or ToolID changes originate here.
 - **Extensibility and hooks:** editorial only; describes the current extension resource, hook, registry, MCP-sidecar, and config lifecycle without changing runtime behavior.
 - **Workspace data isolation:** editorial only; adds no runtime datum and requires each candidate to document its ownership scope.
-- **Official Compozy skill:** aligned with `skills/compozy/references/capabilities.md`; no additional skill change originates here.
+- **Official Compozy skill:** aligned with `skills/compozy/references/extensions.md`; no additional skill change originates here.

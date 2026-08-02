@@ -1,6 +1,14 @@
 package task
 
 const (
+	// MaxReferenceBytes caps persisted identifiers and external references at 256 bytes.
+	MaxReferenceBytes = 256
+	// MaxReasonBytes caps operator-authored audit reasons at 4 KiB.
+	MaxReasonBytes = 4 * 1024
+	// MaxDiagnosticBytes caps persisted diagnostic text at 16 KiB.
+	MaxDiagnosticBytes = 16 * 1024
+	// MaxAuditCollectionItems caps identifier collections copied into audit events.
+	MaxAuditCollectionItems = 50
 	// MaxMetadataBytes caps task metadata payloads at 16 KiB.
 	MaxMetadataBytes = 16 * 1024
 	// MaxPayloadBytes caps persisted event-style JSON payloads at 64 KiB.

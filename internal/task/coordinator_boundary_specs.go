@@ -18,7 +18,7 @@ func (s CoordinatorStopSpec) Validate(path string) error {
 	if strings.TrimSpace(s.LoopRunID) == "" {
 		return fmt.Errorf("%w: %s is required", ErrValidation, nestedPath(path, "loop_run_id"))
 	}
-	return nil
+	return validateCoordinatorStopSpecReferences(s, path)
 }
 
 // Normalize trims a parent-close mutation without changing its authored policy.
@@ -61,7 +61,7 @@ func (s CoordinatorWakeSpec) Validate(path string) error {
 	if strings.TrimSpace(s.IdempotencyKey) == "" {
 		return fmt.Errorf("%w: %s is required", ErrValidation, nestedPath(path, "idempotency_key"))
 	}
-	return nil
+	return validateCoordinatorWakeSpecReferences(s, path)
 }
 
 // Normalize returns normalized coordinator terminal data.
@@ -80,6 +80,9 @@ func (t CoordinatorTerminal) Validate(path string) error {
 	status := strings.TrimSpace(t.Status)
 	if status == "" {
 		return fmt.Errorf("%w: %s is required", ErrValidation, nestedPath(path, "status"))
+	}
+	if err := validateCoordinatorTerminalReferences(t, path); err != nil {
+		return err
 	}
 	if err := ValidatePayloadSize(t.Details, nestedPath(path, "details")); err != nil {
 		return err

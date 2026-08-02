@@ -3,6 +3,7 @@ package extensiontest
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -84,15 +85,15 @@ func (d *ScriptedPromptDriver) Prompt(
 	_ *session.AgentProcess,
 	req acp.PromptRequest,
 ) (<-chan acp.AgentEvent, error) {
+	if ctx == nil {
+		return nil, errors.New("extensiontest: scripted prompt context is required")
+	}
+
 	d.mu.Lock()
 	d.prompts = append(d.prompts, req)
 	script := append([]ScriptedPromptEvent(nil), d.script...)
 	startedAt := d.now
 	d.mu.Unlock()
-
-	if ctx == nil {
-		ctx = context.Background()
-	}
 
 	events := make(chan acp.AgentEvent, len(script))
 	go func() {

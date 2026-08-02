@@ -55,14 +55,18 @@ func seedNonLeasedClaimedObserveRun(
 	if err != nil {
 		t.Fatalf("GetTaskRun(%q) error = %v", runID, err)
 	}
-	run.Status = taskpkg.TaskRunStatusClaimed
-	run.ClaimedBy = &taskpkg.ActorIdentity{Kind: actor.Actor.Kind, Ref: actor.Actor.Ref}
-	run.ClaimedAt = claimedAt.UTC()
-	run.SessionID = ""
-	run.ClaimTokenHash = ""
-	run.LeaseUntil = time.Time{}
-	if err := h.registry.UpdateTaskRun(ctx, run); err != nil {
-		t.Fatalf("UpdateTaskRun(%q) error = %v", runID, err)
+	manager, err := taskpkg.NewManager(
+		taskpkg.WithStore(h.registry),
+		taskpkg.WithManagerNow(func() time.Time { return claimedAt.UTC() }),
+	)
+	if err != nil {
+		t.Fatalf("NewManager() error = %v", err)
+	}
+	if _, startErr := manager.StartRun(ctx, run.ID, taskpkg.StartRun{
+		IdempotencyKey: "observe-integration-fixture-admit:" + run.ID,
+	}, actor); startErr == nil ||
+		!errors.Is(startErr, taskpkg.ErrValidation) {
+		t.Fatalf("StartRun(admit only %q) error = %v, want missing session executor validation", runID, startErr)
 	}
 }
 
@@ -946,9 +950,9 @@ func newObserveTaskManager(
 		taskpkg.WithStore(h.registry),
 		taskpkg.WithSessionExecutor(executor),
 		taskpkg.WithManagerNow(clock.Now),
-		taskpkg.WithIDGenerator(func(prefix string) string {
+		taskpkg.WithIDGenerator(func(prefix string) (string, error) {
 			sequence++
-			return prefix + "-observe-" + strconv.FormatInt(clock.current.UnixNano(), 10) + "-" + strconv.Itoa(sequence)
+			return prefix + "-observe-" + strconv.FormatInt(clock.current.UnixNano(), 10) + "-" + strconv.Itoa(sequence), nil
 		}),
 		taskpkg.WithCancelGracePeriod(0),
 		taskpkg.WithParticipationResolver(observeParticipationResolver{}),

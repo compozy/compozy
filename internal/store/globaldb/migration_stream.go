@@ -5,12 +5,15 @@ import (
 	globalschema "github.com/compozy/compozy/internal/store/globaldb/schema"
 )
 
-const globalMigrationVersionTable = "goose_db_version_global"
+const (
+	globalMigrationStreamName   = "global"
+	globalMigrationVersionTable = "goose_db_version_global"
+)
 
 // MigrationStream returns the embedded global database migration stream.
 func MigrationStream() store.MigrationStream {
 	return store.MigrationStream{
-		Name:         "global",
+		Name:         globalMigrationStreamName,
 		FS:           globalschema.Files,
 		Dir:          "migrations",
 		VersionTable: globalMigrationVersionTable,

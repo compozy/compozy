@@ -1,7 +1,9 @@
 package main
 
 import (
+	"context"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -26,9 +28,20 @@ func TestRun(t *testing.T) {
 			t.Fatalf("WriteFile() error = %v", err)
 		}
 		writeErr := errors.New("stdout unavailable")
-		err := run([]string{"digest", artifactPath}, failingWriter{err: writeErr})
+		err := run(t.Context(), []string{catalogDigestCommand, artifactPath}, failingWriter{err: writeErr})
 		if !errors.Is(err, writeErr) {
 			t.Fatalf("run(digest) error = %v, want output failure", err)
+		}
+	})
+
+	t.Run("Should preserve command cancellation before filesystem work", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+		err := run(ctx, []string{catalogDigestCommand, "unused"}, io.Discard)
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("run(canceled) error = %v, want context.Canceled", err)
 		}
 	})
 }

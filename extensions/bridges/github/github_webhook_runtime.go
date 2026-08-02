@@ -200,7 +200,7 @@ func (p *githubProvider) configForInstance(instanceID string) (resolvedInstanceC
 
 func (p *githubProvider) waitForInstanceConfig(ctx context.Context, instanceID string) (resolvedInstanceConfig, error) {
 	if ctx == nil {
-		ctx = context.Background()
+		return resolvedInstanceConfig{}, errors.New("github: instance config context is required")
 	}
 	if cfg, err := p.configForInstance(instanceID); err == nil {
 		return cfg, nil

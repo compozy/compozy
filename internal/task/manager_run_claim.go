@@ -42,11 +42,7 @@ func (m *Service) enqueueRun(
 		result, commandErr = m.enqueueRunWithStore(ctx, store, normalizedSpec, actor)
 		return commandErr
 	}
-	if transactions, ok := m.store.(ExecutionTransactionStore); ok {
-		if err := transactions.WithTaskExecutionTransaction(ctx, command); err != nil {
-			return nil, err
-		}
-	} else if err := command(m.store); err != nil {
+	if err := m.store.WithTaskExecutionTransaction(ctx, command); err != nil {
 		return nil, err
 	}
 	if result.existing {
@@ -122,7 +118,10 @@ func (m *Service) reserveQueuedRunWithStore(
 	spec EnqueueRun,
 	actor ActorContext,
 ) (Run, bool, error) {
-	runID := m.newID("run")
+	runID, err := m.newID("run")
+	if err != nil {
+		return Run{}, false, fmt.Errorf("task: generate run id: %w", err)
+	}
 	networkSpec, err := m.resolveQueuedRunParticipationWithStore(
 		ctx,
 		store,
@@ -240,6 +239,12 @@ func (m *Service) StartRun(
 	if err := m.ensureTaskExecutable(ctx, taskRecord); err != nil {
 		return nil, err
 	}
+	if run.Status.Normalize() == TaskRunStatusQueued {
+		run, taskRecord, err = m.admitQueuedRunForDirectExecution(ctx, run, actor)
+		if err != nil {
+			return nil, err
+		}
+	}
 	switch run.Status.Normalize() {
 	case TaskRunStatusClaimed:
 		if run.RunKind.Normalize() == RunKindCoordinator {
@@ -260,27 +265,47 @@ func (m *Service) StartRun(
 	default:
 		return nil, requireRunTransition(run, TaskRunStatusRunning)
 	}
+	return m.commitStartedRun(ctx, run, actor)
+}
 
+func (m *Service) commitStartedRun(
+	ctx context.Context,
+	run Run,
+	actor ActorContext,
+) (*Run, error) {
 	lifecycleCtx := taskRunLifecycleContext(ctx)
-	run.Status = TaskRunStatusRunning
-	run.StartedAt = m.now().UTC()
-	if err := m.store.UpdateTaskRun(lifecycleCtx, run); err != nil {
+	if err := m.preflightTaskEvent(
+		run.TaskID,
+		run.ID,
+		taskEventRunStarted,
+		actor,
+		runTransitionPayload{
+			Status:     TaskRunStatusRunning,
+			TaskStatus: TaskStatusNeedsAttention,
+			SessionID:  run.SessionID,
+		},
+	); err != nil {
 		return nil, err
 	}
-
-	reconciledTask, err := m.reconcileTaskCascade(lifecycleCtx, run.TaskID, actor)
+	commandAt := m.now().UTC()
+	settlement, err := m.commitNominalRunSettlement(
+		lifecycleCtx,
+		"transition task run running",
+		taskEventRunStarted,
+		actor,
+		commandAt,
+		func(store runMutationStore) (NominalRunMutationResult, error) {
+			return store.TransitionRunRunning(
+				lifecycleCtx,
+				NewRunRunningMutation(run, commandAt),
+			)
+		},
+		transitionRunPayload,
+	)
 	if err != nil {
 		return nil, err
 	}
-	if err := m.recordTaskEvent(lifecycleCtx, run.TaskID, run.ID, taskEventRunStarted, actor, runTransitionPayload{
-		Status:     run.Status,
-		TaskStatus: reconciledTask.Status,
-		SessionID:  run.SessionID,
-	}); err != nil {
-		return nil, err
-	}
-
-	return &run, nil
+	return &settlement.mutation.Run, nil
 }
 
 // AttachRunSession binds one existing session to a claimed or starting run.
@@ -293,41 +318,73 @@ func (m *Service) AttachRunSession(
 	if err := requireWriteAuthority(actor); err != nil {
 		return nil, err
 	}
-	if err := m.requireSessionExecutor("attach run session"); err != nil {
+	trimmedSessionID := strings.TrimSpace(sessionID)
+	run, err := m.prepareRunSessionAttachment(ctx, runID, trimmedSessionID, actor)
+	if err != nil {
 		return nil, err
 	}
+	return m.attachAndPersistRunSession(ctx, run, trimmedSessionID, actor)
+}
 
-	trimmedSessionID := strings.TrimSpace(sessionID)
-	if trimmedSessionID == "" {
-		return nil, fmt.Errorf("%w: session id is required", ErrValidation)
+func (m *Service) prepareRunSessionAttachment(
+	ctx context.Context,
+	runID string,
+	sessionID string,
+	actor ActorContext,
+) (Run, error) {
+	if err := m.requireSessionExecutor("attach run session"); err != nil {
+		return Run{}, err
+	}
+	if err := (SessionRef{SessionID: sessionID}).Validate(); err != nil {
+		return Run{}, err
 	}
 
 	run, taskRecord, err := m.loadAuthorizedRunWithTask(ctx, runID, actor)
 	if err != nil {
-		return nil, err
+		return Run{}, err
 	}
 	if err := m.ensureTaskExecutable(ctx, taskRecord); err != nil {
-		return nil, err
+		return Run{}, err
+	}
+	if run.Status.Normalize() == TaskRunStatusQueued {
+		run, _, err = m.admitQueuedRunForDirectExecution(ctx, run, actor)
+		if err != nil {
+			return Run{}, err
+		}
 	}
 	if strings.TrimSpace(run.SessionID) != "" {
-		return nil, ErrSessionAlreadyBound
+		return Run{}, ErrSessionAlreadyBound
 	}
 
 	switch run.Status.Normalize() {
 	case TaskRunStatusClaimed, TaskRunStatusStarting:
 	default:
-		return nil, ErrSessionAttachNotAllowed
+		return Run{}, ErrSessionAttachNotAllowed
+	}
+	candidate := run
+	candidate.Status = TaskRunStatusStarting
+	candidate.SessionID = sessionID
+	if err := m.preflightRunTransition(candidate, taskEventRunSessionBound, candidate.Status, actor); err != nil {
+		return Run{}, err
 	}
 
-	activeBindings, err := m.store.CountActiveSessionBindings(ctx, trimmedSessionID)
+	activeBindings, err := m.store.CountActiveSessionBindings(ctx, sessionID)
 	if err != nil {
-		return nil, err
+		return Run{}, err
 	}
 	if activeBindings > 0 {
-		return nil, ErrSessionAlreadyBound
+		return Run{}, ErrSessionAlreadyBound
 	}
+	return run, nil
+}
 
-	sessionRef, err := m.sessions.AttachTaskSession(ctx, run.ID, trimmedSessionID)
+func (m *Service) attachAndPersistRunSession(
+	ctx context.Context,
+	run Run,
+	sessionID string,
+	actor ActorContext,
+) (*Run, error) {
+	sessionRef, err := m.sessions.AttachTaskSession(ctx, run.ID, sessionID)
 	if err != nil {
 		return nil, err
 	}
@@ -341,25 +398,27 @@ func (m *Service) AttachRunSession(
 		return nil, err
 	}
 
-	run.SessionID = strings.TrimSpace(sessionRef.SessionID)
-	if run.Status.Normalize() == TaskRunStatusClaimed {
-		run.Status = TaskRunStatusStarting
-	}
-	if err := m.store.UpdateTaskRun(ctx, run); err != nil {
+	boundSessionID := strings.TrimSpace(sessionRef.SessionID)
+	candidate := run
+	candidate.SessionID = boundSessionID
+	candidate.Status = TaskRunStatusStarting
+	if err := m.preflightRunTransition(candidate, taskEventRunSessionBound, candidate.Status, actor); err != nil {
 		return nil, err
 	}
-
-	reconciledTask, err := m.reconcileTaskCascade(ctx, run.TaskID, actor)
+	commandAt := m.now().UTC()
+	settlement, err := m.commitNominalRunSettlement(
+		ctx,
+		"attach task run session",
+		taskEventRunSessionBound,
+		actor,
+		commandAt,
+		func(store runMutationStore) (NominalRunMutationResult, error) {
+			return store.BindRunSession(ctx, NewRunSessionBindingMutation(run, boundSessionID))
+		},
+		transitionRunPayload,
+	)
 	if err != nil {
 		return nil, err
 	}
-	if err := m.recordTaskEvent(ctx, run.TaskID, run.ID, taskEventRunSessionBound, actor, runTransitionPayload{
-		Status:     run.Status,
-		TaskStatus: reconciledTask.Status,
-		SessionID:  run.SessionID,
-	}); err != nil {
-		return nil, err
-	}
-
-	return &run, nil
+	return &settlement.mutation.Run, nil
 }

@@ -281,6 +281,28 @@ describe("useBridgeHealthStream", () => {
     expect(eventSource.close).toHaveBeenCalledTimes(1);
   });
 
+  it("preserves opaque bridge and workspace identities as repeated query values", () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const eventSource = new FakeEventSource();
+    const eventSourceFactory = vi.fn((_url: string) => eventSource);
+
+    const { unmount } = renderHook(
+      () =>
+        useBridgeHealthStream({
+          bridgeIds: [" brg-support ", "brg,comma"],
+          eventSourceFactory,
+          filters: { scope: "all", workspace_id: " workspace-opaque " },
+        }),
+      { wrapper: createWrapper(queryClient) }
+    );
+
+    const streamURL = new URL(eventSourceFactory.mock.calls[0]?.[0] ?? "", "http://compozy.local");
+    expect(streamURL.searchParams.getAll("bridge_ids")).toEqual([" brg-support ", "brg,comma"]);
+    expect(streamURL.searchParams.get("workspace_id")).toBe(" workspace-opaque ");
+
+    unmount();
+  });
+
   it("does not subscribe without ids and chunks every authorized request at 200 ids", () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const sources: FakeEventSource[] = [];
@@ -303,8 +325,7 @@ describe("useBridgeHealthStream", () => {
     );
     expect(eventSourceFactory).toHaveBeenCalledTimes(2);
     const idCounts = eventSourceFactory.mock.calls.map(([url]) => {
-      const query = new URL(url, "http://compozy.local").searchParams.get("bridge_ids") ?? "";
-      return query.split(",").length;
+      return new URL(url, "http://compozy.local").searchParams.getAll("bridge_ids").length;
     });
     expect(idCounts).toEqual([200, 1]);
     chunked.unmount();

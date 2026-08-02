@@ -2,6 +2,8 @@ package daytona
 
 import (
 	"context"
+	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -29,11 +31,11 @@ func TestRESTSSHTokenSourceFetchesTokenAndExpiry(t *testing.T) {
 		})
 	}))
 	defer server.Close()
-	source := &restSSHTokenSource{
-		httpClient: server.Client(),
-		apiKey:     func() string { return "api-key" },
-		now:        func() time.Time { return now },
-	}
+	source := newRESTSSHTokenSourceWithClient(
+		server.Client(),
+		func() string { return "api-key" },
+		func() time.Time { return now },
+	)
 	access, err := source.FetchSSHAccess(context.Background(), server.URL, "sandbox-token", time.Hour)
 	if err != nil {
 		t.Fatalf("FetchSSHAccess() error = %v", err)
@@ -46,7 +48,7 @@ func TestRESTSSHTokenSourceFetchesTokenAndExpiry(t *testing.T) {
 func TestRESTSSHTokenSourceRejectsMissingKeyAndBadStatus(t *testing.T) {
 	t.Parallel()
 
-	source := &restSSHTokenSource{apiKey: func() string { return "" }, now: time.Now}
+	source := newRESTSSHTokenSourceWithClient(nil, func() string { return "" }, time.Now)
 	if _, err := source.FetchSSHAccess(context.Background(), defaultAPIURL, "sandbox", time.Hour); err == nil {
 		t.Fatal("FetchSSHAccess(missing key) error = nil, want error")
 	}
@@ -54,12 +56,85 @@ func TestRESTSSHTokenSourceRejectsMissingKeyAndBadStatus(t *testing.T) {
 		http.Error(w, "nope", http.StatusUnauthorized)
 	}))
 	defer server.Close()
-	source = &restSSHTokenSource{
-		httpClient: server.Client(),
-		apiKey:     func() string { return "api-key" },
-		now:        time.Now,
-	}
+	source = newRESTSSHTokenSourceWithClient(server.Client(), func() string { return "api-key" }, time.Now)
 	if _, err := source.FetchSSHAccess(context.Background(), server.URL, "sandbox", time.Hour); err == nil {
 		t.Fatal("FetchSSHAccess(bad status) error = nil, want error")
 	}
+}
+
+func TestNewRESTSSHTokenSourceNormalizesHTTPClient(t *testing.T) {
+	t.Parallel()
+
+	base := &http.Client{}
+	source := newRESTSSHTokenSourceWithClient(base, func() string { return "api-key" }, time.Now)
+	if source.httpClient == base {
+		t.Fatal("newRESTSSHTokenSourceWithClient() reused caller-owned client")
+	}
+	if source.httpClient.Timeout != defaultSSHRequestTimeout {
+		t.Fatalf("HTTP timeout = %s, want %s", source.httpClient.Timeout, defaultSSHRequestTimeout)
+	}
+	if base.Timeout != 0 {
+		t.Fatalf("caller HTTP timeout = %s, want unchanged zero value", base.Timeout)
+	}
+}
+
+func TestRESTSSHTokenSourcePreservesResponseCleanupFailures(t *testing.T) {
+	t.Parallel()
+
+	readErr := errors.New("SSH response read failed")
+	drainErr := errors.New("SSH response drain failed")
+	closeErr := errors.New("SSH response close failed")
+	body := &scriptedSSHResponseBody{
+		readErrors: []error{readErr, drainErr},
+		closeErr:   closeErr,
+	}
+	source := newRESTSSHTokenSourceWithClient(
+		&http.Client{Transport: daytonaRoundTripperFunc(func(request *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusBadGateway,
+				Status:     "502 Bad Gateway",
+				Header:     make(http.Header),
+				Body:       body,
+				Request:    request,
+			}, nil
+		})},
+		func() string { return "api-key" },
+		time.Now,
+	)
+	_, err := source.FetchSSHAccess(t.Context(), "https://api.example.test", "sandbox", time.Hour)
+	for _, want := range []error{readErr, drainErr, closeErr} {
+		if !errors.Is(err, want) {
+			t.Fatalf("FetchSSHAccess() error = %v, want %v", err, want)
+		}
+	}
+	if body.closeCalls != 1 {
+		t.Fatalf("response body close calls = %d, want 1", body.closeCalls)
+	}
+}
+
+type daytonaRoundTripperFunc func(*http.Request) (*http.Response, error)
+
+func (f daytonaRoundTripperFunc) RoundTrip(request *http.Request) (*http.Response, error) {
+	return f(request)
+}
+
+type scriptedSSHResponseBody struct {
+	readErrors []error
+	readCalls  int
+	closeErr   error
+	closeCalls int
+}
+
+func (b *scriptedSSHResponseBody) Read([]byte) (int, error) {
+	if b.readCalls >= len(b.readErrors) {
+		return 0, io.EOF
+	}
+	err := b.readErrors[b.readCalls]
+	b.readCalls++
+	return 0, err
+}
+
+func (b *scriptedSSHResponseBody) Close() error {
+	b.closeCalls++
+	return b.closeErr
 }

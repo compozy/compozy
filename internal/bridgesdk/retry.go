@@ -3,7 +3,7 @@ package bridgesdk
 import (
 	"context"
 	"errors"
-	"math/rand"
+	"math/rand/v2"
 	"time"
 
 	retrypkg "github.com/compozy/compozy/internal/retry"

@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -435,8 +434,9 @@ func TestMarketplaceLifecycleReportsCommittedBatchUpdatesBeforeLaterFailure(t *t
 			MarketplaceUpdateRequest{All: true, PolicyAllowsUnverified: true, AllowUnverified: true},
 			nil,
 		)
-		var batchErr *MarketplaceUpdateBatchError
-		if !errors.As(err, &batchErr) {
+
+		batchErr, batchErrMatched := errors.AsType[*MarketplaceUpdateBatchError](err)
+		if !batchErrMatched {
 			t.Fatalf("UpdateMarketplaceManaged() error = %T %v, want *MarketplaceUpdateBatchError", err, err)
 		}
 		if !errors.Is(err, ErrManifestInvalid) {
@@ -746,18 +746,15 @@ func TestMarketplaceLifecycleVerifiesCuratedArchiveDigest(t *testing.T) {
 			"/repository-orientation-v1.0.0.tar.gz": lifecycleTarGzNamed(t, "repository-orientation", "1.0.0"),
 			"/repository-orientation-v1.1.0.tar.gz": lifecycleTarGzNamed(t, "repository-orientation", "1.1.0"),
 		}
-		server := httptest.NewTLSServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-			archive, ok := archives[request.URL.Path]
-			if !ok {
-				http.NotFound(writer, request)
-				return
-			}
-			writer.Header().Set("Content-Type", "application/gzip")
-			if _, err := writer.Write(archive); err != nil {
-				t.Fatalf("writer.Write() error = %v", err)
-			}
-		}))
-		t.Cleanup(server.Close)
+		artifactClient := &http.Client{
+			Transport: lifecycleArtifactRoundTripper(func(request *http.Request) (*http.Response, error) {
+				archive, ok := archives[request.URL.Path]
+				if !ok {
+					return lifecycleArtifactResponse(request, http.StatusNotFound, nil), nil
+				}
+				return lifecycleArtifactResponse(request, http.StatusOK, archive), nil
+			}),
+		}
 
 		homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
 		if err != nil {
@@ -772,7 +769,7 @@ func TestMarketplaceLifecycleVerifiesCuratedArchiveDigest(t *testing.T) {
 			Version:             "1.0.0",
 			ArchiveDigestSHA256: lifecycleArchiveDigest(archives["/repository-orientation-v1.0.0.tar.gz"]),
 			RegistryTier:        ExtensionRegistryTierOfficial,
-			ArtifactURL:         server.URL + "/repository-orientation-v1.0.0.tar.gz",
+			ArtifactURL:         "https://artifacts.example.test/repository-orientation-v1.0.0.tar.gz",
 			Repository:          "https://github.com/compozy/compozy",
 		}
 		installed, err := InstallMarketplaceManaged(
@@ -781,7 +778,7 @@ func TestMarketplaceLifecycleVerifiesCuratedArchiveDigest(t *testing.T) {
 			env.registry,
 			loader,
 			MarketplaceInstallRequest{
-				Slug: "compozy/repository-orientation", Trust: v1, ArtifactHTTPClient: server.Client(),
+				Slug: "compozy/repository-orientation", Trust: v1, ArtifactHTTPClient: artifactClient,
 			},
 		)
 		if err != nil {
@@ -799,7 +796,7 @@ func TestMarketplaceLifecycleVerifiesCuratedArchiveDigest(t *testing.T) {
 			Version:             "1.1.0",
 			ArchiveDigestSHA256: lifecycleArchiveDigest(archives["/repository-orientation-v1.1.0.tar.gz"]),
 			RegistryTier:        ExtensionRegistryTierOfficial,
-			ArtifactURL:         server.URL + "/repository-orientation-v1.1.0.tar.gz",
+			ArtifactURL:         "https://artifacts.example.test/repository-orientation-v1.1.0.tar.gz",
 			Repository:          v1.Repository,
 		}
 		updates, err := UpdateMarketplaceManaged(
@@ -808,7 +805,7 @@ func TestMarketplaceLifecycleVerifiesCuratedArchiveDigest(t *testing.T) {
 			env.registry,
 			loader,
 			MarketplaceUpdateRequest{
-				Names: []string{"repository-orientation"}, ArtifactHTTPClient: server.Client(),
+				Names: []string{"repository-orientation"}, ArtifactHTTPClient: artifactClient,
 				ResolveTrust: func(_ context.Context, slug string, version string) (*MarketplaceTrustEvidence, error) {
 					if slug != "compozy/repository-orientation" || version != "" {
 						t.Fatalf("ResolveTrust(%q, %q), want catalog latest lookup", slug, version)
@@ -1257,8 +1254,9 @@ func TestMarketplaceTrustDiagnostics(t *testing.T) {
 		if !errors.Is(err, ErrExtensionUnverifiedPolicyBlocked) {
 			t.Fatalf("ValidateUnverifiedSideLoad() error = %v, want ErrExtensionUnverifiedPolicyBlocked", err)
 		}
-		var blocked *ExtensionPolicyBlockedError
-		if !errors.As(err, &blocked) {
+
+		blocked, blockedMatched := errors.AsType[*ExtensionPolicyBlockedError](err)
+		if !blockedMatched {
 			t.Fatalf("ValidateUnverifiedSideLoad() error = %T, want *ExtensionPolicyBlockedError", err)
 		}
 		if blocked.Error() != "extension: unverified install blocked by policy: acme/blocked" {
@@ -1274,6 +1272,28 @@ func TestMarketplaceTrustDiagnostics(t *testing.T) {
 		}
 		if err := ValidateUnverifiedSideLoad("acme/allowed", "local", true, true); err != nil {
 			t.Fatalf("ValidateUnverifiedSideLoad(allowed) error = %v", err)
+		}
+	})
+
+	t.Run("Should append one safe install cleanup warning per operation", func(t *testing.T) {
+		t.Parallel()
+
+		warnings := appendExtensionInstallCleanupWarnings(
+			[]diagnosticcontract.DiagnosticItem{{Code: diagnosticcontract.CodeExtensionRegistryTierUnverified}},
+			" acme/lifecycle-ext ",
+			[]registrypkg.CleanupDiagnostic{
+				{Operation: registrypkg.CleanupOperationStream},
+				{Operation: registrypkg.CleanupOperationStream},
+			},
+		)
+		if len(warnings) != 2 {
+			t.Fatalf("appendExtensionInstallCleanupWarnings() = %#v, want trust + cleanup warnings", warnings)
+		}
+		cleanup := warnings[1]
+		if cleanup.Code != diagnosticcontract.CodeExtensionInstallCleanupFailed ||
+			cleanup.Evidence[marketplaceInstallCleanupOperation] != string(registrypkg.CleanupOperationStream) ||
+			cleanup.Evidence["slug"] != "acme/lifecycle-ext" {
+			t.Fatalf("cleanup warning = %#v, want safe operation evidence", cleanup)
 		}
 	})
 
@@ -1328,8 +1348,9 @@ func TestMarketplaceTrustDiagnostics(t *testing.T) {
 		if !errors.Is(err, ErrExtensionArchiveDigestMismatch) || !errors.Is(err, registrypkg.ErrArchiveDigestMismatch) {
 			t.Fatalf("wrapCuratedDigestMismatch() error = %v, want both digest mismatch identities", err)
 		}
-		var mismatch *ExtensionArchiveDigestMismatchError
-		if !errors.As(err, &mismatch) {
+
+		mismatch, mismatchMatched := errors.AsType[*ExtensionArchiveDigestMismatchError](err)
+		if !mismatchMatched {
 			t.Fatalf("wrapCuratedDigestMismatch() error = %T, want *ExtensionArchiveDigestMismatchError", err)
 		}
 		if errors.Unwrap(mismatch) != cause {
@@ -1418,6 +1439,26 @@ func lifecycleTarGzNamed(t *testing.T, name string, version string) []byte {
 func lifecycleArchiveDigest(archive []byte) string {
 	digest := sha256.Sum256(archive)
 	return hex.EncodeToString(digest[:])
+}
+
+type lifecycleArtifactRoundTripper func(*http.Request) (*http.Response, error)
+
+func (f lifecycleArtifactRoundTripper) RoundTrip(request *http.Request) (*http.Response, error) {
+	return f(request)
+}
+
+func lifecycleArtifactResponse(
+	request *http.Request,
+	status int,
+	body []byte,
+) *http.Response {
+	return &http.Response{
+		Body:       io.NopCloser(bytes.NewReader(body)),
+		Header:     http.Header{"Content-Type": []string{"application/gzip"}},
+		Request:    request,
+		Status:     http.StatusText(status),
+		StatusCode: status,
+	}
 }
 
 func requireFileContains(t *testing.T, path string, want string) {

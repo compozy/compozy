@@ -9,6 +9,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/compozy/compozy/internal/loop"
@@ -1058,6 +1059,7 @@ func TestExecutorShouldRecoverPromptCheckpointsWithoutReplayingEffects(t *testin
 		wantPrepareCalls int
 		wantJudgeCalls   int
 		wantAmbiguous    int
+		cancelExecution  bool
 	}{
 		{
 			name:             "pre-claim prepare",
@@ -1083,6 +1085,7 @@ func TestExecutorShouldRecoverPromptCheckpointsWithoutReplayingEffects(t *testin
 			wantDisposition: loop.ActionDispositionNeedsApproval,
 			wantCause:       loop.ReasonCodeGoalRecoveryAmbiguous,
 			wantAmbiguous:   1,
+			cancelExecution: true,
 		},
 		{
 			name:         "started effect with correlated terminal proof",
@@ -1154,7 +1157,13 @@ func TestExecutorShouldRecoverPromptCheckpointsWithoutReplayingEffects(t *testin
 			if err != nil {
 				t.Fatalf("NewExecutor() error = %v", err)
 			}
-			raw, err := executor.Execute(context.Background(), testGoalNode(3), input)
+			executionCtx := context.Background()
+			if tc.cancelExecution {
+				canceledCtx, cancel := context.WithCancel(t.Context())
+				cancel()
+				executionCtx = canceledCtx
+			}
+			raw, err := executor.Execute(executionCtx, testGoalNode(3), input)
 			if err != nil {
 				t.Fatalf("Execute() error = %v", err)
 			}
@@ -1194,6 +1203,70 @@ func TestExecutorShouldRecoverPromptCheckpointsWithoutReplayingEffects(t *testin
 			}
 		})
 	}
+
+	t.Run("Should bound blocked recovery with one detached timeout", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			input := testGoalInput(t)
+			key := TurnKey{
+				WorkspaceID: input.WorkspaceID,
+				LoopRunID:   input.LoopRunID,
+				Generation:  input.Generation,
+				NodeID:      input.NodeID,
+				ItemIndex:   input.ItemIndex,
+			}
+			store := newFakeExecutorStore()
+			checkpoint := Checkpoint{
+				Key:               key,
+				ControlEpoch:      1,
+				Phase:             checkpointPhasePrompting,
+				Status:            goalStatusActive,
+				TurnsUsed:         1,
+				TurnLimit:         3,
+				TaskRunID:         input.CorrelationID,
+				QueueEntryID:      "queue:blocked-recovery",
+				PromptID:          "prompt:blocked-recovery",
+				PromptKind:        promptKindWork,
+				SessionID:         "session-1",
+				BindingHandle:     "goal:blocked-recovery",
+				BindingEpoch:      1,
+				ContextState:      contextStateUnknown,
+				ContextNudgeRatio: 0.8,
+			}
+			store.installCheckpoint(checkpoint)
+			binder := newFakeManagedBinder(store)
+			awaitErr := errors.New("worker restarted")
+			binder.awaitErrors[checkpoint.PromptID] = awaitErr
+			recoveryTimeout := time.Minute
+			executor, err := NewExecutor(Dependencies{
+				Store:           store,
+				Binder:          binder,
+				Judge:           &fakeJudge{},
+				Budget:          &fakeBudgetGuard{},
+				Context:         &fakeContextHealth{},
+				Recovery:        blockingPromptRecovery{},
+				RecoveryTimeout: recoveryTimeout,
+			})
+			if err != nil {
+				t.Fatalf("NewExecutor() error = %v", err)
+			}
+
+			startedAt := time.Now()
+			_, err = executor.Execute(t.Context(), testGoalNode(3), input)
+			if !errors.Is(err, awaitErr) || !errors.Is(err, errRecoveryTimeout) ||
+				!errors.Is(err, context.DeadlineExceeded) {
+				t.Fatalf(
+					"Execute() error = %v, want await, recovery-timeout, and deadline causes",
+					err,
+				)
+			}
+			if elapsed := time.Since(startedAt); elapsed != recoveryTimeout {
+				t.Fatalf("recovery elapsed = %s, want %s", elapsed, recoveryTimeout)
+			}
+			if got := store.ambiguousCount(); got != 0 {
+				t.Fatalf("ambiguous settlements after timed-out recovery = %d, want 0", got)
+			}
+		})
+	})
 }
 
 func TestExecutorShouldRejectAnUnnormalizedMissingStopReason(t *testing.T) {
@@ -1910,11 +1983,14 @@ func TestGoalContractsShouldValidateIdentityDependenciesAndHarvest(t *testing.T)
 		if err != nil {
 			t.Fatalf("NewExecutor(defaults) error = %v", err)
 		}
-		if executor.now == nil || executor.compactionTimeout != defaultCompactionTimeout {
+		if executor.now == nil || executor.compactionTimeout != defaultCompactionTimeout ||
+			executor.compactionDrain != defaultCompactionDrain || executor.recoveryTimeout != defaultRecoveryTimeout {
 			t.Fatalf(
-				"executor defaults = now-nil:%t timeout:%v",
+				"executor defaults = now-nil:%t compaction-timeout:%v compaction-drain:%v recovery-timeout:%v",
 				executor.now == nil,
 				executor.compactionTimeout,
+				executor.compactionDrain,
+				executor.recoveryTimeout,
 			)
 		}
 	})

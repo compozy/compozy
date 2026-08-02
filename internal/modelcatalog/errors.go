@@ -75,8 +75,7 @@ func sourceErrorText(err error) string {
 	if err == nil {
 		return ""
 	}
-	var fallback *StaleFallbackError
-	if errors.As(err, &fallback) && fallback.Err != nil {
+	if fallback, ok := errors.AsType[*StaleFallbackError](err); ok && fallback.Err != nil {
 		return RedactString(fallback.Err.Error())
 	}
 	return RedactString(err.Error())

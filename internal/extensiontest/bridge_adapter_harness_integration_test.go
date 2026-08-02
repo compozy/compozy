@@ -319,6 +319,15 @@ func TestScriptedPromptDriverPromptStopsOnContextCancellation(t *testing.T) {
 			t.Fatalf("ScriptedPromptDriver.Stop() error = %v", err)
 		}
 	}()
+	if _, err := driver.Prompt(nil, proc, acp.PromptRequest{TurnID: "turn-invalid"}); err == nil {
+		t.Fatal("ScriptedPromptDriver.Prompt(nil) error = nil, want context validation failure")
+	}
+	driver.mu.Lock()
+	promptCount := len(driver.prompts)
+	driver.mu.Unlock()
+	if promptCount != 0 {
+		t.Fatalf("prompt count after rejected admission = %d, want 0", promptCount)
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	events, err := driver.Prompt(ctx, proc, acp.PromptRequest{TurnID: "turn-cancel"})

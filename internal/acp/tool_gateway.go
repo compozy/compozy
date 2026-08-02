@@ -135,7 +135,7 @@ func providerNativePermissionToolID(request acpsdk.RequestPermissionRequest) str
 
 	toolName := providerNativeToolName(
 		providerNativeToolUpdatePayload{
-			Title: firstNonEmptyString(requestPermissionToolTitle(request)),
+			Title: firstTrimmedNonEmpty(requestPermissionToolTitle(request)),
 			Meta:  permissionRequestMetaMap(request.ToolCall.Meta),
 		},
 		requestPermissionToolTitle(request),
@@ -185,7 +185,7 @@ func providerNativeToolName(payload providerNativeToolUpdatePayload, fallbackTit
 			}
 		}
 	}
-	return firstNonEmptyString(payload.Title, payload.Kind, fallbackTitle)
+	return firstTrimmedNonEmpty(payload.Title, payload.Kind, fallbackTitle)
 }
 
 func stringMapValue(payload map[string]any, key string) string {
@@ -201,15 +201,6 @@ func stringMapValue(payload map[string]any, key string) string {
 		return ""
 	}
 	return strings.TrimSpace(typed)
-}
-
-func firstNonEmptyString(values ...string) string {
-	for _, value := range values {
-		if trimmed := strings.TrimSpace(value); trimmed != "" {
-			return trimmed
-		}
-	}
-	return ""
 }
 
 func providerNativeToolPatchUnsupported(

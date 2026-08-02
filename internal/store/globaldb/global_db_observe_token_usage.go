@@ -25,6 +25,10 @@ func (g *ObserveRepo) RecordTokenUsage(
 	if err := daily.Validate(); err != nil {
 		return err
 	}
+	statsParams, err := g.tokenStatsParams(stats)
+	if err != nil {
+		return err
+	}
 
 	tx, err := g.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -35,7 +39,7 @@ func (g *ObserveRepo) RecordTokenUsage(
 	}()
 
 	queries := sqlcgen.New(tx)
-	if statsErr := queries.UpsertTokenStats(ctx, g.tokenStatsParams(stats)); statsErr != nil {
+	if statsErr := queries.UpsertTokenStats(ctx, statsParams); statsErr != nil {
 		return fmt.Errorf("store: upsert token stats for session %q: %w", stats.SessionID, statsErr)
 	}
 	if dailyErr := queries.UpsertTokenUsageDaily(ctx, g.tokenUsageDailyParams(daily)); dailyErr != nil {

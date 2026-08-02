@@ -5,14 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 )
 
 // ErrInvalidPath reports a path that cannot be represented safely by the filesystem boundary.
 var ErrInvalidPath = errors.New("fileutil: invalid path")
-
-var replaceFile = os.Rename
 
 // AtomicWrite writes content with the default Compozy file permissions via temp-file-and-rename.
 func AtomicWrite(path string, content []byte) error {
@@ -22,7 +19,7 @@ func AtomicWrite(path string, content []byte) error {
 // AtomicWriteFile writes content to path via a temp file plus atomic replacement.
 // It always syncs the temp file before replacement. Parent-directory metadata
 // durability remains best-effort on platforms without directory fsync support.
-func AtomicWriteFile(path string, content []byte, perm os.FileMode) error {
+func AtomicWriteFile(path string, content []byte, perm os.FileMode) (err error) {
 	if strings.TrimSpace(path) == "" {
 		return fmt.Errorf("%w: path is required", ErrInvalidPath)
 	}
@@ -30,87 +27,57 @@ func AtomicWriteFile(path string, content []byte, perm os.FileMode) error {
 		return fmt.Errorf("%w: path contains NUL byte", ErrInvalidPath)
 	}
 
-	dir := filepath.Dir(path)
-	tempFile, err := os.CreateTemp(dir, ".compozy-atomic-*")
+	directory, name, err := OpenParentDirectory(path)
 	if err != nil {
-		return fmt.Errorf("fileutil: create temp file for %q: %w", path, err)
+		return fmt.Errorf("fileutil: open parent directory for %q: %w", path, err)
 	}
-
-	tempPath := tempFile.Name()
-	cleanup := true
 	defer func() {
-		if cleanup {
-			// Best-effort cleanup only; a failed remove does not affect atomic replacement semantics.
-			_ = os.Remove(tempPath)
+		if closeErr := directory.Close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("fileutil: close parent directory for %q: %w", path, closeErr))
 		}
 	}()
-
-	if err := writeTempFile(tempFile, tempPath, content, perm); err != nil {
-		return err
-	}
-	if err := replaceFile(tempPath, path); err != nil {
-		return fmt.Errorf("fileutil: replace %q: %w", path, err)
-	}
-	if err := syncDir(dir); err != nil {
-		return fmt.Errorf("fileutil: sync parent directory for %q: %w", path, err)
-	}
-
-	cleanup = false
-	return nil
+	return directory.AtomicWriteFile(name, content, perm, true)
 }
 
 // AtomicRemoveFile removes a file and syncs its parent directory.
-func AtomicRemoveFile(path string) error {
+func AtomicRemoveFile(path string) (err error) {
 	if strings.TrimSpace(path) == "" {
 		return fmt.Errorf("%w: path is required", ErrInvalidPath)
 	}
 	if strings.ContainsRune(path, 0) {
 		return fmt.Errorf("%w: path contains NUL byte", ErrInvalidPath)
 	}
-	info, err := os.Lstat(path)
+	directory, name, err := OpenParentDirectory(path)
 	if err != nil {
-		return fmt.Errorf("fileutil: stat %q before remove: %w", path, err)
+		return fmt.Errorf("fileutil: open parent directory for %q: %w", path, err)
 	}
-	if info.IsDir() {
-		return fmt.Errorf("fileutil: remove %q: target is a directory", path)
-	}
-	if err := removeFileOnly(path); err != nil {
-		return fmt.Errorf("fileutil: remove %q: %w", path, err)
-	}
-	if err := syncDir(filepath.Dir(path)); err != nil {
-		return fmt.Errorf("fileutil: sync parent directory for %q: %w", path, err)
-	}
-	return nil
+	defer func() {
+		if closeErr := directory.Close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("fileutil: close parent directory for %q: %w", path, closeErr))
+		}
+	}()
+	return directory.RemoveRegularFile(name)
 }
 
-// SyncDir fsyncs directory metadata when the current platform supports it.
-func SyncDir(path string) error {
+// SyncDir requests a directory metadata flush using a mutation-capable handle.
+func SyncDir(path string) (err error) {
 	if strings.TrimSpace(path) == "" {
 		return fmt.Errorf("%w: path is required", ErrInvalidPath)
 	}
 	if strings.ContainsRune(path, 0) {
 		return fmt.Errorf("%w: path contains NUL byte", ErrInvalidPath)
 	}
-	if err := syncDir(path); err != nil {
+	directory, err := openDirectory(path, openIntentMutate)
+	if err != nil {
+		return fmt.Errorf("fileutil: open directory %q for sync: %w", path, err)
+	}
+	defer func() {
+		if closeErr := directory.Close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("fileutil: close directory %q after sync: %w", path, closeErr))
+		}
+	}()
+	if err := directory.Sync(); err != nil {
 		return fmt.Errorf("fileutil: sync directory %q: %w", path, err)
-	}
-	return nil
-}
-
-func writeTempFile(file *os.File, tempPath string, content []byte, perm os.FileMode) error {
-	var err error
-	if _, err = file.Write(content); err == nil {
-		err = file.Chmod(perm)
-	}
-	if err == nil {
-		err = file.Sync()
-	}
-	closeErr := file.Close()
-	if err == nil {
-		err = closeErr
-	}
-	if err != nil {
-		return fmt.Errorf("fileutil: prepare temp file %q: %w", tempPath, err)
 	}
 	return nil
 }

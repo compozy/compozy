@@ -100,12 +100,10 @@ func BuildBridgeCatalogPage(
 // NormalizeBridgeCatalogQuery validates and canonicalizes one public catalog query.
 func NormalizeBridgeCatalogQuery(query BridgeCatalogQuery) (BridgeCatalogQuery, error) {
 	query.Scope = strings.ToLower(strings.TrimSpace(query.Scope))
-	query.WorkspaceID = strings.TrimSpace(query.WorkspaceID)
 	query.Search = strings.ToLower(strings.TrimSpace(query.Search))
 	query.Platform = strings.ToLower(strings.TrimSpace(query.Platform))
 	query.Status = query.Status.Normalize()
 	query.Sort = strings.ToLower(strings.TrimSpace(query.Sort))
-	query.Cursor = strings.TrimSpace(query.Cursor)
 	if query.Scope == "" {
 		query.Scope = bridgeCatalogScopeAll
 	}

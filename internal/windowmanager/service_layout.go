@@ -67,8 +67,7 @@ func validateLayoutDocument(
 		}, nil
 	}
 	if err := ValidateSnapshot(candidate); err != nil {
-		var topologyErr *TopologyError
-		if errors.As(err, &topologyErr) {
+		if topologyErr, ok := errors.AsType[*TopologyError](err); ok {
 			return Validation{Diagnostics: append([]Diagnostic(nil), topologyErr.Diagnostics...)}, nil
 		}
 		return Validation{}, fmt.Errorf("validate layout document: %w", err)

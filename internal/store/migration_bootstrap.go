@@ -19,6 +19,9 @@ type MigrationBootstrap struct {
 	MigrationDir string
 	SchemaSource string
 	SeedSource   string
+	// Initialize writes instance-specific state after schema and seed SQL and
+	// before migration versions are recorded, all in the same transaction.
+	Initialize func(context.Context, *sql.Tx) error
 }
 
 func tryBootstrapMigrationStream(
@@ -56,6 +59,7 @@ func tryBootstrapMigrationStream(
 		inspection.directory.versions,
 		schemaFiles,
 		seedFile,
+		bootstrap.Initialize,
 	); err != nil {
 		return false, fmt.Errorf("store: bootstrap migration stream %q: %w", stream.Name, err)
 	}
@@ -143,6 +147,7 @@ func applyMigrationBootstrap(
 	versions []int64,
 	schemaFiles []migrationFile,
 	seedFile *migrationFile,
+	initialize func(context.Context, *sql.Tx) error,
 ) (retErr error) {
 	versionStore, err := goosedatabase.NewStore(goosedatabase.DialectSQLite3, versionTable)
 	if err != nil {
@@ -153,8 +158,11 @@ func applyMigrationBootstrap(
 		return fmt.Errorf("begin migration bootstrap: %w", err)
 	}
 	defer func() {
-		if retErr != nil {
-			retErr = errors.Join(retErr, tx.Rollback())
+		if retErr == nil {
+			return
+		}
+		if rollbackErr := tx.Rollback(); rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
+			retErr = errors.Join(retErr, fmt.Errorf("rollback migration bootstrap: %w", rollbackErr))
 		}
 	}()
 	if err := versionStore.CreateVersionTable(ctx, tx); err != nil {
@@ -171,6 +179,11 @@ func applyMigrationBootstrap(
 	if seedFile != nil {
 		if _, err := tx.ExecContext(ctx, string(seedFile.contents)); err != nil {
 			return fmt.Errorf("execute bootstrap seed %s: %w", seedFile.path, err)
+		}
+	}
+	if initialize != nil {
+		if err := initialize(ctx, tx); err != nil {
+			return fmt.Errorf("initialize migration bootstrap: %w", err)
 		}
 	}
 	for _, version := range versions {

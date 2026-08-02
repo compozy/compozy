@@ -2,9 +2,6 @@ package cli
 
 import (
 	"context"
-	"encoding/json"
-
-	"fmt"
 
 	"net/http"
 	"net/url"
@@ -155,8 +152,8 @@ func (c *unixSocketClient) AgentTaskClaimNext(
 	}
 
 	var decoded contract.AgentTaskClaimResponse
-	if err := json.NewDecoder(response.Body).Decode(&decoded); err != nil {
-		return AgentTaskNextRecord{}, fmt.Errorf("cli: decode %s %s response: %w", http.MethodPost, path, err)
+	if err := decodeJSONResponseBody(http.MethodPost, path, response.Body, &decoded); err != nil {
+		return AgentTaskNextRecord{}, err
 	}
 	claim := decoded.Claim
 	return AgentTaskNextRecord{Claimed: true, Claim: &claim}, nil

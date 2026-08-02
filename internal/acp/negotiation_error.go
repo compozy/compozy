@@ -78,14 +78,15 @@ func newNegotiationError(
 		evidence["valid_choices"] = append([]string(nil), negotiationErr.ValidChoices...)
 	}
 	return diagnostics.NewStructuredError(
-		diagnostics.NewItem(
-			"provider.negotiation."+negotiationErr.Code,
-			negotiationErr.Code,
-			diagnosticcontract.CategoryProvider,
-			"Provider configuration is unavailable",
-			negotiationErr.Error(),
-			diagnosticcontract.SeverityError,
-			diagnosticcontract.FreshnessLive,
+		diagnostics.NewItem(diagnostics.ItemSpec{
+			ID:            "provider.negotiation." + negotiationErr.Code,
+			Code:          negotiationErr.Code,
+			Category:      diagnosticcontract.CategoryProvider,
+			Title:         "Provider configuration is unavailable",
+			Message:       negotiationErr.Error(),
+			Severity:      diagnosticcontract.SeverityError,
+			DataFreshness: diagnosticcontract.FreshnessLive,
+		},
 			diagnostics.WithEvidence(evidence),
 		),
 		negotiationErr,

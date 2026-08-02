@@ -139,8 +139,9 @@ requires = ["sessions/list"]
 			if err == nil {
 				t.Fatal("LoadManifest() error = nil, want manifest validation error")
 			}
-			var validationErr *ManifestValidationError
-			if !errors.As(err, &validationErr) {
+
+			validationErr, validationErrMatched := errors.AsType[*ManifestValidationError](err)
+			if !validationErrMatched {
 				t.Fatalf("LoadManifest() error = %T, want *ManifestValidationError", err)
 			}
 			if validationErr.Field != tt.wantField {
@@ -815,8 +816,8 @@ min_other_version = "0.5.0"
 				return
 			}
 
-			var validationErr *ManifestValidationError
-			if !errors.As(err, &validationErr) {
+			validationErr, validationErrMatched := errors.AsType[*ManifestValidationError](err)
+			if !validationErrMatched {
 				t.Fatalf("LoadManifest() error = %T, want *ManifestValidationError", err)
 			}
 			if validationErr.Field != tc.wantField {
@@ -840,8 +841,8 @@ func TestManifestValidateRejectsDaemonOnlyResourcePublishFamily(t *testing.T) {
 		t.Fatal("Validate() error = nil, want non-nil")
 	}
 
-	var validationErr *ManifestValidationError
-	if !errors.As(err, &validationErr) {
+	validationErr, validationErrMatched := errors.AsType[*ManifestValidationError](err)
+	if !validationErrMatched {
 		t.Fatalf("Validate() error type = %T, want *ManifestValidationError", err)
 	}
 	if got, want := validationErr.Field, "resources.publish"; got != want {
@@ -863,8 +864,8 @@ func TestManifestValidateRejectsInvalidResourcePublishScope(t *testing.T) {
 		t.Fatal("Validate() error = nil, want non-nil")
 	}
 
-	var validationErr *ManifestValidationError
-	if !errors.As(err, &validationErr) {
+	validationErr, validationErrMatched := errors.AsType[*ManifestValidationError](err)
+	if !validationErrMatched {
 		t.Fatalf("Validate() error type = %T, want *ManifestValidationError", err)
 	}
 	if got, want := validationErr.Field, "resources.publish"; got != want {
@@ -905,8 +906,8 @@ func TestLoadManifest_ReturnsTypedNotFoundError(t *testing.T) {
 		t.Fatalf("LoadManifest() error = %v, want ErrManifestNotFound", err)
 	}
 
-	var notFoundErr *ManifestNotFoundError
-	if !errors.As(err, &notFoundErr) {
+	notFoundErr, notFoundErrMatched := errors.AsType[*ManifestNotFoundError](err)
+	if !notFoundErrMatched {
 		t.Fatalf("LoadManifest() error = %T, want *ManifestNotFoundError", err)
 	}
 	if notFoundErr.Dir != dir {
@@ -959,8 +960,8 @@ func TestLoadManifest_RejectsConflictingRootAndWrappedValues(t *testing.T) {
 		t.Fatalf("LoadManifest() error = %v, want ErrManifestInvalid", err)
 	}
 
-	var validationErr *ManifestValidationError
-	if !errors.As(err, &validationErr) {
+	validationErr, validationErrMatched := errors.AsType[*ManifestValidationError](err)
+	if !validationErrMatched {
 		t.Fatalf("LoadManifest() error = %T, want *ManifestValidationError", err)
 	}
 	if validationErr.Field != "name" {
@@ -1055,8 +1056,8 @@ func TestManifestValidate_RejectsInvalidPermissionName(t *testing.T) {
 		t.Fatalf("Validate() error = %v, want ErrManifestInvalid", err)
 	}
 
-	var validationErr *ManifestValidationError
-	if !errors.As(err, &validationErr) {
+	validationErr, validationErrMatched := errors.AsType[*ManifestValidationError](err)
+	if !validationErrMatched {
 		t.Fatalf("Validate() error = %T, want *ManifestValidationError", err)
 	}
 	if validationErr.Field != "permissions.requires[0]" {
@@ -1079,8 +1080,8 @@ func TestManifestValidate_RequiresBridgeMetadataForBridgeAdapters(t *testing.T) 
 			t.Fatalf("Validate() error = %v, want ErrManifestInvalid", err)
 		}
 
-		var validationErr *ManifestValidationError
-		if !errors.As(err, &validationErr) {
+		validationErr, validationErrMatched := errors.AsType[*ManifestValidationError](err)
+		if !validationErrMatched {
 			t.Fatalf("Validate() error = %T, want *ManifestValidationError", err)
 		}
 		if validationErr.Field != "bridge.platform" {
@@ -1098,8 +1099,8 @@ func TestManifestValidate_RequiresBridgeMetadataForBridgeAdapters(t *testing.T) 
 			t.Fatal("Validate() error = nil, want ErrManifestInvalid")
 		}
 
-		var validationErr *ManifestValidationError
-		if !errors.As(err, &validationErr) {
+		validationErr, validationErrMatched := errors.AsType[*ManifestValidationError](err)
+		if !validationErrMatched {
 			t.Fatalf("Validate() error = %T, want *ManifestValidationError", err)
 		}
 		if validationErr.Field != "bridge.display_name" {
@@ -1134,8 +1135,8 @@ func TestManifestValidate_ValidatesBridgeSecretSlotsAndConfigSchemaHints(t *test
 			t.Fatal("Validate() error = nil, want ErrManifestInvalid")
 		}
 
-		var validationErr *ManifestValidationError
-		if !errors.As(err, &validationErr) {
+		validationErr, validationErrMatched := errors.AsType[*ManifestValidationError](err)
+		if !validationErrMatched {
 			t.Fatalf("Validate() error = %T, want *ManifestValidationError", err)
 		}
 		if got, want := validationErr.Field, "bridge.secret_slots[0]"; got != want {
@@ -1158,8 +1159,8 @@ func TestManifestValidate_ValidatesBridgeSecretSlotsAndConfigSchemaHints(t *test
 			t.Fatal("Validate() error = nil, want ErrManifestInvalid")
 		}
 
-		var validationErr *ManifestValidationError
-		if !errors.As(err, &validationErr) {
+		validationErr, validationErrMatched := errors.AsType[*ManifestValidationError](err)
+		if !validationErrMatched {
 			t.Fatalf("Validate() error = %T, want *ManifestValidationError", err)
 		}
 		if got, want := validationErr.Field, "bridge.secret_slots[1].name"; got != want {

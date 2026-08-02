@@ -19,6 +19,7 @@ import (
 	bridgepkg "github.com/compozy/compozy/internal/bridges/contract"
 	"github.com/compozy/compozy/internal/bridgesdk"
 	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
+	"github.com/compozy/compozy/internal/extensiontest"
 	"github.com/compozy/compozy/internal/subprocess"
 )
 
@@ -201,7 +202,9 @@ func TestWebhookIngressRejectsInvalidSignatureAndIngestsSupportedModes(t *testin
 	if got, want := resp.StatusCode, http.StatusUnauthorized; got != want {
 		t.Fatalf("invalid webhook status = %d, want %d", got, want)
 	}
-	_ = resp.Body.Close()
+	if err := resp.Body.Close(); err != nil {
+		t.Fatalf("invalid webhook response body close error = %v", err)
+	}
 
 	commentPayload := linearCommentWebhookBodyForTest(
 		now,
@@ -215,7 +218,9 @@ func TestWebhookIngressRejectsInvalidSignatureAndIngestsSupportedModes(t *testin
 	if got, want := resp.StatusCode, http.StatusOK; got != want {
 		t.Fatalf("comment webhook status = %d, want %d", got, want)
 	}
-	_ = resp.Body.Close()
+	if err := resp.Body.Close(); err != nil {
+		t.Fatalf("comment webhook response body close error = %v", err)
+	}
 
 	agentPayload := linearAgentSessionWebhookBodyForTest(
 		now,
@@ -229,7 +234,9 @@ func TestWebhookIngressRejectsInvalidSignatureAndIngestsSupportedModes(t *testin
 	if got, want := resp.StatusCode, http.StatusOK; got != want {
 		t.Fatalf("agent webhook status = %d, want %d", got, want)
 	}
-	_ = resp.Body.Close()
+	if err := resp.Body.Close(); err != nil {
+		t.Fatalf("agent webhook response body close error = %v", err)
+	}
 
 	selfCommentPayload := linearCommentWebhookBodyForTest(
 		now,
@@ -243,7 +250,9 @@ func TestWebhookIngressRejectsInvalidSignatureAndIngestsSupportedModes(t *testin
 	if got, want := resp.StatusCode, http.StatusOK; got != want {
 		t.Fatalf("self comment webhook status = %d, want %d", got, want)
 	}
-	_ = resp.Body.Close()
+	if err := resp.Body.Close(); err != nil {
+		t.Fatalf("self comment webhook response body close error = %v", err)
+	}
 
 	records := waitForLinearJSONLinesFile[bridgesdk.IngestMarker](
 		t,
@@ -899,8 +908,8 @@ func TestHandleWebhookRequestBranchesAndThreadDecoding(t *testing.T) {
 		Body:       []byte(`{"type":"Comment"`),
 		ReceivedAt: time.Date(2026, 4, 15, 13, 20, 0, 0, time.UTC),
 	})
-	var httpErr *bridgesdk.HTTPError
-	if !errors.As(err, &httpErr) || httpErr.StatusCode != http.StatusBadRequest {
+	httpErr, httpErrMatched := errors.AsType[*bridgesdk.HTTPError](err)
+	if !httpErrMatched || httpErr.StatusCode != http.StatusBadRequest {
 		t.Fatalf("handleWebhookRequest(invalid json) error = %#v, want 400 http error", err)
 	}
 
@@ -981,7 +990,8 @@ func TestHandleWebhookRequestBranchesAndThreadDecoding(t *testing.T) {
 		[]resolvedInstanceConfig{agentCfg},
 		bridgesdk.WebhookRequest{Body: agentInvalid, ReceivedAt: now},
 	)
-	if !errors.As(err, &httpErr) || httpErr.StatusCode != http.StatusBadRequest {
+	httpErr, httpErrMatched = errors.AsType[*bridgesdk.HTTPError](err)
+	if !httpErrMatched || httpErr.StatusCode != http.StatusBadRequest {
 		t.Fatalf("handleWebhookRequest(invalid agent payload) error = %#v, want 400 http error", err)
 	}
 
@@ -1210,7 +1220,7 @@ func TestLinearRunHelpers(t *testing.T) {
 	if err := run([]string{"bad"}, strings.NewReader(""), io.Discard, io.Discard); err == nil {
 		t.Fatal("run(unsupported) error = nil, want non-nil")
 	}
-	if err := runServe(strings.NewReader(""), io.Discard, io.Discard); err != nil {
+	if err := runServe(io.NopCloser(strings.NewReader("")), io.Discard, io.Discard); err != nil {
 		t.Fatalf("runServe(empty input) error = %v", err)
 	}
 }
@@ -1244,52 +1254,16 @@ const linearProviderWebhookSecretValue = "linear-webhook-secret"
 func newLinearRuntimePeerPair(t *testing.T) (*linearProvider, *bridgesdk.Peer, func()) {
 	t.Helper()
 
-	hostConn, runtimeConn := net.Pipe()
 	runtime, err := newLinearProvider(io.Discard)
 	if err != nil {
 		t.Fatalf("newLinearProvider() error = %v", err)
 	}
-
-	hostPeer := bridgesdk.NewPeer(hostConn, hostConn)
-	ctx, cancel := context.WithCancel(context.Background())
-	errCh := make(chan error, 2)
-	go func() { errCh <- runtime.serve(runtimeConn, runtimeConn) }()
-	go func() { errCh <- hostPeer.Serve(ctx) }()
-
-	var once sync.Once
-	cleanup := func() {
-		once.Do(func() {
-			cancel()
-			runtime.lifecycle.Stop()
-			shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 2*time.Second)
-			if err := runtime.http.Shutdown(shutdownCtx); err != nil {
-				t.Errorf("runtime HTTP shutdown error = %v", err)
-			}
-			shutdownCancel()
-			if err := hostConn.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
-				t.Errorf("host connection close error = %v", err)
-			}
-			if err := runtimeConn.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
-				t.Errorf("runtime connection close error = %v", err)
-			}
-			for range 2 {
-				err := <-errCh
-				if err == nil || errors.Is(err, context.Canceled) || errors.Is(err, net.ErrClosed) {
-					continue
-				}
-				if strings.Contains(err.Error(), "closed") {
-					continue
-				}
-				t.Fatalf("runtime peer serve error = %v", err)
-			}
-			waitCtx, waitCancel := context.WithTimeout(context.Background(), time.Second)
-			defer waitCancel()
-			if err := runtime.lifecycle.Wait(waitCtx); err != nil {
-				t.Errorf("runtime lifecycle wait error = %v", err)
-			}
-		})
-	}
-
+	hostPeer, cleanup := extensiontest.NewRuntimePeerPair(t, extensiontest.RuntimePeerPairConfig{
+		ServeRuntime: runtime.serve,
+		Stop:         runtime.lifecycle.Stop,
+		Shutdown:     runtime.http.Shutdown,
+		Wait:         runtime.lifecycle.Wait,
+	})
 	return runtime, hostPeer, cleanup
 }
 

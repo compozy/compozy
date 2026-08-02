@@ -11,11 +11,14 @@ func TestPublicProvideConformance(t *testing.T) {
 	t.Parallel()
 
 	fixtures := extensiontest.PublicProvideFixtures()
-	if got, want := len(fixtures), 4; got != want {
-		t.Fatalf("PublicProvideFixtures() count = %d, want %d", got, want)
-	}
+	t.Run("Should expose every public provide fixture", func(t *testing.T) {
+		t.Parallel()
+
+		if got, want := len(fixtures), 4; got != want {
+			t.Fatalf("PublicProvideFixtures() count = %d, want %d", got, want)
+		}
+	})
 	for _, fixture := range fixtures {
-		fixture := fixture
 		t.Run("Should validate "+fixture.Provide, func(t *testing.T) {
 			t.Parallel()
 

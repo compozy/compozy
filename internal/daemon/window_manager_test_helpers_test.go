@@ -59,6 +59,7 @@ func newDaemonWindowManagerFixture(t *testing.T) daemonWindowManagerFixture {
 	}
 	storePath := clientstate.DatabasePath(t.TempDir())
 	engine, err := clientstate.Open(
+		testutil.Context(t),
 		storePath,
 		storeResolver,
 		clientstate.Limits{

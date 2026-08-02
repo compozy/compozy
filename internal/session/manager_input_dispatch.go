@@ -93,26 +93,27 @@ func (m *Manager) dispatchHumanQueuedInput(
 	session *Session,
 	entry humanQueuedInput,
 ) {
-	req := m.newQueuedInputPromptRequest(target, entry)
+	req, err := m.newQueuedInputPromptRequest(target, entry)
+	if err != nil {
+		m.handleQueuedInputDispatchError(session, target, entry, req, err)
+		return
+	}
 	events, err := m.submitPromptRequest(m.fallbackLifecycleContext(), req)
 	if err != nil {
 		m.handleQueuedInputDispatchError(session, target, entry, req, err)
 		return
 	}
 	m.acceptQueuedInputDispatch(session, target, entry, req)
-	go m.drainQueuedInputEvents(events)
+	m.startTrackedPromptTask(func() {
+		m.drainQueuedInputEvents(events)
+	})
 }
 
 func (m *Manager) newQueuedInputPromptRequest(
 	target string,
 	entry humanQueuedInput,
-) promptRequest {
-	turnID := strings.TrimSpace(entry.turnID)
-	if turnID == "" {
-		turnID = m.newPromptTurnID()
-	}
-	return promptRequest{
-		turnID:          turnID,
+) (promptRequest, error) {
+	req := promptRequest{
 		target:          target,
 		message:         entry.text,
 		authoredMessage: entry.text,
@@ -123,6 +124,16 @@ func (m *Manager) newQueuedInputPromptRequest(
 		meta:            acp.PromptMeta{TurnSource: string(TurnSourceUser)},
 		runtime:         runtimeSelectionFromStore(entry.runtime),
 	}
+	turnID := strings.TrimSpace(entry.turnID)
+	if turnID == "" {
+		var err error
+		turnID, err = m.newPromptTurnID()
+		if err != nil {
+			return req, err
+		}
+	}
+	req.turnID = turnID
+	return req, nil
 }
 
 func (m *Manager) handleQueuedInputDispatchError(
@@ -172,8 +183,6 @@ func (m *Manager) acceptQueuedInputDispatch(
 }
 
 func (m *Manager) drainQueuedInputEvents(events <-chan acp.AgentEvent) {
-	finishDrain := m.trackPromptDrain()
-	defer finishDrain()
 	for range events {
 		continue
 	}

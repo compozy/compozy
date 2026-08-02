@@ -258,8 +258,8 @@ func TestManagedHeartbeatAuthoringServicePutValidateAndCAS(t *testing.T) {
 		if !errors.Is(err, heartbeat.ErrInvalid) {
 			t.Fatalf("Put(invalid) error = %v, want ErrInvalid", err)
 		}
-		authoringErr := requireHeartbeatAuthoringCode(t, err, "heartbeat_invalid")
-		assertHeartbeatDiagnosticCode(t, authoringErr.Diagnostics, "heartbeat_invalid_field_type")
+		diagnostics := requireHeartbeatAuthoringCode(t, err, "heartbeat_invalid")
+		assertHeartbeatDiagnosticCode(t, diagnostics, "heartbeat_invalid_field_type")
 		if result.Policy.Valid {
 			t.Fatalf("Put(invalid).Policy.Valid = true, want false")
 		}
@@ -723,6 +723,54 @@ func TestManagedHeartbeatAuthoringServiceDeleteRollbackHistoryAndPersistence(t *
 func TestManagedHeartbeatAuthoringServiceSafetyBoundaries(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should reserve all identifiers before writing the authored file", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newHeartbeatFixture(t)
+		entropyErr := errors.New("entropy unavailable")
+		calls := 0
+		service, err := heartbeat.NewManagedHeartbeatAuthoringService(
+			fixture.db,
+			heartbeat.WithHeartbeatAuthoringIDGenerator(func(prefix string) (string, error) {
+				calls++
+				if calls == 2 {
+					return "", entropyErr
+				}
+				return prefix + "-reserved", nil
+			}),
+		)
+		if err != nil {
+			t.Fatalf("NewManagedHeartbeatAuthoringService() error = %v", err)
+		}
+
+		result, err := service.Put(fixture.ctx, heartbeat.PutRequest{
+			Target: fixture.target,
+			Body: validHeartbeatBody(
+				"Entropy failure",
+				"Entropy failure must precede file publication.",
+			),
+		})
+		if !errors.Is(err, entropyErr) {
+			t.Fatalf("Put() error = %v, want %v", err, entropyErr)
+		}
+		if result.Policy.Present || result.Snapshot.ID != "" || result.Revision.ID != "" {
+			t.Fatalf("Put() result = %#v, want zero publication", result)
+		}
+		if _, statErr := os.Stat(fixture.heartbeatPath); !errors.Is(statErr, os.ErrNotExist) {
+			t.Fatalf("Stat(HEARTBEAT.md) error = %v, want not exist", statErr)
+		}
+		history, historyErr := service.History(
+			fixture.ctx,
+			heartbeat.HistoryRequest{Target: fixture.target},
+		)
+		if historyErr != nil {
+			t.Fatalf("History() error = %v", historyErr)
+		}
+		if len(history.Revisions) != 0 {
+			t.Fatalf("History().Revisions = %#v, want empty", history.Revisions)
+		}
+	})
+
 	t.Run("Should reject path escapes, symlink targets, and missing agents deterministically", func(t *testing.T) {
 		t.Parallel()
 
@@ -766,6 +814,58 @@ func TestManagedHeartbeatAuthoringServiceSafetyBoundaries(t *testing.T) {
 		requireHeartbeatAuthoringCode(t, err, "agent_not_found")
 	})
 
+	t.Run("Should reject an agent directory symlink swapped after CAS validation", func(t *testing.T) {
+		t.Parallel()
+		if runtime.GOOS == "windows" {
+			t.Skip("symlink creation requires elevated privileges on windows")
+		}
+
+		fixture := newHeartbeatFixture(t)
+		externalAgentDir := filepath.Join(t.TempDir(), "external-agent")
+		if err := os.MkdirAll(externalAgentDir, 0o755); err != nil {
+			t.Fatalf("MkdirAll(external agent) error = %v", err)
+		}
+		externalHeartbeatPath := filepath.Join(externalAgentDir, heartbeat.FileName)
+		if err := os.WriteFile(externalHeartbeatPath, []byte("external sentinel"), 0o644); err != nil {
+			t.Fatalf("WriteFile(external HEARTBEAT.md) error = %v", err)
+		}
+
+		agentDir := filepath.Dir(fixture.agentPath)
+		movedAgentDir := agentDir + "-before-swap"
+		calls := 0
+		service, err := heartbeat.NewManagedHeartbeatAuthoringService(
+			fixture.db,
+			heartbeat.WithHeartbeatAuthoringIDGenerator(func(prefix string) (string, error) {
+				calls++
+				if calls == 1 {
+					if err := os.Rename(agentDir, movedAgentDir); err != nil {
+						t.Fatalf("Rename(agent directory) error = %v", err)
+					}
+					if err := os.Symlink(externalAgentDir, agentDir); err != nil {
+						t.Fatalf("Symlink(swapped agent directory) error = %v", err)
+					}
+				}
+				return prefix + "-swap", nil
+			}),
+		)
+		if err != nil {
+			t.Fatalf("NewManagedHeartbeatAuthoringService() error = %v", err)
+		}
+
+		_, err = service.Put(fixture.ctx, heartbeat.PutRequest{
+			Target: fixture.target,
+			Body: validHeartbeatBody(
+				"Reject swapped parent",
+				"A swapped agent directory must not redirect managed authoring.",
+			),
+		})
+		if !errors.Is(err, heartbeat.ErrAuthoringPathRejected) {
+			t.Fatalf("Put(swapped parent) error = %v, want ErrAuthoringPathRejected", err)
+		}
+		requireHeartbeatAuthoringCode(t, err, "heartbeat_path_error")
+		assertHeartbeatFileContent(t, externalHeartbeatPath, "external sentinel")
+	})
+
 	t.Run("Should preserve session health, wake audit, and task leases across authoring writes", func(t *testing.T) {
 		t.Parallel()
 
@@ -806,23 +906,16 @@ func TestManagedHeartbeatAuthoringServiceSafetyBoundaries(t *testing.T) {
 			t.Fatalf("CreateTask() error = %v", err)
 		}
 		claimedAt := time.Date(2026, 5, 2, 14, 0, 0, 0, time.UTC)
-		taskRun := taskpkg.Run{
-			ID:             "run-authoring",
-			TaskID:         taskRecord.ID,
-			Status:         taskpkg.TaskRunStatusRunning,
-			Attempt:        1,
-			ClaimedBy:      &claimedBy,
-			SessionID:      session.ID,
-			Origin:         origin,
-			ClaimTokenHash: strings.Repeat("a", 64),
-			LeaseUntil:     claimedAt.Add(time.Hour),
-			HeartbeatAt:    claimedAt.Add(time.Minute),
-			ClaimedAt:      claimedAt,
-			StartedAt:      claimedAt,
-		}
-		if err := fixture.db.CreateTaskRun(fixture.ctx, taskRun); err != nil {
-			t.Fatalf("CreateTaskRun() error = %v", err)
-		}
+		taskRun := seedHeartbeatLeasedRunningTaskRun(
+			fixture.ctx,
+			t,
+			fixture.db,
+			taskRecord,
+			session.ID,
+			claimedBy,
+			origin,
+			claimedAt,
+		)
 
 		first, err := fixture.authoring.Put(fixture.ctx, heartbeat.PutRequest{
 			Target: fixture.target,
@@ -891,6 +984,75 @@ func TestManagedHeartbeatAuthoringServiceSafetyBoundaries(t *testing.T) {
 			t.Fatalf("task run after authoring = %#v, want ownership and lease unchanged", gotRun)
 		}
 	})
+}
+
+func seedHeartbeatLeasedRunningTaskRun(
+	ctx context.Context,
+	t *testing.T,
+	db *globaldb.GlobalDB,
+	taskRecord taskpkg.Task,
+	sessionID string,
+	claimedBy taskpkg.ActorIdentity,
+	origin taskpkg.Origin,
+	claimedAt time.Time,
+) taskpkg.Run {
+	t.Helper()
+
+	var current taskpkg.Run
+	var claimToken string
+	err := db.WithTaskExecutionTransaction(ctx, func(store taskpkg.ExecutionMutationStore) error {
+		_, run, _, reserveErr := store.ReserveQueuedRun(ctx, taskpkg.QueueRunReservation{
+			TaskID:   taskRecord.ID,
+			RunID:    "run-authoring",
+			Origin:   origin,
+			QueuedAt: claimedAt.Add(-time.Minute),
+		})
+		current = run
+		return reserveErr
+	})
+	if err != nil {
+		t.Fatalf("ReserveQueuedRun() error = %v", err)
+	}
+	err = db.WithLeaseSettlementTransaction(
+		ctx,
+		"seed heartbeat leased run",
+		func(store taskpkg.LeaseSettlementMutationStore) error {
+			claim, claimErr := store.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+				RunID:            current.ID,
+				Scope:            taskRecord.Scope,
+				WorkspaceID:      taskRecord.WorkspaceID,
+				ClaimerSessionID: sessionID,
+				ClaimedBy:        &claimedBy,
+				LeaseDuration:    time.Hour,
+				Now:              claimedAt,
+			})
+			current = claim.Run
+			claimToken = claim.ClaimToken
+			return claimErr
+		},
+	)
+	if err != nil {
+		t.Fatalf("ClaimNextRun() error = %v", err)
+	}
+	actor, err := taskpkg.DeriveDaemonActorContext("heartbeat-fixture", "heartbeat.authoring-fixture")
+	if err != nil {
+		t.Fatalf("DeriveDaemonActorContext() error = %v", err)
+	}
+	manager, err := taskpkg.NewManager(
+		taskpkg.WithStore(db),
+		taskpkg.WithManagerNow(func() time.Time { return claimedAt }),
+	)
+	if err != nil {
+		t.Fatalf("NewManager() error = %v", err)
+	}
+	running, err := manager.StartRun(ctx, current.ID, taskpkg.StartRun{
+		ClaimToken:     claimToken,
+		IdempotencyKey: "heartbeat-fixture-start:" + current.ID,
+	}, actor)
+	if err != nil {
+		t.Fatalf("StartRun() error = %v", err)
+	}
+	return *running
 }
 
 func TestManagedHeartbeatStatusService(t *testing.T) {
@@ -1401,11 +1563,11 @@ func assertHeartbeatSnapshotCount(t *testing.T, fixture heartbeatFixture, want i
 	}
 }
 
-func requireHeartbeatAuthoringCode(t *testing.T, err error, code string) *heartbeat.AuthoringError {
+func requireHeartbeatAuthoringCode(t *testing.T, err error, code string) []heartbeat.Diagnostic {
 	t.Helper()
 
-	var authoringErr *heartbeat.AuthoringError
-	if !errors.As(err, &authoringErr) {
+	authoringErr, authoringErrMatched := errors.AsType[*heartbeat.AuthoringError](err)
+	if !authoringErrMatched {
 		t.Fatalf("error = %T %[1]v, want *heartbeat.AuthoringError", err)
 	}
 	if message := authoringErr.Error(); strings.TrimSpace(message) == "" {
@@ -1419,14 +1581,14 @@ func requireHeartbeatAuthoringCode(t *testing.T, err error, code string) *heartb
 			authoringErr.Diagnostics,
 		)
 	}
-	return authoringErr
+	return authoringErr.Diagnostics
 }
 
-func requireHeartbeatStatusCode(t *testing.T, err error, code string) *heartbeat.StatusError {
+func requireHeartbeatStatusCode(t *testing.T, err error, code string) {
 	t.Helper()
 
-	var statusErr *heartbeat.StatusError
-	if !errors.As(err, &statusErr) {
+	statusErr, statusErrMatched := errors.AsType[*heartbeat.StatusError](err)
+	if !statusErrMatched {
 		t.Fatalf("error = %T %[1]v, want *heartbeat.StatusError", err)
 	}
 	if message := statusErr.Error(); strings.TrimSpace(message) == "" {
@@ -1440,7 +1602,6 @@ func requireHeartbeatStatusCode(t *testing.T, err error, code string) *heartbeat
 			statusErr.Diagnostics,
 		)
 	}
-	return statusErr
 }
 
 func assertHeartbeatDiagnosticCode(t *testing.T, list []heartbeat.Diagnostic, code string) {
@@ -1483,14 +1644,14 @@ func deterministicHeartbeatClock(start time.Time) func() time.Time {
 	}
 }
 
-func deterministicHeartbeatIDGenerator() func(prefix string) string {
+func deterministicHeartbeatIDGenerator() func(prefix string) (string, error) {
 	var mu sync.Mutex
 	counters := make(map[string]int)
-	return func(prefix string) string {
+	return func(prefix string) (string, error) {
 		mu.Lock()
 		defer mu.Unlock()
 		counters[prefix]++
-		return fmt.Sprintf("%s-%02d", prefix, counters[prefix])
+		return fmt.Sprintf("%s-%02d", prefix, counters[prefix]), nil
 	}
 }
 

@@ -3,10 +3,7 @@ package github
 import (
 	"context"
 	"encoding/json"
-
 	"fmt"
-	"io"
-
 	"net/http"
 	"net/url"
 	"strings"
@@ -20,23 +17,17 @@ func (c *Client) fetchLatestRelease(ctx context.Context, repo repoSlug) (_ *rele
 	) + "/" + url.PathEscape(
 		repo.name,
 	) + "/releases/latest"
+	//nolint:bodyclose // Every status branch drains and closes the response body before returning.
 	response, err := c.doRequest(ctx, endpoint, acceptJSON)
 	if err != nil {
 		return nil, err
 	}
-	defer func() {
-		if closeErr := response.Body.Close(); closeErr != nil {
-			err = joinErrors(
-				err,
-				fmt.Errorf("github: close latest release response for %q: %w", repo.full, closeErr),
-			)
-		}
-	}()
+	responseContext := fmt.Sprintf("latest release response for %q", repo.full)
 
 	switch response.StatusCode {
 	case http.StatusOK:
-		payload, err := io.ReadAll(response.Body)
-		closeErr := closeResponseBody(response.Body, fmt.Sprintf("latest release response for %q", repo.full))
+		payload, err := readReleaseMetadata(response.Body, responseContext)
+		closeErr := drainAndCloseResponseBody(response.Body, responseContext)
 		if err != nil {
 			return nil, joinErrors(
 				fmt.Errorf("github: read latest release for %q: %w", repo.full, err),
@@ -53,19 +44,13 @@ func (c *Client) fetchLatestRelease(ctx context.Context, repo repoSlug) (_ *rele
 		}
 		return &latest, nil
 	case http.StatusUnauthorized:
-		closeErr := closeResponseBody(
-			response.Body,
-			fmt.Sprintf("latest release response for %q", repo.full),
-		)
+		closeErr := drainAndCloseResponseBody(response.Body, responseContext)
 		if closeErr != nil {
 			return nil, joinErrors(privateRepositoryError(repo.full), closeErr)
 		}
 		return nil, privateRepositoryError(repo.full)
 	case http.StatusNotFound:
-		if err := closeResponseBody(
-			response.Body,
-			fmt.Sprintf("latest release response for %q", repo.full),
-		); err != nil {
+		if err := drainAndCloseResponseBody(response.Body, responseContext); err != nil {
 			return nil, err
 		}
 		releases, listErr := c.fetchReleasePage(ctx, repo)
@@ -81,7 +66,7 @@ func (c *Client) fetchLatestRelease(ctx context.Context, repo repoSlug) (_ *rele
 		err := responseError(response, "latest release", repo.full)
 		return nil, joinErrors(
 			err,
-			closeResponseBody(response.Body, fmt.Sprintf("latest release response for %q", repo.full)),
+			drainAndCloseResponseBody(response.Body, responseContext),
 		)
 	}
 }
@@ -102,23 +87,17 @@ func (c *Client) fetchRequestedRelease(
 	) + "/releases/tags/" + url.PathEscape(
 		version,
 	)
+	//nolint:bodyclose // Every status branch drains and closes the response body before returning.
 	response, err := c.doRequest(ctx, endpoint, acceptJSON)
 	if err != nil {
 		return nil, err
 	}
-	defer func() {
-		if closeErr := response.Body.Close(); closeErr != nil {
-			err = joinErrors(
-				err,
-				fmt.Errorf("github: close release response for %q at %q: %w", repo.full, version, closeErr),
-			)
-		}
-	}()
+	responseContext := fmt.Sprintf("release response for %q at %q", repo.full, version)
 
 	switch response.StatusCode {
 	case http.StatusOK:
-		payload, err := io.ReadAll(response.Body)
-		closeErr := closeResponseBody(response.Body, fmt.Sprintf("release response for %q at %q", repo.full, version))
+		payload, err := readReleaseMetadata(response.Body, responseContext)
+		closeErr := drainAndCloseResponseBody(response.Body, responseContext)
 		if err != nil {
 			return nil, joinErrors(
 				fmt.Errorf("github: read release %q for %q: %w", version, repo.full, err),
@@ -138,16 +117,13 @@ func (c *Client) fetchRequestedRelease(
 		}
 		return &result, nil
 	case http.StatusUnauthorized:
-		closeErr := closeResponseBody(response.Body, fmt.Sprintf("release response for %q at %q", repo.full, version))
+		closeErr := drainAndCloseResponseBody(response.Body, responseContext)
 		if closeErr != nil {
 			return nil, joinErrors(privateRepositoryError(repo.full), closeErr)
 		}
 		return nil, privateRepositoryError(repo.full)
 	case http.StatusNotFound:
-		if err := closeResponseBody(
-			response.Body,
-			fmt.Sprintf("release response for %q at %q", repo.full, version),
-		); err != nil {
+		if err := drainAndCloseResponseBody(response.Body, responseContext); err != nil {
 			return nil, err
 		}
 		trimmedVersion := strings.TrimSpace(version)
@@ -161,7 +137,7 @@ func (c *Client) fetchRequestedRelease(
 		err := responseError(response, "release lookup", repo.full)
 		return nil, joinErrors(
 			err,
-			closeResponseBody(response.Body, fmt.Sprintf("release response for %q at %q", repo.full, version)),
+			drainAndCloseResponseBody(response.Body, responseContext),
 		)
 	}
 }
@@ -172,23 +148,17 @@ func (c *Client) fetchReleasePage(ctx context.Context, repo repoSlug) (_ []relea
 	) + "/" + url.PathEscape(
 		repo.name,
 	) + "/releases?per_page=30&page=1"
+	//nolint:bodyclose // Every status branch drains and closes the response body before returning.
 	response, err := c.doRequest(ctx, endpoint, acceptJSON)
 	if err != nil {
 		return nil, err
 	}
-	defer func() {
-		if closeErr := response.Body.Close(); closeErr != nil {
-			err = joinErrors(
-				err,
-				fmt.Errorf("github: close releases page response for %q: %w", repo.full, closeErr),
-			)
-		}
-	}()
+	responseContext := fmt.Sprintf("releases page response for %q", repo.full)
 
 	switch response.StatusCode {
 	case http.StatusOK:
-		payload, err := io.ReadAll(response.Body)
-		closeErr := closeResponseBody(response.Body, fmt.Sprintf("releases page response for %q", repo.full))
+		payload, err := readReleaseMetadata(response.Body, responseContext)
+		closeErr := drainAndCloseResponseBody(response.Body, responseContext)
 		if err != nil {
 			return nil, joinErrors(
 				fmt.Errorf("github: read releases page for %q: %w", repo.full, err),
@@ -205,16 +175,13 @@ func (c *Client) fetchReleasePage(ctx context.Context, repo repoSlug) (_ []relea
 		}
 		return filterPublishedReleases(releases), nil
 	case http.StatusUnauthorized:
-		closeErr := closeResponseBody(response.Body, fmt.Sprintf("releases page response for %q", repo.full))
+		closeErr := drainAndCloseResponseBody(response.Body, responseContext)
 		if closeErr != nil {
 			return nil, joinErrors(privateRepositoryError(repo.full), closeErr)
 		}
 		return nil, privateRepositoryError(repo.full)
 	case http.StatusNotFound:
-		if err := closeResponseBody(
-			response.Body,
-			fmt.Sprintf("releases page response for %q", repo.full),
-		); err != nil {
+		if err := drainAndCloseResponseBody(response.Body, responseContext); err != nil {
 			return nil, err
 		}
 		return nil, repositoryNotFoundError(repo.full)
@@ -222,7 +189,7 @@ func (c *Client) fetchReleasePage(ctx context.Context, repo repoSlug) (_ []relea
 		err := responseError(response, "releases page", repo.full)
 		return nil, joinErrors(
 			err,
-			closeResponseBody(response.Body, fmt.Sprintf("releases page response for %q", repo.full)),
+			drainAndCloseResponseBody(response.Body, responseContext),
 		)
 	}
 }

@@ -22,30 +22,34 @@ func (m *Manager) applyRuntimeDefaults() error {
 	if m.openStore == nil {
 		return errors.New("session: store opener is required")
 	}
-	m.ensureQueryStoreRuntime()
-	if m.providerSecrets == nil {
-		m.providerSecrets = envProviderSecretResolver{lookupEnv: os.LookupEnv}
-	}
 	if m.lifecycleCtx == nil {
 		m.lifecycleCtx = context.Background()
 	}
-	m.processWatchMu.Lock()
-	m.ensureProcessWatchContextLocked()
-	m.processWatchMu.Unlock()
+	if m.providerSecrets == nil {
+		m.providerSecrets = envProviderSecretResolver{lookupEnv: os.LookupEnv}
+	}
 	if m.now == nil {
 		m.now = func() time.Time {
 			return time.Now().UTC()
 		}
 	}
-	m.applyRuntimeIDDefaults()
+	if m.newSessionID == nil {
+		m.newSessionID = newIDGenerator("sess")
+	}
+	if m.newSandboxID == nil {
+		m.newSandboxID = newIDGenerator("env")
+	}
+	if m.newTurnID == nil {
+		m.newTurnID = newIDGenerator("turn")
+	}
 	if m.promptBufSize <= 0 {
 		m.promptBufSize = defaultPromptBufferSize
 	}
 	if m.soulLocks == nil {
 		m.soulLocks = make(map[string]chan struct{})
 	}
-	if m.resumeRuns == nil {
-		m.resumeRuns = make(map[string]*sessionResumeRun)
+	if m.resumeLifecycle.runs == nil {
+		m.resumeLifecycle.runs = make(map[string]*sessionResumeRun)
 	}
 	if m.sessionHealthHookLast == nil {
 		m.sessionHealthHookLast = make(map[string]time.Time)
@@ -74,16 +78,14 @@ func (m *Manager) applyRuntimeDefaults() error {
 	return nil
 }
 
-func (m *Manager) applyRuntimeIDDefaults() {
-	if m.newSessionID == nil {
-		m.newSessionID = func() string { return newID("sess") }
+func (m *Manager) startRuntimeOwners() error {
+	if err := m.ensureQueryStoreRuntime(); err != nil {
+		return err
 	}
-	if m.newSandboxID == nil {
-		m.newSandboxID = func() string { return newID("env") }
-	}
-	if m.newTurnID == nil {
-		m.newTurnID = func() string { return newID("turn") }
-	}
+	m.processWatchLifecycle.mu.Lock()
+	m.ensureProcessWatchContextLocked()
+	m.processWatchLifecycle.mu.Unlock()
+	return nil
 }
 
 func (m *Manager) applyInputQueueDefaults() error {
@@ -101,7 +103,9 @@ func (m *Manager) applyInputQueueDefaults() error {
 			MaxTextBytes: m.busyInput.MaxTextBytes,
 		},
 		inputqueue.WithClock(m.now),
-		inputqueue.WithIDGenerator(func() string { return newID("inq") }),
+		inputqueue.WithIDGenerator(func() (string, error) {
+			return newID("inq")
+		}),
 	)
 	if err != nil {
 		return fmt.Errorf("session: input queue: %w", err)

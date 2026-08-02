@@ -39,19 +39,24 @@ func (n *NotificationRepo) ListCursors(
 	if err := n.checkReady(ctx, "list notification cursors"); err != nil {
 		return nil, err
 	}
-	normalized := query.Normalize()
+	normalized, normalizeErr := query.Normalize()
+	if normalizeErr != nil {
+		return nil, normalizeErr
+	}
 	// dynamic-sql: optional cursor filters and the limit change the query structure.
 	sqlQuery := `SELECT
-			consumer_id, stream_name, subject_id, last_sequence, last_delivery_id,
+			scope_kind, workspace_id, consumer_id, stream_name, subject_id, last_sequence, last_delivery_id,
 			last_delivered_at, last_error, updated_at
 		FROM notification_cursors`
 	where, args := store.BuildClauses(
-		store.StringClause("consumer_id", normalized.ConsumerID),
-		store.StringClause("stream_name", normalized.StreamName),
-		store.StringClause("subject_id", normalized.SubjectID),
+		store.StringClause("scope_kind", string(normalized.Scope.Kind)),
+		store.OpaqueStringClause("workspace_id", normalized.Scope.WorkspaceID),
+		store.OpaqueStringClause("consumer_id", normalized.ConsumerID),
+		store.OpaqueStringClause("stream_name", normalized.StreamName),
+		store.OpaqueStringClause("subject_id", normalized.SubjectID),
 	)
 	sqlQuery = store.AppendWhere(sqlQuery, where)
-	sqlQuery += ` ORDER BY stream_name ASC, subject_id ASC, consumer_id ASC`
+	sqlQuery += ` ORDER BY scope_kind ASC, workspace_id ASC, stream_name ASC, subject_id ASC, consumer_id ASC`
 	sqlQuery, args = store.AppendLimit(sqlQuery, args, normalized.Limit)
 
 	rows, err := n.db.QueryContext(ctx, sqlQuery, args...)
@@ -156,11 +161,13 @@ func (n *NotificationRepo) RecordCursorError(
 	err = store.ExecuteWrite(ctx, n.db, func(writeCtx context.Context, tx *store.WriteTx) error {
 		queries := sqlcgen.New(tx)
 		if recordErr := queries.RecordNotificationCursorError(writeCtx, sqlcgen.RecordNotificationCursorErrorParams{
-			ConsumerID: normalized.Key.ConsumerID,
-			StreamName: normalized.Key.StreamName,
-			SubjectID:  normalized.Key.SubjectID,
-			LastError:  normalized.LastError,
-			UpdatedAt:  store.FormatTimestamp(normalized.Now),
+			ScopeKind:   string(normalized.Key.Scope.Kind),
+			WorkspaceID: normalized.Key.Scope.WorkspaceID,
+			ConsumerID:  normalized.Key.ConsumerID,
+			StreamName:  normalized.Key.StreamName,
+			SubjectID:   normalized.Key.SubjectID,
+			LastError:   normalized.LastError,
+			UpdatedAt:   store.FormatTimestamp(normalized.Now),
 		}); recordErr != nil {
 			return fmt.Errorf(
 				"store: record notification cursor error %q/%q/%q: %w",
@@ -193,9 +200,11 @@ func loadNotificationCursor(
 	key notifications.CursorKey,
 ) (notifications.Cursor, bool, error) {
 	row, err := queries.GetNotificationCursor(ctx, sqlcgen.GetNotificationCursorParams{
-		ConsumerID: key.ConsumerID,
-		StreamName: key.StreamName,
-		SubjectID:  key.SubjectID,
+		ScopeKind:   string(key.Scope.Kind),
+		WorkspaceID: key.Scope.WorkspaceID,
+		ConsumerID:  key.ConsumerID,
+		StreamName:  key.StreamName,
+		SubjectID:   key.SubjectID,
 	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -234,6 +243,8 @@ func insertNotificationCursor(
 	update notifications.AdvanceCursor,
 ) (notifications.Cursor, error) {
 	if err := queries.InsertNotificationCursor(ctx, sqlcgen.InsertNotificationCursorParams{
+		ScopeKind:       string(update.Key.Scope.Kind),
+		WorkspaceID:     update.Key.Scope.WorkspaceID,
 		ConsumerID:      update.Key.ConsumerID,
 		StreamName:      update.Key.StreamName,
 		SubjectID:       update.Key.SubjectID,
@@ -286,6 +297,8 @@ func writeNotificationCursor(
 		LastDeliveryID:  update.DeliveryID,
 		LastDeliveredAt: notificationCursorTimeArg(lastDeliveredAt),
 		UpdatedAt:       store.FormatTimestamp(update.Now),
+		ScopeKind:       string(update.Key.Scope.Kind),
+		WorkspaceID:     update.Key.Scope.WorkspaceID,
 		ConsumerID:      update.Key.ConsumerID,
 		StreamName:      update.Key.StreamName,
 		SubjectID:       update.Key.SubjectID,
@@ -308,6 +321,8 @@ func upsertNotificationCursorReset(
 	reset notifications.ResetCursor,
 ) (notifications.Cursor, error) {
 	if err := queries.ResetNotificationCursor(ctx, sqlcgen.ResetNotificationCursorParams{
+		ScopeKind:       string(reset.Key.Scope.Kind),
+		WorkspaceID:     reset.Key.Scope.WorkspaceID,
 		ConsumerID:      reset.Key.ConsumerID,
 		StreamName:      reset.Key.StreamName,
 		SubjectID:       reset.Key.SubjectID,

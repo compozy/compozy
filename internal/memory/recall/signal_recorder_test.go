@@ -34,6 +34,30 @@ func TestSignalRecorder(t *testing.T) {
 		if got := source.recordedChunkIDs(); len(got) != 1 || got[0] != "chunk-1" {
 			t.Fatalf("recorded chunks = %#v, want chunk-1", got)
 		}
+		if _, ok := source.recordDeadline(); !ok {
+			t.Fatal("RecordRecall() context deadline = none, want bounded job I/O")
+		}
+	})
+
+	t.Run("Should reject a canceled caller before queue admission", func(t *testing.T) {
+		t.Parallel()
+
+		source := newSignalRecorderFakeSource(nil)
+		recorder := newTestSignalRecorder(t, source, SignalRecorderConfig{QueueCapacity: 1})
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+		result := recorder.Submit(ctx, memcontract.Query{QueryText: "canceled query"}, []Signal{{
+			ChunkID: "chunk-canceled",
+			Score:   0.9,
+		}})
+		if result.Submitted || result.Dropped {
+			t.Fatalf("Submit(canceled) = %#v, want rejected", result)
+		}
+
+		closeSignalRecorder(t, recorder)
+		if stats := recorder.Stats(); stats.Submitted != 0 || stats.Recorded != 0 {
+			t.Fatalf("SignalRecorder stats = %#v, want no admitted work", stats)
+		}
 	})
 
 	t.Run("Should emit failure event after retries fail", func(t *testing.T) {
@@ -123,6 +147,71 @@ func TestSignalRecorder(t *testing.T) {
 			t.Fatalf("SignalRecorder stats after stopped submit = %#v, want zero counters", stats)
 		}
 	})
+
+	t.Run("Should let timed out closers join the worker owned completion", func(t *testing.T) {
+		t.Parallel()
+
+		release := make(chan struct{})
+		source := newSignalRecorderFakeSource(nil)
+		source.release = release
+		recorder := newTestSignalRecorder(t, source, SignalRecorderConfig{QueueCapacity: 1})
+		recorder.Submit(t.Context(), memcontract.Query{QueryText: "alpha beta"}, []Signal{
+			{ChunkID: "chunk-1", Score: 0.9},
+		})
+		source.waitForFirstRecord(t)
+
+		canceledCtx, cancel := context.WithCancel(t.Context())
+		cancel()
+		if err := recorder.Close(canceledCtx); !errors.Is(err, context.Canceled) {
+			t.Fatalf("SignalRecorder.Close(canceled) error = %v, want context canceled", err)
+		}
+
+		waitSignalRecorderStopped(t, recorder)
+		if err := recorder.Close(t.Context()); err != nil {
+			t.Fatalf("SignalRecorder.Close(after canceled closer) error = %v", err)
+		}
+		close(release)
+		select {
+		case <-recorder.Done():
+		default:
+			t.Fatal("SignalRecorder.Done() remained open after Close() returned")
+		}
+	})
+
+	t.Run("Should cancel active signal I/O when Close owns shutdown", func(t *testing.T) {
+		t.Parallel()
+
+		release := make(chan struct{})
+		var releaseOnce sync.Once
+		t.Cleanup(func() {
+			releaseOnce.Do(func() {
+				close(release)
+			})
+		})
+		source := newSignalRecorderFakeSource(nil)
+		source.release = release
+		source.blockUntilCanceled = true
+		recorder := newTestSignalRecorder(t, source, SignalRecorderConfig{QueueCapacity: 1})
+		result := recorder.Submit(t.Context(), memcontract.Query{QueryText: "alpha beta"}, []Signal{{
+			ChunkID: "chunk-1",
+			Score:   0.9,
+		}})
+		if !result.Submitted || result.Dropped {
+			t.Fatalf("Submit() = %#v, want submitted without drop", result)
+		}
+		source.waitForFirstRecord(t)
+
+		closeCtx, cancel := context.WithCancel(t.Context())
+		cancel()
+		if err := recorder.Close(closeCtx); !errors.Is(err, context.Canceled) {
+			t.Fatalf("SignalRecorder.Close(canceled) error = %v, want context canceled", err)
+		}
+		source.waitForCancellation(t)
+		waitSignalRecorderStopped(t, recorder)
+		releaseOnce.Do(func() {
+			close(release)
+		})
+	})
 }
 
 func newTestSignalRecorder(t *testing.T, source *signalRecorderFakeSource, cfg SignalRecorderConfig) *SignalRecorder {
@@ -148,45 +237,63 @@ func closeSignalRecorder(t *testing.T, recorder *SignalRecorder) {
 func waitSignalRecorderStopped(t *testing.T, recorder *SignalRecorder) {
 	t.Helper()
 
-	done := make(chan struct{})
-	go func() {
-		recorder.wg.Wait()
-		close(done)
-	}()
 	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 	defer cancel()
 	select {
-	case <-done:
+	case <-recorder.Done():
 	case <-ctx.Done():
 		t.Fatalf("wait for SignalRecorder worker: %v", ctx.Err())
 	}
 }
 
 type signalRecorderFakeSource struct {
-	mu             sync.Mutex
-	err            error
-	release        <-chan struct{}
-	started        chan struct{}
-	startedOnce    sync.Once
-	recorded       []Signal
-	dropped        []Signal
-	droppedQueries []memcontract.Query
-	failures       []error
+	mu                 sync.Mutex
+	err                error
+	release            <-chan struct{}
+	blockUntilCanceled bool
+	started            chan struct{}
+	canceled           chan error
+	startedOnce        sync.Once
+	recorded           []Signal
+	recordDeadlineAt   time.Time
+	recordHasDeadline  bool
+	dropped            []Signal
+	droppedQueries     []memcontract.Query
+	failures           []error
 }
 
 func newSignalRecorderFakeSource(err error) *signalRecorderFakeSource {
 	return &signalRecorderFakeSource{
-		err:     err,
-		started: make(chan struct{}),
+		err:      err,
+		started:  make(chan struct{}),
+		canceled: make(chan error, 1),
 	}
 }
 
-func (f *signalRecorderFakeSource) RecordRecall(_ context.Context, signals []Signal) error {
+func (f *signalRecorderFakeSource) RecordRecall(ctx context.Context, signals []Signal) error {
+	deadline, hasDeadline := ctx.Deadline()
+	f.mu.Lock()
+	f.recordDeadlineAt = deadline
+	f.recordHasDeadline = hasDeadline
+	f.mu.Unlock()
 	f.startedOnce.Do(func() {
 		close(f.started)
 	})
+	if f.blockUntilCanceled {
+		select {
+		case <-ctx.Done():
+			f.canceled <- ctx.Err()
+			return ctx.Err()
+		case <-f.release:
+			return nil
+		}
+	}
 	if f.release != nil {
-		<-f.release
+		select {
+		case <-f.release:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
 	}
 	if f.err != nil {
 		return f.err
@@ -233,10 +340,31 @@ func (f *signalRecorderFakeSource) waitForFirstRecord(t *testing.T) {
 	}
 }
 
+func (f *signalRecorderFakeSource) waitForCancellation(t *testing.T) {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
+	defer cancel()
+	select {
+	case err := <-f.canceled:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("RecordRecall() cancellation error = %v, want context canceled", err)
+		}
+	case <-ctx.Done():
+		t.Fatalf("wait for RecordRecall cancellation: %v", ctx.Err())
+	}
+}
+
 func (f *signalRecorderFakeSource) recordedChunkIDs() []string {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return signalChunkIDs(f.recorded)
+}
+
+func (f *signalRecorderFakeSource) recordDeadline() (time.Time, bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.recordDeadlineAt, f.recordHasDeadline
 }
 
 func (f *signalRecorderFakeSource) droppedChunkIDs() []string {

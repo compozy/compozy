@@ -30,6 +30,18 @@ type fakeInstallRegistry struct {
 	checkUpdateFn  func(string, string) (*registrypkg.UpdateInfo, error)
 }
 
+type opaqueRegistryLookupError struct {
+	cause error
+}
+
+func (e opaqueRegistryLookupError) Error() string {
+	return "registry lookup failed with opaque backend code"
+}
+
+func (e opaqueRegistryLookupError) Unwrap() error {
+	return e.cause
+}
+
 type fakeSkillResolver struct {
 	skills map[string]*skills.Skill
 }
@@ -434,35 +446,139 @@ func TestInstallWithRegistryRejectsUnsafeTargets(t *testing.T) {
 func TestUpdateSkillClassifiesRegistryLookupFailures(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should map missing remote package during update to marketplace not found", func(t *testing.T) {
-		t.Parallel()
+	typedCause := opaqueRegistryLookupError{cause: registrypkg.NewPackageNotFoundError("@acme/review")}
+	joinedCause := opaqueRegistryLookupError{cause: errors.Join(
+		errors.New("registry response was incomplete"),
+		registrypkg.ErrPackageNotFound,
+	)}
+	textOnlyNotFound := errors.New("remote package not found")
+	domainValidation := classifiedf(ErrValidation, "marketplace request is invalid")
+	domainNotFound := classifiedf(ErrNotFound, "marketplace skill is absent")
+	domainNotMarketplace := classifiedf(ErrNotMarketplace, "marketplace provenance is absent")
+	domainNotConfigured := classifiedf(ErrNotConfigured, "marketplace source is unavailable")
+	domainUnavailable := &Error{Kind: ErrUnavailable, Cause: registrypkg.ErrPackageNotFound}
 
-		installed := InstalledSkill{
-			Name: "review",
-			Dir:  t.TempDir(),
-			Provenance: skills.Provenance{
-				Registry:    "test-registry",
-				Slug:        "@acme/review",
-				Version:     "1.0.0",
-				InstalledAt: timeNowForTest(),
-			},
-		}
-		registry := fakeInstallRegistry{
-			checkUpdateErr: registrypkg.NewPackageNotFoundError("@acme/review"),
-		}
+	tests := []struct {
+		name                    string
+		registryErr             error
+		wantMarketplaceNotFound bool
+		wantRegistryNotFound    bool
+		wantUnavailable         bool
+		wantPassthrough         bool
+	}{
+		{
+			name:                    "Should classify typed remote absence despite unrelated wording",
+			registryErr:             typedCause,
+			wantMarketplaceNotFound: true,
+			wantRegistryNotFound:    true,
+		},
+		{
+			name:                    "Should classify joined typed remote absence",
+			registryErr:             joinedCause,
+			wantMarketplaceNotFound: true,
+			wantRegistryNotFound:    true,
+		},
+		{
+			name:            "Should leave text-only remote absence unclassified",
+			registryErr:     textOnlyNotFound,
+			wantPassthrough: true,
+		},
+		{
+			name:            "Should preserve marketplace validation failures",
+			registryErr:     domainValidation,
+			wantPassthrough: true,
+		},
+		{
+			name:                    "Should preserve marketplace absence failures",
+			registryErr:             domainNotFound,
+			wantMarketplaceNotFound: true,
+			wantPassthrough:         true,
+		},
+		{
+			name:            "Should preserve non-marketplace failures",
+			registryErr:     domainNotMarketplace,
+			wantPassthrough: true,
+		},
+		{
+			name:                 "Should preserve unavailable marketplace failures with registry absence causes",
+			registryErr:          domainUnavailable,
+			wantRegistryNotFound: true,
+			wantUnavailable:      true,
+			wantPassthrough:      true,
+		},
+		{
+			name:            "Should preserve marketplace configuration failures",
+			registryErr:     domainNotConfigured,
+			wantPassthrough: true,
+		},
+	}
 
-		_, err := UpdateSkill(
-			context.Background(),
-			t.TempDir(),
-			registry,
-			installed,
-			true,
-			timeNowForTest,
-		)
-		if !errors.Is(err, ErrNotFound) {
-			t.Fatalf("UpdateSkill() error = %v, want ErrNotFound", err)
-		}
-	})
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			installed := InstalledSkill{
+				Name: "review",
+				Dir:  t.TempDir(),
+				Provenance: skills.Provenance{
+					Registry:    "test-registry",
+					Slug:        "@acme/review",
+					Version:     "1.0.0",
+					InstalledAt: timeNowForTest(),
+				},
+			}
+			registry := fakeInstallRegistry{checkUpdateErr: test.registryErr}
+
+			_, err := UpdateSkill(
+				context.Background(),
+				t.TempDir(),
+				registry,
+				installed,
+				true,
+				timeNowForTest,
+			)
+			if err == nil {
+				t.Fatal("UpdateSkill() error = nil, want registry lookup failure")
+			}
+			if test.wantPassthrough && err != test.registryErr {
+				t.Fatalf("UpdateSkill() error = %v, want original error %v", err, test.registryErr)
+			}
+			if got := errors.Is(err, ErrNotFound); got != test.wantMarketplaceNotFound {
+				t.Fatalf("errors.Is(UpdateSkill() error, ErrNotFound) = %t, want %t", got, test.wantMarketplaceNotFound)
+			}
+			if got := errors.Is(err, registrypkg.ErrPackageNotFound); got != test.wantRegistryNotFound {
+				t.Fatalf(
+					"errors.Is(UpdateSkill() error, registry.ErrPackageNotFound) = %t, want %t",
+					got,
+					test.wantRegistryNotFound,
+				)
+			}
+			if got := errors.Is(err, ErrUnavailable); got != test.wantUnavailable {
+				t.Fatalf("errors.Is(UpdateSkill() error, ErrUnavailable) = %t, want %t", got, test.wantUnavailable)
+			}
+			if !errors.Is(err, test.registryErr) {
+				t.Fatalf("UpdateSkill() error = %v, want preserved cause %v", err, test.registryErr)
+			}
+			if !test.wantMarketplaceNotFound || test.wantPassthrough {
+				return
+			}
+
+			classified, classifiedMatched := errors.AsType[*Error](err)
+			if !classifiedMatched {
+				t.Fatalf("errors.As(UpdateSkill() error, *Error) = false, want classified marketplace error")
+			}
+			if classified.Cause != test.registryErr {
+				t.Fatalf(
+					"classified marketplace cause = %v, want original registry error %v",
+					classified.Cause,
+					test.registryErr,
+				)
+			}
+			if got := err.Error(); got != test.registryErr.Error() {
+				t.Fatalf("UpdateSkill() error text = %q, want preserved cause text %q", got, test.registryErr.Error())
+			}
+		})
+	}
 }
 
 func TestUpdateWithRegistryPreservesSuccessfulBatchResults(t *testing.T) {
@@ -510,7 +626,7 @@ func TestVerifyInstallVisible(t *testing.T) {
 		Registry: "clawhub",
 		Path:     "/tmp/compozy/skills/review",
 		Hash:     "sha256:abc",
-		Status:   "installed",
+		Status:   marketplaceInstallStatusInstalled,
 	}
 	visibleSkill := func() *skills.Skill {
 		return &skills.Skill{

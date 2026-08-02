@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { expectFetchRequest, mockJsonResponse } from "@/test/fetch-test-utils";
+import { expectFetchRequest, fetchRequest, mockJsonResponse } from "@/test/fetch-test-utils";
 import {
   TasksApiError,
   clearTaskBlock,
@@ -283,49 +283,60 @@ describe("agent context adapters", () => {
 });
 
 describe("bridge notification subscription adapters", () => {
-  it("Should list subscriptions with normalized filters", async () => {
+  it("Should list subscriptions with byte-exact opaque filters", async () => {
     mockJsonResponse({ subscriptions: taskBridgeNotificationSubscriptionsFixture });
 
     const result = await listTaskBridgeNotificationSubscriptions("task_001", {
       bridge_instance_id: "  bridge_instance_alpha  ",
       scope: "workspace",
-      workspace_id: "ws_alpha",
+      workspace_id: "  ws_alpha  ",
       limit: 10,
     });
 
     expect(result).toEqual(taskBridgeNotificationSubscriptionsFixture);
-    await expectFetchRequest({
-      path: "/api/tasks/task_001/notifications/bridges?bridge_instance_id=bridge_instance_alpha&scope=workspace&workspace_id=ws_alpha&limit=10",
-    });
+    const request = fetchRequest();
+    const url = new URL(request.url);
+    expect(request.method).toBe("GET");
+    expect(url.pathname).toBe("/api/tasks/task_001/notifications/bridges");
+    expect(url.searchParams.get("bridge_instance_id")).toBe("  bridge_instance_alpha  ");
+    expect(url.searchParams.get("scope")).toBe("workspace");
+    expect(url.searchParams.get("workspace_id")).toBe("  ws_alpha  ");
+    expect(url.searchParams.get("limit")).toBe("10");
   });
 
-  it("Should create a subscription and return cursor diagnostics", async () => {
+  it("Should create a subscription with byte-exact opaque identities", async () => {
     mockJsonResponse({ subscription: taskBridgeNotificationSubscriptionFixture }, { status: 201 });
 
-    const result = await createTaskBridgeNotificationSubscription("task_001", {
-      bridge_instance_id: "bridge_instance_alpha",
+    const body = {
+      bridge_instance_id: " bridge_instance_alpha ",
       delivery_mode: "direct-send",
       scope: "workspace",
-      workspace_id: "ws_alpha",
-      peer_id: "peer_launch_observer",
-    });
+      workspace_id: " ws_alpha ",
+      peer_id: " peer_launch_observer ",
+      group_id: " group_launch ",
+      thread_id: " thread_launch ",
+      subscription_id: " bsub_001 ",
+    } as const;
+    const result = await createTaskBridgeNotificationSubscription("task_001", body);
 
-    expect(result.cursor.consumer_id).toContain("bridge_task_subscription:");
+    expect(result.cursor.consumer_id).toBe(result.subscription_id);
     await expectFetchRequest({
+      body,
       method: "POST",
       path: "/api/tasks/task_001/notifications/bridges",
     });
   });
 
-  it("Should fetch a subscription by id", async () => {
+  it("Should fetch a subscription by byte-exact id", async () => {
     mockJsonResponse({ subscription: taskBridgeNotificationSubscriptionFixture });
 
-    const result = await getTaskBridgeNotificationSubscription("task_001", "bsub_001");
+    const result = await getTaskBridgeNotificationSubscription("task_001", " bsub_001 ");
 
     expect(result).toEqual(taskBridgeNotificationSubscriptionFixture);
-    await expectFetchRequest({
-      path: "/api/tasks/task_001/notifications/bridges/bsub_001",
-    });
+    const url = new URL(fetchRequest().url);
+    expect(decodeURIComponent(url.pathname)).toBe(
+      "/api/tasks/task_001/notifications/bridges/ bsub_001 "
+    );
   });
 
   it("Should map subscription-not-found to TasksApiError 404", async () => {
@@ -336,14 +347,15 @@ describe("bridge notification subscription adapters", () => {
     );
   });
 
-  it("Should DELETE a subscription and resolve with no body", async () => {
+  it("Should DELETE a subscription by byte-exact id and resolve with no body", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 204 }));
 
-    await deleteTaskBridgeNotificationSubscription("task_001", "bsub_001");
+    await deleteTaskBridgeNotificationSubscription("task_001", " bsub_001 ");
 
-    await expectFetchRequest({
-      method: "DELETE",
-      path: "/api/tasks/task_001/notifications/bridges/bsub_001",
-    });
+    const request = fetchRequest();
+    expect(request.method).toBe("DELETE");
+    expect(decodeURIComponent(new URL(request.url).pathname)).toBe(
+      "/api/tasks/task_001/notifications/bridges/ bsub_001 "
+    );
   });
 });

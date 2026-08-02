@@ -174,13 +174,14 @@ type InstalledSkill struct {
 
 // InstallResult describes one completed marketplace install.
 type InstallResult struct {
-	Name     string `json:"name"`
-	Slug     string `json:"slug"`
-	Version  string `json:"version,omitempty"`
-	Registry string `json:"registry"`
-	Path     string `json:"path"`
-	Hash     string `json:"hash"`
-	Status   string `json:"status"`
+	Name               string              `json:"name"`
+	Slug               string              `json:"slug"`
+	Version            string              `json:"version,omitempty"`
+	Registry           string              `json:"registry"`
+	Path               string              `json:"path"`
+	Hash               string              `json:"hash"`
+	Status             string              `json:"status"`
+	CleanupDiagnostics []CleanupDiagnostic `json:"cleanup_diagnostics,omitempty"`
 }
 
 // RemoveResult describes one removed marketplace skill.
@@ -200,12 +201,13 @@ type UpdateRequest struct {
 
 // UpdateResult describes one marketplace update outcome.
 type UpdateResult struct {
-	Name           string `json:"name"`
-	Slug           string `json:"slug"`
-	CurrentVersion string `json:"current_version,omitempty"`
-	LatestVersion  string `json:"latest_version,omitempty"`
-	Path           string `json:"path"`
-	Status         string `json:"status"`
+	Name               string              `json:"name"`
+	Slug               string              `json:"slug"`
+	CurrentVersion     string              `json:"current_version,omitempty"`
+	LatestVersion      string              `json:"latest_version,omitempty"`
+	Path               string              `json:"path"`
+	Status             string              `json:"status"`
+	CleanupDiagnostics []CleanupDiagnostic `json:"cleanup_diagnostics,omitempty"`
 }
 
 // SourceBackedRegistry adapts one configured source into the registry contract.

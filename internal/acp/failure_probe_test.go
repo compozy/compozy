@@ -58,6 +58,28 @@ func TestFailureFromErrorClassifiesTypedAndContextFailures(t *testing.T) {
 func TestProbeTargetCommandReportsStructuredTimeoutAndCancellation(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should reject a nil context before executable lookup", func(t *testing.T) {
+		t.Parallel()
+
+		lookupCalled := false
+		var missingContext context.Context
+		result := ProbeTargetCommand(missingContext, ProbeTarget{Command: "fake-agent"}, ProbeOptions{
+			Lookup: func(context.Context, string) (string, error) {
+				lookupCalled = true
+				return "/usr/local/bin/fake-agent", nil
+			},
+		})
+		if got, want := result.Status, ProbeStatusInvalid; got != want {
+			t.Fatalf("result.Status = %q, want %q", got, want)
+		}
+		if result.Error == "" {
+			t.Fatal("result.Error = empty, want context validation detail")
+		}
+		if lookupCalled {
+			t.Fatal("lookup called after rejected probe admission")
+		}
+	})
+
 	t.Run("Should return timeout when lookup exceeds probe timeout", func(t *testing.T) {
 		t.Parallel()
 

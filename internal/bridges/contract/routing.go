@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"strings"
 )
 
 // RoutingDimensions carries platform-normalized routing identity.
@@ -63,7 +62,22 @@ func (k RoutingKey) Validate() error {
 	if err := ValidateScopeWorkspaceID(normalized.Scope, normalized.WorkspaceID); err != nil {
 		return err
 	}
-	return requireField(normalized.BridgeInstanceID, "routing key bridge instance id")
+	if err := requireOpaqueIdentity(normalized.BridgeInstanceID, "routing key bridge instance id"); err != nil {
+		return err
+	}
+	for _, field := range []struct {
+		value string
+		label string
+	}{
+		{value: normalized.PeerID, label: "routing key peer id"},
+		{value: normalized.ThreadID, label: "routing key thread id"},
+		{value: normalized.GroupID, label: "routing key group id"},
+	} {
+		if err := validateOptionalOpaqueIdentity(field.value, field.label); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Serialize returns the stable representation used for routing-key hashing.
@@ -105,19 +119,11 @@ func (k RoutingKey) Hash() (string, error) {
 
 func (k RoutingKey) normalize() RoutingKey {
 	k.Scope = k.Scope.Normalize()
-	k.WorkspaceID = strings.TrimSpace(k.WorkspaceID)
-	k.BridgeInstanceID = strings.TrimSpace(k.BridgeInstanceID)
-	k.PeerID = strings.TrimSpace(k.PeerID)
-	k.ThreadID = strings.TrimSpace(k.ThreadID)
-	k.GroupID = strings.TrimSpace(k.GroupID)
 	return k
 }
 
 func (d RoutingDimensions) normalize() RoutingDimensions {
-	return RoutingDimensions{
-		PeerID: strings.TrimSpace(d.PeerID), ThreadID: strings.TrimSpace(d.ThreadID),
-		GroupID: strings.TrimSpace(d.GroupID),
-	}
+	return d
 }
 
 func validateRoutingDimensions(policy RoutingPolicy, dims RoutingDimensions) error {
@@ -132,6 +138,18 @@ func validateRoutingDimensions(policy RoutingPolicy, dims RoutingDimensions) err
 	}
 	if policy.IncludeGroup && dims.GroupID == "" {
 		return errors.New("bridges: routing policy requires group id")
+	}
+	for _, field := range []struct {
+		value string
+		label string
+	}{
+		{value: dims.PeerID, label: "routing peer id"},
+		{value: dims.ThreadID, label: "routing thread id"},
+		{value: dims.GroupID, label: "routing group id"},
+	} {
+		if err := validateOptionalOpaqueIdentity(field.value, field.label); err != nil {
+			return err
+		}
 	}
 	return nil
 }

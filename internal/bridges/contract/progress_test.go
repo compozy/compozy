@@ -337,11 +337,11 @@ func TestProgressConfigContract(t *testing.T) {
 func TestNormalizeDeliveryDefaultsJSONContract(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should canonicalize progress and delivery mode while preserving provider strings", func(t *testing.T) {
+	t.Run("Should canonicalize progress while preserving exact delivery and provider strings", func(t *testing.T) {
 		t.Parallel()
 
 		got, err := NormalizeDeliveryDefaultsJSON(json.RawMessage(
-			` {"progress":{"tool_progress":" ALL ","grouping":" Separate ","typing":true,"reactions":false},"parse_mode":"MarkdownV2","thread_id":"thread-1","mode":" DIRECT_SEND "} `,
+			` {"progress":{"tool_progress":" ALL ","grouping":" Separate ","typing":true,"reactions":false},"parse_mode":"MarkdownV2","thread_id":"thread-1","mode":"direct-send"} `,
 		))
 		if err != nil {
 			t.Fatalf("NormalizeDeliveryDefaultsJSON() error = %v", err)

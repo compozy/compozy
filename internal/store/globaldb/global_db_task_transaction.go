@@ -44,8 +44,9 @@ func (g *TaskRepo) withTaskImmediateTransaction(
 		return nil
 	})
 	if err != nil {
+		err = mapTerminalRunCommandGuardError(err)
 		return fmt.Errorf("store: %s transaction: %w", action, err)
 	}
-	g.notifyCommittedTaskEvents(context.WithoutCancel(ctx), committedEvents)
+	g.notifyCommittedTaskEvents(ctx, committedEvents)
 	return nil
 }

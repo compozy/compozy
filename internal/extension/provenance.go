@@ -125,16 +125,17 @@ func extensionChecksumUnverifiedDiagnostic(
 	if allowed {
 		message = "The extension was installed after an explicit allow_unverified trust decision."
 	}
-	return diagnostics.NewItem(
-		"extension.checksum_unverified",
-		contract.CodeExtensionChecksumUnverified,
-		contract.CategoryExtension,
-		title,
-		message,
-		contract.SeverityWarn,
-		contract.FreshnessLive,
+	return diagnostics.NewItem(diagnostics.ItemSpec{
+		ID:            "extension.checksum_unverified",
+		Code:          contract.CodeExtensionChecksumUnverified,
+		Category:      contract.CategoryExtension,
+		Title:         title,
+		Message:       message,
+		Severity:      contract.SeverityWarn,
+		DataFreshness: contract.FreshnessLive,
+	},
 		diagnostics.WithEvidence(map[string]any{
-			"slug":                          strings.TrimSpace(slug),
+			marketplaceDiagnosticSlugKey:    strings.TrimSpace(slug),
 			extensionTrustEvidenceSourceKey: strings.TrimSpace(source),
 			"allow_unverified":              allowed,
 		}),

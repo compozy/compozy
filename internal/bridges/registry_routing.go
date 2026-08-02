@@ -5,7 +5,6 @@ import (
 
 	"errors"
 	"fmt"
-	"strings"
 )
 
 // BuildRoutingKey canonicalizes the supplied routing identity under the owning instance policy.
@@ -14,14 +13,14 @@ func (s *Service) BuildRoutingKey(ctx context.Context, key RoutingKey) (RoutingK
 		return RoutingKey{}, err
 	}
 
-	trimmedID := strings.TrimSpace(key.BridgeInstanceID)
-	instance, err := s.store.GetBridgeInstance(ctx, trimmedID)
+	bridgeID := key.BridgeInstanceID
+	instance, err := s.store.GetBridgeInstance(ctx, bridgeID)
 	if err != nil {
-		return RoutingKey{}, fmt.Errorf("bridges: build routing key for %q: load bridge instance: %w", trimmedID, err)
+		return RoutingKey{}, fmt.Errorf("bridges: build routing key for %q: load bridge instance: %w", bridgeID, err)
 	}
 	canonicalKey, err := CanonicalizeRoutingKey(instance, key)
 	if err != nil {
-		return RoutingKey{}, fmt.Errorf("bridges: build routing key for %q: %w", trimmedID, err)
+		return RoutingKey{}, fmt.Errorf("bridges: build routing key for %q: %w", bridgeID, err)
 	}
 	return canonicalKey, nil
 }
@@ -32,20 +31,20 @@ func (s *Service) ResolveRoute(ctx context.Context, key RoutingKey) (*BridgeRout
 		return nil, err
 	}
 
-	trimmedID := strings.TrimSpace(key.BridgeInstanceID)
-	instance, err := s.loadRoutableInstance(ctx, trimmedID)
+	bridgeID := key.BridgeInstanceID
+	instance, err := s.loadRoutableInstance(ctx, bridgeID)
 	if err != nil {
-		return nil, fmt.Errorf("bridges: resolve bridge route for %q: load bridge instance: %w", trimmedID, err)
+		return nil, fmt.Errorf("bridges: resolve bridge route for %q: load bridge instance: %w", bridgeID, err)
 	}
 
 	canonicalKey, err := CanonicalizeRoutingKey(instance, key)
 	if err != nil {
-		return nil, fmt.Errorf("bridges: resolve bridge route for %q: canonicalize routing key: %w", trimmedID, err)
+		return nil, fmt.Errorf("bridges: resolve bridge route for %q: canonicalize routing key: %w", bridgeID, err)
 	}
 
 	route, err := s.store.ResolveBridgeRoute(ctx, canonicalKey)
 	if err != nil {
-		return nil, fmt.Errorf("bridges: resolve bridge route for %q: lookup route: %w", trimmedID, err)
+		return nil, fmt.Errorf("bridges: resolve bridge route for %q: lookup route: %w", bridgeID, err)
 	}
 	return cloneBridgeRoute(route), nil
 }
@@ -57,12 +56,12 @@ func (s *Service) ResolveOrCreateRoute(ctx context.Context, route BridgeRoute) (
 		return nil, false, err
 	}
 
-	trimmedID := strings.TrimSpace(route.BridgeInstanceID)
-	instance, err := s.loadRoutableInstance(ctx, trimmedID)
+	bridgeID := route.BridgeInstanceID
+	instance, err := s.loadRoutableInstance(ctx, bridgeID)
 	if err != nil {
 		return nil, false, fmt.Errorf(
 			"bridges: resolve or create bridge route for %q: load bridge instance: %w",
-			trimmedID,
+			bridgeID,
 			err,
 		)
 	}
@@ -71,7 +70,7 @@ func (s *Service) ResolveOrCreateRoute(ctx context.Context, route BridgeRoute) (
 	if err != nil {
 		return nil, false, fmt.Errorf(
 			"bridges: resolve or create bridge route for %q: canonicalize route: %w",
-			trimmedID,
+			bridgeID,
 			err,
 		)
 	}
@@ -85,7 +84,7 @@ func (s *Service) ResolveOrCreateRoute(ctx context.Context, route BridgeRoute) (
 		if err := s.store.PutBridgeRoute(ctx, refreshed); err != nil {
 			return nil, false, fmt.Errorf(
 				"bridges: resolve or create bridge route for %q: refresh route: %w",
-				trimmedID,
+				bridgeID,
 				err,
 			)
 		}
@@ -94,7 +93,7 @@ func (s *Service) ResolveOrCreateRoute(ctx context.Context, route BridgeRoute) (
 	if !errors.Is(err, ErrBridgeRouteNotFound) {
 		return nil, false, fmt.Errorf(
 			"bridges: resolve or create bridge route for %q: lookup route: %w",
-			trimmedID,
+			bridgeID,
 			err,
 		)
 	}
@@ -103,7 +102,7 @@ func (s *Service) ResolveOrCreateRoute(ctx context.Context, route BridgeRoute) (
 	if err := s.store.PutBridgeRoute(ctx, canonicalRoute); err != nil {
 		return nil, false, fmt.Errorf(
 			"bridges: resolve or create bridge route for %q: create route: %w",
-			trimmedID,
+			bridgeID,
 			err,
 		)
 	}
@@ -117,20 +116,20 @@ func (s *Service) UpsertRoute(ctx context.Context, route BridgeRoute) (*BridgeRo
 		return nil, err
 	}
 
-	trimmedID := strings.TrimSpace(route.BridgeInstanceID)
-	instance, err := s.loadRoutableInstance(ctx, trimmedID)
+	bridgeID := route.BridgeInstanceID
+	instance, err := s.loadRoutableInstance(ctx, bridgeID)
 	if err != nil {
-		return nil, fmt.Errorf("bridges: upsert bridge route for %q: load bridge instance: %w", trimmedID, err)
+		return nil, fmt.Errorf("bridges: upsert bridge route for %q: load bridge instance: %w", bridgeID, err)
 	}
 
 	canonicalRoute, err := CanonicalizeRoute(instance, route)
 	if err != nil {
-		return nil, fmt.Errorf("bridges: upsert bridge route for %q: canonicalize route: %w", trimmedID, err)
+		return nil, fmt.Errorf("bridges: upsert bridge route for %q: canonicalize route: %w", bridgeID, err)
 	}
 
 	existing, err := s.store.ResolveBridgeRoute(ctx, canonicalRoute.RoutingKey())
 	if err != nil && !errors.Is(err, ErrBridgeRouteNotFound) {
-		return nil, fmt.Errorf("bridges: upsert bridge route for %q: lookup route: %w", trimmedID, err)
+		return nil, fmt.Errorf("bridges: upsert bridge route for %q: lookup route: %w", bridgeID, err)
 	}
 	var existingRoute *BridgeRoute
 	if err == nil {
@@ -139,7 +138,7 @@ func (s *Service) UpsertRoute(ctx context.Context, route BridgeRoute) (*BridgeRo
 
 	canonicalRoute = s.prepareRouteForWrite(canonicalRoute, existingRoute)
 	if err := s.store.PutBridgeRoute(ctx, canonicalRoute); err != nil {
-		return nil, fmt.Errorf("bridges: upsert bridge route for %q: persist route: %w", trimmedID, err)
+		return nil, fmt.Errorf("bridges: upsert bridge route for %q: persist route: %w", bridgeID, err)
 	}
 
 	return cloneBridgeRoute(canonicalRoute), nil
@@ -151,13 +150,12 @@ func (s *Service) ListRoutes(ctx context.Context, bridgeInstanceID string) ([]Br
 		return nil, err
 	}
 
-	trimmedInstanceID := strings.TrimSpace(bridgeInstanceID)
-	if _, err := s.store.GetBridgeInstance(ctx, trimmedInstanceID); err != nil {
-		return nil, fmt.Errorf("bridges: list bridge routes for %q: load bridge instance: %w", trimmedInstanceID, err)
+	if _, err := s.store.GetBridgeInstance(ctx, bridgeInstanceID); err != nil {
+		return nil, fmt.Errorf("bridges: list bridge routes for %q: load bridge instance: %w", bridgeInstanceID, err)
 	}
-	routes, err := s.store.ListBridgeRoutes(ctx, trimmedInstanceID)
+	routes, err := s.store.ListBridgeRoutes(ctx, bridgeInstanceID)
 	if err != nil {
-		return nil, fmt.Errorf("bridges: list bridge routes for %q: %w", trimmedInstanceID, err)
+		return nil, fmt.Errorf("bridges: list bridge routes for %q: %w", bridgeInstanceID, err)
 	}
 	if len(routes) == 0 {
 		return routes, nil

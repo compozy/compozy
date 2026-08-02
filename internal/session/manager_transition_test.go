@@ -413,6 +413,7 @@ type recordingSessionCatalog struct {
 	updateErr     error
 	updateHook    func(store.SessionStateUpdate) error
 	deleteErr     error
+	deleteHook    func(context.Context, string) error
 	attachErr     error
 	strictUpdates bool
 }
@@ -481,7 +482,12 @@ func (c *recordingSessionCatalog) UpdateSessionState(_ context.Context, update s
 	return nil
 }
 
-func (c *recordingSessionCatalog) DeleteSession(_ context.Context, id string) error {
+func (c *recordingSessionCatalog) DeleteSession(ctx context.Context, id string) error {
+	if c.deleteHook != nil {
+		if err := c.deleteHook(ctx, id); err != nil {
+			return err
+		}
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.deleteErr != nil {

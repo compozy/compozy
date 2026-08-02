@@ -2,7 +2,7 @@ package daemon
 
 import "context"
 
-func (d *Daemon) shutdownRuntimeWorkers(ctx context.Context, targets shutdownTargets, errs *[]error) {
+func (d *Daemon) shutdownRuntimeWorkers(ctx context.Context, targets *shutdownTargets, errs *[]error) {
 	if targets.clarify != nil {
 		appendWrappedError(errs, "daemon: close clarification broker", targets.clarify.Close(ctx))
 	}

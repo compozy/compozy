@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	eventspkg "github.com/compozy/compozy/internal/events"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/store"
@@ -560,7 +561,7 @@ func TestGlobalDBTaskRoundTripPreservesNullableFields(t *testing.T) {
 func TestGlobalDBDeleteTaskMapsChildConstraintToValidationError(t *testing.T) {
 	t.Parallel()
 
-	t.Run("ShouldMapChildConstraintFailuresToTaskValidationErrors", func(t *testing.T) {
+	t.Run("Should map child constraint failures to task validation errors", func(t *testing.T) {
 		t.Parallel()
 
 		globalDB := openTestGlobalDB(t)
@@ -2254,6 +2255,56 @@ func TestGlobalDBTaskInboxUsesTwoStatementPaging(t *testing.T) {
 func TestGlobalDBTaskRunRoundTripAndFilters(t *testing.T) {
 	t.Parallel()
 
+	// Invariant: detached-harness finalization may compare-and-set metadata but
+	// cannot rewrite any lifecycle or ownership field. Owning layer: GlobalDB
+	// task-run persistence. Canonical suite: TestGlobalDBTaskRunRoundTripAndFilters.
+	t.Run("Should update only metadata with an exact compare-and-set", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		taskRecord := taskRecordForTest("task-run-metadata-cas")
+		if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		run := taskRunForTest("run-metadata-cas", taskRecord.ID)
+		run.Metadata = json.RawMessage(`{"state":"pending"}`)
+		if err := globalDB.CreateTaskRun(ctx, run); err != nil {
+			t.Fatalf("CreateTaskRun() error = %v", err)
+		}
+		before, err := globalDB.GetTaskRun(ctx, run.ID)
+		if err != nil {
+			t.Fatalf("GetTaskRun(before metadata CAS) error = %v", err)
+		}
+		nextMetadata := json.RawMessage(`{"state":"processed","outcome":"emitted"}`)
+
+		updated, err := globalDB.UpdateTaskRunMetadata(ctx, taskpkg.RunMetadataMutation{
+			RunID:            run.ID,
+			ExpectedMetadata: before.Metadata,
+			Metadata:         nextMetadata,
+		})
+		if err != nil {
+			t.Fatalf("UpdateTaskRunMetadata() error = %v", err)
+		}
+		expected := before
+		expected.Metadata = nextMetadata
+		assertTaskRunEqual(t, updated, expected)
+
+		_, err = globalDB.UpdateTaskRunMetadata(ctx, taskpkg.RunMetadataMutation{
+			RunID:            run.ID,
+			ExpectedMetadata: before.Metadata,
+			Metadata:         json.RawMessage(`{"state":"stale"}`),
+		})
+		if !errors.Is(err, taskpkg.ErrInvalidStatusTransition) {
+			t.Fatalf("UpdateTaskRunMetadata(stale) error = %v, want %v", err, taskpkg.ErrInvalidStatusTransition)
+		}
+		stored, err := globalDB.GetTaskRun(ctx, run.ID)
+		if err != nil {
+			t.Fatalf("GetTaskRun(after stale metadata CAS) error = %v", err)
+		}
+		assertTaskRunEqual(t, stored, expected)
+	})
+
 	t.Run("Should reject a Live snapshot bound to a different owner workspace", func(t *testing.T) {
 		t.Parallel()
 
@@ -2366,7 +2417,7 @@ func TestGlobalDBTaskRunRoundTripAndFilters(t *testing.T) {
 	runningRun.HeartbeatAt = runningRun.ClaimedAt.Add(15 * time.Second)
 	runningRun.RequiredCapabilities = []string{"golang", "sqlite"}
 	runningRun.PreferredCapabilities = []string{"claude", "codex"}
-	if err := globalDB.UpdateTaskRun(testutil.Context(t), runningRun); err != nil {
+	if err := globalDB.UpdateNonTerminalTaskRun(testutil.Context(t), runningRun); err != nil {
 		t.Fatalf("UpdateTaskRun(running) error = %v", err)
 	}
 
@@ -2410,8 +2461,20 @@ func TestGlobalDBTaskRunRoundTripAndFilters(t *testing.T) {
 	completedRun.Status = taskpkg.TaskRunStatusCompleted
 	completedRun.EndedAt = runningRun.StartedAt.Add(5 * time.Minute)
 	completedRun.Result = json.RawMessage(`{"ok":true}`)
-	if err := globalDB.UpdateTaskRun(testutil.Context(t), completedRun); err != nil {
-		t.Fatalf("UpdateTaskRun(completed) error = %v", err)
+	completedRun.LeaseUntil = time.Time{}
+	completedRun.HeartbeatAt = time.Time{}
+	if err := globalDB.withTaskMutationTransactionForTest(
+		testutil.Context(t),
+		"complete round-trip run",
+		func(store *taskMutationTxStore) error {
+			_, transitionErr := store.TransitionTerminalRun(
+				testutil.Context(t),
+				taskpkg.NewTerminalRunMutation(runningRun, completedRun),
+			)
+			return transitionErr
+		},
+	); err != nil {
+		t.Fatalf("TransitionTerminalRun(completed) error = %v", err)
 	}
 
 	storedCompleted, err := globalDB.GetTaskRun(testutil.Context(t), completedRun.ID)
@@ -2486,14 +2549,15 @@ func TestGlobalDBTaskRunForceOperations(t *testing.T) {
 		claimed.LeaseUntil = claimed.QueuedAt.Add(10 * time.Minute)
 		claimed.HeartbeatAt = claimed.QueuedAt.Add(time.Minute)
 		claimed.ClaimedAt = claimed.QueuedAt.Add(time.Second)
-		if err := globalDB.UpdateTaskRun(ctx, claimed); err != nil {
+		if err := globalDB.UpdateNonTerminalTaskRun(ctx, claimed); err != nil {
 			t.Fatalf("UpdateTaskRun(claimed) error = %v", err)
 		}
 
-		result, err := globalDB.ForceReleaseTaskRun(ctx, taskpkg.ForceReleaseRunMutation{
-			RunID: claimed.ID,
-			Now:   claimed.QueuedAt.Add(2 * time.Minute),
-		})
+		result, err := forceReleaseTaskRunForTest(
+			ctx,
+			globalDB,
+			taskpkg.NewForceReleaseRunMutation(claimed, claimed.QueuedAt.Add(2*time.Minute)),
+		)
 		if err != nil {
 			t.Fatalf("ForceReleaseTaskRun() error = %v", err)
 		}
@@ -2512,6 +2576,7 @@ func TestGlobalDBTaskRunForceOperations(t *testing.T) {
 	t.Run("Should force fail queued run with operator failure kind", func(t *testing.T) {
 		t.Parallel()
 
+		const rawToken = "compozy_claim_force-store-secret"
 		globalDB := openTestGlobalDB(t)
 		ctx := testutil.Context(t)
 		taskRecord := taskRecordForTest("task-force-fail")
@@ -2522,18 +2587,23 @@ func TestGlobalDBTaskRunForceOperations(t *testing.T) {
 		if err := globalDB.CreateTaskRun(ctx, run); err != nil {
 			t.Fatalf("CreateTaskRun() error = %v", err)
 		}
-		if _, err := globalDB.ForceFailTaskRun(ctx, taskpkg.ForceFailRunMutation{
-			RunID:  run.ID,
-			Reason: " ",
-		}); !errors.Is(err, taskpkg.ErrValidation) {
+		if _, err := forceFailTaskRunForTest(
+			ctx,
+			globalDB,
+			taskpkg.NewForceFailRunMutation(run, " ", time.Time{}),
+		); !errors.Is(err, taskpkg.ErrValidation) {
 			t.Fatalf("ForceFailTaskRun(empty reason) error = %v, want %v", err, taskpkg.ErrValidation)
 		}
 
-		result, err := globalDB.ForceFailTaskRun(ctx, taskpkg.ForceFailRunMutation{
-			RunID:  run.ID,
-			Reason: "operator recovery",
-			Now:    run.QueuedAt.Add(3 * time.Minute),
-		})
+		result, err := forceFailTaskRunForTest(
+			ctx,
+			globalDB,
+			taskpkg.NewForceFailRunMutation(
+				run,
+				"operator recovery "+rawToken,
+				run.QueuedAt.Add(3*time.Minute),
+			),
+		)
 		if err != nil {
 			t.Fatalf("ForceFailTaskRun() error = %v", err)
 		}
@@ -2543,14 +2613,297 @@ func TestGlobalDBTaskRunForceOperations(t *testing.T) {
 		if got, want := result.Run.FailureKind, taskpkg.FailureKindOperatorForced; got != want {
 			t.Fatalf("Run.FailureKind = %q, want %q", got, want)
 		}
-		if got, want := result.Run.Error, "operator recovery"; got != want {
+		if strings.Contains(result.Run.Error, rawToken) {
+			t.Fatalf("Run.Error = %q, want raw bearer redacted", result.Run.Error)
+		}
+		if got, want := result.Run.Error, "operator recovery compozy_claim_[REDACTED]"; got != want {
 			t.Fatalf("Run.Error = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should reject public force commands when the authorized claim is replaced", func(t *testing.T) {
+		t.Parallel()
+
+		for _, operation := range []string{"release", "fail"} {
+			t.Run("Should reject stale authorized snapshot for "+operation, func(t *testing.T) {
+				t.Parallel()
+
+				ctx := testutil.Context(t)
+				globalDB := openTestGlobalDB(t)
+				taskRecord := taskRecordForTest("task-public-stale-force-" + operation)
+				if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
+					t.Fatalf("CreateTask() error = %v", err)
+				}
+				run := taskRunForTest("run-public-stale-force-"+operation, taskRecord.ID)
+				if err := globalDB.CreateTaskRun(ctx, run); err != nil {
+					t.Fatalf("CreateTaskRun() error = %v", err)
+				}
+				if operation == "release" {
+					run.Status = taskpkg.TaskRunStatusClaimed
+					run.ClaimedBy = actorForTest(taskpkg.ActorKindAgentSession, "sess-claim-a")
+					run.SessionID = "sess-claim-a"
+					run.ClaimTokenHash = "sha256:" + strings.Repeat("a", 64)
+					run.ClaimedAt = run.QueuedAt.Add(time.Second)
+					run.HeartbeatAt = run.ClaimedAt
+					run.LeaseUntil = run.ClaimedAt.Add(5 * time.Minute)
+					if err := globalDB.UpdateNonTerminalTaskRun(ctx, run); err != nil {
+						t.Fatalf("UpdateNonTerminalTaskRun(claim A) error = %v", err)
+					}
+				}
+
+				claimBLease := run.QueuedAt.Add(20 * time.Minute)
+				storeWithInterleaving := &taskMutationInterleavingStore{
+					Store: globalDB,
+					before: func(ctx context.Context) error {
+						_, err := globalDB.db.ExecContext(
+							ctx,
+							`UPDATE task_runs
+							    SET status = 'claimed',
+							        claimed_by_kind = 'agent_session',
+							        claimed_by_ref = 'sess-claim-b',
+							        session_id = 'sess-claim-b',
+							        claim_token_hash = ?,
+							        claimed_at = ?,
+							        heartbeat_at = ?,
+							        lease_until = ?
+							  WHERE id = ?`,
+							"sha256:"+strings.Repeat("b", 64),
+							store.FormatTimestamp(run.QueuedAt.Add(10*time.Minute)),
+							store.FormatTimestamp(run.QueuedAt.Add(10*time.Minute)),
+							store.FormatTimestamp(claimBLease),
+							run.ID,
+						)
+						return err
+					},
+				}
+				manager, err := taskpkg.NewManager(taskpkg.WithStore(storeWithInterleaving))
+				if err != nil {
+					t.Fatalf("NewManager() error = %v", err)
+				}
+				actor := operatorActorContextForTest("operator:stale-force-" + operation)
+				if operation == "release" {
+					_, err = manager.ForceReleaseRun(
+						ctx,
+						run.ID,
+						taskpkg.ForceReleaseRun{Reason: "operator handoff"},
+						actor,
+					)
+				} else {
+					_, err = manager.ForceFailRun(
+						ctx,
+						run.ID,
+						taskpkg.ForceFailRun{Reason: "operator recovery"},
+						actor,
+					)
+				}
+				if !errors.Is(err, taskpkg.ErrInvalidStatusTransition) {
+					t.Fatalf("public force %s error = %v, want %v", operation, err, taskpkg.ErrInvalidStatusTransition)
+				}
+				persisted, getErr := globalDB.GetTaskRun(ctx, run.ID)
+				if getErr != nil {
+					t.Fatalf("GetTaskRun() error = %v", getErr)
+				}
+				if persisted.Status.Normalize() != taskpkg.TaskRunStatusClaimed ||
+					persisted.SessionID != "sess-claim-b" ||
+					persisted.ClaimTokenHash != "sha256:"+strings.Repeat("b", 64) ||
+					!persisted.LeaseUntil.Equal(claimBLease) {
+					t.Fatalf("persisted replacement claim = %#v, want claim B unchanged", persisted)
+				}
+			})
+		}
+	})
+
+	t.Run("Should recover a session-bound source and invalidate its pending input atomically", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		taskRecord := taskRecordForTest("task-recover-session-input")
+		if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		run := taskRunForTest("run-recover-session-input", taskRecord.ID)
+		if err := globalDB.CreateTaskRun(ctx, run); err != nil {
+			t.Fatalf("CreateTaskRun() error = %v", err)
+		}
+		sessionID := registerInputQueueSession(t, globalDB)
+		claimed := run
+		claimed.Status = taskpkg.TaskRunStatusClaimed
+		claimed.ClaimedBy = actorForTest(taskpkg.ActorKindAgentSession, sessionID)
+		claimed.SessionID = sessionID
+		claimed.ClaimTokenHash = "sha256:" + strings.Repeat("c", 64)
+		claimed.ClaimedAt = run.QueuedAt.Add(time.Second)
+		claimed.HeartbeatAt = claimed.ClaimedAt
+		claimed.LeaseUntil = claimed.ClaimedAt.Add(5 * time.Minute)
+		if err := globalDB.UpdateNonTerminalTaskRun(ctx, claimed); err != nil {
+			t.Fatalf("UpdateNonTerminalTaskRun(claimed) error = %v", err)
+		}
+		input, _, err := globalDB.EnqueueSessionInput(ctx, store.SessionInputQueueInsert{
+			ID:                "inq-recover-session-input",
+			SessionID:         sessionID,
+			Mode:              store.SessionInputQueueModeQueue,
+			Text:              "prompt for stale attention session",
+			SessionGeneration: 0,
+			QueueCap:          10,
+			Now:               claimed.ClaimedAt,
+		})
+		if err != nil {
+			t.Fatalf("EnqueueSessionInput() error = %v", err)
+		}
+		manager, err := taskpkg.NewManager(taskpkg.WithStore(globalDB))
+		if err != nil {
+			t.Fatalf("NewManager() error = %v", err)
+		}
+		actor := operatorActorContextForTest("operator:recover-session-input")
+		if _, err := manager.MarkRunNeedsAttention(ctx, run.ID, "operator review", actor); err != nil {
+			t.Fatalf("MarkRunNeedsAttention() error = %v", err)
+		}
+
+		recovered, err := manager.RecoverRun(
+			ctx,
+			run.ID,
+			taskpkg.RecoverRunRequest{Reason: "resume work"},
+			actor,
+		)
+		if err != nil {
+			t.Fatalf("RecoverRun() error = %v", err)
+		}
+		if recovered.PreviousRun.Status.Normalize() != taskpkg.TaskRunStatusFailed ||
+			recovered.PreviousRun.SessionID != sessionID ||
+			recovered.Run.Status.Normalize() != taskpkg.TaskRunStatusQueued {
+			t.Fatalf("RecoverRun() = %#v, want session source failed and child queued", recovered)
+		}
+		generation, err := globalDB.CurrentSessionInputGeneration(ctx, sessionID)
+		if err != nil {
+			t.Fatalf("CurrentSessionInputGeneration() error = %v", err)
+		}
+		if generation != 1 {
+			t.Fatalf("session generation = %d, want 1", generation)
+		}
+		storedInput, err := getSessionInputQueueEntry(ctx, globalDB.db, sessionID, input.ID)
+		if err != nil {
+			t.Fatalf("getSessionInputQueueEntry() error = %v", err)
+		}
+		if got, want := storedInput.Status, store.SessionInputQueueStatusCanceled; got != want {
+			t.Fatalf("input status = %q, want %q", got, want)
+		}
+		events, err := globalDB.ListTaskEvents(ctx, taskpkg.EventQuery{
+			TaskID:    taskRecord.ID,
+			RunID:     recovered.Run.ID,
+			EventType: eventspkg.TaskRunRecoveredFromAttention,
+		})
+		if err != nil {
+			t.Fatalf("ListTaskEvents(recovery) error = %v", err)
+		}
+		if got, want := len(events), 1; got != want {
+			t.Fatalf("recovery event count = %d, want %d", got, want)
+		}
+		var payload struct {
+			SessionID            string `json:"session_id"`
+			QueueGeneration      int64  `json:"queue_generation"`
+			CanceledQueuedInputs int    `json:"canceled_queued_inputs"`
+		}
+		if err := json.Unmarshal(events[0].Payload, &payload); err != nil {
+			t.Fatalf("json.Unmarshal(recovery payload) error = %v", err)
+		}
+		if payload.SessionID != sessionID ||
+			payload.QueueGeneration != 1 ||
+			payload.CanceledQueuedInputs != 1 {
+			t.Fatalf("recovery payload = %#v, want session invalidation evidence", payload)
+		}
+	})
+
+	t.Run("Should reject every stale lifecycle fence in purpose-specific force writers", func(t *testing.T) {
+		t.Parallel()
+
+		type purposeSpecificMutation struct {
+			name         string
+			sourceStatus taskpkg.RunStatus
+			staleStatus  taskpkg.RunStatus
+			apply        func(context.Context, taskSQLExecutor, taskpkg.Run) error
+		}
+		commandAt := time.Date(2026, 8, 2, 16, 0, 0, 0, time.UTC)
+		operations := []purposeSpecificMutation{
+			{
+				name:         "force release",
+				sourceStatus: taskpkg.TaskRunStatusClaimed,
+				staleStatus:  taskpkg.TaskRunStatusRunning,
+				apply: func(ctx context.Context, exec taskSQLExecutor, previous taskpkg.Run) error {
+					_, err := forceReleaseClaimedTaskRunWithExecutor(
+						ctx,
+						exec,
+						previous,
+						taskpkg.NewRunMutationFence(previous),
+					)
+					return err
+				},
+			},
+			{
+				name:         "force fail",
+				sourceStatus: taskpkg.TaskRunStatusClaimed,
+				staleStatus:  taskpkg.TaskRunStatusRunning,
+				apply: func(ctx context.Context, exec taskSQLExecutor, previous taskpkg.Run) error {
+					_, err := forceFailEligibleTaskRunWithExecutor(
+						ctx,
+						exec,
+						previous,
+						taskpkg.NewRunMutationFence(previous),
+						"operator recovery",
+						commandAt,
+					)
+					return err
+				},
+			},
+			{
+				name:         "recover attention",
+				sourceStatus: taskpkg.TaskRunStatusNeedsAttention,
+				staleStatus:  taskpkg.TaskRunStatusRunning,
+				apply: func(ctx context.Context, exec taskSQLExecutor, previous taskpkg.Run) error {
+					_, err := failNeedsAttentionTaskRunForRecoveryWithExecutor(
+						ctx,
+						exec,
+						previous,
+						taskpkg.NewRunMutationFence(previous),
+						"resume work",
+						commandAt,
+					)
+					return err
+				},
+			},
+			{
+				name:         "complete parent rollup",
+				sourceStatus: taskpkg.TaskRunStatusNeedsAttention,
+				staleStatus:  taskpkg.TaskRunStatusRunning,
+				apply: func(ctx context.Context, exec taskSQLExecutor, previous taskpkg.Run) error {
+					_, err := completeParentRollupTaskRunWithExecutor(ctx, exec, previous, commandAt)
+					return err
+				},
+			},
+		}
+		for _, operation := range operations {
+			t.Run("Should reject stale fences for "+operation.name, func(t *testing.T) {
+				t.Parallel()
+				for _, staleField := range []string{"status", "session_id", "claim_token_hash", "lease_until"} {
+					t.Run("Should reject stale "+staleField, func(t *testing.T) {
+						t.Parallel()
+						assertPurposeSpecificTaskRunMutationRejectsStaleFence(
+							t,
+							operation.name+"-"+staleField,
+							operation.sourceStatus,
+							operation.staleStatus,
+							staleField,
+							operation.apply,
+						)
+					})
+				}
+			})
 		}
 	})
 
 	t.Run("Should retry failed run once and preserve source row", func(t *testing.T) {
 		t.Parallel()
 
+		const rawToken = "compozy_claim_retry-store-secret"
 		globalDB := openTestGlobalDB(t)
 		ctx := testutil.Context(t)
 		taskRecord := taskRecordForTest("task-force-retry")
@@ -2565,13 +2918,19 @@ func TestGlobalDBTaskRunForceOperations(t *testing.T) {
 			t.Fatalf("CreateTaskRun(source) error = %v", err)
 		}
 
-		result, err := globalDB.RetryTaskRun(ctx, taskpkg.RetryRunMutation{
-			SourceRunID: source.ID,
-			NewRunID:    "run-force-retry-child",
-			Origin:      taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "task.retry"},
-			Metadata:    json.RawMessage("{\"source\":\"operator\"}"),
-			QueuedAt:    source.QueuedAt.Add(2 * time.Minute),
-		})
+		result, err := retryTaskRunForTest(
+			ctx,
+			globalDB,
+			taskpkg.NewRetryRunMutation(
+				source,
+				"run-force-retry-child",
+				taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "task.retry"},
+				json.RawMessage(
+					`{"source":"operator","agent_name":"`+rawToken+`"}`,
+				),
+				source.QueuedAt.Add(2*time.Minute),
+			),
+		)
 		if err != nil {
 			t.Fatalf("RetryTaskRun() error = %v", err)
 		}
@@ -2581,6 +2940,13 @@ func TestGlobalDBTaskRunForceOperations(t *testing.T) {
 		if result.Run.PreviousRunID != source.ID || result.Run.Status != taskpkg.TaskRunStatusQueued {
 			t.Fatalf("Run = %#v, want queued retry linked to source", result.Run)
 		}
+		if strings.Contains(string(result.Run.Metadata), rawToken) ||
+			strings.Contains(string(result.Run.Metadata), `"claim_token"`) {
+			t.Fatalf("Run.Metadata leaked raw bearer: %s", result.Run.Metadata)
+		}
+		if !strings.Contains(string(result.Run.Metadata), `"source":"operator"`) {
+			t.Fatalf("Run.Metadata = %s, want safe metadata preserved", result.Run.Metadata)
+		}
 		storedSource, err := globalDB.GetTaskRun(ctx, source.ID)
 		if err != nil {
 			t.Fatalf("GetTaskRun(source) error = %v", err)
@@ -2588,15 +2954,97 @@ func TestGlobalDBTaskRunForceOperations(t *testing.T) {
 		if storedSource.Status != taskpkg.TaskRunStatusFailed || storedSource.PreviousRunID != "" {
 			t.Fatalf("stored source = %#v, want failed source unchanged", storedSource)
 		}
-		if _, err := globalDB.RetryTaskRun(ctx, taskpkg.RetryRunMutation{
-			SourceRunID: source.ID,
-			NewRunID:    "run-force-retry-duplicate",
-			Origin:      taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "task.retry"},
-			QueuedAt:    source.QueuedAt.Add(3 * time.Minute),
-		}); !errors.Is(err, taskpkg.ErrInvalidStatusTransition) {
+		if _, err := retryTaskRunForTest(
+			ctx,
+			globalDB,
+			taskpkg.NewRetryRunMutation(
+				source,
+				"run-force-retry-duplicate",
+				taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "task.retry"},
+				nil,
+				source.QueuedAt.Add(3*time.Minute),
+			),
+		); !errors.Is(err, taskpkg.ErrInvalidStatusTransition) {
 			t.Fatalf("RetryTaskRun(duplicate) error = %v, want %v", err, taskpkg.ErrInvalidStatusTransition)
 		}
 	})
+
+	t.Run("Should reject retry metadata that exceeds the limit after redaction", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		taskRecord := taskRecordForTest("task-force-retry-size")
+		if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		source := taskRunForTest("run-force-retry-size-source", taskRecord.ID)
+		source.Status = taskpkg.TaskRunStatusFailed
+		source.Error = "failed before retry"
+		source.EndedAt = source.QueuedAt.Add(time.Minute)
+		if err := globalDB.CreateTaskRun(ctx, source); err != nil {
+			t.Fatalf("CreateTaskRun(source) error = %v", err)
+		}
+		expandingMetadata := json.RawMessage(
+			`{"note":"` + strings.Repeat("<", taskpkg.MaxMetadataBytes/4) +
+				`","secret":"compozy_claim_retry-size-secret"}`,
+		)
+		if len(expandingMetadata) >= taskpkg.MaxMetadataBytes {
+			t.Fatalf(
+				"expanding metadata input = %d bytes, want below %d",
+				len(expandingMetadata),
+				taskpkg.MaxMetadataBytes,
+			)
+		}
+
+		_, err := retryTaskRunForTest(
+			ctx,
+			globalDB,
+			taskpkg.NewRetryRunMutation(
+				source,
+				"run-force-retry-size-child",
+				taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "task.retry"},
+				expandingMetadata,
+				source.QueuedAt.Add(2*time.Minute),
+			),
+		)
+		if !errors.Is(err, taskpkg.ErrPayloadTooLarge) {
+			t.Fatalf("RetryTaskRun(expanding metadata) error = %v, want %v", err, taskpkg.ErrPayloadTooLarge)
+		}
+		runs, listErr := globalDB.ListTaskRuns(ctx, taskpkg.RunQuery{TaskID: taskRecord.ID})
+		if listErr != nil {
+			t.Fatalf("ListTaskRuns() error = %v", listErr)
+		}
+		if got, want := len(runs), 1; got != want {
+			t.Fatalf("len(ListTaskRuns()) = %d, want %d after rejected retry", got, want)
+		}
+		if got, want := runs[0].Status.Normalize(), taskpkg.TaskRunStatusFailed; got != want {
+			t.Fatalf("source status = %q, want %q after rejected retry", got, want)
+		}
+	})
+}
+
+type taskMutationInterleavingStore struct {
+	taskpkg.Store
+	once   sync.Once
+	before func(context.Context) error
+	err    error
+}
+
+func (s *taskMutationInterleavingStore) WithTaskMutationTransaction(
+	ctx context.Context,
+	action string,
+	mutation taskpkg.RunMutation,
+) error {
+	s.once.Do(func() {
+		if s.before != nil {
+			s.err = s.before(ctx)
+		}
+	})
+	if s.err != nil {
+		return s.err
+	}
+	return s.Store.WithTaskMutationTransaction(ctx, action, mutation)
 }
 
 func TestGlobalDBReserveQueuedRunDeduplicatesConcurrentIdempotentRequests(t *testing.T) {
@@ -2881,7 +3329,7 @@ func TestGlobalDBReserveQueuedRunRejectsConcurrentOpenRun(t *testing.T) {
 			}
 			storedFirstRun.Status = tt.status
 			storedFirstRun = tt.configure(storedFirstRun)
-			if err := globalDB.UpdateTaskRun(ctx, storedFirstRun); err != nil {
+			if err := globalDB.UpdateNonTerminalTaskRun(ctx, storedFirstRun); err != nil {
 				t.Fatalf("UpdateTaskRun(%s) error = %v", tt.status, err)
 			}
 
@@ -3058,6 +3506,67 @@ func TestGlobalDBReserveQueuedRunAllowsDesignatedSiblingRuns(t *testing.T) {
 	})
 }
 
+func TestGlobalDBUpdateNonTerminalTaskRunRejectsAuthoritativeStates(t *testing.T) {
+	t.Parallel()
+
+	// Invariant: the generic lifecycle writer cannot persist any state owned by
+	// a terminal or needs-attention command. Owning layer: GlobalDB run store.
+	// Canonical suite: global_db_task_test.go.
+	for _, status := range []taskpkg.RunStatus{
+		taskpkg.TaskRunStatusCompleted,
+		taskpkg.TaskRunStatusFailed,
+		taskpkg.TaskRunStatusCanceled,
+		taskpkg.TaskRunStatusNeedsAttention,
+	} {
+		t.Run("Should reject "+status.String(), func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t)
+			globalDB := openTestGlobalDB(t)
+			taskRecord := taskRecordForTest("task-generic-authoritative-" + status.String())
+			if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
+				t.Fatalf("CreateTask() error = %v", err)
+			}
+			run := taskRunForTest("run-generic-authoritative-"+status.String(), taskRecord.ID)
+			if err := globalDB.CreateTaskRun(ctx, run); err != nil {
+				t.Fatalf("CreateTaskRun() error = %v", err)
+			}
+			candidate := run
+			candidate.Status = status
+			if status == taskpkg.TaskRunStatusFailed {
+				candidate.Error = "worker failed"
+			}
+			if status != taskpkg.TaskRunStatusNeedsAttention {
+				candidate.EndedAt = run.QueuedAt.Add(time.Minute)
+			}
+
+			err := globalDB.UpdateNonTerminalTaskRun(ctx, candidate)
+			if !errors.Is(err, taskpkg.ErrInvalidStatusTransition) {
+				t.Fatalf(
+					"UpdateNonTerminalTaskRun(%s) error = %v, want %v",
+					status,
+					err,
+					taskpkg.ErrInvalidStatusTransition,
+				)
+			}
+			stored, err := globalDB.GetTaskRun(ctx, run.ID)
+			if err != nil {
+				t.Fatalf("GetTaskRun() error = %v", err)
+			}
+			if got, want := stored.Status.Normalize(), taskpkg.TaskRunStatusQueued; got != want {
+				t.Fatalf("stored status = %q, want unchanged %q", got, want)
+			}
+			events, err := globalDB.ListTaskEvents(ctx, taskpkg.EventQuery{RunID: run.ID})
+			if err != nil {
+				t.Fatalf("ListTaskEvents() error = %v", err)
+			}
+			if len(events) != 0 {
+				t.Fatalf("authoritative-state events = %#v, want none", events)
+			}
+		})
+	}
+}
+
 func TestGlobalDBUpdateTaskRunRejectsSessionRebinding(t *testing.T) {
 	t.Parallel()
 
@@ -3076,7 +3585,7 @@ func TestGlobalDBUpdateTaskRunRejectsSessionRebinding(t *testing.T) {
 	}
 
 	run.SessionID = "sess-2"
-	err := globalDB.UpdateTaskRun(testutil.Context(t), run)
+	err := globalDB.UpdateNonTerminalTaskRun(testutil.Context(t), run)
 	if !errors.Is(err, taskpkg.ErrSessionAlreadyBound) {
 		t.Fatalf("UpdateTaskRun(rebind) error = %v, want ErrSessionAlreadyBound", err)
 	}
@@ -3101,7 +3610,7 @@ func TestGlobalDBUpdateTaskRunRejectsImmutableIdentityRewrite(t *testing.T) {
 		}
 		run.Status = taskpkg.TaskRunStatusRunning
 		run.StartedAt = run.QueuedAt.Add(time.Minute)
-		if err := globalDB.UpdateTaskRun(ctx, run); err != nil {
+		if err := globalDB.UpdateNonTerminalTaskRun(ctx, run); err != nil {
 			t.Fatalf("UpdateTaskRun(running) error = %v", err)
 		}
 
@@ -3115,7 +3624,7 @@ func TestGlobalDBUpdateTaskRunRejectsImmutableIdentityRewrite(t *testing.T) {
 			"sess-target",
 			"session:sess-target",
 		)
-		err := globalDB.UpdateTaskRun(ctx, rewritten)
+		err := globalDB.UpdateNonTerminalTaskRun(ctx, rewritten)
 		if !errors.Is(err, taskpkg.ErrImmutableField) {
 			t.Fatalf("UpdateTaskRun(identity rewrite) error = %v, want ErrImmutableField", err)
 		}
@@ -3159,7 +3668,7 @@ func TestGlobalDBUpdateTaskRunAllowsManagedStartSessionTransfer(t *testing.T) {
 		}
 
 		run.SessionID = "sess-dedicated"
-		if err := globalDB.UpdateTaskRun(testutil.Context(t), run); err != nil {
+		if err := globalDB.UpdateNonTerminalTaskRun(testutil.Context(t), run); err != nil {
 			t.Fatalf("UpdateTaskRun(managed transfer) error = %v", err)
 		}
 		stored, err := globalDB.GetTaskRun(testutil.Context(t), run.ID)
@@ -3171,7 +3680,7 @@ func TestGlobalDBUpdateTaskRunAllowsManagedStartSessionTransfer(t *testing.T) {
 		}
 
 		run.SessionID = "sess-other"
-		err = globalDB.UpdateTaskRun(testutil.Context(t), run)
+		err = globalDB.UpdateNonTerminalTaskRun(testutil.Context(t), run)
 		if !errors.Is(err, taskpkg.ErrSessionAlreadyBound) {
 			t.Fatalf("UpdateTaskRun(rebind after transfer) error = %v, want ErrSessionAlreadyBound", err)
 		}
@@ -3203,7 +3712,7 @@ func TestGlobalDBUpdateTaskRunAllowsQueuedSessionRelease(t *testing.T) {
 		run.ClaimedBy = nil
 		run.SessionID = ""
 		run.ClaimedAt = time.Time{}
-		err := globalDB.UpdateTaskRun(testutil.Context(t), run)
+		err := globalDB.UpdateNonTerminalTaskRun(testutil.Context(t), run)
 		if err != nil {
 			t.Fatalf("UpdateTaskRun(requeue release) error = %v", err)
 		}
@@ -3247,7 +3756,7 @@ func TestGlobalDBUpdateTaskRunRejectsActiveSessionClear(t *testing.T) {
 		}
 
 		run.SessionID = ""
-		err := globalDB.UpdateTaskRun(testutil.Context(t), run)
+		err := globalDB.UpdateNonTerminalTaskRun(testutil.Context(t), run)
 		if !errors.Is(err, taskpkg.ErrSessionAlreadyBound) {
 			t.Fatalf("UpdateTaskRun(active clear) error = %v, want ErrSessionAlreadyBound", err)
 		}
@@ -3527,6 +4036,7 @@ func TestGlobalDBRecoverTaskRun(t *testing.T) {
 	t.Run("Should terminalize a needs_attention run and queue a linked child", func(t *testing.T) {
 		t.Parallel()
 
+		const rawToken = "compozy_claim_recover-store-secret"
 		globalDB := openTestGlobalDB(t)
 		ctx := testutil.Context(t)
 		now := time.Date(2026, 5, 28, 12, 0, 0, 0, time.UTC)
@@ -3546,19 +4056,33 @@ func TestGlobalDBRecoverTaskRun(t *testing.T) {
 		); err != nil {
 			t.Fatalf("escalate to needs_attention error = %v", err)
 		}
+		source.Status = taskpkg.TaskRunStatusNeedsAttention
 
-		result, err := globalDB.RecoverTaskRun(ctx, taskpkg.RecoverRunMutation{
-			SourceRunID: source.ID,
-			NewRunID:    "run-recover-child",
-			Origin:      taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "scheduler"},
-			Reason:      "operator unblocked",
-			QueuedAt:    now,
-		})
+		result, err := recoverTaskRunForTest(
+			ctx,
+			globalDB,
+			taskpkg.NewRecoverRunMutation(
+				source,
+				"run-recover-child",
+				taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "scheduler"},
+				"operator unblocked "+rawToken,
+				json.RawMessage(
+					`{"source":"operator","workflow_id":"`+rawToken+`"}`,
+				),
+				now,
+			),
+		)
 		if err != nil {
 			t.Fatalf("RecoverTaskRun() error = %v", err)
 		}
 		if result.PreviousRun.Status.Normalize() != taskpkg.TaskRunStatusFailed {
 			t.Fatalf("PreviousRun.Status = %q, want failed", result.PreviousRun.Status)
+		}
+		if strings.Contains(result.PreviousRun.Error, rawToken) {
+			t.Fatalf("PreviousRun.Error leaked raw bearer: %q", result.PreviousRun.Error)
+		}
+		if got, want := result.PreviousRun.Error, "operator unblocked compozy_claim_[REDACTED]"; got != want {
+			t.Fatalf("PreviousRun.Error = %q, want %q", got, want)
 		}
 		if result.Run.Status.Normalize() != taskpkg.TaskRunStatusQueued {
 			t.Fatalf("Run.Status = %q, want queued", result.Run.Status)
@@ -3572,12 +4096,22 @@ func TestGlobalDBRecoverTaskRun(t *testing.T) {
 		if !result.Run.LeaseUntil.IsZero() {
 			t.Fatalf("child carries lease state: lease=%v", result.Run.LeaseUntil)
 		}
+		if strings.Contains(string(result.Run.Metadata), rawToken) ||
+			strings.Contains(string(result.Run.Metadata), `"claim_token"`) {
+			t.Fatalf("Run.Metadata leaked raw bearer: %s", result.Run.Metadata)
+		}
+		if !strings.Contains(string(result.Run.Metadata), `"source":"operator"`) {
+			t.Fatalf("Run.Metadata = %s, want safe metadata preserved", result.Run.Metadata)
+		}
 		stored, err := globalDB.GetTaskRun(ctx, source.ID)
 		if err != nil {
 			t.Fatalf("GetTaskRun(source) error = %v", err)
 		}
 		if stored.Status.Normalize() != taskpkg.TaskRunStatusFailed {
 			t.Fatalf("source status = %q, want failed (terminalized in the same tx)", stored.Status)
+		}
+		if strings.Contains(stored.Error, rawToken) {
+			t.Fatalf("stored source Error leaked raw bearer: %q", stored.Error)
 		}
 	})
 
@@ -3595,15 +4129,251 @@ func TestGlobalDBRecoverTaskRun(t *testing.T) {
 		if err := globalDB.CreateTaskRun(ctx, source); err != nil {
 			t.Fatalf("CreateTaskRun() error = %v", err)
 		}
-		if _, err := globalDB.RecoverTaskRun(ctx, taskpkg.RecoverRunMutation{
-			SourceRunID: source.ID,
-			NewRunID:    "run-recover-reject-child",
-			Origin:      taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "scheduler"},
-			QueuedAt:    time.Date(2026, 5, 28, 12, 0, 0, 0, time.UTC),
-		}); !errors.Is(err, taskpkg.ErrInvalidStatusTransition) {
+		if _, err := recoverTaskRunForTest(
+			ctx,
+			globalDB,
+			taskpkg.NewRecoverRunMutation(
+				source,
+				"run-recover-reject-child",
+				taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "scheduler"},
+				"",
+				nil,
+				time.Date(2026, 5, 28, 12, 0, 0, 0, time.UTC),
+			),
+		); !errors.Is(err, taskpkg.ErrInvalidStatusTransition) {
 			t.Fatalf("RecoverTaskRun(queued) error = %v, want %v", err, taskpkg.ErrInvalidStatusTransition)
 		}
 	})
+
+	t.Run("Should reject recovery metadata that exceeds the limit after redaction", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		taskRecord := taskRecordForTest("task-recover-size")
+		taskRecord.Status = taskpkg.TaskStatusReady
+		if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		source := taskRunForTest("run-recover-size-source", taskRecord.ID)
+		if err := globalDB.CreateTaskRun(ctx, source); err != nil {
+			t.Fatalf("CreateTaskRun() error = %v", err)
+		}
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			`UPDATE task_runs SET status = 'needs_attention' WHERE id = ?`,
+			source.ID,
+		); err != nil {
+			t.Fatalf("escalate to needs_attention error = %v", err)
+		}
+		source.Status = taskpkg.TaskRunStatusNeedsAttention
+		expandingMetadata := json.RawMessage(
+			`{"note":"` + strings.Repeat("<", taskpkg.MaxMetadataBytes/4) +
+				`","secret":"compozy_claim_recover-size-secret"}`,
+		)
+		if len(expandingMetadata) >= taskpkg.MaxMetadataBytes {
+			t.Fatalf(
+				"expanding metadata input = %d bytes, want below %d",
+				len(expandingMetadata),
+				taskpkg.MaxMetadataBytes,
+			)
+		}
+
+		_, err := recoverTaskRunForTest(
+			ctx,
+			globalDB,
+			taskpkg.NewRecoverRunMutation(
+				source,
+				"run-recover-size-child",
+				taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "scheduler"},
+				"operator recovery",
+				expandingMetadata,
+				source.QueuedAt.Add(time.Minute),
+			),
+		)
+		if !errors.Is(err, taskpkg.ErrPayloadTooLarge) {
+			t.Fatalf("RecoverTaskRun(expanding metadata) error = %v, want %v", err, taskpkg.ErrPayloadTooLarge)
+		}
+		runs, listErr := globalDB.ListTaskRuns(ctx, taskpkg.RunQuery{TaskID: taskRecord.ID})
+		if listErr != nil {
+			t.Fatalf("ListTaskRuns() error = %v", listErr)
+		}
+		if got, want := len(runs), 1; got != want {
+			t.Fatalf("len(ListTaskRuns()) = %d, want %d after rejected recovery", got, want)
+		}
+		if got, want := runs[0].Status.Normalize(), taskpkg.TaskRunStatusNeedsAttention; got != want {
+			t.Fatalf("source status = %q, want %q after rejected recovery", got, want)
+		}
+	})
+}
+
+func forceReleaseTaskRunForTest(
+	ctx context.Context,
+	globalDB *GlobalDB,
+	mutation taskpkg.ForceReleaseRunMutation,
+) (taskpkg.ForceRunMutationResult, error) {
+	result := taskpkg.ForceRunMutationResult{}
+	err := globalDB.withTaskMutationTransactionForTest(
+		ctx,
+		"test force release task run",
+		func(store *taskMutationTxStore) error {
+			var err error
+			result, err = store.ForceReleaseTaskRun(ctx, mutation)
+			return err
+		},
+	)
+	return result, err
+}
+
+func retryTaskRunForTest(
+	ctx context.Context,
+	globalDB *GlobalDB,
+	mutation taskpkg.RetryRunMutation,
+) (taskpkg.RetryRunResult, error) {
+	result := taskpkg.RetryRunResult{}
+	err := globalDB.withTaskMutationTransactionForTest(
+		ctx,
+		"test retry task run",
+		func(store *taskMutationTxStore) error {
+			var err error
+			result, err = store.RetryTaskRun(ctx, mutation)
+			return err
+		},
+	)
+	return result, err
+}
+
+func forceFailTaskRunForTest(
+	ctx context.Context,
+	globalDB *GlobalDB,
+	mutation taskpkg.ForceFailRunMutation,
+) (taskpkg.ForceRunMutationResult, error) {
+	result := taskpkg.ForceRunMutationResult{}
+	err := globalDB.withTaskMutationTransactionForTest(
+		ctx,
+		"test force fail task run",
+		func(store *taskMutationTxStore) error {
+			var err error
+			result, err = store.ForceFailTaskRun(ctx, mutation)
+			return err
+		},
+	)
+	return result, err
+}
+
+func recoverTaskRunForTest(
+	ctx context.Context,
+	globalDB *GlobalDB,
+	mutation taskpkg.RecoverRunMutation,
+) (taskpkg.RetryRunResult, error) {
+	result := taskpkg.RetryRunResult{}
+	err := globalDB.withTaskMutationTransactionForTest(
+		ctx,
+		"test recover task run",
+		func(store *taskMutationTxStore) error {
+			var err error
+			result, err = store.RecoverTaskRun(ctx, mutation)
+			return err
+		},
+	)
+	return result, err
+}
+
+func assertPurposeSpecificTaskRunMutationRejectsStaleFence(
+	t *testing.T,
+	suffix string,
+	sourceStatus taskpkg.RunStatus,
+	staleStatus taskpkg.RunStatus,
+	staleField string,
+	apply func(context.Context, taskSQLExecutor, taskpkg.Run) error,
+) {
+	t.Helper()
+
+	ctx := testutil.Context(t)
+	globalDB := openTestGlobalDB(t)
+	idSuffix := strings.NewReplacer(" ", "-", "_", "-").Replace(suffix)
+	taskRecord := taskRecordForTest("task-purpose-fence-" + idSuffix)
+	if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
+		t.Fatalf("CreateTask() error = %v", err)
+	}
+	run := taskRunForTest("run-purpose-fence-"+idSuffix, taskRecord.ID)
+	if err := globalDB.CreateTaskRun(ctx, run); err != nil {
+		t.Fatalf("CreateTaskRun() error = %v", err)
+	}
+	claimed := run
+	claimed.Status = taskpkg.TaskRunStatusClaimed
+	claimed.ClaimedBy = actorForTest(taskpkg.ActorKindAgentSession, "sess-purpose-fence")
+	claimed.SessionID = "sess-purpose-fence"
+	claimed.ClaimTokenHash = "sha256:" + strings.Repeat("a", 64)
+	claimed.ClaimedAt = run.QueuedAt.Add(time.Second)
+	claimed.HeartbeatAt = run.QueuedAt.Add(time.Second)
+	claimed.LeaseUntil = run.QueuedAt.Add(5 * time.Minute)
+	if err := globalDB.UpdateNonTerminalTaskRun(ctx, claimed); err != nil {
+		t.Fatalf("UpdateNonTerminalTaskRun(claimed) error = %v", err)
+	}
+	if sourceStatus.Normalize() == taskpkg.TaskRunStatusNeedsAttention {
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			`UPDATE task_runs SET status = 'needs_attention' WHERE id = ?`,
+			claimed.ID,
+		); err != nil {
+			t.Fatalf("set needs_attention source error = %v", err)
+		}
+	}
+	previous, err := globalDB.GetTaskRun(ctx, claimed.ID)
+	if err != nil {
+		t.Fatalf("GetTaskRun(previous) error = %v", err)
+	}
+
+	switch staleField {
+	case "status":
+		_, err = globalDB.db.ExecContext(
+			ctx,
+			`UPDATE task_runs SET status = ? WHERE id = ?`,
+			staleStatus.String(),
+			claimed.ID,
+		)
+	case "session_id":
+		_, err = globalDB.db.ExecContext(
+			ctx,
+			`UPDATE task_runs SET session_id = ? WHERE id = ?`,
+			"sess-stale",
+			claimed.ID,
+		)
+	case "claim_token_hash":
+		_, err = globalDB.db.ExecContext(
+			ctx,
+			`UPDATE task_runs SET claim_token_hash = ? WHERE id = ?`,
+			"sha256:"+strings.Repeat("b", 64),
+			claimed.ID,
+		)
+	case "lease_until":
+		_, err = globalDB.db.ExecContext(
+			ctx,
+			`UPDATE task_runs SET lease_until = ? WHERE id = ?`,
+			store.FormatTimestamp(previous.LeaseUntil.Add(time.Minute)),
+			claimed.ID,
+		)
+	default:
+		t.Fatalf("unsupported stale field %q", staleField)
+	}
+	if err != nil {
+		t.Fatalf("mutate stale fence %q error = %v", staleField, err)
+	}
+	stale, err := globalDB.GetTaskRun(ctx, claimed.ID)
+	if err != nil {
+		t.Fatalf("GetTaskRun(stale) error = %v", err)
+	}
+	if err := apply(ctx, globalDB.db, previous); !errors.Is(err, taskpkg.ErrInvalidStatusTransition) {
+		t.Fatalf("purpose-specific mutation error = %v, want %v", err, taskpkg.ErrInvalidStatusTransition)
+	}
+	after, err := globalDB.GetTaskRun(ctx, claimed.ID)
+	if err != nil {
+		t.Fatalf("GetTaskRun(after) error = %v", err)
+	}
+	if !reflect.DeepEqual(after, stale) {
+		t.Fatalf("run after rejected mutation = %#v, want stale snapshot %#v", after, stale)
+	}
 }
 
 func taskRecordForTest(id string) taskpkg.Task {
@@ -3718,7 +4488,7 @@ func storeLeasedTaskRunForBlockTest(
 	leased := leasedRunForGlobalTest(t, runID, taskID, sessionID, rawToken, leaseUntil)
 	leased.QueuedAt = queued.QueuedAt
 	leased.WorkspaceID = storedQueued.WorkspaceID
-	if err := globalDB.UpdateTaskRun(ctx, leased); err != nil {
+	if err := globalDB.UpdateNonTerminalTaskRun(ctx, leased); err != nil {
 		t.Fatalf("UpdateTaskRun(%q claimed) error = %v", runID, err)
 	}
 	return leased
@@ -4036,7 +4806,9 @@ func assertQueryPlanUsesIndex(t *testing.T, db *sql.DB, query string, indexName 
 		t.Fatalf("EXPLAIN QUERY PLAN error = %v", err)
 	}
 	defer func() {
-		_ = rows.Close()
+		if closeErr := rows.Close(); closeErr != nil {
+			t.Errorf("close query plan rows: %v", closeErr)
+		}
 	}()
 
 	details := make([]string, 0)

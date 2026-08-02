@@ -14,7 +14,7 @@ import (
 func buildAutomationTriggerCreateRequest(
 	cmd *cobra.Command,
 	deps commandDeps,
-	client DaemonClient,
+	client workspaceLookupClient,
 	input automationTriggerCommandInput,
 ) (AutomationTriggerCreateRequest, error) {
 	scope, workspaceID, err := resolveAutomationScopeWorkspace(
@@ -73,7 +73,6 @@ func buildAutomationTriggerCreateRequest(
 
 func buildAutomationTriggerUpdateRequest(
 	cmd *cobra.Command,
-	_ DaemonClient,
 	input automationTriggerCommandInput,
 ) (AutomationTriggerUpdateRequest, error) {
 	request := AutomationTriggerUpdateRequest{}

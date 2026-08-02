@@ -4,13 +4,16 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"path"
 
 	"github.com/compozy/compozy/internal/sandbox"
 )
 
 var (
-	_ sandbox.Launcher = (*daytonaLauncher)(nil)
-	_ sandbox.Handle   = (*daytonaHandle)(nil)
+	_ sandbox.Launcher               = (*daytonaLauncher)(nil)
+	_ sandbox.LaunchPreparer         = (*daytonaLauncher)(nil)
+	_ sandbox.CommandRuntimeProvider = (*daytonaLauncher)(nil)
+	_ sandbox.Handle                 = (*daytonaHandle)(nil)
 )
 
 type daytonaLauncher struct {
@@ -24,6 +27,9 @@ func (l *daytonaLauncher) Launch(
 ) (sandbox.Handle, error) {
 	if l == nil || l.transport == nil {
 		return nil, fmt.Errorf("sandbox/daytona: launcher transport is required")
+	}
+	if spec.ResolvedExecutable != "" && !path.IsAbs(spec.ResolvedExecutable) {
+		return nil, fmt.Errorf("sandbox/daytona: resolved launch executable must be absolute")
 	}
 	session, err := l.transport.Dial(ctx, l.sandbox, remoteLaunchCommand(spec))
 	if err != nil {

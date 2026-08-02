@@ -39,7 +39,7 @@ func (c *unixSocketClient) WatchWindowManager(
 		HandshakeTimeout: windowManagerClientHandshakeTimeout,
 		NetDialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
 			var dialer net.Dialer
-			return dialer.DialContext(ctx, "unix", c.socketPath)
+			return dialer.DialUnix(ctx, "unix", nil, &net.UnixAddr{Name: c.socketPath, Net: "unix"})
 		},
 	}
 	query := url.Values{}

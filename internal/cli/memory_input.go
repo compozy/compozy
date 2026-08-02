@@ -26,7 +26,7 @@ func addMemorySelectorFlags(cmd *cobra.Command, flags *memorySelectorFlags) {
 func resolveMemorySelectorFlags(
 	cmd *cobra.Command,
 	deps commandDeps,
-	client DaemonClient,
+	client workspaceLookupClient,
 	flags memorySelectorFlags,
 	opts memorySelectorOptions,
 ) (MemorySelectorQuery, error) {
@@ -222,7 +222,7 @@ func readOptionalCommandInput(reader io.Reader) (string, error) {
 func parseMemoryPromotionSelector(
 	cmd *cobra.Command,
 	deps commandDeps,
-	client DaemonClient,
+	client workspaceLookupClient,
 	flags memorySelectorFlags,
 	raw string,
 ) (contract.MemoryScopeSelectorPayload, error) {

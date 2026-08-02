@@ -40,8 +40,12 @@ func (m *Manager) persistResolvedSoul(
 	if err != nil {
 		return nil, err
 	}
+	snapshotID, err := newID("soul")
+	if err != nil {
+		return nil, fmt.Errorf("session: generate soul snapshot id: %w", err)
+	}
 	snapshot, err := soul.SnapshotFromResolved(
-		newID("soul"),
+		snapshotID,
 		strings.TrimSpace(workspaceID),
 		strings.TrimSpace(agentName),
 		resolved,
@@ -84,7 +88,7 @@ func (m *Manager) resolveSoulRefreshWorkspace(
 	ctx context.Context,
 	info *Info,
 ) (workspacepkg.ResolvedWorkspace, error) {
-	target := firstNonEmpty(strings.TrimSpace(info.WorkspaceID), strings.TrimSpace(info.Workspace))
+	target := firstTrimmedNonEmpty(info.WorkspaceID, info.Workspace)
 	if m.workspace != nil && target != "" {
 		resolved, err := m.workspace.Resolve(ctx, target)
 		if err != nil {

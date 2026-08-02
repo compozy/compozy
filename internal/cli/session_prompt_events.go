@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,6 +13,19 @@ import (
 	"github.com/compozy/compozy/internal/store"
 	"github.com/spf13/cobra"
 )
+
+type sessionPromptClient interface {
+	SteerSessionPrompt(context.Context, string, contract.SteerPromptRequest) (SessionPromptRecord, error)
+	SendSessionPrompt(context.Context, string, SessionPromptRequest) (SessionPromptRecord, error)
+}
+
+type sessionPromptStreamClient interface {
+	StreamPromptSession(context.Context, string, SessionPromptRequest, SSEHandler) error
+}
+
+type sessionEventStreamClient interface {
+	StreamSessionEvents(context.Context, string, SessionEventQuery, string, SSEHandler) error
+}
 
 type sessionPromptCommandFlags struct {
 	queue          bool
@@ -136,7 +150,7 @@ func (flags *sessionPromptCommandFlags) run(deps commandDeps) func(*cobra.Comman
 
 func (flags *sessionPromptCommandFlags) streamJSONL(
 	cmd *cobra.Command,
-	client DaemonClient,
+	client sessionPromptStreamClient,
 	args []string,
 	runtime *contract.PromptRuntimeSelectionPayload,
 ) error {
@@ -154,7 +168,7 @@ func (flags *sessionPromptCommandFlags) streamJSONL(
 
 func runSessionPromptAction(
 	cmd *cobra.Command,
-	client DaemonClient,
+	client sessionPromptClient,
 	args []string,
 	flags *sessionPromptCommandFlags,
 	runtime *contract.PromptRuntimeSelectionPayload,
@@ -213,7 +227,15 @@ func promptIdentityFromFlags(
 		return "", "", errPromptIdentityPairRequired
 	}
 	if !messageChanged {
-		return store.NewID("msg"), store.NewID("idem"), nil
+		messageID, err := store.NewID("msg")
+		if err != nil {
+			return "", "", fmt.Errorf("cli: generate prompt message id: %w", err)
+		}
+		idempotencyKey, err := store.NewID("idem")
+		if err != nil {
+			return "", "", fmt.Errorf("cli: generate prompt idempotency key: %w", err)
+		}
+		return messageID, idempotencyKey, nil
 	}
 	messageID := strings.TrimSpace(rawMessageID)
 	idempotencyKey := strings.TrimSpace(rawIdempotencyKey)
@@ -282,7 +304,7 @@ func newSessionEventsCommand(deps commandDeps) *cobra.Command {
 
 func streamPromptEventsJSONL(
 	cmd *cobra.Command,
-	client DaemonClient,
+	client sessionPromptStreamClient,
 	id string,
 	request SessionPromptRequest,
 ) error {
@@ -349,7 +371,12 @@ func newSessionHistoryCommand(deps commandDeps) *cobra.Command {
 	return cmd
 }
 
-func streamSessionEvents(cmd *cobra.Command, client DaemonClient, id string, query SessionEventQuery) error {
+func streamSessionEvents(
+	cmd *cobra.Command,
+	client sessionEventStreamClient,
+	id string,
+	query SessionEventQuery,
+) error {
 	mode, err := resolveOutputFormat(cmd)
 	if err != nil {
 		return err

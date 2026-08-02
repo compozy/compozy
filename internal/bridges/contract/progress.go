@@ -310,7 +310,7 @@ func NormalizeDeliveryDefaultsJSON(raw json.RawMessage) (json.RawMessage, error)
 		if key != "mode" {
 			continue
 		}
-		mode := DeliveryMode(text).Normalize()
+		mode := DeliveryMode(text)
 		if err := mode.Validate(); err != nil {
 			return nil, err
 		}

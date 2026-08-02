@@ -3,10 +3,11 @@ package config
 import (
 	"errors"
 	"fmt"
-
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/compozy/compozy/internal/fileutil"
 )
 
 const (
@@ -96,54 +97,38 @@ func InspectDotEnvFile(path string) (DotEnvRepairReport, error) {
 }
 
 // RepairDotEnvFile safely rewrites one .env file when every change is bounded and structured.
-func RepairDotEnvFile(path string) (DotEnvRepairReport, error) {
+func RepairDotEnvFile(path string) (report DotEnvRepairReport, err error) {
 	normalizedPath := strings.TrimSpace(path)
 	if normalizedPath == "" {
 		return DotEnvRepairReport{Path: normalizedPath, Status: DotEnvStatusMissing},
 			errors.New("config: .env path is required")
 	}
 
-	info, err := os.Lstat(normalizedPath)
+	directory, name, err := fileutil.OpenParentDirectory(normalizedPath)
+	if err != nil {
+		return dotEnvRepairReadFailure(normalizedPath, err)
+	}
+	defer func() {
+		if closeErr := directory.Close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("close .env parent directory %q: %w", normalizedPath, closeErr))
+		}
+	}()
+	return repairDotEnvFileInDirectory(directory, name, normalizedPath)
+}
+
+func repairDotEnvFileInDirectory(
+	directory *fileutil.Directory,
+	name string,
+	normalizedPath string,
+) (DotEnvRepairReport, error) {
+	data, info, err := directory.ReadRegularFile(name)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return DotEnvRepairReport{Path: normalizedPath, Status: DotEnvStatusMissing}, nil
 		}
-		return DotEnvRepairReport{Path: normalizedPath, Status: DotEnvStatusMissing}, fmt.Errorf(
-			"stat .env file %q: %w",
-			normalizedPath,
-			err,
-		)
+		return dotEnvRepairReadFailure(normalizedPath, err)
 	}
-	if info.Mode()&os.ModeSymlink != 0 {
-		report := DotEnvRepairReport{
-			Path:   normalizedPath,
-			Status: DotEnvStatusUnsupported,
-			Diagnostics: []DotEnvDiagnostic{{
-				Code:    dotEnvDiagnosticUnsupportedSymlink,
-				Message: ".env repair refuses to rewrite symlinks",
-			}},
-		}
-		return report, dotEnvUnsupportedError(normalizedPath, report.Diagnostics)
-	}
-	if info.IsDir() {
-		report := DotEnvRepairReport{
-			Path:   normalizedPath,
-			Status: DotEnvStatusUnsupported,
-			Diagnostics: []DotEnvDiagnostic{{
-				Code:    dotEnvDiagnosticUnsupportedDir,
-				Message: ".env path is a directory",
-			}},
-		}
-		return report, dotEnvUnsupportedError(normalizedPath, report.Diagnostics)
-	}
-	data, err := os.ReadFile(normalizedPath)
-	if err != nil {
-		return DotEnvRepairReport{Path: normalizedPath, Status: DotEnvStatusMissing}, fmt.Errorf(
-			"read .env file %q: %w",
-			normalizedPath,
-			err,
-		)
-	}
+	mode := info.Mode().Perm()
 
 	parsed := parseDotEnvDocument(string(data))
 	report := dotEnvReport(normalizedPath, parsed, false)
@@ -158,7 +143,7 @@ func RepairDotEnvFile(path string) (DotEnvRepairReport, error) {
 	if parsed.finalNewline {
 		repaired += "\n"
 	}
-	if err := replaceDotEnvFile(normalizedPath, []byte(repaired), info.Mode().Perm()); err != nil {
+	if err := replaceDotEnvFile(directory, name, normalizedPath, []byte(repaired), mode); err != nil {
 		return report, err
 	}
 
@@ -166,38 +151,80 @@ func RepairDotEnvFile(path string) (DotEnvRepairReport, error) {
 	return report, nil
 }
 
-func readDotEnvFile(path string) (string, []byte, bool, error) {
-	normalizedPath := strings.TrimSpace(path)
-	if normalizedPath == "" {
-		return "", nil, false, errors.New("config: .env path is required")
+func dotEnvRepairReadFailure(normalizedPath string, err error) (DotEnvRepairReport, error) {
+	if errors.Is(err, os.ErrNotExist) {
+		return DotEnvRepairReport{Path: normalizedPath, Status: DotEnvStatusMissing}, nil
 	}
-
-	info, err := os.Lstat(normalizedPath)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return normalizedPath, nil, false, nil
+	if errors.Is(err, fileutil.ErrSymlink) {
+		report := DotEnvRepairReport{
+			Path:   normalizedPath,
+			Status: DotEnvStatusUnsupported,
+			Diagnostics: []DotEnvDiagnostic{{
+				Code:    dotEnvDiagnosticUnsupportedSymlink,
+				Message: ".env repair refuses to rewrite symlinks",
+			}},
 		}
-		return normalizedPath, nil, false, fmt.Errorf("stat .env file %q: %w", normalizedPath, err)
+		return report, dotEnvUnsupportedError(normalizedPath, report.Diagnostics)
 	}
-	if info.Mode()&os.ModeSymlink != 0 {
+	if errors.Is(err, fileutil.ErrDirectory) {
+		report := DotEnvRepairReport{
+			Path:   normalizedPath,
+			Status: DotEnvStatusUnsupported,
+			Diagnostics: []DotEnvDiagnostic{{
+				Code:    dotEnvDiagnosticUnsupportedDir,
+				Message: ".env path is a directory",
+			}},
+		}
+		return report, dotEnvUnsupportedError(normalizedPath, report.Diagnostics)
+	}
+	if errors.Is(err, fileutil.ErrNotRegular) {
+		return DotEnvRepairReport{Path: normalizedPath, Status: DotEnvStatusMissing}, fmt.Errorf(
+			".env file %q must be a regular file",
+			normalizedPath,
+		)
+	}
+	return DotEnvRepairReport{Path: normalizedPath, Status: DotEnvStatusMissing}, fmt.Errorf(
+		"read .env file %q: %w",
+		normalizedPath,
+		err,
+	)
+}
+
+func readDotEnvFile(path string) (string, []byte, bool, error) {
+	normalizedPath, data, _, exists, err := readDotEnvRegularFile(path)
+	if err == nil || errors.Is(err, os.ErrNotExist) {
+		return normalizedPath, data, exists, nil
+	}
+	if errors.Is(err, fileutil.ErrSymlink) {
 		return normalizedPath, nil, false, dotEnvUnsupportedError(normalizedPath, []DotEnvDiagnostic{{
 			Code:    dotEnvDiagnosticUnsupportedSymlink,
 			Message: ".env load refuses to read symlinks",
 		}})
 	}
-	if info.IsDir() {
+	if errors.Is(err, fileutil.ErrDirectory) {
 		return normalizedPath, nil, false, dotEnvUnsupportedError(normalizedPath, []DotEnvDiagnostic{{
 			Code:    dotEnvDiagnosticUnsupportedDir,
 			Message: ".env path is a directory",
 		}})
 	}
-	if !info.Mode().IsRegular() {
+	if errors.Is(err, fileutil.ErrNotRegular) {
 		return normalizedPath, nil, false, fmt.Errorf(".env file %q must be a regular file", normalizedPath)
 	}
+	return normalizedPath, nil, false, fmt.Errorf("read .env file %q: %w", normalizedPath, err)
+}
 
-	data, err := os.ReadFile(normalizedPath)
-	if err != nil {
-		return normalizedPath, nil, false, fmt.Errorf("read .env file %q: %w", normalizedPath, err)
+func readDotEnvRegularFile(path string) (string, []byte, os.FileMode, bool, error) {
+	normalizedPath := strings.TrimSpace(path)
+	if normalizedPath == "" {
+		return "", nil, 0, false, errors.New("config: .env path is required")
 	}
-	return normalizedPath, data, true, nil
+
+	data, info, err := fileutil.ReadRegularFile(normalizedPath)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return normalizedPath, nil, 0, false, nil
+		}
+		return normalizedPath, nil, 0, false, err
+	}
+	return normalizedPath, data, info.Mode().Perm(), true, nil
 }

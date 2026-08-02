@@ -38,8 +38,9 @@ func TestOpenLocalGlobalDatabaseMigrationErrors(t *testing.T) {
 				if !errors.Is(err, store.ErrLegacyDatabase) {
 					t.Fatalf("openLocalGlobalDatabase(%s) error = %v, want ErrLegacyDatabase", surface, err)
 				}
-				var openErr *localDatabaseOpenError
-				if !errors.As(err, &openErr) {
+
+				openErr, openErrMatched := errors.AsType[*localDatabaseOpenError](err)
+				if !openErrMatched {
 					t.Fatalf("openLocalGlobalDatabase(%s) error type = %T, want *localDatabaseOpenError", surface, err)
 				}
 				if openErr.Surface != surface || openErr.Path != canonicalPath {

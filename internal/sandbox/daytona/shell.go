@@ -13,12 +13,19 @@ import (
 const defaultRemoteAdditionalBase = "dir"
 
 func remoteLaunchCommand(spec sandbox.LaunchSpec) string {
-	cwd := spec.Cwd
+	command := strings.TrimSpace(spec.Command)
+	if spec.ResolvedExecutable != "" {
+		command = remoteExecutableCommand(spec.ResolvedExecutable, spec.Args)
+	}
+	return remoteShellCommand(spec.Cwd, spec.Env, command)
+}
+
+func remoteShellCommand(cwd string, commandEnv []string, command string) string {
 	if cwd == "" {
 		cwd = defaultRuntimeRoot
 	}
-	env := make([]string, 0, len(spec.Env))
-	for _, entry := range spec.Env {
+	env := make([]string, 0, len(commandEnv))
+	for _, entry := range commandEnv {
 		if key, _, ok := strings.Cut(entry, "="); ok && key != "" {
 			env = append(env, shellquote.Join(entry))
 		}
@@ -28,8 +35,15 @@ func remoteLaunchCommand(spec sandbox.LaunchSpec) string {
 		parts = append(parts, "env")
 		parts = append(parts, env...)
 	}
-	parts = append(parts, "sh", "-lc", shellquote.Join(spec.Command))
+	parts = append(parts, "sh", "-lc", shellquote.Join(command))
 	return strings.Join(parts, " ")
+}
+
+func remoteExecutableCommand(executable string, args []string) string {
+	parts := make([]string, 0, len(args)+1)
+	parts = append(parts, executable)
+	parts = append(parts, args...)
+	return shellquote.Join(parts...)
 }
 
 func remoteTerminalCommand(root string, req acpsdk.CreateTerminalRequest) string {

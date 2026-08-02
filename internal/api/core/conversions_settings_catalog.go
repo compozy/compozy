@@ -84,7 +84,6 @@ func settingsProviderSettingsPayload(value settingspkg.ProviderSettings) contrac
 		EnvPolicy:       string(value.EnvPolicy),
 		HomePolicy:      string(value.HomePolicy),
 		AuthStatusCmd:   strings.TrimSpace(value.AuthStatusCmd),
-		AuthLoginCmd:    strings.TrimSpace(value.AuthLoginCmd),
 		CredentialSlots: settingsProviderCredentialSlotPayloads(value.CredentialSlots),
 	}
 }
@@ -119,17 +118,7 @@ func settingsProviderAuthStatusPayload(
 		Code:       strings.TrimSpace(value.Code),
 		Message:    strings.TrimSpace(value.Message),
 		StatusCmd:  strings.TrimSpace(value.StatusCmd),
-		LoginCmd:   strings.TrimSpace(value.LoginCmd),
-		LoginEnv:   cloneStrings(value.LoginEnv),
-	}
-	if value.NativeCLI != nil {
-		payload.NativeCLI = &contract.SettingsProviderNativeCLIStatusPayload{
-			Command: strings.TrimSpace(value.NativeCLI.Command),
-			Present: value.NativeCLI.Present,
-			Path:    strings.TrimSpace(value.NativeCLI.Path),
-			Source:  strings.TrimSpace(value.NativeCLI.Source),
-			Error:   strings.TrimSpace(value.NativeCLI.Error),
-		}
+		Login:      providerLoginDescriptorPayload(value.Login),
 	}
 	return &payload
 }

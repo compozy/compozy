@@ -338,7 +338,7 @@ func (h *RuntimeHarness) deliverWebhook(
 	payload []byte,
 	deliveryID string,
 	timestamp time.Time,
-) (compozycontract.WebhookDeliveryPayload, error) {
+) (_ compozycontract.WebhookDeliveryPayload, err error) {
 	trimmedSecret := strings.TrimSpace(secret)
 	if trimmedSecret == "" {
 		return compozycontract.WebhookDeliveryPayload{}, errors.New("webhook secret is required")
@@ -358,10 +358,11 @@ func (h *RuntimeHarness) deliverWebhook(
 		return compozycontract.WebhookDeliveryPayload{}, fmt.Errorf("sign webhook payload: %w", err)
 	}
 
+	targetURL := h.HTTPURL(path)
 	response, err := doRequestWithHeaders(
 		ctx,
 		h.HTTPClient,
-		h.HTTPURL(path),
+		targetURL,
 		http.MethodPost,
 		payload,
 		map[string]string{
@@ -373,7 +374,7 @@ func (h *RuntimeHarness) deliverWebhook(
 	if err != nil {
 		return compozycontract.WebhookDeliveryPayload{}, err
 	}
-	defer func() { _ = response.Body.Close() }()
+	defer mergeHTTPResponseCloseError(&err, response, http.MethodPost, targetURL)
 
 	body, err := io.ReadAll(response.Body)
 	if err != nil {
@@ -382,7 +383,7 @@ func (h *RuntimeHarness) deliverWebhook(
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		return compozycontract.WebhookDeliveryPayload{}, fmt.Errorf(
 			"POST %s status %d: %s",
-			h.HTTPURL(path),
+			targetURL,
 			response.StatusCode,
 			strings.TrimSpace(string(body)),
 		)

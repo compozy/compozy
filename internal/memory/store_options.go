@@ -2,7 +2,6 @@ package memory
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 	"sync"
 	"time"
@@ -26,9 +25,8 @@ func NewStore(globalDir string, opts ...StoreOption) *Store {
 		recallSignals: recallSignalRecorderConfig{
 			queueCapacity:  256,
 			workerRetryMax: 3,
-			metricsEnabled: true,
 		},
-		recallRecorders:           &recallRecorderRegistry{recorders: make(map[string]*memoryrecall.SignalRecorder)},
+		recallRecorders:           newRecallRecorderRegistry(),
 		decisionControllerFactory: &decisionControllerFactoryState{},
 	}
 	for _, opt := range opts {
@@ -41,6 +39,15 @@ func NewStore(globalDir string, opts ...StoreOption) *Store {
 
 // StoreOption customizes a Store instance.
 type StoreOption func(*Store)
+
+// WithRecallSignalLifecycle binds asynchronous recall-signal work to a subsystem owner.
+func WithRecallSignalLifecycle(ctx context.Context) StoreOption {
+	return func(store *Store) {
+		if store != nil {
+			store.recallSignalLifecycle = ctx
+		}
+	}
+}
 
 // WithCatalogDatabasePath enables the derived SQLite-backed memory catalog in
 // the shared global database file.
@@ -67,7 +74,6 @@ func WithRecallSignalRecorderConfig(config compozyconfig.MemoryRecallSignalsConf
 		if config.WorkerRetryMax >= 0 {
 			store.recallSignals.workerRetryMax = config.WorkerRetryMax
 		}
-		store.recallSignals.metricsEnabled = config.MetricsEnabled
 	}
 }
 
@@ -94,10 +100,7 @@ func (s *Store) RecallSignalRecorderStats(workspaceID string) memoryrecall.Signa
 		return memoryrecall.SignalRecorderStats{}
 	}
 	key := recallSignalRecorderKey(workspaceID)
-	s.recallRecorders.mu.Lock()
-	recorder := s.recallRecorders.recorders[key]
-	s.recallRecorders.mu.Unlock()
-	return recorder.Stats()
+	return s.recallRecorders.stats(key)
 }
 
 // CloseRecallSignalRecorders drains and stops every async recall-signal worker.
@@ -105,18 +108,5 @@ func (s *Store) CloseRecallSignalRecorders(ctx context.Context) error {
 	if s == nil || s.recallRecorders == nil {
 		return nil
 	}
-	s.recallRecorders.mu.Lock()
-	recorders := make([]*memoryrecall.SignalRecorder, 0, len(s.recallRecorders.recorders))
-	for key, recorder := range s.recallRecorders.recorders {
-		recorders = append(recorders, recorder)
-		delete(s.recallRecorders.recorders, key)
-	}
-	s.recallRecorders.mu.Unlock()
-	var errs []error
-	for _, recorder := range recorders {
-		if err := recorder.Close(ctx); err != nil {
-			errs = append(errs, err)
-		}
-	}
-	return errors.Join(errs...)
+	return s.recallRecorders.close(ctx)
 }

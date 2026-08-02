@@ -494,10 +494,11 @@ Build acknowledgements through `session.AckDelivery` so delivery ID, sequence, r
 ID, and event family are validated together. A provider that cannot perform an operation returns a
 permanent unsupported error; it never reports a successful no-op for text delivery.
 
-The JSON-RPC response must materialize an acknowledgement object with an explicit non-empty
-`delivery_id` and an explicit integer `seq`, both exactly matching the request. `seq: 0` is valid;
-omitting `seq`, returning it as `null`, or changing its type is not. A missing, malformed, or
-mismatched acknowledgement leaves the provider commit outcome unknown, so the manager returns
+The JSON-RPC response must materialize an acknowledgement object with an explicit non-empty UTF-8
+`delivery_id` and an explicit integer `seq`, both exactly matching the request. `delivery_id` is an
+opaque transport token: copy it byte-for-byte; never trim, split, parse, case-fold, or regenerate it.
+`seq: 0` is valid; omitting `seq`, returning it as `null`, or changing its type is not. A missing,
+malformed, or mismatched acknowledgement leaves the provider commit outcome unknown, so the manager returns
 `committed_result_unavailable` and the broker does not replay the mutation. `session.AckDelivery`
 constructs this wire identity correctly; do not hand-build a partial acknowledgement.
 

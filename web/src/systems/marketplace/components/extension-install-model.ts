@@ -26,7 +26,7 @@ export const EXTENSION_INSTALL_SOURCES: readonly {
   {
     value: "git",
     label: "Git URL",
-    hint: "A public git repository URL cloned at the requested ref.",
+    hint: "A public HTTPS repository URL. Add a branch, tag, or commit in Version.",
     refLabel: "Repository URL",
     refPlaceholder: "https://git.example.com/acme/hello.git",
   },
@@ -46,7 +46,7 @@ export function createExtensionInstallForm(): ExtensionInstallForm {
   return { allowUnverified: false, asset: "", ref: "", source: "local_path", version: "" };
 }
 
-/** Mirrors the daemon's per-source ref grammar so a malformed ref never reaches the API. */
+/** Performs the form's early syntax checks; the daemon owns destination and DNS policy. */
 export function validateExtensionInstallForm(
   form: ExtensionInstallForm
 ): ExtensionInstallFieldError {
@@ -87,13 +87,59 @@ function validateGitHubRef(ref: string): ExtensionInstallFieldError {
 }
 
 function validateGitRef(ref: string): ExtensionInstallFieldError {
-  if (!/^(https?|git|ssh):\/\//.test(ref) && !ref.startsWith("git@")) {
-    return { ref: "Use a git URL (https://, git://, ssh://, or git@host:owner/repo)." };
+  const repository = splitGitDistributionRef(ref);
+  let parsed: URL;
+  try {
+    parsed = new URL(repository);
+  } catch {
+    return {
+      ref: "Use a public HTTPS repository URL, such as https://git.example.com/acme/hello.git.",
+    };
   }
-  if (/^https?:\/\/[^/]*@/.test(ref)) {
-    return { ref: "Remove credentials from the URL — the daemon uses ambient git credentials." };
+  if (parsed.protocol !== "https:") {
+    return {
+      ref: "Use a public HTTPS repository URL, such as https://git.example.com/acme/hello.git.",
+    };
+  }
+  const authority = gitURLAuthority(repository);
+  if (parsed.username !== "" || parsed.password !== "" || authority.includes("@")) {
+    return { ref: "Remove credentials from the URL. Credentials in Git URLs are not accepted." };
+  }
+  if (
+    parsed.search !== "" ||
+    parsed.hash !== "" ||
+    repository.includes("?") ||
+    repository.includes("#")
+  ) {
+    return { ref: "Remove the query or fragment. Put the Git ref in the Version field." };
+  }
+  if (
+    parsed.hostname === "" ||
+    parsed.hostname.endsWith(".") ||
+    /\P{ASCII}/u.test(authority) ||
+    parsed.pathname === "/" ||
+    parsed.port === "0"
+  ) {
+    return { ref: "Add a valid host and repository path to the HTTPS URL." };
   }
   return {};
+}
+
+function gitURLAuthority(value: string): string {
+  const start = value.indexOf("://") + 3;
+  const end = value.indexOf("/", start);
+  return value.slice(start, end < 0 ? undefined : end);
+}
+
+function splitGitDistributionRef(value: string): string {
+  const index = value.lastIndexOf("@");
+  if (index <= 0 || index === value.length - 1) return value;
+  const scheme = value.indexOf("://");
+  if (scheme >= 0) {
+    const hostEnd = value.slice(scheme + 3).indexOf("/");
+    if (hostEnd < 0 || index < scheme + 3 + hostEnd) return value;
+  }
+  return value.slice(0, index).trim();
 }
 
 export function buildExtensionInstallRequest(form: ExtensionInstallForm): ExtensionInstallRequest {

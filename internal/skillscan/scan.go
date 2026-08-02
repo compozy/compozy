@@ -4,11 +4,11 @@ package skillscan
 import (
 	"errors"
 	"fmt"
-	"path/filepath"
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/filesnap"
+	"github.com/compozy/compozy/internal/fileutil"
 )
 
 const (
@@ -44,16 +44,12 @@ func shouldSkipDirectory(name string) bool {
 }
 
 func pathWithinRoot(resolvedRoot string, candidate string) error {
-	resolvedCandidate, err := filepath.EvalSymlinks(candidate)
-	if err != nil {
-		return fmt.Errorf("resolve definition %q: %w", candidate, err)
+	rootPath, definitionPath, err := fileutil.ResolveExistingPathWithinRoot(resolvedRoot, candidate)
+	if err == nil {
+		return nil
 	}
-	relativePath, err := filepath.Rel(resolvedRoot, resolvedCandidate)
-	if err != nil {
-		return fmt.Errorf("relate definition %q to root %q: %w", resolvedCandidate, resolvedRoot, err)
+	if errors.Is(err, fileutil.ErrPathOutsideRoot) {
+		return fmt.Errorf("definition %q escapes root %q: %w", definitionPath, rootPath, err)
 	}
-	if relativePath == ".." || strings.HasPrefix(relativePath, ".."+string(filepath.Separator)) {
-		return fmt.Errorf("definition %q escapes root %q", resolvedCandidate, resolvedRoot)
-	}
-	return nil
+	return fmt.Errorf("validate definition %q within root %q: %w", candidate, resolvedRoot, err)
 }

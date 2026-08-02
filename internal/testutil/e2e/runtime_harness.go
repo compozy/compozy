@@ -100,7 +100,8 @@ type RuntimeHarness struct {
 
 	processLogPath string
 
-	stopOnce sync.Once
+	stopMu   sync.Mutex
+	stopDone bool
 	stopErr  error
 
 	processWaitMu sync.Mutex
@@ -251,7 +252,12 @@ func newUDSClient(socketPath string) *http.Client {
 			Proxy: nil,
 			DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
 				var dialer net.Dialer
-				return dialer.DialContext(ctx, "unix", socketPath)
+				return dialer.DialUnix(
+					ctx,
+					"unix",
+					nil,
+					&net.UnixAddr{Name: socketPath, Net: "unix"},
+				)
 			},
 		},
 	}
@@ -297,7 +303,11 @@ func startDaemonProcess(t testing.TB, harness *RuntimeHarness, env []string) {
 
 	waitCh := make(chan error, 1)
 	go func() {
-		waitCh <- errors.Join(cmd.Wait(), processLog.Close())
+		waitCh <- errors.Join(
+			cmd.Wait(),
+			procutil.KillCommandProcessGroupAndWait(cmd, 5*time.Second),
+			processLog.Close(),
+		)
 		close(waitCh)
 	}()
 

@@ -124,7 +124,7 @@ func (n *daemonNativeTools) memoryShow(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeMemoryToolError(req.ToolID, err)
 	}
-	content, err := location.Store.Read(location.Scope, location.Filename)
+	content, err := location.Store.Read(ctx, location.Scope, location.Filename)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeMemoryToolError(req.ToolID, err)
 	}

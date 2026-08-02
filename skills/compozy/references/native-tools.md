@@ -15,7 +15,6 @@
 - Observability and bridge tools
 - CLI/HTTP-only management surfaces
 - Descriptor discipline
-- Descriptor and skill co-ship
 
 ## Operating Rule
 
@@ -89,6 +88,8 @@ Provider model tools: `compozy__provider_models_list`, `compozy__provider_models
 `compozy__provider_models_list` accepts `view=curated|all` and defaults to curated; the CLI equivalents are `compozy provider models list` and `compozy provider models list --all`. `compozy__provider_models_curate` is mutating, requires `providers.models.write`, and accepts required `provider_id`/`model_id` plus optional `hidden`, `featured`, `deprecated`, and `default_effort`. Its CLI fallback is `compozy provider models set`. Treat `model_not_found` and `reasoning_effort_unsupported` as terminal input diagnostics; when the descriptor reports the settings backend unavailable, do not retry blindly.
 For providers with an explicit curated set, the default view contains visible explicit or featured rows; live-only rows appear there only through the no-explicit-set fallback.
 Model-list and curation results may include a `cost` object with independent `input_per_million`, `output_per_million`, `cache_read_per_million`, `cache_write_per_million`, and `reasoning_per_million` fields. A missing field means that bucket is unpriced; never infer it from another field.
+
+Provider authentication is a management surface. Write `providers.<id>.auth_login_command` only through `config.toml`, `compozy config set`, or `compozy__config_set`; it is write-only and redacted from config show, list, get, diff, and set reads. Provider status, doctor, API/UDS, Settings, and Web expose for it only `{configured, source, executable, presence, recommended_action}`, where `executable` is the basename. `compozy provider auth login <provider>` executes the configured login command internally and never returns the raw command.
 
 ## Workspace Boundary
 
@@ -172,6 +173,13 @@ tool ID.
 
 Task tools: `compozy__task_list`, `compozy__task_read`, `compozy__task_create`, `compozy__task_child_create`, `compozy__task_update`, `compozy__task_cancel`, `compozy__task_promote_from_thread`, `compozy__task_fanout_runs`, `compozy__task_run_list`, `compozy__task_run_review_request`, `compozy__task_run_review_list`, `compozy__task_run_review_show`, `compozy__task_execution_profile_get`, `compozy__task_execution_profile_set`, `compozy__task_execution_profile_delete`, `compozy__task_notification_subscribe`, `compozy__task_notification_list`, `compozy__task_notification_show`, `compozy__task_notification_delete`.
 
+Task-notification cursor diagnostics expose an explicit `{kind, workspace_id}` scope, with `kind`
+closed to `global` or `workspace`. Subscribe and list use the hard-cut `workspace_id` input; do not
+send the removed `workspace` field. Preserve task, subscription, bridge, workspace, peer, group,
+thread, and delivery IDs byte for byte as non-empty valid UTF-8 where required. Never trim,
+case-fold, prefix, split, or reconstruct them. A bridge terminal cursor's `consumer_id` is exactly
+its `subscription_id`, and a bridge acknowledgment must echo the exact `delivery_id`.
+
 Session-bound autonomy tools: `compozy__task_run_claim_next`, `compozy__task_run_heartbeat`, `compozy__task_run_complete`, `compozy__task_run_fail`, `compozy__task_run_release`, `compozy__task_run_review_submit`.
 
 Autonomy tools are bound to the caller session. Do not substitute general task mutation tools for session-bound lease operations. Read references/tasks-and-orchestration.md before claiming, heartbeating, completing, failing, releasing, or submitting review verdicts.
@@ -218,7 +226,7 @@ destructive; `publish` is open-world, interaction-gated, and takes no credential
 daemon resolves and redacts that token server-side. `compozy__extensions_search` spans the `curated`
 and `github` sources only and is not `compozy__marketplace_search`. Resolve live schemas first;
 install sources, consent, authoring, workspace binding, generation handles, commit boundaries,
-batch-update outcomes, kit lifecycle, and cleanup warnings live in `references/capabilities.md`.
+batch-update outcomes, kit lifecycle, and cleanup warnings live in `references/extensions.md`.
 
 The `compozy__automation_jobs_create` and `compozy__automation_jobs_update` descriptors expose the complete recurring schedule shape, including `catch_up_policy` and `misfire_grace_seconds`. Resolve the live descriptor instead of guessing the enum or sending catch-up fields to a one-time `at` schedule.
 
@@ -258,7 +266,3 @@ the live registry exposes a matching `compozy__*` descriptor.
 This reference gives the stable map. The live descriptor gives exact input schema, output shape, risk flags, availability reason codes, and policy/dependency diagnostics.
 
 If a descriptor is unavailable or denied, do not retry blindly. Choose a narrower tool, read-only status path, or CLI/control surface based on the reason code.
-
-## Descriptor And Skill Co-Ship
-
-Changing native tools is a public agent contract change. When a Compozy change adds, removes, renames, or changes a `compozy__*` ID, toolset, descriptor, schema digest, risk flag, availability diagnostic, capability gate, or CLI/API fallback, update `skills/compozy/` in the same change or record explicit no-impact evidence.

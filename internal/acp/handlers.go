@@ -165,7 +165,11 @@ func (p *AgentProcess) handleReadTextFile(
 		return acpsdk.ReadTextFileResponse{}, err
 	}
 
-	content, err := p.toolHostOrDefault().ReadTextFile(ctx, request.Path)
+	host, err := p.toolHostOrDefault()
+	if err != nil {
+		return acpsdk.ReadTextFileResponse{}, err
+	}
+	content, err := host.ReadTextFile(ctx, request.Path)
 	if err != nil {
 		return acpsdk.ReadTextFileResponse{}, err
 	}
@@ -183,7 +187,11 @@ func (p *AgentProcess) handleWriteTextFile(
 	if p.isNetworkTurn() {
 		return acpsdk.WriteTextFileResponse{}, ErrToolBlockedForNetworkTurn
 	}
-	if err := p.toolHostOrDefault().WriteTextFile(ctx, request.Path, request.Content); err != nil {
+	host, err := p.toolHostOrDefault()
+	if err != nil {
+		return acpsdk.WriteTextFileResponse{}, err
+	}
+	if err := host.WriteTextFile(ctx, request.Path, request.Content); err != nil {
 		return acpsdk.WriteTextFileResponse{}, err
 	}
 	return acpsdk.WriteTextFileResponse{}, nil
@@ -225,7 +233,11 @@ func (p *AgentProcess) handleRequestPermission(
 		}
 	}
 
-	decision, interactive := p.toolHostOrDefault().PermissionDecision(request)
+	host, err := p.toolHostOrDefault()
+	if err != nil {
+		return acpsdk.RequestPermissionResponse{}, err
+	}
+	decision, interactive := host.PermissionDecision(request)
 
 	if !interactive {
 		outcome, appliedDecision := selectPermissionOutcome(request.Options, decision)

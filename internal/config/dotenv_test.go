@@ -2,15 +2,14 @@ package config
 
 import (
 	"errors"
-	"go/ast"
-	"go/parser"
-	"go/token"
 	"os"
 	"path/filepath"
 	"reflect"
 	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/compozy/compozy/internal/fileutil"
 )
 
 func TestDotEnvParserSanitizesAndRepairsStructuredEntries(t *testing.T) {
@@ -82,70 +81,58 @@ func TestDotEnvParserSanitizesAndRepairsStructuredEntries(t *testing.T) {
 	}
 }
 
-func TestReplaceDotEnvFileUsesDurableWriteProtocol(t *testing.T) {
-	t.Run("Should sync the temporary file and persisted directory", func(t *testing.T) {
+func TestDotEnvFileTreatsMissingPathAsOptional(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should treat a missing dotenv path as optional", func(t *testing.T) {
 		t.Parallel()
 
-		function := packageFunctionDeclaration(t, "replaceDotEnvFile")
-		if !functionCalls(function, "Sync") {
-			t.Fatal("replaceDotEnvFile does not sync the temporary file before rename")
-		}
-		if !functionCalls(function, "syncPersistedDir") {
-			t.Fatal("replaceDotEnvFile does not sync the persisted directory after rename")
-		}
-	})
-}
-
-func packageFunctionDeclaration(t *testing.T, name string) *ast.FuncDecl {
-	t.Helper()
-
-	entries, err := os.ReadDir(".")
-	if err != nil {
-		t.Fatalf("os.ReadDir(config package) error = %v", err)
-	}
-	fileSet := token.NewFileSet()
-	var found *ast.FuncDecl
-	for _, entry := range entries {
-		if entry.IsDir() || filepath.Ext(entry.Name()) != ".go" || strings.HasSuffix(entry.Name(), "_test.go") {
-			continue
-		}
-		parsed, err := parser.ParseFile(fileSet, entry.Name(), nil, 0)
+		path := filepath.Join(t.TempDir(), ".env")
+		report, err := InspectDotEnvFile(path)
 		if err != nil {
-			t.Fatalf("parser.ParseFile(%q) error = %v", entry.Name(), err)
+			t.Fatalf("InspectDotEnvFile(missing) error = %v", err)
 		}
-		for _, declaration := range parsed.Decls {
-			function, ok := declaration.(*ast.FuncDecl)
-			if !ok || function.Name.Name != name {
-				continue
-			}
-			if found != nil {
-				t.Fatalf("package function %q is declared more than once", name)
-			}
-			found = function
+		if report.Status != DotEnvStatusMissing {
+			t.Fatalf("InspectDotEnvFile(missing) status = %q, want %q", report.Status, DotEnvStatusMissing)
 		}
-	}
-	if found == nil {
-		t.Fatalf("package function %q not found", name)
-	}
-	return found
+
+		repair, err := RepairDotEnvFile(path)
+		if err != nil {
+			t.Fatalf("RepairDotEnvFile(missing) error = %v", err)
+		}
+		if repair.Status != DotEnvStatusMissing {
+			t.Fatalf("RepairDotEnvFile(missing) status = %q, want %q", repair.Status, DotEnvStatusMissing)
+		}
+	})
 }
 
-func functionCalls(function *ast.FuncDecl, name string) bool {
-	found := false
-	ast.Inspect(function.Body, func(node ast.Node) bool {
-		call, ok := node.(*ast.CallExpr)
-		if !ok {
-			return true
+func TestRepairDotEnvFileTightensRepairedFilePermissions(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should tighten a repaired dotenv file to owner read write", func(t *testing.T) {
+		t.Parallel()
+
+		path := filepath.Join(t.TempDir(), ".env")
+		contents := "OPENAI_API_KEY=sk-live\u200b ANTHROPIC_API_KEY=anthropic\u2011key\n"
+		if err := os.WriteFile(path, []byte(contents), 0o644); err != nil {
+			t.Fatalf("os.WriteFile(.env) error = %v", err)
 		}
-		switch callee := call.Fun.(type) {
-		case *ast.Ident:
-			found = found || callee.Name == name
-		case *ast.SelectorExpr:
-			found = found || callee.Sel.Name == name
+
+		report, err := RepairDotEnvFile(path)
+		if err != nil {
+			t.Fatalf("RepairDotEnvFile() error = %v", err)
 		}
-		return !found
+		if report.Status != DotEnvStatusRepaired || !report.Repaired {
+			t.Fatalf("RepairDotEnvFile() = %#v, want repaired status", report)
+		}
+		info, err := os.Stat(path)
+		if err != nil {
+			t.Fatalf("os.Stat(.env) error = %v", err)
+		}
+		if got, want := info.Mode().Perm(), os.FileMode(0o600); got != want {
+			t.Fatalf(".env mode = %#o, want %#o", got, want)
+		}
 	})
-	return found
 }
 
 func TestRepairDotEnvFileRejectsUnsupportedContentWithoutWriting(t *testing.T) {
@@ -215,6 +202,108 @@ func TestRepairDotEnvFileRejectsSymlinkWithoutReadingTarget(t *testing.T) {
 	if string(after) != before {
 		t.Fatalf("symlink repair changed target .env\nbefore:\n%s\nafter:\n%s", before, string(after))
 	}
+}
+
+func TestRepairDotEnvFileWritesThroughTheHeldParentAfterPathReplacement(t *testing.T) {
+	t.Parallel()
+	t.Run("Should repair only the file below the opened dotenv parent", func(t *testing.T) {
+		t.Parallel()
+		if runtime.GOOS == "windows" {
+			t.Skip("symlink permissions vary on Windows")
+		}
+
+		root := t.TempDir()
+		liveParent := filepath.Join(root, "live")
+		archivedParent := filepath.Join(root, "archived")
+		externalParent := filepath.Join(root, "external")
+		livePath := filepath.Join(liveParent, ".env")
+		externalPath := filepath.Join(externalParent, ".env")
+		if err := os.MkdirAll(liveParent, 0o700); err != nil {
+			t.Fatalf("os.MkdirAll(live parent) error = %v", err)
+		}
+		if err := os.MkdirAll(externalParent, 0o700); err != nil {
+			t.Fatalf("os.MkdirAll(external parent) error = %v", err)
+		}
+		writeFile(t, livePath, "OPENAI_API_KEY=sk-live\u200b ANTHROPIC_API_KEY=anthropic\u2011key\n")
+		sentinel := "EXTERNAL_DOTENV_SENTINEL=preserve\n"
+		writeFile(t, externalPath, sentinel)
+
+		directory, err := fileutil.OpenDirectory(liveParent)
+		if err != nil {
+			t.Fatalf("fileutil.OpenDirectory(live parent) error = %v", err)
+		}
+		defer func() {
+			if closeErr := directory.Close(); closeErr != nil {
+				t.Errorf("Directory.Close() error = %v", closeErr)
+			}
+		}()
+		if err := os.Rename(liveParent, archivedParent); err != nil {
+			t.Fatalf("os.Rename(live parent) error = %v", err)
+		}
+		if err := os.Symlink(externalParent, liveParent); err != nil {
+			t.Fatalf("os.Symlink(external parent) error = %v", err)
+		}
+
+		report, err := repairDotEnvFileInDirectory(directory, ".env", livePath)
+		if err != nil {
+			t.Fatalf("repairDotEnvFileInDirectory() error = %v", err)
+		}
+		if report.Status != DotEnvStatusRepaired || !report.Repaired {
+			t.Fatalf("repairDotEnvFileInDirectory() report = %#v, want repaired", report)
+		}
+		assertConfigSentinelUnchanged(t, externalPath, sentinel)
+		archived, err := os.ReadFile(filepath.Join(archivedParent, ".env"))
+		if err != nil {
+			t.Fatalf("os.ReadFile(archived dotenv) error = %v", err)
+		}
+		if strings.Contains(string(archived), "\u200b") || strings.Contains(string(archived), "\u2011") {
+			t.Fatalf("archived dotenv remains un-repaired: %q", archived)
+		}
+	})
+}
+
+func TestLoadDotEnvLookupRejectsSymlinkedParentWithoutReadingTarget(t *testing.T) {
+	t.Parallel()
+	t.Run("Should reject a symlinked dotenv parent without reading the target", func(t *testing.T) {
+		t.Parallel()
+		if runtime.GOOS == "windows" {
+			t.Skip("symlink permissions vary on Windows")
+		}
+
+		dir := t.TempDir()
+		targetDir := filepath.Join(dir, "actual-workspace")
+		targetPath := filepath.Join(targetDir, ".env")
+		before := "COMPOZY_DOTENV_PARENT_SECRET=secret\n"
+		if err := os.Mkdir(targetDir, 0o755); err != nil {
+			t.Fatalf("os.Mkdir(target workspace) error = %v", err)
+		}
+		if err := os.WriteFile(targetPath, []byte(before), 0o600); err != nil {
+			t.Fatalf("os.WriteFile(target .env) error = %v", err)
+		}
+		linkDir := filepath.Join(dir, "linked-workspace")
+		if err := os.Symlink(targetDir, linkDir); err != nil {
+			t.Fatalf("os.Symlink(workspace parent) error = %v", err)
+		}
+
+		_, err := loadDotEnvLookup(linkDir)
+		if err == nil {
+			t.Fatal("loadDotEnvLookup(symlinked parent) error = nil, want unsupported symlink")
+		}
+		if !errors.Is(err, ErrDotEnvUnsupported) {
+			t.Fatalf("loadDotEnvLookup(symlinked parent) error = %v, want ErrDotEnvUnsupported", err)
+		}
+		if strings.Contains(err.Error(), "COMPOZY_DOTENV_PARENT_SECRET") {
+			t.Fatalf("loadDotEnvLookup(symlinked parent) error leaked target content: %v", err)
+		}
+
+		after, readErr := os.ReadFile(targetPath)
+		if readErr != nil {
+			t.Fatalf("os.ReadFile(target .env after lookup) error = %v", readErr)
+		}
+		if string(after) != before {
+			t.Fatalf("symlinked parent lookup changed target .env\nbefore:\n%s\nafter:\n%s", before, string(after))
+		}
+	})
 }
 
 func TestLoadDotEnvLookupUsesSanitizedInMemoryValuesWithoutMutatingFile(t *testing.T) {

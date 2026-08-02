@@ -210,11 +210,8 @@ func (g *TaskRepo) settleParentRollupRunsWithExecutor(
 		if run.Status.Normalize() != taskpkg.TaskRunStatusNeedsAttention {
 			continue
 		}
-		updated, err := completedParentRollupRun(run, settledAt)
+		updated, err := completeParentRollupTaskRunWithExecutor(ctx, exec, run, settledAt)
 		if err != nil {
-			return nil, false, err
-		}
-		if err := updateTaskRunRecordWithSnapshotCAS(ctx, exec, run, updated); err != nil {
 			return nil, false, err
 		}
 		if err := updateTaskCurrentRunProjectionForRunUpdate(ctx, exec, run, updated); err != nil {

@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/httpapi"
 	"github.com/compozy/compozy/internal/api/testutil"
@@ -208,6 +209,49 @@ func TestAuthoredContextTransportParity(t *testing.T) {
 		}
 		assertTransportParity(t, responses, http.StatusConflict)
 	})
+}
+
+func TestAPIHeartbeatWakePrompterShutdownClosesAdmissionAndJoinsDrains(t *testing.T) {
+	t.Parallel()
+
+	events := make(chan acp.AgentEvent)
+	sessions := &fakeSessionManager{
+		infos: []*session.Info{{ID: "sess-api-wake", State: session.StateActive}},
+		syntheticPromptHook: func(
+			context.Context,
+			string,
+			session.SyntheticPromptOpts,
+		) (<-chan acp.AgentEvent, error) {
+			return events, nil
+		},
+	}
+	lifecycleCtx, cancel := context.WithCancel(context.Background())
+	prompter := &apiHeartbeatWakePrompter{
+		ctx:      lifecycleCtx,
+		sessions: sessions,
+		logger:   discardLogger(),
+		workers:  newOwnedWorkerGroup(cancel),
+	}
+	req := heartbeat.SyntheticWakePromptRequest{
+		SessionID:   "sess-api-wake",
+		WakeEventID: "wake-api",
+		TurnID:      "turn-api",
+	}
+	if _, err := prompter.PromptHeartbeatWake(context.Background(), req); err != nil {
+		t.Fatalf("PromptHeartbeatWake() error = %v", err)
+	}
+	if err := prompter.shutdown(context.Background()); err != nil {
+		t.Fatalf("shutdown() error = %v", err)
+	}
+	if err := prompter.shutdown(context.Background()); err != nil {
+		t.Fatalf("shutdown(retry) error = %v", err)
+	}
+	if _, err := prompter.PromptHeartbeatWake(context.Background(), req); err == nil {
+		t.Fatal("PromptHeartbeatWake(after shutdown) error = nil, want admission failure")
+	}
+	if got, want := sessions.syntheticPromptCount(), 1; got != want {
+		t.Fatalf("synthetic prompt count = %d, want %d", got, want)
+	}
 }
 
 func TestAuthoredContextCoreRouteBehavior(t *testing.T) {

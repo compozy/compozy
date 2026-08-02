@@ -52,7 +52,7 @@ func (s *Store) ListDecisionRecords(ctx context.Context, query DecisionListQuery
 	return records, nil
 }
 
-func (c *catalog) listDecisions(ctx context.Context, query DecisionListQuery) ([]storedDecision, error) {
+func (c *catalog) listDecisions(ctx context.Context, query DecisionListQuery) (decisions []storedDecision, err error) {
 	db, err := c.ensureDB(ctx)
 	if err != nil {
 		return nil, err
@@ -80,7 +80,7 @@ func (c *catalog) listDecisions(ctx context.Context, query DecisionListQuery) ([
 	if err != nil {
 		return nil, fmt.Errorf("memory: list decisions: %w", err)
 	}
-	defer closeRows(rows, "memory: close decision rows failed")
+	defer closeCatalogRows(rows, "decision", &err)
 	return scanStoredDecisionRows(rows)
 }
 

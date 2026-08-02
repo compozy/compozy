@@ -5,7 +5,11 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/compozy/compozy/internal/diagnostics"
 )
+
+const maxCursorErrorDiagnosticBytes = 2048
 
 // CursorStore persists confirmed notification delivery progress.
 type CursorStore interface {
@@ -18,9 +22,10 @@ type CursorStore interface {
 
 // CursorKey identifies one durable delivery cursor.
 type CursorKey struct {
-	ConsumerID string `json:"consumer_id"`
-	StreamName string `json:"stream_name"`
-	SubjectID  string `json:"subject_id"`
+	Scope      ScopeRef `json:"scope"`
+	ConsumerID string   `json:"consumer_id"`
+	StreamName string   `json:"stream_name"`
+	SubjectID  string   `json:"subject_id"`
 }
 
 // Cursor stores the latest confirmed delivery position for one consumer.
@@ -59,12 +64,14 @@ type CursorError struct {
 	Now       time.Time `json:"now"`
 }
 
-// CursorQuery filters cursor diagnostics.
+// CursorQuery filters cursor diagnostics. An omitted scope is valid only for an
+// administrative aggregate list; scoped reads must carry a complete ScopeRef.
 type CursorQuery struct {
-	ConsumerID string `json:"consumer_id,omitempty"`
-	StreamName string `json:"stream_name,omitempty"`
-	SubjectID  string `json:"subject_id,omitempty"`
-	Limit      int    `json:"limit,omitempty"`
+	Scope      ScopeRef `json:"scope"`
+	ConsumerID string   `json:"consumer_id,omitempty"`
+	StreamName string   `json:"stream_name,omitempty"`
+	SubjectID  string   `json:"subject_id,omitempty"`
+	Limit      int      `json:"limit,omitempty"`
 }
 
 // Service validates cursor requests before delegating persistence to the store.
@@ -94,7 +101,11 @@ func (s *Service) List(ctx context.Context, query CursorQuery) ([]Cursor, error)
 	if s == nil || s.store == nil {
 		return nil, fmt.Errorf("%w: store is required", ErrInvalidCursor)
 	}
-	return s.store.ListCursors(ctx, query.Normalize())
+	normalized, err := query.Normalize()
+	if err != nil {
+		return nil, err
+	}
+	return s.store.ListCursors(ctx, normalized)
 }
 
 // Advance records a monotonic confirmed delivery position.
@@ -133,12 +144,28 @@ func (s *Service) RecordError(ctx context.Context, report CursorError) (Cursor, 
 	return s.store.RecordCursorError(ctx, normalized)
 }
 
-// Normalize trims and validates cursor identity.
+// Normalize preserves and validates cursor identity.
 func (k CursorKey) Normalize() (CursorKey, error) {
 	normalized := CursorKey{
-		ConsumerID: strings.TrimSpace(k.ConsumerID),
-		StreamName: strings.TrimSpace(k.StreamName),
-		SubjectID:  strings.TrimSpace(k.SubjectID),
+		Scope:      k.Scope.Normalize(),
+		ConsumerID: k.ConsumerID,
+		StreamName: k.StreamName,
+		SubjectID:  k.SubjectID,
+	}
+	if err := normalized.Scope.Validate(); err != nil {
+		return CursorKey{}, err
+	}
+	for _, field := range []struct {
+		name  string
+		value string
+	}{
+		{name: "consumer id", value: normalized.ConsumerID},
+		{name: "stream name", value: normalized.StreamName},
+		{name: "subject id", value: normalized.SubjectID},
+	} {
+		if err := validateNotificationIdentityUTF8(field.value, field.name); err != nil {
+			return CursorKey{}, err
+		}
 	}
 	switch {
 	case normalized.ConsumerID == "":
@@ -158,7 +185,10 @@ func (a AdvanceCursor) Normalize(fallbackNow time.Time) (AdvanceCursor, error) {
 	}
 	normalized := a
 	normalized.Key = key
-	normalized.DeliveryID = strings.TrimSpace(a.DeliveryID)
+	normalized.DeliveryID = a.DeliveryID
+	if err := validateNotificationIdentityUTF8(normalized.DeliveryID, "delivery id"); err != nil {
+		return AdvanceCursor{}, err
+	}
 	if normalized.LastSequence <= 0 {
 		return AdvanceCursor{}, fmt.Errorf("%w: last sequence must be greater than zero", ErrInvalidCursor)
 	}
@@ -181,8 +211,11 @@ func (r ResetCursor) Normalize(fallbackNow time.Time) (ResetCursor, error) {
 	}
 	normalized := r
 	normalized.Key = key
-	normalized.LastDeliveryID = strings.TrimSpace(r.LastDeliveryID)
+	normalized.LastDeliveryID = r.LastDeliveryID
 	normalized.Reason = strings.TrimSpace(r.Reason)
+	if err := validateNotificationIdentityUTF8(normalized.LastDeliveryID, "last delivery id"); err != nil {
+		return ResetCursor{}, err
+	}
 	if normalized.LastSequence < 0 {
 		return ResetCursor{}, fmt.Errorf("%w: reset sequence must be zero or greater", ErrInvalidCursor)
 	}
@@ -207,7 +240,10 @@ func (e CursorError) Normalize(fallbackNow time.Time) (CursorError, error) {
 	}
 	normalized := e
 	normalized.Key = key
-	normalized.LastError = strings.TrimSpace(e.LastError)
+	normalized.LastError = diagnostics.RedactAndBound(
+		strings.ToValidUTF8(e.LastError, "\uFFFD"),
+		maxCursorErrorDiagnosticBytes,
+	)
 	if normalized.LastError == "" {
 		return CursorError{}, fmt.Errorf("%w: last error is required", ErrInvalidCursor)
 	}
@@ -218,16 +254,25 @@ func (e CursorError) Normalize(fallbackNow time.Time) (CursorError, error) {
 	return normalized, nil
 }
 
-// Normalize trims query filters.
-func (q CursorQuery) Normalize() CursorQuery {
+// Normalize validates query filters without changing opaque identity values.
+func (q CursorQuery) Normalize() (CursorQuery, error) {
 	normalized := CursorQuery{
-		ConsumerID: strings.TrimSpace(q.ConsumerID),
-		StreamName: strings.TrimSpace(q.StreamName),
-		SubjectID:  strings.TrimSpace(q.SubjectID),
+		Scope:      q.Scope.Normalize(),
+		ConsumerID: q.ConsumerID,
+		StreamName: q.StreamName,
+		SubjectID:  q.SubjectID,
 		Limit:      q.Limit,
 	}
 	if normalized.Limit < 0 {
 		normalized.Limit = 0
 	}
-	return normalized
+	if normalized.Scope.Kind == "" && normalized.Scope.WorkspaceID != "" {
+		return CursorQuery{}, fmt.Errorf("%w: workspace id requires a scope kind", ErrInvalidCursor)
+	}
+	if normalized.Scope.Kind != "" {
+		if err := normalized.Scope.Validate(); err != nil {
+			return CursorQuery{}, err
+		}
+	}
+	return normalized, nil
 }

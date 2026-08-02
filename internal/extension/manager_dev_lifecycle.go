@@ -4,10 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"strings"
-
-	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 const (
@@ -91,9 +88,12 @@ func (m *Manager) LinkDevelopment(
 	originPath string,
 	generationHash string,
 ) (*Extension, error) {
-	if err := m.checkDevOperation(ctx, key); err != nil {
+	operation, err := m.beginDevOperation(ctx, key)
+	if err != nil {
 		return nil, err
 	}
+	defer operation.close()
+	ctx = operation.ctx
 	key = key.Normalize()
 	coordinator := m.coordinatorFor(key)
 	coordinator.Lock()
@@ -128,9 +128,12 @@ func (m *Manager) ReloadExtension(
 	key InstanceKey,
 	generationHash string,
 ) (*Extension, error) {
-	if err := m.checkDevOperation(ctx, key); err != nil {
+	operation, err := m.beginDevOperation(ctx, key)
+	if err != nil {
 		return nil, err
 	}
+	defer operation.close()
+	ctx = operation.ctx
 	key = key.Normalize()
 	coordinator := m.coordinatorFor(key)
 	coordinator.Lock()
@@ -150,7 +153,14 @@ func (m *Manager) ReloadExtension(
 	}
 	candidate, activationErr := m.startVerifiedDevCandidate(ctx, key, verified)
 	if activationErr != nil {
-		return m.restartLastGood(ctx, key, link, current, activationErr)
+		if operationErr := operation.ensureActive(); operationErr != nil {
+			return nil, errors.Join(activationErr, operationErr)
+		}
+		return m.restartLastGood(key, current, activationErr)
+	}
+	if err := operation.ensureActive(); err != nil {
+		m.discardDevCandidate(ctx, candidate)
+		return nil, err
 	}
 	updatedLink, err := m.registry.LinkDev(DevLinkRequest{
 		Name:                     key.Name,
@@ -161,13 +171,21 @@ func (m *Manager) ReloadExtension(
 	})
 	if err != nil {
 		m.discardDevCandidate(ctx, candidate)
-		m.restoreInstanceAuthority(current)
 		return nil, err
 	}
 	candidate.lastGoodGeneration = verified.GenerationHash
-	m.swapDevInstance(key, candidate)
-	m.startInstanceSupervisor(candidate)
-	m.stopReplacedDevProcess(ctx, current)
+	previous, err := m.activateAndPublishDevCandidate(ctx, key, candidate)
+	if err != nil {
+		rollbackErr := m.restoreDevLink(key, link)
+		if rollbackErr != nil {
+			err = errors.Join(err, rollbackErr)
+		}
+		if operationErr := operation.ensureActive(); operationErr != nil {
+			return nil, errors.Join(err, operationErr)
+		}
+		return m.restartLastGood(key, current, err)
+	}
+	m.stopReplacedDevProcess(ctx, previous)
 	snapshot := m.cloneExtension(candidate)
 	snapshot.DevLink = updatedLink
 	_, publishedErr := m.registry.Get(key.Name)
@@ -177,13 +195,19 @@ func (m *Manager) ReloadExtension(
 
 // UnlinkDevelopment removes and stops only one workspace-local instance.
 func (m *Manager) UnlinkDevelopment(ctx context.Context, key InstanceKey) error {
-	if err := m.checkDevOperation(ctx, key); err != nil {
+	operation, err := m.beginDevOperation(ctx, key)
+	if err != nil {
 		return err
 	}
+	defer operation.close()
+	ctx = operation.ctx
 	key = key.Normalize()
 	coordinator := m.coordinatorFor(key)
 	coordinator.Lock()
 	defer coordinator.Unlock()
+	if err := operation.ensureActive(); err != nil {
+		return err
+	}
 	if err := m.registry.UnlinkDev(key.Name, key.WorkspaceID); err != nil {
 		return err
 	}
@@ -227,22 +251,15 @@ func (m *Manager) startDevLinkOnBoot(ctx context.Context, link DevLink) {
 	key := InstanceKey{Name: link.ExtensionName, WorkspaceID: link.WorkspaceID}.Normalize()
 	verified, err := m.resolveDevGeneration(ctx, key, link.OriginPath, link.BundleGeneration)
 	if err != nil {
-		failureCode := extensionFailureActivationFailed
-		if errors.Is(err, ErrExtensionDevOriginMissing) || errors.Is(err, workspacepkg.ErrWorkspaceRootMissing) ||
-			errors.Is(err, os.ErrNotExist) ||
-			strings.Contains(err.Error(), "development origin") {
-			failureCode = extensionFailureMissingOrigin
-		}
+		failureCode := devBootFailureCode(err)
 		ext := &managedExtension{
 			key:                key,
 			info:               ExtensionInfo{Name: key.Name, Source: SourceWorkspace, Enabled: true},
-			phase:              ExtensionPhase("errored"),
-			lastError:          err.Error(),
-			failureCode:        failureCode,
 			generationHash:     link.BundleGeneration,
 			lastGoodGeneration: link.BundleGeneration,
 			logRing:            m.logRingFor(key),
 		}
+		m.setDevBootFailure(key, ext, failureCode, err)
 		m.mu.Lock()
 		m.devExtensions[key] = ext
 		m.mu.Unlock()
@@ -251,43 +268,36 @@ func (m *Manager) startDevLinkOnBoot(ctx context.Context, link DevLink) {
 	ext, err := m.startVerifiedDevCandidate(ctx, key, verified)
 	if err != nil {
 		ext = managedDevExtension(key, verified, m.logRingFor(key))
-		ext.phase = ExtensionPhase("errored")
-		ext.failureCode = extensionFailureActivationFailed
-		ext.lastError = err.Error()
+		m.setDevBootFailure(key, ext, extensionFailureActivationFailed, err)
 	}
 	ext.lastGoodGeneration = link.BundleGeneration
-	m.swapDevInstance(key, ext)
 	if err == nil {
-		m.startInstanceSupervisor(ext)
+		ext.lastGoodGeneration = link.BundleGeneration
+		if _, activateErr := m.activateAndPublishDevCandidate(ctx, key, ext); activateErr != nil {
+			m.setDevBootFailure(key, ext, extensionFailureActivationFailed, activateErr)
+			m.swapDevInstance(key, ext)
+			return
+		}
+		return
 	}
+	m.swapDevInstance(key, ext)
 }
 
-func (m *Manager) checkDevOperation(ctx context.Context, key InstanceKey) error {
-	if ctx == nil {
-		return ErrContextRequired
+func (m *Manager) restoreDevLink(key InstanceKey, prior *DevLink) error {
+	if prior == nil {
+		if err := m.registry.UnlinkDev(key.Name, key.WorkspaceID); err != nil &&
+			!errors.Is(err, ErrExtensionNotDevLinked) {
+			return fmt.Errorf("extension: rollback development link %q: %w", key.runtimeID(), err)
+		}
+		return nil
 	}
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	if m == nil {
-		return ErrManagerRequired
-	}
-	key = key.Normalize()
-	if err := key.Validate(); err != nil {
-		return err
-	}
-	if key.IsGlobal() {
-		return errors.New("extension: development operations require a workspace instance")
-	}
-	if m.registry == nil {
-		return ErrRegistryRequired
-	}
-	m.mu.RLock()
-	started := m.started
-	stopping := m.stopping
-	m.mu.RUnlock()
-	if !started || stopping {
-		return errors.New("extension: manager is not accepting development operations")
+	if _, err := m.registry.LinkDev(DevLinkRequest{
+		Name:           prior.ExtensionName,
+		WorkspaceID:    prior.WorkspaceID,
+		OriginPath:     prior.OriginPath,
+		GenerationHash: prior.BundleGeneration,
+	}); err != nil {
+		return fmt.Errorf("extension: restore development link %q: %w", key.runtimeID(), err)
 	}
 	return nil
 }

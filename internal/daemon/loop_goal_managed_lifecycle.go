@@ -367,7 +367,7 @@ func (l *loopGoalManagedInputLifecycle) submission(
 	owner := operationOwner(operation)
 	meta := session.ManagedInputPromptMeta{
 		LoopRunID: owner.LoopRunID, NodeID: string(operation.key.NodeID), PromptID: owner.PromptID,
-		Kind: owner.PromptKind, Generation: operation.key.Generation, ItemIndex: operation.key.ItemIndex,
+		Kind: owner.PromptKind, Generation: int64(operation.key.Generation), ItemIndex: operation.key.ItemIndex,
 		PromptAttempt: owner.PromptAttempt,
 	}
 	if owner.PromptKind != loopManagedPromptKindCompact {

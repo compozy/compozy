@@ -2,6 +2,7 @@ package extensionpkg
 
 import (
 	"context"
+	"errors"
 
 	"fmt"
 
@@ -104,9 +105,16 @@ func shutdownProcessWithTimeout(ctx context.Context, proc processHandle, timeout
 		return nil
 	}
 
-	shutdownCtx, cancel := context.WithTimeout(ctx, timeout)
+	shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), timeout)
 	defer cancel()
-	return proc.Shutdown(shutdownCtx)
+
+	shutdownErr := proc.Shutdown(shutdownCtx)
+	select {
+	case <-proc.Done():
+		return errors.Join(shutdownErr, proc.Wait())
+	case <-shutdownCtx.Done():
+		return errors.Join(shutdownErr, shutdownCtx.Err())
+	}
 }
 
 func phaseError(name string, phase ExtensionPhase, err error) error {

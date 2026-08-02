@@ -1,6 +1,7 @@
 package extensionpkg
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -10,6 +11,7 @@ import (
 	"unicode"
 
 	"github.com/compozy/compozy/internal/fileutil"
+	"github.com/compozy/compozy/internal/registry"
 	registrygithub "github.com/compozy/compozy/internal/registry/github"
 )
 
@@ -53,11 +55,23 @@ func PublishRelease(
 	if err != nil {
 		return nil, fmt.Errorf("extension: load publish generation: %w", err)
 	}
-	archive, err := fileutil.TarGzipDirectory(strings.TrimSpace(request.GenerationDir), nil)
+	var archive bytes.Buffer
+	_, err = fileutil.WriteTarGzipDirectory(
+		ctx,
+		&archive,
+		strings.TrimSpace(request.GenerationDir),
+		nil,
+		fileutil.TarGzipLimits{
+			MaxCompressedSize:   registry.DefaultMaxArchiveSize,
+			MaxUncompressedSize: registry.DefaultMaxDecompressedSize,
+			MaxFileCount:        registry.DefaultMaxFileCount,
+		},
+	)
 	if err != nil {
 		return nil, fmt.Errorf("extension: archive publish generation: %w", err)
 	}
-	digestBytes := sha256.Sum256(archive)
+	archiveBytes := archive.Bytes()
+	digestBytes := sha256.Sum256(archiveBytes)
 	digest := hex.EncodeToString(digestBytes[:])
 	assetName := publishAssetName(manifest.Name, request.TagName)
 	sidecar := []byte(digest + "  " + assetName + "\n")
@@ -67,7 +81,7 @@ func PublishRelease(
 		TagName:       strings.TrimSpace(request.TagName),
 		Draft:         request.Draft,
 		AssetName:     assetName,
-		Archive:       archive,
+		Archive:       archiveBytes,
 		DigestSidecar: sidecar,
 	})
 	if err != nil {

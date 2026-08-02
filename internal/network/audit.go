@@ -234,9 +234,13 @@ func NormalizeAuditEntry(
 	if at.IsZero() {
 		at = time.Now().UTC()
 	}
+	auditID, err := store.NewID("naud")
+	if err != nil {
+		return store.NetworkAuditEntry{}, fmt.Errorf("network: generate audit id: %w", err)
+	}
 
 	entry := store.NetworkAuditEntry{
-		ID:          store.NewID("naud"),
+		ID:          auditID,
 		SessionID:   strings.TrimSpace(sessionID),
 		WorkspaceID: strings.TrimSpace(envelope.WorkspaceID),
 		Direction:   strings.TrimSpace(direction),
@@ -343,9 +347,13 @@ func normalizeTaskIngressAuditEntry(audit TaskIngressAudit, at time.Time) (store
 	if at.IsZero() {
 		at = time.Now().UTC()
 	}
+	auditID, err := store.NewID("naud")
+	if err != nil {
+		return store.NetworkAuditEntry{}, fmt.Errorf("network: generate task ingress audit id: %w", err)
+	}
 
 	entry := store.NetworkAuditEntry{
-		ID:          store.NewID("naud"),
+		ID:          auditID,
 		SessionID:   "netpeer:" + strings.TrimSpace(audit.PeerID),
 		WorkspaceID: strings.TrimSpace(audit.WorkspaceID),
 		Direction:   strings.TrimSpace(audit.Direction),
@@ -377,7 +385,7 @@ func trimmedSurfaceValue(value *Surface) string {
 	return strings.TrimSpace(string(*value))
 }
 
-func (w *FileAuditWriter) appendFile(entry store.NetworkAuditEntry) error {
+func (w *FileAuditWriter) appendFile(entry store.NetworkAuditEntry) (err error) {
 	w.fileMu.Lock()
 	defer w.fileMu.Unlock()
 
@@ -390,7 +398,9 @@ func (w *FileAuditWriter) appendFile(entry store.NetworkAuditEntry) error {
 		return fmt.Errorf("network: open audit log file: %w", err)
 	}
 	defer func() {
-		_ = file.Close()
+		if closeErr := file.Close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("network: close audit log file: %w", closeErr))
+		}
 	}()
 
 	payload, err := json.Marshal(entry)

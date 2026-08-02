@@ -30,12 +30,12 @@ describe("bridgeKeys", () => {
     expect(bridgeKeys.providers()).toEqual(["bridges", "providers"]);
   });
 
-  it("normalizes omitted detail and routes ids to empty strings", () => {
+  it("uses the exact empty identity for omitted detail and route reads", () => {
     expect(bridgeKeys.detail("")).toEqual(["bridges", "detail", ""]);
     expect(bridgeKeys.routes("")).toEqual(["bridges", "routes", ""]);
     expect(bridgeKeys.targets("")).toEqual(["bridges", "targets", "", "", ""]);
     expect(bridgeKeys.secretBindings("")).toEqual(["bridges", "secret-bindings", ""]);
-    expect(bridgeKeys.slackManifest("   ")).toEqual(["bridges", "manifest", "slack", ""]);
+    expect(bridgeKeys.slackManifest("")).toEqual(["bridges", "manifest", "slack", ""]);
   });
 
   it("includes bridge ids in detail and route query keys", () => {
@@ -62,7 +62,8 @@ describe("bridgeKeys", () => {
       "bridges",
       "manifest",
       "slack",
-      "brg_support",
+      " brg_support ",
     ]);
+    expect(bridgeKeys.slackManifest("   ")).not.toEqual(bridgeKeys.slackManifest(""));
   });
 });

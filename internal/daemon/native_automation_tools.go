@@ -12,6 +12,7 @@ import (
 const (
 	nativeAutomationToolsDeletedKey = "deleted"
 	nativeAutomationToolsJobKey     = "job"
+	nativeAutomationToolsRunKey     = "run"
 	nativeAutomationToolsRunsKey    = "runs"
 	nativeAutomationToolsTriggerKey = "trigger"
 )
@@ -178,7 +179,7 @@ func (n *daemonNativeTools) automationJobsTrigger(
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}
 	payload := core.RunPayloadFromRun(run)
-	return structuredResult(map[string]any{"run": payload}, payload.ID)
+	return structuredResult(map[string]any{nativeAutomationToolsRunKey: payload}, payload.ID)
 }
 
 func (n *daemonNativeTools) automationJobsHistory(

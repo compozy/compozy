@@ -14,6 +14,7 @@ type completionPublicationContextKey struct{}
 func (m *Service) publishCompletedLeaseSettlement(
 	ctx context.Context,
 	settlement *CompletedRunSettlement,
+	advisoryEventID string,
 	actor ActorContext,
 ) (*Run, error) {
 	publicationCtx, publicationCancel := completedSettlementPublicationContext(ctx)
@@ -28,7 +29,7 @@ func (m *Service) publishCompletedLeaseSettlement(
 	m.dispatchTerminalWake(publicationCtx, reconciledTask, run, actor)
 	advisoryCtx, advisoryCancel := context.WithTimeout(publicationCtx, autoEnqueueDispatchTimeout)
 	defer advisoryCancel()
-	m.recordCompletionHallucinationSuspected(advisoryCtx, run, actor)
+	m.recordCompletionHallucinationSuspected(advisoryCtx, advisoryEventID, run, actor)
 	m.dispatchTaskRunCompleted(publicationCtx, run, reconciledTask, actor)
 	m.restoreTaskRunNetworkBestEffort(publicationCtx, run.SessionID, run.ID)
 	if !run.IsLoopWorker() {
@@ -97,9 +98,6 @@ func (m *Service) publishCompletedRunSettlement(
 func completedSettlementPublicationContext(ctx context.Context) (context.Context, context.CancelFunc) {
 	if isCompletedSettlementPublicationContext(ctx) {
 		return ctx, func() {}
-	}
-	if ctx == nil {
-		ctx = context.Background()
 	}
 	bounded, cancel := context.WithTimeout(context.WithoutCancel(ctx), completionPublicationTimeout)
 	return context.WithValue(bounded, completionPublicationContextKey{}, true), cancel

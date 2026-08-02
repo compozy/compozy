@@ -62,14 +62,7 @@ func (r *coordinatorRuntime) shutdown(ctx context.Context) error {
 	if ctx == nil {
 		return errors.New("daemon: coordinator runtime shutdown context is required")
 	}
-	if r.cancel != nil {
-		r.cancel()
-	}
-	done := make(chan struct{})
-	go func() {
-		r.wg.Wait()
-		close(done)
-	}()
+	done := r.workers.Stop()
 	select {
 	case <-done:
 		return nil

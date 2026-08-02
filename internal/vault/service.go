@@ -90,7 +90,11 @@ func (s *Service) PutSecret(ctx context.Context, ref string, kind string, plaint
 	if err != nil {
 		return Metadata{}, err
 	}
-	encrypted, err := encryptValue(key, plaintext)
+	identity, err := newCiphertextIdentity(normalized, normalizedKind)
+	if err != nil {
+		return Metadata{}, err
+	}
+	encrypted, err := encryptValue(key, plaintext, identity)
 	if err != nil {
 		return Metadata{}, err
 	}
@@ -137,11 +141,15 @@ func (s *Service) ResolveRef(ctx context.Context, ref string) (string, error) {
 		if err != nil {
 			return "", err
 		}
+		identity, err := newCiphertextIdentity(normalized, record.Kind)
+		if err != nil {
+			return "", err
+		}
 		key, err := s.keys.Key()
 		if err != nil {
 			return "", err
 		}
-		value, err := decryptValue(key, record.EncryptedValue)
+		value, err := decryptValue(key, record.EncryptedValue, identity)
 		if err != nil {
 			return "", err
 		}

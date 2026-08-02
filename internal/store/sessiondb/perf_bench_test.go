@@ -53,9 +53,10 @@ func openBenchmarkSessionDB(b *testing.B, sessionID string) *SessionDB {
 
 	sessionDB, err := OpenSessionDB(
 		context.Background(),
-		sessionID,
+		testSessionDBOwner(sessionID),
 		filepath.Join(b.TempDir(), store.SessionDatabaseName),
 	)
+
 	if err != nil {
 		b.Fatalf("OpenSessionDB() error = %v", err)
 	}

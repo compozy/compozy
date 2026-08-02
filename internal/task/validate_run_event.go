@@ -12,7 +12,23 @@ func (r RunBootRecovery) Validate(path string) error {
 	if err := r.Action.Validate(nestedPath(path, "action")); err != nil {
 		return err
 	}
-	return nil
+	if r.StopRequired && r.Action.Normalize() != RunBootRecoveryFail {
+		return fmt.Errorf(
+			"%w: %s is only valid for failed boot recovery",
+			ErrValidation,
+			nestedPath(path, "stop_required"),
+		)
+	}
+	if err := ValidateReasonSize(r.Reason, nestedPath(path, "reason")); err != nil {
+		return err
+	}
+	if err := ValidateReferenceSize(r.SessionState, nestedPath(path, "session_state")); err != nil {
+		return err
+	}
+	if err := ValidateReferenceSize(r.Classification, nestedPath(path, "classification")); err != nil {
+		return err
+	}
+	return ValidateDiagnosticSize(r.Detail, nestedPath(path, "detail"))
 }
 
 // Validate reports whether the audit event contains the canonical persisted shape.
@@ -20,11 +36,23 @@ func (e Event) Validate() error {
 	if strings.TrimSpace(e.ID) == "" {
 		return fmt.Errorf("%w: task_event.id is required", ErrValidation)
 	}
+	if err := ValidateReferenceSize(e.ID, "task_event.id"); err != nil {
+		return err
+	}
 	if strings.TrimSpace(e.TaskID) == "" {
 		return fmt.Errorf("%w: task_event.task_id is required", ErrValidation)
 	}
+	if err := ValidateReferenceSize(e.TaskID, "task_event.task_id"); err != nil {
+		return err
+	}
+	if err := ValidateReferenceSize(e.RunID, "task_event.run_id"); err != nil {
+		return err
+	}
 	if strings.TrimSpace(e.EventType) == "" {
 		return fmt.Errorf("%w: task_event.event_type is required", ErrValidation)
+	}
+	if err := ValidateReferenceSize(e.EventType, "task_event.event_type"); err != nil {
+		return err
 	}
 	if err := e.Actor.Validate("task_event.actor"); err != nil {
 		return err

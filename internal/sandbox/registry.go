@@ -86,6 +86,8 @@ func providerIsNil(provider Provider) bool {
 	if provider == nil {
 		return true
 	}
+	// Provider implementations are interfaces and may arrive as typed nil pointers.
+	// Reflection is confined to cold registry mutation, not sandbox execution.
 	value := reflect.ValueOf(provider)
 	switch value.Kind() {
 	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:

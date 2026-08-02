@@ -83,7 +83,7 @@ type bridgeTerminalTaskNotificationObserver struct {
 	cancel   context.CancelFunc
 	wg       sync.WaitGroup
 	mu       sync.Mutex
-	pending  map[string]struct{}
+	pending  map[bridgeTerminalTaskNotificationPendingKey]struct{}
 	backlog  []bridgeTerminalTaskNotificationWake
 	queue    chan bridgeTerminalTaskNotificationWake
 }
@@ -96,11 +96,19 @@ var _ taskpkg.EventObserver = (*bridgeTerminalTaskNotificationObserver)(nil)
 
 type bridgeTerminalTaskNotificationWake struct {
 	taskID     string
-	pendingKey string
+	pendingKey bridgeTerminalTaskNotificationPendingKey
 	eventID    string
 	runID      string
 	eventType  string
 	record     taskpkg.EventRecord
+}
+
+type bridgeTerminalTaskNotificationPendingKey struct {
+	presetDispatch bool
+	taskID         string
+	eventID        string
+	runID          string
+	eventType      string
 }
 
 func (d *Daemon) composeTaskEventObserver(
@@ -162,7 +170,7 @@ func newBridgeTerminalTaskNotificationObserver(
 		tasks:   taskEvents,
 		ctx:     ctx,
 		cancel:  cancel,
-		pending: make(map[string]struct{}),
+		pending: make(map[bridgeTerminalTaskNotificationPendingKey]struct{}),
 		queue: make(
 			chan bridgeTerminalTaskNotificationWake,
 			defaultBridgeTerminalNotificationQueueSize,
@@ -193,7 +201,7 @@ func (o *bridgeTerminalTaskNotificationObserver) OnTaskEvent(
 	_ context.Context,
 	record taskpkg.EventRecord,
 ) {
-	if o == nil || strings.TrimSpace(record.Event.TaskID) == "" {
+	if o == nil || record.Event.TaskID == "" {
 		return
 	}
 	if o.notifier == nil && o.presets == nil {
@@ -240,24 +248,24 @@ func (o *bridgeTerminalTaskNotificationObserver) enqueue(record taskpkg.EventRec
 		return
 	}
 	wake := bridgeTerminalTaskNotificationWake{
-		taskID:    strings.TrimSpace(record.Event.TaskID),
-		eventID:   strings.TrimSpace(record.Event.ID),
-		runID:     strings.TrimSpace(record.Event.RunID),
-		eventType: strings.TrimSpace(record.Event.EventType),
+		taskID:    record.Event.TaskID,
+		eventID:   record.Event.ID,
+		runID:     record.Event.RunID,
+		eventType: record.Event.EventType,
 		record:    record,
 	}
 	if wake.taskID == "" {
 		return
 	}
-	wake.pendingKey = wake.taskID
+	wake.pendingKey = bridgeTerminalTaskNotificationPendingKey{taskID: wake.taskID}
 	if o.presets != nil {
-		wake.pendingKey = wake.eventID
-		if wake.pendingKey == "" {
-			wake.pendingKey = strings.Join([]string{wake.taskID, wake.runID, wake.eventType}, ":")
+		wake.pendingKey = bridgeTerminalTaskNotificationPendingKey{
+			presetDispatch: true,
+			taskID:         wake.taskID,
+			eventID:        wake.eventID,
+			runID:          wake.runID,
+			eventType:      wake.eventType,
 		}
-	}
-	if wake.pendingKey == "" {
-		return
 	}
 	o.mu.Lock()
 	if _, exists := o.pending[wake.pendingKey]; exists {
@@ -432,11 +440,11 @@ func presetEventFromTaskRecord(
 	logger *slog.Logger,
 ) presetspkg.Event {
 	event := presetspkg.Event{
-		ID:        strings.TrimSpace(record.Event.ID),
-		Type:      strings.TrimSpace(record.Event.EventType),
+		ID:        record.Event.ID,
+		Type:      record.Event.EventType,
 		AgentName: strings.TrimSpace(record.Event.Actor.Ref),
-		TaskID:    strings.TrimSpace(record.Event.TaskID),
-		RunID:     strings.TrimSpace(record.Event.RunID),
+		TaskID:    record.Event.TaskID,
+		RunID:     record.Event.RunID,
 		Outcome:   eventspkg.OutcomeFor(record.Event.EventType),
 		Sequence:  record.Sequence,
 		Payload:   append([]byte(nil), record.Event.Payload...),
@@ -445,7 +453,10 @@ func presetEventFromTaskRecord(
 	if tasks != nil && event.TaskID != "" {
 		taskRecord, err := tasks.GetTask(ctx, event.TaskID)
 		if err == nil {
-			event.WorkspaceID = strings.TrimSpace(taskRecord.WorkspaceID)
+			event.Scope = notifications.ScopeRef{
+				Kind:        notifications.ScopeKind(taskRecord.Scope.Normalize()),
+				WorkspaceID: taskRecord.WorkspaceID,
+			}
 			event.Summary = strings.TrimSpace(taskRecord.Title)
 		} else if logger != nil {
 			logger.Debug(

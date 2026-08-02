@@ -132,6 +132,11 @@ func TestTaskErrorHelpers(t *testing.T) {
 			want: http.StatusServiceUnavailable,
 		},
 		{name: "attach forbidden", err: taskpkg.ErrSessionAttachNotAllowed, want: http.StatusConflict},
+		{
+			name: "Should return conflict for a terminal command already in progress",
+			err:  taskpkg.ErrTerminalRunCommandInProgress,
+			want: http.StatusConflict,
+		},
 		{name: "workspace capacity full", err: taskpkg.ErrWorkspaceActiveRunCapReached, want: http.StatusConflict},
 		{name: "default", err: errors.New("boom"), want: http.StatusInternalServerError},
 	}
@@ -350,14 +355,15 @@ func TestRespondErrorDiagnosticPayload(t *testing.T) {
 		gin.SetMode(gin.TestMode)
 		recorder := httptest.NewRecorder()
 		ctx, _ := gin.CreateTestContext(recorder)
-		item := diagnostics.NewItem(
-			"api.config_invalid",
-			contract.CodeConfigInvalid,
-			contract.CategoryConfig,
-			"Config invalid",
-			"config token=api-secret failed",
-			contract.SeverityCritical,
-			contract.FreshnessLive,
+		item := diagnostics.NewItem(diagnostics.ItemSpec{
+			ID:            "api.config_invalid",
+			Code:          contract.CodeConfigInvalid,
+			Category:      contract.CategoryConfig,
+			Title:         "Config invalid",
+			Message:       "config token=api-secret failed",
+			Severity:      contract.SeverityCritical,
+			DataFreshness: contract.FreshnessLive,
+		},
 			diagnostics.WithEvidence(map[string]any{"api_key": "sk-secret"}),
 		)
 		RespondError(
@@ -450,15 +456,15 @@ func TestErrorPayloadForError(t *testing.T) {
 	t.Run("Should redact structured diagnostic secrets in serialized payload", func(t *testing.T) {
 		t.Parallel()
 
-		item := diagnostics.NewItem(
-			"stream.daemon_unavailable",
-			contract.CodeDaemonUnavailable,
-			contract.CategoryDaemon,
-			"Daemon unavailable",
-			"socket token=stream-secret failed",
-			contract.SeverityError,
-			contract.FreshnessOffline,
-		)
+		item := diagnostics.NewItem(diagnostics.ItemSpec{
+			ID:            "stream.daemon_unavailable",
+			Code:          contract.CodeDaemonUnavailable,
+			Category:      contract.CategoryDaemon,
+			Title:         "Daemon unavailable",
+			Message:       "socket token=stream-secret failed",
+			Severity:      contract.SeverityError,
+			DataFreshness: contract.FreshnessOffline,
+		})
 		payload := ErrorPayloadForError(diagnostics.NewStructuredError(item, errors.New("token=cause-secret")))
 		if payload.Diagnostic == nil {
 			t.Fatal("payload.Diagnostic = nil, want diagnostic")

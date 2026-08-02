@@ -158,6 +158,23 @@ and current `expected_revision`. Clear the selection with
 `DELETE /api/workspaces/:workspace/sessions/:id/runtime?expected_revision=<revision>`. A stale
 revision returns `409`; read the session again before deciding what to save.
 
+
+### Workspace knowledge on live turns
+
+Put workspace-owned reference material under `<workspace>/knowledge/` as Markdown files. Before an
+accepted user, Network, or synthetic turn reaches the agent, Compozy reopens that tree and adds a
+bounded `<workspace-knowledge-snapshot>` to the prompt. The snapshot carries the current file bytes,
+workspace-relative paths, a revision digest, and omission metadata when a safety limit is reached.
+
+Compozy reads regular `.md` files only and does not follow symbolic links. The read stays inside the
+session workspace. A file change does not wake a session by itself; the next eligible turn receives
+the new snapshot. This includes task, task-creator, and Heartbeat wakes, so an active worker does not
+need a second operator prompt to observe a knowledge change.
+
+The snapshot is prompt context, not durable Compozy memory. Use the [memory
+system](/docs/memory/system) when the information must be curated, searched, or retained across
+workspaces and sessions.
+
 ### Busy input modes
 
 An active session still processes one prompt turn at a time, but Compozy accepts explicit busy-input

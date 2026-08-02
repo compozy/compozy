@@ -48,26 +48,21 @@ func claimExactRunForTest(
 	return &result.Run, nil
 }
 
-// seedNonLeasedClaimedRunForTest prepares the internal precondition owned by
-// StartRun, attach, and boot-recovery tests. Exact agent claims are lease-bound
-// and deliberately use claimExactRunForTest instead.
-func seedNonLeasedClaimedRunForTest(
+// admitRunDirectlyForTest exercises the production tokenless admission while
+// leaving the run claimed for focused lifecycle tests.
+func admitRunDirectlyForTest(
 	ctx context.Context,
 	manager *Service,
 	runID string,
 	actor ActorContext,
 ) (*Run, error) {
-	run, err := manager.store.GetTaskRun(ctx, runID)
+	run, _, err := manager.loadAuthorizedRunWithTask(ctx, runID, actor)
 	if err != nil {
 		return nil, err
 	}
-	run.Status = TaskRunStatusClaimed
-	run.ClaimedBy = cloneActorIdentity(&actor.Actor)
-	run.ClaimedAt = manager.now().UTC()
-	run.SessionID = ""
-	run.ClaimTokenHash = ""
-	if err := manager.store.UpdateTaskRun(ctx, run); err != nil {
+	admitted, _, err := manager.admitQueuedRunForDirectExecution(ctx, run, actor)
+	if err != nil {
 		return nil, err
 	}
-	return &run, nil
+	return &admitted, nil
 }

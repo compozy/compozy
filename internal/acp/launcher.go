@@ -2,6 +2,7 @@ package acp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -57,30 +58,31 @@ func (l *localLauncher) Launch(
 	ctx context.Context,
 	spec sandbox.LaunchSpec,
 ) (sandbox.Handle, error) {
-	command, args, err := parseCommandString(spec.Command)
+	if ctx == nil {
+		return nil, errors.New("acp: launch context is required")
+	}
+	prepared, err := l.PrepareLaunch(ctx, spec)
 	if err != nil {
 		return nil, err
 	}
-	if ctx == nil {
-		ctx = context.Background()
-	}
 
 	managed, err := subprocess.Launch(ctx, subprocess.LaunchConfig{
-		Command:          command,
-		Args:             args,
-		Dir:              spec.Cwd,
-		Env:              daemonMatchedEnv(spec.Env),
+		Command:          prepared.ResolvedExecutable,
+		Executable:       prepared.ResolvedExecutable,
+		Args:             append([]string(nil), prepared.Args...),
+		Dir:              prepared.Cwd,
+		Env:              append([]string(nil), prepared.Env...),
 		Logger:           l.logger,
 		DisableTransport: true,
 		ShutdownTimeout:  l.stopTimeout,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("acp: start subprocess %q: %w", spec.Command, err)
+		return nil, fmt.Errorf("acp: start subprocess %q: %w", prepared.Command, err)
 	}
 
 	return &localProcessHandle{
 		process: managed,
-		cwd:     spec.Cwd,
+		cwd:     prepared.Cwd,
 	}, nil
 }
 

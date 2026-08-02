@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+
+	"github.com/compozy/compozy/internal/redact"
 )
 
 const (
@@ -105,7 +107,8 @@ type transport struct {
 	pendingMu sync.Mutex
 	pending   map[string]chan callResult
 
-	writeMu sync.Mutex
+	writeMu   sync.Mutex
+	handlerWG sync.WaitGroup
 
 	readerDone chan struct{}
 	seq        atomic.Int64
@@ -160,6 +163,7 @@ func (t *transport) start() {
 
 func (t *transport) shutdown(waitErr error) {
 	<-t.readerDone
+	t.handlerWG.Wait()
 	if waitErr == nil {
 		waitErr = t.process.currentTransportError()
 	}
@@ -282,7 +286,7 @@ func (t *transport) readLoop() {
 	}
 
 	if err := scanner.Err(); err != nil {
-		if strings.Contains(err.Error(), "token too long") {
+		if errors.Is(err, bufio.ErrTooLong) {
 			t.failTransport(fmt.Errorf("subprocess: message exceeds %d bytes", t.maxMessageBytes))
 			return
 		}
@@ -362,7 +366,7 @@ func (t *transport) handleRequest(envelope rpcEnvelope) {
 		return
 	}
 
-	go func() {
+	t.handlerWG.Go(func() {
 		result, callErr := handler(t.process.lifecycleCtx, envelope.Params)
 		if callErr != nil {
 			if rpcErr, ok := errors.AsType[*RPCError](callErr); ok {
@@ -371,13 +375,15 @@ func (t *transport) handleRequest(envelope rpcEnvelope) {
 			}
 			t.sendErrorOrFail(
 				id.raw,
-				NewRPCError(codeInternalError, "Internal error", map[string]string{transportErrorKey: callErr.Error()}),
+				NewRPCError(codeInternalError, "Internal error", map[string]string{
+					transportErrorKey: redact.ClaimTokens(callErr.Error()),
+				}),
 				"subprocess: send internal error",
 			)
 			return
 		}
 		t.sendResultOrFail(id.raw, result, "subprocess: send result")
-	}()
+	})
 }
 
 func (t *transport) sendResult(id json.RawMessage, result any) error {
@@ -392,8 +398,20 @@ func (t *transport) sendError(id json.RawMessage, err *RPCError) error {
 	return t.writeJSON(rpcResponse{
 		JSONRPC: jsonRPCVersion,
 		ID:      id,
-		Error:   err,
+		Error:   sanitizeRPCErrorForWire(err),
 	})
+}
+
+func sanitizeRPCErrorForWire(err *RPCError) *RPCError {
+	if err == nil {
+		return nil
+	}
+	message := redact.ClaimTokens(err.Message)
+	data := redact.ClaimTokensJSON(err.Data)
+	if message == err.Message && bytes.Equal(data, err.Data) {
+		return err
+	}
+	return &RPCError{Code: err.Code, Message: message, Data: data}
 }
 
 func (t *transport) closePending(reason error) {

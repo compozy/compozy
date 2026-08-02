@@ -649,6 +649,10 @@ func TestGitHubClientPATAndAppRequests(t *testing.T) {
 		httpClient: server.Client(),
 		now:        func() time.Time { return time.Date(2026, 4, 15, 21, 0, 0, 0, time.UTC) },
 	}
+	var nilContext context.Context
+	if _, err := patClient.ValidateAuth(nilContext, 0); err == nil {
+		t.Fatal("ValidateAuth(nil context) error = nil, want context validation failure")
+	}
 	viewer, err := patClient.ValidateAuth(context.Background(), 0)
 	if err != nil {
 		t.Fatalf("ValidateAuth(PAT) error = %v", err)
@@ -919,8 +923,8 @@ func TestGitHubClientClassifiesHTTPFailures(t *testing.T) {
 		if !errors.Is(err, readErr) {
 			t.Fatalf("CreateIssueComment() error = %v, want response body read failure", err)
 		}
-		var rateLimitErr *bridgesdk.RateLimitError
-		if !errors.As(err, &rateLimitErr) || rateLimitErr.RetryAfter != 4*time.Second {
+		rateLimitErr, rateLimitErrMatched := errors.AsType[*bridgesdk.RateLimitError](err)
+		if !rateLimitErrMatched || rateLimitErr.RetryAfter != 4*time.Second {
 			t.Fatalf("CreateIssueComment() error = %v, want rate limit with four-second retry", err)
 		}
 		if got, want := bridgesdk.ClassifyError(err).Class, bridgesdk.ErrorClassRateLimit; got != want {
@@ -1088,6 +1092,11 @@ func TestGitHubProviderAfterInitializeSyncsOwnedInstancesAndReportsState(t *test
 
 	if err := provider.lifecycle.Initialize(context.Background(), session); err != nil {
 		t.Fatalf("Initialize() error = %v", err)
+	}
+	var nilContext context.Context
+	if _, err := provider.waitForInstanceConfig(nilContext, "missing"); err == nil ||
+		!strings.Contains(err.Error(), "context is required") {
+		t.Fatalf("waitForInstanceConfig(nil context) error = %v", err)
 	}
 	select {
 	case <-provider.lifecycle.Initialized():
@@ -1806,10 +1815,10 @@ func TestGitHubProviderLifecycleRunAndRetryHelpers(t *testing.T) {
 	if err := run([]string{"bogus"}, strings.NewReader(""), io.Discard, io.Discard); err == nil {
 		t.Fatal("run(unsupported) error = nil, want non-nil")
 	}
-	if err := provider.serve(strings.NewReader(""), io.Discard); err != nil {
+	if err := provider.serve(io.NopCloser(strings.NewReader("")), io.Discard); err != nil {
 		t.Fatalf("provider.serve(empty stdin) error = %v, want nil", err)
 	}
-	if err := runServe(strings.NewReader(""), io.Discard, io.Discard); err != nil {
+	if err := runServe(io.NopCloser(strings.NewReader("")), io.Discard, io.Discard); err != nil {
 		t.Fatalf("runServe(empty stdin) error = %v, want nil", err)
 	}
 }
@@ -2078,8 +2087,8 @@ func TestGitHubAdditionalHelpersAndErrorClassification(t *testing.T) {
 	if err := classifyGitHubHTTPError(http.StatusForbidden, "9", `{"message":"rate limit exceeded"}`); err == nil {
 		t.Fatal("classifyGitHubHTTPError(403 rate limit) error = nil, want non-nil")
 	} else {
-		var rateErr *bridgesdk.RateLimitError
-		if !errors.As(err, &rateErr) || rateErr.RetryAfter != 9*time.Second {
+		rateErr, rateErrMatched := errors.AsType[*bridgesdk.RateLimitError](err)
+		if !rateErrMatched || rateErr.RetryAfter != 9*time.Second {
 			t.Fatalf("403 rate limit classification = %#v, want retry-after 9s", err)
 		}
 	}

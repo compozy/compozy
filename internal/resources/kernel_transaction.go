@@ -3,43 +3,10 @@ package resources
 import (
 	"bytes"
 	"context"
-	"database/sql"
-	"errors"
 	"fmt"
 
 	"github.com/compozy/compozy/internal/store"
 )
-
-func rollbackTx(tx *sql.Tx) error {
-	if tx == nil {
-		return nil
-	}
-	if err := tx.Rollback(); err != nil && !errors.Is(err, sql.ErrTxDone) {
-		return err
-	}
-	return nil
-}
-
-func rollbackImmediate(ctx context.Context, conn *sql.Conn) error {
-	if conn == nil {
-		return nil
-	}
-	if _, err := conn.ExecContext(ctx, "ROLLBACK"); err != nil {
-		return err
-	}
-	return nil
-}
-
-func joinCleanupError(target *error, cleanupErr error) {
-	if cleanupErr == nil || target == nil {
-		return
-	}
-	if *target == nil {
-		*target = cleanupErr
-		return
-	}
-	*target = errors.Join(*target, cleanupErr)
-}
 
 func (k *Kernel) withImmediateTransaction(
 	ctx context.Context,

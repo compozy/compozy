@@ -1,11 +1,8 @@
 package httpapi
 
 import (
-	"context"
 	"fmt"
 	"log/slog"
-	"net"
-	"net/http"
 	"sync"
 	"time"
 
@@ -104,12 +101,8 @@ type Server struct {
 	engine       *gin.Engine
 	handlers     *Handlers
 	staticSource string
-	httpServer   *http.Server
-	listener     net.Listener
-	serveDone    chan struct{}
-	serveErr     error
-	streamCancel context.CancelFunc
-	started      bool
+	generation   *serverGeneration
+	state        serverState
 	actualPort   int
 }
 

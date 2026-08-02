@@ -139,8 +139,8 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 			},
 		)
 
-		var toolErr *toolspkg.ToolError
-		if !errors.As(err, &toolErr) {
+		toolErr, toolErrMatched := errors.AsType[*toolspkg.ToolError](err)
+		if !toolErrMatched {
 			t.Fatalf("Registry.Call(loop_list foreign workspace) error = %v, want ToolError", err)
 		}
 		if toolErr.Code != toolspkg.ErrorCodeDenied ||
@@ -185,8 +185,8 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 			toolspkg.Scope{SessionID: "sess-alpha", WorkspaceID: "ws-alpha"},
 			toolspkg.CallRequest{ToolID: toolspkg.ToolIDLoopCreate, Input: input},
 		)
-		var toolErr *toolspkg.ToolError
-		if !errors.As(err, &toolErr) || toolErr.Code != toolspkg.ErrorCodeConflict {
+		toolErr, toolErrMatched := errors.AsType[*toolspkg.ToolError](err)
+		if !toolErrMatched || toolErr.Code != toolspkg.ErrorCodeConflict {
 			t.Fatalf("Registry.Call(loop_create stale) error = %#v, want conflict ToolError", err)
 		}
 		if !slices.Contains(toolErr.ReasonCodes, toolspkg.ReasonLoopVersionConflict) {
@@ -231,8 +231,8 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 				Input:  json.RawMessage(`{"name":"review-and-fix"}`),
 			},
 		)
-		var toolErr *toolspkg.ToolError
-		if !errors.As(err, &toolErr) || toolErr.Code != toolspkg.ErrorCodeDenied {
+		toolErr, toolErrMatched := errors.AsType[*toolspkg.ToolError](err)
+		if !toolErrMatched || toolErr.Code != toolspkg.ErrorCodeDenied {
 			t.Fatalf("Registry.Call(loop_delete read-only) error = %#v, want denied ToolError", err)
 		}
 		if !slices.Contains(toolErr.ReasonCodes, toolspkg.ReasonLoopSourceImmutable) ||
@@ -319,8 +319,8 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 					toolspkg.Scope{SessionID: "sess-alpha", WorkspaceID: "ws-alpha"},
 					toolspkg.CallRequest{ToolID: tc.toolID, Input: tc.input},
 				)
-				var toolErr *toolspkg.ToolError
-				if !errors.As(err, &toolErr) || toolErr.Code != toolspkg.ErrorCodeInvalidInput {
+				toolErr, toolErrMatched := errors.AsType[*toolspkg.ToolError](err)
+				if !toolErrMatched || toolErr.Code != toolspkg.ErrorCodeInvalidInput {
 					t.Fatalf("Registry.Call(%s) error = %#v, want invalid-input ToolError", tc.toolID, err)
 				}
 				if !slices.Contains(toolErr.ReasonCodes, tc.wantReason) ||
@@ -671,8 +671,8 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 				Input:  json.RawMessage(`{"name":"review-and-fix","inputs":{"unknown":true},"dry":true}`),
 			},
 		)
-		var toolErr *toolspkg.ToolError
-		if !errors.As(err, &toolErr) || toolErr.Code != toolspkg.ErrorCodeInvalidInput {
+		toolErr, toolErrMatched := errors.AsType[*toolspkg.ToolError](err)
+		if !toolErrMatched || toolErr.Code != toolspkg.ErrorCodeInvalidInput {
 			t.Fatalf("Registry.Call(loop_run input default) error = %#v, want invalid-input ToolError", err)
 		}
 		if toolErr.PartialResult == nil {
@@ -770,8 +770,8 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 			},
 		)
 
-		var toolErr *toolspkg.ToolError
-		if !errors.As(err, &toolErr) {
+		toolErr, toolErrMatched := errors.AsType[*toolspkg.ToolError](err)
+		if !toolErrMatched {
 			t.Fatalf("Registry.Call(loop_validate retired key) error = %v, want ToolError", err)
 		}
 		if toolErr.Code != toolspkg.ErrorCodeInvalidInput ||
@@ -944,8 +944,8 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 			},
 		)
 
-		var toolErr *toolspkg.ToolError
-		if !errors.As(err, &toolErr) {
+		toolErr, toolErrMatched := errors.AsType[*toolspkg.ToolError](err)
+		if !toolErrMatched {
 			t.Fatalf("Registry.Call(loop_approve) error = %v, want ToolError", err)
 		}
 		if !slices.Contains(toolErr.ReasonCodes, toolspkg.ReasonApprovalSelfDenied) ||
@@ -976,8 +976,8 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 			},
 		)
 
-		var toolErr *toolspkg.ToolError
-		if !errors.As(err, &toolErr) {
+		toolErr, toolErrMatched := errors.AsType[*toolspkg.ToolError](err)
+		if !toolErrMatched {
 			t.Fatalf("Registry.Call(loop_approve raw token) error = %v, want ToolError", err)
 		}
 		if toolErr.Code != toolspkg.ErrorCodeInvalidInput ||
@@ -1151,8 +1151,8 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 			ToolID: toolspkg.ToolIDGoalReport,
 			Input:  json.RawMessage(`{"status":"complete"}`),
 		})
-		var toolErr *toolspkg.ToolError
-		if !errors.As(err, &toolErr) ||
+		toolErr, toolErrMatched := errors.AsType[*toolspkg.ToolError](err)
+		if !toolErrMatched ||
 			!slices.Contains(toolErr.ReasonCodes, toolspkg.ReasonGoalNotActive) {
 			t.Fatalf("Registry.Call(goal_report revoked) error = %#v", err)
 		}

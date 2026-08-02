@@ -147,7 +147,7 @@ func validateNativeToolBindings(
 
 func appendToolEventSinkOption(
 	options []toolspkg.RegistryOption,
-	registry Registry,
+	registry extensionLifecycleEventWriter,
 	now func() time.Time,
 ) []toolspkg.RegistryOption {
 	writer := extensionEventSummaryStore(registry)

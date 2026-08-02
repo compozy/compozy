@@ -311,7 +311,7 @@ func postGChatProviderWebhook(t *testing.T, endpoint string, bearerToken string,
 			continue
 		}
 		body, readErr := io.ReadAll(resp.Body)
-		_ = resp.Body.Close()
+		closeProviderIntegrationBody(t, resp.Body)
 		if readErr != nil {
 			t.Fatalf("io.ReadAll(response body) error = %v", readErr)
 		}
@@ -492,14 +492,14 @@ func newGChatProviderAPIServer(t *testing.T) *gchatProviderAPIServer {
 	srv.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/direct-certs":
-			_ = json.NewEncoder(w).Encode(map[string]string{"direct-kid": srv.directCertPEM})
+			writeProviderIntegrationJSON(t, w, map[string]string{"direct-kid": srv.directCertPEM})
 			return
 		case r.Method == http.MethodGet && r.URL.Path == "/pubsub-certs":
-			_ = json.NewEncoder(w).Encode(map[string]string{"pubsub-kid": srv.pubSubCertPEM})
+			writeProviderIntegrationJSON(t, w, map[string]string{"pubsub-kid": srv.pubSubCertPEM})
 			return
 		case r.Method == http.MethodPost && r.URL.Path == "/oauth2/token":
 			srv.recordCall(r.Method, r.URL.Path, map[string]any{"grant_type": "jwt-bearer"})
-			_ = json.NewEncoder(w).Encode(map[string]any{
+			writeProviderIntegrationJSON(t, w, map[string]any{
 				"access_token": "token-123",
 				"expires_in":   3600,
 				"token_type":   "Bearer",
@@ -514,7 +514,10 @@ func newGChatProviderAPIServer(t *testing.T) *gchatProviderAPIServer {
 
 		body := map[string]any{}
 		if r.Body != nil {
-			_ = json.NewDecoder(r.Body).Decode(&body)
+			if !decodeProviderIntegrationJSON(t, r.Body, &body) {
+				http.Error(w, "invalid JSON request", http.StatusBadRequest)
+				return
+			}
 		}
 		srv.recordCall(r.Method, r.URL.Path, body)
 
@@ -541,7 +544,7 @@ func newGChatProviderAPIServer(t *testing.T) *gchatProviderAPIServer {
 			}
 			srv.mu.Unlock()
 
-			_ = json.NewEncoder(w).Encode(map[string]any{
+			writeProviderIntegrationJSON(t, w, map[string]any{
 				"name": name,
 				"thread": map[string]any{
 					"name": threadName,
@@ -550,7 +553,7 @@ func newGChatProviderAPIServer(t *testing.T) *gchatProviderAPIServer {
 			return
 		case r.Method == http.MethodPatch:
 			name := strings.TrimPrefix(r.URL.Path, "/v1/")
-			_ = json.NewEncoder(w).Encode(map[string]any{"name": name})
+			writeProviderIntegrationJSON(t, w, map[string]any{"name": name})
 			return
 		case r.Method == http.MethodDelete:
 			w.WriteHeader(http.StatusNoContent)
@@ -564,7 +567,7 @@ func newGChatProviderAPIServer(t *testing.T) *gchatProviderAPIServer {
 				http.NotFound(w, r)
 				return
 			}
-			_ = json.NewEncoder(w).Encode(message)
+			writeProviderIntegrationJSON(t, w, message)
 			return
 		default:
 			http.NotFound(w, r)

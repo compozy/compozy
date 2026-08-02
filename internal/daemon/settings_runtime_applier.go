@@ -7,7 +7,6 @@ import (
 	"github.com/compozy/compozy/internal/deadentity"
 	"github.com/compozy/compozy/internal/diagnosticcontract"
 	"github.com/compozy/compozy/internal/diagnostics"
-	"github.com/compozy/compozy/internal/providers"
 	settingspkg "github.com/compozy/compozy/internal/settings"
 	"github.com/compozy/compozy/internal/store"
 )
@@ -93,13 +92,16 @@ func (a daemonSettingsRuntimeApplier) ApplyActiveConfig(
 	}
 	a.state.cfg = next
 	a.daemon.config = next
+	preStarter := a.daemon.providerPreStarter
 	a.daemon.mu.Unlock()
 	// Drop cached workspace overlays so role and status resolution sees the applied global config.
 	if a.state.workspaceResolver != nil {
 		a.state.workspaceResolver.InvalidateAll()
 	}
 
-	providers.InvalidatePreStartCache()
+	if preStarter != nil {
+		preStarter.Clear()
+	}
 	return nil
 }
 
@@ -259,14 +261,15 @@ func configApplyFailure(
 ) settingspkg.ApplyFailure {
 	return settingspkg.ApplyFailure{
 		Subsystem: subsystem,
-		Diagnostic: diagnostics.NewItem(
-			"config.apply."+subsystem+"_sync_failed",
-			diagnosticcontract.CodeConfigPartialFailure,
-			category,
-			summary,
-			diagnostics.RedactAndBound(err.Error(), 1024),
-			diagnosticcontract.SeverityError,
-			diagnosticcontract.FreshnessLive,
+		Diagnostic: diagnostics.NewItem(diagnostics.ItemSpec{
+			ID:            "config.apply." + subsystem + "_sync_failed",
+			Code:          diagnosticcontract.CodeConfigPartialFailure,
+			Category:      category,
+			Title:         summary,
+			Message:       diagnostics.RedactAndBound(err.Error(), 1024),
+			Severity:      diagnosticcontract.SeverityError,
+			DataFreshness: diagnosticcontract.FreshnessLive,
+		},
 			diagnostics.WithSuggestedCommand("compozy config reload"),
 		),
 	}

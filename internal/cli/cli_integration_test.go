@@ -157,19 +157,53 @@ func TestCLIRoundTripIntegration(t *testing.T) {
 	}
 }
 
+func TestIntegrationHarnessStopAndWaitIntegration(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should preserve a daemon-stop error after forcing the daemon to exit", func(t *testing.T) {
+		t.Parallel()
+
+		h := newIntegrationHarness(t)
+		mustExecuteRoot(t, h.deps, "daemon", "start", "-o", "json")
+
+		stopErr := errors.New("injected daemon stop failure")
+		h.deps.stopTimeout = 250 * time.Millisecond
+		h.deps.signalProcess = func(int, syscall.Signal) error {
+			return stopErr
+		}
+
+		err := h.stopAndWait(t)
+		if !errors.Is(err, stopErr) {
+			t.Fatalf("stopAndWait() error = %v, want injected stop error", err)
+		}
+		if h.runner.processAlive(h.runner.pid) {
+			t.Fatal("integration daemon remained running after failed daemon stop")
+		}
+	})
+
+	t.Run("Should stop an unpublished daemon through harness ownership", func(t *testing.T) {
+		t.Parallel()
+
+		h := newIntegrationHarness(t)
+		mustExecuteRoot(t, h.deps, "daemon", "start", "-o", "json")
+		if err := os.Remove(h.homePaths.DaemonInfo); err != nil {
+			t.Fatalf("os.Remove(daemon info) error = %v", err)
+		}
+
+		if err := h.stopAndWait(t); err != nil {
+			t.Fatalf("stopAndWait() error = %v, want nil for an unpublished daemon", err)
+		}
+		if h.runner.processAlive(h.runner.pid) {
+			t.Fatal("integration daemon remained running after unpublished cleanup")
+		}
+	})
+}
+
 func TestSessionListOutputFormatsIntegration(t *testing.T) {
 	t.Parallel()
 
 	h := newIntegrationHarness(t)
 	mustExecuteRoot(t, h.deps, "daemon", "start", "-o", "json")
-	defer func() {
-		if _, _, err := executeRootCommand(t, h.deps, "daemon", "stop", "-o", "json"); err != nil {
-			t.Fatalf("daemon stop error = %v", err)
-		}
-		if err := h.runner.waitForExit(); err != nil {
-			t.Fatalf("daemon runner wait error = %v", err)
-		}
-	}()
 
 	sessionOut, _, err := executeRootCommand(
 		t,
@@ -231,11 +265,6 @@ func TestCLISessionChannelRoundTripIntegration(t *testing.T) {
 
 	h := newIntegrationHarness(t)
 	mustExecuteRoot(t, h.deps, "daemon", "start", "-o", "json")
-	defer func() {
-		_, _, _ = executeRootCommand(t, h.deps, "daemon", "stop", "-o", "json")
-		_ = h.runner.waitForExit()
-	}()
-
 	newOut, _, err := executeRootCommand(
 		t,
 		h.deps,
@@ -318,16 +347,6 @@ func TestCLISessionRemoveAndWorkspaceRemoveIntegration(t *testing.T) {
 
 		h := newIntegrationHarness(t)
 		mustExecuteRoot(t, h.deps, "daemon", "start", "-o", "json")
-		t.Cleanup(func() {
-			if _, _, err := executeRootCommand(t, h.deps, "daemon", "stop", "-o", "json"); err != nil {
-				if !strings.Contains(err.Error(), "daemon is not running") {
-					t.Errorf("daemon stop cleanup error = %v", err)
-				}
-			}
-			if err := h.runner.waitForExit(); err != nil {
-				t.Errorf("waitForExit() cleanup error = %v", err)
-			}
-		})
 
 		workspaceOut := mustExecuteRoot(t, h.deps, "workspace", "add", h.workspace, "--name", "alpha", "-o", "json")
 		var registered WorkspaceRecord
@@ -444,11 +463,6 @@ func TestCLISessionProviderOverrideIntegration(t *testing.T) {
 	h.runner.cfg.Providers["fake-alt"] = compozyconfig.ProviderConfig{Command: "fake-alt-agent"}
 
 	mustExecuteRoot(t, h.deps, "daemon", "start", "-o", "json")
-	defer func() {
-		_, _, _ = executeRootCommand(t, h.deps, "daemon", "stop", "-o", "json")
-		_ = h.runner.waitForExit()
-	}()
-
 	newOut, _, err := executeRootCommand(
 		t,
 		h.deps,
@@ -543,27 +557,6 @@ func TestCLIAgentAuthoredContextIntegration(t *testing.T) {
 
 	h := newIntegrationHarness(t)
 	mustExecuteRoot(t, h.deps, "daemon", "start", "--json")
-	defer func() {
-		stopStdout, stopStderr, stopErr := executeRootCommand(t, h.deps, "daemon", "stop", "--json")
-		if stopErr != nil {
-			t.Logf("daemon stop error = %v; stderr=%s; stdout=%s", stopErr, stopStderr, stopStdout)
-			if signalErr := h.runner.signalProcess(h.runner.pid, syscall.SIGTERM); signalErr != nil {
-				t.Logf("fallback daemon signal error = %v", signalErr)
-			}
-		}
-		done := make(chan error, 1)
-		go func() {
-			done <- h.runner.waitForExit()
-		}()
-		select {
-		case waitErr := <-done:
-			if waitErr != nil {
-				t.Logf("daemon wait error = %v", waitErr)
-			}
-		case <-time.After(5 * time.Second):
-			t.Log("daemon wait timed out during authored-context integration cleanup")
-		}
-	}()
 	writeWorkspaceAgentDef(t, h.workspace, "coder")
 	mustExecuteRoot(t, h.deps, "workspace", "add", h.workspace, "--name", "alpha", "--json")
 
@@ -713,11 +706,6 @@ func TestCLINetworkRoundTripIntegration(t *testing.T) {
 
 	h := newIntegrationHarness(t)
 	mustExecuteRoot(t, h.deps, "daemon", "start", "-o", "json")
-	defer func() {
-		_, _, _ = executeRootCommand(t, h.deps, "daemon", "stop", "-o", "json")
-		_ = h.runner.waitForExit()
-	}()
-
 	newOut, _, err := executeRootCommand(
 		t,
 		h.deps,
@@ -1030,11 +1018,6 @@ func TestCLINetworkDirectRetryAndResumeIntegration(t *testing.T) {
 
 	h := newIntegrationHarness(t)
 	mustExecuteRoot(t, h.deps, "daemon", "start", "-o", "json")
-	defer func() {
-		_, _, _ = executeRootCommand(t, h.deps, "daemon", "stop", "-o", "json")
-		_ = h.runner.waitForExit()
-	}()
-
 	newSession := func(name string) SessionRecord {
 		t.Helper()
 
@@ -1439,8 +1422,9 @@ channel_scopes = ["team/*"]
 		}
 
 		_, _, enableErr := executeRootCommand(t, h.deps, "extension", "enable", "integration-ext", "-o", "json")
-		var operationErr *extensionOperationAPIError
-		if !errors.As(enableErr, &operationErr) {
+
+		operationErr, operationErrMatched := errors.AsType[*extensionOperationAPIError](enableErr)
+		if !operationErrMatched {
 			t.Fatalf("extension enable error = %v, want structured operation error", enableErr)
 		}
 		operationPayload := operationErr.extensionOperationErrorPayload()
@@ -1475,11 +1459,6 @@ func TestSessionEventsFollowIntegration(t *testing.T) {
 
 	h := newIntegrationHarness(t)
 	mustExecuteRoot(t, h.deps, "daemon", "start", "-o", "json")
-	defer func() {
-		_, _, _ = executeRootCommand(t, h.deps, "daemon", "stop", "-o", "json")
-		_ = h.runner.waitForExit()
-	}()
-
 	sessionOut, _, err := executeRootCommand(
 		t,
 		h.deps,
@@ -1556,11 +1535,6 @@ func TestWorkspaceCommandsIntegration(t *testing.T) {
 
 	h := newIntegrationHarness(t)
 	mustExecuteRoot(t, h.deps, "daemon", "start", "-o", "json")
-	defer func() {
-		_, _, _ = executeRootCommand(t, h.deps, "daemon", "stop", "-o", "json")
-		_ = h.runner.waitForExit()
-	}()
-
 	addOut, _, err := executeRootCommand(t, h.deps, "workspace", "add", h.workspace, "--name", "alpha", "-o", "json")
 	if err != nil {
 		t.Fatalf("workspace add error = %v", err)
@@ -1628,11 +1602,6 @@ func TestMemoryWriteListIntegration(t *testing.T) {
 
 	h := newIntegrationHarness(t)
 	mustExecuteRoot(t, h.deps, "daemon", "start", "-o", "json")
-	defer func() {
-		_, _, _ = executeRootCommand(t, h.deps, "daemon", "stop", "-o", "json")
-		_ = h.runner.waitForExit()
-	}()
-
 	writeOut, _, err := executeRootCommand(
 		t,
 		h.deps,
@@ -1682,11 +1651,6 @@ func TestAutomationJobsCreateOutputFormatsIntegration(t *testing.T) {
 
 	h := newIntegrationHarness(t)
 	mustExecuteRoot(t, h.deps, "daemon", "start", "-o", "json")
-	defer func() {
-		_, _, _ = executeRootCommand(t, h.deps, "daemon", "stop", "-o", "json")
-		_ = h.runner.waitForExit()
-	}()
-
 	humanOut, _, err := executeRootCommand(
 		t,
 		h.deps,
@@ -1733,11 +1697,6 @@ func TestAutomationTriggerHistoryAndRunsIntegration(t *testing.T) {
 
 	h := newIntegrationHarness(t)
 	mustExecuteRoot(t, h.deps, "daemon", "start", "-o", "json")
-	defer func() {
-		_, _, _ = executeRootCommand(t, h.deps, "daemon", "stop", "-o", "json")
-		_ = h.runner.waitForExit()
-	}()
-
 	workspaceOut := mustExecuteRoot(t, h.deps, "workspace", "add", h.workspace, "--name", "alpha", "-o", "json")
 	var workspace WorkspaceRecord
 	if err := json.Unmarshal([]byte(workspaceOut), &workspace); err != nil {
@@ -1889,10 +1848,6 @@ func TestBridgeCreateAndGetIntegration(t *testing.T) {
 
 	h := newIntegrationHarness(t)
 	mustExecuteRoot(t, h.deps, "daemon", "start", "-o", "json")
-	defer func() {
-		_, _, _ = executeRootCommand(t, h.deps, "daemon", "stop", "-o", "json")
-		_ = h.runner.waitForExit()
-	}()
 	if _, _, err := executeRootCommand(
 		t,
 		h.deps,
@@ -1943,11 +1898,6 @@ func TestBridgeLifecycleCommandsIntegration(t *testing.T) {
 
 	h := newIntegrationHarness(t)
 	mustExecuteRoot(t, h.deps, "daemon", "start", "-o", "json")
-	defer func() {
-		_, _, _ = executeRootCommand(t, h.deps, "daemon", "stop", "-o", "json")
-		_ = h.runner.waitForExit()
-	}()
-
 	createOut := mustExecuteRoot(
 		t,
 		h.deps,
@@ -2002,11 +1952,6 @@ func TestBridgeRoutesIntegration(t *testing.T) {
 
 	h := newIntegrationHarness(t)
 	mustExecuteRoot(t, h.deps, "daemon", "start", "-o", "json")
-	defer func() {
-		_, _, _ = executeRootCommand(t, h.deps, "daemon", "stop", "-o", "json")
-		_ = h.runner.waitForExit()
-	}()
-
 	createOut := mustExecuteRoot(
 		t,
 		h.deps,
@@ -2063,11 +2008,6 @@ func TestCLITaskCreateListGetIntegration(t *testing.T) {
 
 	h := newIntegrationHarness(t)
 	mustExecuteRoot(t, h.deps, "daemon", "start", "-o", "json")
-	defer func() {
-		_, _, _ = executeRootCommand(t, h.deps, "daemon", "stop", "-o", "json")
-		_ = h.runner.waitForExit()
-	}()
-
 	if _, _, err := executeRootCommand(
 		t,
 		h.deps,
@@ -2157,10 +2097,6 @@ func TestCLITaskRunLifecycleIntegration(t *testing.T) {
 
 	h := newIntegrationHarness(t)
 	mustExecuteRoot(t, h.deps, "daemon", "start", "-o", "json")
-	defer func() {
-		_, _, _ = executeRootCommand(t, h.deps, "daemon", "stop", "-o", "json")
-		_ = h.runner.waitForExit()
-	}()
 	if _, _, err := executeRootCommand(
 		t,
 		h.deps,
@@ -2310,11 +2246,6 @@ func TestCLIHistoricalChannelTaskLeaseAfterDaemonRestartIntegration(t *testing.T
 
 	h := newIntegrationHarness(t)
 	mustExecuteRoot(t, h.deps, "daemon", "start", "-o", "json")
-	defer func() {
-		_, _, _ = executeRootCommand(t, h.deps, "daemon", "stop", "-o", "json")
-		_ = h.runner.waitForExit()
-	}()
-
 	if _, _, err := executeRootCommand(
 		t,
 		h.deps,
@@ -2496,11 +2427,6 @@ func TestCLIAgentTaskLeaseLifecycleIntegration(t *testing.T) {
 
 	h := newIntegrationHarness(t)
 	mustExecuteRoot(t, h.deps, "daemon", "start", "-o", "json")
-	defer func() {
-		_, _, _ = executeRootCommand(t, h.deps, "daemon", "stop", "-o", "json")
-		_ = h.runner.waitForExit()
-	}()
-
 	if _, _, err := executeRootCommand(
 		t,
 		h.deps,
@@ -2805,11 +2731,6 @@ func TestCLIHistoricalChannelTaskNextAfterDaemonRestartIntegration(t *testing.T)
 
 	h := newIntegrationHarness(t)
 	mustExecuteRoot(t, h.deps, "daemon", "start", "-o", "json")
-	defer func() {
-		_, _, _ = executeRootCommand(t, h.deps, "daemon", "stop", "-o", "json")
-		_ = h.runner.waitForExit()
-	}()
-
 	if _, _, err := executeRootCommand(
 		t,
 		h.deps,
@@ -3084,6 +3005,63 @@ type integrationHarness struct {
 	runner    *integrationDaemon
 }
 
+func registerIntegrationHarnessCleanup(t *testing.T, h integrationHarness) {
+	t.Helper()
+
+	t.Cleanup(func() {
+		if err := h.stopAndWait(t); err != nil {
+			t.Errorf("integration daemon cleanup error = %v", err)
+		}
+	})
+}
+
+func (h integrationHarness) stopAndWait(t *testing.T) error {
+	t.Helper()
+
+	var cleanupErr error
+	forceStop := func() {
+		if signalErr := h.runner.signalProcess(h.runner.pid, syscall.SIGTERM); signalErr != nil {
+			cleanupErr = errors.Join(
+				cleanupErr,
+				fmt.Errorf("force integration daemon shutdown: %w", signalErr),
+			)
+		}
+	}
+
+	if h.runner.processAlive(h.runner.pid) {
+		_, infoErr := h.deps.readDaemonInfo(h.homePaths.DaemonInfo)
+		switch {
+		case errors.Is(infoErr, os.ErrNotExist):
+			forceStop()
+		case infoErr != nil:
+			cleanupErr = fmt.Errorf("read integration daemon info: %w", infoErr)
+			forceStop()
+		default:
+			_, stderr, stopErr := executeRootCommand(t, h.deps, "daemon", "stop", "-o", "json")
+			if stopErr != nil {
+				cleanupErr = fmt.Errorf("stop integration daemon: %w; stderr=%s", stopErr, stderr)
+				if h.runner.processAlive(h.runner.pid) {
+					forceStop()
+				}
+			}
+		}
+	}
+
+	if waitErr := h.runner.waitForExitWithin(h.deps.stopTimeout); waitErr != nil {
+		cleanupErr = errors.Join(cleanupErr, fmt.Errorf("wait for integration daemon exit: %w", waitErr))
+		if h.runner.processAlive(h.runner.pid) {
+			forceStop()
+			if forcedWaitErr := h.runner.waitForExitWithin(h.deps.stopTimeout); forcedWaitErr != nil {
+				cleanupErr = errors.Join(
+					cleanupErr,
+					fmt.Errorf("wait for forced integration daemon exit: %w", forcedWaitErr),
+				)
+			}
+		}
+	}
+	return cleanupErr
+}
+
 func newIntegrationAgentCommandDeps(
 	t *testing.T,
 	h integrationHarness,
@@ -3164,10 +3142,11 @@ type integrationDaemon struct {
 	pid       int
 	startedAt time.Time
 
-	mu      sync.Mutex
-	running bool
-	cancel  context.CancelFunc
-	done    chan error
+	mu       sync.Mutex
+	running  bool
+	cancel   context.CancelFunc
+	exitDone chan struct{}
+	exitErr  error
 
 	bridges          *integrationBridgeService
 	bridgeProviders  []bridgepkg.BridgeProvider
@@ -3837,25 +3816,14 @@ func newIntegrationHarness(t *testing.T) integrationHarness {
 			return runner.spawnDetached()
 		},
 	}
-	t.Cleanup(func() {
-		if !runner.processAlive(runner.pid) {
-			return
-		}
-		if err := runner.signalProcess(runner.pid, syscall.SIGTERM); err != nil {
-			t.Errorf("integration daemon cleanup signal error = %v", err)
-			return
-		}
-		if err := runner.waitForExit(); err != nil {
-			t.Errorf("integration daemon cleanup wait error = %v", err)
-		}
-	})
-
-	return integrationHarness{
+	h := integrationHarness{
 		deps:      deps,
 		homePaths: homePaths,
 		workspace: workspace,
 		runner:    runner,
 	}
+	registerIntegrationHarnessCleanup(t, h)
+	return h
 }
 
 func (p *integrationDaemonProcess) PID() int {
@@ -3880,20 +3848,23 @@ func (d *integrationDaemon) spawnDetached() (daemonProcess, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	waitCh := make(chan error, 1)
 	done := make(chan struct{})
+	exitDone := make(chan struct{})
 	d.running = true
 	d.cancel = cancel
-	d.done = waitCh
+	d.exitDone = exitDone
+	d.exitErr = nil
 
 	go func() {
 		err := d.Run(ctx)
 		waitCh <- err
 		close(waitCh)
-		close(done)
 		d.mu.Lock()
 		d.running = false
 		d.cancel = nil
-		d.done = nil
+		d.exitErr = err
+		close(exitDone)
 		d.mu.Unlock()
+		close(done)
 	}()
 
 	return &integrationDaemonProcess{pid: d.pid, done: done, waitCh: waitCh}, nil
@@ -4177,13 +4148,32 @@ func (d *integrationDaemon) processAlive(pid int) bool {
 }
 
 func (d *integrationDaemon) waitForExit() error {
+	return d.waitForExitWithin(0)
+}
+
+func (d *integrationDaemon) waitForExitWithin(timeout time.Duration) error {
 	d.mu.Lock()
-	done := d.done
+	exitDone := d.exitDone
 	d.mu.Unlock()
-	if done == nil {
+	if exitDone == nil {
 		return nil
 	}
-	return <-done
+
+	if timeout <= 0 {
+		<-exitDone
+	} else {
+		timer := time.NewTimer(timeout)
+		defer timer.Stop()
+		select {
+		case <-exitDone:
+		case <-timer.C:
+			return fmt.Errorf("integration daemon did not exit within %s", timeout)
+		}
+	}
+
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.exitErr
 }
 
 func (d *integrationDaemon) bridgeService() *integrationBridgeService {
@@ -4456,7 +4446,9 @@ func shortSocketPath(t *testing.T) string {
 		t.Fatalf("os.MkdirTemp() error = %v", err)
 	}
 	t.Cleanup(func() {
-		_ = os.RemoveAll(root)
+		if err := os.RemoveAll(root); err != nil {
+			t.Errorf("os.RemoveAll(%q) error = %v", root, err)
+		}
 	})
 	return filepath.Join(root, "daemon.sock")
 }

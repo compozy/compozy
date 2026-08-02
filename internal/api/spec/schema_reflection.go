@@ -32,6 +32,11 @@ func schemaRefForValue(value any, schemas openapi3.Schemas) (*openapi3.SchemaRef
 	return schemaRef, nil
 }
 
+func schemaRefForType(typeOf reflect.Type, schemas openapi3.Schemas) (*openapi3.SchemaRef, error) {
+	// Reflection creates an ephemeral value for the generator; descriptors retain only type metadata.
+	return schemaRefForValue(reflect.New(typeOf).Interface(), schemas)
+}
+
 func resolveComponentSchemaReferences(schemas openapi3.Schemas) {
 	seen := make(map[*openapi3.Schema]struct{})
 	for _, schemaRef := range schemas {

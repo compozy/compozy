@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/spf13/cobra"
 )
 
@@ -159,7 +160,10 @@ func newSchedulerDrainCommand(deps commandDeps) *cobra.Command {
 		&timeoutRaw,
 		"timeout",
 		defaultSchedulerDrainFlag,
-		"Drain wait timeout as a duration; 0s returns immediately",
+		fmt.Sprintf(
+			"Drain wait timeout as whole seconds from 0s through %ds; 0s returns immediately",
+			contract.SchedulerDrainTimeoutMaxSeconds,
+		),
 	)
 	return cmd
 }
@@ -281,7 +285,7 @@ func schedulerBacklogBundle(record SchedulerBacklogRecord) outputBundle {
 	}
 }
 
-func parseSchedulerDrainTimeout(raw string) (int, error) {
+func parseSchedulerDrainTimeout(raw string) (int64, error) {
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" {
 		return 0, errors.New("cli: --timeout cannot be empty")
@@ -296,5 +300,13 @@ func parseSchedulerDrainTimeout(raw string) (int, error) {
 	if timeout%time.Second != 0 {
 		return 0, fmt.Errorf("cli: --timeout must use whole seconds: %s", trimmed)
 	}
-	return int(timeout / time.Second), nil
+	seconds := int64(timeout / time.Second)
+	if seconds > contract.SchedulerDrainTimeoutMaxSeconds {
+		return 0, fmt.Errorf(
+			"cli: --timeout exceeds the supported maximum of %d seconds: %s",
+			contract.SchedulerDrainTimeoutMaxSeconds,
+			trimmed,
+		)
+	}
+	return seconds, nil
 }

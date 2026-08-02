@@ -328,7 +328,10 @@ func benchmarkRecoveryPayload(i int) json.RawMessage {
 		taskpkg.RunBootRecoveryMarkRunning,
 		taskpkg.RunBootRecoveryFail,
 	}[i%3]
-	payload, _ := json.Marshal(taskRecoveryPayload{Action: action})
+	payload, err := json.Marshal(taskRecoveryPayload{Action: action})
+	if err != nil {
+		panic(fmt.Errorf("marshal benchmark recovery payload: %w", err))
+	}
 	return payload
 }
 

@@ -119,7 +119,7 @@ func TestGlobalDBBridgeTaskSubscriptionStore(t *testing.T) {
 		advanced, err := cursorService.Advance(ctx, notifications.AdvanceCursor{
 			Key:          subscription.CursorKey(),
 			LastSequence: 11,
-			DeliveryID:   "notif:sub-task-terminal-stale-cursor:11",
+			DeliveryID:   "nd1_test_stale_delivery_11",
 			Now:          bridgeTaskSubscriptionTestTime(),
 		})
 		if err != nil {
@@ -153,7 +153,7 @@ func TestGlobalDBBridgeTaskSubscriptionStore(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Get(stale cursor) error = %v", err)
 		}
-		if staleCursor.LastSequence != 11 || staleCursor.LastDeliveryID != "notif:sub-task-terminal-stale-cursor:11" {
+		if staleCursor.LastSequence != 11 || staleCursor.LastDeliveryID != "nd1_test_stale_delivery_11" {
 			t.Fatalf("stale cursor = %#v, want preserved diagnostics", staleCursor)
 		}
 
@@ -167,6 +167,54 @@ func TestGlobalDBBridgeTaskSubscriptionStore(t *testing.T) {
 		if recreatedCursor.LastSequence != 11 {
 			t.Fatalf("recreated cursor = %#v, want stale sequence preserved", recreatedCursor)
 		}
+	})
+
+	t.Run("Should retain whitespace-distinct opaque subscription identities", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		globalDB.now = bridgeTaskSubscriptionTestTime
+
+		taskRecord := taskRecordForTest("task-opaque")
+		if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		instance := bridgeInstanceForSubscriptionTest(" brg-opaque ")
+		if err := globalDB.InsertBridgeInstance(ctx, instance); err != nil {
+			t.Fatalf("InsertBridgeInstance() error = %v", err)
+		}
+		subscription := bridgeTaskSubscriptionForGlobalDBTest(
+			" sub-opaque ",
+			taskRecord.ID,
+			instance.ID,
+		)
+		subscription.PeerID = " peer-opaque "
+		subscription.ThreadID = " thread-opaque "
+		subscription.GroupID = " group-opaque "
+		subscription.CreatedBy.Ref = " actor-opaque "
+
+		if err := globalDB.PutBridgeTaskSubscription(ctx, subscription); err != nil {
+			t.Fatalf("PutBridgeTaskSubscription() error = %v", err)
+		}
+		loaded, err := globalDB.GetBridgeTaskSubscription(ctx, subscription.SubscriptionID)
+		if err != nil {
+			t.Fatalf("GetBridgeTaskSubscription() error = %v", err)
+		}
+		assertBridgeTaskSubscriptionEqual(t, loaded, subscription)
+
+		listed, err := globalDB.ListBridgeTaskSubscriptions(ctx, bridges.BridgeTaskSubscriptionQuery{
+			TaskID:           taskRecord.ID,
+			BridgeInstanceID: instance.ID,
+			Scope:            bridges.ScopeGlobal,
+		})
+		if err != nil {
+			t.Fatalf("ListBridgeTaskSubscriptions() error = %v", err)
+		}
+		if len(listed) != 1 {
+			t.Fatalf("ListBridgeTaskSubscriptions() returned %d subscriptions, want 1", len(listed))
+		}
+		assertBridgeTaskSubscriptionEqual(t, listed[0], subscription)
 	})
 }
 

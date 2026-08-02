@@ -1,8 +1,8 @@
 package core
 
 import (
+	"fmt"
 	"maps"
-	"strings"
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
@@ -98,8 +98,18 @@ func BridgePayloadFromBridgeInstance(instance bridgepkg.BridgeInstance) contract
 // bridge task subscription into the shared task-scoped transport payload.
 func TaskBridgeNotificationSubscriptionPayloadFromSubscription(
 	subscription bridgepkg.BridgeTaskSubscription,
-) contract.TaskBridgeNotificationSubscriptionPayload {
+) (contract.TaskBridgeNotificationSubscriptionPayload, error) {
 	normalized := subscription.Normalize()
+	if err := normalized.Validate(); err != nil {
+		return contract.TaskBridgeNotificationSubscriptionPayload{}, fmt.Errorf(
+			"api: project invalid task bridge notification subscription: %w",
+			err,
+		)
+	}
+	cursor, err := TaskBridgeNotificationCursorPayloadFromKey(normalized.CursorKey())
+	if err != nil {
+		return contract.TaskBridgeNotificationSubscriptionPayload{}, err
+	}
 	return contract.TaskBridgeNotificationSubscriptionPayload{
 		SubscriptionID:   normalized.SubscriptionID,
 		TaskID:           normalized.TaskID,
@@ -110,11 +120,11 @@ func TaskBridgeNotificationSubscriptionPayloadFromSubscription(
 		ThreadID:         normalized.ThreadID,
 		GroupID:          normalized.GroupID,
 		DeliveryMode:     normalized.DeliveryMode,
-		Cursor:           TaskBridgeNotificationCursorPayloadFromKey(normalized.CursorKey()),
+		Cursor:           cursor,
 		CreatedBy:        normalized.CreatedBy,
 		CreatedAt:        normalized.CreatedAt,
 		UpdatedAt:        normalized.UpdatedAt,
-	}
+	}, nil
 }
 
 // TaskBridgeNotificationSubscriptionPayloadFromSubscriptionAndCursor converts
@@ -122,51 +132,80 @@ func TaskBridgeNotificationSubscriptionPayloadFromSubscription(
 func TaskBridgeNotificationSubscriptionPayloadFromSubscriptionAndCursor(
 	subscription bridgepkg.BridgeTaskSubscription,
 	cursor notifications.Cursor,
-) contract.TaskBridgeNotificationSubscriptionPayload {
-	payload := TaskBridgeNotificationSubscriptionPayloadFromSubscription(subscription)
-	payload.Cursor = TaskBridgeNotificationCursorPayloadFromCursor(cursor)
-	return payload
+) (contract.TaskBridgeNotificationSubscriptionPayload, error) {
+	payload, err := TaskBridgeNotificationSubscriptionPayloadFromSubscription(subscription)
+	if err != nil {
+		return contract.TaskBridgeNotificationSubscriptionPayload{}, err
+	}
+	expectedKey, err := subscription.CursorKey().Normalize()
+	if err != nil {
+		return contract.TaskBridgeNotificationSubscriptionPayload{}, err
+	}
+	actualKey, err := cursor.Key.Normalize()
+	if err != nil {
+		return contract.TaskBridgeNotificationSubscriptionPayload{}, err
+	}
+	if actualKey != expectedKey {
+		return contract.TaskBridgeNotificationSubscriptionPayload{}, fmt.Errorf(
+			"%w: persisted task bridge notification cursor does not match subscription %q",
+			notifications.ErrInvalidCursor,
+			subscription.SubscriptionID,
+		)
+	}
+	cursorPayload, err := TaskBridgeNotificationCursorPayloadFromCursor(cursor)
+	if err != nil {
+		return contract.TaskBridgeNotificationSubscriptionPayload{}, err
+	}
+	payload.Cursor = cursorPayload
+	return payload, nil
 }
 
 // TaskBridgeNotificationSubscriptionPayloadsFromSubscriptions converts
 // bridge task subscriptions into shared task-scoped transport payloads.
 func TaskBridgeNotificationSubscriptionPayloadsFromSubscriptions(
 	subscriptions []bridgepkg.BridgeTaskSubscription,
-) []contract.TaskBridgeNotificationSubscriptionPayload {
+) ([]contract.TaskBridgeNotificationSubscriptionPayload, error) {
 	payloads := make([]contract.TaskBridgeNotificationSubscriptionPayload, 0, len(subscriptions))
 	for _, subscription := range subscriptions {
-		payloads = append(payloads, TaskBridgeNotificationSubscriptionPayloadFromSubscription(subscription))
+		payload, err := TaskBridgeNotificationSubscriptionPayloadFromSubscription(subscription)
+		if err != nil {
+			return nil, err
+		}
+		payloads = append(payloads, payload)
 	}
-	return payloads
+	return payloads, nil
 }
 
 // TaskBridgeNotificationCursorPayloadFromKey converts a durable cursor identity
 // into the transport diagnostics shape before any delivery has been persisted.
 func TaskBridgeNotificationCursorPayloadFromKey(
 	key notifications.CursorKey,
-) contract.TaskBridgeNotificationCursorPayload {
+) (contract.TaskBridgeNotificationCursorPayload, error) {
 	normalized, err := key.Normalize()
 	if err != nil {
-		normalized = notifications.CursorKey{
-			ConsumerID: strings.TrimSpace(key.ConsumerID),
-			StreamName: strings.TrimSpace(key.StreamName),
-			SubjectID:  strings.TrimSpace(key.SubjectID),
-		}
+		return contract.TaskBridgeNotificationCursorPayload{}, fmt.Errorf(
+			"api: project invalid task bridge notification cursor: %w",
+			err,
+		)
 	}
 	return contract.TaskBridgeNotificationCursorPayload{
+		Scope:        normalized.Scope,
 		ConsumerID:   normalized.ConsumerID,
 		StreamName:   normalized.StreamName,
 		SubjectID:    normalized.SubjectID,
 		LastSequence: 0,
-	}
+	}, nil
 }
 
 // TaskBridgeNotificationCursorPayloadFromCursor converts persisted cursor
 // diagnostics into the transport payload used by HTTP, UDS, CLI, and web.
 func TaskBridgeNotificationCursorPayloadFromCursor(
 	cursor notifications.Cursor,
-) contract.TaskBridgeNotificationCursorPayload {
-	payload := TaskBridgeNotificationCursorPayloadFromKey(cursor.Key)
+) (contract.TaskBridgeNotificationCursorPayload, error) {
+	payload, err := TaskBridgeNotificationCursorPayloadFromKey(cursor.Key)
+	if err != nil {
+		return contract.TaskBridgeNotificationCursorPayload{}, err
+	}
 	payload.LastSequence = cursor.LastSequence
 	payload.LastDeliveryID = cursor.LastDeliveryID
 	payload.LastError = cursor.LastError
@@ -178,7 +217,7 @@ func TaskBridgeNotificationCursorPayloadFromCursor(
 		updatedAt := cursor.UpdatedAt.UTC()
 		payload.UpdatedAt = &updatedAt
 	}
-	return payload
+	return payload, nil
 }
 
 // BridgeProviderPayloadFromBridgeProvider converts installed provider metadata

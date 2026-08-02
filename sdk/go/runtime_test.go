@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"math"
+	goruntime "runtime"
 	"strings"
 	"testing"
 	"time"
@@ -65,13 +67,18 @@ func TestStdioTransportBidirectionalCalls(t *testing.T) {
 	if err == nil {
 		t.Fatal("client.Call(fail) error = nil, want RPC error")
 	}
-	var rpcErr *compozysdk.RPCError
-	if !errors.As(err, &rpcErr) || rpcErr.Code != -32602 {
+	rpcErr, rpcErrMatched := errors.AsType[*compozysdk.RPCError](err)
+	if !rpcErrMatched || rpcErr.Code != -32602 {
 		t.Fatalf("client.Call(fail) error = %v, want invalid params RPC error", err)
 	}
 }
 
 func TestExtensionRuntimeBuiltInAndCustomMethods(t *testing.T) {
+	t.Parallel()
+	t.Run("Should serve built-in and custom extension methods", testExtensionRuntimeBuiltInAndCustomMethods)
+}
+
+func testExtensionRuntimeBuiltInAndCustomMethods(t *testing.T) {
 	t.Parallel()
 
 	runtime := newRuntimeHarness(t)
@@ -210,6 +217,11 @@ func TestExtensionRuntimeBuiltInAndCustomMethods(t *testing.T) {
 
 func TestHostAPIRawRequestAndResultHelpers(t *testing.T) {
 	t.Parallel()
+	t.Run("Should complete host API raw-request and result helper contracts", testHostAPIRawRequestAndResultHelpers)
+}
+
+func testHostAPIRawRequestAndResultHelpers(t *testing.T) {
+	t.Parallel()
 
 	transport := &recordingTransport{rawResult: json.RawMessage(`{"ok":true}`)}
 	host := compozysdk.NewHostAPI(transport, func() bool { return true })
@@ -280,10 +292,6 @@ func TestValidationAndDigestErrorBranches(t *testing.T) {
 	if nilRPC.Error() != "" {
 		t.Fatalf("nil RPCError.Error() = %q, want empty", nilRPC.Error())
 	}
-	_ = compozysdk.NewInvalidRequestError("bad")
-	_ = compozysdk.NewMethodNotFoundError("missing")
-	_ = compozysdk.NewInternalError("internal")
-	_ = compozysdk.NewCapabilityDeniedError(map[string]any{"field": "provides"})
 }
 
 func TestExtensionConvenienceAndFailureBranches(t *testing.T) {
@@ -443,6 +451,669 @@ func TestTransportAndReadyCallbackBranches(t *testing.T) {
 		}
 	})
 
+	t.Run("Should Cancel And Join OnReady Callbacks When Runtime Closes", func(t *testing.T) {
+		t.Parallel()
+
+		runtime := newRuntimeHarness(t)
+		extension := compozysdk.NewExtension(
+			compozysdk.ExtensionDefinition{Name: "Ready Lifecycle Extension", Version: "0.1.0"},
+			compozysdk.WithStdio(runtime.extensionInput, runtime.extensionOutput),
+			compozysdk.WithStderr(io.Discard),
+		)
+		started := make(chan struct{})
+		stopped := make(chan struct{})
+		lateStarted := make(chan struct{})
+		lateStopped := make(chan struct{})
+		release := make(chan struct{})
+		readyCallback := func(started chan<- struct{}, stopped chan<- struct{}) func(
+			context.Context,
+			*compozysdk.HostAPI,
+			compozysdk.ExtensionSession,
+		) error {
+			return func(ctx context.Context, _ *compozysdk.HostAPI, _ compozysdk.ExtensionSession) error {
+				close(started)
+				select {
+				case <-ctx.Done():
+					close(stopped)
+					return ctx.Err()
+				case <-release:
+					return nil
+				}
+			}
+		}
+		extension.OnReady(readyCallback(started, stopped))
+
+		ctx, cancel := context.WithCancel(context.Background())
+		done := make(chan error, 1)
+		go func() { done <- extension.Run(ctx) }()
+		inputClosed := false
+		runReturned := false
+		t.Cleanup(func() {
+			cancel()
+			close(release)
+			if !inputClosed {
+				if err := runtime.closeInput(); err != nil && !errors.Is(err, io.ErrClosedPipe) {
+					t.Errorf("close input error = %v", err)
+				}
+			}
+			if !runReturned {
+				select {
+				case <-done:
+				case <-time.After(time.Second):
+					t.Error("extension runtime did not stop")
+				}
+			}
+		})
+
+		initialize := runtime.call(t, 1, "initialize", initializeParams("Ready Lifecycle Extension"))
+		if initialize.Error != nil {
+			t.Fatalf("initialize error = %#v", initialize.Error)
+		}
+		select {
+		case <-started:
+		case <-time.After(time.Second):
+			t.Fatal("onReady callback did not start")
+		}
+		extension.OnReady(readyCallback(lateStarted, lateStopped))
+		select {
+		case <-lateStarted:
+		case <-time.After(time.Second):
+			t.Fatal("late onReady callback did not start")
+		}
+
+		if err := runtime.closeInput(); err != nil {
+			t.Fatalf("close input error = %v", err)
+		}
+		inputClosed = true
+		select {
+		case err := <-done:
+			runReturned = true
+			if err != nil {
+				t.Fatalf("extension Run() error = %v", err)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("extension runtime did not stop")
+		}
+		select {
+		case <-stopped:
+		default:
+			t.Fatal("onReady callback remained active after runtime closed")
+		}
+		select {
+		case <-lateStopped:
+		default:
+			t.Fatal("late onReady callback remained active after runtime closed")
+		}
+	})
+
+	t.Run("Should Preserve NonCancellation OnReady Error Joined With Cancellation", func(t *testing.T) {
+		t.Parallel()
+
+		runtime := newRuntimeHarness(t)
+		extension := compozysdk.NewExtension(
+			compozysdk.ExtensionDefinition{Name: "Ready Joined Error Extension", Version: "0.1.0"},
+			compozysdk.WithStdio(runtime.extensionInput, runtime.extensionOutput),
+			compozysdk.WithStderr(io.Discard),
+		)
+		sentinelErr := errors.New("ready callback sentinel failure")
+		started := make(chan struct{})
+		extension.OnReady(func(ctx context.Context, _ *compozysdk.HostAPI, _ compozysdk.ExtensionSession) error {
+			close(started)
+			<-ctx.Done()
+			return errors.Join(ctx.Err(), sentinelErr)
+		})
+
+		ctx, cancel := context.WithCancel(context.Background())
+		done := make(chan error, 1)
+		go func() { done <- extension.Run(ctx) }()
+		inputClosed := false
+		runReturned := false
+		t.Cleanup(func() {
+			cancel()
+			if !inputClosed {
+				if err := runtime.closeInput(); err != nil && !errors.Is(err, io.ErrClosedPipe) {
+					t.Errorf("close input error = %v", err)
+				}
+			}
+			if !runReturned {
+				select {
+				case <-done:
+				case <-time.After(time.Second):
+					t.Error("extension runtime did not stop")
+				}
+			}
+		})
+
+		initialize := runtime.call(t, 1, "initialize", initializeParams("Ready Joined Error Extension"))
+		if initialize.Error != nil {
+			t.Fatalf("initialize error = %#v", initialize.Error)
+		}
+		select {
+		case <-started:
+		case <-time.After(time.Second):
+			t.Fatal("onReady callback did not start")
+		}
+
+		if err := runtime.closeInput(); err != nil {
+			t.Fatalf("close input error = %v", err)
+		}
+		inputClosed = true
+		select {
+		case err := <-done:
+			runReturned = true
+			if !errors.Is(err, sentinelErr) {
+				t.Fatalf("extension Run() error = %v, want sentinel callback failure", err)
+			}
+			if errors.Is(err, context.Canceled) {
+				t.Fatalf("extension Run() error = %v, want cancellation branch suppressed", err)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("extension runtime did not stop")
+		}
+	})
+
+	t.Run("Should Surface Shutdown Timeout For Uncooperative OnReady Callback", func(t *testing.T) {
+		t.Parallel()
+
+		runtime := newRuntimeHarness(t)
+		extension := compozysdk.NewExtension(
+			compozysdk.ExtensionDefinition{Name: "Ready Timeout Extension", Version: "0.1.0"},
+			compozysdk.WithStdio(runtime.extensionInput, runtime.extensionOutput),
+			compozysdk.WithStderr(io.Discard),
+		)
+		lateCallbackErr := errors.New("ready callback failed after the drain deadline")
+		started := make(chan struct{})
+		stopped := make(chan struct{})
+		release := make(chan struct{})
+		extension.OnReady(func(context.Context, *compozysdk.HostAPI, compozysdk.ExtensionSession) error {
+			close(started)
+			<-release
+			close(stopped)
+			return lateCallbackErr
+		})
+
+		ctx, cancel := context.WithCancel(context.Background())
+		done := make(chan error, 1)
+		go func() { done <- extension.Run(ctx) }()
+		callbackStarted := false
+		inputClosed := false
+		released := false
+		runReturned := false
+		t.Cleanup(func() {
+			cancel()
+			if !released {
+				close(release)
+				released = true
+				if callbackStarted {
+					select {
+					case <-stopped:
+					case <-time.After(time.Second):
+						t.Error("uncooperative onReady callback did not stop during cleanup")
+					}
+				}
+			}
+			if !inputClosed {
+				if err := runtime.closeInput(); err != nil && !errors.Is(err, io.ErrClosedPipe) {
+					t.Errorf("close input error = %v", err)
+				}
+			}
+			if !runReturned {
+				select {
+				case <-done:
+				case <-time.After(time.Second):
+					t.Error("extension runtime did not stop")
+				}
+			}
+		})
+
+		params := initializeParams("Ready Timeout Extension")
+		params["runtime"].(map[string]any)["shutdown_timeout_ms"] = 10
+		initialize := runtime.call(t, 1, "initialize", params)
+		if initialize.Error != nil {
+			t.Fatalf("initialize error = %#v", initialize.Error)
+		}
+		select {
+		case <-started:
+		case <-time.After(time.Second):
+			t.Fatal("onReady callback did not start")
+		}
+		callbackStarted = true
+
+		if err := runtime.closeInput(); err != nil {
+			t.Fatalf("close input error = %v", err)
+		}
+		inputClosed = true
+		select {
+		case err := <-done:
+			runReturned = true
+			if !errors.Is(err, context.DeadlineExceeded) {
+				t.Fatalf("extension Run() error = %v, want shutdown deadline exceeded", err)
+			}
+			if errors.Is(err, lateCallbackErr) {
+				t.Fatalf(
+					"extension Run() error = %v, must not report a callback failure "+
+						"that completed after Run returned",
+					err,
+				)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("extension runtime did not observe shutdown timeout")
+		}
+
+		close(release)
+		released = true
+		select {
+		case <-stopped:
+		case <-time.After(time.Second):
+			t.Fatal("uncooperative onReady callback did not stop after release")
+		}
+	})
+
+	t.Run("Should Use Shutdown Request Deadline Instead Of Initialized Runtime Timeout", func(t *testing.T) {
+		t.Parallel()
+
+		runtime := newRuntimeHarness(t)
+		extension := compozysdk.NewExtension(
+			compozysdk.ExtensionDefinition{Name: "Ready Request Deadline Extension", Version: "0.1.0"},
+			compozysdk.WithStdio(runtime.extensionInput, runtime.extensionOutput),
+			compozysdk.WithStderr(io.Discard),
+		)
+		started := make(chan struct{})
+		stopped := make(chan struct{})
+		release := make(chan struct{})
+		extension.OnReady(func(context.Context, *compozysdk.HostAPI, compozysdk.ExtensionSession) error {
+			close(started)
+			<-release
+			close(stopped)
+			return nil
+		})
+
+		ctx, cancel := context.WithCancel(context.Background())
+		done := make(chan error, 1)
+		go func() { done <- extension.Run(ctx) }()
+		callbackStarted := false
+		inputClosed := false
+		released := false
+		runReturned := false
+		t.Cleanup(func() {
+			cancel()
+			if !released {
+				close(release)
+				released = true
+				if callbackStarted {
+					select {
+					case <-stopped:
+					case <-time.After(time.Second):
+						t.Error("uncooperative onReady callback did not stop during cleanup")
+					}
+				}
+			}
+			if !inputClosed {
+				if err := runtime.closeInput(); err != nil && !errors.Is(err, io.ErrClosedPipe) {
+					t.Errorf("close input error = %v", err)
+				}
+			}
+			if !runReturned {
+				select {
+				case <-done:
+				case <-time.After(time.Second):
+					t.Error("extension runtime did not stop")
+				}
+			}
+		})
+
+		params := initializeParams("Ready Request Deadline Extension")
+		params["runtime"].(map[string]any)["shutdown_timeout_ms"] = 30_000
+		initialize := runtime.call(t, 1, "initialize", params)
+		if initialize.Error != nil {
+			t.Fatalf("initialize error = %#v", initialize.Error)
+		}
+		select {
+		case <-started:
+		case <-time.After(time.Second):
+			t.Fatal("onReady callback did not start")
+		}
+		callbackStarted = true
+
+		shutdown := runtime.call(t, 2, "shutdown", map[string]any{"reason": "test", "deadline_ms": 10})
+		if shutdown.Error != nil {
+			t.Fatalf("shutdown error = %#v", shutdown.Error)
+		}
+		if err := runtime.closeInput(); err != nil {
+			t.Fatalf("close input error = %v", err)
+		}
+		inputClosed = true
+		select {
+		case err := <-done:
+			runReturned = true
+			if !errors.Is(err, context.DeadlineExceeded) {
+				t.Fatalf("extension Run() error = %v, want shutdown request deadline exceeded", err)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("extension runtime waited for initialized runtime timeout instead of shutdown request deadline")
+		}
+
+		close(release)
+		released = true
+		select {
+		case <-stopped:
+		case <-time.After(time.Second):
+			t.Fatal("uncooperative onReady callback did not stop after release")
+		}
+	})
+
+	t.Run("Should Reject Shutdown Deadline That Exceeds Go Duration", func(t *testing.T) {
+		t.Parallel()
+
+		runtime := newRuntimeHarness(t)
+		extension := compozysdk.NewExtension(
+			compozysdk.ExtensionDefinition{Name: "Ready Deadline Validation Extension", Version: "0.1.0"},
+			compozysdk.WithStdio(runtime.extensionInput, runtime.extensionOutput),
+			compozysdk.WithStderr(io.Discard),
+		)
+		ctx, cancel := context.WithCancel(context.Background())
+		done := make(chan error, 1)
+		go func() { done <- extension.Run(ctx) }()
+		inputClosed := false
+		runReturned := false
+		t.Cleanup(func() {
+			cancel()
+			if !inputClosed {
+				if err := runtime.closeInput(); err != nil && !errors.Is(err, io.ErrClosedPipe) {
+					t.Errorf("close input error = %v", err)
+				}
+			}
+			if !runReturned {
+				select {
+				case <-done:
+				case <-time.After(time.Second):
+					t.Error("extension runtime did not stop")
+				}
+			}
+		})
+
+		initialize := runtime.call(t, 1, "initialize", initializeParams("Ready Deadline Validation Extension"))
+		if initialize.Error != nil {
+			t.Fatalf("initialize error = %#v", initialize.Error)
+		}
+		shutdown := runtime.call(
+			t,
+			2,
+			"shutdown",
+			map[string]any{"reason": "test", "deadline_ms": int64(math.MaxInt64)},
+		)
+		if shutdown.Error == nil || shutdown.Error.Code != -32602 {
+			t.Fatalf("shutdown error = %#v, want invalid params", shutdown.Error)
+		}
+		health := runtime.call(t, 3, "health_check", map[string]any{})
+		if health.Error != nil {
+			t.Fatalf("health_check after rejected shutdown error = %#v, want ready runtime", health.Error)
+		}
+
+		if err := runtime.closeInput(); err != nil {
+			t.Fatalf("close input error = %v", err)
+		}
+		inputClosed = true
+		select {
+		case err := <-done:
+			runReturned = true
+			if err != nil {
+				t.Fatalf("extension Run() error = %v", err)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("extension runtime did not stop")
+		}
+	})
+
+	t.Run("Should Return OnReady Callback Failures From Runtime", func(t *testing.T) {
+		t.Parallel()
+
+		runtime := newRuntimeHarness(t)
+		extension := compozysdk.NewExtension(
+			compozysdk.ExtensionDefinition{Name: "Ready Failure Extension", Version: "0.1.0"},
+			compozysdk.WithStdio(runtime.extensionInput, runtime.extensionOutput),
+			compozysdk.WithStderr(io.Discard),
+		)
+		callbackErr := errors.New("ready callback failed")
+		completed := make(chan struct{})
+		extension.OnReady(func(context.Context, *compozysdk.HostAPI, compozysdk.ExtensionSession) error {
+			defer close(completed)
+			return callbackErr
+		})
+
+		ctx, cancel := context.WithCancel(context.Background())
+		done := make(chan error, 1)
+		go func() { done <- extension.Run(ctx) }()
+		inputClosed := false
+		runReturned := false
+		t.Cleanup(func() {
+			cancel()
+			if !inputClosed {
+				if err := runtime.closeInput(); err != nil && !errors.Is(err, io.ErrClosedPipe) {
+					t.Errorf("close input error = %v", err)
+				}
+			}
+			if !runReturned {
+				select {
+				case <-done:
+				case <-time.After(time.Second):
+					t.Error("extension runtime did not stop")
+				}
+			}
+		})
+
+		initialize := runtime.call(t, 1, "initialize", initializeParams("Ready Failure Extension"))
+		if initialize.Error != nil {
+			t.Fatalf("initialize error = %#v", initialize.Error)
+		}
+		select {
+		case <-completed:
+		case <-time.After(time.Second):
+			t.Fatal("onReady callback did not complete")
+		}
+
+		if err := runtime.closeInput(); err != nil {
+			t.Fatalf("close input error = %v", err)
+		}
+		inputClosed = true
+		select {
+		case err := <-done:
+			runReturned = true
+			if !errors.Is(err, callbackErr) {
+				t.Fatalf("extension Run() error = %v, want callback error", err)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("extension runtime did not stop")
+		}
+	})
+
+	t.Run("Should Return Recovered OnReady Panic From Runtime", func(t *testing.T) {
+		t.Parallel()
+
+		runtime := newRuntimeHarness(t)
+		extension := compozysdk.NewExtension(
+			compozysdk.ExtensionDefinition{Name: "Ready Panic Extension", Version: "0.1.0"},
+			compozysdk.WithStdio(runtime.extensionInput, runtime.extensionOutput),
+			compozysdk.WithStderr(io.Discard),
+		)
+		completed := make(chan struct{})
+		extension.OnReady(func(context.Context, *compozysdk.HostAPI, compozysdk.ExtensionSession) error {
+			defer close(completed)
+			panic("ready callback panic")
+		})
+
+		ctx, cancel := context.WithCancel(context.Background())
+		done := make(chan error, 1)
+		go func() { done <- extension.Run(ctx) }()
+		inputClosed := false
+		runReturned := false
+		t.Cleanup(func() {
+			cancel()
+			if !inputClosed {
+				if err := runtime.closeInput(); err != nil && !errors.Is(err, io.ErrClosedPipe) {
+					t.Errorf("close input error = %v", err)
+				}
+			}
+			if !runReturned {
+				select {
+				case <-done:
+				case <-time.After(time.Second):
+					t.Error("extension runtime did not stop")
+				}
+			}
+		})
+
+		initialize := runtime.call(t, 1, "initialize", initializeParams("Ready Panic Extension"))
+		if initialize.Error != nil {
+			t.Fatalf("initialize error = %#v", initialize.Error)
+		}
+		select {
+		case <-completed:
+		case <-time.After(time.Second):
+			t.Fatal("onReady callback did not complete")
+		}
+
+		if err := runtime.closeInput(); err != nil {
+			t.Fatalf("close input error = %v", err)
+		}
+		inputClosed = true
+		select {
+		case err := <-done:
+			runReturned = true
+			if err == nil || !strings.Contains(err.Error(), "onReady callback panic: ready callback panic") {
+				t.Fatalf("extension Run() error = %v, want recovered callback panic", err)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("extension runtime did not stop")
+		}
+	})
+
+	t.Run("Should Return OnReady Goexit From Runtime", func(t *testing.T) {
+		t.Parallel()
+
+		runtime := newRuntimeHarness(t)
+		extension := compozysdk.NewExtension(
+			compozysdk.ExtensionDefinition{Name: "Ready Goexit Extension", Version: "0.1.0"},
+			compozysdk.WithStdio(runtime.extensionInput, runtime.extensionOutput),
+			compozysdk.WithStderr(io.Discard),
+		)
+		completed := make(chan struct{})
+		extension.OnReady(func(context.Context, *compozysdk.HostAPI, compozysdk.ExtensionSession) error {
+			defer close(completed)
+			goruntime.Goexit()
+			return nil
+		})
+
+		ctx, cancel := context.WithCancel(context.Background())
+		done := make(chan error, 1)
+		go func() { done <- extension.Run(ctx) }()
+		inputClosed := false
+		runReturned := false
+		t.Cleanup(func() {
+			cancel()
+			if !inputClosed {
+				if err := runtime.closeInput(); err != nil && !errors.Is(err, io.ErrClosedPipe) {
+					t.Errorf("close input error = %v", err)
+				}
+			}
+			if !runReturned {
+				select {
+				case <-done:
+				case <-time.After(time.Second):
+					t.Error("extension runtime did not stop")
+				}
+			}
+		})
+
+		initialize := runtime.call(t, 1, "initialize", initializeParams("Ready Goexit Extension"))
+		if initialize.Error != nil {
+			t.Fatalf("initialize error = %#v", initialize.Error)
+		}
+		select {
+		case <-completed:
+		case <-time.After(time.Second):
+			t.Fatal("onReady callback did not complete")
+		}
+
+		if err := runtime.closeInput(); err != nil {
+			t.Fatalf("close input error = %v", err)
+		}
+		inputClosed = true
+		select {
+		case err := <-done:
+			runReturned = true
+			if err == nil || !strings.Contains(err.Error(), "onReady callback exited without returning") {
+				t.Fatalf("extension Run() error = %v, want Goexit callback failure", err)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("extension runtime did not stop")
+		}
+	})
+
+	t.Run("Should Ignore OnReady Registration After Shutdown", func(t *testing.T) {
+		t.Parallel()
+
+		runtime := newRuntimeHarness(t)
+		extension := compozysdk.NewExtension(
+			compozysdk.ExtensionDefinition{Name: "Ready Shutdown Extension", Version: "0.1.0"},
+			compozysdk.WithStdio(runtime.extensionInput, runtime.extensionOutput),
+			compozysdk.WithStderr(io.Discard),
+		)
+		ctx, cancel := context.WithCancel(context.Background())
+		done := make(chan error, 1)
+		go func() { done <- extension.Run(ctx) }()
+		inputClosed := false
+		runReturned := false
+		t.Cleanup(func() {
+			cancel()
+			if !inputClosed {
+				if err := runtime.closeInput(); err != nil && !errors.Is(err, io.ErrClosedPipe) {
+					t.Errorf("close input error = %v", err)
+				}
+			}
+			if !runReturned {
+				select {
+				case <-done:
+				case <-time.After(time.Second):
+					t.Error("extension runtime did not stop")
+				}
+			}
+		})
+
+		initialize := runtime.call(t, 1, "initialize", initializeParams("Ready Shutdown Extension"))
+		if initialize.Error != nil {
+			t.Fatalf("initialize error = %#v", initialize.Error)
+		}
+		shutdown := runtime.call(t, 2, "shutdown", map[string]any{"reason": "test", "deadline_ms": 100})
+		if shutdown.Error != nil {
+			t.Fatalf("shutdown error = %#v", shutdown.Error)
+		}
+		callbackRan := make(chan struct{})
+		extension.OnReady(func(context.Context, *compozysdk.HostAPI, compozysdk.ExtensionSession) error {
+			close(callbackRan)
+			return nil
+		})
+		select {
+		case <-callbackRan:
+			t.Fatal("onReady callback ran after shutdown")
+		case <-time.After(time.Second):
+		}
+
+		if err := runtime.closeInput(); err != nil {
+			t.Fatalf("close input error = %v", err)
+		}
+		inputClosed = true
+		select {
+		case err := <-done:
+			runReturned = true
+			if err != nil {
+				t.Fatalf("extension Run() error = %v", err)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("extension runtime did not stop")
+		}
+	})
+
 	t.Run("Should Close Transport And Reject Calls", func(t *testing.T) {
 		t.Parallel()
 
@@ -473,6 +1144,11 @@ func TestTransportAndReadyCallbackBranches(t *testing.T) {
 }
 
 func TestRuntimeErrorBranches(t *testing.T) {
+	t.Parallel()
+	t.Run("Should reject invalid runtime requests", testRuntimeErrorBranches)
+}
+
+func testRuntimeErrorBranches(t *testing.T) {
 	t.Parallel()
 
 	runtime := newRuntimeHarness(t)
@@ -651,6 +1327,168 @@ func TestTransportValidationBranches(t *testing.T) {
 			t.Fatalf("nil result message = %#v, want null result", nilMessage)
 		}
 	})
+
+	t.Run("Should Redact Claim Tokens From Error Responses", func(t *testing.T) {
+		t.Parallel()
+
+		inputReader, inputWriter := io.Pipe()
+		outputReader, outputWriter := io.Pipe()
+		transport := compozysdk.NewStdioTransport(compozysdk.StdioTransportOptions{
+			Input:  inputReader,
+			Output: outputWriter,
+		})
+		transport.Handle(
+			"error/common",
+			func(context.Context, json.RawMessage, compozysdk.JSONRPCRequestEnvelope) (any, error) {
+				return nil, errors.New("handler failed with compozy_claim_common-secret")
+			},
+		)
+		transport.Handle(
+			"error/rpc",
+			func(context.Context, json.RawMessage, compozysdk.JSONRPCRequestEnvelope) (any, error) {
+				return nil, &compozysdk.RPCError{
+					Code:    -32010,
+					Message: "direct compozy_claim_rpc-message",
+					Data: json.RawMessage(
+						`{"safe":"value","safe_number":9007199254740993,"nested":["compozy_claim_rpc-data"],"claim_token":"compozy_claim_rpc-token","compozy_claim_rpc-key":"discard"}`,
+					),
+				}
+			},
+		)
+		transport.Handle(
+			"error/marshal",
+			func(context.Context, json.RawMessage, compozysdk.JSONRPCRequestEnvelope) (any, error) {
+				return claimTokenMarshalFailure{}, nil
+			},
+		)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		done := make(chan error, 1)
+		go func() { done <- transport.Run(ctx) }()
+		t.Cleanup(func() {
+			cancel()
+			closePipes(t, inputReader, inputWriter, outputReader, outputWriter)
+			select {
+			case <-done:
+			case <-time.After(time.Second):
+				t.Fatal("transport did not stop")
+			}
+		})
+
+		reader := bufio.NewReader(outputReader)
+		readError := func(t *testing.T) *compozysdk.JSONRPCErrorObject {
+			t.Helper()
+
+			line, err := reader.ReadBytes('\n')
+			if err != nil {
+				t.Fatalf("read error response: %v", err)
+			}
+			if bytes.Contains(line, []byte("compozy_claim_")) {
+				t.Fatalf("error response leaked claim token material: %s", line)
+			}
+			var response struct {
+				Error *compozysdk.JSONRPCErrorObject `json:"error"`
+			}
+			if err := json.Unmarshal(line, &response); err != nil {
+				t.Fatalf("json.Unmarshal(error response %s) error = %v", string(line), err)
+			}
+			if response.Error == nil {
+				t.Fatalf("error response = %s, want error object", line)
+			}
+			return response.Error
+		}
+
+		writeRequest(t, inputWriter, 1, "error/common", map[string]any{})
+		common := readError(t)
+		if common.Code != -32603 || common.Message != "Internal error" {
+			t.Fatalf("common error = %#v, want internal error", common)
+		}
+
+		writeRequest(t, inputWriter, 2, "error/rpc", map[string]any{})
+		rpc := readError(t)
+		if rpc.Code != -32010 || rpc.Message != "direct [REDACTED]" {
+			t.Fatalf("RPC error = %#v, want stable code and redacted message", rpc)
+		}
+		if !bytes.Contains(rpc.Data, []byte(`"safe":"value"`)) ||
+			!bytes.Contains(rpc.Data, []byte(`"safe_number":9007199254740993`)) {
+			t.Fatalf("RPC error data = %s, want safe data preserved", rpc.Data)
+		}
+
+		writeRequest(t, inputWriter, 3, "error/marshal", map[string]any{})
+		marshalFailure := readError(t)
+		if marshalFailure.Code != -32603 || marshalFailure.Message != "Internal error" {
+			t.Fatalf("marshal failure error = %#v, want internal error", marshalFailure)
+		}
+	})
+
+	t.Run("Should Redact Claim Tokens From Received Error Responses", func(t *testing.T) {
+		t.Parallel()
+
+		inputReader, inputWriter := io.Pipe()
+		outputReader, outputWriter := io.Pipe()
+		transport := compozysdk.NewStdioTransport(compozysdk.StdioTransportOptions{
+			Input:  inputReader,
+			Output: outputWriter,
+		})
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		done := make(chan error, 1)
+		go func() { done <- transport.Run(ctx) }()
+		t.Cleanup(func() {
+			cancel()
+			closePipes(t, inputReader, inputWriter, outputReader, outputWriter)
+			select {
+			case <-done:
+			case <-time.After(time.Second):
+				t.Fatal("transport did not stop")
+			}
+		})
+
+		callDone := make(chan error, 1)
+		go func() {
+			callDone <- transport.Call(ctx, "remote/error", map[string]any{}, nil)
+		}()
+		request := readMessage(t, bufio.NewReader(outputReader))
+		response := map[string]any{
+			"jsonrpc": "2.0",
+			"id":      request["id"],
+			"error": map[string]any{
+				"code":    -32010,
+				"message": "remote compozy_claim_inbound-message",
+				"data": map[string]any{
+					"safe":        "preserved",
+					"nested":      []string{"compozy_claim_inbound-data"},
+					"claim_token": "compozy_claim_inbound-token",
+				},
+			},
+		}
+		if err := json.NewEncoder(inputWriter).Encode(response); err != nil {
+			t.Fatalf("encode received error response: %v", err)
+		}
+
+		var callErr error
+		select {
+		case callErr = <-callDone:
+		case <-time.After(time.Second):
+			t.Fatal("Call() did not receive error response")
+		}
+
+		rpcErr, rpcErrMatched := errors.AsType[*compozysdk.RPCError](callErr)
+		if !rpcErrMatched {
+			t.Fatalf("Call() error = %v, want *RPCError", callErr)
+		}
+		if rpcErr.Code != -32010 || rpcErr.Message != "remote [REDACTED]" {
+			t.Fatalf("received RPC error = %#v, want stable code and redacted message", rpcErr)
+		}
+		if bytes.Contains(rpcErr.Data, []byte("compozy_claim_")) ||
+			bytes.Contains(rpcErr.Data, []byte(`"claim_token"`)) {
+			t.Fatalf("received RPC error data leaked claim token material: %s", rpcErr.Data)
+		}
+		if !bytes.Contains(rpcErr.Data, []byte(`"safe":"preserved"`)) {
+			t.Fatalf("received RPC error data = %s, want safe data preserved", rpcErr.Data)
+		}
+	})
 }
 
 func TestInitializeValidationBranches(t *testing.T) {
@@ -682,6 +1520,12 @@ func TestInitializeValidationBranches(t *testing.T) {
 			name: "Should Reject Invalid Runtime",
 			mutate: func(params map[string]any) {
 				params["runtime"].(map[string]any)["health_check_timeout_ms"] = 0
+			},
+		},
+		{
+			name: "Should Reject Shutdown Timeout That Exceeds Go Duration",
+			mutate: func(params map[string]any) {
+				params["runtime"].(map[string]any)["shutdown_timeout_ms"] = int64(math.MaxInt64)
 			},
 		},
 		{
@@ -771,6 +1615,12 @@ type failingWriter struct{}
 
 func (failingWriter) Write([]byte) (int, error) {
 	return 0, errors.New("forced write failure")
+}
+
+type claimTokenMarshalFailure struct{}
+
+func (claimTokenMarshalFailure) MarshalJSON() ([]byte, error) {
+	return nil, errors.New("marshal failed with compozy_claim_marshal-secret")
 }
 
 func writeRequest(t *testing.T, writer io.Writer, id int, method string, params any) {

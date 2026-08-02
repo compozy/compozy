@@ -1,18 +1,19 @@
 package gitsrc
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"io"
+	"net"
+	"net/netip"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
 
-	"github.com/compozy/compozy/internal/fileutil"
+	"github.com/compozy/compozy/internal/outboundpolicy"
 	"github.com/compozy/compozy/internal/registry"
 )
 
@@ -23,6 +24,7 @@ const (
 )
 
 type commandRunner func(context.Context, string, ...string) error
+type gitVersionProbe func(context.Context, string) (string, error)
 
 // Option configures a git registry client.
 type Option func(*Client)
@@ -31,7 +33,13 @@ type Option func(*Client)
 type Client struct {
 	lookPath func(string) (string, error)
 	run      commandRunner
+	version  gitVersionProbe
+	resolver outboundpolicy.Resolver
 	timeout  time.Duration
+
+	maxUncompressedSize int64
+	maxFileCount        int
+	archiveTempDir      string
 }
 
 var _ registry.Source = (*Client)(nil)
@@ -41,7 +49,12 @@ func NewClient(opts ...Option) *Client {
 	client := &Client{
 		lookPath: exec.LookPath,
 		run:      runGitCommand,
+		version:  probeGitVersion,
+		resolver: net.DefaultResolver,
 		timeout:  defaultCloneTimeout,
+
+		maxUncompressedSize: registry.DefaultMaxDecompressedSize,
+		maxFileCount:        registry.DefaultMaxFileCount,
 	}
 	for _, opt := range opts {
 		if opt != nil {
@@ -54,8 +67,20 @@ func NewClient(opts ...Option) *Client {
 	if client.run == nil {
 		client.run = runGitCommand
 	}
+	if client.version == nil {
+		client.version = probeGitVersion
+	}
+	if client.resolver == nil {
+		client.resolver = net.DefaultResolver
+	}
 	if client.timeout <= 0 {
 		client.timeout = defaultCloneTimeout
+	}
+	if client.maxUncompressedSize <= 0 {
+		client.maxUncompressedSize = registry.DefaultMaxDecompressedSize
+	}
+	if client.maxFileCount <= 0 {
+		client.maxFileCount = registry.DefaultMaxFileCount
 	}
 	return client
 }
@@ -71,6 +96,18 @@ func WithLookPath(lookPath func(string) (string, error)) Option {
 func WithRunner(run commandRunner) Option {
 	return func(client *Client) {
 		client.run = run
+	}
+}
+
+func withGitVersionProbe(probe gitVersionProbe) Option {
+	return func(client *Client) {
+		client.version = probe
+	}
+}
+
+func withRepositoryResolver(resolver outboundpolicy.Resolver) Option {
+	return func(client *Client) {
+		client.resolver = resolver
 	}
 }
 
@@ -98,19 +135,19 @@ func (c *Client) Search(context.Context, string, registry.SearchOpts) ([]registr
 
 // Info projects repository metadata without making a network request.
 func (c *Client) Info(_ context.Context, slug string) (*registry.Detail, error) {
-	repository, err := normalizeRepositoryRef(slug)
+	repository, err := parseRepositoryRef(slug)
 	if err != nil {
 		return nil, err
 	}
-	name := repositoryName(repository)
+	name := repositoryName(repository.raw)
 	return &registry.Detail{
 		Listing: registry.Listing{
-			Slug:   repository,
+			Slug:   repository.raw,
 			Name:   name,
 			Source: sourceName,
 			Type:   registry.PackageTypeExtension,
 		},
-		Repository: repository,
+		Repository: repository.raw,
 	}, nil
 }
 
@@ -123,7 +160,7 @@ func (c *Client) Download(
 	if ctx == nil {
 		return nil, errors.New("gitsrc: context is required")
 	}
-	repository, err := normalizeRepositoryRef(slug)
+	repository, err := parseRepositoryRef(slug)
 	if err != nil {
 		return nil, err
 	}
@@ -131,7 +168,17 @@ func (c *Client) Download(
 	if err != nil {
 		return nil, newGitUnavailableError(err)
 	}
+	if err := c.requireSupportedGit(ctx, executable); err != nil {
+		return nil, err
+	}
+	addresses, err := resolveRepositoryAddresses(ctx, c.resolver, repository)
+	if err != nil {
+		return nil, err
+	}
 
+	// Git does not expose a portable per-checkout disk quota. The clone is confined
+	// to os.TempDir, so operators that accept arbitrary repositories must place that
+	// filesystem behind an OS quota; the timeout bounds how long the subprocess may write.
 	tempRoot, err := os.MkdirTemp("", "compozy-gitsrc-*")
 	if err != nil {
 		return nil, fmt.Errorf("gitsrc: create clone directory: %w", err)
@@ -142,7 +189,7 @@ func (c *Client) Download(
 	checkoutDir := filepath.Join(tempRoot, "checkout")
 	cloneCtx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
-	args := cloneArgs(repository, strings.TrimSpace(opts.Version), checkoutDir)
+	args := cloneArgs(repository, addresses, strings.TrimSpace(opts.Version), checkoutDir)
 	if err := c.run(cloneCtx, executable, args...); err != nil {
 		if cloneCtx.Err() != nil {
 			return nil, fmt.Errorf("gitsrc: clone timed out: %w", cloneCtx.Err())
@@ -150,27 +197,24 @@ func (c *Client) Download(
 		return nil, fmt.Errorf("gitsrc: clone repository: %w", err)
 	}
 
-	archive, err := fileutil.TarGzipDirectory(checkoutDir, map[string]struct{}{`.git`: {}})
-	if err != nil {
-		return nil, err
-	}
 	maxSize := opts.MaxArchiveSize
 	if maxSize <= 0 {
 		maxSize = registry.DefaultMaxArchiveSize
 	}
-	if int64(len(archive)) > maxSize {
-		return nil, fmt.Errorf(
-			"gitsrc: repository archive: %w: size=%d limit=%d",
-			registry.ErrArchiveTooLargeCompressed,
-			len(archive),
-			maxSize,
-		)
+	archive, archiveSize, err := createRepositoryArchive(ctx, checkoutDir, archiveLimits{
+		maxCompressedSize:   maxSize,
+		maxUncompressedSize: c.maxUncompressedSize,
+		maxFileCount:        c.maxFileCount,
+		tempDir:             c.archiveTempDir,
+	})
+	if err != nil {
+		return nil, err
 	}
 	return &registry.DownloadResult{
-		Reader:      io.NopCloser(bytes.NewReader(archive)),
-		Slug:        repository,
+		Reader:      archive,
+		Slug:        repository.raw,
 		Version:     strings.TrimSpace(opts.Version),
-		ContentSize: int64(len(archive)),
+		ContentSize: archiveSize,
 		ContentType: archiveContentType,
 	}, nil
 }
@@ -180,12 +224,23 @@ func (c *Client) Close() error {
 	return nil
 }
 
-func cloneArgs(repository string, ref string, checkoutDir string) []string {
-	args := []string{"clone", "--depth", "1", "--single-branch"}
+func cloneArgs(repository repositoryRef, addresses []netip.Addr, ref string, checkoutDir string) []string {
+	args := []string{
+		"-c", "protocol.allow=never",
+		"-c", "protocol.https.allow=always",
+		"-c", "http.followRedirects=false",
+		"-c", "http.proxy=",
+		"-c", "http.curloptResolve=",
+		"-c", "http.curloptResolve=" + curlResolveValue(repository, addresses),
+		"-c", "credential.helper=",
+		"-c", "credential.interactive=false",
+		"-c", "core.hooksPath=" + os.DevNull,
+		"clone", "--depth", "1", "--single-branch",
+	}
 	if ref != "" {
 		args = append(args, "--branch", ref)
 	}
-	return append(args, "--", repository, checkoutDir)
+	return append(args, "--", repository.raw, checkoutDir)
 }
 
 func runGitCommand(ctx context.Context, executable string, args ...string) error {
@@ -193,6 +248,7 @@ func runGitCommand(ctx context.Context, executable string, args ...string) error
 	command.Stdin = nil
 	command.Stdout = io.Discard
 	command.Stderr = io.Discard
+	command.Env = isolatedGitEnvironment()
 	if err := command.Run(); err != nil {
 		return fmt.Errorf("run git: %w", err)
 	}

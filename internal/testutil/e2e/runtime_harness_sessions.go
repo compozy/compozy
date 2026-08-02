@@ -367,7 +367,10 @@ func (h *RuntimeHarness) promptSessionWithRuntime(
 	runtime *compozycontract.PromptRuntimeSelectionPayload,
 	onEvent func(SSEEvent) error,
 ) (_ []SSEEvent, err error) {
-	body := newE2EPromptRequest(message, runtime)
+	body, err := newE2EPromptRequest(message, runtime)
+	if err != nil {
+		return nil, err
+	}
 	path, err := h.sessionScopedAPIPath(sessionID, "/prompt")
 	if err != nil {
 		return nil, err
@@ -400,7 +403,10 @@ func (h *RuntimeHarness) PromptSessionUntil(
 	if err := validateSSEPredicate(predicate); err != nil {
 		return nil, err
 	}
-	body := newE2EPromptRequest(message, nil)
+	body, err := newE2EPromptRequest(message, nil)
+	if err != nil {
+		return nil, err
+	}
 	path, err := h.sessionScopedAPIPath(sessionID, "/prompt")
 	if err != nil {
 		return nil, err
@@ -425,13 +431,21 @@ func (h *RuntimeHarness) PromptSessionUntil(
 func newE2EPromptRequest(
 	message string,
 	runtime *compozycontract.PromptRuntimeSelectionPayload,
-) compozycontract.SendPromptRequest {
+) (compozycontract.SendPromptRequest, error) {
+	messageID, err := store.NewID("msg")
+	if err != nil {
+		return compozycontract.SendPromptRequest{}, fmt.Errorf("generate E2E prompt message id: %w", err)
+	}
+	idempotencyKey, err := store.NewID("idem")
+	if err != nil {
+		return compozycontract.SendPromptRequest{}, fmt.Errorf("generate E2E prompt idempotency key: %w", err)
+	}
 	return compozycontract.SendPromptRequest{
 		Message:        message,
-		MessageID:      store.NewID("msg"),
-		IdempotencyKey: store.NewID("idem"),
+		MessageID:      messageID,
+		IdempotencyKey: idempotencyKey,
 		Runtime:        runtime,
-	}
+	}, nil
 }
 
 // SessionTranscript fetches the persisted transcript for one session.

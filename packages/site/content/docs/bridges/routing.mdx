@@ -220,12 +220,16 @@ request overrides:
 
 Allowed target fields are:
 
-| Field       | Notes                                                                                            |
-| ----------- | ------------------------------------------------------------------------------------------------ |
-| `peer_id`   | Platform direct conversation identity.                                                           |
-| `thread_id` | Optional thread identity; requires `peer_id` or `group_id`.                                      |
-| `group_id`  | Platform group, guild, or forum container identity.                                              |
-| `mode`      | `direct-send` or `reply`. Empty mode normalizes to `direct-send` for explicit target resolution. |
+| Field       | Notes                                                                                                                                                                                                                        |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `peer_id`   | Platform direct conversation identity.                                                                                                                                                                                       |
+| `thread_id` | Optional thread identity; requires `peer_id` or `group_id`.                                                                                                                                                                  |
+| `group_id`  | Platform group, guild, or forum container identity.                                                                                                                                                                          |
+| `mode`      | Exact `direct-send` or `reply`; aliases, case changes, surrounding whitespace, explicit empty strings, and `null` are rejected. An omitted mode uses the bridge instance default, then `direct-send` when no default exists. |
+
+Bridge instance, peer, thread, and group IDs are opaque: preserve their exact UTF-8 bytes in CLI,
+HTTP, and UDS requests. URL-encode path IDs that contain `/`; the daemon decodes the path parameter
+without changing the ID. A body `bridge_instance_id`, when supplied, must match the path ID exactly.
 
 Use `compozy bridge test-delivery` to verify that a target resolves without sending a live message:
 

@@ -47,8 +47,7 @@ func (e *AutonomyError) Unwrap() error {
 
 // AutonomyReasonOf extracts a deterministic autonomy reason code from an error.
 func AutonomyReasonOf(err error) (AutonomyReasonCode, bool) {
-	var autonomyErr *AutonomyError
-	if errors.As(err, &autonomyErr) && autonomyErr.Reason != "" {
+	if autonomyErr, ok := errors.AsType[*AutonomyError](err); ok && autonomyErr.Reason != "" {
 		return autonomyErr.Reason, true
 	}
 	return "", false

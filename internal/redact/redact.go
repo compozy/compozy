@@ -27,9 +27,73 @@ func exactRedactString(value string) string {
 	redacted = shellFlagPattern.ReplaceAllStringFunc(redacted, redactShellFlag)
 	redacted = secretReferencePattern.ReplaceAllString(redacted, Marker)
 	for _, secret := range dynamicSecrets.valuesSnapshot() {
-		redacted = strings.ReplaceAll(redacted, secret, Marker)
+		redacted = replaceSecretOutsideMarkers(redacted, secret)
 	}
 	return redacted
+}
+
+func replaceSecretOutsideMarkers(value string, secret string) string {
+	if value == "" || secret == "" || !strings.Contains(value, secret) {
+		return value
+	}
+
+	markerRanges := redactionMarkerRanges(value)
+	var result strings.Builder
+	writeFrom := 0
+	searchFrom := 0
+	for searchFrom <= len(value)-len(secret) {
+		relativeIndex := strings.Index(value[searchFrom:], secret)
+		if relativeIndex < 0 {
+			break
+		}
+		secretStart := searchFrom + relativeIndex
+		secretEnd := secretStart + len(secret)
+		if rangeInsideRedactionMarker(secretStart, secretEnd, markerRanges) {
+			searchFrom = secretStart + 1
+			continue
+		}
+		result.WriteString(value[writeFrom:secretStart])
+		result.WriteString(Marker)
+		writeFrom = secretEnd
+		searchFrom = secretEnd
+	}
+	if writeFrom == 0 {
+		return value
+	}
+	result.WriteString(value[writeFrom:])
+	return result.String()
+}
+
+type redactionMarkerRange struct {
+	start int
+	end   int
+}
+
+func redactionMarkerRanges(value string) []redactionMarkerRange {
+	ranges := make([]redactionMarkerRange, 0)
+	for offset := 0; offset < len(value); {
+		relativeIndex := strings.Index(value[offset:], Marker)
+		if relativeIndex < 0 {
+			break
+		}
+		start := offset + relativeIndex
+		end := start + len(Marker)
+		ranges = append(ranges, redactionMarkerRange{start: start, end: end})
+		offset = end
+	}
+	return ranges
+}
+
+func rangeInsideRedactionMarker(start int, end int, ranges []redactionMarkerRange) bool {
+	for _, markerRange := range ranges {
+		if start >= markerRange.start && end <= markerRange.end {
+			return true
+		}
+		if markerRange.start > start {
+			return false
+		}
+	}
+	return false
 }
 
 // ClaimTokens removes raw task-claim bearer tokens without applying other redaction rules.

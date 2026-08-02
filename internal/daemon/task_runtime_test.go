@@ -432,8 +432,8 @@ func assertLoopActionLivenessFailure(
 	wantTokens int64,
 ) {
 	t.Helper()
-	var reason loopActionReasonCodeProvider
-	if !errors.As(err, &reason) || reason.loopActionReasonCode() != wantReason {
+	reason, reasonMatched := errors.AsType[loopActionReasonCodeProvider](err)
+	if !reasonMatched || reason.loopActionReasonCode() != wantReason {
 		t.Fatalf("executeQueuedRun() error = %v, want reason %q", err, wantReason)
 	}
 	var metadata loopActionFailureMetadata
@@ -674,29 +674,43 @@ func (s loopActionSessionStatusStub) Events(
 	return append([]store.SessionEvent(nil), s.events...), s.err
 }
 
-func seedNonLeasedClaimedRunForDaemonTest(
+func claimRunForDaemonTest(
 	t *testing.T,
+	manager *taskpkg.Service,
 	claimStore taskpkg.Store,
 	runID string,
 	actor taskpkg.ActorContext,
-) *taskpkg.Run {
+) (*taskpkg.Run, string) {
 	t.Helper()
+	if manager == nil {
+		t.Fatal("task manager is required for daemon claim fixture")
+	}
 
 	ctx := testutil.Context(t)
 	run, err := claimStore.GetTaskRun(ctx, runID)
 	if err != nil {
 		t.Fatalf("GetTaskRun(%q) error = %v", runID, err)
 	}
-	run.Status = taskpkg.TaskRunStatusClaimed
-	run.ClaimedBy = &taskpkg.ActorIdentity{Kind: actor.Actor.Kind, Ref: actor.Actor.Ref}
-	run.ClaimedAt = time.Now().UTC()
-	run.SessionID = ""
-	run.ClaimTokenHash = ""
-	run.LeaseUntil = time.Time{}
-	if err := claimStore.UpdateTaskRun(ctx, run); err != nil {
-		t.Fatalf("UpdateTaskRun(%q) error = %v", runID, err)
+	taskRecord, err := claimStore.GetTask(ctx, run.TaskID)
+	if err != nil {
+		t.Fatalf("GetTask(%q) error = %v", run.TaskID, err)
 	}
-	return &run
+	claimerSessionID := strings.TrimSpace(actor.Scope.SessionID)
+	if claimerSessionID == "" {
+		claimerSessionID = strings.TrimSpace(actor.Actor.Ref)
+	}
+	claim, err := manager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+		RunID:            run.ID,
+		Scope:            taskRecord.Scope,
+		WorkspaceID:      taskRecord.WorkspaceID,
+		RunKind:          run.RunKind,
+		ClaimerSessionID: claimerSessionID,
+		LeaseDuration:    time.Minute,
+	}, actor)
+	if err != nil {
+		t.Fatalf("ClaimNextRun(%q) error = %v", runID, err)
+	}
+	return &claim.Run, claim.ClaimToken
 }
 
 func networkWakeIntegrationAcceptance(
@@ -1576,6 +1590,7 @@ func TestPlanTaskRunRecoveryClassifiesCrashedOrphanedAndStalledSessions(t *testi
 		sessionID          string
 		wantClassification string
 		wantDetail         string
+		wantStopRequired   bool
 	}{
 		{
 			name:               "Should classify stopped session without live subprocess as crashed",
@@ -1588,12 +1603,14 @@ func TestPlanTaskRunRecoveryClassifiesCrashedOrphanedAndStalledSessions(t *testi
 			sessionID:          "sess-orphaned",
 			wantClassification: taskRecoveryClassificationOrphaned,
 			wantDetail:         "subprocess pid",
+			wantStopRequired:   true,
 		},
 		{
 			name:               "Should classify stale stopped session with live subprocess as stalled",
 			sessionID:          "sess-stalled",
 			wantClassification: taskRecoveryClassificationStalled,
 			wantDetail:         store.SessionStallReasonActivityTimeout,
+			wantStopRequired:   true,
 		},
 		{
 			name:               "Should treat pid reuse with mismatched start time as crashed",
@@ -1630,6 +1647,9 @@ func TestPlanTaskRunRecoveryClassifiesCrashedOrphanedAndStalledSessions(t *testi
 			}
 			if got := recovery.Detail; !strings.Contains(got, tc.wantDetail) {
 				t.Fatalf("recovery.Detail = %q, want substring %q", got, tc.wantDetail)
+			}
+			if got, want := recovery.StopRequired, tc.wantStopRequired; got != want {
+				t.Fatalf("recovery.StopRequired = %t, want %t", got, want)
 			}
 		})
 	}
@@ -2023,18 +2043,14 @@ func TestLoopCoordinatorRunnerShouldPollThroughExtensionRuntime(t *testing.T) {
 		if _, err := db.CreateLoopRunForStart(ctx, seedRun, loopdsl.ConcurrencyAllow); err != nil {
 			t.Fatalf("CreateLoopRunForStart() error = %v", err)
 		}
-		claim, err := db.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+		claim := claimSchedulerRunForTest(t, db, now, taskpkg.ClaimCriteria{
 			Scope:            taskpkg.ScopeWorkspace,
 			WorkspaceID:      "ws-1",
 			RunKind:          taskpkg.RunKindCoordinator,
 			ClaimerSessionID: "daemon-loop-watch-test",
 			ClaimedBy:        &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: "loop"},
 			LeaseDuration:    time.Minute,
-			Now:              now,
 		})
-		if err != nil {
-			t.Fatalf("ClaimNextRun() error = %v", err)
-		}
 		var polled bool
 		extensions := &watchPollerExtensionRuntime{
 			poll: func(_ context.Context, req watchpkg.PollRequest) (watchpkg.PollResponse, error) {
@@ -2136,25 +2152,31 @@ func TestBootTasksSchedulerStatusUsesDurableStarvationEpisodes(t *testing.T) {
 		if err != nil {
 			t.Fatalf("DeriveHumanActorContextForWorkspace() error = %v", err)
 		}
-		taskRecord, err := state.tasks.manager.CreateTask(ctx, taskpkg.CreateTask{
+		thresholdNow := time.Now().UTC()
+		managerAt := func(at time.Time) *taskpkg.Service {
+			manager, managerErr := taskpkg.NewManager(
+				taskpkg.WithStore(state.tasks.store),
+				taskpkg.WithManagerNow(func() time.Time { return at }),
+			)
+			if managerErr != nil {
+				t.Fatalf("task.NewManager(at %s) error = %v", at, managerErr)
+			}
+			return manager
+		}
+		withinThresholdManager := managerAt(thresholdNow.Add(-30 * time.Minute))
+		withinThresholdTask, err := withinThresholdManager.CreateTask(ctx, taskpkg.CreateTask{
 			Scope:       taskpkg.ScopeWorkspace,
 			WorkspaceID: workspaceRecord.ID,
-			Title:       "Verify scheduler status threshold wiring",
+			Title:       "Verify scheduler status within threshold",
 		}, actor)
 		if err != nil {
-			t.Fatalf("CreateTask() error = %v", err)
+			t.Fatalf("CreateTask(within threshold) error = %v", err)
 		}
-		runRecord, err := state.tasks.manager.EnqueueRun(ctx, taskpkg.EnqueueRun{
-			TaskID:         taskRecord.ID,
-			IdempotencyKey: "scheduler-status-threshold",
-		}, actor)
-		if err != nil {
-			t.Fatalf("EnqueueRun() error = %v", err)
-		}
-
-		runRecord.QueuedAt = time.Now().Add(-30 * time.Minute).UTC()
-		if err := state.tasks.store.UpdateTaskRun(ctx, *runRecord); err != nil {
-			t.Fatalf("UpdateTaskRun(30m old) error = %v", err)
+		if _, err := withinThresholdManager.EnqueueRun(ctx, taskpkg.EnqueueRun{
+			TaskID:         withinThresholdTask.ID,
+			IdempotencyKey: "scheduler-status-within-threshold",
+		}, actor); err != nil {
+			t.Fatalf("EnqueueRun(within threshold) error = %v", err)
 		}
 		status, err := state.tasks.manager.SchedulerStatus(ctx, actor)
 		if err != nil {
@@ -2164,9 +2186,21 @@ func TestBootTasksSchedulerStatusUsesDurableStarvationEpisodes(t *testing.T) {
 			t.Fatalf("StarvedRunCount for 30m old run = %d, want 0 with 1h min_queued_age", status.StarvedRunCount)
 		}
 
-		runRecord.QueuedAt = time.Now().Add(-2 * time.Hour).UTC()
-		if err := state.tasks.store.UpdateTaskRun(ctx, *runRecord); err != nil {
-			t.Fatalf("UpdateTaskRun(2h old) error = %v", err)
+		ageOnlyManager := managerAt(thresholdNow.Add(-2 * time.Hour))
+		ageOnlyTask, err := ageOnlyManager.CreateTask(ctx, taskpkg.CreateTask{
+			Scope:       taskpkg.ScopeWorkspace,
+			WorkspaceID: workspaceRecord.ID,
+			Title:       "Verify scheduler status without starvation episode",
+		}, actor)
+		if err != nil {
+			t.Fatalf("CreateTask(age only) error = %v", err)
+		}
+		runRecord, err := ageOnlyManager.EnqueueRun(ctx, taskpkg.EnqueueRun{
+			TaskID:         ageOnlyTask.ID,
+			IdempotencyKey: "scheduler-status-age-only",
+		}, actor)
+		if err != nil {
+			t.Fatalf("EnqueueRun(age only) error = %v", err)
 		}
 		status, err = state.tasks.manager.SchedulerStatus(ctx, actor)
 		if err != nil {
@@ -2304,8 +2338,7 @@ func TestBootTasksRecoversPendingRunsOnStartup(t *testing.T) {
 	if err != nil {
 		t.Fatalf("EnqueueRun() error = %v", err)
 	}
-	claimedRun := seedNonLeasedClaimedRunForDaemonTest(t, db, runRecord.ID, seedActor)
-	if _, err := seedManager.AttachRunSession(context.Background(), claimedRun.ID, "sess-live", seedActor); err != nil {
+	if _, err := seedManager.AttachRunSession(context.Background(), runRecord.ID, "sess-live", seedActor); err != nil {
 		t.Fatalf("AttachRunSession() error = %v", err)
 	}
 	const wakeRunID = "run-wake-boot-recovery"
@@ -2354,12 +2387,17 @@ func TestBootTasksRecoversPendingRunsOnStartup(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ClaimNextRun(network wake) error = %v", err)
 	}
-	runningWake := wakeClaim.Run
-	runningWake.Status = taskpkg.TaskRunStatusRunning
-	runningWake.SessionID = "sess-wake-live"
-	runningWake.StartedAt = now.Add(time.Millisecond)
-	if err := db.UpdateTaskRun(context.Background(), runningWake); err != nil {
-		t.Fatalf("UpdateTaskRun(running network wake) error = %v", err)
+	recoveryActor, err := taskpkg.DeriveDaemonActorContext("boot-recovery", "daemon.boot")
+	if err != nil {
+		t.Fatalf("DeriveDaemonActorContext(network wake recovery) error = %v", err)
+	}
+	if _, err := seedManager.RecoverRunOnBoot(context.Background(), wakeClaim.Run.ID, taskpkg.RunBootRecovery{
+		Action:         taskpkg.RunBootRecoveryMarkRunning,
+		Reason:         "scheduler boot fixture",
+		SessionState:   "active",
+		Classification: "live",
+	}, recoveryActor); err != nil {
+		t.Fatalf("RecoverRunOnBoot(running network wake) error = %v", err)
 	}
 
 	daemon := &Daemon{
@@ -2901,6 +2939,48 @@ func TestTaskRuntimeDetachedHarnessSubmissionValidationErrors(t *testing.T) {
 	}
 }
 
+func TestTerminalRunRecoveryDispositionRequiresConclusiveSessionEvidence(t *testing.T) {
+	t.Parallel()
+
+	// Invariant: boot may resume a known-live stop or settle a known stopped or
+	// missing session, but an unknown state cannot be interpreted as stopped.
+	// Owning layer: daemon session inspection. Canonical suite: task_runtime_test.go.
+	tests := []struct {
+		name     string
+		evidence taskSessionRecoveryEvidence
+		want     taskpkg.TerminalRunRecoveryDisposition
+	}{
+		{
+			name:     "Should resume a live session stop",
+			evidence: taskSessionRecoveryEvidence{live: true, state: string(session.StateActive)},
+			want:     taskpkg.TerminalRunRecoveryResumeStop,
+		},
+		{
+			name:     "Should settle a stopped session",
+			evidence: taskSessionRecoveryEvidence{state: string(session.StateStopped)},
+			want:     taskpkg.TerminalRunRecoveryStopObserved,
+		},
+		{
+			name:     "Should settle a missing session",
+			evidence: taskSessionRecoveryEvidence{state: taskRecoverySessionMissing},
+			want:     taskpkg.TerminalRunRecoveryStopObserved,
+		},
+		{
+			name:     "Should preserve an unknown session as ambiguous",
+			evidence: taskSessionRecoveryEvidence{state: "unknown"},
+			want:     taskpkg.TerminalRunRecoveryAmbiguous,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := terminalRunRecoveryDisposition(tt.evidence); got != tt.want {
+				t.Fatalf("terminalRunRecoveryDisposition() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestRecoverTaskRunsOnBootPreservesDetachedHarnessMetadata(t *testing.T) {
 	t.Parallel()
 
@@ -2953,8 +3033,7 @@ func TestRecoverTaskRunsOnBootPreservesDetachedHarnessMetadata(t *testing.T) {
 	if err != nil {
 		t.Fatalf("detachedHarnessActorContext() error = %v", err)
 	}
-	claimed := seedNonLeasedClaimedRunForDaemonTest(t, runtime.store, submission.Run.ID, actor)
-	starting, err := runtime.manager.AttachRunSession(context.Background(), claimed.ID, "sess-runtime", actor)
+	starting, err := runtime.manager.AttachRunSession(context.Background(), submission.Run.ID, "sess-runtime", actor)
 	if err != nil {
 		t.Fatalf("AttachRunSession() error = %v", err)
 	}
@@ -3061,13 +3140,21 @@ func TestRecoverTaskRunsOnBootTracksAllRecoveryOutcomes(t *testing.T) {
 		t.Fatalf("detachedHarnessActorContext() error = %v", err)
 	}
 
-	seedNonLeasedClaimedRunForDaemonTest(t, runtime.store, requeueSubmission.Run.ID, actor)
-	claimed := seedNonLeasedClaimedRunForDaemonTest(t, runtime.store, markSubmission.Run.ID, actor)
-	if _, err := runtime.manager.AttachRunSession(context.Background(), claimed.ID, "sess-live", actor); err != nil {
+	claimRunForDaemonTest(t, runtime.manager, runtime.store, requeueSubmission.Run.ID, actor)
+	if _, err := runtime.manager.AttachRunSession(
+		context.Background(),
+		markSubmission.Run.ID,
+		"sess-live",
+		actor,
+	); err != nil {
 		t.Fatalf("AttachRunSession(mark) error = %v", err)
 	}
-	claimed = seedNonLeasedClaimedRunForDaemonTest(t, runtime.store, failSubmission.Run.ID, actor)
-	if _, err := runtime.manager.AttachRunSession(context.Background(), claimed.ID, "sess-fail", actor); err != nil {
+	if _, err := runtime.manager.AttachRunSession(
+		context.Background(),
+		failSubmission.Run.ID,
+		"sess-fail",
+		actor,
+	); err != nil {
 		t.Fatalf("AttachRunSession(fail) error = %v", err)
 	}
 	failedInfo.State = session.StateStopped
@@ -4065,6 +4152,7 @@ func testHarnessReentryBridgeDispatchWakeUsesRecordedSyntheticEvent(t *testing.T
 	if err != nil {
 		t.Fatalf("GetTaskRun() error = %v", err)
 	}
+	storedMetadata := append(json.RawMessage(nil), run.Metadata...)
 	metadata, ok, err := maybeDecodeDetachedHarnessRunMetadata(run.Metadata)
 	if err != nil {
 		t.Fatalf("maybeDecodeDetachedHarnessRunMetadata() error = %v", err)
@@ -4077,8 +4165,12 @@ func testHarnessReentryBridgeDispatchWakeUsesRecordedSyntheticEvent(t *testing.T
 	if err != nil {
 		t.Fatalf("marshalDetachedHarnessMetadata() error = %v", err)
 	}
-	if err := runtime.store.UpdateTaskRun(testutil.Context(t), run); err != nil {
-		t.Fatalf("UpdateTaskRun() error = %v", err)
+	if _, err := runtime.store.UpdateTaskRunMetadata(testutil.Context(t), taskpkg.RunMetadataMutation{
+		RunID:            run.ID,
+		ExpectedMetadata: storedMetadata,
+		Metadata:         run.Metadata,
+	}); err != nil {
+		t.Fatalf("UpdateTaskRunMetadata() error = %v", err)
 	}
 
 	runtime.reentry.dispatchWake(harnessSyntheticWake{
@@ -4190,8 +4282,7 @@ func completeDetachedHarnessRunForTest(
 	if err != nil {
 		t.Fatalf("detachedHarnessActorContext() error = %v", err)
 	}
-	claimed := seedNonLeasedClaimedRunForDaemonTest(t, runtime.store, runID, actor)
-	started, err := runtime.manager.StartRun(testutil.Context(t), claimed.ID, taskpkg.StartRun{
+	started, err := runtime.manager.StartRun(testutil.Context(t), runID, taskpkg.StartRun{
 		IdempotencyKey: "start-" + runID,
 	}, actor)
 	if err != nil {

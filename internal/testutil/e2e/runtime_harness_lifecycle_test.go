@@ -109,22 +109,29 @@ func TestReadSSERecordsUntilReturnsBeforeEOF(t *testing.T) {
 
 	reader, writer := io.Pipe()
 	releaseWriter := make(chan struct{})
-	writerDone := make(chan struct{})
+	writerDone := make(chan error, 1)
 	go func() {
-		defer close(writerDone)
-		_, _ = writer.Write([]byte("event: runtime_progress\ndata: {\"type\":\"runtime_progress\"}\n\n"))
-		<-releaseWriter
-		_ = writer.Close()
+		_, writeErr := writer.Write([]byte("event: runtime_progress\ndata: {\"type\":\"runtime_progress\"}\n\n"))
+		if writeErr == nil {
+			<-releaseWriter
+		}
+		writerDone <- errors.Join(writeErr, writer.Close())
 	}()
 
 	records, err := readSSERecordsUntil(reader, func(record SSEEvent) bool {
 		return record.Event == "runtime_progress"
 	})
 	close(releaseWriter)
-	<-writerDone
-	_ = reader.Close()
+	writerErr := <-writerDone
+	readerErr := reader.Close()
 	if err != nil {
 		t.Fatalf("readSSERecordsUntil() error = %v", err)
+	}
+	if writerErr != nil {
+		t.Fatalf("SSE writer error = %v", writerErr)
+	}
+	if readerErr != nil {
+		t.Fatalf("SSE reader close error = %v", readerErr)
 	}
 	if got, want := len(records), 1; got != want {
 		t.Fatalf("len(records) = %d, want %d", got, want)
@@ -158,45 +165,119 @@ func TestInferSSEEventNameRecognizesAdditionalFrameTypes(t *testing.T) {
 	}
 }
 
-func TestRuntimeHarnessStopFallsBackToInterruptWhenCLIStopFails(t *testing.T) {
+func TestRuntimeHarnessStopLifecycle(t *testing.T) {
 	t.Parallel()
 
-	cmd := exec.CommandContext(
-		context.Background(),
-		"sh",
-		"-c",
-		"trap 'exit 0' INT; while :; do sleep 1; done",
-	)
-	// Mirror startDaemonProcess: Stop signals the process group, so the harness
-	// process must be its own group leader.
-	procutil.ConfigureCommandProcessGroup(cmd)
-	if err := cmd.Start(); err != nil {
-		t.Fatalf("cmd.Start() error = %v", err)
-	}
+	t.Run("Should fall back to interrupt when CLI stop fails", func(t *testing.T) {
+		t.Parallel()
 
-	waitCh := make(chan error, 1)
-	go func() {
-		waitCh <- cmd.Wait()
-		close(waitCh)
-	}()
+		cmd := exec.CommandContext(
+			context.Background(),
+			"sh",
+			"-c",
+			"trap 'exit 0' INT; while :; do sleep 1; done",
+		)
+		// Mirror startDaemonProcess: Stop signals the process group, so the harness
+		// process must be its own group leader.
+		procutil.ConfigureCommandProcessGroup(cmd)
+		if err := cmd.Start(); err != nil {
+			t.Fatalf("cmd.Start() error = %v", err)
+		}
 
-	harness := &RuntimeHarness{
-		process: cmd,
-		waitCh:  waitCh,
-		CLI: &CLIClient{
-			binaryPath: writeCLIScript(t, "#!/bin/sh\nexit 1\n"),
-			workdir:    t.TempDir(),
-		},
-	}
+		waitCh := make(chan error, 1)
+		go func() {
+			waitCh <- cmd.Wait()
+			close(waitCh)
+		}()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	if err := harness.Stop(ctx); err != nil {
-		t.Fatalf("Stop() error = %v", err)
-	}
-	if err := harness.Stop(ctx); err != nil {
-		t.Fatalf("second Stop() error = %v", err)
-	}
+		harness := &RuntimeHarness{
+			process: cmd,
+			waitCh:  waitCh,
+			CLI: &CLIClient{
+				binaryPath: writeCLIScript(t, "#!/bin/sh\nexit 1\n"),
+				workdir:    t.TempDir(),
+			},
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := harness.Stop(ctx); err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+		if err := harness.Stop(ctx); err != nil {
+			t.Fatalf("second Stop() error = %v", err)
+		}
+	})
+
+	t.Run("Should retry after a canceled attempt", func(t *testing.T) {
+		t.Parallel()
+
+		readyPath := filepath.Join(t.TempDir(), "ready")
+		scriptPath := writeCLIScript(t, `#!/bin/sh
+trap '' INT
+printf ready > "$READY_PATH"
+while :; do sleep 1; done
+`)
+		cmd := exec.CommandContext(context.Background(), scriptPath)
+		cmd.Env = append(os.Environ(), "READY_PATH="+readyPath)
+		procutil.ConfigureCommandProcessGroup(cmd)
+		if err := cmd.Start(); err != nil {
+			t.Fatalf("cmd.Start() error = %v", err)
+		}
+
+		waitCh := make(chan error, 1)
+		go func() {
+			waitCh <- cmd.Wait()
+			close(waitCh)
+		}()
+		harness := &RuntimeHarness{process: cmd, waitCh: waitCh}
+		t.Cleanup(func() {
+			if exited, pollErr := harness.pollExit(); exited {
+				return
+			} else if pollErr != nil {
+				t.Errorf("pollExit() cleanup error = %v", pollErr)
+			}
+			if err := procutil.KillCommandProcessGroupAndWait(cmd, time.Second); err != nil {
+				t.Errorf("KillCommandProcessGroupAndWait() cleanup error = %v", err)
+			}
+			cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), time.Second)
+			defer cleanupCancel()
+			if err := harness.waitForExit(cleanupCtx); err != nil {
+				t.Errorf("waitForExit() cleanup error = %v", err)
+			}
+		})
+
+		readyDeadline := time.Now().Add(2 * time.Second)
+		for {
+			if _, err := os.Stat(readyPath); err == nil {
+				break
+			} else if !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("os.Stat(%q) error = %v", readyPath, err)
+			}
+			if time.Now().After(readyDeadline) {
+				t.Fatalf("process did not report readiness at %q", readyPath)
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+
+		canceledCtx, cancel := context.WithCancel(context.Background())
+		cancel()
+		if err := harness.Stop(canceledCtx); !errors.Is(err, context.Canceled) {
+			t.Fatalf("Stop(canceled) error = %v, want context.Canceled", err)
+		}
+		if exited, err := harness.pollExit(); err != nil || exited {
+			t.Fatalf("pollExit() after canceled stop = (%v, %v), want running process", exited, err)
+		}
+
+		stopCtx, stopCancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+		defer stopCancel()
+		if err := harness.Stop(stopCtx); err != nil {
+			t.Fatalf("Stop(retry) error = %v", err)
+		}
+		if err := harness.Stop(context.Background()); err != nil {
+			t.Fatalf("Stop(cached) error = %v", err)
+		}
+	})
 }
 
 func TestRuntimeHarnessStartRetryHelpersRebindHTTPPortAndCleanStaleState(t *testing.T) {
@@ -389,7 +470,9 @@ func TestRuntimeHelpersCoverRequestAndTimingUtilities(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/ok":
-			_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+			if err := json.NewEncoder(w).Encode(map[string]string{"status": "ok"}); err != nil {
+				t.Errorf("encode ok response: %v", err)
+			}
 		case "/bad":
 			http.Error(w, "bad request", http.StatusBadRequest)
 		default:

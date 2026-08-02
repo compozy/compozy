@@ -320,8 +320,9 @@ func TestHostAPIModelsListShouldRequirePermission(t *testing.T) {
 		if err == nil {
 			t.Fatal("Handle(models/list) error = nil, want capability denied")
 		}
-		var rpcErr *subprocess.RPCError
-		if !errors.As(err, &rpcErr) {
+
+		rpcErr, rpcErrMatched := errors.AsType[*subprocess.RPCError](err)
+		if !rpcErrMatched {
 			t.Fatalf("Handle(models/list) error = %T, want *RPCError", err)
 		}
 		if rpcErr.Code != CapabilityDeniedCode {
@@ -405,8 +406,9 @@ func TestHostAPIModelsShouldMapValidationAndAvailabilityErrors(t *testing.T) {
 			if err == nil {
 				t.Fatal("Handle() error = nil, want RPC error")
 			}
-			var rpcErr *subprocess.RPCError
-			if !errors.As(err, &rpcErr) {
+
+			rpcErr, rpcErrMatched := errors.AsType[*subprocess.RPCError](err)
+			if !rpcErrMatched {
 				t.Fatalf("Handle() error = %T, want *RPCError", err)
 			}
 			if rpcErr.Code != tt.wantCode {
@@ -442,8 +444,9 @@ func TestHostAPIModelsShouldRedactUnavailableRPCErrorData(t *testing.T) {
 		if err == nil {
 			t.Fatal("Handle(models/list) error = nil, want RPC error")
 		}
-		var rpcErr *subprocess.RPCError
-		if !errors.As(err, &rpcErr) {
+
+		rpcErr, rpcErrMatched := errors.AsType[*subprocess.RPCError](err)
+		if !rpcErrMatched {
 			t.Fatalf("Handle(models/list) error = %T, want *RPCError", err)
 		}
 		data := string(rpcErr.Data)

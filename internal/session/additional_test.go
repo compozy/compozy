@@ -22,6 +22,14 @@ import (
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
+type failingEntropyReader struct {
+	err error
+}
+
+func (r failingEntropyReader) Read([]byte) (int, error) {
+	return 0, r.err
+}
+
 func TestCreateCleansUpOnStartFailure(t *testing.T) {
 	t.Parallel()
 
@@ -31,7 +39,7 @@ func TestCreateCleansUpOnStartFailure(t *testing.T) {
 		return nil, errors.New("start failed token=super-secret")
 	}
 	h.manager = newManagerWithHarness(t, h,
-		WithStore(func(context.Context, string, string) (EventRecorder, error) {
+		WithStore(func(context.Context, store.SessionDBOwner, string) (EventRecorder, error) {
 			return recorder, nil
 		}),
 	)
@@ -111,7 +119,7 @@ func TestCreateErrorBranches(t *testing.T) {
 			t.Fatalf("Create(blank agent) error = %v", err)
 		}
 		t.Cleanup(func() {
-			_ = h.manager.Stop(testutil.Context(t), session.ID)
+			reportSessionStop(t, h, session.ID)
 		})
 		if got, want := session.Info().AgentName, compozyconfig.DefaultAgentName; got != want {
 			t.Fatalf("Create(blank agent) AgentName = %q, want %q", got, want)
@@ -142,10 +150,10 @@ func TestCreateErrorBranches(t *testing.T) {
 		}
 	})
 
-	t.Run("Should empty generated session id", func(t *testing.T) {
+	t.Run("Should reject an empty generated session id", func(t *testing.T) {
 		t.Parallel()
 
-		h := newHarness(t, WithSessionIDGenerator(func() string { return "" }))
+		h := newHarness(t, WithSessionIDGenerator(func() (string, error) { return "", nil }))
 		if _, err := h.manager.Create(testutil.Context(t), CreateOpts{
 			AgentName: "coder",
 			Workspace: h.workspaceID,
@@ -154,13 +162,60 @@ func TestCreateErrorBranches(t *testing.T) {
 		}
 	})
 
+	t.Run("Should propagate session ID entropy failure before session creation", func(t *testing.T) {
+		t.Parallel()
+
+		entropyErr := errors.New("entropy unavailable")
+		h := newHarness(t, WithSessionIDGenerator(func() (string, error) {
+			return "", entropyErr
+		}))
+		if _, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName: "coder",
+			Workspace: h.workspaceID,
+		}); !errors.Is(err, entropyErr) {
+			t.Fatalf("Create() error = %v, want entropy failure", err)
+		}
+		if sessions := h.manager.List(); len(sessions) != 0 {
+			t.Fatalf("List() after entropy failure = %#v, want no session", sessions)
+		}
+	})
+
+	t.Run("Should propagate sandbox ID entropy failure before session creation", func(t *testing.T) {
+		t.Parallel()
+
+		entropyErr := errors.New("entropy unavailable")
+		h := newHarness(t, WithSandboxIDGenerator(func() (string, error) {
+			return "", entropyErr
+		}))
+		if _, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName: "coder",
+			Workspace: h.workspaceID,
+		}); !errors.Is(err, entropyErr) {
+			t.Fatalf("Create() error = %v, want entropy failure", err)
+		}
+		if sessions := h.manager.List(); len(sessions) != 0 {
+			t.Fatalf("List() after entropy failure = %#v, want no session", sessions)
+		}
+		entries, err := os.ReadDir(h.homePaths.SessionsDir)
+		if err != nil {
+			t.Fatalf("ReadDir(sessions) error = %v", err)
+		}
+		if len(entries) != 0 {
+			t.Fatalf("session metadata after sandbox ID entropy failure = %#v, want no persistence", entries)
+		}
+	})
+
 	t.Run("Should store open failure", func(t *testing.T) {
 		t.Parallel()
 
 		h := newHarness(t)
-		h.manager = newManagerWithHarness(t, h, WithStore(func(context.Context, string, string) (EventRecorder, error) {
-			return nil, errors.New("open failed")
-		}))
+		h.manager = newManagerWithHarness(
+			t,
+			h,
+			WithStore(func(context.Context, store.SessionDBOwner, string) (EventRecorder, error) {
+				return nil, errors.New("open failed")
+			}),
+		)
 		if _, err := h.manager.Create(testutil.Context(t), CreateOpts{
 			AgentName: "coder",
 			Workspace: h.workspaceID,
@@ -183,7 +238,7 @@ func TestCreateWithNilPromptAssemblerIsSafe(t *testing.T) {
 		t.Fatalf("Create() error = %v", err)
 	}
 	t.Cleanup(func() {
-		_ = h.manager.Stop(testutil.Context(t), session.ID)
+		reportSessionStop(t, h, session.ID)
 	})
 
 	if got := session.Info().Type; got != SessionTypeUser {
@@ -208,7 +263,7 @@ func TestResumeCleansUpOnStartFailure(t *testing.T) {
 		return nil, errors.New("resume failed")
 	}
 	h.manager = newManagerWithHarness(t, h,
-		WithStore(func(context.Context, string, string) (EventRecorder, error) {
+		WithStore(func(context.Context, store.SessionDBOwner, string) (EventRecorder, error) {
 			return recorder, nil
 		}),
 	)
@@ -260,7 +315,7 @@ func TestCreatePassesResolvedAdditionalDirsToDriver(t *testing.T) {
 		t.Fatalf("Create() error = %v", err)
 	}
 	t.Cleanup(func() {
-		_ = h.manager.Stop(testutil.Context(t), session.ID)
+		reportSessionStop(t, h, session.ID)
 	})
 
 	if got, want := h.driver.startCalls[0].AdditionalDirs, []string{
@@ -311,7 +366,7 @@ func TestResumePassesResolvedAdditionalDirsToDriver(t *testing.T) {
 		t.Fatalf("Resume() error = %v", err)
 	}
 	t.Cleanup(func() {
-		_ = h.manager.Stop(testutil.Context(t), resumed.ID)
+		reportSessionStop(t, h, resumed.ID)
 	})
 
 	if got, want := h.driver.startCalls[1].AdditionalDirs, []string{
@@ -434,6 +489,53 @@ func TestPromptErrorPaths(t *testing.T) {
 			t.Fatalf("Prompt(unbound) error = %v, want runtime bind failure", err)
 		}
 	})
+
+	t.Run("Should propagate turn ID entropy failure before prompt dispatch", func(t *testing.T) {
+		t.Parallel()
+
+		entropyErr := errors.New("entropy unavailable")
+		h := newHarness(t)
+		session := createSession(t, h)
+		safeTurnIDGenerator := h.manager.newTurnID
+		t.Cleanup(func() {
+			h.manager.newTurnID = safeTurnIDGenerator
+			if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+				t.Errorf("Stop() error = %v", err)
+			}
+		})
+		h.manager.newTurnID = func() (string, error) {
+			return "", entropyErr
+		}
+		if _, err := h.manager.Prompt(testutil.Context(t), session.ID, "requires id"); !errors.Is(err, entropyErr) {
+			t.Fatalf("Prompt() error = %v, want entropy failure", err)
+		}
+		if calls := len(managerPromptCalls(h)); calls != 0 {
+			t.Fatalf("driver prompt calls after entropy failure = %d, want 0", calls)
+		}
+	})
+
+	t.Run("Should reject an empty turn ID without a fallback", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		session := createSession(t, h)
+		safeTurnIDGenerator := h.manager.newTurnID
+		t.Cleanup(func() {
+			h.manager.newTurnID = safeTurnIDGenerator
+			if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+				t.Errorf("Stop() error = %v", err)
+			}
+		})
+		h.manager.newTurnID = func() (string, error) {
+			return "", nil
+		}
+		if _, err := h.manager.Prompt(testutil.Context(t), session.ID, "requires id"); err == nil {
+			t.Fatal("Prompt() error = nil, want empty turn ID rejection")
+		}
+		if calls := len(managerPromptCalls(h)); calls != 0 {
+			t.Fatalf("driver prompt calls after empty turn ID = %d, want 0", calls)
+		}
+	})
 }
 
 func TestResumeReturnsExistingActiveSession(t *testing.T) {
@@ -442,7 +544,7 @@ func TestResumeReturnsExistingActiveSession(t *testing.T) {
 	h := newHarness(t)
 	session := createSession(t, h)
 	t.Cleanup(func() {
-		_ = h.manager.Stop(testutil.Context(t), session.ID)
+		reportSessionStop(t, h, session.ID)
 	})
 
 	resumed, err := h.manager.Resume(testutil.Context(t), session.ID)
@@ -558,7 +660,9 @@ func TestWaitForSessionResumesDrainsAllCapturedRuns(t *testing.T) {
 
 		failed := &sessionResumeRun{done: make(chan struct{}), err: errors.New("resume failed")}
 		close(failed.done)
-		manager := &Manager{resumeRuns: map[string]*sessionResumeRun{"failed": failed}}
+		manager := &Manager{resumeLifecycle: sessionResumeLifecycle{
+			runs: map[string]*sessionResumeRun{"failed": failed},
+		}}
 
 		if err := manager.waitForSessionResumes(testutil.Context(t)); err != nil {
 			t.Fatalf("waitForSessionResumes() error = %v, want ordinary resume failure ignored", err)
@@ -571,7 +675,9 @@ func TestWaitForSessionResumesDrainsAllCapturedRuns(t *testing.T) {
 		pending := &sessionResumeRun{done: make(chan struct{})}
 		var closePending sync.Once
 		t.Cleanup(func() { closePending.Do(func() { close(pending.done) }) })
-		manager := &Manager{resumeRuns: map[string]*sessionResumeRun{"pending": pending}}
+		manager := &Manager{resumeLifecycle: sessionResumeLifecycle{
+			runs: map[string]*sessionResumeRun{"pending": pending},
+		}}
 		waitEntered := make(chan struct{})
 		waitContext := &resumeWaitObservedContext{
 			Context: testutil.Context(t),
@@ -633,6 +739,7 @@ func TestNewManagerOptionsAndValidation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewManager() error = %v", err)
 	}
+	cleanupTestManager(t, manager)
 	if got := manager.now(); !got.Equal(now) {
 		t.Fatalf("now() = %s, want %s", got, now)
 	}
@@ -647,6 +754,7 @@ func TestNewManagerOptionsAndValidation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewManager(defaults) error = %v", err)
 	}
+	cleanupTestManager(t, defaultManager)
 	if defaultManager.driver == nil {
 		t.Fatal("defaultManager.driver = nil, want default ACP adapter")
 	}
@@ -665,7 +773,9 @@ func TestNewManagerOptionsAndValidation(t *testing.T) {
 		WithLogger(nil),
 		WithNotifier(nil),
 		WithWorkspaceResolver(resolver),
-		WithStore(func(context.Context, string, string) (EventRecorder, error) { return &stubRecorder{}, nil }),
+		WithStore(func(context.Context, store.SessionDBOwner, string) (EventRecorder, error) {
+			return &stubRecorder{}, nil
+		}),
 		WithNow(nil),
 		WithSessionIDGenerator(nil),
 		WithTurnIDGenerator(nil),
@@ -674,6 +784,7 @@ func TestNewManagerOptionsAndValidation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewManager(normalized defaults) error = %v", err)
 	}
+	cleanupTestManager(t, manager)
 	if manager.logger == nil || manager.now == nil || manager.newSessionID == nil || manager.newTurnID == nil {
 		t.Fatal("NewManager() failed to restore default dependencies after nil overrides")
 	}
@@ -770,12 +881,25 @@ func TestHelperFunctionsAndUtilities(t *testing.T) {
 	if stringPointer("   ") != nil {
 		t.Fatal("stringPointer(blank) = non-nil, want nil")
 	}
-	if got := newID("sess"); !strings.HasPrefix(got, "sess-") {
+	if got, err := newID("sess"); err != nil {
+		t.Fatalf("newID(sess) error = %v", err)
+	} else if !strings.HasPrefix(got, "sess-") {
 		t.Fatalf("newID(sess) = %q, want prefixed id", got)
 	}
-	if got := newID(""); got == "" {
+	if got, err := newID(""); err != nil {
+		t.Fatalf("newID(\"\") error = %v", err)
+	} else if got == "" {
 		t.Fatal("newID(\"\") = empty, want non-empty")
 	}
+
+	t.Run("Should surface unreadable entropy without a timestamp substitute", func(t *testing.T) {
+		t.Parallel()
+
+		entropyErr := errors.New("entropy unavailable")
+		if _, err := newIDFromReader("sess", failingEntropyReader{err: entropyErr}); !errors.Is(err, entropyErr) {
+			t.Fatalf("newIDFromReader() error = %v, want entropy failure", err)
+		}
+	})
 }
 
 func TestCreateWithBlankWorkspaceReturnsValidationError(t *testing.T) {
@@ -810,6 +934,7 @@ func TestCreateAndResumeRequireWorkspaceResolver(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewManager() error = %v", err)
 	}
+	cleanupTestManager(t, manager)
 
 	if _, err := manager.Create(testutil.Context(t), CreateOpts{
 		AgentName: "coder",
@@ -904,7 +1029,6 @@ func TestAgentProcessHelpersAndAdapterUtilities(t *testing.T) {
 		Command:   "fake",
 		Cwd:       "/tmp",
 		SessionID: "acp-1",
-		Caps:      acp.Caps{SupportsLoadSession: true},
 		StartedAt: time.Now().UTC(),
 	})
 	if wrapped == nil || wrapped.PID != 99 || wrapped.SessionID != "acp-1" {

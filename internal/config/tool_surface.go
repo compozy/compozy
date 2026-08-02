@@ -24,6 +24,7 @@ const (
 	toolSurfaceAgentsHeartbeatWakeEventRetentionPath           = "agents.heartbeat.wake_event_retention"
 	toolSurfaceAgentsSoulContextProjectionBytesPath            = "agents.soul.context_projection_bytes"
 	toolSurfaceAgentsSoulMaxBodyBytesPath                      = "agents.soul.max_body_bytes"
+	toolSurfaceAuthLoginCommandKey                             = "auth_login_command"
 	toolSurfaceCommandKey                                      = "command"
 	toolSurfaceDefaultKey                                      = "default"
 	toolSurfaceDaemonSubprocessHealthEscalationThresholdPath   = "daemon.subprocess_health_escalation_threshold"
@@ -103,7 +104,6 @@ var (
 		"memory.recall.freshness.banner_after_days":                ConfigValueInt,
 		"memory.recall.signals.queue_capacity":                     ConfigValueInt,
 		"memory.recall.signals.worker_retry_max":                   ConfigValueInt,
-		"memory.recall.signals.metrics_enabled":                    ConfigValueBool,
 		"memory.decisions.prune_after_applied_days":                ConfigValueInt,
 		"memory.decisions.keep_audit_summary":                      ConfigValueBool,
 		"memory.decisions.max_post_content_bytes":                  ConfigValueInt64,
@@ -178,6 +178,7 @@ var (
 
 // RedactedConfigMap converts config to the same redacted map shape used by operator-facing CLI output.
 func RedactedConfigMap(cfg *Config) map[string]any {
+	// Reflection avoids a duplicate TOML schema on the administrative path measured by BenchmarkRedactedConfigMap.
 	node, ok := configNodeFromValue(reflect.ValueOf(cfg), "")
 	if !ok {
 		return map[string]any{}
@@ -290,9 +291,12 @@ func ClassifyToolConfigPath(path []string) (PathPolicy, error) {
 			"auth_mode",
 			"env_policy",
 			"home_policy",
-			"auth_status_command",
-			"auth_login_command":
+			"auth_status_command":
 			policy.Kind = ConfigValueString
+			return policy, nil
+		case toolSurfaceAuthLoginCommandKey:
+			policy.Kind = ConfigValueString
+			policy.Redacted = true
 			return policy, nil
 		case "session_mcp":
 			policy.Kind = ConfigValueBool

@@ -94,7 +94,10 @@ func (p *AgentProcess) handleCreateTerminal(
 		}
 	}
 
-	host := p.toolHostOrDefault()
+	host, err := p.toolHostOrDefault()
+	if err != nil {
+		return acpsdk.CreateTerminalResponse{}, err
+	}
 	if localHost, ok := host.(*localToolHost); ok {
 		return localHost.createTerminal(ctx, request, ownership)
 	}
@@ -209,9 +212,6 @@ func (p *AgentProcess) completeExternalTerminalProcess(
 	if handle == nil {
 		return
 	}
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	if err := handle.Complete(ctx, completion); err != nil {
 		slog.Default().Warn("acp: complete terminal process record", "terminal_id", id, "error", err)
 	}
@@ -237,7 +237,11 @@ func (p *AgentProcess) handleKillTerminal(
 	if err := p.ensureNetworkTurnTerminalAccess(request.TerminalId, false); err != nil {
 		return acpsdk.KillTerminalResponse{}, err
 	}
-	if err := p.toolHostOrDefault().KillTerminal(request.TerminalId); err != nil {
+	host, err := p.toolHostOrDefault()
+	if err != nil {
+		return acpsdk.KillTerminalResponse{}, err
+	}
+	if err := host.KillTerminal(request.TerminalId); err != nil {
 		return acpsdk.KillTerminalResponse{}, err
 	}
 	p.deleteTerminalOwnership(request.TerminalId)
@@ -255,7 +259,10 @@ func (p *AgentProcess) handleTerminalOutput(
 	if err := p.ensureNetworkTurnTerminalAccess(request.TerminalId, true); err != nil {
 		return acpsdk.TerminalOutputResponse{}, err
 	}
-	host := p.toolHostOrDefault()
+	host, err := p.toolHostOrDefault()
+	if err != nil {
+		return acpsdk.TerminalOutputResponse{}, err
+	}
 	if localHost, ok := host.(*localToolHost); ok {
 		output, truncated, exitStatus, err := localHost.terminalOutputStatus(request.TerminalId)
 		if err != nil {
@@ -283,7 +290,10 @@ func (p *AgentProcess) handleWaitForTerminalExit(
 	if err := p.ensureNetworkTurnTerminalAccess(request.TerminalId, true); err != nil {
 		return acpsdk.WaitForTerminalExitResponse{}, err
 	}
-	host := p.toolHostOrDefault()
+	host, err := p.toolHostOrDefault()
+	if err != nil {
+		return acpsdk.WaitForTerminalExitResponse{}, err
+	}
 	if localHost, ok := host.(*localToolHost); ok {
 		exitStatus, err := localHost.waitForTerminalExitStatus(ctx, request.TerminalId)
 		if err != nil {
@@ -317,7 +327,11 @@ func (p *AgentProcess) handleReleaseTerminal(
 	if err := p.ensureNetworkTurnTerminalAccess(request.TerminalId, false); err != nil {
 		return acpsdk.ReleaseTerminalResponse{}, err
 	}
-	if err := p.toolHostOrDefault().ReleaseTerminal(request.TerminalId); err != nil {
+	host, err := p.toolHostOrDefault()
+	if err != nil {
+		return acpsdk.ReleaseTerminalResponse{}, err
+	}
+	if err := host.ReleaseTerminal(request.TerminalId); err != nil {
 		return acpsdk.ReleaseTerminalResponse{}, err
 	}
 	p.deleteTerminalOwnership(request.TerminalId)
@@ -329,16 +343,16 @@ func (p *AgentProcess) handleReleaseTerminal(
 	return acpsdk.ReleaseTerminalResponse{}, nil
 }
 
-func (p *AgentProcess) toolHostOrDefault() ToolHost {
+func (p *AgentProcess) toolHostOrDefault() (ToolHost, error) {
 	p.toolHostMu.Lock()
 	defer p.toolHostMu.Unlock()
 
 	if p.toolHost != nil {
-		return p.toolHost
+		return p.toolHost, nil
 	}
 	procCtx := p.processCtx
 	if procCtx == nil {
-		procCtx = context.Background()
+		return nil, errProcessLifecycleUninitialized
 	}
 	host := newLocalToolHostFromPolicy(
 		procCtx,
@@ -353,5 +367,5 @@ func (p *AgentProcess) toolHostOrDefault() ToolHost {
 		p.terminals = host.terminals
 	}
 	p.toolHost = host
-	return host
+	return host, nil
 }

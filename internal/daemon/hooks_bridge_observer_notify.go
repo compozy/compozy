@@ -11,7 +11,7 @@ func notifyObserver[Observer any, Payload any](
 	attributes []any,
 	call func(context.Context, Observer, Payload) error,
 ) {
-	if notifier == nil || any(observer) == nil || call == nil {
+	if ctx == nil || notifier == nil || any(observer) == nil || call == nil {
 		return
 	}
 	notifyCtx, cancel := loopObserverContext(ctx)

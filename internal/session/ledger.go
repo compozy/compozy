@@ -33,20 +33,28 @@ func (m *Manager) materializeSessionLedger(ctx context.Context, session *Session
 	return nil
 }
 
-func (m *Manager) discardMaterializedSessionLedger(
+func (m *Manager) discardOwnedMaterializedSessionLedger(
 	ctx context.Context,
-	meta store.SessionMeta,
+	owner store.SessionDBOwner,
 	eventsDBPath string,
 ) error {
 	if m == nil || m.ledgerMaterializer == nil {
 		return nil
 	}
+	normalizedOwner, err := owner.Normalize()
+	if err != nil {
+		return err
+	}
 	ledgerCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultLifecycleTimeout)
 	defer cancel()
 
-	record := sessionLedgerRecordFromMeta(meta, eventsDBPath)
+	record := store.SessionLedgerRecord{
+		SessionID:    normalizedOwner.SessionID,
+		WorkspaceID:  normalizedOwner.WorkspaceID,
+		EventsDBPath: strings.TrimSpace(eventsDBPath),
+	}
 	if err := m.ledgerMaterializer.DiscardSessionLedger(ledgerCtx, record); err != nil {
-		return fmt.Errorf("session: discard materialized ledger for %q: %w", meta.ID, err)
+		return fmt.Errorf("session: discard materialized ledger for %q: %w", normalizedOwner.SessionID, err)
 	}
 	return nil
 }
@@ -64,19 +72,6 @@ func sessionLedgerRecordFromInfo(info *Info, eventsDBPath string) store.SessionL
 		Lineage:      store.NormalizeSessionLineage(info.ID, info.Lineage),
 		StartedAt:    normalizeLedgerTime(info.CreatedAt),
 		EndedAt:      normalizeLedgerTime(info.UpdatedAt),
-	}
-}
-
-func sessionLedgerRecordFromMeta(meta store.SessionMeta, eventsDBPath string) store.SessionLedgerRecord {
-	return store.SessionLedgerRecord{
-		SessionID:    strings.TrimSpace(meta.ID),
-		WorkspaceID:  strings.TrimSpace(meta.WorkspaceID),
-		AgentName:    strings.TrimSpace(meta.AgentName),
-		SessionType:  strings.TrimSpace(meta.SessionType),
-		EventsDBPath: strings.TrimSpace(eventsDBPath),
-		Lineage:      store.NormalizeSessionLineage(meta.ID, meta.Lineage),
-		StartedAt:    normalizeLedgerTime(meta.CreatedAt),
-		EndedAt:      normalizeLedgerTime(meta.UpdatedAt),
 	}
 }
 

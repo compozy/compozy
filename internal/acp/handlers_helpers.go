@@ -65,8 +65,7 @@ func requestError(err error) *acpsdk.RequestError {
 }
 
 func toolErrorRequestData(err error) (map[string]any, bool) {
-	var toolErr *toolspkg.ToolError
-	if errors.As(err, &toolErr) && toolErr != nil {
+	if toolErr, ok := errors.AsType[*toolspkg.ToolError](err); ok && toolErr != nil {
 		data := map[string]any{
 			EventTypeError: err.Error(),
 			"tool_code":    string(toolErr.Code),

@@ -262,8 +262,8 @@ func TestValidatePinnedRuntimeShouldRejectRuntimeDivergence(t *testing.T) {
 			t.Parallel()
 
 			err := validatePinnedRuntime(tc.runtime, profile)
-			var reason *looppkg.ReasonError
-			if !errors.As(err, &reason) || reason.Code != looppkg.ReasonCodeContinuousBindingMismatch ||
+			reason, reasonMatched := errors.AsType[*looppkg.ReasonError](err)
+			if !reasonMatched || reason.Code != looppkg.ReasonCodeContinuousBindingMismatch ||
 				!errors.Is(err, looppkg.ErrTransitionConflict) {
 				t.Fatalf("validatePinnedRuntime() error = %v, want continuous binding mismatch", err)
 			}

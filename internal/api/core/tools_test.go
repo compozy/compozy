@@ -378,6 +378,40 @@ func TestToolErrorResponses(t *testing.T) {
 			t.Fatalf("tool partial error leaked internal detail: %s", encoded)
 		}
 	})
+
+	t.Run("Should expose only explicitly authored operator remediation", func(t *testing.T) {
+		t.Parallel()
+
+		err := toolspkg.NewOperatorToolError(
+			toolspkg.ErrorCodeUnavailable,
+			toolspkg.ToolIDExtensionsInstall,
+			"internal dependency detail token=super-secret",
+			toolspkg.ErrToolUnavailable,
+			"Git is too old",
+			"Install Git 2.37 or newer. Run `git --version`.",
+			toolspkg.ReasonExtensionGitVersionUnsupported,
+		)
+		status := core.StatusForToolError(err)
+		payload := core.ToolErrorResponseForError(err, status, true)
+
+		if status != http.StatusUnprocessableEntity || payload.Error.Message != "tool unavailable" {
+			t.Fatalf("operator failure status/payload = %d/%#v", status, payload.Error)
+		}
+		cause := string(payload.Error.Details[contract.ToolOperatorCauseDetailKey])
+		recovery := string(payload.Error.Details[contract.ToolOperatorRecoveryDetailKey])
+		if cause != `"Git is too old"` ||
+			!strings.Contains(recovery, "Git 2.37 or newer") ||
+			!strings.Contains(recovery, "git --version") {
+			t.Fatalf("operator failure details = %#v, want authored remediation", payload.Error.Details)
+		}
+		encoded, encodeErr := json.Marshal(payload)
+		if encodeErr != nil {
+			t.Fatalf("json.Marshal() error = %v", encodeErr)
+		}
+		if strings.Contains(string(encoded), "super-secret") {
+			t.Fatalf("operator failure leaked internal detail: %s", encoded)
+		}
+	})
 }
 
 func TestToolApprovalHandlersMintAndConsumeSingleUseTokens(t *testing.T) {

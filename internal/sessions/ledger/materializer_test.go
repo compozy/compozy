@@ -269,17 +269,28 @@ func TestMaterializer(t *testing.T) {
 			t.Run(tt.name, func(t *testing.T) {
 				t.Parallel()
 
+				const sessionID = "sess-stream-validation"
+				const workspaceID = "ws-primary"
 				ctx := testutil.Context(t)
 				eventsDBPath := filepath.Join(t.TempDir(), "events.db")
-				seedLedgerMigrationState(t, eventsDBPath, tt.statements...)
+				statements := append([]string(nil), tt.statements...)
+				statements = append(statements,
+					`CREATE TABLE session_db_owner (
+						singleton INTEGER PRIMARY KEY CHECK(singleton = 1),
+						session_id TEXT NOT NULL,
+						workspace_id TEXT NOT NULL
+					)`,
+					`INSERT INTO session_db_owner VALUES (1, 'sess-stream-validation', 'ws-primary')`,
+				)
+				seedLedgerMigrationState(t, eventsDBPath, statements...)
 				before, err := os.ReadFile(eventsDBPath)
 				if err != nil {
 					t.Fatalf("ReadFile(before %q) error = %v", eventsDBPath, err)
 				}
 				materializer := newTestMaterializer(t, t.TempDir())
 				record := store.SessionLedgerRecord{
-					SessionID:    "sess-stream-validation",
-					WorkspaceID:  "ws-primary",
+					SessionID:    sessionID,
+					WorkspaceID:  workspaceID,
 					EventsDBPath: eventsDBPath,
 				}
 				ledgerPath, err := materializer.Path(record)
@@ -383,7 +394,7 @@ func TestMaterializer(t *testing.T) {
 		closeErr := errors.New("close failed")
 		materializer, err := NewMaterializer(Config{
 			RootDir: t.TempDir(),
-			OpenEventStore: func(context.Context, string, string) (store.EventReadCloser, error) {
+			OpenEventStore: func(context.Context, store.SessionDBOwner, string) (store.EventReadCloser, error) {
 				return &ledgerFailureRecorder{queryErr: queryErr, closeErr: closeErr}, nil
 			},
 		})
@@ -459,7 +470,13 @@ func createLedgerRecord(
 	t.Helper()
 
 	eventsDBPath := filepath.Join(t.TempDir(), "events.db")
-	recorder, err := sessiondb.OpenSessionDB(ctx, sessionID, eventsDBPath)
+	ownerWorkspaceID := strings.TrimSpace(workspaceID)
+	if ownerWorkspaceID == "" {
+		ownerWorkspaceID = DefaultUnboundPartition
+	}
+	recorder, err := sessiondb.OpenSessionDB(ctx, store.SessionDBOwner{
+		SessionID: sessionID, WorkspaceID: ownerWorkspaceID,
+	}, eventsDBPath)
 	if err != nil {
 		t.Fatalf("OpenSessionDB() error = %v", err)
 	}
@@ -510,7 +527,9 @@ func createLegacyRawEventDB(ctx context.Context, t *testing.T) string {
 
 	path := filepath.Join(t.TempDir(), "events.db")
 	legacyContent := `{"schema":"compozy.session.event.v1","type":"tool_call","raw":{"content":"preserve"}}`
-	recorder, err := sessiondb.OpenSessionDB(ctx, "sess-legacy-raw", path)
+	recorder, err := sessiondb.OpenSessionDB(ctx, store.SessionDBOwner{
+		SessionID: "sess-legacy-raw", WorkspaceID: "ws-primary",
+	}, path)
 	if err != nil {
 		t.Fatalf("OpenSessionDB(legacy raw) error = %v", err)
 	}
@@ -594,16 +613,22 @@ func readEvents(
 ) []store.SessionEvent {
 	t.Helper()
 
-	recorder, err := sessiondb.OpenSessionDB(ctx, record.SessionID, record.EventsDBPath)
+	ownerWorkspaceID := strings.TrimSpace(record.WorkspaceID)
+	if ownerWorkspaceID == "" {
+		ownerWorkspaceID = DefaultUnboundPartition
+	}
+	reader, err := sessiondb.OpenSessionDBReadOnly(ctx, store.SessionDBOwner{
+		SessionID: record.SessionID, WorkspaceID: ownerWorkspaceID,
+	}, record.EventsDBPath)
 	if err != nil {
-		t.Fatalf("OpenSessionDB(reopen) error = %v", err)
+		t.Fatalf("OpenSessionDBReadOnly(reopen) error = %v", err)
 	}
 	defer func() {
-		if err := recorder.Close(ctx); err != nil {
+		if err := reader.Close(ctx); err != nil {
 			t.Fatalf("Close(reopened) error = %v", err)
 		}
 	}()
-	events, err := recorder.Query(ctx, store.EventQuery{})
+	events, err := reader.Query(ctx, store.EventQuery{})
 	if err != nil {
 		t.Fatalf("Query() error = %v", err)
 	}

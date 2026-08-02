@@ -123,7 +123,7 @@ func TestEngineShouldFenceWorkspaceLifecycle(t *testing.T) {
 			entered: make(chan struct{}),
 			release: make(chan struct{}),
 		}
-		engine, err := Open(DatabasePath(t.TempDir()), resolver, testLimits())
+		engine, err := Open(context.Background(), DatabasePath(t.TempDir()), resolver, testLimits())
 		if err != nil {
 			t.Fatalf("Open() error = %v", err)
 		}
@@ -187,7 +187,7 @@ func TestEngineShouldFenceWorkspaceLifecycle(t *testing.T) {
 			entered: make(chan struct{}),
 			release: make(chan struct{}),
 		}
-		engine, err := Open(DatabasePath(t.TempDir()), resolver, testLimits())
+		engine, err := Open(context.Background(), DatabasePath(t.TempDir()), resolver, testLimits())
 		if err != nil {
 			t.Fatalf("Open() error = %v", err)
 		}
@@ -321,25 +321,25 @@ func TestEngineShouldValidateConstructionAndTransportMetrics(t *testing.T) {
 			open func() (*Engine, error)
 		}{
 			{name: "Should reject a nil resolver", open: func() (*Engine, error) {
-				return Open(path, nil, testLimits())
+				return Open(context.Background(), path, nil, testLimits())
 			}},
 			{name: "Should reject a zero value limit", open: func() (*Engine, error) {
-				return Open(path, resolver, Limits{MaxKeysPerWorkspace: 1})
+				return Open(context.Background(), path, resolver, Limits{MaxKeysPerWorkspace: 1})
 			}},
 			{name: "Should reject a zero key limit", open: func() (*Engine, error) {
-				return Open(path, resolver, Limits{MaxValueBytes: 1})
+				return Open(context.Background(), path, resolver, Limits{MaxValueBytes: 1})
 			}},
 			{name: "Should reject a nil logger", open: func() (*Engine, error) {
-				return Open(path, resolver, testLimits(), WithLogger(nil))
+				return Open(context.Background(), path, resolver, testLimits(), WithLogger(nil))
 			}},
 			{name: "Should reject a nil clock", open: func() (*Engine, error) {
-				return Open(path, resolver, testLimits(), WithClock(nil))
+				return Open(context.Background(), path, resolver, testLimits(), WithClock(nil))
 			}},
 			{name: "Should reject a zero open timeout", open: func() (*Engine, error) {
-				return Open(path, resolver, testLimits(), WithOpenTimeout(0))
+				return Open(context.Background(), path, resolver, testLimits(), WithOpenTimeout(0))
 			}},
 			{name: "Should reject an empty database path", open: func() (*Engine, error) {
-				return Open("", resolver, testLimits())
+				return Open(context.Background(), "", resolver, testLimits())
 			}},
 		}
 		for _, test := range tests {

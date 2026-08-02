@@ -106,7 +106,7 @@ func (m *Manager) stopSessionAfterFatalPromptFailure(
 		return
 	}
 
-	summary := firstNonEmptySessionFailureText(
+	summary := firstTrimmedNonEmpty(
 		failureSummary(failure, errorText),
 		strings.TrimSpace(errorText),
 		"agent runtime became unavailable during prompt",
@@ -128,11 +128,8 @@ func (m *Manager) stopSessionAfterFatalPromptFailure(
 
 func detachedPromptStopContext(ctx context.Context, m *Manager) (context.Context, context.CancelFunc) {
 	base := ctx
-	if base == nil && m != nil {
-		base = m.lifecycleCtx
-	}
 	if base == nil {
-		base = context.TODO()
+		base = m.fallbackLifecycleContext()
 	}
 	return context.WithTimeout(context.WithoutCancel(base), defaultLifecycleTimeout)
 }

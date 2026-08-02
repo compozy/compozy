@@ -478,6 +478,9 @@ func TestSkillMarketplaceHandlers(t *testing.T) {
 					Path:     "/tmp/compozy/skills/review",
 					Hash:     "sha256:abc",
 					Status:   "installed",
+					CleanupDiagnostics: []skillmarketplace.CleanupDiagnostic{{
+						Operation: "close_download_stream",
+					}},
 				}, nil
 			},
 		}
@@ -509,6 +512,13 @@ func TestSkillMarketplaceHandlers(t *testing.T) {
 		testutil.DecodeJSONResponse(t, rec, &resp)
 		if resp.Skill.Status != "installed" {
 			t.Fatalf("skill.Status = %q, want installed", resp.Skill.Status)
+		}
+		if len(resp.Skill.CleanupDiagnostics) != 1 ||
+			resp.Skill.CleanupDiagnostics[0].Operation != "close_download_stream" {
+			t.Fatalf(
+				"skill.CleanupDiagnostics = %#v, want close_download_stream",
+				resp.Skill.CleanupDiagnostics,
+			)
 		}
 	})
 

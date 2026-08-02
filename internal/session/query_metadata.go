@@ -31,14 +31,37 @@ func (m *Manager) readMetaWithContext(ctx context.Context, id string) (store.Ses
 		}
 		return store.SessionMeta{}, fmt.Errorf("session: read metadata for %q: %w", target, err)
 	}
+	metaID, err := normalizeStoredSessionID(meta.ID)
+	if err != nil || metaID != target {
+		return store.SessionMeta{}, fmt.Errorf(
+			"%w: metadata identity %q does not match directory %q",
+			ErrSessionNotFound,
+			meta.ID,
+			target,
+		)
+	}
 	if _, ok := m.Get(target); ok || m.isPending(target) {
 		return meta, nil
+	}
+	if _, err := m.resolveStoredSessionOwner(ctx, target, meta.WorkspaceID); err != nil {
+		return store.SessionMeta{}, fmt.Errorf(
+			"session: prove catalog owner before classifying metadata for %q: %w",
+			target,
+			err,
+		)
 	}
 	repaired, err := m.repairInactiveMeta(ctx, metaPath, meta)
 	if err != nil {
 		return store.SessionMeta{}, err
 	}
 	return repaired, nil
+}
+
+func requirePersistedProvider(meta store.SessionMeta) error {
+	if strings.TrimSpace(meta.Provider) == "" {
+		return fmt.Errorf("session: metadata provider for %q is required", strings.TrimSpace(meta.ID))
+	}
+	return nil
 }
 
 func normalizeStoredSessionID(id string) (string, error) {

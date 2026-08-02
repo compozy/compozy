@@ -40,13 +40,19 @@ function normalizeOptionalText(value?: string | null): string | undefined {
   return normalized === "" ? undefined : normalized;
 }
 
+function optionalOpaqueIdentity(value?: string | null): string | undefined {
+  return typeof value === "string" && value !== "" ? value : undefined;
+}
+
 function buildBridgeHealthStreamUrl(bridgeIds: readonly string[], filters: BridgeListFilter = {}) {
   const params = new URLSearchParams();
   const scope = normalizeOptionalText(filters.scope);
-  const workspaceId = normalizeOptionalText(filters.workspace_id);
+  const workspaceId = optionalOpaqueIdentity(filters.workspace_id);
   const workspace = normalizeOptionalText(filters.workspace);
 
-  params.set("bridge_ids", bridgeIds.join(","));
+  for (const bridgeId of bridgeIds) {
+    params.append("bridge_ids", bridgeId);
+  }
   if (scope) {
     params.set("scope", scope);
   }
@@ -155,25 +161,20 @@ export function useBridgeHealthStream({
   eventSourceFactory: customEventSourceFactory,
   filters: { scope, workspace_id: workspaceId, workspace } = {},
 }: UseBridgeHealthStreamOptions = {}) {
-  const bridgeIdsKey = [...new Set(bridgeIds)]
-    .flatMap(bridgeId => {
-      const id = bridgeId.trim();
-      return id ? [id] : [];
-    })
-    .join(",");
+  const bridgeIdsKey = JSON.stringify([...new Set(bridgeIds)].filter(bridgeId => bridgeId !== ""));
   const queryClient = useQueryClient();
 
   useEffect(() => {
     if (
       !enabled ||
-      bridgeIdsKey === "" ||
+      bridgeIdsKey === "[]" ||
       typeof window === "undefined" ||
       (!customEventSourceFactory && typeof EventSource === "undefined")
     ) {
       return undefined;
     }
 
-    const bridgeIds = bridgeIdsKey.split(",");
+    const bridgeIds = JSON.parse(bridgeIdsKey) as string[];
     const detachSources: Array<() => void> = [];
     const handleSnapshot = (event: Event) => {
       if (!(event instanceof MessageEvent) || typeof event.data !== "string") {

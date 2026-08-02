@@ -76,11 +76,7 @@ func (m *MultiRegistry) Search(ctx context.Context, query string, opts SearchOpt
 
 		results[index].ran = true
 		searchableSources++
-		wg.Add(1)
-
-		go func(index int, source Source) {
-			defer wg.Done()
-
+		wg.Go(func() {
 			listings, err := source.Search(ctx, query, opts)
 			if err != nil {
 				results[index].err = wrapSourceError(source, index, "search", err)
@@ -88,7 +84,7 @@ func (m *MultiRegistry) Search(ctx context.Context, query string, opts SearchOpt
 			}
 
 			results[index].listings = normalizeListings(listings, sourceName(source, index))
-		}(index, source)
+		})
 	}
 
 	wg.Wait()
@@ -104,18 +100,14 @@ func (m *MultiRegistry) Search(ctx context.Context, query string, opts SearchOpt
 	successes := 0
 	errs := make([]error, 0, searchableSources)
 
+	failedSources := make([]int, 0, searchableSources)
 	for index, result := range results {
 		if !result.ran {
 			continue
 		}
 		if result.err != nil {
 			errs = append(errs, result.err)
-			m.logger.Warn(
-				"registry: source search failed",
-				"source", sourceName(m.sources[index], index),
-				"query", strings.TrimSpace(query),
-				"error", result.err,
-			)
+			failedSources = append(failedSources, index)
 			continue
 		}
 		successes++
@@ -123,6 +115,14 @@ func (m *MultiRegistry) Search(ctx context.Context, query string, opts SearchOpt
 
 	if successes == 0 && len(errs) > 0 {
 		return []Listing{}, errors.Join(errs...)
+	}
+	for _, index := range failedSources {
+		m.logger.Warn(
+			"registry: source search failed",
+			"source", sourceName(m.sources[index], index),
+			"query", strings.TrimSpace(query),
+			"error", results[index].err,
+		)
 	}
 
 	return merged, nil
@@ -162,6 +162,7 @@ func (m *MultiRegistry) Download(ctx context.Context, slug string, opts Download
 			strings.TrimSpace(slug),
 		)
 	}
+	result = cloneRegistryDownloadResult(result)
 	if result.Reader == nil {
 		return nil, fmt.Errorf(
 			"registry: source %q returned no download stream for %q",
@@ -250,10 +251,7 @@ func (m *MultiRegistry) resolveSource(ctx context.Context, slug string) (Source,
 	var wg sync.WaitGroup
 
 	for index, source := range m.sources {
-		wg.Add(1)
-		go func(index int, source Source) {
-			defer wg.Done()
-
+		wg.Go(func() {
 			detail, err := source.Info(ctx, trimmedSlug)
 			if err != nil {
 				if errors.Is(err, ErrPackageNotFound) {
@@ -263,11 +261,12 @@ func (m *MultiRegistry) resolveSource(ctx context.Context, slug string) (Source,
 				return
 			}
 
-			if detail != nil && strings.TrimSpace(detail.Source) == "" {
-				detail.Source = sourceName(source, index)
+			ownedDetail := cloneRegistryDetail(detail)
+			if ownedDetail != nil && strings.TrimSpace(ownedDetail.Source) == "" {
+				ownedDetail.Source = sourceName(source, index)
 			}
-			results[index].detail = detail
-		}(index, source)
+			results[index].detail = ownedDetail
+		})
 	}
 
 	wg.Wait()
@@ -336,6 +335,7 @@ func normalizeListings(listings []Listing, source string) []Listing {
 	if len(listings) == 0 {
 		return nil
 	}
+	listings = cloneRegistryListings(listings)
 
 	next := 0
 	for _, listing := range listings {

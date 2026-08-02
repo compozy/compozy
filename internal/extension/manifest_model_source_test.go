@@ -34,8 +34,9 @@ func TestManifestValidateModelSourceCapability(t *testing.T) {
 		if !errors.Is(err, ErrManifestInvalid) {
 			t.Fatalf("Validate() error = %v, want ErrManifestInvalid", err)
 		}
-		var validationErr *ManifestValidationError
-		if !errors.As(err, &validationErr) {
+
+		validationErr, validationErrMatched := errors.AsType[*ManifestValidationError](err)
+		if !validationErrMatched {
 			t.Fatalf("Validate() error = %T, want *ManifestValidationError", err)
 		}
 		if validationErr.Field != "name" {

@@ -9,7 +9,6 @@ import (
 	"strings"
 	"sync"
 	"syscall"
-	"time"
 
 	compozydaemon "github.com/compozy/compozy/internal/daemon"
 
@@ -212,6 +211,9 @@ func runDaemonDetached(ctx context.Context, deps commandDeps) (DaemonStatus, err
 }
 
 func waitForDaemonStart(ctx context.Context, deps commandDeps, child daemonProcess) (DaemonStatus, error) {
+	if err := requirePollingContext(ctx); err != nil {
+		return DaemonStatus{}, err
+	}
 	if child == nil {
 		return DaemonStatus{}, errors.New("cli: detached daemon process is required")
 	}
@@ -219,16 +221,6 @@ func waitForDaemonStart(ctx context.Context, deps commandDeps, child daemonProce
 	if childPID <= 0 {
 		return DaemonStatus{}, errors.New("cli: detached daemon process pid is required")
 	}
-	waitCtx := ctx
-	if waitCtx == nil {
-		waitCtx = context.Background()
-	}
-	if _, hasDeadline := waitCtx.Deadline(); !hasDeadline {
-		var cancel context.CancelFunc
-		waitCtx, cancel = context.WithTimeout(waitCtx, deps.startTimeout)
-		defer cancel()
-	}
-
 	client, err := clientFromDeps(deps)
 	if err != nil {
 		return DaemonStatus{}, err
@@ -239,26 +231,28 @@ func waitForDaemonStart(ctx context.Context, deps commandDeps, child daemonProce
 		processAlive = procutil.Alive
 	}
 
-	ticker := time.NewTicker(deps.pollInterval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-child.Done():
-			if err := child.Wait(); err != nil {
-				return DaemonStatus{}, fmt.Errorf("cli: detached daemon exited before readiness: %w", err)
+	return pollUntil(
+		ctx,
+		deps.startTimeout,
+		deps.pollInterval,
+		child.Done(),
+		"cli: daemon did not become ready before timeout",
+		func(pollCtx context.Context, event pollEvent) (DaemonStatus, bool, error) {
+			if event == pollEventInterrupt {
+				if err := child.Wait(); err != nil {
+					return DaemonStatus{}, true, fmt.Errorf("cli: detached daemon exited before readiness: %w", err)
+				}
+				return DaemonStatus{}, true, errors.New("cli: detached daemon exited before readiness")
 			}
-			return DaemonStatus{}, errors.New("cli: detached daemon exited before readiness")
-		case <-waitCtx.Done():
-			return DaemonStatus{}, fmt.Errorf("cli: daemon did not become ready before timeout: %w", waitCtx.Err())
-		case <-ticker.C:
-			status, statusErr := client.DaemonStatus(waitCtx)
+
+			status, statusErr := client.DaemonStatus(pollCtx)
 			if statusErr == nil && status.PID == childPID {
-				return status, nil
+				return status, true, nil
 			}
 			if !processAlive(childPID) {
-				return DaemonStatus{}, errors.New("cli: detached daemon exited before readiness")
+				return DaemonStatus{}, true, errors.New("cli: detached daemon exited before readiness")
 			}
-		}
-	}
+			return DaemonStatus{}, false, nil
+		},
+	)
 }

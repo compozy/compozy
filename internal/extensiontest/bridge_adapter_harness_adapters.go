@@ -182,7 +182,7 @@ func cloneManagedRuntime(
 
 func sequentialIDGenerator(prefix string) session.IDGenerator {
 	var counter atomic.Int64
-	return func() string {
-		return fmt.Sprintf("%s-%d", prefix, counter.Add(1))
+	return func() (string, error) {
+		return fmt.Sprintf("%s-%d", prefix, counter.Add(1)), nil
 	}
 }

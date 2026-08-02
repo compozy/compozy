@@ -18,6 +18,7 @@ import (
 	sandboxlocal "github.com/compozy/compozy/internal/sandbox/local"
 	"github.com/compozy/compozy/internal/session"
 	skillspkg "github.com/compozy/compozy/internal/skills"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/store/sessiondb"
 	"github.com/compozy/compozy/internal/subprocess"
@@ -184,9 +185,15 @@ func newHarnessSessions(
 		session.WithDriver(driver),
 		session.WithNotifier(notifier),
 		session.WithWorkspaceResolver(workspaces),
-		session.WithStore(func(ctx context.Context, sessionID string, path string) (session.EventRecorder, error) {
-			return sessiondb.OpenSessionDB(ctx, sessionID, path)
-		}),
+		session.WithStore(
+			func(
+				ctx context.Context,
+				owner store.SessionDBOwner,
+				path string,
+			) (session.EventRecorder, error) {
+				return sessiondb.OpenSessionDB(ctx, owner, path)
+			},
+		),
 		session.WithNow(func() time.Time { return now }),
 		session.WithSessionIDGenerator(sequentialIDGenerator("sess")),
 		session.WithTurnIDGenerator(sequentialIDGenerator("turn")),

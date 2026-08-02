@@ -99,7 +99,10 @@ func (c *catalog) lastReindex(ctx context.Context) (*time.Time, error) {
 	return &parsed, nil
 }
 
-func (c *catalog) listEntries(ctx context.Context, filters []catalogFilter) ([]catalogDocument, error) {
+func (c *catalog) listEntries(
+	ctx context.Context,
+	filters []catalogFilter,
+) (entries []catalogDocument, err error) {
 	db, err := c.ensureDB(ctx)
 	if err != nil {
 		return nil, err
@@ -118,12 +121,9 @@ func (c *catalog) listEntries(ctx context.Context, filters []catalogFilter) ([]c
 	if err != nil {
 		return nil, fmt.Errorf("memory: list catalog entries: %w", err)
 	}
-	defer func() {
-		// rows.Err() or scanErr above reports any actionable read failure after we drain this SELECT result set.
-		_ = rows.Close()
-	}()
+	defer closeCatalogRows(rows, "catalog entries", &err)
 
-	entries := make([]catalogDocument, 0)
+	entries = make([]catalogDocument, 0)
 	for rows.Next() {
 		entry, scanErr := scanCatalogEntry(rows)
 		if scanErr != nil {
@@ -146,7 +146,7 @@ func (c *catalog) search(
 	scope memcontract.Scope,
 	workspaceID string,
 	limit int,
-) ([]memcontract.SearchResult, error) {
+) (results []memcontract.SearchResult, err error) {
 	db, err := c.ensureDB(ctx)
 	if err != nil {
 		return nil, err
@@ -186,12 +186,9 @@ func (c *catalog) search(
 	if err != nil {
 		return nil, fmt.Errorf("memory: search catalog: %w", err)
 	}
-	defer func() {
-		// rows.Err() or scanErr above reports any actionable read failure after we drain this SELECT result set.
-		_ = rows.Close()
-	}()
+	defer closeCatalogRows(rows, "catalog search", &err)
 
-	results := make([]memcontract.SearchResult, 0, limit)
+	results = make([]memcontract.SearchResult, 0, limit)
 	for rows.Next() {
 		result, scanErr := scanSearchResult(rows)
 		if scanErr != nil {

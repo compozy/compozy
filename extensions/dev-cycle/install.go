@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -117,8 +118,16 @@ func replaceBundledInstall(
 	if err != nil {
 		return err
 	}
-	if err := registrypkg.MoveInstalledDir(stagingDir, finalDir, true); err != nil {
+	moveResult, err := registrypkg.MoveInstalledDir(stagingDir, finalDir, true)
+	if err != nil {
 		return fmt.Errorf("dev-cycle: replace managed install: %w", err)
+	}
+	for _, diagnostic := range moveResult.CleanupDiagnostics {
+		slog.Warn(
+			"bundled extension install cleanup degraded",
+			"operation", diagnostic.Operation,
+			"extension", Name,
+		)
 	}
 	installedChecksum, err := extensionpkg.ComputeDirectoryChecksum(finalDir)
 	if err != nil {

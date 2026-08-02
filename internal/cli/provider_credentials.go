@@ -51,9 +51,9 @@ func providerAuthProbeEnv(
 		return authproviders.ProbeEnv{}, err
 	}
 	return authproviders.ProbeEnv{
-		ProviderName: providerName,
-		HomePaths:    homePaths,
-		LookPath:     deps.lookPath,
+		ProviderName:   providerName,
+		HomePaths:      homePaths,
+		ResolveCommand: deps.resolveProviderAuthCommand,
 		LookupEnv: func(key string) (string, bool) {
 			value := deps.getenv(key)
 			return value, strings.TrimSpace(value) != ""

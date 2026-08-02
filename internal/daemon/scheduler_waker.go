@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
-	"sync"
 
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -25,20 +24,19 @@ type schedulerSyntheticPrompter interface {
 
 type schedulerSessionWaker struct {
 	ctx           context.Context
-	cancel        context.CancelFunc
 	sessions      SessionManager
 	heartbeatWake heartbeat.WakeService
 	logger        *slog.Logger
-	wg            sync.WaitGroup
+	workers       *ownedWorkerGroup
 }
 
 func newSchedulerSessionWaker(
 	ctx context.Context,
 	sessions SessionManager,
 	logger *slog.Logger,
-) *schedulerSessionWaker {
+) (*schedulerSessionWaker, error) {
 	if ctx == nil {
-		ctx = context.Background()
+		return nil, errors.New("daemon: scheduler waker context is required")
 	}
 	if logger == nil {
 		logger = slog.Default()
@@ -46,10 +44,10 @@ func newSchedulerSessionWaker(
 	wakeCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
 	return &schedulerSessionWaker{
 		ctx:      wakeCtx,
-		cancel:   cancel,
 		sessions: sessions,
 		logger:   logger,
-	}
+		workers:  newOwnedWorkerGroup(cancel),
+	}, nil
 }
 
 func (w *schedulerSessionWaker) Wake(ctx context.Context, target *schedulerpkg.WakeTarget) error {
@@ -169,6 +167,10 @@ func (w *schedulerSessionWaker) wakePendingTaskRun(
 	target *schedulerpkg.WakeTarget,
 	sessionID string,
 ) error {
+	complete, admitted := w.workers.Begin()
+	if !admitted {
+		return errors.New("daemon: scheduler waker is stopping")
+	}
 	message := schedulerWakeMessage(target)
 	if synthetic, ok := w.sessions.(schedulerSyntheticPrompter); ok {
 		metadata := acp.PromptSyntheticMeta{
@@ -186,17 +188,19 @@ func (w *schedulerSessionWaker) wakePendingTaskRun(
 			Metadata: metadata,
 		})
 		if err != nil {
+			complete()
 			return err
 		}
-		w.drainEvents(sessionID, target.Work.Run.ID, events)
+		w.drainEvents(sessionID, target.Work.Run.ID, events, complete)
 		return nil
 	}
 
 	events, err := w.sessions.Prompt(ctx, sessionID, message)
 	if err != nil {
+		complete()
 		return err
 	}
-	w.drainEvents(sessionID, target.Work.Run.ID, events)
+	w.drainEvents(sessionID, target.Work.Run.ID, events, complete)
 	return nil
 }
 
@@ -270,6 +274,10 @@ func (w *schedulerSessionWaker) PromptHeartbeatWake(
 			"daemon: scheduler heartbeat prompter requires synthetic prompt support",
 		)
 	}
+	complete, admitted := w.workers.Begin()
+	if !admitted {
+		return heartbeat.SyntheticWakePromptResult{}, errors.New("daemon: scheduler waker is stopping")
+	}
 	events, err := synthetic.PromptSynthetic(ctx, req.SessionID, session.SyntheticPromptOpts{
 		Message: req.Message,
 		TurnID:  req.TurnID,
@@ -289,20 +297,28 @@ func (w *schedulerSessionWaker) PromptHeartbeatWake(
 		SkipIfBusy: true,
 	})
 	if err != nil {
+		complete()
 		if errors.Is(err, session.ErrPromptInProgress) {
 			return heartbeat.SyntheticWakePromptResult{}, heartbeat.ErrSyntheticPromptBusy
 		}
 		return heartbeat.SyntheticWakePromptResult{}, err
 	}
-	w.drainEvents(req.SessionID, req.WakeEventID, events)
+	w.drainEvents(req.SessionID, req.WakeEventID, events, complete)
 	return heartbeat.SyntheticWakePromptResult{SyntheticPromptID: req.TurnID}, nil
 }
 
-func (w *schedulerSessionWaker) drainEvents(sessionID string, runID string, events <-chan acp.AgentEvent) {
+func (w *schedulerSessionWaker) drainEvents(
+	sessionID string,
+	runID string,
+	events <-chan acp.AgentEvent,
+	complete func(),
+) {
 	if events == nil {
+		complete()
 		return
 	}
-	w.wg.Go(func() {
+	go func() {
+		defer complete()
 		for {
 			select {
 			case <-w.ctx.Done():
@@ -320,7 +336,7 @@ func (w *schedulerSessionWaker) drainEvents(sessionID string, runID string, even
 				}
 			}
 		}
-	})
+	}()
 }
 
 func (w *schedulerSessionWaker) shutdown(ctx context.Context) error {
@@ -330,14 +346,7 @@ func (w *schedulerSessionWaker) shutdown(ctx context.Context) error {
 	if ctx == nil {
 		return errors.New("daemon: scheduler waker shutdown context is required")
 	}
-	if w.cancel != nil {
-		w.cancel()
-	}
-	done := make(chan struct{})
-	go func() {
-		w.wg.Wait()
-		close(done)
-	}()
+	done := w.workers.Stop()
 	select {
 	case <-done:
 		return nil

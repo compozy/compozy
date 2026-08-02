@@ -5,7 +5,7 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
-	"log/slog"
+	"io"
 	"net/http"
 	"os"
 	"os/exec"
@@ -14,7 +14,6 @@ import (
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	"github.com/compozy/compozy/internal/diagnostics"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	"github.com/compozy/compozy/internal/mcp/securehttp"
 	toolspkg "github.com/compozy/compozy/internal/tools"
@@ -28,6 +27,8 @@ type managedMCPClient struct {
 	session *mcpsdk.ClientSession
 	cleanup func() error
 }
+
+const maxAuthorizationChallengeDrainBytes = int64(64 << 10)
 
 func (e *CallExecutor) openClient(ctx context.Context, resolved ResolvedServer) (*managedMCPClient, error) {
 	server := resolved.Server
@@ -76,30 +77,38 @@ func (e *CallExecutor) connectClient(ctx context.Context, transport mcpsdk.Trans
 		return nil, normalizeMCPError("", err)
 	}
 	if result := session.InitializeResult(); result == nil || !supportedProtocolVersion(result.ProtocolVersion) {
-		closeMCPClient(&managedMCPClient{session: session})
 		version := ""
 		if result != nil {
 			version = result.ProtocolVersion
 		}
-		return nil, &UnsupportedProtocolVersionError{Version: version}
+		return nil, errors.Join(
+			&UnsupportedProtocolVersionError{Version: version},
+			closeMCPClient(&managedMCPClient{session: session}),
+		)
 	}
 	return session, nil
 }
 
-func closeMCPClient(client *managedMCPClient) {
+func closeMCPClient(client *managedMCPClient) error {
 	if client == nil {
-		return
+		return nil
 	}
+	var err error
 	if client.session != nil {
-		if err := client.session.Close(); err != nil {
-			slog.Default().Debug("close MCP client session", "error", err)
+		if closeErr := client.session.Close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("mcp: close client session: %w", closeErr))
 		}
 	}
 	if client.cleanup != nil {
-		if err := client.cleanup(); err != nil {
-			slog.Default().Debug("clean up MCP stdio home", "error", err)
+		if cleanupErr := client.cleanup(); cleanupErr != nil {
+			err = errors.Join(err, fmt.Errorf("mcp: clean up client resources: %w", cleanupErr))
 		}
 	}
+	return err
+}
+
+func joinMCPClientCleanup(err error, client *managedMCPClient) error {
+	return errors.Join(err, closeMCPClient(client))
 }
 
 func (e *CallExecutor) httpClientWithAuthorization(resolved ResolvedServer) *http.Client {
@@ -141,12 +150,26 @@ func (t authorizationRoundTripper) RoundTrip(request *http.Request) (*http.Respo
 		return nil, err
 	}
 	if authErr := authorizationChallengeError(response); authErr != nil {
-		if response.Body == nil {
-			return nil, authErr
-		}
-		return nil, errors.Join(authErr, response.Body.Close())
+		return nil, errors.Join(authErr, drainAndCloseAuthorizationChallenge(response.Body))
 	}
 	return response, nil
+}
+
+func drainAndCloseAuthorizationChallenge(body io.ReadCloser) error {
+	if body == nil {
+		return nil
+	}
+	var cleanupErr error
+	if _, err := io.Copy(io.Discard, io.LimitReader(body, maxAuthorizationChallengeDrainBytes)); err != nil {
+		cleanupErr = fmt.Errorf("mcp: drain authorization challenge response body: %w", err)
+	}
+	if err := body.Close(); err != nil {
+		cleanupErr = errors.Join(
+			cleanupErr,
+			fmt.Errorf("mcp: close authorization challenge response body: %w", err),
+		)
+	}
+	return cleanupErr
 }
 
 func authorizationChallengeError(response *http.Response) error {
@@ -310,7 +333,6 @@ func (e *CallExecutor) mcpServerEnv(ctx context.Context, server compozyconfig.MC
 			if err != nil {
 				return nil, fmt.Errorf("mcp: resolve secret_env %s for server %q: %w", trimmedKey, server.Name, err)
 			}
-			diagnostics.RegisterDynamicSecret(value)
 			env[trimmedKey] = value
 		}
 	}
@@ -328,7 +350,7 @@ func (e *CallExecutor) resolveSecretRef(ctx context.Context, ref string) (string
 			return "", err
 		}
 		if strings.TrimSpace(value) != "" {
-			diagnostics.RegisterDynamicSecret(value)
+			registerMCPRequestSecret(ctx, value)
 		}
 		return value, nil
 	}
@@ -342,7 +364,7 @@ func (e *CallExecutor) resolveSecretRef(ctx context.Context, ref string) (string
 			if strings.TrimSpace(value) == "" {
 				return "", fmt.Errorf("%w: env:%s", vault.ErrMissingSecret, envName)
 			}
-			diagnostics.RegisterDynamicSecret(value)
+			registerMCPRequestSecret(ctx, value)
 			return value, nil
 		}
 	}

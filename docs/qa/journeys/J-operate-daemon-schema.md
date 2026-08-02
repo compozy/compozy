@@ -16,8 +16,11 @@ flowchart TD
     CHOICE -->|yes| BACKUP[Stop Compozy and move the complete COMPOZY_HOME or workspace .compozy family]
     CHOICE -.->|not ready to discard| ABANDON[Abandon: keep old home stopped for later inspection]
     REFUSE --> DIRECT[Confirm stopped-daemon extension/MCP/provider-auth direct opens return the same typed refusal]
-    DIRECT --> SESSIONREAD[Confirm session event and ledger readers refuse incompatible events.db files]
-    SESSIONREAD --> BACKUP
+    DIRECT --> SESSIONREAD[Read one current or intentionally incompatible events.db]
+    SESSIONREAD -->|legacy or ahead| BACKUP
+    SESSIONREAD -->|owner missing or mismatch| OWNERREFUSE[Refuse before migration or mutation and preserve every family byte]
+    OWNERREFUSE --> BACKUP
+    SESSIONREAD -->|current exact owner| DOMAINS
     AHEAD -.->|newer binary unavailable| ABANDONAHEAD[Abandon: preserve the home unchanged until a compatible binary is available]
     AHEAD --> FRESH[Select a separate fresh COMPOZY_HOME]
     FRESH --> BOOT
@@ -61,7 +64,7 @@ journey:
       expected_observable: "Every sibling database remains together for investigation and the separately selected fresh daemon home reaches readiness."
     - step: 3
       verb: "Read preserved session events or materialize a terminal ledger"
-      expected_observable: "Legacy, ahead, and corrupt events.db files are refused before domain queries while a current session database remains readable."
+      expected_observable: "Legacy, ahead, corrupt, ownerless, and foreign-owned events.db files are refused before migration or mutation while an exactly owned session database remains readable."
     - step: 4
       verb: "Exercise global and memory read paths after migration and restart"
       expected_observable: "Workspace and memory catalog reads succeed while the two version streams remain independently visible."
@@ -71,7 +74,7 @@ journey:
   goal:
     observable: "The daemon is running on a supported schema and reports its two compozy.db migration streams consistently across structured surfaces."
     side_effects: [fresh-database-created, migration-streams-applied, status-contract-published]
-  true_end_state: "After a fresh status read, HTTP, UDS, and CLI agree on global and memory schema state; any refused COMPOZY_HOME or workspace .compozy database family is preserved outside the active home and was never modified."
+  true_end_state: "After a fresh status read, HTTP, UDS, and CLI agree on global and memory schema state; any refused COMPOZY_HOME, workspace .compozy, or session database family is preserved and was never modified."
   exit:
     natural: "The operator continues normal Compozy work with a running, inspectable daemon."
   abandonment:

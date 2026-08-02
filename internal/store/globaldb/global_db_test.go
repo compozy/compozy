@@ -156,6 +156,7 @@ func TestOpenGlobalDBAppliesGlobalMigrationsAndEnablesWAL(t *testing.T) {
 			"network_participation_budgets",
 			"network_task_status_projections",
 			"scheduler_pause",
+			"task_run_terminal_commands",
 		)
 		for _, table := range []string{"sessions", "task_runs", "loop_runs"} {
 			assertTableHasColumns(t, globalDB.db, table, []string{
@@ -231,6 +232,45 @@ func TestOpenGlobalDBAppliesGlobalMigrationsAndEnablesWAL(t *testing.T) {
 			"idx_network_threads_title",
 			"idx_network_threads_open_work",
 		)
+		assertTableColumns(t, globalDB.db, "task_run_terminal_commands", []string{
+			"command_id",
+			"run_id",
+			"task_id",
+			"workspace_id",
+			"kind",
+			"phase",
+			"source_status",
+			"source_session_id",
+			"source_claim_token_hash",
+			"source_lease_until",
+			"intent_json",
+			"actor_json",
+			"command_at",
+			"admitted_at",
+			"updated_at",
+		})
+		assertIndexesPresent(
+			t,
+			globalDB.db,
+			"task_run_terminal_commands",
+			"idx_task_run_terminal_commands_phase",
+		)
+		var terminalGuardCount int
+		if err := globalDB.db.QueryRowContext(
+			testutil.Context(t),
+			`SELECT COUNT(*) FROM sqlite_master
+			 WHERE type = 'trigger'
+			   AND name IN (
+				   'trg_task_runs_terminal_command_guard',
+				   'trg_task_runs_terminal_command_delete_guard',
+				   'trg_tasks_terminal_command_delete_guard'
+			   )`,
+		).Scan(&terminalGuardCount); err != nil {
+			t.Fatalf("query terminal command guard trigger error = %v", err)
+		}
+		if terminalGuardCount != 3 {
+			t.Fatalf("terminal command guard trigger count = %d, want 3", terminalGuardCount)
+		}
 		assertJournalModeWAL(t, globalDB.db)
 		assertSynchronousNormal(t, globalDB.db)
 		status, err := store.Status(testutil.Context(t), globalDB.db, MigrationStream())
@@ -400,6 +440,155 @@ func TestOpenGlobalDBReopenPreservesRowsAndStatus(t *testing.T) {
 		}
 		if secondStatus != firstStatus {
 			t.Fatalf("Status(second post-cut) = %#v, want unchanged %#v", secondStatus, firstStatus)
+		}
+	})
+}
+
+func TestGlobalDBTerminalRunCommandMigrationPreservesRowsAcrossReopen(t *testing.T) {
+	t.Parallel()
+	t.Run("Should preserve task runs and terminal-command guards across migration reopen", func(t *testing.T) {
+		t.Parallel()
+
+		// Invariant: migration 00042 is append-only over the prior head, preserves
+		// task-run rows, and keeps the terminal-command guard effective after reopen.
+		// Owning layer: GlobalDB migration stream. Canonical suite: global_db_test.go.
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		prefixDB, err := openGlobalMigrationPrefixDatabase(
+			t,
+			path,
+			globalMigrationPrefixBefore(t, "00042_schema.sql"),
+		)
+		if err != nil {
+			t.Fatalf("open prior global migration prefix error = %v", err)
+		}
+		ctx := globalMigrationTestContext(t)
+		statements := []string{
+			`INSERT INTO workspaces (
+			id, root_dir, add_dirs, name, created_at, updated_at
+		) VALUES (
+			'workspace-terminal-migration', '/tmp/workspace-terminal-migration', '[]',
+			'workspace-terminal-migration', '2026-08-02T11:59:00Z', '2026-08-02T11:59:00Z'
+		)`,
+			`INSERT INTO tasks (
+			id, scope, workspace_id, title, status, created_by_kind, created_by_ref,
+			origin_kind, origin_ref, created_at, updated_at
+		) VALUES (
+			'task-terminal-migration', 'workspace', 'workspace-terminal-migration',
+			'Terminal migration', 'ready',
+			'daemon', 'migration', 'daemon', 'migration',
+			'2026-08-02T12:00:00Z', '2026-08-02T12:00:00Z'
+		)`,
+			`INSERT INTO task_runs (
+			id, task_id, workspace_id, status, attempt, origin_kind, origin_ref, queued_at
+		) VALUES (
+			'run-terminal-migration', 'task-terminal-migration', 'workspace-terminal-migration',
+			'queued', 1,
+			'daemon', 'migration', '2026-08-02T12:01:00Z'
+		)`,
+		}
+		for _, statement := range statements {
+			if _, err := prefixDB.ExecContext(ctx, statement); err != nil {
+				t.Fatalf("seed prior terminal migration fixture error = %v", err)
+			}
+		}
+		if err := prefixDB.Close(); err != nil {
+			t.Fatalf("Close(prior prefix) error = %v", err)
+		}
+
+		first, err := openGlobalMigrationUpgrade(t, path)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB(first migration 00042) error = %v", err)
+		}
+		ctx = globalMigrationTestContext(t)
+		commandAt := "2026-08-02T12:02:00Z"
+		if _, err := first.db.ExecContext(ctx, `INSERT INTO task_run_terminal_commands (
+		command_id, run_id, task_id, workspace_id, kind, phase,
+		source_status, source_session_id, source_claim_token_hash,
+		intent_json, actor_json, command_at, admitted_at, updated_at
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			"terminal-command-migration",
+			"run-terminal-migration",
+			"task-terminal-migration",
+			"workspace-terminal-migration",
+			"needs_attention",
+			"admitted",
+			"queued",
+			"",
+			"",
+			`{"version":2,"event_ids":["evt-terminal-migration"],`+
+				`"diagnostic":"migration fixture","stop_required":false}`,
+			`{"actor":{"kind":"daemon","ref":"migration"},"origin":{"kind":"daemon","ref":"migration"}}`,
+			commandAt,
+			commandAt,
+			commandAt,
+		); err != nil {
+			t.Fatalf("insert migrated terminal command error = %v", err)
+		}
+		if err := first.Close(ctx); err != nil {
+			t.Fatalf("Close(first migration 00042) error = %v", err)
+		}
+
+		second, err := openGlobalMigrationUpgrade(t, path)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB(reopen migration 00042) error = %v", err)
+		}
+		ctx = globalMigrationTestContext(t)
+		t.Cleanup(func() {
+			if err := second.Close(testutil.Context(t)); err != nil {
+				t.Errorf("Close(reopened migration 00042) error = %v", err)
+			}
+		})
+		run, err := second.GetTaskRun(ctx, "run-terminal-migration")
+		if err != nil {
+			t.Fatalf("GetTaskRun(after migration reopen) error = %v", err)
+		}
+		if run.Status != taskpkg.TaskRunStatusQueued {
+			t.Fatalf("migrated run status = %q, want queued", run.Status)
+		}
+		if run.WorkspaceID != "workspace-terminal-migration" {
+			t.Fatalf("migrated run workspace = %q, want workspace-terminal-migration", run.WorkspaceID)
+		}
+		var commandCount int
+		if err := second.db.QueryRowContext(
+			ctx,
+			`SELECT COUNT(*) FROM task_run_terminal_commands WHERE run_id = ?`,
+			run.ID,
+		).Scan(&commandCount); err != nil {
+			t.Fatalf("count terminal commands after reopen error = %v", err)
+		}
+		if commandCount != 1 {
+			t.Fatalf("terminal command count after reopen = %d, want 1", commandCount)
+		}
+		if _, err := second.db.ExecContext(
+			ctx,
+			`UPDATE task_runs SET status = 'claimed' WHERE id = ?`,
+			run.ID,
+		); err == nil || !strings.Contains(err.Error(), terminalRunCommandGuardMessage) {
+			t.Fatalf("guarded task-run update error = %v, want terminal command guard", err)
+		}
+		if _, err := second.db.ExecContext(
+			ctx,
+			`DELETE FROM task_runs WHERE id = ?`,
+			run.ID,
+		); err == nil || !strings.Contains(err.Error(), terminalRunCommandGuardMessage) {
+			t.Fatalf("guarded task-run delete error = %v, want terminal command guard", err)
+		}
+		if _, err := second.db.ExecContext(
+			ctx,
+			`DELETE FROM tasks WHERE id = ?`,
+			"task-terminal-migration",
+		); err == nil || !strings.Contains(err.Error(), terminalRunCommandGuardMessage) {
+			t.Fatalf("guarded task delete error = %v, want terminal command guard", err)
+		}
+		if err := second.DeleteWorkspace(ctx, "workspace-terminal-migration"); !errors.Is(
+			err,
+			taskpkg.ErrTerminalRunCommandInProgress,
+		) {
+			t.Fatalf(
+				"DeleteWorkspace(guarded) error = %v, want %v",
+				err,
+				taskpkg.ErrTerminalRunCommandInProgress,
+			)
 		}
 	})
 }
@@ -2398,6 +2587,35 @@ func TestGlobalDBWorkspaceNotFoundErrors(t *testing.T) {
 func TestGlobalDBWorkspaceValidationAndDefaulting(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should not persist a workspace when generated ID entropy fails", func(t *testing.T) {
+		t.Parallel()
+
+		entropyErr := errors.New("entropy unavailable")
+		globalDB := openTestGlobalDB(t)
+		globalDB.generateID = func() (string, error) {
+			return "", entropyErr
+		}
+		rootDir := filepath.Join(t.TempDir(), "workspace-entropy-failure")
+		if err := os.MkdirAll(rootDir, 0o755); err != nil {
+			t.Fatalf("MkdirAll() error = %v", err)
+		}
+
+		err := globalDB.InsertWorkspace(testutil.Context(t), compozyworkspace.Workspace{
+			RootDir: rootDir,
+			Name:    "entropy-failure",
+		})
+		if !errors.Is(err, entropyErr) {
+			t.Fatalf("InsertWorkspace() error = %v, want %v", err, entropyErr)
+		}
+		workspaces, listErr := globalDB.ListWorkspaces(testutil.Context(t))
+		if listErr != nil {
+			t.Fatalf("ListWorkspaces() error = %v", listErr)
+		}
+		if len(workspaces) != 0 {
+			t.Fatalf("len(workspaces) = %d, want 0", len(workspaces))
+		}
+	})
+
 	var nilCtx context.Context
 	if _, err := OpenGlobalDB(nilCtx, filepath.Join(t.TempDir(), GlobalDatabaseName)); err == nil {
 		t.Fatal("OpenGlobalDB(nil) error = nil, want non-nil")
@@ -3356,7 +3574,7 @@ func TestGlobalDBReconcileSessions(t *testing.T) {
 	t.Parallel()
 
 	globalDB := openTestGlobalDB(t)
-	registerSessionForGlobalTests(t, globalDB, "sess-keep")
+	keepWorkspaceID := registerSessionForGlobalTests(t, globalDB, "sess-keep")
 	registerSessionForGlobalTests(t, globalDB, "sess-orphan")
 
 	onDisk := []SessionInfo{
@@ -3365,16 +3583,11 @@ func TestGlobalDBReconcileSessions(t *testing.T) {
 			AgentName:     "coder",
 			Provider:      "claude",
 			RuntimeStatus: store.SessionRuntimeUnbound,
-			WorkspaceID: registerWorkspaceForGlobalTests(
-				t,
-				globalDB,
-				"sess-keep-reconciled-workspace",
-				filepath.Join(t.TempDir(), "sess-keep"),
-			),
-			State:      "stopped",
-			StopReason: store.StopCompleted,
-			CreatedAt:  time.Date(2026, 4, 3, 16, 0, 0, 0, time.UTC),
-			UpdatedAt:  time.Date(2026, 4, 3, 16, 0, 0, 0, time.UTC),
+			WorkspaceID:   keepWorkspaceID,
+			State:         "stopped",
+			StopReason:    store.StopCompleted,
+			CreatedAt:     time.Date(2026, 4, 3, 16, 0, 0, 0, time.UTC),
+			UpdatedAt:     time.Date(2026, 4, 3, 16, 0, 0, 0, time.UTC),
 		},
 		{
 			ID:            "sess-new",

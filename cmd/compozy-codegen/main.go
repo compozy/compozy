@@ -25,7 +25,7 @@ const (
 )
 
 const usage = "usage: compozy-codegen " +
-	"<openapi|sdk-contracts|sdk-contracts-go|loop-enums|lifecycle-matrix|native-tool-catalog|all|check>"
+	"<host-api|openapi|sdk-contracts|sdk-contracts-go|loop-enums|lifecycle-matrix|native-tool-catalog|all|check>"
 
 const defaultSDKContractsPath = "sdk/typescript/src/generated/contracts.ts"
 const defaultLoopEnumsPath = "web/src/generated/loop-enums.ts"
@@ -67,6 +67,11 @@ func runWithAllPaths(
 	nativeToolCatalogPath := nativeToolCatalogPathFor(openapiPath)
 
 	switch args[0] {
+	case "host-api":
+		if len(args) > 1 && args[1] == "--check" {
+			return checkHostAPIContracts()
+		}
+		return writeHostAPIContracts()
 	case "openapi":
 		return writeOpenAPI(ctx, openapiPath)
 	case "sdk-contracts":

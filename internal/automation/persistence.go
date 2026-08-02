@@ -11,6 +11,8 @@ var (
 	ErrRunNotFound = modelpkg.ErrRunNotFound
 	// ErrRunAlreadyExists reports that an automation run identity has already been claimed.
 	ErrRunAlreadyExists = modelpkg.ErrRunAlreadyExists
+	// ErrRunReservationConflict reports that an existing run changed before dispatch activation.
+	ErrRunReservationConflict = modelpkg.ErrRunReservationConflict
 	// ErrSchedulerStateNotFound reports that no durable scheduler cursor exists for a job.
 	ErrSchedulerStateNotFound = modelpkg.ErrSchedulerStateNotFound
 	// ErrScheduledFireAlreadyClaimed reports that a scheduled fire identity was already claimed.
@@ -82,6 +84,12 @@ func SortTriggersForList(triggers []Trigger) {
 
 // RunQuery filters automation run history and fire-limit window lookups.
 type RunQuery = modelpkg.RunQuery
+
+// RunReservation atomically evaluates a fire-limit window and reserves a run.
+type RunReservation = modelpkg.RunReservation
+
+// RunReservationResult reports the durable fire-limit reservation decision.
+type RunReservationResult = modelpkg.RunReservationResult
 
 // JobEnabledOverlay stores the runtime enabled override for a config-backed job.
 type JobEnabledOverlay = modelpkg.JobEnabledOverlay

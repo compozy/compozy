@@ -10,10 +10,16 @@ func (s *service) revokeGoalPromptLeases(
 	if s.goalLeaseRevoker == nil {
 		return
 	}
+	revocationCtx, cancel := loopPostCommitContext(ctx)
+	defer cancel()
 	for _, lease := range leases {
-		if err := s.goalLeaseRevoker.RevokeGoalPromptLease(ctx, lease, string(cause)); err != nil {
+		if err := s.goalLeaseRevoker.RevokeGoalPromptLease(
+			revocationCtx,
+			lease,
+			string(cause),
+		); err != nil {
 			s.logger.ErrorContext(
-				ctx,
+				revocationCtx,
 				"post-commit Goal runtime revocation failed",
 				"cause", cause,
 				"loop_run_id", lease.LoopRunID,

@@ -2,12 +2,11 @@ package daemon
 
 import (
 	"context"
-
 	"strings"
-
 	"time"
 
 	"github.com/compozy/compozy/internal/store"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 func (b *harnessReentryBridge) finalizeRunOutcome(
@@ -48,8 +47,11 @@ func (b *harnessReentryBridge) finalizeRunOutcome(
 		return
 	}
 
-	run.Metadata = raw
-	if err := b.store.UpdateTaskRun(opCtx, run); err != nil {
+	if _, err := b.store.UpdateTaskRunMetadata(opCtx, taskpkg.RunMetadataMutation{
+		RunID:            run.ID,
+		ExpectedMetadata: run.Metadata,
+		Metadata:         raw,
+	}); err != nil {
 		b.logger.Error("daemon: persist detached harness finalization", "run_id", runID, "error", err)
 		return
 	}
@@ -106,7 +108,7 @@ func (b *harnessReentryBridge) writeEventSummaryWithContext(
 		timestamp = time.Now().UTC()
 	}
 	if ctx == nil {
-		ctx = context.Background()
+		return
 	}
 	summaryPayload := store.EventSummary{
 		SessionID: targetSessionID,

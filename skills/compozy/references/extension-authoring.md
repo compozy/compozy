@@ -2,7 +2,7 @@
 
 Write a Compozy extension. Lifecycle mechanics — generation handles, instance scoping, dev overlays,
 reload semantics, logs, install trust, publish credentials — live in
-`references/capabilities.md`. Native tool IDs and risk flags live in
+`references/extensions.md`. Native tool IDs and risk flags live in
 `references/native-tools.md`. Read this file for what goes in the code.
 
 ## Contents
@@ -10,6 +10,7 @@ reload semantics, logs, install trust, publish credentials — live in
 - Code-first model
 - Templates
 - Declaration shape
+- Ready callback lifecycle
 - Permissions and consent
 - Provide surfaces
 - Contributed commands
@@ -76,6 +77,15 @@ of each is computed by the SDK and re-verified by the daemon.
 Registration closes at `initialize`. Register every tool, hook, watch source, and command group
 before `Run`/`start`.
 
+## Ready Callback Lifecycle
+
+Go `OnReady` callbacks start after initialization. Register them before `Run`, treat `ctx.Done()` as
+the stop signal, and return promptly. On shutdown, the SDK cancels accepted callbacks and takes one
+bounded drain snapshot at the request deadline or negotiated runtime timeout. Observable completion
+wins when completion and deadline are both ready; `Run` reports non-cancellation failures captured
+by that snapshot, while failures recorded after a deadline decision are excluded. A callback that
+outlives that decision may outlive `Run`. Registrations after shutdown or runtime closure are ignored.
+
 ## Permissions And Consent
 
 `permissions.requires` is the single authored list: the Host API method paths the extension calls,
@@ -141,6 +151,11 @@ Every `watch/poll` response requires a stable `event_key`. The runtime trims it 
 Unicode to NFC, one canonical byte form. Invalid UTF-8 and values over 256 bytes are rejected before
 a Loop starts. Redelivery of the same source key and event key returns the existing Loop run as a
 structured suppression instead of starting duplicate work.
+
+For a host bridge adapter, `delivery_id` is opaque: acknowledge the exact received value and sequence,
+without trimming or reformatting it. Cursor diagnostics identify ownership with a structured
+`{kind, workspace_id}` scope, never a joined string; `kind` is closed to `global` or `workspace`,
+and `workspace_id` is likewise opaque and byte-exact.
 
 ## Contributed Commands
 

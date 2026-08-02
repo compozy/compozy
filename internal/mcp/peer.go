@@ -22,9 +22,6 @@ type peerInfoErrorContextKey struct{}
 
 // ContextWithPeerInfo annotates an accepted UDS connection context.
 func ContextWithPeerInfo(ctx context.Context, peer PeerInfo, err error) context.Context {
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	ctx = context.WithValue(ctx, peerInfoContextKey{}, peer)
 	if err != nil {
 		ctx = context.WithValue(ctx, peerInfoErrorContextKey{}, err)

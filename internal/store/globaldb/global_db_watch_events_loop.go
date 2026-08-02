@@ -56,8 +56,6 @@ func (g *WatchEventsRepo) readLoopWatchEvents(
 	if err != nil {
 		return nil, fmt.Errorf("store: read loop watch-events: %w", err)
 	}
-	defer rows.Close()
-
 	events := make([]looppkg.WatchEvent, 0, query.limit)
 	for rows.Next() {
 		event, scanErr := scanLoopWatchEvent(rows)

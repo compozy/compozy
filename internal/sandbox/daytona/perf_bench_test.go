@@ -164,3 +164,5 @@ func (*benchmarkSession) Wait() error { return nil }
 func (*benchmarkSession) Stop(context.Context) error { return nil }
 
 func (*benchmarkSession) Stderr() string { return "" }
+
+func (*benchmarkSession) ExitCode() (int, bool) { return 0, true }

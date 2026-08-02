@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
 	"strings"
@@ -102,9 +101,7 @@ func (m *Manager) fetchGitHubJSON(ctx context.Context, url string, target any) (
 		return fmt.Errorf("update: request release metadata: %w", err)
 	}
 	defer func() {
-		if closeErr := resp.Body.Close(); closeErr != nil && err == nil {
-			err = fmt.Errorf("update: close release response: %w", closeErr)
-		}
+		err = errors.Join(err, drainAndCloseUpdateResponseBody(resp.Body))
 	}()
 
 	if resp.StatusCode != http.StatusOK {
@@ -151,9 +148,7 @@ func (m *Manager) downloadFile(ctx context.Context, url string, path string, max
 		return fmt.Errorf("update: download %q: %w", url, err)
 	}
 	defer func() {
-		if closeErr := resp.Body.Close(); closeErr != nil && err == nil {
-			err = fmt.Errorf("update: close download response %q: %w", url, closeErr)
-		}
+		err = errors.Join(err, drainAndCloseUpdateResponseBody(resp.Body))
 	}()
 
 	if resp.StatusCode != http.StatusOK {
@@ -173,34 +168,18 @@ func (m *Manager) downloadFile(ctx context.Context, url string, path string, max
 		return fmt.Errorf("update: create download target %q: %w", path, err)
 	}
 	removePartial := true
-	closed := false
 	defer func() {
-		if !closed {
-			if closeErr := file.Close(); closeErr != nil && err == nil {
-				err = fmt.Errorf("update: close download target %q: %w", path, closeErr)
-			}
-		}
 		if removePartial {
 			if removeErr := os.Remove(path); removeErr != nil &&
-				!errors.Is(removeErr, os.ErrNotExist) &&
-				err == nil {
-				err = fmt.Errorf("update: remove partial download %q: %w", path, removeErr)
+				!errors.Is(removeErr, os.ErrNotExist) {
+				err = errors.Join(err, fmt.Errorf("update: remove partial download %q: %w", path, removeErr))
 			}
 		}
 	}()
 
-	limited := &io.LimitedReader{R: resp.Body, N: maxBytes + 1}
-	written, err := io.Copy(file, limited)
-	if err != nil {
-		return fmt.Errorf("update: write download %q: %w", path, err)
+	if err := writeDownloadTarget(path, file, resp.Body, maxBytes); err != nil {
+		return err
 	}
-	if written > maxBytes {
-		return fmt.Errorf("update: download %q exceeds limit %d", url, maxBytes)
-	}
-	if err := file.Close(); err != nil {
-		return fmt.Errorf("update: close download target %q: %w", path, err)
-	}
-	closed = true
 	removePartial = false
 	return nil
 }

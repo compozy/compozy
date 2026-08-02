@@ -48,8 +48,8 @@ func (g *BridgeRepo) ListBridgeDeliveryMetrics(
 	deliveryWhere, deliveryArgs := bridgeDeliveryMetricQueryClauses(normalized)
 	backlogWhere, backlogArgs := store.BuildClauses(
 		store.StringClause("scope", string(normalized.Scope)),
-		store.StringClause("workspace_id", normalized.WorkspaceID),
-		store.StringClause("bridge_instance_id", normalized.BridgeInstanceID),
+		store.OpaqueStringClause("workspace_id", normalized.WorkspaceID),
+		store.OpaqueStringClause("bridge_instance_id", normalized.BridgeInstanceID),
 		store.StringClause("state", string(bridges.DeliveryLedgerStateActive)),
 	)
 	metricIDs := store.AppendWhere(
@@ -114,8 +114,8 @@ func (g *BridgeRepo) ListBridgeDeliveryMetrics(
 func bridgeDeliveryMetricQueryClauses(query bridges.DeliveryLedgerQuery) ([]string, []any) {
 	return store.BuildClauses(
 		store.StringClause("scope", string(query.Scope)),
-		store.StringClause("workspace_id", query.WorkspaceID),
-		store.StringClause("bridge_instance_id", query.BridgeInstanceID),
+		store.OpaqueStringClause("workspace_id", query.WorkspaceID),
+		store.OpaqueStringClause("bridge_instance_id", query.BridgeInstanceID),
 	)
 }
 

@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"slices"
 	"strings"
 	"sync"
@@ -20,6 +21,7 @@ import (
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
+	authproviders "github.com/compozy/compozy/internal/providers"
 	"github.com/compozy/compozy/internal/sandbox"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
@@ -124,7 +126,7 @@ func TestSessionSandboxStartPrepareSyncAndLaunchSequence(t *testing.T) {
 		t.Fatalf("Create() error = %v", err)
 	}
 	t.Cleanup(func() {
-		_ = h.manager.Stop(testutil.Context(t), session.ID)
+		reportSessionStop(t, h, session.ID)
 	})
 
 	if got, want := provider.prepareRequests[0].SandboxID, "env-1"; got != want {
@@ -141,6 +143,223 @@ func TestSessionSandboxStartPrepareSyncAndLaunchSequence(t *testing.T) {
 	}
 	if info := session.Info(); info.Sandbox == nil || info.Sandbox.SandboxID != "env-1" {
 		t.Fatalf("session.Info().Sandbox = %#v, want env-1", info.Sandbox)
+	}
+}
+
+func TestSessionSandboxBuildsProviderProbeFromFinalLaunchEnvironment(t *testing.T) {
+	t.Parallel()
+	t.Run(
+		"Should build provider probes from sandbox-final launch settings",
+		testSessionSandboxBuildsProviderProbeFromFinalLaunchEnvironment,
+	)
+	t.Run(
+		"Should execute provider probes through the prepared launcher's command runtime",
+		testSessionSandboxUsesPreparedLauncherCommandRuntime,
+	)
+}
+
+func testSessionSandboxBuildsProviderProbeFromFinalLaunchEnvironment(t *testing.T) {
+	t.Helper()
+
+	providerHome := filepath.Join(t.TempDir(), "provider-home")
+	providerBin := filepath.Join(t.TempDir(), "provider-bin")
+	if err := os.MkdirAll(providerHome, 0o700); err != nil {
+		t.Fatalf("MkdirAll(provider home) error = %v", err)
+	}
+	if err := os.MkdirAll(providerBin, 0o755); err != nil {
+		t.Fatalf("MkdirAll(provider bin) error = %v", err)
+	}
+	providerCommandName := "sandbox-provider"
+	providerScript := "#!/bin/sh\nexit 0\n"
+	if runtime.GOOS == "windows" {
+		providerCommandName = "sandbox-provider.cmd"
+		providerScript = "@echo off\r\nexit /b 0\r\n"
+	}
+	providerCommand := filepath.Join(providerBin, providerCommandName)
+	if err := os.WriteFile(providerCommand, []byte(providerScript), 0o755); err != nil {
+		t.Fatalf("WriteFile(provider command) error = %v", err)
+	}
+	finalEnv := []string{
+		"HOME=" + providerHome,
+		"PATH=" + providerBin,
+		"PROVIDER_TOKEN=final-only",
+	}
+	provider := &recordingSandboxProvider{launchEnv: finalEnv, instanceID: "instance-final"}
+	hooks := &spyHookDispatcher{
+		dispatchAgentPreStartFn: func(
+			_ context.Context,
+			payload hookspkg.AgentPreStartPayload,
+		) (hookspkg.AgentPreStartPayload, error) {
+			payload.Command = providerCommandName
+			payload.Args = []string{"acp"}
+			return payload, nil
+		},
+	}
+	h := newHarness(
+		t,
+		WithSandboxRegistry(newRegistryForProvider(t, provider)),
+		WithSandboxIDGenerator(sequentialIDGenerator("env")),
+		WithHookSet(fullHookSet(hooks)),
+	)
+	h.driver.startHook = func(opts acp.StartOpts, _ int) (*fakeProcess, error) {
+		if opts.ProviderAuthEnv == nil {
+			t.Fatal("StartOpts.ProviderAuthEnv = nil, want final probe environment")
+		}
+		if got, ok := opts.ProviderAuthEnv.LookupEnv("HOME"); !ok || got != providerHome {
+			t.Fatalf(
+				"ProviderAuthEnv.LookupEnv(HOME) = %q, %t; want final sandbox home %q, true",
+				got,
+				ok,
+				providerHome,
+			)
+		}
+		if !slices.Equal(opts.ProviderAuthEnv.CommandEnv, finalEnv) {
+			t.Fatalf(
+				"ProviderAuthEnv.CommandEnv = %#v, want final sandbox environment %#v",
+				opts.ProviderAuthEnv.CommandEnv,
+				finalEnv,
+			)
+		}
+		resolvedCommand, err := opts.ProviderAuthEnv.LookPath(providerCommandName)
+		if err != nil {
+			t.Fatalf(
+				"ProviderAuthEnv.LookPath(%s) error = %v",
+				providerCommandName,
+				err,
+			)
+		}
+		if resolvedCommand != providerCommand {
+			t.Fatalf(
+				"ProviderAuthEnv.LookPath(%s) = %q, want %q",
+				providerCommandName,
+				resolvedCommand,
+				providerCommand,
+			)
+		}
+		if opts.ProviderConfig == nil || opts.ProviderConfig.Command != providerCommandName+" acp" {
+			t.Fatalf("ProviderConfig.Command = %#v, want post-hook command", opts.ProviderConfig)
+		}
+		scope := opts.ProviderAuthEnv.PreStartScope
+		if scope.WorkspaceID != h.workspaceID ||
+			scope.HomeIdentity != providerHome ||
+			scope.SandboxID != "env-1" ||
+			scope.SandboxBackend != string(sandbox.BackendLocal) ||
+			scope.SandboxProfile == "" ||
+			scope.SandboxInstanceID != "instance-final" {
+			t.Fatalf(
+				"ProviderAuthEnv.PreStartScope = %#v, want final workspace/home/runtime identity",
+				scope,
+			)
+		}
+		return newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, "acp-start"), nil
+	}
+
+	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		AgentName: "coder",
+		Workspace: h.workspaceID,
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+			t.Errorf("Stop() error = %v", err)
+		}
+	})
+}
+
+func testSessionSandboxUsesPreparedLauncherCommandRuntime(t *testing.T) {
+	t.Helper()
+
+	runtimeRoot := filepath.Join(t.TempDir(), "remote-runtime")
+	if err := os.MkdirAll(runtimeRoot, 0o755); err != nil {
+		t.Fatalf("os.MkdirAll(runtime root) error = %v", err)
+	}
+	canonicalRuntimeRoot, err := canonicalDirectory(runtimeRoot)
+	if err != nil {
+		t.Fatalf("canonicalDirectory(runtime root) error = %v", err)
+	}
+	finalEnv := []string{"HOME=/remote/provider-home", "PATH=/remote/bin", "REMOTE_ONLY=1"}
+	commandRuntime := &recordingProviderCommandRuntime{
+		resolvedExecutable: "/remote/bin/provider-auth",
+		result: sandbox.CommandResult{
+			ExitCode: 7,
+			Stdout:   "remote auth status",
+		},
+	}
+	launcher := &recordingProviderRuntimeLauncher{runtime: commandRuntime}
+	provider := &recordingSandboxProvider{
+		runtimeRoot: runtimeRoot,
+		launchEnv:   finalEnv,
+		launcher:    launcher,
+	}
+	h := newHarness(t, WithSandboxRegistry(newRegistryForProvider(t, provider)))
+	h.driver.startHook = func(opts acp.StartOpts, _ int) (*fakeProcess, error) {
+		if opts.Launcher != launcher {
+			t.Fatalf("StartOpts.Launcher = %T, want prepared launcher %T", opts.Launcher, launcher)
+		}
+		probe := opts.ProviderAuthEnv
+		if probe == nil || probe.ResolveCommand == nil || probe.RunCommand == nil {
+			t.Fatalf("ProviderAuthEnv = %#v, want launcher-owned resolver and runner", probe)
+		}
+		if probe.LookPath != nil {
+			t.Fatal("ProviderAuthEnv.LookPath is configured, want no daemon filesystem resolver")
+		}
+		resolved, err := probe.ResolveCommand(
+			context.Background(),
+			"provider-auth",
+			probe.CommandEnv,
+			probe.CommandDir,
+		)
+		if err != nil {
+			t.Fatalf("ProviderAuthEnv.ResolveCommand() error = %v", err)
+		}
+		result, err := probe.RunCommand(context.Background(), authproviders.ProviderAuthCommandSpec{
+			Executable: resolved,
+			Args:       []string{"status"},
+			Env:        append([]string(nil), probe.CommandEnv...),
+			Dir:        probe.CommandDir,
+			Timeout:    time.Second,
+		})
+		if err != nil {
+			t.Fatalf("ProviderAuthEnv.RunCommand() error = %v", err)
+		}
+		if result.ExitCode != 7 || result.Stdout != "remote auth status" {
+			t.Fatalf("ProviderAuthEnv.RunCommand() = %#v, want remote result", result)
+		}
+		return newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, "acp-start"), nil
+	}
+
+	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		AgentName: "coder",
+		Workspace: h.workspaceID,
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+			t.Errorf("Stop() error = %v", err)
+		}
+	})
+
+	commandRuntime.mu.Lock()
+	defer commandRuntime.mu.Unlock()
+	if commandRuntime.resolveCommand != "provider-auth" ||
+		commandRuntime.resolveCwd != canonicalRuntimeRoot ||
+		!slices.Equal(commandRuntime.resolveEnv, finalEnv) {
+		t.Fatalf(
+			"remote resolve input = command %q cwd %q env %#v, want final runtime identity",
+			commandRuntime.resolveCommand,
+			commandRuntime.resolveCwd,
+			commandRuntime.resolveEnv,
+		)
+	}
+	if commandRuntime.runSpec.Executable != commandRuntime.resolvedExecutable ||
+		commandRuntime.runSpec.Cwd != canonicalRuntimeRoot ||
+		!slices.Equal(commandRuntime.runSpec.Env, finalEnv) ||
+		!slices.Equal(commandRuntime.runSpec.Args, []string{"status"}) {
+		t.Fatalf("remote run spec = %#v, want resolved identity and final runtime context", commandRuntime.runSpec)
 	}
 }
 
@@ -192,13 +411,22 @@ func TestSessionSandboxCreateAppliesRuntimeSandboxOverride(t *testing.T) {
 	t.Run("Should disable sandbox startup when explicitly requested", func(t *testing.T) {
 		t.Parallel()
 
+		entropyErr := errors.New("entropy unavailable")
+		sandboxIDCalls := 0
 		provider := &recordingSandboxProvider{
 			prepareHook: func(sandbox.PrepareRequest) error {
 				t.Fatal("Prepare() called for disabled sandbox")
 				return nil
 			},
 		}
-		h := newHarness(t, WithSandboxRegistry(newRegistryForProvider(t, provider)))
+		h := newHarness(
+			t,
+			WithSandboxRegistry(newRegistryForProvider(t, provider)),
+			WithSandboxIDGenerator(func() (string, error) {
+				sandboxIDCalls++
+				return "", entropyErr
+			}),
+		)
 
 		session, err := h.manager.Create(testutil.Context(t), CreateOpts{
 			AgentName:      "coder",
@@ -210,10 +438,13 @@ func TestSessionSandboxCreateAppliesRuntimeSandboxOverride(t *testing.T) {
 		}
 		t.Cleanup(func() {
 			if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
-				t.Fatalf("Stop() error = %v", err)
+				t.Errorf("Stop() error = %v", err)
 			}
 		})
 
+		if got := sandboxIDCalls; got != 0 {
+			t.Fatalf("sandbox ID generator calls = %d, want 0", got)
+		}
 		if got := len(provider.prepareRequests); got != 0 {
 			t.Fatalf("Prepare() calls = %d, want 0", got)
 		}
@@ -229,6 +460,60 @@ func TestSessionSandboxCreateAppliesRuntimeSandboxOverride(t *testing.T) {
 		}
 		if got, want := h.driver.startCalls[0].Cwd, canonicalWorkspace; got != want {
 			t.Fatalf("StartOpts.Cwd = %q, want workspace root %q", got, want)
+		}
+	})
+
+	t.Run("Should create an accepted session without generating a sandbox ID when disabled", func(t *testing.T) {
+		t.Parallel()
+
+		entropyErr := errors.New("entropy unavailable")
+		sandboxIDCalls := 0
+		provider := &recordingSandboxProvider{
+			prepareHook: func(sandbox.PrepareRequest) error {
+				t.Fatal("Prepare() called for disabled accepted sandbox")
+				return nil
+			},
+		}
+		h := newHarness(
+			t,
+			WithSandboxRegistry(newRegistryForProvider(t, provider)),
+			WithSandboxIDGenerator(func() (string, error) {
+				sandboxIDCalls++
+				return "", entropyErr
+			}),
+		)
+
+		accepted, err := h.manager.CreateAccepted(testutil.Context(t), CreateAcceptedOpts{
+			Session: CreateOpts{
+				AgentName:      "coder",
+				Workspace:      h.workspaceID,
+				DisableSandbox: true,
+			},
+		})
+		if err != nil {
+			t.Fatalf("CreateAccepted() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := h.manager.Stop(testutil.Context(t), accepted.ID); err != nil {
+				t.Errorf("Stop() error = %v", err)
+			}
+		})
+
+		if got := sandboxIDCalls; got != 0 {
+			t.Fatalf("sandbox ID generator calls = %d, want 0", got)
+		}
+		if got := len(provider.prepareRequests); got != 0 {
+			t.Fatalf("Prepare() calls = %d, want 0", got)
+		}
+		if accepted.Sandbox != nil {
+			t.Fatalf("CreateAccepted() Sandbox = %#v, want nil", accepted.Sandbox)
+		}
+		session, ok := h.manager.Get(accepted.ID)
+		if !ok {
+			t.Fatalf("Get(%q) found = false, want true", accepted.ID)
+		}
+		if meta := readMeta(t, session.MetaPath()); meta.Sandbox != nil {
+			t.Fatalf("meta.Sandbox = %#v, want nil", meta.Sandbox)
 		}
 	})
 
@@ -442,7 +727,7 @@ func TestSessionSandboxStopSyncsBeforeRecorderCloseAndDestroyPolicy(t *testing.T
 			h := newHarness(
 				t,
 				WithSandboxRegistry(newRegistryForProvider(t, provider)),
-				WithStore(func(context.Context, string, string) (EventRecorder, error) {
+				WithStore(func(context.Context, store.SessionDBOwner, string) (EventRecorder, error) {
 					return &orderingRecorder{onClose: func() { appendOrder("close") }}, nil
 				}),
 			)
@@ -480,9 +765,7 @@ func TestSessionSandboxCrashSyncIsBestEffort(t *testing.T) {
 	session := createSession(t, h)
 
 	h.driver.lastProcess().crash(errors.New("boom"), "stderr trace")
-	waitForCondition(t, "session stopped after crash sync failure", func() bool {
-		return h.notifier.stoppedCount() == 1
-	})
+	h.notifier.waitForStopped(t, session.ID)
 
 	meta := readMeta(t, session.MetaPath())
 	if got, want := meta.State, string(StateStopped); got != want {
@@ -518,7 +801,7 @@ func TestSessionSandboxResumeRestoresProviderState(t *testing.T) {
 		t.Fatalf("Resume() error = %v", err)
 	}
 	t.Cleanup(func() {
-		_ = h.manager.Stop(testutil.Context(t), resumed.ID)
+		reportSessionStop(t, h, resumed.ID)
 	})
 
 	if got, want := len(provider.prepareRequests), 2; got != want {
@@ -541,7 +824,7 @@ func TestSessionSandboxLifecycleObserverReceivesRequiredFields(t *testing.T) {
 	h := newHarness(t, WithNotifier(observer))
 	session := createSession(t, h)
 	t.Cleanup(func() {
-		_ = h.manager.Stop(testutil.Context(t), session.ID)
+		reportSessionStop(t, h, session.ID)
 	})
 
 	events := observer.eventsSnapshot()
@@ -732,7 +1015,7 @@ func TestSessionSandboxPrepareHookEnvOverridesMergeIntoSandboxConfig(t *testing.
 
 	session := createSession(t, h)
 	t.Cleanup(func() {
-		_ = h.manager.Stop(testutil.Context(t), session.ID)
+		reportSessionStop(t, h, session.ID)
 	})
 
 	req := provider.prepareRequests[0]
@@ -776,7 +1059,7 @@ func TestSessionSandboxSyncBeforeDenySkipsSyncOperation(t *testing.T) {
 
 	session := createSession(t, h)
 	t.Cleanup(func() {
-		_ = h.manager.Stop(testutil.Context(t), session.ID)
+		reportSessionStop(t, h, session.ID)
 	})
 	if got := len(provider.syncToReasons); got != 0 {
 		t.Fatalf("SyncToRuntime calls = %d, want 0", got)
@@ -817,7 +1100,7 @@ func TestSessionSandboxSyncBeforeExcludePatternsPassToProvider(t *testing.T) {
 
 	session := createSession(t, h)
 	t.Cleanup(func() {
-		_ = h.manager.Stop(testutil.Context(t), session.ID)
+		reportSessionStop(t, h, session.ID)
 	})
 	if got := len(provider.syncToOptions); got != 1 {
 		t.Fatalf("SyncToRuntime calls = %d, want 1", got)
@@ -936,7 +1219,7 @@ func TestManagerExecSandboxUsesPreparedToolHost(t *testing.T) {
 	h := newHarness(t, WithSandboxRegistry(newRegistryForProvider(t, provider)))
 	session := createSession(t, h)
 	t.Cleanup(func() {
-		_ = h.manager.Stop(testutil.Context(t), session.ID)
+		reportSessionStop(t, h, session.ID)
 	})
 
 	result, err := h.manager.ExecSandbox(testutil.Context(t), SandboxExecRequest{
@@ -990,7 +1273,7 @@ func TestManagerExecSandboxReturnsWaitFailures(t *testing.T) {
 	h := newHarness(t, WithSandboxRegistry(newRegistryForProvider(t, provider)))
 	session := createSession(t, h)
 	t.Cleanup(func() {
-		_ = h.manager.Stop(testutil.Context(t), session.ID)
+		reportSessionStop(t, h, session.ID)
 	})
 
 	result, err := h.manager.ExecSandbox(testutil.Context(t), SandboxExecRequest{
@@ -1037,7 +1320,7 @@ func TestManagerExecSandboxValidationErrors(t *testing.T) {
 	h := newHarness(t)
 	session := createSession(t, h)
 	t.Cleanup(func() {
-		_ = h.manager.Stop(testutil.Context(t), session.ID)
+		reportSessionStop(t, h, session.ID)
 	})
 
 	tests := []struct {
@@ -1092,9 +1375,11 @@ type recordingSandboxProvider struct {
 	runtimeAdditional []string
 	instanceID        string
 	providerState     json.RawMessage
+	launchEnv         []string
 	syncToResult      sandbox.SyncResult
 	syncFromResult    sandbox.SyncResult
 	toolHost          sandbox.ToolHost
+	launcher          sandbox.Launcher
 	prepareHook       func(sandbox.PrepareRequest) error
 	syncToHook        func(sandbox.SessionState, sandbox.SyncOptions) (sandbox.SyncResult, error)
 	syncFromHook      func(sandbox.SessionState, sandbox.SyncOptions) (sandbox.SyncResult, error)
@@ -1149,18 +1434,74 @@ func (p *recordingSandboxProvider) Prepare(
 		ProviderState:         providerState,
 		PreparedAt:            time.Now().UTC(),
 	}
+	launchEnv := append([]string(nil), req.AgentEnv...)
+	if p.launchEnv != nil {
+		launchEnv = append([]string(nil), p.launchEnv...)
+	}
 	return sandbox.Prepared{
 		State:                 state,
 		RuntimeRootDir:        runtimeRoot,
 		RuntimeAdditionalDirs: append([]string(nil), runtimeAdditional...),
 		ToolHost:              p.toolHost,
+		Launcher:              p.launcher,
 		Launch: sandbox.LaunchSpec{
 			Command:        req.AgentCommand,
 			Cwd:            runtimeRoot,
 			AdditionalDirs: append([]string(nil), runtimeAdditional...),
-			Env:            append([]string(nil), req.AgentEnv...),
+			Env:            launchEnv,
 		},
 	}, nil
+}
+
+type recordingProviderRuntimeLauncher struct {
+	runtime sandbox.CommandRuntime
+}
+
+func (l *recordingProviderRuntimeLauncher) Launch(
+	context.Context,
+	sandbox.LaunchSpec,
+) (sandbox.Handle, error) {
+	return nil, errors.New("recording provider runtime launcher: Launch must not be called by fake driver")
+}
+
+func (l *recordingProviderRuntimeLauncher) CommandRuntime() sandbox.CommandRuntime {
+	return l.runtime
+}
+
+type recordingProviderCommandRuntime struct {
+	mu                 sync.Mutex
+	resolvedExecutable string
+	resolveCommand     string
+	resolveEnv         []string
+	resolveCwd         string
+	runSpec            sandbox.CommandSpec
+	result             sandbox.CommandResult
+}
+
+func (r *recordingProviderCommandRuntime) Resolve(
+	_ context.Context,
+	command string,
+	env []string,
+	cwd string,
+) (string, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.resolveCommand = command
+	r.resolveEnv = append([]string(nil), env...)
+	r.resolveCwd = cwd
+	return r.resolvedExecutable, nil
+}
+
+func (r *recordingProviderCommandRuntime) Run(
+	_ context.Context,
+	spec sandbox.CommandSpec,
+) (sandbox.CommandResult, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.runSpec = spec
+	r.runSpec.Args = append([]string(nil), spec.Args...)
+	r.runSpec.Env = append([]string(nil), spec.Env...)
+	return r.result, nil
 }
 
 func (p *recordingSandboxProvider) SyncToRuntime(

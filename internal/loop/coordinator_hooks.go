@@ -9,6 +9,8 @@ import (
 	"github.com/compozy/compozy/internal/task"
 )
 
+const coordinatorGateStatusEvaluated = "evaluated"
+
 func (r *CoordinatorRunner) dispatchGenerationPre(
 	ctx context.Context,
 	taskRun task.Run,
@@ -28,7 +30,9 @@ func (r *CoordinatorRunner) dispatchGenerationPre(
 		ParentGeneration: intent.ParentGeneration,
 		Status:           string(run.Status),
 	}
-	result, err := r.hooks.DispatchLoopGenerationPre(loopHookContext(ctx), payload)
+	hookCtx, cancel := loopPostCommitContext(ctx)
+	defer cancel()
+	result, err := r.hooks.DispatchLoopGenerationPre(hookCtx, payload)
 	if result.Denied {
 		return true, deniedGenerationPlan(run, int(intent.Generation), StatusFailed, result.DenyReason)
 	}
@@ -65,7 +69,9 @@ func (r *CoordinatorRunner) dispatchGenerationPost(
 		ParentGeneration: intent.ParentGeneration,
 		Status:           "planned",
 	}
-	if _, err := r.hooks.DispatchLoopGenerationPost(loopHookContext(ctx), payload); err != nil {
+	hookCtx, cancel := loopPostCommitContext(ctx)
+	defer cancel()
+	if _, err := r.hooks.DispatchLoopGenerationPost(hookCtx, payload); err != nil {
 		r.logger.Warn(
 			"loop: generation post hook failed open",
 			"loop_run_id", run.ID,
@@ -105,7 +111,8 @@ func (r *CoordinatorRunner) dispatchGateHooks(
 	if payload.BestUpdate != nil {
 		bestGeneration = new(payload.BestUpdate.Generation)
 	}
-	hookCtx := loopHookContext(ctx)
+	hookCtx, cancel := loopPostCommitContext(ctx)
+	defer cancel()
 	var deniedTerminal *task.CoordinatorTerminal
 	for _, verdict := range payload.Verdicts {
 		pre := r.loopGateHookPayload(
@@ -171,7 +178,7 @@ func (r *CoordinatorRunner) loopGateHookPayload(
 
 func loopGateHookPlanState(plan task.CoordinatorCompletionPlan) (string, string) {
 	if plan.Terminal == nil {
-		return coordinatorPhaseEvaluated, ""
+		return coordinatorGateStatusEvaluated, ""
 	}
 	return plan.Terminal.Status, plan.Terminal.ReasonCode
 }

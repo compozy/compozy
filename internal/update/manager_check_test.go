@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"testing/iotest"
 	"time"
 )
 
@@ -464,6 +465,86 @@ func TestManagerCheck(t *testing.T) {
 					t.Fatalf("state.Recommendation = %q, must not contain %q", state.Recommendation, tc.forbidden)
 				}
 			})
+		}
+	})
+}
+
+func TestManagerFetchGitHubJSONCleanup(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should bound early response draining and preserve status and close failures", func(t *testing.T) {
+		t.Parallel()
+
+		closeErr := errors.New("close response")
+		body := &updateReadCloserProbe{
+			reader:   strings.NewReader(strings.Repeat("x", int(maxUpdateResponseDrainBytes)+1)),
+			closeErr: closeErr,
+		}
+		manager, _ := newManagerWithExecutable(t, Config{
+			HTTPClient: &http.Client{
+				Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+					return &http.Response{
+						StatusCode: http.StatusInternalServerError,
+						Status:     "500 Internal Server Error",
+						Body:       body,
+					}, nil
+				}),
+			},
+		})
+
+		var release githubReleaseResponse
+		err := manager.fetchGitHubJSON(context.Background(), "https://example.invalid/releases", &release)
+		if err == nil {
+			t.Fatal("fetchGitHubJSON() error = nil, want status and close failures")
+		}
+		if !strings.Contains(err.Error(), "500 Internal Server Error") {
+			t.Fatalf("fetchGitHubJSON() error = %v, want status failure", err)
+		}
+		if !errors.Is(err, closeErr) {
+			t.Fatalf("fetchGitHubJSON() error = %v, want close failure", err)
+		}
+		if !body.closed {
+			t.Fatal("response body closed = false, want true")
+		}
+		if body.read != maxUpdateResponseDrainBytes {
+			t.Fatalf("response body bytes drained = %d, want %d", body.read, maxUpdateResponseDrainBytes)
+		}
+	})
+
+	t.Run("Should join early response drain and close failures", func(t *testing.T) {
+		t.Parallel()
+
+		drainErr := errors.New("drain response")
+		closeErr := errors.New("close response")
+		body := &updateReadCloserProbe{
+			reader:   iotest.ErrReader(drainErr),
+			closeErr: closeErr,
+		}
+		manager, _ := newManagerWithExecutable(t, Config{
+			HTTPClient: &http.Client{
+				Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+					return &http.Response{
+						StatusCode: http.StatusInternalServerError,
+						Status:     "500 Internal Server Error",
+						Body:       body,
+					}, nil
+				}),
+			},
+		})
+
+		var release githubReleaseResponse
+		err := manager.fetchGitHubJSON(context.Background(), "https://example.invalid/releases", &release)
+		if err == nil {
+			t.Fatal("fetchGitHubJSON() error = nil, want status, drain, and close failures")
+		}
+		if !errors.Is(err, drainErr) {
+			t.Fatalf("fetchGitHubJSON() error = %v, want drain failure", err)
+		}
+		if !errors.Is(err, closeErr) {
+			t.Fatalf("fetchGitHubJSON() error = %v, want close failure", err)
+		}
+		if !body.closed {
+			t.Fatal("response body closed = false, want true")
 		}
 	})
 }

@@ -73,7 +73,7 @@ func TestNotificationPresetCommands(t *testing.T) {
 			deps,
 			"notifications", "preset", "create", "provider_failure_copy",
 			"--event", "provider.*",
-			"--target", "brg-1:#ops",
+			"--target", " brg-1 : #ops ",
 			"--filter", "severity >= warning",
 			"--enabled",
 			"-o", "json",
@@ -82,8 +82,8 @@ func TestNotificationPresetCommands(t *testing.T) {
 			t.Fatalf("notifications preset create error = %v", err)
 		}
 		if captured.Name != "provider_failure_copy" || len(captured.Events) != 1 ||
-			len(captured.Targets) != 1 || captured.Targets[0].BridgeID != "brg-1" ||
-			captured.Targets[0].CanonicalRoute != "#ops" || captured.Filter != "severity >= warning" ||
+			len(captured.Targets) != 1 || captured.Targets[0].BridgeID != " brg-1 " ||
+			captured.Targets[0].CanonicalRoute != " #ops " || captured.Filter != "severity >= warning" ||
 			!captured.Enabled {
 			t.Fatalf("captured request = %#v", captured)
 		}

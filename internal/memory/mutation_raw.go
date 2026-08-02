@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -18,7 +17,7 @@ func (s *Store) writeRaw(
 	filename string,
 	content []byte,
 	emitEvent bool,
-) error {
+) (err error) {
 	if ctx == nil {
 		return errors.New("memory: write context is required")
 	}
@@ -48,17 +47,23 @@ func (s *Store) writeRaw(
 	unlock := s.lockMutations()
 	defer unlock()
 
-	if err := os.MkdirAll(filepath.Dir(path), dirPerm); err != nil {
+	directory, err := fileutil.OpenOrCreateDirectory(filepath.Dir(path), dirPerm)
+	if err != nil {
 		return fmt.Errorf("memory: ensure directory %q: %w", filepath.Dir(path), err)
 	}
+	defer func() {
+		if closeErr := directory.Close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("memory: close mutation directory %q: %w", filepath.Dir(path), closeErr))
+		}
+	}()
 	catalogWasDirty, err := s.prepareCatalogSourceMutation(normalizedScope)
 	if err != nil {
 		return err
 	}
-	if err := fileutil.AtomicWrite(path, content); err != nil {
+	if err := directory.AtomicWriteFile(filepath.Base(path), content, filePerm, true); err != nil {
 		return fmt.Errorf("memory: write %q: %w", path, err)
 	}
-	info, err := os.Stat(path)
+	_, info, err := directory.ReadRegularFile(filepath.Base(path))
 	if err != nil {
 		s.recordCommittedMutation()
 		return fmt.Errorf("memory: stat written file %q: %w", path, err)
@@ -80,7 +85,7 @@ func (s *Store) writeRaw(
 	}
 	s.recordCommittedMutation()
 	if emitEvent {
-		s.logMutationEvent("write", normalizedScope, filepath.Base(path))
+		s.logMutationEvent(ctx, "write", normalizedScope, filepath.Base(path))
 	}
 	return nil
 }
@@ -119,7 +124,12 @@ func (s *Store) finishCatalogSourceMutation(
 	return nil
 }
 
-func (s *Store) deleteRaw(ctx context.Context, scope memcontract.Scope, filename string, emitEvent bool) error {
+func (s *Store) deleteRaw(
+	ctx context.Context,
+	scope memcontract.Scope,
+	filename string,
+	emitEvent bool,
+) (err error) {
 	if ctx == nil {
 		return errors.New("memory: delete context is required")
 	}
@@ -135,9 +145,18 @@ func (s *Store) deleteRaw(ctx context.Context, scope memcontract.Scope, filename
 	}
 	unlock := s.lockMutations()
 	defer unlock()
+	directory, err := fileutil.OpenDirectoryForMutation(filepath.Dir(path))
+	if err != nil {
+		return fmt.Errorf("memory: open delete directory %q: %w", filepath.Dir(path), err)
+	}
+	defer func() {
+		if closeErr := directory.Close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("memory: close delete directory %q: %w", filepath.Dir(path), closeErr))
+		}
+	}()
 
 	if filepath.Base(path) == indexFilename {
-		if err := fileutil.AtomicRemoveFile(path); err != nil {
+		if err := directory.RemoveRegularFile(filepath.Base(path)); err != nil {
 			return fmt.Errorf("memory: delete %q: %w", path, err)
 		}
 		s.recordCommittedMutation()
@@ -147,7 +166,7 @@ func (s *Store) deleteRaw(ctx context.Context, scope memcontract.Scope, filename
 	if err != nil {
 		return err
 	}
-	if err := fileutil.AtomicRemoveFile(path); err != nil {
+	if err := directory.RemoveRegularFile(filepath.Base(path)); err != nil {
 		return fmt.Errorf("memory: delete %q: %w", path, err)
 	}
 	syncErr := s.syncScopeAfterDeleteErr(
@@ -169,7 +188,7 @@ func (s *Store) deleteRaw(ctx context.Context, scope memcontract.Scope, filename
 	}
 	s.recordCommittedMutation()
 	if emitEvent {
-		s.logMutationEvent("delete", normalizedScope, filepath.Base(path))
+		s.logMutationEvent(ctx, "delete", normalizedScope, filepath.Base(path))
 	}
 	return nil
 }

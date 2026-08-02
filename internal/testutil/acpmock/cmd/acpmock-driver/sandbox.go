@@ -71,7 +71,14 @@ func (a *mockAgent) executeDriverControl(
 				return
 			}
 			if err := a.performDriverControl(promptCtx, control); err != nil {
-				_, _ = fmt.Fprintf(os.Stderr, "acpmock async driver_control %s error: %v\n", control.Action, err)
+				if _, printErr := fmt.Fprintf(
+					os.Stderr,
+					"acpmock async driver_control %s error: %v\n",
+					control.Action,
+					err,
+				); printErr != nil {
+					return
+				}
 			}
 		}(ctx, lifecycleCtx, control)
 		return diagnostics, nil
@@ -106,7 +113,8 @@ func (a *mockAgent) performDriverControl(ctx context.Context, control acpmock.Dr
 	switch control.Action {
 	case acpmock.DriverControlDisconnect:
 		os.Exit(23)
-		return nil
+		// unreachable: os.Exit terminates the process for the disconnect fixture.
+		panic("invariant: os.Exit returned")
 	case acpmock.DriverControlWriteRawJSONRPC:
 		frame := control.RawJSONRPC
 		if !strings.HasSuffix(frame, "\n") {

@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
@@ -33,7 +32,7 @@ func forceReleasedTaskRun(previous taskpkg.Run) taskpkg.Run {
 func forceFailedTaskRun(previous taskpkg.Run, reason string, now time.Time) taskpkg.Run {
 	next := previous
 	next.Status = taskpkg.TaskRunStatusFailed
-	next.Error = strings.TrimSpace(reason)
+	next.Error = taskpkg.RedactClaimTokens(strings.TrimSpace(reason))
 	next.FailureKind = taskpkg.FailureKindOperatorForced
 	next.Result = nil
 	next.ClaimTokenHash = ""
@@ -52,27 +51,91 @@ func forceFailTaskRunStatusAllowed(status taskpkg.RunStatus) bool {
 	}
 }
 
-func updateTaskRunRecordWithSnapshotCAS(
+func forceReleaseClaimedTaskRunWithExecutor(
 	ctx context.Context,
 	exec taskSQLExecutor,
 	previous taskpkg.Run,
-	next taskpkg.Run,
-) error {
-	params, err := forceTaskRunSnapshotParams(previous, next)
-	if err != nil {
-		return err
-	}
-	rowsAffected, err := sqlcgen.New(exec).ForceUpdateTaskRunSnapshot(
+	fence taskpkg.RunMutationFence,
+) (taskpkg.Run, error) {
+	next := forceReleasedTaskRun(previous)
+	rowsAffected, err := sqlcgen.New(exec).ForceReleaseClaimedTaskRun(
 		ctx,
-		params,
+		forceReleaseClaimedTaskRunParams(fence),
 	)
 	if err != nil {
-		return fmt.Errorf("store: force update task run %q: %w", next.ID, err)
+		return taskpkg.Run{}, fmt.Errorf("store: force release task run %q: %w", previous.ID, err)
 	}
-	if rowsAffected > 0 {
-		return nil
+	if rowsAffected == 0 {
+		return taskpkg.Run{}, forceRunCASMiss(ctx, exec, previous.ID)
 	}
-	return forceRunCASMiss(ctx, exec, next.ID)
+	return next, nil
+}
+
+func forceFailEligibleTaskRunWithExecutor(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	previous taskpkg.Run,
+	fence taskpkg.RunMutationFence,
+	reason string,
+	now time.Time,
+) (taskpkg.Run, error) {
+	next := forceFailedTaskRun(previous, reason, now)
+	rowsAffected, err := sqlcgen.New(exec).ForceFailEligibleTaskRun(
+		ctx,
+		forceFailEligibleTaskRunParams(fence, next),
+	)
+	if err != nil {
+		return taskpkg.Run{}, fmt.Errorf("store: force fail task run %q: %w", previous.ID, err)
+	}
+	if rowsAffected == 0 {
+		return taskpkg.Run{}, forceRunCASMiss(ctx, exec, previous.ID)
+	}
+	return next, nil
+}
+
+func failNeedsAttentionTaskRunForRecoveryWithExecutor(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	previous taskpkg.Run,
+	fence taskpkg.RunMutationFence,
+	reason string,
+	now time.Time,
+) (taskpkg.Run, error) {
+	next := forceFailedTaskRun(previous, reason, now)
+	rowsAffected, err := sqlcgen.New(exec).FailNeedsAttentionTaskRunForRecovery(
+		ctx,
+		failNeedsAttentionTaskRunForRecoveryParams(fence, next),
+	)
+	if err != nil {
+		return taskpkg.Run{}, fmt.Errorf("store: fail recovered task run %q: %w", previous.ID, err)
+	}
+	if rowsAffected == 0 {
+		return taskpkg.Run{}, forceRunCASMiss(ctx, exec, previous.ID)
+	}
+	return next, nil
+}
+
+func completeParentRollupTaskRunWithExecutor(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	previous taskpkg.Run,
+	settledAt time.Time,
+) (taskpkg.Run, error) {
+	completed, err := completedParentRollupRun(previous, settledAt)
+	if err != nil {
+		return taskpkg.Run{}, err
+	}
+	rowsAffected, err := sqlcgen.New(exec).CompleteParentRollupTaskRun(
+		ctx,
+		completeParentRollupTaskRunParams(previous, completed),
+	)
+	if err != nil {
+		return taskpkg.Run{}, fmt.Errorf("store: complete parent rollup task run %q: %w", previous.ID, err)
+	}
+	if rowsAffected == 0 {
+		return taskpkg.Run{}, forceRunCASMiss(ctx, exec, previous.ID)
+	}
+	return completed, nil
 }
 
 func forceRunCASMiss(ctx context.Context, exec taskSQLExecutor, runID string) error {
@@ -147,13 +210,6 @@ func requireNoRetryChildWithExecutor(ctx context.Context, exec taskSQLExecutor, 
 		sourceRunID,
 		existing,
 	)
-}
-
-func forceRunCASTimestamp(value time.Time) string {
-	if value.IsZero() {
-		return ""
-	}
-	return store.FormatTimestamp(value.UTC())
 }
 
 func normalizedForceRunTime(value time.Time, fallback func() time.Time) time.Time {

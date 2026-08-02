@@ -1,12 +1,9 @@
 package heartbeat
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"strings"
-
 	"time"
 )
 
@@ -107,19 +104,4 @@ func heartbeatWakePrompt(envelope *SnapshotEnvelope) string {
 			"If there is nothing useful to do, record that no action is needed and remain idle.",
 	)
 	return builder.String()
-}
-
-func defaultWakeID(prefix string) string {
-	var random [8]byte
-	if _, err := rand.Read(random[:]); err != nil {
-		now := time.Now().UTC().UnixNano()
-		if strings.TrimSpace(prefix) == "" {
-			return fmt.Sprintf("%d", now)
-		}
-		return fmt.Sprintf("%s-%d", strings.TrimSpace(prefix), now)
-	}
-	if strings.TrimSpace(prefix) == "" {
-		return hex.EncodeToString(random[:])
-	}
-	return fmt.Sprintf("%s-%s", strings.TrimSpace(prefix), hex.EncodeToString(random[:]))
 }

@@ -6,7 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"os"
 	"strings"
+
+	"github.com/compozy/compozy/internal/fileutil"
 )
 
 // PutMCPSidecarServer upserts one MCP server definition in the selected sidecar
@@ -16,7 +19,7 @@ func PutMCPSidecarServer(
 	workspaceRoot string,
 	target WriteTarget,
 	server MCPServer,
-) (Config, error) {
+) (cfg Config, err error) {
 	if !target.isMCPSidecarTarget() {
 		return Config{}, fmt.Errorf("config: write target %q is not an MCP sidecar", target.Kind())
 	}
@@ -27,7 +30,27 @@ func PutMCPSidecarServer(
 		return Config{}, fmt.Errorf("config: validate MCP sidecar write: %w", err)
 	}
 
-	contents, _, err := readOptionalRegularFile(target.path, "MCP sidecar")
+	directory, name, err := fileutil.OpenOrCreateParentDirectory(target.path, privateDirMode)
+	if err != nil {
+		return Config{}, fmt.Errorf("config: open MCP sidecar parent %q: %w", target.path, err)
+	}
+	defer func() {
+		if closeErr := directory.Close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("config: close MCP sidecar parent %q: %w", target.path, closeErr))
+		}
+	}()
+	return putMCPSidecarServerInDirectory(homePaths, workspaceRoot, target, normalized, directory, name)
+}
+
+func putMCPSidecarServerInDirectory(
+	homePaths HomePaths,
+	workspaceRoot string,
+	target WriteTarget,
+	server MCPServer,
+	directory *fileutil.Directory,
+	name string,
+) (Config, error) {
+	contents, _, err := readOptionalRegularFileFromDirectory(directory, name, target.path, "MCP sidecar")
 	if err != nil {
 		return Config{}, err
 	}
@@ -36,7 +59,7 @@ func PutMCPSidecarServer(
 	if err != nil {
 		return Config{}, err
 	}
-	if err := document.Put(normalized); err != nil {
+	if err := document.Put(server); err != nil {
 		return Config{}, err
 	}
 
@@ -49,7 +72,7 @@ func PutMCPSidecarServer(
 	if err != nil {
 		return Config{}, err
 	}
-	if err := writePersistedFile(target.path, rendered); err != nil {
+	if err := writePersistedFileInDirectory(directory, name, target.path, rendered, true); err != nil {
 		return Config{}, err
 	}
 	return finalCfg, nil
@@ -63,7 +86,7 @@ func DeleteMCPSidecarServer(
 	workspaceRoot string,
 	target WriteTarget,
 	name string,
-) (Config, bool, error) {
+) (cfg Config, deleted bool, err error) {
 	if !target.isMCPSidecarTarget() {
 		return Config{}, false, fmt.Errorf("config: write target %q is not an MCP sidecar", target.Kind())
 	}
@@ -73,16 +96,47 @@ func DeleteMCPSidecarServer(
 		return Config{}, false, errors.New("config: MCP sidecar delete requires a server name")
 	}
 
-	contents, _, err := readOptionalRegularFile(target.path, "MCP sidecar")
+	directory, fileName, err := fileutil.OpenParentDirectory(target.path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return deleteMCPSidecarServerFromContents(homePaths, workspaceRoot, target, trimmedName, nil, "", nil)
+		}
+		return Config{}, false, fmt.Errorf("config: open MCP sidecar parent %q: %w", target.path, err)
+	}
+	defer func() {
+		if closeErr := directory.Close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("config: close MCP sidecar parent %q: %w", target.path, closeErr))
+		}
+	}()
+	contents, _, err := readOptionalRegularFileFromDirectory(directory, fileName, target.path, "MCP sidecar")
 	if err != nil {
 		return Config{}, false, err
 	}
+	return deleteMCPSidecarServerFromContents(
+		homePaths,
+		workspaceRoot,
+		target,
+		trimmedName,
+		directory,
+		fileName,
+		contents,
+	)
+}
 
+func deleteMCPSidecarServerFromContents(
+	homePaths HomePaths,
+	workspaceRoot string,
+	target WriteTarget,
+	name string,
+	directory *fileutil.Directory,
+	fileName string,
+	contents []byte,
+) (Config, bool, error) {
 	document, err := loadEditableMCPJSONDocument(contents, target.path)
 	if err != nil {
 		return Config{}, false, err
 	}
-	deleted := document.Delete(trimmedName)
+	deleted := document.Delete(name)
 	if !deleted {
 		cfg, err := validateEffectiveConfigWrite(homePaths, workspaceRoot, target, contents)
 		return cfg, false, err
@@ -97,7 +151,10 @@ func DeleteMCPSidecarServer(
 	if err != nil {
 		return Config{}, false, err
 	}
-	if err := writePersistedFile(target.path, rendered); err != nil {
+	if directory == nil {
+		return Config{}, false, fmt.Errorf("config: MCP sidecar %q disappeared before deletion", target.path)
+	}
+	if err := writePersistedFileInDirectory(directory, fileName, target.path, rendered, true); err != nil {
 		return Config{}, false, err
 	}
 	return finalCfg, true, nil

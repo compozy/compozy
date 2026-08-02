@@ -83,8 +83,8 @@ func TestExtensionCommandPolicyAndAvailabilityParityIntegration(t *testing.T) {
 		if !errors.Is(err, toolspkg.ErrToolUnavailable) {
 			t.Fatalf("unavailable command error = %v, want ErrToolUnavailable", err)
 		}
-		var typed *toolspkg.ToolError
-		if !errors.As(err, &typed) || !slices.Contains(typed.ReasonCodes, toolspkg.ReasonBackendUnhealthy) {
+		typed, typedMatched := errors.AsType[*toolspkg.ToolError](err)
+		if !typedMatched || !slices.Contains(typed.ReasonCodes, toolspkg.ReasonBackendUnhealthy) {
 			t.Fatalf("unavailable command error = %#v, want backend_unhealthy", err)
 		}
 		if handle.calls != 2 {
@@ -193,8 +193,8 @@ func assertExtensionCommandApprovalError(t *testing.T, err error) {
 	if !errors.Is(err, toolspkg.ErrToolApprovalRequired) {
 		t.Fatalf("command approval error = %v, want ErrToolApprovalRequired", err)
 	}
-	var typed *toolspkg.ToolError
-	if !errors.As(err, &typed) || typed.Code != toolspkg.ErrorCodeApprovalRequired ||
+	typed, typedMatched := errors.AsType[*toolspkg.ToolError](err)
+	if !typedMatched || typed.Code != toolspkg.ErrorCodeApprovalRequired ||
 		!slices.Contains(typed.ReasonCodes, toolspkg.ReasonApprovalRequired) {
 		t.Fatalf("command approval error = %#v, want approval_required contract", err)
 	}

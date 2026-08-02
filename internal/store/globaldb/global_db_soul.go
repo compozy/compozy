@@ -21,7 +21,11 @@ func (g *SoulRepo) UpsertSoulSnapshot(ctx context.Context, snapshot soul.Snapsho
 
 	normalized := snapshot.Normalize()
 	if normalized.ID == "" {
-		normalized.ID = store.NewID("soul")
+		generatedID, err := store.NewID("soul")
+		if err != nil {
+			return soul.Snapshot{}, fmt.Errorf("store: generate soul snapshot id: %w", err)
+		}
+		normalized.ID = generatedID
 	}
 	if normalized.CreatedAt.IsZero() {
 		normalized.CreatedAt = g.now()
@@ -183,7 +187,11 @@ func (g *SoulRepo) AppendSoulRevision(ctx context.Context, revision soul.Revisio
 
 	normalized := revision.Normalize()
 	if normalized.ID == "" {
-		normalized.ID = store.NewID("srev")
+		generatedID, err := store.NewID("srev")
+		if err != nil {
+			return soul.Revision{}, fmt.Errorf("store: generate soul revision id: %w", err)
+		}
+		normalized.ID = generatedID
 	}
 	if normalized.CreatedAt.IsZero() {
 		normalized.CreatedAt = g.now()

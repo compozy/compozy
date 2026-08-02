@@ -15,6 +15,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	compozydaemon "github.com/compozy/compozy/internal/daemon"
 	diagnosticspkg "github.com/compozy/compozy/internal/diagnostics"
+	authproviders "github.com/compozy/compozy/internal/providers"
 	"github.com/compozy/compozy/internal/version"
 	"github.com/spf13/cobra"
 )
@@ -77,6 +78,7 @@ type commandDeps struct {
 	getwd                       func() (string, error)
 	getenv                      func(string) string
 	lookPath                    func(string) (string, error)
+	removeFile                  func(string) error
 	now                         func() time.Time
 	pollInterval                time.Duration
 	startTimeout                time.Duration
@@ -85,6 +87,7 @@ type commandDeps struct {
 	newUpdateManager            func(compozyconfig.HomePaths) (updateManager, error)
 	runProviderAuthCommand      providerAuthCommandRunner
 	runProviderAuthLoginCommand providerAuthCommandRunner
+	resolveProviderAuthCommand  authproviders.ProviderAuthCommandResolver
 	inputIsTerminal             func(io.Reader) bool
 	runMCPServe                 mcpServeRunner
 }
@@ -399,8 +402,8 @@ func marshalDiagnosticExecutionError(args []string, err error) ([]byte, bool) {
 }
 
 func isStructuredAgentCommandError(err error) bool {
-	var identityErr *agentidentity.Error
-	return errors.As(err, &identityErr)
+	agentErr, ok := errors.AsType[*agentidentity.Error](err)
+	return ok && agentErr != nil
 }
 
 func requestedOutputFormat(args []string) OutputFormat {

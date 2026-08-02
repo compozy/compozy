@@ -304,6 +304,9 @@ func TestSkillMarketplaceCommandsUseDaemonWhenRunning(t *testing.T) {
 					Path:     "/compozy-home/skills/review",
 					Hash:     "sha256:review",
 					Status:   "installed",
+					CleanupDiagnostics: []contract.SkillMarketplaceCleanupDiagnosticPayload{{
+						Operation: "remove_marketplace_staging_root",
+					}},
 				}, nil
 			},
 		})
@@ -331,7 +334,9 @@ func TestSkillMarketplaceCommandsUseDaemonWhenRunning(t *testing.T) {
 		if err := json.Unmarshal([]byte(stdout), &payload); err != nil {
 			t.Fatalf("json.Unmarshal(skill install) error = %v; stdout=%s", err, stdout)
 		}
-		if payload.Status != "installed" || payload.Name != "review" || payload.Registry != "clawhub" {
+		if payload.Status != "installed" || payload.Name != "review" || payload.Registry != "clawhub" ||
+			len(payload.CleanupDiagnostics) != 1 ||
+			payload.CleanupDiagnostics[0].Operation != "remove_marketplace_staging_root" {
 			t.Fatalf("skill install payload = %#v, want daemon install result", payload)
 		}
 	})
@@ -386,6 +391,9 @@ func TestSkillMarketplaceCommandsUseDaemonWhenRunning(t *testing.T) {
 					LatestVersion:  "1.2.0",
 					Path:           "/compozy-home/skills/review",
 					Status:         "update available",
+					CleanupDiagnostics: []contract.SkillMarketplaceCleanupDiagnosticPayload{{
+						Operation: "close_marketplace_registry",
+					}},
 				}}, nil
 			},
 		})
@@ -403,7 +411,9 @@ func TestSkillMarketplaceCommandsUseDaemonWhenRunning(t *testing.T) {
 		if err := json.Unmarshal([]byte(stdout), &payload); err != nil {
 			t.Fatalf("json.Unmarshal(skill update) error = %v; stdout=%s", err, stdout)
 		}
-		if len(payload) != 1 || payload[0].Status != "update available" {
+		if len(payload) != 1 || payload[0].Status != "update available" ||
+			len(payload[0].CleanupDiagnostics) != 1 ||
+			payload[0].CleanupDiagnostics[0].Operation != "close_marketplace_registry" {
 			t.Fatalf("skill update payload = %#v, want daemon update result", payload)
 		}
 	})

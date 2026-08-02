@@ -7,119 +7,101 @@ import (
 	"fmt"
 	"hash"
 	"io"
-	"io/fs"
-	"os"
 	"path/filepath"
 	"slices"
-	"strings"
+
+	"github.com/compozy/compozy/internal/fileutil"
 )
 
-func computeInstallChecksum(path string) (string, error) {
-	root := strings.TrimSpace(path)
-	if root == "" {
-		return "", errors.New("registry: install directory is required")
+func computeInstallChecksumDirectory(root *fileutil.Directory) (string, error) {
+	if root == nil {
+		return "", ErrArchiveRootRequired
 	}
-
-	absRoot, err := filepath.Abs(root)
-	if err != nil {
-		return "", fmt.Errorf("registry: resolve install directory %q: %w", path, err)
-	}
-
-	info, err := os.Stat(absRoot)
-	if err != nil {
-		return "", fmt.Errorf("registry: stat install directory %q: %w", absRoot, err)
-	}
-	if !info.IsDir() {
-		return "", fmt.Errorf("registry: install directory %q is not a directory", absRoot)
-	}
-
 	hasher := sha256.New()
-	entries := make([]string, 0)
-	err = filepath.WalkDir(absRoot, func(entryPath string, entry fs.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-		if entryPath == absRoot || entry.IsDir() {
-			return nil
-		}
-
-		relPath, err := filepath.Rel(absRoot, entryPath)
-		if err != nil {
-			return err
-		}
-		entries = append(entries, relPath)
-		return nil
-	})
-	if err != nil {
-		return "", fmt.Errorf("registry: walk install directory %q: %w", absRoot, err)
+	if err := writeInstallChecksumDirectory(hasher, root, ""); err != nil {
+		return "", err
 	}
-
-	slices.Sort(entries)
-	for _, relPath := range entries {
-		if err := writeInstallChecksumEntry(hasher, absRoot, relPath); err != nil {
-			return "", err
-		}
-	}
-
 	return hex.EncodeToString(hasher.Sum(nil)), nil
 }
 
-func writeInstallChecksumEntry(hasher hash.Hash, root string, relPath string) error {
-	normalizedPath := filepath.ToSlash(relPath)
-	absPath := filepath.Join(root, relPath)
-
-	info, err := os.Lstat(absPath)
+func writeInstallChecksumDirectory(hasher hash.Hash, directory *fileutil.Directory, prefix string) error {
+	names, err := directory.ReadDir()
 	if err != nil {
-		return fmt.Errorf("registry: stat checksum path %q: %w", absPath, err)
+		return fmt.Errorf("registry: read checksum directory: %w", err)
 	}
-
-	if info.Mode().IsRegular() {
-		file, err := os.Open(absPath)
-		if err != nil {
-			return fmt.Errorf("registry: open checksum path %q: %w", absPath, err)
+	slices.Sort(names)
+	for _, name := range names {
+		relativePath := name
+		if prefix != "" {
+			relativePath = filepath.Join(prefix, name)
 		}
-		if err := writeInstallChecksumString(
-			hasher,
-			fmt.Sprintf("file:%s\nmode:%#o\n", normalizedPath, info.Mode().Perm()),
-		); err != nil {
-			closeErr := file.Close()
-			if closeErr != nil {
-				return errors.Join(err, fmt.Errorf("registry: close checksum path %q: %w", absPath, closeErr))
-			}
-			return err
-		}
-		if _, err := io.Copy(hasher, file); err != nil {
-			copyErr := fmt.Errorf("registry: hash regular file %q: %w", absPath, err)
-			if closeErr := file.Close(); closeErr != nil {
-				copyErr = errors.Join(
-					copyErr,
-					fmt.Errorf("registry: close checksum path %q after read failure: %w", absPath, closeErr),
+		child, openErr := directory.OpenDirectory(name)
+		if openErr == nil {
+			writeErr := writeInstallChecksumDirectory(hasher, child, relativePath)
+			closeErr := child.Close()
+			if writeErr != nil || closeErr != nil {
+				return errors.Join(
+					writeErr,
+					closeChecksumDirectory(relativePath, closeErr),
 				)
 			}
-			return copyErr
+			continue
 		}
-		if err := file.Close(); err != nil {
-			return fmt.Errorf("registry: close checksum path %q: %w", absPath, err)
+		if !errors.Is(openErr, fileutil.ErrNotDirectory) {
+			return fmt.Errorf(
+				"registry: open checksum directory %q: %w",
+				relativePath,
+				mapExtractionAccessError(openErr),
+			)
 		}
-		if _, err := hasher.Write([]byte{0}); err != nil {
-			return fmt.Errorf("registry: hash separator for %q: %w", absPath, err)
+		if err := writeInstallChecksumFile(hasher, directory, name, relativePath); err != nil {
+			return err
 		}
+	}
+	return nil
+}
+
+func writeInstallChecksumFile(
+	hasher hash.Hash,
+	directory *fileutil.Directory,
+	name string,
+	relativePath string,
+) (err error) {
+	file, err := directory.OpenRegularFile(name)
+	if err != nil {
+		return fmt.Errorf("registry: open checksum path %q: %w", relativePath, mapExtractionAccessError(err))
+	}
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("registry: close checksum path %q: %w", relativePath, closeErr))
+		}
+	}()
+	info, err := file.Stat()
+	if err != nil {
+		return fmt.Errorf("registry: stat checksum path %q: %w", relativePath, err)
+	}
+
+	normalizedPath := filepath.ToSlash(relativePath)
+	if err := writeInstallChecksumString(
+		hasher,
+		fmt.Sprintf("file:%s\nmode:%#o\n", normalizedPath, info.Mode().Perm()),
+	); err != nil {
+		return err
+	}
+	if _, err := io.Copy(hasher, file); err != nil {
+		return fmt.Errorf("registry: hash regular file %q: %w", relativePath, err)
+	}
+	if _, err := hasher.Write([]byte{0}); err != nil {
+		return fmt.Errorf("registry: hash separator for %q: %w", relativePath, err)
+	}
+	return nil
+}
+
+func closeChecksumDirectory(relativePath string, err error) error {
+	if err == nil {
 		return nil
 	}
-
-	if info.Mode()&os.ModeSymlink != 0 {
-		target, err := os.Readlink(absPath)
-		if err != nil {
-			return fmt.Errorf("registry: read checksum symlink %q: %w", absPath, err)
-		}
-		normalizedTarget := filepath.ToSlash(target)
-		return writeInstallChecksumString(
-			hasher,
-			fmt.Sprintf("symlink:%s\nmode:%#o\ntarget:%s\n", normalizedPath, info.Mode().Perm(), normalizedTarget),
-		)
-	}
-
-	return fmt.Errorf("registry: unsupported file type in install payload %q", absPath)
+	return fmt.Errorf("registry: close checksum directory %q: %w", relativePath, err)
 }
 
 func writeInstallChecksumString(hasher hash.Hash, value string) error {

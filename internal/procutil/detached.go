@@ -19,6 +19,7 @@ const detachedCommandLogTailSlack = 4
 
 var (
 	startDetachedProcess    = os.StartProcess
+	waitDetachedProcess     = func(process *os.Process) (*os.ProcessState, error) { return process.Wait() }
 	closeDetachedLaunchFile = func(file *os.File) error {
 		return file.Close()
 	}
@@ -34,12 +35,12 @@ type DetachedLaunchRequest struct {
 
 // DetachedProcess wraps a detached child process whose stderr/stdout were appended to a log file.
 type DetachedProcess struct {
-	process   *os.Process
-	logPath   string
-	logOffset int64
-	waitOnce  sync.Once
-	done      chan struct{}
-	waitErr   error
+	process     *os.Process
+	logPath     string
+	logOffset   int64
+	startReaper func()
+	done        chan struct{}
+	waitErr     error
 }
 
 // PID reports the launched process id.
@@ -55,7 +56,7 @@ func (p *DetachedProcess) Wait() error {
 	if p == nil || p.process == nil {
 		return nil
 	}
-	p.startWait()
+	p.startReaper()
 	<-p.done
 	return p.waitErr
 }
@@ -65,26 +66,25 @@ func (p *DetachedProcess) Done() <-chan struct{} {
 	if p == nil || p.process == nil {
 		return closedDetachedProcessDone()
 	}
-	p.startWait()
+	p.startReaper()
 	return p.done
 }
 
 func newDetachedProcess(process *os.Process, logPath string, logOffset int64) *DetachedProcess {
-	return &DetachedProcess{
+	detached := &DetachedProcess{
 		process:   process,
 		logPath:   logPath,
 		logOffset: logOffset,
 		done:      make(chan struct{}),
 	}
-}
-
-func (p *DetachedProcess) startWait() {
-	p.waitOnce.Do(func() {
+	detached.startReaper = sync.OnceFunc(func() {
 		go func() {
-			p.waitErr = p.waitProcess()
-			close(p.done)
+			detached.waitErr = detached.waitProcess()
+			close(detached.done)
 		}()
 	})
+	detached.startReaper()
+	return detached
 }
 
 func (p *DetachedProcess) waitProcess() error {
@@ -92,7 +92,7 @@ func (p *DetachedProcess) waitProcess() error {
 		return nil
 	}
 
-	state, err := p.process.Wait()
+	state, err := waitDetachedProcess(p.process)
 	if err == nil {
 		if state == nil || state.Success() {
 			return nil
@@ -114,7 +114,7 @@ func SpawnDetachedLoggedProcess(
 	req DetachedLaunchRequest,
 ) (*DetachedProcess, error) {
 	if ctx == nil {
-		ctx = context.Background()
+		return nil, errors.New("procutil: detached launch context is required")
 	}
 	if err := req.validate(); err != nil {
 		return nil, err

@@ -20,11 +20,12 @@ func hostedToolErrorMessage(err error) string {
 			return string(toolErr.Code) + ": " + toolErr.Error()
 		}
 	}
-	var responseProvider interface {
+	type responseProvider interface {
+		error
 		Response() contract.ToolErrorResponse
 	}
-	if errors.As(err, &responseProvider) {
-		payload := responseProvider.Response().Error
+	if provider, ok := errors.AsType[responseProvider](err); ok && provider != nil {
+		payload := provider.Response().Error
 		message := strings.TrimSpace(payload.Message)
 		if len(payload.ReasonCodes) > 0 {
 			return string(payload.ReasonCodes[0]) + ": " + message

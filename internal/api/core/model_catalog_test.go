@@ -392,15 +392,15 @@ func TestProviderModelCatalogHandlers(t *testing.T) {
 		t.Parallel()
 
 		cause := errors.New("provider model codex/missing was not found")
-		item := diagnostics.NewItem(
-			"provider.models.model_not_found",
-			diagnosticcontract.CodeModelNotFound,
-			diagnosticcontract.CategoryProvider,
-			"Provider model not found",
-			cause.Error(),
-			diagnosticcontract.SeverityError,
-			diagnosticcontract.FreshnessLive,
-		)
+		item := diagnostics.NewItem(diagnostics.ItemSpec{
+			ID:            "provider.models.model_not_found",
+			Code:          diagnosticcontract.CodeModelNotFound,
+			Category:      diagnosticcontract.CategoryProvider,
+			Title:         "Provider model not found",
+			Message:       cause.Error(),
+			Severity:      diagnosticcontract.SeverityError,
+			DataFreshness: diagnosticcontract.FreshnessLive,
+		})
 		settingsService := &modelCatalogSettingsServiceStub{
 			applyCurationFn: func(
 				context.Context,

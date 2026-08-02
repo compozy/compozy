@@ -212,7 +212,6 @@ func TestBootWiresTaskRuntimeWithDedicatedSessionBridge(t *testing.T) {
 	if err != nil {
 		t.Fatalf("EnqueueRun() error = %v", err)
 	}
-	run = seedNonLeasedClaimedRunForDaemonTest(t, d.tasks.store, run.ID, actor)
 	run, err = d.tasks.manager.StartRun(testutil.Context(t), run.ID, taskpkg.StartRun{}, actor)
 	if err != nil {
 		t.Fatalf("StartRun() error = %v", err)
@@ -809,13 +808,19 @@ func testBootRecoveryDetachedHarnessWakeUsesPersistedSyntheticEventForDedupe(t *
 	if !ok {
 		t.Fatal("task run metadata = non-detached, want detached harness metadata")
 	}
+	previousMetadata := append(json.RawMessage(nil), run.Metadata...)
 	runMetadata.Reentry = nil
 	run.Metadata, err = marshalDetachedHarnessMetadata(runMetadata)
 	if err != nil {
 		t.Fatalf("marshalDetachedHarnessMetadata() error = %v", err)
 	}
-	if err := firstDaemon.tasks.store.UpdateTaskRun(testutil.Context(t), run); err != nil {
-		t.Fatalf("UpdateTaskRun() error = %v", err)
+	if _, err := firstDaemon.tasks.store.UpdateTaskRunMetadata(
+		testutil.Context(t),
+		taskpkg.RunMetadataMutation{
+			RunID: run.ID, ExpectedMetadata: previousMetadata, Metadata: run.Metadata,
+		},
+	); err != nil {
+		t.Fatalf("UpdateTaskRunMetadata() error = %v", err)
 	}
 
 	sessionsOne.mu.Lock()
@@ -931,15 +936,9 @@ func testBootRecoversDetachedHarnessRunThroughTaskRuntimeRules(t *testing.T) {
 	if err != nil {
 		t.Fatalf("detachedHarnessActorContext() error = %v", err)
 	}
-	claimed := seedNonLeasedClaimedRunForDaemonTest(
-		t,
-		firstDaemon.tasks.store,
-		submission.Run.ID,
-		detachedActor,
-	)
 	starting, err := firstDaemon.tasks.manager.AttachRunSession(
 		testutil.Context(t),
-		claimed.ID,
+		submission.Run.ID,
 		"sess-runtime",
 		detachedActor,
 	)
@@ -1060,9 +1059,7 @@ func TestBootRecoversOrphanedTaskRunsAndRecordsAudit(t *testing.T) {
 			StartedAt:       now.Add(2 * time.Minute),
 		},
 	} {
-		if err := seedDB.CreateTaskRun(testutil.Context(t), run); err != nil {
-			t.Fatalf("CreateTaskRun(%q) error = %v", run.ID, err)
-		}
+		seedDaemonTaskRunLifecycle(t, seedDB, run)
 	}
 
 	if err := seedDB.Close(testutil.Context(t)); err != nil {

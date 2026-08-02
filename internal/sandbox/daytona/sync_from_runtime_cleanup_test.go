@@ -154,6 +154,15 @@ func (s *blockingArchiveSession) Stderr() string {
 	return ""
 }
 
+func (s *blockingArchiveSession) ExitCode() (int, bool) {
+	select {
+	case <-s.done:
+		return 0, true
+	default:
+		return 0, false
+	}
+}
+
 func (s *blockingArchiveSession) writeUnsafeArchive(writer *io.PipeWriter) {
 	defer close(s.done)
 	tarWriter := tar.NewWriter(writer)

@@ -1,7 +1,6 @@
 package acp
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 )
@@ -50,25 +49,25 @@ func (m GoalPromptMeta) IsZero() bool {
 func (m GoalPromptMeta) Validate() error {
 	normalized := m.Normalize()
 	if normalized.RunID == "" || normalized.NodeID == "" || normalized.PromptID == "" {
-		return errors.New("acp: Goal prompt metadata identity is incomplete")
+		return invalidPromptMetadata("acp: Goal prompt metadata identity is incomplete")
 	}
 	if normalized.Generation < 1 {
-		return errors.New("acp: Goal prompt metadata generation must be positive")
+		return invalidPromptMetadata("acp: Goal prompt metadata generation must be positive")
 	}
 	if normalized.ItemIndex < 0 || normalized.PromptAttempt < 0 {
-		return errors.New("acp: Goal prompt metadata indices must be non-negative")
+		return invalidPromptMetadata("acp: Goal prompt metadata indices must be non-negative")
 	}
 	switch normalized.Kind {
 	case GoalPromptKindWork, GoalPromptKindContinuation:
 		if normalized.Turn == nil || *normalized.Turn < 1 {
-			return errors.New("acp: Goal work prompt metadata requires a positive turn")
+			return invalidPromptMetadata("acp: Goal work prompt metadata requires a positive turn")
 		}
 	case GoalPromptKindCompaction:
 		if normalized.Turn != nil {
-			return errors.New("acp: Goal compaction prompt metadata requires a null turn")
+			return invalidPromptMetadata("acp: Goal compaction prompt metadata requires a null turn")
 		}
 	default:
-		return fmt.Errorf("acp: invalid Goal prompt kind %q", normalized.Kind)
+		return invalidPromptMetadata(fmt.Sprintf("acp: invalid Goal prompt kind %q", normalized.Kind))
 	}
 	return nil
 }

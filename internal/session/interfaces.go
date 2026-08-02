@@ -135,9 +135,10 @@ type AgentProcess struct {
 	Args      []string
 	Cwd       string
 	SessionID string
-	Caps      acp.Caps
 	StartedAt time.Time
 
+	capsMu              sync.RWMutex
+	caps                acp.Caps
 	done                <-chan struct{}
 	waitFn              func() error
 	stderrFn            func() string
@@ -205,7 +206,7 @@ func NewAgentProcess(opts AgentProcessOptions) *AgentProcess {
 		Args:                append([]string(nil), opts.Args...),
 		Cwd:                 opts.Cwd,
 		SessionID:           opts.SessionID,
-		Caps:                opts.Caps,
+		caps:                acp.CloneCaps(opts.Caps),
 		StartedAt:           opts.StartedAt,
 		done:                done,
 		waitFn:              waitFn,
@@ -259,7 +260,18 @@ func (p *AgentProcess) CapsSnapshot() acp.Caps {
 	if p.capsSnapshotFn != nil {
 		return acp.CloneCaps(p.capsSnapshotFn())
 	}
-	return acp.CloneCaps(p.Caps)
+	p.capsMu.RLock()
+	defer p.capsMu.RUnlock()
+	return acp.CloneCaps(p.caps)
+}
+
+func (p *AgentProcess) setCaps(caps acp.Caps) {
+	if p == nil {
+		return
+	}
+	p.capsMu.Lock()
+	p.caps = acp.CloneCaps(caps)
+	p.capsMu.Unlock()
 }
 
 // HasPendingPermission reports whether the runtime is waiting for an
@@ -326,7 +338,7 @@ func wrapACPProcess(proc *acp.AgentProcess) *AgentProcess {
 		Args:                append([]string(nil), proc.Args...),
 		Cwd:                 proc.Cwd,
 		SessionID:           proc.SessionID,
-		Caps:                proc.CapsSnapshot(),
+		caps:                proc.CapsSnapshot(),
 		StartedAt:           proc.StartedAt,
 		done:                proc.Done(),
 		waitFn:              proc.Wait,

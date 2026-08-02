@@ -74,13 +74,10 @@ type DeliveryLedgerRecord struct {
 // Canonicalize normalizes and validates a durable delivery record.
 func (r DeliveryLedgerRecord) Canonicalize() (DeliveryLedgerRecord, error) {
 	normalized := r
-	normalized.DeliveryID = strings.TrimSpace(normalized.DeliveryID)
 	normalized.SessionID = strings.TrimSpace(normalized.SessionID)
 	normalized.TurnID = strings.TrimSpace(normalized.TurnID)
 	normalized.RoutingKey = normalized.RoutingKey.normalize()
-	normalized.BridgeInstanceID = strings.TrimSpace(normalized.BridgeInstanceID)
 	normalized.Scope = normalized.Scope.Normalize()
-	normalized.WorkspaceID = strings.TrimSpace(normalized.WorkspaceID)
 	normalized.State = normalized.State.Normalize()
 	normalized.RemoteMessageID = strings.TrimSpace(normalized.RemoteMessageID)
 	normalized.TerminalError = strings.TrimSpace(normalized.TerminalError)
@@ -94,7 +91,7 @@ func (r DeliveryLedgerRecord) Canonicalize() (DeliveryLedgerRecord, error) {
 
 // Validate reports whether a durable delivery record is complete and internally consistent.
 func (r DeliveryLedgerRecord) Validate() error {
-	if err := requireField(r.DeliveryID, "delivery ledger id"); err != nil {
+	if err := requireOpaqueDeliveryID(r.DeliveryID, "delivery ledger id"); err != nil {
 		return err
 	}
 	if err := requireField(r.SessionID, "delivery ledger session id"); err != nil {
@@ -103,7 +100,7 @@ func (r DeliveryLedgerRecord) Validate() error {
 	if err := requireField(r.TurnID, "delivery ledger turn id"); err != nil {
 		return err
 	}
-	if err := requireField(r.BridgeInstanceID, "delivery ledger bridge instance id"); err != nil {
+	if err := requireOpaqueDeliveryID(r.BridgeInstanceID, "delivery ledger bridge instance id"); err != nil {
 		return err
 	}
 	if err := ValidateScopeWorkspaceID(r.Scope, r.WorkspaceID); err != nil {
@@ -112,9 +109,9 @@ func (r DeliveryLedgerRecord) Validate() error {
 	if err := r.RoutingKey.Validate(); err != nil {
 		return err
 	}
-	if r.RoutingKey.BridgeInstanceID != strings.TrimSpace(r.BridgeInstanceID) ||
+	if r.RoutingKey.BridgeInstanceID != r.BridgeInstanceID ||
 		r.RoutingKey.Scope.Normalize() != r.Scope.Normalize() ||
-		strings.TrimSpace(r.RoutingKey.WorkspaceID) != strings.TrimSpace(r.WorkspaceID) {
+		r.RoutingKey.WorkspaceID != r.WorkspaceID {
 		return errors.New("bridges: delivery ledger route identity must match direct scope columns")
 	}
 	if err := validateDeliveryLedgerSequences(r.LastSentSeq, r.LastAckedSeq); err != nil {
@@ -150,7 +147,6 @@ type DeliveryLedgerCheckpoint struct {
 // Canonicalize normalizes and validates one delivery checkpoint.
 func (c DeliveryLedgerCheckpoint) Canonicalize() (DeliveryLedgerCheckpoint, error) {
 	normalized := c
-	normalized.DeliveryID = strings.TrimSpace(normalized.DeliveryID)
 	normalized.State = normalized.State.Normalize()
 	normalized.RemoteMessageID = strings.TrimSpace(normalized.RemoteMessageID)
 	normalized.TerminalError = strings.TrimSpace(normalized.TerminalError)
@@ -170,7 +166,7 @@ func (c DeliveryLedgerCheckpoint) Canonicalize() (DeliveryLedgerCheckpoint, erro
 
 // Validate reports whether a checkpoint contains a valid monotonic target state.
 func (c DeliveryLedgerCheckpoint) Validate() error {
-	if err := requireField(c.DeliveryID, "delivery checkpoint id"); err != nil {
+	if err := requireOpaqueDeliveryID(c.DeliveryID, "delivery checkpoint id"); err != nil {
 		return err
 	}
 	if err := validateDeliveryLedgerSequences(c.LastSentSeq, c.LastAckedSeq); err != nil {
@@ -196,9 +192,7 @@ type DeliveryMetricRecord struct {
 // Canonicalize normalizes and validates one durable metric snapshot.
 func (r DeliveryMetricRecord) Canonicalize() (DeliveryMetricRecord, error) {
 	normalized := r
-	normalized.BridgeInstanceID = strings.TrimSpace(normalized.BridgeInstanceID)
 	normalized.Scope = normalized.Scope.Normalize()
-	normalized.WorkspaceID = strings.TrimSpace(normalized.WorkspaceID)
 	normalized.LastError = strings.TrimSpace(normalized.LastError)
 	normalized.LastErrorAt = normalized.LastErrorAt.UTC()
 	normalized.LastSuccessAt = normalized.LastSuccessAt.UTC()
@@ -212,7 +206,7 @@ func (r DeliveryMetricRecord) Canonicalize() (DeliveryMetricRecord, error) {
 
 // Validate reports whether durable delivery metrics are complete and internally consistent.
 func (r DeliveryMetricRecord) Validate() error {
-	if err := requireField(r.BridgeInstanceID, "delivery metric bridge instance id"); err != nil {
+	if err := requireOpaqueDeliveryID(r.BridgeInstanceID, "delivery metric bridge instance id"); err != nil {
 		return err
 	}
 	if err := ValidateScopeWorkspaceID(r.Scope, r.WorkspaceID); err != nil {
@@ -256,8 +250,6 @@ type DeliveryLedgerQuery struct {
 func (q DeliveryLedgerQuery) Canonicalize() (DeliveryLedgerQuery, error) {
 	normalized := q
 	normalized.Scope = normalized.Scope.Normalize()
-	normalized.WorkspaceID = strings.TrimSpace(normalized.WorkspaceID)
-	normalized.BridgeInstanceID = strings.TrimSpace(normalized.BridgeInstanceID)
 	normalized.State = normalized.State.Normalize()
 	if err := normalized.Validate(); err != nil {
 		return DeliveryLedgerQuery{}, err
@@ -269,6 +261,11 @@ func (q DeliveryLedgerQuery) Canonicalize() (DeliveryLedgerQuery, error) {
 func (q DeliveryLedgerQuery) Validate() error {
 	if err := ValidateScopeWorkspaceID(q.Scope, q.WorkspaceID); err != nil {
 		return err
+	}
+	if q.BridgeInstanceID != "" {
+		if err := requireOpaqueDeliveryID(q.BridgeInstanceID, "delivery ledger query bridge instance id"); err != nil {
+			return err
+		}
 	}
 	if q.State.Normalize() != "" {
 		if err := q.State.Validate(); err != nil {

@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"database/sql"
+	"database/sql/driver"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,15 +14,19 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"testing"
 	"testing/fstest"
 	"time"
 
+	atlasmigrate "ariga.io/atlas/sql/migrate"
 	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/fileutil"
 	"github.com/compozy/compozy/internal/store"
 	sessionschema "github.com/compozy/compozy/internal/store/sessiondb/schema"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/transcript"
+	"modernc.org/sqlite"
 )
 
 type SessionEvent = store.SessionEvent
@@ -29,6 +34,18 @@ type TokenUsage = store.TokenUsage
 type EventQuery = store.EventQuery
 
 const SessionDatabaseName = store.SessionDatabaseName
+
+const testSessionDBWorkspaceID = "ws-sessiondb-test"
+
+const testSessionDBOwnerTableDDL = `CREATE TABLE session_db_owner (
+	singleton INTEGER PRIMARY KEY CHECK(singleton = 1),
+	session_id TEXT NOT NULL,
+	workspace_id TEXT NOT NULL
+)`
+
+func testSessionDBOwner(sessionID string) store.SessionDBOwner {
+	return store.SessionDBOwner{SessionID: sessionID, WorkspaceID: testSessionDBWorkspaceID}
+}
 
 func TestOpenSessionDBCreatesSchemaAndEnablesWAL(t *testing.T) {
 	t.Parallel()
@@ -42,6 +59,8 @@ func TestOpenSessionDBCreatesSchemaAndEnablesWAL(t *testing.T) {
 			t,
 			sessionDB.db,
 			sessionMigrationVersionTable,
+			"session_db_owner",
+			"session_db_identity",
 			"events",
 			"token_usage",
 			"transcript_projection_state",
@@ -51,6 +70,127 @@ func TestOpenSessionDBCreatesSchemaAndEnablesWAL(t *testing.T) {
 		assertUniqueIndex(t, sessionDB.db, "events", "idx_events_sequence")
 		assertJournalModeWAL(t, sessionDB.db)
 		assertSynchronousNormal(t, sessionDB.db)
+		if got, err := currentMaxSequence(testutil.Context(t), sessionDB.db); err != nil || got != 0 {
+			t.Fatalf("currentMaxSequence() = (%d, %v), want (0, nil)", got, err)
+		}
+	})
+
+	t.Run("Should close the opened database when the parent directory close fails", func(t *testing.T) {
+		t.Parallel()
+
+		closeErr := errors.New("injected parent close failure")
+		databaseCloseErr := errors.New("injected database close failure")
+		databaseCloseCount := 0
+		path := filepath.Join(t.TempDir(), SessionDatabaseName)
+		db, err := openOwnedSessionSQLiteWithDirectory(
+			testutil.Context(t),
+			testSessionDBOwner("sess-parent-close-failure"),
+			path,
+			vacuumSessionSQLite,
+			func(path string, perm os.FileMode) (sessionDBParentDirectory, string, error) {
+				directory, name, openErr := fileutil.OpenOrCreateParentDirectory(path, perm)
+				if openErr != nil {
+					return nil, "", openErr
+				}
+				return &closeErrorSessionDBParentDirectory{
+					Directory: directory,
+					err:       closeErr,
+				}, name, nil
+			},
+			func(db *sql.DB) error {
+				databaseCloseCount++
+				return errors.Join(db.Close(), databaseCloseErr)
+			},
+		)
+		if !errors.Is(err, closeErr) {
+			t.Fatalf("openOwnedSessionSQLiteWithDirectory() error = %v, want parent close failure", err)
+		}
+		if !errors.Is(err, databaseCloseErr) {
+			t.Fatalf("openOwnedSessionSQLiteWithDirectory() error = %v, want database close failure", err)
+		}
+		if databaseCloseCount != 1 {
+			t.Fatalf("database close count = %d, want 1", databaseCloseCount)
+		}
+		if db != nil {
+			if dbCloseErr := db.Close(); dbCloseErr != nil {
+				t.Errorf("Close(leaked database) error = %v", dbCloseErr)
+			}
+			t.Fatal("openOwnedSessionSQLiteWithDirectory() database != nil after parent close failure")
+		}
+	})
+
+	t.Run("Should hold the family lease throughout fresh database publication", func(t *testing.T) {
+		t.Parallel()
+
+		path := filepath.Join(t.TempDir(), SessionDatabaseName)
+		owner := testSessionDBOwner("sess-fresh-publication-lease")
+		parentOpening := make(chan struct{})
+		allowParentOpen := make(chan struct{})
+		releaseParentOpen := sync.OnceFunc(func() { close(allowParentOpen) })
+		t.Cleanup(releaseParentOpen)
+		type openResult struct {
+			db  *sql.DB
+			err error
+		}
+		openDone := make(chan openResult, 1)
+		ctx := testutil.Context(t)
+		go func() {
+			db, err := openOwnedSessionSQLiteWithDirectory(
+				ctx,
+				owner,
+				path,
+				vacuumSessionSQLite,
+				func(path string, perm os.FileMode) (sessionDBParentDirectory, string, error) {
+					close(parentOpening)
+					select {
+					case <-allowParentOpen:
+						return openSessionDBParentDirectory(path, perm)
+					case <-ctx.Done():
+						return nil, "", ctx.Err()
+					}
+				},
+				func(db *sql.DB) error { return db.Close() },
+			)
+			openDone <- openResult{db: db, err: err}
+		}()
+
+		select {
+		case <-parentOpening:
+		case <-ctx.Done():
+			t.Fatalf("fresh database opener did not reach parent publication boundary: %v", ctx.Err())
+		}
+		contenderCtx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
+		defer cancel()
+		contender, err := AcquireFamilyLease(contenderCtx, path)
+		if contender != nil {
+			contender.Release()
+		}
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("AcquireFamilyLease(during publication) error = %v, want deadline exceeded", err)
+		}
+
+		releaseParentOpen()
+		var opened openResult
+		select {
+		case opened = <-openDone:
+		case <-ctx.Done():
+			t.Fatalf("fresh database opener did not complete: %v", ctx.Err())
+		}
+		if opened.err != nil {
+			t.Fatalf("openOwnedSessionSQLiteWithDirectory() error = %v", opened.err)
+		}
+		if opened.db == nil {
+			t.Fatal("openOwnedSessionSQLiteWithDirectory() database = nil")
+		}
+		if err := opened.db.Close(); err != nil {
+			t.Fatalf("sql.DB.Close() error = %v", err)
+		}
+
+		lease, err := AcquireFamilyLease(ctx, path)
+		if err != nil {
+			t.Fatalf("AcquireFamilyLease(after publication) error = %v", err)
+		}
+		lease.Release()
 	})
 }
 
@@ -74,7 +214,7 @@ func TestSessionDBPassiveCheckpoint(t *testing.T) {
 
 		ctx := testutil.Context(t)
 		path := filepath.Join(t.TempDir(), SessionDatabaseName)
-		sessionDB, err := OpenSessionDB(ctx, "sess-passive-checkpoint", path)
+		sessionDB, err := OpenSessionDB(ctx, testSessionDBOwner("sess-passive-checkpoint"), path)
 		if err != nil {
 			t.Fatalf("OpenSessionDB() error = %v", err)
 		}
@@ -95,7 +235,7 @@ func TestSessionDBPassiveCheckpoint(t *testing.T) {
 			}
 		}
 
-		readOnly, err := OpenSessionDBReadOnly(ctx, "sess-passive-checkpoint", path)
+		readOnly, err := OpenSessionDBReadOnly(ctx, testSessionDBOwner("sess-passive-checkpoint"), path)
 		if err != nil {
 			t.Fatalf("OpenSessionDBReadOnly() error = %v", err)
 		}
@@ -381,12 +521,78 @@ func TestSessionDBRecordPersistedBatchCoalescesPromptChunks(t *testing.T) {
 func TestOpenSessionDBAppliesBaselineAndRepeatedBootIsIdempotent(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should validate and normalize the complete owner before creating files", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name      string
+			owner     store.SessionDBOwner
+			wantOwner store.SessionDBOwner
+			wantErr   bool
+		}{
+			{
+				name:    "Should reject an empty session id",
+				owner:   store.SessionDBOwner{WorkspaceID: testSessionDBWorkspaceID},
+				wantErr: true,
+			},
+			{
+				name:    "Should reject a whitespace workspace id",
+				owner:   store.SessionDBOwner{SessionID: "sess-invalid-workspace", WorkspaceID: " \t "},
+				wantErr: true,
+			},
+			{
+				name:      "Should persist the canonical form of a padded owner",
+				owner:     store.SessionDBOwner{SessionID: "  sess-padded-owner  ", WorkspaceID: "  ws-padded-owner  "},
+				wantOwner: store.SessionDBOwner{SessionID: "sess-padded-owner", WorkspaceID: "ws-padded-owner"},
+			},
+		}
+		for _, test := range tests {
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
+
+				ctx := testutil.Context(t)
+				directory := t.TempDir()
+				path := filepath.Join(directory, SessionDatabaseName)
+				db, err := OpenSessionDB(ctx, test.owner, path)
+				if test.wantErr {
+					if err == nil {
+						if closeErr := db.Close(ctx); closeErr != nil {
+							t.Errorf("Close(unexpected database) error = %v", closeErr)
+						}
+						t.Fatal("OpenSessionDB(invalid owner) error = nil, want validation failure")
+					}
+					entries, readErr := os.ReadDir(directory)
+					if readErr != nil {
+						t.Fatalf("os.ReadDir(database directory) error = %v", readErr)
+					}
+					if len(entries) != 0 {
+						t.Fatalf("database directory entries = %v, want no created family", entries)
+					}
+					return
+				}
+				if err != nil {
+					t.Fatalf("OpenSessionDB(padded owner) error = %v", err)
+				}
+				if err := db.Close(ctx); err != nil {
+					t.Fatalf("Close(padded owner) error = %v", err)
+				}
+				reopened, err := OpenSessionDB(ctx, test.wantOwner, path)
+				if err != nil {
+					t.Fatalf("OpenSessionDB(canonical owner) error = %v", err)
+				}
+				if err := reopened.Close(ctx); err != nil {
+					t.Fatalf("Close(canonical owner) error = %v", err)
+				}
+			})
+		}
+	})
+
 	t.Run("Should round-trip an event and preserve stream status across reopen", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t)
 		path := filepath.Join(t.TempDir(), SessionDatabaseName)
-		first, err := OpenSessionDB(ctx, "sess-idempotent", path)
+		first, err := OpenSessionDB(ctx, testSessionDBOwner("sess-idempotent"), path)
 		if err != nil {
 			t.Fatalf("OpenSessionDB(first) error = %v", err)
 		}
@@ -394,8 +600,52 @@ func TestOpenSessionDBAppliesBaselineAndRepeatedBootIsIdempotent(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Status(first) error = %v", err)
 		}
-		if firstStatus.Version != 2 || firstStatus.AppliedCount != 2 {
-			t.Fatalf("Status(first) = %#v, want version/applied count 2", firstStatus)
+		if firstStatus.Version != 5 || firstStatus.AppliedCount != 5 {
+			t.Fatalf("Status(first) = %#v, want version/applied count 5", firstStatus)
+		}
+		if err := verifySessionDBOwner(ctx, first.db, testSessionDBOwner("sess-idempotent")); err != nil {
+			t.Fatalf("verifySessionDBOwner() error = %v", err)
+		}
+		var databaseID string
+		if err := first.db.QueryRowContext(
+			ctx,
+			`SELECT database_id FROM session_db_identity WHERE singleton = 1`,
+		).Scan(&databaseID); err != nil {
+			t.Fatalf("query session database identity error = %v", err)
+		}
+		if len(databaseID) != 32 {
+			t.Fatalf("session database identity length = %d, want 32", len(databaseID))
+		}
+		for operation, statement := range map[string]string{
+			"update": `UPDATE session_db_identity SET database_id = lower(hex(randomblob(16))) WHERE singleton = 1`,
+			"delete": `DELETE FROM session_db_identity WHERE singleton = 1`,
+			"replace": `INSERT OR REPLACE INTO session_db_identity (singleton, database_id) ` +
+				`VALUES (1, lower(hex(randomblob(16))))`,
+		} {
+			if _, err := first.db.ExecContext(ctx, statement); err == nil {
+				t.Fatalf("%s session database identity error = nil, want immutable-identity rejection", operation)
+			}
+		}
+		if _, err := first.db.ExecContext(
+			ctx,
+			`UPDATE session_db_owner SET workspace_id = 'ws-rebound' WHERE singleton = 1`,
+		); err == nil {
+			t.Fatal("UPDATE session_db_owner error = nil, want immutable-owner rejection")
+		}
+		if _, err := first.db.ExecContext(
+			ctx,
+			`DELETE FROM session_db_owner WHERE singleton = 1`,
+		); err == nil {
+			t.Fatal("DELETE session_db_owner error = nil, want immutable-owner rejection")
+		}
+		if _, err := first.db.ExecContext(
+			ctx,
+			`INSERT OR REPLACE INTO session_db_owner (singleton, session_id, workspace_id) VALUES (1, 'sess-rebound', 'ws-rebound')`,
+		); err == nil {
+			t.Fatal("INSERT OR REPLACE session_db_owner error = nil, want immutable-owner rejection")
+		}
+		if err := verifySessionDBOwner(ctx, first.db, testSessionDBOwner("sess-idempotent")); err != nil {
+			t.Fatalf("verifySessionDBOwner(after rejected relabel) error = %v", err)
 		}
 		assertUniqueIndex(t, first.db, "events", "idx_events_sequence")
 		event := SessionEvent{
@@ -413,7 +663,7 @@ func TestOpenSessionDBAppliesBaselineAndRepeatedBootIsIdempotent(t *testing.T) {
 			t.Fatalf("Close(first) error = %v", err)
 		}
 
-		second, err := OpenSessionDB(ctx, "sess-idempotent", path)
+		second, err := OpenSessionDB(ctx, testSessionDBOwner("sess-idempotent"), path)
 		if err != nil {
 			t.Fatalf("OpenSessionDB(second) error = %v", err)
 		}
@@ -429,6 +679,16 @@ func TestOpenSessionDBAppliesBaselineAndRepeatedBootIsIdempotent(t *testing.T) {
 		if secondStatus != firstStatus {
 			t.Fatalf("Status(second) = %#v, want unchanged %#v", secondStatus, firstStatus)
 		}
+		var reopenedDatabaseID string
+		if err := second.db.QueryRowContext(
+			ctx,
+			`SELECT database_id FROM session_db_identity WHERE singleton = 1`,
+		).Scan(&reopenedDatabaseID); err != nil {
+			t.Fatalf("query reopened session database identity error = %v", err)
+		}
+		if reopenedDatabaseID != databaseID {
+			t.Fatalf("reopened session database identity = %q, want %q", reopenedDatabaseID, databaseID)
+		}
 		assertUniqueIndex(t, second.db, "events", "idx_events_sequence")
 		events, err := second.Query(ctx, EventQuery{})
 		if err != nil {
@@ -439,7 +699,7 @@ func TestOpenSessionDBAppliesBaselineAndRepeatedBootIsIdempotent(t *testing.T) {
 		}
 	})
 
-	t.Run("Should upgrade the recorded baseline prefix without archiving existing rows", func(t *testing.T) {
+	t.Run("Should refuse an ownerless previous stream before engine migration preserves its rows", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t)
@@ -469,48 +729,425 @@ func TestOpenSessionDBAppliesBaselineAndRepeatedBootIsIdempotent(t *testing.T) {
 		if err := db.Close(); err != nil {
 			t.Fatalf("Close(previous stream) error = %v", err)
 		}
+		before := readOnlySessionDatabaseFamilyDigest(t, path)
 
-		upgraded, err := OpenSessionDB(ctx, "sess-prefix-upgrade", path)
+		_, err = OpenSessionDB(ctx, testSessionDBOwner("sess-prefix-upgrade"), path)
+		if !errors.Is(err, ErrSessionDBOwnerMissing) {
+			t.Fatalf("OpenSessionDB(ownerless previous stream) error = %v, want ErrSessionDBOwnerMissing", err)
+		}
+		assertReadOnlySessionDatabaseUnchanged(t, path, before)
+
+		migrationDB, err := sql.Open("sqlite", path)
 		if err != nil {
-			t.Fatalf("OpenSessionDB(upgrade) error = %v", err)
+			t.Fatalf("sql.Open(engine migration) error = %v", err)
+		}
+		registerTestSQLDBCleanup(t, "engine migration", migrationDB)
+		if err := store.Apply(ctx, migrationDB, MigrationStream()); err != nil {
+			t.Fatalf("Apply(current session stream) error = %v", err)
+		}
+		status, err := store.Status(ctx, migrationDB, MigrationStream())
+		if err != nil {
+			t.Fatalf("Status(engine-migrated) error = %v", err)
+		}
+		if status.Version != 5 || status.AppliedCount != 5 {
+			t.Fatalf("Status(engine-migrated) = %#v, want version/applied count 5", status)
+		}
+		migratedOwner := testSessionDBOwner("sess-prefix-upgrade")
+		if _, err := migrationDB.ExecContext(
+			ctx,
+			`INSERT INTO session_db_owner (singleton, session_id, workspace_id) VALUES (1, ?, ?)`,
+			migratedOwner.SessionID,
+			migratedOwner.WorkspaceID,
+		); err != nil {
+			t.Fatalf("insert engine-migrated owner error = %v", err)
+		}
+		if _, err := migrationDB.ExecContext(
+			ctx,
+			`INSERT OR REPLACE INTO session_db_owner (singleton, session_id, workspace_id) VALUES (1, 'foreign', 'foreign')`,
+		); err == nil {
+			t.Fatal("replace engine-migrated owner error = nil, want immutable-owner rejection")
+		}
+		if err := verifySessionDBOwner(ctx, migrationDB, migratedOwner); err != nil {
+			t.Fatalf("verifySessionDBOwner(engine-migrated) error = %v", err)
+		}
+		var eventID string
+		var archived bool
+		if err := migrationDB.QueryRowContext(
+			ctx,
+			`SELECT id, archived FROM events WHERE id = ?`,
+			"event-before-archive-column",
+		).Scan(&eventID, &archived); err != nil {
+			t.Fatalf("query engine-migrated event error = %v", err)
+		}
+		if eventID != "event-before-archive-column" || archived {
+			t.Fatalf("engine-migrated event = {%q %t}, want preserved unarchived row", eventID, archived)
+		}
+	})
+
+	// Invariant: migration 00005 assigns one immutable physical identity to a
+	// v4 SessionDB while preserving its owner and event rows across production reopen.
+	// Owning layer: SessionDB migration stream. Canonical suite: session_db_test.go.
+	t.Run("Should assign an immutable physical identity to the previous SessionDB head", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		path := filepath.Join(t.TempDir(), SessionDatabaseName)
+		owner := testSessionDBOwner("sess-identity-migration")
+		prefixDB, err := sql.Open("sqlite", path)
+		if err != nil {
+			t.Fatalf("sql.Open(v4 prefix) error = %v", err)
+		}
+		if err := store.Apply(ctx, prefixDB, sessionMigrationPrefixBefore(t, "00005_schema.sql")); err != nil {
+			t.Fatalf("Apply(v4 prefix) error = %v", err)
+		}
+		if _, err := prefixDB.ExecContext(
+			ctx,
+			`INSERT INTO session_db_owner (singleton, session_id, workspace_id) VALUES (1, ?, ?)`,
+			owner.SessionID,
+			owner.WorkspaceID,
+		); err != nil {
+			t.Fatalf("insert v4 owner error = %v", err)
+		}
+		if _, err := prefixDB.ExecContext(ctx, `INSERT INTO events (
+			id, sequence, turn_id, type, agent_name, content, timestamp, transcript_entry_key
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+			"event-before-identity", 1, "turn-before-identity", acp.EventTypeDone, "coder",
+			`{"type":"done"}`, store.FormatTimestamp(time.Date(2026, 8, 3, 12, 0, 0, 0, time.UTC)), "",
+		); err != nil {
+			t.Fatalf("insert v4 event error = %v", err)
+		}
+		if err := prefixDB.Close(); err != nil {
+			t.Fatalf("Close(v4 prefix) error = %v", err)
+		}
+
+		upgraded, err := OpenSessionDB(ctx, owner, path)
+		if err != nil {
+			t.Fatalf("OpenSessionDB(v4 upgrade) error = %v", err)
+		}
+		var databaseID string
+		if err := upgraded.db.QueryRowContext(
+			ctx,
+			`SELECT database_id FROM session_db_identity WHERE singleton = 1`,
+		).Scan(&databaseID); err != nil {
+			t.Fatalf("query migrated database identity error = %v", err)
+		}
+		if len(databaseID) != 32 {
+			t.Fatalf("migrated database identity length = %d, want 32", len(databaseID))
+		}
+		if err := upgraded.Close(ctx); err != nil {
+			t.Fatalf("Close(upgraded) error = %v", err)
+		}
+
+		reopened, err := OpenSessionDB(ctx, owner, path)
+		if err != nil {
+			t.Fatalf("OpenSessionDB(reopen upgraded) error = %v", err)
 		}
 		t.Cleanup(func() {
-			if err := upgraded.Close(testutil.Context(t)); err != nil {
-				t.Fatalf("Close(upgraded) error = %v", err)
+			if err := reopened.Close(testutil.Context(t)); err != nil {
+				t.Errorf("Close(reopened upgraded) error = %v", err)
 			}
 		})
-		status, err := store.Status(ctx, upgraded.db, MigrationStream())
+		events, err := reopened.Query(ctx, EventQuery{})
 		if err != nil {
-			t.Fatalf("Status(upgraded) error = %v", err)
+			t.Fatalf("Query(reopened upgraded) error = %v", err)
 		}
-		if status.Version != 2 || status.AppliedCount != 2 {
-			t.Fatalf("Status(upgraded) = %#v, want version/applied count 2", status)
+		if len(events) != 1 || events[0].ID != "event-before-identity" {
+			t.Fatalf("reopened upgraded events = %#v, want preserved v4 event", events)
 		}
-		events, err := upgraded.Query(ctx, EventQuery{})
+		var reopenedID string
+		if err := reopened.db.QueryRowContext(
+			ctx,
+			`SELECT database_id FROM session_db_identity WHERE singleton = 1`,
+		).Scan(&reopenedID); err != nil {
+			t.Fatalf("query reopened database identity error = %v", err)
+		}
+		if reopenedID != databaseID {
+			t.Fatalf("reopened database identity = %q, want %q", reopenedID, databaseID)
+		}
+	})
+
+	t.Run("Should publish exactly one identity to competing fresh owners", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		path := filepath.Join(t.TempDir(), SessionDatabaseName)
+		owners := []store.SessionDBOwner{
+			testSessionDBOwner("sess-concurrent-fresh-owner-a"),
+			{SessionID: "sess-concurrent-fresh-owner-b", WorkspaceID: "ws-concurrent-fresh-owner-b"},
+		}
+		type openResult struct {
+			owner store.SessionDBOwner
+			db    *SessionDB
+			err   error
+		}
+		start := make(chan struct{})
+		resultCh := make(chan openResult, 8)
+		var openers sync.WaitGroup
+		for idx := range 8 {
+			owner := owners[idx%len(owners)]
+			openers.Go(func() {
+				<-start
+				db, err := OpenSessionDB(ctx, owner, path)
+				resultCh <- openResult{owner: owner, db: db, err: err}
+			})
+		}
+		close(start)
+		openers.Wait()
+		close(resultCh)
+
+		guardDB, err := sql.Open("sqlite", sessionDBOwnerGuardDSN(path))
 		if err != nil {
-			t.Fatalf("Query(upgraded) error = %v", err)
+			t.Fatalf("sql.Open(owner guard) error = %v", err)
 		}
-		if len(events) != 1 || events[0].ID != "event-before-archive-column" || events[0].Archived {
-			t.Fatalf("Query(upgraded) = %#v, want preserved unarchived baseline row", events)
+		var persistedOwner store.SessionDBOwner
+		if err := guardDB.QueryRowContext(
+			ctx,
+			`SELECT session_id, workspace_id FROM session_db_owner WHERE singleton = 1`,
+		).Scan(&persistedOwner.SessionID, &persistedOwner.WorkspaceID); err != nil {
+			if closeErr := guardDB.Close(); closeErr != nil {
+				err = errors.Join(err, closeErr)
+			}
+			t.Fatalf("query persisted concurrent owner error = %v", err)
 		}
+		if err := guardDB.Close(); err != nil {
+			t.Fatalf("Close(owner guard) error = %v", err)
+		}
+
+		for result := range resultCh {
+			if result.owner == persistedOwner {
+				if result.err != nil || result.db == nil {
+					t.Errorf(
+						"winning owner OpenSessionDB() = (%v, %v), want non-nil database and nil error",
+						result.db,
+						result.err,
+					)
+					continue
+				}
+				if err := result.db.Close(ctx); err != nil {
+					t.Errorf("Close(winning owner) error = %v", err)
+				}
+				continue
+			}
+			if result.db != nil {
+				if closeErr := result.db.Close(ctx); closeErr != nil {
+					t.Errorf("Close(losing owner) error = %v", closeErr)
+				}
+				t.Errorf("losing owner OpenSessionDB() database = non-nil, want nil")
+			}
+			if !errors.Is(result.err, ErrSessionDBOwnerMismatch) {
+				t.Errorf("losing owner OpenSessionDB() error = %v, want ErrSessionDBOwnerMismatch", result.err)
+			}
+		}
+
+		reader, err := OpenSessionDBReadOnly(ctx, persistedOwner, path)
+		if err != nil {
+			t.Fatalf("OpenSessionDBReadOnly(concurrent result) error = %v", err)
+		}
+		if err := reader.Close(ctx); err != nil {
+			t.Fatalf("Close(concurrent result) error = %v", err)
+		}
+	})
+}
+
+func TestOpenSessionDBRejectsDifferentOwnerIdentity(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		foreign store.SessionDBOwner
+	}{
+		{
+			name:    "Should reject another session identity without changing files",
+			foreign: testSessionDBOwner("sess-foreign"),
+		},
+		{
+			name: "Should reject another workspace identity without changing files",
+			foreign: store.SessionDBOwner{
+				SessionID: "sess-owner", WorkspaceID: "ws-foreign",
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t)
+			path := filepath.Join(t.TempDir(), SessionDatabaseName)
+			owner, err := OpenSessionDB(ctx, testSessionDBOwner("sess-owner"), path)
+			if err != nil {
+				t.Fatalf("OpenSessionDB(owner) error = %v", err)
+			}
+			if err := owner.Close(ctx); err != nil {
+				t.Fatalf("Close(owner) error = %v", err)
+			}
+			before := readOnlySessionDatabaseFamilyDigest(t, path)
+
+			foreign, err := OpenSessionDB(ctx, test.foreign, path)
+			if err == nil {
+				if closeErr := foreign.Close(ctx); closeErr != nil {
+					t.Fatalf("Close(foreign) error = %v", closeErr)
+				}
+				t.Fatal("OpenSessionDB(foreign) error = nil, want owner mismatch")
+			}
+			if !errors.Is(err, ErrSessionDBOwnerMismatch) {
+				t.Fatalf("OpenSessionDB(foreign) error = %v, want ErrSessionDBOwnerMismatch", err)
+			}
+			assertReadOnlySessionDatabaseUnchanged(t, path, before)
+		})
+	}
+
+	t.Run("Should not recreate an existing database removed after its owner probe", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		path := filepath.Join(t.TempDir(), SessionDatabaseName)
+		owner := testSessionDBOwner("sess-removed-after-owner-probe")
+		db, err := OpenSessionDB(ctx, owner, path)
+		if err != nil {
+			t.Fatalf("OpenSessionDB() error = %v", err)
+		}
+		if err := db.Close(ctx); err != nil {
+			t.Fatalf("Close() error = %v", err)
+		}
+		if err := verifySessionDBOwnerReadOnly(ctx, owner, path); err != nil {
+			t.Fatalf("verifySessionDBOwnerReadOnly() error = %v", err)
+		}
+		for _, suffix := range []string{"-wal", "-shm", "-journal", ""} {
+			if err := os.Remove(path + suffix); err != nil && !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("os.Remove(%q) error = %v", path+suffix, err)
+			}
+		}
+
+		reopened, err := openSessionSQLiteForExistingOwnerWithVacuum(ctx, owner, path, nil)
+		if reopened != nil {
+			if closeErr := reopened.Close(); closeErr != nil {
+				t.Errorf("Close(reopened) error = %v", closeErr)
+			}
+			t.Fatal("openSessionSQLiteForExistingOwnerWithVacuum() database = non-nil, want nil")
+		}
+		if err == nil {
+			t.Fatal("openSessionSQLiteForExistingOwnerWithVacuum() error = nil, want missing database failure")
+		}
+		if _, statErr := os.Stat(path); !errors.Is(statErr, os.ErrNotExist) {
+			t.Fatalf("os.Stat(path after refused reopen) error = %v, want not exist", statErr)
+		}
+	})
+
+	t.Run("Should guard a replacement before every writable physical connection", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		root := t.TempDir()
+		expectedDir := filepath.Join(root, "expected")
+		foreignDir := filepath.Join(root, "foreign")
+		expectedPath := filepath.Join(expectedDir, SessionDatabaseName)
+		foreignPath := filepath.Join(foreignDir, SessionDatabaseName)
+		expectedOwner := testSessionDBOwner("sess-writable-connection-owner")
+		foreignOwner := store.SessionDBOwner{
+			SessionID: "sess-writable-connection-foreign", WorkspaceID: "ws-writable-connection-foreign",
+		}
+		expectedDB, err := OpenSessionDB(ctx, expectedOwner, expectedPath)
+		if err != nil {
+			t.Fatalf("OpenSessionDB(expected) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := expectedDB.Close(testutil.Context(t)); err != nil &&
+				!errors.Is(err, ErrSessionDBOwnerMismatch) {
+				t.Errorf("Close(expected) error = %v", err)
+			}
+		})
+		foreignDB, err := OpenSessionDB(ctx, foreignOwner, foreignPath)
+		if err != nil {
+			t.Fatalf("OpenSessionDB(foreign) error = %v", err)
+		}
+		if err := foreignDB.Record(ctx, SessionEvent{
+			ID: "foreign-event", TurnID: "foreign-turn", Type: acp.EventTypeDone, AgentName: "coder",
+		}); err != nil {
+			t.Fatalf("Record(foreign) error = %v", err)
+		}
+		if err := foreignDB.Close(ctx); err != nil {
+			t.Fatalf("Close(foreign) error = %v", err)
+		}
+		before := readOnlySessionDatabaseFamilyDigest(t, foreignPath)
+
+		expectedDB.db.SetMaxIdleConns(0)
+		if err := os.Rename(expectedDir, filepath.Join(root, "expected-before-substitution")); err != nil {
+			t.Fatalf("os.Rename(expected backup) error = %v", err)
+		}
+		if err := os.Rename(foreignDir, expectedDir); err != nil {
+			t.Fatalf("os.Rename(foreign into expected path) error = %v", err)
+		}
+
+		events, err := expectedDB.Query(ctx, EventQuery{})
+		if !errors.Is(err, ErrSessionDBOwnerMismatch) {
+			t.Fatalf("Query(substituted writable connection) error = %v, want ErrSessionDBOwnerMismatch", err)
+		}
+		if len(events) != 0 {
+			t.Fatalf("Query(substituted writable connection) events = %#v, want empty", events)
+		}
+		assertReadOnlySessionDatabaseUnchanged(t, expectedPath, before)
 	})
 }
 
 func previousSessionMigrationStream(t *testing.T) store.MigrationStream {
 	t.Helper()
 
-	const baselineAtlasSum = "h1:xcXDJKI/zrIp6qX1fIBm1Ey1BRZMDZnaNAw2z8+yW9A=\n" +
-		"00001_baseline.sql h1:bXOy48LeBzy7PLWzCXQW/1CdBi+3LQtUySjgT8uUN0E=\n"
+	const baselineAtlasSum = "h1:qmViNU8wfHEfvn27+89baAJQgC90AMtERpblLCkX/1I=\n" +
+		"00001_baseline.sql h1:bXOy48LeBzy7PLWzCXQW/1CdBi+3LQtUySjgT8uUN0E=\n" +
+		"00002_schema.sql h1:ROugExdfsKSTgcLoFHvFdIALygvM7xEEUpS8llYFXpw=\n"
 	baseline, err := fs.ReadFile(sessionschema.Files, "migrations/00001_baseline.sql")
 	if err != nil {
 		t.Fatalf("read recorded session baseline: %v", err)
 	}
+	archiveMigration, err := fs.ReadFile(sessionschema.Files, "migrations/00002_schema.sql")
+	if err != nil {
+		t.Fatalf("read recorded session archive migration: %v", err)
+	}
 	stream := MigrationStream()
 	stream.FS = fstest.MapFS{
 		"00001_baseline.sql": &fstest.MapFile{Data: baseline},
+		"00002_schema.sql":   &fstest.MapFile{Data: archiveMigration},
 		"atlas.sum":          &fstest.MapFile{Data: []byte(baselineAtlasSum)},
 	}
 	stream.Dir = "."
+	return stream
+}
+
+func sessionMigrationPrefixBefore(t *testing.T, excludedMigration string) store.MigrationStream {
+	t.Helper()
+
+	stream := MigrationStream()
+	entries, err := fs.ReadDir(stream.FS, stream.Dir)
+	if err != nil {
+		t.Fatalf("read session migration directory: %v", err)
+	}
+	memoryDirectory := &atlasmigrate.MemDir{}
+	files := fstest.MapFS{}
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.IsDir() || !strings.HasSuffix(name, ".sql") || name >= excludedMigration {
+			continue
+		}
+		contents, err := fs.ReadFile(stream.FS, stream.Dir+"/"+name)
+		if err != nil {
+			t.Fatalf("read session migration %q: %v", name, err)
+		}
+		if err := memoryDirectory.WriteFile(name, contents); err != nil {
+			t.Fatalf("write in-memory session migration %q: %v", name, err)
+		}
+		files[stream.Dir+"/"+name] = &fstest.MapFile{Data: append([]byte(nil), contents...)}
+	}
+	checksum, err := memoryDirectory.Checksum()
+	if err != nil {
+		t.Fatalf("checksum session migration prefix: %v", err)
+	}
+	checksumBytes, err := checksum.MarshalText()
+	if err != nil {
+		t.Fatalf("marshal session migration prefix checksum: %v", err)
+	}
+	files[stream.Dir+"/"+atlasmigrate.HashFileName] = &fstest.MapFile{Data: checksumBytes}
+	stream.FS = files
+	stream.Bootstrap = nil
 	return stream
 }
 
@@ -914,7 +1551,7 @@ func TestOpenSessionDBReadOnly(t *testing.T) {
 
 		ctx := testutil.Context(t)
 		path := filepath.Join(t.TempDir(), SessionDatabaseName)
-		_, err := OpenSessionDBReadOnly(ctx, "sess-read-only-missing", path)
+		_, err := OpenSessionDBReadOnly(ctx, testSessionDBOwner("sess-read-only-missing"), path)
 		if err == nil {
 			t.Fatal("OpenSessionDBReadOnly(missing) error = nil, want non-nil")
 		}
@@ -931,16 +1568,16 @@ func TestOpenSessionDBReadOnly(t *testing.T) {
 			t,
 			path,
 			`CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY)`,
+			testSessionDBOwnerTableDDL,
+			`INSERT INTO session_db_owner VALUES (1, 'sess-read-only-legacy', 'ws-sessiondb-test')`,
 		)
-		before := readOnlySessionDatabaseDigest(t, path)
-		beforeWAL := readOnlySessionFilePresence(t, path+"-wal")
-		beforeSHM := readOnlySessionFilePresence(t, path+"-shm")
+		before := readOnlySessionDatabaseFamilyDigest(t, path)
 
-		_, err := OpenSessionDBReadOnly(testutil.Context(t), "sess-read-only-legacy", path)
+		_, err := OpenSessionDBReadOnly(testutil.Context(t), testSessionDBOwner("sess-read-only-legacy"), path)
 		if !errors.Is(err, store.ErrLegacyDatabase) {
 			t.Fatalf("OpenSessionDBReadOnly(legacy) error = %v, want ErrLegacyDatabase", err)
 		}
-		assertReadOnlySessionDatabaseUnchanged(t, path, before, beforeWAL, beforeSHM)
+		assertReadOnlySessionDatabaseUnchanged(t, path, before)
 	})
 
 	t.Run("Should refuse an ahead database without changing files", func(t *testing.T) {
@@ -957,16 +1594,16 @@ func TestOpenSessionDBReadOnly(t *testing.T) {
 				tstamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 			)`,
 			`INSERT INTO goose_db_version_session (version_id, is_applied) VALUES (99, 1)`,
+			testSessionDBOwnerTableDDL,
+			`INSERT INTO session_db_owner VALUES (1, 'sess-read-only-ahead', 'ws-sessiondb-test')`,
 		)
-		before := readOnlySessionDatabaseDigest(t, path)
-		beforeWAL := readOnlySessionFilePresence(t, path+"-wal")
-		beforeSHM := readOnlySessionFilePresence(t, path+"-shm")
+		before := readOnlySessionDatabaseFamilyDigest(t, path)
 
-		_, err := OpenSessionDBReadOnly(testutil.Context(t), "sess-read-only-ahead", path)
+		_, err := OpenSessionDBReadOnly(testutil.Context(t), testSessionDBOwner("sess-read-only-ahead"), path)
 		if !errors.Is(err, store.ErrSchemaAhead) {
 			t.Fatalf("OpenSessionDBReadOnly(ahead) error = %v, want ErrSchemaAhead", err)
 		}
-		assertReadOnlySessionDatabaseUnchanged(t, path, before, beforeWAL, beforeSHM)
+		assertReadOnlySessionDatabaseUnchanged(t, path, before)
 	})
 
 	t.Run("Should refuse a behind database without changing files", func(t *testing.T) {
@@ -978,24 +1615,29 @@ func TestOpenSessionDBReadOnly(t *testing.T) {
 		if err != nil {
 			t.Fatalf("sql.Open(previous session stream) error = %v", err)
 		}
+		closeDB := registerTestSQLDBCleanup(t, "previous session stream", db)
 		if err := store.Apply(ctx, db, previousSessionMigrationStream(t)); err != nil {
-			if closeErr := db.Close(); closeErr != nil {
-				err = errors.Join(err, closeErr)
-			}
 			t.Fatalf("Apply(previous session stream) error = %v", err)
 		}
-		if err := db.Close(); err != nil {
+		if _, err := db.ExecContext(ctx, testSessionDBOwnerTableDDL); err != nil {
+			t.Fatalf("create behind session owner table error = %v", err)
+		}
+		if _, err := db.ExecContext(
+			ctx,
+			`INSERT INTO session_db_owner VALUES (1, 'sess-read-only-behind', 'ws-sessiondb-test')`,
+		); err != nil {
+			t.Fatalf("seed behind session owner error = %v", err)
+		}
+		if err := closeDB(); err != nil {
 			t.Fatalf("Close(previous session stream) error = %v", err)
 		}
-		before := readOnlySessionDatabaseDigest(t, path)
-		beforeWAL := readOnlySessionFilePresence(t, path+"-wal")
-		beforeSHM := readOnlySessionFilePresence(t, path+"-shm")
+		before := readOnlySessionDatabaseFamilyDigest(t, path)
 
-		_, err = OpenSessionDBReadOnly(ctx, "sess-read-only-behind", path)
+		_, err = OpenSessionDBReadOnly(ctx, testSessionDBOwner("sess-read-only-behind"), path)
 		if !errors.Is(err, store.ErrSchemaBehind) {
 			t.Fatalf("OpenSessionDBReadOnly(behind) error = %v, want ErrSchemaBehind", err)
 		}
-		assertReadOnlySessionDatabaseUnchanged(t, path, before, beforeWAL, beforeSHM)
+		assertReadOnlySessionDatabaseUnchanged(t, path, before)
 	})
 
 	t.Run("Should query an existing database through the read-only contract", func(t *testing.T) {
@@ -1003,7 +1645,7 @@ func TestOpenSessionDBReadOnly(t *testing.T) {
 
 		ctx := testutil.Context(t)
 		path := filepath.Join(t.TempDir(), SessionDatabaseName)
-		writer, err := OpenSessionDB(ctx, "sess-read-only-existing", path)
+		writer, err := OpenSessionDB(ctx, testSessionDBOwner("sess-read-only-existing"), path)
 		if err != nil {
 			t.Fatalf("OpenSessionDB() error = %v", err)
 		}
@@ -1019,7 +1661,7 @@ func TestOpenSessionDBReadOnly(t *testing.T) {
 			t.Fatalf("Close(writer) error = %v", err)
 		}
 
-		reader, err := OpenSessionDBReadOnly(ctx, "sess-read-only-existing", path)
+		reader, err := OpenSessionDBReadOnly(ctx, testSessionDBOwner("sess-read-only-existing"), path)
 		if err != nil {
 			t.Fatalf("OpenSessionDBReadOnly(existing) error = %v", err)
 		}
@@ -1041,12 +1683,303 @@ func TestOpenSessionDBReadOnly(t *testing.T) {
 		}
 	})
 
+	t.Run("Should refuse a foreign workspace before read-only sidecars are created", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		path := filepath.Join(t.TempDir(), SessionDatabaseName)
+		writer, err := OpenSessionDB(ctx, testSessionDBOwner("sess-read-only-owner"), path)
+		if err != nil {
+			t.Fatalf("OpenSessionDB() error = %v", err)
+		}
+		if err := writer.Close(ctx); err != nil {
+			t.Fatalf("Close(writer) error = %v", err)
+		}
+		before := readOnlySessionDatabaseFamilyDigest(t, path)
+
+		_, err = OpenSessionDBReadOnly(ctx, store.SessionDBOwner{
+			SessionID: "sess-read-only-owner", WorkspaceID: "ws-foreign",
+		}, path)
+		if !errors.Is(err, ErrSessionDBOwnerMismatch) {
+			t.Fatalf("OpenSessionDBReadOnly(foreign workspace) error = %v, want ErrSessionDBOwnerMismatch", err)
+		}
+		assertReadOnlySessionDatabaseUnchanged(t, path, before)
+	})
+
+	t.Run("Should recheck the owner on the effective handle after path substitution", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		root := t.TempDir()
+		expectedDir := filepath.Join(root, "expected")
+		foreignDir := filepath.Join(root, "foreign")
+		expectedPath := filepath.Join(expectedDir, SessionDatabaseName)
+		foreignPath := filepath.Join(foreignDir, SessionDatabaseName)
+		expectedOwner := testSessionDBOwner("sess-read-only-effective-owner")
+		foreignOwner := store.SessionDBOwner{
+			SessionID: "sess-read-only-effective-foreign", WorkspaceID: "ws-effective-foreign",
+		}
+		for _, fixture := range []struct {
+			owner store.SessionDBOwner
+			path  string
+		}{
+			{owner: expectedOwner, path: expectedPath},
+			{owner: foreignOwner, path: foreignPath},
+		} {
+			db, err := OpenSessionDB(ctx, fixture.owner, fixture.path)
+			if err != nil {
+				t.Fatalf("OpenSessionDB(%s) error = %v", fixture.owner.SessionID, err)
+			}
+			if err := db.Close(ctx); err != nil {
+				t.Fatalf("Close(%s) error = %v", fixture.owner.SessionID, err)
+			}
+		}
+		if err := verifySessionDBOwnerReadOnly(ctx, expectedOwner, expectedPath); err != nil {
+			t.Fatalf("verifySessionDBOwnerReadOnly(expected) error = %v", err)
+		}
+		if err := os.Rename(expectedDir, filepath.Join(root, "expected-before-substitution")); err != nil {
+			t.Fatalf("os.Rename(expected backup) error = %v", err)
+		}
+		if err := os.Rename(foreignDir, expectedDir); err != nil {
+			t.Fatalf("os.Rename(foreign into expected path) error = %v", err)
+		}
+
+		reader, err := openGuardedSessionDBReadOnly(ctx, expectedOwner, expectedPath)
+		if err == nil {
+			if closeErr := reader.Close(ctx); closeErr != nil {
+				t.Errorf("Close(substituted reader) error = %v", closeErr)
+			}
+			t.Fatal("openGuardedSessionDBReadOnly(substituted) error = nil, want owner mismatch")
+		}
+		if !errors.Is(err, ErrSessionDBOwnerMismatch) {
+			t.Fatalf("openGuardedSessionDBReadOnly(substituted) error = %v, want owner mismatch", err)
+		}
+	})
+
+	t.Run("Should reject a same-owner database substituted during the physical open", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		root := t.TempDir()
+		expectedDir := filepath.Join(root, "expected")
+		replacementDir := filepath.Join(root, "replacement")
+		expectedPath := filepath.Join(expectedDir, SessionDatabaseName)
+		replacementPath := filepath.Join(replacementDir, SessionDatabaseName)
+		owner := testSessionDBOwner("sess-read-only-same-owner-substitution")
+		for _, fixture := range []struct {
+			path    string
+			eventID string
+		}{
+			{path: expectedPath, eventID: "expected-event"},
+			{path: replacementPath, eventID: "replacement-secret-event"},
+		} {
+			db, err := OpenSessionDB(ctx, owner, fixture.path)
+			if err != nil {
+				t.Fatalf("OpenSessionDB(%s) error = %v", fixture.eventID, err)
+			}
+			if err := db.Record(ctx, SessionEvent{
+				ID: fixture.eventID, TurnID: fixture.eventID + "-turn", Type: acp.EventTypeDone, AgentName: "coder",
+			}); err != nil {
+				t.Fatalf("Record(%s) error = %v", fixture.eventID, err)
+			}
+			if err := db.Close(ctx); err != nil {
+				t.Fatalf("Close(%s) error = %v", fixture.eventID, err)
+			}
+		}
+		before := readOnlySessionDatabaseFamilyDigest(t, replacementPath)
+
+		intercept := &interceptSessionSQLiteDriver{
+			delegate: &sqlite.Driver{},
+			beforeOpen: func(call int) error {
+				if call != 2 {
+					return nil
+				}
+				if err := os.Rename(expectedDir, filepath.Join(root, "expected-before-substitution")); err != nil {
+					return err
+				}
+				return os.Rename(replacementDir, expectedDir)
+			},
+		}
+		db := sql.OpenDB(&sessionSQLiteConnector{
+			driver:   intercept,
+			dsn:      sessionSQLiteOperationalDSN(expectedPath, "ro"),
+			path:     expectedPath,
+			owner:    owner,
+			readOnly: true,
+		})
+		err := db.PingContext(ctx)
+		if !errors.Is(err, ErrSessionDBFamilyChanged) {
+			t.Fatalf("PingContext(same-owner substitution) error = %v, want ErrSessionDBFamilyChanged", err)
+		}
+		if closeErr := db.Close(); closeErr != nil {
+			t.Fatalf("Close(substituted sql.DB) error = %v", closeErr)
+		}
+		assertReadOnlySessionDatabaseUnchanged(t, expectedPath, before)
+	})
+
+	t.Run("Should reject a same-owner ABA substitution after the physical open", func(t *testing.T) {
+		t.Parallel()
+
+		for _, testCase := range []struct {
+			name     string
+			readOnly bool
+		}{
+			{name: "read-only", readOnly: true},
+			{name: "writable", readOnly: false},
+		} {
+			t.Run("Should reject the "+testCase.name+" connection", func(t *testing.T) {
+				t.Parallel()
+
+				ctx := testutil.Context(t)
+				root := t.TempDir()
+				expectedDir := filepath.Join(root, "expected")
+				replacementDir := filepath.Join(root, "replacement")
+				expectedBackupDir := filepath.Join(root, "expected-during-open")
+				expectedPath := filepath.Join(expectedDir, SessionDatabaseName)
+				replacementPath := filepath.Join(replacementDir, SessionDatabaseName)
+				owner := testSessionDBOwner("sess-same-owner-aba-" + testCase.name)
+				for _, fixture := range []struct {
+					path    string
+					eventID string
+				}{
+					{path: expectedPath, eventID: "expected-event"},
+					{path: replacementPath, eventID: "replacement-secret-event"},
+				} {
+					db, err := OpenSessionDB(ctx, owner, fixture.path)
+					if err != nil {
+						t.Fatalf("OpenSessionDB(%s) error = %v", fixture.eventID, err)
+					}
+					if err := db.Record(ctx, SessionEvent{
+						ID:        fixture.eventID,
+						TurnID:    fixture.eventID + "-turn",
+						Type:      acp.EventTypeDone,
+						AgentName: "coder",
+					}); err != nil {
+						t.Fatalf("Record(%s) error = %v", fixture.eventID, err)
+					}
+					if err := db.Close(ctx); err != nil {
+						t.Fatalf("Close(%s) error = %v", fixture.eventID, err)
+					}
+				}
+				expectedBefore := readOnlySessionDatabaseFamilyDigest(t, expectedPath)
+				replacementBefore := readOnlySessionDatabaseFamilyDigest(t, replacementPath)
+
+				intercept := &interceptSessionSQLiteDriver{
+					delegate: &sqlite.Driver{},
+					beforeOpen: func(call int) error {
+						if call != 2 {
+							return nil
+						}
+						if err := os.Rename(expectedDir, expectedBackupDir); err != nil {
+							return err
+						}
+						return os.Rename(replacementDir, expectedDir)
+					},
+					afterOpen: func(call int, connection driver.Conn) error {
+						if call != 2 {
+							return nil
+						}
+						querier, ok := connection.(sqlite.ExecQuerierContext)
+						if !ok {
+							return errors.New("intercepted sqlite connection does not support contextual queries")
+						}
+						if err := verifySessionDBOwnerConnection(ctx, querier, owner); err != nil {
+							return err
+						}
+						if err := os.Rename(expectedDir, replacementDir); err != nil {
+							return err
+						}
+						return os.Rename(expectedBackupDir, expectedDir)
+					},
+				}
+				db := sql.OpenDB(&sessionSQLiteConnector{
+					// The immutable DSN isolates the identity regression from SQLite's
+					// otherwise valid WAL/SHM creation before the connector rejects B.
+					driver: intercept, dsn: sessionDBOwnerGuardDSN(expectedPath),
+					path: expectedPath, owner: owner, readOnly: testCase.readOnly,
+				})
+				err := db.PingContext(ctx)
+				if !errors.Is(err, ErrSessionDBFamilyChanged) {
+					t.Fatalf("PingContext(same-owner ABA) error = %v, want ErrSessionDBFamilyChanged", err)
+				}
+				if closeErr := db.Close(); closeErr != nil {
+					t.Fatalf("Close(rejected sql.DB) error = %v", closeErr)
+				}
+				assertReadOnlySessionDatabaseUnchanged(t, expectedPath, expectedBefore)
+				assertReadOnlySessionDatabaseUnchanged(t, replacementPath, replacementBefore)
+			})
+		}
+	})
+
+	t.Run("Should guard a replacement before every read-only physical connection", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		root := t.TempDir()
+		expectedDir := filepath.Join(root, "expected")
+		foreignDir := filepath.Join(root, "foreign")
+		expectedPath := filepath.Join(expectedDir, SessionDatabaseName)
+		foreignPath := filepath.Join(foreignDir, SessionDatabaseName)
+		expectedOwner := testSessionDBOwner("sess-read-only-connection-owner")
+		foreignOwner := store.SessionDBOwner{
+			SessionID: "sess-read-only-connection-foreign", WorkspaceID: "ws-read-only-connection-foreign",
+		}
+		for _, fixture := range []struct {
+			owner   store.SessionDBOwner
+			path    string
+			eventID string
+		}{
+			{owner: expectedOwner, path: expectedPath, eventID: "expected-event"},
+			{owner: foreignOwner, path: foreignPath, eventID: "foreign-event"},
+		} {
+			db, err := OpenSessionDB(ctx, fixture.owner, fixture.path)
+			if err != nil {
+				t.Fatalf("OpenSessionDB(%s) error = %v", fixture.owner.SessionID, err)
+			}
+			if err := db.Record(ctx, SessionEvent{
+				ID: fixture.eventID, TurnID: fixture.eventID + "-turn", Type: acp.EventTypeDone, AgentName: "coder",
+			}); err != nil {
+				t.Fatalf("Record(%s) error = %v", fixture.owner.SessionID, err)
+			}
+			if err := db.Close(ctx); err != nil {
+				t.Fatalf("Close(%s) error = %v", fixture.owner.SessionID, err)
+			}
+		}
+		reader, err := OpenSessionDBReadOnly(ctx, expectedOwner, expectedPath)
+		if err != nil {
+			t.Fatalf("OpenSessionDBReadOnly(expected) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := reader.Close(testutil.Context(t)); err != nil {
+				t.Errorf("Close(reader) error = %v", err)
+			}
+		})
+		before := readOnlySessionDatabaseFamilyDigest(t, foreignPath)
+
+		reader.db.SetMaxIdleConns(0)
+		if err := os.Rename(expectedDir, filepath.Join(root, "expected-before-reconnect")); err != nil {
+			t.Fatalf("os.Rename(expected backup) error = %v", err)
+		}
+		if err := os.Rename(foreignDir, expectedDir); err != nil {
+			t.Fatalf("os.Rename(foreign into expected path) error = %v", err)
+		}
+
+		events, err := reader.Query(ctx, EventQuery{})
+		if !errors.Is(err, ErrSessionDBOwnerMismatch) {
+			t.Fatalf("Query(substituted read-only connection) error = %v, want ErrSessionDBOwnerMismatch", err)
+		}
+		if len(events) != 0 {
+			t.Fatalf("Query(substituted read-only connection) events = %#v, want empty", events)
+		}
+		assertReadOnlySessionDatabaseUnchanged(t, expectedPath, before)
+	})
+
 	t.Run("Should apply identical cursor bounds to full and metadata projections", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t)
 		path := filepath.Join(t.TempDir(), SessionDatabaseName)
-		writer, err := OpenSessionDB(ctx, "sess-read-only-projections", path)
+		writer, err := OpenSessionDB(ctx, testSessionDBOwner("sess-read-only-projections"), path)
 		if err != nil {
 			t.Fatalf("OpenSessionDB() error = %v", err)
 		}
@@ -1064,7 +1997,7 @@ func TestOpenSessionDBReadOnly(t *testing.T) {
 			t.Fatalf("Close(writer) error = %v", err)
 		}
 
-		reader, err := OpenSessionDBReadOnly(ctx, "sess-read-only-projections", path)
+		reader, err := OpenSessionDBReadOnly(ctx, testSessionDBOwner("sess-read-only-projections"), path)
 		if err != nil {
 			t.Fatalf("OpenSessionDBReadOnly() error = %v", err)
 		}
@@ -1101,14 +2034,14 @@ func TestOpenSessionDBReadOnly(t *testing.T) {
 
 		reader, err := openSessionDBReadOnlyWithRetry(
 			ctx,
-			"sess-read-only-locked",
+			testSessionDBOwner("sess-read-only-locked"),
 			path,
-			func(context.Context, string, string) (*ReadOnlySessionDB, error) {
+			func(context.Context, store.SessionDBOwner, string) (*ReadOnlySessionDB, error) {
 				calls++
 				if calls < 3 {
 					return nil, transientLock
 				}
-				return &ReadOnlySessionDB{sessionID: "sess-read-only-locked"}, nil
+				return &ReadOnlySessionDB{owner: testSessionDBOwner("sess-read-only-locked")}, nil
 			},
 			func(err error) bool {
 				return errors.Is(err, transientLock)
@@ -1120,7 +2053,7 @@ func TestOpenSessionDBReadOnly(t *testing.T) {
 		if err != nil {
 			t.Fatalf("openSessionDBReadOnlyWithRetry() error = %v", err)
 		}
-		if reader == nil || reader.sessionID != "sess-read-only-locked" {
+		if reader == nil || reader.owner.SessionID != "sess-read-only-locked" {
 			t.Fatalf("openSessionDBReadOnlyWithRetry() reader = %#v, want session id", reader)
 		}
 		if got, want := calls, 3; got != want {
@@ -1149,47 +2082,109 @@ func seedReadOnlySessionDatabase(t *testing.T, path string, statements ...string
 	}
 }
 
-func readOnlySessionDatabaseDigest(t *testing.T, path string) [sha256.Size]byte {
+func registerTestSQLDBCleanup(t *testing.T, label string, db *sql.DB) func() error {
+	t.Helper()
+
+	closeDB := sync.OnceValue(db.Close)
+	t.Cleanup(func() {
+		if err := closeDB(); err != nil {
+			t.Errorf("Close(%s) error = %v", label, err)
+		}
+	})
+	return closeDB
+}
+
+type closeErrorSessionDBParentDirectory struct {
+	*fileutil.Directory
+	err error
+}
+
+func (d *closeErrorSessionDBParentDirectory) Close() error {
+	return errors.Join(d.Directory.Close(), d.err)
+}
+
+type interceptSessionSQLiteDriver struct {
+	delegate   driver.Driver
+	beforeOpen func(call int) error
+	afterOpen  func(call int, connection driver.Conn) error
+	mu         sync.Mutex
+	openCount  int
+	err        error
+}
+
+func (d *interceptSessionSQLiteDriver) Open(name string) (driver.Conn, error) {
+	d.mu.Lock()
+	d.openCount++
+	call := d.openCount
+	if d.err == nil && d.beforeOpen != nil {
+		d.err = d.beforeOpen(call)
+	}
+	err := d.err
+	d.mu.Unlock()
+	if err != nil {
+		return nil, err
+	}
+	connection, err := d.delegate.Open(name)
+	if err != nil {
+		return nil, err
+	}
+	d.mu.Lock()
+	if d.err == nil && d.afterOpen != nil {
+		d.err = d.afterOpen(call, connection)
+	}
+	err = d.err
+	d.mu.Unlock()
+	if err != nil {
+		return nil, closeSessionSQLiteDriverConnection(connection, err)
+	}
+	return connection, nil
+}
+
+type sessionDatabaseFileDigest struct {
+	exists bool
+	digest [sha256.Size]byte
+}
+
+type sessionDatabaseFamilyDigest struct {
+	database sessionDatabaseFileDigest
+	wal      sessionDatabaseFileDigest
+	shm      sessionDatabaseFileDigest
+	journal  sessionDatabaseFileDigest
+}
+
+func readOnlySessionDatabaseFamilyDigest(t *testing.T, path string) sessionDatabaseFamilyDigest {
+	t.Helper()
+
+	return sessionDatabaseFamilyDigest{
+		database: readOnlySessionFileDigest(t, path),
+		wal:      readOnlySessionFileDigest(t, path+"-wal"),
+		shm:      readOnlySessionFileDigest(t, path+"-shm"),
+		journal:  readOnlySessionFileDigest(t, path+"-journal"),
+	}
+}
+
+func readOnlySessionFileDigest(t *testing.T, path string) sessionDatabaseFileDigest {
 	t.Helper()
 
 	contents, err := os.ReadFile(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return sessionDatabaseFileDigest{}
+	}
 	if err != nil {
 		t.Fatalf("ReadFile(%q) error = %v", path, err)
 	}
-	return sha256.Sum256(contents)
-}
-
-func readOnlySessionFilePresence(t *testing.T, path string) bool {
-	t.Helper()
-
-	_, err := os.Stat(path)
-	if err == nil {
-		return true
-	}
-	if errors.Is(err, os.ErrNotExist) {
-		return false
-	}
-	t.Fatalf("Stat(%q) error = %v", path, err)
-	return false
+	return sessionDatabaseFileDigest{exists: true, digest: sha256.Sum256(contents)}
 }
 
 func assertReadOnlySessionDatabaseUnchanged(
 	t *testing.T,
 	path string,
-	wantDigest [sha256.Size]byte,
-	wantWAL bool,
-	wantSHM bool,
+	want sessionDatabaseFamilyDigest,
 ) {
 	t.Helper()
 
-	if got := readOnlySessionDatabaseDigest(t, path); got != wantDigest {
-		t.Fatalf("read-only refusal changed database digest: got %x want %x", got, wantDigest)
-	}
-	if got := readOnlySessionFilePresence(t, path+"-wal"); got != wantWAL {
-		t.Fatalf("WAL presence after refusal = %t, want %t", got, wantWAL)
-	}
-	if got := readOnlySessionFilePresence(t, path+"-shm"); got != wantSHM {
-		t.Fatalf("SHM presence after refusal = %t, want %t", got, wantSHM)
+	if got := readOnlySessionDatabaseFamilyDigest(t, path); got != want {
+		t.Fatalf("read-only refusal changed database family: got %#v want %#v", got, want)
 	}
 }
 
@@ -1281,7 +2276,7 @@ func TestSessionDBClear(t *testing.T) {
 		if err := sessionDB.Close(ctx); err != nil {
 			t.Fatalf("Close(after clear) error = %v", err)
 		}
-		reader, err := OpenSessionDBReadOnly(ctx, "sess-clear-transcript", path)
+		reader, err := OpenSessionDBReadOnly(ctx, testSessionDBOwner("sess-clear-transcript"), path)
 		if err != nil {
 			t.Fatalf("OpenSessionDBReadOnly(after clear) error = %v", err)
 		}
@@ -1306,9 +2301,14 @@ func TestOpenSessionSQLiteDoesNotFailWhenVacuumFails(t *testing.T) {
 		path := filepath.Join(t.TempDir(), SessionDatabaseName)
 		sentinel := errors.New("vacuum unavailable")
 
-		db, err := openSessionSQLiteWithVacuum(ctx, path, func(context.Context, *sql.DB) error {
-			return sentinel
-		})
+		db, err := openOwnedSessionSQLiteWithVacuum(
+			ctx,
+			testSessionDBOwner("sess-vacuum-failure"),
+			path,
+			func(context.Context, *sql.DB) error {
+				return sentinel
+			},
+		)
 		if err != nil {
 			t.Fatalf("openSessionSQLiteWithVacuum() error = %v, want nil", err)
 		}
@@ -1371,7 +2371,7 @@ func TestSessionDBRecordAutoIncrementSequence(t *testing.T) {
 
 		ctx := testutil.Context(t)
 		path := filepath.Join(t.TempDir(), SessionDatabaseName)
-		first, err := OpenSessionDB(ctx, "sess-seq-shared", path)
+		first, err := OpenSessionDB(ctx, testSessionDBOwner("sess-seq-shared"), path)
 		if err != nil {
 			t.Fatalf("OpenSessionDB(first) error = %v", err)
 		}
@@ -1380,7 +2380,7 @@ func TestSessionDBRecordAutoIncrementSequence(t *testing.T) {
 				t.Fatalf("Close(first) error = %v", err)
 			}
 		})
-		second, err := OpenSessionDB(ctx, "sess-seq-shared", path)
+		second, err := OpenSessionDB(ctx, testSessionDBOwner("sess-seq-shared"), path)
 		if err != nil {
 			t.Fatalf("OpenSessionDB(second) error = %v", err)
 		}
@@ -1726,7 +2726,7 @@ func TestSessionDBHistoryGroupsByTurn(t *testing.T) {
 
 		ctx := testutil.Context(t)
 		path := filepath.Join(t.TempDir(), SessionDatabaseName)
-		writer, err := OpenSessionDB(ctx, "sess-history-read-only-after", path)
+		writer, err := OpenSessionDB(ctx, testSessionDBOwner("sess-history-read-only-after"), path)
 		if err != nil {
 			t.Fatalf("OpenSessionDB() error = %v", err)
 		}
@@ -1746,7 +2746,7 @@ func TestSessionDBHistoryGroupsByTurn(t *testing.T) {
 			t.Fatalf("Close(writer) error = %v", err)
 		}
 
-		reader, err := OpenSessionDBReadOnly(ctx, "sess-history-read-only-after", path)
+		reader, err := OpenSessionDBReadOnly(ctx, testSessionDBOwner("sess-history-read-only-after"), path)
 		if err != nil {
 			t.Fatalf("OpenSessionDBReadOnly() error = %v", err)
 		}
@@ -1814,7 +2814,11 @@ func TestSessionDBWriteFailureReturnsError(t *testing.T) {
 func openTestSessionDB(t *testing.T, sessionID string) *SessionDB {
 	t.Helper()
 
-	sessionDB, err := OpenSessionDB(testutil.Context(t), sessionID, filepath.Join(t.TempDir(), SessionDatabaseName))
+	sessionDB, err := OpenSessionDB(
+		testutil.Context(t),
+		testSessionDBOwner(sessionID),
+		filepath.Join(t.TempDir(), SessionDatabaseName),
+	)
 	if err != nil {
 		t.Fatalf("OpenSessionDB() error = %v", err)
 	}

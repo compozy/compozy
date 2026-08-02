@@ -211,9 +211,13 @@ func countOpenNetworkWork(
 	return int(count), nil
 }
 
-func auditEntryForConversationMessage(entry store.NetworkConversationMessage) store.NetworkAuditEntry {
+func auditEntryForConversationMessage(entry store.NetworkConversationMessage) (store.NetworkAuditEntry, error) {
+	auditID, err := store.NewID("naud")
+	if err != nil {
+		return store.NetworkAuditEntry{}, fmt.Errorf("store: generate network conversation audit id: %w", err)
+	}
 	return store.NetworkAuditEntry{
-		ID:          store.NewID("naud"),
+		ID:          auditID,
 		SessionID:   entry.SessionID,
 		WorkspaceID: entry.WorkspaceID,
 		Direction:   entry.Direction,
@@ -228,5 +232,5 @@ func auditEntryForConversationMessage(entry store.NetworkConversationMessage) st
 		MessageID:   entry.MessageID,
 		Size:        len(entry.Body),
 		Timestamp:   entry.Timestamp,
-	}
+	}, nil
 }

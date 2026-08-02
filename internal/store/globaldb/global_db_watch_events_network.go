@@ -52,8 +52,6 @@ func (g *WatchEventsRepo) readProjectedNetworkWatchEventsCursor(
 	if !ok {
 		return 0, nil
 	}
-	defer rows.Close()
-
 	cursor := after
 	for rows.Next() {
 		row, scanErr := scanNetworkWatchEventRow(rows)
@@ -92,8 +90,6 @@ func (g *WatchEventsRepo) readNetworkWatchEvents(
 	if !ok {
 		return nil, nil
 	}
-	defer rows.Close()
-
 	events := make([]looppkg.WatchEvent, 0)
 	for rows.Next() {
 		row, scanErr := scanNetworkWatchEventRow(rows)

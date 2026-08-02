@@ -16,12 +16,13 @@ func TestHarnessContextResolverMatrix(t *testing.T) {
 	t.Parallel()
 
 	resolver := NewHarnessContextResolver(HarnessRuntimeSignals{
-		MemoryPromptSectionEnabled: true,
-		SkillsPromptSectionEnabled: true,
-		SkillsAugmenter:            true,
-		DurableMemoryAugmenter:     true,
-		SyntheticTurnsEnabled:      true,
-		DetachedTaskRuntimeEnabled: true,
+		MemoryPromptSectionEnabled:  true,
+		SkillsPromptSectionEnabled:  true,
+		WorkspaceKnowledgeAugmenter: true,
+		SkillsAugmenter:             true,
+		DurableMemoryAugmenter:      true,
+		SyntheticTurnsEnabled:       true,
+		DetachedTaskRuntimeEnabled:  true,
 	})
 
 	testCases := []struct {
@@ -35,7 +36,7 @@ func TestHarnessContextResolverMatrix(t *testing.T) {
 		wantTags       map[string]string
 	}{
 		{
-			name: "user session plus user turn resolves baseline policy",
+			name: "Should resolve baseline policy for a user session plus user turn",
 			input: HarnessResolutionInput{
 				Surface: ResolutionSurfaceTurn,
 				Session: HarnessSessionInput{
@@ -45,11 +46,15 @@ func TestHarnessContextResolverMatrix(t *testing.T) {
 					Source: session.TurnSourceUser,
 				},
 			},
-			wantSections:   []HarnessPromptSection{HarnessPromptSectionMemory, HarnessPromptSectionSkills},
-			wantAugmenters: []HarnessAugmenter{HarnessAugmenterSkills, HarnessAugmenterDurableMemory},
-			wantReentry:    ReentryModeNone,
-			wantDetached:   DetachedRunModeNone,
-			wantLabel:      "interactive.user",
+			wantSections: []HarnessPromptSection{HarnessPromptSectionMemory, HarnessPromptSectionSkills},
+			wantAugmenters: []HarnessAugmenter{
+				HarnessAugmenterWorkspaceKnowledge,
+				HarnessAugmenterSkills,
+				HarnessAugmenterDurableMemory,
+			},
+			wantReentry:  ReentryModeNone,
+			wantDetached: DetachedRunModeNone,
+			wantLabel:    "interactive.user",
 			wantTags: map[string]string{
 				"harness.surface":          "turn",
 				"harness.session_type":     "user",
@@ -77,11 +82,14 @@ func TestHarnessContextResolverMatrix(t *testing.T) {
 					},
 				},
 			},
-			wantSections:   []HarnessPromptSection{HarnessPromptSectionMemory, HarnessPromptSectionSkills},
-			wantAugmenters: []HarnessAugmenter{HarnessAugmenterSkills},
-			wantReentry:    ReentryModeNone,
-			wantDetached:   DetachedRunModeNone,
-			wantLabel:      "interactive.network",
+			wantSections: []HarnessPromptSection{HarnessPromptSectionMemory, HarnessPromptSectionSkills},
+			wantAugmenters: []HarnessAugmenter{
+				HarnessAugmenterWorkspaceKnowledge,
+				HarnessAugmenterSkills,
+			},
+			wantReentry:  ReentryModeNone,
+			wantDetached: DetachedRunModeNone,
+			wantLabel:    "interactive.network",
 			wantTags: map[string]string{
 				"harness.surface":          "turn",
 				"harness.session_type":     "user",
@@ -114,10 +122,13 @@ func TestHarnessContextResolverMatrix(t *testing.T) {
 				HarnessPromptSectionSkills,
 				HarnessPromptSectionNetwork,
 			},
-			wantAugmenters: []HarnessAugmenter{HarnessAugmenterSkills},
-			wantReentry:    ReentryModeNone,
-			wantDetached:   DetachedRunModeNone,
-			wantLabel:      "interactive.network.network",
+			wantAugmenters: []HarnessAugmenter{
+				HarnessAugmenterWorkspaceKnowledge,
+				HarnessAugmenterSkills,
+			},
+			wantReentry:  ReentryModeNone,
+			wantDetached: DetachedRunModeNone,
+			wantLabel:    "interactive.network.network",
 			wantTags: map[string]string{
 				"harness.surface":          "turn",
 				"harness.session_type":     "user",
@@ -180,10 +191,13 @@ func TestHarnessContextResolverMatrix(t *testing.T) {
 				HarnessPromptSectionSkills,
 				HarnessPromptSectionNetwork,
 			},
-			wantAugmenters: []HarnessAugmenter{HarnessAugmenterSkills},
-			wantReentry:    ReentryModeNone,
-			wantDetached:   DetachedRunModeNone,
-			wantLabel:      "spawned.network.network",
+			wantAugmenters: []HarnessAugmenter{
+				HarnessAugmenterWorkspaceKnowledge,
+				HarnessAugmenterSkills,
+			},
+			wantReentry:  ReentryModeNone,
+			wantDetached: DetachedRunModeNone,
+			wantLabel:    "spawned.network.network",
 			wantTags: map[string]string{
 				"harness.surface":          "turn",
 				"harness.session_type":     "spawned",
@@ -211,11 +225,14 @@ func TestHarnessContextResolverMatrix(t *testing.T) {
 					},
 				},
 			},
-			wantSections:   []HarnessPromptSection{HarnessPromptSectionMemory, HarnessPromptSectionSkills},
-			wantAugmenters: []HarnessAugmenter{HarnessAugmenterSkills},
-			wantReentry:    ReentryModeSynthetic,
-			wantDetached:   DetachedRunModeTaskRuntime,
-			wantLabel:      "system.synthetic.reentry",
+			wantSections: []HarnessPromptSection{HarnessPromptSectionMemory, HarnessPromptSectionSkills},
+			wantAugmenters: []HarnessAugmenter{
+				HarnessAugmenterWorkspaceKnowledge,
+				HarnessAugmenterSkills,
+			},
+			wantReentry:  ReentryModeSynthetic,
+			wantDetached: DetachedRunModeTaskRuntime,
+			wantLabel:    "system.synthetic.reentry",
 			wantTags: map[string]string{
 				"harness.surface":           "turn",
 				"harness.session_type":      "system",
@@ -388,7 +405,7 @@ func TestHarnessContextResolverValidation(t *testing.T) {
 			wantErr: "synthetic harness turns require runtime metadata",
 		},
 		{
-			name: "Should reject a synthetic turn on a non-system session",
+			name: "Should reject a detached synthetic turn on a non-system session",
 			input: HarnessResolutionInput{
 				Surface: ResolutionSurfaceTurn,
 				Session: HarnessSessionInput{Type: session.SessionTypeUser},
@@ -398,9 +415,10 @@ func TestHarnessContextResolverValidation(t *testing.T) {
 						Reason:  "task_complete",
 						Trigger: "task.run.completed",
 					},
+					Detached: &DetachedRunMetadata{TaskRunID: "run-123"},
 				},
 			},
-			wantErr: `synthetic harness turns require a system session`,
+			wantErr: `detached synthetic harness turns require a system session`,
 		},
 	}
 
@@ -420,6 +438,13 @@ func TestHarnessContextResolverValidation(t *testing.T) {
 }
 
 func TestHarnessContextResolverDiagnosticLabelsAreStable(t *testing.T) {
+	t.Run(
+		"Should keep diagnostic labels stable for identical inputs",
+		testHarnessContextResolverDiagnosticLabelsAreStable,
+	)
+}
+
+func testHarnessContextResolverDiagnosticLabelsAreStable(t *testing.T) {
 	t.Parallel()
 
 	resolver := NewHarnessContextResolver(HarnessRuntimeSignals{
@@ -461,6 +486,13 @@ func TestHarnessContextResolverDiagnosticLabelsAreStable(t *testing.T) {
 }
 
 func TestSectionSelectorSelectsEligibleStartupSectionsWithoutDuplicates(t *testing.T) {
+	t.Run(
+		"Should select eligible startup sections without duplicates",
+		testSectionSelectorSelectsEligibleStartupSectionsWithoutDuplicates,
+	)
+}
+
+func testSectionSelectorSelectsEligibleStartupSectionsWithoutDuplicates(t *testing.T) {
 	t.Parallel()
 
 	resolver := NewHarnessContextResolver(HarnessRuntimeSignals{
@@ -567,6 +599,13 @@ func TestSectionSelectorAcceptsCoordinatorStartupSession(t *testing.T) {
 }
 
 func TestHarnessContextResolverResolvePromptUsesSessionInfo(t *testing.T) {
+	t.Run(
+		"Should resolve prompt policy from session information",
+		testHarnessContextResolverResolvePromptUsesSessionInfo,
+	)
+}
+
+func testHarnessContextResolverResolvePromptUsesSessionInfo(t *testing.T) {
 	t.Parallel()
 
 	resolver := NewHarnessContextResolver(HarnessRuntimeSignals{
@@ -597,7 +636,66 @@ func TestHarnessContextResolverResolvePromptUsesSessionInfo(t *testing.T) {
 	}
 }
 
+func TestHarnessContextResolverResolvePromptMapsSyntheticMetadata(t *testing.T) {
+	t.Run("Should resolve a user-session synthetic turn from ACP metadata", func(t *testing.T) {
+		t.Parallel()
+
+		resolver := NewHarnessContextResolver(HarnessRuntimeSignals{
+			WorkspaceKnowledgeAugmenter: true,
+			SkillsAugmenter:             true,
+			SyntheticTurnsEnabled:       true,
+		})
+		resolved, err := resolver.ResolvePrompt(
+			&session.Info{Type: session.SessionTypeUser},
+			session.TurnSourceSynthetic,
+			acp.PromptMeta{
+				TurnSource: acp.PromptTurnSourceSynthetic,
+				Synthetic: &acp.PromptSyntheticMeta{
+					TaskID:    "task-123",
+					TaskRunID: "run-123",
+					Reason:    "task_run_progress",
+				},
+			},
+		)
+		if err != nil {
+			t.Fatalf("ResolvePrompt() error = %v", err)
+		}
+
+		if resolved.Policy.TurnOrigin != TurnOriginSynthetic {
+			t.Fatalf("TurnOrigin = %q, want %q", resolved.Policy.TurnOrigin, TurnOriginSynthetic)
+		}
+		if !slices.Equal(resolved.Policy.EnableAugmenters, []HarnessAugmenter{
+			HarnessAugmenterWorkspaceKnowledge,
+			HarnessAugmenterSkills,
+		}) {
+			t.Fatalf("EnableAugmenters = %#v, want workspace knowledge and skills", resolved.Policy.EnableAugmenters)
+		}
+		if resolved.Policy.ReentryMode != ReentryModeSynthetic {
+			t.Fatalf("ReentryMode = %q, want %q", resolved.Policy.ReentryMode, ReentryModeSynthetic)
+		}
+		if resolved.Policy.DetachedRunMode != DetachedRunModeNone {
+			t.Fatalf("DetachedRunMode = %q, want %q", resolved.Policy.DetachedRunMode, DetachedRunModeNone)
+		}
+		if resolved.Turn.Synthetic == nil {
+			t.Fatal("Synthetic metadata = nil, want ACP projection")
+		}
+		if got, want := resolved.Turn.Synthetic.SourceTask, "task-123"; got != want {
+			t.Fatalf("Synthetic.SourceTask = %q, want %q", got, want)
+		}
+		if got, want := resolved.Turn.Synthetic.SourceRunID, "run-123"; got != want {
+			t.Fatalf("Synthetic.SourceRunID = %q, want %q", got, want)
+		}
+	})
+}
+
 func TestHarnessPromptInputAugmenterAppliesResolvedAugmenters(t *testing.T) {
+	t.Run(
+		"Should apply only the augmenters selected by policy",
+		testHarnessPromptInputAugmenterAppliesResolvedAugmenters,
+	)
+}
+
+func testHarnessPromptInputAugmenterAppliesResolvedAugmenters(t *testing.T) {
 	t.Parallel()
 
 	resolver := NewHarnessContextResolver(HarnessRuntimeSignals{
@@ -612,13 +710,16 @@ func TestHarnessPromptInputAugmenterAppliesResolvedAugmenters(t *testing.T) {
 		resolver,
 		nil,
 		defaultPromptInputAugmenterDescriptors(
+			nil,
 			func(_ context.Context, _ *session.Session, message string) (string, error) {
 				memoryCalls++
 				return message + "\n\nmemory block", nil
 			},
 			func(_ context.Context, _ *session.Session, message string) (string, error) {
 				skillsCalls++
-				return "<current-available-skills>\n  <skill name=\"qa-marker-skill\">Marker.</skill>\n</current-available-skills>\n\n" + message, nil
+				return "<current-available-skills>\n" +
+					"  <skill name=\"qa-marker-skill\">Marker.</skill>\n" +
+					"</current-available-skills>\n\n" + message, nil
 			},
 		)...,
 	)
@@ -649,6 +750,13 @@ func TestHarnessPromptInputAugmenterAppliesResolvedAugmenters(t *testing.T) {
 }
 
 func TestSectionSelectorValidationHelpers(t *testing.T) {
+	t.Run(
+		"Should reject invalid section selector inputs",
+		testSectionSelectorValidationHelpers,
+	)
+}
+
+func testSectionSelectorValidationHelpers(t *testing.T) {
 	t.Parallel()
 
 	if got := NewSectionSelector(nil, nil); got != nil {

@@ -9,9 +9,11 @@ import (
 	"slices"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
 	eventspkg "github.com/compozy/compozy/internal/events"
+	"github.com/compozy/compozy/internal/notifications"
 )
 
 const (
@@ -21,8 +23,6 @@ const (
 	BuiltInSessionUnhealthy = "session_unhealthy"
 	BuiltInProviderFailure  = "provider_failure"
 	BuiltInTaskRunPattern   = "task.run_*"
-
-	CursorConsumerPrefix = "preset:"
 )
 
 var (
@@ -84,18 +84,18 @@ type UpdateRequest struct {
 
 // Event is the normalized runtime event shape consumed by preset dispatch.
 type Event struct {
-	ID          string            `json:"id"`
-	Type        string            `json:"type"`
-	WorkspaceID string            `json:"workspace_id,omitempty"`
-	AgentName   string            `json:"agent,omitempty"`
-	Provider    string            `json:"provider,omitempty"`
-	TaskID      string            `json:"task_id,omitempty"`
-	RunID       string            `json:"run_id,omitempty"`
-	Summary     string            `json:"summary,omitempty"`
-	Outcome     eventspkg.Outcome `json:"outcome"`
-	Sequence    int64             `json:"sequence"`
-	Payload     json.RawMessage   `json:"payload,omitempty"`
-	Timestamp   time.Time         `json:"timestamp"`
+	ID        string                 `json:"id"`
+	Type      string                 `json:"type"`
+	Scope     notifications.ScopeRef `json:"scope"`
+	AgentName string                 `json:"agent,omitempty"`
+	Provider  string                 `json:"provider,omitempty"`
+	TaskID    string                 `json:"task_id,omitempty"`
+	RunID     string                 `json:"run_id,omitempty"`
+	Summary   string                 `json:"summary,omitempty"`
+	Outcome   eventspkg.Outcome      `json:"outcome"`
+	Sequence  int64                  `json:"sequence"`
+	Payload   json.RawMessage        `json:"payload,omitempty"`
+	Timestamp time.Time              `json:"timestamp"`
 }
 
 // DispatchResult summarizes one event dispatch pass.
@@ -109,39 +109,15 @@ type DispatchResult struct {
 
 func (t Target) Normalize() Target {
 	normalized := Target{
-		BridgeID:       strings.TrimSpace(t.BridgeID),
-		CanonicalRoute: strings.TrimSpace(t.CanonicalRoute),
-		DisplayName:    strings.TrimSpace(t.DisplayName),
-		DeliveryMode:   t.DeliveryMode.Normalize(),
+		BridgeID:       t.BridgeID,
+		CanonicalRoute: t.CanonicalRoute,
+		DisplayName:    t.DisplayName,
+		DeliveryMode:   t.DeliveryMode,
 	}
 	if normalized.DeliveryMode == "" {
 		normalized.DeliveryMode = bridgepkg.DeliveryModeDirectSend
 	}
 	return normalized
-}
-
-func (t Target) StableHash() string {
-	normalized := t.Normalize()
-	if normalized.BridgeID == "" && normalized.CanonicalRoute == "" && normalized.DisplayName == "" {
-		return "none"
-	}
-	payload := struct {
-		BridgeID       string                 `json:"bridge_id"`
-		CanonicalRoute string                 `json:"canonical_route,omitempty"`
-		DisplayName    string                 `json:"display_name,omitempty"`
-		DeliveryMode   bridgepkg.DeliveryMode `json:"delivery_mode,omitempty"`
-	}{
-		BridgeID:       normalized.BridgeID,
-		CanonicalRoute: normalized.CanonicalRoute,
-		DisplayName:    normalized.DisplayName,
-		DeliveryMode:   normalized.DeliveryMode,
-	}
-	encoded, err := json.Marshal(payload)
-	if err != nil {
-		return "none"
-	}
-	sum := sha256.Sum256(encoded)
-	return hex.EncodeToString(sum[:])
 }
 
 func (t Target) Validate() error {
@@ -152,8 +128,27 @@ func (t Target) Validate() error {
 	if normalized.CanonicalRoute == "" && normalized.DisplayName == "" {
 		return fmt.Errorf("%w: target canonical_route or display_name is required", ErrInvalidPreset)
 	}
-	if err := normalized.DeliveryMode.Validate(); err != nil {
-		return fmt.Errorf("%w: %w", ErrInvalidPreset, err)
+	for _, field := range []struct {
+		name  string
+		value string
+	}{
+		{name: "bridge_id", value: normalized.BridgeID},
+		{name: "canonical_route", value: normalized.CanonicalRoute},
+		{name: "display_name", value: normalized.DisplayName},
+	} {
+		if !utf8.ValidString(field.value) {
+			return fmt.Errorf("%w: target %s must be valid UTF-8", ErrInvalidPreset, field.name)
+		}
+	}
+	switch normalized.DeliveryMode {
+	case bridgepkg.DeliveryModeDirectSend, bridgepkg.DeliveryModeReply:
+	default:
+		return fmt.Errorf(
+			"%w: target delivery_mode must be %q or %q",
+			ErrInvalidPreset,
+			bridgepkg.DeliveryModeDirectSend,
+			bridgepkg.DeliveryModeReply,
+		)
 	}
 	return nil
 }
@@ -237,9 +232,9 @@ func (r UpdateRequest) HasMutableField() bool {
 
 func (e Event) Normalize(now time.Time) Event {
 	normalized := e
-	normalized.ID = strings.TrimSpace(e.ID)
-	normalized.Type = strings.TrimSpace(e.Type)
-	normalized.WorkspaceID = strings.TrimSpace(e.WorkspaceID)
+	normalized.ID = e.ID
+	normalized.Type = e.Type
+	normalized.Scope = e.Scope.Normalize()
 	normalized.AgentName = strings.TrimSpace(e.AgentName)
 	normalized.Provider = strings.TrimSpace(e.Provider)
 	normalized.TaskID = strings.TrimSpace(e.TaskID)
@@ -264,6 +259,20 @@ func (e Event) Validate() error {
 	}
 	if normalized.Type == "" {
 		return fmt.Errorf("%w: event type is required", ErrInvalidPreset)
+	}
+	for _, field := range []struct {
+		name  string
+		value string
+	}{
+		{name: "event id", value: normalized.ID},
+		{name: "event type", value: normalized.Type},
+	} {
+		if !utf8.ValidString(field.value) {
+			return fmt.Errorf("%w: %s must be valid UTF-8", ErrInvalidPreset, field.name)
+		}
+	}
+	if err := normalized.Scope.Validate(); err != nil {
+		return fmt.Errorf("%w: event scope: %w", ErrInvalidPreset, err)
 	}
 	if normalized.Sequence <= 0 {
 		return fmt.Errorf("%w: event sequence must be greater than zero", ErrInvalidPreset)

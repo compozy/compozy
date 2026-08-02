@@ -40,15 +40,12 @@ func OverrideVersionForTesting(current string) func() {
 	Version = current
 	mu.Unlock()
 
-	var once sync.Once
-	return func() {
-		once.Do(func() {
-			mu.Lock()
-			Version = original
-			mu.Unlock()
-			overrideMu.Unlock()
-		})
-	}
+	return sync.OnceFunc(func() {
+		mu.Lock()
+		Version = original
+		mu.Unlock()
+		overrideMu.Unlock()
+	})
 }
 
 // String returns a readable single-line build summary.

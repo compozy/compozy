@@ -315,11 +315,11 @@ func loopRunEventsOperation() OperationSpec {
 			{
 				Status:      200,
 				Description: "SSE stream",
-				Bodies: []any{
-					contract.LoopGenerationStartedRunEventPayload{},
-					contract.LoopGateVerdictRunEventPayload{},
-					contract.LoopRunEventPayload{},
-				},
+				Bodies: responseBodiesOf(
+					responseBodyOf[contract.LoopGenerationStartedRunEventPayload](),
+					responseBodyOf[contract.LoopGateVerdictRunEventPayload](),
+					responseBodyOf[contract.LoopRunEventPayload](),
+				),
 				ContentType: specContentTypeEventStream,
 			},
 			badRequest(),

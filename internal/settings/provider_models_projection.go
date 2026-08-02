@@ -48,7 +48,6 @@ func providerSettingsBaseFromConfig(name string, provider compozyconfig.Provider
 		EnvPolicy:       provider.EffectiveEnvPolicy(),
 		HomePolicy:      provider.EffectiveHomePolicy(),
 		AuthStatusCmd:   strings.TrimSpace(provider.AuthStatusCmd),
-		AuthLoginCmd:    strings.TrimSpace(provider.AuthLoginCmd),
 		CredentialSlots: provider.EffectiveCredentialSlots(),
 	}
 }

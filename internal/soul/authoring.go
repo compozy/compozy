@@ -13,7 +13,6 @@ import (
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 
-	"github.com/compozy/compozy/internal/fileutil"
 	"github.com/compozy/compozy/internal/store"
 )
 
@@ -149,7 +148,7 @@ func (e *AuthoringError) Unwrap() error {
 type ManagedSoulAuthoringService struct {
 	store AuthoringStore
 	now   func() time.Time
-	newID func(prefix string) string
+	newID func(prefix string) (string, error)
 	mode  os.FileMode
 	mu    sync.Mutex
 }
@@ -169,7 +168,7 @@ func WithSoulAuthoringClock(clock func() time.Time) AuthoringOption {
 }
 
 // WithSoulAuthoringIDGenerator injects deterministic snapshot and revision ids.
-func WithSoulAuthoringIDGenerator(generator func(prefix string) string) AuthoringOption {
+func WithSoulAuthoringIDGenerator(generator func(prefix string) (string, error)) AuthoringOption {
 	return func(service *ManagedSoulAuthoringService) {
 		if generator != nil {
 			service.newID = generator
@@ -261,7 +260,11 @@ func (s *ManagedSoulAuthoringService) Put(ctx context.Context, req PutRequest) (
 	if err := s.verifyUnchangedSoul(ctx, target, &current); err != nil {
 		return MutationResult{}, err
 	}
-	if err := fileutil.AtomicWriteFile(target.soulPath, []byte(req.Body), s.mode); err != nil {
+	snapshotID, revisionID, err := s.newPostWriteIDs()
+	if err != nil {
+		return MutationResult{}, err
+	}
+	if err := target.managedPath.Write([]byte(req.Body), s.mode); err != nil {
 		return MutationResult{}, authoringDiagnosticError(
 			diagnosticSoulPathError,
 			target.sourcePath,
@@ -273,6 +276,8 @@ func (s *ManagedSoulAuthoringService) Put(ctx context.Context, req PutRequest) (
 	return s.persistPostWrite(
 		ctx,
 		target,
+		snapshotID,
+		revisionID,
 		current.resolved.Digest,
 		RevisionActionPut,
 		req.Body,
@@ -312,7 +317,11 @@ func (s *ManagedSoulAuthoringService) Delete(
 	if err := s.verifyUnchangedSoul(ctx, target, &current); err != nil {
 		return MutationResult{}, err
 	}
-	if err := fileutil.AtomicRemoveFile(target.soulPath); err != nil {
+	revisionID, err := s.newID("srev")
+	if err != nil {
+		return MutationResult{}, fmt.Errorf("soul: generate delete revision id: %w", err)
+	}
+	if err := target.managedPath.Remove(); err != nil {
 		return MutationResult{}, authoringDiagnosticError(
 			diagnosticSoulPathError,
 			target.sourcePath,
@@ -331,6 +340,7 @@ func (s *ManagedSoulAuthoringService) Delete(
 	}
 	revision, err := s.appendRevision(
 		ctx,
+		revisionID,
 		target,
 		RevisionActionDelete,
 		current.resolved.Digest,
@@ -414,7 +424,11 @@ func (s *ManagedSoulAuthoringService) Rollback(
 	if err := s.verifyUnchangedSoul(ctx, target, &current); err != nil {
 		return MutationResult{}, err
 	}
-	if err := fileutil.AtomicWriteFile(target.soulPath, []byte(selected.Body), s.mode); err != nil {
+	snapshotID, revisionID, err := s.newPostWriteIDs()
+	if err != nil {
+		return MutationResult{}, err
+	}
+	if err := target.managedPath.Write([]byte(selected.Body), s.mode); err != nil {
 		return MutationResult{}, authoringDiagnosticError(
 			diagnosticSoulPathError,
 			target.sourcePath,
@@ -426,6 +440,8 @@ func (s *ManagedSoulAuthoringService) Rollback(
 	return s.persistPostWrite(
 		ctx,
 		target,
+		snapshotID,
+		revisionID,
 		current.resolved.Digest,
 		RevisionActionRollback,
 		selected.Body,

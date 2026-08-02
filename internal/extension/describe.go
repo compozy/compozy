@@ -45,8 +45,14 @@ func DescribeExtension(ext *Extension, daemonRunning bool, now time.Time) contra
 	if len(ext.Status.MissingEnv) > 0 {
 		missingEnv = append([]string(nil), ext.Status.MissingEnv...)
 	}
+	state := extensionState(ext.Info, ext.Status, daemonRunning)
+	lastError := ext.Status.LastError
+	bootDiagnostic := devBootFailureDiagnostic(ext.Status.FailureCode)
+	if bootDiagnostic != "" {
+		lastError = bootDiagnostic
+	}
 	originPath := ""
-	if ext.DevLink != nil {
+	if ext.DevLink != nil && state != extensionStateError && bootDiagnostic == "" {
 		originPath = ext.DevLink.OriginPath
 	}
 
@@ -57,7 +63,7 @@ func DescribeExtension(ext *Extension, daemonRunning bool, now time.Time) contra
 		Type:                     extensionType(ext.Manifest, ext.Info),
 		Source:                   ext.Info.Source.String(),
 		Enabled:                  ext.Info.Enabled,
-		State:                    extensionState(ext.Info, ext.Status, daemonRunning),
+		State:                    state,
 		Capabilities:             append([]string(nil), ext.Info.Capabilities.Provides...),
 		Permissions:              append([]string(nil), ext.Info.Permissions.Requires...),
 		RequiresEnv:              requiresEnv,
@@ -69,7 +75,7 @@ func DescribeExtension(ext *Extension, daemonRunning bool, now time.Time) contra
 		UptimeSeconds:       uptimeSeconds,
 		Health:              extensionHealth(ext.Manifest, ext.Info, ext.Status, daemonRunning),
 		HealthMessage:       ext.Status.HealthMessage,
-		LastError:           ext.Status.LastError,
+		LastError:           lastError,
 		FailureCode:         ext.Status.FailureCode,
 		ConsecutiveFailures: ext.Status.ConsecutiveFailures,
 		RestartBackoffMS:    ext.Status.RestartBackoff.Milliseconds(),

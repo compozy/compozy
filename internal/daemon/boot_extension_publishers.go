@@ -105,9 +105,12 @@ func (d *Daemon) bootServers(ctx context.Context, state *bootState, cleanup *boo
 	return nil
 }
 
-func (d *Daemon) bootSupportBundles(state *bootState) error {
+func (d *Daemon) bootSupportBundles(state *bootState, cleanup *bootCleanup) error {
 	if state == nil {
 		return errors.New("daemon: boot support bundles state is required")
+	}
+	if cleanup == nil {
+		return errors.New("daemon: boot support bundles cleanup is required")
 	}
 	configSnapshot := support.ConfigSnapshotFunc(nil)
 	if activeSettings, ok := state.deps.Settings.(interface {
@@ -118,7 +121,7 @@ func (d *Daemon) bootSupportBundles(state *bootState) error {
 		}
 	}
 	snapshots := d.supportBundleSnapshotHandlers(state)
-	state.deps.SupportBundles = support.NewService(&support.Builder{
+	service := support.NewService(&support.Builder{
 		HomePaths:      d.homePaths,
 		Config:         state.cfg,
 		ConfigSnapshot: configSnapshot,
@@ -144,5 +147,8 @@ func (d *Daemon) bootSupportBundles(state *bootState) error {
 			},
 		},
 	})
+	state.supportBundles = service
+	state.deps.SupportBundles = service
+	cleanup.add(service.Shutdown)
 	return nil
 }

@@ -16,7 +16,8 @@ func TestInboundBatcherRefacs(t *testing.T) {
 
 		batches := make(chan InboundBatch, 1)
 		batcher, err := NewInboundBatcher(InboundBatcherConfig{
-			Delay: 0,
+			Context: t.Context(),
+			Delay:   0,
 			Dispatch: func(_ context.Context, batch InboundBatch) error {
 				batches <- batch
 				return nil
@@ -46,7 +47,8 @@ func TestInboundBatcherRefacs(t *testing.T) {
 
 		batches := make(chan InboundBatch, 1)
 		batcher, err := NewInboundBatcher(InboundBatcherConfig{
-			Delay: 0,
+			Context: t.Context(),
+			Delay:   0,
 			Dispatch: func(_ context.Context, batch InboundBatch) error {
 				batches <- batch
 				return nil
@@ -83,7 +85,8 @@ func TestInboundBatcherRefacs(t *testing.T) {
 
 		batches := make(chan InboundBatch, 1)
 		batcher, err := NewInboundBatcher(InboundBatcherConfig{
-			Delay: time.Hour,
+			Context: t.Context(),
+			Delay:   time.Hour,
 			Dispatch: func(_ context.Context, batch InboundBatch) error {
 				batches <- batch
 				return nil

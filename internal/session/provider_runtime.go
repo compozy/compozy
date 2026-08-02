@@ -5,7 +5,6 @@ import (
 
 	"errors"
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/compozy/compozy/internal/acp"
@@ -13,6 +12,8 @@ import (
 
 	"github.com/compozy/compozy/internal/providerenv"
 	authproviders "github.com/compozy/compozy/internal/providers"
+	"github.com/compozy/compozy/internal/sandbox"
+	"github.com/compozy/compozy/internal/subprocess"
 
 	"github.com/compozy/compozy/internal/vault"
 )
@@ -119,8 +120,6 @@ func (m *Manager) prepareProviderStartPolicies(
 	opts.ProviderName = strings.TrimSpace(resolved.Provider)
 	providerConfig := providerConfigFromResolvedAgent(resolved)
 	opts.ProviderConfig = &providerConfig
-	probeEnv := providerProbeEnvForStart(m, resolved, opts.Env)
-	opts.ProviderAuthEnv = &probeEnv
 	return opts, secretBindings, nil
 }
 
@@ -136,30 +135,73 @@ func setProviderStartEnv(env []string, resolved compozyconfig.ResolvedAgent) []s
 
 func providerProbeEnvForStart(
 	m *Manager,
+	session *Session,
 	resolved compozyconfig.ResolvedAgent,
 	env []string,
+	cwd string,
+	launcher sandbox.Launcher,
 ) authproviders.ProbeEnv {
-	return authproviders.ProbeEnv{
-		ProviderName: strings.TrimSpace(resolved.Provider),
-		HomePaths:    m.homePaths,
-		LookupEnv:    providerLookupEnv(env),
-		Vault:        providerSecretMetadataResolver{resolver: m.providerSecrets},
-		CommandEnv:   append([]string(nil), env...),
+	probe := authproviders.ProbeEnv{
+		ProviderName:  strings.TrimSpace(resolved.Provider),
+		HomePaths:     m.homePaths,
+		PreStartScope: providerPreStartScopeForSession(session, env),
+		LookupEnv:     providerLookupEnv(env),
+		Vault:         providerSecretMetadataResolver{resolver: m.providerSecrets},
+		CommandEnv:    append([]string(nil), env...),
+		CommandDir:    cwd,
+	}
+	configureProviderCommandRuntime(&probe, launcher)
+	return probe
+}
+
+func (m *Manager) finalizeProviderProbeEnvForStart(
+	session *Session,
+	resolved compozyconfig.ResolvedAgent,
+	opts acp.StartOpts,
+) acp.StartOpts {
+	if m == nil || opts.ProviderConfig == nil || strings.TrimSpace(opts.ProviderName) == "" {
+		return opts
+	}
+	next := opts
+	providerConfig := *opts.ProviderConfig
+	providerConfig.Command = next.Command
+	next.ProviderConfig = &providerConfig
+	probeEnv := providerProbeEnvForStart(m, session, resolved, next.Env, next.Cwd, next.Launcher)
+	next.ProviderAuthEnv = &probeEnv
+	return next
+}
+
+func providerPreStartScopeForSession(
+	session *Session,
+	env []string,
+) authproviders.PreStartScope {
+	if session == nil {
+		return authproviders.PreStartScope{}
+	}
+	info := session.Info()
+	if info == nil || info.Sandbox == nil {
+		return authproviders.PreStartScope{}
+	}
+	return authproviders.PreStartScope{
+		WorkspaceID:       strings.TrimSpace(info.WorkspaceID),
+		HomeIdentity:      providerHomeIdentity(env),
+		SandboxID:         strings.TrimSpace(info.Sandbox.SandboxID),
+		SandboxBackend:    strings.TrimSpace(info.Sandbox.Backend),
+		SandboxProfile:    strings.TrimSpace(info.Sandbox.Profile),
+		SandboxInstanceID: strings.TrimSpace(info.Sandbox.InstanceID),
 	}
 }
 
+func providerHomeIdentity(env []string) string {
+	lookupEnv := providerLookupEnv(env)
+	for _, key := range []string{"HOME", "USERPROFILE"} {
+		if value, ok := lookupEnv(key); ok && strings.TrimSpace(value) != "" {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
+}
+
 func providerLookupEnv(env []string) func(string) (string, bool) {
-	values := make(map[string]string, len(env))
-	for _, entry := range env {
-		key, value, ok := strings.Cut(entry, "=")
-		if ok {
-			values[key] = value
-		}
-	}
-	return func(key string) (string, bool) {
-		if value, ok := values[key]; ok {
-			return value, true
-		}
-		return os.LookupEnv(key)
-	}
+	return subprocess.LookupEnvFunc(env)
 }

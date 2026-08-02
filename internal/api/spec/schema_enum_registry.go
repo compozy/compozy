@@ -11,6 +11,7 @@ import (
 	memcontract "github.com/compozy/compozy/internal/memory/contract"
 	"github.com/compozy/compozy/internal/modelcatalog"
 	"github.com/compozy/compozy/internal/network/participation"
+	"github.com/compozy/compozy/internal/notifications"
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/session"
 	speedpkg "github.com/compozy/compozy/internal/speed"
@@ -174,6 +175,22 @@ var schemaEnumValues = withSettingsWindowManagerSchemaEnumValues(
 		reflect.TypeFor[contract.RestartOperationStatus]():     restartOperationStatusValues(),
 		reflect.TypeFor[contract.SettingsStreamTransport]():    settingsStreamTransportValues(),
 		reflect.TypeFor[contract.SettingsUpdateStatusKind]():   settingsUpdateStatusValues(),
+		reflect.TypeFor[contract.ProviderLoginSource](): {
+			string(contract.ProviderLoginSourceAuthLoginCommand),
+		},
+		reflect.TypeFor[contract.ProviderLoginPresence](): {
+			string(contract.ProviderLoginPresencePresent),
+			string(contract.ProviderLoginPresenceMissing),
+			string(contract.ProviderLoginPresenceUnknown),
+		},
+		reflect.TypeFor[contract.ProviderRecommendedAction](): {
+			string(contract.ProviderRecommendedActionInstallCLI),
+			string(contract.ProviderRecommendedActionLogin),
+			string(contract.ProviderRecommendedActionBindSecret),
+			string(contract.ProviderRecommendedActionRetry),
+			string(contract.ProviderRecommendedActionInspect),
+			string(contract.ProviderRecommendedActionNoRetry),
+		},
 		reflect.TypeFor[contract.SettingsMCPAuthBeginMode](): {
 			string(contract.SettingsMCPAuthBeginModeAutomatic),
 			string(contract.SettingsMCPAuthBeginModeManual),
@@ -183,6 +200,7 @@ var schemaEnumValues = withSettingsWindowManagerSchemaEnumValues(
 			string(contract.SettingsMCPInstallNextStepAuthorize),
 		},
 		reflect.TypeFor[resources.ResourceScopeKind]():        resourceScopeKindValues(),
+		reflect.TypeFor[notifications.ScopeKind]():            notificationScopeKindValues(),
 		reflect.TypeFor[bridgepkg.Scope]():                    bridgeScopeValues(),
 		reflect.TypeFor[bridgepkg.BridgeInstanceSource]():     bridgeInstanceSourceValues(),
 		reflect.TypeFor[bridgepkg.BridgeStatus]():             bridgeStatusValues(),
@@ -218,6 +236,13 @@ var schemaEnumValues = withSettingsWindowManagerSchemaEnumValues(
 		reflect.TypeFor[participation.OwnerKind]():            participationOwnerKindValues(),
 	}),
 )
+
+func notificationScopeKindValues() []string {
+	return []string{
+		string(notifications.ScopeKindGlobal),
+		string(notifications.ScopeKindWorkspace),
+	}
+}
 
 func roleResolutionModeValues() []string {
 	return []string{

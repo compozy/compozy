@@ -10,18 +10,7 @@ import type {
   TaskBridgeNotificationSubscriptionCreateRequest,
   TaskBridgeNotificationSubscriptionsFilter,
 } from "../types";
-import { normalizeOptionalText, TasksApiError } from "./tasks-api-errors";
-
-function normalizeBridgeNotificationFilter(
-  filters: TaskBridgeNotificationSubscriptionsFilter = {}
-): TaskBridgeNotificationSubscriptionsFilter {
-  return {
-    bridge_instance_id: normalizeOptionalText(filters.bridge_instance_id),
-    scope: filters.scope,
-    workspace_id: normalizeOptionalText(filters.workspace_id),
-    limit: filters.limit,
-  };
-}
+import { TasksApiError } from "./tasks-api-errors";
 
 export async function listTaskBridgeNotificationSubscriptions(
   taskId: string,
@@ -29,7 +18,7 @@ export async function listTaskBridgeNotificationSubscriptions(
   signal?: AbortSignal
 ): Promise<TaskBridgeNotificationSubscription[]> {
   const { data, error, response } = await apiClient.GET("/api/tasks/{id}/notifications/bridges", {
-    params: { path: { id: taskId }, query: normalizeBridgeNotificationFilter(filters) },
+    params: { path: { id: taskId }, query: filters },
     signal,
   });
   if (apiRequestFailed(response, error)) {

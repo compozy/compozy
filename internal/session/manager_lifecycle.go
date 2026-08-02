@@ -68,13 +68,13 @@ func (m *Manager) watchProcess(session *Session) {
 	if proc == nil {
 		return
 	}
-	ctx, ok := m.beginProcessWatch()
+	ctx, run, ok := m.beginProcessWatch()
 	if !ok {
 		return
 	}
 
 	go func() {
-		defer m.processWatchWG.Done()
+		defer m.finishProcessWatch(run)
 		select {
 		case <-proc.Done():
 		case <-ctx.Done():
@@ -223,9 +223,13 @@ func (m *Manager) recordProcessExitEvent(ctx context.Context, session *Session, 
 	if failure != nil {
 		errorText = failureSummary(failure, errorText)
 	}
+	turnID, err := m.newPromptTurnID()
+	if err != nil {
+		return err
+	}
 	event := acp.AgentEvent{
 		Type:      acp.EventTypeError,
-		TurnID:    newID("turn"),
+		TurnID:    turnID,
 		Timestamp: m.now(),
 		Error:     errorText,
 		Text:      diagnostics.RedactAndBound(stderr, maxCrashEvidenceBytes),
@@ -244,9 +248,13 @@ func (m *Manager) recordSessionStoppedEvent(ctx context.Context, session *Sessio
 	if info := session.Info(); info != nil {
 		stopReason = info.StopReason
 	}
+	turnID, err := m.newPromptTurnID()
+	if err != nil {
+		return err
+	}
 	stopEvent := acp.AgentEvent{
 		Type:       EventTypeSessionStopped,
-		TurnID:     newID("turn"),
+		TurnID:     turnID,
 		Timestamp:  m.now(),
 		StopReason: string(stopReason),
 	}
@@ -279,7 +287,7 @@ func sessionStoppedTranscriptMarker(event acp.AgentEvent) (string, string, map[s
 	if failure != nil {
 		failureKind = failure.Normalize().Kind
 	}
-	summary := firstNonEmpty(event.Error, event.Text)
+	summary := firstTrimmedNonEmpty(event.Error, event.Text)
 	evidence := map[string]any{
 		"event_type":   event.Type,
 		"stop_reason":  event.StopReason,
@@ -288,13 +296,13 @@ func sessionStoppedTranscriptMarker(event acp.AgentEvent) (string, string, map[s
 	switch {
 	case event.StopReason == string(store.StopUserCanceled) || failureKind == store.FailureCanceled:
 		return transcript.MarkerPromptInterrupted,
-			firstNonEmpty(summary, "Session interrupted by operator."),
+			firstTrimmedNonEmpty(summary, "Session interrupted by operator."),
 			evidence,
 			true
 	case event.StopReason == string(store.StopTimeout) || failureKind == store.FailureTimeout:
-		return transcript.MarkerPromptTimeout, firstNonEmpty(summary, "Session timed out."), evidence, true
+		return transcript.MarkerPromptTimeout, firstTrimmedNonEmpty(summary, "Session timed out."), evidence, true
 	case failureKind != "":
-		return transcript.MarkerProviderFailure, firstNonEmpty(summary, "Provider failed."), evidence, true
+		return transcript.MarkerProviderFailure, firstTrimmedNonEmpty(summary, "Provider failed."), evidence, true
 	default:
 		return "", "", nil, false
 	}
@@ -307,7 +315,7 @@ func (m *Manager) persistFailedStart(
 	notify bool,
 ) error {
 	if ctx == nil {
-		ctx = context.Background()
+		return errors.New("session: failed start persistence context is required")
 	}
 	if session == nil || startErr == nil {
 		return nil
@@ -350,7 +358,14 @@ func (m *Manager) recordFailedStartEvents(
 	summary string,
 	stopReason store.StopReason,
 ) error {
-	turnID := newID("turn")
+	turnID, err := m.newPromptTurnID()
+	if err != nil {
+		return err
+	}
+	stopTurnID, err := m.newPromptTurnID()
+	if err != nil {
+		return err
+	}
 	now := m.now()
 	errorEvent := m.normalizeEvent(session, turnID, acp.AgentEvent{
 		Type:      acp.EventTypeError,
@@ -359,8 +374,9 @@ func (m *Manager) recordFailedStartEvents(
 		Error:     summary,
 		Failure:   store.CloneSessionFailure(failure),
 	})
-	stopEvent := m.normalizeEvent(session, newID("turn"), acp.AgentEvent{
+	stopEvent := m.normalizeEvent(session, stopTurnID, acp.AgentEvent{
 		Type:       EventTypeSessionStopped,
+		TurnID:     stopTurnID,
 		Timestamp:  now,
 		StopReason: string(stopReason),
 		Error:      summary,
@@ -378,7 +394,7 @@ func (m *Manager) closeSessionRecorder(session *Session) error {
 		return nil
 	}
 
-	closeCtx, cancel := context.WithTimeout(context.Background(), defaultLifecycleTimeout)
+	closeCtx, cancel := m.lifecycleCleanupContext()
 	defer cancel()
 	err := recorder.Close(closeCtx)
 	session.setRecorder(nil)
@@ -409,7 +425,7 @@ func (m *Manager) cleanupFailedStart(sessionDir string, recorder EventRecorder, 
 	var errs []error
 	if proc != nil {
 		func() {
-			stopCtx, cancel := context.WithTimeout(context.Background(), defaultLifecycleTimeout)
+			stopCtx, cancel := m.lifecycleCleanupContext()
 			defer cancel()
 			if err := m.driver.Stop(stopCtx, proc); err != nil {
 				errs = append(errs, err)
@@ -418,7 +434,7 @@ func (m *Manager) cleanupFailedStart(sessionDir string, recorder EventRecorder, 
 	}
 	if recorder != nil {
 		func() {
-			closeCtx, cancel := context.WithTimeout(context.Background(), defaultLifecycleTimeout)
+			closeCtx, cancel := m.lifecycleCleanupContext()
 			defer cancel()
 			if err := recorder.Close(closeCtx); err != nil {
 				errs = append(errs, err)

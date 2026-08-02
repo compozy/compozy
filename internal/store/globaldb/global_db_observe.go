@@ -67,7 +67,11 @@ func (g *ObserveRepo) prepareEventSummary(ctx context.Context, summary *store.Ev
 		return err
 	}
 	if strings.TrimSpace(summary.ID) == "" {
-		summary.ID = store.NewID("sum")
+		generatedID, err := store.NewID("sum")
+		if err != nil {
+			return fmt.Errorf("store: generate event summary id: %w", err)
+		}
+		summary.ID = generatedID
 	}
 	if summary.Timestamp.IsZero() {
 		summary.Timestamp = g.now()

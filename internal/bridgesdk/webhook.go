@@ -264,8 +264,7 @@ func readBodyWithLimit(w http.ResponseWriter, r *http.Request, maxBytes int64) (
 }
 
 func writeWebhookError(w http.ResponseWriter, err error) {
-	var httpErr *HTTPError
-	if errors.As(err, &httpErr) && httpErr.StatusCode > 0 {
+	if httpErr, ok := errors.AsType[*HTTPError](err); ok && httpErr.StatusCode > 0 {
 		status := httpErr.StatusCode
 		if httpErr.RetryAfter > 0 {
 			retryAfterSeconds := int64((httpErr.RetryAfter + time.Second - 1) / time.Second)

@@ -53,9 +53,7 @@ func (d *Daemon) Run(ctx context.Context) error {
 	}
 	if d.memoryExtractor != nil {
 		if err := d.memoryExtractor.Start(runCtx); err != nil {
-			shutdownCtx, cancel := d.daemonShutdownContext(ctx)
-			defer cancel()
-			shutdownErr := d.Shutdown(shutdownCtx)
+			shutdownErr := d.shutdownAfterRunTrigger(ctx)
 			return errors.Join(
 				fmt.Errorf("daemon: start memory extractor: %w", err),
 				shutdownErr,
@@ -63,9 +61,7 @@ func (d *Daemon) Run(ctx context.Context) error {
 		}
 	}
 	if err := d.startObserverRetention(runCtx); err != nil {
-		shutdownCtx, cancel := d.daemonShutdownContext(ctx)
-		defer cancel()
-		shutdownErr := d.Shutdown(shutdownCtx)
+		shutdownErr := d.shutdownAfterRunTrigger(ctx)
 		return errors.Join(
 			fmt.Errorf("daemon: start observability retention: %w", err),
 			shutdownErr,
@@ -86,8 +82,11 @@ func (d *Daemon) cancelBootBeforeReady(cancel context.CancelFunc) {
 	if cancel == nil {
 		return
 	}
+	d.mu.Lock()
+	readyCh := d.readyCh
+	d.mu.Unlock()
 	select {
-	case <-d.readyCh:
+	case <-readyCh:
 		return
 	default:
 		cancel()
@@ -95,43 +94,48 @@ func (d *Daemon) cancelBootBeforeReady(cancel context.CancelFunc) {
 }
 
 func (d *Daemon) shutdownAfterRunTrigger(ctx context.Context) error {
-	shutdownCtx, cancel := d.daemonShutdownContext(ctx)
-	defer cancel()
-	return d.Shutdown(shutdownCtx)
+	return d.Shutdown(context.WithoutCancel(ctx))
 }
 
 // Shutdown gracefully tears down the daemon in the required order.
 func (d *Daemon) Shutdown(ctx context.Context) error {
+	if d == nil {
+		return errors.New("daemon: shutdown requires a daemon")
+	}
 	if ctx == nil {
-		ctx = context.TODO()
+		return errors.New("daemon: shutdown context is required")
 	}
-	drainErr := d.Drain(context.WithoutCancel(ctx))
-	return errors.Join(drainErr, d.shutdownDetached(ctx, d.detachShutdownTargets()))
-}
 
-func (d *Daemon) daemonShutdownContext(parent context.Context) (context.Context, context.CancelFunc) {
-	if parent == nil {
-		parent = context.TODO()
+	operation, started, targets, timeout, err := d.beginShutdownOperation(ctx)
+	if err != nil {
+		return err
 	}
-	return context.WithTimeout(context.WithoutCancel(parent), d.gracefulShutdownTimeout())
+	if started {
+		go d.runShutdownOperation(ctx, timeout, operation, targets)
+	}
+	return waitForShutdownOperation(ctx, operation)
 }
 
 func (d *Daemon) gracefulShutdownTimeout() time.Duration {
-	timeout := defaultShutdownTimeout
 	if d == nil {
-		return timeout
+		return defaultShutdownTimeout
 	}
 	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.gracefulShutdownTimeoutLocked()
+}
+
+func (d *Daemon) gracefulShutdownTimeoutLocked() time.Duration {
+	timeout := defaultShutdownTimeout
 	memoryEnabled := d.config.Memory.Enabled
 	checkpointDeadline := d.config.Memory.Extractor.Deadline
-	d.mu.Unlock()
 	if memoryEnabled && checkpointDeadline > 0 {
 		timeout += checkpointDeadline + checkpointSummaryStopTimeout
 	}
 	return timeout
 }
 
-func (d *Daemon) shutdownDetached(ctx context.Context, targets shutdownTargets) error {
+func (d *Daemon) shutdownDetached(ctx context.Context, targets *shutdownTargets) error {
 	var errs []error
 	d.shutdownRuntimeWorkers(ctx, targets, &errs)
 	d.shutdownServersAndHooks(ctx, targets, &errs)
@@ -139,12 +143,15 @@ func (d *Daemon) shutdownDetached(ctx context.Context, targets shutdownTargets) 
 	return errors.Join(errs...)
 }
 
-func (d *Daemon) shutdownServersAndHooks(ctx context.Context, targets shutdownTargets, errs *[]error) {
+func (d *Daemon) shutdownServersAndHooks(ctx context.Context, targets *shutdownTargets, errs *[]error) {
 	if targets.httpServer != nil {
 		appendWrappedError(errs, "daemon: shutdown http server", targets.httpServer.Shutdown(ctx))
 	}
 	if targets.udsServer != nil {
 		appendWrappedError(errs, "daemon: shutdown uds server", targets.udsServer.Shutdown(ctx))
+	}
+	if targets.supportBundles != nil {
+		appendWrappedError(errs, "daemon: shutdown support bundles", targets.supportBundles.Shutdown(ctx))
 	}
 	if targets.bridges != nil {
 		targets.bridges.Close()

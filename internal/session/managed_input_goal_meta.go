@@ -23,7 +23,7 @@ func goalPromptMetaFromManagedInput(meta ManagedInputPromptMeta) (*acp.GoalPromp
 		Kind:          kind,
 		RunID:         meta.LoopRunID,
 		NodeID:        meta.NodeID,
-		Generation:    int64(meta.Generation),
+		Generation:    meta.Generation,
 		ItemIndex:     meta.ItemIndex,
 		Turn:          meta.Turn,
 		PromptAttempt: meta.PromptAttempt,

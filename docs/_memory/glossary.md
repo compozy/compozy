@@ -324,13 +324,13 @@ The profile is **not** runtime authority: task ownership remains in `task_runs`,
 
 ### Notification Cursor
 
-The shared durable delivery-progress primitive in `internal/notifications`. Identity is `(consumer_id, stream_name, subject_id)`; storage is `notification_cursors`. The cursor records `last_sequence`, `last_delivery_id`, `last_delivered_at`, `last_error`, and `updated_at`.
+The shared durable delivery-progress primitive in `internal/notifications`. Identity is `(scope_kind, workspace_id, consumer_id, stream_name, subject_id)`; storage is `notification_cursors`. Every identity component and delivery id is an opaque, valid UTF-8 value preserved byte for byte. The cursor records `last_sequence`, `last_delivery_id`, `last_delivered_at`, `last_error`, and `updated_at`.
 
 Advance is monotonic; same-sequence replay is accepted only when both sequence and delivery id match. `Reset` is the only path that may lower a cursor and requires an explicit recovery reason. Cursors do **not** assign tasks, claim runs, complete runs, replace SSE replay cursors, replace task hooks, or define bridge delivery targets. Notification cursors are NOT SSE `after_sequence` cursors — SSE cursors are client-side replay positions, while notification cursors are daemon-side confirmed-delivery state.
 
 ### Bridge Task Subscription
 
-The delivery-target row in `bridge_task_subscriptions` that selects which bridge instance, task, delivery mode, and routing fields receive a terminal task notification. Owns target state only. Cursor identity is fixed to `consumer_id = "bridge_task_subscription:<subscription_id>"`, `stream_name = "task_events"`, `subject_id = <task_id>`; delivery progress lives in the matching `notification_cursors` row.
+The delivery-target row in `bridge_task_subscriptions` that selects which bridge instance, task, delivery mode, and routing fields receive a terminal task notification. Owns target state only. Cursor identity is fixed to `consumer_id = <subscription_id>` byte for byte, `stream_name = "task_events"`, and `subject_id = <task_id>`; delivery progress lives in the matching `notification_cursors` row. Task, subscription, bridge, workspace, peer, group, and thread IDs are opaque, valid UTF-8 identities with no trimming, prefixing, or alternate textual form.
 
 Subscription delete removes the active target row only. Stale cursor diagnostics remain inspectable by cursor key, and same-id recreation resumes from the preserved cursor. Public route shape is `/api/tasks/{id}/notifications/bridges` (create/list) and `/api/tasks/{id}/notifications/bridges/{subscription_id}` (show/delete) across HTTP, UDS, OpenAPI, generated TypeScript, CLI, and generated CLI docs.
 

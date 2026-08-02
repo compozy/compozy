@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -18,6 +17,7 @@ import (
 	bridgepkg "github.com/compozy/compozy/internal/bridges/contract"
 	"github.com/compozy/compozy/internal/bridgesdk"
 	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
+	"github.com/compozy/compozy/internal/extensiontest"
 	"github.com/compozy/compozy/internal/subprocess"
 )
 
@@ -449,7 +449,7 @@ func TestRunRejectsUnsupportedCommand(t *testing.T) {
 func TestRunServeReturnsOnEOFAndWritesStartMarker(t *testing.T) {
 	env := setAdapterTestEnv(t)
 
-	if err := run(nil, strings.NewReader(""), io.Discard, io.Discard); err != nil {
+	if err := run(nil, io.NopCloser(strings.NewReader("")), io.Discard, io.Discard); err != nil {
 		t.Fatalf("run(serve) error = %v", err)
 	}
 
@@ -535,12 +535,12 @@ func TestRuntimeInitializeWritesOwnershipAndPerInstanceStateMarkers(t *testing.T
 		t.Fatalf("hostPeer.Call(initialize) error = %v", err)
 	}
 
-	handshake := waitForJSONFile[initializeMarker](t, env.handshakePath)
+	handshake := waitForJSONFile[bridgesdk.InitializeMarker](t, env.handshakePath)
 	if got, want := len(handshake.Request.Runtime.Bridge.ManagedInstances), 2; got != want {
 		t.Fatalf("len(handshake managed instances) = %d, want %d", got, want)
 	}
 
-	ownership := waitForJSONFile[ownershipMarker](t, env.ownershipPath)
+	ownership := waitForJSONFile[bridgesdk.OwnershipMarker](t, env.ownershipPath)
 	if got, want := len(ownership.Listed), 2; got != want {
 		t.Fatalf("len(ownership.Listed) = %d, want %d", got, want)
 	}
@@ -548,7 +548,7 @@ func TestRuntimeInitializeWritesOwnershipAndPerInstanceStateMarkers(t *testing.T
 		t.Fatalf("len(ownership.Fetched) = %d, want %d", got, want)
 	}
 
-	states := waitForJSONLinesFile[stateMarker](t, env.statePath, func(items []stateMarker) bool {
+	states := waitForJSONLinesFile[bridgesdk.StateMarker](t, env.statePath, func(items []bridgesdk.StateMarker) bool {
 		return len(items) >= 2
 	})
 	if got, want := states[0].BridgeInstanceID, "brg-1"; got != want {
@@ -625,7 +625,7 @@ func TestRuntimePollsInboundUpdatesAndRetriesNotInitialized(t *testing.T) {
 		string(extensionprotocol.HostAPIMethodBridgesMessagesIngest),
 		func(_ context.Context, params json.RawMessage) (any, error) {
 			if ingestCalls.Add(1) == 1 {
-				return nil, subprocess.NewRPCError(rpcCodeNotInitialized, "Not initialized", nil)
+				return nil, subprocess.NewRPCError(-32003, "Not initialized", nil)
 			}
 
 			var envelope bridgepkg.InboundMessageEnvelope
@@ -662,13 +662,17 @@ func TestRuntimePollsInboundUpdatesAndRetriesNotInitialized(t *testing.T) {
 			Caption:         "caption fallback",
 		},
 	}
-	if err := appendJSONLine(env.updatesPath, update); err != nil {
-		t.Fatalf("appendJSONLine(update) error = %v", err)
+	if err := appendJSONLineForTest(env.updatesPath, update); err != nil {
+		t.Fatalf("appendJSONLineForTest(update) error = %v", err)
 	}
 
-	ingests := waitForJSONLinesFile[ingestMarker](t, env.ingestPath, func(items []ingestMarker) bool {
-		return len(items) > 0 && strings.TrimSpace(items[len(items)-1].Result.SessionID) != ""
-	})
+	ingests := waitForJSONLinesFile[bridgesdk.IngestMarker](
+		t,
+		env.ingestPath,
+		func(items []bridgesdk.IngestMarker) bool {
+			return len(items) > 0 && strings.TrimSpace(items[len(items)-1].Result.SessionID) != ""
+		},
+	)
 	if got, want := ingests[len(ingests)-1].Envelope.Content.Text, "caption fallback"; got != want {
 		t.Fatalf("ingest envelope text = %q, want %q", got, want)
 	}
@@ -745,9 +749,11 @@ func TestRuntimeDeliveryWritesAckAndManagedInstanceErrors(t *testing.T) {
 		t.Fatal("hostPeer.Call(bridges/deliver unowned) error = nil, want failure")
 	}
 
-	records := waitForJSONLinesFile[deliveryMarker](t, env.deliveryPath, func(items []deliveryMarker) bool {
-		return len(items) >= 2
-	})
+	records := waitForJSONLinesFile[bridgesdk.DeliveryMarker](
+		t,
+		env.deliveryPath,
+		func(items []bridgesdk.DeliveryMarker) bool { return len(items) >= 2 },
+	)
 	if records[0].Ack == nil {
 		t.Fatal("first delivery marker ack = nil, want ack")
 	}
@@ -802,12 +808,12 @@ func TestRuntimeInitializeWritesOwnershipErrorAndStillReportsState(t *testing.T)
 		t.Fatalf("hostPeer.Call(initialize) error = %v", err)
 	}
 
-	ownership := waitForJSONFile[ownershipMarker](t, env.ownershipPath)
+	ownership := waitForJSONFile[bridgesdk.OwnershipMarker](t, env.ownershipPath)
 	if got := strings.TrimSpace(ownership.Error); got == "" {
 		t.Fatal("ownership.Error = empty, want recorded get failure")
 	}
 
-	states := waitForJSONLinesFile[stateMarker](t, env.statePath, func(items []stateMarker) bool {
+	states := waitForJSONLinesFile[bridgesdk.StateMarker](t, env.statePath, func(items []bridgesdk.StateMarker) bool {
 		return len(items) > 0
 	})
 	if got, want := states[len(states)-1].Status.Normalize(), bridgepkg.BridgeStatusReady; got != want {
@@ -815,53 +821,31 @@ func TestRuntimeInitializeWritesOwnershipErrorAndStillReportsState(t *testing.T)
 	}
 }
 
-func TestRetryHostCallReturnsContextError(t *testing.T) {
-	runtime, err := newTelegramReferenceRuntime(io.Discard)
-	if err != nil {
-		t.Fatalf("newTelegramReferenceRuntime() error = %v", err)
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-	if err := runtime.retryHostCall(ctx, func(context.Context) error {
-		return subprocess.NewRPCError(rpcCodeNotInitialized, "Not initialized", nil)
-	}); !errors.Is(err, context.Canceled) {
-		t.Fatalf("retryHostCall() error = %v, want context.Canceled", err)
-	}
-}
-
-func TestHealthCheckReflectsLastErrorAndHandleShutdownWritesMarker(t *testing.T) {
+func TestSharedLifecycleHealthAndShutdownWriteMarker(t *testing.T) {
 	env := setAdapterTestEnv(t)
 	runtime, err := newTelegramReferenceRuntime(io.Discard)
 	if err != nil {
 		t.Fatalf("newTelegramReferenceRuntime() error = %v", err)
 	}
 
-	runtime.setLastError(errors.New("boom"))
-	if err := runtime.healthCheck(); err == nil || !strings.Contains(err.Error(), "boom") {
-		t.Fatalf("healthCheck() error = %v, want boom", err)
+	runtime.lifecycle.SetError(errors.New("boom"))
+	if err := runtime.lifecycle.Health(); err == nil || !strings.Contains(err.Error(), "boom") {
+		t.Fatalf("ProviderLifecycle.Health() error = %v, want boom", err)
 	}
 
-	stopped := make(chan struct{})
-	go func() {
-		defer close(stopped)
-		<-runtime.stopCh
-	}()
-	if err := runtime.handleShutdown(
+	if err := runtime.lifecycle.Shutdown(
 		context.Background(),
 		nil,
 		subprocess.ShutdownRequest{DeadlineMS: 50},
 	); err != nil {
-		t.Fatalf("handleShutdown() error = %v", err)
+		t.Fatalf("ProviderLifecycle.Shutdown() error = %v", err)
 	}
 	lines := waitForNonEmptyLines(t, env.shutdownPath)
 	if len(lines) == 0 || !strings.Contains(lines[0], "pid=") {
 		t.Fatalf("shutdown marker lines = %#v, want pid entry", lines)
 	}
-	select {
-	case <-stopped:
-	case <-time.After(time.Second):
-		t.Fatal("shutdown did not close stopCh before timeout")
+	if !errors.Is(runtime.lifecycle.Context().Err(), context.Canceled) {
+		t.Fatalf("ProviderLifecycle.Context() error = %v, want context.Canceled", runtime.lifecycle.Context().Err())
 	}
 }
 
@@ -875,95 +859,33 @@ func TestUtilityHelpers(t *testing.T) {
 	if got, want := optionalTelegramID(0), ""; got != want {
 		t.Fatalf("optionalTelegramID(0) = %q, want empty", got)
 	}
-	if !isNotInitializedRPCError(subprocess.NewRPCError(rpcCodeNotInitialized, "Not initialized", nil)) {
-		t.Fatal("isNotInitializedRPCError() = false, want true")
-	}
-	if isNotInitializedRPCError(errors.New("boom")) {
-		t.Fatal("isNotInitializedRPCError(non-rpc) = true, want false")
-	}
-
-	sideEffectRoot := tempSideEffectDir(t, "compozy-telegram-reference-utils-")
-	target := filepath.Join(sideEffectRoot, "crash-once.json")
-	if !shouldCrashOnce(target) {
-		t.Fatal("shouldCrashOnce(missing file) = false, want true")
-	}
-	if err := os.WriteFile(target, []byte("ok"), 0o600); err != nil {
-		t.Fatalf("os.WriteFile(%q) error = %v", target, err)
-	}
-	if shouldCrashOnce(target) {
-		t.Fatal("shouldCrashOnce(existing file) = true, want false")
-	}
-
-	markerPath := filepath.Join(sideEffectRoot, "markers", "lines.log")
-	if err := appendMarkerLine(markerPath, " hello "); err != nil {
-		t.Fatalf("appendMarkerLine() error = %v", err)
-	}
-	if got, want := waitForNonEmptyLines(t, markerPath)[0], "hello"; got != want {
-		t.Fatalf("marker line = %q, want %q", got, want)
-	}
-
-	jsonlPath := filepath.Join(sideEffectRoot, "markers", "data.jsonl")
-	if err := appendJSONLine(jsonlPath, map[string]string{"hello": "world"}); err != nil {
-		t.Fatalf("appendJSONLine() error = %v", err)
-	}
-	if got := waitForNonEmptyLines(t, jsonlPath); len(got) != 1 || !strings.Contains(got[0], `"hello":"world"`) {
-		t.Fatalf("jsonl lines = %#v, want encoded payload", got)
-	}
-
-	jsonPath := filepath.Join(sideEffectRoot, "markers", "state.json")
-	if err := writeJSONFile(jsonPath, map[string]string{"status": "ready"}); err != nil {
-		t.Fatalf("writeJSONFile() error = %v", err)
-	}
-	if got := waitForNonEmptyLines(t, jsonPath); len(got) != 1 || !strings.Contains(got[0], `"status":"ready"`) {
-		t.Fatalf("json file lines = %#v, want encoded payload", got)
-	}
-
 	lines := nonEmptyLines("\n one \n\n two \n")
 	if got, want := strings.Join(lines, ","), "one,two"; got != want {
 		t.Fatalf("nonEmptyLines() = %q, want %q", got, want)
+	}
+	runtime, err := newTelegramReferenceRuntime(io.Discard)
+	if err != nil {
+		t.Fatalf("newTelegramReferenceRuntime() error = %v", err)
+	}
+	var nilContext context.Context
+	if err := runtime.ingestTelegramUpdate(nilContext, nil, telegramUpdate{}); err == nil {
+		t.Fatal("ingestTelegramUpdate(nil context) error = nil, want context validation failure")
 	}
 }
 
 func newRuntimePeerPair(t *testing.T) (*telegramReferenceRuntime, *bridgesdk.Peer, func()) {
 	t.Helper()
 
-	hostConn, runtimeConn := net.Pipe()
 	runtime, err := newTelegramReferenceRuntime(io.Discard)
 	if err != nil {
 		t.Fatalf("newTelegramReferenceRuntime() error = %v", err)
 	}
 
-	hostPeer := bridgesdk.NewPeer(hostConn, hostConn)
-	ctx, cancel := context.WithCancel(context.Background())
-	errCh := make(chan error, 2)
-	go func() { errCh <- runtime.serve(ctx, runtimeConn, runtimeConn) }()
-	go func() { errCh <- hostPeer.Serve(ctx) }()
-
-	var once sync.Once
-	cleanup := func() {
-		once.Do(func() {
-			cancel()
-			runtime.stop()
-			if err := hostConn.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
-				t.Errorf("hostConn.Close() error = %v", err)
-			}
-			if err := runtimeConn.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
-				t.Errorf("runtimeConn.Close() error = %v", err)
-			}
-			runtime.wg.Wait()
-			for range 2 {
-				err := <-errCh
-				if err == nil || errors.Is(err, context.Canceled) || errors.Is(err, net.ErrClosed) {
-					continue
-				}
-				if strings.Contains(err.Error(), "closed") {
-					continue
-				}
-				t.Fatalf("runtime peer serve error = %v", err)
-			}
-		})
-	}
-
+	hostPeer, cleanup := extensiontest.NewRuntimePeerPair(t, extensiontest.RuntimePeerPairConfig{
+		ServeRuntime: runtime.serve,
+		Stop:         runtime.lifecycle.Stop,
+		Wait:         runtime.lifecycle.Wait,
+	})
 	return runtime, hostPeer, cleanup
 }
 
@@ -1066,12 +988,23 @@ func testDeliveryRequest(
 	}
 }
 
-func setAdapterTestEnv(t *testing.T) adapterEnv {
+type adapterTestEnv struct {
+	handshakePath string
+	ownershipPath string
+	statePath     string
+	deliveryPath  string
+	ingestPath    string
+	updatesPath   string
+	startsPath    string
+	shutdownPath  string
+}
+
+func setAdapterTestEnv(t *testing.T) adapterTestEnv {
 	// not parallel: mutates process environment for adapter marker paths.
 	t.Helper()
 
 	root := tempSideEffectDir(t, "compozy-telegram-reference-markers-")
-	env := adapterEnv{
+	env := adapterTestEnv{
 		handshakePath: filepath.Join(root, "handshake.json"),
 		ownershipPath: filepath.Join(root, "ownership.json"),
 		statePath:     filepath.Join(root, "state.jsonl"),
@@ -1080,18 +1013,17 @@ func setAdapterTestEnv(t *testing.T) adapterEnv {
 		updatesPath:   filepath.Join(root, "updates.jsonl"),
 		startsPath:    filepath.Join(root, "starts.log"),
 		shutdownPath:  filepath.Join(root, "shutdown.log"),
-		crashOncePath: filepath.Join(root, "crash-once.json"),
 	}
 
-	t.Setenv(adapterHandshakeEnv, env.handshakePath)
-	t.Setenv(adapterOwnershipEnv, env.ownershipPath)
-	t.Setenv(adapterStateEnv, env.statePath)
-	t.Setenv(adapterDeliveryEnv, env.deliveryPath)
-	t.Setenv(adapterIngestEnv, env.ingestPath)
+	t.Setenv(bridgesdk.AdapterHandshakePathEnv, env.handshakePath)
+	t.Setenv(bridgesdk.AdapterOwnershipPathEnv, env.ownershipPath)
+	t.Setenv(bridgesdk.AdapterStatePathEnv, env.statePath)
+	t.Setenv(bridgesdk.AdapterDeliveryPathEnv, env.deliveryPath)
+	t.Setenv(bridgesdk.AdapterIngestPathEnv, env.ingestPath)
 	t.Setenv(adapterUpdatesEnv, env.updatesPath)
-	t.Setenv(adapterStartsEnv, env.startsPath)
-	t.Setenv(adapterShutdownEnv, env.shutdownPath)
-	t.Setenv(adapterCrashOnceEnv, "")
+	t.Setenv(bridgesdk.AdapterStartsPathEnv, env.startsPath)
+	t.Setenv(bridgesdk.AdapterShutdownPathEnv, env.shutdownPath)
+	t.Setenv(bridgesdk.AdapterCrashOncePathEnv, "")
 
 	return env
 }
@@ -1128,6 +1060,20 @@ func waitForNonEmptyLines(t *testing.T, path string) []string {
 		return len(lines) > 0
 	})
 	return lines
+}
+
+func appendJSONLineForTest(path string, value any) (err error) {
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return err
+	}
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
+	if err != nil {
+		return err
+	}
+	defer func() { err = errors.Join(err, file.Close()) }()
+	encoder := json.NewEncoder(file)
+	encoder.SetEscapeHTML(false)
+	return encoder.Encode(value)
 }
 
 func waitForJSONFile[T any](t *testing.T, path string) T {

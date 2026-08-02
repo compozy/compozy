@@ -15,6 +15,7 @@ const (
 	networkWakeEventClaimed   = "claimed"
 	networkWakeEventHeartbeat = "heartbeat"
 	networkWakeEventReleased  = "released"
+	networkWakeEventRecovered = "recovered"
 	networkWakeEventSettled   = "settled"
 	networkWakeEventStateKey  = "state"
 )

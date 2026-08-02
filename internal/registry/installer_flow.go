@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"io"
 	"mime"
-	"os"
 	"path/filepath"
-
 	"strings"
+
+	"github.com/compozy/compozy/internal/fileutil"
 )
 
 // Install downloads, extracts, verifies, and atomically moves a package into
@@ -19,7 +19,7 @@ func (i *Installer) Install(
 	slug string,
 	dlOpts DownloadOpts,
 	targetDir string,
-) (_ *InstallResult, err error) {
+) (result *InstallResult, err error) {
 	if err := checkMultiRegistryContext(ctx); err != nil {
 		return nil, err
 	}
@@ -27,19 +27,20 @@ func (i *Installer) Install(
 	if err != nil {
 		return nil, err
 	}
-
-	tempRoot, err := i.newInstallTempRoot(absTarget)
+	staging, staleDiagnostics, err := i.newInstallStaging(absTarget)
 	if err != nil {
 		return nil, err
 	}
 	defer func() {
-		removeErr := i.removeAll(tempRoot)
-		if removeErr != nil && !errors.Is(removeErr, os.ErrNotExist) {
-			err = joinInstallerError(
-				err,
-				fmt.Errorf("registry: remove temporary install directory %q: %w", tempRoot, removeErr),
-			)
+		operation, cleanupErr := i.cleanupInstallStaging(staging)
+		if cleanupErr == nil {
+			return
 		}
+		if result != nil && err == nil {
+			appendInstallCleanup(result, operation)
+			return
+		}
+		err = joinCleanupFailure(err, operation, cleanupErr)
 	}()
 
 	download, err := i.downloadInstallArchive(ctx, trimmedSlug, dlOpts)
@@ -47,9 +48,27 @@ func (i *Installer) Install(
 		return nil, err
 	}
 	defer func() {
-		err = joinInstallerError(err, closeDownloadReader(download.Reader, trimmedSlug))
+		closeErr := closeDownloadReader(download.Reader, trimmedSlug)
+		if closeErr == nil {
+			return
+		}
+		if result != nil && err == nil {
+			appendInstallCleanup(result, CleanupOperationStream)
+			return
+		}
+		err = joinCleanupFailure(err, CleanupOperationStream, closeErr)
 	}()
-	return i.installDownloadedPackage(download, trimmedSlug, tempRoot, absTarget)
+
+	result, err = i.installDownloadedPackage(ctx, download, trimmedSlug, staging)
+	if result != nil && err == nil {
+		for _, diagnostic := range staleDiagnostics {
+			result.CleanupDiagnostics, _ = appendCleanupDiagnostic(
+				result.CleanupDiagnostics,
+				diagnostic.Operation,
+			)
+		}
+	}
+	return result, err
 }
 
 func (i *Installer) prepareInstallTarget(slug string, targetDir string) (string, string, error) {
@@ -59,38 +78,19 @@ func (i *Installer) prepareInstallTarget(slug string, targetDir string) (string,
 	if i.downloader == nil {
 		return "", "", errors.New("registry: downloader is required")
 	}
-
 	trimmedSlug := strings.TrimSpace(slug)
 	if trimmedSlug == "" {
 		return "", "", errors.New("registry: slug is required")
 	}
-
 	trimmedTarget := strings.TrimSpace(targetDir)
 	if trimmedTarget == "" {
 		return "", "", errors.New("registry: target directory is required")
 	}
-
 	absTarget, err := filepath.Abs(trimmedTarget)
 	if err != nil {
 		return "", "", fmt.Errorf("registry: resolve target directory %q: %w", trimmedTarget, err)
 	}
 	return trimmedSlug, absTarget, nil
-}
-
-func (i *Installer) newInstallTempRoot(absTarget string) (string, error) {
-	installParent := filepath.Dir(absTarget)
-	if err := os.MkdirAll(installParent, 0o755); err != nil {
-		return "", fmt.Errorf("registry: create install parent %q: %w", installParent, err)
-	}
-	if err := i.cleanupStaleTempDirs(installParent); err != nil {
-		return "", err
-	}
-
-	tempRoot, err := os.MkdirTemp(installParent, defaultInstallerTempDirPattern)
-	if err != nil {
-		return "", fmt.Errorf("registry: create temporary install directory: %w", err)
-	}
-	return tempRoot, nil
 }
 
 func (i *Installer) downloadInstallArchive(
@@ -120,67 +120,46 @@ func (i *Installer) downloadInstallArchive(
 	if err := validateDownloadContentType(download.ContentType); err != nil {
 		return nil, err
 	}
+	download.Reader = newInstallerDownloadStream(download.Reader)
 	download.expectedSHA256 = firstNonEmpty(opts.ExpectedSHA256, download.ExpectedSHA256)
 	readerOwned = false
 	return download, nil
 }
 
 func (i *Installer) extractInstallPackage(
+	ctx context.Context,
 	reader io.Reader,
-	extractRoot string,
-) (string, installedPackageMetadata, error) {
-	compressedReader := &countingReader{
-		reader: io.LimitReader(reader, i.maxArchiveSize),
+	temporary *fileutil.Directory,
+) (packageRoot *installedPackage, metadata installedPackageMetadata, err error) {
+	extractRoot, err := temporary.CreateDirectory("extract", 0o700)
+	if err != nil {
+		return nil, installedPackageMetadata{}, fmt.Errorf("registry: create private extraction root: %w", err)
 	}
-	if err := extractArchive(compressedReader, extractRoot, extractLimits{
+	defer func() {
+		if packageRoot != nil && (packageRoot.directory == extractRoot || packageRoot.parent == extractRoot) {
+			return
+		}
+		if closeErr := extractRoot.Close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("registry: close extraction root: %w", closeErr))
+		}
+	}()
+
+	if err := extractArchiveWithContext(ctx, reader, extractRoot, extractLimits{
 		maxDecompressedSize: i.maxDecompressedSize,
 		maxFileCount:        i.maxFileCount,
+		maxDepth:            i.maxArchiveDepth,
 	}); err != nil {
-		return "", installedPackageMetadata{}, normalizeExtractionError(err, compressedReader.total, i.maxArchiveSize)
+		return nil, installedPackageMetadata{}, err
 	}
-
-	packageRoot, metadata, err := loadInstalledPackageMetadata(extractRoot)
+	packageRoot, metadata, err = loadInstalledPackageMetadata(temporary, "extract", extractRoot)
 	if err != nil {
-		return "", installedPackageMetadata{}, err
+		return nil, installedPackageMetadata{}, err
 	}
 	if err := verifyInstallerContent(metadata.verifyContent); err != nil {
-		return "", installedPackageMetadata{}, err
+		closeErr := packageRoot.CloseAll()
+		return nil, installedPackageMetadata{}, errors.Join(err, closeErr)
 	}
 	return packageRoot, metadata, nil
-}
-
-func (i *Installer) cleanupStaleTempDirs(parent string) error {
-	entries, err := os.ReadDir(parent)
-	if err != nil {
-		return fmt.Errorf("registry: read install parent %q: %w", parent, err)
-	}
-
-	cutoff := i.now().Add(-i.tempDirMaxAge)
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
-		name := entry.Name()
-		if !strings.HasPrefix(name, ".compozy-install-") {
-			continue
-		}
-
-		fullPath := filepath.Join(parent, name)
-		info, err := entry.Info()
-		if err != nil {
-			return fmt.Errorf("registry: inspect temporary install directory %q: %w", fullPath, err)
-		}
-		if info.ModTime().After(cutoff) {
-			continue
-		}
-		if err := i.removeAll(fullPath); err != nil && !errors.Is(err, os.ErrNotExist) {
-			// A stale temp directory from an earlier install should not block
-			// the current install if cleanup is best-effort only.
-			continue
-		}
-	}
-
-	return nil
 }
 
 func validateDownloadContentType(contentType string) error {
@@ -188,12 +167,10 @@ func validateDownloadContentType(contentType string) error {
 	if trimmed == "" {
 		return fmt.Errorf("%w: missing Content-Type", errUnexpectedContentType)
 	}
-
 	mediaType, _, err := mime.ParseMediaType(trimmed)
 	if err != nil {
 		return fmt.Errorf("%w: parse %q: %v", errUnexpectedContentType, trimmed, err)
 	}
-
 	switch mediaType {
 	case installerApplicationGzipPath, "application/x-gzip", "application/octet-stream":
 		return nil
@@ -204,17 +181,4 @@ func validateDownloadContentType(contentType string) error {
 			trimmed,
 		)
 	}
-}
-
-func normalizeExtractionError(err error, compressedSize int64, maxArchiveSize int64) error {
-	if err == nil {
-		return nil
-	}
-	if errors.Is(err, errArchiveTooLarge) || errors.Is(err, errArchiveTooManyFiles) {
-		return err
-	}
-	if compressedSize >= maxArchiveSize && (errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF)) {
-		return fmt.Errorf("%w: limit=%d", errArchiveTooLargeCompressed, maxArchiveSize)
-	}
-	return err
 }

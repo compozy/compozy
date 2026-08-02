@@ -212,18 +212,19 @@ func marketplaceTrustWarnings(evidence *MarketplaceTrustEvidence) []diagnosticco
 }
 
 func newExtensionPolicyBlockedError(slug string, source string) *ExtensionPolicyBlockedError {
-	item := diagnostics.NewItem(
-		"extension.unverified_policy_blocked",
-		diagnosticcontract.CodeExtensionUnverifiedPolicyBlocked,
-		diagnosticcontract.CategoryExtension,
-		"Unverified extension install is blocked",
-		"This side-load is disabled by extensions marketplace policy. "+
+	item := diagnostics.NewItem(diagnostics.ItemSpec{
+		ID:       "extension.unverified_policy_blocked",
+		Code:     diagnosticcontract.CodeExtensionUnverifiedPolicyBlocked,
+		Category: diagnosticcontract.CategoryExtension,
+		Title:    "Unverified extension install is blocked",
+		Message: "This side-load is disabled by extensions marketplace policy. " +
 			"Enable it in Settings › Extensions, then confirm the individual install.",
-		diagnosticcontract.SeverityError,
-		diagnosticcontract.FreshnessLive,
+		Severity:      diagnosticcontract.SeverityError,
+		DataFreshness: diagnosticcontract.FreshnessLive,
+	},
 		diagnostics.WithSuggestedCommand("compozy config set extensions.trust.allow_unverified true"),
 		diagnostics.WithEvidence(map[string]any{
-			"slug":                          strings.TrimSpace(slug),
+			marketplaceDiagnosticSlugKey:    strings.TrimSpace(slug),
 			extensionTrustEvidenceSourceKey: strings.TrimSpace(source),
 			"settings_section":              "Settings › Extensions",
 			"settings_path":                 "/settings/extensions",
@@ -235,15 +236,16 @@ func newExtensionPolicyBlockedError(slug string, source string) *ExtensionPolicy
 func marketplaceRegistryTierUnverifiedDiagnostic(
 	evidence MarketplaceTrustEvidence,
 ) diagnosticcontract.DiagnosticItem {
-	return diagnostics.NewItem(
-		"extension.registry_tier_unverified",
-		diagnosticcontract.CodeExtensionRegistryTierUnverified,
-		diagnosticcontract.CategoryExtension,
-		"Extension publisher tier is unverified",
-		"The catalog pins this archive digest, but the publisher is not in a trusted registry tier. "+
+	return diagnostics.NewItem(diagnostics.ItemSpec{
+		ID:       "extension.registry_tier_unverified",
+		Code:     diagnosticcontract.CodeExtensionRegistryTierUnverified,
+		Category: diagnosticcontract.CategoryExtension,
+		Title:    "Extension publisher tier is unverified",
+		Message: "The catalog pins this archive digest, but the publisher is not in a trusted registry tier. " +
 			"Review the source before installing.",
-		diagnosticcontract.SeverityWarn,
-		diagnosticcontract.FreshnessLive,
+		Severity:      diagnosticcontract.SeverityWarn,
+		DataFreshness: diagnosticcontract.FreshnessLive,
+	},
 		diagnostics.WithEvidence(map[string]any{
 			"catalog_entry_id":               strings.TrimSpace(evidence.CatalogEntryID),
 			"registry_tier":                  strings.TrimSpace(evidence.RegistryTier),
@@ -265,14 +267,15 @@ func wrapCuratedDigestMismatch(
 		entryID = strings.TrimSpace(trust.CatalogEntryID)
 		version = strings.TrimSpace(trust.Version)
 	}
-	item := diagnostics.NewItem(
-		"extension.archive_digest_mismatch",
-		diagnosticcontract.CodeExtensionArchiveDigestMismatch,
-		diagnosticcontract.CategoryExtension,
-		"Extension archive does not match its digest",
-		"The downloaded archive differs from its declared SHA-256 digest. Nothing was installed.",
-		diagnosticcontract.SeverityError,
-		diagnosticcontract.FreshnessLive,
+	item := diagnostics.NewItem(diagnostics.ItemSpec{
+		ID:            "extension.archive_digest_mismatch",
+		Code:          diagnosticcontract.CodeExtensionArchiveDigestMismatch,
+		Category:      diagnosticcontract.CategoryExtension,
+		Title:         "Extension archive does not match its digest",
+		Message:       "The downloaded archive differs from its declared SHA-256 digest. Nothing was installed.",
+		Severity:      diagnosticcontract.SeverityError,
+		DataFreshness: diagnosticcontract.FreshnessLive,
+	},
 		diagnostics.WithEvidence(map[string]any{"entry_id": entryID, extensionTrustEvidenceVersionKey: version}),
 	)
 	return &ExtensionArchiveDigestMismatchError{

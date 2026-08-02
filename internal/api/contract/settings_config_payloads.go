@@ -130,9 +130,8 @@ type SettingsMemoryRecallFreshnessPayload struct {
 }
 
 type SettingsMemoryRecallSignalsPayload struct {
-	QueueCapacity  int  `json:"queue_capacity"`
-	WorkerRetryMax int  `json:"worker_retry_max"`
-	MetricsEnabled bool `json:"metrics_enabled"`
+	QueueCapacity  int `json:"queue_capacity"`
+	WorkerRetryMax int `json:"worker_retry_max"`
 }
 
 type SettingsMemoryDecisionsPayload struct {

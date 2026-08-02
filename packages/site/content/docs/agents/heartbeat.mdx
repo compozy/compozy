@@ -169,7 +169,10 @@ Wake guarantees:
 4. The synthetic prompt names the wake reason and policy snapshot id, instructs the agent to
    inspect `/agent/context`, session state, inbox, and task APIs before acting, and never implies
    claimable work exists.
-5. Compozy Network `greet` presence is independent. A peer's derived activity state does not make a
+5. A delivered wake uses the same [live-turn workspace knowledge
+   snapshot](/docs/sessions/lifecycle#workspace-knowledge-on-live-turns) as user and Network turns.
+   Changing a knowledge file does not create a wake by itself.
+6. Compozy Network `greet` presence is independent. A peer's derived activity state does not make a
    session wake-eligible.
 
 Manual operator/agent wake:

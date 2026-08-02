@@ -51,14 +51,15 @@ func (p *RuntimeMemoryProbe) Run(
 
 	snapshot := p.Source.RuntimeMemorySnapshot()
 	if !snapshot.Enabled {
-		return []contract.DiagnosticItem{diagnostics.NewItem(
-			RuntimeMemoryProbeID,
-			contract.CodeDaemonStatusOK,
-			contract.CategoryDaemon,
-			"Runtime memory reporting is disabled",
-			"Set daemon.memory_report_interval above zero and restart the daemon to enable reports.",
-			contract.SeverityOK,
-			contract.FreshnessLive,
+		return []contract.DiagnosticItem{diagnostics.NewItem(diagnostics.ItemSpec{
+			ID:            RuntimeMemoryProbeID,
+			Code:          contract.CodeDaemonStatusOK,
+			Category:      contract.CategoryDaemon,
+			Title:         "Runtime memory reporting is disabled",
+			Message:       "Set daemon.memory_report_interval above zero and restart the daemon to enable reports.",
+			Severity:      contract.SeverityOK,
+			DataFreshness: contract.FreshnessLive,
+		},
 			diagnostics.WithEvidence(runtimeMemoryEvidence(snapshot)),
 		)}, nil
 	}
@@ -66,28 +67,29 @@ func (p *RuntimeMemoryProbe) Run(
 		return []contract.DiagnosticItem{runtimeMemoryUnavailableItem()}, nil
 	}
 
-	return []contract.DiagnosticItem{diagnostics.NewItem(
-		RuntimeMemoryProbeID,
-		contract.CodeDaemonStatusOK,
-		contract.CategoryDaemon,
-		"Runtime memory snapshot is available",
-		"Compozy is reporting process memory and Go runtime utilization.",
-		contract.SeverityOK,
-		contract.FreshnessLive,
+	return []contract.DiagnosticItem{diagnostics.NewItem(diagnostics.ItemSpec{
+		ID:            RuntimeMemoryProbeID,
+		Code:          contract.CodeDaemonStatusOK,
+		Category:      contract.CategoryDaemon,
+		Title:         "Runtime memory snapshot is available",
+		Message:       "Compozy is reporting process memory and Go runtime utilization.",
+		Severity:      contract.SeverityOK,
+		DataFreshness: contract.FreshnessLive,
+	},
 		diagnostics.WithEvidence(runtimeMemoryEvidence(snapshot)),
 	)}, nil
 }
 
 func runtimeMemoryUnavailableItem() contract.DiagnosticItem {
-	return diagnostics.NewItem(
-		RuntimeMemoryProbeID,
-		contract.CodeDaemonHealthUnavailable,
-		contract.CategoryDaemon,
-		"Runtime memory snapshot is unavailable",
-		"The daemon has not produced a runtime memory snapshot.",
-		contract.SeverityWarn,
-		contract.FreshnessLive,
-	)
+	return diagnostics.NewItem(diagnostics.ItemSpec{
+		ID:            RuntimeMemoryProbeID,
+		Code:          contract.CodeDaemonHealthUnavailable,
+		Category:      contract.CategoryDaemon,
+		Title:         "Runtime memory snapshot is unavailable",
+		Message:       "The daemon has not produced a runtime memory snapshot.",
+		Severity:      contract.SeverityWarn,
+		DataFreshness: contract.FreshnessLive,
+	})
 }
 
 func runtimeMemoryEvidence(snapshot RuntimeMemorySnapshot) map[string]any {

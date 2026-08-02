@@ -10,6 +10,7 @@ import (
 	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	"github.com/compozy/compozy/internal/notifications"
 	"github.com/compozy/compozy/internal/session"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
@@ -2252,8 +2253,10 @@ func TestTaskNotificationCommandsMapRequests(t *testing.T) {
 		}
 		if subscribed.SubscriptionID != "sub-1" ||
 			subscribed.Cursor.ConsumerID == "" ||
+			subscribed.Cursor.Scope.Kind != notifications.ScopeKindWorkspace ||
+			subscribed.Cursor.Scope.WorkspaceID != "ws-1" ||
 			subscribed.Cursor.LastSequence != 7 ||
-			subscribed.Cursor.LastDeliveryID != "notif:sub-1:7" {
+			subscribed.Cursor.LastDeliveryID != "nd1_test_delivery_7" {
 			t.Fatalf("subscribed = %#v", subscribed)
 		}
 
@@ -2309,7 +2312,9 @@ func TestTaskNotificationCommandsMapRequests(t *testing.T) {
 			t.Fatalf("show task/id = %q/%q", showTaskID, showID)
 		}
 		if !strings.Contains(stdout, `"cursor"`) ||
-			!strings.Contains(stdout, `"last_delivery_id": "notif:sub-1:7"`) {
+			!strings.Contains(stdout, `"last_delivery_id": "nd1_test_delivery_7"`) ||
+			!strings.Contains(stdout, `"scope": {`) ||
+			!strings.Contains(stdout, `"workspace_id": "ws-1"`) {
 			t.Fatalf("notification show stdout = %s", stdout)
 		}
 
@@ -2349,6 +2354,51 @@ func TestTaskNotificationCommandsMapRequests(t *testing.T) {
 		}
 		if !strings.Contains(stdout, `"status": "deleted"`) {
 			t.Fatalf("notification delete stdout = %s", stdout)
+		}
+	})
+
+	t.Run("Should preserve opaque notification subscription identifiers", func(t *testing.T) {
+		t.Parallel()
+
+		var capturedTaskID string
+		var capturedRequest TaskBridgeNotificationSubscriptionRequest
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			createTaskBridgeNotificationSubscriptionFn: func(
+				_ context.Context,
+				taskID string,
+				request *TaskBridgeNotificationSubscriptionRequest,
+			) (TaskBridgeNotificationSubscriptionRecord, error) {
+				if request == nil {
+					t.Fatal("request is nil")
+					return TaskBridgeNotificationSubscriptionRecord{}, nil
+				}
+				capturedTaskID = taskID
+				capturedRequest = *request
+				return sampleTaskBridgeNotificationSubscriptionRecord(), nil
+			},
+		})
+
+		_, _, err := executeRootCommand(
+			t,
+			deps,
+			"task", "notification", "subscribe", " task-opaque ",
+			"--subscription-id", " sub-opaque ",
+			"--bridge", " brg-opaque ",
+			"--peer", " peer-opaque ",
+			"--thread", " thread-opaque ",
+			"--group", " group-opaque ",
+			"--mode", "reply",
+		)
+		if err != nil {
+			t.Fatalf("task notification subscribe error = %v", err)
+		}
+		if capturedTaskID != " task-opaque " ||
+			capturedRequest.SubscriptionID != " sub-opaque " ||
+			capturedRequest.BridgeInstanceID != " brg-opaque " ||
+			capturedRequest.PeerID != " peer-opaque " ||
+			capturedRequest.ThreadID != " thread-opaque " ||
+			capturedRequest.GroupID != " group-opaque " {
+			t.Fatalf("captured opaque notification subscription = task %q request %#v", capturedTaskID, capturedRequest)
 		}
 	})
 
@@ -2407,6 +2457,95 @@ func TestTaskNotificationCommandsMapRequests(t *testing.T) {
 		)
 		if err == nil || !strings.Contains(err.Error(), "--last must be zero or positive") {
 			t.Fatalf("task notification list error = %v", err)
+		}
+	})
+
+	t.Run("Should reject noncanonical notification enums before calling client", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			createTaskBridgeNotificationSubscriptionFn: func(
+				context.Context,
+				string,
+				*TaskBridgeNotificationSubscriptionRequest,
+			) (TaskBridgeNotificationSubscriptionRecord, error) {
+				t.Fatal("CreateTaskBridgeNotificationSubscription should not be called")
+				return TaskBridgeNotificationSubscriptionRecord{}, nil
+			},
+			listTaskBridgeNotificationSubscriptionsFn: func(
+				context.Context,
+				string,
+				TaskBridgeNotificationSubscriptionQuery,
+			) ([]TaskBridgeNotificationSubscriptionRecord, error) {
+				t.Fatal("ListTaskBridgeNotificationSubscriptions should not be called")
+				return nil, nil
+			},
+		})
+		subscribeArgs := func(flag string, value string) []string {
+			return []string{
+				"task", taskNotificationCommandName, "subscribe", "task-1",
+				"--bridge", "brg-1", "--peer", "peer-1", flag, value,
+			}
+		}
+		listArgs := func(scope string) []string {
+			return []string{"task", taskNotificationCommandName, "list", "task-1", "--scope", scope}
+		}
+
+		tests := []struct {
+			name    string
+			args    []string
+			wantErr string
+		}{
+			{
+				name:    "subscribe scope with whitespace",
+				args:    subscribeArgs("--scope", " global "),
+				wantErr: "invalid notification scope",
+			},
+			{
+				name:    "subscribe scope with noncanonical case",
+				args:    subscribeArgs("--scope", "GLOBAL"),
+				wantErr: "invalid notification scope",
+			},
+			{
+				name:    "subscribe scope alias",
+				args:    subscribeArgs("--scope", "project"),
+				wantErr: "invalid notification scope",
+			},
+			{
+				name:    "list whitespace-only scope",
+				args:    listArgs("   "),
+				wantErr: "invalid notification scope",
+			},
+			{
+				name:    "list scope with whitespace",
+				args:    listArgs(" workspace "),
+				wantErr: "invalid notification scope",
+			},
+			{
+				name:    "subscribe delivery mode with whitespace",
+				args:    subscribeArgs("--mode", " reply "),
+				wantErr: "invalid delivery mode",
+			},
+			{
+				name:    "subscribe delivery mode with noncanonical case",
+				args:    subscribeArgs("--mode", "REPLY"),
+				wantErr: "invalid delivery mode",
+			},
+			{
+				name:    "subscribe delivery mode alias",
+				args:    subscribeArgs("--mode", "direct"),
+				wantErr: "invalid delivery mode",
+			},
+		}
+		for _, test := range tests {
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
+
+				_, _, err := executeRootCommand(t, deps, test.args...)
+				if err == nil || !strings.Contains(err.Error(), test.wantErr) {
+					t.Fatalf("task notification enum error = %v, want %q", err, test.wantErr)
+				}
+			})
 		}
 	})
 }
@@ -3074,11 +3213,15 @@ func sampleTaskBridgeNotificationSubscriptionRecord() TaskBridgeNotificationSubs
 		ThreadID:         "thread-1",
 		DeliveryMode:     bridgepkg.DeliveryModeReply,
 		Cursor: contract.TaskBridgeNotificationCursorPayload{
-			ConsumerID:      "bridge_task_subscription:sub-1",
+			Scope: notifications.ScopeRef{
+				Kind:        notifications.ScopeKindWorkspace,
+				WorkspaceID: "ws-1",
+			},
+			ConsumerID:      "sub-1",
 			StreamName:      "task_events",
 			SubjectID:       "task-1",
 			LastSequence:    7,
-			LastDeliveryID:  "notif:sub-1:7",
+			LastDeliveryID:  "nd1_test_delivery_7",
 			LastDeliveredAt: &lastDeliveredAt,
 			LastError:       "bridge adapter rejected send",
 			UpdatedAt:       &cursorUpdatedAt,

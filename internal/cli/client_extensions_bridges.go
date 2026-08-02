@@ -2,10 +2,7 @@ package cli
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
 	"fmt"
-	"io"
 
 	"net/http"
 	"net/url"
@@ -94,56 +91,6 @@ func (c *unixSocketClient) BridgeTargets(
 		return BridgeTargetsRecord{}, err
 	}
 	return response, nil
-}
-
-func (c *unixSocketClient) ResolveBridgeTarget(
-	ctx context.Context,
-	id string,
-	name string,
-) (record BridgeResolveTargetRecord, err error) {
-	path := "/api/bridges/" + url.PathEscape(strings.TrimSpace(id)) + "/resolve"
-	var response BridgeResolveTargetRecord
-	requestBody := BridgeResolveTargetRequest{Name: strings.TrimSpace(name)}
-	httpResponse, err := c.doRequest(
-		ctx,
-		http.MethodPost,
-		path,
-		nil,
-		requestBody,
-	)
-	if err != nil {
-		return BridgeResolveTargetRecord{}, err
-	}
-	defer func() {
-		if closeErr := httpResponse.Body.Close(); closeErr != nil {
-			err = errors.Join(err, fmt.Errorf("cli: close %s %s response: %w", http.MethodPost, path, closeErr))
-		}
-	}()
-	if httpResponse.StatusCode >= 200 && httpResponse.StatusCode < 300 {
-		if err := json.NewDecoder(httpResponse.Body).Decode(&response); err != nil {
-			return BridgeResolveTargetRecord{}, fmt.Errorf("cli: decode %s %s response: %w", http.MethodPost, path, err)
-		}
-		return response, nil
-	}
-	if httpResponse.StatusCode == http.StatusNotFound || httpResponse.StatusCode == http.StatusUnprocessableEntity {
-		body, readErr := io.ReadAll(io.LimitReader(httpResponse.Body, 1<<20))
-		if readErr != nil {
-			return BridgeResolveTargetRecord{}, fmt.Errorf("cli: read bridge target resolve response: %w", readErr)
-		}
-		if json.Unmarshal(body, &response) == nil && bridgeResolveTargetHasStructuredPayload(response) {
-			return response, nil
-		}
-		return BridgeResolveTargetRecord{}, readAPIErrorBody(httpResponse.StatusCode, httpResponse.Status, body)
-	}
-	return BridgeResolveTargetRecord{}, readAPIError(httpResponse)
-}
-
-func bridgeResolveTargetHasStructuredPayload(response BridgeResolveTargetRecord) bool {
-	return response.Diagnostic != nil ||
-		response.Result.Match != nil ||
-		response.Result.Ambiguous ||
-		len(response.Result.Candidates) > 0 ||
-		response.Result.Step != 0
 }
 
 func (c *unixSocketClient) ListNotificationPresets(
@@ -264,8 +211,15 @@ func (c *unixSocketClient) TestBridgeDelivery(
 	id string,
 	request BridgeTestDeliveryRequest,
 ) (BridgeTestDeliveryRecord, error) {
+	bridgeID, err := requiredBridgeControlID(id)
+	if err != nil {
+		return BridgeTestDeliveryRecord{}, err
+	}
+	if _, err := request.ToResolveDeliveryTargetRequest(bridgeID); err != nil {
+		return BridgeTestDeliveryRecord{}, fmt.Errorf("cli: invalid bridge test-delivery request: %w", err)
+	}
 	var response BridgeTestDeliveryRecord
-	path := "/api/bridges/" + url.PathEscape(strings.TrimSpace(id)) + "/test-delivery"
+	path := "/api/bridges/" + url.PathEscape(bridgeID) + "/test-delivery"
 	if err := c.doJSON(ctx, http.MethodPost, path, nil, request, &response); err != nil {
 		return BridgeTestDeliveryRecord{}, err
 	}

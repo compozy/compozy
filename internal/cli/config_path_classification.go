@@ -7,6 +7,8 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
+const providerAuthLoginCommandKey = "auth_login_command"
+
 func classifyConfigMutationPath(path []string) (configSetValueKind, bool, error) {
 	joined := strings.Join(path, ".")
 	if replacement, removed := removedExtensionConfigSetReplacement(joined); removed {
@@ -29,7 +31,7 @@ func classifyConfigMutationPath(path []string) (configSetValueKind, bool, error)
 		return configSetBool, false, nil
 	}
 	if isProviderMutationPath(path) {
-		return configSetString, false, nil
+		return configSetString, isProviderLoginCommandPath(path), nil
 	}
 	if kind, redacted, ok := classifySandboxMutationPath(path); ok {
 		return kind, redacted, nil
@@ -78,6 +80,10 @@ func classifyAgentMutableConfigPath(path []string) (configSetValueKind, bool, bo
 	return kind, policy.Redacted, true
 }
 
+func isProviderLoginCommandPath(path []string) bool {
+	return len(path) == 3 && path[0] == configProvidersKey && path[2] == providerAuthLoginCommandKey
+}
+
 func classifyWindowManagerMutationPath(path []string) (configSetValueKind, bool) {
 	spec, ok := lookupWindowManagerMutationSpec(path)
 	if !ok {
@@ -103,7 +109,7 @@ func isProviderMutationPath(path []string) bool {
 			"transport",
 			"base_url",
 			"auth_status_command",
-			"auth_login_command":
+			providerAuthLoginCommandKey:
 			return true
 		}
 	}

@@ -9,8 +9,12 @@ import (
 
 // Validate reports whether the session reference returned by the bridge is usable.
 func (r SessionRef) Validate() error {
-	if strings.TrimSpace(r.SessionID) == "" {
+	sessionID := strings.TrimSpace(r.SessionID)
+	if sessionID == "" {
 		return fmt.Errorf("%w: session_ref.session_id is required", ErrValidation)
+	}
+	if err := ValidateReferenceSize(sessionID, "session_ref.session_id"); err != nil {
+		return err
 	}
 	return nil
 }

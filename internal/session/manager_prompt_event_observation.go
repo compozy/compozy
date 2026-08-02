@@ -38,7 +38,7 @@ func (m *Manager) observeRecordAndNotifyPromptEvent(
 }
 
 func promptTranscriptMarker(event acp.AgentEvent) (string, string, map[string]any, bool) {
-	summary := firstNonEmpty(event.Text, event.Error, runtimeActivityDetail(event.Runtime))
+	summary := firstTrimmedNonEmpty(event.Text, event.Error, runtimeActivityDetail(event.Runtime))
 	evidence := map[string]any{
 		"event_type": event.Type,
 	}
@@ -52,17 +52,17 @@ func promptTranscriptMarker(event acp.AgentEvent) (string, string, map[string]an
 		if failure.Kind == store.FailureProviderAuth || failure.Kind == store.FailurePermission {
 			if eventHasMCPAuthReason(event) {
 				return transcript.MarkerMCPAuthRequired,
-					firstNonEmpty(summary, failure.Summary, "MCP authentication is required."),
+					firstTrimmedNonEmpty(summary, failure.Summary, "MCP authentication is required."),
 					evidence,
 					true
 			}
 			return transcript.MarkerProviderFailure,
-				firstNonEmpty(summary, failure.Summary, "Provider authentication failed."),
+				firstTrimmedNonEmpty(summary, failure.Summary, "Provider authentication failed."),
 				evidence,
 				true
 		}
 		return transcript.MarkerProviderFailure,
-			firstNonEmpty(summary, failure.Summary, "Provider failed."),
+			firstTrimmedNonEmpty(summary, failure.Summary, "Provider failed."),
 			evidence,
 			true
 	default:

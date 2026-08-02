@@ -2,16 +2,12 @@ package memory
 
 import (
 	"context"
-
 	"errors"
 	"fmt"
-
 	"strings"
-
 	"time"
 
 	memcontract "github.com/compozy/compozy/internal/memory/contract"
-	storepkg "github.com/compozy/compozy/internal/store"
 )
 
 // Run acquires the consolidation lock when needed and invokes the spawner with
@@ -30,6 +26,10 @@ func (s *Service) Run(ctx context.Context, spawn SessionSpawner, workspaceRef st
 	s.runMu.Lock()
 	defer s.runMu.Unlock()
 
+	runID, err := s.newDreamRunID()
+	if err != nil {
+		return fmt.Errorf("memory: generate dream run id: %w", err)
+	}
 	priorMtime, err := s.ensureLock()
 	if err != nil {
 		return err
@@ -39,7 +39,7 @@ func (s *Service) Run(ctx context.Context, spawn SessionSpawner, workspaceRef st
 	if err != nil {
 		return s.failBeforeDreamStart("prepare workspace", workspaceRef, priorMtime, err)
 	}
-	gate, err := s.evaluateDreamSignalGate(ctx, workspace)
+	gate, err := s.evaluateDreamSignalGate(ctx, workspace, runID)
 	if err != nil {
 		return s.failBeforeDreamStart("evaluate dream signal gate", workspace.id, priorMtime, err)
 	}
@@ -184,8 +184,9 @@ func (s *Service) failBeforeDreamStart(operation string, target string, priorMti
 func (s *Service) evaluateDreamSignalGate(
 	ctx context.Context,
 	workspace dreamRunWorkspace,
+	runID string,
 ) (dreamSignalGateResult, error) {
-	run := dreamSignalGateResult{runID: storepkg.NewID("dream")}
+	run := dreamSignalGateResult{runID: runID}
 	if workspace.store == nil || workspace.store.catalog == nil {
 		run.reason = "catalog disabled"
 		return run, nil

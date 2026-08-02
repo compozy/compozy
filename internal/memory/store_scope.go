@@ -93,9 +93,6 @@ func globalHomeFromMemoryDir(globalDir string) (string, error) {
 			errors.New("global directory is required"),
 		)
 	}
-	if filepath.Base(dir) == memoryDirName {
-		return filepath.Dir(dir), nil
-	}
 	return filepath.Dir(dir), nil
 }
 
@@ -170,7 +167,7 @@ func (s *Store) completeHeaderForScope(
 
 func (s *Store) syncScope(ctx context.Context, scope memcontract.Scope) error {
 	scope = scope.Normalize()
-	headers, err := s.scan(scope, 0)
+	headers, err := s.scan(ctx, scope, 0)
 	if err != nil {
 		return err
 	}
@@ -191,7 +188,7 @@ func (s *Store) syncIndex(scope memcontract.Scope, headers []memcontract.Header)
 
 	indexPath := filepath.Join(dir, indexFilename)
 	if len(headers) == 0 {
-		if err := os.Remove(indexPath); err != nil && !errors.Is(err, os.ErrNotExist) {
+		if err := fileutil.AtomicRemoveFile(indexPath); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return fmt.Errorf("memory: remove empty index %q: %w", indexPath, err)
 		}
 		return nil
@@ -211,7 +208,7 @@ func (s *Store) syncCatalogScope(ctx context.Context, scope memcontract.Scope, h
 	if err != nil {
 		return err
 	}
-	docs, err := s.documentsForHeaders(scope, workspaceRoot, workspaceID, headers)
+	docs, err := s.documentsForHeaders(ctx, scope, workspaceRoot, workspaceID, headers)
 	if err != nil {
 		return err
 	}

@@ -58,13 +58,16 @@ describe("bridgeProvidersOptions", () => {
 });
 
 describe("slackBridgeManifestOptions", () => {
-  it("normalizes the persisted instance id and disables blank requests", () => {
+  it("preserves the persisted instance id and disables only empty requests", () => {
     const enabledOptions = slackBridgeManifestOptions(" brg_slack ");
-    const disabledOptions = slackBridgeManifestOptions("   ");
+    const whitespaceOptions = slackBridgeManifestOptions("   ");
+    const disabledOptions = slackBridgeManifestOptions("");
 
-    expect(enabledOptions.queryKey).toEqual(["bridges", "manifest", "slack", "brg_slack"]);
+    expect(enabledOptions.queryKey).toEqual(["bridges", "manifest", "slack", " brg_slack "]);
     expect(enabledOptions.enabled).toBe(true);
     expect(enabledOptions.staleTime).toBe(15_000);
+    expect(whitespaceOptions.queryKey).toEqual(["bridges", "manifest", "slack", "   "]);
+    expect(whitespaceOptions.enabled).toBe(true);
     expect(disabledOptions.queryKey).toEqual(["bridges", "manifest", "slack", ""]);
     expect(disabledOptions.enabled).toBe(false);
   });

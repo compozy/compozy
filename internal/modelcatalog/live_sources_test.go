@@ -411,31 +411,34 @@ func TestLiveProviderSources(t *testing.T) {
 	t.Run("Should record live discovery timeout without blocking indefinitely", func(t *testing.T) {
 		t.Parallel()
 
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			time.Sleep(150 * time.Millisecond)
-			w.WriteHeader(http.StatusOK)
-		}))
-		t.Cleanup(server.Close)
+		timeoutObserved := make(chan error, 1)
 		provider := compozyconfig.ProviderConfig{}
-		provider.Models.Discovery.Endpoint = server.URL
+		provider.Models.Discovery.Endpoint = "https://models.example.test/discovery"
 		provider.Models.Discovery.Timeout = "20ms"
 		source := newLiveSourceForTest(t, "vercel-ai-gateway", provider, LiveProviderSourcesConfig{
 			BaseEnv: []string{"PATH=/bin"},
+			HTTPClient: &http.Client{
+				Timeout: time.Second,
+				Transport: modelCatalogRoundTripFunc(func(request *http.Request) (*http.Response, error) {
+					<-request.Context().Done()
+					err := request.Context().Err()
+					timeoutObserved <- err
+					return nil, err
+				}),
+			},
 		})
 		store := newMemoryStore()
 		service := newTestService(t, store, []Source{source})
 
-		started := time.Now()
 		statuses, err := service.Refresh(
 			testutil.Context(t),
 			RefreshOptions{ProviderID: "vercel-ai-gateway", Force: true, Now: testTime(0)},
 		)
-		elapsed := time.Since(started)
 		if !errors.Is(err, ErrAllSourcesFailed) {
 			t.Fatalf("Refresh() error = %v, want ErrAllSourcesFailed", err)
 		}
-		if elapsed >= 120*time.Millisecond {
-			t.Fatalf("elapsed = %s, want timeout before server sleep completes", elapsed)
+		if timeoutErr := <-timeoutObserved; !errors.Is(timeoutErr, context.DeadlineExceeded) {
+			t.Fatalf("request context error = %v, want context deadline exceeded", timeoutErr)
 		}
 		status := requireStatus(t, statuses, "provider_live:vercel-ai-gateway")
 		if status.RefreshState != RefreshStateFailed {
@@ -787,12 +790,16 @@ func TestLiveDiscoverySupportTypes(t *testing.T) {
 	})
 }
 
-func TestLiveDiscoveryHelperProcess(_ *testing.T) {
-	if os.Getenv("COMPOZY_LIVE_DISCOVERY_HELPER") != "1" {
-		return
-	}
-	fmt.Fprint(os.Stdout, `[{"id":"helper-model"}]`)
-	os.Exit(0)
+func TestLiveDiscoveryHelperProcess(t *testing.T) {
+	t.Run("Should emit the subprocess discovery fixture", func(t *testing.T) {
+		if os.Getenv("COMPOZY_LIVE_DISCOVERY_HELPER") != "1" {
+			return
+		}
+		if _, err := fmt.Fprint(os.Stdout, `[{"id":"helper-model"}]`); err != nil {
+			t.Fatalf("Fprint(stdout) error = %v", err)
+		}
+		os.Exit(0)
+	})
 }
 
 func liveJSONServer(t *testing.T, body func(*http.Request) string) *httptest.Server {

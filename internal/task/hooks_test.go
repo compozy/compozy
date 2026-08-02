@@ -248,22 +248,30 @@ func TestTaskRunEnqueuedHookIncludesActorAndOrigin(t *testing.T) {
 func TestTaskRunObservationHooksDetachFromCallerCancellation(t *testing.T) {
 	t.Parallel()
 
-	var enqueuedCtx context.Context
-	var postClaimCtx context.Context
+	var cancelEnqueue context.CancelFunc
+	var cancelClaim context.CancelFunc
+	enqueuedObserved := false
+	postClaimObserved := false
 	store := newInMemoryManagerStore()
 	manager := newTaskManagerForTestWithOptions(t, store, WithTaskRunHooks(recordingTaskRunHooks{
 		enqueued: func(
 			ctx context.Context,
 			payload hookspkg.TaskRunEnqueuedPayload,
 		) (hookspkg.TaskRunEnqueuedPayload, error) {
-			enqueuedCtx = ctx
+			cancelEnqueue()
+			assertContextStillActive(ctx, t, "enqueued")
+			assertTaskPostCommitDeadline(ctx, t, "enqueued")
+			enqueuedObserved = true
 			return payload, nil
 		},
 		postClaim: func(
 			ctx context.Context,
 			payload hookspkg.TaskRunPostClaimPayload,
 		) (hookspkg.TaskRunPostClaimPayload, error) {
-			postClaimCtx = ctx
+			cancelClaim()
+			assertContextStillActive(ctx, t, "post-claim")
+			assertTaskPostCommitDeadline(ctx, t, "post-claim")
+			postClaimObserved = true
 			return payload, nil
 		},
 	}))
@@ -276,26 +284,43 @@ func TestTaskRunObservationHooksDetachFromCallerCancellation(t *testing.T) {
 		t.Fatalf("CreateTask() error = %v", err)
 	}
 
-	enqueueCtx, cancelEnqueue := context.WithCancel(context.Background())
+	enqueueCtx, cancel := context.WithCancel(context.Background())
+	cancelEnqueue = cancel
+	defer cancel()
 	run, err := manager.EnqueueRun(enqueueCtx, EnqueueRun{TaskID: taskRecord.ID}, actor)
 	if err != nil {
 		t.Fatalf("EnqueueRun() error = %v", err)
 	}
-	cancelEnqueue()
-	t.Run("Should keep enqueued hook context active", func(t *testing.T) {
-		t.Parallel()
-		assertContextStillActive(enqueuedCtx, t, "enqueued")
-	})
+	if !enqueuedObserved {
+		t.Fatal("enqueued hook did not observe its detached bounded context")
+	}
 
-	claimCtx, cancelClaim := context.WithCancel(context.Background())
+	claimCtx, cancel := context.WithCancel(context.Background())
+	cancelClaim = cancel
+	defer cancel()
 	if _, err := claimExactRunForTest(claimCtx, manager, run.ID, actor); err != nil {
 		t.Fatalf("claimExactRunForTest() error = %v", err)
 	}
-	cancelClaim()
-	t.Run("Should keep post-claim hook context active", func(t *testing.T) {
-		t.Parallel()
-		assertContextStillActive(postClaimCtx, t, "post-claim")
-	})
+	if !postClaimObserved {
+		t.Fatal("post-claim hook did not observe its detached bounded context")
+	}
+}
+
+func assertTaskPostCommitDeadline(ctx context.Context, t *testing.T, label string) {
+	t.Helper()
+	deadline, ok := ctx.Deadline()
+	if !ok {
+		t.Fatalf("%s hook context has no post-commit deadline", label)
+	}
+	remaining := time.Until(deadline)
+	if remaining <= 0 || remaining > taskPostCommitTimeout {
+		t.Fatalf(
+			"%s hook deadline remaining = %s, want within (0, %s]",
+			label,
+			remaining,
+			taskPostCommitTimeout,
+		)
+	}
 }
 
 func TestTaskRunPreClaimHookUsesCallerCancellation(t *testing.T) {

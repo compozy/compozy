@@ -44,7 +44,8 @@ func (s *service) observeCommittedRunParticipation(ctx context.Context, run Run)
 	if s == nil || s.participationResolver == nil {
 		return
 	}
-	observationCtx := context.WithoutCancel(ctx)
+	observationCtx, cancel := loopPostCommitContext(ctx)
+	defer cancel()
 	observation := participation.ResolvedObservation{
 		WorkspaceID: strings.TrimSpace(string(run.WorkspaceID)),
 		Owner: participation.OwnerRef{

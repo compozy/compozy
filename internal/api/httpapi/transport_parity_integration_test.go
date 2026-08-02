@@ -111,8 +111,7 @@ func TestHTTPTransportApprovalFlowUsesSharedRuntimeHarness(t *testing.T) {
 		nil,
 	)
 	if sessionResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(sessionResp.Body)
-		_ = sessionResp.Body.Close()
+		body := readAndCloseHTTPBody(t, sessionResp)
 		t.Fatalf("session status = %d, want %d; body=%s", sessionResp.StatusCode, http.StatusOK, string(body))
 	}
 	var detail struct {
@@ -422,8 +421,7 @@ func TestHTTPTransportExtensionParityMatchesUDS(t *testing.T) {
 		nil,
 	)
 	if httpListResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(httpListResp.Body)
-		_ = httpListResp.Body.Close()
+		body := readAndCloseHTTPBody(t, httpListResp)
 		t.Fatalf(
 			"HTTP list extensions status = %d, want %d; body=%s",
 			httpListResp.StatusCode,
@@ -458,8 +456,7 @@ func TestHTTPTransportExtensionParityMatchesUDS(t *testing.T) {
 		nil,
 	)
 	if httpStatusResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(httpStatusResp.Body)
-		_ = httpStatusResp.Body.Close()
+		body := readAndCloseHTTPBody(t, httpStatusResp)
 		t.Fatalf("HTTP extension status = %d, want %d; body=%s", httpStatusResp.StatusCode, http.StatusOK, string(body))
 	}
 	var httpStatus compozycontract.ExtensionResponse

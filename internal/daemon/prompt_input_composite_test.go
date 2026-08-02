@@ -511,7 +511,7 @@ func TestPromptInputCompositeIncludesDurableMemoryRecall(t *testing.T) {
 		if err := workspaceStore.EnsureDirs(); err != nil {
 			t.Fatalf("EnsureDirs() error = %v", err)
 		}
-		if err := workspaceStore.Write(memcontract.ScopeWorkspace, "auth.md", []byte(`---
+		if err := workspaceStore.Write(t.Context(), memcontract.ScopeWorkspace, "auth.md", []byte(`---
 name: Auth
 description: Auth migration notes
 type: project
@@ -532,7 +532,7 @@ Remember auth migration sessions and workspace-scoped handling.
 			discardLogger(),
 			resolver,
 			nil,
-			defaultPromptInputAugmenterDescriptors(memory.NewRecallAugmenter(store), nil)...,
+			defaultPromptInputAugmenterDescriptors(nil, memory.NewRecallAugmenter(store), nil)...,
 		)
 		if err != nil {
 			t.Fatalf("newPromptInputCompositeAugmenter() error = %v", err)
@@ -589,7 +589,7 @@ func TestPromptInputCompositeOmitsOverBudgetDurableMemoryRecall(t *testing.T) {
 			discardLogger(),
 			resolver,
 			nil,
-			defaultPromptInputAugmenterDescriptors(oversizedRecall, nil)...,
+			defaultPromptInputAugmenterDescriptors(nil, oversizedRecall, nil)...,
 		)
 		if err != nil {
 			t.Fatalf("newPromptInputCompositeAugmenter() error = %v", err)

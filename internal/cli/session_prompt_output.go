@@ -8,6 +8,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const sessionPromptInterruptedKey = "interrupted"
+
 const (
 	goalLiveKey         = "live"
 	idempotencyKeyField = "idempotency_key"

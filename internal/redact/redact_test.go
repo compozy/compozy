@@ -1,8 +1,12 @@
 package redact
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"maps"
 	"os"
@@ -153,6 +157,63 @@ func TestStringUsesDynamicSecretsAndRemainsIdempotent(t *testing.T) {
 		}
 	})
 
+	t.Run("Should retain a short required secret until every registration is released", func(t *testing.T) {
+		t.Parallel()
+
+		const secret = "ACT"
+		firstCleanup := RegisterRequiredSecret(secret)
+		secondCleanup := RegisterRequiredSecret(secret)
+		t.Cleanup(firstCleanup)
+		t.Cleanup(secondCleanup)
+
+		got := String("opaque " + secret)
+		if want := "opaque " + Marker; got != want {
+			t.Fatalf("String(required secret) = %q, want %q", got, want)
+		}
+		if twice := String(got); twice != got {
+			t.Fatalf("String(String(required secret)) = %q, want idempotent %q", twice, got)
+		}
+
+		firstCleanup()
+		firstCleanup()
+		if got, want := String("opaque "+secret), "opaque "+Marker; got != want {
+			t.Fatalf("String(after first required cleanup) = %q, want %q", got, want)
+		}
+
+		secondCleanup()
+		secondCleanup()
+		if got, want := String("opaque "+secret), "opaque "+secret; got != want {
+			t.Fatalf("String(after final required cleanup) = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should ignore a blank required secret", func(t *testing.T) {
+		t.Parallel()
+
+		cleanup := RegisterRequiredSecret(" \t ")
+		cleanup()
+		cleanup()
+		if got, want := String("visible"), "visible"; got != want {
+			t.Fatalf("String(after blank required registration) = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should redact a required secret that contains the canonical marker", func(t *testing.T) {
+		t.Parallel()
+
+		secret := "prefix-" + Marker + "-suffix"
+		cleanup := RegisterRequiredSecret(secret)
+		t.Cleanup(cleanup)
+
+		got := String("opaque " + secret)
+		if want := "opaque " + Marker; got != want {
+			t.Fatalf("String(marker-bearing secret) = %q, want %q", got, want)
+		}
+		if twice := String(got); twice != got {
+			t.Fatalf("String(String(marker-bearing secret)) = %q, want idempotent %q", twice, got)
+		}
+	})
+
 	t.Run("Should expose the shared sensitive key classifier", func(t *testing.T) {
 		t.Parallel()
 
@@ -196,6 +257,85 @@ func TestStringUsesDynamicSecretsAndRemainsIdempotent(t *testing.T) {
 			t.Fatalf("ClaimTokens() = %q, want %q", got, want)
 		}
 	})
+
+	t.Run("Should redact claim tokens without relying on word boundaries", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name  string
+			input string
+			leak  string
+			want  string
+		}{
+			{
+				name:  "Should redact a token immediately preceded by a word character",
+				input: "xcompozy_claim_prefixed-secret",
+				leak:  "compozy_claim_prefixed-secret",
+				want:  "xcompozy_claim_[REDACTED]",
+			},
+			{
+				name:  "Should redact a URL-safe token ending in a hyphen",
+				input: "compozy_claim_trailing- suffix",
+				leak:  "compozy_claim_trailing-",
+				want:  "compozy_claim_[REDACTED] suffix",
+			},
+		}
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				if !ContainsRawClaimToken(tc.input) {
+					t.Fatalf("ContainsRawClaimToken(%q) = false, want true", tc.input)
+				}
+				if got := ClaimTokens(tc.input); got != tc.want {
+					t.Fatalf("ClaimTokens(%q) = %q, want %q", tc.input, got, tc.want)
+				} else if strings.Contains(got, tc.leak) {
+					t.Fatalf("ClaimTokens(%q) = %q, leaked %q", tc.input, got, tc.leak)
+				}
+			})
+		}
+	})
+}
+
+func TestClaimTokensJSON(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should remove raw claim token fields and values while preserving safe JSON", func(t *testing.T) {
+		t.Parallel()
+
+		const rawToken = "compozy_claim_json-secret"
+		const largeInteger = "9007199254740993123456789"
+		redacted := ClaimTokensJSON(json.RawMessage(
+			`{"count":` + largeInteger + `,"claim_TOKEN":"` + rawToken + `",` +
+				`"note":"provider returned ` + rawToken + `","nested":{"proof":"` + rawToken + `"},` +
+				`"compozy_claim_json-key":"discarded"}`,
+		))
+		if strings.Contains(string(redacted), rawToken) {
+			t.Fatalf("ClaimTokensJSON() = %s, leaked raw bearer", redacted)
+		}
+		if !json.Valid(redacted) {
+			t.Fatalf("ClaimTokensJSON() = %s, want valid JSON", redacted)
+		}
+		if !strings.Contains(string(redacted), `"count":`+largeInteger) {
+			t.Fatalf("ClaimTokensJSON() = %s, want exact number %s", redacted, largeInteger)
+		}
+		if strings.Contains(string(redacted), `"claim_TOKEN"`) {
+			t.Fatalf("ClaimTokensJSON() = %s, want claim_token field removed", redacted)
+		}
+	})
+
+	t.Run("Should encode malformed input as a redacted JSON string", func(t *testing.T) {
+		t.Parallel()
+
+		const rawToken = "compozy_claim_malformed-json-secret"
+		redacted := ClaimTokensJSON(json.RawMessage(`{"note":"` + rawToken + `"`))
+		if strings.Contains(string(redacted), rawToken) {
+			t.Fatalf("ClaimTokensJSON() = %s, leaked raw bearer", redacted)
+		}
+		if !json.Valid(redacted) {
+			t.Fatalf("ClaimTokensJSON() = %s, want valid JSON", redacted)
+		}
+	})
 }
 
 func TestEngineRedactsSeededProviderPrefixes(t *testing.T) {
@@ -225,6 +365,203 @@ func TestEngineRedactsSeededProviderPrefixes(t *testing.T) {
 
 func TestEngineComposesExactAndHeuristicRedaction(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should redact registered secrets from bytes and reversible JSON binary envelopes", func(t *testing.T) {
+		t.Parallel()
+
+		const secret = "b3?"
+		cleanup := RegisterRequiredSecret(secret)
+		t.Cleanup(cleanup)
+
+		binary := []byte("prefix " + secret + " suffix")
+		redactedBytes := ExactBytes(binary)
+		if bytes.Contains(redactedBytes, []byte(secret)) {
+			t.Fatalf("ExactBytes() = %q, leaked registered secret", redactedBytes)
+		}
+		if !bytes.Contains(redactedBytes, []byte(Marker)) {
+			t.Fatalf("ExactBytes() = %q, want redaction marker", redactedBytes)
+		}
+		if !bytes.Contains(binary, []byte(secret)) {
+			t.Fatalf("ExactBytes() mutated input = %q", binary)
+		}
+		encodedText := strings.Join([]string{
+			"prefix",
+			base64.StdEncoding.EncodeToString([]byte(secret)),
+			strings.ToUpper(hex.EncodeToString([]byte(secret))),
+			"credential=b3%3f",
+			"data:text/plain,b3%3F",
+			"credential=b3%3F trailing=%",
+			"suffix",
+		}, " ")
+		redactedText := ExactBinaryString(encodedText)
+		for _, leaked := range []string{
+			base64.StdEncoding.EncodeToString([]byte(secret)),
+			strings.ToUpper(hex.EncodeToString([]byte(secret))),
+			"b3%3f",
+			"b3%3F",
+		} {
+			if strings.Contains(redactedText, leaked) {
+				t.Fatalf("ExactBinaryString() = %q, retained reversible secret %q", redactedText, leaked)
+			}
+		}
+		if !strings.Contains(redactedText, Marker) {
+			t.Fatalf("ExactBinaryString() = %q, want redaction marker", redactedText)
+		}
+
+		raw, err := json.Marshal(map[string]string{
+			"base64":                      base64.StdEncoding.EncodeToString(binary),
+			"embedded_data":               "prefix data:text/plain,b3%3F suffix",
+			"percent_encoded":             "credential=b3%3f",
+			"percent_with_invalid_suffix": "credential=b3%3F trailing=%",
+			"data_uri": "data:application/octet-stream;base64," +
+				base64.StdEncoding.EncodeToString(binary),
+			"hex":                  hex.EncodeToString(binary),
+			"safe":                 base64.StdEncoding.EncodeToString([]byte("unrelated bytes")),
+			"safe_percent":         "progress=100%25 complete",
+			"safe_invalid_percent": "progress=100% complete",
+		})
+		if err != nil {
+			t.Fatalf("json.Marshal(binary envelope) error = %v", err)
+		}
+		got, err := ExactBinaryJSON(raw)
+		if err != nil {
+			t.Fatalf("ExactBinaryJSON() error = %v", err)
+		}
+		for _, leaked := range []string{
+			base64.StdEncoding.EncodeToString(binary),
+			hex.EncodeToString(binary),
+		} {
+			if strings.Contains(string(got), leaked) {
+				t.Fatalf("ExactBinaryJSON() = %s, retained reversible secret envelope %q", got, leaked)
+			}
+		}
+		if safe := base64.StdEncoding.EncodeToString([]byte("unrelated bytes")); !strings.Contains(string(got), safe) {
+			t.Fatalf("ExactBinaryJSON() = %s, want unrelated binary envelope %q", got, safe)
+		}
+		if !strings.Contains(string(got), "progress=100%25 complete") {
+			t.Fatalf("ExactBinaryJSON() = %s, want unrelated percent encoding preserved", got)
+		}
+		if !strings.Contains(string(got), "progress=100% complete") {
+			t.Fatalf("ExactBinaryJSON() = %s, want unrelated invalid percent text preserved", got)
+		}
+		if twice, exactErr := ExactBinaryJSON(got); exactErr != nil || !bytes.Equal(twice, got) {
+			t.Fatalf("ExactBinaryJSON(ExactBinaryJSON(value)) = %s, %v; want idempotent %s", twice, exactErr, got)
+		}
+		for name, encodedKey := range map[string]string{
+			"base64":            base64.StdEncoding.EncodeToString([]byte(secret)),
+			"data URI":          "data:application/octet-stream;base64," + base64.StdEncoding.EncodeToString([]byte(secret)),
+			"embedded data URI": "prefix data:text/plain,b3%3F suffix",
+			"hex":               hex.EncodeToString([]byte(secret)),
+			"percent encoded":   "credential=b3%3f",
+		} {
+			keyEnvelope, marshalErr := json.Marshal(map[string]string{encodedKey: "visible"})
+			if marshalErr != nil {
+				t.Fatalf("json.Marshal(%s key) error = %v", name, marshalErr)
+			}
+			redactedKey, redactErr := ExactBinaryJSON(keyEnvelope)
+			if redactErr != nil {
+				t.Fatalf("ExactBinaryJSON(%s key) error = %v", name, redactErr)
+			}
+			if strings.Contains(string(redactedKey), encodedKey) {
+				t.Fatalf("ExactBinaryJSON(%s key) = %s, retained reversible secret key", name, redactedKey)
+			}
+		}
+
+		collision, err := json.Marshal(map[string]bool{
+			base64.StdEncoding.EncodeToString([]byte(secret)): true,
+			Marker: false,
+		})
+		if err != nil {
+			t.Fatalf("json.Marshal(binary key collision) error = %v", err)
+		}
+		_, err = ExactBinaryJSON(collision)
+		if !errors.Is(err, errExactJSONKeyCollision) {
+			t.Fatalf("ExactBinaryJSON(binary key collision) error = %v, want collision failure", err)
+		}
+		percentCollision, err := json.Marshal(map[string]bool{
+			"credential=b3%3F": true,
+			Marker:             false,
+		})
+		if err != nil {
+			t.Fatalf("json.Marshal(percent key collision) error = %v", err)
+		}
+		_, err = ExactBinaryJSON(percentCollision)
+		if !errors.Is(err, errExactJSONKeyCollision) {
+			t.Fatalf("ExactBinaryJSON(percent key collision) error = %v, want collision failure", err)
+		}
+
+		const encodedMarker = "%5BREDACTED%5D"
+		if idempotentMarker := ExactBinaryString(encodedMarker); idempotentMarker != encodedMarker {
+			t.Fatalf("ExactBinaryString(encoded marker) = %q, want byte-identical %q", idempotentMarker, encodedMarker)
+		}
+
+		cleanup()
+		const markerEncodingSecret = "W1J"
+		markerCleanup := RegisterRequiredSecret(markerEncodingSecret)
+		t.Cleanup(markerCleanup)
+		redactedBinary := ExactBytes([]byte(markerEncodingSecret))
+		encodedRedactedBinary, err := json.Marshal(redactedBinary)
+		if err != nil {
+			t.Fatalf("json.Marshal(redacted binary) error = %v", err)
+		}
+		idempotent, err := ExactBinaryJSON(encodedRedactedBinary)
+		if err != nil {
+			t.Fatalf("ExactBinaryJSON(redacted binary) error = %v", err)
+		}
+		if !bytes.Equal(idempotent, encodedRedactedBinary) {
+			t.Fatalf("ExactBinaryJSON(redacted binary) = %s, want byte-identical %s", idempotent, encodedRedactedBinary)
+		}
+	})
+
+	t.Run("Should redact registered secrets from exact JSON keys and values only", func(t *testing.T) {
+		t.Parallel()
+
+		const secret = "j4?"
+		const highEntropyValue = "Q7mV2pL9xR4nK8sT6wY3cF5hJ1dB0zAq"
+		cleanup := RegisterRequiredSecret(secret)
+		t.Cleanup(cleanup)
+
+		raw := json.RawMessage(
+			`{"j4?":"prefix j4?","entropy":"` + highEntropyValue + `","number":9007199254740993}`,
+		)
+		got, err := ExactJSON(raw)
+		if err != nil {
+			t.Fatalf("ExactJSON() error = %v", err)
+		}
+		if strings.Contains(string(got), secret) {
+			t.Fatalf("ExactJSON() = %s, leaked registered secret", got)
+		}
+		for _, preserved := range []string{highEntropyValue, "9007199254740993"} {
+			if !strings.Contains(string(got), preserved) {
+				t.Fatalf("ExactJSON() = %s, want preserved %q", got, preserved)
+			}
+		}
+		if twice, exactErr := ExactJSON(got); exactErr != nil || !bytes.Equal(twice, got) {
+			t.Fatalf("ExactJSON(ExactJSON(value)) = %s, %v; want idempotent %s", twice, exactErr, got)
+		}
+
+		shadowed := json.RawMessage(`{"value":"j4?","value":"visible"}`)
+		shadowedResult, err := ExactJSON(shadowed)
+		if err != nil {
+			t.Fatalf("ExactJSON(shadowed key) error = %v", err)
+		}
+		if strings.Contains(string(shadowedResult), secret) {
+			t.Fatalf("ExactJSON(shadowed key) = %s, leaked overwritten secret", shadowedResult)
+		}
+	})
+
+	t.Run("Should reject exact JSON key collisions after redaction", func(t *testing.T) {
+		t.Parallel()
+
+		const secret = "k5!"
+		cleanup := RegisterRequiredSecret(secret)
+		t.Cleanup(cleanup)
+
+		_, err := ExactJSON(json.RawMessage(`{"k5!":true,"[REDACTED]":false}`))
+		if !errors.Is(err, errExactJSONKeyCollision) {
+			t.Fatalf("ExactJSON() error = %v, want key-collision failure", err)
+		}
+	})
 
 	t.Run("Should preserve exact claim token protection", func(t *testing.T) {
 		t.Parallel()
@@ -283,34 +620,38 @@ func TestEngineComposesExactAndHeuristicRedaction(t *testing.T) {
 func TestEngineRedactJSONPreservesStructuredEnvelope(t *testing.T) {
 	t.Parallel()
 
-	secret := "Q7mV2pL9xR4nK8sT6wY3cF5hJ1dB0zAq"
-	wantEnvelope := map[string]string{
-		"claim_token_hash":         "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-		"cursor":                   "eyJ2IjoyLCJraW5kIjoiYnVuZGxlIiwib2Zmc2V0IjowfQ",
-		redactionSessionIDFieldKey: "550e8400-e29b-41d4-a716-446655440000",
-		"run_id":                   "62f82910-18ca-4f2e-aa4a-54dcde9fe761",
-		"fingerprint":              "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-		"idempotency_key":          "idem_550e8400e29b41d4a716446655440000",
-		"next_cursor":              "eyJ2IjoyLCJraW5kIjoiYnVuZGxlIiwib2Zmc2V0IjoxfQ",
-	}
-	payload := map[string]string{redactionMessageFieldKey: "leaked " + secret}
-	maps.Copy(payload, wantEnvelope)
-	raw, err := json.Marshal(payload)
-	if err != nil {
-		t.Fatalf("json.Marshal() error = %v", err)
-	}
+	t.Run("Should preserve protected structured envelope fields", func(t *testing.T) {
+		t.Parallel()
 
-	redacted := New(Options{}).RedactJSON(raw, []string{redactionMessageFieldKey})
-	var got map[string]string
-	if err := json.Unmarshal(redacted, &got); err != nil {
-		t.Fatalf("json.Unmarshal() error = %v payload=%s", err, redacted)
-	}
-	assertRedactionRemovedValue(t, got[redactionMessageFieldKey], secret)
-	for key, want := range wantEnvelope {
-		if got[key] != want {
-			t.Fatalf("RedactJSON()[%q] = %q, want intact %q", key, got[key], want)
+		secret := "Q7mV2pL9xR4nK8sT6wY3cF5hJ1dB0zAq"
+		wantEnvelope := map[string]string{
+			"claim_token_hash":         "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+			"cursor":                   "eyJ2IjoyLCJraW5kIjoiYnVuZGxlIiwib2Zmc2V0IjowfQ",
+			redactionSessionIDFieldKey: "550e8400-e29b-41d4-a716-446655440000",
+			"run_id":                   "62f82910-18ca-4f2e-aa4a-54dcde9fe761",
+			"fingerprint":              "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+			"idempotency_key":          "idem_550e8400e29b41d4a716446655440000",
+			"next_cursor":              "eyJ2IjoyLCJraW5kIjoiYnVuZGxlIiwib2Zmc2V0IjoxfQ",
 		}
-	}
+		payload := map[string]string{redactionMessageFieldKey: "leaked " + secret}
+		maps.Copy(payload, wantEnvelope)
+		raw, err := json.Marshal(payload)
+		if err != nil {
+			t.Fatalf("json.Marshal() error = %v", err)
+		}
+
+		redacted := New(Options{}).RedactJSON(raw, []string{redactionMessageFieldKey})
+		var got map[string]string
+		if err := json.Unmarshal(redacted, &got); err != nil {
+			t.Fatalf("json.Unmarshal() error = %v payload=%s", err, redacted)
+		}
+		assertRedactionRemovedValue(t, got[redactionMessageFieldKey], secret)
+		for key, want := range wantEnvelope {
+			if got[key] != want {
+				t.Fatalf("RedactJSON()[%q] = %q, want intact %q", key, got[key], want)
+			}
+		}
+	})
 }
 
 func TestEngineRedactionRecursesIntoProtectedCompositeEnvelopes(t *testing.T) {
@@ -355,6 +696,10 @@ func TestEngineRedactionRecursesIntoProtectedCompositeEnvelopes(t *testing.T) {
 }
 
 func TestProcessEnabledSnapshot(t *testing.T) {
+	t.Run("Should freeze the process heuristic setting at boot", testProcessEnabledSnapshot)
+}
+
+func testProcessEnabledSnapshot(t *testing.T) {
 	if os.Getenv(redactionSnapshotHelperEnv) == "1" {
 		SnapshotEnabled(false)
 		if Enabled() {
@@ -390,6 +735,18 @@ func BenchmarkEngineRedactString(b *testing.B) {
 	b.ReportAllocs()
 	for b.Loop() {
 		engine.RedactString(payload)
+	}
+}
+
+func BenchmarkEngineRedactStructuredLogValue(b *testing.B) {
+	engine := New(Options{})
+	attrs := []slog.Attr{slog.Any("request", map[string]any{
+		"claim_token": "compozy_claim_benchmark-secret",
+		"metadata":    map[string]any{"request_id": "req-1", "attempt": 2},
+	})}
+	b.ReportAllocs()
+	for b.Loop() {
+		engine.RedactLogAttrs(attrs)
 	}
 }
 

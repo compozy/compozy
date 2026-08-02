@@ -265,6 +265,7 @@ func drainSchedulerOperationSpec() OperationSpec {
 		RequestBodyOptional: true,
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.SchedulerDrainResponse{}},
+			{Status: 400, Description: "Malformed scheduler drain request", Body: contract.ErrorPayload{}},
 			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
 			{Status: 422, Description: "Invalid scheduler drain request", Body: contract.ErrorPayload{}},
 			{Status: 503, Description: specTaskServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},

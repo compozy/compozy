@@ -100,6 +100,108 @@ func TestManagedWakeServiceDecision(t *testing.T) {
 		}
 	})
 
+	t.Run("Should reject wake publication when identifier generation fails", func(t *testing.T) {
+		t.Parallel()
+
+		base := time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC)
+		cfg := compozyconfig.DefaultHeartbeatConfig()
+		store := newFakeWakeStore(t)
+		store.snapshots = []Snapshot{wakeSnapshot(t, cfg, "hb-policy", "ws-1", "coder", base, "Policy")}
+		health := newFakeWakeHealth()
+		health.rows["sess-1"] = eligibleWakeHealth("sess-1", "ws-1", "coder", base)
+		prompter := &fakeWakePrompter{}
+		entropyErr := errors.New("entropy unavailable")
+		service, err := NewManagedWakeService(
+			store,
+			health,
+			prompter,
+			cfg,
+			WithWakeClock(func() time.Time { return base }),
+			WithWakeIDGenerator(func(string) (string, error) { return "", entropyErr }),
+		)
+		if err != nil {
+			t.Fatalf("NewManagedWakeService() error = %v", err)
+		}
+
+		decision, err := service.Wake(context.Background(), WakeRequest{
+			WorkspaceID: "ws-1",
+			AgentName:   "coder",
+			SessionID:   "sess-1",
+			Source:      WakeSourceScheduler,
+		})
+		if !errors.Is(err, entropyErr) {
+			t.Fatalf("Wake() error = %v, want %v", err, entropyErr)
+		}
+		if decision.Result != "" || decision.WakeEventID != "" || decision.SyntheticPromptID != "" {
+			t.Fatalf("Wake() decision = %#v, want zero", decision)
+		}
+		if got := len(prompter.requestsSnapshot()); got != 0 {
+			t.Fatalf("prompt requests = %d, want 0", got)
+		}
+		if got := len(store.eventsSnapshot()); got != 0 {
+			t.Fatalf("wake events = %d, want 0", got)
+		}
+		if state := store.stateSnapshot("ws-1/coder/sess-1"); state.WorkspaceID != "" {
+			t.Fatalf("wake state = %#v, want no persisted state", state)
+		}
+	})
+
+	t.Run("Should reserve the corrective event ID before recording or prompting", func(t *testing.T) {
+		t.Parallel()
+
+		base := time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC)
+		cfg := compozyconfig.DefaultHeartbeatConfig()
+		store := newFakeWakeStore(t)
+		store.snapshots = []Snapshot{wakeSnapshot(t, cfg, "hb-policy", "ws-1", "coder", base, "Policy")}
+		health := newFakeWakeHealth()
+		health.rows["sess-1"] = eligibleWakeHealth("sess-1", "ws-1", "coder", base)
+		prompter := &fakeWakePrompter{err: errors.New("synthetic prompt failed")}
+		entropyErr := errors.New("corrective event entropy unavailable")
+		idCalls := 0
+		service, err := NewManagedWakeService(
+			store,
+			health,
+			prompter,
+			cfg,
+			WithWakeClock(func() time.Time { return base }),
+			WithWakeIDGenerator(func(prefix string) (string, error) {
+				idCalls++
+				if idCalls == 3 {
+					return "", entropyErr
+				}
+				return fmt.Sprintf("%s-%d", prefix, idCalls), nil
+			}),
+		)
+		if err != nil {
+			t.Fatalf("NewManagedWakeService() error = %v", err)
+		}
+
+		decision, err := service.Wake(context.Background(), WakeRequest{
+			WorkspaceID: "ws-1",
+			AgentName:   "coder",
+			SessionID:   "sess-1",
+			Source:      WakeSourceScheduler,
+		})
+		if !errors.Is(err, entropyErr) {
+			t.Fatalf("Wake() error = %v, want errors.Is(entropyErr)", err)
+		}
+		if decision.Result != "" || decision.WakeEventID != "" || decision.SyntheticPromptID != "" {
+			t.Fatalf("Wake() decision = %#v, want zero", decision)
+		}
+		if got, want := idCalls, 3; got != want {
+			t.Fatalf("ID generation calls = %d, want %d", got, want)
+		}
+		if got := len(prompter.requestsSnapshot()); got != 0 {
+			t.Fatalf("prompt requests = %d, want 0", got)
+		}
+		if got := len(store.eventsSnapshot()); got != 0 {
+			t.Fatalf("wake events = %d, want 0", got)
+		}
+		if state := store.stateSnapshot("ws-1/coder/sess-1"); state.WorkspaceID != "" {
+			t.Fatalf("wake state = %#v, want no persisted state", state)
+		}
+	})
+
 	t.Run("Should preserve optional synthetic correlation on sent wake prompts", func(t *testing.T) {
 		t.Parallel()
 
@@ -908,11 +1010,11 @@ func assertLastWakeEvent(
 	}
 }
 
-func sequentialWakeIDGenerator() func(prefix string) string {
+func sequentialWakeIDGenerator() func(prefix string) (string, error) {
 	counts := make(map[string]int)
-	return func(prefix string) string {
+	return func(prefix string) (string, error) {
 		counts[prefix]++
-		return fmt.Sprintf("%s-%d", prefix, counts[prefix])
+		return fmt.Sprintf("%s-%d", prefix, counts[prefix]), nil
 	}
 }
 

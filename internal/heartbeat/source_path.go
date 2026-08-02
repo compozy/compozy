@@ -1,128 +1,50 @@
 package heartbeat
 
 import (
-	"errors"
 	"fmt"
-
-	"path/filepath"
 	"sort"
-
 	"strings"
-
 	"unicode"
 
-	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/diagnostics"
+	"github.com/compozy/compozy/internal/managedsidecar"
 )
 
 func safeSourcePath(sourcePath string, workspaceRoot string) (string, *Diagnostic) {
-	trimmed := strings.TrimSpace(sourcePath)
-	if trimmed == "" {
-		return "", nil
+	safePath, issue := managedsidecar.SafeSourcePath(sourcePath, workspaceRoot)
+	if issue == nil {
+		return safePath, nil
 	}
-	if strings.ContainsRune(trimmed, 0) {
-		return FileName, &Diagnostic{
-			Code:       heartbeatHeartbeatPathEscapeKey,
-			Severity:   diagnosticError,
-			Message:    "HEARTBEAT.md path contains an invalid NUL byte",
-			SourcePath: FileName,
-		}
+	message := "HEARTBEAT.md path must stay inside the workspace root"
+	switch issue.Kind {
+	case managedsidecar.IssueInvalidNUL:
+		safePath = FileName
+		message = "HEARTBEAT.md path contains an invalid NUL byte"
+	case managedsidecar.IssueResolveRoot:
+		message = diagnostics.RedactAndBound(fmt.Sprintf("resolve workspace root: %v", issue.Err), 300)
+	case managedsidecar.IssueResolveTarget:
+		message = diagnostics.RedactAndBound(fmt.Sprintf("resolve HEARTBEAT.md path: %v", issue.Err), 300)
+	case managedsidecar.IssueSymlinkTargetOutside:
+		message = "HEARTBEAT.md symlink target must stay inside the workspace root"
 	}
-
-	cleanSource := filepath.Clean(trimmed)
-	if strings.TrimSpace(workspaceRoot) == "" {
-		return safePathWithoutRoot(cleanSource), nil
+	return safePath, &Diagnostic{
+		Code:       heartbeatHeartbeatPathEscapeKey,
+		Severity:   diagnosticError,
+		Message:    message,
+		SourcePath: firstNonEmpty(issue.SourcePath, safePath),
 	}
-
-	absRoot, err := filepath.Abs(filepath.Clean(workspaceRoot))
-	if err != nil {
-		return safePathWithoutRoot(cleanSource), &Diagnostic{
-			Code:       heartbeatHeartbeatPathEscapeKey,
-			Severity:   diagnosticError,
-			Message:    diagnostics.RedactAndBound(fmt.Sprintf("resolve workspace root: %v", err), 300),
-			SourcePath: safePathWithoutRoot(cleanSource),
-		}
-	}
-	sourceForRoot := cleanSource
-	if !filepath.IsAbs(sourceForRoot) {
-		sourceForRoot = filepath.Join(absRoot, sourceForRoot)
-	}
-	absSource, err := filepath.Abs(sourceForRoot)
-	if err != nil {
-		return safePathWithoutRoot(cleanSource), &Diagnostic{
-			Code:       heartbeatHeartbeatPathEscapeKey,
-			Severity:   diagnosticError,
-			Message:    diagnostics.RedactAndBound(fmt.Sprintf("resolve HEARTBEAT.md path: %v", err), 300),
-			SourcePath: safePathWithoutRoot(cleanSource),
-		}
-	}
-
-	safePath, within := relativePathWithinRoot(absRoot, absSource)
-	if !within {
-		return safePath, &Diagnostic{
-			Code:       heartbeatHeartbeatPathEscapeKey,
-			Severity:   diagnosticError,
-			Message:    "HEARTBEAT.md path must stay inside the workspace root",
-			SourcePath: safePath,
-		}
-	}
-	if resolvedRoot, rootErr := filepath.EvalSymlinks(absRoot); rootErr == nil {
-		if resolvedSource, sourceErr := filepath.EvalSymlinks(absSource); sourceErr == nil {
-			safeResolved, resolvedWithin := relativePathWithinRoot(resolvedRoot, resolvedSource)
-			if !resolvedWithin {
-				return safePath, &Diagnostic{
-					Code:       heartbeatHeartbeatPathEscapeKey,
-					Severity:   diagnosticError,
-					Message:    "HEARTBEAT.md symlink target must stay inside the workspace root",
-					SourcePath: safeResolved,
-				}
-			}
-		}
-	}
-	return safePath, nil
-}
-
-func relativePathWithinRoot(root string, target string) (string, bool) {
-	rel, err := filepath.Rel(root, target)
-	if err != nil {
-		return safePathWithoutRoot(target), false
-	}
-	if rel == "." {
-		return ".", true
-	}
-	if strings.HasPrefix(rel, ".."+string(filepath.Separator)) || rel == ".." || filepath.IsAbs(rel) {
-		return safePathWithoutRoot(target), false
-	}
-	return filepath.ToSlash(rel), true
 }
 
 func safePathWithoutRoot(path string) string {
-	slashed := filepath.ToSlash(filepath.Clean(path))
-	parts := strings.Split(slashed, "/")
-	for idx := 0; idx < len(parts)-2; idx++ {
-		if parts[idx] == compozyconfig.DirName && parts[idx+1] == "agents" {
-			return strings.Join(parts[idx:], "/")
-		}
-	}
-	if len(parts) >= 2 {
-		return strings.Join(parts[len(parts)-2:], "/")
-	}
-	if slashed == "." {
+	safe := managedsidecar.SafePathWithoutRoot(path)
+	if safe == "" {
 		return FileName
 	}
-	return strings.TrimPrefix(slashed, "/")
+	return safe
 }
 
 func heartbeatPathForAgent(agentPath string) (string, error) {
-	trimmed := strings.TrimSpace(agentPath)
-	if trimmed == "" {
-		return "", errors.New("agent path is required")
-	}
-	cleaned := filepath.Clean(trimmed)
-	if strings.EqualFold(filepath.Base(cleaned), "AGENT.md") {
-		return filepath.Join(filepath.Dir(cleaned), FileName), nil
-	}
-	return filepath.Join(cleaned, FileName), nil
+	return managedsidecar.SidecarPath(agentPath, FileName)
 }
 
 func isAllowedField(key string) bool {

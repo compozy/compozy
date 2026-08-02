@@ -22,11 +22,12 @@ import (
 )
 
 const (
-	defaultSubprocessHookTimeout = 5 * time.Second
-	subprocessCaptureLimitBytes  = 1024 * 1024
-	subprocessCaptureTruncate    = "...[truncated]"
-	subprocessShutdownGrace      = 250 * time.Millisecond
-	subprocessProcessGroupWait   = time.Second
+	defaultSubprocessHookTimeout     = 5 * time.Second
+	defaultSubprocessRegistryTimeout = 5 * time.Second
+	subprocessCaptureLimitBytes      = 1024 * 1024
+	subprocessCaptureTruncate        = "...[truncated]"
+	subprocessShutdownGrace          = 250 * time.Millisecond
+	subprocessProcessGroupWait       = time.Second
 )
 
 var subprocessEnvAllowlist = []string{
@@ -85,15 +86,25 @@ func WithSubprocessProcessRegistry(registry *toolruntime.Registry) SubprocessExe
 	}
 }
 
+// WithSubprocessRegistryTimeout bounds detached lifecycle writes to the process registry.
+func WithSubprocessRegistryTimeout(timeout time.Duration) SubprocessExecutorOption {
+	return func(executor *SubprocessExecutor) {
+		if timeout > 0 {
+			executor.registryTimeout = timeout
+		}
+	}
+}
+
 // SubprocessExecutor runs hooks through a local shell command boundary.
 type SubprocessExecutor struct {
-	command        string
-	args           []string
-	dir            string
-	env            map[string]string
-	secretEnv      map[string]string
-	secretResolver SecretRefResolver
-	registry       *toolruntime.Registry
+	command         string
+	args            []string
+	dir             string
+	env             map[string]string
+	secretEnv       map[string]string
+	secretResolver  SecretRefResolver
+	registry        *toolruntime.Registry
+	registryTimeout time.Duration
 }
 
 var _ Executor = (*SubprocessExecutor)(nil)
@@ -101,8 +112,9 @@ var _ Executor = (*SubprocessExecutor)(nil)
 // NewSubprocessExecutor constructs a subprocess-backed executor.
 func NewSubprocessExecutor(command string, args []string, opts ...SubprocessExecutorOption) *SubprocessExecutor {
 	executor := &SubprocessExecutor{
-		command: strings.TrimSpace(command),
-		args:    append([]string(nil), args...),
+		command:         strings.TrimSpace(command),
+		args:            append([]string(nil), args...),
+		registryTimeout: defaultSubprocessRegistryTimeout,
 	}
 	for _, opt := range opts {
 		if opt != nil {
@@ -152,7 +164,7 @@ func (e *SubprocessExecutor) Execute(ctx context.Context, hook RegisteredHook, p
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr
 
-	err = runSubprocessCommand(hookCtx, cmd, hook, payload, e.registry)
+	err = runSubprocessCommand(hookCtx, cmd, hook, payload, e.registry, e.registryTimeout)
 	output := []byte(stdout.String())
 	if err != nil {
 		return output, subprocessRunError(hookCtx, timeout, err, stderr)

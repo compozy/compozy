@@ -30,7 +30,7 @@ func (n *daemonNativeTools) memoryAdminPromote(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeMemoryAdminToolError(req.ToolID, err)
 	}
-	raw, err := sourceLocation.Store.Read(sourceLocation.Scope, sourceLocation.Filename)
+	raw, err := sourceLocation.Store.Read(ctx, sourceLocation.Scope, sourceLocation.Filename)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeMemoryAdminToolError(req.ToolID, err)
 	}

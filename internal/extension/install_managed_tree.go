@@ -4,192 +4,198 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-
+	"io"
 	"os"
-	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/compozy/compozy/internal/fileutil"
 )
 
+type installDirectoryStack []os.FileInfo
+
 func copyInstallTree(sourceDir string, targetDir string) error {
-	sourceRoot := strings.TrimSpace(sourceDir)
-	if sourceRoot == "" {
-		return errors.New("extension: source directory is required")
-	}
+	return copyInstallTreeWithHooks(sourceDir, targetDir, installCopyHooks{})
+}
 
-	absSourceRoot, err := filepath.Abs(sourceRoot)
+func copyInstallTreeWithHooks(sourcePath string, targetPath string, hooks installCopyHooks) (err error) {
+	source, sourceInfo, err := openInstallSourceTree(sourcePath, hooks)
 	if err != nil {
-		return fmt.Errorf("extension: resolve source directory %q: %w", sourceDir, err)
+		return err
 	}
-	canonicalSourceRoot, err := canonicalizeInstallPath(absSourceRoot)
-	if err != nil {
-		return fmt.Errorf("extension: canonicalize source directory %q: %w", absSourceRoot, err)
-	}
+	defer func() {
+		if closeErr := source.Close(); closeErr != nil {
+			err = errors.Join(err, closeErr)
+		}
+	}()
 
-	info, err := os.Stat(absSourceRoot)
-	if err != nil {
-		return fmt.Errorf("extension: stat source directory %q: %w", absSourceRoot, err)
-	}
-	if !info.IsDir() {
-		return fmt.Errorf("extension: source directory %q is not a directory", absSourceRoot)
-	}
-
-	if strings.TrimSpace(targetDir) == "" {
+	if strings.TrimSpace(targetPath) == "" {
 		return errors.New("extension: target directory is required")
 	}
-	if err := os.MkdirAll(targetDir, info.Mode().Perm()); err != nil {
-		return fmt.Errorf("extension: create target directory %q: %w", targetDir, err)
+	target, err := fileutil.OpenOrCreateDirectory(targetPath, sourceInfo.Mode().Perm())
+	if err != nil {
+		return fmt.Errorf("extension: open staging target %q: %w", targetPath, err)
 	}
-	if err := os.Chmod(targetDir, info.Mode().Perm()); err != nil {
-		return fmt.Errorf("extension: set target directory mode %q: %w", targetDir, err)
+	defer func() {
+		if closeErr := target.Close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("extension: close staging target %q: %w", targetPath, closeErr))
+		}
+	}()
+	if err := target.Chmod(sourceInfo.Mode().Perm()); err != nil {
+		return fmt.Errorf("extension: set staging target mode %q: %w", targetPath, err)
 	}
-
-	return copyInstallDirectoryContents(canonicalSourceRoot, absSourceRoot, targetDir, map[string]struct{}{
-		canonicalSourceRoot: {},
-	})
+	if err := copyInstallDirectoryContents(source, target, installDirectoryStack{sourceInfo}); err != nil {
+		return err
+	}
+	if err := target.Sync(); err != nil {
+		return fmt.Errorf("extension: sync staging target %q: %w", targetPath, err)
+	}
+	return nil
 }
 
 func copyInstallDirectoryContents(
-	sourceRoot string,
-	sourceDir string,
-	targetDir string,
-	activeDirs map[string]struct{},
+	source *installSourceDirectory,
+	target *fileutil.Directory,
+	active installDirectoryStack,
 ) error {
-	runtimeDeps, hasPackageManifest, err := loadInstallRuntimeDependencies(sourceDir)
+	runtimeDeps, hasPackageManifest, err := loadInstallRuntimeDependencies(source)
 	if err != nil {
 		return err
 	}
 
-	entries, err := os.ReadDir(sourceDir)
+	names, err := source.ReadDir()
 	if err != nil {
-		return fmt.Errorf("extension: read source directory %q: %w", sourceDir, err)
+		return err
 	}
-
-	for _, entry := range entries {
-		sourcePath := filepath.Join(sourceDir, entry.Name())
-		targetPath := filepath.Join(targetDir, entry.Name())
-		if hasPackageManifest && entry.Name() == "node_modules" {
-			if err := copyInstallNodeModules(sourceRoot, sourcePath, targetPath, activeDirs, runtimeDeps); err != nil {
+	sort.Strings(names)
+	for _, name := range names {
+		if hasPackageManifest && name == "node_modules" {
+			if err := copyInstallNodeModules(source, target, active, runtimeDeps); err != nil {
 				return err
 			}
 			continue
 		}
-		if err := copyInstallEntry(sourceRoot, sourcePath, targetPath, activeDirs); err != nil {
+		if err := copyInstallEntry(source, target, name, active); err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 
-func loadInstallRuntimeDependencies(sourceDir string) (map[string]struct{}, bool, error) {
-	manifestPath := filepath.Join(sourceDir, "package.json")
-	info, err := os.Stat(manifestPath)
+func loadInstallRuntimeDependencies(
+	source *installSourceDirectory,
+) (runtimeDeps map[string]struct{}, hasManifest bool, err error) {
+	entry, err := source.OpenEntry("package.json")
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, false, nil
 	}
 	if err != nil {
-		return nil, false, fmt.Errorf("extension: stat package manifest %q: %w", manifestPath, err)
+		return nil, false, fmt.Errorf("extension: open package manifest: %w", err)
 	}
-	if info.IsDir() {
-		return nil, false, fmt.Errorf("extension: package manifest %q is a directory", manifestPath)
+	if entry.file == nil {
+		if closeErr := entry.Close(); closeErr != nil {
+			return nil, false, errors.Join(errors.New("extension: package manifest is a directory"), closeErr)
+		}
+		return nil, false, errors.New("extension: package manifest is a directory")
 	}
+	defer func() {
+		if closeErr := entry.Close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("extension: close package manifest: %w", closeErr))
+		}
+	}()
 
-	raw, err := os.ReadFile(manifestPath)
+	raw, err := io.ReadAll(entry.file)
 	if err != nil {
-		return nil, false, fmt.Errorf("extension: read package manifest %q: %w", manifestPath, err)
+		return nil, false, fmt.Errorf("extension: read package manifest: %w", err)
 	}
-
 	var manifest installPackageManifest
 	if err := json.Unmarshal(raw, &manifest); err != nil {
-		return nil, false, fmt.Errorf("extension: decode package manifest %q: %w", manifestPath, err)
+		return nil, false, fmt.Errorf("extension: decode package manifest: %w", err)
 	}
 
-	runtimeDeps := make(map[string]struct{}, len(manifest.Dependencies)+len(manifest.OptionalDependencies))
+	runtimeDeps = make(map[string]struct{}, len(manifest.Dependencies)+len(manifest.OptionalDependencies))
 	for name := range manifest.Dependencies {
-		name = strings.TrimSpace(name)
-		if name != "" {
-			runtimeDeps[name] = struct{}{}
+		if normalized := strings.TrimSpace(name); normalized != "" {
+			runtimeDeps[normalized] = struct{}{}
 		}
 	}
 	for name := range manifest.OptionalDependencies {
-		name = strings.TrimSpace(name)
-		if name != "" {
-			runtimeDeps[name] = struct{}{}
+		if normalized := strings.TrimSpace(name); normalized != "" {
+			runtimeDeps[normalized] = struct{}{}
 		}
 	}
-
 	return runtimeDeps, true, nil
 }
 
 func copyInstallNodeModules(
-	sourceRoot string,
-	sourceDir string,
-	targetDir string,
-	activeDirs map[string]struct{},
+	source *installSourceDirectory,
+	target *fileutil.Directory,
+	active installDirectoryStack,
 	runtimeDeps map[string]struct{},
-) error {
+) (err error) {
 	if len(runtimeDeps) == 0 {
 		return nil
 	}
+	entry, err := source.OpenEntry("node_modules")
+	if err != nil {
+		return fmt.Errorf("extension: open runtime dependency directory: %w", err)
+	}
+	if entry.directory == nil {
+		return errors.Join(errors.New("extension: node_modules is not a directory"), entry.Close())
+	}
+	defer func() {
+		if closeErr := entry.Close(); closeErr != nil {
+			err = errors.Join(err, closeErr)
+		}
+	}()
+
+	targetModules, err := target.CreateDirectory("node_modules", entry.info.Mode().Perm())
+	if err != nil {
+		return fmt.Errorf("extension: create target node_modules: %w", err)
+	}
+	defer func() {
+		if closeErr := targetModules.Close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("extension: close target node_modules: %w", closeErr))
+		}
+	}()
 
 	names := make([]string, 0, len(runtimeDeps))
 	for name := range runtimeDeps {
 		names = append(names, name)
 	}
 	sort.Strings(names)
-
 	for _, name := range names {
-		sourcePath, err := installNodeModulePath(sourceDir, name)
-		if err != nil {
-			return err
-		}
-		if _, err := os.Lstat(sourcePath); err != nil {
-			if errors.Is(err, os.ErrNotExist) {
-				return fmt.Errorf("extension: runtime dependency %q missing from %q", name, sourceDir)
-			}
-			return fmt.Errorf("extension: stat runtime dependency %q in %q: %w", name, sourceDir, err)
-		}
-		targetPath := filepath.Join(targetDir, filepath.FromSlash(name))
-		if err := copyInstallRuntimeDependency(sourceRoot, sourcePath, targetPath, activeDirs); err != nil {
+		if err := copyInstallRuntimeDependency(entry.directory, targetModules, name, active); err != nil {
 			return err
 		}
 	}
-
-	return nil
+	return targetModules.Sync()
 }
 
-func installNodeModulePath(nodeModulesDir string, packageName string) (string, error) {
-	name := strings.TrimSpace(packageName)
-	if name == "" {
-		return "", errors.New("extension: runtime dependency name is required")
-	}
-	if filepath.IsAbs(name) || strings.Contains(name, "\\") {
-		return "", fmt.Errorf("extension: invalid runtime dependency name %q", packageName)
-	}
-
-	parts := strings.Split(name, "/")
-	switch {
-	case len(parts) == 1:
-		if !validInstallPackageSegment(parts[0], false) {
-			return "", fmt.Errorf("extension: invalid runtime dependency name %q", packageName)
+func (s installDirectoryStack) Push(info os.FileInfo, sourcePath string) (installDirectoryStack, error) {
+	for _, active := range s {
+		if os.SameFile(active, info) {
+			return nil, fmt.Errorf("extension: symlink directory cycle detected from %q", sourcePath)
 		}
-	case len(parts) == 2 && strings.HasPrefix(parts[0], "@"):
-		if !validInstallPackageSegment(parts[0], true) || !validInstallPackageSegment(parts[1], false) {
-			return "", fmt.Errorf("extension: invalid runtime dependency name %q", packageName)
-		}
-	default:
-		return "", fmt.Errorf("extension: invalid runtime dependency name %q", packageName)
 	}
-
-	return filepath.Join(nodeModulesDir, filepath.FromSlash(name)), nil
+	next := append(installDirectoryStack(nil), s...)
+	return append(next, info), nil
 }
 
-func validInstallPackageSegment(segment string, scoped bool) bool {
-	if scoped {
-		return len(segment) > 1 && segment != "." && segment != ".." && !strings.Contains(segment, "/") &&
-			!strings.Contains(segment, "\\")
+func (e *installSourceEntry) Close() error {
+	if e == nil {
+		return nil
 	}
-	return segment != "" && segment != "." && segment != ".." && !strings.Contains(segment, "/") &&
-		!strings.Contains(segment, "\\")
+	var err error
+	if e.directory != nil {
+		err = errors.Join(err, e.directory.Close())
+		e.directory = nil
+	}
+	if e.file != nil {
+		if closeErr := e.file.Close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("extension: close source file: %w", closeErr))
+		}
+		e.file = nil
+	}
+	return err
 }

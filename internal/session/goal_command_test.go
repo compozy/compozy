@@ -97,8 +97,8 @@ func TestGoalCommandParserShouldRecognizeOnlyAuthenticatedIngressGrammar(t *test
 				t.Fatalf("ParseGoalCommand() matched = %v, want %v", matched, tc.wantMatched)
 			}
 			if tc.wantReason != "" {
-				var commandErr *GoalCommandError
-				if !errors.As(err, &commandErr) || commandErr.Code != tc.wantReason {
+				commandErr, commandErrMatched := errors.AsType[*GoalCommandError](err)
+				if !commandErrMatched || commandErr.Code != tc.wantReason {
 					t.Fatalf("ParseGoalCommand() error = %v, want %q", err, tc.wantReason)
 				}
 				return
@@ -137,8 +137,8 @@ func TestGoalObjectiveParserShouldKeepClausesTextual(t *testing.T) {
 		t.Parallel()
 
 		_, err := ParseGoalObjective("Ship safely\nverify:")
-		var commandErr *GoalCommandError
-		if !errors.As(err, &commandErr) || commandErr.Code != GoalReasonContractClauseEmpty {
+		commandErr, commandErrMatched := errors.AsType[*GoalCommandError](err)
+		if !commandErrMatched || commandErr.Code != GoalReasonContractClauseEmpty {
 			t.Fatalf("ParseGoalObjective() error = %v", err)
 		}
 	})

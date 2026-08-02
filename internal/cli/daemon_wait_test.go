@@ -9,6 +9,7 @@ import (
 	"strings"
 	"syscall"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
@@ -42,6 +43,175 @@ func (p *stubDaemonProcess) Wait() error {
 func (p *stubDaemonProcess) complete(err error) {
 	p.waitErr = err
 	close(p.done)
+}
+
+func TestPollingLifecycle(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject a missing caller context", func(t *testing.T) {
+		t.Parallel()
+
+		called := false
+		var missingContext context.Context
+		_, err := pollUntil(
+			missingContext,
+			time.Second,
+			time.Millisecond,
+			nil,
+			"poll timed out",
+			func(context.Context, pollEvent) (struct{}, bool, error) {
+				called = true
+				return struct{}{}, true, nil
+			},
+		)
+		if err == nil || !strings.Contains(err.Error(), "polling context is required") {
+			t.Fatalf("pollUntil() error = %v, want required-context error", err)
+		}
+		if called {
+			t.Fatal("pollUntil() called the polling step without a caller context")
+		}
+	})
+
+	t.Run("Should preserve caller cancellation before the first tick", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+		called := false
+		_, err := pollUntil(
+			ctx,
+			time.Second,
+			time.Hour,
+			nil,
+			"poll timed out",
+			func(context.Context, pollEvent) (struct{}, bool, error) {
+				called = true
+				return struct{}{}, true, nil
+			},
+		)
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("pollUntil() error = %v, want context.Canceled", err)
+		}
+		if called {
+			t.Fatal("pollUntil() called the polling step before its first tick")
+		}
+	})
+
+	t.Run("Should dispatch an explicit interrupt without waiting for a tick", func(t *testing.T) {
+		t.Parallel()
+
+		interrupt := make(chan struct{})
+		close(interrupt)
+		value, err := pollUntil(
+			t.Context(),
+			time.Second,
+			time.Hour,
+			interrupt,
+			"poll timed out",
+			func(_ context.Context, event pollEvent) (string, bool, error) {
+				if event != pollEventInterrupt {
+					t.Fatalf("pollUntil() event = %d, want interrupt", event)
+				}
+				return sessionPromptInterruptedKey, true, nil
+			},
+		)
+		if err != nil {
+			t.Fatalf("pollUntil() error = %v", err)
+		}
+		if value != sessionPromptInterruptedKey {
+			t.Fatalf("pollUntil() value = %q, want interrupted", value)
+		}
+	})
+
+	t.Run("Should consume one interrupt before the first tick and preserve callback errors", func(t *testing.T) {
+		t.Parallel()
+
+		synctest.Test(t, func(t *testing.T) {
+			const interval = time.Hour
+			errTick := errors.New("tick failed")
+			interrupt := make(chan struct{})
+			events := make(chan pollEvent, 3)
+			result := make(chan error, 1)
+
+			go func() {
+				_, err := pollUntil(
+					t.Context(),
+					4*interval,
+					interval,
+					interrupt,
+					"poll timed out",
+					func(_ context.Context, event pollEvent) (struct{}, bool, error) {
+						events <- event
+						if event == pollEventInterrupt {
+							return struct{}{}, false, nil
+						}
+						return struct{}{}, false, errTick
+					},
+				)
+				result <- err
+			}()
+
+			synctest.Wait()
+			if got := len(events); got != 0 {
+				t.Fatalf("poll callbacks before interrupt or first interval = %d, want 0", got)
+			}
+
+			close(interrupt)
+			synctest.Wait()
+			if event := <-events; event != pollEventInterrupt {
+				t.Fatalf("pollUntil() first event = %d, want interrupt", event)
+			}
+			if got := len(events); got != 0 {
+				t.Fatalf("repeated callbacks from one interrupt = %d, want 0", got)
+			}
+
+			time.Sleep(interval)
+			synctest.Wait()
+			if event := <-events; event != pollEventTick {
+				t.Fatalf("pollUntil() second event = %d, want tick", event)
+			}
+			if err := <-result; !errors.Is(err, errTick) {
+				t.Fatalf("pollUntil() error = %v, want tick sentinel", err)
+			}
+			if got := len(events); got != 0 {
+				t.Fatalf("poll callbacks after terminal tick = %d, want 0", got)
+			}
+
+			deadlineCtx, cancelDeadline := context.WithTimeout(t.Context(), interval)
+			defer cancelDeadline()
+			deadlineCalls := 0
+			deadlineResult := make(chan error, 1)
+			go func() {
+				_, err := pollUntil(
+					deadlineCtx,
+					4*interval,
+					2*interval,
+					nil,
+					"poll timed out",
+					func(context.Context, pollEvent) (struct{}, bool, error) {
+						deadlineCalls++
+						return struct{}{}, false, nil
+					},
+				)
+				deadlineResult <- err
+			}()
+
+			synctest.Wait()
+			if deadlineCalls != 0 {
+				t.Fatalf("deadline poll callbacks before first interval = %d, want 0", deadlineCalls)
+			}
+			time.Sleep(interval)
+			synctest.Wait()
+			if err := <-deadlineResult; !errors.Is(err, context.DeadlineExceeded) {
+				t.Fatalf("deadline pollUntil() error = %v, want context.DeadlineExceeded", err)
+			}
+			time.Sleep(3 * interval)
+			synctest.Wait()
+			if deadlineCalls != 0 {
+				t.Fatalf("deadline poll callbacks after shutdown = %d, want 0", deadlineCalls)
+			}
+		})
+	})
 }
 
 func TestWaitForDaemonStartReturnsStatusWhenDaemonBecomesReady(t *testing.T) {

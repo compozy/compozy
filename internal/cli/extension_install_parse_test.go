@@ -126,4 +126,20 @@ func TestParseExtensionInstallPlan(t *testing.T) {
 			t.Fatalf("parseExtensionInstallPlan() error = %v, want credential rejection", err)
 		}
 	})
+
+	t.Run("Should reject git transports outside public HTTPS", func(t *testing.T) {
+		t.Parallel()
+
+		for _, input := range []string{
+			"git:http://example.com/r.git",
+			"git:ssh://git@example.com/r.git",
+			"git:git@example.com:acme/r.git",
+			"git:https://169.254.169.254/r.git",
+		} {
+			_, err := parseExtensionInstallPlan(input, "", "", true)
+			if err == nil {
+				t.Fatalf("parseExtensionInstallPlan(%q) error = nil, want HTTPS public destination rejection", input)
+			}
+		}
+	})
 }

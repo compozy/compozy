@@ -1,18 +1,19 @@
 package config
 
 import (
+	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/compozy/compozy/internal/fileutil"
 	"github.com/compozy/compozy/internal/frontmatter"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/goccy/go-yaml"
 )
 
 // EditAgentDefFile rewrites one AGENT.md frontmatter block while preserving the prompt body.
-func EditAgentDefFile(path string, mutate func(*AgentDef) error) (AgentDef, error) {
+func EditAgentDefFile(path string, mutate func(*AgentDef) error) (agent AgentDef, err error) {
 	if strings.TrimSpace(path) == "" {
 		return AgentDef{}, fmt.Errorf("config: agent file path is required")
 	}
@@ -20,7 +21,25 @@ func EditAgentDefFile(path string, mutate func(*AgentDef) error) (AgentDef, erro
 		return AgentDef{}, fmt.Errorf("config: agent mutate callback is required")
 	}
 
-	content, err := os.ReadFile(path)
+	directory, name, err := fileutil.OpenParentDirectory(path)
+	if err != nil {
+		return AgentDef{}, fmt.Errorf("open agent file parent %q: %w", path, err)
+	}
+	defer func() {
+		if closeErr := directory.Close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("close agent file parent %q: %w", path, closeErr))
+		}
+	}()
+	return editAgentDefFileInDirectory(directory, name, path, mutate)
+}
+
+func editAgentDefFileInDirectory(
+	directory *fileutil.Directory,
+	name string,
+	path string,
+	mutate func(*AgentDef) error,
+) (AgentDef, error) {
+	content, _, err := directory.ReadRegularFile(name)
 	if err != nil {
 		return AgentDef{}, fmt.Errorf("read agent file %q: %w", path, err)
 	}
@@ -63,7 +82,7 @@ func EditAgentDefFile(path string, mutate func(*AgentDef) error) (AgentDef, erro
 	}
 
 	rendered := renderAgentMarkdown(meta, agent.Prompt)
-	if err := writePersistedFile(path, rendered); err != nil {
+	if err := writePersistedFileInDirectory(directory, name, path, rendered, true); err != nil {
 		return AgentDef{}, fmt.Errorf("write agent file %q: %w", path, err)
 	}
 

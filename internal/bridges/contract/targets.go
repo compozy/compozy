@@ -43,7 +43,7 @@ type BridgeTargetSnapshotRequest struct {
 
 // Validate reports whether the request identifies an instance.
 func (r BridgeTargetSnapshotRequest) Validate() error {
-	return requireField(strings.TrimSpace(r.BridgeInstanceID), "bridge target snapshot bridge instance id")
+	return requireOpaqueIdentity(r.BridgeInstanceID, "bridge target snapshot bridge instance id")
 }
 
 // BridgeTargetSnapshotResponse carries adapter-enumerated targets.
@@ -63,7 +63,7 @@ type BridgeTargetSnapshot struct {
 
 // Validate reports whether the snapshot has a stable provider identity.
 func (s BridgeTargetSnapshot) Validate() error {
-	if err := requireField(strings.TrimSpace(s.CanonicalRoute), "bridge target canonical route"); err != nil {
+	if err := requireOpaqueIdentity(s.CanonicalRoute, "bridge target canonical route"); err != nil {
 		return err
 	}
 	name := strings.TrimSpace(s.DisplayName)

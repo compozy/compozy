@@ -9,10 +9,7 @@ import (
 	"path/filepath"
 
 	"strings"
-
 	"time"
-
-	"github.com/compozy/compozy/internal/subprocess"
 )
 
 func (m *Manager) startOne(ctx context.Context, ext *managedExtension) error {
@@ -25,14 +22,11 @@ func (m *Manager) startOne(ctx context.Context, ext *managedExtension) error {
 	if err := m.validateExtension(ext); err != nil {
 		return err
 	}
-	if err := m.registerExtension(ctx, ext); err != nil {
+	prepared, err := m.prepareExtensionStartup(ctx, ext)
+	if err != nil {
 		return err
 	}
-	if err := m.initializeExtension(ctx, ext); err != nil {
-		return err
-	}
-	m.activateExtension(ext)
-	return nil
+	return m.commitPreparedExtension(ctx, ext, prepared)
 }
 
 func (m *Manager) discoverExtension(ext *managedExtension) error {
@@ -93,8 +87,7 @@ func (m *Manager) validateExtension(ext *managedExtension) error {
 		return phaseError(ext.info.Name, ExtensionPhaseValidate, err)
 	}
 
-	grant, err := m.capChecker.RegisterForSession(
-		ext.instanceKey().runtimeID(),
+	grant, err := m.capChecker.Resolve(
 		ext.info.Source,
 		ext.manifest,
 		ext.maxResourceScope(),
@@ -103,111 +96,9 @@ func (m *Manager) validateExtension(ext *managedExtension) error {
 		m.setFailure(ext, ExtensionPhaseValidate, err)
 		return phaseError(ext.info.Name, ExtensionPhaseValidate, err)
 	}
-	ext.grantedPermissions = grant.Permissions
-	ext.grantedSecurity = grant.Security
-	ext.grantedResourceKinds = grant.ResourceKinds
-	ext.grantedResourceScopes = grant.ResourceScopes
+	ext.pendingGrant = grant
 	ext.phase = ExtensionPhaseValidate
 	return nil
-}
-
-func (m *Manager) registerExtension(ctx context.Context, ext *managedExtension) error {
-	if err := ctx.Err(); err != nil {
-		m.setFailure(ext, ExtensionPhaseRegister, err)
-		return err
-	}
-
-	loaded, err := m.loadDeclarativeResources(ctx, ext)
-	if err != nil {
-		m.setFailure(ext, ExtensionPhaseRegister, err)
-		return phaseError(ext.info.Name, ExtensionPhaseRegister, err)
-	}
-	m.mu.Lock()
-	loaded.apply(ext)
-	ext.registered = true
-	ext.phase = ExtensionPhaseRegister
-	m.mu.Unlock()
-	return nil
-}
-
-func (m *Manager) initializeExtension(ctx context.Context, ext *managedExtension) error {
-	if !requiresSubprocess(ext.manifest) {
-		m.mu.Lock()
-		ext.phase = ExtensionPhaseInitialize
-		ext.active = false
-		ext.lastError = ""
-		m.mu.Unlock()
-		return nil
-	}
-
-	launched, err := m.launchRuntime(ctx, ext)
-	if err != nil {
-		if errors.Is(err, ErrBridgeRuntimeDeferred) {
-			m.mu.Lock()
-			ext.process = nil
-			ext.initialize = nil
-			ext.runtime = subprocess.InitializeRuntime{}
-			ext.healthInterval = 0
-			ext.awaitingStability = false
-			ext.lastStartedAt = time.Time{}
-			ext.phase = ExtensionPhaseInitialize
-			ext.lastError = ""
-			m.mu.Unlock()
-			return nil
-		}
-		m.setFailure(ext, ExtensionPhaseInitialize, err)
-		return phaseError(ext.info.Name, ExtensionPhaseInitialize, err)
-	}
-
-	m.mu.Lock()
-	ext.process = launched.process
-	ext.initialize = &launched.response
-	ext.runtime = launched.runtime
-	ext.healthInterval = launched.healthInterval
-	ext.sessionNonce = launched.sessionNonce
-	ext.redactionCleanups = launched.redactionCleanups
-	ext.awaitingStability = true
-	ext.lastStartedAt = m.now()
-	ext.phase = ExtensionPhaseInitialize
-	ext.lastError = ""
-	ext.generation++
-	generation := ext.generation
-	m.mu.Unlock()
-
-	if !ext.deferSupervision {
-		m.wg.Add(1)
-		go m.superviseInstance(ext.instanceKey(), generation)
-	}
-	return nil
-}
-
-func (m *Manager) activateExtension(ext *managedExtension) {
-	if ext == nil {
-		return
-	}
-
-	m.mu.Lock()
-	ext.phase = ExtensionPhaseActivate
-	ext.active = ext.process != nil || !requiresSubprocess(ext.manifest)
-	ext.restartBackoff = 0
-	ext.lastError = ""
-	name := ext.info.Name
-	source := ext.info.Source.String()
-	active := ext.active
-	skillCount := len(ext.skills)
-	agentCount := len(ext.agents)
-	hookCount := len(ext.hooks)
-	m.mu.Unlock()
-
-	m.logger.Info(
-		"extension.lifecycle.loaded",
-		managerExtensionKey, name,
-		"source", source,
-		"active", active,
-		"skill_count", skillCount,
-		"agent_count", agentCount,
-		"hook_count", hookCount,
-	)
 }
 
 func (m *Manager) superviseInstance(key InstanceKey, generation int64) {
@@ -299,13 +190,13 @@ func (m *Manager) recoverOwnedInstance(
 	reason error,
 ) (int64, bool) {
 	for {
-		backoff, disable, ok := m.recordOwnedInstanceFailure(key, owner, expectedProcess, reason)
+		backoff, disableIdentity, ok := m.recordOwnedInstanceFailure(key, owner, expectedProcess, reason)
 		expectedProcess = nil
 		if !ok {
 			return 0, false
 		}
-		if disable {
-			m.disableInstance(key, reason)
+		if disableIdentity != nil {
+			m.disableOwnedInstance(*disableIdentity, reason)
 			return 0, false
 		}
 		if !m.waitBackoff(backoff) {
@@ -319,17 +210,34 @@ func (m *Manager) recoverOwnedInstance(
 		if !ownsInstance {
 			return 0, false
 		}
-		launched, err := m.launchRuntime(m.lifecycleContext(), ext)
+		transaction := newExtensionStartupTransaction(m, ext)
+		grant := ext.pendingGrant
+		launched, resourceSession, err := m.launchStartupRuntime(m.lifecycleContext(), ext, grant, transaction)
 		if err != nil {
-			reason = err
+			reason = transaction.rollback(m.lifecycleContext(), err)
+			continue
+		}
+		if err := m.activatePreparedSourceSession(m.lifecycleContext(), resourceSession, transaction); err != nil {
+			reason = transaction.rollback(m.lifecycleContext(), err)
 			continue
 		}
 
 		nextGeneration, name, source, accepted := m.acceptRecoveredRuntime(key, owner, ext, launched)
 		if !accepted {
-			m.discardRecoveredRuntime(key, launched)
+			if discardErr := transaction.rollback(
+				m.lifecycleContext(),
+				errors.New("extension: recovered runtime rejected"),
+			); discardErr != nil {
+				m.logger.Warn(
+					"extension.lifecycle.shutdown_failed",
+					managerExtensionKey, key.runtimeID(),
+					"recovered", false,
+					"error", discardErr,
+				)
+			}
 			return 0, false
 		}
+		transaction.commit()
 
 		m.logger.Info(
 			"extension.lifecycle.loaded",
@@ -365,6 +273,7 @@ func (m *Manager) acceptRecoveredRuntime(
 	ext.runtime = launched.runtime
 	ext.healthInterval = launched.healthInterval
 	ext.sessionNonce = launched.sessionNonce
+	ext.capabilityGrantID = launched.capabilityGrantID
 	ext.redactionCleanups = launched.redactionCleanups
 	ext.awaitingStability = true
 	ext.active = true
@@ -373,21 +282,4 @@ func (m *Manager) acceptRecoveredRuntime(
 	ext.lastStartedAt = m.now()
 	ext.generation++
 	return ext.generation, ext.info.Name, ext.info.Source.String(), true
-}
-
-func (m *Manager) discardRecoveredRuntime(key InstanceKey, launched launchedRuntime) {
-	shutdownErr := shutdownProcessWithTimeout(
-		m.lifecycleContext(),
-		launched.process,
-		m.defaultShutdownTimeout,
-	)
-	runExtensionRedactionCleanups(launched.redactionCleanups)
-	if shutdownErr != nil {
-		m.logger.Warn(
-			"extension.lifecycle.shutdown_failed",
-			managerExtensionKey, key.runtimeID(),
-			"recovered", false,
-			"error", shutdownErr,
-		)
-	}
 }

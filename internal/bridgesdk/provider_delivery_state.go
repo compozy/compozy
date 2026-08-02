@@ -1,9 +1,9 @@
 package bridgesdk
 
 import (
-	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 )
 
 type deliveryStateEntry[S any] struct {
@@ -66,7 +66,9 @@ func (s *DeliveryStateStore[S]) Load(deliveryID string) (S, bool) {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	deliveryID = strings.TrimSpace(deliveryID)
+	if !validDeliveryStateID(deliveryID) {
+		return zero, false
+	}
 	now := s.now()
 	s.evictExpiredLocked(now)
 	entry, ok := s.states[deliveryID]
@@ -79,12 +81,11 @@ func (s *DeliveryStateStore[S]) Load(deliveryID string) (S, bool) {
 
 // Store replaces one delivery state.
 func (s *DeliveryStateStore[S]) Store(deliveryID string, state S) {
-	if s == nil || strings.TrimSpace(deliveryID) == "" {
+	if s == nil || !validDeliveryStateID(deliveryID) {
 		return
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	deliveryID = strings.TrimSpace(deliveryID)
 	now := s.now()
 	s.evictExpiredLocked(now)
 	entry := deliveryStateEntry[S]{state: state}
@@ -99,7 +100,9 @@ func (s *DeliveryStateStore[S]) Update(deliveryID string, update func(S) S) bool
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	deliveryID = strings.TrimSpace(deliveryID)
+	if !validDeliveryStateID(deliveryID) {
+		return false
+	}
 	now := s.now()
 	s.evictExpiredLocked(now)
 	entry, ok := s.states[deliveryID]
@@ -120,8 +123,7 @@ func (s *DeliveryStateStore[S]) UpdateOrCreate(
 	if s == nil || resolve == nil {
 		return zero, false
 	}
-	deliveryID = strings.TrimSpace(deliveryID)
-	if deliveryID == "" {
+	if !validDeliveryStateID(deliveryID) {
 		return zero, false
 	}
 	s.mu.Lock()
@@ -143,7 +145,9 @@ func (s *DeliveryStateStore[S]) Delete(deliveryID string) (S, bool) {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	deliveryID = strings.TrimSpace(deliveryID)
+	if !validDeliveryStateID(deliveryID) {
+		return zero, false
+	}
 	s.evictExpiredLocked(s.now())
 	entry, ok := s.states[deliveryID]
 	if !ok {
@@ -221,4 +225,8 @@ func (s *DeliveryStateStore[S]) evictOverCapacityLocked() {
 		}
 		delete(s.states, oldestID)
 	}
+}
+
+func validDeliveryStateID(deliveryID string) bool {
+	return deliveryID != "" && utf8.ValidString(deliveryID)
 }

@@ -258,13 +258,13 @@ func isReasoningEffortUnsupportedFailure(err error) bool {
 }
 
 func isProviderAuthFailure(err error) bool {
-	var failure *acp.FailureError
-	return errors.As(err, &failure) && failure != nil && failure.Kind == store.FailureProviderAuth
+	failure, ok := errors.AsType[*acp.FailureError](err)
+	return ok && failure != nil && failure.Kind == store.FailureProviderAuth
 }
 
 func isProviderNegotiationFailure(err error) bool {
-	var negotiationErr *acp.NegotiationError
-	return errors.As(err, &negotiationErr) && negotiationErr != nil
+	negotiationErr, ok := errors.AsType[*acp.NegotiationError](err)
+	return ok && negotiationErr != nil
 }
 
 func prefixedError(prefix string, message string) error {

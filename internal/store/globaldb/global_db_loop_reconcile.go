@@ -68,6 +68,17 @@ func (g *LoopRepo) EnqueueLoopCoordinatorWake(
 	origin taskpkg.Origin,
 	now time.Time,
 ) (taskpkg.Run, bool, error) {
+	return g.enqueueLoopCoordinatorWakeWithRunID(ctx, loopRunID, "", idempotencyKey, origin, now)
+}
+
+func (g *LoopRepo) enqueueLoopCoordinatorWakeWithRunID(
+	ctx context.Context,
+	loopRunID string,
+	runID string,
+	idempotencyKey string,
+	origin taskpkg.Origin,
+	now time.Time,
+) (taskpkg.Run, bool, error) {
 	if err := g.checkReady(ctx, "enqueue loop coordinator wake"); err != nil {
 		return taskpkg.Run{}, false, err
 	}
@@ -111,7 +122,7 @@ func (g *LoopRepo) EnqueueLoopCoordinatorWake(
 				exec,
 				taskID,
 				trimmedLoopRunID,
-				"",
+				runID,
 				key,
 				normalizedOrigin,
 				now,

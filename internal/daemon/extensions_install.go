@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/url"
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
+	registrygit "github.com/compozy/compozy/internal/registry/gitsrc"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
@@ -111,15 +111,9 @@ func (s *daemonExtensionService) installPublishedExtension(
 }
 
 func validateDaemonGitInstallRef(ref string) error {
-	if !strings.HasPrefix(ref, "http://") && !strings.HasPrefix(ref, "https://") {
-		return nil
-	}
-	parsed, err := url.Parse(ref)
-	if err != nil {
-		return fmt.Errorf("daemon: parse git repository URL: %w", err)
-	}
-	if parsed.User != nil {
-		return errors.New("daemon: git repository URL must not include credentials")
+	repository, _ := splitExtensionDistributionRef(ref)
+	if err := registrygit.ValidateRepositoryRef(repository); err != nil {
+		return fmt.Errorf("daemon: invalid git repository URL: %w", err)
 	}
 	return nil
 }

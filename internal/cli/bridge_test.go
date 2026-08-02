@@ -941,63 +941,68 @@ func TestBridgeResolveUsesDaemonClientAndReportsAmbiguity(t *testing.T) {
 }
 
 func TestBridgeTestDeliveryUsesTypedTargetPayload(t *testing.T) {
-	t.Parallel()
+	t.Run("Should preserve every opaque target identity in the typed payload", func(t *testing.T) {
+		t.Parallel()
 
-	var (
-		capturedID      string
-		capturedRequest BridgeTestDeliveryRequest
-	)
-	deps := newTestDeps(t, &stubClient{
-		testBridgeDeliveryFn: func(_ context.Context, id string, request BridgeTestDeliveryRequest) (BridgeTestDeliveryRecord, error) {
-			capturedID = id
-			capturedRequest = request
-			return BridgeTestDeliveryRecord{
-				Status:  "resolved",
-				Message: request.Message,
-				DeliveryTarget: DeliveryTargetRecord{
-					BridgeInstanceID: id,
-					PeerID:           request.Target.PeerID,
-					ThreadID:         request.Target.ThreadID,
-					GroupID:          request.Target.GroupID,
-					Mode:             request.Target.Mode,
-				},
-			}, nil
-		},
+		var (
+			capturedID      string
+			capturedRequest BridgeTestDeliveryRequest
+		)
+		deps := newTestDeps(t, &stubClient{
+			testBridgeDeliveryFn: func(_ context.Context, id string, request BridgeTestDeliveryRequest) (BridgeTestDeliveryRecord, error) {
+				capturedID = id
+				capturedRequest = request
+				return BridgeTestDeliveryRecord{
+					Status:  "resolved",
+					Message: request.Message,
+					DeliveryTarget: DeliveryTargetRecord{
+						BridgeInstanceID: id,
+						PeerID:           request.Target.PeerID,
+						ThreadID:         request.Target.ThreadID,
+						GroupID:          request.Target.GroupID,
+						Mode:             request.Target.Mode,
+					},
+				}, nil
+			},
+		})
+
+		stdout, _, err := executeRootCommand(
+			t,
+			deps,
+			"bridge", "test-delivery", "   ",
+			"--message", "hello",
+			"--peer-id", " peer-1 ",
+			"--thread-id", " thread-1 ",
+			"--group-id", " group-1 ",
+			"--mode", "reply",
+			"-o", "json",
+		)
+		if err != nil {
+			t.Fatalf("bridge test-delivery error = %v", err)
+		}
+
+		if capturedID != "   " {
+			t.Fatalf("capturedID = %q, want exact opaque bridge ID", capturedID)
+		}
+		if capturedRequest.Message != "hello" || capturedRequest.Target.PeerID != " peer-1 " ||
+			capturedRequest.Target.ThreadID != " thread-1 " ||
+			capturedRequest.Target.GroupID != " group-1 " ||
+			capturedRequest.Target.Mode != bridgepkg.DeliveryModeReply {
+			t.Fatalf("capturedRequest = %#v", capturedRequest)
+		}
+
+		var decoded BridgeTestDeliveryRecord
+		if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
+			t.Fatalf("json.Unmarshal(bridge test-delivery) error = %v", err)
+		}
+		if decoded.DeliveryTarget.BridgeInstanceID != "   " ||
+			decoded.DeliveryTarget.PeerID != " peer-1 " ||
+			decoded.DeliveryTarget.ThreadID != " thread-1 " ||
+			decoded.DeliveryTarget.GroupID != " group-1 " ||
+			decoded.DeliveryTarget.Mode != bridgepkg.DeliveryModeReply {
+			t.Fatalf("decoded = %#v, want typed delivery target", decoded)
+		}
 	})
-
-	stdout, _, err := executeRootCommand(
-		t,
-		deps,
-		"bridge", "test-delivery", "brg-1",
-		"--message", "hello",
-		"--peer-id", "peer-1",
-		"--thread-id", "thread-1",
-		"--group-id", "group-1",
-		"--mode", "reply",
-		"-o", "json",
-	)
-	if err != nil {
-		t.Fatalf("bridge test-delivery error = %v", err)
-	}
-
-	if capturedID != "brg-1" {
-		t.Fatalf("capturedID = %q, want brg-1", capturedID)
-	}
-	if capturedRequest.Message != "hello" || capturedRequest.Target.PeerID != "peer-1" ||
-		capturedRequest.Target.ThreadID != "thread-1" ||
-		capturedRequest.Target.GroupID != "group-1" ||
-		capturedRequest.Target.Mode != bridgepkg.DeliveryModeReply {
-		t.Fatalf("capturedRequest = %#v", capturedRequest)
-	}
-
-	var decoded BridgeTestDeliveryRecord
-	if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
-		t.Fatalf("json.Unmarshal(bridge test-delivery) error = %v", err)
-	}
-	if decoded.DeliveryTarget.ThreadID != "thread-1" ||
-		decoded.DeliveryTarget.Mode != bridgepkg.DeliveryModeReply {
-		t.Fatalf("decoded = %#v, want typed delivery target", decoded)
-	}
 }
 
 func TestBridgeVerifyRendersStructuredResultsAndFailsOnProviderCheck(t *testing.T) {
@@ -1124,6 +1129,73 @@ func TestBridgeSendTestUsesRealClientOperationWhileDryRunStaysSeparate(t *testin
 		}
 		if platformSends != 1 || dryRuns != 1 {
 			t.Fatalf("platform sends=%d dry runs=%d, want 1/1", platformSends, dryRuns)
+		}
+	})
+
+	t.Run("Should reject noncanonical delivery modes before either client operation", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name      string
+			args      []string
+			wantError string
+		}{
+			{
+				name:      "Should reject a padded dry-run mode",
+				args:      []string{"bridge", "test-delivery", "brg-1", "--peer-id", "peer-1", "--mode", " reply "},
+				wantError: "unsupported delivery target mode",
+			},
+			{
+				name: "Should reject an alias on a real send",
+				args: []string{
+					"bridge", "send-test", "brg-1", "--message", "hello", "--peer-id", "peer-1", "--mode", "direct",
+				},
+				wantError: "unsupported delivery target mode",
+			},
+			{
+				name:      "Should reject an explicitly empty dry-run mode",
+				args:      []string{"bridge", "test-delivery", "brg-1", "--peer-id", "peer-1", "--mode", ""},
+				wantError: "delivery target mode is required",
+			},
+			{
+				name: "Should reject an explicitly empty real-send mode",
+				args: []string{
+					"bridge", "send-test", "brg-1", "--message", "hello", "--peer-id", "peer-1", "--mode", "",
+				},
+				wantError: "delivery target mode is required",
+			},
+		}
+		for _, test := range tests {
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
+
+				clientCalls := 0
+				deps := newTestDeps(t, &stubClient{
+					testBridgeDeliveryFn: func(
+						context.Context,
+						string,
+						BridgeTestDeliveryRequest,
+					) (BridgeTestDeliveryRecord, error) {
+						clientCalls++
+						return BridgeTestDeliveryRecord{}, nil
+					},
+					sendBridgeTestFn: func(
+						context.Context,
+						string,
+						BridgeSendTestRequest,
+					) (BridgeSendTestRecord, error) {
+						clientCalls++
+						return BridgeSendTestRecord{}, nil
+					},
+				})
+				_, _, err := executeRootCommand(t, deps, test.args...)
+				if err == nil || !strings.Contains(err.Error(), test.wantError) {
+					t.Fatalf("executeRootCommand() error = %v, want %q", err, test.wantError)
+				}
+				if clientCalls != 0 {
+					t.Fatalf("client calls = %d, want 0", clientCalls)
+				}
+			})
 		}
 	})
 }

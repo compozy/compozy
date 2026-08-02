@@ -8,16 +8,16 @@ import (
 
 func (m *Manager) beginSessionResume(sessionID string) (*sessionResumeRun, bool, error) {
 	target := strings.TrimSpace(sessionID)
-	m.resumeMu.Lock()
-	defer m.resumeMu.Unlock()
-	if m.resumeClosing {
+	m.resumeLifecycle.mu.Lock()
+	defer m.resumeLifecycle.mu.Unlock()
+	if m.resumeLifecycle.closing {
 		return nil, false, errors.New("session: manager is shutting down")
 	}
-	if run := m.resumeRuns[target]; run != nil {
+	if run := m.resumeLifecycle.runs[target]; run != nil {
 		return run, false, nil
 	}
 	run := &sessionResumeRun{done: make(chan struct{})}
-	m.resumeRuns[target] = run
+	m.resumeLifecycle.runs[target] = run
 	return run, true, nil
 }
 
@@ -30,14 +30,14 @@ func (m *Manager) finishSessionResume(
 	if run == nil {
 		return
 	}
-	m.resumeMu.Lock()
+	m.resumeLifecycle.mu.Lock()
 	run.session = session
 	run.err = err
-	if m.resumeRuns[strings.TrimSpace(sessionID)] == run {
-		delete(m.resumeRuns, strings.TrimSpace(sessionID))
+	if m.resumeLifecycle.runs[strings.TrimSpace(sessionID)] == run {
+		delete(m.resumeLifecycle.runs, strings.TrimSpace(sessionID))
 	}
 	close(run.done)
-	m.resumeMu.Unlock()
+	m.resumeLifecycle.mu.Unlock()
 }
 
 func waitForSessionResume(ctx context.Context, run *sessionResumeRun) (*Session, error) {
@@ -53,21 +53,21 @@ func waitForSessionResume(ctx context.Context, run *sessionResumeRun) (*Session,
 }
 
 func (m *Manager) closeSessionResumes() {
-	m.resumeMu.Lock()
-	m.resumeClosing = true
-	m.resumeMu.Unlock()
+	m.resumeLifecycle.mu.Lock()
+	m.resumeLifecycle.closing = true
+	m.resumeLifecycle.mu.Unlock()
 }
 
 func (m *Manager) waitForSessionResumes(ctx context.Context) error {
 	if ctx == nil {
 		return errors.New("session: wait for resumes context is required")
 	}
-	m.resumeMu.Lock()
-	runs := make([]*sessionResumeRun, 0, len(m.resumeRuns))
-	for _, run := range m.resumeRuns {
+	m.resumeLifecycle.mu.Lock()
+	runs := make([]*sessionResumeRun, 0, len(m.resumeLifecycle.runs))
+	for _, run := range m.resumeLifecycle.runs {
 		runs = append(runs, run)
 	}
-	m.resumeMu.Unlock()
+	m.resumeLifecycle.mu.Unlock()
 	for _, run := range runs {
 		select {
 		case <-run.done:

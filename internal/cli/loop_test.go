@@ -3,6 +3,8 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -16,10 +18,57 @@ import (
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/spf13/cobra"
 )
 
 func TestLoopCommandShouldMapCLIVerbsToClient(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should preserve editor and temporary-file cleanup failures", func(t *testing.T) {
+		t.Parallel()
+
+		cleanupErr := errors.New("remove temporary loop definition")
+		var temporaryPath string
+		deps := commandDeps{
+			removeFile: func(path string) error {
+				temporaryPath = path
+				return cleanupErr
+			},
+		}
+		definition := testLoopDefinition("release", 7)
+		client := &stubClient{
+			getLoopFn: func(context.Context, string, string) (contract.LoopResponse, error) {
+				return testLoopResponse(t, definition), nil
+			},
+		}
+		cmd := &cobra.Command{Use: "loop-edit-test"}
+		cmd.SetContext(t.Context())
+		cmd.SetOut(io.Discard)
+		cmd.SetErr(io.Discard)
+
+		_, err := editLoopDefinition(
+			cmd,
+			deps,
+			client,
+			"workspace-1",
+			"release",
+			filepath.Join(t.TempDir(), "missing-editor"),
+		)
+		if temporaryPath == "" {
+			t.Fatal("temporary path = empty, want cleanup attempt")
+		}
+		t.Cleanup(func() {
+			if removeErr := os.Remove(temporaryPath); removeErr != nil && !errors.Is(removeErr, os.ErrNotExist) {
+				t.Errorf("os.Remove(%q) error = %v", temporaryPath, removeErr)
+			}
+		})
+		if !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("editLoopDefinition() error = %v, want editor error %v", err, os.ErrNotExist)
+		}
+		if !errors.Is(err, cleanupErr) {
+			t.Fatalf("editLoopDefinition() error = %v, want cleanup error %v", err, cleanupErr)
+		}
+	})
 
 	t.Run("Should render the persisted run URL through every output contract", func(t *testing.T) {
 		t.Parallel()

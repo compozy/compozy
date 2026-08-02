@@ -64,6 +64,8 @@ func (s *Service) validate() error {
 		return errors.New("memory: logger is required")
 	case s.now == nil:
 		return errors.New("memory: clock is required")
+	case s.newDreamRunID == nil:
+		return errors.New("memory: dream run id generator is required")
 	case s.countSessionsSince == nil:
 		return errors.New("memory: session counter is required")
 	default:

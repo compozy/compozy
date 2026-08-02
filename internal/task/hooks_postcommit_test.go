@@ -2,7 +2,9 @@ package task
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -11,6 +13,59 @@ import (
 
 func TestTaskRunPostCommitHookFailuresDoNotFailCommittedMutations(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should dispatch a tokenless direct claim only after its audit commits", func(t *testing.T) {
+		t.Parallel()
+
+		store := newInMemoryManagerStore()
+		executor := &recordingSessionExecutor{}
+		postClaimCalls := 0
+		manager := newTaskManagerForTestWithOptions(
+			t,
+			store,
+			WithSessionExecutor(executor),
+			WithTaskRunHooks(recordingTaskRunHooks{
+				postClaim: func(
+					_ context.Context,
+					payload hookspkg.TaskRunPostClaimPayload,
+				) (hookspkg.TaskRunPostClaimPayload, error) {
+					postClaimCalls++
+					if got, want := payload.RunStatus, TaskRunStatusClaimed.String(); got != want {
+						t.Fatalf("post-claim RunStatus = %q, want %q", got, want)
+					}
+					if !payload.LeaseUntil.IsZero() {
+						t.Fatalf("post-claim LeaseUntil = %s, want zero for direct execution", payload.LeaseUntil)
+					}
+					encoded, err := json.Marshal(payload)
+					if err != nil {
+						t.Fatalf("json.Marshal(post-claim payload) error = %v", err)
+					}
+					if strings.Contains(string(encoded), "claim_token") {
+						t.Fatalf("direct post-claim hook exposes claim-token material: %s", encoded)
+					}
+					assertTaskRunEventExists(t, store, payload.TaskID, payload.RunID, taskEventRunClaimed)
+					return payload, nil
+				},
+			}),
+		)
+		actor := validActorContext()
+		_, run := enqueueRunForPostCommitHookTest(t, manager, actor)
+
+		started, err := manager.StartRun(context.Background(), run.ID, StartRun{}, actor)
+		if err != nil {
+			t.Fatalf("StartRun(direct) error = %v", err)
+		}
+		if got, want := started.Status.Normalize(), TaskRunStatusRunning; got != want {
+			t.Fatalf("started.Status = %q, want %q", got, want)
+		}
+		if got, want := postClaimCalls, 1; got != want {
+			t.Fatalf("post-claim hook calls = %d, want %d", got, want)
+		}
+		stored := store.runs[run.ID]
+		if stored.ClaimTokenHash != "" || !stored.LeaseUntil.IsZero() || !stored.HeartbeatAt.IsZero() {
+			t.Fatalf("stored direct execution run = %#v, want tokenless claim fence", stored)
+		}
+	})
 
 	t.Run("Should keep a claimed run successful when post-claim hook fails", func(t *testing.T) {
 		t.Parallel()
@@ -67,6 +122,80 @@ func TestTaskRunPostCommitHookFailuresDoNotFailCommittedMutations(t *testing.T) 
 			t.Fatalf("heartbeat.Status = %q, want %q", got, want)
 		}
 		assertTaskRunEventExists(t, store, taskRecord.ID, claimed.Run.ID, taskEventRunLeaseExtended)
+	})
+
+	t.Run("Should keep a release successful when released hook fails", func(t *testing.T) {
+		t.Parallel()
+
+		store := newInMemoryManagerStore()
+		manager := newTaskManagerForTestWithOptions(t, store, WithTaskRunHooks(recordingTaskRunHooks{
+			released: func(
+				_ context.Context,
+				payload hookspkg.TaskRunReleasedPayload,
+			) (hookspkg.TaskRunReleasedPayload, error) {
+				return payload, errors.New("released observer failed")
+			},
+		}))
+		actor := validActorContext()
+		agent := validAgentActorContextForPostCommitHookTest()
+		taskRecord, _ := enqueueRunForPostCommitHookTest(t, manager, actor)
+		claimed := claimNextRunForPostCommitHookTest(
+			t,
+			manager,
+			agent,
+			time.Date(2026, 5, 16, 16, 30, 0, 0, time.UTC),
+		)
+
+		released, err := manager.ReleaseRunLease(context.Background(), LeaseRelease{
+			RunID:      claimed.Run.ID,
+			ClaimToken: claimed.ClaimToken,
+			Reason:     "handoff",
+			Now:        time.Date(2026, 5, 16, 16, 31, 0, 0, time.UTC),
+		}, agent)
+		if err != nil {
+			t.Fatalf("ReleaseRunLease() error = %v", err)
+		}
+		if got, want := released.Status, TaskRunStatusQueued; got != want {
+			t.Fatalf("released.Status = %q, want %q", got, want)
+		}
+		assertTaskRunEventExists(t, store, taskRecord.ID, claimed.Run.ID, taskEventRunReleased)
+	})
+
+	t.Run("Should keep a failure successful when failed hook fails", func(t *testing.T) {
+		t.Parallel()
+
+		store := newInMemoryManagerStore()
+		manager := newTaskManagerForTestWithOptions(t, store, WithTaskRunHooks(recordingTaskRunHooks{
+			failed: func(
+				_ context.Context,
+				payload hookspkg.TaskRunFailedPayload,
+			) (hookspkg.TaskRunFailedPayload, error) {
+				return payload, errors.New("failed observer failed")
+			},
+		}))
+		actor := validActorContext()
+		agent := validAgentActorContextForPostCommitHookTest()
+		taskRecord, _ := enqueueRunForPostCommitHookTest(t, manager, actor)
+		claimed := claimNextRunForPostCommitHookTest(
+			t,
+			manager,
+			agent,
+			time.Date(2026, 5, 16, 16, 45, 0, 0, time.UTC),
+		)
+
+		failed, err := manager.FailRunLease(context.Background(), LeaseFailure{
+			RunID:      claimed.Run.ID,
+			ClaimToken: claimed.ClaimToken,
+			Failure:    RunFailure{Error: "worker failed"},
+			Now:        time.Date(2026, 5, 16, 16, 46, 0, 0, time.UTC),
+		}, agent)
+		if err != nil {
+			t.Fatalf("FailRunLease() error = %v", err)
+		}
+		if got, want := failed.Status, TaskRunStatusFailed; got != want {
+			t.Fatalf("failed.Status = %q, want %q", got, want)
+		}
+		assertTaskRunEventExists(t, store, taskRecord.ID, claimed.Run.ID, taskWatchEventRunFailed)
 	})
 
 	t.Run("Should keep completion successful when completed hook fails", func(t *testing.T) {

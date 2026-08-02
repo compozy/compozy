@@ -114,7 +114,7 @@ func parseAutomationRunListQuery(
 func resolveAutomationScopeWorkspace(
 	cmd *cobra.Command,
 	deps commandDeps,
-	client DaemonClient,
+	client workspaceLookupClient,
 	rawScope string,
 	workspaceRef string,
 ) (automationpkg.Scope, string, error) {

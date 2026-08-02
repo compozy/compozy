@@ -2,15 +2,13 @@ package support
 
 import (
 	"context"
-
 	"errors"
 	"fmt"
-
+	"log/slog"
 	"os"
 	"path/filepath"
-
 	"strings"
-
+	"sync"
 	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -32,8 +30,9 @@ const (
 )
 
 var (
-	ErrOperationNotFound = errors.New("support: bundle operation not found")
-	ErrOperationNotReady = errors.New("support: bundle operation is not ready for download")
+	ErrOperationNotFound   = errors.New("support: bundle operation not found")
+	ErrOperationNotReady   = errors.New("support: bundle operation is not ready for download")
+	ErrServiceShuttingDown = errors.New("support: service is shutting down")
 )
 
 type OperationStatus string
@@ -113,6 +112,15 @@ type Service struct {
 	store     *operationStore
 	now       func() time.Time
 	retention time.Duration
+	logger    *slog.Logger
+
+	lifecycleMu  sync.Mutex
+	ownerCtx     context.Context
+	ownerCancel  context.CancelFunc
+	work         sync.WaitGroup
+	closing      bool
+	shutdown     sync.Once
+	shutdownDone chan struct{}
 }
 
 func NewService(builder *Builder) *Service {
@@ -124,11 +132,16 @@ func NewService(builder *Builder) *Service {
 		now = func() time.Time { return time.Now().UTC() }
 	}
 	builder.Now = now
+	ownerCtx, ownerCancel := context.WithCancel(context.Background())
 	return &Service{
-		builder:   builder,
-		store:     newOperationStore(now),
-		now:       now,
-		retention: defaultOperationRetention,
+		builder:      builder,
+		store:        newOperationStore(now),
+		now:          now,
+		retention:    defaultOperationRetention,
+		logger:       slog.Default(),
+		ownerCtx:     ownerCtx,
+		ownerCancel:  ownerCancel,
+		shutdownDone: make(chan struct{}),
 	}
 }
 
@@ -140,15 +153,35 @@ func (s *Service) Create(ctx context.Context, req CreateRequest) (Operation, err
 	if s == nil {
 		return Operation{}, errors.New("support: service is required")
 	}
-	s.store.cleanup(s.retention)
+	if ctx == nil {
+		return Operation{}, errors.New("support: create context is required")
+	}
+	s.lifecycleMu.Lock()
+	if s.closing {
+		s.lifecycleMu.Unlock()
+		return Operation{}, ErrServiceShuttingDown
+	}
+	cleanupFailures := s.store.cleanup(s.retention)
 	operationID := uuid.NewString()
 	op := s.store.create(operationID)
-	runCtx, cancel := detachedContext(ctx)
-	go func() {
+	runCtx, cancel := s.operationContext(ctx)
+	s.work.Go(func() {
 		defer cancel()
 		s.run(runCtx, operationID, req)
-	}()
+	})
+	s.lifecycleMu.Unlock()
+	s.reportCleanupFailures(cleanupFailures)
 	return op, nil
+}
+
+func (s *Service) reportCleanupFailures(failures []expiredArtifactCleanupFailure) {
+	for _, failure := range failures {
+		s.logger.Warn(
+			"support: retain expired bundle operation after artifact cleanup failure",
+			"operation_id", failure.operationID,
+			"error", failure,
+		)
+	}
 }
 
 func (s *Service) Get(_ context.Context, operationID string) (Operation, error) {

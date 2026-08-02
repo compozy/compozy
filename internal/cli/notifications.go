@@ -407,17 +407,16 @@ func notificationPresetDeleteBundle(name string) outputBundle {
 func parseNotificationPresetTargets(values []string) ([]contract.NotificationTargetPayload, error) {
 	targets := make([]contract.NotificationTargetPayload, 0, len(values))
 	for _, raw := range values {
-		trimmed := strings.TrimSpace(raw)
-		if trimmed == "" {
+		if raw == "" {
 			continue
 		}
-		bridgeID, route, ok := strings.Cut(trimmed, ":")
-		if !ok || strings.TrimSpace(bridgeID) == "" || strings.TrimSpace(route) == "" {
+		bridgeID, route, ok := strings.Cut(raw, ":")
+		if !ok || bridgeID == "" || route == "" {
 			return nil, errors.New("cli: --target must use bridge_id:canonical_route")
 		}
 		targets = append(targets, contract.NotificationTargetPayload{
-			BridgeID:       strings.TrimSpace(bridgeID),
-			CanonicalRoute: strings.TrimSpace(route),
+			BridgeID:       bridgeID,
+			CanonicalRoute: route,
 		})
 	}
 	return targets, nil
@@ -439,11 +438,11 @@ func notificationPresetTargetSummary(targets []contract.NotificationTargetPayloa
 	}
 	parts := make([]string, 0, len(targets))
 	for _, target := range targets {
-		route := strings.TrimSpace(target.CanonicalRoute)
+		route := target.CanonicalRoute
 		if route == "" {
-			route = strings.TrimSpace(target.DisplayName)
+			route = target.DisplayName
 		}
-		parts = append(parts, strings.TrimSpace(target.BridgeID)+":"+route)
+		parts = append(parts, target.BridgeID+":"+route)
 	}
 	return strings.Join(parts, ",")
 }

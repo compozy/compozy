@@ -4,15 +4,19 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/compozy/compozy/internal/outboundpolicy"
 )
 
 const (
 	httpArchiveRequestTimeout = 30 * time.Second
 	httpArchiveMaxRedirects   = 10
+	httpArchiveDrainLimit     = int64(64 << 10)
 )
 
 // HTTPArchiveDownloader acquires one catalog-pinned archive over HTTPS.
@@ -38,10 +42,14 @@ func NewHTTPArchiveDownloader(
 	if trimmedVersion == "" {
 		return nil, errors.New("registry: HTTP archive version is required")
 	}
+	policy := outboundpolicy.New(false)
+	if err := policy.ValidateURL(parsed); err != nil {
+		return nil, fmt.Errorf("registry: HTTP archive destination: %w", err)
+	}
 	return &HTTPArchiveDownloader{
 		artifactURL: parsed.String(),
 		version:     trimmedVersion,
-		client:      httpArchiveClient(client),
+		client:      httpArchiveClient(client, policy),
 	}, nil
 }
 
@@ -70,19 +78,20 @@ func (d *HTTPArchiveDownloader) Download(
 		return nil, fmt.Errorf("registry: create HTTP archive request: %w", err)
 	}
 	request.Header.Set("Accept", "application/gzip, application/x-gzip, application/octet-stream")
+	//nolint:bodyclose // Failure branches drain/close; successful reader ownership transfers to the caller.
 	response, err := d.client.Do(request)
 	if err != nil {
 		return nil, fmt.Errorf("registry: download curated HTTP archive for %q: %w", trimmedSlug, err)
 	}
 	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
-		closeErr := response.Body.Close()
+		cleanupErr := drainAndCloseHTTPArchiveResponse(response.Body, trimmedSlug)
 		return nil, errors.Join(
 			fmt.Errorf(
 				"registry: download curated HTTP archive for %q: status %s",
 				trimmedSlug,
 				response.Status,
 			),
-			wrapHTTPArchiveCloseError(trimmedSlug, closeErr),
+			cleanupErr,
 		)
 	}
 	maxArchiveSize := opts.MaxArchiveSize
@@ -90,7 +99,7 @@ func (d *HTTPArchiveDownloader) Download(
 		maxArchiveSize = DefaultMaxArchiveSize
 	}
 	if response.ContentLength > maxArchiveSize {
-		closeErr := response.Body.Close()
+		cleanupErr := drainAndCloseHTTPArchiveResponse(response.Body, trimmedSlug)
 		return nil, errors.Join(
 			fmt.Errorf(
 				"registry: download curated HTTP archive for %q: %w: size=%d limit=%d",
@@ -99,7 +108,7 @@ func (d *HTTPArchiveDownloader) Download(
 				response.ContentLength,
 				maxArchiveSize,
 			),
-			wrapHTTPArchiveCloseError(trimmedSlug, closeErr),
+			cleanupErr,
 		)
 	}
 	return &DownloadResult{
@@ -122,33 +131,23 @@ func validateHTTPSArchiveURL(raw string) (*url.URL, error) {
 	return parsed, nil
 }
 
-func httpArchiveClient(base *http.Client) *http.Client {
-	if base == nil {
-		base = &http.Client{Timeout: httpArchiveRequestTimeout}
-	}
-	client := *base
-	if client.Timeout <= 0 {
-		client.Timeout = httpArchiveRequestTimeout
-	}
-	priorCheckRedirect := client.CheckRedirect
-	client.CheckRedirect = func(request *http.Request, via []*http.Request) error {
-		if request.URL.Scheme != "https" {
-			return errors.New("registry: HTTP archive redirect must remain HTTPS")
-		}
-		if priorCheckRedirect != nil {
-			return priorCheckRedirect(request, via)
-		}
-		if len(via) >= httpArchiveMaxRedirects {
-			return errors.New("registry: HTTP archive stopped after 10 redirects")
-		}
-		return nil
-	}
-	return &client
+func httpArchiveClient(base *http.Client, policy outboundpolicy.Policy) *http.Client {
+	return outboundpolicy.NewHTTPClient(base, policy, httpArchiveRequestTimeout, httpArchiveMaxRedirects)
 }
 
-func wrapHTTPArchiveCloseError(slug string, err error) error {
-	if err == nil {
+func drainAndCloseHTTPArchiveResponse(body io.ReadCloser, slug string) error {
+	if body == nil {
 		return nil
 	}
-	return fmt.Errorf("registry: close curated HTTP archive response for %q: %w", slug, err)
+	var cleanupErr error
+	if _, err := io.Copy(io.Discard, io.LimitReader(body, httpArchiveDrainLimit)); err != nil {
+		cleanupErr = fmt.Errorf("registry: drain curated HTTP archive response for %q: %w", slug, err)
+	}
+	if err := body.Close(); err != nil {
+		cleanupErr = errors.Join(
+			cleanupErr,
+			fmt.Errorf("registry: close curated HTTP archive response for %q: %w", slug, err),
+		)
+	}
+	return cleanupErr
 }

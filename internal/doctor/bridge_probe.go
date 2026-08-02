@@ -51,15 +51,15 @@ func (p *BridgeProbe) Run(
 		return instances[left].ID < instances[right].ID
 	})
 	if len(instances) == 0 {
-		return []contract.DiagnosticItem{diagnostics.NewItem(
-			"doctor.bridge.empty",
-			contract.CodeBridgeReady,
-			contract.CategoryBridge,
-			"No bridge instances configured",
-			"Bridge verification has no configured instances to inspect.",
-			contract.SeverityOK,
-			contract.FreshnessLive,
-		)}, nil
+		return []contract.DiagnosticItem{diagnostics.NewItem(diagnostics.ItemSpec{
+			ID:            "doctor.bridge.empty",
+			Code:          contract.CodeBridgeReady,
+			Category:      contract.CategoryBridge,
+			Title:         "No bridge instances configured",
+			Message:       "Bridge verification has no configured instances to inspect.",
+			Severity:      contract.SeverityOK,
+			DataFreshness: contract.FreshnessLive,
+		})}, nil
 	}
 
 	items := make([]contract.DiagnosticItem, 0, len(instances)*2)
@@ -79,14 +79,15 @@ func (p *BridgeProbe) Run(
 }
 
 func bridgeControlErrorItem(instance bridgepkg.BridgeInstance, err error) contract.DiagnosticItem {
-	return diagnostics.NewItem(
-		bridgeDiagnosticID(instance.ID, "control"),
-		contract.CodeBridgeHealthUnavailable,
-		contract.CategoryBridge,
-		"Bridge verification could not complete",
-		"The provider control process did not return bridge checks.",
-		contract.SeverityError,
-		contract.FreshnessLive,
+	return diagnostics.NewItem(diagnostics.ItemSpec{
+		ID:            bridgeDiagnosticID(instance.ID, "control"),
+		Code:          contract.CodeBridgeHealthUnavailable,
+		Category:      contract.CategoryBridge,
+		Title:         "Bridge verification could not complete",
+		Message:       "The provider control process did not return bridge checks.",
+		Severity:      contract.SeverityError,
+		DataFreshness: contract.FreshnessLive,
+	},
 		diagnostics.WithSuggestedCommand("compozy bridge verify "+instance.ID),
 		diagnostics.WithEvidence(map[string]any{
 			"bridge_instance_id": instance.ID,
@@ -105,14 +106,15 @@ func bridgeCheckDiagnosticItem(
 	if message == "" {
 		message = bridgeCheckFallbackMessage(check)
 	}
-	return diagnostics.NewItem(
-		bridgeDiagnosticID(instance.ID, check.Check),
-		code,
-		contract.CategoryBridge,
-		title,
-		message,
-		severity,
-		contract.FreshnessLive,
+	return diagnostics.NewItem(diagnostics.ItemSpec{
+		ID:            bridgeDiagnosticID(instance.ID, check.Check),
+		Code:          code,
+		Category:      contract.CategoryBridge,
+		Title:         title,
+		Message:       message,
+		Severity:      severity,
+		DataFreshness: contract.FreshnessLive,
+	},
 		diagnostics.WithSuggestedCommand("compozy bridge verify "+instance.ID),
 		diagnostics.WithEvidence(map[string]any{
 			"bridge_instance_id": instance.ID,

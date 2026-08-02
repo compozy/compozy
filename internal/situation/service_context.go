@@ -134,22 +134,6 @@ func (s *Service) ContextForSession(
 	return normalized, nil
 }
 
-// PromptSection implements the legacy workspace-scoped prompt provider seam.
-func (s *Service) PromptSection(
-	ctx context.Context,
-	workspace *workspacepkg.ResolvedWorkspace,
-) (string, error) {
-	payload, err := s.ContextForStartup(ctx, session.StartupPromptContext{
-		WorkspaceID: workspaceID(workspace),
-		Workspace:   workspaceRoot(workspace),
-		SessionType: session.SessionTypeUser,
-	}, compozyconfig.AgentDef{}, workspace)
-	if err != nil {
-		return "", err
-	}
-	return RenderPrompt(&payload)
-}
-
 // PromptStartupSection renders the startup prompt section with full startup metadata.
 func (s *Service) PromptStartupSection(
 	ctx context.Context,

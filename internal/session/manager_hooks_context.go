@@ -1,6 +1,7 @@
 package session
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
@@ -74,12 +75,28 @@ func (s *Session) applyHookSessionContext(payload hookspkg.SessionContext, now t
 
 	s.Name = strings.TrimSpace(payload.SessionName)
 	s.AgentName = strings.TrimSpace(payload.AgentName)
-	s.WorkspaceID = strings.TrimSpace(payload.WorkspaceID)
-	s.Workspace = strings.TrimSpace(payload.Workspace)
 	s.Type = normalizeSessionType(Type(strings.TrimSpace(payload.SessionType)))
 	if !now.IsZero() {
 		s.UpdatedAt = now
 	}
+}
+
+func validateImmutableSessionWorkspace(expected, actual hookspkg.SessionContext) error {
+	expectedID := strings.TrimSpace(expected.WorkspaceID)
+	expectedPath := strings.TrimSpace(expected.Workspace)
+	actualID := strings.TrimSpace(actual.WorkspaceID)
+	actualPath := strings.TrimSpace(actual.Workspace)
+	if actualID == expectedID && actualPath == expectedPath {
+		return nil
+	}
+	return fmt.Errorf(
+		"%w: session workspace identity is immutable after creation: expected {%q %q}, got {%q %q}",
+		ErrValidation,
+		expectedID,
+		expectedPath,
+		actualID,
+		actualPath,
+	)
 }
 
 func hookTimestamp(now time.Time, eventTime time.Time) time.Time {

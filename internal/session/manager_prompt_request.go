@@ -32,8 +32,12 @@ func (m *Manager) parsePromptRequest(ctx context.Context, id string, opts Prompt
 	if err != nil {
 		return promptRequest{}, err
 	}
+	turnID, err := m.newPromptTurnID()
+	if err != nil {
+		return promptRequest{}, err
+	}
 	return promptRequest{
-		turnID:          m.newPromptTurnID(),
+		turnID:          turnID,
 		target:          target,
 		message:         message,
 		authoredMessage: message,
@@ -131,15 +135,19 @@ func normalizePromptMeta(
 	return normalized, nil
 }
 
-func (m *Manager) newPromptTurnID() string {
+func (m *Manager) newPromptTurnID() (string, error) {
 	if m == nil || m.newTurnID == nil {
-		return newID("turn")
+		return "", errors.New("session: turn id generator is required")
 	}
-	turnID := strings.TrimSpace(m.newTurnID())
+	turnID, err := m.newTurnID()
+	if err != nil {
+		return "", fmt.Errorf("session: generate prompt turn id: %w", err)
+	}
+	turnID = strings.TrimSpace(turnID)
 	if turnID == "" {
-		return newID("turn")
+		return "", errors.New("session: turn id generator returned empty id")
 	}
-	return turnID
+	return turnID, nil
 }
 
 func (m *Manager) lookupPromptSession(ctx context.Context, target string) (*Session, error) {

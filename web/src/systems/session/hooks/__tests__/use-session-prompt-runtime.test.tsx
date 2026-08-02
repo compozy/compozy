@@ -62,6 +62,10 @@ function provider(
     auth_status: {
       env_policy: "inherit",
       home_policy: "operator",
+      login: {
+        configured: false,
+        presence: "unknown",
+      },
       mode: "native_cli",
       state: authState,
     },

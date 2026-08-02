@@ -10,6 +10,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/testutil"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	authproviders "github.com/compozy/compozy/internal/providers"
 	settingspkg "github.com/compozy/compozy/internal/settings"
 )
 
@@ -31,7 +32,8 @@ func TestSettingsProviderAuthStatusPayload(t *testing.T) {
 					Providers: []settingspkg.ProviderItem{{
 						Name: "codex",
 						Settings: settingspkg.ProviderSettings{
-							Command: "npx -y @agentclientprotocol/codex-acp@latest",
+							Command:      "npx -y @agentclientprotocol/codex-acp@latest",
+							AuthLoginCmd: "codex login --token raw-login-secret",
 						},
 						CommandAvailable: true,
 						AuthStatus: settingspkg.ProviderAuthStatus{
@@ -40,12 +42,12 @@ func TestSettingsProviderAuthStatusPayload(t *testing.T) {
 							HomePolicy: compozyconfig.ProviderHomePolicyIsolated,
 							State:      "missing_cli",
 							Message:    "Native CLI \"codex\" was not found on PATH.",
-							LoginCmd:   "codex login",
-							LoginEnv:   []string{"HOME=/tmp/compozy/providers/codex"},
-							NativeCLI: &settingspkg.ProviderNativeCLIStatus{
-								Command: "codex",
-								Present: false,
-								Source:  "auth_login_command",
+							Login: authproviders.ProviderLoginDescriptor{
+								Configured:        true,
+								Source:            "auth_login_command",
+								Executable:        "codex",
+								Presence:          authproviders.ProviderLoginPresenceMissing,
+								RecommendedAction: authproviders.ProviderFailureActionInstallCLI,
 							},
 						},
 						SourceMetadata: settingspkg.SourceMetadata{
@@ -91,17 +93,31 @@ func TestSettingsProviderAuthStatusPayload(t *testing.T) {
 		if got, want := authStatus.State, "missing_cli"; got != want {
 			t.Fatalf("AuthStatus.State = %q, want %q", got, want)
 		}
-		if authStatus.NativeCLI == nil || authStatus.NativeCLI.Command != "codex" {
-			t.Fatalf("AuthStatus.NativeCLI = %#v, want codex diagnostic", authStatus.NativeCLI)
+		if !authStatus.Login.Configured {
+			t.Fatal("AuthStatus.Login.Configured = false, want true")
 		}
-		if got, want := authStatus.NativeCLI.Present, false; got != want {
-			t.Fatalf("AuthStatus.NativeCLI.Present = %t, want %t", got, want)
+		if got, want := authStatus.Login.Source, contract.ProviderLoginSourceAuthLoginCommand; got != want {
+			t.Fatalf("AuthStatus.Login.Source = %q, want %q", got, want)
 		}
-		if got, want := authStatus.NativeCLI.Source, "auth_login_command"; got != want {
-			t.Fatalf("AuthStatus.NativeCLI.Source = %q, want %q", got, want)
+		if got, want := authStatus.Login.Executable, "codex"; got != want {
+			t.Fatalf("AuthStatus.Login.Executable = %q, want %q", got, want)
 		}
-		if got, want := strings.Join(authStatus.LoginEnv, " "), "HOME=/tmp/compozy/providers/codex"; got != want {
-			t.Fatalf("AuthStatus.LoginEnv = %q, want %q", got, want)
+		if got, want := authStatus.Login.Presence, contract.ProviderLoginPresenceMissing; got != want {
+			t.Fatalf("AuthStatus.Login.Presence = %q, want %q", got, want)
+		}
+		if got, want := authStatus.Login.RecommendedAction, contract.ProviderRecommendedActionInstallCLI; got != want {
+			t.Fatalf("AuthStatus.Login.RecommendedAction = %q, want %q", got, want)
+		}
+		for _, forbidden := range []string{
+			"raw-login-secret",
+			"codex login",
+			`"login_command":`,
+			`"login_env":`,
+			`"native_cli":`,
+		} {
+			if strings.Contains(resp.Body.String(), forbidden) {
+				t.Fatalf("response body leaked forbidden provider login field %q: %s", forbidden, resp.Body.String())
+			}
 		}
 	})
 }

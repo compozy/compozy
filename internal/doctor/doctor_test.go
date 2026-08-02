@@ -2,6 +2,7 @@ package doctor
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -88,10 +89,7 @@ func TestDeadEntityProbe(t *testing.T) {
 		}); err != nil {
 			t.Fatalf("Register(dead entity probe) error = %v", err)
 		}
-		runner, err := NewRunner(registry)
-		if err != nil {
-			t.Fatalf("NewRunner() error = %v", err)
-		}
+		runner := NewRunner(registry)
 		items, err := runner.Run(context.Background(), RunOptions{Only: []string{contract.CategoryMCP}})
 		if err != nil {
 			t.Fatalf("Run(mcp) error = %v", err)
@@ -161,14 +159,15 @@ func TestRunner(t *testing.T) {
 			ProbeCategory: contract.CategoryProvider,
 			RunFunc: func(context.Context, *ProbeEnv) ([]contract.DiagnosticItem, error) {
 				return []contract.DiagnosticItem{
-					diagnostics.NewItem(
-						"doctor.provider.auth",
-						contract.CodeProviderNotAuthenticated,
-						contract.CategoryProvider,
-						"Provider auth",
-						"stderr token=probe-secret",
-						contract.SeverityWarn,
-						contract.FreshnessLive,
+					diagnostics.NewItem(diagnostics.ItemSpec{
+						ID:            "doctor.provider.auth",
+						Code:          contract.CodeProviderNotAuthenticated,
+						Category:      contract.CategoryProvider,
+						Title:         "Provider auth",
+						Message:       "stderr token=probe-secret",
+						Severity:      contract.SeverityWarn,
+						DataFreshness: contract.FreshnessLive,
+					},
 						diagnostics.WithEvidence(map[string]any{"access_token": "secret-value"}),
 					),
 				}, nil
@@ -176,10 +175,7 @@ func TestRunner(t *testing.T) {
 		}); err != nil {
 			t.Fatalf("Register() error = %v", err)
 		}
-		runner, err := NewRunner(registry)
-		if err != nil {
-			t.Fatalf("NewRunner() error = %v", err)
-		}
+		runner := NewRunner(registry)
 
 		items, err := runner.Run(context.Background(), RunOptions{})
 		if err != nil {
@@ -209,10 +205,7 @@ func TestRunner(t *testing.T) {
 		}); err != nil {
 			t.Fatalf("Register() error = %v", err)
 		}
-		runner, err := NewRunner(registry)
-		if err != nil {
-			t.Fatalf("NewRunner() error = %v", err)
-		}
+		runner := NewRunner(registry)
 
 		items, err := runner.Run(context.Background(), RunOptions{})
 		if err != nil {
@@ -224,8 +217,61 @@ func TestRunner(t *testing.T) {
 		if items[0].Code != contract.CodeProbeFailed {
 			t.Fatalf("failure Code = %q, want %q", items[0].Code, contract.CodeProbeFailed)
 		}
+		if items[0].Category != contract.CategoryDaemon {
+			t.Fatalf("failure Category = %q, want %q", items[0].Category, contract.CategoryDaemon)
+		}
+		if items[0].Severity != contract.SeverityError {
+			t.Fatalf("failure Severity = %q, want %q", items[0].Severity, contract.SeverityError)
+		}
+		if items[0].DataFreshness != contract.FreshnessLive {
+			t.Fatalf("failure DataFreshness = %q, want %q", items[0].DataFreshness, contract.FreshnessLive)
+		}
 		if strings.Contains(items[0].Message, "raw-secret") {
 			t.Fatalf("failure Message = %q leaked raw error", items[0].Message)
+		}
+	})
+
+	t.Run("Should convert a probe panic into a sanitized diagnostic", func(t *testing.T) {
+		t.Parallel()
+
+		const secret = "doctor-panic-secret-value"
+		registry := NewRegistry()
+		if err := registry.Register(&ProbeFunc{
+			ProbeID:       "doctor.provider.panic",
+			ProbeCategory: contract.CategoryProvider,
+			RunFunc: func(context.Context, *ProbeEnv) ([]contract.DiagnosticItem, error) {
+				panic("provider panic token=" + secret)
+			},
+		}); err != nil {
+			t.Fatalf("Register() error = %v", err)
+		}
+		runner := NewRunner(registry)
+
+		items, err := runner.Run(t.Context(), RunOptions{})
+		if err != nil {
+			t.Fatalf("Run() error = %v", err)
+		}
+		if len(items) != 1 {
+			t.Fatalf("Run() item count = %d, want 1", len(items))
+		}
+		if items[0].Code != contract.CodeProbeFailed {
+			t.Fatalf("panic Code = %q, want %q", items[0].Code, contract.CodeProbeFailed)
+		}
+		if items[0].Category != contract.CategoryDaemon {
+			t.Fatalf("panic Category = %q, want %q", items[0].Category, contract.CategoryDaemon)
+		}
+		if items[0].Severity != contract.SeverityError {
+			t.Fatalf("panic Severity = %q, want %q", items[0].Severity, contract.SeverityError)
+		}
+		if items[0].DataFreshness != contract.FreshnessLive {
+			t.Fatalf("panic DataFreshness = %q, want %q", items[0].DataFreshness, contract.FreshnessLive)
+		}
+		serialized, err := json.Marshal(items[0])
+		if err != nil {
+			t.Fatalf("json.Marshal(panic diagnostic) error = %v", err)
+		}
+		if strings.Contains(string(serialized), secret) {
+			t.Fatalf("panic diagnostic = %s leaked secret", serialized)
 		}
 	})
 
@@ -243,10 +289,7 @@ func TestRunner(t *testing.T) {
 		}); err != nil {
 			t.Fatalf("Register() error = %v", err)
 		}
-		runner, err := NewRunner(registry)
-		if err != nil {
-			t.Fatalf("NewRunner() error = %v", err)
-		}
+		runner := NewRunner(registry)
 
 		items, err := runner.Run(context.Background(), RunOptions{ProbeTimeout: time.Millisecond})
 		if err != nil {
@@ -386,10 +429,7 @@ func TestBridgeProbeCategoryFilter(t *testing.T) {
 		if err := registry.Register(&BridgeProbe{Source: source}); err != nil {
 			t.Fatalf("Register(bridge) error = %v", err)
 		}
-		runner, err := NewRunner(registry)
-		if err != nil {
-			t.Fatalf("NewRunner() error = %v", err)
-		}
+		runner := NewRunner(registry)
 
 		items, err := runner.Run(context.Background(), RunOptions{})
 		if err != nil {
@@ -433,10 +473,7 @@ func TestBridgeProbeCategoryFilter(t *testing.T) {
 		if err := registry.Register(&BridgeProbe{Source: source}); err != nil {
 			t.Fatalf("Register(bridge) error = %v", err)
 		}
-		runner, err := NewRunner(registry)
-		if err != nil {
-			t.Fatalf("NewRunner() error = %v", err)
-		}
+		runner := NewRunner(registry)
 
 		items, err := runner.Run(context.Background(), RunOptions{Only: []string{contract.CategoryBridge}})
 		if err != nil {

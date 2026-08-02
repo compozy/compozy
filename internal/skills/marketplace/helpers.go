@@ -50,14 +50,6 @@ func normalizeMarketplaceInstallTime(now func() time.Time) time.Time {
 	return installedAt.UTC()
 }
 
-func joinRemoveAll(errp *error, path string, label string) {
-	removeErr := os.RemoveAll(path)
-	if removeErr == nil || errors.Is(removeErr, os.ErrNotExist) {
-		return
-	}
-	*errp = errors.Join(*errp, fmt.Errorf("%s %q: %w", label, path, removeErr))
-}
-
 func classifyRegistryLookup(err error) error {
 	if err == nil {
 		return nil
@@ -65,13 +57,12 @@ func classifyRegistryLookup(err error) error {
 	if errors.Is(err, ErrValidation) ||
 		errors.Is(err, ErrNotFound) ||
 		errors.Is(err, ErrNotMarketplace) ||
+		errors.Is(err, ErrUnavailable) ||
 		errors.Is(err, ErrNotConfigured) {
 		return err
 	}
-	message := err.Error()
-	if strings.Contains(message, " not found") || strings.Contains(message, "package ") &&
-		strings.Contains(message, "not found") {
-		return &Error{Kind: ErrNotFound, Message: message, Cause: err}
+	if errors.Is(err, registrypkg.ErrPackageNotFound) {
+		return &Error{Kind: ErrNotFound, Cause: err}
 	}
 	return err
 }

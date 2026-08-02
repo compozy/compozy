@@ -216,18 +216,10 @@ func scanBridgeTaskSubscription(scanner rowScanner) (bridges.BridgeTaskSubscript
 		return bridges.BridgeTaskSubscription{}, fmt.Errorf("store: scan bridge task subscription: %w", err)
 	}
 	subscription.Scope = bridges.Scope(scopeRaw)
-	if value := store.NullString(workspaceID); value != nil {
-		subscription.WorkspaceID = *value
-	}
-	if value := store.NullString(peerID); value != nil {
-		subscription.PeerID = *value
-	}
-	if value := store.NullString(threadID); value != nil {
-		subscription.ThreadID = *value
-	}
-	if value := store.NullString(groupID); value != nil {
-		subscription.GroupID = *value
-	}
+	subscription.WorkspaceID = opaqueBridgeStringValue(workspaceID)
+	subscription.PeerID = opaqueBridgeStringValue(peerID)
+	subscription.ThreadID = opaqueBridgeStringValue(threadID)
+	subscription.GroupID = opaqueBridgeStringValue(groupID)
 	subscription.DeliveryMode = bridges.DeliveryMode(deliveryMode)
 	subscription.CreatedBy.Kind = taskpkg.ActorKind(createdByKind)
 

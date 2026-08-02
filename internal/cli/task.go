@@ -1,9 +1,11 @@
 package cli
 
 import (
+	"context"
 	"strings"
 	"time"
 
+	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
 
 	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
@@ -11,6 +13,12 @@ import (
 
 	"github.com/spf13/cobra"
 )
+
+type taskCreateClient interface {
+	agentSessionClient
+	CreateTask(context.Context, CreateTaskRequest) (TaskRecord, error)
+	CreateTaskAsAgent(context.Context, CreateTaskRequest, agentidentity.Credentials) (TaskRecord, error)
+}
 
 const (
 	taskTypeValue = "Type"
@@ -193,14 +201,15 @@ func taskInspectUnknownIDRecord(id string, asOf time.Time) TaskInspectRecord {
 		NextAction: providerModelAvailabilityUnknown,
 		AsOf:       asOf,
 		Diagnostics: []contract.DiagnosticItem{
-			diagnosticitems.NewItem(
-				"task.inspect.id_format_unknown",
-				diagnosticcontract.CodeIDFormatUnknown,
-				diagnosticcontract.CategoryTask,
-				"Task inspect id format is unknown",
-				"Task inspect accepts ids with task_ / task- or run_ / run- prefixes.",
-				diagnosticcontract.SeverityError,
-				diagnosticcontract.FreshnessLive,
+			diagnosticitems.NewItem(diagnosticitems.ItemSpec{
+				ID:            "task.inspect.id_format_unknown",
+				Code:          diagnosticcontract.CodeIDFormatUnknown,
+				Category:      diagnosticcontract.CategoryTask,
+				Title:         "Task inspect id format is unknown",
+				Message:       "Task inspect accepts ids with task_ / task- or run_ / run- prefixes.",
+				Severity:      diagnosticcontract.SeverityError,
+				DataFreshness: diagnosticcontract.FreshnessLive,
+			},
 				diagnosticitems.WithEvidence(map[string]any{"id": id}),
 			),
 		},
@@ -259,7 +268,7 @@ func newTaskCommand(deps commandDeps) *cobra.Command {
 func createTaskRecord(
 	cmd *cobra.Command,
 	deps commandDeps,
-	client DaemonClient,
+	client taskCreateClient,
 	request CreateTaskRequest,
 	asAgent bool,
 ) (TaskRecord, error) {

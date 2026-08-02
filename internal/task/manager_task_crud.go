@@ -35,7 +35,10 @@ func (m *Service) CreateTask(
 		return nil, err
 	}
 
-	record := m.newTaskRecord(normalizedSpec, actor)
+	record, err := m.newTaskRecord(normalizedSpec, actor)
+	if err != nil {
+		return nil, err
+	}
 	if err := record.Validate(); err != nil {
 		return nil, err
 	}
@@ -62,7 +65,7 @@ func (m *Service) CreateTask(
 	return &record, nil
 }
 
-func (m *Service) newTaskRecord(normalizedSpec CreateTask, actor ActorContext) Task {
+func (m *Service) newTaskRecord(normalizedSpec CreateTask, actor ActorContext) (Task, error) {
 	now := m.now().UTC()
 	record := Task{
 		ID:                 normalizedSpec.ID,
@@ -87,9 +90,13 @@ func (m *Service) newTaskRecord(normalizedSpec CreateTask, actor ActorContext) T
 		Metadata:           cloneRawJSON(normalizedSpec.Metadata),
 	}
 	if strings.TrimSpace(record.ID) == "" {
-		record.ID = m.newID("task")
+		generatedID, err := m.newID("task")
+		if err != nil {
+			return Task{}, fmt.Errorf("task: generate task id: %w", err)
+		}
+		record.ID = generatedID
 	}
-	return record
+	return record, nil
 }
 
 // CreateChildTask creates one child task beneath the supplied parent and emits
@@ -134,7 +141,10 @@ func (m *Service) CreateChildTask(
 	if err := m.validateParentConstraints(ctx, normalizedSpec); err != nil {
 		return nil, err
 	}
-	child := m.newTaskRecord(normalizedSpec, actor)
+	child, err := m.newTaskRecord(normalizedSpec, actor)
+	if err != nil {
+		return nil, err
+	}
 	if err := child.Validate(); err != nil {
 		return nil, err
 	}
@@ -379,19 +389,11 @@ func (m *Service) CancelTask(
 	if err := m.ensureTaskCancelable(ctx, root); err != nil {
 		return nil, err
 	}
-
-	cancelledRoot := root
-	for idx, record := range tree {
-		record, err = m.cancelTaskTreeRecord(ctx, trimmedID, idx, record, normalizedReq, actor)
-		if err != nil {
-			return nil, err
-		}
-		if record.ID == trimmedID {
-			cancelledRoot = record
-		}
+	plan, err := m.prepareCancelTaskTree(ctx, trimmedID, tree, normalizedReq, actor)
+	if err != nil {
+		return nil, err
 	}
-
-	return &cancelledRoot, nil
+	return m.executeCancelTaskTree(ctx, plan, root, normalizedReq, actor)
 }
 
 func applyTaskPatch(current Task, patch Patch) (Task, []string) {

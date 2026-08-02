@@ -42,6 +42,14 @@ const (
 var sshReadyMarker = []byte("__compozy_daytona_ssh_ready__")
 
 func TestDaytonaSSHNonPTYValidation(t *testing.T) {
+	t.Run("Should validate non-PTY SSH round trips without terminal artifacts", func(t *testing.T) {
+		runDaytonaSSHNonPTYValidation(t)
+	})
+}
+
+func runDaytonaSSHNonPTYValidation(t *testing.T) {
+	t.Helper()
+
 	apiKey := strings.TrimSpace(os.Getenv(daytonaAPIKeyEnv))
 	if apiKey == "" {
 		t.Skipf("%s is required for Daytona SSH validation", daytonaAPIKeyEnv)
@@ -277,13 +285,18 @@ func runPayloadChecks(t *testing.T, session *sshCatSession) {
 	t.Helper()
 
 	cases := []struct {
-		name    string
-		payload []byte
+		name         string
+		payloadLabel string
+		payload      []byte
 	}{
-		{name: "small-100B", payload: mustJSONPayload(t, 100)},
-		{name: "medium-10KB", payload: mustJSONPayload(t, 10*1024)},
-		{name: "large-100KB", payload: mustJSONPayload(t, 100*1024)},
-		{name: "newline-delimited-json", payload: newlineDelimitedJSONPayload(t)},
+		{name: "Should round trip a small payload", payloadLabel: "small-100B", payload: mustJSONPayload(t, 100)},
+		{name: "Should round trip a medium payload", payloadLabel: "medium-10KB", payload: mustJSONPayload(t, 10*1024)},
+		{name: "Should round trip a large payload", payloadLabel: "large-100KB", payload: mustJSONPayload(t, 100*1024)},
+		{
+			name:         "Should round trip newline-delimited JSON",
+			payloadLabel: "newline-delimited-json",
+			payload:      newlineDelimitedJSONPayload(t),
+		},
 	}
 
 	for _, tc := range cases {
@@ -293,7 +306,10 @@ func runPayloadChecks(t *testing.T, session *sshCatSession) {
 				t.Fatalf("SSH non-PTY cat round trip failed: %v", err)
 			}
 			assertCleanRoundTrip(t, tc.payload, result)
-			t.Logf("payload=%s bytes=%d latency=%s artifacts=none", tc.name, len(tc.payload), result.latency)
+			t.Attr("payload", tc.payloadLabel)
+			t.Attr("bytes", fmt.Sprintf("%d", len(tc.payload)))
+			t.Attr("latency", result.latency.String())
+			t.Attr("artifacts", "none")
 		})
 	}
 }
@@ -310,7 +326,10 @@ func runLatencyCheck(t *testing.T, session *sshCatSession) {
 	if result.latency > latencyThreshold {
 		t.Fatalf("1KB round-trip latency = %s, want <= %s", result.latency, latencyThreshold)
 	}
-	t.Logf("payload=latency-1KB bytes=%d latency=%s threshold=%s", len(payload), result.latency, latencyThreshold)
+	t.Attr("payload", "latency-1KB")
+	t.Attr("bytes", fmt.Sprintf("%d", len(payload)))
+	t.Attr("latency", result.latency.String())
+	t.Attr("threshold", latencyThreshold.String())
 }
 
 func openSSHCatSession(ctx context.Context, target string) (*sshCatSession, int, error) {
@@ -407,11 +426,18 @@ func (s *sshCatSession) Close() ([]byte, bool, error) {
 	case result := <-done:
 		return result.trailing, false, result.err
 	case <-timer.C:
+		var killErr error
 		if s.cmd.Process != nil {
-			_ = s.cmd.Process.Kill()
+			killErr = s.cmd.Process.Kill()
+			if errors.Is(killErr, os.ErrProcessDone) {
+				killErr = nil
+			}
 		}
 		result := <-done
-		return result.trailing, true, nil
+		if killErr != nil {
+			killErr = fmt.Errorf("kill timed-out SSH validation process: %w", killErr)
+		}
+		return result.trailing, true, errors.Join(killErr, result.err)
 	}
 }
 

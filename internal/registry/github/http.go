@@ -12,9 +12,8 @@ import (
 	"strconv"
 	"strings"
 
-	"time"
-
 	"github.com/compozy/compozy/internal/registry"
+	"github.com/compozy/compozy/internal/retry"
 )
 
 func (c *Client) doRequest(
@@ -22,6 +21,9 @@ func (c *Client) doRequest(
 	rawURL string,
 	accept string,
 ) (*http.Response, error) {
+	if c.networkErr != nil {
+		return nil, c.networkErr
+	}
 	if err := ctx.Err(); err != nil {
 		return nil, fmt.Errorf("github: request aborted: %w", err)
 	}
@@ -29,51 +31,40 @@ func (c *Client) doRequest(
 		return nil, errors.New("github: request URL is required")
 	}
 
-	backoff := c.initialBackoff
-	var lastErr error
+	response, err := retry.DoValue(
+		ctx,
+		c.requestRetryPolicy(),
+		retryGitHubRequest,
+		func(ctx context.Context) (*http.Response, error) {
+			request, err := c.newRequest(ctx, rawURL, accept)
+			if err != nil {
+				return nil, &githubRequestAttemptError{cause: err}
+			}
 
-	for attempt := 0; attempt <= c.maxRetries; attempt++ {
-		request, err := c.newRequest(ctx, rawURL, accept)
-		if err != nil {
-			return nil, err
-		}
+			response, err := c.httpClient.Do(request)
+			if err != nil {
+				return nil, newGitHubTransportAttemptError(ctx, err)
+			}
 
-		response, err := c.httpClient.Do(request)
-		if err != nil {
-			lastErr, err = c.handleRequestError(ctx, err)
-			if err != nil || attempt == c.maxRetries {
-				if err != nil {
-					return nil, err
+			if err := c.checkRateLimit(response); err != nil {
+				return nil, &githubRequestAttemptError{cause: err}
+			}
+
+			if shouldRetryStatus(response.StatusCode) {
+				return nil, &githubRequestAttemptError{
+					cause:     fmt.Errorf("github: retryable response status %s", response.Status),
+					response:  response,
+					retryable: true,
 				}
-				return nil, lastErr
 			}
-			backoff, err = c.waitForRetry(ctx, backoff)
-			if err != nil {
-				return nil, err
-			}
-			continue
-		}
 
-		if err := c.checkRateLimit(response); err != nil {
-			return nil, err
-		}
-
-		if shouldRetryStatus(response.StatusCode) && attempt < c.maxRetries {
-			c.prepareRetryResponse(response, attempt)
-			backoff, err = c.waitForRetry(ctx, backoff)
-			if err != nil {
-				return nil, err
-			}
-			continue
-		}
-
-		return response, nil
+			return response, nil
+		},
+	)
+	if err != nil {
+		return finishGitHubRequest(ctx, err)
 	}
-
-	if lastErr == nil {
-		lastErr = fmt.Errorf("github: request failed: %s", rawURL)
-	}
-	return nil, lastErr
+	return response, nil
 }
 
 func (c *Client) openDownloadResponse(
@@ -168,24 +159,10 @@ func (c *Client) newRequest(ctx context.Context, rawURL string, accept string) (
 		return nil, fmt.Errorf("github: create request %q: %w", rawURL, err)
 	}
 	request.Header.Set("Accept", accept)
-	if token := strings.TrimSpace(c.token); token != "" {
+	if token := strings.TrimSpace(c.token); token != "" && c.networkPolicy.IsTrustedOrigin(request.URL) {
 		request.Header.Set("Authorization", "Bearer "+token)
 	}
 	return request, nil
-}
-
-func (c *Client) handleRequestError(ctx context.Context, err error) (error, error) {
-	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) || ctx.Err() != nil {
-		return nil, fmt.Errorf("github: request failed: %w", err)
-	}
-	return fmt.Errorf("github: request failed: %w", err), nil
-}
-
-func (c *Client) waitForRetry(ctx context.Context, backoff time.Duration) (time.Duration, error) {
-	if err := c.sleep(ctx, backoff); err != nil {
-		return 0, fmt.Errorf("github: retry wait aborted: %w", err)
-	}
-	return nextBackoff(backoff, c.maxBackoff), nil
 }
 
 func shouldRetryStatus(statusCode int) bool {

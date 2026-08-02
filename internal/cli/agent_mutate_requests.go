@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -23,6 +24,10 @@ type agentDefinitionFlags struct {
 	permissions     string
 	categoryPath    []string
 	disabledSkills  []string
+}
+
+type agentDefinitionReadClient interface {
+	GetAgent(context.Context, string, AgentQuery) (AgentRecord, error)
 }
 
 func addAgentDefinitionFlags(cmd *cobra.Command, flags *agentDefinitionFlags) {
@@ -98,7 +103,7 @@ func createAgentRequestFromFlags(
 
 func updateAgentRequestFromFlags(
 	cmd *cobra.Command,
-	client DaemonClient,
+	client agentDefinitionReadClient,
 	name string,
 	workspace string,
 	expectedDigest string,
@@ -131,7 +136,7 @@ func updateAgentRequestFromFlags(
 func duplicateAgentRequestFromFlags(
 	cmd *cobra.Command,
 	deps commandDeps,
-	client DaemonClient,
+	client workspaceLookupClient,
 	name string,
 	scope string,
 	flags agentDefinitionFlags,

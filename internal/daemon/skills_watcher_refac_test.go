@@ -37,4 +37,22 @@ func TestStopSkillsWatcherRespectsShutdownContext(t *testing.T) {
 			t.Fatalf("stopSkillsWatcher() error = %v, want nil", err)
 		}
 	})
+
+	t.Run("Should reject a missing wait context after requesting cancellation", func(t *testing.T) {
+		t.Parallel()
+
+		done := make(chan struct{})
+		close(done)
+		cancelCalled := false
+
+		err := stopSkillsWatcher(nil, func() { //nolint:staticcheck // Verifies the internal nil-context guard.
+			cancelCalled = true
+		}, done)
+		if !cancelCalled {
+			t.Fatal("stopSkillsWatcher() did not call cancel")
+		}
+		if err == nil {
+			t.Fatal("stopSkillsWatcher(nil context) error = nil, want non-nil")
+		}
+	})
 }

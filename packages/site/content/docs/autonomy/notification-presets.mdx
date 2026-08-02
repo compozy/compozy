@@ -35,10 +35,16 @@ Suffix wildcards stay inside one public event family. The built-in `task_termina
 notification-eligible task run events such as `task.run_completed`, `task.run_failed`, and
 `task.run_operator_retry`; it does not match session or provider events.
 
-Each concrete target uses a notification cursor:
+Each concrete target occurrence uses a notification cursor. The cursor preserves the source event's
+structured scope (`global`, or `workspace` plus `workspace_id`) and uses the event's exact ID as its
+subject. All scope, bridge, route, peer, thread, group, and delivery identities are opaque valid UTF-8
+values: clients preserve them byte-for-byte and never trim, split, case-fold, or reinterpret them.
 
 ```text
-preset:<name>:target:<stable_target_hash>
+scope       = event.scope
+consumer_id = opaque identity for this target occurrence
+stream_name = event.type
+subject_id  = event.id
 ```
 
 Preset dispatch processes targets sequentially and applies the configured bridge delivery timeout to
@@ -49,8 +55,14 @@ retry the same event.
 The v1 dispatcher intentionally does not fan out one preset's targets in parallel. This keeps cursor
 ordering deterministic and makes each target's retry point explicit.
 
-Targets use `bridge_id:canonical_route`. The CLI splits on the first colon; everything after that
-first colon is the canonical route, so routes such as `channel:ops` are valid.
+Duplicate targets are not collapsed. If a preset contains `[T, T]`, it produces two ordered delivery
+attempts and two independent cursors. A confirmed delivery or skip for the first occurrence never
+advances the second occurrence.
+
+For its `--target` input only, the CLI uses `bridge_id:canonical_route`: it separates the first
+colon as syntax and preserves both resulting components verbatim. API and native-tool payloads carry
+the two fields separately. Everything after the first CLI colon is the canonical route, so routes
+such as `channel:ops` are valid.
 
 ## Bridge Suppression
 

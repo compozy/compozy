@@ -210,6 +210,7 @@ func TestManagerInitializeRuntimeRequestEncodesEmptyCapabilitiesAsArrays(t *test
 			info:     ExtensionInfo{Source: SourceUser},
 			manifest: &Manifest{Name: "empty-capabilities", Version: "0.1.0"},
 		},
+		EffectiveGrant{},
 		subprocess.InitializeRuntime{},
 		&hostAPIResourceSession{Actor: resources.MutationActor{SessionNonce: "nonce"}},
 	)
@@ -745,9 +746,11 @@ func TestManagerDisablesExtensionAfterConsecutiveFailures(t *testing.T) {
 		queue = append(queue, proc)
 	}
 	launcher := &fakeLauncher{queue: queue}
+	checker := &CapabilityChecker{}
 
 	manager := NewManager(
 		env.registry,
+		WithCapabilityChecker(checker),
 		withProcessLauncher(launcher.launch),
 		withRestartBackoffMax(2*time.Millisecond),
 		withHealthPollBounds(time.Millisecond, 2*time.Millisecond),
@@ -777,6 +780,12 @@ func TestManagerDisablesExtensionAfterConsecutiveFailures(t *testing.T) {
 	}
 	if len(decls) != 0 {
 		t.Fatalf("HookDeclarations() = %#v, want resources removed after disable", decls)
+	}
+	checker.mu.RLock()
+	grantCount := len(checker.grants)
+	checker.mu.RUnlock()
+	if grantCount != 0 {
+		t.Fatalf("capability grants after crash-loop disable = %d, want zero", grantCount)
 	}
 }
 
@@ -1592,10 +1601,20 @@ func TestManagerDirectPhaseAndMonitorBranches(t *testing.T) {
 	if err := manager.validateExtension(lite); err != nil {
 		t.Fatalf("validateExtension(lite) error = %v", err)
 	}
-	if err := manager.initializeExtension(context.Background(), lite); err != nil {
-		t.Fatalf("initializeExtension(lite) error = %v", err)
+	preparedLite, err := manager.prepareExtensionStartup(context.Background(), lite)
+	if err != nil {
+		t.Fatalf("prepareExtensionStartup(lite) error = %v", err)
 	}
-	manager.activateExtension(lite)
+	lifecycleCtx, lifecycleCancel := context.WithCancel(context.Background())
+	t.Cleanup(lifecycleCancel)
+	manager.mu.Lock()
+	manager.started = true
+	manager.lifecycleCtx = lifecycleCtx
+	manager.cancel = lifecycleCancel
+	manager.mu.Unlock()
+	if err := manager.commitPreparedExtension(context.Background(), lite, preparedLite); err != nil {
+		t.Fatalf("commitPreparedExtension(lite) error = %v", err)
+	}
 	if !lite.active || lite.phase != ExtensionPhaseActivate {
 		t.Fatalf("lite extension after activate = %#v, want active activate-phase extension", lite)
 	}
@@ -1623,11 +1642,15 @@ func TestManagerDirectPhaseAndMonitorBranches(t *testing.T) {
 			},
 		},
 	}
-	if err := manager.registerExtension(context.Background(), skillExt); err != nil {
-		t.Fatalf("registerExtension(skills) error = %v", err)
+	declarations, err := manager.stageExtensionDeclarations(context.Background(), skillExt)
+	if err != nil {
+		t.Fatalf("stageExtensionDeclarations(skills) error = %v", err)
 	}
-	if len(skillExt.skills) != 1 || skillExt.skills[0].Meta.Name != "missing-registry" {
-		t.Fatalf("registerExtension(skills).skills = %#v, want loaded extension skill snapshot", skillExt.skills)
+	if len(declarations.skills) != 1 || declarations.skills[0].Meta.Name != "missing-registry" {
+		t.Fatalf(
+			"stageExtensionDeclarations(skills).skills = %#v, want loaded extension skill snapshot",
+			declarations.skills,
+		)
 	}
 
 	manager.capChecker.Register("ext-host", SourceUser, &Manifest{

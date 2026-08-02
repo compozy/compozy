@@ -94,8 +94,8 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 		secondRequest.DesiredSessionID = "sess-goal-managed-runtime-profile-divergent"
 		secondRequest.Runtime = looppkg.RuntimeSpec{Model: "second-model"}
 		_, err = fixture.runtime.BindActionSession(testutil.Context(t), secondRequest)
-		var reason *looppkg.ReasonError
-		if !errors.As(err, &reason) || reason.Code != looppkg.ReasonCodeContinuousBindingMismatch ||
+		reason, reasonMatched := errors.AsType[*looppkg.ReasonError](err)
+		if !reasonMatched || reason.Code != looppkg.ReasonCodeContinuousBindingMismatch ||
 			!errors.Is(err, looppkg.ErrTransitionConflict) {
 			t.Fatalf("BindActionSession(divergent runtime) error = %v, want bindingMismatch", err)
 		}
@@ -1023,7 +1023,7 @@ func newLoopGoalManagedRuntimeFixture(
 		t.Fatalf("CreateTask() error = %v", err)
 	}
 	taskRunID := "taskrun-goal-managed-" + suffix
-	if err := tasks.CreateTaskRun(testutil.Context(t), taskpkg.Run{
+	seedDaemonTaskRunLifecycle(t, tasks, taskpkg.Run{
 		ID: taskRunID, TaskID: taskRecord.ID, Attempt: 1, RunKind: taskpkg.RunKindWorker,
 		LoopRunID: string(run.ID), Status: taskpkg.TaskRunStatusRunning,
 		ClaimedBy: &actor, Origin: origin,
@@ -1031,9 +1031,7 @@ func newLoopGoalManagedRuntimeFixture(
 			`{"generation":1,"node_id":"converge","item_index":0,"attempt":1,"epoch":0,"goal_segment_epoch":1}`,
 		),
 		QueuedAt: now, ClaimedAt: now, StartedAt: now,
-	}); err != nil {
-		t.Fatalf("CreateTaskRun() error = %v", err)
-	}
+	})
 
 	key := goalpkg.TurnKey{
 		WorkspaceID: run.WorkspaceID, LoopRunID: run.ID, Generation: 1,

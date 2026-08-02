@@ -63,6 +63,7 @@ Deterministic failures:
 | `extension_checksum_unverified`       | Policy is on but the request carried no consent.          | Add `--allow-unverified` (and `--yes` for structured output).                        |
 | `extension_archive_digest_mismatch`   | A curated archive differs from the catalog-pinned bytes.  | Stop. No `--allow-unverified` bypass exists for this.                                |
 | `extension_git_unavailable`           | No `git` executable on the daemon host.                   | Install `git` or use another source.                                                 |
+| `extension_git_version_unsupported`   | The daemon host has Git older than 2.37.                  | Install Git 2.37 or newer, then retry.                                               |
 
 Both consent failures are `422`.
 
@@ -300,6 +301,7 @@ Host API methods in `permissions.requires`, such as `resources/list`, `resources
 | `extension_checksum_unverified`             | Consent missing on the request.                                                   | Add `--allow-unverified` (`--yes` for structured output).                   |
 | `extension_archive_digest_mismatch`         | Curated archive differs from the pinned bytes.                                    | Stop; refresh the catalog or wait for the entry to be corrected.            |
 | `extension_git_unavailable`                 | No `git` binary on the daemon host.                                               | Install `git` or install from another source.                               |
+| `extension_git_version_unsupported`         | The daemon host has Git older than 2.37.                                          | Install Git 2.37 or newer, then retry.                                      |
 | Extension is `enabled` but not `active`     | Daemon offline, disabled, or activation failed.                                   | `compozy extension status <name>` and `compozy extension logs <name>`.      |
 | Enable asks for Network confirmation        | The extension declares an unconfirmed or changed Live requirement digest.         | Review the digest, then retry with `--confirm-network-requirement`.         |
 | `bridge.adapter` install rejected           | External bridge authoring is a planned follow-up.                                 | See [Develop Extensions](/docs/extensions/develop#bridge-adapters).         |

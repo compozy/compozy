@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	bridgecontract "github.com/compozy/compozy/internal/bridges/contract"
 )
@@ -19,11 +18,6 @@ const (
 	// DeliveryModeReply sends an outbound reply within the resolved conversation context.
 	DeliveryModeReply DeliveryMode = DeliveryMode(bridgecontract.DeliveryModeReply)
 )
-
-// Normalize returns the canonical delivery mode representation.
-func (m DeliveryMode) Normalize() DeliveryMode {
-	return DeliveryMode(bridgecontract.DeliveryMode(m).Normalize())
-}
 
 // Validate reports whether the delivery mode belongs to the supported mode set.
 func (m DeliveryMode) Validate() error {
@@ -40,9 +34,31 @@ type ResolveDeliveryTargetRequest struct {
 	Mode             DeliveryMode `json:"mode,omitempty"`
 }
 
-// Validate reports whether the request identifies the owning bridge instance.
+// Validate reports whether the request carries valid opaque identities and an
+// exact supported mode when one is explicitly supplied.
 func (r ResolveDeliveryTargetRequest) Validate() error {
-	return requireField(strings.TrimSpace(r.BridgeInstanceID), "delivery target request bridge instance id")
+	if err := requireOpaqueDeliveryID(r.BridgeInstanceID, "delivery target request bridge instance id"); err != nil {
+		return err
+	}
+	for _, field := range []struct {
+		value string
+		label string
+	}{
+		{value: r.PeerID, label: "delivery target request peer id"},
+		{value: r.ThreadID, label: "delivery target request thread id"},
+		{value: r.GroupID, label: "delivery target request group id"},
+	} {
+		if field.value == "" {
+			continue
+		}
+		if err := requireOpaqueDeliveryID(field.value, field.label); err != nil {
+			return err
+		}
+	}
+	if r.Mode != "" {
+		return r.Mode.Validate()
+	}
+	return nil
 }
 
 // TargetResolver resolves one canonical outbound delivery target from bridge
@@ -68,14 +84,13 @@ func BuildDeliveryTarget(instance BridgeInstance, req ResolveDeliveryTargetReque
 		return DeliveryTarget{}, err
 	}
 
-	normalizedReq := req.normalize()
-	if err := normalizedReq.Validate(); err != nil {
+	if err := req.Validate(); err != nil {
 		return DeliveryTarget{}, err
 	}
-	if normalizedReq.BridgeInstanceID != normalizedInstance.ID {
+	if req.BridgeInstanceID != normalizedInstance.ID {
 		return DeliveryTarget{}, fmt.Errorf(
 			"bridges: delivery target request bridge instance id %q does not match instance %q",
-			normalizedReq.BridgeInstanceID,
+			req.BridgeInstanceID,
 			normalizedInstance.ID,
 		)
 	}
@@ -87,10 +102,10 @@ func BuildDeliveryTarget(instance BridgeInstance, req ResolveDeliveryTargetReque
 
 	target := DeliveryTarget{
 		BridgeInstanceID: normalizedInstance.ID,
-		PeerID:           firstNonEmpty(normalizedReq.PeerID, defaults.PeerID),
-		ThreadID:         firstNonEmpty(normalizedReq.ThreadID, defaults.ThreadID),
-		GroupID:          firstNonEmpty(normalizedReq.GroupID, defaults.GroupID),
-		Mode:             normalizedReq.Mode,
+		PeerID:           firstNonEmpty(req.PeerID, defaults.PeerID),
+		ThreadID:         firstNonEmpty(req.ThreadID, defaults.ThreadID),
+		GroupID:          firstNonEmpty(req.GroupID, defaults.GroupID),
+		Mode:             req.Mode,
 	}
 	if target.Mode == "" {
 		target.Mode = defaults.Mode
@@ -99,11 +114,10 @@ func BuildDeliveryTarget(instance BridgeInstance, req ResolveDeliveryTargetReque
 		target.Mode = DeliveryModeDirectSend
 	}
 
-	canonical := target.normalize()
-	if err := canonical.Validate(); err != nil {
+	if err := target.Validate(); err != nil {
 		return DeliveryTarget{}, err
 	}
-	return canonical, nil
+	return target, nil
 }
 
 // ResolveDeliveryTarget loads the owning bridge instance and resolves the
@@ -116,40 +130,20 @@ func (s *Service) ResolveDeliveryTarget(
 		return nil, err
 	}
 
-	normalizedReq := req.normalize()
-	if err := normalizedReq.Validate(); err != nil {
+	if err := req.Validate(); err != nil {
 		return nil, err
 	}
 
-	instance, err := s.loadRoutableInstance(ctx, normalizedReq.BridgeInstanceID)
+	instance, err := s.loadRoutableInstance(ctx, req.BridgeInstanceID)
 	if err != nil {
 		return nil, err
 	}
 
-	target, err := BuildDeliveryTarget(instance, normalizedReq)
+	target, err := BuildDeliveryTarget(instance, req)
 	if err != nil {
 		return nil, err
 	}
-	return cloneDeliveryTarget(target), nil
-}
-
-func (r ResolveDeliveryTargetRequest) normalize() ResolveDeliveryTargetRequest {
-	normalized := r
-	normalized.BridgeInstanceID = strings.TrimSpace(normalized.BridgeInstanceID)
-	normalized.PeerID = strings.TrimSpace(normalized.PeerID)
-	normalized.ThreadID = strings.TrimSpace(normalized.ThreadID)
-	normalized.GroupID = strings.TrimSpace(normalized.GroupID)
-	normalized.Mode = normalized.Mode.Normalize()
-	return normalized
-}
-
-func (d deliveryTargetDefaults) normalize() deliveryTargetDefaults {
-	return deliveryTargetDefaults{
-		PeerID:   strings.TrimSpace(d.PeerID),
-		ThreadID: strings.TrimSpace(d.ThreadID),
-		GroupID:  strings.TrimSpace(d.GroupID),
-		Mode:     d.Mode.Normalize(),
-	}
+	return new(target), nil
 }
 
 func decodeDeliveryTargetDefaults(raw json.RawMessage) (deliveryTargetDefaults, error) {
@@ -166,7 +160,6 @@ func decodeDeliveryTargetDefaults(raw json.RawMessage) (deliveryTargetDefaults, 
 		return deliveryTargetDefaults{}, fmt.Errorf("bridges: decode bridge instance delivery defaults: %w", err)
 	}
 
-	defaults = defaults.normalize()
 	if defaults.Mode != "" {
 		if err := defaults.Mode.Validate(); err != nil {
 			return deliveryTargetDefaults{}, err
@@ -177,14 +170,9 @@ func decodeDeliveryTargetDefaults(raw json.RawMessage) (deliveryTargetDefaults, 
 
 func firstNonEmpty(values ...string) string {
 	for _, value := range values {
-		if trimmed := strings.TrimSpace(value); trimmed != "" {
-			return trimmed
+		if value != "" {
+			return value
 		}
 	}
 	return ""
-}
-
-func cloneDeliveryTarget(target DeliveryTarget) *DeliveryTarget {
-	cloned := target.normalize()
-	return &cloned
 }

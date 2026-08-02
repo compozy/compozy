@@ -28,7 +28,7 @@ func (c *catalog) listEventSummaries(
 	sourceID string,
 	filters []catalogFilter,
 	query storepkg.EventSummaryQuery,
-) ([]storepkg.EventSummary, error) {
+) (summaries []storepkg.EventSummary, err error) {
 	db, err := c.ensureDB(ctx)
 	if err != nil {
 		return nil, err
@@ -42,11 +42,9 @@ func (c *catalog) listEventSummaries(
 	if err != nil {
 		return nil, fmt.Errorf("memory: query memory events: %w", err)
 	}
-	defer func() {
-		_ = rows.Close()
-	}()
+	defer closeCatalogRows(rows, "memory events", &err)
 
-	summaries := make([]storepkg.EventSummary, 0)
+	summaries = make([]storepkg.EventSummary, 0)
 	for rows.Next() {
 		summary, scanErr := scanMemoryEventSummary(rows, sourceID)
 		if scanErr != nil {
@@ -269,7 +267,7 @@ func (a *healthAccumulator) addSource(ctx context.Context, source observabilityS
 	if err := a.addCatalogEntries(ctx, source); err != nil {
 		return err
 	}
-	if err := a.addActualEntries(source); err != nil {
+	if err := a.addActualEntries(ctx, source); err != nil {
 		return err
 	}
 	if err := a.addReindexTimestamp(ctx, source); err != nil {
@@ -298,8 +296,8 @@ func (a *healthAccumulator) addCatalogEntries(ctx context.Context, source observ
 	return nil
 }
 
-func (a *healthAccumulator) addActualEntries(source observabilitySource) error {
-	actual, err := source.store.collectActualCatalogIDs(source.filters)
+func (a *healthAccumulator) addActualEntries(ctx context.Context, source observabilitySource) error {
+	actual, err := source.store.collectActualCatalogIDs(ctx, source.filters)
 	if err != nil {
 		return err
 	}

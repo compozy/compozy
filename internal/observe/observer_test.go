@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -463,6 +464,100 @@ func TestSweepRetentionModes(t *testing.T) {
 			tc.assert(t, h, sess, health)
 		})
 	}
+}
+
+func TestRetentionLifecycle(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should preserve one owned run across a canceled shutdown waiter", func(t *testing.T) {
+		t.Parallel()
+
+		source := &blockingRetentionStore{
+			started: make(chan struct{}, 1),
+			release: make(chan struct{}),
+		}
+		t.Cleanup(func() {
+			select {
+			case <-source.release:
+			default:
+				close(source.release)
+			}
+		})
+		observer := &Observer{
+			registry: source,
+			retention: RetentionConfig{
+				Enabled:       true,
+				RetentionDays: 7,
+				SweepInterval: time.Hour,
+			},
+			logger: slog.New(slog.DiscardHandler),
+			now:    time.Now,
+		}
+		var nilCtx context.Context
+		if err := observer.ShutdownRetention(nilCtx); err == nil {
+			t.Fatal("ShutdownRetention(nil) error = nil, want error")
+		}
+		if err := observer.StartRetention(t.Context()); err != nil {
+			t.Fatalf("StartRetention() error = %v", err)
+		}
+		select {
+		case <-source.started:
+		case <-t.Context().Done():
+			t.Fatalf("wait for retention sweep: %v", t.Context().Err())
+		}
+
+		observer.retentionMu.Lock()
+		startedRun := observer.retentionRun
+		observer.retentionMu.Unlock()
+		canceledCtx, cancel := context.WithCancel(t.Context())
+		cancel()
+		if err := observer.ShutdownRetention(canceledCtx); !errors.Is(err, context.Canceled) {
+			t.Fatalf("ShutdownRetention(canceled) error = %v, want context.Canceled", err)
+		}
+		if err := observer.StartRetention(t.Context()); err != nil {
+			t.Fatalf("StartRetention(while stopping) error = %v", err)
+		}
+		observer.retentionMu.Lock()
+		retainedRun := observer.retentionRun
+		observer.retentionMu.Unlock()
+		if retainedRun != startedRun {
+			t.Fatal("StartRetention() replaced an unfinished owned run")
+		}
+		if got := source.calls.Load(); got != 1 {
+			t.Fatalf("retention sweep calls = %d, want 1", got)
+		}
+
+		close(source.release)
+		if err := observer.ShutdownRetention(t.Context()); err != nil {
+			t.Fatalf("ShutdownRetention(join) error = %v", err)
+		}
+		observer.retentionMu.Lock()
+		finishedRun := observer.retentionRun
+		observer.retentionMu.Unlock()
+		if finishedRun != nil {
+			t.Fatal("retention run remained published after shutdown completion")
+		}
+	})
+}
+
+type blockingRetentionStore struct {
+	Registry
+	started chan struct{}
+	release chan struct{}
+	calls   atomic.Int64
+}
+
+func (s *blockingRetentionStore) SweepObservability(
+	context.Context,
+	time.Time,
+) (store.ObservabilityRetentionSweepResult, error) {
+	s.calls.Add(1)
+	select {
+	case s.started <- struct{}{}:
+	default:
+	}
+	<-s.release
+	return store.ObservabilityRetentionSweepResult{}, nil
 }
 
 func TestOnAgentEventUpdatesTokenStatsWithNullableValues(t *testing.T) {

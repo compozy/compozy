@@ -7,11 +7,6 @@ import (
 	"time"
 )
 
-var (
-	benchmarkResolvedWorkspaceSink ResolvedWorkspace
-	benchmarkWorkspacesSink        []Workspace
-)
-
 type benchmarkResolverFixture struct {
 	ctx        context.Context
 	workspace  Workspace
@@ -82,12 +77,11 @@ func BenchmarkResolverResolve(b *testing.B) {
 		b.ReportAllocs()
 		b.ResetTimer()
 
-		for i := 0; i < b.N; i++ {
-			resolved, err := fixture.resolver.Resolve(fixture.ctx, fixture.workspace.ID)
+		for b.Loop() {
+			_, err := fixture.resolver.Resolve(fixture.ctx, fixture.workspace.ID)
 			if err != nil {
 				b.Fatalf("Resolve(cache hit) error = %v", err)
 			}
-			benchmarkResolvedWorkspaceSink = resolved
 		}
 	})
 
@@ -97,13 +91,12 @@ func BenchmarkResolverResolve(b *testing.B) {
 		b.ReportAllocs()
 		b.ResetTimer()
 
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			fixture.resolver.Invalidate(fixture.workspace.ID)
-			resolved, err := fixture.resolver.Resolve(fixture.ctx, fixture.workspace.ID)
+			_, err := fixture.resolver.Resolve(fixture.ctx, fixture.workspace.ID)
 			if err != nil {
 				b.Fatalf("Resolve(cache miss) error = %v", err)
 			}
-			benchmarkResolvedWorkspaceSink = resolved
 		}
 	})
 }
@@ -111,12 +104,19 @@ func BenchmarkResolverResolve(b *testing.B) {
 func BenchmarkResolverList(b *testing.B) {
 	ctx := context.Background()
 	rootPrefix := filepath.Join(string(filepath.Separator), "tmp", "workspace")
+	newID := func(prefix string) string {
+		id, err := generateID(prefix)
+		if err != nil {
+			b.Fatalf("generateID(%q) error = %v", prefix, err)
+		}
+		return id
+	}
 	workspaces := make([]Workspace, 128)
 	for i := range workspaces {
 		workspaces[i] = Workspace{
-			ID:        generateID("ws"),
-			RootDir:   filepath.Join(rootPrefix, generateID("bench")),
-			Name:      generateID("repo"),
+			ID:        newID("ws"),
+			RootDir:   filepath.Join(rootPrefix, newID("bench")),
+			Name:      newID("repo"),
 			CreatedAt: time.Unix(1700000000, 0).UTC(),
 			UpdatedAt: time.Unix(1700000000, 0).UTC(),
 		}
@@ -128,11 +128,9 @@ func BenchmarkResolverList(b *testing.B) {
 	b.ReportAllocs()
 
 	for b.Loop() {
-		cloned, err := resolver.List(ctx)
-		if err != nil {
+		if _, err := resolver.List(ctx); err != nil {
 			b.Fatalf("List() error = %v", err)
 		}
-		benchmarkWorkspacesSink = cloned
 	}
 }
 
@@ -146,6 +144,6 @@ func BenchmarkCloneResolvedWorkspace(b *testing.B) {
 	b.ReportAllocs()
 
 	for b.Loop() {
-		benchmarkResolvedWorkspaceSink = cloneResolvedWorkspace(&resolved)
+		cloneResolvedWorkspace(&resolved)
 	}
 }

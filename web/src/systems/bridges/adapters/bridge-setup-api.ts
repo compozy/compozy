@@ -14,24 +14,19 @@ import type {
   SlackBridgeManifestResponse,
 } from "../types";
 
-function normalizedBridgeID(id: string): string {
-  return id.trim();
-}
-
 export async function getSlackBridgeManifest(
   instanceID: string,
   signal?: AbortSignal
 ): Promise<SlackBridgeManifestResponse> {
-  const instance = normalizedBridgeID(instanceID);
   const { data, error, response } = await apiClient.GET("/api/bridges/providers/slack/manifest", {
-    params: { query: { instance } },
+    params: { query: { instance: instanceID } },
     signal,
   });
 
   if (apiRequestFailed(response, error)) {
     throw new BridgesApiError(
       defaultApiErrorMessage(
-        `Failed to load Slack manifest for bridge "${instance}"`,
+        `Failed to load Slack manifest for bridge "${instanceID}"`,
         response,
         error
       ),
@@ -42,7 +37,7 @@ export async function getSlackBridgeManifest(
   return requireResponseData(
     data,
     response,
-    `Failed to load Slack manifest for bridge "${instance}"`
+    `Failed to load Slack manifest for bridge "${instanceID}"`
   );
 }
 
@@ -50,20 +45,19 @@ export async function verifyBridge(
   id: string,
   signal?: AbortSignal
 ): Promise<BridgeVerifyResponse> {
-  const bridgeID = normalizedBridgeID(id);
   const { data, error, response } = await apiClient.POST("/api/bridges/{id}/verify", {
-    params: { path: { id: bridgeID } },
+    params: { path: { id } },
     signal,
   });
 
   if (apiRequestFailed(response, error)) {
     throw new BridgesApiError(
-      defaultApiErrorMessage(`Failed to verify bridge "${bridgeID}"`, response, error),
+      defaultApiErrorMessage(`Failed to verify bridge "${id}"`, response, error),
       response.status
     );
   }
 
-  return requireResponseData(data, response, `Failed to verify bridge "${bridgeID}"`);
+  return requireResponseData(data, response, `Failed to verify bridge "${id}"`);
 }
 
 export async function sendBridgeTest(
@@ -71,47 +65,37 @@ export async function sendBridgeTest(
   body: SendBridgeTestRequest,
   signal?: AbortSignal
 ): Promise<SendBridgeTestResponse> {
-  const bridgeID = normalizedBridgeID(id);
   const { data, error, response } = await apiClient.POST("/api/bridges/{id}/send-test", {
     body,
-    params: { path: { id: bridgeID } },
+    params: { path: { id } },
     signal,
   });
 
   if (apiRequestFailed(response, error)) {
     throw new BridgesApiError(
-      defaultApiErrorMessage(`Failed to send a test through bridge "${bridgeID}"`, response, error),
+      defaultApiErrorMessage(`Failed to send a test through bridge "${id}"`, response, error),
       response.status
     );
   }
 
-  return requireResponseData(data, response, `Failed to send a test through bridge "${bridgeID}"`);
+  return requireResponseData(data, response, `Failed to send a test through bridge "${id}"`);
 }
 
 export async function registerBridgeWebhook(
   id: string,
   signal?: AbortSignal
 ): Promise<BridgeWebhookRegistrationResponse> {
-  const bridgeID = normalizedBridgeID(id);
   const { data, error, response } = await apiClient.POST("/api/bridges/{id}/webhook/register", {
-    params: { path: { id: bridgeID } },
+    params: { path: { id } },
     signal,
   });
 
   if (apiRequestFailed(response, error)) {
     throw new BridgesApiError(
-      defaultApiErrorMessage(
-        `Failed to register the webhook for bridge "${bridgeID}"`,
-        response,
-        error
-      ),
+      defaultApiErrorMessage(`Failed to register the webhook for bridge "${id}"`, response, error),
       response.status
     );
   }
 
-  return requireResponseData(
-    data,
-    response,
-    `Failed to register the webhook for bridge "${bridgeID}"`
-  );
+  return requireResponseData(data, response, `Failed to register the webhook for bridge "${id}"`);
 }

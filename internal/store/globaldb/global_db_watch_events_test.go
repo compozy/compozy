@@ -883,6 +883,16 @@ func TestGlobalDBWatchEventsCoordinatorIntegration(t *testing.T) {
 		}
 
 		appendTaskWatchEventForTest(ctx, t, globalDB, targetTask.ID, now.Add(2*time.Second), "blocked")
+		targetCursors, err := globalDB.ReadCursors(ctx, looppkg.WatchEventsQuery{
+			WorkspaceID: "ws-a",
+			Streams:     map[string]int64{looppkg.WatchEventsTaskStream: 0},
+			Kinds:       []string{string(hookspkg.HookTaskStatusChanged)},
+			Limit:       1,
+		})
+		if err != nil {
+			t.Fatalf("ReadCursors(target event) error = %v", err)
+		}
+		targetCursor := targetCursors[looppkg.WatchEventsTaskStream]
 		wakeRun, added, err := globalDB.EnqueueLoopCoordinatorWake(
 			ctx,
 			string(created.ID),
@@ -947,7 +957,7 @@ func TestGlobalDBWatchEventsCoordinatorIntegration(t *testing.T) {
 			t.Fatalf("watch output status = %q, want succeeded", watchOutput.Status)
 		}
 		confirmed := decodeWatchEventsConfirmedRefForTest(t, watchOutput.OutputRef)
-		if got, want := confirmed.Cursors[looppkg.WatchEventsTaskStream], int64(1); got != want {
+		if got, want := confirmed.Cursors[looppkg.WatchEventsTaskStream], targetCursor; got != want {
 			t.Fatalf("confirmed cursor = %d, want %d", got, want)
 		}
 		var events []looppkg.WatchEvent
@@ -2026,7 +2036,16 @@ func appendSessionWatchEventForTest(
 	if err := os.MkdirAll(sessionDir, 0o755); err != nil {
 		t.Fatalf("MkdirAll(%q) error = %v", sessionDir, err)
 	}
-	writer, err := sessiondb.OpenSessionDB(ctx, sessionID, store.SessionDBFile(sessionDir))
+	sessions, err := globalDB.ListSessions(ctx, store.SessionListQuery{ID: sessionID, Limit: 1})
+	if err != nil {
+		t.Fatalf("ListSessions(%s) error = %v", sessionID, err)
+	}
+	if len(sessions) != 1 {
+		t.Fatalf("ListSessions(%s) = %#v, want one session", sessionID, sessions)
+	}
+	writer, err := sessiondb.OpenSessionDB(ctx, store.SessionDBOwner{
+		SessionID: sessionID, WorkspaceID: sessions[0].WorkspaceID,
+	}, store.SessionDBFile(sessionDir))
 	if err != nil {
 		t.Fatalf("OpenSessionDB(%s) error = %v", sessionID, err)
 	}

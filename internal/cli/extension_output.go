@@ -3,6 +3,7 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -222,6 +223,9 @@ func formatExtensionBackoff(milliseconds int64) string {
 	if milliseconds <= 0 {
 		return "0s"
 	}
+	if milliseconds > math.MaxInt64/int64(time.Millisecond) {
+		return fmt.Sprintf("%dms", milliseconds)
+	}
 	return (time.Duration(milliseconds) * time.Millisecond).String()
 }
 
@@ -250,16 +254,15 @@ func formatExtensionUptime(seconds int64) string {
 		return ""
 	}
 
-	duration := time.Duration(seconds) * time.Second
-	if duration < time.Minute {
+	if seconds < int64(time.Minute/time.Second) {
 		return fmt.Sprintf("%ds", seconds)
 	}
-	if duration < time.Hour {
-		return fmt.Sprintf("%dm", int(duration.Minutes()))
+	if seconds < int64(time.Hour/time.Second) {
+		return fmt.Sprintf("%dm", seconds/int64(time.Minute/time.Second))
 	}
 
-	hours := int(duration.Hours())
-	minutes := int(duration.Minutes()) % 60
+	hours := seconds / int64(time.Hour/time.Second)
+	minutes := seconds % int64(time.Hour/time.Second) / int64(time.Minute/time.Second)
 	if minutes == 0 {
 		return fmt.Sprintf("%dh", hours)
 	}

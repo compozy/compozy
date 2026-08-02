@@ -80,8 +80,16 @@ func (m *Manager) newPromptAdmissionRequest(
 	if err != nil {
 		return store.SessionPromptAdmissionRequest{}, err
 	}
+	admissionID, err := store.NewID("pad")
+	if err != nil {
+		return store.SessionPromptAdmissionRequest{}, fmt.Errorf("session: generate prompt admission id: %w", err)
+	}
+	eventID, err := store.NewID("ev")
+	if err != nil {
+		return store.SessionPromptAdmissionRequest{}, fmt.Errorf("session: generate prompt admission event id: %w", err)
+	}
 	return store.SessionPromptAdmissionRequest{
-		ID:                 store.NewID("pad"),
+		ID:                 admissionID,
 		WorkspaceID:        workspaceID,
 		SessionID:          req.target,
 		MessageID:          req.messageID,
@@ -93,7 +101,7 @@ func (m *Manager) newPromptAdmissionRequest(
 		AuthoredText:       req.authoredMessage,
 		Runtime:            storeRuntimeSelection(req.runtime),
 		TurnID:             req.turnID,
-		EventID:            store.NewID("ev"),
+		EventID:            eventID,
 		Now:                m.now(),
 	}, nil
 }

@@ -13,6 +13,7 @@ import (
 	"github.com/compozy/compozy/internal/marketplace"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	"github.com/compozy/compozy/internal/modelcatalog"
+	authproviders "github.com/compozy/compozy/internal/providers"
 	skillspkg "github.com/compozy/compozy/internal/skills"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/vault"
@@ -162,62 +163,71 @@ type MCPDefinitionWriter func(
 	server compozyconfig.MCPServer,
 ) error
 
+// MCPDefinitionRetirer retires volatile state owned by a deleted workspace MCP definition.
+type MCPDefinitionRetirer interface {
+	ForgetMCPServer(workspaceID string, serverName string)
+}
+
 // Dependencies captures the runtime dependencies required by the settings service.
 type Dependencies struct {
-	WorkspaceResolver          WorkspaceResolver
-	GeneralRuntime             GeneralRuntimeProvider
-	MemoryRuntime              MemoryRuntimeProvider
-	SkillsRuntime              SkillsRuntime
-	AutomationRuntime          AutomationRuntimeProvider
-	NetworkRuntime             NetworkRuntimeProvider
-	ObservabilityRuntime       ObservabilityRuntimeProvider
-	Extensions                 ExtensionStatusProvider
-	TransportParity            TransportParityProvider
-	MCPAuth                    MCPAuthRuntimeProvider
-	MCPRuntime                 MCPRuntimeProvider
-	MCPCatalog                 MCPCatalog
-	MarketplaceInstallEvents   MarketplaceInstallNotifier
-	MCPDefinitionWriter        MCPDefinitionWriter
-	ModelCatalog               modelcatalog.Service
-	RuntimeApplier             ConfigRuntimeApplier
-	ProviderSecrets            ProviderSecretStore
-	EventSummaries             store.EventSummaryStore
-	ApplyRecords               ApplyRecordStore
-	RestartActionAvailable     bool
-	ConsolidateActionAvailable bool
-	LogTailAvailable           bool
-	CommandLookPath            func(string) (string, error)
-	LookupEnv                  func(string) (string, bool)
+	WorkspaceResolver           WorkspaceResolver
+	GeneralRuntime              GeneralRuntimeProvider
+	MemoryRuntime               MemoryRuntimeProvider
+	SkillsRuntime               SkillsRuntime
+	AutomationRuntime           AutomationRuntimeProvider
+	NetworkRuntime              NetworkRuntimeProvider
+	ObservabilityRuntime        ObservabilityRuntimeProvider
+	Extensions                  ExtensionStatusProvider
+	TransportParity             TransportParityProvider
+	MCPAuth                     MCPAuthRuntimeProvider
+	MCPRuntime                  MCPRuntimeProvider
+	MCPCatalog                  MCPCatalog
+	MarketplaceInstallEvents    MarketplaceInstallNotifier
+	MCPDefinitionWriter         MCPDefinitionWriter
+	MCPDefinitionRetirer        MCPDefinitionRetirer
+	ModelCatalog                modelcatalog.Service
+	RuntimeApplier              ConfigRuntimeApplier
+	ProviderSecrets             ProviderSecretStore
+	EventSummaries              store.EventSummaryStore
+	ApplyRecords                ApplyRecordStore
+	RestartActionAvailable      bool
+	ConsolidateActionAvailable  bool
+	LogTailAvailable            bool
+	CommandLookPath             func(string) (string, error)
+	ProviderAuthCommandResolver authproviders.ProviderAuthCommandResolver
+	LookupEnv                   func(string) (string, bool)
 }
 
 type service struct {
-	homePaths                  compozyconfig.HomePaths
-	workspaceResolver          WorkspaceResolver
-	generalRuntime             GeneralRuntimeProvider
-	memoryRuntime              MemoryRuntimeProvider
-	skillsRuntime              SkillsRuntime
-	automationRuntime          AutomationRuntimeProvider
-	networkRuntime             NetworkRuntimeProvider
-	observabilityRuntime       ObservabilityRuntimeProvider
-	extensions                 ExtensionStatusProvider
-	transportParity            TransportParityProvider
-	mcpAuth                    MCPAuthRuntimeProvider
-	mcpRuntime                 MCPRuntimeProvider
-	mcpCatalog                 MCPCatalog
-	marketplaceInstallEvents   MarketplaceInstallNotifier
-	mcpDefinitionWriter        MCPDefinitionWriter
-	modelCatalog               modelcatalog.Service
-	runtimeApplier             ConfigRuntimeApplier
-	providerSecrets            ProviderSecretStore
-	eventSummaries             store.EventSummaryStore
-	applyRecords               ApplyRecordStore
-	activeConfig               activeConfigState
-	applyMu                    sync.Mutex
-	restartActionAvailable     bool
-	consolidateActionAvailable bool
-	logTailAvailable           bool
-	commandLookPath            func(string) (string, error)
-	lookupEnv                  func(string) (string, bool)
+	homePaths                   compozyconfig.HomePaths
+	workspaceResolver           WorkspaceResolver
+	generalRuntime              GeneralRuntimeProvider
+	memoryRuntime               MemoryRuntimeProvider
+	skillsRuntime               SkillsRuntime
+	automationRuntime           AutomationRuntimeProvider
+	networkRuntime              NetworkRuntimeProvider
+	observabilityRuntime        ObservabilityRuntimeProvider
+	extensions                  ExtensionStatusProvider
+	transportParity             TransportParityProvider
+	mcpAuth                     MCPAuthRuntimeProvider
+	mcpRuntime                  MCPRuntimeProvider
+	mcpCatalog                  MCPCatalog
+	marketplaceInstallEvents    MarketplaceInstallNotifier
+	mcpDefinitionWriter         MCPDefinitionWriter
+	mcpDefinitionRetirer        MCPDefinitionRetirer
+	modelCatalog                modelcatalog.Service
+	runtimeApplier              ConfigRuntimeApplier
+	providerSecrets             ProviderSecretStore
+	eventSummaries              store.EventSummaryStore
+	applyRecords                ApplyRecordStore
+	activeConfig                activeConfigState
+	applyMu                     sync.Mutex
+	restartActionAvailable      bool
+	consolidateActionAvailable  bool
+	logTailAvailable            bool
+	commandLookPath             func(string) (string, error)
+	providerAuthCommandResolver authproviders.ProviderAuthCommandResolver
+	lookupEnv                   func(string) (string, bool)
 }
 
 var _ Service = (*service)(nil)
@@ -232,6 +242,10 @@ func NewService(homePaths compozyconfig.HomePaths, deps Dependencies) (Service, 
 	if commandLookPath == nil {
 		commandLookPath = exec.LookPath
 	}
+	providerAuthCommandResolver := deps.ProviderAuthCommandResolver
+	if providerAuthCommandResolver == nil {
+		providerAuthCommandResolver = authproviders.DefaultProviderAuthCommandResolver
+	}
 	lookupEnv := deps.LookupEnv
 	if lookupEnv == nil {
 		lookupEnv = os.LookupEnv
@@ -242,31 +256,33 @@ func NewService(homePaths compozyconfig.HomePaths, deps Dependencies) (Service, 
 	}
 
 	return &service{
-		homePaths:                  homePaths,
-		workspaceResolver:          deps.WorkspaceResolver,
-		generalRuntime:             deps.GeneralRuntime,
-		memoryRuntime:              deps.MemoryRuntime,
-		skillsRuntime:              deps.SkillsRuntime,
-		automationRuntime:          deps.AutomationRuntime,
-		networkRuntime:             deps.NetworkRuntime,
-		observabilityRuntime:       deps.ObservabilityRuntime,
-		extensions:                 deps.Extensions,
-		transportParity:            deps.TransportParity,
-		mcpAuth:                    deps.MCPAuth,
-		mcpRuntime:                 deps.MCPRuntime,
-		mcpCatalog:                 deps.MCPCatalog,
-		marketplaceInstallEvents:   deps.MarketplaceInstallEvents,
-		mcpDefinitionWriter:        mcpDefinitionWriter,
-		modelCatalog:               deps.ModelCatalog,
-		runtimeApplier:             deps.RuntimeApplier,
-		providerSecrets:            deps.ProviderSecrets,
-		eventSummaries:             deps.EventSummaries,
-		applyRecords:               deps.ApplyRecords,
-		restartActionAvailable:     deps.RestartActionAvailable,
-		consolidateActionAvailable: deps.ConsolidateActionAvailable,
-		logTailAvailable:           deps.LogTailAvailable,
-		commandLookPath:            commandLookPath,
-		lookupEnv:                  lookupEnv,
+		homePaths:                   homePaths,
+		workspaceResolver:           deps.WorkspaceResolver,
+		generalRuntime:              deps.GeneralRuntime,
+		memoryRuntime:               deps.MemoryRuntime,
+		skillsRuntime:               deps.SkillsRuntime,
+		automationRuntime:           deps.AutomationRuntime,
+		networkRuntime:              deps.NetworkRuntime,
+		observabilityRuntime:        deps.ObservabilityRuntime,
+		extensions:                  deps.Extensions,
+		transportParity:             deps.TransportParity,
+		mcpAuth:                     deps.MCPAuth,
+		mcpRuntime:                  deps.MCPRuntime,
+		mcpCatalog:                  deps.MCPCatalog,
+		marketplaceInstallEvents:    deps.MarketplaceInstallEvents,
+		mcpDefinitionWriter:         mcpDefinitionWriter,
+		mcpDefinitionRetirer:        deps.MCPDefinitionRetirer,
+		modelCatalog:                deps.ModelCatalog,
+		runtimeApplier:              deps.RuntimeApplier,
+		providerSecrets:             deps.ProviderSecrets,
+		eventSummaries:              deps.EventSummaries,
+		applyRecords:                deps.ApplyRecords,
+		restartActionAvailable:      deps.RestartActionAvailable,
+		consolidateActionAvailable:  deps.ConsolidateActionAvailable,
+		logTailAvailable:            deps.LogTailAvailable,
+		commandLookPath:             commandLookPath,
+		providerAuthCommandResolver: providerAuthCommandResolver,
+		lookupEnv:                   lookupEnv,
 	}, nil
 }
 

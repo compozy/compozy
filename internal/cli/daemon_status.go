@@ -8,8 +8,6 @@ import (
 
 	"strings"
 
-	"time"
-
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	compozydaemon "github.com/compozy/compozy/internal/daemon"
 
@@ -22,37 +20,30 @@ func waitForDaemonStop(
 	runtime *runtimeContext,
 	info compozydaemon.Info,
 ) (DaemonStatus, error) {
-	waitCtx := ctx
-	if waitCtx == nil {
-		waitCtx = context.Background()
+	if err := requirePollingContext(ctx); err != nil {
+		return DaemonStatus{}, err
 	}
-	if _, hasDeadline := waitCtx.Deadline(); !hasDeadline {
-		var cancel context.CancelFunc
-		waitCtx, cancel = context.WithTimeout(waitCtx, deps.stopTimeout)
-		defer cancel()
-	}
-
 	client, clientErr := clientFromDeps(deps)
-	ticker := time.NewTicker(deps.pollInterval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-waitCtx.Done():
-			return DaemonStatus{}, errors.New("cli: daemon did not stop before timeout")
-		case <-ticker.C:
+	return pollUntil(
+		ctx,
+		deps.stopTimeout,
+		deps.pollInterval,
+		nil,
+		"cli: daemon did not stop before timeout",
+		func(pollCtx context.Context, _ pollEvent) (DaemonStatus, bool, error) {
 			if _, running, err := daemonInfo(runtime.HomePaths, deps); err == nil && !running {
-				return daemonStatusWithState(runtime, info, "stopped"), nil
+				return daemonStatusWithState(runtime, info, "stopped"), true, nil
 			}
 			if clientErr == nil {
-				if _, err := client.DaemonStatus(waitCtx); err != nil {
+				if _, err := client.DaemonStatus(pollCtx); err != nil {
 					if _, running, infoErr := daemonInfo(runtime.HomePaths, deps); infoErr == nil && !running {
-						return daemonStatusWithState(runtime, info, "stopped"), nil
+						return daemonStatusWithState(runtime, info, "stopped"), true, nil
 					}
 				}
 			}
-		}
-	}
+			return DaemonStatus{}, false, nil
+		},
+	)
 }
 
 func daemonStatusFromDeps(ctx context.Context, deps commandDeps, runtime *runtimeContext) (DaemonStatus, error) {

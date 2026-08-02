@@ -1,139 +1,58 @@
 package soul
 
 import (
-	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
-	"strings"
 
 	"github.com/compozy/compozy/internal/diagnostics"
+	"github.com/compozy/compozy/internal/managedsidecar"
 )
 
-type managedPathResolution struct {
-	absRoot      string
-	resolvedRoot string
-	sourcePath   string
+func validateManagedPath(workspaceRoot, targetPath, fileName string) *Diagnostic {
+	_, diagnostic := resolveManagedPath(workspaceRoot, targetPath, fileName)
+	return diagnostic
 }
 
-func validateManagedPath(workspaceRoot string, targetPath string, fileName string) *Diagnostic {
-	if strings.ContainsRune(targetPath, 0) {
-		return &Diagnostic{
-			Code:       authoringPathEscapeKey,
-			Message:    fileName + " path contains an invalid NUL byte",
-			SourcePath: fileName,
-		}
+func resolveManagedPath(
+	workspaceRoot string,
+	targetPath string,
+	fileName string,
+) (managedsidecar.Path, *Diagnostic) {
+	path, issue := managedsidecar.Resolve(workspaceRoot, targetPath)
+	if issue == nil {
+		issue = path.ValidateNoSymlinks()
 	}
-	resolution, diagnostic := resolveManagedPath(workspaceRoot, targetPath, fileName)
-	if diagnostic != nil {
-		return diagnostic
+	if issue != nil {
+		return managedsidecar.Path{}, managedPathDiagnostic(issue, fileName)
 	}
-	return validateManagedPathComponents(resolution, fileName)
+	return path, nil
 }
 
-func resolveManagedPath(workspaceRoot string, targetPath string, fileName string) (managedPathResolution, *Diagnostic) {
-	absRoot, err := filepath.Abs(filepath.Clean(workspaceRoot))
-	if err != nil {
-		return managedPathResolution{}, &Diagnostic{
-			Code:       authoringPathEscapeKey,
-			Message:    diagnostics.RedactAndBound(fmt.Sprintf("resolve workspace root: %v", err), 300),
-			SourcePath: fileName,
-		}
+func managedPathDiagnostic(issue *managedsidecar.PathIssue, fileName string) *Diagnostic {
+	sourcePath := firstNonEmpty(issue.SourcePath, fileName)
+	message := fileName + " managed path is invalid"
+	switch issue.Kind {
+	case managedsidecar.IssueInvalidNUL:
+		message = fileName + " path contains an invalid NUL byte"
+	case managedsidecar.IssueResolveRoot:
+		message = diagnostics.RedactAndBound(fmt.Sprintf("resolve workspace root: %v", issue.Err), 300)
+	case managedsidecar.IssueResolveTarget:
+		message = diagnostics.RedactAndBound(fmt.Sprintf("resolve %s path: %v", fileName, issue.Err), 300)
+	case managedsidecar.IssueOutsideRoot:
+		message = fileName + " path must stay inside the workspace root"
+	case managedsidecar.IssueInspect:
+		message = diagnostics.RedactAndBound(fmt.Sprintf("inspect %s path: %v", fileName, issue.Err), 300)
+	case managedsidecar.IssueSymlink:
+		message = fileName + " managed path must not contain symlinks"
+	case managedsidecar.IssueSymlinkTargetOutside:
+		message = fileName + " symlink target must stay inside the workspace root"
 	}
-	resolvedRoot, err := filepath.EvalSymlinks(absRoot)
-	if err != nil {
-		return managedPathResolution{}, &Diagnostic{
-			Code:       authoringPathEscapeKey,
-			Message:    diagnostics.RedactAndBound(fmt.Sprintf("resolve workspace root symlinks: %v", err), 300),
-			SourcePath: fileName,
-		}
+	return &Diagnostic{
+		Code:       authoringPathEscapeKey,
+		Message:    message,
+		SourcePath: sourcePath,
 	}
-	cleanTarget := filepath.Clean(targetPath)
-	if !filepath.IsAbs(cleanTarget) {
-		cleanTarget = filepath.Join(absRoot, cleanTarget)
-	}
-	absTarget, err := filepath.Abs(cleanTarget)
-	if err != nil {
-		return managedPathResolution{}, &Diagnostic{
-			Code:       authoringPathEscapeKey,
-			Message:    diagnostics.RedactAndBound(fmt.Sprintf("resolve %s path: %v", fileName, err), 300),
-			SourcePath: safePathWithoutRoot(cleanTarget),
-		}
-	}
-	sourcePath, within := relativePathWithinRoot(absRoot, absTarget)
-	if !within {
-		return managedPathResolution{}, &Diagnostic{
-			Code:       authoringPathEscapeKey,
-			Message:    fileName + " path must stay inside the workspace root",
-			SourcePath: sourcePath,
-		}
-	}
-	return managedPathResolution{
-		absRoot:      absRoot,
-		resolvedRoot: resolvedRoot,
-		sourcePath:   sourcePath,
-	}, nil
-}
-
-func validateManagedPathComponents(resolution managedPathResolution, fileName string) *Diagnostic {
-	current := resolution.absRoot
-	for _, component := range managedPathComponents(resolution.sourcePath) {
-		if component == "." || component == "" {
-			continue
-		}
-		current = filepath.Join(current, component)
-		info, statErr := os.Lstat(current)
-		if statErr != nil {
-			if errors.Is(statErr, os.ErrNotExist) {
-				break
-			}
-			return &Diagnostic{
-				Code:       authoringPathEscapeKey,
-				Message:    diagnostics.RedactAndBound(fmt.Sprintf("inspect %s path: %v", fileName, statErr), 300),
-				SourcePath: resolution.sourcePath,
-			}
-		}
-		if info.Mode()&os.ModeSymlink != 0 {
-			return &Diagnostic{
-				Code:       authoringPathEscapeKey,
-				Message:    fileName + " managed path must not contain symlinks",
-				SourcePath: resolution.sourcePath,
-			}
-		}
-		resolvedCurrent, resolveErr := filepath.EvalSymlinks(current)
-		if resolveErr != nil {
-			return &Diagnostic{
-				Code: authoringPathEscapeKey,
-				Message: diagnostics.RedactAndBound(
-					fmt.Sprintf("resolve %s path symlinks: %v", fileName, resolveErr),
-					300,
-				),
-				SourcePath: resolution.sourcePath,
-			}
-		}
-		if _, resolvedWithin := relativePathWithinRoot(resolution.resolvedRoot, resolvedCurrent); !resolvedWithin {
-			return &Diagnostic{
-				Code:       authoringPathEscapeKey,
-				Message:    fileName + " symlink target must stay inside the workspace root",
-				SourcePath: resolution.sourcePath,
-			}
-		}
-	}
-	return nil
-}
-
-func managedPathComponents(sourcePath string) []string {
-	components := strings.Split(filepath.Clean(sourcePath), string(filepath.Separator))
-	if len(components) == 1 {
-		return strings.Split(filepath.ToSlash(filepath.Clean(sourcePath)), "/")
-	}
-	return components
 }
 
 func validAgentNameInput(name string) bool {
-	trimmed := strings.TrimSpace(name)
-	if trimmed == "" || trimmed == "." || trimmed == ".." {
-		return false
-	}
-	return !strings.Contains(trimmed, "/") && !strings.Contains(trimmed, `\`)
+	return managedsidecar.ValidAgentName(name)
 }

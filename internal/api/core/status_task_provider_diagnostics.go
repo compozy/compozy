@@ -9,39 +9,44 @@ import (
 	"github.com/compozy/compozy/internal/diagnostics"
 )
 
+const taskHealthDiagnosticID = "doctor.tasks.health"
+
 func taskDiagnosticItem(status contract.TaskHealthPayload) contract.DiagnosticItem {
 	if len(status.StuckRuns) > 0 {
-		return diagnostics.NewItem(
-			"doctor.tasks.health",
-			contract.CodeTaskRunStuck,
-			contract.CategoryTask,
-			"Task runs are stuck",
-			"One or more task runs exceeded the configured health threshold.",
-			contract.SeverityWarn,
-			contract.FreshnessLive,
+		return diagnostics.NewItem(diagnostics.ItemSpec{
+			ID:            taskHealthDiagnosticID,
+			Code:          contract.CodeTaskRunStuck,
+			Category:      contract.CategoryTask,
+			Title:         "Task runs are stuck",
+			Message:       "One or more task runs exceeded the configured health threshold.",
+			Severity:      contract.SeverityWarn,
+			DataFreshness: contract.FreshnessLive,
+		},
 			diagnostics.WithEvidence(map[string]any{"stuck_runs": len(status.StuckRuns)}),
 		)
 	}
 	if status.ActiveOrphanRuns > 0 {
-		return diagnostics.NewItem(
-			"doctor.tasks.health",
-			contract.CodeTaskRunOrphan,
-			contract.CategoryTask,
-			"Task runs are orphaned",
-			"One or more active task runs no longer have a valid owner.",
-			contract.SeverityWarn,
-			contract.FreshnessLive,
+		return diagnostics.NewItem(diagnostics.ItemSpec{
+			ID:            taskHealthDiagnosticID,
+			Code:          contract.CodeTaskRunOrphan,
+			Category:      contract.CategoryTask,
+			Title:         "Task runs are orphaned",
+			Message:       "One or more active task runs no longer have a valid owner.",
+			Severity:      contract.SeverityWarn,
+			DataFreshness: contract.FreshnessLive,
+		},
 			diagnostics.WithEvidence(map[string]any{"active_orphan_runs": status.ActiveOrphanRuns}),
 		)
 	}
-	return diagnostics.NewItem(
-		"doctor.tasks.health",
-		contract.CodeSchedulerReady,
-		contract.CategoryTask,
-		"Task health is ready",
-		"Task queue health has no stuck or orphaned active runs.",
-		contract.SeverityOK,
-		contract.FreshnessLive,
+	return diagnostics.NewItem(diagnostics.ItemSpec{
+		ID:            taskHealthDiagnosticID,
+		Code:          contract.CodeSchedulerReady,
+		Category:      contract.CategoryTask,
+		Title:         "Task health is ready",
+		Message:       "Task queue health has no stuck or orphaned active runs.",
+		Severity:      contract.SeverityOK,
+		DataFreshness: contract.FreshnessLive,
+	},
 		diagnostics.WithEvidence(map[string]any{"queue_depth": status.QueueDepthTotal}),
 	)
 }
@@ -56,19 +61,20 @@ func providerDiagnosticItem(status contract.ProviderStatusPayload) contract.Diag
 	if strings.TrimSpace(message) == "" {
 		message = fmt.Sprintf("Provider %q auth state is %q.", status.Name, status.State)
 	}
-	return diagnostics.NewItem(
-		"doctor.provider."+status.Name,
-		code,
-		contract.CategoryProvider,
-		title,
-		message,
-		severity,
-		contract.FreshnessLive,
-		diagnostics.WithSuggestedCommand(status.SuggestedCommand),
+	return diagnostics.NewItem(diagnostics.ItemSpec{
+		ID:            "doctor.provider." + status.Name,
+		Code:          code,
+		Category:      contract.CategoryProvider,
+		Title:         title,
+		Message:       message,
+		Severity:      severity,
+		DataFreshness: contract.FreshnessLive,
+	},
 		diagnostics.WithEvidence(map[string]any{
-			"provider": status.Name,
-			"state":    status.State,
-			"mode":     status.Mode,
+			"provider":           status.Name,
+			"state":              status.State,
+			"mode":               status.Mode,
+			"recommended_action": status.Login.RecommendedAction,
 		}),
 	)
 }

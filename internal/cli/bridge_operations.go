@@ -87,18 +87,18 @@ func newBridgeTestDeliveryCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "test-delivery <id>",
 		Short: "Resolve a typed outbound delivery target for one bridge instance",
-		Args:  exactOneNonBlankArg(),
+		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := clientFromDeps(deps)
-			if err != nil {
-				return err
-			}
-
-			mode := bridgepkg.DeliveryMode(strings.TrimSpace(modeRaw)).Normalize()
-			if mode != "" {
+			mode := bridgepkg.DeliveryMode(modeRaw)
+			if cmd.Flags().Changed(bridgeModeKey) {
 				if err := mode.Validate(); err != nil {
 					return err
 				}
+			}
+
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
 			}
 
 			item, err := client.TestBridgeDelivery(
@@ -107,9 +107,9 @@ func newBridgeTestDeliveryCommand(deps commandDeps) *cobra.Command {
 				BridgeTestDeliveryRequest{
 					Message: strings.TrimSpace(message),
 					Target: BridgeDeliveryTargetInput{
-						PeerID:   strings.TrimSpace(peerID),
-						ThreadID: strings.TrimSpace(threadID),
-						GroupID:  strings.TrimSpace(groupID),
+						PeerID:   peerID,
+						ThreadID: threadID,
+						GroupID:  groupID,
 						Mode:     mode,
 					},
 				},

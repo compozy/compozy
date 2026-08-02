@@ -60,7 +60,7 @@ func (h *BaseHandlers) parseBridgeScopeQuery(ctx context.Context, c *gin.Context
 }
 
 func (h *BaseHandlers) bridgeListWorkspaceID(ctx context.Context, c *gin.Context) (string, error) {
-	if workspaceID := strings.TrimSpace(c.Query("workspace_id")); workspaceID != "" {
+	if workspaceID := c.Query("workspace_id"); workspaceID != "" {
 		return workspaceID, nil
 	}
 	if workspaceRef := strings.TrimSpace(c.Query("workspace")); workspaceRef != "" {
@@ -75,7 +75,7 @@ func (h *BaseHandlers) bridgeListWorkspaceID(ctx context.Context, c *gin.Context
 
 func bridgeInstanceMatchesListQuery(instance bridgepkg.BridgeInstance, query bridgeScopeQuery) bool {
 	scope := instance.Scope.Normalize()
-	workspaceID := strings.TrimSpace(instance.WorkspaceID)
+	workspaceID := instance.WorkspaceID
 	switch query.scope {
 	case string(bridgepkg.ScopeGlobal):
 		return scope == bridgepkg.ScopeGlobal
@@ -165,7 +165,7 @@ func (h *BaseHandlers) GetBridge(c *gin.Context) {
 		return
 	}
 
-	instance, err := bridges.GetInstance(c.Request.Context(), strings.TrimSpace(c.Param("id")))
+	instance, err := bridges.GetInstance(c.Request.Context(), c.Param("id"))
 	if err != nil {
 		h.respondError(c, StatusForBridgeError(err), err)
 		return
@@ -228,7 +228,7 @@ func (h *BaseHandlers) ListBridgeRoutes(c *gin.Context) {
 		return
 	}
 
-	routes, err := bridges.ListRoutes(c.Request.Context(), strings.TrimSpace(c.Param("id")))
+	routes, err := bridges.ListRoutes(c.Request.Context(), c.Param("id"))
 	if err != nil {
 		h.respondError(c, StatusForBridgeError(err), err)
 		return

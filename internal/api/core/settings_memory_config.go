@@ -108,7 +108,6 @@ func memoryRecallConfigFromPayload(payload contract.SettingsMemoryRecallPayload)
 		Signals: compozyconfig.MemoryRecallSignalsConfig{
 			QueueCapacity:  payload.Signals.QueueCapacity,
 			WorkerRetryMax: payload.Signals.WorkerRetryMax,
-			MetricsEnabled: payload.Signals.MetricsEnabled,
 		},
 	}
 }

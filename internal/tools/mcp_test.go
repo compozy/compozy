@@ -501,6 +501,78 @@ func TestShouldRetainDeadMCPDescriptorsUntilOpportunisticRecovery(t *testing.T) 
 		}
 	})
 
+	t.Run("Should Explicitly Retire Deleted Workspace State Without Lazy Reconciliation", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name   string
+			retire func(*MCPProvider, SourceRef)
+		}{
+			{
+				name: "Should retire one deleted server",
+				retire: func(provider *MCPProvider, source SourceRef) {
+					provider.ForgetMCPServer(source.WorkspaceID, source.RawServerName)
+				},
+			},
+			{
+				name: "Should retire every descriptor for a deleted workspace",
+				retire: func(provider *MCPProvider, source SourceRef) {
+					provider.ForgetWorkspace(source.WorkspaceID)
+				},
+			},
+		}
+		for _, test := range tests {
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
+
+				ctx := context.Background()
+				deadService := deadentity.New(newMCPReliabilityStore())
+				executor := newFakeMCPExecutor([]MCPToolDescriptor{{
+					RawName:     "lookup",
+					InputSchema: json.RawMessage(`{"type":"object","properties":{}}`),
+				}})
+				source := SourceRef{
+					Kind:          SourceMCP,
+					Owner:         "removed",
+					RawServerName: "removed",
+					Scope:         mcpSourceScopeWorkspace,
+					WorkspaceID:   "ws-explicit-retirement",
+				}
+				provider, err := NewMCPProvider(
+					MCPSourceListerFunc(func(context.Context) ([]SourceRef, error) {
+						return []SourceRef{source}, nil
+					}),
+					executor,
+					executor,
+					WithMCPDeadEntityService(deadService),
+				)
+				if err != nil {
+					t.Fatalf("NewMCPProvider() error = %v", err)
+				}
+				scope := Scope{Operator: true, WorkspaceID: source.WorkspaceID}
+				if descriptors, listErr := provider.List(ctx, scope); listErr != nil || len(descriptors) != 1 {
+					t.Fatalf("provider.List(initial) = %#v, %v, want one descriptor", descriptors, listErr)
+				}
+
+				test.retire(provider, source)
+				executor.setListError(NewToolError(
+					ErrorCodeUnavailable,
+					"",
+					"removed sidecar is unreachable",
+					ErrToolUnavailable,
+					ReasonMCPUnreachable,
+				))
+				descriptors, err := provider.List(ctx, scope)
+				if err != nil {
+					t.Fatalf("provider.List(after explicit retirement) error = %v", err)
+				}
+				if len(descriptors) != 0 {
+					t.Fatalf("provider.List(after explicit retirement) = %#v, want no stale descriptors", descriptors)
+				}
+			})
+		}
+	})
+
 	t.Run("Should isolate cached descriptors across workspace projections", func(t *testing.T) {
 		t.Parallel()
 
