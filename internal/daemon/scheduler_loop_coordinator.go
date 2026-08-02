@@ -23,6 +23,15 @@ func (s schedulerTaskSource) RunLoopCoordinatorBackstop(
 	if err := s.enqueueDueLoopRetryWakes(ctx, actor.Origin, now); err != nil {
 		return 0, err
 	}
+	if err := s.resumeDueLoopWaits(ctx, now); err != nil {
+		return 0, err
+	}
+	if err := s.escalateDueLoopWaits(ctx, now); err != nil {
+		return 0, err
+	}
+	if err := s.sweepLoopAdmissionClaims(ctx, now); err != nil {
+		return 0, err
+	}
 	if s.coordinatorBackstop != nil {
 		return s.coordinatorBackstop.RunLoopCoordinatorBackstop(ctx, now, actor)
 	}

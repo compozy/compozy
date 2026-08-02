@@ -14,6 +14,7 @@ ORDER BY attempt.generation ASC, attempt.node_id ASC, attempt.item_index ASC, at
 SELECT wait_row.* FROM loop_node_waits AS wait_row
 JOIN loop_runs AS run ON run.id = wait_row.loop_run_id
 WHERE run.workspace_id = sqlc.arg(workspace_id) AND wait_row.loop_run_id = sqlc.arg(loop_run_id)
+  AND wait_row.claim_state IN ('waiting', 'intervention_required')
 ORDER BY wait_row.generation ASC, wait_row.node_id ASC, wait_row.item_index ASC;
 
 -- name: GetLoopAdmissionClaim :one

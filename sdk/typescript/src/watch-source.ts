@@ -16,6 +16,7 @@ export interface WatchPollRequest {
 
 export interface WatchPollResponse {
   ready: boolean;
+  event_key: string;
   state_digest?: string;
   payload?: JSONValue;
   settled_at?: string;
@@ -166,6 +167,16 @@ export function normalizeWatchPollResponse(response: WatchPollResponse): WatchPo
   if (typeof response.ready !== "boolean") {
     throw new InvalidParamsError("watch source response.ready must be a boolean");
   }
+  if (typeof response.event_key !== "string") {
+    throw new InvalidParamsError("watch source response.event_key must be a string");
+  }
+  const eventKey = response.event_key.trim().normalize("NFC");
+  if (!eventKey) {
+    throw new InvalidParamsError("watch source response.event_key is required");
+  }
+  if (new TextEncoder().encode(eventKey).byteLength > 256) {
+    throw new InvalidParamsError("watch source response.event_key must be at most 256 bytes");
+  }
   if (response.state_digest !== undefined && typeof response.state_digest !== "string") {
     throw new InvalidParamsError("watch source response.state_digest must be a string");
   }
@@ -174,6 +185,7 @@ export function normalizeWatchPollResponse(response: WatchPollResponse): WatchPo
   }
   return {
     ready: response.ready,
+    event_key: eventKey,
     ...(response.state_digest ? { state_digest: response.state_digest } : {}),
     ...(response.payload !== undefined ? { payload: cloneJSON(response.payload) } : {}),
     ...(response.settled_at ? { settled_at: response.settled_at } : {}),

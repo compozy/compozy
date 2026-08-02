@@ -16,8 +16,6 @@ import (
 
 var _ looppkg.DeadNodeResumer = (*LoopRepo)(nil)
 
-const loopRunEventNodeResumed = "node_resumed"
-
 // ResumeDeadNode retires one confirmed-dead worker and reserves exactly one continuation.
 func (g *LoopRepo) ResumeDeadNode(
 	ctx context.Context,
@@ -122,13 +120,14 @@ func prepareDeadNodeResume(
 		return deadNodeResumePreparation{loopRun: loopRun, taskRun: taskRun, noop: true}, nil
 	}
 	var cancelState string
+	var paused int64
 	var streak int
-	err = exec.QueryRowContext(ctx, `SELECT cancel_state, death_resume_streak FROM loop_node_controls
-		WHERE loop_run_id = ? AND node_id = ?`, request.RunID, request.NodeID).Scan(&cancelState, &streak)
+	err = exec.QueryRowContext(ctx, `SELECT cancel_state, paused, death_resume_streak FROM loop_node_controls
+		WHERE loop_run_id = ? AND node_id = ?`, request.RunID, request.NodeID).Scan(&cancelState, &paused, &streak)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return deadNodeResumePreparation{}, fmt.Errorf("store: load dead Loop node control: %w", err)
 	}
-	if cancelState != "" {
+	if cancelState != "" || paused != 0 {
 		return deadNodeResumePreparation{loopRun: loopRun, taskRun: taskRun, noop: true}, nil
 	}
 	if streak >= request.DeathStreakLimit {

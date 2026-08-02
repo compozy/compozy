@@ -18,6 +18,7 @@ type GenerationSnapshotPayload struct {
 	Outputs              []GenerationOutput                `json:"outputs,omitempty"`
 	Attempts             []NodeAttempt                     `json:"attempts,omitempty"`
 	Controls             []NodeControlMutation             `json:"controls,omitempty"`
+	Waits                []NodeWaitIntent                  `json:"waits,omitempty"`
 	OutputBlobs          []GenerationOutputBlob            `json:"output_blobs,omitempty"`
 	Verdicts             []gate.VerdictIntent              `json:"verdicts,omitempty"`
 	BestUpdate           *gate.BestUpdateIntent            `json:"best_update,omitempty"`
@@ -115,7 +116,54 @@ func (f *StoreFinalizer) WriteGenerationSnapshot(
 			return err
 		}
 	}
+	for _, wait := range payload.Waits {
+		if err := writeNodeWaitIntent(ctx, tx, loopRunID, snap.Generation, wait); err != nil {
+			return err
+		}
+	}
 	return nil
+}
+
+func writeNodeWaitIntent(
+	ctx context.Context,
+	tx task.Tx,
+	loopRunID string,
+	generation int,
+	intent NodeWaitIntent,
+) error {
+	intent = intent.normalized()
+	if err := intent.validate(); err != nil {
+		return err
+	}
+	_, err := tx.ExecContext(ctx, `INSERT INTO loop_node_waits (
+		loop_run_id, generation, node_id, item_index, kind, resume_at, next_escalation_at,
+		claim_state, claimed_by_kind, claimed_by_id, claimed_at, expect_json,
+		ahead_payload_json, issued_epoch, created_at
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	ON CONFLICT(loop_run_id, generation, node_id, item_index) DO UPDATE SET
+		kind = excluded.kind, resume_at = excluded.resume_at,
+		next_escalation_at = excluded.next_escalation_at, claim_state = excluded.claim_state,
+		claimed_by_kind = excluded.claimed_by_kind, claimed_by_id = excluded.claimed_by_id,
+		claimed_at = excluded.claimed_at,
+		admission_failures = 0, expect_json = excluded.expect_json,
+		ahead_payload_json = excluded.ahead_payload_json, issued_epoch = excluded.issued_epoch,
+		created_at = excluded.created_at
+	WHERE loop_node_waits.issued_epoch < excluded.issued_epoch`,
+		loopRunID, generation, intent.NodeID, intent.ItemIndex, intent.Kind, intent.ResumeAt,
+		intent.NextEscalationAt, intent.ClaimState, sqlNullString(intent.ClaimedByKind),
+		sqlNullString(intent.ClaimedByID), intent.ClaimedAt, sqlNullRawJSON(intent.Expect),
+		sqlNullRawJSON(intent.AheadPayload), intent.IssuedEpoch, intent.CreatedAt)
+	if err != nil {
+		return fmt.Errorf("loop: write node wait %s/%d: %w", intent.NodeID, intent.ItemIndex, err)
+	}
+	return nil
+}
+
+func sqlNullRawJSON(raw json.RawMessage) any {
+	if len(raw) == 0 {
+		return nil
+	}
+	return string(raw)
 }
 
 func writeGenerationOutput(

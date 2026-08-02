@@ -149,6 +149,13 @@ func nodeStringFields(node dsl.Node) []namedString {
 }
 
 func nodeParamStringFields(node dsl.Node) []namedString {
+	if node.Class == dsl.NodeClassControl && dsl.ControlKind(node.Kind) == dsl.ControlWait {
+		var params dsl.WaitParams
+		if err := node.Params.Decode(&params); err != nil || strings.TrimSpace(params.Until) == "" {
+			return nil
+		}
+		return []namedString{{name: "params.until", value: params.Until}}
+	}
 	if node.Class == dsl.NodeClassAction && dsl.ActionKind(node.Kind) == dsl.ActionGoal {
 		return goalParamStringFields(node)
 	}

@@ -53,6 +53,21 @@ func (g *LoopRepo) CreateLoopRunForStart(
 	}
 	created := normalized
 	err = g.withTaskImmediateTransaction(ctx, "create loop run for start", func(exec taskSQLExecutor) error {
+		if normalized.RunStartState != nil && normalized.Admission != nil {
+			suppressed, winner, claim, claimErr := claimLoopAdmission(ctx, exec, normalized, g.now())
+			if claimErr != nil {
+				return claimErr
+			}
+			if suppressed {
+				created = winner
+				created.Admission = &looppkg.RunAdmission{
+					Identity:   normalized.Admission.Identity,
+					Suppressed: true,
+					Claim:      &claim,
+				}
+				return nil
+			}
+		}
 		var decisionErr error
 		created, decisionErr = applyLoopStartConcurrencyPolicy(ctx, exec, normalized, policy)
 		if decisionErr != nil {

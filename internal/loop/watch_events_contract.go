@@ -19,6 +19,7 @@ const (
 	watchEventsPayloadDetails      = "details"
 	watchEventsPayloadError        = "error"
 	watchEventsPayloadReason       = "reason"
+	watchEventsNamespaceEvent      = "event"
 
 	watchEventsPayloadAgentName   = "agent_name"
 	watchEventsPayloadAttempt     = "attempt"

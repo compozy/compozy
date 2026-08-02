@@ -501,6 +501,7 @@ func TestStdioRuntimeProvidesAndCallsWatchSource(t *testing.T) {
 				}
 				return compozysdk.WatchPollResponse{
 					Ready:       req.Spec.Query == "open",
+					EventKey:    "reviews:r1",
 					StateDigest: "sha256:next",
 					Payload:     json.RawMessage(`{"review":"r1"}`),
 				}, nil
@@ -552,7 +553,7 @@ func TestStdioRuntimeProvidesAndCallsWatchSource(t *testing.T) {
 		}
 		var pollResult compozysdk.WatchPollResponse
 		decodeResult(t, call.Result, &pollResult)
-		if !pollResult.Ready || pollResult.StateDigest != "sha256:next" {
+		if !pollResult.Ready || pollResult.EventKey != "reviews:r1" || pollResult.StateDigest != "sha256:next" {
 			t.Fatalf("watch poll result = %#v, want ready sha256:next", pollResult)
 		}
 		if got, want := string(pollResult.Payload), `{"review":"r1"}`; got != want {
@@ -632,6 +633,11 @@ func main() {
 	edit.Dir = dir
 	if output, err := edit.CombinedOutput(); err != nil {
 		t.Fatalf("go mod edit replace error = %v\n%s", err, string(output))
+	}
+	tidy := exec.CommandContext(ctx, "go", "mod", "tidy")
+	tidy.Dir = dir
+	if output, err := tidy.CombinedOutput(); err != nil {
+		t.Fatalf("go mod tidy error = %v\n%s", err, string(output))
 	}
 	cmd := exec.CommandContext(ctx, "go", "test", "./...")
 	cmd.Dir = dir

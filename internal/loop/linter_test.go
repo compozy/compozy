@@ -1529,6 +1529,23 @@ func TestLinterShouldValidateLifecycleGrammar(t *testing.T) {
 			severity: loop.SeverityWarning,
 		},
 		{
+			name: "Should reject gate expiry without an after duration",
+			mutate: func(def *dsl.Definition) {
+				gate := dsl.Node{
+					ID: "approval", Class: dsl.NodeClassControl, Kind: string(dsl.ControlGate),
+					Criteria: []dsl.GateCriterion{{
+						ID: "check", Type: dsl.CriterionCommand, Check: "true", Expect: "exit_zero",
+					}},
+					VerdictPolicy: dsl.VerdictPolicyFixedPasses,
+					Expires:       &dsl.WaitExpiry{Route: "load"},
+				}
+				def.Graph.Nodes = append(def.Graph.Nodes, gate)
+				def.Graph.Edges = append(def.Graph.Edges, dsl.Edge{From: "approval", To: "load"})
+			},
+			wantCode: loop.CodeWaitShapeInvalid,
+			severity: loop.SeverityError,
+		},
+		{
 			name: "Should reject a watch source without stable identity",
 			mutate: func(def *dsl.Definition) {
 				*def = singleNodeDefinition(dsl.Node{

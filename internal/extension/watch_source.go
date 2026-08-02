@@ -53,6 +53,14 @@ func (m *Manager) WatchPoll(
 		return watchpkg.PollResponse{}, fmt.Errorf("extension: watch poll via %q: %w", name, err)
 	}
 	response.Payload = cloneRawMessage(response.Payload)
+	response.EventKey, err = watchpkg.NormalizeEventKey(response.EventKey)
+	if err != nil {
+		return watchpkg.PollResponse{}, fmt.Errorf(
+			"extension: watch poll via %q returned invalid event_key: %w",
+			name,
+			err,
+		)
+	}
 	return response, nil
 }
 

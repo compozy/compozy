@@ -6553,7 +6553,8 @@ func TestGlobalDBCompleteRunLeaseShouldCommitCoordinatorControlWithoutNodeSucces
 			t.Fatalf("GetLoopRunByID(settled) error = %v", err)
 		}
 		if settledRun.Status != looppkg.StatusPaused {
-			t.Fatalf("settled Run status = %q, want paused", settledRun.Status)
+			t.Fatalf("settled Run status = %q, want paused (plan in_flight=%t yield=%t terminal=%#v)",
+				settledRun.Status, plan.GenerationInFlight, plan.Yield, plan.Terminal)
 		}
 		if err := globalDB.db.QueryRowContext(
 			ctx,

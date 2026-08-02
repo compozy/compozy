@@ -44,6 +44,9 @@ func (s *service) Start(
 	if err != nil {
 		return nil, err
 	}
+	if created.RunStartState != nil && created.Admission != nil && created.Admission.Suppressed {
+		return &created, nil
+	}
 	s.observeCommittedRunParticipation(ctx, created)
 	s.dispatchLoopStarted(ctx, created, actor)
 	return &created, nil
@@ -248,5 +251,16 @@ func (s *service) startResolved(
 		Origin: &origin, Inputs: resolvedInputs,
 	}
 	run.SetNetworkSpec(networkSpec)
+	if inputs.Admission != nil {
+		admission := *inputs.Admission
+		if admission.Horizon <= 0 && effective.Lifecycle.AdmissionHorizon != nil {
+			admission.Horizon = *effective.Lifecycle.AdmissionHorizon
+		}
+		normalized, err := NormalizeAdmissionIdentity(admission)
+		if err != nil {
+			return Run{}, err
+		}
+		run.SetAdmission(normalized)
+	}
 	return run, nil
 }

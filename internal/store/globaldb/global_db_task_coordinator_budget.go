@@ -55,9 +55,12 @@ func consumeLoopBudgetApprovalWithExecutor(
 	return affected > 0, nil
 }
 
-func loopBudgetExceeded(run looppkg.Run, tokensUsed int64, now time.Time) bool {
+func loopBudgetExceeded(run looppkg.Run, tokensUsed int64, now time.Time, wallClockParked bool) bool {
 	if run.BudgetTokens > 0 && tokensUsed >= int64(run.BudgetTokens) {
 		return true
+	}
+	if wallClockParked {
+		return false
 	}
 	if run.BudgetWallSec <= 0 || run.StartedAt.IsZero() {
 		return false
@@ -66,4 +69,17 @@ func loopBudgetExceeded(run looppkg.Run, tokensUsed int64, now time.Time) bool {
 		now = time.Now().UTC()
 	}
 	return !now.UTC().Before(run.StartedAt.UTC().Add(time.Duration(run.BudgetWallSec) * time.Second))
+}
+
+func coordinatorPlanHasParkedOutputs(plan taskpkg.CoordinatorCompletionPlan) bool {
+	payload, err := looppkg.GenerationSnapshotPayloadFrom(plan.Snapshot.Payload)
+	if err != nil {
+		return false
+	}
+	for _, output := range payload.Outputs {
+		if looppkg.GenerationOutputStatusParked(output.Status) {
+			return true
+		}
+	}
+	return false
 }

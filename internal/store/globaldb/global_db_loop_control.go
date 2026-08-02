@@ -37,6 +37,11 @@ func (g *LoopRepo) ReactivateLoopCoordinator(
 				return err
 			}
 		}
+		if req.Cause == looppkg.TransitionCauseApproval && len(req.Decisions) > 0 {
+			if err := claimActiveApprovalWait(ctx, exec, current, req.Decisions[0]); err != nil {
+				return err
+			}
+		}
 		if err := compareAndSwapLoopRunStatusWithExecutor(
 			ctx,
 			exec,

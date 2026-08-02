@@ -12,6 +12,7 @@ import (
 type generationFinisherState struct {
 	outputs         []GenerationOutput
 	attempts        []NodeAttempt
+	controls        []NodeControlMutation
 	events          []GenerationLifecycleEventIntent
 	topology        controlTopology
 	controlTerminal *task.CoordinatorTerminal
@@ -37,6 +38,9 @@ func (r *CoordinatorRunner) buildGenerationFinisherPlan(
 	failed := selectFailedOutput(state.outputs)
 	plan := coordinatorFinisherPlan(run, generation, state.outputs, state.loopStops)
 	if err := appendAttemptsToGenerationSnapshot(&plan.Snapshot, state.attempts); err != nil {
+		return task.CoordinatorCompletionPlan{}, err
+	}
+	if err := appendControlsToGenerationSnapshot(&plan.Snapshot, state.controls); err != nil {
 		return task.CoordinatorCompletionPlan{}, err
 	}
 	if err := appendLifecycleEventsToGenerationSnapshot(&plan.Snapshot, state.events); err != nil {
@@ -101,16 +105,29 @@ func (r *CoordinatorRunner) prepareGenerationFinisherState(
 	if err != nil {
 		return generationFinisherState{}, err
 	}
-	normalized, attempts, events, lifecycleLive, err := r.applyNodeLifecyclePrecedence(
+	normalized, attempts, controls, events, lifecycleLive, err := r.applyNodeLifecyclePrecedence(
 		ctx, run, generation, resolved, effective, normalized,
 	)
 	if err != nil {
 		return generationFinisherState{}, err
 	}
 	return generationFinisherState{
-		outputs: normalized, attempts: attempts, events: events, topology: topology,
+		outputs: normalized, attempts: attempts, controls: controls, events: events, topology: topology,
 		controlTerminal: controlTerminal, loopStops: loopStops, live: live || lifecycleLive,
 	}, nil
+}
+
+func appendControlsToGenerationSnapshot(snapshot *task.GenerationSnapshot, controls []NodeControlMutation) error {
+	if snapshot == nil || len(controls) == 0 {
+		return nil
+	}
+	payload, err := GenerationSnapshotPayloadFrom(snapshot.Payload)
+	if err != nil {
+		return err
+	}
+	payload.Controls = append(payload.Controls, controls...)
+	snapshot.Payload = payload
+	return nil
 }
 
 func appendRetryScheduleIntents(
@@ -211,7 +228,7 @@ func (r *CoordinatorRunner) buildGoalControlFinisherPlan(
 	}
 	goalPlan.Terminal = controlTerminal
 	goalPlan.Yield = false
-	goalPlan.GenerationInFlight = goalPlan.GenerationInFlight || len(goalPlan.NodeRuns) > 0
+	goalPlan.GenerationInFlight = live || len(goalPlan.NodeRuns) > 0
 	return goalPlan, nil
 }
 
@@ -236,25 +253,14 @@ func (r *CoordinatorRunner) buildLiveGenerationPlan(
 		return task.CoordinatorCompletionPlan{}, err
 	}
 	advancedOutputs := cloneGenerationOutputs(normalized)
+	applyWaitExpiryRoutes(resolved.Definition.Graph, topology, &advancedOutputs)
 	outputBlobs := []GenerationOutputBlob{}
 	gateEvaluations := &gateEvaluationCollector{}
 	terminal, err := advanceControlNodes(
-		&controlEvalContext{
-			ctx:                ctx,
-			run:                run,
-			generation:         generation,
-			resolved:           resolved,
-			topology:           topology,
-			effective:          effective,
-			gateEvaluator:      gateEvaluator,
-			gateDecisions:      r.store,
-			runtimeCatalog:     r.runtimeCatalog,
-			fanOutWidth:        fanOutWidth,
-			watchRuntime:       watchRuntime,
-			watchEventsRuntime: watchEventsRuntime,
-			gateEvaluations:    gateEvaluations,
-			history:            history,
-		},
+		r.liveControlEvalContext(
+			ctx, run, generation, resolved, topology, effective, gateEvaluator, fanOutWidth,
+			watchRuntime, watchEventsRuntime, gateEvaluations, history,
+		),
 		&plan,
 		&advancedOutputs,
 		&outputBlobs,
@@ -296,6 +302,29 @@ func (r *CoordinatorRunner) buildLiveGenerationPlan(
 		gateEvaluations,
 		history,
 	)
+}
+
+func (r *CoordinatorRunner) liveControlEvalContext(
+	ctx context.Context,
+	run Run,
+	generation int,
+	resolved *ResolvedDefinition,
+	topology controlTopology,
+	effective EffectiveConfig,
+	gateEvaluator gate.GateEvaluator,
+	fanOutWidth int,
+	watchRuntime coordinatorWatchRuntime,
+	watchEventsRuntime coordinatorWatchEventsRuntime,
+	gateEvaluations *gateEvaluationCollector,
+	history GenerationHistory,
+) *controlEvalContext {
+	return &controlEvalContext{
+		ctx: ctx, run: run, generation: generation, resolved: resolved, topology: topology,
+		effective: effective, gateEvaluator: gateEvaluator, gateDecisions: r.store,
+		runtimeCatalog: r.runtimeCatalog, fanOutWidth: fanOutWidth, watchRuntime: watchRuntime,
+		watchEventsRuntime: watchEventsRuntime, gateEvaluations: gateEvaluations, history: history,
+		now: r.now().UTC(),
+	}
 }
 
 func (r *CoordinatorRunner) finishLiveGenerationPlan(

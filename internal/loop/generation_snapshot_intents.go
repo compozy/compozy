@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/loop/gate"
 )
 
@@ -29,6 +30,12 @@ const (
 	GenerationLifecycleEventNodeCanceled GenerationLifecycleEventKind = "node_canceled"
 	// GenerationLifecycleEventNodeQuarantined records one durable quarantine episode.
 	GenerationLifecycleEventNodeQuarantined GenerationLifecycleEventKind = "node_quarantined"
+	// GenerationLifecycleEventNodePaused records one automatic pause episode.
+	GenerationLifecycleEventNodePaused GenerationLifecycleEventKind = "node_paused"
+	// GenerationLifecycleEventNodeWaitStarted records one durable wait entry.
+	GenerationLifecycleEventNodeWaitStarted GenerationLifecycleEventKind = "node_wait_started"
+	// GenerationLifecycleEventNodeWaitResumed records an ahead-arrival wait resolution.
+	GenerationLifecycleEventNodeWaitResumed GenerationLifecycleEventKind = "node_wait_resumed"
 	// GenerationLifecycleEventTargetBreakerTransition records a loop-target breaker state change.
 	GenerationLifecycleEventTargetBreakerTransition GenerationLifecycleEventKind = "target_breaker_transition"
 )
@@ -52,6 +59,12 @@ type GenerationLifecycleEventIntent struct {
 	TargetFamily    string                       `json:"target_family,omitempty"`
 	Target          string                       `json:"target,omitempty"`
 	BreakerState    string                       `json:"breaker_state,omitempty"`
+	ActorKind       string                       `json:"actor_kind,omitempty"`
+	ActorID         string                       `json:"actor_id,omitempty"`
+	RuleID          string                       `json:"rule_id,omitempty"`
+	WaitKind        string                       `json:"wait_kind,omitempty"`
+	AheadArrival    string                       `json:"ahead_arrival,omitempty"`
+	AheadCursors    map[string]int64             `json:"ahead_cursors,omitempty"`
 	Effects         []RenderedEffectIntent       `json:"effects,omitempty"`
 }
 
@@ -64,6 +77,12 @@ func (i GenerationLifecycleEventIntent) normalized() GenerationLifecycleEventInt
 	i.TargetFamily = strings.TrimSpace(i.TargetFamily)
 	i.Target = strings.TrimSpace(i.Target)
 	i.BreakerState = strings.TrimSpace(i.BreakerState)
+	i.ActorKind = strings.TrimSpace(i.ActorKind)
+	i.ActorID = strings.TrimSpace(i.ActorID)
+	i.RuleID = strings.TrimSpace(i.RuleID)
+	i.WaitKind = strings.TrimSpace(i.WaitKind)
+	i.AheadArrival = strings.TrimSpace(i.AheadArrival)
+	i.AheadCursors = cloneInt64Map(i.AheadCursors)
 	if len(i.QuarantineEntry) > 0 {
 		i.QuarantineEntry = append(json.RawMessage(nil), i.QuarantineEntry...)
 	}
@@ -102,6 +121,12 @@ func (i GenerationLifecycleEventIntent) validate() error {
 		err = i.validateNodeCanceled()
 	case GenerationLifecycleEventNodeQuarantined:
 		err = i.validateNodeQuarantined()
+	case GenerationLifecycleEventNodePaused:
+		err = i.validateNodePaused()
+	case GenerationLifecycleEventNodeWaitStarted:
+		err = i.validateNodeWaitStarted()
+	case GenerationLifecycleEventNodeWaitResumed:
+		err = i.validateNodeWaitResumed()
 	case GenerationLifecycleEventTargetBreakerTransition:
 		err = i.validateTargetBreakerTransition()
 	default:
@@ -116,6 +141,42 @@ func (i GenerationLifecycleEventIntent) validate() error {
 		}
 	}
 	return nil
+}
+
+func (i GenerationLifecycleEventIntent) validateNodeWaitResumed() error {
+	if err := i.validateNodeWaitStarted(); err != nil {
+		return err
+	}
+	if i.ActorKind != "" && i.ActorID != "" {
+		return nil
+	}
+	return fmt.Errorf("%w: node_wait_resumed event has incomplete provenance", ErrValidation)
+}
+
+func (i GenerationLifecycleEventIntent) validateNodeWaitStarted() error {
+	if i.AheadArrival != "" && i.AheadArrival != string(dsl.WaitAheadConsumeOnEntry) &&
+		i.AheadArrival != string(dsl.WaitAheadReject) {
+		return fmt.Errorf("%w: node_wait_started ahead_arrival is invalid", ErrValidation)
+	}
+	for stream, cursor := range i.AheadCursors {
+		if strings.TrimSpace(stream) == "" || cursor < 0 {
+			return fmt.Errorf("%w: node_wait_started ahead cursor is invalid", ErrValidation)
+		}
+	}
+	if i.NodeID != "" && i.ItemIndex >= 0 && i.Attempt >= 1 && i.IssuedEpoch >= 1 &&
+		(i.WaitKind == NodeWaitKindTimer || i.WaitKind == NodeWaitKindEvent ||
+			i.WaitKind == NodeWaitKindApprovalEscalation) {
+		return nil
+	}
+	return fmt.Errorf("%w: node_wait_started event has incomplete wait identity", ErrValidation)
+}
+
+func (i GenerationLifecycleEventIntent) validateNodePaused() error {
+	if i.NodeID != "" && i.ItemIndex >= 0 && i.Attempt >= 1 && i.ActorKind != "" &&
+		i.ActorID != "" && i.RuleID != "" && i.Reason != "" {
+		return nil
+	}
+	return fmt.Errorf("%w: node_paused event has incomplete provenance", ErrValidation)
 }
 
 func (i GenerationLifecycleEventIntent) validateGenerationStarted() error {
@@ -209,6 +270,11 @@ func generationLifecycleRouteValid(route gate.RouteAction) bool {
 }
 
 func normalizeGenerationSnapshotIntents(payload GenerationSnapshotPayload) (GenerationSnapshotPayload, error) {
+	waits, err := normalizeNodeWaitIntents(payload.Waits)
+	if err != nil {
+		return GenerationSnapshotPayload{}, err
+	}
+	payload.Waits = waits
 	controls, err := normalizeNodeControlMutations(payload.Controls)
 	if err != nil {
 		return GenerationSnapshotPayload{}, err

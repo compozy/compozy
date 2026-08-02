@@ -46,7 +46,7 @@ func watchEventsFilterExpr(raw string) (celast.Expr, error) {
 	env, err := cel.NewEnv(
 		cel.Variable("inputs", cel.MapType(cel.StringType, cel.DynType)),
 		cel.Variable("nodes", cel.MapType(cel.StringType, cel.DynType)),
-		cel.Variable("event", cel.MapType(cel.StringType, cel.DynType)),
+		cel.Variable(watchEventsNamespaceEvent, cel.MapType(cel.StringType, cel.DynType)),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("loop: create watch-events constraint CEL env: %w", err)
@@ -161,7 +161,7 @@ func watchEventsLookupInputPath(inputs map[string]any, path []string) (any, bool
 
 func watchEventsExprIsEventSessionID(expr celast.Expr) bool {
 	path, ok := watchEventsExprPath(expr)
-	return ok && len(path) == 2 && path[0] == "event" && path[1] == watchEventsFieldSessionID
+	return ok && len(path) == 2 && path[0] == watchEventsNamespaceEvent && path[1] == watchEventsFieldSessionID
 }
 
 func watchEventsExprPath(expr celast.Expr) ([]string, bool) {

@@ -290,6 +290,7 @@ const listLoopNodeWaits = `-- name: ListLoopNodeWaits :many
 SELECT wait_row.loop_run_id, wait_row.generation, wait_row.node_id, wait_row.item_index, wait_row.kind, wait_row.resume_at, wait_row.next_escalation_at, wait_row.escalation_cursor, wait_row.claim_state, wait_row.claimed_by_kind, wait_row.claimed_by_id, wait_row.claimed_at, wait_row.admission_failures, wait_row.expect_json, wait_row.ahead_payload_json, wait_row.issued_epoch, wait_row.created_at FROM loop_node_waits AS wait_row
 JOIN loop_runs AS run ON run.id = wait_row.loop_run_id
 WHERE run.workspace_id = ?1 AND wait_row.loop_run_id = ?2
+  AND wait_row.claim_state IN ('waiting', 'intervention_required')
 ORDER BY wait_row.generation ASC, wait_row.node_id ASC, wait_row.item_index ASC
 `
 

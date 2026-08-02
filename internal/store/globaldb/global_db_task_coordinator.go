@@ -253,7 +253,6 @@ func (g *TaskRepo) applyCoordinatorBoundaryWithExecutor(
 	finalizer taskpkg.GenerationStateFinalizer,
 ) (taskpkg.CoordinatorCompletionResult, error) {
 	snapshot := state.snapshot
-	postReserveSnapshot := state.postReserveSnapshot
 	loopRun := state.loopRun
 	contextPayload, err := coordinatorResultContext(loopRun, loopRun.Generation, loopRun.Status)
 	if err != nil {
@@ -264,13 +263,30 @@ func (g *TaskRepo) applyCoordinatorBoundaryWithExecutor(
 		Context:    contextPayload,
 		TokensUsed: state.tokensUsed,
 	}
-	budgetExceeded := loopBudgetExceeded(loopRun, state.tokensUsed, completion.Now)
+	err = g.dispatchCoordinatorBoundaryWithExecutor(ctx, exec, completion, current, state, finalizer, &result)
+	return result, err
+}
+
+func (g *TaskRepo) dispatchCoordinatorBoundaryWithExecutor(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	completion *taskpkg.CoordinatorCompletion,
+	current *taskpkg.Run,
+	state *coordinatorBoundaryState,
+	finalizer taskpkg.GenerationStateFinalizer,
+	result *taskpkg.CoordinatorCompletionResult,
+) error {
+	snapshot := state.snapshot
+	postReserveSnapshot := state.postReserveSnapshot
+	loopRun := state.loopRun
+	budgetExceeded := loopBudgetExceeded(
+		loopRun, state.tokensUsed, completion.Now, coordinatorPlanHasParkedOutputs(completion.Plan),
+	)
 	switch {
 	case loopRun.Status == loop.StatusWatching && completion.Plan.Terminal != nil:
-		err := applyCoordinatorTerminalBoundary(ctx, exec, completion, snapshot, loopRun, &result)
-		return result, err
+		return applyCoordinatorTerminalBoundary(ctx, exec, completion, snapshot, loopRun, result)
 	case loopRun.Status == loop.StatusWatching && coordinatorPlanHasContinuation(completion.Plan):
-		err := g.applyCoordinatorWatchReadyBoundaryWithExecutor(
+		return g.applyCoordinatorWatchReadyBoundaryWithExecutor(
 			ctx,
 			exec,
 			completion,
@@ -279,17 +295,14 @@ func (g *TaskRepo) applyCoordinatorBoundaryWithExecutor(
 			postReserveSnapshot,
 			finalizer,
 			loopRun,
-			&result,
+			result,
 		)
-		return result, err
 	case loopRun.Status != loop.StatusRunning:
-		err := applyCoordinatorYieldBoundary(ctx, exec, snapshot, &result)
-		return result, err
+		return applyCoordinatorYieldBoundary(ctx, exec, snapshot, result)
 	case shouldDeferCoordinatorBoundary(completion.Plan, loopRun, budgetExceeded):
-		err := applyCoordinatorYieldBoundary(ctx, exec, snapshot, &result)
-		return result, err
+		return applyCoordinatorYieldBoundary(ctx, exec, snapshot, result)
 	case shouldApplyCoordinatorBudgetExceededBoundary(completion.Plan, budgetExceeded):
-		err := g.applyCoordinatorBudgetExceededBoundaryWithExecutor(
+		return g.applyCoordinatorBudgetExceededBoundaryWithExecutor(
 			ctx,
 			exec,
 			completion,
@@ -298,20 +311,16 @@ func (g *TaskRepo) applyCoordinatorBoundaryWithExecutor(
 			postReserveSnapshot,
 			finalizer,
 			loopRun,
-			&result,
+			result,
 		)
-		return result, err
 	case completion.Plan.Terminal != nil:
-		err := applyCoordinatorTerminalBoundary(ctx, exec, completion, snapshot, loopRun, &result)
-		return result, err
+		return applyCoordinatorTerminalBoundary(ctx, exec, completion, snapshot, loopRun, result)
 	case completion.Plan.Yield:
-		err := applyCoordinatorYieldBoundary(ctx, exec, snapshot, &result)
-		return result, err
+		return applyCoordinatorYieldBoundary(ctx, exec, snapshot, result)
 	case loopRun.PauseRequested && loopRun.Status == loop.StatusRunning:
-		err := applyCoordinatorPauseBoundary(ctx, exec, completion, snapshot, loopRun, &result)
-		return result, err
+		return applyCoordinatorPauseBoundary(ctx, exec, completion, snapshot, loopRun, result)
 	default:
-		err := g.applyCoordinatorContinueBoundaryWithExecutor(
+		return g.applyCoordinatorContinueBoundaryWithExecutor(
 			ctx,
 			exec,
 			completion,
@@ -320,9 +329,8 @@ func (g *TaskRepo) applyCoordinatorBoundaryWithExecutor(
 			postReserveSnapshot,
 			finalizer,
 			loopRun,
-			&result,
+			result,
 		)
-		return result, err
 	}
 }
 
