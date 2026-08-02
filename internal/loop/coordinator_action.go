@@ -17,6 +17,8 @@ type coordinatorActionRunMetadata struct {
 	Generation       int    `json:"generation"`
 	NodeID           string `json:"node_id"`
 	ItemIndex        int    `json:"item_index"`
+	Attempt          int    `json:"attempt"`
+	Epoch            int64  `json:"epoch"`
 	GoalSegmentEpoch int64  `json:"goal_segment_epoch,omitempty"`
 }
 
@@ -82,6 +84,10 @@ func (r *CoordinatorRunner) ExecuteActionRun(
 		outputs,
 		history,
 	)
+	if err != nil {
+		return task.RunResult{}, err
+	}
+	input.RetryFailure, err = r.actionRetryFailure(ctx, actionCtx.loopRun, actionCtx.meta)
 	if err != nil {
 		return task.RunResult{}, err
 	}
@@ -179,15 +185,86 @@ func (r *CoordinatorRunner) ActionRunTimeout(
 	ctx context.Context,
 	taskRun task.Run,
 ) (time.Duration, bool, error) {
+	limit, err := r.actionRunLimit(ctx, taskRun)
+	return limit.duration, limit.enabled, err
+}
+
+// ActionRunTimeoutReason returns the failure code selected by the same
+// deterministic timeout/deadline calculation as ActionRunTimeout.
+func (r *CoordinatorRunner) ActionRunTimeoutReason(
+	ctx context.Context,
+	taskRun task.Run,
+) (string, error) {
+	limit, err := r.actionRunLimit(ctx, taskRun)
+	return limit.reasonCode, err
+}
+
+type actionRunLimit struct {
+	duration   time.Duration
+	enabled    bool
+	reasonCode string
+}
+
+func (r *CoordinatorRunner) actionRunLimit(
+	ctx context.Context,
+	taskRun task.Run,
+) (actionRunLimit, error) {
 	actionCtx, err := r.resolveActionRun(ctx, taskRun)
 	if err != nil {
-		return 0, false, err
+		return actionRunLimit{}, err
 	}
-	timeout, err := parseActionTimeout(actionCtx.node.Timeout)
+	outputs, err := r.outputs.ListGenerationOutputs(
+		ctx, actionCtx.loopRun.WorkspaceID, actionCtx.loopRun.ID, actionCtx.meta.Generation,
+	)
 	if err != nil {
-		return 0, false, err
+		return actionRunLimit{}, err
 	}
-	return timeout, timeout > 0, nil
+	output, _ := generationOutputForActionMetadata(outputs, actionCtx.meta)
+	return effectiveActionRunLimit(actionCtx.node, actionCtx.effective, output, r.now().UTC())
+}
+
+func effectiveActionRunLimit(
+	node dsl.Node,
+	effective EffectiveConfig,
+	output GenerationOutput,
+	now time.Time,
+) (actionRunLimit, error) {
+	timeout, err := parseActionTimeout(node.Timeout)
+	if err != nil {
+		return actionRunLimit{}, err
+	}
+	limit := actionRunLimit{
+		duration: timeout, enabled: timeout > 0, reasonCode: string(ReasonCodeActionTimeout),
+	}
+	resolved, err := ResolveNodeLifecycleConfig(node, nil, effective.Lifecycle)
+	if err != nil {
+		return actionRunLimit{}, err
+	}
+	if resolved.Deadline == nil || output.FirstScheduledAt == nil {
+		return limit, nil
+	}
+	remaining := output.FirstScheduledAt.UTC().Add(*resolved.Deadline).Sub(now.UTC())
+	if remaining <= 0 {
+		remaining = time.Nanosecond
+	}
+	if !limit.enabled || remaining <= limit.duration {
+		limit.duration = remaining
+		limit.enabled = true
+		limit.reasonCode = string(FailureBudgetExhausted)
+	}
+	return limit, nil
+}
+
+func generationOutputForActionMetadata(
+	outputs []GenerationOutput,
+	meta coordinatorActionRunMetadata,
+) (GenerationOutput, bool) {
+	for _, output := range outputs {
+		if output.NodeID == meta.NodeID && output.ItemIndex == meta.ItemIndex {
+			return output, true
+		}
+	}
+	return GenerationOutput{}, false
 }
 
 func (r *CoordinatorRunner) resolveActionRun(
@@ -258,16 +335,18 @@ func actionExecutionInput(
 		return ActionExecutionInput{}, err
 	}
 	return ActionExecutionInput{
-		WorkspaceID:   loopRun.WorkspaceID,
-		LoopRunID:     loopRun.ID,
-		Generation:    meta.Generation,
-		NodeID:        node.ID,
-		ItemIndex:     meta.ItemIndex,
-		Namespace:     namespace,
-		Contract:      &resolved.Definition.Contract,
-		ToolScope:     actionToolScope(loopRun, actor),
-		Actor:         actor,
-		CorrelationID: strings.TrimSpace(taskRun.ID),
+		WorkspaceID:    loopRun.WorkspaceID,
+		LoopRunID:      loopRun.ID,
+		Generation:     meta.Generation,
+		NodeID:         node.ID,
+		ItemIndex:      meta.ItemIndex,
+		Attempt:        meta.Attempt,
+		RepairFailures: actionRepairFailures(history),
+		Namespace:      namespace,
+		Contract:       &resolved.Definition.Contract,
+		ToolScope:      actionToolScope(loopRun, actor),
+		Actor:          actor,
+		CorrelationID:  strings.TrimSpace(taskRun.ID),
 		RuntimeSelection: &ActionRuntimeSelection{
 			Defaults:    effective.RuntimeDefaults,
 			ConfigRules: cloneRuntimeRules(effective.RuntimeRules),
@@ -317,6 +396,18 @@ func parseCoordinatorActionRunMetadata(raw json.RawMessage) (coordinatorActionRu
 	if meta.ItemIndex < 0 {
 		return coordinatorActionRunMetadata{}, fmt.Errorf(
 			"%w: action item_index must be zero or positive",
+			ErrValidation,
+		)
+	}
+	if meta.Attempt < 1 {
+		return coordinatorActionRunMetadata{}, fmt.Errorf(
+			"%w: action attempt must be positive",
+			ErrValidation,
+		)
+	}
+	if meta.Epoch < 0 {
+		return coordinatorActionRunMetadata{}, fmt.Errorf(
+			"%w: action epoch must be zero or positive",
 			ErrValidation,
 		)
 	}

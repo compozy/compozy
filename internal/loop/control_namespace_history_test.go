@@ -22,6 +22,7 @@ func TestGenerationHistoryProjection(t *testing.T) {
 
 	t.Run("Should leave initial generation history and namespace roots empty", testGenerationHistoryInitialGeneration)
 	t.Run("Should project every previous node and verdict", testGenerationHistoryPreviousGeneration)
+	t.Run("Should expose only escalated classified failures to repair context", testGenerationHistoryRepairFailure)
 	t.Run("Should scope fan-out history to the current item", testGenerationHistoryFanOutScope)
 	t.Run("Should project best outputs without status", testGenerationHistoryBestGeneration)
 	t.Run("Should reject invalid best-generation state", testGenerationHistoryBestValidation)
@@ -32,6 +33,57 @@ func TestGenerationHistoryProjection(t *testing.T) {
 		testGenerationHistoryTerminalNodes,
 	)
 	t.Run("Should reject a non-positive generation", testGenerationHistoryNonPositiveGeneration)
+}
+
+func testGenerationHistoryRepairFailure(t *testing.T) {
+	t.Parallel()
+	failureClass := FailurePayloadDeclared
+	reader := generationHistoryReaderStub{
+		outputs: map[int][]GenerationOutput{2: {
+			{NodeID: "fetch", Status: generationOutputFailed},
+			{NodeID: "optional", Status: generationOutputSucceeded, OutputRef: failureAbsorbedOutputRef},
+		}},
+		attempts: []NodeAttempt{
+			{Generation: 2, NodeID: "fetch", Attempt: 1, FailureClass: &failureClass,
+				FailureCode: "tool_failed", Cause: "request failed", Hint: "use a smaller batch",
+				Disposition: AttemptEscalated},
+			{Generation: 2, NodeID: "optional", Attempt: 1, FailureClass: &failureClass,
+				FailureCode: "optional_failed", Cause: "optional request failed", Hint: "ignore",
+				Disposition: AttemptAbsorbed},
+		},
+	}
+	history, err := ReadGenerationHistory(
+		context.Background(), reader, Run{ID: "run-repair", WorkspaceID: "workspace-1"}, 3,
+	)
+	if err != nil {
+		t.Fatalf("ReadGenerationHistory() error = %v", err)
+	}
+	fetch := history.Previous.Nodes["fetch"][0]
+	if fetch.Failure == nil || fetch.Failure.Class != failureClass || fetch.Failure.Code != "tool_failed" ||
+		fetch.Failure.Hint != "use a smaller batch" || fetch.Disposition != AttemptEscalated {
+		t.Fatalf("fetch repair failure = %#v, want classified escalated attempt", fetch)
+	}
+	if optional := history.Previous.Nodes["optional"][0]; optional.Failure != nil || optional.Disposition != "" {
+		t.Fatalf("optional repair failure = %#v, want absorbed failure omitted", optional)
+	}
+	namespace := history.previousNamespace(
+		newControlTopology(dsl.Graph{Nodes: []dsl.Node{
+			{ID: "fetch", Class: dsl.NodeClassAction, Kind: string(dsl.ActionTransform)},
+			{ID: "optional", Class: dsl.NodeClassAction, Kind: string(dsl.ActionTransform)},
+		}}),
+		"fetch",
+		0,
+	)
+	nodes := namespace[namespaceNodesKey].(map[string]any)
+	fetchNamespace := nodes["fetch"].(map[string]any)
+	projected, ok := fetchNamespace[namespaceFailureKey].(ClassifiedFailure)
+	if !ok || projected.Cause != "request failed" || fetchNamespace[namespaceDispositionKey] != AttemptEscalated {
+		t.Fatalf("fetch namespace = %#v, want classified repair context", fetchNamespace)
+	}
+	optionalNamespace := nodes["optional"].(map[string]any)
+	if _, exists := optionalNamespace[namespaceFailureKey]; exists {
+		t.Fatalf("optional namespace = %#v, want no absorbed repair context", optionalNamespace)
+	}
 }
 
 func testGenerationHistoryInitialGeneration(t *testing.T) {
@@ -414,6 +466,15 @@ type generationHistoryReaderStub struct {
 	outputs     map[int][]GenerationOutput
 	verdicts    map[int][]gate.VerdictRecord
 	routeCauses map[int][]gate.VerdictRecord
+	attempts    []NodeAttempt
+}
+
+func (r generationHistoryReaderStub) ListNodeAttempts(
+	_ context.Context,
+	_ WorkspaceID,
+	_ RunID,
+) ([]NodeAttempt, error) {
+	return append([]NodeAttempt(nil), r.attempts...), nil
 }
 
 func (r generationHistoryReaderStub) ListGenerationOutputs(

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/compozy/compozy/internal/loop/gate"
 	"github.com/compozy/compozy/internal/task"
@@ -18,7 +19,7 @@ func TestStoreFinalizerShouldNormalizeGenerationOutputs(t *testing.T) {
 	t.Run("Should persist trimmed node id and status", func(t *testing.T) {
 		t.Parallel()
 
-		tx := &generationSnapshotTx{}
+		tx := &generationSnapshotTx{rowsAffected: 1}
 		err := NewStoreFinalizer().WriteGenerationSnapshot(
 			context.Background(),
 			tx,
@@ -35,20 +36,140 @@ func TestStoreFinalizerShouldNormalizeGenerationOutputs(t *testing.T) {
 		if err != nil {
 			t.Fatalf("WriteGenerationSnapshot() error = %v", err)
 		}
-		if len(tx.args) != 9 {
-			t.Fatalf("ExecContext args len = %d, want 9: %#v", len(tx.args), tx.args)
+		args := tx.calls[0].args
+		if len(args) != 14 {
+			t.Fatalf("ExecContext args len = %d, want 14: %#v", len(args), args)
 		}
-		if got, want := tx.args[0], "loop-run-1"; got != want {
+		if got, want := args[0], "loop-run-1"; got != want {
 			t.Fatalf("ExecContext loop_run_id arg = %#v, want %q", got, want)
 		}
-		if got, want := tx.args[2], "worker"; got != want {
+		if got, want := args[2], "worker"; got != want {
 			t.Fatalf("ExecContext node_id arg = %#v, want %q", got, want)
 		}
-		if got, want := tx.args[4], generationOutputSucceeded; got != want {
+		if got, want := args[4], generationOutputSucceeded; got != want {
 			t.Fatalf("ExecContext status arg = %#v, want %q", got, want)
 		}
-		if got := tx.args[8]; got != nil {
+		if got := args[8]; got != nil {
 			t.Fatalf("ExecContext resolved_runtime arg = %#v, want nil", got)
+		}
+		if got, want := args[9], 1; got != want {
+			t.Fatalf("ExecContext attempt arg = %#v, want %d", got, want)
+		}
+	})
+
+	t.Run("Should persist lifecycle fields behind the observed epoch", func(t *testing.T) {
+		t.Parallel()
+
+		nextAttemptAt := time.Date(2026, time.August, 2, 13, 30, 0, 0, time.FixedZone("BRT", -3*60*60))
+		firstScheduledAt := nextAttemptAt.Add(-time.Minute)
+		expectedEpoch := int64(7)
+		tx := &generationSnapshotTx{rowsAffected: 1}
+		err := NewStoreFinalizer().WriteGenerationSnapshot(
+			context.Background(),
+			tx,
+			task.GenerationSnapshot{
+				LoopRunID:  "loop-run-1",
+				Generation: 2,
+				Payload: GenerationSnapshotPayload{Outputs: []GenerationOutput{{
+					NodeID:           "worker",
+					Status:           generationOutputRetrying,
+					Attempt:          3,
+					NextAttemptAt:    &nextAttemptAt,
+					FirstScheduledAt: &firstScheduledAt,
+					Epoch:            8,
+					ExpectedEpoch:    &expectedEpoch,
+				}}},
+			},
+		)
+		if err != nil {
+			t.Fatalf("WriteGenerationSnapshot() error = %v", err)
+		}
+		args := tx.calls[0].args
+		if got, want := args[9], 3; got != want {
+			t.Fatalf("attempt arg = %#v, want %d", got, want)
+		}
+		gotNextAttemptAt, ok := args[10].(*time.Time)
+		if !ok || !gotNextAttemptAt.Equal(nextAttemptAt.UTC()) {
+			t.Fatalf("next_attempt_at arg = %#v, want %v", args[10], nextAttemptAt.UTC())
+		}
+		gotFirstScheduledAt, ok := args[11].(*time.Time)
+		if !ok || !gotFirstScheduledAt.Equal(firstScheduledAt.UTC()) {
+			t.Fatalf("first_scheduled_at arg = %#v, want %v", args[11], firstScheduledAt.UTC())
+		}
+		if got, want := args[12], int64(8); got != want {
+			t.Fatalf("epoch arg = %#v, want %d", got, want)
+		}
+		if got, want := args[13], expectedEpoch; got != want {
+			t.Fatalf("expected epoch arg = %#v, want %d", got, want)
+		}
+	})
+
+	t.Run("Should reject a stale lifecycle write", func(t *testing.T) {
+		t.Parallel()
+
+		tx := &generationSnapshotTx{}
+		err := NewStoreFinalizer().WriteGenerationSnapshot(
+			context.Background(),
+			tx,
+			task.GenerationSnapshot{
+				LoopRunID:  "loop-run-1",
+				Generation: 1,
+				Payload: GenerationSnapshotPayload{Outputs: []GenerationOutput{{
+					NodeID: "worker",
+					Status: generationOutputRunning,
+					Epoch:  2,
+				}}},
+			},
+		)
+		if !errors.Is(err, ErrStaleGenerationOutput) {
+			t.Fatalf("WriteGenerationSnapshot() error = %v, want ErrStaleGenerationOutput", err)
+		}
+	})
+
+	t.Run("Should append an immutable attempt disposition", func(t *testing.T) {
+		t.Parallel()
+
+		startedAt := time.Date(2026, time.August, 2, 16, 0, 0, 0, time.UTC)
+		endedAt := startedAt.Add(time.Second)
+		nextAttemptAt := endedAt.Add(5 * time.Second)
+		failureClass := FailureTransport
+		tx := &generationSnapshotTx{rowsAffected: 1}
+		err := NewStoreFinalizer().WriteGenerationSnapshot(
+			context.Background(),
+			tx,
+			task.GenerationSnapshot{
+				LoopRunID:  "loop-run-1",
+				Generation: 4,
+				Payload: GenerationSnapshotPayload{Attempts: []NodeAttempt{{
+					NodeID:        "worker",
+					Attempt:       2,
+					FailureClass:  &failureClass,
+					FailureCode:   "provider_unavailable",
+					Cause:         "provider is unavailable",
+					Hint:          "retry later",
+					Disposition:   AttemptRetried,
+					StartedAt:     startedAt,
+					EndedAt:       &endedAt,
+					NextAttemptAt: &nextAttemptAt,
+				}}},
+			},
+		)
+		if err != nil {
+			t.Fatalf("WriteGenerationSnapshot() error = %v", err)
+		}
+		if got, want := len(tx.calls), 1; got != want {
+			t.Fatalf("ExecContext call count = %d, want %d", got, want)
+		}
+		call := tx.calls[0]
+		const immutableAttemptConflict = "ON CONFLICT(loop_run_id, generation, node_id, item_index, attempt) DO NOTHING"
+		if !strings.Contains(call.query, immutableAttemptConflict) {
+			t.Fatalf("attempt SQL = %q, want immutable conflict handling", call.query)
+		}
+		if got, want := call.args[0], "loop-run-1"; got != want {
+			t.Fatalf("attempt loop_run_id arg = %#v, want %q", got, want)
+		}
+		if got, want := call.args[10], AttemptRetried; got != want {
+			t.Fatalf("attempt disposition arg = %#v, want %q", got, want)
 		}
 	})
 }
@@ -181,12 +302,21 @@ func TestGenerationSnapshotLifecycleEventValidation(t *testing.T) {
 }
 
 type generationSnapshotTx struct {
-	args []any
+	calls        []generationSnapshotCall
+	rowsAffected int64
 }
 
-func (tx *generationSnapshotTx) ExecContext(_ context.Context, _ string, args ...any) (sql.Result, error) {
-	tx.args = append([]any(nil), args...)
-	return generationSnapshotResult{}, nil
+type generationSnapshotCall struct {
+	query string
+	args  []any
+}
+
+func (tx *generationSnapshotTx) ExecContext(_ context.Context, query string, args ...any) (sql.Result, error) {
+	tx.calls = append(tx.calls, generationSnapshotCall{
+		query: query,
+		args:  append([]any(nil), args...),
+	})
+	return generationSnapshotResult{rowsAffected: tx.rowsAffected}, nil
 }
 
 func (tx *generationSnapshotTx) QueryContext(
@@ -201,12 +331,14 @@ func (tx *generationSnapshotTx) QueryRowContext(context.Context, string, ...any)
 	return nil
 }
 
-type generationSnapshotResult struct{}
+type generationSnapshotResult struct {
+	rowsAffected int64
+}
 
 func (generationSnapshotResult) LastInsertId() (int64, error) {
 	return 0, nil
 }
 
-func (generationSnapshotResult) RowsAffected() (int64, error) {
-	return 1, nil
+func (r generationSnapshotResult) RowsAffected() (int64, error) {
+	return r.rowsAffected, nil
 }

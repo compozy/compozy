@@ -80,9 +80,27 @@ func (m *Service) startCoordinatorRun(
 	if strings.TrimSpace(result.Run.ID) == "" {
 		return nil, completionErr
 	}
+	timerErr := m.armCoordinatorTimers(lifecycleCtx, plan.PostCommitTimers, actor)
 	eventErr := m.recordCoordinatorCompletionEvents(lifecycleCtx, &result, actor)
 	m.dispatchCoordinatorTerminal(lifecycleCtx, &result, actor)
-	return &result.Run, errorsJoin(completionErr, eventErr)
+	return &result.Run, errorsJoin(completionErr, timerErr, eventErr)
+}
+
+func (m *Service) armCoordinatorTimers(
+	ctx context.Context,
+	timers []CoordinatorTimerSpec,
+	actor ActorContext,
+) error {
+	if len(timers) == 0 || m.coordinatorTimerArmer == nil {
+		return nil
+	}
+	var armErrs []error
+	for _, timer := range timers {
+		if err := m.coordinatorTimerArmer.ArmCoordinatorTimer(ctx, timer.Normalize(), actor); err != nil {
+			armErrs = append(armErrs, fmt.Errorf("task: arm coordinator timer %q: %w", timer.IdempotencyKey, err))
+		}
+	}
+	return errorsJoin(armErrs...)
 }
 
 func (m *Service) validateCoordinatorRuntime(runID string, req StartRun) error {

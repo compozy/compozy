@@ -183,7 +183,16 @@ func coordinatorNodeMetadataForOutput(
 	if err != nil {
 		return nil, err
 	}
-	return coordinatorNodeMetadataWithFanOutItem(run, generation, node, output.ItemIndex, item, hasItem)
+	return coordinatorNodeMetadataWithFanOutItem(
+		run,
+		generation,
+		node,
+		output.ItemIndex,
+		output.Attempt,
+		output.Epoch,
+		item,
+		hasItem,
+	)
 }
 
 func fanOutItemForOutput(

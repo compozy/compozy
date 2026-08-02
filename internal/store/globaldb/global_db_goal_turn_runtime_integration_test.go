@@ -2382,7 +2382,7 @@ func TestGoalTurnRuntimeLifecycleIntegration(t *testing.T) {
 		); err != nil {
 			t.Fatalf("configure Goal budget error = %v", err)
 		}
-		metadata := `{"generation":1,"node_id":"converge","item_index":0,"goal_segment_epoch":1}`
+		metadata := `{"generation":1,"node_id":"converge","item_index":0,"attempt":1,"epoch":0,"goal_segment_epoch":1}`
 		if _, err := globalDB.db.ExecContext(
 			ctx,
 			`UPDATE task_runs SET tokens_used = 1, metadata_json = ? WHERE id = ?`,
@@ -2560,7 +2560,7 @@ func TestGoalTurnRuntimeLifecycleIntegration(t *testing.T) {
 
 		globalDB, key, taskRunID, now := seedGoalTurnRuntime(t, "run-goal-budget-settle")
 		ctx := testutil.Context(t)
-		metadata := `{"generation":1,"node_id":"converge","item_index":0,"goal_segment_epoch":1}`
+		metadata := `{"generation":1,"node_id":"converge","item_index":0,"attempt":1,"epoch":0,"goal_segment_epoch":1}`
 		if _, err := globalDB.db.ExecContext(
 			ctx,
 			`UPDATE task_runs SET tokens_used = 1, metadata_json = ? WHERE id = ?`,
@@ -2733,7 +2733,7 @@ func TestGoalTurnRuntimeLifecycleIntegration(t *testing.T) {
 
 		globalDB, key, taskRunID, _ := seedGoalTurnRuntime(t, "run-goal-turn-extension")
 		ctx := testutil.Context(t)
-		metadata := `{"generation":1,"node_id":"converge","item_index":0,"goal_segment_epoch":1}`
+		metadata := `{"generation":1,"node_id":"converge","item_index":0,"attempt":1,"epoch":0,"goal_segment_epoch":1}`
 		if _, err := globalDB.db.ExecContext(
 			ctx,
 			`UPDATE task_runs SET metadata_json = ? WHERE id = ?`,

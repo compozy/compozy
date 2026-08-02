@@ -193,7 +193,11 @@ func (r *loopActionRuntime) executeQueuedRun(
 	if err != nil {
 		return err
 	}
-	actionTimeout, err := r.actionTimeoutForRun(ctx, run)
+	actionTimeout, authoredTimeout, err := r.actionTimeoutSpecForRun(ctx, run)
+	if err != nil {
+		return err
+	}
+	timeoutReason, err := r.actionTimeoutReasonForRun(ctx, run)
 	if err != nil {
 		return err
 	}
@@ -217,7 +221,15 @@ func (r *loopActionRuntime) executeQueuedRun(
 		}
 		return err
 	}
-	result, err := r.executeClaimedRun(ctx, claim, actor, leaseDuration, actionTimeout)
+	result, err := r.executeClaimedRun(
+		ctx,
+		claim,
+		actor,
+		leaseDuration,
+		actionTimeout,
+		authoredTimeout,
+		timeoutReason,
+	)
 	if err != nil {
 		if ctx.Err() != nil {
 			return err

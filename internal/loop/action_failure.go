@@ -70,19 +70,40 @@ func NewActionFailure(code string, cause string, recovery string) ActionFailure 
 
 // ActionFailureOutputRefFromMetadata extracts a valid failure payload from task-run metadata.
 func ActionFailureOutputRefFromMetadata(raw json.RawMessage) (string, bool) {
-	if len(raw) == 0 {
+	failure, ok := ActionFailureFromMetadata(raw)
+	if !ok {
 		return "", false
+	}
+	return ActionFailureOutputRef(failure)
+}
+
+// ActionFailureFromMetadata extracts a validated operator-safe failure from task-run metadata.
+func ActionFailureFromMetadata(raw json.RawMessage) (ActionFailure, bool) {
+	if len(raw) == 0 {
+		return ActionFailure{}, false
 	}
 	var envelope struct {
 		Failure *ActionFailure `json:"failure"`
 	}
 	if err := json.Unmarshal(raw, &envelope); err != nil {
-		return "", false
+		return ActionFailure{}, false
 	}
 	if envelope.Failure == nil {
-		return "", false
+		return ActionFailure{}, false
 	}
 	failure := *envelope.Failure
+	failure.Kind = strings.TrimSpace(failure.Kind)
+	failure.Code = strings.TrimSpace(failure.Code)
+	failure.Cause = strings.TrimSpace(failure.Cause)
+	failure.Recovery = strings.TrimSpace(failure.Recovery)
+	if failure.Kind != actionFailureKind || failure.Code == "" || failure.Cause == "" {
+		return ActionFailure{}, false
+	}
+	return failure, true
+}
+
+// ActionFailureOutputRef encodes a validated failure for a generation output cell.
+func ActionFailureOutputRef(failure ActionFailure) (string, bool) {
 	failure.Kind = strings.TrimSpace(failure.Kind)
 	failure.Code = strings.TrimSpace(failure.Code)
 	failure.Cause = strings.TrimSpace(failure.Cause)

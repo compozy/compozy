@@ -10,6 +10,8 @@ const (
 	namespacePreviousKey       = "previous"
 	namespaceBestKey           = "best"
 	namespaceStatusKey         = "status"
+	namespaceFailureKey        = "failure"
+	namespaceDispositionKey    = "disposition"
 	namespaceOutcomeKey        = "outcome"
 	namespaceVerdictsKey       = "verdicts"
 	namespaceRouteCausesKey    = "route_causes"
