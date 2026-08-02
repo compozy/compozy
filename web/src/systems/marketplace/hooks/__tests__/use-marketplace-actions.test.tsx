@@ -6,11 +6,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn() } }));
 vi.mock("../../adapters/marketplace-actions-api", () => ({
-  activateMarketplaceBundle: vi.fn(),
   installMarketplaceExtension: vi.fn(),
   installMarketplaceMCP: vi.fn(),
   installMarketplaceSkill: vi.fn(),
-  previewMarketplaceBundle: vi.fn(),
   refreshMarketplaceCatalog: vi.fn(),
   updateMarketplaceSkill: vi.fn(),
 }));
@@ -20,18 +18,14 @@ vi.mock("@/systems/extensions/adapters/extensions-api", () => ({
 
 import { updateExtension } from "@/systems/extensions/adapters/extensions-api";
 import {
-  activateMarketplaceBundle,
   installMarketplaceExtension,
   installMarketplaceMCP,
   installMarketplaceSkill,
-  previewMarketplaceBundle,
 } from "../../adapters/marketplace-actions-api";
 import {
-  useActivateMarketplaceBundle,
   useInstallMarketplaceExtension,
   useInstallMarketplaceMCP,
   useInstallMarketplaceSkill,
-  usePreviewMarketplaceBundle,
   useUpdateMarketplaceExtension,
 } from "../use-marketplace-actions";
 
@@ -289,41 +283,5 @@ describe("marketplace acquisition cache boundaries", () => {
     });
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["marketplace"] });
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["extensions"] });
-  });
-
-  it("Should keep bundle preview read-only and invalidate discovery only after activation", async () => {
-    const activation = {
-      activation: {
-        bundle_name: "review-team",
-        created_at: "2026-07-14T12:00:00Z",
-        extension_name: "review-pack",
-        id: "activation-1",
-        profile_name: "strict",
-        scope: "global",
-        spec_drift: false,
-        updated_at: "2026-07-14T12:00:00Z",
-        version: 1,
-      },
-    };
-    vi.mocked(previewMarketplaceBundle).mockResolvedValue(activation);
-    vi.mocked(activateMarketplaceBundle).mockResolvedValue(activation);
-    const { invalidateQueries, wrapper } = setup();
-    const preview = renderHook(() => usePreviewMarketplaceBundle(), { wrapper });
-    const activate = renderHook(() => useActivateMarketplaceBundle(), { wrapper });
-    const body = {
-      bundle_name: "review-team",
-      confirm_network_requirement: true,
-      extension_name: "review-pack",
-      profile_name: "strict",
-      scope: "global",
-    };
-
-    act(() => preview.result.current.mutate(body));
-    await waitFor(() => expect(preview.result.current.isSuccess).toBe(true));
-    expect(invalidateQueries).not.toHaveBeenCalled();
-
-    act(() => activate.result.current.mutate(body));
-    await waitFor(() => expect(activate.result.current.isSuccess).toBe(true));
-    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["marketplace"] });
   });
 });

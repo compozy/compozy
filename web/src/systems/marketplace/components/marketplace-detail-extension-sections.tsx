@@ -1,7 +1,6 @@
-import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 
-import { Button, MonoId, Pill, Section, Spinner } from "@compozy/ui";
+import { MonoId, Pill, Section } from "@compozy/ui";
 
 function ExtensionDetailBlock({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -27,26 +26,45 @@ function ExtensionTokenBlock({ label, values }: { label: string; values: string[
   );
 }
 
+/**
+ * Three distinct daemon facts, never collapsed: a name is `bound` when a stored binding satisfies
+ * it, `missing` when the daemon reports it unresolved, and `available` when it already resolves
+ * from the process environment. A binding whose name the manifest no longer declares is listed as
+ * stale — the daemon keeps it but never injects it, so the panel says so instead of implying use.
+ */
 function ExtensionEnvironmentState({
   required,
   missing,
+  bound,
 }: {
   required: string[];
   missing: string[];
+  bound: string[];
 }) {
-  if (!required.length)
+  const boundValues = new Set(bound);
+  const declaredValues = new Set(required);
+  const stale = bound.filter(value => !declaredValues.has(value));
+  if (!required.length && !stale.length)
     return <p className="text-small-body text-muted">No environment variables required.</p>;
   const missingValues = new Set(missing);
   return (
-    <div className="space-y-2">
+    <div className="space-y-2" data-testid="extension-environment-state">
       {required.map(value => (
         <div className="flex items-center justify-between gap-3" key={value}>
           <code className="font-mono text-xs text-fg">{value}</code>
-          {missingValues.has(value) ? (
+          {boundValues.has(value) ? (
+            <Pill tone="success">bound</Pill>
+          ) : missingValues.has(value) ? (
             <Pill tone="warning">missing</Pill>
           ) : (
             <Pill tone="success">available</Pill>
           )}
+        </div>
+      ))}
+      {stale.map(value => (
+        <div className="flex items-center justify-between gap-3" key={value}>
+          <code className="font-mono text-xs text-fg">{value}</code>
+          <Pill tone="warning">bound · not declared</Pill>
         </div>
       ))}
     </div>
@@ -103,63 +121,24 @@ function ExtensionDiagnostics({
   );
 }
 
-function ExtensionBundlesProvided({
-  active,
-  error,
-  extensionName,
-  isLoading,
-  onRetry,
-}: {
-  active: Array<{ id: string; bundle_name: string; extension_name: string }> | undefined;
-  error: Error | null;
-  extensionName: string;
-  isLoading: boolean;
-  onRetry: () => void;
-}) {
-  const activations = (active ?? []).filter(item => item.extension_name === extensionName);
+/**
+ * The enable action result, not a status projection: the daemon enumerates exactly the automation
+ * definitions that became runnable in the committed operation, and nothing mirrors that list into
+ * the extension row afterwards. Shown only while it is this session's own outcome.
+ */
+function ExtensionAutomationStarted({ started }: { started: string[] }) {
+  if (!started.length) return null;
   return (
-    <Section label="Bundles provided">
-      <div className="divide-y divide-line-soft overflow-hidden rounded-lg bg-canvas-soft">
-        {isLoading ? (
-          <div
-            aria-label="Checking active bundles"
-            className="flex items-center gap-2 px-4 py-3 text-small-body text-muted"
-            role="status"
-          >
-            <Spinner className="size-3.5" />
-            Checking active bundles
+    <Section count={started.length} label="Automation started">
+      <div
+        className="divide-y divide-line-soft overflow-hidden rounded-lg bg-canvas-soft"
+        data-testid="extension-automation-started"
+      >
+        {[...started].sort().map(name => (
+          <div className="px-4 py-3" key={name}>
+            <MonoId value={name} />
           </div>
-        ) : error ? (
-          <div className="space-y-2 px-4 py-3">
-            <p className="text-small-body font-medium text-danger">
-              Bundle activity could not be loaded
-            </p>
-            <p className="text-xs text-muted">{error.message}</p>
-            <Button onClick={onRetry} size="sm" type="button" variant="outline">
-              Retry bundle activity
-            </Button>
-          </div>
-        ) : activations.length ? (
-          activations.map(activation => (
-            <div className="flex items-center justify-between gap-3 px-4 py-3" key={activation.id}>
-              <div className="min-w-0">
-                <MonoId value={activation.bundle_name} />
-              </div>
-              <Button
-                render={
-                  <Link params={{ id: activation.id }} to="/marketplace/bundles/activations/$id" />
-                }
-                nativeButton={false}
-                size="sm"
-                variant="ghost"
-              >
-                Open active bundle →
-              </Button>
-            </div>
-          ))
-        ) : (
-          <div className="px-4 py-3 text-small-body text-muted">None.</div>
-        )}
+        ))}
       </div>
     </Section>
   );
@@ -193,7 +172,7 @@ function ExtensionRailBlock({
 }
 
 export {
-  ExtensionBundlesProvided,
+  ExtensionAutomationStarted,
   ExtensionDetailBlock,
   ExtensionDiagnostics,
   ExtensionEnvironmentState,

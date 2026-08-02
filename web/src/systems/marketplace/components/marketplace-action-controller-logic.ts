@@ -4,9 +4,11 @@ import { notifyUser } from "@/lib/user-feedback";
 
 import type { MarketplaceListing } from "../types";
 
-export type MarketplaceDialogSelection =
-  | { entryId: string; kind: "bundle" }
-  | { entryId: string; installedName?: string | null; kind: "mcp" };
+export type MarketplaceDialogSelection = {
+  entryId: string;
+  installedName?: string | null;
+  kind: "mcp";
+};
 
 export type MarketplaceActionControllerPhase =
   | { status: "idle"; nextRequestId: number }
@@ -17,7 +19,6 @@ export type MarketplaceActionControllerPhase =
       selection: MarketplaceDialogSelection;
     }
   | { status: "mcpInstall"; nextRequestId: number; selection: MarketplaceDialogSelection }
-  | { status: "bundleActivation"; nextRequestId: number; selection: MarketplaceDialogSelection }
   | {
       status: "extensionTrust";
       nextRequestId: number;
@@ -76,17 +77,11 @@ export const marketplaceActionControllerLogic = createStoreLogic<
     },
     detailLoaded: (context, event) => {
       if (context.status !== "detailLoading" || context.requestId !== event.requestId) return;
-      return context.selection.kind === "mcp"
-        ? {
-            nextRequestId: context.nextRequestId,
-            selection: context.selection,
-            status: "mcpInstall",
-          }
-        : {
-            nextRequestId: context.nextRequestId,
-            selection: context.selection,
-            status: "bundleActivation",
-          };
+      return {
+        nextRequestId: context.nextRequestId,
+        selection: context.selection,
+        status: "mcpInstall",
+      };
     },
     detailRequested: (context, event, enqueue) => {
       const requestId = context.nextRequestId + 1;

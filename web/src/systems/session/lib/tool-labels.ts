@@ -2,7 +2,6 @@ import {
   Activity,
   Blocks,
   Bot,
-  Boxes,
   Brain,
   FileEdit,
   FileText,
@@ -68,7 +67,6 @@ const COMPOZY_NATIVE_FAMILY_ICONS: Record<string, LucideIcon> = {
   agent: Bot,
   observe: Activity,
   logs: ScrollText,
-  bundles: Boxes,
   extensions: Blocks,
   catalog: LibraryBig,
 };

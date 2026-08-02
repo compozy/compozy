@@ -42,9 +42,7 @@ function kindQuery(options: MarketplaceKindPageOptions): MarketplaceKindQuery {
 function entryQuery(options: MarketplaceEntryOptions): MarketplaceEntryQuery {
   return {
     ...scopeQuery(options.workspaceId),
-    ...(options.kind === "bundle"
-      ? {}
-      : { installed_name: normalizeOptionalText(options.installedName) }),
+    installed_name: normalizeOptionalText(options.installedName),
   };
 }
 

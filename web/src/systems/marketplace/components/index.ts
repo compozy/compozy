@@ -1,6 +1,3 @@
-export { BundleActivationDialog } from "./bundle-activation-dialog";
-export type { BundleActivationDialogProps } from "./bundle-activation-dialog";
-export { buildBundleRequest } from "./bundle-activation-model";
 export { ExtensionInstallDialog } from "./extension-install-dialog";
 export type { ExtensionInstallDialogProps } from "./extension-install-dialog";
 export {

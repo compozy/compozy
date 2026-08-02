@@ -8,11 +8,9 @@ import {
   searchMarketplace,
 } from "@/systems/marketplace/adapters/marketplace-api";
 import {
-  activateMarketplaceBundle,
   installMarketplaceExtension,
   installMarketplaceMCP,
   installMarketplaceSkill,
-  previewMarketplaceBundle,
   refreshMarketplaceCatalog,
   updateMarketplaceSkill,
 } from "@/systems/marketplace/adapters/marketplace-actions-api";
@@ -115,30 +113,6 @@ describe("marketplace browse transport", () => {
       path: "/api/marketplace/skill/review%2Fstrict?scope=global&installed_name=local-review",
     });
   });
-
-  it("Should omit installed identity for bundle detail", async () => {
-    mockJsonResponse({
-      entry: {
-        description: "Review agent work",
-        entry_id: "review/strict",
-        installed: false,
-        kind: "bundle",
-        name: "Strict review",
-        source: "extension",
-        update_available: false,
-      },
-    });
-
-    await getMarketplaceEntry({
-      entryId: " review/strict ",
-      kind: "bundle",
-      workspaceId: null,
-    });
-
-    await expectFetchRequest({
-      path: "/api/marketplace/bundle/review%2Fstrict?scope=global",
-    });
-  });
 });
 
 describe("marketplace acquisition transport", () => {
@@ -181,21 +155,6 @@ describe("marketplace acquisition transport", () => {
     });
   });
 
-  it("Should preview a bundle without activating it", async () => {
-    const body = {
-      bundle_name: "review-team",
-      extension_name: "review-pack",
-      profile_name: "strict",
-      scope: "workspace",
-      workspace: "ws-a",
-    };
-    mockJsonResponse({ activation: { id: "preview" } });
-
-    await previewMarketplaceBundle(body);
-
-    await expectFetchRequest({ body, method: "POST", path: "/api/bundles/preview" });
-  });
-
   it("Should refresh only a feed-backed kind", async () => {
     mockJsonResponse({
       kinds: [{ entry_count: 4, kind: "extension", outcome: "refreshed", stale: false }],
@@ -230,7 +189,7 @@ describe("marketplace acquisition transport", () => {
     });
   });
 
-  it("Should install extensions and activate bundles through separate mutations", async () => {
+  it("Should install extensions through the source-union mutation", async () => {
     const extensionBody = {
       allow_unverified: true,
       ref: "review-pack",
@@ -243,22 +202,6 @@ describe("marketplace acquisition transport", () => {
       body: extensionBody,
       method: "POST",
       path: "/api/extensions",
-    });
-
-    const activationBody = {
-      bundle_name: "review-team",
-      confirm_network_requirement: true,
-      extension_name: "review-pack",
-      profile_name: "strict",
-      scope: "global",
-    };
-    mockJsonResponse({ activation: { id: "activation-1" } }, { status: 201 });
-    await activateMarketplaceBundle(activationBody);
-    await expectFetchRequest({
-      body: activationBody,
-      callIndex: 1,
-      method: "POST",
-      path: "/api/bundles/activations",
     });
   });
 
@@ -273,27 +216,6 @@ describe("marketplace acquisition transport", () => {
     [
       "extension install",
       () => installMarketplaceExtension({ ref: "review-pack", source: "curated" }),
-    ],
-    [
-      "bundle preview",
-      () =>
-        previewMarketplaceBundle({
-          bundle_name: "review-team",
-          extension_name: "review-pack",
-          profile_name: "strict",
-          scope: "global",
-        }),
-    ],
-    [
-      "bundle activation",
-      () =>
-        activateMarketplaceBundle({
-          bundle_name: "review-team",
-          confirm_network_requirement: true,
-          extension_name: "review-pack",
-          profile_name: "strict",
-          scope: "global",
-        }),
     ],
   ])("Should preserve typed daemon errors for %s failures", async (_label, request) => {
     mockJsonResponse({ error: "catalog mutation rejected" }, { status: 409 });

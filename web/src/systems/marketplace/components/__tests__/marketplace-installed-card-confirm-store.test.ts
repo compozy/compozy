@@ -16,10 +16,10 @@ describe("marketplace installed card confirmation store", () => {
       execute: vi.fn(),
     });
     const requestId = snapshot.context.requestId;
-    [snapshot] = store.transition(snapshot, { type: "confirmationOpened", action: "deactivate" });
+    [snapshot] = store.transition(snapshot, { type: "confirmationOpened", action: "remove" });
     [snapshot] = store.transition(snapshot, { type: "confirmationSucceeded", requestId });
 
-    expect(snapshot.context).toMatchObject({ phase: "confirming", action: "deactivate" });
+    expect(snapshot.context).toMatchObject({ phase: "confirming", action: "remove" });
   });
 
   it("Should execute the callback from the render that confirms", async () => {

@@ -1,4 +1,4 @@
-import { Box, Package, Plug, Puzzle, ShoppingBag, Wrench, type LucideIcon } from "lucide-react";
+import { Package, Plug, Puzzle, ShoppingBag, Wrench, type LucideIcon } from "lucide-react";
 
 import type { MarketplaceKind } from "../types";
 
@@ -52,18 +52,6 @@ const KIND_CONFIG: Record<MarketplaceKind, MarketplaceKindConfig> = {
     teachingEmptyBody:
       "Install from the marketplace, a GitHub release, a git repository, or a local build.",
     cliHint: "compozy extension install github:owner/repo",
-  },
-  bundle: {
-    kind: "bundle",
-    label: "Bundles",
-    singular: "bundle",
-    icon: Box,
-    searchPlaceholder: "Search bundles…",
-    verb: "Activate",
-    installedNoun: "active",
-    teachingEmptyTitle: "No bundles active yet",
-    teachingEmptyBody: "A bundle activates a curated set of capabilities in one step.",
-    cliHint: "compozy bundle activate",
   },
 };
 

@@ -7,7 +7,6 @@ import {
 } from "@/systems/settings";
 
 import type { MarketplaceEntryResponse, MarketplaceListing } from "../types";
-import { BundleActivationDialog } from "./bundle-activation-dialog";
 import { ExtensionTrustDialog } from "./extension-trust-dialog";
 import { MCPInstallDialog } from "./mcp-install-dialog";
 
@@ -15,9 +14,7 @@ interface MarketplaceActionDialogsProps {
   authorize: ReturnType<typeof useMCPAuthorize>;
   authScope: "global" | "workspace";
   authServer: SettingsMCPServerEntry | null;
-  bundleDetail: MarketplaceEntryResponse | null;
   mcpDetail: MarketplaceEntryResponse | null;
-  onBundleClose: () => void;
   onConfirmTrust: () => void;
   onInstallMCP: ComponentProps<typeof MCPInstallDialog>["onInstall"];
   onMCPClose: () => void;
@@ -32,9 +29,7 @@ function MarketplaceActionDialogs({
   authorize,
   authScope,
   authServer,
-  bundleDetail,
   mcpDetail,
-  onBundleClose,
   onConfirmTrust,
   onInstallMCP,
   onMCPClose,
@@ -55,16 +50,6 @@ function MarketplaceActionDialogs({
             if (!open) onMCPClose();
           }}
           open
-          workspaceId={workspaceId}
-        />
-      ) : null}
-      {bundleDetail ? (
-        <BundleActivationDialog
-          data={bundleDetail}
-          key={bundleDetail.entry.entry_id}
-          onOpenChange={open => {
-            if (!open) onBundleClose();
-          }}
           workspaceId={workspaceId}
         />
       ) : null}

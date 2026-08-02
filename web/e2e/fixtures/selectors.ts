@@ -246,7 +246,14 @@ export const knowledgeOperatorTestIds = {
 } as const;
 
 export const marketplaceOperatorTestIds = {
-  bundleActivateConfirm: "bundle-activate-confirm",
+  extensionAutomationStarted: "extension-automation-started",
+  extensionEnvironmentState: "extension-environment-state",
+  extensionKitInventory: "extension-kit-inventory",
+  extensionKitInventoryItem: "extension-kit-inventory-item",
+  extensionNetworkConfirmAccept: "extension-network-confirm-accept",
+  extensionNetworkConfirmDialog: "extension-network-confirm-dialog",
+  extensionNetworkConfirmDigest: "extension-network-confirm-digest",
+  extensionNetworkConsent: "extension-network-consent",
   extensionInstallAllowUnverified: "extension-install-allow-unverified",
   extensionInstallDialog: "extension-install-dialog",
   extensionInstallEntry: "marketplace-extension-install",
@@ -263,8 +270,6 @@ export const marketplaceOperatorTestIds = {
   extensionOverridesPublishedBadge: "extension-overrides-published-badge",
   extensionUpdateAction: "extension-update-action",
   extensionUpdateConsentConfirm: "extension-update-consent-confirm",
-  bundleActivationDialog: "bundle-activation-dialog",
-  bundlePreviewError: "bundle-preview-error",
   detail: "marketplace-detail",
   detailAction: "marketplace-detail-action",
   extensionTrustConfirm: "extension-trust-confirm",
@@ -530,9 +535,14 @@ export interface MarketplaceOperatorSelectors {
   extensionUpdateAction: Locator;
   extensionUpdateConsentConfirm: Locator;
   kindUpdates(kind: string): Locator;
-  bundleActivateConfirm: Locator;
-  bundleActivationDialog: Locator;
-  bundlePreviewError: Locator;
+  extensionAutomationStarted: Locator;
+  extensionEnvironmentState: Locator;
+  extensionKitInventory: Locator;
+  extensionKitInventoryItem: Locator;
+  extensionNetworkConfirmAccept: Locator;
+  extensionNetworkConfirmDialog: Locator;
+  extensionNetworkConfirmDigest: Locator;
+  extensionNetworkConsent: Locator;
   card(entryId: string): Locator;
   detail: Locator;
   detailAction: Locator;
@@ -1221,9 +1231,26 @@ export function marketplaceOperatorSelectors(
 ): MarketplaceOperatorSelectors {
   return {
     action: (entryId: string) => page.getByTestId(`marketplace-action-${entryId}`),
-    bundleActivateConfirm: page.getByTestId(marketplaceOperatorTestIds.bundleActivateConfirm),
-    bundleActivationDialog: page.getByTestId(marketplaceOperatorTestIds.bundleActivationDialog),
-    bundlePreviewError: page.getByTestId(marketplaceOperatorTestIds.bundlePreviewError),
+    extensionAutomationStarted: page.getByTestId(
+      marketplaceOperatorTestIds.extensionAutomationStarted
+    ),
+    extensionEnvironmentState: page.getByTestId(
+      marketplaceOperatorTestIds.extensionEnvironmentState
+    ),
+    extensionKitInventory: page.getByTestId(marketplaceOperatorTestIds.extensionKitInventory),
+    extensionKitInventoryItem: page.getByTestId(
+      marketplaceOperatorTestIds.extensionKitInventoryItem
+    ),
+    extensionNetworkConfirmAccept: page.getByTestId(
+      marketplaceOperatorTestIds.extensionNetworkConfirmAccept
+    ),
+    extensionNetworkConfirmDialog: page.getByTestId(
+      marketplaceOperatorTestIds.extensionNetworkConfirmDialog
+    ),
+    extensionNetworkConfirmDigest: page.getByTestId(
+      marketplaceOperatorTestIds.extensionNetworkConfirmDigest
+    ),
+    extensionNetworkConsent: page.getByTestId(marketplaceOperatorTestIds.extensionNetworkConsent),
     card: (entryId: string) => page.getByTestId(`marketplace-card-${entryId}`),
     detail: page.getByTestId(marketplaceOperatorTestIds.detail),
     extensionDevBadge: page.getByTestId(marketplaceOperatorTestIds.extensionDevBadge),

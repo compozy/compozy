@@ -101,7 +101,7 @@ export const skillFixtures: SkillPayload[] = [
     },
     provenance: {
       precedence_tier: "workspace",
-      installed_from_bundle: "launch-room/default",
+      installed_from_extension: "launch-room",
     },
   },
   {

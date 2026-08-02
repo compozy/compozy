@@ -2,7 +2,7 @@
 // Invariant: Installed detail pages retain the owning kind's management controls after legacy shells are removed.
 // Boundary IN: Kind-specific query and mutation view-models.
 // Boundary OUT: Transport/cache behavior, owned by each system's hook suites.
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -20,8 +20,15 @@ const mocks = vi.hoisted(() => ({
   requestAuthorize: vi.fn(),
   disableSkill: vi.fn(),
   disableSkillError: null as Error | null,
+  extensionBoundEnvKeys: [] as string[],
   extensionConsecutiveFailures: 0,
   extensionDev: false,
+  extensionEnableResult: null as { automation_started: string[] } | null,
+  extensionInventory: [] as Array<{ id: string; kind: string; live: boolean; name: string }>,
+  extensionInventoryError: null as Error | null,
+  extensionNetworkConfirm: null as { action: "enable" | "update"; digest: string } | null,
+  extensionNetworkConfirmationRequired: false,
+  extensionNetworkDigest: undefined as string | undefined,
   extensionLogs: [] as Array<{ message: string; sequence: number; timestamp: string }>,
   extensionNavigate: vi.fn(),
   extensionOriginPath: undefined as string | undefined,
@@ -211,24 +218,29 @@ function extensionDetailStateStub() {
     requestUpdate: mocks.extensionRequestUpdate,
     submitUpdate: vi.fn(),
     workspaceId: mocks.extensionWorkspaceId,
-    bundles: {
-      data: [
-        {
-          bundle_name: "ops-starter",
-          extension_name: "ops-extension",
-          id: "activation-ops-starter",
-        },
-      ],
-      error: null,
+    dismissNetworkConfirm: vi.fn(),
+    enableResult: mocks.extensionEnableResult,
+    inventory: {
+      data: {
+        enabled: true,
+        extension: "ops-extension",
+        items: mocks.extensionInventory,
+      },
+      error: mocks.extensionInventoryError,
       isLoading: false,
       refetch: vi.fn(),
     },
+    networkConfirm: mocks.extensionNetworkConfirm,
+    requestToggle: mocks.extensionToggle,
+    submitNetworkConfirm: vi.fn(),
     detail: {
       data: mocks.extensionError
         ? undefined
         : {
             extension: {
-              bundles: [{ description: "On-call defaults", name: "ops-starter" }],
+              bound_env_keys: mocks.extensionBoundEnvKeys,
+              network_confirmation_required: mocks.extensionNetworkConfirmationRequired,
+              network_requirement_digest: mocks.extensionNetworkDigest,
               diagnostics: [
                 {
                   id: "healthy",
@@ -298,6 +310,13 @@ describe("Marketplace installed-detail management", () => {
     mocks.extensionRemoteVersion = undefined;
     mocks.extensionDetailOptions = undefined;
     mocks.extensionRestartBackoffMs = 0;
+    mocks.extensionBoundEnvKeys = [];
+    mocks.extensionEnableResult = null;
+    mocks.extensionInventory = [];
+    mocks.extensionInventoryError = null;
+    mocks.extensionNetworkConfirm = null;
+    mocks.extensionNetworkConfirmationRequired = false;
+    mocks.extensionNetworkDigest = undefined;
     mocks.extensionUpdateAvailable = false;
     mocks.extensionWorkspaceId = null;
     mocks.authorizePhase = "idle";
@@ -339,7 +358,7 @@ describe("Marketplace installed-detail management", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Skill policy rejected the update");
   });
 
-  it("Should preserve extension enablement, environment, diagnostics, provenance, and activation link", async () => {
+  it("Should preserve extension enablement, environment, diagnostics, and provenance", async () => {
     const user = userEvent.setup();
     render(<MarketplaceDetailExtensionManage name="ops-extension" />);
 
@@ -353,12 +372,88 @@ describe("Marketplace installed-detail management", () => {
     expect(screen.getByText("1h 1m")).toBeInTheDocument();
     expect(screen.getByText("official")).toBeInTheDocument();
     expect(screen.getByText("verified")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Open active bundle →" })).toHaveAttribute(
-      "href",
-      "/marketplace/bundles/activations/activation-ops-starter"
-    );
     await user.click(screen.getByTestId("extension-enabled-switch"));
-    expect(mocks.extensionToggle).toHaveBeenCalledWith({ enabled: false, name: "ops-extension" });
+    expect(mocks.extensionToggle).toHaveBeenCalledWith(false);
+  });
+
+  // UT-063: the panel is the only place the operator sees which shipped kit resources are actually
+  // live, so shipped and live must never render as the same thing.
+  it("Should render kit inventory items with their kind and live state from the route payload", () => {
+    mocks.extensionInventory = [
+      { id: "automation:weekly-audit", kind: "automation", live: true, name: "weekly-audit" },
+      { id: "agent:dep-reviewer", kind: "agent", live: false, name: "dep-reviewer" },
+    ];
+    render(<MarketplaceDetailExtensionManage name="ops-extension" />);
+
+    const panel = screen.getByTestId("extension-kit-inventory");
+    const rows = within(panel).getAllByTestId("extension-kit-inventory-item");
+    expect(rows).toHaveLength(2);
+    expect(within(panel).getByText("agent")).toBeInTheDocument();
+    expect(within(panel).getByText("automation")).toBeInTheDocument();
+    expect(within(rows[0]!).getByText("dep-reviewer")).toBeInTheDocument();
+    expect(within(rows[0]!).getByText("shipped")).toBeInTheDocument();
+    expect(within(rows[1]!).getByText("weekly-audit")).toBeInTheDocument();
+    expect(within(rows[1]!).getByText("live")).toBeInTheDocument();
+  });
+
+  it("Should state that no kit resources ship rather than rendering an empty panel", () => {
+    render(<MarketplaceDetailExtensionManage name="ops-extension" />);
+
+    expect(
+      within(screen.getByTestId("extension-kit-inventory")).getByText(
+        "This extension ships no static kit resources."
+      )
+    ).toBeInTheDocument();
+  });
+
+  it("Should not present global kit inventory for a workspace dev overlay", () => {
+    mocks.extensionWorkspaceId = "workspace-a";
+    mocks.extensionDev = true;
+    mocks.extensionInventory = [
+      { id: "agent:dep-reviewer", kind: "agent", live: true, name: "dep-reviewer" },
+    ];
+
+    render(<MarketplaceDetailExtensionManage name="ops-extension" />);
+
+    expect(screen.queryByTestId("extension-kit-inventory")).not.toBeInTheDocument();
+  });
+
+  it("Should mark a declared environment name as bound when the daemon reports a binding", () => {
+    mocks.extensionBoundEnvKeys = ["REGION", "LEGACY_TOKEN"];
+    render(<MarketplaceDetailExtensionManage name="ops-extension" />);
+
+    const environment = screen.getByTestId("extension-environment-state");
+    expect(within(environment).getByText("bound")).toBeInTheDocument();
+    // A binding the manifest no longer declares is listed, never presented as in use.
+    expect(within(environment).getByText("LEGACY_TOKEN")).toBeInTheDocument();
+    expect(within(environment).getByText("bound · not declared")).toBeInTheDocument();
+  });
+
+  it("Should surface the network digest and its consent state when participation is declared", () => {
+    mocks.extensionNetworkDigest = "sha256:6f1c0a94d3b27e58";
+    mocks.extensionNetworkConfirmationRequired = true;
+    render(<MarketplaceDetailExtensionManage name="ops-extension" />);
+
+    expect(screen.getByTestId("extension-network-consent")).toHaveTextContent(
+      "confirmation required"
+    );
+    expect(screen.getByText("sha256:6f1c0a94d3b27e58")).toBeInTheDocument();
+  });
+
+  it("Should mount the shared confirm dialog while a confirmation is pending", () => {
+    mocks.extensionNetworkConfirm = { action: "enable", digest: "sha256:6f1c0a94d3b27e58" };
+    render(<MarketplaceDetailExtensionManage name="ops-extension" />);
+
+    expect(screen.getByTestId("extension-network-confirm-dialog")).toBeInTheDocument();
+  });
+
+  it("Should enumerate the automation an enable actually started", () => {
+    mocks.extensionEnableResult = { automation_started: ["weekly-audit", "dep-sweep"] };
+    render(<MarketplaceDetailExtensionManage name="ops-extension" />);
+
+    const started = screen.getByTestId("extension-automation-started");
+    expect(within(started).getByText("dep-sweep")).toBeInTheDocument();
+    expect(within(started).getByText("weekly-audit")).toBeInTheDocument();
   });
 
   it("Should report crash-loop counters, integrity evidence, and the log stream state", () => {

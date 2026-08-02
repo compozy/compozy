@@ -1,20 +1,18 @@
 import type { OperationQuery, OperationRequestBody, OperationResponse } from "@/lib/api-contract";
 
-export const MARKETPLACE_KINDS = ["mcp", "extension", "skill", "bundle"] as const;
-export const MARKETPLACE_ROUTE_KINDS = ["skills", "mcps", "extensions", "bundles"] as const;
+export const MARKETPLACE_KINDS = ["mcp", "extension", "skill"] as const;
+export const MARKETPLACE_ROUTE_KINDS = ["skills", "mcps", "extensions"] as const;
 
 export type MarketplaceKind = (typeof MARKETPLACE_KINDS)[number];
 export type MarketplaceRouteKind = (typeof MARKETPLACE_ROUTE_KINDS)[number];
 
 const ROUTE_TO_API_KIND: Record<MarketplaceRouteKind, MarketplaceKind> = {
-  bundles: "bundle",
   extensions: "extension",
   mcps: "mcp",
   skills: "skill",
 };
 
 const API_TO_ROUTE_KIND: Record<MarketplaceKind, MarketplaceRouteKind> = {
-  bundle: "bundles",
   extension: "extensions",
   mcp: "mcps",
   skill: "skills",
@@ -54,10 +52,6 @@ export type SkillUpdateResponse = OperationResponse<"updateSkillMarketplace", 20
 export type ExtensionInstallRequest = OperationRequestBody<"installExtension">;
 export type ExtensionInstallResponse = OperationResponse<"installExtension", 201>;
 export type ExtensionUpdateRequest = OperationRequestBody<"updateExtension">;
-export type BundlePreviewRequest = OperationRequestBody<"previewBundleActivation">;
-export type BundlePreviewResponse = OperationResponse<"previewBundleActivation", 200>;
-export type BundleActivationRequest = OperationRequestBody<"activateBundle">;
-export type BundleActivationResponse = OperationResponse<"activateBundle", 201>;
 
 export interface MarketplaceScopeOptions {
   workspaceId?: string | null;
@@ -76,16 +70,8 @@ export interface MarketplaceKindPageOptions extends MarketplaceKindOptions {
   cursor?: string;
 }
 
-interface MarketplaceEntryIdentityOptions extends MarketplaceScopeOptions {
+export interface MarketplaceEntryOptions extends MarketplaceScopeOptions {
   entryId: string;
+  kind: MarketplaceKind;
+  installedName?: string | null;
 }
-
-export type MarketplaceEntryOptions =
-  | (MarketplaceEntryIdentityOptions & {
-      kind: "bundle";
-      installedName?: never;
-    })
-  | (MarketplaceEntryIdentityOptions & {
-      kind: Exclude<MarketplaceKind, "bundle">;
-      installedName?: string | null;
-    });

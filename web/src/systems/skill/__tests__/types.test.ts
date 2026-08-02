@@ -32,7 +32,6 @@ describe("skill contract types", () => {
       registry?: string;
       version?: string;
       installed_at?: string | null;
-      installed_from_bundle?: string;
       installed_from_extension?: string;
       precedence_tier: string;
       shadowed_by?: {

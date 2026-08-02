@@ -4,28 +4,66 @@ import { toast } from "sonner";
 import { reconcileInstalledExtensionCaches } from "@/integrations/tanstack-query/reconcile-installed-extension";
 
 import {
-  deactivateBundle,
   disableExtension,
   enableExtension,
   removeExtension,
-  updateBundleActivation,
   updateExtension,
 } from "../adapters/extensions-api";
+import { extensionNetworkConfirmation } from "../lib/extension-network-confirmation";
 import { extensionKeys } from "../lib/query-keys";
-import type { BundleActivationUpdateRequest, ExtensionEntry } from "../types";
+import type { ExtensionEnableResult, ExtensionEntry } from "../types";
 import { useExtensionInstanceScope } from "./use-extensions";
+
+export interface ToggleExtensionVariables {
+  name: string;
+  enabled: boolean;
+  confirmNetworkDigest?: string;
+}
+
+export interface UpdateExtensionVariables {
+  name: string;
+  allowUnverified?: boolean;
+  version?: string;
+  confirmNetworkDigest?: string;
+}
+
+export interface RemoveExtensionVariables {
+  dev: boolean;
+  name: string;
+}
+
+/**
+ * A refused network confirmation is not a failure the operator has to read twice: the confirm
+ * affordance owns it, so the toast stays out of the way.
+ */
+function toastUnlessNetworkConfirmation(error: Error) {
+  if (extensionNetworkConfirmation(error)) return;
+  toast.error(error.message);
+}
+
+function enabledToast(result: ExtensionEnableResult, name: string) {
+  const started = result.automation_started;
+  if (started.length === 0) {
+    toast.success(`${name} enabled`);
+    return;
+  }
+  toast.success(`${name} enabled · ${started.length} automation started`, {
+    description: [...started].sort().join(", "),
+  });
+}
 
 export function useToggleExtension() {
   const queryClient = useQueryClient();
   const { workspaceId } = useExtensionInstanceScope();
   const listKey = extensionKeys.list(workspaceId);
   return useMutation<
-    ExtensionEntry,
+    ExtensionEnableResult | ExtensionEntry,
     Error,
-    { name: string; enabled: boolean },
+    ToggleExtensionVariables,
     { previous?: ExtensionEntry[] }
   >({
-    mutationFn: ({ name, enabled }) => (enabled ? enableExtension(name) : disableExtension(name)),
+    mutationFn: ({ name, enabled, confirmNetworkDigest }) =>
+      enabled ? enableExtension(name, { confirmNetworkDigest }) : disableExtension(name),
     onMutate: async ({ name, enabled }) => {
       await queryClient.cancelQueries({ queryKey: listKey });
       const previous = queryClient.getQueryData<ExtensionEntry[]>(listKey);
@@ -34,37 +72,39 @@ export function useToggleExtension() {
       );
       return { previous };
     },
+    onSuccess: (data, { enabled, name }) => {
+      if (enabled && "automation_started" in data) enabledToast(data, name);
+    },
     onError: (error, _variables, context) => {
       if (context?.previous) queryClient.setQueryData(listKey, context.previous);
-      toast.error(error.message);
+      toastUnlessNetworkConfirmation(error);
     },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: extensionKeys.lists() }),
+    /**
+     * Enabling and disabling change which kit resources are live and whether confirmation is still
+     * required, so the whole extension cache — inventory included — is reconciled, not just the list.
+     */
+    onSettled: () => reconcileInstalledExtensionCaches(queryClient),
   });
-}
-
-export interface UpdateExtensionVariables {
-  name: string;
-  allowUnverified?: boolean;
-  version?: string;
-}
-
-export interface RemoveExtensionVariables {
-  dev: boolean;
-  name: string;
 }
 
 /** Updates address the marketplace-managed published installation; they are never workspace-scoped. */
 export function useUpdateExtension() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ name, allowUnverified, version }: UpdateExtensionVariables) =>
+    mutationFn: ({
+      name,
+      allowUnverified,
+      version,
+      confirmNetworkDigest,
+    }: UpdateExtensionVariables) =>
       updateExtension(name, {
         allow_unverified: allowUnverified === true,
         ...(version ? { version } : {}),
+        ...(confirmNetworkDigest ? { confirm_network_digest: confirmNetworkDigest } : {}),
       }),
     onSuccess: (_data, { name, version }) =>
       toast.success(version ? `${name} updated to v${version}` : `${name} updated`),
-    onError: (error: Error) => toast.error(error.message),
+    onError: toastUnlessNetworkConfirmation,
     onSettled: () => reconcileInstalledExtensionCaches(queryClient),
   });
 }
@@ -80,30 +120,5 @@ export function useRemoveExtension() {
       toast.success(dev ? `${name} dev overlay unlinked` : `${name} removed`),
     onError: (error: Error) => toast.error(error.message),
     onSettled: () => reconcileInstalledExtensionCaches(queryClient),
-  });
-}
-
-export function useUpdateBundleActivation() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, body }: { id: string; body: BundleActivationUpdateRequest }) =>
-      updateBundleActivation(id, body),
-    onSuccess: activation => toast.success(`${activation.bundle_name} updated`),
-    onError: (error: Error) => toast.error(error.message),
-    onSettled: (_data, _error, variables) => {
-      void queryClient.invalidateQueries({ queryKey: extensionKeys.bundles() });
-      if (variables?.id)
-        void queryClient.invalidateQueries({ queryKey: extensionKeys.bundle(variables.id) });
-    },
-  });
-}
-
-export function useDeactivateBundle() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (id: string) => deactivateBundle(id),
-    onSuccess: () => toast.success("Bundle deactivated"),
-    onError: (error: Error) => toast.error(error.message),
-    onSettled: () => queryClient.invalidateQueries({ queryKey: extensionKeys.bundles() }),
   });
 }

@@ -88,7 +88,7 @@ function MarketplaceKindPageBody({ kind, page, searchInputRef }: MarketplaceKind
       <Button
         data-testid="marketplace-refresh"
         disabled={refresh.isPending}
-        onClick={() => refresh.mutate(kind === "bundle" ? undefined : kind)}
+        onClick={() => refresh.mutate(kind)}
         size="sm"
         type="button"
         variant="ghost"

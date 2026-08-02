@@ -262,7 +262,7 @@ export const e2eScenarioContracts: ScenarioContract[] = [
     ...webScenario(
       "TC-EXT-001",
       "extensibility-tools-resources",
-      "operator installs a local extension tool provider, invokes it over transports, activates bundle resources, and verifies fail-closed manifest security",
+      "operator installs a local extension tool provider, invokes it over transports, and verifies fail-closed manifest security",
       "web/e2e/__tests__/marketplace.spec.ts"
     ),
     priority: "P0",

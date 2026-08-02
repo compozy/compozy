@@ -42,11 +42,12 @@ function MarketplaceDetailRouteBody({
   const { activeWorkspaceId } = useActiveWorkspace();
   const workspaceId = search.scope === "global" ? null : (search.workspace_id ?? activeWorkspaceId);
   const managementScope = search.scope ?? (workspaceId ? "workspace" : "global");
-  const query = useMarketplaceEntry(
-    kind === "bundle"
-      ? { entryId, kind, workspaceId }
-      : { entryId, installedName: search.installed_name, kind, workspaceId }
-  );
+  const query = useMarketplaceEntry({
+    entryId,
+    installedName: search.installed_name,
+    kind,
+    workspaceId,
+  });
   const actions = useMarketplaceActionController(workspaceId);
   const entry = query.data?.entry;
   const entryName = entry?.name ?? entryId;

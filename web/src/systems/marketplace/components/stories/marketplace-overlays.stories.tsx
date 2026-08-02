@@ -95,40 +95,6 @@ export const MCPRemote: Story = {
   },
 };
 
-export const BundlePreview: Story = {
-  parameters: appRouteParameters("/marketplace/bundles"),
-  render: () => <StorybookWorkspaceSetup />,
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await userEvent.click(await canvas.findByRole("button", { name: "Activate dep-kit" }));
-    await expect(within(document.body).findByText("What changes")).resolves.toBeDefined();
-  },
-};
-
-export const BundleConflict: Story = {
-  parameters: {
-    ...appRouteParameters("/marketplace/bundles"),
-    ...storybookMswParameters({
-      marketplace: [
-        compozyApiMock.post("/api/bundles/preview", () =>
-          HttpResponse.json(
-            { error: "Activation conflicts with the existing dependency-review channel" },
-            { status: 409 }
-          )
-        ),
-      ],
-    }),
-  },
-  render: () => <StorybookWorkspaceSetup />,
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await userEvent.click(await canvas.findByRole("button", { name: "Activate dep-kit" }));
-    const dialog = within(document.body);
-    await expect(dialog.findByTestId("bundle-preview-error")).resolves.toBeDefined();
-    await expect(dialog.findByTestId("bundle-activate-confirm")).resolves.toBeDisabled();
-  },
-};
-
 /** Source-union install entry point for extensions the curated catalog does not carry. */
 export const ExtensionUnionInstall: Story = {
   parameters: appRouteParameters("/marketplace/extensions"),

@@ -43,18 +43,18 @@ describe("marketplace query hooks", () => {
   });
 
   it("Should isolate kind browse and entry detail in their own hooks", async () => {
-    const kindResponse = marketplaceKindFixture("bundle");
-    const detailResponse = marketplaceDetails["bundle:dep-kit"]!;
+    const kindResponse = marketplaceKindFixture("mcp");
+    const detailResponse = marketplaceDetails["mcp:github"]!;
     mocks.browse.mockResolvedValue(kindResponse);
     mocks.detail.mockResolvedValue(detailResponse);
     const { client, wrapper } = setup();
 
     const kind = renderHook(
-      () => useMarketplaceKind({ kind: "bundle", limit: 20, workspaceId: "ws-a" }),
+      () => useMarketplaceKind({ kind: "mcp", limit: 20, workspaceId: "ws-a" }),
       { wrapper }
     );
     const detail = renderHook(
-      () => useMarketplaceEntry({ entryId: "dep-kit", kind: "bundle", workspaceId: "ws-a" }),
+      () => useMarketplaceEntry({ entryId: "github", kind: "mcp", workspaceId: "ws-a" }),
       { wrapper }
     );
 

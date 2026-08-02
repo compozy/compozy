@@ -1,6 +1,6 @@
 import type {
-  BundleActivation,
   ExtensionEntry,
+  ExtensionKitItem,
   ExtensionLogEntry,
   ExtensionProvenance,
 } from "@/systems/extensions";
@@ -121,7 +121,44 @@ export const extensionFixtures: ExtensionEntry[] = [
     update_available: false,
     version: "1.1.4",
   },
+  /** Ships a static kit and declares Live network participation the operator has not ratified. */
+  {
+    bound_env_keys: ["DEP_KIT_TOKEN"],
+    capabilities: ["tool.provider"],
+    consecutive_failures: 0,
+    daemon_running: false,
+    diagnostics: [],
+    digest_matched: true,
+    enabled: false,
+    missing_env: ["DEP_KIT_WEBHOOK"],
+    name: "dep-kit-ops",
+    network_confirmation_required: true,
+    network_requirement_digest: "sha256:6f1c0a94d3b27e58",
+    permissions: ["network/send"],
+    requires_env: ["DEP_KIT_TOKEN", "DEP_KIT_WEBHOOK"],
+    restart_backoff_ms: 0,
+    source: "marketplace",
+    state: "stopped",
+    type: "backend",
+    update_available: false,
+    version: "1.0.0",
+  },
 ];
+
+/** Shipped-vs-live kit resources keyed by extension name, mirroring the inventory route. */
+export const extensionInventoryFixtures: Record<string, ExtensionKitItem[]> = {
+  "dep-kit-ops": [
+    { id: "dep-reviewer", kind: "agent", live: false, name: "dep-reviewer" },
+    { id: "release-notes", kind: "agent", live: false, name: "release-notes" },
+    { id: "weekly-audit", kind: "automation", live: false, name: "weekly-audit" },
+    { id: "dep-board", kind: "layout", live: false, name: "dep-board" },
+  ],
+  "otel-bridge": [
+    { id: "span-export", kind: "automation", live: true, name: "span-export" },
+    { id: "collector-health", kind: "agent", live: true, name: "collector-health" },
+  ],
+  "slack-notify": [],
+};
 
 /** Workspace dev overlay: shadows the published row without owning its lifecycle. */
 export const DEV_EXTENSION_WORKSPACE_ID = "ws_northstar";
@@ -189,109 +226,3 @@ export const extensionLogFixtures: Record<string, Record<string, ExtensionLogEnt
     ],
   },
 };
-
-export const bundleActivationFixtures: BundleActivation[] = [
-  {
-    agents: [
-      {
-        category_path: ["operations"],
-        has_heartbeat: true,
-        has_soul: true,
-        id: "agent_incident_commander",
-        model: "gpt-5",
-        name: "incident-commander",
-        provider: "openai",
-      },
-    ],
-    bridges: [
-      {
-        display_name: "Operations Slack",
-        extension_name: "slack-notify",
-        id: "bridge_ops_slack",
-        name: "ops-slack",
-        platform: "slack",
-      },
-    ],
-    bundle_description: "Incident response capabilities and delivery channels.",
-    bundle_name: "ops-starter",
-    channels: [
-      {
-        description: "Primary incident coordination channel.",
-        name: "incidents",
-        primary: true,
-      },
-    ],
-    created_at: "2026-07-08T09:20:00Z",
-    extension_name: "slack-notify",
-    id: "activation-ops-starter",
-    inventory: [
-      {
-        resource_id: "agent_incident_commander",
-        resource_kind: "agent",
-        resource_name: "incident-commander",
-      },
-      {
-        resource_id: "bridge_ops_slack",
-        resource_kind: "bridge",
-        resource_name: "ops-slack",
-      },
-      {
-        resource_id: "job_daily_status",
-        resource_kind: "job",
-        resource_name: "daily-status",
-      },
-    ],
-    jobs: [
-      {
-        agent_name: "incident-commander",
-        enabled: true,
-        id: "job_daily_status",
-        name: "daily-status",
-      },
-    ],
-    profile_description: "Production incident routing with daily status summaries.",
-    profile_name: "production",
-    network_requirement_confirmed_at: "2026-07-12T16:40:00Z",
-    network_requirement_confirmed_by: "operator",
-    network_requirement_digest: "sha256:live-network-requirement",
-    scope: "workspace",
-    spec_drift: false,
-    triggers: [
-      {
-        agent_name: "incident-commander",
-        enabled: true,
-        event: "session.failed",
-        id: "trigger_session_failed",
-        name: "session-failure-alert",
-      },
-    ],
-    updated_at: "2026-07-12T16:40:00Z",
-    version: 7,
-    workspace_id: "ws_northstar",
-  },
-  {
-    agents: [],
-    bridges: [],
-    bundle_description: "Dependency review and release hygiene capabilities.",
-    bundle_name: "dep-kit",
-    channels: [],
-    created_at: "2026-07-03T12:00:00Z",
-    extension_name: "otel-bridge",
-    id: "activation-dep-kit",
-    inventory: [
-      {
-        resource_id: "skill_dependency_review",
-        resource_kind: "skill",
-        resource_name: "dependency-review",
-      },
-    ],
-    jobs: [],
-    profile_description: "Strict checks for production dependencies.",
-    profile_name: "strict",
-    scope: "global",
-    spec_drift: true,
-    triggers: [],
-    updated_at: "2026-07-03T12:00:00Z",
-    version: 3,
-  },
-];

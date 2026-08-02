@@ -1,5 +1,4 @@
 export {
-  marketplaceBundlePreviewFixture,
   marketplaceDetails,
   marketplaceKindFixture,
   marketplaceListings,

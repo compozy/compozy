@@ -23,7 +23,7 @@ function MarketplaceEntryStatus({ entry }: { entry: MarketplaceListing }) {
   if (entry.installed) {
     return (
       <Pill mono tone="success">
-        {entry.kind === "bundle" ? "active" : "installed"}
+        installed
       </Pill>
     );
   }
@@ -129,15 +129,11 @@ function MarketplaceEntryAction({
 }
 
 function marketplaceEntryActionLabel(entry: MarketplaceListing): string {
-  if (entry.update_available) return "Update";
-  if (entry.kind === "bundle") return "Activate";
-  return "Install";
+  return entry.update_available ? "Update" : "Install";
 }
 
 function marketplaceEntryPendingLabel(entry: MarketplaceListing): string {
-  if (entry.update_available) return "Updating…";
-  if (entry.kind === "bundle") return "Activating…";
-  return "Installing…";
+  return entry.update_available ? "Updating…" : "Installing…";
 }
 
 export { MarketplaceEntryAction, MarketplaceEntryStatus };

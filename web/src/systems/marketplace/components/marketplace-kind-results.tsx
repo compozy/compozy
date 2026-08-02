@@ -179,14 +179,12 @@ function MarketplaceKindResults({
       {page.installedItems.map(item => (
         <MarketplaceInstalledCard
           item={item}
-          key={`${item.entry.kind}:${item.entry.entry_id}:${item.activationId ?? item.skill?.name ?? item.mcpServer?.name ?? ""}`}
+          key={`${item.entry.kind}:${item.entry.entry_id}:${item.skill?.name ?? item.mcpServer?.name ?? ""}`}
           onAction={actions.handleAction}
           onAuthorize={actions.handleAuthorize}
-          onDeactivate={actions.handleDeactivate}
           onEditMCP={onEditMCP}
           onRemove={actions.handleRemove}
           onToggleEnabled={actions.handleToggleEnabled}
-          onUpdateBundle={actions.handleUpdateBundle}
           pending={actions.isEntryPending(item.entry) || actions.isInstalledItemPending(item)}
         />
       ))}

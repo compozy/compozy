@@ -175,18 +175,6 @@ export const ExtensionsInstalled: Story = {
   render: () => <StorybookWorkspaceSetup />,
 };
 
-export const BundlesMarketplace: Story = {
-  args: {},
-  parameters: appRouteParameters("/marketplace/bundles"),
-  render: () => <StorybookWorkspaceSetup />,
-};
-
-export const BundlesInstalled: Story = {
-  args: {},
-  parameters: appRouteParameters("/marketplace/bundles?tab=installed"),
-  render: () => <StorybookWorkspaceSetup />,
-};
-
 export const DetailSkillInstalled: Story = {
   args: {},
   parameters: {
@@ -323,6 +311,104 @@ export const DetailExtensionDevOverlay: Story = {
     );
     // Anchor the capture on the overlay badges rather than wherever the toggle left the scroll.
     devBadge.scrollIntoView({ block: "center" });
+  },
+};
+
+const kitExtensionFixture = {
+  ...extensionFixtures[0]!,
+  bound_env_keys: ["DEP_KIT_TOKEN"],
+  enabled: false,
+  missing_env: ["DEP_KIT_WEBHOOK"],
+  name: "dep-kit-ops",
+  network_confirmation_required: true,
+  network_requirement_digest: "sha256:6f1c0a94d3b27e58",
+  remote_version: undefined,
+  requires_env: ["DEP_KIT_TOKEN", "DEP_KIT_WEBHOOK"],
+  update_available: false,
+  version: "1.0.0",
+};
+
+const kitInventoryItems = [
+  { id: "agent:dep-reviewer", kind: "agent", live: false, name: "dep-reviewer" },
+  { id: "agent:release-notes", kind: "agent", live: true, name: "release-notes" },
+  { id: "automation:weekly-audit", kind: "automation", live: false, name: "weekly-audit" },
+  { id: "layout:dep-board", kind: "layout", live: false, name: "dep-board" },
+];
+
+/** One MSW group set per story: a second `storybookMswParameters` spread would replace the first. */
+function kitDetailHandlers(refuseEnable = false) {
+  return storybookMswParameters({
+    marketplace: [
+      compozyApiMock.get("/api/marketplace/{kind}/{entry_id}", () =>
+        HttpResponse.json({
+          entry: {
+            description: "Dependency review agents, a weekly sweep, and a review board layout.",
+            entry_id: "dep-kit-ops",
+            installed: true,
+            installed_name: "dep-kit-ops",
+            installed_version: "1.0.0",
+            kind: "extension",
+            name: "dep-kit-ops",
+            source: "registry",
+            update_available: false,
+          },
+        })
+      ),
+    ],
+    extensions: [
+      compozyApiMock.get("/api/extensions", () =>
+        HttpResponse.json({ extensions: [kitExtensionFixture] })
+      ),
+      compozyApiMock.get("/api/extensions/{name}/inventory", () =>
+        HttpResponse.json({
+          enabled: false,
+          extension: "dep-kit-ops",
+          items: kitInventoryItems,
+        })
+      ),
+      ...(refuseEnable
+        ? [
+            compozyApiMock.post("/api/extensions/{name}/enable", ({ response }) =>
+              response(409).json({
+                code: "extension_network_confirmation_required",
+                current_digest: "sha256:6f1c0a94d3b27e58",
+                error:
+                  "dep-kit-ops declares Live network participation that has not been confirmed",
+              })
+            ),
+          ]
+        : []),
+    ],
+  });
+}
+
+/** Shipped-vs-live kit truth beside the bound-env presence and the declared network digest. */
+export const DetailExtensionKitInventory: Story = {
+  args: {},
+  parameters: {
+    ...appRouteParameters("/marketplace/extension/dep-kit-ops"),
+    ...kitDetailHandlers(),
+  },
+  render: () => <StorybookWorkspaceSetup />,
+};
+
+/** The daemon refuses an unratified Live participation change; one affordance carries the digest. */
+export const DetailExtensionNetworkConfirm: Story = {
+  args: {},
+  parameters: {
+    ...appRouteParameters("/marketplace/extension/dep-kit-ops"),
+    ...kitDetailHandlers(true),
+  },
+  render: () => <StorybookWorkspaceSetup />,
+  tags: ["play-fn"],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(await canvas.findByTestId("extension-enabled-switch"));
+    const dialog = within(document.body);
+    await expect(dialog.findByTestId("extension-network-confirm-dialog")).resolves.toBeDefined();
+    await expect(
+      dialog.findByTestId("extension-network-confirm-digest")
+    ).resolves.toHaveTextContent("sha256:6f1c0a94d3b27e58");
   },
 };
 

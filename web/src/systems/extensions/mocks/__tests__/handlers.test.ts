@@ -49,35 +49,51 @@ describe("extensions MSW handlers", () => {
     expect(body.extensions.some(extension => extension.name === "otel-bridge")).toBe(false);
   });
 
-  it("Should retain bundle updates and deactivation across activation refetches", async () => {
-    const id = "activation-ops-starter";
-    const update = await fetch(`${API}/api/bundles/activations/${id}`, {
-      body: JSON.stringify({ confirm_network_requirement: true, expected_version: 7 }),
+  /**
+   * The mock has to gate on the digest exactly as the daemon does; a mock that enabled anyway
+   * would let the confirm affordance pass its own tests while the real lifecycle refused.
+   */
+  it("Should refuse an unconfirmed enable and go live only once the digest is ratified", async () => {
+    const refused = await fetch(`${API}/api/extensions/dep-kit-ops/enable`, {
+      body: JSON.stringify({}),
       headers: { "Content-Type": "application/json" },
-      method: "PATCH",
+      method: "POST",
     });
-    expect(update.status).toBe(200);
+    expect(refused.status).toBe(409);
+    const refusal = (await refused.json()) as { code: string; current_digest: string };
+    expect(refusal).toMatchObject({
+      code: "extension_network_confirmation_required",
+      current_digest: "sha256:6f1c0a94d3b27e58",
+    });
 
-    let detail = await fetch(`${API}/api/bundles/activations/${id}`);
-    let body = (await detail.json()) as {
-      activation: {
-        network_requirement_confirmed_by?: string;
-        spec_drift: boolean;
-        version: number;
-      };
+    const shipped = (await (await fetch(`${API}/api/extensions/dep-kit-ops/inventory`)).json()) as {
+      enabled: boolean;
+      items: Array<{ live: boolean }>;
     };
-    expect(body.activation).toMatchObject({
-      network_requirement_confirmed_by: "operator",
-      spec_drift: false,
-      version: 8,
-    });
+    expect(shipped.enabled).toBe(false);
+    expect(shipped.items.every(item => item.live)).toBe(false);
 
-    const deactivate = await fetch(`${API}/api/bundles/activations/${id}`, {
-      method: "DELETE",
+    const confirmed = await fetch(`${API}/api/extensions/dep-kit-ops/enable`, {
+      body: JSON.stringify({ confirm_network_digest: refusal.current_digest }),
+      headers: { "Content-Type": "application/json" },
+      method: "POST",
     });
-    expect(deactivate.status).toBe(204);
-    detail = await fetch(`${API}/api/bundles/activations/${id}`);
-    expect(detail.status).toBe(404);
+    expect(confirmed.status).toBe(200);
+    const enabled = (await confirmed.json()) as { automation_started: string[] };
+    expect(enabled.automation_started).toEqual(["weekly-audit"]);
+
+    const live = (await (await fetch(`${API}/api/extensions/dep-kit-ops/inventory`)).json()) as {
+      enabled: boolean;
+      items: Array<{ live: boolean }>;
+    };
+    expect(live.enabled).toBe(true);
+    expect(live.items.every(item => item.live)).toBe(true);
+
+    await fetch(`${API}/api/extensions/dep-kit-ops/disable`, { method: "POST" });
+    const afterDisable = (await (
+      await fetch(`${API}/api/extensions/dep-kit-ops/inventory`)
+    ).json()) as { items: Array<{ live: boolean }> };
+    expect(afterDisable.items.some(item => item.live)).toBe(false);
   });
 
   it("Should mirror the daemon's instance scope, log ring, and union install contract", async () => {
@@ -144,6 +160,7 @@ describe("extensions MSW handlers", () => {
   it("Should preserve not-found responses without mutating mock inventory", async () => {
     const missingExtensionRoutes = [
       ["/api/extensions/missing/provenance", "GET"],
+      ["/api/extensions/missing/inventory", "GET"],
       ["/api/extensions/missing/enable", "POST"],
       ["/api/extensions/missing/disable", "POST"],
       ["/api/extensions/missing", "PUT"],
@@ -154,21 +171,12 @@ describe("extensions MSW handlers", () => {
       expect(response.status).toBe(404);
     }
 
-    const missingActivationRoutes = [
-      ["/api/bundles/activations/missing", "GET"],
-      ["/api/bundles/activations/missing", "PATCH"],
-      ["/api/bundles/activations/missing", "DELETE"],
-    ] as const;
-    for (const [path, method] of missingActivationRoutes) {
-      const response = await fetch(`${API}${path}`, { method });
-      expect(response.status).toBe(404);
-    }
-
     const inventory = await fetch(`${API}/api/extensions`);
     const body = (await inventory.json()) as { extensions: Array<{ name: string }> };
     expect(body.extensions.map(extension => extension.name)).toEqual([
       "otel-bridge",
       "slack-notify",
+      "dep-kit-ops",
     ]);
   });
 });

@@ -1,4 +1,4 @@
-import { AlertTriangle, BadgeCheck, PackageX } from "lucide-react";
+import { BadgeCheck, PackageX, Radio } from "lucide-react";
 import type { ReactNode } from "react";
 
 import {
@@ -20,7 +20,7 @@ import { useExtensionProvenance } from "../hooks/use-extensions";
 import { useRemoveExtension } from "../hooks/use-extension-actions";
 import { extensionSourceKindLabel } from "../lib/extension-source-kind";
 import { extensionTrustFacts } from "../lib/extension-trust-facts";
-import type { BundleActivation, ExtensionEntry, ExtensionProvenance } from "../types";
+import type { ExtensionEntry, ExtensionProvenance } from "../types";
 import { ExtensionTrustBadges } from "./extension-trust-badges";
 
 export function ExtensionProvenanceDialog({
@@ -124,33 +124,20 @@ function ProvenanceRow({ term, children }: { term: string; children: ReactNode }
 
 export function RemoveExtensionDialog({
   extension,
-  activeBundles,
-  dependencyError,
-  dependencyLoading,
   open,
   onOpenChange,
   onRemoved,
-  onRetryDependencies,
 }: {
   extension: ExtensionEntry | null;
-  activeBundles: BundleActivation[] | undefined;
-  dependencyError: Error | null;
-  dependencyLoading: boolean;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onRemoved?: () => void;
-  onRetryDependencies: () => void;
 }) {
   const remove = useRemoveExtension();
   // A dev overlay is a workspace link over the published row: unlinking it never deletes the
-  // published installation, so bundle dependencies do not block the scoped unlink.
+  // published installation.
   const isDevOverlay = extension?.dev === true;
-  const blockers = extension
-    ? (activeBundles ?? []).filter(activation => activation.extension_name === extension.name)
-    : [];
-  const dependenciesReady =
-    !dependencyLoading && dependencyError === null && activeBundles !== undefined;
-  const blocked = !extension || (!isDevOverlay && (!dependenciesReady || blockers.length > 0));
+  const blocked = !extension;
   const capabilityCount = extension?.capabilities?.length ?? 0;
   const permissions = extension?.permissions ?? [];
   return (
@@ -186,32 +173,9 @@ export function RemoveExtensionDialog({
           <p>
             Revoked permissions: {permissions.length ? permissions.join(", ") : "none declared"}.
           </p>
-          {!isDevOverlay && dependencyLoading ? (
-            <p className="flex items-center gap-2" role="status">
-              <Spinner className="size-3.5" />
-              Checking active bundles before removal.
-            </p>
-          ) : !isDevOverlay && dependencyError ? (
-            <div className="space-y-2">
-              <p>
-                Bundle activity could not be loaded. {dependencyError.message} Removal stays blocked
-                until this check succeeds.
-              </p>
-              <Button onClick={onRetryDependencies} size="sm" type="button" variant="outline">
-                Retry bundle activity
-              </Button>
-            </div>
-          ) : !isDevOverlay && blockers.length > 0 ? (
-            <p>
-              The daemon returns 409 while an active bundle depends on this extension. Deactivate
-              {` ${blockers.map(item => item.bundle_name).join(", ")}`} first.
-            </p>
-          ) : null}
         </div>
       }
-      noteTone={
-        !isDevOverlay && (!dependenciesReady || blockers.length > 0) ? "warning" : "neutral"
-      }
+      noteTone="neutral"
       onConfirm={async () => {
         if (!extension || blocked) return;
         await remove.mutateAsync({ dev: isDevOverlay, name: extension.name });
@@ -228,37 +192,52 @@ export function RemoveExtensionDialog({
   );
 }
 
-export function DeactivateBundleDialog({
-  activation,
-  open,
-  pending,
+/**
+ * One affordance for both enable and update: the daemon refuses either until the operator ratifies
+ * the exact digest it returned, so the digest is shown rather than summarised.
+ */
+export function ExtensionNetworkConfirmDialog({
+  action,
+  digest,
   error,
+  extensionName,
   onConfirm,
   onOpenChange,
+  open,
+  pending,
 }: {
-  activation: BundleActivation | null;
+  action: "enable" | "update";
+  digest: string;
+  error?: string;
+  extensionName: string;
+  onConfirm: () => void;
+  onOpenChange: (open: boolean) => void;
   open: boolean;
   pending: boolean;
-  error?: string;
-  onConfirm: () => Promise<void>;
-  onOpenChange: (open: boolean) => void;
 }) {
+  const verb = action === "enable" ? "Enabling" : "Updating";
   return (
     <ConfirmDialog
       cancelLabel="Cancel"
-      confirmIcon={AlertTriangle}
-      confirmLabel="Deactivate"
-      description="Stops this activation. Installed skills and extensions stay on disk; only the activation binding is removed."
+      confirmButtonProps={{ "data-testid": "extension-network-confirm-accept" }}
+      confirmIcon={Radio}
+      confirmLabel="Confirm and continue"
+      contentProps={{ "data-testid": "extension-network-confirm-dialog" }}
+      description={`${verb} ${extensionName} applies the Live Compozy Network participation it declares. The daemon records this decision against the digest below.`}
       error={error}
       isPending={pending}
-      note={`Stops the ${activation?.profile_name ?? "selected"} profile (${activation?.scope ?? "current scope"}). Installed capabilities stay on disk.`}
-      noteTone="neutral"
+      note={
+        <div className="space-y-1">
+          <p>Requirement digest</p>
+          <MonoId data-testid="extension-network-confirm-digest" value={digest} />
+        </div>
+      }
+      noteTone="warning"
       onConfirm={onConfirm}
       onOpenChange={onOpenChange}
       open={open}
-      title={`Deactivate ${activation?.bundle_name ?? "bundle"}`}
-      tone="danger"
-      contentProps={{ "data-testid": "deactivate-bundle-dialog" }}
+      title={`Confirm network participation for ${extensionName}`}
+      tone="warning"
     />
   );
 }

@@ -1,6 +1,6 @@
 import { createStoreLogic, type EnqueueObject } from "@xstate/store";
 
-export type MarketplaceInstalledCardAction = "remove" | "deactivate";
+export type MarketplaceInstalledCardAction = "remove";
 
 export type MarketplaceInstalledCardConfirmState =
   | { phase: "closed"; requestId: number }

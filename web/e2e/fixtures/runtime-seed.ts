@@ -1658,18 +1658,35 @@ async function installBrowserBridgeExtension(
   const timeoutMs = options.timeoutMs ?? BRIDGE_OPERATOR_FLOW_TIMEOUT_MS;
   const prepared = await prepareExtension();
 
-  const installed = await waitForSeedCondition(
+  // Install is inert: the daemon registers the bundled package without starting it, so the seed
+  // waits for registration and then performs the explicit enable the lifecycle now requires.
+  await waitForSeedCondition(
     async () => {
       const payload = await requestOperatorJSON<{
         extension: { checksum: string; enabled: boolean; name: string; source: string };
       }>(`/api/extensions/${encodeURIComponent(BRIDGE_EXTENSION_NAME)}`);
       return payload.extension.name === BRIDGE_EXTENSION_NAME &&
-        payload.extension.enabled &&
         payload.extension.source === "bundled"
         ? payload.extension
         : null;
     },
-    `${BRIDGE_EXTENSION_NAME} extension install`,
+    `${BRIDGE_EXTENSION_NAME} extension registration`,
+    timeoutMs
+  );
+
+  const installed = await waitForSeedCondition(
+    async () => {
+      const payload = await requestOperatorJSON<{
+        extension: { checksum: string; enabled: boolean; name: string; source: string };
+      }>(`/api/extensions/${encodeURIComponent(BRIDGE_EXTENSION_NAME)}`);
+      if (payload.extension.enabled) return payload.extension;
+      await requestOperatorJSON<unknown>(
+        `/api/extensions/${encodeURIComponent(BRIDGE_EXTENSION_NAME)}/enable`,
+        { body: "{}", method: "POST" }
+      );
+      return null;
+    },
+    `${BRIDGE_EXTENSION_NAME} extension enable`,
     timeoutMs
   );
 

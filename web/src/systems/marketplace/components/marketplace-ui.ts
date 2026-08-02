@@ -7,7 +7,6 @@ export type MarketplaceViewSort = "relevance" | "downloads" | "name";
 const MARKETPLACE_KIND_ICON: Record<MarketplaceKind, LucideIcon> = {
   skill: Wrench,
   extension: Puzzle,
-  bundle: Box,
   mcp: Plug,
 };
 
@@ -15,24 +14,17 @@ export function marketplaceKindIcon(kind: MarketplaceKind): LucideIcon {
   return MARKETPLACE_KIND_ICON[kind] ?? Box;
 }
 
-export const MARKETPLACE_KIND_ORDER: readonly MarketplaceKind[] = [
-  "skill",
-  "mcp",
-  "extension",
-  "bundle",
-];
+export const MARKETPLACE_KIND_ORDER: readonly MarketplaceKind[] = ["skill", "mcp", "extension"];
 
 export const MARKETPLACE_KIND_LABEL: Record<MarketplaceKind, string> = {
   skill: "Skills",
   extension: "Extensions",
-  bundle: "Bundles",
   mcp: "MCPs",
 };
 
 export const MARKETPLACE_KIND_SINGULAR: Record<MarketplaceKind, string> = {
   skill: "skill",
   extension: "extension",
-  bundle: "bundle",
   mcp: "MCP server",
 };
 
