@@ -56,6 +56,18 @@ func (e *Evaluator) evaluateCommand(
 		Stdout:   result.Stdout,
 		Stderr:   result.Stderr,
 	}
+	passed, warning := commandExpectationPassed(req, result)
+	if !passed {
+		criterionResult.Outcome = VerdictOutcomeRejected
+		if warning != nil {
+			criterionResult.Warnings = []DiagnosticWarning{*warning}
+		}
+		criterionResult.BlockingIssues = []BlockingIssue{{
+			ID:   blockerCommandExpectation,
+			Note: commandFailureNote(req, result),
+		}}
+		return criterionResult
+	}
 	if criterion.Metric != nil {
 		score, scoreErr := ParseCommandMetricScore(result.Stdout)
 		if scoreErr != nil {
@@ -63,20 +75,8 @@ func (e *Evaluator) evaluateCommand(
 		}
 		criterionResult.Score = score
 	}
-	passed, warning := commandExpectationPassed(req, result)
-	if passed {
-		criterionResult.Outcome = VerdictOutcomeApproved
-		criterionResult.Passed = true
-		return criterionResult
-	}
-	criterionResult.Outcome = VerdictOutcomeRejected
-	if warning != nil {
-		criterionResult.Warnings = []DiagnosticWarning{*warning}
-	}
-	criterionResult.BlockingIssues = []BlockingIssue{{
-		ID:   blockerCommandExpectation,
-		Note: commandFailureNote(req, result),
-	}}
+	criterionResult.Outcome = VerdictOutcomeApproved
+	criterionResult.Passed = true
 	return criterionResult
 }
 

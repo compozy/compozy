@@ -84,7 +84,11 @@ func parseExtensionResult(criterion dsl.GateCriterion, result tools.ToolResult) 
 		return criterionResult
 	}
 	metricRequired := criterion.Metric != nil
-	parsed, warnings, err := parseStructuredVerdict(result.Structured, false, false, metricRequired)
+	parsed, warnings, err := parseStructuredVerdict(result.Structured, structuredVerdictOptions{
+		requireEvidence: false,
+		judgeContract:   false,
+		requireScore:    metricRequired,
+	})
 	if err == nil {
 		criterionResult.Outcome = parsed.Outcome
 		criterionResult.Passed = parsed.Outcome == VerdictOutcomeApproved

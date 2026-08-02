@@ -3361,7 +3361,7 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldPersistEvaluatorMetricIn
 		}
 	})
 
-	t.Run("Should keep best empty for an aggregate-rejected finite metric score", func(t *testing.T) {
+	t.Run("Should keep best and score empty when the metric command fails", func(t *testing.T) {
 		t.Parallel()
 
 		globalDB := openLoopTestGlobalDB(t)
@@ -3442,8 +3442,8 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldPersistEvaluatorMetricIn
 			t.Fatalf("ListGateVerdicts() error = %v", err)
 		}
 		if len(verdicts) != 1 || verdicts[0].Outcome != gate.VerdictOutcomeRejected ||
-			verdicts[0].Score == nil || *verdicts[0].Score != 0.77 {
-			t.Fatalf("persisted verdicts = %#v, want rejected score 0.77", verdicts)
+			verdicts[0].Score != nil {
+			t.Fatalf("persisted verdicts = %#v, want rejected verdict without an untrusted score", verdicts)
 		}
 		stored, err := globalDB.GetLoopRunByID(ctx, loopRun.ID)
 		if err != nil {
@@ -7046,4 +7046,21 @@ func loopEventPayloadForKind(
 	}
 	t.Fatalf("loop event kind %q not found in %#v", kind, events)
 	return nil
+}
+
+func TestNormalizePostReserveSnapshot(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should trim the fallback loop run id", func(t *testing.T) {
+		t.Parallel()
+
+		snapshot := normalizePostReserveSnapshot(
+			&taskpkg.GenerationSnapshot{LoopRunID: " \t ", Generation: 2},
+			taskpkg.GenerationSnapshot{},
+			"  loop-run-1  ",
+		)
+		if snapshot == nil || snapshot.LoopRunID != "loop-run-1" {
+			t.Fatalf("normalizePostReserveSnapshot() = %#v, want trimmed loop_run_id", snapshot)
+		}
+	})
 }

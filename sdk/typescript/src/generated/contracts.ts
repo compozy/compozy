@@ -2410,7 +2410,6 @@ export interface LoopGatePostPayload {
   origin_kind?: string;
   origin_ref?: string;
   gate_id?: string;
-  decision?: string;
   outcome?: string;
   score?: number;
   best_generation?: number;
@@ -2447,7 +2446,6 @@ export interface LoopGatePrePayload {
   origin_kind?: string;
   origin_ref?: string;
   gate_id?: string;
-  decision?: string;
   outcome?: string;
   score?: number;
   best_generation?: number;

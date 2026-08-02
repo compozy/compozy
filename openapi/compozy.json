@@ -204298,6 +204298,7 @@
                             "type": "integer"
                           },
                           "generation": {
+                            "format": "int64",
                             "type": "integer"
                           },
                           "id": {
@@ -205566,6 +205567,7 @@
                       "items": {
                         "properties": {
                           "generation": {
+                            "format": "int64",
                             "type": "integer"
                           },
                           "origin": {
@@ -205587,6 +205589,7 @@
                                   "type": "string"
                                 },
                                 "generation": {
+                                  "format": "int64",
                                   "type": "integer"
                                 },
                                 "item_index": {
@@ -205652,6 +205655,115 @@
                           "verdicts": {
                             "items": {
                               "properties": {
+                                "blocking_issues": {
+                                  "items": {
+                                    "properties": {
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "note": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "id",
+                                      "note"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "type": "array"
+                                },
+                                "criteria": {
+                                  "items": {
+                                    "properties": {
+                                      "blocking_issues": {
+                                        "items": {
+                                          "properties": {
+                                            "id": {
+                                              "type": "string"
+                                            },
+                                            "note": {
+                                              "type": "string"
+                                            }
+                                          },
+                                          "required": [
+                                            "id",
+                                            "note"
+                                          ],
+                                          "type": "object"
+                                        },
+                                        "type": "array"
+                                      },
+                                      "broken": {
+                                        "type": "boolean"
+                                      },
+                                      "evidence": {},
+                                      "exit_code": {
+                                        "nullable": true,
+                                        "type": "integer"
+                                      },
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "outcome": {
+                                        "enum": [
+                                          "approved",
+                                          "rejected",
+                                          "awaiting_approval",
+                                          "blocked",
+                                          "error",
+                                          "timeout",
+                                          "invalid_output"
+                                        ],
+                                        "type": "string"
+                                      },
+                                      "passed": {
+                                        "type": "boolean"
+                                      },
+                                      "payload": {},
+                                      "score": {
+                                        "format": "double",
+                                        "nullable": true,
+                                        "type": "number"
+                                      },
+                                      "stderr": {
+                                        "type": "string"
+                                      },
+                                      "stdout": {
+                                        "type": "string"
+                                      },
+                                      "type": {
+                                        "type": "string"
+                                      },
+                                      "warnings": {
+                                        "items": {
+                                          "properties": {
+                                            "code": {
+                                              "type": "string"
+                                            },
+                                            "message": {
+                                              "type": "string"
+                                            }
+                                          },
+                                          "required": [
+                                            "code",
+                                            "message"
+                                          ],
+                                          "type": "object"
+                                        },
+                                        "type": "array"
+                                      }
+                                    },
+                                    "required": [
+                                      "id",
+                                      "outcome",
+                                      "passed",
+                                      "type"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "type": "array"
+                                },
                                 "gate_id": {
                                   "type": "string"
                                 },
@@ -205678,6 +205790,8 @@
                                 }
                               },
                               "required": [
+                                "blocking_issues",
+                                "criteria",
                                 "gate_id",
                                 "outcome"
                               ],
@@ -205739,6 +205853,7 @@
                           "type": "integer"
                         },
                         "generation": {
+                          "format": "int64",
                           "type": "integer"
                         },
                         "id": {
@@ -206841,6 +206956,7 @@
                         "payload": {
                           "properties": {
                             "generation": {
+                              "format": "int64",
                               "type": "integer"
                             },
                             "loop_name": {
@@ -206976,6 +207092,7 @@
                               "type": "string"
                             },
                             "generation": {
+                              "format": "int64",
                               "type": "integer"
                             },
                             "item_index": {
@@ -221155,6 +221272,7 @@
                           "type": "integer"
                         },
                         "generation": {
+                          "format": "int64",
                           "type": "integer"
                         },
                         "id": {
@@ -222056,6 +222174,7 @@
                           "type": "integer"
                         },
                         "generation": {
+                          "format": "int64",
                           "type": "integer"
                         },
                         "id": {

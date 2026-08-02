@@ -3,12 +3,14 @@ package gate
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"github.com/compozy/compozy/internal/diagnostics"
 )
 
-const maxVerdictDiagnosticBytes = 16 * 1024
+const (
+	maxVerdictDiagnosticBytes = 16 * 1024
+	diagnosticTruncatedKey    = "truncated"
+)
 
 // SanitizeVerdict returns the canonical verdict representation used by both the gate output
 // projection and durable verdict intents.
@@ -66,7 +68,17 @@ func sanitizeVerdictDiagnostics(value any) (json.RawMessage, error) {
 		return nil, fmt.Errorf("marshal bounded verdict diagnostics: %w", err)
 	}
 	if len(bounded) > maxVerdictDiagnosticBytes {
-		return json.RawMessage("[]"), nil
+		fallback, fallbackErr := json.Marshal(diagnosticOverflowFallback(valueTree))
+		if fallbackErr != nil {
+			return nil, fmt.Errorf("marshal verdict diagnostics overflow fallback: %w", fallbackErr)
+		}
+		if len(fallback) > maxVerdictDiagnosticBytes {
+			fallback, fallbackErr = json.Marshal(minimalDiagnosticOverflowFallback(valueTree))
+			if fallbackErr != nil {
+				return nil, fmt.Errorf("marshal minimal verdict diagnostics overflow fallback: %w", fallbackErr)
+			}
+		}
+		return json.RawMessage(fallback), nil
 	}
 	return json.RawMessage(bounded), nil
 }
@@ -84,10 +96,56 @@ func boundDiagnosticValue(value any, maxStringBytes int) any {
 	case map[string]any:
 		bounded := make(map[string]any, len(typed))
 		for key, nested := range typed {
-			bounded[strings.TrimSpace(key)] = boundDiagnosticValue(nested, maxStringBytes)
+			bounded[key] = boundDiagnosticValue(nested, maxStringBytes)
 		}
 		return bounded
 	default:
 		return value
+	}
+}
+
+func diagnosticOverflowFallback(value any) any {
+	marker := map[string]any{diagnosticTruncatedKey: true}
+	switch typed := value.(type) {
+	case []any:
+		return []any{marker}
+	case map[string]any:
+		fallback := make(map[string]any, len(typed)+1)
+		for key, nested := range typed {
+			switch nested.(type) {
+			case []any, map[string]any:
+				fallback[key] = diagnosticOverflowFallback(nested)
+			default:
+				fallback[key] = boundDiagnosticValue(nested, 256)
+			}
+		}
+		fallback[diagnosticTruncationMarkerKey(fallback)] = true
+		return fallback
+	case string:
+		return diagnostics.RedactAndBound(typed, 256)
+	default:
+		return typed
+	}
+}
+
+func minimalDiagnosticOverflowFallback(value any) any {
+	marker := map[string]any{diagnosticTruncatedKey: true}
+	switch value.(type) {
+	case []any:
+		return []any{marker}
+	case map[string]any:
+		return marker
+	default:
+		return diagnosticOverflowFallback(value)
+	}
+}
+
+func diagnosticTruncationMarkerKey(value map[string]any) string {
+	key := diagnosticTruncatedKey
+	for {
+		if _, exists := value[key]; !exists {
+			return key
+		}
+		key = "_" + key
 	}
 }

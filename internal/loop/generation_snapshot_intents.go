@@ -45,7 +45,7 @@ func (i GenerationLifecycleEventIntent) normalized() GenerationLifecycleEventInt
 func (i GenerationLifecycleEventIntent) validate() error {
 	switch i.Kind {
 	case GenerationLifecycleEventGenerationStarted:
-		if i.GateID != "" || i.ItemIndex != 0 {
+		if i.GateID != "" || i.ItemIndex != 0 || i.Route != "" {
 			return fmt.Errorf("%w: generation_started event cannot name a gate instance", ErrValidation)
 		}
 	case GenerationLifecycleEventGateVerdict:

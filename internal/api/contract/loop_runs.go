@@ -39,7 +39,7 @@ type LoopRunPayload struct {
 	WorkspaceID                  string                `json:"workspace_id"`
 	LoopName                     string                `json:"loop_name"`
 	Status                       LoopRunStatus         `json:"status"`
-	Generation                   int                   `json:"generation"`
+	Generation                   int64                 `json:"generation"`
 	BestGeneration               *int64                `json:"best_generation,omitempty"`
 	BestScore                    *float64              `json:"best_score,omitempty"`
 	ReattemptStrategy            LoopReattemptStrategy `json:"reattempt_strategy"`
@@ -92,7 +92,7 @@ type LoopRunResponse struct {
 
 // LoopGenerationPayload groups durable provenance, verdicts, and node state by generation.
 type LoopGenerationPayload struct {
-	Generation       int                      `json:"generation"`
+	Generation       int64                    `json:"generation"`
 	ParentGeneration int64                    `json:"parent_generation"`
 	Origin           LoopGenerationOrigin     `json:"origin"`
 	Verdicts         []LoopGateVerdictPayload `json:"verdicts"`
@@ -101,15 +101,40 @@ type LoopGenerationPayload struct {
 
 // LoopGateVerdictPayload is one queryable machine verdict in generation detail.
 type LoopGateVerdictPayload struct {
-	GateID         string                 `json:"gate_id"`
-	Outcome        LoopGateVerdictOutcome `json:"outcome"`
-	Score          *float64               `json:"score,omitempty"`
-	RouteCauseRank *int                   `json:"route_cause_rank,omitempty"`
+	GateID         string                           `json:"gate_id"`
+	Outcome        LoopGateVerdictOutcome           `json:"outcome"`
+	Score          *float64                         `json:"score,omitempty"`
+	RouteCauseRank *int                             `json:"route_cause_rank,omitempty"`
+	BlockingIssues []LoopGateBlockingIssuePayload   `json:"blocking_issues"`
+	Criteria       []LoopGateCriterionDetailPayload `json:"criteria"`
+}
+
+// LoopGateCriterionDetailPayload is one durable criterion diagnostic in generation detail.
+type LoopGateCriterionDetailPayload struct {
+	ID             string                         `json:"id"`
+	Type           string                         `json:"type"`
+	Outcome        LoopGateVerdictOutcome         `json:"outcome"`
+	Passed         bool                           `json:"passed"`
+	Broken         bool                           `json:"broken,omitempty"`
+	ExitCode       *int                           `json:"exit_code,omitempty"`
+	Stdout         string                         `json:"stdout,omitempty"`
+	Stderr         string                         `json:"stderr,omitempty"`
+	Score          *float64                       `json:"score,omitempty"`
+	Evidence       json.RawMessage                `json:"evidence,omitempty"`
+	BlockingIssues []LoopGateBlockingIssuePayload `json:"blocking_issues,omitempty"`
+	Warnings       []LoopGateDiagnosticWarning    `json:"warnings,omitempty"`
+	Payload        json.RawMessage                `json:"payload,omitempty"`
+}
+
+// LoopGateDiagnosticWarning is one non-terminal criterion diagnostic.
+type LoopGateDiagnosticWarning struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
 }
 
 // LoopGenerationOutput is one public generation output row.
 type LoopGenerationOutput struct {
-	Generation      int                  `json:"generation,omitempty"`
+	Generation      int64                `json:"generation,omitempty"`
 	NodeID          string               `json:"node_id"`
 	ItemIndex       int                  `json:"item_index,omitempty"`
 	Status          string               `json:"status"`
@@ -154,7 +179,7 @@ type LoopGateVerdictRunEventPayload struct {
 
 // LoopGenerationStartedEventPayload is the exact generation_started SSE payload.
 type LoopGenerationStartedEventPayload struct {
-	Generation        int                   `json:"generation"`
+	Generation        int64                 `json:"generation"`
 	ParentGeneration  int64                 `json:"parent_generation"`
 	Origin            LoopGenerationOrigin  `json:"origin"`
 	ReattemptStrategy LoopReattemptStrategy `json:"reattempt_strategy"`
@@ -164,7 +189,7 @@ type LoopGenerationStartedEventPayload struct {
 // LoopGateVerdictEventPayload is the exact gate_verdict SSE payload.
 type LoopGateVerdictEventPayload struct {
 	NodeID         string                          `json:"node_id"`
-	Generation     int                             `json:"generation"`
+	Generation     int64                           `json:"generation"`
 	GateID         string                          `json:"gate_id"`
 	ItemIndex      int                             `json:"item_index"`
 	Verdict        string                          `json:"verdict"`

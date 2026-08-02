@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"math"
 	"reflect"
 	"testing"
 
@@ -23,6 +24,7 @@ func TestGenerationHistoryProjection(t *testing.T) {
 	t.Run("Should project every previous node and verdict", testGenerationHistoryPreviousGeneration)
 	t.Run("Should scope fan-out history to the current item", testGenerationHistoryFanOutScope)
 	t.Run("Should project best outputs without status", testGenerationHistoryBestGeneration)
+	t.Run("Should reject invalid best-generation state", testGenerationHistoryBestValidation)
 	t.Run("Should project scalar best output", testGenerationHistoryScalarBestOutput)
 	t.Run("Should include the contract verdict in route causes", testGenerationHistoryContractVerdict)
 	t.Run("Should reject a non-positive generation", testGenerationHistoryNonPositiveGeneration)
@@ -182,14 +184,30 @@ func testGenerationHistoryFanOutScope(t *testing.T) {
 		Edges: []dsl.Edge{{From: "fan", To: "draft"}, {From: "draft", To: "quality"}, {From: "quality", To: "collect"}},
 	}
 	namespace := history.previousNamespace(newControlTopology(graph), "quality", 0)
-	nodes := namespace[namespaceNodesKey].(map[string]any)
-	draft := nodes["draft"].(map[string]any)[namespaceOutputKey].(map[string]any)
+	nodes, ok := namespace[namespaceNodesKey].(map[string]any)
+	if !ok {
+		t.Fatalf("previous namespace nodes = %#v, want object", namespace[namespaceNodesKey])
+	}
+	draftNode, ok := nodes["draft"].(map[string]any)
+	if !ok {
+		t.Fatalf("previous draft node = %#v, want object", nodes["draft"])
+	}
+	draft, ok := draftNode[namespaceOutputKey].(map[string]any)
+	if !ok {
+		t.Fatalf("previous draft output = %#v, want object", draftNode[namespaceOutputKey])
+	}
 	if got, want := draft["item"], "first"; got != want {
 		t.Fatalf("scoped previous draft item = %v, want %q", got, want)
 	}
-	verdicts := namespace["verdicts"].(map[string]any)
-	quality := verdicts["quality"].(map[string]any)
-	if got, want := quality["outcome"], gate.VerdictOutcomeRejected; got != want {
+	verdicts, ok := namespace[namespaceVerdictsKey].(map[string]any)
+	if !ok {
+		t.Fatalf("previous namespace verdicts = %#v, want object", namespace[namespaceVerdictsKey])
+	}
+	quality, ok := verdicts["quality"].(map[string]any)
+	if !ok {
+		t.Fatalf("previous quality verdict = %#v, want object", verdicts["quality"])
+	}
+	if got, want := quality[namespaceOutcomeKey], gate.VerdictOutcomeRejected; got != want {
 		t.Fatalf("scoped previous verdict = %v, want %q", got, want)
 	}
 }
@@ -231,17 +249,65 @@ func testGenerationHistoryBestGeneration(t *testing.T) {
 	if got, want := history.Best.Score, bestScore; got != want {
 		t.Fatalf("history.Best.Score = %v, want %v", got, want)
 	}
-	bestOutput := history.Best.Nodes["draft"][0].Output.(map[string]any)
+	bestNodes := history.Best.Nodes["draft"]
+	if len(bestNodes) == 0 {
+		t.Fatalf("best draft outputs = %#v, want one output", bestNodes)
+	}
+	bestOutput, ok := bestNodes[0].Output.(map[string]any)
+	if !ok {
+		t.Fatalf("best draft output = %#v, want object", bestNodes[0].Output)
+	}
 	if got, want := bestOutput["summary"], "best draft"; got != want {
 		t.Fatalf("best draft output = %v, want %q", got, want)
 	}
 	namespace := history.bestNamespace(controlTopology{}, "", 0)
-	node, ok := namespace["nodes"].(map[string]any)["draft"].(map[string]any)
+	namespaceNodes, ok := namespace[namespaceNodesKey].(map[string]any)
 	if !ok {
-		t.Fatalf("best namespace node = %#v, want object", namespace["nodes"])
+		t.Fatalf("best namespace nodes = %#v, want object", namespace[namespaceNodesKey])
 	}
-	if _, exists := node["status"]; exists {
+	node, ok := namespaceNodes["draft"].(map[string]any)
+	if !ok {
+		t.Fatalf("best namespace node = %#v, want object", namespaceNodes["draft"])
+	}
+	if _, exists := node[namespaceStatusKey]; exists {
 		t.Fatalf("best namespace node = %#v, status must be absent", node)
+	}
+}
+
+func testGenerationHistoryBestValidation(t *testing.T) {
+	t.Parallel()
+
+	validGeneration := int64(1)
+	invalidGeneration := int64(0)
+	validScore := 0.8
+	nonFiniteScore := math.Inf(1)
+	tests := []struct {
+		name string
+		run  Run
+	}{
+		{
+			name: "Should reject best generation without best score",
+			run:  Run{BestGeneration: &validGeneration},
+		},
+		{
+			name: "Should reject best generation below one",
+			run:  Run{BestGeneration: &invalidGeneration, BestScore: &validScore},
+		},
+		{
+			name: "Should reject a non-finite best score",
+			run:  Run{BestGeneration: &validGeneration, BestScore: &nonFiniteScore},
+		},
+	}
+	for index := range tests {
+		tt := &tests[index]
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := ProjectGenerationHistory(2, tt.run, nil, nil, nil, nil)
+			if !errors.Is(err, ErrValidation) {
+				t.Fatalf("ProjectGenerationHistory() error = %v, want ErrValidation", err)
+			}
+		})
 	}
 }
 

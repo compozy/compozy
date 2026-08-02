@@ -64,7 +64,6 @@ type CoordinatorRunner struct {
 	store              Store
 	outputs            GenerationOutputReader
 	verdicts           gate.VerdictReader
-	lineage            GenerationLineageReader
 	hooks              HookDispatcher
 	gateEvaluator      gate.GateEvaluator
 	actionRegistry     *ActionRegistry
@@ -108,9 +107,6 @@ func NewCoordinatorRunner(
 	}
 	if verdicts, ok := outputs.(gate.VerdictReader); ok {
 		runner.verdicts = verdicts
-	}
-	if lineage, ok := outputs.(GenerationLineageReader); ok {
-		runner.lineage = lineage
 	}
 	for _, opt := range opts {
 		opt(runner)

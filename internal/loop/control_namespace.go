@@ -67,7 +67,7 @@ func runtimeNamespaceWithHistory(
 		output, ok := scopedNodeOutput(outputByKey, topology, nodeID, node.ID, itemIndex)
 		entry := map[string]any{}
 		if ok {
-			entry["status"] = output.Status
+			entry[namespaceStatusKey] = output.Status
 			entry[namespaceOutputKey] = outputValue(output.OutputRef)
 		}
 		nodes[string(node.ID)] = entry
@@ -92,7 +92,7 @@ func (h GenerationHistory) previousNamespace(
 		if !ok {
 			continue
 		}
-		nodes[nodeID] = map[string]any{reasonMetaStatus: node.Status, namespaceOutputKey: node.Output}
+		nodes[nodeID] = map[string]any{namespaceStatusKey: node.Status, namespaceOutputKey: node.Output}
 	}
 	verdicts := make(map[string]any, len(h.Previous.Verdicts))
 	for gateID, items := range h.Previous.Verdicts {
@@ -101,10 +101,10 @@ func (h GenerationHistory) previousNamespace(
 			continue
 		}
 		verdicts[gateID] = map[string]any{
-			"outcome":         verdict.Outcome,
-			namespaceScoreKey: cloneFloat64(verdict.Score),
-			"blocking_issues": verdict.BlockingIssues,
-			"criteria":        verdict.Criteria,
+			namespaceOutcomeKey:        verdict.Outcome,
+			namespaceScoreKey:          cloneFloat64(verdict.Score),
+			namespaceBlockingIssuesKey: verdict.BlockingIssues,
+			namespaceCriteriaKey:       verdict.Criteria,
 		}
 	}
 	routeCauses := make([]string, 0, len(h.Previous.RouteCauses))
@@ -115,10 +115,10 @@ func (h GenerationHistory) previousNamespace(
 		routeCauses = append(routeCauses, cause.GateID)
 	}
 	return map[string]any{
-		metadataGenerationKey: h.Previous.Generation,
-		namespaceNodesKey:     nodes,
-		"verdicts":            verdicts,
-		"route_causes":        routeCauses,
+		metadataGenerationKey:   h.Previous.Generation,
+		namespaceNodesKey:       nodes,
+		namespaceVerdictsKey:    verdicts,
+		namespaceRouteCausesKey: routeCauses,
 	}
 }
 

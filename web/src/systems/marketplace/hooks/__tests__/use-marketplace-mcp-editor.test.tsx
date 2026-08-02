@@ -91,6 +91,11 @@ describe("useMarketplaceMCPEditor", () => {
 
     await waitFor(() => expect(result.current.editorProps).toBeNull());
     expect(mocks.mutateAsync).toHaveBeenCalledOnce();
+    expect(mocks.mutateAsync).toHaveBeenCalledWith({
+      body: { server: { command: "npx", name: "github", transport: "stdio" } },
+      filter: { scope: "global", target: "auto" },
+      name: "github",
+    });
   });
 
   it("Should retain mutation feedback when a pending save rejects editor dismissal", async () => {

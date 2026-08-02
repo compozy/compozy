@@ -98,6 +98,8 @@ func TestEvaluatorEvaluateCriteriaMapping(t *testing.T) {
 	})
 
 	t.Run("Should reject judge output outside the exact single-object contract", func(t *testing.T) {
+		t.Parallel()
+
 		cases := []struct {
 			name string
 			raw  string
@@ -1022,6 +1024,8 @@ func TestEvaluatorMetricScoreContracts(t *testing.T) {
 	})
 
 	t.Run("Should reject command metric output without a numeric score", func(t *testing.T) {
+		t.Parallel()
+
 		cases := []struct {
 			name   string
 			stdout string
@@ -1046,6 +1050,27 @@ func TestEvaluatorMetricScoreContracts(t *testing.T) {
 				requireOutcome(t, verdict, VerdictOutcomeInvalidOutput)
 				requireIssueID(t, verdict.BlockingIssues, "metric_score_invalid")
 			})
+		}
+	})
+
+	t.Run("Should report a failed command expectation before parsing metric output", func(t *testing.T) {
+		t.Parallel()
+
+		runtimeGate := commandGate("score", "verify", "exit_zero")
+		runtimeGate.Criteria[0].Metric = metricSpec(dsl.MetricMaximize, nil)
+		verdict, err := NewEvaluator(WithCommandRunner(commandRunnerFunc(
+			func(context.Context, CommandRequest) (CommandResult, error) {
+				return CommandResult{ExitCode: 1, Stdout: "not-json"}, nil
+			},
+		))).Evaluate(t.Context(), runtimeGate, GateInput{Placement: PlacementInBody})
+		if err != nil {
+			t.Fatalf("Evaluate() error = %v", err)
+		}
+		requireIssueID(t, verdict.BlockingIssues, blockerCommandExpectation)
+		if slices.ContainsFunc(verdict.BlockingIssues, func(issue BlockingIssue) bool {
+			return issue.ID == MetricScoreInvalidIssueID
+		}) {
+			t.Fatalf("BlockingIssues = %#v, metric parsing must not mask command failure", verdict.BlockingIssues)
 		}
 	})
 
@@ -1169,6 +1194,8 @@ func TestBestUpdateForVerdict(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Should apply directional strict metric improvements", func(t *testing.T) {
+		t.Parallel()
+
 		cases := []struct {
 			name      string
 			direction dsl.MetricDirection
@@ -1244,7 +1271,26 @@ func TestBestUpdateForVerdict(t *testing.T) {
 		}
 	})
 
+	t.Run("Should reject an unsupported metric direction", func(t *testing.T) {
+		t.Parallel()
+
+		unsupported := dsl.MetricDirection("sideways")
+		_, err := BestUpdateForVerdict(
+			Gate{ID: "metric_gate", Criteria: []dsl.GateCriterion{{
+				ID: "metric", Metric: metricSpec(unsupported, nil),
+			}}},
+			approvedMetricVerdict("metric", 0.9),
+			2,
+			&BestUpdateIntent{Generation: 1, Score: 0.8},
+		)
+		if err == nil || !strings.Contains(err.Error(), `unsupported metric direction "sideways"`) {
+			t.Fatalf("BestUpdateForVerdict() error = %v, want unsupported direction", err)
+		}
+	})
+
 	t.Run("Should only create a first best from an approved finite metric verdict", func(t *testing.T) {
+		t.Parallel()
+
 		cases := []struct {
 			name    string
 			outcome VerdictOutcome
@@ -1375,6 +1421,69 @@ func TestNewVerdictIntent(t *testing.T) {
 			)
 		}
 	})
+
+	t.Run("Should preserve diagnostic root shape, array fields, and exact keys on overflow", func(t *testing.T) {
+		t.Parallel()
+
+		items := make([]any, 0, maxVerdictDiagnosticBytes)
+		for index := range maxVerdictDiagnosticBytes {
+			items = append(items, map[string]any{"detail": index})
+		}
+		raw, err := sanitizeVerdictDiagnostics(map[string]any{"criteria": items})
+		if err != nil {
+			t.Fatalf("sanitizeVerdictDiagnostics() error = %v", err)
+		}
+		var decoded map[string]any
+		if err := json.Unmarshal(raw, &decoded); err != nil {
+			t.Fatalf("json.Unmarshal(overflow diagnostics) error = %v", err)
+		}
+		value, ok := decoded["criteria"].([]any)
+		if !ok || len(value) == 0 {
+			t.Fatalf("overflow diagnostics = %#v, want array field and truncation value", decoded)
+		}
+		bounded, ok := boundDiagnosticValue(map[string]any{" criteria ": "value"}, 16).(map[string]any)
+		if !ok || bounded[" criteria "] != "value" {
+			t.Fatalf("boundDiagnosticValue() = %#v, want exact original map key", bounded)
+		}
+	})
+
+	t.Run("Should classify every verdict intent validation failure", func(t *testing.T) {
+		t.Parallel()
+
+		nan := math.NaN()
+		scoreOne := 0.5
+		scoreTwo := 0.6
+		negative := -1
+		tests := []struct {
+			name      string
+			gateID    string
+			itemIndex int
+			verdict   Verdict
+			rank      *int
+		}{
+			{name: "Should classify an empty gate id", itemIndex: 0},
+			{name: "Should classify a negative item index", gateID: "quality", itemIndex: -1},
+			{name: "Should classify a negative route rank", gateID: "quality", itemIndex: 0, rank: &negative},
+			{
+				name: "Should classify a non-finite score", gateID: "quality", itemIndex: 0,
+				verdict: Verdict{Criteria: []CriterionResult{{Score: &nan}}},
+			},
+			{
+				name: "Should classify multiple scores", gateID: "quality", itemIndex: 0,
+				verdict: Verdict{Criteria: []CriterionResult{{Score: &scoreOne}, {Score: &scoreTwo}}},
+			},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				_, err := NewVerdictIntent(tt.gateID, tt.itemIndex, tt.verdict, tt.rank)
+				if !errors.Is(err, ErrValidation) {
+					t.Fatalf("NewVerdictIntent() error = %v, want ErrValidation", err)
+				}
+			})
+		}
+	})
 }
 
 func TestEvaluatorAgentJudgeRubricAndEvidence(t *testing.T) {
@@ -1402,6 +1511,21 @@ func TestEvaluatorAgentJudgeRubricAndEvidence(t *testing.T) {
 			if !stringsContains(rendered, want) {
 				t.Fatalf("rendered rubric missing %q:\n%s", want, rendered)
 			}
+		}
+	})
+
+	t.Run("Should require a finite score in every metric verdict", func(t *testing.T) {
+		t.Parallel()
+
+		rendered, err := RenderAgentJudgeRubric(dsl.GateCriterion{
+			ID: "judge", Type: dsl.CriterionAgentJudge, Rubric: "Score the candidate",
+			Metric: metricSpec(dsl.MetricMaximize, nil),
+		}, validContract(), nil, JudgeEvidence{})
+		if err != nil {
+			t.Fatalf("RenderAgentJudgeRubric() error = %v", err)
+		}
+		if !strings.Contains(rendered, "Every metric verdict must include a finite numeric score") {
+			t.Fatalf("metric judge rubric = %q, want mandatory finite score instruction", rendered)
 		}
 	})
 

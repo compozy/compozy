@@ -42,10 +42,10 @@ func TestDaemonE2ELoopGenerationFeedbackShouldConvergeAndBound(t *testing.T) {
 		},
 		StartTimeout: 30 * time.Second,
 	})
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-	defer cancel()
-
 	t.Run("Should climb the metric ratchet and expose generation three as best", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
+		defer cancel()
+
 		definition := feedbackMetricDefinition(
 			"feedback-ratchet-climb",
 			"ratchet climb generation {{ .generation }}",
@@ -77,10 +77,14 @@ func TestDaemonE2ELoopGenerationFeedbackShouldConvergeAndBound(t *testing.T) {
 			t.Fatalf("CLI loop status error = %v", err)
 		}
 		assertFeedbackBest(t, cli.Run, 3, 0.9)
+		assertFeedbackGenerationCount(t, cli, 3)
 		assertFeedbackVerdictScore(t, cli.Generations[2], "quality", 0.9)
 	})
 
 	t.Run("Should restore a regressed generation from the best baseline", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
+		defer cancel()
+
 		definition := feedbackMetricDefinition(
 			"feedback-ratchet-restore",
 			"ratchet restore generation {{ .generation }}",
@@ -112,6 +116,9 @@ func TestDaemonE2ELoopGenerationFeedbackShouldConvergeAndBound(t *testing.T) {
 	})
 
 	t.Run("Should feed definition-of-done blocking issues into the repair prompt", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
+		defer cancel()
+
 		definition := feedbackDoDRetryDefinition()
 		createLoopViaHTTP(t, ctx, harness, definition)
 		run := runFeedbackLoopViaHTTP(t, ctx, harness, definition)
@@ -129,6 +136,9 @@ func TestDaemonE2ELoopGenerationFeedbackShouldConvergeAndBound(t *testing.T) {
 	})
 
 	t.Run("Should rerun producers until revision two fixes the output", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
+		defer cancel()
+
 		definition := feedbackReviseDefinition(
 			"feedback-revise-fix",
 			"revise fix generation {{ .generation }}",
@@ -151,6 +161,9 @@ func TestDaemonE2ELoopGenerationFeedbackShouldConvergeAndBound(t *testing.T) {
 	})
 
 	t.Run("Should exhaust a metric run while preserving the best generation", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
+		defer cancel()
+
 		definition := feedbackMetricDefinition(
 			"feedback-best-on-exhaustion",
 			"exhaustion generation {{ .generation }}",
@@ -185,6 +198,9 @@ func TestDaemonE2ELoopGenerationFeedbackShouldConvergeAndBound(t *testing.T) {
 	})
 
 	t.Run("Should stop an unrepairable gate at exactly max revisions", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
+		defer cancel()
+
 		definition := feedbackReviseDefinition(
 			"feedback-revise-exhausted",
 			"revise never generation {{ .generation }}",
@@ -398,7 +414,7 @@ func assertFeedbackBest(t testing.TB, run compozycontract.LoopRunPayload, genera
 
 func assertFeedbackGenerationCount(t testing.TB, detail compozycontract.LoopRunResponse, want int) {
 	t.Helper()
-	if detail.Run.Generation != want || len(detail.Generations) != want {
+	if detail.Run.Generation != int64(want) || len(detail.Generations) != want {
 		t.Fatalf("run generation/detail count = %d/%d, want %d", detail.Run.Generation, len(detail.Generations), want)
 	}
 }

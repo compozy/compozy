@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strconv"
 	"strings"
 	"testing"
@@ -335,9 +336,10 @@ func TestLoopCommandShouldMapCLIVerbsToClient(t *testing.T) {
 	})
 
 	for _, testCase := range []struct {
-		name     string
-		fileName string
-		body     string
+		name           string
+		fileName       string
+		body           string
+		wantChecksJSON string
 	}{
 		{
 			name:     "JSON",
@@ -347,7 +349,9 @@ func TestLoopCommandShouldMapCLIVerbsToClient(t *testing.T) {
 		{
 			name:     "YAML",
 			fileName: "loop-config.yaml",
-			body:     "iteration_cap: 9\nno_progress_window: 4\ngate_max_revisions: 2\n",
+			body: "iteration_cap: 9\nno_progress_window: 4\ngate_max_revisions: 2\n" +
+				"enabled_checks_json:\n  project_check:\n    enabled: false\n    command: go test ./internal/loop\n",
+			wantChecksJSON: `{"project_check":{"command":"go test ./internal/loop","enabled":false}}`,
 		},
 	} {
 		t.Run("Should load snake case loop config from "+testCase.name, func(t *testing.T) {
@@ -421,6 +425,18 @@ func TestLoopCommandShouldMapCLIVerbsToClient(t *testing.T) {
 				}
 				if cfg.GateMaxRevisions == nil || *cfg.GateMaxRevisions != 2 {
 					t.Fatalf("%s GateMaxRevisions = %#v, want 2", label, cfg.GateMaxRevisions)
+				}
+				if testCase.wantChecksJSON != "" {
+					var gotChecks, wantChecks any
+					if err := json.Unmarshal(cfg.EnabledChecks, &gotChecks); err != nil {
+						t.Fatalf("json.Unmarshal(%s EnabledChecks) error = %v", label, err)
+					}
+					if err := json.Unmarshal([]byte(testCase.wantChecksJSON), &wantChecks); err != nil {
+						t.Fatalf("json.Unmarshal(want EnabledChecks) error = %v", err)
+					}
+					if !reflect.DeepEqual(gotChecks, wantChecks) {
+						t.Fatalf("%s EnabledChecks = %s, want %s", label, cfg.EnabledChecks, testCase.wantChecksJSON)
+					}
 				}
 			}
 			assertConfig("run", capturedRun.ConfigOverrides)

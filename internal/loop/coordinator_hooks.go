@@ -106,6 +106,7 @@ func (r *CoordinatorRunner) dispatchGateHooks(
 		bestGeneration = new(payload.BestUpdate.Generation)
 	}
 	hookCtx := loopHookContext(ctx)
+	var deniedTerminal *task.CoordinatorTerminal
 	for _, verdict := range payload.Verdicts {
 		pre := r.loopGateHookPayload(
 			taskRun,
@@ -118,11 +119,16 @@ func (r *CoordinatorRunner) dispatchGateHooks(
 			bestGeneration,
 		)
 		result, dispatchErr := r.hooks.DispatchLoopGatePre(hookCtx, pre)
-		if result.Denied {
-			plan.Terminal = deniedCoordinatorTerminal(StatusBlocked, result.DenyReason)
+		if result.Denied && plan.Terminal == nil && deniedTerminal == nil {
+			deniedTerminal = deniedCoordinatorTerminal(StatusBlocked, result.DenyReason)
 		} else if dispatchErr != nil {
 			r.logGateHookFailure(run, plan.Snapshot.Generation, verdict.GateID, "pre", dispatchErr)
 		}
+	}
+	if deniedTerminal != nil {
+		plan.Terminal = deniedTerminal
+	}
+	for _, verdict := range payload.Verdicts {
 		post := r.loopGateHookPayload(
 			taskRun,
 			run,

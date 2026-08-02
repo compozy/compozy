@@ -4,14 +4,14 @@ package cli
 
 import (
 	"errors"
+	"io"
 	"os"
 	"testing"
-	"time"
 
 	"golang.org/x/sys/windows"
 )
 
-func newInheritedMCPAuthInput(t *testing.T) *os.File {
+func newInheritedMCPAuthInput(t *testing.T) (*os.File, *os.File) {
 	t.Helper()
 
 	var readHandle windows.Handle
@@ -48,14 +48,22 @@ func newInheritedMCPAuthInput(t *testing.T) *os.File {
 			t.Errorf("manual input writer close error = %v", err)
 		}
 	})
-	assertMCPAuthInputBlocking(t, input)
-	return input
+	assertMCPAuthInputBlocking(t, input, writer)
+	return input, writer
 }
 
-func assertMCPAuthInputBlocking(t *testing.T, file *os.File) {
+func assertMCPAuthInputBlocking(t *testing.T, file *os.File, writer *os.File) {
 	t.Helper()
 
-	if err := file.SetReadDeadline(time.Time{}); !errors.Is(err, os.ErrNoDeadline) {
-		t.Fatalf("inherited input SetReadDeadline() error = %v, want os.ErrNoDeadline", err)
+	const expected = "r"
+	if _, err := writer.WriteString(expected); err != nil {
+		t.Fatalf("write borrowed manual input error = %v", err)
+	}
+	buffer := make([]byte, len(expected))
+	if _, err := io.ReadFull(file, buffer); err != nil {
+		t.Fatalf("read borrowed manual input error = %v", err)
+	}
+	if got := string(buffer); got != expected {
+		t.Fatalf("borrowed manual input = %q, want %q", got, expected)
 	}
 }

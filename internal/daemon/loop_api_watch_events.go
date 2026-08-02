@@ -28,7 +28,7 @@ func loopWatchEventsReadModel(
 	if len(watchNodes) == 0 {
 		return nil, nil
 	}
-	for _, output := range currentGenerationOutputs(run.Generation, generations) {
+	for _, output := range currentGenerationOutputs(int64(run.Generation), generations) {
 		if _, ok := watchNodes[output.NodeID]; !ok {
 			continue
 		}
@@ -62,7 +62,7 @@ func watchEventsNodeIDs(doc contract.LoopDefinitionDocument) map[string]struct{}
 
 // currentGenerationOutputs returns the per-node outputs of the run's current generation.
 func currentGenerationOutputs(
-	generation int,
+	generation int64,
 	generations []contract.LoopGenerationPayload,
 ) []contract.LoopGenerationOutput {
 	for _, payload := range generations {

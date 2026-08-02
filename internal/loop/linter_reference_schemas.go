@@ -48,12 +48,14 @@ func (c *lintContext) actionOutputSchema(node dsl.Node) (refs.Schema, bool) {
 	switch dsl.ActionKind(node.Kind) {
 	case dsl.ActionGoal:
 		var params dsl.GoalParams
+		// Invalid params expose no trustworthy output schema, so downstream reference checks stop here.
 		if err := node.Params.Decode(&params); err != nil || params.OutputSchema == nil {
 			return nil, false
 		}
 		return convertSchema(*params.OutputSchema), true
 	case dsl.ActionRunAgent:
 		var params dsl.RunAgentParams
+		// Invalid params expose no trustworthy output schema, so downstream reference checks stop here.
 		if err := node.Params.Decode(&params); err != nil || len(params.OutputSchema) == 0 {
 			return nil, false
 		}
@@ -62,6 +64,7 @@ func (c *lintContext) actionOutputSchema(node dsl.Node) (refs.Schema, bool) {
 		return refs.Schema{reasonMetaStatus: jsonSchemaStringType, "outputs": map[string]any{}}, true
 	case dsl.ActionTransform:
 		var params dsl.TransformParams
+		// Invalid params expose no trustworthy output schema, so downstream reference checks stop here.
 		if err := node.Params.Decode(&params); err != nil || len(params.Map) == 0 {
 			return nil, false
 		}
@@ -84,6 +87,7 @@ func (c *lintContext) toolOutputSchema(kind string) (refs.Schema, bool) {
 		return nil, false
 	}
 	schema, err := schemaFromJSON(snapshot.OutputSchema)
+	// An invalid tool schema cannot safely participate in downstream reference checks.
 	if err != nil {
 		return nil, false
 	}

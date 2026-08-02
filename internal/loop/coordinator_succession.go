@@ -131,6 +131,21 @@ func (r *CoordinatorRunner) loadPersistedRouteCauses(
 		if !ok {
 			return nil, fmt.Errorf("%w: persisted route-causing gate %q has no output", ErrValidation, record.GateID)
 		}
+		if output.Status != generationOutputSucceeded && output.Status != generationOutputFailed {
+			return nil, fmt.Errorf(
+				"%w: persisted route-causing gate %q output status is %q, want a terminal gate status",
+				ErrValidation,
+				record.GateID,
+				output.Status,
+			)
+		}
+		if strings.TrimSpace(output.OutputRef) == "" {
+			return nil, fmt.Errorf(
+				"%w: persisted route-causing gate %q finished without an output reference",
+				ErrValidation,
+				record.GateID,
+			)
+		}
 		var verdict gate.Verdict
 		if err := json.Unmarshal([]byte(output.OutputRef), &verdict); err != nil {
 			return nil, fmt.Errorf("decode persisted route-causing gate %q output: %w", record.GateID, err)
@@ -157,7 +172,7 @@ func (r *CoordinatorRunner) buildGateSuccessionPlan(
 		return currentPlan, nil
 	}
 	action := routeActionForCauses(causes)
-	intent, err := gateSuccessionIntent(run, currentGeneration, nextGeneration, action, causes)
+	intent, err := r.gateSuccessionIntent(run, currentGeneration, nextGeneration, action, causes)
 	if err != nil {
 		return task.CoordinatorCompletionPlan{}, err
 	}
@@ -206,7 +221,7 @@ func (r *CoordinatorRunner) buildGateSuccessionPlan(
 	return nextPlan, nil
 }
 
-func gateSuccessionIntent(
+func (r *CoordinatorRunner) gateSuccessionIntent(
 	run Run,
 	currentGeneration int,
 	nextGeneration int,
@@ -229,8 +244,17 @@ func gateSuccessionIntent(
 					ErrValidation,
 				)
 			}
-			intent.ParentGeneration = *run.BestGeneration
-			intent.Origin = OriginRatchetRestore
+			if *run.BestGeneration < int64(currentGeneration) {
+				intent.ParentGeneration = *run.BestGeneration
+				intent.Origin = OriginRatchetRestore
+			} else {
+				r.logger.Warn(
+					"loop: ignored inconsistent best generation for ratchet restore",
+					"loop_run_id", run.ID,
+					"best_generation", *run.BestGeneration,
+					"current_generation", currentGeneration,
+				)
+			}
 		}
 	default:
 		return GenerationIntent{}, fmt.Errorf("%w: unsupported gate succession action %q", ErrValidation, action)

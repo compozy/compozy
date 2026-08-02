@@ -30,6 +30,7 @@ func prepareCancellableMCPAuthInput(file *os.File) (*os.File, func() error, erro
 		if operationErr != nil {
 			return
 		}
+		// A duplicated descriptor shares file-status flags with the original, so cleanup must restore them.
 		operationErr = unix.SetNonblock(duplicateFD, true)
 	})
 	if err := errors.Join(

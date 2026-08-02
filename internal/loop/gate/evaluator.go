@@ -36,7 +36,10 @@ func (e *Evaluator) Evaluate(ctx context.Context, gate Gate, in GateInput) (Verd
 		result := e.evaluateCriterion(ctx, gate, criterion, in)
 		results = append(results, result)
 	}
-	results = applyMetricBaseline(gate.Criteria, results, in.BestScore)
+	results, err := applyMetricBaseline(gate.Criteria, results, in.BestScore)
+	if err != nil {
+		return Verdict{}, err
+	}
 	if err := reportAggregateJudgeUsage(in.JudgeUsageReporter, results); err != nil {
 		return Verdict{}, err
 	}

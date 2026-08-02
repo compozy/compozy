@@ -69,7 +69,7 @@ describe("applyLoopEventFrame", () => {
         verdict: "revise",
         score: 0.91,
         best_generation: 1,
-        [["confi", "dence"].join("")]: 0.99,
+        confidence: 0.99,
         criteria: [{ id: "all_handled", type: "agent-judge", status: "revise", score: 0.91 }],
         blocking_issues: [{ id: "issue_022", note: "no triage decision" }],
         route: "revise",
@@ -80,7 +80,7 @@ describe("applyLoopEventFrame", () => {
     expect(verdict.gateId).toBe("quality");
     expect(verdict.score).toBe(0.91);
     expect(verdict.bestGeneration).toBe(1);
-    expect(verdict).not.toHaveProperty(["confi", "dence"].join(""));
+    expect(verdict).not.toHaveProperty("confidence");
     expect(verdict.criteria).toHaveLength(1);
     expect(verdict.criteria[0].score).toBe(0.91);
     expect(verdict.blockingIssues[0].id).toBe("issue_022");

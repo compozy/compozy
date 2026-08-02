@@ -11,13 +11,16 @@ import (
 	"github.com/compozy/compozy/internal/task"
 )
 
-const circuitBreakerReasonCode = "circuit_breaker"
+const (
+	circuitBreakerReasonCode = "circuit_breaker"
+	noReadyNodesReasonCode   = "no_ready_nodes"
+)
 
 func noReadyNodesTerminal() *task.CoordinatorTerminal {
 	return &task.CoordinatorTerminal{
 		Status:     string(StatusFailed),
 		Cause:      string(TransitionCauseContract),
-		ReasonCode: "no_ready_nodes",
+		ReasonCode: noReadyNodesReasonCode,
 	}
 }
 

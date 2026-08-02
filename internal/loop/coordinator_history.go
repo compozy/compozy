@@ -2,6 +2,7 @@ package loop
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/compozy/compozy/internal/loop/gate"
 )
@@ -27,7 +28,7 @@ func (r coordinatorGenerationHistoryReader) ListGateVerdicts(
 	generation int64,
 ) ([]gate.VerdictRecord, error) {
 	if r.verdicts == nil {
-		return []gate.VerdictRecord{}, nil
+		return nil, fmt.Errorf("%w: generation verdict history reader is unavailable", ErrValidation)
 	}
 	return r.verdicts.ListGateVerdicts(ctx, workspaceID, runID, generation)
 }
@@ -39,7 +40,7 @@ func (r coordinatorGenerationHistoryReader) ListRouteCausingVerdicts(
 	generation int64,
 ) ([]gate.VerdictRecord, error) {
 	if r.verdicts == nil {
-		return []gate.VerdictRecord{}, nil
+		return nil, fmt.Errorf("%w: route-causing verdict history reader is unavailable", ErrValidation)
 	}
 	return r.verdicts.ListRouteCausingVerdicts(ctx, workspaceID, runID, generation)
 }
@@ -49,6 +50,13 @@ func (r *CoordinatorRunner) readGenerationHistory(
 	run Run,
 	generation int,
 ) (GenerationHistory, error) {
+	if generation > 1 && r.verdicts == nil {
+		return GenerationHistory{}, fmt.Errorf(
+			"%w: generation verdict history is unavailable for generation %d",
+			ErrValidation,
+			generation,
+		)
+	}
 	return ReadGenerationHistory(
 		ctx,
 		coordinatorGenerationHistoryReader{outputs: r.outputs, verdicts: r.verdicts},

@@ -6,7 +6,9 @@ const loopStatusOutputSchema = `{
 	"properties":{
 		"run":{
 			"type":"object",
+			"required":["id"],
 			"properties":{
+				"id":{"type":"string","minLength":1},
 				"best_generation":{"type":"integer","minimum":1},
 				"best_score":{"type":"number"}
 			},
@@ -43,7 +45,9 @@ const loopStatusOutputSchema = `{
 									]
 								},
 								"score":{"type":"number"},
-								"route_cause_rank":{"type":"integer","minimum":0}
+								"route_cause_rank":{"type":"integer","minimum":0},
+								"blocking_issues":{"type":"array","items":{"type":"object"}},
+								"criteria":{"type":"array","items":{"type":"object"}}
 							},
 							"additionalProperties":false
 						}
@@ -67,7 +71,9 @@ const loopRunsOutputSchema = `{
 			"items":{
 				"type":"object",
 				"not":{"required":["generations"]},
+				"required":["id"],
 				"properties":{
+					"id":{"type":"string","minLength":1},
 					"best_generation":{"type":"integer","minimum":1},
 					"best_score":{"type":"number"}
 				},

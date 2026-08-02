@@ -50,7 +50,15 @@ function deliveryGenerations(run: LoopRun): LoopRunGeneration[] {
     origin: "gate_revise",
     verdicts:
       run.best_generation === 2
-        ? [{ gate_id: "review", outcome: "rejected", score: run.best_score }]
+        ? [
+            {
+              gate_id: "review",
+              outcome: "rejected",
+              score: run.best_score,
+              criteria: [],
+              blocking_issues: [],
+            },
+          ]
         : [],
     outputs: [
       { node_id: "execute_task", status: "reused", generation: 2, item_index: 0 },
@@ -89,7 +97,15 @@ function deliveryGenerations(run: LoopRun): LoopRunGeneration[] {
       origin: run.best_generation === generation ? "ratchet_restore" : "gate_revise",
       verdicts:
         run.best_generation === generation
-          ? [{ gate_id: "review", outcome: "rejected", score: run.best_score }]
+          ? [
+              {
+                gate_id: "review",
+                outcome: "rejected",
+                score: run.best_score,
+                criteria: [],
+                blocking_issues: [],
+              },
+            ]
           : [],
       outputs: [],
     });

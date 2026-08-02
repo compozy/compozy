@@ -11,8 +11,8 @@ bug_ids:
 fix_status:
 retest_status: pass
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260801-135009-390014-lab/qa-artifacts/qa/loop/same-run-parity-v6.json; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260801-135009-390014-lab/qa-artifacts/qa/loop/sse-events-v6.txt; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260801-135009-390014-lab/qa-artifacts/qa/loop/loop-run-v6-full.png; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260801-135009-390014-lab/qa-artifacts/qa/official-e2e-results.json
-last_report: docs/qa/reports/2026-08-01-loops-paper-adoption.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-loops-coderabbit-remediation-20260802-013626-435207-lab/qa-artifacts/qa/observed-results.md; /Users/pedronauck/dev/qa-labs/compozy-loops-coderabbit-remediation-20260802-013626-435207-lab/qa-artifacts/qa/loop-config-smoke-run.png
+last_report: docs/qa/reports/2026-08-01-loops-coderabbit-remediation.md
 overlaps:
 ---
 
@@ -21,3 +21,10 @@ Derived from the metric branch of `J-improve-loop-with-feedback`. Exercise a str
 exhausted or stalled exit. The extension criterion must supply the same structured numeric `score`
 contract as command and judge scorers. Detail surfaces own verdict/provenance; summary surfaces own
 only best fields.
+
+2026-08-01 CodeRabbit remediation: reset to `untested` because durable verdict diagnostics,
+ratchet validation, and public generation contracts changed after the prior walk.
+
+2026-08-02 retest: the canonical daemon feedback E2E passed all climb, restore, repair, revise,
+exhaustion, and revision-cap paths after recovery was corrected to accept terminal rejected gate
+outputs. A provider-free Loop then reached `done` and matched across CLI, HTTP, SSE, and web.

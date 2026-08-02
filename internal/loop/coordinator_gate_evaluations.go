@@ -67,6 +67,8 @@ func (c *gateEvaluationCollector) routeCauses() []gateEvaluation {
 }
 
 func routeCausesGeneration(action gate.RouteAction) bool {
+	// Escalation and halt verdicts remain durable route causes for history; only
+	// routeActionForCauses selects the subset that can produce a succession plan.
 	switch action {
 	case gate.RouteRevise, gate.RouteNextGeneration, gate.RouteEscalate, gate.RouteHalt:
 		return true

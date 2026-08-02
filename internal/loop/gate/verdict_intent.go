@@ -3,9 +3,19 @@ package gate
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
+)
+
+var (
+	// ErrValidation classifies invalid durable verdict intent input.
+	ErrValidation             = errors.New("gate verdict intent")
+	errGateIDRequired         = errors.New("gate_id is required")
+	errItemIndexNegative      = errors.New("item_index must be non-negative")
+	errRouteCauseRankNegative = errors.New("route_cause_rank must be non-negative")
+	errMultipleScores         = errors.New("multiple criterion scores are unsupported")
 )
 
 // VerdictIntent is the sanitized, immutable machine-verdict mutation carried by a completion plan.
@@ -58,13 +68,13 @@ func NewVerdictIntent(
 ) (VerdictIntent, error) {
 	trimmedGateID := strings.TrimSpace(gateID)
 	if trimmedGateID == "" {
-		return VerdictIntent{}, fmt.Errorf("gate verdict intent gate_id is required")
+		return VerdictIntent{}, fmt.Errorf("%w %v", ErrValidation, errGateIDRequired)
 	}
 	if itemIndex < 0 {
-		return VerdictIntent{}, fmt.Errorf("gate verdict intent item_index must be non-negative")
+		return VerdictIntent{}, fmt.Errorf("%w %v", ErrValidation, errItemIndexNegative)
 	}
 	if routeCauseRank != nil && *routeCauseRank < 0 {
-		return VerdictIntent{}, fmt.Errorf("gate verdict intent route_cause_rank must be non-negative")
+		return VerdictIntent{}, fmt.Errorf("%w %v", ErrValidation, errRouteCauseRankNegative)
 	}
 	var projectedRouteCauseRank *int
 	if routeCauseRank != nil {
@@ -101,10 +111,10 @@ func verdictScore(criteria []CriterionResult) (*float64, error) {
 			continue
 		}
 		if err := validateFiniteScore(criterion.Score); err != nil {
-			return nil, fmt.Errorf("gate verdict intent: %w", err)
+			return nil, fmt.Errorf("%w: %v", ErrValidation, err)
 		}
 		if score != nil {
-			return nil, fmt.Errorf("gate verdict intent: multiple criterion scores are unsupported")
+			return nil, fmt.Errorf("%w: %v", ErrValidation, errMultipleScores)
 		}
 		value := *criterion.Score
 		score = &value

@@ -29,6 +29,13 @@ type coordinatorWatchEventsRuntime struct {
 	logger       *slog.Logger
 }
 
+type watchEventsEvaluationContext struct {
+	control     controlEvalContext
+	plan        *task.CoordinatorCompletionPlan
+	outputs     []GenerationOutput
+	outputBlobs *[]GenerationOutputBlob
+}
+
 func (r *CoordinatorRunner) watchEventsRuntime() coordinatorWatchEventsRuntime {
 	now := r.now
 	if now == nil {
@@ -51,50 +58,38 @@ func isWatchEventsNode(node dsl.Node) bool {
 }
 
 func evaluateWatchEventsNode(
-	ctx context.Context,
-	plan *task.CoordinatorCompletionPlan,
-	run Run,
-	generation int,
-	resolved *ResolvedDefinition,
-	topology controlTopology,
-	history GenerationHistory,
+	evaluation *watchEventsEvaluationContext,
 	output GenerationOutput,
 	node dsl.Node,
-	outputs []GenerationOutput,
-	outputBlobs *[]GenerationOutputBlob,
-	runtime coordinatorWatchEventsRuntime,
 ) (GenerationOutput, *task.CoordinatorTerminal, error) {
+	control := evaluation.control
+	runtime := control.watchEventsRuntime
 	if runtime.ledger == nil || runtime.cursorReader == nil {
 		return output, watchEventsBlockedTerminal(watchEventsLedgerUnavailableCode), nil
 	}
 	state, terminal, err := recoverWatchEventsState(
-		ctx,
-		run,
+		control.ctx,
+		control.run,
 		output,
 		node,
-		resolved.WatchEventsContracts,
+		control.resolved.WatchEventsContracts,
 		runtime,
 	)
 	if err != nil || terminal != nil {
 		return output, terminal, err
 	}
-	query, err := watchEventsQuery(run, state, resolved.WatchEventsContracts)
+	query, err := watchEventsQuery(control.run, state, control.resolved.WatchEventsContracts)
 	if err != nil {
 		return output, watchEventsBlockedTerminal(watchEventsSpecInvalidReason), nil
 	}
-	rows, err := runtime.ledger.ReadMatches(ctx, query)
+	rows, err := runtime.ledger.ReadMatches(control.ctx, query)
 	if err != nil {
 		return GenerationOutput{}, nil, fmt.Errorf("loop: read watch-events matches for node %s: %w", node.ID, err)
 	}
 	matches, nextCursors, readCounts, err := filterWatchEventsRows(
-		run,
-		generation,
-		resolved,
-		topology,
-		history,
+		evaluation,
 		output,
 		node,
-		outputs,
 		state,
 		rows,
 	)
@@ -102,9 +97,9 @@ func evaluateWatchEventsNode(
 		return GenerationOutput{}, nil, err
 	}
 	if watchEventsReadMayBeTruncated(readCounts, query.Limit) {
-		plan.PostCommitWakes = append(plan.PostCommitWakes, task.CoordinatorWakeSpec{
-			LoopRunID:      string(run.ID),
-			IdempotencyKey: watchEventsWakeKey(run.ID, node.ID),
+		evaluation.plan.PostCommitWakes = append(evaluation.plan.PostCommitWakes, task.CoordinatorWakeSpec{
+			LoopRunID:      string(control.run.ID),
+			IdempotencyKey: watchEventsWakeKey(control.run.ID, node.ID),
 		})
 	}
 	if len(matches) == 0 {
@@ -114,45 +109,41 @@ func evaluateWatchEventsNode(
 			return GenerationOutput{}, nil, err
 		}
 		output.OutputRef = ref
-		if run.Status == StatusWatching {
-			plan.Yield = true
+		if control.run.Status == StatusWatching {
+			evaluation.plan.Yield = true
 			return output, nil, nil
 		}
 		return output, watchEventsWaitingTerminal(), nil
 	}
 
-	ref, err := confirmedWatchEventsOutputRef(matches, nextCursors, outputBlobs, runtime.now().UTC())
+	ref, err := confirmedWatchEventsOutputRef(matches, nextCursors, evaluation.outputBlobs, runtime.now().UTC())
 	if err != nil {
 		return GenerationOutput{}, nil, err
 	}
 	output.Status = generationOutputSucceeded
 	output.OutputRef = ref
-	logWatchEventsEvaluation(runtime, run, node, len(rows), len(matches), nextCursors)
+	logWatchEventsEvaluation(runtime, control.run, node, len(rows), len(matches), nextCursors)
 	return output, nil, nil
 }
 
 func filterWatchEventsRows(
-	run Run,
-	generation int,
-	resolved *ResolvedDefinition,
-	topology controlTopology,
-	history GenerationHistory,
+	evaluation *watchEventsEvaluationContext,
 	output GenerationOutput,
 	node dsl.Node,
-	outputs []GenerationOutput,
 	state watchpkg.EventsPendingState,
 	rows []WatchEvent,
 ) ([]WatchEvent, map[string]int64, map[string]int, error) {
+	control := evaluation.control
 	var namespace map[string]any
 	if watchEventsSubscriptionsHaveFilters(state.Subscriptions) && len(rows) > 0 {
 		var err error
 		namespace, err = runtimeNamespaceWithHistory(
-			run,
-			generation,
-			resolved.Definition.Graph,
-			topology,
-			outputs,
-			history,
+			control.run,
+			control.generation,
+			control.resolved.Definition.Graph,
+			control.topology,
+			evaluation.outputs,
+			control.history,
 			node.ID,
 			output.ItemIndex,
 		)
@@ -170,7 +161,7 @@ func filterWatchEventsRows(
 			nextCursors[stream] = row.Seq
 		}
 		matched, event, err := rowMatchesWatchEventsSubscriptions(
-			resolved,
+			control.resolved,
 			node,
 			namespace,
 			state.Subscriptions,

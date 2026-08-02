@@ -81,7 +81,7 @@ func loopGenerationOutputsPayload(outputs []looppkg.GenerationOutput) []contract
 	out := make([]contract.LoopGenerationOutput, 0, len(outputs))
 	for _, output := range outputs {
 		out = append(out, contract.LoopGenerationOutput{
-			Generation:      output.Generation,
+			Generation:      int64(output.Generation),
 			NodeID:          output.NodeID,
 			ItemIndex:       output.ItemIndex,
 			Status:          output.Status,

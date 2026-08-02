@@ -19,14 +19,14 @@ func loopStatusOutputBundle(response contract.LoopRunResponse) outputBundle {
 			{Label: "ID", Value: stringOrDash(response.Run.ID)},
 			{Label: "Loop", Value: stringOrDash(response.Run.LoopName)},
 			{Label: automationStatusValue, Value: stringOrDash(string(response.Run.Status))},
-			{Label: cliGenerationValue, Value: strconv.Itoa(response.Run.Generation)},
+			{Label: cliGenerationValue, Value: strconv.FormatInt(response.Run.Generation, 10)},
 			{Label: "Best Generation", Value: formatOptionalInt64(response.Run.BestGeneration)},
 			{Label: "Best Score", Value: formatOptionalFloat64(response.Run.BestScore)},
 		})
 		rows := make([][]string, 0, len(response.Generations))
 		for _, generation := range response.Generations {
 			rows = append(rows, []string{
-				strconv.Itoa(generation.Generation),
+				strconv.FormatInt(generation.Generation, 10),
 				strconv.FormatInt(generation.ParentGeneration, 10),
 				string(generation.Origin),
 				formatLoopVerdicts(generation.Verdicts),
@@ -77,7 +77,7 @@ func loopRunSummaryRow(run contract.LoopRunPayload) []string {
 		stringOrDash(run.ID),
 		stringOrDash(run.LoopName),
 		stringOrDash(string(run.Status)),
-		strconv.Itoa(run.Generation),
+		strconv.FormatInt(run.Generation, 10),
 		formatOptionalInt64(run.BestGeneration),
 		formatOptionalFloat64(run.BestScore),
 	}

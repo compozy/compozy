@@ -70,7 +70,11 @@ func BestUpdateForVerdict(
 	if !isFinite(current.Score) {
 		return nil, fmt.Errorf("%w: current best score must be finite", errMetricScoreInvalid)
 	}
-	if !metricImproves(metric, *result.Score, current.Score) {
+	improved, err := metricImproves(metric, *result.Score, current.Score)
+	if err != nil {
+		return nil, err
+	}
+	if !improved {
 		return nil, nil
 	}
 	return &BestUpdateIntent{Generation: generation, Score: *result.Score}, nil
@@ -80,10 +84,11 @@ func applyMetricBaseline(
 	criteria []dsl.GateCriterion,
 	results []CriterionResult,
 	bestScore *float64,
-) []CriterionResult {
+) ([]CriterionResult, error) {
 	if bestScore == nil || !isFinite(*bestScore) {
-		return results
+		return results, nil
 	}
+	// The loop contract permits exactly one metric criterion; verdictScore enforces the same invariant.
 	for _, criterion := range criteria {
 		if criterion.Metric == nil {
 			continue
@@ -93,8 +98,12 @@ func applyMetricBaseline(
 				results[index].Score == nil {
 				continue
 			}
-			if metricImproves(criterion.Metric, *results[index].Score, *bestScore) {
-				return results
+			improved, err := metricImproves(criterion.Metric, *results[index].Score, *bestScore)
+			if err != nil {
+				return nil, err
+			}
+			if improved {
+				return results, nil
 			}
 			results[index].Outcome = VerdictOutcomeRejected
 			results[index].Passed = false
@@ -102,14 +111,15 @@ func applyMetricBaseline(
 				ID:   "metric_regression",
 				Note: "metric score did not improve the best baseline",
 			})
-			return results
+			return results, nil
 		}
-		return results
+		return results, nil
 	}
-	return results
+	return results, nil
 }
 
 func metricResult(gate Gate, verdict Verdict) (*dsl.MetricSpec, *CriterionResult) {
+	// The loop contract permits exactly one metric criterion; verdictScore enforces the same invariant.
 	for _, criterion := range gate.Criteria {
 		if criterion.Metric == nil {
 			continue
@@ -124,24 +134,24 @@ func metricResult(gate Gate, verdict Verdict) (*dsl.MetricSpec, *CriterionResult
 	return nil, nil
 }
 
-func metricImproves(metric *dsl.MetricSpec, candidate float64, current float64) bool {
+func metricImproves(metric *dsl.MetricSpec, candidate float64, current float64) (bool, error) {
 	if metric == nil || !isFinite(candidate) || !isFinite(current) {
-		return false
+		return false, nil
 	}
 	minimum := 0.0
 	if metric.MinDelta != nil {
 		minimum = *metric.MinDelta
 	}
 	if !isFinite(minimum) || minimum < 0 {
-		return false
+		return false, nil
 	}
 	switch metric.Direction {
 	case dsl.MetricMaximize:
-		return candidate > current && metricDeltaMeetsMinimum(candidate-current, minimum, candidate, current)
+		return candidate > current && metricDeltaMeetsMinimum(candidate-current, minimum, candidate, current), nil
 	case dsl.MetricMinimize:
-		return candidate < current && metricDeltaMeetsMinimum(current-candidate, minimum, candidate, current)
+		return candidate < current && metricDeltaMeetsMinimum(current-candidate, minimum, candidate, current), nil
 	default:
-		return false
+		return false, fmt.Errorf("%w: unsupported metric direction %q", errMetricScoreInvalid, metric.Direction)
 	}
 }
 

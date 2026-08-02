@@ -49,7 +49,7 @@ func normalizePostReserveSnapshot(
 	}
 	snapshot := *postReserveSnapshot
 	if strings.TrimSpace(snapshot.LoopRunID) == "" {
-		snapshot.LoopRunID = loopRunID
+		snapshot.LoopRunID = strings.TrimSpace(loopRunID)
 	}
 	if snapshot.Generation <= 0 {
 		snapshot.Generation = base.Generation

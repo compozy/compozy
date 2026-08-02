@@ -1317,7 +1317,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "26b94ba69a874b6d5c0b8be8618e2212be83a13ca0c6e0926831195341b48eea",
-    "output_schema_digest": "c3d1860791c215b5b46340ec8b518b96dcb02f65299e76bd3c7cb70d9289cdaf"
+    "output_schema_digest": "0c1b57cb0d6b79f7e59d22a5f8d4d1098f276a575a7e1cc52dbc48985e1f8d88"
   },
   {
     "tool_id": "compozy__loop_status",
@@ -1330,7 +1330,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "f6434e485d1becf0aec0201dcbb8853242be92d8fb69610f5461ace7ca9a2627",
-    "output_schema_digest": "4c324356250ad42faefb0e261bca515e1f6b2fe246e07bdc77d51d28e064aef4"
+    "output_schema_digest": "7ee1e01d7715fc7b55601172fcdd5dd802f3a15674d3e4c30936621ad7a1aede"
   },
   {
     "tool_id": "compozy__loop_stop",

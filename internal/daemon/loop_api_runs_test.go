@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -96,8 +97,14 @@ func TestDaemonLoopAPIServiceShouldAssembleGenerationDetailFromLineage(t *testin
 	rank := 0
 	persistence := &loopRunHistoryPersistenceStub{
 		lineage: []looppkg.LoopGeneration{
-			{RunID: "run-lineage", Generation: 1, ParentGeneration: 0, Origin: looppkg.OriginInitial},
-			{RunID: "run-lineage", Generation: 3, ParentGeneration: 1, Origin: looppkg.OriginRatchetRestore},
+			{
+				RunID: "run-lineage", Generation: 1, ParentGeneration: 0,
+				Origin: looppkg.OriginInitial,
+			},
+			{
+				RunID: "run-lineage", Generation: 3, ParentGeneration: 1,
+				Origin: looppkg.OriginRatchetRestore,
+			},
 		},
 		outputs: map[int][]looppkg.GenerationOutput{
 			1: {{Generation: 1, NodeID: "draft", Status: "succeeded", OutputRef: `{"value":"best"}`}},
@@ -107,6 +114,11 @@ func TestDaemonLoopAPIServiceShouldAssembleGenerationDetailFromLineage(t *testin
 			3: {{
 				RunID: "run-lineage", Generation: 3, GateID: "quality",
 				Outcome: gate.VerdictOutcomeRejected, Score: &score, RouteCauseRank: &rank,
+				BlockingIssues: []byte(`[{"id":"citation","note":"missing source"}]`),
+				Criteria: []byte(
+					`[{"id":"quality","type":"agent","outcome":"rejected",` +
+						`"passed":false,"score":0.72,"evidence":{"source":"judge"}}]`,
+				),
 			}},
 		},
 	}
@@ -126,8 +138,14 @@ func TestDaemonLoopAPIServiceShouldAssembleGenerationDetailFromLineage(t *testin
 	}
 	if len(generations[1].Verdicts) != 1 || generations[1].Verdicts[0].GateID != "quality" ||
 		generations[1].Verdicts[0].Score == nil || *generations[1].Verdicts[0].Score != score ||
-		generations[1].Verdicts[0].RouteCauseRank == nil || *generations[1].Verdicts[0].RouteCauseRank != rank {
-		t.Fatalf("generation 3 verdicts = %#v, want exact score/rank", generations[1].Verdicts)
+		generations[1].Verdicts[0].RouteCauseRank == nil || *generations[1].Verdicts[0].RouteCauseRank != rank ||
+		len(generations[1].Verdicts[0].BlockingIssues) != 1 ||
+		generations[1].Verdicts[0].BlockingIssues[0].ID != "citation" ||
+		len(generations[1].Verdicts[0].Criteria) != 1 ||
+		generations[1].Verdicts[0].Criteria[0].ID != "quality" ||
+		generations[1].Verdicts[0].Criteria[0].Score == nil ||
+		*generations[1].Verdicts[0].Criteria[0].Score != score {
+		t.Fatalf("generation 3 verdicts = %#v, want exact diagnostics/score/rank", generations[1].Verdicts)
 	}
 	if len(persistence.outputCalls) != 2 || persistence.outputCalls[0] != 1 || persistence.outputCalls[1] != 3 {
 		t.Fatalf("ListGenerationOutputs calls = %#v, want lineage generations only", persistence.outputCalls)
@@ -136,6 +154,52 @@ func TestDaemonLoopAPIServiceShouldAssembleGenerationDetailFromLineage(t *testin
 		if workspaceID != "ws-lineage" {
 			t.Fatalf("workspace-scoped history call = %q, want ws-lineage", workspaceID)
 		}
+	}
+}
+
+func TestDaemonLoopAPIServiceShouldWrapGenerationHistoryErrors(t *testing.T) {
+	t.Parallel()
+
+	errPersistence := errors.New("history unavailable")
+	run := looppkg.Run{ID: "run-errors", WorkspaceID: "ws-errors"}
+	tests := []struct {
+		name        string
+		persistence *loopRunHistoryPersistenceStub
+		wantContext string
+	}{
+		{
+			name:        "Should identify the run when lineage loading fails",
+			persistence: &loopRunHistoryPersistenceStub{lineageErr: errPersistence},
+			wantContext: "list generations for loop run run-errors",
+		},
+		{
+			name: "Should identify the run and generation when output loading fails",
+			persistence: &loopRunHistoryPersistenceStub{
+				lineage: []looppkg.LoopGeneration{{Generation: 4}}, outputErr: errPersistence,
+			},
+			wantContext: "list outputs for loop run run-errors generation 4",
+		},
+		{
+			name: "Should identify the run and generation when verdict loading fails",
+			persistence: &loopRunHistoryPersistenceStub{
+				lineage: []looppkg.LoopGeneration{{Generation: 4}}, verdictErr: errPersistence,
+			},
+			wantContext: "list gate verdicts for loop run run-errors generation 4",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			service := &daemonLoopAPIService{persistence: tt.persistence}
+			_, err := service.loopGenerations(t.Context(), run)
+			if !errors.Is(err, errPersistence) {
+				t.Fatalf("loopGenerations() error = %v, want wrapped persistence error", err)
+			}
+			if !strings.Contains(err.Error(), tt.wantContext) {
+				t.Fatalf("loopGenerations() error = %q, want context %q", err, tt.wantContext)
+			}
+		})
 	}
 }
 
@@ -404,6 +468,9 @@ type loopRunHistoryPersistenceStub struct {
 	verdicts       map[int64][]gate.VerdictRecord
 	outputCalls    []int
 	workspaceCalls []string
+	lineageErr     error
+	outputErr      error
+	verdictErr     error
 }
 
 func (s *loopRunHistoryPersistenceStub) ListGenerations(
@@ -412,6 +479,9 @@ func (s *loopRunHistoryPersistenceStub) ListGenerations(
 	_ string,
 ) ([]looppkg.LoopGeneration, error) {
 	s.workspaceCalls = append(s.workspaceCalls, workspaceID)
+	if s.lineageErr != nil {
+		return nil, s.lineageErr
+	}
 	return append([]looppkg.LoopGeneration(nil), s.lineage...), nil
 }
 
@@ -423,6 +493,9 @@ func (s *loopRunHistoryPersistenceStub) ListGenerationOutputs(
 ) ([]looppkg.GenerationOutput, error) {
 	s.workspaceCalls = append(s.workspaceCalls, string(workspaceID))
 	s.outputCalls = append(s.outputCalls, generation)
+	if s.outputErr != nil {
+		return nil, s.outputErr
+	}
 	return append([]looppkg.GenerationOutput(nil), s.outputs[generation]...), nil
 }
 
@@ -433,6 +506,9 @@ func (s *loopRunHistoryPersistenceStub) ListGateVerdicts(
 	generation int64,
 ) ([]gate.VerdictRecord, error) {
 	s.workspaceCalls = append(s.workspaceCalls, workspaceID)
+	if s.verdictErr != nil {
+		return nil, s.verdictErr
+	}
 	return append([]gate.VerdictRecord(nil), s.verdicts[generation]...), nil
 }
 

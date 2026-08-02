@@ -246,7 +246,16 @@ function metricGeneration(
     verdicts:
       score === undefined
         ? []
-        : [{ gate_id: "quality", outcome: "approved", score, route_cause_rank: 0 }],
+        : [
+            {
+              gate_id: "quality",
+              outcome: "approved",
+              score,
+              route_cause_rank: 0,
+              criteria: [],
+              blocking_issues: [],
+            },
+          ],
     outputs: [{ node_id: "draft", status: "succeeded", generation }],
   };
 }

@@ -105,6 +105,9 @@ func RenderAgentJudgeRubric(
 		builder.WriteString(`,"score":0.0`)
 	}
 	builder.WriteString("}")
+	if criterion.Metric != nil {
+		builder.WriteString("\nEvery metric verdict must include a finite numeric score in the score field.")
+	}
 	builder.WriteString("\nA passing verdict must include non-empty evidence tied to the contract. ")
 	builder.WriteString(
 		"If evidence is empty or missing, the evaluator will reject the verdict without treating the judge as broken.\n",
@@ -145,7 +148,11 @@ func parseJudgeVerdict(
 			"judge response must be exactly one JSON object",
 		)
 	}
-	parsed, warnings, err := parseStructuredVerdict(payload, true, true, requireScore)
+	parsed, warnings, err := parseStructuredVerdict(payload, structuredVerdictOptions{
+		requireEvidence: true,
+		judgeContract:   true,
+		requireScore:    requireScore,
+	})
 	if err != nil {
 		if requireScore {
 			return invalidMetricScoreResult(criterionID, criterionType, err.Error())
@@ -174,15 +181,19 @@ func parseJudgeVerdict(
 	return result
 }
 
+type structuredVerdictOptions struct {
+	requireEvidence bool
+	judgeContract   bool
+	requireScore    bool
+}
+
 func parseStructuredVerdict(
 	raw json.RawMessage,
-	requireEvidence bool,
-	judgeContract bool,
-	requireScore bool,
+	options structuredVerdictOptions,
 ) (structuredVerdict, []DiagnosticWarning, error) {
 	var decoded rawStructuredVerdict
 	decoder := json.NewDecoder(bytes.NewReader(raw))
-	if judgeContract {
+	if options.judgeContract {
 		decoder.DisallowUnknownFields()
 	}
 	if err := decoder.Decode(&decoded); err != nil {
@@ -192,7 +203,7 @@ func parseStructuredVerdict(
 	if verdict == "" {
 		return structuredVerdict{}, nil, errors.New("structured verdict missing verdict")
 	}
-	outcome, err := mapStructuredOutcome(verdict, judgeContract)
+	outcome, err := mapStructuredOutcome(verdict, options.judgeContract)
 	if err != nil {
 		return structuredVerdict{}, nil, err
 	}
@@ -203,7 +214,7 @@ func parseStructuredVerdict(
 		BlockingIssues: normalizeBlockingIssues(decoded.BlockingIssues),
 	}
 	var warnings []DiagnosticWarning
-	if requireEvidence && outcome == VerdictOutcomeApproved && evidenceEmpty(decoded.Evidence) {
+	if options.requireEvidence && outcome == VerdictOutcomeApproved && evidenceEmpty(decoded.Evidence) {
 		result.Outcome = VerdictOutcomeRejected
 		result.BlockingIssues = []BlockingIssue{{
 			ID:   JudgeEvidenceRequiredIssueID,
@@ -214,7 +225,7 @@ func parseStructuredVerdict(
 			Message: "approved judge verdict requires non-empty evidence",
 		})
 	}
-	if requireScore {
+	if options.requireScore {
 		if err := validateFiniteScore(decoded.Score); err != nil {
 			return structuredVerdict{}, nil, err
 		}

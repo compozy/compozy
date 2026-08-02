@@ -82586,6 +82586,7 @@ export interface operations {
               created_at: string;
               definition_digest?: string;
               definition_version: number;
+              /** Format: int64 */
               generation: number;
               id: string;
               inputs?: {
@@ -83040,6 +83041,7 @@ export interface operations {
               }[];
             } | null;
             generations?: {
+              /** Format: int64 */
               generation: number;
               /** @enum {string} */
               origin:
@@ -83052,6 +83054,7 @@ export interface operations {
                 | "ratchet_restore";
               outputs: {
                 child_loop_run_id?: string;
+                /** Format: int64 */
                 generation?: number;
                 item_index?: number;
                 node_id: string;
@@ -83072,6 +83075,40 @@ export interface operations {
               /** Format: int64 */
               parent_generation: number;
               verdicts: {
+                blocking_issues: {
+                  id: string;
+                  note: string;
+                }[];
+                criteria: {
+                  blocking_issues?: {
+                    id: string;
+                    note: string;
+                  }[];
+                  broken?: boolean;
+                  evidence?: unknown;
+                  exit_code?: number | null;
+                  id: string;
+                  /** @enum {string} */
+                  outcome:
+                    | "approved"
+                    | "rejected"
+                    | "awaiting_approval"
+                    | "blocked"
+                    | "error"
+                    | "timeout"
+                    | "invalid_output";
+                  passed: boolean;
+                  payload?: unknown;
+                  /** Format: double */
+                  score?: number | null;
+                  stderr?: string;
+                  stdout?: string;
+                  type: string;
+                  warnings?: {
+                    code: string;
+                    message: string;
+                  }[];
+                }[];
                 gate_id: string;
                 /** @enum {string} */
                 outcome:
@@ -83102,6 +83139,7 @@ export interface operations {
               created_at: string;
               definition_digest?: string;
               definition_version: number;
+              /** Format: int64 */
               generation: number;
               id: string;
               inputs?: {
@@ -83548,6 +83586,7 @@ export interface operations {
                 kind: "generation_started";
                 loop_run_id: string;
                 payload: {
+                  /** Format: int64 */
                   generation: number;
                   loop_name: string;
                   /** @enum {string} */
@@ -83591,6 +83630,7 @@ export interface operations {
                     type: string;
                   }[];
                   gate_id: string;
+                  /** Format: int64 */
                   generation: number;
                   item_index: number;
                   node_id: string;
@@ -88888,6 +88928,7 @@ export interface operations {
               created_at: string;
               definition_digest?: string;
               definition_version: number;
+              /** Format: int64 */
               generation: number;
               id: string;
               inputs?: {
@@ -89182,6 +89223,7 @@ export interface operations {
               created_at: string;
               definition_digest?: string;
               definition_version: number;
+              /** Format: int64 */
               generation: number;
               id: string;
               inputs?: {

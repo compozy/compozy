@@ -502,14 +502,14 @@ func TestGlobalDBLoopHistoryShouldPersistMachineFacts(t *testing.T) {
 					GateID: "gate-a", Outcome: gate.VerdictOutcomeApproved, RouteCauseRank: &routeRankOne,
 					BlockingIssues: json.RawMessage(`[]`), Criteria: json.RawMessage(`[]`),
 				},
-				decidedAt: now.Add(time.Minute),
+				decidedAt: now.Add(3 * time.Minute),
 			},
 			{
 				intent: gate.VerdictIntent{
 					GateID: "gate-b", Outcome: gate.VerdictOutcomeRejected, RouteCauseRank: &routeRankZero,
 					BlockingIssues: json.RawMessage(`[]`), Criteria: json.RawMessage(`[]`),
 				},
-				decidedAt: now.Add(2 * time.Minute),
+				decidedAt: now.Add(time.Minute),
 			},
 			{
 				intent: gate.VerdictIntent{
@@ -518,7 +518,7 @@ func TestGlobalDBLoopHistoryShouldPersistMachineFacts(t *testing.T) {
 					BlockingIssues: json.RawMessage(`[]`),
 					Criteria:       json.RawMessage(`[]`),
 				},
-				decidedAt: now.Add(3 * time.Minute),
+				decidedAt: now.Add(2 * time.Minute),
 			},
 		} {
 			if err := insertLoopGateVerdictWithExecutor(
@@ -571,7 +571,7 @@ func TestGlobalDBLoopHistoryShouldPersistMachineFacts(t *testing.T) {
 			verdicts,
 		), 3; got != want || verdicts[0].GateID != "gate-a" || verdicts[1].GateID != "gate-b" ||
 			verdicts[2].GateID != "gate-c" {
-			t.Fatalf("verdicts = %#v, want gate-id order", verdicts)
+			t.Fatalf("verdicts = %#v, want gate-id/item-index order independent of decided_at", verdicts)
 		}
 		routeCauses, err := globalDB.ListRouteCausingVerdicts(ctx, "ws-1", string(created.ID), 2)
 		if err != nil {
@@ -612,7 +612,14 @@ func TestGlobalDBLoopHistoryShouldPersistMachineFacts(t *testing.T) {
 		if history.Best == nil {
 			t.Fatal("best history = nil, want generation 2")
 		}
-		bestDraft := history.Best.Nodes["draft"][0].Output.(map[string]any)
+		bestNodes := history.Best.Nodes["draft"]
+		if len(bestNodes) == 0 {
+			t.Fatalf("best history draft outputs = %#v, want one output", bestNodes)
+		}
+		bestDraft, ok := bestNodes[0].Output.(map[string]any)
+		if !ok {
+			t.Fatalf("best draft output = %#v, want object", bestNodes[0].Output)
+		}
 		if history.Best.Generation != 2 || history.Best.Score != bestScore || bestDraft["draft"] != "revised" {
 			t.Fatalf("best history = %#v, want generation 2 score %.1f", history.Best, bestScore)
 		}

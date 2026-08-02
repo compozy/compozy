@@ -371,7 +371,7 @@ func TestOpenGlobalDBReopenPreservesRowsAndStatus(t *testing.T) {
 				t.Fatalf("Close(first post-cut cleanup) error = %v", err)
 			}
 		})
-		assertPostCutNetworkParticipationFixture(t, first)
+		assertPostCutHistoricalGlobalSchemaFixture(t, first)
 		firstStatus, err := store.Status(ctx, first.db, MigrationStream())
 		if err != nil {
 			t.Fatalf("Status(first post-cut) error = %v", err)
@@ -391,7 +391,7 @@ func TestOpenGlobalDBReopenPreservesRowsAndStatus(t *testing.T) {
 				t.Fatalf("Close(second post-cut) error = %v", err)
 			}
 		})
-		assertPostCutNetworkParticipationFixture(t, second)
+		assertPostCutHistoricalGlobalSchemaFixture(t, second)
 		secondStatus, err := store.Status(ctx, second.db, MigrationStream())
 		if err != nil {
 			t.Fatalf("Status(second post-cut) error = %v", err)
@@ -732,7 +732,7 @@ func createHistoricalGlobalSchemaFixture(ctx context.Context, t *testing.T, path
 	legacyClosed = true
 }
 
-func assertPostCutNetworkParticipationFixture(t *testing.T, globalDB *GlobalDB) {
+func assertPostCutHistoricalGlobalSchemaFixture(t *testing.T, globalDB *GlobalDB) {
 	t.Helper()
 
 	ctx := testutil.Context(t)

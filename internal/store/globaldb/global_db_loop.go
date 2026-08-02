@@ -79,6 +79,7 @@ func (g *LoopRepo) persistStartedLoopRunWithExecutor(
 	if err := insertLoopRun(ctx, exec, run, inputsJSON, startMetadataJSON); err != nil {
 		return err
 	}
+	// Creation reserves generation 1 while run.Generation remains 0 until that generation advances.
 	if err := insertLoopGenerationWithExecutor(
 		ctx,
 		exec,

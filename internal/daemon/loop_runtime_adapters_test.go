@@ -429,12 +429,13 @@ func TestLoopGateJudgeRunnerShouldApplyPolicyGate(t *testing.T) {
 		t.Parallel()
 
 		const verdict = `{"verdict":"pass","blocking_issues":[],"evidence":{"candidate_text":"GREEN","exact_match":true}}`
+		split := len(verdict) / 2
 		sessions := &loopActionBinderSessionManager{
 			sessionID: "sess-loop-judge-chunked-verdict",
 			events: []acp.AgentEvent{
 				{Type: acp.EventTypeThought, Text: "The candidate satisfies the contract."},
-				{Type: acp.EventTypeAgentMessage, Text: verdict[:96]},
-				{Type: acp.EventTypeAgentMessage, Text: verdict[96:]},
+				{Type: acp.EventTypeAgentMessage, Text: verdict[:split]},
+				{Type: acp.EventTypeAgentMessage, Text: verdict[split:]},
 			},
 		}
 		response, err := loopJudgeRunnerForTest(t, sessions).Judge(

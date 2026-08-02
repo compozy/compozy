@@ -1129,6 +1129,14 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			"runs":[{"id":"run-1","generations":[]}],
 			"aggregates":{"total":1,"live":0,"terminal":1,"succeeded":1,"failed":0}
 		}`)
+		assertNativeOutputSchemaRejects(t, status, `{
+			"run":{},
+			"generations":[]
+		}`)
+		assertNativeOutputSchemaRejects(t, runs, `{
+			"runs":[{"best_generation":2}],
+			"aggregates":{"total":1,"live":0,"terminal":1,"succeeded":1,"failed":0}
+		}`)
 		for _, descriptor := range []toolspkg.Descriptor{status, runs} {
 			if strings.Contains(string(descriptor.OutputSchema), "confidence") {
 				t.Fatalf(

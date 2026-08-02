@@ -839,14 +839,14 @@ func BenchmarkFilterWatchEventsRows(b *testing.B) {
 		b.ResetTimer()
 		for range b.N {
 			if _, _, _, err := filterWatchEventsRows(
-				run,
-				1,
-				resolved,
-				topology,
-				GenerationHistory{},
+				&watchEventsEvaluationContext{
+					control: controlEvalContext{
+						run: run, generation: 1, resolved: resolved, topology: topology,
+					},
+					outputs: outputs,
+				},
 				output,
 				node,
-				outputs,
 				state,
 				rows,
 			); err != nil {

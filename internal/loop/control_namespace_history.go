@@ -1,6 +1,7 @@
 package loop
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -304,7 +305,7 @@ func historyJSONValue(raw json.RawMessage) (any, error) {
 		return nil, nil
 	}
 	var value any
-	if err := decodeSingleJSONValue(strings.NewReader(string(raw)), &value); err != nil {
+	if err := decodeSingleJSONValue(bytes.NewReader(raw), &value); err != nil {
 		return nil, fmt.Errorf("decode JSON value: %w", err)
 	}
 	return value, nil

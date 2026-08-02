@@ -158,6 +158,22 @@ func TestGenerationSnapshotPayloadFromShouldNormalizeTypedIntents(t *testing.T) 
 	})
 }
 
+func TestGenerationSnapshotLifecycleEventValidation(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject a generation-started route", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := GenerationSnapshotPayloadFrom(GenerationSnapshotPayload{Events: []GenerationLifecycleEventIntent{{
+			Kind:  GenerationLifecycleEventGenerationStarted,
+			Route: gate.RouteContinue,
+		}}})
+		if !errors.Is(err, ErrValidation) {
+			t.Fatalf("GenerationSnapshotPayloadFrom() error = %v, want ErrValidation", err)
+		}
+	})
+}
+
 type generationSnapshotTx struct {
 	args []any
 }

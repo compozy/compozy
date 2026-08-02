@@ -51,13 +51,6 @@ func WithCoordinatorVerdictReader(reader gate.VerdictReader) CoordinatorRunnerOp
 	}
 }
 
-// WithCoordinatorGenerationLineageReader injects immutable generation provenance history.
-func WithCoordinatorGenerationLineageReader(reader GenerationLineageReader) CoordinatorRunnerOption {
-	return func(r *CoordinatorRunner) {
-		r.lineage = reader
-	}
-}
-
 // WithCoordinatorActionRegistry injects runtime action execution for worker node runs.
 func WithCoordinatorActionRegistry(registry *ActionRegistry) CoordinatorRunnerOption {
 	return func(r *CoordinatorRunner) {

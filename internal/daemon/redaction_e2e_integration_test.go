@@ -83,13 +83,13 @@ func testLoopVerdictRedactionBoundary(t *testing.T) {
 	if err := harness.HTTPJSON(ctx, http.MethodGet, statusPath, nil, &httpDetail); err != nil {
 		t.Fatalf("HTTP Loop status error = %v", err)
 	}
-	assertLoopVerdictRedactedJSON(t, "HTTP Loop status", httpDetail, false)
+	assertLoopVerdictRedactedJSON(t, "HTTP Loop status", httpDetail, true)
 
 	var udsDetail compozycontract.LoopRunResponse
 	if err := harness.UDSJSON(ctx, http.MethodGet, statusPath, nil, &udsDetail); err != nil {
 		t.Fatalf("UDS Loop status error = %v", err)
 	}
-	assertLoopVerdictRedactedJSON(t, "UDS Loop status", udsDetail, false)
+	assertLoopVerdictRedactedJSON(t, "UDS Loop status", udsDetail, true)
 
 	stdout, stderr, err := harness.CLI.RunInDir(
 		ctx,
@@ -99,10 +99,10 @@ func testLoopVerdictRedactionBoundary(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CLI Loop status error = %v; stderr=%s", err, stderr)
 	}
-	assertLoopVerdictRedacted(t, "CLI Loop status", stdout+stderr, false)
+	assertLoopVerdictRedacted(t, "CLI Loop status", stdout+stderr, true)
 
 	nativeDetail := invokeLoopRuntimeNativeStatus(t, ctx, harness, harness.WorkspaceID, run.ID)
-	assertLoopVerdictRedactedJSON(t, "native Loop status", nativeDetail, false)
+	assertLoopVerdictRedactedJSON(t, "native Loop status", nativeDetail, true)
 
 	events := readLoopRunSSEUntil(
 		t,
@@ -136,7 +136,7 @@ func testLoopVerdictRedactionBoundary(t *testing.T) {
 		t.Fatalf("os.ReadFile(%q) error = %v", harness.HomePaths.LogFile, err)
 	}
 	assertLoopVerdictRedacted(t, "structured Loop logs", string(logPayload), false)
-	assertNoSecretInTree(t, harness.HomePaths.HomeDir, loopRedactionSecret)
+	assertNoSecretInTree(t, harness.HomePaths.HomeDir, loopRedactionSecret, "Loop claim token")
 }
 
 func loopVerdictRedactionDefinition() compozycontract.LoopDefinitionDocument {
@@ -161,6 +161,7 @@ func loopVerdictRedactionDefinition() compozycontract.LoopDefinitionDocument {
 	}
 	definition.Graph.Nodes = append(definition.Graph.Nodes, shouldRepair, repair)
 	definition.Graph.Edges = []compozycontract.LoopGraphEdge{{From: "should_repair", To: "repair"}}
+	// This gate intentionally always rejects so every public surface carries redacted diagnostics.
 	definition.Contract.Verification = []compozycontract.LoopGateCriterion{{
 		ID:       "claim_guard",
 		Type:     "command",
@@ -296,10 +297,10 @@ func assertRedactedBoundaryPayload(t testing.TB, source string, payload string, 
 
 func assertNoRawSecretInTree(t testing.TB, root string) {
 	t.Helper()
-	assertNoSecretInTree(t, root, plantedRedactionSecret)
+	assertNoSecretInTree(t, root, plantedRedactionSecret, "planted secret")
 }
 
-func assertNoSecretInTree(t testing.TB, root string, rawSecret string) {
+func assertNoSecretInTree(t testing.TB, root string, rawSecret string, secretLabel string) {
 	t.Helper()
 	secret := []byte(rawSecret)
 	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
@@ -318,7 +319,7 @@ func assertNoSecretInTree(t testing.TB, root string, rawSecret string) {
 			if err != nil {
 				return fmt.Errorf("resolve leaked artifact path %q: %w", path, err)
 			}
-			return fmt.Errorf("raw planted secret found in %q", relative)
+			return fmt.Errorf("raw %s found in %q", secretLabel, relative)
 		}
 		return nil
 	})

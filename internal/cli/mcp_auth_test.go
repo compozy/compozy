@@ -228,8 +228,8 @@ func TestMCPAuthLoginManualHonorsTimeout(t *testing.T) {
 	t.Run("Should interrupt pending manual input at the authorization deadline", func(t *testing.T) {
 		t.Parallel()
 
-		input := newInheritedMCPAuthInput(t)
-		assertMCPAuthInputBlocking(t, input)
+		input, writer := newInheritedMCPAuthInput(t)
+		assertMCPAuthInputBlocking(t, input, writer)
 		client := newClient(nil)
 		cmd := newRootCommand(newWorkspaceTestDeps(t, client))
 		cmd.SetIn(input)
@@ -242,7 +242,7 @@ func TestMCPAuthLoginManualHonorsTimeout(t *testing.T) {
 		if _, err := input.Stat(); err != nil {
 			t.Fatalf("borrowed manual input was closed: %v", err)
 		}
-		assertMCPAuthInputBlocking(t, input)
+		assertMCPAuthInputBlocking(t, input, writer)
 	})
 
 	t.Run("Should carry the authorization deadline through manual exchange", func(t *testing.T) {

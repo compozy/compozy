@@ -7,9 +7,12 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"time"
 
 	"golang.org/x/sys/windows"
 )
+
+const mcpAuthInputCopyCleanupTimeout = 250 * time.Millisecond
 
 func prepareCancellableMCPAuthInput(file *os.File) (*os.File, func() error, error) {
 	rawConnection, err := file.SyscallConn()
@@ -65,13 +68,20 @@ func prepareCancellableMCPAuthInput(file *os.File) (*os.File, func() error, erro
 			cancelErr = nil
 		}
 		duplicateCloseErr := duplicate.Close()
-		copyErr := <-copyResult
-		if errors.Is(copyErr, windows.ERROR_OPERATION_ABORTED) || errors.Is(copyErr, os.ErrClosed) {
-			copyErr = nil
+		bridgeWriterCloseErr := bridgeWriter.Close()
+		var copyErr error
+		select {
+		case copyErr = <-copyResult:
+			if errors.Is(copyErr, windows.ERROR_OPERATION_ABORTED) || errors.Is(copyErr, os.ErrClosed) {
+				copyErr = nil
+			}
+		case <-time.After(mcpAuthInputCopyCleanupTimeout):
+			copyErr = errors.New("cli: timed out waiting for cancellable MCP authorization input copy shutdown")
 		}
 		return errors.Join(
 			wrapMCPAuthInputHandleError("cancel duplicate", cancelErr),
 			wrapMCPAuthInputHandleError("close duplicate", duplicateCloseErr),
+			wrapMCPAuthInputHandleError("close bridge writer", bridgeWriterCloseErr),
 			wrapMCPAuthInputHandleError("copy bridge", copyErr),
 			wrapMCPAuthInputHandleError("close bridge", bridgeReader.Close()),
 		)

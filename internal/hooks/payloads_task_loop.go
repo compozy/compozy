@@ -137,6 +137,7 @@ func LoopGenerationOriginValues() []string {
 type LoopGenerationPayload struct {
 	PayloadBase
 	LoopContext
+	// Origin is the closed loop-generation provenance value that explains why this generation exists.
 	Origin           LoopGenerationOrigin `json:"origin"`
 	ParentGeneration int64                `json:"parent_generation"`
 	Status           string               `json:"status,omitempty"`
@@ -156,10 +157,12 @@ type LoopGenerationPostPayload = LoopGenerationPayload
 type LoopGatePayload struct {
 	PayloadBase
 	LoopContext
-	GateID         string          `json:"gate_id,omitempty"`
-	Decision       string          `json:"decision,omitempty"`
-	Outcome        string          `json:"outcome,omitempty"`
-	Score          *float64        `json:"score,omitempty"`
+	GateID string `json:"gate_id,omitempty"`
+	// Outcome is the machine result already computed when the hook observes the gate.
+	Outcome string `json:"outcome,omitempty"`
+	// Score is the computed metric score, when the observed gate has a metric criterion.
+	Score *float64 `json:"score,omitempty"`
+	// BestGeneration is the durable best generation known when the hook observes the result.
 	BestGeneration *int64          `json:"best_generation,omitempty"`
 	Status         string          `json:"status,omitempty"`
 	ReasonCode     string          `json:"reason_code,omitempty"`
