@@ -215,6 +215,9 @@ func (r *CoordinatorRunner) Run(
 	if err := attachCoordinatorEffectIntents(loopRun, resolved, &plan); err != nil {
 		return task.CoordinatorCompletionPlan{}, err
 	}
+	if err := attachCoordinatorParentCloseIntents(loopRun, resolved, &plan); err != nil {
+		return task.CoordinatorCompletionPlan{}, err
+	}
 	if err := coordinatorFSM.transition(ctx, coordinatorEventAssemble); err != nil {
 		return task.CoordinatorCompletionPlan{}, err
 	}
@@ -311,6 +314,18 @@ func (r *CoordinatorRunner) buildExistingGenerationPlan(
 	if len(outputs) == 0 {
 		return task.CoordinatorCompletionPlan{}, false, nil
 	}
+	cancellation, err := r.prepareCoordinatorCancellation(ctx, run, outputs)
+	if err != nil {
+		return task.CoordinatorCompletionPlan{}, false, err
+	}
+	if cancellation.waitingDelivery {
+		return cancellationWaitCoordinatorPlan(run, cancellation.outputs), true, nil
+	}
+	if run.CancelRequested {
+		plan, err := runCancellationCoordinatorPlan(run, cancellation)
+		return plan, true, err
+	}
+	outputs = cancellation.outputs
 	if plan, pending, planErr := r.buildPendingRequeuePlan(
 		ctx,
 		taskRun,
@@ -323,5 +338,9 @@ func (r *CoordinatorRunner) buildExistingGenerationPlan(
 	plan, err := r.buildGenerationFinisherPlan(
 		ctx, taskRun, run, run.Generation, resolved, effective, fanOutWidth, outputs,
 	)
+	if err != nil {
+		return task.CoordinatorCompletionPlan{}, false, err
+	}
+	plan, err = appendCoordinatorCancellationState(plan, cancellation)
 	return plan, true, err
 }

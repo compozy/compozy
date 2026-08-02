@@ -170,7 +170,7 @@ func nextNetworkWorkStateFromReceipt(current string, body json.RawMessage) (stri
 		return current, false, nil
 	case globalDBNetworkConversationsRejectedKey:
 		return store.NetworkWorkStateFailed, true, nil
-	case "canceled":
+	case store.NetworkWorkStateCanceled:
 		return store.NetworkWorkStateCanceled, true, nil
 	default:
 		return "", false, fmt.Errorf("store: unsupported network receipt status %q", receipt.Status)

@@ -50,3 +50,8 @@ func reportActionSessionBound(ctx context.Context, sessionID string) {
 	}
 	sessionReporter.ReportActionSessionBound(sessionID)
 }
+
+// ReportActionSessionBound records the exact ACP session used by an action executor.
+func ReportActionSessionBound(ctx context.Context, sessionID string) {
+	reportActionSessionBound(ctx, sessionID)
+}

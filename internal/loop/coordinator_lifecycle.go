@@ -313,23 +313,24 @@ func classifyGenerationOutputFailure(output GenerationOutput, taskRun task.Run) 
 		)
 	}
 	evidence := FailureEvidence{
-		Code:  failure.Code,
-		Cause: failure.Cause,
-		Hint:  failure.Recovery,
+		Code:   failure.Code,
+		Cause:  failure.Cause,
+		Hint:   failure.Recovery,
+		Target: failure.Target,
 	}
 	if targetUnavailableFailureCode(failure.Code) {
 		evidence.TargetUnavailable = true
 		return ClassifyNodeFailure(evidence)
 	}
 	switch failure.Code {
-	case string(FailureCancellation), string(tools.ErrorCodeCanceled):
+	case string(FailureCancellation), string(tools.ErrorCodeCanceled), childLoopStatusRef(StatusCanceled):
 		evidence.CancelRequested = true
 	case string(ReasonCodeActionTimeout), childLoopTimeoutReason:
 		evidence.AttemptTimedOut = true
 	case string(FailureBudgetExhausted):
 		evidence.BudgetExhausted = true
 	case string(tools.ErrorCodeUnavailable), string(tools.ErrorCodeBackendFailed),
-		string(tools.ErrorCodeTimedOut), "child_loop_status:failed":
+		string(tools.ErrorCodeTimedOut), childLoopStatusRef(StatusFailed):
 		evidence.Transport = true
 	case string(ReasonCodeUnknownActionKind), string(ReasonCodeActionDependencyMissing),
 		string(ReasonCodeActionSchemaInvalid), string(ReasonCodeActionContractStale):
@@ -349,6 +350,7 @@ func actionFailureFromOutputRef(outputRef string) ActionFailure {
 	failure.Code = strings.TrimSpace(failure.Code)
 	failure.Cause = strings.TrimSpace(failure.Cause)
 	failure.Recovery = strings.TrimSpace(failure.Recovery)
+	failure.Target = strings.TrimSpace(failure.Target)
 	if failure.Kind != actionFailureKind || failure.Code == "" || failure.Cause == "" {
 		return ActionFailure{}
 	}

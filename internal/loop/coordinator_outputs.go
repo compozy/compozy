@@ -304,11 +304,12 @@ func (r *CoordinatorRunner) refreshAwaitingChildOutput(
 		return GenerationOutput{}, false, nil, err
 	}
 	if child.Status.Terminal() {
-		output.OutputRef = childLoopStatusRef(child.Status)
 		switch child.Status {
 		case StatusDone, StatusNoOp:
+			output.OutputRef = childLoopStatusRef(child.Status)
 			output.Status = generationOutputSucceeded
 		default:
+			output.OutputRef = childLoopFailureRef(child)
 			output.Status = generationOutputFailed
 		}
 		return output, false, nil, nil
@@ -366,6 +367,20 @@ func (r *CoordinatorRunner) awaitingChildTimedOut(
 
 func childLoopStatusRef(status Status) string {
 	return "child_loop_status:" + string(status)
+}
+
+func childLoopFailureRef(child Run) string {
+	failure := NewActionFailure(
+		childLoopStatusRef(child.Status),
+		"child loop closed with status "+string(child.Status),
+		"Inspect the child Loop run before choosing a route or retry.",
+	)
+	failure.Target = string(child.ID)
+	ref, ok := ActionFailureOutputRef(failure)
+	if !ok {
+		return childLoopStatusRef(child.Status)
+	}
+	return ref
 }
 
 type generationOutputKey struct {

@@ -9,64 +9,6 @@ import (
 	"github.com/compozy/compozy/internal/task"
 )
 
-func (s *service) Stop(
-	ctx context.Context,
-	ws WorkspaceID,
-	runID RunID,
-	reason StopReason,
-	actor task.ActorContext,
-) error {
-	if err := actor.Validate(); err != nil {
-		return fmt.Errorf("%w: actor context: %w", ErrValidation, err)
-	}
-	if reason == "" {
-		reason = StopReasonOperator
-	}
-	if reason != StopReasonOperator {
-		return fmt.Errorf("%w: stop reason is invalid: %q", ErrValidation, reason)
-	}
-	run, err := s.store.GetLoopRun(ctx, ws, runID)
-	if err != nil {
-		return err
-	}
-	if run.Status.Terminal() {
-		return reasonError(
-			ReasonCodeTerminalRun,
-			ErrInvalidTransition,
-			map[string]string{reasonMetaRunID: string(runID), reasonMetaStatus: string(run.Status)},
-		)
-	}
-	if !allowedTransition(run.Status, StatusFailed, TransitionCauseOperatorStop) {
-		return reasonError(
-			ReasonCodeInvalidStatusTransition,
-			ErrInvalidTransition,
-			map[string]string{
-				reasonMetaCause: string(TransitionCauseOperatorStop),
-				reasonMetaFrom:  string(run.Status),
-				reasonMetaTo:    string(StatusFailed),
-			},
-		)
-	}
-	if stopper, ok := s.store.(GoalRunStopStore); ok {
-		stoppedAt := s.now().UTC()
-		result, err := stopper.StopGoalRun(ctx, GoalRunStopRequest{
-			WorkspaceID:    ws,
-			RunID:          runID,
-			ExpectedStatus: run.Status,
-			Actor:          actor,
-			StoppedAt:      stoppedAt,
-		})
-		if err != nil {
-			return err
-		}
-		s.revokeGoalPromptLeases(ctx, result.RevokedPromptLeases, TransitionCauseOperatorStop)
-		run.Status = StatusFailed
-		s.dispatchCoordinatorTerminal(ctx, run, TransitionCauseOperatorStop, stoppedAt)
-		return nil
-	}
-	return s.Transition(ctx, runID, StatusFailed, TransitionCauseOperatorStop)
-}
-
 func (s *service) Pause(
 	ctx context.Context,
 	ws WorkspaceID,

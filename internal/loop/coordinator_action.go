@@ -13,15 +13,6 @@ import (
 	"github.com/compozy/compozy/internal/tools"
 )
 
-type coordinatorActionRunMetadata struct {
-	Generation       int    `json:"generation"`
-	NodeID           string `json:"node_id"`
-	ItemIndex        int    `json:"item_index"`
-	Attempt          int    `json:"attempt"`
-	Epoch            int64  `json:"epoch"`
-	GoalSegmentEpoch int64  `json:"goal_segment_epoch,omitempty"`
-}
-
 type coordinatorActionRunContext struct {
 	loopRun   Run
 	resolved  *ResolvedDefinition
@@ -337,13 +328,14 @@ func actionExecutionInput(
 	if err != nil {
 		return ActionExecutionInput{}, err
 	}
-	return ActionExecutionInput{
+	input := ActionExecutionInput{
 		WorkspaceID:    loopRun.WorkspaceID,
 		LoopRunID:      loopRun.ID,
 		Generation:     meta.Generation,
 		NodeID:         node.ID,
 		ItemIndex:      meta.ItemIndex,
 		Attempt:        meta.Attempt,
+		CellEpoch:      meta.Epoch,
 		RepairFailures: actionRepairFailures(history),
 		Namespace:      namespace,
 		Contract:       &resolved.Definition.Contract,
@@ -362,7 +354,15 @@ func actionExecutionInput(
 		GoalContextNudgeRatio:    new(loopRun.GoalContextNudgeRatio),
 		GoalSegmentEpoch:         meta.GoalSegmentEpoch,
 		NetworkParticipation:     new(loopRun.NetworkSpecSnapshot()),
-	}, nil
+	}
+	if meta.ContinuationKind == deathResumeContinuationKind {
+		input.DeathResume = &DeathResumeContext{
+			SourceTaskRunID: meta.ResumeFromTaskRunID,
+			SourceSessionID: meta.ResumeFromSessionID,
+			Checkpoint:      meta.DeathCheckpoint.Clone(),
+		}
+	}
+	return input, nil
 }
 
 func (r *CoordinatorRunner) resolvedLoopForAction(
@@ -382,45 +382,6 @@ func (r *CoordinatorRunner) resolvedLoopForAction(
 		return nil, EffectiveConfig{}, err
 	}
 	return coordinatorResolvedWithEffectiveConfig(resolved, effective), effective, nil
-}
-
-func parseCoordinatorActionRunMetadata(raw json.RawMessage) (coordinatorActionRunMetadata, error) {
-	var meta coordinatorActionRunMetadata
-	if err := json.Unmarshal(raw, &meta); err != nil {
-		return coordinatorActionRunMetadata{}, fmt.Errorf("loop: decode action task metadata: %w", err)
-	}
-	meta.NodeID = strings.TrimSpace(meta.NodeID)
-	if meta.Generation <= 0 {
-		return coordinatorActionRunMetadata{}, fmt.Errorf("%w: action generation must be positive", ErrValidation)
-	}
-	if meta.NodeID == "" {
-		return coordinatorActionRunMetadata{}, fmt.Errorf("%w: action node_id is required", ErrValidation)
-	}
-	if meta.ItemIndex < 0 {
-		return coordinatorActionRunMetadata{}, fmt.Errorf(
-			"%w: action item_index must be zero or positive",
-			ErrValidation,
-		)
-	}
-	if meta.Attempt < 1 {
-		return coordinatorActionRunMetadata{}, fmt.Errorf(
-			"%w: action attempt must be positive",
-			ErrValidation,
-		)
-	}
-	if meta.Epoch < 0 {
-		return coordinatorActionRunMetadata{}, fmt.Errorf(
-			"%w: action epoch must be zero or positive",
-			ErrValidation,
-		)
-	}
-	if meta.GoalSegmentEpoch < 0 {
-		return coordinatorActionRunMetadata{}, fmt.Errorf(
-			"%w: action goal_segment_epoch must be zero or positive",
-			ErrValidation,
-		)
-	}
-	return meta, nil
 }
 
 func actionNodeForRun(graph dsl.Graph, nodeID string) (dsl.Node, error) {

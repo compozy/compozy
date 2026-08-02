@@ -23,7 +23,7 @@ import (
 )
 
 func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
-	t.Run("Should terminalize a wedged action and advance the Loop through the real scheduler", func(t *testing.T) {
+	t.Run("Should keep a quiet action alive without an inherited deadline", func(t *testing.T) {
 		testLoopActionLivenessIntegration(t)
 	})
 
@@ -107,7 +107,7 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 		}
 	})
 
-	t.Run("Should converge Stop after session materialization and before binding activation", func(t *testing.T) {
+	t.Run("Should converge Cancel after session materialization and before binding activation", func(t *testing.T) {
 		materialized := make(chan struct{})
 		releaseActivation := make(chan struct{})
 		fixture := newLoopGoalManagedRuntimeFixture(
@@ -142,18 +142,23 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 			),
 			managedTestGoalRunPolicyResolver(),
 			looppkg.WithClock(time.Now),
+			looppkg.WithCancellationSessionController(looppkg.CancellationSessionControllerFuncs{
+				Cancel: func(ctx context.Context, id string, _ string) error {
+					return fixture.manager.CancelPrompt(ctx, id)
+				},
+			}),
 		)
 		if err != nil {
 			t.Fatalf("loop.NewService() error = %v", err)
 		}
-		actor, err := taskpkg.DeriveHumanActorContext("operator-stop-create", taskpkg.OriginKindCLI, "cli")
+		actor, err := taskpkg.DeriveHumanActorContext("operator-cancel-create", taskpkg.OriginKindCLI, "cli")
 		if err != nil {
 			t.Fatalf("DeriveHumanActorContext() error = %v", err)
 		}
-		if err := aggregate.Stop(
-			testutil.Context(t), fixture.run.WorkspaceID, fixture.run.ID, looppkg.StopReasonOperator, actor,
+		if err := aggregate.CancelRun(
+			testutil.Context(t), fixture.run.WorkspaceID, fixture.run.ID, "operator cancel", actor,
 		); err != nil {
-			t.Fatalf("Stop() error = %v", err)
+			t.Fatalf("CancelRun() error = %v", err)
 		}
 		cleanupStore, ok := fixture.goalStore.(goalSessionCleanupStore)
 		if !ok {
@@ -172,10 +177,10 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 		select {
 		case bindErr := <-result:
 			if bindErr == nil {
-				t.Fatal("BindActionSession(after Stop) error = nil")
+				t.Fatal("BindActionSession(after Cancel) error = nil")
 			}
 		case <-time.After(time.Second):
-			t.Fatal("BindActionSession did not converge after Stop")
+			t.Fatal("BindActionSession did not converge after Cancel")
 		}
 
 		relay := &goalSessionOutboxRelay{
@@ -227,7 +232,7 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 		}
 	})
 
-	t.Run("Should atomically Stop an attached prompt and cancel its exact real Manager lease", func(t *testing.T) {
+	t.Run("Should atomically Cancel an attached prompt and cancel its exact real Manager lease", func(t *testing.T) {
 		driver := newHarnessIntegrationDriver()
 		promptStarted := make(chan struct{})
 		promptCanceled := make(chan struct{})
@@ -274,22 +279,27 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 			managedTestGoalRunPolicyResolver(),
 			looppkg.WithClock(time.Now),
 			looppkg.WithGoalPromptLeaseRevoker(loopGoalPromptLeaseRevoker{sessions: fixture.manager}),
+			looppkg.WithCancellationSessionController(looppkg.CancellationSessionControllerFuncs{
+				Cancel: func(ctx context.Context, id string, _ string) error {
+					return fixture.manager.CancelPrompt(ctx, id)
+				},
+			}),
 		)
 		if err != nil {
 			t.Fatalf("loop.NewService() error = %v", err)
 		}
-		actor, err := taskpkg.DeriveHumanActorContext("operator-stop", taskpkg.OriginKindCLI, "cli")
+		actor, err := taskpkg.DeriveHumanActorContext("operator-cancel", taskpkg.OriginKindCLI, "cli")
 		if err != nil {
 			t.Fatalf("DeriveHumanActorContext() error = %v", err)
 		}
-		if err := aggregate.Stop(
+		if err := aggregate.CancelRun(
 			testutil.Context(t),
 			fixture.run.WorkspaceID,
 			fixture.run.ID,
-			looppkg.StopReasonOperator,
+			"operator cancel",
 			actor,
 		); err != nil {
-			t.Fatalf("Stop() error = %v", err)
+			t.Fatalf("CancelRun() error = %v", err)
 		}
 		select {
 		case <-promptCanceled:
@@ -298,7 +308,7 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 		}
 		result, err := fixture.runtime.AwaitActionPrompt(testutil.Context(t), ticket)
 		if err != nil {
-			t.Fatalf("AwaitActionPrompt(after Stop) error = %v", err)
+			t.Fatalf("AwaitActionPrompt(after Cancel) error = %v", err)
 		}
 		if result.PromptID != promptID || result.Outcome != looppkg.ActionPromptOutcomeAmbiguous ||
 			result.ReasonCode != looppkg.ReasonCodeGoalControlRevokedInFlight || result.StopReason != "" {
@@ -319,8 +329,8 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 		if err != nil {
 			t.Fatalf("GetLoopRun() error = %v", err)
 		}
-		if run.Status != looppkg.StatusFailed {
-			t.Fatalf("stopped managed Run status = %q, want failed", run.Status)
+		if run.Status != looppkg.StatusCanceled {
+			t.Fatalf("canceled managed Run status = %q, want canceled", run.Status)
 		}
 	})
 

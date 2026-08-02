@@ -86,6 +86,7 @@ type managerOptions struct {
 	reviewObserver        RunReviewRequestedObserver
 	taskHooks             RunHookDispatcher
 	coordinatorRunner     CoordinatorRunner
+	coordinatorPostCommit CoordinatorPostCommitHandler
 	generationFinalizer   GenerationStateFinalizer
 	coordinatorTimerArmer CoordinatorTimerArmer
 	wakeNotifier          WakeNotifier
@@ -115,6 +116,7 @@ type Service struct {
 	reviewObserver        RunReviewRequestedObserver
 	taskHooks             RunHookDispatcher
 	coordinatorRunner     CoordinatorRunner
+	coordinatorPostCommit CoordinatorPostCommitHandler
 	generationFinalizer   GenerationStateFinalizer
 	coordinatorTimerArmer CoordinatorTimerArmer
 	wakeNotifier          WakeNotifier
@@ -199,6 +201,13 @@ func WithTaskRunHooks(hooks RunHookDispatcher) Option {
 func WithCoordinatorRunner(runner CoordinatorRunner) Option {
 	return func(opts *managerOptions) {
 		opts.coordinatorRunner = runner
+	}
+}
+
+// WithCoordinatorPostCommitHandler injects process-side effects that must run only after commit.
+func WithCoordinatorPostCommitHandler(handler CoordinatorPostCommitHandler) Option {
+	return func(opts *managerOptions) {
+		opts.coordinatorPostCommit = handler
 	}
 }
 

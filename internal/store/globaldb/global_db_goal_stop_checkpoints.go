@@ -4,11 +4,13 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/goal"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 type stoppableGoalCheckpointKey struct {
@@ -17,10 +19,17 @@ type stoppableGoalCheckpointKey struct {
 	itemIndex  int
 }
 
-func stopGoalCheckpointsWithExecutor(
+type goalCancellationRequest struct {
+	WorkspaceID looppkg.WorkspaceID
+	RunID       looppkg.RunID
+	Actor       taskpkg.ActorContext
+	CanceledAt  time.Time
+}
+
+func cancelGoalCheckpointsWithExecutor(
 	ctx context.Context,
 	exec taskSQLExecutor,
-	request looppkg.GoalRunStopRequest,
+	request goalCancellationRequest,
 	enqueueProjection bool,
 ) ([]looppkg.GoalPromptLease, error) {
 	keys, err := loadStoppableGoalCheckpointKeys(ctx, exec, request)
@@ -40,7 +49,7 @@ func stopGoalCheckpointsWithExecutor(
 			return nil, err
 		}
 		if revocableGoalCheckpointPhase(checkpoint.Phase) {
-			revokeRequest := stoppedGoalRevokeRequest(request, checkpoint)
+			revokeRequest := canceledGoalRevokeRequest(request, checkpoint)
 			if _, err := revokeGoalPromptWithExecutorOptions(
 				ctx,
 				exec,
@@ -56,7 +65,7 @@ func stopGoalCheckpointsWithExecutor(
 			leases = append(leases, lease)
 			continue
 		}
-		if err := terminalizeStoppedGoalCheckpoint(
+		if err := terminalizeCanceledGoalCheckpoint(
 			ctx,
 			exec,
 			request,
@@ -72,7 +81,7 @@ func stopGoalCheckpointsWithExecutor(
 func loadStoppableGoalCheckpointKeys(
 	ctx context.Context,
 	exec taskSQLExecutor,
-	request looppkg.GoalRunStopRequest,
+	request goalCancellationRequest,
 ) ([]stoppableGoalCheckpointKey, error) {
 	rows, err := sqlcgen.New(exec).ListStoppableGoalCheckpointKeys(ctx, string(request.RunID))
 	if err != nil {
@@ -87,14 +96,14 @@ func loadStoppableGoalCheckpointKeys(
 	return keys, nil
 }
 
-func terminalizeStoppedGoalCheckpoint(
+func terminalizeCanceledGoalCheckpoint(
 	ctx context.Context,
 	exec taskSQLExecutor,
-	request looppkg.GoalRunStopRequest,
+	request goalCancellationRequest,
 	checkpoint goal.Checkpoint,
 	enqueueProjection bool,
 ) error {
-	revoke := stoppedGoalRevokeRequest(request, checkpoint)
+	revoke := canceledGoalRevokeRequest(request, checkpoint)
 	affected, err := sqlcgen.New(exec).
 		TerminalizeStoppedGoalCheckpoint(ctx, sqlcgen.TerminalizeStoppedGoalCheckpointParams{
 			ControlCause:     goalNullableString(string(revoke.Cause)),
@@ -102,8 +111,8 @@ func terminalizeStoppedGoalCheckpoint(
 			ControlActorID: goalNullableString(
 				revoke.ActorID,
 			),
-			ControlRequestedAt: store.FormatTimestamp(request.StoppedAt),
-			UpdatedAt:          store.FormatTimestamp(request.StoppedAt),
+			ControlRequestedAt: store.FormatTimestamp(request.CanceledAt),
+			UpdatedAt:          store.FormatTimestamp(request.CanceledAt),
 			LoopRunID:          string(request.RunID),
 			Generation:         int64(checkpoint.Key.Generation),
 			NodeID:             string(checkpoint.Key.NodeID),
@@ -136,7 +145,7 @@ func terminalizeStoppedGoalCheckpoint(
 		revoke.Cause,
 		revoke.ActorKind,
 		revoke.ActorID,
-		request.StoppedAt,
+		request.CanceledAt,
 	); err != nil {
 		return err
 	}
@@ -146,10 +155,10 @@ func terminalizeStoppedGoalCheckpoint(
 	return enqueueRevokedGoalProjection(ctx, exec, checkpoint, revoke)
 }
 
-func closeStoppedGoalBindings(
+func closeCanceledGoalBindings(
 	ctx context.Context,
 	exec taskSQLExecutor,
-	request looppkg.GoalRunStopRequest,
+	request goalCancellationRequest,
 ) error {
 	rows, err := sqlcgen.New(exec).ListActiveGoalBindingsForStop(ctx, sqlcgen.ListActiveGoalBindingsForStopParams{
 		LoopRunID: string(request.RunID), WorkspaceID: string(request.WorkspaceID),
@@ -169,18 +178,18 @@ func closeStoppedGoalBindings(
 			binding.BindingEpoch,
 			binding.SessionID,
 			goal.SessionCleanupCauseStop,
-			request.StoppedAt,
+			request.CanceledAt,
 		); err != nil {
 			return err
 		}
 	}
-	return failStoppedCreatingGoalBindings(ctx, exec, request)
+	return failCanceledCreatingGoalBindings(ctx, exec, request)
 }
 
-func failStoppedCreatingGoalBindings(
+func failCanceledCreatingGoalBindings(
 	ctx context.Context,
 	exec taskSQLExecutor,
-	request looppkg.GoalRunStopRequest,
+	request goalCancellationRequest,
 ) error {
 	rows, err := sqlcgen.New(exec).ListCreatingGoalBindingsForStop(ctx, sqlcgen.ListCreatingGoalBindingsForStopParams{
 		LoopRunID: string(request.RunID), WorkspaceID: string(request.WorkspaceID),
@@ -197,7 +206,7 @@ func failStoppedCreatingGoalBindings(
 		affected, err := sqlcgen.New(exec).
 			FailGoalBindingCreationAttempt(ctx, sqlcgen.FailGoalBindingCreationAttemptParams{
 				FailureCode: goalNullableString(goalBindingFailureStopCreationUnsettled),
-				FailedAt:    store.FormatTimestamp(request.StoppedAt), LoopRunID: string(request.RunID),
+				FailedAt:    store.FormatTimestamp(request.CanceledAt), LoopRunID: string(request.RunID),
 				Handle: candidate.Handle, BindingEpoch: candidate.BindingEpoch,
 			})
 		if err != nil {
@@ -207,12 +216,43 @@ func failStoppedCreatingGoalBindings(
 			return err
 		}
 		if err := enqueueGoalSessionCleanupWithExecutor(
-			ctx, exec, binding, goal.SessionCleanupCauseStop, request.StoppedAt,
+			ctx, exec, binding, goal.SessionCleanupCauseStop, request.CanceledAt,
 		); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func canceledGoalRevokeRequest(
+	request goalCancellationRequest,
+	checkpoint goal.Checkpoint,
+) goal.RevokePromptRequest {
+	return goal.RevokePromptRequest{
+		Key:                  checkpoint.Key,
+		ExpectedControlEpoch: checkpoint.ControlEpoch,
+		ExpectedBindingEpoch: checkpoint.BindingEpoch,
+		TaskRunID:            checkpoint.TaskRunID,
+		QueueEntryID:         checkpoint.QueueEntryID,
+		PromptID:             checkpoint.PromptID,
+		Disposition:          looppkg.ActionDispositionPaused,
+		Status:               goalStatusPaused,
+		Cause:                looppkg.ReasonCodeGoalControlRevokedInFlight,
+		ActorKind:            string(request.Actor.Actor.Kind.Normalize()),
+		ActorID:              strings.TrimSpace(request.Actor.Actor.Ref),
+		ProjectionCause:      goal.SessionOutboxCauseStatus,
+		RevokedAt:            request.CanceledAt,
+	}
+}
+
+func goalPromptLease(checkpoint goal.Checkpoint) looppkg.GoalPromptLease {
+	return looppkg.GoalPromptLease{
+		QueueEntryID: checkpoint.QueueEntryID, SessionID: checkpoint.SessionID, OwnerKind: "goal",
+		LoopRunID: string(checkpoint.Key.LoopRunID), TaskRunID: checkpoint.TaskRunID,
+		RunGeneration: checkpoint.Key.Generation, PromptAttempt: checkpoint.PromptAttempt,
+		ControlEpoch: checkpoint.ControlEpoch, BindingEpoch: checkpoint.BindingEpoch,
+		PromptID: checkpoint.PromptID, PromptKind: checkpoint.PromptKind, JudgeAttemptID: checkpoint.JudgeAttemptID,
+	}
 }
 
 func validGoalPromptLease(lease looppkg.GoalPromptLease) bool {

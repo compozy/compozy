@@ -107,6 +107,8 @@ func attachAttemptEffectIntents(
 		}
 	case AttemptQuarantined:
 		return attachQuarantineEffectIntents(run, node, attempt, payload)
+	case AttemptCanceled:
+		return appendNodeEffectEvent(run, node.OnCancel, EffectTriggerOnCancel, attempt, payload)
 	}
 	return nil
 }
@@ -192,7 +194,9 @@ func appendNodeEffectEvent(
 		return err
 	}
 	kind := GenerationLifecycleEventNodeSucceeded
-	if trigger != EffectTriggerOnSuccess {
+	if trigger == EffectTriggerOnCancel {
+		kind = GenerationLifecycleEventNodeCanceled
+	} else if trigger != EffectTriggerOnSuccess {
 		kind = GenerationLifecycleEventNodeFailed
 	}
 	for index := range payload.Events {
@@ -244,6 +248,8 @@ func terminalEffectSpecs(contract dsl.Contract, status Status) ([]dsl.EffectSpec
 		return contract.OnExhausted, EffectTriggerOnExhausted
 	case StatusStalled:
 		return contract.OnStalled, EffectTriggerOnStalled
+	case StatusCanceled:
+		return contract.OnCanceled, EffectTriggerOnCanceled
 	default:
 		return nil, ""
 	}

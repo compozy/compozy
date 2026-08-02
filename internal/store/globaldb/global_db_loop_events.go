@@ -18,6 +18,10 @@ const (
 	loopRunEventNodeFailed              = "node_failed"
 	loopRunEventNodeQuarantined         = "node_quarantined"
 	loopRunEventNodeRequeued            = "node_requeued"
+	loopRunEventNodeCanceled            = "node_canceled"
+	loopRunEventNodeKilled              = "node_killed"
+	loopRunEventNodeAttentionFlagged    = "node_attention_flagged"
+	loopRunEventNodeAttentionCleared    = "node_attention_cleared"
 	loopRunEventTargetBreakerTransition = "target_breaker_transition"
 	loopRunEventGateVerdict             = "gate_verdict"
 	loopRunEventGenerationStarted       = "generation_started"
@@ -70,6 +74,7 @@ const (
 	loopRunNodeOutputRunning           = "running"
 	loopRetryScheduleKind              = "retry"
 	loopGenerationOutputRetrying       = "retrying"
+	loopGenerationOutputAwaitingGoal   = "awaiting_goal"
 )
 
 func appendLoopRunStatusEvent(
@@ -226,6 +231,11 @@ func loopRunEventKindValid(kind string) bool {
 		loopRunEventNodeFailed,
 		loopRunEventNodeQuarantined,
 		loopRunEventNodeRequeued,
+		loopRunEventNodeCanceled,
+		loopRunEventNodeKilled,
+		loopRunEventNodeAttentionFlagged,
+		loopRunEventNodeAttentionCleared,
+		loopRunEventNodeResumed,
 		loopRunEventTargetBreakerTransition,
 		loopRunEventGateVerdict,
 		loopRunEventGenerationStarted,

@@ -227,7 +227,8 @@ func appendGenerationLifecycleEventsWithExecutor(
 				return err
 			}
 		case looppkg.GenerationLifecycleEventNodeSucceeded,
-			looppkg.GenerationLifecycleEventNodeFailed:
+			looppkg.GenerationLifecycleEventNodeFailed,
+			looppkg.GenerationLifecycleEventNodeCanceled:
 			if err := appendNodeOutcomeEffectEventWithExecutor(
 				ctx, exec, run, generation, event, at,
 			); err != nil {

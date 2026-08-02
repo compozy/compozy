@@ -135,14 +135,11 @@ full, the run stays queued and the native claim returns the typed reason `autono
 Wait for the next runtime wake instead of releasing
 an unrelated lease. Global task runs and Network wake runs do not consume this workspace limit.
 
-Action nodes without an explicit timeout inherit `task.orchestration.action_run_timeout` (default
-`30m`). The daemon cancels a bound action session and fails the leased run with `node_timeout` at the
-absolute deadline, or `no_progress` when neither cumulative usage nor session activity advances.
-An active tool suspends only the idle check, never the absolute deadline. Recovered expired leases
+Action nodes have no inherited duration limit. Only `timeout` or lifecycle deadlines written on the
+node bound execution time; silence can raise attention but never fails or cancels the work. Recovered expired leases
 increment the run's `recovery_count`; once `attempt + recovery_count` reaches `max_attempts`, the run
 and task move to `needs_attention` with `lease_recovery_exhausted` instead of reclaiming forever.
-Inspect the run before retrying; changing the default through `compozy config set` requires a daemon
-restart.
+Inspect the run before retrying.
 
 ## Reviewer Loop
 

@@ -1885,59 +1885,343 @@ func TestServiceConstructorAndReasonErrorsShouldBeStable(t *testing.T) {
 	})
 }
 
-func TestServiceStopShouldFailRunWithOperatorCause(t *testing.T) {
+func TestServiceCancellationShouldRecordCanceledTerminalTruth(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should transition a live run to failed with operator stop cause", func(t *testing.T) {
+	t.Run("Should cancel one node through its prompt and enqueue on_cancel", func(t *testing.T) {
+		t.Parallel()
+
+		store := newFakeLoopStore()
+		store.cancellationSessionIDs = []string{"session-agent"}
+		definition := validDefinition()
+		definition.Graph.Nodes[2].Normalize()
+		definition.Graph.Nodes[2].OnCancel = []dsl.EffectSpec{{
+			Emit: &dsl.EmitSpec{Kind: "agent_canceled"},
+		}}
+		var canceled []string
+		var killed []string
+		svc := newTestServiceWithOptions(
+			t,
+			store,
+			definition,
+			loop.WithCancellationSessionController(loop.CancellationSessionControllerFuncs{
+				Cancel: func(_ context.Context, sessionID, _ string) error {
+					canceled = append(canceled, sessionID)
+					return nil
+				},
+				Kill: func(_ context.Context, sessionID, _ string) error {
+					killed = append(killed, sessionID)
+					return nil
+				},
+			}),
+		)
+		run, err := svc.Start(context.Background(), "ws-1", "valid-loop", loop.Inputs{
+			Values: map[string]any{"tasks": "task-ref"},
+		}, humanActor(t))
+		if err != nil {
+			t.Fatalf("Start() error = %v", err)
+		}
+		if err := svc.CancelNode(
+			context.Background(), run.WorkspaceID, run.ID, "agent", "operator request", humanActor(t),
+		); err != nil {
+			t.Fatalf("CancelNode() error = %v", err)
+		}
+		request := store.lastCancellationRequest(t)
+		if request.NodeID != "agent" || len(request.Effects) != 1 ||
+			request.Effects[0].Trigger != loop.EffectTriggerOnCancel {
+			t.Fatalf("node cancellation request = %#v, want one on_cancel intent", request)
+		}
+		if !reflect.DeepEqual(canceled, []string{"session-agent"}) || len(killed) != 0 {
+			t.Fatalf("cancel delivery = %#v killed = %#v", canceled, killed)
+		}
+		if !reflect.DeepEqual(store.cancellationStates, []loop.CancelState{
+			loop.CancelStateDelivering, loop.CancelStateDraining,
+		}) {
+			t.Fatalf("node cancellation states = %#v", store.cancellationStates)
+		}
+		if got := store.mustRun(t, run.ID).Status; got != loop.StatusRunning {
+			t.Fatalf("node cancellation changed Run status to %q", got)
+		}
+	})
+
+	t.Run("Should kill one node without node-trigger effects", func(t *testing.T) {
+		t.Parallel()
+
+		store := newFakeLoopStore()
+		store.cancellationSessionIDs = []string{"session-agent"}
+		definition := validDefinition()
+		definition.Graph.Nodes[2].Normalize()
+		definition.Graph.Nodes[2].OnCancel = []dsl.EffectSpec{{
+			Emit: &dsl.EmitSpec{Kind: "must_not_fire"},
+		}}
+		var killed []string
+		svc := newTestServiceWithOptions(
+			t,
+			store,
+			definition,
+			loop.WithCancellationSessionController(loop.CancellationSessionControllerFuncs{
+				Kill: func(_ context.Context, sessionID, _ string) error {
+					killed = append(killed, sessionID)
+					return nil
+				},
+			}),
+		)
+		run, err := svc.Start(context.Background(), "ws-1", "valid-loop", loop.Inputs{
+			Values: map[string]any{"tasks": "task-ref"},
+		}, humanActor(t))
+		if err != nil {
+			t.Fatalf("Start() error = %v", err)
+		}
+		if err := svc.KillNode(
+			context.Background(), run.WorkspaceID, run.ID, "agent", "unsafe tool", humanActor(t),
+		); err != nil {
+			t.Fatalf("KillNode() error = %v", err)
+		}
+		request := store.lastCancellationRequest(t)
+		if len(request.Effects) != 0 {
+			t.Fatalf("kill effects = %#v, want none", request.Effects)
+		}
+		if !reflect.DeepEqual(killed, []string{"session-agent"}) || len(store.cancellationStates) != 0 {
+			t.Fatalf("kill delivery = %#v states = %#v", killed, store.cancellationStates)
+		}
+	})
+
+	t.Run("Should propagate parent close only from parent to owned children", func(t *testing.T) {
+		t.Parallel()
+
+		definition := validDefinition()
+		runLoopNode := func(id dsl.NodeID, policy dsl.ParentClosePolicy) dsl.Node {
+			return dsl.Node{
+				ID: id, Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunLoop),
+				Params:             dsl.NodeParams{"loop": "child-loop", "mode": string(dsl.RunLoopAwait)},
+				NodeLifecycleState: &dsl.NodeLifecycleState{OnParentClose: policy},
+			}
+		}
+		definition.Graph.Nodes[2] = runLoopNode("agent", "")
+		definition.Graph.Nodes = append(
+			definition.Graph.Nodes,
+			runLoopNode("cancel_child", dsl.ParentCloseCancel),
+			runLoopNode("abandon_child", dsl.ParentCloseAbandon),
+		)
+		definition.Graph.Edges = append(
+			definition.Graph.Edges,
+			dsl.Edge{From: "fan", To: "cancel_child"},
+			dsl.Edge{From: "fan", To: "abandon_child"},
+		)
+		definition.Contract.NoProgress.HashFields = []string{"nodes.agent.output.loop_run_id"}
+		store := newFakeLoopStore()
+		svc := newTestService(t, store, definition)
+		parent, err := svc.Start(context.Background(), "ws-1", "valid-loop", loop.Inputs{
+			Values: map[string]any{"tasks": "task-ref"},
+		}, humanActor(t))
+		if err != nil {
+			t.Fatalf("Start(parent) error = %v", err)
+		}
+		children := []loop.Run{
+			{ID: "child-terminate", WorkspaceID: parent.WorkspaceID, LoopName: "child-loop", Status: loop.StatusRunning,
+				ParentLoopRunID: parent.ID},
+			{ID: "child-cancel", WorkspaceID: parent.WorkspaceID, LoopName: "child-loop", Status: loop.StatusRunning,
+				ParentLoopRunID: parent.ID},
+			{ID: "child-abandon", WorkspaceID: parent.WorkspaceID, LoopName: "child-loop", Status: loop.StatusRunning,
+				ParentLoopRunID: parent.ID},
+		}
+		store.mu.Lock()
+		storedParent := store.runs[parent.ID]
+		storedParent.Generation = 1
+		store.runs[parent.ID] = storedParent
+		for _, child := range children {
+			store.runs[child.ID] = child
+		}
+		store.generationOutputs[parent.ID] = []loop.GenerationOutput{
+			{Generation: 1, NodeID: "agent", Status: "awaiting_child", ChildLoopRunID: "child-terminate"},
+			{Generation: 1, NodeID: "cancel_child", Status: "awaiting_child", ChildLoopRunID: "child-cancel"},
+			{Generation: 1, NodeID: "abandon_child", Status: "awaiting_child", ChildLoopRunID: "child-abandon"},
+		}
+		store.mu.Unlock()
+
+		if err := svc.CancelRun(
+			context.Background(), parent.WorkspaceID, parent.ID, "operator request", humanActor(t),
+		); err != nil {
+			t.Fatalf("CancelRun(parent) error = %v", err)
+		}
+		if got := store.mustRun(t, "child-terminate"); got.Status != loop.StatusCanceled ||
+			got.CancelKind != loop.RunCancelKill {
+			t.Fatalf("terminate child = %#v", got)
+		}
+		if got := store.mustRun(t, "child-cancel"); got.Status != loop.StatusRunning ||
+			!got.CancelRequested || got.CancelKind != loop.RunCancelCancel {
+			t.Fatalf("cancel child = %#v", got)
+		}
+		if got := store.mustRun(t, "child-abandon"); got.Status != loop.StatusRunning || got.CancelRequested {
+			t.Fatalf("abandoned child = %#v", got)
+		}
+	})
+
+	t.Run("Should keep the parent cancellation draining when child propagation fails", func(t *testing.T) {
+		t.Parallel()
+
+		definition := validDefinition()
+		definition.Graph.Nodes[2] = dsl.Node{
+			ID: "agent", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunLoop),
+			Params: dsl.NodeParams{"loop": "child-loop", "mode": string(dsl.RunLoopAwait)},
+		}
+		definition.Contract.NoProgress.HashFields = []string{"nodes.agent.output.loop_run_id"}
+		store := newFakeLoopStore()
+		var activated task.Run
+		svc := newTestServiceWithOptions(
+			t,
+			store,
+			definition,
+			loop.WithCoordinatorRunActivator(loop.CoordinatorRunActivatorFunc(func(
+				_ context.Context,
+				run task.Run,
+			) {
+				activated = run
+			})),
+		)
+		parent, err := svc.Start(context.Background(), "ws-1", "valid-loop", loop.Inputs{
+			Values: map[string]any{"tasks": "task-ref"},
+		}, humanActor(t))
+		if err != nil {
+			t.Fatalf("Start(parent) error = %v", err)
+		}
+		child := loop.Run{
+			ID: "child-parent-close-error", WorkspaceID: parent.WorkspaceID, LoopName: "child-loop",
+			Status: loop.StatusRunning, ParentLoopRunID: parent.ID,
+		}
+		wantErr := errors.New("child cancellation unavailable")
+		store.mu.Lock()
+		storedParent := store.runs[parent.ID]
+		storedParent.Generation = 1
+		store.runs[parent.ID] = storedParent
+		store.runs[child.ID] = child
+		store.generationOutputs[parent.ID] = []loop.GenerationOutput{{
+			Generation: 1, NodeID: "agent", Status: "awaiting_child", ChildLoopRunID: string(child.ID),
+		}}
+		store.cancellationErrByRun = map[loop.RunID]error{child.ID: wantErr}
+		store.mu.Unlock()
+
+		err = svc.CancelRun(
+			context.Background(), parent.WorkspaceID, parent.ID, "operator request", humanActor(t),
+		)
+		if !errors.Is(err, wantErr) {
+			t.Fatalf("CancelRun(parent) error = %v, want child propagation error", err)
+		}
+		if got := store.mustRun(t, parent.ID); !got.CancelRequested || got.Status != loop.StatusRunning {
+			t.Fatalf("parent Run = %#v, want durable draining cancellation", got)
+		}
+		if !reflect.DeepEqual(store.cancellationStates, []loop.CancelState{
+			loop.CancelStateDelivering, loop.CancelStateDraining,
+		}) {
+			t.Fatalf("parent cancellation states = %#v, want delivery to continue", store.cancellationStates)
+		}
+		if activated.LoopRunID != string(parent.ID) {
+			t.Fatalf("coordinator activation = %#v, want parent drain activation", activated)
+		}
+	})
+
+	t.Run("Should cooperatively cancel a live run", func(t *testing.T) {
 		t.Parallel()
 
 		store := newFakeLoopStore()
 		run := seedFakeRun(store, loop.StatusRunning)
-		svc := newTestService(t, store, validDefinition())
+		var activated task.Run
+		svc := newTestServiceWithOptions(
+			t,
+			store,
+			validDefinition(),
+			loop.WithCoordinatorRunActivator(loop.CoordinatorRunActivatorFunc(func(
+				_ context.Context,
+				run task.Run,
+			) {
+				activated = run
+			})),
+		)
 
-		if err := svc.Stop(context.Background(), "ws-1", run.ID, loop.StopReasonOperator, humanActor(t)); err != nil {
-			t.Fatalf("Stop() error = %v", err)
+		if err := svc.CancelRun(context.Background(), "ws-1", run.ID, "operator request", humanActor(t)); err != nil {
+			t.Fatalf("CancelRun() error = %v", err)
 		}
 		stored := store.mustRun(t, run.ID)
-		if stored.Status != loop.StatusFailed {
-			t.Fatalf("stored status = %q, want failed", stored.Status)
+		if stored.Status != loop.StatusRunning || !stored.CancelRequested ||
+			stored.CancelKind != loop.RunCancelCancel {
+			t.Fatalf("stored Run = %#v, want a draining cancellation", stored)
 		}
-		transition := store.lastTransition(t)
-		if transition.cause != loop.TransitionCauseOperatorStop {
-			t.Fatalf("transition cause = %q, want operator_stop", transition.cause)
+		if activated.LoopRunID != string(run.ID) || activated.WorkspaceID != string(run.WorkspaceID) {
+			t.Fatalf("coordinator activation = %#v, want canceled Run identity", activated)
+		}
+		if !reflect.DeepEqual(store.cancellationStates, []loop.CancelState{
+			loop.CancelStateDelivering, loop.CancelStateDraining,
+		}) {
+			t.Fatalf("run cancellation states = %#v, want visible drain", store.cancellationStates)
 		}
 	})
 
-	t.Run("Should reject stop for an already terminal run", func(t *testing.T) {
+	t.Run("Should preserve a terminal completion that wins the race", func(t *testing.T) {
 		t.Parallel()
 
 		store := newFakeLoopStore()
 		run := seedFakeRun(store, loop.StatusDone)
 		svc := newTestService(t, store, validDefinition())
 
-		err := svc.Stop(context.Background(), "ws-1", run.ID, loop.StopReasonOperator, humanActor(t))
-		if !errors.Is(err, loop.ErrInvalidTransition) {
-			t.Fatalf("Stop() error = %v, want ErrInvalidTransition", err)
+		if err := svc.CancelRun(context.Background(), "ws-1", run.ID, "late request", humanActor(t)); err != nil {
+			t.Fatalf("CancelRun() error = %v", err)
+		}
+		if got := store.mustRun(t, run.ID).Status; got != loop.StatusDone {
+			t.Fatalf("stored status = %q, want done", got)
 		}
 	})
 
-	t.Run("Should reject an unknown stop reason", func(t *testing.T) {
+	t.Run("Should make repeated cooperative cancel a no-op", func(t *testing.T) {
+		t.Parallel()
+
+		store := newFakeLoopStore()
+		store.cancellationSessionIDs = []string{"session-work"}
+		run := seedFakeRun(store, loop.StatusRunning)
+		var deliveries int
+		svc := newTestServiceWithOptions(
+			t,
+			store,
+			validDefinition(),
+			loop.WithCancellationSessionController(loop.CancellationSessionControllerFuncs{
+				Cancel: func(context.Context, string, string) error {
+					deliveries++
+					return nil
+				},
+			}),
+		)
+		for range 2 {
+			if err := svc.CancelRun(
+				context.Background(), run.WorkspaceID, run.ID, "operator request", humanActor(t),
+			); err != nil {
+				t.Fatalf("CancelRun() error = %v", err)
+			}
+		}
+		if deliveries != 1 || !reflect.DeepEqual(store.cancellationStates, []loop.CancelState{
+			loop.CancelStateDelivering, loop.CancelStateDraining,
+		}) {
+			t.Fatalf("repeated cancel deliveries/states = %d/%#v, want one drain", deliveries, store.cancellationStates)
+		}
+	})
+
+	t.Run("Should kill a live run with the distinct kill cause", func(t *testing.T) {
 		t.Parallel()
 
 		store := newFakeLoopStore()
 		run := seedFakeRun(store, loop.StatusRunning)
 		svc := newTestService(t, store, validDefinition())
 
-		err := svc.Stop(context.Background(), "ws-1", run.ID, loop.StopReason("unknown"), humanActor(t))
-		if !errors.Is(err, loop.ErrValidation) {
-			t.Fatalf("Stop(unknown reason) error = %v, want ErrValidation", err)
+		if err := svc.KillRun(context.Background(), "ws-1", run.ID, "unsafe tool", humanActor(t)); err != nil {
+			t.Fatalf("KillRun() error = %v", err)
 		}
-		if got := store.mustRun(t, run.ID); got.Status != loop.StatusRunning {
-			t.Fatalf("stored status = %q, want original running", got.Status)
+		if got := store.mustRun(t, run.ID); got.Status != loop.StatusCanceled {
+			t.Fatalf("stored status = %q, want canceled", got.Status)
+		}
+		if got := store.lastTransition(t).cause; got != loop.TransitionCauseOperatorKill {
+			t.Fatalf("transition cause = %q, want operator_kill", got)
 		}
 	})
 
-	t.Run("Should atomically stop Goal state before revoking its exact prompt lease", func(t *testing.T) {
+	t.Run("Should revoke an exact Goal prompt lease only after cancellation commits", func(t *testing.T) {
 		t.Parallel()
 
 		base := newFakeLoopStore()
@@ -1948,17 +2232,12 @@ func TestServiceStopShouldFailRunWithOperatorCause(t *testing.T) {
 			PromptAttempt: 2, ControlEpoch: 3, BindingEpoch: 4,
 			PromptID: "prompt-goal-stop", PromptKind: "work",
 		}
-		store := &atomicGoalStopStore{
-			fakeLoopStore: base,
-			result: loop.GoalRunStopResult{
-				RevokedPromptLeases: []loop.GoalPromptLease{lease},
-			},
-		}
+		base.cancellationLeases = []loop.GoalPromptLease{lease}
 		var revoked []loop.GoalPromptLease
 		var reasons []string
 		svc := newTestServiceWithOptions(
 			t,
-			store,
+			base,
 			validDefinition(),
 			loop.WithGoalPromptLeaseRevoker(loop.GoalPromptLeaseRevokerFunc(
 				func(_ context.Context, got loop.GoalPromptLease, reason string) error {
@@ -1969,34 +2248,34 @@ func TestServiceStopShouldFailRunWithOperatorCause(t *testing.T) {
 			)),
 		)
 		actor := humanActor(t)
-		if err := svc.Stop(context.Background(), run.WorkspaceID, run.ID, loop.StopReasonOperator, actor); err != nil {
-			t.Fatalf("Stop() error = %v", err)
+		if err := svc.CancelRun(context.Background(), run.WorkspaceID, run.ID, "operator request", actor); err != nil {
+			t.Fatalf("CancelRun() error = %v", err)
 		}
-		if got := base.mustRun(t, run.ID); got.Status != loop.StatusFailed {
-			t.Fatalf("stored status = %q, want failed", got.Status)
+		if got := base.mustRun(t, run.ID); got.Status != loop.StatusRunning || !got.CancelRequested {
+			t.Fatalf("stored Run = %#v, want cancellation to remain draining", got)
 		}
-		request := store.lastRequest(t)
-		if request.WorkspaceID != run.WorkspaceID || request.RunID != run.ID ||
-			request.ExpectedStatus != loop.StatusRunning || request.Actor != actor || request.StoppedAt.IsZero() {
-			t.Fatalf("atomic Goal stop request = %#v", request)
+		request := base.lastCancellationRequest(t)
+		if request.WorkspaceID != run.WorkspaceID || request.RunID != run.ID || request.Actor != actor ||
+			request.RequestedAt.IsZero() {
+			t.Fatalf("cancellation request = %#v", request)
 		}
 		if !reflect.DeepEqual(revoked, []loop.GoalPromptLease{lease}) ||
-			!reflect.DeepEqual(reasons, []string{string(loop.TransitionCauseOperatorStop)}) {
+			!reflect.DeepEqual(reasons, []string{string(loop.TransitionCauseOperatorCancel)}) {
 			t.Fatalf("post-commit revocations = %#v reasons = %#v", revoked, reasons)
 		}
 	})
 
-	t.Run("Should not revoke a Goal prompt lease when the atomic stop rolls back", func(t *testing.T) {
+	t.Run("Should not revoke a Goal prompt lease when cancellation rolls back", func(t *testing.T) {
 		t.Parallel()
 
 		base := newFakeLoopStore()
 		run := seedFakeRun(base, loop.StatusRunning)
-		wantErr := errors.New("atomic Goal stop failed")
-		store := &atomicGoalStopStore{fakeLoopStore: base, err: wantErr}
+		wantErr := errors.New("atomic cancellation failed")
+		base.cancellationErr = wantErr
 		var revokeCalls int
 		svc := newTestServiceWithOptions(
 			t,
-			store,
+			base,
 			validDefinition(),
 			loop.WithGoalPromptLeaseRevoker(loop.GoalPromptLeaseRevokerFunc(func(
 				context.Context,
@@ -2007,10 +2286,10 @@ func TestServiceStopShouldFailRunWithOperatorCause(t *testing.T) {
 				return nil
 			})),
 		)
-		if err := svc.Stop(
-			context.Background(), run.WorkspaceID, run.ID, loop.StopReasonOperator, humanActor(t),
+		if err := svc.CancelRun(
+			context.Background(), run.WorkspaceID, run.ID, "operator request", humanActor(t),
 		); !errors.Is(err, wantErr) {
-			t.Fatalf("Stop() error = %v, want %v", err, wantErr)
+			t.Fatalf("CancelRun() error = %v, want %v", err, wantErr)
 		}
 		if revokeCalls != 0 {
 			t.Fatalf("post-commit revoke calls = %d, want 0", revokeCalls)
@@ -2176,47 +2455,6 @@ func (d *participationLifecycleHookDispatcher) DispatchLoopTerminal(
 	return payload, nil
 }
 
-type atomicGoalStopStore struct {
-	*fakeLoopStore
-	mu       sync.Mutex
-	requests []loop.GoalRunStopRequest
-	result   loop.GoalRunStopResult
-	err      error
-}
-
-func (s *atomicGoalStopStore) StopGoalRun(
-	ctx context.Context,
-	request loop.GoalRunStopRequest,
-) (loop.GoalRunStopResult, error) {
-	s.mu.Lock()
-	s.requests = append(s.requests, request)
-	s.mu.Unlock()
-	if s.err != nil {
-		return loop.GoalRunStopResult{}, s.err
-	}
-	if err := s.CompareAndSwapLoopRunStatus(
-		ctx,
-		request.RunID,
-		request.ExpectedStatus,
-		loop.StatusFailed,
-		loop.TransitionCauseOperatorStop,
-		request.StoppedAt,
-	); err != nil {
-		return loop.GoalRunStopResult{}, err
-	}
-	return s.result, nil
-}
-
-func (s *atomicGoalStopStore) lastRequest(t *testing.T) loop.GoalRunStopRequest {
-	t.Helper()
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if len(s.requests) == 0 {
-		t.Fatal("atomic Goal stop request count = 0, want 1")
-	}
-	return s.requests[len(s.requests)-1]
-}
-
 func compileDefinition(t *testing.T, def dsl.Definition) *loop.ResolvedDefinition {
 	t.Helper()
 
@@ -2286,16 +2524,46 @@ type fakeLoopStore struct {
 	goalControl                      *loop.GoalControlState
 	goalReactivations                []loop.GoalReactivationRequest
 	inlineReplaceRevokedPromptLeases []loop.GoalPromptLease
+	cancellationRequests             []loop.CancellationMutation
+	cancellationStates               []loop.CancelState
+	cancellationSessionIDs           []string
+	cancellationLeases               []loop.GoalPromptLease
+	cancellationErr                  error
+	cancellationErrByRun             map[loop.RunID]error
+	generationOutputs                map[loop.RunID][]loop.GenerationOutput
 	creates                          int
 }
 
 func newFakeLoopStore() *fakeLoopStore {
 	return &fakeLoopStore{
-		runs:      map[loop.RunID]loop.Run{},
-		configs:   map[string]loop.LoopConfig{},
-		snapshots: map[string]loop.DefinitionSnapshot{},
-		decisions: map[string]map[string]gate.HumanDecision{},
+		runs:              map[loop.RunID]loop.Run{},
+		configs:           map[string]loop.LoopConfig{},
+		snapshots:         map[string]loop.DefinitionSnapshot{},
+		decisions:         map[string]map[string]gate.HumanDecision{},
+		generationOutputs: map[loop.RunID][]loop.GenerationOutput{},
 	}
+}
+
+func (s *fakeLoopStore) ListGenerationOutputs(
+	_ context.Context,
+	workspaceID loop.WorkspaceID,
+	runID loop.RunID,
+	generation int,
+) ([]loop.GenerationOutput, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	run, ok := s.runs[runID]
+	if !ok || run.WorkspaceID != workspaceID {
+		return nil, loop.ErrRunNotFound
+	}
+	outputs := s.generationOutputs[runID]
+	result := make([]loop.GenerationOutput, 0, len(outputs))
+	for _, output := range outputs {
+		if output.Generation == generation {
+			result = append(result, output)
+		}
+	}
+	return result, nil
 }
 
 func (s *fakeLoopStore) seed(run loop.Run) {
@@ -2331,6 +2599,16 @@ func (s *fakeLoopStore) lastGoalReactivation(t *testing.T) loop.GoalReactivation
 		t.Fatal("Goal reactivation count = 0, want at least one")
 	}
 	return s.goalReactivations[len(s.goalReactivations)-1]
+}
+
+func (s *fakeLoopStore) lastCancellationRequest(t *testing.T) loop.CancellationMutation {
+	t.Helper()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(s.cancellationRequests) == 0 {
+		t.Fatal("cancellation request count = 0, want at least one")
+	}
+	return s.cancellationRequests[len(s.cancellationRequests)-1]
 }
 
 func (s *fakeLoopStore) createCount() int {
@@ -2495,6 +2773,127 @@ func (s *fakeLoopStore) GetLoopRunByID(_ context.Context, runID loop.RunID) (loo
 		return loop.Run{}, loop.ErrRunNotFound
 	}
 	return run, nil
+}
+
+func (s *fakeLoopStore) RequestRunCancellation(
+	_ context.Context,
+	mutation loop.CancellationMutation,
+) (loop.CancellationResult, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.cancellationRequests = append(s.cancellationRequests, mutation)
+	if err := s.cancellationErrByRun[mutation.RunID]; err != nil {
+		return loop.CancellationResult{}, err
+	}
+	if s.cancellationErr != nil {
+		return loop.CancellationResult{}, s.cancellationErr
+	}
+	run, ok := s.runs[mutation.RunID]
+	if !ok || run.WorkspaceID != mutation.WorkspaceID {
+		return loop.CancellationResult{}, loop.ErrRunNotFound
+	}
+	if run.Status.Terminal() {
+		return loop.CancellationResult{Run: run, Terminal: true}, nil
+	}
+	if run.CancelRequested {
+		return loop.CancellationResult{Run: run}, nil
+	}
+	run.CancelRequested = true
+	run.CancelKind = mutation.Kind
+	s.runs[run.ID] = run
+	result := loop.CancellationResult{
+		Run:                 run,
+		Applied:             true,
+		SessionIDs:          append([]string(nil), s.cancellationSessionIDs...),
+		RevokedPromptLeases: append([]loop.GoalPromptLease(nil), s.cancellationLeases...),
+	}
+	if mutation.Kind == loop.RunCancelKill {
+		s.terminalizeCancellationLocked(run, mutation, &result)
+	}
+	return result, nil
+}
+
+func (s *fakeLoopStore) AdvanceRunCancellation(
+	_ context.Context,
+	mutation loop.CancellationMutation,
+	state loop.CancelState,
+) (loop.CancellationResult, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.cancellationStates = append(s.cancellationStates, state)
+	if s.cancellationErr != nil {
+		return loop.CancellationResult{}, s.cancellationErr
+	}
+	run, ok := s.runs[mutation.RunID]
+	if !ok || run.WorkspaceID != mutation.WorkspaceID {
+		return loop.CancellationResult{}, loop.ErrRunNotFound
+	}
+	result := loop.CancellationResult{Run: run, Applied: true}
+	if state == loop.CancelStateCanceled {
+		s.terminalizeCancellationLocked(run, mutation, &result)
+	}
+	return result, nil
+}
+
+func (s *fakeLoopStore) RequestNodeCancellation(
+	_ context.Context,
+	mutation loop.CancellationMutation,
+) (loop.CancellationResult, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.cancellationRequests = append(s.cancellationRequests, mutation)
+	if err := s.cancellationErrByRun[mutation.RunID]; err != nil {
+		return loop.CancellationResult{}, err
+	}
+	if s.cancellationErr != nil {
+		return loop.CancellationResult{}, s.cancellationErr
+	}
+	run, ok := s.runs[mutation.RunID]
+	if !ok || run.WorkspaceID != mutation.WorkspaceID {
+		return loop.CancellationResult{}, loop.ErrRunNotFound
+	}
+	if run.Status.Terminal() {
+		return loop.CancellationResult{Run: run, Terminal: true}, nil
+	}
+	return loop.CancellationResult{
+		Run: run, Applied: true, SessionIDs: append([]string(nil), s.cancellationSessionIDs...),
+	}, nil
+}
+
+func (s *fakeLoopStore) AdvanceNodeCancellation(
+	_ context.Context,
+	mutation loop.CancellationMutation,
+	state loop.CancelState,
+) (loop.CancellationResult, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.cancellationStates = append(s.cancellationStates, state)
+	if s.cancellationErr != nil {
+		return loop.CancellationResult{}, s.cancellationErr
+	}
+	run, ok := s.runs[mutation.RunID]
+	if !ok || run.WorkspaceID != mutation.WorkspaceID {
+		return loop.CancellationResult{}, loop.ErrRunNotFound
+	}
+	return loop.CancellationResult{Run: run, Applied: true}, nil
+}
+
+func (s *fakeLoopStore) terminalizeCancellationLocked(
+	run loop.Run,
+	mutation loop.CancellationMutation,
+	result *loop.CancellationResult,
+) {
+	from := run.Status
+	run.Status = loop.StatusCanceled
+	s.runs[run.ID] = run
+	cause := loop.TransitionCauseOperatorCancel
+	if mutation.Kind == loop.RunCancelKill {
+		cause = loop.TransitionCauseOperatorKill
+	}
+	s.transitions = append(s.transitions, fakeTransition{runID: run.ID, from: from, to: run.Status, cause: cause})
+	result.Run = run
+	result.Terminal = true
+	result.RevokedPromptLeases = append([]loop.GoalPromptLease(nil), s.cancellationLeases...)
 }
 
 func (s *fakeLoopStore) LoadAwaitingGoalControl(

@@ -23,7 +23,6 @@ type taskOrchestrationOverlay struct {
 	BridgeNotificationTimeout *time.Duration                  `toml:"bridge_notification_timeout"`
 	DesignatedRunMax          *int                            `toml:"designated_run_max"`
 	MaxActiveRunsPerWorkspace *int                            `toml:"max_active_runs_per_workspace"`
-	ActionRunTimeout          *time.Duration                  `toml:"action_run_timeout"`
 	NetworkStatusQueueSize    *int                            `toml:"network_status_queue_size"`
 	NetworkStatusTimeout      *time.Duration                  `toml:"network_status_timeout"`
 	Profile                   taskOrchestrationProfileOverlay `toml:"profile"`
@@ -97,9 +96,6 @@ func (o taskOrchestrationOverlay) Apply(dst *TaskOrchestrationConfig) {
 	}
 	if o.MaxActiveRunsPerWorkspace != nil {
 		dst.MaxActiveRunsPerWorkspace = *o.MaxActiveRunsPerWorkspace
-	}
-	if o.ActionRunTimeout != nil {
-		dst.ActionRunTimeout = *o.ActionRunTimeout
 	}
 	if o.NetworkStatusQueueSize != nil {
 		dst.NetworkStatusQueueSize = *o.NetworkStatusQueueSize

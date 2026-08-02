@@ -98,17 +98,6 @@ func (c TaskOrchestrationConfig) validateRuntime(path string) error {
 			c.MaxActiveRunsPerWorkspace,
 		)
 	}
-	if err := validateWholeSecondDuration(path+".action_run_timeout", c.ActionRunTimeout, false); err != nil {
-		return err
-	}
-	if c.ActionRunTimeout > MaxTaskOrchestrationRuntime {
-		return fmt.Errorf(
-			"%s.action_run_timeout must be <= %s: %s",
-			path,
-			MaxTaskOrchestrationRuntime,
-			c.ActionRunTimeout,
-		)
-	}
 	if c.NetworkStatusQueueSize <= 0 {
 		return fmt.Errorf("%s.network_status_queue_size must be positive: %d", path, c.NetworkStatusQueueSize)
 	}

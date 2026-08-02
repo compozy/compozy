@@ -136,6 +136,7 @@ func loopStatusIsTerminalOrApproval(status loop.Status) bool {
 		loop.StatusFailed,
 		loop.StatusExhausted,
 		loop.StatusStalled,
+		loop.StatusCanceled,
 		loop.StatusNeedsApproval:
 		return true
 	default:

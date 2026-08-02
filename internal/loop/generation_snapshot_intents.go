@@ -25,6 +25,8 @@ const (
 	GenerationLifecycleEventNodeSucceeded GenerationLifecycleEventKind = "node_succeeded"
 	// GenerationLifecycleEventNodeFailed records an effect-bearing handled or terminal node failure.
 	GenerationLifecycleEventNodeFailed GenerationLifecycleEventKind = "node_failed"
+	// GenerationLifecycleEventNodeCanceled records one cooperatively drained node attempt.
+	GenerationLifecycleEventNodeCanceled GenerationLifecycleEventKind = "node_canceled"
 	// GenerationLifecycleEventNodeQuarantined records one durable quarantine episode.
 	GenerationLifecycleEventNodeQuarantined GenerationLifecycleEventKind = "node_quarantined"
 	// GenerationLifecycleEventTargetBreakerTransition records a loop-target breaker state change.
@@ -96,6 +98,8 @@ func (i GenerationLifecycleEventIntent) validate() error {
 		err = i.validateNodeSucceeded()
 	case GenerationLifecycleEventNodeFailed:
 		err = i.validateNodeFailed()
+	case GenerationLifecycleEventNodeCanceled:
+		err = i.validateNodeCanceled()
 	case GenerationLifecycleEventNodeQuarantined:
 		err = i.validateNodeQuarantined()
 	case GenerationLifecycleEventTargetBreakerTransition:
@@ -161,6 +165,14 @@ func (i GenerationLifecycleEventIntent) validateNodeFailed() error {
 		return nil
 	}
 	return fmt.Errorf("%w: node_failed effect event has incomplete failure identity", ErrValidation)
+}
+
+func (i GenerationLifecycleEventIntent) validateNodeCanceled() error {
+	if i.NodeID != "" && i.ItemIndex >= 0 && i.Attempt >= 1 && i.Failure != nil &&
+		i.Disposition == AttemptCanceled {
+		return nil
+	}
+	return fmt.Errorf("%w: node_canceled event has incomplete cancellation identity", ErrValidation)
 }
 
 func (i GenerationLifecycleEventIntent) validateNodeQuarantined() error {

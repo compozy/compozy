@@ -65,6 +65,11 @@ func TestLoopRunEventKindValidShouldMatchPublicContract(t *testing.T) {
 	for _, kind := range []string{
 		loopRunEventNodeQuarantined,
 		loopRunEventNodeRequeued,
+		loopRunEventNodeCanceled,
+		loopRunEventNodeKilled,
+		loopRunEventNodeAttentionFlagged,
+		loopRunEventNodeAttentionCleared,
+		loopRunEventNodeResumed,
 		loopRunEventTargetBreakerTransition,
 		loopRunEventEffectResults,
 		loopRunEventCustomEvent,
@@ -79,6 +84,557 @@ func TestLoopRunEventKindValidShouldMatchPublicContract(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Invariant: a Run cancellation request, every node fence, Goal cleanup, and canceled terminal
+// truth share one SQLite authority. This store suite owns the atomic cancellation boundary.
+func TestGlobalDBLoopRunCancellationShouldFenceBeforeTerminalizing(t *testing.T) {
+	t.Parallel()
+
+	globalDB := openLoopTestGlobalDB(t)
+	ctx := testutil.Context(t)
+	now := time.Date(2026, time.August, 3, 1, 0, 0, 0, time.UTC)
+	run, taskRunID := seedLiveLoopLivenessCellForTest(t, globalDB, now)
+	actor := operatorActorContextForTest("operator:cancel")
+	mutation := looppkg.CancellationMutation{
+		WorkspaceID: run.WorkspaceID, RunID: run.ID, Kind: looppkg.RunCancelCancel,
+		Reason: "operator request", Actor: actor, RequestedAt: now.Add(time.Minute),
+	}
+	result, err := globalDB.RequestRunCancellation(ctx, mutation)
+	if err != nil {
+		t.Fatalf("RequestRunCancellation() error = %v", err)
+	}
+	if !result.Applied || result.Terminal {
+		t.Fatalf("RequestRunCancellation() = %#v, want durable non-terminal request", result)
+	}
+	stored, err := globalDB.GetLoopRun(ctx, run.WorkspaceID, run.ID)
+	if err != nil {
+		t.Fatalf("GetLoopRun() error = %v", err)
+	}
+	if !stored.CancelRequested || stored.CancelKind != looppkg.RunCancelCancel ||
+		stored.Status != looppkg.StatusRunning {
+		t.Fatalf("requested Run = %#v, want live cancel projection", stored)
+	}
+	var epoch int64
+	if err := globalDB.db.QueryRowContext(ctx, `SELECT epoch FROM loop_generation_outputs
+		WHERE loop_run_id = ? AND task_run_id = ?`, run.ID, taskRunID).Scan(&epoch); err != nil {
+		t.Fatalf("read canceled output epoch error = %v", err)
+	}
+	if epoch != 5 {
+		t.Fatalf("canceled output epoch = %d, want 5", epoch)
+	}
+	controls, err := globalDB.ListNodeControls(ctx, run.WorkspaceID, run.ID)
+	if err != nil {
+		t.Fatalf("ListNodeControls() error = %v", err)
+	}
+	if len(controls) != 1 || controls[0].CancelState != looppkg.CancelStateRequested ||
+		controls[0].CancelProvenance == nil || controls[0].CancelProvenance.ActorID != "operator:cancel" {
+		t.Fatalf("cancel controls = %#v, want first-writer request provenance", controls)
+	}
+	for _, state := range []looppkg.CancelState{
+		looppkg.CancelStateDelivering, looppkg.CancelStateDraining,
+	} {
+		result, err = globalDB.AdvanceRunCancellation(ctx, mutation, state)
+		if err != nil {
+			t.Fatalf("AdvanceRunCancellation(%s) error = %v", state, err)
+		}
+	}
+	if result.Terminal || result.Run.Status != looppkg.StatusRunning {
+		t.Fatalf("draining cancellation = %#v, want non-terminal running truth", result)
+	}
+	claim := claimCoordinatorRunForTest(
+		ctx,
+		t,
+		globalDB,
+		run.ID,
+		"cancel-drain",
+		now.Add(2*time.Minute),
+	)
+	endedAt := now.Add(2*time.Minute + 30*time.Second)
+	failureClass := looppkg.FailureCancellation
+	expectedEpoch := int64(5)
+	completion, err := globalDB.CompleteCoordinatorAndEnqueueNext(
+		ctx,
+		taskpkg.CoordinatorCompletion{
+			RunID: claim.Run.ID, ClaimToken: claim.ClaimToken,
+			Actor: coordinatorActorContextForTest(), Now: endedAt,
+			Plan: taskpkg.CoordinatorCompletionPlan{
+				CancellationDrain: true,
+				Snapshot: taskpkg.GenerationSnapshot{
+					LoopRunID: string(run.ID), Generation: 1,
+					Payload: looppkg.GenerationSnapshotPayload{
+						Outputs: []looppkg.GenerationOutput{{
+							Generation: 1, NodeID: "work", Status: "canceled", TaskRunID: taskRunID,
+							Attempt: 1, Epoch: expectedEpoch, ExpectedEpoch: &expectedEpoch,
+						}},
+						Attempts: []looppkg.NodeAttempt{{
+							LoopRunID: run.ID, Generation: 1, NodeID: "work", Attempt: 1,
+							FailureClass: &failureClass, FailureCode: string(looppkg.TransitionCauseOperatorCancel),
+							Cause: mutation.Reason, Disposition: looppkg.AttemptCanceled,
+							StartedAt: mutation.RequestedAt, EndedAt: &endedAt,
+						}},
+						Controls: []looppkg.NodeControlMutation{{
+							Kind: looppkg.NodeControlMutationCancel, NodeID: "work", ExpectedRevision: 3,
+							ExpectExisting: true, CancelState: looppkg.CancelStateCanceled, At: endedAt,
+						}},
+						Events: []looppkg.GenerationLifecycleEventIntent{{
+							Kind: looppkg.GenerationLifecycleEventNodeCanceled, NodeID: "work", Attempt: 1,
+							Failure: &looppkg.ClassifiedFailure{
+								Class: looppkg.FailureCancellation,
+								Code:  string(looppkg.TransitionCauseOperatorCancel),
+								Cause: mutation.Reason,
+							},
+							Disposition: looppkg.AttemptCanceled,
+						}},
+					},
+				},
+				Terminal: &taskpkg.CoordinatorTerminal{
+					Status: string(looppkg.StatusCanceled), Cause: string(looppkg.TransitionCauseOperatorCancel),
+				},
+			},
+		},
+		looppkg.NewStoreFinalizer(),
+	)
+	if err != nil {
+		t.Fatalf("CompleteCoordinatorAndEnqueueNext(cancel drain) error = %v", err)
+	}
+	if !completion.Terminal {
+		t.Fatalf("coordinator cancellation result = %#v, want terminal", completion)
+	}
+	var outputStatus string
+	if err := globalDB.db.QueryRowContext(ctx, `SELECT status FROM loop_generation_outputs
+		WHERE loop_run_id = ? AND task_run_id = ?`, run.ID, taskRunID).Scan(&outputStatus); err != nil {
+		t.Fatalf("read terminal output status error = %v", err)
+	}
+	if outputStatus != "canceled" {
+		t.Fatalf("terminal output status = %q, want canceled", outputStatus)
+	}
+	stored, err = globalDB.GetLoopRun(ctx, run.WorkspaceID, run.ID)
+	if err != nil {
+		t.Fatalf("GetLoopRun(terminal) error = %v", err)
+	}
+	if stored.Status != looppkg.StatusCanceled {
+		t.Fatalf("terminal Run status = %q, want canceled", stored.Status)
+	}
+	controls, err = globalDB.ListNodeControls(ctx, run.WorkspaceID, run.ID)
+	if err != nil {
+		t.Fatalf("ListNodeControls(terminal) error = %v", err)
+	}
+	if len(controls) != 1 || controls[0].CancelState != looppkg.CancelStateCanceled {
+		t.Fatalf("terminal cancel controls = %#v", controls)
+	}
+
+	for _, status := range []looppkg.Status{
+		looppkg.StatusQueued,
+		looppkg.StatusWatching,
+		looppkg.StatusNeedsApproval,
+		looppkg.StatusPaused,
+	} {
+		t.Run("Should terminalize a node-free "+string(status)+" Run directly", func(t *testing.T) {
+			t.Parallel()
+
+			db := openLoopTestGlobalDB(t)
+			ctx := testutil.Context(t)
+			created, err := db.CreateLoopRunForStart(
+				ctx,
+				testLoopRun("looprun-cancel-direct-"+string(status), now, status),
+				dsl.ConcurrencyAllow,
+			)
+			if err != nil {
+				t.Fatalf("CreateLoopRunForStart(%s) error = %v", status, err)
+			}
+			result, err := db.RequestRunCancellation(ctx, looppkg.CancellationMutation{
+				WorkspaceID: created.WorkspaceID,
+				RunID:       created.ID,
+				Kind:        looppkg.RunCancelCancel,
+				Reason:      "operator request",
+				Actor:       operatorActorContextForTest("operator:direct-cancel"),
+				RequestedAt: now.Add(time.Minute),
+			})
+			if err != nil {
+				t.Fatalf("RequestRunCancellation(%s) error = %v", status, err)
+			}
+			if !result.Applied || !result.Terminal || result.Run.Status != looppkg.StatusCanceled {
+				t.Fatalf("direct cancellation from %s = %#v", status, result)
+			}
+		})
+	}
+}
+
+// Invariant: node cancellation fences only that node, delivers only its managed session,
+// closes each affected attempt, and commits on_cancel with the terminal event. Kill closes the
+// same durable truth but never writes a node-trigger delivery. This store suite owns the node
+// cancellation transaction.
+func TestGlobalDBLoopNodeCancellationShouldCloseAttemptsAndEffectsAtomically(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should drain one node and commit one on_cancel delivery", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openLoopTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, time.August, 3, 1, 30, 0, 0, time.UTC)
+		run, taskRunID := seedLiveLoopLivenessCellForTest(t, globalDB, now)
+		seedLoopCancellationBindingForTest(t, globalDB, string(run.ID), string(run.WorkspaceID), "main", 1,
+			"session-work", now)
+		seedLoopCancellationBindingForTest(t, globalDB, string(run.ID), string(run.WorkspaceID), "other", 1,
+			"session-other", now)
+		mutation := nodeCancellationMutationForTest(run, looppkg.RunCancelCancel, now.Add(time.Minute))
+		mutation.Effects = []looppkg.RenderedEffectIntent{{
+			Trigger: looppkg.EffectTriggerOnCancel, Generation: 1, NodeID: "work",
+			Entry: json.RawMessage(`{"kind":"emit","emit":{"kind":"work_canceled"}}`),
+		}}
+
+		result, err := globalDB.RequestNodeCancellation(ctx, mutation)
+		if err != nil {
+			t.Fatalf("RequestNodeCancellation() error = %v", err)
+		}
+		if !result.Applied || !slices.Equal(result.SessionIDs, []string{"session-work"}) {
+			t.Fatalf("RequestNodeCancellation() = %#v, want only work session", result)
+		}
+		var epoch int64
+		if err := globalDB.db.QueryRowContext(ctx, `SELECT epoch FROM loop_generation_outputs
+			WHERE loop_run_id = ? AND task_run_id = ?`, run.ID, taskRunID).Scan(&epoch); err != nil {
+			t.Fatalf("read fenced node epoch error = %v", err)
+		}
+		if epoch != 5 {
+			t.Fatalf("fenced node epoch = %d, want 5", epoch)
+		}
+		for _, state := range []looppkg.CancelState{
+			looppkg.CancelStateDelivering, looppkg.CancelStateDraining, looppkg.CancelStateCanceled,
+		} {
+			if _, err := globalDB.AdvanceNodeCancellation(ctx, mutation, state); err != nil {
+				t.Fatalf("AdvanceNodeCancellation(%s) error = %v", state, err)
+			}
+		}
+
+		var outputStatus, failureClass, failureCode, cause, disposition string
+		if err := globalDB.db.QueryRowContext(ctx, `SELECT output.status, attempt.failure_class,
+			attempt.failure_code, attempt.cause, attempt.disposition
+			FROM loop_generation_outputs AS output
+			JOIN loop_node_attempts AS attempt ON attempt.loop_run_id = output.loop_run_id
+			 AND attempt.generation = output.generation AND attempt.node_id = output.node_id
+			 AND attempt.item_index = output.item_index AND attempt.attempt = output.attempt
+			WHERE output.loop_run_id = ? AND output.node_id = 'work'`, run.ID).Scan(
+			&outputStatus, &failureClass, &failureCode, &cause, &disposition,
+		); err != nil {
+			t.Fatalf("read canceled node attempt error = %v", err)
+		}
+		if outputStatus != "canceled" || failureClass != "cancellation" ||
+			failureCode != string(looppkg.TransitionCauseOperatorCancel) ||
+			cause != mutation.Reason || disposition != "canceled" {
+			t.Fatalf("canceled node = %q/%q/%q/%q/%q", outputStatus, failureClass, failureCode, cause, disposition)
+		}
+		entries, err := globalDB.ListEffectOutbox(ctx, run.WorkspaceID, run.ID)
+		if err != nil {
+			t.Fatalf("ListEffectOutbox() error = %v", err)
+		}
+		if len(entries) != 1 || entries[0].Trigger != string(looppkg.EffectTriggerOnCancel) {
+			t.Fatalf("node cancel outbox = %#v, want one on_cancel", entries)
+		}
+		events, err := globalDB.ListLoopRunEvents(ctx, looppkg.RunEventQuery{
+			WorkspaceID: run.WorkspaceID, RunID: run.ID,
+		})
+		if err != nil {
+			t.Fatalf("ListLoopRunEvents() error = %v", err)
+		}
+		if countLoopEventKindForTest(events, loopRunEventNodeCanceled) != 1 {
+			t.Fatalf("node canceled events = %#v, want one", events)
+		}
+	})
+
+	t.Run("Should invalidate backoff and suppress node effects on kill", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openLoopTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, time.August, 3, 1, 45, 0, 0, time.UTC)
+		run, _ := seedLiveLoopLivenessCellForTest(t, globalDB, now)
+		seedLoopCancellationBindingForTest(t, globalDB, string(run.ID), string(run.WorkspaceID), "main", 1,
+			"session-work", now)
+		nextAttemptAt := now.Add(time.Hour)
+		if _, err := globalDB.db.ExecContext(ctx, `UPDATE loop_generation_outputs
+			SET status = 'retrying', next_attempt_at = ? WHERE loop_run_id = ? AND node_id = 'work'`,
+			nextAttemptAt, run.ID); err != nil {
+			t.Fatalf("seed retrying output error = %v", err)
+		}
+		if _, err := globalDB.db.ExecContext(ctx, `INSERT INTO loop_node_attempts (
+			loop_run_id, generation, node_id, item_index, attempt, failure_class, failure_code,
+			cause, disposition, started_at, ended_at, next_attempt_at
+		) VALUES (?, 1, 'work', 0, 1, 'transport', 'transport_closed', 'lost', 'retried', ?, ?, ?)`,
+			run.ID, now, now.Add(time.Minute), nextAttemptAt); err != nil {
+			t.Fatalf("seed retry attempt error = %v", err)
+		}
+		mutation := nodeCancellationMutationForTest(run, looppkg.RunCancelKill, now.Add(2*time.Minute))
+		mutation.Effects = []looppkg.RenderedEffectIntent{{
+			Trigger: looppkg.EffectTriggerOnCancel, Generation: 1, NodeID: "work",
+			Entry: json.RawMessage(`{"kind":"emit","emit":{"kind":"must_not_fire"}}`),
+		}}
+		result, err := globalDB.RequestNodeCancellation(ctx, mutation)
+		if err != nil {
+			t.Fatalf("RequestNodeCancellation(kill) error = %v", err)
+		}
+		if !result.Applied || !slices.Equal(result.SessionIDs, []string{"session-work"}) {
+			t.Fatalf("RequestNodeCancellation(kill) = %#v", result)
+		}
+		var status string
+		var nextAt *time.Time
+		if err := globalDB.db.QueryRowContext(ctx, `SELECT status, next_attempt_at
+			FROM loop_generation_outputs WHERE loop_run_id = ? AND node_id = 'work'`, run.ID).Scan(
+			&status, &nextAt,
+		); err != nil {
+			t.Fatalf("read killed retry output error = %v", err)
+		}
+		if status != "canceled" || nextAt != nil {
+			t.Fatalf("killed retry output = %q/%v, want canceled/no due time", status, nextAt)
+		}
+		var failureCode, disposition string
+		if err := globalDB.db.QueryRowContext(ctx, `SELECT failure_code, disposition FROM loop_node_attempts
+			WHERE loop_run_id = ? AND node_id = 'work' AND attempt = 2`, run.ID).Scan(
+			&failureCode, &disposition,
+		); err != nil {
+			t.Fatalf("read killed pending attempt error = %v", err)
+		}
+		if failureCode != string(looppkg.TransitionCauseOperatorKill) || disposition != "canceled" {
+			t.Fatalf("killed pending attempt = %q/%q", failureCode, disposition)
+		}
+		entries, err := globalDB.ListEffectOutbox(ctx, run.WorkspaceID, run.ID)
+		if err != nil {
+			t.Fatalf("ListEffectOutbox(kill) error = %v", err)
+		}
+		if len(entries) != 0 {
+			t.Fatalf("kill node outbox = %#v, want none", entries)
+		}
+	})
+}
+
+// Invariant: ambiguous silence can only raise attention; fresh evidence clears only that flag and
+// resets the death-resume streak. This store suite owns the evidence CAS.
+func TestGlobalDBLoopNodeLivenessShouldRaiseAndSelfClearSilenceAttention(t *testing.T) {
+	t.Parallel()
+
+	globalDB := openLoopTestGlobalDB(t)
+	ctx := testutil.Context(t)
+	now := time.Date(2026, time.August, 3, 2, 0, 0, 0, time.UTC)
+	run, taskRunID := seedLiveLoopLivenessCellForTest(t, globalDB, now)
+	observation := looppkg.NodeLivenessObservation{
+		WorkspaceID: run.WorkspaceID, LoopRunID: run.ID, TaskRunID: taskRunID,
+		ObservedAt: now, Evidence: true, SilenceAfter: 30 * time.Minute,
+	}
+	if err := globalDB.RecordNodeLiveness(ctx, observation); err != nil {
+		t.Fatalf("RecordNodeLiveness(evidence) error = %v", err)
+	}
+	observation.Evidence = false
+	observation.ObservedAt = now.Add(31 * time.Minute)
+	if err := globalDB.RecordNodeLiveness(ctx, observation); err != nil {
+		t.Fatalf("RecordNodeLiveness(silence) error = %v", err)
+	}
+	controls, err := globalDB.ListNodeControls(ctx, run.WorkspaceID, run.ID)
+	if err != nil {
+		t.Fatalf("ListNodeControls(silence) error = %v", err)
+	}
+	if len(controls) != 1 || controls[0].AttentionFlag != looppkg.AttentionSilence {
+		t.Fatalf("silence controls = %#v, want silence attention", controls)
+	}
+	if _, err := globalDB.db.ExecContext(ctx, `UPDATE loop_node_controls SET death_resume_streak = 2
+		WHERE loop_run_id = ? AND node_id = 'work'`, run.ID); err != nil {
+		t.Fatalf("seed death resume streak error = %v", err)
+	}
+	observation.Evidence = true
+	observation.ObservedAt = now.Add(32 * time.Minute)
+	if err := globalDB.RecordNodeLiveness(ctx, observation); err != nil {
+		t.Fatalf("RecordNodeLiveness(recovery) error = %v", err)
+	}
+	controls, err = globalDB.ListNodeControls(ctx, run.WorkspaceID, run.ID)
+	if err != nil {
+		t.Fatalf("ListNodeControls(recovery) error = %v", err)
+	}
+	if controls[0].AttentionFlag != "" || controls[0].DeathResumeStreak != 0 ||
+		controls[0].LastEvidenceAt == nil || !controls[0].LastEvidenceAt.Equal(observation.ObservedAt) {
+		t.Fatalf("recovered controls = %#v, want cleared silence and reset streak", controls[0])
+	}
+	events, err := globalDB.ListLoopRunEvents(ctx, looppkg.RunEventQuery{
+		WorkspaceID: run.WorkspaceID, RunID: run.ID,
+	})
+	if err != nil {
+		t.Fatalf("ListLoopRunEvents() error = %v", err)
+	}
+	if countLoopEventKindForTest(events, loopRunEventNodeAttentionFlagged) != 1 ||
+		countLoopEventKindForTest(events, loopRunEventNodeAttentionCleared) != 1 {
+		t.Fatalf("attention events = %#v, want one flagged and one cleared", events)
+	}
+}
+
+// Invariant: one confirmed-death identity can retire one live worker and reserve at most one
+// checkpoint-carrying continuation. Cancellation, parked state, and the streak cap win without
+// mutating the cell or attempt ledger. This store suite owns the atomic death-resume boundary.
+func TestGlobalDBResumeDeadNodeShouldCommitOneBoundedContinuation(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should retire the dead worker and replay one continuation", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openLoopTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, time.August, 3, 3, 0, 0, 0, time.UTC)
+		run, taskRunID := seedLiveLoopLivenessCellForTest(t, globalDB, now)
+		request := deadNodeResumeRequestForTest(run, taskRunID, 4, now)
+
+		result, err := globalDB.ResumeDeadNode(ctx, request)
+		if err != nil {
+			t.Fatalf("ResumeDeadNode() error = %v", err)
+		}
+		if !result.Continued || result.Replay || result.IssuedEpoch != 5 || result.Run.ID == "" {
+			t.Fatalf("ResumeDeadNode() = %#v, want new epoch-5 continuation", result)
+		}
+		oldRun, err := globalDB.GetTaskRun(ctx, taskRunID)
+		if err != nil {
+			t.Fatalf("GetTaskRun(dead) error = %v", err)
+		}
+		if oldRun.Status != taskpkg.TaskRunStatusFailed || oldRun.Error != request.Cause {
+			t.Fatalf("dead task run = %#v, want failed confirmed-death provenance", oldRun)
+		}
+		var status, currentTaskRunID string
+		var attempt int
+		var epoch int64
+		if err := globalDB.db.QueryRowContext(ctx, `SELECT status, task_run_id, attempt, epoch
+			FROM loop_generation_outputs
+			WHERE loop_run_id = ? AND generation = 1 AND node_id = 'work' AND item_index = 0`,
+			run.ID).Scan(&status, &currentTaskRunID, &attempt, &epoch); err != nil {
+			t.Fatalf("read resumed output error = %v", err)
+		}
+		if status != "enqueued" || currentTaskRunID != result.Run.ID || attempt != 2 || epoch != 5 {
+			t.Fatalf("resumed output = %q/%q/%d/%d, want enqueued/%q/2/5",
+				status, currentTaskRunID, attempt, epoch, result.Run.ID)
+		}
+		var continuationMetadata struct {
+			ContinuationKind    string                         `json:"continuation_kind"`
+			ResumeFromTaskRunID string                         `json:"resume_from_task_run_id"`
+			ResumeFromSessionID string                         `json:"resume_from_session_id"`
+			Checkpoint          *looppkg.DeathResumeCheckpoint `json:"death_resume_checkpoint"`
+		}
+		if err := json.Unmarshal(result.Run.Metadata, &continuationMetadata); err != nil {
+			t.Fatalf("decode continuation metadata error = %v", err)
+		}
+		if continuationMetadata.ContinuationKind != "death_resume" ||
+			continuationMetadata.ResumeFromTaskRunID != taskRunID ||
+			continuationMetadata.ResumeFromSessionID != request.SourceSessionID ||
+			continuationMetadata.Checkpoint == nil || continuationMetadata.Checkpoint.EventEndSeq != 14 {
+			t.Fatalf("continuation metadata = %#v, want pinned checkpoint provenance", continuationMetadata)
+		}
+		var disposition, cause string
+		if err := globalDB.db.QueryRowContext(ctx, `SELECT disposition, cause FROM loop_node_attempts
+			WHERE loop_run_id = ? AND generation = 1 AND node_id = 'work' AND item_index = 0 AND attempt = 1`,
+			run.ID).Scan(&disposition, &cause); err != nil {
+			t.Fatalf("read death-resume ledger error = %v", err)
+		}
+		if disposition != "resumed" || cause != request.Cause {
+			t.Fatalf("resume ledger = %q/%q, want resumed/%q", disposition, cause, request.Cause)
+		}
+
+		replay, err := globalDB.ResumeDeadNode(ctx, request)
+		if err != nil {
+			t.Fatalf("ResumeDeadNode(replay) error = %v", err)
+		}
+		if !replay.Continued || !replay.Replay || replay.Run.ID != result.Run.ID || replay.IssuedEpoch != 5 {
+			t.Fatalf("ResumeDeadNode(replay) = %#v, want same continuation", replay)
+		}
+		assertDeathResumeCountsForTest(t, globalDB, run.ID, result.Run.TaskID, 2, 1)
+	})
+
+	t.Run("Should let cancellation and parked state win without continuation", func(t *testing.T) {
+		t.Parallel()
+
+		for _, testCase := range []struct {
+			name    string
+			prepare func(*testing.T, *GlobalDB, looppkg.Run, string, time.Time)
+		}{
+			{
+				name: "run cancellation",
+				prepare: func(t *testing.T, globalDB *GlobalDB, run looppkg.Run, _ string, at time.Time) {
+					t.Helper()
+					_, err := globalDB.RequestRunCancellation(testutil.Context(t), looppkg.CancellationMutation{
+						WorkspaceID: run.WorkspaceID, RunID: run.ID, Kind: looppkg.RunCancelCancel,
+						Reason: "cancel wins", Actor: operatorActorContextForTest("operator:death-race"), RequestedAt: at,
+					})
+					if err != nil {
+						t.Fatalf("RequestRunCancellation() error = %v", err)
+					}
+				},
+			},
+			{
+				name: "parked output",
+				prepare: func(t *testing.T, globalDB *GlobalDB, run looppkg.Run, _ string, _ time.Time) {
+					t.Helper()
+					if _, err := globalDB.db.ExecContext(testutil.Context(t), `UPDATE loop_generation_outputs
+						SET status = 'paused' WHERE loop_run_id = ? AND node_id = 'work'`, run.ID); err != nil {
+						t.Fatalf("park output error = %v", err)
+					}
+				},
+			},
+		} {
+			t.Run("Should no-op for "+testCase.name, func(t *testing.T) {
+				t.Parallel()
+
+				globalDB := openLoopTestGlobalDB(t)
+				ctx := testutil.Context(t)
+				now := time.Date(2026, time.August, 3, 4, 0, 0, 0, time.UTC)
+				run, taskRunID := seedLiveLoopLivenessCellForTest(t, globalDB, now)
+				testCase.prepare(t, globalDB, run, taskRunID, now.Add(time.Minute))
+				result, err := globalDB.ResumeDeadNode(
+					ctx,
+					deadNodeResumeRequestForTest(run, taskRunID, 4, now.Add(2*time.Minute)),
+				)
+				if err != nil {
+					t.Fatalf("ResumeDeadNode() error = %v", err)
+				}
+				if result.Continued || result.Replay {
+					t.Fatalf("ResumeDeadNode() = %#v, want deterministic no-op", result)
+				}
+				assertDeathResumeCountsForTest(t, globalDB, run.ID, "", 1, 0)
+			})
+		}
+	})
+
+	t.Run("Should flag the third no-progress continuation and suppress the fourth", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openLoopTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, time.August, 3, 5, 0, 0, 0, time.UTC)
+		run, taskRunID := seedLiveLoopLivenessCellForTest(t, globalDB, now)
+		epoch := int64(4)
+		for resume := 1; resume <= 3; resume++ {
+			result, err := globalDB.ResumeDeadNode(ctx, deadNodeResumeRequestForTest(
+				run, taskRunID, epoch, now.Add(time.Duration(resume)*time.Minute),
+			))
+			if err != nil {
+				t.Fatalf("ResumeDeadNode(%d) error = %v", resume, err)
+			}
+			if !result.Continued || result.Replay {
+				t.Fatalf("ResumeDeadNode(%d) = %#v, want continuation", resume, result)
+			}
+			taskRunID = result.Run.ID
+			epoch = result.IssuedEpoch
+		}
+		controls, err := globalDB.ListNodeControls(ctx, run.WorkspaceID, run.ID)
+		if err != nil {
+			t.Fatalf("ListNodeControls() error = %v", err)
+		}
+		if len(controls) != 1 || controls[0].DeathResumeStreak != 3 ||
+			controls[0].AttentionFlag != "resume_exhausted" {
+			t.Fatalf("death-resume controls = %#v, want streak 3 + resume_exhausted", controls)
+		}
+		fourth := deadNodeResumeRequestForTest(run, taskRunID, epoch, now.Add(4*time.Minute))
+		result, err := globalDB.ResumeDeadNode(ctx, fourth)
+		if err != nil {
+			t.Fatalf("ResumeDeadNode(4) error = %v", err)
+		}
+		if result.Continued || !result.AttentionRequired {
+			t.Fatalf("ResumeDeadNode(4) = %#v, want attention-only no-op", result)
+		}
+		assertDeathResumeCountsForTest(t, globalDB, run.ID, "", 4, 3)
+	})
 }
 
 // Invariant: requeue clears one active quarantine, appends actor provenance, fences the old
@@ -1726,6 +2282,138 @@ func seedQuarantinedLoopNodeForTest(
 	created.Status = status
 	created.Generation = 2
 	return created
+}
+
+func seedLiveLoopLivenessCellForTest(
+	t *testing.T,
+	globalDB *GlobalDB,
+	at time.Time,
+) (looppkg.Run, string) {
+	t.Helper()
+	ctx := testutil.Context(t)
+	run, err := globalDB.CreateLoopRunForStart(
+		ctx,
+		testLoopRun("looprun-liveness-"+storepkg.NewID("case"), at, looppkg.StatusRunning),
+		dsl.ConcurrencyAllow,
+	)
+	if err != nil {
+		t.Fatalf("CreateLoopRunForStart(liveness) error = %v", err)
+	}
+	taskRecord := taskRecordForTest("task-loop-liveness-" + storepkg.NewID("case"))
+	taskRecord.MaxAttempts = taskpkg.MaxTaskMaxAttempts
+	if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
+		t.Fatalf("CreateTask(liveness) error = %v", err)
+	}
+	metadata, err := json.Marshal(map[string]any{
+		"generation": 1, "node_id": "work", "item_index": 0, "attempt": 1, "epoch": 4,
+		"session_handle": "main",
+	})
+	if err != nil {
+		t.Fatalf("json.Marshal(liveness metadata) error = %v", err)
+	}
+	taskRun := taskRunForTest("run-loop-liveness-"+storepkg.NewID("case"), taskRecord.ID)
+	taskRun.RunKind = taskpkg.RunKindWorker
+	taskRun.LoopRunID = string(run.ID)
+	taskRun.Metadata = metadata
+	if err := globalDB.CreateTaskRun(ctx, taskRun); err != nil {
+		t.Fatalf("CreateTaskRun(liveness) error = %v", err)
+	}
+	if _, err := globalDB.db.ExecContext(ctx, `INSERT INTO loop_generation_outputs (
+		loop_run_id, generation, node_id, item_index, status, task_run_id, attempt, epoch
+	) VALUES (?, 1, 'work', 0, 'running', ?, 1, 4)`, run.ID, taskRun.ID); err != nil {
+		t.Fatalf("insert liveness output error = %v", err)
+	}
+	return run, taskRun.ID
+}
+
+func nodeCancellationMutationForTest(
+	run looppkg.Run,
+	kind looppkg.RunCancelKind,
+	at time.Time,
+) looppkg.CancellationMutation {
+	return looppkg.CancellationMutation{
+		WorkspaceID: run.WorkspaceID, RunID: run.ID, NodeID: "work", Kind: kind,
+		Reason: "operator request", Actor: operatorActorContextForTest("operator:node-cancel"), RequestedAt: at,
+	}
+}
+
+func seedLoopCancellationBindingForTest(
+	t *testing.T,
+	globalDB *GlobalDB,
+	runID string,
+	workspaceID string,
+	handle string,
+	bindingEpoch int64,
+	sessionID string,
+	at time.Time,
+) {
+	t.Helper()
+	ctx := testutil.Context(t)
+	if err := globalDB.RegisterSession(ctx, storepkg.SessionInfo{
+		ID: sessionID, AgentName: "codex", RuntimeStatus: storepkg.SessionRuntimeUnbound,
+		WorkspaceID: workspaceID, State: "active", CreatedAt: at, UpdatedAt: at,
+	}); err != nil {
+		t.Fatalf("RegisterSession(cancellation) error = %v", err)
+	}
+	if _, err := globalDB.db.ExecContext(ctx, `INSERT INTO loop_session_bindings (
+		loop_run_id, handle, binding_epoch, binding_attempt_id, session_id, workspace_id,
+		creation_profile_ref, policy_spec_digest, creation_digest, ownership, state,
+		created_at, activated_at
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'run-owned', 'active', ?, ?)`,
+		runID, handle, bindingEpoch, "binding-attempt:"+runID+":"+handle, sessionID, workspaceID,
+		"profile:"+runID, "policy:"+runID, "creation:"+runID, at, at,
+	); err != nil {
+		t.Fatalf("insert cancellation binding error = %v", err)
+	}
+}
+
+func deadNodeResumeRequestForTest(
+	run looppkg.Run,
+	taskRunID string,
+	epoch int64,
+	at time.Time,
+) looppkg.DeadNodeResumeRequest {
+	return looppkg.DeadNodeResumeRequest{
+		WorkspaceID: run.WorkspaceID, RunID: run.ID, Generation: 1, NodeID: "work", ItemIndex: 0,
+		TaskRunID: taskRunID, SourceSessionID: "session-dead-work", ExpectedEpoch: epoch, DeathStreakLimit: 3,
+		Checkpoint: &looppkg.DeathResumeCheckpoint{
+			SessionID: "session-dead-work", EventStartSeq: 12, EventEndSeq: 14,
+			Partials: []looppkg.DeathResumePartial{{Sequence: 14, Type: "agent_message", Text: "partial progress"}},
+		},
+		Cause: "confirmed ACP process exit", Actor: operatorActorContextForTest("daemon:liveness"), ConfirmedAt: at,
+	}
+}
+
+func assertDeathResumeCountsForTest(
+	t *testing.T,
+	globalDB *GlobalDB,
+	runID looppkg.RunID,
+	taskID string,
+	wantRuns int,
+	wantLedger int,
+) {
+	t.Helper()
+	ctx := testutil.Context(t)
+	if taskID == "" {
+		if err := globalDB.db.QueryRowContext(ctx, `SELECT task_id FROM task_runs
+			WHERE loop_run_id = ? ORDER BY queued_at LIMIT 1`, runID).Scan(&taskID); err != nil {
+			t.Fatalf("read death-resume task id error = %v", err)
+		}
+	}
+	var runCount int
+	if err := globalDB.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM task_runs WHERE task_id = ?`, taskID).
+		Scan(&runCount); err != nil {
+		t.Fatalf("count death-resume task runs error = %v", err)
+	}
+	var ledgerCount int
+	if err := globalDB.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM loop_node_attempts
+		WHERE loop_run_id = ? AND node_id = 'work'`, runID).Scan(&ledgerCount); err != nil {
+		t.Fatalf("count death-resume ledger error = %v", err)
+	}
+	if runCount != wantRuns || ledgerCount != wantLedger {
+		t.Fatalf("death-resume counts = runs:%d ledger:%d, want runs:%d ledger:%d",
+			runCount, ledgerCount, wantRuns, wantLedger)
+	}
 }
 
 func countLoopEventKindForTest(events []looppkg.RunEvent, kind string) int {

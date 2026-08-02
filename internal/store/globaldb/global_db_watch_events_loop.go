@@ -23,6 +23,7 @@ func (g *WatchEventsRepo) readLoopWatchEvents(
 		string(looppkg.StatusFailed),
 		string(looppkg.StatusExhausted),
 		string(looppkg.StatusStalled),
+		string(looppkg.StatusCanceled),
 		query.limit,
 	)
 	// #nosec G202 -- IN placeholders are generated from normalized kind count; values are parameterized.
@@ -46,7 +47,7 @@ func (g *WatchEventsRepo) readLoopWatchEvents(
 			OR COALESCE(
 				json_extract(lre.payload_json, '$.to'),
 				json_extract(lre.payload_json, '$.status')
-			) IN (?, ?, ?, ?, ?, ?)
+			) IN (?, ?, ?, ?, ?, ?, ?)
 		    )
 		  ORDER BY lre.seq ASC
 		  LIMIT ?`,

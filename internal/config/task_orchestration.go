@@ -13,8 +13,6 @@ const (
 	MaxTaskDesignatedRunMax = 5
 	// DefaultTaskMaxActiveRunsPerWorkspace bounds simultaneous task execution per workspace.
 	DefaultTaskMaxActiveRunsPerWorkspace = 16
-	// DefaultTaskActionRunTimeout bounds action-node execution when a node omits timeout.
-	DefaultTaskActionRunTimeout = 30 * time.Minute
 	// DefaultTaskNetworkStatusQueueSize is the default observer queue depth.
 	DefaultTaskNetworkStatusQueueSize = 64
 	// DefaultTaskNetworkStatusTimeout is the default per-event observer timeout.
@@ -57,7 +55,6 @@ type TaskOrchestrationConfig struct {
 	BridgeNotificationTimeout time.Duration                  `toml:"bridge_notification_timeout"`
 	DesignatedRunMax          int                            `toml:"designated_run_max"`
 	MaxActiveRunsPerWorkspace int                            `toml:"max_active_runs_per_workspace"`
-	ActionRunTimeout          time.Duration                  `toml:"action_run_timeout"`
 	NetworkStatusQueueSize    int                            `toml:"network_status_queue_size"`
 	NetworkStatusTimeout      time.Duration                  `toml:"network_status_timeout"`
 	Profile                   TaskOrchestrationProfileConfig `toml:"profile"`
@@ -104,7 +101,6 @@ func DefaultTaskConfig() TaskConfig {
 			BridgeNotificationTimeout: 10 * time.Second,
 			DesignatedRunMax:          DefaultTaskDesignatedRunMax,
 			MaxActiveRunsPerWorkspace: DefaultTaskMaxActiveRunsPerWorkspace,
-			ActionRunTimeout:          DefaultTaskActionRunTimeout,
 			NetworkStatusQueueSize:    DefaultTaskNetworkStatusQueueSize,
 			NetworkStatusTimeout:      DefaultTaskNetworkStatusTimeout,
 			Profile: TaskOrchestrationProfileConfig{

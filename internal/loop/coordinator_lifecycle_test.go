@@ -213,6 +213,224 @@ func TestCoordinatorRunnerShouldApplyNodeFailurePrecedence(t *testing.T) {
 			t.Fatalf("succession plan = %#v, want generation 2", plan)
 		}
 	})
+
+	t.Run("Should keep cooperative cancellation draining while the task run is live", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, time.August, 2, 23, 0, 0, 0, time.UTC)
+		loopRun := controlLoopRun("looprun-lifecycle-cancel-live", nil)
+		loopRun.CancelRequested = true
+		loopRun.CancelKind = RunCancelCancel
+		coordinatorRun := controlCoordinatorRun(loopRun, 1)
+		workerRun := lifecycleWorkerRun(loopRun, "work", task.TaskRunStatusRunning, now)
+		outputs := &lifecycleCoordinatorStore{coordinatorRunnerOutputs: coordinatorRunnerOutputs{
+			outputs: map[int][]GenerationOutput{1: {{
+				Generation: 1, NodeID: "work", Status: generationOutputRunning,
+				TaskRunID: workerRun.ID, Attempt: 1, Epoch: 4,
+			}},
+			},
+		}}
+		control := NodeControl{
+			LoopRunID: loopRun.ID, NodeID: "work", CancelState: CancelStateDraining,
+			CancelProvenance: &ControlProvenance{
+				ActorKind: "human", ActorID: "operator-1", Reason: "operator request", RequestedAt: now,
+			},
+			Revision: 3,
+		}
+		runner := newCoordinatorRunnerForTestWithDefinition(
+			t,
+			loopRun,
+			coordinatorRun,
+			map[string]task.Run{coordinatorRun.ID: coordinatorRun, workerRun.ID: workerRun},
+			outputs,
+			lifecycleDefinition(lifecycleNode("work")),
+			WithCoordinatorNodeAttemptReader(outputs),
+			WithCoordinatorNodeControlReader(coordinatorNodeControlReaderStub{controls: []NodeControl{control}}),
+		)
+		runner.now = func() time.Time { return now.Add(time.Minute) }
+
+		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		if err != nil {
+			t.Fatalf("Run() error = %v", err)
+		}
+		payload := coordinatorSnapshotPayloadForTest(t, plan)
+		if !plan.CancellationDrain || !plan.Yield || !plan.GenerationInFlight || plan.Terminal != nil {
+			t.Fatalf("draining plan = %#v, want a visible non-terminal drain", plan)
+		}
+		if len(payload.Attempts) != 0 || len(payload.Controls) != 0 ||
+			payload.Outputs[0].Status != generationOutputRunning {
+			t.Fatalf("draining payload = %#v, want live work untouched", payload)
+		}
+	})
+
+	t.Run("Should close a drained run cancellation with node and contract effects", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, time.August, 2, 23, 30, 0, 0, time.UTC)
+		loopRun := controlLoopRun("looprun-lifecycle-cancel-closed", nil)
+		loopRun.CancelRequested = true
+		loopRun.CancelKind = RunCancelCancel
+		coordinatorRun := controlCoordinatorRun(loopRun, 1)
+		workerRun := lifecycleWorkerRun(loopRun, "work", task.TaskRunStatusCanceled, now)
+		node := lifecycleNode("work")
+		node.Normalize()
+		node.OnCancel = []dsl.EffectSpec{{Emit: &dsl.EmitSpec{Kind: "work_canceled"}}}
+		definition := lifecycleDefinition(node)
+		definition.Contract.Normalize()
+		definition.Contract.OnCanceled = []dsl.EffectSpec{{Emit: &dsl.EmitSpec{Kind: "run_canceled"}}}
+		outputs := &lifecycleCoordinatorStore{coordinatorRunnerOutputs: coordinatorRunnerOutputs{
+			outputs: map[int][]GenerationOutput{1: {{
+				Generation: 1, NodeID: "work", Status: generationOutputRunning,
+				TaskRunID: workerRun.ID, Attempt: 1, Epoch: 4,
+			}},
+			},
+		}}
+		control := NodeControl{
+			LoopRunID: loopRun.ID, NodeID: "work", CancelState: CancelStateDraining,
+			CancelProvenance: &ControlProvenance{
+				ActorKind: "human", ActorID: "operator-1", Reason: "operator request", RequestedAt: now,
+			},
+			Revision: 3,
+		}
+		runner := newCoordinatorRunnerForTestWithDefinition(
+			t,
+			loopRun,
+			coordinatorRun,
+			map[string]task.Run{coordinatorRun.ID: coordinatorRun, workerRun.ID: workerRun},
+			outputs,
+			definition,
+			WithCoordinatorNodeAttemptReader(outputs),
+			WithCoordinatorNodeControlReader(coordinatorNodeControlReaderStub{controls: []NodeControl{control}}),
+		)
+		runner.now = func() time.Time { return now.Add(time.Minute) }
+
+		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		if err != nil {
+			t.Fatalf("Run() error = %v", err)
+		}
+		payload := coordinatorSnapshotPayloadForTest(t, plan)
+		if plan.Terminal == nil || plan.Terminal.Status != string(StatusCanceled) ||
+			plan.Terminal.Cause != string(TransitionCauseOperatorCancel) || !plan.CancellationDrain {
+			t.Fatalf("terminal cancellation plan = %#v", plan)
+		}
+		if len(payload.Attempts) != 1 || payload.Attempts[0].Disposition != AttemptCanceled ||
+			payload.Outputs[0].Status != generationOutputCanceled {
+			t.Fatalf("canceled payload = %#v", payload)
+		}
+		if len(payload.Controls) != 1 || payload.Controls[0].Kind != NodeControlMutationCancel ||
+			payload.Controls[0].CancelState != CancelStateCanceled {
+			t.Fatalf("cancel controls = %#v", payload.Controls)
+		}
+		if len(payload.Events) != 1 || payload.Events[0].Kind != GenerationLifecycleEventNodeCanceled ||
+			len(payload.Events[0].Effects) != 1 {
+			t.Fatalf("cancel events = %#v, want one on_cancel delivery", payload.Events)
+		}
+		if got := payload.BoundaryEffects[StatusCanceled]; len(got) != 1 {
+			t.Fatalf("on_canceled boundary effects = %#v, want one", got)
+		}
+	})
+
+	t.Run("Should close only the targeted node after its task run drains", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, time.August, 3, 0, 0, 0, 0, time.UTC)
+		loopRun := controlLoopRun("looprun-lifecycle-node-cancel", nil)
+		coordinatorRun := controlCoordinatorRun(loopRun, 1)
+		workerRun := lifecycleWorkerRun(loopRun, "work", task.TaskRunStatusCanceled, now)
+		node := lifecycleNode("work")
+		node.Normalize()
+		node.OnCancel = []dsl.EffectSpec{{Emit: &dsl.EmitSpec{Kind: "work_canceled"}}}
+		outputs := &lifecycleCoordinatorStore{coordinatorRunnerOutputs: coordinatorRunnerOutputs{
+			outputs: map[int][]GenerationOutput{1: {{
+				Generation: 1, NodeID: "work", Status: generationOutputRunning,
+				TaskRunID: workerRun.ID, Attempt: 1, Epoch: 8,
+			}},
+			},
+		}}
+		control := NodeControl{
+			LoopRunID: loopRun.ID, NodeID: "work", CancelState: CancelStateDraining,
+			CancelProvenance: &ControlProvenance{
+				ActorKind: "human", ActorID: "operator-1", Reason: "cancel only work", RequestedAt: now,
+			},
+			Revision: 5,
+		}
+		runner := newCoordinatorRunnerForTestWithDefinition(
+			t,
+			loopRun,
+			coordinatorRun,
+			map[string]task.Run{coordinatorRun.ID: coordinatorRun, workerRun.ID: workerRun},
+			outputs,
+			lifecycleDefinition(node),
+			WithCoordinatorNodeAttemptReader(outputs),
+			WithCoordinatorNodeControlReader(coordinatorNodeControlReaderStub{controls: []NodeControl{control}}),
+		)
+		runner.now = func() time.Time { return now.Add(time.Minute) }
+
+		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		if err != nil {
+			t.Fatalf("Run() error = %v", err)
+		}
+		payload := coordinatorSnapshotPayloadForTest(t, plan)
+		if plan.Terminal == nil || plan.Terminal.Status == string(StatusCanceled) {
+			t.Fatalf("node-only cancellation changed Run outcome: %#v", plan.Terminal)
+		}
+		if len(payload.Controls) != 1 || payload.Controls[0].CancelState != CancelStateCanceled ||
+			len(payload.Events) != 1 || len(payload.Events[0].Effects) != 1 ||
+			payload.Outputs[0].Status != generationOutputCanceled {
+			t.Fatalf("node-only cancellation payload = %#v", payload)
+		}
+	})
+
+	t.Run("Should cancel a backoff without scheduling its next attempt", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, time.August, 3, 0, 30, 0, 0, time.UTC)
+		loopRun := controlLoopRun("looprun-lifecycle-backoff-cancel", nil)
+		coordinatorRun := controlCoordinatorRun(loopRun, 1)
+		nextAttemptAt := now.Add(time.Hour)
+		failureClass := FailureTransport
+		outputs := &lifecycleCoordinatorStore{
+			coordinatorRunnerOutputs: coordinatorRunnerOutputs{outputs: map[int][]GenerationOutput{1: {{
+				Generation: 1, NodeID: "work", Status: generationOutputRetrying,
+				Attempt: 1, NextAttemptAt: &nextAttemptAt, Epoch: 10,
+			}}}},
+			attempts: []NodeAttempt{{
+				LoopRunID: loopRun.ID, Generation: 1, NodeID: "work", Attempt: 1,
+				FailureClass: &failureClass, Disposition: AttemptRetried,
+				StartedAt: now.Add(-time.Minute), EndedAt: new(now), NextAttemptAt: &nextAttemptAt,
+			}},
+		}
+		control := NodeControl{
+			LoopRunID: loopRun.ID, NodeID: "work", CancelState: CancelStateDraining,
+			CancelProvenance: &ControlProvenance{
+				ActorKind: "human", ActorID: "operator-1", Reason: "cancel backoff", RequestedAt: now,
+			},
+			Revision: 3,
+		}
+		runner := newCoordinatorRunnerForTestWithDefinition(
+			t,
+			loopRun,
+			coordinatorRun,
+			nil,
+			outputs,
+			lifecycleDefinition(lifecycleNode("work")),
+			WithCoordinatorNodeAttemptReader(outputs),
+			WithCoordinatorNodeControlReader(coordinatorNodeControlReaderStub{controls: []NodeControl{control}}),
+		)
+		runner.now = func() time.Time { return now.Add(time.Minute) }
+
+		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		if err != nil {
+			t.Fatalf("Run() error = %v", err)
+		}
+		payload := coordinatorSnapshotPayloadForTest(t, plan)
+		if len(plan.PostCommitTimers) != 0 || len(plan.NodeRuns) != 0 ||
+			len(payload.Attempts) != 1 || payload.Attempts[0].Attempt != 2 ||
+			payload.Attempts[0].Disposition != AttemptCanceled ||
+			payload.Outputs[0].Status != generationOutputCanceled || payload.Outputs[0].NextAttemptAt != nil {
+			t.Fatalf("backoff cancellation plan = %#v payload = %#v", plan, payload)
+		}
+	})
 }
 
 const toolsUnavailableCodeForTest = "tool_unavailable"

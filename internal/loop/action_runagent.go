@@ -47,6 +47,10 @@ func (e *RunAgentActionExecutor) Execute(
 	if err != nil {
 		return ActionRawResult{}, err
 	}
+	spec.Prompt, err = runAgentPromptWithDeathResume(spec.Prompt, in.DeathResume)
+	if err != nil {
+		return ActionRawResult{}, err
+	}
 	runCtx, cancelRun, err := actionContextWithNodeTimeout(ctx, node.Timeout)
 	if err != nil {
 		return ActionRawResult{}, err
@@ -119,10 +123,15 @@ func (e *RunAgentActionExecutor) bindRunAgentSession(
 	binding, err := e.binder.BindActionSession(ctx, ActionSessionBindRequest{
 		WorkspaceID:          in.WorkspaceID,
 		LoopRunID:            in.LoopRunID,
+		Generation:           in.Generation,
+		NodeID:               in.NodeID,
 		Agent:                strings.TrimSpace(spec.Agent),
 		CWD:                  strings.TrimSpace(spec.CWD),
 		Handle:               actionSessionHandle(node.Session),
 		ItemIndex:            in.ItemIndex,
+		TargetBindingEpoch:   in.CellEpoch + 1,
+		ExpectedControlEpoch: in.CellEpoch + 1,
+		ExpectedTaskRunID:    strings.TrimSpace(in.CorrelationID),
 		Isolated:             node.Session != nil && node.Session.Isolated,
 		Runtime:              resolvedRuntime.Runtime,
 		AllowedTools:         append([]string(nil), spec.AllowedTools...),
@@ -147,7 +156,7 @@ func (e *RunAgentActionExecutor) bindRunAgentSession(
 			return ActionSessionBinding{}, ResolvedRuntime{}, fmt.Errorf("persist applied runtime: %w", err)
 		}
 	}
-	reportActionSessionBound(ctx, binding.SessionID)
+	ReportActionSessionBound(ctx, binding.SessionID)
 	return binding, resolvedRuntime, nil
 }
 
