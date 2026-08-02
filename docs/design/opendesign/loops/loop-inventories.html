@@ -237,21 +237,19 @@
   .invbox{background:var(--canvas-soft);border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden}
   .invhead{display:grid;grid-template-columns:minmax(200px,1.3fr) minmax(140px,.9fr) minmax(0,1.6fr) 92px 28px;gap:12px;
     padding:7px 14px;border-bottom:1px solid var(--line);font-size:10px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--faint)}
-  .invhead .age{display:inline-flex;align-items:center;gap:4px;color:inherit;font:inherit;letter-spacing:inherit;text-transform:inherit;padding:0}
-  .invhead .age:hover{color:var(--subtle)}
-  .invhead .age svg{width:9px;height:9px;transition:transform var(--dur) var(--ease)}
-  .invhead .age.is-asc svg{transform:rotate(180deg)}
   .invrow{display:grid;grid-template-columns:minmax(200px,1.3fr) minmax(140px,.9fr) minmax(0,1.6fr) 92px 28px;gap:12px;align-items:center;
     min-height:38px;padding:5px 14px;border-top:1px solid var(--line-soft);cursor:default}
   .invrow:first-of-type{border-top:0}
   .invrow:hover{background:var(--row-hover)}
   .invrow__id{display:flex;align-items:center;gap:9px;min-width:0}
   .invrow__dot{width:7px;height:7px;border-radius:50%;flex:none}
-  .invrow__dot[data-state="waiting"]{background:var(--info)}
-  .invrow__dot[data-state="quarantined"]{width:6.5px;height:6.5px;border-radius:1.5px;background:var(--danger)}
-  .invrow__dot[data-state="attention"]{width:6px;height:6px;border-radius:1px;background:var(--warning);transform:rotate(45deg)}
-  .invrow__dot[data-state="retrying"]{background:transparent;box-shadow:inset 0 0 0 1.6px var(--warning)}
   .invrow__dot[data-state="canceled"]{background:transparent;box-shadow:inset 0 0 0 1.5px var(--neutral)}
+  /* state marker — 13px lucide glyph, colored by TONE[state] */
+  .invrow__ic{width:13px;height:13px;flex:none;display:grid;place-items:center}
+  .invrow__ic svg{width:13px;height:13px}
+  .invrow__ic[data-tone="info"]{color:var(--info)}
+  .invrow__ic[data-tone="warning"]{color:var(--warning)}
+  .invrow__ic[data-tone="danger"]{color:var(--danger)}
   .invrow__name{font-size:12.5px;font-weight:520;color:var(--fg-strong);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .invrow__lane{font-family:var(--font-mono);font-size:10px;color:var(--faint);white-space:nowrap}
   .invrow__ctx{display:flex;align-items:center;gap:6px;min-width:0;font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -411,7 +409,7 @@
     <div class="invbox" data-od-id="inventory-list">
       <div class="invhead" id="invHead">
         <span>Node</span><span class="h-ctx">Loop · Run</span><span class="h-reason">Reason</span>
-        <button class="age" id="ageSort" type="button" aria-label="Sort by age, descending">Age <i data-lucide="arrow-down"></i></button>
+        <span>Age</span>
         <span></span>
       </div>
       <div id="invRows"></div>
@@ -440,19 +438,21 @@
     <div class="stage aggwrap">
       <div>
         <div class="demo__cap"><b>menu-bar bell</b> — each row deep-links into a filtered inventory</div>
+        <!-- authority: spec loop-node-lifecycle — new shell rows / KPI tiles; existing pair unchanged -->
         <div class="bellpop" data-od-id="agg-bell">
           <div class="bellpop__head">Needs you</div>
           <button class="bellrow" type="button"><span class="d" data-tone="warning"></span><span class="t">Session approvals</span><span class="cnt">2</span></button>
           <button class="bellrow" type="button" data-od-id="agg-bell-waiting"><span class="d" data-tone="info"></span><span class="t">Loop nodes waiting on you</span><span class="cnt">4</span></button>
-          <button class="bellrow" type="button" data-od-id="agg-bell-attention"><span class="d" data-tone="warning"></span><span class="t">Loop nodes needing attention</span><span class="cnt">3</span></button>
+          <button class="bellrow" type="button" data-od-id="agg-bell-attention"><span class="d" data-tone="warning"></span><span class="t">Loop nodes needing attention</span><span class="cnt">2</span></button>
         </div>
       </div>
       <div class="aggwrap__grow">
         <div class="demo__cap"><b>runs page KPI strip</b> — two new tiles beside the existing pair</div>
+        <!-- authority: spec loop-node-lifecycle — new shell rows / KPI tiles; existing pair unchanged -->
         <div class="kpis" data-od-id="agg-kpis">
           <div class="kpi"><div class="kpi__l">Running</div><div class="kpi__v">3</div><div class="kpi__sub">2 watching</div></div>
           <div class="kpi"><div class="kpi__l">Awaiting you</div><div class="kpi__v">4</div><div class="kpi__sub">approvals &amp; waits</div></div>
-          <div class="kpi" data-od-id="agg-kpi-attention"><div class="kpi__l">Needs a look</div><div class="kpi__v">5</div><div class="kpi__sub">3 flagged · 2 quarantined</div></div>
+          <div class="kpi" data-od-id="agg-kpi-attention"><div class="kpi__l">Needs a look</div><div class="kpi__v">4</div><div class="kpi__sub">2 flagged · 2 quarantined</div></div>
           <div class="kpi"><div class="kpi__l">Done today</div><div class="kpi__v">11</div><div class="kpi__sub">9 clean · 2 canceled</div></div>
         </div>
       </div>
@@ -507,11 +507,11 @@
             <span class="invrow__age">operator_cancel · 1h ago</span>
             <button class="invrow__go" type="button" aria-label="Open run r-6b9e10"><i data-lucide="chevron-right"></i></button>
           </div>
-          <div class="invrow invrow--run" data-od-id="run-row-r-914c3d">
-            <span class="invrow__id"><span class="invrow__dot" data-state="canceled"></span><span class="invrow__name">Run r-914c3d</span><span class="invrow__lane">issue-triage</span></span>
+          <div class="invrow invrow--run" data-od-id="run-row-r-3c77e1">
+            <span class="invrow__id"><span class="invrow__dot" data-state="canceled"></span><span class="invrow__name">Run r-3c77e1</span><span class="invrow__lane">issue-triage</span></span>
             <span class="pill" data-tone="neutral"><span class="d"></span>Canceled</span>
             <span class="invrow__age">operator_kill · 3h ago</span>
-            <button class="invrow__go" type="button" aria-label="Open run r-914c3d"><i data-lucide="chevron-right"></i></button>
+            <button class="invrow__go" type="button" aria-label="Open run r-3c77e1"><i data-lucide="chevron-right"></i></button>
           </div>
         </div>
       </div>
@@ -526,8 +526,8 @@
    Two secondary workspace loops stay in the set — a workspace inventory spans loops. */
 const DATA = {
   waiting: [
-    {name:"Approve gate", lane:"approve · gen 2", loop:"software-delivery", run:"r-8f3a2b", reason:"approval — ship-to-main gate, re-notified", ageS: 22*60, age:"22m"},
-    {name:"Task 04 · contract test", lane:"execute_task · task_04 · gen 2", loop:"software-delivery", run:"r-8f3a2b", reason:"event — deploy.finished, expects {env}", ageS: 18*60, age:"18m"},
+    {name:"Publish approval", lane:"approve · gen 1", loop:"docs-refresh", run:"r-2b81aa", reason:"approval — publish gate, re-notified", ageS: 22*60, age:"22m"},
+    {name:"Task 04 · contract test", lane:"execute_task · task_04 · gen 2", loop:"software-delivery", run:"r-8f3a2b", reason:"dependency — waits for task_03", ageS: 9*60, age:"9m"},
     {name:"Publish step", lane:"publish · gen 1", loop:"docs-refresh", run:"r-2b81aa", reason:"timer — resumes 15:10", ageS: 6*60, age:"6m"},
     {name:"Triage lane 2", lane:"triage[2] · gen 4", loop:"issue-triage", run:"r-914c3d", reason:"approval — label-change gate, escalated", ageS: 49*60, age:"49m"},
   ],
@@ -536,13 +536,11 @@ const DATA = {
     {name:"Sync step", lane:"sync · gen 3", loop:"docs-refresh", run:"r-2b81aa", reason:"quality_rejection — output failed its contract twice", ageS: 3*3600, age:"3h"},
   ],
   attention: [
-    {name:"Task 04 · contract test", lane:"execute_task · task_04 · gen 2", loop:"software-delivery", run:"r-8f3a2b", reason:"silence — quiet for 31m, no confirmed death", ageS: 31*60, age:"31m"},
     {name:"Collect join", lane:"collect · gen 2", loop:"software-delivery", run:"r-8f3a2b", reason:"dependency_quarantined — blocked on task_03", ageS: 2*60, age:"2m"},
     {name:"Digest lane 1", lane:"digest[1] · gen 6", loop:"issue-triage", run:"r-914c3d", reason:"wait_intervention — resume payload rejected 3×", ageS: 78*60, age:"1h 18m"},
   ],
   retrying: [
-    {name:"Task 03 · api handler", lane:"execute_task · task_03 · gen 2", loop:"software-delivery", run:"r-8f3a2b", reason:"transport — attempt 2 of 3, next 14:41:03", ageS: 40, age:"40s"},
-    {name:"Crawl step", lane:"crawl · gen 1", loop:"docs-refresh", run:"r-2b81aa", reason:"transport — attempt 3 of 5, next 14:44:10", ageS: 2*60, age:"2m"},
+    {name:"Crawl step", lane:"crawl · gen 1", loop:"docs-refresh", run:"r-2b81aa", reason:"transport — attempt 3 of 5, next 15:03:40", ageS: 2*60, age:"2m"},
   ],
 };
 /* truthful empty copy per filter — "nothing here" is a healthy signal */
@@ -553,8 +551,9 @@ const EMPTY = {
   retrying:    {t:"No retries scheduled", s:"No node is mid-backoff right now. Only network-style failures retry on their own.", ic:"rotate-ccw"},
 };
 const TONE = {waiting:"info", quarantined:"danger", attention:"warning", retrying:"warning"};
+const ICON = {waiting:"hourglass", quarantined:"shield-alert", attention:"triangle-alert", retrying:"rotate-ccw"};
 
-let state = "waiting", view = "rows", ageDesc = true;
+let state = "waiting", view = "rows";
 const rowsEl = document.getElementById("invRows"),
       cardsEl = document.getElementById("invCards"),
       emptyEl = document.getElementById("invEmpty"),
@@ -591,7 +590,7 @@ function syncMicro(){
     + " · limit=50";
 }
 function render(){
-  const items = rowsFor(state).slice().sort((a,b)=> ageDesc ? b.ageS-a.ageS : a.ageS-b.ageS);
+  const items = rowsFor(state).slice().sort((a,b)=> b.ageS-a.ageS);
   const empty = items.length === 0;
   syncCounts();
   syncMicro();
@@ -611,7 +610,7 @@ function render(){
   countEl.textContent = "Showing " + items.length + " of " + items.length;
   rowsEl.innerHTML = items.map(it => `
     <div class="invrow" tabindex="0" data-od-id="inventory-row-${esc(it.run)}-${slug(it.name)}">
-      <span class="invrow__id"><span class="invrow__dot" data-state="${state}"></span><span class="invrow__name">${esc(it.name)}</span><span class="invrow__lane">${esc(it.lane)}</span></span>
+      <span class="invrow__id"><span class="invrow__ic" data-tone="${TONE[state]}"><i data-lucide="${ICON[state]}"></i></span><span class="invrow__name">${esc(it.name)}</span><span class="invrow__lane">${esc(it.lane)}</span></span>
       <span class="invrow__ctx"><span>${esc(it.loop)}</span><span class="rid">${esc(it.run)}</span></span>
       <span class="invrow__reason">${esc(it.reason)}</span>
       <span class="invrow__age">${esc(it.age)}<small>in this state</small></span>
@@ -619,7 +618,7 @@ function render(){
     </div>`).join("");
   cardsEl.innerHTML = items.map(it => `
     <div class="invcard" tabindex="0" data-od-id="inventory-card-${esc(it.run)}-${slug(it.name)}">
-      <span class="invcard__top"><span class="invrow__dot" data-state="${state}"></span><span class="invcard__name">${esc(it.name)}</span><span class="pillxs" data-tone="${TONE[state]}">${state}</span></span>
+      <span class="invcard__top"><span class="invrow__ic" data-tone="${TONE[state]}"><i data-lucide="${ICON[state]}"></i></span><span class="invcard__name">${esc(it.name)}</span><span class="pillxs" data-tone="${TONE[state]}">${state}</span></span>
       <span class="invcard__reason">${esc(it.reason)}</span>
       <span class="invcard__meta"><span>${esc(it.loop)} · ${esc(it.run)}</span><span class="spacer"></span><span>${esc(it.age)}</span></span>
     </div>`).join("");
@@ -629,6 +628,7 @@ stateSegs.forEach(btn => {
   btn.addEventListener("click", () => {
     state = btn.dataset.state;
     stateSegs.forEach(b => b.setAttribute("aria-pressed", String(b === btn)));
+    history.replaceState(null, "", "#" + state);
     render();
   });
 });
@@ -640,12 +640,6 @@ viewSegs.forEach(btn => {
   });
 });
 [loopSel, runSel].forEach(sel => sel.addEventListener("change", render));
-document.getElementById("ageSort").addEventListener("click", function(){
-  ageDesc = !ageDesc;
-  this.setAttribute("aria-label", "Sort by age, " + (ageDesc ? "descending" : "ascending"));
-  this.classList.toggle("is-asc", !ageDesc);
-  render();
-});
 /* deep links from other artboards: #waiting / #quarantined / #attention / #retrying */
 function applyHash(){
   const h = location.hash.replace("#","");

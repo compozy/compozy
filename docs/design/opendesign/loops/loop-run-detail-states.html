@@ -204,6 +204,8 @@
   .gnav a:hover{color:var(--fg);background:var(--row-hover)}
   .state{border-bottom:1px solid var(--line)}
   .state:last-child{border-bottom:0}
+  /* authorized delta — .layout--solo intentionally drops the rail on state artboards; only S8
+     (parked-progress) keeps the base rail, because that is where the parked-time arithmetic lands */
   .layout--solo{grid-template-columns:minmax(0,1fr)}
   .w2-status[data-tone="neutral"]{color:var(--muted)}
 
@@ -214,13 +216,16 @@
   .pillxs[data-tone="success"]{background:var(--success-tint);color:var(--success)}
   .pillxs[data-tone="neutral"]{background:var(--neutral-tint);color:var(--neutral)}
 
-  /* section gist link — renders as a text link, never a filled badge (badge budget: state pills only) */
+  /* authorized delta — .chiplink: section gist link, renders as a text link, never a filled badge
+     (badge budget: state pills only); lives in panel bodies, not summaries */
   .chiplink{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:500;color:var(--info);padding:1px 5px;border-radius:var(--radius-xs)}
   .chiplink svg{width:11px;height:11px}
   .chiplink:hover{background:var(--row-hover);filter:brightness(1.14)}
 
   /* machine truth — demoted to 9px micro mono, never removed */
   .micro{margin-top:9px;font-family:var(--font-mono);font-size:9px;line-height:1.55;color:var(--faint)}
+  /* spec loop-node-lifecycle — .provline renders provenance fields (pause_provenance, last evidence,
+     blocked-on producer) as mono micro; truth demoted, never removed */
   .provline{margin-top:7px;font-family:var(--font-mono);font-size:10px;color:var(--faint)}
   .provline b{font-weight:600;color:var(--subtle)}
 
@@ -230,6 +235,8 @@
   .nowrow__dot--wait{background:var(--info)}
   .nowrow__dot--ring{background:transparent;border:1.5px solid var(--info)}
   .nowrow__acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:11px}
+  /* production — .btn--sm/.btn--primary mirror packages/ui button.tsx (sm size, accent primary);
+     .act is the base needsrow__act text-action generalized for nowrow bodies */
   .btn--sm{height:22px;padding:0 8px;font-size:11.5px}
   .btn--sm svg{width:12px;height:12px}
   .btn--primary{background:var(--accent);border-color:transparent;color:var(--accent-ink);box-shadow:var(--highlight)}
@@ -238,7 +245,8 @@
   .act:hover{color:var(--fg-strong)}
   .act svg{width:12px;height:12px}
 
-  /* needs-you / outcome cards */
+  /* authorized delta — .scard/.cardpair: panelbox surface flattened to a single card for
+     attention flags and terminal outcomes; cardpair is a 2-up grid of scards */
   .scard{padding:14px 16px;border-radius:var(--radius-md);border:1px solid var(--line);background:var(--canvas-tint)}
   .scard[data-tone="warning"]{background:var(--warning-tint);border-color:color-mix(in srgb,var(--warning) 24%,transparent)}
   .scard[data-tone="warning"] .scard__title{color:var(--warning)}
@@ -250,7 +258,8 @@
   .scard__acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
   .cardpair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
 
-  /* attempt ledger disclosure */
+  /* spec loop-node-lifecycle — attempt ledger disclosure over loop_node_attempts
+     (PK run·gen·node·item·attempt) */
   details.attempts{margin-top:11px}
   details.attempts > summary{list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:5px;
     font-size:11px;font-weight:520;color:var(--muted);padding:2px 4px;border-radius:var(--radius-xs)}
@@ -266,14 +275,14 @@
   .attempt-row .disp{color:var(--subtle)}
   .attempt-row .t{margin-left:auto;color:var(--faint);white-space:nowrap}
 
-  /* escalation ladder (approval waits) */
+  /* spec loop-node-lifecycle — escalation ladder for approval waits (US-022) */
   .ladder{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:9px;font-family:var(--font-mono);font-size:10px;color:var(--faint)}
   .ladder__step{display:inline-flex;align-items:center;gap:4px;padding:2px 6px;border-radius:var(--radius-xs);background:var(--badge-fill);color:var(--subtle)}
   .ladder__step[data-state="done"]{background:var(--success-tint);color:var(--success)}
   .ladder__step[data-state="next"]{background:var(--info-tint);color:var(--info)}
 
-  /* pbar seg enum: clean | active | failed | parked | quarantined */
-  .pbar__seg[data-state="failed"]{background:var(--danger)}
+  /* spec loop-node-lifecycle — pbar seg enum: clean | active | parked | quarantined
+     (pending renders as the unstated base seg) */
   .pbar__seg[data-state="parked"]{background:var(--info-tint);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--info) 36%,transparent)}
   .pbar__seg[data-state="quarantined"]{background:var(--danger-tint);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--danger) 36%,transparent)}
 
@@ -372,18 +381,18 @@
               <span class="nowrow__dot nowrow__dot--warn" aria-hidden="true"></span>
               <div class="nowrow__main">
                 <div class="nowrow__label">task_03 is retrying — attempt 2 of 3</div>
-                <div class="nowrow__sub">The push to GitHub failed in transit. Nothing to do: the retry runs by itself at 14:41:03. If it keeps failing, check the <span class="mono">github-mcp</span> target.</div>
+                <div class="nowrow__sub">The push to GitHub failed in transit. Nothing to do: the retry runs by itself at 14:33:41. If it keeps failing, check the <span class="mono">github-mcp</span> target.</div>
                 <div class="nowrow__meta">
                   <span class="pillxs mono" data-tone="warning" data-od-id="retrying-attempt-pill">attempt 2 of 3 · next in 38s</span>
                 </div>
                 <!-- failure_class is an enum, so it stays plain micro mono — never a chip -->
-                <div class="micro">failure_class transport · backoff 2m · execute_task · task_03 · gen 2</div>
+                <div class="micro">failure_class transport · backoff 1m · execute_task · task_03 · gen 2</div>
                 <!-- attempt ledger from loop_node_attempts (PK run·gen·node·item·attempt) -->
                 <details class="attempts" data-od-id="rt-attempt-history">
                   <summary><i data-lucide="chevron-right"></i>Attempt history</summary>
                   <div class="attempts__list">
                     <div class="attempt-row"><span class="n">#1</span><span class="cls">transport</span><span class="disp">retried</span><span>push timed out after 30s</span><span class="t">14:32:10 → 14:32:41</span></div>
-                    <div class="attempt-row"><span class="n">#2</span><span class="cls">—</span><span class="disp">scheduled</span><span>backoff 2m · runs at 14:41:03</span><span class="t">next_attempt_at 14:41:03</span></div>
+                    <div class="attempt-row"><span class="n">#2</span><span class="cls">—</span><span class="disp">scheduled</span><span>backoff 1m · runs at 14:33:41</span><span class="t">next_attempt_at 14:33:41</span></div>
                   </div>
                 </details>
               </div>
@@ -399,14 +408,14 @@
               <li class="tlrow" style="--tone:var(--warning)" data-od-id="ev-node-retry-scheduled">
                 <span class="tlrow__dot"><i data-lucide="rotate-ccw"></i></span>
                 <div><div class="tlrow__title">Retry scheduled for task_03</div>
-                  <div class="tlrow__sub">Attempt 2 of 3 runs at 14:41:03. Only network-style failures retry on their own — everything else asks or parks.</div>
+                  <div class="tlrow__sub">Attempt 2 of 3 runs at 14:33:41. Only network-style failures retry on their own — everything else asks or parks.</div>
                 </div><div class="tlrow__trail"><time class="tlrow__time">40s ago</time><span class="tlrow__micro">node_retry_scheduled</span></div>
               </li>
               <li class="tlrow" style="--tone:var(--danger)" data-od-id="ev-node-failed">
                 <span class="tlrow__dot"><i data-lucide="x"></i></span>
                 <div><div class="tlrow__title">Push failed in transit</div>
                   <div class="tlrow__sub">GitHub could not be reached. The work itself is safe — only the push failed.</div>
-                </div><div class="tlrow__trail"><time class="tlrow__time">2m ago</time><span class="tlrow__micro">node_failed · execute_task · task_03 · gen 2</span></div>
+                </div><div class="tlrow__trail"><time class="tlrow__time">1m ago</time><span class="tlrow__micro">node_failed · execute_task · task_03 · gen 2</span></div>
               </li>
             </ol>
           </div>
@@ -567,6 +576,7 @@
                 <div class="nowrow__sub">The loop's own guard paused this lane — not a person. Resuming is still yours to do.</div>
                 <div class="provline"><b>paused by</b> rule <b>guard.max-diff-size</b> · <b>reason</b> "diff exceeds 4 000 lines" · <b>at</b> 14:46</div>
                 <div class="micro">node_paused · rule · rule_id guard.max-diff-size · execute_task · task_04 · gen 2</div>
+                <!-- Resume gated on node_controls[].paused = true (rule provenance) -->
                 <div class="nowrow__acts">
                   <button class="btn btn--sm" type="button" data-od-id="paused-rule-resume"><i data-lucide="play"></i>Resume</button>
                   <a class="act" href="loop-node-controls.html#resume-menu">Resume options…<i data-lucide="arrow-right"></i></a>
@@ -668,18 +678,14 @@
         </details>
 
         <details class="sec" open data-od-id="waiting-waits">
-          <summary>
-            <i class="si" data-lucide="hourglass"></i><span class="st">Waiting</span><span class="spacer"></span>
-            <a class="chiplink" href="loop-inventories.html#waiting">3 waits<i data-lucide="arrow-right"></i></a>
-            <i class="chev" data-lucide="chevron-down"></i>
-          </summary>
+          <summary><i class="si" data-lucide="hourglass"></i><span class="st">Waiting</span><span class="ssum">3 waits</span><span class="spacer"></span><i class="chev" data-lucide="chevron-down"></i></summary>
           <div class="panelbox">
             <div class="nowrow" data-od-id="wt-timer">
               <span class="nowrow__dot nowrow__dot--wait" aria-hidden="true"></span>
               <div class="nowrow__main">
                 <div class="nowrow__label">task_03 is waiting on a timer</div>
                 <div class="nowrow__sub">Sleeping until the CI quiet-period ends — it resumes by itself at 15:10.</div>
-                <div class="micro">timer · resumes 15:10 (in 24m) · execute_task · task_03 · gen 2</div>
+                <div class="micro">timer · resumes 15:10 (in 24m) · execute_task · task_03[1] · gen 2</div>
               </div>
               <span class="nowrow__time" title="age since node_wait_started">waiting 6m</span>
             </div>
@@ -688,7 +694,7 @@
               <div class="nowrow__main">
                 <div class="nowrow__label">task_04 is waiting for an event</div>
                 <div class="nowrow__sub">Waiting for <span class="mono">deploy.finished</span>, and only a payload matching <span class="mono">{env: "staging"}</span> wakes it. A lane's wait is its own — task_03's timer never collides with this one.</div>
-                <div class="micro">event · deploy.finished · payload {env: "staging"} · execute_task · task_04 · gen 2</div>
+                <div class="micro">event · deploy.finished · payload {env: "staging"} · execute_task · task_04[1] · gen 2</div>
               </div>
               <span class="nowrow__time" title="age since node_wait_started">waiting 18m</span>
             </div>
@@ -698,7 +704,7 @@
                 <div class="nowrow__label">Waiting for your approval</div>
                 <div class="nowrow__sub">The ship-to-main gate asked before pushing. The ladder walks its steps until you decide; a decision at any point wins and cancels the rest.</div>
                 <div class="ladder" data-od-id="wt-ladder" aria-label="Escalation ladder position">
-                  <span class="ladder__step" data-state="done">re-notified · 14:52</span><span aria-hidden="true">→</span>
+                  <span class="ladder__step" data-state="done">re-notified · 14:40</span><span aria-hidden="true">→</span>
                   <span class="ladder__step" data-state="next">escalate #ops · 15:02</span><span aria-hidden="true">→</span>
                   <span class="ladder__step">route timeout path</span>
                 </div>
@@ -710,6 +716,9 @@
                 </div>
               </div>
               <span class="nowrow__time" title="age since node_wait_started">waiting 22m</span>
+            </div>
+            <div style="padding:10px 16px;border-top:1px solid var(--line-soft)">
+              <a class="chiplink" href="loop-inventories.html#agg-bell-waiting">All waits in the inventory<i data-lucide="arrow-right"></i></a>
             </div>
           </div>
         </details>
@@ -727,14 +736,6 @@
                 </div>
                 <div class="tlrow__trail"><time class="tlrow__time">6m ago</time><span class="tlrow__micro">node_wait_started</span></div>
               </li>
-              <li class="tlrow" style="--tone:var(--info)">
-                <span class="tlrow__dot"><i data-lucide="radio"></i></span>
-                <div>
-                  <div class="tlrow__title">task_04 began waiting for deploy.finished</div>
-                  <div class="tlrow__sub">Resumes when a matching event arrives — it expects <span class="mono">{env: "staging"}</span>.</div>
-                </div>
-                <div class="tlrow__trail"><time class="tlrow__time">18m ago</time><span class="tlrow__micro">node_wait_started</span></div>
-              </li>
               <li class="tlrow" style="--tone:var(--warning)">
                 <span class="tlrow__dot"><i data-lucide="rotate-ccw"></i></span>
                 <div>
@@ -742,6 +743,14 @@
                   <div class="tlrow__sub">The earlier transport failure cleared on attempt 2; the lane moved on to its quiet-period wait.</div>
                 </div>
                 <div class="tlrow__trail"><time class="tlrow__time">14m ago</time><span class="tlrow__micro">node_retry_scheduled</span></div>
+              </li>
+              <li class="tlrow" style="--tone:var(--info)">
+                <span class="tlrow__dot"><i data-lucide="radio"></i></span>
+                <div>
+                  <div class="tlrow__title">task_04 began waiting for deploy.finished</div>
+                  <div class="tlrow__sub">Resumes when a matching event arrives — it expects <span class="mono">{env: "staging"}</span>.</div>
+                </div>
+                <div class="tlrow__trail"><time class="tlrow__time">18m ago</time><span class="tlrow__micro">node_wait_started</span></div>
               </li>
               <li class="tlrow" style="--tone:var(--accent-strong)">
                 <span class="tlrow__dot"><i data-lucide="play"></i></span>
@@ -813,16 +822,21 @@
     <div class="layout layout--solo">
       <main>
         <details class="sec" open data-od-id="quarantined-needs-you">
-          <summary><i class="si" data-lucide="bell"></i><span class="st">Needs you</span><span class="spacer"></span><i class="chev" data-lucide="chevron-down"></i></summary>
-          <div class="scard" data-tone="danger" data-od-id="q-entry-card">
-            <div class="scard__title">task_03 was quarantined</div>
-            <div class="scard__body">Three attempts, three different failures — the loop set this lane aside instead of burning the retry budget. The rest of the run keeps working; the entry has the full story.</div>
-            <!-- both controls gated on quarantined=true (spec: requeue is the only way back in) -->
-            <div class="scard__acts">
-              <a class="btn btn--sm" href="loop-quarantine-sheet.html" data-od-id="q-open-entry"><i data-lucide="search"></i>Open quarantine entry</a>
-              <button class="btn btn--sm" type="button" data-od-id="q-requeue"><i data-lucide="rotate-ccw"></i>Requeue…</button>
+          <summary><i class="si" data-lucide="bell"></i><span class="st">Needs you</span><span class="ssum">1 item</span><span class="spacer"></span><i class="chev" data-lucide="chevron-down"></i></summary>
+          <div class="panelbox">
+            <div class="needsrow" data-od-id="q-entry-card">
+              <i class="ni" data-lucide="shield-alert"></i>
+              <div class="needsrow__main">
+                <div class="needsrow__label">task_03 was quarantined</div>
+                <div class="needsrow__sub">Three attempts, three different failures — the loop set this lane aside instead of burning the retry budget. The rest of the run keeps working; the entry has the full story.</div>
+                <div class="micro">node_quarantined · execute_task · task_03 · attempts 3 · episode 1</div>
+              </div>
+              <div class="needsrow__trail">
+                <span class="needsrow__age">4m</span>
+                <!-- Entry link per quarantine_entry; Requeue lives in the quarantine sheet — the sheet owns the confirm -->
+                <a class="needsrow__act" href="loop-quarantine-sheet.html" data-od-id="q-open-entry">Open entry <i data-lucide="arrow-right"></i></a>
+              </div>
             </div>
-            <div class="micro">node_quarantined · execute_task · task_03 · attempts 3 · episode 1</div>
           </div>
         </details>
 
@@ -870,11 +884,11 @@
                   <div class="tlrow__meta"><span class="pillxs mono" data-tone="danger">episode 1 · quarantined</span></div>
                 </div><div class="tlrow__trail"><time class="tlrow__time">4m ago</time><span class="tlrow__micro">node_quarantined · execute_task · task_03</span></div>
               </li>
-              <li class="tlrow" style="--tone:var(--success)" data-od-id="ev-node-succeeded">
-                <span class="tlrow__dot"><i data-lucide="check"></i></span>
-                <div><div class="tlrow__title">task_02 finished clean</div>
-                  <div class="tlrow__sub">The store method shipped while task_03 sits in quarantine.</div>
-                </div><div class="tlrow__trail"><time class="tlrow__time">2m ago</time><span class="tlrow__micro">node_succeeded · execute_task · task_02</span></div>
+              <li class="tlrow" style="--tone:var(--accent-strong)" data-od-id="ev-node-started">
+                <span class="tlrow__dot"><i data-lucide="play"></i></span>
+                <div><div class="tlrow__title">task_04 · contract test started</div>
+                  <div class="tlrow__sub">The only other open lane picked up while task_03 burned through its retries.</div>
+                </div><div class="tlrow__trail"><time class="tlrow__time">6m ago</time><span class="tlrow__micro">node_started · execute_task · task_04</span></div>
               </li>
             </ol>
           </div>
@@ -911,11 +925,7 @@
     <div class="layout layout--solo">
       <main>
         <details class="sec" open data-od-id="attention-flags">
-          <summary>
-            <i class="si" data-lucide="triangle-alert"></i><span class="st">Needs attention</span><span class="spacer"></span>
-            <a class="chiplink" href="loop-inventories.html#attention">2 flagged<i data-lucide="arrow-right"></i></a>
-            <i class="chev" data-lucide="chevron-down"></i>
-          </summary>
+          <summary><i class="si" data-lucide="triangle-alert"></i><span class="st">Needs attention</span><span class="ssum">2 flagged</span><span class="spacer"></span><i class="chev" data-lucide="chevron-down"></i></summary>
           <div class="cardpair">
             <div class="scard" data-tone="warning" data-od-id="at-silence">
               <div class="scard__title">task_04 has gone quiet</div>
@@ -933,12 +943,16 @@
               <div class="scard__title">The collect gate can't move forward</div>
               <div class="scard__body">The join needs the output of <b>task_03</b>, which is quarantined. The run parks here and says so — it never waits silently or fails without a reason.</div>
               <div class="provline"><b>blocked on</b> execute_task · task_03 · <b>state</b> quarantined</div>
+              <!-- Requeue gated on quarantined = true; entry link per quarantine_entry -->
               <div class="scard__acts">
-                <a class="btn btn--sm" href="loop-quarantine-sheet.html"><i data-lucide="search"></i>Open quarantine entry</a>
-                <button class="btn btn--sm" type="button"><i data-lucide="rotate-ccw"></i>Requeue task_03…</button>
+                <a class="btn btn--sm" href="loop-quarantine-sheet.html"><i data-lucide="shield-alert"></i>Open quarantine entry</a>
+                <button class="btn btn--sm" type="button"><i data-lucide="redo-2"></i>Requeue task_03…</button>
               </div>
               <div class="micro">node_attention_flagged · dependency_quarantined · names the producer</div>
             </div>
+          </div>
+          <div style="margin-top:10px">
+            <a class="chiplink" href="loop-inventories.html#agg-bell-attention">All flags in the inventory<i data-lucide="arrow-right"></i></a>
           </div>
         </details>
 
@@ -986,7 +1000,7 @@
                 </div><div class="tlrow__trail"><time class="tlrow__time">2m ago</time><span class="tlrow__micro">node_attention_flagged · dependency_quarantined</span></div>
               </li>
               <li class="tlrow" style="--tone:var(--warning)" data-od-id="ev-attention-silence">
-                <span class="tlrow__dot"><i data-lucide="clock"></i></span>
+                <span class="tlrow__dot"><i data-lucide="volume-off"></i></span>
                 <div><div class="tlrow__title">Flagged: task_04 silent for 31m</div>
                   <div class="tlrow__sub">Watch flag only — it clears itself on any evidence of life.</div>
                 </div><div class="tlrow__trail"><time class="tlrow__time">8m ago</time><span class="tlrow__micro">node_attention_flagged · silence</span></div>
@@ -1037,13 +1051,14 @@
       <main>
         <details class="sec" open data-od-id="canceled-outcome">
           <summary><i class="si" data-lucide="circle-slash"></i><span class="st">Why it stopped</span><span class="spacer"></span><i class="chev" data-lucide="chevron-down"></i></summary>
+          <!-- "Start a new run" links below: POST /api/workspaces/:ws/loops/software-delivery/runs — production -->
           <div class="cardpair">
             <div class="scard" data-od-id="c-cancel-card">
               <div class="scard__title">Canceled by you</div>
               <div class="scard__body">You asked the run to stop and it wound down cleanly: in-flight lanes drained, their cleanup reactions ran, and finished work is kept — task_01 and task_02 stay shipped on <span class="mono">main</span>.</div>
               <div class="scard__acts">
                 <span class="pillxs mono" data-tone="neutral">terminal</span>
-                <a class="btn btn--sm btn--primary" href="loop-run-detail.html"><i data-lucide="play"></i>Start a new run</a>
+                <a class="btn btn--sm" href="loop-run-detail.html"><i data-lucide="play"></i>Start a new run</a>
               </div>
               <div class="micro">status_changed · running → canceled · cause operator_cancel</div>
             </div>
@@ -1052,7 +1067,7 @@
               <div class="scard__body">Stopped immediately: in-flight work was interrupted mid-step and its reactions were skipped. Finished work is still kept. Use kill when a run is misbehaving and can't be trusted to wind down.</div>
               <div class="scard__acts">
                 <span class="pillxs mono" data-tone="neutral">terminal</span>
-                <a class="btn btn--sm btn--primary" href="loop-run-detail.html"><i data-lucide="play"></i>Start a new run</a>
+                <a class="btn btn--sm" href="loop-run-detail.html"><i data-lucide="play"></i>Start a new run</a>
               </div>
               <div class="micro">status_changed · running → canceled · cause operator_kill</div>
             </div>
@@ -1173,12 +1188,6 @@
           </div>
         </details>
 
-        <!-- point of use: the arithmetic the pbar above just performed -->
-        <div class="quiet-note" data-od-id="parked-arithmetic" style="margin-bottom:24px">
-          <i data-lucide="clock"></i>
-          <span><b>How parked time counts.</b> Parked lanes are <b>out of the math</b>: no progress, no stall detector, and their clock is suspended. <b>Tokens always count</b> — a parked lane that already spent 40K tokens keeps them on the bill.</span>
-        </div>
-
         <details class="sec" open data-od-id="parked-now">
           <summary><i class="si" data-lucide="activity"></i><span class="st">Happening now</span><span class="spacer"></span><i class="chev" data-lucide="chevron-down"></i></summary>
           <div class="panelbox">
@@ -1266,7 +1275,7 @@
           <div class="prow"><span class="prow__k">Generations</span><span class="prow__v mono"><span>2 <span class="max">/ 50</span></span></span></div>
           <div class="prow"><span class="prow__k">Tokens</span><span class="prow__v mono"><span style="color:var(--warning)">1.38M <span class="max">/ 1.5M</span></span></span></div>
           <div class="prow"><span class="prow__k">Cost</span><span class="prow__v mono"><span>~$5.75 <span class="max">· display only</span></span></span></div>
-          <div class="rail-note">The clock only runs while lanes work — 27 minutes of parked time isn't on it. Tokens never pause.</div>
+          <div class="rail-note">The clock only runs while lanes work — 22 minutes of parked lane time (task_03 11m · task_02 7m · task_04 4m) isn't on it. Tokens never pause.</div>
         </div>
         <div class="rail-foot" data-od-id="parked-rail-foot">
           <button class="rail-foot__btn" type="button"><i data-lucide="search"></i>Inspect</button>

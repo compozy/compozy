@@ -1,0 +1,569 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Loops · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<style>
+  /* tokens — verbatim from design-system/ds-core.css (packages/ui/src/tokens.css lineage),
+     seeded from the approved loop-detail.html chrome */
+  :root{
+    color-scheme: dark;
+    --rail:#0c0b0b; --canvas:#131211; --canvas-soft:#1a1918; --canvas-tint:#1c1b1a; --elevated:#232220;
+    --fg:#ececef; --fg-strong:#f6f6f8; --muted:#9a9a9f; --subtle:#76767c; --faint:#545458;
+    --line:rgba(255,255,255,.055); --line-soft:rgba(255,255,255,.03); --line-strong:rgba(255,255,255,.09);
+    --accent:#e8572a; --accent-hover:#d14e25; --accent-strong:#f6874f; --accent-ink:#17110f; --accent-tint:rgba(232,87,42,.10);
+    --success:#5fbf85; --success-tint:rgba(95,191,133,.08);
+    --warning:#d6a647; --warning-tint:rgba(214,166,71,.08);
+    --danger:#e0635a;  --danger-tint:rgba(224,99,90,.09);
+    --info:#8e8eb5;    --info-tint:rgba(142,142,181,.12);
+    --neutral:#7a7a80; --neutral-tint:rgba(150,150,155,.06);
+    --row-hover:rgba(255,255,255,.022); --input-fill:rgba(255,255,255,.025); --badge-fill:rgba(255,255,255,.05); --btn-fill:rgba(255,255,255,.04); --btn-hover:rgba(255,255,255,.07);
+    --radius-xs:4px; --radius-sm:5px; --radius:6px; --radius-md:8px; --radius-lg:10px; --radius-pill:9999px;
+    --font-sans:"Inter Variable","Inter",-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --font-mono:"JetBrains Mono Variable","JetBrains Mono","SF Mono",ui-monospace,Menlo,monospace;
+    --dur:140ms; --ease:cubic-bezier(.2,0,0,1); --highlight:inset 0 1px 0 rgba(255,255,255,.035);
+    --focus-ring:0 0 0 2px rgba(255,255,255,.5);
+    --shadow-overlay:0 24px 48px -12px rgba(0,0,0,.65), 0 0 0 1px rgba(255,255,255,.045);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{background:var(--canvas);color:var(--fg);font-family:var(--font-sans);font-feature-settings:"cv01","ss03";
+    font-size:13.5px;line-height:1.5;letter-spacing:-.006em;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+  a{color:inherit;text-decoration:none}
+  button{font:inherit;letter-spacing:inherit;color:inherit;background:none;border:0;cursor:pointer}
+  input,select{font-family:inherit}
+  ::selection{background:var(--accent-tint)}
+  :is(button,a,input,select,[tabindex],summary):focus-visible{outline:none;box-shadow:var(--focus-ring)}
+  .mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums;font-feature-settings:normal}
+  .shell{height:100vh}
+  .main{display:flex;flex-direction:column;min-width:0;height:100vh;overflow:hidden}
+
+  /* unified head · 44px — anatomy verbatim from approved loop-detail.html */
+  .w2head{min-height:44px;display:flex;align-items:center;gap:10px;padding:0 16px;flex:none;
+    background:var(--canvas);border-bottom:1px solid var(--line);min-width:0}
+  .w2-back{width:24px;height:24px;flex:none;display:grid;place-items:center;border-radius:var(--radius);color:var(--muted)}
+  .w2-back:hover{background:var(--btn-fill);color:var(--fg-strong)}
+  .w2-back svg{width:14px;height:14px}
+  .w2-crumbs{display:flex;align-items:center;gap:2px;min-width:0}
+  .w2-crumb{font-size:13px;font-weight:500;color:var(--subtle);white-space:nowrap;border-radius:var(--radius-sm);padding:1px 5px}
+  .w2-crumb:hover{color:var(--fg);background:var(--row-hover)}
+  .w2-sep{flex:none;font-size:12px;color:var(--faint)}
+  .w2-title{font-size:13px;font-weight:600;color:var(--fg-strong);white-space:nowrap;padding-left:3px}
+  .w2-flex{flex:1;min-width:8px}
+  .w2-actions{position:relative;display:flex;align-items:center;gap:6px;flex:none}
+  .btn{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 11px;border-radius:var(--radius);font-size:12.5px;font-weight:520;
+    border:1px solid var(--line);background:var(--btn-fill);white-space:nowrap;transition:background var(--dur) var(--ease),border-color var(--dur) var(--ease)}
+  .btn svg{width:14px;height:14px}
+  .btn:hover{background:var(--btn-hover);border-color:var(--line-strong);color:var(--fg-strong)}
+  .btn--primary{background:var(--accent);border-color:transparent;color:var(--accent-ink);box-shadow:var(--highlight)}
+  .btn--primary:hover{background:var(--accent-hover);color:var(--accent-ink)}
+
+  .scroll{flex:1;min-height:0;overflow-y:auto}
+  .page{max-width:1240px;margin:0 auto;padding:24px 36px 80px}
+
+  /* lede — same dh anatomy as loop-detail */
+  .dh{padding-bottom:20px;border-bottom:1px solid var(--line);margin-bottom:20px}
+  .dh__namerow{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+  .dh__name{font-size:22px;font-weight:560;letter-spacing:-.028em;color:var(--fg-strong)}
+  .dh__meta{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:8px;font-size:12px;color:var(--subtle)}
+  .dh__meta .mono{font-size:11px;color:var(--muted)}
+  .dotsep{width:2px;height:2px;border-radius:50%;background:var(--faint);display:inline-block}
+
+  /* status pills — loop-detail vocabulary; only the story's live run pulses */
+  .pill{display:inline-flex;align-items:center;gap:6px;height:20px;padding:0 8px;border-radius:var(--radius-xs);font-size:11px;font-weight:520;width:max-content}
+  .pill .dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex:none}
+  .pill--running{background:var(--accent-tint);color:var(--accent-strong)}
+  .pill--watching{background:var(--info-tint);color:var(--info)}
+  .pill--done{background:var(--success-tint);color:var(--success)}
+  .pill--canceled{background:var(--neutral-tint);color:var(--muted)}
+  .pill--needs-approval{background:var(--info-tint);color:var(--info)}
+  .pill .dot--pulse{animation:pulse 1.8s var(--ease) infinite}
+  @keyframes pulse{0%,100%{box-shadow:0 0 0 0 color-mix(in srgb,currentColor 34%,transparent)}55%{box-shadow:0 0 0 4px transparent}}
+
+  /* ══ catalog extensions on the approved base ══ */
+  .micro{font-family:var(--font-mono);font-size:10px;color:var(--faint);white-space:nowrap;font-feature-settings:normal}
+
+  /* listing toolbar — production listing-toolbar.tsx geometry (transcribed via loop-inventories.html):
+     search/filters → spacer → view-mode PillGroup (Rows | Cards contract) */
+  .toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:18px}
+  .toolbar .spacer{flex:1;min-width:8px}
+  .search{display:flex;align-items:center;gap:8px;height:28px;width:230px;padding:0 9px;border:1px solid var(--line);
+    border-radius:var(--radius-md);background:var(--input-fill);color:var(--fg)}
+  .search svg{width:13px;height:13px;flex:none;color:var(--subtle)}
+  .search input{flex:1;min-width:0;border:0;background:transparent;color:var(--fg);font-size:12.5px;outline:none}
+  .search input::placeholder{color:var(--subtle)}
+  .search .kbd{margin-left:auto;font-family:var(--font-mono);font-size:10px;line-height:1;color:var(--subtle);
+    border:1px solid var(--line);border-radius:var(--radius-xs);padding:2px 5px;flex:none}
+  .search:focus-within{border-color:var(--line-strong)}
+  .selwrap{position:relative;display:inline-flex;align-items:center}
+  .selwrap select{appearance:none;height:28px;padding:0 26px 0 10px;border:1px solid var(--line);border-radius:var(--radius-md);
+    background:var(--elevated);color:var(--fg);font-size:12px;letter-spacing:inherit;cursor:pointer}
+  .selwrap select:hover{border-color:var(--line-strong)}
+  .selwrap svg{position:absolute;right:8px;width:12px;height:12px;color:var(--subtle);pointer-events:none}
+  .pillgroup{display:inline-flex;align-items:center;gap:1px;padding:2px;border-radius:var(--radius-md);background:var(--canvas-soft)}
+  .seg{display:inline-flex;min-height:24px;align-items:center;justify-content:center;gap:6px;padding:0 10px;border-radius:var(--radius-xs);
+    color:var(--subtle);font-size:12px;font-weight:500;transition:background var(--dur) var(--ease),color var(--dur) var(--ease)}
+  .seg:hover{color:var(--muted)}
+  .seg[aria-pressed="true"]{background:var(--elevated);color:var(--fg-strong);box-shadow:var(--highlight)}
+  .seg svg{width:12px;height:12px}
+
+  /* groups — Eyebrow contract + bare mono count */
+  .group{margin-top:22px}
+  .group:first-of-type{margin-top:0}
+  .group__label{display:flex;align-items:center;gap:8px;padding:0 2px 8px;font-size:10.5px;font-weight:600;
+    letter-spacing:.04em;text-transform:uppercase;color:var(--subtle)}
+  .group__count{font-family:var(--font-mono);font-size:10.5px;font-weight:400;letter-spacing:0;text-transform:none;
+    color:var(--faint);font-variant-numeric:tabular-nums}
+
+  /* rows view */
+  .list{border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden;background:var(--canvas-soft)}
+  .listing-row{display:grid;grid-template-columns:34px minmax(0,1fr) auto;align-items:center;gap:14px;padding:13px 16px;
+    border-top:1px solid var(--line-soft);cursor:pointer;transition:background var(--dur) var(--ease)}
+  .listing-row:first-child{border-top:0}
+  .listing-row:hover{background:var(--row-hover)}
+  .listing-row__icon{width:34px;height:34px;border-radius:var(--radius-md);background:var(--elevated);color:var(--muted);display:grid;place-items:center;flex:none}
+  .listing-row__icon svg{width:16px;height:16px}
+  .listing-row__main{min-width:0}
+  .listing-row__name{display:flex;align-items:baseline;gap:8px;min-width:0}
+  .listing-row__name b{font-size:13.5px;font-weight:520;color:var(--fg-strong);letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .listing-row__desc{margin-top:2px;font-size:12.5px;line-height:1.45;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .listing-row__meta{margin-top:5px;display:flex;align-items:center;gap:8px;font-size:11px;color:var(--faint);flex-wrap:wrap}
+  .listing-row__meta .bind{display:inline-flex;align-items:center;gap:5px}
+  .listing-row__meta .bind svg{width:11px;height:11px;color:var(--faint)}
+  .listing-row__trail{display:flex;align-items:center;gap:16px;flex:none}
+  .listing-row__state{display:flex;flex-direction:column;align-items:flex-end;gap:4px}
+  .listing-row__stat{display:flex;flex-direction:column;align-items:flex-end;gap:2px;width:78px}
+  .listing-row__stat-v{font-family:var(--font-mono);font-size:12px;font-weight:600;color:var(--fg);font-variant-numeric:tabular-nums}
+  .listing-row__stat-l{font-size:10px;color:var(--faint)}
+  .runbtn{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:var(--radius-md);font-size:12px;
+    font-weight:500;background:var(--btn-fill);border:1px solid var(--line);color:var(--fg);
+    transition:background var(--dur) var(--ease),border-color var(--dur) var(--ease),color var(--dur) var(--ease)}
+  .runbtn svg{width:11px;height:11px}
+  .runbtn:hover{background:var(--accent);border-color:transparent;color:var(--accent-ink)}
+
+  /* state signals — icon + text, tone = state; never a badge */
+  .sig{display:inline-flex;align-items:center;gap:5px;font-size:11px;white-space:nowrap}
+  .sig svg{width:12px;height:12px;flex:none}
+  .sig[data-tone="danger"]{color:var(--danger)}
+  .sig[data-tone="info"]{color:var(--info)}
+  .sig .micro{color:inherit;opacity:.85}
+
+  /* cards view — CatalogCard anatomy carried from the archived catalog */
+  .listing-card-grid{display:grid;grid-template-columns:repeat(1,minmax(0,1fr));gap:12px}
+  @media(min-width:640px){.listing-card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  @media(min-width:1180px){.listing-card-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+  .catalog-card{display:flex;flex-direction:column;gap:11px;min-width:0;padding:16px;border-radius:var(--radius-lg);
+    background:var(--canvas-soft);cursor:pointer;transition:background var(--dur) var(--ease)}
+  .catalog-card:hover{background:var(--elevated)}
+  .catalog-card__head{display:flex;align-items:flex-start;gap:11px;min-width:0}
+  .catalog-card__logo{width:26px;height:26px;border-radius:var(--radius);background:var(--badge-fill);color:var(--muted);display:grid;place-items:center;flex:none}
+  .catalog-card__logo svg{width:14px;height:14px}
+  .catalog-card__title-wrap{min-width:0;flex:1}
+  .catalog-card__title{font-size:13px;font-weight:520;color:var(--fg-strong);letter-spacing:-.012em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .catalog-card__meta{display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin-top:3px;font-size:11px;color:var(--subtle)}
+  .catalog-card__desc{font-size:12.5px;line-height:1.5;color:var(--muted);
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .catalog-card__facts{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:11px;color:var(--faint)}
+  .catalog-card__actions{margin-top:auto;display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding-top:11px;border-top:1px solid var(--line-soft)}
+  .catalog-card__actions .runbtn{margin-left:auto}
+  .catalog-card__signal{display:flex}
+
+  /* empty — "no match" is a filter outcome, not a failure */
+  .empty{display:flex;flex-direction:column;align-items:center;gap:9px;padding:52px 20px;text-align:center;
+    border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--canvas-soft)}
+  .empty__ic{display:grid;place-items:center;width:34px;height:34px;border-radius:var(--radius-md);background:var(--badge-fill);color:var(--subtle)}
+  .empty__ic svg{width:16px;height:16px}
+  .empty__t{font-size:13px;font-weight:560;color:var(--fg-strong)}
+  .empty__sub{font-size:12.5px;color:var(--muted);max-width:44ch;line-height:1.55}
+
+  @media(max-width:920px){
+    .listing-row__trail{gap:12px}
+    .listing-row__stat{width:auto}
+    .page{padding:20px 18px 64px}
+    .search{width:170px}
+  }
+  @media(prefers-reduced-motion:reduce){*{transition-duration:.01ms!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="shell">
+  <div class="main">
+    <!-- authorized delta (hero-path promotion 2026-08-02): the archived 48px .topbar (icon-well + h1 + count chip)
+         is re-chromed to the unified 44px w2head from the approved loop-detail.html; the count moves to the lede meta. -->
+    <header class="w2head" data-od-id="catalog-head">
+      <a class="w2-back" href="index.html" aria-label="Back to Open Design index"><i data-lucide="chevron-left"></i></a>
+      <nav class="w2-crumbs" aria-label="Breadcrumb">
+        <span class="w2-title">Loops</span>
+      </nav>
+      <span class="w2-flex"></span>
+      <div class="w2-actions">
+        <!-- production: POST /api/workspaces/:ws/loops (fork a built-in template into a custom loop).
+             loop-create.html is not in the active set yet, so this control has no target artboard. -->
+        <button class="btn" type="button" data-od-id="catalog-new"><i data-lucide="plus"></i>New from template</button>
+        <!-- production: POST /api/workspaces/:ws/loops/:loop/runs — the run form collects the loop's declared inputs{}.
+             Single accent on this screen: this CTA + the one live-run pulse below. -->
+        <a class="btn btn--primary" href="loop-run-form.html" data-od-id="catalog-start-run"><i data-lucide="play"></i>Start run</a>
+      </div>
+    </header>
+
+    <div class="scroll">
+      <div class="page">
+
+        <!-- LEDE — dh anatomy from loop-detail; archived head__meta content carried over.
+             "synced 2m ago" is daemon truth (workspace loop registry sync), not an invented metric. -->
+        <div class="dh" data-od-id="catalog-lede">
+          <div class="dh__namerow">
+            <span class="dh__name" data-od-id="catalog-title">Loops</span>
+          </div>
+          <div class="dh__meta">
+            <span>Reusable, guardrailed cycles that pursue a goal until it's verified.</span><span class="dotsep"></span>
+            <span id="loopCount">4 loops</span><span class="dotsep"></span>
+            <span>workspace home</span><span class="dotsep"></span>
+            <span>synced 2m ago</span>
+          </div>
+        </div>
+
+        <!-- TOOLBAR — production listing-toolbar.tsx order: search/filters → spacer → view pills.
+             authorized delta (hero-path promotion 2026-08-02): the archived multi-field filter-chip builder
+             (kind/category/mode/name chips) collapses to search + one status select; search covers name,
+             goal, category and mode. Rows|Cards contract from loop-inventories.html. -->
+        <div class="toolbar" data-od-id="catalog-toolbar">
+          <!-- production: client filter over GET /api/workspaces/:ws/loops → query matches name/goal/category/mode -->
+          <label class="search" data-od-id="catalog-search">
+            <i data-lucide="search"></i>
+            <input id="searchInput" type="search" placeholder="Search loops" autocomplete="off" spellcheck="false" aria-label="Search loops">
+            <span class="kbd">/</span>
+          </label>
+          <!-- production: GET /api/workspaces/:ws/loops?status= — status of the loop's latest run.
+               spec loop-node-lifecycle: `canceled` joins the terminal set; the run-level `stop` verb is
+               deleted (hard-cut into cancel/kill), so no Stop value or verb appears anywhere on this page. -->
+          <span class="selwrap">
+            <select id="statusFilter" aria-label="Filter by latest run status" data-od-id="catalog-status-filter">
+              <option value="">All statuses</option>
+              <option value="queued">queued</option>
+              <option value="running">running</option>
+              <option value="watching">watching</option>
+              <option value="needs-approval">needs-approval</option>
+              <option value="paused">paused</option>
+              <option value="done">done</option>
+              <option value="no_op">no_op</option>
+              <option value="blocked">blocked</option>
+              <option value="failed">failed</option>
+              <option value="exhausted">exhausted</option>
+              <option value="stalled">stalled</option>
+              <option value="canceled">canceled</option>
+            </select>
+            <i data-lucide="chevron-down"></i>
+          </span>
+          <span class="spacer"></span>
+          <!-- view preference is local (localStorage), no route -->
+          <div class="pillgroup" role="group" aria-label="View mode" data-od-id="catalog-view-mode">
+            <button class="seg" data-view="rows" aria-pressed="true" type="button" data-od-id="catalog-view-rows"><i data-lucide="list"></i>Rows</button>
+            <button class="seg" data-view="cards" aria-pressed="false" type="button" data-od-id="catalog-view-cards"><i data-lucide="layout-grid"></i>Cards</button>
+          </div>
+        </div>
+
+        <div id="listRoot" data-od-id="catalog-list"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/lucide@latest"></script>
+<script>
+(function () {
+  /* Catalog data — every field maps to GET /api/workspaces/:ws/loops → LoopSummary[].
+     One-story anchor: software-delivery is mid-story on run r-8f3a2b (gen 2), with task_03
+     quarantined at 14:52 (episode 2; episode 1 quarantined 14:45, requeued 14:48 by pedro). */
+  var LOOPS = [
+    {
+      id: "software-delivery",
+      name: "software-delivery",
+      kind: "builtin",
+      category: "Engineering",
+      api: "compozy.loop/v1",
+      mode: "delivery",
+      goal: "Ship the tasks you already authored under .compozy/tasks: run them in dependency order, review to acceptance, and verify against the project's own checks.",
+      nodes: 8,
+      inputs: 5,
+      cap: "50",
+      status: "running",
+      live: true, /* the single live pulse on this screen */
+      /* production: run row truth from GET /loops/software-delivery/runs?limit=1 */
+      runMicro: "r-8f3a2b · gen 2 · 14m",
+      /* spec loop-node-lifecycle: node quarantine surfaces on the catalog row as an icon+text
+         signal (danger tone), never a badge. Story: episode 2 quarantined 14:52. */
+      signal: { tone: "danger", icon: "shield-alert", text: "task_03 quarantined", micro: "episode 2 · 14:52" },
+      successRate: "92%",
+      runs30d: "48 runs · 30d",
+      binding: "0 3 * * *",
+      icon: "code",
+      href: "loop-detail.html"
+    },
+    {
+      id: "reviews-watch",
+      name: "reviews-watch",
+      kind: "builtin",
+      category: "Engineering",
+      api: "watch-source",
+      mode: "watch",
+      goal: "Watch an open PR; each time CodeRabbit posts a fresh review of HEAD, fetch the unresolved threads, remediate, resolve them, and optionally push, until the PR is clean.",
+      nodes: 9,
+      inputs: 6,
+      cap: "∞",
+      status: "watching",
+      live: false,
+      runMicro: "",
+      signal: null,
+      successRate: "87%",
+      runs30d: "21 runs · 30d",
+      binding: null,
+      icon: "eye",
+      href: "loop-detail.html"
+    },
+    {
+      /* authorized delta (hero-path promotion 2026-08-02): custom loops added so the Custom group
+         (present but empty-implied in the archive) shows plausible workspace content. */
+      id: "docs-refresh",
+      name: "docs-refresh",
+      kind: "custom",
+      category: "Content",
+      api: "compozy.loop/v1",
+      mode: "delivery",
+      goal: "Crawl the product surfaces, re-generate the docs pages that drifted, and publish once the link check passes.",
+      nodes: 6,
+      inputs: 3,
+      cap: "20",
+      status: "done",
+      live: false,
+      runMicro: "last run 2h ago",
+      signal: null,
+      successRate: "96%",
+      runs30d: "30 runs · 30d",
+      binding: "0 6 * * 1",
+      icon: "book-open",
+      href: "loop-detail.html"
+    },
+    {
+      id: "issue-triage",
+      name: "issue-triage",
+      kind: "custom",
+      category: "Operations",
+      api: "compozy.loop/v1",
+      mode: "delivery",
+      goal: "Sweep new issues, reproduce what it can, label and route each one, and escalate anything that needs a human decision.",
+      nodes: 7,
+      inputs: 4,
+      cap: "10",
+      status: "needs-approval",
+      live: false,
+      /* one-story reconciliation: r-914c3d is the live triage run parked on waits (see
+         loop-inventories.html); the killed run r-3c77e1 · operator_kill shows in the runs area
+         there. `canceled` stays in the status filter enum — spec loop-node-lifecycle terminal;
+         waiting = info tone, no pulse (accent pulse budget stays on software-delivery). */
+      runMicro: "r-914c3d · waiting on you · 49m",
+      signal: null,
+      successRate: "74%",
+      runs30d: "12 runs · 30d",
+      binding: null,
+      icon: "inbox",
+      href: "loop-detail.html"
+    }
+  ];
+
+  var state = { query: "", status: "", view: "rows" };
+  try {
+    var savedView = localStorage.getItem("loops-catalog:view");
+    if (savedView === "rows" || savedView === "cards") state.view = savedView;
+  } catch (_) {}
+
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" })[c];
+    });
+  }
+
+  function matches(loop) {
+    if (state.status && loop.status !== state.status) return false;
+    var q = state.query.trim().toLowerCase();
+    if (!q) return true;
+    return [loop.name, loop.goal, loop.category, loop.api, loop.mode, loop.status]
+      .join(" ").toLowerCase().indexOf(q) !== -1;
+  }
+
+  /* pill vocabulary from approved loop-detail.html; pulse only on the story's live run */
+  function pillHtml(loop) {
+    var cls = "pill--" + loop.status;
+    var pulse = loop.live ? " dot--pulse" : "";
+    return '<span class="pill ' + cls + '"><span class="dot' + pulse + '"></span>' + esc(loop.status) + "</span>";
+  }
+
+  function signalHtml(loop) {
+    if (!loop.signal) return "";
+    var s = loop.signal;
+    return '<span class="sig" data-tone="' + esc(s.tone) + '" data-od-id="signal-' + esc(loop.id) + '">' +
+      '<i data-lucide="' + esc(s.icon) + '"></i>' + esc(s.text) +
+      '<span class="micro">' + esc(s.micro) + "</span></span>";
+  }
+
+  /* enums/types render as plain text — the archived "Built-in" / "∞ cap" badges are cut
+     (badge budget: state pills only); kind lives in the group header, cap in the facts line. */
+  function factsHtml(loop) {
+    var html = "<span>" + esc(loop.mode) + "</span>";
+    html += '<span class="dotsep"></span><span>' + loop.nodes + " nodes</span>";
+    html += '<span class="dotsep"></span><span>' + loop.inputs + " inputs</span>";
+    html += '<span class="dotsep"></span><span>iteration cap ' + esc(loop.cap) + "</span>";
+    if (loop.binding) {
+      html += '<span class="dotsep"></span><span class="bind"><i data-lucide="calendar-clock"></i><span class="micro">' + esc(loop.binding) + "</span></span>";
+    }
+    if (loop.runMicro) {
+      html += '<span class="dotsep"></span><span class="micro">' + esc(loop.runMicro) + "</span>";
+    }
+    return html;
+  }
+
+  /* production: Run buttons short-circuit to the run form for that loop —
+     POST /api/workspaces/:ws/loops/:loop/runs after the form collects inputs{}. */
+  function runBtnHtml(loop) {
+    return '<button type="button" class="runbtn" data-run="' + esc(loop.id) + '" data-od-id="run-' + esc(loop.id) + '"><i data-lucide="play"></i>Run</button>';
+  }
+
+  function rowHtml(loop) {
+    var html = '<a class="listing-row" href="' + esc(loop.href) + '" data-od-id="loop-row-' + esc(loop.id) + '">';
+    html += '<span class="listing-row__icon" aria-hidden="true"><i data-lucide="' + esc(loop.icon) + '"></i></span>';
+    html += '<div class="listing-row__main">';
+    html += '<div class="listing-row__name"><b>' + esc(loop.name) + '</b><span class="micro">' + esc(loop.api) + "</span></div>";
+    html += '<div class="listing-row__desc">' + esc(loop.goal) + "</div>";
+    html += '<div class="listing-row__meta"><span>' + esc(loop.category) + '</span><span class="dotsep"></span>' + factsHtml(loop) + "</div>";
+    html += "</div>";
+    html += '<div class="listing-row__trail">';
+    html += '<div class="listing-row__state">' + pillHtml(loop) + signalHtml(loop) + "</div>";
+    html += '<div class="listing-row__stat"><span class="listing-row__stat-v">' + esc(loop.successRate) + '</span><span class="listing-row__stat-l">' + esc(loop.runs30d) + "</span></div>";
+    html += runBtnHtml(loop);
+    html += "</div></a>";
+    return html;
+  }
+
+  function cardHtml(loop) {
+    var html = '<a class="catalog-card" href="' + esc(loop.href) + '" data-od-id="loop-card-' + esc(loop.id) + '">';
+    html += '<div class="catalog-card__head">';
+    html += '<span class="catalog-card__logo" aria-hidden="true"><i data-lucide="' + esc(loop.icon) + '"></i></span>';
+    html += '<div class="catalog-card__title-wrap">';
+    html += '<div class="catalog-card__title">' + esc(loop.name) + "</div>";
+    html += '<div class="catalog-card__meta"><span>' + (loop.kind === "builtin" ? "Built-in" : "Custom") + "</span>";
+    html += '<span class="dotsep"></span><span>' + esc(loop.category) + "</span>";
+    html += '<span class="dotsep"></span><span class="micro">' + esc(loop.api) + "</span></div>";
+    html += "</div></div>";
+    html += '<p class="catalog-card__desc">' + esc(loop.goal) + "</p>";
+    html += '<div class="catalog-card__facts">' + factsHtml(loop) + "</div>";
+    if (loop.signal) html += '<div class="catalog-card__signal">' + signalHtml(loop) + "</div>";
+    html += '<div class="catalog-card__actions">' + pillHtml(loop);
+    html += '<div class="listing-row__stat" style="align-items:flex-start"><span class="listing-row__stat-v">' + esc(loop.successRate) + '</span><span class="listing-row__stat-l">' + esc(loop.runs30d) + "</span></div>";
+    html += runBtnHtml(loop);
+    html += "</div></a>";
+    return html;
+  }
+
+  function render() {
+    var root = document.getElementById("listRoot");
+    var list = LOOPS.filter(matches);
+    document.getElementById("loopCount").textContent = list.length + (list.length === 1 ? " loop" : " loops");
+
+    if (list.length === 0) {
+      /* truthful empty: a filtered miss, offering a way back — never a fabricated error */
+      root.innerHTML = '<div class="empty" data-od-id="catalog-empty">' +
+        '<span class="empty__ic"><i data-lucide="search-x"></i></span>' +
+        '<span class="empty__t">No loops match</span>' +
+        '<span class="empty__sub">Try a different search or clear the status filter.</span>' +
+        '<button type="button" class="btn" id="clearFilters" data-od-id="catalog-clear-filters">Clear filters</button>' +
+        "</div>";
+      document.getElementById("clearFilters").addEventListener("click", function () {
+        state.query = "";
+        state.status = "";
+        document.getElementById("searchInput").value = "";
+        document.getElementById("statusFilter").value = "";
+        render();
+      });
+      lucide.createIcons();
+      return;
+    }
+
+    var groups = { builtin: [], custom: [] };
+    list.forEach(function (loop) { groups[loop.kind === "custom" ? "custom" : "builtin"].push(loop); });
+
+    var html = "";
+    [{ key: "builtin", label: "Built-in" }, { key: "custom", label: "Custom" }].forEach(function (g) {
+      var rows = groups[g.key];
+      if (!rows.length) return; /* a zero-count group renders nothing at all */
+      html += '<section class="group" data-od-id="catalog-group-' + g.key + '">';
+      html += '<h2 class="group__label" data-od-id="catalog-group-label-' + g.key + '">' + g.label + ' <span class="group__count">' + rows.length + "</span></h2>";
+      if (state.view === "cards") {
+        html += '<div class="listing-card-grid">';
+        rows.forEach(function (loop) { html += cardHtml(loop); });
+        html += "</div>";
+      } else {
+        html += '<div class="list">';
+        rows.forEach(function (loop) { html += rowHtml(loop); });
+        html += "</div>";
+      }
+      html += "</section>";
+    });
+    root.innerHTML = html;
+    lucide.createIcons();
+  }
+
+  function setView(view) {
+    if (view !== "rows" && view !== "cards") return;
+    state.view = view;
+    try { localStorage.setItem("loops-catalog:view", view); } catch (_) {}
+    document.querySelectorAll("[data-view]").forEach(function (btn) {
+      btn.setAttribute("aria-pressed", String(btn.getAttribute("data-view") === view));
+    });
+    render();
+  }
+
+  document.querySelectorAll("[data-view]").forEach(function (btn) {
+    btn.addEventListener("click", function () { setView(btn.getAttribute("data-view")); });
+    btn.setAttribute("aria-pressed", String(btn.getAttribute("data-view") === state.view));
+  });
+
+  var searchInput = document.getElementById("searchInput");
+  searchInput.addEventListener("input", function () { state.query = searchInput.value; render(); });
+
+  document.getElementById("statusFilter").addEventListener("change", function () {
+    state.status = this.value;
+    render();
+  });
+
+  /* Run intercepts the row link — same behavior as the archived catalog */
+  document.getElementById("listRoot").addEventListener("click", function (e) {
+    var run = e.target.closest("[data-run]");
+    if (run) {
+      e.preventDefault();
+      e.stopPropagation();
+      window.location.href = "loop-run-form.html";
+    }
+  });
+
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "/" && !e.metaKey && !e.ctrlKey && !e.altKey) {
+      var t = e.target;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+      e.preventDefault();
+      searchInput.focus();
+      return;
+    }
+    if (e.key === "Escape" && document.activeElement === searchInput) searchInput.blur();
+  });
+
+  lucide.createIcons();
+  render();
+})();
+</script>
+</body>
+</html>

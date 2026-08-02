@@ -116,7 +116,7 @@
   /* ═══ LAB EXTENSIONS — only what the base does not already own ═══ */
 
   :root{
-    /* modal overlay tokens — MODAL-STANDARD.md, bare names per design-system GUIDE */
+    /* modal overlay tokens — _done/modals/modal-system.css, bare names per design-system GUIDE */
     --scrim:rgba(0,0,0,.55); --overlay-blur:3px;
     --surface-glaze:rgba(255,255,255,.04);
     --width-modal-sm:560px;   /* ConfirmDialog width */
@@ -156,8 +156,8 @@
   .menu--static{position:static;display:block;min-width:0;width:100%;margin-top:8px}
   .menu__item .k{margin-left:auto;font-family:var(--font-mono);font-size:9.5px;color:var(--faint)}
 
-  /* ── modal chrome — MODAL-STANDARD.md geometry, bare token names ──
-     authority: production task-editor-modal.tsx via MODAL-STANDARD */
+  /* ── modal chrome — _done/modals/modal-system.css geometry, bare token names ──
+     authority: _done/modals/modal-system.css + packages/ui/src/components/custom/confirm-dialog.tsx (confirm composition) */
   /* production overlay geometry, transcribed for the record; this lab renders dialogs inline in stages */
   .scrim{position:fixed;inset:0;display:grid;place-items:center;padding:28px;
     background:var(--scrim);backdrop-filter:blur(var(--overlay-blur))}
@@ -187,6 +187,7 @@
   .dialog .btn svg{width:14px;height:14px}
   .btn--primary{background:var(--accent);border-color:transparent;color:var(--accent-ink);box-shadow:var(--highlight)}
   .btn--primary:hover{background:var(--accent-hover);border-color:transparent;color:var(--accent-ink)}
+  /* authorized delta (user-approved kill emphasis) — solid fill reserved for irreversible Kill; canonical .btn--danger stays tinted */
   .btn--danger-solid{background:var(--danger);border-color:transparent;color:var(--accent-ink)}
   .btn--danger-solid:hover{background:color-mix(in srgb,var(--danger) 88%,black);border-color:transparent;color:var(--accent-ink)}
   .btn[disabled]{opacity:.5;pointer-events:none}
@@ -199,13 +200,17 @@
 
   /* choice cards — pause drain|cancel */
   .tpl-grid{display:grid;gap:8px}
-  .tpl{position:relative;display:flex;flex-direction:column;padding:11px 12px;text-align:left;
+  .tpl{position:relative;display:flex;flex-direction:column;padding:12px 12px 11px;text-align:left;
     border:1px solid var(--line-soft);border-radius:var(--radius);background:var(--canvas-tint);
     transition:background var(--dur) var(--ease),border-color var(--dur) var(--ease),box-shadow var(--dur) var(--ease)}
   .tpl:hover{border-color:var(--line);background:var(--elevated)}
   .tpl[aria-checked="true"]{border-color:transparent;background:var(--surface-glaze);box-shadow:inset 0 0 0 1px var(--line-strong)}
   .tpl:focus-visible{outline:none;box-shadow:var(--focus-ring)}
-  .tpl__top{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+  .tpl__top{display:flex;align-items:center;gap:9px;margin-bottom:7px}
+  .tpl__ic{display:grid;width:28px;height:28px;flex:none;place-items:center;border-radius:var(--radius-sm);
+    background:var(--badge-fill);color:var(--muted);box-shadow:inset 0 0 0 1px var(--line-soft)}
+  .tpl[aria-checked="true"] .tpl__ic{color:var(--fg-strong);box-shadow:inset 0 0 0 1px var(--line-strong)}
+  .tpl__ic svg{width:14px;height:14px}
   .tpl__name{flex:1;min-width:0;color:var(--fg);font-size:12.5px;font-weight:500}
   .tpl[aria-checked="true"] .tpl__name{color:var(--fg-strong)}
   .tpl svg.tpl__check{width:14px;height:14px;flex:none;color:var(--fg-strong);opacity:0}
@@ -310,25 +315,23 @@
       </div>
 
       <div class="demo" data-od-id="menu-retrying">
-        <div class="demo__cap"><b>retrying</b> — retry now skips the pending backoff</div>
+        <div class="demo__cap"><b>retrying</b> — the backoff runs its course. Skipping the backoff is a two-step: Pause…, then Resume now (mode: immediate).</div>
         <div class="noderow">
           <span class="tdot" data-tone="warning"></span>
           <span class="noderow__t">task_03 · api handler</span>
           <span class="noderow__meta">retrying · attempt 2/3</span>
         </div>
         <!-- verbs → routes · authority: spec
-             Retry now  POST /api/workspaces/:ws/loop-runs/:run_id/nodes/:node_id/resume  {mode: immediate}
              Pause…     POST /api/workspaces/:ws/loop-runs/:run_id/nodes/:node_id/pause   {drain|cancel, reason?}
              Cancel     POST /api/workspaces/:ws/loop-runs/:run_id/nodes/:node_id/cancel
              Kill…      POST /api/workspaces/:ws/loop-runs/:run_id/nodes/:node_id/kill -->
         <div class="menu menu--static" role="menu">
-          <button class="menu__item" type="button" role="menuitem"><i data-lucide="play"></i>Retry now<span class="k">immediate</span></button>
           <button class="menu__item" type="button" role="menuitem"><i data-lucide="pause"></i>Pause…</button>
           <div class="menu__sep"></div>
           <button class="menu__item" type="button" role="menuitem"><i data-lucide="ban"></i>Cancel</button>
           <button class="menu__item" type="button" role="menuitem" data-tone="danger"><i data-lucide="zap"></i>Kill…</button>
         </div>
-        <div class="micro">execute_task · task_03 · gen 2 · next 14:41:03</div>
+        <div class="micro">execute_task · task_03 · gen 2 · next 14:33:41</div>
       </div>
 
       <div class="demo" data-od-id="menu-paused">
@@ -410,7 +413,7 @@
     <div class="stage">
       <!-- route · authority: spec
            POST /api/workspaces/:ws/loop-runs/:run_id/nodes/:node_id/pause  {drain|cancel, reason?} -->
-      <div class="dialog" role="dialog" aria-labelledby="pauseTitle" data-od-id="dialog-pause">
+      <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="pauseTitle" data-od-id="dialog-pause">
         <div class="dialog__head">
           <span class="head-icon head-icon--neutral" aria-hidden="true"><i data-lucide="pause"></i></span>
           <div class="head-copy">
@@ -427,11 +430,11 @@
           </div>
           <div class="tpl-grid" role="radiogroup" aria-label="What happens to the in-flight attempt">
             <button class="tpl" type="button" role="radio" aria-checked="true">
-              <span class="tpl__top"><span class="tpl__name">Let it finish, then pause</span><i class="tpl__check" data-lucide="check"></i></span>
+              <span class="tpl__top"><span class="tpl__ic" aria-hidden="true"><i data-lucide="hourglass"></i></span><span class="tpl__name">Let it finish, then pause</span><i class="tpl__check" data-lucide="check"></i></span>
               <span class="tpl__desc">The current attempt drains cleanly and its result is kept. Safest — nothing is interrupted.</span>
             </button>
             <button class="tpl" type="button" role="radio" aria-checked="false">
-              <span class="tpl__top"><span class="tpl__name">Cancel it and pause now</span><i class="tpl__check" data-lucide="check"></i></span>
+              <span class="tpl__top"><span class="tpl__ic" aria-hidden="true"><i data-lucide="ban"></i></span><span class="tpl__name">Cancel it and pause now</span><i class="tpl__check" data-lucide="check"></i></span>
               <span class="tpl__desc">The in-flight attempt is canceled first. Use when the attempt itself is the problem.</span>
             </button>
           </div>
@@ -441,7 +444,7 @@
           </div>
         </div>
         <div class="dialog__foot">
-          <span class="foot-note"><i data-lucide="info"></i>Paused time doesn't count against the run's clock.</span>
+          <span class="foot-note"><i data-lucide="info"></i><span class="mono">mode: drain</span> · Paused time doesn't count against the run's clock.</span>
           <button class="btn" type="button">Cancel</button>
           <button class="btn btn--primary" type="button">Pause lane</button>
         </div>
@@ -461,7 +464,7 @@
       <!-- route · authority: spec
            POST /api/workspaces/:ws/loop-runs/:run_id/nodes/:node_id/resume  {mode: plain|reset_attempts|immediate, payload?}
            reset_attempts confirms because it rewrites the retry ledger -->
-      <div class="dialog" role="dialog" aria-labelledby="resetTitle" data-od-id="dialog-reset-attempts">
+      <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="resetTitle" data-od-id="dialog-reset-attempts">
         <div class="dialog__head">
           <span class="head-icon" aria-hidden="true"><i data-lucide="rotate-ccw"></i></span>
           <div class="head-copy">
@@ -500,7 +503,7 @@
            POST /api/workspaces/:ws/loop-runs/:run_id/cancel   cooperative; idempotent
            POST /api/workspaces/:ws/loop-runs/:run_id/kill     immediate; no node-trigger effects
            production today ships only run-level pause/resume/stop/approve -->
-      <div class="dialog" role="dialog" aria-labelledby="cancelRunTitle" data-od-id="dialog-run-cancel">
+      <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="cancelRunTitle" data-od-id="dialog-run-cancel">
         <div class="dialog__head">
           <span class="head-icon head-icon--neutral" aria-hidden="true"><i data-lucide="ban"></i></span>
           <div class="head-copy">
@@ -524,7 +527,7 @@
         </div>
       </div>
 
-      <div class="dialog" role="dialog" aria-labelledby="killRunTitle" data-od-id="dialog-run-kill">
+      <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="killRunTitle" data-od-id="dialog-run-kill">
         <div class="dialog__head" data-tone="danger">
           <span class="head-icon head-icon--danger" aria-hidden="true"><i data-lucide="zap"></i></span>
           <div class="head-copy">
@@ -561,7 +564,7 @@
     <div class="stage stage--pair">
       <!-- route · authority: spec
            POST /api/workspaces/:ws/loop-runs/:run_id/nodes/:node_id/kill -->
-      <div class="dialog" role="dialog" aria-labelledby="killNodeTitle" data-od-id="dialog-node-kill">
+      <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="killNodeTitle" data-od-id="dialog-node-kill">
         <div class="dialog__head" data-tone="danger">
           <span class="head-icon head-icon--danger" aria-hidden="true"><i data-lucide="zap"></i></span>
           <div class="head-copy">
@@ -587,7 +590,7 @@
 
       <!-- route · authority: spec
            POST /api/workspaces/:ws/loop-runs/:run_id/nodes/:node_id/requeue -->
-      <div class="dialog" role="dialog" aria-labelledby="requeueTitle" data-od-id="dialog-requeue">
+      <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="requeueTitle" data-od-id="dialog-requeue">
         <div class="dialog__head">
           <span class="head-icon" aria-hidden="true"><i data-lucide="rotate-ccw"></i></span>
           <div class="head-copy">
@@ -625,7 +628,7 @@
       <!-- route · authority: spec
            POST /api/workspaces/:ws/loop-runs/:run_id/nodes/:node_id/resume  {payload}
            payload validated against the wait's expect · single claim (US-022) -->
-      <div class="dialog" role="dialog" aria-labelledby="waitResumeTitle" data-od-id="dialog-wait-resume">
+      <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="waitResumeTitle" data-od-id="dialog-wait-resume">
         <div class="dialog__head">
           <span class="head-icon" aria-hidden="true"><i data-lucide="play"></i></span>
           <div class="head-copy">
@@ -720,10 +723,6 @@
     </div>
   </details>
 
-  <div class="quiet-note" data-od-id="node-controls-authority">
-    <i data-lucide="route"></i>
-    <span><b>Where these controls come from.</b> Production ships only run-level pause, resume, stop and approve today. Every node verb on this page — plus run <span class="mono">cancel</span> and <span class="mono">kill</span> — comes from the loop-node-lifecycle TechSpec, which deletes <span class="mono">/stop</span> outright rather than keeping it alongside.</span>
-  </div>
 </div>
 
 <script src="https://unpkg.com/lucide@latest"></script>

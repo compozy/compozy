@@ -12,6 +12,8 @@
   /* ─────────────────────────────────────────────────────────────────────────
      FOUNDATION — style block copied verbatim from loop-run-detail.html
      (the approved base). Overlay-only additions follow in the second block.
+     noted deletion: the seed's .pillxs rules (incl. a `danger` tone the base
+     doesn't have) were removed — no markup in this file uses them.
      ───────────────────────────────────────────────────────────────────────── */
 
   /* tokens — verbatim from design-system/ds-core.css (packages/ui/src/tokens.css lineage) */
@@ -93,14 +95,6 @@
   .sec:not([open]) > summary{padding-bottom:0;margin-bottom:24px}
   .panelbox{background:var(--canvas-soft);border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden}
 
-  /* pill vocabulary — Pill xs (17px), state only */
-  .pillxs{display:inline-flex;align-items:center;gap:5px;height:17px;padding:0 6px;border-radius:var(--radius-xs);
-    font-size:10.5px;font-weight:600;white-space:nowrap;background:var(--badge-fill);color:var(--muted)}
-  .pillxs.mono{font-family:var(--font-mono);font-weight:500}
-  .pillxs[data-tone="warning"]{background:var(--warning-tint);color:var(--warning)}
-  .pillxs[data-tone="info"]{background:var(--info-tint);color:var(--info)}
-  .pillxs[data-tone="danger"]{background:var(--danger-tint);color:var(--danger)}
-
   /* needs you */
   .needsrow{display:flex;align-items:flex-start;gap:12px;padding:14px 16px}
   .needsrow svg.ni{width:15px;height:15px;flex:none;margin-top:2px;color:var(--warning)}
@@ -146,6 +140,10 @@
   :root{
     --scrim:rgba(0,0,0,.55);
     --z-scrim:60; --z-sheet:61; --z-dialog:70;
+    /* overlay tokens — canonical values from _done/modals/modal-system.css */
+    --overlay-blur:3px;
+    --width-modal-sm:560px;
+    --radius-icon-well:10px;
   }
   body{overflow:hidden;height:100dvh}
   .btn--primary{background:var(--accent);border-color:transparent;color:var(--accent-ink);box-shadow:var(--highlight)}
@@ -160,12 +158,33 @@
   .backdrop{position:fixed;inset:0;opacity:.5;filter:saturate(.85);pointer-events:none;overflow:hidden}
   .backdrop .page{padding-top:20px}
 
+  /* backdrop panel anatomy — transcribed verbatim from loop-run-detail.html
+     (progress + happening now), so the backdrop carries the panels the
+     quarantine state changes. Pulse animation omitted: the backdrop is inert
+     and task_03's clock is suspended. */
+  .goalbox{padding:16px 18px 17px}
+  .goal-title{font-size:15px;font-weight:560;letter-spacing:-.014em;color:var(--fg-strong);text-wrap:pretty}
+  .pbar{display:flex;gap:3px;height:6px;margin-top:14px}
+  .pbar__seg{flex:1;border-radius:var(--radius-pill);background:var(--badge-fill)}
+  .pbar__seg[data-state="clean"]{background:var(--success)}
+  .pbar__seg[data-state="active"]{background:var(--accent-dim)}
+  .pbar-meta{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-top:9px;font-size:12px;color:var(--muted)}
+  .pbar-meta b{font-weight:560;color:var(--fg)}
+  .pbar-meta .r{color:var(--subtle);white-space:nowrap}
+  .nowrow{display:flex;align-items:flex-start;gap:12px;padding:14px 16px}
+  .nowrow__dot{width:8px;height:8px;border-radius:50%;background:var(--accent);flex:none;margin-top:6px}
+  .nowrow__main{min-width:0;flex:1}
+  .nowrow__label{font-size:13.5px;font-weight:560;color:var(--fg-strong)}
+  .nowrow__sub{margin-top:3px;font-size:12.5px;line-height:1.55;color:var(--muted);max-width:62ch}
+  .nowrow__meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  .nowrow__time{font-family:var(--font-mono);font-size:11.5px;color:var(--subtle);white-space:nowrap;padding-top:3px}
+
   /* sheet — loop-run-inspect-sheet.tsx pattern: fixed right, three-part flex */
   .scrim{position:fixed;inset:0;background:var(--scrim);z-index:var(--z-scrim)}
   .sheet{position:fixed;top:0;right:0;bottom:0;width:min(560px,calc(100vw - 24px));display:flex;flex-direction:column;
     background:var(--canvas);border-left:1px solid var(--line);box-shadow:var(--shadow-overlay);z-index:var(--z-sheet)}
-  .sheet__head{position:relative;display:flex;align-items:flex-start;gap:12px;flex:none;padding:18px 20px 16px;border-bottom:1px solid var(--line)}
-  .sheet__well{display:grid;place-items:center;width:36px;height:36px;flex:none;border-radius:var(--radius-lg);
+  .sheet__head{position:relative;display:flex;align-items:flex-start;gap:12px;flex:none;padding:20px;border-bottom:1px solid var(--line)}
+  .sheet__well{display:grid;place-items:center;width:36px;height:36px;flex:none;border-radius:var(--radius-md);
     background:var(--danger-tint);color:var(--danger);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--danger) 24%,transparent)}
   .sheet__well svg{width:16px;height:16px}
   .sheet__copy{min-width:0;flex:1;padding-right:26px}
@@ -187,11 +206,11 @@
   .foot-note svg{width:13px;height:13px;flex:none;color:var(--faint)}
   .foot-note.mono{font-size:10px;color:var(--faint)}
 
-  /* remediation hint — leads the body */
+  /* remediation hint — leads the body; base .quiet-note chrome (danger stays the sheet's only tone) */
   .hintcard{display:flex;align-items:flex-start;gap:10px;margin-bottom:20px;padding:12px 14px;border-radius:var(--radius-md);
-    background:var(--warning-tint);border:1px solid color-mix(in srgb,var(--warning) 22%,transparent)}
-  .hintcard svg{width:14px;height:14px;flex:none;margin-top:2px;color:var(--warning)}
-  .hintcard__t{font-size:12.5px;font-weight:560;color:var(--warning)}
+    background:var(--canvas-soft);border:1px solid var(--line-soft)}
+  .hintcard svg{width:14px;height:14px;flex:none;margin-top:2px;color:var(--subtle)}
+  .hintcard__t{font-size:12.5px;font-weight:560;color:var(--fg)}
   .hintcard__b{margin-top:2px;font-size:12.5px;line-height:1.5;color:var(--muted)}
   .hintcard__b .mono{font-size:10.5px;color:var(--subtle)}
 
@@ -208,7 +227,7 @@
   .act svg{width:11px;height:11px}
   .tile__v .act{margin-left:6px}
 
-  /* episode boundary inside the canonical timeline */
+  /* authorized delta — episode boundary; packages/ui timeline.tsx has no separator row (episodes append, PRD rule 29) */
   .tldiv{position:relative;display:grid;grid-template-columns:22px minmax(0,1fr);gap:12px;align-items:center;padding:5px 0}
   .tldiv::before{content:"";position:absolute;left:10.5px;top:0;bottom:0;width:1px;background:var(--line-strong)}
   .tldiv__mark{width:22px;height:1px;background:var(--line-strong)}
@@ -235,21 +254,22 @@
     font-size:9.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--warning)}
   .diag .trunc svg{width:10px;height:10px}
 
-  /* requeue confirm — MODAL-STANDARD chrome, above the sheet */
-  .confirm-scrim{position:fixed;inset:0;display:none;place-items:center;padding:28px;background:var(--scrim);z-index:var(--z-dialog)}
+  /* requeue confirm — canonical modal chrome per _done/modals/modal-system.css, above the sheet */
+  .confirm-scrim{position:fixed;inset:0;display:none;place-items:center;padding:28px;background:var(--scrim);
+    backdrop-filter:blur(var(--overlay-blur));z-index:var(--z-dialog)}
   .confirm-scrim.is-open{display:grid}
-  .dialog{width:min(560px,100%);display:grid;grid-template-rows:auto minmax(0,1fr) auto;overflow:hidden;
+  .dialog{width:min(var(--width-modal-sm),100%);display:grid;grid-template-rows:auto minmax(0,1fr) auto;overflow:hidden;
     border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--canvas-soft);box-shadow:var(--shadow-overlay)}
   .dialog__head{display:flex;align-items:flex-start;gap:12px;padding:16px 20px;border-bottom:1px solid var(--line)}
-  .head-icon{display:grid;place-items:center;width:36px;height:36px;flex:none;border-radius:var(--radius-lg);
+  .head-icon{display:grid;place-items:center;width:36px;height:36px;flex:none;border-radius:var(--radius-icon-well);
     background:var(--danger-tint);color:var(--danger);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--danger) 24%,transparent)}
   .head-icon svg{width:16px;height:16px}
   .head-copy{min-width:0;flex:1}
   .eyebrow{font-family:var(--font-mono);font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--danger)}
-  .head-copy h3{margin-top:2px;font-size:14px;font-weight:500;letter-spacing:-.012em;line-height:1.35;color:var(--fg-strong)}
-  .head-copy p{max-width:66ch;margin-top:4px;font-size:12.5px;line-height:1.45;color:var(--muted)}
+  .head-copy h3{margin-top:2px;font-size:15px;font-weight:500;letter-spacing:-.014em;line-height:1.35;color:var(--fg-strong)}
+  .head-copy p{max-width:66ch;margin-top:4px;font-size:13px;line-height:1.45;color:var(--muted)}
   .head-copy p b{font-weight:500;color:var(--fg)}
-  .dialog__body{min-height:0;overflow-y:auto;padding:16px 20px 18px}
+  .dialog__body{min-height:0;overflow-y:auto;padding:20px 20px 24px}
   .dialog__foot{display:flex;align-items:center;gap:8px;padding:12px 20px;border-top:1px solid var(--line);background:var(--canvas-tint)}
   .staterow{display:flex;align-items:center;gap:8px;padding:9px 11px;border:1px solid var(--line-soft);border-radius:var(--radius-md);background:var(--input-fill)}
   .staterow__dot{width:7px;height:7px;flex:none;border-radius:50%;background:var(--danger)}
@@ -286,11 +306,12 @@
   </header>
 
   <div class="page">
+    <!-- authorized delta — clock advanced from the base page's 14m 08s to place the sheet after episode 2 -->
     <div class="subhead" data-od-id="q-backdrop-subhead">
       <span class="mono">r-8f3a2b</span><span class="dotsep"></span>
       <span>Started by <b>schedule · nightly</b></span><span class="dotsep"></span>
       <span>Generation <b>2</b></span><span class="dotsep"></span>
-      <span class="mono">22m 41s</span>
+      <span class="mono">31m 12s</span>
     </div>
 
     <!-- launch context — the run page's "Needs you" row that opens this sheet.
@@ -307,8 +328,43 @@
           </div>
           <div class="needsrow__trail">
             <span class="needsrow__age">9m</span>
-            <a class="needsrow__act" href="#">Details <i data-lucide="arrow-right"></i></a>
+            <a class="needsrow__act" href="loop-quarantine-sheet.html">Details <i data-lucide="arrow-right"></i></a>
           </div>
+        </div>
+      </div>
+    </details>
+
+    <!-- authorized delta — backdrop condensation now carries the panels the quarantine state changes -->
+    <!-- PROGRESS — parked steps leave the denominator (PRD rule 27); task_03 set aside -->
+    <details class="sec" open data-od-id="q-backdrop-progress">
+      <summary><i class="si" data-lucide="gauge"></i><span class="st">Progress</span><span class="spacer"></span><i class="chev" data-lucide="chevron-down"></i></summary>
+      <div class="panelbox">
+        <div class="goalbox">
+          <div class="goal-title">Ship every authored task under .compozy/tasks/loops-paper</div>
+          <div class="pbar" aria-label="3 active tasks: 2 done, 1 pending; task_03 set aside">
+            <span class="pbar__seg" data-state="clean" title="task_01 · schema migration · done"></span>
+            <span class="pbar__seg" data-state="clean" title="task_02 · store method · done"></span>
+            <span class="pbar__seg" title="task_04 · contract test · waits for task_03"></span>
+          </div>
+          <div class="pbar-meta">
+            <span><b>2 of 3</b> active tasks · task_03 set aside</span>
+            <span class="r">generation 2 of 50</span>
+          </div>
+        </div>
+      </div>
+    </details>
+
+    <!-- HAPPENING NOW — task_03 parked: its clock is suspended, no attempts are being spent -->
+    <details class="sec" open data-od-id="q-backdrop-now">
+      <summary><i class="si" data-lucide="activity"></i><span class="st">Happening now</span><span class="spacer"></span><i class="chev" data-lucide="chevron-down"></i></summary>
+      <div class="panelbox">
+        <div class="nowrow" data-od-id="q-backdrop-now-task03">
+          <span class="nowrow__dot"></span>
+          <div class="nowrow__main">
+            <div class="nowrow__label">task_03 · api handler is set aside</div>
+            <div class="nowrow__sub">The lane is quarantined after 4 attempts — its clock is suspended and no attempts are being spent. The rest of the run keeps going; requeue it from the entry once the credential is rotated.</div>
+          </div>
+          <span class="nowrow__time">clock suspended</span>
         </div>
       </div>
     </details>
@@ -317,7 +373,7 @@
 
 <div class="scrim" data-od-id="q-scrim"></div>
 
-<!-- ══ quarantine entry sheet — production pattern web/src/systems/loops/components/loop-run-inspect-sheet.tsx (production) ══
+<!-- ══ quarantine entry sheet — production pattern web/src/systems/loops/components/run-page/loop-run-inspect-sheet.tsx (production) ══
      entry payload: LoopRunResponse.node_controls[].quarantine_entry (sanitized) — spec; no dedicated read route
      diagnosable without logs (PRD rule 29) -->
 <aside class="sheet" role="dialog" aria-modal="true" aria-labelledby="qTitle" data-od-id="q-sheet">
@@ -371,7 +427,7 @@
               <div class="tlrow__title">Push to GitHub timed out</div>
               <div class="tlrow__sub">The fix landed locally but the push never completed.</div>
             </div>
-            <div class="tlrow__trail"><time class="tlrow__time">attempt 1 · 14:32:10</time><span class="tlrow__micro">transport → retried</span></div>
+            <div class="tlrow__trail"><time class="tlrow__time">attempt 1 · 14:32:41</time><span class="tlrow__micro">transport → retried</span></div>
           </li>
           <li class="tlrow" data-tone="warning" data-od-id="q-chain-2">
             <span class="tlrow__dot"><i data-lucide="timer-off"></i></span>
@@ -439,12 +495,13 @@ token: <span class="redact">•••••••• redacted</span>
 
   <footer class="sheet__foot" data-od-id="quarantine-foot">
     <span class="foot-note"><i data-lucide="info"></i>The run keeps working — quarantine never stops it by itself.</span>
-    <button class="btn" type="button" data-od-id="q-cancel-lane">Cancel lane</button>
+    <!-- gated on node_controls[].state = "quarantined" — requeue is the recovery verb; POST /api/workspaces/:ws/loop-runs/:run_id/nodes/:node_id/cancel — spec -->
+    <button class="btn" type="button" data-od-id="q-cancel-lane">Cancel</button>
     <button class="btn btn--primary" type="button" id="requeueBtn" data-od-id="q-requeue-open">Requeue…</button>
   </footer>
 </aside>
 
-<!-- requeue confirm — MODAL-STANDARD confirm chrome
+<!-- requeue confirm — canonical confirm chrome per _done/modals/modal-system.css
      POST /api/workspaces/:ws/loop-runs/:run_id/nodes/:node_id/requeue — spec -->
 <div class="confirm-scrim" id="confirmScrim" data-od-id="q-requeue-scrim">
   <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="rqTitle" data-od-id="q-requeue-confirm">

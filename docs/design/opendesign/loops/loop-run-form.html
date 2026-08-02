@@ -1,0 +1,492 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Run software-delivery · Loop · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<!--
+  loop-run-form · arrive-and-use run form (hero flow) — promoted from _done/loops/loop-run-form.html
+  Chrome seeded verbatim from the approved final loops/loop-detail.html.
+  Provenance legend used in comments below:
+    production                — internal/api/contract/loops.go, internal/api/httpapi routes, internal/loop/dsl/gate_start.go
+    spec loop-node-lifecycle  — .compozy/tasks/loop-node-lifecycle/_techspec.md
+    authorized delta          — hero-path promotion 2026-08-02
+-->
+<style>
+  /* tokens — verbatim from design-system/ds-core.css (packages/ui/src/tokens.css lineage) */
+  :root{
+    color-scheme: dark;
+    --rail:#0c0b0b; --canvas:#131211; --canvas-soft:#1a1918; --canvas-tint:#1c1b1a; --elevated:#232220;
+    --fg:#ececef; --fg-strong:#f6f6f8; --muted:#9a9a9f; --subtle:#76767c; --faint:#545458;
+    --line:rgba(255,255,255,.055); --line-soft:rgba(255,255,255,.03); --line-strong:rgba(255,255,255,.09);
+    --accent:#e8572a; --accent-hover:#d14e25; --accent-strong:#f6874f; --accent-ink:#17110f; --accent-tint:rgba(232,87,42,.10);
+    --success:#5fbf85; --success-tint:rgba(95,191,133,.08);
+    --warning:#d6a647; --warning-tint:rgba(214,166,71,.08);
+    --danger:#e0635a;  --danger-tint:rgba(224,99,90,.09);
+    --info:#8e8eb5;    --info-tint:rgba(142,142,181,.12);
+    --neutral:#7a7a80; --neutral-tint:rgba(150,150,155,.06);
+    --row-hover:rgba(255,255,255,.022); --input-fill:rgba(255,255,255,.025); --badge-fill:rgba(255,255,255,.05); --btn-fill:rgba(255,255,255,.04); --btn-hover:rgba(255,255,255,.07);
+    --radius-xs:4px; --radius-sm:5px; --radius:6px; --radius-md:8px; --radius-lg:10px; --radius-pill:9999px;
+    --font-sans:"Inter Variable","Inter",-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --font-mono:"JetBrains Mono Variable","JetBrains Mono","SF Mono",ui-monospace,Menlo,monospace;
+    --dur:140ms; --ease:cubic-bezier(.2,0,0,1); --highlight:inset 0 1px 0 rgba(255,255,255,.035);
+    --focus-ring:0 0 0 2px rgba(255,255,255,.5);
+    --shadow-overlay:0 24px 48px -12px rgba(0,0,0,.65), 0 0 0 1px rgba(255,255,255,.045);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{background:var(--canvas);color:var(--fg);font-family:var(--font-sans);font-feature-settings:"cv01","ss03";
+    font-size:13.5px;line-height:1.5;letter-spacing:-.006em;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+  a{color:inherit;text-decoration:none}
+  button{font:inherit;letter-spacing:inherit;color:inherit;background:none;border:0;cursor:pointer}
+  ::selection{background:var(--accent-tint)}
+  :is(button,a,[tabindex],summary,input,select):focus-visible{outline:none;box-shadow:var(--focus-ring)}
+  .mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+  .shell{height:100vh}
+  .main{display:flex;flex-direction:column;min-width:0;height:100vh;overflow:hidden}
+
+  /* unified head · 44px — anatomy verbatim from loop-detail.html */
+  .w2head{min-height:44px;display:flex;align-items:center;gap:10px;padding:0 16px;flex:none;
+    background:var(--canvas);border-bottom:1px solid var(--line);min-width:0}
+  .w2-back{width:24px;height:24px;flex:none;display:grid;place-items:center;border-radius:var(--radius);color:var(--muted)}
+  .w2-back:hover{background:var(--btn-fill);color:var(--fg-strong)}
+  .w2-back svg{width:14px;height:14px}
+  .w2-crumbs{display:flex;align-items:center;gap:2px;min-width:0}
+  .w2-crumb{font-size:13px;font-weight:500;color:var(--subtle);white-space:nowrap;border-radius:var(--radius-sm);padding:1px 5px}
+  .w2-crumb:hover{color:var(--fg);background:var(--row-hover)}
+  .w2-sep{flex:none;font-size:12px;color:var(--faint)}
+  .w2-title{font-size:13px;font-weight:600;color:var(--fg-strong);white-space:nowrap;padding-left:3px}
+  .w2-flex{flex:1;min-width:8px}
+  .w2-actions{position:relative;display:flex;align-items:center;gap:6px;flex:none}
+  .btn{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 11px;border-radius:var(--radius);font-size:12.5px;font-weight:520;
+    border:1px solid var(--line);background:var(--btn-fill);white-space:nowrap;transition:background var(--dur) var(--ease),border-color var(--dur) var(--ease)}
+  .btn svg{width:14px;height:14px}
+  .btn:hover{background:var(--btn-hover);border-color:var(--line-strong);color:var(--fg-strong)}
+  .btn--primary{background:var(--accent);border-color:transparent;color:var(--accent-ink);box-shadow:var(--highlight)}
+  .btn--primary:hover{background:var(--accent-hover);color:var(--accent-ink)}
+  .btn[disabled]{opacity:.45;cursor:not-allowed}
+  .btn--primary[disabled]:hover{background:var(--accent)}
+
+  .scroll{flex:1;min-height:0;overflow-y:auto}
+  .page{max-width:1240px;margin:0 auto;padding:24px 36px 80px}
+
+  /* lede — anatomy verbatim from loop-detail.html */
+  .dh{padding-bottom:20px;border-bottom:1px solid var(--line);margin-bottom:24px}
+  .dh__namerow{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+  .dh__name{font-size:22px;font-weight:560;letter-spacing:-.028em;color:var(--fg-strong)}
+  .dh__name .lt{color:var(--muted);font-weight:420}
+  .tag{font-family:var(--font-mono);font-size:9px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;padding:2px 6px;border-radius:var(--radius-xs);background:var(--badge-fill);color:var(--subtle)}
+  .dh__meta{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:8px;font-size:12px;color:var(--subtle)}
+  .dh__meta .mono{font-size:10.5px;color:var(--muted)}
+  .dotsep{width:2px;height:2px;border-radius:50%;background:var(--faint);display:inline-block}
+  .dh__lede{margin-top:10px;font-size:13px;line-height:1.6;color:var(--muted);max-width:70ch}
+
+  .layout{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:32px;align-items:start}
+
+  /* collapsible sections — one calm pattern everywhere (verbatim from loop-detail.html) */
+  .sec{margin-bottom:22px;border:0}
+  .sec > summary{display:flex;align-items:center;gap:8px;padding:0 0 10px;cursor:pointer;list-style:none;user-select:none}
+  .sec > summary::-webkit-details-marker{display:none}
+  .sec > summary svg.si{width:14px;height:14px;color:var(--subtle);flex:none}
+  .sec > summary .st{font-size:10.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--subtle)}
+  .sec > summary .ssum{font-size:11.5px;color:var(--faint);margin-left:2px}
+  .sec > summary .spacer{flex:1}
+  .sec > summary svg.chev{width:14px;height:14px;color:var(--faint);flex:none;transition:transform var(--dur) var(--ease)}
+  .sec:not([open]) > summary svg.chev{transform:rotate(-90deg)}
+  .sec:not([open]) > summary{padding-bottom:0;margin-bottom:22px}
+  .panelbox{background:var(--canvas-soft);border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden}
+
+  /* form fields — new for this page, in the loop-detail voice */
+  .fields{padding:4px 16px 16px}
+  .field{padding-top:14px}
+  .label{display:flex;align-items:baseline;gap:7px;margin-bottom:6px}
+  .label .fname{font-family:var(--font-mono);font-size:12px;color:var(--fg-strong)}
+  .label .req{color:var(--accent-strong);font-weight:600;font-size:11px}
+  .label .ftyp{margin-left:auto;font-family:var(--font-mono);font-size:10px;color:var(--faint)}
+  .input{width:100%;height:32px;padding:0 11px;color:var(--fg);background:var(--input-fill);border:1px solid var(--line);border-radius:var(--radius-md);
+    font-family:var(--font-mono);font-size:12px;outline:none;transition:border-color var(--dur) var(--ease),background var(--dur) var(--ease)}
+  .input:focus{border-color:var(--line-strong);background:var(--canvas)}
+  .input::placeholder{color:var(--faint);font-family:var(--font-sans);font-size:12px}
+  .input--err{border-color:var(--danger)}
+  .hint{font-size:11.5px;color:var(--subtle);margin-top:6px;line-height:1.45}
+  .hint code{font-family:var(--font-mono);font-size:10.5px;color:var(--muted)}
+  .ferr{font-size:11.5px;color:var(--danger);margin-top:6px;display:none;align-items:center;gap:6px}
+  .ferr svg{width:12px;height:12px;flex:none}
+  .ferr.on{display:flex}
+  .switch-row{display:flex;align-items:center;gap:12px;padding:11px 12px;border:1px solid var(--line-soft);border-radius:var(--radius-md);background:var(--canvas-tint)}
+  .switch{flex:none;width:32px;height:18px;border-radius:var(--radius-pill);background:var(--elevated);border:1px solid var(--line);position:relative;cursor:pointer;transition:background var(--dur) var(--ease)}
+  .switch::after{content:"";position:absolute;top:1px;left:1px;width:14px;height:14px;border-radius:50%;background:var(--muted);transition:transform var(--dur) var(--ease),background var(--dur) var(--ease)}
+  .switch[aria-checked="true"]{background:var(--accent);border-color:transparent}
+  .switch[aria-checked="true"]::after{transform:translateX(14px);background:var(--accent-ink)}
+  .switch-txt{flex:1}
+  .switch-txt .fname{font-family:var(--font-mono);font-size:12px;color:var(--fg-strong)}
+  .switch-txt span{display:block;font-size:11.5px;color:var(--subtle);margin-top:1px}
+  .switch-row .ftyp{font-family:var(--font-mono);font-size:10px;color:var(--faint)}
+
+  /* limit overrides — reuse limrow anatomy from loop-detail.html, add an input slot */
+  .limrow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 16px;border-top:1px solid var(--line-soft)}
+  .limrow:first-child{border-top:0}
+  .limrow .lk{font-size:12px;color:var(--subtle)}
+  .limrow .lv{display:flex;align-items:center;gap:8px}
+  .limrow .lv .ceil{font-family:var(--font-mono);font-size:10px;color:var(--faint);white-space:nowrap}
+  .limrow input.input, .limrow select.input{width:120px;height:28px;font-size:11.5px;text-align:right}
+  .limrow select.input{text-align:left;appearance:none;-webkit-appearance:none;padding-right:26px;cursor:pointer;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%239a9a9f' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+    background-repeat:no-repeat;background-position:right 9px center;background-size:10px 10px}
+  .rnote{font-size:11px;color:var(--faint);line-height:1.5;padding:10px 14px;border-top:1px solid var(--line-soft)}
+  .panelbox > .rnote{padding:10px 16px}
+
+  /* active-run notice — state pill reused verbatim from loop-detail.html */
+  .pill{display:inline-flex;align-items:center;gap:6px;height:20px;padding:0 8px;border-radius:var(--radius-xs);font-size:11px;font-weight:520;width:max-content}
+  .pill .dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex:none}
+  .pill--running{background:var(--accent-tint);color:var(--accent-strong)}
+  .pill .dot--pulse{animation:pulse 1.8s var(--ease) infinite}
+  @keyframes pulse{0%,100%{box-shadow:0 0 0 0 color-mix(in srgb,currentColor 34%,transparent)}55%{box-shadow:0 0 0 4px transparent}}
+  .noticerow{display:flex;align-items:center;gap:10px;padding:11px 16px;flex-wrap:wrap}
+  .noticerow .rid{font-family:var(--font-mono);font-size:11.5px;color:var(--fg)}
+  .noticerow .nmeta{font-size:11.5px;color:var(--subtle);min-width:0}
+  .noticerow .go{margin-left:auto;display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:520;color:var(--muted);padding:2px 4px;border-radius:var(--radius-xs)}
+  .noticerow .go:hover{color:var(--fg-strong)}
+  .noticerow .go svg{width:12px;height:12px}
+
+  /* action bar */
+  .formfoot{display:flex;align-items:center;gap:10px;padding:14px 0 0;border-top:1px solid var(--line);margin-top:2px}
+  .formfoot .foot-note{flex:1;min-width:0;font-size:11.5px;color:var(--subtle);display:flex;align-items:center;gap:8px;line-height:1.4}
+  .formfoot .foot-note svg{flex:none;width:13px;height:13px;color:var(--faint)}
+  .btn--lg{height:30px;padding:0 14px}
+  .toast{display:none;align-items:center;gap:7px;font-size:12px;color:var(--success)}
+  .toast svg{width:14px;height:14px;flex:none}
+  .toast.on{display:inline-flex}
+  .toast a{text-decoration:underline;text-underline-offset:2px}
+
+  /* rail — collapsible cards, summary carries the gist (verbatim from loop-detail.html) */
+  .rsec{border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--canvas-soft);margin-bottom:12px;overflow:hidden}
+  .rsec > summary{display:flex;align-items:center;gap:9px;padding:11px 14px;cursor:pointer;list-style:none;user-select:none}
+  .rsec > summary::-webkit-details-marker{display:none}
+  .rsec > summary:hover{background:var(--row-hover)}
+  .rsec > summary svg.si{width:14px;height:14px;color:var(--subtle);flex:none}
+  .rsec > summary .rt{font-size:12px;font-weight:560;color:var(--fg-strong);flex:none}
+  .rsec > summary .rsum{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:right;font-size:11px;color:var(--faint)}
+  .rsec > summary svg.chev{width:13px;height:13px;color:var(--faint);flex:none;transition:transform var(--dur) var(--ease)}
+  .rsec:not([open]) > summary svg.chev{transform:rotate(-90deg)}
+  .rsec__body{border-top:1px solid var(--line-soft)}
+  .kv__row{padding:13px 14px;border-top:1px solid var(--line-soft)}
+  .kv__row:first-child{border-top:0}
+  .kv__row .k{font-size:11px;font-weight:600;letter-spacing:.02em;text-transform:uppercase;color:var(--faint);margin-bottom:5px}
+  .kv__row .v{font-size:12.5px;line-height:1.55;color:var(--fg)}
+  .kv__row .v code{font-family:var(--font-mono);font-size:11px;background:var(--input-fill);border:1px solid var(--line-soft);border-radius:var(--radius-xs);padding:1px 5px}
+  .kv__row .v.mono{font-size:11px;color:var(--muted)}
+  .vrow{display:flex;align-items:center;gap:10px;padding:5px 0}
+  .vrow svg{width:14px;height:14px;color:var(--subtle);flex:none}
+  .vrow b{font-size:12.5px;font-weight:520;color:var(--fg-strong)}
+  .vrow span{font-size:12px;color:var(--muted)}
+  .summary-live{font-size:12.5px;line-height:1.65;color:var(--muted);padding:13px 14px}
+  .summary-live b{color:var(--fg-strong);font-weight:560}
+  .summary-live .acc{color:var(--accent-strong);font-weight:560}
+  .summary-live .mono{font-size:11px;color:var(--fg);background:var(--badge-fill);padding:1px 5px;border-radius:var(--radius-xs)}
+  .afterrow{display:flex;align-items:flex-start;gap:9px;padding:10px 14px;border-top:1px solid var(--line-soft)}
+  .afterrow:first-child{border-top:0}
+  .afterrow svg{width:13px;height:13px;color:var(--subtle);flex:none;margin-top:2px}
+  .afterrow div b{display:block;font-size:12px;font-weight:520;color:var(--fg-strong)}
+  .afterrow div span{font-size:11.5px;color:var(--subtle);line-height:1.45}
+  .afterrow div span code{font-family:var(--font-mono);font-size:10px;color:var(--muted)}
+
+  @media(max-width:1080px){.layout{grid-template-columns:1fr}}
+  @media(prefers-reduced-motion:reduce){*{transition-duration:.01ms!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="shell">
+  <div class="main">
+    <!-- HEAD — chrome anatomy from loop-detail.html; no duplicate primary here: the single accent action lives at the form foot -->
+    <header class="w2head" data-od-id="run-form-head">
+      <a class="w2-back" href="loop-detail.html" aria-label="Back to software-delivery"><i data-lucide="chevron-left"></i></a>
+      <nav class="w2-crumbs" aria-label="Breadcrumb">
+        <a class="w2-crumb" href="loops-catalog.html">Loops</a>
+        <span class="w2-sep">/</span>
+        <a class="w2-crumb" href="loop-detail.html">software-delivery</a>
+        <span class="w2-sep">/</span>
+        <span class="w2-title">Run</span>
+      </nav>
+      <span class="w2-flex"></span>
+      <div class="w2-actions">
+        <a class="btn" href="loop-detail.html"><i data-lucide="x"></i>Close</a>
+      </div>
+    </header>
+
+    <div class="scroll">
+      <div class="page">
+
+        <!-- LEDE — identity once; machine truth in micro mono (id + published digest), never removed -->
+        <div class="dh" data-od-id="run-form-lede">
+          <div class="dh__namerow">
+            <span class="dh__name"><span class="lt">Run</span> software-delivery</span>
+            <span class="tag">Built-in</span>
+            <span class="tag">v4</span>
+          </div>
+          <div class="dh__meta">
+            <span class="mono">compozy.loop/v1</span><span class="dotsep"></span>
+            <span class="mono">digest sha256:9f41c2ae</span><span class="dotsep"></span>
+            <span>5 declared inputs</span><span class="dotsep"></span>
+            <span>edited 5d ago · Pedro</span>
+          </div>
+          <p class="dh__lede">Fill the inputs, start the run. Everything else — retries, budgets, gates — is already declared on the loop.</p>
+        </div>
+
+        <div class="layout">
+          <!-- MAIN — the form -->
+          <!-- production: POST /api/workspaces/:workspace_id/loops/software-delivery/run · RunLoopRequest{inputs, config_overrides} (internal/api/contract/loops.go) -->
+          <form id="runForm" novalidate data-od-id="run-form">
+
+            <!-- ACTIVE RUN NOTICE — authorized delta (hero-path promotion 2026-08-02): concurrency-awareness strip; run facts from the r-8f3a2b story (episode quarantines, requeue by pedro) -->
+            <details class="sec" open data-od-id="run-form-active-run">
+              <summary><i class="si" data-lucide="activity"></i><span class="st">Already running</span><span class="ssum">r-8f3a2b · nightly</span><span class="spacer"></span><i class="chev" data-lucide="chevron-down"></i></summary>
+              <div class="panelbox">
+                <div class="noticerow">
+                  <span class="pill pill--running"><span class="dot dot--pulse"></span>running</span>
+                  <span class="rid">r-8f3a2b</span>
+                  <span class="nmeta">nightly · 2 nodes quarantined so far, 1 requeued by pedro · 1 still quarantined</span>
+                  <a class="go" href="loop-run-detail.html">View run <i data-lucide="arrow-right"></i></a>
+                </div>
+                <!-- spec loop-node-lifecycle: run-level `stop` is deleted (hard cut) — cancel/kill are the only run verbs; no Stop control is rendered anywhere on this page -->
+                <div class="rnote">This loop runs one at a time. Cancel r-8f3a2b from its run page, or let it finish, before starting another.</div>
+              </div>
+            </details>
+
+            <!-- INPUTS — primary group, open. Fields transcribed from the archived form (IA kept). -->
+            <!-- production: RunLoopRequest.inputs{slug, implementer, verify_command, auto_commit, target_branch} -->
+            <details class="sec" open data-od-id="run-form-inputs">
+              <summary><i class="si" data-lucide="text-cursor-input"></i><span class="st">Inputs</span><span class="ssum">1 required · 4 optional · from the loop's declared inputs</span><span class="spacer"></span><i class="chev" data-lucide="chevron-down"></i></summary>
+              <div class="panelbox">
+                <div class="fields">
+
+                  <!-- production: RunLoopRequest.inputs.slug -->
+                  <div class="field" data-od-id="run-form-input-slug">
+                    <label class="label" for="slug"><span class="fname">slug</span><span class="req">required</span><span class="ftyp">string</span></label>
+                    <input class="input" id="slug" placeholder="pick or type a task slug" list="slugList" autocomplete="off">
+                    <datalist id="slugList">
+                      <option value="loops-catalog-api"></option>
+                      <option value="whatsapp-inbox"></option>
+                      <option value="billing-webhooks"></option>
+                      <option value="search-reindex"></option>
+                    </datalist>
+                    <p class="hint">Which task folder to ship. Resolves under <code>.compozy/tasks/&lt;slug&gt;</code> — 4 detected in this workspace.</p>
+                    <p class="ferr" id="slugErr"><i data-lucide="circle-alert"></i>slug is required to run this loop.</p>
+                  </div>
+
+                  <!-- production: RunLoopRequest.inputs.implementer -->
+                  <div class="field" data-od-id="run-form-input-implementer">
+                    <label class="label" for="implementer"><span class="fname">implementer</span><span class="ftyp">agent</span></label>
+                    <input class="input" id="implementer" value="code_implementer" autocomplete="off">
+                    <p class="hint">Agent that implements each task. Defaults to <code>code_implementer</code>.</p>
+                  </div>
+
+                  <!-- production: RunLoopRequest.inputs.verify_command -->
+                  <div class="field" data-od-id="run-form-input-verify-command">
+                    <label class="label" for="verify_command"><span class="fname">verify_command</span><span class="ftyp">string</span></label>
+                    <input class="input" id="verify_command" placeholder="empty = command check off" autocomplete="off">
+                    <p class="hint">Your project's own check, run at the <code>verify</code> gate and expected to exit zero. Leave empty to skip it.</p>
+                  </div>
+
+                  <!-- production: RunLoopRequest.inputs.auto_commit -->
+                  <div class="field" data-od-id="run-form-input-auto-commit">
+                    <div class="switch-row">
+                      <div class="switch" id="autoCommit" role="switch" aria-checked="false" tabindex="0" aria-labelledby="autoCommitLbl"></div>
+                      <div class="switch-txt" id="autoCommitLbl"><span class="fname">auto_commit</span><span>One commit per task after it verifies. Off leaves changes uncommitted for review.</span></div>
+                      <span class="ftyp">boolean</span>
+                    </div>
+                  </div>
+
+                  <!-- production: RunLoopRequest.inputs.target_branch -->
+                  <div class="field" data-od-id="run-form-input-target-branch">
+                    <label class="label" for="branch"><span class="fname">target_branch</span><span class="ftyp">string</span></label>
+                    <input class="input" id="branch" value="main" autocomplete="off">
+                    <p class="hint">Branch the approved work targets. Defaults to <code>main</code>.</p>
+                  </div>
+
+                </div>
+              </div>
+            </details>
+
+            <!-- LIMITS — secondary, closed; the closed summary still informs -->
+            <!-- production: RunLoopRequest.config_overrides · LoopConfig{iteration_cap, budget_tokens, budget_wall_sec, budget_on_exceeded, no_progress_window, fan_out_width, gate_max_revisions} -->
+            <details class="sec" data-od-id="run-form-limits">
+              <summary><i class="si" data-lucide="gauge"></i><span class="st">Limits · this run only</span><span class="ssum" id="limitsSum">50 generations · no budgets set · loop defaults</span><span class="spacer"></span><i class="chev" data-lucide="chevron-down"></i></summary>
+              <div class="panelbox">
+                <!-- production: config_overrides.iteration_cap -->
+                <div class="limrow"><span class="lk">Generations</span><span class="lv"><input class="input ov" id="ovIter" type="number" value="50" data-def="50" data-ceil="100" aria-label="Generations cap"><span class="ceil">/ 100</span></span></div>
+                <!-- production: config_overrides.budget_tokens (0/unset = off) -->
+                <div class="limrow"><span class="lk">Token budget</span><span class="lv"><input class="input ov" id="ovTok" type="number" placeholder="off" data-def="" data-ceil="20000000" aria-label="Token budget"><span class="ceil">/ 20M</span></span></div>
+                <!-- production: config_overrides.budget_wall_sec (rendered in minutes; 0/unset = off) -->
+                <div class="limrow"><span class="lk">Wall clock (min)</span><span class="lv"><input class="input ov" id="ovWall" type="number" placeholder="off" data-def="" data-ceil="10080" aria-label="Wall clock budget in minutes"><span class="ceil">/ 7d</span></span></div>
+                <!-- production: config_overrides.budget_on_exceeded · LoopBudgetExceeded{halt|escalate} -->
+                <div class="limrow"><span class="lk">Budget on exceeded</span><span class="lv"><select class="input ov" id="ovPolicy" data-def="halt" aria-label="Budget exceeded policy"><option value="halt" selected>halt</option><option value="escalate">escalate</option></select></span></div>
+                <!-- production: config_overrides.no_progress_window -->
+                <div class="limrow"><span class="lk">No-progress window</span><span class="lv"><input class="input ov" id="ovNp" type="number" value="3" data-def="3" data-ceil="10" aria-label="No-progress window"><span class="ceil">/ 10</span></span></div>
+                <!-- production: config_overrides.fan_out_width -->
+                <div class="limrow"><span class="lk">Fan-out ceiling</span><span class="lv"><input class="input ov" id="ovFan" type="number" placeholder="≤ tasks" data-def="" data-ceil="64" aria-label="Fan-out ceiling"><span class="ceil">/ 64</span></span></div>
+                <!-- production: config_overrides.gate_max_revisions -->
+                <div class="limrow"><span class="lk">Gate max revisions</span><span class="lv"><input class="input ov" id="ovGate" type="number" value="3" data-def="3" data-ceil="10" aria-label="Gate max revisions"><span class="ceil">/ 10</span></span></div>
+                <div class="rnote">Overrides apply to this run only; the loop's saved defaults stay put. Right-hand values are daemon ceilings — hard backstops. Budgets are off unless set; a set budget is enforced: <span class="mono" style="font-size:10px">halt</span> ends the run as exhausted, <span class="mono" style="font-size:10px">escalate</span> pauses it as needs-approval for a human decision.</div>
+              </div>
+            </details>
+
+            <!-- ACTION BAR — the page's single accent action -->
+            <div class="formfoot" data-od-id="run-form-actions">
+              <div class="foot-note">
+                <i data-lucide="info"></i>
+                <span id="anText">Dry run validates inputs and renders the first-generation plan without starting anything.</span>
+                <span class="toast" id="toast"></span>
+              </div>
+              <!-- production: same route with dry=true → RunLoopResponse.dry_run: LoopPlanPayload (resolved inputs, gen-1 nodes, effective config) -->
+              <button class="btn btn--lg" type="button" id="dryBtn" data-od-id="run-form-dry-run"><i data-lucide="flask-conical"></i>Dry run</button>
+              <!-- production: POST /api/workspaces/:workspace_id/loops/software-delivery/run → RunLoopResponse{run, web_url:/loop-runs/:id} -->
+              <button class="btn btn--primary btn--lg" type="button" id="runBtn" disabled data-od-id="run-form-start"><i data-lucide="play"></i>Start run</button>
+            </div>
+          </form>
+
+          <!-- RAIL — what will run, contract truth, ways to start, what happens next -->
+          <aside data-od-id="run-form-rail">
+
+            <!-- live preview of the exact run being composed -->
+            <details class="rsec" open data-od-id="run-form-preview">
+              <summary><i class="si" data-lucide="eye"></i><span class="rt">What will run</span><span class="rsum" id="pvSum">waiting on slug</span><i class="chev" data-lucide="chevron-down"></i></summary>
+              <div class="rsec__body">
+                <p class="summary-live" id="summary"></p>
+              </div>
+            </details>
+
+            <!-- contract, condensed from loop-detail.html — same truth, no explainer cards -->
+            <details class="rsec" data-od-id="run-form-contract">
+              <summary><i class="si" data-lucide="scroll-text"></i><span class="rt">Contract</span><span class="rsum">3 checks · 7 possible endings</span><i class="chev" data-lucide="chevron-down"></i></summary>
+              <div class="rsec__body">
+                <div class="kv__row"><div class="k">Goal</div><div class="v">Ship every authored task under <code>.compozy/tasks/{{ .inputs.slug }}</code>, implemented, reviewed to acceptance, and verified by the project's own checks.</div></div>
+                <div class="kv__row"><div class="k">Verified by</div><div class="v">
+                  <div class="vrow"><i data-lucide="bot"></i><b>Acceptance review</b><span>agent judge, until clean</span></div>
+                  <div class="vrow"><i data-lucide="terminal"></i><b>Project check</b><span id="verifyNote">verify_command off</span></div>
+                  <div class="vrow"><i data-lucide="user-check"></i><b>Your approval</b><span id="mergeNote">needs-approval before main</span></div>
+                </div></div>
+                <!-- spec loop-node-lifecycle: contract terminal triggers on_done|on_noop|on_blocked|on_exhausted|on_stalled|on_canceled — `canceled` is a real ending; enums render as plain mono text, not chips -->
+                <div class="kv__row"><div class="k">Possible endings</div><div class="v mono">done · no_op · blocked · failed · exhausted · stalled · canceled</div></div>
+              </div>
+            </details>
+
+            <!-- ways in — start kinds as plain mono text (production: internal/loop/dsl/gate_start.go StartKind;
+                 the web form posts POST /loops/:name/run, stamped `http` by transport — loops.go
+                 loopStartKindForTransport; `manual` has no wired producer today) -->
+            <details class="rsec" data-od-id="run-form-start-kinds">
+              <summary><i class="si" data-lucide="zap"></i><span class="rt">Ways to start</span><span class="rsum">this form starts over http · 5 more</span><i class="chev" data-lucide="chevron-down"></i></summary>
+              <div class="rsec__body">
+                <div class="kv__row"><div class="k">This form</div><div class="v mono">http</div></div>
+                <div class="kv__row"><div class="k">Also declared in start[]</div><div class="v mono">manual · schedule (nightly · 0 3 * * *) · cli · uds · native_tool</div></div>
+                <div class="rnote">Author the start allowlist in the <a href="loop-editor.html" style="color:var(--muted);text-decoration:underline;text-underline-offset:2px">editor's Start inspector</a>.</div>
+              </div>
+            </details>
+
+            <!-- what happens after Start — after-start affordance references loop-run-detail.html -->
+            <details class="rsec" open data-od-id="run-form-after-start">
+              <summary><i class="si" data-lucide="route"></i><span class="rt">After you start</span><span class="rsum">live run page · you stay in control</span><i class="chev" data-lucide="chevron-down"></i></summary>
+              <div class="rsec__body">
+                <!-- production: RunLoopResponse.web_url → LoopRunWebRoute "/loop-runs/%s" -->
+                <div class="afterrow"><i data-lucide="monitor-play"></i><div><b>You land on the run page</b><span>Live nodes, events and controls, like <a href="loop-run-detail.html" style="color:var(--muted);text-decoration:underline;text-underline-offset:2px">r-8f3a2b's</a>. <code>web_url · /loop-runs/:id</code></span></div></div>
+                <!-- spec loop-node-lifecycle: retry/backoff, quarantine (never lost), requeue origin -->
+                <div class="afterrow"><i data-lucide="rotate-ccw"></i><div><b>Failures retry on their own</b><span>Steps that keep failing are set aside in quarantine, never lost; you can requeue them. <code>retry · quarantine · requeue</code></span></div></div>
+                <!-- spec loop-node-lifecycle: run verbs are cancel (cooperative) and kill (immediate); `stop` deleted -->
+                <div class="afterrow"><i data-lucide="hand"></i><div><b>You can always step in</b><span>Pause, resume, cancel or kill from the run page — cancel finishes in-flight work, kill stops it now. <code>cancel · kill</code></span></div></div>
+              </div>
+            </details>
+          </aside>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/lucide@latest"></script>
+<script>
+  lucide.createIcons();
+  (function(){
+    "use strict";
+    var $ = function(id){ return document.getElementById(id); };
+    var slug=$("slug"), slugErr=$("slugErr"), impl=$("implementer"), verifyCmd=$("verify_command"), branch=$("branch"), autoCommit=$("autoCommit");
+    var runBtn=$("runBtn"), dryBtn=$("dryBtn");
+    var summary=$("summary"), pvSum=$("pvSum"), verifyNote=$("verifyNote"), mergeNote=$("mergeNote");
+    var limitsSum=$("limitsSum"), anText=$("anText"), toast=$("toast");
+    var ovs=[$("ovIter"),$("ovTok"),$("ovWall"),$("ovNp"),$("ovFan"),$("ovGate")];
+
+    function esc(v){ return v.replace(/[<>&"]/g,""); }
+    function fmtTokens(n){ if(!n||n<=0) return "off"; if(n>=1e6) return (n/1e6).toFixed(n%1e6===0?0:1)+"M"; if(n>=1e3) return Math.round(n/1e3)+"k"; return String(n); }
+
+    function paint(){
+      var s=slug.value.trim(), a=impl.value.trim()||"code_implementer", b=branch.value.trim()||"main";
+      var vc=verifyCmd.value.trim();
+      var committed=autoCommit.getAttribute("aria-checked")==="true";
+      var iter=$("ovIter").value||"50";
+      var tok=fmtTokens(parseInt($("ovTok").value,10));
+      var pol=$("ovPolicy").value;
+
+      verifyNote.textContent = vc ? esc(vc)+" · exit zero" : "verify_command off";
+      mergeNote.textContent = "needs-approval before "+esc(b);
+      pvSum.textContent = s ? esc(s)+" as "+esc(a) : "waiting on slug";
+
+      var sSafe=esc(s);
+      summary.innerHTML =
+        'Run <b>software-delivery</b> on '+(s?'<span class="mono">'+sSafe+'</span>':'<span class="acc">(pick a slug)</span>')+'. '+
+        'Loads the tasks under <span class="mono">.compozy/tasks/'+(s?sSafe:'&lt;slug&gt;')+'</span> and runs them in dependency order as <b>'+esc(a)+'</b>, targeting <b>'+esc(b)+'</b>. '+
+        'Up to <b>'+iter+'</b> generations'+(tok==="off"?', no token budget':', enforced <b>'+tok+'</b> token budget ('+(pol==="escalate"?"escalate: pauses as needs-approval when exceeded":"halt: ends as exhausted when exceeded")+')')+'. '+
+        (vc?'Verified by <span class="mono">'+esc(vc)+'</span>. ':'Command check off. ')+
+        (committed?'One commit per task after verification. ':'Changes stay uncommitted for review. ')+
+        'Pauses as <span class="acc">needs-approval</span> before <b>'+esc(b)+'</b>. '+
+        'Ends honestly at done, no_op, blocked, failed, exhausted, stalled or canceled.';
+
+      var tokRaw=$("ovTok").value, wallRaw=$("ovWall").value;
+      var budgets=(tokRaw||wallRaw)?"budgets set":"no budgets set";
+      var changed=[$("ovIter"),$("ovTok"),$("ovWall"),$("ovNp"),$("ovFan"),$("ovGate")].some(function(x){return x.value!==x.getAttribute("data-def");})||$("ovPolicy").value!=="halt";
+      limitsSum.textContent = iter+" generations · "+budgets+" · "+(changed?"overrides set":"loop defaults");
+
+      var ok=s.length>0;
+      runBtn.disabled=!ok;
+      if(ok){ slugErr.classList.remove("on"); slug.classList.remove("input--err"); }
+    }
+
+    ovs.forEach(function(inp){
+      inp.addEventListener("input", function(){
+        var ceil=parseInt(inp.getAttribute("data-ceil"),10);
+        if(ceil && parseInt(inp.value,10)>ceil){ inp.value=ceil; }
+        paint();
+      });
+    });
+    $("ovPolicy").addEventListener("change", paint);
+    [slug,impl,verifyCmd,branch].forEach(function(el){ el.addEventListener("input", paint); });
+    autoCommit.addEventListener("click", function(){ autoCommit.setAttribute("aria-checked", autoCommit.getAttribute("aria-checked")==="true"?"false":"true"); paint(); });
+    autoCommit.addEventListener("keydown", function(e){ if(e.key===" "||e.key==="Enter"){ e.preventDefault(); autoCommit.click(); } });
+
+    function requireSlug(){
+      if(!slug.value.trim()){ slug.classList.add("input--err"); slugErr.classList.add("on"); slug.focus(); return false; }
+      return true;
+    }
+    function showToast(html,color){
+      toast.innerHTML='<i data-lucide="check"></i>'+html;
+      toast.style.color=color||"var(--success)";
+      toast.classList.add("on"); anText.style.display="none";
+      lucide.createIcons();
+      clearTimeout(showToast._t); showToast._t=setTimeout(function(){ toast.classList.remove("on"); anText.style.display=""; },5200);
+    }
+    runBtn.addEventListener("click", function(){
+      if(!requireSlug()) return;
+      showToast('Run started · r-'+Math.random().toString(36).slice(2,8)+' — <a href="loop-run-detail.html">open run page</a>');
+    });
+    dryBtn.addEventListener("click", function(){
+      if(!requireSlug()) return;
+      showToast("Dry run passed · inputs valid, gen-1 plan rendered","var(--info)");
+    });
+
+    paint();
+  })();
+</script>
+</body>
+</html>

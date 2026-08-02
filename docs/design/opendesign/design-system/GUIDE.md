@@ -38,6 +38,19 @@ Read this before starting any surface. On conflict: **production (`packages/ui/s
 - Focus: keyboard `:focus-visible` = 2px white ·5 ring; pointer focus = border strengthen only. Reduced-motion double guard.
 - Modals build on `modals/modal-system.css` (`--color-*` names there; bare names in prototypes — never both in one file).
 
+### Prototype directives (promoted from loops `DESIGN-LESSONS.md` §D, 2026-08-02 — evidence: `docs/_memory/lessons/L-034`)
+
+- Transcribe production first; every delta annotated with its authority (`production` / `spec <id>` / `authorized delta`) — un-annotated divergence is a defect. Parallel transcription-grade deep-dives (exact px, tokens, class/icon names) precede any redesign of an implemented surface.
+- Per domain: final pages + labs + `index.html`, one coherent cross-linked story (same entity/run ids across pages). Labs alone are an incomplete delivery.
+- Color = state, never decoration. Badge budget: state pills only; enums/types as text or icon+text; zero counts render nothing. Richness comes from structure (icon tiles, kv rows, handles, rings), never hue.
+- Lucide only (`data-lucide` + CDN + `createIcons()`), one icon per concept, sized by container.
+- Every section collapsible (`details/summary`: icon · title · one-line gist · chevron); calm defaults; a closed section still informs.
+- Machine truth demoted to micro mono (≤10.5px, faint), never removed.
+- Canonical primitives (timeline, selectors, meters, modal chrome) are copied from the exported component, never approximated.
+- No explainer cards in product chrome — hints/tooltips at point of use.
+- Every control cites its gating payload field or route in an HTML comment; demos exercise the real state machine.
+- Specs gate implementation scope, not what the user may preview — render requested out-of-scope surfaces tagged as proposals (`new · <spec>`).
+
 ## Legacy map
 
 Deleted (2026-07-22, superseded by this folder): `systems/design-system.html`, `systems/catalog-design-system.html`, `settings/settings-design-system.html`, `modals/modal-design-system.html`.

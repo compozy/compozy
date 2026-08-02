@@ -127,13 +127,17 @@
 
   /* ── center column ─────────────────────────────────────────────────────── */
   .centercol{position:relative;display:flex;flex-direction:column;min-width:0;min-height:0;background:var(--canvas)}
-  /* start summary — loop-editor-start-summary.tsx: read-only overlay at origin */
-  .startstrip{pointer-events:none;position:absolute;left:14px;top:12px;z-index:10;display:flex;align-items:center;gap:6px;
-    border-radius:var(--radius-md);border:1px solid var(--line-soft);background:var(--canvas-soft);padding:6px 10px}
-  .startstrip .sk{font-family:var(--font-mono);font-size:9px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--faint)}
+  /* start summary — NEW · start-authoring (owner revision 2026-08-02): surfaces left the canvas;
+     chip strip (loop-editor-start-summary.tsx anatomy) stays in sync with the Start inspector lane.
+     pointer-events:auto on chips so a click opens the Start lane; no binding nodes, no fan-in. */
+  .startstrip{position:absolute;left:14px;top:12px;z-index:10;display:flex;align-items:center;flex-wrap:wrap;gap:6px;
+    max-width:min(520px,calc(100% - 28px));padding:6px 10px;border-radius:var(--radius-md);
+    border:1px solid var(--line-soft);background:var(--canvas-soft);pointer-events:auto}
   .startstrip .schip{border-radius:var(--radius-xs);background:var(--badge-fill);padding:2px 6px;
-    font-family:var(--font-mono);font-size:9px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--subtle)}
-  .startstrip .snote{margin-left:4px;font-size:10.5px;color:var(--faint)}
+    font-family:var(--font-mono);font-size:9.5px;font-weight:600;letter-spacing:.04em;color:var(--subtle);cursor:pointer}
+  .startstrip .schip:hover{color:var(--fg-strong);background:var(--btn-hover)}
+  .startstrip .schip[hidden]{display:none}
+  .startstrip .ssnote{margin-left:2px;font-family:var(--font-mono);font-size:9.5px;color:var(--faint)}
 
   .view{display:none;flex:1;min-height:0}
   .view.on{display:block}
@@ -141,7 +145,7 @@
   .flowpane{position:relative;height:100%;overflow:auto;background-color:var(--flow-bg);
     background-image:radial-gradient(circle,color-mix(in srgb,var(--flow-dot) 60%,transparent) 1px,transparent 1px);
     background-size:22px 22px}
-  .canvas{position:relative;width:2060px;height:460px;transform-origin:top left}
+  .canvas{position:relative;width:2812px;height:420px;transform-origin:top left}
 
   .edges{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible}
   /* edges — production: 1px bezier, no arrowheads; corners smoothed per sim getSmoothStepPath radius 8 */
@@ -228,16 +232,33 @@
   .issue__act svg{width:12px;height:12px}
   .dock__clean{display:none;align-items:center;gap:9px;border-top:1px solid var(--line-soft);padding:14px;font-size:12.5px;color:var(--success)}
   .dock__clean svg{width:15px;height:15px}
-  .dock.is-clean .issue{display:none}
-  .dock.is-clean .dock__clean{display:flex}
+  /* severity split — spec N-003: errors block publish, warnings don't */
+  .dock__cnt[data-tone="warning"]{background:var(--warning-tint);color:var(--warning)}
+  .issue__ic--warn{color:var(--warning)}
+  .dock.is-clean .issue--error{display:none}
 
-  /* ── inspector — loop-editor-sidebar.tsx: LaneTabs Contract|Node, 344px ── */
+  /* ── effect lists — spec EffectSpec: exactly one of emit/tool (+ with) per entry ── */
+  .fx{display:flex;flex-direction:column;gap:6px}
+  .fx__lbl{display:flex;align-items:baseline;gap:7px;font-family:var(--font-mono);font-size:10.5px;font-weight:600;color:var(--fg-strong)}
+  .fx__lbl .fxn{font-family:var(--font-sans);font-size:10.5px;font-weight:400;color:var(--faint)}
+  .fx__row{display:flex;flex-direction:column;gap:5px;border-radius:var(--radius-md);border:1px solid var(--line-soft);background:var(--canvas-soft);padding:7px 8px}
+  .fx__main{display:flex;gap:6px;align-items:center}
+  .fx__main select.input{flex:none;width:74px;height:28px;padding:0 24px 0 8px;font-family:var(--font-mono);font-size:11px}
+  .fx__main input.input{flex:1;height:28px;font-size:11px}
+  .fx__rm{width:18px;height:18px;flex:none;display:grid;place-items:center;border-radius:var(--radius-xs);color:var(--faint)}
+  .fx__rm:hover{color:var(--danger);background:var(--danger-tint)}
+  .fx__rm svg{width:11px;height:11px}
+  .fx__with{display:flex;align-items:center;gap:6px}
+  .fx__with .wk{flex:none;font-family:var(--font-mono);font-size:9px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--faint)}
+  .fx__with input.input{flex:1;height:26px;font-size:10.5px}
+
+  /* ── inspector — LaneTabs Contract|Start|Node (proposal over Contract|Node) ── */
   .inspector{display:flex;flex-direction:column;min-height:0;border-left:1px solid var(--line);background:var(--canvas)}
-  .lanetabs{display:flex;flex:none;height:40px;padding:0 16px;border-bottom:1px solid var(--line)}
-  .lanetabs button{position:relative;display:inline-flex;align-items:center;padding:0 8px;
+  .lanetabs{display:flex;flex:none;height:40px;padding:0 10px;border-bottom:1px solid var(--line);gap:0}
+  .lanetabs button{position:relative;display:inline-flex;align-items:center;padding:0 7px;
     font-size:12px;font-weight:510;letter-spacing:-.005em;color:var(--muted)}
   .lanetabs button[aria-selected="true"]{color:var(--fg-strong)}
-  .lanetabs button[aria-selected="true"]::after{content:"";position:absolute;left:8px;right:8px;bottom:-1px;height:1.5px;background:var(--fg-strong)}
+  .lanetabs button[aria-selected="true"]::after{content:"";position:absolute;left:7px;right:7px;bottom:-1px;height:1.5px;background:var(--fg-strong)}
   .insp-scroll{flex:1;min-height:0;overflow-y:auto}
   .tabpane{display:none}
   .tabpane.on{display:block}
@@ -253,6 +274,30 @@
   /* contract tab */
   .contract{padding:14px 16px}
   .contract__intro{margin-bottom:12px;font-size:11.5px;line-height:1.55;color:var(--subtle)}
+  /* Start lane — NEW · start-authoring (owner revision): surfaces = Switch allowlist;
+     hands-free = allowlist + attached automation (cron/endpoint live on Job/Trigger, not StartBinding) */
+  .start-pane{padding:14px 16px 20px;display:flex;flex-direction:column;gap:18px}
+  .start-sec{display:flex;flex-direction:column;gap:8px}
+  .start-sec__lbl{display:flex;align-items:baseline;justify-content:space-between;gap:8px;
+    font-family:var(--font-mono);font-size:9px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--faint)}
+  .start-sec__lbl span{font-family:var(--font-sans);font-size:10.5px;font-weight:400;letter-spacing:0;text-transform:none;color:var(--faint)}
+  .allow{border-radius:var(--radius-md);border:1px solid var(--line-soft);background:var(--canvas-soft);overflow:hidden}
+  .allow[data-on="false"] .allow__extra{display:none}
+  .allow__row{display:flex;align-items:flex-start;gap:12px;padding:10px 12px}
+  .allow__row .switch{margin-top:2px}
+  .allow__meta{min-width:0;flex:1;display:flex;flex-direction:column;gap:2px}
+  .allow__meta b{font-family:var(--font-mono);font-size:12px;font-weight:600;color:var(--fg-strong)}
+  .allow__meta span{font-size:11px;line-height:1.45;color:var(--subtle)}
+  .allow__extra{border-top:1px solid var(--line-soft);padding:10px 12px 12px;display:flex;flex-direction:column;gap:10px}
+  .allow__warn{display:none;padding:8px 10px;border-radius:var(--radius);background:var(--warning-tint);
+    font-size:11px;line-height:1.45;color:var(--warning)}
+  .allow[data-kind="http"][data-on="false"] .allow__warn{display:block}
+  .hf-attach{display:flex;flex-direction:column;gap:8px;padding:8px 10px;border-radius:var(--radius);
+    border:1px solid var(--line-soft);background:var(--canvas)}
+  .hf-attach__h{display:flex;align-items:center;gap:6px;font-family:var(--font-mono);font-size:10px;font-weight:600;color:var(--subtle)}
+  .hf-attach__h .monotag{margin-left:auto}
+  .start-add{display:flex;flex-wrap:wrap;gap:6px;margin-top:2px}
+  .start-add .btn-sm{height:26px;font-size:11px}
 
   /* fields — loop-editor-field.tsx geometry */
   .field{display:flex;flex-direction:column}
@@ -333,7 +378,7 @@
   <header class="topbar" data-od-id="loop-editor-head">
     <a class="tb-back" href="loop-detail.html" aria-label="Back to loop"><svg viewBox="0 0 16 16"><path d="m9.5 3.5-4.2 4.5 4.2 4.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
     <nav class="tb-crumbs" aria-label="Breadcrumb">
-      <a class="tb-crumb" href="../_done/loops/loops-catalog.html">Loops</a>
+      <a class="tb-crumb" href="loops-catalog.html">Loops</a>
       <span class="tb-sep">/</span>
       <a class="tb-crumb" href="loop-detail.html">software-delivery</a>
       <span class="tb-sep">/</span>
@@ -387,6 +432,17 @@
     <!-- PALETTE — click-to-add rows; groups per lib/loop-palette.ts; note cards removed -->
     <aside class="palette" data-od-id="loop-editor-palette">
       <span class="eyebrow">Add node</span>
+      <!-- NEW · start-authoring (owner revision 2026-08-02): surface kinds are NOT palette nodes —
+           they live as Switch allowlist controls in the Start inspector lane. Hands-free kinds
+           declare via Start lane (or these shortcuts) — still not graph structure. -->
+      <div class="pal-group" data-od-id="palette-start-handsfree">
+        <div class="pal-group__lbl">Start · hands-free</div>
+        <button class="pal-item" type="button" data-start-kind="schedule" title="Declare schedule in start[] and attach a Job"><span class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2"/><path d="M5 3 2 6"/><path d="m22 6-3-3"/></svg></span><span class="pn">Schedule</span></button>
+        <button class="pal-item" type="button" data-start-kind="trigger" title="Declare trigger in start[] and attach a Trigger"><span class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z"/></svg></span><span class="pn">Trigger</span></button>
+        <button class="pal-item" type="button" data-start-kind="webhook" id="palWebhook" title="Declare webhook in start[] and attach a signed ingress Trigger"><span class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 7a4 4 0 1 0-6.6 3"/><path d="M10.6 10 7 17a3 3 0 1 0 2.9 2"/><path d="M13 7l3.9 6.8A3 3 0 1 1 14.5 19h-4"/></svg></span><span class="pn">Webhook</span></button>
+        <button class="pal-item" type="button" data-start-kind="network" title="Declare network in start[]"><span class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22V10"/><path d="M8 22h8"/><path d="M8.5 6.5a5 5 0 0 1 7 0"/><path d="M5.6 3.6a9 9 0 0 1 12.8 0"/><circle cx="12" cy="9" r="1"/></svg></span><span class="pn">Network</span></button>
+        <button class="pal-item" type="button" data-start-kind="extension" title="Declare extension in start[]"><span class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3h4v3a2 2 0 0 0 4 0V5h3v4h-3a2 2 0 0 0 0 4h3v4h-4v3a2 2 0 0 1-4 0v-3H6v-4h3a2 2 0 0 0 0-4H6V5h4z"/></svg></span><span class="pn">Extension</span></button>
+      </div>
       <div class="pal-group">
         <div class="pal-group__lbl">Action</div>
         <button class="pal-item" type="button"><span class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="12" rx="2"/><path d="M12 8V4M8 4h8"/><circle cx="9" cy="14" r="1"/><circle cx="15" cy="14" r="1"/></svg></span><span class="pn">Run agent</span></button>
@@ -417,30 +473,49 @@
 
     <!-- CENTER — start summary overlay · canvas/DSL · validation dock -->
     <section class="centercol" data-od-id="loop-editor-center">
-      <div class="startstrip" id="startStrip" data-od-id="loop-editor-start-summary" title="Declared in start[]; authored in the definition file/agent (read-only here)">
-        <span class="sk">start</span>
-        <span class="schip">manual</span><span class="schip">cli</span><span class="schip">http</span><span class="schip">uds</span><span class="schip">native_tool</span><span class="schip">schedule</span>
-        <span class="snote">declared in start[]</span>
-      </div>
+<!-- startstrip restored as compact summary — NEW · start-authoring (owner revision 2026-08-02):
+           editable start[] lives in the Start inspector lane (not canvas nodes). PATCH already
+           round-trips start[]; Publish needs no new verb. Docs impact when this ships: drop
+           read-only language on the strip; Start lane ships as Contract|Start|Node. -->
 
       <!-- GRAPH VIEW -->
       <div class="view on" id="view-graph">
         <div class="flowpane" data-od-id="loop-editor-canvas">
+          <!-- NEW · start-authoring (owner revision): compact declared-kinds summary — not binding nodes.
+               Synced with the Start inspector allowlist; click opens that lane. -->
+          <div class="startstrip" data-od-id="loop-editor-start-summary" id="startSummary" title="Declared in start[] — edit in the Start inspector">
+            <span class="monotag">start</span>
+            <span class="schip" data-kind="manual">manual</span>
+            <span class="schip" data-kind="cli">cli</span>
+            <span class="schip" data-kind="http">http</span>
+            <span class="schip" data-kind="uds">uds</span>
+            <span class="schip" data-kind="native_tool">native_tool</span>
+            <span class="schip" data-kind="schedule">schedule</span>
+            <span class="schip" data-kind="webhook" hidden>webhook</span>
+            <span class="schip" data-kind="trigger" hidden>trigger</span>
+            <span class="schip" data-kind="network" hidden>network</span>
+            <span class="schip" data-kind="extension" hidden>extension</span>
+            <span class="ssnote">declared in start[]</span>
+          </div>
           <div class="canvas" id="canvas">
             <svg class="edges" aria-hidden="true">
               <!-- straight chain, handle centerline y=160 (header-anchored, sim dimensions.ts) -->
-              <path d="M222,160 L270,160"/>
               <path d="M474,160 L522,160"/>
               <path d="M726,160 L774,160"/>
               <path d="M978,160 L1026,160"/>
               <path d="M1230,160 L1278,160"/>
               <path d="M1482,160 L1530,160"/>
               <path d="M1734,160 L1782,160"/>
+              <path d="M1986,160 L2034,160"/>
+              <path d="M2238,160 L2286,160"/>
+              <path d="M2490,160 L2538,160"/>
             </svg>
 
             <!-- Node cards: production anatomy (loop-editor-node.tsx) + sim body rows.
-                 All positions dagre-LR-flat; handles at header centerline. -->
-            <div class="enode" data-node="slug" style="left:26px;top:140px">
+                 All positions dagre-LR-flat; handles at header centerline.
+                 Surface/hands-free start kinds are NOT canvas nodes (Start inspector owns allowlist). -->
+
+            <div class="enode" data-node="slug" style="left:278px;top:140px">
               <div class="enode__head">
                 <span class="enode__tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h12"/><polyline points="11 6 17 12 11 18"/><path d="M21 4v16"/></svg></span>
                 <span class="enode__id">slug</span>
@@ -450,10 +525,10 @@
                 <div class="krow"><span class="kk">kind</span><span class="kv kv--dim">input</span></div>
                 <div class="krow"><span class="kk">ref</span><span class="kv">inputs.slug</span></div>
               </div>
-              <span class="hnub hnub--out"></span>
+              <span class="hnub hnub--in"></span><span class="hnub hnub--out"></span>
             </div>
 
-            <div class="enode" data-node="load_tasks" style="left:278px;top:140px">
+            <div class="enode" data-node="load_tasks" style="left:530px;top:140px">
               <div class="enode__head">
                 <span class="enode__tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 12v6"/><path d="m9 15 3 3 3-3"/></svg></span>
                 <span class="enode__id">load_tasks</span>
@@ -466,7 +541,7 @@
               <span class="hnub hnub--in"></span><span class="hnub hnub--out"></span>
             </div>
 
-            <div class="enode enode--err" data-node="implement" style="left:530px;top:140px">
+            <div class="enode enode--err" data-node="implement" style="left:782px;top:140px">
               <span class="enode__badge" title="This node has a validation error"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12" y2="17"/></svg></span>
               <div class="enode__head">
                 <span class="enode__tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5M8 3H3v5M12 22v-8.3a4 4 0 0 0-1.17-2.83L3 3M15 9l6-6"/></svg></span>
@@ -481,7 +556,7 @@
               <span class="hnub hnub--in"></span><span class="hnub hnub--out"></span>
             </div>
 
-            <div class="enode" data-node="execute_task" style="left:782px;top:140px">
+            <div class="enode" data-node="execute_task" style="left:1034px;top:140px">
               <div class="enode__head">
                 <span class="enode__tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="12" rx="2"/><path d="M12 8V4M8 4h8"/><circle cx="9" cy="14" r="1"/><circle cx="15" cy="14" r="1"/></svg></span>
                 <span class="enode__id">execute_task</span>
@@ -498,7 +573,7 @@
               <span class="hnub hnub--err" title="on_error output · no route declared: exhausting retries quarantines the step"></span>
             </div>
 
-            <div class="enode" data-node="collect" style="left:1034px;top:140px">
+            <div class="enode" data-node="collect" style="left:1286px;top:140px">
               <div class="enode__head">
                 <span class="enode__tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 21V9a9 9 0 0 0 9 9"/></svg></span>
                 <span class="enode__id">collect</span>
@@ -510,7 +585,7 @@
               <span class="hnub hnub--in"></span><span class="hnub hnub--out"></span>
             </div>
 
-            <div class="enode" data-node="review" style="left:1286px;top:140px">
+            <div class="enode" data-node="review" style="left:1538px;top:140px">
               <div class="enode__head">
                 <span class="enode__tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 7 17l-5-5"/><path d="m22 10-7.5 7.5L13 16"/></svg></span>
                 <span class="enode__id">review</span>
@@ -523,7 +598,7 @@
               <span class="hnub hnub--in"></span><span class="hnub hnub--out"></span>
             </div>
 
-            <div class="enode" data-node="verify" style="left:1538px;top:140px">
+            <div class="enode" data-node="verify" style="left:1790px;top:140px">
               <div class="enode__head">
                 <span class="enode__tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg></span>
                 <span class="enode__id">verify</span>
@@ -536,7 +611,7 @@
               <span class="hnub hnub--in"></span><span class="hnub hnub--out"></span>
             </div>
 
-            <div class="enode" data-node="approve" style="left:1790px;top:140px">
+            <div class="enode" data-node="approve" style="left:2042px;top:140px">
               <div class="enode__head">
                 <span class="enode__tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="7" r="4"/><path d="M2 21v-2a4 4 0 0 1 4-4h6"/><polyline points="16 11 18 13 22 9"/></svg></span>
                 <span class="enode__id">approve</span>
@@ -546,6 +621,37 @@
                 <div class="krow"><span class="kk">human</span><span class="kv">ship approval</span></div>
                 <!-- spec gate expiry (ADR-017): approval may escalate, never waits forever -->
                 <div class="krow"><span class="kk">expires</span><span class="kv kv--dim">72h · escalate</span></div>
+              </div>
+              <span class="hnub hnub--in"></span><span class="hnub hnub--out"></span>
+            </div>
+
+            <!-- NEW · lifecycle — spec wait kind (ADR-017): durable event wait after ship approval.
+                 expires.after with neither escalate nor route ⇒ warning wait_expiry_without_path (dock). -->
+            <div class="enode" data-node="await_deploy_ack" style="left:2294px;top:140px">
+              <div class="enode__head">
+                <span class="enode__tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 22h14M5 2h14M17 22v-4.2a2 2 0 0 0-.59-1.42L12 12l-4.41 4.38A2 2 0 0 0 7 17.8V22M7 2v4.2a2 2 0 0 0 .59 1.42L12 12l4.41-4.38A2 2 0 0 0 17 6.2V2"/></svg></span>
+                <span class="enode__id">await_deploy_ack</span>
+                <span class="enode__cls">control</span>
+              </div>
+              <div class="enode__body">
+                <div class="krow"><span class="kk">kind</span><span class="kv kv--dim">wait · event</span></div>
+                <div class="krow"><span class="kk">expect</span><span class="kv">deploy_id</span></div>
+                <div class="krow"><span class="kk">expires</span><span class="kv kv--dim">24h</span></div>
+              </div>
+              <span class="hnub hnub--in"></span><span class="hnub hnub--out"></span>
+            </div>
+
+            <!-- NEW · lifecycle — spec run-loop close policy: on_parent_close terminate | cancel | abandon -->
+            <div class="enode" data-node="release_notes" style="left:2546px;top:140px">
+              <div class="enode__head">
+                <span class="enode__tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9"/><polyline points="3 4 3 12 11 12"/></svg></span>
+                <span class="enode__id">release_notes</span>
+                <span class="enode__cls">action</span>
+              </div>
+              <div class="enode__body">
+                <div class="krow"><span class="kk">kind</span><span class="kv kv--dim">run-loop</span></div>
+                <div class="krow"><span class="kk">loop</span><span class="kv">release-notes</span></div>
+                <div class="krow"><span class="kk">on_parent_close</span><span class="kv kv--dim">cancel</span></div>
               </div>
               <span class="hnub hnub--in"></span>
             </div>
@@ -566,11 +672,16 @@
 <div>  slug: { type: string, required: true }</div>
 <div>  implementer: { type: agent, default: code_implementer }</div>
 <div>  verify_command: { type: string, default: "" }</div>
+<div>  target_branch: { type: string, default: main }</div>
+<div>  auto_commit: { type: bool, default: true }</div>
 <div>contract:</div>
 <div>  goal: "Ship every authored task under .compozy/tasks/{{ .inputs.slug }}"</div>
 <div>  definition_of_done: "All tasks terminal, judge approved with evidence, project checks pass."</div>
 <div>  iteration_cap: 50</div>
-<div>  on_canceled:                       # fires exactly once on the canceled terminal</div>
+<div>  on_failed:                         # contract terminal triggers: plain effect lists, once per run</div>
+<div>    - tool: compozy__network_send</div>
+<div>      with: { channel: ops, body: "software-delivery ended: failed" }</div>
+<div>  on_canceled:                       # fires exactly once on the canceled terminal — kill included</div>
 <div>    - emit: { kind: delivery_canceled }</div>
 <div>graph:</div>
 <div>  nodes:</div>
@@ -596,8 +707,11 @@
 <div>        backoff: { base: 30s, max: 5m }</div>
 <div>        non_retryable: [tool_invalid_input]</div>
 <div>      result_contract: { failure_field: err, message_field: err.message }</div>
-<div>      on_retry:</div>
+<div>      on_retry:                      # plain effect list · effects are fail-open, observe-only</div>
 <div>        - emit: { kind: task_retrying }</div>
+<div>      on_quarantine:                 # each entry exactly one of emit | tool (effect_shape_invalid)</div>
+<div>        - tool: compozy__network_send</div>
+<div>          with: { channel: ops, body: "{{ .item.id }} quarantined: {{ effect.failure.cause }}" }</div>
 <div>    - { id: collect, class: control, kind: collect }</div>
 <div>    - id: review</div>
 <div>      class: control</div>
@@ -618,12 +732,27 @@
 <div>      kind: gate</div>
 <div>      criteria:</div>
 <div>        - { id: ship, type: human, prompt: "Approve into {{ .inputs.target_branch }}?" }</div>
-<div>      on_result: { pass: done, fail: next_generation }</div>
+<div>      on_result: { pass: await_deploy_ack, fail: next_generation }</div>
 <div>      expires:                       # human gates may expire + escalate (ADR-017)</div>
 <div>        after: 72h</div>
 <div>        escalate:</div>
 <div>          - tool: compozy__network_send</div>
 <div>            with: { channel: ops, body: "still waiting: {{ effect.wait.link }}" }</div>
+<div>    - id: await_deploy_ack           # NEW · lifecycle — wait kind (ADR-017)</div>
+<div>      class: control</div>
+<div>      kind: wait</div>
+<div>      params:</div>
+<div>        event: { … }                 # subscription — same shape as watch-events; spec elides the block</div>
+<div>        expect: { type: object, required: [deploy_id] }</div>
+<div>        ahead_arrival: consume_on_entry   # | reject</div>
+<div>        expires:</div>
+<div>          after: 24h                 # no escalate, no route ⇒ needs-attention on expiry</div>
+<div data-flag>                                   # ⚠ wait_expiry_without_path — warning, does not block publish</div>
+<div>    - id: release_notes              # NEW · lifecycle — run-loop close policy</div>
+<div>      class: action</div>
+<div>      kind: run-loop</div>
+<div>      loop: release-notes</div>
+<div>      on_parent_close: cancel        # terminate (default) | cancel | abandon · parent → child only</div>
 <div>  edges:</div>
 <div>    - { from: slug, to: load_tasks }</div>
 <div>    - { from: load_tasks, to: implement }</div>
@@ -632,7 +761,21 @@
 <div>    - { from: collect, to: review }</div>
 <div>    - { from: review, to: verify }</div>
 <div>    - { from: verify, to: approve }</div>
-<div>start: [ { kind: manual }, { kind: cli }, { kind: http }, { kind: uds }, { kind: native_tool }, { kind: schedule } ]</div></pre>
+<div>    - { from: approve, to: await_deploy_ack }</div>
+<div>    - { from: await_deploy_ack, to: release_notes }</div>
+<div>start:                             # NEW · start-authoring — allowlist (StartBinding); surfaces authored in Start lane</div>
+<div data-dsl-kind="manual">  - { kind: manual }</div>
+<div data-dsl-kind="cli">  - { kind: cli }</div>
+<div data-dsl-kind="http">  - { kind: http }                 # POST /api/workspaces/:ws/loops/software-delivery/run</div>
+<div data-dsl-kind="uds">  - { kind: uds }</div>
+<div data-dsl-kind="native_tool">  - { kind: native_tool }          # compozy__loop_run</div>
+<div data-dsl-kind="schedule">  - kind: schedule                 # rhythm lives on the attached automation job (nightly · 0 3 * * *)</div>
+<div data-dsl-kind="schedule">    inputs: { slug: loops-paper }  # static inputs only — start_input_mapping_invalid guards mapping</div>
+<div data-dsl-kind="webhook" data-wh style="display:none">  - kind: webhook                  # attached automation trigger: sd-deploys (HMAC-signed ingress)</div>
+<div data-dsl-kind="webhook" data-wh style="display:none">    input_mapping: { slug: "{{ .trigger.payload.slug }}" }</div>
+<div data-dsl-kind="trigger" style="display:none">  - { kind: trigger }</div>
+<div data-dsl-kind="network" style="display:none">  - { kind: network }</div>
+<div data-dsl-kind="extension" style="display:none">  - { kind: extension }</div></pre>
         </div>
       </div>
 
@@ -640,28 +783,41 @@
       <div class="dock collapsed" id="dock" data-od-id="loop-editor-validation">
         <div class="dock__head" id="dockHead" role="button" aria-expanded="false" tabindex="0">
           <span class="eyebrow">Validation</span>
-          <span class="dock__cnt" id="dockCount" data-tone="danger">1 issue</span>
+          <!-- severity split — spec N-003: zero counts render nothing; only errors gate Publish -->
+          <span class="dock__cnt" id="dockErrCount" data-tone="danger">1 error</span>
+          <span class="dock__cnt" data-tone="warning">1 warning</span>
           <span class="dock__chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
         </div>
         <div class="dock__body">
-          <div class="dock__clean"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>All invariants pass. Publish compiles the resolved form and saves with an expected_version compare-and-swap.</div>
-          <div class="issue" id="issueFanout">
+          <div class="dock__clean"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>No blocking issues. Publish compiles the resolved form and saves with an expected_version compare-and-swap.</div>
+          <div class="issue issue--error" id="issueFanout">
             <span class="issue__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="13"/><line x1="12" y1="16" x2="12" y2="16"/></svg></span>
             <div class="issue__b">
               <div class="issue__t"><b>implement</b> · max_fan_out (80) exceeds the daemon ceiling of 64.</div>
-              <div class="issue__m">code: fan_out_ceiling_exceeded · publish returns 422 until resolved</div>
+              <div class="issue__m">code: fan_out_ceiling_exceeded · error · publish returns 422 until resolved</div>
             </div>
             <button class="issue__act" id="revealBtn" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>Reveal node</button>
+          </div>
+          <!-- NEW · lifecycle — spec warning severity (wait_expiry_without_path): visible, never gates Publish -->
+          <div class="issue" id="issueWaitExpiry">
+            <span class="issue__ic issue__ic--warn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12" y2="17"/></svg></span>
+            <div class="issue__b">
+              <div class="issue__t"><b>await_deploy_ack</b> · expires.after has neither escalate nor route — expiry will flag needs-attention.</div>
+              <div class="issue__m">code: wait_expiry_without_path · warning · does not block publish</div>
+            </div>
+            <button class="issue__act" id="revealWaitBtn" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>Reveal node</button>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- INSPECTOR · 344px — LaneTabs Contract | Node (loop-editor-sidebar.tsx) -->
+    <!-- INSPECTOR · 344px — LaneTabs Contract | Start | Node
+         (proposal over production Contract|Node — start[] is sibling of contract, not inside it) -->
     <aside class="inspector" data-od-id="loop-editor-inspector">
       <div class="lanetabs" role="tablist" aria-label="Loop editor inspector">
         <button role="tab" aria-selected="false" data-tab="contract">Contract</button>
-        <button role="tab" aria-selected="true" data-tab="node">Node</button>
+        <button role="tab" aria-selected="true" data-tab="start">Start</button>
+        <button role="tab" aria-selected="false" data-tab="node">Node</button>
       </div>
       <div class="insp-scroll">
         <div class="tabpane" id="pane-contract">
@@ -677,10 +833,192 @@
                 <label class="flabel">Definition of done</label>
                 <textarea class="input" rows="3" style="min-height:80px">All loaded tasks reached a terminal state, the acceptance judge approved with evidence, and the project verification passed.</textarea>
               </div>
+              <!-- NEW · lifecycle — spec contract terminal triggers: seven plain effect lists,
+                   firing exactly once per run on the resulting outcome (kill included). -->
+              <details class="fold" open data-od-id="loop-editor-contract-reactions">
+                <summary>Terminal reactions<span class="fsub">on_done … on_canceled</span><span class="fnew">new · lifecycle</span><span class="fchev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span></summary>
+                <div class="fold__body" id="contractReactions"><!-- rendered by JS --></div>
+              </details>
             </div>
           </div>
         </div>
-        <div class="tabpane on" id="pane-node">
+
+        <!-- NEW · start-authoring (owner revision 2026-08-02): start[] allowlist — not Contract fields.
+             Surfaces = Switch on/off ↔ presence in start[]. Hands-free = allowlist + attached automation.
+             StartBinding shape stays {kind, inputs?, input_mapping?} (gate_start.go). -->
+        <div class="tabpane on" id="pane-start" data-od-id="loop-editor-start-lane">
+          <div class="start-pane">
+            <p class="contract__intro">Ways into this loop. Off removes the kind from <code class="mono">start[]</code> — callers get <code class="mono">start_kind_not_allowed</code>.</p>
+
+            <div class="start-sec" data-od-id="start-surfaces">
+              <div class="start-sec__lbl">Surfaces <span>allowlist · almost no per-binding config</span></div>
+
+              <div class="allow" data-kind="manual" data-on="true">
+                <div class="allow__row">
+                  <div class="switch" role="switch" aria-checked="true" tabindex="0" aria-label="Allow manual"></div>
+                  <div class="allow__meta"><b>manual</b><span>Declared for operator starts. No wired producer today — the web Run form starts over <code class="mono">http</code>.</span></div>
+                </div>
+                <div class="allow__extra">
+                  <div class="field"><label class="flabel">inputs <span class="opt">optional · static</span></label>
+                    <textarea class="input input--mono" rows="2" placeholder="key: value — keys must name declared loop inputs"></textarea>
+                    <p class="hint">Bound to every run this surface starts; unknown keys answer <code>start_input_invalid</code>.</p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="allow" data-kind="cli" data-on="true">
+                <div class="allow__row">
+                  <div class="switch" role="switch" aria-checked="true" tabindex="0" aria-label="Allow cli"></div>
+                  <div class="allow__meta"><b>cli</b><span>Declared for CLI starts; like manual, no producer wired today.</span></div>
+                </div>
+                <div class="allow__extra">
+                  <div class="field"><label class="flabel">inputs <span class="opt">optional · static</span></label>
+                    <textarea class="input input--mono" rows="2" placeholder="key: value"></textarea>
+                  </div>
+                </div>
+              </div>
+
+              <div class="allow" data-kind="http" data-on="true">
+                <div class="allow__row">
+                  <div class="switch" role="switch" aria-checked="true" tabindex="0" aria-label="Allow http"></div>
+                  <div class="allow__meta"><b>http</b><span>Web Run form + API · <code class="mono">POST …/loops/…/run</code></span></div>
+                </div>
+                <div class="allow__extra">
+                  <div class="allow__warn">Off disables the web Run path — Run answers <code class="mono">start_kind_not_allowed</code>.</div>
+                  <div class="field"><label class="flabel">inputs <span class="opt">optional · static</span></label>
+                    <textarea class="input input--mono" rows="2" placeholder="key: value"></textarea>
+                  </div>
+                </div>
+              </div>
+
+              <div class="allow" data-kind="uds" data-on="true">
+                <div class="allow__row">
+                  <div class="switch" role="switch" aria-checked="true" tabindex="0" aria-label="Allow uds"></div>
+                  <div class="allow__meta"><b>uds</b><span>Local-socket twin of http, stamped <code class="mono">uds</code> by transport.</span></div>
+                </div>
+                <div class="allow__extra">
+                  <div class="field"><label class="flabel">inputs <span class="opt">optional · static</span></label>
+                    <textarea class="input input--mono" rows="2" placeholder="key: value"></textarea>
+                  </div>
+                </div>
+              </div>
+
+              <div class="allow" data-kind="native_tool" data-on="true">
+                <div class="allow__row">
+                  <div class="switch" role="switch" aria-checked="true" tabindex="0" aria-label="Allow native_tool"></div>
+                  <div class="allow__meta"><b>native_tool</b><span><code class="mono">compozy__loop_run</code> · agent-session provenance</span></div>
+                </div>
+                <div class="allow__extra">
+                  <div class="field"><label class="flabel">inputs <span class="opt">optional · static</span></label>
+                    <textarea class="input input--mono" rows="2" placeholder="key: value"></textarea>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="start-sec" data-od-id="start-handsfree">
+              <div class="start-sec__lbl">Hands-free <span>allowlist + attached Job / Trigger</span></div>
+              <p class="hint" style="margin:0">Cron, endpoint, and secret live on the automation resource — never on <code>StartBinding</code>.</p>
+
+              <div class="allow" data-kind="schedule" data-on="true" id="allow-schedule">
+                <div class="allow__row">
+                  <div class="switch" role="switch" aria-checked="true" tabindex="0" aria-label="Allow schedule"></div>
+                  <div class="allow__meta"><b>schedule</b><span>An automation Job targets this loop on a rhythm.</span></div>
+                </div>
+                <div class="allow__extra">
+                  <div class="hf-attach">
+                    <div class="hf-attach__h">Attached job <span class="monotag">automation</span></div>
+                    <div class="field"><div class="flabel">Job</div><div class="staticrow"><span class="sv">nightly · enabled</span><span class="monotag">job</span></div></div>
+                    <div class="field"><label class="flabel">cron</label>
+                      <input class="input input--mono" value="0 3 * * *">
+                      <p class="hint">Saved on the Job — its own save, not Publish.</p>
+                    </div>
+                    <div class="field"><div class="flabel">Next fire</div><div class="staticrow"><span class="sv">tomorrow 03:00</span><span class="monotag">derived</span></div></div>
+                    <div class="field"><label class="flabel">catch_up</label>
+                      <select class="input"><option selected>skip_missed</option><option>coalesce</option></select>
+                    </div>
+                  </div>
+                  <div class="field"><label class="flabel">inputs <span class="opt">static only</span></label>
+                    <textarea class="input input--mono" rows="2">slug: loops-paper</textarea>
+                    <p class="hint"><code>input_mapping</code> is rejected (<code>start_input_mapping_invalid</code>).</p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="allow" data-kind="webhook" data-on="false" id="allow-webhook" hidden>
+                <div class="allow__row">
+                  <div class="switch" role="switch" aria-checked="false" tabindex="0" aria-label="Allow webhook"></div>
+                  <div class="allow__meta"><b>webhook</b><span>Signed external POST at your endpoint.</span></div>
+                </div>
+                <div class="allow__extra">
+                  <div class="hf-attach">
+                    <div class="hf-attach__h">Attached trigger <span class="monotag">automation</span></div>
+                    <div class="field"><label class="flabel">Endpoint slug</label>
+                      <input class="input input--mono" value="sd-deploys">
+                      <p class="hint">POST /api/webhooks/workspaces/:ws/sd-deploys — HMAC-signed.</p>
+                    </div>
+                    <div class="field"><label class="flabel">Signing secret</label>
+                      <input class="input input--mono" value="whsec_ ········">
+                    </div>
+                  </div>
+                  <div class="field"><label class="flabel">input_mapping <span class="opt">trigger payload</span></label>
+                    <textarea class="input input--mono" rows="2">slug: "{{ .trigger.payload.slug }}"</textarea>
+                    <p class="hint">Exactly <code>{{ .trigger.payload.&lt;field&gt; }}</code> — flat field, no spaces.</p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="allow" data-kind="trigger" data-on="false" id="allow-trigger" hidden>
+                <div class="allow__row">
+                  <div class="switch" role="switch" aria-checked="false" tabindex="0" aria-label="Allow trigger"></div>
+                  <div class="allow__meta"><b>trigger</b><span>Runtime event Trigger fires into this loop.</span></div>
+                </div>
+                <div class="allow__extra">
+                  <div class="hf-attach">
+                    <div class="hf-attach__h">Attached trigger <span class="monotag">automation</span></div>
+                    <p class="hint" style="margin:0">Create/edit the Trigger in Automation — attach when this kind is declared.</p>
+                  </div>
+                  <div class="field"><label class="flabel">input_mapping <span class="opt">trigger payload</span></label>
+                    <textarea class="input input--mono" rows="2" placeholder='slug: "{{ .trigger.payload.slug }}"'></textarea>
+                  </div>
+                </div>
+              </div>
+
+              <div class="allow" data-kind="network" data-on="false" id="allow-network" hidden>
+                <div class="allow__row">
+                  <div class="switch" role="switch" aria-checked="false" tabindex="0" aria-label="Allow network"></div>
+                  <div class="allow__meta"><b>network</b><span>A network peer starts this loop.</span></div>
+                </div>
+                <div class="allow__extra">
+                  <div class="field"><label class="flabel">inputs <span class="opt">optional · static</span></label>
+                    <textarea class="input input--mono" rows="2" placeholder="key: value"></textarea>
+                  </div>
+                </div>
+              </div>
+
+              <div class="allow" data-kind="extension" data-on="false" id="allow-extension" hidden>
+                <div class="allow__row">
+                  <div class="switch" role="switch" aria-checked="false" tabindex="0" aria-label="Allow extension"></div>
+                  <div class="allow__meta"><b>extension</b><span>An installed extension starts this loop.</span></div>
+                </div>
+                <div class="allow__extra">
+                  <div class="field"><label class="flabel">inputs <span class="opt">optional · static</span></label>
+                    <textarea class="input input--mono" rows="2" placeholder="key: value"></textarea>
+                  </div>
+                </div>
+              </div>
+
+              <div class="start-add">
+                <button class="btn-sm btn-neutral" type="button" data-start-kind="webhook" id="addWebhookBtn">+ Webhook</button>
+                <button class="btn-sm btn-neutral" type="button" data-start-kind="trigger">+ Trigger</button>
+                <button class="btn-sm btn-neutral" type="button" data-start-kind="network">+ Network</button>
+                <button class="btn-sm btn-neutral" type="button" data-start-kind="extension">+ Extension</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="tabpane" id="pane-node">
           <div class="insp-head" id="inspHead">
             <div class="insp-head__row">
               <span class="insp-head__name" id="inspName">execute_task</span>
@@ -738,8 +1076,19 @@
         {t:"text", k:"Retry · backoff", v:"base 30s · max 5m", mono:true, hint:"Growing pause between attempts; the run page shows the countdown."},
         {t:"text", k:"Retry · non_retryable", v:"tool_invalid_input", mono:true, hint:"Failure classes or machine codes that skip retries."},
         {t:"text", k:"result_contract", v:"failure_field: err · message_field: err.message", mono:true, hint:"Where the payload reports failure, so a success-shaped error still counts as one."},
-        {t:"select", k:"on_error · route", v:"(none: quarantine after retries)", opts:["(none: quarantine after retries)","collect","next_generation"], hint:"Forward-only fallback edge. Exclusive with <code>allow_fail</code> (<code>error_route_conflict</code>)."},
-        {t:"text", k:"on_retry · effects", v:"emit: task_retrying", mono:true, hint:"Effects run fail-open: a failed effect is recorded on the timeline and never touches the step."}
+        // spec on_error object: flow (route XOR allow_fail) + its own effect list
+        {t:"select", k:"on_error · after retries", v:"(none: quarantine after retries)", opts:["(none: quarantine after retries)","route → collect","route → next_generation","allow_fail · continue"], hint:"Forward-only route XOR <code>allow_fail</code> (<code>error_route_conflict</code> · <code>error_route_backward</code>)."},
+        {t:"effects", k:"on_error · effects", rows:[]}
+      ]},
+      // spec: the six plain node triggers, each a list of EffectSpec entries (emit XOR tool)
+      {t:"fold", k:"Reactions", sub:"on_retry · on_success · on_pause · on_timeout · on_cancel · on_quarantine", tag:"new · lifecycle", fields:[
+        {t:"hint", v:"Effects are fail-open and observe-only: a failed effect is recorded on the timeline and never touches the step. Kill suppresses node <code>on_*</code> effects."},
+        {t:"effects", k:"on_retry", rows:[{kind:"emit", v:"task_retrying"}]},
+        {t:"effects", k:"on_success", rows:[]},
+        {t:"effects", k:"on_pause", rows:[]},
+        {t:"effects", k:"on_timeout", rows:[]},
+        {t:"effects", k:"on_cancel", rows:[]},
+        {t:"effects", k:"on_quarantine", rows:[{kind:"tool", v:"compozy__network_send", with:"channel: ops · body: {{ .item.id }} quarantined: {{ effect.failure.cause }}"}]}
       ]},
       {t:"static", k:"Produces", v:"nodes.execute_task.output", tag:"from schema"}
     ]},
@@ -768,12 +1117,37 @@
       {t:"text", k:"Node id", v:"approve", mono:true},
       {t:"crits", k:"Criteria", rows:[{id:"ship", type:"human", prompt:"Approve the delivered work for {{ .inputs.slug }} into {{ .inputs.target_branch }}?"}]},
       {t:"select", k:"Verdict policy", v:"fixed_passes", opts:["revise_until_clean","fixed_passes"]},
+      {t:"text", k:"On pass → target", v:"await_deploy_ack", mono:true},
+      {t:"text", k:"On fail → target", v:"next_generation", mono:true},
       {t:"fold", k:"Expiry & escalation", sub:"expires.after · escalate", tag:"new · lifecycle", fields:[
         {t:"text", k:"expires.after", v:"72h", mono:true, hint:"With neither escalate nor route, expiry flags needs-attention (<code>wait_expiry_without_path</code> warns)."},
-        {t:"text", k:"escalate", v:"compozy__network_send → ops", mono:true, hint:"Reminder ladder while waiting; the run page shows the ladder position."}
+        {t:"text", k:"escalate", v:"compozy__network_send → ops", mono:true, hint:"Reminder ladder while waiting; the run page shows the ladder position. The same <code>expires</code> block is valid on wait nodes."}
       ]},
       {t:"hint", v:"A live needs-approval pause, not a terminal: the run parks here until a decision."}
-    ]}
+    ]},
+    // NEW · lifecycle — spec wait kind (ADR-017): for | until | event (XOR) + expect + ahead_arrival + expires
+    await_deploy_ack: {cls:"control", kind:"wait", fields:[
+      {t:"text", k:"Node id", v:"await_deploy_ack", mono:true},
+      {t:"select", k:"Wait on", v:"event", opts:["for","until","event"], hint:"Exactly one of <code>for</code> · <code>until</code> · <code>event</code> (<code>wait_shape_invalid</code>)."},
+      {t:"text", k:"event · subscription", v:"{ … }", mono:true, hint:"Same subscription shape as Watch events; the TechSpec elides the block here."},
+      {t:"textarea", k:"expect", opt:"optional · JSON Schema", mono:true, v:'{ "type": "object",\n  "required": ["deploy_id"] }', hint:"Resume payloads — event or manual resume — validate against this schema; single-claim."},
+      {t:"select", k:"ahead_arrival", v:"consume_on_entry", opts:["consume_on_entry","reject"], hint:"What happens when the event already arrived before the wait started."},
+      {t:"fold", k:"Expiry", sub:"expires.after · escalate · route", tag:"new · lifecycle", open:true, fields:[
+        {t:"text", k:"expires.after", v:"24h", mono:true},
+        {t:"text", k:"escalate", v:"", mono:true, ph:"no reminder ladder"},
+        {t:"select", k:"route", v:"(none: flag needs-attention)", opts:["(none: flag needs-attention)","release_notes"], hint:"With neither escalate nor route, expiry flags needs-attention (<code>wait_expiry_without_path</code> warns — see the validation dock)."}
+      ]},
+      {t:"hint", v:"A durable pause: the run parks here with clocks suspended and stays visible on the run page."}
+    ]},
+    // NEW · lifecycle — spec run-loop close policy: on_parent_close terminate | cancel | abandon (default terminate)
+    release_notes: {cls:"action", kind:"run-loop", fields:[
+      {t:"text", k:"Node id", v:"release_notes", mono:true},
+      {t:"text", k:"Loop", v:"release-notes", mono:true, req:true, hint:"The child loop this node starts and tracks as one step."},
+      {t:"select", k:"on_parent_close", v:"cancel", opts:["terminate","cancel","abandon"], hint:"What happens to the child when this run closes. Default <code>terminate</code>; propagation is strictly parent → child."},
+      {t:"static", k:"Produces", v:"nodes.release_notes.output", tag:"derived"}
+    ]},
+    // start_* inspector models removed — surfaces/hands-free live in pane-start (owner revision).
+    // StartBinding remains {kind, inputs?, input_mapping?} only (gate_start.go).
   };
 
   function esc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
@@ -810,8 +1184,35 @@
     if(f.t==="fold"){
       return '<details class="fold"'+(f.open?' open':'')+'><summary>'+esc(f.k)+(f.sub?'<span class="fsub">'+esc(f.sub)+'</span>':'')+(f.tag?'<span class="fnew">'+esc(f.tag)+'</span>':'')+'<span class="fchev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span></summary><div class="fold__body">'+f.fields.map(fieldHTML).join('')+'</div></details>';
     }
+    // effect list — spec EffectSpec: exactly one of emit/tool per entry (effect_shape_invalid); with supplies tool args
+    if(f.t==="effects"){
+      var fxRows = (f.rows||[]).map(function(r){
+        var withRow = r.kind==="tool" ? '<div class="fx__with"><span class="wk">with</span><input class="input input--mono" value="'+esc(r.with||'')+'"></div>' : '';
+        return '<div class="fx__row"><div class="fx__main">'+
+          '<select class="input" aria-label="Effect shape"><option'+(r.kind==="emit"?' selected':'')+'>emit</option><option'+(r.kind==="tool"?' selected':'')+'>tool</option></select>'+
+          '<input class="input input--mono" value="'+esc(r.v)+'" aria-label="'+(r.kind==="tool"?'ToolID':'Event kind')+'">'+
+          '<button class="fx__rm" type="button" title="Remove effect"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>'+
+          '</div>'+withRow+'</div>';
+      }).join('');
+      return '<div class="field fx"><div class="fx__lbl">'+esc(f.k)+(f.note?'<span class="fxn">'+esc(f.note)+'</span>':'')+'</div>'+fxRows+
+        '<button class="addbtn" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add effect</button>'+
+        (f.hint?'<p class="hint">'+f.hint+'</p>':'')+'</div>';
+    }
     return '';
   }
+
+  // ── contract terminal triggers — spec: seven plain effect lists, once per run ──
+  var CONTRACT_FX = [
+    {t:"hint", v:"Each trigger is a plain effect list firing exactly once per run on the resulting outcome — kill included (kill suppresses node <code>on_*</code> effects, never these)."},
+    {t:"effects", k:"on_done", rows:[]},
+    {t:"effects", k:"on_noop", rows:[]},
+    {t:"effects", k:"on_blocked", rows:[]},
+    {t:"effects", k:"on_failed", rows:[{kind:"tool", v:"compozy__network_send", with:"channel: ops · body: software-delivery ended: failed"}]},
+    {t:"effects", k:"on_exhausted", rows:[]},
+    {t:"effects", k:"on_stalled", rows:[]},
+    {t:"effects", k:"on_canceled", rows:[{kind:"emit", v:"delivery_canceled"}]}
+  ];
+  document.getElementById("contractReactions").innerHTML = CONTRACT_FX.map(fieldHTML).join("");
 
   var inspName = document.getElementById("inspName"), inspTag = document.getElementById("inspTag"),
       inspKind = document.getElementById("inspKind"), inspId = document.getElementById("inspId"),
@@ -847,14 +1248,14 @@
   // ── validation demo: max_fan_out 80 > 64 blocks Publish until fixed ─────
   var CEIL = 64;
   var dock = document.getElementById("dock"), dockHead = document.getElementById("dockHead"),
-      dockCount = document.getElementById("dockCount"), publishBtn = document.getElementById("publishBtn"),
+      dockErrCount = document.getElementById("dockErrCount"), publishBtn = document.getElementById("publishBtn"),
       implNode = document.querySelector('.enode[data-node="implement"]'),
       dslOffending = document.getElementById("dslOffending");
 
   function setOk(ok){
     dock.classList.toggle("is-clean", ok);
-    dockCount.textContent = ok ? "0 issues" : "1 issue";
-    dockCount.setAttribute("data-tone", ok ? "success" : "danger");
+    // zero counts render nothing; the warning chip persists — warnings never gate Publish (spec N-003)
+    dockErrCount.style.display = ok ? "none" : "";
     implNode.classList.toggle("enode--err", !ok);
     var badge = implNode.querySelector(".enode__badge");
     if(badge) badge.style.display = ok ? "none" : "grid";
@@ -876,6 +1277,7 @@
     setOk(!bad);
   }
   document.getElementById("revealBtn").addEventListener("click", function(){ render("implement"); });
+  document.getElementById("revealWaitBtn").addEventListener("click", function(){ render("await_deploy_ack"); });
   document.getElementById("validateBtn").addEventListener("click", function(){
     dock.classList.remove("collapsed"); dockHead.setAttribute("aria-expanded","true");
   });
@@ -885,12 +1287,13 @@
   });
   dockHead.addEventListener("keydown", function(e){ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); dockHead.click(); } });
 
-  // ── inspector tabs ───────────────────────────────────────────────────────
+  // ── inspector tabs — Contract | Start | Node ─────────────────────────────
   function selectTab(tab){
     document.querySelectorAll(".lanetabs button").forEach(function(b){
       b.setAttribute("aria-selected", String(b.getAttribute("data-tab") === tab));
     });
     document.getElementById("pane-contract").classList.toggle("on", tab === "contract");
+    document.getElementById("pane-start").classList.toggle("on", tab === "start");
     document.getElementById("pane-node").classList.toggle("on", tab === "node");
   }
   document.querySelectorAll(".lanetabs button").forEach(function(b){
@@ -904,9 +1307,64 @@
       var v = b.getAttribute("data-view");
       document.getElementById("view-graph").classList.toggle("on", v === "graph");
       document.getElementById("view-dsl").classList.toggle("on", v === "dsl");
-      document.getElementById("startStrip").style.display = (v === "graph") ? "" : "none";
     });
   });
+
+  // ── NEW · start-authoring (owner revision): Start lane allowlist syncs chips + DSL ──
+  // Presence in start[] ↔ Switch on. No canvas binding nodes. Publish still CAS-patches start[].
+  function syncStartUI(){
+    document.querySelectorAll(".allow[data-kind]").forEach(function(row){
+      var kind = row.getAttribute("data-kind");
+      var on = row.getAttribute("data-on") === "true";
+      var chip = document.querySelector('.startstrip .schip[data-kind="'+kind+'"]');
+      if(chip){
+        if(on){ chip.hidden = false; } else { chip.hidden = true; }
+      }
+      document.querySelectorAll('[data-dsl-kind="'+kind+'"]').forEach(function(el){
+        el.style.display = on ? "" : "none";
+      });
+    });
+  }
+  function setKindOn(kind, on, opts){
+    var row = document.querySelector('.allow[data-kind="'+kind+'"]');
+    if(!row) return;
+    if(row.hasAttribute("hidden")) row.hidden = false;
+    row.setAttribute("data-on", on ? "true" : "false");
+    var sw = row.querySelector('.switch');
+    if(sw) sw.setAttribute("aria-checked", on ? "true" : "false");
+    syncStartUI();
+    if(opts && opts.focus){
+      selectTab("start");
+      var sc = document.querySelector(".insp-scroll");
+      if(sc) sc.scrollTop = Math.max(0, row.offsetTop - 12);
+    }
+  }
+  function enableKind(kind){
+    setKindOn(kind, true, {focus:true});
+  }
+  document.querySelectorAll("#pane-start .allow .switch").forEach(function(sw){
+    function toggle(){
+      var row = sw.closest(".allow");
+      var next = sw.getAttribute("aria-checked") !== "true";
+      setKindOn(row.getAttribute("data-kind"), next, {});
+    }
+    sw.addEventListener("click", toggle);
+    sw.addEventListener("keydown", function(e){
+      if(e.key===" "||e.key==="Enter"){ e.preventDefault(); toggle(); }
+    });
+  });
+  document.querySelectorAll("[data-start-kind]").forEach(function(btn){
+    btn.addEventListener("click", function(){ enableKind(btn.getAttribute("data-start-kind")); });
+  });
+  document.querySelectorAll(".startstrip .schip").forEach(function(chip){
+    chip.addEventListener("click", function(){
+      selectTab("start");
+      var row = document.querySelector('.allow[data-kind="'+chip.getAttribute("data-kind")+'"]');
+      var sc = document.querySelector(".insp-scroll");
+      if(sc && row) sc.scrollTop = Math.max(0, row.offsetTop - 12);
+    });
+  });
+  syncStartUI();
 
   // ── zoom (minZoom .4 / maxZoom 1.6 per production canvas config) ────────
   var zoom = 100, canvas = document.getElementById("canvas"), zlabel = document.getElementById("zlabel");
@@ -916,7 +1374,9 @@
   document.getElementById("fitBtn").addEventListener("click", function(){ zoom = 100; applyZoom(); });
   document.getElementById("layoutBtn").addEventListener("click", function(){ zoom = 100; applyZoom(); });
 
+  // Prefill Node pane model; keep Start lane visible for this Visual Contract revision.
   render("execute_task");
+  selectTab("start");
 })();
 </script>
 </body>
