@@ -1,0 +1,923 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>software-delivery · Editor · Loops · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<style>
+  /* tokens — packages/ui/src/tokens.css truth (via ds-core.css) */
+  :root{
+    color-scheme: dark;
+    --rail:#0c0b0b; --canvas:#131211; --canvas-soft:#1a1918; --canvas-tint:#1c1b1a; --elevated:#232220;
+    --fg:#ececef; --fg-strong:#f6f6f8; --muted:#9a9a9f; --subtle:#76767c; --faint:#545458;
+    --line:rgba(255,255,255,.055); --line-soft:rgba(255,255,255,.03); --line-strong:rgba(255,255,255,.09);
+    --accent:#e8572a; --accent-hover:#d14e25; --accent-strong:#f6874f; --accent-ink:#17110f;
+    --accent-tint:rgba(232,87,42,.10); --accent-dim:rgba(232,87,42,.24);
+    --success:#5fbf85; --success-tint:rgba(95,191,133,.08);
+    --warning:#d6a647; --warning-tint:rgba(214,166,71,.08);
+    --danger:#e0635a;  --danger-tint:rgba(224,99,90,.09);
+    --info:#8e8eb5;    --info-tint:rgba(142,142,181,.12);
+    --neutral:#7a7a80; --neutral-tint:rgba(150,150,155,.06);
+    --row-hover:rgba(255,255,255,.022);
+    --input-fill:rgba(255,255,255,.025); --badge-fill:rgba(255,255,255,.05);
+    --btn-fill:rgba(255,255,255,.04); --btn-hover:rgba(255,255,255,.07);
+    /* canvas plumbing — derived from the token set, per web ReactFlow dark defaults */
+    --flow-bg:color-mix(in srgb,var(--canvas) 92%, white);          /* ~#141414 pane */
+    --flow-dot:color-mix(in srgb,var(--fg) 26%, var(--canvas));     /* dot grid */
+    --edge:color-mix(in srgb,var(--fg) 20%, var(--canvas));         /* ~#3e3e3e edge */
+    --handle:color-mix(in srgb,var(--fg) 24%, var(--canvas));       /* handle nub */
+    --radius-xxs:3px; --radius-xs:4px; --radius-sm:5px; --radius:6px; --radius-md:8px; --radius-lg:10px; --radius-pill:9999px;
+    --font-sans:"Inter Variable","Inter",-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --font-mono:"JetBrains Mono Variable","JetBrains Mono","SF Mono",ui-monospace,Menlo,monospace;
+    --dur:140ms; --dur-fast:100ms; --ease:cubic-bezier(.2,0,0,1);
+    --highlight:inset 0 1px 0 rgba(255,255,255,.035);
+    --focus-ring:0 0 0 2px rgba(255,255,255,.5);
+    --shadow-overlay:0 24px 48px -12px rgba(0,0,0,.65), 0 0 0 1px rgba(255,255,255,.045);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{background:var(--canvas);color:var(--fg);font-family:var(--font-sans);font-size:13.5px;line-height:1.5;letter-spacing:-.006em;
+    font-feature-settings:"cv01","ss03";-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;overflow:hidden}
+  a{color:inherit;text-decoration:none}
+  button{font:inherit;letter-spacing:inherit;color:inherit;background:none;border:0;cursor:pointer}
+  input,select,textarea{font:inherit;letter-spacing:inherit;color:inherit}
+  svg{display:block}
+  code,.mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums;font-feature-settings:normal}
+  :is(button,a,input,select,textarea,[tabindex]):focus-visible{outline:none;box-shadow:var(--focus-ring)}
+  .shell{display:flex;flex-direction:column;height:100vh;min-height:0}
+
+  /* ── shell topbar · 44px — packages/ui topbar.tsx h-11 ─────────────────── */
+  .topbar{display:flex;align-items:center;gap:10px;height:44px;flex:none;min-width:0;
+    padding:0 12px;border-bottom:1px solid var(--line);background:var(--canvas)}
+  .tb-back{width:24px;height:24px;flex:none;display:grid;place-items:center;border-radius:var(--radius);color:var(--muted)}
+  .tb-back:hover{background:var(--btn-fill);color:var(--fg-strong)}
+  .tb-back svg{width:13px;height:13px}
+  .tb-crumbs{display:flex;align-items:center;gap:2px;min-width:0}
+  .tb-crumb{font-size:13px;font-weight:500;color:var(--subtle);white-space:nowrap;border-radius:var(--radius-sm);
+    padding:1px 5px;max-width:150px;overflow:hidden;text-overflow:ellipsis}
+  .tb-crumb:hover{color:var(--fg);background:var(--row-hover)}
+  .tb-sep{flex:none;font-size:12px;color:var(--faint)}
+  .tb-title{font-size:13px;font-weight:600;color:var(--fg-strong);white-space:nowrap;padding-left:3px}
+  .tb-flex{flex:1;min-width:8px}
+  /* version pill — loop-editor-topbar-actions.tsx: Pill xs mono, dot, tone by dirty state */
+  .verpill{display:inline-flex;align-items:center;gap:5px;height:17px;padding:0 6px;border-radius:var(--radius-xs);
+    font-family:var(--font-mono);font-size:10.5px;font-weight:600;white-space:nowrap}
+  .verpill .d{width:6px;height:6px;border-radius:50%;background:currentColor;flex:none}
+  .verpill[data-tone="warning"]{background:var(--warning-tint);color:var(--warning)}
+  .verpill[data-tone="success"]{background:var(--success-tint);color:var(--success)}
+  .tb-vsep{width:1px;height:14px;background:var(--line-strong);flex:none}
+  .tb-actions{display:flex;align-items:center;gap:8px;flex:none}
+  /* Button size=sm → 22px; Validate=neutral, Publish=accent */
+  .btn-sm{display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 10px;border-radius:var(--radius-md);
+    font-size:11px;font-weight:510;white-space:nowrap;transition:background var(--dur) var(--ease),color var(--dur) var(--ease)}
+  .btn-sm svg{width:14px;height:14px}
+  .btn-neutral{background:var(--btn-fill);color:var(--fg-strong)}
+  .btn-neutral:hover{background:var(--btn-hover)}
+  .btn-accent{background:var(--accent);color:var(--accent-ink);box-shadow:var(--highlight)}
+  .btn-accent:hover{background:var(--accent-hover)}
+  .btn-accent:disabled{opacity:.5;cursor:not-allowed}
+  .btn-accent:disabled:hover{background:var(--accent)}
+  .btn-ghost{background:transparent;color:var(--muted)}
+  .btn-ghost:hover{background:var(--row-hover);color:var(--fg-strong)}
+  .btn-ghost:disabled{opacity:.5;cursor:not-allowed}
+  .btn-ghost:disabled:hover{background:transparent;color:var(--muted)}
+
+  /* ── canvas sub-toolbar · 48px — loop-editor-toolbar.tsx min-h-12 ──────── */
+  .editbar{display:flex;align-items:center;gap:10px;min-height:48px;flex:none;
+    padding:0 14px;border-bottom:1px solid var(--line);background:var(--canvas-soft)}
+  /* PillGroup Graph|DSL — segments bumped to min-h-11 by the editor */
+  .pillgroup{display:inline-flex;align-items:center;gap:1px;border-radius:var(--radius-md);background:var(--canvas-soft);padding:2px}
+  .pillgroup button{display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:0 8px;border-radius:var(--radius-xs);
+    font-size:12px;font-weight:510;letter-spacing:-.005em;color:var(--subtle);transition:color var(--dur) var(--ease),background var(--dur) var(--ease)}
+  .pillgroup button svg{width:14px;height:14px}
+  .pillgroup button:hover{color:var(--muted)}
+  .pillgroup button[aria-pressed="true"]{background:var(--elevated);color:var(--fg-strong);box-shadow:var(--highlight)}
+  .editbar__right{margin-left:auto;display:flex;align-items:center;gap:10px}
+  /* zoom cluster — border line-soft bg-input-fill p-0.5, 24px ToolIcons, % between out/in */
+  .zoomgrp{display:flex;align-items:center;gap:2px;border-radius:var(--radius-md);border:1px solid var(--line-soft);background:var(--input-fill);padding:2px}
+  .ticon{width:24px;height:24px;display:grid;place-items:center;border-radius:var(--radius-sm);color:var(--muted)}
+  .ticon svg{width:14px;height:14px}
+  .ticon:hover{background:var(--elevated);color:var(--fg-strong)}
+  .zlabel{min-width:38px;padding:0 4px;text-align:center;font-family:var(--font-mono);font-size:10.5px;color:var(--subtle)}
+
+  /* ── body grid — loop-editor.tsx grid-cols-[190px_minmax(0,1fr)_344px] ── */
+  .work{display:grid;grid-template-columns:190px minmax(0,1fr) 344px;flex:1;min-height:0}
+
+  /* ── palette — loop-editor-palette.tsx (note cards removed by request) ── */
+  .palette{display:flex;flex-direction:column;gap:16px;min-height:0;overflow-y:auto;
+    border-right:1px solid var(--line);background:var(--canvas);padding:14px 12px}
+  .eyebrow{font-size:11px;font-weight:600;letter-spacing:-.005em;text-transform:uppercase;color:var(--subtle)}
+  .pal-group{display:flex;flex-direction:column;gap:6px}
+  .pal-group__lbl{padding:0 2px;font-family:var(--font-mono);font-size:9px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--faint)}
+  .pal-item{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:var(--radius-md);text-align:left;
+    border:1px solid var(--line-soft);background:var(--canvas-soft);
+    transition:border-color var(--dur) var(--ease),background var(--dur) var(--ease)}
+  .pal-item:hover{border-color:var(--line-strong);background:var(--canvas-tint)}
+  /* sim toolbar.tsx pattern: 16px icon tile + 10px icon, scales on row hover */
+  .pal-item .tile{width:16px;height:16px;flex:none;display:grid;place-items:center;border-radius:var(--radius-xs);
+    background:var(--badge-fill);color:var(--muted)}
+  .pal-item .tile svg{width:10px;height:10px;transition:transform 200ms var(--ease)}
+  .pal-item:hover .tile svg{transform:scale(1.1)}
+  .pal-item .pn{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+    font-size:12px;font-weight:510;color:var(--fg-strong)}
+
+  /* ── center column ─────────────────────────────────────────────────────── */
+  .centercol{position:relative;display:flex;flex-direction:column;min-width:0;min-height:0;background:var(--canvas)}
+  /* start summary — loop-editor-start-summary.tsx: read-only overlay at origin */
+  .startstrip{pointer-events:none;position:absolute;left:14px;top:12px;z-index:10;display:flex;align-items:center;gap:6px;
+    border-radius:var(--radius-md);border:1px solid var(--line-soft);background:var(--canvas-soft);padding:6px 10px}
+  .startstrip .sk{font-family:var(--font-mono);font-size:9px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--faint)}
+  .startstrip .schip{border-radius:var(--radius-xs);background:var(--badge-fill);padding:2px 6px;
+    font-family:var(--font-mono);font-size:9px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--subtle)}
+  .startstrip .snote{margin-left:4px;font-size:10.5px;color:var(--faint)}
+
+  .view{display:none;flex:1;min-height:0}
+  .view.on{display:block}
+  /* dot grid — ReactFlow Background Dots gap=22 size=1, dark #555 @60% */
+  .flowpane{position:relative;height:100%;overflow:auto;background-color:var(--flow-bg);
+    background-image:radial-gradient(circle,color-mix(in srgb,var(--flow-dot) 60%,transparent) 1px,transparent 1px);
+    background-size:22px 22px}
+  .canvas{position:relative;width:2060px;height:460px;transform-origin:top left}
+
+  .edges{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible}
+  /* edges — production: 1px bezier, no arrowheads; corners smoothed per sim getSmoothStepPath radius 8 */
+  .edges path{fill:none;stroke:var(--edge);stroke-width:1.5}
+
+  /* ── node card — production loop-editor-node.tsx anatomy, sim-informed body rows ── */
+  .enode{position:absolute;width:188px;display:flex;flex-direction:column;
+    border-radius:var(--radius-md);border:1px solid var(--line);background:var(--canvas-tint);cursor:pointer;
+    transition:border-color var(--dur) var(--ease)}
+  .enode:hover{border-color:var(--line-strong)}
+  /* selection = 1.75px accent ring (sim ring width, production accent-dim color) */
+  .enode--sel{border-color:var(--accent-dim);box-shadow:0 0 0 1.75px var(--accent-dim)}
+  .enode--err{border-color:var(--danger)}
+  .enode--err.enode--sel{box-shadow:0 0 0 1.75px color-mix(in srgb,var(--danger) 40%,transparent)}
+  .enode__head{display:flex;align-items:center;gap:8px;padding:8px 10px;min-height:38px}
+  .enode__head:has(+ .enode__body){border-bottom:1px solid var(--line-soft)}
+  /* icon tile — sim 24px rounded-md; neutral surface-step, icon carries identity (color = state only) */
+  .enode__tile{width:24px;height:24px;flex:none;display:grid;place-items:center;border-radius:var(--radius);
+    background:var(--elevated);border:1px solid var(--line-strong);color:var(--muted)}
+  .enode__tile svg{width:14px;height:14px}
+  .enode--sel .enode__tile{color:var(--accent-strong)}
+  .enode__id{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+    font-size:12.5px;font-weight:510;color:var(--fg-strong)}
+  .enode__cls{font-family:var(--font-mono);font-size:9px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--faint);flex:none}
+  .enode__body{display:flex;flex-direction:column;gap:4px;padding:7px 10px 8px}
+  /* sim sub-block-row-view: label left tertiary, value right primary, fixed-pitch rows */
+  .krow{display:flex;align-items:center;gap:8px;height:18px}
+  .krow .kk{flex:none;font-size:10.5px;color:var(--subtle)}
+  .krow .kv{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:right;
+    font-family:var(--font-mono);font-size:10px;color:var(--fg)}
+  .krow .kv--dim{color:var(--muted)}
+  /* on_error row — spec on_error.route made visible at rest (sim error-output pattern) */
+  .krow--err .kk{color:color-mix(in srgb,var(--danger) 70%,var(--subtle))}
+  .krow--err .kv{color:var(--muted)}
+  .chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:2px}
+  .chips span{border-radius:var(--radius-xs);background:var(--badge-fill);padding:1px 4px;
+    font-family:var(--font-mono);font-size:9px;color:var(--subtle)}
+  /* error corner badge — production: 18px danger circle, canvas ring, 10px triangle */
+  .enode__badge{position:absolute;top:-8px;right:-8px;width:18px;height:18px;border-radius:50%;display:grid;place-items:center;
+    background:var(--danger);color:var(--accent-ink);border:2px solid var(--canvas)}
+  .enode__badge svg{width:10px;height:10px}
+  /* handles — sim tab nubs: 7×20 slab at -8px, outer corners 2px; grow on hover */
+  .hnub{position:absolute;width:7px;height:20px;background:var(--handle);transition:width 150ms var(--ease)}
+  .hnub--in{left:-8px;top:10px;border-radius:2px 0 0 2px}
+  .hnub--out{right:-8px;top:10px;border-radius:0 2px 2px 0}
+  .enode:hover .hnub{width:9px}
+  .enode:hover .hnub--in{left:-10px}
+  .enode:hover .hnub--out{right:-10px}
+  /* error output nub — red, pinned at the on_error row (sim error handle) */
+  .hnub--err{right:-8px;top:auto;bottom:12px;height:14px;border-radius:0 2px 2px 0;background:color-mix(in srgb,var(--danger) 75%,var(--canvas))}
+
+  /* ── DSL view — loop-editor-dsl-view.tsx: read-only, plain text, lint highlights ── */
+  .dsl{height:100%;overflow:auto;padding:24px}
+  .dsl-note{margin-bottom:12px;max-width:74ch;font-size:12px;line-height:1.6;color:var(--subtle)}
+  .dsl-note b{font-weight:510;color:var(--fg)}
+  .dsl-note code{font-size:11px}
+  .dsl pre{border-radius:var(--radius-md);border:1px solid var(--line-soft);background:var(--rail);padding:16px;
+    font-family:var(--font-mono);font-size:12.5px;line-height:1.65;color:var(--fg);overflow-x:auto}
+  .dsl pre div{white-space:pre;padding:0 4px}
+  .dsl pre div[data-flag]{background:var(--warning-tint);border-radius:0}
+  .dsl pre div[data-offending]{background:var(--danger-tint);color:var(--danger);border-radius:var(--radius-xxs)}
+
+  /* ── validation dock — loop-linter-dock.tsx: collapsed by default, max-h-48 ── */
+  .dock{flex:none;display:flex;flex-direction:column;max-height:192px;border-top:1px solid var(--line);background:var(--canvas-soft)}
+  .dock__head{display:flex;align-items:center;gap:10px;height:36px;padding:0 14px;flex:none;cursor:pointer}
+  .dock__cnt{border-radius:var(--radius-xs);padding:2px 6px;font-family:var(--font-mono);font-size:10.5px}
+  .dock__cnt[data-tone="danger"]{background:var(--danger-tint);color:var(--danger)}
+  .dock__cnt[data-tone="success"]{background:var(--success-tint);color:var(--success)}
+  .dock__chev{margin-left:auto;color:var(--muted);transition:transform var(--dur) var(--ease)}
+  .dock__chev svg{width:16px;height:16px}
+  .dock.collapsed .dock__chev{transform:rotate(-90deg)}
+  .dock.collapsed .dock__body{display:none}
+  .dock__body{min-height:0;overflow-y:auto;padding-bottom:8px}
+  .issue{display:flex;align-items:flex-start;gap:12px;border-top:1px solid var(--line-soft);padding:10px 14px}
+  .issue__ic{flex:none;width:16px;height:16px;margin-top:2px;color:var(--danger)}
+  .issue__ic svg{width:16px;height:16px}
+  .issue__b{min-width:0;flex:1}
+  .issue__t{font-size:12.5px;line-height:1.45;color:var(--fg)}
+  .issue__t b{font-family:var(--font-mono);font-size:10.5px;font-weight:510;color:var(--fg-strong)}
+  .issue__m{margin-top:2px;font-family:var(--font-mono);font-size:10.5px;color:var(--subtle)}
+  .issue__act{flex:none;display:inline-flex;align-items:center;gap:6px;border-radius:var(--radius-md);
+    border:1px solid var(--line-soft);background:var(--btn-fill);padding:4px 10px;font-size:11.5px;color:var(--muted)}
+  .issue__act:hover{border-color:var(--line-strong);color:var(--fg-strong)}
+  .issue__act svg{width:12px;height:12px}
+  .dock__clean{display:none;align-items:center;gap:9px;border-top:1px solid var(--line-soft);padding:14px;font-size:12.5px;color:var(--success)}
+  .dock__clean svg{width:15px;height:15px}
+  .dock.is-clean .issue{display:none}
+  .dock.is-clean .dock__clean{display:flex}
+
+  /* ── inspector — loop-editor-sidebar.tsx: LaneTabs Contract|Node, 344px ── */
+  .inspector{display:flex;flex-direction:column;min-height:0;border-left:1px solid var(--line);background:var(--canvas)}
+  .lanetabs{display:flex;flex:none;height:40px;padding:0 16px;border-bottom:1px solid var(--line)}
+  .lanetabs button{position:relative;display:inline-flex;align-items:center;padding:0 8px;
+    font-size:12px;font-weight:510;letter-spacing:-.005em;color:var(--muted)}
+  .lanetabs button[aria-selected="true"]{color:var(--fg-strong)}
+  .lanetabs button[aria-selected="true"]::after{content:"";position:absolute;left:8px;right:8px;bottom:-1px;height:1.5px;background:var(--fg-strong)}
+  .insp-scroll{flex:1;min-height:0;overflow-y:auto}
+  .tabpane{display:none}
+  .tabpane.on{display:block}
+  /* node header — sticky, item-title 15px + class badge + mono meta */
+  .insp-head{position:sticky;top:0;z-index:2;border-bottom:1px solid var(--line-soft);background:var(--canvas);padding:14px 16px}
+  .insp-head__row{display:flex;align-items:center;gap:8px}
+  .insp-head__name{font-size:15px;font-weight:510;color:var(--fg-strong)}
+  .monotag{border-radius:var(--radius-xs);background:var(--badge-fill);padding:2px 6px;
+    font-family:var(--font-mono);font-size:9px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--subtle)}
+  .insp-head__meta{display:flex;align-items:center;gap:8px;margin-top:6px;font-family:var(--font-mono);font-size:10.5px;color:var(--subtle)}
+  .insp-head__meta .dot{width:2px;height:2px;border-radius:50%;background:var(--faint)}
+  .insp-body{display:flex;flex-direction:column;gap:14px;padding:16px}
+  /* contract tab */
+  .contract{padding:14px 16px}
+  .contract__intro{margin-bottom:12px;font-size:11.5px;line-height:1.55;color:var(--subtle)}
+
+  /* fields — loop-editor-field.tsx geometry */
+  .field{display:flex;flex-direction:column}
+  .flabel{display:flex;align-items:center;gap:6px;margin-bottom:6px;font-size:12px;font-weight:510;color:var(--fg-strong)}
+  .flabel .req{color:var(--accent-strong);font-weight:600}
+  .flabel .opt{font-size:10.5px;font-weight:400;color:var(--faint)}
+  .input{width:100%;height:32px;padding:0 10px;border-radius:var(--radius-md);border:1px solid var(--line);
+    background:var(--elevated);font-size:12.5px;color:var(--fg);outline:none;
+    transition:border-color var(--dur) var(--ease)}
+  .input:focus{border-color:var(--line-strong)}
+  .input::placeholder{color:var(--faint)}
+  .input--mono{font-family:var(--font-mono);font-size:12px;letter-spacing:0}
+  .input--err{border-color:color-mix(in srgb,var(--danger) 45%,transparent)}
+  textarea.input{height:auto;min-height:74px;padding:8px 10px;line-height:1.6;resize:vertical}
+  select.input{height:36px;appearance:none;cursor:pointer;padding-right:30px;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239a9a9f' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+    background-repeat:no-repeat;background-position:right 10px center}
+  .numwrap{display:flex;align-items:center;gap:9px}
+  .numwrap .input{width:112px;font-family:var(--font-mono)}
+  .ceil{font-family:var(--font-mono);font-size:10.5px;color:var(--faint)}
+  .ferr{display:none;align-items:center;gap:6px;margin-top:6px;font-size:11.5px;color:var(--danger)}
+  .ferr svg{width:12px;height:12px}
+  .ferr.on{display:flex}
+  .hint{margin-top:6px;font-size:11.5px;line-height:1.5;color:var(--subtle)}
+  .hint code{font-size:10.5px;color:var(--muted)}
+  .staticrow{display:flex;align-items:center;gap:8px}
+  .staticrow .sv{font-family:var(--font-mono);font-size:10.5px;color:var(--fg-strong)}
+  .staticrow .monotag{margin-left:auto;color:var(--faint)}
+  .switchrow{display:flex;align-items:center;gap:12px;border-radius:var(--radius-md);border:1px solid var(--line-soft);
+    background:var(--canvas-soft);padding:10px 12px}
+  .switch{flex:none;width:32px;height:18px;border-radius:var(--radius-pill);background:var(--elevated);border:1px solid var(--line);
+    position:relative;cursor:pointer;transition:background var(--dur) var(--ease)}
+  .switch::after{content:"";position:absolute;top:1px;left:1px;width:14px;height:14px;border-radius:50%;background:var(--muted);
+    transition:transform var(--dur) var(--ease),background var(--dur) var(--ease)}
+  .switch[aria-checked="true"]{background:var(--accent);border-color:transparent}
+  .switch[aria-checked="true"]::after{transform:translateX(14px);background:var(--accent-ink)}
+  .switchrow .stxt b{display:block;font-size:12px;font-weight:510;color:var(--fg-strong)}
+  .switchrow .stxt span{font-size:11px;color:var(--subtle)}
+  .fold{border-radius:var(--radius-md);border:1px solid var(--line-soft);background:var(--canvas-soft)}
+  .fold summary{display:flex;align-items:center;gap:8px;padding:10px 12px;cursor:pointer;list-style:none;
+    font-size:12px;font-weight:510;color:var(--fg-strong)}
+  .fold summary::-webkit-details-marker{display:none}
+  .fold summary .fsub{font-size:10.5px;font-weight:400;color:var(--faint)}
+  .fold summary .fnew{margin-left:auto;border-radius:var(--radius-xs);background:var(--badge-fill);padding:2px 6px;
+    font-family:var(--font-mono);font-size:9px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--subtle)}
+  .fold summary .fchev{color:var(--faint);transition:transform var(--dur) var(--ease)}
+  .fold summary .fchev:last-child{margin-left:auto}
+  .fold summary .fnew + .fchev{margin-left:6px}
+  .fold summary .fchev svg{width:13px;height:13px}
+  .fold[open] summary .fchev{transform:rotate(180deg)}
+  .fold__body{display:flex;flex-direction:column;gap:12px;padding:2px 12px 12px}
+  /* criteria rows — loop-editor-criteria.tsx */
+  .crit{border-radius:var(--radius-md);border:1px solid var(--line-soft);background:var(--canvas-soft);padding:10px}
+  .crit__head{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+  .crit__id{font-family:var(--font-mono);font-size:10.5px;color:var(--fg-strong)}
+  .crit__head .monotag{margin-left:auto}
+  .crit__rm{width:18px;height:18px;display:grid;place-items:center;border-radius:var(--radius-xs);color:var(--faint);flex:none}
+  .crit__rm:hover{color:var(--danger);background:var(--danger-tint)}
+  .crit__rm svg{width:11px;height:11px}
+  .crit__body{display:flex;flex-direction:column;gap:7px}
+  .crit__row{display:flex;gap:7px}
+  .crit__row .input{flex:1;min-width:0}
+  .crit__row .input--expect{flex:none;width:118px;height:32px}
+  .addbtn{display:inline-flex;align-items:center;gap:6px;align-self:flex-start;height:22px;padding:0 10px;
+    border-radius:var(--radius-md);border:1px dashed var(--line);color:var(--muted);font-size:11px;font-weight:510}
+  .addbtn:hover{border-color:var(--line-strong);color:var(--fg)}
+  .addbtn svg{width:12px;height:12px}
+
+  @media (max-width:1280px){.work{grid-template-columns:170px minmax(0,1fr) 320px}}
+  @media (max-width:1024px){.palette{display:none}.work{grid-template-columns:minmax(0,1fr) 300px}}
+  @media (prefers-reduced-motion: reduce){*{transition-duration:.01ms!important}}
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- SHELL TOPBAR · 44px — identity + status pill + Validate/Publish (loop-editor-topbar-actions.tsx) -->
+  <header class="topbar" data-od-id="loop-editor-head">
+    <a class="tb-back" href="loop-detail.html" aria-label="Back to loop"><svg viewBox="0 0 16 16"><path d="m9.5 3.5-4.2 4.5 4.2 4.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+    <nav class="tb-crumbs" aria-label="Breadcrumb">
+      <a class="tb-crumb" href="../_done/loops/loops-catalog.html">Loops</a>
+      <span class="tb-sep">/</span>
+      <a class="tb-crumb" href="loop-detail.html">software-delivery</a>
+      <span class="tb-sep">/</span>
+      <span class="tb-title">Editor</span>
+    </nav>
+    <span class="tb-flex"></span>
+    <span class="verpill" id="verpill" data-tone="warning" title="v5 · unpublished edits" data-od-id="loop-editor-version"><span class="d"></span>v5 · unpublished edits</span>
+    <span class="tb-vsep"></span>
+    <div class="tb-actions">
+      <button class="btn-sm btn-neutral" id="validateBtn" type="button" title="POST /loops/software-delivery/validate · lint + compile without saving" data-od-id="loop-editor-validate">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        Validate
+      </button>
+      <button class="btn-sm btn-accent" id="publishBtn" type="button" disabled title="PATCH /loops/software-delivery · expected_version compare-and-swap; blocked while validation has errors" data-od-id="loop-editor-publish">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><polyline points="5 12 12 5 19 12"/></svg>
+        Publish
+      </button>
+    </div>
+  </header>
+
+  <!-- CANVAS SUB-TOOLBAR · 48px — Graph|DSL · zoom cluster · Save layout (loop-editor-toolbar.tsx) -->
+  <div class="editbar" data-od-id="loop-editor-toolbar">
+    <div class="pillgroup" role="tablist" aria-label="Editor view">
+      <button role="tab" aria-pressed="true" data-view="graph">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 10.6 6.8-4.2M8.6 13.4l6.8 4.2"/></svg>
+        Graph
+      </button>
+      <button role="tab" aria-pressed="false" data-view="dsl">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+        DSL
+      </button>
+    </div>
+    <div class="editbar__right">
+      <div class="zoomgrp" data-od-id="loop-editor-zoom">
+        <button class="ticon" type="button" title="Auto layout" id="layoutBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg></button>
+        <button class="ticon" type="button" title="Zoom out" id="zoomOut"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/></svg></button>
+        <span class="zlabel" id="zlabel">100%</span>
+        <button class="ticon" type="button" title="Zoom in" id="zoomIn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg></button>
+        <button class="ticon" type="button" title="Fit view" id="fitBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/></svg></button>
+      </div>
+      <button class="btn-sm btn-ghost" type="button" disabled title="Persist node positions to the annotations sidecar. Structural edits publish through Publish." data-od-id="loop-editor-save-layout">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+        Save layout
+      </button>
+    </div>
+  </div>
+
+  <!-- BODY · 190px | 1fr | 344px (loop-editor.tsx) -->
+  <div class="work">
+
+    <!-- PALETTE — click-to-add rows; groups per lib/loop-palette.ts; note cards removed -->
+    <aside class="palette" data-od-id="loop-editor-palette">
+      <span class="eyebrow">Add node</span>
+      <div class="pal-group">
+        <div class="pal-group__lbl">Action</div>
+        <button class="pal-item" type="button"><span class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="12" rx="2"/><path d="M12 8V4M8 4h8"/><circle cx="9" cy="14" r="1"/><circle cx="15" cy="14" r="1"/></svg></span><span class="pn">Run agent</span></button>
+        <button class="pal-item" type="button" title="A goal node iterates an agent against judge criteria until done"><span class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1"/></svg></span><span class="pn">Goal</span></button>
+        <button class="pal-item" type="button"><span class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9"/><polyline points="3 4 3 12 11 12"/></svg></span><span class="pn">Run loop</span></button>
+        <button class="pal-item" type="button"><span class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H7a2 2 0 0 0-2 2v5a2 2 0 0 1-2 2 2 2 0 0 1 2 2v5c0 1.1.9 2 2 2h1M16 3h1a2 2 0 0 1 2 2v5a2 2 0 0 0 2 2 2 2 0 0 0-2 2v5a2 2 0 0 1-2 2h-1"/></svg></span><span class="pn">Transform</span></button>
+        <button class="pal-item" type="button" title="Inserts a pre-filled compozy__network_send node"><span class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4z"/></svg></span><span class="pn">Channel post</span></button>
+        <button class="pal-item" type="button" title="Any registry ToolID: params form renders from the tool's input schema"><span class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></span><span class="pn">Call tool…</span></button>
+      </div>
+      <div class="pal-group">
+        <div class="pal-group__lbl">Control</div>
+        <button class="pal-item" type="button"><span class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5M8 3H3v5M12 22v-8.3a4 4 0 0 0-1.17-2.83L3 3M15 9l6-6"/></svg></span><span class="pn">Fan-out</span></button>
+        <button class="pal-item" type="button"><span class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 21V9a9 9 0 0 0 9 9"/></svg></span><span class="pn">Collect</span></button>
+        <button class="pal-item" type="button"><span class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg></span><span class="pn">Branch</span></button>
+        <button class="pal-item" type="button"><span class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 7 17l-5-5"/><path d="m22 10-7.5 7.5L13 16"/></svg></span><span class="pn">Gate</span></button>
+        <!-- NEW control kind from loop-node-lifecycle (ADR-017): durable timer/event/approval wait -->
+        <button class="pal-item" type="button" title="Durable pause: a timer (for), a date (until) or an outside event. Waits stay visible on the run page and can escalate or expire onto a fallback path."><span class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 22h14M5 2h14M17 22v-4.2a2 2 0 0 0-.59-1.42L12 12l-4.41 4.38A2 2 0 0 0 7 17.8V22M7 2v4.2a2 2 0 0 0 .59 1.42L12 12l4.41-4.38A2 2 0 0 0 17 6.2V2"/></svg></span><span class="pn">Wait</span></button>
+        <button class="pal-item" type="button"><span class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2.1l4 4-4 4"/><path d="M3 12.2v-2a4 4 0 0 1 4-4h12.8M7 21.9l-4-4 4-4"/><path d="M21 11.8v2a4 4 0 0 1-4 4H4.2"/></svg></span><span class="pn">Sub-loop</span></button>
+      </div>
+      <div class="pal-group">
+        <div class="pal-group__lbl">Source</div>
+        <button class="pal-item" type="button"><span class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></span><span class="pn">Watch source</span></button>
+        <button class="pal-item" type="button" title="Subscribe to runtime events with CEL filters"><span class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9M7.8 16.2c-2.3-2.3-2.3-6.1 0-8.5M16.2 7.8c2.3 2.3 2.3 6.1 0 8.5M19.1 4.9c3.9 3.9 3.9 10.3 0 14.2"/><circle cx="12" cy="12" r="2"/></svg></span><span class="pn">Watch events</span></button>
+        <button class="pal-item" type="button"><span class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 12v6"/><path d="m9 15 3 3 3-3"/></svg></span><span class="pn">File import</span></button>
+        <button class="pal-item" type="button"><span class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h12"/><polyline points="11 6 17 12 11 18"/><path d="M21 4v16"/></svg></span><span class="pn">Input</span></button>
+      </div>
+    </aside>
+
+    <!-- CENTER — start summary overlay · canvas/DSL · validation dock -->
+    <section class="centercol" data-od-id="loop-editor-center">
+      <div class="startstrip" id="startStrip" data-od-id="loop-editor-start-summary" title="Declared in start[]; authored in the definition file/agent (read-only here)">
+        <span class="sk">start</span>
+        <span class="schip">manual</span><span class="schip">cli</span><span class="schip">http</span><span class="schip">uds</span><span class="schip">native_tool</span><span class="schip">schedule</span>
+        <span class="snote">declared in start[]</span>
+      </div>
+
+      <!-- GRAPH VIEW -->
+      <div class="view on" id="view-graph">
+        <div class="flowpane" data-od-id="loop-editor-canvas">
+          <div class="canvas" id="canvas">
+            <svg class="edges" aria-hidden="true">
+              <!-- straight chain, handle centerline y=160 (header-anchored, sim dimensions.ts) -->
+              <path d="M222,160 L270,160"/>
+              <path d="M474,160 L522,160"/>
+              <path d="M726,160 L774,160"/>
+              <path d="M978,160 L1026,160"/>
+              <path d="M1230,160 L1278,160"/>
+              <path d="M1482,160 L1530,160"/>
+              <path d="M1734,160 L1782,160"/>
+            </svg>
+
+            <!-- Node cards: production anatomy (loop-editor-node.tsx) + sim body rows.
+                 All positions dagre-LR-flat; handles at header centerline. -->
+            <div class="enode" data-node="slug" style="left:26px;top:140px">
+              <div class="enode__head">
+                <span class="enode__tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h12"/><polyline points="11 6 17 12 11 18"/><path d="M21 4v16"/></svg></span>
+                <span class="enode__id">slug</span>
+                <span class="enode__cls">source</span>
+              </div>
+              <div class="enode__body">
+                <div class="krow"><span class="kk">kind</span><span class="kv kv--dim">input</span></div>
+                <div class="krow"><span class="kk">ref</span><span class="kv">inputs.slug</span></div>
+              </div>
+              <span class="hnub hnub--out"></span>
+            </div>
+
+            <div class="enode" data-node="load_tasks" style="left:278px;top:140px">
+              <div class="enode__head">
+                <span class="enode__tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 12v6"/><path d="m9 15 3 3 3-3"/></svg></span>
+                <span class="enode__id">load_tasks</span>
+                <span class="enode__cls">source</span>
+              </div>
+              <div class="enode__body">
+                <div class="krow"><span class="kk">pattern</span><span class="kv">tasks/{{slug}}/*</span></div>
+                <div class="krow"><span class="kk">parse</span><span class="kv kv--dim">md_tasks</span></div>
+              </div>
+              <span class="hnub hnub--in"></span><span class="hnub hnub--out"></span>
+            </div>
+
+            <div class="enode enode--err" data-node="implement" style="left:530px;top:140px">
+              <span class="enode__badge" title="This node has a validation error"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12" y2="17"/></svg></span>
+              <div class="enode__head">
+                <span class="enode__tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5M8 3H3v5M12 22v-8.3a4 4 0 0 0-1.17-2.83L3 3M15 9l6-6"/></svg></span>
+                <span class="enode__id">implement</span>
+                <span class="enode__cls">control</span>
+              </div>
+              <div class="enode__body">
+                <div class="krow"><span class="kk">kind</span><span class="kv kv--dim">fan-out</span></div>
+                <div class="krow"><span class="kk">collection</span><span class="kv">load_tasks.tasks</span></div>
+                <div class="chips"><span>batch 1</span><span>seq</span><span data-chip="fanout">≤80</span></div>
+              </div>
+              <span class="hnub hnub--in"></span><span class="hnub hnub--out"></span>
+            </div>
+
+            <div class="enode" data-node="execute_task" style="left:782px;top:140px">
+              <div class="enode__head">
+                <span class="enode__tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="12" rx="2"/><path d="M12 8V4M8 4h8"/><circle cx="9" cy="14" r="1"/><circle cx="15" cy="14" r="1"/></svg></span>
+                <span class="enode__id">execute_task</span>
+                <span class="enode__cls">action</span>
+              </div>
+              <div class="enode__body">
+                <div class="krow"><span class="kk">agent</span><span class="kv">{{implementer}}</span></div>
+                <div class="krow"><span class="kk">retry</span><span class="kv kv--dim">2 · 30s→5m</span></div>
+                <div class="krow"><span class="kk">deadline</span><span class="kv kv--dim">2h</span></div>
+                <!-- spec on_error made visible at rest: no route declared ⇒ quarantine after retries -->
+                <div class="krow krow--err"><span class="kk">on_error</span><span class="kv">quarantine</span></div>
+              </div>
+              <span class="hnub hnub--in"></span><span class="hnub hnub--out"></span>
+              <span class="hnub hnub--err" title="on_error output · no route declared: exhausting retries quarantines the step"></span>
+            </div>
+
+            <div class="enode" data-node="collect" style="left:1034px;top:140px">
+              <div class="enode__head">
+                <span class="enode__tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 21V9a9 9 0 0 0 9 9"/></svg></span>
+                <span class="enode__id">collect</span>
+                <span class="enode__cls">control</span>
+              </div>
+              <div class="enode__body">
+                <div class="krow"><span class="kk">joins</span><span class="kv kv--dim">implement</span></div>
+              </div>
+              <span class="hnub hnub--in"></span><span class="hnub hnub--out"></span>
+            </div>
+
+            <div class="enode" data-node="review" style="left:1286px;top:140px">
+              <div class="enode__head">
+                <span class="enode__tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 7 17l-5-5"/><path d="m22 10-7.5 7.5L13 16"/></svg></span>
+                <span class="enode__id">review</span>
+                <span class="enode__cls">control · gate</span>
+              </div>
+              <div class="enode__body">
+                <div class="krow"><span class="kk">judge</span><span class="kv">acceptance</span></div>
+                <div class="krow"><span class="kk">verdict</span><span class="kv kv--dim">revise_until_clean</span></div>
+              </div>
+              <span class="hnub hnub--in"></span><span class="hnub hnub--out"></span>
+            </div>
+
+            <div class="enode" data-node="verify" style="left:1538px;top:140px">
+              <div class="enode__head">
+                <span class="enode__tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg></span>
+                <span class="enode__id">verify</span>
+                <span class="enode__cls">control · gate</span>
+              </div>
+              <div class="enode__body">
+                <div class="krow"><span class="kk">check</span><span class="kv">{{verify_command}}</span></div>
+                <div class="krow"><span class="kk">verdict</span><span class="kv kv--dim">fixed_passes</span></div>
+              </div>
+              <span class="hnub hnub--in"></span><span class="hnub hnub--out"></span>
+            </div>
+
+            <div class="enode" data-node="approve" style="left:1790px;top:140px">
+              <div class="enode__head">
+                <span class="enode__tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="7" r="4"/><path d="M2 21v-2a4 4 0 0 1 4-4h6"/><polyline points="16 11 18 13 22 9"/></svg></span>
+                <span class="enode__id">approve</span>
+                <span class="enode__cls">control · gate</span>
+              </div>
+              <div class="enode__body">
+                <div class="krow"><span class="kk">human</span><span class="kv">ship approval</span></div>
+                <!-- spec gate expiry (ADR-017): approval may escalate, never waits forever -->
+                <div class="krow"><span class="kk">expires</span><span class="kv kv--dim">72h · escalate</span></div>
+              </div>
+              <span class="hnub hnub--in"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- DSL VIEW — read-only YAML, offending line highlighted (loop-editor-dsl-view.tsx) -->
+      <div class="view" id="view-dsl">
+        <div class="dsl" data-od-id="loop-editor-dsl">
+          <p class="dsl-note">A read-only view of the <b>compozy.loop/v1</b> definition you're editing, persisted to disk (the source of truth) on Publish. String values interpolate with Go templates <code>{{ }}</code>; conditions are CEL; node ids are snake_case. The highlighted line is the open validation issue.</p>
+          <pre id="dslPre"><div>apiVersion: compozy.loop/v1</div>
+<div>kind: Loop</div>
+<div>meta:</div>
+<div>  name: software-delivery</div>
+<div>concurrency: forbid</div>
+<div>inputs:</div>
+<div>  slug: { type: string, required: true }</div>
+<div>  implementer: { type: agent, default: code_implementer }</div>
+<div>  verify_command: { type: string, default: "" }</div>
+<div>contract:</div>
+<div>  goal: "Ship every authored task under .compozy/tasks/{{ .inputs.slug }}"</div>
+<div>  definition_of_done: "All tasks terminal, judge approved with evidence, project checks pass."</div>
+<div>  iteration_cap: 50</div>
+<div>  on_canceled:                       # fires exactly once on the canceled terminal</div>
+<div>    - emit: { kind: delivery_canceled }</div>
+<div>graph:</div>
+<div>  nodes:</div>
+<div>    - { id: slug, class: source, kind: input, input_ref: slug }</div>
+<div>    - { id: load_tasks, class: source, kind: file-import,</div>
+<div>        pattern: ".compozy/tasks/{{ .inputs.slug }}/task_*.md", parse: md_tasks }</div>
+<div data-flag>    - id: implement</div>
+<div data-flag>      class: control</div>
+<div data-flag>      kind: fan-out</div>
+<div data-flag>      collection: "{{ .nodes.load_tasks.output.tasks }}"</div>
+<div data-flag>      batch_size: 1</div>
+<div data-flag>      max_parallel: 1</div>
+<div data-offending id="dslOffending">      max_fan_out: 80              # exceeds the daemon ceiling of 64</div>
+<div>    - id: execute_task</div>
+<div>      class: action</div>
+<div>      kind: run-agent</div>
+<div>      params: { agent: "{{ .inputs.implementer }}", prompt: "…" }</div>
+<div>      session: { isolated: true }</div>
+<div>      timeout: 45m                   # per attempt · timeout &gt; deadline is a lint error</div>
+<div>      deadline: 2h                   # total across attempts + backoff, from first schedule</div>
+<div>      retry:</div>
+<div>        max_attempts: 2</div>
+<div>        backoff: { base: 30s, max: 5m }</div>
+<div>        non_retryable: [tool_invalid_input]</div>
+<div>      result_contract: { failure_field: err, message_field: err.message }</div>
+<div>      on_retry:</div>
+<div>        - emit: { kind: task_retrying }</div>
+<div>    - { id: collect, class: control, kind: collect }</div>
+<div>    - id: review</div>
+<div>      class: control</div>
+<div>      kind: gate</div>
+<div>      criteria:</div>
+<div>        - { id: acceptance, type: agent-judge, agent: reviewer }</div>
+<div>      verdict_policy: revise_until_clean</div>
+<div>      on_result: { pass: verify, fail: next_generation }</div>
+<div>    - id: verify</div>
+<div>      class: control</div>
+<div>      kind: gate</div>
+<div>      criteria:</div>
+<div>        - { id: project_check, type: command, check: "{{ .inputs.verify_command }}" }</div>
+<div>      verdict_policy: fixed_passes</div>
+<div>      on_result: { pass: approve, fail: next_generation }</div>
+<div>    - id: approve</div>
+<div>      class: control</div>
+<div>      kind: gate</div>
+<div>      criteria:</div>
+<div>        - { id: ship, type: human, prompt: "Approve into {{ .inputs.target_branch }}?" }</div>
+<div>      on_result: { pass: done, fail: next_generation }</div>
+<div>      expires:                       # human gates may expire + escalate (ADR-017)</div>
+<div>        after: 72h</div>
+<div>        escalate:</div>
+<div>          - tool: compozy__network_send</div>
+<div>            with: { channel: ops, body: "still waiting: {{ effect.wait.link }}" }</div>
+<div>  edges:</div>
+<div>    - { from: slug, to: load_tasks }</div>
+<div>    - { from: load_tasks, to: implement }</div>
+<div>    - { from: implement, to: execute_task }</div>
+<div>    - { from: execute_task, to: collect }</div>
+<div>    - { from: collect, to: review }</div>
+<div>    - { from: review, to: verify }</div>
+<div>    - { from: verify, to: approve }</div>
+<div>start: [ { kind: manual }, { kind: cli }, { kind: http }, { kind: uds }, { kind: native_tool }, { kind: schedule } ]</div></pre>
+        </div>
+      </div>
+
+      <!-- VALIDATION DOCK — collapsed by default (loop-linter-dock.tsx useState(true)) -->
+      <div class="dock collapsed" id="dock" data-od-id="loop-editor-validation">
+        <div class="dock__head" id="dockHead" role="button" aria-expanded="false" tabindex="0">
+          <span class="eyebrow">Validation</span>
+          <span class="dock__cnt" id="dockCount" data-tone="danger">1 issue</span>
+          <span class="dock__chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+        </div>
+        <div class="dock__body">
+          <div class="dock__clean"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>All invariants pass. Publish compiles the resolved form and saves with an expected_version compare-and-swap.</div>
+          <div class="issue" id="issueFanout">
+            <span class="issue__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="13"/><line x1="12" y1="16" x2="12" y2="16"/></svg></span>
+            <div class="issue__b">
+              <div class="issue__t"><b>implement</b> · max_fan_out (80) exceeds the daemon ceiling of 64.</div>
+              <div class="issue__m">code: fan_out_ceiling_exceeded · publish returns 422 until resolved</div>
+            </div>
+            <button class="issue__act" id="revealBtn" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>Reveal node</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- INSPECTOR · 344px — LaneTabs Contract | Node (loop-editor-sidebar.tsx) -->
+    <aside class="inspector" data-od-id="loop-editor-inspector">
+      <div class="lanetabs" role="tablist" aria-label="Loop editor inspector">
+        <button role="tab" aria-selected="false" data-tab="contract">Contract</button>
+        <button role="tab" aria-selected="true" data-tab="node">Node</button>
+      </div>
+      <div class="insp-scroll">
+        <div class="tabpane" id="pane-contract">
+          <div class="contract">
+            <p class="contract__intro">Define the outcome this Loop should reach.</p>
+            <div class="insp-body" style="padding:0;gap:14px">
+              <div class="field">
+                <label class="flabel">Goal <span class="opt">optional</span></label>
+                <textarea class="input" rows="2" style="min-height:64px">Ship every authored task under .compozy/tasks/{{ .inputs.slug }} · implemented, reviewed to acceptance, and verified by the project's own checks.</textarea>
+                <p class="hint">Clear this field to publish a goal-less Loop.</p>
+              </div>
+              <div class="field">
+                <label class="flabel">Definition of done</label>
+                <textarea class="input" rows="3" style="min-height:80px">All loaded tasks reached a terminal state, the acceptance judge approved with evidence, and the project verification passed.</textarea>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="tabpane on" id="pane-node">
+          <div class="insp-head" id="inspHead">
+            <div class="insp-head__row">
+              <span class="insp-head__name" id="inspName">execute_task</span>
+              <span class="monotag" id="inspTag">action</span>
+            </div>
+            <p class="insp-head__meta"><span id="inspKind">run-agent</span><span class="dot"></span><span id="inspId">id: execute_task</span></p>
+          </div>
+          <div class="insp-body" id="inspBody"><!-- rendered by JS --></div>
+        </div>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  // ── node model — fields mirror lib/loop-node-fields.ts, plus the loop-node-lifecycle envelope ──
+  var NODES = {
+    slug: {cls:"source", kind:"input", fields:[
+      {t:"text", k:"Node id", v:"slug", mono:true},
+      {t:"select", k:"Input ref", v:"slug", opts:["slug","implementer","verify_command"]},
+      {t:"static", k:"Produces", v:"nodes.slug.output", tag:"derived"},
+      {t:"hint", v:"Inputs are declared on the Loop; this node sources one of them."}
+    ]},
+    load_tasks: {cls:"source", kind:"file-import", fields:[
+      {t:"text", k:"Node id", v:"load_tasks", mono:true},
+      {t:"text", k:"Pattern", v:".compozy/tasks/{{ .inputs.slug }}/task_*.md", mono:true, hint:"Template over the loop namespace. Type <code>{{</code> to autocomplete references."},
+      {t:"select", k:"Parse", v:"md_tasks", opts:["md_tasks","json","text"]},
+      {t:"static", k:"Produces", v:"nodes.load_tasks.output.tasks[]", tag:"derived"}
+    ]},
+    implement: {cls:"control", kind:"fan-out", fields:[
+      {t:"text", k:"Node id", v:"implement", mono:true},
+      {t:"text", k:"Collection", v:"{{ .nodes.load_tasks.output.tasks }}", mono:true, hint:"Must resolve to a finite, materialized collection; validated against declared output schemas on publish."},
+      {t:"number", k:"Batch size", v:1},
+      {t:"number", k:"Max parallel", v:1},
+      {t:"number", k:"Max fan-out", v:80, ceil:64, watch:"fanout"},
+      {t:"hint", v:"Branches get <code>item</code> and <code>index</code> in scope. Width is capped by the daemon ceiling."}
+    ]},
+    execute_task: {cls:"action", kind:"run-agent", fields:[
+      {t:"text", k:"Node id", v:"execute_task", mono:true},
+      {t:"text", k:"Agent", v:"{{ .inputs.implementer }}", mono:true, req:true},
+      {t:"textarea", k:"Prompt", req:true, mono:true, v:"Begin work on {{ .item.title }} using the installed cy-execute-task skill.\n\nTask file: {{ .item.path }}\n\n## Task Specification\n{{ .item.body }}"},
+      {t:"textarea", k:"Output schema", opt:"optional · JSON Schema", mono:true, v:'{ "type": "object",\n  "required": ["status", "summary"] }', hint:"A schema failure feeds the error back into one free retry before the retry budget is touched."},
+      {t:"fold", k:"Overrides", sub:"model · allowed_tools · max_turns", fields:[
+        {t:"text", k:"model", v:"", mono:true, ph:"profile default"},
+        {t:"text", k:"allowed_tools", v:"", mono:true, ph:"profile default"},
+        {t:"text", k:"max_turns", v:"", mono:true, ph:"profile default"}
+      ]},
+      {t:"switch", k:"Isolated session", on:true, sub:"Each task runs in its own one-shot session."},
+      {t:"text", k:"Timeout", v:"45m", mono:true, hint:"Per attempt. Must not exceed the deadline (<code>timeout_exceeds_deadline</code>)."},
+      {t:"fold", k:"Reliability", sub:"retry · deadline · on_error", tag:"new · lifecycle", open:true, fields:[
+        {t:"text", k:"Deadline (total)", v:"2h", mono:true, hint:"Across attempts and backoff, from first schedule. Past it the step fails visibly instead of hanging."},
+        {t:"text", k:"Retry · max_attempts", v:"2", mono:true},
+        {t:"text", k:"Retry · backoff", v:"base 30s · max 5m", mono:true, hint:"Growing pause between attempts; the run page shows the countdown."},
+        {t:"text", k:"Retry · non_retryable", v:"tool_invalid_input", mono:true, hint:"Failure classes or machine codes that skip retries."},
+        {t:"text", k:"result_contract", v:"failure_field: err · message_field: err.message", mono:true, hint:"Where the payload reports failure, so a success-shaped error still counts as one."},
+        {t:"select", k:"on_error · route", v:"(none: quarantine after retries)", opts:["(none: quarantine after retries)","collect","next_generation"], hint:"Forward-only fallback edge. Exclusive with <code>allow_fail</code> (<code>error_route_conflict</code>)."},
+        {t:"text", k:"on_retry · effects", v:"emit: task_retrying", mono:true, hint:"Effects run fail-open: a failed effect is recorded on the timeline and never touches the step."}
+      ]},
+      {t:"static", k:"Produces", v:"nodes.execute_task.output", tag:"from schema"}
+    ]},
+    collect: {cls:"control", kind:"collect", fields:[
+      {t:"text", k:"Node id", v:"collect", mono:true},
+      {t:"static", k:"Joins", v:"implement", tag:"barrier"},
+      {t:"hint", v:"Waits for every fanned branch before the run continues."}
+    ]},
+    review: {cls:"control", kind:"gate", fields:[
+      {t:"text", k:"Node id", v:"review", mono:true},
+      {t:"crits", k:"Criteria", rows:[{id:"acceptance", type:"agent-judge", agent:"reviewer", rubric:"Judge the aggregate diff against each task's acceptance criteria; cite evidence, emit stable blocking ids."}]},
+      {t:"select", k:"Verdict policy", v:"revise_until_clean", opts:["revise_until_clean","fixed_passes"], hint:"<code>revise_until_clean</code> requires a judge or human criterion."},
+      {t:"text", k:"On pass → target", v:"verify", mono:true},
+      {t:"text", k:"On fail → target", v:"next_generation", mono:true},
+      {t:"number", k:"Max revisions", v:3, ceil:10}
+    ]},
+    verify: {cls:"control", kind:"gate", fields:[
+      {t:"text", k:"Node id", v:"verify", mono:true},
+      {t:"crits", k:"Criteria", rows:[{id:"project_check", type:"command", cmd:"{{ .inputs.verify_command }}", expect:"exit_zero"}]},
+      {t:"select", k:"Verdict policy", v:"fixed_passes", opts:["revise_until_clean","fixed_passes"]},
+      {t:"text", k:"On pass → target", v:"approve", mono:true},
+      {t:"text", k:"On fail → target", v:"next_generation", mono:true},
+      {t:"hint", v:"The project's own check, never hardcoded: empty command disables the gate."}
+    ]},
+    approve: {cls:"control", kind:"gate", fields:[
+      {t:"text", k:"Node id", v:"approve", mono:true},
+      {t:"crits", k:"Criteria", rows:[{id:"ship", type:"human", prompt:"Approve the delivered work for {{ .inputs.slug }} into {{ .inputs.target_branch }}?"}]},
+      {t:"select", k:"Verdict policy", v:"fixed_passes", opts:["revise_until_clean","fixed_passes"]},
+      {t:"fold", k:"Expiry & escalation", sub:"expires.after · escalate", tag:"new · lifecycle", fields:[
+        {t:"text", k:"expires.after", v:"72h", mono:true, hint:"With neither escalate nor route, expiry flags needs-attention (<code>wait_expiry_without_path</code> warns)."},
+        {t:"text", k:"escalate", v:"compozy__network_send → ops", mono:true, hint:"Reminder ladder while waiting; the run page shows the ladder position."}
+      ]},
+      {t:"hint", v:"A live needs-approval pause, not a terminal: the run parks here until a decision."}
+    ]}
+  };
+
+  function esc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
+  function labelHTML(f){
+    return '<label class="flabel">'+esc(f.k)+(f.req?'<span class="req" title="required">*</span>':'')+(f.opt?'<span class="opt">'+esc(f.opt)+'</span>':'')+'</label>';
+  }
+  function fieldHTML(f){
+    if(f.t==="hint") return '<p class="hint">'+f.v+'</p>';
+    if(f.t==="static") return '<div class="field"><div class="flabel">'+esc(f.k)+'</div><div class="staticrow"><span class="sv">'+esc(f.v)+'</span>'+(f.tag?'<span class="monotag">'+esc(f.tag)+'</span>':'')+'</div></div>';
+    if(f.t==="switch") return '<div class="field"><div class="switchrow"><div class="switch" role="switch" aria-checked="'+(f.on?'true':'false')+'" tabindex="0"></div><div class="stxt"><b>'+esc(f.k)+'</b><span>'+esc(f.sub||'')+'</span></div></div></div>';
+    if(f.t==="text") return '<div class="field">'+labelHTML(f)+'<input class="input'+(f.mono?' input--mono':'')+'" value="'+esc(f.v)+'"'+(f.ph?' placeholder="'+esc(f.ph)+'"':'')+'>'+(f.hint?'<p class="hint">'+f.hint+'</p>':'')+'</div>';
+    if(f.t==="number"){
+      var hasCeil = f.ceil !== undefined, over = hasCeil && f.v > f.ceil;
+      return '<div class="field">'+labelHTML(f)+
+        '<div class="numwrap"><input class="input input--mono'+(over?' input--err':'')+'" type="number" value="'+esc(f.v)+'"'+(f.watch?' data-watch="'+f.watch+'"':'')+'>'+(hasCeil?'<span class="ceil">ceiling '+esc(f.ceil)+'</span>':'')+'</div>'+
+        (hasCeil?'<div class="ferr'+(over?' on':'')+'"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12" y2="17"/></svg>Above the ceiling of '+esc(f.ceil)+' — the linter rejects a higher value on publish.</div>':'')+
+        (f.hint?'<p class="hint">'+f.hint+'</p>':'')+'</div>';
+    }
+    if(f.t==="select"){
+      var o = f.opts.map(function(x){return '<option'+(x===f.v?' selected':'')+'>'+esc(x)+'</option>';}).join('');
+      return '<div class="field">'+labelHTML(f)+'<select class="input">'+o+'</select>'+(f.hint?'<p class="hint">'+f.hint+'</p>':'')+'</div>';
+    }
+    if(f.t==="textarea") return '<div class="field">'+labelHTML(f)+'<textarea class="input'+(f.mono?' input--mono':'')+'">'+esc(f.v)+'</textarea>'+(f.hint?'<p class="hint">'+f.hint+'</p>':'')+'</div>';
+    if(f.t==="crits"){
+      var rows = f.rows.map(function(r){
+        var body = '';
+        if(r.type==="command") body = '<div class="crit__row"><input class="input input--mono" value="'+esc(r.cmd)+'"><select class="input input--mono input--expect"><option'+(r.expect==="exit_zero"?' selected':'')+'>exit_zero</option><option>stdout_match</option></select></div>';
+        else if(r.type==="agent-judge") body = '<input class="input input--mono" value="'+esc(r.agent)+'"><textarea class="input">'+esc(r.rubric)+'</textarea>';
+        else body = '<input class="input input--mono" value="'+esc(r.prompt||r.tool||'')+'">';
+        return '<div class="crit"><div class="crit__head"><span class="crit__id">'+esc(r.id)+'</span><span class="monotag">'+esc(r.type)+'</span><button class="crit__rm" type="button" title="Remove criterion"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div><div class="crit__body">'+body+'</div></div>';
+      }).join('');
+      return '<div class="field"><div class="flabel">'+esc(f.k)+'</div>'+rows+'<button class="addbtn" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add criterion</button></div>';
+    }
+    if(f.t==="fold"){
+      return '<details class="fold"'+(f.open?' open':'')+'><summary>'+esc(f.k)+(f.sub?'<span class="fsub">'+esc(f.sub)+'</span>':'')+(f.tag?'<span class="fnew">'+esc(f.tag)+'</span>':'')+'<span class="fchev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span></summary><div class="fold__body">'+f.fields.map(fieldHTML).join('')+'</div></details>';
+    }
+    return '';
+  }
+
+  var inspName = document.getElementById("inspName"), inspTag = document.getElementById("inspTag"),
+      inspKind = document.getElementById("inspKind"), inspId = document.getElementById("inspId"),
+      inspBody = document.getElementById("inspBody");
+
+  function render(id){
+    var n = NODES[id]; if(!n) return;
+    inspName.textContent = id;
+    inspTag.textContent = n.cls;
+    inspKind.textContent = n.kind;
+    inspId.textContent = "id: " + id;
+    inspBody.innerHTML = n.fields.map(fieldHTML).join("");
+    bindInspector();
+    document.querySelectorAll(".enode").forEach(function(el){
+      el.classList.toggle("enode--sel", el.getAttribute("data-node") === id);
+    });
+    selectTab("node");
+  }
+
+  document.querySelectorAll(".enode").forEach(function(el){
+    el.addEventListener("click", function(){ render(el.getAttribute("data-node")); });
+  });
+
+  function bindInspector(){
+    inspBody.querySelectorAll(".switch").forEach(function(sw){
+      sw.addEventListener("click", function(){ sw.setAttribute("aria-checked", sw.getAttribute("aria-checked")==="true"?"false":"true"); });
+      sw.addEventListener("keydown", function(e){ if(e.key===" "||e.key==="Enter"){e.preventDefault(); sw.click();} });
+    });
+    var fan = inspBody.querySelector('[data-watch="fanout"]');
+    if(fan){ fan.addEventListener("input", function(){ checkFanout(parseInt(fan.value,10), fan); }); }
+  }
+
+  // ── validation demo: max_fan_out 80 > 64 blocks Publish until fixed ─────
+  var CEIL = 64;
+  var dock = document.getElementById("dock"), dockHead = document.getElementById("dockHead"),
+      dockCount = document.getElementById("dockCount"), publishBtn = document.getElementById("publishBtn"),
+      implNode = document.querySelector('.enode[data-node="implement"]'),
+      dslOffending = document.getElementById("dslOffending");
+
+  function setOk(ok){
+    dock.classList.toggle("is-clean", ok);
+    dockCount.textContent = ok ? "0 issues" : "1 issue";
+    dockCount.setAttribute("data-tone", ok ? "success" : "danger");
+    implNode.classList.toggle("enode--err", !ok);
+    var badge = implNode.querySelector(".enode__badge");
+    if(badge) badge.style.display = ok ? "none" : "grid";
+    var chip = implNode.querySelector('[data-chip="fanout"]');
+    if(chip) chip.textContent = ok ? "≤64" : "≤80";
+    if(dslOffending){
+      if(ok){ dslOffending.removeAttribute("data-offending"); dslOffending.setAttribute("data-flag",""); dslOffending.textContent = "      max_fan_out: 64"; }
+    }
+    publishBtn.disabled = !ok;
+  }
+  function checkFanout(val, input){
+    var bad = !(val > 0) || val > CEIL;
+    if(input){
+      input.classList.toggle("input--err", bad);
+      var ferr = input.closest(".field").querySelector(".ferr");
+      if(ferr) ferr.classList.toggle("on", bad);
+    }
+    NODES.implement.fields.forEach(function(f){ if(f.watch==="fanout" && !isNaN(val)) f.v = val; });
+    setOk(!bad);
+  }
+  document.getElementById("revealBtn").addEventListener("click", function(){ render("implement"); });
+  document.getElementById("validateBtn").addEventListener("click", function(){
+    dock.classList.remove("collapsed"); dockHead.setAttribute("aria-expanded","true");
+  });
+  dockHead.addEventListener("click", function(){
+    var collapsed = dock.classList.toggle("collapsed");
+    dockHead.setAttribute("aria-expanded", String(!collapsed));
+  });
+  dockHead.addEventListener("keydown", function(e){ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); dockHead.click(); } });
+
+  // ── inspector tabs ───────────────────────────────────────────────────────
+  function selectTab(tab){
+    document.querySelectorAll(".lanetabs button").forEach(function(b){
+      b.setAttribute("aria-selected", String(b.getAttribute("data-tab") === tab));
+    });
+    document.getElementById("pane-contract").classList.toggle("on", tab === "contract");
+    document.getElementById("pane-node").classList.toggle("on", tab === "node");
+  }
+  document.querySelectorAll(".lanetabs button").forEach(function(b){
+    b.addEventListener("click", function(){ selectTab(b.getAttribute("data-tab")); });
+  });
+
+  // ── view toggle Graph | DSL (start strip is graph-only) ─────────────────
+  document.querySelectorAll(".pillgroup button").forEach(function(b){
+    b.addEventListener("click", function(){
+      document.querySelectorAll(".pillgroup button").forEach(function(x){ x.setAttribute("aria-pressed", String(x === b)); });
+      var v = b.getAttribute("data-view");
+      document.getElementById("view-graph").classList.toggle("on", v === "graph");
+      document.getElementById("view-dsl").classList.toggle("on", v === "dsl");
+      document.getElementById("startStrip").style.display = (v === "graph") ? "" : "none";
+    });
+  });
+
+  // ── zoom (minZoom .4 / maxZoom 1.6 per production canvas config) ────────
+  var zoom = 100, canvas = document.getElementById("canvas"), zlabel = document.getElementById("zlabel");
+  function applyZoom(){ canvas.style.transform = "scale(" + (zoom/100) + ")"; zlabel.textContent = zoom + "%"; }
+  document.getElementById("zoomIn").addEventListener("click", function(){ zoom = Math.min(160, zoom + 10); applyZoom(); });
+  document.getElementById("zoomOut").addEventListener("click", function(){ zoom = Math.max(40, zoom - 10); applyZoom(); });
+  document.getElementById("fitBtn").addEventListener("click", function(){ zoom = 100; applyZoom(); });
+  document.getElementById("layoutBtn").addEventListener("click", function(){ zoom = 100; applyZoom(); });
+
+  render("execute_task");
+})();
+</script>
+</body>
+</html>

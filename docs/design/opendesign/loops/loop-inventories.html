@@ -1,0 +1,664 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Node inventories · software-delivery · Loops · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<style>
+  /* tokens — verbatim from design-system/ds-core.css (packages/ui/src/tokens.css lineage) */
+  :root{
+    color-scheme: dark;
+    --rail:#0c0b0b; --canvas:#131211; --canvas-soft:#1a1918; --canvas-tint:#1c1b1a; --elevated:#232220;
+    --fg:#ececef; --fg-strong:#f6f6f8; --muted:#9a9a9f; --subtle:#76767c; --faint:#545458;
+    --line:rgba(255,255,255,.055); --line-soft:rgba(255,255,255,.03); --line-strong:rgba(255,255,255,.09);
+    --accent:#e8572a; --accent-hover:#d14e25; --accent-strong:#f6874f; --accent-ink:#17110f;
+    --accent-tint:rgba(232,87,42,.10); --accent-dim:rgba(232,87,42,.24);
+    --success:#5fbf85; --success-tint:rgba(95,191,133,.08);
+    --warning:#d6a647; --warning-tint:rgba(214,166,71,.08);
+    --danger:#e0635a;  --danger-tint:rgba(224,99,90,.09);
+    --info:#8e8eb5;    --info-tint:rgba(142,142,181,.12);
+    --neutral:#7a7a80; --neutral-tint:rgba(150,150,155,.06);
+    --row-hover:rgba(255,255,255,.022);
+    --input-fill:rgba(255,255,255,.025); --badge-fill:rgba(255,255,255,.05);
+    --btn-fill:rgba(255,255,255,.04); --btn-hover:rgba(255,255,255,.07);
+    --radius-xxs:3px; --radius-xs:4px; --radius-sm:5px; --radius:6px; --radius-md:8px; --radius-lg:10px; --radius-pill:9999px;
+    --font-sans:"Inter Variable","Inter",-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --font-mono:"JetBrains Mono Variable","JetBrains Mono","SF Mono",ui-monospace,Menlo,monospace;
+    --dur:140ms; --ease:cubic-bezier(.2,0,0,1);
+    --highlight:inset 0 1px 0 rgba(255,255,255,.035);
+    --focus-ring:0 0 0 2px rgba(255,255,255,.5);
+    --shadow-overlay:0 24px 48px -12px rgba(0,0,0,.65), 0 0 0 1px rgba(255,255,255,.045);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--canvas);color:var(--fg);font-family:var(--font-sans);font-size:13.5px;line-height:1.5;letter-spacing:-.006em;
+    font-feature-settings:"cv01","ss03";-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+  a{color:inherit;text-decoration:none}
+  button{font:inherit;letter-spacing:inherit;color:inherit;background:none;border:0;cursor:pointer}
+  svg{display:block}
+  code,.mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums;font-feature-settings:normal}
+  :is(button,a,[tabindex],summary):focus-visible{outline:none;box-shadow:var(--focus-ring)}
+
+  /* unified head · 44px */
+  .w2head{min-height:44px;display:flex;align-items:center;gap:10px;padding:0 16px;
+    background:var(--canvas);border-bottom:1px solid var(--line);min-width:0}
+  .w2-back{width:24px;height:24px;flex:none;display:grid;place-items:center;border-radius:var(--radius);color:var(--muted)}
+  .w2-back:hover{background:var(--btn-fill);color:var(--fg-strong)}
+  .w2-back svg{width:14px;height:14px}
+  .w2-crumbs{display:flex;align-items:center;gap:2px;min-width:0}
+  .w2-crumb{font-size:13px;font-weight:500;color:var(--subtle);white-space:nowrap;border-radius:var(--radius-sm);padding:1px 5px}
+  .w2-crumb:hover{color:var(--fg);background:var(--row-hover)}
+  .w2-sep{flex:none;font-size:12px;color:var(--faint)}
+  .w2-title{font-size:13px;font-weight:600;color:var(--fg-strong);white-space:nowrap;padding-left:3px}
+  .w2-flex{flex:1;min-width:8px}
+  .w2-status{display:inline-flex;align-items:center;gap:6px;flex:none;font-size:10.5px;font-weight:600;color:var(--muted)}
+  .w2-status .dot{width:7px;height:7px;border-radius:50%;background:currentColor;flex:none}
+  .w2-status[data-tone="run"]{color:var(--accent-strong)}
+  .w2-vsep{width:1px;height:14px;background:var(--line-strong);flex:none}
+  .w2-actions{position:relative;display:flex;align-items:center;gap:6px;flex:none}
+  .btn{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:var(--radius-md);font-size:12px;
+    font-weight:500;letter-spacing:-.005em;border:1px solid var(--line);background:var(--btn-fill);white-space:nowrap;
+    transition:background var(--dur) var(--ease),border-color var(--dur) var(--ease),color var(--dur) var(--ease)}
+  .btn svg{width:13px;height:13px}
+  .btn:hover{background:var(--btn-hover);border-color:var(--line-strong);color:var(--fg-strong)}
+  .btn--danger{color:var(--danger)}
+  .btn--danger:hover{background:var(--danger-tint);border-color:color-mix(in srgb,var(--danger) 24%,transparent);color:var(--danger)}
+  .btn--icon{width:26px;padding:0;justify-content:center}
+  .menu{position:absolute;top:32px;right:0;min-width:190px;padding:5px;border-radius:var(--radius-md);background:var(--elevated);
+    border:1px solid var(--line-strong);box-shadow:var(--shadow-overlay);z-index:40;display:none}
+  .menu.is-open{display:block}
+  .menu__item{display:flex;align-items:center;gap:9px;width:100%;height:28px;padding:0 9px;border-radius:var(--radius-sm);font-size:12.5px;color:var(--fg);text-align:left}
+  .menu__item:hover{background:var(--row-hover);color:var(--fg-strong)}
+  .menu__item svg{width:13px;height:13px;color:var(--muted);flex:none}
+  .menu__item[data-tone="danger"]{color:var(--danger)}
+  .menu__item[data-tone="danger"] svg{color:var(--danger)}
+  .menu__item[data-tone="danger"]:hover{background:var(--danger-tint)}
+  .menu__sep{height:1px;margin:5px 4px;background:var(--line)}
+
+  .page{max-width:1240px;margin:0 auto;padding:24px 36px 72px}
+  .subhead{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:22px;padding-bottom:14px;
+    border-bottom:1px solid var(--line);font-size:12px;color:var(--subtle)}
+  .subhead b{font-weight:500;color:var(--muted)}
+  .subhead .mono{font-size:11px}
+  .dotsep{width:2px;height:2px;border-radius:50%;background:var(--faint);display:inline-block}
+
+  .layout{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:32px;align-items:start}
+
+  /* collapsible sections */
+  .sec{margin-bottom:24px;border:0}
+  .sec > summary{display:flex;align-items:center;gap:8px;padding:0 0 10px;cursor:pointer;list-style:none;user-select:none}
+  .sec > summary::-webkit-details-marker{display:none}
+  .sec > summary svg.si{width:14px;height:14px;color:var(--subtle);flex:none}
+  .sec > summary .st{font-size:10.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--subtle)}
+  .sec > summary .ssum{font-size:11.5px;color:var(--faint);margin-left:2px}
+  .sec > summary .spacer{flex:1}
+  .sec > summary svg.chev{width:14px;height:14px;color:var(--faint);flex:none;transition:transform var(--dur) var(--ease)}
+  .sec:not([open]) > summary svg.chev{transform:rotate(-90deg)}
+  .sec:not([open]) > summary{padding-bottom:0;margin-bottom:24px}
+  .panelbox{background:var(--canvas-soft);border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden}
+
+  /* pill vocabulary — Pill xs (17px), state only */
+  .pillxs{display:inline-flex;align-items:center;gap:5px;height:17px;padding:0 6px;border-radius:var(--radius-xs);
+    font-size:10.5px;font-weight:600;white-space:nowrap;background:var(--badge-fill);color:var(--muted)}
+  .pillxs.mono{font-family:var(--font-mono);font-weight:500}
+  .pillxs[data-tone="warning"]{background:var(--warning-tint);color:var(--warning)}
+  .pillxs[data-tone="info"]{background:var(--info-tint);color:var(--info)}
+
+  /* needs you */
+  .needsrow{display:flex;align-items:flex-start;gap:12px;padding:14px 16px}
+  .needsrow svg.ni{width:15px;height:15px;flex:none;margin-top:2px;color:var(--warning)}
+  .needsrow__main{min-width:0;flex:1}
+  .needsrow__label{font-size:13px;font-weight:520;color:var(--fg-strong)}
+  .needsrow__sub{margin-top:3px;font-size:12.5px;line-height:1.55;color:var(--muted);max-width:62ch}
+  .needsrow__trail{display:flex;flex-direction:column;align-items:flex-end;gap:4px;padding-top:2px}
+  .needsrow__age{font-family:var(--font-mono);font-size:11px;color:var(--subtle);white-space:nowrap}
+  .needsrow__act{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:520;color:var(--muted);padding:2px 4px;border-radius:var(--radius-xs)}
+  .needsrow__act:hover{color:var(--fg-strong)}
+  .needsrow__act svg{width:12px;height:12px}
+
+  /* progress */
+  .goalbox{padding:16px 18px 17px}
+  .goal-title{font-size:15px;font-weight:560;letter-spacing:-.014em;color:var(--fg-strong);text-wrap:pretty}
+  .pbar{display:flex;gap:3px;height:6px;margin-top:14px}
+  .pbar__seg{flex:1;border-radius:var(--radius-pill);background:var(--badge-fill)}
+  .pbar__seg[data-state="clean"]{background:var(--success)}
+  .pbar__seg[data-state="active"]{background:var(--accent-dim)}
+  .pbar-meta{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-top:9px;font-size:12px;color:var(--muted)}
+  .pbar-meta b{font-weight:560;color:var(--fg)}
+  .pbar-meta .r{color:var(--subtle);white-space:nowrap}
+
+  /* happening now */
+  .nowrow{display:flex;align-items:flex-start;gap:12px;padding:14px 16px}
+  .nowrow__dot{width:8px;height:8px;border-radius:50%;background:var(--accent);flex:none;margin-top:6px}
+  .nowrow__main{min-width:0;flex:1}
+  .nowrow__label{font-size:13.5px;font-weight:560;color:var(--fg-strong)}
+  .nowrow__sub{margin-top:3px;font-size:12.5px;line-height:1.55;color:var(--muted);max-width:62ch}
+  .nowrow__meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  .nowrow__time{font-family:var(--font-mono);font-size:11.5px;color:var(--subtle);white-space:nowrap;padding-top:3px}
+  .dot--pulse{animation:pulse 1.8s var(--ease) infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 color-mix(in srgb,currentColor 40%,transparent)}70%{box-shadow:0 0 0 5px transparent}100%{box-shadow:0 0 0 0 transparent}}
+
+  /* ── story timeline — packages/ui timeline.tsx + loop-run-story-timeline.tsx anatomy ──
+     row: grid 22px | 1fr | auto, gap 12, py 9; spine 1px line-strong at left 10.5;
+     dot: 22px ring (1.5px, tone color) on canvas, 11px lucide icon; trail: relative time + mono micro */
+  .tl{padding:6px 16px 10px}
+  .tlrow{position:relative;display:grid;grid-template-columns:22px minmax(0,1fr) auto;gap:12px;align-items:start;padding:9px 0}
+  .tlrow::before{content:"";position:absolute;left:10.5px;top:0;bottom:0;width:1px;background:var(--line-strong)}
+  .tlrow:first-child::before{top:14px}
+  .tlrow:last-child::before{bottom:auto;height:14px}
+  .tlrow__dot{position:relative;z-index:1;width:22px;height:22px;border-radius:50%;background:var(--canvas);
+    border:1.5px solid var(--tone,var(--faint));color:var(--tone,var(--faint));display:grid;place-items:center}
+  .tlrow__dot svg{width:11px;height:11px}
+  .tlrow__title{padding-top:2px;font-size:13px;font-weight:520;color:var(--fg-strong)}
+  .tlrow__sub{margin-top:2px;max-width:60ch;font-size:12.5px;line-height:1.5;color:var(--muted)}
+  .tlrow__meta{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:6px}
+  .tlrow__trail{display:flex;flex-direction:column;align-items:flex-end;gap:3px;padding-top:3px}
+  .tlrow__time{font-size:11.5px;color:var(--subtle);font-variant-numeric:tabular-nums;white-space:nowrap}
+  .tlrow__micro{font-family:var(--font-mono);font-size:9px;color:var(--faint);white-space:nowrap}
+
+  /* earlier-generation disclosure */
+  .genfold{border-top:1px solid var(--line-soft)}
+  .genfold > summary{display:flex;align-items:center;gap:8px;padding:11px 16px;cursor:pointer;list-style:none;font-size:12px;color:var(--subtle)}
+  .genfold > summary::-webkit-details-marker{display:none}
+  .genfold > summary:hover{color:var(--fg);background:var(--row-hover)}
+  .genfold > summary svg{width:13px;height:13px;transition:transform var(--dur) var(--ease)}
+  .genfold[open] > summary svg{transform:rotate(90deg)}
+
+  .quiet-note{display:flex;align-items:flex-start;gap:9px;padding:13px 15px;border-radius:var(--radius-md);
+    background:var(--canvas-soft);border:1px solid var(--line-soft);font-size:12.5px;line-height:1.55;color:var(--muted)}
+  .quiet-note svg{width:14px;height:14px;flex:none;margin-top:2px;color:var(--subtle)}
+  .quiet-note b{font-weight:520;color:var(--fg)}
+  .quiet-note .mono{font-size:11px}
+
+  /* rail — one card (production run rail) */
+  .railbox{background:var(--canvas-soft);border:1px solid var(--line);border-radius:var(--radius-lg)}
+  .rail-sec{padding:15px 16px;border-top:1px solid var(--line-soft)}
+  .rail-sec:first-child{border-top:0}
+  .rail-sec__t{display:flex;align-items:center;gap:7px;font-size:10.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--subtle);margin-bottom:9px}
+  .rail-sec__t svg{width:13px;height:13px;color:var(--faint)}
+  .prow{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:4px 0;min-height:25px}
+  .prow__k{font-size:12px;color:var(--subtle);flex:none}
+  .prow__v{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:510;color:var(--fg);min-width:0}
+  .prow__v.mono{font-size:11px;font-weight:500;color:var(--muted)}
+  .prow__v .max{color:var(--faint)}
+  .prow__v span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .prow__v a{color:var(--warning)}
+  .prow__v a:hover{filter:brightness(1.15)}
+  .rail-note{margin-top:8px;font-size:11px;line-height:1.5;color:var(--faint)}
+  .copybtn{display:inline-grid;place-items:center;width:18px;height:18px;color:var(--faint);border-radius:var(--radius-xxs)}
+  .copybtn:hover{color:var(--fg);background:var(--row-hover)}
+  .copybtn svg{width:11px;height:11px}
+  .rail-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;border-top:1px solid var(--line-soft);padding:8px 12px}
+  .rail-foot__btn{display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 8px;border-radius:var(--radius-md);color:var(--muted);font-size:11px;font-weight:500}
+  .rail-foot__btn:hover{background:var(--row-hover);color:var(--fg-strong)}
+  .rail-foot__btn svg{width:12px;height:12px}
+  .rail-foot .digest{font-family:var(--font-mono);font-size:9px;color:var(--faint)}
+
+  @media (max-width:1080px){.layout{grid-template-columns:1fr}.page{padding:20px 20px 56px}}
+  @media (prefers-reduced-motion: reduce){*{animation:none!important;transition-duration:.01ms!important}}
+
+  /* ══ inventory extensions on the approved base ══ */
+  [hidden]{display:none!important}
+  .pillxs[data-tone="danger"]{background:var(--danger-tint);color:var(--danger)}
+  .pillxs[data-tone="neutral"]{background:var(--neutral-tint);color:var(--neutral)}
+
+  /* lab nav — mono, sticky; hrefs are the deep-link contract other artboards call into */
+  .gnav{position:sticky;top:0;z-index:10;display:flex;flex-wrap:wrap;align-items:center;gap:10px;
+    padding:10px 24px;border-bottom:1px solid var(--line);background:var(--rail)}
+  .gnav a{font-family:var(--font-mono);font-size:10.5px;color:var(--subtle);padding:2px 6px;border-radius:var(--radius-xs)}
+  .gnav a:hover{color:var(--fg);background:var(--row-hover)}
+
+  .micro{font-family:var(--font-mono);font-size:9px;color:var(--faint);white-space:nowrap}
+
+  /* listing toolbar — production listing-toolbar.tsx geometry: filters → spacer → view pills */
+  .toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:10px}
+  .toolbar .spacer{flex:1;min-width:8px}
+  .selwrap{position:relative;display:inline-flex;align-items:center}
+  .selwrap select{appearance:none;height:28px;padding:0 26px 0 10px;border:1px solid var(--line);border-radius:var(--radius-md);
+    background:var(--elevated);color:var(--fg);font-size:12px;font-family:inherit;letter-spacing:inherit;cursor:pointer}
+  .selwrap select:hover{border-color:var(--line-strong)}
+  .selwrap select:focus-visible{outline:none;box-shadow:var(--focus-ring)}
+  .selwrap svg{position:absolute;right:8px;width:12px;height:12px;color:var(--subtle);pointer-events:none}
+  .pillgroup{display:inline-flex;align-items:center;gap:1px;padding:2px;border-radius:var(--radius-md);background:var(--canvas-soft)}
+  .seg{display:inline-flex;min-height:24px;align-items:center;justify-content:center;gap:6px;padding:0 10px;border-radius:var(--radius-xs);
+    color:var(--subtle);font-size:12px;font-weight:500;
+    transition:background var(--dur) var(--ease),color var(--dur) var(--ease)}
+  .seg:hover{color:var(--muted)}
+  .seg[aria-pressed="true"]{background:var(--elevated);color:var(--fg-strong);box-shadow:var(--highlight)}
+  .seg .cnt{font-family:var(--font-mono);font-size:9.5px;color:var(--faint)}
+  .seg[aria-pressed="true"] .cnt{color:var(--subtle)}
+  .seg svg{width:12px;height:12px}
+  .toolmicro{display:flex;align-items:center;gap:8px;margin-bottom:12px;padding-left:2px}
+
+  /* inventory rows — dense, dividers, color = state (session-list density rule) */
+  .invbox{background:var(--canvas-soft);border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden}
+  .invhead{display:grid;grid-template-columns:minmax(200px,1.3fr) minmax(140px,.9fr) minmax(0,1.6fr) 92px 28px;gap:12px;
+    padding:7px 14px;border-bottom:1px solid var(--line);font-size:10px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--faint)}
+  .invhead .age{display:inline-flex;align-items:center;gap:4px;color:inherit;font:inherit;letter-spacing:inherit;text-transform:inherit;padding:0}
+  .invhead .age:hover{color:var(--subtle)}
+  .invhead .age svg{width:9px;height:9px;transition:transform var(--dur) var(--ease)}
+  .invhead .age.is-asc svg{transform:rotate(180deg)}
+  .invrow{display:grid;grid-template-columns:minmax(200px,1.3fr) minmax(140px,.9fr) minmax(0,1.6fr) 92px 28px;gap:12px;align-items:center;
+    min-height:38px;padding:5px 14px;border-top:1px solid var(--line-soft);cursor:default}
+  .invrow:first-of-type{border-top:0}
+  .invrow:hover{background:var(--row-hover)}
+  .invrow__id{display:flex;align-items:center;gap:9px;min-width:0}
+  .invrow__dot{width:7px;height:7px;border-radius:50%;flex:none}
+  .invrow__dot[data-state="waiting"]{background:var(--info)}
+  .invrow__dot[data-state="quarantined"]{width:6.5px;height:6.5px;border-radius:1.5px;background:var(--danger)}
+  .invrow__dot[data-state="attention"]{width:6px;height:6px;border-radius:1px;background:var(--warning);transform:rotate(45deg)}
+  .invrow__dot[data-state="retrying"]{background:transparent;box-shadow:inset 0 0 0 1.6px var(--warning)}
+  .invrow__dot[data-state="canceled"]{background:transparent;box-shadow:inset 0 0 0 1.5px var(--neutral)}
+  .invrow__name{font-size:12.5px;font-weight:520;color:var(--fg-strong);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .invrow__lane{font-family:var(--font-mono);font-size:10px;color:var(--faint);white-space:nowrap}
+  .invrow__ctx{display:flex;align-items:center;gap:6px;min-width:0;font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .invrow__ctx .rid{font-family:var(--font-mono);font-size:10px;color:var(--subtle)}
+  .invrow__reason{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+  .invrow__age{font-family:var(--font-mono);font-size:11px;color:var(--subtle);font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+  .invrow__age small{display:block;font-size:9px;color:var(--faint)}
+  .invrow__go{display:inline-grid;place-items:center;width:24px;height:24px;border-radius:var(--radius-sm);color:var(--faint)}
+  .invrow__go:hover{background:var(--btn-fill);color:var(--fg-strong)}
+  .invrow__go svg{width:12px;height:12px}
+  .invfoot{display:flex;align-items:center;gap:10px;padding:9px 14px;border-top:1px solid var(--line-soft)}
+  .invfoot .mono{font-size:10px;color:var(--faint)}
+  .invfoot .spacer{flex:1}
+
+  /* cards view (Rows | Cards contract) — state pill is the only badge on the page */
+  .listing-card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px;padding:14px}
+  .invcard{display:flex;flex-direction:column;gap:8px;padding:12px 13px;border:1px solid var(--line-soft);border-radius:var(--radius-md);
+    background:var(--canvas-tint);text-align:left;cursor:default}
+  .invcard:hover{border-color:var(--line);background:var(--elevated)}
+  .invcard__top{display:flex;align-items:center;gap:8px}
+  .invcard__name{flex:1;min-width:0;font-size:12.5px;font-weight:520;color:var(--fg-strong);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .invcard__reason{font-size:12px;line-height:1.5;color:var(--muted);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .invcard__meta{display:flex;align-items:center;gap:6px;font-family:var(--font-mono);font-size:10px;color:var(--faint)}
+  .invcard__meta .spacer{flex:1}
+
+  /* empty state — "nothing here" is a healthy signal, not a failure */
+  .empty{display:none;flex-direction:column;align-items:center;gap:8px;padding:44px 20px;text-align:center}
+  .empty.is-visible{display:flex}
+  .empty__ic{display:grid;place-items:center;width:34px;height:34px;border-radius:var(--radius-md);background:var(--badge-fill);color:var(--subtle)}
+  .empty__ic svg{width:16px;height:16px}
+  .empty__t{font-size:13px;font-weight:560;color:var(--fg-strong)}
+  .empty__sub{font-size:12.5px;color:var(--muted);max-width:44ch;line-height:1.55}
+
+  /* aggregation demos */
+  .stage{padding:24px;border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--canvas-soft)}
+  .stage--stack{display:flex;flex-direction:column;gap:18px}
+  .aggwrap{display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start}
+  .aggwrap__grow{flex:1;min-width:300px}
+  .demo__cap{font-family:var(--font-mono);font-size:10px;color:var(--faint);margin-bottom:9px}
+  .demo__cap b{color:var(--subtle);font-weight:600}
+  .bellpop{width:300px;padding:5px;border-radius:var(--radius-md);background:var(--elevated);border:1px solid var(--line-strong);box-shadow:var(--shadow-overlay)}
+  .bellpop__head{padding:6px 9px 4px;font-family:var(--font-mono);font-size:9.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--faint)}
+  .bellrow{display:flex;align-items:center;gap:9px;width:100%;min-height:30px;padding:4px 9px;border-radius:var(--radius-sm);font-size:12.5px;color:var(--fg);text-align:left}
+  .bellrow:hover{background:var(--row-hover)}
+  .bellrow .d{width:7px;height:7px;border-radius:50%;flex:none;background:var(--neutral)}
+  .bellrow .d[data-tone="warning"]{background:var(--warning)}
+  .bellrow .d[data-tone="info"]{background:var(--info)}
+  .bellrow .t{flex:1;min-width:0}
+  .bellrow .cnt{font-family:var(--font-mono);font-size:10px;color:var(--subtle)}
+  .kpis{display:grid;grid-template-columns:repeat(4,minmax(120px,1fr));gap:10px}
+  .kpi{padding:11px 13px;border:1px solid var(--line);border-radius:var(--radius-md);background:var(--canvas-soft)}
+  .kpi__l{font-size:10px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--faint)}
+  .kpi__v{margin-top:4px;font-size:18px;font-weight:600;letter-spacing:-.02em;color:var(--fg-strong);font-variant-numeric:tabular-nums}
+  .kpi__sub{margin-top:1px;font-size:11px;color:var(--subtle)}
+
+  /* runs-area deltas: status pills + outcome filter */
+  .pillrow{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+  .pill{display:inline-flex;align-items:center;gap:6px;height:20px;padding:0 8px;border-radius:var(--radius-pill);font-size:11px;font-weight:500;white-space:nowrap}
+  .pill .d{width:6px;height:6px;border-radius:50%;background:currentColor}
+  .pill[data-tone="neutral"]{background:var(--neutral-tint);color:var(--neutral)}
+  .pill[data-tone="accent"]{background:var(--accent-tint);color:var(--accent-strong)}
+  .pill[data-tone="info"]{background:var(--info-tint);color:var(--info)}
+  .pill[data-tone="success"]{background:var(--success-tint);color:var(--success)}
+  .pill[data-tone="warning"]{background:var(--warning-tint);color:var(--warning)}
+  .pill[data-tone="danger"]{background:var(--danger-tint);color:var(--danger)}
+  .pill--new{box-shadow:0 0 0 1px color-mix(in srgb,var(--fg) 14%,transparent)}
+  .invbox--narrow{max-width:640px}
+  .invrow--run{grid-template-columns:minmax(160px,1fr) auto auto 28px}
+
+  @media (max-width:900px){
+    .invhead,.invrow{grid-template-columns:minmax(0,1.4fr) 78px 28px}
+    .invhead .h-ctx,.invhead .h-reason,.invrow__ctx,.invrow__reason{display:none}
+    .kpis{grid-template-columns:repeat(2,1fr)}
+    .invrow--run{grid-template-columns:minmax(140px,1fr) auto 28px}
+  }
+</style>
+</head>
+<body>
+
+<!-- deep-link contract: other artboards link into #waiting / #quarantined / #attention / #retrying -->
+<nav class="gnav" aria-label="Sections" data-od-id="inventories-nav">
+  <a href="#inventory">inventory</a>
+  <a href="#waiting" data-state-link="waiting">waiting</a>
+  <a href="#quarantined" data-state-link="quarantined">quarantined</a>
+  <a href="#attention" data-state-link="attention">attention</a>
+  <a href="#retrying" data-state-link="retrying">retrying</a>
+  <a href="#aggregation">badges</a>
+  <a href="#runs-deltas">runs-area deltas</a>
+</nav>
+
+<header class="w2head" data-od-id="inventories-head">
+  <a class="w2-back" href="loop-run-detail.html" aria-label="Back to run"><i data-lucide="chevron-left"></i></a>
+  <nav class="w2-crumbs" aria-label="Breadcrumb">
+    <a class="w2-crumb" href="../_done/loops/loops-catalog.html">Loops</a>
+    <span class="w2-sep">/</span>
+    <a class="w2-crumb" href="loop-detail.html">software-delivery</a>
+    <span class="w2-sep">/</span>
+    <span class="w2-title">Node inventories</span>
+  </nav>
+  <span class="w2-flex"></span>
+</header>
+
+<div class="page">
+  <!-- route · authority: spec
+       GET /api/workspaces/:ws/loop-nodes?state=waiting|quarantined|attention|retrying&loop=&run_id=&cursor=&limit=
+       → LoopNodeInventoryResponse{items, next_cursor} -->
+  <div class="subhead" data-od-id="inventories-subhead">
+    <span>Workspace views backed by <b>one route</b></span><span class="dotsep"></span>
+    <span class="mono">GET /loop-nodes?state=…</span>
+  </div>
+
+  <!-- ══ 01 · the inventory ══ -->
+  <details class="sec" open id="inventory" data-od-id="lab-inventory">
+    <summary>
+      <i class="si" data-lucide="layers"></i><span class="st">Inventory</span>
+      <span class="ssum">one list, four state filters — the same route with a different ?state=</span>
+      <span class="spacer"></span><i class="chev" data-lucide="chevron-down"></i>
+    </summary>
+
+    <!-- toolbar geometry transcribed from production listing-toolbar.tsx:
+         leading filters → spacer → trailing view-mode PillGroup; segments 24px inside a 2px track -->
+    <div class="toolbar" data-od-id="inventory-toolbar">
+      <span class="selwrap">
+        <select class="ctl" aria-label="Filter by loop" id="filterLoop" data-od-id="inventory-filter-loop">
+          <option value="">All loops</option>
+          <option value="software-delivery">software-delivery</option>
+          <option value="docs-refresh">docs-refresh</option>
+          <option value="issue-triage">issue-triage</option>
+        </select>
+        <i data-lucide="chevron-down"></i>
+      </span>
+      <span class="selwrap">
+        <select class="ctl" aria-label="Filter by run" id="filterRun" data-od-id="inventory-filter-run">
+          <option value="">All runs</option>
+          <option value="r-8f3a2b">r-8f3a2b</option>
+          <option value="r-2b81aa">r-2b81aa</option>
+          <option value="r-914c3d">r-914c3d</option>
+        </select>
+        <i data-lucide="chevron-down"></i>
+      </span>
+      <div class="pillgroup" role="group" aria-label="Node state" data-od-id="inventory-state-switch">
+        <button class="seg" data-state="waiting" aria-pressed="true" type="button">Waiting</button>
+        <button class="seg" data-state="quarantined" aria-pressed="false" type="button">Quarantined</button>
+        <button class="seg" data-state="attention" aria-pressed="false" type="button">Attention</button>
+        <button class="seg" data-state="retrying" aria-pressed="false" type="button">Retrying</button>
+      </div>
+      <span class="spacer"></span>
+      <div class="pillgroup" role="group" aria-label="View mode" data-od-id="inventory-view-mode">
+        <button class="seg" data-view="rows" aria-pressed="true" type="button"><i data-lucide="list"></i>Rows</button>
+        <button class="seg" data-view="cards" aria-pressed="false" type="button"><i data-lucide="layout-grid"></i>Cards</button>
+      </div>
+    </div>
+
+    <!-- machine truth: the query this view is asking for right now -->
+    <div class="toolmicro"><span class="micro" id="queryMicro"></span></div>
+
+    <div class="invbox" data-od-id="inventory-list">
+      <div class="invhead" id="invHead">
+        <span>Node</span><span class="h-ctx">Loop · Run</span><span class="h-reason">Reason</span>
+        <button class="age" id="ageSort" type="button" aria-label="Sort by age, descending">Age <i data-lucide="arrow-down"></i></button>
+        <span></span>
+      </div>
+      <div id="invRows"></div>
+      <div class="listing-card-grid" id="invCards" hidden></div>
+      <div class="empty" id="invEmpty" data-od-id="inventory-empty">
+        <span class="empty__ic" id="emptyIcon"></span>
+        <span class="empty__t" id="emptyTitle"></span>
+        <span class="empty__sub" id="emptySub"></span>
+      </div>
+      <div class="invfoot" id="invFoot">
+        <span class="mono" id="invCount">Showing 4 of 4</span>
+        <span class="spacer"></span>
+        <button class="btn" type="button" id="loadMore" hidden data-od-id="inventory-load-more">Load 50 more</button>
+        <span class="mono" id="cursorNote" hidden>cursor c_9f2a</span>
+      </div>
+    </div>
+  </details>
+
+  <!-- ══ 02 · where the counts surface ══ -->
+  <details class="sec" open id="aggregation" data-od-id="lab-aggregation">
+    <summary>
+      <i class="si" data-lucide="bell"></i><span class="st">Where the counts surface</span>
+      <span class="ssum">loops join the shell attention area</span>
+      <span class="spacer"></span><i class="chev" data-lucide="chevron-down"></i>
+    </summary>
+    <div class="stage aggwrap">
+      <div>
+        <div class="demo__cap"><b>menu-bar bell</b> — each row deep-links into a filtered inventory</div>
+        <div class="bellpop" data-od-id="agg-bell">
+          <div class="bellpop__head">Needs you</div>
+          <button class="bellrow" type="button"><span class="d" data-tone="warning"></span><span class="t">Session approvals</span><span class="cnt">2</span></button>
+          <button class="bellrow" type="button" data-od-id="agg-bell-waiting"><span class="d" data-tone="info"></span><span class="t">Loop nodes waiting on you</span><span class="cnt">4</span></button>
+          <button class="bellrow" type="button" data-od-id="agg-bell-attention"><span class="d" data-tone="warning"></span><span class="t">Loop nodes needing attention</span><span class="cnt">3</span></button>
+        </div>
+      </div>
+      <div class="aggwrap__grow">
+        <div class="demo__cap"><b>runs page KPI strip</b> — two new tiles beside the existing pair</div>
+        <div class="kpis" data-od-id="agg-kpis">
+          <div class="kpi"><div class="kpi__l">Running</div><div class="kpi__v">3</div><div class="kpi__sub">2 watching</div></div>
+          <div class="kpi"><div class="kpi__l">Awaiting you</div><div class="kpi__v">4</div><div class="kpi__sub">approvals &amp; waits</div></div>
+          <div class="kpi" data-od-id="agg-kpi-attention"><div class="kpi__l">Needs a look</div><div class="kpi__v">5</div><div class="kpi__sub">3 flagged · 2 quarantined</div></div>
+          <div class="kpi"><div class="kpi__l">Done today</div><div class="kpi__v">11</div><div class="kpi__sub">9 clean · 2 canceled</div></div>
+        </div>
+      </div>
+    </div>
+  </details>
+
+  <!-- ══ 03 · runs-area deltas: the canceled terminal ══ -->
+  <details class="sec" open id="runs-deltas" data-od-id="lab-runs-deltas">
+    <summary>
+      <i class="si" data-lucide="ban"></i><span class="st">Runs-area deltas</span>
+      <span class="ssum">loop-status-pill + outcome filter + formatters gain one value; nothing else moves</span>
+      <span class="spacer"></span><i class="chev" data-lucide="chevron-down"></i>
+    </summary>
+    <!-- authority: spec — canceled is new; production enum ends at stalled -->
+    <div class="stage stage--stack">
+      <div>
+        <div class="demo__cap"><b>status pills</b> — full set; canceled = neutral, no pulse (deliberate end, not a failure)</div>
+        <div class="pillrow" data-od-id="delta-status-pills">
+          <span class="pill" data-tone="neutral"><span class="d"></span>Queued</span>
+          <span class="pill" data-tone="accent"><span class="d dot--pulse"></span>Running</span>
+          <span class="pill" data-tone="info"><span class="d dot--pulse"></span>Watching</span>
+          <span class="pill" data-tone="info"><span class="d"></span>Needs Approval</span>
+          <span class="pill" data-tone="neutral"><span class="d"></span>Paused</span>
+          <span class="pill" data-tone="success"><span class="d"></span>Done</span>
+          <span class="pill" data-tone="neutral"><span class="d"></span>No-op</span>
+          <span class="pill" data-tone="warning"><span class="d"></span>Blocked</span>
+          <span class="pill" data-tone="danger"><span class="d"></span>Failed</span>
+          <span class="pill" data-tone="warning"><span class="d"></span>Exhausted</span>
+          <span class="pill" data-tone="neutral"><span class="d"></span>Stalled</span>
+          <span class="pill pill--new" data-tone="neutral" data-od-id="delta-pill-canceled"><span class="d"></span>Canceled</span>
+        </div>
+      </div>
+      <div>
+        <div class="demo__cap"><b>outcome filter</b> — canceled joins the terminal set</div>
+        <div class="pillgroup" role="group" aria-label="Outcome filter" data-od-id="delta-outcome-filter">
+          <button class="seg" aria-pressed="true" type="button">All</button>
+          <button class="seg" aria-pressed="false" type="button">Done</button>
+          <button class="seg" aria-pressed="false" type="button">Failed</button>
+          <button class="seg" aria-pressed="false" type="button">Exhausted</button>
+          <button class="seg" aria-pressed="false" type="button">Stalled</button>
+          <button class="seg" aria-pressed="false" type="button">Blocked</button>
+          <button class="seg" aria-pressed="false" type="button">No-op</button>
+          <button class="seg" aria-pressed="false" type="button" data-od-id="delta-filter-canceled">Canceled</button>
+        </div>
+      </div>
+      <div>
+        <div class="demo__cap"><b>runs list row</b> — a canceled run reads calm: the close cause names cancel vs kill</div>
+        <div class="invbox invbox--narrow">
+          <div class="invrow invrow--run" data-od-id="run-row-r-6b9e10">
+            <span class="invrow__id"><span class="invrow__dot" data-state="canceled"></span><span class="invrow__name">Run r-6b9e10</span><span class="invrow__lane">software-delivery</span></span>
+            <span class="pill" data-tone="neutral"><span class="d"></span>Canceled</span>
+            <span class="invrow__age">operator_cancel · 1h ago</span>
+            <button class="invrow__go" type="button" aria-label="Open run r-6b9e10"><i data-lucide="chevron-right"></i></button>
+          </div>
+          <div class="invrow invrow--run" data-od-id="run-row-r-914c3d">
+            <span class="invrow__id"><span class="invrow__dot" data-state="canceled"></span><span class="invrow__name">Run r-914c3d</span><span class="invrow__lane">issue-triage</span></span>
+            <span class="pill" data-tone="neutral"><span class="d"></span>Canceled</span>
+            <span class="invrow__age">operator_kill · 3h ago</span>
+            <button class="invrow__go" type="button" aria-label="Open run r-914c3d"><i data-lucide="chevron-right"></i></button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </details>
+</div>
+
+<script src="https://unpkg.com/lucide@latest"></script>
+<script>
+/* inventory data — every field maps to a LoopNodeInventoryResponse row.
+   Primary story: software-delivery v4 · run r-8f3a2b · gen 2 · lanes task_01..task_04.
+   Two secondary workspace loops stay in the set — a workspace inventory spans loops. */
+const DATA = {
+  waiting: [
+    {name:"Approve gate", lane:"approve · gen 2", loop:"software-delivery", run:"r-8f3a2b", reason:"approval — ship-to-main gate, re-notified", ageS: 22*60, age:"22m"},
+    {name:"Task 04 · contract test", lane:"execute_task · task_04 · gen 2", loop:"software-delivery", run:"r-8f3a2b", reason:"event — deploy.finished, expects {env}", ageS: 18*60, age:"18m"},
+    {name:"Publish step", lane:"publish · gen 1", loop:"docs-refresh", run:"r-2b81aa", reason:"timer — resumes 15:10", ageS: 6*60, age:"6m"},
+    {name:"Triage lane 2", lane:"triage[2] · gen 4", loop:"issue-triage", run:"r-914c3d", reason:"approval — label-change gate, escalated", ageS: 49*60, age:"49m"},
+  ],
+  quarantined: [
+    {name:"Task 03 · api handler", lane:"execute_task · task_03 · gen 2", loop:"software-delivery", run:"r-8f3a2b", reason:"payload_declared — github auth rejected · episode 2", ageS: 9*60, age:"9m"},
+    {name:"Sync step", lane:"sync · gen 3", loop:"docs-refresh", run:"r-2b81aa", reason:"quality_rejection — output failed its contract twice", ageS: 3*3600, age:"3h"},
+  ],
+  attention: [
+    {name:"Task 04 · contract test", lane:"execute_task · task_04 · gen 2", loop:"software-delivery", run:"r-8f3a2b", reason:"silence — quiet for 31m, no confirmed death", ageS: 31*60, age:"31m"},
+    {name:"Collect join", lane:"collect · gen 2", loop:"software-delivery", run:"r-8f3a2b", reason:"dependency_quarantined — blocked on task_03", ageS: 2*60, age:"2m"},
+    {name:"Digest lane 1", lane:"digest[1] · gen 6", loop:"issue-triage", run:"r-914c3d", reason:"wait_intervention — resume payload rejected 3×", ageS: 78*60, age:"1h 18m"},
+  ],
+  retrying: [
+    {name:"Task 03 · api handler", lane:"execute_task · task_03 · gen 2", loop:"software-delivery", run:"r-8f3a2b", reason:"transport — attempt 2 of 3, next 14:41:03", ageS: 40, age:"40s"},
+    {name:"Crawl step", lane:"crawl · gen 1", loop:"docs-refresh", run:"r-2b81aa", reason:"transport — attempt 3 of 5, next 14:44:10", ageS: 2*60, age:"2m"},
+  ],
+};
+/* truthful empty copy per filter — "nothing here" is a healthy signal */
+const EMPTY = {
+  waiting:     {t:"Nothing is waiting on you", s:"Every lane is either working or done — a healthy sign, not a gap.", ic:"check"},
+  quarantined: {t:"Quarantine is empty", s:"No node has exhausted its failure budget. When one does, it lands here with its full story.", ic:"shield-check"},
+  attention:   {t:"Nothing needs a look", s:"No silent nodes, no blocked rounds. Flags clear themselves when activity returns.", ic:"check"},
+  retrying:    {t:"No retries scheduled", s:"No node is mid-backoff right now. Only network-style failures retry on their own.", ic:"rotate-ccw"},
+};
+const TONE = {waiting:"info", quarantined:"danger", attention:"warning", retrying:"warning"};
+
+let state = "waiting", view = "rows", ageDesc = true;
+const rowsEl = document.getElementById("invRows"),
+      cardsEl = document.getElementById("invCards"),
+      emptyEl = document.getElementById("invEmpty"),
+      footEl = document.getElementById("invFoot"),
+      headEl = document.getElementById("invHead"),
+      countEl = document.getElementById("invCount"),
+      microEl = document.getElementById("queryMicro"),
+      loopSel = document.getElementById("filterLoop"),
+      runSel = document.getElementById("filterRun"),
+      stateSegs = document.querySelectorAll('[data-od-id="inventory-state-switch"] .seg'),
+      viewSegs = document.querySelectorAll('[data-od-id="inventory-view-mode"] .seg');
+
+function esc(s){ return s.replace(/&/g,"&amp;").replace(/</g,"&lt;"); }
+function slug(s){ return s.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/(^-|-$)/g,""); }
+function rowsFor(st){
+  return DATA[st].filter(it =>
+    (!loopSel.value || it.loop === loopSel.value) &&
+    (!runSel.value || it.run === runSel.value));
+}
+/* switcher counts derive from DATA at render time; a zero count renders nothing at all */
+function syncCounts(){
+  stateSegs.forEach(btn => {
+    const n = rowsFor(btn.dataset.state).length;
+    let cnt = btn.querySelector(".cnt");
+    if (n === 0){ if (cnt) cnt.remove(); return; }
+    if (!cnt){ cnt = document.createElement("span"); cnt.className = "cnt"; btn.appendChild(cnt); }
+    cnt.textContent = String(n);
+  });
+}
+function syncMicro(){
+  microEl.textContent = "state=" + state
+    + " · loop=" + (loopSel.value || "*")
+    + " · run_id=" + (runSel.value || "*")
+    + " · limit=50";
+}
+function render(){
+  const items = rowsFor(state).slice().sort((a,b)=> ageDesc ? b.ageS-a.ageS : a.ageS-b.ageS);
+  const empty = items.length === 0;
+  syncCounts();
+  syncMicro();
+  emptyEl.classList.toggle("is-visible", empty);
+  headEl.hidden = empty || view !== "rows";
+  rowsEl.hidden = empty || view !== "rows";
+  cardsEl.hidden = empty || view !== "cards";
+  footEl.hidden = empty;
+  if (empty){
+    const e = EMPTY[state];
+    document.getElementById("emptyIcon").innerHTML = '<i data-lucide="' + e.ic + '"></i>';
+    document.getElementById("emptyTitle").textContent = e.t;
+    document.getElementById("emptySub").textContent = e.s;
+    lucide.createIcons();
+    return;
+  }
+  countEl.textContent = "Showing " + items.length + " of " + items.length;
+  rowsEl.innerHTML = items.map(it => `
+    <div class="invrow" tabindex="0" data-od-id="inventory-row-${esc(it.run)}-${slug(it.name)}">
+      <span class="invrow__id"><span class="invrow__dot" data-state="${state}"></span><span class="invrow__name">${esc(it.name)}</span><span class="invrow__lane">${esc(it.lane)}</span></span>
+      <span class="invrow__ctx"><span>${esc(it.loop)}</span><span class="rid">${esc(it.run)}</span></span>
+      <span class="invrow__reason">${esc(it.reason)}</span>
+      <span class="invrow__age">${esc(it.age)}<small>in this state</small></span>
+      <button class="invrow__go" type="button" aria-label="Open run ${esc(it.run)}" title="Jump to run"><i data-lucide="chevron-right"></i></button>
+    </div>`).join("");
+  cardsEl.innerHTML = items.map(it => `
+    <div class="invcard" tabindex="0" data-od-id="inventory-card-${esc(it.run)}-${slug(it.name)}">
+      <span class="invcard__top"><span class="invrow__dot" data-state="${state}"></span><span class="invcard__name">${esc(it.name)}</span><span class="pillxs" data-tone="${TONE[state]}">${state}</span></span>
+      <span class="invcard__reason">${esc(it.reason)}</span>
+      <span class="invcard__meta"><span>${esc(it.loop)} · ${esc(it.run)}</span><span class="spacer"></span><span>${esc(it.age)}</span></span>
+    </div>`).join("");
+  lucide.createIcons();
+}
+stateSegs.forEach(btn => {
+  btn.addEventListener("click", () => {
+    state = btn.dataset.state;
+    stateSegs.forEach(b => b.setAttribute("aria-pressed", String(b === btn)));
+    render();
+  });
+});
+viewSegs.forEach(btn => {
+  btn.addEventListener("click", () => {
+    view = btn.dataset.view;
+    viewSegs.forEach(b => b.setAttribute("aria-pressed", String(b === btn)));
+    render();
+  });
+});
+[loopSel, runSel].forEach(sel => sel.addEventListener("change", render));
+document.getElementById("ageSort").addEventListener("click", function(){
+  ageDesc = !ageDesc;
+  this.setAttribute("aria-label", "Sort by age, " + (ageDesc ? "descending" : "ascending"));
+  this.classList.toggle("is-asc", !ageDesc);
+  render();
+});
+/* deep links from other artboards: #waiting / #quarantined / #attention / #retrying */
+function applyHash(){
+  const h = location.hash.replace("#","");
+  if (DATA[h]){
+    state = h;
+    stateSegs.forEach(b => b.setAttribute("aria-pressed", String(b.dataset.state === h)));
+    render();
+  }
+}
+window.addEventListener("hashchange", applyHash);
+lucide.createIcons();
+applyHash();
+render();
+</script>
+</body>
+</html>
