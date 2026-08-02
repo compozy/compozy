@@ -2,8 +2,9 @@
 
 > Companion to `DESIGN-LESSONS.md` (the approved directive source). This file is the execution
 > record for the `loop-node-lifecycle` Visual Contract: status, the closed review round, the
-> locked decisions, and the approval that unblocks `task_08`. Delete it when task_08 has
-> consumed the artboards.
+> locked decisions, and the approval that unblocks web Visual Contract tasks `task_08` (run UI),
+> `task_09` (editor lifecycle grammar + chrome), and `task_10` (hero path). Delete it when
+> task_08 + task_09 + task_10 have consumed the artboards.
 
 ## 1. Status snapshot — 2026-08-02 (closed)
 
@@ -151,7 +152,9 @@ the compact chip summary synced to the allowlist (no surface/hands-free binding 
 DSL `start:` block stays the single allowlist representation. `loop-run-form.html` links to the
 Start inspector (and correctly stamps this form as `http`). **Ship gate:** Spec 3 adjacency —
 editor writes `start[]`, production sidebar gains the Start lane, docs drop read-only strip
-language; until then Visual Contract material only.
+language; until then Visual Contract material only. Held outside Spec 1 per
+`.compozy/tasks/loop-node-lifecycle` MVP Boundary / Non-Goals / ADR-018 — survives deletion of
+this backlog file.
 
 **Capture:** `_captures/loops-loop-editor.png` refresh **skipped** this pass — OD `export … --format image`
 failed in-environment (`Unable to find helper app` / GPU process exit). Prior PNG remains stale
@@ -165,5 +168,6 @@ the approval conditions this file now evidences: lab review closed with fixes ap
 editor grammar coverage closed (§2.2), hero-path promotion done (§2.3), directives promoted
 (§4.3), PNG evidence in `_captures/loops-*.png` for every artboard listed in `index.html`
 (the OD exporter is unblocked; the earlier repo-side-only note is obsolete).
-**This unblocks `task_08`** — the artboards under `docs/design/opendesign/loops/` + this record
-are the Visual Contract gate; no external plan file is authoritative.
+**This unblocks web Visual Contract tasks `task_08` + `task_09` + `task_10`** — the artboards
+under `docs/design/opendesign/loops/` + this record are the Visual Contract gate; ownership
+split is run UI / editor / hero path per ADR-018; no external plan file is authoritative.
