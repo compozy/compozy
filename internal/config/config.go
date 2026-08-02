@@ -48,6 +48,7 @@ type DefaultsConfig struct {
 
 // ValidationError preserves the config path for agent-parseable validation failures.
 type ValidationError struct {
+	Code    string
 	Path    string
 	Message string
 }

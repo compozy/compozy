@@ -25,14 +25,18 @@ type GenerationSnapshotPayload struct {
 
 // GenerationOutput is one loop_generation_outputs row mutation.
 type GenerationOutput struct {
-	Generation      int              `json:"generation,omitempty"`
-	NodeID          string           `json:"node_id"`
-	ItemIndex       int              `json:"item_index,omitempty"`
-	Status          string           `json:"status"`
-	OutputRef       string           `json:"output_ref,omitempty"`
-	TaskRunID       string           `json:"task_run_id,omitempty"`
-	ChildLoopRunID  string           `json:"child_loop_run_id,omitempty"`
-	ResolvedRuntime *ResolvedRuntime `json:"resolved_runtime,omitempty"`
+	Generation       int              `json:"generation,omitempty"`
+	NodeID           string           `json:"node_id"`
+	ItemIndex        int              `json:"item_index,omitempty"`
+	Status           string           `json:"status"`
+	OutputRef        string           `json:"output_ref,omitempty"`
+	TaskRunID        string           `json:"task_run_id,omitempty"`
+	ChildLoopRunID   string           `json:"child_loop_run_id,omitempty"`
+	ResolvedRuntime  *ResolvedRuntime `json:"resolved_runtime,omitempty"`
+	Attempt          int              `json:"attempt,omitempty"`
+	NextAttemptAt    *time.Time       `json:"next_attempt_at,omitempty"`
+	FirstScheduledAt *time.Time       `json:"first_scheduled_at,omitempty"`
+	Epoch            int64            `json:"epoch,omitempty"`
 }
 
 // GenerationOutputBlob is one content-addressed loop output payload required by

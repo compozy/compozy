@@ -475,6 +475,17 @@ type ExtensionEnvBinding struct {
 	UpdatedAt     string `json:"updated_at"`
 }
 
+type LoopAdmissionClaim struct {
+	WorkspaceID      string       `json:"workspace_id"`
+	LoopName         string       `json:"loop_name"`
+	SourceKey        string       `json:"source_key"`
+	EventKey         string       `json:"event_key"`
+	LoopRunID        string       `json:"loop_run_id"`
+	ClaimedAt        time.Time    `json:"claimed_at"`
+	SuppressedCount  int64        `json:"suppressed_count"`
+	LastSuppressedAt sql.NullTime `json:"last_suppressed_at"`
+}
+
 type LoopConfig struct {
 	WorkspaceID         string         `json:"workspace_id"`
 	LoopName            string         `json:"loop_name"`
@@ -500,6 +511,22 @@ type LoopDefinitionSnapshot struct {
 	ByteSize          int64  `json:"byte_size"`
 	CreatedAt         string `json:"created_at"`
 	LastUsedAt        string `json:"last_used_at"`
+}
+
+type LoopEffectOutbox struct {
+	LoopRunID     string       `json:"loop_run_id"`
+	DeliveryID    string       `json:"delivery_id"`
+	SourceEventID string       `json:"source_event_id"`
+	Trigger       string       `json:"trigger"`
+	Generation    int64        `json:"generation"`
+	NodeID        string       `json:"node_id"`
+	ItemIndex     int64        `json:"item_index"`
+	EntryIndex    int64        `json:"entry_index"`
+	EntryJson     string       `json:"entry_json"`
+	State         string       `json:"state"`
+	Attempts      int64        `json:"attempts"`
+	CreatedAt     time.Time    `json:"created_at"`
+	DeliveredAt   sql.NullTime `json:"delivered_at"`
 }
 
 type LoopGateDecision struct {
@@ -548,6 +575,10 @@ type LoopGenerationOutput struct {
 	TaskRunID           sql.NullString `json:"task_run_id"`
 	ChildLoopRunID      sql.NullString `json:"child_loop_run_id"`
 	ResolvedRuntimeJson sql.NullString `json:"resolved_runtime_json"`
+	Attempt             int64          `json:"attempt"`
+	NextAttemptAt       sql.NullTime   `json:"next_attempt_at"`
+	FirstScheduledAt    sql.NullTime   `json:"first_scheduled_at"`
+	Epoch               int64          `json:"epoch"`
 	GoalStatus          sql.NullString `json:"goal_status"`
 	GoalTurnsUsed       sql.NullInt64  `json:"goal_turns_used"`
 	GoalTurnLimit       sql.NullInt64  `json:"goal_turn_limit"`
@@ -681,6 +712,68 @@ type LoopGoalTurn struct {
 	EndedAt         sql.NullTime   `json:"ended_at"`
 }
 
+type LoopNodeAttempt struct {
+	LoopRunID     string         `json:"loop_run_id"`
+	Generation    int64          `json:"generation"`
+	NodeID        string         `json:"node_id"`
+	ItemIndex     int64          `json:"item_index"`
+	Attempt       int64          `json:"attempt"`
+	FailureClass  sql.NullString `json:"failure_class"`
+	FailureCode   string         `json:"failure_code"`
+	Cause         string         `json:"cause"`
+	Hint          string         `json:"hint"`
+	Target        string         `json:"target"`
+	Disposition   string         `json:"disposition"`
+	StartedAt     time.Time      `json:"started_at"`
+	EndedAt       sql.NullTime   `json:"ended_at"`
+	NextAttemptAt sql.NullTime   `json:"next_attempt_at"`
+}
+
+type LoopNodeControl struct {
+	LoopRunID           string         `json:"loop_run_id"`
+	NodeID              string         `json:"node_id"`
+	Paused              int64          `json:"paused"`
+	PauseActorKind      sql.NullString `json:"pause_actor_kind"`
+	PauseActorID        sql.NullString `json:"pause_actor_id"`
+	PauseReason         sql.NullString `json:"pause_reason"`
+	PauseRuleID         sql.NullString `json:"pause_rule_id"`
+	PauseRequestedAt    sql.NullTime   `json:"pause_requested_at"`
+	Quarantined         int64          `json:"quarantined"`
+	QuarantineEntryJson sql.NullString `json:"quarantine_entry_json"`
+	QuarantinedAt       sql.NullTime   `json:"quarantined_at"`
+	AttentionFlag       string         `json:"attention_flag"`
+	AttentionReason     string         `json:"attention_reason"`
+	CancelState         string         `json:"cancel_state"`
+	CancelActorKind     sql.NullString `json:"cancel_actor_kind"`
+	CancelActorID       sql.NullString `json:"cancel_actor_id"`
+	CancelReason        sql.NullString `json:"cancel_reason"`
+	CancelRequestedAt   sql.NullTime   `json:"cancel_requested_at"`
+	LastEvidenceAt      sql.NullTime   `json:"last_evidence_at"`
+	DeathResumeStreak   int64          `json:"death_resume_streak"`
+	Revision            int64          `json:"revision"`
+	UpdatedAt           time.Time      `json:"updated_at"`
+}
+
+type LoopNodeWait struct {
+	LoopRunID         string         `json:"loop_run_id"`
+	Generation        int64          `json:"generation"`
+	NodeID            string         `json:"node_id"`
+	ItemIndex         int64          `json:"item_index"`
+	Kind              string         `json:"kind"`
+	ResumeAt          sql.NullTime   `json:"resume_at"`
+	NextEscalationAt  sql.NullTime   `json:"next_escalation_at"`
+	EscalationCursor  int64          `json:"escalation_cursor"`
+	ClaimState        string         `json:"claim_state"`
+	ClaimedByKind     sql.NullString `json:"claimed_by_kind"`
+	ClaimedByID       sql.NullString `json:"claimed_by_id"`
+	ClaimedAt         sql.NullTime   `json:"claimed_at"`
+	AdmissionFailures int64          `json:"admission_failures"`
+	ExpectJson        sql.NullString `json:"expect_json"`
+	AheadPayloadJson  sql.NullString `json:"ahead_payload_json"`
+	IssuedEpoch       int64          `json:"issued_epoch"`
+	CreatedAt         time.Time      `json:"created_at"`
+}
+
 type LoopOutputBlob struct {
 	OutputRef   string `json:"output_ref"`
 	PayloadJson string `json:"payload_json"`
@@ -734,16 +827,19 @@ type LoopRun struct {
 	NetworkSource            string          `json:"network_source"`
 	BestGeneration           sql.NullInt64   `json:"best_generation"`
 	BestScore                sql.NullFloat64 `json:"best_score"`
+	CancelRequested          int64           `json:"cancel_requested"`
+	CancelKind               string          `json:"cancel_kind"`
 }
 
 type LoopRunEvent struct {
-	ID          string    `json:"id"`
-	LoopRunID   string    `json:"loop_run_id"`
-	WorkspaceID string    `json:"workspace_id"`
-	Seq         int64     `json:"seq"`
-	Kind        string    `json:"kind"`
-	PayloadJson string    `json:"payload_json"`
-	At          time.Time `json:"at"`
+	ID          string         `json:"id"`
+	LoopRunID   string         `json:"loop_run_id"`
+	WorkspaceID string         `json:"workspace_id"`
+	Seq         int64          `json:"seq"`
+	Kind        string         `json:"kind"`
+	PayloadJson string         `json:"payload_json"`
+	At          time.Time      `json:"at"`
+	DeliveryKey sql.NullString `json:"delivery_key"`
 }
 
 type LoopSessionBinding struct {

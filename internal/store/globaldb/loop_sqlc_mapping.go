@@ -83,6 +83,7 @@ func loopRunFromGenerated(row *sqlcgen.LoopRun) (looppkg.Run, error) {
 		startedAtRaw: row.StartedAt, lastProgressAtRaw: store.FormatTimestamp(row.LastProgressAt),
 		activeHumanRaw: row.ActiveHumanCriteriaJson, startMetadataRaw: row.StartMetadataJson,
 		parentID: row.ParentLoopRunID, pauseRequested: int(row.PauseRequested),
+		cancelRequested: int(row.CancelRequested), cancelKind: row.CancelKind,
 		controlActorKind: row.ControlActorKind, controlActorID: row.ControlActorID,
 		controlRequested: controlRequested, inputsRaw: row.InputsJson,
 		startedByKind: row.StartedByKind, startedByRef: row.StartedByRef,
@@ -104,16 +105,21 @@ func loopRunFromGenerated(row *sqlcgen.LoopRun) (looppkg.Run, error) {
 }
 
 func loopRunEventFromGenerated(row sqlcgen.LoopRunEvent) looppkg.RunEvent {
-	return looppkg.RunEvent{
+	event := looppkg.RunEvent{
 		ID: row.ID, LoopRunID: looppkg.RunID(row.LoopRunID), WorkspaceID: looppkg.WorkspaceID(row.WorkspaceID),
 		Seq: row.Seq, Kind: row.Kind, Payload: json.RawMessage(row.PayloadJson), At: row.At.UTC(),
 	}
+	if row.DeliveryKey.Valid {
+		event.DeliveryKey = row.DeliveryKey.String
+	}
+	return event
 }
 
 func generationOutputFromGenerated(row sqlcgen.ListLoopGenerationOutputsRow) (looppkg.GenerationOutput, error) {
 	output := looppkg.GenerationOutput{
 		Generation: int(row.Generation), NodeID: row.NodeID,
 		ItemIndex: int(row.ItemIndex), Status: row.Status,
+		Attempt: int(row.Attempt), Epoch: row.Epoch,
 	}
 	if row.OutputRef.Valid {
 		output.OutputRef = row.OutputRef.String
@@ -131,6 +137,8 @@ func generationOutputFromGenerated(row sqlcgen.ListLoopGenerationOutputsRow) (lo
 		}
 		output.ResolvedRuntime = &resolved
 	}
+	output.NextAttemptAt = loopTimePointer(row.NextAttemptAt)
+	output.FirstScheduledAt = loopTimePointer(row.FirstScheduledAt)
 	return output, nil
 }
 
@@ -171,6 +179,14 @@ func loopConfigPatchParams(
 
 func nullableLoopTime(value time.Time) sql.NullTime {
 	return sql.NullTime{Time: value.UTC(), Valid: !value.IsZero()}
+}
+
+func loopTimePointer(value sql.NullTime) *time.Time {
+	if !value.Valid {
+		return nil
+	}
+	normalized := value.Time.UTC()
+	return &normalized
 }
 
 func loopPatchIntFlag(value bool) sql.NullInt64 {

@@ -66,7 +66,7 @@ CREATE TABLE loop_generations (
 				CHECK (parent_generation >= 0 AND parent_generation < generation),
 			origin            TEXT NOT NULL CHECK (origin IN (
 				'initial','stop_when','reattempt','gate_revise','gate_next_generation',
-				'dod_retry','ratchet_restore'
+				'dod_retry','ratchet_restore','requeue'
 			)),
 			created_at        TIMESTAMP NOT NULL,
 			PRIMARY KEY (loop_run_id, generation)
@@ -77,14 +77,126 @@ CREATE TABLE loop_generation_outputs (
 			generation        INTEGER NOT NULL,
 			node_id           TEXT NOT NULL,
 			item_index        INTEGER NOT NULL DEFAULT 0,
-			status            TEXT NOT NULL,
+			status            TEXT NOT NULL CHECK (status IN (
+				'pending','enqueued','running','retrying','waiting','paused','awaiting_child',
+				'control_pending','awaiting_goal','succeeded','failed','canceled','quarantined'
+			)),
 			output_ref        TEXT,
 			task_run_id       TEXT,
 			child_loop_run_id TEXT,
 			resolved_runtime_json TEXT CHECK (resolved_runtime_json IS NULL OR json_valid(resolved_runtime_json)),
+			attempt INTEGER NOT NULL DEFAULT 1 CHECK (attempt >= 1),
+			next_attempt_at TIMESTAMP,
+			first_scheduled_at TIMESTAMP,
+			epoch INTEGER NOT NULL DEFAULT 0,
 			goal_status TEXT, goal_turns_used INTEGER, goal_turn_limit INTEGER,
 			PRIMARY KEY (loop_run_id, generation, node_id, item_index)
 		);
+
+CREATE TABLE loop_node_controls (
+	loop_run_id           TEXT NOT NULL REFERENCES loop_runs(id) ON DELETE CASCADE,
+	node_id               TEXT NOT NULL,
+	paused                INTEGER NOT NULL DEFAULT 0,
+	pause_actor_kind      TEXT,
+	pause_actor_id        TEXT,
+	pause_reason          TEXT,
+	pause_rule_id         TEXT,
+	pause_requested_at    TIMESTAMP,
+	quarantined           INTEGER NOT NULL DEFAULT 0,
+	quarantine_entry_json TEXT CHECK (quarantine_entry_json IS NULL OR json_valid(quarantine_entry_json)),
+	quarantined_at        TIMESTAMP,
+	attention_flag        TEXT NOT NULL DEFAULT '' CHECK (attention_flag IN (
+		'', 'silence', 'resume_exhausted', 'dependency_quarantined', 'wait_intervention', 'expired_wait'
+	)),
+	attention_reason      TEXT NOT NULL DEFAULT '',
+	cancel_state          TEXT NOT NULL DEFAULT '' CHECK (cancel_state IN (
+		'', 'requested', 'delivering', 'draining', 'canceled'
+	)),
+	cancel_actor_kind     TEXT,
+	cancel_actor_id       TEXT,
+	cancel_reason         TEXT,
+	cancel_requested_at   TIMESTAMP,
+	last_evidence_at      TIMESTAMP,
+	death_resume_streak   INTEGER NOT NULL DEFAULT 0 CHECK (death_resume_streak >= 0),
+	revision              INTEGER NOT NULL DEFAULT 0,
+	updated_at            TIMESTAMP NOT NULL,
+	PRIMARY KEY (loop_run_id, node_id)
+);
+
+CREATE TABLE loop_node_attempts (
+	loop_run_id    TEXT NOT NULL REFERENCES loop_runs(id) ON DELETE CASCADE,
+	generation     INTEGER NOT NULL CHECK (generation >= 1),
+	node_id        TEXT NOT NULL,
+	item_index     INTEGER NOT NULL DEFAULT 0,
+	attempt        INTEGER NOT NULL CHECK (attempt >= 1),
+	failure_class  TEXT CHECK (failure_class IS NULL OR failure_class IN (
+		'transport','payload_declared','quality_rejection','authoring','cancellation',
+		'attempt_timeout','budget_exhausted','target_unavailable'
+	)),
+	failure_code   TEXT NOT NULL DEFAULT '',
+	cause          TEXT NOT NULL DEFAULT '',
+	hint           TEXT NOT NULL DEFAULT '',
+	target         TEXT NOT NULL DEFAULT '',
+	disposition    TEXT NOT NULL CHECK (disposition IN (
+		'succeeded','retried','routed','absorbed','escalated','quarantined','canceled','resumed'
+	)),
+	started_at     TIMESTAMP NOT NULL,
+	ended_at       TIMESTAMP,
+	next_attempt_at TIMESTAMP,
+	PRIMARY KEY (loop_run_id, generation, node_id, item_index, attempt)
+);
+
+CREATE TABLE loop_node_waits (
+	loop_run_id        TEXT NOT NULL REFERENCES loop_runs(id) ON DELETE CASCADE,
+	generation         INTEGER NOT NULL CHECK (generation >= 1),
+	node_id            TEXT NOT NULL,
+	item_index         INTEGER NOT NULL DEFAULT 0,
+	kind               TEXT NOT NULL CHECK (kind IN ('timer','event','approval_escalation')),
+	resume_at          TIMESTAMP,
+	next_escalation_at TIMESTAMP,
+	escalation_cursor  INTEGER NOT NULL DEFAULT 0,
+	claim_state        TEXT NOT NULL DEFAULT 'waiting' CHECK (claim_state IN (
+		'waiting','claimed','resumed','intervention_required'
+	)),
+	claimed_by_kind    TEXT,
+	claimed_by_id      TEXT,
+	claimed_at         TIMESTAMP,
+	admission_failures INTEGER NOT NULL DEFAULT 0,
+	expect_json        TEXT CHECK (expect_json IS NULL OR json_valid(expect_json)),
+	ahead_payload_json TEXT CHECK (ahead_payload_json IS NULL OR json_valid(ahead_payload_json)),
+	issued_epoch       INTEGER NOT NULL DEFAULT 0,
+	created_at         TIMESTAMP NOT NULL,
+	PRIMARY KEY (loop_run_id, generation, node_id, item_index)
+);
+
+CREATE TABLE loop_admission_claims (
+	workspace_id       TEXT NOT NULL,
+	loop_name          TEXT NOT NULL,
+	source_key         TEXT NOT NULL,
+	event_key          TEXT NOT NULL,
+	loop_run_id        TEXT NOT NULL,
+	claimed_at         TIMESTAMP NOT NULL,
+	suppressed_count   INTEGER NOT NULL DEFAULT 0,
+	last_suppressed_at TIMESTAMP,
+	PRIMARY KEY (workspace_id, loop_name, source_key, event_key)
+);
+
+CREATE TABLE loop_effect_outbox (
+	loop_run_id     TEXT NOT NULL REFERENCES loop_runs(id) ON DELETE CASCADE,
+	delivery_id     TEXT NOT NULL,
+	source_event_id TEXT NOT NULL,
+	trigger         TEXT NOT NULL,
+	generation      INTEGER NOT NULL,
+	node_id         TEXT NOT NULL DEFAULT '',
+	item_index      INTEGER NOT NULL DEFAULT 0,
+	entry_index     INTEGER NOT NULL CHECK (entry_index >= 0),
+	entry_json      TEXT NOT NULL CHECK (json_valid(entry_json)),
+	state           TEXT NOT NULL DEFAULT 'pending' CHECK (state IN ('pending','delivered','failed')),
+	attempts        INTEGER NOT NULL DEFAULT 0,
+	created_at      TIMESTAMP NOT NULL,
+	delivered_at    TIMESTAMP,
+	PRIMARY KEY (loop_run_id, delivery_id)
+);
 
 CREATE TABLE loop_goal_binding_retry_witnesses (
 		loop_run_id          TEXT NOT NULL REFERENCES loop_runs(id) ON DELETE CASCADE,
@@ -311,7 +423,8 @@ CREATE TABLE loop_run_events (
 			seq          INTEGER NOT NULL,
 			kind         TEXT NOT NULL,
 			payload_json TEXT NOT NULL,
-			at           TIMESTAMP NOT NULL
+			at           TIMESTAMP NOT NULL,
+			delivery_key TEXT
 		);
 
 CREATE TABLE loop_runs (
@@ -340,6 +453,8 @@ CREATE TABLE loop_runs (
 						'explicit_request', 'task_profile', 'workspace_coordination',
 						'loop_definition', 'automation_job', 'built_in_local'
 					)), best_generation INTEGER, best_score REAL,
+					cancel_requested INTEGER NOT NULL DEFAULT 0,
+					cancel_kind TEXT NOT NULL DEFAULT '' CHECK (cancel_kind IN ('', 'cancel', 'kill')),
 					CHECK (
 						(best_generation IS NULL AND best_score IS NULL)
 						OR (best_generation IS NOT NULL AND best_score IS NOT NULL
@@ -399,6 +514,24 @@ CREATE INDEX idx_loop_gate_verdicts_route_cause
 CREATE INDEX idx_loop_generation_outputs_output_ref
 			ON loop_generation_outputs(output_ref);
 
+CREATE INDEX idx_loop_node_controls_quarantined
+	ON loop_node_controls(quarantined) WHERE quarantined = 1;
+
+CREATE INDEX idx_loop_node_controls_attention
+	ON loop_node_controls(attention_flag) WHERE attention_flag != '';
+
+CREATE INDEX idx_loop_node_waits_due
+	ON loop_node_waits(resume_at) WHERE claim_state = 'waiting' AND resume_at IS NOT NULL;
+
+CREATE INDEX idx_loop_node_waits_ladder
+	ON loop_node_waits(next_escalation_at)
+	WHERE claim_state = 'waiting' AND next_escalation_at IS NOT NULL;
+
+CREATE INDEX idx_loop_node_waits_state ON loop_node_waits(claim_state);
+
+CREATE INDEX idx_loop_effect_outbox_pending
+	ON loop_effect_outbox(state) WHERE state = 'pending';
+
 CREATE INDEX idx_loop_goal_session_cleanup_pending
 			ON loop_goal_session_cleanup(id) WHERE completed_at IS NULL;
 
@@ -407,6 +540,9 @@ CREATE INDEX idx_loop_goal_session_outbox_pending
 
 CREATE INDEX idx_loop_run_events_run_seq
 			ON loop_run_events(loop_run_id, seq);
+
+CREATE UNIQUE INDEX uq_loop_run_events_delivery
+	ON loop_run_events(loop_run_id, delivery_key) WHERE delivery_key IS NOT NULL;
 
 CREATE INDEX idx_loop_runs_catalog
 			ON loop_runs(workspace_id, loop_name, created_at DESC, id DESC, status);

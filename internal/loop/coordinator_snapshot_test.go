@@ -36,6 +36,7 @@ func TestCoordinatorRunnerShouldExecutePinnedDefinitionSnapshot(t *testing.T) {
 				Worker: RuntimeSpec{Model: "worker-pinned"},
 				Judge:  RuntimeSpec{Model: "judge-pinned"},
 			},
+			Lifecycle: DefaultLifecycleConfig(),
 		}
 		snapshotJSON, digest, err := BuildExecutedDefinitionSnapshot(resolved, effective)
 		if err != nil {
@@ -382,5 +383,6 @@ func snapshotEffectiveConfig() EffectiveConfig {
 		NoProgressWindow:  1,
 		FanOutWidth:       1,
 		GateMaxRevisions:  1,
+		Lifecycle:         DefaultLifecycleConfig(),
 	}
 }

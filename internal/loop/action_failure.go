@@ -3,9 +3,15 @@ package loop
 import (
 	"encoding/json"
 	"strings"
+
+	"github.com/compozy/compozy/internal/diagnostics"
 )
 
-const actionFailureKind = "action_failure"
+const (
+	actionFailureKind      = "action_failure"
+	actionFailureCodeLimit = 256
+	actionFailureTextLimit = 2 * 1024
+)
 
 // ActionFailure is the durable operator-safe failure payload stored for a Loop action.
 type ActionFailure struct {
@@ -56,9 +62,9 @@ func newSafeActionFailureError(err error, failure ActionFailure) error {
 func NewActionFailure(code string, cause string, recovery string) ActionFailure {
 	return ActionFailure{
 		Kind:     actionFailureKind,
-		Code:     strings.TrimSpace(code),
-		Cause:    strings.TrimSpace(cause),
-		Recovery: strings.TrimSpace(recovery),
+		Code:     diagnostics.RedactAndBound(code, actionFailureCodeLimit),
+		Cause:    diagnostics.RedactAndBound(cause, actionFailureTextLimit),
+		Recovery: diagnostics.RedactAndBound(recovery, actionFailureTextLimit),
 	}
 }
 
@@ -81,7 +87,7 @@ func ActionFailureOutputRefFromMetadata(raw json.RawMessage) (string, bool) {
 	failure.Code = strings.TrimSpace(failure.Code)
 	failure.Cause = strings.TrimSpace(failure.Cause)
 	failure.Recovery = strings.TrimSpace(failure.Recovery)
-	if failure.Kind != actionFailureKind || failure.Code == "" || failure.Cause == "" || failure.Recovery == "" {
+	if failure.Kind != actionFailureKind || failure.Code == "" || failure.Cause == "" {
 		return "", false
 	}
 	payload, err := json.Marshal(failure)

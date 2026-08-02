@@ -147,6 +147,7 @@ type LoopConfig struct {
 	GateMaxRevisions  *int                `json:"gate_max_revisions,omitempty"  yaml:"gate_max_revisions,omitempty"`
 	RuntimeDefaults   *RuntimeDefaults    `json:"runtime_defaults,omitempty"    yaml:"runtime_defaults,omitempty"`
 	RuntimeRules      []RuntimeRule       `json:"runtime_rules,omitempty"       yaml:"runtime_rules,omitempty"`
+	Lifecycle         *LifecycleConfig    `json:"lifecycle,omitempty"           yaml:"lifecycle,omitempty"`
 }
 
 // EffectiveConfig is the fully resolved non-null runtime config.
@@ -164,6 +165,7 @@ type EffectiveConfig struct {
 	RuntimeDefaults   RuntimeDefaults    `json:"runtime_defaults"`
 	RuntimeRules      []RuntimeRule      `json:"runtime_rules"`
 	RunRuntimeRules   []RuntimeRule      `json:"run_runtime_rules"`
+	Lifecycle         LifecycleConfig    `json:"lifecycle"`
 }
 
 // ConfigSnapshot keeps the stored override and daemon-resolved runtime config from one read.
@@ -209,6 +211,8 @@ type Run struct {
 	TokensUsed            int64
 	ParentLoopRunID       RunID
 	PauseRequested        bool
+	CancelRequested       bool
+	CancelKind            RunCancelKind
 	ControlActor          task.ActorIdentity
 	ControlRequestedAt    time.Time
 	GoalContextNudgeRatio float64

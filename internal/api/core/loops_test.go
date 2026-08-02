@@ -1713,7 +1713,9 @@ func loopDefinition() dsl.Definition {
 			Goal:             "Handle the ticket",
 			DefinitionOfDone: "Ticket is resolved",
 			IterationCap:     3,
-			TerminalStates:   []dsl.TerminalState{dsl.TerminalDone, dsl.TerminalFailed},
+			ContractLifecycleState: &dsl.ContractLifecycleState{
+				TerminalStates: []dsl.TerminalState{dsl.TerminalDone, dsl.TerminalFailed},
+			},
 		},
 		Graph: dsl.Graph{Nodes: []dsl.Node{{ID: "draft", Class: dsl.NodeClassAction, Kind: "run-agent"}}},
 		DefinitionExtensionState: &dsl.DefinitionExtensionState{

@@ -438,7 +438,7 @@ func TestLinterShouldRejectStructuralAndReferenceInvalidShapes(t *testing.T) {
 		{
 			name: "Should reject unknown terminal states",
 			mutate: func(def *dsl.Definition) {
-				def.Contract.TerminalStates = append(def.Contract.TerminalStates, "canceled")
+				def.Contract.TerminalStates = append(def.Contract.TerminalStates, "terminated")
 			},
 			wantCodes: []string{loop.CodeUnknownTerminalState},
 		},
@@ -1405,6 +1405,300 @@ func TestLinterShouldValidateGoalContractsWithoutMutation(t *testing.T) {
 	}
 }
 
+func TestLinterShouldPreserveReferenceDiagnosticDetails(t *testing.T) {
+	t.Parallel()
+	t.Run("Should report the deepest valid path and available fields", func(t *testing.T) {
+		t.Parallel()
+
+		def := validDefinition()
+		agent := requireNode(t, &def, "agent")
+		agent.Params["prompt"] = "Summarize {{ .nodes.load.output.items.summary }}"
+		diagnostics := loop.NewLinter().Lint(def)
+		requireLintDiagnostic(t, diagnostics, refs.CodeUnresolvablePath, loop.SeverityError)
+		requireLintMessageContains(t, diagnostics, refs.CodeUnresolvablePath, "available fields: title")
+		requireLintMessageContains(t, diagnostics, refs.CodeUnresolvablePath, "nodes.load.output.items")
+	})
+}
+
+func TestLinterShouldValidateLifecycleGrammar(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		mutate   func(*dsl.Definition)
+		linter   *loop.DefinitionLinter
+		wantCode string
+		severity loop.LintSeverity
+	}{
+		{
+			name: "Should reject a non-forward error route",
+			mutate: func(def *dsl.Definition) {
+				requireNode(t, def, "agent").OnError = &dsl.ErrorPolicy{Route: "load"}
+			},
+			wantCode: loop.CodeErrorRouteBackward,
+			severity: loop.SeverityError,
+		},
+		{
+			name: "Should reject conflicting error dispositions",
+			mutate: func(def *dsl.Definition) {
+				agent := requireNode(t, def, "agent")
+				agent.OnError = &dsl.ErrorPolicy{Route: "fallback", AllowFail: true}
+				appendLifecycleFallback(def)
+			},
+			wantCode: loop.CodeErrorRouteConflict,
+			severity: loop.SeverityError,
+		},
+		{
+			name: "Should warn about a dead error route",
+			mutate: func(def *dsl.Definition) {
+				requireNode(t, def, "load").OnError = &dsl.ErrorPolicy{Route: "fan"}
+			},
+			wantCode: loop.CodeErrorRouteDead,
+			severity: loop.SeverityWarning,
+		},
+		{
+			name: "Should reject generic lifecycle fields on a Goal",
+			mutate: func(def *dsl.Definition) {
+				*def = validGoalDefinition()
+				goal := requireNode(t, def, "converge")
+				goal.NodeLifecycleState = &dsl.NodeLifecycleState{Deadline: "1m"}
+			},
+			wantCode: loop.CodeRetryOnGoalNode,
+			severity: loop.SeverityError,
+		},
+		{
+			name: "Should reject timeout beyond deadline",
+			mutate: func(def *dsl.Definition) {
+				agent := requireNode(t, def, "agent")
+				agent.Timeout = "2m"
+				agent.Deadline = "1m"
+			},
+			wantCode: loop.CodeTimeoutExceedsDeadline,
+			severity: loop.SeverityError,
+		},
+		{
+			name: "Should reject an invalid duration",
+			mutate: func(def *dsl.Definition) {
+				requireNode(t, def, "agent").Timeout = "soon"
+			},
+			wantCode: loop.CodeDurationInvalid,
+			severity: loop.SeverityError,
+		},
+		{
+			name: "Should reject a result contract outside the output schema",
+			mutate: func(def *dsl.Definition) {
+				requireNode(t, def, "agent").ResultContract = &dsl.ResultContract{FailureField: "error"}
+			},
+			wantCode: loop.CodeResultContractInvalid,
+			severity: loop.SeverityError,
+		},
+		{
+			name: "Should reject an effect without a kind",
+			mutate: func(def *dsl.Definition) {
+				requireNode(t, def, "agent").OnSuccess = []dsl.EffectSpec{{}}
+			},
+			wantCode: loop.CodeEffectShapeInvalid,
+			severity: loop.SeverityError,
+		},
+		{
+			name: "Should warn about an unknown effect tool",
+			mutate: func(def *dsl.Definition) {
+				requireNode(t, def, "agent").OnSuccess = []dsl.EffectSpec{{Tool: "missing__tool"}}
+			},
+			linter:   loop.NewLinter(loop.WithToolSchemaSource(fakeToolSchemas{})),
+			wantCode: loop.CodeEffectToolUnknown,
+			severity: loop.SeverityWarning,
+		},
+		{
+			name: "Should reject a wait without one discriminator",
+			mutate: func(def *dsl.Definition) {
+				appendLifecycleWait(def, dsl.NodeParams{})
+			},
+			wantCode: loop.CodeWaitShapeInvalid,
+			severity: loop.SeverityError,
+		},
+		{
+			name: "Should warn when wait expiry has no path",
+			mutate: func(def *dsl.Definition) {
+				appendLifecycleWait(def, dsl.NodeParams{
+					"for":     "1m",
+					"expires": map[string]any{"after": "2m"},
+				})
+			},
+			wantCode: loop.CodeWaitExpiryWithoutPath,
+			severity: loop.SeverityWarning,
+		},
+		{
+			name: "Should reject a watch source without stable identity",
+			mutate: func(def *dsl.Definition) {
+				*def = singleNodeDefinition(dsl.Node{
+					ID:        "watch",
+					Class:     dsl.NodeClassSource,
+					Kind:      string(dsl.SourceWatchSource),
+					WatchSpec: map[string]any{"kind": "unstable"},
+				})
+			},
+			linter:   loop.NewLinter(loop.WithToolSchemaSource(identityToolSchemas{})),
+			wantCode: loop.CodeWatchIdentityRequired,
+			severity: loop.SeverityError,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			def := validDefinition()
+			def.Normalize()
+			tt.mutate(&def)
+			linter := tt.linter
+			if linter == nil {
+				linter = loop.NewLinter()
+			}
+			requireLintDiagnostic(t, linter.Lint(def), tt.wantCode, tt.severity)
+		})
+	}
+
+	t.Run("Should accept zero annotations and a fully annotated definition without mutation", func(t *testing.T) {
+		t.Parallel()
+
+		zero := validDefinition()
+		requireLintCodes(t, loop.NewLinter().Lint(zero))
+
+		annotated := validDefinition()
+		annotated.Normalize()
+		agent := requireNode(t, &annotated, "agent")
+		agent.Timeout = "30s"
+		agent.Deadline = "2m"
+		agent.Retry = &dsl.RetrySpec{
+			MaxAttempts:  2,
+			Backoff:      &dsl.BackoffSpec{Base: "1s", Max: "10s"},
+			NonRetryable: []string{string(loop.FailurePayloadDeclared)},
+		}
+		agent.ResultContract = &dsl.ResultContract{FailureField: "summary"}
+		agent.OnError = &dsl.ErrorPolicy{
+			AllowFail: true,
+			Effects:   []dsl.EffectSpec{{Tool: "known__effect", With: map[string]any{"body": "failed"}}},
+		}
+		agent.OnRetry = []dsl.EffectSpec{{Emit: &dsl.EmitSpec{Kind: "agent_retrying"}}}
+		agent.OnSuccess = []dsl.EffectSpec{{Emit: &dsl.EmitSpec{Kind: "agent_succeeded"}}}
+		annotated.Contract.OnDone = []dsl.EffectSpec{{Tool: "known__effect"}}
+		before, err := dsl.Serialize(annotated)
+		if err != nil {
+			t.Fatalf("Serialize(before) error = %v", err)
+		}
+		linter := loop.NewLinter(loop.WithToolSchemaSource(fakeToolSchemas{
+			"known__effect": {ToolID: "known__effect"},
+		}))
+		requireLintCodes(t, linter.Lint(annotated))
+		after, err := dsl.Serialize(annotated)
+		if err != nil {
+			t.Fatalf("Serialize(after) error = %v", err)
+		}
+		if !bytes.Equal(after, before) {
+			t.Fatalf("normalize/lint mutated lifecycle grammar\nbefore:\n%s\nafter:\n%s", before, after)
+		}
+	})
+
+	t.Run("Should reject both effect kinds and neither effect kind", func(t *testing.T) {
+		t.Parallel()
+
+		for name, effect := range map[string]dsl.EffectSpec{
+			"both":    {Emit: &dsl.EmitSpec{Kind: "event"}, Tool: "known__effect"},
+			"neither": {},
+		} {
+			t.Run("Should reject "+name, func(t *testing.T) {
+				t.Parallel()
+				def := validDefinition()
+				def.Normalize()
+				requireNode(t, &def, "agent").OnSuccess = []dsl.EffectSpec{effect}
+				requireLintDiagnostic(t, loop.NewLinter().Lint(def), loop.CodeEffectShapeInvalid, loop.SeverityError)
+			})
+		}
+	})
+
+	t.Run("Should enforce wait XOR and expiry after", func(t *testing.T) {
+		t.Parallel()
+
+		for name, params := range map[string]dsl.NodeParams{
+			"multiple discriminators": {"for": "1m", "until": "{{ .inputs.deadline }}"},
+			"expiry without after":    {"for": "1m", "expires": map[string]any{"route": "after_wait"}},
+		} {
+			t.Run("Should reject "+name, func(t *testing.T) {
+				t.Parallel()
+				def := validDefinition()
+				appendLifecycleWait(&def, params)
+				requireLintDiagnostic(t, loop.NewLinter().Lint(def), loop.CodeWaitShapeInvalid, loop.SeverityError)
+			})
+		}
+	})
+
+	t.Run("Should allow parent close only on run-loop with a closed value", func(t *testing.T) {
+		t.Parallel()
+
+		valid := singleNodeDefinition(dsl.Node{
+			ID:                 "child",
+			Class:              dsl.NodeClassAction,
+			Kind:               string(dsl.ActionRunLoop),
+			Params:             dsl.NodeParams{"loop": "child-loop", "mode": string(dsl.RunLoopAwait)},
+			NodeLifecycleState: &dsl.NodeLifecycleState{OnParentClose: dsl.ParentCloseCancel},
+		})
+		requireLintCodes(t, loop.NewLinter().Lint(valid))
+
+		invalidKind := validDefinition()
+		invalidKind.Normalize()
+		requireNode(t, &invalidKind, "agent").OnParentClose = dsl.ParentCloseCancel
+		requireLintDiagnostic(t, loop.NewLinter().Lint(invalidKind), loop.CodeParentCloseInvalid, loop.SeverityError)
+
+		invalidValue := valid
+		invalidValue.Normalize()
+		invalidValue.Graph.Nodes[0].OnParentClose = "detach"
+		requireLintDiagnostic(t, loop.NewLinter().Lint(invalidValue), loop.CodeParentCloseInvalid, loop.SeverityError)
+	})
+}
+
+func appendLifecycleFallback(def *dsl.Definition) {
+	def.Graph.Nodes = append(def.Graph.Nodes, dsl.Node{
+		ID:    "fallback",
+		Class: dsl.NodeClassAction,
+		Kind:  string(dsl.ActionTransform),
+		Params: dsl.NodeParams{"map": map[string]any{
+			"summary": "{{ .nodes.agent.output.summary }}",
+		}},
+	})
+	def.Graph.Edges = append(def.Graph.Edges, dsl.Edge{From: "agent", To: "fallback"})
+}
+
+func appendLifecycleWait(def *dsl.Definition, params dsl.NodeParams) {
+	def.Graph.Nodes = append(def.Graph.Nodes, dsl.Node{
+		ID:     "wait",
+		Class:  dsl.NodeClassControl,
+		Kind:   string(dsl.ControlWait),
+		Params: params,
+	})
+	def.Graph.Edges = append(def.Graph.Edges, dsl.Edge{From: "agent", To: "wait"})
+}
+
+func requireLintDiagnostic(t *testing.T, diagnostics []loop.LintError, code string, severity loop.LintSeverity) {
+	t.Helper()
+	for _, diagnostic := range diagnostics {
+		if diagnostic.Code == code && diagnostic.Severity == severity && diagnostic.Message != "" {
+			return
+		}
+	}
+	t.Fatalf("Lint() diagnostics = %#v, want %s %q", diagnostics, severity, code)
+}
+
+type identityToolSchemas struct{}
+
+func (identityToolSchemas) Snapshot(string) (loop.ToolSchemaSnapshot, bool) {
+	return loop.ToolSchemaSnapshot{}, false
+}
+
+func (identityToolSchemas) SupportsStableWatchIdentity(string) bool {
+	return false
+}
+
 func validDefinition() dsl.Definition {
 	return dsl.Definition{
 		APIVersion:  dsl.APIVersion,
@@ -1421,8 +1715,10 @@ func validDefinition() dsl.Definition {
 			Goal:             "Complete task list",
 			DefinitionOfDone: "All tasks have summaries",
 			Verification:     []dsl.GateCriterion{},
-			TerminalStates:   []dsl.TerminalState{dsl.TerminalDone, dsl.TerminalFailed},
-			IterationCap:     3,
+			ContractLifecycleState: &dsl.ContractLifecycleState{
+				TerminalStates: []dsl.TerminalState{dsl.TerminalDone, dsl.TerminalFailed},
+			},
+			IterationCap: 3,
 			NoProgress: dsl.NoProgress{
 				Window:     2,
 				HashFields: []string{"nodes.agent.output.summary"},
@@ -1543,9 +1839,11 @@ func singleNodeDefinition(node dsl.Node) dsl.Definition {
 		Contract: dsl.Contract{
 			Goal:             "Validate",
 			DefinitionOfDone: "No lint errors",
-			TerminalStates:   []dsl.TerminalState{dsl.TerminalDone, dsl.TerminalFailed},
-			IterationCap:     1,
-			NoProgress:       dsl.NoProgress{Window: 1},
+			ContractLifecycleState: &dsl.ContractLifecycleState{
+				TerminalStates: []dsl.TerminalState{dsl.TerminalDone, dsl.TerminalFailed},
+			},
+			IterationCap: 1,
+			NoProgress:   dsl.NoProgress{Window: 1},
 			Budget: dsl.Budget{
 				Tokens:       100,
 				WallClockSec: 10,

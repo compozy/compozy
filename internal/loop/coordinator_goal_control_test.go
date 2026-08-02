@@ -532,9 +532,11 @@ func goalCoordinatorDefinition() dsl.Definition {
 		Contract: dsl.Contract{
 			Goal:             "Converge",
 			DefinitionOfDone: "Judge approves",
-			TerminalStates:   []dsl.TerminalState{dsl.TerminalDone, dsl.TerminalFailed},
-			IterationCap:     1,
-			NoProgress:       dsl.NoProgress{Window: 1},
+			ContractLifecycleState: &dsl.ContractLifecycleState{
+				TerminalStates: []dsl.TerminalState{dsl.TerminalDone, dsl.TerminalFailed},
+			},
+			IterationCap: 1,
+			NoProgress:   dsl.NoProgress{Window: 1},
 			Budget: dsl.Budget{
 				Tokens:       100,
 				WallClockSec: 10,

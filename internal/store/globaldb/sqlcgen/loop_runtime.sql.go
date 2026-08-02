@@ -521,7 +521,8 @@ func (q *Queries) ListLoopGateVerdicts(ctx context.Context, arg ListLoopGateVerd
 
 const listLoopGenerationOutputs = `-- name: ListLoopGenerationOutputs :many
 SELECT output.generation, output.node_id, output.item_index, output.status, output.output_ref,
-       output.task_run_id, output.child_loop_run_id, output.resolved_runtime_json
+       output.task_run_id, output.child_loop_run_id, output.resolved_runtime_json,
+       output.attempt, output.next_attempt_at, output.first_scheduled_at, output.epoch
 FROM loop_generation_outputs AS output
 JOIN loop_runs AS run ON run.id = output.loop_run_id
 WHERE output.loop_run_id = ?1
@@ -545,6 +546,10 @@ type ListLoopGenerationOutputsRow struct {
 	TaskRunID           sql.NullString `json:"task_run_id"`
 	ChildLoopRunID      sql.NullString `json:"child_loop_run_id"`
 	ResolvedRuntimeJson sql.NullString `json:"resolved_runtime_json"`
+	Attempt             int64          `json:"attempt"`
+	NextAttemptAt       sql.NullTime   `json:"next_attempt_at"`
+	FirstScheduledAt    sql.NullTime   `json:"first_scheduled_at"`
+	Epoch               int64          `json:"epoch"`
 }
 
 func (q *Queries) ListLoopGenerationOutputs(ctx context.Context, arg ListLoopGenerationOutputsParams) ([]ListLoopGenerationOutputsRow, error) {
@@ -565,6 +570,10 @@ func (q *Queries) ListLoopGenerationOutputs(ctx context.Context, arg ListLoopGen
 			&i.TaskRunID,
 			&i.ChildLoopRunID,
 			&i.ResolvedRuntimeJson,
+			&i.Attempt,
+			&i.NextAttemptAt,
+			&i.FirstScheduledAt,
+			&i.Epoch,
 		); err != nil {
 			return nil, err
 		}

@@ -32,6 +32,8 @@ type loopRunScanValues struct {
 	startMetadataRaw  string
 	parentID          sql.NullString
 	pauseRequested    int
+	cancelRequested   int
+	cancelKind        string
 	controlActorKind  sql.NullString
 	controlActorID    sql.NullString
 	controlRequested  sql.NullString
@@ -87,6 +89,8 @@ func (v *loopRunScanValues) scan(row loopRunScanner) error {
 		&v.run.TokensUsed,
 		&v.parentID,
 		&v.pauseRequested,
+		&v.cancelRequested,
+		&v.cancelKind,
 		&v.controlActorKind,
 		&v.controlActorID,
 		&v.controlRequested,
@@ -133,6 +137,9 @@ func (v *loopRunScanValues) toRun() (looppkg.Run, error) {
 		run.ParentLoopRunID = looppkg.RunID(v.parentID.String)
 	}
 	run.PauseRequested = v.pauseRequested != 0
+	if err := applyLoopRunCancellationScan(&run, v); err != nil {
+		return looppkg.Run{}, err
+	}
 	if err := applyLoopRunControlScan(&run, v); err != nil {
 		return looppkg.Run{}, err
 	}
@@ -189,6 +196,20 @@ func (v *loopRunScanValues) toRun() (looppkg.Run, error) {
 		return looppkg.Run{}, err
 	}
 	return run, nil
+}
+
+func applyLoopRunCancellationScan(run *looppkg.Run, values *loopRunScanValues) error {
+	run.CancelRequested = values.cancelRequested != 0
+	run.CancelKind = looppkg.ParseRunCancelKind(strings.TrimSpace(values.cancelKind))
+	if !run.CancelKind.Valid() {
+		return fmt.Errorf(
+			"%w: loop run %q cancel kind is invalid: %q",
+			looppkg.ErrValidation,
+			run.ID,
+			values.cancelKind,
+		)
+	}
+	return nil
 }
 
 func applyLoopRunScanTimestamps(
