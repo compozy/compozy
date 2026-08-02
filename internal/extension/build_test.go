@@ -551,9 +551,20 @@ func TestScaffoldExtension(t *testing.T) {
 					t.Fatalf("read scaffold file %q: %v", relative, err)
 				}
 				content := string(data)
-				for _, forbidden := range []string{"__EXTENSION_NAME__", "min_compozy_version", `"private": true`} {
+				for _, forbidden := range []string{
+					"__EXTENSION_NAME__",
+					"__COMPOZY_GO_SDK_VERSION__",
+					"min_compozy_version",
+					`"private": true`,
+				} {
 					if strings.Contains(content, forbidden) {
 						t.Fatalf("template %q file %q contains forbidden %q", template, relative, forbidden)
+					}
+				}
+				if relative == "go.mod" {
+					wantRequirement := "github.com/compozy/compozy/sdk/go " + scaffoldGoSDKVersion
+					if !strings.Contains(content, wantRequirement) {
+						t.Fatalf("template %q go.mod = %q, want requirement %q", template, content, wantRequirement)
 					}
 				}
 			}

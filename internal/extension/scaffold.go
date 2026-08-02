@@ -15,7 +15,10 @@ import (
 //go:embed scaffold_templates/**
 var extensionScaffoldTemplates embed.FS
 
-const scaffoldTemplateRoot = "scaffold_templates"
+const (
+	scaffoldTemplateRoot = "scaffold_templates"
+	scaffoldGoSDKVersion = "v0.3.0-beta.3"
+)
 
 var extensionNamePattern = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
 
@@ -196,7 +199,10 @@ func renderScaffoldTemplate(stage, name string, template ScaffoldTemplate) ([]st
 		if err != nil {
 			return err
 		}
-		rendered := strings.ReplaceAll(string(content), "__EXTENSION_NAME__", name)
+		rendered := strings.NewReplacer(
+			"__EXTENSION_NAME__", name,
+			"__COMPOZY_GO_SDK_VERSION__", scaffoldGoSDKVersion,
+		).Replace(string(content))
 		destination := filepath.Join(stage, relative)
 		if err := os.MkdirAll(filepath.Dir(destination), 0o755); err != nil {
 			return err
