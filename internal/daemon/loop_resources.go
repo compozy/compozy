@@ -25,6 +25,7 @@ type loopResourcePublisher interface {
 type loopPublicationInput struct {
 	sourceKey string
 	scope     resources.ResourceScope
+	owner     *resources.ResourceOwner
 	spec      looppkg.ResourceSpec
 }
 
@@ -162,6 +163,7 @@ func (s *loopSourceSyncer) Sync(ctx context.Context) error {
 type desiredLoopResource struct {
 	id      string
 	scope   resources.ResourceScope
+	owner   *resources.ResourceOwner
 	spec    looppkg.ResourceSpec
 	encoded []byte
 }
@@ -181,10 +183,11 @@ func (s *loopSourceSyncer) desiredLoops(ctx context.Context) (map[string]desired
 			if err != nil {
 				return nil, err
 			}
-			id := managedResourceID(loopManagedIDPrefix, item.scope.Normalize(), item.sourceKey, encoded)
+			id := managedPublicationID(loopManagedIDPrefix, item.scope.Normalize(), item.sourceKey, encoded, item.owner)
 			desired[id] = desiredLoopResource{
 				id:      id,
 				scope:   item.scope.Normalize(),
+				owner:   item.owner,
 				spec:    spec,
 				encoded: encoded,
 			}
@@ -213,7 +216,7 @@ func (s *loopSourceSyncer) syncLoops(
 	changed := false
 	for id, desiredLoop := range desired {
 		existing, ok := currentByID[id]
-		if ok && s.sameLoop(existing, desiredLoop.scope, desiredLoop.encoded) {
+		if ok && s.sameLoop(existing, desiredLoop.scope, desiredLoop.owner, desiredLoop.encoded) {
 			delete(currentByID, id)
 			continue
 		}
@@ -224,6 +227,7 @@ func (s *loopSourceSyncer) syncLoops(
 		if _, err := s.store.Put(ctx, s.actor, resources.Draft[looppkg.ResourceSpec]{
 			ID:              desiredLoop.id,
 			Scope:           desiredLoop.scope,
+			Owner:           desiredLoop.owner,
 			ExpectedVersion: expectedVersion,
 			Spec:            desiredLoop.spec,
 		}); err != nil {
@@ -244,9 +248,14 @@ func (s *loopSourceSyncer) syncLoops(
 func (s *loopSourceSyncer) sameLoop(
 	record resources.Record[looppkg.ResourceSpec],
 	scope resources.ResourceScope,
+	owner *resources.ResourceOwner,
 	encoded []byte,
 ) bool {
 	if record.Scope != scope {
+		return false
+	}
+	if record.Owner.Normalize() != managedDraftOwner(s.actor, owner) ||
+		record.Source.Normalize() != s.actor.Source.Normalize() {
 		return false
 	}
 	currentEncoded, err := s.codec.Encode(record.Spec)
@@ -341,6 +350,7 @@ func extensionLoopDeclarationProvider(
 				desired = append(desired, loopPublicationInput{
 					sourceKey: "extension/" + ext.Info.Name + "/loops/" + strings.TrimSpace(spec.Name),
 					scope:     globalScope,
+					owner:     extensionOwner(ext.Info.Name),
 					spec:      looppkg.CloneResourceSpec(spec),
 				})
 			}

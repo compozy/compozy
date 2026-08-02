@@ -7,6 +7,13 @@ import (
 	"time"
 )
 
+type TaskDashboardHealthPayload struct {
+	Status           string `json:"status"`
+	StuckRuns        int    `json:"stuck_runs"`
+	ActiveOrphanRuns int    `json:"active_orphan_runs"`
+	QueueBacklog     bool   `json:"queue_backlog"`
+}
+
 type TaskDashboardInProgressCardPayload struct {
 	Tasks        int    `json:"tasks"`
 	ActiveRuns   int    `json:"active_runs"`
@@ -211,26 +218,4 @@ type TaskLatencyMetricPayload struct {
 	Samples       int   `json:"samples"`
 	AverageMillis int64 `json:"average_ms"`
 	MaximumMillis int64 `json:"maximum_ms"`
-}
-
-type TaskNeedsAttentionPayload struct {
-	Event                        HookEvent `json:"event"`
-	Timestamp                    time.Time `json:"timestamp"`
-	TaskID                       string    `json:"task_id,omitempty"`
-	ParentTaskID                 string    `json:"parent_task_id,omitempty"`
-	WorkspaceID                  string    `json:"workspace_id,omitempty"`
-	WorkflowID                   string    `json:"workflow_id,omitempty"`
-	ResolvedNetworkParticipation *Spec     `json:"resolved_network_participation,omitempty"`
-	AgentName                    string    `json:"agent_name,omitempty"`
-	ActorKind                    string    `json:"actor_kind,omitempty"`
-	ActorID                      string    `json:"actor_id,omitempty"`
-	OriginKind                   string    `json:"origin_kind,omitempty"`
-	OriginRef                    string    `json:"origin_ref,omitempty"`
-	TaskStatus                   string    `json:"task_status,omitempty"`
-	RunID                        string    `json:"run_id,omitempty"`
-	ReleaseReason                string    `json:"release_reason,omitempty"`
-	ClaimTokenHash               string    `json:"claim_token_hash,omitempty"`
-	Reason                       string    `json:"reason,omitempty"`
-	Note                         string    `json:"note,omitempty"`
-	At                           time.Time `json:"at,omitzero"`
 }

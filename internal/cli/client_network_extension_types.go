@@ -92,6 +92,21 @@ type UpdateExtensionsRequest = contract.UpdateExtensionsRequest
 // ExtensionRecord is the shared extension response payload.
 type ExtensionRecord = contract.ExtensionPayload
 
+// EnableExtensionRequest carries digest-exact network consent.
+type EnableExtensionRequest = contract.EnableExtensionRequest
+
+// ExtensionEnableRecord is the committed enable action result.
+type ExtensionEnableRecord = contract.ExtensionEnableResult
+
+// ExtensionKitItemRecord is one shipped or live extension resource.
+type ExtensionKitItemRecord = contract.ExtensionKitItemPayload
+
+// ExtensionInventoryRecord is the shipped/live resource union for one extension.
+type ExtensionInventoryRecord = contract.ExtensionInventoryPayload
+
+// ExtensionEnablePreviewRecord is the mutation-free enable projection.
+type ExtensionEnablePreviewRecord = contract.ExtensionEnablePreviewPayload
+
 // DevLinkExtensionRequest links an immutable generation to the resolved workspace.
 type DevLinkExtensionRequest = contract.DevLinkExtensionRequest
 
@@ -103,6 +118,12 @@ type ExtensionLogRecord = contract.ExtensionLogPayload
 
 // ExtensionProvenanceRecord is one installed extension provenance payload.
 type ExtensionProvenanceRecord = contract.ExtensionProvenancePayload
+
+// ExtensionSecretsRecord is the presence-only extension secret projection.
+type ExtensionSecretsRecord = contract.ExtensionSecretsPayload
+
+// SetExtensionSecretsRequest is the write-only extension secret mutation payload.
+type SetExtensionSecretsRequest = contract.SetExtensionSecretsRequest
 
 // ExtensionUpdateRecord is one daemon-owned extension update result.
 type ExtensionUpdateRecord = contract.ManagedExtensionUpdatePayload

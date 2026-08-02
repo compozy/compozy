@@ -11,6 +11,10 @@ func (d *Daemon) extensionManagerDeps(
 	state *bootState,
 	extRegistry *extensionpkg.Registry,
 ) extensionManagerDeps {
+	var envBindings extensionpkg.EnvBindingStore
+	if store, ok := any(state.registry).(extensionpkg.EnvBindingStore); ok {
+		envBindings = store
+	}
 	return extensionManagerDeps{
 		Registry:   extRegistry,
 		Extensions: state.cfg.Extensions,
@@ -55,6 +59,7 @@ func (d *Daemon) extensionManagerDeps(
 		WakeEvents:      state.deps.WakeEvents,
 		ProcessRegistry: state.processRegistry,
 		SecretResolver:  state.providerVault,
+		EnvBindings:     envBindings,
 		LifecycleEvents: extensionLifecycleEventStoreSink{
 			writer: extensionEventSummaryStore(state.registry),
 			now:    d.now,

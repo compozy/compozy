@@ -26,6 +26,7 @@ func SDKRootTypes() []NamedType {
 		NamedType{Name: "HostAPIMethod", Value: HostAPIMethod("")},
 		NamedType{Name: "HookEvent", Value: hooks.HookEvent("")},
 		NamedType{Name: "DescribePayload", Value: DescribePayload{}},
+		NamedType{Name: "DescribeResources", Value: DescribeResources{}},
 		NamedType{Name: "DescribeSubprocess", Value: DescribeSubprocess{}},
 		NamedType{Name: "DescribeSDKInfo", Value: DescribeSDKInfo{}},
 		NamedType{Name: "ExtensionCommandSpec", Value: ExtensionCommandSpec{}},

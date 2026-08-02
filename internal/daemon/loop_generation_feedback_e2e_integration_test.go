@@ -102,11 +102,16 @@ func TestDaemonE2ELoopGenerationFeedbackShouldConvergeAndBound(t *testing.T) {
 		assertFeedbackGenerationCount(t, detail, 3)
 		restored := detail.Generations[2]
 		if restored.Origin != compozycontract.LoopGenerationOriginRatchetRestore || restored.ParentGeneration != 1 {
-			t.Fatalf("restored provenance = %q parent %d, want ratchet_restore parent 1", restored.Origin, restored.ParentGeneration)
+			t.Fatalf(
+				"restored provenance = %q parent %d, want ratchet_restore parent 1",
+				restored.Origin,
+				restored.ParentGeneration,
+			)
 		}
 		generationOneOutput := feedbackNodeOutputRef(t, detail.Generations[0], "draft")
 		generationThreeOutput := feedbackNodeOutputRef(t, restored, "draft")
-		if generationThreeOutput != generationOneOutput || !strings.Contains(generationThreeOutput, "best-generation-one") {
+		if generationThreeOutput != generationOneOutput ||
+			!strings.Contains(generationThreeOutput, "best-generation-one") {
 			t.Fatalf(
 				"restored draft output = %q, generation one = %q, want exact best output",
 				generationThreeOutput,
@@ -130,7 +135,11 @@ func TestDaemonE2ELoopGenerationFeedbackShouldConvergeAndBound(t *testing.T) {
 			t.Fatalf("generation two origin = %q, want dod_retry", detail.Generations[1].Origin)
 		}
 		assertFeedbackPromptContains(t, harness, feedbackWorkerAgent, "repair_contract_issue")
-		if verdict := feedbackVerdict(t, detail.Generations[0], "contract"); verdict.Outcome != compozycontract.LoopGateVerdictRejected {
+		if verdict := feedbackVerdict(
+			t,
+			detail.Generations[0],
+			"contract",
+		); verdict.Outcome != compozycontract.LoopGateVerdictRejected {
 			t.Fatalf("contract verdict = %q, want rejected", verdict.Outcome)
 		}
 	})
@@ -214,7 +223,11 @@ func TestDaemonE2ELoopGenerationFeedbackShouldConvergeAndBound(t *testing.T) {
 		detail := feedbackRunDetail(t, ctx, harness, run.ID)
 		assertFeedbackGenerationCount(t, detail, 3)
 		for _, generation := range detail.Generations {
-			if verdict := feedbackVerdict(t, generation, "quality"); verdict.Outcome != compozycontract.LoopGateVerdictRejected {
+			if verdict := feedbackVerdict(
+				t,
+				generation,
+				"quality",
+			); verdict.Outcome != compozycontract.LoopGateVerdictRejected {
 				t.Fatalf("generation %d verdict = %q, want rejected", generation.Generation, verdict.Outcome)
 			}
 		}
@@ -408,7 +421,13 @@ func assertFeedbackBest(t testing.TB, run compozycontract.LoopRunPayload, genera
 	t.Helper()
 	if run.BestGeneration == nil || *run.BestGeneration != generation ||
 		run.BestScore == nil || *run.BestScore != score {
-		t.Fatalf("run best = %#v/%#v, want generation %d score %v", run.BestGeneration, run.BestScore, generation, score)
+		t.Fatalf(
+			"run best = %#v/%#v, want generation %d score %v",
+			run.BestGeneration,
+			run.BestScore,
+			generation,
+			score,
+		)
 	}
 }
 

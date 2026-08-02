@@ -131,6 +131,43 @@ func (s *nativeExtensionSource) Close() error {
 }
 
 func TestDaemonNativeExtensionTools(t *testing.T) {
+	t.Run("Should expose inventory and preview as unprivileged read-only calls", func(t *testing.T) {
+		t.Parallel()
+
+		deps, _, _, _ := newNativeExtensionToolDeps(t)
+		deps.Extensions = func() core.ExtensionService {
+			return nativeInventoryExtensionService{
+				inventory: contract.ExtensionInventoryPayload{
+					Extension: "kit", Enabled: true,
+					Items: []contract.ExtensionKitItemPayload{{Kind: "automation.job", Name: "kit/daily", Live: true}},
+				},
+				preview: contract.ExtensionEnablePreviewPayload{
+					Extension: "kit", AutomationStarting: []string{"kit/daily"}, MissingEnv: []string{"API_KEY"},
+				},
+			}
+		}
+		registry := newDaemonNativeRegistry(t, deps, nativeApproveAllPolicyInputs())
+		inventory, err := registry.Call(t.Context(), toolspkg.Scope{}, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDExtensionsInventory,
+			Input:  json.RawMessage(`{"name":"kit"}`),
+		})
+		if err != nil {
+			t.Fatalf("Registry.Call(extensions_inventory) error = %v", err)
+		}
+		requireNativeStructuredContains(t, inventory, []byte(`"extension":"kit"`))
+		requireNativeStructuredContains(t, inventory, []byte(`"live":true`))
+
+		preview, err := registry.Call(t.Context(), toolspkg.Scope{}, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDExtensionsPreview,
+			Input:  json.RawMessage(`{"name":"kit"}`),
+		})
+		if err != nil {
+			t.Fatalf("Registry.Call(extensions_preview) error = %v", err)
+		}
+		requireNativeStructuredContains(t, preview, []byte(`"automation_starting":["kit/daily"]`))
+		requireNativeStructuredContains(t, preview, []byte(`"missing_env":["API_KEY"]`))
+	})
+
 	t.Run("Should report a missing Git dependency as tool unavailable", func(t *testing.T) {
 		t.Parallel()
 
@@ -562,6 +599,26 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 			t.Fatalf("reload count after denied install = %d, want 0", runtime.reloadCount)
 		}
 	})
+}
+
+type nativeInventoryExtensionService struct {
+	core.ExtensionService
+	inventory contract.ExtensionInventoryPayload
+	preview   contract.ExtensionEnablePreviewPayload
+}
+
+func (s nativeInventoryExtensionService) Inventory(
+	context.Context,
+	string,
+) (contract.ExtensionInventoryPayload, error) {
+	return s.inventory, nil
+}
+
+func (s nativeInventoryExtensionService) Preview(
+	context.Context,
+	string,
+) (contract.ExtensionEnablePreviewPayload, error) {
+	return s.preview, nil
 }
 
 func newNativeExtensionToolDeps(

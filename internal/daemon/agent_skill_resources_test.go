@@ -391,6 +391,85 @@ func TestResourceAgentCatalogResolvesPackageOwnedArtifactsAndHeartbeatPolicy(t *
 	}
 }
 
+func TestResourceAgentCatalogMatchesExtensionSidecarsByOwnerScopeAndAgentID(t *testing.T) {
+	t.Parallel()
+
+	scope := resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "ws-1"}
+	owner := resources.ResourceOwner{Kind: extensionResourceOwnerKind, ID: "kit"}
+	otherOwner := resources.ResourceOwner{Kind: extensionResourceOwnerKind, ID: "other-kit"}
+	agentCatalog := newResourceCatalog(cloneAgentDef)
+	agentCatalog.Replace(1, []resources.Record[compozyconfig.AgentDef]{
+		{
+			ID: "shared-agent-id", Scope: scope, Owner: owner,
+			Spec: compozyconfig.AgentDef{Name: "coder", Prompt: "extension coder"},
+		},
+		{
+			ID: "plain-agent", Scope: scope,
+			Spec: compozyconfig.AgentDef{Name: "plain", Prompt: "operator coder"},
+		},
+	})
+	soulCatalog := newResourceCatalog(cloneSoulResourceSpec)
+	soulCatalog.Replace(1, []resources.Record[soul.ResourceSpec]{
+		{
+			ID: "matching-soul", Scope: scope, Owner: owner,
+			Spec: soul.ResourceSpec{
+				AgentName: "coder", AgentResourceID: "shared-agent-id", Body: "matching extension soul",
+			},
+		},
+		{
+			ID: "wrong-owner-soul", Scope: scope, Owner: otherOwner,
+			Spec: soul.ResourceSpec{
+				AgentName: "coder", AgentResourceID: "shared-agent-id", Body: "must not attach",
+			},
+		},
+		{
+			ID:    "wrong-scope-soul",
+			Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}, Owner: owner,
+			Spec: soul.ResourceSpec{
+				AgentName: "coder", AgentResourceID: "shared-agent-id", Body: "must not attach either",
+			},
+		},
+	})
+	heartbeatCatalog := newResourceCatalog(cloneHeartbeatResourceSpec)
+	heartbeatCatalog.Replace(1, []resources.Record[heartbeat.ResourceSpec]{
+		{
+			ID: "wrong-id-heartbeat", Scope: scope, Owner: owner,
+			Spec: heartbeat.ResourceSpec{
+				AgentName: "coder", AgentResourceID: "another-agent-id", Body: "must not attach",
+			},
+		},
+		{
+			ID: "matching-heartbeat", Scope: scope, Owner: owner,
+			Spec: heartbeat.ResourceSpec{
+				AgentName: "coder", AgentResourceID: "shared-agent-id", Body: "matching heartbeat",
+			},
+		},
+	})
+
+	dependency := agentCatalogDependency(agentCatalog, agentSidecarCatalogs{
+		soul: soulCatalog, heartbeat: heartbeatCatalog,
+	})
+	resolved := &workspacepkg.ResolvedWorkspace{Workspace: workspacepkg.Workspace{ID: "ws-1"}}
+	artifacts, err := dependency.ResolveAgentArtifacts("coder", resolved)
+	if err != nil {
+		t.Fatalf("ResolveAgentArtifacts(coder) error = %v", err)
+	}
+	if !artifacts.PackageOwned || artifacts.OwnerKind != string(extensionResourceOwnerKind) ||
+		artifacts.OwnerID != "kit" {
+		t.Fatalf("extension artifacts ownership = %#v, want package-owned extension/kit", artifacts)
+	}
+	if artifacts.SoulBody != "matching extension soul" || artifacts.HeartbeatBody != "matching heartbeat" {
+		t.Fatalf("extension artifacts sidecars = %#v, want exact owner/scope/id matches", artifacts)
+	}
+	plain, err := dependency.ResolveAgentArtifacts("plain", resolved)
+	if err != nil {
+		t.Fatalf("ResolveAgentArtifacts(plain) error = %v", err)
+	}
+	if plain.PackageOwned {
+		t.Fatalf("plain artifacts = %#v, want PackageOwned=false", plain)
+	}
+}
+
 func TestAgentSkillSmallHelpers(t *testing.T) {
 	t.Parallel()
 

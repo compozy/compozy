@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -32,7 +33,7 @@ func extensionListBundle(items []ExtensionRecord) outputBundle {
 			extensionTypeKey,
 			stateKey,
 			automationSourceKey,
-			"missing_env",
+			extensionMissingEnvKey,
 			extensionCapabilitiesKey,
 		},
 		func(item ExtensionRecord) []string {
@@ -109,7 +110,7 @@ func extensionBundle(item ExtensionRecord) outputBundle {
 				extensionCapabilitiesKey,
 				configPermissionsKey,
 				"requires_env",
-				"missing_env",
+				extensionMissingEnvKey,
 				"consecutive_failures",
 				"restart_backoff_ms",
 				"summary",
@@ -135,6 +136,49 @@ func extensionBundle(item ExtensionRecord) outputBundle {
 			}), nil
 		},
 	}
+}
+
+func extensionEnableBundle(result ExtensionEnableRecord) outputBundle {
+	return outputBundle{
+		jsonValue: result,
+		jsonl: func(cmd *cobra.Command) error {
+			return writeJSONLine(cmd, result)
+		},
+		human: func() (string, error) {
+			detail, err := extensionBundle(result.Extension).human()
+			if err != nil {
+				return "", err
+			}
+			blocks := []string{fmt.Sprintf("✓ Enabled %s", strings.TrimSpace(result.Extension.Name))}
+			if len(result.AutomationStarted) > 0 {
+				automation := renderHumanSection("Automation started", []keyValue{
+					{Label: "Definitions", Value: strings.Join(result.AutomationStarted, ", ")},
+				})
+				blocks = append(blocks, automation)
+			}
+			blocks = append(blocks, extensionEnableNextStep(result.Extension), detail)
+			return renderHumanBlocks(blocks...), nil
+		},
+		toon: func() (string, error) {
+			extensionJSON, err := json.Marshal(result.Extension)
+			if err != nil {
+				return "", fmt.Errorf("cli: marshal enabled extension output: %w", err)
+			}
+			return renderToonObject(
+				"extension_enable",
+				[]string{extensionExtensionKey, "automation_started"},
+				[]string{string(extensionJSON), strings.Join(result.AutomationStarted, "|")},
+			), nil
+		},
+	}
+}
+
+func extensionEnableNextStep(item ExtensionRecord) string {
+	if len(item.MissingEnv) > 0 {
+		return "next: compozy extension secrets set " + strings.TrimSpace(item.Name) +
+			" --env " + strings.TrimSpace(item.MissingEnv[0])
+	}
+	return "next: compozy extension status " + strings.TrimSpace(item.Name)
 }
 
 func extensionSuccessBundle(verb string, item ExtensionRecord) outputBundle {

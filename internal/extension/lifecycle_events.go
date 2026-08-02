@@ -15,6 +15,10 @@ const (
 	lifecycleEventDigestMatchedKey    = "digest_matched"
 	lifecycleEventWorkspaceIDKey      = "workspace_id"
 	lifecycleEventBundleGenerationKey = "bundle_generation"
+	lifecycleEventDigestKey           = "digest"
+	lifecycleEventConfirmedByKey      = "confirmed_by"
+	lifecycleEventBoundCountKey       = "bound_count"
+	lifecycleEventAutomationCountKey  = "automation_started_count"
 )
 
 // LifecycleEventSink records one closed-shape extension lifecycle event.
@@ -30,6 +34,10 @@ type LifecycleEvent struct {
 	DigestMatched    bool
 	WorkspaceID      string
 	BundleGeneration string
+	Digest           string
+	ConfirmedBy      string
+	BoundCount       *int
+	AutomationCount  *int
 }
 
 // RequiredFields returns the exact payload shape for the event type.
@@ -70,6 +78,31 @@ func (e LifecycleEvent) RequiredFields() (map[string]any, error) {
 		if workspaceID := strings.TrimSpace(e.WorkspaceID); workspaceID != "" {
 			fields[lifecycleEventWorkspaceIDKey] = workspaceID
 		}
+	case eventspkg.ExtensionNetworkConfirmed:
+		fields[lifecycleEventWorkspaceIDKey] = strings.TrimSpace(e.WorkspaceID)
+		if digest := strings.TrimSpace(e.Digest); digest != "" {
+			fields[lifecycleEventDigestKey] = digest
+		} else {
+			return nil, errors.New("extension: network confirmation digest is required")
+		}
+		if actor := strings.TrimSpace(e.ConfirmedBy); actor != "" {
+			fields[lifecycleEventConfirmedByKey] = actor
+		} else {
+			return nil, errors.New("extension: network confirmation actor is required")
+		}
+	case eventspkg.ExtensionSecretsUpdated:
+		fields[lifecycleEventWorkspaceIDKey] = strings.TrimSpace(e.WorkspaceID)
+		if e.BoundCount == nil {
+			return nil, errors.New("extension: secrets updated bound count is required")
+		}
+		fields[lifecycleEventBoundCountKey] = *e.BoundCount
+	case eventspkg.ExtensionSecretsUpdateFailed:
+		fields[lifecycleEventWorkspaceIDKey] = strings.TrimSpace(e.WorkspaceID)
+	case eventspkg.ExtensionEnabled:
+		if e.AutomationCount == nil {
+			return nil, errors.New("extension: enabled automation count is required")
+		}
+		fields[lifecycleEventAutomationCountKey] = *e.AutomationCount
 	default:
 		return nil, fmt.Errorf("extension: unsupported lifecycle event type %q", e.Type)
 	}

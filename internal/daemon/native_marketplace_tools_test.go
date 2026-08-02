@@ -127,9 +127,10 @@ func (lateBootExtensionService) Remove(
 func (lateBootExtensionService) Enable(
 	context.Context,
 	string,
+	contract.EnableExtensionRequest,
 	taskpkg.ActorContext,
-) (contract.ExtensionPayload, error) {
-	return contract.ExtensionPayload{}, errors.New("unexpected Enable call")
+) (contract.ExtensionEnableResult, error) {
+	return contract.ExtensionEnableResult{}, errors.New("unexpected Enable call")
 }
 
 func (lateBootExtensionService) Disable(
@@ -142,6 +143,14 @@ func (lateBootExtensionService) Disable(
 
 func (lateBootExtensionService) Status(context.Context, string) (contract.ExtensionPayload, error) {
 	return contract.ExtensionPayload{}, errors.New("unexpected Status call")
+}
+
+func (lateBootExtensionService) Inventory(context.Context, string) (contract.ExtensionInventoryPayload, error) {
+	return contract.ExtensionInventoryPayload{}, errors.New("unexpected Inventory call")
+}
+
+func (lateBootExtensionService) Preview(context.Context, string) (contract.ExtensionEnablePreviewPayload, error) {
+	return contract.ExtensionEnablePreviewPayload{}, errors.New("unexpected Preview call")
 }
 
 func (lateBootExtensionService) Provenance(

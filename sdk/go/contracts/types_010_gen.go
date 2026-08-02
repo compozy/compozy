@@ -7,6 +7,8 @@ import (
 	"time"
 )
 
+type HookExecutorKind string
+
 type HookMatcher struct {
 	AgentName           string           `json:"agent_name,omitempty"`
 	AgentType           string           `json:"agent_type,omitempty"`
@@ -178,11 +180,4 @@ type InitializeRuntime struct {
 
 type InitializeSupports struct {
 	HealthCheck bool `json:"health_check"`
-}
-
-type InputPreSubmitPatch struct {
-	Deny          bool           `json:"deny,omitempty"`
-	DenyReason    string         `json:"deny_reason,omitempty"`
-	Message       *string        `json:"message,omitempty"`
-	ContextBlocks []ContextBlock `json:"context_blocks,omitempty"`
 }

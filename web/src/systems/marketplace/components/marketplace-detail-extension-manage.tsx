@@ -183,7 +183,6 @@ function MarketplaceDetailExtensionManage({
         extensionName={extension.name}
         isLoading={bundles.isLoading}
         onRetry={() => void bundles.refetch()}
-        provided={extension.bundles ?? []}
       />
       <ExtensionProvenanceDialog
         extension={extension}

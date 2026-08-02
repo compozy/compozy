@@ -105,6 +105,13 @@ func WithSecretResolver(resolver SecretRefResolver) Option {
 	}
 }
 
+// WithEnvBindingStore injects instance-scoped operator bindings used at process launch.
+func WithEnvBindingStore(store EnvBindingStore) Option {
+	return func(manager *Manager) {
+		manager.envBindings = store
+	}
+}
+
 // WithHostMethodHandler registers one Host API method handler for launched extensions.
 func WithHostMethodHandler(method string, handler subprocess.HandlerFunc) Option {
 	return func(manager *Manager) {

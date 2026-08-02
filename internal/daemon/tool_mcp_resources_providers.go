@@ -89,6 +89,9 @@ func extensionManifestToolMCPDeclarationProvider(
 		desired := toolMCPDesiredResources{}
 		globalScope := resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}
 		for _, info := range infos {
+			if !info.Enabled {
+				continue
+			}
 			ext, err := loadExtensionSnapshot(ctx, registry, manager, logger, info.Name)
 			if err != nil {
 				return toolMCPDesiredResources{}, fmt.Errorf(
@@ -97,7 +100,7 @@ func extensionManifestToolMCPDeclarationProvider(
 					err,
 				)
 			}
-			if ext == nil || ext.Manifest == nil {
+			if ext == nil || ext.Manifest == nil || !ext.Status.Registered {
 				continue
 			}
 
@@ -113,13 +116,11 @@ func extensionManifestToolMCPDeclarationProvider(
 				desired.tools = append(desired.tools, toolPublicationInput{
 					sourceKey: "extension/" + ext.Info.Name + "/tool/" + strings.TrimSpace(tool.ID.String()),
 					scope:     globalScope,
+					owner:     extensionOwner(ext.Info.Name),
 					spec:      cloneToolSpec(tool),
 				})
 			}
 
-			if !info.Enabled || !ext.Status.Registered {
-				continue
-			}
 			servers, err := extensionpkg.ResolveManifestMCPServerResources(ext.RootDir, ext.Manifest, getenv)
 			if err != nil {
 				return toolMCPDesiredResources{}, fmt.Errorf(
@@ -132,6 +133,7 @@ func extensionManifestToolMCPDeclarationProvider(
 				desired.mcpServers = append(desired.mcpServers, mcpServerPublicationInput{
 					sourceKey: "extension/" + ext.Info.Name + "/mcp_server/" + strings.TrimSpace(server.Name),
 					scope:     globalScope,
+					owner:     extensionOwner(ext.Info.Name),
 					spec:      cloneDaemonMCPServer(server),
 				})
 			}

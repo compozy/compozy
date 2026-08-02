@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 
+	"github.com/compozy/compozy/internal/api/core"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 )
 
@@ -12,7 +13,20 @@ func (d *Daemon) attachExtensionRuntime(
 	extRegistry *extensionpkg.Registry,
 	manager extensionRuntime,
 ) {
-	state.deps.Extensions = newDaemonExtensionService(
+	state.deps.Extensions = d.newBootExtensionService(state, extRegistry, manager)
+	d.syncExtensionRuntimeConsumers(ctx, state)
+}
+
+func (d *Daemon) newBootExtensionService(
+	state *bootState,
+	extRegistry *extensionpkg.Registry,
+	manager extensionRuntime,
+) core.ExtensionService {
+	var envBindings extensionpkg.EnvBindingLifecycleStore
+	if store, ok := any(state.registry).(extensionpkg.EnvBindingLifecycleStore); ok {
+		envBindings = store
+	}
+	return newDaemonExtensionService(
 		extRegistry,
 		manager,
 		state.hookBindings,
@@ -27,7 +41,14 @@ func (d *Daemon) attachExtensionRuntime(
 		withDaemonExtensionCatalog(state.marketplace),
 		withDaemonExtensionEventWriter(extensionEventSummaryStore(state.registry)),
 		withDaemonExtensionWorkspaceResolver(state.workspaceResolver),
+		withDaemonExtensionKitPublisher(state.extensionKitResources),
+		withDaemonExtensionSecrets(envBindings, state.providerVault),
+		withDaemonExtensionAutomation(state.automation),
+		withDaemonExtensionResources(state.resourceKernel, resourceReconcileActor()),
 	)
+}
+
+func (d *Daemon) syncExtensionRuntimeConsumers(ctx context.Context, state *bootState) {
 	if state.agentSkillResources != nil {
 		if err := state.agentSkillResources.Sync(ctx); err != nil {
 			state.logger.Error(
@@ -53,6 +74,11 @@ func (d *Daemon) attachExtensionRuntime(
 				"error",
 				err,
 			)
+		}
+	}
+	if state.extensionKitResources != nil {
+		if err := state.extensionKitResources.Sync(ctx); err != nil {
+			state.logger.Error("daemon: sync extension kit resources after extension boot failed", "error", err)
 		}
 	}
 	if state.bundleResources != nil {

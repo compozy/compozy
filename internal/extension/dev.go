@@ -6,23 +6,29 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/compozy/compozy/internal/store"
 )
 
 // DevLinkRequest identifies one immutable workspace-local extension generation.
 type DevLinkRequest struct {
-	Name           string
-	WorkspaceID    string
-	OriginPath     string
-	GenerationHash string
+	Name                     string
+	WorkspaceID              string
+	OriginPath               string
+	GenerationHash           string
+	NetworkRequirementDigest string
 }
 
 // DevLink is one workspace-local overlay row.
 type DevLink struct {
-	ExtensionName    string
-	WorkspaceID      string
-	OriginPath       string
-	BundleGeneration string
-	LinkedAt         time.Time
+	ExtensionName            string
+	WorkspaceID              string
+	OriginPath               string
+	BundleGeneration         string
+	LinkedAt                 time.Time
+	NetworkRequirementDigest string
+	NetworkConfirmedBy       string
+	NetworkConfirmedAt       time.Time
 }
 
 // ActiveExtension is the registry resolution result for one instance key.
@@ -59,22 +65,35 @@ func (r *Registry) LinkDev(req DevLinkRequest) (*DevLink, error) {
 	linkedAt := r.now().UTC()
 	_, err = r.db.ExecContext(registryContext(), `
 		INSERT INTO extension_dev_links (
-			extension_name, workspace_id, origin_path, bundle_generation, linked_at
-		) VALUES (?, ?, ?, ?, ?)
+			extension_name, workspace_id, origin_path, bundle_generation, linked_at,
+			network_requirement_digest, network_confirmed_by, network_confirmed_at
+		) VALUES (?, ?, ?, ?, ?, ?, NULL, NULL)
 		ON CONFLICT(extension_name, workspace_id) DO UPDATE SET
 			origin_path = excluded.origin_path,
 			bundle_generation = excluded.bundle_generation,
-			linked_at = excluded.linked_at
-	`, name, workspaceID, originPath, generation, linkedAt)
+			linked_at = excluded.linked_at,
+			network_confirmed_by = CASE
+				WHEN extension_dev_links.network_requirement_digest = excluded.network_requirement_digest
+				THEN extension_dev_links.network_confirmed_by
+				ELSE NULL
+			END,
+			network_confirmed_at = CASE
+				WHEN extension_dev_links.network_requirement_digest = excluded.network_requirement_digest
+				THEN extension_dev_links.network_confirmed_at
+				ELSE NULL
+			END,
+			network_requirement_digest = excluded.network_requirement_digest
+	`, name, workspaceID, originPath, generation, linkedAt, strings.TrimSpace(req.NetworkRequirementDigest))
 	if err != nil {
 		return nil, fmt.Errorf("extension: link development extension %q: %w", name, err)
 	}
 	return &DevLink{
-		ExtensionName:    name,
-		WorkspaceID:      workspaceID,
-		OriginPath:       originPath,
-		BundleGeneration: generation,
-		LinkedAt:         linkedAt,
+		ExtensionName:            name,
+		WorkspaceID:              workspaceID,
+		OriginPath:               originPath,
+		BundleGeneration:         generation,
+		LinkedAt:                 linkedAt,
+		NetworkRequirementDigest: strings.TrimSpace(req.NetworkRequirementDigest),
 	}, nil
 }
 
@@ -116,7 +135,8 @@ func (r *Registry) GetDevLink(name, workspaceID string) (*DevLink, error) {
 		return nil, err
 	}
 	row := r.db.QueryRowContext(registryContext(), `
-		SELECT extension_name, workspace_id, origin_path, bundle_generation, linked_at
+		SELECT extension_name, workspace_id, origin_path, bundle_generation, linked_at,
+		       network_requirement_digest, network_confirmed_by, network_confirmed_at
 		FROM extension_dev_links
 		WHERE extension_name = ? AND workspace_id = ?
 	`, key.Name, key.WorkspaceID)
@@ -133,7 +153,8 @@ func (r *Registry) ListDevLinks() (links []DevLink, resultErr error) {
 		return nil, err
 	}
 	rows, err := r.db.QueryContext(registryContext(), `
-		SELECT extension_name, workspace_id, origin_path, bundle_generation, linked_at
+		SELECT extension_name, workspace_id, origin_path, bundle_generation, linked_at,
+		       network_requirement_digest, network_confirmed_by, network_confirmed_at
 		FROM extension_dev_links
 		ORDER BY extension_name ASC, workspace_id ASC
 	`)
@@ -244,15 +265,29 @@ func normalizeDevInstanceKey(name, workspaceID string) (InstanceKey, error) {
 
 func scanDevLink(scanner interface{ Scan(dest ...any) error }) (*DevLink, error) {
 	var link DevLink
+	var confirmedBy sql.NullString
+	var confirmedAt sql.NullString
 	if err := scanner.Scan(
 		&link.ExtensionName,
 		&link.WorkspaceID,
 		&link.OriginPath,
 		&link.BundleGeneration,
 		&link.LinkedAt,
+		&link.NetworkRequirementDigest,
+		&confirmedBy,
+		&confirmedAt,
 	); err != nil {
 		return nil, err
 	}
 	link.LinkedAt = link.LinkedAt.UTC()
+	link.NetworkRequirementDigest = strings.TrimSpace(link.NetworkRequirementDigest)
+	link.NetworkConfirmedBy = strings.TrimSpace(confirmedBy.String)
+	if confirmedAt.Valid {
+		parsed, err := store.ParseTimestamp(confirmedAt.String)
+		if err != nil {
+			return nil, fmt.Errorf("extension: parse development network_confirmed_at: %w", err)
+		}
+		link.NetworkConfirmedAt = parsed
+	}
 	return &link, nil
 }

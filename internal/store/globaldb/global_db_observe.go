@@ -17,13 +17,52 @@ const eventSummaryContentPayloadKey = "payload"
 
 // WriteEventSummary stores a lightweight cross-session summary entry.
 func (g *ObserveRepo) WriteEventSummary(ctx context.Context, summary store.EventSummary) error {
+	return g.WriteEventSummaries(ctx, []store.EventSummary{summary})
+}
+
+// WriteEventSummaries stores related observability summaries in one transaction.
+func (g *ObserveRepo) WriteEventSummaries(
+	ctx context.Context,
+	summaries []store.EventSummary,
+) (err error) {
 	if err := g.checkReady(ctx, "write event summary"); err != nil {
 		return err
 	}
-	if err := g.populateEventSummaryProjections(ctx, &summary); err != nil {
+	prepared := make([]store.EventSummary, len(summaries))
+	for index := range summaries {
+		prepared[index] = summaries[index]
+		if err := g.prepareEventSummary(ctx, &prepared[index]); err != nil {
+			return err
+		}
+	}
+	if len(prepared) == 0 {
+		return nil
+	}
+
+	tx, err := g.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("store: begin event summary batch: %w", err)
+	}
+	defer func() {
+		joinCleanupError(&err, rollbackTx(tx, "event summary batch"))
+	}()
+	queries := sqlcgen.New(tx)
+	for index := range prepared {
+		if err := insertEventSummary(ctx, queries, prepared[index]); err != nil {
+			return err
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("store: commit event summary batch: %w", err)
+	}
+	return nil
+}
+
+func (g *ObserveRepo) prepareEventSummary(ctx context.Context, summary *store.EventSummary) error {
+	if err := g.populateEventSummaryProjections(ctx, summary); err != nil {
 		return err
 	}
-	redactEventSummary(&summary)
+	redactEventSummary(summary)
 	if err := summary.Validate(); err != nil {
 		return err
 	}
@@ -34,8 +73,11 @@ func (g *ObserveRepo) WriteEventSummary(ctx context.Context, summary store.Event
 		summary.Timestamp = g.now()
 	}
 	summary.EventCorrelation = summary.Normalize()
+	return nil
+}
 
-	if err := g.queries.InsertEventSummary(ctx, sqlcgen.InsertEventSummaryParams{
+func insertEventSummary(ctx context.Context, queries *sqlcgen.Queries, summary store.EventSummary) error {
+	if err := queries.InsertEventSummary(ctx, sqlcgen.InsertEventSummaryParams{
 		ID: summary.ID, SessionID: summary.SessionID, WorkspaceID: summary.WorkspaceID,
 		Type: summary.Type, AgentName: summary.AgentName, ContentJson: string(summary.Content),
 		TaskID: summary.TaskID, RunID: summary.RunID, WorkflowID: summary.WorkflowID,

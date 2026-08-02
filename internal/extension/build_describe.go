@@ -38,6 +38,7 @@ func manifestFromDescribe(payload extensioncontract.DescribePayload) (*Manifest,
 	payload.Provides = sortedBuildStrings(payload.Provides)
 	payload.Permissions = sortedBuildStrings(payload.Permissions)
 	payload.RequiresEnv = sortedBuildStrings(payload.RequiresEnv)
+	payload.Resources = normalizeDescribeResources(payload.Resources)
 	if err := validateDescribeCapabilityCoverage(payload); err != nil {
 		return nil, err
 	}
@@ -47,6 +48,13 @@ func manifestFromDescribe(payload extensioncontract.DescribePayload) (*Manifest,
 		Description:       strings.TrimSpace(payload.Description),
 		MinCompozyVersion: strings.TrimSpace(payload.SDK.MinCompozyVersion),
 		RequiresEnv:       payload.RequiresEnv,
+		Resources: ResourcesConfig{
+			Skills:     slices.Clone(payload.Resources.Skills),
+			Loops:      slices.Clone(payload.Resources.Loops),
+			Agents:     slices.Clone(payload.Resources.Agents),
+			Automation: slices.Clone(payload.Resources.Automation),
+			Layouts:    slices.Clone(payload.Resources.Layouts),
+		},
 		Capabilities: CapabilitiesConfig{
 			Provides: payload.Provides,
 		},
@@ -80,6 +88,16 @@ func manifestFromDescribe(payload extensioncontract.DescribePayload) (*Manifest,
 		return nil, fmt.Errorf("extension: validate described tools: %w", err)
 	}
 	return manifest, nil
+}
+
+func normalizeDescribeResources(resources extensioncontract.DescribeResources) extensioncontract.DescribeResources {
+	return extensioncontract.DescribeResources{
+		Skills:     sortedBuildStrings(resources.Skills),
+		Loops:      sortedBuildStrings(resources.Loops),
+		Agents:     sortedBuildStrings(resources.Agents),
+		Automation: sortedBuildStrings(resources.Automation),
+		Layouts:    sortedBuildStrings(resources.Layouts),
+	}
 }
 
 func validateDescribeSDK(info extensioncontract.DescribeSDKInfo) error {

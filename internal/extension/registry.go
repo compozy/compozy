@@ -37,7 +37,10 @@ const (
 			registry_slug,
 			registry_name,
 			remote_version,
-			provenance_json
+			provenance_json,
+			network_requirement_digest,
+			network_confirmed_by,
+			network_confirmed_at
 	`
 	registryInsertColumns = `
 			name,
@@ -52,7 +55,10 @@ const (
 			registry_slug,
 			registry_name,
 			remote_version,
-			provenance_json
+			provenance_json,
+			network_requirement_digest,
+			network_confirmed_by,
+			network_confirmed_at
 	`
 )
 
@@ -79,7 +85,8 @@ func (r *Registry) DB() *sql.DB {
 // a user-sourced extension.
 func (r *Registry) Install(manifest *Manifest, path string, checksum string, opts ...InstallOption) error {
 	config := installConfig{
-		source: SourceUser,
+		source:  SourceUser,
+		enabled: true,
 	}
 	applyInstallOptions(&config, opts...)
 

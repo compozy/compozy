@@ -15,6 +15,53 @@ const (
 	extensionFailureActivationFailed = "activation_failed"
 )
 
+// DevelopmentGeneration is the verified, mutation-free identity of one dev artifact.
+type DevelopmentGeneration struct {
+	Name                     string
+	OriginPath               string
+	GenerationHash           string
+	NetworkRequirementDigest string
+}
+
+// InspectDevelopmentGeneration verifies a dev artifact without linking or starting it.
+func (m *Manager) InspectDevelopmentGeneration(
+	ctx context.Context,
+	workspaceID string,
+	originPath string,
+	generationHash string,
+) (DevelopmentGeneration, error) {
+	if m == nil {
+		return DevelopmentGeneration{}, ErrManagerRequired
+	}
+	workspaceID = strings.TrimSpace(workspaceID)
+	if workspaceID == "" {
+		return DevelopmentGeneration{}, errors.New("extension: workspace id is required for a development generation")
+	}
+	if m.workspaceResolver == nil {
+		return DevelopmentGeneration{}, errors.New(
+			"extension: workspace resolver is required for development extensions",
+		)
+	}
+	workspace, err := m.workspaceResolver.Resolve(ctx, workspaceID)
+	if err != nil {
+		return DevelopmentGeneration{}, fmt.Errorf("extension: resolve development workspace %q: %w", workspaceID, err)
+	}
+	canonicalOrigin, err := canonicalizeDevOrigin(workspace.RootDir, originPath)
+	if err != nil {
+		return DevelopmentGeneration{}, err
+	}
+	verified, err := verifyDevGeneration(canonicalOrigin, generationHash)
+	if err != nil {
+		return DevelopmentGeneration{}, err
+	}
+	return DevelopmentGeneration{
+		Name:                     strings.TrimSpace(verified.Manifest.Name),
+		OriginPath:               verified.OriginPath,
+		GenerationHash:           verified.GenerationHash,
+		NetworkRequirementDigest: verified.NetworkRequirementDigest,
+	}, nil
+}
+
 // LinkDevelopmentFromOrigin derives the authored name from a verified generation.
 func (m *Manager) LinkDevelopmentFromOrigin(
 	ctx context.Context,
@@ -25,30 +72,15 @@ func (m *Manager) LinkDevelopmentFromOrigin(
 	if m == nil {
 		return nil, ErrManagerRequired
 	}
-	workspaceID = strings.TrimSpace(workspaceID)
-	if workspaceID == "" {
-		return nil, errors.New("extension: workspace id is required for a development link")
-	}
-	if m.workspaceResolver == nil {
-		return nil, errors.New("extension: workspace resolver is required for development extensions")
-	}
-	workspace, err := m.workspaceResolver.Resolve(ctx, workspaceID)
-	if err != nil {
-		return nil, fmt.Errorf("extension: resolve development workspace %q: %w", workspaceID, err)
-	}
-	canonicalOrigin, err := canonicalizeDevOrigin(workspace.RootDir, originPath)
-	if err != nil {
-		return nil, err
-	}
-	verified, err := verifyDevGeneration(canonicalOrigin, generationHash)
+	verified, err := m.InspectDevelopmentGeneration(ctx, workspaceID, originPath, generationHash)
 	if err != nil {
 		return nil, err
 	}
 	return m.LinkDevelopment(
 		ctx,
-		InstanceKey{Name: verified.Manifest.Name, WorkspaceID: workspaceID},
-		canonicalOrigin,
-		generationHash,
+		InstanceKey{Name: verified.Name, WorkspaceID: workspaceID},
+		verified.OriginPath,
+		verified.GenerationHash,
 	)
 }
 
@@ -77,10 +109,11 @@ func (m *Manager) LinkDevelopment(
 		return nil, err
 	}
 	link, err := m.registry.LinkDev(DevLinkRequest{
-		Name:           key.Name,
-		WorkspaceID:    key.WorkspaceID,
-		OriginPath:     verified.OriginPath,
-		GenerationHash: verified.GenerationHash,
+		Name:                     key.Name,
+		WorkspaceID:              key.WorkspaceID,
+		OriginPath:               verified.OriginPath,
+		GenerationHash:           verified.GenerationHash,
+		NetworkRequirementDigest: verified.NetworkRequirementDigest,
 	})
 	if err != nil {
 		m.discardDevCandidate(ctx, candidate)
@@ -131,10 +164,11 @@ func (m *Manager) ReloadExtension(
 		return m.restartLastGood(ctx, key, link, current, activationErr)
 	}
 	updatedLink, err := m.registry.LinkDev(DevLinkRequest{
-		Name:           key.Name,
-		WorkspaceID:    key.WorkspaceID,
-		OriginPath:     verified.OriginPath,
-		GenerationHash: verified.GenerationHash,
+		Name:                     key.Name,
+		WorkspaceID:              key.WorkspaceID,
+		OriginPath:               verified.OriginPath,
+		GenerationHash:           verified.GenerationHash,
+		NetworkRequirementDigest: verified.NetworkRequirementDigest,
 	})
 	if err != nil {
 		m.discardDevCandidate(ctx, candidate)

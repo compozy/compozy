@@ -12,10 +12,10 @@ import (
 
 	"time"
 
-	compozyconfig "github.com/compozy/compozy/internal/config"
-
+	automationpkg "github.com/compozy/compozy/internal/automation"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	looppkg "github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/windowmanager"
 
 	skillspkg "github.com/compozy/compozy/internal/skills"
 )
@@ -117,43 +117,61 @@ func (m *Manager) loadLoopResources(ext *managedExtension) ([]looppkg.ResourceSp
 	return loops, nil
 }
 
-func (m *Manager) loadAgentResources(ext *managedExtension) ([]compozyconfig.AgentDef, error) {
+func (m *Manager) loadAgentResources(ext *managedExtension) ([]StaticAgent, error) {
 	if ext == nil {
 		return nil, nil
 	}
-	return LoadAgentResources(ext.rootDir, ext.manifest)
-}
-
-// LoadAgentResources discovers the current authored agent definitions for an extension.
-func LoadAgentResources(rootDir string, manifest *Manifest) ([]compozyconfig.AgentDef, error) {
-	if manifest == nil || len(manifest.Resources.Agents) == 0 {
+	if ext.manifest == nil {
 		return nil, nil
 	}
+	return LoadAgentResources(ext.rootDir, ext.manifest.Resources.Agents)
+}
 
-	loaded := make(map[string]compozyconfig.AgentDef)
-	for _, resourcePath := range manifest.Resources.Agents {
-		resourceRoot, err := resolveResourcePath(rootDir, resourcePath)
-		if err != nil {
-			return nil, err
-		}
-		files, err := collectMarkdownFiles(resourceRoot)
-		if err != nil {
-			return nil, err
-		}
-		for _, file := range files {
-			agent, err := compozyconfig.LoadAgentDefFile(file)
-			if err != nil {
-				return nil, err
-			}
-			loaded[agent.Name] = agent
-		}
+func (m *Manager) loadAutomationResources(
+	ext *managedExtension,
+	agents []StaticAgent,
+) ([]automationpkg.Job, []automationpkg.Trigger, error) {
+	if ext == nil || ext.manifest == nil {
+		return nil, nil, nil
 	}
+	jobs, triggers, err := LoadAutomationResources(ext.rootDir, ext.manifest.Resources.Automation)
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := validateAutomationAgentTargets(jobs, triggers, agents); err != nil {
+		return nil, nil, err
+	}
+	extensionName := strings.TrimSpace(ext.info.Name)
+	resolvedJobs := make([]automationpkg.Job, 0, len(jobs))
+	for _, job := range jobs {
+		name := extensionName + "/" + job.Name
+		resolvedJobs = append(resolvedJobs, automationpkg.Job{
+			ID:    "extension/" + extensionName + "/automation.job/" + job.Name,
+			Scope: automationpkg.AutomationScopeGlobal, Name: name, AgentName: job.Agent,
+			Prompt: job.Prompt, Schedule: &job.Schedule, Task: cloneBundleTaskConfig(job.Task),
+			Enabled: *job.Enabled, Retry: job.Retry, FireLimit: job.FireLimit,
+			Source: automationpkg.JobSourcePackage,
+		})
+	}
+	resolvedTriggers := make([]automationpkg.Trigger, 0, len(triggers))
+	for _, trigger := range triggers {
+		name := extensionName + "/" + trigger.Name
+		resolvedTriggers = append(resolvedTriggers, automationpkg.Trigger{
+			ID:    "extension/" + extensionName + "/automation.trigger/" + trigger.Name,
+			Scope: automationpkg.AutomationScopeGlobal, Name: name, AgentName: trigger.Agent,
+			Prompt: trigger.Prompt, Event: trigger.Event, Filter: cloneStringMap(trigger.Filter),
+			Enabled: *trigger.Enabled, Retry: trigger.Retry, FireLimit: trigger.FireLimit,
+			Source: automationpkg.JobSourcePackage, EndpointSlug: trigger.EndpointSlug,
+		})
+	}
+	return resolvedJobs, resolvedTriggers, nil
+}
 
-	agents := make([]compozyconfig.AgentDef, 0, len(loaded))
-	for _, name := range sortedKeys(loaded) {
-		agents = append(agents, compozyconfig.CloneAgentDef(loaded[name]))
+func (m *Manager) loadLayoutResources(ext *managedExtension) ([]windowmanager.LayoutResource, error) {
+	if ext == nil || ext.manifest == nil {
+		return nil, nil
 	}
-	return agents, nil
+	return LoadLayoutResources(ext.rootDir, ext.manifest.Resources.Layouts)
 }
 
 func (m *Manager) loadHookResources(ext *managedExtension) ([]hookspkg.HookDecl, error) {

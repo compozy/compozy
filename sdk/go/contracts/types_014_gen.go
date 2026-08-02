@@ -7,6 +7,16 @@ import (
 	"time"
 )
 
+type NetworkPeerCardPayload struct {
+	PeerID              string                          `json:"peer_id"`
+	DisplayName         *string                         `json:"display_name,omitempty"`
+	ProfilesSupported   []string                        `json:"profiles_supported"`
+	Capabilities        []NetworkCapabilityBriefPayload `json:"capabilities"`
+	ArtifactsSupported  []string                        `json:"artifacts_supported"`
+	TrustModesSupported []string                        `json:"trust_modes_supported"`
+	Ext                 map[string]json.RawMessage      `json:"ext,omitempty"`
+}
+
 type NetworkPeerJoinedPayload struct {
 	Event       HookEvent  `json:"event"`
 	Timestamp   time.Time  `json:"timestamp"`
@@ -335,21 +345,4 @@ type NetworkWorkTransitionedPayload struct {
 	LastSeenAt  *time.Time `json:"last_seen_at,omitempty"`
 	TraceID     string     `json:"trace_id,omitempty"`
 	CausationID string     `json:"causation_id,omitempty"`
-}
-
-type ObserveHealth struct {
-	Status             string                  `json:"status"`
-	UptimeSeconds      int64                   `json:"uptime_seconds"`
-	ActiveSessions     int                     `json:"active_sessions"`
-	ActiveAgents       int                     `json:"active_agents"`
-	GlobalDBSizeBytes  int64                   `json:"global_db_size_bytes"`
-	SessionDBSizeBytes int64                   `json:"session_db_size_bytes"`
-	Persistence        PersistenceHealth       `json:"persistence"`
-	Retention          RetentionHealth         `json:"retention"`
-	Failures           FailureHealth           `json:"failures"`
-	AgentProbes        []ProbeResult           `json:"agent_probes,omitempty"`
-	Bridges            BridgeAggregateHealth   `json:"bridges"`
-	Tasks              TaskHealth              `json:"tasks"`
-	Activities         []SessionActivityHealth `json:"activities,omitempty"`
-	Version            string                  `json:"version"`
 }

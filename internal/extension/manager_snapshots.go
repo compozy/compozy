@@ -10,6 +10,7 @@ import (
 	looppkg "github.com/compozy/compozy/internal/loop"
 
 	skillspkg "github.com/compozy/compozy/internal/skills"
+	"github.com/compozy/compozy/internal/windowmanager"
 )
 
 func (m *Manager) cloneExtension(ext *managedExtension) *Extension {
@@ -38,7 +39,15 @@ func (m *Manager) cloneExtension(ext *managedExtension) *Extension {
 	for _, agent := range ext.agents {
 		clone.Agents = append(clone.Agents, compozyconfig.CloneAgentDef(agent))
 	}
+	for _, agent := range ext.staticAgents {
+		clone.StaticAgents = append(clone.StaticAgents, cloneStaticAgent(agent))
+	}
 	clone.Bundles = cloneBundleSpecs(ext.bundles)
+	clone.AutomationJobs = cloneExtensionAutomationJobs(ext.automationJobs)
+	clone.AutomationTriggers = cloneExtensionAutomationTriggers(ext.automationTriggers)
+	for _, layout := range ext.layouts {
+		clone.Layouts = append(clone.Layouts, windowmanager.CloneLayoutResource(layout))
+	}
 	if len(ext.skills) > 0 {
 		clone.Skills = make([]*skillspkg.Skill, 0, len(ext.skills))
 		for _, skill := range ext.skills {

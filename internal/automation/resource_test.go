@@ -1354,6 +1354,22 @@ func TestAutomationResourceConfigEnabledChangesUseOperationalOverlays(t *testing
 	if triggerOverlay.EnabledOverride {
 		t.Fatal("config trigger overlay enabled_override = true, want false")
 	}
+
+	if _, err := manager.SyncManagedDefinitions(h.ctx, JobSourceConfig, nil, nil); err != nil {
+		t.Fatalf("SyncManagedDefinitions(remove config resources) error = %v", err)
+	}
+	if err := manager.applyJobResourcesFromStore(h.ctx); err != nil {
+		t.Fatalf("applyJobResourcesFromStore(remove) error = %v", err)
+	}
+	if err := manager.applyTriggerResourcesFromStore(h.ctx); err != nil {
+		t.Fatalf("applyTriggerResourcesFromStore(remove) error = %v", err)
+	}
+	if _, err := h.db.GetJobEnabledOverlay(h.ctx, job.ID); !errors.Is(err, ErrJobOverlayNotFound) {
+		t.Fatalf("GetJobEnabledOverlay(after removal) error = %v, want overlay GC", err)
+	}
+	if _, err := h.db.GetTriggerEnabledOverlay(h.ctx, trigger.ID); !errors.Is(err, ErrTriggerOverlayNotFound) {
+		t.Fatalf("GetTriggerEnabledOverlay(after removal) error = %v, want overlay GC", err)
+	}
 }
 
 type managerResourceHarness struct {

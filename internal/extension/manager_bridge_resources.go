@@ -151,38 +151,6 @@ func resolvePathWithinRoot(rootDir string, value string) (string, error) {
 	return candidate, nil
 }
 
-func collectMarkdownFiles(root string) ([]string, error) {
-	info, err := os.Stat(root)
-	if err != nil {
-		return nil, err
-	}
-	if !info.IsDir() {
-		if strings.EqualFold(filepath.Ext(root), ".md") {
-			return []string{root}, nil
-		}
-		return nil, fmt.Errorf("resource path %q is not a markdown file", root)
-	}
-
-	files := make([]string, 0)
-	err = filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-		if entry.IsDir() {
-			return nil
-		}
-		if strings.EqualFold(filepath.Ext(path), ".md") {
-			files = append(files, path)
-		}
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-	slices.Sort(files)
-	return files, nil
-}
-
 func collectSkillDefinitionFiles(root string) ([]string, error) {
 	info, err := os.Stat(root)
 	if err != nil {

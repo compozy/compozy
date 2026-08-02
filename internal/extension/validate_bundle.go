@@ -34,6 +34,16 @@ type ValidationReport = apicontract.ExtensionValidatePayload
 func ValidateBundle(dir string) (*Manifest, []ValidationIssue, error) {
 	manifest, err := LoadManifest(dir)
 	if err == nil {
+		if err := validateStaticKitResources(dir, manifest); err != nil {
+			issue, handled, issueErr := validationIssueForError(dir, err)
+			if issueErr != nil {
+				return nil, nil, issueErr
+			}
+			if handled {
+				return nil, []ValidationIssue{issue}, nil
+			}
+			return nil, nil, err
+		}
 		return manifest, commandAmbiguityWarnings(manifest, bundleManifestPath(dir)), nil
 	}
 	issue, handled, issueErr := validationIssueForError(dir, err)
@@ -85,22 +95,27 @@ func validationIssueForError(dir string, err error) (ValidationIssue, bool, erro
 		Message:  err.Error(),
 		Severity: IssueSeverityError,
 	}
+	var resourceErr *resourceValidationError
+	if errors.As(err, &resourceErr) && resourceErr != nil {
+		issue.Path = strings.TrimSpace(resourceErr.Path)
+		err = resourceErr.Err
+	}
 
 	var parseErr toml.ParseError
 	if errors.As(err, &parseErr) {
 		issue.Line = parseErr.Position.Line
-		data, readErr := os.ReadFile(path)
+		data, readErr := os.ReadFile(issue.Path)
 		if readErr != nil {
-			return ValidationIssue{}, false, fmt.Errorf("extension: read invalid manifest %q: %w", path, readErr)
+			return ValidationIssue{}, false, fmt.Errorf("extension: read invalid source %q: %w", issue.Path, readErr)
 		}
 		issue.Column = sourceColumn(data, parseErr.Position.Start)
 		return issue, true, nil
 	}
 	var syntaxErr *json.SyntaxError
 	if errors.As(err, &syntaxErr) {
-		data, readErr := os.ReadFile(path)
+		data, readErr := os.ReadFile(issue.Path)
 		if readErr != nil {
-			return ValidationIssue{}, false, fmt.Errorf("extension: read invalid manifest %q: %w", path, readErr)
+			return ValidationIssue{}, false, fmt.Errorf("extension: read invalid source %q: %w", issue.Path, readErr)
 		}
 		issue.Line, issue.Column = sourcePosition(data, int(syntaxErr.Offset)-1)
 		return issue, true, nil
@@ -108,9 +123,9 @@ func validationIssueForError(dir string, err error) (ValidationIssue, bool, erro
 	var typeErr *json.UnmarshalTypeError
 	if errors.As(err, &typeErr) {
 		issue.Field = typeErr.Field
-		data, readErr := os.ReadFile(path)
+		data, readErr := os.ReadFile(issue.Path)
 		if readErr != nil {
-			return ValidationIssue{}, false, fmt.Errorf("extension: read invalid manifest %q: %w", path, readErr)
+			return ValidationIssue{}, false, fmt.Errorf("extension: read invalid source %q: %w", issue.Path, readErr)
 		}
 		issue.Line, issue.Column = sourcePosition(data, int(typeErr.Offset)-1)
 		return issue, true, nil

@@ -101,7 +101,7 @@ func roleListBundle(roles []RoleRecord) outputBundle {
 		"Roles",
 		[]string{
 			roleOutputLabel,
-			"Enabled",
+			automationEnabledValue,
 			"Resolution",
 			agentOutputLabel,
 			agentKernelProviderValue,
@@ -141,7 +141,7 @@ func roleBundle(role RoleRecord) outputBundle {
 		human: func() (string, error) {
 			summary := renderHumanSection(roleOutputLabel, []keyValue{
 				{Label: roleOutputLabel, Value: role.Role},
-				{Label: "Enabled", Value: strconv.FormatBool(role.Enabled)},
+				{Label: automationEnabledValue, Value: strconv.FormatBool(role.Enabled)},
 				{Label: "Resolution", Value: string(role.ResolutionMode)},
 				{Label: agentOutputLabel, Value: stringOrDash(roleStatusValue(role.Agent))},
 				{Label: agentKernelProviderValue, Value: stringOrDash(roleStatusValue(role.Provider))},

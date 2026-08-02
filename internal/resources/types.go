@@ -221,6 +221,7 @@ type RawDraft struct {
 	Kind            ResourceKind
 	ID              string
 	Scope           ResourceScope
+	Owner           *ResourceOwner
 	ExpectedVersion int64
 	SpecJSON        []byte
 }

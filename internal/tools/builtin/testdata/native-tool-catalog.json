@@ -695,7 +695,7 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "c70d2daf71667bd20bdb983d31b4f01657a3308970b3c3d0d7f3bcf3b5d9bf20",
+    "input_schema_digest": "9490eca5222041e4c2fd39c201b5e3233f279a117bbdca3229db23b5195bb626",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
@@ -738,6 +738,19 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
+    "tool_id": "compozy__extensions_inventory",
+    "native_name": "extensions_inventory",
+    "toolsets": [
+      "compozy__extensions"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "c70d2daf71667bd20bdb983d31b4f01657a3308970b3c3d0d7f3bcf3b5d9bf20",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
     "tool_id": "compozy__extensions_list",
     "native_name": "extensions_list",
     "toolsets": [
@@ -761,6 +774,19 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "b2f96297b65dbda6a71c78a55cf3a6f6c337a6851f57f4023ccfacc52ede9611",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__extensions_preview",
+    "native_name": "extensions_preview",
+    "toolsets": [
+      "compozy__extensions"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "c70d2daf71667bd20bdb983d31b4f01657a3308970b3c3d0d7f3bcf3b5d9bf20",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
@@ -838,7 +864,7 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "b403d09c19656b86c0aa7b4923ae3a3e5b3751362135c30f5ccc3f616c7d0da7",
+    "input_schema_digest": "62a8aaac0a8911cd414f0e0f2c9c13de41930c1ccdd9f87e8a0aa52ae679ffe0",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {

@@ -68,6 +68,19 @@ func managedResourceID(
 	return prefix + hex.EncodeToString(sum[:12])
 }
 
+func managedPublicationID(
+	prefix string,
+	scope resources.ResourceScope,
+	sourceKey string,
+	encoded []byte,
+	owner *resources.ResourceOwner,
+) string {
+	if owner == nil || owner.Kind.Normalize() != extensionResourceOwnerKind {
+		return managedResourceID(prefix, scope, sourceKey, encoded)
+	}
+	return strings.TrimSpace(sourceKey)
+}
+
 func cloneResourceRecords[T any](records []resources.Record[T], cloneSpec func(T) T) []resources.Record[T] {
 	if len(records) == 0 {
 		return nil

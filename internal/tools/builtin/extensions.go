@@ -116,6 +116,30 @@ var extensionTools = []toolspkg.Descriptor{
 		[]string{"extension info", "extension status"},
 	),
 	nativeExtensionDescriptor(
+		toolspkg.ToolIDExtensionsInventory,
+		"extensions_inventory",
+		"Extensions Inventory",
+		"Read shipped and live resources for one installed extension.",
+		extensionNameInputSchema,
+		toolspkg.RiskRead,
+		true,
+		false,
+		[]string{extensionsExtensionsKey, extensionsStatusKey, "inventory", "resources"},
+		[]string{"extension inventory", "extension resources"},
+	),
+	nativeExtensionDescriptor(
+		toolspkg.ToolIDExtensionsPreview,
+		"extensions_preview",
+		"Extensions Preview",
+		"Preview enabling one installed extension without changing state.",
+		extensionNameInputSchema,
+		toolspkg.RiskRead,
+		true,
+		false,
+		[]string{extensionsExtensionsKey, extensionsStatusKey, "preview", "enable"},
+		[]string{"preview extension enable", "extension dry run"},
+	),
+	nativeExtensionDescriptor(
 		toolspkg.ToolIDExtensionsInstall,
 		"extensions_install",
 		"Extensions Install",
@@ -156,7 +180,7 @@ var extensionTools = []toolspkg.Descriptor{
 		"extensions_enable",
 		"Extensions Enable",
 		"Enable one installed extension through the runtime extension lifecycle.",
-		extensionNameInputSchema,
+		extensionEnableInputSchema,
 		toolspkg.RiskMutating,
 		false,
 		false,
@@ -249,6 +273,16 @@ const extensionNameInputSchema = `{
 	"additionalProperties":false
 }`
 
+const extensionEnableInputSchema = `{
+	"type":"object",
+	"required":["name"],
+	"properties":{
+		"name":{"type":"string"},
+		"confirm_network_digest":{"type":"string"}
+	},
+	"additionalProperties":false
+}`
+
 const extensionInstallInputSchema = `{
 	"type":"object",
 	"required":["source","ref"],
@@ -269,7 +303,8 @@ const extensionUpdateInputSchema = `{
 		"all":{"type":"boolean"},
 		"check_only":{"type":"boolean"},
 		"version":{"type":"string"},
-		"allow_unverified":{"type":"boolean"}
+		"allow_unverified":{"type":"boolean"},
+		"confirm_network_digest":{"type":"string"}
 	},
 	"additionalProperties":false
 }`

@@ -1582,6 +1582,14 @@ export interface DeliveryRequest {
   snapshot?: DeliverySnapshot;
 }
 
+export interface DescribeResources {
+  skills?: string[];
+  loops?: string[];
+  agents?: string[];
+  automation?: string[];
+  layouts?: string[];
+}
+
 export interface DescribeSubprocess {
   command: string;
   args?: string[];
@@ -1635,6 +1643,7 @@ export interface DescribePayload {
   provides: string[];
   permissions: string[];
   requires_env?: string[];
+  resources: DescribeResources;
   subprocess: DescribeSubprocess;
   tools?: ExtensionToolRuntimeDescriptor[];
   hook_events?: string[];

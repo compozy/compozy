@@ -50,13 +50,23 @@ func loadExtensionRecords(cmd *cobra.Command, deps commandDeps, workspaceRef str
 	)
 }
 
-func mutateExtensionEnabled(ctx context.Context, deps commandDeps, name string, enabled bool) (ExtensionRecord, error) {
+func enableExtension(
+	ctx context.Context,
+	deps commandDeps,
+	name string,
+	request EnableExtensionRequest,
+) (ExtensionEnableRecord, error) {
+	client, err := requireExtensionDaemonClient(ctx, deps)
+	if err != nil {
+		return ExtensionEnableRecord{}, err
+	}
+	return client.EnableExtension(ctx, name, request)
+}
+
+func disableExtension(ctx context.Context, deps commandDeps, name string) (ExtensionRecord, error) {
 	client, err := requireExtensionDaemonClient(ctx, deps)
 	if err != nil {
 		return ExtensionRecord{}, err
-	}
-	if enabled {
-		return client.EnableExtension(ctx, name)
 	}
 	return client.DisableExtension(ctx, name)
 }

@@ -4,6 +4,16 @@ package contracts
 
 import "time"
 
+type SessionSummary struct {
+	ID        string                `json:"id"`
+	Name      string                `json:"name,omitempty"`
+	Agent     string                `json:"agent"`
+	Runtime   SessionRuntimePayload `json:"runtime"`
+	Workspace string                `json:"workspace,omitempty"`
+	State     State                 `json:"state"`
+	CreatedAt time.Time             `json:"created_at"`
+}
+
 type SessionTargetParams struct {
 	WorkspaceID string `json:"workspace_id"`
 	SessionID   string `json:"session_id"`
@@ -271,14 +281,4 @@ type SpawnTTLExpiredPayload struct {
 	StopReason                   string         `json:"stop_reason,omitempty"`
 	ReapReason                   string         `json:"reap_reason,omitempty"`
 	Error                        string         `json:"error,omitempty"`
-}
-
-type Spec struct {
-	Version         string          `json:"version"`
-	Mode            Mode            `json:"mode"`
-	WorkspaceID     string          `json:"workspace_id,omitempty"`
-	ChannelStrategy ChannelStrategy `json:"channel_strategy,omitempty"`
-	ChannelID       string          `json:"channel_id,omitempty"`
-	Source          Source          `json:"source"`
-	Bounds          Bounds          `json:"bounds,omitzero"`
 }

@@ -3544,15 +3544,17 @@ func (s *integrationExtensionService) Remove(
 func (s *integrationExtensionService) Enable(
 	ctx context.Context,
 	name string,
+	_ contract.EnableExtensionRequest,
 	_ taskpkg.ActorContext,
-) (contract.ExtensionPayload, error) {
+) (contract.ExtensionEnableResult, error) {
 	if err := s.registry.Enable(name); err != nil {
-		return contract.ExtensionPayload{}, err
+		return contract.ExtensionEnableResult{}, err
 	}
 	if err := s.manager.Reload(ctx); err != nil {
-		return contract.ExtensionPayload{}, err
+		return contract.ExtensionEnableResult{}, err
 	}
-	return s.Status(ctx, name)
+	item, err := s.Status(ctx, name)
+	return contract.ExtensionEnableResult{Extension: item}, err
 }
 
 func (s *integrationExtensionService) Disable(
@@ -3581,6 +3583,14 @@ func (s *integrationExtensionService) Status(_ context.Context, name string) (co
 		}
 	}
 	return extensionpkg.DescribeExtension(ext, true, time.Now().UTC()), nil
+}
+
+func (*integrationExtensionService) Inventory(context.Context, string) (contract.ExtensionInventoryPayload, error) {
+	return contract.ExtensionInventoryPayload{}, nil
+}
+
+func (*integrationExtensionService) Preview(context.Context, string) (contract.ExtensionEnablePreviewPayload, error) {
+	return contract.ExtensionEnablePreviewPayload{}, nil
 }
 
 func (s *integrationExtensionService) Provenance(

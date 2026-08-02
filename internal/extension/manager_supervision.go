@@ -12,6 +12,7 @@ import (
 
 	"time"
 
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/subprocess"
 )
 
@@ -132,6 +133,16 @@ func (m *Manager) registerExtension(ctx context.Context, ext *managedExtension) 
 		m.setFailure(ext, ExtensionPhaseRegister, err)
 		return phaseError(ext.info.Name, ExtensionPhaseRegister, err)
 	}
+	automationJobs, automationTriggers, err := m.loadAutomationResources(ext, agents)
+	if err != nil {
+		m.setFailure(ext, ExtensionPhaseRegister, err)
+		return phaseError(ext.info.Name, ExtensionPhaseRegister, err)
+	}
+	layouts, err := m.loadLayoutResources(ext)
+	if err != nil {
+		m.setFailure(ext, ExtensionPhaseRegister, err)
+		return phaseError(ext.info.Name, ExtensionPhaseRegister, err)
+	}
 	hooks, err := m.loadHookResources(ext)
 	if err != nil {
 		m.setFailure(ext, ExtensionPhaseRegister, err)
@@ -144,7 +155,14 @@ func (m *Manager) registerExtension(ctx context.Context, ext *managedExtension) 
 	}
 	m.mu.Lock()
 	ext.skills = skills
-	ext.agents = agents
+	ext.staticAgents = agents
+	ext.agents = make([]compozyconfig.AgentDef, 0, len(agents))
+	for _, agent := range agents {
+		ext.agents = append(ext.agents, compozyconfig.CloneAgentDef(agent.Agent))
+	}
+	ext.automationJobs = automationJobs
+	ext.automationTriggers = automationTriggers
+	ext.layouts = layouts
 	ext.hooks = hooks
 	ext.bundles = bundles
 	ext.registered = true

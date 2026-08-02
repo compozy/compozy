@@ -63,6 +63,11 @@ type stubExtensionService struct {
 	DisableFn          func(context.Context, string, taskpkg.ActorContext) (contract.ExtensionPayload, error)
 	StatusFn           func(context.Context, string) (contract.ExtensionPayload, error)
 	ProvenanceFn       func(context.Context, string) (contract.ExtensionProvenancePayload, error)
+	InventoryFn        func(context.Context, string) (contract.ExtensionInventoryPayload, error)
+	PreviewFn          func(context.Context, string) (contract.ExtensionEnablePreviewPayload, error)
+	ListSecretsFn      func(context.Context, string, taskpkg.ActorContext) (contract.ExtensionSecretsPayload, error)
+	SetSecretsFn       func(context.Context, string, contract.SetExtensionSecretsRequest, taskpkg.ActorContext) (contract.ExtensionSecretsPayload, error)
+	DeleteSecretFn     func(context.Context, string, string, taskpkg.ActorContext) error
 	DevFn              func(context.Context, contract.DevLinkExtensionRequest, taskpkg.ActorContext) (contract.ExtensionPayload, error)
 	ReloadDevFn        func(context.Context, string, contract.ReloadExtensionRequest, taskpkg.ActorContext) (contract.ExtensionPayload, error)
 	ExtensionLogsFn    func(context.Context, string, int64, taskpkg.ActorContext) ([]contract.ExtensionLogPayload, error)
@@ -140,12 +145,14 @@ func (s stubExtensionService) Remove(
 func (s stubExtensionService) Enable(
 	ctx context.Context,
 	name string,
+	_ contract.EnableExtensionRequest,
 	actor taskpkg.ActorContext,
-) (contract.ExtensionPayload, error) {
+) (contract.ExtensionEnableResult, error) {
 	if s.EnableFn == nil {
-		return contract.ExtensionPayload{}, nil
+		return contract.ExtensionEnableResult{}, nil
 	}
-	return s.EnableFn(ctx, name, actor)
+	item, err := s.EnableFn(ctx, name, actor)
+	return contract.ExtensionEnableResult{Extension: item}, err
 }
 
 func (s stubExtensionService) Disable(
@@ -174,6 +181,58 @@ func (s stubExtensionService) Provenance(
 		return contract.ExtensionProvenancePayload{}, nil
 	}
 	return s.ProvenanceFn(ctx, name)
+}
+
+func (s stubExtensionService) Inventory(ctx context.Context, name string) (contract.ExtensionInventoryPayload, error) {
+	if s.InventoryFn == nil {
+		return contract.ExtensionInventoryPayload{}, nil
+	}
+	return s.InventoryFn(ctx, name)
+}
+
+func (s stubExtensionService) Preview(
+	ctx context.Context,
+	name string,
+) (contract.ExtensionEnablePreviewPayload, error) {
+	if s.PreviewFn == nil {
+		return contract.ExtensionEnablePreviewPayload{}, nil
+	}
+	return s.PreviewFn(ctx, name)
+}
+
+func (s stubExtensionService) ListExtensionSecrets(
+	ctx context.Context,
+	name string,
+	actor taskpkg.ActorContext,
+) (contract.ExtensionSecretsPayload, error) {
+	if s.ListSecretsFn == nil {
+		return contract.ExtensionSecretsPayload{}, nil
+	}
+	return s.ListSecretsFn(ctx, name, actor)
+}
+
+func (s stubExtensionService) SetExtensionSecrets(
+	ctx context.Context,
+	name string,
+	req contract.SetExtensionSecretsRequest,
+	actor taskpkg.ActorContext,
+) (contract.ExtensionSecretsPayload, error) {
+	if s.SetSecretsFn == nil {
+		return contract.ExtensionSecretsPayload{}, nil
+	}
+	return s.SetSecretsFn(ctx, name, req, actor)
+}
+
+func (s stubExtensionService) DeleteExtensionSecret(
+	ctx context.Context,
+	name string,
+	envName string,
+	actor taskpkg.ActorContext,
+) error {
+	if s.DeleteSecretFn == nil {
+		return nil
+	}
+	return s.DeleteSecretFn(ctx, name, envName, actor)
 }
 
 func (s stubExtensionService) Dev(

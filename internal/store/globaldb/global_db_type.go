@@ -28,6 +28,7 @@ type GlobalDB struct {
 	*NotificationRepo
 	*ToolRuntimeRepo
 	*VaultRepo
+	*ExtensionEnvRepo
 	*WatchEventsRepo
 	*DeadEntityRepo
 	*ApprovalGrantRepo

@@ -5,6 +5,8 @@ import (
 	"strings"
 )
 
+const unknownMarketplaceExtensionName = "unknown"
+
 // MarketplaceUpdateBatchError reports a failed target after earlier batch
 // results became externally visible. Completed is a stable snapshot of those
 // results so callers can emit lifecycle events and report partial progress.
@@ -20,7 +22,7 @@ func (e *MarketplaceUpdateBatchError) Error() string {
 	}
 	name := strings.TrimSpace(e.FailedName)
 	if name == "" {
-		name = "unknown"
+		name = unknownMarketplaceExtensionName
 	}
 	return fmt.Sprintf(
 		"extension: marketplace update batch failed at %q after %d completed result(s): %v",

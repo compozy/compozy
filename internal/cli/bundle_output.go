@@ -28,7 +28,7 @@ func bundleCatalogBundle(items []BundleCatalogRecord) outputBundle {
 			bundleBundleKey,
 			"profiles",
 			"layouts",
-			"agents",
+			cliAgentsKey,
 			automationJobsKey,
 			"triggers",
 			"bridges",
@@ -91,7 +91,7 @@ func bundleActivationListBundle(items []BundleActivationRecord) outputBundle {
 			automationScopeKey,
 			workspaceSkillSource,
 			"layouts",
-			"agents",
+			cliAgentsKey,
 			"inventory",
 		},
 		func(item BundleActivationRecord) []string {
@@ -183,7 +183,7 @@ func bundleActivationBundle(item BundleActivationRecord) outputBundle {
 				),
 				bundleLayoutsToon(item.Layouts),
 				renderToonArray(
-					"agents",
+					cliAgentsKey,
 					[]string{
 						automationNameKey,
 						cliProviderKey,

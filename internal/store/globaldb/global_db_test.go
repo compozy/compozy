@@ -1099,6 +1099,9 @@ func TestOpenGlobalDBCreatesExtensionsTableWithExpectedColumns(t *testing.T) {
 		"registry_name",
 		"remote_version",
 		globalDBExtensionProvenanceJSONKey,
+		"network_requirement_digest",
+		"network_confirmed_by",
+		"network_confirmed_at",
 	})
 	assertTableColumns(t, globalDB.db, "extension_dev_links", []string{
 		"extension_name",
@@ -1106,6 +1109,18 @@ func TestOpenGlobalDBCreatesExtensionsTableWithExpectedColumns(t *testing.T) {
 		"origin_path",
 		"bundle_generation",
 		"linked_at",
+		"network_requirement_digest",
+		"network_confirmed_by",
+		"network_confirmed_at",
+	})
+	assertTableColumns(t, globalDB.db, "extension_env_bindings", []string{
+		"extension_name",
+		"workspace_id",
+		"env_name",
+		"secret_ref",
+		"kind",
+		"created_at",
+		"updated_at",
 	})
 }
 
@@ -1145,6 +1160,9 @@ func TestOpenGlobalDBExtensionsSchemaIsIdempotent(t *testing.T) {
 		"registry_name",
 		"remote_version",
 		globalDBExtensionProvenanceJSONKey,
+		"network_requirement_digest",
+		"network_confirmed_by",
+		"network_confirmed_at",
 	})
 	assertTableColumns(t, second.db, "extension_dev_links", []string{
 		"extension_name",
@@ -1152,6 +1170,18 @@ func TestOpenGlobalDBExtensionsSchemaIsIdempotent(t *testing.T) {
 		"origin_path",
 		"bundle_generation",
 		"linked_at",
+		"network_requirement_digest",
+		"network_confirmed_by",
+		"network_confirmed_at",
+	})
+	assertTableColumns(t, second.db, "extension_env_bindings", []string{
+		"extension_name",
+		"workspace_id",
+		"env_name",
+		"secret_ref",
+		"kind",
+		"created_at",
+		"updated_at",
 	})
 }
 
@@ -2719,6 +2749,27 @@ func TestGlobalDBWriteEventSummary(t *testing.T) {
 	}
 	if got, want := errorOnly[0].Outcome, "failure"; got != want {
 		t.Fatalf("errorOnly[0].Outcome = %q, want %q", got, want)
+	}
+}
+
+func TestGlobalDBWriteEventSummariesAtomic(t *testing.T) {
+	t.Parallel()
+
+	globalDB := openTestGlobalDB(t)
+	timestamp := time.Date(2026, 8, 2, 18, 0, 0, 0, time.UTC)
+	err := globalDB.WriteEventSummaries(testutil.Context(t), []EventSummary{
+		{ID: "duplicate-summary", Type: "settings.changed", Summary: "first", Timestamp: timestamp},
+		{ID: "duplicate-summary", Type: "settings.changed", Summary: "second", Timestamp: timestamp},
+	})
+	if err == nil {
+		t.Fatal("WriteEventSummaries(duplicate id) error = nil, want atomic insert failure")
+	}
+	summaries, listErr := globalDB.ListEventSummaries(testutil.Context(t), EventSummaryQuery{})
+	if listErr != nil {
+		t.Fatalf("ListEventSummaries() error = %v", listErr)
+	}
+	if len(summaries) != 0 {
+		t.Fatalf("ListEventSummaries() = %#v, want no partial batch writes", summaries)
 	}
 }
 

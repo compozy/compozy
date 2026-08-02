@@ -62,6 +62,13 @@ func (e *Extension) Describe() (contracts.DescribePayload, error) {
 		Provides:    requiredStringList(e.definition.Capabilities.Provides),
 		Permissions: requiredStringList(permissions),
 		RequiresEnv: normalizeStrings(e.definition.RequiresEnv),
+		Resources: contracts.DescribeResources{
+			Skills:     normalizeStrings(e.definition.Resources.Skills),
+			Loops:      normalizeStrings(e.definition.Resources.Loops),
+			Agents:     normalizeStrings(e.definition.Resources.Agents),
+			Automation: normalizeStrings(e.definition.Resources.Automation),
+			Layouts:    normalizeStrings(e.definition.Resources.Layouts),
+		},
 		Subprocess: contracts.DescribeSubprocess{
 			Command: strings.TrimSpace(e.definition.Subprocess.Command),
 			Args:    slices.Clone(e.definition.Subprocess.Args),

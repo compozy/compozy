@@ -270,13 +270,13 @@ func TestToolMCPStaticPublicationExtensionLifecycle(t *testing.T) {
 		if err := registry.Disable(manifest.Name); err != nil {
 			t.Fatalf("registry.Disable() error = %v", err)
 		}
-		syncAndAssertToolMCPStoreCounts(t, syncer, toolStore, mcpStore, 1, 0)
+		syncAndAssertToolMCPStoreCounts(t, syncer, toolStore, mcpStore, 0, 0)
 
 		if err := registry.Enable(manifest.Name); err != nil {
 			t.Fatalf("registry.Enable() error = %v", err)
 		}
 		runtime.extension.Status.Registered = false
-		syncAndAssertToolMCPStoreCounts(t, syncer, toolStore, mcpStore, 1, 0)
+		syncAndAssertToolMCPStoreCounts(t, syncer, toolStore, mcpStore, 0, 0)
 
 		runtime.extension.Status.Registered = true
 		runtime.extension.Status.Healthy = false

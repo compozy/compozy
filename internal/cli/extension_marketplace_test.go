@@ -247,25 +247,28 @@ func TestExtensionRemoveCommandUsesDaemonClient(t *testing.T) {
 func TestExtensionUpdateCommandUsesDaemonClient(t *testing.T) {
 	t.Parallel()
 
-	var capturedRequest UpdateExtensionsRequest
+	var capturedName string
+	var capturedRequest UpdateExtensionRequest
 	deps, _ := newExtensionLocalDeps(t, &stubClient{
-		updateExtensionsFn: func(
+		updateExtensionFn: func(
 			_ context.Context,
-			request UpdateExtensionsRequest,
-		) ([]ExtensionUpdateRecord, error) {
+			name string,
+			request UpdateExtensionRequest,
+		) (ExtensionUpdateRecord, error) {
+			capturedName = name
 			capturedRequest = request
-			return []ExtensionUpdateRecord{{
-				Name:           request.Names[0],
-				Slug:           "acme/" + request.Names[0],
+			return ExtensionUpdateRecord{
+				Name:           name,
+				Slug:           "acme/" + name,
 				Registry:       "github",
 				CurrentVersion: "1.0.0",
 				LatestVersion:  "1.2.0",
-				Path:           "/tmp/" + request.Names[0],
+				Path:           "/tmp/" + name,
 				Status:         extensionpkg.MarketplaceUpdateStatusUpdated,
 				Warnings: []contract.DiagnosticItem{{
 					Code: contract.CodeExtensionUpdateCleanupFailed,
 				}},
-			}}, nil
+			}, nil
 		},
 	})
 	markExtensionDaemonRunning(&deps)
@@ -286,9 +289,12 @@ func TestExtensionUpdateCommandUsesDaemonClient(t *testing.T) {
 	if err != nil {
 		t.Fatalf("extension update error = %v", err)
 	}
-	want := UpdateExtensionsRequest{Names: []string{"update-ext"}, Version: "1.2.0", AllowUnverified: true}
+	if capturedName != "update-ext" {
+		t.Fatalf("UpdateExtension name = %q, want update-ext", capturedName)
+	}
+	want := UpdateExtensionRequest{Version: "1.2.0", AllowUnverified: true}
 	if !reflect.DeepEqual(capturedRequest, want) {
-		t.Fatalf("UpdateExtensions request = %#v, want %#v", capturedRequest, want)
+		t.Fatalf("UpdateExtension request = %#v, want %#v", capturedRequest, want)
 	}
 	var payload []extensionUpdateItem
 	if err := json.Unmarshal([]byte(stdout), &payload); err != nil {
@@ -312,21 +318,24 @@ func TestExtensionUpdateCommandUsesDaemonClient(t *testing.T) {
 func TestExtensionUpdateCheckDoesNotRequireAllowUnverified(t *testing.T) {
 	t.Parallel()
 
-	var captured UpdateExtensionsRequest
+	var capturedName string
+	var captured UpdateExtensionRequest
 	deps, _ := newExtensionLocalDeps(t, &stubClient{
-		updateExtensionsFn: func(
+		updateExtensionFn: func(
 			_ context.Context,
-			request UpdateExtensionsRequest,
-		) ([]ExtensionUpdateRecord, error) {
+			name string,
+			request UpdateExtensionRequest,
+		) (ExtensionUpdateRecord, error) {
+			capturedName = name
 			captured = request
-			return []ExtensionUpdateRecord{{
-				Name:           request.Names[0],
-				Slug:           "acme/" + request.Names[0],
+			return ExtensionUpdateRecord{
+				Name:           name,
+				Slug:           "acme/" + name,
 				Registry:       "github",
 				CurrentVersion: "1.0.0",
 				LatestVersion:  "1.2.0",
 				Status:         extensionpkg.MarketplaceUpdateStatusAvailable,
-			}}, nil
+			}, nil
 		},
 	})
 	markExtensionDaemonRunning(&deps)
@@ -335,9 +344,12 @@ func TestExtensionUpdateCheckDoesNotRequireAllowUnverified(t *testing.T) {
 	if err != nil {
 		t.Fatalf("extension update --check error = %v", err)
 	}
-	want := UpdateExtensionsRequest{Names: []string{"update-ext"}, CheckOnly: true}
+	if capturedName != "update-ext" {
+		t.Fatalf("UpdateExtension name = %q, want update-ext", capturedName)
+	}
+	want := UpdateExtensionRequest{CheckOnly: true}
 	if !reflect.DeepEqual(captured, want) {
-		t.Fatalf("UpdateExtensions check request = %#v, want %#v", captured, want)
+		t.Fatalf("UpdateExtension check request = %#v, want %#v", captured, want)
 	}
 	var payload []extensionUpdateItem
 	if err := json.Unmarshal([]byte(stdout), &payload); err != nil {

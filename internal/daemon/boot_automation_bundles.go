@@ -213,6 +213,11 @@ func (d *Daemon) configureExtensionResourcePublishers(
 		return err
 	}
 	state.loopResources = loopResources
+	extensionKitResources, err := d.newExtensionKitResourcePublisher(state, extRegistry)
+	if err != nil {
+		return err
+	}
+	state.extensionKitResources = extensionKitResources
 	return nil
 }
 
@@ -239,6 +244,11 @@ func syncExtensionResourcePublishers(ctx context.Context, state *bootState) erro
 	}
 	if state.loopResources != nil {
 		if err := state.loopResources.Sync(ctx); err != nil {
+			return err
+		}
+	}
+	if state.extensionKitResources != nil {
+		if err := state.extensionKitResources.Sync(ctx); err != nil {
 			return err
 		}
 	}

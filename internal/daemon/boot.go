@@ -123,6 +123,7 @@ type bootState struct {
 	toolMCPResources      toolMCPPublisher
 	bundleResources       bundleResourcePublisher
 	loopResources         loopResourcePublisher
+	extensionKitResources extensionKitResourcePublisher
 	extMu                 sync.RWMutex
 	extensions            extensionRuntime
 	resourceReconcile     resources.ReconcileDriver

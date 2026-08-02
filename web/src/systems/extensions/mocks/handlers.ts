@@ -120,7 +120,7 @@ export const handlers: HttpHandler[] = [
     }
     const enabled = { ...extension, enabled: true };
     extensionsState = extensionsState.map(item => (item.name === name ? enabled : item));
-    return HttpResponse.json({ extension: enabled });
+    return HttpResponse.json({ automation_started: [], extension: enabled });
   }),
   compozyApiMock.post("/api/extensions/{name}/disable", ({ params }) => {
     const name = String(params.name);

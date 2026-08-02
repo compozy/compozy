@@ -80,7 +80,9 @@ type ResourcesConfig struct {
 	Skills        []string                   `toml:"skills,omitempty"         json:"skills,omitempty"`
 	Loops         []string                   `toml:"loops,omitempty"          json:"loops,omitempty"`
 	Agents        []string                   `toml:"agents,omitempty"         json:"agents,omitempty"`
-	Bundles       []string                   `toml:"bundles,omitempty"        json:"bundles,omitempty"`
+	Bundles       []string                   `toml:"-"                        json:"-"`
+	Automation    []string                   `toml:"automation,omitempty"     json:"automation,omitempty"`
+	Layouts       []string                   `toml:"layouts,omitempty"        json:"layouts,omitempty"`
 	Hooks         []HookConfig               `toml:"hooks,omitempty"          json:"hooks,omitempty"`
 	Tools         map[string]ToolConfig      `toml:"tools,omitempty"          json:"tools,omitempty"`
 	CommandGroups []manifestCommandGroupSpec `toml:"command_groups,omitempty" json:"command_groups,omitempty"`

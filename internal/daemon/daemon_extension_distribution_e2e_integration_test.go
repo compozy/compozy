@@ -95,6 +95,20 @@ func testDaemonE2EExtensionDistributionAcrossIsolatedHomes(t *testing.T) {
 		installed.Provenance.ChecksumVerified || installed.Provenance.InstalledFrom != extensionpkg.ExtensionInstalledFromGitHub {
 		t.Fatalf("installed extension = %#v, want digest-verified integrity-only GitHub provenance", installed)
 	}
+	if installed.Enabled {
+		t.Fatalf("installed extension = %#v, want inert before explicit enable", installed)
+	}
+	var enabled compozycontract.ExtensionEnableResult
+	runExtensionAuthoringCLI(
+		t,
+		ctx,
+		consumer,
+		&enabled,
+		"extension", "enable", "hello", "-o", "json",
+	)
+	if !enabled.Extension.Enabled {
+		t.Fatalf("extension enable result = %#v, want enabled extension", enabled)
+	}
 	assertDistributionExtensionInvocation(t, ctx, consumer, "published-v1:alpha")
 
 	rewriteExtensionAuthoringGeneration(t, sourceDir, "published-v1:", "published-v2:", "published-v2")

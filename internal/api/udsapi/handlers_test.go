@@ -45,6 +45,11 @@ type stubExtensionService struct {
 	DisableFn          func(context.Context, string, taskpkg.ActorContext) (contract.ExtensionPayload, error)
 	StatusFn           func(context.Context, string) (contract.ExtensionPayload, error)
 	ProvenanceFn       func(context.Context, string) (contract.ExtensionProvenancePayload, error)
+	InventoryFn        func(context.Context, string) (contract.ExtensionInventoryPayload, error)
+	PreviewFn          func(context.Context, string) (contract.ExtensionEnablePreviewPayload, error)
+	ListSecretsFn      func(context.Context, string, taskpkg.ActorContext) (contract.ExtensionSecretsPayload, error)
+	SetSecretsFn       func(context.Context, string, contract.SetExtensionSecretsRequest, taskpkg.ActorContext) (contract.ExtensionSecretsPayload, error)
+	DeleteSecretFn     func(context.Context, string, string, taskpkg.ActorContext) error
 }
 
 func (s stubExtensionService) Search(
@@ -119,12 +124,14 @@ func (s stubExtensionService) Remove(
 func (s stubExtensionService) Enable(
 	ctx context.Context,
 	name string,
+	_ contract.EnableExtensionRequest,
 	actor taskpkg.ActorContext,
-) (contract.ExtensionPayload, error) {
+) (contract.ExtensionEnableResult, error) {
 	if s.EnableFn == nil {
-		return contract.ExtensionPayload{}, nil
+		return contract.ExtensionEnableResult{}, nil
 	}
-	return s.EnableFn(ctx, name, actor)
+	item, err := s.EnableFn(ctx, name, actor)
+	return contract.ExtensionEnableResult{Extension: item}, err
 }
 
 func (s stubExtensionService) Disable(
@@ -155,6 +162,58 @@ func (s stubExtensionService) Provenance(
 	return s.ProvenanceFn(ctx, name)
 }
 
+func (s stubExtensionService) Inventory(ctx context.Context, name string) (contract.ExtensionInventoryPayload, error) {
+	if s.InventoryFn == nil {
+		return contract.ExtensionInventoryPayload{}, nil
+	}
+	return s.InventoryFn(ctx, name)
+}
+
+func (s stubExtensionService) Preview(
+	ctx context.Context,
+	name string,
+) (contract.ExtensionEnablePreviewPayload, error) {
+	if s.PreviewFn == nil {
+		return contract.ExtensionEnablePreviewPayload{}, nil
+	}
+	return s.PreviewFn(ctx, name)
+}
+
+func (s stubExtensionService) ListExtensionSecrets(
+	ctx context.Context,
+	name string,
+	actor taskpkg.ActorContext,
+) (contract.ExtensionSecretsPayload, error) {
+	if s.ListSecretsFn == nil {
+		return contract.ExtensionSecretsPayload{}, nil
+	}
+	return s.ListSecretsFn(ctx, name, actor)
+}
+
+func (s stubExtensionService) SetExtensionSecrets(
+	ctx context.Context,
+	name string,
+	req contract.SetExtensionSecretsRequest,
+	actor taskpkg.ActorContext,
+) (contract.ExtensionSecretsPayload, error) {
+	if s.SetSecretsFn == nil {
+		return contract.ExtensionSecretsPayload{}, nil
+	}
+	return s.SetSecretsFn(ctx, name, req, actor)
+}
+
+func (s stubExtensionService) DeleteExtensionSecret(
+	ctx context.Context,
+	name string,
+	envName string,
+	actor taskpkg.ActorContext,
+) error {
+	if s.DeleteSecretFn == nil {
+		return nil
+	}
+	return s.DeleteSecretFn(ctx, name, envName, actor)
+}
+
 func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 	t.Run("Should register every TechSpec endpoint", func(t *testing.T) {
 		t.Parallel()
@@ -177,6 +236,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"DELETE /api/bridges/:id/secret-bindings/:binding_name",
 			"DELETE /api/bundles/activations/:id",
 			"DELETE /api/extensions/:name",
+			"DELETE /api/extensions/:name/secrets/:env_name",
 			"DELETE /api/memory/:filename",
 			"DELETE /api/notifications/presets/:name",
 			"DELETE /api/tool-approval-grants/:id",
@@ -247,8 +307,11 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"GET /api/extensions/commands",
 			"GET /api/extensions/search",
 			"GET /api/extensions/:name",
+			"GET /api/extensions/:name/inventory",
 			"GET /api/extensions/:name/logs",
+			"GET /api/extensions/:name/preview",
 			"GET /api/extensions/:name/provenance",
+			"GET /api/extensions/:name/secrets",
 			"GET /api/hooks/catalog",
 			"GET /api/hooks/events",
 			"GET /api/notifications/presets",
@@ -560,6 +623,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"PUT /api/agents/:name",
 			"PUT /api/bridges/:id/secret-bindings/:binding_name",
 			"PUT /api/extensions/:name",
+			"PUT /api/extensions/:name/secrets",
 			"PUT /api/notifications/presets/:name",
 			"PUT /api/settings/sandboxes/:name",
 			"PUT /api/settings/hooks/:name",
@@ -2834,6 +2898,93 @@ func TestSessionErrorMappingUsesNotFoundAndConflict(t *testing.T) {
 	)
 	if postResp.Code != http.StatusConflict {
 		t.Fatalf("POST /api/sessions status = %d, want 409", postResp.Code)
+	}
+}
+
+func TestExtensionKitAndSecretsRoutesReachUDSService(t *testing.T) {
+	t.Parallel()
+
+	secretWrites := 0
+	secretDeletes := 0
+	service := stubExtensionService{
+		InventoryFn: func(_ context.Context, name string) (contract.ExtensionInventoryPayload, error) {
+			return contract.ExtensionInventoryPayload{Extension: name, Items: []contract.ExtensionKitItemPayload{{
+				Kind: "agent", Name: "writer", Live: true,
+			}}}, nil
+		},
+		PreviewFn: func(_ context.Context, name string) (contract.ExtensionEnablePreviewPayload, error) {
+			return contract.ExtensionEnablePreviewPayload{
+				Extension: name, AutomationStarting: []string{name + "/daily"},
+			}, nil
+		},
+		ListSecretsFn: func(
+			_ context.Context,
+			name string,
+			actor taskpkg.ActorContext,
+		) (contract.ExtensionSecretsPayload, error) {
+			if name != "kit" || !actor.Authority.Read {
+				t.Fatalf("ListExtensionSecrets() name=%q actor=%#v", name, actor)
+			}
+			return contract.ExtensionSecretsPayload{DeclaredEnv: []string{"API_KEY"}}, nil
+		},
+		SetSecretsFn: func(
+			_ context.Context,
+			name string,
+			req contract.SetExtensionSecretsRequest,
+			actor taskpkg.ActorContext,
+		) (contract.ExtensionSecretsPayload, error) {
+			if name != "kit" || !actor.Authority.Write || req.Secrets["API_KEY"].Value == nil {
+				t.Fatal("SetExtensionSecrets() did not receive trusted actor and write-only value")
+			}
+			secretWrites++
+			return contract.ExtensionSecretsPayload{
+				DeclaredEnv:  []string{"API_KEY"},
+				BoundEnvKeys: []string{"API_KEY"},
+			}, nil
+		},
+		DeleteSecretFn: func(_ context.Context, name, envName string, actor taskpkg.ActorContext) error {
+			if name != "kit" || envName != "API_KEY" || !actor.Authority.Write {
+				t.Fatalf("DeleteExtensionSecret() name=%q env=%q actor=%#v", name, envName, actor)
+			}
+			secretDeletes++
+			return nil
+		},
+	}
+	handlers := newTestHandlersWithExtensions(
+		t, stubSessionManager{}, stubObserver{}, service, newTestHomePaths(t),
+	)
+	engine := newTestRouter(t, handlers)
+
+	for _, testCase := range []struct{ path, want string }{
+		{path: "/api/extensions/kit/inventory", want: `"live":true`},
+		{path: "/api/extensions/kit/preview", want: `"automation_starting":["kit/daily"]`},
+		{path: "/api/extensions/kit/secrets", want: `"declared_env":["API_KEY"]`},
+	} {
+		response := performRequest(t, engine, http.MethodGet, testCase.path, nil)
+		if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), testCase.want) {
+			t.Fatalf(
+				"GET %s status=%d body=%s, want %s",
+				testCase.path,
+				response.Code,
+				response.Body.String(),
+				testCase.want,
+			)
+		}
+	}
+	setResponse := performRequest(t, engine, http.MethodPut, "/api/extensions/kit/secrets", []byte(
+		`{"secrets":{"API_KEY":{"value":"planted-secret-value"}}}`,
+	))
+	if setResponse.Code != http.StatusOK || strings.Contains(setResponse.Body.String(), "planted-secret-value") {
+		t.Fatalf("PUT secrets status=%d body=%s", setResponse.Code, setResponse.Body.String())
+	}
+	deleteResponse := performRequest(
+		t, engine, http.MethodDelete, "/api/extensions/kit/secrets/API_KEY", nil,
+	)
+	if deleteResponse.Code != http.StatusNoContent {
+		t.Fatalf("DELETE secrets status=%d body=%s", deleteResponse.Code, deleteResponse.Body.String())
+	}
+	if secretWrites != 1 || secretDeletes != 1 {
+		t.Fatalf("secret mutations writes=%d deletes=%d, want 1/1", secretWrites, secretDeletes)
 	}
 }
 

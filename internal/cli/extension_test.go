@@ -55,8 +55,8 @@ func TestExtensionInstallOfflinePersistsExtension(t *testing.T) {
 	}
 
 	info := getInstalledExtension(t, homePaths, "alpha-ext")
-	if !info.Enabled {
-		t.Fatalf("installed extension enabled = false, want true")
+	if info.Enabled {
+		t.Fatal("installed extension enabled = true, want inert install")
 	}
 	if !info.Provenance.AllowUnverified {
 		t.Fatalf("installed provenance allow_unverified = false, want true")

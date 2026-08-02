@@ -99,11 +99,13 @@ type stubClient struct {
 	updateExtensionFn            func(context.Context, string, UpdateExtensionRequest) (ExtensionUpdateRecord, error)
 	updateExtensionsFn           func(context.Context, UpdateExtensionsRequest) ([]ExtensionUpdateRecord, error)
 	removeExtensionFn            func(context.Context, string) (ManagedExtensionRemoveRecord, error)
-	enableExtensionFn            func(context.Context, string) (ExtensionRecord, error)
+	enableExtensionFn            func(context.Context, string, EnableExtensionRequest) (ExtensionEnableRecord, error)
 	disableExtensionFn           func(context.Context, string) (ExtensionRecord, error)
 	extensionStatusFn            func(context.Context, string) (ExtensionRecord, error)
 	extensionStatusScopedFn      func(context.Context, string, string) (ExtensionRecord, error)
 	extensionProvenanceFn        func(context.Context, string) (ExtensionProvenanceRecord, error)
+	extensionInventoryFn         func(context.Context, string) (ExtensionInventoryRecord, error)
+	previewExtensionEnableFn     func(context.Context, string) (ExtensionEnablePreviewRecord, error)
 	devExtensionFn               func(context.Context, string, DevLinkExtensionRequest) (ExtensionRecord, error)
 	reloadDevExtensionFn         func(context.Context, string, string, ReloadExtensionRequest) (ExtensionRecord, error)
 	extensionLogsFn              func(context.Context, string, string, int64) ([]ExtensionLogRecord, error)
@@ -1130,11 +1132,15 @@ func (s *stubClient) RemoveExtension(
 	return ManagedExtensionRemoveRecord{}, errors.New("unexpected RemoveExtension call")
 }
 
-func (s *stubClient) EnableExtension(ctx context.Context, name string) (ExtensionRecord, error) {
+func (s *stubClient) EnableExtension(
+	ctx context.Context,
+	name string,
+	request EnableExtensionRequest,
+) (ExtensionEnableRecord, error) {
 	if s.enableExtensionFn != nil {
-		return s.enableExtensionFn(ctx, name)
+		return s.enableExtensionFn(ctx, name, request)
 	}
-	return ExtensionRecord{}, errors.New("unexpected EnableExtension call")
+	return ExtensionEnableRecord{}, errors.New("unexpected EnableExtension call")
 }
 
 func (s *stubClient) DisableExtension(ctx context.Context, name string) (ExtensionRecord, error) {
@@ -1167,6 +1173,23 @@ func (s *stubClient) ExtensionProvenance(ctx context.Context, name string) (Exte
 		return s.extensionProvenanceFn(ctx, name)
 	}
 	return ExtensionProvenanceRecord{}, errors.New("unexpected ExtensionProvenance call")
+}
+
+func (s *stubClient) ExtensionInventory(ctx context.Context, name string) (ExtensionInventoryRecord, error) {
+	if s.extensionInventoryFn != nil {
+		return s.extensionInventoryFn(ctx, name)
+	}
+	return ExtensionInventoryRecord{}, errors.New("unexpected ExtensionInventory call")
+}
+
+func (s *stubClient) PreviewExtensionEnable(
+	ctx context.Context,
+	name string,
+) (ExtensionEnablePreviewRecord, error) {
+	if s.previewExtensionEnableFn != nil {
+		return s.previewExtensionEnableFn(ctx, name)
+	}
+	return ExtensionEnablePreviewRecord{}, errors.New("unexpected PreviewExtensionEnable call")
 }
 
 func (s *stubClient) DevExtension(

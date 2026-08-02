@@ -8319,6 +8319,9 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 		if err := devcycle.EnsureManagedInstall(deps.HomePaths, extensionRegistry); err != nil {
 			t.Fatalf("EnsureManagedInstall(dev-cycle) error = %v", err)
 		}
+		if err := extensionRegistry.Enable(devcycle.Name); err != nil {
+			t.Fatalf("registry.Enable(%q) error = %v", devcycle.Name, err)
+		}
 		runtime := &nativeBundledDevCycleToolRuntime{
 			devCycleLoopSchemaRuntime: newDevCycleLoopSchemaRuntime(t, extensionRegistry),
 		}

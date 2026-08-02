@@ -1,0 +1,34 @@
+// Package extensionenv defines the persistence boundary for extension environment bindings.
+package extensionenv
+
+import (
+	"context"
+	"time"
+)
+
+const BindingKind = "extension_env"
+
+// Binding is one extension-instance environment binding.
+type Binding struct {
+	ExtensionName string
+	WorkspaceID   string
+	EnvName       string
+	SecretRef     string
+	Kind          string
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+}
+
+// Store persists extension-instance environment bindings.
+type Store interface {
+	ListEnvBindings(ctx context.Context, extension, workspaceID string) ([]Binding, error)
+	PutEnvBinding(ctx context.Context, binding Binding) error
+	DeleteEnvBinding(ctx context.Context, extension, workspaceID, envName string) error
+}
+
+// LifecycleStore adds cleanup and owned-reference usage checks.
+type LifecycleStore interface {
+	Store
+	DeleteEnvBindings(ctx context.Context, extension, workspaceID string) error
+	CountEnvBindingsBySecretRef(ctx context.Context, secretRef string) (int64, error)
+}

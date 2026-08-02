@@ -173,6 +173,7 @@ type extensionRuntime interface {
 type extensionDevRuntime interface {
 	GetForInstance(extensionpkg.InstanceKey) (*extensionpkg.Extension, error)
 	ListForWorkspace(string) []extensionpkg.ExtensionInfo
+	InspectDevelopmentGeneration(context.Context, string, string, string) (extensionpkg.DevelopmentGeneration, error)
 	LinkDevelopmentFromOrigin(context.Context, string, string, string) (*extensionpkg.Extension, error)
 	ReloadExtension(context.Context, extensionpkg.InstanceKey, string) (*extensionpkg.Extension, error)
 	UnlinkDevelopment(context.Context, extensionpkg.InstanceKey) error
@@ -212,6 +213,7 @@ type extensionManagerDeps struct {
 	WakeEvents             core.HeartbeatWakeEventReader
 	ProcessRegistry        *toolruntime.Registry
 	SecretResolver         extensionpkg.SecretRefResolver
+	EnvBindings            extensionpkg.EnvBindingStore
 	LifecycleEvents        extensionpkg.LifecycleEventSink
 	CompozyExecutable      func() (string, error)
 }

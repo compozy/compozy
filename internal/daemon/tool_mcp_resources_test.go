@@ -209,6 +209,33 @@ func TestToolMCPComparisonAndNilHelpers(t *testing.T) {
 		if sameManagedRawRecord(mcpRecord, globalScope, []byte(`{"bad":true}`)) {
 			t.Fatal("sameManagedRawRecord(mcp) = true, want false for mismatched encoding")
 		}
+
+		owner := extensionOwner(" kit ").Normalize()
+		source := resources.ResourceSource{Kind: "daemon", ID: "extension-tool-mcp-sync"}.Normalize()
+		attributed := toolRecord
+		attributed.Owner = owner
+		attributed.Source = source
+		if !sameManagedRawRecord(attributed, globalScope, toolEncoded, managedRecordAttribution{
+			owner: owner, source: source,
+		}) {
+			t.Fatal("sameManagedRawRecord(attributed) = false, want matching owner and source")
+		}
+		if sameManagedRawRecord(toolRecord, globalScope, toolEncoded, managedRecordAttribution{
+			owner: owner, source: source,
+		}) {
+			t.Fatal("sameManagedRawRecord(unowned) = true, want first reconcile rewrite")
+		}
+		if sameManagedRawRecord(attributed, globalScope, toolEncoded, managedRecordAttribution{
+			owner: owner,
+			source: resources.ResourceSource{
+				Kind: "daemon", ID: "different-sync",
+			},
+		}) {
+			t.Fatal("sameManagedRawRecord(wrong source) = true, want source-aware rewrite")
+		}
+		if owner.Kind != extensionResourceOwnerKind || owner.ID != "kit" {
+			t.Fatalf("extensionOwner() = %#v, want normalized extension/kit", owner)
+		}
 	})
 
 	t.Run("Should treat publisher helpers as noop or passthrough", func(t *testing.T) {

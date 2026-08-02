@@ -93,7 +93,7 @@ func TestManagerStartRegistersResourcesAndActivatesExtension(t *testing.T) {
 		permissions:  []string{"sessions/list"},
 	}), map[string]string{
 		"skills/ext-review/SKILL.md": managerSkillFile("ext-review", "External review workflow"),
-		"agents/coder.md":            managerAgentFile("ext-agent"),
+		"agents/coder/AGENT.md":      managerAgentFile("ext-agent"),
 	})
 	installManagerFixture(t, env.registry, fixture, SourceUser, true)
 

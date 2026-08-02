@@ -124,6 +124,8 @@ func normalizeResourcesConfig(cfg ResourcesConfig) ResourcesConfig {
 		Loops:         normalizeStrings(cfg.Loops),
 		Agents:        normalizeStrings(cfg.Agents),
 		Bundles:       normalizeStrings(cfg.Bundles),
+		Automation:    normalizeStrings(cfg.Automation),
+		Layouts:       normalizeStrings(cfg.Layouts),
 		Hooks:         normalizeHooks(cfg.Hooks),
 		Tools:         normalizeTools(cfg.Tools),
 		CommandGroups: normalizeCommandGroups(cfg.CommandGroups),

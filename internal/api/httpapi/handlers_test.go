@@ -64,6 +64,7 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"DELETE /api/bridges/:id/secret-bindings/:binding_name",
 		"DELETE /api/bundles/activations/:id",
 		"DELETE /api/extensions/:name",
+		"DELETE /api/extensions/:name/secrets/:env_name",
 		"DELETE /api/memory/:filename",
 		"DELETE /api/notifications/presets/:name",
 		"DELETE /api/tool-approval-grants/:id",
@@ -133,8 +134,11 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"GET /api/extensions/commands",
 		"GET /api/extensions/search",
 		"GET /api/extensions/:name",
+		"GET /api/extensions/:name/inventory",
 		"GET /api/extensions/:name/logs",
+		"GET /api/extensions/:name/preview",
 		"GET /api/extensions/:name/provenance",
+		"GET /api/extensions/:name/secrets",
 		"GET /api/hooks/catalog",
 		"GET /api/hooks/events",
 		"GET /api/notifications/presets",
@@ -440,6 +444,7 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"PUT /api/agents/:name",
 		"PUT /api/bridges/:id/secret-bindings/:binding_name",
 		"PUT /api/extensions/:name",
+		"PUT /api/extensions/:name/secrets",
 		"PUT /api/notifications/presets/:name",
 		"PUT /api/settings/sandboxes/:name",
 		"PUT /api/settings/hooks/:name",
@@ -3462,6 +3467,98 @@ func TestCORSHeadersPresentOnResponses(t *testing.T) {
 	}
 	if got := recorder.Header().Get("Access-Control-Allow-Origin"); got != "http://127.0.0.1" {
 		t.Fatalf("Access-Control-Allow-Origin = %q, want %q", got, "http://127.0.0.1")
+	}
+}
+
+func TestExtensionKitAndSecretsRoutesReachHTTPService(t *testing.T) {
+	t.Parallel()
+
+	secretWrites := 0
+	secretDeletes := 0
+	service := stubExtensionService{
+		InventoryFn: func(_ context.Context, name string) (contract.ExtensionInventoryPayload, error) {
+			return contract.ExtensionInventoryPayload{Extension: name, Items: []contract.ExtensionKitItemPayload{{
+				Kind: "agent", Name: "writer", Live: true,
+			}}}, nil
+		},
+		PreviewFn: func(_ context.Context, name string) (contract.ExtensionEnablePreviewPayload, error) {
+			return contract.ExtensionEnablePreviewPayload{
+				Extension: name, AutomationStarting: []string{name + "/daily"},
+			}, nil
+		},
+		ListSecretsFn: func(
+			_ context.Context,
+			name string,
+			actor taskpkg.ActorContext,
+		) (contract.ExtensionSecretsPayload, error) {
+			if name != "kit" || !actor.Authority.Read {
+				t.Fatalf("ListExtensionSecrets() name=%q actor=%#v", name, actor)
+			}
+			return contract.ExtensionSecretsPayload{DeclaredEnv: []string{"API_KEY"}}, nil
+		},
+		SetSecretsFn: func(
+			_ context.Context,
+			name string,
+			req contract.SetExtensionSecretsRequest,
+			actor taskpkg.ActorContext,
+		) (contract.ExtensionSecretsPayload, error) {
+			if name != "kit" || !actor.Authority.Write || req.Secrets["API_KEY"].Value == nil {
+				t.Fatal("SetExtensionSecrets() did not receive trusted actor and write-only value")
+			}
+			secretWrites++
+			return contract.ExtensionSecretsPayload{
+				DeclaredEnv:  []string{"API_KEY"},
+				BoundEnvKeys: []string{"API_KEY"},
+			}, nil
+		},
+		DeleteSecretFn: func(_ context.Context, name, envName string, actor taskpkg.ActorContext) error {
+			if name != "kit" || envName != "API_KEY" || !actor.Authority.Write {
+				t.Fatalf("DeleteExtensionSecret() name=%q env=%q actor=%#v", name, envName, actor)
+			}
+			secretDeletes++
+			return nil
+		},
+	}
+	handlers := newTestHandlersWithSettingsAndExtensions(
+		t,
+		"127.0.0.1",
+		&stubSettingsService{},
+		&stubSettingsRestartController{},
+		service,
+		newTestHomePaths(t),
+	)
+	engine := newTestRouter(t, handlers)
+
+	for _, testCase := range []struct{ path, want string }{
+		{path: "/api/extensions/kit/inventory", want: `"live":true`},
+		{path: "/api/extensions/kit/preview", want: `"automation_starting":["kit/daily"]`},
+		{path: "/api/extensions/kit/secrets", want: `"declared_env":["API_KEY"]`},
+	} {
+		response := performRequest(t, engine, http.MethodGet, testCase.path, nil)
+		if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), testCase.want) {
+			t.Fatalf(
+				"GET %s status=%d body=%s, want %s",
+				testCase.path,
+				response.Code,
+				response.Body.String(),
+				testCase.want,
+			)
+		}
+	}
+	setResponse := performRequest(t, engine, http.MethodPut, "/api/extensions/kit/secrets", []byte(
+		`{"secrets":{"API_KEY":{"value":"planted-secret-value"}}}`,
+	))
+	if setResponse.Code != http.StatusOK || strings.Contains(setResponse.Body.String(), "planted-secret-value") {
+		t.Fatalf("PUT secrets status=%d body=%s", setResponse.Code, setResponse.Body.String())
+	}
+	deleteResponse := performRequest(
+		t, engine, http.MethodDelete, "/api/extensions/kit/secrets/API_KEY", nil,
+	)
+	if deleteResponse.Code != http.StatusNoContent {
+		t.Fatalf("DELETE secrets status=%d body=%s", deleteResponse.Code, deleteResponse.Body.String())
+	}
+	if secretWrites != 1 || secretDeletes != 1 {
+		t.Fatalf("secret mutations writes=%d deletes=%d, want 1/1", secretWrites, secretDeletes)
 	}
 }
 

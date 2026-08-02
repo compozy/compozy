@@ -63,6 +63,17 @@ func reinstallExtensionInfo(
 			return fmt.Errorf("extension: restore disabled state for %q: %w", info.Name, err)
 		}
 	}
+	if restorer, ok := registry.(interface {
+		RestoreNetworkConfirmation(InstanceKey, NetworkConfirmation) error
+	}); ok {
+		if err := restorer.RestoreNetworkConfirmation(GlobalInstanceKey(info.Name), NetworkConfirmation{
+			Digest:      info.NetworkRequirementDigest,
+			ConfirmedBy: info.NetworkConfirmedBy,
+			ConfirmedAt: info.NetworkConfirmedAt,
+		}); err != nil {
+			return fmt.Errorf("extension: restore network confirmation for %q: %w", info.Name, err)
+		}
+	}
 	return nil
 }
 

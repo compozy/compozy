@@ -32,6 +32,17 @@ func (m *Manager) resolveEnvMap(
 	env map[string]string,
 	secretEnv map[string]string,
 ) ([]string, []func(), error) {
+	return m.resolveInstanceEnvMap(ctx, InstanceKey{}, nil, rootDir, env, secretEnv)
+}
+
+func (m *Manager) resolveInstanceEnvMap(
+	ctx context.Context,
+	key InstanceKey,
+	requiresEnv []string,
+	rootDir string,
+	env map[string]string,
+	secretEnv map[string]string,
+) ([]string, []func(), error) {
 	resolvedMap, err := m.resolveStringMap(rootDir, env)
 	if err != nil {
 		return nil, nil, err
@@ -40,9 +51,15 @@ func (m *Manager) resolveEnvMap(
 	if err != nil {
 		return nil, nil, err
 	}
+	bindingMap, bindingCleanups, err := m.resolveBoundEnvMap(ctx, key, requiresEnv)
+	if err != nil {
+		runExtensionRedactionCleanups(cleanups)
+		return nil, nil, err
+	}
+	cleanups = append(cleanups, bindingCleanups...)
 
-	valuesMap := make(map[string]string, len(safeSubprocessEnvKeys)+len(resolvedMap)+len(secretMap))
-	order := make([]string, 0, len(safeSubprocessEnvKeys)+len(resolvedMap)+len(secretMap))
+	valuesMap := make(map[string]string, len(safeSubprocessEnvKeys)+len(resolvedMap)+len(secretMap)+len(bindingMap))
+	order := make([]string, 0, len(safeSubprocessEnvKeys)+len(resolvedMap)+len(secretMap)+len(bindingMap))
 	for _, key := range safeSubprocessEnvKeys {
 		if _, exists := valuesMap[key]; exists {
 			continue
@@ -74,10 +91,63 @@ func (m *Manager) resolveEnvMap(
 		}
 		valuesMap[key] = secretMap[key]
 	}
+	bindingKeys := make([]string, 0, len(bindingMap))
+	for key := range bindingMap {
+		bindingKeys = append(bindingKeys, key)
+	}
+	slices.Sort(bindingKeys)
+	for _, key := range bindingKeys {
+		if _, exists := valuesMap[key]; !exists {
+			order = append(order, key)
+		}
+		valuesMap[key] = bindingMap[key]
+	}
 
 	values := make([]string, 0, len(order))
 	for _, key := range order {
 		values = append(values, key+"="+valuesMap[key])
+	}
+	return values, cleanups, nil
+}
+
+func (m *Manager) resolveBoundEnvMap(
+	ctx context.Context,
+	key InstanceKey,
+	requiresEnv []string,
+) (map[string]string, []func(), error) {
+	key = key.Normalize()
+	if m.envBindings == nil || key.Name == "" || len(requiresEnv) == 0 {
+		return nil, nil, nil
+	}
+	if ctx == nil {
+		return nil, nil, errors.New("extension: bound env context is required")
+	}
+	bindings, err := m.envBindings.ListEnvBindings(ctx, key.Name, key.WorkspaceID)
+	if err != nil {
+		return nil, nil, fmt.Errorf("extension: list subprocess env bindings for %q: %w", key.runtimeID(), err)
+	}
+	declared := make(map[string]struct{}, len(requiresEnv))
+	for _, name := range normalizeStrings(requiresEnv) {
+		declared[name] = struct{}{}
+	}
+	values := make(map[string]string, len(bindings))
+	cleanups := make([]func(), 0, len(bindings))
+	slices.SortFunc(bindings, func(left, right EnvBinding) int {
+		return strings.Compare(left.EnvName, right.EnvName)
+	})
+	for _, binding := range bindings {
+		name := strings.TrimSpace(binding.EnvName)
+		if _, ok := declared[name]; !ok {
+			continue
+		}
+		ref := vault.NormalizeRef(binding.SecretRef)
+		value, err := m.resolveSecretRef(ctx, ref)
+		if err != nil {
+			runExtensionRedactionCleanups(cleanups)
+			return nil, nil, fmt.Errorf("extension: resolve subprocess env binding %s (%s): %w", name, ref, err)
+		}
+		values[name] = value
+		cleanups = append(cleanups, diagnostics.RegisterDynamicSecret(value))
 	}
 	return values, cleanups, nil
 }

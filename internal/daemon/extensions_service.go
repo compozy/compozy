@@ -1,15 +1,19 @@
 package daemon
 
 import (
+	"context"
 	"log/slog"
 	"sync"
 	"time"
 
 	"github.com/compozy/compozy/internal/api/udsapi"
+	automationpkg "github.com/compozy/compozy/internal/automation"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	marketplacepkg "github.com/compozy/compozy/internal/marketplace"
+	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/vault"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
@@ -24,6 +28,7 @@ type daemonExtensionService struct {
 	toolMCP            toolMCPPublisher
 	bundles            bundleResourcePublisher
 	loops              loopResourcePublisher
+	extensionKit       extensionKitResourcePublisher
 	homePaths          compozyconfig.HomePaths
 	logger             *slog.Logger
 	now                func() time.Time
@@ -32,6 +37,12 @@ type daemonExtensionService struct {
 	marketplaceCatalog marketplacepkg.Service
 	eventWriter        store.EventSummaryStore
 	workspaceResolver  workspacepkg.RuntimeResolver
+	envBindings        extensionpkg.EnvBindingLifecycleStore
+	secretVault        extensionSecretVault
+	automation         extensionAutomationReader
+	lifecycle          extensionLifecycleCoordinator
+	resourceStore      resources.RawStore
+	resourceActor      resources.MutationActor
 }
 
 var _ udsapi.ExtensionService = (*daemonExtensionService)(nil)
@@ -65,6 +76,58 @@ func withDaemonExtensionWorkspaceResolver(
 ) daemonExtensionServiceOption {
 	return func(service *daemonExtensionService) {
 		service.workspaceResolver = resolver
+	}
+}
+
+func withDaemonExtensionKitPublisher(publisher extensionKitResourcePublisher) daemonExtensionServiceOption {
+	return func(service *daemonExtensionService) {
+		service.extensionKit = publisher
+	}
+}
+
+func withDaemonExtensionSecrets(
+	bindings extensionpkg.EnvBindingLifecycleStore,
+	secretVault extensionSecretVault,
+) daemonExtensionServiceOption {
+	return func(service *daemonExtensionService) {
+		service.envBindings = bindings
+		service.secretVault = secretVault
+	}
+}
+
+type extensionSecretVault interface {
+	PutSecret(context.Context, string, string, string) (vault.Metadata, error)
+	ResolveRef(context.Context, string) (string, error)
+	GetMetadata(context.Context, string) (vault.Metadata, error)
+	DeleteSecret(context.Context, string) error
+}
+
+type extensionAutomationReader interface {
+	Jobs(context.Context) ([]automationpkg.Job, error)
+	Triggers(context.Context) ([]automationpkg.Trigger, error)
+}
+
+type extensionAutomationPreviewer interface {
+	EffectivePackageAutomation(
+		context.Context,
+		[]automationpkg.Job,
+		[]automationpkg.Trigger,
+	) ([]automationpkg.Job, []automationpkg.Trigger, error)
+}
+
+func withDaemonExtensionAutomation(reader extensionAutomationReader) daemonExtensionServiceOption {
+	return func(service *daemonExtensionService) {
+		service.automation = reader
+	}
+}
+
+func withDaemonExtensionResources(
+	store resources.RawStore,
+	actor resources.MutationActor,
+) daemonExtensionServiceOption {
+	return func(service *daemonExtensionService) {
+		service.resourceStore = store
+		service.resourceActor = actor
 	}
 }
 
@@ -103,6 +166,7 @@ func newDaemonExtensionService(
 		homePaths:  homePaths,
 		logger:     logger,
 		now:        now,
+		lifecycle:  *newExtensionLifecycleCoordinator(),
 	}
 	for _, opt := range opts {
 		if opt != nil {

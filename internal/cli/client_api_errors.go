@@ -19,6 +19,12 @@ type daemonAPIError struct {
 	payload    contract.ErrorPayload
 }
 
+type extensionOperationAPIError struct {
+	statusCode int
+	status     string
+	payload    contract.ExtensionOperationErrorPayload
+}
+
 type windowManagerAPIError struct {
 	statusCode int
 	status     string
@@ -33,6 +39,38 @@ func (e *windowManagerAPIError) Error() string {
 		return message
 	}
 	return strings.TrimSpace(e.status)
+}
+
+func (e *extensionOperationAPIError) Error() string {
+	if e == nil {
+		return nilToolErrorString
+	}
+	if message := strings.TrimSpace(e.payload.Error); message != "" {
+		return message
+	}
+	return strings.TrimSpace(e.status)
+}
+
+func (e *extensionOperationAPIError) cliExitCode() int {
+	if e == nil {
+		return 1
+	}
+	return (&daemonAPIError{statusCode: e.statusCode}).cliExitCode()
+}
+
+func (e *extensionOperationAPIError) extensionOperationErrorPayload() contract.ExtensionOperationErrorPayload {
+	if e == nil {
+		return contract.ExtensionOperationErrorPayload{}
+	}
+	return e.payload
+}
+
+func (e *extensionOperationAPIError) DiagnosticItem() contract.DiagnosticItem {
+	if e == nil || e.payload.Diagnostic == nil {
+		var item contract.DiagnosticItem
+		return item
+	}
+	return diagnosticspkg.RedactItem(*e.payload.Diagnostic)
 }
 
 func (e *windowManagerAPIError) cliExitCode() int {
@@ -95,37 +133,18 @@ func readAPIError(response *http.Response) error {
 }
 
 func readAPIErrorBody(statusCode int, status string, body []byte) error {
-	var windowManagerPayload contract.WindowManagerErrorPayload
-	if len(body) > 0 && json.Unmarshal(body, &windowManagerPayload) == nil &&
-		windowManagerPayload.Code != "" {
-		windowManagerPayload.Error = redactToolDiagnostic(windowManagerPayload.Error)
-		return &windowManagerAPIError{
-			statusCode: statusCode,
-			status:     status,
-			payload:    windowManagerPayload,
+	if len(body) > 0 {
+		for _, parse := range []func(int, string, []byte) (bool, error){
+			parseExtensionOperationAPIError,
+			parseWindowManagerAPIError,
+			parseDaemonAPIError,
+			parseMemoryAPIError,
+			parseToolAPIError,
+		} {
+			if ok, err := parse(statusCode, status, body); ok {
+				return err
+			}
 		}
-	}
-	var payload contract.ErrorPayload
-	if len(body) > 0 && json.Unmarshal(body, &payload) == nil && strings.TrimSpace(payload.Error) != "" {
-		payload.Error = redactToolDiagnostic(payload.Error)
-		cause := errors.New(payload.Error)
-		if payload.Diagnostic != nil {
-			return diagnosticspkg.NewStructuredError(*payload.Diagnostic, cause)
-		}
-		return &daemonAPIError{statusCode: statusCode, status: status, payload: payload}
-	}
-	var memoryPayload contract.MemoryErrorPayload
-	if len(body) > 0 && json.Unmarshal(body, &memoryPayload) == nil &&
-		strings.TrimSpace(memoryPayload.Code) != "" {
-		message := strings.TrimSpace(memoryPayload.Message)
-		if message == "" {
-			message = strings.TrimSpace(memoryPayload.Code)
-		}
-		return fmt.Errorf("%s: %s", strings.TrimSpace(memoryPayload.Code), redactToolDiagnostic(message))
-	}
-	var toolPayload contract.ToolErrorResponse
-	if len(body) > 0 && json.Unmarshal(body, &toolPayload) == nil && toolPayload.Error.Code != "" {
-		return newToolAPIError(statusCode, status, toolPayload)
 	}
 
 	message := strings.TrimSpace(string(body))
@@ -141,6 +160,74 @@ func readAPIErrorBody(statusCode int, status string, body []byte) error {
 		status:     status,
 		payload:    contract.ErrorPayload{Error: message},
 	}
+}
+
+func parseExtensionOperationAPIError(statusCode int, status string, body []byte) (bool, error) {
+	var extensionPayload contract.ExtensionOperationErrorPayload
+	if json.Unmarshal(body, &extensionPayload) != nil ||
+		!strings.HasPrefix(strings.TrimSpace(extensionPayload.Code), "extension_") {
+		return false, nil
+	}
+	extensionPayload.Error = redactToolDiagnostic(extensionPayload.Error)
+	if extensionPayload.Diagnostic != nil {
+		redacted := diagnosticspkg.RedactItem(*extensionPayload.Diagnostic)
+		extensionPayload.Diagnostic = &redacted
+	}
+	return true, &extensionOperationAPIError{
+		statusCode: statusCode,
+		status:     status,
+		payload:    extensionPayload,
+	}
+}
+
+func parseWindowManagerAPIError(statusCode int, status string, body []byte) (bool, error) {
+	var windowManagerPayload contract.WindowManagerErrorPayload
+	if json.Unmarshal(body, &windowManagerPayload) != nil || windowManagerPayload.Code == "" {
+		return false, nil
+	}
+	windowManagerPayload.Error = redactToolDiagnostic(windowManagerPayload.Error)
+	return true, &windowManagerAPIError{
+		statusCode: statusCode,
+		status:     status,
+		payload:    windowManagerPayload,
+	}
+}
+
+func parseDaemonAPIError(statusCode int, status string, body []byte) (bool, error) {
+	var payload contract.ErrorPayload
+	if json.Unmarshal(body, &payload) != nil || strings.TrimSpace(payload.Error) == "" {
+		return false, nil
+	}
+	payload.Error = redactToolDiagnostic(payload.Error)
+	cause := errors.New(payload.Error)
+	if payload.Diagnostic != nil {
+		return true, diagnosticspkg.NewStructuredError(*payload.Diagnostic, cause)
+	}
+	return true, &daemonAPIError{statusCode: statusCode, status: status, payload: payload}
+}
+
+func parseMemoryAPIError(_ int, _ string, body []byte) (bool, error) {
+	var memoryPayload contract.MemoryErrorPayload
+	if json.Unmarshal(body, &memoryPayload) != nil || strings.TrimSpace(memoryPayload.Code) == "" {
+		return false, nil
+	}
+	message := strings.TrimSpace(memoryPayload.Message)
+	if message == "" {
+		message = strings.TrimSpace(memoryPayload.Code)
+	}
+	return true, fmt.Errorf(
+		"%s: %s",
+		strings.TrimSpace(memoryPayload.Code),
+		redactToolDiagnostic(message),
+	)
+}
+
+func parseToolAPIError(statusCode int, status string, body []byte) (bool, error) {
+	var toolPayload contract.ToolErrorResponse
+	if json.Unmarshal(body, &toolPayload) != nil || toolPayload.Error.Code == "" {
+		return false, nil
+	}
+	return true, newToolAPIError(statusCode, status, toolPayload)
 }
 
 func drainResponseBody(method string, path string, body io.Reader) error {

@@ -36,6 +36,10 @@ func (s *daemonExtensionService) installExtensionSource(
 	}
 }
 
+func normalizedInstallSource(source contract.InstallExtensionSource) contract.InstallExtensionSource {
+	return contract.InstallExtensionSource(strings.ToLower(strings.TrimSpace(string(source))))
+}
+
 func (s *daemonExtensionService) installLocalExtension(
 	req contract.InstallExtensionRequest,
 	installedBy string,

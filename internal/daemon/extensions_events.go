@@ -31,29 +31,40 @@ func (s extensionLifecycleEventStoreSink) RecordExtensionLifecycleEvent(
 	if s.writer == nil {
 		return nil
 	}
-	if ctx == nil {
-		return errors.New("daemon: extension event context is required")
-	}
-	fields, err := event.RequiredFields()
+	summary, err := s.summary(ctx, event)
 	if err != nil {
 		return err
 	}
+	if err := s.writer.WriteEventSummary(context.WithoutCancel(ctx), summary); err != nil {
+		return fmt.Errorf("daemon: record extension lifecycle event: %w", err)
+	}
+	return nil
+}
+
+func (s extensionLifecycleEventStoreSink) summary(
+	ctx context.Context,
+	event extensionpkg.LifecycleEvent,
+) (store.EventSummary, error) {
+	if ctx == nil {
+		return store.EventSummary{}, errors.New("daemon: extension event context is required")
+	}
+	fields, err := event.RequiredFields()
+	if err != nil {
+		return store.EventSummary{}, err
+	}
 	content, err := json.Marshal(fields)
 	if err != nil {
-		return fmt.Errorf("daemon: encode extension lifecycle event: %w", err)
+		return store.EventSummary{}, fmt.Errorf("daemon: encode extension lifecycle event: %w", err)
 	}
 	now := s.now
 	if now == nil {
 		now = time.Now
 	}
-	if err := s.writer.WriteEventSummary(context.WithoutCancel(ctx), store.EventSummary{
+	return store.EventSummary{
 		Type: event.Type, Outcome: string(eventspkg.OutcomeFor(event.Type)), Content: content,
 		Summary: event.Type + " " + event.ExtensionName, Timestamp: now().UTC(),
 		EventCorrelation: store.EventCorrelation{ActorKind: s.actorKind, ActorID: s.actorID},
-	}); err != nil {
-		return fmt.Errorf("daemon: record extension lifecycle event: %w", err)
-	}
-	return nil
+	}, nil
 }
 
 func (s *daemonExtensionService) recordCanonicalExtensionLifecycleEvent(
@@ -67,6 +78,42 @@ func (s *daemonExtensionService) recordCanonicalExtensionLifecycleEvent(
 		actorKind: string(actor.Actor.Kind.Normalize()),
 		actorID:   strings.TrimSpace(actor.Actor.Ref),
 	}).RecordExtensionLifecycleEvent(ctx, event)
+}
+
+func (s *daemonExtensionService) recordCanonicalExtensionLifecycleEvents(
+	ctx context.Context,
+	actor taskpkg.ActorContext,
+	events ...extensionpkg.LifecycleEvent,
+) error {
+	if s.eventWriter == nil || len(events) == 0 {
+		return nil
+	}
+	sink := extensionLifecycleEventStoreSink{
+		writer:    s.eventWriter,
+		now:       s.now,
+		actorKind: string(actor.Actor.Kind.Normalize()),
+		actorID:   strings.TrimSpace(actor.Actor.Ref),
+	}
+	summaries := make([]store.EventSummary, 0, len(events))
+	for _, event := range events {
+		summary, err := sink.summary(ctx, event)
+		if err != nil {
+			return err
+		}
+		summaries = append(summaries, summary)
+	}
+	if writer, ok := s.eventWriter.(store.EventSummaryBatchWriter); ok {
+		if err := writer.WriteEventSummaries(context.WithoutCancel(ctx), summaries); err != nil {
+			return fmt.Errorf("daemon: record extension lifecycle event batch: %w", err)
+		}
+		return nil
+	}
+	for _, summary := range summaries {
+		if err := s.eventWriter.WriteEventSummary(context.WithoutCancel(ctx), summary); err != nil {
+			return fmt.Errorf("daemon: record extension lifecycle event: %w", err)
+		}
+	}
+	return nil
 }
 
 type extensionLifecycleEventPayload struct {
@@ -108,6 +155,44 @@ func (s *daemonExtensionService) recordExtensionEvent(
 	actor taskpkg.ActorContext,
 	item contract.ExtensionPayload,
 ) error {
+	payload := extensionEventPayload(item)
+	return s.recordExtensionLifecycleEvent(ctx, eventType, actor, payload)
+}
+
+func (s *daemonExtensionService) recordExtensionEnabledEvent(
+	ctx context.Context,
+	actor taskpkg.ActorContext,
+	result contract.ExtensionEnableResult,
+) error {
+	count := len(result.AutomationStarted)
+	return s.recordCanonicalExtensionLifecycleEvent(ctx, actor, extensionpkg.LifecycleEvent{
+		Type: eventspkg.ExtensionEnabled, ExtensionName: result.Extension.Name, AutomationCount: &count,
+	})
+}
+
+func (s *daemonExtensionService) recordExtensionEnableEvents(
+	ctx context.Context,
+	actor taskpkg.ActorContext,
+	key extensionpkg.InstanceKey,
+	confirmation *extensionpkg.NetworkConfirmation,
+	result contract.ExtensionEnableResult,
+) error {
+	key = key.Normalize()
+	events := make([]extensionpkg.LifecycleEvent, 0, 2)
+	if confirmation != nil {
+		events = append(events, extensionpkg.LifecycleEvent{
+			Type: eventspkg.ExtensionNetworkConfirmed, ExtensionName: key.Name,
+			WorkspaceID: key.WorkspaceID, Digest: confirmation.Digest, ConfirmedBy: confirmation.ConfirmedBy,
+		})
+	}
+	count := len(result.AutomationStarted)
+	events = append(events, extensionpkg.LifecycleEvent{
+		Type: eventspkg.ExtensionEnabled, ExtensionName: result.Extension.Name, AutomationCount: &count,
+	})
+	return s.recordCanonicalExtensionLifecycleEvents(ctx, actor, events...)
+}
+
+func extensionEventPayload(item contract.ExtensionPayload) extensionLifecycleEventPayload {
 	payload := extensionLifecycleEventPayload{
 		Name:           item.Name,
 		Version:        item.Version,
@@ -128,7 +213,7 @@ func (s *daemonExtensionService) recordExtensionEvent(
 		payload.RegistryTier = item.Trust.RegistryTier
 		payload.AllowUnverified = item.Trust.AllowUnverified
 	}
-	return s.recordExtensionLifecycleEvent(ctx, eventType, actor, payload)
+	return payload
 }
 
 func (s *daemonExtensionService) recordExtensionRemoveEvent(

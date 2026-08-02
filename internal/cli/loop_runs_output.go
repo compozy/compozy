@@ -62,7 +62,7 @@ func loopRunsOutputBundle(response contract.LoopRunsResponse) outputBundle {
 		}
 		aggregates := renderHumanSection("Aggregates", []keyValue{
 			{Label: "Total", Value: strconv.Itoa(response.Aggregates.Total)},
-			{Label: "Live", Value: strconv.Itoa(response.Aggregates.Live)},
+			{Label: cliLiveValue, Value: strconv.Itoa(response.Aggregates.Live)},
 			{Label: "Terminal", Value: strconv.Itoa(response.Aggregates.Terminal)},
 			{Label: "Succeeded", Value: strconv.Itoa(response.Aggregates.Succeeded)},
 			{Label: "Failed", Value: strconv.Itoa(response.Aggregates.Failed)},

@@ -75,6 +75,13 @@ export function buildExtensionDescribePayload(input: ExtensionDescribeInput): De
     provides: normalizeStringList(input.definition.capabilities?.provides),
     permissions: normalizeHostMethodList(input.definition.permissions?.requires),
     requires_env: normalizeStringList(input.definition.requires_env),
+    resources: {
+      skills: normalizeStringList(input.definition.resources?.skills),
+      loops: normalizeStringList(input.definition.resources?.loops),
+      agents: normalizeStringList(input.definition.resources?.agents),
+      automation: normalizeStringList(input.definition.resources?.automation),
+      layouts: normalizeStringList(input.definition.resources?.layouts),
+    },
     subprocess: {
       command,
       args: [...(input.definition.subprocess?.args ?? [])],

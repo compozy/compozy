@@ -163,12 +163,13 @@ func (c *resourceAgentCatalog) ResolveAgentArtifacts(
 		return session.AgentArtifacts{Agent: agent}, nil
 	}
 	artifacts := session.AgentArtifacts{
-		Agent:        cloneAgentDef(record.Spec),
-		ResourceID:   strings.TrimSpace(record.ID),
-		OwnerKind:    string(record.Owner.Kind.Normalize()),
-		OwnerID:      strings.TrimSpace(record.Owner.ID),
-		Scope:        record.Scope.Normalize(),
-		PackageOwned: record.Owner.Kind.Normalize() == bundlepkg.BundleActivationOwnerKind,
+		Agent:      cloneAgentDef(record.Spec),
+		ResourceID: strings.TrimSpace(record.ID),
+		OwnerKind:  string(record.Owner.Kind.Normalize()),
+		OwnerID:    strings.TrimSpace(record.Owner.ID),
+		Scope:      record.Scope.Normalize(),
+		PackageOwned: record.Owner.Kind.Normalize() == bundlepkg.BundleActivationOwnerKind ||
+			record.Owner.Kind.Normalize() == extensionResourceOwnerKind,
 	}
 	if c.soulCatalog != nil {
 		if spec, ok := c.lookupSoulForAgent(record); ok {

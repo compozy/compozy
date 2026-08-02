@@ -77,8 +77,10 @@ func (m *Manager) bridgeControlLaunchConfig(
 	if err != nil {
 		return subprocess.LaunchConfig{}, subprocess.InitializeRuntime{}, nil, err
 	}
-	env, cleanups, err := m.resolveEnvMap(
+	env, cleanups, err := m.resolveInstanceEnvMap(
 		ctx,
+		GlobalInstanceKey(extension.info.Name),
+		extension.manifest.RequiresEnv,
 		extension.rootDir,
 		extension.manifest.Subprocess.Env,
 		extension.manifest.Subprocess.SecretEnv,

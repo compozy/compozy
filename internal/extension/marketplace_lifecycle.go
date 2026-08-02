@@ -80,6 +80,8 @@ type MarketplaceUpdateRequest struct {
 	ResolveTrust              MarketplaceTrustResolver
 	ArtifactHTTPClient        *http.Client
 	ObserveDigestVerification MarketplaceDigestVerificationObserver
+	PreflightCandidate        func(ExtensionInfo, *Manifest) error
+	CommitCandidate           func(ExtensionInfo, *Manifest) error
 	commitChange              func(*stagedExtensionDirChange) error
 	removeStaging             func(string) error
 }
@@ -138,6 +140,7 @@ func InstallMarketplaceManaged(
 		prepared.finalDir,
 		prepared.checksum,
 		WithInstallSource(SourceMarketplace),
+		WithInstallEnabled(false),
 		WithInstallRegistryMetadata(prepared.slug, strings.TrimSpace(prepared.detail.Source), prepared.remoteVersion),
 		WithInstallProvenance(provenance),
 	); err != nil {

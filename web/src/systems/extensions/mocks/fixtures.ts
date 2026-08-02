@@ -49,7 +49,6 @@ export const extensionProvenanceFixtures: Record<string, ExtensionProvenance> = 
 
 export const extensionFixtures: ExtensionEntry[] = [
   {
-    bundles: [],
     capabilities: ["loop.watch_source", "tool.provider"],
     consecutive_failures: 0,
     daemon_running: true,
@@ -60,6 +59,7 @@ export const extensionFixtures: ExtensionEntry[] = [
     health_message: "Collector connection healthy",
     missing_env: [],
     name: "otel-bridge",
+    network_confirmation_required: false,
     permissions: ["observe/health", "sessions/events", "sessions/list"],
     pid: 4812,
     provenance: extensionProvenanceFixtures["otel-bridge"],
@@ -81,13 +81,6 @@ export const extensionFixtures: ExtensionEntry[] = [
     version: "0.5.2",
   },
   {
-    bundles: [
-      {
-        description: "Incident response capabilities and delivery channels.",
-        name: "ops-starter",
-        profiles: ["production"],
-      },
-    ],
     capabilities: ["tool.provider"],
     consecutive_failures: 0,
     daemon_running: false,
@@ -110,6 +103,7 @@ export const extensionFixtures: ExtensionEntry[] = [
     last_error: "SLACK_BOT_TOKEN is not configured",
     missing_env: ["SLACK_BOT_TOKEN"],
     name: "slack-notify",
+    network_confirmation_required: false,
     permissions: ["network/send", "sessions/list"],
     provenance: extensionProvenanceFixtures["slack-notify"],
     requires_env: ["SLACK_BOT_TOKEN", "SLACK_CHANNEL_ID"],
@@ -133,7 +127,6 @@ export const extensionFixtures: ExtensionEntry[] = [
 export const DEV_EXTENSION_WORKSPACE_ID = "ws_northstar";
 
 export const devExtensionFixture: ExtensionEntry = {
-  bundles: [],
   capabilities: ["tool.provider"],
   consecutive_failures: 2,
   daemon_running: true,
@@ -147,6 +140,7 @@ export const devExtensionFixture: ExtensionEntry = {
   last_error: "handler exited with status 1",
   missing_env: [],
   name: "ops-dev-extension",
+  network_confirmation_required: false,
   origin_path: "/Users/dev/src/ops-dev-extension",
   overrides_published: true,
   permissions: ["sessions/list"],

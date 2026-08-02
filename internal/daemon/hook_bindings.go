@@ -117,6 +117,7 @@ func (s *hookBindingSourceSyncer) Sync(ctx context.Context) error {
 		if _, err := s.store.Put(ctx, s.actor, resources.Draft[hookspkg.HookDecl]{
 			ID:              desiredBinding.id,
 			Scope:           desiredBinding.scope,
+			Owner:           desiredBinding.owner,
 			ExpectedVersion: expectedVersion,
 			Spec:            desiredBinding.spec,
 		}); err != nil {
@@ -144,6 +145,7 @@ func (s *hookBindingSourceSyncer) Sync(ctx context.Context) error {
 type desiredHookBinding struct {
 	id    string
 	scope resources.ResourceScope
+	owner *resources.ResourceOwner
 	spec  hookspkg.HookDecl
 }
 
@@ -163,13 +165,15 @@ func (s *hookBindingSourceSyncer) desiredBindings(ctx context.Context) (map[stri
 			if err != nil {
 				return nil, err
 			}
-			id, err := s.bindingID(scope, spec)
+			owner := extensionHookOwner(spec)
+			id, err := s.bindingID(scope, spec, owner)
 			if err != nil {
 				return nil, err
 			}
 			bindings[id] = &desiredHookBinding{
 				id:    id,
 				scope: scope,
+				owner: owner,
 				spec:  spec,
 			}
 		}
@@ -180,7 +184,11 @@ func (s *hookBindingSourceSyncer) desiredBindings(ctx context.Context) (map[stri
 func (s *hookBindingSourceSyncer) bindingID(
 	scope resources.ResourceScope,
 	spec hookspkg.HookDecl,
+	owner *resources.ResourceOwner,
 ) (string, error) {
+	if owner != nil {
+		return "extension/" + owner.ID + "/hook.binding/" + strings.TrimSpace(spec.Name), nil
+	}
 	encoded, err := s.codec.Encode(spec)
 	if err != nil {
 		return "", err
@@ -219,6 +227,10 @@ func (s *hookBindingSourceSyncer) sameBinding(
 	if record.Scope != scope {
 		return false
 	}
+	owner := extensionHookOwner(spec)
+	if owner != nil && record.Owner.Normalize() != owner.Normalize() {
+		return false
+	}
 
 	currentEncoded, err := s.codec.Encode(record.Spec)
 	if err != nil {
@@ -229,4 +241,15 @@ func (s *hookBindingSourceSyncer) sameBinding(
 		return false
 	}
 	return bytes.Equal(currentEncoded, desiredEncoded)
+}
+
+func extensionHookOwner(spec hookspkg.HookDecl) *resources.ResourceOwner {
+	if spec.Source != hookspkg.HookSourceExtension {
+		return nil
+	}
+	name := strings.TrimSpace(spec.Metadata["extension"])
+	if name == "" {
+		return nil
+	}
+	return extensionOwner(name)
 }

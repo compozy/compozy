@@ -122,12 +122,21 @@ type DescribePayload struct {
 	Provides         []string                         `json:"provides"`
 	Permissions      []string                         `json:"permissions"`
 	RequiresEnv      []string                         `json:"requires_env,omitempty"`
+	Resources        DescribeResources                `json:"resources"`
 	Subprocess       DescribeSubprocess               `json:"subprocess"`
 	Tools            []ExtensionToolRuntimeDescriptor `json:"tools,omitempty"`
 	HookEvents       []string                         `json:"hook_events,omitempty"`
 	WatchSourceKinds []string                         `json:"watch_source_kinds,omitempty"`
 	CommandGroups    []ExtensionCommandGroupSpec      `json:"command_groups,omitempty"`
 	SDK              DescribeSDKInfo                  `json:"sdk"`
+}
+
+type DescribeResources struct {
+	Skills     []string `json:"skills,omitempty"`
+	Loops      []string `json:"loops,omitempty"`
+	Agents     []string `json:"agents,omitempty"`
+	Automation []string `json:"automation,omitempty"`
+	Layouts    []string `json:"layouts,omitempty"`
 }
 
 type DescribeSDKInfo struct {
@@ -170,8 +179,4 @@ type EventPostRecordPayload struct {
 	RecordType     string          `json:"record_type,omitempty"`
 	Sequence       int64           `json:"sequence,omitempty"`
 	Content        json.RawMessage `json:"content,omitempty"`
-}
-
-type EventPreRecordPatch struct {
-	Labels map[string]string `json:"labels,omitempty"`
 }

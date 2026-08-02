@@ -31,26 +31,43 @@ func (s *daemonExtensionService) Dev(
 	if err != nil {
 		return contract.ExtensionPayload{}, err
 	}
-	ext, err := runtime.LinkDevelopmentFromOrigin(
-		ctx,
-		workspaceID,
-		req.OriginPath,
-		req.GenerationHash,
-	)
+	generation, err := runtime.InspectDevelopmentGeneration(ctx, workspaceID, req.OriginPath, req.GenerationHash)
 	if err != nil {
 		return contract.ExtensionPayload{}, err
 	}
-	if err := s.syncExtensionConsumers(ctx); err != nil {
-		return contract.ExtensionPayload{}, err
-	}
-	item := s.payloadFromExtension(ext)
-	if err := s.recordCanonicalExtensionLifecycleEvent(ctx, actor, extensionpkg.LifecycleEvent{
-		Type: eventspkg.ExtensionDevLinked, ExtensionName: item.Name,
-		WorkspaceID: item.WorkspaceID, BundleGeneration: item.GenerationHash,
-	}); err != nil {
-		return contract.ExtensionPayload{}, err
-	}
-	return item, nil
+	key := extensionpkg.InstanceKey{Name: generation.Name, WorkspaceID: workspaceID}
+	var item contract.ExtensionPayload
+	err = s.lifecycle.withName(ctx, generation.Name, func() error {
+		snapshot, snapshotErr := s.snapshotDevLink(key)
+		if snapshotErr != nil {
+			return snapshotErr
+		}
+		ext, linkErr := runtime.LinkDevelopmentFromOrigin(
+			ctx,
+			workspaceID,
+			generation.OriginPath,
+			generation.GenerationHash,
+		)
+		if linkErr != nil {
+			return linkErr
+		}
+		if syncErr := s.syncExtensionConsumers(ctx); syncErr != nil {
+			return s.rollbackDevLifecycle(ctx, runtime, key, snapshot, syncErr)
+		}
+		item, linkErr = s.payloadFromExtension(ctx, ext)
+		if linkErr != nil {
+			return s.rollbackDevLifecycle(ctx, runtime, key, snapshot, linkErr)
+		}
+		linkErr = s.recordCanonicalExtensionLifecycleEvent(ctx, actor, extensionpkg.LifecycleEvent{
+			Type: eventspkg.ExtensionDevLinked, ExtensionName: item.Name,
+			WorkspaceID: item.WorkspaceID, BundleGeneration: item.GenerationHash,
+		})
+		if linkErr != nil {
+			return s.rollbackDevLifecycle(ctx, runtime, key, snapshot, linkErr)
+		}
+		return nil
+	})
+	return item, err
 }
 
 func (s *daemonExtensionService) ReloadDev(
@@ -58,46 +75,146 @@ func (s *daemonExtensionService) ReloadDev(
 	name string,
 	req contract.ReloadExtensionRequest,
 	actor taskpkg.ActorContext,
-) (item contract.ExtensionPayload, err error) {
+) (contract.ExtensionPayload, error) {
 	if err := s.checkReady(); err != nil {
 		return contract.ExtensionPayload{}, err
 	}
 	if err := validateExtensionWriteActor(actor); err != nil {
 		return contract.ExtensionPayload{}, err
 	}
-	event := extensionpkg.LifecycleEvent{
-		Type: eventspkg.ExtensionReloadFailed, ExtensionName: name,
-		WorkspaceID: strings.TrimSpace(actor.Scope.WorkspaceID), BundleGeneration: req.GenerationHash,
-	}
-	defer func() {
-		if err == nil {
-			event.Type = eventspkg.ExtensionReloadCompleted
-			event.BundleGeneration = item.GenerationHash
-		}
-		err = errors.Join(err, s.recordCanonicalExtensionLifecycleEvent(ctx, actor, event))
-	}()
 	workspaceID, err := s.developmentWorkspaceID(ctx, actor)
 	if err != nil {
 		return contract.ExtensionPayload{}, err
 	}
-	event.WorkspaceID = workspaceID
 	runtime, err := s.devRuntime()
 	if err != nil {
 		return contract.ExtensionPayload{}, err
 	}
-	ext, err := runtime.ReloadExtension(
-		ctx,
-		extensionpkg.InstanceKey{Name: name, WorkspaceID: workspaceID},
-		req.GenerationHash,
-	)
+	key := extensionpkg.InstanceKey{Name: name, WorkspaceID: workspaceID}
+	var item contract.ExtensionPayload
+	err = s.lifecycle.withName(ctx, name, func() error {
+		var reloadErr error
+		item, reloadErr = s.reloadDevLocked(ctx, runtime, key, req, actor)
+		return reloadErr
+	})
+	return item, err
+}
+
+func (s *daemonExtensionService) reloadDevLocked(
+	ctx context.Context,
+	runtime extensionDevRuntime,
+	key extensionpkg.InstanceKey,
+	req contract.ReloadExtensionRequest,
+	actor taskpkg.ActorContext,
+) (contract.ExtensionPayload, error) {
+	snapshot, err := s.snapshotDevLink(key)
 	if err != nil {
 		return contract.ExtensionPayload{}, err
 	}
-	if err := s.syncExtensionConsumers(ctx); err != nil {
+	if snapshot == nil {
+		return contract.ExtensionPayload{}, fmt.Errorf("%w: %s", extensionpkg.ErrExtensionNotDevLinked, key.Name)
+	}
+	generation, confirmation, err := s.inspectDevReloadCandidate(ctx, runtime, key, snapshot, req, actor)
+	if err != nil {
 		return contract.ExtensionPayload{}, err
 	}
-	item = s.payloadFromExtension(ext)
+	return s.applyDevReload(ctx, runtime, key, snapshot, generation, confirmation, actor)
+}
+
+func (s *daemonExtensionService) inspectDevReloadCandidate(
+	ctx context.Context,
+	runtime extensionDevRuntime,
+	key extensionpkg.InstanceKey,
+	snapshot *extensionpkg.DevLink,
+	req contract.ReloadExtensionRequest,
+	actor taskpkg.ActorContext,
+) (extensionpkg.DevelopmentGeneration, *extensionpkg.NetworkConfirmation, error) {
+	generation, err := runtime.InspectDevelopmentGeneration(
+		ctx,
+		key.WorkspaceID,
+		snapshot.OriginPath,
+		req.GenerationHash,
+	)
+	if err != nil {
+		return extensionpkg.DevelopmentGeneration{}, nil, err
+	}
+	if generation.Name != strings.TrimSpace(key.Name) {
+		return extensionpkg.DevelopmentGeneration{}, nil, fmt.Errorf(
+			"%w: generation manifest name %q does not match %q",
+			extensionpkg.ErrExtensionGenerationInvalid,
+			generation.Name,
+			strings.TrimSpace(key.Name),
+		)
+	}
+	if !devCandidateConfirmationRequired(snapshot, generation.NetworkRequirementDigest) {
+		return generation, nil, nil
+	}
+	if strings.TrimSpace(req.ConfirmNetworkDigest) != generation.NetworkRequirementDigest {
+		return extensionpkg.DevelopmentGeneration{}, nil, &extensionpkg.NetworkConfirmationRequiredError{
+			CurrentDigest: generation.NetworkRequirementDigest,
+		}
+	}
+	confirmation, err := s.confirmDevCandidateNetwork(
+		key,
+		generation.NetworkRequirementDigest,
+		req.ConfirmNetworkDigest,
+		actor,
+	)
+	if err != nil {
+		return extensionpkg.DevelopmentGeneration{}, nil, err
+	}
+	return generation, confirmation, nil
+}
+
+func (s *daemonExtensionService) applyDevReload(
+	ctx context.Context,
+	runtime extensionDevRuntime,
+	key extensionpkg.InstanceKey,
+	snapshot *extensionpkg.DevLink,
+	generation extensionpkg.DevelopmentGeneration,
+	confirmation *extensionpkg.NetworkConfirmation,
+	actor taskpkg.ActorContext,
+) (contract.ExtensionPayload, error) {
+	ext, err := runtime.ReloadExtension(ctx, key, generation.GenerationHash)
+	if err != nil {
+		eventErr := s.recordCanonicalExtensionLifecycleEvent(ctx, actor, extensionpkg.LifecycleEvent{
+			Type: eventspkg.ExtensionReloadFailed, ExtensionName: key.Name,
+			WorkspaceID: key.WorkspaceID, BundleGeneration: generation.GenerationHash,
+		})
+		return contract.ExtensionPayload{}, errors.Join(err, eventErr, s.restoreDevNetworkConfirmation(key, snapshot))
+	}
+	if err := s.syncExtensionConsumers(ctx); err != nil {
+		return contract.ExtensionPayload{}, s.rollbackDevLifecycle(ctx, runtime, key, snapshot, err)
+	}
+	item, err := s.payloadFromExtension(ctx, ext)
+	if err != nil {
+		return contract.ExtensionPayload{}, s.rollbackDevLifecycle(ctx, runtime, key, snapshot, err)
+	}
+	if err := s.recordDevReloadEvents(ctx, actor, key, item.GenerationHash, confirmation); err != nil {
+		return contract.ExtensionPayload{}, s.rollbackDevLifecycle(ctx, runtime, key, snapshot, err)
+	}
 	return item, nil
+}
+
+func (s *daemonExtensionService) recordDevReloadEvents(
+	ctx context.Context,
+	actor taskpkg.ActorContext,
+	key extensionpkg.InstanceKey,
+	generationHash string,
+	confirmation *extensionpkg.NetworkConfirmation,
+) error {
+	events := make([]extensionpkg.LifecycleEvent, 0, 2)
+	if confirmation != nil {
+		events = append(events, extensionpkg.LifecycleEvent{
+			Type: eventspkg.ExtensionNetworkConfirmed, ExtensionName: key.Name,
+			WorkspaceID: key.WorkspaceID, Digest: confirmation.Digest, ConfirmedBy: confirmation.ConfirmedBy,
+		})
+	}
+	events = append(events, extensionpkg.LifecycleEvent{
+		Type: eventspkg.ExtensionReloadCompleted, ExtensionName: key.Name,
+		WorkspaceID: key.WorkspaceID, BundleGeneration: generationHash,
+	})
+	return s.recordCanonicalExtensionLifecycleEvents(ctx, actor, events...)
 }
 
 func (s *daemonExtensionService) ExtensionLogs(
@@ -179,7 +296,11 @@ func (s *daemonExtensionService) ListScoped(
 		if getErr != nil {
 			return nil, getErr
 		}
-		items = append(items, s.payloadFromExtension(ext))
+		item, payloadErr := s.payloadFromExtension(ctx, ext)
+		if payloadErr != nil {
+			return nil, payloadErr
+		}
+		items = append(items, item)
 	}
 	return items, nil
 }
@@ -213,7 +334,7 @@ func (s *daemonExtensionService) StatusScoped(
 	if err != nil {
 		return contract.ExtensionPayload{}, err
 	}
-	return s.payloadFromExtension(ext), nil
+	return s.payloadFromExtension(ctx, ext)
 }
 
 func (s *daemonExtensionService) RemoveScoped(
@@ -246,26 +367,37 @@ func (s *daemonExtensionService) RemoveScoped(
 		}
 		return s.Remove(ctx, name, actor)
 	}
-	path := ""
-	generation := ""
-	if ext.DevLink != nil {
-		path = ext.DevLink.OriginPath
-		generation = ext.DevLink.BundleGeneration
-	}
-	if err := runtime.UnlinkDevelopment(ctx, key); err != nil {
-		return contract.ManagedExtensionRemovePayload{}, err
-	}
-	if err := s.syncExtensionConsumers(ctx); err != nil {
-		return contract.ManagedExtensionRemovePayload{}, err
-	}
-	item := contract.ManagedExtensionRemovePayload{Name: name, Path: path, Status: "removed"}
-	if err := s.recordCanonicalExtensionLifecycleEvent(ctx, actor, extensionpkg.LifecycleEvent{
-		Type: eventspkg.ExtensionDevUnlinked, ExtensionName: name,
-		WorkspaceID: workspaceID, BundleGeneration: generation,
-	}); err != nil {
-		return contract.ManagedExtensionRemovePayload{}, err
-	}
-	return item, nil
+	var item contract.ManagedExtensionRemovePayload
+	err = s.lifecycle.withName(ctx, name, func() error {
+		snapshot, snapshotErr := s.snapshotDevLink(key)
+		if snapshotErr != nil {
+			return snapshotErr
+		}
+		if snapshot == nil {
+			return fmt.Errorf("%w: %s", extensionpkg.ErrExtensionNotDevLinked, name)
+		}
+		retirement, retireErr := s.retireExtensionSecretBindings(ctx, key)
+		if retireErr != nil {
+			return retireErr
+		}
+		if unlinkErr := runtime.UnlinkDevelopment(ctx, key); unlinkErr != nil {
+			return errors.Join(unlinkErr, retirement.rollback(ctx, s))
+		}
+		if syncErr := s.syncExtensionConsumers(ctx); syncErr != nil {
+			return s.rollbackDevRemoval(ctx, runtime, key, snapshot, retirement, syncErr)
+		}
+		item = contract.ManagedExtensionRemovePayload{
+			Name: name, Path: snapshot.OriginPath, Status: "removed",
+		}
+		if eventErr := s.recordCanonicalExtensionLifecycleEvent(ctx, actor, extensionpkg.LifecycleEvent{
+			Type: eventspkg.ExtensionDevUnlinked, ExtensionName: name,
+			WorkspaceID: workspaceID, BundleGeneration: snapshot.BundleGeneration,
+		}); eventErr != nil {
+			return s.rollbackDevRemoval(ctx, runtime, key, snapshot, retirement, eventErr)
+		}
+		return nil
+	})
+	return item, err
 }
 
 func (s *daemonExtensionService) devRuntime() (extensionDevRuntime, error) {

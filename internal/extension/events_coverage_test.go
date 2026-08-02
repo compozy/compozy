@@ -20,6 +20,8 @@ func TestExtensionLifecycleEventCoverageMatrix(t *testing.T) {
 	t.Parallel()
 
 	secret := "super-secret-must-not-appear"
+	boundCount := 2
+	automationCount := 3
 	tests := []struct {
 		name  string
 		event LifecycleEvent
@@ -104,6 +106,41 @@ func TestExtensionLifecycleEventCoverageMatrix(t *testing.T) {
 			event: LifecycleEvent{Type: eventspkg.ExtensionCrashLoopBackoff, ExtensionName: "alpha",
 				WorkspaceID: "workspace-1", SourceKind: secret, BundleGeneration: secret},
 			want: map[string]any{"extension_name": "alpha", "workspace_id": "workspace-1"},
+		},
+		{
+			name: "Should emit network confirmation keys",
+			event: LifecycleEvent{
+				Type: eventspkg.ExtensionNetworkConfirmed, ExtensionName: "alpha", WorkspaceID: "workspace-1",
+				Digest: "digest-1", ConfirmedBy: "agent:session-1", SourceKind: secret,
+			},
+			want: map[string]any{
+				"extension_name": "alpha", "workspace_id": "workspace-1", "digest": "digest-1",
+				"confirmed_by": "agent:session-1",
+			},
+		},
+		{
+			name: "Should emit secrets updated keys",
+			event: LifecycleEvent{
+				Type: eventspkg.ExtensionSecretsUpdated, ExtensionName: "alpha", BoundCount: &boundCount,
+				Digest: secret, ConfirmedBy: secret,
+			},
+			want: map[string]any{"extension_name": "alpha", "workspace_id": "", "bound_count": 2},
+		},
+		{
+			name: "Should emit secrets failure keys",
+			event: LifecycleEvent{
+				Type: eventspkg.ExtensionSecretsUpdateFailed, ExtensionName: "alpha", WorkspaceID: "workspace-1",
+				Digest: secret, ConfirmedBy: secret,
+			},
+			want: map[string]any{"extension_name": "alpha", "workspace_id": "workspace-1"},
+		},
+		{
+			name: "Should emit enabled automation count keys",
+			event: LifecycleEvent{
+				Type: eventspkg.ExtensionEnabled, ExtensionName: "alpha", AutomationCount: &automationCount,
+				Digest: secret, ConfirmedBy: secret,
+			},
+			want: map[string]any{"extension_name": "alpha", "automation_started_count": 3},
 		},
 	}
 

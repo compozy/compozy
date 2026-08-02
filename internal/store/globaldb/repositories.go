@@ -80,6 +80,7 @@ type MarketplaceRepo struct{ *repoBase }
 type ObserveRepo struct{ *repoBase }
 type ToolRuntimeRepo struct{ *repoBase }
 type VaultRepo struct{ *repoBase }
+type ExtensionEnvRepo struct{ *repoBase }
 type WatchEventsRepo struct {
 	*repoBase
 	openSessionEventMetadata store.SessionEventMetadataOpener
@@ -117,6 +118,7 @@ func (g *GlobalDB) initializeRepositories(config openConfig) {
 	g.NotificationRepo = &NotificationRepo{repoBase: base}
 	g.ToolRuntimeRepo = &ToolRuntimeRepo{repoBase: base}
 	g.VaultRepo = &VaultRepo{repoBase: base}
+	g.ExtensionEnvRepo = &ExtensionEnvRepo{repoBase: base}
 	g.WatchEventsRepo = &WatchEventsRepo{
 		repoBase:                 base,
 		openSessionEventMetadata: config.openSessionEventMetadata,

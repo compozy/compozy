@@ -1182,6 +1182,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/extensions/{name}/inventory": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List shipped and live resources for one extension */
+    get: operations["getExtensionInventory"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/extensions/{name}/logs": {
     parameters: {
       query?: never;
@@ -1191,6 +1208,23 @@ export interface paths {
     };
     /** Read or follow redacted extension logs */
     get: operations["getExtensionLogs"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/extensions/{name}/preview": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Preview enabling one extension without changing state */
+    get: operations["previewExtensionEnable"];
     put?: never;
     post?: never;
     delete?: never;
@@ -1228,6 +1262,41 @@ export interface paths {
     /** Reload a workspace extension from an immutable generation */
     post: operations["reloadDevExtension"];
     delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/extensions/{name}/secrets": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List declared and bound extension environment names */
+    get: operations["listExtensionSecrets"];
+    /** Set or bind extension environment secrets */
+    put: operations["setExtensionSecrets"];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/extensions/{name}/secrets/{env_name}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /** Remove one extension environment secret binding */
+    delete: operations["deleteExtensionSecret"];
     options?: never;
     head?: never;
     patch?: never;
@@ -28164,11 +28233,7 @@ export interface operations {
         content: {
           "application/json": {
             extensions: {
-              bundles?: {
-                description?: string;
-                name: string;
-                profiles?: string[];
-              }[];
+              bound_env_keys?: string[];
               capabilities?: string[];
               consecutive_failures: number;
               daemon_running: boolean;
@@ -28238,6 +28303,8 @@ export interface operations {
               } | null;
               missing_env?: string[];
               name: string;
+              network_confirmation_required: boolean;
+              network_requirement_digest?: string;
               origin_path?: string;
               overrides_published?: boolean;
               permissions?: string[];
@@ -28408,11 +28475,7 @@ export interface operations {
         content: {
           "application/json": {
             extension: {
-              bundles?: {
-                description?: string;
-                name: string;
-                profiles?: string[];
-              }[];
+              bound_env_keys?: string[];
               capabilities?: string[];
               consecutive_failures: number;
               daemon_running: boolean;
@@ -28482,6 +28545,8 @@ export interface operations {
               } | null;
               missing_env?: string[];
               name: string;
+              network_confirmation_required: boolean;
+              network_requirement_digest?: string;
               origin_path?: string;
               overrides_published?: boolean;
               permissions?: string[];
@@ -28832,11 +28897,7 @@ export interface operations {
         content: {
           "application/json": {
             extension: {
-              bundles?: {
-                description?: string;
-                name: string;
-                profiles?: string[];
-              }[];
+              bound_env_keys?: string[];
               capabilities?: string[];
               consecutive_failures: number;
               daemon_running: boolean;
@@ -28906,6 +28967,8 @@ export interface operations {
               } | null;
               missing_env?: string[];
               name: string;
+              network_confirmation_required: boolean;
+              network_requirement_digest?: string;
               origin_path?: string;
               overrides_published?: boolean;
               permissions?: string[];
@@ -29096,11 +29159,7 @@ export interface operations {
         content: {
           "application/json": {
             extension: {
-              bundles?: {
-                description?: string;
-                name: string;
-                profiles?: string[];
-              }[];
+              bound_env_keys?: string[];
               capabilities?: string[];
               consecutive_failures: number;
               daemon_running: boolean;
@@ -29170,6 +29229,8 @@ export interface operations {
               } | null;
               missing_env?: string[];
               name: string;
+              network_confirmation_required: boolean;
+              network_requirement_digest?: string;
               origin_path?: string;
               overrides_published?: boolean;
               permissions?: string[];
@@ -29353,6 +29414,7 @@ export interface operations {
         "application/json": {
           allow_unverified?: boolean;
           check_only?: boolean;
+          confirm_network_digest?: string;
           version?: string;
         };
       };
@@ -29476,6 +29538,36 @@ export interface operations {
               suggested_command?: string;
               title: string;
             } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Network confirmation required */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            agents?: string[];
+            code: string;
+            current_digest?: string;
+            declared_env?: string[];
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            env_name?: string;
             error: string;
           };
         };
@@ -29748,11 +29840,7 @@ export interface operations {
         content: {
           "application/json": {
             extension: {
-              bundles?: {
-                description?: string;
-                name: string;
-                profiles?: string[];
-              }[];
+              bound_env_keys?: string[];
               capabilities?: string[];
               consecutive_failures: number;
               daemon_running: boolean;
@@ -29822,6 +29910,8 @@ export interface operations {
               } | null;
               missing_env?: string[];
               name: string;
+              network_confirmation_required: boolean;
+              network_requirement_digest?: string;
               origin_path?: string;
               overrides_published?: boolean;
               permissions?: string[];
@@ -30024,7 +30114,14 @@ export interface operations {
       };
       cookie?: never;
     };
-    requestBody?: never;
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          confirm_network_digest?: string;
+        };
+      };
+    };
     responses: {
       /** @description OK */
       200: {
@@ -30033,12 +30130,9 @@ export interface operations {
         };
         content: {
           "application/json": {
+            automation_started: string[];
             extension: {
-              bundles?: {
-                description?: string;
-                name: string;
-                profiles?: string[];
-              }[];
+              bound_env_keys?: string[];
               capabilities?: string[];
               consecutive_failures: number;
               daemon_running: boolean;
@@ -30108,6 +30202,8 @@ export interface operations {
               } | null;
               missing_env?: string[];
               name: string;
+              network_confirmation_required: boolean;
+              network_requirement_digest?: string;
               origin_path?: string;
               overrides_published?: boolean;
               permissions?: string[];
@@ -30248,8 +30344,120 @@ export interface operations {
           };
         };
       };
+      /** @description Network confirmation required or shipped agent conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            agents?: string[];
+            code: string;
+            current_digest?: string;
+            declared_env?: string[];
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            env_name?: string;
+            error: string;
+          };
+        };
+      };
       /** @description Internal server error */
       500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Extension service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  getExtensionInventory: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Extension name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            enabled: boolean;
+            extension: string;
+            items: {
+              id: string;
+              kind: string;
+              live: boolean;
+              name: string;
+            }[];
+          };
+        };
+      };
+      /** @description Extension not found */
+      404: {
         headers: {
           [name: string]: unknown;
         };
@@ -30359,6 +30567,92 @@ export interface operations {
               title: string;
             } | null;
             error: string;
+          };
+        };
+      };
+      /** @description Extension not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Extension service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  previewExtensionEnable: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Extension name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            agent_conflicts: string[];
+            automation_starting: string[];
+            extension: string;
+            missing_env: string[];
+            network_confirmation_required: boolean;
+            network_requirement_digest: string;
+            would_publish: {
+              id: string;
+              kind: string;
+              live: boolean;
+              name: string;
+            }[];
           };
         };
       };
@@ -30580,6 +30874,7 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
+          confirm_network_digest?: string;
           generation_hash: string;
         };
       };
@@ -30593,11 +30888,7 @@ export interface operations {
         content: {
           "application/json": {
             extension: {
-              bundles?: {
-                description?: string;
-                name: string;
-                profiles?: string[];
-              }[];
+              bound_env_keys?: string[];
               capabilities?: string[];
               consecutive_failures: number;
               daemon_running: boolean;
@@ -30667,6 +30958,8 @@ export interface operations {
               } | null;
               missing_env?: string[];
               name: string;
+              network_confirmation_required: boolean;
+              network_requirement_digest?: string;
               origin_path?: string;
               overrides_published?: boolean;
               permissions?: string[];
@@ -30807,8 +31100,38 @@ export interface operations {
           };
         };
       };
-      /** @description Extension is not dev linked */
+      /** @description Extension is not dev linked or needs network confirmation */
       409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            agents?: string[];
+            code: string;
+            current_digest?: string;
+            declared_env?: string[];
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            env_name?: string;
+            error: string;
+          };
+        };
+      };
+      /** @description Extension service is not configured */
+      503: {
         headers: {
           [name: string]: unknown;
         };
@@ -30832,8 +31155,288 @@ export interface operations {
           };
         };
       };
-      /** @description Extension service is not configured */
-      503: {
+    };
+  };
+  listExtensionSecrets: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Extension name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            bindings: {
+              env_name: string;
+              stale: boolean;
+            }[];
+            bound_env_keys: string[];
+            declared_env: string[];
+          };
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Extension not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  setExtensionSecrets: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Extension name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          secrets: {
+            [key: string]: {
+              value?: string | null;
+              vault_ref?: string | null;
+            };
+          };
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            bindings: {
+              env_name: string;
+              stale: boolean;
+            }[];
+            bound_env_keys: string[];
+            declared_env: string[];
+          };
+        };
+      };
+      /** @description Invalid extension secret binding */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            agents?: string[];
+            code: string;
+            current_digest?: string;
+            declared_env?: string[];
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            env_name?: string;
+            error: string;
+          };
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Extension not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  deleteExtensionSecret: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Extension name */
+        name: string;
+        /** @description Declared environment name */
+        env_name: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description No Content */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Invalid extension secret binding */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            agents?: string[];
+            code: string;
+            current_digest?: string;
+            declared_env?: string[];
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            env_name?: string;
+            error: string;
+          };
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Extension not found */
+      404: {
         headers: {
           [name: string]: unknown;
         };

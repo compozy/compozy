@@ -250,6 +250,12 @@ func renderHumanExecutionError(err error) (string, bool) {
 }
 
 func marshalStructuredExecutionError(args []string, err error) ([]byte, bool) {
+	if extensionErr, ok := errors.AsType[interface {
+		error
+		extensionOperationErrorPayload() contract.ExtensionOperationErrorPayload
+	}](err); ok {
+		return marshalExtensionOperationExecutionError(args, extensionErr.extensionOperationErrorPayload())
+	}
 	if windowManagerErr, ok := errors.AsType[interface {
 		error
 		windowManagerErrorPayload() contract.WindowManagerErrorPayload
@@ -282,6 +288,38 @@ func marshalStructuredExecutionError(args []string, err error) ([]byte, bool) {
 			return nil, false
 		}
 		return payload, true
+	default:
+		return nil, false
+	}
+}
+
+func marshalExtensionOperationExecutionError(
+	args []string,
+	payload contract.ExtensionOperationErrorPayload,
+) ([]byte, bool) {
+	switch requestedOutputFormat(args) {
+	case OutputJSON:
+		encoded, err := json.Marshal(payload)
+		return encoded, err == nil
+	case OutputJSONL:
+		encoded, err := json.Marshal(struct {
+			Type  string                                  `json:"type"`
+			Error contract.ExtensionOperationErrorPayload `json:"error"`
+		}{Type: clientErrorKey, Error: payload})
+		return append(encoded, '\n'), err == nil
+	case OutputToon:
+		return []byte(renderToonObject(
+			"error",
+			[]string{cliCodeKey, "current_digest", cliAgentsKey, "env_name", "declared_env", clientMessageKey},
+			[]string{
+				payload.Code,
+				payload.CurrentDigest,
+				strings.Join(payload.Agents, "|"),
+				payload.EnvName,
+				strings.Join(payload.DeclaredEnv, "|"),
+				payload.Error,
+			},
+		)), true
 	default:
 		return nil, false
 	}

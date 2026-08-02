@@ -391,6 +391,9 @@ func TestInstallLocalManagedUsesInstalledChecksumForMaterializedSymlinks(t *test
 	if got := registry.installedChecksum; got != finalChecksum {
 		t.Fatalf("registry installed checksum = %q, want %q", got, finalChecksum)
 	}
+	if registry.installedEnabled {
+		t.Fatal("registry installed enabled = true, want inert managed install")
+	}
 	if finalChecksum == sourceChecksum {
 		t.Fatalf(
 			"final checksum = %q, want checksum different from source symlink tree %q",
@@ -632,6 +635,7 @@ func TestInstallLocalManagedWrapsPhaseErrors(t *testing.T) {
 
 type recordingManagedInstallRegistry struct {
 	installedChecksum string
+	installedEnabled  bool
 	installErr        error
 }
 
@@ -639,8 +643,16 @@ func (*recordingManagedInstallRegistry) Get(string) (*ExtensionInfo, error) {
 	return nil, ErrExtensionNotFound
 }
 
-func (r *recordingManagedInstallRegistry) Install(_ *Manifest, _ string, checksum string, _ ...InstallOption) error {
+func (r *recordingManagedInstallRegistry) Install(
+	_ *Manifest,
+	_ string,
+	checksum string,
+	opts ...InstallOption,
+) error {
 	r.installedChecksum = checksum
+	config := installConfig{enabled: true}
+	applyInstallOptions(&config, opts...)
+	r.installedEnabled = config.enabled
 	if r.installErr != nil {
 		return r.installErr
 	}

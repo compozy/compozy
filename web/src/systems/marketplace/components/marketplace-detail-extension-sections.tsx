@@ -109,14 +109,12 @@ function ExtensionBundlesProvided({
   extensionName,
   isLoading,
   onRetry,
-  provided,
 }: {
   active: Array<{ id: string; bundle_name: string; extension_name: string }> | undefined;
   error: Error | null;
   extensionName: string;
   isLoading: boolean;
   onRetry: () => void;
-  provided: Array<{ name: string; description?: string; profiles?: string[] }>;
 }) {
   const activations = (active ?? []).filter(item => item.extension_name === extensionName);
   return (
@@ -141,37 +139,24 @@ function ExtensionBundlesProvided({
               Retry bundle activity
             </Button>
           </div>
-        ) : provided.length ? (
-          provided.map(bundle => {
-            const activation = activations.find(item => item.bundle_name === bundle.name);
-            return (
-              <div className="flex items-center justify-between gap-3 px-4 py-3" key={bundle.name}>
-                <div className="min-w-0">
-                  <MonoId value={bundle.name} />
-                  <p className="mt-1 truncate text-xs text-muted">
-                    {bundle.description ?? (bundle.profiles ?? []).join(", ")}
-                  </p>
-                </div>
-                {activation ? (
-                  <Button
-                    render={
-                      <Link
-                        params={{ id: activation.id }}
-                        to="/marketplace/bundles/activations/$id"
-                      />
-                    }
-                    nativeButton={false}
-                    size="sm"
-                    variant="ghost"
-                  >
-                    Open active bundle →
-                  </Button>
-                ) : (
-                  <Pill size="xs">inactive</Pill>
-                )}
+        ) : activations.length ? (
+          activations.map(activation => (
+            <div className="flex items-center justify-between gap-3 px-4 py-3" key={activation.id}>
+              <div className="min-w-0">
+                <MonoId value={activation.bundle_name} />
               </div>
-            );
-          })
+              <Button
+                render={
+                  <Link params={{ id: activation.id }} to="/marketplace/bundles/activations/$id" />
+                }
+                nativeButton={false}
+                size="sm"
+                variant="ghost"
+              >
+                Open active bundle →
+              </Button>
+            </div>
+          ))
         ) : (
           <div className="px-4 py-3 text-small-body text-muted">None.</div>
         )}

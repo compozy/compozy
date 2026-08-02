@@ -63,6 +63,11 @@ func subprocessTOMLTable(process SubprocessConfig) map[string]any {
 
 func resourcesTOMLTable(resources ResourcesConfig) (map[string]any, error) {
 	table := make(map[string]any)
+	putNonEmptyStrings(table, "skills", resources.Skills)
+	putNonEmptyStrings(table, "loops", resources.Loops)
+	putNonEmptyStrings(table, "agents", resources.Agents)
+	putNonEmptyStrings(table, "automation", resources.Automation)
+	putNonEmptyStrings(table, "layouts", resources.Layouts)
 	if len(resources.Tools) > 0 {
 		tools := make(map[string]any, len(resources.Tools))
 		for name, config := range resources.Tools {

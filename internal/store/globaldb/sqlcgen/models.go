@@ -436,27 +436,43 @@ type EventSummary struct {
 }
 
 type Extension struct {
-	Name            string         `json:"name"`
-	Version         string         `json:"version"`
-	Source          string         `json:"source"`
-	Enabled         bool           `json:"enabled"`
-	ManifestPath    string         `json:"manifest_path"`
-	InstalledAt     string         `json:"installed_at"`
-	ProvidesJson    string         `json:"provides_json"`
-	PermissionsJson string         `json:"permissions_json"`
-	Checksum        string         `json:"checksum"`
-	RegistrySlug    sql.NullString `json:"registry_slug"`
-	RegistryName    sql.NullString `json:"registry_name"`
-	RemoteVersion   sql.NullString `json:"remote_version"`
-	ProvenanceJson  string         `json:"provenance_json"`
+	Name                     string         `json:"name"`
+	Version                  string         `json:"version"`
+	Source                   string         `json:"source"`
+	Enabled                  bool           `json:"enabled"`
+	ManifestPath             string         `json:"manifest_path"`
+	InstalledAt              string         `json:"installed_at"`
+	ProvidesJson             string         `json:"provides_json"`
+	PermissionsJson          string         `json:"permissions_json"`
+	Checksum                 string         `json:"checksum"`
+	RegistrySlug             sql.NullString `json:"registry_slug"`
+	RegistryName             sql.NullString `json:"registry_name"`
+	RemoteVersion            sql.NullString `json:"remote_version"`
+	ProvenanceJson           string         `json:"provenance_json"`
+	NetworkRequirementDigest string         `json:"network_requirement_digest"`
+	NetworkConfirmedBy       sql.NullString `json:"network_confirmed_by"`
+	NetworkConfirmedAt       sql.NullString `json:"network_confirmed_at"`
 }
 
 type ExtensionDevLink struct {
-	ExtensionName    string    `json:"extension_name"`
-	WorkspaceID      string    `json:"workspace_id"`
-	OriginPath       string    `json:"origin_path"`
-	BundleGeneration string    `json:"bundle_generation"`
-	LinkedAt         time.Time `json:"linked_at"`
+	ExtensionName            string         `json:"extension_name"`
+	WorkspaceID              string         `json:"workspace_id"`
+	OriginPath               string         `json:"origin_path"`
+	BundleGeneration         string         `json:"bundle_generation"`
+	LinkedAt                 time.Time      `json:"linked_at"`
+	NetworkRequirementDigest string         `json:"network_requirement_digest"`
+	NetworkConfirmedBy       sql.NullString `json:"network_confirmed_by"`
+	NetworkConfirmedAt       sql.NullString `json:"network_confirmed_at"`
+}
+
+type ExtensionEnvBinding struct {
+	ExtensionName string `json:"extension_name"`
+	WorkspaceID   string `json:"workspace_id"`
+	EnvName       string `json:"env_name"`
+	SecretRef     string `json:"secret_ref"`
+	Kind          string `json:"kind"`
+	CreatedAt     string `json:"created_at"`
+	UpdatedAt     string `json:"updated_at"`
 }
 
 type LoopConfig struct {

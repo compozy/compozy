@@ -213,6 +213,8 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			toolspkg.ToolIDExtensionsPublish,
 			toolspkg.ToolIDExtensionsList,
 			toolspkg.ToolIDExtensionsInfo,
+			toolspkg.ToolIDExtensionsInventory,
+			toolspkg.ToolIDExtensionsPreview,
 			toolspkg.ToolIDExtensionsInstall,
 			toolspkg.ToolIDExtensionsUpdate,
 			toolspkg.ToolIDExtensionsRemove,
@@ -993,6 +995,8 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDMarketplaceSearch], toolspkg.RiskRead, true, false, false)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDExtensionsList], toolspkg.RiskRead, true, false, false)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDExtensionsInfo], toolspkg.RiskRead, true, false, false)
+		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDExtensionsInventory], toolspkg.RiskRead, true, false, false)
+		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDExtensionsPreview], toolspkg.RiskRead, true, false, false)
 		requireDescriptorRisk(
 			t,
 			descriptors[toolspkg.ToolIDExtensionsInstall],

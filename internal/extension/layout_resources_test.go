@@ -1,0 +1,105 @@
+package extensionpkg
+
+import (
+	"encoding/json"
+	"errors"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+)
+
+func TestLoadLayoutResources(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should decode valid layouts at global scope", func(t *testing.T) {
+		t.Parallel()
+
+		rootDir := t.TempDir()
+		if err := os.MkdirAll(filepath.Join(rootDir, "layouts"), 0o755); err != nil {
+			t.Fatalf("os.MkdirAll(layouts) error = %v", err)
+		}
+		writeJSONFile(t, filepath.Join(rootDir, "layouts", "two-up.json"), testBundleLayoutResource("two-up"))
+		layouts, err := LoadLayoutResources(rootDir, []string{"layouts/two-up.json"})
+		if err != nil {
+			t.Fatalf("LoadLayoutResources() error = %v", err)
+		}
+		if len(layouts) != 1 || layouts[0].ID != "two-up" {
+			t.Fatalf("LoadLayoutResources() = %#v, want two-up", layouts)
+		}
+		if layouts[0].Document.WorkspaceID != "" {
+			t.Fatalf("Document.WorkspaceID = %q, want global scope", layouts[0].Document.WorkspaceID)
+		}
+	})
+}
+
+func TestLoadLayoutResourcesRejectsInvalidInputs(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name  string
+		setup func(*testing.T, string) string
+		want  string
+	}{
+		{
+			name: "Should reject a non-JSON layout file",
+			setup: func(t *testing.T, rootDir string) string {
+				t.Helper()
+				path := filepath.Join(rootDir, "layouts", "two-up.toml")
+				if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+					t.Fatalf("os.MkdirAll(layouts) error = %v", err)
+				}
+				writeFile(t, path, "id = \"two-up\"")
+				return "layouts/two-up.toml"
+			},
+			want: ".json file",
+		},
+		{
+			name: "Should reject a directory masquerading as a JSON file",
+			setup: func(t *testing.T, rootDir string) string {
+				t.Helper()
+				path := filepath.Join(rootDir, "layouts", "two-up.json")
+				if err := os.MkdirAll(path, 0o755); err != nil {
+					t.Fatalf("os.MkdirAll(two-up.json) error = %v", err)
+				}
+				return "layouts/two-up.json"
+			},
+			want: "regular .json file",
+		},
+		{
+			name: "Should preserve codec validation errors",
+			setup: func(t *testing.T, rootDir string) string {
+				t.Helper()
+				path := filepath.Join(rootDir, "layouts", "missing-id.json")
+				if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+					t.Fatalf("os.MkdirAll(layouts) error = %v", err)
+				}
+				layout := testBundleLayoutResource("two-up")
+				layout.ID = ""
+				body, err := json.Marshal(layout)
+				if err != nil {
+					t.Fatalf("json.Marshal(layout) error = %v", err)
+				}
+				writeFile(t, path, string(body))
+				return "layouts/missing-id.json"
+			},
+			want: "id",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			rootDir := t.TempDir()
+			declared := tc.setup(t, rootDir)
+			_, err := LoadLayoutResources(rootDir, []string{declared})
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("LoadLayoutResources() error = %v, want %q", err, tc.want)
+			}
+			if strings.Contains(tc.name, "codec") && !errors.Is(err, ErrManifestInvalid) {
+				t.Fatalf("LoadLayoutResources() error = %v, want ErrManifestInvalid", err)
+			}
+		})
+	}
+}

@@ -138,9 +138,6 @@ func (s *Scheduler) updateRegistrationState(jobID string, state SchedulerState) 
 	registration.state = state
 	s.registrations[jobID] = registration
 	if state.NextRunAt == nil || state.NextRunAt.IsZero() {
-		if registration.cancel != nil {
-			registration.cancel()
-		}
 		delete(s.registrations, jobID)
 	}
 }

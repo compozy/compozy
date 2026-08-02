@@ -80,6 +80,7 @@ func updateMarketplaceExtensions(
 	checkOnly bool,
 	version string,
 	allowUnverified bool,
+	confirmNetworkDigest string,
 ) ([]extensionUpdateItem, error) {
 	client, err := requireExtensionDaemonClient(ctx, deps)
 	if err != nil {
@@ -90,6 +91,17 @@ func updateMarketplaceExtensions(
 		if name = strings.TrimSpace(name); name != "" {
 			names = append(names, name)
 		}
+	}
+	if !updateAll && len(names) == 1 {
+		item, err := client.UpdateExtension(ctx, names[0], UpdateExtensionRequest{
+			Version: strings.TrimSpace(version), CheckOnly: checkOnly,
+			AllowUnverified:      allowUnverified && !checkOnly,
+			ConfirmNetworkDigest: strings.TrimSpace(confirmNetworkDigest),
+		})
+		if err != nil {
+			return nil, err
+		}
+		return []extensionUpdateItem{item}, nil
 	}
 	items, err := client.UpdateExtensions(ctx, UpdateExtensionsRequest{
 		Names: names, All: updateAll, Version: strings.TrimSpace(version), CheckOnly: checkOnly,

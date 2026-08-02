@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	extensionpkg "github.com/compozy/compozy/internal/extension"
 
 	"github.com/compozy/compozy/internal/heartbeat"
 	"github.com/compozy/compozy/internal/resources"
@@ -48,6 +49,65 @@ func appendAgentResources(
 	}
 }
 
+func appendExtensionAgentResources(
+	desired *agentSkillDesiredResources,
+	scope resources.ResourceScope,
+	extensionName string,
+	agents []extensionpkg.StaticAgent,
+) {
+	if desired == nil {
+		return
+	}
+	owner := extensionOwner(extensionName)
+	for _, staticAgent := range agents {
+		name := strings.TrimSpace(staticAgent.Agent.Name)
+		if name == "" {
+			continue
+		}
+		agentSourceKey := "extension/" + strings.TrimSpace(extensionName) + "/agent/" + name
+		desired.agents = append(desired.agents, agentPublicationInput{
+			sourceKey: agentSourceKey,
+			scope:     scope,
+			owner:     owner,
+			spec:      cloneAgentDef(staticAgent.Agent),
+		})
+		for _, server := range staticAgent.Agent.MCPServers {
+			serverName := strings.TrimSpace(server.Name)
+			if serverName == "" {
+				continue
+			}
+			desired.mcpServers = append(desired.mcpServers, mcpServerPublicationInput{
+				sourceKey: agentSourceKey + "/mcp_server/" + serverName,
+				scope:     scope,
+				owner:     owner,
+				spec:      cloneDaemonMCPServer(server),
+			})
+		}
+		if staticAgent.Soul != nil {
+			desired.souls = append(desired.souls, soulPublicationInput{
+				sourceKey:      agentSourceKey + "/soul",
+				agentSourceKey: agentSourceKey,
+				scope:          scope,
+				owner:          owner,
+				agentName:      name,
+				sourcePath:     staticAgent.Soul.SourcePath,
+				body:           staticAgent.Soul.Body,
+			})
+		}
+		if staticAgent.Heartbeat != nil {
+			desired.heartbeats = append(desired.heartbeats, heartbeatPublicationInput{
+				sourceKey:      agentSourceKey + "/heartbeat",
+				agentSourceKey: agentSourceKey,
+				scope:          scope,
+				owner:          owner,
+				agentName:      name,
+				sourcePath:     staticAgent.Heartbeat.SourcePath,
+				body:           staticAgent.Heartbeat.Body,
+			})
+		}
+	}
+}
+
 func appendSkillResources(
 	desired *agentSkillDesiredResources,
 	scope resources.ResourceScope,
@@ -81,6 +141,32 @@ func appendSkillResources(
 				spec:      mcpServerFromSkillDecl(server),
 			})
 		}
+	}
+}
+
+func appendExtensionSkillResources(
+	desired *agentSkillDesiredResources,
+	scope resources.ResourceScope,
+	extensionName string,
+	skills []*skillspkg.Skill,
+) {
+	if desired == nil {
+		return
+	}
+	firstSkill := len(desired.skills)
+	firstMCP := len(desired.mcpServers)
+	appendSkillResources(
+		desired,
+		scope,
+		"extension/"+strings.TrimSpace(extensionName)+"/skills",
+		skills,
+	)
+	owner := extensionOwner(extensionName)
+	for idx := firstSkill; idx < len(desired.skills); idx++ {
+		desired.skills[idx].owner = owner
+	}
+	for idx := firstMCP; idx < len(desired.mcpServers); idx++ {
+		desired.mcpServers[idx].owner = owner
 	}
 }
 
