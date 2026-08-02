@@ -111,15 +111,23 @@ func TestDaemonLoopAPIServiceShouldAssembleGenerationDetailFromLineage(t *testin
 			3: {{Generation: 3, NodeID: "draft", Status: "pending"}},
 		},
 		verdicts: map[int64][]gate.VerdictRecord{
-			3: {{
-				RunID: "run-lineage", Generation: 3, GateID: "quality",
-				Outcome: gate.VerdictOutcomeRejected, Score: &score, RouteCauseRank: &rank,
-				BlockingIssues: []byte(`[{"id":"citation","note":"missing source"}]`),
-				Criteria: []byte(
-					`[{"id":"quality","type":"agent","outcome":"rejected",` +
-						`"passed":false,"score":0.72,"evidence":{"source":"judge"}}]`,
-				),
-			}},
+			3: {
+				{
+					RunID: "run-lineage", Generation: 3, GateID: "quality", ItemIndex: 2,
+					Outcome: gate.VerdictOutcomeRejected, Score: &score, RouteCauseRank: &rank,
+					BlockingIssues: []byte(`[{"id":"citation","note":"missing source"}]`),
+					Criteria: []byte(
+						`[{"id":"quality","type":"agent","outcome":"rejected",` +
+							`"passed":false,"score":0.72,"evidence":{"source":"judge"}}]`,
+					),
+				},
+				{
+					RunID: "run-lineage", Generation: 3, GateID: "quality", ItemIndex: 3,
+					Outcome:        gate.VerdictOutcomeApproved,
+					BlockingIssues: []byte(`[]`),
+					Criteria:       []byte(`[]`),
+				},
+			},
 		},
 	}
 	service := &daemonLoopAPIService{persistence: persistence}
@@ -136,7 +144,8 @@ func TestDaemonLoopAPIServiceShouldAssembleGenerationDetailFromLineage(t *testin
 		generations[1].Origin != contract.LoopGenerationOriginRatchetRestore {
 		t.Fatalf("generation 3 provenance = %#v, want ratchet restore from 1", generations[1])
 	}
-	if len(generations[1].Verdicts) != 1 || generations[1].Verdicts[0].GateID != "quality" ||
+	if len(generations[1].Verdicts) != 2 || generations[1].Verdicts[0].GateID != "quality" ||
+		generations[1].Verdicts[0].ItemIndex != 2 ||
 		generations[1].Verdicts[0].Score == nil || *generations[1].Verdicts[0].Score != score ||
 		generations[1].Verdicts[0].RouteCauseRank == nil || *generations[1].Verdicts[0].RouteCauseRank != rank ||
 		len(generations[1].Verdicts[0].BlockingIssues) != 1 ||
@@ -146,6 +155,9 @@ func TestDaemonLoopAPIServiceShouldAssembleGenerationDetailFromLineage(t *testin
 		generations[1].Verdicts[0].Criteria[0].Score == nil ||
 		*generations[1].Verdicts[0].Criteria[0].Score != score {
 		t.Fatalf("generation 3 verdicts = %#v, want exact diagnostics/score/rank", generations[1].Verdicts)
+	}
+	if generations[1].Verdicts[1].GateID != "quality" || generations[1].Verdicts[1].ItemIndex != 3 {
+		t.Fatalf("generation 3 fan-out verdicts = %#v, want separate item indexes 2 and 3", generations[1].Verdicts)
 	}
 	if len(persistence.outputCalls) != 2 || persistence.outputCalls[0] != 1 || persistence.outputCalls[1] != 3 {
 		t.Fatalf("ListGenerationOutputs calls = %#v, want lineage generations only", persistence.outputCalls)

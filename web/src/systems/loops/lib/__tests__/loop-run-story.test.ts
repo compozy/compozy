@@ -210,6 +210,7 @@ describe("buildRunStory", () => {
             verdicts: [
               {
                 gate_id: "quality",
+                item_index: 0,
                 outcome: "rejected",
                 score: 0.7,
                 criteria: [],
@@ -248,6 +249,7 @@ describe("buildRunStory", () => {
           verdicts: [
             {
               gate_id: "quality",
+              item_index: 0,
               outcome: "rejected",
               score: 0.7,
               criteria: [],
@@ -263,6 +265,7 @@ describe("buildRunStory", () => {
           verdicts: [
             {
               gate_id: "quality",
+              item_index: 0,
               outcome: "rejected",
               score: 0.8,
               criteria: [],
@@ -320,6 +323,7 @@ describe("buildRunStory", () => {
             verdicts: [
               {
                 gate_id: "quality",
+                item_index: 0,
                 outcome: "rejected",
                 score: 0.7,
                 criteria: [],

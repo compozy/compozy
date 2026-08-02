@@ -102,6 +102,7 @@ type LoopGenerationPayload struct {
 // LoopGateVerdictPayload is one queryable machine verdict in generation detail.
 type LoopGateVerdictPayload struct {
 	GateID         string                           `json:"gate_id"`
+	ItemIndex      int                              `json:"item_index"`
 	Outcome        LoopGateVerdictOutcome           `json:"outcome"`
 	Score          *float64                         `json:"score,omitempty"`
 	RouteCauseRank *int                             `json:"route_cause_rank,omitempty"`

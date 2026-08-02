@@ -83110,6 +83110,7 @@ export interface operations {
                   }[];
                 }[];
                 gate_id: string;
+                item_index: number;
                 /** @enum {string} */
                 outcome:
                   | "approved"

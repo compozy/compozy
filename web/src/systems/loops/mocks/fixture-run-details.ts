@@ -53,6 +53,7 @@ function deliveryGenerations(run: LoopRun): LoopRunGeneration[] {
         ? [
             {
               gate_id: "review",
+              item_index: 0,
               outcome: "rejected",
               score: run.best_score,
               criteria: [],
@@ -100,6 +101,7 @@ function deliveryGenerations(run: LoopRun): LoopRunGeneration[] {
           ? [
               {
                 gate_id: "review",
+                item_index: 0,
                 outcome: "rejected",
                 score: run.best_score,
                 criteria: [],

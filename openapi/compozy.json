@@ -205767,6 +205767,9 @@
                                 "gate_id": {
                                   "type": "string"
                                 },
+                                "item_index": {
+                                  "type": "integer"
+                                },
                                 "outcome": {
                                   "enum": [
                                     "approved",
@@ -205793,6 +205796,7 @@
                                 "blocking_issues",
                                 "criteria",
                                 "gate_id",
+                                "item_index",
                                 "outcome"
                               ],
                               "type": "object"

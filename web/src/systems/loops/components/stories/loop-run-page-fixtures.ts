@@ -249,6 +249,7 @@ function metricGeneration(
         : [
             {
               gate_id: "quality",
+              item_index: 0,
               outcome: "approved",
               score,
               route_cause_rank: 0,

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/compozy/compozy/internal/loop/gate"
@@ -168,8 +169,13 @@ func TestGenerationSnapshotLifecycleEventValidation(t *testing.T) {
 			Kind:  GenerationLifecycleEventGenerationStarted,
 			Route: gate.RouteContinue,
 		}}})
-		if !errors.Is(err, ErrValidation) {
-			t.Fatalf("GenerationSnapshotPayloadFrom() error = %v, want ErrValidation", err)
+		const wantDetail = "route"
+		if !errors.Is(err, ErrValidation) || !strings.Contains(err.Error(), wantDetail) {
+			t.Fatalf(
+				"GenerationSnapshotPayloadFrom() error = %v, want ErrValidation with detail %q",
+				err,
+				wantDetail,
+			)
 		}
 	})
 }

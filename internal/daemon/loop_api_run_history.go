@@ -81,6 +81,7 @@ func loopGateVerdictsPayload(verdicts []gate.VerdictRecord) ([]contract.LoopGate
 		}
 		payload := contract.LoopGateVerdictPayload{
 			GateID:         verdict.GateID,
+			ItemIndex:      verdict.ItemIndex,
 			Outcome:        contract.LoopGateVerdictOutcome(verdict.Outcome),
 			BlockingIssues: blockingIssues,
 			Criteria:       criteria,
