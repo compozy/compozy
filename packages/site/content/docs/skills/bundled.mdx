@@ -13,9 +13,9 @@ runtime.
 
 ## Catalog
 
-| Skill     | Description                                                         | Use when                                                                                                                                                    |
-| --------- | ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `compozy` | Operate and extend Compozy, the local-first agent operating system. | You are working with Compozy sessions, agents, tools, skills, memory, network channels, tasks, capabilities, bundles, QA, docs, or repository contribution. |
+| Skill     | Description                                                         | Use when                                                                                                                                                           |
+| --------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `compozy` | Operate and extend Compozy, the local-first agent operating system. | You are working with Compozy sessions, agents, tools, skills, memory, network channels, tasks, capabilities, extension kits, QA, docs, or repository contribution. |
 
 The current runtime does not ship aliases for previous alpha `compozy-*` bundled skill names. A caller
 that needs Compozy guidance should load `compozy` and then read the reference file selected by its router.
@@ -25,19 +25,19 @@ that needs Compozy guidance should load `compozy` and then read the reference fi
 The `compozy` skill body is a router. It keeps startup prompts small and sends agents to focused
 reference files:
 
-| Reference                                | Covers                                                                                                          |
-| ---------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `references/runtime-operations.md`       | Daemon state, session lifecycle, session CLI, and runtime troubleshooting.                                      |
-| `references/agent-definitions.md`        | `AGENT.md`, provider defaults, permission modes, agent MCP sidecars, and setup workflow.                        |
-| `references/tools-and-skills.md`         | Tool-first operating model, skill search/view, skill resources, and skill authoring rules.                      |
-| `references/native-tools.md`             | Daemon-native toolsets, stable `compozy__*` IDs, descriptor discipline, and CLI fallback rules.                 |
-| `references/network.md`                  | Compozy Network channels, peers, inboxes, threads, direct rooms, work items, receipts, traces, and send safety. |
-| `references/memory.md`                   | Memory scopes, read/write/search flows, hygiene, and consolidation boundaries.                                  |
-| `references/tasks-and-orchestration.md`  | Coordinator, worker, and reviewer loops, task authority, session-bound tools, and review verdict rules.         |
-| `references/capabilities-and-bundles.md` | Capabilities, extension resources, bundle presets, hooks, manageability, and config lifecycle.                  |
-| `references/contributing-to-compozy.md`  | Repository contribution rules, Go/runtime expectations, greenfield cuts, and tests.                             |
-| `references/qa-and-verification.md`      | Test placement, verification gates, QA bootstrap, and completion evidence.                                      |
-| `references/docs-design-and-copy.md`     | Site docs, product copy, generated docs, design/copy authorities, and vocabulary.                               |
+| Reference                               | Covers                                                                                                          |
+| --------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `references/runtime-operations.md`      | Daemon state, session lifecycle, session CLI, and runtime troubleshooting.                                      |
+| `references/agent-definitions.md`       | `AGENT.md`, provider defaults, permission modes, agent MCP sidecars, and setup workflow.                        |
+| `references/tools-and-skills.md`        | Tool-first operating model, skill search/view, skill resources, and skill authoring rules.                      |
+| `references/native-tools.md`            | Daemon-native toolsets, stable `compozy__*` IDs, descriptor discipline, and CLI fallback rules.                 |
+| `references/network.md`                 | Compozy Network channels, peers, inboxes, threads, direct rooms, work items, receipts, traces, and send safety. |
+| `references/memory.md`                  | Memory scopes, read/write/search flows, hygiene, and consolidation boundaries.                                  |
+| `references/tasks-and-orchestration.md` | Coordinator, worker, and reviewer loops, task authority, session-bound tools, and review verdict rules.         |
+| `references/capabilities.md`            | Capabilities, extension kits and resources, hooks, manageability, and config lifecycle.                         |
+| `references/contributing-to-compozy.md` | Repository contribution rules, Go/runtime expectations, greenfield cuts, and tests.                             |
+| `references/qa-and-verification.md`     | Test placement, verification gates, QA bootstrap, and completion evidence.                                      |
+| `references/docs-design-and-copy.md`    | Site docs, product copy, generated docs, design/copy authorities, and vocabulary.                               |
 
 ## How bundled loading works
 

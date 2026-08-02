@@ -13,7 +13,7 @@ A backend task has downstream web/docs, agent-manageability, extensibility, or c
 - `internal/config/**` — new TOML keys or sections affect `packages/site/content/runtime/configuration/`.
 - `internal/extension/**`, `internal/bridgesdk/**`, `internal/bridges/**` — extension and bridge surfaces affect the runtime extensibility contract.
 - `internal/hooks/**` — hook taxonomy or payload changes affect extension authors and agent workflows.
-- `internal/skills/**`, `internal/tools/**`, `internal/resources/**`, `internal/bundles/**`, `internal/registry/**`, `internal/mcp/**` — agent capability and extensibility surfaces require docs and manageability review.
+- `internal/skills/**`, `internal/tools/**`, `internal/resources/**`, `internal/extension/**`, `internal/registry/**`, `internal/mcp/**` — agent capability and extensibility surfaces require docs and manageability review.
 - `openapi/compozy.json` — direct OpenAPI edits are the same as `internal/api/contract/**`.
 - Any new exported type with `var _ Interface = (*Type)(nil)` that crosses the contract boundary.
 

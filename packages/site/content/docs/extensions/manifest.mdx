@@ -4,14 +4,14 @@ description: The single source of truth for extension.toml — generated for sub
 ---
 
 `extension.toml` is the daemon's contract for one extension: identity, compatibility floor, provide
-surfaces, permissions, bundled resources, and how to launch the subprocess.
+surfaces, permissions, packaged resources, and how to launch the subprocess.
 
 For a subprocess extension you do not write it. `compozy extension build` runs your built binary in
 describe mode and generates the manifest into an immutable generation directory. Editing a generated
 manifest by hand means editing a file the next build overwrites — change the code instead.
 
 You write `extension.toml` by hand only for **resource-only** extensions: packages that ship skills,
-agents, hooks, bundles, or MCP servers and run no code of their own.
+agents, automation, layouts, hooks, or MCP servers and run no code of their own.
 
 Compozy reads `extension.toml` first and `extension.json` second. Both formats carry the same schema.
 
@@ -143,7 +143,8 @@ root and may not escape it.
 | `resources.skills`         | Markdown skill files parsed like normal `SKILL.md` files.               |
 | `resources.agents`         | Agent definition directories containing `AGENT.md`.                     |
 | `resources.loops`          | Loop definitions.                                                       |
-| `resources.bundles`        | Bundle specs packaging agents, channels, automation, layouts, bridges.  |
+| `resources.automation`     | TOML files or directories declaring package jobs and triggers.          |
+| `resources.layouts`        | Strict `window_layout` JSON files or directories.                       |
 | `resources.hooks`          | Hook declarations, stamped with source `extension`.                     |
 | `resources.tools`          | Extension-host tools. Generated from SDK registrations.                 |
 | `resources.command_groups` | Presentation-only command groups. Generated from `commandGroup(...)`.   |
@@ -208,7 +209,7 @@ display_name = "Slack"
 
 ## `[network_participation]`
 
-Declares that bundle-owned work needs Compozy Network participation.
+Declares that enabling the extension requires Compozy Network Live participation consent.
 
 ```toml
 [network_participation]
@@ -217,16 +218,16 @@ mode = "live"
 channel_scopes = ["builders", "release"]
 ```
 
-| Field            | Required | Notes                                                                                      |
-| ---------------- | -------- | ------------------------------------------------------------------------------------------ |
-| `required`       | yes      | `false` cannot carry a mode or channel scopes.                                             |
-| `mode`           | yes      | Must be `"live"` when the requirement is enabled.                                          |
-| `channel_scopes` | no       | Trimmed, deduplicated, sorted, and digested into the bundle activation requirement digest. |
+| Field            | Required | Notes                                                                            |
+| ---------------- | -------- | -------------------------------------------------------------------------------- |
+| `required`       | yes      | `false` cannot carry a mode or channel scopes.                                   |
+| `mode`           | yes      | Must be `"live"` when the requirement is enabled.                                |
+| `channel_scopes` | no       | Trimmed, deduplicated, sorted, and included in the extension requirement digest. |
 
-Compozy hashes the normalized block into the bundle activation's Network requirement digest.
-Activation requires explicit operator confirmation of that exact version; a changed digest clears the
-prior confirmation and blocks projection until the operator confirms again. Declared channels remain
-inventory — confirmation enrolls no execution into Live.
+Compozy hashes the normalized block into the extension's Network requirement digest. Enable requires
+explicit confirmation of that exact digest. Update compares the candidate digest before swapping any
+files and refuses a changed, unconfirmed requirement without changing installed state. Declared
+channels remain inventory — confirmation does not enroll an execution into Live.
 
 ## Resource-only manifests
 
@@ -242,7 +243,8 @@ min_compozy_version = "0.3.0-beta.1"
 [resources]
 skills = ["skills"]
 agents = ["agents"]
-bundles = ["bundles"]
+automation = ["automation"]
+layouts = ["layouts"]
 
 [resources.mcp_servers.git]
 command = "uvx"
@@ -250,8 +252,9 @@ args = ["mcp-server-git"]
 env = { REPO_ROOT = "{{env:REPO_ROOT}}" }
 ```
 
-These become active as soon as Compozy loads and registers their resources. Install them from a local
-directory or publish them like any other extension.
+Installation is inert. These resources become live only after the extension is enabled, and disable
+removes the extension-owned records. Install from a local directory or publish like any other
+extension.
 
 ## Validate before you ship
 

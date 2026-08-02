@@ -75,7 +75,7 @@ The two together give Compozy a balanced execution model: openclaw-style scenari
 | 05 | memory-soul | memory store + recall + provenance, consolidation cascade, agent soul, lifecycle hooks invocation order | hooks taxonomy + dispatch (→ 04), workspace scoping (→ 02) |
 | 06 | skills-capabilities | skills catalog + loader + VerifyContent, registry, situation, resources projector | hook dispatch (→ 04), extension manifest (→ 08), tool resolution (→ 07) |
 | 07 | tools-sandbox | tool registry + dispatch, toolruntime interrupts, sandbox profiles, MCP sidecars, path-security | hook deny/narrow (→ 04), skill provenance (→ 06) |
-| 08 | extensions-bridges | extension manifest + install + host API, bundle activation, bridges (Slack/Telegram), bridge SDK | skills VerifyContent on extension load (→ 06), workspace scoping (→ 02) |
+| 08 | extensions-bridges | extension manifest + install + kit lifecycle + secrets + host API, bridges (Slack/Telegram), bridge SDK | skills VerifyContent on extension load (→ 06), workspace scoping (→ 02) |
 | 09 | automation-cron | cron expressions, webhook ingress, scheduled triggers, durable scheduler state, DST/timezone | task_run dispatch (→ 04), session spawn lineage (→ 03) |
 | 10 | network-identity | Local/Live participation, durable conversations, bounded wakes, usage, identity authorization | task-run wake substrate (→ 04), public-surface parity (→ 11/12) |
 | 11 | api-cli-parity | contract types, BaseHandlers, HTTP, UDS, CLI cobra, SSE replay, codegen | every endpoint's underlying domain (→ 01..10) |

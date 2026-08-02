@@ -206,9 +206,7 @@ describe("runtime docs truth", () => {
 
     expect(apiReference).toMatch(/built from\s+`openapi\/compozy\.json`/);
     expect(apiReference).toContain("make codegen-check");
-    expect(apiReference).not.toMatch(
-      /does not yet cover every implemented\s+streaming and bundle route/
-    );
+    expect(apiReference).not.toMatch(/does not yet cover every implemented\s+route/);
     expect(content).toContain("The API route map lists the implemented route families");
   });
 

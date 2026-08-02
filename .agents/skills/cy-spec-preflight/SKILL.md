@@ -60,7 +60,7 @@ Phase-specific checks below. Run only the relevant block. Use the "before author
 3. Confirm "No fallback / no compat shim / no placeholder" clauses are present where breaking changes apply.
 4. Confirm Test Plan is per-section bullet list with concrete assertions and verification commands.
 5. Confirm Public Interfaces / Types section enumerates routes, payloads, CLI verbs, config keys.
-6. Confirm Extensibility Integration Plan enumerates extension manifests, hooks, skills/capabilities, tools/resources, bundles, registries, bridge SDKs, MCP sidecars, and protocol docs that are added/changed/removed or explicitly unaffected.
+6. Confirm Extensibility Integration Plan enumerates extension manifests, hooks, skills/capabilities, tools/resources, registries, bridge SDKs, MCP sidecars, and protocol docs that are added/changed/removed or explicitly unaffected.
 7. Confirm Agent Manageability Plan enumerates CLI verbs, HTTP endpoints, UDS routes, structured outputs, status/config discovery, and deterministic errors agents will use.
 8. Confirm Config Lifecycle section enumerates `config.toml` keys/defaults, merge/overlay behavior, validation, examples, generated CLI/site docs, and tests that are added/changed/removed or explicitly unaffected.
 9. Confirm Assumptions/Defaults section closes the spec.

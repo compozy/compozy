@@ -11,23 +11,23 @@ charter:
     network: wifi-fast
     locale: en-US
   journey: J-agent-marketplace-parity
-  scenarios: [ET-api-marketplace-namespace, ET-cli-marketplace-search, ET-cli-marketplace-info, ET-cli-marketplace-refresh, ET-cli-mcp-install, ET-api-mcp-catalog-install, ET-cli-mcp-authorize, ET-002, ET-007, ET-008, ET-016, ET-025, ET-026, ET-027, ET-028, ET-049]
+  scenarios: [ET-api-marketplace-namespace, ET-cli-marketplace-search, ET-cli-marketplace-info, ET-cli-marketplace-refresh, ET-cli-mcp-install, ET-api-mcp-catalog-install, ET-cli-mcp-authorize, ET-002, ET-007, ET-008, ET-016, ET-ext-inventory, ET-ext-preview, ET-049]
   tour: Feature Tour
   time_box_minutes: 90
   guidance:
     must_try:
-      - "For one daemon state, capture `compozy marketplace search -o json` (idle and queried), the HTTP and UDS responses, and the compozy__marketplace_search result: grouped kind order fixed (mcp/extension/skill/bundle), totals only where real, installed/update fields identical across the four discovery planes. Do not infer native mutation support from this read-only tool."
+      - "For one daemon state, capture `compozy marketplace search -o json` (idle and queried), the HTTP and UDS responses, and the compozy__marketplace_search result: grouped kind order fixed (mcp/extension/skill), totals only where real, installed/update fields identical across the four discovery planes. Do not infer native mutation support from this read-only tool."
       - "Resolve info by an entry whose display name differs from entry_id; then probe unknown kind, unknown entry, blank segments, invalid limit — each error deterministic (400/404) and identical across CLI/HTTP/UDS; confirm the deleted legacy browse routes return 404."
       - "Exercise the focused projections explicitly: `compozy skill search <query> -o json`, resolve the selected entry with `compozy skill info <entry_id> -o json`, install it and read effective metadata with `compozy skill inspect <installed-name> -o json`, then run `compozy extension search <query> -o json`. Compare each response with its unified namespace or installed-lifecycle owner."
       - "Install a curated MCP entry twice: once complete (typed + vault-ref values, next_step correct, provenance stamped, refs visible without values) and once missing a required value or overriding a locked template field — the rejection must leave config, vault, and provenance provably untouched on fresh reads."
       - "Install the same entry into two workspaces and authorize both via `compozy mcp auth login`: distinct scoped tokens AND distinct canonical secret_env refs per workspace; each login command exits non-zero unless its exact target reaches authenticated && token_present."
-      - "Run `compozy bundle preview`, `compozy bundle activate`, and `compozy bundle update` against the same activation exercised through HTTP and UDS: preview writes nothing, activation inventory/scope agree, and update clears a deliberately induced spec_drift after re-applying the current profile."
-      - "Refresh with an isolated feed: per-kind structured outcomes, --kind bundle rejected without projection mutation, a downed feed served stale-marked while installed-item management still works; break one kind's source and prove the grouped search isolates the failure to that kind's error field."
+      - "Run `compozy extension inventory` and `compozy extension preview` against the same installed extension exercised through HTTP, UDS, and native tools: shipped/live inventory agrees and preview writes nothing."
+      - "Refresh with an isolated feed: per-kind structured outcomes for MCP, extension, and skill; an unsupported kind is rejected without projection mutation; a downed feed is stale-marked while installed-item management still works."
       - "Confirm `compozy__marketplace_search` is registered and callable with search behavior mirroring HTTP/UDS, verify every other compozy__* ID explicitly named by an in-scope scenario is registered and callable for its own documented contract (ET-049), and scan all structured output, events, and logs for plaintext secrets or OAuth material."
     must_avoid:
       - "Web surfaces entirely; extension policy administration beyond reading diagnostics (CH-extension-policy-admin-gates); manual paste-back completion (CH-remote-operator-manual-auth)."
   evidence_expectations:
-    - "Field-level diff artifacts by supported plane: CLI vs HTTP vs UDS vs native for search; CLI vs HTTP vs UDS for info, install result, auth status, and bundle lifecycle — the SD-011 parity proof."
+    - "Field-level diff artifacts by supported plane: CLI vs HTTP vs UDS vs native for search and extension kit reads; CLI vs HTTP vs UDS for info, install result, and auth status — the SD-011 parity proof."
     - "For each rejected install: the deterministic error payload plus fresh config/vault/provenance reads proving zero residue — the agent-plane born-valid capture."
     - "The two-workspace isolation reads (tokens and secret_env refs) and the redaction scan notes."
 ```

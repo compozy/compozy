@@ -11,7 +11,7 @@ charter:
     network: wifi-fast
     locale: en-US
   journey: J-administer-network-live
-  scenarios: [ET-030, NB-001, NB-023]
+  scenarios: [ET-ext-network-confirm, NB-001]
   tour: Back-Button Tour
   time_box_minutes: 60
   guidance:
@@ -19,7 +19,7 @@ charter:
       - "Enter through every scenario's named public surface and capture the final observable from a fresh read."
       - "Exercise one failure, interruption, or invalid-input branch without masking it through an alternate surface."
       - "Compare public surfaces wherever parity is part of the expected behavior."
-      - "Prioritize these representative observables first: Bundle network settings; Network runtime status; Bundle network onboarding settings."
+      - "Prioritize these representative observables first: Extension network requirement confirmation; Network runtime status."
     must_avoid:
       - "Do not inherit a verdict from the historical charter or static implementation evidence."
       - "Do not rewrite the historical charter; record this run only in the current report."

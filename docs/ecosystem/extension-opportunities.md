@@ -3,7 +3,7 @@
 - **Language:** English · [Português (Brasil)](ptbr/extension-opportunities.md)
 - **Status:** research reference and opportunity catalog, not a committed roadmap
 - **Research snapshot:** 2026-07-17
-- **Companion documents:** [Ecosystem opportunity map](README.md) · [Outcome bundles](bundle-opportunities.md)
+- **Companion document:** [Ecosystem opportunity map](README.md)
 
 ## Purpose
 
@@ -16,13 +16,13 @@ The unit of this catalog is deliberately atomic:
 - A service extension connects one service or one coherent service boundary.
 - An operation provider performs one reusable function, such as document extraction or webhook ingress.
 - An atomic extension may package tools, skills, hooks, a watch source, or a local MCP server, but it should not silently install a persona or begin recurring work.
-- Outcome, persona, and vertical packages belong in [the bundle catalog](bundle-opportunities.md), where several atomic extensions can be composed behind an explicit activation and approval boundary.
+- Outcome, persona, and vertical packages are extension kits with their own lifecycle and ownership boundary. Editorial collections may recommend several independently managed packages.
 
 ## Current Compozy fit
 
-The current implementation supports installable, versioned extensions with provenance, trust state, enablement, and lifecycle management. A manifest can package skills, Loops, agents, bundles, typed hooks, manifest tools, and command-launched MCP servers. A subprocess extension can provide runtime contracts such as tool.provider, loop.watch_source, memory.backend, model.source, and bridge.adapter, subject to declared Host API method and security capability grants.
+The current implementation supports installable, versioned extensions with provenance, trust state, enablement, and lifecycle management. A manifest can package skills, Loops, agents, automation, layouts, typed hooks, manifest tools, and command-launched MCP servers. A subprocess extension can provide runtime contracts such as tool.provider, loop.watch_source, memory.backend, and model.source, subject to declared Host API method and security capability grants.
 
-Bundle profiles currently project Compozy Network channels, agents, optional Soul and Heartbeat sidecars, jobs, triggers, and external messaging bridge presets. Profile activation does not install arbitrary extension dependencies and does not profile-scope extension-level skills, Loops, hooks, tools, or MCP servers. Therefore, most rows below are extension candidates; a plug-and-play outcome that composes several rows still needs preinstalled dependencies or future dependency resolution.
+An extension kit can publish agents with Soul and Heartbeat sidecars, automation jobs and triggers, layouts, skills, Loops, and MCP sidecars when the extension is enabled. It does not install arbitrary extension dependencies. Therefore, every row below is an independently owned extension or MCP candidate; multi-package recommendations remain editorial collections.
 
 Two current constraints materially affect this catalog:
 
@@ -54,7 +54,7 @@ Priority is directional product judgment, not verified demand.
 | **HK** | Typed Compozy lifecycle hook; not a generic substitute for provider webhooks. |
 | **LP** | Packaged deterministic Loop. |
 | **MCP-L** | Command-launched local MCP server declared by the extension. Hosted MCP enrollment requires PE-004. |
-| **BD** | Bundle catalog or profile projection. |
+| **KIT** | Static extension kit resource or lifecycle work. |
 | **BA** | bridge.adapter implementation. Third-party distribution requires PE-014. |
 | **CORE** | Daemon, registry, SDK, permission, or lifecycle work; not representable as an extension alone today. |
 
@@ -114,7 +114,7 @@ The following are intentionally separated from atomic service extensions. Each r
 > | --- | --- | --- |
 > | ✅ **Accepted** | **PE-015 — liveness/health only** | Knowing whether a stored credential is alive (ok / expired / revoked / missing) is real value; the `bind a secret to one permission grant` half of PE-015 is **rejected**. |
 > | ☑️ Already implemented | PE-004, PE-007, PE-010 | Hosted MCP enrollment + OAuth, webhook ingress router, and tool risk metadata already ship today. |
-> | ⛔ **Rejected — do not build** | PE-001, PE-002, PE-003, PE-005, PE-006, PE-008, PE-009, PE-011, PE-012, PE-013, PE-014, PE-016, PE-017, PE-018 | No-code API import/compile, generic OAuth broker, third-party authoring kits, sandbox/egress, signing/registry/conformance, and bundle composition (dependency resolution, profile-scoped resources, capability contracts) are out of scope for the core/engine roadmap. |
+> | ⛔ **Rejected — do not build** | PE-001, PE-002, PE-003, PE-005, PE-006, PE-008, PE-009, PE-011, PE-012, PE-013, PE-014, PE-016, PE-017, PE-018 | No-code API import/compile, generic OAuth broker, third-party authoring kits, sandbox/egress, signing/registry/conformance, and cross-extension composition are out of scope for the core/engine roadmap. |
 
 | Decision | ID | Candidate | P | User and outcome | Compozy surface | Risk / access | Evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -133,9 +133,9 @@ The following are intentionally separated from atomic service extensions. Each r
 | ⛔ rejected | PE-013 | Extension conformance harness | P0 | Publishers prove clean install, auth failure, scope denial, pagination, rate limit, idempotency, partial failure, cleanup, and removal behavior. | CORE+TP+TL | R2/A0 | V:OAI · V:Compozy · I:Compozy |
 | ⛔ rejected | PE-014 | Third-party bridge SDK and marketplace grants | P0 | Messaging bridge authors build and test adapters through a supported SDK, conformance suite, and explicit marketplace permission lane. | CORE+BA | R3/A2 | V:Compozy · I:Compozy |
 | ✅ accepted (health only) | PE-015 | Permission-scoped secret bindings and health | P0 | Operators bind a secret to one extension permission grant, validate it without disclosure, and distinguish missing, expired, denied, and unhealthy states. **Accepted scope: liveness/health only; the secret→permission-grant binding is rejected.** | CORE+TP | R3/A1 | V:INT · V:Compozy · I:Compozy |
-| ⛔ rejected | PE-016 | Transactional dependency resolution and activation | P1 | A bundle resolves required, optional, and one-of extensions; previews permissions; activates atomically; and rolls back owned resources on failure. | CORE+BD | R3/A0 | V:Compozy · P:ANTH · P:OAI · I:Compozy |
-| ⛔ rejected | PE-017 | Profile-scoped static resource activation | P0 | Bundle authors select only the skills, Loops, hooks, tools, and MCP servers required by one profile without exposing every static resource in the owning extension. | CORE+BD | R3/A0 | V:Compozy · I:Compozy |
-| ⛔ rejected | PE-018 | Provider and capability contracts | P0 | Bundle authors require a conforming calendar, CRM, work-management, media, or peer capability interface and let operators select a compatible implementation. | CORE+BD | R3/A0 | V:Compozy · P:OAI · P:ANTH · I:Compozy |
+| ⛔ rejected | PE-016 | Transactional cross-extension dependency resolution | P1 | One package resolves and activates required, optional, and one-of extensions as a hidden composition graph. | CORE+KIT | R3/A0 | V:Compozy · P:ANTH · P:OAI · I:Compozy |
+| ⛔ rejected | PE-017 | Profile-scoped static resource activation | P0 | An alternate profile layer selects only part of an extension's static resources instead of using the extension lifecycle. | CORE+KIT | R3/A0 | V:Compozy · I:Compozy |
+| ⛔ rejected | PE-018 | Generic provider selection contracts | P0 | A package requires an abstract calendar, CRM, work-management, media, or peer interface and selects another implementation at activation time. | CORE+KIT | R3/A0 | V:Compozy · P:OAI · P:ANTH · I:Compozy |
 
 ## Atomic service and provider catalog
 
@@ -394,7 +394,7 @@ The following are intentionally separated from atomic service extensions. Each r
 
 ## Portfolio decisions
 
-P0 is a portfolio tier, not a direction to build all 75 P0 rows at once. The first implementation tranche should prove the safety and authoring substrate, then select a small provider set that unlocks several outcome bundles.
+P0 is a portfolio tier, not a direction to build all 75 P0 rows at once. The first implementation tranche should prove the safety and authoring substrate, then select a small provider set that supports several outcome-focused extension kits.
 
 ### Recommended sequence
 
@@ -403,16 +403,16 @@ P0 is a portfolio tier, not a direction to build all 75 P0 rows at once. The fir
    > ~~Trust and permission foundation: PE-006, PE-009, PE-010, PE-011, PE-013, PE-015. Authoring and event foundation: PE-001, PE-002, PE-004, PE-007, PE-008, PE-017, PE-018.~~ Superseded.
 3. **Personal, household, and team core:** PW-001, PW-002, PW-003, PW-006, PW-007, PW-009, PW-010, PW-011, and PW-017. Together they cover email, calendar, files, enterprise knowledge, lightweight databases, both Google and Microsoft audiences, and a self-hosted home-automation gateway.
 4. **Business system anchors:** choose one initial CRM from SR-001 through SR-004, one support desk from CS-001, CS-002, CS-004, or CS-005, Shopify (CP-001), Stripe (CP-007), and one accounting provider from FL-001 or FL-002. Provider choice should follow design-partner access, not catalog popularity alone.
-5. **Visible-output providers:** Zoom or one meeting-record provider, Figma or Canva, Cloudinary, and YouTube make meeting, campaign, creator, and launch bundles produce inspectable results.
+5. **Visible-output providers:** Zoom or one meeting-record provider, Figma or Canva, Cloudinary, and YouTube make meeting, campaign, creator, and launch kits produce inspectable results.
 6. **Technical operator set:** DA-001, DA-002, DA-003, EC-001, EC-003, EC-005, EC-006, EC-009, EC-010, and EC-011 provide a coherent read-first data and delivery collection without duplicating the existing GitHub bridge.
-7. **Long-tail expansion:** add P1 and P2 providers only when a maintained bundle, design partner, or verified demand signal supplies an owner, access path, conformance fixtures, and first-success outcome.
+7. **Long-tail expansion:** add P1 and P2 providers only when a maintained extension kit, design partner, or verified demand signal supplies an owner, access path, conformance fixtures, and first-success outcome.
 
 ### Selection gates
 
 A candidate is ready to move from catalog to TechSpec only when all of the following are answered:
 
 1. **Upstream authority:** Which provider-owned API, MCP server, GraphQL endpoint, webhook, CLI, or supported export is used? What terms, plans, regions, app reviews, and partner agreements apply?
-2. **Atomic boundary:** What single service or provider responsibility does the extension own? Which persona, schedule, and multi-service outcome remain in a bundle?
+2. **Atomic boundary:** What single service, provider, or outcome responsibility does the extension own? Which concerns stay outside its lifecycle?
 3. **Operation allowlist:** Which reads and writes ship first? Which R2 or R3 operations are omitted, draft-only, or approval-gated?
 4. **Credential lifecycle:** How are scopes acquired, tenant/account identity selected, secrets bound, health checked, rotated, and revoked?
 5. **Workspace isolation:** Is each credential and datum global-, workspace-, session-, or agent-scoped? How are workspace identity, pagination, caches, events, and delivery kept isolated?
@@ -432,8 +432,8 @@ Evidence was recorded at catalog or documentation level, not as a full technical
 
 | Code | Source | Verified fact used here |
 | --- | --- | --- |
-| V:Compozy | [Extension manifest](../../internal/extension/manifest.go), [bundle specification](../../internal/extension/bundle.go), [extension grants](../../internal/extension/capability.go), and [dev-cycle reference extension](../../extensions/dev-cycle/extension.json) | Current resource fields, subprocess lifecycle, provider contracts, Host API grants, and tool/watch-source precedent. |
-| V:Compozy | [Extension development guide](../../packages/site/content/runtime/core/extensions/develop.mdx), [install and trust guide](../../packages/site/content/runtime/core/extensions/install.mdx), and [capabilities and bundles reference](../../skills/compozy/references/capabilities-and-bundles.md) | Publicly documented extension lifecycle, stricter marketplace grants, agent manageability, bundle projection, and current bridge authoring limitation. |
+| V:Compozy | [Extension manifest](../../internal/extension/manifest.go), [extension grants](../../internal/extension/capability.go), and [dev-cycle reference extension](../../extensions/dev-cycle/extension.json) | Current resource fields, subprocess lifecycle, provider contracts, Host API grants, and tool/watch-source precedent. |
+| V:Compozy | [Extension development guide](../../packages/site/content/docs/extensions/develop.mdx), [install and trust guide](../../packages/site/content/docs/extensions/install.mdx), and [capabilities reference](../../skills/compozy/references/capabilities.md) | Publicly documented extension lifecycle, kit publication, stricter Marketplace grants, and agent manageability. |
 | V:Compozy | [Bridge provider baseline](../../extensions/bridges/README.md) | Eight production in-tree providers and the explicit build/install process; released artifacts do not include or auto-install their executables. |
 
 ### Primary ecosystem sources
@@ -457,7 +457,7 @@ Evidence was recorded at catalog or documentation level, not as a full technical
 | P:MCP-A | [punkpeye/awesome-mcp-servers](https://github.com/punkpeye/awesome-mcp-servers) and [wong2/awesome-mcp-servers](https://github.com/wong2/awesome-mcp-servers) | Community breadth for MCP-accessible systems. Every server still needs origin, permission, dependency, and maintenance review. |
 | P:SKILL-A | [awesome-claude-skills](https://github.com/ComposioHQ/awesome-claude-skills) and [awesome-claude-code](https://github.com/subinium/awesome-claude-code) | Community breadth for reusable operational skills and developer tooling, not proof of a production connector. |
 | P:HER | [Hermes Home Assistant plugin](../../.resources/hermes/plugins/platforms/homeassistant/), [tool registration](../../.resources/hermes/tools/homeassistant_tool.py), and [fake integration server](../../.resources/hermes/tests/fakes/fake_ha_server.py) | Concrete local precedent for credential-gated Home Assistant state retrieval, events, and device actions; not evidence of a Compozy implementation. |
-| I:Compozy | This catalog, informed by the current Compozy model and [ecosystem opportunity map](README.md) | Product inference covering candidate selection, atomic boundary, priority, outcome, implementation surface, risk, access class, and bundle leverage. |
+| I:Compozy | This catalog, informed by the current Compozy model and [ecosystem opportunity map](README.md) | Product inference covering candidate selection, atomic boundary, priority, outcome, implementation surface, risk, access class, and kit reuse. |
 
 ## Catalog audit
 
@@ -481,9 +481,9 @@ This is a catalog-shape audit, not provider conformance or market validation. No
 ## Compozy Impact Audit
 
 - **Native tools:** no runtime impact. This document adds no compozy__ tool IDs, descriptors, schemas, digests, risk flags, availability diagnostics, capability gates, or fallbacks.
-- **Extensibility and hooks:** no runtime impact. The current manifest, provider contracts, typed hooks, registries, bridge authoring limit, MCP packaging, bundle projection, trust model, and config lifecycle were reviewed; no extension or registry behavior changes.
+- **Extensibility and hooks:** no runtime impact. The current manifest, provider contracts, typed hooks, registries, MCP packaging, extension kit lifecycle, trust model, and config lifecycle were reviewed; no runtime behavior changes.
 - **Workspace data isolation:** no runtime datum is added. Every future connector must classify credential and data scope and prove workspace identity through CLI, HTTP/UDS, core, store, cache, events, and delivery paths.
-- **Official Compozy skill:** no impact. The canonical capabilities-and-bundles reference was checked; no public behavior or agent guidance changed.
+- **Official Compozy skill:** aligned with the canonical `capabilities.md` reference; this catalog introduces no additional public behavior or agent guidance.
 
 ## Web, docs, config, and QA impact
 

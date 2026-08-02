@@ -174,7 +174,7 @@ Ongoing engineering posture, not date-stamped per-task plans. These are perpetua
 
 **Required behavior:**
 
-- Every PRD, TechSpec, `_tasks.md`, and task body that creates, updates, or removes a feature states the impact on Compozy extensibility surfaces: extensions, hooks, skills/capabilities, tools/resources, bundles, registries, bridge SDKs, MCP sidecars, and protocol docs.
+- Every PRD, TechSpec, `_tasks.md`, and task body that creates, updates, or removes a feature states the impact on Compozy extensibility surfaces: extensions, hooks, skills/capabilities, tools/resources, registries, bridge SDKs, MCP sidecars, and protocol docs.
 - Every user-visible or operator-visible capability has an agent-manageability plan: CLI verbs with structured output, HTTP/UDS parity when daemon state crosses the boundary, deterministic error contracts, discoverable status, and documentation for the agent path.
 - Every CLI command, HTTP endpoint, UDS route, generated contract type, and site reference is added, updated, or deleted in the same change as the feature it manages.
 - Every `config.toml` addition, update, removal, or no-longer-needed key is handled as a lifecycle change: structs, defaults, merge/overlay behavior, validation, examples, docs, and tests move together.

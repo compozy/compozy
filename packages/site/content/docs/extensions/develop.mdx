@@ -383,10 +383,10 @@ Soul tool.
 
 ## Ship resources, not only code
 
-Any extension may bundle static resources the daemon loads while it is enabled: skills, agent
-definitions, loops, bundles, hooks, and MCP servers. Paths resolve inside the extension root and may
-not escape it; `{{config_dir}}` expands to that root and `{{env:NAME}}` reads the daemon process
-environment.
+Any extension may ship a static kit that the daemon publishes while the extension is enabled:
+skills, agent directories, automation TOML, layout JSON, loops, hooks, and MCP servers. Paths resolve
+inside the extension root and may not escape it; `{{config_dir}}` expands to that root and
+`{{env:NAME}}` reads the daemon process environment.
 
 Field-by-field reference: [Extension Manifest](/docs/extensions/manifest).
 
@@ -398,31 +398,68 @@ patch to stdout; do not point a hook declaration at a long-running server mode.
 
 See [Hook Declaration Format](/docs/hooks/declaration).
 
-### Bundle profile agents
+### Agents, automation, and layouts
 
-Static `resources.agents` entries are always-on. Use bundle profile agents when an agent should exist
-only while a bundle profile is active:
+Declare each agent collection as a directory whose direct children are agent directories:
 
 ```text
-marketing-linear/
+review-pack/
   extension.toml
-  bundles/marketing.toml
-  agents/campaign-planner/{AGENT.md,mcp.json,capabilities.toml,SOUL.md,HEARTBEAT.md}
+  agents/reviewer/{AGENT.md,mcp.json,capabilities.toml,SOUL.md,HEARTBEAT.md}
+  automation/review.toml
   layouts/two-up.json
 ```
 
-Each `path` resolves relative to the extension root, must stay inside it, and must point at a
-directory containing `AGENT.md`. Compozy loads it through the normal agent loader, so `mcp.json`,
-`capabilities.toml`, and `capabilities/` behave identically. Optional `SOUL.md` and `HEARTBEAT.md`
-are packaged as read-only bundle defaults: activation materializes `agent`, `agent.soul`, and
-`agent.heartbeat` resources owned by the activation, using synthetic diagnostic paths under
-`.compozy/bundles/<activation-id>/`. No package files are copied into a writable workspace folder.
+Each direct agent directory must contain `AGENT.md`. Optional `SOUL.md` and `HEARTBEAT.md` sidecars
+are parsed with the same strict authored-context loaders used elsewhere; `mcp.json`,
+`capabilities.toml`, and `capabilities/` retain their normal meaning. Enable fails before publication
+when a shipped agent name conflicts with a visible agent or a reserved builtin name.
 
-Activation fails when a bundled agent name collides with an existing visible agent in the target
-scope, or when a bundled job or trigger references an agent that is neither packaged by the profile
-nor present in the agent catalog. Layout paths must resolve inside the extension root and contain one
-strict `window_layout` resource; the activation owns the projected layout and removes it on
-deactivation. See [Bundles](/docs/resources/bundles).
+Automation declarations are TOML files. Jobs and triggers must target an agent shipped by the same
+extension:
+
+```toml
+[[jobs]]
+name = "weekly-review"
+agent = "reviewer"
+prompt = "Review the current workspace and report risks."
+
+[jobs.schedule]
+mode = "cron"
+expr = "0 9 * * 1"
+```
+
+Layout declarations are strict `window_layout` JSON resources. A minimal global template starts
+with the versioned resource and snapshot shapes:
+
+```json
+{
+  "version": 1,
+  "id": "two-up",
+  "display_name": "Two up",
+  "participant_slots": ["primary", "secondary"],
+  "document": {
+    "version": 2,
+    "workspace_id": "",
+    "desktops": [
+      {
+        "id": "desktop-default",
+        "name": "Desktop 1",
+        "purpose": "standard",
+        "groups": [],
+        "floating": []
+      }
+    ],
+    "windows": {},
+    "overrides": {}
+  }
+}
+```
+
+Install copies the package but publishes nothing. Enable publishes the agent, sidecars, automation,
+and layouts with extension ownership; disable removes that owned set. Use
+`compozy extension preview <name>` before enabling and `compozy extension inventory <name>` to compare
+what the package ships with what is live.
 
 ## Runtime failure and recovery
 

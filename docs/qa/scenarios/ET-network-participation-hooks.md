@@ -13,9 +13,10 @@ retest_status: pass
 fix_commits: pending final whole-diff commit
 evidence: docs/qa/evidence/2026-07-14-network-changes/ch-network-admin-lifecycle.md
 last_report: docs/qa/reports/2026-07-14-network-changes.md
-overlaps: ET-026;NB-agent-manages-participation
+overlaps: ET-ext-network-confirm; NB-agent-manages-participation
 ---
 
 Derived from the extension side effect of the administration flow and the extensibility audit. Exercise allow, deny, narrow, attempted widen, and cross-workspace inputs through a real installed test extension; the hook may influence one resolution only and never mutates an in-flight snapshot.
 
-This is not a browser scenario. Structured extension-host evidence and an independent owner read settle it; bundle confirmation remains owned by `ET-025` through `ET-030`.
+This is not a browser scenario. Structured extension-host evidence and an independent owner read
+settle it; extension lifecycle confirmation is owned by `ET-ext-network-confirm`.

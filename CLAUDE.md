@@ -26,7 +26,7 @@ No production users. Never sacrifice quality for backward compatibility; never w
 
 - **TechSpec peer review is opt-in, after draft approval.** `cy-create-techspec` presents + saves the approved draft first, then offers `cy-spec-peer-review`. Apply only user-selected findings.
 - **Every backend task carries a `Web/Docs Impact` subitem** — affected `web/` routes/components/hooks AND `packages/site` docs. "No impact" only after analysis.
-- **Every spec/feature carries an extensibility + agent-manageability + config-lifecycle analysis** — how it wires into extension surfaces (extensions, hooks, skills/capabilities, tools/resources, bundles, registries, bridge SDKs), which CLI/HTTP/UDS surfaces let agents manage it, and which `config.toml` keys/defaults/docs change. "No impact" needs explicit evidence.
+- **Every spec/feature carries an extensibility + agent-manageability + config-lifecycle analysis** — how it wires into extension surfaces (extensions, hooks, skills/capabilities, tools/resources, registries, bridge SDKs), which CLI/HTTP/UDS surfaces let agents manage it, and which `config.toml` keys/defaults/docs change. "No impact" needs explicit evidence.
 - **Reference competitors by file path in tasks.** `.resources/<repo>/`-backed tasks list explicit competitor paths; analysis files go under `.compozy/tasks/<slug>/analysis/`.
 - **Worktree isolation is mandatory for parallel QA** — unique `COMPOZY_HOME`, daemon ports, and `tmux-bridge` sockets. Default home/port is forbidden when concurrency is signaled.
 - **Deterministic QA bootstrap for local release/scenario QA** — start with `eng-qa-bootstrap`; fresh lab per pass; reuse a `bootstrap-manifest.json` only when continuing the same active QA loop. QA state lives in the committed `docs/qa/` tree (`scenarios/*.md`, content-addressed bugs, journeys, charters, dated reports); `state.csv` is a gitignored generated view, and the lab holds only run-scratch evidence indexed by path.
@@ -46,7 +46,7 @@ Every feature, bug fix, refactor, public-contract/CLI/API/native-tool/config/doc
 Compozy Impact Audit:
 
 - Native tools: <changed tool IDs/toolsets/descriptors/schema digests/capability gates/tests, or no impact + checked surfaces>
-- Extensibility and hooks: <extensions, hooks, skills/capabilities, tools/resources, bundles, registries, bridge SDKs, MCP sidecars, config lifecycle, or no impact + checked surfaces>
+- Extensibility and hooks: <extensions, hooks, skills/capabilities, tools/resources, registries, bridge SDKs, MCP sidecars, config lifecycle, or no impact + checked surfaces>
 - Workspace data isolation: <global/workspace/session/agent scope + workspace_id propagation through CLI/HTTP/UDS/core/store/web/SSE/cache/events + tests, or no impact + checked surfaces>
 - Official Compozy skill: <skills/compozy/ updates, or no impact + checked surfaces>
 ```
@@ -54,7 +54,7 @@ Compozy Impact Audit:
 - `No impact` is valid only when it names the exact checked surfaces and why they're unchanged.
 - **Native tools** = `compozy__*` IDs, toolsets, descriptors, I/O schemas, digests, risk flags, availability diagnostics, capability gates, CLI/API fallbacks.
 - **Workspace data isolation** = runtime data ownership (not QA/worktree isolation): classify each new/changed datum as global/workspace/session/agent-scoped and prove list/read/cache/SSE/event paths can't leak across workspaces.
-- **Official Compozy skill** updates are required when public behavior, tool IDs, CLI paths, hook events, capabilities, bundles/resources, or memory/network/task semantics change. Canonical bundled skill: `skills/compozy/`.
+- **Official Compozy skill** updates are required when public behavior, tool IDs, CLI paths, hook events, capabilities, extension resources, or memory/network/task semantics change. Canonical built-in skill: `skills/compozy/`.
 
 ## Design System
 

@@ -1,4 +1,4 @@
-# Capabilities And Bundles
+# Capabilities
 
 ## Contents
 
@@ -6,7 +6,7 @@
 - Extensibility surfaces
 - Cross-surface impact audit
 - Agent manageability
-- Bundles
+- Extension kits
 - Extension install trust
 - Extension authoring and dev loop
 - Hooks
@@ -27,7 +27,7 @@ When adding or changing Compozy behavior, decide which surfaces are affected:
 - hooks
 - skills and capabilities
 - tools and toolsets
-- bundles
+- extension resource kits
 - registries
 - bridge SDKs
 - MCP sidecars
@@ -41,7 +41,7 @@ No-impact is acceptable only when there is evidence.
 For any feature, bug fix, refactor, contract/API/CLI/native-tool/config/docs update, or runtime behavior change, record the Compozy impact decision before claiming the change complete:
 
 - Native tools: tool IDs, toolsets, descriptors, input/output schemas, schema digests, risk flags, availability diagnostics, capability gates, and agent CLI/API fallbacks.
-- Extensibility and hooks: extension resources, hook taxonomy and dispatch call sites, skills/capabilities, tools/resources, bundles, registries, bridge SDKs, MCP sidecars, config lifecycle, docs, and tests.
+- Extensibility and hooks: extension resources, hook taxonomy and dispatch call sites, skills/capabilities, tools/resources, registries, bridge SDKs, MCP sidecars, config lifecycle, docs, and tests.
 - Workspace data isolation: whether data is global, workspace-scoped, session-scoped, or agent-scoped; `workspace_id` flow through CLI/HTTP/UDS/core/store/web/SSE/cache/events; and cross-workspace leak tests for list/read/cache/event paths.
 - Official Compozy skill: `skills/compozy/SKILL.md` and `skills/compozy/references/*.md` guidance that must change when public behavior or agent-operable surfaces change.
 
@@ -59,37 +59,17 @@ Every user-visible runtime capability needs an agent-operable path:
 
 UI-only management is incomplete.
 
-## Bundles
+## Extension Kits
 
-Bundles activate related runtime resources together. Treat bundle projection as daemon-owned state. Do not make a bundle depend on prompt prose for authority.
+An extension kit is the static resource set shipped by one extension: skills, agents, Loops, automation jobs and triggers, layouts, and MCP sidecars. The manifest owns the paths. Installation keeps the kit inert; enabling the extension publishes its resources, and disabling it removes only resources owned by that extension instance.
 
-Bundle activation reads expose `version`. Before confirming a changed Live requirement, read the activation with `compozy bundle get <id> -o json`, then pass that value to `compozy bundle update <id> --expected-version <version> --confirm-network-requirement -o json`. A `409 Conflict` means the activation changed; reread it and inspect the current digest instead of retrying with a stale version.
+Inspect the shipped-versus-live view with `compozy extension inventory <name> -o json`, `GET /api/extensions/{name}/inventory`, or `compozy__extensions_inventory`. Preview the effect of enable, update, or disable with `compozy extension preview <name> --action <enable|update|disable> -o json`, its HTTP/UDS route, or `compozy__extensions_preview`. Inventory and preview are reads; they never publish resources.
 
-When changing bundle behavior, update resources, registries, config docs, CLI/API surfaces, and tests in the same change. Greenfield Compozy favors hard cuts over compatibility bridges.
+Extensions declare required environment variable names. Bind an existing Vault reference with `compozy extension secrets set <name> <key> --vault-ref <ref>`, or enter a value through stdin or a hidden prompt. List and unset bindings through CLI or HTTP/UDS. Reads expose bound key names only, never values or Vault references. Bindings are scoped to the extension instance.
 
-Activation list and detail payloads expose `spec_drift` by comparing the stored activation spec hash with the current installed bundle profile. Use `compozy bundle list -o json` or the activation API to inspect it. Reapply with `compozy bundle update <activation-id> -o json`; a successful reapply reconciles current resources, stores the current hash, and clears drift. Activation timestamps are informational and never signal bundle updates.
+If a candidate extension changes its normalized Network Live requirement, enable or update returns `extension_network_confirmation_required` with the exact digest before changing active state. Inspect that digest and retry with `--confirm-network-digest <digest>` or the equivalent `confirm_network_digest` request field. Do not confirm a stale or reconstructed digest. Confirmation records consent to the requirement; it does not enroll an execution into Live participation.
 
-Bundle profiles can package declarative window layouts by path:
-
-```toml
-[[profiles.layouts]]
-path = "layouts/two-up.json"
-```
-
-Each file is one strict `window_layout` resource JSON document. The path must remain inside the extension root after symlink resolution. Extension load validates the authored resource; preview and activation validate it again in the target scope. Materialization derives an activation-scoped record/spec ID, exposes the layout in activation payloads and inventory, and removes only that activation's owned record during reconciliation or deactivation. Never copy the authored ID directly into storage or bypass the canonical codec.
-
-A subprocess extension that publishes layouts directly must declare the generic Host API permissions and family:
-
-```toml
-[permissions]
-requires = ["resources/list", "resources/get", "resources/snapshot"]
-
-[resources.publish]
-families = ["window_layouts"]
-max_scope = "workspace"
-```
-
-`window_layouts` grants only kind `window_layout`. `max_scope = "workspace"` requests workspace-scoped publication; use `global` only when the source must also publish global layouts. Source tier, operator policy, and runtime session may narrow it further. `resources/snapshot` is complete desired state for that extension source, not an append call: advance `source_version`, include every record that remains owned, and let omission delete stale records. Codec, kind, scope, and workspace-binding failure reject the snapshot atomically. The generic Go/TypeScript Host API resource record is the SDK contract; bridges and MCP sidecars receive no special layout mutation path.
+A subprocess extension that publishes layouts directly declares the generic Host API permissions and `window_layouts` family. `resources/snapshot` is complete desired state for that extension source, not an append call: advance `source_version`, include every record that remains owned, and let omission delete stale records. Codec, kind, scope, and workspace-binding failure reject the snapshot atomically.
 
 ## Extension Install Trust
 

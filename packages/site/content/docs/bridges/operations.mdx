@@ -694,10 +694,10 @@ zero-owner assertion exits nonzero, stop and leave the extension installed until
 instances have been retired.
 
 The resource delete cascades the instance-owned secret-binding records; provider-side credential
-revocation is still a separate external operation. If `owner` or `source` shows that a bundle
-activation owns the resource, update or remove that owner instead of deleting its projected child,
-or reconciliation can recreate it. If the bridge may return to service, stop after disablement and
-provider-side revocation rather than deleting the resource.
+revocation is still a separate external operation. If `owner` or `source` names another declarative
+source, update or remove that owner instead of deleting its projected child, or reconciliation can
+recreate it. If the bridge may return to service, stop after disablement and provider-side revocation
+rather than deleting the resource.
 
 ## Handle an indeterminate committed result
 

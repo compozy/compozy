@@ -2,7 +2,7 @@
 
 Write a Compozy extension. Lifecycle mechanics — generation handles, instance scoping, dev overlays,
 reload semantics, logs, install trust, publish credentials — live in
-`references/capabilities-and-bundles.md`. Native tool IDs and risk flags live in
+`references/capabilities.md`. Native tool IDs and risk flags live in
 `references/native-tools.md`. Read this file for what goes in the code.
 
 ## Contents
@@ -139,9 +139,15 @@ What `build` writes, for reading rather than editing: `[extension]` (`name`, `ve
 kind `extension_host`, canonical `input_schema`/`output_schema`, risk metadata, optional `command`),
 `[[resources.hooks]]`, and `[[resources.command_groups]]`.
 
-Resource-only extensions additionally hand-write `resources.skills|agents|loops|bundles|mcp_servers`
+Resource-only extensions additionally hand-write `resources.skills|agents|loops|automation|layouts|mcp_servers`
 and `[resources.publish]` (families plus `max_scope`). Resource paths resolve inside the extension
 root; `{{config_dir}}` is that root and `{{env:NAME}}` reads the daemon process environment.
+
+Static kit resources stay inert after install. Enable publishes the instance-owned resources; disable
+removes them. Use extension inventory to compare shipped and live resources, and preview to inspect a
+lifecycle action before mutation. Required environment variables are names in the manifest; bind them
+to Vault references through the extension secrets surface, which never returns values or references.
+When enable or update returns a Network confirmation digest, retry only with that exact digest.
 
 ## Structured Workflows
 

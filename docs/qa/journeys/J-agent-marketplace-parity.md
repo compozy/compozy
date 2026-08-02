@@ -4,7 +4,7 @@ The ADR-009/SD-011 promise walked as one journey: an agent (Ada — non-human AC
 
 ```mermaid
 flowchart TD
-  A[Entry: compozy marketplace search -o json, empty query] --> B[Grouped idle slices, fixed kind order mcp/extension/skill/bundle]
+  A[Entry: compozy marketplace search -o json, empty query] --> B[Grouped idle slices, fixed kind order mcp/extension/skill]
   A2[Entry: GET /api/marketplace/search over HTTP and UDS] --> B
   A3[Entry: compozy__marketplace_search native tool] --> B
   B --> C[Query search; one kind's source deliberately failing]
@@ -17,11 +17,11 @@ flowchart TD
   E -->|missing required value / unresolvable ref| E2[Deterministic rejection; fresh reads prove nothing was written — born-valid layer 1]
   E --> F[Structured result: item + next_step; scope-qualified refs only; no plaintext anywhere]
   F -->|next_step authorize| G[compozy mcp auth login — J-mcp-authorize-repair via CLI lane]
-  B --> G2[compozy bundle preview → activate → update]
-  G2 --> G3[CLI, HTTP, and UDS agree; preview writes nothing; update clears real spec_drift]
-  B --> H[compozy marketplace refresh -o json: per-kind outcomes; --kind bundle rejected]
+  B --> G2[extension inventory and preview]
+  G2 --> G3[CLI, HTTP, UDS, and native reads agree; preview writes nothing]
+  B --> H[compozy marketplace refresh -o json: exactly mcp/extension/skill outcomes]
   H --> I[Parity check: each operation agrees field-for-field across the planes that expose it]
-  I --> J[Cross-check installed joins: skill/extension global, mcp/bundle scoped by workspace_id]
+  I --> J[Cross-check installed joins: skill/extension global, MCP scoped by workspace_id]
   A -.->|catalog unreachable| X1[Abandon: stale projection served marked stale; installed-item management unaffected]
   E2 -.->|agent gives up| X2[Abandon: zero residue — no config entry, no vault ref, no provenance row]
   J --> Z[True end: an agent-acquired capability is indistinguishable from a web-acquired one on every management surface]
@@ -44,7 +44,7 @@ journey:
       origin: direct
     - url: compozy extension search <query> -o json
       origin: direct
-    - url: compozy bundle preview|activate|update -o json
+    - url: compozy extension inventory|preview -o json
       origin: direct
     - url: compozy__marketplace_search (native tool)
       origin: direct
@@ -64,14 +64,14 @@ journey:
       verb: Install a curated MCP entry with typed and vault-ref values
       expected_observable: Feed-locked template fields rejected on override; required-value gaps rejected with nothing written; success returns item + next_step
     - step: 5
-      verb: Preview, activate, and update a bundle
-      expected_observable: Preview is read-only; activation scope and inventory agree across CLI, HTTP, and UDS; a real spec_drift clears only after update re-apply
+      verb: Inspect and preview an extension kit
+      expected_observable: Inventory and preview are read-only and agree across CLI, HTTP, UDS, and native tools
     - step: 6
       verb: Refresh feeds and read status
-      expected_observable: Per-kind structured outcomes; bundle refresh deterministically rejected; stale state reported honestly
+      expected_observable: Per-kind structured outcomes for exactly MCP, extension, and skill; unsupported kinds reject deterministically; stale state is reported honestly
     - step: 7
       verb: Compare planes
-      expected_observable: CLI structured output equals HTTP and UDS payloads for search, browse, detail, install result, auth status, and bundle lifecycle on one daemon state; native output matches search only
+      expected_observable: CLI structured output equals HTTP and UDS payloads for search, browse, detail, install result, auth status, and extension kit reads on one daemon state; native output matches its exposed reads
   goal:
     observable: Field-level parity across every supported plane — CLI/HTTP/UDS for lifecycle operations and CLI/HTTP/UDS/native for marketplace search
     side_effects: [capability-installed, marketplace-events-emitted, scoped-vault-refs-created]
@@ -85,7 +85,7 @@ journey:
     - at_step: 3
       how: Agent abandons after a validation rejection
       resume: Zero residue; the same install request can be replayed after supplying the missing value
-  crosses: [cli, httpapi, udsapi, native-tools, marketplace-api, settings-api, vault, workspaces, skills, extensions, bundles]
+  crosses: [cli, httpapi, udsapi, native-tools, marketplace-api, settings-api, vault, workspaces, skills, extensions]
 ```
 
 ## Coverage notes (Task 10 planning)

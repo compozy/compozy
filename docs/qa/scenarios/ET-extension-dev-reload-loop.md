@@ -46,7 +46,7 @@ verdict needed resetting; this file owns the dev overlay loop only. No journey o
 — the next planning cycle should map it and link it here.
 
 QA impact 2026-07-29: unlink now discards the workspace instance's retained log ring before a same-name
-relink, and the Web confirmation no longer treats a published bundle dependency as a blocker for the
+relink, and the Web confirmation no longer treats the published instance as a blocker for the
 workspace-scoped unlink. Historical evidence is retained; replay unlink/relink with the published row
 active and prove the new overlay starts with an empty ring.
 

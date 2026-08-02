@@ -1,6 +1,7 @@
 # BUG-20260715-bundle-activation-version-hidden: Bundle confirmation cannot reject stale operators
 
 - **Status:** verified
+- **Historical surface:** The Bundle API and its scenarios were removed by the extension-kit hard cut. This record remains only as evidence for the retired behavior.
 - **Impact (user-side):** Trust-Damage
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Bruno

@@ -6,7 +6,7 @@ description: >-
   Adds explicit impact subitems to backend tasks, even when the conclusion is no
   impact. Use when drafting tasks or reviewing TechSpec coverage for changes
   touching contracts, handlers, CLI verbs, config, extensions, hooks, skills,
-  tools, resources, bundles, registries, bridges, MCP, or agent workflows. Do
+  tools, resources, registries, bridges, MCP, or agent workflows. Do
   not use for purely internal refactors with no public, agent, config, docs, or
   extensibility surface.
 trigger: explicit
@@ -57,7 +57,7 @@ Pedro asks "não é preciso mudar nada na UI do web/ ... e nem melhorar nada no 
 **Step 5: Enumerate Agent, Extensibility, and Config Surface**
 
 1. For each user-visible or operator-visible capability, list CLI verbs, HTTP endpoints, UDS routes, structured outputs (`-o json` / `-o jsonl`), status/config discovery commands, and deterministic error contracts agents will use.
-2. List extensibility surfaces affected by the change: extension manifests, hooks, skills/capabilities, tools/resources, bundles, registries, bridge SDKs, MCP sidecars, protocol docs.
+2. List extensibility surfaces affected by the change: extension manifests, hooks, skills/capabilities, tools/resources, registries, bridge SDKs, MCP sidecars, protocol docs.
 3. For each touched config key or default, list structs, defaults, merge/overlay behavior, validation, examples, docs, and tests that must move with the change.
 4. If a feature is intentionally not agent-operable or extensible, flag it as a design blocker unless the TechSpec explains why.
 
@@ -67,7 +67,7 @@ Pedro asks "não é preciso mudar nada na UI do web/ ... e nem melhorar nada no 
    - `web/`: affected systems, hooks, types, fixtures, stories. List each as a path.
    - `packages/site`: affected MDX pages, generated CLI docs, illustrations. List each as a path.
 2. Append (or update) a `### Extensibility / Agent Manageability / Config Lifecycle` subsection with three sub-lists:
-   - `Extensibility`: affected extension points, hooks, skills/capabilities, tools/resources, bundles, registries, bridge SDKs, MCP sidecars, protocol docs.
+   - `Extensibility`: affected extension points, hooks, skills/capabilities, tools/resources, registries, bridge SDKs, MCP sidecars, protocol docs.
    - `Agent manageability`: affected CLI verbs, HTTP endpoints, UDS routes, structured output modes, status/config discovery paths, error contracts.
    - `Config lifecycle`: affected `config.toml` keys/defaults, structs, merge/overlay, validation, examples, docs, tests.
 3. Append a `QA impact` line to the `### Web/Docs Impact` subsection: when the task changes user-visible behavior (UI, CLI verb, API route, config key, copy), list the `docs/qa/scenarios/*.md` ids the executor must reset to `untested` (or `new scenarios — add content-addressed untested files`) and walk to a recorded verdict at completion — flag, then verify: a failing walk means the executor fixes the production code before completing; otherwise write `QA impact: none — no user-visible behavior change`.

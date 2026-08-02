@@ -141,8 +141,8 @@ more scan root.
 Every skill list/detail payload includes `provenance.precedence_tier`, which is the resolver tier
 that won for that skill: `bundled`, `marketplace`, `user`, `additional`, `workspace`, or
 `agent_local`. Marketplace metadata remains in `slug`, `registry`, `version`, and `installed_at`.
-Skills supplied by higher-level runtime packages can also carry `installed_from_bundle` or
-`installed_from_extension` so operators can trace the owning bundle or extension.
+Skills supplied by extensions can also carry `installed_from_extension` so operators can trace the
+owning extension.
 
 When more than one declaration uses the same skill name, Compozy keeps the normal precedence order and
 records the losing declarations in `provenance.shadowed_by`. The full resolver view is available

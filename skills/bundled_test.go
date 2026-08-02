@@ -13,7 +13,7 @@ import (
 
 var expectedCompozyReferences = []string{
 	"references/agent-definitions.md",
-	"references/capabilities-and-bundles.md",
+	"references/capabilities.md",
 	"references/contributing-to-compozy.md",
 	"references/docs-design-and-copy.md",
 	"references/extension-authoring.md",

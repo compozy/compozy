@@ -210,9 +210,6 @@ Bridge instances are persisted runtime records. They are created through the bri
 | `provider_config`   | no             | Provider-owned JSON object. The transport accepts any JSON object or `null`; each adapter validates the keys it uses.                              |
 | `delivery_defaults` | no             | JSON object with route defaults plus an optional typed `progress` block. `thread_id` requires `peer_id` or `group_id`.                             |
 
-Package-managed instances can be created by extension bundles. Those records report
-`source: "package"` and reject direct spec mutation through the generic update API.
-
 ## Supported provider slots
 
 | Provider        | Required secrets                             | Optional secrets                        | Webhook auth                                                          |
