@@ -410,8 +410,13 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 			},
 		}
 		raw, err := executor.Execute(ctx, node, loop.ActionExecutionInput{
-			WorkspaceID: "ws-1",
-			ItemIndex:   2,
+			WorkspaceID:   "ws-1",
+			LoopRunID:     "looprun-managed",
+			Generation:    1,
+			NodeID:        "agent",
+			ItemIndex:     2,
+			CellEpoch:     4,
+			CorrelationID: "taskrun-managed-5",
 			Namespace: map[string]any{
 				"inputs": map[string]any{"topic": "delivery"},
 			},
@@ -447,6 +452,10 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 		}
 		if bind.ItemIndex != 2 {
 			t.Fatalf("bind item index = %d, want 2", bind.ItemIndex)
+		}
+		if bind.TargetBindingEpoch != 5 || bind.ExpectedControlEpoch != 5 ||
+			bind.ExpectedTaskRunID != "taskrun-managed-5" {
+			t.Fatalf("managed bind fence = %#v, want epoch 5 + exact continuation task", bind)
 		}
 		if bind.Runtime.Model != "gpt-5.4" || bind.MaxTurns != 3 || len(bind.AllowedTools) != 1 {
 			t.Fatalf("bind overrides = %#v, want model/tool/max_turns", bind)
@@ -511,6 +520,46 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 			!strings.Contains(prompts[0], `"code":"action_timeout"`) ||
 			!strings.Contains(prompts[0], "Review the action timeout") {
 			t.Fatalf("retry prompt = %#v, want prior classified cause and hint", prompts)
+		}
+	})
+
+	t.Run("Should carry confirmed-death progress without labeling the continuation as a retry", func(t *testing.T) {
+		t.Parallel()
+
+		binder := &fakeActionSessionBinder{
+			binding:       loop.ActionSessionBinding{SessionID: "sess-death-successor", Handle: "main"},
+			promptResults: []loop.ActionPromptResult{{Text: "done"}},
+		}
+		actions := newActionRegistryForTest(t, &fakeActionToolRegistry{}, loop.WithActionSessionBinder(binder))
+		executor, err := actions.Resolve(context.Background(), tools.Scope{}, string(dsl.ActionRunAgent))
+		if err != nil {
+			t.Fatalf("Resolve(run-agent) error = %v", err)
+		}
+		_, err = executor.Execute(context.Background(), dsl.Node{
+			ID: "agent", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunAgent),
+			Params: dsl.NodeParams{"agent": "planner", "prompt": "Continue the delivery"},
+		}, loop.ActionExecutionInput{
+			WorkspaceID: "ws-1", Attempt: 2,
+			DeathResume: &loop.DeathResumeContext{
+				SourceTaskRunID: "taskrun-dead",
+				SourceSessionID: "sess-dead",
+				Checkpoint: &loop.DeathResumeCheckpoint{
+					SessionID: "sess-dead", EventStartSeq: 41, EventEndSeq: 44,
+					Partials: []loop.DeathResumePartial{{
+						Sequence: 44, Type: "agent_message", Text: "completed database migration",
+					}},
+				},
+			},
+		})
+		if err != nil {
+			t.Fatalf("Execute() error = %v", err)
+		}
+		prompts := binder.promptMessages()
+		if len(prompts) != 1 || !strings.Contains(prompts[0], "Confirmed-death continuation context:") ||
+			!strings.Contains(prompts[0], `"event_end_seq":44`) ||
+			!strings.Contains(prompts[0], "completed database migration") ||
+			strings.Contains(prompts[0], "Automatic retry context:") {
+			t.Fatalf("death-resume prompt = %#v, want checkpointed continuation distinct from retry", prompts)
 		}
 	})
 

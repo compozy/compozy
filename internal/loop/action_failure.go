@@ -19,6 +19,7 @@ type ActionFailure struct {
 	Code     string `json:"code"`
 	Cause    string `json:"cause"`
 	Recovery string `json:"recovery"`
+	Target   string `json:"target,omitempty"`
 }
 
 // SafeActionFailureProvider lets a domain error publish durable operator-safe
@@ -96,6 +97,7 @@ func ActionFailureFromMetadata(raw json.RawMessage) (ActionFailure, bool) {
 	failure.Code = strings.TrimSpace(failure.Code)
 	failure.Cause = strings.TrimSpace(failure.Cause)
 	failure.Recovery = strings.TrimSpace(failure.Recovery)
+	failure.Target = diagnostics.RedactAndBound(strings.TrimSpace(failure.Target), actionFailureCodeLimit)
 	if failure.Kind != actionFailureKind || failure.Code == "" || failure.Cause == "" {
 		return ActionFailure{}, false
 	}
@@ -108,6 +110,7 @@ func ActionFailureOutputRef(failure ActionFailure) (string, bool) {
 	failure.Code = strings.TrimSpace(failure.Code)
 	failure.Cause = strings.TrimSpace(failure.Cause)
 	failure.Recovery = strings.TrimSpace(failure.Recovery)
+	failure.Target = diagnostics.RedactAndBound(strings.TrimSpace(failure.Target), actionFailureCodeLimit)
 	if failure.Kind != actionFailureKind || failure.Code == "" || failure.Cause == "" {
 		return "", false
 	}

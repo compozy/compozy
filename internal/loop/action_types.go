@@ -73,6 +73,8 @@ type ActionExecutionInput struct {
 	NodeID                   dsl.NodeID
 	ItemIndex                int
 	Attempt                  int
+	CellEpoch                int64
+	DeathResume              *DeathResumeContext
 	RetryFailure             *ClassifiedFailure
 	RepairFailures           []ActionRepairFailure
 	Namespace                map[string]any

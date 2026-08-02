@@ -182,11 +182,6 @@ func TestToolConfigPathPolicy(t *testing.T) {
 			kind: ConfigValueInt,
 		},
 		{
-			name: "Should allow task orchestration action deadline mutation",
-			path: "task.orchestration.action_run_timeout",
-			kind: ConfigValueDuration,
-		},
-		{
 			name: "Should allow task orchestration coordinator mode mutation",
 			path: "task.orchestration.profile.default_coordinator_mode",
 			kind: ConfigValueString,

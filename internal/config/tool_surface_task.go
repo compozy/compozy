@@ -7,7 +7,6 @@ const (
 	toolSurfaceTaskOrchestrationDefaultMaxRuntimePath             = "task.orchestration.default_max_runtime"
 	toolSurfaceTaskOrchestrationDesignatedRunMaxPath              = "task.orchestration.designated_run_max"
 	toolSurfaceTaskOrchestrationMaxActiveRunsPerWorkspacePath     = "task.orchestration.max_active_runs_per_workspace"
-	toolSurfaceTaskOrchestrationActionRunTimeoutPath              = "task.orchestration.action_run_timeout"
 	toolSurfaceTaskOrchestrationNetworkStatusQueueSizePath        = "task.orchestration.network_status_queue_size"
 	toolSurfaceTaskOrchestrationNetworkStatusTimeoutPath          = "task.orchestration.network_status_timeout"
 	toolSurfaceTaskOrchestrationProfileDefaultCoordinatorModePath = "task.orchestration.profile.default_coordinator_mode"
@@ -45,7 +44,6 @@ func taskToolSurfaceMutableConfigKinds() map[string]ValueKind {
 		toolSurfaceTaskOrchestrationDefaultMaxRuntimePath:             ConfigValueDuration,
 		toolSurfaceTaskOrchestrationDesignatedRunMaxPath:              ConfigValueInt,
 		toolSurfaceTaskOrchestrationMaxActiveRunsPerWorkspacePath:     ConfigValueInt,
-		toolSurfaceTaskOrchestrationActionRunTimeoutPath:              ConfigValueDuration,
 		toolSurfaceTaskOrchestrationNetworkStatusQueueSizePath:        ConfigValueInt,
 		toolSurfaceTaskOrchestrationNetworkStatusTimeoutPath:          ConfigValueDuration,
 		toolSurfaceTaskOrchestrationProfileDefaultCoordinatorModePath: ConfigValueString,

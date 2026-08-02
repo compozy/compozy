@@ -3,8 +3,8 @@
 An autonomy operator trusts the orchestration kernel to bound failure instead of looping forever:
 crash-looping workers exhaust a durable attempt budget (O1), one persistently failing loop node
 quarantines while siblings continue and can be repaired in place (O2), two concurrent exact claims yield exactly one
-owner (O3), and a wedged-but-heartbeating action times out while healthy long work is untouched
-(O4). Every terminal state carries a forensic reason. Covers US-012, US-013, US-014, US-015
+owner (O3), and long-running actions use evidence-only liveness while only authored deadlines can
+end work by duration (O4). Every terminal or parked state carries a forensic reason. Covers US-012, US-013, US-014, US-015
 (TechSpec §3.10; Safety Invariants 21–25).
 
 ```mermaid
@@ -38,9 +38,11 @@ flowchart TD
     GEN --> WB[Unbounded watch with persistent failure] --> BSTOP[Hard generation backstop terminates it]
     E3[Entry: two concurrent exact claims on one queued RunID] --> CAS[Shared guarded queued-status CAS in one immediate transaction]
     CAS --> ONE[Exactly one owner; the loser gets the typed no-claimable-run outcome — never a false success]
-    E4[Entry: action node past its window with no progress] --> LV{Progress or in-tool activity?}
-    LV -->|actively in a tool or progressing| LIVE[Run untouched — healthy long work never shortened]
-    LV -->|idle past thresholds| TO[Terminal: node_timeout / no_progress; lease freed; loop advances; O1 budget consumed]
+    E4[Entry: action node runs without an authored timeout] --> LV{Liveness evidence?}
+    LV -->|activity, in-flight tool, or transport present| LIVE[Update last evidence; keep work untouched]
+    LV -->|silence past configured window| FLAG[Raise attention only; keep work untouched]
+    FLAG -->|new evidence| CLEAR[Clear attention and keep running]
+    E4 -->|authored node timeout expires| TO[Terminal through the declared timeout path]
     TX -.->|operator away during the crash loop| AB[Abandon: bounded terminal state waits — never infinite requeue]
     AB -.->|operator returns| INS[Inspect forensic reason and deliberately recover]
     Q -.->|operator leaves before repair| ABQ[Abandon: quarantine remains inspectable without killing the run]
@@ -49,6 +51,7 @@ flowchart TD
     TX --> TE
     ONE --> TE
     TO --> TE
+    CLEAR --> TE
     BSTOP --> TE
     LIVE --> TE
     OKL --> TE
@@ -65,7 +68,7 @@ journey:
       origin: direct
     - url: "HTTP/UDS: POST /api/agent/tasks/claim-next; task-run and loop-run listings"
       origin: direct
-    - url: "config: task.orchestration.action_run_timeout; max_attempts"
+    - url: "config: loops.defaults.delivery.liveness.silence_window; max_attempts"
       origin: direct
   actions:
     - step: 1
@@ -78,12 +81,12 @@ journey:
       verb: "Race two exact claims on the same queued run"
       expected_observable: "Exactly one claim succeeds; the other receives the typed no-claimable-run outcome; exact and next-work selection share one CAS"
     - step: 4
-      verb: "Wedge one action and run one healthy long tool"
-      expected_observable: "The wedged run terminalizes node_timeout/no_progress, frees its lease, and consumes the attempt budget; the healthy in-tool run survives its idle window"
+      verb: "Advance time around one silent action and one healthy long tool"
+      expected_observable: "Neither node fails by hidden duration; silence raises self-clearing attention, evidence keeps the healthy node live, and only an authored node timeout can end work by duration"
   goal:
     observable: "Every injected failure becomes bounded, parked, or terminal with a forensically useful reason"
-    side_effects: [needs-attention-escalations, quarantine-entry, requeue-provenance, terminal-reason-rows]
-  true_end_state: "Fresh run listings show terminal reasons for terminal paths, the repaired node completed after requeue without losing sibling work, exactly one owner exists per contested run, and the healthy controls completed normally."
+    side_effects: [needs-attention-escalations, attention-clear-events, quarantine-entry, requeue-provenance, terminal-reason-rows]
+  true_end_state: "Fresh run listings show terminal reasons for terminal paths, the repaired node completed after requeue without losing sibling work, exactly one owner exists per contested run, and long-running controls completed without a hidden clock."
   exit:
     natural: "The operator recovers parked work deliberately after reading the forensic reason."
   abandonment:

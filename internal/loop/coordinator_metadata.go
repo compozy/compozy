@@ -33,7 +33,11 @@ func coordinatorNodeMetadataWithFanOutItem(
 	if hasItem {
 		payload["item"] = item
 	}
-	if dsl.ActionKind(node.Kind) == dsl.ActionGoal {
+	actionKind := dsl.ActionKind(node.Kind)
+	if actionKind == dsl.ActionRunAgent || actionKind == dsl.ActionGoal {
+		payload["session_handle"] = actionSessionHandle(node.Session)
+	}
+	if actionKind == dsl.ActionGoal {
 		payload["goal_segment_epoch"] = initialGoalSegmentEpoch
 	}
 	metadata, err := json.Marshal(payload)

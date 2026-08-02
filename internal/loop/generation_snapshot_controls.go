@@ -76,6 +76,7 @@ func updateExistingNodeControl(
 			quarantined_at = CASE WHEN ? = 'quarantine' THEN ? ELSE quarantined_at END,
 			attention_flag = CASE WHEN ? = 'attention' THEN ? ELSE attention_flag END,
 			attention_reason = CASE WHEN ? = 'attention' THEN ? ELSE attention_reason END,
+			cancel_state = CASE WHEN ? = 'cancel' THEN ? ELSE cancel_state END,
 			revision = revision + 1,
 			updated_at = ?
 		WHERE loop_run_id = ? AND node_id = ? AND revision = ?`,
@@ -84,6 +85,7 @@ func updateExistingNodeControl(
 		mutation.Kind, quarantinedAt,
 		mutation.Kind, attentionFlag,
 		mutation.Kind, attentionReason,
+		mutation.Kind, mutation.CancelState,
 		mutation.At, loopRunID, mutation.NodeID, mutation.ExpectedRevision,
 	)
 	if err != nil {

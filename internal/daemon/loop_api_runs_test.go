@@ -622,14 +622,32 @@ func (s *loopApprovalAggregateStub) DryRun(
 	return nil, errors.New("unexpected DryRun call")
 }
 
-func (s *loopApprovalAggregateStub) Stop(
+func (s *loopApprovalAggregateStub) CancelRun(
 	context.Context,
 	looppkg.WorkspaceID,
 	looppkg.RunID,
-	looppkg.StopReason,
+	string,
 	task.ActorContext,
 ) error {
-	return errors.New("unexpected Stop call")
+	return errors.New("unexpected CancelRun call")
+}
+
+func (s *loopApprovalAggregateStub) KillRun(
+	context.Context, looppkg.WorkspaceID, looppkg.RunID, string, task.ActorContext,
+) error {
+	return errors.New("unexpected KillRun call")
+}
+
+func (s *loopApprovalAggregateStub) CancelNode(
+	context.Context, looppkg.WorkspaceID, looppkg.RunID, looppkg.NodeID, string, task.ActorContext,
+) error {
+	return errors.New("unexpected CancelNode call")
+}
+
+func (s *loopApprovalAggregateStub) KillNode(
+	context.Context, looppkg.WorkspaceID, looppkg.RunID, looppkg.NodeID, string, task.ActorContext,
+) error {
+	return errors.New("unexpected KillNode call")
 }
 
 func (s *loopApprovalAggregateStub) Pause(

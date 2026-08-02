@@ -206,7 +206,7 @@ func (s *daemonLoopAPIService) StopLoopRun(
 	if err != nil {
 		return err
 	}
-	return s.aggregate.Stop(ctx, ws, looppkg.RunID(strings.TrimSpace(runID)), looppkg.StopReasonOperator, actor)
+	return s.aggregate.CancelRun(ctx, ws, looppkg.RunID(strings.TrimSpace(runID)), "operator request", actor)
 }
 
 func (s *daemonLoopAPIService) PauseLoopRun(
