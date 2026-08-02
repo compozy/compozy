@@ -33,6 +33,7 @@ import { Route as AppJobsJobIdRouteImport } from './routes/_app/jobs.$jobId'
 import { Route as AppLoopRunsRunIdRouteImport } from './routes/_app/loop-runs.$runId'
 import { Route as AppLoopsNameRouteImport } from './routes/_app/loops.$name'
 import { Route as AppMarketplaceIndexRouteImport } from './routes/_app/marketplace.index'
+import { Route as AppMarketplaceKindRouteImport } from './routes/_app/marketplace.$kind_'
 import { Route as AppMarketplaceExtensionsRouteImport } from './routes/_app/marketplace.extensions'
 import { Route as AppMarketplaceMcpsRouteImport } from './routes/_app/marketplace.mcps'
 import { Route as AppMarketplaceSkillsRouteImport } from './routes/_app/marketplace.skills'
@@ -185,6 +186,11 @@ const AppLoopsNameRoute = AppLoopsNameRouteImport.update({
 const AppMarketplaceIndexRoute = AppMarketplaceIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => AppMarketplaceRoute,
+} as any)
+const AppMarketplaceKindRoute = AppMarketplaceKindRouteImport.update({
+  id: '/$kind_',
+  path: '/$kind',
   getParentRoute: () => AppMarketplaceRoute,
 } as any)
 const AppMarketplaceExtensionsRoute =
@@ -388,6 +394,7 @@ export interface FileRoutesByFullPath {
   '/jobs/$jobId': typeof AppJobsJobIdRoute
   '/loop-runs/$runId': typeof AppLoopRunsRunIdRoute
   '/loops/$name': typeof AppLoopsNameRouteWithChildren
+  '/marketplace/$kind': typeof AppMarketplaceKindRoute
   '/marketplace/extensions': typeof AppMarketplaceExtensionsRoute
   '/marketplace/mcps': typeof AppMarketplaceMcpsRoute
   '/marketplace/skills': typeof AppMarketplaceSkillsRoute
@@ -443,6 +450,7 @@ export interface FileRoutesByTo {
   '/jobs/$jobId': typeof AppJobsJobIdRoute
   '/loop-runs/$runId': typeof AppLoopRunsRunIdRoute
   '/loops/$name': typeof AppLoopsNameRouteWithChildren
+  '/marketplace/$kind': typeof AppMarketplaceKindRoute
   '/marketplace/extensions': typeof AppMarketplaceExtensionsRoute
   '/marketplace/mcps': typeof AppMarketplaceMcpsRoute
   '/marketplace/skills': typeof AppMarketplaceSkillsRoute
@@ -504,6 +512,7 @@ export interface FileRoutesById {
   '/_app/jobs/$jobId': typeof AppJobsJobIdRoute
   '/_app/loop-runs/$runId': typeof AppLoopRunsRunIdRoute
   '/_app/loops/$name': typeof AppLoopsNameRouteWithChildren
+  '/_app/marketplace/$kind_': typeof AppMarketplaceKindRoute
   '/_app/marketplace/extensions': typeof AppMarketplaceExtensionsRoute
   '/_app/marketplace/mcps': typeof AppMarketplaceMcpsRoute
   '/_app/marketplace/skills': typeof AppMarketplaceSkillsRoute
@@ -565,6 +574,7 @@ export interface FileRouteTypes {
     | '/jobs/$jobId'
     | '/loop-runs/$runId'
     | '/loops/$name'
+    | '/marketplace/$kind'
     | '/marketplace/extensions'
     | '/marketplace/mcps'
     | '/marketplace/skills'
@@ -620,6 +630,7 @@ export interface FileRouteTypes {
     | '/jobs/$jobId'
     | '/loop-runs/$runId'
     | '/loops/$name'
+    | '/marketplace/$kind'
     | '/marketplace/extensions'
     | '/marketplace/mcps'
     | '/marketplace/skills'
@@ -680,6 +691,7 @@ export interface FileRouteTypes {
     | '/_app/jobs/$jobId'
     | '/_app/loop-runs/$runId'
     | '/_app/loops/$name'
+    | '/_app/marketplace/$kind_'
     | '/_app/marketplace/extensions'
     | '/_app/marketplace/mcps'
     | '/_app/marketplace/skills'
@@ -891,6 +903,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/marketplace/'
       preLoaderRoute: typeof AppMarketplaceIndexRouteImport
+      parentRoute: typeof AppMarketplaceRoute
+    }
+    '/_app/marketplace/$kind_': {
+      id: '/_app/marketplace/$kind_'
+      path: '/$kind'
+      fullPath: '/marketplace/$kind'
+      preLoaderRoute: typeof AppMarketplaceKindRouteImport
       parentRoute: typeof AppMarketplaceRoute
     }
     '/_app/marketplace/extensions': {
@@ -1228,6 +1247,7 @@ const AppLoopsRouteWithChildren = AppLoopsRoute._addFileChildren(
 )
 
 interface AppMarketplaceRouteChildren {
+  AppMarketplaceKindRoute: typeof AppMarketplaceKindRoute
   AppMarketplaceExtensionsRoute: typeof AppMarketplaceExtensionsRoute
   AppMarketplaceMcpsRoute: typeof AppMarketplaceMcpsRoute
   AppMarketplaceSkillsRoute: typeof AppMarketplaceSkillsRoute
@@ -1236,6 +1256,7 @@ interface AppMarketplaceRouteChildren {
 }
 
 const AppMarketplaceRouteChildren: AppMarketplaceRouteChildren = {
+  AppMarketplaceKindRoute: AppMarketplaceKindRoute,
   AppMarketplaceExtensionsRoute: AppMarketplaceExtensionsRoute,
   AppMarketplaceMcpsRoute: AppMarketplaceMcpsRoute,
   AppMarketplaceSkillsRoute: AppMarketplaceSkillsRoute,

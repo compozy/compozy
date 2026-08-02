@@ -155,6 +155,22 @@ test.describe("Marketplace acquisition", () => {
     },
   });
 
+  test("operator sees the OS not-found posture for a retired marketplace kind", async ({
+    appPage,
+    runtime,
+  }) => {
+    await ensureGlobalWorkspace(runtime);
+    await appPage.reload({ waitUntil: "domcontentloaded" });
+    await useGlobalWorkspaceIfPrompted(appPage);
+
+    await appPage.goto(runtime.url("/marketplace/bundles"), {
+      waitUntil: "domcontentloaded",
+    });
+
+    await expect.poll(() => new URL(appPage.url()).pathname).toBe("/marketplace/bundles");
+    await expect(appPage.getByText("Nothing lives at this address")).toBeVisible();
+  });
+
   test("operator acquires marketplace capabilities against one real daemon", async ({
     appPage,
     browserArtifacts,
