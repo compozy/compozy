@@ -37,7 +37,7 @@ func applyCoordinatorRunStopsWithExecutor(
 			exec,
 			child,
 			loop.StatusFailed,
-			loop.TransitionCauseOperatorStop,
+			loop.TransitionCauseContract,
 			now,
 			child.Generation,
 		); err != nil {
@@ -117,14 +117,16 @@ func coordinatorTaskRecord(
 	now time.Time,
 ) taskpkg.Task {
 	return taskpkg.Task{
-		ID:                 spec.TaskID,
-		Scope:              parent.Scope,
-		WorkspaceID:        parent.WorkspaceID,
-		ParentTaskID:       parent.ID,
-		Title:              spec.Title,
-		Description:        spec.Description,
-		Priority:           parent.Priority,
-		MaxAttempts:        parent.MaxAttempts,
+		ID:           spec.TaskID,
+		Scope:        parent.Scope,
+		WorkspaceID:  parent.WorkspaceID,
+		ParentTaskID: parent.ID,
+		Title:        spec.Title,
+		Description:  spec.Description,
+		Priority:     parent.Priority,
+		// Loop owns node retry and continuation bounds; the parent task's generic retry
+		// budget must not cut those lifecycle policies short.
+		MaxAttempts:        taskpkg.MaxTaskMaxAttempts,
 		Status:             taskpkg.TaskStatusReady,
 		ApprovalPolicy:     taskpkg.ApprovalPolicyNone,
 		ApprovalState:      taskpkg.ApprovalStateNotRequired,

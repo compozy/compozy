@@ -77,13 +77,44 @@ func (m *Service) startCoordinatorRun(
 		Actor:      actor,
 		Now:        m.now().UTC(),
 	}, m.generationFinalizer)
+	return m.finishCoordinatorRun(lifecycleCtx, &result, plan, actor, completionErr)
+}
+
+func (m *Service) finishCoordinatorRun(
+	ctx context.Context,
+	result *CoordinatorCompletionResult,
+	plan CoordinatorCompletionPlan,
+	actor ActorContext,
+	completionErr error,
+) (*Run, error) {
 	if strings.TrimSpace(result.Run.ID) == "" {
 		return nil, completionErr
 	}
-	timerErr := m.armCoordinatorTimers(lifecycleCtx, plan.PostCommitTimers, actor)
-	eventErr := m.recordCoordinatorCompletionEvents(lifecycleCtx, &result, actor)
-	m.dispatchCoordinatorTerminal(lifecycleCtx, &result, actor)
-	return &result.Run, errorsJoin(completionErr, timerErr, eventErr)
+	var postCommitErr error
+	if !result.PlanSuperseded {
+		postCommitErr = m.applyCoordinatorPostCommit(ctx, plan.ParentCloses, actor)
+	}
+	var timerErr error
+	if !result.PlanSuperseded {
+		timerErr = m.armCoordinatorTimers(ctx, plan.PostCommitTimers, actor)
+	}
+	eventErr := m.recordCoordinatorCompletionEvents(ctx, result, actor)
+	m.dispatchCoordinatorTerminal(ctx, result, actor)
+	return &result.Run, errorsJoin(completionErr, postCommitErr, timerErr, eventErr)
+}
+
+func (m *Service) applyCoordinatorPostCommit(
+	ctx context.Context,
+	parentCloses []CoordinatorParentCloseSpec,
+	actor ActorContext,
+) error {
+	if len(parentCloses) == 0 {
+		return nil
+	}
+	if m.coordinatorPostCommit == nil {
+		return fmt.Errorf("%w: coordinator parent-close handler is required", ErrValidation)
+	}
+	return m.coordinatorPostCommit.ApplyCoordinatorPostCommit(ctx, parentCloses, actor)
 }
 
 func (m *Service) armCoordinatorTimers(

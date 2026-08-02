@@ -13,6 +13,7 @@ type NodeControlMutationKind string
 const (
 	NodeControlMutationQuarantine NodeControlMutationKind = "quarantine"
 	NodeControlMutationAttention  NodeControlMutationKind = "attention"
+	NodeControlMutationCancel     NodeControlMutationKind = "cancel"
 )
 
 // NodeControlMutation is persisted with the generation snapshot that caused it.
@@ -24,6 +25,7 @@ type NodeControlMutation struct {
 	QuarantineEntry  json.RawMessage         `json:"quarantine_entry,omitempty"`
 	AttentionFlag    string                  `json:"attention_flag,omitempty"`
 	AttentionReason  string                  `json:"attention_reason,omitempty"`
+	CancelState      CancelState             `json:"cancel_state,omitempty"`
 	At               time.Time               `json:"at"`
 }
 
@@ -32,6 +34,7 @@ func (m NodeControlMutation) normalized() NodeControlMutation {
 	m.NodeID = NodeID(strings.TrimSpace(string(m.NodeID)))
 	m.AttentionFlag = strings.TrimSpace(m.AttentionFlag)
 	m.AttentionReason = strings.TrimSpace(m.AttentionReason)
+	m.CancelState = CancelState(strings.TrimSpace(string(m.CancelState)))
 	if len(m.QuarantineEntry) > 0 {
 		m.QuarantineEntry = append(json.RawMessage(nil), m.QuarantineEntry...)
 	}
@@ -53,6 +56,10 @@ func (m NodeControlMutation) validate() error {
 	case NodeControlMutationAttention:
 		if m.AttentionFlag != attentionDependencyFlag || m.AttentionReason == "" {
 			return fmt.Errorf("%w: attention mutation requires a quarantined dependency", ErrValidation)
+		}
+	case NodeControlMutationCancel:
+		if !m.ExpectExisting || m.CancelState != CancelStateCanceled {
+			return fmt.Errorf("%w: cancel mutation must close an existing node control", ErrValidation)
 		}
 	default:
 		return fmt.Errorf("%w: node control mutation kind is invalid: %q", ErrValidation, m.Kind)

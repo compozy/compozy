@@ -53,6 +53,7 @@ type inMemoryManagerStore struct {
 	coordinatorCompletionErr  error
 	coordinatorPublicationErr error
 	coordinatorCompleted      bool
+	coordinatorPlanSuperseded bool
 	settleNetworkWakeFn       func(NetworkWakeSettlement) (NetworkWakeSettlementResult, error)
 	lastClaimCriteria         ClaimCriteria
 }
@@ -324,6 +325,32 @@ type recordingCoordinatorRunner struct {
 	calls []RunID
 	plan  CoordinatorCompletionPlan
 	err   error
+}
+
+type recordingCoordinatorPostCommitHandler struct {
+	calls [][]CoordinatorParentCloseSpec
+}
+
+func (h *recordingCoordinatorPostCommitHandler) ApplyCoordinatorPostCommit(
+	_ context.Context,
+	specs []CoordinatorParentCloseSpec,
+	_ ActorContext,
+) error {
+	h.calls = append(h.calls, append([]CoordinatorParentCloseSpec(nil), specs...))
+	return nil
+}
+
+type recordingCoordinatorTimerArmer struct {
+	timers []CoordinatorTimerSpec
+}
+
+func (a *recordingCoordinatorTimerArmer) ArmCoordinatorTimer(
+	_ context.Context,
+	timer CoordinatorTimerSpec,
+	_ ActorContext,
+) error {
+	a.timers = append(a.timers, timer)
+	return nil
 }
 
 func (r *recordingCoordinatorRunner) Run(_ context.Context, taskRunID RunID) (CoordinatorCompletionPlan, error) {
@@ -2041,7 +2068,10 @@ func (s *inMemoryManagerStore) CompleteCoordinatorAndEnqueueNext(
 	run.HeartbeatAt = time.Time{}
 	run.EndedAt = normalized.Now
 	s.runs[run.ID] = cloneTaskRun(run)
-	result := CoordinatorCompletionResult{Run: cloneTaskRun(run), LoopRunID: run.LoopRunID}
+	result := CoordinatorCompletionResult{
+		Run: cloneTaskRun(run), LoopRunID: run.LoopRunID,
+		PlanSuperseded: s.coordinatorPlanSuperseded,
+	}
 	if normalized.Plan.Terminal != nil {
 		contextPayload, marshalErr := json.Marshal(coordinatorResultContext{
 			Status: normalized.Plan.Terminal.Status,
@@ -8710,7 +8740,7 @@ func TestManagerStartRunShouldExecuteCoordinatorInDaemonWithoutSession(t *testin
 
 	t.Run("Should execute coordinator in daemon without session", func(t *testing.T) {
 		t.Parallel()
-		testManagerStartRunShouldExecuteCoordinatorInDaemonWithoutSession(t, nil, nil)
+		testManagerStartRunShouldExecuteCoordinatorInDaemonWithoutSession(t, nil, nil, false)
 	})
 
 	t.Run("Should return the committed coordinator run with a post-commit wake error", func(t *testing.T) {
@@ -8719,6 +8749,7 @@ func TestManagerStartRunShouldExecuteCoordinatorInDaemonWithoutSession(t *testin
 			t,
 			errors.New("forced post-commit wake failure"),
 			nil,
+			false,
 		)
 	})
 
@@ -8728,7 +8759,13 @@ func TestManagerStartRunShouldExecuteCoordinatorInDaemonWithoutSession(t *testin
 			t,
 			nil,
 			errors.New("forced coordinator publication failure"),
+			false,
 		)
+	})
+
+	t.Run("Should suppress post-commit effects when cancellation supersedes the plan", func(t *testing.T) {
+		t.Parallel()
+		testManagerStartRunShouldExecuteCoordinatorInDaemonWithoutSession(t, nil, nil, true)
 	})
 }
 
@@ -8809,12 +8846,14 @@ func testManagerStartRunShouldExecuteCoordinatorInDaemonWithoutSession(
 	t *testing.T,
 	postCommitErr error,
 	publicationErr error,
+	planSuperseded bool,
 ) {
 	t.Helper()
 
 	store := newInMemoryManagerStore()
 	store.coordinatorCompletionErr = postCommitErr
 	store.coordinatorPublicationErr = publicationErr
+	store.coordinatorPlanSuperseded = planSuperseded
 	now := time.Date(2026, 7, 4, 12, 0, 0, 0, time.UTC)
 	taskRecord := Task{
 		ID:             "task-loop-coordinator",
@@ -8849,7 +8888,15 @@ func testManagerStartRunShouldExecuteCoordinatorInDaemonWithoutSession(
 	}
 	sessionExecutor := &forbiddenSessionExecutor{}
 	runner := &recordingCoordinatorRunner{plan: CoordinatorCompletionPlan{
+		ParentCloses: []CoordinatorParentCloseSpec{{
+			ParentLoopRunID: "loop-run-1", ChildLoopRunID: "child-loop-run-1",
+			Policy: "cancel", ParentStatus: "no-op",
+		}},
 		Snapshot: GenerationSnapshot{LoopRunID: "loop-run-1", Generation: 1},
+		PostCommitTimers: []CoordinatorTimerSpec{{
+			LoopRunID: "loop-run-1", Generation: 1, NodeID: "node-1", Attempt: 1,
+			IssuedEpoch: 1, FireAt: now.Add(time.Minute), IdempotencyKey: "timer-1",
+		}},
 		Terminal: &CoordinatorTerminal{
 			Status: "no-op",
 			Cause:  "contract",
@@ -8857,10 +8904,14 @@ func testManagerStartRunShouldExecuteCoordinatorInDaemonWithoutSession(
 	}}
 	completedHookCalls := 0
 	terminalHookCalls := 0
+	postCommitHandler := &recordingCoordinatorPostCommitHandler{}
+	timerArmer := &recordingCoordinatorTimerArmer{}
 	manager, err := NewManager(
 		WithStore(store),
 		WithSessionExecutor(sessionExecutor),
 		WithCoordinatorRunner(runner),
+		WithCoordinatorPostCommitHandler(postCommitHandler),
+		WithCoordinatorTimerArmer(timerArmer),
 		WithGenerationStateFinalizer(noopLoopFinalizer{}),
 		WithCoordinatorTerminalStatusValidator(testCoordinatorTerminalStatusValidator),
 		WithCoordinatorTerminalHookStatusValidator(testCoordinatorTerminalHookStatusValidator),
@@ -8927,6 +8978,16 @@ func testManagerStartRunShouldExecuteCoordinatorInDaemonWithoutSession(
 	}
 	if got, want := string(runner.calls[0]), claim.Run.ID; got != want {
 		t.Fatalf("CoordinatorRunner taskRunID = %q, want %q", got, want)
+	}
+	wantPostCommitCalls := 1
+	if planSuperseded {
+		wantPostCommitCalls = 0
+	}
+	if got := len(postCommitHandler.calls); got != wantPostCommitCalls {
+		t.Fatalf("coordinator post-commit calls = %d, want %d", got, wantPostCommitCalls)
+	}
+	if got := len(timerArmer.timers); got != wantPostCommitCalls {
+		t.Fatalf("coordinator timer calls = %d, want %d", got, wantPostCommitCalls)
 	}
 	if completedHookCalls != 1 {
 		t.Fatalf("task.run.completed hooks = %d, want 1", completedHookCalls)

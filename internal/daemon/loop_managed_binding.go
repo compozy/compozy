@@ -339,12 +339,15 @@ func activationRequest(
 	key goalpkg.BindingKey,
 	prepared goalpkg.SessionBinding,
 ) goalpkg.ActivateBindingRequest {
-	checkpointKey := &goalpkg.TurnKey{
-		WorkspaceID: req.WorkspaceID,
-		LoopRunID:   req.LoopRunID,
-		Generation:  req.Generation,
-		NodeID:      req.NodeID,
-		ItemIndex:   req.ItemIndex,
+	var checkpointKey *goalpkg.TurnKey
+	if strings.TrimSpace(req.ExpectedCheckpointPhase) != "" {
+		checkpointKey = &goalpkg.TurnKey{
+			WorkspaceID: req.WorkspaceID,
+			LoopRunID:   req.LoopRunID,
+			Generation:  req.Generation,
+			NodeID:      req.NodeID,
+			ItemIndex:   req.ItemIndex,
+		}
 	}
 	return goalpkg.ActivateBindingRequest{
 		Key:                  key,

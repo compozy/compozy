@@ -37,13 +37,12 @@ type loopActionRunner interface {
 }
 
 type loopActionRuntime struct {
-	manager          loopActionTaskManager
-	store            taskStore
-	runner           loopActionRunner
-	sessions         loopActionSessionStatus
-	logger           *slog.Logger
-	now              func() time.Time
-	actionRunTimeout time.Duration
+	manager  loopActionTaskManager
+	store    taskStore
+	runner   loopActionRunner
+	sessions loopActionSessionStatus
+	logger   *slog.Logger
+	now      func() time.Time
 
 	root                 context.Context
 	cancel               context.CancelFunc
@@ -65,7 +64,6 @@ func newLoopActionRuntime(
 	sessions loopActionSessionStatus,
 	logger *slog.Logger,
 	now func() time.Time,
-	actionRunTimeout time.Duration,
 ) (*loopActionRuntime, error) {
 	if manager == nil {
 		return nil, errors.New("daemon: loop action runtime requires task manager")
@@ -75,9 +73,6 @@ func newLoopActionRuntime(
 	}
 	if runner == nil {
 		return nil, errors.New("daemon: loop action runtime requires coordinator runner")
-	}
-	if actionRunTimeout <= 0 || actionRunTimeout > taskpkg.MaxRunLeaseDuration {
-		return nil, fmt.Errorf("daemon: loop action timeout must be between 1ns and %s", taskpkg.MaxRunLeaseDuration)
 	}
 	if logger == nil {
 		logger = slog.Default()
@@ -93,7 +88,6 @@ func newLoopActionRuntime(
 		sessions:             sessions,
 		logger:               logger,
 		now:                  now,
-		actionRunTimeout:     actionRunTimeout,
 		root:                 root,
 		cancel:               cancel,
 		sem:                  make(chan struct{}, looppkg.LoopMaxFanoutWidth),
@@ -193,7 +187,15 @@ func (r *loopActionRuntime) executeQueuedRun(
 	if err != nil {
 		return err
 	}
-	actionTimeout, authoredTimeout, err := r.actionTimeoutSpecForRun(ctx, run)
+	actionTimeout, err := r.actionTimeoutForRun(ctx, run)
+	if err != nil {
+		return err
+	}
+	silenceWindow, err := r.actionSilenceWindowForRun(ctx, run)
+	if err != nil {
+		return err
+	}
+	deathStreakLimit, err := r.actionDeathStreakLimitForRun(ctx, run)
 	if err != nil {
 		return err
 	}
@@ -224,15 +226,20 @@ func (r *loopActionRuntime) executeQueuedRun(
 		}
 		return err
 	}
-	result, err := r.executeClaimedRun(
+	result, controlled, err := r.executeClaimedRun(
 		ctx,
 		claim,
 		actor,
 		leaseDuration,
 		actionTimeout,
-		authoredTimeout,
 		timeoutReason,
+		looppkg.WorkspaceID(taskRecord.WorkspaceID),
+		silenceWindow,
+		deathStreakLimit,
 	)
+	if controlled {
+		return err
+	}
 	if err != nil {
 		if ctx.Err() != nil {
 			return err

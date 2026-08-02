@@ -47,9 +47,14 @@ func appendNodeOutcomeEffectEventWithExecutor(
 	event looppkg.GenerationLifecycleEventIntent,
 	at time.Time,
 ) error {
-	kind := loopRunEventNodeSucceeded
-	if event.Kind == looppkg.GenerationLifecycleEventNodeFailed {
+	var kind string
+	switch event.Kind {
+	case looppkg.GenerationLifecycleEventNodeCanceled:
+		kind = loopRunEventNodeCanceled
+	case looppkg.GenerationLifecycleEventNodeFailed:
 		kind = loopRunEventNodeFailed
+	default:
+		kind = loopRunEventNodeSucceeded
 	}
 	payload := map[string]any{
 		loopRunEventPayloadKeyGeneration: generation,

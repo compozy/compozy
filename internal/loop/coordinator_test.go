@@ -695,6 +695,118 @@ func TestCoordinatorRunnerShouldResolveAwaitingChildCoordinatorTerminal(t *testi
 	})
 }
 
+// Invariant: an awaited child terminal crosses the composite-node boundary as a bounded
+// classified failure with the exact child run reference. A child cancellation never mutates
+// the parent Run directly. The awaiting-child coordinator suite owns this boundary.
+func TestCoordinatorRunnerShouldClassifyAwaitedChildTerminalFailClosed(t *testing.T) {
+	t.Parallel()
+
+	for _, testCase := range []struct {
+		name      string
+		status    Status
+		wantClass FailureClass
+	}{
+		{name: "failed child", status: StatusFailed, wantClass: FailureTransport},
+		{name: "canceled child", status: StatusCanceled, wantClass: FailureCancellation},
+	} {
+		t.Run("Should classify "+testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			parent := Run{
+				ID: "looprun-parent", WorkspaceID: "ws-1", LoopName: "parent",
+				Status: StatusRunning, Generation: 1,
+			}
+			child := Run{
+				ID: "looprun-child", WorkspaceID: parent.WorkspaceID, LoopName: "child",
+				Status: testCase.status, Generation: 1, ParentLoopRunID: parent.ID,
+			}
+			coordinatorRun := task.Run{
+				ID: "run-coordinator-child-boundary", TaskID: "task-coordinator-child-boundary",
+				RunKind: task.RunKindCoordinator, LoopRunID: string(parent.ID), Status: task.TaskRunStatusClaimed,
+			}
+			runner := newCoordinatorRunnerForTestWithGraph(
+				t, parent, coordinatorRun, map[string]task.Run{coordinatorRun.ID: coordinatorRun},
+				coordinatorRunnerOutputs{outputs: map[int][]GenerationOutput{}},
+				dsl.Graph{Nodes: []dsl.Node{{
+					ID: "child", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunLoop),
+				}}},
+			)
+			setCoordinatorRunnerRunsForTest(t, runner, map[RunID]Run{parent.ID: parent, child.ID: child})
+			output, live, stops, err := runner.refreshAwaitingChildOutput(
+				context.Background(), parent, dsl.Graph{}, GenerationOutput{
+					Generation: 1, NodeID: "child", Status: generationOutputAwaitingChild,
+					ChildLoopRunID: string(child.ID),
+				},
+			)
+			if err != nil {
+				t.Fatalf("refreshAwaitingChildOutput() error = %v", err)
+			}
+			if live || len(stops) != 0 || output.Status != generationOutputFailed {
+				t.Fatalf("awaited child output = %#v live=%t stops=%#v", output, live, stops)
+			}
+			failure := classifyGenerationOutputFailure(output, task.Run{})
+			if failure.Class != testCase.wantClass || failure.Target != string(child.ID) ||
+				failure.Code != childLoopStatusRef(testCase.status) {
+				t.Fatalf("classified child failure = %#v", failure)
+			}
+			if parent.Status != StatusRunning || parent.CancelRequested {
+				t.Fatalf("child terminal mutated parent = %#v", parent)
+			}
+		})
+	}
+}
+
+// Invariant: a terminal parent plan carries only owned terminate/cancel children; abandon is
+// intentionally absent, and an omitted policy defaults to terminate. The coordinator suite
+// owns authored parent-close selection.
+func TestAttachCoordinatorParentCloseIntentsShouldHonorAuthoredPolicy(t *testing.T) {
+	t.Parallel()
+
+	parent := Run{ID: "looprun-parent-close", WorkspaceID: "ws-1", LoopName: "parent"}
+	resolved := &ResolvedDefinition{Definition: dsl.Definition{Graph: dsl.Graph{Nodes: []dsl.Node{
+		{
+			ID: "default_child", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunLoop),
+			NodeLifecycleState: &dsl.NodeLifecycleState{},
+		},
+		{
+			ID: "cancel_child", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunLoop),
+			NodeLifecycleState: &dsl.NodeLifecycleState{OnParentClose: dsl.ParentCloseCancel},
+		},
+		{
+			ID: "abandon_child", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunLoop),
+			NodeLifecycleState: &dsl.NodeLifecycleState{OnParentClose: dsl.ParentCloseAbandon},
+		},
+	}}}}
+	plan := task.CoordinatorCompletionPlan{
+		Snapshot: task.GenerationSnapshot{Payload: GenerationSnapshotPayload{Outputs: []GenerationOutput{
+			{NodeID: "default_child", ChildLoopRunID: "child-default"},
+			{NodeID: "cancel_child", ChildLoopRunID: "child-cancel"},
+			{NodeID: "abandon_child", ChildLoopRunID: "child-abandon"},
+		}}},
+		Terminal: &task.CoordinatorTerminal{Status: string(StatusFailed)},
+	}
+	if err := attachCoordinatorParentCloseIntents(parent, resolved, &plan); err != nil {
+		t.Fatalf("attachCoordinatorParentCloseIntents() error = %v", err)
+	}
+	if len(plan.ParentCloses) != 2 {
+		t.Fatalf("parent close intents = %#v, want terminate and cancel only", plan.ParentCloses)
+	}
+	policies := map[string]string{}
+	for _, spec := range plan.ParentCloses {
+		if spec.ParentLoopRunID != string(parent.ID) || spec.ParentStatus != string(StatusFailed) {
+			t.Fatalf("parent close identity = %#v", spec)
+		}
+		policies[spec.ChildLoopRunID] = spec.Policy
+	}
+	if policies["child-default"] != string(dsl.ParentCloseTerminate) ||
+		policies["child-cancel"] != string(dsl.ParentCloseCancel) {
+		t.Fatalf("parent close policies = %#v", policies)
+	}
+	if _, found := policies["child-abandon"]; found {
+		t.Fatalf("abandoned child appeared in parent close intents: %#v", policies)
+	}
+}
+
 func TestCoordinatorRunnerShouldRetryAwaitingChildLoopOnTimeout(t *testing.T) {
 	t.Run("Should retry awaiting child loop on timeout", func(t *testing.T) {
 		t.Parallel()

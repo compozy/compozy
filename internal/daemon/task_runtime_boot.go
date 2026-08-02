@@ -154,7 +154,6 @@ func installLoopActionRuntime(
 		state.sessions,
 		state.logger,
 		now,
-		state.cfg.Task.Orchestration.ActionRunTimeout,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("daemon: create loop action runtime: %w", err)
@@ -300,6 +299,7 @@ func newTaskRuntimeManager(
 	options = append(
 		options,
 		taskpkg.WithParticipationResolver(resolver),
+		taskpkg.WithCoordinatorPostCommitHandler(loopParentClosePostCommit{state: state}),
 		taskpkg.WithWorkAdmissionChecker(workAdmission),
 		taskpkg.WithWorkspaceAccessPolicy(state.accessPolicy),
 	)

@@ -17,7 +17,7 @@ func (r *CoordinatorRunner) actionRetryFailure(
 	run Run,
 	meta coordinatorActionRunMetadata,
 ) (*ClassifiedFailure, error) {
-	if meta.Attempt <= 1 || r.attempts == nil {
+	if meta.Attempt <= 1 || meta.ContinuationKind == deathResumeContinuationKind || r.attempts == nil {
 		return nil, nil
 	}
 	attempts, err := r.listNodeAttempts(ctx, run)

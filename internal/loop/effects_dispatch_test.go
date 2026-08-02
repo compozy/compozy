@@ -279,6 +279,7 @@ func TestCoordinatorEffectsShouldAttachEveryDeclaredTerminalOutcome(t *testing.T
 		TerminalEffects: dsl.TerminalEffects{
 			OnDone: emit("done"), OnNoOp: emit("noop"), OnBlocked: emit("blocked"),
 			OnFailed: emit("failed"), OnExhausted: emit("exhausted"), OnStalled: emit("stalled"),
+			OnCanceled: emit("canceled"),
 		},
 	}}}
 	cases := []struct {
@@ -291,6 +292,7 @@ func TestCoordinatorEffectsShouldAttachEveryDeclaredTerminalOutcome(t *testing.T
 		{StatusFailed, EffectTriggerOnFailed},
 		{StatusExhausted, EffectTriggerOnExhausted},
 		{StatusStalled, EffectTriggerOnStalled},
+		{StatusCanceled, EffectTriggerOnCanceled},
 	}
 	for _, testCase := range cases {
 		t.Run("Should attach "+string(testCase.status)+" to its exact committed outcome", func(t *testing.T) {

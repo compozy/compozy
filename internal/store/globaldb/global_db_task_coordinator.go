@@ -42,7 +42,7 @@ func (g *TaskRepo) CompleteCoordinatorAndEnqueueNext(
 			applied, applyErr := g.completeCoordinatorAndEnqueueNextWithExecutor(
 				ctx,
 				exec,
-				normalized,
+				&normalized,
 				finalizer,
 			)
 			if applyErr != nil {
@@ -82,17 +82,21 @@ func (g *TaskRepo) enqueueCoordinatorPostCommitWakes(
 func (g *TaskRepo) completeCoordinatorAndEnqueueNextWithExecutor(
 	ctx context.Context,
 	exec taskSQLExecutor,
-	completion taskpkg.CoordinatorCompletion,
+	completion *taskpkg.CoordinatorCompletion,
 	finalizer taskpkg.GenerationStateFinalizer,
 ) (taskpkg.CoordinatorCompletionResult, error) {
-	current, loopRunID, err := g.prepareCoordinatorCompletionWithExecutor(ctx, exec, completion)
+	current, loopRunID, err := g.prepareCoordinatorCompletionWithExecutor(ctx, exec, *completion)
+	if err != nil {
+		return taskpkg.CoordinatorCompletionResult{}, err
+	}
+	superseded, err := protectCanceledLoopFromStaleCoordinator(ctx, exec, completion, loopRunID)
 	if err != nil {
 		return taskpkg.CoordinatorCompletionResult{}, err
 	}
 	state, err := g.finalizeCoordinatorGenerationWithExecutor(
 		ctx,
 		exec,
-		completion,
+		*completion,
 		current,
 		loopRunID,
 		finalizer,
@@ -100,11 +104,10 @@ func (g *TaskRepo) completeCoordinatorAndEnqueueNextWithExecutor(
 	if err != nil {
 		return taskpkg.CoordinatorCompletionResult{}, err
 	}
-
 	result, err := g.applyCoordinatorBoundaryWithExecutor(
 		ctx,
 		exec,
-		&completion,
+		completion,
 		&current,
 		&state,
 		finalizer,
@@ -112,13 +115,14 @@ func (g *TaskRepo) completeCoordinatorAndEnqueueNextWithExecutor(
 	if err != nil {
 		return taskpkg.CoordinatorCompletionResult{}, err
 	}
+	result.PlanSuperseded = superseded
 
 	updated, err := g.getTaskRunWithExecutor(ctx, exec, current.ID)
 	if err != nil {
 		return taskpkg.CoordinatorCompletionResult{}, err
 	}
 	result.Run = updated
-	return g.attachTerminalCoordinatorSettlementWithExecutor(ctx, exec, completion, &result, updated)
+	return g.attachTerminalCoordinatorSettlementWithExecutor(ctx, exec, *completion, &result, updated)
 }
 
 type coordinatorBoundaryState struct {
@@ -170,7 +174,11 @@ func (g *TaskRepo) finalizeCoordinatorGenerationWithExecutor(
 	if err := applyCoordinatorRunStopsWithExecutor(ctx, exec, completion.Plan.RunStops, completion.Now); err != nil {
 		return coordinatorBoundaryState{}, err
 	}
-
+	if err := validateCoordinatorParentClosesWithExecutor(
+		ctx, exec, loop.RunID(loopRunID), completion.Plan,
+	); err != nil {
+		return coordinatorBoundaryState{}, err
+	}
 	tokensUsed, err := refreshLoopTokensUsedWithExecutor(ctx, exec, loopRunID)
 	if err != nil {
 		return coordinatorBoundaryState{}, err
