@@ -77,6 +77,11 @@ declared tasks unstarted and six task-owning agents silent, while the independen
   public task catalog in the same lab showed all twelve received runs, ten completed, and two
   explicitly blocked on typed dependencies:
   `/Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260801-135009-390014-lab/qa-artifacts/qa/task-terminal-statuses.json`.
+- Bundles-removal reproduction (2026-08-02):
+  `/Users/pedronauck/dev/qa-labs/compozy-devtool-oss-launch-20260802-195112-911343-lab/qa-artifacts/qa/observation-summary.json`;
+  the observer reported all eleven runs without completion and six task-owning agents as silent,
+  while five independent public Task catalog snapshots show all eleven tasks `completed` with
+  durable `closed_at` timestamps under the same lab's `qa/tasks-final-*.json` files.
 
 ## Fix
 
@@ -118,3 +123,12 @@ declared tasks unstarted and six task-owning agents silent, while the independen
   explicitly blocked after every declared run had started. Three disruption probes also reached
   recorded recoveries. Exactly one provider kickoff was sent; no follow-up prompt concealed the
   observer mismatch.
+
+## Re-found — 2026-08-02
+
+- **Persona:** Mateo Rivera, release operator for the `devtool-oss-launch` playbook.
+- **Report:** `docs/qa/reports/2026-08-02-bundles-removal.md`.
+- **Result:** Reproduced after exactly one kickoff. All eleven Task catalog entries completed between
+  `2026-08-02T20:00:35Z` and `2026-08-02T20:05:05Z`, but the 1,800-second observer saw no
+  runtime-owned progress after scheduler resume and set `stall_detected=true`. Observer-authored CLI
+  comparison rows were appended afterward with actor `qa-observer`; they do not masquerade as runtime events.

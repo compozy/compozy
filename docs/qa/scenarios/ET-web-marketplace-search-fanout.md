@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-marketplace-acquisition
 expected: Search filters only the active kind and scope, a failed kind owns its recoverable error state, and an all-zero query offers one clear-search action without changing kind or scope.
 entry_points: /marketplace/<kind>?q=<query>; Marketplace kind search field
-qa_status: untested
+qa_status: pass
 bug_ids: BUG-20260714-keyboard-focus-invisible
 fix_status: fixed
 retest_status: pass
 fix_commits: 8eeb8a38
-evidence: /Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/web/marketplace-skill-stale-served.png; /Users/pedronauck/Dev/compozy/compozy/.tmp/bug-20260714-focus/focused.png; /Users/pedronauck/dev/qa-labs/compozy-ext-improvs-final-20260729-230047-267985-lab/qa-artifacts/qa/extension-charters.json
-last_report: docs/qa/reports/2026-07-29-ext-improvs.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/web/marketplace-skill-stale-served.png;/Users/pedronauck/Dev/compozy/compozy/.tmp/bug-20260714-focus/focused.png;/Users/pedronauck/dev/qa-labs/compozy-ext-improvs-final-20260729-230047-267985-lab/qa-artifacts/qa/extension-charters.json;/Users/pedronauck/dev/qa-labs/compozy-devtool-oss-launch-20260802-195112-911343-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-08-02-bundles-removal.md
 overlaps: ET-api-marketplace-namespace; ET-web-marketplace-landing-browse
 ---
 

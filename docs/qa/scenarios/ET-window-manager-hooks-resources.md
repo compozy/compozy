@@ -6,13 +6,13 @@ persona: Ada
 journey: J-administer-window-manager
 expected: Extension `window_layout` resources are schema-validated, scope-filtered, immutable to consumers, and applicable only through the semantic service; async hooks fire after committed layout apply, desktop create/delete, and window move with workspace/revision/change metadata; preview, rejection, pointer motion, focus, and desktop switching emit no extension hook.
 entry_points: extension resources; compozy__resources_list; compozy__layout_arrange; hook catalog and runs
-qa_status: untested
+qa_status: pass
 bug_ids:
 fix_status:
-retest_status:
+retest_status: pass
 fix_commits:
-evidence: docs/qa/evidence/2026-08-01-window-tabs/agent-02-layouts-applies-now.png; docs/qa/reports/2026-08-01-window-tabs.md
-last_report: docs/qa/reports/2026-08-01-window-tabs.md
+evidence: docs/qa/evidence/2026-08-01-window-tabs/agent-02-layouts-applies-now.png;docs/qa/reports/2026-08-01-window-tabs.md;/Users/pedronauck/dev/qa-labs/compozy-devtool-oss-launch-20260802-195112-911343-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-08-02-bundles-removal.md
 overlaps: ET-window-manager-layout-recovery; ET-window-manager-public-parity
 ---
 

@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-extension-kit-lifecycle
 expected: A declared environment key binds to an existing Vault reference or hidden input at the exact extension instance scope, while list and every transport expose only bound key names.
 entry_points: /docs/extensions/secrets and CLI extension secrets reference; compozy extension secrets set --value-stdin|bind|list|unset [--workspace] -o json|jsonl|toon; GET|PUT|DELETE /api/extensions/:name/secrets[/env] over HTTP and UDS; compozy doctor --only extension
-qa_status: untested
+qa_status: pass
 bug_ids:
 fix_status:
-retest_status:
+retest_status: pass
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-devtool-oss-launch-20260802-195112-911343-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-08-02-bundles-removal.md
 overlaps: ET-019; ET-web-extension-detail
 ---
 

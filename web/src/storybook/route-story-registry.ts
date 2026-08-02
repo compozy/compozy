@@ -78,6 +78,13 @@ export const routeStoryRegistry = [
     storyName: "DetailSkillInstalled",
   },
   {
+    system: "marketplace",
+    routePath: "/marketplace/$kind",
+    storybookPath: "/marketplace/bundles",
+    title: "systems/marketplace/routes/Marketplace",
+    storyName: "RetiredKindNotFound",
+  },
+  {
     system: "automation",
     routePath: "/triggers",
     storybookPath: "/triggers",

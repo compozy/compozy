@@ -6,13 +6,13 @@ persona: Dora
 journey: J-evaluate-compozy-beta
 expected: On /docs/api/* every surviving OpenAPI tag shows a Lucide icon and styled two-column operations; Extension inventory, preview, secrets, and digest-confirm fields render, while the Bundle tag and operations are absent with no broken sidebar entry.
 entry_points: compozy.com /docs/api/extensions; /docs/api/marketplace; /docs/api/sessions; /docs/api/settings; retired /docs/api/bundles
-qa_status: untested
-bug_ids:
-fix_status:
-retest_status:
-fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-site-improvs-deep-review-20260730-024918-833208-lab/qa-artifacts/qa/visual-contract/deep-review-remediation/raw/implementation/api-reference.png
-last_report: docs/qa/reports/2026-07-29-site-improvs-deep-review.md
+qa_status: pass
+bug_ids: BUG-20260802-site-topbar-client-boundary
+fix_status: fixed
+retest_status: pass
+fix_commits: a817e37
+evidence: /Users/pedronauck/dev/qa-labs/compozy-site-improvs-deep-review-20260730-024918-833208-lab/qa-artifacts/qa/visual-contract/deep-review-remediation/raw/implementation/api-reference.png;/Users/pedronauck/dev/qa-labs/compozy-devtool-oss-launch-20260802-195112-911343-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-08-02-bundles-removal.md
 overlaps: ET-site-docs-sidebar-opendesign; ET-site-docs-typography-opendesign; ET-site-docs-masthead-opendesign
 ---
 

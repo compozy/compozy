@@ -6,13 +6,13 @@ persona: Ada
 journey: J-32
 expected: Create, rename, duplicate, native-tool, and extension kit publication attempts for coordinator or dreaming-curator fail with agent_name_reserved, create no authored directory, and leave the agent catalog unchanged.
 entry_points: compozy agent create|update|duplicate; POST/PUT /api/agents over HTTP or UDS; compozy__agent_create; extension enable; pre-existing $COMPOZY_HOME/agents/<reserved-name>/ directory at boot (discovery skip); docs configuration/agent-md reserved builtin names
-qa_status: untested
+qa_status: pass
 bug_ids:
 fix_status: fixed
 retest_status: pass
 fix_commits:
-evidence:
-last_report: docs/qa/reports/2026-07-28-untested-full.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-devtool-oss-launch-20260802-195112-911343-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-08-02-bundles-removal.md
 overlaps: RT-081;MS-inspect-background-role-routing
 ---
 

@@ -6,13 +6,13 @@ persona: Ada
 journey: J-extension-kit-lifecycle
 expected: Preview reports the resources, conflicts, unbound environment keys, automation starts, and Network digest for enable or reload without mutating runtime or stored state.
 entry_points: compozy extension preview <name> -o json|jsonl|toon; GET /api/extensions/:name/preview over HTTP and UDS; compozy__extensions_preview
-qa_status: untested
+qa_status: pass
 bug_ids:
 fix_status:
-retest_status:
+retest_status: pass
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-devtool-oss-launch-20260802-195112-911343-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-08-02-bundles-removal.md
 overlaps: ET-ext-inventory; ET-web-extensions-manage
 ---
 

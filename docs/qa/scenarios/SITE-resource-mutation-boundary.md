@@ -6,13 +6,13 @@ persona: Ada
 journey: J-agent-marketplace-parity
 expected: The desired-state resource guide demonstrates generic optimistic CRUD with a directly mutable registered kind and explains that extension-owned resources change only through the extension lifecycle.
 entry_points: compozy.com `/docs/resources`; `PUT /api/resources/:kind/:id`; `compozy extension enable|disable`
-qa_status: untested
+qa_status: pass
 bug_ids: BUG-20260729-resource-docs-protected-kind
 fix_status:
-retest_status:
+retest_status: pass
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-site-search-context-20260730-062701-777068-lab/qa-artifacts/qa
-last_report: docs/qa/reports/2026-07-28-untested-full.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-site-search-context-20260730-062701-777068-lab/qa-artifacts/qa;/Users/pedronauck/dev/qa-labs/compozy-devtool-oss-launch-20260802-195112-911343-lab/qa-artifacts/qa
+last_report: docs/qa/reports/2026-08-02-bundles-removal.md
 overlaps: ET-033
 ---
 

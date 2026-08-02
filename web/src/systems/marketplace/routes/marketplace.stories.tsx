@@ -175,6 +175,13 @@ export const ExtensionsInstalled: Story = {
   render: () => <StorybookWorkspaceSetup />,
 };
 
+/** A retired or unknown Marketplace kind reaches the OS not-found boundary without an alias. */
+export const RetiredKindNotFound: Story = {
+  args: {},
+  parameters: appRouteParameters("/marketplace/bundles"),
+  render: () => <StorybookWorkspaceSetup />,
+};
+
 export const DetailSkillInstalled: Story = {
   args: {},
   parameters: {
