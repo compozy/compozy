@@ -29,6 +29,8 @@ const (
 	loopRunEventNodeRetryScheduled   = "node_retry_scheduled"
 	loopRunEventStaleScheduleDropped = "stale_schedule_dropped"
 	loopRunEventLateArrival          = "late_arrival"
+	loopRunEventEffectResults        = "effect_results"
+	loopRunEventCustomEvent          = "custom_event"
 
 	maxLoopRunEventPayloadBytes = 16 * 1024
 	loopTokenTickMinDelta       = 2000
@@ -91,6 +93,23 @@ func appendLoopRunStatusEventWithFailure(
 	failure *taskpkg.CoordinatorFailure,
 	at time.Time,
 ) error {
+	return appendLoopRunStatusEventWithFailureAndEffects(
+		ctx, exec, runID, ws, from, to, cause, failure, nil, at,
+	)
+}
+
+func appendLoopRunStatusEventWithFailureAndEffects(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	runID looppkg.RunID,
+	ws looppkg.WorkspaceID,
+	from looppkg.Status,
+	to looppkg.Status,
+	cause looppkg.TransitionCause,
+	failure *taskpkg.CoordinatorFailure,
+	effects []looppkg.RenderedEffectIntent,
+	at time.Time,
+) error {
 	if from == to {
 		return nil
 	}
@@ -103,7 +122,17 @@ func appendLoopRunStatusEventWithFailure(
 	if failure != nil {
 		payload[loopRunEventPayloadKeyFailure] = failure
 	}
-	return appendLoopRunEventWithExecutor(ctx, exec, runID, ws, loopRunEventStatusChanged, payload, at)
+	eventID, _, err := appendLoopRunEventWithIdentity(
+		ctx, exec, runID, ws, loopRunEventStatusChanged, payload, at,
+	)
+	if err != nil {
+		return err
+	}
+	if len(effects) == 0 {
+		return nil
+	}
+	run := looppkg.Run{ID: runID, WorkspaceID: ws}
+	return insertLoopEffectIntentsWithExecutor(ctx, exec, run, eventID, effects, at)
 }
 
 func appendLoopRunEventWithExecutor(
@@ -115,7 +144,7 @@ func appendLoopRunEventWithExecutor(
 	payload any,
 	at time.Time,
 ) error {
-	_, err := appendLoopRunEventWithSequence(ctx, exec, runID, ws, kind, payload, at)
+	_, _, err := appendLoopRunEventWithIdentity(ctx, exec, runID, ws, kind, payload, at)
 	return err
 }
 
@@ -128,37 +157,51 @@ func appendLoopRunEventWithSequence(
 	payload any,
 	at time.Time,
 ) (int64, error) {
+	_, seq, err := appendLoopRunEventWithIdentity(ctx, exec, runID, ws, kind, payload, at)
+	return seq, err
+}
+
+func appendLoopRunEventWithIdentity(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	runID looppkg.RunID,
+	ws looppkg.WorkspaceID,
+	kind string,
+	payload any,
+	at time.Time,
+) (string, int64, error) {
 	runID = looppkg.RunID(strings.TrimSpace(string(runID)))
 	ws = looppkg.WorkspaceID(strings.TrimSpace(string(ws)))
 	kind = strings.TrimSpace(kind)
 	if runID == "" {
-		return 0, fmt.Errorf("%w: loop event run_id is required", looppkg.ErrValidation)
+		return "", 0, fmt.Errorf("%w: loop event run_id is required", looppkg.ErrValidation)
 	}
 	if ws == "" {
-		return 0, fmt.Errorf("%w: loop event workspace_id is required", looppkg.ErrValidation)
+		return "", 0, fmt.Errorf("%w: loop event workspace_id is required", looppkg.ErrValidation)
 	}
 	if !loopRunEventKindValid(kind) {
-		return 0, fmt.Errorf("%w: loop run event kind is invalid: %q", looppkg.ErrValidation, kind)
+		return "", 0, fmt.Errorf("%w: loop run event kind is invalid: %q", looppkg.ErrValidation, kind)
 	}
 	if at.IsZero() {
 		at = time.Now().UTC()
 	}
 	payloadJSON, err := normalizeLoopRunEventPayload(kind, payload)
 	if err != nil {
-		return 0, err
+		return "", 0, err
 	}
 	seq, err := nextLoopRunEventSequence(ctx, exec, runID)
 	if err != nil {
-		return 0, err
+		return "", 0, err
 	}
+	eventID := store.NewID("loopevt")
 	err = sqlcgen.New(exec).InsertLoopRunEvent(ctx, sqlcgen.InsertLoopRunEventParams{
-		ID: store.NewID("loopevt"), LoopRunID: string(runID), WorkspaceID: string(ws),
+		ID: eventID, LoopRunID: string(runID), WorkspaceID: string(ws),
 		Seq: seq, Kind: kind, PayloadJson: string(payloadJSON), At: at.UTC(),
 	})
 	if err != nil {
-		return 0, fmt.Errorf("store: insert loop run event %q: %w", kind, err)
+		return "", 0, fmt.Errorf("store: insert loop run event %q: %w", kind, err)
 	}
-	return seq, nil
+	return eventID, seq, nil
 }
 
 func nextLoopRunEventSequence(
@@ -190,7 +233,9 @@ func loopRunEventKindValid(kind string) bool {
 		loopRunEventRuntimeApplied,
 		loopRunEventNodeRetryScheduled,
 		loopRunEventStaleScheduleDropped,
-		loopRunEventLateArrival:
+		loopRunEventLateArrival,
+		loopRunEventEffectResults,
+		loopRunEventCustomEvent:
 		return true
 	default:
 		return false

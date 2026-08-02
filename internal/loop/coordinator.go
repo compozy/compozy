@@ -200,6 +200,9 @@ func (r *CoordinatorRunner) Run(
 	if err != nil {
 		return task.CoordinatorCompletionPlan{}, err
 	}
+	if err := attachCoordinatorEffectIntents(loopRun, resolved, &plan); err != nil {
+		return task.CoordinatorCompletionPlan{}, err
+	}
 	if err := coordinatorFSM.transition(ctx, coordinatorEventAssemble); err != nil {
 		return task.CoordinatorCompletionPlan{}, err
 	}

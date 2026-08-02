@@ -136,6 +136,8 @@ type bootState struct {
 	loopsDone             chan struct{}
 	goalOutboxCancel      context.CancelFunc
 	goalOutboxDone        chan struct{}
+	effectRelayCancel     context.CancelFunc
+	effectRelayDone       chan struct{}
 	startedAt             time.Time
 	info                  Info
 	deps                  RuntimeDeps

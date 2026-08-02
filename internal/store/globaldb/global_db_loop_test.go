@@ -61,6 +61,121 @@ func TestLoopRunEventKindValidShouldMatchPublicContract(t *testing.T) {
 			}
 		})
 	}
+	for _, kind := range []string{loopRunEventEffectResults, loopRunEventCustomEvent} {
+		t.Run("Should accept staged effect kind "+kind, func(t *testing.T) {
+			t.Parallel()
+			if !loopRunEventKindValid(kind) {
+				t.Fatalf("loopRunEventKindValid(%q) = false, want staged runtime support", kind)
+			}
+			if slices.Contains(contract.LoopRunEventKindValues(), kind) {
+				t.Fatalf("staged effect kind %q reached the aggregate contract before task_07", kind)
+			}
+		})
+	}
+}
+
+// Invariant: an effect acknowledgement changes one pending row and appends at most one event per
+// delivery key in the same transaction. The loop store suite owns this durable idempotency rule.
+func TestGlobalDBLoopEffectAcknowledgementShouldBeAtomicAndIdempotent(t *testing.T) {
+	t.Parallel()
+
+	globalDB := openLoopTestGlobalDB(t)
+	ctx := testutil.Context(t)
+	now := time.Date(2026, time.August, 2, 23, 45, 0, 0, time.UTC)
+	loopRun, err := globalDB.CreateLoopRunForStart(
+		ctx,
+		testLoopRun("looprun-effect-ack", now, looppkg.StatusRunning),
+		dsl.ConcurrencyAllow,
+	)
+	if err != nil {
+		t.Fatalf("CreateLoopRunForStart() error = %v", err)
+	}
+	err = globalDB.withTaskImmediateTransaction(
+		ctx,
+		"seed loop effect acknowledgement",
+		func(exec taskSQLExecutor) error {
+			sourceEventID, _, appendErr := appendLoopRunEventWithIdentity(
+				ctx,
+				exec,
+				loopRun.ID,
+				loopRun.WorkspaceID,
+				loopRunEventNodeFailed,
+				map[string]any{"node_id": "fetch", "generation": 1, "item_index": 0},
+				now,
+			)
+			if appendErr != nil {
+				return appendErr
+			}
+			return insertLoopEffectIntentsWithExecutor(
+				ctx,
+				exec,
+				loopRun,
+				sourceEventID,
+				[]looppkg.RenderedEffectIntent{{
+					Trigger: looppkg.EffectTriggerOnError, Generation: 1, NodeID: "fetch", EntryIndex: 0,
+					Entry: json.RawMessage(`{"kind":"emit","emit":{"kind":"fetch_failed","payload":{"safe":true}}}`),
+				}},
+				now,
+			)
+		},
+	)
+	if err != nil {
+		t.Fatalf("seed loop effect acknowledgement error = %v", err)
+	}
+	pending, err := globalDB.ListPendingLoopEffects(ctx, 10)
+	if err != nil {
+		t.Fatalf("ListPendingLoopEffects() error = %v", err)
+	}
+	if len(pending) != 1 || pending[0].WorkspaceID != loopRun.WorkspaceID {
+		t.Fatalf("pending effects = %#v, want one workspace-owned row", pending)
+	}
+	ack := looppkg.EffectAcknowledgement{
+		Entry: pending[0], Outcome: looppkg.EffectResultOK, Duration: 25 * time.Millisecond,
+		CustomEvent: json.RawMessage(`{"authored_kind":"fetch_failed","payload":{"safe":true}}`),
+		At:          now.Add(time.Second),
+	}
+	acknowledged, err := globalDB.AcknowledgeLoopEffect(ctx, ack)
+	if err != nil {
+		t.Fatalf("AcknowledgeLoopEffect(first) error = %v", err)
+	}
+	if !acknowledged {
+		t.Fatal("AcknowledgeLoopEffect(first) = false, want winner")
+	}
+	acknowledged, err = globalDB.AcknowledgeLoopEffect(ctx, ack)
+	if err != nil {
+		t.Fatalf("AcknowledgeLoopEffect(replay) error = %v", err)
+	}
+	if acknowledged {
+		t.Fatal("AcknowledgeLoopEffect(replay) = true, want idempotent loser")
+	}
+	outbox, err := globalDB.ListEffectOutbox(ctx, loopRun.WorkspaceID, loopRun.ID)
+	if err != nil {
+		t.Fatalf("ListEffectOutbox() error = %v", err)
+	}
+	if len(outbox) != 1 || outbox[0].State != looppkg.EffectDelivered || outbox[0].Attempts != 1 {
+		t.Fatalf("effect outbox = %#v, want delivered once", outbox)
+	}
+	events, err := globalDB.ListLoopRunEvents(ctx, looppkg.RunEventQuery{
+		WorkspaceID: loopRun.WorkspaceID,
+		RunID:       loopRun.ID,
+	})
+	if err != nil {
+		t.Fatalf("ListLoopRunEvents() error = %v", err)
+	}
+	wantKeys := map[string]int{
+		pending[0].DeliveryID + ":" + loopRunEventCustomEvent:   0,
+		pending[0].DeliveryID + ":" + loopRunEventEffectResults: 0,
+	}
+	for _, event := range events {
+		if _, ok := wantKeys[event.DeliveryKey]; ok {
+			wantKeys[event.DeliveryKey]++
+		}
+	}
+	for key, count := range wantKeys {
+		if count != 1 {
+			t.Fatalf("delivery key %q count = %d, want exactly 1", key, count)
+		}
+	}
 }
 
 func TestValidateLoopCoordinatorReactivation(t *testing.T) {

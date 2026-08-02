@@ -3,6 +3,7 @@ package loop
 const (
 	metadataLoopRunIDKey       = "loop_run_id"
 	metadataGenerationKey      = "generation"
+	metadataItemIndexKey       = "item_index"
 	namespaceInputsKey         = "inputs"
 	namespaceNodesKey          = "nodes"
 	namespaceOutputKey         = "output"

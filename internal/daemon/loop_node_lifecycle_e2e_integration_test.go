@@ -91,6 +91,23 @@ func TestDaemonE2ELoopNodeLifecycleShouldRetryRouteAndEscalate(t *testing.T) {
 		if successOnly.TaskRunID != "" || successOnly.OutputRef != "branch_skipped" {
 			t.Fatalf("success-only output = %#v, want skipped without a task run", successOnly)
 		}
+		events := readLoopRunSSEUntil(
+			t,
+			ctx,
+			harness,
+			loopRunEventsPath(harness.WorkspaceID, run.ID, 0),
+			func(events []loopRunSSEEvent) bool {
+				return loopSSEKinds(events).Contains("custom_event", "effect_results")
+			},
+		)
+		assertLifecycleEffectEventContains(t, events, "custom_event", []string{
+			`"authored_kind":"lifecycle_failure_notification"`,
+			`"cause":"route fallback"`,
+			`"node_id":"primary"`,
+		})
+		assertLifecycleEffectEventContains(t, events, "effect_results", []string{
+			`"trigger":"on_error"`, `"outcome":"ok"`,
+		})
 	})
 
 	t.Run("Should carry an unhandled failure into generation repair", func(t *testing.T) {
@@ -188,7 +205,15 @@ graph:
       kind: run-agent
       retry: { max_attempts: 0 }
       result_contract: { failure_field: error, message_field: error }
-      on_error: { route: fallback }
+      on_error:
+        route: fallback
+        effects:
+          - emit:
+              kind: lifecycle_failure_notification
+              payload:
+                cause: "{{ .effect.failure.cause }}"
+                node_id: "{{ .effect.identity.node_id }}"
+                run_link: "{{ .effect.links.run }}"
       params:
         agent: lifecycle-route-agent
         prompt: "route primary"
@@ -219,6 +244,32 @@ graph:
     - { from: primary, to: success_only }
 start: [{ kind: http }, { kind: uds }]
 `
+}
+
+func assertLifecycleEffectEventContains(
+	t *testing.T,
+	events []loopRunSSEEvent,
+	kind string,
+	fragments []string,
+) {
+	t.Helper()
+	for _, event := range events {
+		if string(event.Kind) != kind {
+			continue
+		}
+		payload := string(event.Payload)
+		allFound := true
+		for _, fragment := range fragments {
+			if !strings.Contains(payload, fragment) {
+				allFound = false
+				break
+			}
+		}
+		if allFound {
+			return
+		}
+	}
+	t.Fatalf("events = %#v, want %s payload containing %v", events, kind, fragments)
 }
 
 func lifecycleEscalationLoopYAML() string {

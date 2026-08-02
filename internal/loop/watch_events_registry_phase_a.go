@@ -100,7 +100,7 @@ var phaseAWatchEvents = []WatchEventsContract{
 		PayloadFields: []string{
 			"node_id",
 			metadataGenerationKey,
-			"item_index",
+			metadataItemIndexKey,
 			"task_id",
 			"task_run_id",
 			reasonMetaStatus,
