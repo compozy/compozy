@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	"github.com/compozy/compozy/internal/store"
 )
 
 const (
@@ -36,23 +38,30 @@ func (m *Manager) ApplyAutomaticSessionTitle(
 	if !ok {
 		return false, nil
 	}
-	claim, ok := session.claimAutomaticTitle(title, m.now())
+	session.mu.Lock()
+	claim, ok := session.claimAutomaticTitleLocked(title, m.now())
 	if !ok {
+		session.mu.Unlock()
 		return false, nil
 	}
-	if err := m.persistSessionIdentity(ctx, session); err != nil {
-		session.rollbackAutomaticTitle(claim)
-		rollbackErr := m.writeMeta(session)
+	metaPath := session.metaPath
+	meta := session.metaLocked()
+	info := session.infoLocked()
+	if err := m.persistSessionIdentitySnapshot(ctx, metaPath, meta, info); err != nil {
+		session.rollbackAutomaticTitleLocked(claim)
+		rollbackErr := store.WriteSessionMeta(metaPath, session.metaLocked())
+		session.mu.Unlock()
 		if rollbackErr != nil {
 			return false, errors.Join(err, fmt.Errorf("session: roll back automatic title: %w", rollbackErr))
 		}
 		return false, err
 	}
-	m.publishSessionCatalogEvent(sessionCatalogEventFromInfo(CatalogEventUpserted, session.Info()))
+	session.mu.Unlock()
+	m.publishSessionCatalogEvent(sessionCatalogEventFromInfo(CatalogEventUpserted, info))
 	return true, nil
 }
 
-func (s *Session) claimAutomaticTitle(candidate string, now time.Time) (sessionTitleClaim, bool) {
+func (s *Session) claimAutomaticTitleLocked(candidate string, now time.Time) (sessionTitleClaim, bool) {
 	if s == nil {
 		return sessionTitleClaim{}, false
 	}
@@ -61,8 +70,6 @@ func (s *Session) claimAutomaticTitle(candidate string, now time.Time) (sessionT
 		return sessionTitleClaim{}, false
 	}
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	if normalizeSessionType(s.Type) != SessionTypeUser || strings.TrimSpace(s.Name) != "" {
 		return sessionTitleClaim{}, false
 	}
@@ -72,12 +79,10 @@ func (s *Session) claimAutomaticTitle(candidate string, now time.Time) (sessionT
 	return claim, true
 }
 
-func (s *Session) rollbackAutomaticTitle(claim sessionTitleClaim) {
+func (s *Session) rollbackAutomaticTitleLocked(claim sessionTitleClaim) {
 	if s == nil {
 		return
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	if s.Name != claim.title {
 		return
 	}
