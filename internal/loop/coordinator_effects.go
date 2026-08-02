@@ -105,8 +105,40 @@ func attachAttemptEffectIntents(
 		if attempt.FailureClass != nil && *attempt.FailureClass == FailureAttemptTimeout {
 			return appendNodeEffectEvent(run, node.OnTimeout, EffectTriggerOnTimeout, attempt, payload)
 		}
+	case AttemptQuarantined:
+		return attachQuarantineEffectIntents(run, node, attempt, payload)
 	}
 	return nil
+}
+
+func attachQuarantineEffectIntents(
+	run Run,
+	node dsl.Node,
+	attempt NodeAttempt,
+	payload *GenerationSnapshotPayload,
+) error {
+	failure := effectFailureFromAttempt(attempt)
+	for index := range payload.Events {
+		event := &payload.Events[index]
+		if event.Kind != GenerationLifecycleEventNodeQuarantined ||
+			event.NodeID != string(attempt.NodeID) || event.ItemIndex != attempt.ItemIndex {
+			continue
+		}
+		if len(node.OnQuarantine) == 0 {
+			return nil
+		}
+		intents, err := RenderEffectIntents(node.OnQuarantine, EffectContextRequest{
+			Run: &run, Trigger: EffectTriggerOnQuarantine, Generation: attempt.Generation,
+			NodeID: attempt.NodeID, ItemIndex: attempt.ItemIndex, Attempt: attempt.Attempt,
+			Disposition: attempt.Disposition, Failure: failure, Quarantine: event.QuarantineEntry,
+		})
+		if err != nil {
+			return err
+		}
+		event.Effects = append(event.Effects, intents...)
+		return nil
+	}
+	return fmt.Errorf("%w: on_quarantine effect has no quarantine lifecycle event", ErrValidation)
 }
 
 func attachRetryEffectIntents(
@@ -196,6 +228,9 @@ func effectFailureFromAttempt(attempt NodeAttempt) *ClassifiedFailure {
 }
 
 func terminalEffectSpecs(contract dsl.Contract, status Status) ([]dsl.EffectSpec, EffectTrigger) {
+	if contract.ContractLifecycleState == nil {
+		return nil, ""
+	}
 	switch status {
 	case StatusDone:
 		return contract.OnDone, EffectTriggerOnDone

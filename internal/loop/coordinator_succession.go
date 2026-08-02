@@ -40,6 +40,9 @@ func rejectionRerunSet(
 	}
 	rerun := make(map[generationOutputKey]struct{})
 	for _, output := range outputs {
+		if GenerationOutputStatusParked(output.Status) {
+			continue
+		}
 		if _, ok := routeNodes[dsl.NodeID(output.NodeID)]; !ok {
 			continue
 		}
@@ -65,6 +68,12 @@ func successionGenerationOutputs(
 			continue
 		}
 		key := generationOutputKey{nodeID: current.NodeID, itemIndex: current.ItemIndex}
+		if GenerationOutputStatusParked(current.Status) {
+			current.Generation = nextGeneration
+			current.ExpectedEpoch = nil
+			next = append(next, current)
+			continue
+		}
 		seed, hasSeed := seedByKey[key]
 		_, shouldRerun := rerun[key]
 		if shouldRerun {

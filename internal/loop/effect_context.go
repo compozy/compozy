@@ -20,6 +20,7 @@ type EffectContextRequest struct {
 	NextAttemptAt *time.Time
 	Disposition   AttemptDisposition
 	Failure       *ClassifiedFailure
+	Quarantine    json.RawMessage
 }
 
 type effectIdentityContext struct {
@@ -46,10 +47,11 @@ type effectLinksContext struct {
 }
 
 type effectTemplateContext struct {
-	Identity effectIdentityContext `json:"identity"`
-	Failure  *ClassifiedFailure    `json:"failure,omitempty"`
-	Attempt  effectAttemptContext  `json:"attempt"`
-	Links    effectLinksContext    `json:"links"`
+	Identity   effectIdentityContext `json:"identity"`
+	Failure    *ClassifiedFailure    `json:"failure,omitempty"`
+	Quarantine json.RawMessage       `json:"quarantine,omitempty"`
+	Attempt    effectAttemptContext  `json:"attempt"`
+	Links      effectLinksContext    `json:"links"`
 }
 
 // BuildEffectContext pre-binds stable identity, failure, attempt, and decision links.
@@ -68,7 +70,8 @@ func BuildEffectContext(req EffectContextRequest) (map[string]any, error) {
 			LoopRunID: req.Run.ID, Generation: req.Generation, NodeID: req.NodeID,
 			ItemIndex: req.ItemIndex, Trigger: req.Trigger,
 		},
-		Failure: cloneClassifiedFailure(req.Failure),
+		Failure:    cloneClassifiedFailure(req.Failure),
+		Quarantine: append(json.RawMessage(nil), req.Quarantine...),
 		Attempt: effectAttemptContext{
 			Number: req.Attempt, NextAttemptAt: cloneTimePointer(req.NextAttemptAt),
 			Disposition: req.Disposition,
@@ -102,6 +105,9 @@ func (r EffectContextRequest) validate() error {
 	}
 	if !r.Trigger.NodeScoped() && r.NodeID != "" {
 		return fmt.Errorf("%w: loop effect must not carry node_id", ErrValidation)
+	}
+	if len(r.Quarantine) > 0 && !json.Valid(r.Quarantine) {
+		return fmt.Errorf("%w: effect quarantine context must be valid JSON", ErrValidation)
 	}
 	return nil
 }

@@ -19,6 +19,7 @@ const (
 
 type nodeLifecycleResult struct {
 	attempt NodeAttempt
+	events  []GenerationLifecycleEventIntent
 	handled bool
 	live    bool
 }
@@ -30,13 +31,14 @@ func (r *CoordinatorRunner) applyNodeLifecyclePrecedence(
 	resolved *ResolvedDefinition,
 	effective EffectiveConfig,
 	outputs []GenerationOutput,
-) ([]GenerationOutput, []NodeAttempt, bool, error) {
+) ([]GenerationOutput, []NodeAttempt, []GenerationLifecycleEventIntent, bool, error) {
 	attempts, err := r.listNodeAttempts(ctx, run)
 	if err != nil {
-		return nil, nil, false, err
+		return nil, nil, nil, false, err
 	}
 	advanced := cloneGenerationOutputs(outputs)
 	newAttempts := make([]NodeAttempt, 0)
+	events := make([]GenerationLifecycleEventIntent, 0)
 	graph := resolved.Definition.Graph
 	topology := newControlTopology(graph)
 	live := false
@@ -49,16 +51,17 @@ func (r *CoordinatorRunner) applyNodeLifecyclePrecedence(
 			ctx, run, generation, effective, graph, topology, advanced, index, attempts,
 		)
 		if applyErr != nil {
-			return nil, nil, false, applyErr
+			return nil, nil, nil, false, applyErr
 		}
 		if !result.handled {
 			continue
 		}
 		newAttempts = append(newAttempts, result.attempt)
+		events = append(events, result.events...)
 		attempts = append(attempts, result.attempt)
 		live = live || result.live
 	}
-	return advanced, newAttempts, live, nil
+	return advanced, newAttempts, events, live, nil
 }
 
 func (r *CoordinatorRunner) applyTerminalNodeLifecycle(
@@ -91,9 +94,15 @@ func (r *CoordinatorRunner) applyTerminalNodeLifecycle(
 		if errorPolicy := nodeErrorPolicy(node); errorPolicy != nil && errorPolicy.Route != "" {
 			skipErrorRouteOnSuccess(graph, topology, node, output, &advanced)
 		}
-		return nodeLifecycleResult{attempt: attempt, handled: true}, nil
+		events, err := r.accountActionTarget(ctx, run, node, taskRun, nil, attempt.Disposition)
+		if err != nil {
+			return nodeLifecycleResult{}, err
+		}
+		return nodeLifecycleResult{attempt: attempt, events: events, handled: true}, nil
 	}
-	return r.applyFailedNodeLifecycle(effective, graph, topology, advanced, index, attempts, node, taskRun, attempt)
+	return r.applyFailedNodeLifecycle(
+		ctx, run, effective, graph, topology, advanced, index, attempts, node, taskRun, attempt,
+	)
 }
 
 func lifecycleActionNode(
@@ -114,6 +123,8 @@ func lifecycleActionNode(
 }
 
 func (r *CoordinatorRunner) applyFailedNodeLifecycle(
+	ctx context.Context,
+	run Run,
 	effective EffectiveConfig,
 	graph dsl.Graph,
 	topology controlTopology,
@@ -126,6 +137,9 @@ func (r *CoordinatorRunner) applyFailedNodeLifecycle(
 ) (nodeLifecycleResult, error) {
 	output := advanced[index]
 	failure := classifyGenerationOutputFailure(output, taskRun)
+	if failure.Target == "" {
+		failure.Target = r.actionTargetFor(taskRun.ID, run, node)
+	}
 	retryPlan, err := planNodeRetry(&nodeRetryPlanInput{
 		node:        node,
 		effective:   effective,
@@ -150,10 +164,18 @@ func (r *CoordinatorRunner) applyFailedNodeLifecycle(
 			return nodeLifecycleResult{}, err
 		}
 		advanced[index] = output
-		return nodeLifecycleResult{attempt: attempt, handled: true, live: true}, nil
+		events, err := r.accountActionTarget(ctx, run, node, taskRun, &failure, attempt.Disposition)
+		if err != nil {
+			return nodeLifecycleResult{}, err
+		}
+		return nodeLifecycleResult{attempt: attempt, events: events, handled: true, live: true}, nil
 	}
 	attempt.Disposition = applyNodeFailureDisposition(graph, topology, node, output, advanced, index, failure)
-	return nodeLifecycleResult{attempt: attempt, handled: true}, nil
+	events, err := r.accountActionTarget(ctx, run, node, taskRun, &failure, attempt.Disposition)
+	if err != nil {
+		return nodeLifecycleResult{}, err
+	}
+	return nodeLifecycleResult{attempt: attempt, events: events, handled: true}, nil
 }
 
 func applyNodeFailureDisposition(
@@ -291,10 +313,9 @@ func classifyGenerationOutputFailure(output GenerationOutput, taskRun task.Run) 
 		)
 	}
 	evidence := FailureEvidence{
-		Code:   failure.Code,
-		Cause:  failure.Cause,
-		Hint:   failure.Recovery,
-		Target: failureTarget(failure.Code),
+		Code:  failure.Code,
+		Cause: failure.Cause,
+		Hint:  failure.Recovery,
 	}
 	if targetUnavailableFailureCode(failure.Code) {
 		evidence.TargetUnavailable = true
@@ -332,13 +353,6 @@ func actionFailureFromOutputRef(outputRef string) ActionFailure {
 		return ActionFailure{}
 	}
 	return failure
-}
-
-func failureTarget(code string) string {
-	if targetUnavailableFailureCode(code) {
-		return strings.TrimSpace(code)
-	}
-	return ""
 }
 
 func targetUnavailableFailureCode(code string) bool {

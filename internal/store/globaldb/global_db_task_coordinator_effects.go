@@ -75,3 +75,53 @@ func appendNodeOutcomeEffectEventWithExecutor(
 	}
 	return insertLoopEffectIntentsWithExecutor(ctx, exec, run, eventID, event.Effects, at)
 }
+
+func appendNodeQuarantinedEffectEventWithExecutor(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	run looppkg.Run,
+	generation int,
+	event looppkg.GenerationLifecycleEventIntent,
+	at time.Time,
+) error {
+	payload := map[string]any{
+		loopRunEventPayloadKeyGeneration: generation,
+		loopRunEventPayloadKeyNodeID:     event.NodeID,
+		loopRunEventPayloadKeyItemIndex:  event.ItemIndex,
+		watchEventsPayloadAttemptKey:     event.Attempt,
+		"disposition":                    event.Disposition,
+		loopRunEventPayloadKeyFailure:    event.Failure,
+		"entry":                          event.QuarantineEntry,
+	}
+	eventID, _, err := appendLoopRunEventWithIdentity(
+		ctx, exec, run.ID, run.WorkspaceID, loopRunEventNodeQuarantined, payload, at,
+	)
+	if err != nil {
+		return err
+	}
+	return insertLoopEffectIntentsWithExecutor(ctx, exec, run, eventID, event.Effects, at)
+}
+
+func appendTargetBreakerTransitionEventWithExecutor(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	run looppkg.Run,
+	generation int,
+	event looppkg.GenerationLifecycleEventIntent,
+	at time.Time,
+) error {
+	return appendLoopRunEventWithExecutor(
+		ctx,
+		exec,
+		run.ID,
+		run.WorkspaceID,
+		loopRunEventTargetBreakerTransition,
+		map[string]any{
+			loopRunEventPayloadKeyGeneration: generation,
+			"family":                         event.TargetFamily,
+			"target":                         event.Target,
+			networkWakeEventStateKey:         event.BreakerState,
+		},
+		at,
+	)
+}

@@ -3,7 +3,12 @@ package loop
 const (
 	metadataLoopRunIDKey       = "loop_run_id"
 	metadataGenerationKey      = "generation"
+	metadataNodeIDKey          = "node_id"
 	metadataItemIndexKey       = "item_index"
+	attentionDependencyFlag    = "dependency_quarantined"
+	targetBreakerStateOpen     = "open"
+	targetBreakerStateHalfOpen = "half_open"
+	targetBreakerStateClosed   = "closed"
 	namespaceInputsKey         = "inputs"
 	namespaceNodesKey          = "nodes"
 	namespaceOutputKey         = "output"

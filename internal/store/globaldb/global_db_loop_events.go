@@ -13,24 +13,27 @@ import (
 )
 
 const (
-	loopRunEventNodeRunning          = "node_running"
-	loopRunEventNodeSucceeded        = "node_succeeded"
-	loopRunEventNodeFailed           = "node_failed"
-	loopRunEventGateVerdict          = "gate_verdict"
-	loopRunEventGenerationStarted    = "generation_started"
-	loopRunEventChannelMsg           = "channel_msg"
-	loopRunEventTokenTick            = "token_tick"
-	loopRunEventNeedsApproval        = "needs_approval"
-	loopRunEventStatusChanged        = "status_changed"
-	loopRunEventGoalTurnStarted      = "goal_turn_started"
-	loopRunEventGoalTurnCompleted    = "goal_turn_completed"
-	loopRunEventGoalStatusChanged    = "goal_status_changed"
-	loopRunEventRuntimeApplied       = "runtime_applied"
-	loopRunEventNodeRetryScheduled   = "node_retry_scheduled"
-	loopRunEventStaleScheduleDropped = "stale_schedule_dropped"
-	loopRunEventLateArrival          = "late_arrival"
-	loopRunEventEffectResults        = "effect_results"
-	loopRunEventCustomEvent          = "custom_event"
+	loopRunEventNodeRunning             = "node_running"
+	loopRunEventNodeSucceeded           = "node_succeeded"
+	loopRunEventNodeFailed              = "node_failed"
+	loopRunEventNodeQuarantined         = "node_quarantined"
+	loopRunEventNodeRequeued            = "node_requeued"
+	loopRunEventTargetBreakerTransition = "target_breaker_transition"
+	loopRunEventGateVerdict             = "gate_verdict"
+	loopRunEventGenerationStarted       = "generation_started"
+	loopRunEventChannelMsg              = "channel_msg"
+	loopRunEventTokenTick               = "token_tick"
+	loopRunEventNeedsApproval           = "needs_approval"
+	loopRunEventStatusChanged           = "status_changed"
+	loopRunEventGoalTurnStarted         = "goal_turn_started"
+	loopRunEventGoalTurnCompleted       = "goal_turn_completed"
+	loopRunEventGoalStatusChanged       = "goal_status_changed"
+	loopRunEventRuntimeApplied          = "runtime_applied"
+	loopRunEventNodeRetryScheduled      = "node_retry_scheduled"
+	loopRunEventStaleScheduleDropped    = "stale_schedule_dropped"
+	loopRunEventLateArrival             = "late_arrival"
+	loopRunEventEffectResults           = "effect_results"
+	loopRunEventCustomEvent             = "custom_event"
 
 	maxLoopRunEventPayloadBytes = 16 * 1024
 	loopTokenTickMinDelta       = 2000
@@ -221,6 +224,9 @@ func loopRunEventKindValid(kind string) bool {
 	case loopRunEventNodeRunning,
 		loopRunEventNodeSucceeded,
 		loopRunEventNodeFailed,
+		loopRunEventNodeQuarantined,
+		loopRunEventNodeRequeued,
+		loopRunEventTargetBreakerTransition,
 		loopRunEventGateVerdict,
 		loopRunEventGenerationStarted,
 		loopRunEventChannelMsg,

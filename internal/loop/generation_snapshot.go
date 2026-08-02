@@ -17,6 +17,7 @@ import (
 type GenerationSnapshotPayload struct {
 	Outputs              []GenerationOutput                `json:"outputs,omitempty"`
 	Attempts             []NodeAttempt                     `json:"attempts,omitempty"`
+	Controls             []NodeControlMutation             `json:"controls,omitempty"`
 	OutputBlobs          []GenerationOutputBlob            `json:"output_blobs,omitempty"`
 	Verdicts             []gate.VerdictIntent              `json:"verdicts,omitempty"`
 	BestUpdate           *gate.BestUpdateIntent            `json:"best_update,omitempty"`
@@ -106,6 +107,11 @@ func (f *StoreFinalizer) WriteGenerationSnapshot(
 	}
 	for _, attempt := range payload.Attempts {
 		if err := writeGenerationAttempt(ctx, tx, loopRunID, snap.Generation, attempt); err != nil {
+			return err
+		}
+	}
+	for _, control := range payload.Controls {
+		if err := writeNodeControlMutation(ctx, tx, loopRunID, control); err != nil {
 			return err
 		}
 	}

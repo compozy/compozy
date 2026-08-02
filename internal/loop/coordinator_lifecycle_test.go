@@ -3,6 +3,7 @@ package loop
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -354,4 +355,181 @@ func runLifecyclePayloadFailurePlan(
 		t.Fatalf("Run() error = %v", err)
 	}
 	return plan
+}
+
+func TestCoordinatorQuarantineShouldPreserveDiagnosableSanitizedHistory(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.August, 2, 23, 0, 0, 0, time.UTC)
+	failureClass := FailureTransport
+	oldEntry, err := encodeQuarantineEntry(QuarantineEntry{
+		NodeID:   "fetch",
+		InputRef: "loop-run:looprun-quarantine-history:node:fetch:input",
+		Target:   "compozy__fetch",
+		Episodes: []QuarantineEpisode{{
+			Generation: 2, QuarantinedAt: now.Add(-time.Hour),
+			Attempts: []NodeAttempt{{
+				LoopRunID: "looprun-quarantine-history", Generation: 2, NodeID: "fetch",
+				Attempt: 1, FailureClass: &failureClass, FailureCode: "backend_failed",
+				Cause: "old failure", Disposition: AttemptQuarantined, StartedAt: now.Add(-2 * time.Hour),
+			}},
+		}},
+		Requeues: []QuarantineProvenance{{
+			ActorKind: "human", ActorID: "operator:alice", Reason: "target repaired",
+			RequestedAt: now.Add(-30 * time.Minute), Generation: 3,
+		}},
+	})
+	if err != nil {
+		t.Fatalf("encodeQuarantineEntry(old) error = %v", err)
+	}
+	endedAt := now.Add(-time.Second)
+	attempts := []NodeAttempt{
+		{
+			LoopRunID: "looprun-quarantine-history", Generation: 3, NodeID: "fetch",
+			Attempt: 1, FailureClass: &failureClass, FailureCode: "backend_failed",
+			Cause: "api_key=planted-secret", Hint: "rotate token=planted-secret",
+			Target: "compozy__fetch", Disposition: AttemptEscalated,
+			StartedAt: now.Add(-2 * time.Minute), EndedAt: &endedAt,
+		},
+		{
+			LoopRunID: "looprun-quarantine-history", Generation: 4, NodeID: "fetch",
+			Attempt: 2, FailureClass: &failureClass, FailureCode: "backend_failed",
+			Cause: "api_key=planted-secret", Hint: "check the upstream",
+			Target: "compozy__fetch", Disposition: AttemptQuarantined,
+			StartedAt: now.Add(-time.Minute), EndedAt: &endedAt,
+		},
+	}
+	runner := &CoordinatorRunner{now: func() time.Time { return now }}
+	raw, mutation, event, err := runner.buildNodeQuarantine(
+		Run{ID: "looprun-quarantine-history", WorkspaceID: "ws-1"},
+		4,
+		dsl.Graph{Nodes: []dsl.Node{{ID: "fetch", Class: dsl.NodeClassAction, Kind: "compozy__fetch"}}},
+		"fetch",
+		attempts,
+		NodeControl{LoopRunID: "looprun-quarantine-history", NodeID: "fetch", Revision: 7,
+			QuarantineEntry: oldEntry},
+	)
+	if err != nil {
+		t.Fatalf("buildNodeQuarantine() error = %v", err)
+	}
+	if strings.Contains(string(raw), "planted-secret") || !strings.Contains(string(raw), "[REDACTED]") {
+		t.Fatalf("quarantine entry = %s, want planted secret redacted", raw)
+	}
+	var entry QuarantineEntry
+	if err := json.Unmarshal(raw, &entry); err != nil {
+		t.Fatalf("json.Unmarshal(quarantine entry) error = %v", err)
+	}
+	if entry.NodeID != "fetch" || entry.Target != "compozy__fetch" ||
+		entry.InputRef != "loop-run:looprun-quarantine-history:node:fetch:input" ||
+		len(entry.Episodes) != 2 || len(entry.Episodes[1].Attempts) != 2 || len(entry.Requeues) != 1 {
+		t.Fatalf("quarantine entry = %#v, want complete appended history", entry)
+	}
+	latest := entry.Episodes[1].Attempts[1]
+	if latest.StartedAt.IsZero() || latest.EndedAt == nil || latest.Hint != "check the upstream" {
+		t.Fatalf("latest attempt = %#v, want timestamps and remediation hint", latest)
+	}
+	if mutation.Kind != NodeControlMutationQuarantine || mutation.ExpectedRevision != 7 ||
+		event.Kind != GenerationLifecycleEventNodeQuarantined || event.Disposition != AttemptQuarantined {
+		t.Fatalf("mutation/event = %#v / %#v, want atomic quarantine intents", mutation, event)
+	}
+
+	oversized := QuarantineEntry{NodeID: "fetch", InputRef: quarantineInputRef(
+		Run{ID: "looprun-quarantine-history"}, "fetch",
+	)}
+	for generation := 1; generation <= maxQuarantineEpisodes+8; generation++ {
+		episode := QuarantineEpisode{Generation: generation, QuarantinedAt: now}
+		for attempt := 1; attempt <= 4; attempt++ {
+			episode.Attempts = append(episode.Attempts, NodeAttempt{
+				LoopRunID: "looprun-quarantine-history", Generation: generation, NodeID: "fetch",
+				Attempt: attempt, FailureClass: &failureClass, FailureCode: "backend_failed",
+				Cause:       strings.Repeat("upstream transport failure ", 160),
+				Hint:        strings.Repeat("repair upstream then requeue ", 160),
+				Disposition: AttemptQuarantined, StartedAt: now,
+			})
+		}
+		oversized.Episodes = append(oversized.Episodes, episode)
+		oversized.Requeues = append(oversized.Requeues, QuarantineProvenance{
+			ActorKind: "human", ActorID: "operator:alice", Reason: strings.Repeat("repair note ", 160),
+			RequestedAt: now, Generation: generation,
+		})
+	}
+	bounded, err := encodeQuarantineEntry(oversized)
+	if err != nil {
+		t.Fatalf("encodeQuarantineEntry(oversized) error = %v", err)
+	}
+	if len(bounded) > maxQuarantineEntryBytes {
+		t.Fatalf("bounded quarantine bytes = %d, want <= %d", len(bounded), maxQuarantineEntryBytes)
+	}
+	var boundedEntry QuarantineEntry
+	if err := json.Unmarshal(bounded, &boundedEntry); err != nil {
+		t.Fatalf("json.Unmarshal(bounded quarantine) error = %v", err)
+	}
+	if !boundedEntry.Truncated || len(boundedEntry.Episodes) == 0 ||
+		boundedEntry.Episodes[len(boundedEntry.Episodes)-1].Generation != maxQuarantineEpisodes+8 ||
+		len(boundedEntry.Requeues) == 0 ||
+		boundedEntry.Requeues[len(boundedEntry.Requeues)-1].Generation != maxQuarantineEpisodes+8 {
+		t.Fatalf("bounded quarantine entry = %#v, want latest evidence with truncation marker", boundedEntry)
+	}
+}
+
+func TestCoordinatorParkedDependencyShouldSurfaceNeedsAttention(t *testing.T) {
+	t.Parallel()
+
+	graph := dsl.Graph{
+		Nodes: []dsl.Node{
+			{ID: "producer", Class: dsl.NodeClassAction, Kind: "compozy__fetch"},
+			{ID: "consumer", Class: dsl.NodeClassAction, Kind: string(dsl.ActionTransform)},
+		},
+		Edges: []dsl.Edge{{From: "producer", To: "consumer"}},
+	}
+	for _, parkedStatus := range []string{generationOutputQuarantined, generationOutputPaused} {
+		t.Run("Should name a "+parkedStatus+" required producer", func(t *testing.T) {
+			t.Parallel()
+
+			now := time.Date(2026, time.August, 2, 23, 30, 0, 0, time.UTC)
+			runner := &CoordinatorRunner{now: func() time.Time { return now }}
+			outputs := []GenerationOutput{
+				{Generation: 2, NodeID: "producer", Status: parkedStatus},
+				{Generation: 2, NodeID: "consumer", Status: generationOutputPending},
+				{Generation: 2, NodeID: "consumer", ItemIndex: 1, Status: generationOutputPending},
+			}
+			plan := coordinatorFinisherPlan(
+				Run{ID: "looprun-parked-dependency", WorkspaceID: "ws-1"}, 2, outputs, nil,
+			)
+			updated, blocked, err := runner.applyParkedDependencyAttention(
+				context.Background(),
+				Run{ID: "looprun-parked-dependency", WorkspaceID: "ws-1"},
+				graph,
+				newControlTopology(graph),
+				outputs,
+				plan,
+			)
+			if err != nil {
+				t.Fatalf("applyParkedDependencyAttention() error = %v", err)
+			}
+			payload := coordinatorSnapshotPayloadForTest(t, updated)
+			if !blocked || !updated.Yield || len(payload.Controls) != 1 ||
+				payload.Controls[0].AttentionFlag != "dependency_quarantined" ||
+				!strings.Contains(payload.Controls[0].AttentionReason, "producer") {
+				t.Fatalf("plan = %#v payload = %#v, want named dependency attention", updated, payload)
+			}
+			materialized := coordinatorFinisherPlan(
+				Run{ID: "looprun-parked-dependency", WorkspaceID: "ws-1"}, 2, outputs, nil,
+			)
+			if err := appendCoordinatorTasksForOutputs(
+				&materialized,
+				Run{ID: "looprun-parked-dependency", WorkspaceID: "ws-1", LoopName: "delivery"},
+				2,
+				graph,
+				newControlTopology(graph),
+				false,
+				outputs,
+			); err != nil {
+				t.Fatalf("appendCoordinatorTasksForOutputs() error = %v", err)
+			}
+			if len(materialized.NodeTasks) != 0 {
+				t.Fatalf("node tasks = %#v, want parked producer and dependents excluded", materialized.NodeTasks)
+			}
+		})
+	}
 }

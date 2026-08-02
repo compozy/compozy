@@ -62,8 +62,7 @@ func (r *CoordinatorRunner) terminalForFailedGeneration(
 	if err != nil {
 		return nil, err
 	}
-	if perNodeFailureLimitReached(history) ||
-		(run.IterationCap <= 0 && graphHasWatchSource(graph) && failedGenerationLimitReached(history)) {
+	if run.IterationCap <= 0 && graphHasWatchSource(graph) && failedGenerationLimitReached(history) {
 		breaker := circuitBreakerTerminal()
 		return &breaker, nil
 	}
@@ -76,9 +75,10 @@ func failedOutputTerminal(output GenerationOutput) task.CoordinatorTerminal {
 	reasonCode := "node_failed"
 	failure := classifyGenerationOutputFailure(output, task.Run{})
 	if failure.Class == FailureTargetUnavailable {
-		status = StatusBlocked
-		cause = TransitionCauseContract
 		reasonCode = failure.Code
+		if failure.Code != targetUnavailableReasonCode {
+			status = StatusBlocked
+		}
 	}
 	return task.CoordinatorTerminal{
 		Status:     string(status),
@@ -116,25 +116,6 @@ func (r *CoordinatorRunner) generationFailureHistory(
 		history = append(history, previous)
 	}
 	return history, nil
-}
-
-func perNodeFailureLimitReached(history [][]GenerationOutput) bool {
-	if len(history) < LoopFailureBreakerLimit {
-		return false
-	}
-	failing := failedNodeIDs(history[0])
-	for _, outputs := range history[1:LoopFailureBreakerLimit] {
-		previous := failedNodeIDs(outputs)
-		for nodeID := range failing {
-			if _, ok := previous[nodeID]; !ok {
-				delete(failing, nodeID)
-			}
-		}
-		if len(failing) == 0 {
-			return false
-		}
-	}
-	return len(failing) > 0
 }
 
 func failedGenerationLimitReached(history [][]GenerationOutput) bool {
