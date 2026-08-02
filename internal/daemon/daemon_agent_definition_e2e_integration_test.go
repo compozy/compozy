@@ -18,6 +18,7 @@ import (
 	"testing"
 	"time"
 
+	devcycle "github.com/compozy/compozy/extensions/dev-cycle"
 	"github.com/compozy/compozy/internal/agentidentity"
 	compozycontract "github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -43,6 +44,13 @@ func TestDaemonE2EAgentDefinitionLifecycleParity(t *testing.T) {
 		})
 		ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 		defer cancel()
+		enabled, err := harness.EnableExtension(ctx, devcycle.Name)
+		if err != nil {
+			t.Fatalf("EnableExtension(%s) error = %v", devcycle.Name, err)
+		}
+		if !enabled.Enabled {
+			t.Fatalf("EnableExtension(%s) = %#v, want enabled", devcycle.Name, enabled)
+		}
 
 		const agentName = "code_implementer"
 		var before compozycontract.AgentResponse

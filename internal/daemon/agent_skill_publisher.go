@@ -240,7 +240,15 @@ func extensionAgentSkillDeclarationProvider(
 			if ext == nil || ext.Manifest == nil || !ext.Status.Registered {
 				continue
 			}
-			appendExtensionAgentResources(&desired, globalScope, ext.Info.Name, ext.StaticAgents)
+			agents, err := extensionpkg.LoadAgentResources(ext.RootDir, ext.Manifest.Resources.Agents)
+			if err != nil {
+				return agentSkillDesiredResources{}, fmt.Errorf(
+					"daemon: load extension %q agents for sync: %w",
+					ext.Info.Name,
+					err,
+				)
+			}
+			appendExtensionAgentResources(&desired, globalScope, ext.Info.Name, agents)
 			appendExtensionSkillResources(&desired, globalScope, ext.Info.Name, ext.Skills)
 		}
 

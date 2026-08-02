@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	devcycle "github.com/compozy/compozy/extensions/dev-cycle"
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
@@ -56,6 +57,22 @@ func TestDaemonE2EReviewAndFixShouldRemediateAgentAuthoredArtifacts(t *testing.T
 	})
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
+	enabled, err := harness.EnableExtension(ctx, devcycle.Name)
+	if err != nil {
+		t.Fatalf("EnableExtension(%s) error = %v", devcycle.Name, err)
+	}
+	if !enabled.Enabled {
+		t.Fatalf("EnableExtension(%s) = %#v, want enabled", devcycle.Name, enabled)
+	}
+	for _, agent := range []struct {
+		name    string
+		fixture string
+	}{
+		{name: "reviewer", fixture: "review_and_fix_reviewer"},
+		{name: "review_fixer", fixture: "review_and_fix_fixer"},
+	} {
+		configureExtensionAgentFixture(t, ctx, harness, driverPath, fixturePath, agent.fixture, agent.name)
+	}
 
 	waitForLoopCatalogEntry(t, ctx, harness, reviewAndFixLoopName)
 	primaryWorkspaceID := harness.WorkspaceID
@@ -147,22 +164,13 @@ func seedReviewAndFixWorkspace(
 
 	workspacePaths := homePaths
 	workspacePaths.AgentsDir = filepath.Join(root, config.DirName, config.AgentsDirName)
-	for _, agent := range []struct {
-		name    string
-		fixture string
-	}{
-		{name: "reviewer", fixture: "review_and_fix_reviewer"},
-		{name: "review_fixer", fixture: "review_and_fix_fixer"},
-		{name: reviewInvalidAgentName, fixture: "review_and_fix_invalid_reviewer"},
-	} {
-		e2etest.WriteAgentDef(t, workspacePaths, e2etest.AgentSeed{
-			Name:        agent.name,
-			Provider:    acpmock.ProviderName,
-			Command:     acpmock.BuildCommand(driverPath, fixturePath, agent.fixture, ""),
-			Permissions: string(config.PermissionModeApproveAll),
-			Prompt:      "Deterministic review-and-fix ACP fixture.",
-		})
-	}
+	e2etest.WriteAgentDef(t, workspacePaths, e2etest.AgentSeed{
+		Name:        reviewInvalidAgentName,
+		Provider:    acpmock.ProviderName,
+		Command:     acpmock.BuildCommand(driverPath, fixturePath, "review_and_fix_invalid_reviewer", ""),
+		Permissions: string(config.PermissionModeApproveAll),
+		Prompt:      "Deterministic invalid-review ACP fixture.",
+	})
 }
 
 func runReviewAndFixCLI(
