@@ -25,7 +25,7 @@ func coordinatorNodeMetadataWithFanOutItem(
 		"node_id":             string(node.ID),
 		"node_class":          string(node.Class),
 		"node_kind":           node.Kind,
-		"item_index":          itemIndex,
+		metadataItemIndexKey:  itemIndex,
 		"index":               itemIndex,
 		"attempt":             attempt,
 		"epoch":               epoch,

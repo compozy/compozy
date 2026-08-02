@@ -292,13 +292,15 @@ type Daemon struct {
 	workspaceResolver            workspacepkg.RuntimeResolver
 	sandboxRegistry              *sandbox.Registry
 	windowManagerRuntime
-	skillsRegistry   *skills.Registry
-	modelCatalog     *modelCatalogRuntime
-	marketplace      *marketplaceRuntime
-	skillsCancel     context.CancelFunc
-	skillsDone       chan struct{}
-	loopsCancel      context.CancelFunc
-	loopsDone        chan struct{}
-	goalOutboxCancel context.CancelFunc
-	goalOutboxDone   chan struct{}
+	skillsRegistry    *skills.Registry
+	modelCatalog      *modelCatalogRuntime
+	marketplace       *marketplaceRuntime
+	skillsCancel      context.CancelFunc
+	skillsDone        chan struct{}
+	loopsCancel       context.CancelFunc
+	loopsDone         chan struct{}
+	goalOutboxCancel  context.CancelFunc
+	goalOutboxDone    chan struct{}
+	effectRelayCancel context.CancelFunc
+	effectRelayDone   chan struct{}
 }

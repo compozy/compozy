@@ -2806,6 +2806,73 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldRollbackWhenFinalizerFai
 		testGlobalDBCompleteCoordinatorAndEnqueueNextShouldRollbackWhenFinalizerFails(t)
 	})
 
+	t.Run("Should hide effect deliveries when a later boundary validation rolls back", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openLoopTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, time.August, 2, 15, 5, 0, 0, time.UTC)
+		loopRun, err := globalDB.CreateLoopRunForStart(
+			ctx,
+			testLoopRun("looprun-effect-rollback", now, looppkg.StatusRunning),
+			dsl.ConcurrencyAllow,
+		)
+		if err != nil {
+			t.Fatalf("CreateLoopRunForStart() error = %v", err)
+		}
+		claim := claimCoordinatorRunForTest(
+			ctx,
+			t,
+			globalDB,
+			loopRun.ID,
+			"run-effect-rollback",
+			now,
+		)
+		nextAttemptAt := now.Add(time.Second)
+		_, err = globalDB.CompleteCoordinatorAndEnqueueNext(ctx, taskpkg.CoordinatorCompletion{
+			RunID: claim.Run.ID, ClaimToken: claim.ClaimToken,
+			Actor: coordinatorActorContextForTest(), Now: now.Add(time.Millisecond),
+			Plan: taskpkg.CoordinatorCompletionPlan{
+				Snapshot: taskpkg.GenerationSnapshot{
+					LoopRunID: string(loopRun.ID), Generation: 1,
+					Payload: looppkg.GenerationSnapshotPayload{
+						Events: []looppkg.GenerationLifecycleEventIntent{{
+							Kind:   looppkg.GenerationLifecycleEventNodeRetryScheduled,
+							NodeID: "fetch", Attempt: 2, IssuedEpoch: 1,
+							NextAttemptAt: &nextAttemptAt, FailureClass: looppkg.FailureTransport,
+							Effects: []looppkg.RenderedEffectIntent{{
+								Trigger: looppkg.EffectTriggerOnRetry, Generation: 1, NodeID: "fetch",
+								Entry: json.RawMessage(`{"kind":"emit","emit":{"kind":"retrying"}}`),
+							}},
+						}},
+					},
+				},
+				Terminal: &taskpkg.CoordinatorTerminal{Status: string(looppkg.StatusNeedsApproval)},
+			},
+		}, looppkg.NewStoreFinalizer())
+		if !errors.Is(err, taskpkg.ErrValidation) || !strings.Contains(err.Error(), "gate_id") {
+			t.Fatalf("CompleteCoordinatorAndEnqueueNext() error = %v, want missing gate validation", err)
+		}
+		outbox, err := globalDB.ListEffectOutbox(ctx, loopRun.WorkspaceID, loopRun.ID)
+		if err != nil {
+			t.Fatalf("ListEffectOutbox() error = %v", err)
+		}
+		if len(outbox) != 0 {
+			t.Fatalf("effect outbox = %#v, want no pre-commit delivery after rollback", outbox)
+		}
+		events, err := globalDB.ListLoopRunEvents(ctx, looppkg.RunEventQuery{
+			WorkspaceID: loopRun.WorkspaceID, RunID: loopRun.ID,
+		})
+		if err != nil {
+			t.Fatalf("ListLoopRunEvents() error = %v", err)
+		}
+		for _, event := range events {
+			if event.Kind == loopRunEventNodeRetryScheduled {
+				t.Fatalf("events = %#v, want trigger event rolled back with its delivery", events)
+			}
+		}
+	})
+
 	t.Run("Should reject snapshots for another loop before writing either workspace", func(t *testing.T) {
 		t.Parallel()
 
@@ -5109,11 +5176,15 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldRefreshTokensAndApplyBud
 	t.Parallel()
 
 	cases := []struct {
-		name       string
-		exceeded   dsl.BudgetExceeded
-		wantStatus looppkg.Status
+		name        string
+		exceeded    dsl.BudgetExceeded
+		wantStatus  looppkg.Status
+		wantEffects int
 	}{
-		{name: "halt", exceeded: dsl.BudgetExceededHalt, wantStatus: looppkg.StatusExhausted},
+		{
+			name: "halt", exceeded: dsl.BudgetExceededHalt,
+			wantStatus: looppkg.StatusExhausted, wantEffects: 1,
+		},
 		{
 			name:       "escalate",
 			exceeded:   dsl.BudgetExceededEscalate,
@@ -5162,6 +5233,14 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldRefreshTokensAndApplyBud
 						Snapshot: taskpkg.GenerationSnapshot{
 							LoopRunID:  string(loopRun.ID),
 							Generation: 1,
+							Payload: looppkg.GenerationSnapshotPayload{
+								BoundaryEffects: map[looppkg.Status][]looppkg.RenderedEffectIntent{
+									looppkg.StatusExhausted: {{
+										Trigger: looppkg.EffectTriggerOnExhausted, Generation: 1,
+										Entry: json.RawMessage(`{"kind":"emit","emit":{"kind":"budget_exhausted"}}`),
+									}},
+								},
+							},
 						},
 						NextCoordinator: &taskpkg.EnqueueSpec{
 							TaskID:         claim.Run.TaskID,
@@ -5202,6 +5281,16 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldRefreshTokensAndApplyBud
 			}
 			if storedLoop.TokensUsed != 5 {
 				t.Fatalf("loop tokens_used = %d, want refreshed sum 5", storedLoop.TokensUsed)
+			}
+			outbox, err := globalDB.ListEffectOutbox(ctx, loopRun.WorkspaceID, loopRun.ID)
+			if err != nil {
+				t.Fatalf("ListEffectOutbox() error = %v", err)
+			}
+			if len(outbox) != tc.wantEffects {
+				t.Fatalf("effect outbox len = %d, want %d for committed boundary", len(outbox), tc.wantEffects)
+			}
+			if tc.wantEffects == 1 && outbox[0].Trigger != string(looppkg.EffectTriggerOnExhausted) {
+				t.Fatalf("effect trigger = %q, want %q", outbox[0].Trigger, looppkg.EffectTriggerOnExhausted)
 			}
 			if tc.wantStatus == looppkg.StatusNeedsApproval {
 				if storedLoop.ActiveGateID != looppkg.BudgetGateID {
@@ -7240,6 +7329,13 @@ func TestGlobalDBCoordinatorCompletionShouldPersistRetryAttemptAndEventAtomicall
 						Kind:   looppkg.GenerationLifecycleEventNodeRetryScheduled,
 						NodeID: "fetch", Attempt: 2, IssuedEpoch: 1,
 						NextAttemptAt: &nextAttemptAt, FailureClass: failureClass,
+						Effects: []looppkg.RenderedEffectIntent{{
+							Trigger: looppkg.EffectTriggerOnRetry, Generation: 1, NodeID: "fetch",
+							EntryIndex: 0,
+							Entry: json.RawMessage(
+								`{"kind":"emit","emit":{"kind":"fetch_retrying","payload":{"attempt":2}}}`,
+							),
+						}},
 					}},
 				},
 			}},
@@ -7266,6 +7362,19 @@ func TestGlobalDBCoordinatorCompletionShouldPersistRetryAttemptAndEventAtomicall
 		if payload["node_id"] != "fetch" || payload["attempt"] != float64(2) ||
 			payload["issued_epoch"] != float64(1) || payload["failure_class"] != string(failureClass) {
 			t.Fatalf("node_retry_scheduled payload = %#v, want durable retry identity", payload)
+		}
+		outbox, err := globalDB.ListEffectOutbox(ctx, loopRun.WorkspaceID, loopRun.ID)
+		if err != nil {
+			t.Fatalf("ListEffectOutbox() error = %v", err)
+		}
+		if len(outbox) != 1 || outbox[0].State != looppkg.EffectPending ||
+			outbox[0].SourceEventID == "" || outbox[0].DeliveryID != looppkg.EffectDeliveryID(
+			loopRun.ID,
+			outbox[0].SourceEventID,
+			looppkg.EffectTriggerOnRetry,
+			0,
+		) {
+			t.Fatalf("effect outbox = %#v, want same-transaction deterministic pending delivery", outbox)
 		}
 	})
 }

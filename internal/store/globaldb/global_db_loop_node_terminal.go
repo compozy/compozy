@@ -109,7 +109,7 @@ func appendLoopNodeLateArrivalWithExecutor(
 			loopRunEventPayloadKeyTaskRunID:   run.ID,
 			watchEventsPayloadAttemptKey:      metadata.Attempt,
 			loopRunEventPayloadKeyIssuedEpoch: metadata.Epoch,
-			"outcome":                         strings.TrimSpace(outcome),
+			globalDBOutcomeKey:                strings.TrimSpace(outcome),
 		},
 		at,
 	)

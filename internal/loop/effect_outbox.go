@@ -27,6 +27,7 @@ func (s EffectOutboxState) Valid() bool {
 // EffectOutboxEntry is one immutable rendered effect delivery.
 type EffectOutboxEntry struct {
 	LoopRunID     RunID
+	WorkspaceID   WorkspaceID
 	DeliveryID    string
 	SourceEventID string
 	Trigger       string

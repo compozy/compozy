@@ -221,17 +221,15 @@ func appendGenerationLifecycleEventsWithExecutor(
 				return err
 			}
 		case looppkg.GenerationLifecycleEventNodeRetryScheduled:
-			payload := map[string]any{
-				loopRunEventPayloadKeyGeneration:  generation,
-				loopRunEventPayloadKeyNodeID:      event.NodeID,
-				loopRunEventPayloadKeyItemIndex:   event.ItemIndex,
-				watchEventsPayloadAttemptKey:      event.Attempt,
-				loopRunEventPayloadKeyIssuedEpoch: event.IssuedEpoch,
-				"next_attempt_at":                 event.NextAttemptAt,
-				"failure_class":                   event.FailureClass,
+			if err := appendRetryScheduledEffectEventWithExecutor(
+				ctx, exec, run, generation, event, at,
+			); err != nil {
+				return err
 			}
-			if err := appendLoopRunEventWithExecutor(
-				ctx, exec, run.ID, run.WorkspaceID, loopRunEventNodeRetryScheduled, payload, at,
+		case looppkg.GenerationLifecycleEventNodeSucceeded,
+			looppkg.GenerationLifecycleEventNodeFailed:
+			if err := appendNodeOutcomeEffectEventWithExecutor(
+				ctx, exec, run, generation, event, at,
 			); err != nil {
 				return err
 			}
