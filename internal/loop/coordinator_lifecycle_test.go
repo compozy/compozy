@@ -3,6 +3,8 @@ package loop
 import (
 	"context"
 	"encoding/json"
+	"io"
+	"log/slog"
 	"strings"
 	"testing"
 	"time"
@@ -13,6 +15,85 @@ import (
 
 func TestCoordinatorRunnerShouldApplyNodeFailurePrecedence(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should apply only the first matching autopause rule with durable provenance", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, time.August, 2, 18, 30, 0, 0, time.UTC)
+		firstRule := "node_id == 'work' && class == 'transport' && attempt == 1"
+		secondRule := "class == 'transport'"
+		lifecycle := DefaultLifecycleConfig()
+		lifecycle.Autopause = []LifecycleAutopauseRule{
+			{Match: firstRule, Action: "pause"},
+			{Match: secondRule, Action: "pause"},
+		}
+		plan := runLifecycleFailurePlanWithConfig(
+			t,
+			"autopause",
+			now,
+			lifecycleDefinition(lifecycleNode("work")),
+			lifecycle,
+		)
+		payload := coordinatorSnapshotPayloadForTest(t, plan)
+
+		if got, want := len(payload.Controls), 1; got != want {
+			t.Fatalf("control mutations = %d, want %d", got, want)
+		}
+		control := payload.Controls[0]
+		wantRuleID := autopauseRuleID(0, firstRule)
+		if control.Kind != NodeControlMutationPause || control.NodeID != "work" ||
+			control.PauseActorKind != autopauseActorKind || control.PauseActorID != autopauseActorID ||
+			control.PauseRuleID != wantRuleID || !strings.Contains(control.PauseReason, "transport failure") {
+			t.Fatalf("autopause control = %#v, want first-rule provenance", control)
+		}
+		if got, want := len(payload.Events), 1; got != want {
+			t.Fatalf("lifecycle events = %d, want %d", got, want)
+		}
+		event := payload.Events[0]
+		if event.Kind != GenerationLifecycleEventNodePaused || event.RuleID != wantRuleID ||
+			event.ActorKind != autopauseActorKind || event.ActorID != autopauseActorID || event.Attempt != 1 {
+			t.Fatalf("autopause event = %#v, want matching rule provenance", event)
+		}
+		output := payload.Outputs[0]
+		if output.Status != generationOutputPaused || output.Attempt != 2 || output.Epoch != 1 ||
+			!plan.GenerationInFlight || !plan.Yield || len(plan.NodeRuns) != 0 {
+			t.Fatalf("autopause output = %#v plan = %#v", output, plan)
+		}
+	})
+
+	t.Run("Should not refire autopause while the node remains paused", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, time.August, 2, 18, 45, 0, 0, time.UTC)
+		lifecycle := DefaultLifecycleConfig()
+		lifecycle.Autopause = []LifecycleAutopauseRule{{Match: "class == 'transport'", Action: "pause"}}
+		control := NodeControl{
+			LoopRunID: "looprun-lifecycle-autopause-held", NodeID: "work", Paused: true,
+			PauseProvenance: &ControlProvenance{
+				ActorKind: autopauseActorKind, ActorID: autopauseActorID,
+				RuleID: autopauseRuleID(0, lifecycle.Autopause[0].Match), RequestedAt: now.Add(-time.Minute),
+			},
+			Revision: 1,
+		}
+		plan := runLifecycleFailurePlanWithConfigAndControls(
+			t,
+			"autopause-held",
+			now,
+			lifecycleDefinition(lifecycleNode("work")),
+			lifecycle,
+			[]NodeControl{control},
+		)
+		payload := coordinatorSnapshotPayloadForTest(t, plan)
+
+		if len(payload.Controls) != 0 {
+			t.Fatalf("control mutations = %#v, want no repeated autopause", payload.Controls)
+		}
+		for _, event := range payload.Events {
+			if event.Kind == GenerationLifecycleEventNodePaused {
+				t.Fatalf("events = %#v, want no repeated node_paused event", payload.Events)
+			}
+		}
+	})
 
 	t.Run("Should schedule and release a durable retry", func(t *testing.T) {
 		t.Parallel()
@@ -488,6 +569,29 @@ func runLifecycleFailurePlan(
 	def dsl.Definition,
 ) task.CoordinatorCompletionPlan {
 	t.Helper()
+	return runLifecycleFailurePlanWithConfigAndControls(t, slug, now, def, LifecycleConfig{}, nil)
+}
+
+func runLifecycleFailurePlanWithConfig(
+	t *testing.T,
+	slug string,
+	now time.Time,
+	def dsl.Definition,
+	lifecycle LifecycleConfig,
+) task.CoordinatorCompletionPlan {
+	t.Helper()
+	return runLifecycleFailurePlanWithConfigAndControls(t, slug, now, def, lifecycle, nil)
+}
+
+func runLifecycleFailurePlanWithConfigAndControls(
+	t *testing.T,
+	slug string,
+	now time.Time,
+	def dsl.Definition,
+	lifecycle LifecycleConfig,
+	controls []NodeControl,
+) task.CoordinatorCompletionPlan {
+	t.Helper()
 	loopRun := controlLoopRun("looprun-lifecycle-"+slug, nil)
 	coordinatorRun := controlCoordinatorRun(loopRun, 1)
 	workerRun := lifecycleWorkerRun(loopRun, "work", task.TaskRunStatusFailed, now)
@@ -511,14 +615,15 @@ func runLifecycleFailurePlan(
 	outputs := &lifecycleCoordinatorStore{coordinatorRunnerOutputs: coordinatorRunnerOutputs{
 		outputs: map[int][]GenerationOutput{1: outputRows},
 	}}
-	runner := newCoordinatorRunnerForTestWithDefinition(
-		t,
-		loopRun,
-		coordinatorRun,
-		map[string]task.Run{coordinatorRun.ID: coordinatorRun, workerRun.ID: workerRun},
-		outputs,
-		def,
-		WithCoordinatorNodeAttemptReader(outputs),
+	options := []CoordinatorRunnerOption{WithCoordinatorNodeAttemptReader(outputs)}
+	if controls != nil {
+		options = append(
+			options,
+			WithCoordinatorNodeControlReader(coordinatorNodeControlReaderStub{controls: controls}),
+		)
+	}
+	runner := newCoordinatorRunnerForLifecycleTest(
+		t, loopRun, coordinatorRun, workerRun, outputs, def, lifecycle, options...,
 	)
 	runner.now = func() time.Time { return now }
 	plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
@@ -526,6 +631,47 @@ func runLifecycleFailurePlan(
 		t.Fatalf("Run() error = %v", err)
 	}
 	return plan
+}
+
+func newCoordinatorRunnerForLifecycleTest(
+	t *testing.T,
+	loopRun Run,
+	coordinatorRun task.Run,
+	workerRun task.Run,
+	outputs GenerationOutputReader,
+	def dsl.Definition,
+	lifecycle LifecycleConfig,
+	opts ...CoordinatorRunnerOption,
+) *CoordinatorRunner {
+	t.Helper()
+	resolved := resolvedCoordinatorDefinitionForTest(t, def)
+	defaults := LoopDefaults{
+		Delivery: definitionConfigLayer(def),
+		Watch:    definitionConfigLayer(def),
+	}
+	if lifecycle.Autopause != nil {
+		defaults.Delivery.Lifecycle = &lifecycle
+		defaults.Watch.Lifecycle = &lifecycle
+	}
+	effective, err := ResolveEffectiveConfig(resolved, defaults, nil, LoopConfig{})
+	if err != nil {
+		t.Fatalf("ResolveEffectiveConfig() error = %v", err)
+	}
+	loopRun, snapshot := pinCoordinatorResolvedForTest(t, loopRun, resolved, effective)
+	runner, err := NewCoordinatorRunner(
+		&coordinatorRunnerTaskRunReader{runs: map[string]task.Run{
+			coordinatorRun.ID: coordinatorRun,
+			workerRun.ID:      workerRun,
+		}},
+		&coordinatorRunnerLoopStore{run: loopRun, snapshot: snapshot},
+		outputs,
+		slog.New(slog.NewTextHandler(io.Discard, nil)),
+		opts...,
+	)
+	if err != nil {
+		t.Fatalf("NewCoordinatorRunner() error = %v", err)
+	}
+	return runner
 }
 
 func runLifecyclePayloadFailurePlan(
@@ -750,4 +896,33 @@ func TestCoordinatorParkedDependencyShouldSurfaceNeedsAttention(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("Should keep an all-paused generation live without stall work", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, time.August, 3, 0, 15, 0, 0, time.UTC)
+		runner := &CoordinatorRunner{now: func() time.Time { return now }}
+		outputs := []GenerationOutput{
+			{Generation: 2, NodeID: "producer", Status: generationOutputPaused},
+			{Generation: 2, NodeID: "consumer", Status: generationOutputPaused},
+		}
+		plan := coordinatorFinisherPlan(
+			Run{ID: "looprun-all-paused", WorkspaceID: "ws-1"}, 2, outputs, nil,
+		)
+		updated, parked, err := runner.applyParkedDependencyAttention(
+			context.Background(),
+			Run{ID: "looprun-all-paused", WorkspaceID: "ws-1"},
+			graph,
+			newControlTopology(graph),
+			outputs,
+			plan,
+		)
+		if err != nil {
+			t.Fatalf("applyParkedDependencyAttention() error = %v", err)
+		}
+		if !parked || !updated.Yield || !updated.GenerationInFlight || updated.Terminal != nil ||
+			len(updated.NodeRuns) != 0 {
+			t.Fatalf("all-paused plan = %#v, want live paused-dominant yield without work", updated)
+		}
+	})
 }

@@ -45,14 +45,21 @@ func insertNewNodeControl(
 	mutation NodeControlMutation,
 ) (sql.Result, error) {
 	quarantined, entry, quarantinedAt, attentionFlag, attentionReason := nodeControlMutationValues(mutation)
+	paused := 0
+	if mutation.Kind == NodeControlMutationPause {
+		paused = 1
+	}
 	result, err := tx.ExecContext(
 		ctx,
 		`INSERT INTO loop_node_controls (
-			loop_run_id, node_id, quarantined, quarantine_entry_json, quarantined_at,
+			loop_run_id, node_id, paused, pause_actor_kind, pause_actor_id, pause_reason,
+			pause_rule_id, pause_requested_at, quarantined, quarantine_entry_json, quarantined_at,
 			attention_flag, attention_reason, revision, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
 		ON CONFLICT(loop_run_id, node_id) DO NOTHING`,
-		loopRunID, mutation.NodeID, quarantined, entry, quarantinedAt,
+		loopRunID, mutation.NodeID, paused, sqlNullString(mutation.PauseActorKind),
+		sqlNullString(mutation.PauseActorID), sqlNullString(mutation.PauseReason),
+		sqlNullString(mutation.PauseRuleID), sqlNullTimeForMutation(mutation), quarantined, entry, quarantinedAt,
 		attentionFlag, attentionReason, mutation.At,
 	)
 	if err != nil {
@@ -71,6 +78,12 @@ func updateExistingNodeControl(
 	result, err := tx.ExecContext(
 		ctx,
 		`UPDATE loop_node_controls SET
+			paused = CASE WHEN ? = 'pause' THEN 1 ELSE paused END,
+			pause_actor_kind = CASE WHEN ? = 'pause' THEN ? ELSE pause_actor_kind END,
+			pause_actor_id = CASE WHEN ? = 'pause' THEN ? ELSE pause_actor_id END,
+			pause_reason = CASE WHEN ? = 'pause' THEN ? ELSE pause_reason END,
+			pause_rule_id = CASE WHEN ? = 'pause' THEN ? ELSE pause_rule_id END,
+			pause_requested_at = CASE WHEN ? = 'pause' THEN ? ELSE pause_requested_at END,
 			quarantined = CASE WHEN ? = 'quarantine' THEN ? ELSE quarantined END,
 			quarantine_entry_json = CASE WHEN ? = 'quarantine' THEN ? ELSE quarantine_entry_json END,
 			quarantined_at = CASE WHEN ? = 'quarantine' THEN ? ELSE quarantined_at END,
@@ -80,6 +93,12 @@ func updateExistingNodeControl(
 			revision = revision + 1,
 			updated_at = ?
 		WHERE loop_run_id = ? AND node_id = ? AND revision = ?`,
+		mutation.Kind,
+		mutation.Kind, sqlNullString(mutation.PauseActorKind),
+		mutation.Kind, sqlNullString(mutation.PauseActorID),
+		mutation.Kind, sqlNullString(mutation.PauseReason),
+		mutation.Kind, sqlNullString(mutation.PauseRuleID),
+		mutation.Kind, sqlNullTimeForMutation(mutation),
 		mutation.Kind, quarantined,
 		mutation.Kind, entry,
 		mutation.Kind, quarantinedAt,
@@ -92,6 +111,13 @@ func updateExistingNodeControl(
 		return nil, fmt.Errorf("loop: update node control %q: %w", mutation.NodeID, err)
 	}
 	return result, nil
+}
+
+func sqlNullTimeForMutation(mutation NodeControlMutation) any {
+	if mutation.Kind != NodeControlMutationPause {
+		return nil
+	}
+	return mutation.At.UTC()
 }
 
 func nodeControlMutationValues(mutation NodeControlMutation) (int, any, any, string, string) {

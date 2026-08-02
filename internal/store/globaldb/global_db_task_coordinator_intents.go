@@ -189,63 +189,13 @@ func appendGenerationLifecycleEventsWithExecutor(
 ) error {
 	hasGenerationStarted := false
 	for _, event := range payload.Events {
-		switch event.Kind {
-		case looppkg.GenerationLifecycleEventGenerationStarted:
+		if event.Kind == looppkg.GenerationLifecycleEventGenerationStarted {
 			hasGenerationStarted = true
-			if err := appendLoopGenerationStartedEventWithExecutor(ctx, exec, run, provenance, at); err != nil {
-				return err
-			}
-		case looppkg.GenerationLifecycleEventGateVerdict:
-			verdict, found := generationVerdictByGateInstance(
-				payload.Verdicts,
-				event.GateID,
-				event.ItemIndex,
-			)
-			if !found {
-				return fmt.Errorf(
-					"%w: gate_verdict event references unknown gate %q item %d",
-					looppkg.ErrValidation,
-					event.GateID,
-					event.ItemIndex,
-				)
-			}
-			if err := appendLoopGateVerdictEventWithExecutor(
-				ctx,
-				exec,
-				run,
-				generation,
-				verdict,
-				event,
-				at,
-			); err != nil {
-				return err
-			}
-		case looppkg.GenerationLifecycleEventNodeRetryScheduled:
-			if err := appendRetryScheduledEffectEventWithExecutor(
-				ctx, exec, run, generation, event, at,
-			); err != nil {
-				return err
-			}
-		case looppkg.GenerationLifecycleEventNodeSucceeded,
-			looppkg.GenerationLifecycleEventNodeFailed,
-			looppkg.GenerationLifecycleEventNodeCanceled:
-			if err := appendNodeOutcomeEffectEventWithExecutor(
-				ctx, exec, run, generation, event, at,
-			); err != nil {
-				return err
-			}
-		case looppkg.GenerationLifecycleEventNodeQuarantined:
-			if err := appendNodeQuarantinedEffectEventWithExecutor(
-				ctx, exec, run, generation, event, at,
-			); err != nil {
-				return err
-			}
-		case looppkg.GenerationLifecycleEventTargetBreakerTransition:
-			if err := appendTargetBreakerTransitionEventWithExecutor(
-				ctx, exec, run, generation, event, at,
-			); err != nil {
-				return err
-			}
+		}
+		if err := appendGenerationLifecycleEventWithExecutor(
+			ctx, exec, run, generation, provenance, payload.Verdicts, event, at,
+		); err != nil {
+			return err
 		}
 	}
 	if !hasGenerationStarted && generation > run.Generation {
@@ -254,6 +204,123 @@ func appendGenerationLifecycleEventsWithExecutor(
 		}
 	}
 	return nil
+}
+
+func appendGenerationLifecycleEventWithExecutor(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	run looppkg.Run,
+	generation int,
+	provenance looppkg.GenerationIntent,
+	verdicts []gate.VerdictIntent,
+	event looppkg.GenerationLifecycleEventIntent,
+	at time.Time,
+) error {
+	switch event.Kind {
+	case looppkg.GenerationLifecycleEventGenerationStarted:
+		return appendLoopGenerationStartedEventWithExecutor(ctx, exec, run, provenance, at)
+	case looppkg.GenerationLifecycleEventGateVerdict:
+		return appendGenerationGateVerdictEvent(ctx, exec, run, generation, verdicts, event, at)
+	case looppkg.GenerationLifecycleEventNodeRetryScheduled:
+		return appendRetryScheduledEffectEventWithExecutor(ctx, exec, run, generation, event, at)
+	case looppkg.GenerationLifecycleEventNodeSucceeded,
+		looppkg.GenerationLifecycleEventNodeFailed,
+		looppkg.GenerationLifecycleEventNodeCanceled:
+		return appendNodeOutcomeEffectEventWithExecutor(ctx, exec, run, generation, event, at)
+	case looppkg.GenerationLifecycleEventNodeQuarantined:
+		return appendNodeQuarantinedEffectEventWithExecutor(ctx, exec, run, generation, event, at)
+	case looppkg.GenerationLifecycleEventNodePaused:
+		return appendGenerationNodePausedEvent(ctx, exec, run, generation, event, at)
+	case looppkg.GenerationLifecycleEventNodeWaitStarted:
+		return appendGenerationNodeWaitStartedEvent(ctx, exec, run, generation, event, at)
+	case looppkg.GenerationLifecycleEventNodeWaitResumed:
+		return appendGenerationNodeWaitResumedEvent(ctx, exec, run, generation, event, at)
+	case looppkg.GenerationLifecycleEventTargetBreakerTransition:
+		return appendTargetBreakerTransitionEventWithExecutor(ctx, exec, run, generation, event, at)
+	default:
+		return nil
+	}
+}
+
+func appendGenerationGateVerdictEvent(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	run looppkg.Run,
+	generation int,
+	verdicts []gate.VerdictIntent,
+	event looppkg.GenerationLifecycleEventIntent,
+	at time.Time,
+) error {
+	verdict, found := generationVerdictByGateInstance(verdicts, event.GateID, event.ItemIndex)
+	if !found {
+		return fmt.Errorf(
+			"%w: gate_verdict event references unknown gate %q item %d",
+			looppkg.ErrValidation, event.GateID, event.ItemIndex,
+		)
+	}
+	return appendLoopGateVerdictEventWithExecutor(ctx, exec, run, generation, verdict, event, at)
+}
+
+func appendGenerationNodePausedEvent(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	run looppkg.Run,
+	generation int,
+	event looppkg.GenerationLifecycleEventIntent,
+	at time.Time,
+) error {
+	return appendLoopRunEventWithExecutor(ctx, exec, run.ID, run.WorkspaceID, loopRunEventNodePaused,
+		map[string]any{
+			loopRunEventPayloadKeyGeneration: generation,
+			loopRunEventPayloadKeyNodeID:     event.NodeID,
+			loopRunEventPayloadKeyItemIndex:  event.ItemIndex,
+			watchEventsPayloadAttemptKey:     event.Attempt,
+			loopRunEventPayloadKeyActorKind:  event.ActorKind,
+			loopRunEventPayloadKeyActorID:    event.ActorID,
+			loopRunEventPayloadKeyReason:     event.Reason,
+			"rule_id":                        event.RuleID,
+		}, at)
+}
+
+func appendGenerationNodeWaitStartedEvent(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	run looppkg.Run,
+	generation int,
+	event looppkg.GenerationLifecycleEventIntent,
+	at time.Time,
+) error {
+	return appendLoopRunEventWithExecutor(ctx, exec, run.ID, run.WorkspaceID,
+		loopRunEventNodeWaitStarted, map[string]any{
+			loopRunEventPayloadKeyGeneration:  generation,
+			loopRunEventPayloadKeyNodeID:      event.NodeID,
+			loopRunEventPayloadKeyItemIndex:   event.ItemIndex,
+			loopRunEventPayloadKeyIssuedEpoch: event.IssuedEpoch,
+			loopRunEventPayloadKeyWaitKind:    event.WaitKind,
+			"resume_at":                       event.NextAttemptAt,
+			"ahead_arrival":                   event.AheadArrival,
+			"ahead_cursors":                   event.AheadCursors,
+		}, at)
+}
+
+func appendGenerationNodeWaitResumedEvent(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	run looppkg.Run,
+	generation int,
+	event looppkg.GenerationLifecycleEventIntent,
+	at time.Time,
+) error {
+	return appendLoopRunEventWithExecutor(ctx, exec, run.ID, run.WorkspaceID,
+		loopRunEventNodeWaitResumed, map[string]any{
+			loopRunEventPayloadKeyGeneration:  generation,
+			loopRunEventPayloadKeyNodeID:      event.NodeID,
+			loopRunEventPayloadKeyItemIndex:   event.ItemIndex,
+			loopRunEventPayloadKeyIssuedEpoch: event.IssuedEpoch,
+			loopRunEventPayloadKeyActorKind:   event.ActorKind,
+			loopRunEventPayloadKeyActorID:     event.ActorID,
+			loopRunEventPayloadKeyWaitKind:    event.WaitKind,
+		}, at)
 }
 
 func generationVerdictByGateInstance(

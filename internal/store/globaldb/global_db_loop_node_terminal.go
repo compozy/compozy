@@ -27,6 +27,7 @@ const (
 	loopNodeOutcomeFailure  = "failure"
 	loopNodeOutputFailed    = "failed"
 	loopNodeOutputSucceeded = "succeeded"
+	loopNodeOutputWaiting   = "waiting"
 )
 
 func recordLoopNodeTerminalWithExecutor(

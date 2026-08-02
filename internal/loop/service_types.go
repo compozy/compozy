@@ -28,6 +28,7 @@ type Inputs struct {
 	StartMetadata              map[string]any         `json:"start_metadata,omitempty"`
 	NetworkParticipation       *participation.Request `json:"network_participation,omitempty"`
 	NetworkParticipationSource participation.Source   `json:"-"`
+	Admission                  *AdmissionIdentity     `json:"-"`
 }
 
 // Status is the closed loop_runs.status vocabulary.
@@ -87,6 +88,8 @@ const (
 	TransitionCauseOperatorResume TransitionCause = "operator_resume"
 	// TransitionCauseApproval records a human approval.
 	TransitionCauseApproval TransitionCause = "approval"
+	// TransitionCauseWaitExpired records an authored wait or approval timeout route.
+	TransitionCauseWaitExpired TransitionCause = "wait_expired"
 	// TransitionCauseGateRejected records a human gate rejection.
 	TransitionCauseGateRejected TransitionCause = "gate_rejected"
 	// TransitionCauseContract records a coordinator contract verdict.
@@ -212,9 +215,16 @@ type Run struct {
 	ControlActor          task.ActorIdentity
 	ControlRequestedAt    time.Time
 	GoalContextNudgeRatio float64
-	*RunNetworkState
+	*RunStartState
 	Origin *RunOrigin
 	Inputs map[string]any
+}
+
+// RunAdmission groups the transient watch-admission command and its optional suppression answer.
+type RunAdmission struct {
+	Identity   AdmissionIdentity
+	Suppressed bool
+	Claim      *AdmissionClaim
 }
 
 // DefinitionSnapshot is the content-addressed executed definition pinned by one or more runs.

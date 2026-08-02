@@ -60,6 +60,10 @@ func (a *Adapter) Tick(ctx context.Context, req TickRequest) (TickResult, error)
 	if err != nil {
 		return TickResult{}, fmt.Errorf("loop watch poll: %w", err)
 	}
+	response.EventKey, err = NormalizeEventKey(response.EventKey)
+	if err != nil {
+		return TickResult{}, err
+	}
 	if !response.Ready {
 		return waitOrStall(ctx, machine, &transitions, req, response, now)
 	}

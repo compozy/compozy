@@ -408,7 +408,10 @@ describe("Extension", () => {
       async () => ({ content: [], truncated: false, bytes: 0, duration_ms: 0 })
     );
     extension.commandGroup("review", "Review commands");
-    extension.watchSource("reviews", {}, async () => ({ ready: false }));
+    extension.watchSource("reviews", {}, async () => ({
+      ready: false,
+      event_key: "reviews:describe",
+    }));
 
     await expect(extension.start()).resolves.toBeDefined();
     const result = harness.getDescribeResult();
@@ -485,6 +488,7 @@ describe("Extension", () => {
       {},
       async ({ spec, expectedStateDigest }) => ({
         ready: spec.query === "open",
+        event_key: "reviews:r1",
         state_digest: expectedStateDigest === "sha256:previous" ? "sha256:next" : "sha256:first",
         payload: { review: "r1" },
         settled_at: "2026-07-05T12:00:00.000Z",
@@ -506,6 +510,7 @@ describe("Extension", () => {
       })
     ).resolves.toEqual({
       ready: true,
+      event_key: "reviews:r1",
       state_digest: "sha256:next",
       payload: { review: "r1" },
       settled_at: "2026-07-05T12:00:00.000Z",

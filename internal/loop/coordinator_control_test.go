@@ -7,11 +7,206 @@ import (
 	"log/slog"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/compozy/compozy/internal/loop/dsl"
+	"github.com/compozy/compozy/internal/loop/gate"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/task"
 )
+
+// Invariant: a wait control is coordinator-owned and its waiting output, durable row intent,
+// lifecycle event, and lack of worker work are one completion plan. This canonical control
+// suite owns wait-node planning.
+func TestCoordinatorRunnerShouldParkWaitControls(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.August, 4, 15, 0, 0, 0, time.UTC)
+	definition := dsl.Definition{Graph: dsl.Graph{
+		Nodes: []dsl.Node{
+			{ID: "wait_for_ack", Class: dsl.NodeClassControl, Kind: string(dsl.ControlWait),
+				Params: dsl.NodeParams{"for": "10m", "expect": map[string]any{"approved": "boolean"}}},
+			{ID: "publish", Class: dsl.NodeClassAction, Kind: string(dsl.ActionTransform),
+				Params: dsl.NodeParams{"map": map[string]any{"published": map[string]any{"value": true}}}},
+		},
+		Edges: []dsl.Edge{{From: "wait_for_ack", To: "publish"}},
+	}}
+	resolved := compileCoordinatorControlDefinition(t, definition)
+	loopRun := controlLoopRun("looprun-wait-control", nil)
+	coordinatorRun := controlCoordinatorRun(loopRun, 1)
+	runner := newCoordinatorRunnerForControlTest(
+		t,
+		loopRun,
+		coordinatorRun,
+		nil,
+		coordinatorRunnerOutputs{outputs: map[int][]GenerationOutput{1: {
+			{Generation: 1, NodeID: "wait_for_ack", Status: generationOutputPending, Attempt: 1},
+			{Generation: 1, NodeID: "publish", Status: generationOutputPending, Attempt: 1},
+		}}},
+		resolved,
+	)
+	runner.now = func() time.Time { return now }
+	plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if plan.Terminal != nil || len(plan.NodeRuns) != 0 || !plan.Yield || !plan.GenerationInFlight {
+		t.Fatalf("wait plan = terminal:%#v runs:%d yield:%v live:%v, want parked in-flight yield",
+			plan.Terminal, len(plan.NodeRuns), plan.Yield, plan.GenerationInFlight)
+	}
+	payload := coordinatorSnapshotPayloadForTest(t, plan)
+	outputs := outputsByNodeAndItemForTest(payload.Outputs)
+	waitOutput := outputs["wait_for_ack/0"]
+	if waitOutput.Status != generationOutputWaiting || waitOutput.Epoch != 1 || waitOutput.TaskRunID != "" {
+		t.Fatalf("wait output = %#v, want waiting epoch 1 without worker", waitOutput)
+	}
+	if len(payload.Waits) != 1 || payload.Waits[0].Kind != "timer" ||
+		payload.Waits[0].ResumeAt == nil || !payload.Waits[0].ResumeAt.Equal(now.Add(10*time.Minute)) ||
+		payload.Waits[0].IssuedEpoch != 1 {
+		t.Fatalf("wait intents = %#v, want one durable ten-minute timer", payload.Waits)
+	}
+	if len(payload.Events) != 1 || payload.Events[0].Kind != GenerationLifecycleEventNodeWaitStarted {
+		t.Fatalf("wait events = %#v, want node_wait_started", payload.Events)
+	}
+
+	deadline := now.Add(45 * time.Minute)
+	templatedDefinition := dsl.Definition{
+		Inputs: map[string]dsl.Input{"deadline": {Type: dsl.InputTypeString, Required: true}},
+		Graph: dsl.Graph{Nodes: []dsl.Node{{
+			ID: "wait_until_deadline", Class: dsl.NodeClassControl, Kind: string(dsl.ControlWait),
+			Params: dsl.NodeParams{"until": "{{ .inputs.deadline }}"},
+		}}},
+	}
+	templatedResolved := compileCoordinatorControlDefinition(t, templatedDefinition)
+	templatedRun := controlLoopRun("looprun-wait-until-template", map[string]any{
+		"deadline": deadline.Format(time.RFC3339Nano),
+	})
+	templatedCoordinator := controlCoordinatorRun(templatedRun, 1)
+	templatedRunner := newCoordinatorRunnerForControlTest(
+		t,
+		templatedRun,
+		templatedCoordinator,
+		nil,
+		coordinatorRunnerOutputs{outputs: map[int][]GenerationOutput{1: {{
+			Generation: 1, NodeID: "wait_until_deadline", Status: generationOutputPending, Attempt: 1,
+		}}}},
+		templatedResolved,
+	)
+	templatedRunner.now = func() time.Time { return now }
+	templatedPlan, err := templatedRunner.Run(context.Background(), task.RunID(templatedCoordinator.ID))
+	if err != nil {
+		t.Fatalf("Run(templated until) error = %v", err)
+	}
+	templatedPayload := coordinatorSnapshotPayloadForTest(t, templatedPlan)
+	if len(templatedPayload.Waits) != 1 || templatedPayload.Waits[0].ResumeAt == nil ||
+		!templatedPayload.Waits[0].ResumeAt.Equal(deadline) {
+		t.Fatalf("templated wait intents = %#v, want resolved deadline %s", templatedPayload.Waits, deadline)
+	}
+}
+
+func TestCoordinatorRunnerShouldParkGateApprovalWait(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.August, 4, 16, 0, 0, 0, time.UTC)
+	gateNode := dsl.Node{
+		ID: "approval", Class: dsl.NodeClassControl, Kind: string(dsl.ControlGate),
+		Criteria:      []dsl.GateCriterion{testRouteCriterion()},
+		VerdictPolicy: dsl.VerdictPolicyFixedPasses,
+		Expires:       &dsl.WaitExpiry{After: "15m", Route: "timed_out"},
+	}
+	gateNode.Normalize()
+	gateNode.OnPause = []dsl.EffectSpec{{Emit: &dsl.EmitSpec{Kind: "approval_requested"}}}
+	definition := dsl.Definition{Graph: dsl.Graph{
+		Nodes: []dsl.Node{
+			gateNode,
+			lifecycleNode("normal"),
+			lifecycleNode("timed_out"),
+		},
+		Edges: []dsl.Edge{{From: "approval", To: "normal"}, {From: "approval", To: "timed_out"}},
+	}}
+	loopRun := controlLoopRun("looprun-gate-approval-wait", nil)
+	coordinatorRun := controlCoordinatorRun(loopRun, 1)
+	runner := newCoordinatorRunnerForTestWithDefinition(
+		t,
+		loopRun,
+		coordinatorRun,
+		nil,
+		coordinatorRunnerOutputs{outputs: map[int][]GenerationOutput{1: {
+			{Generation: 1, NodeID: "approval", Status: generationOutputPending, Attempt: 1},
+			{Generation: 1, NodeID: "normal", Status: generationOutputPending, Attempt: 1},
+			{Generation: 1, NodeID: "timed_out", Status: generationOutputPending, Attempt: 1},
+		}}},
+		definition,
+		WithCoordinatorGateEvaluator(gateEvaluatorFunc(
+			func(context.Context, gate.Gate, gate.GateInput) (gate.Verdict, error) {
+				return gate.Verdict{
+					Outcome: gate.VerdictOutcomeAwaitingApproval,
+					Criteria: []gate.CriterionResult{{
+						ID: "operator", Type: dsl.CriterionHuman,
+						Outcome: gate.VerdictOutcomeAwaitingApproval,
+					}},
+					Route: gate.RouteDecision{
+						Placement: gate.PlacementInBody, Action: gate.RouteEscalate,
+						TerminalStatus: string(StatusNeedsApproval), ReasonCode: "human_pending",
+					},
+				}, nil
+			},
+		)),
+	)
+	runner.now = func() time.Time { return now }
+
+	plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	payload := coordinatorSnapshotPayloadForTest(t, plan)
+	outputs := outputsByNodeAndItemForTest(payload.Outputs)
+	if plan.Terminal == nil || plan.Terminal.Status != string(StatusNeedsApproval) ||
+		outputs["approval/0"].Status != generationOutputSucceeded || outputs["approval/0"].Epoch != 1 {
+		t.Fatalf("approval plan = %#v outputs = %#v", plan, outputs)
+	}
+	if len(payload.Waits) != 1 || payload.Waits[0].Kind != "approval_escalation" ||
+		payload.Waits[0].IssuedEpoch != 1 || payload.Waits[0].NextEscalationAt == nil ||
+		!payload.Waits[0].NextEscalationAt.Equal(now.Add(15*time.Minute)) {
+		t.Fatalf("approval waits = %#v, want durable expiring approval", payload.Waits)
+	}
+	var waitEvent *GenerationLifecycleEventIntent
+	for index := range payload.Events {
+		if payload.Events[index].Kind == GenerationLifecycleEventNodeWaitStarted {
+			waitEvent = &payload.Events[index]
+			break
+		}
+	}
+	if waitEvent == nil || len(waitEvent.Effects) != 1 || waitEvent.Effects[0].Trigger != EffectTriggerOnPause {
+		t.Fatalf("approval wait events = %#v, want one on_pause delivery", payload.Events)
+	}
+}
+
+func TestCoordinatorWaitExpiryRouteShouldSkipNormalPath(t *testing.T) {
+	t.Parallel()
+
+	graph := dsl.Graph{
+		Nodes: []dsl.Node{
+			{ID: "wait_for_ack", Class: dsl.NodeClassControl, Kind: string(dsl.ControlWait)},
+			{ID: "normal", Class: dsl.NodeClassAction, Kind: string(dsl.ActionTransform)},
+			{ID: "timeout", Class: dsl.NodeClassAction, Kind: string(dsl.ActionTransform)},
+		},
+		Edges: []dsl.Edge{{From: "wait_for_ack", To: "normal"}, {From: "wait_for_ack", To: "timeout"}},
+	}
+	outputs := []GenerationOutput{
+		{Generation: 1, NodeID: "wait_for_ack", Status: generationOutputSucceeded,
+			OutputRef: WaitExpiryRouteOutputRef("timeout"), Epoch: 2},
+		{Generation: 1, NodeID: "normal", Status: generationOutputPending},
+		{Generation: 1, NodeID: "timeout", Status: generationOutputPending},
+	}
+	applyWaitExpiryRoutes(graph, newControlTopology(graph), &outputs)
+	mapped := outputsByNodeAndItemForTest(outputs)
+	if mapped["normal/0"].Status != generationOutputSucceeded ||
+		mapped["normal/0"].OutputRef != branchSkippedOutputRef ||
+		mapped["timeout/0"].Status != generationOutputPending {
+		t.Fatalf("expiry route outputs = %#v, want normal skipped and timeout pending", mapped)
+	}
+}
 
 func TestCoordinatorRunnerShouldDriveFanOutAndCollectControls(t *testing.T) {
 	t.Run("Should materialize chunks and hold collect until all branch items are terminal", func(t *testing.T) {

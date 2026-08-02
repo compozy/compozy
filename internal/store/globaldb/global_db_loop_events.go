@@ -18,6 +18,11 @@ const (
 	loopRunEventNodeFailed              = "node_failed"
 	loopRunEventNodeQuarantined         = "node_quarantined"
 	loopRunEventNodeRequeued            = "node_requeued"
+	loopRunEventNodePaused              = "node_paused"
+	loopRunEventNodeResumed             = "node_resumed"
+	loopRunEventNodeWaitStarted         = "node_wait_started"
+	loopRunEventNodeWaitResumed         = "node_wait_resumed"
+	loopRunEventDuplicateSuppressed     = "duplicate_suppressed"
 	loopRunEventNodeCanceled            = "node_canceled"
 	loopRunEventNodeKilled              = "node_killed"
 	loopRunEventNodeAttentionFlagged    = "node_attention_flagged"
@@ -69,12 +74,20 @@ const (
 	loopRunEventPayloadKeyIssuedEpoch  = "issued_epoch"
 	loopRunEventPayloadKeyCurrentEpoch = "current_epoch"
 	loopRunEventPayloadKeyScheduleKind = "schedule_kind"
+	loopRunEventPayloadKeyMode         = "mode"
+	loopRunEventPayloadKeyWaitKind     = "wait_kind"
+	loopRunEventPayloadKeyExpired      = "expired"
+	loopRunEventPayloadKeyRoute        = "route"
 	loopRunEventVerdictRevise          = "revise"
 	loopRunApprovalFactLabelKey        = "label"
 	loopRunNodeOutputRunning           = "running"
 	loopRetryScheduleKind              = "retry"
 	loopGenerationOutputRetrying       = "retrying"
 	loopGenerationOutputAwaitingGoal   = "awaiting_goal"
+	loopWaitClaimedByScheduler         = "scheduler"
+	loopWaitClaimedByTimer             = "timer"
+	loopWaitClaimedByEvent             = "event"
+	loopWaitClaimedByExpiry            = "expiry"
 )
 
 func appendLoopRunStatusEvent(
@@ -231,11 +244,15 @@ func loopRunEventKindValid(kind string) bool {
 		loopRunEventNodeFailed,
 		loopRunEventNodeQuarantined,
 		loopRunEventNodeRequeued,
+		loopRunEventNodePaused,
+		loopRunEventNodeResumed,
+		loopRunEventNodeWaitStarted,
+		loopRunEventNodeWaitResumed,
+		loopRunEventDuplicateSuppressed,
 		loopRunEventNodeCanceled,
 		loopRunEventNodeKilled,
 		loopRunEventNodeAttentionFlagged,
 		loopRunEventNodeAttentionCleared,
-		loopRunEventNodeResumed,
 		loopRunEventTargetBreakerTransition,
 		loopRunEventGateVerdict,
 		loopRunEventGenerationStarted,

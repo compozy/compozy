@@ -48,6 +48,7 @@ type Node struct {
 	VerdictPolicy       VerdictPolicy       `json:"verdict_policy,omitempty" yaml:"verdict_policy,omitempty"`
 	OnResult            map[string]any      `json:"on_result,omitempty"      yaml:"on_result,omitempty"`
 	MaxRevisions        int                 `json:"max_revisions,omitempty"  yaml:"max_revisions,omitempty"`
+	Expires             *WaitExpiry         `json:"expires,omitempty"        yaml:"expires,omitempty"`
 	Body                *Graph              `json:"body,omitempty"           yaml:"body,omitempty"`
 	Contract            *Contract           `json:"contract,omitempty"       yaml:"contract,omitempty"`
 	InputRef            string              `json:"input_ref,omitempty"      yaml:"input_ref,omitempty"`

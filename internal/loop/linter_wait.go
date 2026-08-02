@@ -38,24 +38,39 @@ func (c *lintContext) lintWait(node dsl.Node) {
 	if params.Expires == nil {
 		return
 	}
-	if strings.TrimSpace(params.Expires.After) == "" {
-		c.add(node.ID, CodeWaitShapeInvalid, "wait expires.after is required")
+	c.lintWaitExpiry(node, params.Expires, "wait")
+}
+
+func (c *lintContext) lintGateExpiry(node dsl.Node) {
+	if node.Expires == nil {
+		return
+	}
+	c.lintWaitExpiry(node, node.Expires, "gate")
+}
+
+func (c *lintContext) lintWaitExpiry(node dsl.Node, expiry *dsl.WaitExpiry, owner string) {
+	if expiry == nil {
+		return
+	}
+	if strings.TrimSpace(expiry.After) == "" {
+		c.add(node.ID, CodeWaitShapeInvalid, "%s expires.after is required", owner)
 	} else {
-		c.lintLifecycleDuration(node.ID, "wait.expires.after", params.Expires.After)
+		c.lintLifecycleDuration(node.ID, owner+".expires.after", expiry.After)
 	}
-	if len(params.Expires.Extra) > 0 {
-		c.add(node.ID, CodeWaitShapeInvalid, "wait expires contains unsupported fields")
+	if len(expiry.Extra) > 0 {
+		c.add(node.ID, CodeWaitShapeInvalid, "%s expires contains unsupported fields", owner)
 	}
-	c.lintEffectLists(node.ID, [][]dsl.EffectSpec{params.Expires.Escalate})
-	if params.Expires.Route != "" && !containsNodeID(c.adjacency[node.ID], params.Expires.Route) {
+	c.lintEffectLists(node.ID, [][]dsl.EffectSpec{expiry.Escalate})
+	if expiry.Route != "" && !containsNodeID(c.adjacency[node.ID], expiry.Route) {
 		c.add(
 			node.ID,
 			CodeErrorRouteBackward,
-			"wait expires.route %q must be a direct forward edge",
-			params.Expires.Route,
+			"%s expires.route %q must be a direct forward edge",
+			owner,
+			expiry.Route,
 		)
 	}
-	if len(params.Expires.Escalate) == 0 && params.Expires.Route == "" {
-		c.warn(node.ID, CodeWaitExpiryWithoutPath, "wait expiry has neither escalate effects nor route")
+	if len(expiry.Escalate) == 0 && expiry.Route == "" {
+		c.warn(node.ID, CodeWaitExpiryWithoutPath, "%s expiry has neither escalate effects nor route", owner)
 	}
 }

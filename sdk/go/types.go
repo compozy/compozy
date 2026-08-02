@@ -308,6 +308,7 @@ type WatchPollRequest struct {
 // WatchPollResponse is returned by a watch-source handler.
 type WatchPollResponse struct {
 	Ready       bool            `json:"ready"`
+	EventKey    string          `json:"event_key"`
 	StateDigest string          `json:"state_digest,omitempty"`
 	Payload     json.RawMessage `json:"payload,omitempty"`
 	SettledAt   *time.Time      `json:"settled_at,omitempty"`

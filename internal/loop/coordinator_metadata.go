@@ -18,17 +18,17 @@ func coordinatorNodeMetadataWithFanOutItem(
 	hasItem bool,
 ) (json.RawMessage, error) {
 	payload := map[string]any{
-		metadataLoopRunIDKey:  string(run.ID),
-		"loop_name":           run.LoopName,
-		"workspace_id":        string(run.WorkspaceID),
-		metadataGenerationKey: generation,
-		metadataNodeIDKey:     string(node.ID),
-		"node_class":          string(node.Class),
-		"node_kind":           node.Kind,
-		metadataItemIndexKey:  itemIndex,
-		"index":               itemIndex,
-		"attempt":             attempt,
-		"epoch":               epoch,
+		metadataLoopRunIDKey:      string(run.ID),
+		"loop_name":               run.LoopName,
+		"workspace_id":            string(run.WorkspaceID),
+		metadataGenerationKey:     generation,
+		metadataNodeIDKey:         string(node.ID),
+		"node_class":              string(node.Class),
+		"node_kind":               node.Kind,
+		metadataItemIndexKey:      itemIndex,
+		"index":                   itemIndex,
+		watchEventsPayloadAttempt: attempt,
+		"epoch":                   epoch,
 	}
 	if hasItem {
 		payload["item"] = item

@@ -28,6 +28,7 @@ type PollRequest struct {
 // PollResponse is the extension -> daemon watch/poll service result.
 type PollResponse struct {
 	Ready       bool            `json:"ready"`
+	EventKey    string          `json:"event_key"`
 	StateDigest string          `json:"state_digest,omitempty"`
 	Payload     json.RawMessage `json:"payload,omitempty"`
 	SettledAt   *time.Time      `json:"settled_at,omitempty"`

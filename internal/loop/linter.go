@@ -232,6 +232,7 @@ func (c *lintContext) lintFanOut(node dsl.Node) {
 }
 
 func (c *lintContext) lintGate(node dsl.Node) {
+	c.lintGateExpiry(node)
 	if node.MaxRevisions > LoopMaxGateRevisions {
 		c.add(
 			node.ID,

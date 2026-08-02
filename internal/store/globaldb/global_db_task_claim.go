@@ -12,7 +12,8 @@ import (
 )
 
 const (
-	globalDBTaskClaimStatusKey = "status"
+	globalDBTaskClaimStatusKey  = "status"
+	globalDBTaskClaimRequestKey = "request"
 )
 
 const (

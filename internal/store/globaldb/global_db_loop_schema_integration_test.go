@@ -248,6 +248,60 @@ func TestOpenGlobalDBBootstrapsLoopSchemaIntegration(t *testing.T) {
 		assertCompleteMigrationStream(t, reopenedStatus, MigrationStream())
 	})
 
+	t.Run("Should preserve admission claims with the prior default horizon after upgrade", func(t *testing.T) {
+		t.Parallel()
+
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		prefixDB, err := openGlobalMigrationPrefixDatabase(
+			t,
+			path,
+			globalMigrationPrefixBefore(t, "00041_schema.sql"),
+		)
+		if err != nil {
+			t.Fatalf("openGlobalMigrationPrefixDatabase() error = %v", err)
+		}
+		ctx := testutil.Context(t)
+		claimedAt := time.Date(2026, 8, 2, 12, 0, 0, 0, time.UTC)
+		if _, err := prefixDB.ExecContext(ctx, `INSERT INTO loop_admission_claims (
+			workspace_id, loop_name, source_key, event_key, loop_run_id, claimed_at,
+			suppressed_count, last_suppressed_at
+		) VALUES ('ws-upgrade', 'delivery', 'source', 'event:42', 'run-v40', ?, 2, ?)`,
+			claimedAt,
+			claimedAt.Add(time.Hour),
+		); err != nil {
+			t.Fatalf("insert v40 admission claim error = %v", err)
+		}
+		if err := prefixDB.Close(); err != nil {
+			t.Fatalf("prefixDB.Close() error = %v", err)
+		}
+
+		upgraded, err := openGlobalMigrationUpgrade(t, path)
+		if err != nil {
+			t.Fatalf("openGlobalMigrationUpgrade() error = %v", err)
+		}
+		if err := upgraded.Close(ctx); err != nil {
+			t.Fatalf("Close(upgraded) error = %v", err)
+		}
+
+		reopened, err := OpenGlobalDB(ctx, path)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB(reopened) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if closeErr := reopened.Close(testutil.Context(t)); closeErr != nil {
+				t.Errorf("Close(reopened cleanup) error = %v", closeErr)
+			}
+		})
+		claim, err := reopened.GetAdmissionClaim(ctx, "ws-upgrade", "delivery", "source", "event:42")
+		if err != nil {
+			t.Fatalf("GetAdmissionClaim() error = %v", err)
+		}
+		if claim.LoopRunID != "run-v40" || claim.SuppressedCount != 2 ||
+			!claim.ExpiresAt.Equal(claimedAt.Add(168*time.Hour)) {
+			t.Fatalf("upgraded admission claim = %#v, want preserved row with prior 168h horizon", claim)
+		}
+	})
+
 	t.Run("Should scope non-null delivery keys while allowing legacy null keys", func(t *testing.T) {
 		t.Parallel()
 
@@ -581,7 +635,7 @@ func assertLoopRunStateSchema(t *testing.T, globalDB *GlobalDB) {
 	})
 	assertTableColumns(t, globalDB.db, "loop_admission_claims", []string{
 		"workspace_id", "loop_name", "source_key", "event_key", "loop_run_id", "claimed_at",
-		"suppressed_count", "last_suppressed_at",
+		"expires_at", "suppressed_count", "last_suppressed_at",
 	})
 	assertTableColumns(t, globalDB.db, "loop_effect_outbox", []string{
 		"loop_run_id", "delivery_id", "source_event_id", "trigger", "generation", "node_id", "item_index",

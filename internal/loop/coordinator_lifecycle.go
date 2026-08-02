@@ -18,10 +18,11 @@ const (
 )
 
 type nodeLifecycleResult struct {
-	attempt NodeAttempt
-	events  []GenerationLifecycleEventIntent
-	handled bool
-	live    bool
+	attempt  NodeAttempt
+	events   []GenerationLifecycleEventIntent
+	controls []NodeControlMutation
+	handled  bool
+	live     bool
 }
 
 func (r *CoordinatorRunner) applyNodeLifecyclePrecedence(
@@ -31,14 +32,20 @@ func (r *CoordinatorRunner) applyNodeLifecyclePrecedence(
 	resolved *ResolvedDefinition,
 	effective EffectiveConfig,
 	outputs []GenerationOutput,
-) ([]GenerationOutput, []NodeAttempt, []GenerationLifecycleEventIntent, bool, error) {
+) ([]GenerationOutput, []NodeAttempt, []NodeControlMutation, []GenerationLifecycleEventIntent, bool, error) {
 	attempts, err := r.listNodeAttempts(ctx, run)
 	if err != nil {
-		return nil, nil, nil, false, err
+		return nil, nil, nil, nil, false, err
 	}
+	nodeControls, err := r.listNodeControls(ctx, run)
+	if err != nil {
+		return nil, nil, nil, nil, false, err
+	}
+	controlByNode := nodeControlsByID(nodeControls)
 	advanced := cloneGenerationOutputs(outputs)
 	newAttempts := make([]NodeAttempt, 0)
 	events := make([]GenerationLifecycleEventIntent, 0)
+	controls := make([]NodeControlMutation, 0)
 	graph := resolved.Definition.Graph
 	topology := newControlTopology(graph)
 	live := false
@@ -48,20 +55,21 @@ func (r *CoordinatorRunner) applyNodeLifecyclePrecedence(
 			continue
 		}
 		result, applyErr := r.applyTerminalNodeLifecycle(
-			ctx, run, generation, effective, graph, topology, advanced, index, attempts,
+			ctx, run, generation, effective, graph, topology, advanced, index, attempts, controlByNode,
 		)
 		if applyErr != nil {
-			return nil, nil, nil, false, applyErr
+			return nil, nil, nil, nil, false, applyErr
 		}
 		if !result.handled {
 			continue
 		}
 		newAttempts = append(newAttempts, result.attempt)
 		events = append(events, result.events...)
+		controls = append(controls, result.controls...)
 		attempts = append(attempts, result.attempt)
 		live = live || result.live
 	}
-	return advanced, newAttempts, events, live, nil
+	return advanced, newAttempts, controls, events, live, nil
 }
 
 func (r *CoordinatorRunner) applyTerminalNodeLifecycle(
@@ -74,6 +82,7 @@ func (r *CoordinatorRunner) applyTerminalNodeLifecycle(
 	advanced []GenerationOutput,
 	index int,
 	attempts []NodeAttempt,
+	controlByNode map[NodeID]NodeControl,
 ) (nodeLifecycleResult, error) {
 	output := advanced[index]
 	node, found := lifecycleActionNode(graph, output, generation, attempts)
@@ -101,7 +110,7 @@ func (r *CoordinatorRunner) applyTerminalNodeLifecycle(
 		return nodeLifecycleResult{attempt: attempt, events: events, handled: true}, nil
 	}
 	return r.applyFailedNodeLifecycle(
-		ctx, run, effective, graph, topology, advanced, index, attempts, node, taskRun, attempt,
+		ctx, run, effective, graph, topology, advanced, index, attempts, controlByNode, node, taskRun, attempt,
 	)
 }
 
@@ -131,6 +140,7 @@ func (r *CoordinatorRunner) applyFailedNodeLifecycle(
 	advanced []GenerationOutput,
 	index int,
 	attempts []NodeAttempt,
+	controlByNode map[NodeID]NodeControl,
 	node dsl.Node,
 	taskRun task.Run,
 	attempt NodeAttempt,
@@ -139,6 +149,18 @@ func (r *CoordinatorRunner) applyFailedNodeLifecycle(
 	failure := classifyGenerationOutputFailure(output, taskRun)
 	if failure.Target == "" {
 		failure.Target = r.actionTargetFor(taskRun.ID, run, node)
+	}
+	pause, err := evaluateAutopause(node, failure, output.Attempt, effective)
+	if err != nil {
+		return nodeLifecycleResult{}, err
+	}
+	if pause.matched {
+		result, applied := applyMatchedAutopause(
+			pause, failure, controlByNode, output, attempt, advanced, index, r.now().UTC(),
+		)
+		if applied {
+			return result, nil
+		}
 	}
 	retryPlan, err := planNodeRetry(&nodeRetryPlanInput{
 		node:        node,
@@ -176,6 +198,45 @@ func (r *CoordinatorRunner) applyFailedNodeLifecycle(
 		return nodeLifecycleResult{}, err
 	}
 	return nodeLifecycleResult{attempt: attempt, events: events, handled: true}, nil
+}
+
+func applyMatchedAutopause(
+	pause autopauseDecision,
+	failure ClassifiedFailure,
+	controlByNode map[NodeID]NodeControl,
+	output GenerationOutput,
+	attempt NodeAttempt,
+	advanced []GenerationOutput,
+	index int,
+	at time.Time,
+) (nodeLifecycleResult, bool) {
+	control, controlled := controlByNode[NodeID(output.NodeID)]
+	if control.Paused {
+		return nodeLifecycleResult{}, false
+	}
+	applyFailureToAttempt(&attempt, failure)
+	attempt.Disposition = AttemptEscalated
+	output.Status = generationOutputPaused
+	output.Attempt++
+	output.NextAttemptAt = nil
+	output.Epoch++
+	advanced[index] = output
+	return nodeLifecycleResult{
+		attempt: attempt,
+		controls: []NodeControlMutation{{
+			Kind: NodeControlMutationPause, NodeID: NodeID(output.NodeID),
+			PauseActorKind: autopauseActorKind, PauseActorID: autopauseActorID,
+			PauseReason: pause.reason, PauseRuleID: pause.ruleID, At: at,
+			ExpectExisting: controlled, ExpectedRevision: control.Revision,
+		}},
+		events: []GenerationLifecycleEventIntent{{
+			Kind: GenerationLifecycleEventNodePaused, NodeID: output.NodeID,
+			ItemIndex: output.ItemIndex, Attempt: attempt.Attempt,
+			ActorKind: autopauseActorKind, ActorID: autopauseActorID,
+			RuleID: pause.ruleID, Reason: pause.reason,
+		}},
+		handled: true, live: true,
+	}, true
 }
 
 func applyNodeFailureDisposition(

@@ -52,11 +52,15 @@ type LoopStartRequest struct {
 	ScheduledAt          *time.Time
 	CatchUp              bool
 	CatchUpPolicy        SchedulerCatchUpPolicy
+	SourceKey            string
+	EventKey             string
 }
 
 // LoopStartResult returns the observable loop_run correlation for an automation fire.
 type LoopStartResult struct {
-	RunID string
+	RunID           string
+	Suppressed      bool
+	SuppressedCount int
 }
 
 // LoopStarter is implemented at the composition root so automation does not import internal/loop.
@@ -116,6 +120,8 @@ func (d *Dispatcher) dispatchLoopBackedAttempt(
 		ScheduledAt:          cloneTimePointer(req.ScheduledAt),
 		CatchUp:              req.CatchUp,
 		CatchUpPolicy:        req.CatchUpPolicy,
+		SourceKey:            req.definitionID(),
+		EventKey:             loopAdmissionEventKey(req.Envelope),
 	})
 	if err != nil {
 		if req.CatchUp && errors.Is(err, ErrLoopConcurrencyConflict) {
@@ -133,6 +139,17 @@ func (d *Dispatcher) dispatchLoopBackedAttempt(
 	}
 	d.dispatchPostFireHook(ctx, req, *delegatedRun)
 	return delegatedRun, nil
+}
+
+func loopAdmissionEventKey(envelope *ActivationEnvelope) string {
+	if envelope == nil || envelope.Data == nil {
+		return ""
+	}
+	value, ok := envelope.Data["event_key"].(string)
+	if !ok {
+		return ""
+	}
+	return strings.TrimSpace(value)
 }
 
 func loopCatchUpFailureMetadata(req DispatchRequest, reason string) map[string]any {
