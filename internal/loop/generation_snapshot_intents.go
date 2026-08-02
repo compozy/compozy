@@ -21,6 +21,10 @@ const (
 	GenerationLifecycleEventGateVerdict GenerationLifecycleEventKind = "gate_verdict"
 	// GenerationLifecycleEventNodeRetryScheduled records one durable retry schedule.
 	GenerationLifecycleEventNodeRetryScheduled GenerationLifecycleEventKind = "node_retry_scheduled"
+	// GenerationLifecycleEventNodeSucceeded records an effect-bearing successful node outcome.
+	GenerationLifecycleEventNodeSucceeded GenerationLifecycleEventKind = "node_succeeded"
+	// GenerationLifecycleEventNodeFailed records an effect-bearing handled or terminal node failure.
+	GenerationLifecycleEventNodeFailed GenerationLifecycleEventKind = "node_failed"
 )
 
 // GenerationLifecycleEventIntent requests one durable generation lifecycle event.
@@ -36,6 +40,9 @@ type GenerationLifecycleEventIntent struct {
 	IssuedEpoch    int64                        `json:"issued_epoch,omitempty"`
 	NextAttemptAt  *time.Time                   `json:"next_attempt_at,omitempty"`
 	FailureClass   FailureClass                 `json:"failure_class,omitempty"`
+	Failure        *ClassifiedFailure           `json:"failure,omitempty"`
+	Disposition    AttemptDisposition           `json:"disposition,omitempty"`
+	Effects        []RenderedEffectIntent       `json:"effects,omitempty"`
 }
 
 func (i GenerationLifecycleEventIntent) normalized() GenerationLifecycleEventIntent {
@@ -52,40 +59,90 @@ func (i GenerationLifecycleEventIntent) normalized() GenerationLifecycleEventInt
 		value := *i.BestGeneration
 		i.BestGeneration = &value
 	}
+	if i.Failure != nil {
+		failure := *i.Failure
+		i.Failure = &failure
+	}
+	if len(i.Effects) > 0 {
+		i.Effects = append([]RenderedEffectIntent(nil), i.Effects...)
+	}
 	return i
 }
 
 func (i GenerationLifecycleEventIntent) validate() error {
+	var err error
 	switch i.Kind {
 	case GenerationLifecycleEventGenerationStarted:
-		if i.GateID != "" || i.ItemIndex != 0 || i.Route != "" {
-			return fmt.Errorf(
-				"%w: generation_started event cannot carry gate_id, item_index, or route",
-				ErrValidation,
-			)
-		}
+		err = i.validateGenerationStarted()
 	case GenerationLifecycleEventGateVerdict:
-		if i.GateID == "" {
-			return fmt.Errorf("%w: gate_verdict event gate_id is required", ErrValidation)
-		}
-		if !generationLifecycleRouteValid(i.Route) {
-			return fmt.Errorf("%w: gate_verdict event route is invalid: %q", ErrValidation, i.Route)
-		}
-		if i.ItemIndex < 0 {
-			return fmt.Errorf("%w: gate_verdict event item_index must be non-negative", ErrValidation)
-		}
-		if i.BestGeneration != nil && *i.BestGeneration < 1 {
-			return fmt.Errorf("%w: gate_verdict event best_generation must be positive", ErrValidation)
-		}
+		err = i.validateGateVerdict()
 	case GenerationLifecycleEventNodeRetryScheduled:
-		if i.NodeID == "" || i.ItemIndex < 0 || i.Attempt < 1 || i.IssuedEpoch < 1 ||
-			i.NextAttemptAt == nil || !IsKnownFailureClass(i.FailureClass) {
-			return fmt.Errorf("%w: node_retry_scheduled event has incomplete retry identity", ErrValidation)
-		}
+		err = i.validateNodeRetryScheduled()
+	case GenerationLifecycleEventNodeSucceeded:
+		err = i.validateNodeSucceeded()
+	case GenerationLifecycleEventNodeFailed:
+		err = i.validateNodeFailed()
 	default:
 		return fmt.Errorf("%w: generation lifecycle event kind is invalid: %q", ErrValidation, i.Kind)
 	}
+	if err != nil {
+		return err
+	}
+	for _, effect := range i.Effects {
+		if err := effect.Validate(); err != nil {
+			return err
+		}
+	}
 	return nil
+}
+
+func (i GenerationLifecycleEventIntent) validateGenerationStarted() error {
+	if i.GateID == "" && i.ItemIndex == 0 && i.Route == "" {
+		return nil
+	}
+	return fmt.Errorf(
+		"%w: generation_started event cannot carry gate_id, item_index, or route",
+		ErrValidation,
+	)
+}
+
+func (i GenerationLifecycleEventIntent) validateGateVerdict() error {
+	if i.GateID == "" {
+		return fmt.Errorf("%w: gate_verdict event gate_id is required", ErrValidation)
+	}
+	if !generationLifecycleRouteValid(i.Route) {
+		return fmt.Errorf("%w: gate_verdict event route is invalid: %q", ErrValidation, i.Route)
+	}
+	if i.ItemIndex < 0 {
+		return fmt.Errorf("%w: gate_verdict event item_index must be non-negative", ErrValidation)
+	}
+	if i.BestGeneration != nil && *i.BestGeneration < 1 {
+		return fmt.Errorf("%w: gate_verdict event best_generation must be positive", ErrValidation)
+	}
+	return nil
+}
+
+func (i GenerationLifecycleEventIntent) validateNodeRetryScheduled() error {
+	if i.NodeID != "" && i.ItemIndex >= 0 && i.Attempt >= 1 && i.IssuedEpoch >= 1 &&
+		i.NextAttemptAt != nil && IsKnownFailureClass(i.FailureClass) {
+		return nil
+	}
+	return fmt.Errorf("%w: node_retry_scheduled event has incomplete retry identity", ErrValidation)
+}
+
+func (i GenerationLifecycleEventIntent) validateNodeSucceeded() error {
+	if i.NodeID != "" && i.ItemIndex >= 0 && i.Attempt >= 1 && len(i.Effects) > 0 {
+		return nil
+	}
+	return fmt.Errorf("%w: node_succeeded effect event has incomplete identity", ErrValidation)
+}
+
+func (i GenerationLifecycleEventIntent) validateNodeFailed() error {
+	if i.NodeID != "" && i.ItemIndex >= 0 && i.Attempt >= 1 && i.Failure != nil &&
+		i.Disposition != "" && len(i.Effects) > 0 {
+		return nil
+	}
+	return fmt.Errorf("%w: node_failed effect event has incomplete failure identity", ErrValidation)
 }
 
 func generationLifecycleRouteValid(route gate.RouteAction) bool {
@@ -139,6 +196,28 @@ func normalizeGenerationSnapshotIntents(payload GenerationSnapshotPayload) (Gene
 			events[index] = normalized
 		}
 		payload.Events = events
+	}
+	if len(payload.BoundaryEffects) > 0 {
+		boundaryEffects := make(map[Status][]RenderedEffectIntent, len(payload.BoundaryEffects))
+		for status, effects := range payload.BoundaryEffects {
+			if !status.Terminal() {
+				return GenerationSnapshotPayload{}, fmt.Errorf(
+					"%w: effect boundary status is not terminal: %q",
+					ErrValidation,
+					status,
+				)
+			}
+			cloned := make([]RenderedEffectIntent, len(effects))
+			for index, effect := range effects {
+				if err := effect.Validate(); err != nil {
+					return GenerationSnapshotPayload{}, err
+				}
+				effect.Entry = append(json.RawMessage(nil), effect.Entry...)
+				cloned[index] = effect
+			}
+			boundaryEffects[status] = cloned
+		}
+		payload.BoundaryEffects = boundaryEffects
 	}
 	return payload, nil
 }

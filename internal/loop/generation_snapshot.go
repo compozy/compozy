@@ -15,13 +15,14 @@ import (
 
 // GenerationSnapshotPayload is the loop-owned payload carried by task.GenerationSnapshot.
 type GenerationSnapshotPayload struct {
-	Outputs              []GenerationOutput               `json:"outputs,omitempty"`
-	Attempts             []NodeAttempt                    `json:"attempts,omitempty"`
-	OutputBlobs          []GenerationOutputBlob           `json:"output_blobs,omitempty"`
-	Verdicts             []gate.VerdictIntent             `json:"verdicts,omitempty"`
-	BestUpdate           *gate.BestUpdateIntent           `json:"best_update,omitempty"`
-	GenerationProvenance *GenerationIntent                `json:"generation_provenance,omitempty"`
-	Events               []GenerationLifecycleEventIntent `json:"events,omitempty"`
+	Outputs              []GenerationOutput                `json:"outputs,omitempty"`
+	Attempts             []NodeAttempt                     `json:"attempts,omitempty"`
+	OutputBlobs          []GenerationOutputBlob            `json:"output_blobs,omitempty"`
+	Verdicts             []gate.VerdictIntent              `json:"verdicts,omitempty"`
+	BestUpdate           *gate.BestUpdateIntent            `json:"best_update,omitempty"`
+	GenerationProvenance *GenerationIntent                 `json:"generation_provenance,omitempty"`
+	Events               []GenerationLifecycleEventIntent  `json:"events,omitempty"`
+	BoundaryEffects      map[Status][]RenderedEffectIntent `json:"boundary_effects,omitempty"`
 }
 
 // GenerationOutput is one loop_generation_outputs row mutation.
