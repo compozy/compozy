@@ -1,3 +1,5 @@
+"use client";
+
 import * as React from "react";
 
 /** Parent crumb in a window-local drill-in trail (leaf is `crumb` / Topbar title). */
