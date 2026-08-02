@@ -13,9 +13,11 @@ var _ schedulerpkg.TaskSource = schedulerTaskSource{}
 var _ schedulerpkg.LoopCoordinatorBackstop = schedulerTaskSource{}
 
 type schedulerTaskSource struct {
-	manager             *taskpkg.Service
-	store               taskStore
-	watchEventsGapScan  *loopWatchEventsGapScanState
-	loopRetryDueScan    *loopRetryDueScanState
-	coordinatorBackstop loopCoordinatorBackstopRunner
+	manager                *taskpkg.Service
+	store                  taskStore
+	watchEventsGapScan     *loopWatchEventsGapScanState
+	loopRetryDueScan       *loopRetryDueScanState
+	loopWaitDueScan        *loopWaitDueScanState
+	loopWaitEscalationScan *loopWaitEscalationScanState
+	coordinatorBackstop    loopCoordinatorBackstopRunner
 }

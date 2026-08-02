@@ -49,6 +49,15 @@ type loopWatchEventsStore interface {
 	WriteEventSummary(context.Context, store.EventSummary) error
 }
 
+type loopWaitEventStore interface {
+	ListParkedLoopWaitEventSubscriptions(context.Context) ([]looppkg.ParkedWatchEventSubscription, error)
+	ListParkedLoopWaitEventSubscriptionsForLoopRun(
+		context.Context,
+		string,
+	) ([]looppkg.ParkedWatchEventSubscription, error)
+	ResumeWait(context.Context, looppkg.WaitResumeMutation) (looppkg.WaitResumeResult, error)
+}
+
 type loopWatchEventsObserver struct {
 	store    loopWatchEventsStore
 	backstop loopCoordinatorBackstopRunner
@@ -269,6 +278,10 @@ func (o *loopWatchEventsObserver) matchAndWake(ctx context.Context, event looppk
 		); err != nil {
 			errs = append(errs, err)
 		}
+		if subscription.Wait != nil {
+			errs = append(errs, o.resumeEventWait(ctx, subscription, event))
+			continue
+		}
 		run, added, err := o.store.EnqueueLoopCoordinatorWake(
 			ctx,
 			subscription.LoopRunID,
@@ -309,10 +322,50 @@ func (o *loopWatchEventsObserver) matchAndWake(ctx context.Context, event looppk
 	return errors.Join(errs...)
 }
 
+func (o *loopWatchEventsObserver) resumeEventWait(
+	ctx context.Context,
+	subscription looppkg.ParkedWatchEventSubscription,
+	event looppkg.WatchEvent,
+) error {
+	store, ok := o.store.(loopWaitEventStore)
+	if !ok || subscription.Wait == nil {
+		return errors.New("daemon: loop watch-events store must support event wait admission")
+	}
+	payload, err := json.Marshal(event.EventMap())
+	if err != nil {
+		return fmt.Errorf("daemon: marshal Loop event wait payload: %w", err)
+	}
+	result, err := store.ResumeWait(ctx, looppkg.WaitResumeMutation{
+		WorkspaceID: looppkg.WorkspaceID(subscription.WorkspaceID),
+		RunID:       looppkg.RunID(subscription.LoopRunID), Generation: subscription.Generation,
+		NodeID: looppkg.NodeID(subscription.NodeID), ItemIndex: subscription.Wait.ItemIndex,
+		Payload: payload, ClaimedByKind: loopEventIdentity,
+		ClaimedByID:       fmt.Sprintf("%s:%d", strings.TrimSpace(event.Stream), event.Seq),
+		AdmissionAttempts: subscription.Wait.AdmissionAttempts, RequestedAt: o.now().UTC(),
+	})
+	if errors.Is(err, looppkg.ErrTransitionConflict) || errors.Is(err, looppkg.ErrInvalidTransition) {
+		return o.refreshLoopRun(ctx, subscription.LoopRunID)
+	}
+	if err != nil {
+		return err
+	}
+	if err := o.refreshLoopRun(ctx, subscription.LoopRunID); err != nil {
+		return err
+	}
+	if result.Won {
+		return o.startLoopCoordinatorBackstop(ctx)
+	}
+	return nil
+}
+
 func (o *loopWatchEventsObserver) subscriptionMatchesEvent(
 	subscription looppkg.ParkedWatchEventSubscription,
 	event looppkg.WatchEvent,
 ) bool {
+	cursor, found := subscription.Cursors[strings.TrimSpace(event.Stream)]
+	if subscription.Wait != nil && found && event.Seq <= cursor {
+		return false
+	}
 	for _, ref := range subscription.Subscriptions {
 		if strings.TrimSpace(ref.Kind) != strings.TrimSpace(event.Kind) {
 			continue

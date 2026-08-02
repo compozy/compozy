@@ -109,6 +109,11 @@ Missing a required service method fails the build. `bridge.adapter` is excluded 
 surface: an installed third-party manifest declaring it is rejected deterministically, because
 external bridge authoring is a planned follow-up program. Never scaffold one for a user.
 
+Every `watch/poll` response requires a stable `event_key`. The runtime trims it and normalizes its
+Unicode to NFC, one canonical byte form. Invalid UTF-8 and values over 256 bytes are rejected before
+a Loop starts. Redelivery of the same source key and event key returns the existing Loop run as a
+structured suppression instead of starting duplicate work.
+
 ## Contributed Commands
 
 A command is presentation metadata on a tool. Add a `command` block to the tool registration

@@ -38,6 +38,14 @@ type ParkedWatchEventSubscription struct {
 	Subscriptions []watchpkg.EventSubscriptionRef
 	Cursors       map[string]int64
 	Contracts     map[hooks.HookEvent]WatchEventsContract
+	Wait          *ParkedNodeWaitEvent
+}
+
+// ParkedNodeWaitEvent addresses one event-backed wait through the shared watch-events index.
+type ParkedNodeWaitEvent struct {
+	ItemIndex         int
+	IssuedEpoch       int64
+	AdmissionAttempts int
 }
 
 // ParkedWatchEventScanCursor resumes a deterministic parked-subscription scan.

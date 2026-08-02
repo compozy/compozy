@@ -28,6 +28,11 @@ func attachCoordinatorEffectIntents(
 			return err
 		}
 	}
+	if err := attachPauseEventEffects(
+		run, resolved.Definition.Graph, max(1, plan.Snapshot.Generation), &payload,
+	); err != nil {
+		return err
+	}
 	if plan.Terminal != nil {
 		if err := attachBoundaryEffectIntents(
 			run,
@@ -91,6 +96,9 @@ func attachAttemptEffectIntents(
 	if payload == nil {
 		return nil
 	}
+	if hasNodePauseEvent(*payload, attempt) {
+		return nil
+	}
 	switch attempt.Disposition {
 	case AttemptRetried:
 		return attachRetryEffectIntents(run, node, attempt, payload)
@@ -109,6 +117,50 @@ func attachAttemptEffectIntents(
 		return attachQuarantineEffectIntents(run, node, attempt, payload)
 	case AttemptCanceled:
 		return appendNodeEffectEvent(run, node.OnCancel, EffectTriggerOnCancel, attempt, payload)
+	}
+	return nil
+}
+
+func hasNodePauseEvent(payload GenerationSnapshotPayload, attempt NodeAttempt) bool {
+	for _, event := range payload.Events {
+		if event.Kind == GenerationLifecycleEventNodePaused && event.NodeID == string(attempt.NodeID) &&
+			event.ItemIndex == attempt.ItemIndex && event.Attempt == attempt.Attempt {
+			return true
+		}
+	}
+	return false
+}
+
+func attachPauseEventEffects(
+	run Run,
+	graph dsl.Graph,
+	generation int,
+	payload *GenerationSnapshotPayload,
+) error {
+	if payload == nil {
+		return nil
+	}
+	for index := range payload.Events {
+		event := &payload.Events[index]
+		if event.Kind != GenerationLifecycleEventNodePaused &&
+			event.Kind != GenerationLifecycleEventNodeWaitStarted {
+			continue
+		}
+		node, found := graphNode(graph, dsl.NodeID(event.NodeID))
+		if !found {
+			return fmt.Errorf("%w: pause effect event references unknown node %q", ErrValidation, event.NodeID)
+		}
+		if len(node.OnPause) == 0 || len(event.Effects) > 0 {
+			continue
+		}
+		intents, err := RenderEffectIntents(node.OnPause, EffectContextRequest{
+			Run: &run, Trigger: EffectTriggerOnPause, Generation: generation,
+			NodeID: dsl.NodeID(event.NodeID), ItemIndex: event.ItemIndex, Attempt: event.Attempt,
+		})
+		if err != nil {
+			return err
+		}
+		event.Effects = append(event.Effects, intents...)
 	}
 	return nil
 }

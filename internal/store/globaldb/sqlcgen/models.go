@@ -482,6 +482,7 @@ type LoopAdmissionClaim struct {
 	EventKey         string       `json:"event_key"`
 	LoopRunID        string       `json:"loop_run_id"`
 	ClaimedAt        time.Time    `json:"claimed_at"`
+	ExpiresAt        time.Time    `json:"expires_at"`
 	SuppressedCount  int64        `json:"suppressed_count"`
 	LastSuppressedAt sql.NullTime `json:"last_suppressed_at"`
 }

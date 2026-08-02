@@ -13,6 +13,7 @@ import (
 )
 
 const (
+	loopEventIdentity                                 = "event"
 	watchEventsPayloadAttemptKey                      = "attempt"
 	watchEventsPayloadAgentNameKey                    = "agent_name"
 	watchEventsPayloadCausationIDKey                  = "causation_id"

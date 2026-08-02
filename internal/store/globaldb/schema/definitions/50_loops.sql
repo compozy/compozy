@@ -180,6 +180,7 @@ CREATE TABLE loop_admission_claims (
 	event_key          TEXT NOT NULL,
 	loop_run_id        TEXT NOT NULL,
 	claimed_at         TIMESTAMP NOT NULL,
+	expires_at         TIMESTAMP NOT NULL,
 	suppressed_count   INTEGER NOT NULL DEFAULT 0,
 	last_suppressed_at TIMESTAMP,
 	PRIMARY KEY (workspace_id, loop_name, source_key, event_key)

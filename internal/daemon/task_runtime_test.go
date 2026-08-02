@@ -2003,7 +2003,9 @@ func TestLoopCoordinatorRunnerShouldPollThroughExtensionRuntime(t *testing.T) {
 				if string(req.Spec) != `{"kind":"reviews","query":"open"}` {
 					t.Fatalf("PollRequest.Spec = %s, want watch spec", string(req.Spec))
 				}
-				return watchpkg.PollResponse{Ready: false, StateDigest: "sha256:daemon"}, nil
+				return watchpkg.PollResponse{
+					Ready: false, EventKey: "reviews:daemon", StateDigest: "sha256:daemon",
+				}, nil
 			},
 		}
 		state := &bootState{

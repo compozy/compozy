@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/compozy/compozy/internal/diagnostics"
 	looppkg "github.com/compozy/compozy/internal/loop"
@@ -110,6 +111,16 @@ func applyNodeRequeue(
 		return err
 	}
 	if err := fenceRequeuedNodeAndDependents(ctx, exec, mutation, prepared.run.Generation); err != nil {
+		return err
+	}
+	parkedFor := mutation.RequestedAt.UTC().Sub(prepared.control.quarantinedAt)
+	parkedFor = max(parkedFor, 0)
+	if err := shiftQuarantinedNodeFirstScheduledAnchors(
+		ctx, exec, mutation.RunID, mutation.NodeID, parkedFor,
+	); err != nil {
+		return err
+	}
+	if err := shiftLoopWallClockIfUnparked(ctx, exec, mutation.RunID, parkedFor); err != nil {
 		return err
 	}
 	return appendNodeRequeuedEvent(ctx, exec, mutation, prepared)
@@ -243,8 +254,9 @@ func (g *LoopRepo) reserveNodeRequeue(
 }
 
 type requeueNodeControl struct {
-	entry    json.RawMessage
-	revision int64
+	entry         json.RawMessage
+	revision      int64
+	quarantinedAt time.Time
 }
 
 func loadQuarantinedNodeControl(
@@ -255,13 +267,14 @@ func loadQuarantinedNodeControl(
 	var quarantined int64
 	var entry sql.NullString
 	var revision int64
+	var quarantinedAt time.Time
 	err := exec.QueryRowContext(
 		ctx,
-		`SELECT quarantined, quarantine_entry_json, revision
+		`SELECT quarantined, quarantine_entry_json, revision, quarantined_at
 		 FROM loop_node_controls WHERE loop_run_id = ? AND node_id = ?`,
 		mutation.RunID,
 		mutation.NodeID,
-	).Scan(&quarantined, &entry, &revision)
+	).Scan(&quarantined, &entry, &revision, &quarantinedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return requeueNodeControl{}, fmt.Errorf(
@@ -286,7 +299,9 @@ func loadQuarantinedNodeControl(
 			mutation.NodeID,
 		)
 	}
-	return requeueNodeControl{entry: json.RawMessage(entry.String), revision: revision}, nil
+	return requeueNodeControl{
+		entry: json.RawMessage(entry.String), revision: revision, quarantinedAt: quarantinedAt.UTC(),
+	}, nil
 }
 
 func requireSingleRequeueMutation(result sql.Result, nodeID looppkg.NodeID) error {

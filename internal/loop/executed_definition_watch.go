@@ -22,7 +22,7 @@ func collectGraphWatchEventsContracts(
 	contracts map[hooks.HookEvent]WatchEventsContract,
 ) {
 	for _, node := range graph.Nodes {
-		for _, subscription := range node.Events {
+		for _, subscription := range nodeWatchEventSubscriptions(node) {
 			kind := hooks.HookEvent(strings.TrimSpace(subscription.Kind))
 			if contract, ok := available[kind]; ok {
 				contracts[kind] = cloneWatchEventsContract(contract)
@@ -32,6 +32,17 @@ func collectGraphWatchEventsContracts(
 			collectGraphWatchEventsContracts(*node.Body, available, contracts)
 		}
 	}
+}
+
+func nodeWatchEventSubscriptions(node dsl.Node) []dsl.EventSubscription {
+	if node.Class != dsl.NodeClassControl || dsl.ControlKind(node.Kind) != dsl.ControlWait {
+		return node.Events
+	}
+	var params dsl.WaitParams
+	if err := node.Params.Decode(&params); err != nil || params.Event == nil {
+		return nil
+	}
+	return []dsl.EventSubscription{*params.Event}
 }
 
 func cloneWatchEventsContracts(

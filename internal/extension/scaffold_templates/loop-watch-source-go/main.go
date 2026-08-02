@@ -38,6 +38,7 @@ func main() {
 			}
 			return compozysdk.WatchPollResponse{
 				Ready:       false,
+				EventKey:    "reviews:" + req.Spec.Query,
 				StateDigest: "manual:" + req.Spec.Query,
 				Payload:     payload,
 			}, nil

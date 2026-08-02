@@ -24,20 +24,21 @@ const (
 type EffectTrigger string
 
 const (
-	EffectTriggerOnError      EffectTrigger = "on_error"
-	EffectTriggerOnRetry      EffectTrigger = "on_retry"
-	EffectTriggerOnSuccess    EffectTrigger = "on_success"
-	EffectTriggerOnPause      EffectTrigger = "on_pause"
-	EffectTriggerOnTimeout    EffectTrigger = "on_timeout"
-	EffectTriggerOnCancel     EffectTrigger = "on_cancel"
-	EffectTriggerOnQuarantine EffectTrigger = "on_quarantine"
-	EffectTriggerOnDone       EffectTrigger = "on_done"
-	EffectTriggerOnNoOp       EffectTrigger = "on_noop"
-	EffectTriggerOnBlocked    EffectTrigger = "on_blocked"
-	EffectTriggerOnFailed     EffectTrigger = "on_failed"
-	EffectTriggerOnExhausted  EffectTrigger = "on_exhausted"
-	EffectTriggerOnStalled    EffectTrigger = "on_stalled"
-	EffectTriggerOnCanceled   EffectTrigger = "on_canceled"
+	EffectTriggerOnError        EffectTrigger = "on_error"
+	EffectTriggerOnRetry        EffectTrigger = "on_retry"
+	EffectTriggerOnSuccess      EffectTrigger = "on_success"
+	EffectTriggerOnPause        EffectTrigger = "on_pause"
+	EffectTriggerOnTimeout      EffectTrigger = "on_timeout"
+	EffectTriggerOnCancel       EffectTrigger = "on_cancel"
+	EffectTriggerOnQuarantine   EffectTrigger = "on_quarantine"
+	EffectTriggerWaitEscalation EffectTrigger = "wait_escalation"
+	EffectTriggerOnDone         EffectTrigger = "on_done"
+	EffectTriggerOnNoOp         EffectTrigger = "on_noop"
+	EffectTriggerOnBlocked      EffectTrigger = "on_blocked"
+	EffectTriggerOnFailed       EffectTrigger = "on_failed"
+	EffectTriggerOnExhausted    EffectTrigger = "on_exhausted"
+	EffectTriggerOnStalled      EffectTrigger = "on_stalled"
+	EffectTriggerOnCanceled     EffectTrigger = "on_canceled"
 )
 
 // Valid reports whether the trigger belongs to the authored reaction vocabulary.
@@ -45,7 +46,8 @@ func (t EffectTrigger) Valid() bool {
 	switch t {
 	case EffectTriggerOnError, EffectTriggerOnRetry, EffectTriggerOnSuccess,
 		EffectTriggerOnPause, EffectTriggerOnTimeout, EffectTriggerOnCancel,
-		EffectTriggerOnQuarantine, EffectTriggerOnDone, EffectTriggerOnNoOp,
+		EffectTriggerOnQuarantine, EffectTriggerWaitEscalation,
+		EffectTriggerOnDone, EffectTriggerOnNoOp,
 		EffectTriggerOnBlocked, EffectTriggerOnFailed, EffectTriggerOnExhausted,
 		EffectTriggerOnStalled, EffectTriggerOnCanceled:
 		return true
@@ -59,7 +61,7 @@ func (t EffectTrigger) NodeScoped() bool {
 	switch t {
 	case EffectTriggerOnError, EffectTriggerOnRetry, EffectTriggerOnSuccess,
 		EffectTriggerOnPause, EffectTriggerOnTimeout, EffectTriggerOnCancel,
-		EffectTriggerOnQuarantine:
+		EffectTriggerOnQuarantine, EffectTriggerWaitEscalation:
 		return true
 	default:
 		return false

@@ -266,6 +266,7 @@ func (r *CoordinatorRunner) applyParkedDependencyAttention(
 	}
 	plan.Snapshot.Payload = payload
 	plan.Yield = true
+	plan.GenerationInFlight = true
 	return plan, true, nil
 }
 

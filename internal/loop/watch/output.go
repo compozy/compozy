@@ -21,6 +21,7 @@ const (
 type OutputRef struct {
 	Kind          string                 `json:"kind"`
 	StateDigest   string                 `json:"state_digest,omitempty"`
+	EventKey      string                 `json:"event_key,omitempty"`
 	Payload       json.RawMessage        `json:"payload,omitempty"`
 	SettledAt     *time.Time             `json:"settled_at,omitempty"`
 	Subscriptions []EventSubscriptionRef `json:"subscriptions,omitempty"`
@@ -45,6 +46,7 @@ type EventsPendingState struct {
 func PendingOutputRef(response PollResponse) (string, error) {
 	return marshalOutputRef(OutputRef{
 		Kind:        outputKindPending,
+		EventKey:    strings.TrimSpace(response.EventKey),
 		StateDigest: strings.TrimSpace(response.StateDigest),
 	})
 }
@@ -53,6 +55,7 @@ func PendingOutputRef(response PollResponse) (string, error) {
 func ConfirmedOutputRef(response PollResponse) (string, error) {
 	return marshalOutputRef(OutputRef{
 		Kind:        outputKindConfirmed,
+		EventKey:    strings.TrimSpace(response.EventKey),
 		StateDigest: strings.TrimSpace(response.StateDigest),
 		Payload:     cloneRawMessage(response.Payload),
 		SettledAt:   response.SettledAt,

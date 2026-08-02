@@ -56,6 +56,82 @@ func TestLoopWatchEventsObserverShouldMatchAndWake(t *testing.T) {
 			t.Fatalf("wake_enqueued summaries = %d, want %d", got, want)
 		}
 	})
+
+	t.Run("Should resume an event wait without enqueueing a parallel wake", func(t *testing.T) {
+		t.Parallel()
+
+		fixedNow := time.Date(2026, 7, 8, 17, 5, 0, 0, time.UTC)
+		watchStore := newRecordingLoopWatchEventsStore()
+		subscription := watchEventsParkedSubscriptionForTest("")
+		subscription.NodeID = "wait_for_event"
+		subscription.Cursors[looppkg.WatchEventsTaskStream] = 41
+		subscription.Wait = &looppkg.ParkedNodeWaitEvent{ItemIndex: 2, AdmissionAttempts: 4}
+		watchStore.setWaits([]looppkg.ParkedWatchEventSubscription{subscription})
+		watchStore.setWaitResumeResult(looppkg.WaitResumeResult{
+			Won: true,
+			Coordinator: &taskpkg.Run{
+				ID: "coordinator-after-wait",
+			},
+		})
+		backstop := &recordingWatchEventsBackstop{}
+		observer := newLoopWatchEventsObserverForTest(t, watchStore, backstop, fixedNow)
+		event := looppkg.WatchEvent{
+			Kind: string(hookspkg.HookTaskStatusChanged), Seq: 42,
+			Stream: looppkg.WatchEventsTaskStream, At: fixedNow.Format(time.RFC3339Nano),
+			WorkspaceID: "ws-1", TaskID: "task-target", Payload: map[string]any{"to_status": "blocked"},
+		}
+
+		if err := observer.matchAndWake(t.Context(), event); err != nil {
+			t.Fatalf("matchAndWake(event wait) error = %v", err)
+		}
+		resumes := watchStore.snapshotWaitResumes()
+		if len(resumes) != 1 {
+			t.Fatalf("wait resume calls = %d, want 1", len(resumes))
+		}
+		resume := resumes[0]
+		if resume.RunID != "loop-run-1" || resume.NodeID != "wait_for_event" || resume.ItemIndex != 2 ||
+			resume.ClaimedByKind != "event" || resume.ClaimedByID != "task_events:42" ||
+			resume.AdmissionAttempts != 4 {
+			t.Fatalf("wait resume mutation = %#v, want durable event provenance", resume)
+		}
+		if len(watchStore.snapshotWakes()) != 0 || backstop.callCount() != 1 {
+			t.Fatalf("event wait side effects = %d wakes/%d backstops, want 0/1",
+				len(watchStore.snapshotWakes()), backstop.callCount())
+		}
+		if err := observer.matchAndWake(t.Context(), event); err != nil {
+			t.Fatalf("matchAndWake(after claim refresh) error = %v", err)
+		}
+		if len(watchStore.snapshotWaitResumes()) != 1 {
+			t.Fatalf("wait resume calls after refresh = %d, want unchanged 1", len(watchStore.snapshotWaitResumes()))
+		}
+	})
+
+	t.Run("Should ignore an event at the wait ahead cursor", func(t *testing.T) {
+		t.Parallel()
+
+		fixedNow := time.Date(2026, 7, 8, 17, 10, 0, 0, time.UTC)
+		watchStore := newRecordingLoopWatchEventsStore()
+		subscription := watchEventsParkedSubscriptionForTest("")
+		subscription.Wait = &looppkg.ParkedNodeWaitEvent{ItemIndex: 0, AdmissionAttempts: 3}
+		subscription.Cursors[looppkg.WatchEventsTaskStream] = 42
+		watchStore.setWaits([]looppkg.ParkedWatchEventSubscription{subscription})
+		observer := newLoopWatchEventsObserverForTest(
+			t,
+			watchStore,
+			&recordingWatchEventsBackstop{},
+			fixedNow,
+		)
+
+		if err := observer.matchAndWake(t.Context(), looppkg.WatchEvent{
+			Kind: string(hookspkg.HookTaskStatusChanged), Seq: 42,
+			Stream: looppkg.WatchEventsTaskStream, WorkspaceID: "ws-1", TaskID: "task-target",
+		}); err != nil {
+			t.Fatalf("matchAndWake(cursor-fenced event) error = %v", err)
+		}
+		if len(watchStore.snapshotWaitResumes()) != 0 {
+			t.Fatalf("wait resume calls = %d, want cursor-fenced event ignored", len(watchStore.snapshotWaitResumes()))
+		}
+	})
 }
 
 func TestLoopWatchEventsObserverShouldApplyDoorbellIsolation(t *testing.T) {
@@ -792,7 +868,11 @@ func watchEventsTaskStatusPayloadForTest(
 type recordingLoopWatchEventsStore struct {
 	mu              sync.Mutex
 	parked          []looppkg.ParkedWatchEventSubscription
+	waits           []looppkg.ParkedWatchEventSubscription
 	wakes           []recordingWatchEventsWake
+	waitResumes     []looppkg.WaitResumeMutation
+	waitResume      looppkg.WaitResumeResult
+	waitResumeErr   error
 	summaries       []store.EventSummary
 	wakeErr         error
 	seenKeys        map[string]struct{}
@@ -815,6 +895,18 @@ func (s *recordingLoopWatchEventsStore) setParked(entries []looppkg.ParkedWatchE
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.parked = cloneParkedWatchEventSubscriptionsForTest(entries)
+}
+
+func (s *recordingLoopWatchEventsStore) setWaits(entries []looppkg.ParkedWatchEventSubscription) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.waits = cloneParkedWatchEventSubscriptionsForTest(entries)
+}
+
+func (s *recordingLoopWatchEventsStore) setWaitResumeResult(result looppkg.WaitResumeResult) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.waitResume = result
 }
 
 func (s *recordingLoopWatchEventsStore) setWakeError(err error) {
@@ -846,6 +938,51 @@ func (s *recordingLoopWatchEventsStore) ListParkedWatchEventSubscriptionsForLoop
 		}
 	}
 	return cloneParkedWatchEventSubscriptionsForTest(entries), nil
+}
+
+func (s *recordingLoopWatchEventsStore) ListParkedLoopWaitEventSubscriptions(
+	context.Context,
+) ([]looppkg.ParkedWatchEventSubscription, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return cloneParkedWatchEventSubscriptionsForTest(s.waits), nil
+}
+
+func (s *recordingLoopWatchEventsStore) ListParkedLoopWaitEventSubscriptionsForLoopRun(
+	_ context.Context,
+	loopRunID string,
+) ([]looppkg.ParkedWatchEventSubscription, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	entries := make([]looppkg.ParkedWatchEventSubscription, 0)
+	for _, entry := range s.waits {
+		if entry.LoopRunID == loopRunID {
+			entries = append(entries, entry)
+		}
+	}
+	return cloneParkedWatchEventSubscriptionsForTest(entries), nil
+}
+
+func (s *recordingLoopWatchEventsStore) ResumeWait(
+	_ context.Context,
+	mutation looppkg.WaitResumeMutation,
+) (looppkg.WaitResumeResult, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.waitResumes = append(s.waitResumes, mutation)
+	if s.waitResume.Won {
+		kept := s.waits[:0]
+		for _, entry := range s.waits {
+			if entry.LoopRunID == string(mutation.RunID) && entry.NodeID == string(mutation.NodeID) &&
+				entry.Generation == mutation.Generation && entry.Wait != nil &&
+				entry.Wait.ItemIndex == mutation.ItemIndex {
+				continue
+			}
+			kept = append(kept, entry)
+		}
+		s.waits = kept
+	}
+	return s.waitResume, s.waitResumeErr
 }
 
 func (s *recordingLoopWatchEventsStore) snapshotListCalls() (int, int) {
@@ -893,6 +1030,12 @@ func (s *recordingLoopWatchEventsStore) snapshotWakes() []recordingWatchEventsWa
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return append([]recordingWatchEventsWake(nil), s.wakes...)
+}
+
+func (s *recordingLoopWatchEventsStore) snapshotWaitResumes() []looppkg.WaitResumeMutation {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]looppkg.WaitResumeMutation(nil), s.waitResumes...)
 }
 
 func (s *recordingLoopWatchEventsStore) snapshotSummaries() []store.EventSummary {

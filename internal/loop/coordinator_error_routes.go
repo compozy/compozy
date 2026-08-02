@@ -109,5 +109,6 @@ func allRouteDependenciesSkipped(
 func outputRefRepresentsAbsentValue(outputRef string) bool {
 	trimmed := strings.TrimSpace(outputRef)
 	return trimmed == branchSkippedOutputRef || trimmed == failureAbsorbedOutputRef ||
-		strings.HasPrefix(trimmed, errorRoutedOutputRefPrefix)
+		strings.HasPrefix(trimmed, errorRoutedOutputRefPrefix) ||
+		strings.HasPrefix(trimmed, waitExpiryRouteOutputRefPrefix)
 }

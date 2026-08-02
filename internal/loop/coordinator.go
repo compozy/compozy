@@ -212,6 +212,10 @@ func (r *CoordinatorRunner) Run(
 	if err != nil {
 		return task.CoordinatorCompletionPlan{}, err
 	}
+	plan, err = r.applyPausedNodeControls(ctx, loopRun, plan)
+	if err != nil {
+		return task.CoordinatorCompletionPlan{}, err
+	}
 	if err := attachCoordinatorEffectIntents(loopRun, resolved, &plan); err != nil {
 		return task.CoordinatorCompletionPlan{}, err
 	}
