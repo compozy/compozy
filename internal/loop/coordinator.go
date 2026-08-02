@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"math/rand"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/compozy/compozy/internal/loop/gate"
@@ -76,6 +77,11 @@ type NodeAttemptReader interface {
 	) ([]NodeAttempt, error)
 }
 
+// NodeControlReader reads cross-generation parked state for succession planning.
+type NodeControlReader interface {
+	ListNodeControls(context.Context, WorkspaceID, RunID) ([]NodeControl, error)
+}
+
 // GateDecisionReader reads persisted human decisions for coordinator gate re-evaluation.
 type GateDecisionReader interface {
 	ListLoopGateDecisions(
@@ -93,11 +99,14 @@ type CoordinatorRunner struct {
 	store              Store
 	outputs            GenerationOutputReader
 	attempts           NodeAttemptReader
+	controls           NodeControlReader
 	verdicts           gate.VerdictReader
 	hooks              HookDispatcher
 	gateEvaluator      gate.GateEvaluator
 	actionRegistry     *ActionRegistry
 	runtimeCatalog     WorkspaceRuntimeCatalog
+	targetHealth       TargetHealth
+	targetProbes       sync.Map
 	logger             *slog.Logger
 	now                func() time.Time
 	retryRand          func() float64
@@ -142,6 +151,9 @@ func NewCoordinatorRunner(
 	}
 	if attempts, ok := outputs.(NodeAttemptReader); ok {
 		runner.attempts = attempts
+	}
+	if controls, ok := loopStore.(NodeControlReader); ok {
+		runner.controls = controls
 	}
 	for _, opt := range opts {
 		opt(runner)
@@ -298,6 +310,15 @@ func (r *CoordinatorRunner) buildExistingGenerationPlan(
 	}
 	if len(outputs) == 0 {
 		return task.CoordinatorCompletionPlan{}, false, nil
+	}
+	if plan, pending, planErr := r.buildPendingRequeuePlan(
+		ctx,
+		taskRun,
+		run,
+		resolved.Definition.Graph,
+		outputs,
+	); pending || planErr != nil {
+		return plan, pending, planErr
 	}
 	plan, err := r.buildGenerationFinisherPlan(
 		ctx, taskRun, run, run.Generation, resolved, effective, fanOutWidth, outputs,

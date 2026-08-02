@@ -12,6 +12,7 @@ import (
 type generationFinisherState struct {
 	outputs         []GenerationOutput
 	attempts        []NodeAttempt
+	events          []GenerationLifecycleEventIntent
 	topology        controlTopology
 	controlTerminal *task.CoordinatorTerminal
 	loopStops       []task.CoordinatorStopSpec
@@ -36,6 +37,9 @@ func (r *CoordinatorRunner) buildGenerationFinisherPlan(
 	failed := selectFailedOutput(state.outputs)
 	plan := coordinatorFinisherPlan(run, generation, state.outputs, state.loopStops)
 	if err := appendAttemptsToGenerationSnapshot(&plan.Snapshot, state.attempts); err != nil {
+		return task.CoordinatorCompletionPlan{}, err
+	}
+	if err := appendLifecycleEventsToGenerationSnapshot(&plan.Snapshot, state.events); err != nil {
 		return task.CoordinatorCompletionPlan{}, err
 	}
 	if err := appendRetryScheduleIntents(&plan, state.outputs, state.attempts); err != nil {
@@ -97,14 +101,14 @@ func (r *CoordinatorRunner) prepareGenerationFinisherState(
 	if err != nil {
 		return generationFinisherState{}, err
 	}
-	normalized, attempts, lifecycleLive, err := r.applyNodeLifecyclePrecedence(
+	normalized, attempts, events, lifecycleLive, err := r.applyNodeLifecyclePrecedence(
 		ctx, run, generation, resolved, effective, normalized,
 	)
 	if err != nil {
 		return generationFinisherState{}, err
 	}
 	return generationFinisherState{
-		outputs: normalized, attempts: attempts, topology: topology,
+		outputs: normalized, attempts: attempts, events: events, topology: topology,
 		controlTerminal: controlTerminal, loopStops: loopStops, live: live || lifecycleLive,
 	}, nil
 }
@@ -310,7 +314,6 @@ func (r *CoordinatorRunner) finishLiveGenerationPlan(
 	gateEvaluations *gateEvaluationCollector,
 	history GenerationHistory,
 ) (task.CoordinatorCompletionPlan, error) {
-	graph := resolved.Definition.Graph
 	hasReadyRuns, err := appendReadyNodeRunsToPlan(
 		&plan,
 		run,
@@ -332,46 +335,10 @@ func (r *CoordinatorRunner) finishLiveGenerationPlan(
 		plan.Yield = true
 		return plan, nil
 	}
-	if causes := gateEvaluations.routeCauses(); routeActionForCauses(causes) != "" {
-		failed, ok := firstFailedGenerationOutput(advancedOutputs)
-		if !ok {
-			return task.CoordinatorCompletionPlan{}, fmt.Errorf(
-				"%w: route-causing gate did not produce a failed output",
-				ErrValidation,
-			)
-		}
-		return r.buildFailedGenerationPlan(
-			ctx,
-			taskRun,
-			run,
-			generation,
-			resolved.Definition,
-			effective,
-			plan,
-			advancedOutputs,
-			failed,
-			false,
-			plan.RunStops,
-			gateEvaluations,
-		)
-	}
-	if allGenerationOutputsSucceededControlAware(graph, topology, advancedOutputs) {
-		return r.finishSucceededGenerationPlan(
-			ctx,
-			taskRun,
-			run,
-			generation,
-			resolved,
-			effective,
-			topology,
-			gateEvaluator,
-			plan,
-			advancedOutputs,
-			history,
-		)
-	}
-	plan.Terminal = noReadyNodesTerminal()
-	return plan, nil
+	return r.finishIdleGenerationPlan(
+		ctx, taskRun, run, generation, resolved, effective, topology, gateEvaluator,
+		plan, advancedOutputs, gateEvaluations, history,
+	)
 }
 
 func appendReadyNodeRunsToPlan(
@@ -423,6 +390,22 @@ func appendAttemptsToGenerationSnapshot(
 		return err
 	}
 	payload.Attempts = append(payload.Attempts, attempts...)
+	snapshot.Payload = payload
+	return nil
+}
+
+func appendLifecycleEventsToGenerationSnapshot(
+	snapshot *task.GenerationSnapshot,
+	events []GenerationLifecycleEventIntent,
+) error {
+	if snapshot == nil || len(events) == 0 {
+		return nil
+	}
+	payload, err := GenerationSnapshotPayloadFrom(snapshot.Payload)
+	if err != nil {
+		return err
+	}
+	payload.Events = append(payload.Events, events...)
 	snapshot.Payload = payload
 	return nil
 }
