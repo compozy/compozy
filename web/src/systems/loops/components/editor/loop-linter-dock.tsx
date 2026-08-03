@@ -5,7 +5,7 @@ import { cn, Eyebrow, Spinner } from "@compozy/ui";
 
 import { withOccurrenceKeys } from "@/lib/occurrence-keys";
 
-import { isBlockingIssue, type LoopLintState } from "../../lib/loop-editor-lint";
+import { isBlockingIssue, lintDockCounters, type LoopLintState } from "../../lib/loop-editor-lint";
 import type { LoopValidationIssue } from "../../types";
 
 interface LoopLinterDockProps {
@@ -15,38 +15,23 @@ interface LoopLinterDockProps {
   onReveal: (nodeId: string) => void;
 }
 
+const CHIP_CLASS = "rounded-xs px-1.5 py-0.5 font-mono text-badge";
+
 /**
  * The linter dock (design §4.6): a collapsible panel pinned under the canvas showing the
  * shared linter's issues with their deterministic codes and a "Reveal node" jump. Blocking
  * errors render danger + "publish returns 422"; non-blocking warnings render warning-tinted
  * and never claim a 422 gate (daemon truth wins). Before the first verdict the dock shows a
  * neutral pending/failed state, never a claimed pass. The dock reports — it never computes.
+ *
+ * Counters are severity-split and zero counts are omitted.
  */
 export function LoopLinterDock({ lint, validateFailed, onReveal }: LoopLinterDockProps) {
   const [collapsed, setCollapsed] = useState(true);
-  const failed = !lint.validated && validateFailed;
-  const pending = !lint.validated && !validateFailed;
-  const clean = lint.validated && lint.issues.length === 0;
-  const errorCount = lint.errorCount;
-
-  const badgeTone = pending
-    ? "bg-badge-fill text-subtle"
-    : failed
-      ? "bg-danger-tint text-danger"
-      : errorCount > 0
-        ? "bg-danger-tint text-danger"
-        : clean
-          ? "bg-success-tint text-success"
-          : "bg-warning-tint text-warning";
-  const badgeText = pending
-    ? "checking…"
-    : failed
-      ? "unavailable"
-      : errorCount > 0
-        ? `${errorCount} issue${errorCount === 1 ? "" : "s"}`
-        : clean
-          ? "0 issues"
-          : `${lint.issues.length} warning${lint.issues.length === 1 ? "" : "s"}`;
+  const counters = lintDockCounters(lint, validateFailed);
+  const failed = counters.state === "unavailable";
+  const pending = counters.state === "pending";
+  const clean = counters.state === "clean";
 
   return (
     <div
@@ -61,12 +46,38 @@ export function LoopLinterDock({ lint, validateFailed, onReveal }: LoopLinterDoc
         data-testid="loop-linter-toggle"
       >
         <Eyebrow className="text-subtle">Validation</Eyebrow>
-        <span
-          className={cn("rounded-xs px-1.5 py-0.5 font-mono text-badge", badgeTone)}
-          data-testid="loop-linter-count"
-        >
-          {badgeText}
-        </span>
+        {pending ? (
+          <span
+            className={cn(CHIP_CLASS, "bg-badge-fill text-subtle")}
+            data-testid="loop-linter-count"
+          >
+            checking…
+          </span>
+        ) : null}
+        {failed ? (
+          <span
+            className={cn(CHIP_CLASS, "bg-danger-tint text-danger")}
+            data-testid="loop-linter-count"
+          >
+            unavailable
+          </span>
+        ) : null}
+        {counters.errors !== undefined ? (
+          <span
+            className={cn(CHIP_CLASS, "bg-danger-tint text-danger")}
+            data-testid="loop-linter-error-count"
+          >
+            {counters.errors} error{counters.errors === 1 ? "" : "s"}
+          </span>
+        ) : null}
+        {counters.warnings !== undefined ? (
+          <span
+            className={cn(CHIP_CLASS, "bg-warning-tint text-warning")}
+            data-testid="loop-linter-warning-count"
+          >
+            {counters.warnings} warning{counters.warnings === 1 ? "" : "s"}
+          </span>
+        ) : null}
         <ChevronDown
           aria-hidden="true"
           className={cn(

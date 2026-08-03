@@ -39,29 +39,31 @@ describe("LoopLinterDock", () => {
     expect(screen.getByTestId("loop-linter-count")).toHaveTextContent("unavailable");
   });
 
-  it("Should render a warning without a blocking 422 gate (truthful-UI)", () => {
+  it("WT-007: Should render a warning without a blocking 422 gate (truthful-UI)", () => {
     const lint = buildLintState({
       valid: true,
       errors: [
         {
-          node_id: "post",
-          code: "tool_missing_output_schema",
-          message: "no output schema",
+          node_id: "await_deploy_ack",
+          code: "wait_expiry_without_path",
+          message: "wait expiry has neither escalate effects nor route",
           severity: "warning",
         },
       ],
     });
     render(<LoopLinterDock lint={lint} validateFailed={false} onReveal={vi.fn()} />);
     expandDock();
-    // A warning-only verdict must NOT read as a red "0 issues" 422 gate.
-    expect(screen.getByTestId("loop-linter-count")).toHaveTextContent("1 warning");
+    // A warning-only verdict shows ONLY the warning chip — no error counter is invented, and
+    // nothing claims a 422 gate the daemon did not return.
+    expect(screen.getByTestId("loop-linter-warning-count")).toHaveTextContent("1 warning");
+    expect(screen.queryByTestId("loop-linter-error-count")).not.toBeInTheDocument();
     const row = screen.getByTestId("loop-linter-issue");
     expect(row).toHaveAttribute("data-severity", "warning");
     expect(within(row).getByText(/does not block Publish/i)).toBeInTheDocument();
     expect(within(row).queryByText(/returns 422/i)).not.toBeInTheDocument();
   });
 
-  it("Should render a blocking error with the 422 gate copy + reveal", () => {
+  it("WT-007: Should render a blocking error with the 422 gate copy + reveal", () => {
     const lint = buildLintState({
       valid: false,
       errors: [
@@ -76,10 +78,40 @@ describe("LoopLinterDock", () => {
     const onReveal = vi.fn();
     render(<LoopLinterDock lint={lint} validateFailed={false} onReveal={onReveal} />);
     expandDock();
-    expect(screen.getByTestId("loop-linter-count")).toHaveTextContent("1 issue");
+    expect(screen.getByTestId("loop-linter-error-count")).toHaveTextContent("1 error");
+    expect(screen.queryByTestId("loop-linter-warning-count")).not.toBeInTheDocument();
     const row = screen.getByTestId("loop-linter-issue");
     expect(row).toHaveAttribute("data-severity", "error");
     expect(within(row).getByText(/returns 422/i)).toBeInTheDocument();
+  });
+
+  it("WT-007: Should split the counters when a verdict carries both severities", () => {
+    const lint = buildLintState({
+      valid: false,
+      errors: [
+        { node_id: "implement", code: "fan_out_ceiling_exceeded", message: "", severity: "error" },
+        {
+          node_id: "await_deploy_ack",
+          code: "wait_expiry_without_path",
+          message: "",
+          severity: "warning",
+        },
+      ],
+    });
+    render(<LoopLinterDock lint={lint} validateFailed={false} onReveal={vi.fn()} />);
+    expect(screen.getByTestId("loop-linter-error-count")).toHaveTextContent("1 error");
+    expect(screen.getByTestId("loop-linter-warning-count")).toHaveTextContent("1 warning");
+  });
+
+  it("WT-007: Should render no counter at all for a clean verdict", () => {
+    const lint = buildLintState({ valid: true, errors: [] });
+    render(<LoopLinterDock lint={lint} validateFailed={false} onReveal={vi.fn()} />);
+    // A zero issue count renders NO counter — not "0 issues" (US-028 AC-4).
+    expect(screen.queryByTestId("loop-linter-count")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("loop-linter-error-count")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("loop-linter-warning-count")).not.toBeInTheDocument();
+    expandDock();
+    expect(screen.getByText(/All invariants pass/i)).toBeInTheDocument();
   });
 
   it("Should render duplicate daemon issues without React key collisions", () => {

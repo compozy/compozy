@@ -7,6 +7,7 @@ import {
   buildLintState,
   classifyInvariant,
   emptyLintState,
+  lintDockCounters,
 } from "../loop-editor-lint";
 import type { ValidateLoopResult } from "../../types";
 
@@ -107,6 +108,63 @@ describe("loop editor lint", () => {
     const marked = applyLintToNodes(nodes, state.byNode);
     expect(marked.find(node => node.id === "implement")?.data.hasError).toBe(true);
     expect(marked.find(node => node.id === "review")?.data.hasError).toBe(false);
+  });
+
+  it("WT-006: Should treat the Spec 1 lifecycle codes as blocking, except the expiry warning", () => {
+    const state = buildLintState({
+      valid: false,
+      errors: [
+        {
+          node_id: "execute_task",
+          code: "error_route_conflict",
+          message: "route and allow_fail are mutually exclusive",
+          severity: "error",
+        },
+        {
+          node_id: "execute_task",
+          code: "effect_shape_invalid",
+          message: "effect must declare exactly one valid emit or tool call",
+          severity: "error",
+        },
+        {
+          node_id: "await_deploy_ack",
+          code: "wait_expiry_without_path",
+          message: "expiry has neither escalate effects nor route",
+          severity: "warning",
+        },
+      ],
+    });
+    expect(state.errorCount).toBe(2);
+    expect(state.warningCount).toBe(1);
+    expect(state.hasBlockingErrors).toBe(true);
+  });
+
+  it("WT-007: Should omit a zero count entirely instead of reporting it", () => {
+    // A clean verdict carries NO counter — US-028 AC-4.
+    expect(lintDockCounters(buildLintState({ valid: true, errors: [] }), false)).toEqual({
+      state: "clean",
+    });
+    // A warning-only verdict reports only the warning; there is no zero error counter.
+    const warningOnly = buildLintState({
+      valid: true,
+      errors: [
+        { node_id: "w", code: "wait_expiry_without_path", message: "", severity: "warning" },
+      ],
+    });
+    expect(lintDockCounters(warningOnly, false)).toEqual({ state: "issues", warnings: 1 });
+    expect(warningOnly.hasBlockingErrors).toBe(false);
+    // An error-only verdict reports only the error, and blocks.
+    const errorOnly = buildLintState({
+      valid: false,
+      errors: [{ node_id: "n", code: "fan_out_ceiling_exceeded", message: "", severity: "error" }],
+    });
+    expect(lintDockCounters(errorOnly, false)).toEqual({ state: "issues", errors: 1 });
+    expect(errorOnly.hasBlockingErrors).toBe(true);
+  });
+
+  it("WT-007: Should keep the pre-verdict states out of the counter vocabulary", () => {
+    expect(lintDockCounters(emptyLintState(), false)).toEqual({ state: "pending" });
+    expect(lintDockCounters(emptyLintState(), true)).toEqual({ state: "unavailable" });
   });
 
   it("Should classify codes to invariants by family and return null when unattributable", () => {
